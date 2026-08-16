@@ -46,6 +46,7 @@ Pardo (2008) on plateau selection.
 """
 from __future__ import annotations
 
+import hashlib
 import itertools
 import json
 import math
@@ -54,7 +55,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from . import fundamental_panel as FP
+from ..edge import fundamental_panel as FP
 
 # --------------------------------------------------------------------------------------
 # Search space
@@ -730,7 +731,7 @@ def honest_search(panel, cols, base, axes=None, holdout_frac=0.2, n_groups=6, k_
     ok_sr = [x for x in sr_all if x is not None]
     sel_series = series_net[keys.index(best_key)]
     sel_series = sel_series[np.isfinite(sel_series)]
-    from .statistics import deflated_sharpe_ratio
+    from ..edge.statistics import deflated_sharpe_ratio
     dsr = deflated_sharpe_ratio(sel_series.tolist(), n_trials=n_trials,
                                 var_trials=(float(np.var(ok_sr, ddof=1)) if len(ok_sr) > 1 else None))
 
@@ -865,20 +866,128 @@ def honest_search(panel, cols, base, axes=None, holdout_frac=0.2, n_groups=6, k_
 # Panel cache — the panel build is the 20-40 minute part; the search itself is minutes
 # --------------------------------------------------------------------------------------
 
+#  MA47 — THE KEY USED `len(tickers)` FOR TICKER IDENTITY, WHICH IS THE B12 COLLISION AGAIN.
+#
+#  The old key was `f"{len(tickers)}_{rebalance_days}_{lookback_years}_{horizon}_{inst_lag_days}"`
+#  under a docstring promising it "covers everything that changes the panel, so a stale cache
+#  cannot silently be used for different settings". Three classes of difference were not in it:
+#
+#    * WHICH TICKERS. B12 is precisely this: the 800-name era took `sorted(keys)[:limit]` (an
+#      alphabetical A-C slice) where a later reader assumed the 800 largest. Both are 800 names,
+#      so both hash to the same `800_...` key and the second silently reads the first's panel.
+#      A count is not an identity, and this is the second time that has cost something here.
+#    * THE DATA VINTAGE. The Sharadar export is refreshed in place; the same tickers and the
+#      same parameters against a newer export are a different panel.
+#    * THREE PANEL-SHAPING ENV TOGGLES, each verified live in the tree rather than taken from
+#      the audit's list: `EDGE_EV_POINT_IN_TIME` (`config.py:187` — re-prices the EV equity leg,
+#      moving every EV-based value ratio a median 5.1%), `EDGE_GRID_OFFSET`
+#      (`fundamental_panel.py:1056` — X2's rebalance grid, which moved the long-short t 2.703 to
+#      3.517 across seven offsets), and `EDGE_AUDIT_B6_LEGACY_TRUNCATION` (`:1095` — restores the
+#      per-ticker tail that made the first third of the panel an inverted universe).
+#
+#  WHY A SIDECAR AND NOT A LONGER FILENAME. A hash in a filename tells you a cache missed; it
+#  cannot tell you WHY, and an opaque 16-hex name is unauditable by the person whose 40-minute
+#  build it just invalidated. The provenance is written beside the pickle in full, and the read
+#  path COMPARES it rather than trusting the name. That also fixes the failure direction: a
+#  legacy cache file has no sidecar, so it is REFUSED and rebuilt rather than silently reused.
+#
+#  THE DATA VINTAGE IS FINGERPRINTED, NOT ASSUMED, AND ITS LIMIT IS STATED. It is
+#  (name, size, mtime) over the provider's export directory — enough to catch a refreshed export,
+#  and NOT a content hash, so a byte-identical re-copy with a new mtime reads as a new vintage
+#  (a spurious rebuild, the safe direction). If the provider exposes no directory the vintage
+#  records `"unavailable"` and the cache still works on the other keys; it does not pretend to
+#  cover something it could not measure.
+#
+#  LATENT TODAY: `cached_panel` has ZERO in-tree callers (measured). It is the designated cache
+#  for the honest-search lane, and the docstring was a live false guarantee waiting for its
+#  first caller — which is exactly when a silent wrong-panel read would be least visible.
+
+def _data_vintage(provider) -> dict:
+    """Fingerprint the export the panel would be built from. See the note above for its limit."""
+    d = getattr(provider, "dir", None)
+    if not d or not os.path.isdir(d):
+        return {"vintage": "unavailable",
+                "why": "provider exposes no readable export directory"}
+    parts = []
+    for name in sorted(os.listdir(d)):
+        p = os.path.join(d, name)
+        if not os.path.isfile(p):
+            continue
+        st = os.stat(p)
+        parts.append(f"{name}:{st.st_size}:{int(st.st_mtime)}")
+    if not parts:
+        return {"vintage": "unavailable", "why": f"no files in {d}"}
+    h = hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:16]
+    return {"vintage": h, "n_files": len(parts)}
+
+
+def _panel_provenance(provider, tickers, rebalance_days, lookback_years, horizon,
+                      inst_lag_days) -> dict:
+    """Everything that changes the panel, in one comparable object."""
+    tick = sorted(str(t).upper() for t in tickers)
+    return {
+        "schema": 1,
+        "n_tickers": len(tick),
+        # sorted, so ticker ORDER does not spuriously miss; hashed, so ticker IDENTITY cannot
+        # collide the way a bare count does.
+        "tickers_sha256": hashlib.sha256("\n".join(tick).encode("utf-8")).hexdigest(),
+        "rebalance_days": int(rebalance_days),
+        "lookback_years": int(lookback_years),
+        "horizon": int(horizon),
+        "inst_lag_days": int(inst_lag_days),
+        "env": {k: os.environ.get(k, "") for k in
+                ("EDGE_EV_POINT_IN_TIME", "EDGE_GRID_OFFSET",
+                 "EDGE_AUDIT_B6_LEGACY_TRUNCATION")},
+        "data": _data_vintage(provider),
+    }
+
+
+def _provenance_key(prov: dict) -> str:
+    blob = json.dumps(prov, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
+
+
 def cached_panel(provider, tickers, cache_dir, rebalance_days=63, lookback_years=18, horizon=63,
                  inst_lag_days=45, refresh=False, progress=None):
-    """Build the point-in-time panel once and reuse it. The cache key covers everything that
-    changes the panel, so a stale cache cannot silently be used for different settings."""
+    """Build the point-in-time panel once and reuse it.
+
+    A cached panel is reused ONLY when a provenance sidecar sits beside it and matches the
+    current call exactly — ticker identity, the four parameters, the three panel-shaping env
+    toggles and the export's vintage fingerprint. Anything else rebuilds. See the block comment
+    above for what each component is and what the vintage fingerprint does not cover.
+    """
     log = progress or (lambda *a, **k: None)
-    key = f"{len(tickers)}_{rebalance_days}_{lookback_years}_{horizon}_{inst_lag_days}"
+    prov = _panel_provenance(provider, tickers, rebalance_days, lookback_years, horizon,
+                             inst_lag_days)
+    key = _provenance_key(prov)
     path = os.path.join(cache_dir, f"panel_cache_{key}.pkl")
+    meta_path = path[:-4] + ".meta.json"
+
     if os.path.exists(path) and not refresh:
-        try:
-            p = pd.read_pickle(path)
-            log(f"  reusing cached panel: {p['date'].nunique()} dates, {len(p):,} rows ({path})")
-            return p
-        except Exception:
-            pass
+        why = None
+        if not os.path.exists(meta_path):
+            why = "no provenance sidecar (legacy cache file) — refusing rather than guessing"
+        else:
+            try:
+                with open(meta_path, "r", encoding="utf-8") as fh:
+                    banked = json.load(fh)
+            except Exception as e:
+                banked, why = None, f"sidecar unreadable: {type(e).__name__}"
+            if why is None and banked != prov:
+                diff = sorted(k for k in set(banked) | set(prov)
+                              if banked.get(k) != prov.get(k))
+                why = f"provenance differs on {diff}"
+        if why is None:
+            try:
+                p = pd.read_pickle(path)
+                log(f"  reusing cached panel: {p['date'].nunique()} dates, {len(p):,} rows "
+                    f"({path})")
+                return p
+            except Exception as e:
+                log(f"  cached panel unreadable ({type(e).__name__}); rebuilding")
+        else:
+            log(f"  NOT reusing {path}: {why}")
+
     log("  building the point-in-time panel (this is the slow part) ...")
     p = FP.build_fundamental_panel(provider, tickers, rebalance_days=rebalance_days,
                                    lookback_years=lookback_years, horizon=horizon,
@@ -886,6 +995,11 @@ def cached_panel(provider, tickers, cache_dir, rebalance_days=63, lookback_years
     if not p.empty:
         os.makedirs(cache_dir, exist_ok=True)
         p.to_pickle(path)
+        # The sidecar is written AFTER the pickle, so an interrupted write leaves a pickle with
+        # no sidecar — which the read path refuses. The failure direction is "rebuild", never
+        # "reuse something we cannot vouch for".
+        with open(meta_path, "w", encoding="utf-8") as fh:
+            json.dump(prov, fh, sort_keys=True, indent=1)
         log(f"  cached panel -> {path}")
     return p
 

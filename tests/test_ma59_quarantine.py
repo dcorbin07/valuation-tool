@@ -36,6 +36,11 @@ import import_graph  # noqa: E402
 
 # Closed studies. Each is archived in place with a banner, per the B16 pattern:
 # the file stays, the study stays reproducible, and nothing live may reach it.
+# MA23 (same day, edge lane) moved six of these into `valuation/studies/`. The paths
+# are updated here rather than dropped, which is what this file's own
+# `test_every_named_module_still_exists` demands: "A renamed file must not silently
+# empty either list." The quarantine is unchanged -- these are still closed studies,
+# still archived in place with their banners, still unreachable from the live product.
 ARCHIVED = (
     "valuation/edge/options_tail.py",
     "valuation/edge/options_exitreplay.py",
@@ -43,16 +48,16 @@ ARCHIVED = (
     "valuation/edge/tickflow.py",
     "valuation/edge/tickflow_signals.py",
     "valuation/edge/surface_xsec.py",
-    "valuation/edge/kelly.py",
+    "valuation/studies/kelly.py",
     "valuation/edge/dividends.py",
-    "valuation/edge/convex_overlay.py",
-    "valuation/edge/bucket_floor.py",
+    "valuation/studies/convex_overlay.py",
+    "valuation/studies/bucket_floor.py",
     "valuation/edge/antisignal.py",
-    "valuation/edge/earnings_surface.py",
-    "valuation/edge/surface_stock.py",
+    "valuation/studies/earnings_surface.py",
+    "valuation/studies/surface_stock.py",
     "valuation/edge/options_vrp.py",
     "valuation/edge/options_vrp_portfolio.py",
-    "valuation/edge/ev_multiples_study.py",
+    "valuation/studies/ev_multiples_study.py",
     # B16's quarantined exit rule. Unreachable IS its contract, not a finding.
     "valuation/edge/deprecated_options_exit.py",
 )

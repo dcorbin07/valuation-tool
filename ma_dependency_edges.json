@@ -524,8 +524,8 @@
    "files": [
     "BACKTEST_RESULTS.json",
     "scripts/build_ledger.py",
-    "valuation/edge/live_replay.py",
-    "valuation/edge/research_log.py"
+    "valuation/edge/research_log.py",
+    "valuation/studies/live_replay.py"
    ],
    "wave": 2,
    "wave_reason": "unblocked, zero trial cost",
@@ -566,18 +566,18 @@
     "pipeline"
    ],
    "files": [
-    "valuation/edge/bucket_floor.py",
-    "valuation/edge/convex_overlay.py",
-    "valuation/edge/earnings_surface.py",
-    "valuation/edge/ev_multiples_study.py",
-    "valuation/edge/kelly.py",
-    "valuation/edge/live_replay.py",
-    "valuation/edge/loo_holdout.py",
-    "valuation/edge/ml_combiner.py",
-    "valuation/edge/param_search.py",
-    "valuation/edge/portfolio_capacity.py",
-    "valuation/edge/surface_stock.py",
-    "valuation/research/lazy_prices_ic.py"
+    "valuation/studies/bucket_floor.py",
+    "valuation/studies/convex_overlay.py",
+    "valuation/studies/earnings_surface.py",
+    "valuation/studies/ev_multiples_study.py",
+    "valuation/studies/kelly.py",
+    "valuation/studies/lazy_prices_ic.py",
+    "valuation/studies/live_replay.py",
+    "valuation/studies/loo_holdout.py",
+    "valuation/studies/ml_combiner.py",
+    "valuation/studies/param_search.py",
+    "valuation/studies/portfolio_capacity.py",
+    "valuation/studies/surface_stock.py"
    ],
    "wave": 2,
    "wave_reason": "unblocked, zero trial cost",
@@ -597,7 +597,7 @@
    ],
    "files": [
     "valuation/edge/fundamental_panel.py",
-    "valuation/research/lazy_prices_ic.py"
+    "valuation/studies/lazy_prices_ic.py"
    ],
    "wave": 3,
    "wave_reason": "charges trials - needs a register first",
@@ -746,7 +746,7 @@
    ],
    "files": [
     "data/options",
-    "valuation/edge/surface_stock.py"
+    "valuation/studies/surface_stock.py"
    ],
    "wave": 3,
    "wave_reason": "charges trials - needs a register first",
@@ -788,7 +788,7 @@
    "files": [
     "valuation/edge/fundamental_panel.py",
     "valuation/research/lazy_prices.py",
-    "valuation/research/lazy_prices_ic.py"
+    "valuation/studies/lazy_prices_ic.py"
    ],
    "wave": 3,
    "wave_reason": "charges trials - needs a register first",
@@ -1097,7 +1097,7 @@
     "pipeline"
    ],
    "files": [
-    "valuation/edge/param_search.py"
+    "valuation/studies/param_search.py"
    ],
    "wave": 2,
    "wave_reason": "unblocked, zero trial cost",
@@ -1139,8 +1139,8 @@
     "scripts/factor_alpha.py",
     "scripts/fetch_factors.py",
     "scripts/x7_reconcile.py",
-    "valuation/edge/param_search.py",
-    "valuation/edge/statistics.py"
+    "valuation/edge/statistics.py",
+    "valuation/studies/param_search.py"
    ],
    "wave": 3,
    "wave_reason": "speculative or low severity",
@@ -1347,11 +1347,11 @@
     "WHERE_WE_STAND.md",
     "options-bot/",
     "valuation/config.py",
-    "valuation/edge/ev_multiples_study.py",
     "valuation/edge/options_exitreplay.py",
     "valuation/edge/options_tail.py",
     "valuation/edge/options_xsection.py",
-    "valuation/screener/cross_sectional.py"
+    "valuation/screener/cross_sectional.py",
+    "valuation/studies/ev_multiples_study.py"
    ],
    "wave": 2,
    "wave_reason": "unblocked, zero trial cost",
@@ -1552,6 +1552,14 @@
   },
   {
    "a": "MA1",
+   "b": "MA4",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/screener/index_mark.py"
+   ]
+  },
+  {
+   "a": "MA1",
    "b": "MA7",
    "kind": "hard-file",
    "files": [
@@ -1612,7 +1620,9 @@
    "b": "MA19",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py"
+    "valuation/config.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/screener/screen.py <-> valuation/edge/fundamental_panel.py"
    ]
   },
   {
@@ -1625,10 +1635,28 @@
   },
   {
    "a": "MA1",
+   "b": "MA21",
+   "kind": "soft-import",
+   "files": [
+    "valuation/config.py <-> valuation/studies/live_replay.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA23",
+   "kind": "soft-import",
+   "files": [
+    "valuation/config.py <-> valuation/studies/live_replay.py"
+   ]
+  },
+  {
+   "a": "MA1",
    "b": "MA24",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py"
+    "valuation/config.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/screener/screen.py <-> valuation/edge/fundamental_panel.py"
    ]
   },
   {
@@ -1636,7 +1664,9 @@
    "b": "MA25",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py"
+    "valuation/config.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/screener/screen.py <-> valuation/edge/fundamental_panel.py"
    ]
   },
   {
@@ -1644,7 +1674,9 @@
    "b": "MA26",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py"
+    "valuation/config.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/screener/screen.py <-> valuation/edge/fundamental_panel.py"
    ]
   },
   {
@@ -1652,7 +1684,9 @@
    "b": "MA27",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py"
+    "valuation/config.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/screener/screen.py <-> valuation/edge/fundamental_panel.py"
    ]
   },
   {
@@ -1668,7 +1702,11 @@
    "b": "MA30",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py"
+    "valuation/config.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/edge/track_meter.py <-> valuation/screener/index_track.py",
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/saas/app_saas.py <-> valuation/screener/index_track.py",
+    "valuation/screener/screen.py <-> valuation/edge/fundamental_panel.py"
    ]
   },
   {
@@ -1676,7 +1714,10 @@
    "b": "MA33",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py"
+    "valuation/config.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/config.py <-> valuation/research/lazy_prices.py",
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/screener/screen.py <-> valuation/edge/fundamental_panel.py"
    ]
   },
   {
@@ -1689,10 +1730,30 @@
   },
   {
    "a": "MA1",
+   "b": "MA36",
+   "kind": "soft-import",
+   "files": [
+    "valuation/config.py <-> valuation/edge/paper_track.py",
+    "valuation/edge/track_meter.py <-> valuation/edge/paper_track.py",
+    "valuation/saas/app_saas.py <-> valuation/edge/paper_track.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA37",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/options_tracker.py"
+   ]
+  },
+  {
+   "a": "MA1",
    "b": "MA39",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py"
+    "valuation/config.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/screener/screen.py <-> valuation/edge/fundamental_panel.py"
    ]
   },
   {
@@ -1700,7 +1761,17 @@
    "b": "MA40",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py"
+    "valuation/config.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/screener/screen.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA41",
+   "kind": "soft-import",
+   "files": [
+    "valuation/config.py <-> valuation/edge/lab.py"
    ]
   },
   {
@@ -1713,10 +1784,31 @@
   },
   {
    "a": "MA1",
+   "b": "MA44",
+   "kind": "soft-import",
+   "files": [
+    "valuation/config.py <-> valuation/intraday/providers.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA46",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/options_tracker.py"
+   ]
+  },
+  {
+   "a": "MA1",
    "b": "MA50",
    "kind": "soft-import",
    "files": [
-    "valuation/saas/app_saas.py <-> valuation/screener/store.py"
+    "valuation/config.py <-> valuation/web/app.py",
+    "valuation/edge/track_meter.py <-> valuation/web/app.py",
+    "valuation/saas/app_saas.py <-> valuation/screener/store.py",
+    "valuation/saas/app_saas.py <-> valuation/web/app.py",
+    "valuation/screener/screen.py <-> valuation/screener/store.py",
+    "valuation/screener/screen.py <-> valuation/web/app.py"
    ]
   },
   {
@@ -1725,6 +1817,26 @@
    "kind": "soft-import",
    "files": [
     "valuation/saas/app_saas.py <-> valuation/saas/auth.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA53",
+   "kind": "soft-import",
+   "files": [
+    "valuation/config.py <-> valuation/web/app.py",
+    "valuation/edge/track_meter.py <-> valuation/web/app.py",
+    "valuation/saas/app_saas.py <-> valuation/web/app.py",
+    "valuation/screener/screen.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA57",
+   "kind": "soft-import",
+   "files": [
+    "valuation/config.py <-> valuation/edge/data_providers.py",
+    "valuation/saas/app_saas.py <-> valuation/edge/data_providers.py"
    ]
   },
   {
@@ -1757,6 +1869,33 @@
    "kind": "soft-import",
    "files": [
     "valuation/edge/fundamental_panel.py <-> valuation/edge/research_log.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA7",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/autolearn.py <-> valuation/saas/app_saas.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/saas/app_saas.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA9",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/autolearn.py <-> valuation/saas/app_saas.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/saas/app_saas.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA10",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/autolearn.py <-> valuation/saas/app_saas.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/saas/app_saas.py"
    ]
   },
   {
@@ -1796,7 +1935,11 @@
    "b": "MA23",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ev_multiples_study.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/lazy_prices_ic.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/loo_holdout.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ml_combiner.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -1829,6 +1972,14 @@
    "kind": "hard-file",
    "files": [
     "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA29",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/screen.py"
    ]
   },
   {
@@ -1868,7 +2019,8 @@
    "b": "MA41",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
+    "valuation/backtest/optimize.py <-> valuation/edge/lab.py",
+    "valuation/backtest/optimize.py <-> valuation/edge/walkforward.py"
    ]
   },
   {
@@ -1884,7 +2036,7 @@
    "b": "MA47",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -1892,8 +2044,16 @@
    "b": "MA49",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA57",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/data_providers.py"
    ]
   },
   {
@@ -1901,7 +2061,18 @@
    "b": "MA59",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+    "valuation/backtest/optimize.py <-> valuation/screener/cross_sectional.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/config.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ev_multiples_study.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA4",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/screener/index_mark.py"
    ]
   },
   {
@@ -1970,6 +2141,14 @@
   },
   {
    "a": "MA3",
+   "b": "MA18",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/screener/index_mark.py"
+   ]
+  },
+  {
+   "a": "MA3",
    "b": "MA19",
    "kind": "hard-file",
    "files": [
@@ -1989,7 +2168,11 @@
    "b": "MA23",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ev_multiples_study.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/lazy_prices_ic.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/loo_holdout.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ml_combiner.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -2026,6 +2209,14 @@
   },
   {
    "a": "MA3",
+   "b": "MA29",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/screen.py"
+   ]
+  },
+  {
+   "a": "MA3",
    "b": "MA30",
    "kind": "hard-file",
    "files": [
@@ -2038,6 +2229,22 @@
    "kind": "hard-file",
    "files": [
     "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA36",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/paper_track.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA37",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/options_tracker.py"
    ]
   },
   {
@@ -2058,14 +2265,6 @@
   },
   {
    "a": "MA3",
-   "b": "MA41",
-   "kind": "soft-import",
-   "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
-   ]
-  },
-  {
-   "a": "MA3",
    "b": "MA43",
    "kind": "soft-import",
    "files": [
@@ -2074,10 +2273,18 @@
   },
   {
    "a": "MA3",
+   "b": "MA46",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/options_tracker.py"
+   ]
+  },
+  {
+   "a": "MA3",
    "b": "MA47",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -2085,8 +2292,8 @@
    "b": "MA49",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -2094,7 +2301,8 @@
    "b": "MA50",
    "kind": "soft-import",
    "files": [
-    "valuation/saas/app_saas.py <-> valuation/screener/store.py"
+    "valuation/saas/app_saas.py <-> valuation/screener/store.py",
+    "valuation/saas/app_saas.py <-> valuation/web/app.py"
    ]
   },
   {
@@ -2107,10 +2315,54 @@
   },
   {
    "a": "MA3",
+   "b": "MA53",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA57",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/data_providers.py",
+    "valuation/saas/app_saas.py <-> valuation/edge/data_providers.py"
+   ]
+  },
+  {
+   "a": "MA3",
    "b": "MA59",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/config.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ev_multiples_study.py",
+    "valuation/saas/app_saas.py <-> valuation/config.py"
+   ]
+  },
+  {
+   "a": "MA4",
+   "b": "MA7",
+   "kind": "soft-import",
+   "files": [
+    "valuation/screener/index_mark.py <-> valuation/saas/app_saas.py"
+   ]
+  },
+  {
+   "a": "MA4",
+   "b": "MA9",
+   "kind": "soft-import",
+   "files": [
+    "valuation/screener/index_mark.py <-> valuation/saas/app_saas.py"
+   ]
+  },
+  {
+   "a": "MA4",
+   "b": "MA10",
+   "kind": "soft-import",
+   "files": [
+    "valuation/screener/index_mark.py <-> valuation/saas/app_saas.py"
    ]
   },
   {
@@ -2119,6 +2371,14 @@
    "kind": "hard-file",
    "files": [
     "valuation/screener/index_mark.py"
+   ]
+  },
+  {
+   "a": "MA4",
+   "b": "MA30",
+   "kind": "soft-import",
+   "files": [
+    "valuation/screener/index_mark.py <-> valuation/screener/index_track.py"
    ]
   },
   {
@@ -2147,6 +2407,14 @@
   },
   {
    "a": "MA5",
+   "b": "MA23",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/statistics.py <-> valuation/studies/param_search.py"
+   ]
+  },
+  {
+   "a": "MA5",
    "b": "MA24",
    "kind": "soft-import",
    "files": [
@@ -2207,6 +2475,30 @@
    "kind": "soft-import",
    "files": [
     "valuation/edge/statistics.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA5",
+   "b": "MA41",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/statistics.py <-> valuation/edge/lab.py"
+   ]
+  },
+  {
+   "a": "MA5",
+   "b": "MA43",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/statistics.py <-> valuation/edge/ablation.py"
+   ]
+  },
+  {
+   "a": "MA5",
+   "b": "MA47",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/statistics.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -2357,10 +2649,69 @@
   },
   {
    "a": "MA7",
+   "b": "MA14",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/web/app.py <-> valuation/screener/screen.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA18",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/screener/index_mark.py",
+    "valuation/web/app.py <-> valuation/edge/track_meter.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA19",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA24",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA25",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA7",
    "b": "MA26",
    "kind": "soft-import",
    "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py",
     "valuation/web/app.py <-> valuation/web/withhold.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA27",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA28",
+   "kind": "soft-import",
+   "files": [
+    "valuation/web/app.py <-> valuation/web/dip_posture.py"
    ]
   },
   {
@@ -2368,7 +2719,94 @@
    "b": "MA29",
    "kind": "soft-import",
    "files": [
+    "valuation/web/app.py <-> valuation/screener/screen.py",
     "valuation/web/app.py <-> valuation/web/withhold.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA30",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/saas/app_saas.py <-> valuation/screener/index_track.py",
+    "valuation/web/app.py <-> valuation/screener/index_track.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA33",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA34",
+   "kind": "soft-import",
+   "files": [
+    "valuation/web/app.py <-> valuation/edge/track_meter.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA36",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/paper_track.py",
+    "valuation/web/app.py <-> valuation/edge/paper_track.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA37",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/options_tracker.py",
+    "valuation/web/app.py <-> valuation/edge/options_paper.py",
+    "valuation/web/app.py <-> valuation/edge/options_tracker.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA39",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA40",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA41",
+   "kind": "soft-import",
+   "files": [
+    "valuation/web/app.py <-> valuation/edge/lab.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA44",
+   "kind": "soft-import",
+   "files": [
+    "valuation/web/app.py <-> valuation/intraday/providers.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA46",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/options_tracker.py",
+    "valuation/web/app.py <-> valuation/edge/options_tracker.py"
    ]
   },
   {
@@ -2384,7 +2822,8 @@
    "b": "MA51",
    "kind": "soft-import",
    "files": [
-    "valuation/saas/app_saas.py <-> valuation/saas/auth.py"
+    "valuation/saas/app_saas.py <-> valuation/saas/auth.py",
+    "valuation/saas/ratelimit.py <-> valuation/saas/auth.py"
    ]
   },
   {
@@ -2393,6 +2832,31 @@
    "kind": "hard-file",
    "files": [
     "valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA55",
+   "kind": "soft-import",
+   "files": [
+    "valuation/web/app.py <-> valuation/screener/fairvalue.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA57",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/data_providers.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/config.py",
+    "valuation/web/app.py <-> valuation/config.py"
    ]
   },
   {
@@ -2413,18 +2877,10 @@
   },
   {
    "a": "MA8",
-   "b": "MA50",
+   "b": "MA51",
    "kind": "soft-import",
    "files": [
-    "valuation/saas/ratelimit.py <-> valuation/web/app.py"
-   ]
-  },
-  {
-   "a": "MA8",
-   "b": "MA53",
-   "kind": "soft-import",
-   "files": [
-    "valuation/saas/ratelimit.py <-> valuation/web/app.py"
+    "valuation/saas/ratelimit.py <-> valuation/saas/auth.py"
    ]
   },
   {
@@ -2438,10 +2894,124 @@
   },
   {
    "a": "MA9",
+   "b": "MA14",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA18",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/screener/index_mark.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA19",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA24",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA25",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA26",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA27",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA30",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/saas/app_saas.py <-> valuation/screener/index_track.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA33",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA36",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/paper_track.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA37",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/options_tracker.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA39",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA40",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA46",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/options_tracker.py"
+   ]
+  },
+  {
+   "a": "MA9",
    "b": "MA50",
    "kind": "soft-import",
    "files": [
-    "valuation/saas/app_saas.py <-> valuation/screener/store.py"
+    "valuation/saas/app_saas.py <-> valuation/screener/store.py",
+    "valuation/saas/app_saas.py <-> valuation/web/app.py"
    ]
   },
   {
@@ -2450,6 +3020,30 @@
    "kind": "soft-import",
    "files": [
     "valuation/saas/app_saas.py <-> valuation/saas/auth.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA53",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA57",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/data_providers.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/config.py"
    ]
   },
   {
@@ -2462,6 +3056,30 @@
   },
   {
    "a": "MA10",
+   "b": "MA14",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA18",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/screener/index_mark.py"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA19",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA10",
    "b": "MA20",
    "kind": "hard-file",
    "files": [
@@ -2470,10 +3088,100 @@
   },
   {
    "a": "MA10",
+   "b": "MA24",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA25",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA26",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA27",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA30",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/saas/app_saas.py <-> valuation/screener/index_track.py"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA33",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA36",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/paper_track.py"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA37",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/options_tracker.py"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA39",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA40",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA46",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/options_tracker.py"
+   ]
+  },
+  {
+   "a": "MA10",
    "b": "MA50",
    "kind": "soft-import",
    "files": [
-    "valuation/saas/app_saas.py <-> valuation/screener/store.py"
+    "valuation/saas/app_saas.py <-> valuation/screener/store.py",
+    "valuation/saas/app_saas.py <-> valuation/web/app.py"
    ]
   },
   {
@@ -2482,6 +3190,30 @@
    "kind": "soft-import",
    "files": [
     "valuation/saas/app_saas.py <-> valuation/saas/auth.py"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA53",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA57",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/edge/data_providers.py"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/config.py"
    ]
   },
   {
@@ -2641,7 +3373,11 @@
    "b": "MA23",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ev_multiples_study.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/lazy_prices_ic.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/loo_holdout.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ml_combiner.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -2718,14 +3454,6 @@
   },
   {
    "a": "MA14",
-   "b": "MA41",
-   "kind": "soft-import",
-   "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
-   ]
-  },
-  {
-   "a": "MA14",
    "b": "MA43",
    "kind": "soft-import",
    "files": [
@@ -2737,7 +3465,7 @@
    "b": "MA47",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -2745,8 +3473,33 @@
    "b": "MA49",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA50",
+   "kind": "soft-import",
+   "files": [
+    "valuation/screener/screen.py <-> valuation/screener/store.py",
+    "valuation/screener/screen.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA53",
+   "kind": "soft-import",
+   "files": [
+    "valuation/screener/screen.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA57",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/data_providers.py"
    ]
   },
   {
@@ -2754,7 +3507,9 @@
    "b": "MA59",
    "kind": "soft-import",
    "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/config.py",
     "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ev_multiples_study.py",
     "valuation/screener/screen.py <-> valuation/config.py",
     "valuation/screener/screen.py <-> valuation/screener/cross_sectional.py"
    ]
@@ -2785,6 +3540,15 @@
   },
   {
    "a": "MA18",
+   "b": "MA30",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/track_meter.py <-> valuation/screener/index_track.py",
+    "valuation/screener/index_mark.py <-> valuation/screener/index_track.py"
+   ]
+  },
+  {
+   "a": "MA18",
    "b": "MA34",
    "kind": "hard-file",
    "files": [
@@ -2794,10 +3558,34 @@
   },
   {
    "a": "MA18",
+   "b": "MA36",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/track_meter.py <-> valuation/edge/paper_track.py"
+   ]
+  },
+  {
+   "a": "MA18",
    "b": "MA42",
    "kind": "soft-import",
    "files": [
     "valuation/edge/track_meter.py <-> valuation/edge/shadow_vintage.py"
+   ]
+  },
+  {
+   "a": "MA18",
+   "b": "MA50",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/track_meter.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA18",
+   "b": "MA53",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/track_meter.py <-> valuation/web/app.py"
    ]
   },
   {
@@ -2813,7 +3601,11 @@
    "b": "MA23",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ev_multiples_study.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/lazy_prices_ic.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/loo_holdout.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ml_combiner.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -2850,6 +3642,14 @@
   },
   {
    "a": "MA19",
+   "b": "MA29",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/screen.py"
+   ]
+  },
+  {
+   "a": "MA19",
    "b": "MA30",
    "kind": "hard-file",
    "files": [
@@ -2878,14 +3678,6 @@
    "kind": "hard-file",
    "files": [
     "valuation/edge/fundamental_panel.py"
-   ]
-  },
-  {
-   "a": "MA19",
-   "b": "MA41",
-   "kind": "soft-import",
-   "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
    ]
   },
   {
@@ -2901,7 +3693,7 @@
    "b": "MA47",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -2914,10 +3706,20 @@
   },
   {
    "a": "MA19",
+   "b": "MA57",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/data_providers.py"
+   ]
+  },
+  {
+   "a": "MA19",
    "b": "MA59",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/config.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ev_multiples_study.py"
    ]
   },
   {
@@ -2925,7 +3727,7 @@
    "b": "MA23",
    "kind": "hard-file",
    "files": [
-    "valuation/edge/live_replay.py"
+    "valuation/studies/live_replay.py"
    ]
   },
   {
@@ -2990,6 +3792,15 @@
    "kind": "soft-import",
    "files": [
     "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA21",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/studies/live_replay.py <-> valuation/config.py",
+    "valuation/studies/live_replay.py <-> valuation/screener/cross_sectional.py"
    ]
   },
   {
@@ -3005,7 +3816,7 @@
    "b": "MA24",
    "kind": "hard-file",
    "files": [
-    "valuation/research/lazy_prices_ic.py"
+    "valuation/studies/lazy_prices_ic.py"
    ]
   },
   {
@@ -3013,7 +3824,11 @@
    "b": "MA25",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/param_search.py <-> valuation/edge/fundamental_panel.py"
+    "valuation/studies/ev_multiples_study.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/lazy_prices_ic.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/loo_holdout.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/ml_combiner.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/param_search.py <-> valuation/edge/fundamental_panel.py"
    ]
   },
   {
@@ -3021,7 +3836,11 @@
    "b": "MA26",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/param_search.py <-> valuation/edge/fundamental_panel.py"
+    "valuation/studies/ev_multiples_study.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/lazy_prices_ic.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/loo_holdout.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/ml_combiner.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/param_search.py <-> valuation/edge/fundamental_panel.py"
    ]
   },
   {
@@ -3029,7 +3848,11 @@
    "b": "MA27",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/param_search.py <-> valuation/edge/fundamental_panel.py"
+    "valuation/studies/ev_multiples_study.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/lazy_prices_ic.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/loo_holdout.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/ml_combiner.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/param_search.py <-> valuation/edge/fundamental_panel.py"
    ]
   },
   {
@@ -3037,7 +3860,11 @@
    "b": "MA30",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/param_search.py <-> valuation/edge/fundamental_panel.py"
+    "valuation/studies/ev_multiples_study.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/lazy_prices_ic.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/loo_holdout.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/ml_combiner.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/param_search.py <-> valuation/edge/fundamental_panel.py"
    ]
   },
   {
@@ -3045,7 +3872,7 @@
    "b": "MA31",
    "kind": "hard-file",
    "files": [
-    "valuation/edge/surface_stock.py"
+    "valuation/studies/surface_stock.py"
    ]
   },
   {
@@ -3053,7 +3880,7 @@
    "b": "MA33",
    "kind": "hard-file",
    "files": [
-    "valuation/research/lazy_prices_ic.py"
+    "valuation/studies/lazy_prices_ic.py"
    ]
   },
   {
@@ -3061,7 +3888,11 @@
    "b": "MA39",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/param_search.py <-> valuation/edge/fundamental_panel.py"
+    "valuation/studies/ev_multiples_study.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/lazy_prices_ic.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/loo_holdout.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/ml_combiner.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/param_search.py <-> valuation/edge/fundamental_panel.py"
    ]
   },
   {
@@ -3069,7 +3900,11 @@
    "b": "MA40",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/param_search.py <-> valuation/edge/fundamental_panel.py"
+    "valuation/studies/ev_multiples_study.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/lazy_prices_ic.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/loo_holdout.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/ml_combiner.py <-> valuation/edge/fundamental_panel.py",
+    "valuation/studies/param_search.py <-> valuation/edge/fundamental_panel.py"
    ]
   },
   {
@@ -3077,7 +3912,7 @@
    "b": "MA47",
    "kind": "hard-file",
    "files": [
-    "valuation/edge/param_search.py"
+    "valuation/studies/param_search.py"
    ]
   },
   {
@@ -3085,7 +3920,15 @@
    "b": "MA49",
    "kind": "hard-file",
    "files": [
-    "valuation/edge/param_search.py"
+    "valuation/studies/param_search.py"
+   ]
+  },
+  {
+   "a": "MA23",
+   "b": "MA57",
+   "kind": "soft-import",
+   "files": [
+    "valuation/studies/lazy_prices_ic.py <-> valuation/edge/data_providers.py"
    ]
   },
   {
@@ -3093,7 +3936,7 @@
    "b": "MA59",
    "kind": "hard-file",
    "files": [
-    "valuation/edge/ev_multiples_study.py"
+    "valuation/studies/ev_multiples_study.py"
    ]
   },
   {
@@ -3118,6 +3961,14 @@
    "kind": "hard-file",
    "files": [
     "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA24",
+   "b": "MA29",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/screen.py"
    ]
   },
   {
@@ -3134,7 +3985,7 @@
    "kind": "hard-file",
    "files": [
     "valuation/edge/fundamental_panel.py",
-    "valuation/research/lazy_prices_ic.py"
+    "valuation/studies/lazy_prices_ic.py"
    ]
   },
   {
@@ -3155,14 +4006,6 @@
   },
   {
    "a": "MA24",
-   "b": "MA41",
-   "kind": "soft-import",
-   "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
-   ]
-  },
-  {
-   "a": "MA24",
    "b": "MA43",
    "kind": "soft-import",
    "files": [
@@ -3174,7 +4017,7 @@
    "b": "MA47",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -3182,8 +4025,17 @@
    "b": "MA49",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
+   ]
+  },
+  {
+   "a": "MA24",
+   "b": "MA57",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/data_providers.py",
+    "valuation/studies/lazy_prices_ic.py <-> valuation/edge/data_providers.py"
    ]
   },
   {
@@ -3191,7 +4043,9 @@
    "b": "MA59",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/config.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ev_multiples_study.py"
    ]
   },
   {
@@ -3208,6 +4062,14 @@
    "kind": "hard-file",
    "files": [
     "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA25",
+   "b": "MA29",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/screen.py"
    ]
   },
   {
@@ -3244,14 +4106,6 @@
   },
   {
    "a": "MA25",
-   "b": "MA41",
-   "kind": "soft-import",
-   "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
-   ]
-  },
-  {
-   "a": "MA25",
    "b": "MA43",
    "kind": "soft-import",
    "files": [
@@ -3263,7 +4117,7 @@
    "b": "MA47",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -3271,8 +4125,16 @@
    "b": "MA49",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
+   ]
+  },
+  {
+   "a": "MA25",
+   "b": "MA57",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/data_providers.py"
    ]
   },
   {
@@ -3280,7 +4142,9 @@
    "b": "MA59",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/config.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ev_multiples_study.py"
    ]
   },
   {
@@ -3341,14 +4205,6 @@
   },
   {
    "a": "MA26",
-   "b": "MA41",
-   "kind": "soft-import",
-   "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
-   ]
-  },
-  {
-   "a": "MA26",
    "b": "MA43",
    "kind": "soft-import",
    "files": [
@@ -3360,7 +4216,7 @@
    "b": "MA47",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -3368,8 +4224,8 @@
    "b": "MA49",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -3390,10 +4246,28 @@
   },
   {
    "a": "MA26",
+   "b": "MA57",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/data_providers.py"
+   ]
+  },
+  {
+   "a": "MA26",
    "b": "MA59",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/config.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ev_multiples_study.py"
+   ]
+  },
+  {
+   "a": "MA27",
+   "b": "MA29",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/screen.py"
    ]
   },
   {
@@ -3430,14 +4304,6 @@
   },
   {
    "a": "MA27",
-   "b": "MA41",
-   "kind": "soft-import",
-   "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
-   ]
-  },
-  {
-   "a": "MA27",
    "b": "MA43",
    "kind": "soft-import",
    "files": [
@@ -3449,7 +4315,7 @@
    "b": "MA47",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -3457,8 +4323,16 @@
    "b": "MA49",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
+   ]
+  },
+  {
+   "a": "MA27",
+   "b": "MA57",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/data_providers.py"
    ]
   },
   {
@@ -3466,7 +4340,57 @@
    "b": "MA59",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/config.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ev_multiples_study.py"
+   ]
+  },
+  {
+   "a": "MA28",
+   "b": "MA50",
+   "kind": "soft-import",
+   "files": [
+    "valuation/web/dip_posture.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA28",
+   "b": "MA53",
+   "kind": "soft-import",
+   "files": [
+    "valuation/web/dip_posture.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA29",
+   "b": "MA30",
+   "kind": "soft-import",
+   "files": [
+    "valuation/screener/screen.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA29",
+   "b": "MA33",
+   "kind": "soft-import",
+   "files": [
+    "valuation/screener/screen.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA29",
+   "b": "MA39",
+   "kind": "soft-import",
+   "files": [
+    "valuation/screener/screen.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA29",
+   "b": "MA40",
+   "kind": "soft-import",
+   "files": [
+    "valuation/screener/screen.py <-> valuation/edge/fundamental_panel.py"
    ]
   },
   {
@@ -3474,6 +4398,8 @@
    "b": "MA50",
    "kind": "soft-import",
    "files": [
+    "valuation/screener/screen.py <-> valuation/screener/store.py",
+    "valuation/screener/screen.py <-> valuation/web/app.py",
     "valuation/web/withhold.py <-> valuation/web/app.py"
    ]
   },
@@ -3482,6 +4408,7 @@
    "b": "MA53",
    "kind": "soft-import",
    "files": [
+    "valuation/screener/screen.py <-> valuation/web/app.py",
     "valuation/web/withhold.py <-> valuation/web/app.py"
    ]
   },
@@ -3500,6 +4427,14 @@
    "kind": "hard-file",
    "files": [
     "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA30",
+   "b": "MA34",
+   "kind": "soft-import",
+   "files": [
+    "valuation/screener/index_track.py <-> valuation/edge/track_meter.py"
    ]
   },
   {
@@ -3528,14 +4463,6 @@
   },
   {
    "a": "MA30",
-   "b": "MA41",
-   "kind": "soft-import",
-   "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
-   ]
-  },
-  {
-   "a": "MA30",
    "b": "MA43",
    "kind": "soft-import",
    "files": [
@@ -3547,7 +4474,7 @@
    "b": "MA47",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -3555,8 +4482,32 @@
    "b": "MA49",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
+   ]
+  },
+  {
+   "a": "MA30",
+   "b": "MA50",
+   "kind": "soft-import",
+   "files": [
+    "valuation/screener/index_track.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA30",
+   "b": "MA53",
+   "kind": "soft-import",
+   "files": [
+    "valuation/screener/index_track.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA30",
+   "b": "MA57",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/data_providers.py"
    ]
   },
   {
@@ -3564,7 +4515,9 @@
    "b": "MA59",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/config.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ev_multiples_study.py"
    ]
   },
   {
@@ -3593,14 +4546,6 @@
   },
   {
    "a": "MA33",
-   "b": "MA41",
-   "kind": "soft-import",
-   "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
-   ]
-  },
-  {
-   "a": "MA33",
    "b": "MA43",
    "kind": "soft-import",
    "files": [
@@ -3612,7 +4557,7 @@
    "b": "MA47",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -3620,8 +4565,17 @@
    "b": "MA49",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
+   ]
+  },
+  {
+   "a": "MA33",
+   "b": "MA57",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/data_providers.py",
+    "valuation/studies/lazy_prices_ic.py <-> valuation/edge/data_providers.py"
    ]
   },
   {
@@ -3629,7 +4583,18 @@
    "b": "MA59",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/config.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ev_multiples_study.py",
+    "valuation/research/lazy_prices.py <-> valuation/config.py"
+   ]
+  },
+  {
+   "a": "MA34",
+   "b": "MA36",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/track_meter.py <-> valuation/edge/paper_track.py"
    ]
   },
   {
@@ -3638,6 +4603,22 @@
    "kind": "soft-import",
    "files": [
     "valuation/edge/track_meter.py <-> valuation/edge/shadow_vintage.py"
+   ]
+  },
+  {
+   "a": "MA34",
+   "b": "MA50",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/track_meter.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA34",
+   "b": "MA53",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/track_meter.py <-> valuation/web/app.py"
    ]
   },
   {
@@ -3650,10 +4631,44 @@
   },
   {
    "a": "MA36",
+   "b": "MA40",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/scream_log.py <-> valuation/edge/payload_schema.py"
+   ]
+  },
+  {
+   "a": "MA36",
    "b": "MA46",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/paper_track.py <-> valuation/edge/options_tracker.py"
+    "valuation/edge/paper_track.py <-> valuation/edge/options_tracker.py",
+    "valuation/edge/scream_log.py <-> valuation/edge/options_tracker.py"
+   ]
+  },
+  {
+   "a": "MA36",
+   "b": "MA50",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/paper_track.py <-> valuation/web/app.py",
+    "valuation/edge/scream_log.py <-> valuation/screener/store.py"
+   ]
+  },
+  {
+   "a": "MA36",
+   "b": "MA53",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/paper_track.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA36",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/paper_track.py <-> valuation/config.py"
    ]
   },
   {
@@ -3662,6 +4677,14 @@
    "kind": "soft-import",
    "files": [
     "valuation/edge/options_tracker.py <-> valuation/edge/options_backtest.py"
+   ]
+  },
+  {
+   "a": "MA37",
+   "b": "MA40",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/scream_log.py <-> valuation/edge/payload_schema.py"
    ]
   },
   {
@@ -3678,6 +4701,33 @@
    "kind": "hard-file",
    "files": [
     "valuation/edge/options_tracker.py"
+   ]
+  },
+  {
+   "a": "MA37",
+   "b": "MA50",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/options_paper.py <-> valuation/web/app.py",
+    "valuation/edge/options_tracker.py <-> valuation/web/app.py",
+    "valuation/edge/scream_log.py <-> valuation/screener/store.py"
+   ]
+  },
+  {
+   "a": "MA37",
+   "b": "MA53",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/options_paper.py <-> valuation/web/app.py",
+    "valuation/edge/options_tracker.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA37",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/options_tracker.py <-> valuation/edge/options_tail.py"
    ]
   },
   {
@@ -3706,6 +4756,14 @@
    ]
   },
   {
+   "a": "MA38",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/options_backtest.py <-> valuation/edge/options_exitreplay.py"
+   ]
+  },
+  {
    "a": "MA39",
    "b": "MA40",
    "kind": "hard-file",
@@ -3715,14 +4773,6 @@
   },
   {
    "a": "MA39",
-   "b": "MA41",
-   "kind": "soft-import",
-   "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
-   ]
-  },
-  {
-   "a": "MA39",
    "b": "MA43",
    "kind": "soft-import",
    "files": [
@@ -3734,7 +4784,7 @@
    "b": "MA47",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -3742,8 +4792,16 @@
    "b": "MA49",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
+   ]
+  },
+  {
+   "a": "MA39",
+   "b": "MA57",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/data_providers.py"
    ]
   },
   {
@@ -3751,15 +4809,9 @@
    "b": "MA59",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
-   ]
-  },
-  {
-   "a": "MA40",
-   "b": "MA41",
-   "kind": "soft-import",
-   "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/config.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ev_multiples_study.py"
    ]
   },
   {
@@ -3775,7 +4827,7 @@
    "b": "MA47",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
    ]
   },
   {
@@ -3783,8 +4835,16 @@
    "b": "MA49",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
-    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/param_search.py"
+   ]
+  },
+  {
+   "a": "MA40",
+   "b": "MA57",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/data_providers.py"
    ]
   },
   {
@@ -3792,7 +4852,66 @@
    "b": "MA59",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+    "valuation/edge/fundamental_panel.py <-> valuation/config.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/studies/ev_multiples_study.py"
+   ]
+  },
+  {
+   "a": "MA41",
+   "b": "MA49",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/lab.py <-> valuation/edge/statistics.py"
+   ]
+  },
+  {
+   "a": "MA41",
+   "b": "MA50",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/lab.py <-> valuation/screener/store.py",
+    "valuation/edge/lab.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA41",
+   "b": "MA53",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/lab.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA41",
+   "b": "MA57",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/lab.py <-> valuation/edge/data_providers.py"
+   ]
+  },
+  {
+   "a": "MA41",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/lab.py <-> valuation/config.py"
+   ]
+  },
+  {
+   "a": "MA43",
+   "b": "MA49",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/ablation.py <-> valuation/edge/statistics.py"
+   ]
+  },
+  {
+   "a": "MA43",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/ablation.py <-> valuation/screener/cross_sectional.py"
    ]
   },
   {
@@ -3813,11 +4932,86 @@
    ]
   },
   {
+   "a": "MA44",
+   "b": "MA50",
+   "kind": "soft-import",
+   "files": [
+    "valuation/intraday/providers.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA44",
+   "b": "MA53",
+   "kind": "soft-import",
+   "files": [
+    "valuation/intraday/providers.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA44",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/options_backtest.py <-> valuation/edge/options_exitreplay.py",
+    "valuation/intraday/providers.py <-> valuation/config.py"
+   ]
+  },
+  {
+   "a": "MA45",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/blackscholes.py <-> valuation/edge/options_xsection.py",
+    "valuation/edge/options_greeks.py <-> valuation/edge/options_exitreplay.py"
+   ]
+  },
+  {
+   "a": "MA46",
+   "b": "MA50",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/options_tracker.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA46",
+   "b": "MA53",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/options_tracker.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA46",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/options_fill.py <-> valuation/edge/options_xsection.py",
+    "valuation/edge/options_tracker.py <-> valuation/edge/options_tail.py"
+   ]
+  },
+  {
    "a": "MA47",
    "b": "MA49",
    "kind": "hard-file",
    "files": [
-    "valuation/edge/param_search.py"
+    "valuation/studies/param_search.py"
+   ]
+  },
+  {
+   "a": "MA47",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/studies/param_search.py <-> valuation/screener/cross_sectional.py"
+   ]
+  },
+  {
+   "a": "MA49",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/studies/param_search.py <-> valuation/screener/cross_sectional.py"
    ]
   },
   {
@@ -3829,11 +5023,51 @@
    ]
   },
   {
+   "a": "MA50",
+   "b": "MA55",
+   "kind": "soft-import",
+   "files": [
+    "valuation/web/app.py <-> valuation/screener/fairvalue.py"
+   ]
+  },
+  {
+   "a": "MA50",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/web/app.py <-> valuation/config.py"
+   ]
+  },
+  {
+   "a": "MA53",
+   "b": "MA55",
+   "kind": "soft-import",
+   "files": [
+    "valuation/web/app.py <-> valuation/screener/fairvalue.py"
+   ]
+  },
+  {
+   "a": "MA53",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/web/app.py <-> valuation/config.py"
+   ]
+  },
+  {
    "a": "MA54",
    "b": "MA56",
    "kind": "hard-file",
    "files": [
     "RESEARCH_LOG.md"
+   ]
+  },
+  {
+   "a": "MA57",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/data_providers.py <-> valuation/config.py"
    ]
   }
  ]

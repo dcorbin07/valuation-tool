@@ -42,6 +42,9 @@ import re
 import sys
 from collections import defaultdict
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import import_graph  # noqa: E402  (MA60's derived graph — the one definition)
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CANDIDATES = ["valquo_master_audit_ultimate_items.json", "valquo_master_audit_items.json"]
 MD_OUT = ROOT / "MA_DEPENDENCY_MAP.md"
@@ -128,44 +131,25 @@ LANE_OVERRIDE = {
 }
 
 # --------------------------------------------------------------------------- imports
-# Reused verbatim from check_lanes.py, which extracted them by grepping every from/import
-# in the tree. Not re-derived here: a second, drifting copy of an import graph is worse
-# than one shared one.
-IMPORTS = {
-    "valuation/edge/options_universe.py": {
-        "valuation/edge/options_backtest.py", "valuation/edge/options_fill.py",
-        "valuation/edge/options_signals_v2.py", "valuation/edge/options_autopsy.py",
-        "valuation/edge/options_tracker.py", "valuation/edge/statistics.py"},
-    "valuation/edge/options_backtest.py": {
-        "valuation/edge/options_fill.py", "valuation/edge/options_tracker.py",
-        "valuation/edge/blackscholes.py"},
-    "valuation/edge/options_autopsy.py": {
-        "valuation/edge/options_signals_v2.py", "valuation/edge/options_tracker.py",
-        "valuation/edge/statistics.py"},
-    "valuation/edge/options_greeks.py": {"valuation/edge/blackscholes.py"},
-    "valuation/edge/fundamental_panel.py": {
-        "valuation/screener/factors.py", "valuation/screener/settings.py",
-        "valuation/screener/cross_sectional.py", "valuation/edge/statistics.py",
-        "valuation/edge/research_log.py", "valuation/edge/results_file.py",
-        "valuation/edge/payload_schema.py", "valuation/edge/walkforward.py",
-        "valuation/edge/ablation.py"},
-    "valuation/screener/screen.py": {
-        "valuation/screener/factors.py", "valuation/screener/settings.py",
-        "valuation/screener/cross_sectional.py", "valuation/config.py"},
-    "valuation/edge/autolearn.py": {
-        "valuation/backtest/optimize.py", "valuation/edge/fundamental_panel.py"},
-    "valuation/saas/app_saas.py": {
-        "valuation/saas/ratelimit.py", "valuation/saas/surfaces.py",
-        "valuation/saas/auth.py", "valuation/screener/store.py"},
-    "valuation/web/app.py": {
-        "valuation/saas/ratelimit.py", "valuation/screener/store.py",
-        "valuation/web/withhold.py"},
-    "valuation/edge/paper_track.py": {
-        "valuation/edge/options_tracker.py", "valuation/screener/index_track.py"},
-    "valuation/edge/shadow_vintage.py": {"valuation/edge/track_meter.py"},
-    "valuation/edge/param_search.py": {"valuation/edge/fundamental_panel.py"},
-    "valuation/intraday/options.py": {"valuation/edge/options_backtest.py"},
-}
+# DERIVED, not hand-typed.  [audit MA60, completed on the copy it missed]
+#
+# This used to be a 13-key / 40-edge literal, under a comment reading "Reused verbatim from
+# check_lanes.py ... Not re-derived here: a second, drifting copy of an import graph is worse
+# than one shared one." It WAS the second copy, and it HAD drifted: MA60 replaced
+# check_lanes.py's identical dict with a derived graph and measured the literal against the
+# real tree - 13 keys / 40 edges against 118 / 546, with 12 of the 13 keys wrong, in a
+# direction that reads as safe (four options modules recorded as importing `statistics.py`
+# when they import `options_stats.py`). Across all item pairs it called 150 genuinely-coupled
+# pairs safe to run in parallel and invented 7 collisions that never existed.
+#
+# MA60 fixed one copy and this file kept the other, so every map generated since inherited
+# that error - including the one regenerated for MA23, which is why it is fixed here rather
+# than merely reported. MA60's own commit message states the principle: "one definition,
+# because two copies is the MA39 defect."
+#
+# `norm()` still applies the MOVED alias below, so an audit-era path in the items file resolves
+# to where the file lives today and keeps colliding with everything it collided with before.
+IMPORTS = import_graph.graph()
 
 # --------------------------------------------------------------------------- logical
 # Edges the audit does not state. Each is an argument, so each carries its reason.
@@ -227,6 +211,36 @@ def load_items():
     raise SystemExit("no audit items file found: " + ", ".join(CANDIDATES))
 
 
+# --------------------------------------------------------------------------- moves
+# Files an EXECUTING session relocated after the audit named them.  [AUDIT MA23]
+#
+# WHY AN ALIAS AND NOT AN EDIT TO THE ITEMS FILE. `valquo_master_audit_ultimate_items.json` is
+# the RECORD of what the audit said; rewriting its paths would make the record agree with the
+# tree by fiat and destroy the ability to check what was originally claimed. But a collision
+# map whose keys are stale is worse than useless — it reports NO collision between two items
+# that do touch the same file, which is the one direction this map must never fail in.
+#
+# MEASURED, NOT ASSUMED: applying the MA23 move without this table dropped 187 lines of
+# soft-import collisions from the artifact, because item files still read
+# `valuation/edge/param_search.py` while the import graph had moved to
+# `valuation/studies/param_search.py`. The two stopped matching and the collisions vanished
+# silently. Found by diffing the regenerated artifact rather than by reading the code.
+MOVED = {
+    "valuation/edge/ev_multiples_study.py": "valuation/studies/ev_multiples_study.py",
+    "valuation/edge/convex_overlay.py": "valuation/studies/convex_overlay.py",
+    "valuation/edge/earnings_surface.py": "valuation/studies/earnings_surface.py",
+    "valuation/edge/kelly.py": "valuation/studies/kelly.py",
+    "valuation/edge/loo_holdout.py": "valuation/studies/loo_holdout.py",
+    "valuation/edge/ml_combiner.py": "valuation/studies/ml_combiner.py",
+    "valuation/edge/surface_stock.py": "valuation/studies/surface_stock.py",
+    "valuation/edge/live_replay.py": "valuation/studies/live_replay.py",
+    "valuation/edge/bucket_floor.py": "valuation/studies/bucket_floor.py",
+    "valuation/edge/portfolio_capacity.py": "valuation/studies/portfolio_capacity.py",
+    "valuation/edge/param_search.py": "valuation/studies/param_search.py",
+    "valuation/research/lazy_prices_ic.py": "valuation/studies/lazy_prices_ic.py",
+}
+
+
 def norm(f: str) -> str:
     """'valuation/web/app.py:519' -> 'valuation/web/app.py'. Parentheticals dropped, and a
     trailing FIELD reference dropped too.
@@ -242,8 +256,10 @@ def norm(f: str) -> str:
     head = f.split()[0] if f.split() else f
     # Only when the first token really is a filename - 'owned daily closes' must stay whole.
     if " " in f and re.fullmatch(r"[\w./-]+\.\w+", head):
-        return head
-    return f
+        f = head
+    # Resolve audit-era paths to where the file lives TODAY, so a relocated file still
+    # collides with everything it collided with before. See MOVED above.
+    return MOVED.get(f, f)
 
 
 def build(items: dict) -> dict:

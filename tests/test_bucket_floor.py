@@ -17,7 +17,7 @@ import state_isolation   # noqa: E402,F401  — LA15: temp state only. Import BE
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from valuation.edge import bucket_floor as BF        # noqa: E402
+from valuation.studies import bucket_floor as BF        # noqa: E402
 
 
 class TheStatistic(unittest.TestCase):

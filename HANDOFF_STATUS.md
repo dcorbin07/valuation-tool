@@ -1,5 +1,93 @@
 # HANDOFF STATUS - shared project state
 
+## edge lane, `MA23` + `MA40` + `MA41` + `MA42` + `MA43` + `MA47` (2026-08-15) — THE BOUNDARY, AND FIVE INSTRUMENTS THAT PRODUCED PLAUSIBLE NUMBERS
+
+**Wave-2 pipeline batch, chosen severity-then-collision. Zero trials, all six `FIXED`-class —
+equity `N` stays 224, `by_domain` bit-identical across the log append, no published claim moves.**
+`SCHEMA_VERSION` 6 → 7 is additive, so `BACKTEST_RESULTS.json` needs no re-run.
+
+**Deferred, named so they are not mistaken for done:** MA14, MA21, MA25, MA34 (wave 2) and all of
+wave 3. MA14 and MA25 cut into the live scoring path inside `fundamental_panel.py` and want a quiet
+tree; MA21 needs a prose-convention survey across `build_ledger.py`; MA49 collides with MA23 on
+`param_search.py` and is LOW.
+
+### For the next session, in one paragraph
+
+`valuation/studies/` now exists and holds the twelve finished one-shot studies —
+`param_search`, `lazy_prices_ic`, `ml_combiner`, `loo_holdout`, `live_replay`, `kelly`,
+`bucket_floor`, `portfolio_capacity`, `convex_overlay`, `earnings_surface`, `surface_stock`,
+`ev_multiples_study`. **Import them from `valuation.studies`, not `valuation.edge`**; the old
+paths are gone and a test fails if any reappear. The engine may not import a study, and that
+direction is pinned. If you edit `scripts/ma_dependency_map.py`, note it now carries a `MOVED`
+alias table so the audit's original paths still resolve — **do not "fix" the audit's items file
+to match the tree**, that record is the point.
+
+### The six, each with its verified premise
+
+| id | premise, checked against the code | what shipped |
+|---|---|---|
+| MA23 | 12 study modules mixed into the shipped package; `ev_multiples_study` zero importers | moved as git renames to `valuation/studies/`, nothing deleted, direction pinned by test |
+| MA40 | `'sector_caps' in BACKTEST_RESULTS.json` → **False**; `walk_forward` ships 6 keys, producer returns 4 | both blocks projected and registered in `BLOCK_SPEC`; schema 6 → 7 |
+| MA41 | `grep -c embargo walkforward.py` → **0**; feeds a live "Adopt" reachable from the web app | one fold-adjacent date purged from every training set; adopt boolean deliberately unchanged |
+| MA42 | pair IS open (v4 over v3); `months_paired` read a key nothing writes; verdict branch unreachable | `months_elapsed` derived and rising, `months_paired` attributable, `paired_months_owed` dated |
+| MA43 | pairs by position, truncates, no dates, under a "SAME periods" docstring | keys on the date intersection; refuses rather than truncates; duplicates refused |
+| MA47 | key stores a ticker COUNT for identity — B12 re-encoded — under a false guarantee | provenance hash + sidecar the read path compares; legacy files refused and rebuilt |
+
+### The three things worth carrying forward
+
+**1. MA23 does not unblock the panel, and the dependency map says it would.** Measured, the twelve
+modules total **4,587 lines** and `fundamental_panel.py` is **5,014 lines and is not among them**.
+The panel is a FILE; MA23 moves a DIRECTORY's other occupants. **The one-owner-at-a-time rule on
+the panel is untouched and still binds** — MA14, MA24, MA25, MA26, MA27 and MA33 all still queue
+behind each other there. A test pins this so the move is never read as having lifted it.
+
+**And a correction against my own first draft, measured after writing it: the move does NOT take
+those 4,587 lines out of the deploy image either.** The `Dockerfile` is `COPY . .` and
+`.dockerignore` excludes `tests` and `*.md` but nothing under `valuation/`, so **one of the
+audit's three stated motivations for MA23 is not met by MA23 as specified.** The residual is one
+`.dockerignore` line, **reported and not taken**: `scripts/` is in the image too and every study's
+runner imports the studies, so excluding one without the other breaks an in-image script. Safe to
+do later for a reason this session established — the boundary test proves no product module
+imports a study.
+
+**2. Two corrections to the audit's own census.** `scripts/ml_combiner.py` does **not** import
+`edge/ml_combiner.py` — they are two independent implementations, and **the published
+`ML_COMBINER.json` came from the script**, so the module's only caller is its test.
+`lazy_prices_ic` has **no `scripts/` runner at all**. A name-match census is not an import census:
+`param_search.bat` was a false hit, running `fundamental_panel --param-search`.
+
+**3. A defect in my own map regeneration.** Repointing the import graph at the new path **silently
+dropped 187 lines and 22 collisions** — the audit's items still name the old path, so the two
+stopped matching and the collisions vanished with no error. Caught by diffing the regenerated
+artifact against `HEAD`, not by reading the code. Verified after the alias: **285 collisions
+before, 285 after**, the same 42 pairs renamed.
+
+**4. The map was also built on a graph MA60 had already measured to be wrong.** MA59+MA60 landed
+mid-session and derived `check_lanes.py`'s import graph after measuring the hand-typed literal at
+13 keys / 40 edges against a real 118 / 546. **`scripts/ma_dependency_map.py` carried the same
+copy** — verified against `408e614^:check_lanes.py`. It is now `import_graph.graph()`.
+**285 → 422 collisions, 192 added, 55 removed.** Credit is MA60's; this is the copy they missed,
+and it is fixed here because regenerating the map for MA23 made the error mine to ship.
+**If you touch either lane tool, there is now ONE import graph — keep it that way.**
+
+### Pinning
+
+`tests/test_ma40_ma43_instruments.py` (23) and `tests/test_studies_boundary.py` (6).
+**22 of the 23 fail against the pre-fix tree**, measured by restoring the five sources to `HEAD`
+and re-depthing only the two imports the move required. **The one that passes is reported as
+passing**: it passes *vacuously*, because pre-fix neither block was in `BLOCK_SPEC` and the guard
+had nothing to look at — which is the blindness MA40 closes.
+
+### Reported outside this lane (`RUN_RULES` rule 3)
+
+**`POST /api/edge/optimize` and `POST /api/edge/backtest` in `valuation/web/app.py` carry no auth
+decorator, and there is no `before_request` guard on that prefix** — both start expensive
+computations for an unauthenticated caller. MA7's class. **Not fixed** (app lane), and **not
+established** whether that blueprint is mounted in the deployed image, so it is a lead rather than
+a finding.
+
+---
+
 ## edge lane, `MA5` + `MA6` (2026-08-15) — THE TWO INFERENCE INSTRUMENTS
 
 **Both `FIXED`-class, zero trials.** No hypothesis, no threshold, no verdict. **Equity `N` stays

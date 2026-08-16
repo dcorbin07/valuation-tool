@@ -392,6 +392,35 @@ def open_pairs() -> List[Dict]:
     return pairs
 
 
+def _complete_months_since(opened, today=None) -> int:
+    """Complete calendar months from `opened` to `today`.  [AUDIT MA42]
+
+    COMPLETE means elapsed in full: a pair opened on the 13th has completed one month on the
+    13th of the following month, not on the 1st. Partial months are not counted, because the
+    verdict machinery is defined on complete monthly returns and counting a part-month would
+    inflate the denominator of a five-year clock.
+    """
+    import datetime as _dt
+    today = today or _dt.date.today()
+    if hasattr(opened, "date"):
+        opened = opened.date()
+    months = (today.year - opened.year) * 12 + (today.month - opened.month)
+    if today.day < opened.day:
+        months -= 1
+    return max(0, months)
+
+
+def _paired_months(pairs) -> int:
+    """How many months carry a paired difference for BOTH vintages.  [AUDIT MA42]
+
+    Measured, not assumed: no module in this repository produces a shadow monthly series, so
+    there is nothing to count and this returns 0. It is a function rather than a literal so
+    that when a producer is built there is one place to wire it, and so the zero is
+    attributable — `detail()` reports `paired_series_source` beside it saying why.
+    """
+    return 0
+
+
 def detail() -> Dict:
     """Status of the shadow machinery. Deliberately NOT vacuously green.
 
@@ -428,14 +457,44 @@ def detail() -> Dict:
     # register's central honest point is that A SHADOW PAIR THAT HAS NOT CROSSED IS THE EXPECTED
     # OUTCOME AND IS NOT EVIDENCE THE ADOPTION WAS WORTHLESS. Found by a test that was rewritten
     # for the new state and failed anyway — correctly.
-    months = int(out.get("months_paired") or 0)
-    out["months_paired"] = months
+    # MA42 — THIS READ A KEY NOTHING EVER WROTE. It was `months = int(out.get("months_paired")
+    # or 0)`, and `out` is built above without that key, so `months` was 0 on every call
+    # regardless of elapsed time, the `>= MIN_MONTHS_FOR_ANY_VERDICT` branch below was
+    # UNREACHABLE, and years into a live pair the status would still have read "0 complete
+    # paired month(s)". The docstring says this function exists so the status is not vacuous;
+    # that is the vacuous failure inverted — vacuously STUCK rather than vacuously green.
+    #
+    # THE REPAIR SEPARATES TWO QUANTITIES THE OLD CODE CONFLATED INTO ONE ZERO, and that
+    # separation is the whole value of the fix:
+    #
+    #   * `months_elapsed` — complete calendar months since the pair opened. Derived from the
+    #     register, rises on its own, and is what says whether paired months are OWED.
+    #   * `months_paired`  — months for which a paired difference actually EXISTS.
+    #
+    # TODAY THE SECOND IS STILL 0, AND NOT BECAUSE OF THIS BUG: measured, NOTHING IN THIS
+    # REPOSITORY WRITES A SHADOW MONTHLY SERIES. `verdict()` takes `monthly_diff_pp` as an
+    # argument from a caller that does not exist yet. So the honest report is "0 paired months,
+    # because no producer exists", not a bare 0 — and `paired_months_owed` makes the gap dated
+    # rather than discovered years later. This is `track_meter`'s own distinction between
+    # not-yet-due and due-and-missing, applied to the machinery that borrowed its lesson.
+    opened = [p.get("opened") for p in pairs if p.get("opened")]
+    out["months_elapsed"] = _complete_months_since(min(opened)) if opened else 0
+    out["months_paired"] = months = _paired_months(pairs)
+    out["paired_series_source"] = (
+        "none — no module in this repository writes a shadow monthly return series; "
+        "`verdict()` expects `monthly_diff_pp` from a producer that has not been built. "
+        "Until one exists `months_paired` is 0 BY ABSENCE, not by measurement.")
+    out["paired_months_owed"] = max(0, out["months_elapsed"] - months)
     if months < MIN_MONTHS_FOR_ANY_VERDICT:
+        owed = out["paired_months_owed"]
+        gap = ("" if not owed else
+               f" {owed} month(s) have elapsed with no paired observation recorded, which is a "
+               f"RECORDING GAP in the shadow producer rather than a property of the comparison.")
         out["status"] = (
             f"{len(pairs)} vintage pair(s) under shadow, with {months} complete paired month(s) "
             f"against a minimum of {MIN_MONTHS_FOR_ANY_VERDICT} — so no verdict of any kind is "
             f"available yet, and none is due for years. A shadow pair that has not crossed is "
-            f"the EXPECTED outcome and is not evidence the adoption was worthless.")
+            f"the EXPECTED outcome and is not evidence the adoption was worthless.{gap}")
     else:
         out["status"] = (
             f"{len(pairs)} vintage pair(s) under shadow, {months} complete paired month(s). "

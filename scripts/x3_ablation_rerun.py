@@ -111,7 +111,10 @@ def main(argv=None) -> int:
     # ---- paired nested differences: does the FULL composite beat each shorter arm? -----------
     out["paired_vs_full"] = []
     for arm in out["arms"][:-1]:
-        d = A.paired_diff(full["_series"]["alpha"], arm["_series"]["alpha"], draws=args.draws)
+        d = A.paired_diff(full["_series"]["alpha"], arm["_series"]["alpha"],
+                          draws=args.draws,
+                          dates_a=full["_series"]["dates"],
+                          dates_b=arm["_series"]["dates"])
         d["arm"] = arm["label"]
         out["paired_vs_full"].append(d)
         if d.get("ok"):
@@ -142,7 +145,10 @@ def main(argv=None) -> int:
             rest = [c for c in deployed if c != drop]
             r = A.arm_result(panel, f"full minus {drop}", rest,
                              {c: 1.0 / len(rest) for c in rest})
-            d = A.paired_diff(full["_series"]["alpha"], r["_series"]["alpha"], draws=args.draws)
+            d = A.paired_diff(full["_series"]["alpha"], r["_series"]["alpha"],
+                              draws=args.draws,
+                              dates_a=full["_series"]["dates"],
+                              dates_b=r["_series"]["dates"])
             r.pop("_series", None)
             out["exploratory_leave_one_out"]["arms"].append(
                 {"dropped": drop, "arm": r, "paired_vs_full": d})

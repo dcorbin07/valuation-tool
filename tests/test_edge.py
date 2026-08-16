@@ -1803,7 +1803,7 @@ def test_ml_combiner_optional_import_and_per_fold_features():
     """sklearn is an OPTIONAL dependency (not in requirements.txt) — a missing import must
     return a status, never break a run. And features must be filtered PER FOLD: the 13F signals
     are empty before 2013-06-30, so an early CPCV fold hands the binner an all-NaN column."""
-    from valuation.edge import ml_combiner as ML
+    from valuation.studies import ml_combiner as ML
     assert ML.MIN_IC_GAIN == 0.005 and ML.MIN_ALPHA_GAIN == 0.01, "gate must stay pre-committed"
     assert ML.GBM_PARAMS["max_depth"] == 3, "model must stay small"
 
@@ -6475,7 +6475,7 @@ def test_loo_selection_uses_the_decide_half_only_and_embargoes_the_boundary():
     the only one whose 63d forward window can straddle a 63d-rebalance split -- is in neither
     half.
     """
-    from valuation.edge import loo_holdout as L
+    from valuation.studies import loo_holdout as L
     panel = _b8_panel(n_dates=30, n_names=60, seed=5)
     panel["value"] = panel["fwd_ret"] * 0.3 + np.random.default_rng(7).normal(0, 0.05, len(panel))
     r = L.loo_holdout(panel, ["quality", "size", "value"], min_dates=8)
@@ -6498,7 +6498,7 @@ def test_loo_verdict_follows_the_committed_margins_and_an_ambiguous_result_is_a_
     call. Pinned as an invariant over whatever the panel happens to produce, so the rule cannot
     be quietly relaxed later to rescue a near miss.
     """
-    from valuation.edge import loo_holdout as L
+    from valuation.studies import loo_holdout as L
     from valuation.edge.fundamental_panel import (MIN_HOLDOUT_ALPHA_GAIN,
                                                   MIN_HOLDOUT_TSTAT_GAIN)
     panel = _b8_panel(n_dates=30, n_names=60, seed=9)
@@ -6528,7 +6528,7 @@ def test_loo_arms_drop_a_theme_and_renormalise_rather_than_leaving_a_hole():
     composite" -- and would make the arms incomparable with the full composite they are scored
     against.
     """
-    from valuation.edge import loo_holdout as L
+    from valuation.studies import loo_holdout as L
     cols = ["a", "b", "c", "d"]
     w = L.flat(cols)
     assert abs(sum(w.values()) - 1.0) < 1e-12 and all(abs(v - 0.25) < 1e-12 for v in w.values())
@@ -9410,7 +9410,7 @@ def test_b23_the_reuse_was_TRIED_and_REVERTED_and_the_reason_is_recorded():
 def test_m4_the_harness_raises_rather_than_warning():
     """A detector that returns a warning nobody reads is the failure class this catalogue
     keeps finding."""
-    from valuation.edge import live_replay as LR
+    from valuation.studies import live_replay as LR
     assert LR.MIN_RANK_CORRELATION == 0.99
     assert issubclass(LR.LiveReplayDivergence, AssertionError)
     # an empty replay is reported, not raised on - "no data" is not "divergence"
@@ -9429,7 +9429,7 @@ def test_m4_compares_RANKS_not_values():
 
 
 def _import_live_replay():
-    from valuation.edge import live_replay
+    from valuation.studies import live_replay
     return live_replay
 
 

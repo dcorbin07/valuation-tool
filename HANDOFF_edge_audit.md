@@ -12273,3 +12273,303 @@ exist.
   long-short t of 3.52 against the Harvey-Liu-Zhu hurdle of 3.0. That one is real."* The **3.52 is
   the void pre-B6 panel**, the live figure is **2.6199**, and it **FAILS** the honest bar — so the
   sentence pointed at the project's most-failed bar and called it the one that is real.
+
+---
+
+## MA23 + MA40 + MA41 + MA42 + MA43 + MA47 — the boundary, and five instruments that produced plausible numbers (2026-08-15, edge lane, wave 2)
+
+**Batch chosen severity-then-collision from the wave-2 pipeline set — all six MEDIUM, all zero
+trial.** No hypothesis, no threshold, no verdict against a bar, so **equity `N` stays 224**,
+options 292, infra 15, and **no published claim moves**. `BACKTEST_RESULTS.json` needs no re-run
+(`SCHEMA_VERSION` 6 → 7 is additive; the next run will carry two more blocks).
+
+**Deliberately deferred, named so they are not mistaken for done:** MA14, MA21, MA25, MA34
+(wave 2) and all of wave 3 (MA24, MA26, MA27, MA28, MA33, MA49, MA54, MA55, MA57, MA58). MA14
+and MA25 both cut into the live scoring path inside `fundamental_panel.py` and want a quiet tree
+rather than a slot behind a twelve-file move; MA21 needs a survey of prose conventions across
+`build_ledger.py`; MA49 partly collides with MA23 on `param_search.py` and is LOW.
+
+### What the six have in common
+
+Every one produces a **plausible number rather than an error**, which is why all six survived
+with a green suite. Two whole result blocks dropped on the way to the file; an out-of-sample IC
+that is merely too high; a status frozen at "0 complete paired month(s)" that reads exactly like
+a pair which has not accrued; a paired difference computed against the wrong quarters with **no
+symptom at all** when the lengths match; and a panel cache that loads a different universe's
+panel perfectly happily.
+
+### MA23 — the boundary is drawn, and the map's reason for it is wrong
+
+`valuation/studies/` now holds the twelve finished one-shot studies, moved as **git renames**, so
+`git log --follow` reaches each module's whole history and every one is byte-identical apart from
+the **five** relative imports whose depth changed (`.fundamental_panel` →
+`..edge.fundamental_panel`). 23 absolute import sites rewritten across `scripts/` and `tests/`.
+**Nothing deleted** — deleting a study's harness destroys the ability to re-derive its verdict,
+which is `RUN_RULES` rule 9 one level up.
+
+* **IT DOES NOT UNBLOCK THE PANEL, AND `MA_DEPENDENCY_MAP.md` SAYS IT WOULD.** The map's second
+  headline calls MA23 *"the item that would change"* the panel's one-owner-at-a-time constraint.
+  **Measured: the twelve modules total 4,587 lines; `fundamental_panel.py` is 5,014 lines and is
+  not one of them.** Moving a directory's other occupants cannot shrink a file. The constraint is
+  untouched and still binds — pinned by a test, so nobody later reads the move as having lifted it.
+  **A CORRECTION AGAINST MY OWN FIRST DRAFT, MEASURED AFTER WRITING IT: THE MOVE DOES NOT
+  TAKE THOSE LINES OUT OF THE DEPLOY IMAGE.** I claimed it did, on the strength of the
+  audit's own motivation (*"the deploy image ships several thousand lines of research
+  code"*). Checked: the `Dockerfile` is `COPY . .`, and `.dockerignore` excludes `.git`,
+  `.venv`, `data/`, `tests` and `*.md` — **nothing under `valuation/`**. The studies are in
+  the image before the move and after it, so **one of the audit's three stated motivations
+  is not met by MA23 as specified.** The other two are: the package the Flask app imports
+  from no longer contains studies, and location now tells product from study.
+
+  **REPORTED, NOT TAKEN — and the reason is a coupling worth writing down.** The residual
+  is one `.dockerignore` line, but `scripts/` is ALSO in the image and every study's runner
+  lives there and imports it, so excluding `valuation/studies/` alone would leave in-image
+  scripts that fail on import. Excluding both is probably right and is a DEPLOY-CONFIG
+  decision with the running container as its blast radius, which is not this batch's to
+  make. It is safe to do later for a reason this session established rather than assumed:
+  `tests/test_studies_boundary.py` proves no module under `valuation/` outside the studies
+  package imports one.
+* **TWO CORRECTIONS TO THE AUDIT'S OWN CENSUS, both measured.** The audit says eleven modules are
+  *"referenced only by their own `scripts/` runner and their own test"*. **It holds for nine.**
+  `scripts/ml_combiner.py` does **not** import `edge/ml_combiner.py` — they are two independent
+  implementations, both defining `fit_predict`, and the **published `ML_COMBINER.json` came from
+  the script**, so the module's only caller is its test. And `lazy_prices_ic` has **no `scripts/`
+  runner at all**. The `ev_multiples_study` claim — zero importers — is confirmed exactly.
+* **A FALSE CENSUS HIT WORTH RECORDING:** `param_search.bat` does not run `param_search.py`; it
+  runs `fundamental_panel --param-search`. A name-match census is not an import census.
+* **THE DEPENDENCY DIRECTION IS PINNED, WHICH IS WHAT STOPS THE MOVE ERODING.** A study may import
+  the engine; the engine may never import a study. `tests/test_studies_boundary.py` (6/6) asserts
+  that over every module under `valuation/`, and is checked for vacuity — it asserts a non-zero
+  census before asserting the property, and separately asserts that at least four studies *do*
+  import the engine, so the one-way test cannot pass by forbidding both directions.
+
+### MA40 — confirmed against the shipped artifact, not the write-up
+
+`'sector_caps' in BACKTEST_RESULTS.json` → **False**. The shipped `walk_forward` block carries six
+keys while the producer returns `{n_folds, param_folds, weights, params}` — **the whole
+trade-parameter sweep, with its per-parameter adopt verdicts, was dropped**. B21's own comment
+reads *"this block measures it and ships the numbers"*; it measured it and shipped nothing.
+
+**Registered rather than dropped**, per rule 9. Both blocks now project into the payload and both
+are in `BLOCK_SPEC`, so M6's field-level guard fails the run if either is dropped again.
+`SCHEMA_VERSION` 6 → 7, purely additive. Line drift for the next reader: the audit cites
+`fundamental_panel.py:4937`; the producer is at **:4968**.
+
+### MA41 — the premise is confirmed and the stakes are higher than the audit states
+
+`grep -c embargo valuation/edge/walkforward.py` → **0** before the fix, against sibling splitters
+that all embargo. Fixed: one fold-adjacent rebalance date is purged from the **end** of every
+training set, and a fold that cannot be embargoed and still trained is **skipped** rather than
+scored.
+
+* **THE ADDED FACT: this feeds a live-facing surface.** `lab.run_optimize` is reachable from
+  `valuation/web/app.py:1030` (`POST /api/edge/optimize`), so the inflated out-of-sample IC was
+  driving an "Adopt: adaptive weights beat baseline out-of-sample" verdict on a web endpoint.
+* **THE ADOPT BOOLEAN IS DELIBERATELY UNCHANGED.** The gate is a bare comparison of two means with
+  no standard error, and the audit is right that it is mis-specified — but **putting a threshold
+  on it means choosing one**, and this project has no calibrated floor for a walk-forward IC
+  difference. Inventing a bar here is the error the record warns about most often (X3, session 10).
+  The SE, the margin and `margin_t` ship as **reported** fields explicitly labelled
+  *"no calibrated floor exists for this quantity"*, and changing what adopts is left to an item
+  that can register a bar first.
+
+### MA42 — confirmed LIVE rather than latent, and the zero is now attributable
+
+The audit calls this latent. **It is not: the pair is open** — vintage 4 shadowing vintage 3,
+opened 2026-08-13 — `months_paired` read 0, and the `>= MIN_MONTHS_FOR_ANY_VERDICT` branch was
+proven **unreachable**.
+
+The repair separates two quantities the single zero conflated. **`months_elapsed`** is derived
+from the register and rises on its own (0 today, 1 on 2026-09-13, 6 on 2027-02-13, 60 on
+2031-08-13). **`months_paired`** is still **0, and not because of this bug**: measured, *nothing
+in this repository writes a shadow monthly return series* — `verdict()` expects `monthly_diff_pp`
+from a producer that has never been built. So the zero now ships with `paired_series_source`
+saying why, and **`paired_months_owed`** makes the gap dated rather than discovered years later.
+That is `track_meter`'s own not-yet-due-versus-due-and-missing distinction, applied to the
+machinery that borrowed its lesson. Today it reads 0 owed; from 2026-09-13 it will read 1.
+
+### MA43 — the no-symptom case, demonstrated rather than argued
+
+Confirmed verbatim: `n = min(len(a), len(b)); a, b = a[:n], b[:n]`, no dates anywhere, under a
+docstring promising *"the SAME periods"*. Fixed to pair on the date **intersection** when dates
+are supplied, and to **refuse rather than truncate** when they are not and the lengths differ.
+
+**The demonstration is the point.** Two 23-element series, each missing a *different* date —
+equal lengths, so truncation does nothing and nothing raises — give `mean_diff_ann` **−0.0226
+positionally against −0.0122 date-keyed**. Both `scripts/x3_ablation_rerun.py` call sites now pass
+`alpha_series()['dates']`, so the fix is not inert, and it is proved **inert where inputs were
+already aligned** (identical to twelve places).
+
+* **A DEFECT IN MY OWN FIX, found by the fixture written for it.** Duplicate dates would have
+  silently kept the **last** occurrence — the same quiet guess in a new place. They are now
+  refused. The first draft of that fixture generated repeating dates by accident, which is how it
+  surfaced.
+
+### MA47 — the B12 collision re-encoded, and the docstring was a live false guarantee
+
+Confirmed verbatim, and confirmed **latent**: `cached_panel` has **zero** in-tree callers.
+All three env toggles verified panel-shaping **in the tree** rather than taken from the audit's
+list — `EDGE_EV_POINT_IN_TIME` (`config.py:187`), `EDGE_GRID_OFFSET`
+(`fundamental_panel.py:1056`), `EDGE_AUDIT_B6_LEGACY_TRUNCATION` (`:1095`).
+
+Fixed with a sha256 provenance key over sorted ticker **identity** + the four parameters + the
+three toggles + an export vintage fingerprint, **plus a `.meta.json` sidecar the read path
+compares**. A hash in a filename can say a cache missed; it cannot say *why*, and an opaque
+16-hex name is unauditable by the person whose forty-minute build it just invalidated. A legacy
+sidecar-less file is **refused and rebuilt**, never silently reused.
+
+* **AN HONEST LIMIT ON THE VINTAGE, stated in the code rather than left to be noticed.** It is
+  `(name, size, mtime)` over the export directory, **not** a content hash — so a byte-identical
+  re-copy with a new mtime reads as a new vintage, which is a spurious rebuild and the safe
+  direction. Where the provider exposes no directory it records `"unavailable"` and says why,
+  rather than pretending to cover something it could not measure.
+
+### A defect in my own map regeneration, caught by diffing the artifact
+
+`MA_DEPENDENCY_MAP.md`'s own "what this map does not know" section asks an executing session to
+record the files it actually touched and regenerate. Doing that naively — repointing the import
+graph at `valuation/studies/param_search.py` — **silently dropped 187 lines and 22 collisions**,
+because the audit's items still name `valuation/edge/param_search.py` and the two stopped
+matching. A collision map that under-reports is worse than useless.
+
+Fixed with a **`MOVED` alias table** in the generator that resolves audit-era paths to where the
+file lives today. **The audit's items file is deliberately NOT edited** — it is the record of what
+the audit said, and rewriting its paths would make the record agree with the tree by fiat.
+Verified by diffing the collision sets: **285 before, 285 after**, the same 42 pairs with renamed
+paths.
+
+### And the map was built on a graph MA60 had already measured to be wrong
+
+Landed mid-session: **MA59 + MA60** (infra lane), which replaced `check_lanes.py`'s hand-typed
+import dict with a derived graph after measuring the literal at **13 keys / 40 edges against a
+real 118 / 546, with 12 of the 13 keys wrong** — in a direction that reads as safe.
+
+**`scripts/ma_dependency_map.py` still carried the identical 13-key / 40-edge copy**, under a
+comment reading *"Reused verbatim from `check_lanes.py` … Not re-derived here: a second, drifting
+copy of an import graph is worse than one shared one."* It **was** the second copy and it **had**
+drifted. Verified rather than inferred: `git show 408e614^:check_lanes.py` holds the same 13-key
+dict, so this is one graph duplicated, not two graphs that happen to be the same size.
+
+**Fixed here rather than merely reported, because it is my problem: I regenerated that map this
+session, so every collision figure above inherited the error.** `IMPORTS` is now
+`import_graph.graph()` — MA60's own definition — with `norm()` still applying the `MOVED` alias so
+audit-era paths keep resolving. **Measured on the 60-item MA set: 285 → 422 collisions, 192 added
+and 55 removed.** So the map was calling 192 genuinely-coupled pairs safe to run in parallel and
+inventing 55 that never existed, which is the same shape MA60 measured on the other copy (its own
+figures, 150 and 7, are over audit #1's 134 items and are not directly comparable to these).
+
+MA60's commit message states the principle this completes: *"one definition, because two copies is
+the MA39 defect."* **Credit is theirs; this is the copy their change did not reach.**
+
+### One more collision the merge itself produced
+
+MA59 archived six of the twelve modules MA23 moved, banner-in-place, on the same day. The merge
+was clean — git applied their banners to the renamed files — but
+`tests/test_ma59_quarantine.py` then failed six ways, **correctly**: its own
+`test_every_named_module_still_exists` says *"A renamed file must not silently empty either
+list."* The six paths are repointed to `valuation/studies/` **in this commit, so the diff shows
+it**, which is exactly what that guard demands. The quarantine itself is unchanged — still closed
+studies, still archived in place, still unreachable from the live product.
+
+### And a third, on the second merge — the one a reviewer could not have seen
+
+The options lane's `MA31`+`MA32` landed on main while this branch waited on the billing outage.
+It added **`valuation/edge/parity_flow.py`**, which imports `.surface_stock` — one of the twelve
+modules `MA23` had moved to `valuation/studies/` **the same day**.
+
+**Neither side edited a file the other side edited**, so git produced a clean merge with nothing
+to resolve and nothing for a reviewer to look at. The break existed only at import time:
+
+```
+ModuleNotFoundError: No module named 'valuation.edge.surface_stock'
+  valuation/edge/parity_flow.py:51
+```
+
+**A textual merge is not a semantic merge, and a rename is exactly the change that separates
+them.** This is the general hazard `MA23` created for every lane landing this week, and it is
+recorded here rather than in a commit message because the next rename will produce it again.
+
+**RESOLVED BY MOVING `parity_flow`, NOT BY REPOINTING IT — and the choice was forced, not
+stylistic.** Repointing its import to `..studies.surface_stock` would leave an **engine** module
+importing a **study**, which `tests/test_studies_boundary.py::test_no_engine_module_imports_a_study`
+refuses; the fix would then have required weakening the guard to admit the thing the guard exists
+to catch. It qualifies as a study on **MA23's own criterion**, and the criterion was checked
+rather than assumed — `grep -rn parity_flow` returns exactly two importers,
+`scripts/ma31_ma32_measure.py` (its own runner) and `tests/test_ma31_ma32_parity_flow.py` (its own
+test). It also executes a register and adopts nothing. Moved as a **git rename**; their suite's two
+path literals and their runner's imports are repointed **in this same commit, so the diff shows
+it**, which is `MA59`'s own rule applied to their file.
+
+### A defect in my own guard, found by the collision it failed to catch
+
+`test_the_old_import_paths_are_gone_from_the_tree` grepped source text for
+`valuation.edge.<study>`. **That string never appears in `from valuation.edge import
+surface_stock`** — the module name and the package name are separated by the `import` keyword, not
+a dot. So the guard was **green over three live stale imports**:
+
+| site | stale import | seen by text grep? |
+|---|---|---|
+| `tests/test_ma31_ma32_parity_flow.py:36` | `from valuation.edge import surface_stock` | no |
+| `scripts/ma31_ma32_measure.py:40` | `from valuation.edge import portfolio_capacity` | no |
+| `scripts/ma31_ma32_measure.py:41` | `from valuation.edge import surface_stock` | no |
+
+It now also reads every file's imports through the **AST**, reusing the same `_imports()` helper
+that already resolves relative imports for the one-way direction test — so the two halves of the
+file agree on what an import is.
+
+**PROVED NON-VACUOUS RATHER THAN ASSERTED.** Reintroducing one of the three real sites and
+re-running the suite gives:
+
+```
+rc with stale import = 1
+FAIL test_the_old_import_paths_are_gone_from_the_tree: stale import paths remain:
+     [('scripts/ma31_ma32_measure.py', 'valuation.edge.surface_stock', 'ast')]
+rc after restore     = 0
+```
+
+and a second new fixture pins that `_imports()` resolves the `from X import Y` form at all, since
+if it did not the AST half would find nothing and pass for a new wrong reason.
+
+**THE TEXT PASS IS KEPT, NOT REPLACED**, because it catches a stale path used as a **path** rather
+than as an import — their own suite pins `valuation/studies/parity_flow.py` by opening it. The
+self-reference exclusion is by **filename**, so it cannot silently widen: this file quotes both
+forms in its prose and in its own fixture, and those are the subject rather than a violation.
+
+**This is the second time this one test has been wrong about what it was reading** — the first was
+firing on a COMMENT, the second is being blind to a real import — and both were found by an
+accident rather than by review. The lesson each time is the same one: **a guard that cannot tell
+what the codebase actually writes from what it merely mentions is not measuring the tree.**
+
+**Full gate after the merge: 99 suites, 0 failures** (96 before it; the options lane added three).
+
+### Pinning, at the M3 standard
+
+`tests/test_ma40_ma43_instruments.py` (23) and `tests/test_studies_boundary.py` (7 — the seventh added after the merge, see below).
+**22 of the 23 fixtures fail against the pre-fix tree**, measured by restoring the five sources to
+`HEAD` and re-depthing only the two imports the move required, so what was under test was the
+defect and not the rename.
+
+**The one that passes pre-fix is reported as passing, deliberately.**
+`test_the_post_fix_projection_is_clean` passes **vacuously** against the old tree, because
+pre-fix neither block was in `BLOCK_SPEC` and `check_payload` had nothing to look at — a clean
+bill of health from a guard that was not watching. That is exactly the structural blindness MA40
+closes, demonstrated on the test rather than argued. Claiming 23 of 23 would have been the more
+flattering number and the wrong one.
+
+**AND A DEFECT IN MY OWN GUARD, CAUGHT TWICE BY RUNNING IT.** The stale-path check first fired on
+`scripts/suite_manifest.py` — a file MA60 landed mid-session whose COMMENT explains a classifier
+bug using `from valuation.edge import kelly` as its example. **A guard that cannot tell code from
+prose about code is not measuring the tree**, which is the MA5 sweep's lesson arriving in a second
+costume; it now strips comments and strings with `tokenize`. The first cut of THAT repair
+re-joined tokens with a separator, turning `valuation.edge` into `valuation . edge` so the check
+matched nothing and passed vacuously — **caught by the vacuity test written alongside it**, which
+asserts the stripper blanks prose *without* blanking a real import. It now blanks the spans in
+place. Their comment's example is genuinely stale after the move and is corrected too.
+
+### Reported outside this lane (`RUN_RULES` rule 3)
+
+**`POST /api/edge/optimize` and `POST /api/edge/backtest` in `valuation/web/app.py` carry no auth
+decorator and there is no `before_request` guard on `/api/edge/*`** — both kick off expensive
+computations for an unauthenticated caller. Same class as MA7. **Not fixed** (app-fixer lane), and
+**not established** here whether that blueprint is mounted in the deployed image, so it is
+reported as a lead rather than a finding.

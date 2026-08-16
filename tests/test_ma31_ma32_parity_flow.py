@@ -2,7 +2,7 @@
 
 Run: python tests/test_ma31_ma32_parity_flow.py
 
-These pin `valuation/edge/parity_flow.py`, which executes
+These pin `valuation/studies/parity_flow.py`, which executes
 `PREREG_ma31_ma32_parity_openclose.md` (committed ALONE at `a51e372`, a strict ancestor of every
 commit that computes an arm).
 
@@ -32,8 +32,8 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from valuation.edge import blackscholes as BS                     # noqa: E402
-from valuation.edge import parity_flow as PF                      # noqa: E402
-from valuation.edge import surface_stock as SS                    # noqa: E402
+from valuation.studies import parity_flow as PF                   # noqa: E402
+from valuation.studies import surface_stock as SS                 # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASOF = "2024-01-02"
@@ -224,7 +224,7 @@ def test_low_volume_denominator_yields_None_rather_than_a_noisy_ratio():
 def test_spot_from_parity_is_never_called_on_the_arm_path():
     """Using parity to recover the spot sets MA31's answer to ZERO by construction."""
     import tokenize
-    for rel in ("valuation/edge/parity_flow.py", "scripts/ma31_ma32_measure.py"):
+    for rel in ("valuation/studies/parity_flow.py", "scripts/ma31_ma32_measure.py"):
         path = os.path.join(ROOT, rel)
         with tokenize.open(path) as fh:
             toks = list(tokenize.generate_tokens(fh.readline))
@@ -366,7 +366,7 @@ def test_minimum_detectable_ic_is_reported_so_a_null_is_quotable():
 
 def test_permutation_bar_drops_degenerate_draws_rather_than_scoring_them_zero():
     """V6 measured that scoring a degenerate draw as 0.0 LOWERS the p95 - it makes the bar easier."""
-    src = open(os.path.join(ROOT, "valuation/edge/parity_flow.py"), encoding="utf-8").read()
+    src = open(os.path.join(ROOT, "valuation/studies/parity_flow.py"), encoding="utf-8").read()
     body = src.split("def permutation_bar")[1].split("\ndef ")[0]
     assert "continue" in body and "n_draws_used" in body
 

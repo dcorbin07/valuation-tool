@@ -54,7 +54,7 @@ context that makes a single number interpretable.
 """
 from __future__ import annotations
 
-from .fundamental_panel import (MIN_HOLDOUT_ALPHA_GAIN, MIN_HOLDOUT_TSTAT_GAIN,
+from ..edge.fundamental_panel import (MIN_HOLDOUT_ALPHA_GAIN, MIN_HOLDOUT_TSTAT_GAIN,
                                 quantile_backtest)
 
 DIRECTIONS = ("decide_early_measure_late", "decide_late_measure_early")

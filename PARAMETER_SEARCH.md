@@ -4,7 +4,10 @@ _The protocol Valquo uses to tune itself, why each piece is there, and how to ru
 
 Run it: **`param_search.bat`** (or
 `python -m valuation.edge.fundamental_panel --data-dir data/backtest --param-search --permutations 25`).
-Code: `valuation/edge/param_search.py`. Tests: `python tests/test_edge.py`.
+Code: **`valuation/studies/param_search.py`** (moved there from `valuation/edge/` on 2026-08-15 by
+audit MA23, which drew a boundary between the shipped engine and finished study harnesses; the run
+commands above are unaffected because they go through `fundamental_panel --param-search`).
+Tests: `python tests/test_edge.py`.
 
 ---
 
