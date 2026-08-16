@@ -174,7 +174,7 @@ def cpcv_compare(panel, cols, weights, n_groups: int = 6, k_test: int = 2,
     Returns median OOS IC for each and the per-path detail, so the comparison is like-for-like
     rather than a GBM number quoted next to a linear number from a different split.
     """
-    from .fundamental_panel import _cpcv_paths, _spearman
+    from ..edge.fundamental_panel import _cpcv_paths, _spearman
     from ..screener.cross_sectional import zscore
     out = {"available": sklearn_available(), "min_ic_gain": MIN_IC_GAIN,
            "n_paths": 0, "linear_median_ic": None, "gbm_median_ic": None, "paths": []}

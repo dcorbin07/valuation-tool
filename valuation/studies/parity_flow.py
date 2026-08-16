@@ -47,7 +47,7 @@ from typing import Dict, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
-from . import blackscholes as BS
+from ..edge import blackscholes as BS
 from .surface_stock import (INCUMBENTS, MIN_DATES, MIN_NAMES, RegisterViolation,  # noqa: F401
                             _spearman, arm_ic, halves, ic_series_degenerate, ic_tstat,
                             join_pit, residualise)

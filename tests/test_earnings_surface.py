@@ -14,7 +14,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import state_isolation  # noqa: F401,E402  (must precede the valuation imports)
 
-from valuation.edge import earnings_surface as ES  # noqa: E402
+from valuation.studies import earnings_surface as ES  # noqa: E402
 
 
 class TestUnknownIsNeverSafe(unittest.TestCase):

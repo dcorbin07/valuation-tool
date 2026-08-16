@@ -3,8 +3,15 @@ ARCHIVED (master audit MA59, 2026-08-15) - a CLOSED study, kept so its
 result stays reproducible. It is NOT reachable from the live product and
 `tests/test_ma59_quarantine.py` fails if that ever changes.
 Still imported by: scripts/u2_surface_stock.py, tests/test_surface_stock.py,
-valuation/edge/parity_flow.py, scripts/ma31_ma32_measure.py,
+valuation/studies/parity_flow.py, scripts/ma31_ma32_measure.py,
 tests/test_ma31_ma32_parity_flow.py.
+
+PATHS REPOINTED BY THE MA23 MERGE (2026-08-16). This module moved to
+`valuation/studies/` under MA23, and `parity_flow` followed it here rather than
+being repointed to import a study from the engine: its only importers are its
+own `scripts/` runner and its own test, which is MA23's own criterion. Nothing
+about the archive changed - the banner, the quarantine and the closed-study
+status are untouched.
 Do not extend this module; a new question needs a new register.
 
 ONE DEFAULTED PARAMETER WAS ADDED AFTER THE ARCHIVE BANNER, AND THE TENSION IS

@@ -71,7 +71,7 @@ def alpha_series(panel, cols, weights, n_q: int = 10):
     return {"alpha": a, "long_short": ls, "dates": dates_used}
 
 
-def paired_diff(a, b, draws: int = 4000, seed: int = 0) -> dict:
+def paired_diff(a, b, draws: int = 4000, seed: int = 0, dates_a=None, dates_b=None) -> dict:
     """CI on mean(a) − mean(b) where a and b are the SAME periods of two nested models.
 
     Periods are resampled with replacement and both series are indexed by the SAME draw, which
@@ -84,12 +84,79 @@ def paired_diff(a, b, draws: int = 4000, seed: int = 0) -> dict:
     the long-short t and the theme IC t; it did not calibrate a paired nested difference, and
     none is invented here. The pre-registered rule is simply that the CI95 must exclude zero for
     the longer model to be said to beat the shorter one.
+
+    ALIGNMENT — MA43. This used to pair by POSITION: `n = min(len(a), len(b)); a, b = a[:n], b[:n]`,
+    with no dates anywhere, under this docstring's promise of "the SAME periods". Two failures
+    followed, and the second is the one that mattered:
+
+      * UNEQUAL LENGTHS were silently TRUNCATED to the shorter, so the longer arm's tail was
+        dropped without a word.
+      * EQUAL LENGTHS WITH DIFFERENT DATE SETS had NO SYMPTOM AT ALL. If arm A is missing
+        2015-04-20 and arm B is missing 2019-10-18, both series are the same length, truncation
+        does nothing, and every element after the first gap pairs against the wrong quarter.
+        The pairing's entire purpose — "a quarter that was good for the market is good for both
+        arms and cancels out of the difference" — fails silently, and the market variance the
+        docstring promises to remove goes straight back into the comparison.
+
+    `alpha_series` returns `dates` precisely so alignment is checkable, and this function never
+    took them. It does now, and the two modes are explicit in the result:
+
+      * DATES GIVEN (`alignment="dates"`) — pair on the INTERSECTION, in date order, and report
+        what each side dropped. This is what `construction_rerun.py:185` already did by hand.
+      * DATES NOT GIVEN (`alignment="positional-equal-length"`) — pair by position, but ONLY if
+        the lengths are equal. Unequal lengths now REFUSE rather than truncate, because a
+        truncation is a silent guess about which periods correspond and this function has no
+        basis for it. Refusing is the safe direction: a caller sees `ok: False` and a reason.
     """
     import random
-    n = min(len(a), len(b))
-    if n < 8:
-        return {"ok": False, "reason": f"{n} paired periods"}
-    a, b = np.asarray(a[:n], dtype=float), np.asarray(b[:n], dtype=float)
+    if dates_a is not None and dates_b is not None:
+        if len(dates_a) != len(a) or len(dates_b) != len(b):
+            return {"ok": False, "alignment": "dates",
+                    "reason": f"dates do not match series: {len(dates_a)}/{len(a)} and "
+                              f"{len(dates_b)}/{len(b)}"}
+        ka = [str(d)[:10] for d in dates_a]
+        kb = [str(d)[:10] for d in dates_b]
+        # A DUPLICATE DATE WOULD SILENTLY KEEP THE LAST OCCURRENCE, which is the same class of
+        # quiet guess this whole change exists to remove — found while writing the fixture for
+        # it, because the first draft of that fixture generated repeating dates by accident.
+        for label, ks in (("a", ka), ("b", kb)):
+            if len(set(ks)) != len(ks):
+                dup = sorted({k for k in ks if ks.count(k) > 1})
+                return {"ok": False, "alignment": "dates",
+                        "reason": f"series {label} has duplicate dates {dup[:5]} — a rebalance "
+                                  f"date identifies a period, so a repeat means the caller is "
+                                  f"not passing what it thinks it is"}
+        ia = {k: i for i, k in enumerate(ka)}
+        ib = {k: i for i, k in enumerate(kb)}
+        shared = sorted(set(ia) & set(ib))
+        dropped_a = sorted(set(ia) - set(ib))
+        dropped_b = sorted(set(ib) - set(ia))
+        a_al = [a[ia[d]] for d in shared]
+        b_al = [b[ib[d]] for d in shared]
+        n = len(shared)
+        if n < 8:
+            return {"ok": False, "alignment": "dates",
+                    "reason": f"{n} shared periods", "dropped_a": dropped_a,
+                    "dropped_b": dropped_b}
+        a, b = np.asarray(a_al, dtype=float), np.asarray(b_al, dtype=float)
+        align = {"alignment": "dates", "n_shared": n,
+                 "n_dropped_a": len(dropped_a), "n_dropped_b": len(dropped_b),
+                 "dropped_a": dropped_a, "dropped_b": dropped_b,
+                 "first_date": shared[0], "last_date": shared[-1]}
+    else:
+        if len(a) != len(b):
+            return {"ok": False, "alignment": "positional-equal-length",
+                    "reason": f"unequal lengths {len(a)} vs {len(b)} and no dates given — "
+                              f"refusing to truncate, because which periods correspond is "
+                              f"exactly what this function cannot guess (MA43). Pass "
+                              f"dates_a/dates_b from alpha_series()['dates']."}
+        n = len(a)
+        if n < 8:
+            return {"ok": False, "alignment": "positional-equal-length",
+                    "reason": f"{n} paired periods"}
+        a, b = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
+        align = {"alignment": "positional-equal-length", "n_shared": n,
+                 "n_dropped_a": 0, "n_dropped_b": 0}
     d = a - b
     rnd = random.Random(seed)
     vals = []
@@ -101,13 +168,15 @@ def paired_diff(a, b, draws: int = 4000, seed: int = 0) -> dict:
     hi = vals[min(len(vals) - 1, int(0.975 * len(vals)))]
     ppy = 4.0                                    # 63-trading-day periods
     from .fundamental_panel import _nw_tstat, _tstat
-    return {"ok": True, "n_periods": n,
-            "mean_diff_ann": float(np.mean(d) * ppy),
-            "ci95_ann": [lo * ppy, hi * ppy],
-            "excludes_zero": bool(lo > 0 or hi < 0),
-            "positive_at_significance": bool(lo > 0),
-            "tstat": _tstat(list(d)), "tstat_nw": _nw_tstat(list(d), lag=1),
-            "note": "paired period bootstrap; no X7-calibrated floor exists for this quantity."}
+    out = {"ok": True, "n_periods": n,
+           "mean_diff_ann": float(np.mean(d) * ppy),
+           "ci95_ann": [lo * ppy, hi * ppy],
+           "excludes_zero": bool(lo > 0 or hi < 0),
+           "positive_at_significance": bool(lo > 0),
+           "tstat": _tstat(list(d)), "tstat_nw": _nw_tstat(list(d), lag=1),
+           "note": "paired period bootstrap; no X7-calibrated floor exists for this quantity."}
+    out.update(align)
+    return out
 
 
 def deflated_sharpe_at(detail: dict, n_trials: int) -> Optional[dict]:

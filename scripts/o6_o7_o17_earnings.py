@@ -20,7 +20,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from valuation.edge import earnings_surface as ES        # noqa: E402
+from valuation.studies import earnings_surface as ES        # noqa: E402
 from valuation.edge import blackscholes as BS            # noqa: E402
 from valuation.edge import options_stats as OS           # noqa: E402
 from valuation.edge import bulk                          # noqa: E402

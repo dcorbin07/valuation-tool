@@ -19,7 +19,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from valuation.research import lazy_prices_ic as ic
+from valuation.studies import lazy_prices_ic as ic
 
 
 # ---------------------------------------------------------------------------- fixtures

@@ -13,7 +13,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import state_isolation  # noqa: F401,E402  (must precede the valuation imports)
 
-from valuation.edge import portfolio_capacity as PC  # noqa: E402
+from valuation.studies import portfolio_capacity as PC  # noqa: E402
 
 
 def _book(n=50, spot=100.0):

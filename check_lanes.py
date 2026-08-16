@@ -106,7 +106,7 @@ TERRITORY = [
                  "valuation/edge/options_tracker.py","valuation/edge/options_live.py",
                  "valuation/edge/options_sizing.py","valuation/edge/options_vrp_portfolio.py"]),
  ("DATASETS",   ["valuation/edge/bulk.py","valuation/edge/short_interest.py",
-                 "valuation/research/lazy_prices_ic.py"]),
+                 "valuation/studies/lazy_prices_ic.py"]),
  ("STATS",      ["valuation/edge/statistics.py"]),
  ("OPTIONS-BOT",["options-bot/"]),
  ("INFRA",      [".github/","tests/","CLAUDE.md","valuation/web/"]),

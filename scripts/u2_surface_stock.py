@@ -20,7 +20,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from valuation.edge import fundamental_panel as FP        # noqa: E402
-from valuation.edge import surface_stock as SS            # noqa: E402
+from valuation.studies import surface_stock as SS            # noqa: E402
 from valuation.screener import cross_sectional as CS      # noqa: E402
 
 PANEL = (r"C:/Users/donni/Downloads/valuation-tool/data/free_analysis/"

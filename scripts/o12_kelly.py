@@ -19,7 +19,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from valuation.edge import kelly as K              # noqa: E402
+from valuation.studies import kelly as K              # noqa: E402
 from valuation.edge import antisignal as A         # noqa: E402
 
 _HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

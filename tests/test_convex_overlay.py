@@ -25,7 +25,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import state_isolation  # noqa: F401,E402  (must precede the valuation imports)
 
-from valuation.edge import convex_overlay as CO  # noqa: E402
+from valuation.studies import convex_overlay as CO  # noqa: E402
 
 
 # --------------------------------------------------------------------------- #

@@ -55,8 +55,10 @@ def _suite_imports(path: Path, mods: dict[str, str]) -> set[str]:
             mod = node.module or ""
             names.add(mod)
             names.update(f"{mod}.{a.name}" for a in node.names)
-    # Package `__init__` modules are excluded. `from valuation.edge import kelly`
-    # resolves BOTH `valuation.edge` and `valuation.edge.kelly`, and the package
+    # Package `__init__` modules are excluded. `from valuation.studies import kelly`
+    # resolves BOTH `valuation.studies` and `valuation.studies.kelly`, and the package
+    # (path updated by MA23, which moved `kelly` out of `valuation/edge/`; the reasoning
+    # below is unchanged and still holds for whichever package the study lives in)
     # init is reachable from the live app, so counting it made every closed
     # study's pin test look like production code -- 92 of 94 suites classified
     # 'product' on the first cut. Importing a package is not touching live code.
