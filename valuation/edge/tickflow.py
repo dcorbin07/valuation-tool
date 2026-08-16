@@ -1,4 +1,11 @@
-"""Tick-flow execution measurement — O10 (passive fills) and O18 (spread-conditional cost).
+"""
+ARCHIVED (master audit MA59, 2026-08-15) - a CLOSED study, kept so its
+result stays reproducible. It is NOT reachable from the live product and
+`tests/test_ma59_quarantine.py` fails if that ever changes.
+Still imported by: scripts/o10_o18_tickflow.py, scripts/o14_tickflow_signals.py, tests/test_tickflow.py.
+Do not extend this module; a new question needs a new register.
+
+Tick-flow execution measurement — O10 (passive fills) and O18 (spread-conditional cost).
 
 Pre-registered in `PREREG_o10_passive_fills.md` and `PREREG_o18_spread_cost.md`, committed
 together and ALONE at 34b0c11 before this file existed.

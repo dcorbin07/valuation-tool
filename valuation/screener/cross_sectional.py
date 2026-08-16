@@ -42,6 +42,19 @@ import pandas as pd
 # harmless — it costs half the long-short t.
 USE_ROBUST_Z = os.getenv("VALQUO_ROBUST_Z", "").strip().lower() in ("1", "true", "yes", "on")
 
+# MA59: the third one-env-var path back to a rejected intervention (the other
+# two are in config.py, which warns the same way). Silent when unset, which is
+# every ordinary run; loud only for the person who opted in, because a run
+# scoring the rejected arm still prints its results under the ordinary
+# headline and nothing else anywhere would say so.
+if USE_ROBUST_Z:      # pragma: no cover - opt-in path
+    import warnings
+    warnings.warn(
+        "REJECTED INTERVENTION ENABLED — VALQUO_ROBUST_Z: median/MAD robust "
+        "z-scores HALVED the long-short t (3.485 -> 1.721, P6). Per-signal ICs "
+        "cannot see this change, so nothing else will flag it.",
+        RuntimeWarning, stacklevel=2)
+
 # Scales the MAD so it estimates the same quantity as the standard deviation for normally
 # distributed data (1 / Phi^-1(0.75)), keeping robust and classic z-scores on one scale —
 # which matters because themes average z-scores across inputs that may use either.

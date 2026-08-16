@@ -1,4 +1,11 @@
-"""U2 — the options surface as a STOCK signal.
+"""
+ARCHIVED (master audit MA59, 2026-08-15) - a CLOSED study, kept so its
+result stays reproducible. It is NOT reachable from the live product and
+`tests/test_ma59_quarantine.py` fails if that ever changes.
+Still imported by: scripts/u2_surface_stock.py, tests/test_surface_stock.py.
+Do not extend this module; a new question needs a new register.
+
+U2 — the options surface as a STOCK signal.
 
 Executes `PREREG_u2_surface_stock_signals.md`. Nothing in this module may be changed to fit a
 result; the register is committed alone at a strict ancestor commit.
