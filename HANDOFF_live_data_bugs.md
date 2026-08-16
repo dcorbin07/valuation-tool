@@ -4940,3 +4940,139 @@ find it. **Never pipe a suite into `tail` and read the exit code**; the gate run
 real check runs each suite as a subprocess and reads its own `returncode`, which is why it caught
 both of these. `test_edge.py` is now **428/428, exit 0**, with the second test rewritten to assert
 the refusal.
+
+---
+
+# Part 22 — V6B-PERNAME: M1's risk statistic on the row a reader is actually looking at (2026-08-16)
+
+`V6B-PRODUCT` published V6-B's M1 result as a **paragraph about a population**: healthy names
+already down 20% went on to fall another 20% about a quarter less often than unhealthy ones. True,
+measured, and — sitting in a posture block above twelve rows — not visibly connected to any of them.
+
+This attaches it per name. For each screened row: **which of M1's two measured classes that name
+falls in**, and **the historical rate for that class**. Nothing else.
+
+**It adopts nothing.** No vintage event, no weight change, nothing enters the composite. The field
+is computed *after* every membership decision in `dip.screen`, so it cannot reach one, and the sort
+is on `drawdown` exactly as before. A test runs the whole screen twice over fixtures differing
+**only** in class and asserts the row set and its order are identical — with its own vacuity check,
+because that pin is worthless if the screen could not have dropped anything.
+
+| file | change |
+|---|---|
+| `valuation/web/dip_risk.py` | **new** — the classification, the rates, the four refusals, the copy |
+| `valuation/web/dip.py` | wired at the one point all three inputs coexist; `cash_burning` carried through |
+| `tests/test_dip_risk.py` | **new**, 29/29 |
+
+## 1. The check V6's own register demanded, and why it was owed
+
+V6's register wrote down, *before any result existed*, that a POSITIVE **would not license the tab's
+copy without a separate live-vs-panel fidelity check — "coverage is not fidelity."** M1 came back
+POSITIVE, so the debt fell due, and it falls due at the level of the **classification**: a rate is
+only *this name's class's* rate if this name is classified the way the measured rows were.
+
+M1's rule (`scripts/v6b_dip_survival.py:346-347`) is two clauses:
+
+    healthy = (quality theme z-score  >  0.0)  AND  (financial health score  >=  50.0)
+
+**Both transfer, which is the only reason this is buildable.** `z_quality` is on the scan snapshot,
+written by `screen.py` from the same `build_frame` theme column the panel uses; the 0-100 health
+score comes from `engine/scoring._health_score`, and **M1 called that same shipped function** rather
+than retyping its breakpoints. The rule is reproduced exactly — **including its asymmetry**, quality
+strict and health inclusive — and pinned from both sides. The floors are pinned **against the
+measurement script**, not retyped, so a register that moved a boundary breaks the suite instead of
+silently re-pointing a published rate at a population nobody measured.
+
+## 2. The finding, measured rather than assumed, and it changes what the field means
+
+**A name that lists on the Dip Detector can essentially never classify UNHEALTHY.** Two structural
+reasons: the screen's prefilter already drops `z_quality < 0` — M1's quality clause less its
+strictness — and the screen lists on `health >= 66` while M1's floor is **50**, so every listed name
+clears the health clause with room to spare.
+
+Swept rather than argued: over the live gates crossed with M1's rule, the unhealthy class is
+reachable at **exactly `z_quality == 0.0` and nowhere else**.
+
+So this is **not a discriminator between two groups. It is a verification that each listed name
+really is in the measured group** — which is precisely what licenses attaching the rate at all, and
+precisely the question "coverage is not fidelity" was pointing at. Two things follow and both are on
+the surface: the **43.4% is a comparison baseline describing names this screen does not show**, never
+a label it is about to apply; and `METHOD_NOTE` says out loud that the measurement's "healthy" is a
+**lower** bar than the screen's, since a reader who knows the screen gates at 66/66/66 would
+otherwise assume the rate was measured on names that cleared 66/66/66. It was not.
+
+The finding is pinned, so a loosened gate re-opens the question rather than quietly falsifying the
+module's own docstring.
+
+## 3. Four honest refusals, each firing on real rows
+
+* **DEPTH.** M1 measured names **at least 20% below** their trailing 252-session high; the screen's
+  control reaches **10%**. A widened slider therefore puts rows on the page that are outside the
+  measured population. They keep their class and get **no rate**, with the reason stated. At the
+  default threshold this never fires, which is exactly why it is easy to forget and why it is tested
+  at a threshold where it does.
+* **CASH-BURNING.** `_health_score` has two branches. V6-B's panel could not supply the burner
+  branch's input, and its own C4 control reports **zero** rows took it. A live burner is therefore
+  **excluded** rather than scored against a rate that never saw its kind — detected by reading the
+  shipped `classification.is_cash_burning` flag, not by re-deriving it from `fcf` (audit B7's class).
+* **UNCLASSIFIABLE.** A missing input returns `None`, never a class. Defaulting would attach 43.4% to
+  a name nobody scored — or 32.5%, and **the second is the flattering direction**.
+* **SIZE, and it is one-directional by construction.** The effect runs **−14.287pp** in the smallest
+  tier to **−3.787pp** in the largest, and the largest is the one quintile that does **not** hold in
+  both halves on its own. But the artifact publishes each quintile's **median and not its edges**, so
+  a live name cannot be assigned to a measured tier, and inventing edges would put a confident
+  fabricated number on a public surface. What *is* sound is above the line only: a name above the top
+  quintile's own median is necessarily inside that quintile, since the median sits at about the 90th
+  percentile of the whole distribution. So the flag is **True or unknown, never False** — False would
+  read as "this name is in a tier where the effect is stronger", which the data cannot support.
+
+## 4. V3's rule, which is why the copy is shaped the way it is
+
+A measured group average is not a statement about the next name a reader clicks, and **a percentage
+on a row is the single most natural way to be read as this company's chance**. So every label says
+*"of these names"*, `NOT_A_PROBABILITY` travels with every number, and the field is called
+`further_fall_rate` — a rate over a class — never `risk`, `probability` or `odds` (pinned by name).
+
+**Both classes are written out in full and each quotes the other**, so the unflattering
+classification is exactly as legible as the flattering one — `dip_posture`'s
+NULL-as-reachable-as-POSITIVE rule applied one level down, to a class.
+
+The banned list is **imported from `dip_posture` rather than copied**, and asserted against the
+**rendered payload**. Its DISTRESS family is the live risk here: a further-fall statistic sits one
+paraphrase away from a bankruptcy claim whose own arm (M2) is **VOID on power**.
+
+## 5. What is pinned
+
+31 tests. The load-bearing ones: the floors against the script; the classification *expression*
+against the script (a matching pair of floors would not catch an `or`, a reversed comparison or a
+different column); the strict/inclusive boundaries from both sides; a rate never present beside a
+"does not apply" flag; the display-only pin plus its vacuity check; and the source sweep that fails
+if the rate reaches a sort key or filter predicate, plus its own vacuity check.
+
+**The register gate is enforced at RUNTIME, not only pinned.** If `RISK_STATUS` ever stops being
+POSITIVE, `for_name` withdraws every rate — **and the class with it**, because "healthy" rendered
+beside a withdrawn measurement still invites the lookup the withdrawal exists to stop. This is
+`digest_eligible`'s own lesson applied one surface over: *a close-out that revises the paragraph and
+forgets a second surface leaves the two disagreeing, and the surface nobody remembered is the one
+still making the claim.* A test alone would have caught that only for as long as the test survived
+the edit. Both the withdrawal and its non-vacuity are pinned.
+
+The artifact pin **skips loudly** when `data/` is absent (it is gitignored, so CI has no copy) — the
+floors are still pinned against tracked source, which is the half fidelity depends on.
+
+## 6. For Don, plainly
+
+The Dip Detector now says, on each row, *which measured group this name is in and how often names in
+that group fell another 20% within about six months* — 32.5% for the healthy group against 43.4% for
+the unhealthy one. It is a historical rate for a group of past companies, and the row says so rather
+than leaving it to be inferred.
+
+The honest limitation, up front: because the screen already filters harder than the measurement did,
+**almost every listed name is in the healthy group by construction**. The field is confirming that,
+not sorting names into two piles. It changes no name that appears, no ordering, and nothing in the
+model.
+
+**Not done, named so it is not mistaken for done:** no template or `app.js` change — the payload
+carries the field and whether the tab *renders* it is the web lane's call. And the rate is not
+tiered by company size, because the artifact does not publish the tier edges needed to do it
+honestly.

@@ -48,6 +48,120 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE AUDIT'S OWN EVIDENCE IS WRONG IN TWO OF THESE FIVE ITEMS, AND IN BOTH CASES IT IS WRONG
+  IN THE DIRECTION THAT WOULD HAVE MADE A READER STOP (2026-08-16, `MA14`+`MA21`+`MA25`+`MA34`+
+  `MA49`).** The wave-2/LOW pipeline batch, sequenced severity-then-collision. **Zero trials, all
+  five `FIXED`-class** — no hypothesis, no threshold, no verdict against a bar — so **equity `N`
+  stays 227**, `by_domain` is bit-identical across the log append and `rows_fixed_not_counted`
+  rises **47 → 52**, the proof the rows were seen and correctly excluded, and **no published claim
+  moves.**
+  * **AND THE ANSWER TO THE STANDING QUESTION IS NO: `MA23` DID NOT WIDEN THESE BATCHES, AND IT
+    NEVER COULD HAVE.** `fundamental_panel.py` is **5,014 lines, byte-for-byte what it was before
+    `MA23` landed** — the move relocated the directory's OTHER occupants, and the panel is a file
+    that was never among them. `MA14` and `MA25` still had to share this session because they
+    share that file. The map's headline calling `MA23` "the item that would change" the
+    one-owner-at-a-time rule remains the correction shipped last session, now demonstrated
+    operationally rather than only by line count.
+  * **`MA34` — THE AUDIT REASONS FROM A RUN THIS FILE MARKS VOID, AND THE PARTITION COMES OUT
+    BACKWARDS.** Its verification cites *"SMB +0.39 t 3.84, RMW +0.30 t 4.49, UMD +0.18 t 3.49"*
+    with HML and CMA at t 1.08, concluding a post-publication decay prior attaches to `size`,
+    `quality` and `momentum`. **Those figures reproduce BIT-FOR-BIT from
+    `data/free_analysis/FACTOR_ALPHA_RESULTS.json`** — SMB +0.394 (t +3.84), RMW +0.298 (t +4.49),
+    UMD +0.181 (t +3.49) — **at `n_periods` 109, which is the pre-B6 110-date panel**, the run
+    whose own bullet below reads *"DO NOT QUOTE IT."* On the corrected panel **HML +0.251 (t
+    +2.93) and UMD +0.205 (t +3.65) LOAD while SMB +0.208 (t +1.39) and RMW +0.092 (t +0.90) do
+    NOT**, so **the prior attaches to `value` and `momentum`** — 2 of 7 weighted themes, **28.6% of
+    the effective composite** — and not to the two the audit names. The audit's FORM survives; its
+    partition is inverted. Registered as `PAPER_TRACK_CONTRACT.md` **§6.6**, before the window
+    accrues, which is the only time an expectation is worth anything.
+  * **NO MAGNITUDE IS ISSUED AND REFUSING IS THE POINT.** 28.6% decaying by a third reads as
+    +9.99 → ~+9.0 pp/yr, and that arithmetic assumes a theme's contribution is proportional to its
+    weight — **which X3 measured to be FALSE**, `size` having the worst theme IC (−0.30) and
+    carrying the composite's entire significance. **Direction and affected fraction are
+    registered; the magnitude is not.** One consequence is recorded because it runs against the
+    strategy: §6.2's power table is computed **at** the backtested +9.99pp/yr, so if the prior
+    holds the **real power is BELOW the stated 13.3% at 60 months.**
+  * **`MA25` — THE RECORD CORRECTION IS CONFIRMED AND THE AUDIT UNDERCOUNTS ITS OWN EVIDENCE BY
+    73%.** *"There is no liquidity measure on this path"* is **true of the panel and false of the
+    project**. Measured, not quoted: `data/bulk/prepared/bars/*.pkl` holds **502 names** — the
+    audit and `capacity.py`'s own header both say 290 — every one carrying `volume` and
+    `raw_close`, **2,780,252 rows**, spanning **1997-12-31 → 2026-08-07**, i.e. the whole panel
+    window, all 502 present in DAILY, **19.8% of the 2,531-name universe**, median $ADV $150M.
+    `capacity.py::adv_from_bars` already computes it. **Corrected in the shipped ARTIFACT rather
+    than only in prose** — `prefilter_note` carries it and a new `prefilter_adv_partial_source`
+    block ships the numbers — because a reader of `BACKTEST_RESULTS.json` was the one being
+    misled. **B13 and S7 are NOT overturned**: 80.2% of the universe still has no measure so the
+    filter cannot bind universally, and S7 was right to refuse a proxy. **THE TEST IS
+    DELIBERATELY NOT RUN**, on the audit's own recommendation.
+  * **`MA21` — ONE OF ITS FIVE CONVENTIONS IS REFUTED BY THE ARTIFACT IT PROPOSES TO CHECK.** It
+    asks that an unknown verdict become a warning. `build_ledger.py`'s own *"How to read a row"*
+    states blank means *"not measured, or measured and reported in different words — never 'we
+    don't know'"*, and **41 of 230 DONE rows carry a blank verdict**, every one legitimate. The
+    warning would fire on all 41 plus every prose verdict and be switched off inside a week — the
+    cry-wolf failure `MA19` already refused once. **A substitute ships**: the vocabulary literal
+    and the documented list are two copies of one fact in one file and must not drift.
+  * **THE OTHER FOUR: one was already done, two are enforced, one cannot be.** (1) is **MA13's**
+    and is not re-implemented, because a second pin is a second definition. (2) the artifact-vs-log
+    check is **enforced in the one direction that cannot cry wolf** — trials only accumulate, so
+    the artifact may LAG the log and may never LEAD it; **the drift is live at 3** (artifact 224
+    against a live equity 227) with nothing whatever wrong, which is exactly why equality would be
+    the wrong test. (4) reads clean — 46 MA ids across 400 commit subjects, all with rows. (5)
+    scheduling M4's fidelity harness is **REPORTED, NOT TAKEN**: it needs a `.github/` edit
+    `land_policy.py` refuses by design **and** the licensed export CI must never hold, so it is
+    blocked twice over. **All three tripwires MUTATION-TESTED 3 of 3** — a tripwire that cannot
+    bite is not a check.
+  * **`MA14` — THE PORT, AND THE ONE PLACE IT DELIBERATELY DIFFERS FROM THE BACKTEST VERSION.**
+    Verified first: `sanity_check` is reachable only from the backtest and `optvrp_report`, while
+    the live health block carries `theme_coverage`, which answers PRESENCE. `OOB2` is what the gap
+    costs — one dropped Yahoo beta field, a 1.10 default, and MRK went from *"cannot value"* to a
+    **91 Strong Buy** with nothing empty and nothing raised. The bands now live in a
+    dependency-free `sanity_spec.py` that `fundamental_panel` **re-exports** (MA39's pattern, so
+    the 5,000-line engine never reaches the request path and every existing importer is
+    untouched), and a test pins **object identity** plus **exactly one literal assignment in the
+    tree**. **The difference: `sanity_check` silently skips an absent column**, which is right for
+    a panel built to a known schema and catastrophic on a live frame, where a rename would produce
+    zero checks and an empty `flags` — a clean bill of health from a guard that looked at nothing.
+    `columns_absent`, `checked` and `vacuous` close that. Demonstrated on P7's signature: a 892
+    `book_to_price` fires **both** the range band and the foreign-subgroup peg. Reporting-only,
+    pinned.
+  * **`MA49` — FIVE LATENT DEFECTS, AND FOUR OF THE FIVE FAIL IN THE FLATTERING DIRECTION.**
+    **(a)** the factor coverage bar is hard-coded at 2025 and is **left frozen deliberately** —
+    it is PRE-REGISTERED, and a registered bar that follows the clock is not the bar registered —
+    so staleness ships as a **reported number** instead; its live companion is that
+    `factor_windows` dropped an uncovered window with a bare `continue`, silently **shortening
+    every regression in the file**, now counted. **(b)** `sharpe` filtered `None` and not NaN
+    while `_clean` in the same module drops both, so one NaN returned **NaN** and
+    `deflated_sharpe_ratio` carried it to a published verdict — **a value that compares False
+    against every bar, failing a threshold in silence.** Reproduced, then fixed by delegation;
+    **inert on the shipped inputs at max abs difference 0.000e+00 over 2,000 NaN-free series**,
+    DSR unchanged at 0.7863213339664521. Its second half, `trial_sharpes and len(...) > 1`,
+    **raises** on an ndarray, so the documented argument worked for a list and crashed for the
+    type every caller holds. **(c)** `n_names = 9  # 8 schemes + current-default` — the comment
+    states its own error, `_weight_schemes` returns **8** with `current-default` among them, so
+    the n=8 point was scored at √(2·ln 9)=2.0963 rather than 2.0393; now **derived**, not
+    re-typed. **(d)** the `ex_b6_first_37` cut ran regardless of `--corrected-panel`, mislabelling
+    37 healthy dates as contaminated — **while its sibling block 56 lines earlier already branches
+    on that flag and explains why in a comment.** **(e)** `_cap_mask` returned the **full
+    universe** for a tier it could not form, wider even than the finite-cap names, so a
+    tier-labelled date contributed everything: **B12's defect — a count read as an identity — in a
+    different column.**
+  * **AND THE SAME DEFECT IN MY OWN GUARD FOR THE THIRD TIME IN TWO SESSIONS.** The `MA49(c)`
+    fixture grepped for `n_names = 9` and **failed against the FIXED tree**, because the comment
+    documenting the repair quotes the defect verbatim. Comment-versus-code, after `MA5`'s source
+    sweep and last session's boundary test. It reads the **AST** now. **A fourth instance of the
+    family, in the ledger this time:** the `MA49` note carried a raw `|` inside `|old-new|`, which
+    split the row into 12 cells and made `MA49` **vanish from `build_ledger`'s id list** — the
+    `M1-PARSE` hazard, committed with the warning in view.
+  * **PINNED: 13 of 15 fixtures fail against the pre-fix tree.** The two that pass are reported as
+    passing deliberately — one **is** the NaN-free inertness proof (it must agree before and
+    after) and the other pins a pre-existing consumer guard the `(e)` fix relies on. **MA21's 8
+    pass pre-fix too, and that is not a weakness**: it changes no source, so its tests are
+    tripwires, which is why they were mutation-tested instead. **DEFERRED AND NAMED SO THEY ARE
+    NOT MISTAKEN FOR DONE: `MA24`, `MA26`, `MA27`, `MA28`, `MA33`, `MA54`, `MA55`, `MA57`, `MA58`
+    — all nine charge trials and need a blind pre-registration**, which is what the register
+    exists to prevent a correctness batch from skipping. **102 suites, 0 failures; 23 new tests.**
+    `HANDOFF_edge_audit.md` MA14+MA21+MA25+MA34+MA49.
+
 - **THE OPTIONS-EXPRESSION FAMILY IS CLOSED AT ITS GATE: THE EQUITY COMPOSITE SORTS THE
   OPTIONABLE UNIVERSE ONLY AFTER 2021, AND A FULL-SAMPLE READING WOULD HAVE LICENSED THREE
   SESSIONS ON IT (2026-08-16, `P1S0` + `U6-COV` + `O17C4`).** Executes

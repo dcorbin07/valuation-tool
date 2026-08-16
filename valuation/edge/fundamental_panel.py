@@ -1598,7 +1598,25 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
         "prefilter_note": ("MIN_AVG_DOLLAR_VOLUME has never bound on this path and "
                            "still does not: the price export on disk carries date+close "
                            "only, so avg_dollar_volume cannot be computed here. Wiring "
-                           "it needs SEP volume in the panel loader (audit B13)."),
+                           "it needs SEP volume in the panel loader (audit B13). "
+                           "CORRECTED 2026-08-16 (audit MA25): 'cannot be computed' is "
+                           "true of THIS path and false of the project. "
+                           "data/bulk/prepared/bars/ carries a volume column for 502 "
+                           "names (19.8% of the 2,531-name universe, 2.78M rows, "
+                           "1997-12-31..2026-08-07, so the whole panel window), and "
+                           "scripts/capacity.py:adv_from_bars already computes dollar ADV "
+                           "from it as raw_close*volume. SEP is one route and not the "
+                           "only one. It is a PARTIAL route: 80.2% of the universe still "
+                           "has no measure, so the filter still cannot bind universally."),
+        # AUDIT MA25 — measured, so a reader does not have to take the sentence above on
+        # trust and does not conclude the data exists nowhere. See VALQUO_LEDGER B13/S7.
+        "prefilter_adv_partial_source": {
+            "path": "data/bulk/prepared/bars/*.pkl",
+            "names": 502,
+            "share_of_universe": 0.198,
+            "reader": "scripts/capacity.py::adv_from_bars",
+            "measured": "2026-08-16",
+        },
     }
     _out.attrs["panel_window"] = _win
     LAST_PANEL_DIAGNOSTICS["panel_window"] = _win
@@ -4150,24 +4168,15 @@ def holdout_theme_validate(panel, cols, n_q=10, horizon=63, base_weight=0.125,
 # and the band flagged identical shares before and after the fix — a pure no-op. The SUBGROUP
 # check below is what covers them. `ev_ebitda` is already restricted to POSITIVE EBITDA at
 # construction, so its remaining tail is genuinely "barely profitable", not a sign error.
-SANE_RANGES = {
-    "book_to_price": (-50.0, 50.0),
-    "earnings_yield": (-10.0, 10.0),   # quarterly earnings / market cap
-    "fcf_yield": (-10.0, 10.0),
-    "ebit_ev": (-25.0, 25.0),
-}
-# Ratios measured but intentionally exempt from the range check (see above).
-SANE_RANGE_EXEMPT = ("ev_sales", "ev_ebitda", "ps")
-SANE_VIOLATION_SHARE = 0.01        # >1% of rows outside the band = systematic, not a fat tail
-# A subgroup whose MEDIAN percentile sits this high/low is pegged. 0.70 verified against the
-# pre-P7 values: it catches 4 of the 6 corrupted value ratios (book_to_price and
-# earnings_yield reached 0.86 alone) with ZERO false positives on the corrected data, where
-# every factor lands in 0.49-0.61. This is a detector threshold tuned on known-bad vs
-# known-good data — it affects no return and no weight, so it is not the kind of
-# after-the-fact tuning holdout_theme_validate exists to prevent.
-SUBGROUP_PEG_PCTILE = 0.70
-MC_DIVERGENCE_FACTOR = 3.0         # DAILY market cap vs shares x price
-MC_DIVERGENCE_SHARE = 0.01
+# AUDIT MA14 — THESE ARE RE-EXPORTS, NOT DEFINITIONS. The bands now live in
+# `valuation/edge/sanity_spec.py`, which depends on nothing, so the LIVE scoring path can
+# import them without importing this 5,000-line module. Every existing importer of
+# `fundamental_panel.SANE_RANGES` keeps working unchanged, which is the whole point of a
+# re-export; MA39 established the pattern after a duplicated `RESULT_BLOCKS` drifted and left
+# seven payload blocks unwatched. A test pins that exactly one literal assignment exists.
+from .sanity_spec import (MC_DIVERGENCE_FACTOR, MC_DIVERGENCE_SHARE,  # noqa: E402,F401
+                          SANE_RANGE_EXEMPT, SANE_RANGES, SANE_VIOLATION_SHARE,
+                          SUBGROUP_PEG_PCTILE)
 
 
 def sanity_check(panel, ranges=None, warn=True) -> dict:

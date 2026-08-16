@@ -26,9 +26,21 @@ _EULER = 0.5772156649015329
 
 
 def sharpe(returns) -> float | None:
-    """Per-period Sharpe (mean/std). Annualize separately if needed."""
-    import numpy as np
-    r = np.asarray([x for x in returns if x is not None], float)
+    """Per-period Sharpe (mean/std). Annualize separately if needed.
+
+    AUDIT MA49(b). This used to filter `None` and NOT NaN, while `_clean` below has always
+    dropped both. The asymmetry was not cosmetic: a single NaN return made `r.std()` NaN, so
+    the `== 0` guard was False, and the function returned **NaN rather than None** — which
+    `deflated_sharpe_ratio` then carried all the way to a published `deflated_sharpe` of NaN.
+    A NaN is not a verdict, and it is the one value that compares False against every bar, so
+    it fails a threshold check silently instead of loudly.
+
+    NOW DELEGATES TO `_clean`, so there is ONE definition of "a usable observation" in this
+    module rather than two that disagree. Verified inert on the shipped inputs: the banked
+    long-short and top-decile series carry no NaN, so this returns the same float it always
+    did (pinned by test). The change is to what the NEXT NaN costs.
+    """
+    r = _clean(returns)
     if len(r) < 3 or r.std(ddof=1) == 0:
         return None
     return float(r.mean() / r.std(ddof=1))
@@ -77,10 +89,27 @@ def deflated_sharpe_ratio(returns, n_trials, var_trials=None, trial_sharpes=None
     n, skew, kurt = _moments(returns)
     if var_trials is None:
         import numpy as np
-        var_trials = float(np.var(trial_sharpes, ddof=1)) if (trial_sharpes and len(trial_sharpes) > 1) else (sr * sr)
+        # AUDIT MA49(b). This read `trial_sharpes and len(trial_sharpes) > 1`, and `and` on a
+        # numpy array evaluates the array's truth value — which RAISES for any array of length
+        # > 1 ("The truth value of an array with more than one element is ambiguous"). So the
+        # documented `trial_sharpes` argument worked for a list and crashed for the ndarray
+        # every caller in this project actually has to hand. Tested by identity and length,
+        # never by truthiness; `_clean` also drops a NaN trial rather than poisoning the
+        # variance with it.
+        ts = _clean(trial_sharpes) if trial_sharpes is not None else None
+        var_trials = float(np.var(ts, ddof=1)) if (ts is not None and len(ts) > 1) else (sr * sr)
     sr_star = expected_max_sharpe(n_trials, var_trials)
     dsr = probabilistic_sharpe_ratio(sr, n, skew, kurt, sr_star)
+    # AUDIT MA49(b), second half. Dropping a NaN is the right convention — it is what every
+    # other statistic in this module already does via `_clean` — but a dropped observation the
+    # caller never hears about is a subset wearing the full sample's name. `n_unusable` is that
+    # count, and it reads 0 on every input this project has today.
+    try:
+        n_unusable = int(len(list(returns)) - len(_clean(returns)))
+    except TypeError:                                   # a one-shot iterator: do not consume it
+        n_unusable = None
     return {"sharpe_per_period": sr, "n_obs": n, "n_trials": n_trials,
+            "n_unusable": n_unusable,
             "sr_benchmark": sr_star, "deflated_sharpe": dsr,
             "real": bool(dsr is not None and dsr > 0.95),
             "note": ("Edge likely real (DSR > 0.95)" if (dsr or 0) > 0.95 else
