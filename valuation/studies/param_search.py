@@ -184,14 +184,30 @@ def prepare(panel, cols):
     return {"dates": dates, "prep": prep, "n_tickers": len(tickers), "cols": list(cols)}
 
 
+CAP_MIN_FINITE = 30        # below this a tier cannot be formed; the date is EXCLUDED, not widened
+
+
 def _cap_mask(mc, tier):
     """Point-in-time market-cap tier mask: the largest `frac` of names BY THAT DATE'S caps, so
-    the universe definition itself carries no look-ahead."""
+    the universe definition itself carries no look-ahead.
+
+    AUDIT MA49(e) — A STARVED DATE IS NOW EMPTY, NOT UNIVERSAL. This used to
+    `return np.ones(len(mc), dtype=bool)` when fewer than 30 names had a finite cap, i.e. a
+    date on which the tier could not be formed silently contributed EVERY name — including the
+    names whose cap was missing, since `ones` is wider even than `ok`. The label said
+    "megacap" and the rows were "all". Mixing two universes under one label is the B12 defect
+    (an alphabetical slice read as the largest N) in a different column, and it fails in the
+    direction that looks like more data rather than less.
+
+    The safe direction is to CONTRIBUTE NOTHING: a tier that cannot be formed has no opinion,
+    and an empty mask makes the date drop out of that tier's series where a full mask made it
+    dominate. `tier == "all"` is untouched — there the full universe IS the definition.
+    """
     if tier == "all":
         return np.ones(len(mc), dtype=bool)
     ok = np.isfinite(mc)
-    if ok.sum() < 30:
-        return np.ones(len(mc), dtype=bool)
+    if ok.sum() < CAP_MIN_FINITE:
+        return np.zeros(len(mc), dtype=bool)
     thresh = np.quantile(mc[ok], 1.0 - CAP_FRACTION[tier])
     return ok & (mc >= thresh)
 

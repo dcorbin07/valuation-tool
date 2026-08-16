@@ -2,7 +2,8 @@
 """M4 — run the live-replay harness on a real historical date.
 
 Executes the M4 section of `PREREG_x5_m4_b23_s10acct.md`. The deliverable is the harness
-(`valuation/edge/live_replay.py`) plus ONE VERIFIED REPLAY — a harness with no executed
+(`valuation/studies/live_replay.py`, moved there by MA23) plus ONE VERIFIED REPLAY — a harness
+with no executed
 replay is the thing this catalogue keeps finding.
 
 Builds the panel once with `metrics_sink`, which captures the panel's OWN metrics list per
