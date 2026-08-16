@@ -225,7 +225,7 @@ valuation-tool/
 │   │                               #   placebo calibration, forward paper track
 │   ├── ai/, report/, web/, saas/   # LLM layer, exports, Flask app, hosted tier
 ├── scripts/                        # research + maintenance entry points
-└── tests/                          # 94 offline suites, no data/ required
+└── tests/                          # offline suites, no data/ required
 ```
 
 A hosted SaaS layer is included (accounts, tiers, Stripe billing, digests):

@@ -43,10 +43,28 @@ def flat(text: str) -> str:
     return re.sub(r"\s+", " ", unquoted)
 
 
+# TWO forms, and the split is by DOCUMENT rather than by phrasing (widened 2026-08-16,
+# public-docs pass).
+#
+# The verb form is the original: an instruction that names a count. It applies everywhere.
 SUITE_CLAIM = re.compile(r"runs (?:all |every )?(\d+) suites", re.I)
+#
+# The bare form -- "94 offline suites" -- is a PRESENT-TENSE DESCRIPTION of the repository, and
+# the README shipped exactly that in its project-structure diagram, already wrong by one, in the
+# single most-read file of a now-public repo. It slipped past because the check only knew the
+# verb form.
+#
+# It cannot be applied to `CLAUDE.md`. That file is the FINDINGS RECORD: "81 suites, 0 failures"
+# is a dated measurement of what a past session actually ran, and it is supposed to stay that
+# way forever. Applying the bare form there fires on four legitimate historical entries, and the
+# only way to green it would be to delete the record -- the same trap the quote exemption below
+# exists to avoid. So the bare form is scoped to the ENTRY-POINT documents, which describe the
+# repository as it is now and are therefore the ones that rot.
+SUITE_COUNT_BARE = re.compile(r"(\d+)\s+(?:[a-z-]+\s+)?suites", re.I)
+DESCRIBE_THE_PRESENT = ("README.md", "START_HERE.md", "RUN_RULES.md")
 
 
-def stale_suite_claims(text: str, actual: int) -> list:
+def stale_suite_claims(text: str, actual: int, pattern=None) -> list:
     """Present-tense claims of a specific suite count that disagree with reality.
 
     QUOTED occurrences are skipped, and that exemption is load-bearing rather than a
@@ -58,7 +76,7 @@ def stale_suite_claims(text: str, actual: int) -> list:
     exemption is narrow.
     """
     out = []
-    for m in SUITE_CLAIM.finditer(text):
+    for m in (pattern or SUITE_CLAIM).finditer(text):
         if int(m.group(1)) == actual:
             continue
         line_start = text.rfind("\n", 0, m.start()) + 1
@@ -179,11 +197,45 @@ class OperatingInstructionsAreWhereTheyAreRead(unittest.TestCase):
         offenders = []
         for name in ("CLAUDE.md", "RUN_RULES.md", "START_HERE.md", "README.md"):
             offenders += [f"{name}: {c}" for c in stale_suite_claims(read(name), actual)]
+        # The entry-point docs describe the repo as it IS, so a bare count rots there too.
+        for name in DESCRIBE_THE_PRESENT:
+            offenders += [f"{name} (bare): {c}" for c in
+                          stale_suite_claims(read(name), actual, SUITE_COUNT_BARE)]
         self.assertEqual(offenders, [], "; ".join(offenders))
 
         rr = read("RUN_RULES.md")
         self.assertIn("ls tests/test_*.py | wc -l", rr,
                       "PART 0 must show how to COUNT the suites rather than quoting a number")
+
+    def test_the_bare_count_form_catches_what_slipped_past(self):
+        """Positive control for the 2026-08-16 widening, using the real miss.
+
+        The README carried "94 offline suites" in its project-structure diagram while there
+        were 95. The verb-form regex could not see it. If this ever stops failing, the bare
+        form has been narrowed back and the README can quietly hard-code a count again.
+        """
+        miss = "tests/    # 94 offline suites, no data/ required"
+        self.assertEqual(
+            stale_suite_claims(miss, 94, SUITE_COUNT_BARE), [],
+            "a bare count that AGREES with reality must not be flagged")
+        self.assertEqual(
+            len(stale_suite_claims(miss, 95, SUITE_COUNT_BARE)), 1,
+            "the bare form must catch a hard-coded count that has gone stale")
+        self.assertEqual(
+            stale_suite_claims(miss, 95), [],
+            "the verb form must still NOT see it -- that is why the bare form exists")
+
+    def test_the_bare_form_is_not_applied_to_the_findings_record(self):
+        """CLAUDE.md legitimately records "81 suites, 0 failures" forever.
+
+        Scoping is the whole design: applying the bare form there fires on dated historical
+        measurements, and greening it would mean deleting the record.
+        """
+        self.assertNotIn("CLAUDE.md", DESCRIBE_THE_PRESENT)
+        historical = "**81 suites, 0 failures.** `HANDOFF_edge_audit.md` MA39."
+        self.assertEqual(
+            len(stale_suite_claims(historical, 95, SUITE_COUNT_BARE)), 1,
+            "sanity: the bare form WOULD fire on the record, which is why it is scoped out")
 
     def test_the_quote_exemption_does_not_blind_the_check(self):
         """Positive control, and it is the one that matters -- the exemption above is exactly
