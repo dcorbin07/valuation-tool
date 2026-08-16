@@ -296,7 +296,29 @@ def _verify(key: str, df, required: bool) -> dict:
 
     # A monthly series stamps December 2025 as 2025-12-01, so requiring 12-31 would fail a
     # file that does cover the period. Daily keeps the strict end date.
+    #
+    # AUDIT MA49(a) — THIS BAR IS FROZEN AT 2025 AND IS DELIBERATELY LEFT FROZEN. It is
+    # PRE-REGISTERED (see this function's docstring), and a pre-registered bar that quietly
+    # follows the clock is not the bar that was registered. But a frozen one only ever gets
+    # EASIER: from 2026 onward a year-stale file clears `covers_through_2025` and reports
+    # itself verified, and `factor_alpha.factor_windows` then drops the panel's trailing
+    # windows for want of factor days. The repair is therefore NOT to move the bar but to
+    # make its staleness a reported number, so "verified" and "current" stop being the same
+    # word. `stale_days` is a DISCLOSURE and gates nothing.
     end_bar = pd.Timestamp("2025-12-31" if daily else "2025-12-01")
+    _today = pd.Timestamp.today().normalize()
+    _stale_days = int((_today - d.iloc[-1]).days)
+    out["freshness"] = {
+        "end": str(d.iloc[-1].date()),
+        "as_of": str(_today.date()),
+        "stale_days": _stale_days,
+        "bar_end": str(end_bar.date()),
+        "bar_is_frozen": True,
+        "bar_passed_while_stale": bool(d.iloc[-1] >= end_bar and _stale_days > 120),
+        "note": ("the pre-registered coverage bar is fixed at 2025 and does not move with the "
+                 "calendar; `stale_days` is how far behind the file actually is, and a file "
+                 "can clear the bar while being a year out of date"),
+    }
     checks = {
         "covers_panel_start_1998": bool(d.iloc[0] <= pd.Timestamp("1998-01-01")),
         "covers_through_2025": bool(d.iloc[-1] >= end_bar),

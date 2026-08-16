@@ -697,6 +697,75 @@ the bound is anti-conservative and `sigma` must be **raised**, with the change l
 construction event. Measured: at 1.5× the assumed volatility the false-crossing rate is **20%**,
 a four-fold breach. The meter reports `sigma_breach` on every call so this cannot go unnoticed.
 
+### 6.6 The post-publication decay prior — written 2026-08-16, before the window accrues (`MA34`)
+
+**Zero trials.** This is an EXPECTATION, not a hypothesis test: nothing here is measured against
+a threshold and no verdict is issued. It is written now for one reason — **an expectation
+recorded after the window has accrued is worthless**, and this is the only item in the audit that
+gets cheaper the sooner it is done.
+
+**THE PRIOR.** McLean–Pontiff and its successors find that published anomaly premia decay
+materially once institutions trade them; the audit states the decay as roughly one-third. The
+forward track is the one instrument in this project that could ever see it, because a decay prior
+is a statement about the FUTURE and every other number here is in-sample.
+
+**SO THE REGISTERED EXPECTATION IS:** the forward excess should be expected to come in **BELOW**
+the backtested **+9.99 pp/yr vs SPY**, and the shortfall should be concentrated in whichever legs
+of the composite are genuinely standard premia rather than something this project found on its
+own. Stated in advance and in this direction so that a shortfall is a *predicted* outcome rather
+than an excuse invented afterwards.
+
+**WHICH LEGS — AND THE AUDIT'S OWN ANSWER IS INVERTED, MEASURED RATHER THAN ARGUED.** `MA34`'s
+verification reasons from R1's loadings and cites *"SMB +0.39 t 3.84, RMW +0.30 t 4.49, UMD +0.18
+t 3.49"* with *"HML t 1.08, CMA t 1.08"* not loading — concluding the prior applies to `size`,
+`quality` and `momentum`. **Those are the VOID pre-B6 run's numbers.** Verified against the banked
+artifact `data/free_analysis/FACTOR_ALPHA_RESULTS.json`, whose `compound/full → ff5_mom →
+top_minus_ew` block reads SMB +0.394 (t +3.84), RMW +0.298 (t +4.49), UMD +0.181 (t +3.49), HML
+(t +1.08), CMA (t +1.08) — **bit-for-bit the audit's figures** — at `n_periods = 109`, i.e. the
+110-date panel `B6` removed. `CLAUDE.md` marks that run **VOID** and says of it *"DO NOT QUOTE
+IT."*
+
+On the **corrected** 69-date panel (`HANDOFF_edge_audit.md` Part 5):
+
+| factor | corrected | void run | reads on |
+|---|---|---|---|
+| HML | **+0.251 (t +2.93)** — loads | t 1.08 — did not | `value` |
+| UMD | **+0.205 (t +3.65)** — loads | t 3.49 — did | `momentum` |
+| SMB | +0.208 (t +1.39) — does not | t 3.84 — did | `size` |
+| RMW | +0.092 (t +0.90) — does not | t 4.49 — did | `quality` |
+
+**So the prior attaches to `value` and `momentum`, NOT to `size` and `quality`.** The audit's
+conclusion — that it applies to part of the composite and not the rest — survives; **the
+partition is the other way round.** `value` and `momentum` are 2 of the 7 weighted themes at
+0.125 each (0.875 total mass), so **28.6% of the effective composite** carries the exposure the
+prior is about.
+
+**NO POINT FORECAST IS ISSUED, AND REFUSING TO ISSUE ONE IS THE POINT.** The arithmetic is
+inviting — 28.6% of the composite decaying by a third is a ~9.5% haircut, +9.99 → ~+9.0 pp/yr —
+and it rests on the assumption that a theme's contribution to alpha is proportional to its
+weight. **This project has measured that assumption to be false.** X3 found `size` has the WORST
+theme IC (−0.30) and carries the composite's ENTIRE statistical significance: adding it last took
+alpha +4.10% → +7.17% and long-short *t* 1.02 → 2.84. A weight-proportional decay estimate would
+therefore be a number with no support, and inventing an uncalibrated one is the error this
+project's record warns about more than any other. **Direction and affected fraction are
+registered; the magnitude is not.**
+
+**THE CONSEQUENCE FOR §6.2, AND IT RUNS AGAINST THE STRATEGY.** The meter's power table is
+computed **at** the backtested +9.99 pp/yr. If this prior is right the true forward edge is
+smaller, so the **real power is LOWER than the 13.3% at 60 months already stated** — the
+already-unflattering table is optimistic. That strengthens §6.2's binding consequence rather than
+weakening it: a meter that has not crossed is even less informative than it looked, and is still
+not evidence against the strategy.
+
+**WHAT THIS MAY NEVER BE USED FOR, fixed here so it cannot be reached for later.** A decay prior
+is the easiest thing in this document to abuse, because it makes any disappointment look
+foreseen. Three limits: it may **not** be invoked to void or restart a vintage (§5a's clause
+exists precisely to stop a change chosen after seeing a vintage go badly); it may **not** be used
+to lower `sigma` or any bar (§6.5); and it may **not** be cited as explaining a shortfall in
+`size` or `quality`, which is what the audit's own inverted partition would have licensed. If the
+forward track underperforms in the legs this section names, that is a *predicted* outcome; if it
+underperforms elsewhere, this prior says nothing about it.
+
 ---
 
 ## 7. Known gaps this contract does not itself fix

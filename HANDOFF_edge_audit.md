@@ -12573,3 +12573,297 @@ decorator and there is no `before_request` guard on `/api/edge/*`** — both kic
 computations for an unauthenticated caller. Same class as MA7. **Not fixed** (app-fixer lane), and
 **not established** here whether that blueprint is mounted in the deployed image, so it is
 reported as a lead rather than a finding.
+
+
+---
+
+# MA14 + MA21 + MA25 + MA34 + MA49 — the wave-2/LOW pipeline batch (2026-08-16)
+
+**Zero trials, all five `FIXED`-class.** No hypothesis, no threshold, no verdict against a bar.
+Equity `N` stays **227**; `by_domain` is bit-identical across the log append and
+`rows_fixed_not_counted` rises **47 -> 52**, which is the proof the five rows were seen and
+correctly excluded rather than silently dropped. `BACKTEST_RESULTS.json` needs no re-run.
+
+**Batch chosen severity-then-collision.** `MA14` and `MA25` both touch
+`valuation/edge/fundamental_panel.py`, which is the whole reason for batching by shared file: one
+session owns the file. **Deferred and named so nobody reads them as done: `MA24`, `MA26`, `MA27`,
+`MA28`, `MA33`, `MA54`, `MA55`, `MA57`, `MA58`** — every one charges trials (MA27 and MA55 are
+equation candidates, MA57 and MA58 literature replications, MA33 a panel rebuild), and running a
+trial-charging arm inside a correctness batch is precisely what the register exists to prevent.
+That is the `MA31` precedent from the previous session, applied without being asked twice.
+
+## 0. Did MA23 widen the batches? No, and it never could have
+
+The dispatch brief asked, so it is answered with a number rather than an argument.
+`fundamental_panel.py` is **5,014 lines**, byte-for-byte what it was before `MA23` landed. `MA23`
+moved the *directory's other occupants* out of `valuation/edge/`; the panel is a **file**, and it
+was never among them. `MA14` and `MA25` therefore still had to share this session.
+
+This is the correction shipped last session against `MA_DEPENDENCY_MAP.md`'s own second headline
+— which calls `MA23` *"the item that would change"* the one-owner-at-a-time rule — now
+demonstrated operationally rather than only by line count. **`MA24`, `MA26`, `MA27` and `MA33` all
+name the panel too, so they remain mutually exclusive per session.**
+
+## 1. MA34 — the audit reasons from a run this project marks VOID
+
+`MA34` is the cheapest item in the audit and the only one that gets *less* valuable the longer it
+waits: an expectation written after the window has accrued is worthless. Its content is a
+post-publication decay prior for the forward track.
+
+**Its verification quotes the void pre-B6 R1 run.** The audit cites *"SMB +0.39 t 3.84, RMW +0.30
+t 4.49, UMD +0.18 t 3.49"* with *"HML t 1.08, CMA t 1.08"*, and concludes the prior applies to
+`size`, `quality` and `momentum`. Checked against the banked artifact rather than against the
+prose — `data/free_analysis/FACTOR_ALPHA_RESULTS.json`, block
+`specs['compound/full']['ff5_mom']['top_minus_ew']`:
+
+| factor | banked artifact | audit's citation |
+|---|---|---|
+| SMB | +0.394 (t +3.84) | +0.39 (t 3.84) |
+| RMW | +0.298 (t +4.49) | +0.30 (t 4.49) |
+| UMD | +0.181 (t +3.49) | +0.18 (t 3.49) |
+| HML | (t +1.08) | t 1.08 |
+| CMA | (t +1.08) | t 1.08 |
+
+Bit-for-bit, and that artifact reads **`n_periods` 109** — the pre-B6 **110-date** panel. Its own
+specs are still keyed `compound/ex_b6_first_37`, which the corrected arm replaces. `CLAUDE.md`
+marks that run **SUPERSEDED** with the words *"DO NOT QUOTE IT."*
+
+**On the corrected 69-date panel the mechanism reverses on two legs** (`HANDOFF_edge_audit.md`
+Part 5, corroborated independently in `CLAUDE.md`):
+
+| factor | corrected | void | theme it reads on |
+|---|---|---|---|
+| HML | **+0.251 (t +2.93)** loads | t 1.08, did not | `value` |
+| UMD | **+0.205 (t +3.65)** loads | t 3.49, did | `momentum` |
+| SMB | +0.208 (t +1.39) does not | t 3.84, did | `size` |
+| RMW | +0.092 (t +0.90) does not | t 4.49, did | `quality` |
+
+**So the prior attaches to `value` and `momentum`, not to `size` and `quality`.** The audit's
+FORM survives — it applies to part of the composite and not the rest — and its PARTITION is
+inverted. Measured against the live weights (`WEIGHTS_ESTABLISHED`, seven themes at 0.125 summing
+to 0.875), `value` and `momentum` are 2 of 7, i.e. **28.6% of the effective composite**.
+
+**No point forecast is issued, and refusing is the substantive decision.** 28.6% decaying by a
+third reads as +9.99 -> ~+9.0 pp/yr, and that arithmetic assumes a theme's contribution to alpha
+is proportional to its weight. **X3 measured that assumption false**: `size` has the worst theme
+IC (-0.30) and carries the composite's entire statistical significance, adding it last taking
+alpha +4.10% -> +7.17% and long-short *t* 1.02 -> 2.84. Inventing an uncalibrated magnitude is the
+error this record warns about more than any other. **Direction and affected fraction registered;
+magnitude not.**
+
+Written into `PAPER_TRACK_CONTRACT.md` **6.6**, with one consequence recorded because it runs
+against the strategy: **6.2's power table is computed AT the backtested +9.99 pp/yr**, so if the
+prior holds the real power is **below** the stated 13.3% at 60 months — the already-unflattering
+table is optimistic. Three abuse limits are fixed in the text, because a decay prior is the
+easiest thing in that document to reach for later: it may not void or restart a vintage, may not
+lower `sigma` or any bar, and may not be cited for a shortfall in `size` or `quality` — which is
+exactly what the audit's inverted partition would have licensed.
+
+## 2. MA25 — true of the panel, false of the project, and the audit undercounts by 73%
+
+The deliverable is the RECORD CORRECTION, not a test, and the audit says so. Confirmed:
+
+* `data/bulk/prepared/bars/*.pkl` holds **502 names** — the audit and `scripts/capacity.py`'s own
+  header both state **290**.
+* All 502 carry `volume` and `raw_close`. **2,780,252 rows**, spanning **1997-12-31 -> 2026-08-07**,
+  which covers the whole panel window (2009-01-15 -> 2026-01-28).
+* All 502 appear in `DAILY` (17,421 tickers), so none is an orphan. That is **19.8% of the
+  2,531-name universe**.
+* `scripts/capacity.py::adv_from_bars` already computes dollar ADV as `raw_close * volume`.
+  Median across names **$150M**, from $3.5M (WPC) to $46.7bn (GOOGL).
+
+**Corrected in the shipped artifact rather than only in prose**, because a reader of
+`BACKTEST_RESULTS.json` was the one being misled: `prefilter_note` now carries the correction and
+a new `prefilter_adv_partial_source` block ships the path, the count and the reader.
+
+**B13 and S7 are NOT overturned.** 80.2% of the universe still has no measure, so
+`MIN_AVG_DOLLAR_VOLUME` genuinely cannot bind universally on this path, and S7 was **right** to
+refuse a proxy — a stand-in is a different hypothesis wearing the same name. What changes is that
+a future session can no longer read those rows and conclude the data exists nowhere.
+
+**The test is deliberately NOT run**, on the audit's own recommendation: the covered names are
+large caps and a liquidity effect is weakest exactly there. If it is ever run it needs the
+covered-subsample protocol S18/U2/U3/V6-OPT established four times, and it must quote the MDE.
+
+## 3. MA21 — four of five, one refuted by the artifact it proposes to check
+
+`tests/test_ma21_conventions.py`, 8/8.
+
+| convention | outcome |
+|---|---|
+| (1) `N` may only change deliberately | **already shipped by MA13** — not re-implemented |
+| (2) the canonical artifact must not go stale | **enforced**, one direction only |
+| (3) unknown verdict -> a warning | **REFUTED**; substitute ships |
+| (4) a landed item must have a ledger row | **enforced**, reads clean |
+| (5) schedule M4's fidelity harness | **reported, not taken** — blocked twice |
+
+**(1)** is MA13's committed `EXPECTED_BY_DOMAIN` literal. Not re-implemented: a second pin is a
+second definition of one fact, which is the MA39 defect. This suite asserts only that MA13's pin
+still exists and still carries numbers.
+
+**(2) is live, not hypothetical.** `BACKTEST_RESULTS.json` reads `n_trials` **224** against a live
+equity log of **227**, drift 3, with nothing whatever wrong — the three MA31/MA32 charged after
+the last refresh. That is exactly why equality is the wrong test, and why `MA19` already refused
+to source a test expectation from that artifact: it would be red for the ordinary interval between
+a register landing and a 20-40 minute re-run, and *"a gate that cries wolf is one you learn to
+ignore."* **What IS a bug is the other direction.** Trials only accumulate (`RUN_RULES` rule 9
+forbids deleting a logged row), so the artifact may LAG the log and can never LEAD it; an artifact
+claiming more trials means the log lost rows or the artifact was hand-edited, and both understate
+`N`, which **overstates** every DSR- and HLZ-gated claim.
+
+**(3) is refuted by the artifact it proposes to check.** `build_ledger.py` fills the verdict column
+only when a write-up literally uses one of five words, and its own *"How to read a row"* section
+states the consequence: *"Most of the B series concluded FIXED, and X8 concluded REPLICATES — real
+outcomes, but not verdicts in this vocabulary, so their column is blank ... Blank therefore means
+'not measured, or measured and reported in different words' — never 'we don't know'."* Measured on
+the shipped ledger: **41 of 230 DONE rows carry a blank verdict**, every one legitimate under that
+rule, and the non-blank ones are largely free prose (`ALL THREE NULL - family CLOSED`, `B1 RICH`,
+`1 of 3 RESTORED`). A warning would fire on all of them. **The substitute that IS enforceable:**
+`VERDICTS` is a literal list and the same five words are spelled out in the documentation a few
+hundred lines below — two copies of one fact in one file, so a sixth word added to one and not the
+other is silent.
+
+**(5) is blocked twice over, and neither block is a matter of effort.** Scheduling means editing
+`.github/workflows/`, and `.github/land_policy.py` — read from MAIN's checkout precisely so branch
+code cannot edit the gate that judges it — REFUSES any branch touching `.github/`. That is the same
+wall `MA60` hit with `suite_manifest.py`, and weakening the policy to get a green run is silencing
+a check. Second, `scripts/m4_live_replay.py` needs `--data-dir data/backtest`, the licensed
+Sharadar export, which CI does not have and must never have. So even a permitted workflow edit
+could not run it. The test keeps the harness findable and the gap dated.
+
+**All three tripwires mutation-tested, 3 of 3 caught** — a tripwire that passes today and cannot
+bite is not a check:
+
+```
+MUT-1 artifact n_trials=9999          -> FAIL test_convention_2_...
+MUT-2 MA23's ledger row deleted       -> FAIL test_convention_4_...
+MUT-3 sixth verdict word in code only -> FAIL test_convention_3_substitute_...
+```
+
+## 4. MA14 — the live sanity port, and the one place it must differ
+
+Verified before building: `sanity_check` is reachable from `fundamental_panel.py` (the backtest)
+and `optvrp_report.py` only. The live path's health block carries `theme_coverage`,
+`theme_contributing` and `display_coverage` — all of which answer **presence**.
+
+`OOB2` is what the gap costs and the precedent is exact: Yahoo dropped one beta field, `wacc.py`
+substituted a 1.10 default, and MRK went from *"cannot value"* to a **91 Strong Buy**. Nothing was
+empty and nothing raised. **Fail-closed covers a field that VANISHES; nothing covered a field that
+goes wrong-but-plausible**, which is what a live vendor actually produces.
+
+**One definition, via MA39's pattern.** The bands move to `valuation/edge/sanity_spec.py`, which
+imports nothing, and `fundamental_panel` **re-exports** every name — so the 5,000-line engine
+never reaches the request path, and every existing importer of `fundamental_panel.SANE_RANGES` is
+unaffected. Pinned by object **identity** (not equality — equal-today is how drift starts) and by
+an AST sweep asserting exactly one literal assignment of `SANE_RANGES` exists in `valuation/`.
+
+**THE DELIBERATE DIFFERENCE FROM THE BACKTEST VERSION.** `sanity_check` does `if col not in
+panel.columns: continue`, which is right for a panel built to a known schema and dangerous on a
+live frame: a renamed or dropped column would produce **zero checks and an empty `flags`** — a
+clean bill of health from a guard that looked at nothing, which is the shape of every silent
+data-rot bug in this project's record. `live_sanity` reports `columns_absent`, counts `checked`,
+and sets `vacuous: True` with a note saying the empty flag list means nothing.
+
+Demonstrated on P7's own signature — a `book_to_price` of 892 against a true 0.589 — where **both**
+the range band and the foreign-subgroup peg fire; the peg is the one that needs no band at all and
+is why the check would have caught P7 on its first run. A healthy frame produces 0 flags over 14
+checks. **Reporting-only by design**: it withholds no row and changes no score, pinned at source
+(the module may not import the store or the scoring path, and `screen.py` calls it exactly once,
+into `health`).
+
+## 5. MA49 — five latent defects, four failing in the flattering direction
+
+All five verified in the tree before any fix.
+
+**(a) A pre-registered bar frozen at 2025, LEFT FROZEN.** `fetch_factors._verify` sets
+`end_bar = 2025-12-31`, and its own docstring calls that the pre-registered bar. It is **not
+moved**: a registered bar that follows the clock is not the bar that was registered. But a frozen
+bar only ever gets EASIER — from 2026 a year-stale file clears `covers_through_2025` and reports
+itself verified. The repair is to make staleness a **reported number** (`stale_days`,
+`bar_passed_while_stale`), so *verified* and *current* stop being the same word.
+
+Its second half is the one that bites: `factor_alpha.factor_windows` dropped a window with no
+factor days via a bare `continue`, and the later `join(how="inner")` removed those dates again — so
+a factor file ending before the panel **silently shortens every regression in the file**. Now
+counted, with `windows_report()` as the reader.
+
+**(b) A NaN return rendered the Deflated Sharpe as a NaN verdict.** `sharpe` filtered `None` and
+not NaN, while `_clean` in the same module drops both. One NaN makes `r.std()` NaN, so the `== 0`
+guard is False and the function returns **NaN** — carried straight to a published
+`deflated_sharpe`. **NaN compares False against every bar**, so it fails a threshold in silence
+rather than loudly. Reproduced, then fixed by delegating to `_clean`, so the module has one
+definition of a usable observation instead of two that disagree.
+
+**Proved inert where it matters**: max absolute difference **0.000e+00** over 2,000 random NaN-free
+series, and the shipped DSR is unchanged at **0.7863213339664521**. `n_unusable` now counts what
+was dropped, because a dropped observation the caller never hears about is a subset wearing the
+full sample's name.
+
+Second half: `trial_sharpes and len(trial_sharpes) > 1` evaluates an ndarray's truth value and
+**raises** `ValueError` for any array longer than 1 — so the documented argument worked for a list
+and crashed for the type every caller in this project holds. Now tested by identity and length.
+
+**(c) A hand-typed count that states its own error.** `x7_reconcile` had
+`n_names = 9  # 8 schemes + current-default`. Measured: `_weight_schemes` returns **8**, and
+`current-default` is one of them (`current-default, equal-weight, ic-ir, ic-proportional,
+ic-shrunk-50, max-ir-decorr, positive-equal, risk-parity`). So the `n = 8` curve point was scored
+at sqrt(2 ln 9) = **2.0963** rather than **2.0393**. Now **derived from the scheme list**, not
+replaced by a second literal — a hand-typed count is what went wrong.
+
+**(d) One of two siblings honoured its own flag.** `factor_alpha` built `ex_b6_first_37`
+positionally in the `subs` dict regardless of `--corrected-panel`, mislabelling 37 healthy dates
+as a B6 cut in the JSON. **The q-model block 56 lines earlier already branches on that flag, with
+a comment explaining that on the corrected panel B6 removed those dates outright so the cut is
+satisfied by construction.** The reasoning was in the file; one of the two sites ignored it.
+
+**(e) A starved tier contributed everything.** `param_search._cap_mask` returned
+`np.ones(len(mc))` when fewer than 30 names had a finite cap — the full universe, **wider even
+than the finite-cap names**, since `ones` is broader than `ok`. A date labelled by tier silently
+contributed every name: **B12's defect — a ticker COUNT read as a ticker IDENTITY — in a different
+column**, failing in the direction that looks like more data rather than less. Now contributes
+**nothing**, which is the safe direction: a tier that cannot be formed has no opinion. Checked
+that this does not trade a silent wrong answer for a crash — `rank_dates` already skips a
+cross-section under 25 names, so an empty mask drops the date cleanly.
+
+## 6. Defects in my own work, and the family is now on its fourth instance
+
+**Comment-versus-code, for the third time in two sessions.** The `MA49(c)` fixture grepped source
+text for `n_names = 9` and **failed against the FIXED tree**, because the comment documenting the
+repair quotes the defect verbatim. It reads the **AST** now. This is `MA5`'s source sweep firing on
+its own documentation, and last session's boundary test firing on `suite_manifest.py`'s comment,
+in a third file.
+
+**And the same family in the ledger, which is worse because it was invisible.** The `MA49` note
+contained `|old-new|`. Raw pipes inside a markdown cell split the row into **12 cells against a
+10-cell header**, and the effect was not a parse error — `MA49` simply **vanished from
+`build_ledger`'s id list**, sitting between `MA48` and `MA50`. That is `M1-PARSE`'s hazard exactly,
+committed with the warning in view, and it was caught by counting cells rather than by reading the
+row.
+
+**A third, procedural, reported because it briefly looked like a real failure.** `test_edge.py`
+came back **425/428** mid-session. Nothing was broken: I had one run of that suite in the
+background and started a second in the foreground, and the two raced over shared state. Re-run
+alone it is **428/428**. *Do not run the same suite concurrently and then read the loser's count.*
+
+## 7. Verification
+
+* **Full gate: 102 suites, 0 failures.**
+* **Pre-fix: 13 of 15** fixtures in `tests/test_ma14_ma49_sanity_and_timebombs.py` fail against the
+  tree restored to `HEAD`. The two that pass are reported as passing deliberately: one **is** the
+  NaN-free inertness proof, which must agree before and after or it is not measuring inertness, and
+  the other pins the pre-existing `rank_dates` guard that `(e)`'s fix relies on.
+* **`tests/test_ma21_conventions.py` passes 8/8 pre-fix too, and that is not a weakness** — it
+  changes no source, so its tests are tripwires. Tripwires get mutation-tested instead: **3 of 3
+  caught.**
+* **`N` did not move**: `by_domain` `{equity 227, options 292, unified 0, infra 15}` before and
+  after the log append, `rows_fixed_not_counted` **47 -> 52**, `rows_malformed` empty.
+
+## 8. Reported, not fixed
+
+* **`.github/workflows/` cannot be edited from a branch**, so `MA21(5)` stays open. It also needs
+  licensed data CI must never hold, so it is blocked on two independent grounds.
+* **Still open from the previous batch**: the `.dockerignore` residual from `MA23` (needs
+  `valuation/studies/` and `scripts/` considered together), and the two unauthenticated `POST`
+  endpoints under `/api/edge/` in `valuation/web/app.py` (MA7's class, app lane's).
+* **`scripts/m4_live_replay.py`'s docstring** still named `valuation/edge/live_replay.py` after
+  MA23 moved it; corrected here in passing.
