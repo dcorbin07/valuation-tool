@@ -1721,6 +1721,26 @@ existed. Importing a package is not touching live code.
 reachable; a load-bearing module made unreachable; a vacuous graph; the artifact ahead of the
 log; a ledger row citing a non-existent commit; a register committed with code).
 
+### 10.3a Is infra closed on audit #3? No — and the two rows that keep it open are these two's parents
+
+This lane was handed MA59 and MA60 as *"infra's last two"*. They are landed. **Infra is not
+closed, because `MA21` and `MA23` are still OPEN**, and the audit itself makes them the parents
+of exactly this work: *"Pass A's MA23 established the principle (studies mixed into the shipped
+package). Pass B's options and factory lanes supply the specific list"*, and MA21 names the
+prose-only-conventions class MA60 mechanises.
+
+Both are **advanced and deliberately not closed here.**
+
+* **MA23** asks for a *boundary*, and MA59 draws it — but MA23 also names the `options-bot/`
+  tree, which this lane did not touch.
+* **MA21** names three recurring manual steps. MA60 mechanises one of them (refreshing
+  `BACKTEST_RESULTS.json` after `N` moves is now detected, in the safe direction). `sync.bat` is
+  MA20's; re-reading `by_domain` after a merge is still unchecked.
+
+**Closing either on this evidence would be the multi-item-commit-donates-a-verdict trap that
+MA60's own first bullet names as still un-encoded.** They stay OPEN, with the work recorded
+against MA59/MA60 where it was done.
+
 ### 10.4 For Don — two human-only items, both now in one place
 
 1. **A GitHub ruleset protecting `.github/**`** (MA11's residual). For `push` events GitHub runs

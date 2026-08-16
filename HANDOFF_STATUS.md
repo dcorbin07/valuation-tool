@@ -7535,8 +7535,22 @@ silencing a check to make a run green. The judgement half ships derived in
 audit: **14 of 94 suites** are pure register pins, not the large tail implied, because most
 closed studies' pin tests import a live module too.
 
-**Status of infra on audit #3: every infra row is now adjudicated.** MA59 closes DONE; MA60
-closes PARTIAL with its residual named, mechanised as far as a branch can take it, and routed.
+**STATUS OF INFRA ON AUDIT #3 — AND THIS IS A CORRECTION TO THE TASK'S OWN FRAMING, MADE BEFORE
+CLAIMING OTHERWISE.** MA59 and MA60 were handed to this lane as "infra's last two", and they are
+landed — MA59 DONE, MA60 PARTIAL with its residual named, mechanised as far as a branch can take
+it, and routed. **But infra is NOT closed on audit #3, because MA21 and MA23 are still OPEN, and
+they are precisely the Pass A parents of the two rows just done** (the audit says so itself:
+*"Pass A's MA23 established the principle … Pass B supplies the specific list (MA59)"*, and MA21
+names the class MA60 mechanises). Both are MEDIUM, one process and one simplification.
+
+They are **substantially advanced and deliberately not closed here.** MA59 draws the boundary
+MA23 asks for — but MA23 also names the `options-bot/` tree, which this lane did not touch. MA60
+mechanises one of MA21's three named manual steps (refreshing `BACKTEST_RESULTS.json` after `N`
+moves is now detected, in the safe direction); `sync.bat` belongs to MA20, and re-reading
+`by_domain` after a merge is still unchecked. **Closing either row on this evidence would be the
+multi-item-commit-donates-a-verdict trap MA60's own bullet 1 warns about**, so they stay OPEN
+with the work recorded against MA59/MA60 where it was actually done.
+
 Two human-only items remain, both now recorded together in `HANDOFF_ci.md` §10.4: the GitHub
 ruleset protecting `.github/**` (MA11's residual) and the land-gate split above.
 
