@@ -133,7 +133,7 @@ the project's memory and the old versions had been repeated for months.
   * **NOT DONE, named so it is not mistaken for done: the O/S ratio is NOT built and NOT proxied**
     (it needs stock volume, which per `MA25` exists for ~290 names), surface **changes** are
     untested (`U2`'s other declined half), and `U2`'s three rejected level arms are not re-opened.
-    **Expectations 6 right, 2 wrong. 94 suites, 0 failures; 38 new tests, 36 of which fail against the pre-session sources.**
+    **Expectations 6 right, 2 wrong. 96 suites, 0 failures; 38 new tests, 36 of which fail against the pre-session sources.**
     `data/free_analysis/MA31_MA32.json`; `HANDOFF_optionsbot.md` 61.
 - **THE PROJECT HAD FOUR HARVEY-LIU-ZHU BARS, NOT THE TWO THE AUDIT FOUND, AND THE "3.0" IS NOT A
   BAR AT ALL — IT IS √(2·ln N) FROZEN AT N = 90, A VALUE THIS PROJECT PASSED ON 2026-08-06
