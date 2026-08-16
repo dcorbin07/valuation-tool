@@ -12471,6 +12471,77 @@ list."* The six paths are repointed to `valuation/studies/` **in this commit, so
 it**, which is exactly what that guard demands. The quarantine itself is unchanged — still closed
 studies, still archived in place, still unreachable from the live product.
 
+### And a third, on the second merge — the one a reviewer could not have seen
+
+The options lane's `MA31`+`MA32` landed on main while this branch waited on the billing outage.
+It added **`valuation/edge/parity_flow.py`**, which imports `.surface_stock` — one of the twelve
+modules `MA23` had moved to `valuation/studies/` **the same day**.
+
+**Neither side edited a file the other side edited**, so git produced a clean merge with nothing
+to resolve and nothing for a reviewer to look at. The break existed only at import time:
+
+```
+ModuleNotFoundError: No module named 'valuation.edge.surface_stock'
+  valuation/edge/parity_flow.py:51
+```
+
+**A textual merge is not a semantic merge, and a rename is exactly the change that separates
+them.** This is the general hazard `MA23` created for every lane landing this week, and it is
+recorded here rather than in a commit message because the next rename will produce it again.
+
+**RESOLVED BY MOVING `parity_flow`, NOT BY REPOINTING IT — and the choice was forced, not
+stylistic.** Repointing its import to `..studies.surface_stock` would leave an **engine** module
+importing a **study**, which `tests/test_studies_boundary.py::test_no_engine_module_imports_a_study`
+refuses; the fix would then have required weakening the guard to admit the thing the guard exists
+to catch. It qualifies as a study on **MA23's own criterion**, and the criterion was checked
+rather than assumed — `grep -rn parity_flow` returns exactly two importers,
+`scripts/ma31_ma32_measure.py` (its own runner) and `tests/test_ma31_ma32_parity_flow.py` (its own
+test). It also executes a register and adopts nothing. Moved as a **git rename**; their suite's two
+path literals and their runner's imports are repointed **in this same commit, so the diff shows
+it**, which is `MA59`'s own rule applied to their file.
+
+### A defect in my own guard, found by the collision it failed to catch
+
+`test_the_old_import_paths_are_gone_from_the_tree` grepped source text for
+`valuation.edge.<study>`. **That string never appears in `from valuation.edge import
+surface_stock`** — the module name and the package name are separated by the `import` keyword, not
+a dot. So the guard was **green over three live stale imports**:
+
+| site | stale import | seen by text grep? |
+|---|---|---|
+| `tests/test_ma31_ma32_parity_flow.py:36` | `from valuation.edge import surface_stock` | no |
+| `scripts/ma31_ma32_measure.py:40` | `from valuation.edge import portfolio_capacity` | no |
+| `scripts/ma31_ma32_measure.py:41` | `from valuation.edge import surface_stock` | no |
+
+It now also reads every file's imports through the **AST**, reusing the same `_imports()` helper
+that already resolves relative imports for the one-way direction test — so the two halves of the
+file agree on what an import is.
+
+**PROVED NON-VACUOUS RATHER THAN ASSERTED.** Reintroducing one of the three real sites and
+re-running the suite gives:
+
+```
+rc with stale import = 1
+FAIL test_the_old_import_paths_are_gone_from_the_tree: stale import paths remain:
+     [('scripts/ma31_ma32_measure.py', 'valuation.edge.surface_stock', 'ast')]
+rc after restore     = 0
+```
+
+and a second new fixture pins that `_imports()` resolves the `from X import Y` form at all, since
+if it did not the AST half would find nothing and pass for a new wrong reason.
+
+**THE TEXT PASS IS KEPT, NOT REPLACED**, because it catches a stale path used as a **path** rather
+than as an import — their own suite pins `valuation/studies/parity_flow.py` by opening it. The
+self-reference exclusion is by **filename**, so it cannot silently widen: this file quotes both
+forms in its prose and in its own fixture, and those are the subject rather than a violation.
+
+**This is the second time this one test has been wrong about what it was reading** — the first was
+firing on a COMMENT, the second is being blind to a real import — and both were found by an
+accident rather than by review. The lesson each time is the same one: **a guard that cannot tell
+what the codebase actually writes from what it merely mentions is not measuring the tree.**
+
+**Full gate after the merge: 99 suites, 0 failures** (96 before it; the options lane added three).
+
 ### Pinning, at the M3 standard
 
 `tests/test_ma40_ma43_instruments.py` (23) and `tests/test_studies_boundary.py` (7 — the seventh added after the merge, see below).

@@ -554,7 +554,15 @@ def api_hotstocks():
     # bridge is `3 + 2 x (net debt / market cap)` times the price, so a leveraged name can
     # clear the valuation page's 5x refusal band on this PUBLIC surface while that page is
     # refusing the very same claim. One number, one meaning — the band is the page's own.
-    withhold.withhold_implausible_fair_values(rows)
+    # MA29 — the return value is the count of rows left withheld in the served slice, and it
+    # used to be discarded here. It is NOT the third state: it increments for rows already
+    # marked withheld at scan time as well as for band breaches, so it is the TOTAL. The third
+    # state — a peer estimate that breached the band — is the withheld rows carrying no `kind`,
+    # counted separately below. See `web/refusals.py`.
+    _band_withheld = withhold.withhold_implausible_fair_values(rows)
+    from ..engine.publication import ROW_WITHHELD as _RW, ROW_WITHHELD_KIND as _RWK
+    _peer_only = sum(1 for r in rows
+                     if isinstance(r, dict) and r.get(_RW) and not r.get(_RWK))
     scans = st.list_scans()
     meta = next((s for s in scans if s["scan_date"] == scan_date), {})
     try:
@@ -568,7 +576,19 @@ def api_hotstocks():
     # anyone does. Fail-soft by construction, so it cannot break the public hot list.
     from . import tenure as _tenure
     tenure_block = _tenure.annotate(rows, st)
+    # MA29 — "what the model cannot value", said out loud. READS the scan's own
+    # `publication_audit` rather than recounting: one number, one meaning. Fail-soft, so a
+    # snapshot saved before that block existed reports `available: false` and no sentence
+    # rather than a confident "0 refused".
+    from . import refusals as _refusals
+    _health = params.get("health")
+    _health = _health if isinstance(_health, dict) else {}
+    refusals_block = _refusals.block(
+        _health.get("publication_audit"), scan_date=scan_date,
+        displayed=len(rows), display_withheld=_band_withheld,
+        display_peer_only=_peer_only)
     return jsonify({"scan_date": scan_date, "rows": rows, "tenure": tenure_block,
+                    "refusals": refusals_block,
                     "sectors": sector_attractiveness(all_rows),
                     "universe_size": meta.get("universe_size"), "scored": meta.get("scored"),
                     "provider": meta.get("provider"), "filtered": params.get("filtered"),

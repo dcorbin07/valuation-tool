@@ -27,13 +27,24 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VALUATION = os.path.join(REPO, "valuation")
 STUDIES = os.path.join(VALUATION, "studies")
 
-# The twelve MA23 moved. Named as a literal rather than derived from the directory listing:
-# deriving it would make the test agree with whatever the directory happens to contain, which
-# is exactly the property under test.
+# The twelve MA23 moved, plus one that arrived by a different route. Named as a literal rather
+# than derived from the directory listing: deriving it would make the test agree with whatever
+# the directory happens to contain, which is exactly the property under test.
+#
+# THE THIRTEENTH IS `parity_flow`, AND HOW IT GOT HERE IS THE USEFUL PART. The options lane
+# landed it in `valuation/edge/` on 2026-08-15, importing `.surface_stock` — which MA23 had
+# moved out the same day. The two branches touched DIFFERENT files, so git merged them cleanly
+# and the break was invisible until import time (`ModuleNotFoundError`, one suite). It was
+# resolved by moving `parity_flow` here rather than repointing its import, because the choice
+# was not stylistic: an engine module importing a study is the one thing this file forbids, so
+# repointing would have meant weakening the test to admit the thing it exists to catch.
+# It qualifies on MA23's own criterion, verified by census rather than assumed — its only
+# importers are `scripts/ma31_ma32_measure.py` and `tests/test_ma31_ma32_parity_flow.py`.
 MOVED = (
     "ev_multiples_study", "convex_overlay", "earnings_surface", "kelly",
     "loo_holdout", "ml_combiner", "surface_stock", "live_replay",
     "bucket_floor", "portfolio_capacity", "param_search", "lazy_prices_ic",
+    "parity_flow",
 )
 
 
@@ -164,17 +175,50 @@ def _code_only(src: str) -> str:
 
 
 def test_the_old_import_paths_are_gone_from_the_tree():
-    """No caller may still name `valuation.edge.<study>` — a stale path fails only when run."""
+    """No caller may still name `valuation.edge.<study>` — a stale path fails only when run.
+
+    TWO READINGS, AND THE SECOND EXISTS BECAUSE THE FIRST MISSED THREE LIVE SITES. The original
+    check was a text grep, which sees `import valuation.edge.kelly` and is BLIND to
+    `from valuation.edge import kelly` — the dotted string never appears in the source. The
+    MA31/MA32 merge landed three imports in exactly that form and this test stayed green while
+    one suite failed at import time. The AST pass is now the load-bearing one; the text pass is
+    kept because it also catches stale paths in strings that are used as PATHS rather than
+    imported (their own suite pins `valuation/edge/parity_flow.py` that way).
+    """
     stale = []
     for sub in ("scripts", "tests", "valuation"):
         for path in _py_files(os.path.join(REPO, sub)):
+            rel = os.path.relpath(path, REPO).replace(os.sep, "/")
             with open(path, "r", encoding="utf-8", errors="ignore") as fh:
-                src = _code_only(fh.read())
+                raw = fh.read()
+            src = _code_only(raw)
             for m in MOVED:
                 for bad in ("valuation.edge." + m, "valuation.research." + m):
                     if bad in src:
-                        stale.append((os.path.relpath(path, REPO).replace(os.sep, "/"), bad))
+                        stale.append((rel, bad, "text"))
+            # The form the text pass cannot see.
+            for mod in _imports(path):
+                for m in MOVED:
+                    if mod in ("valuation.edge." + m, "valuation.research." + m):
+                        stale.append((rel, mod, "ast"))
+    # This file quotes both forms in prose and in its own fixture; those are the subject, not a
+    # violation. Excluded by NAME so the exclusion cannot silently widen.
+    stale = [s for s in stale if s[0] != "tests/test_studies_boundary.py"]
     assert not stale, "stale import paths remain: %s" % stale
+
+
+def test_the_ast_reading_of_the_stale_path_check_is_not_vacuous():
+    """`_imports` must resolve `from valuation.edge import kelly` to the dotted module name.
+
+    If it did not, the AST half above would find nothing and pass for the wrong reason — which
+    is precisely how the text half went green over three real stale imports.
+    """
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "probe.py")
+        with open(p, "w", encoding="utf-8") as fh:
+            fh.write("from valuation.edge import kelly\n")
+        assert "valuation.edge.kelly" in _imports(p)
 
 
 def test_the_stale_path_check_is_not_vacuous():

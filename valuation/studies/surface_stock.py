@@ -2,8 +2,35 @@
 ARCHIVED (master audit MA59, 2026-08-15) - a CLOSED study, kept so its
 result stays reproducible. It is NOT reachable from the live product and
 `tests/test_ma59_quarantine.py` fails if that ever changes.
-Still imported by: scripts/u2_surface_stock.py, tests/test_surface_stock.py.
+Still imported by: scripts/u2_surface_stock.py, tests/test_surface_stock.py,
+valuation/studies/parity_flow.py, scripts/ma31_ma32_measure.py,
+tests/test_ma31_ma32_parity_flow.py.
+
+PATHS REPOINTED BY THE MA23 MERGE (2026-08-16). This module moved to
+`valuation/studies/` under MA23, and `parity_flow` followed it here rather than
+being repointed to import a study from the engine: its only importers are its
+own `scripts/` runner and its own test, which is MA23's own criterion. Nothing
+about the archive changed - the banner, the quarantine and the closed-study
+status are untouched.
 Do not extend this module; a new question needs a new register.
+
+ONE DEFAULTED PARAMETER WAS ADDED AFTER THE ARCHIVE BANNER, AND THE TENSION IS
+RECORDED RATHER THAN GLOSSED (2026-08-15, MA31/MA32). `join_pit` gained
+`value_cols`, defaulting to `COMPONENT_ARMS`, so the MA31/MA32 register could
+reuse the SHIPPED strictly-before join instead of re-typing it. Re-typing it is
+audit B7's defect class - one definition drifting into several - which this
+project has now recorded four times (`hlz_hurdle`, Benjamini-Hochberg,
+`_insider_formula`, `usable_quote`), and the MA31/MA32 register forbids it by
+name. Against that, MA59's directive here is "do not extend".
+
+Both were honoured as far as they can be: the change adds no question and no
+arm to U2, every existing caller is bit-identical (pinned by
+`test_join_pit_default_is_bit_identical_for_existing_callers`, and U2's own 48
+tests still pass), and the new importer is itself research-only, so MA59's
+actual invariant - archived studies unreachable from the LIVE PRODUCT - is
+untouched and `tests/test_ma59_quarantine.py` passes. If a third register wants
+this join, that is the signal to lift the shared machinery OUT of this archived
+module rather than to extend it again.
 
 U2 — the options surface as a STOCK signal.
 
@@ -133,24 +160,31 @@ def assert_no_negated_duplicate(frame: pd.DataFrame, cols: Sequence[str],
 #  2. the point-in-time join
 # --------------------------------------------------------------------------- #
 def join_pit(panel: pd.DataFrame, arms_by_ticker: Dict[str, pd.DataFrame],
-             max_stale_days: int = MAX_STALE_DAYS) -> Tuple[pd.DataFrame, dict]:
+             max_stale_days: int = MAX_STALE_DAYS,
+             value_cols: Sequence[str] = COMPONENT_ARMS) -> Tuple[pd.DataFrame, dict]:
     """Attach each arm column to the panel using the last derived row STRICTLY BEFORE the date.
 
     `fwd_ret` runs from the rebalance date's CLOSE, so a same-day EOD surface would be
     contemporaneous rather than look-ahead. Strictly-before is used anyway: it costs one day of
     staleness on a quarterly signal and removes the argument entirely. The returned control
     counts violations, which must be exactly zero.
+
+    `value_cols` defaults to U2's own three arms, so every existing caller is bit-identical
+    (pinned by test). It is a parameter because `MA31`/`MA32` need the SAME strictly-before join
+    on different columns, and re-typing this loop there would be audit B7's defect class - the
+    one this project has now recorded four times.
     """
     pdates = pd.to_datetime(panel["date"]).values
     tick = panel["ticker"].values
     n = len(panel)
-    cols = {a: np.full(n, np.nan) for a in COMPONENT_ARMS}
+    value_cols = tuple(value_cols)
+    cols = {a: np.full(n, np.nan) for a in value_cols}
     used = np.full(n, np.datetime64("NaT"), dtype="datetime64[ns]")
 
     idx: Dict[str, Tuple[np.ndarray, Dict[str, np.ndarray]]] = {}
     for t, df in arms_by_ticker.items():
         d = df["date"].values.astype("datetime64[ns]")
-        idx[t] = (d, {a: df[a].values.astype(float) for a in COMPONENT_ARMS if a in df.columns})
+        idx[t] = (d, {a: df[a].values.astype(float) for a in value_cols if a in df.columns})
 
     for i in range(n):
         ent = idx.get(tick[i])
@@ -168,7 +202,7 @@ def join_pit(panel: pd.DataFrame, arms_by_ticker: Dict[str, pd.DataFrame],
             cols[a][i] = arr[j]
 
     out = panel.copy()
-    for a in COMPONENT_ARMS:
+    for a in value_cols:
         out[a] = cols[a]
     out["_surface_asof"] = used
 

@@ -1008,6 +1008,18 @@ function renderHot(d) {
     carry a peer-relative estimate here, because a ratio of two same-currency figures survives the mismatch that
     breaks the valuation. <b>When they disagree, the Single-valuation page's refusal is the one to believe</b>, and
     fixing the disagreement is open work.</div>`;
+  // MA29 — "what the model cannot value". The refusal count reaches a reader, so LA1's failure
+  // mode (a refusal that is recorded and then seen by nobody) is loud instead of silent. Every
+  // string comes from the `refusals` block: `web/refusals.py` owns the wording and a test pins
+  // it verbatim, so nothing here may paraphrase. The two KINDS are drawn as separate sentences
+  // on purpose — "we could not look" must never render as "we looked and refused".
+  const rf = d.refusals || null;
+  if (rf && rf.available && rf.sentence) {
+    const extra = [rf.unavailable_sentence, rf.display_sentence].filter(Boolean)
+      .map(s => ` ${esc(s)}`).join("");
+    html += `<div class="note"><b>${esc(rf.label)}.</b> ${esc(rf.sentence)}${extra} ` +
+      `${esc(rf.explainer)}</div>`;
+  }
   // Prefer theme_contributing over theme_coverage: a theme can be 100% "covered" and still be
   // a constant, which standardizes to nothing and drops out of the score entirely. Reporting
   // the presence number here would call such a theme healthy.
