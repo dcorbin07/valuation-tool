@@ -172,6 +172,92 @@ class TheLicenceLimitIsStated(unittest.TestCase):
         self.assertIn("any derivation", low)
 
 
+class TheLicence(unittest.TestCase):
+    """MIT on the code, with a scope note the code alone cannot carry.
+
+    Chosen by Don on 2026-08-16. The scope note exists because MIT cannot cover
+    third-party data or figures derived from it -- those are not the copyright
+    holder's to license -- and `BACKTEST_RESULTS.json` is exactly that: aggregate
+    statistics computed from licensed vendor data, published so the claims can be
+    checked rather than as a dataset anyone may redistribute.
+    """
+
+    def test_the_licence_file_exists_and_is_mit(self):
+        text = read("LICENSE")
+        self.assertIn("MIT License", text)
+        self.assertIn("Donovan Corbin", text)
+        self.assertIn("2026", text)
+
+    def test_the_licence_scopes_itself_away_from_vendor_data(self):
+        # flat(), not raw: the licence wraps the phrase as `"or any\n    derivation"`.
+        # Asserting on raw text failed here exactly as it did on the README earlier
+        # the same day -- a wrapped claim is still the claim.
+        text = flat(read("LICENSE"))
+        self.assertIn("any derivation", text,
+                      "the Sharadar limit must be quoted in the licence itself, "
+                      "since the licence is what a reuser reads")
+        for phrase in ("SOURCE CODE", "NO VENDOR DATA IS DISTRIBUTED HERE"):
+            with self.subTest(phrase):
+                self.assertIn(phrase, text)
+
+    def test_the_readme_points_at_it(self):
+        self.assertIn("(LICENSE)", read("README.md"))
+
+
+class NoLicensedDataIsTracked(unittest.TestCase):
+    """The guard for the incident that prompted all of this.
+
+    Licensed Sharadar exports were committed in July 2026 (data/backtest_med/,
+    data/backtest_test/ -- fundamentals, ~1.4M insider rows, hundreds of price
+    CSVs) and were removed from history by a rewrite on 2026-07-28 07:35:40,
+    which survives as the local ref `backup/pre-filter-20260728-073540`.
+    Verified 2026-08-16 against GitHub itself: those commits return HTTP 422
+    "No commit found", and exactly one file has ever been added under `data/`
+    in published history -- `data/.gitignore`.
+
+    A rewrite already happened once. This makes the *next* accidental commit
+    fail before it can be pushed, which is far cheaper than a second one.
+    """
+
+    def _tracked(self):
+        try:
+            p = subprocess.run(("git", "ls-files"), cwd=ROOT,
+                               capture_output=True, text=True, timeout=60)
+        except (OSError, subprocess.SubprocessError):
+            self.skipTest("git unavailable")
+        if p.returncode != 0:
+            self.skipTest("git ls-files failed")
+        return p.stdout.split()
+
+    def test_nothing_under_data_is_tracked_except_its_gitignore(self):
+        tracked = self._tracked()
+        offenders = [f for f in tracked
+                     if f.startswith("data/") and f != "data/.gitignore"]
+        self.assertEqual(
+            offenders, [],
+            "Licensed vendor data must never be committed. Sharadar's terms "
+            "are personal-use only and forbid commercial use of the data 'or "
+            f"any derivation'. Tracked under data/: {offenders[:10]}")
+
+    def test_no_bulk_data_file_is_tracked_anywhere(self):
+        """Committing the same data under a different path is the obvious evasion."""
+        tracked = self._tracked()
+        suspect = [f for f in tracked
+                   if f.lower().endswith((".parquet", ".pkl", ".db"))
+                   or (f.lower().endswith(".csv") and not f.startswith("data_export/")
+                       and "/fixtures/" not in f and not f.startswith("tests/"))]
+        self.assertEqual(
+            suspect, [],
+            "Data-shaped files are tracked outside the allowed locations "
+            f"(data_export/ is Valquo's own output): {suspect[:10]}")
+
+    def test_the_probe_actually_sees_the_tree(self):
+        """Vacuity control -- an empty file list would pass both checks above."""
+        tracked = self._tracked()
+        self.assertGreater(len(tracked), 100)
+        self.assertIn("README.md", tracked)
+
+
 class EveryProductSurfaceIsDescribed(unittest.TestCase):
     """MA17's bus test, applied to the product rather than the code.
 

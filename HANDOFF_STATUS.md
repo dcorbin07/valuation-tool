@@ -7600,3 +7600,41 @@ set. Two sibling-project links were relative paths and one named a repository th
 exist; both are absolute URLs and a test forbids the pattern.
 
 **Verification:** `test_public_docs.py` 17/17, **6 of 6 mutations caught**, full local gate green.
+
+---
+
+## 2026-08-16 - infra lane (r1): the licensed-data question, ANSWERED; MIT adopted; history decision recorded
+
+**THE SHARADAR EXPORTS WERE PURGED AND ARE NOT IN THE PUBLIC REPOSITORY.** Commits `4376560`,
+`e0a0732`, `4f01655` did add `data/backtest_med` and `data/backtest_test` - fundamentals, ~1.43M
+insider rows, institutional holdings, hundreds of price CSVs - and a history rewrite removed them
+on **2026-07-28 07:35:40**. Five independent checks, all reproducible from
+`HANDOFF_ci.md` section 12: the commits are contained only in two **local** backup refs; none is
+an ancestor of `origin/main`; **zero** commits on any origin ref touch either path; **exactly one
+file has ever been added under `data/` in published history** (`data/.gitignore`); and the
+**GitHub API returns HTTP 422 "No commit found"** for all three, by abbreviated and full SHA.
+**The API check carries a positive control** - the root commit `2971f71` resolves through the
+identical call - so the 422s mean the objects are absent, not that the probe is blind.
+**No `filter-repo` is needed.**
+
+A broader sweep found **no vendor data anywhere in published history**: the only data-shaped
+files are four `data_export/*.csv` (Valquo's own paper-track output) and three source-recovery
+zips containing zero data entries.
+
+**THE REAL GAP WAS THAT NOBODY WROTE IT DOWN.** The rewrite is in no ledger row, handoff or commit
+message - the only trace was a local branch name, which is why the question kept recurring. It is
+recorded now, and `tests/test_public_docs.py::NoLicensedDataIsTracked` makes the **next**
+accidental commit fail before it can be pushed.
+
+**DECISION (Don): the two business docs STAY in history.** Untracked going forward, not rewritten
+out - business-plan notes for a free tool, not credentials or vendor data, and a force-push costs
+every terminal a re-clone and breaks eleven worktrees against a near-zero risk. Recorded so it is
+a choice rather than an oversight. **The asymmetry is the point:** the licensed-data case would
+have justified that same operation and turned out not to need it.
+
+**DECISION (Don): MIT**, (c) 2026 Donovan Corbin, referenced from the README - **with a scope
+note that is not boilerplate.** MIT grants rights over the holder's own work, and this repo
+publishes figures derived from licensed vendor data, so a bare MIT header would purport to grant
+rights that are not Don's to grant. The note scopes MIT to the source and states that
+`BACKTEST_RESULTS.json` and `data/free_analysis/` are a record of what was measured so the claims
+can be checked, not a redistributable dataset. Ledger rows `DATA-HISTORY` and `PUBLIC-DOCS`.

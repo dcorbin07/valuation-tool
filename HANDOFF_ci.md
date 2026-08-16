@@ -1844,3 +1844,87 @@ The licence mutation reported MISSED, which reads as "the test cannot fail". The
 the README wraps the phrase as `"or any\nderivation"`, so the suite's `flat()` normaliser sees it
 and my raw-text replacement never applied. **The harness was wrong, not the check** — diagnosed
 before concluding anything about the test.
+
+---
+
+## 12. The licensed-data question, answered; and two decisions recorded as decisions (2026-08-16)
+
+**Zero trials.** Ledger row `PUBLIC-DOCS` (amended).
+
+### 12.1 THE SHARADAR DATA WAS PURGED. It is not in the public repository.
+
+Three commits — `4376560`, `e0a0732`, `4f01655` — did add licensed Sharadar exports
+(`data/backtest_med/`, `data/backtest_test/`: `fundamentals.csv`, ~1.43M rows of `insiders.csv`,
+`institutional.csv`, and hundreds of per-ticker price CSVs). **They were removed from published
+history by a rewrite on 2026-07-28 07:35:40** and are not reachable from GitHub.
+
+Five independent checks, each reproducible:
+
+| check | command | result |
+|---|---|---|
+| Which refs contain them | `git branch -a --contains 4376560` | **local only** — `backup/pre-filter-20260728-073540`, `backup/ui-polish-preRebase`. No `remotes/origin/*`. |
+| Ancestor of published main | `git merge-base --is-ancestor <sha> origin/main` | **no**, all three |
+| Any origin ref touching the paths | `git log --remotes=origin -- data/backtest_med` | **zero commits** (same for `backtest_test`) |
+| Everything ever added under `data/` | `git log --remotes=origin --diff-filter=A --name-only -- data/` | **exactly one file: `data/.gitignore`** |
+| GitHub itself, abbreviated **and** full SHA | `gh api repos/.../commits/<sha>` | **HTTP 422 "No commit found"** |
+
+**The API check has a positive control**, because a negative result from a broken probe is the
+classic false all-clear: `2971f71` — the repository's root commit — resolves to its full SHA
+through the same call. So the 422s mean the objects are absent, not that the check is blind.
+
+**The backup ref's own name is the citation.** `backup/pre-filter-20260728-073540` is the
+pre-rewrite snapshot, dated to the second, and it is **local**. That is why the data still exists
+on Don's machine and nowhere else.
+
+**A broader sweep, because the question implies a general property rather than three commits.**
+Every data-shaped file ever added to published history: four `data_export/*.csv` (Valquo's **own**
+paper-track output, not vendor data) and three `options-bot/handoff/*.zip` — inspected, **zero**
+`.csv`/`.parquet`/`.pkl`/`.db` entries between them; they are the source-recovery archives that
+preserved the decommissioned box's code. **No vendor data anywhere in published history.**
+
+**THE REAL GAP WAS THAT NOBODY WROTE THIS DOWN.** The rewrite happened operationally and appears
+in no ledger row, handoff or commit message — the only trace was a local branch name. That is why
+the question recurred. It is now recorded here, and
+`tests/test_public_docs.py::NoLicensedDataIsTracked` makes the **next** accidental commit fail
+before it can be pushed: nothing may be tracked under `data/` except its `.gitignore`, and no
+`.csv`/`.parquet`/`.pkl`/`.db` may be tracked outside `data_export/` and test fixtures. A rewrite
+already happened once; a guard is much cheaper than a second one.
+
+### 12.2 DECISION — the two business documents stay in history
+
+**Don's call, 2026-08-16, recorded so it is a decision and not an oversight.**
+`LAUNCH_CHECKLIST.md` and `GO_LIVE.md` remain in public git history. They are untracked going
+forward (section 11) and will not be rewritten out.
+
+**The reasoning, in his terms:** they are business-plan notes for a free tool, not credentials
+and not vendor data. A `filter-repo` + force-push costs **every terminal a re-clone and breaks
+eleven worktrees**, which is a real and immediate cost set against a near-zero risk.
+
+**This is the correct call and the asymmetry is worth stating**, because it is exactly what
+separates it from §12.1: the licensed-data case would have justified the same expensive operation
+— a vendor licence breach on a public repo is a different class of problem from a founder's own
+planning notes being visible — and it turned out not to need it. **Reopen this only if the
+content changes character** (credentials, third-party data, or anything under an NDA), not merely
+because it is still findable.
+
+### 12.3 DECISION — MIT, with a scope note
+
+**Don's call, 2026-08-16.** `LICENSE` is MIT, © 2026 Donovan Corbin, referenced from the README.
+
+**It carries a scope note, and that is not boilerplate.** MIT grants rights over *the copyright
+holder's own work*, and this repository publishes figures **derived from licensed vendor data** —
+`BACKTEST_RESULTS.json`, `data/free_analysis/`. A bare MIT header would purport to grant
+redistribution rights over material that is not Don's to grant, which is the same licence problem
+the data purge was about, one level up. The note says plainly: MIT covers the **source code**; no
+vendor data is distributed; the research artifacts are published as a **record of what was
+measured so the claims can be checked**, not as a dataset anyone may redistribute; and the JKP
+international factor data is CC BY-NC 4.0, research-only.
+
+`tests/test_public_docs.py` 23/23 — the licence's existence, its MIT identity, the scope note and
+the README's link to it are all pinned.
+
+**A defect in my own test, and it is the second instance of one trap in one day.** The scope-note
+assertion first read the LICENSE raw and failed, because the file wraps the phrase as
+`"or any\n    derivation"`. The identical wrap had already produced a misleading MISSED in the
+mutation harness that morning. **A wrapped claim is still the claim** — assert on the flattened
+text.

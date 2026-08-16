@@ -149,8 +149,15 @@ and that licence would not let them publish what they derived. The international
 `BACKTEST_RUNBOOK.md` documents the rebuild; `DATA_AND_METHODS.md` explains why point-in-time,
 survivorship-free data is the thing that decides whether a backtest means anything.
 
-**No licence file is present, so default copyright applies** — all rights reserved. Ask before
-reusing.
+### Licence
+
+The **code is [MIT](LICENSE)** — use it, fork it, ship it.
+
+The licence carries a **scope note**, and it is worth reading before you reuse a *number* rather
+than a *function*: MIT covers the source, and cannot cover third-party data or figures derived
+from it. No vendor data is distributed here. `BACKTEST_RESULTS.json` and `data/free_analysis/`
+are published as a **record of what was measured**, so the claims above can be checked — they are
+documentation of a result, not a dataset you have been granted rights to redistribute.
 
 ---
 
