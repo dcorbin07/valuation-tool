@@ -47,6 +47,22 @@ from valuation.edge import research_log as RL               # noqa: E402
 #   2026-08-14  equity 224, options 292, infra 14, unified 0   (stamp introduced, MA13)
 #   2026-08-14  infra 14 -> 15                                 (MA19's own calibration row)
 #   2026-08-15  equity 224 -> 227                              (MA31 + MA32, 3 arms, one register)
+#   2026-08-16  equity 227 -> 230, options 292 -> 294          (P1S0 3 horizons; O17C4 2 arms)
+#
+# The 2026-08-16 line moved BOTH scored domains in one session and is the first time it has. The
+# HLZ literal moved with it again, for the second time running and for the reason the note below
+# already gives -- so that note is now a measurement rather than a prediction. U6-COV landed in
+# the same commit and charges NOTHING (its verdict cell reads FIXED): the proof it was seen and
+# correctly excluded is `rows_fixed_not_counted` 47 -> 48, which is checked rather than assumed.
+#
+# A CORRECTION TO THE PROJECT'S OWN FOLKLORE ABOUT THIS FILE'S SIBLING HAZARD, measured while
+# appending: an unescaped `|` inside a cell shifts every column after it, and the received wisdom
+# (recorded in more than one handoff) is that such pipes "want escaping as `\|`". THEY DO NOT
+# HELP. `research_log._parse` splits on a bare `"|"` and does not honour a backslash escape at
+# all, so `\|` still creates two extra columns -- an append written that way is flagged
+# `rows_malformed` exactly as an unescaped one is. The only fix is to not put a pipe in the prose.
+# Caught here because the P1S0 row used `|delta|` for an absolute value, was flagged, and was
+# rewritten to say "abs delta".
 #
 # The 2026-08-15 line is the stamp's SECOND real exercise and its first on `equity`, the domain
 # that actually gates published claims. It went red on the MA31/MA32 log rows and was updated in
@@ -73,7 +89,7 @@ from valuation.edge import research_log as RL               # noqa: E402
 # and separate convention (the master audit lists it under MA21); it belongs to that row, with
 # its own decision about staleness tolerance, not smuggled in here.
 # ---------------------------------------------------------------------------------------------
-EXPECTED_BY_DOMAIN = {"equity": 227, "options": 292, "unified": 0, "infra": 15}
+EXPECTED_BY_DOMAIN = {"equity": 230, "options": 294, "unified": 0, "infra": 15}
 
 
 def _diff(expected, actual):
@@ -212,7 +228,7 @@ def test_the_statistics_N_gates_move_with_it():
     assert RL.trial_count(domain="equity") == n
 
     # The Harvey-Liu-Zhu hurdle the record quotes.
-    assert abs(math.sqrt(2.0 * math.log(n)) - 3.293918644253802) < 1e-12, (
+    assert abs(math.sqrt(2.0 * math.log(n)) - 3.297902154074070) < 1e-12, (
         "the HLZ hurdle no longer matches the stamped N")
 
     # The CPCV adopt gate's multiplier. `_trials_haircut` is FLOORED at the log's N, so handing
@@ -344,7 +360,7 @@ def test_ma5_the_two_bars_disagree_today_and_the_gap_only_widens():
 
     assert hlz_hurdle(90) < 3.0 < hlz_hurdle(91), "3.0 is sqrt(2 ln N) at N = 90"
     n = EXPECTED_BY_DOMAIN["equity"]
-    assert abs(hlz_hurdle(n) - 3.293918644253802) < 1e-12
+    assert abs(hlz_hurdle(n) - 3.297902154074070) < 1e-12
     assert hlz_hurdle(n) > 3.0, "the derived bar is HARDER than the constant at today's N"
 
     # A statistic in the gap is 'significant' under the constant and is NOT at today's N. This

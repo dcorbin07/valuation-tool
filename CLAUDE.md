@@ -48,6 +48,96 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE OPTIONS-EXPRESSION FAMILY IS CLOSED AT ITS GATE: THE EQUITY COMPOSITE SORTS THE
+  OPTIONABLE UNIVERSE ONLY AFTER 2021, AND A FULL-SAMPLE READING WOULD HAVE LICENSED THREE
+  SESSIONS ON IT (2026-08-16, `P1S0` + `U6-COV` + `O17C4`).** Executes
+  `VALQUO_OPTIONS_FRONTIER.md` (a read-only design by a separate session).
+  `PREREG_p1s0_optionable_gate.md` committed **ALONE at `f4ddd8b`**;
+  `PREREG_u6_overwrite_leg.md` + `PREREG_o17c4_own_the_event.md` together and **ALONE at
+  `aeca6f0`**. **ADOPTS NOTHING.** **Equity `N` 227 -> 230, options 292 -> 294**, infra 15.
+  * **THE FRONTIER'S HEADLINE IS CONFIRMED FULL-SAMPLE AND IS NOT A BASIS FOR ACTION.** On the
+    point-in-time optionable universe the composite sorts strongly over the whole covered window
+    - **H=63 cumulative +3.51%/quarter (+14.05%/yr) at HAC *t* 3.3731 against its own calibrated
+    floor of 1.4822** - so *"the composite does NOT weaken on optionable names, it strengthens"*
+    reproduces on the **shipped** instrument and a PIT partition. **Then it fails the both-halves
+    rule at EVERY horizon, always the same way: H=63 early *t* 0.8352 vs 1.6974 FAIL / late
+    4.1471 PASS; H=252 early -0.0379 FAIL / late 2.8778 PASS; H=504 early 0.4570 FAIL / late
+    1.9351 vs 2.2028 FAIL.** The early half (2016-2020) is **absent** - at H=252 its cumulative
+    alpha is literally **-0.08%** - while the late half reads **+24.31%/yr** at H=63. **THE
+    OPTIONABLE-UNIVERSE EDGE IS A POST-2021 PHENOMENON**, and `V6`'s warning applies verbatim.
+  * **IT IS A GENUINE FAIL, NOT A POWER ARTEFACT, which is why a THREE-STATE grammar (PASS /
+    FAIL / UNDERPOWERED) was fixed before any number existed.** `design_can_see_the_known_effect`
+    is **TRUE at all three horizons** - the observed effect and the reference effect (the full
+    panel over the SAME dates, `MA31`'s C-POWER pattern) both exceed the MDE **even at H=504**,
+    where the covered sample carries only **~4.25 independent observations**. The kill fires on
+    **H=63, 40 dates at ZERO overlap** - a horizon the frontier did not specify and which was
+    ADDED precisely because H=252 and H=504 could not have returned an interpretable null.
+    **The sensitivity universe agrees at all three horizons.**
+  * **THE INSTRUMENT IS THE SHIPPED ONE AND THE FRONTIER'S WAS NOT.** S22's `arm()` reproduces
+    `C1_RECORD`'s `top_decile_alpha` at abs delta **1.84e-14** and three further fields at
+    **exactly 0.00e+00**, where the frontier's own reached +7.48% against +7.17%. Cause
+    diagnosed, not assumed: its deciles use `nlargest(len//10)` against the shipped
+    `array_split`, so the two do not hold the same names. **Two corrections to its arithmetic:
+    1,000 raw ticker dirs, not 1,044** (44 non-directory entries), **906** of them in the panel.
+  * **WHAT CLOSES: P1 (deep-ITM long-dated calls), P3, U6's overwrite arm, and any future
+    attempt to express the equity book in derivatives.** No option was priced, **no LEAPS re-mine
+    was run, and `D2`'s licence question does NOT need putting to Don** - there is no pull.
+    **What does NOT close: the equity composite on the FULL panel is untouched** and its published
+    figures stand; and the frontier's §2c financing arithmetic (rf + 43 bps) is neither retested
+    nor refuted - it simply has nothing left to finance.
+  * **`U6`'s BLOCKER IS MEASURED AGAINST THE WRONG UNIVERSE - AND THE RE-OPEN'S OWN PREMISE IS
+    ALSO WRONG. ZERO TRIALS.** It was to be re-opened because the 1.81% counted decile ENTRIES
+    while an overwrite is written on HOLDINGS. **Refuted: entries 648/7,138 = 9.08%, holdings
+    897/11,426 = 7.85%, so holdings are 0.86x as well covered as entries**, not the 6-11x
+    assumed. **The real error is the DENOMINATOR OF NAMES** - the row's own text says it was
+    measured *"against the 187-name mined universe"*, the ALERT universe, while the cache holds
+    **906 panel names**: universe ratio **4.84x**, coverage ratio **5.02x**, agreeing to within
+    4%. **And it is UNDERSTATED, because it runs against a STRICTER test** (a chain must exist
+    ON THAT DATE, not merely at all). Two controls make it like-for-like: entry events **7,138
+    against the row's 7,132**, and top-decile membership **11,426 - exactly the count `S10` and
+    `V6-B`'s C7 report independently**. **The CSP entry leg is untouched and the row's status does
+    not change**; the overwrite leg is buildable (median 12 PIT-liquid / 21 any-chain holdings per
+    covered date, **zero covered dates with none**) and **BOUNDED at 7.3-13.0% of decile slots**.
+    Part B was gated on Stage 0 and Stage 0 closed it.
+  * **`O17`-C4 "OWN THE EVENT" IS REAL AND SURVIVES THE ALERT'S DEATH - AND THE ALERT STILL
+    SUBTRACTS VALUE INSIDE IT.** Its `NULL` rested SOLELY on a 0.70 retention floor set for a
+    product reason. The bar was **DERIVED first, not lowered** (`TP-BAR`'s procedure-not-a-number
+    rule). The decisive test had never been run and was runnable on owned data: as a FILTER its
+    null is random-REMOVAL, but as a STRATEGY the comparator must be random ENTRY. **On 27,350
+    random-entry trades a call spanning the next announcement earns +10.30% against +5.50%, a
+    +4.79pp gain, positive in BOTH halves, sign test *z* +2.054 (p 0.040)** - so it is a property
+    of owning an earnings event, not of the alert. **But alert-spanning +8.42% LOSES to
+    random-spanning +10.30% at *z* -4.4726, p 7.7e-06** - `R2` reproduced inside the very subset
+    meant to rescue it - **so the strategy is "buy calls spanning earnings" with NO ALERT IN IT AT
+    ALL.** **It is a MEAN effect, not a MEDIAN one**: DTE-matched, the mean clears a shuffled null
+    on both books while **median-vs-median is +0.40pp** (-51.41% against -51.81%); the typical
+    trade is a near-total loss either way. `O11` governs - **nothing here licenses trading it.**
+  * **THREE DEFECTS IN MY OWN INSTRUMENTS, ALL CAUGHT BY RUNNING THEM, AND ONE HAD ALREADY BEEN
+    REPORTED AS A FINDING.** (a) Stage 0's C2 compared pandas **dtypes** rather than values and
+    failed a bit-identical partition, because `pit_liquid` is TRI-STATE - it failed in the SAFE
+    direction and was still wrong, and its probe was all-`True` so it exercised neither the `None`
+    nor the `False` branch. (b) **Two of O17-C4's three registered bars do not measure what they
+    were written to**: B1's trades-per-year axis is **unpassable by construction** for a subset of
+    the book it is drawn from, and B1/B2's NAME axes re-measure the **29-name foreign-issuer
+    coverage hole** (the spanning set is capped at 157 names and touches all 157). Only B3
+    measured its property, and it **passes**. **So a result that was NULL only because of a bar
+    set for a product reason is now REJECTED only because of a bar that was broken.** (c) **The
+    DTE-matched MEDIAN is an ARTIFACT and was reported once as a finding before being caught** -
+    comparing one draw against the MEAN of a right-skewed set is biased low by construction, and
+    the shuffled null median is **-41.9pp against a real -35.8pp**, so the real figure runs
+    slightly IN THE ARM'S FAVOUR and the reading was exactly backwards. All three registers are
+    left **UNEDITED**; the diagnoses ship beside them.
+  * **A CORRECTION TO THIS PROJECT'S OWN FOLKLORE, measured while appending to the log: an
+    unescaped `|` in a research-log cell CANNOT be fixed by writing `\|`.** More than one handoff
+    records that such pipes *"want escaping as `\|`"*. `research_log._parse` splits on a bare
+    `"|"` and honours no escape, so `\|` still shifts every column and is flagged
+    `rows_malformed` exactly as an unescaped pipe is. **The only fix is not to put a pipe in the
+    prose.** Caught because the `P1S0` row used `|delta|` for an absolute value.
+  * **Expectations: Stage 0 scored 6 right, 2 wrong** (the anchor was predicted to PASS; at least
+    one cell was predicted UNDERPOWERED and none is). `data/free_analysis/P1S0_GATE.json`,
+    `P1S0_CONTROLS.json`, `P1S0_COVERAGE.json`, `P1S0_OPTIONABLE_PARTITION.pkl`,
+    `U6_OVERWRITE_COVERAGE.json`, `O17C4_OWN_THE_EVENT.json`, `O17C4_BARS.json`;
+    `HANDOFF_optionsbot.md` 62.
 - **THE LARGEST UN-RUN ITEM EITHER AUDIT NAMED IS RUN, AND THE ANSWER IS THAT THIS UNIVERSE
   CANNOT ANSWER IT - ON THE OPTIONS-LISTED SUB-POPULATION THE PANEL'S OWN BEST SIGNALS CANNOT BE
   SEPARATED FROM ZERO (2026-08-15, `MA31`+`MA32`+`MA56`).**
