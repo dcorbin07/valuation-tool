@@ -1,4 +1,11 @@
-"""O1 + O23 — the exit ladder replayed from the FROZEN chain copy, and decomposed against the
+"""
+ARCHIVED (master audit MA59, 2026-08-15) - a CLOSED study, kept so its
+result stays reproducible. It is NOT reachable from the live product and
+`tests/test_ma59_quarantine.py` fails if that ever changes.
+Still imported by: tests/test_options_exitreplay.py.
+Do not extend this module; a new question needs a new register.
+
+O1 + O23 — the exit ladder replayed from the FROZEN chain copy, and decomposed against the
 underlying.
 
 Register: `PREREG_o1_o23_exits.md`, committed at `dc2c486` before any policy was scored.

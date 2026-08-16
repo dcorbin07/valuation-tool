@@ -1,4 +1,11 @@
-"""How big must a bucket be before one lucky contract cannot flip its verdict?  [O26]
+"""
+ARCHIVED (master audit MA59, 2026-08-15) - a CLOSED study, kept so its
+result stays reproducible. It is NOT reachable from the live product and
+`tests/test_ma59_quarantine.py` fails if that ever changes.
+Still imported by: scripts/o26_floor.py, tests/test_bucket_floor.py.
+Do not extend this module; a new question needs a new register.
+
+How big must a bucket be before one lucky contract cannot flip its verdict?  [O26]
 
 Pre-registered in `PREREG_o26_bucket_floor.md`, committed before this file existed.
 

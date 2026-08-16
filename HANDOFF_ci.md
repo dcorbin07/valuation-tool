@@ -1593,3 +1593,141 @@ lock was installable.
 was wrong on its first run. Had the policy landed in the same push, the lock would have been
 armed against `.github/` while `.github/` still contained the bug, and the fix could not have
 auto-landed.
+
+---
+
+## 10. MA59 + MA60 — infra's last two audit-#3 rows (2026-08-15, infra lane)
+
+**Zero trials.** Both are simplification/process work with no hypothesis, no threshold and no
+verdict against a bar, so equity `N` stays **224** and no published claim moves.
+`BACKTEST_RESULTS.json` needs no re-run.
+
+### 10.1 MA59 — the audit is right about every entry on both lists, and it was checked first
+
+The item names two lists: modules whose only importer is a closed study's own script, and
+modules that **look** dead and are load-bearing. Both were verified against a **derived** import
+graph before anything was touched.
+
+| | claimed | measured |
+|---|---|---|
+| archive candidates unreachable from a live entry point | 17 | **17 of 17** |
+| load-bearing modules still reachable | 6 | **6 of 6** |
+| unreachable modules in the package overall | — | **53 of 192** |
+
+**DEADNESS IS TRANSITIVE, AND THAT IS THE WHOLE POINT.** Counting *direct* importers calls
+`surface_xsec` production code, because a file under `valuation/` imports it — that file is
+`tickflow_signals`, which nothing live reaches. A direct-importer rule protects the wrong module
+and leaves the real question unanswered, so the transitive example is pinned as a live test: if
+someone rewrites the analysis to count importers, it fails.
+
+**Archived in place, never moved or deleted**, per the audit's own instruction and the B16
+pattern already used for `deprecated_options_exit.py`. Each of the 16 modules gains a banner
+naming the study that closed and its **real** importers, derived rather than typed so the banner
+cannot become a second hand-maintained list that drifts from the first.
+
+**The pin is bidirectional, and the second direction is the valuable one.** A quarantine test
+that only checks the dead list catches the harmless mistake — a closed study wired into the live
+app — and misses the expensive one: someone reads "looks dead", deletes a D-series alt-data
+module, and changes what a past `BACKTEST_RESULTS.json` reproduces.
+
+**Two corrections to the audit.**
+
+* It says to *"keep the pin test as the quarantine proof"*. **`options_tail` and
+  `ev_multiples_study` have no importer anywhere in the tree** — no script, no test — so there
+  was no pin test to keep. `tests/test_ma59_quarantine.py` is now their only one.
+* It says `options_vrp` is archivable while **keeping** `options_vrp_portfolio` for O11.
+  **Portfolio imports vrp**, so the two cannot be separated. Archiving in place is fine;
+  deleting, as a reader might infer, would not have been.
+
+**The three rejected-intervention env vars now warn.** `SCREENER_SECTOR_NEUTRAL`,
+`SCREENER_RESIDUAL_MOMENTUM` and `VALQUO_ROBUST_Z` each re-enable something the research
+eliminated, and a run with one set reports under the ordinary headline with nothing anywhere
+saying the model changed. The audit offered *"delete the override or make it warn"*; deleting
+removes the ability to A/B the rejected arm at all, so it warns. **A test pins that the default
+path warns about nothing** — a warning on every ordinary run is noise, and noise gets muted.
+
+**Not done, named so it is not mistaken for done:** nothing is physically moved or removed; the
+`options-bot/` tree is untouched; and `WHERE_WE_STAND.md` and `AGENT_LOG.md` are already absent
+from the repo, so there was nothing to retire.
+
+### 10.2 MA60 — three of four shipped, and the fourth is blocked by this lane's own MA11
+
+**Bullet 1 (the builder as data-destroyer) was already repaired by a prior lane**, and is
+verified here rather than taken on trust: all three sub-defects are fixed, `build_ledger.py`
+carries a docstring for each naming what it used to destroy, and `tests/test_build_ledger.py`
+pins them. The audit is correct about the history and stale about the tree.
+
+**Bullet 3 (the hand-typed import dict) is the finding, and the audit understates it.**
+
+| | hand-typed | derived |
+|---|---|---|
+| keys | 13 | **118** |
+| edges | 40 | **546** |
+| files with real imports absent entirely | — | **105** |
+| of its own 13 keys, wrong | — | **12** |
+
+**The failure that matters is not the absences — it is that it was wrong in a direction that
+reads as safe.** Four options modules were recorded as importing `statistics.py` when they
+actually import `options_stats.py`, so a SOFT collision between two options items fired against
+a file they do not share and never fired against the file they do.
+
+**Consequence, measured across all 8,911 item pairs: 150 pairs it reported safe to run in
+parallel are genuinely import-coupled, and 7 collisions it reported never existed.** A lane
+checker whose graph is stale gets wrong the one answer it exists to get right. It is now derived
+from the same graph MA59 uses — **one definition, because two copies of one list is precisely
+the MA39 defect**.
+
+**Bullet 4 (CI enforces none of the conventions) ships three checks, each measured before being
+pinned** so it could not fail on arrival and be switched off the same day.
+
+* **The canonical artifact may LAG the research log and may never LEAD it.** Exact equality is
+  **declined**, following MA19's own refusal on this same comparison: a 20–40 minute backtest
+  against an `N` that rises the moment a register lands would be red for the ordinary interval
+  between them, and *"a gate that cries wolf is one you learn to ignore"*. The directional check
+  has no such window — leading means rows left the log after the artifact counted them, which
+  **lowers `N` and raises every DSR- and HLZ-gated claim**. **Live on its first run the artifact
+  reads 530 all-domain trials against the log's 531** — exactly the drift the audit says happened
+  twice in a week.
+* **Every commit a ledger row cites must exist in history.**
+* **A register must be added in a markdown-only commit** — the mechanised form of the *"strict
+  git ancestor"* evidence the corpus asserts by hand dozens of times. **Measured first: 53 of 59
+  registers are clean.** The **6** that are not are grandfathered **by name**, never by pattern,
+  because a pattern exemption widens silently. Grandfathering is recorded as *"these six cannot
+  support the claim the others can"*, not as exoneration.
+
+**Not encoded, named so it is not mistaken for encoded:** handoff-before-done.
+
+**Bullet 2 (split the land gate from the register pins) is NOT applied, and cannot be from a
+branch.** Splitting the gate means editing `.github/workflows/`, and **MA11's land policy —
+landed by this same lane the day before — refuses any branch that touches `.github/`.** That is
+the policy working, not failing. Weakening it to let this through would be silencing a check to
+make a run green, so it is **routed to Don as a human PR**, alongside MA11's own GitHub-ruleset
+residual.
+
+**The judgement half ships, derived**, in `scripts/suite_manifest.py`, so applying it is a
+two-line workflow edit. **It also corrects the audit: 14 of 94 suites are pure register pins,
+not the large tail the item implies** — most closed studies' pin tests import a live module too
+and so genuinely exercise production code. The audit's 77-suite figure is now **94**.
+
+**A defect in my own classifier, caught by disbelieving a number rather than by a test.**
+`from valuation.edge import kelly` also resolves the package `__init__`, which is reachable, so
+the first cut classified **92 of 94** suites as product and the split looked as though it barely
+existed. Importing a package is not touching live code.
+
+### 10.3 Verification
+
+`tests/test_ma59_quarantine.py` 11/11 Â· `tests/test_ma60_conventions.py` 10/10 Â·
+`tests/test_build_ledger.py` 20/20 Â· **6 of 6 mutations caught** (an archived study made
+reachable; a load-bearing module made unreachable; a vacuous graph; the artifact ahead of the
+log; a ledger row citing a non-existent commit; a register committed with code).
+
+### 10.4 For Don — two human-only items, both now in one place
+
+1. **A GitHub ruleset protecting `.github/**`** (MA11's residual). For `push` events GitHub runs
+   the workflow YAML *from the pushed branch*, so a branch that rewrites
+   `land-agent-branch.yml` escapes the in-repo policy. No file can close this.
+2. **The land-gate split** (MA60 bullet 2). `python scripts/suite_manifest.py --product` prints
+   the suites the gate must keep; `--register` prints the 14 that could move to a nightly run.
+   Worth knowing before spending the change: it removes about **15%** of the suites from the
+   land path, not the large tail the audit implies.
+

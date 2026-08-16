@@ -7572,3 +7572,53 @@ was caught, having deleted that retry.
 **Next in this lane:** nothing blocking. Two bugs reported and not fixed (`HANDOFF_ci.md` §6):
 `auto-scan.yml` grants its jobs no explicit `permissions:` block, and `psycopg2-binary` is named
 only in a comment, so switching Postgres on would put an unpinned dependency into production.
+
+---
+
+## 2026-08-15 — infra lane (r1): MA59 + MA60 — infra's audit-#3 rows are all adjudicated
+
+**Zero trials** — simplification and process work, no hypothesis and no threshold, so equity `N`
+stays **224** and no published claim moves. Full write-up: `HANDOFF_ci.md` §10.
+
+**MA59 — DONE. The audit is right about every entry on both its lists, and that was verified
+against a derived import graph before anything was touched:** all 17 archive candidates are
+unreachable from a real entry point, all 6 "looks dead, is load-bearing" modules are reachable,
+and 53 of 192 modules are unreachable overall. **Deadness is transitive and that is the point** —
+counting *direct* importers calls `surface_xsec` production code, because the file under
+`valuation/` that imports it is `tickflow_signals`, which nothing live reaches. Archived **in
+place** with a banner (the B16 pattern), never moved or deleted, so every study still reproduces.
+The quarantine is pinned in **both** directions, and the second is the one that matters: deleting
+a D-series alt-data module because it "looks dead" changes what a past `BACKTEST_RESULTS.json`
+reproduces. **Two corrections to the audit:** `options_tail` and `ev_multiples_study` have no
+importer anywhere, so the pin test it says to keep did not exist; and `options_vrp_portfolio`
+(which it says to keep) **imports** `options_vrp` (which it says to archive), so the two cannot
+be separated. The three rejected-intervention env vars now warn when set — silent by default,
+because a warning on every ordinary run is noise.
+
+**MA60 — PARTIAL, 3 of 4, and the fourth is blocked by this lane's own MA11.** Bullet 1 was
+already repaired by a prior lane and is re-verified here rather than taken on trust. Bullet 3 is
+the finding and **the audit understates it**: `check_lanes.py`'s hand-typed import dict held 13
+keys and 40 edges against a real **118 and 546**, and 12 of its 13 keys were wrong — worse, wrong
+in a direction that reads as safe, recording four options modules as importing `statistics.py`
+when they import `options_stats.py`. **Measured across all 8,911 item pairs: 150 pairs it called
+safe to run in parallel are genuinely coupled, and 7 collisions it reported never existed.** It
+is now derived from the same graph MA59 uses — one definition, because two copies is the MA39
+defect. Bullet 4 ships three convention checks, each measured before being pinned; the artifact
+already reads **530** all-domain trials against the log's **531**, which is the drift the audit
+says happened twice in a week, caught on the check's first run.
+
+**ROUTED TO DON, and it is the policy working rather than failing:** MA60's remaining bullet asks
+to split the land gate, which means editing `.github/` — and MA11's land policy, landed by this
+lane the day before, **refuses any branch that touches `.github/`**. Weakening it would be
+silencing a check to make a run green. The judgement half ships derived in
+`scripts/suite_manifest.py`, so applying it is a two-line workflow edit. It also corrects the
+audit: **14 of 94 suites** are pure register pins, not the large tail implied, because most
+closed studies' pin tests import a live module too.
+
+**Status of infra on audit #3: every infra row is now adjudicated.** MA59 closes DONE; MA60
+closes PARTIAL with its residual named, mechanised as far as a branch can take it, and routed.
+Two human-only items remain, both now recorded together in `HANDOFF_ci.md` §10.4: the GitHub
+ruleset protecting `.github/**` (MA11's residual) and the land-gate split above.
+
+**Verification.** `test_ma59_quarantine.py` 11/11, `test_ma60_conventions.py` 10/10,
+`test_build_ledger.py` 20/20, **6 of 6 mutations caught**, full local gate green before pushing.

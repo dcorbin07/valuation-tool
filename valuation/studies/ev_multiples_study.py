@@ -1,4 +1,10 @@
 """
+ARCHIVED (master audit MA59, 2026-08-15) - a CLOSED study, kept so its
+result stays reproducible. It is NOT reachable from the live product and
+`tests/test_ma59_quarantine.py` fails if that ever changes.
+Still imported by: nothing in the tree.
+Do not extend this module; a new question needs a new register.
+
 EV multiples in the value theme — the A/B, on the full universe.
 
 WHY THIS EXISTS

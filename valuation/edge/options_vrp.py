@@ -1,4 +1,10 @@
 """
+ARCHIVED (master audit MA59, 2026-08-15) - a CLOSED study, kept so its
+result stays reproducible. It is NOT reachable from the live product and
+`tests/test_ma59_quarantine.py` fails if that ever changes.
+Still imported by: scripts/o11_o19_o22_o25_portfolio.py, tests/test_edge.py, tests/test_guards.py, optvrp_report.py, optvrp_run.py, valuation/edge/options_vrp_portfolio.py.
+Do not extend this module; a new question needs a new register.
+
 A3 — the VRP / put-credit-spread arm. PRE-SPECIFIED, committed results-free BEFORE it was run.
 
 --------------------------------------------------------------------------------------------

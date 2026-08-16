@@ -1,4 +1,11 @@
-"""Dividends and early exercise on the banked options book.  [O21]
+"""
+ARCHIVED (master audit MA59, 2026-08-15) - a CLOSED study, kept so its
+result stays reproducible. It is NOT reachable from the live product and
+`tests/test_ma59_quarantine.py` fails if that ever changes.
+Still imported by: scripts/o21_dividends.py, tests/test_dividends.py.
+Do not extend this module; a new question needs a new register.
+
+Dividends and early exercise on the banked options book.  [O21]
 
 Pre-registered in `PREREG_o21_dividends.md`, committed before this file existed.
 
