@@ -490,5 +490,37 @@ class Config:
             return "openai"
         return "none"
 
+    # MA59: each of these env vars is a one-variable path back to an
+    # intervention the research eliminated, and switching one on leaves no
+    # trace in any artifact -- the run simply scores a different model and
+    # reports it under the same headline. The audit's instruction was "delete
+    # the override or make it warn"; deleting it would remove the ability to
+    # A/B the rejected arm at all, which is worth keeping. So it warns.
+    #
+    # This fires only when someone opts in, so the default path is unchanged
+    # and silent. `rejected_overrides_active()` is the machine-readable form,
+    # for any surface that wants to say so rather than print it.
+    REJECTED_OVERRIDES = {
+        "sector_neutral": "SCREENER_SECTOR_NEUTRAL — sector-neutral ranking, "
+                          "rejected in both held-out directions, twice "
+                          "(HANDOFF_sector_neutral.md); S15 and S25 are shut too",
+        "residual_momentum": "SCREENER_RESIDUAL_MOMENTUM — defaulted true "
+                             "while every backtest forced it false (audit B7/G)",
+    }
+
+    def rejected_overrides_active(self) -> dict[str, str]:
+        return {k: why for k, why in self.REJECTED_OVERRIDES.items()
+                if getattr(self, k, False)}
+
+    def __post_init__(self) -> None:
+        active = self.rejected_overrides_active()
+        if active:
+            import warnings
+            warnings.warn(
+                "REJECTED INTERVENTION ENABLED — this run does not score the "
+                "model any published Valquo figure describes: "
+                + "; ".join(active.values()),
+                RuntimeWarning, stacklevel=2)
+
 
 CONFIG = Config()

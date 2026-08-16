@@ -1,4 +1,11 @@
-"""O6 + O7 + O17 — the earnings-and-surface-selection family.
+"""
+ARCHIVED (master audit MA59, 2026-08-15) - a CLOSED study, kept so its
+result stays reproducible. It is NOT reachable from the live product and
+`tests/test_ma59_quarantine.py` fails if that ever changes.
+Still imported by: scripts/o6_o7_o17_earnings.py, tests/test_earnings_surface.py.
+Do not extend this module; a new question needs a new register.
+
+O6 + O7 + O17 — the earnings-and-surface-selection family.
 
 Pure, testable pieces for `PREREG_o6_o7_o17_earnings_surface.md`. Every constant here is the
 register's, fixed before any measurement code existed.

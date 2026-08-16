@@ -1,4 +1,11 @@
-"""O3 + O4 + O5 — the surface-anomaly cross-section on a TRUE delta-hedged instrument.
+"""
+ARCHIVED (master audit MA59, 2026-08-15) - a CLOSED study, kept so its
+result stays reproducible. It is NOT reachable from the live product and
+`tests/test_ma59_quarantine.py` fails if that ever changes.
+Still imported by: scripts/o14_tickflow_signals.py, scripts/o3_o4_o5_surface.py, tests/test_surface_xsec.py, valuation/edge/tickflow_signals.py.
+Do not extend this module; a new question needs a new register.
+
+O3 + O4 + O5 — the surface-anomaly cross-section on a TRUE delta-hedged instrument.
 
 Pre-registered in `PREREG_o3_o4_o5_surface.md`, committed ALONE at d2aa5f9 before this file
 existed.
