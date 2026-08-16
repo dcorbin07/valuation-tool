@@ -108,6 +108,7 @@ from typing import Callable, Dict, List, Optional
 
 from ..engine.publication import (KIND_UNAVAILABLE, ROW_WITHHELD, ROW_WITHHELD_KIND,
                                   ROW_WITHHELD_REASON)
+from . import dip_risk as _dip_risk
 
 # --------------------------------------------------------------------------------------- #
 # THE THRESHOLD CONTROL
@@ -376,6 +377,21 @@ def screen(rows: List[dict],
             "fair_value_low": m.get("fair_value_low"),
             "fair_value_high": m.get("fair_value_high"),
             "fair_value_withheld_reason": m.get("fair_value_withheld_reason") or _reason(r),
+            # V6-B's M1 statistic for THIS name's measured class. Built here and nowhere else
+            # because this is the only point where all three inputs coexist for one company at
+            # one moment: the snapshot's `z_quality`, the valuation's 0-100 health sub-score,
+            # and the drawdown just measured from the same quote. Assembling them from separate
+            # passes is exactly the per-name inconsistency this function's docstring refuses.
+            #
+            # DISPLAY ONLY. It is computed AFTER every membership decision above, so it cannot
+            # reach one — a row's class does not admit it, exclude it or move it. The sort below
+            # is on `drawdown`, unchanged, and `test_dip_risk.py` pins both facts.
+            "dip_risk": _dip_risk.for_name(
+                drawdown=dd,
+                z_quality=r.get("z_quality"),
+                health_score=(h["scores"] or {}).get("health"),
+                market_cap=r.get("market_cap"),
+                cash_burning=m.get("cash_burning")),
         }))
 
     out.sort(key=lambda x: -(x.get("drawdown") or 0.0))
@@ -395,6 +411,10 @@ def screen(rows: List[dict],
         "health_floors": dict(HEALTH_FLOORS),
         "health_floor_note": HEALTH_FLOOR_NOTE,
         "checks": dict(CHECKS),
+        # Coverage for the per-name risk field, per the standing coverage rule: a join that
+        # quietly fails on most rows would otherwise read as a narrow statistic rather than a
+        # broken lookup.
+        "dip_risk": _dip_risk.summary(out),
     }
 
 
@@ -511,11 +531,19 @@ def measurement_from(result) -> Optional[dict]:
         except (TypeError, ValueError, AttributeError):
             lo = hi = None
 
+    # Read, never re-derived. `classify.py:82` sets this flag and `scoring._health_score`
+    # branches on it; V6-B's panel build could not supply the branch's input and so measured
+    # ZERO cash-burning rows, which is why `dip_risk` has to be able to tell. Deriving it here
+    # from `fcf` instead would be a second definition of a shipped one — audit B7's class.
+    cls = getattr(result, "classification", None)
+    burning = None if cls is None else bool(getattr(cls, "is_cash_burning", False))
+
     return {
         "drawdown": dd,
         "price": price,
         "high_52w": high,
         "subs": subs,
+        "cash_burning": burning,
         "score": None if withheld else getattr(score, "score", None),
         "confidence": getattr(score, "confidence", None) if score is not None else None,
         "fair_value": fv,
