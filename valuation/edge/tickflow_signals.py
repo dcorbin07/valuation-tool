@@ -1,4 +1,11 @@
-"""O14 — the tick-flow signal studies.
+"""
+ARCHIVED (master audit MA59, 2026-08-15) - a CLOSED study, kept so its
+result stays reproducible. It is NOT reachable from the live product and
+`tests/test_ma59_quarantine.py` fails if that ever changes.
+Still imported by: scripts/o14_tickflow_signals.py, tests/test_tickflow_signals.py.
+Do not extend this module; a new question needs a new register.
+
+O14 — the tick-flow signal studies.
 
 Pure, testable pieces for `PREREG_o14_tickflow_signals.md`. Every constant is the register's,
 fixed before any measurement code existed.

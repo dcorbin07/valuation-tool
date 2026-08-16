@@ -1,4 +1,11 @@
-"""Fractional Kelly and ruin for the options paper book.  [O12]
+"""
+ARCHIVED (master audit MA59, 2026-08-15) - a CLOSED study, kept so its
+result stays reproducible. It is NOT reachable from the live product and
+`tests/test_ma59_quarantine.py` fails if that ever changes.
+Still imported by: scripts/o12_kelly.py, tests/test_kelly.py.
+Do not extend this module; a new question needs a new register.
+
+Fractional Kelly and ruin for the options paper book.  [O12]
 
 Pre-registered in `PREREG_o12_kelly_ruin.md`, committed before this file existed.
 

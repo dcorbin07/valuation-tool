@@ -1,4 +1,10 @@
 """
+ARCHIVED (master audit MA59, 2026-08-15) - a CLOSED study, kept so its
+result stays reproducible. It is NOT reachable from the live product and
+`tests/test_ma59_quarantine.py` fails if that ever changes.
+Still imported by: tests/test_edge.py, optxs_run.py.
+Do not extend this module; a new question needs a new register.
+
 OPTIONS_DEEP_RESEARCH thread #2 — the CROSS-SECTION of option returns.
 
 PRE-SPECIFIED. Everything above the "RESULT" banner, including the SIGN of every hypothesis, was

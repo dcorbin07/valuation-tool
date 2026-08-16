@@ -1,4 +1,11 @@
-"""U3 — a convex overlay on the equity book, sized as insurance rather than as a strategy.
+"""
+ARCHIVED (master audit MA59, 2026-08-15) - a CLOSED study, kept so its
+result stays reproducible. It is NOT reachable from the live product and
+`tests/test_ma59_quarantine.py` fails if that ever changes.
+Still imported by: scripts/u3_convex_overlay.py, tests/test_convex_overlay.py.
+Do not extend this module; a new question needs a new register.
+
+U3 — a convex overlay on the equity book, sized as insurance rather than as a strategy.
 
 Registered in `PREREG_u3_convex_overlay.md`, committed ALONE at `9603e64` before this file
 existed. Read that register before reading this module; in particular §0.2, §0.4 and §0.5.
