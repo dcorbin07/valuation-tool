@@ -101,10 +101,7 @@ def dte_quartile_table(spans, nots):
     return out
 
 
-def dte_matched_gain(spans, nots, tol=5.0):
-    """The stronger version of C-DTE: match each spanning trade to non-spanning trades of the
-    SAME name within +/- tol days of DTE, and average the within-pair difference. Holds tenor
-    fixed by construction rather than by stratum."""
+def _matched_diffs(spans, nots, tol):
     by_name = defaultdict(list)
     for r in nots:
         if r.get("dte") is not None and r.get("pnl_pct") is not None:
@@ -118,11 +115,57 @@ def dte_matched_gain(spans, nots, tol=5.0):
         if not cand:
             continue
         diffs.append(float(r["pnl_pct"]) - float(np.mean([float(x["pnl_pct"]) for x in cand])))
-    if not diffs:
+    return np.asarray(diffs, dtype=float)
+
+
+def dte_matched_gain(spans, nots, tol=5.0, null_draws=20, seed=99):
+    """C-DTE, matched: each spanning trade against non-spanning trades of the SAME name within
+    +/- tol days of DTE. Holds tenor fixed by construction rather than by stratum.
+
+    THE MEDIAN OF THESE DIFFERENCES IS AN ARTIFACT AND IS NOT A FINDING — caught by running a
+    shuffled-label null rather than by reasoning about it. Comparing ONE draw against the MEAN
+    of a right-skewed set is biased low by construction: the mean of a barbell sits far above
+    its median, so a typical draw falls below it whether or not any effect exists. Measured on
+    the control book the NULL median is about -0.42 while the real is -0.36 — so the real
+    median runs SLIGHTLY IN THE ARM'S FAVOUR, and quoting it as "the typical spanning trade
+    does worse" would have been exactly backwards.
+
+    So three things are returned and only two of them mean anything:
+      * `gain` — the MEAN difference. Unbiased, and scored against the same shuffled null.
+      * `median_vs_median` — median(spanning) - median(not), which compares like with like and
+        is the honest answer to "what happens to a typical trade".
+      * `median` — kept ONLY so the artifact is visible beside its null, never quoted alone.
+    """
+    a = _matched_diffs(spans, nots, tol)
+    if not len(a):
         return {"n_matched": 0, "gain": None}
-    a = np.asarray(diffs, dtype=float)
-    return {"n_matched": len(a), "gain": float(a.mean()),
-            "median": float(np.median(a)), "tol_days": tol}
+    sp = [float(r["pnl_pct"]) for r in spans if r.get("pnl_pct") is not None]
+    nt = [float(r["pnl_pct"]) for r in nots if r.get("pnl_pct") is not None]
+
+    pool = spans + nots
+    k = len(spans)
+    rng = np.random.default_rng(seed)
+    nm, nmed = [], []
+    for _ in range(null_draws):
+        idx = rng.permutation(len(pool))
+        d = _matched_diffs([pool[j] for j in idx[:k]], [pool[j] for j in idx[k:]], tol)
+        if len(d):
+            nm.append(float(d.mean()))
+            nmed.append(float(np.median(d)))
+    return {
+        "n_matched": int(len(a)), "tol_days": tol,
+        "gain": float(a.mean()),
+        "null_mean_p95": (float(np.percentile(nm, 95)) if nm else None),
+        "gain_clears_null": (bool(a.mean() > np.percentile(nm, 95)) if nm else None),
+        "median_vs_median": (float(np.median(sp) - np.median(nt)) if sp and nt else None),
+        "median_spanning": (float(np.median(sp)) if sp else None),
+        "median_not": (float(np.median(nt)) if nt else None),
+        "median_of_differences_ARTIFACT": float(np.median(a)),
+        "median_of_differences_NULL": (float(np.median(nmed)) if nmed else None),
+        "artifact_note": "median_of_differences is biased low by comparing one draw to a group "
+                         "MEAN on a skewed payoff; its own null sits BELOW it. Never quote it "
+                         "alone. Use gain (mean) and median_vs_median.",
+    }
 
 
 def arm(spans, nots, label):
