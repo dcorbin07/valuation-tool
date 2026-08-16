@@ -6,12 +6,20 @@ whose verdict has already been recorded — the harness exists so the verdict ca
 not because anything in the shipped product calls it.
 
 WHY THE BOUNDARY EXISTS AT ALL. Before this package these twelve modules sat in
-`valuation/edge/` beside the shipped engine, and three things followed from that:
+`valuation/edge/` beside the shipped engine, and two things followed from that:
 
-  * the Flask deploy image shipped 4,587 lines of research code it never imports;
   * a reader could not tell product from study by location, which is the same failure class
     `CLAUDE.md` was split up for — the record and the instructions in one undifferentiated pile;
   * `surfaces.py` had to reason about "no raw vendor rows" across a package that mixed both.
+
+WHAT THIS DOES **NOT** DO, MEASURED RATHER THAN ASSUMED: it does not take these 4,587 lines out
+of the deploy image. The audit's third stated motivation was that "the deploy image ships several
+thousand lines of research code" — it still does. The `Dockerfile` is `COPY . .` and
+`.dockerignore` excludes `.git`, `.venv`, `data/`, `tests` and `*.md` but **nothing under
+`valuation/`**. The residual is one `.dockerignore` line and is deliberately NOT taken here:
+`scripts/` is also in the image and every study's runner lives there and imports it, so excluding
+this package without excluding `scripts/` would leave in-image scripts that fail on import. That
+is a deploy-config decision with the running container as its blast radius.
 
 NOTHING IS DELETED, AND THE REASON IS THE PROJECT'S OWN RULE. Deleting a study's harness
 destroys the ability to re-derive its verdict, which is `RUN_RULES` rule 9 one level up. This

@@ -12312,8 +12312,23 @@ which is `RUN_RULES` rule 9 one level up.
   **Measured: the twelve modules total 4,587 lines; `fundamental_panel.py` is 5,014 lines and is
   not one of them.** Moving a directory's other occupants cannot shrink a file. The constraint is
   untouched and still binds — pinned by a test, so nobody later reads the move as having lifted it.
-  What the move *does* buy is real and smaller: 4,587 lines out of the deploy image, and a
-  location that tells product from study.
+  **A CORRECTION AGAINST MY OWN FIRST DRAFT, MEASURED AFTER WRITING IT: THE MOVE DOES NOT
+  TAKE THOSE LINES OUT OF THE DEPLOY IMAGE.** I claimed it did, on the strength of the
+  audit's own motivation (*"the deploy image ships several thousand lines of research
+  code"*). Checked: the `Dockerfile` is `COPY . .`, and `.dockerignore` excludes `.git`,
+  `.venv`, `data/`, `tests` and `*.md` — **nothing under `valuation/`**. The studies are in
+  the image before the move and after it, so **one of the audit's three stated motivations
+  is not met by MA23 as specified.** The other two are: the package the Flask app imports
+  from no longer contains studies, and location now tells product from study.
+
+  **REPORTED, NOT TAKEN — and the reason is a coupling worth writing down.** The residual
+  is one `.dockerignore` line, but `scripts/` is ALSO in the image and every study's runner
+  lives there and imports it, so excluding `valuation/studies/` alone would leave in-image
+  scripts that fail on import. Excluding both is probably right and is a DEPLOY-CONFIG
+  decision with the running container as its blast radius, which is not this batch's to
+  make. It is safe to do later for a reason this session established rather than assumed:
+  `tests/test_studies_boundary.py` proves no module under `valuation/` outside the studies
+  package imports one.
 * **TWO CORRECTIONS TO THE AUDIT'S OWN CENSUS, both measured.** The audit says eleven modules are
   *"referenced only by their own `scripts/` runner and their own test"*. **It holds for nine.**
   `scripts/ml_combiner.py` does **not** import `edge/ml_combiner.py` — they are two independent

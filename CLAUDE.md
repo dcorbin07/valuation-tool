@@ -63,8 +63,18 @@ the project's memory and the old versions had been repeated for months.
     modules total 4,587 lines, and the panel is 5,014 lines and is NOT one of them.** Moving a
     directory's other occupants cannot shrink a file. **The constraint on the panel is untouched
     and still binds**, and a test now pins that so nobody later reads the move as having lifted
-    it. What it does buy is real and smaller: 4,587 lines of research code out of the deploy
-    image, and a location that tells product from study.
+    it. **AND A CORRECTION AGAINST MY OWN FIRST DRAFT OF THIS BULLET, MEASURED AFTER WRITING
+    IT: THE MOVE DOES NOT TAKE THOSE LINES OUT OF THE DEPLOY IMAGE EITHER.** The Dockerfile
+    is `COPY . .` and `.dockerignore` excludes `tests` and `*.md` and nothing under
+    `valuation/`, so the studies ship in the image before the move and after it — which
+    means **one of the audit's own three motivations for MA23 is not met by MA23 as
+    specified.** What the move does buy is the other two: the package the Flask app imports
+    from no longer contains studies, and a reader can tell product from study by location.
+    **The image residual is one `.dockerignore` line and is REPORTED, NOT TAKEN** — it is a
+    deploy-config change whose blast radius is the running container, and `scripts/` is in
+    the image and does import the studies, so excluding one without the other would break
+    an in-image script. Safe to do later precisely because the test above proves no product
+    module imports a study.
   * **TWO CORRECTIONS TO THE AUDIT'S OWN CENSUS, BOTH MEASURED.** It says eleven modules are
     *"referenced only by their own `scripts/` runner and their own test"*; **it holds for nine.**
     `scripts/ml_combiner.py` does **not** import `edge/ml_combiner.py` — two independent

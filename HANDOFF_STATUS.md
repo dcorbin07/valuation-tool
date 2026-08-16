@@ -41,6 +41,15 @@ The panel is a FILE; MA23 moves a DIRECTORY's other occupants. **The one-owner-a
 the panel is untouched and still binds** — MA14, MA24, MA25, MA26, MA27 and MA33 all still queue
 behind each other there. A test pins this so the move is never read as having lifted it.
 
+**And a correction against my own first draft, measured after writing it: the move does NOT take
+those 4,587 lines out of the deploy image either.** The `Dockerfile` is `COPY . .` and
+`.dockerignore` excludes `tests` and `*.md` but nothing under `valuation/`, so **one of the
+audit's three stated motivations for MA23 is not met by MA23 as specified.** The residual is one
+`.dockerignore` line, **reported and not taken**: `scripts/` is in the image too and every study's
+runner imports the studies, so excluding one without the other breaks an in-image script. Safe to
+do later for a reason this session established — the boundary test proves no product module
+imports a study.
+
 **2. Two corrections to the audit's own census.** `scripts/ml_combiner.py` does **not** import
 `edge/ml_combiner.py` — they are two independent implementations, and **the published
 `ML_COMBINER.json` came from the script**, so the module's only caller is its test.
