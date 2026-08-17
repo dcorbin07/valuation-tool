@@ -5,6 +5,265 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 38 — 2026-08-16 — `MA28-CARD`: the accounting red-flag crash statistic reaches a reader, as a disclosure and not a verdict
+
+**Zero trials.** A display of an already-measured statistic — no hypothesis, no threshold, no
+verdict against a bar. Equity `N` stays **231** and no research-log row is written. The register
+(`PREREG_ma28_accounting_riskcard.md`, `6ff578b`) already charged its trial; this ships its
+deliverable and measures nothing.
+
+The register's own close-out says so in as many words: *"NOT DONE, named so it is not mistaken
+for done: THE CARD IS NOT BUILT. The register's deliverable is the sentence; shipping a surface
+is a product change and belongs to the app lane, with the `BANNED` phrase tuple asserted against
+the RENDERED payload rather than the source."* This is that.
+
+## 0. What shipped
+
+`valuation/web/accounting_risk.py` (new) owns the copy and the figures; `/api/hotstocks` serves
+it as `accounting_risk`; `renderHot` renders it as a note under the hot list. It is a
+**disclosure** — it reads the rows, annotates none, reorders none, drops none, and a test fails
+if that stops being true.
+
+The claim, in the exact shape the register permits:
+
+> On an 18-year panel of 2,531 companies, names tripping at least two of three published
+> accounting stress tests went on to lose more than half their value over the next quarter
+> **2.66%** of the time, against **0.87%** for the names that did not trip them — a ratio of
+> **3.04x**. It held separately in both halves of the period: **3.42x** early and **2.93x** late.
+
+## 1. The ratio and both rates, never the difference — and it is pinned twice
+
+This is the register's sharpest instruction and it is a measured rule, not a style preference.
+The base rate is era-dependent: **0.34% early against 1.36% late**, a four-fold move spanning
+COVID 2020Q1 and 2022. So the absolute gap swings **0.86pp → 2.39pp** across the halves while the
+ratio barely moves (3.42 → 2.93). The flag scales the market's own crash frequency
+**multiplicatively**; it does not add a constant. A card saying "1.6 percentage points more
+likely" would quote an era average that describes neither half.
+
+Two guards, and they fail in different ways:
+
+* **The module cannot subtract the two rates.** Asserted against the **syntax tree**, not by
+  grep, so a subtraction cannot hide behind a helper name or whitespace — and so that a comment
+  *about* subtraction does not fire it. The guard carries its own positive control: the same walk
+  over a snippet that does subtract them must fire, or it proves nothing.
+* **The rendered text must carry all three figures**, and `BANNED` carries the forbidden
+  arithmetic in words ("percentage points more likely", "points more likely").
+
+**Only the four counts per window are pinned.** Every rate and every ratio is derived from them,
+and a test asserts the derived values reproduce the published artifact's own `rate_flagged`,
+`rate_kept` and `ratio` — max |Δ| **0.0** on all three windows. A second test refuses any rate
+literal in the module's code (docstrings stripped, so the prose may still quote "2.66%" to a
+reader while the arithmetic cannot). After four separate stale-figure corrections in this
+project's record, a rate typed beside its own counts is two copies of one fact.
+
+## 2. Coverage first — and "not scored is not clean" turns out to have a number
+
+Per the standing coverage rule, stated on the surface before the result: Beneish computable on
+**68.6%** of panel rows, Altman **76.7%**, external financing **94.5%**, and **22.0%** of rows
+carry fewer than two computable inputs and cannot be flagged at all. Those rows sit in the
+base-rate group by construction, which understates rather than flatters the flag.
+
+The brief's rule — *a name that cannot be scored must render as "not scored", never as "clean"* —
+is usually argued from principle. Here it has a measurement behind it, taken from the register's
+own `C7` block:
+
+| rows | share | crash rate |
+|---|---|---|
+| 0 inputs computable | 3,191 | 2.80% | **1.75%** |
+| 1 input computable | 21,888 | 19.21% | 0.68% |
+| scored and NOT flagged | 107,403 | — | 0.87% |
+
+**The sliver where nothing at all could be computed crashed at 2.01x the rate of the names that
+were scored and came back unflagged.** Absence of a flag is not absence of risk, and on the
+thinnest-data rows it ran the wrong way. That ratio is derived, not typed, and it ships inside
+the sentence.
+
+## 3. THE PREMISE FINDING: not one of the three flags is computable on the live path, and all three fail on the same field
+
+This is the substantive discovery of the session and it decided the shape of the card.
+
+Measured, not assumed. The required-input names are read out of the **shipped formula source**
+(`scripts/s10_accounting_veto.py`) by AST; the available names are read out of the live metrics
+contract by actually building one (`providers.company_to_metrics(CompanyData(...))`).
+
+* **17 fields required. 1 present** (`revenue`). Alias-aware — `ebit`→`operating_income`,
+  `marketcap`→`market_cap`, `netinc`→`net_income`, `cor` derivable from gross profit — it is 5,
+  and the 12 genuinely absent are `assets`, `liabilities`, `workingcapital`, `retearn`,
+  `receivables`, `assetsc`, `ppnenet`, `depamor`, `sgna`, `ncfo`, `ncfcommon`, `ncfdebt`: every
+  balance-sheet and cash-flow-statement line, on every live source. The broker feed's own
+  `BROKER_FIELDS` list does not carry them either.
+* **The single decisive fact, which makes the gate one checkable thing rather than a 17-item
+  list to eyeball: all three flags need `assets`, and no live source has total assets.** Beneish
+  needs it, Altman needs it in four of its five terms, external financing is a ratio to it.
+
+There is a **second, independent** reason, and it survives any amount of new data: **external
+financing flags the top decile *within each date***. It is a cross-sectional rank, so a single
+name has no flag until the whole cross-section is scored. Even complete inputs would require
+scoring the **list**, not the name.
+
+### 3a. So the module deliberately contains no flag arithmetic, and that is a decision not an omission
+
+Writing Beneish and Altman into `valuation/web/` would put a **second copy** of both formulas in
+the tree — `scripts/s10_accounting_veto.py` is the one definition and `scripts/ma28_riskcard.py`
+imports it rather than retyping it — and that copy **could not execute on a single live row**. A
+duplicate definition of a formula that can never run is audit **B7**'s defect class and the
+cannot-fire-guard class at once.
+
+What ships instead is a **capability gate that is measured per request**. `missing_inputs(row)`
+reads the row it is handed, so `names_scored: 0` is re-derived from live data on every call
+rather than frozen in a comment.
+
+### 3b. And a tripwire, so this cannot quietly become false
+
+`test_the_day_the_inputs_arrive_this_card_owes_a_scorer` fails the moment `names_scored` stops
+being zero — i.e. the day a lane adds total assets to the metrics contract — with a message
+saying what is owed: build the per-name half against the one formula definition, and remember
+external financing scores a list. Today the card says "none of these names is scored on this";
+that sentence becomes false silently, and nothing else in the product would notice.
+
+`track_meter`'s not-yet-due-versus-due-and-missing distinction, applied to a product surface. It
+is paired with a **positive control** — a synthetic row carrying all 17 inputs must come back
+scoreable — because without it both the gate test and the tripwire would pass on `return False`.
+
+## 4. What the card may not say, and why each family is there
+
+`BANNED` is asserted against the **rendered payload**, not this file, on `dip_posture`'s design
+and V4's lesson that rendering is where copy leaks.
+
+* **FRAUD** — Beneish's M-score is an earnings-*manipulation* index in the literature, so this is
+  the family a copy edit reaches for naturally, and the one that would put an accusation about a
+  named real company on a public page. A published statistic crossing a published threshold is
+  not evidence anyone did anything wrong, and the card says so in as many words.
+* **RETURNS** — the register gated this on the crash rate and **explicitly not** on alpha
+  (`top_decile_alpha` is computed nowhere in its arm path, pinned there by an AST test), and
+  `S10-ACCT` **rejected** the same flag as a portfolio screen. `S10` had already measured why
+  that leg can never pass: this book's maximum drawdown is one market-wide quarter, COVID 2020Q1
+  at trough index 44 of 69, which no name-level flag can move. The card renders that scope limit.
+* **ADVICE** — this product does not give it anywhere, and a risk card is the surface most likely
+  to slip.
+* **PREDICTION / PER-NAME PROBABILITY** — V3's rule. A percentage on a page about named companies
+  is most naturally misread as one company's odds.
+
+**It caught the module's own first draft.** `why_the_ratio` explained the forbidden form by
+quoting it — *"a single 'so many points more likely' figure would be an average of two eras"* —
+which contains the banned substring verbatim. The guard was not weakened; the copy was rewritten.
+That is `MA5`'s shape, where a source sweep fired on its own documentation twice.
+
+## 5. The size control is on the surface, because it is the finding and it is a reader's first objection
+
+`C4` was registered as the likely killer — Altman Z contains market cap directly
+(`X4 = marketcap / liabilities`), so the flag is *mechanically* size-linked, and `U7`, `S10` and
+`V6-B` were each decided by exactly that failure mode. Flagged names **are** smaller (median cap
+$2.69bn against $5.19bn). The effect nonetheless **strengthens monotonically with size**:
+**2.01x** in the smallest quintile to **5.17x** in the largest, 5 of 5 clearing.
+
+The card renders both extremes and the mechanism: large companies almost never halve in a
+quarter — unless their accounts are stressed, in which case they still do. It is the mirror image
+of `V6-B` M1's gradient, whose standing caveat is *"the claim is strongest exactly where the
+product is not"*. **This one is strongest exactly where the product is.**
+
+## 6. Three defects in my own work, and one in my own harness — all found by running things
+
+1. **The BANNED guard fired on the module's first draft** — §4 above.
+2. **The paraphrase sweep fired on my own JS comment.** The block comment above the renderer
+   opens *"MA28-CARD — accounting stress and the risk of a very bad quarter"*, so the test
+   asserting that `app.js` does not retype served copy failed against a tree that retypes
+   nothing. **Comment-versus-code, for the fourth time in this project's record** (`MA5`'s source
+   sweep, `MA49(c)`'s fixture, last session's boundary test, this). The sweep now strips `//` and
+   `/* */` before reading, with a vacuity check that the strip keeps every read it searches for.
+
+   **And the fix's first cut was itself wrong in a more interesting way.** The sweep used a
+   hand-typed phrase list, and `"ratio of"` fired on a **pre-existing** sentence forty lines away
+   about currency mismatch — a false positive on innocent code. A typed list also only ever
+   covers the copy that existed when it was typed. It is now **derived**: no 30-character stretch
+   of any served sentence may appear in the renderer's code. Long enough that ordinary English
+   overlap cannot trip it, short enough that a paraphrase worth having cannot avoid it, and it
+   covers sentences added later. It carries its own positive control.
+
+3. **READING IS NOT RENDERING, and I shipped a rule about this last session and then broke it.**
+   The mutation that deletes the one `html +=` emitting the card was **MISSED** on the first run.
+   Deleting it leaves `const ar = d.accounting_risk` and `const body = [ar.headline, ...]`
+   standing, so every assertion about the block being read still passed **while nothing reached a
+   reader** — the same dead-code-passes-as-wired failure `V6B-RENDER` found twice.
+
+   The rule I wrote then was *"anchor on the CALL SITE, never on a name the declaration also
+   contains"*, and it was not sharp enough: `d.accounting_risk` **is** a call site, and a read is
+   not a render. **The sharpened rule: anchor on the thing that puts text into the output.** A
+   `_EMIT` constant now pins the exact interpolation, and a second test pins the withdrawal
+   branch's own emission — which the same run also missed, and which is the branch that matters
+   most, since a retraction rendering nothing is indistinguishable from a card that was never
+   built.
+
+### 6a. And a defect in the MUTATION HARNESS that misdiagnosed itself as a weak test
+
+`ALTMAN_FLAG_BELOW = 1.81` → `2.00` came back **MISSED**, and run by hand the same mutation is
+caught instantly. **Cause: it is a SAME-LENGTH edit, and CPython validates a cached `.pyc` on
+(mtime, size).** Inside the harness's tight loop the write lands within one mtime tick of the
+previous restore, so both match and the suite imports **stale bytecode** — it ran against the
+unmutated module and passed.
+
+It bit twice: once in the harness, and then again interactively, where a restored source read
+`1.81` on disk while `AR.ALTMAN_FLAG_BELOW` was still `2.0`. That is what made it diagnosable
+rather than a shrug.
+
+**A mutation the harness cannot deliver is not a test that failed to notice**, and reporting it as
+MISSED points the fix at exactly the wrong file — I would have "strengthened" a test that was
+already correct. The harness now runs `-B` with `PYTHONDONTWRITEBYTECODE` and purges
+`__pycache__` before it starts. This sits beside the earlier harness lesson from `V6B-RENDER`
+(replace-all, not replace-once): **a mutation that is too weak is indistinguishable from a test
+that is too weak, and both directions of that confusion are expensive.**
+
+## 7. Verified by execution, not by parsing
+
+The V6B-RENDER lesson applied on the way in: `node --check` says a file parses, only running it
+says the function produces the right markup. `renderHot` was executed under a DOM shim against
+four real payloads:
+
+| payload | result |
+|---|---|
+| normal (2 rows) | full card renders, 6,819 chars |
+| `STATUS = withdrawn` | the withdrawal note only, **no figures**, 2,775 chars |
+| block absent | nothing renders, page intact (2,598 chars) |
+| block malformed (`available: true`, no headline) | nothing renders, page intact |
+
+The withdrawal branch matters: `dip_posture`'s rule is that a NULL must be as sayable as a
+POSITIVE, and here that means a retraction must **say so** rather than fall silent. A surface
+that quietly stops updating is how a retracted number goes on being believed.
+
+## 8. Reported, not fixed / not done
+
+* **The per-name half is not built** and the reason is §3. It is the tripwire's job to demand it
+  when it becomes buildable.
+* **The 4-flag rule is not closed.** The audit's version includes NT late-filing notices, which
+  are not buildable from anything this project owns, so the measured rule is 2-of-**three** and
+  is therefore NARROWER. A pass on it does not license the wider one; the card says "two of
+  three" and a test pins that.
+* **The audit's own product sentence was wrong and correcting it in silence is how it comes
+  back.** `VALQUO_MASTER_AUDIT.md:950` pairs these rates with a **-20%** threshold; they are the
+  **-50%** rates. At -20% the real figures are 16.8% against 9.0%, ratio 1.88x. The error runs in
+  the direction that *discredits* the card — a 20%+ quarterly fall is ordinary and a 0.87% base
+  rate for it is transparently impossible — so shipping it verbatim would have published a number
+  that refutes itself. The card states the -50% threshold **in the same sentence as the rates**,
+  which is the placement that makes the mis-pairing impossible to repeat.
+* **Whether a reader reads eight sentences under a hot list is unmeasured.** This is the densest
+  note on that surface and it now sits below three others. A product question, Don's.
+* **The card is on the hot list only.** The Dip Detector and the single-valuation page do not
+  carry it. That is a scope choice, not an oversight: the hot list is the surface that puts names
+  in front of a reader as candidates.
+
+## 9. Ledger corrections made on the way past
+
+* `V6B-RENDER`'s commit cell read `PENDING`; it landed at `45d0694` and now says so.
+
+## 10. Numbers
+
+`tests/test_accounting_risk.py` **39/39** (three of them added *because* mutations exposed real
+gaps — see §6). Mutations **24 caught, 0 missed, 0 skipped**, after the harness defect in §6a was
+repaired; the first run read 20/4 and **three of those four misses were mine**. Full gate
+**110/110 suites, exit 0**. Zero trials; equity `N` unchanged at 231.
+
+---
+
 # Session 37 — 2026-08-16 — `V6B-RENDER`: the dip risk statistic reaches a reader, and stops claiming a comparison this screen cannot make
 
 **Zero trials.** A display of an already-measured statistic plus a copy correction — no

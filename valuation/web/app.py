@@ -587,8 +587,17 @@ def api_hotstocks():
         _health.get("publication_audit"), scan_date=scan_date,
         displayed=len(rows), display_withheld=_band_withheld,
         display_peer_only=_peer_only)
+    # MA28-CARD — the accounting red-flag crash statistic, disclosed rather than applied.
+    # READ-ONLY over `rows`: it counts how many could be scored (zero, and the count is measured
+    # per request rather than assumed) and returns a block. It annotates no row, reorders none
+    # and drops none — `tests/test_accounting_risk.py` fails if that stops being true, on the
+    # same rule `tenure.py` and `refusals.py` carry: a disclosure that touches the rows has
+    # become a screen and needs its own register.
+    from . import accounting_risk as _acct_risk
+    accounting_block = _acct_risk.block(rows)
     return jsonify({"scan_date": scan_date, "rows": rows, "tenure": tenure_block,
                     "refusals": refusals_block,
+                    "accounting_risk": accounting_block,
                     "sectors": sector_attractiveness(all_rows),
                     "universe_size": meta.get("universe_size"), "scored": meta.get("scored"),
                     "provider": meta.get("provider"), "filtered": params.get("filtered"),

@@ -1020,6 +1020,27 @@ function renderHot(d) {
     html += `<div class="note"><b>${esc(rf.label)}.</b> ${esc(rf.sentence)}${extra} ` +
       `${esc(rf.explainer)}</div>`;
   }
+  // MA28-CARD — accounting stress and the risk of a very bad quarter. A DISCLOSURE: it puts a
+  // measured group statistic in front of a reader and attaches nothing to any row. Every string
+  // comes from `web/accounting_risk.py`, which owns the calibrated wording and pins it verbatim
+  // by test, so nothing here may paraphrase — the paraphrase is where "these accounts are
+  // stressed" turns into "this company is cooking the books", which is banned and unmeasured.
+  //
+  // ORDER IS PART OF THE MEANING, not layout taste. `not_scored_note` renders IMMEDIATELY after
+  // the figures, because the one misreading this card exists to prevent is a reader taking the
+  // numbers as a label on the names directly above them. `coverage_note` carries the reason a
+  // blank means "not scored" and never "clean", and it is rendered on the same footing as the
+  // headline rather than tucked into a tooltip.
+  const ar = d.accounting_risk || null;
+  if (ar && ar.available && ar.headline) {
+    const body = [ar.headline, ar.not_scored_note, ar.why_the_ratio, ar.what_is_measured,
+                  ar.not_a_return_claim, ar.size_note, ar.coverage_note, ar.always]
+      .filter(Boolean).map(s => esc(s)).join(" ");
+    html += `<div class="note"><b>${esc(ar.label)}.</b> ${body}</div>`;
+  } else if (ar && !ar.available && ar.withdrawn_note) {
+    // A withdrawal is exactly as sayable as the result — `dip_posture`'s rule about a NULL.
+    html += `<div class="note"><b>${esc(ar.label)}.</b> ${esc(ar.withdrawn_note)}</div>`;
+  }
   // Prefer theme_contributing over theme_coverage: a theme can be 100% "covered" and still be
   // a constant, which standardizes to nothing and drops out of the score entirely. Reporting
   // the presence number here would call such a theme healthy.
