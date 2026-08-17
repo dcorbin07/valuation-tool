@@ -12867,3 +12867,222 @@ alone it is **428/428**. *Do not run the same suite concurrently and then read t
   endpoints under `/api/edge/` in `valuation/web/app.py` (MA7's class, app lane's).
 * **`scripts/m4_live_replay.py`'s docstring** still named `valuation/edge/live_replay.py` after
   MA23 moved it; corrected here in passing.
+
+---
+
+## MA24 + MA26 + MA27 + MA28 + MA33 + MA54 + MA55 + MA57 + MA58 — audit #3's final nine (2026-08-16, edge lane)
+
+**AUDIT #3 IS EXECUTED. All 60 items adjudicated, zero `OPEN`: 53 `DONE`, 5 `DESIGN-RECORDED`,
+1 `BLOCKED` on the Cowork lane (`MA18`), 1 `PARTIAL` blocked on `MA11` and routed to Don
+(`MA60`).**
+
+**Zero trials, all nine `FIXED`-class.** No hypothesis is registered, no threshold pre-committed
+and no verdict issued against a bar, so **equity `N` stays 230**, options 294, infra 15;
+`by_domain` is bit-identical across the log append and `rows_fixed_not_counted` rises **53 → 62**,
+which is the proof the rows were seen and correctly excluded rather than silently dropped.
+`BACKTEST_RESULTS.json` needs no re-run and no published claim moves.
+
+**Where the zero is arguable, stated so it can be disagreed with.** Seven of the nine are design
+records or record adjudications (`MA5`/`MA23`/`MA39`/`MA34`/`PT-GAPDUE` precedent). The two that
+produce a number — `MA24`/`MA33`'s kill-condition arithmetic and `MA26`-C's withhold base rate —
+form no new estimate and search nothing: the first rescales an **already-published** MDE, the
+second reads two banked columns. If a reader thinks the kill-condition evaluation is a trial,
+equity `N` goes 230 → 231 and the HLZ hurdle moves **3.29788 → 3.29918**, which changes no verdict
+anywhere.
+
+### Why these nine, and why they were not simply run
+
+Each of `MA26`-A/B, `MA27`, `MA28`, `MA33`, `MA55`, `MA57` and `MA58` is a research arm that
+charges trials and needs a blind pre-registration committed **alone**, as a strict git ancestor.
+Running six of them inside one batch is exactly what the register exists to prevent, and it is the
+failure `MA31` was pulled out of a correctness batch to avoid. What *can* be settled without a
+trial is whether each is buildable, whether the audit's evidence holds, and what its register
+would have to say — and on four of the nine that changes the answer.
+
+**They also do not collide.** The record items (`MA24`, `MA26`-C/D, `MA54`) touch documents only;
+the proposals touch `_KEEP` at most. Nothing needed `fundamental_panel.py` opened for a second
+owner, which is still the binding constraint on this lane and is unchanged by `MA23`.
+
+### 1. `MA33` — the monthly rebuild does not buy back `S19`, and that is arithmetic
+
+The audit calls the rebuild the thing that *"unlocks the whole [text] class at once"* and
+re-opening `S19` *"the strongest argument for paying for that rebuild"*. `MA24` had already fixed
+the test in writing: *"if the monthly panel's own MDE still exceeds +0.0096 on the 418+195 name
+corpus, the question is unanswerable on data we own and should be closed permanently rather than
+re-opened a third time."*
+
+**The MDE is DERIVED, not quoted, and that is what makes the argument checkable.** `CLAUDE.md`
+states +0.020549; `S19_MDNA.json` stores no such key. It stores `residual_ic_change` and
+`residual_ic_t_change`, and `MDE(|t|=2) = 2·SE = 2·IC/t`:
+
+| arm | IC | t | SE | MDE quarterly (41 dates) | MDE monthly (114) |
+|---|---|---|---|---|---|
+| A1 | 0.012202150018043164 | 1.1876022080477582 | 0.010274610 | **0.020549220833972** | **0.012323522** |
+| A2 | 0.021737251314516925 | 1.4012178927768668 | 0.015513113 | **0.031026225723451** | **0.018606661** |
+
+against an original effect of **0.00960710146449202**. **Both stay above it. A1 needs 188 months —
+15.6 years — i.e. roughly 2032.**
+
+**The rescaling is the OPTIMISTIC bound and the conclusion holds a fortiori.** `SE ∝ 1/√T` only
+for independent dates; monthly 63-day forward returns **overlap**, and `R9` measured lag-1
+autocorrelation **+0.189** on this project's own quarterly spread, so the true monthly SE is
+larger and the true MDE worse. The cross-section per date is unchanged by the rebuild, so it
+cannot rescue the power either.
+
+**A trap that would mislead anyone checking.** `S19_MDNA.json` ships `underpowered: false`. That
+is the register's **coverage** gate — `min_covered_dates` 24, `min_heldout_names` 100,
+`min_names_per_date` 30 — and a different quantity from the MDE. Read as a power verdict it flatly
+contradicts the write-up. Both are right; only the weaker concept was stored.
+
+**What is still true about the rebuild**, so this is scoping and not rejection: it is **feasible**
+(`bulk.prepare_daily` already down-samples DAILY to one row per ticker-month, so monthly is the
+*native* granularity of the point-in-time market-cap path) at ~3× the build cost; **every X7
+calibrated bar would become an EXTRAPOLATION**, so it needs its own placebo sweep first and that
+cost is not in the audit's estimate; and it **inherits and worsens** `S8`/`S9`'s staleness defect —
+a market cap up to 31 days stale against a same-day price is a precision defect on a quarterly
+panel and a third of the rebalance interval on a monthly one.
+
+### 2. `MA57` — the data blocker does not exist
+
+The audit calls this the highest-EV untested equity item in either pass, then states the columns
+*"cannot be built without adding them and re-exporting **while the Sharadar entitlement is
+live**."*
+
+| | |
+|---|---|
+| columns in `data/backtest/insiders.csv` | **24** |
+| `ownername` / `transactioncode` | **both present** |
+| rows | **5,636,964**, 1980-11-25 → 2026-07-24 |
+| distinct `ownername` | **69,277** |
+| `ownername` missing on code-`P` rows | **0 of 124,181** |
+| `transactioncode` absent | **1,544,490 = 27.40%** |
+
+`_KEEP["insiders"]` is a six-column allowlist and the loader drops everything else
+(`df[[c for c in keep if c in df.columns]]`), which is why they read as absent. **It is a one-line
+change.** The audit verified the allowlist correctly and then drew the wrong conclusion about the
+file behind it.
+
+**CMP buildability, measured:** applying Cohen-Malloy-Pomorski's routine test to
+`(ownername, ticker)` pairs gives **42,537 of 87,318 = 48.72% routine on all coded rows** — the
+population their rule corresponds to, since they classify from *any* trade — and 3,713 of 53,551
+(6.93%) on purchases and sales alone. The 27.40% blank-code share is the register's first control
+and must be decided in advance.
+
+**The `_KEEP` change is deliberately NOT taken.** Two columns with no consumer are dead weight on a
+580 MB load, and the COVERAGE RULE's discipline is to add source columns *when the signal that
+needs them is added*. Pinned by `test_ma57_the_keep_allowlist_still_lacks_the_cmp_columns`, so
+adding them without `MA57`'s register fails a suite.
+
+**A defect I predicted and refuted by measuring it.** `_insider_score` computes
+`val = (sh × pr) if both present else transactionvalue`; `transactionshares` is signed (2,216,036
+negatives) and `transactionvalue` is unsigned (0 negatives in 2.6M), so the fallback should be
+scoring sales as buys. **It fires on 2 rows of 5,636,964, neither a sale.** No sign defect. The
+same pass independently reproduced `V6-B`'s **2,182,601** silently-skipped rows exactly.
+
+**Reported not repaired:** `_KEEP["insiders"]` requests `"date"`, and the export has none — it is
+`transactiondate` — so the `filingdate or date` fallback in `_insider_score` and `_prep_insider`
+**can never fire**. Harmless today; the COVERAGE-RULE class; pinned rather than tidied, because
+removing it changes a live scoring path's source for no measured benefit.
+
+### 3. `MA26` — arm C's deliverable was naming a blocker that is not there
+
+`withhold_implausible_fair_values` triggers on exactly one thing: `fair_value / price >
+FV_BAND_HIGH` (5.0, imported from `engine.pipeline`). It reads **no sub-score, no WACC, no quote**
+— so `V6`'s and `S23`'s findings are both true and neither binds this arm. `S23` also fixed the
+network problem: the valuation panel has an offline mode and asserts zero network calls.
+
+On the banked panel, 2009-01-15 → 2026-01-28: **108,100 of 108,241 rows (99.87%)** carry both
+columns; **5,403 = 4.998%** would have been withheld; **69 of 69 dates** carry at least one;
+per-date share 2.04% / 4.17% / 18.68%.
+
+**Two limits travel with it:** the panel's `fair_value` is `S23`'s reconstruction, not what the
+live site published that day (nothing recorded that — `LA1`'s class, `MA29`'s surface); and turning
+a 5% base rate into a predictor is a hypothesis needing its own register.
+
+Arm **D** (`pead_car`) is recorded **DO NOT RE-OPEN**, as asked. Arm **A** folds into `MA28`. Arm
+**B** (minimum hold instead of a rank band) is `DESIGN-RECORDED` and must **queue behind `S14`'s
+live adoption decision** on the `S20`/`S21` precedent — registering a competing hold mechanism
+while its sibling is mid-decision invites adopting both and attributing the sum to either.
+
+### 4. One effect, three ids — `MA26`-A, `MA28`, `MA54`-1 get ONE register
+
+The pilot is `S10-ACCT`'s: 2-of-3 accounting-stress flags → **2.660% vs 0.874%** quarterly >50%
+falls, **3.04×** on 113,945 rows. **A disclosure, never a screen** — `S10-ACCT` was REJECTED and
+its valuation sibling found the *opposite* sign. The register gates on the **crash-rate replication
+in both halves, not alpha** (`S10` measured this book's max drawdown to be one market-wide quarter
+at trough index 44 of 69), uses `V6-B` M1's instrument, requires a **market-cap control** and a
+`BANNED` tuple against the **rendered** payload. **One caution measured here: `S10-ACCT` ran
+2-of-THREE, not 2-of-four — NT notices are unbuildable — so a null does not close the 4-flag rule.**
+
+### 5. `MA54` — reconciled against the options frontier, not duplicated
+
+| leg | state | who |
+|---|---|---|
+| **-2 `O17-C4`** | **ANSWERED 2026-08-16.** `PREREG_o17c4_own_the_event.md` alone at `aeca6f0`; ledger `O17C4` = REJECTED on c3, c1/c2/c4 pass; options `N` 292 → 294. The effect is real and survives the alert's death: **+10.30% vs +5.50%** on 27,350 random-entry control trades, **+4.79pp**, both halves, sign **z +2.054, p 0.040** | options-bot lane |
+| **-1** | same object as `MA26`-A / `MA28`; folded | edge lane |
+| **-3 `O14 sweep_share`** | **NEEDS-DATA** — alert-days-only cache, ~4.7 GB new pull | not taken |
+| **-4 `O6` delta-matched** | **ORPHANED** — routed into `P1`'s register, and `P1S0` failed at its power anchor, closing the options-expression family | reported |
+
+**This lane deliberately does not re-measure -2.** The frontier's §4b reported a disagreement
+between its hard rule and `MA54` rather than resolving it; the options lane then ran the one that
+mattered on its own terms — deriving the replacement bar **first** on the `TP-BAR` precedent rather
+than lowering the one that failed — and it rejected. **Resolved in the frontier's favour.**
+
+### 6. The two premises that held, and the one refinement
+
+`MA27`: `per_signal.signals` = **53** and `NUMBER_THEME` = **53**; its three arguments separating
+KNS ridge from `S5`, `MLCOMB` and the eight `_weight_schemes` hold on inspection.
+
+`MA55`: three lens columns at 99.87% / 100.00% / 74.55%, width computable on **108,100 of 108,241
+rows with ZERO zero-width rows**, p05 0.1195 / median 0.8777 / p95 4.1069. **The `w_floor` is
+load-bearing and the measurement is why — the width's max is 3,585**, four orders above its median;
+without a floor the arm becomes a *disagreement* screen. Its register also needs a **momentum
+control**, because `S10` measured the unscaled gap to be momentum-contaminated (+0.95 vs +0.67).
+
+**Both registers must carry a correction: the audit quotes the alpha margin as 1.95pp, and `MA19`
+recalibrated it to 1.8629pp at today's `N` nine days ago.**
+
+`MA58`: premise holds — every corpus "seasonal" hit outside the audit documents is fiscal-quarter
+seasonality in fundamentals, and no `NUMBER_THEME` key is seasonality-shaped. **The refinement is
+`MA23`'s lesson: `Linnainmaa` appears TWICE in `VALQUO_EDGE_AUDIT.md`, for two *other* papers.
+A name match is not a paper census.**
+
+### 7. A defect in my own instrument, found by disbelieving a zero
+
+The blank-code counter first read **0** on a column with **1,544,490** blanks. Under pandas'
+string dtype a missing cell is `pd.NA`; `astype(str)` leaves it `NA` rather than producing
+`"nan"`, and **`NA` compares False against every literal** — so `code.eq("") | code.eq("NAN")`
+asked a question the data could not answer and returned a clean, confident zero. **The vacuous-pass
+family in a new costume.** The same language feature produced a *correct* exclusion two lines away
+in the pair census, because boolean indexing treats `NA` as False and that happened to be right
+there — which is exactly why it was caught by the number looking wrong and not by anything raising.
+
+### 8. Pins
+
+**107 suites, 0 failures.** `tests/test_ma_final_batch.py`, **16 tests**. Most of this batch
+changes no source, so most pins
+are **tripwires** — and a tripwire nobody has proved can bite is not a check, so
+`test_the_tripwires_can_bite` mutation-tests **3 of 3** (a seasonality key entering `NUMBER_THEME`;
+the CMP columns entering `_KEEP`; the memo dropping its citation of the options lane's row). The
+kill-condition arithmetic is pinned in pure arithmetic so it cannot rot with the artifact, **and
+its own non-vacuity is pinned** — fed a detectable effect the comparison must fail.
+
+**Two data-dependent tests SKIP when the licensed export or the banked panel is absent, and the
+skip is REPORTED rather than silent.** A defect in my first cut of exactly that: `_data_dir()`
+returned the **worktree's own** `data/` because `os.path.isdir` said yes, and the worktree's copy
+contained nothing but this session's output — so both tests skipped while believing they had
+looked. It resolves by locating **the file**, never a directory.
+
+### 9. What this does NOT say
+
+* **`DESIGN-RECORDED` is not a finding that an arm would fail.** `MA26`-A/B, `MA27`, `MA28`,
+  `MA55`, `MA57` and `MA58` are **NOT RUN**. Each is a live question and needs its own blind
+  pre-registration committed alone first.
+* **`MA54`-2 is not this lane's result.** It is cited, not reproduced.
+* **`S19` is the one thing that closes permanently**, and it closes on `MA24`'s own pre-committed
+  kill condition rather than on this batch's judgement.
+* **Still blocked and not closed by this batch:** `MA18` (Cowork lane) and `MA60`'s fourth item
+  (blocked on `MA11`, routed to Don). Neither is edge-lane work.
+
+`DESIGN_ma_final_batch.md`; `scripts/ma_final_batch_measure.py`;
+`data/free_analysis/MA_FINAL_BATCH.json`.

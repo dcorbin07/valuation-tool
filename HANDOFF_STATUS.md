@@ -1,5 +1,41 @@
 # HANDOFF STATUS - shared project state
 
+## edge lane — **AUDIT #3 IS EXECUTED** (2026-08-16, the final nine)
+
+**All 60 items adjudicated, zero `OPEN`: 53 `DONE`, 5 `DESIGN-RECORDED`, 1 `BLOCKED` on the Cowork
+lane (`MA18`), 1 `PARTIAL` blocked on `MA11` and routed to Don (`MA60`).** The final batch was
+`MA24`+`MA26`+`MA27`+`MA28`+`MA33`+`MA54`+`MA55`+`MA57`+`MA58`. **Zero trials, all nine
+`FIXED`-class — equity `N` stays 230, options 294, infra 15, `by_domain` bit-identical across the
+log append (`rows_fixed_not_counted` 53 → 62), and no published claim moves.**
+
+### Five things worth carrying forward
+
+**1. `S19` IS CLOSED PERMANENTLY, and the monthly rebuild does not re-open it.** `MA24`
+pre-committed the condition; it **fires**. `S19`'s MDE — derived from its own artifact, not quoted
+— falls only **+0.020549 → +0.012324** at 114 monthly dates against a **+0.009607** effect, and
+needs **188 months (15.6 years)**. **Do not propose the monthly panel on `S19`'s account.** It may
+still be worth building; justify it by what the *next* item needs, measured in advance.
+
+**2. `MA57` IS UNBLOCKED AND WAS NEVER BLOCKED — it is the highest-EV untested equity item and the
+data has been on disk all along.** `ownername` and `transactioncode` are both in
+`data/backtest/insiders.csv` (24 columns, 5.64M rows, 69,277 owners). It is a **one-line `_KEEP`
+change**, deliberately not taken here because a column with no consumer is dead weight — **land it
+in the same commit as the classifier, with `PREREG_ma57_*.md` alone first.** A tripwire fails a
+suite if the columns arrive without it.
+
+**3. THREE AUDIT IDS ARE ONE HYPOTHESIS.** `MA26`-A, `MA28` and `MA54`-1 are the same accounting-flag
+effect filed three times across two passes. **One register, not three** — building three would
+triple-charge one hypothesis. It gates on the **crash-rate replication**, never on alpha.
+
+**4. `MA54`-2 WAS ANSWERED BY THE OPTIONS LANE THE SAME DAY** (ledger `O17C4`, REJECTED on c3, with
+the effect confirmed real at **+4.79pp** on random-entry control books). **Cite it; do not
+re-measure it.** `MA54`-4's remedy is orphaned — `P1S0` failed and the options-expression family
+closed.
+
+**5. THE HOT-FILE CONSTRAINT IS UNCHANGED.** `fundamental_panel.py` still cannot be split across
+owners, and `MA23` did not change that. This batch avoided it entirely rather than working around
+it.
+
 ## edge lane, `MA14` + `MA21` + `MA25` + `MA34` + `MA49` (2026-08-16) — WHERE THE AUDIT'S OWN EVIDENCE IS WRONG
 
 **Wave-2/LOW pipeline batch, severity-then-collision. Zero trials, all five `FIXED`-class — equity
