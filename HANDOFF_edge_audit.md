@@ -13277,3 +13277,137 @@ the closest thing to right, and it was the least specific.
 
 `scripts/ma28_riskcard.py`; `tests/test_ma28_riskcard.py` (12 tests, 3/3 tripwires mutation-tested);
 `data/free_analysis/MA28_CARD.json`, `MA28_CARD_CONTROLS.json`.
+
+---
+
+## P1S0-CONTROL — was P1S0's dead early half a PERIOD or a UNIVERSE? (2026-08-16) — **NULL**, and the dichotomy is the finding
+
+`PREREG_p1s0control_period_or_universe.md` committed **ALONE at `dc618c4`**, one `.md`, zero
+`.py`, a strict ancestor of every measurement commit. Budget booked at **`be4bd36`, BEFORE the
+run**. **Equity `N` 231 → 232.**
+
+**NOT A RE-RUN OF P1S0, and it did not become one.** No arm of P1S0 was re-scored, its placebo was
+not recomputed, `P1S0_GATE.json` was never written to, and every optionable figure below is READ
+from that shipped artifact. Pinned by AST tests. **The options-expression family is untouched and
+stays `CLOSED`** — this register could not move it and did not.
+
+### The committed threshold
+
+Two legs on the **full panel's EARLY window**, on P1S0's own dates and halves:
+
+* **Leg 1 (power anchor):** `alpha_t_hac` at **H=63** against the full panel's **own**
+  `fixed_weights_null` `early_p95` (200 draws, seeds 7100–7299).
+* **Leg 2:** `cum_alpha` at **H=252** — the horizon where optionable read −0.08% — against zero.
+
+**UNIVERSE** if both clear; **PERIOD** if both fail; **legs disagreeing is NULL** (`RUN_RULES` A6).
+
+### What was run
+
+`--arms` → `--placebo` → `--verdict`, three passes, with the verdict pass **refusing** unless both
+artifacts exist so the bar cannot be computed after the statistic it judges. Panel
+`panel_s22_h504.pkl`, the full **69-date / 2,531-name / 113,945-row** panel. Dates and halves
+**imported** from `p1s0_optionable_gate.py` and `optionable_universe.restrict` — `restrict` used
+for exactly one thing, deriving the date list, pinned by test.
+
+**THE CONSTRUCTION IS VERIFIED, NOT ASSERTED.** The full-panel `full` cells reproduce P1S0's
+shipped `reference_full_panel_same_dates` **bit-for-bit at all three horizons** —
+`0.02378082572517831`, `0.09391044377802256`, `0.1311161852362568`, to 17 significant figures, on
+identical date counts. Same object, same dates, same code.
+
+### The numbers
+
+| H | window | FULL PANEL (2,531) | OPTIONABLE (619), read from P1S0 | gap, ann pp |
+|---|---|---|---|---|
+| 63 | full | +9.512%/yr, *t* +3.9222, mono −0.903 | +14.045%/yr, *t* +3.3731, mono −0.467 | −4.533 |
+| 63 | **early** | **+4.285%/yr, *t* +1.2536, mono +0.115** | **+2.818%/yr, *t* +0.8352, mono −0.030** | **+1.467** |
+| 63 | late | +14.604%/yr, *t* +5.7328, mono −0.915 | +24.308%/yr, *t* +4.1471, mono −0.515 | −9.704 |
+| 252 | full | +9.391%/yr, *t* +3.3021 | +12.023%/yr, *t* +2.3787 | −2.632 |
+| 252 | **early** | **+6.043%/yr, *t* +1.3752, mono +0.152** | **−0.082%/yr, *t* −0.0379, mono +0.455** | **+6.124** |
+| 252 | late | +11.854%/yr, *t* +5.2910 | +22.781%/yr, *t* +2.8778 | −10.927 |
+| 504 | early | +2.044%/yr, *t* +2.1791, mono +0.248 | +0.516%/yr, *t* +0.4570, mono +0.830 | +1.527 |
+
+**The decision.** Leg 1: **1.2536 against its own `early_p95` of 1.9308 → FAILS.** Leg 2:
+**+0.060427 > 0 → POSITIVE.** The legs disagree. **VERDICT: NULL.**
+
+### The mechanism — the brief's dichotomy is false, and that is why the rule could not resolve
+
+The brief offered two readings: full panel healthy ⇒ universe, or full panel weak ⇒ period.
+**Measured, it is BOTH, and they interact.**
+
+**(1) The period IS weak for the full panel, and not marginally.** Over 2016–2020 the full
+2,531-name panel **does not sort**: monotonicity is **POSITIVE at all three horizons**
+(**+0.115 / +0.152 / +0.248** — deciles running *backwards*) and the long-short *t* is negative at
+all three (**−0.078 / −0.846 / −2.424**). Against its own late window, where monotonicity is
+−0.915 / −0.830 / −0.818 and the long-short *t* is +2.07 / +1.50 / +2.04. Leg 1 failing its own
+null is the same fact in one number.
+
+**(2) AND the optionable subset is weaker still in exactly that window.** The full panel beats it
+by **+1.467pp (H=63)**, **+6.124pp (H=252)** and **+1.527pp (H=504)** annualised — every horizon,
+same direction.
+
+**(3) AND it reverses in the late window**, where optionable is *better* by −9.704pp, −10.927pp
+and −1.555pp. **So the optionable subset is not uniformly worse: it is worse early and better
+late.** A period effect and a universe effect, interacting — which is precisely the shape a
+two-branch rule cannot express, and precisely why it returned NULL.
+
+**This corroborates `R1`'s own fragility work rather than contradicting `R1`'s headline.** `R1`
+found a ~10-year window centred on 2009–2019 at alpha **+1.66% (*t* 1.39)** with **8 of 70**
+rolling windows not significant; `X4` found the investable margin not demonstrable **since 2014**.
+2016–2020 sits inside both. *"The headline passes every subperiod"* is true of `R1`'s coarse halves
+and thirds and is **not** a claim about this specific five-year window.
+
+### What this means for P1S0's gate — a finding about the GATE, not a licence
+
+**P1S0's early-half failure cannot be cleanly attributed to optionable names**, because the full
+panel also fails to sort over the same window. **And it cannot be dismissed as pure period
+either**, because the optionable subset is measurably worse than the full panel in exactly that
+window at every horizon. **The honest statement is that P1S0's early half was measuring a weak
+period AND a weaker universe at once, and its gate cannot separate them.**
+
+**The family stays CLOSED.** That verdict is P1S0's, this register cannot move it, and the brief
+forbade reopening regardless of the answer. **A reopen would need its own register, its own trials
+and its own blind commitment — and it is NOT proposed here.**
+
+### The floor extrapolation I forbade was real, not theoretical
+
+§7 void condition 3 forbade comparing a full-panel statistic with P1S0's restricted-universe
+floors. Measured: the **full-panel** `early_p95` is **1.9308** against P1S0's restricted
+**1.6974** at H=63 — **0.23 of a *t* higher**, so borrowing P1S0's floor would have been
+**permissive**. The verdict is unchanged either way (1.2536 fails both), but the void condition
+was earning its keep rather than decorating the register.
+
+## BUGS FOUND
+
+1. **A DEFECT IN MY OWN REGISTER, AND IT IS WHY THE ITEM RETURNED NULL.** **Leg 2 asked a LEVEL
+   question when the item is about SORTING.** *"Is the top decile's cumulative alpha positive?"*
+   cannot distinguish *"the composite works here"* from *"the composite does not rank, but the top
+   decile drifted up with the market."* The full panel's early window is exactly the second case —
+   cum α **+0.0604** while monotonicity is **+0.152** and the long-short *t* is **−0.846**. Had leg
+   2 been a **sorting** statistic (monotonicity, or the long-short against its own null) **both
+   legs would have agreed and the rule would have resolved PERIOD.** I picked the wrong second
+   statistic before seeing any number, and the NULL is the register working exactly as intended —
+   refusing to resolve rather than letting me choose the reading afterwards. **A future register on
+   this question should gate on a sorting statistic; that is a design note, not a result, and it is
+   NOT run here.**
+2. **Reported, not repaired:** `p1s0_optionable_gate.py`'s `reference_full_panel_same_dates` block
+   ships the **full sample only**, which is why this question needed a new item at all. Adding the
+   halves there would have cost nothing at the time. Left alone rather than edited, because
+   changing a landed item's producer would make its shipped artifact and its code disagree.
+
+## What was NOT done, and why
+
+* **P1S0 was NOT re-run** — no arm, no placebo, no verdict recomputed; its artifact was read and
+  never written. Pinned by four AST tests and mutation-tested.
+* **The options-expression family was NOT reopened**, whatever the reading — the brief forbade it
+  and the register made it a void condition.
+* **No third leg was added and H=504 was NOT promoted** from diagnostic to decisive, though it is
+  the one early cell with a *t* above 2 (+2.1791) — it has no floor and carries no verdict, and
+  promoting it after seeing it is exactly what §7 forbids.
+* **The rule was NOT restated to resolve the NULL.** The defect in leg 2 was found by reading the
+  result; changing the rule now would be choosing the reading afterwards.
+* **No claim is made about WHY 2016–2020 is weak.** The mechanism behind the period effect is not
+  measured here and would be its own item.
+
+`scripts/p1s0_control_period_or_universe.py`; `tests/test_p1s0_control.py` (14 tests, 3/3
+tripwires mutation-tested); `data/free_analysis/P1S0_CONTROL.json`, `P1S0_CONTROL_ARMS.json`,
+`P1S0_CONTROL_PLACEBO.json`.
