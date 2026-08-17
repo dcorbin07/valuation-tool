@@ -13086,3 +13086,194 @@ looked. It resolves by locating **the file**, never a directory.
 
 `DESIGN_ma_final_batch.md`; `scripts/ma_final_batch_measure.py`;
 `data/free_analysis/MA_FINAL_BATCH.json`.
+
+---
+
+## MA28-CARD — the accounting red-flag risk card (2026-08-16, edge lane) — **PASS**
+
+**The ONE register for `MA26-A` + `MA28` + `MA54-1`.** `PREREG_ma28_accounting_riskcard.md`
+committed **ALONE at `6ff578b`**, one `.md`, zero `.py`, a strict ancestor of every measurement
+commit. Trial budget booked at **`7f294df`, BEFORE the run**, not after. **Equity `N` 230 → 231**;
+options 294 and infra 15 untouched.
+
+**This is a PASS, and the register said in advance that a PASS here is weaker evidence than a FAIL
+would have been.** That label is not modesty after the fact — §1 fixed it before any number was
+read, because the full-sample separation was already published and only the half-level behaviour,
+the null, the size control and the incumbent control were blind.
+
+### The committed threshold
+
+**THE GATE IS THE CRASH-RATE REPLICATION, NOT ALPHA.** The claim is a **disclosure** — *names
+carrying flag X went on to suffer outcome Y at rate Z against a base rate of W* — never a screen.
+`top_decile_alpha` is computed **nowhere in the arm path**, pinned by an AST test; it appears only
+in the gating control C1. `S10-ACCT` already ran this as a screen and was REJECTED on the
+portfolio-drawdown leg, and `S10` had measured *why* that leg can never pass: this book's maximum
+drawdown is **one market-wide quarter, COVID 2020Q1, trough index 44 of 69**, which no name-level
+flag can move.
+
+Committed before measuring: outcome `fwd_ret ≤ −0.50` over the panel's 63-day window; flag = 2 or
+more of Beneish M > −1.78, Altman Z < 1.81, top-decile within-date external financing; **all three
+of** B1 within-date permutation p95 (500 draws), B2 pooled ratio **≥ 2.0×**, B3 mean per-date
+difference **≥ +0.50pp**, in **BOTH halves**; plus C4 (size) and C5 (incumbent proxy).
+
+### What was run
+
+`python -m scripts.ma28_riskcard --controls-only` then `--arms` — **two passes, and `--arms`
+REFUSES to run without a controls artifact recording a pass**, demonstrated by invoking it against
+an absent and against a failing artifact rather than asserted. Panel
+`data/free_analysis/panel_r5r6.pkl`: the corrected **69-date, 2,531-name, 113,945-row** panel,
+2009-01-15 → 2026-01-28. Halves 34/34 with **2017-07-20 embargoed**. Flags rebuilt point-in-time by
+**importing** `s10_accounting_veto.build_flags` — never re-typed (audit `B7`'s class, pinned).
+
+### The numbers
+
+| window | mean per-date diff | NW(1) *t* | permutation p95 (max) | pooled ratio | crashes |
+|---|---|---|---|---|---|
+| full sample, 69 dates | **+1.6174pp** | **4.9605** | +0.1982pp (+0.4492) | **3.0422×** | 174/6,542 vs 939/107,403 |
+| early half, 34 dates | **+0.8593pp** | **2.7780** | +0.1987pp (+0.3672) | **3.4209×** | 35/2,998 vs 169/49,521 |
+| late half, 34 dates | **+2.3932pp** | **4.5788** | +0.3547pp (+0.5713) | **2.9321×** | 138/3,462 vs 767/56,419 |
+
+**The observed effect exceeds the permutation MAXIMUM of 500 draws in all three windows**, not
+merely the p95 — empirical *p* < 0.002 in each. Rates: flagged **2.6597%** against kept **0.8743%**
+full sample.
+
+**Controls.** C1 reproduces the published headline **exactly** on all four figures and aborts
+otherwise. C2 coverage read **before any rate**: Beneish 68.59%, Altman 76.67%, ext-fin 94.51%, all
+far above the 5% floor; flagged share **5.7414% (6,542 rows)**, reproducing `S10-ACCT`'s count
+exactly, which is what proves this is the same object. C3 not inert. **C4 size: 5 of 5 quintiles
+clear.** C5 largest mean per-date |ρ| against any of the nine panel themes is **quality −0.1858**,
+far under the 0.50 bar — not a repackaged incumbent.
+
+### The mechanism — and it is not the one I registered
+
+**C4 was the control I predicted would kill this, and it did the opposite.** Altman Z contains
+market capitalisation directly (`X4 = marketcap / liabilities`), so the flag is *mechanically*
+size-linked, and `U7`, `S10` and `V6-B` were each decided by exactly that failure mode. Flagged
+names **are** smaller — median cap **$2.69bn against $5.19bn**, 0.52×. But the effect does not
+weaken within size; **it strengthens monotonically**:
+
+| market-cap quintile | median cap | flagged | kept | ratio |
+|---|---|---|---|---|
+| Q1 smallest | $0.69bn | 5.133% | 2.554% | **2.010×** |
+| Q2 | $2.31bn | 1.830% | 0.915% | **1.999×** |
+| Q3 | $5.28bn | 1.415% | 0.477% | **2.964×** |
+| Q4 | $12.1bn | 1.096% | 0.346% | **3.168×** |
+| Q5 megacap | $42.7bn | 0.910% | 0.176% | **5.169×** |
+
+**The mechanism is in the DENOMINATOR.** Across quintiles the kept rate falls **14.5×**
+(2.554% → 0.176%) while the flagged rate falls only **5.6×** (5.133% → 0.910%). Large companies
+almost never halve in a quarter — **unless their accounts are stressed, in which case they still do
+at nearly 1% a quarter.** So the flag carries most information exactly where catastrophe is
+otherwise rarest. That is the opposite shape from a size sort, which would see the effect vanish
+once size is held fixed.
+
+**And it is the mirror image of `V6-B` M1's gradient**, which ran −14.287pp in the smallest
+quintile against −3.787pp in megacaps and carried the standing caveat that *"the claim is strongest
+exactly where the product is not."* **This claim is strongest exactly where the product IS**, the
+live book being megacap-tilted. Those two caveats point opposite ways and both are now on record.
+
+**Why the ratio is stable and the difference is not, which decides what the card may say.** The
+base rate is **era-dependent**: kept 0.3413% early against 1.3595% late, a 4× move spanning COVID
+2020Q1 and 2022. So the absolute difference swings **0.86pp → 2.39pp** while the ratio barely moves
+(**3.42 → 2.93**). The flag scales the market's own crash frequency **multiplicatively** rather than
+adding a constant. **A card quoting "1.6pp more likely" would be quoting an era average that
+describes neither half. Quote the ratio and both rates; never the difference.**
+
+**One genuine strength worth stating because it is rare here: the thresholds were not fitted on
+this data.** −1.78, 1.81 and the top decile are Beneish's and Altman's **published** values. This
+panel chose none of them.
+
+### Diagnostics — measured, NO verdict attached
+
+**Per flag individually:** Beneish **2.481×** (6,439 rows), Altman **2.565×** (36,222), ext-fin
+**2.078×** (10,864). **This refutes my second registered prediction**, which was that Altman would
+carry nearly all the separation and external financing almost none (70/30). All three are
+comparable and Altman is not dominant.
+
+**C7's eligibility sensitivity.** **25,079 rows (22.01%) carry fewer than two computable inputs and
+therefore CANNOT be flagged at all**, so they sit in the "kept" group by construction and the base
+rate is partly a statement about names the flag could never score. Re-read on eligible rows only:
+ratio **2.9791 / 3.0580 / 2.9301** (full / early / late) against the registered **3.0422 / 3.4209 /
+2.9321**. **All three still clear the 2.0× bar, so the coverage artefact does not drive the
+result** — and the early half moves most (3.42 → 3.06), which is the honest place to note it. The
+excluded rows crash at 0.8134% against the kept rate of 0.8743%, so they slightly depress the base
+rate. **The registered arm is on all rows and did not move.**
+
+### THE RECORD CORRECTION — the audit's own product sentence was wrong, and this is now measured
+
+`VALQUO_MASTER_AUDIT.md:950` proposes the card display:
+
+> *"names tripping 2 of 3 fell **20%+** in a quarter **2.66%** of the time against **0.87%**"*
+
+Those rates are the **−50%** rates; `S10_ACCOUNTING.json` records `"threshold": -0.5`. **The audit
+paired the −50% RATES with the −20% THRESHOLD.** Measured here at −20%: **16.845% against 8.976%,
+ratio 1.877×**.
+
+**It matters because it is wrong in the direction that discredits the card.** A 20%+ quarterly fall
+is an ordinary event, and a base rate of 0.87% for it is transparently impossible — a careful reader
+would have rejected the whole disclosure. **Shipping the audit's sentence verbatim would have
+published a number that refutes itself.** This was found *before* measuring and fixed in the
+register (§2), which is the only reason the −20% figure could be reported as a correction rather
+than chosen as an arm.
+
+### VERDICT — **PASS**, with its label
+
+All three legs in **both** halves, C4 **5/5**, C5 **0.186**. Under §8 one sentence becomes
+displayable:
+
+> *"Companies whose accounts tripped at least two of three published stress tests went on to lose
+> more than half their value over the following quarter about **2.7%** of the time, against
+> **0.9%** for companies that did not — roughly **three times as often**, and the multiple held in
+> both halves of the period (3.4× and 2.9×). Measured across 69 quarterly observations from 2009 to
+> 2026. This is a base rate for a group, not a forecast about any one company, and this project has
+> **not** shown that these companies underperform."*
+
+**The label travels with it, per §1: a PASS was the more likely outcome and is the weaker one.**
+The full-sample separation was published before the register existed. What is genuinely new is that
+it **replicates in both halves against its own permutation null, survives the size control that
+killed three sibling items, and is not a repackaged incumbent.**
+
+**Expectations scored: 2 predictions, 2 wrong.** I registered C4 at ~50/50 and named it the most
+likely failure — it passed 5/5 and the gradient runs the other way. I registered Altman as
+carrying ~70% of the separation — all three flags are comparable. The overall PASS call (~45%) was
+the closest thing to right, and it was the least specific.
+
+## BUGS FOUND
+
+1. **My own composite was the wrong composite, and the gating control caught it before any arm.**
+   The first run of `ma28_riskcard.py` scored **nine** panel themes at **W = 1/7**; the deployed
+   composite is **seven at 0.125**. C1 came back with alpha **0.0499 against the published
+   0.0717** and the run **aborted**. Nothing would have raised — it would simply have measured a
+   different book under the right name. This is precisely the job C1 exists to do and it is the
+   first time in this lane it has actually fired.
+2. **My point-in-time fixture tampered with nothing, and the vacuity check I wrote caught it.** The
+   look-ahead test added a future filing with every line item multiplied by 97. **Altman Z is a sum
+   of RATIOS, so scaling a whole filing leaves it bit-identical** — the guard would have passed
+   while moving nothing at all. Only the companion test (*the same tamper dated BEFORE the date must
+   move the score*) exposed it. The tamper now collapses ratios instead of scale.
+3. **Reported, not repaired:** `S10-ACCT` uses `MIN_COVERAGE = 0.30` while this register fixed the
+   COVERAGE RULE's **0.05**. Both pass at 68.6% / 76.7% / 94.5%, so nothing turns on it today, but
+   two coverage floors for one flag family is a second definition waiting to drift.
+
+## What was NOT done, and why
+
+* **The card is NOT built.** The register's deliverable is the *sentence*, and shipping a surface is
+  a product change. `MA29`/`MA30` were built by the app lane and this belongs there, with the
+  `BANNED` phrase tuple asserted against the **rendered payload** (`dip_posture.py`'s design) rather
+  than the source. **Routed, not taken.**
+* **`MA54`-1's V6-B-M1 instrument was not run as a second arm.** It is the same effect; running it
+  as well would double-charge one hypothesis. The register folded it in.
+* **No distress/delisting arm.** `V6-B` M2 already established the ACTIONS route is **underpowered
+  by construction** at 42 events against a floor of 60; declined by name in §7 rather than tried and
+  discarded.
+* **The 4-flag rule is NOT closed.** This is 2-of-**three** — NT late-filing notices are unbuildable
+  from anything this project owns — which makes the flag NARROWER. A pass here does not license the
+  audit's 2-of-four.
+* **`BACKTEST_RESULTS.json` is NOT re-run.** `N` 230 → 231 moves the DSR and the HLZ hurdle
+  (3.2979022 → 3.2992174, 0.0013 of a *t*), and per `MA21` the artifact may legitimately LAG the log
+  and may never LEAD it.
+* **The other four `DESIGN-RECORDED` items — `MA27`, `MA55`, `MA57`, `MA58` — were not touched.**
+  Running them as a batch would be a five-arm search dressed as a backlog.
+
+`scripts/ma28_riskcard.py`; `tests/test_ma28_riskcard.py` (12 tests, 3/3 tripwires mutation-tested);
+`data/free_analysis/MA28_CARD.json`, `MA28_CARD_CONTROLS.json`.

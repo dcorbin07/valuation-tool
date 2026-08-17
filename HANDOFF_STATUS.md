@@ -1,5 +1,42 @@
 # HANDOFF STATUS - shared project state
 
+## edge lane — **MA28-CARD PASSES** (2026-08-16, the first post-audit research item)
+
+**The ONE register resolving `MA26-A` + `MA28` + `MA54-1`.** `PREREG_ma28_accounting_riskcard.md`
+committed ALONE at `6ff578b`; budget booked at `7f294df` **before** the run. **Equity `N` 230 →
+231.** `BACKTEST_RESULTS.json` needs no re-run.
+
+**The result.** Names flagged by 2 or more of Beneish M > −1.78, Altman Z < 1.81 and top-decile
+within-date external financing lost **more than half their value in a quarter at 2.66% against
+0.87% — a 3.04× ratio — and it replicates in both halves** (3.42× early, 2.93× late), every window
+above the **permutation maximum** of 500 draws. C4 size **5/5**, C5 largest theme |ρ| **0.186**.
+
+### Five things worth carrying forward
+
+**1. QUOTE THE RATIO, NEVER THE DIFFERENCE.** The base rate is era-dependent — kept 0.34% early
+against 1.36% late — so the absolute gap swings 0.86pp → 2.39pp while the ratio barely moves. The
+flag scales the market's crash frequency **multiplicatively**. A card quoting "1.6pp more likely"
+would quote an era average describing neither half.
+
+**2. THIS ONE IS STRONGEST WHERE THE PRODUCT IS, WHICH IS THE OPPOSITE OF `V6-B` M1.** The ratio
+*rises* with size, 2.01× smallest quintile → **5.17× megacap**, because the base rate collapses
+14.5× across quintiles while the flagged rate falls only 5.6×. Large companies almost never halve —
+unless their accounts are stressed. **Both caveats are now on record pointing opposite ways**; do
+not carry V6-B's "weakest where the product is" over to this item.
+
+**3. THE AUDIT'S OWN PRODUCT SENTENCE WAS WRONG.** `VALQUO_MASTER_AUDIT.md:950` pairs the **−50%
+rates** with a **−20% threshold**. At −20% the real figures are **16.85% vs 8.98%, ratio 1.88×**.
+Shipping it verbatim would have published a number that refutes itself.
+
+**4. THE CARD IS NOT BUILT, AND THAT IS THE APP LANE'S.** The register's deliverable is the
+*sentence* (`HANDOFF_edge_audit.md` MA28-CARD, §VERDICT). Build it with the `BANNED` phrase tuple
+asserted against the **RENDERED payload**, not the source — `dip_posture.py`'s design.
+
+**5. FOUR ITEMS REMAIN `DESIGN-RECORDED` AND UNTOUCHED — `MA27`, `MA55`, `MA57`, `MA58`.** Running
+them as a batch is a four-arm search dressed as a backlog at `N` = 231. Each needs its own blind
+register committed alone. `MA57` in particular is already decided: its data blocker was refuted and
+the `_KEEP` change was deliberately not taken.
+
 ## edge lane — **AUDIT #3 IS EXECUTED** (2026-08-16, the final nine)
 
 **All 60 items adjudicated, zero `OPEN`: 53 `DONE`, 5 `DESIGN-RECORDED`, 1 `BLOCKED` on the Cowork
