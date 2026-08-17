@@ -6774,3 +6774,226 @@ check), but the docstring overstates what the test does.
 
 **Suites: 96, 0 failures** (94 measured on this lane's own tree before MA59/MA60's two suites merged in; both numbers are recorded because a suite count that moves inside one session is exactly what PART 0 stopped hand-maintaining).** 38 new tests across two suites, and 36 of the 38 FAIL against the pre-session sources.** The two that do not are named rather than counted as known-bad: `test_nothing_computes_ts_resid_for_a_verdict` asserts an ABSENCE, so it must pass both ways by design; and `test_the_register_names_quoting_MA56_as_tested_a_void_condition` reads the register DOCUMENT, which this measurement deliberately left in place because it restores sources, not documents. `scripts/ma31_ma32_measure.py`;
 `data/free_analysis/MA31_MA32.json`, `MA31_MA32_CONTROLS.json`, `MA31_MA32_FEATURES.pkl`.
+
+---
+
+## 62 · THE OPTIONS FRONTIER, ITEMS 1-3 — THE GATE FAILS AND THE FAMILY CLOSES; U6's BLOCKER IS WRONG ABOUT ITS UNIVERSE, NOT ITS LEG; AND "OWN THE EVENT" SURVIVES THE ALERT'S DEATH
+
+**Registers: `PREREG_p1s0_optionable_gate.md` committed ALONE at `f4ddd8b`;
+`PREREG_u6_overwrite_leg.md` + `PREREG_o17c4_own_the_event.md` committed together and ALONE at
+`aeca6f0`** — `.md` only, zero `.py`, each a strict git ancestor of every commit that scores its
+own arms. **ADOPTS NOTHING**; no live scoring path changed. **Equity `N` 227 → 230** (Stage 0's
+three horizons), **options `N` 292 → 294** (O17-C4's two arms). U6 Part A charges **zero**.
+
+Executes `VALQUO_OPTIONS_FRONTIER.md`, a read-only design written by a separate session against
+`origin/main` @ `c836b03`. **Its claims are verified here rather than inherited, and three of
+them do not survive.**
+
+### 62.0 · The three caveats the frontier attached to itself, carried as instructed
+
+All three are load-bearing and all three are honoured:
+
+* **Nothing in its §2d or §2e is a verdict.** It says so itself. No figure from either is quoted
+  as a result anywhere in this section, and it is a **void condition** in the Stage 0 register.
+* **Its composite reproduces S22 to 0.31pp, not to the digit** (+7.48% against +7.17%). Stage 0
+  therefore re-runs everything on the **shipped** `quantile_backtest` via S22's own `arm()`,
+  which reproduces `top_decile_alpha` at |Δ| **1.84e-14** and three further fields at exactly
+  **0.00e+00**. The cause of its 0.31pp is diagnosed rather than assumed: its deciles use
+  `nlargest(len(g)//10)` where the shipped path uses `np.array_split(order, n_q)`, so the two do
+  not hold the same names.
+* **Its optionability is measured TODAY, not point-in-time** — a survivorship tilt it correctly
+  called "exactly the flattering direction", the `S25` sector-map defect in a new costume. The
+  whole of Stage 0 is the repair.
+
+**Two corrections to its arithmetic in passing:** it reports **1,044** raw ticker directories
+(measured, **1,000**; the other 44 are non-directory entries), of which **906** are names in the
+equity panel.
+
+### 62.1 · ITEM 1 — P1 STAGE 0. THE GATE FAILS ON ITS POWER ANCHOR AND THE FAMILY IS CLOSED
+
+**`family_verdict: CLOSED`.** The frontier's own kill condition, fired: *"if it fails, the entire
+family dies here and no option is ever priced."*
+
+**THE FRONTIER'S HEADLINE IS CONFIRMED FULL-SAMPLE AND IS NOT A BASIS FOR ACTION.** On the
+PIT-optionable universe the composite sorts strongly across the whole covered window — **H=63
+cumulative +3.51%/quarter (+14.05%/yr) at HAC *t* 3.3731 against its own calibrated floor of
+1.4822** — so *"the composite does NOT weaken on optionable names, it strengthens"* reproduces on
+the shipped instrument and a point-in-time partition. **Then it fails the both-halves rule at
+every horizon, always in the same direction:**
+
+| horizon | early *t* / bar | late *t* / bar | early cum α | late cum α |
+|---|---|---|---|---|
+| **H=63** (anchor) | **0.8352** / 1.6974 ✗ | 4.1471 / 1.6149 ✓ | +0.70% | +6.08% |
+| H=252 | **−0.0379** / 1.5833 ✗ | 2.8778 / 1.6587 ✓ | **−0.08%** | +22.78% |
+| H=504 | **0.4570** / 2.0664 ✗ | 1.9351 / 2.2028 ✗ | +1.03% | +22.58% |
+
+**The early half (2016-2020) is ABSENT** — at H=252 its cumulative alpha is literally **−0.08%**
+— while the late half reads **+24.31%/yr** at H=63. **THE OPTIONABLE-UNIVERSE EDGE IS A
+POST-2021 PHENOMENON**, and `V6`'s warning applies verbatim: *a strategy built and validated on
+the last few years alone would have looked like it worked.*
+
+**IT IS A GENUINE FAIL AND NOT A POWER ARTEFACT, which is the whole reason the register fixed a
+THREE-state grammar before any number existed.** `design_can_see_the_known_effect` is **True at
+all three horizons**: the observed effect and the reference effect (the full panel over the same
+dates — the known-real quantity, `MA31`'s C-POWER pattern) both exceed the MDE, **even at H=504
+where the sample carries ~4.25 independent observations**. So the kill fires on a result rather
+than on thin data — and it fires on **H=63, which has 40 dates at ZERO overlap** and is the only
+horizon at which a null is interpretable at all.
+
+**THE SENSITIVITY UNIVERSE AGREES AT ALL THREE HORIZONS** (`has_chain`, 19,016 rows / 903 names),
+so the verdict does not rest on the primary/sensitivity choice — and the register forbade it from
+rescuing the primary in any case.
+
+**THE PIT CORRECTION MOVED IT IN THE DIRECTION REGISTERED IN ADVANCE:** H=504 cumulative alpha
+falls from the frontier's today-optionable **+17.52%** to **+11.56%** PIT-liquid.
+
+**THE GEOMETRY IS WHY A THIRD HORIZON WAS ADDED, and it should be carried forward.** The chain
+cache spans **2016-2025 only**, so 40 of 69 panel dates are covered and the horizons run 40 / 38
+/ 34 dates at **0% / 75% / 87.5%** window overlap — about **40.0 / 9.5 / 4.25 independent
+observations**. The frontier specified H=252 and H=504; on their own they could not have
+returned an interpretable null. H=63 is the power anchor and it is where the verdict actually
+rests.
+
+**COVERAGE FIRST, per the COVERAGE RULE:** 19,083 partition rows, **40 covered dates**
+(2016-01-20 → 2025-10-27), 29 with no chain at all, **median 287.5 PIT-liquid and 442 any-chain
+names per covered date**, 2,045 unmeasurable rows (10.7%), staleness max 5 days and non-zero on
+**0.01%** of rows — the as-of slice is essentially always same-day. Miner thresholds resolved
+from `mine_options_cache` itself, **not** the fallback copy.
+
+**C10 CONFIRMS THE MECHANISM `U7` AND `MA32` BOTH FOUND:** the optionable decile is **6.635×** the
+full-panel decile by median market cap (**$17.57bn vs $2.65bn**). Optionability tracks size.
+Reported, no verdict.
+
+**A DEFECT IN MY OWN GATING CONTROL, CAUGHT BY RUNNING IT.** C2 compared pandas **dtypes** rather
+than values and failed a bit-identical partition, because `pit_liquid` is **tri-state**: an
+all-`True` probe slice infers `bool` while the full artifact carries `None` and is `object`. It
+failed in the **safe** direction — refusing a correct run — and was still wrong. Fixed; and its
+probe now deliberately contains the hard cases, because an all-`True` slice exercised neither the
+`None` nor the `False` branch, which is the `sector-neutral` vacuity failure.
+
+**WHAT CLOSES, AND WHAT DOES NOT.** Closed at Stage 0: **P1** (deep-ITM long-dated calls), **P3**,
+**U6's overwrite arm**, and any future attempt to express the equity book in derivatives. **No
+option was priced, no LEAPS re-mine was run, and `D2`'s licence question does NOT need to be put
+to Don** — the frontier routed it "before any pull", and there is now no pull. **Not closed:** the
+equity composite itself is untouched; this says nothing about it on the full panel, where its
+published figures stand.
+
+**Expectations 6 right, 2 wrong.** The two misses are the informative ones: the anchor was
+predicted to **PASS** at 70/30, and at least one cell was predicted **UNDERPOWERED** when none is.
+
+### 62.2 · ITEM 2 — U6's BLOCKER IS MEASURED AGAINST THE WRONG UNIVERSE, AND THE RE-OPEN'S OWN PREMISE IS WRONG TOO
+
+**PART A, ZERO TRIALS** — a fact about which set a published number was computed over, the
+`S25` / `PT-WRITER` / `MA56` class.
+
+**THE RE-OPEN WAS PROPOSED ON A PREMISE THAT MEASUREMENT REFUTES.** The ground was that U6's
+1.81% blocker counted decile **ENTRIES** while a covered call is written on **HOLDINGS**. On the
+identical all-transitions denominator, point-in-time:
+
+| set | covered | total | share |
+|---|---|---|---|
+| **entries**, any PIT chain | 648 | 7,138 | **9.08%** |
+| entries, chain + O20's screen | 371 | 7,138 | 5.20% |
+| **holdings**, any PIT chain | 897 | 11,426 | **7.85%** |
+| holdings, chain + O20's screen | 504 | 11,426 | 4.41% |
+
+**Holdings are 0.86× as well covered as entries, not the 6-11× assumed.** The leg distinction is
+real and nearly immaterial.
+
+**WHAT IS ACTUALLY WRONG IS THE DENOMINATOR OF NAMES.** The row's own text says the 1.81% was
+measured *"against the 187-name mined universe"* — the **alert** universe — while the chain cache
+holds **906 panel names**. Universe ratio **4.84×**, coverage ratio **5.02×**; the two agreeing to
+within 4% is the evidence that the universe is the whole explanation. **And the correction is
+UNDERSTATED, because it runs against a STRICTER test:** the row asks whether a ticker has mined
+chains *at all*, this asks whether one exists **on that date**.
+
+**TWO CONTROLS MAKE IT LIKE-FOR-LIKE RATHER THAN MERELY SIMILAR:** entry events reproduce at
+**7,138 against the row's 7,132** (0.08%), and top-decile membership at **11,426 — exactly the
+count `S10` and `V6-B`'s C7 report independently**, which is what establishes that this uses the
+shipped decile convention.
+
+**CONSEQUENCE.** The CSP entry leg is untouched and remains coverage-bound, so **the row's status
+does not change**. The overwrite leg is **buildable** — median **12** PIT-liquid and **21**
+any-chain optionable holdings per covered date against a median decile of 169.5, with **ZERO**
+covered dates holding none — and it is **BOUNDED**, which matters more than the unblocking: it can
+only ever be written on **7.3% to 13.0%** of decile slots. **Part B is registered, gated on Stage
+0, and Stage 0 CLOSED it**, so it does not run and charges nothing.
+
+A reconciliation reported rather than smoothed over: the row records zero covered entries on **18
+of 68** dates and this measures **28** — exactly the pre-2016 dates. A non-dated membership test
+can score a pre-2016 entry as covered because the ticker is mined in some later year. The two
+numbers are not comparable and neither is wrong on its own terms.
+
+### 62.3 · ITEM 3 — "OWN THE EVENT" IS REAL, SURVIVES THE ALERT'S DEATH, AND THE ALERT STILL SUBTRACTS VALUE INSIDE IT
+
+`O17`'s C4 was `NULL` **solely** on a retention floor of 0.70 set for a product reason. The alert
+product is dead, so the constraint applies to nothing. **The bar was DERIVED first rather than
+lowered**, on the `TP-BAR` precedent — *a procedure, not a number argued in prose*.
+
+**THE DECISIVE TEST HAD NEVER BEEN RUN AND WAS RUNNABLE ON OWNED DATA.** As a **filter**, C4's
+null is a random-**REMOVAL** null. As a **strategy**, the comparator must be random **ENTRY**,
+because `R2` is the standing result that the alert loses to random entry by −5.0640pp. The
+five-seed split-clean random-entry books carry every field `owns_the_event` needs.
+
+**THE EFFECT REPRODUCES ON RANDOM ENTRY.** On **27,350** random-entry trades a call spanning the
+next announcement earns **+10.30% against +5.50%** — a **+4.79pp** gain, positive in **both
+halves** (+5.03 / +4.70), paired name-year sign test **z +2.054, p 0.040**. So *"own the event"*
+is a property of **owning an earnings event**, independent of the dead alert.
+
+**AND THE ALERT STILL SUBTRACTS VALUE INSIDE THE SUBSET THAT WAS SUPPOSED TO RESCUE IT.**
+Alert-spanning **+8.42%** loses to random-spanning **+10.30%**: paired sign test **z −4.4726,
+p 7.7e-06** over 952 cells. **R2 reproduced inside the earnings subset.** The strategy is *"buy
+calls spanning earnings"*, with **no alert in it at all**.
+
+**IT IS A MEAN EFFECT, NOT A MEDIAN EFFECT.** DTE-matched at ±5 days on the same name, the mean
+gain **clears a shuffled-label null on both books** (+9.10pp vs p95 +4.00pp on the alert book;
++2.51pp vs +1.44pp on random entry) — while **median-vs-median is +0.40pp** (spanning −51.41%
+against −51.81%). The typical trade is a near-total loss either way. `U1`'s finding restated, and
+the reason a positive expectancy here is not tradeability.
+
+**THREE EXACT CONTROLS:** A1's `spans_mean` **0.084199** reproduces O17's `kept_mean` to the
+digit; the implied all-book mean **0.03734** reproduces its `all_mean` exactly; and the pooled
+random book lands at **+8.47%** against R2's banked **+8.3342%**.
+
+**A DEFECT IN MY OWN BARS, FOUND BY RUNNING THEM, AND IT DECIDES THE REGISTERED VERDICT.** The
+register returns **REJECTED solely on c3 — the breadth bars — while c1, c2 and c4 all pass.** Two
+of the three do not measure what they were written to:
+
+* **B1's trades-per-year axis is UNPASSABLE BY CONSTRUCTION** for A1, which is a *subset* of the
+  book it is drawn from. A subset relation is not a breadth finding.
+* **B1's and B2's NAME axes re-measure the earnings COVERAGE HOLE.** 29 of 186 names are foreign
+  private issuers with zero earnings dates, so the spanning set is capped at **157** names before
+  any concentration exists — and it touches **all 157**, i.e. 100% of eligible names, and 118 of
+  118 months. B2 was comparing a capped set against an uncapped one and reading the cap as
+  concentration.
+* **Only B3 measured its property — and it PASSES**, refuting the prediction that it would bind:
+  the strategy is **less** concurrent than the alert book (peak 37 vs 48; refused at O11's cap of
+  10, **34.1% vs 48.7%**).
+
+**The register is left UNEDITED** and the diagnosis ships beside it as a post-hoc field that feeds
+no pass/fail flag, pinned by a test asserting `all_bars_pass` is assigned **before** the diagnostic
+exists. **So a result that was NULL only because of a bar set for a product reason is now REJECTED
+only because of a bar that was broken — and that is worth more than either verdict.** What the
+measurement says, independent of both bars, is in the three paragraphs above.
+
+**A SECOND DEFECT IN MY OWN INSTRUMENT, and it had already been reported once as a finding before
+it was caught.** The DTE-matched **median** was first read as −35.8pp and described as *"the
+typical spanning trade does worse than its matched counterpart"*. **It is an artifact.** Comparing
+one draw against the **mean** of a right-skewed set is biased low by construction; the shuffled
+null median is **−41.9pp** against the real **−35.8pp**, so the real figure runs **slightly in the
+arm's favour** and the reading was exactly backwards. It is kept in the payload beside its own
+null with a note never to quote it alone — deleting it would leave the next reader free to
+recompute it and reach the same wrong conclusion.
+
+### 62.4 · WHAT IS OPEN AFTER THIS
+
+* **`MA54-2` is answered on its own terms and is Don's to close.** The effect is real and
+  alert-independent; it is tail-carried; and `O11` governs — a book with **+3.27%/trade positive
+  expectancy** still ended at **$37,059 from $50,000** at a concurrency cap of 10. **Nothing here
+  licenses trading it.**
+* **`MA54-3` (`O14` `sweep_share` on new dates, ~4.7 GB) is untouched** and is unaffected by
+  Stage 0 — it is an equity-side conditioner, not an options expression.
+* **The deep-ITM financing arithmetic (frontier §2c) is NOT retested and NOT refuted.** Stage 0
+  closed the family on the **equity** premise, so `rf + 43 bps` stands as measured and simply has
+  nothing left to finance.
+* **`D2`'s licence question does not need routing to Don**, because no pull is proposed.
