@@ -482,14 +482,29 @@ def main():
         mirror(args.raw_root, args.mirror)
 
 
+TRACKED_SUMMARY = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "DEEP_HARVEST_SUMMARY.json")
+
+
 def mirror(root: str, dest: str):
-    """SECOND COPY. The bulk stays on D:; the RECORD of it must not."""
+    """SECOND COPY. The bulk stays on D:; the RECORD of it must not.
+
+    After 2026-09-01 none of this is re-fetchable, so a single-drive copy is a single point of
+    failure for an irreplaceable asset. The checksummed manifest is small enough to live in three
+    places at once, and with it a dead D: means "we know exactly what existed and what it hashed
+    to" rather than "we do not know what we lost".
+
+    The per-unit manifest goes to `dest` (under data/, gitignored - it names licensed vendor
+    units). The aggregate SUMMARY additionally goes to the repo root, where it is tracked: counts
+    and hashes of nothing, purely a census.
+    """
     os.makedirs(dest, exist_ok=True)
     for name in ("manifest.jsonl", "PROGRESS.txt"):
         src = os.path.join(root, name)
         if os.path.exists(src):
             shutil.copy2(src, os.path.join(dest, name))
     summarise(root, os.path.join(dest, "DEEP_HARVEST_SUMMARY.json"))
+    summarise(root, TRACKED_SUMMARY)
     return dest
 
 
