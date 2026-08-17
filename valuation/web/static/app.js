@@ -1145,6 +1145,38 @@ function _dipHealthChips(row, floors) {
   }).join(" ");
 }
 
+/* V6-B's per-name further-fall rate. Served on /api/dip since 2026-08-16 and, until this
+   function existed, rendered to nobody: `HANDOFF_v6b_health_gap.md` §5 measured
+   `grep -c dip_risk app.js` -> 0, so the class, both rates, the method note and the "not a
+   probability" caveat were computed on every request and displayed to no reader.
+
+   EVERY STRING COMES FROM THE SERVER. `web/dip_risk.py` owns the wording and a test pins it
+   verbatim, so nothing here may paraphrase — the rate, the reason a row has none, the size
+   caveat, the method note, the pre-filter note and the "not a probability" caveat are all
+   rendered exactly as served. This file contributes layout.
+
+   THE PEER RATE IS DELIBERATELY NOT RENDERED ON A ROW, and that is the whole point of the
+   change. r1 measured that this screen's own prefilter removes M1's unhealthy side before the
+   classification runs, so a listed name essentially never classifies unhealthy. Putting
+   "32.5% against 43.4%" on a row would therefore invite reading the screen as having done the
+   separating when the prefilter did it upstream (§6.1) — a comparison the live data cannot
+   make. The panel contrast is stated ONCE below the table, as a fact about the panel, beside
+   the sentence saying it does not exist here. */
+function _dipRate(r) {
+  const b = (r || {}).dip_risk || null;
+  if (!b) return "—";
+  /* A class with no rate renders its REASON, never a blank and never a zero. "shallower than
+     the measurement" and "we could not place this name" are different facts and a dash that
+     means both is the failure `checks_not_run` already exists to avoid. */
+  if (!b.applies) {
+    return `<span class="muted" title="${esc(b.why_not || "No rate applies to this name.")}">—</span>`;
+  }
+  const tip = [b.label, b.not_a_probability].filter(Boolean).join(" ");
+  const dagger = b.size_caveat
+    ? ` <span class="muted" title="${esc(b.size_caveat)}">†</span>` : "";
+  return `<span title="${esc(tip)}">${pct(b.further_fall_rate, 1)}</span>${dagger}`;
+}
+
 async function loadDip() {
   eshow("dipErr", "");
   toggle("dipLoader", true);
@@ -1192,10 +1224,17 @@ function renderDip(d) {
     return;
   }
 
+  /* The risk block's own coverage summary. Its strings are the column's vocabulary too — the
+     header's tooltip is the SERVED caveat, not a second wording of it, because two copies of
+     one rule is how a badge and a tooltip come to disagree. */
+  const rk = d.dip_risk || {};
+
   let html = `<div class="card"><h3>Down ${pct(d.min_drawdown, 0)}+ from the 52-week high, fundamentals still healthy</h3>
     <div class="section-hint">${esc(d.health_floor_note || "")}</div>
     <table><tr><th>Ticker</th><th class="num">Fall from high</th><th class="num">Price</th>
-      <th class="num">52-wk high</th><th>Health</th><th class="num">Fair value</th><th>Checks</th></tr>`;
+      <th class="num">52-wk high</th><th>Health</th><th class="num">Fair value</th>
+      <th class="num" title="${esc(rk.not_a_probability || "")}">Past group rate</th>
+      <th>Checks</th></tr>`;
   rows.forEach(r => {
     const fv = r.fair_value_withheld_reason
       ? `<span class="muted" title="${esc(r.fair_value_withheld_reason)}">withheld</span>`
@@ -1208,6 +1247,7 @@ function renderDip(d) {
       <td class="num">${money(r.high_52w)}</td>
       <td>${_dipHealthChips(r, d.health_floors)}</td>
       <td class="num">${fv}</td>
+      <td class="num">${_dipRate(r)}</td>
       <td>${_dipChecks(r, d.checks)}</td></tr>`;
   });
   html += "</table>";
@@ -1215,6 +1255,20 @@ function renderDip(d) {
     html += `<div class="note" style="margin-top:10px">A “–” means that check was <b>not run</b>
       for this name, not that it passed. Two of the four need a full discounted-cash-flow
       valuation, which this screen does not run for every name.</div>`;
+  }
+  /* The rate never appears without its scope. `HANDOFF_v6b_health_gap.md` §6.1 is explicit that
+     a bare percentage beside a list of names is "the one presentation §3 and §4 do not
+     support", so the method note and the pre-filter note render whenever any rate does —
+     rendered from the payload, in the server's words, and only when there is a rate to
+     qualify. */
+  if (rows.some(r => ((r.dip_risk || {}).applies))) {
+    html += `<div class="note" style="margin-top:10px"><b>Past group rate.</b>
+      ${esc(rk.screen_contrast_note || "")} ${esc(rk.method_note || "")}
+      ${esc(rk.not_a_probability || "")}</div>`;
+  }
+  if (rows.some(r => ((r.dip_risk || {}).size_caveat))) {
+    html += `<div class="note" style="margin-top:6px">† ${esc(
+      (rows.find(r => (r.dip_risk || {}).size_caveat).dip_risk || {}).size_caveat || "")}</div>`;
   }
   html += "</div>";
   setHtml("dipResults", html);
