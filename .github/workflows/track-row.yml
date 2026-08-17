@@ -1,0 +1,166 @@
+name: PT-WRITER (daily paper-track row)
+
+# Writes ONE row per trading day into the CONTRACT-BOUND series
+# `data/valquo_track_history.csv`, via the mechanism PAPER_TRACK_CONTRACT.md §7.2a
+# documents and nothing else.
+#
+# WHY THIS EXISTS AS AN ACTION AND NOT AS A DESKTOP TASK (audit MA18, continuity).
+# The writer used to run from a Cowork session on Don's machine. That lane's egress
+# allowlist blocks BOTH shipped price vendors — stooq.com and query1.finance.yahoo.com
+# both return proxy-refused — so no ticker priced at all and the script correctly
+# refused every night (see the 2026-08-14 failure note in HANDOFF_STATUS.md). It was
+# not a scheduling defect and no amount of retrying would have fixed it. GitHub's
+# runners reach both vendors, which auto-scan.yml has demonstrated daily for weeks.
+# It also retires MA18's other half: the record no longer depends on one desktop app
+# being open at 20:01.
+#
+# THE CONTRACT GOVERNS AND THIS JOB MAY NOT SOFTEN IT:
+#   * no partial row — if the benchmark cannot be priced, NO row is emitted, not a
+#     Valquo-only one. The script already refuses; this job must not paper over it.
+#   * gaps are LOGGED, never filled. A missing day stays missing.
+#   * no prior row is ever modified. Enforced below by an append-only check, not by
+#     good intentions.
+#   * a loud pushed failure is correct; a guessed number voids the run.
+#
+# Setup: no new secrets. DISCORD_WEBHOOK_URL is optional but recommended — without it
+# a dead writer is only visible as a red run in the Actions tab, which is exactly what
+# let the July scan gap go unnoticed for four days.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # ONE cron, not a DST pair. 22:12 UTC is 6:12pm EDT and 5:12pm EST — after the US
+    # close in BOTH halves of the year, so the "correct in summer, early in winter"
+    # problem auto-scan.yml solves with two crons does not arise here. Firing early
+    # would matter: track_row refuses intraday marks, and a refusal writes a failure
+    # note, so a wrong-side cron would post a false alarm every day for six months.
+    # ODD minute because GitHub's free scheduler routinely drops top-of-the-hour runs.
+    - cron: "12 22 * * 1-5"        # primary
+    - cron: "37 23 * * 1-5"        # backup, if GitHub dropped the primary (no-op if not)
+
+concurrency:
+  # The backup must never race the primary into the same file.
+  group: pt-writer
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  write-row:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # MA12 — hash-pinned. This job writes the BOUND EVIDENCE RECORD on a schedule.
+      # An unannounced vendor-library upgrade here reaches a five-year contract's
+      # primary artifact with no human step anywhere in between.
+      - run: pip install --require-hashes -r requirements.lock.txt
+
+      - name: Is today already written?
+        id: guard
+        run: |
+          set -euo pipefail
+          F=data/valquo_track_history.csv
+          TODAY=$(date -u +%F)
+          if [ -f "$F" ] && tail -n 1 "$F" | cut -d, -f1 | grep -qx "$TODAY"; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "Row for $TODAY already present — nothing to do (backup cron no-op)."
+          else
+            echo "already=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Snapshot the bound series before writing
+        if: steps.guard.outputs.already == 'false'
+        run: |
+          set -euo pipefail
+          cp data/valquo_track_history.csv /tmp/bound_before.csv || : > /tmp/bound_before.csv
+
+      - name: Write today's row (the documented §7.2a mechanism)
+        if: steps.guard.outputs.already == 'false'
+        id: write
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          python -m scripts.track_row --append 2>&1 | tee /tmp/writer.log
+          echo "code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      # The contract says no prior row is ever modified. This makes that unable to be
+      # violated silently: the file's previous content must still be an exact prefix
+      # of the new content. A rewritten history fails the job and pushes nothing.
+      - name: Append-only check
+        if: steps.guard.outputs.already == 'false' && steps.write.outputs.code == '0'
+        run: |
+          set -euo pipefail
+          N=$(wc -l < /tmp/bound_before.csv)
+          head -n "$N" data/valquo_track_history.csv > /tmp/bound_prefix.csv
+          if ! cmp -s /tmp/bound_before.csv /tmp/bound_prefix.csv; then
+            echo "APPEND-ONLY VIOLATION: an existing row changed. Refusing to push." >&2
+            diff /tmp/bound_before.csv /tmp/bound_prefix.csv || true
+            exit 1
+          fi
+          echo "Prior rows unchanged; the write is append-only."
+
+      - name: Commit and push the row
+        if: steps.guard.outputs.already == 'false' && steps.write.outputs.code == '0'
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- data/valquo_track_history.csv; then
+            echo "Script exited 0 but wrote nothing. Treating as a failure, not a success." >&2
+            exit 1
+          fi
+          git config user.name  "pt-writer[bot]"
+          git config user.email "pt-writer@users.noreply.github.com"
+          git add data/valquo_track_history.csv
+          git commit -m "Track: daily row $(date -u +%F)"
+          git push
+          echo "Pushed. Landed as $(git rev-parse --short HEAD)."
+
+      # A refusal is a legitimate outcome and must reach the record, not just the log.
+      - name: Record a refusal, push it, and fail loudly
+        if: steps.guard.outputs.already == 'false' && steps.write.outputs.code != '0'
+        run: |
+          set -euo pipefail
+          git checkout -- data/valquo_track_history.csv || true
+          {
+            echo ""
+            echo "## PT-WRITER $(date -u +%F): could not write today's row"
+            echo ""
+            echo "Ran the documented mechanism (\`PAPER_TRACK_CONTRACT.md\` §7.2a,"
+            echo "\`python -m scripts.track_row --append\`) from the GitHub Actions runner."
+            echo "It exited ${{ steps.write.outputs.code }} and NO row was written. No prior row was"
+            echo "modified; standing gaps stay logged by \`track_meter.gap_report\`, not filled."
+            echo ""
+            echo "Reason, verbatim from the script:"
+            echo ""
+            sed 's/^/    /' /tmp/writer.log | tail -n 40
+          } >> HANDOFF_STATUS.md
+          git config user.name  "pt-writer[bot]"
+          git config user.email "pt-writer@users.noreply.github.com"
+          git add HANDOFF_STATUS.md
+          git commit -m "PT-WRITER $(date -u +%F): could not write today's row"
+          git push
+
+      - name: Alert Discord on failure
+        if: failure() || (steps.guard.outputs.already == 'false' && steps.write.outputs.code != '0')
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          [ -n "${DISCORD_WEBHOOK_URL:-}" ] || { echo "No webhook configured; skipping."; exit 0; }
+          export MSG="PT-WRITER did not write a row for $(date -u +%F). A refusal note was pushed. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          python - <<'PY'
+          import json, os, urllib.request
+          url = os.environ["DISCORD_WEBHOOK_URL"]
+          msg = os.environ["MSG"]
+          req = urllib.request.Request(url, data=json.dumps({"content": msg}).encode(),
+                                       headers={"Content-Type": "application/json"})
+          urllib.request.urlopen(req, timeout=20).read()
+          PY
+        continue-on-error: true
