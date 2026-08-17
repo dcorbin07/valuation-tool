@@ -301,6 +301,19 @@ def test_the_set_of_things_that_consume_the_book_path_is_what_we_think_it_is():
         "valuation/edge/paper_track.py",       # mention only (comment above the gate)
         "valuation/saas/index_book.py",        # this publisher (docstring reference)
         "backup_to_D.ps1",                     # backup allowlist, not a consumer
+        # TWO readers were added on 2026-08-17, by two lanes, independently, for the same SHAPE
+        # of question -- how much of the Index the options cache covers. Both are kept. That
+        # they collided here is the guard doing exactly its job: neither lane would otherwise
+        # have known the other was reading this path.
+        #
+        # READER, added 2026-08-17, reconciled before adding: the options coverage census opens
+        # the book ONLY to enumerate its tickers, and then asks a question about a DIFFERENT
+        # object -- how many of those names have cached option chains. It never writes the path,
+        # never evaluates conformance, and makes no claim about the book's own contents, so it
+        # cannot disagree with the writer the way PT-SPLIT's two mechanisms did. It also takes
+        # the path as `--index`, so it reads whatever it is pointed at rather than resolving a
+        # second opinion about where the book lives.
+        "scripts/options_coverage_census.py",
         # Added 2026-08-17 (DEEPITM-FIN), reconciled rather than allow-listed. It reads
         # positions[].ticker as a MEMBERSHIP LIST -- to report how many Index names the options
         # freeze covers (11 of 86) and to ship a no-verdict cell for them. It never writes the
