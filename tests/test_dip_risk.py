@@ -159,11 +159,143 @@ def test_the_size_flag_is_one_directional_and_never_says_the_effect_is_stronger(
 
 
 # ============================== the copy rule =============================================
-def test_both_classes_are_written_out_in_full_and_each_quotes_the_other():
+def test_both_classes_are_written_out_in_full_and_neither_quotes_the_other():
+    """CHANGED 2026-08-16, and the change is the point rather than a relaxation.
+
+    This test used to require that EACH label quote the other class's rate — the old
+    `label_for` rendered "32.5% ... against 43.4% of the unhealthy group". `HANDOFF_v6b_health
+    _gap.md` then measured that the live screen does not reproduce M1's comparison at all: its
+    prefilter removes the unhealthy side upstream, so a per-row side-by-side "invites reading
+    the screen as having done the separating when the prefilter did it upstream" (§6.1).
+
+    So the requirement is INVERTED here and the contrast is pinned at screen level instead, by
+    `test_the_contrast_is_stated_once_at_screen_level_and_says_it_cannot_be_made_here`. What is
+    NOT relaxed is the rule the old test was really protecting — both classes stay equally
+    sayable, in full, neither a stub — because an unhealthy row rendering nothing would make
+    the unflattering class read as missing data."""
     hl, ul = dip_risk.label_for("healthy"), dip_risk.label_for("unhealthy")
-    assert "32.5%" in hl and "43.4%" in hl, hl
-    assert "43.4%" in ul and "32.5%" in ul, ul
-    assert len(ul) > 60, "the unflattering label must not be a stub"
+    assert "32.5%" in hl and "43.4%" not in hl, (
+        "the per-name label quotes the peer rate again; that is the comparison the live data "
+        "cannot make: " + hl)
+    assert "43.4%" in ul and "32.5%" not in ul, ul
+    assert len(ul) > 60 and len(hl) > 60, "neither label may be a stub"
+    for lbl in (hl, ul):
+        assert "measured panel" in lbl, (
+            "the rate must carry its own scope; a number and a nearby note get separated the "
+            "moment anything is copied or truncated: " + lbl)
+
+
+def test_the_contrast_is_stated_once_at_screen_level_and_says_it_cannot_be_made_here():
+    """The replacement for the per-row comparison, pinned to the handoff's own findings.
+
+    Three things must survive a copy edit: the panel share (so the reader knows the measured
+    population really did contain both groups), the statement that this page cannot make the
+    comparison, and the attribution of the separating to the screen's own filters rather than
+    to the figure."""
+    note = dip_risk.SCREEN_CONTRAST_NOTE
+    low = note.lower()
+    assert "cannot be made on this page" in low, note
+    assert "filters remove the unhealthy side" in low, (
+        "the mechanism r1 measured — an upstream filter — must be named: " + note)
+    assert "the separating was done by those filters upstream" in low, note
+    assert "73.2%" in note, "the panel's own unhealthy share must appear: " + note
+
+
+def test_moving_the_comparison_off_the_rows_did_not_delete_it():
+    """CAUGHT BY EXECUTING THE RENDERER, not by reading it — the first cut of this change took
+    the peer rate off the row and put it nowhere, so 43.4% appeared on a normal all-healthy
+    screen exactly zero times while `METHOD_NOTE` went on promising the unhealthy figure was
+    "here so the healthy one has something to be read against".
+
+    A rate with nothing on the other side of it is not interpretable. Both panel rates must
+    therefore survive at SCREEN level even though neither may sit on a row."""
+    note = dip_risk.SCREEN_CONTRAST_NOTE
+    assert "43.4%" in note and "32.5%" in note, (
+        "the peer rate is rendered nowhere; METHOD_NOTE promises it and the screen does not "
+        "show it: " + note)
+    assert "measured panel" in note and "cannot be made on this page" in note.lower()
+    # ... and it must still be absent from the row.
+    assert "43.4%" not in dip_risk.label_for("healthy")
+    assert not dip_risk.violations(note), dip_risk.violations(note)
+
+
+def test_the_copy_is_pinned_to_the_handoffs_own_findings():
+    """V6B-PRODUCT's precedent, applied one surface over: that row pinned its sentence verbatim
+    into the edge lane's handoff so a revision there fails this suite rather than drifting.
+
+    The same thing is owed here, because `SCREEN_CONTRAST_NOTE` asserts things this lane did
+    NOT measure — the panel's 73.19% split and the single-point reachable set are r1's, read
+    out of `HANDOFF_v6b_health_gap.md`. If that pass is ever revised or retracted, the copy
+    saying "essentially every name listed here is already in the healthy group" stops being
+    supported, and it must break here rather than keep rendering.
+
+    Whitespace is flattened first: the handoff is hard-wrapped, so the phrases straddle
+    newlines and a naive substring search would report a false absence."""
+    path = os.path.join(ROOT, "HANDOFF_v6b_health_gap.md")
+    assert os.path.exists(path), (
+        "the handoff this copy rests on is gone; SCREEN_CONTRAST_NOTE now asserts findings "
+        "with no record behind them")
+    flat = re.sub(r"\s+", " ", open(path, encoding="utf-8").read())
+
+    # The two panel facts the note quotes, and the counts the derived share comes from.
+    assert "73.19%" in flat, "r1's panel split is no longer in the handoff"
+    for n in ("9,924", "27,090", "37,014"):
+        assert n in flat, "the row counts behind unhealthy_share() moved: " + n
+    # The mechanism the note names — an upstream filter, not delisting, not a floor difference.
+    assert "prefilter removes M1's entire unhealthy side" in flat, flat[:0]
+    assert "not a discriminator between two groups on this surface" in flat
+    # And §6.1's constraint, which is why the notes render with the rate rather than beside it.
+    assert "invites reading the screen as having done the separating" in flat
+
+    # The share this module derives must equal the one the handoff states.
+    assert abs(dip_risk.unhealthy_share() - 0.7319) < 0.0002, dip_risk.unhealthy_share()
+
+
+def test_the_handoff_pin_is_not_vacuous():
+    """It must be capable of failing — a flattened-whitespace search that matched anything, or
+    a path that silently resolved to an empty string, would pass on nothing."""
+    path = os.path.join(ROOT, "HANDOFF_v6b_health_gap.md")
+    flat = re.sub(r"\s+", " ", open(path, encoding="utf-8").read())
+    assert len(flat) > 3000, len(flat)
+    assert "a phrase this handoff certainly does not contain" not in flat
+
+
+def test_the_method_notes_promise_is_kept_by_what_is_actually_served():
+    """`METHOD_NOTE` makes a promise about the unhealthy figure; this asserts the served text
+    keeps it, rather than trusting that two constants written apart still agree."""
+    assert "does not show" in dip_risk.METHOD_NOTE
+    rows = [{"dip_risk": dip_risk.for_name(0.35, 2.0, 90.0)}]      # an all-healthy screen
+    text = dip_risk.rendered_text(rows, dip_risk.summary(rows))
+    assert "43.4%" in text, (
+        "on an all-healthy screen — which r1 measured is every screen — the served text quotes "
+        "no unhealthy figure at all, so METHOD_NOTE describes something absent")
+    assert "32.5%" in text
+
+
+def test_the_panel_share_is_derived_from_the_row_counts_and_not_typed():
+    """A share and the counts it comes from are two statements of one fact, and this project
+    has corrected four stale figures that drifted exactly that way."""
+    assert dip_risk.N_ROWS["healthy"] + dip_risk.N_ROWS["unhealthy"] == dip_risk.N_ROWS_ALL
+    expected = float(dip_risk.N_ROWS["unhealthy"]) / float(dip_risk.N_ROWS_ALL)
+    assert abs(dip_risk.unhealthy_share() - expected) < 1e-12
+    assert 0.73 < dip_risk.unhealthy_share() < 0.74, dip_risk.unhealthy_share()
+    src = open(os.path.join(ROOT, "valuation", "web", "dip_risk.py"), encoding="utf-8").read()
+    assert "73.2" not in src.replace("73.19", ""), (
+        "the share is typed somewhere as a literal; it must only ever be derived")
+
+
+def test_the_size_caveat_rides_only_on_the_rows_it_is_true_of():
+    """The effect runs -3.79pp in the largest tier against -14.29pp in the smallest, and the
+    live book is megacap-tilted — so on this surface the caveat applies to most of what a
+    reader sees. It must not appear on a row whose tier is unknown."""
+    big = dip_risk.for_name(0.35, 1.0, 80.0,
+                            market_cap=dip_risk.TOP_QUINTILE_MEDIAN_MCAP * 2)
+    unknown = dip_risk.for_name(0.35, 1.0, 80.0,
+                                market_cap=dip_risk.TOP_QUINTILE_MEDIAN_MCAP * 0.5)
+    assert big["weakest_size_tier"] is True and big["size_caveat"], big
+    assert unknown["weakest_size_tier"] is None and unknown["size_caveat"] is None, unknown
+    assert "-3.79" in big["size_caveat"] and "-14.29" in big["size_caveat"], big["size_caveat"]
+    assert not dip_risk.violations(big["size_caveat"])
 
 
 def test_the_rendered_payload_carries_no_banned_phrasing():
@@ -383,6 +515,139 @@ def test_the_runtime_gate_is_not_vacuous():
     """It only means something if the same inputs DO produce a rate while the register is
     live — otherwise the test above would pass on a permanently dead field."""
     assert dip_risk.for_name(0.35, 2.0, 90.0)["further_fall_rate"] == dip_risk.RATE["healthy"]
+
+
+# ============================== it actually reaches a reader ==============================
+#
+# The gap `HANDOFF_v6b_health_gap.md` §5 found was not a wrong number — it was a correct number
+# nobody could see. `rendered_text` existed so the banned-phrasing rule could be asserted
+# against what is SERVED, and with no renderer it swept copy no reader received. These tests
+# fail if the field goes back to being payload-only, which is the state it was already in once.
+def _appjs() -> str:
+    return open(os.path.join(ROOT, "valuation", "web", "static", "app.js"),
+                encoding="utf-8").read()
+
+
+#: The table cell that WIRES the helper in, as opposed to the line that defines it. Held as a
+#: constant because two tests need to anchor on the call site and anchoring on the bare name
+#: `_dipRate(r)` silently matches `function _dipRate(r) {` instead — which is how a deleted
+#: `<td>` and an ungated notes block both slipped past an earlier cut of this suite.
+_CALL_SITE = "${_dipRate(r)}"
+
+
+def _render_dip_src() -> str:
+    """`renderDip` plus its helper — the region a per-row string would have to appear in."""
+    src = _appjs()
+    start = src.index("function _dipRate(")
+    end = src.index("/* ====================== SCREAM-BUY TRACK RECORD")
+    return src[start:end]
+
+
+def test_the_renderer_reads_the_risk_block_at_all():
+    """The whole finding routed by the handoff: the field was served and displayed to nobody."""
+    src = _appjs()
+    assert "dip_risk" in src, (
+        "app.js no longer reads dip_risk; the rate is back to being computed on every request "
+        "and rendered to no reader, which is the exact state HANDOFF_v6b_health_gap.md found")
+    body = _render_dip_src()
+    for field in ("further_fall_rate", "why_not", "not_a_probability", "screen_contrast_note",
+                  "method_note"):
+        assert field in body, "renderDip drops the served `%s`" % field
+    # THE CALL SITE, not the definition. `_dipRate(r)` occurs twice — once as
+    # `function _dipRate(r) {` and once as the interpolation in the table row — so an assertion
+    # on the bare name passes on a helper that is defined and NEVER CALLED. A mutation deleting
+    # the `<td>` was missed for exactly that reason; the `${...}` is the wiring.
+    assert _CALL_SITE in body, "the per-row cell is not wired into the table"
+
+
+def test_the_renderer_never_puts_the_peer_rate_on_a_row():
+    """The user-facing half of the copy change, enforced where it can actually be violated.
+
+    `peer_rate` is deliberately still in the payload — the digest and any other consumer may
+    legitimately want it — so the guard has to sit on the RENDERER, which is the surface where
+    the comparison would mislead."""
+    body = _render_dip_src()
+    assert "peer_rate" not in body, (
+        "renderDip renders the peer rate on a row. r1 measured that this screen's prefilter "
+        "removes the unhealthy side upstream, so a row-level 'X% against Y%' claims a "
+        "separation this page did not do")
+    for literal in ("43.4", "32.5", "0.4335", "0.3251"):
+        assert literal not in body, (
+            "a measured rate is typed into the renderer as a literal (%r); every number here "
+            "must come from the payload" % literal)
+
+
+def test_the_rate_never_renders_without_the_notes_that_scope_it():
+    """§6.1: a bare percentage beside a list of names is "the one presentation §3 and §4 do not
+    support". Both notes must be emitted by the same branch the rate is, so a copy edit cannot
+    keep the number and drop the scope."""
+    body = _render_dip_src()
+    # From the CALL SITE, not the definition — see `_CALL_SITE`. Anchoring on the bare name put
+    # the whole helper inside `tail`, so a generic "applies" search matched `_dipRate`'s own
+    # `if (!b.applies)` guard and an ungated notes block was missed.
+    tail = body[body.index(_CALL_SITE):]
+    assert "screen_contrast_note" in tail and "method_note" in tail, (
+        "the notes do not render after the rate; the rate can now appear alone")
+    assert "(r.dip_risk || {}).applies" in tail, (
+        "the notes are not gated on a rate actually being shown, so they will render on a "
+        "screen that has no rate to qualify")
+
+
+def test_the_renderer_quotes_the_module_and_does_not_paraphrase_it():
+    """V3's pinned-copy rule. Every claim-bearing sentence is the server's; app.js does layout.
+    Checked by requiring that no substantial phrase of the served copy is retyped there."""
+    body = _render_dip_src()
+    for sentence in (dip_risk.METHOD_NOTE, dip_risk.SCREEN_CONTRAST_NOTE,
+                     dip_risk.NOT_A_PROBABILITY, dip_risk.SIZE_CAVEAT):
+        for chunk in re.findall(r"[A-Za-z][A-Za-z ']{24,}", sentence):
+            assert chunk.strip() not in body, (
+                "app.js retypes served copy (%r); it must render it, not paraphrase or "
+                "duplicate it" % chunk.strip()[:48])
+
+
+def test_the_source_scan_is_not_vacuous():
+    """Every test above greps a region; if the region were empty or mislocated they would all
+    pass on nothing."""
+    body = _render_dip_src()
+    assert len(body) > 1500, len(body)
+    assert "renderDip" in body and "<table>" in body
+    # And the peer-rate guard must be capable of firing.
+    assert "peer_rate" in open(os.path.join(ROOT, "valuation", "web", "dip_risk.py"),
+                               encoding="utf-8").read(), (
+        "peer_rate has left the payload entirely, so the renderer guard proves nothing")
+
+
+def _code_only(path: str) -> str:
+    """A module reduced to CODE — docstrings stripped — so a prose sweep cannot fire on this
+    project's own habit of writing about the thing it is asserting the absence of."""
+    import ast
+    tree = ast.parse(open(path, encoding="utf-8").read())
+    for node in ast.walk(tree):
+        body = getattr(node, "body", None)
+        if (isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+                and body and isinstance(body[0], ast.Expr)
+                and isinstance(body[0].value, ast.Constant)
+                and isinstance(body[0].value.value, str)):
+            node.body = body[1:] or [ast.Pass()]
+    return ast.unparse(tree)
+
+
+def test_zero_trials_this_row_measures_no_hypothesis():
+    """A display change. It reads pinned constants, compares nothing against a bar and returns
+    no verdict, so it charges no trial and equity `N` is untouched at 224."""
+    code = _code_only(os.path.join(ROOT, "valuation", "web", "dip_risk.py"))
+    for token in ("research_log", "n_trials", "trial_count", "hlz", "deflated_sharpe"):
+        assert token not in code, (
+            "this module reaches the trial counter (%r); a display of an already-measured rate "
+            "charges no trial" % token)
+    assert len(code) > 2000, "the code-only reduction is empty, so the sweep proves nothing"
+
+
+def test_the_code_only_reduction_is_not_vacuous():
+    """It must strip docstrings and keep code, or the sweep above passes on an empty string."""
+    code = _code_only(os.path.join(ROOT, "valuation", "web", "dip_risk.py"))
+    assert "def label_for" in code and "SCREEN_CONTRAST_NOTE" in code
+    assert "rendering is where copy leaks" not in code, "docstrings were not stripped"
 
 
 def _run_all():
