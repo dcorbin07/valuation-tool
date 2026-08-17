@@ -97,14 +97,37 @@ of which fires on real rows.
 Two things follow, and both are stated on the surface rather than left to a reader:
 
   * the 43.4% figure is a **comparison baseline describing names this screen does not show**,
-    never a label it is about to apply to one. It is quoted beside every rate for exactly that
-    reason: a rate with nothing on the other side of it is not interpretable.
+    never a label it is about to apply to one.
+
+    **CORRECTED 2026-08-16, and this is the copy change the r1 pass forced.** That bullet used
+    to end *"It is quoted beside every rate for exactly that reason: a rate with nothing on the
+    other side of it is not interpretable."* The premise is right and the placement was wrong.
+    `HANDOFF_v6b_health_gap.md` §6.1 measured what a per-row side-by-side actually communicates:
+    it *"invites reading the screen as having done the separating when the prefilter did it
+    upstream"*. Quoting 32.5% against 43.4% on a ROW says, to any ordinary reader, *this name is
+    in the better of the two groups on this page* — and there is no second group on this page.
+    So the contrast is now stated ONCE, at screen level, in `SCREEN_CONTRAST_NOTE`, explicitly
+    as a fact about the PANEL and immediately beside the statement that it cannot be made here.
+    `label_for` renders one class's panel rate and no comparison at all.
+
+    **The old argument survives the move**: a rate with nothing on the other side of it is not
+    interpretable, which is why the other side is still rendered — one screen-level note is
+    still on the surface, still adjacent, and now says which population it belongs to.
   * "healthy" here is the MEASUREMENT's looser definition, not the screen's stricter one, and
     `METHOD_NOTE` says so — otherwise a reader who knows the screen lists at 66/66/66 would
     reasonably assume the rate was measured on names that cleared 66/66/66. It was not.
 
 `test_dip_risk.py` pins the finding, so if either gate is ever loosened the claim is re-checked
 rather than quietly becoming false.
+
+THE NUMBERS ARE SERVED AND, UNTIL 2026-08-16, WERE RENDERED TO NOBODY
+---------------------------------------------------------------------
+`HANDOFF_v6b_health_gap.md` §5 found `grep -c dip_risk static/app.js` → **0**: the class, both
+rates, the method note and the "not a probability" caveat were computed on every request and
+displayed nowhere. `rendered_text` exists so the banned-phrasing rule can be asserted against
+what is SERVED — and with no renderer it was sweeping copy no reader could see. `renderDip` now
+reads this block, so the guard covers text that reaches somebody. That gap is the reason the
+careful wording above was worth writing and the reason it was worth nothing until now.
 
 V3's RULE, WHICH IS THE REASON THE COPY IS SHAPED THE WAY IT IS
 ---------------------------------------------------------------
@@ -224,15 +247,74 @@ def _pct(x) -> str:
 
 
 def label_for(klass: str) -> str:
-    """The one-line sentence for a class, with the other class's rate beside it.
+    """The one-line sentence for a class: that class's rate ON THE PANEL, and no comparison.
 
-    Both directions are written out in full. A healthy row that said "32.5%" and an unhealthy
-    row that said nothing would make the unflattering class read as missing data.
+    IT DELIBERATELY NO LONGER QUOTES THE OTHER CLASS'S RATE — see the module docstring's
+    CORRECTED bullet. A per-row "32.5% against 43.4%" reads as *this name is in the better of
+    the two groups here*, and there is no second group here: the screen's own filters removed
+    it upstream. The panel contrast moved to `SCREEN_CONTRAST_NOTE`, rendered once, where it
+    can say which population it describes.
+
+    "on the measured panel" is in the sentence rather than left to a nearby note, because a
+    number and its scope get separated the moment anything is copied, tooltipped or truncated.
+
+    Both directions are still written out in full and neither is a stub. A healthy row that
+    said "32.5%" and an unhealthy row that said nothing would make the unflattering class read
+    as missing data, and that rule is untouched by the change above.
     """
-    other = UNHEALTHY if klass == HEALTHY else HEALTHY
-    return ("%s group: %s of these names went on to fall another 20%% within about six months, "
-            "against %s of the %s group in the same drawdown."
-            % (klass.capitalize(), _pct(RATE[klass]), _pct(RATE[other]), other))
+    return ("%s group on the measured panel: %s of these names went on to fall another 20%% "
+            "within about six months." % (klass.capitalize(), _pct(RATE[klass])))
+
+
+def unhealthy_share() -> float:
+    """The panel's own unhealthy share — DERIVED from the row counts, never typed.
+
+    It is the number that makes the contrast concrete: on the panel that produced these rates
+    nearly three quarters of drawdown episodes were unhealthy, and on this screen essentially
+    none are. Deriving it means the share and the counts it is computed from cannot come to
+    disagree, which is this project's standing habit after four separate stale-figure
+    corrections.
+    """
+    return float(N_ROWS[UNHEALTHY]) / float(N_ROWS_ALL)
+
+
+#: THE NOTE THE r1 PASS FORCED, and the reason the per-name label carries no comparison.
+#:
+#: `HANDOFF_v6b_health_gap.md` measured that the live screen does NOT reproduce M1's comparison:
+#: its prefilter "removes M1's entire unhealthy side before the classifier sees it" (§0.2), the
+#: unhealthy class is reachable "at exactly one value of `z_quality` — 0.0 — and nowhere else"
+#: (§0.1), and the field is therefore "a verification that a listed row is inside the measured
+#: group, not a discriminator between two groups on this surface" (§5). Every clause below is
+#: that finding said to a reader; the wording is pinned to the handoff by test.
+#: IT CARRIES THE PEER RATE, and that is deliberate rather than an oversight of the change
+#: above. Moving the comparison off the rows must not delete it: `METHOD_NOTE` promises the
+#: unhealthy figure is "here so the healthy one has something to be read against", and a rate
+#: with nothing on the other side of it is not interpretable. So both panel rates are stated
+#: HERE, once, explicitly about the panel — which is the distinction the whole change turns on.
+#: A per-row "32.5% against 43.4%" claims a separation this page did not make; a screen-level
+#: "on the panel it was 32.5% against 43.4%, and this page cannot make that comparison" is a
+#: fact about the panel with its scope attached.
+SCREEN_CONTRAST_NOTE = (
+    "The comparison behind this figure was made on the measured panel, where %s of drawdown "
+    "episodes were in the unhealthy group and %s of those went on to fall another 20%%, "
+    "against %s of the healthy group. That comparison cannot be made on this page. This "
+    "screen's own filters remove the unhealthy side before the classification runs, so "
+    "essentially every name listed here is already in the healthy group — the separating was "
+    "done by those filters upstream, not by the figure shown. Read the rate as a check that a "
+    "listed name is inside the group that was measured, not as this screen sorting names into "
+    "a better half and a worse one."
+    % (_pct(unhealthy_share()), _pct(RATE[UNHEALTHY]), _pct(RATE[HEALTHY])))
+
+
+#: Rendered only on the rows it is true of. The effect is not uniform across company size and
+#: the live book is megacap-tilted, so on this surface the caveat applies to most of what a
+#: reader sees — CLAUDE.md's "the claim is strongest exactly where the product is not". Both
+#: figures are interpolated from the pinned constants rather than retyped.
+SIZE_CAVEAT = (
+    "This name is in the largest size tier, where the measured effect is weakest — %.2f "
+    "percentage points against %.2f in the smallest tier — and that tier is the one that did "
+    "not hold in both halves of the sample on its own."
+    % (SIZE_WEAKEST_PP, SIZE_STRONGEST_PP))
 
 
 # --------------------------------------------------------------------------------------- #
@@ -352,6 +434,10 @@ def for_name(drawdown, z_quality, health_score, market_cap=None,
         "label": label_for(klass) if applies else None,
         "not_a_probability": NOT_A_PROBABILITY,
         "weakest_size_tier": weakest,
+        # Present only where the flag is True, for the same reason the rate is present only
+        # where it applies: a caveat beside a field that does not carry it is a string the
+        # renderer has to decide about, and renderers decide wrong.
+        "size_caveat": SIZE_CAVEAT if weakest else None,
         "basis": {
             "z_quality": _num(z_quality),
             "health_score": _num(health_score),
@@ -408,6 +494,11 @@ def summary(rows: List[dict]) -> dict:
             "size_weakest_pp": SIZE_WEAKEST_PP,
         },
         "method_note": METHOD_NOTE,
+        # The panel contrast, stated once at screen level instead of on every row. The share is
+        # served beside the sentence so a caller that renders its own layout still has the
+        # number rather than having to parse it back out of the prose.
+        "screen_contrast_note": SCREEN_CONTRAST_NOTE,
+        "panel_unhealthy_share": unhealthy_share(),
         "not_a_probability": NOT_A_PROBABILITY,
     }
 
@@ -419,11 +510,12 @@ def rendered_text(rows: List[dict], block: dict) -> str:
     against this file — `dip_posture`'s own rule, and V4's lesson that rendering is where copy
     leaks.
     """
-    parts = [block.get("method_note") or "", block.get("not_a_probability") or ""]
+    parts = [block.get("method_note") or "", block.get("screen_contrast_note") or "",
+             block.get("not_a_probability") or ""]
     for r in rows:
         b = (r or {}).get("dip_risk") or {}
         parts.extend([b.get("label") or "", b.get("why_not") or "",
-                      b.get("not_a_probability") or ""])
+                      b.get("size_caveat") or "", b.get("not_a_probability") or ""])
     return " ".join(p for p in parts if p)
 
 

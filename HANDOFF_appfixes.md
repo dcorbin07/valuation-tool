@@ -5,6 +5,184 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 37 — 2026-08-16 — `V6B-RENDER`: the dip risk statistic reaches a reader, and stops claiming a comparison this screen cannot make
+
+**Zero trials.** A display of an already-measured statistic plus a copy correction — no
+hypothesis, no threshold, no verdict against a bar. Equity `N` stays **224** and no research-log
+row is written. Out-of-band (product, Don's direction); not one of the 134 audit items, so
+`build_ledger.py` will drop the `V6B-RENDER` row on its next regeneration.
+
+## 0. The two parts, and the second is why the first is not just plumbing
+
+`HANDOFF_v6b_health_gap.md` (r1, read-only, `c76ca30`) routed two things to this lane.
+
+1. **The per-name statistic was served and rendered to nobody.** `grep -c dip_risk
+   static/app.js` → **0**. The class, both rates, the method note and the "not a probability"
+   caveat were computed on every `/api/dip` request and displayed to no reader.
+2. **A listed name essentially never classifies UNHEALTHY**, because the screen's own prefilter
+   removes M1's entire unhealthy side before the classifier runs. **So the live screen does not
+   reproduce M1's comparison** — and the copy was rendering that comparison on every row.
+
+Part 2 is the substantive half. Part 1 alone would have shipped a misleading number to a reader
+who could not previously see it.
+
+## 1. What the per-row comparison actually communicated
+
+`label_for` rendered, on every row:
+
+> Healthy group: 32.5% of these names went on to fall another 20% within about six months,
+> **against 43.4% of the unhealthy group** in the same drawdown.
+
+To an ordinary reader that says *this name is in the better of the two groups on this page*.
+**There is no second group on this page.** The handoff's §6.1 puts it exactly: a rate presented
+that way "invites reading the screen as having done the separating when the prefilter did it
+upstream".
+
+The label now renders **one class's panel rate and no comparison**:
+
+> Healthy group **on the measured panel**: 32.5% of these names went on to fall another 20%
+> within about six months.
+
+"on the measured panel" is **in the sentence** rather than left to a nearby note, because a
+number and its scope get separated the moment anything is copied, tooltipped or truncated.
+
+## 2. The contrast is moved and scoped, not deleted — and my first cut deleted it
+
+New `SCREEN_CONTRAST_NOTE`, rendered **once**, below the table, whenever any rate renders:
+
+> The comparison behind this figure was made on the measured panel, where 73.2% of drawdown
+> episodes were in the unhealthy group and 43.4% of those went on to fall another 20%, against
+> 32.5% of the healthy group. That comparison cannot be made on this page. This screen's own
+> filters remove the unhealthy side before the classification runs, so essentially every name
+> listed here is already in the healthy group — the separating was done by those filters
+> upstream, not by the figure shown. Read the rate as a check that a listed name is inside the
+> group that was measured, not as this screen sorting names into a better half and a worse one.
+
+**A DEFECT IN MY OWN WORK, AND EXECUTING THE RENDERER IS WHAT CAUGHT IT.** The first cut took
+the peer rate off the row and put it **nowhere**. On a normal all-healthy screen — which r1
+measured is *every* screen — **43.4% then appeared exactly zero times**, while `METHOD_NOTE`
+went on promising the unhealthy figure was *"here so the healthy one has something to be read
+against"* and the module docstring I had just written claimed *"the other side is still
+rendered"*. Both were **false as built**.
+
+It was found by running `renderDip` under **node** against a real four-row payload and reading
+the emitted HTML. A `node --check` says the file is valid JavaScript; **executing it says the
+function produces the right markup**, and only the second catches a promise made by a constant
+in another file. New test: the served text of an **all-healthy** screen must quote 43.4%.
+
+## 3. What shipped
+
+* **`valuation/web/dip_risk.py`** — `label_for` drops the peer comparison; new
+  `SCREEN_CONTRAST_NOTE`, `SIZE_CAVEAT`, `unhealthy_share()`; `size_caveat` on the per-name
+  block; contrast note + share in `summary()`; both new strings swept by `rendered_text`.
+* **`valuation/web/static/app.js`** — `_dipRate(r)` and a "Past group rate" column; the two
+  notes below the table; a dagger carrying the size caveat. **Every string comes from the
+  server** — a test fails if any substantial phrase of the served copy is retyped in the JS.
+* **`tests/test_dip_risk.py`** — 31 → **43**.
+
+**The panel share is derived, never typed.** `unhealthy_share()` computes 27,090 / 37,014 and a
+test refuses a `73.2` literal anywhere in the module. Four separate stale-figure corrections in
+this project's record are the reason.
+
+**`SIZE_CAVEAT` rides only on rows whose one-directional tier flag is True.** The effect runs
+−3.79pp in the largest tier against −14.29pp in the smallest, and the largest is the one
+quintile that does not hold in both halves on its own. The live book is megacap-tilted, so on
+this surface the caveat applies to most of what a reader sees — CLAUDE.md's *"the claim is
+strongest exactly where the product is not"*, put where a reader meets it.
+
+## 4. Where the guard sits, and why not on the payload
+
+**`peer_rate` stays in the payload, and it has ZERO consumers today** — measured, not assumed:
+`grep -rn "dip_risk\|peer_rate"` outside the module and its tests returns `dip.py` (the
+producer) and `app.js` (the new consumer) and nothing else. **A first draft of this handoff
+justified keeping it with "the digest may legitimately want it"; that was speculative and is
+corrected here.** The Discord digest renders `dip_posture`'s `digest_claim`, not `dip_risk`, so
+**no outbound path is affected by the copy change at all.**
+
+The honest reasons to keep it are narrower: two existing pins assert on it
+(`test_a_rate_is_never_present_beside_a_does_not_apply_flag` and the runtime-withdrawal test),
+and a payload that records what was measured is not the thing that misleads. **The thing that
+misleads is a row**, so **the guard sits on the renderer**: a source sweep fails if `peer_rate`
+— or any measured literal like `43.4` — appears in `renderDip`, and a second fails if the rate
+can render without both notes.
+
+**The copy is pinned cross-file, per V6B-PRODUCT's precedent.**
+`test_the_copy_is_pinned_to_the_handoffs_own_findings` asserts r1's 73.19% split, the
+9,924 / 27,090 / 37,014 counts, the prefilter mechanism and §6.1's constraint all still appear
+in `HANDOFF_v6b_health_gap.md`, because `SCREEN_CONTRAST_NOTE` asserts findings **this lane did
+not measure**. If that pass is revised or retracted, the copy claiming "essentially every name
+listed here is already in the healthy group" loses its support and breaks here rather than
+going on rendering. Whitespace is flattened first — the handoff is hard-wrapped, so a naive
+substring search reports a false absence — and the pin carries its own vacuity check.
+
+## 4a. One judgement call: the class is rendered in the sentence, not as a badge
+
+The commissioning note listed **class** among the fields to render. It reaches the reader inside
+the label ("Healthy group on the measured panel: …"), **not as a visible chip on the row**, and
+that is deliberate. A "healthy" badge would sit directly beside the row's existing health chips
+— which come from the screen's **66/66/66** floors — putting **two different definitions of
+"healthy" side by side**. That is precisely the confusion `METHOD_NOTE` exists to prevent: *"a
+reader who knows the screen lists at 66/66/66 would reasonably assume the rate was measured on
+names that cleared 66/66/66. It was not."* Inside the sentence the class is unambiguous, because
+the same sentence says which population it belongs to. **Reversible in one line if Don wants it
+on the row.**
+
+## 5. One pin inverted, not deleted
+
+`test_both_classes_are_written_out_in_full_and_each_quotes_the_other` required each label to
+quote the other's rate. It now reads `..._and_neither_quotes_the_other`, with the reason in its
+docstring. **What it was really protecting is untouched and still asserted** — both classes
+written out in full, neither a stub — because an unhealthy row rendering nothing would make the
+unflattering class read as missing data. Inverting a pin on a measured finding is not the same
+as relaxing one, and the docstring says which this is.
+
+## 5a. Two defects in my own pins, both found by mutation and both the same mistake
+
+**18 mutations: 18 caught, 0 missed, 0 skipped — but the first run was 15/3**, and two of those
+three were real gaps rather than weak mutations.
+
+**`_dipRate(r)` occurs TWICE in `app.js`** — once as `function _dipRate(r) {` and once as the
+`${...}` interpolation in the table row. Both failing tests anchored on the bare name, which
+matches the **definition**:
+
+* `assert "_dipRate(r)" in body` passed with the `<td>` deleted entirely. **A helper that is
+  defined and never called read as wired** — the dead-code-passes-as-wired failure, in the one
+  test whose whole job is "does this reach a reader".
+* `tail = body[body.index("_dipRate(r)"):]` started at the definition, so the whole helper sat
+  inside `tail` and a generic `"applies"` search matched `_dipRate`'s own `if (!b.applies)`
+  guard rather than the notes gate. **Replacing the gate with `if (true)` was missed.**
+
+Both now anchor on `_CALL_SITE = "${_dipRate(r)}"`, held as a constant so the two tests cannot
+drift apart. **The portable rule: when a test asserts that something is WIRED, anchor on the
+call site, never on a name that the declaration also contains.**
+
+**The third miss was the harness, not the suite.** `73.19%` appears twice in the handoff and the
+mutation replaced only the first, so the pin passed on the surviving copy. A mutation that is
+too weak is indistinguishable from a test that is too weak, so the harness now replaces **all**
+occurrences.
+
+## 6. Reported, not fixed
+
+* **`test_dip.py` was not extended.** The renderer is pinned from `test_dip_risk.py`; a second
+  suite asserting the same JS region would be two definitions of one rule.
+* **The `METHOD_NOTE` / `SCREEN_CONTRAST_NOTE` pair is now two notes long** on a surface that
+  also carries the posture paragraph and the health-floor note. Nobody has measured whether a
+  reader reads all four. That is a product question, not a correctness one, and it is Don's.
+* **The r1 pass's own recommendation to consider marking the field payload-only** was declined:
+  the field's whole purpose is that a reader becomes the check, and V6B-PERNAME built it to be
+  read. Making it deliberately invisible would preserve the state r1 flagged as the finding.
+
+## 7. Ledger corrections made on the way past
+
+* **`V6B-HEALTHGAP`'s commit cell read `PENDING`** → `c76ca30`.
+* **`V6B-PERNAME`'s verdict cell read "display only"**, which the handoff §6.3 flagged as
+  readable as *"it is displayed"* when it meant *"affects display only, adopts nothing"*. It now
+  says both, and names `V6B-RENDER` as the row that made it actually displayed.
+* **Two claims in `V6B-PERNAME`'s note are now false and are corrected in place** rather than
+  edited away: "each quotes the other" (deliberately reversed here) and its 31/31 test count.
+
+---
+
 # Session 36 — 2026-08-15 — `MA29`, and the app-fixer lane CLOSES on audit #3
 
 ## 0. What this is, and the lane's status
