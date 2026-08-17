@@ -1,0 +1,23 @@
+{
+ "generated_utc": "2026-08-17T15:30:10+00:00",
+ "raw_root": "D:\\thetadata",
+ "max_dte": 1200,
+ "schema": 1,
+ "units": 13,
+ "rows": 2994928,
+ "bytes": 149796987,
+ "gb": 0.15,
+ "rows_over_200dte": 634428,
+ "overlap_verdicts": {
+  "agree": 13
+ },
+ "per_tier": {
+  "A": {
+   "units": 13,
+   "ok": 13,
+   "rows": 2994928,
+   "bytes": 149796987,
+   "rows_over_200dte": 634428
+  }
+ }
+}
