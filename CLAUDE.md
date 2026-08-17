@@ -48,6 +48,76 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **P1S0's DEAD EARLY HALF WAS A WEAK PERIOD *AND* A WEAKER UNIVERSE AT ONCE - THE QUESTION'S
+  OWN DICHOTOMY IS FALSE, WHICH IS WHY THE PRE-COMMITTED RULE RETURNED NULL (2026-08-16,
+  `P1S0-CONTROL`).** `PREREG_p1s0control_period_or_universe.md` committed **ALONE at `dc618c4`**,
+  markdown only, a strict ancestor of every measurement commit; budget booked at **`be4bd36`
+  BEFORE the run**. **Equity `N` 231 -> 232.** **NOT A RE-RUN OF `P1S0`** - no arm, placebo or
+  verdict of it recomputed, `P1S0_GATE.json` never written to, every optionable figure READ from
+  it, pinned by four AST tests and mutation-tested. **THE OPTIONS-EXPRESSION FAMILY STAYS `CLOSED`
+  and this register could not move it.**
+  * **THE QUESTION.** `P1S0` closed the family on a both-halves failure whose early half - 2016 to
+    2020 on the optionable universe - is not weak but **absent** (cum alpha **-0.00082** at H=252;
+    HAC *t* **0.8352** at the power anchor against its own floor of 1.6974) while the full sample
+    **passes** at +14.045%/yr, *t* 3.3731. Was 2016-2020 weak because those are **optionable
+    names**, or because it is a weak **period**? Measured by scoring the **FULL equity panel** over
+    `P1S0`'s own dates and halves, same construction, as a control.
+  * **THE CONSTRUCTION IS VERIFIED, NOT ASSERTED: the full-panel `full` cells reproduce `P1S0`'s
+    shipped `reference_full_panel_same_dates` BIT-FOR-BIT at all three horizons** -
+    0.02378082572517831, 0.09391044377802256, 0.1311161852362568, seventeen significant figures, on
+    identical date counts. Same object, same dates, same code. **And the gap that made a new item
+    necessary: that block ships the FULL SAMPLE ONLY - the early/late split of the full panel on
+    those dates had never been computed, and that split is the entire question.**
+  * **VERDICT NULL. Leg 1 FAILS** - full-panel early `alpha_t_hac` **1.2536** at H=63 against its
+    **OWN** full-panel `early_p95` of **1.9308** - **while leg 2 is POSITIVE**, H=252 early cum
+    alpha **+0.060427**. The legs disagree, and ambiguous against a pre-committed rule is a NULL
+    (`RUN_RULES` A6), never a judgement call.
+  * **THE FINDING IS THAT IT IS BOTH, AND THEY INTERACT.** **(1) The PERIOD is weak for the full
+    panel and not marginally: over 2016-2020 the full 2,531-name panel DOES NOT SORT** -
+    monotonicity is **POSITIVE at all three horizons (+0.115 / +0.152 / +0.248, deciles running
+    BACKWARDS)** and the long-short *t* is **negative at all three (-0.078 / -0.846 / -2.424)**,
+    against a late window at mono -0.915 / -0.830 / -0.818 and ls *t* +2.07 / +1.50 / +2.04.
+    **(2) AND the optionable subset is WEAKER STILL in that same window** - the full panel beats it
+    by **+1.467pp (H=63), +6.124pp (H=252), +1.527pp (H=504)** annualised, every horizon the same
+    direction. **(3) AND IT REVERSES LATE**, where optionable is **BETTER** by -9.704pp, -10.927pp
+    and -1.555pp. **So the optionable subset is not uniformly worse: it is worse early and better
+    late** - a period effect and a universe effect interacting, which is exactly the shape a
+    two-branch rule cannot express.
+  * **THIS CORROBORATES `R1`'s OWN FRAGILITY WORK RATHER THAN CONTRADICTING `R1`'s HEADLINE.** `R1`
+    found a ~10-year window centred on 2009-2019 at alpha **+1.66% (*t* 1.39)** with **8 of 70**
+    rolling windows not significant; `X4` found the investable margin **not demonstrable since
+    2014**. 2016-2020 sits inside both. ***"The headline passes every subperiod"* is true of `R1`'s
+    coarse halves and thirds and is NOT a claim about this specific five-year window.**
+  * **WHAT IT MEANS FOR THE GATE, AND IT IS A FINDING ABOUT THE GATE AND NOT A LICENCE.** `P1S0`'s
+    early-half failure **cannot be cleanly attributed to optionable names**, because the full panel
+    also fails to sort over the same window - **and it cannot be dismissed as pure period either**,
+    because the optionable subset is measurably worse at every horizon in exactly that window.
+    **The honest statement is that `P1S0`'s early half was measuring a weak PERIOD and a weaker
+    UNIVERSE at once, and its gate cannot separate them.** The family stays CLOSED; a reopen would
+    need its own register, its own trials and its own blind commitment, and **is not proposed.**
+  * **A DEFECT IN MY OWN REGISTER, AND IT IS WHY THE ITEM RETURNED NULL: LEG 2 ASKED A *LEVEL*
+    QUESTION WHEN THE ITEM IS ABOUT *SORTING*.** *"Is the top decile's cumulative alpha positive?"*
+    cannot distinguish *"the composite works here"* from *"the composite does not rank, but the top
+    decile drifted up with the market"* - and the full panel's early window is exactly the second
+    case, cum alpha **+0.0604** while monotonicity is **+0.152** and the long-short *t* is
+    **-0.846**. **Had leg 2 been a SORTING statistic both legs would have agreed and the rule would
+    have resolved PERIOD.** I picked the wrong second statistic before seeing any number, and the
+    NULL is the register working as intended - refusing to resolve rather than letting me choose
+    the reading afterwards. **THE RULE WAS NOT RESTATED AFTERWARDS.**
+  * **THE FLOOR EXTRAPOLATION THE REGISTER FORBADE WAS REAL, NOT DECORATIVE.** Void condition 3
+    forbade comparing a full-panel statistic with `P1S0`'s restricted-universe floors. Measured:
+    the **full-panel** `early_p95` is **1.9308** against `P1S0`'s restricted **1.6974** at H=63 -
+    **0.23 of a *t* HIGHER**, so borrowing it would have been **permissive**. The verdict is
+    unchanged either way (1.2536 fails both), but 619 names is not 2,531 and the guard earned its
+    keep.
+  * **NOT DONE, named so it is not mistaken for done: `P1S0` was NOT re-run, the family was NOT
+    reopened, no third leg was added, and H=504 was NOT promoted** from diagnostic to decisive -
+    though it is the one early cell with a *t* above 2 (**+2.1791**), it has no floor, carries no
+    verdict, and promoting it after seeing it is what the register forbids. **No claim is made
+    about WHY 2016-2020 is weak** - that mechanism is unmeasured and would be its own item.
+    **109 suites, 0 failures; 14 new tests, 3 of 3 tripwires mutation-tested.**
+    `scripts/p1s0_control_period_or_universe.py`, `data/free_analysis/P1S0_CONTROL.json`;
+    `HANDOFF_edge_audit.md` P1S0-CONTROL.
 - **THE ACCOUNTING RED-FLAG RISK CARD CLEARS ITS PRE-COMMITTED GATE - AND THE CONTROL THAT WAS
   SUPPOSED TO KILL IT PASSED 5 OF 5 WITH THE EFFECT STRONGEST IN MEGACAPS (2026-08-16,
   `MA28-CARD`).** The first post-audit research item, and the ONE register resolving `MA26-A` +

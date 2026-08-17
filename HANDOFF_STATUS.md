@@ -1,5 +1,41 @@
 # HANDOFF STATUS - shared project state
 
+## edge lane — **P1S0-CONTROL: NULL, and the dichotomy is the finding** (2026-08-16)
+
+`PREREG_p1s0control_period_or_universe.md` committed ALONE at `dc618c4`; budget booked at
+`be4bd36` **before** the run. **Equity `N` 231 → 232.** **P1S0 was NOT re-run and the
+options-expression family stays `CLOSED`.**
+
+**The question was: is P1S0's dead 2016–2020 early half about OPTIONABLE names or a weak PERIOD?
+Measured on the full panel over P1S0's own dates: it is BOTH, and they interact.**
+
+### Four things worth carrying forward
+
+**1. THE FULL PANEL DOES NOT SORT OVER 2016–2020, AND THAT IS NEW.** Monotonicity is **positive at
+all three horizons (+0.115 / +0.152 / +0.248 — deciles running backwards)** and the long-short *t*
+is **negative at all three (−0.078 / −0.846 / −2.424)**, against a late window at −0.915/−0.830/
+−0.818 and +2.07/+1.50/+2.04. **Any item that uses 2016–2020 as an evaluation window inherits
+this.** It corroborates `R1`'s fragility work (a ~10-year window centred 2009–2019 at +1.66%,
+*t* 1.39) and `X4` (investable margin not demonstrable since 2014) — `R1`'s *"passes every
+subperiod"* is about its coarse halves and thirds, **not** this five-year window.
+
+**2. THE OPTIONABLE SUBSET IS WORSE EARLY AND BETTER LATE.** Full panel beats it by +1.467pp /
++6.124pp / +1.527pp early, and loses by −9.704pp / −10.927pp / −1.555pp late. **So "the composite
+strengthens on optionable names" is a full-sample statement that hides a sign flip.**
+
+**3. THE VERDICT IS NULL BECAUSE MY OWN LEG 2 WAS THE WRONG STATISTIC.** It asked *"is top-decile
+cumulative alpha positive?"* — a **level** question — when the item is about **sorting**. A top
+decile can drift up with the market while the ranking carries no information, which is exactly this
+window. **Anyone re-asking this question should gate on a sorting statistic (monotonicity or the
+long-short against its own null), not a level.** That is a design note; it was **not** run here and
+the rule was **not** restated after the fact.
+
+**4. A RESTRICTED-UNIVERSE PLACEBO FLOOR DOES NOT TRANSFER.** The full-panel `early_p95` is
+**1.9308** against P1S0's restricted **1.6974** at H=63 — 0.23 of a *t* higher, i.e. borrowing the
+restricted floor would have been **permissive**. 619 names is not 2,531. Compute your own.
+
+**Still `DESIGN-RECORDED` and untouched: `MA27`, `MA55`, `MA57`, `MA58`.**
+
 ## edge lane — **MA28-CARD PASSES** (2026-08-16, the first post-audit research item)
 
 **The ONE register resolving `MA26-A` + `MA28` + `MA54-1`.** `PREREG_ma28_accounting_riskcard.md`
