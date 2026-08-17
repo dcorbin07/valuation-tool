@@ -6997,3 +6997,190 @@ recompute it and reach the same wrong conclusion.
   closed the family on the **equity** premise, so `rf + 43 bps` stands as measured and simply has
   nothing left to finance.
 * **`D2`'s licence question does not need routing to Don**, because no pull is proposed.
+
+
+---
+
+## 63 · V5 IS ALREADY DONE AND ITS PREMISE IS REFUTED; AND THE DEEP-ITM FINANCING RATE IS 8x WHAT THE FRONTIER REPORTED ONCE YOU PAY EXECUTABLE PRICES
+
+Register: **`PREREG_v5reread_deepitm_financing.md`**, committed **ALONE at `9ffe05a`** — one
+`.md`, 279 lines, **zero `.py`**, a strict git ancestor of every measurement commit.
+**ADOPTS NOTHING. RECOMMENDS NOTHING.** No file under `valuation/` changed; `.github/` untouched;
+the mutable `data/options` store never read — everything banked comes from the **freeze**.
+
+**Trials: 3, all options.** Equity untouched. Item 1 charges **zero**.
+
+### 63.0 · Two items were briefed and only one of them was a measurement
+
+| item | action | trials |
+|---|---|---|
+| 1 · V5 measured slippage | **NOT RE-RUN** — already live, already answered, and its premise is refuted | 0 |
+| 2 · deep-ITM financing cost | measured | 3 |
+
+### 63.1 · ITEM 1 — V5 LANDED 2026-08-09 AND RE-READS UNCHANGED
+
+`scripts/slippage_report.py` (36,566 b), `PREREG_v5_slippage.md` (10,651 b),
+`tests/test_slippage_report.py` (57 tests). **Its ledger row is in `VALQUO_EXTENSIONS.md` line
+14, NOT `VALQUO_LEDGER.md`** — which is why a ledger grep for "V5" finds nothing and why this
+item can look un-run. That is a real navigation hazard, not a filing quibble.
+
+Re-read today on the shipped instrument:
+
+* **3 entry fills, 0 exit fills.**
+* **M3, the pre-registered headline (exit half-spread vs mid): `n = 0`.**
+* M2 entry-vs-limit `n = 3`, printed as raw values only under an explicit `NOT QUOTABLE (n=3 < 30)`.
+* Verdict **INSUFFICIENT** — exactly what `PREREG_v5_slippage.md` §6 expected at **90/10**.
+
+**THE BRIEF'S PREMISE IS REFUTED BY THE DATES.** The brief says the sandbox *"has been accruing
+fills since session 14"*. The three fills are stamped **2026-08-04, 2026-08-07, 2026-08-07**;
+session 14 is **2026-08-09**. **All three predate it and ZERO have accrued since.**
+
+**THE BRIEF'S BAR IS A CATEGORY ERROR, AND V5 ITSELF ALREADY PRINTS SO.** Audit **B11's 33.4 bps
+is one-way cost in bps of STOCK NOTIONAL on the equity panel**; an options book pays bps of
+**PREMIUM**. The ratio is **~12x**; `slippage_report.py` keeps the constant only under the name
+`EQUITY_ONE_WAY_BPS_NOT_APPLICABLE`. V5's real, measured bar is **410.0 bps of premium (mean) /
+333.3 (median)** over 3,885 banked trades.
+
+**WHY IT WAS NOT RE-REGISTERED.** A second register for a hypothesis that already carries a live
+one is **two definitions of one bar** — the B7 defect class, the reason `statistics.hlz_hurdle`
+exists. Instrument unchanged, data unchanged, verdict rule already committed. **Declining keeps
+the denominator** (session 8's precedent).
+
+**WHAT IS NEW, AT ZERO COST — THE REFRESH PATH IS BROKEN.** The only mechanism that refreshes the
+export is the weekly `track-backup` Action. **It FAILED on 2026-08-16**, run `31932667751`, 3
+seconds, annotation verbatim: *"The job was not started because recent account payments have
+failed or your spending limit needs to be increased."* **Last success 2026-08-09.** So no fresher
+read of the live book exists on any surface this lane can reach. **This needs Don's billing
+attention; it is not a code fault.**
+
+**RE-OPEN CONDITION, so nobody re-derives it: V5 becomes answerable at `n >= 30` CLOSED legs.**
+M3 needs exits and there are none, so until then every re-run returns `INSUFFICIENT` by
+construction.
+
+### 63.2 · ITEM 2 — THE FRONTIER'S `rf + 43 bps` IS A MID-PRICE ARTEFACT
+
+**Population:** 12,904 matched call/put pairs, **185 names**, 2016-01-19 -> 2025-10-15, from
+`data/options_freeze/R2_CORRECTED_2026-08-08/chains.pkl.gz` (2,870,811 rows). Both legs pass the
+shared `blackscholes.usable_quote` rule (MA45, imported). `60 <= DTE <= 90`,
+`0.85 <= delta <= 0.95`, delta computed by solving IV on the **PUT** leg — OTM and
+well-conditioned, where a deep-ITM call's vega is near zero.
+
+**C1 IS AN INDEPENDENT CORROBORATION OF THE FRONTIER AND IT IS CLOSE.** On the comparable
+construction (MID prices, non-payers) the median excess reads **+42.81 bps (n = 5,538)** against
+the frontier's **+43 bps** — a different universe (185 names vs 15), a different source (freeze vs
+the mutable derived store) and different code. **C2** nonsense-moneyness fraction **0.0000**, so
+the as-traded spot is matching as-traded strikes.
+
+**THE FINDING: AT EXECUTABLE PRICES THE EMBEDDED RATE IS 5.1x THE MID FIGURE.**
+
+| arm | median | mean | n |
+|---|---|---|---|
+| **A1** financing spread at **MID** | **+66.94 bps** | +96.86 | 12,904 |
+| **A2** financing spread at **EXECUTABLE** (buy call at ask, sell put at bid) | **+342.35 bps** | +509.38 | 12,904 |
+
+The frontier said its mids convention was *"a lower bound on the embedded rate and an upper bound
+on the saving"*, and it was right — **but a COST question has to be answered at the prices an
+account actually pays**, and there the option market lends at **rf + 342 bps**, not rf + 43.
+
+**A3 — THE ALL-IN ANNUAL COST, AND THE ROLL IS HALF OF IT.**
+
+| component | median |
+|---|---|
+| financing spread (executable) | 342.35 bps |
+| **round-trip spread x rolls/yr** | **340.06 bps/yr** |
+| commission x rolls/yr | 3.57 bps/yr |
+| **all-in** | **701.87 bps/yr** (rho-adjusted 589.92) |
+
+at a median **DTE 73** and **5.0 rolls/year**. **The financing benefit REQUIRES rolling** —
+exercising means paying the strike in cash, which defeats the purpose — so each roll pays a full
+round trip. That is why tenor drives the whole result.
+
+### 63.3 · THE ANSWER: CHEAPER ONLY THAN THE MOST EXPENSIVE CARD
+
+| margin route | assumption | spread over rf | option route | cheaper? |
+|---|---|---|---|---|
+| Robinhood Gold | 5.75% flat | rf + 420 bps | 701.9 | **NO** |
+| Robinhood standard | 11-12% | rf + 995 bps | 701.9 | **YES** |
+| IBKR Pro tiered | ~rf + 150 bps | rf + 150 bps | 701.9 | **NO** |
+
+**The brief expected "cheaper than margin, with caveats". As stated that is WRONG** — it is
+cheaper than *one* of three routes, the most expensive one, and more expensive than both cheap
+ones. **My registered prior predicted exactly this and all four of its cells were right**
+(more expensive than Gold 80/20; cheaper than standard 85/15; answer depends on the card 85/15;
+median mid excess inside [0, +150] bps 90/10). The reasoning was the frontier's own arithmetic:
+60-90 DTE is the **shortest** tenor and therefore the **worst** case for roll cost.
+
+**Margin rates are ASSUMPTIONS — published retail cards, not anything this repository measured —
+and every output says so.**
+
+### 63.4 · TWO POST-HOC ROBUSTNESS CUTS, BOTH LABELLED, NEITHER CARRYING A VERDICT
+
+**By rate era — and it refutes my own reason for running it.** I added the split expecting the
+answer to be era-dependent, because a *flat* margin card against a moving risk-free rate makes
+the margin spread swing enormously. It does swing — **52 to 567 bps** — but the option route is
+**more expensive than Gold in all five eras**, and its own cost is remarkably stable:
+
+| era | n | median rf | option all-in | Gold spread | cheaper? |
+|---|---|---|---|---|---|
+| 2016-2018 | 1,761 | 0.55% | 709.2 | 520.0 | no |
+| 2018-2020 | 1,754 | 1.97% | 615.9 | 378.0 | no |
+| 2020-2022 | 4,221 | 0.08% | 754.4 | 567.0 | no |
+| 2022-2024 | 1,688 | 5.23% | 646.7 | 52.0 | no |
+| 2024-2026 | 3,480 | 4.55% | 710.7 | 120.0 | no |
+
+**By dividend status.** C3 shows payers at **+109.27 bps** at mids against non-payers' **+42.81**
+— 2.5x, and in the **opposite** direction to the bias the frontier warned about, so it is either
+a real clientele effect or residual PV(D) mis-specification and it is **not resolved here**. It
+does **not** move the verdict: non-payers alone give all-in **578.2 bps/yr** against a Gold
+spread of 470 (still more expensive) and a standard spread of 1,045 (still cheaper). Payers alone,
+833.3, same two answers.
+
+### 63.5 · COVERAGE FIRST, AND IT LIMITS THE QUESTION THAT CAN BE ASKED
+
+**11 of the 86 Valquo Index names are in the freeze — 12.8%**: ASML, BNS, EOG, FDX, HON, MU, SU,
+TD, TTE, VRT, WDC. **So "is it cheaper for INDEX names" is NOT answerable on owned data**, and
+the register fixed that before any number existed. The headline is the **185-name freeze
+universe**; the Index cell (482 pairs, 11 names, median 1,064.79 bps/yr) is reported for
+completeness and **carries no verdict**, and quoting an Index-scope claim from the wide universe
+is a **void condition**. This is U6's blocker in a new place.
+
+**46 of 185 names sit below the n = 30 floor and are listed rather than pooled.**
+
+### 63.6 · A DEFECT IN MY OWN INSTRUMENT, AND IT IS ONE I HAD ALREADY WRITTEN A GUARD AGAINST
+
+`_data()` resolved paths with `os.path.exists()`. The worktree carries an **EMPTY**
+`data/bulk/prepared/bars` while the primary checkout holds **502** files, so the empty directory
+shadowed the populated one, **every spot lookup returned nothing**, and the first run reported
+`spot series: 0` and **zero surviving pairs**.
+
+**Existence is not population** — the exact rule I wrote `optionable_universe.is_populated_cache`
+for **last session**, repeated in a new file. It now tests for entries, and the comment says why.
+
+**The more important half is the second fix.** Zero surviving pairs originally flowed downstream
+and crashed on a missing column. Had the frame carried one more column it would have produced a
+clean, plausible **coverage null** — *"no deep-ITM pairs exist at this tenor"* — from an input
+that never loaded. That is `MA31`'s failure mode exactly (0 of 113,945 rows joined; `n_dates = 0`
+beside a coverage of 40 dates), and neither raised. **This one raises**, with a message saying it
+is an instrument failure and not a finding.
+
+### 63.7 · Controls, and what this cannot see
+
+**GATING (the run aborts, and it was mutation-tested):** C1 instrument sanity **PASS**, C2 spot
+fidelity **PASS**. `--arms` **REFUSES** without a passing controls artifact — proved by flipping
+`all_gating_pass` to false and watching it exit **2** with *"REFUSING: controls did not pass; no
+arm is scored"*, then restoring the artifact **byte-for-byte**. A gate that is written but never
+read is the session-26 defect.
+
+**REPORTED:** C3 PV(D) (above); **C4 American exercise uncorrected and declared** — parity is an
+inequality, and the bias is smallest exactly at this corner because the matched put is deep OTM;
+**C5 O18's rho 0.6743 is an EXTRAPOLATION** here (measured on 35-delta ~60 DTE contracts), so
+quoted spread is primary and rho-adjusted is reported beside it; C6 commission imported from
+`options_fill`, never re-typed; C7 roll realism.
+
+**WHAT IT DOES NOT SAY.** It is a **cost** measurement, not a return one. It says nothing about
+whether owning these names is a good idea — **P1 Stage 0 already closed the options-expression
+family on the return side and this does not reopen it.** No trade recommendation is issued in
+either direction. Nothing is adopted.
+
+`scripts/deepitm_financing.py`, `tests/test_deepitm_financing.py` (17);
+`data/free_analysis/DEEPITM_FIN.json`, `DEEPITM_FIN_CONTROLS.json`.

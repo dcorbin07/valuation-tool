@@ -48,6 +48,78 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE FRONTIER'S `rf + 43 bps` FINANCING EDGE IS A MID-PRICE ARTEFACT - AT EXECUTABLE PRICES IT
+  IS `rf + 342`, AND A DEEP-ITM CALL IS CHEAPER THAN EXACTLY ONE OF THREE MARGIN CARDS, THE MOST
+  EXPENSIVE ONE (2026-08-17, `DEEPITM-FIN` + `V5-REREAD`).**
+  `PREREG_v5reread_deepitm_financing.md` committed **ALONE at `9ffe05a`** - one `.md`, 279 lines,
+  zero `.py`. **ADOPTS NOTHING, RECOMMENDS NOTHING.** Options `N` **294 -> 297**; equity untouched
+  by this item. Read from the **freeze**; the mutable `data/options` store was never opened.
+  * **`V5` WAS ALREADY DONE AND IS NOT RE-RUN - ZERO TRIALS.** It landed **2026-08-09**
+    (`scripts/slippage_report.py`, `PREREG_v5_slippage.md`, 57 tests) and re-reads **unchanged at
+    3 entry fills and ZERO exit fills**, so the pre-registered headline M3 has **n = 0** against a
+    floor of 30 and the verdict stays **INSUFFICIENT** - what its own section 6 predicted at
+    90/10. **A NAVIGATION HAZARD THAT CAUSED THE RE-BRIEF: V5's ledger row is in
+    `VALQUO_EXTENSIONS.md` line 14 and NOT in `VALQUO_LEDGER.md`**, so a ledger grep returns
+    nothing and the item reads as never done.
+  * **THE BRIEF'S PREMISE IS REFUTED BY THE DATES AND ITS BAR IS A CATEGORY ERROR.** The three
+    fills are stamped **2026-08-04, 2026-08-07, 2026-08-07** and session 14 is **2026-08-09**, so
+    all three PREDATE it and **zero have accrued since**. And *"the modelled 33.4bps"* is audit
+    **B11's EQUITY cost in bps of STOCK NOTIONAL** against a book that pays bps of **PREMIUM** -
+    a **~12x** category error `slippage_report.py` already prints on every run, keeping the
+    constant only as `EQUITY_ONE_WAY_BPS_NOT_APPLICABLE`. Its real bar is **410.0 bps of premium**.
+    Re-registering would have been **two definitions of one bar**, the B7 defect class.
+  * **THE REFRESH PATH IS BROKEN, AND IT NEEDS DON RATHER THAN CODE.** The weekly `track-backup`
+    Action **FAILED 2026-08-16** (run `31932667751`, 3s): *"the job was not started because recent
+    account payments have failed or your spending limit needs to be increased."* Last success
+    **2026-08-09**. **No fresher read of the live book exists on any surface this lane can reach.**
+    **Re-open condition: V5 becomes answerable at `n >= 30` CLOSED legs** - M3 needs exits.
+  * **THE FINDING IS THE PRICE CONVENTION, AND IT CORRECTS THE FRONTIER RATHER THAN REFUTING IT.**
+    On 12,904 matched call/put pairs (185 names, 2016-01-19 -> 2025-10-15, both legs passing the
+    shared `usable_quote` rule, 60-90 DTE, delta 0.85-0.95 with delta solved on the **PUT** leg):
+    at **MID** the excess reads **+66.94 bps** pooled and **+42.81 bps on non-payers - an
+    independent corroboration of the frontier's +43** on a different universe, source and code.
+    **At EXECUTABLE prices - buy the call at the ask, sell the put at the bid - it is +342.35 bps,
+    5.1x larger.** The frontier said mids were *"a lower bound on the embedded rate"* and was
+    right; **a COST question has to be answered at the prices an account pays.**
+  * **THE ROLL IS HALF THE COST AND IT CANNOT BE AVOIDED.** All-in **701.87 bps/yr** = financing
+    342.35 + **roll spread 340.06** + commission 3.57, at median **DTE 73 and 5.0 rolls/yr**
+    (589.92 after O18's rho 0.6743, an **EXTRAPOLATION** here since rho was measured on 35-delta
+    60-DTE contracts). **The financing benefit REQUIRES rolling** - exercising means paying the
+    strike in cash, which defeats the purpose - **so 60-90 DTE, the SHORTEST tenor, is the worst
+    case**, which is precisely what the frontier's own *"only clearly positive at a tenor we do
+    not own"* implied.
+  * **THE ANSWER: Robinhood Gold `rf + 420` MORE EXPENSIVE, Robinhood standard `rf + 995`
+    CHEAPER, IBKR Pro `rf + 150` MORE EXPENSIVE.** The brief expected *"cheaper than margin, with
+    caveats"* and **as stated that is wrong.** The registered prior predicted this and **all four
+    of its cells were right.** Margin rates are **ASSUMPTIONS** - published retail cards, not
+    anything measured here - and every output says so.
+  * **TWO POST-HOC CUTS, BOTH LABELLED, AND THE FIRST REFUTES MY OWN REASON FOR RUNNING IT.** By
+    rate era the option route is **more expensive than Gold in ALL FIVE eras**, its own cost stable
+    at **616-754 bps** while the Gold spread swings **52-567** - so the answer is **NOT**
+    era-dependent as I expected. Restricting to non-payers gives **578.2 bps** and the same two
+    answers. **C3 IS UNRESOLVED AND SAID TO BE:** payers read **+109.27 bps** at mids against
+    non-payers' +42.81, **2.5x and in the OPPOSITE direction to the bias the frontier warned
+    about** - either a real clientele effect or residual PV(D) mis-specification.
+  * **COVERAGE LIMITS THE QUESTION AND WAS FIXED BEFORE ANY NUMBER: 11 of 86 Valquo Index names
+    are in the freeze (12.8%).** So *"is it cheaper for INDEX names"* is **not answerable on owned
+    data**; the Index cell (482 pairs) carries **no verdict** and quoting an Index-scope claim from
+    the 185-name universe is a **void condition**. **`U6`'s blocker in a new place.** 46 of 185
+    names sit below the n = 30 floor and are **listed rather than pooled**.
+  * **A DEFECT IN MY OWN INSTRUMENT - AND IT IS THE GUARD I WROTE LAST SESSION, REPEATED.**
+    `_data()` resolved paths with `os.path.exists`, and the worktree carries an **EMPTY**
+    `data/bulk/prepared/bars` while the primary holds **502** files, so the empty directory
+    shadowed the populated one and the first run reported **`spot series: 0`** and zero surviving
+    pairs. **EXISTENCE IS NOT POPULATION** - exactly what `optionable_universe.is_populated_cache`
+    exists for. **The second fix matters more: zero pairs now RAISES.** It had flowed downstream
+    and merely happened to crash on a missing column; with one more column present it would have
+    produced a clean, plausible **coverage null** from an input that never loaded - **`MA31`'s
+    failure mode**, which did not raise either time.
+  * **GATING CONTROLS MUTATION-TESTED:** `--arms` **refuses** without a passing controls artifact,
+    proved by flipping `all_gating_pass` false, watching it exit **2**, and restoring the artifact
+    **byte-for-byte**. **It is a COST measurement and says nothing about returns** - `P1S0` closed
+    the options-expression family on the return side and **this does not reopen it**.
+    `data/free_analysis/DEEPITM_FIN.json`, `DEEPITM_FIN_CONTROLS.json`;
+    `HANDOFF_optionsbot.md` 63.
 - **P1S0's DEAD EARLY HALF WAS A WEAK PERIOD *AND* A WEAKER UNIVERSE AT ONCE - THE QUESTION'S
   OWN DICHOTOMY IS FALSE, WHICH IS WHY THE PRE-COMMITTED RULE RETURNED NULL (2026-08-16,
   `P1S0-CONTROL`).** `PREREG_p1s0control_period_or_universe.md` committed **ALONE at `dc618c4`**,

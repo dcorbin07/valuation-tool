@@ -301,6 +301,13 @@ def test_the_set_of_things_that_consume_the_book_path_is_what_we_think_it_is():
         "valuation/edge/paper_track.py",       # mention only (comment above the gate)
         "valuation/saas/index_book.py",        # this publisher (docstring reference)
         "backup_to_D.ps1",                     # backup allowlist, not a consumer
+        # Added 2026-08-17 (DEEPITM-FIN), reconciled rather than allow-listed. It reads
+        # positions[].ticker as a MEMBERSHIP LIST -- to report how many Index names the options
+        # freeze covers (11 of 86) and to ship a no-verdict cell for them. It never writes the
+        # file, never treats it as a book, and never reads a weight, so it is not a second
+        # mechanism that could disagree with the first about what the Index IS. Research-only:
+        # nothing it computes reaches a live surface.
+        "scripts/deepitm_financing.py",        # READER — Index membership for a coverage report
         "tests/test_edge.py",
         "tests/test_paper_track.py",
         "tests/test_index_book_publish.py",
