@@ -176,6 +176,28 @@ loudly** if they disagree mid-copy, is resumable, and never writes into `data/op
 `--verify --full-hash` re-hashes the frozen copy *and* separately reports whether the **source**
 has drifted since the freeze.
 
+### TIER 0 IS COMPLETE AND VERIFIED (2026-08-17 22:52 UTC)
+
+`D:\thetadata\freeze_options_2026-08-17`
+
+| | |
+|---|---|
+| files frozen | **12,302 of 12,302** |
+| payload units | **5,063** |
+| bytes | **26.98 GB** |
+| **hash mismatches at copy** | **0** |
+| source files not yet frozen | **0** |
+| frozen files gone from source | **0** |
+
+Independently re-verified with `--verify --full-hash` (545.8 s, every file re-hashed on both
+sides): **12,302 records, 0 missing, 0 wrong-size, 0 wrong-hash, and `source_drifted_since_freeze`
+= 0.** The last figure is the one that matters for O16 — the store did not move under the copy, so
+the freeze is a coherent snapshot of a single instant rather than a smear across one.
+
+The manifest (`manifest.jsonl`, one fsynced line per file carrying both hashes) and
+`FREEZE_SUMMARY.json` are mirrored to `data/deep_harvest/` on the laptop, per the second-copy
+rule. **The payload stays on D: and is never committed.**
+
 ---
 
 ## The overlap comparison — brief rule 3
@@ -237,7 +259,7 @@ drift; restarting advanced 40 → 45 without re-copying the first 40.
 
 | tier | scope | symbol-years | status |
 |---|---|---|---|
-| **0** | freeze `data/options` → `D:\thetadata\freeze_options_2026-08-17` | 12,302 files / 26.98 GB | **RUNNING** |
+| **0** | freeze `data/options` → `D:\thetadata\freeze_options_2026-08-17` | 12,302 files / 26.98 GB | **DONE — verified, 0 mismatches, 0 drift** |
 | **A** | alert symbol-years 2016–2018 | 400 | **CANCELLED — 99.97–100% already cached** |
 | **B** | alert symbol-years 2019–2025 | 961 | **CANCELLED — cached, and not perishable** |
 | **C** | 2016–18 for the 420 never-tried optionable names | **1,260** | **READY — awaiting go-ahead** |
@@ -249,7 +271,7 @@ drift; restarting advanced 40 → 45 without re-copying the first 40.
 |---|---|---|---|---|---|
 | 2026-08-16 | deep chains (A) | 13 / 1,361 | 0.15 | 52.2 s/unit | *void — see BUG 3* |
 | 2026-08-17 | **census** | 1,361 / 1,361 units read | — | 433 s total | **complete** |
-| 2026-08-17 | **Tier 0 freeze** | in progress / 12,302 files | 27.0 target | ~16–20 MB/s | **~28 min from launch** |
+| 2026-08-17 | **Tier 0 freeze** | **12,302 / 12,302 files** | **26.98** | 14–20 MB/s | **DONE + verified** |
 
 **The 2026-08-16 projection of "~20 h / ~16 GB" is VOID** — it extrapolated from 13 units, and the
 process then stalled for twelve hours without writing a fourteenth (BUG 3). It is left in the table
@@ -341,10 +363,11 @@ postdates its earliest pulled year**.
 
 ## Recommended next step
 
-1. **Let the Tier 0 freeze finish and verify it** (`--verify --full-hash`). This unblocks O21-D2
-   and has no deadline, but it is the highest-value item on the page.
+1. ~~Tier 0 freeze~~ **DONE and verified** — 12,302 files, 0 mismatches, 0 source drift.
+   **O21-D2's referent now exists.** The analysis scripts still read the mutable
+   `data/options`; pointing them at the freeze is the options-bot lane's call, not mine.
 2. **Wire the ticker-reuse guard**, then **run Tier C** — ~4.7 h against a 15-day window, and the
-   only genuinely perishable dataset left.
+   only genuinely perishable dataset left. **This is the only item with a deadline.**
 3. **After 2026-09-01**, on Standard: Tier D, and the MA-2019 gap.
 
 **Zero trials. Nothing here is a research result and nothing here may be quoted as one.**
