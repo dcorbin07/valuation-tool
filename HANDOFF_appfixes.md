@@ -5,6 +5,227 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 40 — 2026-08-18 — `PT-WRITER`: the seed door
+
+**THE WRITE DOOR WAS NEVER THE BLOCKER, AND THE SERVICE SAID SO ITSELF WITHIN HOURS OF BEING
+POINTED AT IT.** Session 39 shipped `POST /admin/track-row?append=1`; Don's PR #2 (`cb8c86e`)
+repointed `track-row.yml` at it the same day; it ran at 20:31 UTC, authenticated, reached the
+door, and returned **HTTP 422**:
+
+```json
+{"ok":false,"reason":"the book file /app/data/valquo_track.json is missing or unreadable","row":null}
+```
+
+That is `index_mark.load_book` working exactly as written, and the refusal note was pushed
+exactly as designed (`121f5c3`). **`data/` is gitignored, so the book has never shipped with any
+deploy — it exists only on Don's machine. The service has nothing to mark.** This session builds
+the door that fixes that.
+
+**Zero trials** — a door and its enforcement, no hypothesis and no verdict against a bar, so
+equity `N` stays **231** and no research-log row is written. **No row was written to the real
+track**: every test runs on `state_isolation` temp paths with an injected price tape, and `data/`
+was never touched.
+
+---
+
+## 0. Two things I checked before designing, and one of them removed a design
+
+**(a) `/admin/ingest-index-track` already exists and CANNOT do this.** It looked like the seed
+door half-built. It is not: it writes into the **Store** (`Store().set_meta(index_track.STORE_KEY,
+...)`), and `index_track.from_store` is a display-only fallback for *"deploys where the tracker
+files are not on disk"*. The contract's own reader — `index_track.load()` — and both halves of
+`index_mark` (`load_book`, `append_row`) read and write **FILES**. So that endpoint cannot unblock
+`PT-WRITER`, and a seed built on it would have installed a track the writer could not see.
+
+**A finding that falls out of it and is worth its own line: the live service may already be
+DISPLAYING a track from the Store while the file-backed contract series is empty.** Two
+representations of one track on one service, only one of them the contract's. Not touched here —
+naming it, because "the site shows a track" is not evidence the bound series exists.
+
+**(b) The real book carries no `effective_max_weight`.** `conformance` needs one. Measured on
+Don's actual `valquo_track.json`: it holds `benchmark`, `inception_date`, `positions`,
+`scan_date` and nothing else, and each position is `{ticker, weight}`. So the cap is **derived**
+from the observed maximum weight, and the derivation is stated in the code rather than assumed:
+a cap is an upper bound, so an observed max at or under 8% cannot have been produced by a cap
+that failed to bind at 8%. The one case where the two diverge — a book of 13 or fewer names whose
+score weights happen to peak below the relaxed cap — misses the 50-name floor by a wide margin,
+so `conforms` is unmoved. A recorded value is **preferred** if the file ever gains one, so this
+degrades to reading the truth rather than inferring it.
+
+---
+
+## 1. What shipped
+
+`POST /admin/track-seed`, `X-Admin-Token`, body `{"book": {...}, "history": "csv text"}`.
+The rules live in **`index_mark.seed`**, not the handler — the same reason §7.2b gives, and the
+handler is pinned to contain no `open(`, `csv.`, `os.replace`, `conformance(` or `json.dumps`.
+
+`python -m scripts.seed_track` is its command line: dry run by default, `--send` to do it,
+`SITE_BASE_URL` (or `PUBLIC_BASE_URL`, which is the name already in this project's `.env`) and
+`ADMIN_TOKEN` from `.env`. **The token is never printed, on any path, including the failure
+paths** — asserted, not intended.
+
+---
+
+## 2. The three rules, and why each one is there
+
+1. **The book must BE the Index** — `valquo_index.conformance`, the check `PT-SPLIT` built and
+   `paper_track.seed_book` gates on. 50 names, cap binding. A refusal carries `why_not` verbatim
+   and **writes nothing at all**, which is the load-bearing half: a refusal must not leave a
+   half-installed service behind.
+
+2. **An upload may EXTEND and may never rewrite.** Two checks, reported separately on purpose.
+   The **record** check compares the upload's first N rows to the disk's cell for cell and names
+   the row, the column and both values on a mismatch — because a caller told only "refused" will
+   reach for a flag to turn the refusal off. The **byte** check requires the disk bytes to be an
+   exact prefix of the canonicalised upload, in the same terms `track-row.yml`'s `cmp` uses. When
+   the first passes and the second fails, the reason names the encoding difference rather than
+   reading as a mystery.
+
+   **BOTH SIDES GO THROUGH ONE SERIALISER**, which is what makes the byte rule immune to the
+   caller's line endings: an upload sent with bare LF and one sent with CRLF canonicalise
+   identically, so a refusal means a recorded value changed. **Verified against reality rather
+   than asserted: the canonical bytes are BYTE-IDENTICAL to Don's real
+   `valquo_track_history.csv`**, so a re-seed will never need the encoding escape hatch.
+
+3. **A book may not be seeded without a history to stand on** — the trap that would have lost the
+   recorded days **invisibly**. Seed a book onto an empty series and the next append starts a
+   fresh series at today's date; `day_n` is computed from the inception date, so the new first row
+   carries a plausible day number and nothing raises. The four recorded days would simply not be
+   in the copy the seed had just declared the record.
+
+**AND A FOURTH THAT IS ABOUT THE SEQUENCE RATHER THAN THE SEED: the uploaded header must be the
+one `append_row` would compute.** `append_only` REFUSES a header it would have to widen (widening
+rewrites every line and cannot preserve the byte prefix), so seeding a differently-shaped header
+installs a series the unattended writer can never append to — succeeding, looking healthy, and
+producing a service where every subsequent write is refused with the reason pointing at the
+writer. **The end-to-end sequence is the deliverable, not the seed**, and one test runs the seed
+and then the write door against one service and asserts the second succeeds.
+
+---
+
+## 3. Status codes, and the write ordering
+
+**201** the copy changed · **200** nothing changed, it already held exactly this · **409** the
+upload disagrees with the record · **422** not the Index / no history to stand on / malformed ·
+**400** no book · **500** unexpected only. 4xx not 5xx for §7.2b's reason: nothing happened, and
+retrying the same bytes will not change that.
+
+**200 IS A FACT, NOT AN ASSUMPTION.** Both writes are skipped when the bytes already match, so a
+retrying caller touches neither file — asserted on the book's mtime, not merely on its contents.
+
+**THE HISTORY IS WRITTEN FIRST, AND THE TWO ORDERINGS ARE NOT SYMMETRIC.** History-then-book
+leaves, on a failed book write, a service that refuses at `load_book` — exactly today's state, no
+harm done. Book-then-history would leave a service holding a book and no series, which is the one
+state rule 3 exists to prevent. Both go through a temp file and `os.replace`, like `append_row`.
+
+---
+
+## 4. Two defects in existing guards, both the same family, both found by running things
+
+**(a) A STALE-WINDOW GUARD, AND IT IS THE `src[i:i+2000]` DEFECT IN A NEW SHAPE.**
+`test_the_module_never_writes_unless_asked` sliced `contract_row` up to `def append_row` — the
+same thing, right up until `seed` and its three helpers were added **between** the two, at which
+point the window covered four functions that write files by design and **the guard failed against
+a correct tree**. Session 39 found the identical class on the write door (a fixed 2,000-character
+window that had drifted off the delegation call). *A window anchored on a distant landmark
+measures whatever drifts into it.* Now bounded by the next top-level definition, plus a
+non-vacuity test asserting the window actually contains `contract_row`'s body.
+
+**(b) MY OWN SMOKE TEST REFUSED FOR THE WRONG REASON.** The rewrite case ran against a file an
+earlier case had already extended, so it was refused as a **truncation** and I would have recorded
+"the rewrite rule works" on the strength of a truncation check. *A test that fails for a reason
+other than the one it names is not evidence about the thing it names* — session 39's lesson, hit
+again the next day. Fixed to compare a same-length upload; the assertion now pins the reason text,
+not just the refusal.
+
+**(c) I SILENTLY DELETED AN EXISTING TEST BY NAMING MINE THE SAME THING.** The seed door's
+byte-prefix positive control was written as `test_the_byte_prefix_check_is_not_vacuous` — which
+is what the WRITE door's control is called. Python rebinds silently, `globals()` keeps one entry,
+and the older control simply stopped running the moment the seed tests landed. Nothing raised;
+the suite was green throughout. **Caught by counting `def test_` in the file (62) against what
+the runner reported (61)** — a one-off hand comparison, which is not a thing to rely on twice, so
+`test_no_test_in_this_file_is_shadowed_by_a_duplicate_name` now runs that census as a test and
+was checked for vacuity by reintroducing the collision and watching the suite go red.
+**A test deleted by a name collision is invisible in a green run**, and this file is now 63
+definitions and 63 reachable tests rather than 62 and 61.
+
+**(d) `prefix_verified` REPORTED A CHECK THAT HAD NOT RUN.** On a first seed there is nothing
+on disk to be a prefix of, and the payload said `true` anyway — a green light for a comparison
+that did not happen. It is `None` there now and `True` only when a prefix was actually compared,
+which is the idiom `contract_track.recording_ok` already uses (None before its vintage opens,
+rather than a cheerful true). Pinned by its own test. Nobody had asked; it was caught reading
+the field back while writing the handoff.
+
+**(e) TWO DEFECTS IN `scripts/seed_track.py`'s OUTPUT, in my own escaping.** `\\n` printed
+literally, then a repair turned five of them into backslash-newline **line continuations** —
+which parse, and emit nothing. Caught by running the command rather than by reading it. Em dashes
+also mojibake on the Windows console (cp1252), so everything this script prints is ASCII.
+
+---
+
+## 5. Verified by execution
+
+* **`tests/test_index_mark.py`: 64 passed** — 59 after the new tests, 61 after the two the
+  mutation harness demanded, 63 after the shadowed control was restored and the census added,
+  64 with the `prefix_verified` vacuity pin. Was 44 at the end of session 39, and **64
+  definitions against 64 reachable tests**, which is now asserted rather than counted by hand.
+* **Full gate: 112/112 suites, exit 0.**
+* **Mutations: 14 of 14 caught, 0 missed** on the seed door, all anchors matching exactly once,
+  baseline green, `-B` + `PYTHONDONTWRITEBYTECODE=1` + a `__pycache__` purge, restore in
+  `finally`. **The write door's 10 were re-run and are still 10 of 10** (one anchor needed
+  widening: `if not res.get("ok"):` is no longer unique to one handler).
+* **THE MUTATION HARNESS FOUND TWO REAL COVERAGE GAPS, which is the whole reason to run it.**
+  Deleting the byte-prefix check and deleting the disk-header check both left the suite **green**:
+  every fixture I had written was caught by an earlier branch, so neither was ever reached. Two
+  tests were added to reach them — a file holding the right records in the wrong bytes, and an
+  upload dropping a column the recorded file had gained. Without the harness those two rules would
+  have shipped tested-in-name-only.
+* **A LIVE HTTP RUN of the real script against a real local instance** — not the Flask test
+  client, which cannot cover urllib, the header, `.env` or the exit codes. Seven scenarios: dry
+  run sends nothing (exit 0), install (201, exit 0), re-send (200, exit 0), extend (201, exit 0),
+  rewrite (409, exit 2, file unchanged), non-Index book (422, exit 2), unreachable host (exit 3).
+  **The token appears in no output on any of them.**
+* **THE REAL BOOK AND THE REAL HISTORY** were run through `seed()` into temp paths: 86 positions,
+  conformance `conforms: true` at an effective cap of 0.02315, 4 rows installed, reading back
+  through `index_track.load()` as 4 rows ending 2026-08-17, and a re-seed as a clean no-op.
+
+---
+
+## 6. Not done, named so it is not mistaken for done
+
+* **`PT-WRITER` IS NOT CLOSED.** Nothing has been seeded. Running `scripts/seed_track.py --send`
+  against the live service is an irreversible write to the contract-bound record and is **Don's**,
+  not mine. The row closes when a row is actually written.
+* **`.github/` UNTOUCHED**, as instructed. `track-row.yml` is already correct — it needs no change
+  once the seed lands; it will simply stop getting 422.
+* **The Store-vs-files divergence in §0(a) is named, not resolved.**
+* **The three-source disagreement on 2026-08-13 is not adjudicated** — the recorded row reads
+  `4.25 / 4.88 / -0.62` and §7.2a's re-derivation gave `4.3232 / 4.8794 / -0.5562`. The seed
+  installs **what is recorded**, verbatim, and does not arbitrate. Carried from session 39.
+* **The ~0.02pp seam from §7.2a stands** (book leg +0.0201pp; benchmark leg exact).
+* Carried: rotate `DEMO_ACCESS_TOKEN`; optionally set `ADMIN_WRITE_TOKEN`; `TRUSTED_PROXY_HOPS`
+  wants one production reading of `/admin/proxy-shape`; `/admin/*` sits outside the limiter block;
+  commit `41d7b12` is still stranded unpushed on the shared checkout's local `main`.
+
+---
+
+## 7. For Don — one command
+
+```
+python -m scripts.seed_track            # dry run: shows what would be sent, sends nothing
+python -m scripts.seed_track --send     # installs it
+```
+
+Then trigger the PT-WRITER Action from the Actions tab rather than waiting for 22:12 UTC. It
+should return **201** and write a row, instead of 422.
+
+**Read this before running it: after the seed, the SERVICE's copy is the record.** Your two local
+files become a backup, nothing syncs them back, and the weekly `track-backup` Action archives the
+service's copy from then on. Re-running the seeder later is safe — it refuses anything that would
+rewrite or truncate what the service has recorded, and answers 200 without writing if nothing has
+changed.
+
 # Session 39 — 2026-08-18 — `PT-WRITER`: the bound series gets a write door that cannot rewrite it
 
 **Zero trials.** A door and its enforcement — no hypothesis, no threshold, no verdict against a

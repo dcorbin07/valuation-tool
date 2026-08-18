@@ -35,6 +35,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import re
 import sys
 import tempfile
 
@@ -498,14 +499,45 @@ def test_appending_preserves_rows_it_did_not_write_and_keeps_them_ordered():
 
 
 def test_the_module_never_writes_unless_asked():
-    """`contract_row` computes and returns. The write is a separate call, on purpose."""
+    """`contract_row` computes and returns. The write is a separate call, on purpose.
+
+    BOUNDED BY THE NEXT TOP-LEVEL `def`, NOT BY `def append_row`. It used to end the slice at
+    `append_row`, which was the same thing right up until `seed` and its three helpers were
+    added BETWEEN the two — at which point the window covered four functions that write files
+    by design and the guard failed against a correct tree. A window anchored on a distant
+    landmark measures whatever drifts into it; this is the `src[i:i+2000]` defect on the write
+    door in a different shape, and the fix is the same one: bound it by the thing that ends it.
+    """
     src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                             "valuation", "screener", "index_mark.py"), encoding="utf-8").read()
-    i, j = src.find("def contract_row"), src.find("def append_row")
-    assert 0 < i < j, "the functions moved"
-    body = src[i:j]
+    i = src.find("def contract_row")
+    assert i > 0, "contract_row moved"
+    j = re.search(r"\n(?=def |@)", src[i:])
+    assert j, "contract_row is the last definition in the file, which it is not"
+    body = src[i:i + j.start()]
+    assert "def append_row" not in body and "def seed" not in body, \
+        "the slice ran past the end of contract_row"
     assert "open(" not in body.replace("open(meta_path", ""), "contract_row opens a file to write"
     assert "append_row" not in body, "contract_row writes as a side effect"
+    assert "_write_atomic" not in body, "contract_row writes as a side effect"
+
+
+def test_the_never_writes_guard_is_not_vacuous():
+    """The slice above must actually contain `contract_row`'s body.
+
+    A regex that matched too early would leave a one-line window in which no `open(` can
+    appear, and the guard would pass by seeing nothing — which is how a check that measures
+    nothing survives for months.
+    """
+    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "valuation", "screener", "index_mark.py"), encoding="utf-8").read()
+    i = src.find("def contract_row")
+    j = re.search(r"\n(?=def |@)", src[i:])
+    body = src[i:i + j.start()]
+    assert len(body.splitlines()) > 40, "the window is too small to be contract_row"
+    # things that ARE in contract_row, so the window is demonstrably over the right code
+    for token in ("refuse_before_close", "MIN_COVERAGE", "day_n", "_session"):
+        assert token in body, "%r missing — the window is not over contract_row" % token
 
 
 # =======================================================================================
@@ -1089,6 +1121,488 @@ def test_an_unreadable_cell_is_reported_verbatim_rather_than_nulled():
     assert out["n_priced"] == "2.5", out         # a fraction in an integer column is not a 2
     # a column the file has gained is passed through untouched, not guessed at
     assert index_mark.typed_row({"vintage": "4"})["vintage"] == "4"
+
+
+# =======================================================================================
+# THE SEED DOOR — POST /admin/track-seed
+#
+# The write door was never the blocker. On 2026-08-18 the PT-WRITER Action reached it,
+# authenticated, and was refused: "the book file /app/data/valquo_track.json is missing or
+# unreadable". `data/` is gitignored, so the book has never shipped with a deploy. These
+# tests are about the door that fixes that — and about the fact that it is, by some distance,
+# the most destructive admin route in the app: it installs the file the backup workflow calls
+# "the one thing that can't be re-derived".
+# =======================================================================================
+
+#: A CONFORMING book: 50 names at 2% each, so `valquo_index.conformance` passes both legs
+#: (>= 50 positions, and the 8% cap genuinely binds). `_client`'s two-name book is deliberately
+#: NOT reused — it fails conformance, which is the whole point of the refusal test below.
+_SEED_TICKERS = ["T%02d" % i for i in range(50)]
+_SEED_BOOK = {"inception_date": INCEPTION, "benchmark": "SPY", "scan_date": "2026-07-24",
+              "positions": [{"ticker": t, "weight": 0.02} for t in _SEED_TICKERS]}
+
+#: Prices for every name in that book, so the WRITE door can actually run after a seed. A
+#: sequence test whose second half cannot price the book would pass on a coverage refusal and
+#: prove nothing about the sequence.
+_SEED_SEQ = {t: {INCEPTION: 100.0, "2026-08-05": 105.0, "2026-08-06": 110.0,
+                 "2026-08-07": 120.0} for t in _SEED_TICKERS}
+_SEED_SEQ["SPY"] = {INCEPTION: 400.0, "2026-08-05": 402.0, "2026-08-06": 404.0,
+                    "2026-08-07": 408.0}
+
+_H = "date,day_n,valquo_pct,spy_pct,excess_pp,n_priced\r\n"
+_R1 = "2026-07-31,1,0.4126,0.6903,-0.2777,50\r\n"
+_R2 = "2026-08-03,2,0.7760,3.6228,-2.8468,50\r\n"
+_R3 = "2026-08-04,3,4.2500,4.8800,-0.6200,50\r\n"
+
+
+def _seed_client():
+    """A live app on isolated temp paths holding NEITHER file — the live service's real state.
+
+    Returns `(client, headers, meta_path, hist_path, restore)`.
+    """
+    from valuation.config import CONFIG
+    from valuation.saas.app_saas import create_saas_app
+    from valuation.screener import prices
+
+    CONFIG.admin_token = "test-token-index-mark"
+    app = create_saas_app(CONFIG)
+    app.config["TESTING"] = True
+
+    meta_path, hist_path = index_track.default_paths()
+    os.makedirs(os.path.dirname(os.path.abspath(meta_path)), exist_ok=True)
+    for f in (meta_path, hist_path):
+        try:
+            os.remove(f)
+        except OSError:
+            pass
+
+    real = prices.get_history_df
+    prices.get_history_df = _tape(_SEED_SEQ)
+
+    def restore():
+        prices.get_history_df = real
+        for f in (meta_path, hist_path):
+            try:
+                os.remove(f)
+            except OSError:
+                pass
+
+    return (app.test_client(), {"X-Admin-Token": CONFIG.admin_token},
+            meta_path, hist_path, restore)
+
+
+def _post_seed(c, hdr, book=None, history=_H + _R1 + _R2):
+    body = {"book": _SEED_BOOK if book is None else book}
+    if history is not None:
+        body["history"] = history
+    return c.post("/admin/track-seed", headers=hdr, json=body)
+
+
+def test_the_seed_installs_a_book_and_a_history_on_a_service_that_has_neither():
+    """The happy path, which is the state the live service is actually in."""
+    c, hdr, meta, hist, restore = _seed_client()
+    try:
+        assert not os.path.exists(meta) and not os.path.exists(hist)
+        r = _post_seed(c, hdr)
+        assert r.status_code == 201, (r.status_code, r.get_json())
+        j = r.get_json()
+        assert j["ok"] and j["book_wrote"] and j["history_wrote"], j
+        assert j["history_rows_added"] == 2 and j["n_positions"] == 50, j
+        assert j["conformance"]["conforms"] is True, j["conformance"]
+        assert os.path.exists(meta) and os.path.exists(hist)
+    finally:
+        restore()
+
+
+def test_the_seeded_files_read_back_through_index_track_load_unchanged():
+    """The pin the whole module is built on: what is written must be what the reader reads.
+
+    `index_track.load()` is the only reader of these two files that anything user-facing goes
+    through, so a seed that writes something it cannot read back has installed a record that
+    does not exist as far as the product is concerned.
+    """
+    c, hdr, meta, hist, restore = _seed_client()
+    try:
+        assert _post_seed(c, hdr, history=_H + _R1 + _R2 + _R3).status_code == 201
+        lo = index_track.load(meta, hist)
+        assert [r["date"] for r in lo["series"]] == ["2026-07-31", "2026-08-03", "2026-08-04"]
+        assert lo["series"][0]["valquo"] == 0.4126 and lo["series"][0]["spy"] == 0.6903
+        assert lo["series"][-1]["excess"] == -0.62
+        assert lo["meta"]["inception_date"] == INCEPTION
+        assert lo["meta"]["benchmark"] == "SPY"
+        assert len(lo["meta"]["positions"]) == 50
+    finally:
+        restore()
+
+
+def test_a_book_that_is_not_the_index_is_refused_and_nothing_at_all_is_written():
+    """PT-SPLIT's conformance check, as a GATE rather than a description.
+
+    The Tradier sandbox engine ran a 10-name book for four days and it was reported under the
+    words "Valquo Index vs SPY". `conformance` exists so that book can be NAMED; this door is
+    where naming it becomes refusing it. The second half of the assertion is the load-bearing
+    one: a refusal must not leave a half-installed service behind.
+    """
+    c, hdr, meta, hist, restore = _seed_client()
+    try:
+        small = dict(_SEED_BOOK,
+                     positions=[{"ticker": "T%d" % i, "weight": 0.10} for i in range(10)])
+        r = _post_seed(c, hdr, book=small)
+        assert r.status_code == 422, (r.status_code, r.get_json())
+        j = r.get_json()
+        assert j["ok"] is False and j["stage"] == "conformance", j
+        assert j["conformance"]["conforms"] is False
+        assert "below the contract floor of 50" in j["reason"], j["reason"]
+        assert "does not bind" in j["reason"], j["reason"]
+        assert not os.path.exists(meta), "a refused seed still wrote the book"
+        assert not os.path.exists(hist), "a refused seed still wrote the history"
+    finally:
+        restore()
+
+
+def test_the_upload_may_extend_the_recorded_series():
+    """The rule is EXTEND, so the extending case has to work, not merely the refusals."""
+    c, hdr, _, hist, restore = _seed_client()
+    try:
+        assert _post_seed(c, hdr).status_code == 201
+        r = _post_seed(c, hdr, history=_H + _R1 + _R2 + _R3)
+        assert r.status_code == 201, (r.status_code, r.get_json())
+        j = r.get_json()
+        assert j["history_rows_before"] == 2 and j["history_rows_after"] == 3
+        assert j["history_rows_added"] == 1 and j["prefix_verified"] is True, j
+    finally:
+        restore()
+
+
+def test_the_upload_may_not_rewrite_a_recorded_day():
+    """The rule that makes this door safe to point at a five-year evidence record.
+
+    A stale local copy re-uploaded after the service has moved on is the ordinary way this
+    fires — not malice. The refusal names the row, the column and both values, because a
+    caller that is told only "refused" will reach for a flag to turn the refusal off.
+    """
+    c, hdr, _, hist, restore = _seed_client()
+    try:
+        assert _post_seed(c, hdr).status_code == 201
+        before = open(hist, "rb").read()
+
+        r = _post_seed(c, hdr, history=_H + _R1.replace("0.4126", "9.9999") + _R2)
+        assert r.status_code == 409, (r.status_code, r.get_json())
+        j = r.get_json()
+        assert j["would_rewrite"] is True, j
+        assert "rewrites a recorded day" in j["reason"], j["reason"]
+        assert "0.4126" in j["reason"] and "9.9999" in j["reason"], j["reason"]
+        assert open(hist, "rb").read() == before, "a refused upload still changed the file"
+    finally:
+        restore()
+
+
+def test_the_upload_may_not_truncate_the_recorded_series():
+    """Dropping rows is the other way to lose a recorded day, and it is the quieter one."""
+    c, hdr, _, hist, restore = _seed_client()
+    try:
+        assert _post_seed(c, hdr).status_code == 201
+        before = open(hist, "rb").read()
+        r = _post_seed(c, hdr, history=_H + _R1)
+        assert r.status_code == 409, (r.status_code, r.get_json())
+        assert "never truncate" in r.get_json()["reason"], r.get_json()["reason"]
+        assert open(hist, "rb").read() == before
+    finally:
+        restore()
+
+
+def test_an_extending_seed_leaves_the_previous_bytes_as_an_exact_prefix():
+    """The guarantee is byte-level because the append door's is, and they share a serialiser.
+
+    Stating it in weaker terms (same rows, same values) would be untestable against
+    `track-row.yml`'s own `cmp` on `head -n N`, and would permit a rewrite that changed only
+    formatting — which still rewrites every line of the file the contract binds.
+    """
+    c, hdr, _, hist, restore = _seed_client()
+    try:
+        assert _post_seed(c, hdr).status_code == 201
+        before = open(hist, "rb").read()
+        assert _post_seed(c, hdr, history=_H + _R1 + _R2 + _R3).status_code == 201
+        after = open(hist, "rb").read()
+        assert after.startswith(before), (before, after)
+        assert len(after) > len(before)
+    finally:
+        restore()
+
+
+def test_the_seed_byte_prefix_check_is_not_vacuous():
+    """A positive control: the assertion above must be capable of failing.
+
+    NAMED `seed_` DELIBERATELY. The write door has a control of the same shape, and giving this
+    one the same name SHADOWED it: Python rebinds silently, `globals()` keeps one entry, and the
+    older control stopped running the moment these tests landed. Found by comparing `def test_`
+    (62) against what the runner reported (61) - a test deleted by a name collision is invisible
+    in a green run, which is why the census below is now itself a test.
+
+    Two rows written by the DEFAULT append mode in the wrong order produce a file whose
+    earlier bytes are not a prefix of the later ones — so `startswith` is measuring something.
+    """
+    c, hdr, _, hist, restore = _seed_client()
+    try:
+        assert _post_seed(c, hdr, history=_H + _R2).status_code == 201
+        before = open(hist, "rb").read()
+        index_mark.append_row({"date": "2026-07-31", "day_n": 1, "valquo_pct": 0.4126,
+                               "spy_pct": 0.6903, "excess_pp": -0.2777, "n_priced": 50}, hist)
+        after = open(hist, "rb").read()
+        assert not after.startswith(before), "the control cannot fail, so the check proves nothing"
+    finally:
+        restore()
+
+
+def test_re_seeding_exactly_what_the_service_already_holds_changes_nothing_and_says_so():
+    """Idempotency, so a re-run of `scripts/seed_track.py` is safe rather than merely harmless.
+
+    200 rather than 201 is a FACT about the two files, not an assumption: both writes are
+    skipped when the bytes already match, so a caller that retries touches neither file.
+    """
+    c, hdr, meta, hist, restore = _seed_client()
+    try:
+        assert _post_seed(c, hdr).status_code == 201
+        m0, h0 = os.path.getmtime(meta), open(hist, "rb").read()
+
+        r = _post_seed(c, hdr)
+        assert r.status_code == 200, (r.status_code, r.get_json())
+        j = r.get_json()
+        assert j["ok"] and j["changed"] is False, j
+        assert j["book_wrote"] is False and j["history_wrote"] is False, j
+        assert open(hist, "rb").read() == h0
+        assert os.path.getmtime(meta) == m0, "the book was rewritten on a no-op"
+    finally:
+        restore()
+
+
+def test_a_book_may_not_be_seeded_without_a_history_to_stand_on():
+    """The trap that would have lost the recorded days INVISIBLY.
+
+    Seed a book onto an empty series and the next append starts a fresh series at today's
+    date. `day_n` is computed from the inception date, so the new first row carries a
+    plausible day number and nothing raises — the four recorded days would simply not be in
+    the copy this seed is about to declare the record.
+    """
+    c, hdr, meta, hist, restore = _seed_client()
+    try:
+        r = _post_seed(c, hdr, history=None)
+        assert r.status_code == 422, (r.status_code, r.get_json())
+        j = r.get_json()
+        assert j["stage"] == "history", j
+        assert "start a NEW series at today" in j["reason"], j["reason"]
+        assert not os.path.exists(meta), "a refused seed still installed the book"
+
+        # ...and it is allowed once the service HAS rows, because then there is nothing to lose.
+        assert _post_seed(c, hdr).status_code == 201
+        r = _post_seed(c, hdr, book=dict(_SEED_BOOK, scan_date="2026-08-14"), history=None)
+        assert r.status_code == 201, (r.status_code, r.get_json())
+        assert r.get_json()["history_wrote"] is False
+    finally:
+        restore()
+
+
+def test_the_seeded_header_must_be_the_one_the_append_door_would_compute():
+    """Otherwise the seed installs a series the unattended writer can never append to.
+
+    `append_row(append_only=True)` REFUSES a header it would have to widen, because widening
+    rewrites every line and so cannot preserve the byte prefix. A seed that accepted a
+    differently-shaped header would therefore succeed, look healthy, and produce a service
+    where every subsequent write is refused — with the reason pointing at the writer.
+    """
+    c, hdr, _, _, restore = _seed_client()
+    try:
+        wrong = ("day_n,date,valquo_pct,spy_pct,excess_pp,n_priced\r\n"
+                 "1,2026-07-31,0.4126,0.6903,-0.2777,50\r\n")
+        r = _post_seed(c, hdr, history=wrong)
+        assert r.status_code == 422, (r.status_code, r.get_json())
+        assert "append_row would compute" in r.get_json()["reason"], r.get_json()["reason"]
+    finally:
+        restore()
+
+
+def test_a_ragged_or_duplicated_upload_is_refused_rather_than_normalised():
+    """`csv.DictReader` pads short rows and files surplus cells under one key, so a rewrite of
+    a ragged file discards or invents cells and looks perfectly well-formed afterwards. And a
+    repeated date lets `index_track.load`'s keep-the-last rule silently pick which of two
+    readings of one day is the record."""
+    c, hdr, _, _, restore = _seed_client()
+    try:
+        r = _post_seed(c, hdr, history=_H + "2026-07-31,1,0.4126,0.6903\r\n")
+        assert r.status_code == 422, (r.status_code, r.get_json())
+        assert "ragged" in r.get_json()["reason"], r.get_json()["reason"]
+
+        r = _post_seed(c, hdr, history=_H + _R1 + _R1)
+        assert r.status_code == 422, (r.status_code, r.get_json())
+        assert "repeats a date" in r.get_json()["reason"], r.get_json()["reason"]
+    finally:
+        restore()
+
+
+def test_after_a_seed_the_write_door_works_end_to_end():
+    """THE DELIVERABLE. The seed is worth nothing unless the sequence completes.
+
+    This is the exact pair of calls the live service will receive: `scripts/seed_track.py`
+    once, then `track-row.yml` every weekday. Asserting them separately would leave the join
+    untested, and the join is where the header rule and the append-only rule meet.
+    """
+    c, hdr, meta, hist, restore = _seed_client()
+    try:
+        assert _post_seed(c, hdr, history=_H + _R1 + _R2).status_code == 201
+        seeded = open(hist, "rb").read()
+
+        w = c.post("/admin/track-row?date=2026-08-06&append=1", headers=hdr)
+        assert w.status_code == 201, (w.status_code, w.get_json())
+        j = w.get_json()
+        assert j["ok"] and j["append"]["wrote"] is True, j
+        assert j["row"]["date"] == "2026-08-06" and j["row"]["n_priced"] == 50, j["row"]
+
+        # the write extended the seeded file rather than reshaping it
+        assert open(hist, "rb").read().startswith(seeded)
+        assert [r["date"] for r in index_track.load(meta, hist)["series"]] == \
+            ["2026-07-31", "2026-08-03", "2026-08-06"]
+
+        # and the door is still idempotent on the seeded series
+        assert c.post("/admin/track-row?date=2026-08-06&append=1",
+                      headers=hdr).status_code == 200
+    finally:
+        restore()
+
+
+def test_a_recorded_file_not_in_the_writers_own_form_is_refused_not_rewritten():
+    """The byte check, reached only when every recorded VALUE already agrees.
+
+    Found by mutation: replacing this branch with `if False:` left the whole suite green, so
+    nothing was exercising it. It fires when the file on disk holds the right records in the
+    wrong bytes — hand-edited, or saved by a tool that writes bare LF. Rewriting it would be
+    the one thing the append-only guarantee forbids (every line moves), so it refuses, and the
+    reason names the encoding rather than leaving a caller to guess at a rejected upload whose
+    numbers are visibly identical.
+    """
+    c, hdr, _, hist, restore = _seed_client()
+    try:
+        assert _post_seed(c, hdr).status_code == 201
+        # same records, bare LF: a real file this project could receive back from a laptop
+        open(hist, "wb").write((_H + _R1 + _R2).replace("\r\n", "\n").encode())
+        stale = open(hist, "rb").read()
+
+        r = _post_seed(c, hdr, history=_H + _R1 + _R2 + _R3)
+        assert r.status_code == 409, (r.status_code, r.get_json())
+        j = r.get_json()
+        assert j["would_rewrite"] is True, j
+        assert "every recorded value matches" in j["reason"], j["reason"]
+        assert "line endings" in j["reason"], j["reason"]
+        assert open(hist, "rb").read() == stale, "a refused upload still rewrote the file"
+    finally:
+        restore()
+
+
+def test_an_upload_may_not_drop_a_column_the_recorded_file_has_gained():
+    """A second header rule, and it is NOT the one two tests above.
+
+    That one refuses a header `append_row` would never compute. This one refuses a
+    canonically-shaped header that simply disagrees with the file on disk — the case where the
+    service's series has gained a column (`MA4` preserves those forever) and a local copy
+    predates it. Also found by mutation: the earlier header check fires first on every fixture
+    I had written, so this branch was never reached.
+    """
+    c, hdr, _, hist, restore = _seed_client()
+    try:
+        wide_h = "date,day_n,valquo_pct,spy_pct,excess_pp,n_priced,vintage\r\n"
+        wide = wide_h + _R1.rstrip("\r\n") + ",3\r\n" + _R2.rstrip("\r\n") + ",3\r\n"
+        assert _post_seed(c, hdr, history=wide).status_code == 201
+        before = open(hist, "rb").read()
+
+        # canonically shaped (ROW_COLUMNS then extras — there are none), and NOT what is there
+        r = _post_seed(c, hdr, history=_H + _R1 + _R2)
+        assert r.status_code == 409, (r.status_code, r.get_json())
+        j = r.get_json()
+        assert j["would_rewrite"] is True, j
+        assert "differs from the one on disk" in j["reason"], j["reason"]
+        assert "vintage" in j["reason"], j["reason"]
+        assert open(hist, "rb").read() == before
+    finally:
+        restore()
+
+
+def test_the_seed_door_needs_the_admin_token_and_is_post_only():
+    """It installs the file `track-backup.yml` calls the one thing that cannot be re-derived."""
+    c, hdr, meta, _, restore = _seed_client()
+    try:
+        assert c.post("/admin/track-seed", json={"book": _SEED_BOOK}).status_code == 401
+        assert c.post("/admin/track-seed", headers={"X-Admin-Token": "wrong"},
+                      json={"book": _SEED_BOOK}).status_code == 401
+        assert c.get("/admin/track-seed", headers=hdr).status_code == 405
+        assert not os.path.exists(meta), "an unauthorised call still wrote the book"
+
+        r = c.post("/admin/track-seed", headers=hdr, json={})
+        assert r.status_code == 400, (r.status_code, r.get_json())
+    finally:
+        restore()
+
+
+def test_the_seed_handler_delegates_and_does_no_file_io_of_its_own():
+    """One implementation per rule — the B7 split this project keeps paying for.
+
+    Bounded by the NEXT route rather than a fixed character window: the same check on the
+    write door used `src[i:i+2000]` and the handler grew past it, leaving the window over the
+    docstring alone. It would have passed vacuously while reporting that the endpoint
+    delegates.
+    """
+    import valuation.saas.app_saas as m
+
+    src = open(m.__file__, encoding="utf-8").read()
+    i = src.find('@app.route("/admin/track-seed"')
+    assert i > 0
+    body = src[i:src.find("@app.route", i + 10)]
+    assert len(body) > 500, "the slice did not reach the handler body"
+
+    assert "index_mark.seed(" in body, "the handler does not call the library at all"
+    for banned in ("open(", "csv.", "os.replace", "conformance(", "json.dumps"):
+        assert banned not in body, (
+            "the seed handler contains %r — the rules and the writing belong in "
+            "index_mark.seed, so the CLI and this door cannot drift" % banned)
+    assert "would_rewrite" in body and "409" in body and "422" in body
+
+
+def test_the_prefix_flag_does_not_report_a_check_that_never_ran():
+    """`prefix_verified` is None on a first seed, True only when a prefix was actually checked.
+
+    On an empty service there is nothing on disk to be a prefix of, so reporting True would be
+    a green light for a comparison that did not happen - the vacuous-pass pattern this project
+    keeps paying for, and the reason `contract_track.recording_ok` returns None before its
+    vintage opens rather than a cheerful true.
+    """
+    c, hdr, _, _, restore = _seed_client()
+    try:
+        first = _post_seed(c, hdr)
+        assert first.status_code == 201
+        assert first.get_json()["prefix_verified"] is None, first.get_json()
+
+        second = _post_seed(c, hdr, history=_H + _R1 + _R2 + _R3)
+        assert second.status_code == 201
+        assert second.get_json()["prefix_verified"] is True, second.get_json()
+    finally:
+        restore()
+
+
+def test_no_test_in_this_file_is_shadowed_by_a_duplicate_name():
+    """Every `def test_` in this file must survive to `globals()`.
+
+    A second definition of an existing name rebinds it silently: nothing raises, the suite stays
+    green, and one test simply stops running. It happened here - the seed door's byte-prefix
+    control was written with the write door's name and deleted it - and it was caught by
+    comparing two counts by hand, which is not a thing to rely on twice.
+    """
+    src = open(os.path.abspath(__file__), encoding="utf-8").read()
+    names = re.findall(r"^def (test_\w+)", src, re.M)
+    dupes = sorted({n for n in names if names.count(n) > 1})
+    assert not dupes, ("these test names are defined more than once, so the earlier one never "
+                       "runs: " + ", ".join(dupes))
+    live = [k for k in globals() if k.startswith("test_") and callable(globals()[k])]
+    assert len(live) == len(names), (
+        "%d `def test_` in the file but %d reachable - %s"
+        % (len(names), len(live), sorted(set(names) - set(live))))
 
 
 def _run_all():

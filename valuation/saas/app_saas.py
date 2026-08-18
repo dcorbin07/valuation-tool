@@ -647,6 +647,81 @@ def create_saas_app(cfg=CONFIG):
         except Exception as e:
             return jsonify({"ok": False, "error": safe_error(e)}), 500
 
+    @app.route("/admin/track-seed", methods=["POST"])
+    def admin_track_seed():
+        """Install the bound book and its recorded history on a service that has neither.
+
+        WHY THIS EXISTS, AND IT IS A MEASUREMENT RATHER THAN A DESIGN PREFERENCE. On
+        2026-08-18 the PT-WRITER Action reached `POST /admin/track-row?append=1` here,
+        authenticated, and was refused: *"the book file /app/data/valquo_track.json is
+        missing or unreadable"*. That is `index_mark.load_book` working exactly as written.
+        `data/` is gitignored, so the book has never shipped with any deploy — it exists only
+        on Don's machine. The write door was not the blocker; THE SERVICE HAS NOTHING TO MARK.
+
+        AFTER A SUCCESSFUL SEED THE SERVICE COPY IS THE RECORD, and the local files become a
+        stale backup. Nothing syncs them back, on purpose: this project has already published
+        two different "Valquo Index vs SPY" numbers from two books, and the cure for that is
+        ONE authority rather than better reconciliation between several.
+
+        Body is JSON, mirroring the two files:
+
+            {"book": {"inception_date": ..., "benchmark": "SPY", "positions": [...]},
+             "history": "date,day_n,valquo_pct,...\r\n2026-07-31,1,..."}
+
+        `history` may be omitted ONLY when the service already holds rows — seeding a book
+        onto an empty series would let the first append start a fresh series at today's date,
+        with every earlier day silently absent and a plausible `day_n` making the loss
+        invisible. `index_mark.seed` refuses that, and this handler does not second-guess it.
+
+        THE RULES LIVE IN `index_mark.seed`, NOT HERE, for the same reason the write door's
+        rules live in `append_row`: one implementation per rule, so the HTTP door and any
+        future caller cannot drift apart. This handler authenticates, hands over two values,
+        and turns the outcome into a status code. It does no validation, no arithmetic and no
+        file IO of its own, and a test pins that.
+
+        THE STATUS CODE CARRIES THE OUTCOME, because the caller is a script that must branch
+        without parsing prose:
+
+            201  the service's copy changed — the book, the history, or both
+            200  nothing changed; the service already held exactly this
+            409  REFUSED: the upload disagrees with the recorded series. It rewrites a
+                 recorded day, truncates it, reshapes its header, or cannot preserve the byte
+                 prefix. An upload may EXTEND the record and may never rewrite it.
+            422  REFUSED: the book is not the contract-bound Index (`conformance`), or a book
+                 was offered with no history to stand on, or the upload is malformed.
+            400  no book in the body at all.
+            500  an unexpected exception, and only that.
+
+        Same `X-Admin-Token` as every other admin route, and it inherits `/admin/`. NOT
+        `_admin_write_ok()`: MA10's split guards the two routes that can re-tune the live
+        composite, and installing a performance record changes no model. It is nonetheless
+        the most destructive admin route here by a distance — which is why every one of its
+        refusals is in the library, tested, and mutation-checked.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..screener import index_mark
+            body = request.get_json(silent=True) or {}
+            book = body.get("book")
+            if not isinstance(book, dict) or not book:
+                return jsonify({"ok": False, "reason": "no book in the request body"}), 400
+            history = body.get("history")
+            if history is not None and not isinstance(history, str):
+                return jsonify({"ok": False,
+                                "reason": "history must be the CSV file's text"}), 422
+
+            res = index_mark.seed(book, history)
+            if not res.get("ok"):
+                # 409 for "you disagree with the record", 422 for "this is not the Index" and
+                # for a malformed upload. Both are 4xx: nothing happened, and retrying the same
+                # bytes will not change that. A 5xx would tell a caller to retry something that
+                # is not broken — the same reasoning the write door's docstring sets out.
+                return jsonify(res), (409 if res.get("would_rewrite") else 422)
+            return jsonify(res), (201 if res.get("changed") else 200)
+        except Exception as e:
+            return jsonify({"ok": False, "error": safe_error(e)}), 500
+
     @app.route("/admin/ingest-sample", methods=["POST"])
     def admin_ingest_sample():
         """The landing page's sample valuation, computed in CI and posted here.

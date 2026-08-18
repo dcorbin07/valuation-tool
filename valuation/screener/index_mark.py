@@ -87,6 +87,7 @@ from __future__ import annotations
 
 import csv
 import datetime as _dt
+import io
 import json
 import os
 from typing import Callable, Optional
@@ -345,6 +346,321 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
     return {"ok": True, "reason": "", "row": row, "coverage": coverage, "unpriced": unpriced,
             "inception_date": inception.isoformat(), "benchmark": bench,
             "n_positions": len(book["positions"]), "source": "screener/prices.py (Stooq -> yfinance)"}
+
+
+def _canonical_csv(rows: list, fields: list) -> bytes:
+    """The rows serialised exactly as `append_row` writes them.
+
+    ONE SERIALISER IS WHAT MAKES THE BYTE-PREFIX RULE CHECKABLE. `seed` compares the bytes on
+    disk against the bytes this produces, and `append_row` writes through the same
+    `csv.DictWriter` with the same `newline=""`, so "the previous bytes are still an exact
+    prefix" is a property both functions can actually hold rather than a claim about one of
+    them. It also makes the rule immune to the CALLER's line endings -- an upload sent with
+    bare LF and one sent with CRLF canonicalise identically -- so a refusal means a recorded
+    value changed, which is the thing worth refusing over.
+    """
+    buf = io.StringIO(newline="")
+    w = csv.DictWriter(buf, fieldnames=fields)
+    w.writeheader()
+    for r in rows:
+        w.writerow({k: r.get(k) for k in fields})
+    return buf.getvalue().encode("utf-8")
+
+
+def _parse_history(text: str, what: str, raw: bytes = None) -> dict:
+    """Rows + header + raw bytes of a recorded CSV, or a reason it cannot be used.
+
+    Shares `append_row`'s ragged-file rule and its sentinels: a surplus cell or a short row is
+    REFUSED, never normalised, because normalising invents or discards cells and the file looks
+    perfectly well-formed afterwards.
+    """
+    rd = csv.DictReader(io.StringIO(text, newline=""), restkey=_RESTKEY, restval=_RESTVAL)
+    try:
+        rows = [r for r in rd]
+    except Exception as e:                                   # noqa: BLE001
+        return {"ok": False, "reason": "could not parse " + what + ": " + str(e)}
+    fields = [c for c in (rd.fieldnames or []) if c]
+    for i, r in enumerate(rows):
+        if _RESTKEY in r or any(v is _RESTVAL for v in r.values()):
+            return {"ok": False, "reason":
+                    what + " is ragged: data row " + str(i + 2) + " does not match its "
+                    "header, so reading it would discard or invent cells. Repair it by hand."}
+    return {"ok": True, "rows": rows, "fields": fields,
+            "raw": raw if raw is not None else text.encode("utf-8"), "exists": True}
+
+
+def _read_history(path: str) -> dict:
+    """`_parse_history` of what is on disk. A missing file is a normal state, not an error."""
+    try:
+        raw = open(path, "rb").read()
+    except FileNotFoundError:
+        return {"ok": True, "rows": [], "fields": [], "raw": b"", "exists": False}
+    except Exception as e:                                   # noqa: BLE001
+        return {"ok": False, "reason": "could not read " + str(path) + ": " + str(e)}
+    return _parse_history(raw.decode("utf-8-sig", errors="replace"), str(path), raw=raw)
+
+
+def _write_atomic(path: str, payload: bytes):
+    """Write bytes through a temp file and `os.replace`. Returns a reason on failure, else None.
+
+    `open(path, "w")` truncates before it writes, so an interruption leaves the target empty or
+    partial -- and one of these two targets is the file `track-backup.yml` calls *"the one thing
+    that can't be re-derived"*. Renaming over the original means a failed write leaves the
+    PREVIOUS file intact, which is also why no separate pre-write copy is taken: the original
+    *is* the copy until the rename succeeds. Same construction as `append_row`, deliberately.
+    """
+    d = os.path.dirname(os.path.abspath(path))
+    if d and not os.path.isdir(d):
+        try:
+            os.makedirs(d, exist_ok=True)
+        except Exception as e:                               # noqa: BLE001
+            return "could not create " + d + ": " + str(e)
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "wb") as f:
+            f.write(payload)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except Exception as e:                                   # noqa: BLE001
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        return "could not write " + str(path) + ": " + str(e)
+    return None
+
+
+def seed(book: dict, history_text: str = None, *, meta_path: str = None,
+         history_path: str = None) -> dict:
+    """Install the bound book and its recorded history on a service that has neither.
+
+    THE PROBLEM THIS SOLVES, MEASURED RATHER THAN ASSUMED. On 2026-08-18 the PT-WRITER Action
+    reached `POST /admin/track-row?append=1` on the live service, authenticated, and was
+    refused with *"the book file /app/data/valquo_track.json is missing or unreadable"* --
+    which is `load_book` working exactly as written. `data/` is gitignored, so the book has
+    never shipped with any deploy; it exists only on Don's machine. The write door was never
+    the blocker. THE SERVICE HAS NOTHING TO MARK.
+
+    AFTER A SUCCESSFUL SEED THE SERVICE COPY IS THE RECORD. The local files become a stale
+    backup the moment the service writes its first row, and nothing here syncs them back. That
+    is a deliberate choice of ONE recorder over two: this project has already published two
+    different "Valquo Index vs SPY" numbers from two books -- see `index_track`'s own comment
+    on the 2026-08-05 recap -- and the cure for that is a single authority, not better
+    reconciliation between several.
+
+    THREE RULES, ENFORCED HERE RATHER THAN IN A CALLER, so every door obeys one implementation:
+
+    1. **THE BOOK MUST BE THE INDEX.** Validated through `valquo_index.conformance` -- the same
+       check `PT-SPLIT` built and `paper_track.seed_book` gates on -- so a truncated scan cannot
+       be installed under the contract's name. A refusal carries `why_not` verbatim.
+
+    2. **THE HISTORY MAY EXTEND WHAT IS ON DISK AND MAY NEVER REWRITE IT.** If the service
+       already holds rows, the upload's first N records must match them cell for cell AND the
+       bytes on disk must be an exact prefix of the canonicalised upload. Both, and they are
+       reported separately on purpose: the record check is the substantive rule, and when it
+       passes while the byte check fails the reason names the encoding difference instead of
+       reading as a mystery refusal. A shorter upload is a truncation and is refused.
+
+    3. **A BOOK MAY NOT BE SEEDED WITHOUT A HISTORY TO STAND ON.** If the service holds no rows
+       and none are supplied, this refuses -- because `append_row` would then create a fresh
+       series whose first row is TODAY, every earlier recorded day would be absent from the copy
+       this seed is about to make the record, and NOTHING WOULD RAISE. `day_n` is computed from
+       the inception date, so the new first row would carry a plausible day number, which is
+       precisely what would make the loss invisible.
+
+    THE HEADER MUST BE THE ONE `append_row` WOULD COMPUTE -- `ROW_COLUMNS` in order, then any
+    columns the file has gained. Not a tidiness rule: `append_row(append_only=True)` REFUSES a
+    header it would have to widen, so seeding a differently-shaped header installs a series the
+    unattended writer can never append to. The end-to-end sequence is the deliverable here, not
+    the seed on its own.
+
+    Both files are written through `_write_atomic`, and THE HISTORY IS WRITTEN FIRST. The two
+    orderings are not symmetric: history-then-book leaves, on a failed book write, a service
+    that refuses at `load_book` -- exactly today's state, no harm done. Book-then-history would
+    leave a service holding a book and no series, which is the one state rule 3 exists to
+    prevent.
+    """
+    from . import index_track
+    from ..edge import valquo_index as _vi
+
+    mp, hp = index_track.default_paths()
+    meta_path = meta_path or mp
+    history_path = history_path or hp
+
+    out = {"ok": False, "stage": "book", "reason": "", "book_wrote": False,
+           "history_wrote": False, "meta_path": meta_path, "history_path": history_path}
+
+    if not isinstance(book, dict) or not book:
+        out["reason"] = "no book supplied"
+        return out
+
+    positions = []
+    for pos in (book.get("positions") or []):
+        t = str(pos.get("ticker") or "").strip().upper()
+        w = _f(pos.get("weight"))
+        if t and w and w > 0:
+            positions.append({"ticker": t, "weight": w})
+    if not positions:
+        out["reason"] = "the book carries no priceable positions"
+        return out
+    if _date(book.get("inception_date")) is None:
+        out["reason"] = "the book carries no readable inception_date"
+        return out
+
+    # THE CAP IS DERIVED, AND THE DERIVATION IS THE HONEST PART. `build_index` records the cap
+    # it APPLIED as `effective_max_weight`; the tracker's meta file does not carry that field
+    # -- measured on the real book, it holds benchmark, inception_date, positions and scan_date
+    # and nothing else -- so the observed maximum weight stands in for it. That is sound because
+    # a cap is an upper bound: an observed max at or under 8% cannot have been produced by a cap
+    # that failed to bind at 8%. The one case where the two diverge is a book of 13 or fewer
+    # names whose score weights happen to peak below the relaxed cap, and that book misses the
+    # 50-name floor by a wide margin, so `conforms` is unmoved. A recorded value is PREFERRED
+    # when the file gains one, so this degrades to reading the truth rather than inferring it.
+    cap = _f(book.get("effective_max_weight"))
+    cap_derived = cap is None
+    if cap is None:
+        cap = max(p["weight"] for p in positions)
+    conf = _vi.conformance(len(positions), cap)
+    conf["effective_max_weight_derived_from_positions"] = cap_derived
+    out["conformance"] = conf
+    if not conf.get("conforms"):
+        out["stage"] = "conformance"
+        out["reason"] = ("this book is not the contract-bound Valquo Index and will not be "
+                         "installed under its name: " + "; ".join(conf.get("why_not") or [])
+                         + ". PAPER_TRACK_CONTRACT.md binds ONE object.")
+        return out
+
+    disk = _read_history(history_path)
+    if not disk.get("ok"):
+        out["stage"] = "history"
+        out["reason"] = disk["reason"]
+        return out
+    out["history_rows_before"] = len(disk["rows"])
+
+    if history_text is None:
+        if not disk["rows"]:
+            out["stage"] = "history"
+            out["reason"] = ("refusing to seed a book with no recorded history: the service "
+                             "holds no rows and none were supplied, so the first append would "
+                             "start a NEW series at today's date and every earlier recorded "
+                             "day would be silently absent from the copy this seed makes the "
+                             "record. Supply the history CSV.")
+            return out
+        out["history_rows_after"] = len(disk["rows"])
+        out["history_rows_added"] = 0
+        out["prefix_verified"] = None      # no upload, so nothing was compared
+    else:
+        up = _parse_history(str(history_text).lstrip("\ufeff"), "the uploaded history")
+        if not up.get("ok"):
+            out["stage"] = "history"
+            out["reason"] = up["reason"]
+            return out
+        rows, fields = up["rows"], up["fields"]
+        if not rows:
+            out["stage"] = "history"
+            out["reason"] = "the uploaded history carries no data rows"
+            return out
+
+        want = list(ROW_COLUMNS) + [c for c in fields if c not in ROW_COLUMNS]
+        if fields != want:
+            out["stage"] = "history"
+            out["reason"] = ("the uploaded history's header is " + ",".join(fields)
+                             + " and append_row would compute " + ",".join(want)
+                             + ". Seeding a header the unattended writer would have to widen "
+                               "installs a series it can never append to, because append_only "
+                               "REFUSES a schema change.")
+            return out
+
+        dates = [(r.get("date") or "").strip() for r in rows]
+        if any(not d for d in dates):
+            out["stage"] = "history"
+            out["reason"] = "the uploaded history has a row with no date"
+            return out
+        if len(set(dates)) != len(dates):
+            out["stage"] = "history"
+            out["reason"] = ("the uploaded history repeats a date. index_track.load keeps the "
+                             "LAST row per date, so a duplicate silently decides which of two "
+                             "readings of one day is the record.")
+            return out
+        if dates != sorted(dates):
+            out["stage"] = "history"
+            out["reason"] = ("the uploaded history is not in date order, and the byte prefix "
+                             "is defined on the order the file is written in")
+            return out
+
+        n = len(disk["rows"])
+        if n:
+            if disk["fields"] != fields:
+                out["stage"] = "history"
+                out["would_rewrite"] = True
+                out["reason"] = ("the uploaded history's header (" + ",".join(fields)
+                                 + ") differs from the one on disk (" + ",".join(disk["fields"])
+                                 + "); an upload may EXTEND the recorded series, never reshape "
+                                   "it")
+                return out
+            if len(rows) < n:
+                out["stage"] = "history"
+                out["would_rewrite"] = True
+                out["reason"] = ("the uploaded history has " + str(len(rows)) + " rows against "
+                                 + str(n) + " on disk. An upload may extend the recorded "
+                                 "series, never truncate it.")
+                return out
+            for i in range(n):
+                a, b = disk["rows"][i], rows[i]
+                for k in fields:
+                    if (a.get(k) or "") != (b.get(k) or ""):
+                        out["stage"] = "history"
+                        out["would_rewrite"] = True
+                        out["reason"] = ("the upload rewrites a recorded day: row "
+                                         + str(i + 2) + " (" + str(a.get("date"))
+                                         + ") column " + k + " is " + repr(a.get(k))
+                                         + " on disk and " + repr(b.get(k)) + " in the upload. "
+                                         "This door may EXTEND the series and may never "
+                                         "rewrite it.")
+                        return out
+
+        canonical = _canonical_csv(rows, fields)
+        if n and not canonical.startswith(disk["raw"]):
+            out["stage"] = "history"
+            out["would_rewrite"] = True
+            out["reason"] = ("every recorded value matches and the bytes on disk are still not "
+                             "an exact prefix of the canonical upload -- so the file on disk is "
+                             "not in this writer's form (line endings, quoting, or a missing "
+                             "trailing newline). Refusing rather than rewriting it, because "
+                             "rewriting every line is precisely what the append-only guarantee "
+                             "forbids. Repair the file on the service by hand.")
+            return out
+        out["prefix_verified"] = True if n else None
+        out["history_rows_after"] = len(rows)
+        out["history_rows_added"] = len(rows) - n
+
+        if canonical != disk["raw"]:
+            w = _write_atomic(history_path, canonical)
+            if w:
+                out["stage"] = "history"
+                out["reason"] = w
+                return out
+            out["history_wrote"] = True
+
+    meta = dict(book)
+    meta["positions"] = positions
+    payload = json.dumps(meta, indent=2, sort_keys=True, default=str).encode("utf-8")
+    try:
+        unchanged = open(meta_path, "rb").read() == payload
+    except Exception:                                        # noqa: BLE001
+        unchanged = False
+    if not unchanged:
+        w = _write_atomic(meta_path, payload)
+        if w:
+            out["reason"] = w
+            return out
+        out["book_wrote"] = True
+    out["changed"] = bool(out["book_wrote"] or out["history_wrote"])
+    out["ok"] = True
+    out["stage"] = ""
+    out["n_positions"] = len(positions)
+    return out
 
 
 def append_row(row: dict, history_path: str = None, *, append_only: bool = False) -> dict:

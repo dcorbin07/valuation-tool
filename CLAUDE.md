@@ -1235,12 +1235,38 @@ the project's memory and the old versions had been repeated for months.
     refused so an unattended caller can branch on the status alone. `GET ?append=1` returns
     **405** and touches nothing; a side-effecting GET on the one dataset here that cannot be
     re-derived is reachable by a retry, a prefetch or a pasted link. See **§7.2b** and
-    `HANDOFF_appfixes.md` session 39. **`PT-WRITER` still does not close** - nothing calls the
-    new door yet. **NO NEW VENDOR** - prices come from the shipped `screener/prices.py` (Stooq ->
+    `HANDOFF_appfixes.md` session 39. **`PT-WRITER` still does not close.**
+    **AMENDED AGAIN 2026-08-18, LATER THE SAME DAY: THERE ARE FOUR DOORS, THE ACTION *DOES*
+    CALL THE WRITE DOOR NOW, AND THE REASON THE ROW IS BLOCKED HAS CHANGED.** The sentence
+    that used to sit here - *"nothing calls the new door yet"* - was true for a few hours.
+    Don's PR #2 (`cb8c86e`) repointed `track-row.yml` at it, it ran at 20:31 UTC,
+    authenticated, reached the door, and returned **HTTP 422: `the book file
+    /app/data/valquo_track.json is missing or unreadable`** (`121f5c3` pushed the refusal note
+    exactly as designed). That is `load_book` working as written, and it settles the question:
+    **THE WRITE DOOR WAS NEVER THE BLOCKER - `data/` is gitignored, so the book has never
+    shipped with any deploy and exists only on Don's machine. The service has nothing to
+    mark.** The fourth door is **`POST /admin/track-seed`** (`index_mark.seed`), which installs
+    the book and the recorded history: the book is gated on `valquo_index.conformance` so a
+    truncated scan cannot be installed under the contract's name, an upload may **EXTEND** the
+    recorded series and may **never** rewrite or truncate it (records compared cell-for-cell
+    *and* the disk bytes required to be an exact prefix of the canonicalised upload), and a
+    book may **not** be seeded onto an empty series - because the next append would then start
+    a fresh series at today's date with a plausible `day_n` and nothing would raise.
+    `python -m scripts.seed_track --send` is the one command. **AFTER A SEED THE SERVICE COPY
+    IS THE RECORD** and the local files become a stale backup nothing syncs back. See
+    **§7.2c** and `HANDOFF_appfixes.md` session 40. **The row is blocked on Don running that
+    command**, which is an irreversible write to the bound record and was deliberately not done
+    by the lane that built it. **NO NEW VENDOR** - prices come from the shipped `screener/prices.py` (Stooq ->
     yfinance), no key, nothing a fresh deploy lacks. **IT RAN FOR REAL: 2026-08-13, all 86 names
     priced, `valquo_pct` 4.3232 / `spy_pct` 4.8794 / `excess_pp` -0.5562, exit 0** - and it was
     **NOT written** (read-only, no `--append`), so the recorded series still ends 2026-08-06 and
     **that -0.5562pp is NOT a track record and may not be quoted as one.**
+    **STALE AS OF 2026-08-18: the recorded series is FOUR rows and ends 2026-08-17** -
+    2026-07-31, 2026-08-06, 2026-08-13 and 2026-08-17 - so the two rows after 08-06 were
+    written by the Cowork lane by hand. **The 08-13 row reads `4.25 / 4.88 / -0.62` against
+    this bullet's own re-derivation of `4.3232 / 4.8794 / -0.5562`**, so the three-source
+    disagreement below is live on a recorded row rather than hypothetical. The seed door
+    installs **what is recorded**, verbatim, and arbitrates nothing.
     **HOW CLOSELY IT REPRODUCES THE RECORDED ROWS, AND THE TWO LEGS DIFFER: the BENCHMARK leg is
     EXACT** (2026-08-06 `spy_pct` 3.6228 re-derived against a recorded 3.6228, which is what
     confirms the convention - closing prices, cumulative-since-inception, this vendor - since a

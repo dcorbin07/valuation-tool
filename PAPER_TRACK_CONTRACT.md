@@ -850,6 +850,7 @@ Recorded so they are not mistaken for oversights, and so the operational gate ha
    > | **In-repo writer** | `python -m scripts.track_row` — prints the row; `--csv` for the recorded line, `--append` to write it, `--date YYYY-MM-DD` to backfill one past trading day |
    > | **Off-box reader** | `GET /admin/track-row` with the same `X-Admin-Token` as `/admin/export-track` — computes and returns the row, writes nothing |
    > | **Off-box writer** | `POST /admin/track-row?append=1`, same token — appends to the service's own bound series under the contract's rules, enforced in code |
+   > | **Off-box seeder** | `POST /admin/track-seed`, same token — installs the book and the recorded history on a service that has neither, and may only EXTEND what is already recorded (§7.2c). `python -m scripts.seed_track` is its command line |
    > | **Library** | `screener.index_mark.contract_row()` -> `{"ok": bool, "row": {...}, "reason": str}` |
    >
    > **NO NEW VENDOR, WHICH WAS THE OTHER HALF OF THE BLOCKER.** Prices come from
@@ -947,6 +948,77 @@ Recorded so they are not mistaken for oversights, and so the operational gate ha
    > **THIS STILL SCHEDULES NOTHING, AND `PT-WRITER` STAYS BLOCKED.** No workflow calls this
    > door yet; pointing `track-row.yml` at it is a `.github/` change, which is Don's, and the
    > row should not close until something actually writes a row.
+   >
+   > **AMENDED 2026-08-18: THE WORKFLOW WAS POINTED AT IT THE SAME DAY, AND IT WAS REFUSED FOR
+   > A REASON NEITHER DOOR COULD FIX.** `cb8c86e` (PR #2) repointed `track-row.yml` at this
+   > endpoint and it ran at 20:31 UTC. It authenticated, reached the door, and got **HTTP 422**:
+   >
+   > ```
+   > {"ok":false,"reason":"the book file /app/data/valquo_track.json is missing or unreadable",
+   >  "row":null}
+   > ```
+   >
+   > That is `load_book` working exactly as written, and the refusal note was pushed exactly as
+   > designed (`121f5c3`). **The write door was never the blocker: the service has nothing to
+   > mark.** `data/` is gitignored, so the book has never shipped with any deploy — it has only
+   > ever existed on Don's machine. §7.2c is the door that fixes that.
+   >
+   > ---
+   >
+   > ### 7.2c THE SEED DOOR — `POST /admin/track-seed`, added 2026-08-18
+   >
+   > **AFTER A SUCCESSFUL SEED THE SERVICE COPY IS THE RECORD.** This is the part that binds:
+   > the local `data/valquo_track.json` and `data/valquo_track_history.csv` become a **stale
+   > backup** the moment the service writes its first row, nothing syncs them back, and the
+   > weekly `track-backup` Action archives the SERVICE's copy. That is a deliberate choice of
+   > ONE recorder over two. §7.2's own §0a.2 already records what two recorders cost this
+   > project — two different "Valquo Index vs SPY" numbers published from two books — and the
+   > cure for that is a single authority, not better reconciliation between several.
+   >
+   > **THREE RULES, ENFORCED IN `index_mark.seed`, NOT IN THE CALLER** — the same reason §7.2b
+   > gives, so the HTTP door and any future caller cannot drift apart:
+   >
+   >   1. **The book must BE the Index.** Validated through `valquo_index.conformance`, the same
+   >      check §5b's `PT-SPLIT` built and `paper_track.seed_book` gates on: at least
+   >      `CONTRACT_MIN_POSITIONS` = 50 names, and the 8% cap genuinely binding. A truncated
+   >      scan cannot be installed under this contract's name, and the refusal carries
+   >      `why_not` verbatim.
+   >   2. **An upload may EXTEND the recorded series and may never rewrite it.** If the service
+   >      already holds rows, the upload's first N records must match them cell for cell AND the
+   >      bytes on disk must be an exact prefix of the canonicalised upload. Both are checked and
+   >      reported separately: the record check is the substantive rule, and when it passes while
+   >      the byte check fails the reason names the encoding difference rather than reading as a
+   >      mystery refusal. A shorter upload is a truncation and is refused. A stale local copy
+   >      re-uploaded after the service has moved on is the ordinary way this fires.
+   >   3. **A book may not be seeded without a history to stand on.** If the service holds no
+   >      rows and none are supplied, this refuses — because the next append would then create a
+   >      fresh series whose first row is TODAY, every earlier recorded day would be absent from
+   >      the copy the seed is about to make the record, and **nothing would raise**. `day_n` is
+   >      computed from the inception date, so that new first row would carry a plausible day
+   >      number, which is precisely what would make the loss invisible.
+   >
+   > **THE UPLOADED HEADER MUST BE THE ONE `append_row` WOULD COMPUTE** — `ROW_COLUMNS` in
+   > order, then any columns the file has gained. Not tidiness: `append_only` REFUSES a header
+   > it would have to widen (widening rewrites every line and so cannot preserve the byte
+   > prefix), so seeding a differently-shaped header installs a series the unattended writer can
+   > never append to, with every subsequent refusal pointing at the writer. **The end-to-end
+   > sequence is the deliverable, not the seed** — `tests/test_index_mark.py` runs the seed and
+   > then the write door against one service and asserts the second succeeds.
+   >
+   > **STATUS CODES**, again because the caller is a script: **201** the service's copy changed ·
+   > **200** nothing changed, it already held exactly this · **409** refused, the upload
+   > disagrees with the recorded series · **422** refused, not the Index / no history to stand
+   > on / malformed · **400** no book · **500** unexpected only. Re-running is safe by
+   > construction: both writes are skipped when the bytes already match, so 200 is a fact about
+   > the two files rather than an assumption.
+   >
+   > **THE COMMAND IS `python -m scripts.seed_track`** — dry run by default, `--send` to do it,
+   > reading `SITE_BASE_URL` (or `PUBLIC_BASE_URL`) and `ADMIN_TOKEN` from `.env`. It never
+   > prints the token, on any path.
+   >
+   > **`PT-WRITER` STILL DOES NOT CLOSE.** Nothing has been seeded — this ships the door and the
+   > command, and running it against the live service is Don's to do, being an irreversible
+   > write to the bound record. The row closes when a row is actually written.
    >
    > ---
    >
