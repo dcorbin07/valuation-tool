@@ -7978,3 +7978,15 @@ and make the Action work** — which needs the billing question answered *and* t
 defect above resolved. Until one of those happens, every weekday produces a note instead of a row.
 
 Ledger row `PT-WRITER` stays **BLOCKED**.
+
+## PT-WRITER 2026-08-18: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the book file /app/data/valquo_track.json is missing or unreadable","row":null}
+    
