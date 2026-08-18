@@ -237,7 +237,7 @@ def needs_pull(root: str, sym: str, year: int, man: dict) -> bool:
     rec = man.get(f"{sym}|{year}")
     if rec and rec.get("status") in ("empty", "empty_vendor"):
         return False                      # terminal: the vendor has nothing. Do not re-probe.
-    if not rec or rec.get("status") != "ok":
+    if not rec or rec.get("status") not in ("ok", "ok_partial"):
         return True
     p = unit_path(root, sym, year)
     if not os.path.exists(p):
@@ -396,17 +396,29 @@ def pull_unit(tb, sym: str, year: int, root: str):
             continue
         if r is not None and len(r):
             frames.append(r)
-    if failed:
+    nodata_only = bool(errs) and all("NoDataFound" in e for e in errs)
+    if failed and (len(failed) == 4 or not frames):
         # "the vendor has nothing here" is a TERMINAL answer, not a transient fault, and the
-        # two must not share a status. Tier C is ~25% pre-listing names (ABVX listed 2024, so
+        # two must not share a status. Tier C is ~22% pre-listing names (ABVX listed 2024, so
         # its 2016-2018 is empty by construction); recording those as `failed` would re-probe
         # every one on every restart, spending an irreplaceable window re-confirming a
         # negative. Mirrors the breadth cache's own `.pkl.empty` convention.
-        if len(failed) == 4 and errs and all("NoDataFound" in e for e in errs):
+        if nodata_only:
             return {"status": "empty_vendor", "quarters_failed": failed, "errors": errs[:4],
                     "seconds": round(time.time() - t0, 1)}
         return {"status": "failed", "quarters_failed": failed, "errors": errs[:4],
                 "seconds": round(time.time() - t0, 1)}
+    if failed and not nodata_only:
+        # a REAL fault on some quarter: refuse the unit rather than bank a short year silently
+        return {"status": "failed", "quarters_failed": failed, "errors": errs[:4],
+                "seconds": round(time.time() - t0, 1)}
+    # BUG 7. A name that LISTED MID-YEAR legitimately has no data before its first trade, and
+    # `if failed: return` discarded the quarters that DID have data -- 26 Tier C units thrown
+    # away, all of them names like LIN, EQH and ARGX whose listing falls inside the window.
+    # Tier C is exactly the late-listing population, so this defect is aimed at its own target.
+    # A partial year is kept and LABELLED, never silently banked as whole: `quarters_missing`
+    # records which quarters returned nothing, so a short year can never be mistaken for a
+    # complete one downstream.
     if not frames:
         return {"status": "empty", "seconds": round(time.time() - t0, 1)}
 
@@ -427,7 +439,9 @@ def pull_unit(tb, sym: str, year: int, root: str):
     dat = pd.to_datetime(df["date"].astype(str))
     dte = (exp - dat).dt.days
     pfy = panel_first_year(sym)
-    return {"status": "ok", "rows": int(len(df)), "bytes": os.path.getsize(p),
+    return {"status": "ok_partial" if failed else "ok",
+            "quarters_missing": failed or None,
+            "rows": int(len(df)), "bytes": os.path.getsize(p),
             "panel_first_year": pfy,
             "pre_panel_history": bool(pfy and year < pfy),
             "sha256": sha256(p), "seconds": round(time.time() - t0, 1),
