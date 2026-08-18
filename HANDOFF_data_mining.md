@@ -1,7 +1,8 @@
 # HANDOFF — the ThetaData Pro harvest. Deadline 2026-09-01.
 
-**Lane:** data miner. **Status:** QUEUE STOPPED AND RE-PRIORITISED after an exhaustive coverage
-census. **Zero trials — collection is not a test.** No analysis was run and none may be quoted
+**Lane:** data miner. **Status:** TIER C COMPLETE. Nothing perishable remains.
+The queue was stopped and re-prioritised on an exhaustive coverage census; the one tier that
+survived it has now been pulled, frozen and verified. **Zero trials — collection is not a test.** No analysis was run and none may be quoted
 from this data beyond the integrity checks below.
 
 New files, all mine: `mine_deep_chains.py`, `freeze_chain_store.py`,
@@ -139,7 +140,7 @@ was queued on both a false coverage premise and a false urgency premise.
 | **0 — freeze `data/options`** | **PROMOTED, running** | Free, no deadline, and the actual unlock for O21-D2 |
 | **A** — alert 2016–2018 | **DEAD** | 99.97 / 100.00 / 100.00% already present |
 | **B** — alert 2019–2025 | **DEAD TWICE OVER** | 98.9–100% present **and** inside Standard's window |
-| **C** — 2016–18, 420 never-tried optionable names | **PROMOTED to first pull** | The only perishable item. ~4.7 h, ~11 GB, ~75% hit rate |
+| **C** — 2016–18, 420 never-tried optionable names | **COMPLETE** | Was the only perishable item. 6.39 h, 2.53 GB, 76.0% hit rate |
 | **D** — Index 86 names | **DEFERRED past Sep 1** | 2025–26 stays reachable on Standard |
 | *depth (the tenor redirect)* | **DEMOTED** | Real absence, but no re-open row is blocked on tenor |
 
@@ -204,6 +205,26 @@ The manifest (`manifest.jsonl`, one fsynced line per file carrying both hashes) 
 `FREEZE_SUMMARY.json` are mirrored to `data/deep_harvest/` on the laptop, per the second-copy
 rule. **The payload stays on D: and is never committed.**
 
+### TIER 0 EXTENDED TO THE RAW PULL (2026-08-18)
+
+`D:\thetadata\freeze_rawpull_2026-08-18` — the harvested tree (`D:\thetadata\chains`,
+Tiers A, B and C together).
+
+| | |
+|---|---|
+| units frozen | **1,865 of 1,865** |
+| bytes | **12.44 GB** |
+| hash mismatches at copy | **0** |
+| `--verify --full-hash` | **1,865 records, 0 missing, 0 wrong-size, 0 wrong-hash** |
+| `source_drifted_since_freeze` | **0** |
+
+**Deliberately a SIBLING tree rather than an extension of the existing manifest.** Folding the
+new units into `freeze_options_2026-08-17` would have meant re-keying a manifest whose 12,302
+records were already `--full-hash` verified — rewriting a provenance record to add to it is the
+exact mutation Tier 0 exists to prevent. Two dated, independently verified manifests carry the
+same guarantee and risk nothing already banked. They are also **different objects and should
+stay separable**: one is a snapshot of a mutable live store, the other is raw vendor output.
+
 ---
 
 ## The overlap comparison — brief rule 3
@@ -261,6 +282,52 @@ drift; restarting advanced 40 → 45 without re-copying the first 40.
 
 ---
 
+## TIER C — COMPLETE. The only perishable tier, and it is now banked.
+
+Run 2026-08-18, `--workers 1`, `max_dte=1200`, 1,260 units for the 420 never-tried optionable
+names. The 75 known-empty names were **skipped with a recorded reason and never re-probed**
+(`D:\thetadata\tier_c_skipped.json`).
+
+| outcome | units | |
+|---|---|---|
+| **`ok`** — full year | **958** | |
+| **`ok_partial`** — listed mid-year, quarters labelled | **24** | |
+| **`empty_vendor`** — terminal, vendor has nothing | **278** | pre-listing names |
+| **`failed`** | **0** | |
+| **total** | **1,260** | |
+
+**982 units carry data, 50.6 M rows, 2.53 GB, in 6.39 h.** The hit rate is **76.0%**, against
+the **~75%** the 14-name probe predicted before the run — the one projection here that held.
+
+**TWO PROJECTIONS THAT DID NOT HOLD, stated because a projection quoted once should be scored:**
+size came in at **2.53 GB against ~11 GB projected** (4.4× low) and time at **6.39 h against
+~4.7 h** (1.4× high). Both have the same cause: the three names I sized on (PKG, MOD, AFG) are
+liquid mid-caps at ~8.8 MB per symbol-year, while the Tier C population averages **2.6 MB** —
+thinner chains, and more of them empty. **A three-name sample was too small to characterise a
+420-name population, and it was wrong in both directions at once.**
+
+### Ticker reuse: measured, not resolved
+
+**28 of 982 units (2.9%), across 14 symbols, carry option data for a year BEFORE the panel knew
+the ticker.** Every one is stamped `pre_panel_history: true` with its `panel_first_year`.
+
+| symbol | flagged years | panel debut | what it is |
+|---|---|---|---|
+| FOXA | 2016, 2017, 2018 | 2019 | 21st Century Fox → Fox Corp |
+| IR | 2016 | 2017 | Ingersoll Rand ticker reuse |
+| VG | 2017, 2018 | 2025 | Vonage → Venture Global |
+| CR | 2017, 2018 | 2023 | Crane |
+| AZPN | 2017, 2018 | 2022 | Aspen Technology |
+
+**These rows are real option data for whoever held the symbol at the time — they are simply not
+the company the panel means.** The pull was not gated on this, deliberately: gating would have
+spent the deadline, and the bytes are unreachable after 2026-09-01 while the adjudication is not.
+**What was bought is detectability.** Any analysis touching Tier C must filter on
+`pre_panel_history` or resolve the 14 symbols against a point-in-time identifier; **treating
+these units as the modern company is a live way to get a wrong answer.**
+
+---
+
 ## Queue and per-tier completion
 
 | tier | scope | symbol-years | status |
@@ -268,7 +335,7 @@ drift; restarting advanced 40 → 45 without re-copying the first 40.
 | **0** | freeze `data/options` → `D:\thetadata\freeze_options_2026-08-17` | 12,302 files / 26.98 GB | **DONE — verified, 0 mismatches, 0 drift** |
 | **A** | alert symbol-years 2016–2018 | 400 | **CANCELLED — 99.97–100% already cached** |
 | **B** | alert symbol-years 2019–2025 | 961 | **CANCELLED — cached, and not perishable** |
-| **C** | 2016–18 for the 420 never-tried optionable names | **1,260** | **READY — awaiting go-ahead** |
+| **C** | 2016–18 for the 420 never-tried optionable names | **1,260** | **DONE — 982 with data, 278 terminal-empty, 0 failed; frozen + verified** |
 | **D** | Index 86 names, recent years | ~41 | **DEFERRED past 2026-09-01 (Standard reaches it)** |
 
 ### Daily progress
@@ -278,6 +345,8 @@ drift; restarting advanced 40 → 45 without re-copying the first 40.
 | 2026-08-16 | deep chains (A) | 13 / 1,361 | 0.15 | 52.2 s/unit | *void — see BUG 3* |
 | 2026-08-17 | **census** | 1,361 / 1,361 units read | — | 433 s total | **complete** |
 | 2026-08-17 | **Tier 0 freeze** | **12,302 / 12,302 files** | **26.98** | 14–20 MB/s | **DONE + verified** |
+| 2026-08-18 | **Tier C harvest** | **1,260 / 1,260 units** | **2.53** | 197 units/h | **DONE — 0 failed** |
+| 2026-08-18 | **raw-pull freeze** | **1,865 / 1,865 units** | **12.44** | — | **DONE + verified, 0 drift** |
 
 **The 2026-08-16 projection of "~20 h / ~16 GB" is VOID** — it extrapolated from 13 units, and the
 process then stalled for twelve hours without writing a fourteenth (BUG 3). It is left in the table
@@ -370,6 +439,16 @@ Tier C roughly a quarter pre-listing names, that is ~315 units of an irreplaceab
 re-confirming negatives. Four quarters of `NoDataFoundError` now record **`empty_vendor`**, which
 `needs_pull` treats as terminal — mirroring the breadth cache's own `.pkl.empty` convention.
 
+**7. A mid-year listing threw away the quarters that DID have data.** `pull_unit` returned
+`failed` if *any* quarter errored, discarding the frames already fetched. For a name that listed
+inside the window that is systematic: ARGX 2018 has no Q1/Q2 because it listed mid-2018, EQH 2018
+no Q1 (May IPO), CCEP 2018 only Q4. **Tier C is precisely the late-listing population, so the
+defect was aimed squarely at its own target** — it cost 26 units on the first pass, every one of
+them a name whose listing falls inside 2016–2018. A partial year is now kept and **labelled**
+(`status: ok_partial`, `quarters_missing: [...]`) so a short year can never be silently mistaken
+for a complete one; a *real* fault on a quarter still refuses the whole unit. Re-running the 26
+recovered **24 partial years and left 0 failed**.
+
 **4. Windows `os.replace` races the AV scanner on a freshly written file.** The first full freeze
 run died ~3,000 files in with `PermissionError [WinError 32]` on a `.tmp` rename. It is a race, not
 corruption. Now retried with backoff, and **raised rather than skipped** if it still will not
@@ -385,10 +464,12 @@ land — a skipped file would be a silent hole in a freeze whose entire purpose 
   99.90% already on disk with zero missing symbol-years, and the vendor agrees with the cache
   bit-for-bit on 13/13 overlap tests. Pulling them would have spent the entire window re-fetching
   bytes already held. **This is the finding, not a shortfall.**
-* **Tier C, the 1,260 never-tried symbol-years — READY BUT NOT STARTED.** The brief said report
-  before resuming, and this is the one item where the deadline genuinely binds. ~4.7 h, ~11 GB,
-  ~75% expected hit rate. **It is the only thing on this page that becomes permanently unreachable
-  on 2026-09-01.**
+* **Tier C — PULLED, 2026-08-18.** 982 units with data, 278 terminal-empty, 0 failed. **It was
+  the only thing on this page that became permanently unreachable on 2026-09-01, and it is now
+  banked and frozen.**
+* **The 278 `empty_vendor` Tier C units are unreachable in principle, not merely unpulled.** The
+  vendor has no 2016–2018 chains for those names because most of them had not listed yet. That is
+  a fact about the world, not a gap in the harvest, and no future subscription recovers it.
 * **Tier D — deferred on purpose.** 2025–26 stays inside Standard's rolling window.
 * **Tick-resolution data across holding periods.** ~190 GB; fits D:'s 426 GB but nothing else
   would. The existing tick cache (`data/options_ticks/`, 4.72 GB) is **entry-days only** — 3,884
@@ -423,8 +504,14 @@ postdates its earliest pulled year**.
 1. ~~Tier 0 freeze~~ **DONE and verified** — 12,302 files, 0 mismatches, 0 source drift.
    **O21-D2's referent now exists.** The analysis scripts still read the mutable
    `data/options`; pointing them at the freeze is the options-bot lane's call, not mine.
-2. **Wire the ticker-reuse guard**, then **run Tier C** — ~4.7 h against a 15-day window, and the
-   only genuinely perishable dataset left. **This is the only item with a deadline.**
-3. **After 2026-09-01**, on Standard: Tier D, and the MA-2019 gap.
+2. ~~Run Tier C~~ **DONE** — 982 units with data, 0 failed, frozen and `--full-hash` verified.
+3. **NOTHING PERISHABLE REMAINS.** Everything still outstanding sits inside Standard's rolling
+   8-year window and is reachable after 2026-09-01:
+   * **Tier D** — 6 Index names with no cache dir, 41 lacking a 2025 unit, none with 2026.
+   * **The MA-2019 gap** — 39 contiguous days plus three singletons, ~4 units, minutes.
+   * **Tenor depth** — real, but no re-open row is blocked on it. 2016–2018 only.
+4. **Adjudicate the 14 reuse symbols** before any Tier C data is used. That is analysis, not
+   collection, and it has no deadline — but it is a precondition for quoting anything built on
+   Tier C.
 
 **Zero trials. Nothing here is a research result and nothing here may be quoted as one.**
