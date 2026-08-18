@@ -848,7 +848,8 @@ Recorded so they are not mistaken for oversights, and so the operational gate ha
    > | | |
    > |---|---|
    > | **In-repo writer** | `python -m scripts.track_row` — prints the row; `--csv` for the recorded line, `--append` to write it, `--date YYYY-MM-DD` to backfill one past trading day |
-   > | **Off-box writer** | `GET /admin/track-row` with the same `X-Admin-Token` as `/admin/export-track`; `?append=1` writes |
+   > | **Off-box reader** | `GET /admin/track-row` with the same `X-Admin-Token` as `/admin/export-track` — computes and returns the row, writes nothing |
+   > | **Off-box writer** | `POST /admin/track-row?append=1`, same token — appends to the service's own bound series under the contract's rules, enforced in code |
    > | **Library** | `screener.index_mark.contract_row()` -> `{"ok": bool, "row": {...}, "reason": str}` |
    >
    > **NO NEW VENDOR, WHICH WAS THE OTHER HALF OF THE BLOCKER.** Prices come from
@@ -895,6 +896,59 @@ Recorded so they are not mistaken for oversights, and so the operational gate ha
    > The CLI exits **2** on a refusal and **0** on a row. **Exit 2 is normal** — "the session has
    > not closed yet" is the common case, and a scheduler that treats it as a hard failure will
    > page somebody every weekend.
+   >
+   > ---
+   >
+   > ### 7.2b THE WRITE DOOR — `POST /admin/track-row?append=1`, added 2026-08-18
+   >
+   > **WHY A THIRD DOOR AT ALL, AND IT IS NOT A CONVENIENCE.** `.github/workflows/track-row.yml`
+   > landed 2026-08-16 (`0e0e86d`, PR #1) to move the write onto a runner that can reach the
+   > vendors, and it calls the **in-repo CLI**. That job **cannot produce a row on any runner**:
+   > `.gitignore` excludes `/data/` with no negation and `git ls-tree -r origin/main -- data/`
+   > returns zero paths, so on a fresh `actions/checkout` the book `data/valquo_track.json` does
+   > not exist and `contract_row` refuses at `load_book` before it ever reaches a price. Its only
+   > reachable outcome is the refusal branch — a nightly pushed note about a missing book.
+   > **The service on Render is the one place that HAS both the book and the history**, on its
+   > persistent disk, so the write has to happen there and be triggered from outside.
+   >
+   > **THE RULES ARE ENFORCED IN CODE, IN `index_mark.append_row(append_only=True)`, NOT IN THE
+   > CALLER.** Putting them in the library is what keeps the CLI and the HTTP door on one
+   > implementation rather than two that drift — this project's recurring B7 split — and it is
+   > why the handler does no arithmetic and no file IO of its own:
+   >
+   >   * **Intraday marks are refused, and the refusal is not a parameter.** There is no query
+   >     string, header or body key that switches it off; pinned by a test that reads the
+   >     handler's *syntax tree* rather than its text.
+   >   * **Append-only.** A date at or before the last recorded row is refused. Filling a gap
+   >     stays a deliberate human act under section 3's same-week clause, on the CLI's `--date`.
+   >   * **Idempotent per day.** A second POST for a recorded date is a no-op that returns the
+   >     row **on disk** — never the freshly computed one, because a vendor revision or a
+   >     fallback answering where the primary did not can make those differ, and handing back
+   >     the recomputed row would report a number the bound file does not contain.
+   >   * **The byte prefix is preserved.** After a write the file's previous bytes are still an
+   >     exact prefix of the new file — the same terms `track-row.yml`'s own `cmp` check uses.
+   >
+   > **THE STATUS CODE CARRIES THE OUTCOME**, because the caller is unattended and must branch
+   > without parsing prose: **201** wrote · **200** already recorded · **409** refused,
+   > append-only · **422** refused, the mechanism declined (the ordinary "session has not
+   > closed" evening case, and every non-trading day) · **500** an unexpected exception, only.
+   > 4xx rather than 5xx is deliberate and is not a reversal of §7.2a's rule: that rule is right
+   > that *a 5xx tells a scheduler to retry something that is not broken*, and a 4xx says "this
+   > did not happen and retrying unchanged will not change it", which is the signal wanted.
+   > **`GET` keeps its 200 on a refusal** — a GET asks *what would today's row be* and "no row,
+   > the session has not closed" is a complete answer to that question; a POST asks for a write
+   > and must report whether the write happened.
+   >
+   > **A GET CAN NO LONGER WRITE.** `GET ?append=1` did write, until this door existed; it now
+   > returns 405 and touches nothing. A side-effecting GET on the one dataset here that cannot
+   > be re-derived is reachable by a retry, a prefetch, a proxy or a pasted link, and none of
+   > those is a decision to record a day.
+   >
+   > **THIS STILL SCHEDULES NOTHING, AND `PT-WRITER` STAYS BLOCKED.** No workflow calls this
+   > door yet; pointing `track-row.yml` at it is a `.github/` change, which is Don's, and the
+   > row should not close until something actually writes a row.
+   >
+   > ---
    >
    > **WHAT THIS DOES NOT DO, AND THE ROW STAYS OPEN BECAUSE OF IT.** It does not schedule
    > itself and it does not decide to write. `PT-WRITER` is a **Cowork-lane** row and remains

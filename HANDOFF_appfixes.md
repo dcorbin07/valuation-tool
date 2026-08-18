@@ -5,6 +5,266 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 39 — 2026-08-18 — `PT-WRITER`: the bound series gets a write door that cannot rewrite it
+
+**Zero trials.** A door and its enforcement — no hypothesis, no threshold, no verdict against a
+bar. Equity `N` stays **231**, options 294, infra 15, and no research-log row is written.
+`BACKTEST_RESULTS.json` needs no re-run and no published claim moves.
+
+**`PT-WRITER` STAYS `BLOCKED`, DELIBERATELY.** This supplies the door; nothing calls it yet.
+Pointing `track-row.yml` at it is a `.github/` change — Don's, and `MA11`'s land policy refuses
+an agent branch that touches it — and the row should not close until a row is actually written.
+
+---
+
+## 0. Two premises in the task were wrong, and the second one is why this work is necessary
+
+**(1) `GET /admin/track-row` WAS NOT READ-ONLY. It already wrote.** The task describes the
+existing HTTP door as *"READ-ONLY — returns the computed row, appends nothing"*. Measured: the
+route has declared `methods=["GET", "POST"]` since it landed, and `?append=1` called
+`index_mark.append_row` on **either** verb. So the third door already half-existed. What was
+missing was not the write — it was every rule the contract puts on the write, and a status code
+the caller could branch on.
+
+**(2) THE WORKFLOW HALF IS NOT "COMING AFTER THIS LANDS". IT LANDED TWO DAYS AGO, AND IT CANNOT
+EVER PRODUCE A ROW.** `.github/workflows/track-row.yml` landed 2026-08-16 (`0e0e86d`, PR #1) and
+calls the **in-repo CLI**, `python -m scripts.track_row --append`, then commits `data/`. On a
+fresh `actions/checkout` that is unreachable by construction:
+
+| | measured |
+|---|---|
+| `.gitignore` | excludes `/data/` with **no negation** |
+| `git ls-tree -r origin/main -- data/` | **zero paths** |
+| consequence 1 | `data/valquo_track.json` (the book) does not exist → `contract_row` refuses at `load_book` before reaching a vendor |
+| consequence 2 | `git add data/valquo_track_history.csv` would refuse an ignored path anyway |
+
+**Its only reachable outcome is the refusal branch** — a nightly pushed note about a missing
+book, which is not the failure anyone would go looking for. This was already measured and
+flagged by the edge lane in `HANDOFF_STATUS.md` (*"Flagged, not fixed — `.github/` is outside
+this lane"*), and its own recommendation names the fix: **the `/admin/track-row?append=1` off-box
+door**, because **the Render service is the one place that has both the book and the history**,
+on its persistent disk. That is what this session builds. The `data/`-is-gitignored defect in the
+landed workflow is **not repaired here** — it is a `.github/` edit — but it is now answerable
+without one.
+
+---
+
+## 1. What shipped
+
+| file | change |
+|---|---|
+| `valuation/screener/index_mark.py` | `append_row(..., append_only=True)` — the contract's write rules, in the library; `typed_row()` |
+| `valuation/saas/app_saas.py` | `POST /admin/track-row?append=1` is the write door; GET is read-only; four distinct status codes |
+| `tests/test_index_mark.py` | 44 tests (was 31): 13 new, 2 existing repointed |
+| `PAPER_TRACK_CONTRACT.md` | §7.2a doors table corrected; new **§7.2b** for the write door |
+
+**THE RULES LIVE IN THE LIBRARY, NOT IN THE HANDLER, AND THAT IS THE LOAD-BEARING CHOICE.**
+`append_only=True` is one implementation both doors obey. Had the endpoint enforced them itself,
+the CLI would have been a second writer with its own idea of the contract — the B7 split this
+project keeps paying for — and the handler now does **no arithmetic and no file IO at all**,
+pinned by a test that forbids `open(`, `csv.` and `os.replace` anywhere in it.
+
+---
+
+## 2. The four rules, and how each is made unable to be violated silently
+
+**INTRADAY MARKS ARE REFUSED, AND THE REFUSAL IS NOT A PARAMETER.** `contract_row`'s close
+refusal already existed; what is new is that this door offers **no way to switch it off** — not
+`?refuse_before_close=0`, not `?allow_open_session=1`, not `?force=1`. All four are asserted to
+return 422 with nothing written. This matters because the recorded **day-1 row appears to carry
+an intraday mark under a closing-price column** (§7.2a's reproduction note: its benchmark leg
+misses by 0.0297pp in the direction an intraday quote would), so it is the one failure in this
+mechanism's history that actually happened.
+
+**APPEND-ONLY.** A date at or before the last recorded row is refused with **409** and the file
+is asserted byte-identical afterwards. Filling a gap stays a deliberate human act under the
+contract's §3 same-week clause, on the CLI's `--date`. The reason to split them: an unattended
+writer that can reach backwards can rewrite history on a retry, and nothing in the record
+afterwards can tell that apart from a correction.
+
+**IDEMPOTENT PER DAY, AND THE NO-OP RETURNS THE ROW ON DISK.** A second POST for a recorded date
+returns **200**, `wrote: false`, and the row **already in the file** — never the freshly computed
+one. Those genuinely differ: a vendor revises, the yfinance fallback answers where Stooq did not,
+and a retry an hour later can compute a different close for a day already written. Returning the
+recomputed row would report a number the bound file does not contain — the same class of failure
+as writing it, minus the evidence. **This is the case the scheduler hits most**, because
+`track-row.yml` has two crons by design (the backup exists precisely because GitHub drops
+scheduled runs), so both firing on one day is the normal path and not an error path.
+
+**THE ORDER OF THOSE TWO CHECKS IS LOAD-BEARING AND IS COMMENTED AS SUCH.** Today's date is not
+strictly greater than itself, so if the append-only comparison ran first, the second POST would
+be **refused as a backfill** rather than answered as a no-op — turning the most common outcome
+into a 409 and a pushed failure note every single day the backup cron fires.
+
+**THE BYTE PREFIX IS PRESERVED.** Asserted in the same terms the Action checks it in — after a
+write, the file's previous **bytes** are still an exact prefix. `track-row.yml` compares
+`head -n N` with `cmp`; a guarantee phrased more weakly ("the values are preserved") would be
+untestable against that check. It carries **a positive control**: a default-mode write of an
+earlier date genuinely breaks the prefix, so `after.startswith(before)` is not passing for any
+implementation that merely appends — or for one that had quietly stopped writing at all.
+
+---
+
+## 3. The status codes, and why 4xx is not a reversal of §7.2a's rule
+
+```
+201  wrote                              → the Action commits a row
+200  already recorded (no-op)           → the Action does nothing
+409  refused: append-only               → loud; something is wrong with the caller
+422  refused: the mechanism declined    → the ordinary evening case; note, no row
+500  an unexpected exception, and only that
+```
+
+The original handler returned refusals as **200**, with the stated reason *"a 5xx would tell a
+scheduler to retry something that is not broken."* **That reason is right about 5xx and does not
+require 200.** A 4xx says "this did not happen, and retrying unchanged will not change that" —
+exactly the signal wanted — while a 200 for a refusal makes *wrote* and *refused*
+indistinguishable from the status line alone, which is the one thing the caller needs.
+
+**GET KEEPS ITS 200 ON A REFUSAL, and the asymmetry is principled rather than legacy:** a GET
+asks *what would today's row be*, and "no row, the session has not closed" is a complete and
+successful answer to that question. A POST asks for a write and must report whether the write
+happened. The existing `test_a_refusal_is_a_200_and_not_a_500` is therefore **untouched and still
+passes**.
+
+---
+
+## 4. A GET can no longer write, and that is a deliberate removal
+
+`GET ?append=1` now returns **405** and touches nothing. A side-effecting GET on the one dataset
+here that cannot be re-derived is reachable by a retry, a prefetch, a proxy or a pasted link, and
+none of those is a decision to record a day. Two doors that both write would also have meant
+enforcing the contract twice or leaving one as a bypass.
+
+**IT IS A BREAKING CHANGE TO A DOCUMENTED DOOR, so it is stated rather than absorbed.** §7.2a's
+table and `HANDOFF_pt_writer_2026-08-14.md` both name `GET ...?append=1`. Measured before
+removing: **nothing in the repository calls it** — the landed workflow uses the CLI, and no
+`.yml`, `.sh`, `.bat` or `.py` references it. The contract's table is corrected in the same
+change.
+
+---
+
+## 5. Two existing tests were repointed, and one of them was one prose edit from vacuous
+
+**`test_the_LIVE_endpoint_row_equals_what_index_track_reads_back`** used `GET ...&append=1`. Its
+verb moved to `POST` and its expected status to 201; **every assertion is kept** and one added
+(`wrote is True`). The round trip it exists to pin — the emitted row reading back through
+`index_track.load()` unchanged — is now additionally pinned on the POST path in its own test,
+because that is the path that will actually write the series every weekday.
+
+**`test_the_endpoint_returns_exactly_what_the_module_computes` READ `src[i:i + 2000]`, AND THE
+HANDLER'S DOCSTRING IS NOW LONGER THAN THAT.** Measured: the real handler is **5,921** characters
+and `index_mark.contract_row` **does not appear in its first 2,000**. So a delegation check would
+have become a window over the **docstring alone** — passing vacuously while reporting that the
+endpoint delegates. It is now bounded by the next `@app.route`, so the window tracks the function
+instead of a guess about its length, and it gained two assertions (no file IO in the handler;
+`append_only=True` is actually passed). **Strictly stronger, not adjusted to fit.**
+
+---
+
+## 6. Three defects of mine, all found by running things
+
+**(a) THE COMMENT-VERSUS-CODE TRAP, FOR THE FOURTH TIME IN THIS PROJECT'S RECORD.** The
+close-refusal test's source half swept for the string `refuse_before_close` outside the
+docstring — and fired on the handler's own **comment explaining why the refusal is not a
+parameter**. A correct tree, failed by a guard reading prose about code. It now walks the
+**syntax tree**: no `ast.Call` in the handler may pass `refuse_before_close` as a keyword, and no
+string constant may be `refuse_before_close` or `allow_open_session`. Comments are not in an AST
+at all, so the class is closed rather than dodged. (Prior instances: `MA5`'s source sweep,
+`MA49(c)`'s fixture, `MA23`'s stale-path guard.)
+
+**(b) A MUTATION TEST THAT WOULD HAVE PASSED FOR THE WRONG REASON.** The "backfill" case used
+`date=2026-08-05`, which the test tape had no prices for — so it refused at the **benchmark**
+(422) and never reached the append-only rule (409) it was written to exercise. It read as a
+status-code mismatch; it was a fixture gap. The tape gained the date. **A test that fails for a
+reason other than the one it names is not evidence about the thing it names.**
+
+**(c) ONE PAYLOAD KEY CHANGED TYPE DEPENDING ON WHICH OUTCOME THE CALLER GOT, AND NO TEST WAS
+GOING TO FIND IT.** Found by inspecting the running endpoint rather than by a failure: the
+**201** body carried `valquo_pct: 4.0` and the **200** body carried `"4.0"` for the same
+recorded day, because the no-op path returns a row that has been through a CSV and is therefore
+all strings. A consumer that does arithmetic on that field works on the day it writes and breaks
+on the day it retries — the rarer path, and so the later discovery. `index_mark.typed_row()` now
+casts the recorded columns back to their natural types, and **an unreadable cell is kept
+verbatim rather than nulled**: the whole reason to return the row on disk is to report what is
+actually recorded, and replacing a corrupt cell with `None` would hide a bad record behind a
+well-typed payload — the same failure as normalising a ragged file. Pinned from both sides, and
+both mutations are caught.
+
+**(d) I TRUNCATED THE TEST FILE TO ZERO BYTES MID-SESSION, AND THE MECHANISM IS WORTH KNOWING.**
+`io.open(path, "w", newline="\\n")` — a double-escaped newline argument — raises `ValueError:
+illegal newline value`. **It raises from the TextIOWrapper constructor, which runs *after* the
+underlying file has already been opened in `"w"` mode and truncated.** So the failed call
+destroyed 702 lines while reporting only a bad argument. Recovered with `git checkout --` and
+re-applied; the file had not been committed, and the loss was visible immediately because
+`wc -l` read 0. **A "w" open truncates before it validates.**
+
+---
+
+## 7. Verified by execution, not by reading
+
+| check | result |
+|---|---|
+| `tests/test_index_mark.py` | **44 passed** (31 before) |
+| mutation harness, 10 mutations | **10 caught, 0 missed** |
+| anchors validated before mutating | 10 of 10 matched exactly once |
+| baseline green before mutating | yes |
+| tree restored after mutating | verified by grep + re-run |
+
+The mutations are the ones that matter, not incidental edits: dropping `append_only=True`;
+re-opening the GET write; collapsing 201→200; collapsing 409→422; making a refusal a 200;
+removing the duplicate-date no-op; removing the backfill refusal; returning the **recomputed**
+row from the no-op instead of the one on disk; dropping the type cast; and nulling an unreadable
+cell instead of reporting it. **All ten caught.**
+
+Bytecode note, carried from session 38: the harness runs `python -B` with
+`PYTHONDONTWRITEBYTECODE=1` and purges every `__pycache__` between mutations, because CPython
+validates a cached `.pyc` on `(mtime, size)` and a **same-length** edit inside one mtime tick is
+invisible — the suite then runs against stale bytecode and reports a false MISS.
+
+---
+
+## 8. Not done, named so it is not mistaken for done
+
+* **`PT-WRITER` IS NOT CLOSED.** Nothing calls the new door. The row closes when a row is written.
+* **`.github/` IS UNTOUCHED**, as instructed. `track-row.yml` still calls the CLI and still cannot
+  produce a row on a runner (§0). Repointing it at `POST /admin/track-row?append=1` with the
+  admin token is Don's PR.
+* **THE `data/`-IS-GITIGNORED DEFECT IN THE LANDED WORKFLOW IS NOT REPAIRED** — only made
+  answerable. Whichever way it is resolved (this door, or restoring `data/` from `data_export/`)
+  is a `.github/` decision.
+* **THE ~0.02pp SEAM STANDS.** §7.2a measured that this mechanism reproduces the recorded
+  benchmark leg exactly and the **book** leg to +0.0201pp. Nothing here changes that, and a series
+  that switches to this door still acquires the seam. It is immaterial against the contract's own
+  σ of 3.9847pp per month; it is disclosed, not rounded away.
+* **NO ROW WAS WRITTEN TO THE REAL TRACK.** Every test runs against `state_isolation`'s temp
+  paths and an injected price tape. `data/` was not touched.
+* **THE THREE-SOURCE DISAGREEMENT ON 2026-08-13 IS NOT ADJUDICATED** (local `4.25/4.88/-0.62` at
+  2dp, the §7.2a re-derivation `4.3232/4.8794/-0.5562`, and the last authoritative remote pull
+  which ends 2026-08-06). Flagged by the edge lane; this lane wrote nothing and has no standing
+  to decide which is the record.
+
+---
+
+## 9. For Don
+
+One decision, and it is the `.github/` half: point `track-row.yml` at the service instead of the
+CLI. The call is
+
+    POST https://<service>/admin/track-row?append=1     header: X-Admin-Token: <ADMIN_TOKEN>
+
+and the job branches on the status alone — **201** commit nothing (the service already recorded
+it, on its own disk), **200** no-op, **409/422** write the failure note, **5xx** retry. Note that
+this removes the `git commit data/` step entirely, which is what makes the gitignore problem go
+away rather than be worked around.
+
+**Still open from earlier sessions:** rotate `DEMO_ACCESS_TOKEN`; optionally set
+`ADMIN_WRITE_TOKEN`; `TRUSTED_PROXY_HOPS` wants one production reading of `/admin/proxy-shape`;
+`/admin/*` sits outside the limiter block; commit `41d7b12` is still stranded unpushed on the
+shared checkout's local `main`.
+
+---
+
 # Session 38 — 2026-08-16 — `MA28-CARD`: the accounting red-flag crash statistic reaches a reader, as a disclosure and not a verdict
 
 **Zero trials.** A display of an already-measured statistic — no hypothesis, no threshold, no

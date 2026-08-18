@@ -120,6 +120,45 @@ MIN_COVERAGE = 0.95
 HISTORY_DAYS = 400
 
 
+#: The natural JSON type of each recorded column. A row that has been through a CSV is all
+#: strings, and handing that back beside a computed row -- which is `float` and `int` -- makes
+#: one payload key change type depending on which outcome the caller got. Measured on the live
+#: endpoint before this existed: the 201 body carried `valquo_pct: 4.0` and the 200 body
+#: carried `"4.0"`, for the same recorded day.
+_ROW_TYPES = {"date": str, "day_n": int, "valquo_pct": float, "spy_pct": float,
+              "excess_pp": float, "n_priced": int}
+
+
+def typed_row(row: dict) -> dict:
+    """A row read back from CSV, with the recorded columns in their natural JSON types.
+
+    A CELL THAT WILL NOT PARSE IS KEPT VERBATIM, NOT NULLED. The point of returning the row on
+    disk is to report what is actually recorded; replacing an unreadable cell with `None`
+    would hide a corrupt record behind a well-typed payload, which is the same failure as
+    normalising a ragged file. A caller seeing a string where it expected a number is seeing
+    something true about the file.
+
+    Columns the file has gained beyond `ROW_COLUMNS` are passed through untouched — this
+    module does not know what they mean and must not guess.
+    """
+    out = {}
+    for k, v in (row or {}).items():
+        want = _ROW_TYPES.get(k)
+        if want is None or want is str or v is None or isinstance(v, (int, float)):
+            out[k] = v
+            continue
+        f = _f(v)
+        if f is None:
+            out[k] = v                       # unreadable: report it as it is
+        elif want is int and float(f).is_integer():
+            out[k] = int(f)
+        elif want is int:
+            out[k] = v                       # "5.5" in an integer column is not a 5
+        else:
+            out[k] = f
+    return out
+
+
 def _f(x) -> Optional[float]:
     try:
         v = float(x)
@@ -308,7 +347,7 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
             "n_positions": len(book["positions"]), "source": "screener/prices.py (Stooq -> yfinance)"}
 
 
-def append_row(row: dict, history_path: str = None) -> dict:
+def append_row(row: dict, history_path: str = None, *, append_only: bool = False) -> dict:
     """Append (or replace) one row in the recorded CSV, idempotently.
 
     Offered so the writer does not have to re-spell the header — a writer that hand-builds
@@ -342,6 +381,31 @@ def append_row(row: dict, history_path: str = None) -> dict:
     single `None` key and pads short rows with `None`, so rewriting a file whose rows do not
     match its header would quietly discard or invent cells. Refusing leaves a recording gap,
     which `track_meter.recording_history` can see; normalising loses data that nothing can.
+
+    `append_only=True` IS THE UNATTENDED WRITER'S MODE, and it is strictly narrower than the
+    default. The contract's rules are enforced here rather than in a caller, so that every
+    door obeys one implementation instead of several that can drift:
+
+      * **A duplicate date is a NO-OP, not a rewrite.** It returns `wrote: False`,
+        `already_present: True` and the row ALREADY ON DISK -- never the freshly computed one.
+        Those can differ: a vendor revises, a fallback answers where the primary did not, and
+        a retry an hour later can compute a different close for a day already recorded.
+        Returning the recomputed row would report a number the file does not contain.
+      * **A date at or before the last recorded one is REFUSED.** Filling a gap is a
+        deliberate human act under the contract's section 3 same-week clause and stays on the
+        CLI's `--date`; an unattended writer that can reach backwards can rewrite history on a
+        retry, and a five-year evidence record cannot offer that.
+      * **A schema change is REFUSED** rather than performed, because widening the header
+        rewrites every line and so cannot preserve the prefix below.
+
+    THE GUARANTEE IS BYTE-LEVEL, BECAUSE THE ACTION'S OWN CHECK IS. After an `append_only`
+    write the file's previous bytes are still an exact prefix of the new file.
+    `.github/workflows/track-row.yml` verifies precisely that -- `cmp` on `head -n N` -- and
+    fails the job otherwise, so a guarantee stated in weaker terms than the check would be
+    untestable against it. The rewrite path is shared with the default mode deliberately: a
+    second write implementation for the strict case is the B7 split this module already warns
+    about, and the three refusals above are exactly what make the shared path's output
+    prefix-identical rather than merely value-identical.
     """
     from . import index_track
     _, hp = index_track.default_paths()
@@ -370,6 +434,40 @@ def append_row(row: dict, history_path: str = None) -> dict:
 
     fields = list(ROW_COLUMNS) + [c for c in on_disk if c not in ROW_COLUMNS]
     ignored = sorted(k for k in row if k not in fields)
+
+    dates_on_disk = [(r.get("date") or "").strip() for r in existing]
+    dates_on_disk = [d for d in dates_on_disk if d]
+
+    if append_only:
+        # IDEMPOTENCY IS CHECKED FIRST, AND THE ORDER IS LOAD-BEARING. Today's date is not
+        # strictly greater than itself, so if the append-only comparison ran first a second
+        # POST would be REFUSED as a backfill rather than answered as the no-op the contract
+        # asks for -- turning the one case a retrying scheduler hits most into an error.
+        if row["date"] in dates_on_disk:
+            was = next(r for r in existing
+                       if (r.get("date") or "").strip() == row["date"])
+            return {"ok": True, "wrote": False, "already_present": True,
+                    "replaced": False, "reason": "",
+                    "existing": typed_row({k: was.get(k) for k in fields}),
+                    "path": history_path, "rows": len(existing), "columns": fields,
+                    "ignored_fields": ignored}
+        if dates_on_disk and row["date"] <= max(dates_on_disk):
+            return {"ok": False, "wrote": False, "already_present": False,
+                    "would_modify": True,
+                    "reason": ("refusing to write " + row["date"] + " into "
+                               + str(history_path) + ": the series already reaches "
+                               + max(dates_on_disk) + ", and this door is append-only. A gap "
+                               "stays a logged gap; filling one is a deliberate act under "
+                               "PAPER_TRACK_CONTRACT.md section 3 and lives on "
+                               "scripts.track_row --date.")}
+        if on_disk and fields != on_disk:
+            return {"ok": False, "wrote": False, "already_present": False,
+                    "reason": ("refusing to widen the header of " + str(history_path)
+                               + " on an append-only write: on disk "
+                               + ",".join(on_disk) + " against " + ",".join(fields)
+                               + ". Rewriting every line cannot preserve the byte prefix the "
+                                 "append-only check verifies; make a schema change "
+                                 "deliberately, in the repo.")}
 
     kept = [r for r in existing if (r.get("date") or "").strip() != row["date"]]
     replaced = len(kept) != len(existing)

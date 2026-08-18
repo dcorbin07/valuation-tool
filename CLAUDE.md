@@ -1228,7 +1228,15 @@ the project's memory and the old versions had been repeated for months.
     to drift - `python -m scripts.track_row` (`--csv`, `--append`, `--date`, `--book`) for a
     writer running in the repo, and `GET /admin/track-row` on the existing `X-Admin-Token` for
     one running off-box. Documented in **`PAPER_TRACK_CONTRACT.md` §7.2a**, inside the blocker it
-    answers. **NO NEW VENDOR** - prices come from the shipped `screener/prices.py` (Stooq ->
+    answers. **AMENDED 2026-08-18: THERE ARE NOW THREE DOORS AND THE `GET` NO LONGER WRITES.**
+    Writing moved to **`POST /admin/track-row?append=1`**, which enforces the contract's rules
+    in code - append-only, idempotent per day, intraday marks refused with no parameter that
+    switches it off - and returns 201 wrote / 200 already recorded / 409 append-only / 422
+    refused so an unattended caller can branch on the status alone. `GET ?append=1` returns
+    **405** and touches nothing; a side-effecting GET on the one dataset here that cannot be
+    re-derived is reachable by a retry, a prefetch or a pasted link. See **§7.2b** and
+    `HANDOFF_appfixes.md` session 39. **`PT-WRITER` still does not close** - nothing calls the
+    new door yet. **NO NEW VENDOR** - prices come from the shipped `screener/prices.py` (Stooq ->
     yfinance), no key, nothing a fresh deploy lacks. **IT RAN FOR REAL: 2026-08-13, all 86 names
     priced, `valquo_pct` 4.3232 / `spy_pct` 4.8794 / `excess_pp` -0.5562, exit 0** - and it was
     **NOT written** (read-only, no `--append`), so the recorded series still ends 2026-08-06 and

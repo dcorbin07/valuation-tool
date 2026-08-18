@@ -559,19 +559,48 @@ def create_saas_app(cfg=CONFIG):
         there is no second implementation to drift — the B7 split this project keeps paying
         for.
 
-        READ-ONLY BY DEFAULT, and the default is the safe one. `?append=1` writes the row
-        into the recorded CSV; without it this computes and returns, touching nothing. The
-        write is offered because a writer hand-building the CSV can emit a column
-        `index_track.load()` silently ignores, and that failure is invisible on both sides.
+        GET COMPUTES AND RETURNS. POST?append=1 WRITES. The verb is the whole distinction
+        and it is enforced, not conventional: `?append=1` on a GET is refused with a 405 and
+        writes nothing. It used to write, which is the defect this split closes — a
+        side-effecting GET on the one dataset here that cannot be re-derived is reachable by
+        a retry, a prefetch, a proxy or a pasted link, and none of those is a decision to
+        record a day.
 
-        GET as well as POST for the same reason `export-track` allows both: curl is the
-        whole client. Same `X-Admin-Token`, and it inherits `/admin/` — no new entry in any
-        posture allowlist, because this is a performance-record surface and those are
-        owner-only across the board.
+        THE CONTRACT'S RULES BIND THE WRITE, AND THEY LIVE IN `index_mark.append_row(
+        append_only=True)` RATHER THAN HERE. A gap stays a logged gap; no prior row is ever
+        modified; a second POST for a date already recorded is a no-op that returns the row
+        ON DISK, never the freshly computed one. Putting them in the library is what keeps
+        the CLI and this door on one implementation — the B7 split this project keeps paying
+        for — and it is also why this handler does no arithmetic and no file IO of its own.
 
-        A REFUSAL IS A 200, NOT A 500. `ok: false` with a reason is the mechanism working —
-        most often "the session has not closed yet". A 5xx would tell a scheduler to retry
-        something that is not broken.
+        THE STATUS CODE CARRIES THE OUTCOME, because the caller is an unattended writer that
+        must branch on it without parsing prose:
+
+            201  a row was written
+            200  the date was already recorded — no-op, `existing` is the row on disk
+            409  refused: append-only. The date is at or before the last recorded row.
+            422  refused: the mechanism declined to produce a row. Most often "the session
+                 has not closed yet", which is the ordinary evening case, and also every
+                 non-trading day, unreadable book, unpriceable benchmark and coverage miss.
+            500  an unexpected exception, and only that.
+
+        4xx RATHER THAN 5xx IS THE POINT, AND IT IS NOT A REVERSAL OF THE OLD RULE. The
+        original handler returned refusals as 200 with the reason "a 5xx would tell a
+        scheduler to retry something that is not broken" — which is right about 5xx and does
+        not require 200. A 4xx says "this did not happen and retrying unchanged will not
+        change that", which is exactly the signal wanted, while a 200 for a refusal makes
+        "wrote" and "refused" indistinguishable from the status line alone.
+
+        GET KEEPS ITS 200 ON A REFUSAL, deliberately, and the asymmetry is principled rather
+        than legacy: a GET asks *what would today's row be* and "no row, because the session
+        has not closed" is a complete and successful answer to that question. A POST asks for
+        a write and must report whether the write happened.
+
+        Same `X-Admin-Token` as every other admin route, and it inherits `/admin/` — no new
+        entry in any posture allowlist, because this is a performance-record surface and
+        those are owner-only across the board. Deliberately NOT `_admin_write_ok()`: MA10's
+        split guards the two routes that can re-tune the live composite, and recording a
+        day's mark changes no model.
         """
         if not _admin_ok():
             return jsonify({"error": "unauthorized"}), 401
@@ -579,10 +608,42 @@ def create_saas_app(cfg=CONFIG):
             from ..screener import index_mark
             body = request.get_json(silent=True) or {}
             date = request.args.get("date") or body.get("date")
+            wants_append = bool(request.args.get("append") or body.get("append"))
+
+            if wants_append and request.method != "POST":
+                return jsonify({
+                    "ok": False, "wrote": False,
+                    "error": "append is POST-only",
+                    "reason": ("writing the contract-bound series is POST-only. A GET may "
+                               "compute and return the row; it may not record it."),
+                }), 405
+
+            # `refuse_before_close` is NOT a parameter of this door, on purpose. The recorded
+            # day-1 row appears to carry an intraday mark under a closing-price column (see
+            # PAPER_TRACK_CONTRACT.md section 7.2a) and that is the failure this refusal
+            # exists to prevent, so there is no query string that can switch it off. A caller
+            # that genuinely needs to backfill a closed day uses the CLI, in the repo, on
+            # purpose.
             res = index_mark.contract_row(date)
-            if res.get("ok") and (request.args.get("append") or body.get("append")):
-                res["append"] = index_mark.append_row(res["row"])
-            return jsonify(res)
+
+            if not wants_append:
+                return jsonify(res)
+
+            if not res.get("ok"):
+                # The mechanism declined. Nothing was written and nothing will be by retrying
+                # this minute; the reason is already in `res`.
+                return jsonify(res), 422
+
+            res["append"] = index_mark.append_row(res["row"], append_only=True)
+            ap = res["append"]
+            if not ap.get("ok"):
+                return jsonify(res), 409
+            if ap.get("already_present"):
+                # The row the caller asked for is the one already on disk, not the one just
+                # computed — see append_row's docstring for why those can differ.
+                res["row"] = ap.get("existing") or res["row"]
+                return jsonify(res), 200
+            return jsonify(res), 201
         except Exception as e:
             return jsonify({"ok": False, "error": safe_error(e)}), 500
 

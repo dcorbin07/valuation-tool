@@ -131,11 +131,24 @@ def test_the_endpoint_returns_exactly_what_the_module_computes():
                             "valuation", "saas", "app_saas.py"), encoding="utf-8").read()
     i = src.find("def admin_track_row")
     assert i > 0, "the /admin/track-row route is gone"
-    body = src[i:i + 2000]
+    # THE WHOLE HANDLER, not a fixed character count. It used to be `src[i:i + 2000]`, which
+    # silently became a window over the DOCSTRING ALONE the moment the handler's prose grew
+    # past 2 kB -- and a delegation check that cannot see the code passes vacuously while
+    # reporting that the endpoint delegates. Bounded by the next route instead, so the window
+    # tracks the function rather than a guess about its length.
+    j = src.find("@app.route", i)
+    assert j > i, "could not find the end of the handler"
+    body = src[i:j]
     assert "index_mark.contract_row" in body, "the endpoint does not delegate to the module"
     # It must not do its own arithmetic: no price maths anywhere in the handler.
     for forbidden in ("get_history_df", "/ base", "valquo_pct =", "* 100.0"):
         assert forbidden not in body, "the endpoint re-implements the mark: " + forbidden
+    # ...nor its own file IO. The append-only and idempotency rules live in
+    # `index_mark.append_row`, and a handler that opened the CSV itself would be a second
+    # writer with its own idea of the contract.
+    for forbidden in ("open(", "csv.", "os.replace"):
+        assert forbidden not in body, "the endpoint writes the series itself: " + forbidden
+    assert "append_only=True" in body, "the endpoint appends without the contract's rules"
 
 
 def test_the_LIVE_endpoint_row_equals_what_index_track_reads_back():
@@ -169,12 +182,15 @@ def test_the_LIVE_endpoint_row_equals_what_index_track_reads_back():
         hdr = {"X-Admin-Token": CONFIG.admin_token}
         assert c.get("/admin/track-row?date=2026-08-06").status_code in (401, 403), \
             "the endpoint answered without a token"
-        r = c.get("/admin/track-row?date=2026-08-06&append=1", headers=hdr)
-        assert r.status_code == 200, r.status_code
+        # POST, not GET: writing the bound series is POST-only (see the handler). 201 is
+        # "a row was written" -- the status the unattended writer branches on.
+        r = c.post("/admin/track-row?date=2026-08-06&append=1", headers=hdr)
+        assert r.status_code == 201, r.status_code
         body = r.get_json()
         assert body.get("ok") is True, body
         row = body["row"]
         assert body.get("append", {}).get("ok") is True, body.get("append")
+        assert body["append"].get("wrote") is True, body["append"]
 
         series = index_track.load(meta_path=meta_path, history_path=hist_path)["series"]
         assert len(series) == 1, series
@@ -682,6 +698,397 @@ def test_the_mechanism_is_documented_where_the_contract_points():
     assert "index_mark" in contract, "the contract's recorder section does not name the module"
     assert "scripts.track_row" in contract or "scripts/track_row" in contract, \
         "the contract's recorder section does not name the command"
+
+
+# =======================================================================================
+# THE APPEND DOOR — POST /admin/track-row?append=1
+#
+# The contract's rules are not advisory and they are not enforced by the caller. Every one
+# of them is asserted here against the RUNNING endpoint, because the caller is an unattended
+# GitHub Action and the failure mode that matters is a writer that silently rewrites a
+# five-year evidence record on a retry.
+# =======================================================================================
+
+#: The `_SIMPLE` tape plus a second trading day, so a test can append 08-07 AFTER 08-06 and
+#: ask what happened to the row already on disk. One date cannot exercise append-only at all.
+_SEQ = {
+    "AAA": {INCEPTION: 100.0, "2026-08-05": 105.0, "2026-08-06": 110.0, "2026-08-07": 120.0},
+    "BBB": {INCEPTION: 50.0, "2026-08-05": 49.5, "2026-08-06": 49.0, "2026-08-07": 48.0},
+    "SPY": {INCEPTION: 400.0, "2026-08-05": 402.0, "2026-08-06": 404.0, "2026-08-07": 408.0},
+}
+
+
+def _client(positions=None):
+    """A live app, a book on the isolated temp path, and the deterministic tape installed.
+
+    Returns `(client, headers, meta_path, hist_path, restore)`. `restore` must be called.
+    """
+    from valuation.config import CONFIG
+    from valuation.saas.app_saas import create_saas_app
+    from valuation.screener import prices
+
+    CONFIG.admin_token = "test-token-index-mark"
+    app = create_saas_app(CONFIG)
+    app.config["TESTING"] = True
+
+    meta_path, hist_path = index_track.default_paths()
+    os.makedirs(os.path.dirname(os.path.abspath(meta_path)), exist_ok=True)
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump({"inception_date": INCEPTION, "benchmark": "SPY",
+                   "positions": positions or [{"ticker": "AAA", "weight": 0.5},
+                                              {"ticker": "BBB", "weight": 0.5}]}, f)
+    try:
+        os.remove(hist_path)
+    except OSError:
+        pass
+
+    real = prices.get_history_df
+    prices.get_history_df = _tape(_SEQ)
+
+    def restore():
+        prices.get_history_df = real
+        try:
+            os.remove(hist_path)
+        except OSError:
+            pass
+
+    return (app.test_client(), {"X-Admin-Token": CONFIG.admin_token},
+            meta_path, hist_path, restore)
+
+
+def test_a_second_post_for_the_same_date_is_a_no_op_and_never_a_duplicate():
+    """Idempotency, at the door the scheduler actually calls.
+
+    Both crons in `track-row.yml` can fire on one day — the backup exists precisely because
+    GitHub drops scheduled runs — so a second POST for a date already recorded is the NORMAL
+    case, not an error case. It must add no row and change no value.
+    """
+    c, hdr, _, hist, restore = _client()
+    try:
+        first = c.post("/admin/track-row?date=2026-08-06&append=1", headers=hdr)
+        assert first.status_code == 201, first.status_code
+        assert first.get_json()["append"]["wrote"] is True
+
+        second = c.post("/admin/track-row?date=2026-08-06&append=1", headers=hdr)
+        assert second.status_code == 200, second.status_code
+        ap = second.get_json()["append"]
+        assert ap["wrote"] is False, ap
+        assert ap["already_present"] is True, ap
+
+        with open(hist, encoding="utf-8", newline="") as f:
+            rows = list(csv.DictReader(f))
+        assert len(rows) == 1, rows
+        assert [r["date"] for r in rows] == ["2026-08-06"], rows
+    finally:
+        restore()
+
+
+def test_the_no_op_returns_the_row_on_disk_and_not_the_one_just_computed():
+    """The two can differ, and the difference is the whole reason to return the recorded one.
+
+    A vendor revises; the yfinance fallback answers where Stooq did not; a retry an hour
+    later computes a different close for a day already written. Handing back the freshly
+    computed row would report a number the bound file does not contain — which is the same
+    class of failure as writing it would be, minus the evidence.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        hist = os.path.join(d, "h.csv")
+        with open(hist, "w", encoding="utf-8", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=index_mark.ROW_COLUMNS)
+            w.writeheader()
+            w.writerow({"date": "2026-08-06", "day_n": 5, "valquo_pct": 999.0,
+                        "spy_pct": 888.0, "excess_pp": 111.0, "n_priced": 2})
+
+        fresh = _row(d)["row"]
+        assert abs(fresh["valquo_pct"] - 4.0) < 1e-9, fresh
+
+        out = index_mark.append_row(fresh, hist, append_only=True)
+        assert out["ok"] is True and out["wrote"] is False, out
+        assert out["already_present"] is True, out
+        # the RECORDED number comes back, not the 4.0 just computed
+        assert float(out["existing"]["valquo_pct"]) == 999.0, out["existing"]
+
+        with open(hist, encoding="utf-8", newline="") as f:
+            rows = list(csv.DictReader(f))
+        assert len(rows) == 1 and float(rows[0]["valquo_pct"]) == 999.0, rows
+
+
+def test_the_write_door_refuses_to_backfill_a_prior_row():
+    """A gap stays a logged gap. 409, and the file is untouched.
+
+    Filling a gap is a deliberate human act under the contract's section 3 same-week clause
+    and lives on the CLI. An unattended writer that can reach backwards can rewrite history
+    on a retry, and there is no way to tell that apart from the record afterwards.
+    """
+    c, hdr, _, hist, restore = _client()
+    try:
+        assert c.post("/admin/track-row?date=2026-08-07&append=1",
+                      headers=hdr).status_code == 201
+        before = open(hist, "rb").read()
+
+        r = c.post("/admin/track-row?date=2026-08-06&append=1", headers=hdr)
+        assert r.status_code == 409, r.status_code
+        body = r.get_json()
+        assert body["append"]["ok"] is False, body
+        assert body["append"].get("would_modify") is True, body["append"]
+        assert "append-only" in body["append"]["reason"], body["append"]["reason"]
+
+        assert open(hist, "rb").read() == before, "the refused write touched the file"
+    finally:
+        restore()
+
+
+def test_an_append_only_write_leaves_the_previous_bytes_as_an_exact_prefix():
+    """The guarantee stated in the same terms the Action checks it in.
+
+    `track-row.yml` compares `head -n N` of the new file against the old with `cmp` and fails
+    the job on any difference. A guarantee phrased more weakly than the check — "the values
+    are preserved", say — would be untestable against it, so this asserts BYTES.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        hist = os.path.join(d, "h.csv")
+        first = index_mark.contract_row("2026-08-06", meta_path=_book(d),
+                                        fetch=_tape(_SEQ))["row"]
+        index_mark.append_row(first, hist, append_only=True)
+        before = open(hist, "rb").read()
+
+        second = index_mark.contract_row("2026-08-07", meta_path=_book(d),
+                                         fetch=_tape(_SEQ))["row"]
+        out = index_mark.append_row(second, hist, append_only=True)
+        assert out["ok"] and out["wrote"], out
+
+        after = open(hist, "rb").read()
+        assert after.startswith(before), "the append rewrote earlier bytes"
+        assert len(after) > len(before), "nothing was appended"
+
+
+def test_the_byte_prefix_check_is_not_vacuous():
+    """The positive control for the test above: a write that DOES break the prefix.
+
+    Without this, `after.startswith(before)` would pass for any implementation that appends —
+    including one that had quietly stopped writing anything at all — and it would pass just as
+    happily if the prefix guarantee were unreachable in practice.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        hist = os.path.join(d, "h.csv")
+        later = index_mark.contract_row("2026-08-07", meta_path=_book(d),
+                                        fetch=_tape(_SEQ))["row"]
+        index_mark.append_row(later, hist, append_only=True)
+        before = open(hist, "rb").read()
+
+        # DEFAULT mode, an EARLIER date: it sorts ahead of the existing row, so the file is
+        # genuinely rewritten and the prefix is genuinely broken.
+        earlier = index_mark.contract_row("2026-08-06", meta_path=_book(d),
+                                          fetch=_tape(_SEQ))["row"]
+        out = index_mark.append_row(earlier, hist)
+        assert out["ok"] and out["wrote"], out
+        assert not open(hist, "rb").read().startswith(before), \
+            "the control did not break the prefix, so the guarantee above proves nothing"
+
+
+def test_the_write_door_cannot_be_talked_out_of_the_close_refusal():
+    """Marking an unclosed session writes an intraday quote under a closing-price column.
+
+    That is what the recorded day-1 row appears to carry (contract section 7.2a), so there is
+    deliberately no query string, header or body key that switches the refusal off. Asserted
+    behaviourally AND at source, because the behavioural half alone would keep passing if a
+    parameter were added and simply defaulted to safe.
+    """
+    import valuation.screener.market_session as ms
+
+    c, hdr, _, hist, restore = _client()
+    real_state = ms.session_state
+    ms.session_state = lambda now=None: {"ok": False, "date": "2026-08-07",
+                                         "reason": "the session has not closed"}
+    try:
+        for query in ("append=1",
+                      "append=1&refuse_before_close=0",
+                      "append=1&allow_open_session=1",
+                      "append=1&force=1"):
+            r = c.post("/admin/track-row?" + query, headers=hdr)
+            assert r.status_code == 422, (query, r.status_code)
+            assert r.get_json()["ok"] is False, query
+            assert not os.path.exists(hist) or open(hist).read() == "", \
+                "an unclosed session was recorded via " + query
+    finally:
+        ms.session_state = real_state
+        restore()
+
+    # THE SOURCE HALF READS THE SYNTAX TREE, NOT THE TEXT. A substring sweep fires on the
+    # handler's own COMMENT explaining why the refusal is not a parameter -- which is how the
+    # first cut of this test failed against a correct tree. A guard that cannot tell code from
+    # prose about code is not measuring the tree; this project has now paid for that four
+    # times (MA5's source sweep, MA49(c)'s fixture, MA23's stale-path guard, and here).
+    import ast
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    tree = ast.parse(open(os.path.join(root, "valuation", "saas", "app_saas.py"),
+                          encoding="utf-8").read())
+    fn = next((n for n in ast.walk(tree)
+               if isinstance(n, ast.FunctionDef) and n.name == "admin_track_row"), None)
+    assert fn is not None, "the /admin/track-row handler is gone"
+
+    for node in ast.walk(fn):
+        if isinstance(node, ast.Call):
+            for kw in node.keywords:
+                assert kw.arg != "refuse_before_close", \
+                    "the handler passes refuse_before_close; the refusal became optional"
+        # ...and it must not read one from the request either, under any spelling.
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            assert node.value not in ("refuse_before_close", "allow_open_session"), \
+                "the handler reads a close-refusal override from the request: " + node.value
+
+
+def test_a_refusal_on_the_write_door_is_a_non_200_the_caller_can_branch_on():
+    """The Action must tell wrote / already had it / refused apart from the status alone.
+
+    It writes a pushed failure note on a refusal and commits a row on a success, so a shared
+    status code between those two outcomes is not a cosmetic problem.
+    """
+    c, hdr, _, hist, restore = _client()
+    try:
+        r = c.post("/admin/track-row?date=2026-08-08&append=1", headers=hdr)  # a Saturday
+        assert r.status_code == 422, r.status_code
+        body = r.get_json()
+        assert body["ok"] is False and body["row"] is None, body
+        assert "trading day" in body["reason"], body
+        assert not os.path.exists(hist), "a refused day was recorded"
+    finally:
+        restore()
+
+
+def test_the_four_outcomes_have_four_distinct_status_codes():
+    """Stated as the property the caller depends on, rather than four separate assertions."""
+    c, hdr, _, _, restore = _client()
+    try:
+        seen = {
+            "wrote": c.post("/admin/track-row?date=2026-08-06&append=1",
+                            headers=hdr).status_code,
+            "already": c.post("/admin/track-row?date=2026-08-06&append=1",
+                              headers=hdr).status_code,
+            "backfill": c.post("/admin/track-row?date=2026-08-05&append=1",
+                               headers=hdr).status_code,
+            "refused": c.post("/admin/track-row?date=2026-08-08&append=1",
+                              headers=hdr).status_code,
+        }
+        assert seen == {"wrote": 201, "already": 200, "backfill": 409, "refused": 422}, seen
+        assert len(set(seen.values())) == 4, seen
+    finally:
+        restore()
+
+
+def test_a_get_can_no_longer_write_the_bound_series():
+    """The write moved to POST and the old door is CLOSED, not merely undocumented.
+
+    A side-effecting GET on the one dataset here that cannot be re-derived is reachable by a
+    retry, a prefetch, a proxy or a pasted link, and none of those is a decision to record a
+    day. `GET ?append=1` used to write; it now refuses with a 405 and touches nothing.
+    """
+    c, hdr, _, hist, restore = _client()
+    try:
+        r = c.get("/admin/track-row?date=2026-08-06&append=1", headers=hdr)
+        assert r.status_code == 405, r.status_code
+        assert not os.path.exists(hist), "a GET wrote the bound series"
+
+        # ...and the read half still works, unchanged.
+        ok = c.get("/admin/track-row?date=2026-08-06", headers=hdr)
+        assert ok.status_code == 200, ok.status_code
+        assert ok.get_json()["ok"] is True
+        assert not os.path.exists(hist), "a plain GET wrote the bound series"
+    finally:
+        restore()
+
+
+def test_the_default_append_mode_is_untouched_so_the_cli_backfill_still_works():
+    """The CLI's documented `--date` backfill is a deliberate human act and must survive.
+
+    The new rules are opt-in for exactly this reason: `append_only=True` is the unattended
+    writer's mode, and narrowing the shared default would have silently removed the one
+    sanctioned way to fill a same-week gap under the contract's section 3.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        hist = os.path.join(d, "h.csv")
+        later = index_mark.contract_row("2026-08-07", meta_path=_book(d),
+                                        fetch=_tape(_SEQ))["row"]
+        index_mark.append_row(later, hist, append_only=True)
+
+        earlier = index_mark.contract_row("2026-08-06", meta_path=_book(d),
+                                          fetch=_tape(_SEQ))["row"]
+        out = index_mark.append_row(earlier, hist)          # default mode
+        assert out["ok"] and out["wrote"], out
+
+        with open(hist, encoding="utf-8", newline="") as f:
+            rows = list(csv.DictReader(f))
+        assert [r["date"] for r in rows] == ["2026-08-06", "2026-08-07"], rows
+
+        # and replacing a date in default mode still replaces
+        again = index_mark.append_row(earlier, hist)
+        assert again["replaced"] is True, again
+
+
+def test_the_appended_row_reads_back_through_index_track_load_unchanged():
+    """The module's REQUIRED pin, re-asserted through the POST door specifically.
+
+    The round trip is pinned for the library and for the GET path already; this is the path
+    that will actually write the bound series every weekday, so it is pinned here too rather
+    than assumed to inherit.
+    """
+    c, hdr, meta, hist, restore = _client()
+    try:
+        r = c.post("/admin/track-row?date=2026-08-06&append=1", headers=hdr)
+        assert r.status_code == 201, r.status_code
+        row = r.get_json()["row"]
+
+        series = index_track.load(meta_path=meta, history_path=hist)["series"]
+        assert len(series) == 1, series
+        got = series[0]
+        assert got["date"] == row["date"], (got, row)
+        for a, b in (("valquo", "valquo_pct"), ("spy", "spy_pct"),
+                     ("excess", "excess_pp"), ("n_priced", "n_priced")):
+            assert abs(got[a] - row[b]) < 1e-12, (a, got, row)
+    finally:
+        restore()
+
+
+def test_the_no_op_and_the_write_agree_on_the_type_of_every_field():
+    """One payload key must not change type depending on which outcome the caller got.
+
+    Found by inspecting the live endpoint rather than by a failing test: the 201 body carried
+    `valquo_pct: 4.0` and the 200 body carried `"4.0"` for the same recorded day, because the
+    no-op path returns a row that has been through a CSV and is therefore all strings. A
+    consumer that adds to that field works on the day it writes and breaks on the day it
+    retries -- which is the rarer path and so the later discovery.
+    """
+    c, hdr, _, _, restore = _client()
+    try:
+        wrote = c.post("/admin/track-row?date=2026-08-06&append=1", headers=hdr)
+        noop = c.post("/admin/track-row?date=2026-08-06&append=1", headers=hdr)
+        assert (wrote.status_code, noop.status_code) == (201, 200)
+
+        a, b = wrote.get_json()["row"], noop.get_json()["row"]
+        assert set(a) == set(b), (sorted(a), sorted(b))
+        for k in a:
+            assert type(a[k]) is type(b[k]), (k, type(a[k]).__name__, type(b[k]).__name__)
+            assert a[k] == b[k], (k, a[k], b[k])
+    finally:
+        restore()
+
+
+def test_an_unreadable_cell_is_reported_verbatim_rather_than_nulled():
+    """Typing the row back must not hide a corrupt record behind a well-typed payload.
+
+    The reason to return the row ON DISK is to report what is actually recorded. Replacing an
+    unreadable cell with `None` would be the same failure as normalising a ragged file: the
+    caller gets something well-formed and false, and the corruption becomes invisible.
+    """
+    out = index_mark.typed_row({"date": "2026-08-06", "day_n": "5", "valquo_pct": "4.0",
+                                "spy_pct": "n/a", "excess_pp": "3.0", "n_priced": "2.5"})
+    assert out["day_n"] == 5 and isinstance(out["day_n"], int), out
+    assert out["valquo_pct"] == 4.0 and isinstance(out["valquo_pct"], float), out
+    assert out["spy_pct"] == "n/a", out          # unreadable: kept, not nulled
+    assert out["n_priced"] == "2.5", out         # a fraction in an integer column is not a 2
+    # a column the file has gained is passed through untouched, not guessed at
+    assert index_mark.typed_row({"vintage": "4"})["vintage"] == "4"
 
 
 def _run_all():
