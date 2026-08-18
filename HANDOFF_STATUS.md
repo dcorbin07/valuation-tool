@@ -7882,3 +7882,99 @@ publishes figures derived from licensed vendor data, so a bare MIT header would 
 rights that are not Don's to grant. The note scopes MIT to the source and states that
 `BACKTEST_RESULTS.json` and `data/free_analysis/` are a record of what was measured so the claims
 can be checked, not a redistributable dataset. Ledger rows `DATA-HISTORY` and `PUBLIC-DOCS`.
+
+## PT-WRITER 2026-08-17: could not write today's row — the Cowork lane still cannot reach either vendor, and the Action that replaced it has pushed nothing
+
+**NO ROW WRITTEN. NO PRIOR ROW TOUCHED. NO NUMBER GUESSED.** Ran the documented mechanism
+(`PAPER_TRACK_CONTRACT.md` §7.2a, `python -m scripts.track_row --append`) from the Cowork
+recorder lane after Monday's close. It exited **2** and refused, verbatim:
+
+    REFUSED: the benchmark SPY could not be priced on the inception 2026-07-30 (a benchmark
+    gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)
+
+**This is the 2026-08-14 refusal reproduced character-for-character**, three days and one
+structural fix later.
+
+**THE ROW WAS GENUINELY DUE, AND THAT IS ESTABLISHED BY THE REFUSAL'S OWN POSITION IN THE
+CODE RATHER THAN ASSERTED.** `contract_row` checks in order: book readable (`index_mark.py:186`),
+session closed (`:231`, `:245`), trading day (`:250`), mark after inception (`:253`), *then*
+benchmark pricing (`:267`). The refusal came from `:267`, so every gate before it PASSED — the
+book read, 2026-08-17 is a trading day, and the session had closed. The failure is pricing and
+nothing else.
+
+**APPEND-ONLY, PROVED NOT PROMISED.** `data/valquo_track_history.csv` was snapshotted before the
+run and `cmp` reports it **byte-identical** afterwards. Last row remains **2026-08-13 (day 10)**.
+
+**ROOT CAUSE RE-VERIFIED INDEPENDENTLY OF THE SCRIPT**, because "the script refused" and "the
+network is blocked" are different claims and only the second is actionable. Direct `curl` from
+this lane:
+
+| endpoint | result |
+|---|---|
+| `https://stooq.com/q/d/l/?s=spy.us&i=d` | `curl (56) Received HTTP code 403 from proxy after CONNECT` |
+| `https://query1.finance.yahoo.com/...` | `curl (56) 403 from proxy after CONNECT` |
+| `https://query2.finance.yahoo.com/...` | `curl (56) 403 from proxy after CONNECT` |
+
+Both shipped vendors, all three endpoints, proxy-refused. `PR_pt_writer_action.md` already
+called this structural — *"rescheduling, retrying, or adding a fallback vendor cannot fix it"* —
+and tonight is the fourth consecutive weekday it has held.
+
+**2026-08-14 IS NOW A PERMANENT LOGGED GAP AND WAS DELIBERATELY NOT FILLED.** Friday's row was
+never written and today is the following week, so §3's same-week late-write clause has expired.
+Gaps are logged, never filled. `--date 2026-08-14` was NOT run.
+
+### The replacement mechanism has not taken over, and that is the finding
+
+`.github/workflows/track-row.yml` landed **2026-08-16** (`0e0e86d`, PR #1) to move this job to a
+runner that can reach the vendors. Measured tonight at 20:0x ET, after both of its crons
+(22:12 UTC primary, 23:37 UTC backup, both already past):
+
+* `origin/main` is **`eb80e0e`** — Don's `sync.bat` commit at 20:02, nothing from the writer.
+* **Zero commits from `pt-writer[bot]` exist anywhere in the repository.**
+* No `Track: daily row 2026-08-17` and **no refusal note either** — and the workflow is written
+  so that a refusal *must* push a note. Silence from it is therefore not "it refused"; it is the
+  job not having run, or having failed before its first step.
+
+This is consistent with the billing failure already on record — `track-backup` failed 2026-08-16
+(run `31932667751`, 3s, *"recent account payments have failed or your spending limit needs to be
+increased"*) — but **this lane did not verify that**: `api.github.com` is proxy-refused here too,
+so the Actions tab could not be read. **Reported as unconfirmed, and it needs Don.**
+
+### A latent defect in that Action, measured rather than predicted
+
+**Even on a runner that reaches both vendors, the workflow as written cannot produce a row.**
+`.gitignore:33` ignores `/data/` with no negation, and `git ls-tree -r origin/main -- data/`
+returns **zero paths**. So on a fresh `actions/checkout@v5`:
+
+1. `data/valquo_track.json` — the book — **does not exist**, and `contract_row` refuses at
+   `:186` (*"the book file ... is missing or unreadable"*) before it ever reaches a vendor.
+2. `data/valquo_track_history.csv` does not exist either, so the guard reads `already=false`
+   and the snapshot step falls through to its empty-file branch.
+3. Had a row somehow been produced, `git add data/valquo_track_history.csv` would refuse an
+   ignored path anyway.
+
+All 166 lines were read; **no step restores `data/` from any source**. So the Action's only
+reachable outcome is the refusal branch — a nightly pushed note about a missing book, which is
+not the failure anyone would go looking for. The bound series is gitignored by the project's own
+hard rule on `data/`, so this needs a deliberate decision (the `/admin/track-row?append=1`
+off-box door, or the `data_export/` path that `track-backup` already uses), not a one-line fix.
+**Flagged, not fixed** — `.github/` is outside this lane and `MA11`'s land policy refuses agent
+branches that touch it.
+
+### One observation on the record, offered without a verdict
+
+The local bound series carries **2026-08-13 → `4.25, 4.88, -0.62`** at 2dp, where every other row
+is 4dp. The last authoritative pull of the live service, `data_export/valquo_index_track.csv`
+(weekly `track-backup`, last success 2026-08-09), **ends at 2026-08-06** and does not contain it.
+The §7.2a re-derivation for that same date, recorded in `CLAUDE.md`, reads `4.3232 / 4.8794 /
+-0.5562`. Three sources, three different pictures of one date. **Not adjudicated here** — this
+lane wrote nothing and has no standing to decide which is the record.
+
+### What this lane recommends
+
+The Cowork recorder cannot do this job and four weekdays of identical refusals say so. Either
+allowlist `stooq.com` + `query1.finance.yahoo.com` for the sandbox, or **retire the desktop task
+and make the Action work** — which needs the billing question answered *and* the gitignored-book
+defect above resolved. Until one of those happens, every weekday produces a note instead of a row.
+
+Ledger row `PT-WRITER` stays **BLOCKED**.
