@@ -29,6 +29,8 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from valuation.edge.chain_store import resolve_chains as _resolve_chains  # noqa: E402
+
 from valuation.studies import portfolio_capacity as PC        # noqa: E402
 from valuation.edge import options_vrp_portfolio as VP     # noqa: E402
 from valuation.edge import options_vrp as V                # noqa: E402
@@ -49,7 +51,27 @@ def _data_root() -> str:
 DATA = _data_root()
 BOOK = os.path.join(DATA, "options_universe", "state_r2_splitclean.pkl")
 FREEZE = os.path.join(DATA, "options_freeze", "R2_CORRECTED_2026-08-08", "chains.pkl.gz")
-CHAINS = os.path.join(DATA, "options")
+# ---------------------------------------------------------------------------------------------
+# CHAIN STORE — the PINNED freeze, resolved lazily.
+#
+# `data/options` is written by the miner continuously, and the options re-open list measured
+# 44.2% of its payload units rewritten AFTER the books here were banked. Reading it back was
+# therefore not reading the bytes these verdicts stand on. One shared resolver now owns that
+# decision; the mutable store is an explicit opt-out (VALQUO_CHAINS=mutable), never a silent
+# fallback.
+#
+# Resolved on first USE rather than at import: tests import this module and CI has no D: drive,
+# so resolving at module level would raise at import time and take the suite down.
+_CHAINS = None
+CHAINS_PROVENANCE = None
+
+
+def chains_dir():
+    """The chain-store root. Raises if the pin is unusable rather than falling back."""
+    global _CHAINS, CHAINS_PROVENANCE
+    if _CHAINS is None:
+        _CHAINS, CHAINS_PROVENANCE = _resolve_chains(DATA)
+    return _CHAINS
 BARS = os.path.join(DATA, "bulk", "prepared", "bars")
 O19_OUT = os.path.join(DATA, "free_analysis", "O19_SIZING_ARTEFACT.json")
 MARKS_CACHE = os.path.join(DATA, "free_analysis", "O11_MARKS.pkl")
