@@ -7184,3 +7184,151 @@ either direction. Nothing is adopted.
 
 `scripts/deepitm_financing.py`, `tests/test_deepitm_financing.py` (17);
 `data/free_analysis/DEEPITM_FIN.json`, `DEEPITM_FIN_CONTROLS.json`.
+
+
+---
+
+## 64 · THE CHAIN STORE IS PINNED — AND THE DRIFT THAT MOTIVATED IT NEVER REACHED THE ANALYSIS ARTIFACTS
+
+**ZERO TRIALS.** No hypothesis, no threshold, no verdict against a bar, **and no ledger verdict
+moves**. Infrastructure plus a reproduction report. `.github/` untouched; the mining scripts
+untouched.
+
+### 64.0 · What was done
+
+`valuation/edge/chain_store.py` is now the **one** resolver for the option chain store. It
+returns the **PINNED freeze** by default and the mutable `data/options` only as an **EXPLICIT
+opt-out** (`allow_mutable=True` or `VALQUO_CHAINS=mutable`). If the pin is missing or unusable it
+**raises**. A resolver that fell back silently would reintroduce exactly the drift it exists to
+remove, *while the run still claimed to be pinned* — which is worse than not pinning at all.
+
+**THE NAMED ARTIFACT**, recorded so a future read is against a fingerprint rather than a label:
+
+| field | value |
+|---|---|
+| freeze | `D:\thetadata\freeze_options_2026-08-17` |
+| manifest sha256 | `dc8e9b3582d8af722cfcdebc178b03541408f17e2c7e60711c4430cdbd9a5489` |
+| manifest lines / files recorded | **12,302 / 12,302** |
+| payload units | **5,063** |
+| bytes | 26,983,534,474 |
+| hash mismatches at copy | **0** |
+
+### 64.1 · THE CENSUS FOUND SIX READERS, NOT THREE — AND TWO OF THE THREE NAMED ONES WERE DEAD
+
+| reader | how it reads | action |
+|---|---|---|
+| `o3_o4_o5_surface.py` | own loader | **repointed** |
+| `o6_o7_o17_earnings.py` | own loader — **and it is the SHARED one** | **repointed** |
+| `o11_o19_o22_o25_portfolio.py` | **`CHAINS` was DEAD**; reads via `o6`'s loader | repointed (constant) |
+| `o14_tickflow_signals.py` | **`CHAINS` was DEAD**; reads via `o6`'s loader | repointed (constant) |
+| `ma31_ma32_measure.py` | own loader | **repointed — not in the brief** |
+| `ma44_ma45_ma48_measure.py` | `--root` default | **repointed — not in the brief** |
+| `valuation/edge/theta_bulk.py` | **the MINER — it WRITES the store** | **deliberately NOT repointed**, pinned by test |
+
+So repointing `o6_o7_o17_earnings` repoints three rows at once, and two of the brief's three named
+scripts carried constants that no longer fed anything.
+
+**NOT COVERABLE, and said rather than papered over: `data/options_derived` is NOT in the freeze.**
+`v6opt_premise`, `v6opt_stage1`, `v6opt_stage2`, `studies/surface_stock` and `options_greeks` read
+that layer and therefore remain **UNPINNED** — there is nothing to point them at. Freezing it is
+the data-miner lane's call, not this lane's.
+
+### 64.2 · TWO PREMISE CORRECTIONS, BOTH MEASURED
+
+1. **The manifest mirrored to `data/deep_harvest` is NOT this freeze's.** It carries **1,865**
+   lines and its `FREEZE_SUMMARY` names `dest freeze_rawpull_2026-08-18`, `source
+   D:/thetadata/chains` — the raw-pull tree, a different and later freeze. The options-store
+   freeze's manifest is **12,302** lines and exists **only on D:**. A resolver that verified
+   against the in-repo mirror would have been checking the wrong file list.
+2. **The freeze covers `options/` only** (see 64.1).
+
+### 64.3 · THE FREEZE IS VERIFIED INDEPENDENTLY, NOT ON THE MINER'S OWN SUMMARY
+
+`FREEZE_SUMMARY.json` reporting `hash_mismatches_at_copy: 0` is the miner marking its own
+homework. Re-hashed here, 40 payload files sampled at seed 20260818:
+
+* **40 / 40** frozen bytes match the manifest's recorded sha256;
+* **40 / 40** frozen bytes match the **mutable store** byte-for-byte;
+* **0** sampled files absent from the mutable store.
+
+### 64.4 · THE DRIFT MEASUREMENT — AND IT REFRAMES WHAT THE PIN BUYS
+
+The manifest records `source_mtime_utc` per file, so the exposure of any banked row is directly
+countable rather than inferred.
+
+**Every payload mtime in the store falls in 2026-08-01 → 2026-08-07.** Last write
+**2026-08-07T20:41:35Z**. By day: 08-01 24 (0.5%), 08-02 431 (8.5%), **08-03 1,381 (27.3%)**,
+08-04 272 (5.4%), 08-05 556 (11.0%), **08-06 1,586 (31.3%)**, 08-07 813 (16.1%).
+
+**D11's 44.2% is measured against THE BOOK, and it reproduces.** `state_r2_corrected.pkl` was
+banked 2026-08-05 19:51:35 (a **naive** stamp, against UTC mtimes). Read as UTC it gives 2,637
+(52.1%); at a +8h reading it gives **2,242 (44.3%) against D11's 2,236 (44.2%) — within six
+units.** **The ledger figure stands; the difference is a timestamp convention, not a
+disagreement about the data.**
+
+**RELATIVE TO THE ANALYSIS ARTIFACTS THE EXPOSURE IS ZERO, and that is the finding.** Every one
+was banked on 2026-08-11 or later, four days *after* the store went quiet:
+
+| artifact | banked | units rewritten after | share |
+|---|---|---|---|
+| O3/O4/O5, O6/O7/O17, O11/…, O10/O18 | 2026-08-12 | 0 | **0.0%** |
+| O13, O21 | 2026-08-11 | 0 | **0.0%** |
+| O14 | 2026-08-13 | 0 | **0.0%** |
+| V6-OPT stage 2 | 2026-08-14 | 0 | **0.0%** |
+| MA44/45/48 | 2026-08-15 | 0 | **0.0%** |
+| MA31/MA32 | 2026-08-16 | 0 | **0.0%** |
+
+**So the BOOK is exposed to the drift and the ANALYSES built on it are not exposed to any
+FURTHER drift.** Separately confirmed: **zero** files in `data/options` are newer than
+2026-08-08, so the store has been quiet for eleven days and D11's Tier C pull landed in
+`D:\thetadata\chains`, a different tree.
+
+**WHAT THE PIN BUYS, STATED PLAINLY BECAUSE IT IS EASY TO OVERSELL.** The freeze was taken
+**from** the mutable store and is byte-identical to it now. **It protects FUTURE reads. It does
+not recover the bytes the R2 book was banked on.** Any divergence found by a re-run would be
+drift that had **already happened** before the pin existed.
+
+### 64.5 · REPRODUCTION — BIT-IDENTICAL, AS PREDICTED BEFORE THE RUN
+
+The prediction was written down first: because the store's last write (08-07) predates the
+O3/O4/O5 artifact (08-12), the freeze holds exactly the bytes that run read, so reproduction
+should be bit-identical.
+
+**It is.** `scripts/o3_o4_o5_surface --refresh` re-run in full against the frozen store — 242
+tickers, 3,373 formation events, 3,370 s — then diffed leaf by leaf against the banked artifact:
+
+**255 shared leaves, 0 moved, 0 added, 0 removed. BIT-IDENTICAL.**
+
+Every headline reproduces to the digit: `A1_O3_idio_vol` n 3,289 mono −0.1717 ls_t **2.5158** vs
+p95 2.016; `A2_O4_expected_idio_skew` n 3,154 mono −0.0380 ls_t **1.9143** vs p95 1.9229;
+`A3_O5_vol_of_vol` n 3,318 mono −0.0690 ls_t **2.9703** vs p95 1.9459; dispersion dh sd **0.0303**
+against the straddle's 0.9055. All three verdicts remain **NULL**.
+
+**A divergence here would have been a finding about the OLD instrument** — that it read a store
+since rewritten — **never a new verdict, and it would have changed no ledger verdict.** There was
+none to report.
+
+### 64.6 · A HAZARD FOUND WHILE DOING THIS, WORTH MORE THAN THE REPOINTING
+
+**The re-run OVERWRITES the banked artifact.** `OUT` resolves to
+`data/free_analysis/O3_O4_O5_SURFACE.json` — the banked file itself — and `data/` is gitignored,
+so git is **not** a recovery path. The banked copies were backed up out-of-tree before the first
+re-run and the comparison was made against that backup.
+
+**Anyone re-running a banked construction to check reproduction destroys the thing they are
+checking against, unless they copy it first.** That is not a defect introduced here; it is how
+every one of these scripts has always behaved.
+
+### 64.7 · What is pinned by test
+
+`tests/test_chain_store.py` (13): the mutable store is refused unless explicitly requested; a
+missing, unpopulated, too-small, hash-mismatched, incomplete or wrong-`kind` freeze each **raise**
+rather than falling back; the opt-out carries the drift warning; the fingerprint is emitted; the
+repointed scripts **do not resolve at import** (AST-checked — CI has no `D:` drive and a
+module-level resolve would take the whole suite down); no repointed script still builds the
+mutable path itself; and **the miner is not repointed**.
+
+`scripts/repin_reproduction.py` is the leaf comparator, and its docstring carries the
+zero-trials/no-verdict rule so the next user of it cannot mistake a divergence for a result.
+
+`data/free_analysis/REPIN_REPRODUCTION_O3O4O5.json`.

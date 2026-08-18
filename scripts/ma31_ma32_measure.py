@@ -34,6 +34,8 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from valuation.edge.chain_store import resolve_chains as _resolve_chains  # noqa: E402
+
 from valuation.edge import blackscholes as BS                     # noqa: E402
 from valuation.edge import dividends as DIV                       # noqa: E402
 from valuation.studies import parity_flow as PF                   # noqa: E402
@@ -59,7 +61,27 @@ def _data_root() -> str:
 
 
 DATA = _data_root()
-CHAINS = os.path.join(DATA, "options")
+# ---------------------------------------------------------------------------------------------
+# CHAIN STORE — the PINNED freeze, resolved lazily.
+#
+# `data/options` is written by the miner continuously, and the options re-open list measured
+# 44.2% of its payload units rewritten AFTER the books here were banked. Reading it back was
+# therefore not reading the bytes these verdicts stand on. One shared resolver now owns that
+# decision; the mutable store is an explicit opt-out (VALQUO_CHAINS=mutable), never a silent
+# fallback.
+#
+# Resolved on first USE rather than at import: tests import this module and CI has no D: drive,
+# so resolving at module level would raise at import time and take the suite down.
+_CHAINS = None
+CHAINS_PROVENANCE = None
+
+
+def chains_dir():
+    """The chain-store root. Raises if the pin is unusable rather than falling back."""
+    global _CHAINS, CHAINS_PROVENANCE
+    if _CHAINS is None:
+        _CHAINS, CHAINS_PROVENANCE = _resolve_chains(DATA)
+    return _CHAINS
 BARS = os.path.join(DATA, "bulk", "prepared", "bars")
 PANEL = os.path.join(DATA, "free_analysis", "panel_corrected_69d.pkl")
 OUTDIR = os.path.join(DATA, "free_analysis")
@@ -98,7 +120,7 @@ def _raw_spot_map(bars: dict) -> Dict[str, float]:
 
 
 def _tickers() -> List[str]:
-    return sorted(x for x in os.listdir(CHAINS) if os.path.isdir(os.path.join(CHAINS, x)))
+    return sorted(x for x in os.listdir(chains_dir()) if os.path.isdir(os.path.join(chains_dir(), x)))
 
 
 # --------------------------------------------------------------------------- #
@@ -132,7 +154,7 @@ def build(limit: Optional[int] = None, progress_every: int = 25) -> pd.DataFrame
         spot_of = _raw_spot_map(bars) if bars else None
         if spot_of is None:
             n_no_bars += 1
-        files = sorted(glob.glob(os.path.join(CHAINS, tkr, f"{tkr}-*.pkl")))
+        files = sorted(glob.glob(os.path.join(chains_dir(), tkr, f"{tkr}-*.pkl")))
         by_year: Dict[int, Optional[pd.DataFrame]] = {}
         for f in files:
             try:
@@ -148,7 +170,7 @@ def build(limit: Optional[int] = None, progress_every: int = 25) -> pd.DataFrame
                     continue
                 if by_year[y] is None:
                     try:
-                        df = pd.read_pickle(os.path.join(CHAINS, tkr, f"{tkr}-{y}.pkl"))
+                        df = pd.read_pickle(os.path.join(chains_dir(), tkr, f"{tkr}-{y}.pkl"))
                         df["_d"] = pd.to_datetime(df["date"])
                         by_year[y] = df
                     except Exception:                               # noqa: BLE001

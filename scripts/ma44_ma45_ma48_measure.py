@@ -38,7 +38,17 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 PAT = re.compile(r"^([A-Z0-9._-]+)-(\d{4})\.pkl$")
-DEFAULT_ROOT = os.path.join(os.path.expanduser("~"), "Downloads", "valuation-tool",
+# The PINNED freeze is the default root; the mutable store is reachable only by passing --root
+# explicitly. Resolved lazily so `--help` and an import still work without the freeze mounted.
+def _default_root():
+    try:
+        from valuation.edge.chain_store import resolve_chains
+        return resolve_chains(os.path.join(os.path.expanduser("~"), "Downloads",
+                                           "valuation-tool", "data"))[0]
+    except Exception:                                                # noqa: BLE001
+        # Reported, not silently substituted: argparse still needs a string, and the run will
+        # say which root it used.
+        return os.path.join(os.path.expanduser("~"), "Downloads", "valuation-tool",
                             "data", "options")
 
 
@@ -202,7 +212,7 @@ def ma45_probe(root, n_syms=25, seed=20260815, years_per_sym=2):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--root", default=DEFAULT_ROOT)
+    ap.add_argument("--root", default=_default_root())
     ap.add_argument("--out", default=os.path.join("data", "free_analysis", "MA44_45_48.json"))
     a = ap.parse_args()
     if not os.path.isdir(a.root):
