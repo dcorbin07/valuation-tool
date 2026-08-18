@@ -74,19 +74,23 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      # The door's contract (§7.2b): 201 wrote / 200 already recorded / 409
+      # append-only violation / 422 refused. Both 2xx codes are success — the
+      # first cut accepted only 200, which would have filed the first genuine
+      # write under "refusal".
       - name: Success — nothing else to do
-        if: steps.post.outputs.code == '200'
+        if: steps.post.outputs.code == '200' || steps.post.outputs.code == '201'
         run: |
-          echo "Row written or already present (idempotent). The service's own series"
-          echo "is the record; the weekly track-backup Action archives it into git."
+          echo "HTTP ${{ steps.post.outputs.code }}: row written (201) or already present (200)."
+          echo "The service's own series is the record; the weekly track-backup archives it."
 
       # A refusal or an unreachable service is a legitimate, LOUD outcome. It gets a
       # dated note in the record, exactly as the contract requires — never a guess.
       - uses: actions/checkout@v5
-        if: steps.post.outputs.code != '200'
+        if: steps.post.outputs.code != '200' && steps.post.outputs.code != '201'
 
       - name: Record the refusal and push it
-        if: steps.post.outputs.code != '200'
+        if: steps.post.outputs.code != '200' && steps.post.outputs.code != '201'
         env:
           CODE: ${{ steps.post.outputs.code }}
           BODY: ${{ steps.post.outputs.body }}
