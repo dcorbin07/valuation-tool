@@ -7304,9 +7304,19 @@ p95 2.016; `A2_O4_expected_idio_skew` n 3,154 mono −0.0380 ls_t **1.9143** vs 
 `A3_O5_vol_of_vol` n 3,318 mono −0.0690 ls_t **2.9703** vs p95 1.9459; dispersion dh sd **0.0303**
 against the straddle's 0.9055. All three verdicts remain **NULL**.
 
-**A divergence here would have been a finding about the OLD instrument** — that it read a store
-since rewritten — **never a new verdict, and it would have changed no ledger verdict.** There was
-none to report.
+**AND THE SECOND CONSTRUCTION AGREES.** `scripts/o6_o7_o17_earnings --refresh` re-run in full
+against the frozen store — 186 names, 13,484 candidate events, 4,540 s — diffs against its banked
+artifact at **528 shared leaves, 0 moved, 0 added, 0 removed. BIT-IDENTICAL.** Its figures
+reproduce to the digit too: `A3_smile_residual` gain **−0.11099** vs p95 −0.11244;
+`C4_own_the_event` kept 1,987/3,482 gain **+0.04686** vs p95 0.02208; O7 coverage **0.4459**, B1
+**RICH**, B2 mean **−0.1034**. Every verdict still NULL.
+
+**Two constructions, 783 shared leaves, ZERO moved.** That is the whole reproduction result.
+
+**A divergence would have been a finding about the OLD instrument** — that it read a store since
+rewritten — **never a new verdict, and it would have changed no ledger verdict.** There was none
+to report, and §64.4 says why in advance: the store went quiet four days before the earliest
+artifact, so there was no drift left for a re-run to expose.
 
 ### 64.6 · A HAZARD FOUND WHILE DOING THIS, WORTH MORE THAN THE REPOINTING
 
@@ -7331,4 +7341,4 @@ mutable path itself; and **the miner is not repointed**.
 `scripts/repin_reproduction.py` is the leaf comparator, and its docstring carries the
 zero-trials/no-verdict rule so the next user of it cannot mistake a divergence for a result.
 
-`data/free_analysis/REPIN_REPRODUCTION_O3O4O5.json`.
+`data/free_analysis/REPIN_REPRODUCTION_O3O4O5.json`, `REPIN_REPRODUCTION_O6O7O17.json`.
