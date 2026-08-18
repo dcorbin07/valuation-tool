@@ -129,6 +129,64 @@ def tier_of(year: int) -> str:
     return "A" if 2016 <= year <= 2018 else "B"
 
 
+# ------------------------------------------------------------------ Tier C
+
+TIER_C_YEARS = (2016, 2017, 2018)
+PANEL = os.path.join(REPO, "data", "free_analysis", "panel_s22_h504.pkl")
+
+
+def _attempted(sym: str, year: int) -> str:
+    """Has this symbol-year EVER been attempted, and with what outcome?
+
+    The breadth cache is tri-state -- `.pkl` (payload), `.pkl.empty` (the vendor served
+    nothing), `.pkl.missing` (the vendor refused) -- so "never tried" is the absence of all
+    three, and is a MINING SCOPE fact rather than a statement about the data.
+    """
+    d = os.path.join(OPT, sym)
+    base = f"{sym}-{year}.pkl"
+    if os.path.exists(os.path.join(d, base)):
+        return "payload"
+    for ext in (".empty", ".missing"):
+        if os.path.exists(os.path.join(d, base + ext)):
+            return "empty" if ext == ".empty" else "missing"
+    return "never"
+
+
+def tier_c_units():
+    """(units_to_pull, skipped) for the optionable universe's 2016-2018 hole.
+
+    Measured 2026-08-17 by scripts/options_coverage_census.py: of 906 optionable panel names,
+    411 hold at least one 2016-2018 unit and 495 hold none. Those 495 split into 420 NEVER
+    TRIED (414 have 2024 as their earliest year -- they were simply never in the breadth
+    miner's scope) and 75 that WERE tried and came back genuinely empty.
+
+    The 75 are skipped with a reason and NOT re-probed. Re-probing a recorded `.empty` spends
+    an irreplaceable subscription window re-confirming a negative the cache already holds.
+    """
+    import pandas as pd
+
+    panel_names = {str(t) for t in pd.read_pickle(PANEL)["ticker"].unique()}
+    cache_dirs = {d for d in os.listdir(OPT) if os.path.isdir(os.path.join(OPT, d))}
+    optionable = sorted(cache_dirs & panel_names)
+
+    units, skipped = [], []
+    for sym in optionable:
+        state = {y: _attempted(sym, y) for y in TIER_C_YEARS}
+        if any(v == "payload" for v in state.values()):
+            continue                                    # already holds part of the window
+        if all(v in ("empty", "missing") for v in state.values()):
+            skipped.append({"symbol": sym, "reason": "known_empty_all_three_years",
+                            "detail": state})
+            continue
+        for y in TIER_C_YEARS:
+            if state[y] == "never":
+                units.append(("C", sym, y))
+            else:
+                skipped.append({"symbol": sym, "year": y,
+                                "reason": f"already_{state[y]}", "detail": None})
+    return units, skipped
+
+
 def unit_path(root: str, sym: str, year: int) -> str:
     return os.path.join(root, "chains", sym, f"{sym}-{year}.pkl")
 
@@ -177,6 +235,8 @@ def append_manifest(root: str, rec: dict):
 def needs_pull(root: str, sym: str, year: int, man: dict) -> bool:
     """Verified resume: a unit is done only if its payload EXISTS and HASHES to its record."""
     rec = man.get(f"{sym}|{year}")
+    if rec and rec.get("status") in ("empty", "empty_vendor"):
+        return False                      # terminal: the vendor has nothing. Do not re-probe.
     if not rec or rec.get("status") != "ok":
         return True
     p = unit_path(root, sym, year)
@@ -259,20 +319,76 @@ def compare_overlap(new_df, sym: str, year: int):
     return "agree", det
 
 
+_PANEL_FIRST_YEAR = {}
+
+
+def panel_first_year(sym: str) -> int:
+    """First calendar year the panel knows this ticker, cached. A proxy for listing.
+
+    WHY IT IS STAMPED ON EVERY TIER C UNIT. Option chains are keyed by the ticker as traded at
+    the time, and tickers get RECYCLED. Probing found RPRX serving 1,320 rows for March 2016
+    although RPRX listed in 2020 -- those rows belong to whoever held the symbol then. Tier C
+    is precisely the population whose panel membership starts late, so it is the population
+    most exposed to reuse.
+
+    This does NOT gate the pull. Collection is not analysis, the bytes are what the vendor
+    served, and a unit withheld before 2026-09-01 is unreachable afterwards. What it does is
+    make the contamination DETECTABLE: any unit whose year predates its panel debut is stamped
+    `pre_panel_history: true` and must be treated as suspect until the alias/reuse scan
+    adjudicates it. Silent attribution of another company's chains to a modern name is the
+    failure this exists to prevent.
+    """
+    if not _PANEL_FIRST_YEAR:
+        import pandas as pd
+
+        df = pd.read_pickle(PANEL)
+        d = pd.to_datetime(df["date"], errors="coerce")
+        for sym_, yr in zip(df["ticker"].astype(str), d.dt.year):
+            if yr == yr:                                  # not NaN
+                cur = _PANEL_FIRST_YEAR.get(sym_)
+                if cur is None or yr < cur:
+                    _PANEL_FIRST_YEAR[sym_] = int(yr)
+    return _PANEL_FIRST_YEAR.get(sym, 0)
+
+
+UNIT_CALL_TIMEOUT_S = 300
+
+
+def _bounded(fn, timeout: int = UNIT_CALL_TIMEOUT_S):
+    """A deadline that covers CLIENT CONSTRUCTION as well as the RPC. See BUG 3."""
+    import concurrent.futures as _cf
+
+    ex = _cf.ThreadPoolExecutor(max_workers=1)
+    try:
+        return ex.submit(fn).result(timeout=timeout)
+    except _cf.TimeoutError:
+        return "TIMEOUT"
+    except Exception as e:                                           # noqa: BLE001
+        return f"ERR:{type(e).__name__}"
+    finally:
+        ex.shutdown(wait=False)
+
+
 def pull_unit(tb, sym: str, year: int, root: str):
     """One symbol-year, quarter by quarter (the span size theta_bulk found survivable)."""
     import pandas as pd
 
-    frames, failed = [], []
+    frames, failed, errs = [], [], []
     t0 = time.time()
     for q in range(4):
         s = dt.date(year, 1 + q * 3, 1)
         e = (dt.date(year + 1, 1, 1) if q == 3
              else dt.date(year, 4 + q * 3, 1)) - dt.timedelta(days=1)
-        r = tb._call_with_timeout(tb._cli().option_history_eod, start_date=s, end_date=e,
-                                  symbol=sym, expiration="*", max_dte=MAX_DTE)
+        # BUG 3, fixed here: `tb._cli()` used to be written as an ARGUMENT to
+        # _call_with_timeout, so it was evaluated before the deadline existed. After a fault
+        # nulls the client, the next connect is unbounded -- that hung PID 3172 for twelve
+        # hours with no output and no error. Submitting a closure puts CONSTRUCTION inside the
+        # bound. theta_bulk itself is another lane's file and is not touched.
+        r = _bounded(lambda: tb._cli().option_history_eod(
+            start_date=s, end_date=e, symbol=sym, expiration="*", max_dte=MAX_DTE))
         if isinstance(r, str):
             failed.append(f"Q{q+1}")
+            errs.append(r)
             try:
                 tb._client = None            # force a fresh channel; a dead one stays dead
             except Exception:                                        # noqa: BLE001
@@ -281,7 +397,15 @@ def pull_unit(tb, sym: str, year: int, root: str):
         if r is not None and len(r):
             frames.append(r)
     if failed:
-        return {"status": "failed", "quarters_failed": failed,
+        # "the vendor has nothing here" is a TERMINAL answer, not a transient fault, and the
+        # two must not share a status. Tier C is ~25% pre-listing names (ABVX listed 2024, so
+        # its 2016-2018 is empty by construction); recording those as `failed` would re-probe
+        # every one on every restart, spending an irreplaceable window re-confirming a
+        # negative. Mirrors the breadth cache's own `.pkl.empty` convention.
+        if len(failed) == 4 and errs and all("NoDataFound" in e for e in errs):
+            return {"status": "empty_vendor", "quarters_failed": failed, "errors": errs[:4],
+                    "seconds": round(time.time() - t0, 1)}
+        return {"status": "failed", "quarters_failed": failed, "errors": errs[:4],
                 "seconds": round(time.time() - t0, 1)}
     if not frames:
         return {"status": "empty", "seconds": round(time.time() - t0, 1)}
@@ -302,11 +426,95 @@ def pull_unit(tb, sym: str, year: int, root: str):
     exp = pd.to_datetime(df["expiration"].astype(str))
     dat = pd.to_datetime(df["date"].astype(str))
     dte = (exp - dat).dt.days
+    pfy = panel_first_year(sym)
     return {"status": "ok", "rows": int(len(df)), "bytes": os.path.getsize(p),
+            "panel_first_year": pfy,
+            "pre_panel_history": bool(pfy and year < pfy),
             "sha256": sha256(p), "seconds": round(time.time() - t0, 1),
             "max_dte_seen": int(dte.max()), "rows_over_200dte": int((dte > 200).sum()),
             "dates": int(df["date"].nunique()),
             "overlap": verdict, "overlap_detail": detail}
+
+
+def adopt_orphans(root: str) -> dict:
+    """Re-checkpoint payloads that exist on disk but carry no manifest record.
+
+    WHY THIS IS NEEDED. BUG 5 left 883 payloads (9.90 GB) on disk against 15 manifest records:
+    the loop that writes checkpoints died while the executor kept pulling for twelve hours.
+    `needs_pull` trusts the manifest, so without this every one of those units would be pulled
+    a SECOND time -- roughly twelve hours of an irreplaceable subscription window, spent
+    re-fetching bytes already paid for.
+
+    It is deliberately conservative. A payload is adopted ONLY if it unpickles, carries the
+    schema this miner writes, and its EMBEDDED symbol/year match its own path. Anything else is
+    left alone to be re-pulled, because a wrong manifest record is worse than a missing one --
+    it would mark a unit done that nobody has verified. Adopted records are stamped
+    `adopted_from_disk: true` so they are never confused with a checkpoint written live.
+    """
+    man = load_manifest(root)
+    base = os.path.join(root, "chains")
+    adopted = skipped = 0
+    reasons = collections.Counter()
+    if not os.path.isdir(base):
+        return {"adopted": 0, "skipped": 0}
+    for sym in sorted(os.listdir(base)):
+        d = os.path.join(base, sym)
+        if not os.path.isdir(d):
+            continue
+        for fn in sorted(os.listdir(d)):
+            if not fn.endswith(".pkl"):
+                continue
+            try:
+                year = int(fn[len(sym) + 1:-4])
+            except ValueError:
+                reasons["unparseable_name"] += 1
+                skipped += 1
+                continue
+            if f"{sym}|{year}" in man:
+                continue                                  # already checkpointed
+            p = os.path.join(d, fn)
+            try:
+                with open(p, "rb") as f:
+                    obj = pickle.load(f)
+            except Exception as e:                                   # noqa: BLE001
+                reasons[f"unreadable_{type(e).__name__}"] += 1
+                skipped += 1
+                continue
+            if (not isinstance(obj, dict) or obj.get("symbol") != sym
+                    or obj.get("year") != year or "rows" not in obj):
+                reasons["schema_or_identity_mismatch"] += 1
+                skipped += 1
+                continue
+            df = obj["rows"]
+            try:
+                import pandas as pd
+
+                exp = pd.to_datetime(df["expiration"].astype(str), errors="coerce")
+                dat = pd.to_datetime(df["date"].astype(str), errors="coerce")
+                dte = (exp - dat).dt.days
+                mx = dte.max()
+                over = int((dte > 200).sum())
+            except Exception:                                        # noqa: BLE001
+                mx, over = None, None
+            pfy = panel_first_year(sym)
+            rec = {"status": "ok", "tier": tier_of(year), "symbol": sym, "year": year,
+                   "rows": int(len(df)), "bytes": os.path.getsize(p), "sha256": sha256(p),
+                   "max_dte_seen": (int(mx) if mx == mx and mx is not None else None),
+                   "rows_over_200dte": over,
+                   "dates": int(df["date"].nunique()),
+                   "max_dte": obj.get("max_dte"),
+                   "pulled_utc": obj.get("pulled_utc"),
+                   "panel_first_year": pfy,
+                   "pre_panel_history": bool(pfy and year < pfy),
+                   "overlap": "not_compared_adopted",
+                   "adopted_from_disk": True,
+                   "utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")}
+            append_manifest(root, rec)
+            adopted += 1
+    out = {"adopted": adopted, "skipped": skipped, "reasons": dict(reasons)}
+    log(f"adopt-orphans: {adopted} payloads re-checkpointed, {skipped} skipped {dict(reasons)}",
+        root)
+    return out
 
 
 # ------------------------------------------------------------------ driver
@@ -318,7 +526,17 @@ def run(root: str, tiers: str, limit: int, workers: int, dry: bool):
 
     os.makedirs(root, exist_ok=True)
     units = [(tier_of(y), s, y) for s, y in alert_symbol_years() if tier_of(y) in tiers]
-    units.sort(key=lambda u: (u[0], u[1], u[2]))       # Tier A entirely before Tier B
+    skipped = []
+    if "C" in tiers:
+        c_units, skipped = tier_c_units()
+        units += c_units
+        with open(os.path.join(root, "tier_c_skipped.json"), "w", encoding="utf-8") as fh:
+            json.dump(skipped, fh, indent=1)
+        n_empty = sum(1 for s in skipped if s["reason"] == "known_empty_all_three_years")
+        log(f"tier C: {len(c_units)} units to pull, {len(skipped)} skipped "
+            f"({n_empty} names known-empty in all three years, NOT re-probed) "
+            f"-> tier_c_skipped.json", root)
+    units.sort(key=lambda u: (u[0], u[1], u[2]))       # Tier A entirely before B, then C
     man = load_manifest(root)
     todo = [u for u in units if needs_pull(root, u[1], u[2], man)]
     if limit:
@@ -358,10 +576,26 @@ def run(root: str, tiers: str, limit: int, workers: int, dry: bool):
         tier, sym, year = u
         return u, pull_unit(worker_tb(), sym, year, root)
 
-    with ThreadPoolExecutor(max_workers=workers) as ex:
+    # BUG 5. The previous shape was `for fut in as_completed(futs): fut.result()` with the
+    # executor in a `with` block. One unit raising propagated out of the loop, and
+    # ThreadPoolExecutor.__exit__ then called shutdown(wait=True) -- which does NOT cancel the
+    # ~1,340 already-submitted futures. So the workers kept pulling for TWELVE HOURS while the
+    # loop that writes the manifest was dead: 883 payloads landed on disk against 15 manifest
+    # records, and killing the process orphaned every one of them. The failure is silent by
+    # construction -- no log line, no traceback until exit, and it LOOKS exactly like a hang.
+    # A single unit's exception may never again stop the checkpointing of the others.
+    ex = ThreadPoolExecutor(max_workers=workers)
+    try:
         futs = {ex.submit(one, u): u for u in todo}
         for fut in as_completed(futs):
-            (tier, sym, year), rec = fut.result()
+            u = futs[fut]
+            try:
+                (tier, sym, year), rec = fut.result()
+            except Exception as e:                                   # noqa: BLE001
+                tier, sym, year = u
+                rec = {"status": "failed", "error": f"{type(e).__name__}: {e}"[:300]}
+                log(f"unit {sym}-{year} raised {type(e).__name__}: {e} -- recorded failed, "
+                    f"run continues", root)
             if rec is None:
                 continue
             rec.update({"tier": tier, "symbol": sym, "year": year,
@@ -387,6 +621,10 @@ def run(root: str, tiers: str, limit: int, workers: int, dry: bool):
                 if freed < MIN_FREE_GB_D:
                     log(f"STOPPING: D: free {freed:.0f}GB below floor {MIN_FREE_GB_D}GB", root)
                     stop.set()
+
+    finally:
+        # cancel_futures: a stopped run must not keep pulling in the background
+        ex.shutdown(wait=False, cancel_futures=True)
 
     log(f"finished {done} units in {(time.time()-t0)/3600:.2f}h, {gb:.2f}GB", root)
     if disagreements:
@@ -456,11 +694,13 @@ def verify(root: str, full: bool = False) -> dict:
 def main():
     ap = argparse.ArgumentParser(description="ThetaData Pro deep-chain harvest (collection only)")
     ap.add_argument("--raw-root", default=DEFAULT_RAW_ROOT)
-    ap.add_argument("--tiers", default="AB", help="which tiers to run, e.g. A, AB")
+    ap.add_argument("--tiers", default="AB", help="which tiers to run, e.g. A, AB, C")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--summary", action="store_true")
+    ap.add_argument("--adopt-orphans", action="store_true",
+                    help="re-checkpoint payloads on disk with no manifest record (BUG 5)")
     ap.add_argument("--verify", action="store_true", help="check payloads against the manifest")
     ap.add_argument("--full-hash", action="store_true", help="with --verify, re-hash every file")
     ap.add_argument("--mirror", default="", help="mirror manifest+summary to this dir")
@@ -468,6 +708,12 @@ def main():
 
     if args.verify:
         print(json.dumps(verify(args.raw_root, args.full_hash), indent=1))
+        return
+    if args.adopt_orphans:
+        print(json.dumps(adopt_orphans(args.raw_root), indent=1))
+        print(json.dumps(summarise(args.raw_root), indent=1)[:800])
+        if args.mirror:
+            mirror(args.raw_root, args.mirror)
         return
     if args.summary:
         s = summarise(args.raw_root)
