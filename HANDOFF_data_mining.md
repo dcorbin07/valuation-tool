@@ -19,7 +19,13 @@ options book were **not** cached, and that the expiring Pro window was the only 
 
 **`data/options` already holds 42,608 of 42,650 required holding-period trading days = 99.90%,
 with ZERO missing symbol-years.** The two tiers that consumed the entire queue — A and B — are
-**dead**. The harvester was killed with 13 units banked and the window redirected.
+**dead**. The harvester was stopped and the window redirected.
+
+**A correction to this file's own first version, because it matters for what was spent:** the
+stopped run is recorded below as having banked 13 units. It had actually pulled **886** — the
+checkpoint loop died while the workers kept going (BUG 5). The units were recovered from disk
+rather than re-pulled, so **Tier A is 393 of 400 complete** as a side effect of a bug, and the
+twelve hours were not wasted.
 
 Reproduce: `python -m scripts.options_coverage_census`
 Artifacts (gitignored, local): `data/free_analysis/OPTIONS_COVERAGE_CENSUS.json`,
@@ -294,13 +300,13 @@ symbol-year assembled from three good quarters and one failure looks like a comp
 This harvester treats **any** failed quarter as a failed **unit** (no payload, `status: failed`,
 re-pulled next run). Flagged because the same shape exists in the breadth miner.
 
-**3. NEW, and it cost twelve hours: the RPC deadline does not cover client construction.**
-`theta_bulk._call_with_timeout` bounds the *call*, but callers write
-`tb._call_with_timeout(tb._cli().option_history_eod, ...)` — and `tb._cli()` is evaluated as an
-**argument**, so it runs **outside** the deadline. On a fault the recovery path sets
-`tb._client = None` to force a fresh channel, and the next `_cli()` then connects **unbounded**.
-PID 3172 started 03:24:35 UTC, wrote 3 units by 03:26:39, and hung until killed at ~15:29 UTC —
-**twelve hours, no output, no error, no timeout.** Not a rate limit and not a ban.
+**3. The RPC deadline does not cover client construction — REAL, but NOT what cost twelve
+hours. See BUG 5; this entry is corrected below.** `theta_bulk._call_with_timeout` bounds the
+*call*, but callers write `tb._call_with_timeout(tb._cli().option_history_eod, ...)` — and
+`tb._cli()` is evaluated as an **argument**, so it runs **outside** the deadline. On a fault the
+recovery path sets `tb._client = None`, and the next `_cli()` then connects **unbounded**. That
+is a genuine latent hang and it is fixed in this lane's script by submitting a closure. It is
+**not** the cause of the 2026-08-17 twelve-hour episode, which I originally attributed to it.
 
 *Fixed in my own scripts* by submitting a closure so construction is inside the deadline:
 
@@ -312,6 +318,57 @@ bounded(call, timeout=120)
 
 **Not fixed in `valuation/edge/theta_bulk.py` — that is the options-bot lane's file** (lane rule:
 report, don't fix). Any lane calling `_call_with_timeout(tb._cli().x, ...)` has the same hang.
+
+**5. THE TWELVE HOURS, CORRECTLY DIAGNOSED — AND THE FIRST DIAGNOSIS IN THIS FILE WAS WRONG.**
+I reported the 2026-08-17 episode as a hang caused by BUG 3. **It was not a hang at all. The run
+was pulling the whole time; what died was the loop that writes checkpoints.**
+
+The evidence is not interpretable any other way: **883 payloads were written between 03:00 and
+15:00 UTC at 43–94 units/hour**, against **15 manifest records** whose last entry is 03:26:39.
+D: fell 436 GB → 398 GB. The process was doing useful work for twelve hours and recording none
+of it.
+
+The mechanism is the driver's shape. It was:
+
+```python
+with ThreadPoolExecutor(max_workers=workers) as ex:
+    futs = {ex.submit(one, u): u for u in todo}      # ~1,350 futures submitted AT ONCE
+    for fut in as_completed(futs):
+        (tier, sym, year), rec = fut.result()        # <-- re-raises a worker exception
+        ...
+        append_manifest(root, rec)                   # <-- the only checkpoint
+```
+
+One unit raising propagates out of the `for`, and `ThreadPoolExecutor.__exit__` then calls
+`shutdown(wait=True)`, which **does not cancel already-submitted futures**. So the worker kept
+pulling all ~1,340 remaining units while the only code that writes the manifest was gone. There
+is no log line and no traceback until exit, so **from outside it is indistinguishable from a
+hang** — which is exactly why I misdiagnosed it.
+
+`ADI-2016` is the unit where it died: it is the only symbol in the alphabetical run order with
+**no payload** while later symbols (ADP, AEM, …) have theirs. **The precise exception is
+unrecovered and I am not going to invent one** — the process was killed, so its stderr never
+flushed. The *mechanism* above is established by the timeline regardless of which exception
+started it.
+
+**Fixed three ways:** every `fut.result()` is wrapped so one unit's exception is recorded as a
+failed unit and can never stop the others being checkpointed; the executor is shut down with
+`cancel_futures=True` so a stopped run cannot keep pulling in the background; and a new
+`--adopt-orphans` mode re-checkpoints payloads that already exist on disk.
+
+**The 883 orphans were recovered rather than re-pulled — 870 adopted, 0 skipped, 9.90 GB.**
+Adoption is deliberately conservative: a payload is adopted only if it unpickles, carries this
+miner's schema, and its **embedded** symbol/year match its own path, and adopted records are
+stamped `adopted_from_disk: true` so they are never confused with a live checkpoint. Re-pulling
+them would have cost roughly twelve hours of a fifteen-day window to re-fetch bytes already
+paid for. **Tier A stands at 393 of 400 as a result** — the lost twelve hours were not lost.
+
+**6. A no-data name and a broken pull shared one status.** `pull_unit` returned `failed` when
+any quarter errored, so a name that simply did not exist yet (ABVX listed 2024; its 2016–2018 is
+empty by construction) was marked retryable and would be re-probed on **every** restart. With
+Tier C roughly a quarter pre-listing names, that is ~315 units of an irreplaceable window spent
+re-confirming negatives. Four quarters of `NoDataFoundError` now record **`empty_vendor`**, which
+`needs_pull` treats as terminal — mirroring the breadth cache's own `.pkl.empty` convention.
 
 **4. Windows `os.replace` races the AV scanner on a freshly written file.** The first full freeze
 run died ~3,000 files in with `PermissionError [WinError 32]` on a `.tmp` rename. It is a race, not
