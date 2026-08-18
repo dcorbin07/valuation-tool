@@ -58,13 +58,26 @@ jobs:
             echo "code=000" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # Pricing 86 names + SPY on the service can exceed two minutes, so a
+          # single short-timeout request reads as failure while the work is
+          # still finishing (run #5: curl cut off at exactly 120s). The door is
+          # IDEMPOTENT PER DAY, so retrying is safe: if attempt 1 timed out but
+          # the service completed the write, attempt 2 returns 200 "already
+          # recorded" instead of re-doing anything.
           BODY_FILE=$(mktemp)
-          CODE=$(curl -sS -X POST \
-                   -H "X-Admin-Token: ${ADMIN_TOKEN}" \
-                   -o "$BODY_FILE" -w "%{http_code}" \
-                   --max-time 120 \
-                   "${SITE_BASE_URL%/}/admin/track-row?append=1" || echo "000")
-          echo "HTTP $CODE"
+          CODE="000"
+          for attempt in 1 2 3; do
+            CODE=$(curl -sS -X POST \
+                     -H "X-Admin-Token: ${ADMIN_TOKEN}" \
+                     -o "$BODY_FILE" -w "%{http_code}" \
+                     --max-time 280 \
+                     "${SITE_BASE_URL%/}/admin/track-row?append=1") || CODE="000"
+            echo "attempt $attempt: HTTP $CODE"
+            if [ "$CODE" = "200" ] || [ "$CODE" = "201" ]; then break; fi
+            # 4xx is a real answer (refusal/auth), not a timeout — do not retry it.
+            case "$CODE" in 4*) break;; esac
+            sleep 20
+          done
           cat "$BODY_FILE"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           {
