@@ -7,6 +7,7 @@ Routes:
   POST /api/rank             score many tickers -> ranked list (watchlist)
   GET  /api/export/excel     download the live Excel model
   GET  /api/export/pdf       download the PDF tearsheet
+  GET  /tidemark             TIDEMARK (separate project) — derived stats only
   GET  /api/health           config / status probe
 """
 from __future__ import annotations
@@ -147,6 +148,30 @@ def methodology():
     from . import payoff as _payoff
     return render_template("methodology.html", disclaimer=RISK_DISCLAIMER,
                            payoff=_payoff.payoff_summary())
+
+
+@app.route("/tidemark")
+def tidemark():
+    """TIDEMARK — a SEPARATE project's Phase-1 result, reported as a linked page.
+
+    `VALQUO_MASTER_AUDIT_4.md` MB25 specifies a linked page rather than a tab inside the
+    hot-list surface, and the reason is the one MB26 then enforces: the two projects have
+    different verdict grammars and different denominators, so a tab implies they are one
+    product and a reader who averages a Valquo statistic with a TIDEMARK one has been misled
+    by the layout.
+
+    `payload()` carries derived statistics only — percentile, episode count, effective n,
+    band half-width, tier, refusal, vintage, names. No source series level crosses into this
+    process, so the licensed inputs behind TIDEMARK (Case-Shiller via FRED, NAREIT) are never
+    reproduced here.
+
+    `t_se` is passed as a CALLABLE rather than precomputed onto each row so the payload stays
+    exactly at MB25's nine allowlisted keys; the band is recomputed at render time from the
+    percentile and the effective n using TIDEMARK's own formula.
+    """
+    from . import tidemark_surface as _tidemark
+    return render_template("tidemark.html", disclaimer=RISK_DISCLAIMER,
+                           t=_tidemark.payload(), t_se=_tidemark.percentile_se)
 
 
 @app.route("/api/health")

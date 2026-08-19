@@ -13626,3 +13626,237 @@ on **identical** `(date, ticker)` sets, asserted. **C5** mean per-date Spearman 
 * **K was not re-swept.** C-DEPTH ran once, at the pre-named K = 5, and carries no verdict.
 * **No LEVEL statistic was computed for the verdict** — no decile return, no cumulative alpha.
 * **`MA26`-B, `MA27`, `MA55`, `MA57` were not touched.**
+
+---
+
+## MB7 + MB31 + MB32 — the incremental-IC gate re-specified, and the instrument staleness map derived (2026-08-19)
+
+**Master audit #4, mandates 2 and 8. ZERO TRIALS, all three `FIXED`-class** — no hypothesis, no
+threshold, no verdict against a bar — so `by_domain` must be bit-identical across the log append
+and **no published claim moves**. `BACKTEST_RESULTS.json` needs no re-run.
+
+**Committed threshold: none, and that is the point.** These are correctness and specification
+items. Nothing here scores an arm, so nothing here could have been chosen after seeing a result.
+
+---
+
+### MB7 — the incremental-IC gate is defective on this panel, and the defect is sharper than the audit states
+
+**The audit's two-basis table reproduces EXACTLY, and the cause was verified by leave-one-out
+rather than assumed** (the task's own instruction — *verify, don't assume*):
+
+| basis | rows kept | dates with ≥ 20 names | first such date |
+|---|---|---|---|
+| all seven incumbents (complete case) | 66,444 (**58.31%**) | **49 of 69** | **2014-01-17** |
+| six, `institutional` dropped | 92,540 (**81.21%**) | **69 of 69** | 2009-01-15 |
+
+`institutional` coverage **0.7172**, first scoreable date **2014-01-17**; every other weighted
+theme covers 69/69 from 2009-01-15. **Leave-one-out settles causation and goes beyond what the
+audit claimed: dropping ANY OTHER incumbent still leaves 49 dates. Only `institutional` restores
+69.** So it is not merely the principal cause, it is the sole one, and no other column shares it.
+
+**THE DEFECT IS NOT THE DROPPED DATES. IT IS THAT THE SHIPPED FLOOR IS CHECKED AGAINST A DATE SET
+THE STATISTIC NEVER USES — and this is the finding that outlives the item.** `surface_stock.halves()`
+refuses a split that cannot give both sides `MIN_DATES = 16`, which is exactly the right guard.
+Every caller feeds it `covered_dates(...)`, computed from the ARMS' presence, which knows nothing
+about the incumbents. Measured on the shipped panel with `z_gp_on_capital`:
+
+```
+halves(RAW 69 dates)         -> early 34 / late 34    passes its own guard, raises nothing
+...the statistic then scores    early 14 / late 34    14 is BELOW the floor that just passed
+halves(EFFECTIVE 49 dates)   -> early 24 / late 24    both clear 16
+```
+
+**The thin half the guard exists to refuse happens anyway, downstream, in silence.** The project
+already owns the correct floor; it was simply handed the wrong list.
+
+**THE REPAIR IS CONSTRUCTIVE RATHER THAN A NEW BAR: split the EFFECTIVE dates.** With one
+disclosure that must travel — **the boundary MOVES, 2017-07-20 → 2020-01-22** — so a register
+splitting effective dates is reporting a genuinely different early half from one splitting raw
+dates, and saying so is the whole point.
+
+**A CORRECTION TO THE AUDIT, MEASURED, AND IT NARROWS THE BLAST RADIUS BY TWO THIRDS.** `MB7`'s
+consequence (3) states that `U2`, `MA31` and `MA32` all used this template so their early halves
+inherit the defect. **They do not.** `arm_ic` has always returned `n_dates_raw` AND
+`n_dates_incremental` side by side, and `MA31_MA32.json` records them **EQUAL in every cell —
+40/40 full, 20/20 early, 19/19 late, a shortfall of zero.** The reason is structural: those
+registers score on the **options-derived layer, which begins in 2016**, so every covered date
+already postdates `institutional`'s 2014-01-17 start and the incumbent dropna cannot cost them a
+date. `U2` landed on the identical 40-date geometry, so the same immunity applies to it — that
+one is an **inference from the shared geometry, not a measurement**, because `U2_SURFACE_STOCK.json`
+is not on disk, and it is labelled as such. **`MA58-SEAS` is the only register that actually bit,
+and it reported it.**
+
+**SO THE PORTABLE RULE IS NARROWER AND MORE USEFUL THAN "THE TEMPLATE IS BROKEN":**
+
+> An incremental-IC register is exposed **exactly when its own covered window reaches back before
+> `institutional`'s first scoreable date, 2014-01-17**. A register whose covered window starts in
+> 2016 is immune by construction; a PANEL-WIDE register is exposed and must choose.
+
+**SHIPPED: `valuation/studies/incremental_ic.py`**, and the choice `MB7` demands is enforced in
+code rather than promised.
+* `basis_for('six'|'seven')` has **NO DEFAULT** — `MA5`'s lesson repaid, since the HLZ hurdle
+  froze at `N = 90` precisely because a shared primitive carried a default nobody re-examined.
+* `effective_coverage()` reports both geometries side by side, including
+  `split_on_raw_then_intersect` **specifically so the two can be compared in the artifact rather
+  than argued about afterwards**.
+* `require_effective_coverage()` **refuses** three ways: an absent or incomplete block, effective
+  dates that cannot make two halves at the floor, and — the silent case — a raw split whose
+  effective halves fall below it. The refusal names the corrected split and the boundary move.
+* **`INCUMBENTS`, `MIN_NAMES`, `MIN_DATES` and `halves` are IMPORTED from `surface_stock`, never
+  restated** (audit B7's defect class, recorded five times here). `surface_stock` carries MA59's
+  archive banner and its own *"do not extend"* directive, so it is **not extended** — the new
+  module imports from it exactly as `parity_flow` already does, and is research-only.
+* **ADOPTS NOTHING. No landed register is re-run, re-scored or re-opened**; `MA58-SEAS` stays
+  `UNINTERPRETABLE`, and the existing scripts' behaviour is unchanged — the inheritance is
+  **documented, not silently repaired**.
+
+**THE RULE EVERY FUTURE REGISTER MUST PRINT is stated where registers are written —
+`RUN_RULES.md` PART A rule 10** — and held as `incremental_ic.COVERAGE_RULE` so the prose cannot
+drift from the code enforcing it, with a test asserting it names all four requirements.
+
+---
+
+### MB31 — the staleness map, and it delivers something stronger than "DUE"
+
+**Live counts RE-READ, never quoted: `by_domain` = equity 234, options 302, infra 15.** At the
+audit's own 234/300 the hurdles derive to **3.3031261300040304** and **3.3775086897463940**,
+reproducing its note to all 16 digits — an independent confirmation. **Then `MB1` landed
+mid-session and booked two options trials, so the live options figure is now
+3.3794754082179290 at `N` = 302.** Equity is unmoved at 234, so every equity claim here
+stands. **That mid-session move is the batch's own thesis demonstrated on the batch: the
+DERIVED map absorbed it with one re-run; the hand-written sentence in `CLAUDE.md` had to be
+edited by hand.**
+
+**THE SUBSTANTIVE RESULT: the two floors `MB31` lists as DUE are PROVABLY UNMOVED at the live
+`N`, and that is arithmetic rather than a sweep.** `MA19` established that `N` enters a
+permutation floor **only** through the CPCV adopt gate `margin > sqrt(2 ln N) · se`, so a floor
+can move only when a **draw flips**. That gate is arithmetic on `X7RECON`'s banked `(margin, se)`
+rows:
+
+* adopt set at `N` = 224 **≡** adopt set at `N` = 234. **Zero draws flip, in either direction.**
+* **The rule was verified against the record, not trusted:** margin-passers minus the two draws
+  (1031, 1036) that fail an `N`-INDEPENDENT condition reproduces `MA19`'s recorded adopt count of
+  **20** exactly.
+* **A DATED TRIGGER, which is why this is derived rather than tabulated: the next draw to flip is
+  seed 1003 at `margin/se` 3.319188, flipping when sqrt(2 ln N) exceeds it — equity `N` = 247.
+  THIRTEEN TRIALS OF HEADROOM.** Below 247 no permutation floor can move; at 247 a **bounded**
+  re-derivation is owed (three draws, ~400 seconds — `RUN_RULES` rule 9 is why it is bounded).
+
+**THE DEFLATED SHARPE IS THE ONE EXCEPTION AND DOES NOT GET THAT ARGUMENT.** `sr0` is a direct
+function of `N`, so every draw moves at every `N`. Recomputed: **`sr0` 0.4604580337 → 0.4627730517**,
+reproducing the shipped 0.4604580339 to **2.302e-10** — the same tolerance `MA19`'s own C10
+control reported (2.07e-10), which is what verifies the channel. `sr0` rises, so **the DSR falls**.
+**The probability is deliberately NOT restated at 234**: it needs the returns series' skew and
+kurtosis, and assuming normality shifts it by **−0.0319**, an order of magnitude more than the
+change being measured. **A fabricated figure would be worse than none**, so it ships as `None`
+with its direction and its reason.
+
+**A DEFECT IN MY OWN INSTRUMENT, CAUGHT BY THE TEST WRITTEN FOR IT — and it is this batch's own
+subject matter.** The map's first cut applied the adopt-set argument **uniformly** and so labelled
+the DSR floor `PROVABLY-UNMOVED`. That argument never covered it. A second, milder one: `has_moved`
+in `MA19`'s artifact records only the **last** step, so the alpha MARGIN (which moved at 84→129)
+read as never having moved; it is now derived across **all three** regimes.
+
+**The map is a SCRIPT, not a table** (`scripts/mb31_staleness_map.py` →
+`data/free_analysis/MB31_STALENESS_MAP.json`). Counts come from `research_log.detail()`, the
+hurdle from the ONE shipped `hlz_hurdle`, floors from the banked draws. **Nothing is re-typed** —
+a hand-typed map is exactly the defect `MA5` and `MA22` found, and shipping one inside the map
+about staleness would be the joke writing itself. It **refuses** rather than guesses if it cannot
+read the DSR block.
+
+**It delivers the map and does NOT recalibrate**, per `MB31` verbatim. The four unmoved floors are
+reported **INSENSITIVE-SO-FAR and never invariant** — session 12's *"luck, not design"*, and on the
+alpha HAC floor the luck ran out.
+
+---
+
+### MB32 — the CLAUDE.md comparisons quoting a bar at the wrong `N`
+
+`MB32`'s named action taken: the `X7 CALIBRATED THRESHOLDS` column head **`N = 224 (QUOTE THIS)` →
+`derived at N = 224`**, with the caption pointing at the `MB31` proof rather than asking a reader
+to assume it. **And the correction is stronger than a relabel: every permutation floor in that
+column is still CORRECT at the live `N` = 234**, proved by the adopt-set argument above, so
+nothing in it needed re-deriving — only re-dating.
+
+**The two at-risk sentence shapes, both handled.**
+1. **A numerator at one `N` paired with a floor at another.** `MA19` caught it once (*"0.8674 vs
+   the 0.7216 floor"* pairs an `N` = 116 DSR with an `N` = 84 floor) and the file already carries
+   that correction. The shape **regenerates automatically** because the DSR moves at every `N`, so
+   the new bullet says so explicitly and both DSR figures stay labelled `N` = 224, STALE BY
+   CONSTRUCTION.
+2. **The two DUE floors (1.8629pp and 2.0540).** Now labelled with their denominator and carried
+   forward with the `MB31` proof at the alpha-HAC site.
+
+**A THIRD SHAPE THE AUDIT DID NOT NAME, AND IT IS THE SAME DEFECT IN SLOWER MOTION: the phrase
+"at today's `N`".** *Today* moves; a number does not. Three sites in `CLAUDE.md` said it of
+`1.8629pp` and one of `2.0540`; all four now name `N` = 224. Two remaining uses are left alone
+deliberately — they sit inside **dated historical bullets** describing what a past session did,
+where "today" correctly means that session's today.
+
+**The HLZ hurdle is the one number that genuinely moved and the verdict does not: equity
+3.2898772171176964 (224) → 3.3031261300040304 (234)**, so the headline long-short HAC *t* 2.6199
+fails by **0.6832** rather than 0.6700. `clears_hlz_hurdle` is `false` at both. **For an options
+claim the hurdle is 3.3794754082179290 at `N` = 302** — quote that, never the equity one, and
+derive it rather than copying it from any document including this one.
+`BACKTEST_RESULTS.json` legitimately lags at 224/292/14 per `MA21` and **needs no re-run**.
+
+---
+
+### Verification
+
+* **Zero trials.** All three items are `FIXED`-class; `by_domain` is bit-identical across the log
+  append and `rows_fixed_not_counted` rises by three.
+* **MB7: 22 tests, 5 of 5 tripwire mutations CAUGHT, sources restored byte-for-byte.** The
+  mutations: `basis_for` silently defaulting; the gate no longer refusing the raw-split case;
+  `effective_dates` ignoring the incumbents; the block no longer reporting the intersected
+  geometry; `BASIS_SIX` no longer dropping the late incumbent.
+* **MB31: 16 tests**, including a positive control (the gate must PASS the six-basis, or it
+  measures nothing) and the two assertions added after the map's own defect was caught.
+* **Data-dependent tests SKIP LOUDLY** and are never counted as passes — `MB42` records a gate
+  suite green in CI and red on the machine that owns the data, and this project has caught the
+  vacuous pass five times.
+* **Full gate: 118 suites, 0 failures** after merging `origin/main`. Two failures in the
+  pre-merge run were investigated and neither was this batch's: `test_sync_checkout.py`
+  passes standalone and had been caught mid-write while this session was editing `CLAUDE.md`
+  during the run, and `test_o21d2_alternative_pnl.py` is covered below.
+* **No file under `.github/` was touched.**
+
+### BUGS FOUND
+
+* **A pre-existing failure diagnosed, and another lane had already fixed it — recorded because
+  the agreement is the useful part.** `test_o21d2_alternative_pnl.py` failed on this machine at
+  `test_the_real_harvest_freeze_resolves_when_mounted`, and the cause is a path-separator
+  comparison: the test asserts `prov["frozen_from"] == "D:/thetadata/chains"` while the frozen
+  manifest records `D:\thetadata\chains`. **It is `MB42`'s exact class — in CI the drive is
+  absent so the test SKIPS and passes; on the only machine that owns the data it runs and
+  fails.** `MB42` landed on `origin/main` mid-session (`90738f7`) and the suite now reads 23
+  passed, 0 failed. **Not this batch's fix and not claimed as one**; recorded because an
+  independent diagnosis landing on the same cause is worth more than either alone.
+* **`surface_stock.arm_ic` computes the effective date list and discards it.** The `used` list is
+  built inside the loop and only its length escapes, so every caller could have had
+  `first_date_incremental` for free. Reported, **not repaired** — `surface_stock` is archived and
+  carries a *"do not extend"* directive, and the new module supplies the same information without
+  touching it. `MA39`'s *"the run's own error report was built and thrown away"* in a new place.
+* **The seven-theme tuple is duplicated across at least eight `scripts/` modules**
+  (`m4_live_replay`, `ma28_riskcard`, `ml_combiner`, `r4_x1_accounting_universe`,
+  `r5_r6_alphabetical_rerun`, `construction_rerun`, `ma58_seasonality`, `live_replay`). Most are
+  `THEMES` for SCORING rather than for residualisation, so they are not all the same object —
+  which is precisely why consolidating them is a real refactor with real risk and **not** a
+  zero-trial correctness change. Reported, deliberately not taken.
+* **`theme_ic`'s `sd > 0` degeneracy guard is still value- AND length-dependent** (`[0.1]*3` → *t*
+  1.019e16, `[0.1]*4` → 0.0). `U2` reported it, `MA58` fixed it only inside its own `_tstat`.
+  Still open, still the edge lane's, and still deliberately unrepaired because changing it would
+  decouple the statistic from X7's 2.71 bar.
+
+### NOT DONE, named so it is not mistaken for done
+
+* **No landed register was re-run.** `U2`, `MA31`, `MA32` and `MA58-SEAS` keep their verdicts and
+  their artifacts; the new gate is not retro-fitted to their scripts, because doing so would change
+  their behaviour on re-run in a batch whose whole claim is that no verdict moves.
+* **No floor was recalibrated.** `MB31` says deliver the map, and the map's own result is that no
+  recalibration is owed before equity `N` = 247.
+* **The DSR probability at `N` = 234 was not computed** — it needs the returns series, and a
+  normal-moments substitute would be a worse answer than none.
+* **`MB8` is NOT run.** It charges a trial and needs its own blind pre-registration; it is the
+  item that quotes the 1.8629pp margin `MB31` just re-dated.
