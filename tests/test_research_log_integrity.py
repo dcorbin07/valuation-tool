@@ -50,6 +50,9 @@ from valuation.edge import research_log as RL               # noqa: E402
 #   2026-08-16  equity 227 -> 230, options 292 -> 294          (P1S0 3 horizons; O17C4 2 arms)
 #   2026-08-16  equity 230 -> 231                              (MA28-CARD, 1 arm, budget booked BEFORE the run)
 #   2026-08-16  equity 231 -> 232                              (P1S0-CONTROL, 1 arm, budget booked BEFORE the run)
+#   2026-08-19  infra 15 -> 17                                 (MB22 + MB23, 1 each, one register
+#                                                               committed ALONE at 9dee135; equity
+#                                                               234 and options 304 UNTOUCHED)
 #
 # The 2026-08-16 line moved BOTH scored domains in one session and is the first time it has. The
 # HLZ literal moved with it again, for the second time running and for the reason the note below
@@ -91,7 +94,7 @@ from valuation.edge import research_log as RL               # noqa: E402
 # and separate convention (the master audit lists it under MA21); it belongs to that row, with
 # its own decision about staleness tolerance, not smuggled in here.
 # ---------------------------------------------------------------------------------------------
-EXPECTED_BY_DOMAIN = {"equity": 234, "options": 304, "unified": 0, "infra": 15}
+EXPECTED_BY_DOMAIN = {"equity": 234, "options": 304, "unified": 0, "infra": 17}
 
 
 def _diff(expected, actual):

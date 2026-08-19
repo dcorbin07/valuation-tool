@@ -129,6 +129,80 @@ the project's memory and the old versions had been repeated for months.
     `mb15_gate_satisfiability.py`, `mb15_condition_census.py`;
     `data/free_analysis/MB15_VENUE_CENSUS.json`, `MB15_GATE_SATISFIABILITY.json`,
     `MB15_CONDITION_CENSUS.json`; `HANDOFF_optionsbot.md` 67.
+- **EVERY "MINIMUM DETECTABLE EFFECT" THIS PROJECT HAS EVER PUBLISHED IS A 50%-POWER FIGURE,
+  NOT AN 80%-POWER ONE - AND THE HODRICK CROSS-CHECK VALIDATES THE H=63 STATISTICS WHILE BEING
+  STRUCTURALLY UNABLE TO CORROBORATE THEM (2026-08-19, `MB22`+`MB23`).**
+  `PREREG_mb22_mb23_power_and_hodrick.md` committed **ALONE at `9dee135`**, markdown only, a
+  strict ancestor of every measurement commit. **Both items are INFRA: `N` 15 -> 17, equity
+  untouched at 234 and options at 304, and infra `N` gates no published claim. ADOPTS NOTHING,
+  MOVES NO CLAIM** - both branches of `MB23`'s bar were pre-committed to move nothing.
+  * **`MB22` - THE VOCABULARY CORRECTION, AND IT APPLIES TO THREE FIGURES ALREADY IN THIS FILE.**
+    `S19`'s **+0.020549**, `V2G`'s **1.8708pp** and `V6`'s **+4.177pp** are all `crit x se` - the
+    effect at which the **POINT ESTIMATE** would just reach the bar, which is detected **half the
+    time**. The 80%-power MDE is `(crit + 0.84) x se`, **1.42x larger at `crit` 2.0**, so those
+    become +0.029180, 2.6565pp and 5.9313pp. **Neither number is wrong as stated; quoting one as
+    the other is.** All three reproduce from the ported function without being told the answer,
+    which is what proves it measures the quantity Valquo already means.
+  * **THE STRONGEST CONTROL IS VALQUO'S OWN, NOT TIDEMARK'S. `V2G` published 1.8708pp as what its
+    design "resolves" and then separately computed its power against a true 1.95pp gap as
+    55.0%** - and `power_at(1.95, se 0.9354, crit 1.96)` returns **55.0%** by a different route.
+    A design whose detection threshold sits just below the effect it tests has about a coin flip
+    of seeing it. That is exactly what a 50%-power threshold means, and `V2G` had both halves of
+    it on the page without the two being connected.
+  * **THE EXTERNAL CONTROLS REPRODUCE TIDEMARK'S PRINTED ARITHMETIC EXACTLY** - the charter power
+    table at `crit` 1.96 (IR 0.20 -> 196, 0.30 -> 87, 0.15 -> 348), `hlz_hurdle(66)` 2.8947,
+    155.0 required years at IR 0.30, and the four IR-needed figures 0.41 / 0.55 / 0.74 / 0.52.
+    **`hlz_hurdle` is IMPORTED and never re-derived (`MA5`), and `critical_value` REFUSES to
+    default** - a default is precisely how the HLZ bar froze at the constant 3.0.
+  * **NO CHECK SHIPS, AND THE REFUSAL IS THE POINT (`MB30`, with `MA21` binding).** ~68 historical
+    registers state no MDE in this form, so a corpus sweep would fire on essentially all of them
+    and be switched off inside a week - the identical shape `MA21` already declined when a
+    blank-verdict warning would have fired on 41 legitimate ledger rows. **`RUN_RULES` PART A
+    rule 11 binds future registers instead**, and the library makes obeying it one line.
+  * **`MB23` - VERDICT `VALIDATED`, AND THE MARGIN AND THE MECHANISM BOTH TRAVEL WITH IT.**
+    Long-short Newey-West **2.6199** against Hodrick **2.8604**, gap **9.18%**; top-decile alpha
+    **4.3762** against **4.6719**, gap **6.76%**; bar 10%, required on both. **THE LONG-SHORT CELL
+    CLEARS BY 0.82 OF A PERCENTAGE POINT - a 9% bar would have failed it.**
+  * **AND `VALIDATED` MEANS LESS THAN IT SOUNDS, WHICH IS THE HONEST PART. At `h = 1` the horizon
+    EQUALS the rebalance interval, the windows do not overlap, and Hodrick's sandwich carries NO
+    autocovariance term at all** - so it **structurally cannot see** the lag-1 autocorrelation
+    Newey-West corrects for (**0.189** long-short, **0.081** alpha). The two agree because that
+    correction is small here, **not because two independent methods converged**, and the Hodrick
+    *t* lands nearer the **NAIVE** *t* (2.8361, 4.5174) than the HAC one in both cases. **This
+    validates the ported instrument. It does NOT independently corroborate the HAC number.**
+  * **THE ESTIMATOR IS VERIFIED AGAINST PRINTED NUMBERS, NEVER AGAINST MY OWN EXPECTATION** -
+    Wei-Wright (2009) FEDS 2009-27 Table 1, **6 of 6 coverage cells at `alpha` = 0 at max abs
+    deviation 0.0075** against a pre-registered 0.03, **plus the more discriminating half, the
+    PUBLISHED COLLAPSE away from the null** (0.700 against a printed 0.71 at `alpha` 0.05, 0.495
+    against 0.53 at 0.10). An estimator merely returning ~0.95 everywhere passes the null test
+    and fails that one. **The reason for that standard is on the record: TIDEMARK's own first
+    implementation summed the regressors while keeping the h-period residual and returned
+    *t* ~ 0.3 at every horizon against a bootstrap p ~ 0.018** - it looked like "no evidence" and
+    was believed. **The defect is reconstructed and pinned**, so a future session reintroducing it
+    goes red.
+  * **`POWER_GATE` 5.2's SPECIFICATION ERROR IS REPRODUCED INDEPENDENTLY ON THIS IMPLEMENTATION**:
+    on the verified cell the estimator is correctly sized (Var(*t*) **1.012**, rejection **0.040**
+    against a nominal 0.05) and the criterion **as committed** there - q97.5 of |*t*| within 10%
+    of 1.96 - **FAILS on it**, because 1.96 is the 97.5th percentile of the **SIGNED** *t* and the
+    right figure is ~2.24. **A rule that flags a known-good case is broken**, so the rejection
+    rate ships as the decision rule and the misspecified quantile is carried beside it, marked.
+  * **THE H-SWEEP IS A DIAGNOSTIC AND CARRIES NO VERDICT, by a void condition fixed in advance.**
+    The gap widens to **17.4%** (long-short) and **31.5%** (alpha) by `h = 8` - `S22`'s territory -
+    and **`MB21` is NOT run here**, so re-scoring `S22` against a better standard error while
+    leaving its null mis-specified would change one half of a comparison. The sweep also cumulates
+    the same 69 quarterly draws rather than rebuilding `S22`'s per-horizon panel columns, so it is
+    a **related object, not `S22`'s own construction**. **Quoting any `h > 1` cell as a verdict
+    about `S22` voids the register.**
+  * **A DEFECT IN MY OWN INSTRUMENT, AND IT IS `MB22`'s SUBJECT COMMITTED INSIDE `MB23`'s TESTS.**
+    The criterion test first ran at 250 draws, where its own +/-0.015 tolerance is **1.1
+    Monte-Carlo standard errors wide** - so it asserted something its sample could not resolve,
+    and a correctly-sized estimator failed it. Fixed by deriving the draw count (1,200, 2.4 se),
+    **not** by loosening the criterion, which would have been silencing the check. **Two further
+    guards of mine fired on their own docstrings** - the comment-versus-code family for the sixth
+    time - and now read the **AST**. **37 tests, 8 of 8 mutations caught across both modules with
+    sources restored byte-for-byte.** `valuation/edge/power_gate.py`, `valuation/edge/hodrick.py`,
+    `scripts/mb22_mb23_power_and_hodrick.py`, `data/free_analysis/MB22_MB23.json`;
+    `HANDOFF_edge_audit.md` MB22+MB23.
 - **THE ALTERNATIVES MENU IS SCORED AND THE KILL FIRES - AND THE CLOSURE IT ANNOUNCES IS NOT
   SOUND, REFUTED ON THREE MEASUREMENTS OF THE SAME DATA (2026-08-19, `MB1`).**
   `PREREG_mb1_alternatives_menu.md` committed **ALONE at `33ad7ee`**, markdown only, a strict
