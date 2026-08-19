@@ -47,12 +47,19 @@ who compares or averages a statistic from one with a statistic from the other ha
 the layout. Both `N`s and both hurdles go on the page, each labelled with the project it belongs
 to, and **no statistic from one project may appear inside a sentence about the other**.
 
-Valquo's denominator is **derived live** from `research_log`, never typed here: MB25/MB26 quote
-549 / 3.3031 / 3.3775, and measured on the day this shipped the register read equity **232**
-(hurdle 3.3005) and options **297** (3.3745). The audit's figures were already stale — which is
-exactly why this module derives rather than quotes. TIDEMARK's **66** and **2.89** ARE literals,
-because they belong to a project this repository cannot read at runtime; they carry TIDEMARK's
-vintage beside them so their staleness is visible rather than assumed.
+Valquo's denominator is **derived live** from `research_log`, never typed here — and the
+strongest argument for that is what happened while this item was being built. MB25/MB26 quote
+549 trials at 3.3031 (equity) / 3.3775 (options). Measured against a worktree 31 commits behind
+`main`, the register read equity **232** (hurdle 3.3005) and options **297** (3.3745) — both
+audit figures stale. Measured again after merging `main`, equity is **234**, whose hurdle is
+**3.3031 — exactly the audit's number** — while options is **302** at **3.3795**, which is still
+not the audit's 3.3775. **So the same pair of quoted constants was wrong, then half right, inside
+one session**, and any figure typed onto this page would have been wrong for one of those reads.
+That is the whole case for deriving, and it is a measurement rather than an argument.
+
+TIDEMARK's **66** and **2.89** ARE literals, because they belong to a project this repository
+cannot read at runtime. They carry TIDEMARK's vintage beside them so their staleness is visible
+rather than assumed — the asymmetry is deliberate and is disclosed on the page.
 
 **AND THE HURDLE IS NOT COMPUTED HERE EITHER — `MA5`'s rule, which this module broke on its
 first cut.** `sqrt(2*ln N)` must be written exactly ONCE in the shipped package, in
