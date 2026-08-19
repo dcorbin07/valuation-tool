@@ -127,6 +127,22 @@ five summary rates, so re-denominating one column meant re-running the whole 3.4
 mismatch in a second column sat "undiagnosable" for two sessions. A summary answers the question you had; the
 draws answer the one you get asked later, and you will be asked.
 
+**10. An incremental-IC register states its BASIS and prints its EFFECTIVE coverage.**
+The PEAD/U2 template residualises a candidate on the seven weighted incumbents and drops rows missing any
+of them. On this panel that silently costs **20 of 69 rebalance dates** — `institutional` covers 71.7% and
+its first date with 20+ names is **2014-01-17**, while every other weighted theme starts 2009-01-15
+(verified by leave-one-out: dropping any *other* incumbent still leaves 49 dates). The damage is not the
+dates, it is that **the shipped `MIN_DATES = 16` floor gets checked against a date set the statistic never
+uses**: `halves()` passes at 34/34 on the raw covered dates and the residualised statistic is then scored
+on an early cell of **14**. So: name the basis with `incremental_ic.basis_for('six'|'seven')` — it has NO
+default, deliberately — say in the register *why*, print `effective_coverage()`, and **split the EFFECTIVE
+dates, never the raw ones** (49 → 24/24, and disclose that the boundary moves). Run the power controls on
+those same rows. A register reporting one date count for its coverage and a different one for its verdict
+has not satisfied this rule. Cost so far: `MA58-SEAS` returned `UNINTERPRETABLE` partly on this, and the
+audit's own claim that `U2`/`MA31`/`MA32` inherited it is **false** — they score on the post-2016 options
+layer and are immune by construction, which is exactly the rule: **you are exposed only if your covered
+window reaches back before 2014-01-17.**
+
 ---
 
 ## PART B — COWORK (the manager). Failure modes, and the rule that closes each.
