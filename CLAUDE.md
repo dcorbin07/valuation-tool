@@ -48,6 +48,88 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **O21's DEFERRED ARM IS RESOLVED AT LAST, AND THE ALTERNATIVE CONTRACT TRADES TAIL FOR
+  TYPICALITY - MEAN -3.57pp, MEDIAN +0.67pp (2026-08-18, `O21-D2`).**
+  `PREREG_o21d2_alternative_contract_pnl.md` committed **ALONE at `1d23ee1`**, markdown only, a
+  strict ancestor of every measurement commit; **trial booked at `f86ebba` BEFORE the run, options
+  `N` 297 -> 298**, equity untouched at 232. **ADOPTS NOTHING, CHANGES NO LEDGER VERDICT, AND DOES
+  NOT RE-OPEN `O21`** - it replaces the string `NOT COMPUTABLE` with a measurement and nothing
+  else in that row moves. **The ONLY same-hypothesis re-open the blind re-open list (`10977a2`)
+  authorized.**
+  * **THE REFERENT NOW EXISTS, AND THAT IS WHY THIS WAS ANSWERABLE RATHER THAN SETTLED.** `O21`
+    could COUNT the 179 of 3,870 entries (4.63%) at which a dividend-corrected pricer picks a
+    different contract and could NOT PRICE them, because the trade-scope freeze holds a full chain
+    only on **ENTRY** dates - median **2** chain dates for an alternative. The pinned harvest
+    freeze `D:\thetadata\freeze_rawpull_2026-08-18` holds a full chain on **EVERY session**
+    (AAPL-2018: 251 sessions, median 1,558 contracts, bid and ask 100% non-null).
+  * **VERDICT IMMATERIAL, AND THE BOUND SAID SO BEFORE THE RUN.** Implied BOOK expectancy effect
+    across all 179 is **-0.1653pp** against `O21`'s **own** 1.00pp bar reused verbatim. The
+    register fixed the arithmetic first: **a 4.63% divergence share needs a 21.62pp mean per-trade
+    difference to move book expectancy by 1.00pp**, so a 3.6pp per-trade figure reads as large
+    only until you see it is 0.17pp of the book. **Quote the bound with the verdict or do not
+    quote the verdict.**
+  * **THE FINDING IS THE MEAN/MEDIAN SPLIT RATHER THAN THE NULL, AND IT HAS A MECHANISM.** Mean
+    **-3.57pp** against a **MEDIAN +0.67pp**, with **54.0% of pairs favouring the alternative
+    outright** - so the typical divergent trade is slightly BETTER on it and the mean is dragged
+    negative by a minority of large give-ups. `O21` measured the alternative at a lower strike on
+    **93.9%** of entries and a median absolute delta gap of **0.129** above a 0.35 target, i.e.
+    **deeper ITM and LESS levered**, which fails totally less often (higher median) and gives up
+    the right tail this book's positive expectancy is built from (lower mean). **Both halves of
+    that sentence are measured rather than argued.**
+  * **NO DIRECTIONAL CLAIM IS MADE, BY THE REGISTER'S OWN RULE.** The halves DISAGREE - early
+    **-10.59pp** (n 56), late **+3.32pp** (n 57) - so the pre-committed rule forbids
+    *"the corrected pricer picks worse contracts"* **in either direction**, and **E2 is recorded
+    UNRESOLVED even though its full-sample sign was right.** The register predicted this and said
+    why in advance: n = 113 split in two is thin and the halves are unbalanced by a coverage tilt
+    registered before any outcome.
+  * **C2, THE NULL INSTRUMENT, IS PERFECT - AND IT IS THE STRONGEST INSTRUMENT RESULT THIS LANE
+    HAS PRODUCED.** **2,309 non-divergent entries re-simulated on the harvest reproduce the banked
+    `return_pct` on 2,309 of 2,309 - reproduction 1.0000, ZERO differing, ZERO unusable.** Those
+    entries hold the SAME contract in both arms, so it checks that the two instruments agree where
+    they cannot legitimately disagree. **The register named a genuine risk in advance - the
+    harvest carries MORE holding days than the trade-scope freeze, so a stop could fire on a day
+    the banked simulation never saw - and it did not materialise on a single trade.** `C1`
+    reproduces `O21`'s selection **exactly** at 3,870 of 3,870 with 179 changed, so these are
+    literally `O21`'s 179. Both gating controls ran in **their own pass** and `--arms` **refuses**
+    without a passing artifact.
+  * **INSTRUMENT AGREEMENT WAS ESTABLISHED BEFORE THE ARM, NOT INFERRED FROM IT:** the harvest and
+    the trade-scope freeze match on **bid AND ask exactly, 115 of 115** banked contracts at entry.
+    That is what licenses pricing **BOTH** arms on one instrument, the base being **RE-SIMULATED**
+    rather than read from the banked book, so a difference is attributable to the contract and not
+    to the data source. The exit engine is the **SHIPPED** `simulate_trade`, unmodified.
+  * **COVERAGE IS 113 of 179 = 63.1% AND SYSTEMATIC RATHER THAN RANDOM, FIXED BEFORE ANY
+    OUTCOME:** 2016-2018 at 100 / 100 / 94.7% because Tier A ran to completion, 2019-2025 at 31.2
+    to 70.0% because Tier B was cancelled at 490 of 961 units once the census showed those years
+    were not perishable - so **the covered set is EARLY-TILTED**. **The 66 uncoverable entries are
+    UNMEASURED and are never read as zero.**
+  * **THREE DEFECTS IN MY OWN INSTRUMENT, ALL CAUGHT BY RUNNING IT.** (1) A **literal `%` in prose
+    about a percentage** inside a `%`-formatted note string was read as a conversion and crashed
+    the artifact write - **AFTER every statistic had been computed and printed, so no number was
+    affected**, but the first run produced a verdict with nothing on disk to support it. Repaired
+    by removing `%`-formatting from prose about percentages **rather than escaping it**, and the
+    re-run reproduces every figure to the digit. (2) **My first coverage probe used the wrong
+    window** - it required harvest units only to the EXIT date and returned 115 (64.2%), when
+    `simulate_trade` holds to **EXPIRY** whenever no trigger fires and **12.3% of alternatives
+    carry a different expiry**; corrected to **113 (63.1%)**, recorded in the register rather than
+    quietly replaced, and the looser figure is used nowhere. **(3) THE WORST OF THE THREE, because
+    it would have made the other two unverifiable: MY TEST SUITE WOULD HAVE PASSED VACUOUSLY under
+    this project's own runner.** `RUN_RULES` line 25 runs each suite as its own process and judges
+    by **exit code**; a file with no `__main__` block defines its tests, **executes nothing and
+    exits 0**, so all 21 would have counted as a passing suite while testing nothing. Found by
+    running the documented runner instead of `pytest tests/` — **which is NOT this project's test
+    command and, run in one process, produced ~10 failures that were artefacts of the runner** —
+    and censused afterwards rather than assumed: **113 of 113 suites carry the block and mine was
+    the only exception.**
+  * **A NULL HERE IS NOT A FINDING THAT THE PRICER IS CORRECT.** It is a finding that the pricer's
+    contract-selection error is too small a share of the book to matter, measured on 63.1% of the
+    affected entries. **The pricer is still deliberately NOT changed**, and had the result been
+    material the consequence would have been a **NEW** register proposing a change, not an edit to
+    `O21`. `C5` `pre_panel_history` is reported **VACUOUS rather than PASSING** - the key is
+    ABSENT on all 114 units read. **Expectations 4 right, 0 wrong, 1 unresolved**, discounted
+    rather than celebrated because the priors came from measured facts already in the record.
+    **21 tests, 3 of 3 tripwires mutation-tested with sources restored byte-for-byte.**
+    `scripts/o21d2_alternative_pnl.py`, `data/free_analysis/O21D2_CONTROLS.json`,
+    `O21D2_ALT_PNL.json`; `HANDOFF_optionsbot.md` 65.
 - **THE FRONTIER'S `rf + 43 bps` FINANCING EDGE IS A MID-PRICE ARTEFACT - AT EXECUTABLE PRICES IT
   IS `rf + 342`, AND A DEEP-ITM CALL IS CHEAPER THAN EXACTLY ONE OF THREE MARGIN CARDS, THE MOST
   EXPENSIVE ONE (2026-08-17, `DEEPITM-FIN` + `V5-REREAD`).**
