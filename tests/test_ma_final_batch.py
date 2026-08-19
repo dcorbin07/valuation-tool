@@ -200,9 +200,16 @@ def test_ma27_the_53_signal_premise_holds():
 
 
 def test_ma58_no_seasonality_signal_has_been_registered_without_a_register():
-    """TRIPWIRE. MA58 is DESIGN-RECORDED and un-run. A seasonality column appearing in
-    NUMBER_THEME means somebody built it; it must arrive WITH its pre-registration, and this
-    test must be updated in the same commit so the diff shows it."""
+    """TRIPWIRE. A seasonality column appearing in NUMBER_THEME means somebody built it; it must
+    arrive WITH its pre-registration, and this test must be updated in the same commit so the
+    diff shows it.
+
+    UPDATED 2026-08-18: MA58 HAS NOW RUN (PREREG_ma58_return_seasonality.md at 6f998fc; verdict
+    UNINTERPRETABLE) and this assertion is deliberately UNCHANGED. The register adopted nothing
+    and shipped no signal -- the arm is a study column in scripts/ma58_seasonality.py -- so the
+    tripwire staying green is the CORRECT outcome, not a stale one. It still guards the thing it
+    always guarded: a seasonality signal reaching the live composite without its own adoption
+    register. Only the 'un-run' clause was false after 2026-08-18."""
     import re
     from valuation.screener import settings as S
     found = sorted(k for k in S.NUMBER_THEME if re.search(r"seas|_month|calendar", k, re.I))

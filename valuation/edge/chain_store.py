@@ -183,3 +183,85 @@ def resolve_chains(data_root: str, *, allow_mutable: bool = False,
     if fp:
         prov.update(fp)
     return chains, prov
+
+
+# ---------------------------------------------------------------------------------------------
+# THE HARVEST FREEZE - a SECOND pinned artifact, for a question the first one cannot answer.
+#
+# `freeze_options_2026-08-17` (above) is a freeze of `data/options`, which holds a FULL chain only
+# on ENTRY dates and just the traded contract thereafter. That is why O21 could COUNT the 179
+# entries at which a dividend-corrected pricer picks a different contract and could NOT PRICE
+# them: a contract the book never held has no forward path there, median 2 chain dates.
+#
+# The harvest freeze is a freeze of the deep ThetaData pull and holds a FULL chain on EVERY
+# trading session (a probe of AAPL-2018 reads 251 sessions at a median 1,558 contracts, bid and
+# ask 100% non-null). So the alternative contract HAS a forward path here.
+#
+# THERE IS DELIBERATELY NO MUTABLE OPT-OUT FOR THIS ONE. `data/options` has legitimate live
+# readers, so `resolve_chains` offers an explicit door. The harvest's unfrozen twin
+# (`D:\thetadata\chains`) is a miner scratch tree with no legitimate reader in an analysis path,
+# and offering a door is how a door gets used. To read it you must pass a root explicitly, which
+# leaves a diff.
+# ---------------------------------------------------------------------------------------------
+
+HARVEST_DEFAULT = r"D:\thetadata\freeze_rawpull_2026-08-18"
+ENV_HARVEST_ROOT = "VALQUO_CHAINS_HARVEST_ROOT"
+
+# The harvest is a TARGETED pull (alert symbol-years plus Tier C), not the whole store, so its
+# ticker count is legitimately smaller than the options store's 1,000. It carries 714; the floor
+# sits far below that so a partial copy is caught while an ordinary addition is not.
+MIN_HARVEST_TICKER_DIRS = 400
+
+
+def harvest_root() -> str:
+    return os.environ.get(ENV_HARVEST_ROOT) or HARVEST_DEFAULT
+
+
+def resolve_harvest(*, root: Optional[str] = None,
+                    min_dirs: int = MIN_HARVEST_TICKER_DIRS) -> Tuple[str, dict]:
+    """Return (chains_dir, provenance) for the PINNED harvest freeze. RAISES, never falls back.
+
+    Same discipline as `resolve_chains`: the summary must say the copy came out clean, the tree
+    must be POPULATED and not merely present, and the manifest fingerprint travels in the
+    provenance so a future reader can tell which bytes were read.
+    """
+    root = root or harvest_root()
+    chains = os.path.join(root, "options")
+    summary = _read_summary(root)
+    if summary is None:
+        raise ChainStoreError(
+            "no FREEZE_SUMMARY.json under %s. The harvest freeze has no mutable fallback by "
+            "design; pass an explicit root if you mean a different artifact." % root)
+    if summary.get("kind") != "chain_store_freeze":
+        raise ChainStoreError("%s is not a chain_store_freeze (kind=%r)"
+                              % (root, summary.get("kind")))
+    if summary.get("hash_mismatches_at_copy"):
+        raise ChainStoreError("harvest freeze reports %r hash mismatches at copy"
+                              % summary.get("hash_mismatches_at_copy"))
+    if summary.get("n_source_files_not_yet_frozen"):
+        raise ChainStoreError("harvest freeze is INCOMPLETE: %r source files were not frozen"
+                              % summary.get("n_source_files_not_yet_frozen"))
+
+    ok, why = is_populated(chains, min_dirs=min_dirs)
+    if not ok:
+        raise ChainStoreError(
+            "harvest freeze at %s is present but NOT POPULATED (%s). Existence is not "
+            "population." % (root, why))
+
+    prov = {
+        "source": "FROZEN_HARVEST",
+        "path": chains,
+        "pinned": True,
+        "freeze_root": root,
+        "population": why,
+        "generated_utc": summary.get("generated_utc"),
+        "files_recorded": summary.get("files_recorded"),
+        "payload_units": summary.get("payload_units"),
+        "bytes": summary.get("bytes"),
+        "hash_mismatches_at_copy": summary.get("hash_mismatches_at_copy"),
+        "frozen_from": summary.get("source"),
+    }
+    fp = manifest_fingerprint(root)
+    if fp:
+        prov.update(fp)
+    return chains, prov

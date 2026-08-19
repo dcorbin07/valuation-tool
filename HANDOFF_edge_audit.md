@@ -13411,3 +13411,218 @@ was earning its keep rather than decorating the register.
 `scripts/p1s0_control_period_or_universe.py`; `tests/test_p1s0_control.py` (14 tests, 3/3
 tripwires mutation-tested); `data/free_analysis/P1S0_CONTROL.json`, `P1S0_CONTROL_ARMS.json`,
 `P1S0_CONTROL_PLACEBO.json`.
+
+---
+
+## MA58 — cross-sectional return seasonality (2026-08-18, edge lane) — **UNINTERPRETABLE**, and the power measurement is the finding
+
+Heston–Sadka (2008); Keloharju–Linnainmaa–Nyberg (2016). `PREREG_ma58_return_seasonality.md`
+committed **ALONE at `6f998fc`** — one `.md`, zero `.py`, a strict ancestor of every measurement
+commit; **trial budget booked at `eb85ca7` BEFORE the run**. **Equity `N` 232 → 234**; options 297,
+infra 15. **ADOPTS NOTHING** — no file under `valuation/` changed and `NUMBER_THEME` is untouched,
+so `MA58`'s own tripwire in `test_ma_final_batch.py` stays green and is **correct** to.
+
+### 0 · The headline
+
+**The verdict is `UNINTERPRETABLE` by the register's own pre-committed power rule, and it is not a
+close call: on the rows the arms are actually measured on, BOTH power controls fail — `z_gp_on_capital`
+raw IC *t* **1.1363** and `z_ret_6_1` **1.3493**, against a 2.0 bar.** The register fixed that
+consequence in writing before the controls ran: *"If NEITHER power control clears raw `ic_tstat` 2.0,
+every null in this register is reported as UNINTERPRETABLE — 'could not be separated at this
+resolution' — and NOT as a negative result."*
+
+**Reported because it cuts the other way and a reader will otherwise assume the power failure is
+hiding a pass: it is not. Read on its own bars the annual-lag arm would ALSO have been REJECTED** —
+incremental IC *t* **+2.1607** full, **+0.6705** early, **+2.1438** late, failing X7's 2.71 in all
+three windows and failing its own permutation p95 in the early half. **The two readings agree**, so
+nothing is being concealed by the power rule. What the power rule buys is the correct *label*: this
+is "not measurable here", not "seasonality is absent from this universe".
+
+### 1 · The finding that outlives the verdict — and it indicts the incremental-IC TEMPLATE, not this item
+
+The power loss decomposes cleanly across four nested populations, and **neither restriction alone
+would have failed the bar — they compound**:
+
+| population | rows | dates | `z_gp_on_capital` *t* | `z_ret_6_1` *t* |
+|---|---|---|---|---|
+| 1. FULL panel | 113,945 | 69 | **+3.6739** | +1.8329 |
+| 2. + the seasonality DEPTH filter | 86,748 | 69 | +2.2125 | +0.9752 |
+| 3. FULL + all-seven-incumbents complete case | 66,444 | **49** | +2.1934 | +2.1181 |
+| 4. depth + all-seven — **THE ARMS' ROWS** | 52,040 | **49** | **+1.1359** | +1.3488 |
+
+**Row 3 is the one nobody had measured, and it is a property of the PEAD/U2 incremental-IC template
+itself rather than of seasonality.** Residualising on the seven weighted incumbents with complete-case
+dropping — which is what the template specifies and what U2, MA31 and MA32 all did — silently
+restricts the panel to **49 of 69 dates**. The cause is single and measurable: **`institutional` has
+71.7% coverage and its FIRST date with ≥ 20 names is 2014-01-17.** Drop `institutional` and all 69
+dates return (`z_gp_on_capital` +3.0617 on the full panel, +2.0460 on the depth-filtered rows).
+
+**So any incremental-IC register on this panel is a post-2014 test unless it says otherwise, and the
+early half it reports is not the early half it thinks it is.** Here the "early" cell holds **14 dates**,
+below even S18's 16-date floor — a second, independent reason this design could not have returned an
+interpretable both-halves verdict, and one the register did not anticipate.
+
+**This reproduces MA31/MA32's three-population result on a completely different restriction.** Their
+`z_gp_on_capital` ran +3.6745 → +2.4776 → +0.9919; ours runs +3.6739 → +2.2125 → +1.1359. **The
++3.6739 against their independently-measured +3.6745 is the check that both instruments are sound**,
+and every theme reproduces `CLAUDE.md`'s corrected-panel table to four decimals (`quality` +3.1015,
+`capital_discipline` +2.7556, `momentum` +1.3118, `value` +0.8380, `size` −0.3008) — so the drop is a
+property of the sub-population, not of my arithmetic.
+
+### 2 · The ledger row's own depth prediction is REFUTED, and in the direction that helped
+
+The row states depth *"binds at the panel's early end … so the arm is either a covered-subsample test
+on the S18/U2/U3/V6-OPT protocol or a shallower lag set applied uniformly."* Measured before the
+register was written, requiring **all** 10 annual **and all** 30 non-annual windows computable:
+
+| K | eligible rows | min names/date | first date | last date | dates < 100 |
+|---|---|---|---|---|---|
+| 3 | 90.00% | 1,400 | 1,400 | 1,723 | 0 |
+| 5 | 84.33% | 1,349 | 1,350 | 1,504 | 0 |
+| **10** | **76.13%** | **1,199** | **1,201** | **1,221** | **0** |
+| 11 | 74.56% | 1,161 | 1,161 | 1,191 | 0 |
+
+**All 69 dates are covered at every depth, never below 1,161 names, so no covered-subsample protocol
+was invoked** — and the shortfall is at the **LATE** end (81.6% eligible on the first date, 66.3% on
+the last), the opposite of the prediction. The panel grows 1,471 → 1,842 names and the names it grows
+by are young. **A price-history requirement on this panel is a recent-IPO screen, not an early-period
+screen.** The row's premise about *20* lags is correct — the deepest uniform depth available anywhere
+is 11 — but that never forced a subsample. **The design's date loss came from `institutional`, not
+from prices, and that is a different constraint the row never names.**
+
+### 3 · The arms, and the contrast
+
+All at K = 10 on 49 dates (14 early / 34 late), ~1,062 names per date. **Every leg is a SORTING
+question and there is no LEVEL leg** — the `P1S0-CONTROL` clause, pinned by an AST test.
+
+| arm | window | incremental *t* | own perm p95 | clears null | clears 2.71 | raw *t* | mean R² on incumbents |
+|---|---|---|---|---|---|---|---|
+| `seas` | full | **+2.1607** | +1.9088 | yes | **no** | +2.0334 | **0.0755** |
+| `seas` | early (14) | +0.6705 | +1.6296 | no | no | +0.9074 | 0.0543 |
+| `seas` | late (34) | +2.1438 | +1.8509 | yes | **no** | +1.8579 | 0.0847 |
+| `nonseas` | full | +0.0377 | +1.7400 | no | no | −0.0723 | 0.1929 |
+| `nonseas` | early | −1.0080 | +1.7535 | no | no | −0.5886 | 0.1470 |
+| `nonseas` | late | +0.6571 | +1.4372 | no | no | +0.2478 | 0.2126 |
+
+**contrast** (paired per-date `IC(seas) − IC(nonseas)`): mean diff **+0.02367** full, *t* +1.2440
+against its own p95 +1.5508 — **fails in all three windows**.
+
+**The published PATTERN is qualitatively present and quantitatively nowhere.** The annual-lag arm is
+positive in the declared direction and the non-annual arm sits on zero, which is Heston–Sadka's shape;
+but the seasonal arm never reaches 2.71 and the contrast never clears its own null. **A pattern that
+points the right way and cannot be separated from noise is not a replication.**
+
+**The one genuinely notable number is R² = 0.0755: the seasonal signal is ~92% orthogonal to the seven
+incumbents**, and C6 confirms it is not a repackaged theme — its largest mean per-date correlation
+against any theme is `value` **−0.1511**, and against `momentum` only **+0.0699**. **It is real new
+information that predicts nothing measurable here.** That is U2's dissociation reproduced on a
+price-only signal.
+
+### 4 · C-DEPTH is why constraint (1) existed, and it earns its keep
+
+K = 5, run once, **carrying no verdict**: `seas` +0.7790 / −0.9972 / +1.3938 and `nonseas`
+**+2.1655** / +1.4782 / +1.5066. **The pattern REVERSES** — at K = 10 the annual leg is the stronger
+one, at K = 5 the non-annual leg is, and at K = 5 `nonseas` even clears its own full-sample p95.
+**Had the depth been swept and the best reported, this register could have told either story, and the
+two contradict.** Neither is near 2.71. The register fixed K = 10 on availability before any result
+and forbade reading a verdict off K = 5; that clause cost nothing to write and would have been
+unarguable to add afterwards.
+
+### 5 · A DEFECT IN MY OWN INSTRUMENT, found by my own mutation test — U2's value-dependent `sd` for the third time
+
+`_tstat` carried the shipped `theme_ic` guard `sd > 0`. **Measured: `[0.1, 0.1, 0.1]` has sd 5.8e-17,
+passes that guard, and returns *t* = 1.019e16 — while the same list with a FOURTH element returns
+exactly 0.0.** Value- **and** length-dependent. The register promised a C-DEGEN check *"so an absurd
+*t* can never be READ as a pass"* and `sd > 0` alone is not one. Replaced with a relative floor,
+`sd <= 1e-12 × max(1, |mean|)`. **PROVED INERT rather than asserted: re-running both passes across the
+change gives 299 shared leaves, ZERO moved, zero added, zero removed.** The shipped `theme_ic` is
+deliberately **NOT** touched — changing it would make this lane's copy stop being the arithmetic X7's
+2.71 bar was calibrated on.
+
+**And the mutation test only caught it because it was written to bite.** Three of its four mutations
+fired against correct code; the fourth fired against mine.
+
+### 6 · A SECOND DEFECT, in my own vacuity test, and it is the MA28 family in a third costume
+
+The look-ahead guard tampers every close after *t* and requires the features bit-identical. Its
+companion — the tamper that *must* move the feature — first targeted the window's **interior** and
+**failed**. The cause is the feature's own definition: a window return is `close(end)/close(start) − 1`,
+so it depends on **two closes and not on the path between them**, and scaling every interior price by
+97 is invisible **by construction**. That is exactly MA28's Altman-Z lesson (a sum of ratios is
+invariant to scaling a whole filing) in a new place: **my vacuity companion was itself vacuous.** It
+now targets an endpoint, and path-independence is pinned as its own test so the next reader does not
+repeat the diagnosis.
+
+### 7 · Expectations — **3 right, 3 wrong, 1 split**
+
+| # | prediction | outcome |
+|---|---|---|
+| 1 | A1 REJECTED | **RIGHT** (fails 2.71 in all three windows) |
+| 2 | raw *t* exceeds incremental *t* | **WRONG** — raw +2.0334 **below** incremental +2.1607; residualising made it *stronger* |
+| 3 | mean R² < 0.25 | **RIGHT** (0.0755) |
+| 4 | A2's sign is positive | **SPLIT** — +0.0377 full and +0.6571 late, −1.0080 early; indistinguishable from zero |
+| 5 | contrast fails p95 in ≥ 1 half | **RIGHT** (fails all three) |
+| 6 | ≥ 1 power control clears 2.0 | **WRONG** — both fail, and this decided the verdict |
+| 7 | `seas`–`momentum` correlation > +0.20 | **WRONG** (+0.0699) |
+
+**The most consequential miss is 6**, and it is the reason the item returns a label rather than a
+result. **Miss 7 is the informative one**: I expected the k = 1 annual window (12–9 months back) to
+make this substantially a momentum proxy, and it does not — the seasonal signal is far more orthogonal
+than I predicted, which is what makes the null worth recording rather than dismissing.
+
+### 8 · Controls
+
+**C1 GATE** — the banked panel reproduces the published record at five cells to seventeen significant
+figures (`top_decile_alpha` 0.07174142332098163, `long_short_tstat` 2.8360640685320595, monotonicity
+−0.8909090909090909, equal-weight +0.18137118752419476, long-short +0.11038184616720666), computed and
+**read in its own pass** with `--arms` refusing to run without a passing artifact — session 26's defect
+stays repaired. **C2 GATE** eligibility reproduces the register's table exactly (76.13%, min 1,199, 69
+dates, 0 below 100). **C3 GATE** **zero** windows end after *t*, over all rows. **C4** the two arms are
+on **identical** `(date, ticker)` sets, asserted. **C5** mean per-date Spearman between the arms
+**−0.0728** — not the same column, and near-orthogonal. **C6** full theme correlation table, both arms.
+**C-ROBUST** `USE_ROBUST_Z` verified `False` (P6.3 rejected robust z).
+
+### 9 · What this does NOT say, named so it is not mistaken for said
+
+* **It does not say return seasonality is absent from US equities.** It says this design could not
+  separate it at this resolution, on 49 dates and ~1,062 names, with two known-real signals failing
+  their own power bar on the same rows.
+* **It is a QUARTERLY adaptation and is not a replication of the MONTHLY result.** A monthly test needs
+  a monthly panel, and `MA33` closed that permanently on `MA24`'s own pre-committed kill condition
+  (MDE +0.012324 against a +0.009607 effect; ~188 months, i.e. ~2032).
+* **The 20-year lag structure was never available** — the deepest uniform depth at the first panel date
+  is 11 years.
+* **Nothing is adopted, wired or weighted.** `NUMBER_THEME` still has 53 entries.
+* **The re-open route is named and it is NOT a re-run of this design.** The binding constraint is
+  `institutional`'s 2014 start inside the complete-case rule, not the price history. An item that
+  wants a full-panel incremental-IC gate must decide, **in its own register and before seeing a
+  result**, whether to residualise on six incumbents or to impute — and that is a change to the
+  TEMPLATE every incremental-IC item shares, so it belongs to its own register with its own trials.
+
+**115 suites, 0 failures after merging `origin/main` - the one pre-merge failure was NOT this item's (`MA18`'s ledger row carried 9 cells against a 10-column header, already repaired on main at `1b50f0b`); 19 new tests, 4 of 4 tripwires mutation-tested.**
+`scripts/ma58_seasonality.py`, `tests/test_ma58_seasonality.py`,
+`data/free_analysis/MA58_CONTROLS.json`, `MA58_SEASONALITY.json`.
+
+## BUGS FOUND
+
+1. **`_tstat`'s `sd > 0` guard is value- AND length-dependent** — `[0.1]*3` returns *t* = 1.019e16,
+   `[0.1]*4` returns 0.0. Mine; fixed with a relative floor, proved inert over 299 leaves. **The
+   shipped `theme_ic` carries the identical hazard and is deliberately NOT changed here** (U2 reported
+   it first and gave the same reason: repairing it in this lane would decouple the statistic from the
+   bar calibrated on it). **Still open, edge lane's.**
+2. **The incremental-IC template silently drops 20 of 69 dates** via `institutional`'s coverage. Not a
+   bug in any one item — a property of the shared template that U2, MA31 and MA32 all inherited and
+   none reported. **Reported, not fixed:** fixing it changes what every incremental-IC gate measures.
+3. **My own vacuity companion was vacuous** (interior tamper against a path-independent feature).
+   Mine; fixed and pinned from both sides.
+
+## What was NOT done, and why
+
+* **The register was not amended after the controls ran.** The 14-date early cell and the 49-date
+  restriction were discovered *after* the register was fixed. Redefining a half or the incumbent set
+  at that point is void condition 5, and it would have been choosing the design to buy power.
+* **`institutional` was not dropped from the incumbent set to recover the 20 dates.** That is the
+  obvious move and it is exactly what the register forbids doing after seeing a control fail.
+* **K was not re-swept.** C-DEPTH ran once, at the pre-named K = 5, and carries no verdict.
+* **No LEVEL statistic was computed for the verdict** — no decile return, no cumulative alpha.
+* **`MA26`-B, `MA27`, `MA55`, `MA57` were not touched.**

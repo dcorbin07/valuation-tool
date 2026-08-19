@@ -321,6 +321,23 @@ def test_the_set_of_things_that_consume_the_book_path_is_what_we_think_it_is():
         # mechanism that could disagree with the first about what the Index IS. Research-only:
         # nothing it computes reaches a live surface.
         "scripts/deepitm_financing.py",        # READER — Index membership for a coverage report
+        # READER, added 2026-08-18, reconciled before adding: Tier D of the chain harvest takes
+        # the Index's names as a MINING SCOPE -- which symbols to ask the vendor about -- and
+        # nothing else. It reads `positions[*].ticker` and discards every other field, including
+        # weight, so it cannot form a second opinion about what the book holds or how much of
+        # it. It never writes the path and never evaluates conformance. Same shape as the census
+        # above, and for the same reason it is not a PT-SPLIT risk: the disagreement PT-SPLIT
+        # was about is between two mechanisms that both claim to describe the BOOK, and this
+        # one describes the option cache.
+        #
+        # THIRD independent collision on this list in two days, and the tally is the point: the
+        # Index's membership is the natural join key for "what does the options cache cover",
+        # so every lane asking a coverage question arrives here. None of the three is a
+        # PT-SPLIT risk, because a reader that takes only the ticker list cannot disagree with
+        # the writer about the book -- but the guard is what made three separate lanes notice
+        # each other at all, which is the whole reason it is a merge conflict rather than a
+        # silent append.
+        "mine_deep_chains.py",
         "tests/test_edge.py",
         "tests/test_paper_track.py",
         "tests/test_index_book_publish.py",

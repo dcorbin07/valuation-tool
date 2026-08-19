@@ -48,6 +48,166 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **O21's DEFERRED ARM IS RESOLVED AT LAST, AND THE DIFFERENCE DOES NOT SEPARATE FROM ZERO -
+  THE WHOLE 95% INTERVAL SITS INSIDE THE BAR (2026-08-18, `O21-D2`).**
+  `PREREG_o21d2_alternative_contract_pnl.md` committed **ALONE at `1d23ee1`**, markdown only, a
+  strict ancestor of every measurement commit; **trial booked at `f86ebba` BEFORE the run, options
+  `N` 297 -> 298**, equity untouched at 232. **ADOPTS NOTHING, CHANGES NO LEDGER VERDICT, AND DOES
+  NOT RE-OPEN `O21`** - it replaces the string `NOT COMPUTABLE` with a measurement and nothing
+  else in that row moves. **The ONLY same-hypothesis re-open the blind re-open list (`10977a2`)
+  authorized.**
+  * **THE REFERENT NOW EXISTS, AND THAT IS WHY THIS WAS ANSWERABLE RATHER THAN SETTLED.** `O21`
+    could COUNT the 179 of 3,870 entries (4.63%) at which a dividend-corrected pricer picks a
+    different contract and could NOT PRICE them, because the trade-scope freeze holds a full chain
+    only on **ENTRY** dates - median **2** chain dates for an alternative. The pinned harvest
+    freeze `D:\thetadata\freeze_rawpull_2026-08-18` holds a full chain on **EVERY session**
+    (AAPL-2018: 251 sessions, median 1,558 contracts, bid and ask 100% non-null).
+  * **VERDICT IMMATERIAL, AND THE BOUND SAID SO BEFORE THE RUN.** Implied BOOK expectancy effect
+    across all 179 is **-0.1653pp** against `O21`'s **own** 1.00pp bar reused verbatim. The
+    register fixed the arithmetic first: **a 4.63% divergence share needs a 21.62pp mean per-trade
+    difference to move book expectancy by 1.00pp**, so a 3.6pp per-trade figure reads as large
+    only until you see it is 0.17pp of the book. **Quote the bound with the verdict or do not
+    quote the verdict.**
+  * **NEITHER STATISTIC SEPARATES FROM ZERO, AND THIS IS A CORRECTION AGAINST MY OWN FIRST
+    DRAFT, MADE BEFORE PUBLICATION RATHER THAN AFTER.** That draft was headed *"it trades tail for
+    typicality"* and told a mechanism story: the alternative sits at a **lower strike on 93.9%** of
+    entries at a median absolute delta gap of **0.129** above a 0.35 target, so it is deeper ITM
+    and **LESS levered**, which should fail totally less often (**higher median**) while giving up
+    the right tail this book's expectancy is built from (**lower mean**). **The point estimates
+    have exactly that shape - mean -3.57pp, median +0.67pp - and then neither survives a test.**
+    The mean reads *t* **-0.8045** with **CI95 [-12.28, +5.13] pp**, straddling zero; the median rests on
+    the alternative winning **61 of 113** pairs, two-sided binomial **p 0.4519**, a coin flip.
+    **So the shape is CONSISTENT WITH that mechanism and is NOT EVIDENCE FOR IT** - a story fitted
+    to two estimates that do not separate from zero is a story, and this record's own repeated
+    lesson is that such stories survive by being repeated. **No directional or mechanism claim is
+    made.**
+  * **AND THE VERDICT GETS STRONGER RATHER THAN WEAKER, WHICH IS THE POINT OF TESTING IT.** A
+    bound has to hold across the **INTERVAL**, not merely at the point estimate. **At the CI95's
+    most adverse end the implied book effect is -0.5681 pp and at the other end +0.2374 pp, so the
+    ENTIRE 95% interval sits inside the +/-1.00pp bar.** That is a far more robust `IMMATERIAL`
+    than a point estimate, and it is what makes the door genuinely closed rather than closed at
+    one number.
+  * **NO DIRECTIONAL CLAIM IS MADE, BY THE REGISTER'S OWN RULE.** The halves DISAGREE - early
+    **-10.59pp** (n 56), late **+3.32pp** (n 57) - so the pre-committed rule forbids
+    *"the corrected pricer picks worse contracts"* **in either direction**, and **E2 is recorded
+    UNRESOLVED even though its full-sample sign was right.** The register predicted this and said
+    why in advance: n = 113 split in two is thin and the halves are unbalanced by a coverage tilt
+    registered before any outcome.
+  * **C2, THE NULL INSTRUMENT, IS PERFECT - AND IT IS THE STRONGEST INSTRUMENT RESULT THIS LANE
+    HAS PRODUCED.** **2,309 non-divergent entries re-simulated on the harvest reproduce the banked
+    `return_pct` on 2,309 of 2,309 - reproduction 1.0000, ZERO differing, ZERO unusable.** Those
+    entries hold the SAME contract in both arms, so it checks that the two instruments agree where
+    they cannot legitimately disagree. **The register named a genuine risk in advance - the
+    harvest carries MORE holding days than the trade-scope freeze, so a stop could fire on a day
+    the banked simulation never saw - and it did not materialise on a single trade.** `C1`
+    reproduces `O21`'s selection **exactly** at 3,870 of 3,870 with 179 changed, so these are
+    literally `O21`'s 179. Both gating controls ran in **their own pass** and `--arms` **refuses**
+    without a passing artifact.
+  * **INSTRUMENT AGREEMENT WAS ESTABLISHED BEFORE THE ARM, NOT INFERRED FROM IT:** the harvest and
+    the trade-scope freeze match on **bid AND ask exactly, 115 of 115** banked contracts at entry.
+    That is what licenses pricing **BOTH** arms on one instrument, the base being **RE-SIMULATED**
+    rather than read from the banked book, so a difference is attributable to the contract and not
+    to the data source. The exit engine is the **SHIPPED** `simulate_trade`, unmodified.
+  * **COVERAGE IS 113 of 179 = 63.1% AND SYSTEMATIC RATHER THAN RANDOM, FIXED BEFORE ANY
+    OUTCOME:** 2016-2018 at 100 / 100 / 94.7% because Tier A ran to completion, 2019-2025 at 31.2
+    to 70.0% because Tier B was cancelled at 490 of 961 units once the census showed those years
+    were not perishable - so **the covered set is EARLY-TILTED**. **The 66 uncoverable entries are
+    UNMEASURED and are never read as zero.**
+  * **THREE DEFECTS IN MY OWN INSTRUMENT, ALL CAUGHT BY RUNNING IT.** (1) A **literal `%` in prose
+    about a percentage** inside a `%`-formatted note string was read as a conversion and crashed
+    the artifact write - **AFTER every statistic had been computed and printed, so no number was
+    affected**, but the first run produced a verdict with nothing on disk to support it. Repaired
+    by removing `%`-formatting from prose about percentages **rather than escaping it**, and the
+    re-run reproduces every figure to the digit. (2) **My first coverage probe used the wrong
+    window** - it required harvest units only to the EXIT date and returned 115 (64.2%), when
+    `simulate_trade` holds to **EXPIRY** whenever no trigger fires and **12.3% of alternatives
+    carry a different expiry**; corrected to **113 (63.1%)**, recorded in the register rather than
+    quietly replaced, and the looser figure is used nowhere. **(3) THE WORST OF THE THREE, because
+    it would have made the other two unverifiable: MY TEST SUITE WOULD HAVE PASSED VACUOUSLY under
+    this project's own runner.** `RUN_RULES` line 25 runs each suite as its own process and judges
+    by **exit code**; a file with no `__main__` block defines its tests, **executes nothing and
+    exits 0**, so all 21 would have counted as a passing suite while testing nothing. Found by
+    running the documented runner instead of `pytest tests/` — **which is NOT this project's test
+    command and, run in one process, produced ~10 failures that were artefacts of the runner** —
+    and censused afterwards rather than assumed: **113 of 113 suites carry the block and mine was
+    the only exception.**
+  * **A NULL HERE IS NOT A FINDING THAT THE PRICER IS CORRECT.** It is a finding that the pricer's
+    contract-selection error is too small a share of the book to matter, measured on 63.1% of the
+    affected entries. **The pricer is still deliberately NOT changed**, and had the result been
+    material the consequence would have been a **NEW** register proposing a change, not an edit to
+    `O21`. `C5` `pre_panel_history` is reported **VACUOUS rather than PASSING** - the key is
+    ABSENT on all 114 units read. **Expectations 4 right, 0 wrong, 1 unresolved**, discounted
+    rather than celebrated because the priors came from measured facts already in the record.
+    **21 tests, 3 of 3 tripwires mutation-tested with sources restored byte-for-byte.**
+    `scripts/o21d2_alternative_pnl.py`, `data/free_analysis/O21D2_CONTROLS.json`,
+    `O21D2_ALT_PNL.json`; `HANDOFF_optionsbot.md` 65.
+- **RETURN SEASONALITY IS UNINTERPRETABLE HERE, AND THE FINDING IS ABOUT THE INCREMENTAL-IC
+  TEMPLATE RATHER THAN ABOUT SEASONALITY: RESIDUALISING ON THE SEVEN INCUMBENTS SILENTLY MAKES
+  ANY SUCH REGISTER A POST-2014 TEST ON 49 OF 69 DATES (2026-08-18, `MA58`).**
+  `PREREG_ma58_return_seasonality.md` committed **ALONE at `6f998fc`**, markdown only, a strict
+  ancestor of every measurement commit; **budget booked at `eb85ca7` BEFORE the run**. **Equity
+  `N` 232 -> 234.** **ADOPTS NOTHING** - no file under `valuation/` changed, `NUMBER_THEME` still
+  has 53 entries, so `MA58`'s own tripwire stays green and **is correct to**.
+  * **THE VERDICT IS `UNINTERPRETABLE` ON THE REGISTER'S OWN PRE-COMMITTED POWER RULE**: on the
+    rows the arms are measured on **BOTH power controls fail** - `z_gp_on_capital` raw IC *t*
+    **1.1363** and `z_ret_6_1` **1.3493** against a 2.0 bar. **BOTH READINGS AGREE, WHICH IS
+    REPORTED BECAUSE IT CUTS THE OTHER WAY: the arm would ALSO have been REJECTED on its own
+    bars** - incremental IC *t* **+2.1607** full, **+0.6705** early, **+2.1438** late, failing
+    X7's 2.71 in all three windows. **The power rule conceals no pass; what it buys is the correct
+    label - "not measurable here", never "absent".**
+  * **THE PORTABLE FINDING, AND IT IS INHERITED BY EVERY ITEM USING THE PEAD/U2 TEMPLATE:
+    complete-case residualisation on the seven weighted incumbents restricts the panel to 49 of
+    69 DATES.** Cause measured and single: **`institutional` has 71.7% coverage and its FIRST date
+    with 20 or more names is 2014-01-17.** Drop it and all 69 return. **So an incremental-IC gate
+    on this panel is a post-2014 test unless it says otherwise, and the "early half" it reports is
+    not the early half it thinks it is** - here that cell holds **14 dates**, below even `S18`'s
+    16-date floor. `U2`, `MA31` and `MA32` all ran this template and none reported it.
+  * **NEITHER RESTRICTION ALONE WOULD HAVE FAILED THE BAR - THEY COMPOUND.** `z_gp_on_capital`
+    across four nested populations: full panel **+3.6739**, plus the seasonality depth filter
+    **+2.2125**, full plus complete-case **+2.1934 on 49 dates**, both **+1.1359**. `MA31`/`MA32`'s
+    three-population result reproduced on a different restriction - **and the +3.6739 against their
+    independently measured +3.6745 is what proves both instruments sound**, as does every theme
+    reproducing this file's own corrected-panel table to four decimals.
+  * **THE LEDGER ROW'S OWN DEPTH PREDICTION IS REFUTED, IN THE DIRECTION THAT HELPED.** It expected
+    depth to bind at the panel's EARLY end and to force a covered-subsample on the `S18`/`U2`
+    protocol. Measured: **all 69 dates are covered at every depth tried, never below 1,161 names**,
+    so no subsample protocol was invoked and a **full both-halves gate was available** - and the
+    shortfall is at the **LATE** end (**81.6%** eligible on the first date against **66.3%** on the
+    last). The panel grows 1,471 -> 1,842 names and the names it grows by are young. **A
+    price-history requirement on this panel is a RECENT-IPO screen, not an early-period screen.**
+  * **THE PUBLISHED PATTERN POINTS THE RIGHT WAY AND IS NOWHERE QUANTITATIVELY.** The annual-lag
+    arm is positive in the declared direction and the non-annual arm sits on zero (**+0.0377**
+    full), which is Heston-Sadka's shape - but the paired contrast fails its own permutation p95 in
+    **all three windows** (+0.02367, *t* +1.2440 against p95 +1.5508). **A pattern that points the
+    right way and cannot be separated from noise is not a replication.**
+  * **THE ONE NOTABLE NUMBER IS ORTHOGONALITY: mean R2 on the incumbents is 0.0755**, so the signal
+    is ~92% new information, and it is **not a repackaged theme** (largest theme correlation
+    `value` **-0.1511**; `momentum` only **+0.0699**, refuting my own prediction that the k=1 window
+    would make it a momentum proxy). **Real new information that predicts nothing measurable here** -
+    `U2`'s dissociation on a price-only signal.
+  * **C-DEPTH IS WHY THE "FIX THE LAG STRUCTURE FIRST" CONSTRAINT EXISTS, AND IT EARNED ITS KEEP.**
+    At **K=5 the pattern REVERSES** - `seas` +0.7790 against `nonseas` **+2.1655**, which clears its
+    own full-sample p95. **A depth sweep could have told either story and the two contradict.**
+    K=10 was fixed on availability before any result; K=5 ran once and carries no verdict.
+  * **TWO DEFECTS IN MY OWN INSTRUMENT, BOTH CAUGHT BY GUARDS WRITTEN TO CATCH THEM.** (1)
+    **`_tstat`'s shipped `sd > 0` guard is value AND LENGTH dependent** - `[0.1]x3` returns *t*
+    **1.019e16** while `[0.1]x4` returns exactly **0.0** - found by my own mutation test, fixed with
+    a relative floor and **PROVED INERT at 299 shared leaves, ZERO moved**. **The shipped `theme_ic`
+    carries the identical hazard and is deliberately NOT changed** (`U2`'s reason: repairing it in
+    this lane would decouple the statistic from the bar calibrated on it) - **still open, edge
+    lane's.** (2) **My own vacuity companion was VACUOUS**: it tampered a window's INTERIOR, and a
+    window return is `close(end)/close(start)-1`, so it is **path-independent by construction** -
+    `MA28`'s Altman-Z lesson in a third costume.
+  * **NOT DONE, named so it is not mistaken for done: the register was NOT amended after the
+    controls ran**, `institutional` was **NOT** dropped to recover the 20 dates (that is choosing the
+    design to buy power, void condition 5), **K was NOT re-swept**, and **no LEVEL statistic was
+    computed for the verdict** (the `P1S0-CONTROL` clause - all three legs ask SORTING questions,
+    pinned by an AST test). **A re-open is NOT a re-run of this design**: the binding constraint is
+    the template's complete-case rule, and changing it changes what every incremental-IC item
+    measures, so it needs its own register and its own trials. **Expectations 3 right, 3 wrong, 1
+    split. 115 suites, 0 failures after merging `origin/main` - the one pre-merge failure was NOT this item's (`MA18`'s ledger row carried 9 cells against a 10-column header, already repaired on main at `1b50f0b`); 19 new tests, 4 of 4 tripwires mutation-tested.**
+    `scripts/ma58_seasonality.py`, `data/free_analysis/MA58_SEASONALITY.json`,
+    `MA58_CONTROLS.json`; `HANDOFF_edge_audit.md` MA58.
 - **THE FRONTIER'S `rf + 43 bps` FINANCING EDGE IS A MID-PRICE ARTEFACT - AT EXECUTABLE PRICES IT
   IS `rf + 342`, AND A DEEP-ITM CALL IS CHEAPER THAN EXACTLY ONE OF THREE MARGIN CARDS, THE MOST
   EXPENSIVE ONE (2026-08-17, `DEEPITM-FIN` + `V5-REREAD`).**

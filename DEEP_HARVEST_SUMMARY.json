@@ -1,18 +1,18 @@
 {
- "generated_utc": "2026-08-18T10:13:58+00:00",
+ "generated_utc": "2026-08-19T03:48:39+00:00",
  "raw_root": "D:\\thetadata",
  "max_dte": 1200,
  "schema": 1,
- "units": 2143,
- "rows": 248311457,
- "bytes": 12420939621,
- "gb": 12.421,
- "rows_over_200dte": 53607571,
+ "units": 3148,
+ "rows": 353685737,
+ "bytes": 17692283162,
+ "gb": 17.692,
+ "rows_over_200dte": 73540545,
  "overlap_verdicts": {
-  "agree": 13,
-  "no_baseline": 958,
+  "agree": 873,
+  "no_baseline": 1107,
   "not_compared_adopted": 870,
-  "n/a": 302
+  "n/a": 298
  },
  "per_tier": {
   "A": {
@@ -25,18 +25,37 @@
   "C": {
    "units": 1260,
    "ok": 958,
-   "rows": 50579022,
-   "bytes": 2530941851,
-   "rows_over_200dte": 8006200,
-   "empty_vendor": 276,
-   "failed": 26
+   "rows": 50910785,
+   "bytes": 2547569906,
+   "rows_over_200dte": 8054183,
+   "empty_vendor": 278,
+   "ok_partial": 24
   },
   "B": {
    "units": 490,
-   "ok": 490,
+   "ok": 485,
    "rows": 128017028,
    "bytes": 6402910450,
-   "rows_over_200dte": 32868715
+   "rows_over_200dte": 32868715,
+   "ok_partial": 5
+  },
+  "E": {
+   "units": 836,
+   "ok": 788,
+   "rows": 83691315,
+   "bytes": 4186680063,
+   "rows_over_200dte": 14278981,
+   "ok_partial": 30,
+   "empty_vendor": 18
+  },
+  "D": {
+   "units": 169,
+   "ok": 81,
+   "rows": 21351202,
+   "bytes": 1068035423,
+   "rows_over_200dte": 5606010,
+   "ok_partial": 86,
+   "empty_vendor": 2
   }
  }
 }

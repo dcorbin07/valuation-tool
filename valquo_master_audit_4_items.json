@@ -1,0 +1,1261 @@
+{
+ "_meta": {
+  "audit": "VALQUO_MASTER_AUDIT_4 - the frontier audit (cold, read-only)",
+  "auditor": "cold (no history with this codebase)",
+  "date": "2026-08-19",
+  "tree": "origin/main @ ca3c332, fresh worktree worktree-audit4-frontier",
+  "method": "strictly read-only. No file under valuation/, scripts/, tests/, data/ or .github/ was changed. No backtest was run. ZERO TRIALS charged - every measurement is a fact about what is on disk or what the code does (the S25 / options-re-open-list / HANDOFF_data_mining class). Nothing adopted, nothing re-opened, no verdict moved.",
+  "board_state_at_start": {
+   "worktree_branches_not_ancestor_of_main": 0,
+   "unmerged_remote_refs": [
+    "origin/rescue/main-41d7b12",
+    "origin/rescue/wip-main-c4a3939"
+   ],
+   "ledger_rows_IN_PROGRESS": [
+    "B13 (its own cell reads 'NOT IN PROGRESS')"
+   ],
+   "ledger_rows_INPROGRESS": [
+    "D11 - STALE; its handoff reads 'HARVEST CLOSED 2026-08-18, THE MINER IS IDLE'"
+   ],
+   "verdict": "QUIET - proceeded"
+  },
+  "N_at_audit": {
+   "source": "research_log.detail() read live at session start",
+   "trials_logged": 549,
+   "by_domain": {
+    "equity": 234,
+    "options": 300,
+    "unified": 0,
+    "infra": 15
+   },
+   "equity_hurdle_sqrt_2_ln_N": 3.3031261300040304,
+   "options_hurdle_sqrt_2_ln_N": 3.377508689746394,
+   "note": "The commission stated equity 232+/options 297+; both had moved again. BACKTEST_RESULTS.json (generated 2026-08-14) carries by_domain {equity 224, options 292, infra 14} and hurdle 3.2898772171176964 - a LAG, which per MA21 is the only legal direction. No verdict moves at either N."
+  },
+  "gate_measured": "115 suites run by EXIT CODE per RUN_RULES 0.1: 114 passed, 1 FAILED - tests/test_o21d2_alternative_pnl.py, a PRE-EXISTING path-separator literal that SKIPS in CI (no D: drive) and FAILS on Windows. See MB42. Nothing this audit did can affect it: the only changes are three new files at the repo root.",
+  "schema_note": "Keyed by MB id. Carries the audit-#3 fields (title, mandate, severity, modifies, creates, depends_on, readonly, files, registers, evidence_needed, verification, trial_cost, kill_condition, note, source) plus four this commission required: ev_class, trial_counter, data_needed, prior.",
+  "counts": {
+   "items": 42,
+   "mandates": 9
+  },
+  "could_not_check": [
+   "The three D: freezes (freeze_options_2026-08-17, freeze_rawpull_2026-08-18, HARVEST_CENSUS.json). Every alternatives figure is HANDOFF_data_mining.md's, cross-checked against the options re-open list where they overlap.",
+   "data/free_analysis/MA28_CARD.json is not on the primary checkout's disk though accounting_risk.py:120 names it as ARTIFACT. Figures are pinned as literals in that module; the provenance pointer dangles.",
+   "The live service - no surface was authenticated; every render claim is read from the module owning the copy.",
+   "ext_condition1-4 read 255 on all rows of three sampled tick payloads. Sampled, not a census.",
+   "TIDEMARK's numbers are read from its generated documents; nothing was re-run there."
+  ]
+ },
+ "MB1": {
+  "title": "The alternatives MENU, and the selection-vs-timing decomposition it uniquely permits",
+  "mandate": "1 - options relocated",
+  "severity": "HIGH",
+  "ev_class": "HIGH - a cheap permanent closure",
+  "trial_cost": 2,
+  "trial_counter": "options (N 300 -> 302)",
+  "prior": "~20% that contract selection carries any of R2's loss",
+  "hypothesis": "Comparing the outcome DISTRIBUTION over the whole in-band alternative menu on an alert day against the same menu on matched random days separates 'the day was bad' from 'the contract was bad'. R2 and O13 between them cannot, because every prior study scored the ONE contract the book held.",
+  "data_needed": "D:\\thetadata freeze - 2,713,919 alternative contracts, median 636 per entry date, 3,885 of 3,885 entry dates covered. Already banked and hash-verified.",
+  "files": [
+   "D:\\thetadata\\freeze_rawpull_2026-08-18",
+   "data/options_freeze/R2_CORRECTED_2026-08-08/",
+   "data/options_universe/state_r2_corrected.pkl"
+  ],
+  "registers": [
+   "new blind PREREG, committed ALONE; menu definition taken verbatim from pick_contract's prefilter"
+  ],
+  "evidence_needed": "Menu median and menu p75 holding-period return, alert days vs 5-seed split-clean matched random entry, bucketed by delta, both halves.",
+  "verification": "Census (HANDOFF_data_mining.md Q2) cross-checks the options re-open list's independent 699.6 mean slice. O21-D2 spent the one authorised same-hypothesis re-open on ONE alternative per entry and returned IMMATERIAL with both CI95 inside the bar - a distribution over ~636 is a different object.",
+  "trial_cost_note": "Not O6 in costume: O6 compared PICKS and every one of its rules silently changed the delta (mean abs gap up to 0.310). This scores the whole menu bucketed BY delta, which is MA54-4's prescribed remedy.",
+  "kill_condition": "If alert-day and random-day menu medians differ by less than 1.0pp in EITHER half, contract selection is declared irrelevant and NO further contract-selection register may be opened on this book. A pass does not license a trade - O11 binds.",
+  "note": "Inherits U1-SPLIT's rule (raw_close for anything touching a strike, close only for a return) and MA31's warning that two-sided usable-quote availability on a menu is rarer than on a pick, so the effective menu is smaller than 636.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB2": {
+  "title": "The DTE x delta grid, designed honestly - and the design is a recommendation AGAINST running it",
+  "mandate": "1 - options relocated",
+  "severity": "MEDIUM",
+  "ev_class": "MEDIUM - the design is the deliverable",
+  "trial_cost": 16,
+  "trial_counter": "options if run (N 300 -> 316; hurdle 3.3775 -> 3.4034)",
+  "prior": "~7% that any cell is ACTIONABLE",
+  "hypothesis": "A 4x4 grid, DTE {30,60,90,180} x delta {0.15,0.35,0.60,0.85}, all 16 cells booked BEFORE the run and all 16 reported.",
+  "data_needed": "The frozen menu plus frozen forward paths; already banked.",
+  "files": [
+   "data/free_analysis/O11_O19_O22_O25_PORTFOLIO.json",
+   "data/free_analysis/DEEPITM_FIN.json",
+   "data/free_analysis/P1S0_GATE.json"
+  ],
+  "registers": [
+   "new blind PREREG booking all 16 cells",
+   "O11 (survivability)",
+   "DEEPITM-FIN",
+   "P1S0"
+  ],
+  "evidence_needed": "ACTIONABLE requires all four: (1) expectancy positive; (2) both halves; (3) clears its own within-cell permutation p95; (4) terminal equity above starting equity at O11's cap-10 $50k configuration. Leg 4 is the binding one - O11 measured a +3.27%/trade book ending at $37,059 from $50,000.",
+  "verification": "Survivorship rule fixed in advance: contracts chosen from the frozen menu on the entry date, settled from the frozen path, hold-to-expiry; fewer than 30 closed legs in either half is UNDERPOWERED, never null, and cells are not merged to reach the floor.",
+  "kill_condition": "If the single 60-90 DTE x 0.85-0.95 delta cell is run alone instead (1 trial), its failure closes the tenor question permanently rather than prompting a fifth tenor.",
+  "note": "RECOMMENDED AGAINST. All three corners are already priced: DEEPITM-FIN (all-in 701.87 bps/yr), the banked 35-delta book (R2 standing), and P1S0 which closed the family that would express any winner. 16 trials to sweep a space with measured corners and a closed vehicle is a search, not a question.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB3": {
+  "title": "Event ownership: real, mean-driven, untradeable by this operator - and the deciding arithmetic is free",
+  "mandate": "1 - options relocated",
+  "severity": "HIGH",
+  "ev_class": "MEDIUM-HIGH - closes a live ambiguity",
+  "trial_cost": 0,
+  "trial_counter": "none for the arithmetic; 1 options only if a disclosure register is wanted",
+  "prior": "~85% it closes permanently",
+  "hypothesis": "O17C4's effect is real (+10.30% vs +5.50% on 27,350 random-entry controls, +4.79pp, both halves, sign z +2.054 p 0.040) and its REJECT rests on c3, a bar the register itself later diagnosed as broken. It is a MEAN effect - DTE-matched median-vs-median is +0.40pp (-51.41% vs -51.81%) - so it needs many small unmanaged positions, which is exactly the configuration O11 measured ending below its starting equity.",
+  "data_needed": "None. O12's Kelly/ruin machinery plus the banked per-trade return distribution.",
+  "files": [
+   "scripts/o17c4_own_the_event.py",
+   "scripts/o12_kelly.py",
+   "data/free_analysis/O17C4_OWN_THE_EVENT.json",
+   "data/free_analysis/O12_KELLY_RUIN.json"
+  ],
+  "registers": [
+   "PREREG_o17c4_own_the_event.md (aeca6f0)",
+   "ledger O17C4",
+   "ledger MA54-2"
+  ],
+  "evidence_needed": "One arithmetic question on banked distributions: at what account equity does the cap-10 ruin arithmetic permit an earnings-spanning book to end above where it started? No hypothesis, no bar - the S25 / X7RECON zero-trial class.",
+  "verification": "Ledger O17C4 reads 'DONE - REJECTED, and solely on a bar of my own that was broken'; c1/c2/c4 pass. CLAUDE.md session 62 records B1 unpassable by construction and B1/B2 re-measuring the 29-name foreign-issuer coverage hole; only B3 measured its property and B3 passes.",
+  "kill_condition": "If the required equity exceeds $250,000 the family closes permanently, with the effect recorded as real and out of reach. Below it, a live design needing its own blind register.",
+  "note": "Argued verdict: real, mean-driven, untradeable at this account size. Honest home is a disclosure in MA28's class, not a strategy family. O11 governs and nothing here licenses trading it.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB4": {
+  "title": "Expression and financing: the door is CLOSED, and the closing argument is arithmetic",
+  "mandate": "1 - options relocated",
+  "severity": "MEDIUM",
+  "ev_class": "MEDIUM - a closed door argued from measurements is a legitimate deliverable",
+  "trial_cost": 0,
+  "trial_counter": "none",
+  "prior": "n/a - a closure, not a hypothesis",
+  "data_needed": "None.",
+  "files": [
+   "data/free_analysis/DEEPITM_FIN.json",
+   "data/free_analysis/P1S0_GATE.json",
+   "data/free_analysis/O11_O19_O22_O25_PORTFOLIO.json"
+  ],
+  "registers": [
+   "DEEPITM-FIN",
+   "P1S0",
+   "O11",
+   "U5",
+   "V6-OPT"
+  ],
+  "evidence_needed": "None - six expression arguments each closed by an existing measurement (see the audit table).",
+  "verification": "Cheaper leverage: all-in 701.87 bps/yr, cheaper than exactly one of three retail cards (RH standard rf+995) and MORE expensive than the two an operator would use (RH Gold rf+420, IBKR Pro rf+150). Defined-risk sizing: O11's ruin is opportunity refused at the cap, not tail loss, so a spread reduces capacity rather than adding it. Tax: U5 DONE. Alpha: P1S0 failed at its power anchor in both halves at all three horizons.",
+  "kill_condition": "The ONE re-open condition is a financing fact and needs no trials: if the operator's borrowing rate ever exceeds rf + 702 bps, the deep-ITM call becomes the cheaper leverage and DEEPITM-FIN has already priced it.",
+  "note": "Nobody should spend a trial re-deriving this.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB5": {
+  "title": "The re-open list's disclosure correction landed on two rows of three - U1 still does not disclose",
+  "mandate": "1 - options relocated",
+  "severity": "LOW",
+  "ev_class": "LOW-MEDIUM - free, and it is a record-integrity item",
+  "trial_cost": 0,
+  "trial_counter": "none",
+  "prior": "n/a",
+  "data_needed": "None.",
+  "files": [
+   "VALQUO_LEDGER.md (rows O6, O7, U1)",
+   "scripts/u1_entry.py"
+  ],
+  "registers": [
+   "HANDOFF_options_reopen_list.md SS3, SS7"
+  ],
+  "evidence_needed": "Measured on today's ledger: O6 and O7 rows now mention the mutable EOD store; U1's does not.",
+  "verification": "u1_entry.py's own docstring: 'READ-ONLY on data/options/'. Its dates are rebalance dates the freeze never covered, entry or exit.",
+  "kill_condition": "n/a - a one-sentence note. NO re-run: U1 failed all four pre-registered conditions and every decile's median trade sits between -52.5% and -54.3%, which no chain source moves.",
+  "note": "The re-open list recommended this 'regardless of whether anything is re-run'.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB6": {
+  "title": "Tier C's small caps are an options-side object too, and the pre_panel_history flag is not optional",
+  "mandate": "1 - options relocated",
+  "severity": "MEDIUM",
+  "ev_class": "MEDIUM - pointer; the equity half is MB17",
+  "trial_cost": 0,
+  "trial_counter": "pointer item",
+  "prior": "n/a",
+  "data_needed": "Tier C: 982 units with data, 50.6 M rows, 2016-2018, 420 never-tried optionable names.",
+  "files": [
+   "D:\\thetadata\\chains (Tier C)",
+   "D:\\thetadata\\tier_c_skipped.json"
+  ],
+  "registers": [
+   "D11",
+   "HANDOFF_data_mining.md Tier C"
+  ],
+  "evidence_needed": "n/a - a constraint statement.",
+  "verification": "28 of 982 units (2.9%) across 14 symbols carry another company's option data, stamped pre_panel_history with panel_first_year (FOXA, IR, VG, CR, AZPN + 9). 278 units are empty_vendor.",
+  "kill_condition": "Any register touching Tier C must filter pre_panel_history or resolve the 14 symbols against a point-in-time identifier; treating them as the modern company is a live way to get a wrong answer.",
+  "note": "empty_vendor is a fact about the vendor, never about the market.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB7": {
+  "title": "The incremental-IC gate is DEFECTIVE on this panel, and it gates every other item in mandates 2 and 4",
+  "mandate": "2 - combinations",
+  "severity": "CRITICAL",
+  "ev_class": "VERY HIGH - free, and six other items depend on it",
+  "trial_cost": 0,
+  "trial_counter": "none - a specification correction",
+  "prior": "n/a - measured, not hypothesised",
+  "data_needed": "None. Measured directly from data/free_analysis/panel_corrected_69d.pkl.",
+  "files": [
+   "data/free_analysis/panel_corrected_69d.pkl",
+   "VALQUO_LEDGER.md row MA58-SEAS"
+  ],
+  "registers": [
+   "U2",
+   "MA31",
+   "MA32",
+   "MA58-SEAS",
+   "and every future incremental-IC register"
+  ],
+  "evidence_needed": "None - reproduced independently by this audit.",
+  "verification": "Complete-case residualisation on the seven weighted incumbents: 66,444 rows (58.31%), 49 of 69 dates with >=20 names, first 2014-01-17. Dropping institutional (coverage 0.7172, first date >=20 names 2014-01-17) restores 92,540 rows (81.21%) and 69 of 69 dates. Only 28 of the 49 surviving dates precede 2021.",
+  "kill_condition": "n/a - a correction. The register must choose EXPLICITLY between (a) residualise on the six full-window themes and report institutional incrementally as a declared secondary arm, or (b) keep all seven and state in the register that the test is post-2014 with a 28-date pre-2021 cell. (a) is better on power, (b) on comparability with U2/MA31/MA32.",
+  "note": "Independently reproduces MA58-SEAS (2026-08-18). U2, MA31 and MA32 all used this template, so their reported early halves inherit it.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB8": {
+  "title": "MA28's crash flags as a position-SIZING haircut, judged on crash count and never on alpha",
+  "mandate": "2 - combinations",
+  "severity": "HIGH",
+  "ev_class": "HIGH",
+  "trial_cost": 1,
+  "trial_counter": "equity (N 234 -> 235; hurdle 3.3031 -> 3.3042)",
+  "prior": "~50%, and the uncertain leg (alpha non-inferiority) is the one that decides",
+  "hypothesis": "A crash-rate object maps onto HOW MUCH to hold, not WHAT to hold. Halve the weight of a flagged name in the top decile; judge it on the count of top-decile holdings suffering a >50% quarterly fall.",
+  "data_needed": "None. MA28-CARD's flags plus the corrected panel, both banked.",
+  "files": [
+   "valuation/web/accounting_risk.py",
+   "scripts/ma28_riskcard.py",
+   "scripts/s10_accounting_veto.py",
+   "data/free_analysis/S10_ACCOUNTING.json"
+  ],
+  "registers": [
+   "MA28-CARD",
+   "S10",
+   "S10-ACCT",
+   "X7 (the 1.8629pp calibrated alpha margin)"
+  ],
+  "evidence_needed": "Primary: flagged-name crash count in the book, both halves. Secondary and gating: book top-decile alpha as a NON-INFERIORITY leg against X7's calibrated 1.8629pp margin - and see MB31, that floor is DUE a re-derivation at N=234.",
+  "verification": "MA28-CARD measured 2.6597% vs 0.8743%, ratio 3.0422x, replicating 3.42x early / 2.93x late, every window beyond the MAXIMUM of its own 500-draw permutation; strengthening monotonically with size to 5.169x in megacaps. S10 measured that this book's max drawdown is ONE market-wide quarter (COVID 2020Q1, trough index 44 of 69), which is why S10-ACCT's portfolio-drawdown leg can never pass and why the primary here must be name-level.",
+  "kill_condition": "Crash-count reduction under 20% in EITHER half closes the sizing family permanently. Alpha non-inferiority failing at the calibrated margin REJECTS the arm regardless of the crash result - a risk control that costs alpha is a trade, and this register may not make it.",
+  "note": "Not S10-ACCT in costume: different intervention (0.5x weight, not deletion), different primary statistic (name-level crash count, not portfolio max drawdown), alpha as non-inferiority not improvement. C7's eligibility sensitivity travels: 22.01% of rows carry fewer than two computable inputs and sit in the base-rate group by construction.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB9": {
+  "title": "MA28's flags as a short-put veto: REFUSED as stated; the moneyness version is a new hypothesis",
+  "mandate": "2 - combinations",
+  "severity": "LOW",
+  "ev_class": "LOW as stated",
+  "trial_cost": 2,
+  "trial_counter": "options, only for the re-specified moneyness version",
+  "prior": "~12%",
+  "data_needed": "None new.",
+  "files": [
+   "data/free_analysis/V6OPT_STAGE2.json"
+  ],
+  "registers": [
+   "V6-OPT",
+   "P1S0 (expression closed)",
+   "O9 (short vol closed)"
+  ],
+  "evidence_needed": "n/a - a refusal.",
+  "verification": "V6-OPT: selling a 25-delta put is selling a 25% assignment probability BY CONSTRUCTION - assignment 25.30% healthy against 25.73% unhealthy (0.43pp), while the unhealthy name paid 2.978% of strike against 2.550% purely on higher implied vol. A delta-targeted put is blind to a priced risk difference.",
+  "kill_condition": "Refused as stated. The only live form targets MONEYNESS rather than delta, and it must argue past two standing closures (P1S0, O9) in its own blind register. NOT PROPOSED here.",
+  "note": "V6-OPT itself named the moneyness version as the obvious re-opening.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB10": {
+  "title": "V6-B's small-cap survival gradient: the honest use is a DISCLOSURE, not a surface and not a book change",
+  "mandate": "2 - combinations",
+  "severity": "MEDIUM",
+  "ev_class": "MEDIUM",
+  "trial_cost": 0,
+  "trial_counter": "none for the disclosure; 1 equity for a sizing version I recommend against",
+  "prior": "n/a for the disclosure",
+  "data_needed": "None.",
+  "files": [
+   "valuation/web/dip_posture.py",
+   "valuation/web/dip.py",
+   "data/free_analysis/V6B_DIP_SURVIVAL.json"
+  ],
+  "registers": [
+   "V6-B",
+   "V6",
+   "MA28-CARD-UI (the pattern)"
+  ],
+  "evidence_needed": "None for the disclosure - V6-B's gradient is measured and banked.",
+  "verification": "V6-B: -10.228pp at HAC t -10.5847, both halves, four to five times its own MDE in every window; gradient -14.287pp smallest quintile against -3.787pp megacap, and megacap is the one quintile FAILING its own both-halves leg. V6 measured a drawdown on this panel to be substantially an inverse-momentum sort (Spearman +0.6642 against the momentum theme), so a small-cap dip surface would surface names the live composite is marking down.",
+  "kill_condition": "For a sizing version: it would require >3.0pp separation in the megacap quintile, and V6-B already measured 3.787pp there - so the answer is largely on the record, which is a reason NOT to charge the trial.",
+  "note": "The disclosure is the MA28-CARD-UI pattern applied to a caveat instead of a claim.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB11": {
+  "title": "The optionable partition as a REPORTED diagnostic, which is all P1S0 left it as",
+  "mandate": "2 - combinations",
+  "severity": "MEDIUM",
+  "ev_class": "MEDIUM",
+  "trial_cost": 0,
+  "trial_counter": "none",
+  "prior": "n/a",
+  "data_needed": "None.",
+  "files": [
+   "data/free_analysis/P1S0_CONTROL.json",
+   "data/free_analysis/P1S0_OPTIONABLE_PARTITION.pkl"
+  ],
+  "registers": [
+   "P1S0",
+   "P1S0-CONTROL"
+  ],
+  "evidence_needed": "None - measured.",
+  "verification": "Full panel beats the optionable subset by +1.467pp (H=63), +6.124pp (H=252), +1.527pp (H=504) over 2016-2020 and loses by -9.704pp, -10.927pp, -1.555pp late.",
+  "kill_condition": "It may be reported and may not be used. The copy must say the partition describes the past and carries no forecast; P1S0's own defect note is that the two effects interact and its gate cannot separate them.",
+  "note": "Belongs with MB39's disclosure-card family.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB12": {
+  "title": "MA58 landed, and the pattern across three orthogonality nulls is worth more than any of them",
+  "mandate": "2 - combinations",
+  "severity": "MEDIUM",
+  "ev_class": "MEDIUM - a record item that constrains future registers",
+  "trial_cost": 0,
+  "trial_counter": "none",
+  "prior": "n/a",
+  "data_needed": "None.",
+  "files": [
+   "data/free_analysis/MA58_SEASONALITY.json",
+   "data/free_analysis/U2_SURFACE_STOCK.json",
+   "data/free_analysis/MA31_MA32.json"
+  ],
+  "registers": [
+   "MA58-SEAS",
+   "U2",
+   "MA31",
+   "MA32"
+  ],
+  "evidence_needed": "None - all three measured.",
+  "verification": "MA58-SEAS DONE - UNINTERPRETABLE, zero adopted, equity N 232 -> 234. Orthogonality measured: U2 incumbents explain 5.5-8.8% of variance (against 41.3% for gp_on_capital, 78.4% for ret_6_1); MA31/MA32 R2 0.0438/0.0273/0.0361; MA58-SEAS mean R2 0.0755, largest theme correlation -0.1511.",
+  "kill_condition": "Any future register citing 'structurally orthogonal to everything in the panel' as its reason to expect an effect must cite these three against itself. On this panel orthogonality is not evidence of value and has failed as a motivation three times.",
+  "note": "The seasonality cross is closed for the reason MA58 gives; no further trial should be spent on it.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB13": {
+  "title": "The regime contrast is NOT ANSWERABLE on this panel, and here is the arithmetic",
+  "mandate": "3 - the 2016-2020 problem",
+  "severity": "CRITICAL",
+  "ev_class": "VERY HIGH - it forecloses a whole family, rigorously",
+  "trial_cost": 0,
+  "trial_counter": "none",
+  "prior": "n/a - arithmetic",
+  "data_needed": "None. Inputs are the shipped artifact's distribution block and the panel's own date list.",
+  "files": [
+   "BACKTEST_RESULTS.json (construction.top_decile_alpha_distribution, top_decile_alpha_inference)",
+   "data/free_analysis/panel_corrected_69d.pkl"
+  ],
+  "registers": [
+   "P1S0-CONTROL",
+   "R1 fragility",
+   "X4",
+   "TIDEMARK POWER_GATE.md (the method)"
+  ],
+  "evidence_needed": "None - computed.",
+  "verification": "Quarterly top-decile alpha: mean +1.794pp, sd 3.298pp, lag-1 autocorr +0.0812 -> deff 1.177. Documented crisis window holds 9 rebalance dates, P1S0's dead half 20 of 69. MDE at the honest hurdle 3.3031: crisis-vs-rest 16.90pp/yr, dead-half-vs-rest 12.54pp/yr, plain halves 11.38pp/yr - against a published TOTAL alpha of 7.17pp/yr. Required per window at 80% power: 136.8 quarters (34.2 years) each side for a gap the size of the whole published alpha. The panel supplies 17.3 years in total; the crisis window supplies 2.3. Does not depend on the multiplicity correction - even at t=2 the crisis contrast needs 10.23pp/yr.",
+  "kill_condition": "Ruling in TIDEMARK's grammar: NOT PERMITTED. Forecloses every regime-conditioning register on this panel permanently, until forward time accrues at one quarter per quarter. Does not foreclose MB14.",
+  "note": "The naive fix the record warns about most is not merely dangerous here; it is arithmetically futile, which is a stronger and more durable reason to refuse it.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB14": {
+  "title": "The one pre-registerable thing left: a three-state DIAGNOSTIC on an externally-dated window",
+  "mandate": "3 - the 2016-2020 problem",
+  "severity": "HIGH",
+  "ev_class": "HIGH - 1 trial converts the largest open wound into a dated, powered refusal",
+  "trial_cost": 1,
+  "trial_counter": "equity (N 234 -> 235; hurdle 3.3031 -> 3.3042, i.e. 0.0011 of a t)",
+  "prior": "~70% CANNOT-TELL, ~20% FAILS-THROUGHOUT, ~10% WORKS-OUTSIDE. RECOMMENDED anyway.",
+  "hypothesis": "Does the composite's sorting failure line up with the documented industry-wide quant crisis, or does it start earlier? P1S0-CONTROL's dead window (2016-2020) is WIDER than the documented crisis, so the two hypotheses make different predictions on a real disjoint sub-sample.",
+  "data_needed": "Regime dates from OUTSIDE the panel: Blitz, 'The Quant Crisis of 2018-2020: Cornered by Big Growth' (Robeco, Feb 2021). Dated by someone else before this project looked, which is what makes committing to it blind meaningful.",
+  "files": [
+   "data/free_analysis/P1S0_CONTROL.json",
+   "data/free_analysis/panel_corrected_69d.pkl",
+   "valuation/web/score_confidence.py (V3's constraint on what the product may do)"
+  ],
+  "registers": [
+   "new blind PREREG committed ALONE, carrying MB13's power table"
+  ],
+  "evidence_needed": "Measured on the panel's own dates: crisis window 2018-06-01..2020-08-31 holds 9 rebalance dates (2018-07-20..2020-07-22); pre-crisis 2016-01..2018-05 holds 10 (2016-01-20..2018-04-20). Score a SORTING statistic (monotonicity, long-short), never a level - P1S0-CONTROL's own defect was that its leg 2 asked a LEVEL question about a SORTING item.",
+  "verification": "Three states fixed in advance: WORKS-OUTSIDE / FAILS-THROUGHOUT / CANNOT-TELL. Blitz's episode dating is corroborated across independent practitioner research (Man Group, First Sentier); no causal mechanism is claimed.",
+  "kill_condition": "The register pre-commits that a CANNOT-TELL closes regime work on this panel PERMANENTLY, and that the only admissible re-open is accrued forward time - not a new window, not a finer statistic, not a different regime variable. Without that clause this becomes the first of five.",
+  "note": "What the product may DO with any verdict: almost nothing. V3 measured that where an individual name sits inside the top decile is not distinguishable from chance (45 of 69 dates) and that the group-level result holds on only 21 of 69, 'which is why it may never be stated as a standing property'. The only honest action is a dated disclosure carrying the power statement, in MA28-CARD-UI's pattern.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB15": {
+  "title": "The tick cache's `exchange` field has never been read by any study, and it is the retail axis",
+  "mandate": "4 - untouched instruments",
+  "severity": "HIGH",
+  "ev_class": "HIGH - a genuinely unread field on an owned 70 M-print instrument",
+  "trial_cost": 2,
+  "trial_counter": "options (N 300 -> 302)",
+  "prior": "~15%",
+  "hypothesis": "A venue-based retail-flow proxy, built from `exchange` (14 venues per print, plus bid_exchange/ask_exchange), as a conditioner. Bryzgalova-Pavlova-Sikorskaya (JF 2023) identify retail options flow through wholesaler routing and find retail is >60% of volume, prefers cheap weeklies at ~12.6% spreads, and loses money.",
+  "data_needed": "None new - data/options_ticks, 70,288,482 prints, 3,884 units, 186 symbols, 1,574 dates, 4.721 GB.",
+  "files": [
+   "data/options_ticks/",
+   "TICK_FLOW_COVERAGE.json",
+   "scripts/o14_tickflow_signals.py",
+   "scripts/o10_o18_tickflow.py"
+  ],
+  "registers": [
+   "new blind PREREG",
+   "O14",
+   "O10",
+   "O18",
+   "MB7 (the repaired incremental-IC gate)"
+  ],
+  "evidence_needed": "Measured read-only on three sampled payloads: every print carries `exchange` with 14 distinct venues; O14's five features (signed_volume, pc_flow_imbalance, block_share, unusual_volume, sweep_share) touch none of them; O10/O18 used `condition` and `size`. size==1 is 24.4-31.6% of prints, median print 3-5 contracts - consistent with a retail-dominated tape.",
+  "verification": "The identification is a wholesaler flag this vendor does not supply, so a venue classifier is a PROXY and must be labelled one on every output. Conditioning caveat: alert-days only, and the alert screens on unusual volume vs OI and low IV, so the sample is selected toward the retail-heavy tail - a null may be range restriction, and a positive does not generalise to ordinary days. O10 measured the harder limit: 0 of 3,870 next-sessions and 0 of 3,870 exit days are cached.",
+  "kill_condition": "Fires BEFORE any outcome: the venue->retail mapping must reproduce the published retail share on the pooled cache to within +/-15pp of ~60%. If it cannot, the arm is VOID before scoring. That tests the instrument rather than the hypothesis.",
+  "note": "The range-restriction control must be run and READ in a SEPARATE pass - O10's own process defect, not repeated.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB16": {
+  "title": "VPIN is CONTESTED, and the dispute names which version to build",
+  "mandate": "4 - untouched instruments",
+  "severity": "MEDIUM",
+  "ev_class": "MEDIUM",
+  "trial_cost": 1,
+  "trial_counter": "options",
+  "prior": "~10%",
+  "hypothesis": "Quote-classified VPIN (order-flow toxicity) on the alert-day tape - the only version the published critique does not reach.",
+  "data_needed": "None new - data/options_ticks.",
+  "files": [
+   "data/options_ticks/",
+   "scripts/o14_tickflow_signals.py (classify_side, Lee-Ready)"
+  ],
+  "registers": [
+   "new blind PREREG",
+   "O14",
+   "U2 (the skew_25d precedent for pre-scoring withdrawal)"
+  ],
+  "evidence_needed": "Andersen-Bondarenko: Bulk Volume Classification is inferior to a standard tick rule, and VPIN predicts volatility largely because rising volatility induces systematic BVC classification errors. Easley et al. dispute the characterisation.",
+  "verification": "O14 already built a quote-based Lee-Ready classifier measured classifying a median 98.54% of eligible prints, and found and fixed a real defect in it (the tick test needs the previous DIFFERENT price).",
+  "kill_condition": "Before scoring: if quote-classified VPIN correlates above 0.90 within date with O14's already-null signed_volume or unusual_volume, it is those features renamed and the arm is WITHDRAWN before any outcome is read - the U2 skew_25d precedent.",
+  "note": "Replication status: DISPUTED, and the disputed component is the classifier, which this project already does the right way.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB17": {
+  "title": "Tier C's 420 small caps: the one question uniquely answerable there",
+  "mandate": "4 - untouched instruments",
+  "severity": "MEDIUM",
+  "ev_class": "MEDIUM-HIGH",
+  "trial_cost": 1,
+  "trial_counter": "equity",
+  "prior": "~25% that it returns an interpretable verdict at all",
+  "hypothesis": "Does the composite sort the SMALL optionable names over 2016-2018 - where V6-B says the survival effect is strongest, and where P1S0 says the optionable subset is weakest? The only population where the composite's dead window, the small-cap end of V6-B's gradient, and options existence intersect.",
+  "data_needed": "Tier C: 982 units with data, 50.6 M rows, 2016-2018, 420 names. Banked and frozen.",
+  "files": [
+   "D:\\thetadata\\chains (Tier C)",
+   "data/free_analysis/P1S0_CONTROL.json",
+   "data/free_analysis/V6B_DIP_SURVIVAL.json"
+  ],
+  "registers": [
+   "new blind PREREG",
+   "V6-B",
+   "P1S0",
+   "S18 (the 16-date floor)",
+   "MA31/MA32 (the power-control method)"
+  ],
+  "evidence_needed": "Not answerable: anything requiring 2019+ (Tier C is 2016-2018 only) or any name before its panel debut.",
+  "verification": "Tier C population averages 2.6 MB per symbol-year against a megacap's 8.8 MB - small by construction.",
+  "kill_condition": "If the covered small-cap cross-section has fewer than 16 dates per half (S18's floor), OR if the power control - the panel's own known-real signals on the ARM'S ACTUAL ROWS, per MA31/MA32's three-population method - fails a t=2.0 bar, the result is UNDERPOWERED not null, and the population is closed to further equity registers.",
+  "note": "MANDATORY before any number: filter pre_panel_history (28 of 982 units, 14 symbols) and treat empty_vendor (278 units) as a vendor fact.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB18": {
+  "title": "The S23 valuation panel's unread object: the implied-growth expectations gap",
+  "mandate": "4 - untouched instruments",
+  "severity": "HIGH",
+  "ev_class": "HIGH - the cheapest genuinely-new equity hypothesis in this audit",
+  "trial_cost": 1,
+  "trial_counter": "equity",
+  "prior": "~15%",
+  "hypothesis": "`implied_growth - base_growth`: how much more growth the price demands than the company's own recent trajectory. A reverse-DCF expectations measure. Mechanism is expectations errors rather than risk.",
+  "data_needed": "None. data/free_analysis/panel_s23_fairvalue.pkl, already banked.",
+  "files": [
+   "data/free_analysis/panel_s23_fairvalue.pkl",
+   "valuation/engine/calibration.py:955 (implied_growth_realization)"
+  ],
+  "registers": [
+   "new blind PREREG",
+   "S23",
+   "MA26-C",
+   "MB7 (the repaired incremental-IC gate)"
+  ],
+  "evidence_needed": "Measured read-only: 108,241 rows, 69 dates, 2,441 names, 2009-01-15..2026-01-28. implied_growth coverage 100.00%, base_growth 100.00% - both solved from price and filed fundamentals AS OF the date, i.e. point-in-time.",
+  "verification": "The level agrees with the project's own measurement: implied_growth median 0.164 against realized_growth median 0.061 on the 81,633 rows carrying both.",
+  "kill_condition": "TWO, both firing before any outcome. (1) LOOK-AHEAD: realized_growth is FORWARD 3-year growth (75.4% coverage) and may NEVER enter a signal - ex-post attribution only, pinned at source on the MA31 precedent. (2) COSTUME: mandatory C6-style mean per-date Spearman against the `value` theme; the arm is WITHDRAWN before any outcome is read at abs rho > 0.60.",
+  "note": "Inherits S23's caveats: the panel's fair_value is a reconstruction and NOT what the live site published that day (MA26-C); and S23 found and fixed the path fetching LIVE Yahoo prices to value 1999, so any rebuild must assert zero network calls.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB19": {
+  "title": "MA55's lens-disagreement width is buildable, and the w_floor is the whole design",
+  "mandate": "4 - untouched instruments",
+  "severity": "MEDIUM",
+  "ev_class": "MEDIUM",
+  "trial_cost": 1,
+  "trial_counter": "equity",
+  "prior": "~12%",
+  "hypothesis": "A precision-weighted mispricing signal from the three valuation lenses' disagreement width.",
+  "data_needed": "None. panel_s23_fairvalue.pkl.",
+  "files": [
+   "data/free_analysis/panel_s23_fairvalue.pkl"
+  ],
+  "registers": [
+   "new blind PREREG",
+   "MA55",
+   "MA58-SEAS (the C-DEPTH lesson)"
+  ],
+  "evidence_needed": "Verified read-only: all three lenses present on 80,689 of 108,241 rows (74.55%) - dcf_ps 99.87%, comps_fv 100.00%, growth_ps 74.55%. MA55's measured width: p05 0.1195, median 0.8777, p95 4.1069, MAXIMUM 3,585 - four orders of magnitude above the median.",
+  "verification": "Without a floor the arm stops being a precision-weighted mispricing signal and becomes a disagreement screen, which is a different hypothesis.",
+  "kill_condition": "The w_floor must be pre-committed AND proved insensitive across a pre-declared +/-50% band. If the verdict moves anywhere inside that band the arm is VOID - MA58-SEAS's C-DEPTH finding in a new place, where K=5 and K=10 told opposite stories and only the pre-committed one carried a verdict.",
+  "note": "",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB20": {
+  "title": "MA57's one-line _KEEP change now has a consumer: the routine/opportunistic insider split",
+  "mandate": "4 - untouched instruments",
+  "severity": "MEDIUM",
+  "ev_class": "MEDIUM-HIGH",
+  "trial_cost": 1,
+  "trial_counter": "equity, plus a two-column _KEEP change",
+  "prior": "~20% - the highest prior on any equity arm in this audit, and still under a quarter",
+  "hypothesis": "Cohen-Malloy-Pomorski's routine-versus-opportunistic insider split, which needs `ownername` and `transactioncode`. S3 rejected three insider rebuilds and NONE of them was this construction.",
+  "data_needed": "None new - data/backtest/insiders.csv already holds both columns.",
+  "files": [
+   "data/backtest/insiders.csv",
+   "valuation/edge/data_providers.py (_KEEP['insiders'])",
+   "valuation/edge/fundamental_panel.py (_insider_formula)"
+  ],
+  "registers": [
+   "new blind PREREG",
+   "MA57",
+   "S3",
+   "the COVERAGE RULE"
+  ],
+  "evidence_needed": "MA57 measured: 24 columns, both ownername and transactioncode present, 5,636,964 rows 1980-11-25..2026-07-24, 69,277 distinct ownername, ZERO missing on all 124,181 open-market purchase rows. Split gives 42,537 of 87,318 (ownername, ticker) pairs = 48.72% routine on all coded rows.",
+  "verification": "S3's three rebuilds were S3A (drop the buys bonus), S3B (scale by market cap), S3C (split into two z-scored inputs). None is the routine/opportunistic split.",
+  "kill_condition": "A COVERAGE rule, not an outcome rule: transactioncode is absent on 1,544,490 rows (27.40%) and a blank code can be classified neither way. Pre-commit that if the classifiable share of the panel's own insider rows falls below 60%, the arm is UNDERPOWERED not null and the _KEEP change is REVERTED rather than kept for a dead consumer.",
+  "note": "Unflattering prior from the record's own S3: the pure indicator 'has an insider score at all' carries a LARGER absolute t (+1.4471) than the insider theme's own direction (-0.2259). Neither is significant; the comparison is the point and belongs in the register. Also still open from MA57 and reported not repaired: _KEEP['insiders'] requests a column named `date` the export does not have (it is transactiondate), so `filingdate or date` has a fallback that can never fire.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB21": {
+  "title": "The Boudoukh-Richardson-Whitelaw null: S22's null is mis-specified in the direction that manufactures its result",
+  "mandate": "5 - cross-pollination from TIDEMARK",
+  "severity": "CRITICAL",
+  "ev_class": "HIGHEST IN THE AUDIT",
+  "trial_cost": 1,
+  "trial_counter": "infra (0 for the diagnosis, which is done). Infra N gates no published claim.",
+  "prior": "~55% that at least one horizon crosses",
+  "hypothesis": "With a PERSISTENT regressor and OVERLAPPING long-horizon returns, R2 and long-horizon beta rise mechanically under the no-predictability null (BRW, RFS 2008). S22's per-horizon fixed_weights_null is built from placebo_panel, which permutes within each rebalance date and therefore has ZERO persistence - so it cannot generate the artifact it most needs to exclude.",
+  "data_needed": "None. Measured read-only on data/free_analysis/panel_corrected_69d.pkl.",
+  "files": [
+   "scripts/term_structure.py:192-241 (fixed_weights_null)",
+   "valuation/edge/fundamental_panel.py:1900 (placebo_panel)",
+   "valuation/web/hold_horizon.py",
+   "data/free_analysis/panel_corrected_69d.pkl"
+  ],
+  "registers": [
+   "PREREG_s22_term_structure.md (6b187dd)",
+   "S22",
+   "S22-DISPLAY",
+   "X3",
+   "TIDEMARK CHARTER.md SS3.2"
+  ],
+  "evidence_needed": "MEASURED BY THIS AUDIT, deployed flat 1/8 weights, 68 date pairs, median 1,548 matched names per pair. REAL composite per-name rank autocorrelation across rebalances: lag1 0.5802 (median 0.5718, min 0.4073, max 0.7109), lag2 0.4859, lag4 0.4514, lag8 0.4099. PLACEBO (placebo_panel seeds 1000/1001/1002): -0.0011 / +0.0010 / +0.0005. Per-theme lag1: size 0.9915, capital_discipline 0.8882, value 0.6981, quality 0.6786, momentum 0.6414, insider 0.3152, institutional 0.1181.",
+  "verification": "placebo_panel's own docstring: 'Within each rebalance date, permute the signal columns AS A BLOCK across the names present.' X3 measured that `size` - the most persistent theme at 0.9915 - carries the composite's entire statistical significance while having the worst theme IC. H=63 is untouched (no overlap, lag 1, horizon equals rebalance); everything beyond it is scored against a null that is too easy by an unmeasured amount.",
+  "kill_condition": "PRE-COMMITTED BOTH WAYS BEFORE THE NUMBER IS READ. If the persistence-preserving null's H=504 alpha floor lies BELOW S22's observed value, S22 stands and the item closes with the record strengthened. If it lies ABOVE, S22-DISPLAY's two-year copy is WITHDRAWN or re-scoped. Without that clause this becomes an invitation to reinterpret.",
+  "note": "PRODUCT-CONSEQUENTIAL: S22-DISPLAY is DONE - SHIPPED and puts the registered sentence, its caveats and the misuse warning on the hot-list card, the per-name attribution panel and /methodology, including the rank-IC-rises-with-horizon corroboration (0.0336 at one quarter to 0.0655 at two years) - the exact statistic BRW's null predicts under no predictability. THE FIX: permute each name's whole signal TIME SERIES (or block-permute dates) so the placebo retains the real signal's autocorrelation while destroying its association with forward returns; validate by asserting the placebo's per-name lag-k autocorrelation matches the real signal's and its association with fwd_ret is nil. Re-scoring S22 against it is a re-measurement on a NEW INSTRUMENT, which the discipline permits - but the register must say so before running rather than after.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB22": {
+  "title": "Port TIDEMARK's effective-n / required-n gate, so every register states its MDE before running",
+  "mandate": "5 - cross-pollination from TIDEMARK",
+  "severity": "HIGH",
+  "ev_class": "HIGH",
+  "trial_cost": 1,
+  "trial_counter": "infra",
+  "prior": "n/a - infrastructure",
+  "data_needed": "None. Method only; no TIDEMARK series crosses.",
+  "files": [
+   "C:/Users/donni/Downloads/Market Rotation/tidemark/scripts/p1_7_design_effect.py",
+   "C:/Users/donni/Downloads/Market Rotation/tidemark/scripts/p1_9_power_gate.py",
+   "valuation/edge/statistics.py (effective_n, hlz_hurdle)"
+  ],
+  "registers": [
+   "TIDEMARK POWER_GATE.md",
+   "R3 (the shuffled-null design effect)",
+   "MB13 (the demonstration)"
+  ],
+  "evidence_needed": "What Valquo lacks is the last step: required independent observations = ((sqrt(2 ln N) + z) / effect)^2, measured per series against a simulated no-predictability null carrying that series' OWN fitted persistence.",
+  "verification": "TIDEMARK's gate reproduces its charter's power table exactly (IR 0.20 -> 196.0 against a printed 196; IR 0.30 -> 87.1 against 87) - the positive control any port should reproduce first. R3's lesson is already learned here: a raw design effect near 1.8 arises from pure sampling error and must never be quoted without its null.",
+  "kill_condition": "None - infrastructure, and infra N gates no published claim.",
+  "note": "MUST ship with TIDEMARK's recorded deviation attached: POWER_GATE.md SS5.1 records that the validation its pre-registration asked for COULD NOT BE RUN, because the column it was to be checked against is n/h (non-overlapping window count) and not a design-effect quantity at all - two different quantities in adjacent columns of one table. A port that re-creates that comparison re-creates the error.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB23": {
+  "title": "Port and verify the Hodrick (1992) 1B estimator as a CROSS-CHECK, not a replacement",
+  "mandate": "5 - cross-pollination from TIDEMARK",
+  "severity": "MEDIUM",
+  "ev_class": "MEDIUM",
+  "trial_cost": 1,
+  "trial_counter": "infra",
+  "prior": "n/a - infrastructure; expected outcome is that no claim moves",
+  "data_needed": "None. Method only.",
+  "files": [
+   "C:/Users/donni/Downloads/Market Rotation/tidemark/tidemark/stats (hac)",
+   "C:/Users/donni/Downloads/Market Rotation/tidemark/scripts/verify_hodrick.py",
+   "C:/Users/donni/Downloads/Market Rotation/tidemark/tests/test_hac.py",
+   "valuation/edge/statistics.py (hac_tstat)"
+  ],
+  "registers": [
+   "TIDEMARK S3 (closed)",
+   "R9 (which made HAC the quoted statistic)",
+   "MB21"
+  ],
+  "evidence_needed": "TIDEMARK verified 1B against Wei-Wright's published Monte Carlo: 23 cells, max abs deviation 0.016, mean 0.007 at alpha = 0 - the only case 1B is valid for. Post-fix the three instruments agree: Hodrick ~2.5, design-effect-adjusted OLS ~2.3, bootstrap consistent.",
+  "verification": "Its own first implementation was wrong (summed regressors while keeping the h-period residual, which is not 1B) and returned t ~0.3 at every horizon against a bootstrap p ~0.018. Which Valquo claims change status: honestly, probably none at H=63 (no overlap, HAC lag 1). The exposed claims are S22's long horizons, where the lag runs to 7.",
+  "kill_condition": "If Hodrick and Newey-West agree within 10% on the shipped H=63 statistics, the port is recorded as a validated cross-check and NO claim moves - the expected and desirable outcome.",
+  "note": "Run it with MB21 or not at all. AND CARRY THE CORRECTION: TIDEMARK's POWER_GATE.md SS5.2 records that its pre-registered cross-check criterion was MISSPECIFIED - it asked for the 97.5th percentile of abs t within 10% of 1.96, the wrong quantile, and the rule FAILED on the verified case. The corrected statistic is the rejection rate against its nominal 0.05.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB24": {
+  "title": "Data flowing from TIDEMARK: OUT OF SCOPE, and here is the fusion register I am declining to propose",
+  "mandate": "5 - cross-pollination from TIDEMARK",
+  "severity": "MEDIUM",
+  "ev_class": "N/A - a deliberate refusal",
+  "trial_cost": 0,
+  "trial_counter": "1 in EACH counter if ever run (Valquo `unified`, and TIDEMARK's TRIALS.md)",
+  "prior": "n/a",
+  "data_needed": "n/a - refused.",
+  "files": [
+   "C:/Users/donni/Downloads/Market Rotation/tidemark/DATA_INVENTORY.md",
+   "C:/Users/donni/Downloads/Market Rotation/tidemark/TRIALS.md",
+   "C:/Users/donni/Downloads/Market Rotation/tidemark/PREREG_ANCHOR_SELECTION.md"
+  ],
+  "registers": [
+   "R4's permanent residual (the `unified` domain declared and reading zero)"
+  ],
+  "evidence_needed": "n/a",
+  "verification": "Refused for an arithmetic reason: MB13 measures that Valquo has NO POWER for a regime contrast at all (34.2 years per side against 17.3 available), so importing a conditioner buys nothing and costs a trial in both books permanently - TIDEMARK's TRIALS.md SS5 forbids revising N_booked downward.",
+  "kill_condition": "If ever proposed, the register must contain: (1) the trial charged in BOTH counters, with Valquo's `unified` domain as the correct home - which would make it the first row ever charged there and force R4's permanent residual to be decided; (2) TIDEMARK's barred list inherited whole (us_equity_caey is BURNED as its trial #0 and demoted by PREREG_ANCHOR_SELECTION.md); (3) the display-vs-feed line - FRED series are public domain and may both feed and display, while Case-Shiller (S&P copyright, explicitly not redistributable), NAREIT (terms unverified) and Ken French may not be displayed raw.",
+  "note": "",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB25": {
+  "title": "The TIDEMARK surface, designed: a linked page, derived statistics only, and one non-vacuous test",
+  "mandate": "6 - TIDEMARK as a surface",
+  "severity": "HIGH",
+  "ev_class": "HIGH - Don has asked for it; a product item with no research risk",
+  "trial_cost": 0,
+  "trial_counter": "none - product",
+  "prior": "n/a",
+  "data_needed": "TIDEMARK's generated dashboard artifact only. No raw licensed series crosses.",
+  "modifies": [
+   "valuation/web/app.py (one route)"
+  ],
+  "creates": [
+   "valuation/web/tidemark_surface.py",
+   "valuation/web/templates/tidemark.html",
+   "tests/test_tidemark_surface.py"
+  ],
+  "readonly": false,
+  "files": [
+   "C:/Users/donni/Downloads/Market Rotation/tidemark/dashboard/index.html",
+   "C:/Users/donni/Downloads/Market Rotation/tidemark/scripts/p1_8_dashboard.py",
+   "C:/Users/donni/Downloads/Market Rotation/tidemark/POWER_GATE.md"
+  ],
+  "registers": [
+   "V3 / score_confidence.py (verbatim-copy precedent)",
+   "hold_horizon.py",
+   "accounting_risk.py",
+   "index_track.gate_state() (the fail-closed staleness pattern)"
+  ],
+  "evidence_needed": "Verified read-only against the generated dashboard: its `bignum` elements are percentiles and +/- band half-widths; its cards carry tier captions and refusals; NO raw series level appears anywhere. Its own builder docstring states the rule - 'No forward-return numbers. None.' The two bands it shows are SE(p)=sqrt(p(1-p)/n_eff) and 1.96/sqrt(episodes), neither requiring a licensed value.",
+  "verification": "Lane: app-fixer. Form: a LINKED page at /tidemark, not a tab - the two projects have different verdict grammars and different denominators, and a tab implies they are one product. Copy ships VERBATIM on the V3/hold_horizon precedent. The required explicit copy, in TIDEMARK's own words: 'NO PHASE-2 QUESTION MAY BE ASKED ON THIS DATA ... the best-placed market has 82 of the 155 independent years required, and the worst has 25', plus its inverse (the edge would have to run at IR 0.41-0.74 against a 0.2-0.4 plausible range).",
+  "kill_condition": "THE ONE TEST: tests/test_tidemark_surface.py::test_no_licensed_level_reaches_the_payload, in two halves. (a) an ALLOWLIST of emitted keys (market, anchor, percentile, episodes, n_eff, band_sigma, tier, refusal, as_of) asserting the payload contains nothing else; (b) a POSITIVE CONTROL - feed the builder a fixture whose series level is a sentinel (e.g. 123456.789) and assert that string appears nowhere in the rendered HTML. The allowlist alone can pass vacuously; the sentinel is what makes it a measurement. STALENESS: if TIDEMARK's artifact vintage is older than a pre-committed number of days, the page renders the vintage and a staleness note INSTEAD of the number.",
+  "note": "The licence constraint is satisfied by TIDEMARK's own construction, which is the cheapest possible compliance argument and should be cited as such.",
+  "depends_on": [],
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB26": {
+  "title": "What must NOT ship: a combined verdict, or an unlabelled pair of denominators",
+  "mandate": "6 - TIDEMARK as a surface",
+  "severity": "MEDIUM",
+  "ev_class": "MEDIUM - prevents a specific, likely misreading",
+  "trial_cost": 0,
+  "trial_counter": "none",
+  "prior": "n/a",
+  "data_needed": "None.",
+  "files": [],
+  "registers": [
+   "MB25"
+  ],
+  "evidence_needed": "n/a",
+  "verification": "Valquo: 549 trials, critical values 3.3031 (equity) / 3.3775 (options). TIDEMARK: 66 trials, 2.89.",
+  "kill_condition": "Both N's and both critical values go on the page, and no statistic from one project may appear inside a sentence about the other.",
+  "note": "",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB27": {
+  "title": "Board state is derivable, the derivation is already written down in prose, and nobody ran it",
+  "mandate": "7 - the factory",
+  "severity": "HIGH",
+  "ev_class": "HIGH",
+  "trial_cost": 0,
+  "trial_counter": "none - tooling",
+  "prior": "n/a",
+  "data_needed": "None - git plus build_ledger's parse.",
+  "creates": [
+   "scripts/board_state.py"
+  ],
+  "readonly": false,
+  "files": [
+   "ma_in_flight.json",
+   "VALQUO_LEDGER.md",
+   "scripts/build_ledger.py",
+   "scripts/import_graph.py"
+  ],
+  "registers": [
+   "MA59",
+   "MA60 (the derived-graph precedent)",
+   "MA21 (the cry-wolf rule)",
+   "MA13 (the committed-literal pin)"
+  ],
+  "evidence_needed": "ma_in_flight.json is dated 2026-08-14, lists MA13/MA19/MA36/MA37/MA15/MA16/MA20/MA35, and EVERY ONE IS NOW DONE. It carries its own how_to_refresh command. It is five days stale, 100% wrong, and self-documenting about how to fix it.",
+  "verification": "Four ingredients, all derived: (1) origin/worktree-* not an ancestor of origin/main - TODAY 0; (2) ledger status cells matching IN ?PROGRESS - TODAY 2, and BOTH STALE (B13 says so itself, D11's handoff says the miner is idle); (3) each HANDOFF_*.md mtime against the newest commit touching it; (4) stale .git and worktree locks with age - the six-day-stale lock incident is a fourth ingredient at zero extra cost. This is MA59/MA60's lesson one level up: a hand-typed snapshot of something git already knows.",
+  "kill_condition": "THE CRY-WOLF RULE, HONOURED: the script MUST NOT WARN. It emits four counts and EXITS 0 ALWAYS. The only failing assertion is one that cannot cry wolf - the generated board file is older than the newest branch tip it claims to describe. AND: if over four weeks the derived board and the hand-maintained one disagree on fewer than two items, delete the generated file and keep the hand one.",
+  "note": "MA21 declined a warning because it would fire on 41 legitimate rows and be switched off inside a week. Do not propose its sibling.",
+  "modifies": [],
+  "depends_on": [],
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB28": {
+  "title": "The staleness monitor ALREADY EXISTS and has no clock",
+  "mandate": "7 - the factory",
+  "severity": "HIGH",
+  "ev_class": "MEDIUM-HIGH",
+  "trial_cost": 0,
+  "trial_counter": "none - one scheduled-task registration, and it is COWORK's lane",
+  "prior": "n/a",
+  "data_needed": "None.",
+  "files": [
+   "scripts/checkout_drift.py",
+   "tests/test_checkout_drift.py",
+   "check_drift.bat",
+   ".github/workflows/ (auto-scan.yml, land-agent-branch.yml, track-backup.yml, track-row.yml)"
+  ],
+  "registers": [
+   "MA20",
+   "MA11 (the auto-land policy refusing .github/ edits)",
+   "RUN_RULES 0.4 (tool routing)"
+  ],
+  "evidence_needed": "Measured: nothing invokes checkout_drift.py on a schedule. Its only caller is check_drift.bat, a manual double-click. No workflow touches it.",
+  "verification": "Its own header records the motivating measurement: the shared checkout was 1 commit ahead and 514 behind origin/main, and the stranded commit was the dated PT-WRITER failure note answering an open ledger row. It deliberately repairs nothing - 'a guard that silently repairs is a guard whose failures are invisible.'",
+  "kill_condition": "It cannot live in CI for two structural reasons: it measures a LOCAL checkout no hosted runner can see, and MA11's auto-land policy REFUSES any branch touching .github/. The honest fix is a Windows scheduled task on Don's machine writing --json to a fixed path the next session reads - COWORK's lane, and it should be routed explicitly rather than left as a wish.",
+  "note": "False-alarm risk low: it reports counts and exits non-zero only on a measured drift, which is a fact rather than a judgement.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB29": {
+  "title": "The prompt receipt, and this audit is its own example",
+  "mandate": "7 - the factory",
+  "severity": "MEDIUM",
+  "ev_class": "MEDIUM",
+  "trial_cost": 0,
+  "trial_counter": "none - a convention plus ~5 lines inside MB27's script",
+  "prior": "n/a",
+  "data_needed": "None.",
+  "files": [
+   "PROMPT_audit2_live_trees.md",
+   "PROMPT_audit3_master.md",
+   "PROMPT_audit4_master.md",
+   "PROMPT_dataminer_theta_pro_harvest.md",
+   "PROMPT_dip_detector_and_screamtrack.md",
+   "PROMPT_edge_audit_execution.md",
+   "PROMPT_pipeline_ma28_riskcard.md",
+   "PROMPT_session14_commit_option_e.md"
+  ],
+  "registers": [
+   "the PREREG discipline (committed ALONE, a strict ancestor of every measurement commit)",
+   "MB27"
+  ],
+  "evidence_needed": "At this session's start git status read '?? PROMPT_audit4_master.md' - audit #4's own commission was UNTRACKED, so at the moment this audit began the instruction defining it was invisible on origin/main and no other lane could have discovered what was being worked.",
+  "verification": "Apply the register's own shape one level up: a lane's FIRST commit on its branch is its prompt, committed alone, as PROMPT_<lane>.md. MB27's script then reports, per in-flight branch, whether a PROMPT_* blob exists at its base.",
+  "kill_condition": "None needed - it is a reported count, not an assertion, so it cannot cry wolf.",
+  "note": "The seven existing PROMPT_*.md files are the convention already half-observed; this makes it complete and checkable.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB30": {
+  "title": "What NOT to build, named so nobody proposes MA21's sibling",
+  "mandate": "7 - the factory",
+  "severity": "LOW",
+  "ev_class": "N/A - a refusal",
+  "trial_cost": 0,
+  "trial_counter": "none",
+  "prior": "n/a",
+  "data_needed": "None.",
+  "files": [
+   "scripts/build_ledger.py"
+  ],
+  "registers": [
+   "MA21"
+  ],
+  "evidence_needed": "n/a",
+  "verification": "MA21 declined the blank-verdict warning with a measurement: 41 of 230 DONE rows carry a blank verdict and every one is legitimate, because build_ledger.py's own reading guide says blank means 'not measured, or measured and reported in different words - never we do not know'.",
+  "kill_condition": "Do not build a warning on src=auto rows, on blank verdict cells, or on ledger rows lacking a handoff.",
+  "note": "MA21's substitute - pinning the vocabulary literal against the documented list so two copies of one fact cannot drift - is the correct shape and is already in place.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB31": {
+  "title": "The staleness map: which calibrated instruments are DUE, and which are only insensitive-so-far",
+  "mandate": "8 - instrument calibration age",
+  "severity": "HIGH",
+  "ev_class": "HIGH - the map every other item quotes from",
+  "trial_cost": 0,
+  "trial_counter": "none - deliver the map, do not recalibrate",
+  "prior": "n/a",
+  "data_needed": "None. X7RECON already banked the per-draw (margin, se) rows.",
+  "files": [
+   "BACKTEST_RESULTS.json",
+   "data/free_analysis/X7_RECONCILE.json",
+   "data/free_analysis/MA19_RECALIBRATION.json",
+   "data/free_analysis/PLACEBO_HAC.json"
+  ],
+  "registers": [
+   "X7",
+   "X7RECON",
+   "HACFLOOR",
+   "MA19",
+   "MA21"
+  ],
+  "evidence_needed": "DUE: the top-decile alpha MARGIN (1.8629pp, calibrated at N=129) and the top-decile alpha HAC FLOOR (2.0540, calibrated at N=224). Both have already moved once. INSENSITIVE SO FAR (bit-identical at N=84, 129 and 224): theme IC t 2.7072, long-short naive 2.1437, long-short HAC 2.2837, PBO p5 19.667%. STALE BY CONSTRUCTION: the Deflated Sharpe and its floor, because sr0 is a function of N so EVERY draw moves at every N.",
+  "verification": "MA19's mechanism explains which move: a p95 over 100 draws is set by the 5th and 6th largest values, so whether a floor moves depends not on HOW MANY draws flip but on WHERE THEY SAT - the alpha HAC floor's flipped draw ranked 4th of 100, which is exactly why it moved when the long-short floors did not. The recalibration is BOUNDED, not a sweep: MA19 re-scored three draws in ~400 seconds rather than re-running a 3.4-hour sweep, because RUN_RULES rule 9 banked the inputs.",
+  "kill_condition": "None - a map. But report the four unmoved floors as INSENSITIVE-SO-FAR and never as invariant: session 12 recorded that their survival was 'luck, not design', and on the alpha HAC floor the luck ran out.",
+  "note": "Equity hurdle: shipped 3.2898772171176964 (N=224), honest 3.3031261300040304 (N=234); shortfall 0.6700 -> 0.6832; verdict unchanged (clears_hlz_hurdle false).",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB32": {
+  "title": "Which CLAUDE.md comparisons now quote a bar at the wrong N",
+  "mandate": "8 - instrument calibration age",
+  "severity": "MEDIUM",
+  "ev_class": "MEDIUM - free, a documentation correction",
+  "trial_cost": 0,
+  "trial_counter": "none",
+  "prior": "n/a",
+  "data_needed": "None.",
+  "files": [
+   "CLAUDE.md (the X7 CALIBRATED THRESHOLDS table)"
+  ],
+  "registers": [
+   "MA19",
+   "X7"
+  ],
+  "evidence_needed": "The table's authoritative column is headed 'N = 224 (QUOTE THIS)' and is now one denominator behind at N = 234.",
+  "verification": "Two sentence shapes are at risk, both the defect MA19 already found once. (1) Any sentence pairing a numerator at one N with a floor at another - MA19's example is on the record: '0.8674 vs the 0.7216 floor' pairs an N=116 Deflated Sharpe with an N=84 floor, and the DSR moves at EVERY N so the shape recurs automatically. (2) The two DUE floors (1.8629pp and 2.0540), quoted in S10's, V2G's and MB8's reasoning.",
+  "kill_condition": "n/a. Action: label the column 'N = 224' rather than 'QUOTE THIS', and add one line pointing at the live count.",
+  "note": "",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB33": {
+  "title": "The artifact-log drift is live at 10/8/1, and that is the system working",
+  "mandate": "8 - instrument calibration age",
+  "severity": "LOW",
+  "ev_class": "LOW-MEDIUM - a 'do not act' finding, which is worth stating",
+  "trial_cost": 0,
+  "trial_counter": "none",
+  "prior": "n/a",
+  "data_needed": "None.",
+  "files": [
+   "BACKTEST_RESULTS.json",
+   "RESEARCH_LOG.md"
+  ],
+  "registers": [
+   "MA21"
+  ],
+  "evidence_needed": "BACKTEST_RESULTS.json generated 2026-08-14T02:23:56 carries by_domain {equity 224, options 292, infra 14} and trials_logged_all_domains 530, against a live {234, 300, 15} and 549.",
+  "verification": "MA21 enforced the check in the only direction that cannot cry wolf: trials accumulate, so the artifact may LAG the log and may never LEAD it. It lags.",
+  "kill_condition": "DO NOT re-run for this reason alone. A re-run costs 20-40 minutes and OVERWRITES the tracked repo-root artifact, so a re-run from a dirty or non-canonical tree is a live way to make the canonical file worse. Re-run when a claim's relationship to its bar would change; here none does (clears_hlz_hurdle is false at both 224 and 234).",
+  "note": "",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB34": {
+  "title": "64 merged worktree-* branches are deletable, with a one-line safety proof",
+  "mandate": "9 - simplification",
+  "severity": "LOW",
+  "ev_class": "MEDIUM - pure hygiene, zero risk",
+  "trial_cost": 0,
+  "trial_counter": "none",
+  "prior": "n/a",
+  "data_needed": "None.",
+  "files": [],
+  "registers": [],
+  "evidence_needed": "git branch -r --merged origin/main | grep -c worktree- = 64; --no-merged returns only the two rescue/* refs. 68 remote refs in total.",
+  "verification": "Every one of the 64 is an ancestor of origin/main, so deleting the ref removes no reachable commit and no history.",
+  "kill_condition": "Re-check ancestry in one command before each delete. This is the one deletion in the audit with literally no downside.",
+  "note": "",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB35": {
+  "title": "The two rescue/* branches: TAG FIRST, then delete",
+  "mandate": "9 - simplification",
+  "severity": "MEDIUM",
+  "ev_class": "MEDIUM",
+  "trial_cost": 0,
+  "trial_counter": "none",
+  "prior": "n/a",
+  "data_needed": "None.",
+  "files": [],
+  "registers": [
+   "PT-WRITER (DONE 2026-08-18)"
+  ],
+  "evidence_needed": "origin/rescue/main-41d7b12 is 1 commit ahead: 41d7b12, 'PT-WRITER 2026-08-10: cannot write row - mechanism for daily prices not documented in repo'. origin/rescue/wip-main-c4a3939 is 2 ahead: the same commit plus d39ec84, a working-tree snapshot touching only HANDOFF_STATUS.md and LAZY_PRICES_COVERAGE.md.",
+  "verification": "41d7b12 is the dated failure note CLAUDE.md cites as the DECISIVE evidence for what blocked PT-WRITER, and it is the only object carrying that message.",
+  "kill_condition": "Create an annotated tag (archive/pt-writer-refusal-2026-08-10) pointing at 41d7b12, VERIFY the tag, THEN delete the branch. Deleting the ref first makes the commit unreachable and eventually collectable.",
+  "note": "This project's own memory records the near miss of deleting something 'because history preserves it' without checking that history does. d39ec84 needs no tag.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB36": {
+  "title": "Documentation: 258 root entries, and the move is a rename with ONE real hazard",
+  "mandate": "9 - simplification",
+  "severity": "MEDIUM",
+  "ev_class": "MEDIUM",
+  "trial_cost": 0,
+  "trial_counter": "none",
+  "prior": "n/a",
+  "data_needed": "None.",
+  "modifies": [
+   "valuation/web/research_record.py (the glob, in the SAME commit)"
+  ],
+  "readonly": false,
+  "files": [
+   "valuation/web/research_record.py",
+   ".dockerignore"
+  ],
+  "registers": [
+   "MA23 (the rename precedent AND its own correction)"
+  ],
+  "evidence_needed": "Measured at the repo root: 68 PREREG_*.md, 48 HANDOFF_*.md, 12 VALQUO_*.md, 7 PROMPT_*.md, 2 DESIGN_*.md; 258 entries, 168 markdown files, 28 MB.",
+  "verification": "DELETE NOTHING. PREREG_* files are the register's evidence and the repo is PUBLIC as of 2026-08-16, so they are the credential rather than the paperwork; HANDOFF_* are RUN_RULES rule 2's deliverable; PROMPT_* are MB29's convention. What is proposable is a git-rename move into register/ and handoff/. MA23's own correction must be honoured: its move did NOT achieve one of its three stated motivations, because .dockerignore already excludes *.md - so a docs move buys READABILITY ONLY and must not be sold as anything else.",
+  "kill_condition": "THE HAZARD: valuation/web/research_record.py lists the pre-registration documents by GLOBBING THE FILESYSTEM, not from a manifest. A move that does not update that glob IN THE SAME COMMIT silently empties the public research page's register list, and nothing would raise. That is MA23's merge collision in a new place.",
+  "note": "",
+  "creates": [],
+  "depends_on": [],
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB37": {
+  "title": "Keep the PROMPT_* files, and say why",
+  "mandate": "9 - simplification",
+  "severity": "LOW",
+  "ev_class": "LOW",
+  "trial_cost": 0,
+  "trial_counter": "none",
+  "prior": "n/a",
+  "data_needed": "None.",
+  "files": [],
+  "registers": [
+   "MB29"
+  ],
+  "evidence_needed": "Seven files, each a commission that produced landed work.",
+  "verification": "They are the evidence for the receipt convention MB29 proposes; deleting them would delete the case for it. They are also the only artifact recording WHAT WAS ASKED as distinct from what was found.",
+  "kill_condition": "n/a - a keep.",
+  "note": "",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB38": {
+  "title": "PIONEER RANK 1 (HYPOTHESIS): publish the DENOMINATOR, not the register - because the register already ships",
+  "mandate": "9 - the pioneer page",
+  "severity": "HIGH",
+  "ev_class": "HIGH for a personal/portfolio site",
+  "trial_cost": 0,
+  "trial_counter": "none",
+  "prior": "n/a - HYPOTHESIS throughout",
+  "hypothesis": "The novel artifact is not the register but the DENOMINATOR: a public statement that this project has run 549 pre-registered trials (equity 234, options 300, infra 15), that the multiplicity-corrected critical value that count implies is sqrt(2 ln 234) = 3.3031, and that the headline long-short statistic is 2.6199 - which DOES NOT CLEAR IT.",
+  "data_needed": "None.",
+  "modifies": [
+   "valuation/web/research_record.py (one paragraph, three numbers)"
+  ],
+  "readonly": false,
+  "files": [
+   "valuation/web/research_record.py",
+   "valuation/web/templates/research.html",
+   "valuation/web/withhold.py",
+   "LICENSE"
+  ],
+  "registers": [
+   "V4",
+   "PUBLIC-DOCS",
+   "PUBLIC-FULL",
+   "M1 (the trial denominator)",
+   "R4"
+  ],
+  "evidence_needed": "CORRECTS THE COMMISSION'S PREMISE: half of 'publish the register method' ALREADY SHIPS. research_record.py serves /research sourced from RESEARCH_LOG.md through the SAME parse that produces the Deflated Sharpe's denominator, under an absolute rule enforced by withhold() plus a test - NO performance figures, not results, not thresholds, not effect sizes. The repository went PUBLIC on 2026-08-16 under MIT.",
+  "verification": "SEARCHED: ClinicalTrials.gov (NLM/FDA, since 2000) and the AEA RCT Registry are the standard pre-registration registries for medicine and economics. There is NO standardised public pre-registration registry for quantitative-finance backtests. Deflated-Sharpe and PBO calculators exist open-source (pypbo; ml4t-diagnostic's effective_number_of_trials(); quant4free; quantstrat::SharpeRatio.deflated) but all compute an effective number of STRATEGIES TESTED inferred from a correlation structure - none is a maintained, dated, adversarially-audited count of the trials one project actually ran. THE LICENCE OPENING: a trial count is not a derivation of vendor data; it is a count of this project's own decisions.",
+  "kill_condition": "If withhold() cannot be made to pass a trial count and a derived hurdle WITHOUT also passing a performance figure, DO NOT SHIP - the posture wins, and the failure is itself worth recording. Test it against the existing assertion that the rendered page contains no performance figure BEFORE writing any copy.",
+  "note": "Cheapest first artifact: one paragraph and three numbers appended to a page that already exists. No new surface, no new data, no trials, one session.",
+  "creates": [],
+  "depends_on": [],
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB39": {
+  "title": "PIONEER RANK 2 (HYPOTHESIS): the disclosure-card class MA28 opened",
+  "mandate": "9 - the pioneer page",
+  "severity": "MEDIUM",
+  "ev_class": "MEDIUM-HIGH",
+  "trial_cost": 0,
+  "trial_counter": "none for the strongest candidate",
+  "prior": "n/a - HYPOTHESIS",
+  "hypothesis": "MA28-CARD-UI established a PRODUCT CLASS, not a statistic: a published-threshold risk disclosure gated on a crash rate rather than alpha, using thresholds this project did not fit, whose copy carries a measured rule about its own instability, and whose banned phrases are asserted against the RENDERED payload.",
+  "data_needed": "None for the strongest candidate - S28 already ships the block.",
+  "creates": [
+   "a second card module on accounting_risk.py's pattern"
+  ],
+  "readonly": false,
+  "files": [
+   "valuation/web/accounting_risk.py",
+   "valuation/web/dip_posture.py",
+   "BACKTEST_RESULTS.json (construction.top_decile_alpha_distribution)"
+  ],
+  "registers": [
+   "MA28-CARD",
+   "MA28-CARD-UI",
+   "S28",
+   "V6-B",
+   "P1S0-CONTROL"
+  ],
+  "evidence_needed": "THREE measured, un-carded candidates. (1) STRONGEST AND UNPROPOSED: S28's own distribution of the headline - the published +7.17%/yr alpha is the mean of 69 quarterly draws of which 20 are NEGATIVE (28.99%), median +1.41% against a mean +1.79%, worst -6.83% (2016-01-20). Trials to card it: ZERO. (2) V6-B's survival gradient (MB10). (3) P1S0's optionable partition (MB11).",
+  "verification": "S28 already computes it, ships it in the canonical artifact, and pinned it as REPORTING-ONLY with a test that fails if any threshold ever branches on a distribution field. The statistic is built, guarded and unused.",
+  "kill_condition": "Inherited from dip_posture.py's design: if the copy cannot pass a BANNED-phrase assertion against the RENDERED payload, do not ship it. Rendering is where copy leaks.",
+  "note": "A card stating that the product's own headline was negative in nearly three quarters of every ten, with the worst quarter dated, is the most honest disclosure this project could ship.",
+  "modifies": [],
+  "depends_on": [],
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB40": {
+  "title": "PIONEER RANK 3 (HYPOTHESIS): an open effective-n calculator, and why it ranks last",
+  "mandate": "9 - the pioneer page",
+  "severity": "LOW",
+  "ev_class": "LOW-MEDIUM",
+  "trial_cost": 0,
+  "trial_counter": "none",
+  "prior": "n/a - HYPOTHESIS",
+  "hypothesis": "Package TIDEMARK's instrument - design effect against a simulated no-predictability null carrying the series' own fitted persistence, converted into required independent years at a multiplicity-corrected critical value.",
+  "data_needed": "None.",
+  "files": [
+   "C:/Users/donni/Downloads/Market Rotation/tidemark/dashboard/index.html (the template)"
+  ],
+  "registers": [
+   "MB22 (where the same arithmetic has real internal value)"
+  ],
+  "evidence_needed": "SEARCHED: existing open tools compute effective TRIALS (strategy clustering: effective_rank, Marchenko-Pastur, clustering). This computes effective OBSERVATIONS (time-series clustering). The distinction is real and it is the one that bites retail backtesters, who overwhelmingly quote raw n.",
+  "verification": "TIDEMARK's dashboard is already exactly the right shape - a single self-contained file, no external stylesheet, font or script, working with no network - so the template exists.",
+  "kill_condition": "Ship MB38 first. This only if the method is written up.",
+  "note": "Ranks last, stated plainly: it is a tool, tools need users, and this project's audience is one person plus recruiters. Its genuine value is INTERNAL and is already captured by MB22.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB41": {
+  "title": "Intraday momentum (Gao-Han-Li-Zhou, JFE 2018) is NOT TESTABLE HERE",
+  "mandate": "4 - untouched instruments",
+  "severity": "LOW",
+  "ev_class": "LOW - named so nobody proposes it",
+  "trial_cost": 0,
+  "trial_counter": "none",
+  "prior": "n/a",
+  "data_needed": "An index chain or an equity tape. This project owns neither.",
+  "files": [],
+  "registers": [
+   "VALQUO_OPTIONS_FRONTIER.md P6 (the index-chain gap)"
+  ],
+  "evidence_needed": "n/a",
+  "verification": "It is an index/ETF half-hour phenomenon measured on SPY. The tick cache is single-name OPTIONS prints on alert days; the chain cache is single-name equity options only.",
+  "kill_condition": "n/a - marked NOT-TESTABLE-HERE.",
+  "note": "Predictability is documented in and out of sample in the original, so the disqualification is about the instrument and not the result.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ },
+ "MB42": {
+  "title": "A gate suite is GREEN in CI and RED on the only machine that owns the data - the cause is a path separator",
+  "mandate": "BUGS FOUND (RUN_RULES Part A rule 3)",
+  "severity": "MEDIUM",
+  "ev_class": "MEDIUM - free to fix, and the failure mode is worse than the bug",
+  "trial_cost": 0,
+  "trial_counter": "none - a correctness fix, FIXED-class",
+  "prior": "n/a - measured",
+  "data_needed": "None.",
+  "files": [
+   "tests/test_o21d2_alternative_pnl.py:298-306"
+  ],
+  "registers": [
+   "O21-D2",
+   "MA5 / MA23 (the guard-that-cannot-fire family)"
+  ],
+  "evidence_needed": "This audit's sanity check ran every suite by exit code per RUN_RULES 0.1: 115 suites, 114 passed, 1 failed. Diagnosed: three of the four assertions pass (pinned True, hash_mismatches_at_copy 0, manifest_sha256 64 chars); the fourth compares prov['frozen_from'] against the literal 'D:/thetadata/chains' while the actual value is 'D:\\\\thetadata\\\\chains'. A path-separator literal, not a data problem - the freeze is intact (D:\\thetadata\\freeze_rawpull_2026-08-18, manifest sha256 ee6d38e5ff58...f000).",
+  "verification": "The test opens with a mount guard - if not os.path.isdir(CS.harvest_root()): print SKIP; return. CI is Linux and has no D: drive, so the assertion NEVER EXECUTES there and the suite exits 0. The auto-land Action is green while the same suite is red on the only machine where the data it guards exists.",
+  "kill_condition": "Fix by comparing normalised paths (os.path.normcase(os.path.normpath(...)) on both sides). If normalising makes it pass on Windows AND it still skips on Linux, add a fixture so the comparison runs on both - a guard whose only real execution is skipped is the defect, not the separator.",
+  "note": "NOT FIXED HERE: this audit is read-only and it is not this lane's file. Same family as MA5's source sweep firing on its own documentation and MA23's stale-path guard being blind to the import syntax the codebase writes.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit4 cold auditor, measured"
+ }
+}

@@ -1,12 +1,25 @@
 # HANDOFF — the ThetaData Pro harvest. Deadline 2026-09-01.
 
-**Lane:** data miner. **Status:** TIER C COMPLETE. Nothing perishable remains.
-The queue was stopped and re-prioritised on an exhaustive coverage census; the one tier that
-survived it has now been pulled, frozen and verified. **Zero trials — collection is not a test.** No analysis was run and none may be quoted
+**Lane:** data miner. **Status: HARVEST CLOSED 2026-08-18. THE MINER IS IDLE AND THE
+SUBSCRIPTION CAN LAPSE ON SCHEDULE.** All five tiers complete, **2,850 units / 353.7 M rows /
+17.69 GB, ZERO failed anywhere**, frozen and `--full-hash` verified.
+**Zero trials — collection is not a test.** No analysis was run and none may be quoted
 from this data beyond the integrity checks below.
 
+**READ FIRST IF YOU ARE ABOUT TO USE THIS DATA:**
+
+1. **The final all-tiers census** is the permanent record — what exists, what is unreachable in
+   principle, what was skipped and why. Below, and in `D:\thetadata\HARVEST_CENSUS.json`.
+2. **45 units over 26 symbols carry another company's option data** (`pre_panel_history`).
+   Filter it or resolve those symbols against a point-in-time identifier. **This is not
+   optional and it is not resolved.**
+3. **`ok_partial` is not `ok`.** 145 units are short of a whole year, for three different
+   reasons, and the census names which. Three separate bugs in this harvest came from treating
+   a partial year as a whole one.
+
 New files, all mine: `mine_deep_chains.py`, `freeze_chain_store.py`,
-`scripts/options_coverage_census.py`, `DEEP_HARVEST_SUMMARY.json`, this handoff.
+`scripts/options_coverage_census.py`, `tests/test_deep_harvest.py`,
+`DEEP_HARVEST_SUMMARY.json`, this handoff.
 Nothing under `valuation/edge/options_*.py` was touched. Nothing under `.github/` was touched.
 **The existing freeze is untouched** — new work writes to a new root, `D:\thetadata`.
 
@@ -53,8 +66,30 @@ understates coverage by the holiday count. Tier A years in bold.
 | **total** | **42,650** | **42,608** | **42** | **99.9015** |
 
 **Zero missing symbol-years** (`q1_missing_units` is empty — no unit is absent or unreadable).
-All 42 absent days are **39 of one contiguous MA gap** (2019-08-26 → 2019-09-20) plus three
-isolated singletons (DHR 2016-07-05, TMUS 2020-06-25, SONY 2025-09-29).
+All 42 absent days are **39 of one contiguous MA gap** plus three isolated singletons
+(DHR 2016-07-05, TMUS 2020-06-25, SONY 2025-09-29).
+
+**CORRECTED 2026-08-18: ALL 42 ARE VENDOR ABSENCES AND NOT ONE OF THEM IS CLOSEABLE. The
+coverage figure should therefore read 100% of what is obtainable, not 99.90%.** This file used
+to call them "cheap to close as a targeted re-pull … ~4 units, minutes", which was an inference
+from the cache rather than a measurement of the feed. Probed directly:
+
+* **MA's option EOD data stops dead at 2019-08-23.** Every request past it returns
+  `NoDataFoundError` — at `max_dte` 1200 and at 90, for single days and for month spans. The two
+  stores agree to the day: `data/options` and the D: raw pull both end 2019-08-23, independently.
+* **The three singletons are the same class, and the probe is unusually clean:** the feed serves
+  DHR 2016-07-01 then 2016-07-06, TMUS 2020-06-24 then 06-26, SONY 2025-09-26 then 09-30 —
+  skipping precisely the missing day while serving both neighbours.
+* **A fresh reconciliation reproduces the census's 39 exactly.** MA has 89 holding-period
+  *trading* days in 2019, 39 absent, every one of them after 2019-08-23. The first pass of that
+  check counted 42 because it used weekdays, which swept in Memorial Day, 4 July and Labor Day —
+  the weekday-is-not-a-trading-day trap this harvest has now hit twice.
+* **One figure in the old sentence does not reproduce and is not restated:** the gap's END was
+  recorded as 2019-09-20; re-derived it is 2019-10-18, the last 2019 day the book needed. The
+  census artifact does not retain per-day detail, so the discrepancy cannot be reconciled from
+  the repository — only re-derived. The count (39) and the start (2019-08-26) agree exactly, and
+  the verdict does not depend on the end date, since every absent day falls after the vendor's
+  last served one.
 
 **The perishable years are the most complete ones.** That is the whole finding: 2016 is 99.97%
 and 2017–2018 are exactly 100%, so the years that vanish on 2026-09-01 are the years with
@@ -140,15 +175,24 @@ was queued on both a false coverage premise and a false urgency premise.
 | **0 — freeze `data/options`** | **PROMOTED, running** | Free, no deadline, and the actual unlock for O21-D2 |
 | **A** — alert 2016–2018 | **DEAD** | 99.97 / 100.00 / 100.00% already present |
 | **B** — alert 2019–2025 | **DEAD TWICE OVER** | 98.9–100% present **and** inside Standard's window |
-| **C** — 2016–18, 420 never-tried optionable names | **COMPLETE** | Was the only perishable item. 6.39 h, 2.53 GB, 76.0% hit rate |
-| **D** — Index 86 names | **DEFERRED past Sep 1** | 2025–26 stays reachable on Standard |
-| *depth (the tenor redirect)* | **DEMOTED** | Real absence, but no re-open row is blocked on tenor |
+| **C** — 2016–18, 420 never-tried optionable names | **COMPLETE** | 6.39 h, 2.53 GB, 76.0% hit rate |
+| **E** — tenor depth, 2016–18, 836 shallow-only units | **RUN 2026-08-18** | **PERISHABLE, and this file said it was not.** 393-pair sizing, ~5.1 GB |
+| **D** — Index 86 names, 2025–26 | **RUN 2026-08-18** | Not perishable; run because the window was already paid for |
 
 **On my own earlier redirect, plainly:** I found the date axis complete and redirected the harvest
 to the **tenor** axis (0–1200 DTE instead of 0–90/200). That absence is real — 90 DTE dominates
 every year in the cache — but no item on the re-open list is blocked on it, so it was the wrong
-thing to spend an expiring window on. **I fixed the axis and not the question.** It ranks below
-Tier C and below the freeze, and only for 2016–2018.
+thing to spend an expiring window on **at that moment**. **I fixed the axis and not the
+question.** It ranked below Tier C and below the freeze.
+
+**CORRECTION 2026-08-18, and it reordered the closing run: THE TENOR DEPTH IS PERISHABLE AND
+THIS FILE'S CLOSING SECTION SAID IT WAS NOT.** Standard's window rolls forward from roughly
+2018-08-18, so the 836 shallow-only units — all 2016, 2017 and 2018 — go dark the day Pro lapses.
+"Nothing perishable remains" was a true statement about the **date** axis, which Tier C closed,
+and I carried it across to the **tenor** axis without re-deriving it. Demoting depth on *value*
+was right and is unchanged; calling it *non-perishable* was wrong. It therefore ran **before**
+Tier D, which stays reachable in perpetuity — if only one of the two had finished, it had to be
+the one that cannot be re-fetched.
 
 ---
 
@@ -218,6 +262,30 @@ Tiers A, B and C together).
 | `--verify --full-hash` | **1,865 records, 0 missing, 0 wrong-size, 0 wrong-hash** |
 | `source_drifted_since_freeze` | **0** |
 
+### EXTENDED AND BOTH RE-VERIFIED, 2026-08-18 (the close-out)
+
+The raw-pull freeze was extended over Tiers D and E — **985 new units, +5.25 GB** — appended to
+the same manifest rather than given a new dated root, because `freeze_chain_store` is append-only
+(no existing record is rewritten) and **one manifest per source tree is what makes `--verify`
+meaningful**: `summarise` reports `n_source_files_not_yet_frozen`, which two split roots would
+each compute wrongly about the other. The folder's date is the freeze's *inception*; every record
+carries its own UTC stamp.
+
+| | raw pull `freeze_rawpull_2026-08-18` | chain store `freeze_options_2026-08-17` |
+|---|---|---|
+| records | **2,850** | **12,302** |
+| bytes | **17.69 GB** | 26.98 GB |
+| hash mismatches at copy | **0** | 0 |
+| source files not yet frozen | **0** | 0 |
+| frozen files gone from source | **0** | 0 |
+| `--verify --full-hash` missing / wrong-size / wrong-hash | **0 / 0 / 0** | **0 / 0 / 0** |
+| **source drift since freeze** | **0** | **0** |
+
+**The 2026-08-17 chain-store freeze was re-hashed too, although nothing this session touched
+it.** *"We did not touch it"* is a claim; re-hashing is the check — and `data/options` is a live
+mutable store that other lanes write to, so source drift is the failure this harvest is actually
+exposed to. 12,302 files, 607 s, zero drift.
+
 **Deliberately a SIBLING tree rather than an extension of the existing manifest.** Folding the
 new units into `freeze_options_2026-08-17` would have meant re-keying a manifest whose 12,302
 records were already `--full-hash` verified — rewriting a provenance record to add to it is the
@@ -255,6 +323,27 @@ Two things deliberately not counted as disagreement, both by construction: the c
 slim-filtered (`mine_options_cache.slim_filter`) so it legitimately holds **fewer** keys — only the
 intersection is compared; and the cached frame is float32 where the raw arrives float64, so floats
 are compared at 1e-3.
+
+**TIER E IS THE FIRST TIER WHERE *EVERY* UNIT CARRIES A BASELINE**, because it is defined as the
+symbol-years that already hold a shallow unit. Tier C had none by construction (982 of its units
+returned `no_baseline`), so this is the widest overlap test the harvest has run.
+
+**And it verifies Tier E's own premise per unit, which was checked BEFORE committing twelve more
+hours to it rather than assumed:**
+
+| unit | cached rows | new rows | × | cached max DTE | new max DTE | new rows >200 DTE |
+|---|---|---|---|---|---|---|
+| AA-2016 | 119,764 | 131,228 | 1.10 | **200** | 858 | 11,464 |
+| ABBV-2016 | 155,080 | 203,316 | 1.31 | **88** | 823 | 28,320 |
+| ADI-2016 | 24,913 | 65,892 | **2.64** | **88** | 795 | 23,824 |
+| ADM-2018 | 88,892 | 132,050 | 1.49 | **88** | 851 | 21,476 |
+
+**The cached units cap at exactly 88 or 200 DTE — the shallow bounds — and the deep pull reaches
+795–858.** The premise holds. **But read the multiple, not the headline:** rows rise only
+1.10–2.64×, because long-dated contracts are far fewer than short-dated ones. The quantity worth
+quoting is the **11k–31k rows per unit beyond 200 DTE**, which exist in no other store. Units
+cached at 88 DTE gain proportionally most, which is the expected direction and a small check that
+the numbers mean what they say.
 
 ---
 
@@ -328,6 +417,88 @@ these units as the modern company is a live way to get a wrong answer.**
 
 ---
 
+## TIER E — the tenor axis, 2016–2018. COMPLETE, and it was the last perishable thing.
+
+**836 of 836 units, 331 symbols, 0 failed.** 788 `ok`, 30 `ok_partial`, 18 `empty_vendor`.
+**83,691,315 rows / 4.19 GB**, spread 278 / 266 / 292 across 2016 / 2017 / 2018.
+
+**What it actually bought: 14,278,981 rows beyond 200 DTE, reaching a maximum observed 858 DTE.**
+Those rows are in no other store — the shallow cache stops dead at 88 or 200 by construction.
+
+**THE CONTROL IS THE WIDEST THIS HARVEST HAS RUN, AND IT IS CLEAN: 818 of 818 units with a
+baseline came back `agree`, ZERO disagreements**, zero bid/ask/volume mismatches. Tier E is
+defined as the symbol-years that already hold a shallow unit, so **every** unit carries a
+control — where Tier C had none at all (982 `no_baseline`). The vendor's 2016–2018 history and
+the cache agree on every shared key, years after the original mining.
+
+**BUG 8 did not recur: 0 units have an empty quarter.** All 30 `ok_partial` come from a *failed*
+quarter (BUG 7's class, correctly labelled), not a silently-dropped empty one.
+
+### The sizing method was the point, and it can now be scored
+
+| method | projected | actual | error |
+|---|---|---|---|
+| Tier C — **3-name sample** | 11.1 GB | 2.53 GB | **+339%** |
+| Tier E — **393-pair, median ratio** | 4.5 GB | **4.19 GB** | **+7.4%** |
+| Tier E — 393-pair, mean ratio | 5.1 GB | 4.19 GB | +21.7% |
+| Tier E — 393-pair, p90 (upper bound) | 8.0 GB | 4.19 GB | +90.9% |
+
+**Pairing cut the sizing error from 339% to 7.4% — a 46× improvement** — and the **median** ratio
+beat the mean, the expected direction for a right-skewed size distribution and a reason to quote
+the median next time.
+
+**The axis I did NOT pair was wrong by 34%: 5.2 h projected against 7.8 h actual** (33.7 s/unit
+against 22.6 s projected). The time estimate reused the old population mean, which was dominated
+by Tier C's small caps, while Tier E is the *liquid* names by construction — they have shallow
+units precisely because they were worth mining for breadth. **I fixed the methodology on one
+quantity and left the other on the method that had already failed once.** An early reading of
+52 s/unit made it look worse still (~13 h); that was the alphabetically-first megacaps (AA, AAL,
+ABBV) and the rate settled to 33.7 s once past them — **so a rate measured on the first units of
+an alphabetical queue is itself a biased sample.**
+
+**Interrupted twice and resumed cleanly both times**, which is the resume guarantee doing its
+job on an unplanned event rather than a rehearsed one: **zero orphaned payloads**, nothing
+re-pulled, no unit lost. The second relaunch went out **detached** (`Start-Process`) so the
+harvest no longer shares a lifetime with the agent session that started it.
+
+---
+
+## TIER D — the Index's 86 names, 2025–26. COMPLETE.
+
+**169 units over all 86 Index names, 0 failed.** 81 `ok` (2025), 86 `ok_partial` (2026, see
+BUG 9), 2 `empty_vendor`. **21,351,202 rows / 1.07 GB**, of which **5,606,010 beyond 200 DTE**.
+
+**The six names with no cache dir at all are now five with full chains and one that does not
+exist:**
+
+| name | 2025 | 2026 |
+|---|---|---|
+| AGX | 250 days, 96,872 rows | 156 days, 111,464 rows |
+| FORM | 250 days, 28,918 | 156 days, 39,242 |
+| POWL | 250 days, 97,408 | 156 days, 111,834 |
+| VIAV | 250 days, 41,922 | 156 days, 88,698 |
+| VICR | 250 days, 34,756 | 156 days, 90,028 |
+| **IX** | **`empty_vendor`** | **`empty_vendor`** |
+
+**IX is the only unreachable name in Tier D** — ORIX Corp, an ADR the feed carries no options
+for. Not a gap in the harvest; a fact about the instrument.
+
+**Scoped at `max_dte=1200`, not the 60–90 DTE band that was asked for**, and the reason is
+arithmetic rather than preference: 1200 is a strict SUPERSET of the band, the whole tier cost
+**1.07 GB against 378 GB free**, and a narrower band would have bought a **second unit namespace
+for the same symbol-years** — one that could not be resumed alongside, compared with, or frozen
+with the 2,850 units already banked at 1200. The band is a filter to apply when the data is
+read; it is not worth a fork in the store.
+
+**Overlap: 42 `agree`, 125 `no_baseline`, ZERO disagreements.** The high no-baseline count is
+expected and is the point of the tier — these are recent years for names the breadth miner never
+covered.
+
+**NOT PERISHABLE, and it ran anyway because the window was already paid for.** 2025–26 sits well
+inside Standard's rolling 8-year window and would have been reachable after 2026-09-01.
+
+---
+
 ## Queue and per-tier completion
 
 | tier | scope | symbol-years | status |
@@ -347,6 +518,10 @@ these units as the modern company is a live way to get a wrong answer.**
 | 2026-08-17 | **Tier 0 freeze** | **12,302 / 12,302 files** | **26.98** | 14–20 MB/s | **DONE + verified** |
 | 2026-08-18 | **Tier C harvest** | **1,260 / 1,260 units** | **2.53** | 197 units/h | **DONE — 0 failed** |
 | 2026-08-18 | **raw-pull freeze** | **1,865 / 1,865 units** | **12.44** | — | **DONE + verified, 0 drift** |
+| 2026-08-18 | **BUG 8 repair + relabel** | 43 re-probed / 29 relabelled | 0 | — | **DONE — 0 improved, nothing recoverable** |
+| 2026-08-18 | **Tier E (tenor depth)** | **836 / 836 units** | **4.19** | 107 units/h | **DONE — 0 failed, 818/818 overlap agree** |
+| 2026-08-18 | **Tier D (Index 86)** | **169 / 169 units** | **1.07** | 108 units/h | **DONE — 0 failed** |
+| 2026-08-18 | **freeze extension** | **2,850 / 2,850 units** | **17.69** | 19 MB/s | **DONE + `--full-hash` verified** |
 
 **The 2026-08-16 projection of "~20 h / ~16 GB" is VOID** — it extrapolated from 13 units, and the
 process then stalled for twelve hours without writing a fourteenth (BUG 3). It is left in the table
@@ -449,10 +624,111 @@ them a name whose listing falls inside 2016–2018. A partial year is now kept a
 for a complete one; a *real* fault on a quarter still refuses the whole unit. Re-running the 26
 recovered **24 partial years and left 0 failed**.
 
+**8. A quarter that returned ZERO ROWS was dropped in silence, so a short year was banked as
+`ok`.** BUG 7's sibling, and the one it did not cover: 7 handles a quarter that *errored*, this
+one a quarter that returned successfully with nothing in it. The empty frame was skipped by
+`if r is not None and len(r)` and never recorded, so the unit reported `status: ok` — meaning a
+complete year — while holding as little as 65% of one. **Measured across the finished harvest:
+19 units carry `ok` while under 95% of their year's date count**, LLY / LMT / LOW / MA appearing
+repeatedly and at identical counts (164 dates in 2019, 208 in 2020, 231 in 2022).
+
+* **The label is now correct in code and on disk.** An empty quarter is recorded in
+  `quarters_empty` and forces `ok_partial`. Existing records were corrected by an **offline**
+  `--relabel` pass, which derives the empty quarters from the banked payload itself and so needs
+  no vendor call: **29 units corrected, 14 already correct, 0 unreadable**, idempotent on a
+  second run (0 further changes).
+* **`--repair` re-pulled all 43 short units and recovered NOTHING: 0 improved, 43 confirmed
+  short.** The vendor genuinely serves no more. The rule that makes that safe to run unattended
+  is that **a repair may never shrink a unit** — the re-pull is written only if it holds strictly
+  more dates, and otherwise the original is restored byte-for-byte from a `.prerepair` copy. 0
+  safety copies were left behind. Pinned by `tests/test_deep_harvest.py`.
+* **REPORTED BECAUSE I GOT IT WRONG MID-INVESTIGATION AND THE ERROR IS INSTRUCTIVE:** I probed
+  Nov–Dec for these units, found the feed serving those months, and concluded ~15 units of
+  recoverable data were sitting behind a bad label. **The short units are short at the START of
+  the year, not the end** — PEN-2016 begins 2016-03-31, LLY-2020 begins 2020-03-09, WELL-2018
+  begins 2018-02-28 — so the probe tested a span that was never missing. The full-year re-pull
+  refuted it. **The defect was real and the recoverable data was not.**
+* **What it cost: nothing in bytes, and it would have cost a verdict.** No data was lost. But
+  `ok` meaning "complete" is exactly the kind of claim an analysis leans on without checking, and
+  19 units silently missing a quarter is the shape of a bug that surfaces as a strange result
+  months later. Same family as the five silently-empty factors in `CLAUDE.md`'s coverage rule.
+
+**9. THE CURRENT YEAR IS NOT A WHOLE YEAR, and the miner kept asking for the rest of it.**
+Third member of the same family, found on Tier D's first two units. Pulling 2026 on 2026-08-18
+requests Q3 (half unwritten) and Q4 (entirely in the future): ACGL-2026 and AEIS-2026 both came
+back **`failed`** — Q4 `NoDataFoundError`, Q3 `_MultiThreadedRendezvous`.
+
+* **`failed` is the damaging part, and BUG 7's repair does not catch it**, because `nodata_only`
+  is False when one of the errors is a gRPC fault rather than `NoDataFound`. So the whole unit
+  was refused — **discarding seven and a half months of 2026 the vendor serves perfectly well**,
+  and marking it retryable so it would be re-probed on every restart forever. **All 86 of
+  Tier D's 2026 units were on that path.**
+* **Fixed by a horizon rather than by another status.** A quarter that has not started is
+  **skipped, not requested**; a quarter in progress is requested only up to the last completed
+  session. Clamped to **yesterday**, not today, because an EOD bar does not exist until after the
+  close. Verified live: the 2026 units now return `ok_partial` with `quarters_future: ["Q4"]`,
+  `pulled_through: 2026-08-17` and **156 trading days each**.
+* **`quarters_future` is deliberately a THIRD field, not folded into `quarters_missing`.** A year
+  short because the calendar has not caught up is not a year short because a request faulted;
+  conflating them makes a live year read as damaged in the census and re-pull forever.
+* **The family, and why each hid differently.** BUG 7: a year short because the name **listed
+  late** — thrown away. BUG 8: a year short because the **vendor stopped** — mislabelled
+  complete. BUG 9: a year short because the **calendar has not caught up** — thrown away, by a
+  path BUG 7's fix did not cover. All three are the same question — *what does a partial year
+  mean?* — and each answered it wrong in a different direction.
+
 **4. Windows `os.replace` races the AV scanner on a freshly written file.** The first full freeze
 run died ~3,000 files in with `PermissionError [WinError 32]` on a `.tmp` rename. It is a race, not
 corruption. Now retried with backoff, and **raised rather than skipped** if it still will not
 land — a skipped file would be a silent hole in a freeze whose entire purpose is completeness.
+
+---
+
+## THE FINAL ALL-TIERS CENSUS — the permanent record of the harvest
+
+*Generated by `python mine_deep_chains.py --census`. **Tracked in the repo as
+`HARVEST_CENSUS.json`** — counts and symbol names only, no vendor payload — with copies at
+`D:\thetadata\HARVEST_CENSUS.json` and in the `data/deep_harvest/` mirror. After 2026-09-01 this
+table is the answer to "what did we get, and what can never be got", so it lives somewhere that
+survives the loss of any one drive.*
+
+| tier | ok | ok_partial | empty_vendor | failed | rows | GB | rows >200 DTE |
+|---|---|---|---|---|---|---|---|
+| **A** — alert 2016–18 | 393 | 0 | 0 | 0 | 69,715,407 | 3.49 | 12,732,656 |
+| **B** — alert 2019–25 | 485 | 5 | 0 | 0 | 128,017,028 | 6.40 | 32,868,715 |
+| **C** — never-tried names, 2016–18 | 958 | 24 | 278 | 0 | 50,910,785 | 2.55 | 8,054,183 |
+| **D** — Index 86 names, 2025–26 | 81 | 86 | 2 | 0 | 21,351,202 | 1.07 | 5,606,010 |
+| **E** — tenor depth, 2016–18 | 788 | 30 | 18 | 0 | 83,691,315 | 4.19 | 14,278,981 |
+| **TOTAL** | **2,705** | **145** | **298** | **0** | **353,685,737** | **17.69** | **73,540,545** |
+
+**THREE QUANTITIES, DELIBERATELY NOT SUMMED INTO ONE**, because collapsing them is how a fact
+about the world gets mistaken for a decision:
+
+* **BANKED — 2,850 units** with a payload on disk. **Zero failed, anywhere, in any tier.**
+* **UNREACHABLE — 298 `empty_vendor` units.** The feed has nothing: mostly names that had not
+  listed in 2016–18, plus IX, which has no listed options at all. **No future subscription
+  recovers these.** Not "not pulled" — *not there*.
+* **SKIPPED — 75 names** (Tier C), every one recorded with its reason
+  (`known_empty_all_three_years`) in `tier_c_skipped.json`. A choice, and a cheap one: re-probing
+  a recorded `.empty` spends an irreplaceable window re-confirming a negative already on disk.
+
+**`ok_partial` is reported beside `ok`, never summed into it.** 145 units are short of a whole
+year, and the census says why each is short: **55 from a failed quarter** (BUG 7's class), **29
+from an empty one** (BUG 8's), **86 because 2026 is not over** (BUG 9's). A short year reading as
+a whole one is the defect this harvest hit three times, so the distinction is structural rather
+than editorial.
+
+**THE INTEGRITY CONTROLS, all clean:**
+
+| | |
+|---|---|
+| overlap `agree` | **873** |
+| overlap `DISAGREE` | **0 — the run was never stopped** |
+| `no_baseline` (nothing to compare against) | 1,107 |
+| adopted from disk after BUG 5 | 870 |
+| units relabelled by the offline BUG 8 pass | 29 |
+| units a re-pull actually improved | **0 — the vendor served no more** |
+| **`pre_panel_history` (ticker reuse) — MUST BE FILTERED** | **45 units, 26 symbols** |
 
 ---
 
@@ -470,15 +746,62 @@ land — a skipped file would be a silent hole in a freeze whose entire purpose 
 * **The 278 `empty_vendor` Tier C units are unreachable in principle, not merely unpulled.** The
   vendor has no 2016–2018 chains for those names because most of them had not listed yet. That is
   a fact about the world, not a gap in the harvest, and no future subscription recovers it.
-* **Tier D — deferred on purpose.** 2025–26 stays inside Standard's rolling window.
+* **Tier D — PULLED 2026-08-18, though it did not have to be.** 169 units, 0 failed. It sits
+  inside Standard's rolling window and was reachable after the deadline; it ran because the
+  window was already paid for. **IX is the one unreachable name** (ORIX, an ADR with no listed
+  options) — 2 `empty_vendor` units.
+* **Tier E, tenor depth 2016–2018 — PULLED 2026-08-18, and it WAS perishable.** 836 units, 0
+  failed, 14.3 M rows beyond 200 DTE. **This file previously recorded it as non-perishable and
+  that was wrong** — see the correction in the re-prioritised queue. It was the last thing on
+  this page that expires.
+* **Tier D's 86 `ok_partial` 2026 units are short BY CALENDAR, not by defect** — each reaches
+  2026-08-17 and records `quarters_future: ["Q4"]`. **Re-pulling them after the year ends is
+  free on Standard** and is the one item here that improves with time rather than expiring.
 * **Tick-resolution data across holding periods.** ~190 GB; fits D:'s 426 GB but nothing else
   would. The existing tick cache (`data/options_ticks/`, 4.72 GB) is **entry-days only** — 3,884
   alert-days, 70.3 M prints.
-* **The 42 absent holding-period chain-days**, of which 39 are one contiguous MA gap
-  (2019-08-26 → 2019-09-20). Cheap to close as a targeted re-pull of MA-2019 and three singletons —
-  ~4 units, minutes — and **not deadline-bound** (all are 2019+, inside Standard's window).
+* **The 42 absent holding-period chain-days — UNREACHABLE, not unpulled.** Measured 2026-08-18
+  by probing the feed directly rather than inferring from the cache: MA stops at 2019-08-23 and
+  every later request returns `NoDataFoundError`; the three singletons are served on both
+  neighbouring days and skipped on the day itself. **No subscription recovers these.** See the
+  correction under Q1.
 * **Anything beyond ~836 DTE.** The feed stops there (`max_dte=1200` returns a max observed DTE of
   836 on AAPL) — a source limit, not a choice.
+
+---
+
+## TICKER REUSE — WIDER THAN TIER C, AND TIER E'S CASES ARE THE SHARPER ONES
+
+**Measured 2026-08-18 across the whole harvest: 45 banked units over 26 symbols carry option
+data for a year before the panel knew the ticker**, each stamped `pre_panel_history` with its
+`panel_first_year`. Tier C contributes 28 over 14 symbols; **Tier E adds 17 over 12**, and those
+are the ones to worry about, because several are textbook recycles rather than merely late panel
+entries:
+
+| symbol | years pulled | panel debut | what the early rows actually are |
+|---|---|---|---|
+| **SNOW** | 2016, 2017 | 2020 | Snowflake IPO'd Sept 2020. SNOW then was **Intrawest Resorts** |
+| **SNDK** | 2016 | 2025 | SanDisk, **acquired by WD in May 2016**; SNDK relisted 2025 as the spinoff |
+| **SN** | 2016, 2017, 2018 | 2023 | **Sanchez Energy**; SharkNinja took SN in 2023 |
+| DOW | 2016, 2017 | 2019 | the DowDuPont/Dow Inc. restructuring |
+| SE, FTI, BTI, AA | 2016–17 | 2017–18 | late panel entry and/or restructuring |
+| MDB, MRNA | 2017, 2018 | 2018, 2019 | IPO year — **partly legitimate**, partly not |
+
+**THE DISTINCTION THAT MATTERS AND THAT THE FLAG DOES NOT DRAW: `pre_panel_history` marks a
+year the panel did not cover, which is a SUPERSET of genuine reuse.** MRNA-2018 is Moderna for
+the part of the year after its December IPO; SNOW-2016 is a different company entirely. The flag
+finds both and cannot separate them — that is the adjudication, and it is analysis rather than
+collection.
+
+**The full list, for whoever does the adjudication** (`pre_panel_history_symbols` in
+`HARVEST_CENSUS.json`): AA, AM, AZPN, BAM, BTI, CR, DOW, EDR, FOXA, FTI, IR, LIN, LINE, MDB,
+MRNA, RPRX, SE, SN, SNDK, SNOW, TAK, TLN, TME, TW, VG, ZTO. **Tier D contributes none** — its
+years are 2025–26, after every panel debut.
+
+**Nothing was gated on this, deliberately, and the reasoning is the same as Tier C's: the bytes
+expire on 2026-09-01 and the adjudication does not.** What the flag buys is that the
+contamination is **detectable** rather than invisible. **Any analysis touching Tier C or Tier E
+must filter `pre_panel_history` or resolve those 26 symbols against a point-in-time identifier.**
 
 ---
 
@@ -505,13 +828,31 @@ postdates its earliest pulled year**.
    **O21-D2's referent now exists.** The analysis scripts still read the mutable
    `data/options`; pointing them at the freeze is the options-bot lane's call, not mine.
 2. ~~Run Tier C~~ **DONE** — 982 units with data, 0 failed, frozen and `--full-hash` verified.
-3. **NOTHING PERISHABLE REMAINS.** Everything still outstanding sits inside Standard's rolling
-   8-year window and is reachable after 2026-09-01:
-   * **Tier D** — 6 Index names with no cache dir, 41 lacking a 2025 unit, none with 2026.
-   * **The MA-2019 gap** — 39 contiguous days plus three singletons, ~4 units, minutes.
-   * **Tenor depth** — real, but no re-open row is blocked on it. 2016–2018 only.
-4. **Adjudicate the 14 reuse symbols** before any Tier C data is used. That is analysis, not
-   collection, and it has no deadline — but it is a precondition for quoting anything built on
-   Tier C.
+3. ~~Nothing perishable remains~~ **THAT WAS WRONG WHEN WRITTEN, AND THE MOP-UP FIXED IT.**
+   Tenor depth (Tier E) *was* perishable — 2016 through mid-2018 leaves Standard's rolling
+   window when Pro lapses. It has now been pulled. **The MA gap was not closeable at all.**
+4. ~~Tier D~~ **DONE 2026-08-18** — 169 units, all 86 Index names, 0 failed. Five of the six
+   names with no cache dir now hold full chains; IX has no listed options.
+5. ~~Tier E, tenor depth~~ **DONE 2026-08-18** — 836 units, 0 failed, 14.3 M rows beyond 200 DTE.
+
+### THE HARVEST IS CLOSED. What is left is analysis, and none of it expires.
+
+1. **ADJUDICATE THE 26 REUSE SYMBOLS BEFORE ANY 2016–2018 DATA IS USED.** The precondition, and
+   the only one. `pre_panel_history` makes contamination *detectable*; it does not resolve it,
+   and it over-flags (a December IPO year is marked the same as a wholesale ticker recycle).
+   Analysis, not collection, and it has no deadline — but nothing built on Tier C or Tier E is
+   quotable until it is done.
+2. **Point the analysis scripts at a freeze.** `o3_o4_o5_surface.py`, `o6_o7_o17_earnings.py`
+   and `o11_o19_o22_o25_portfolio.py` still read the mutable `data/options`, which is the O16
+   defect on the store that matters. **Both freezes now exist**; using them is the options-bot
+   lane's call, not mine.
+3. **Re-pull Tier D's 86 2026 units after the year ends.** Free on Standard, and the one item
+   here that gets *better* with time rather than expiring. They record `pulled_through:
+   2026-08-17` so the staleness is visible rather than assumed.
+4. **The tick axis remains the only large unpulled thing** — ~190 GB for holding-period ticks,
+   against a 4.72 GB entry-days-only cache. Not started, not scoped, and not deadline-bound in
+   the years that matter.
+
+**THE SUBSCRIPTION CAN NOW LAPSE ON SCHEDULE.** Nothing left on this page requires Pro.
 
 **Zero trials. Nothing here is a research result and nothing here may be quoted as one.**
