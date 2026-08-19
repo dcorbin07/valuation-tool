@@ -7701,7 +7701,7 @@ is demonstrably blind.
 `scripts/mb1_alternatives_menu.py`, `scripts/mb1_interval.py`, `scripts/mb1_decomposition.py`;
 `data/free_analysis/MB1_CONTROLS.json`, `MB1_MENU.json`, `MB1_INTERVAL.json`,
 `MB1_DECOMPOSITION.json`, and the persisted draws at `data/MB1_LEGS.pkl`.
-**118 suites, 0 failures** on the documented per-file runner (judged by exit code, never
+**121 suites, 0 failures** after merging `origin/main`, on the documented per-file runner (judged by exit code, never
 by grepping for `OK`); 36 new tests across three suites.
 `tests/test_mb1_alternatives_menu.py` (19), `tests/test_mb1_interval.py` (9),
 `tests/test_mb1_decomposition.py` (8).

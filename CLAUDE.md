@@ -52,7 +52,10 @@ the project's memory and the old versions had been repeated for months.
   SOUND, REFUTED ON THREE MEASUREMENTS OF THE SAME DATA (2026-08-19, `MB1`).**
   `PREREG_mb1_alternatives_menu.md` committed **ALONE at `33ad7ee`**, markdown only, a strict
   ancestor of every measurement commit; **2 options trials booked at `476650e` BEFORE the run,
-  `N` 300 -> 302**, exactly the counter the audit item specifies. Read only from the **pinned**
+  `N` 300 -> 302**, exactly the counter the audit item specifies. **RE-READ AFTER MERGING, per
+  this file's own repeated rule: the live options `N` is 304, NOT 302** - a concurrent lane landed
+  `MB7`, `MB31` and `MB32` the same day and charged 2 further options trials. 300 -> 302 describes
+  MB1's own booking; 304 is the figure to quote. Read only from the **pinned**
   harvest freeze. **ADOPTS NOTHING; `O11` binds and nothing here licenses a trade.**
   * **THE REGISTERED VERDICT: the pooled menu MEDIAN gaps are -0.7310pp early and -0.5366pp late,
     both inside the 1.00pp bar, so the kill FIRES on the weaker half as written** (`any`, never
@@ -112,7 +115,7 @@ the project's memory and the old versions had been repeated for months.
     named `pass` that labels which pass wrote a file, and a local naming which side of the bar an
     interval reaches; it now reads the AST and separates label from decision by **value type**.
   * **COVERAGE 63.20% and 62.49%; the uncovered remainder is UNMEASURED and never read as zero.**
-    **118 suites, 0 failures; 36 new tests across three suites.**
+    **121 suites, 0 failures after merging `origin/main`; 36 new tests across three suites.**
     `scripts/mb1_alternatives_menu.py`, `mb1_interval.py`, `mb1_decomposition.py`;
     `data/free_analysis/MB1_CONTROLS.json`, `MB1_MENU.json`, `MB1_INTERVAL.json`,
     `MB1_DECOMPOSITION.json`; `HANDOFF_optionsbot.md` 66.
