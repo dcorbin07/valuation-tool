@@ -274,15 +274,30 @@ class Heartbeat(unittest.TestCase):
         self.assertIn("ran_at", written)
 
     def test_a_healthy_run_writes_ok_and_exits_zero(self):
+        """Measured against a repo this test BUILDS, not against Don's machine.
+
+        THE FIRST VERSION OF THIS TEST FAILED IN CI AND PASSED LOCALLY, which is the worst
+        way for a test to be wrong. It ran the heartbeat with no `--repo`, so it measured
+        `checkout_drift.SHARED_CHECKOUT` -- a pinned `C:\\Users\\donni\\...` path that
+        exists on exactly one machine. On the ubuntu runner it resolves to nothing, the
+        state is `unknown`, and the assertion read
+        `AssertionError: 'unknown' not found in ('ok', 'alarm')`. The pin is correct and
+        deliberate in `checkout_drift` (a copy measuring "its own tree" would always report
+        a fresh worktree and always say fine); the defect was a test that inherited it.
+        It builds its own origin-and-clone, so `ok` is reachable on any platform.
+        """
+        from tests.test_checkout_drift import build  # the one fixture builder
         with tempfile.TemporaryDirectory() as d:
+            repo = build(d, "hb")
             out = Path(d) / "drift.json"
             buf = io.StringIO()
             with redirect_stdout(buf):
-                rc = hb.main(["--out", str(out), "--no-fetch"])
+                rc = hb.main(["--out", str(out), "--repo", repo, "--no-fetch"])
             written = json.loads(out.read_text(encoding="utf-8"))
-        self.assertIn(written["state"], ("ok", "alarm"))
-        self.assertEqual(rc, hb.OK if written["state"] == "ok" else hb.ALARM)
-        self.assertIsNotNone(written["measured"])
+        self.assertEqual(written["state"], "ok")
+        self.assertEqual(rc, hb.OK)
+        self.assertEqual(written["measured"]["ahead"], 0)
+        self.assertEqual(written["measured"]["behind"], 0)
 
     def test_there_is_one_drift_measure_not_two(self):
         src = (ROOT / "scripts" / "drift_heartbeat.py").read_text(encoding="utf-8")

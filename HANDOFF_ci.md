@@ -2123,6 +2123,18 @@ merges, pushes or repairs. The cure is still `sync.bat` and still a human's call
     because **the comment block above still said 20:30**. Comment-versus-code — the family this
     project has now found five times. It reads the `set "WHEN=..."` assignment.
 
+* **AND ONE OF MY TESTS PASSED LOCALLY AND FAILED IN CI, which is the worst way to be wrong.**
+  `test_a_healthy_run_writes_ok_and_exits_zero` ran the heartbeat with no `--repo`, so it
+  measured `checkout_drift.SHARED_CHECKOUT` — a pinned `C:\Users\donni\...` path that exists on
+  exactly one machine. Green on that machine, and on the ubuntu runner it read
+  `AssertionError: 'unknown' not found in ('ok', 'alarm')`. **The pin is correct and deliberate**
+  — `checkout_drift`'s own header explains that a copy measuring "its own tree" would always see
+  a fresh worktree and always say fine — so the defect is a test that silently inherited a
+  machine-specific default. It now builds its own origin-and-clone via
+  `test_checkout_drift.build`, the one fixture builder, and **the fix is verified against the CI
+  condition rather than assumed**: re-run with `SHARED_CHECKOUT` pointed at a nonexistent path,
+  all 31 pass. The local gate could not have caught this, because locally the path exists.
+
 **MUTATION-TESTED 8 of 8 caught, 0 missed.** The eight include the audit's own naive
 `IN ?PROGRESS` rule, rescue refs counted as lanes, `UNMEASURED` degrading to `0`, the board
 exiting non-zero on a finding, handoff age following the filesystem, the two modules disagreeing
