@@ -465,7 +465,13 @@ def run_arms() -> int:
             "ZERO legs in an arm. An instrument failure, not a finding - a coverage null produced "
             "from an input that never loaded is MA31's failure mode. Refusing to write it.")
 
-    cut = sorted(l["entry"] for l in a_legs)[len(a_legs) // 2]
+    # The register: "Split at the median entry date of the covered ALERT set, applied to both
+    # arms." THE COVERED SET IS ENTRIES, NOT LEGS. An earlier cut took the median over a_legs,
+    # which is LEG-weighted - each entry contributes a variable number of legs (median 5), so an
+    # entry sitting on a deep chain would drag the boundary toward its own date. It is also
+    # computable BEFORE any leg is scored, so the boundary cannot be influenced by an outcome.
+    _entry_dates = sorted(dt.date.fromisoformat(str(r["alert_ts"])[:10]).isoformat() for r in ca)
+    cut = _entry_dates[len(_entry_dates) // 2]
     halves = {}
     for name, pred in (("early", lambda e: e < cut), ("late", lambda e: e >= cut)):
         al = [l for l in a_legs if pred(l["entry"])]

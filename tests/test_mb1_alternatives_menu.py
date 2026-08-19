@@ -201,6 +201,90 @@ def test_the_register_exists_and_is_cited():
     assert "PREREG_mb1_alternatives_menu.md" in _src()
 
 
+def _drive_arms(alert_legs, control_legs, covered):
+    """Run run_arms() to completion on supplied legs, returning the artifact.
+
+    Everything downstream of the scoring loop is cheap, and O21-D2's worst defect fired AFTER
+    every statistic had been computed: a literal `%` in prose inside a `%`-formatted string
+    crashed the artifact write, so a finished run left nothing on disk. That class is only
+    catchable by actually executing the write.
+    """
+    tmp = tempfile.mkdtemp()
+    old = (M.CONTROLS_OUT, M.ARMS_OUT, M.CS, M._bars_dir, M.TickerChains, M._books,
+           M._covered, M._score_both)
+    try:
+        M.CONTROLS_OUT = os.path.join(tmp, "c.json")
+        M.ARMS_OUT = os.path.join(tmp, "a.json")
+        with open(M.CONTROLS_OUT, "w", encoding="utf-8") as fh:
+            json.dump({"all_gating_pass": True,
+                       "c1_menu_contains_pick": {"rate": 0.9954},
+                       "c2_coverage_parity": {"gap_pp": 0.71, "alert_share": 0.632,
+                                              "control_share": 0.625}}, fh)
+        M.CS = type("X", (), {"resolve_harvest":
+                              staticmethod(lambda: ("Z:/fake", {"sha256": "deadbeef"}))})()
+        M._bars_dir = lambda: "Z:/fake"
+        M.TickerChains = lambda c: None
+        M._books = lambda: ([], [])
+        M._covered = lambda rows, tc: covered
+        M._score_both = lambda a, c, tc, b: (alert_legs, control_legs)
+        assert M.run_arms() == 0
+        with open(M.ARMS_OUT, encoding="utf-8") as fh:
+            return json.load(fh)
+    finally:
+        (M.CONTROLS_OUT, M.ARMS_OUT, M.CS, M._bars_dir, M.TickerChains, M._books,
+         M._covered, M._score_both) = old
+
+
+def _leg(sym, day, delta, ret):
+    return {"ticker": sym, "entry": day, "delta": delta, "ret": ret, "seed": None}
+
+
+def test_the_half_boundary_comes_from_the_covered_entry_set_not_from_the_legs():
+    """The register: "Split at the median entry date of the covered ALERT set".
+
+    THE COVERED SET IS ENTRIES, NOT LEGS. Each entry contributes a variable number of legs
+    (median 5 on the real data), so a leg-weighted median lets one entry sitting on a deep chain
+    drag the boundary toward its own date. The fixture is built so the two answers DIFFER - one
+    early entry carries 40 legs and every other entry carries one - which is what makes this
+    test non-vacuous rather than a restatement of the code.
+    """
+    covered = [{"ticker": "A", "alert_ts": "2016-01-04"}] + \
+              [{"ticker": "A", "alert_ts": "2020-0%d-01" % i} for i in range(1, 6)]
+    legs = [_leg("A", "2016-01-04", 0.3, 0.1) for _ in range(40)] + \
+           [_leg("A", "2020-0%d-01" % i, 0.3, 0.1) for i in range(1, 6)]
+    ctrl = [_leg("B", "2016-01-04", 0.3, 0.2), _leg("B", "2020-05-01", 0.3, 0.2)]
+
+    leg_weighted = sorted(l["entry"] for l in legs)[len(legs) // 2]
+    entry_weighted = sorted(r["alert_ts"] for r in covered)[len(covered) // 2]
+    assert leg_weighted != entry_weighted, "fixture is vacuous: the two boundaries agree"
+
+    art = _drive_arms(legs, ctrl, covered)
+    assert art["half_cut"] == entry_weighted, (
+        "half_cut %r is the LEG-weighted boundary, not the covered ALERT set's"
+        % art["half_cut"])
+
+
+def test_the_arms_write_path_executes_end_to_end():
+    """O21-D2's class: a run that computes every statistic and then cannot write it."""
+    covered = [{"ticker": "A", "alert_ts": "201%d-03-01" % i} for i in range(6, 10)]
+    legs, ctrl = [], []
+    for i in range(6, 10):
+        for k, d in enumerate((0.10, 0.25, 0.45, 0.80)):     # one leg per delta bucket
+            legs.append(_leg("A", "201%d-03-01" % i, d, 0.05 * k))
+            ctrl.append(_leg("B", "201%d-03-01" % i, d, 0.04 * k))
+    art = _drive_arms(legs, ctrl, covered)
+    for k in ("alert", "control", "halves", "kill_condition", "verdict", "half_cut",
+              "full_sample_gap_pp_median", "harvest_provenance", "coverage_note",
+              "menu_premise", "signs_agree"):
+        assert k in art, "missing %s" % k
+    assert set(art["halves"]) == {"early", "late"}
+    for h in ("early", "late"):
+        assert len(art["halves"][h]["alert_buckets"]) == len(M.DELTA_BUCKETS)
+    blob = json.dumps(art)
+    for bad in ("%%", "{:,}", "{0}", "%.1f", "%s"):
+        assert bad not in blob, "leaked format token %r into the artifact" % bad
+
+
 def test_the_comparator_is_r2s_own_books_not_a_new_control():
     """Constructing a new random-entry control is a void condition."""
     assert "control_r2_splitclean_seed%d.pkl" in _src()
