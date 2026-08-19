@@ -146,13 +146,54 @@
     </div>
   </section>
 
+  {# ------------------------------------------------------------------ MB38: the denominator
+     RENDER ONLY. Every sentence below is a constant in `research_record.py` and every number
+     is derived there at render time. Nothing here may be written literally: a count typed
+     into this template goes stale within a week of ordinary work, and a stale denominator is
+     itself a false claim about multiplicity. If `multiplicity.available` is false the whole
+     section disappears — fail closed, show nothing rather than something wrong. #}
+  {% if multiplicity.available %}
+  <section>
+    <h2>{{ mult_heading }}</h2>
+    <p class="lede">{{ mult_lede }}</p>
+    <div class="tally">
+      <div class="t"><div class="n">{{ multiplicity.equity }}</div><div class="l">Equity trials</div></div>
+      <div class="t"><div class="n">{{ multiplicity.options }}</div><div class="l">Options trials</div></div>
+      <div class="t"><div class="n">{{ multiplicity.infra }}</div><div class="l">Infrastructure</div></div>
+      <div class="t"><div class="n">{{ multiplicity.trials }}</div><div class="l">Total trials</div></div>
+    </div>
+    <p>{{ mult_paragraph }}</p>
+    <div class="callout">
+      <span class="h">The bar, and where we stand against it</span>
+      <p>Equity searches to date: <b>{{ multiplicity.hurdle_n }}</b>. The bar that count
+         implies is <b>&radic;(2 &middot; ln {{ multiplicity.hurdle_n }}) =
+         {{ multiplicity.hurdle_text }}</b>. Valquo's headline equity statistic
+         <b>{{ multiplicity.verdict }}</b>.</p>
+      {# Both verdict words are DERIVED from the same comparison, against operands that are
+         never placed in the payload. Neither is written here. #}
+      <p>Against the calibrated noise floor described below — a bar this project measured
+         rather than assumed — the same statistic <b>{{ multiplicity.placebo_verdict }}</b>.
+         That floor is itself a performance figure and is not published; the word is.</p>
+    </div>
+    <p>{{ mult_both_sides }}</p>
+    <p>{{ mult_caveat }}</p>
+    <p class="src">{{ mult_why }}</p>
+  </section>
+  {% endif %}
+
   <section>
     <h2>What is deliberately not here</h2>
-    <p><b>No performance figures.</b> Not one — no return, no t-statistic, no threshold. Where a
-       logged line contained one it reads <code>[figure withheld]</code>. The figures Valquo does
+    <p><b>No performance figures.</b> Not one — no return, no t-statistic, no effect size, and
+       none of the pass marks the log recorded for individual tests. Where a logged line
+       contained one it reads <code>[figure withheld]</code>. The figures Valquo does
        publish live on the surfaces that are allowed to carry them, with their caveats attached;
        repeating them here would turn a page about <em>method</em> into an unaudited second
        source for <em>numbers</em>, and this project has already shipped that mistake.</p>
+    <p><b>One number above is not an exception to that, and it is worth saying why.</b> The bar
+       derived from the trial count is arithmetic on how many things were tried — a count of
+       this project's own decisions. It contains no market data and nothing about how the
+       strategy performed, and it is the same for any project that ran the same number of
+       tests. The statistic it is compared against is withheld like every other.</p>
     <p>No market data, no holdings, no vendor rows. Vendor <em>names</em> appear because they
        are part of the record.</p>
   </section>
