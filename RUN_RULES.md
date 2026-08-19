@@ -3,6 +3,85 @@
 Short on purpose. A long checklist gets ignored; these are the things that have actually cost this
 project time, and each one is here because it went wrong at least once.
 
+**New to the repo?** `START_HERE.md` is the clone-to-number page. **"Is item X done?"** is answered
+by `VALQUO_LEDGER.md` and nowhere else.
+
+---
+
+## PART 0 — OPERATING INSTRUCTIONS (moved here 2026-08-15, master audit MA22)
+
+*These four sections lived at the top of `CLAUDE.md`, which is now 4,100+ lines prepended to every
+session. Instructions buried in a findings record rot: that file carried **three different counts of
+its own test suites** — "24", "62" and, measured, **83** — and its task list self-described as "the
+least trustworthy section in the file". Operating instructions belong in the short file that is read
+first. `CLAUDE.md` keeps the findings record, which is load-bearing and was not trimmed.*
+
+### 0.1 How to run (you can run these directly — Don cannot / will not)
+- **Full backtest:** `python -m valuation.edge.fundamental_panel --data-dir data/backtest --json data/backtest/last_result.json` (or `run_backtest.bat`). Reads licensed Sharadar exports in `data/backtest`. Takes 20–40 min.
+- **13F due-diligence:** `python -m valuation.edge.fundamental_panel --data-dir data/backtest --validate-institutional` (or `validate_13f.bat`).
+- **Tests — and `test_edge.py` is NOT the gate.** The auto-land Action runs **every** suite in
+  `tests/` (audit C7), so verify the same way before pushing:
+  ```bash
+  for f in tests/test_*.py; do python "$f" || echo "FAILED $f"; done
+  ```
+  **Never quote a hard-coded suite count** — three stale ones are what produced this section.
+  Count them when you need the number: `ls tests/test_*.py | wc -l`.
+  **Judge a suite by its EXIT CODE, never by grepping for `OK`.** They print at least three summary
+  formats (`OK`, `20 passed, 0 failed`, `14/14 bulk tests passed`), and a loop scraping for `OK`
+  reports `test_build_ledger`, `test_bulk` and `test_calibration` as FAILING when they pass. A gate
+  that cries wolf is one you learn to ignore.
+- **Local install:** `pip install -r requirements.txt`. **Not** `requirements.lock.txt` — that is a
+  hash-pinned linux/CPython-3.11 lock for CI and the container and will not resolve on Windows (MA12).
+- **Deploy:** landing on `main` deploys. See 0.3.
+
+### 0.2 HARD RULES (do not violate)
+- **Never commit/push `data/`** (licensed Sharadar exports; gitignored) or `*.db`.
+- **`.env` holds real secrets** (SHARADAR_API_KEY, ANTHROPIC_API_KEY, TRADIER_TOKEN, SECRET_KEY) — never print, commit, or overwrite.
+- **Do NOT execute trades or move money** — a Robinhood connector exists (Cowork side); produce target/rebalance lists, Don executes.
+- **Ignore Don's resume files entirely.**
+- Repo is private; keep it clean. Keep the suites green after every change.
+- **Sharadar data is personal-use only and forbids commercial use of it "or any derivation"**
+  (ledger `D1`); the JKP factor data is CC BY-NC 4.0, research-only, and may never ship in the
+  product. Both constraints travel with any number derived from them.
+
+### 0.3 Git handoff — MERGING IS AUTOMATIC. DO NOT MERGE `main` BY HAND.
+Several agents share the primary checkout and `main` moves under you mid-session, so a hand-merge
+there can clobber another lane. The close-out is:
+
+1. Commit in your worktree.
+2. `git push -u origin worktree-<name>`
+3. **Verify it landed:** `git fetch origin main -q` then `git merge-base --is-ancestor HEAD origin/main`.
+
+The Action installs the pinned dependencies and runs every suite, so allow time. If it never lands,
+the gate failed or the merge conflicted and `main` is **deliberately** untouched — fix the branch, do
+not merge by hand. **Do not strand work on an unpushed branch** (twice, the P5 and held-out work sat
+unmerged while `main` stayed on P4; and a commit holding the answer to `PT-WRITER` sat unpushed for
+five days). On Windows PowerShell, paste commands on SEPARATE lines — its shell rejects `&&`.
+
+**A branch that changes `.github/` or deletes a test suite will be REFUSED by the auto-land policy
+and needs a human (MA11).** That is intended: those are changes to the gate itself.
+
+### 0.4 Tool routing — Claude Code vs Cowork (tell Don when to switch)
+Don runs TWO agents. They do not talk live; they sync through this shared git repo.
+
+- **You (Claude Code)** own: running the backtest / tests, editing this codebase, git, quant
+  research — anything that executes code locally. Do these yourself rather than handing Don a `.bat`.
+- **Cowork** owns: the Robinhood connector (read-only account data + rebalance lists — NEVER execute
+  trades), the tracked "Valquo Index vs SPY", scheduled scans/tasks, and phone/mobile sessions.
+
+When a task needs Cowork, say so plainly: **"→ Take this to the Cowork chat — it needs the Robinhood
+connector, which I don't have here."**
+
+### 0.5 Working with Don
+Concise, direct, honest. He is non-technical but sharp and rightly skeptical — show reasoning and
+caveats, don't inflate.
+
+### 0.6 End of every session
+Overwrite `HANDOFF_STATUS.md` (shared project state: what you did, concrete numbers, what's blocked,
+the recommended next step — plain markdown, factual). Write your **full** write-up to your own
+`HANDOFF_<name>.md`, so parallel agents never clobber each other. Cowork reads both directly, so Don
+never has to screenshot.
+
 ---
 
 ## PART A — EVERY AGENT, EVERY RUN. No exceptions.

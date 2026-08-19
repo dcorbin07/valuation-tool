@@ -66,3 +66,13 @@ HANDOFF_*.md        merge=union
 # renormalise line endings across the whole tree -- a diff touching nearly every
 # file, which would conflict with every branch currently open. That is precisely
 # the churn this file exists to reduce.
+
+# PDFs are BINARY. Not a style preference -- a measured defect: this repo runs
+# core.autocrlf=true and sets no binary rule, so git falls back to its NUL-byte
+# heuristic. reportlab output contains no NUL bytes, so git classified
+# VALQUO_LIVE_AUDIT.pdf as TEXT and converted LF->CRLF on checkout: the working
+# copy carries 308 CRLF sequences and pypdf reports "incorrect startxref
+# pointer" on it. The stored blob is clean; every Windows checkout corrupts it.
+# Marking only *.pdf keeps this narrow -- it is NOT `* text=auto`, so nothing is
+# renormalised and no open branch is disturbed. (Master audit #3, MA35.)
+*.pdf               binary

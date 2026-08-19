@@ -127,6 +127,12 @@ BOOK_CONFIGS = {
         "label": "Tax-free (Roth/IRA): Sharpe-optimal, full rotation, ~2-month rebalance",
         # 42 TRADING days ~= 2 calendar months. Best Sharpe of the cadences tested.
         "top_n": 25, "top_frac": None, "rebalance_days": 42, "horizon": 42,
+        # STAYS BAND-LESS AFTER THE S14 ADOPTION (2026-08-13), and this is a fidelity decision
+        # rather than an oversight. S14 measured the DECILE book; `exit_frac` is a fraction of
+        # the ranked UNIVERSE, which is not a meaningful band for a fixed 25-name book (against
+        # a large universe it would hold nearly every name nearly forever -- the panel's own
+        # comment says exit_mult is "the only one meaningful for a fixed-N book"). A banded
+        # top-25 book is a construction nobody has measured, so it is not shipped.
         "exit_frac": None, "exit_mult": None,          # no band: no tax cost to churning
         # RE-MEASURED 2026-08-08 on the corrected 2,531-name / 69-date panel (P2 sweep).
         # These were the PRE-B6 2,710-name figures (net_alpha 0.1737, net_sharpe 1.17,
@@ -140,9 +146,18 @@ BOOK_CONFIGS = {
                      "cost_drag_ann": 0.0440},
     },
     "taxable": {
-        "label": "Taxable: after-tax-optimal, decile + 20% no-trade band",
+        "label": "Taxable: after-tax-optimal, decile + 30% no-trade band",
         "top_n": None, "top_frac": 0.10, "rebalance_days": 63, "horizon": 63,
-        "exit_frac": 0.20, "exit_mult": None,
+        # WIDTH MOVED 0.20 -> 0.30 BY THE S14 ADOPTION (Don's call, 2026-08-13), on S14's
+        # double-clear: sweeping the shipped grid -- which CONTAINS 0.20 -- on a decide half and
+        # measuring the argmax on the held-out half picked 0.30 in both directions, and
+        # S14-WIDTH then confirmed the optimum is interior rather than a grid-edge artefact.
+        # The `measured` figures below are still the 20%-band numbers and are NOT restated,
+        # because no run has measured this config at 0.30; S14's own held-out figures are
+        # differences, not levels, so they cannot be substituted here. Flagged rather than
+        # silently re-labelled -- see `measured_width` below.
+        "exit_frac": 0.30, "exit_mult": None,
+        "measured_width": 0.20,
         # RE-MEASURED 2026-08-08, same sweep and same source (book_configs.taxable).
         # Was: after_tax_alpha 0.0486, after_tax_sharpe 0.89, net_alpha 0.1169,
         # turnover 1.72. The after-tax alpha moved most — 4.86% -> 0.81%, a sixfold
@@ -205,10 +220,35 @@ NUMBER_THEME = {
     # Kept: f_score
     # (median IC +0.061, IC t +5.66 - the strongest single number in the panel),
     # accruals_q (+0.026, t +3.08, newly populated) and inst_breadth (+0.024, t +2.71).
-    # Rejected and deliberately NOT listed: the short-horizon price anomalies
-    # neg_ret_1m / neg_max_ret / neg_idio_vol (all wrong-signed here). Adding a name back
-    # here is all it takes to re-test one.
+    # CORRECTED 2026-08-13 (R5). This used to read: "Rejected and deliberately NOT listed:
+    # the short-horizon price anomalies neg_ret_1m / neg_max_ret / neg_idio_vol (all
+    # wrong-signed here)." That rejection was measured on 400 names over 110 rebalances --
+    # VOID TWICE OVER, under B12 (the universe was an ALPHABETICAL slice) and under B6 (110
+    # rebalances is the inverted-universe panel) -- and it sat in a live comment as current
+    # evidence. Re-measured on the corrected 2,531-name / 69-date panel, ALL THREE SIGNS ARE
+    # POSITIVE, i.e. the published direction, not the reverse:
+    #     neg_ret_1m    median IC +0.00715  t +0.45   (was -0.014)
+    #     neg_max_ret   median IC +0.02634  t +1.15   (was -0.072)
+    #     neg_idio_vol  median IC +0.05452  t +1.21   (was -0.025)
+    # NONE clears its own within-date permutation p95 in both halves, and none clears even
+    # the old 2.0 convention in any window, so all three remain REJECTED -- but they are
+    # rejected for being WEAK, not for being backwards. They are now listed below so they
+    # stay MEASURED. PREREG_r5_r6_alphabetical_rerun.md.
     "f_score": "quality", "inst_breadth": "institutional",
+    # R5 (2026-08-13) — the three short-horizon price anomalies, REGISTERED so they are
+    # MEASURED on the corrected universe for the first time. The 400-name figures quoted
+    # above are void under audit B12 (the universe was an ALPHABETICAL slice) and under B6
+    # (110 rebalances is the inverted-universe panel), so the comment above them records a
+    # rejection nothing on a permitted universe ever made. Same S2 pattern as
+    # `cash_op_prof`: this gives them a z_ column, a coverage entry and a per-signal IC row,
+    # and they SCORE only if factors.py names them in a theme mean — which it does not
+    # (`low_risk` is the explicit pair z_neg_beta/z_neg_vol). PREREG_r5_r6_alphabetical_rerun.md.
+    "neg_ret_1m": "low_risk", "neg_max_ret": "low_risk", "neg_idio_vol": "low_risk",
+    # R6 (2026-08-13) — the three SF3 conviction signals that were never re-run. Same
+    # registration-is-measurement rule; `institutional` is the explicit pair
+    # z_inst_accum/z_sm_breadth, so these do not score. PREREG_r5_r6_alphabetical_rerun.md.
+    "sm_conviction": "institutional", "sm_holders": "institutional",
+    "sm_avg_position": "institutional",
     # S2 (2026-08-06) — cash-based operating profitability. TESTED AND REJECTED, twice, and
     # now LISTED so it stays MEASURED, exactly like roe_ttm/roic_ttm below: registering a
     # number here gives it a z_ column and puts it in the coverage guard and the per-signal
@@ -226,14 +266,24 @@ NUMBER_THEME = {
     # 400 names, which this project's own methodology rule calls a smoke test.
     "cash_op_prof": "quality",
     # SF3 per-manager 13F detail (smart money), 45-day filing lag like the rest of the 13F
-    # data. Measured on 800 large caps / 110 rebalances / 63d forward:
-    #     sm_breadth       +0.0293  t +2.37   KEPT
-    #     sm_avg_position  +0.0203  t +1.26   rejected
-    #     sm_holders       +0.0175  t +1.57   rejected
-    #     sm_conviction    +0.0040  t +1.25   rejected (position-vs-AUM carries little signal)
-    # sm_breadth also beats the aggregate inst_breadth (t +1.48) — same quantity, but SF3
-    # counts actual managers rather than a vendor holder tally, so it replaces it in the
-    # theme mean. The rejected three stay computed in the panel, so re-testing is one line.
+    # data. The figures that stood here — sm_breadth +2.37, sm_avg_position +1.26,
+    # sm_holders +1.57, sm_conviction +1.25 — were measured on "800 large caps / 110
+    # rebalances" and are VOID TWICE: B12 (that universe was an ALPHABETICAL slice, not the
+    # 800 largest) and B6 (110 rebalances is the inverted-universe panel).
+    # RE-MEASURED 2026-08-13 (R6) on the corrected 2,531-name / 69-date panel, 50 covered
+    # dates, coverage 0.7376:
+    #     sm_holders       median IC +0.03285  t +1.61   (was +1.57)
+    #     sm_avg_position  median IC +0.03240  t +1.33   (was +1.26)
+    #     sm_conviction    median IC +0.01597  t +1.28   (was +1.25)
+    # ALL THREE NULL: none clears its own within-date permutation p95 in BOTH halves, and
+    # none clears the old 2.0 convention anywhere. sm_holders is the near miss — it clears
+    # full-sample (+1.6111 vs its own p95 1.5285) and then reads +0.0118 on the early half.
+    # THE MECHANISM IS A SIZE SORT: all three correlate with the `size` theme at -0.815,
+    # -0.855 and -0.854, and with each other at +0.78 to +0.83, so they are close to ONE
+    # signal and that signal is largely market cap — which the panel already scores.
+    # With sm_breadth (+1.85) and sm_elite_conviction (+1.45) this makes FIVE of five family
+    # members measured on the corrected universe with none clearing: the SF3 conviction
+    # family is CLOSED. PREREG_r5_r6_alphabetical_rerun.md.
     "sm_breadth": "institutional",
     # P6.2 — trailing-twelve-month ROE/ROIC. TESTED AND REJECTED; kept here so they stay
     # MEASURED (z-scored, in the per-signal IC table) but they are deliberately NOT in the

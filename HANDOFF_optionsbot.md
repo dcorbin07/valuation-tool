@@ -4147,3 +4147,3198 @@ result as a prior, which is a discouraging one.
 
 **Do not act on `dte` q2.** It is the most eye-catching cell in this session and it does not clear
 its own calibrated bar.
+
+---
+
+# SESSION 25 — 2026-08-11 — `O21` + `O26`: **the pricer's dividend gap is real, cheap, and deliberately left alone; the bucket floor cannot deliver what its comment promises**
+
+Two ledger items, one session, frozen book, no re-mine, **no live code path changed**. Both
+registers were committed **together and ALONE** at **`bf5324c`** — two `.md`, **zero `.py`**.
+
+Both rows were bare in the ledger ("no mention anywhere in the corpus"), so the scope below is
+derived rather than inherited, and each register says what it derived and why.
+
+---
+
+## 29 · `O21` — dividends and early exercise. **IMMATERIAL on the measurable part; one door left UNRESOLVED.**
+
+### 29a · The defect is the CALLER, not the model — and that changes what "fix it" means
+
+`blackscholes.bs_price`, `implied_vol` and `greeks` **already take a continuous dividend yield
+`q` and handle it correctly** — `exp(-qT)` on the spot leg, `(r − q)` in `d1`. There is nothing
+missing from the model.
+
+> **Every caller uses the default `q = 0.0`.** `enrich_chain(..., q=0.0)` is called in exactly
+> two places — `options_backtest.pick_contract:313` and `optvrp_run.py:250` — and neither passes
+> it.
+
+**Anyone who "adds dividend support to the pricer" is fixing the wrong thing.** Pinned by a test.
+
+### 29b · The scoping fact that decides what could move
+
+**The banked book's P&L comes from QUOTED bid/ask in the frozen chains, never from a model
+price.** So the pricer cannot move the recorded expectancy *directly*. It reaches the book
+through exactly three doors, measured separately because they have very different strengths:
+
+| door | mechanism | moves P&L? | result |
+|---|---|---|---|
+| **D1 early exercise** | the sim always SELLS at the bid | yes, model-free | **+0.2002pp** |
+| **D2 contract selection** | `pick_contract` targets 0.35 delta computed at `q = 0` | yes | **4.63% of entries — P&L not computable** |
+| **D3 derived fields** | banked `iv`/`target_delta` feed O13 and `delta85` | no | IV understated ~0.62 vol points |
+
+### 29c · Exposure is real and widespread. The measured cost is not.
+
+**81.4%** of the 3,870 banked trades sit on dividend payers (median trailing yield **2.02%**, p90
+4.28%, max 24.8%), and **2,107 of 3,870 calls — 54.4% — span an ex-dividend date.** So this is
+not a corner case.
+
+**D1, measured model-free:** only **34 of 3,870 exits (0.879%)** were booked below intrinsic,
+worth **+0.2002pp** of per-trade expectancy against the pre-registered **1.00pp** bar.
+
+**Early exercise is measured as `bid < S − K` and that is deliberate.** The textbook condition
+compares the dividend to remaining time value, which needs a model — and would make the answer a
+function of the very pricer under test. The inequality needs no vol, no rate and no dividend
+estimate.
+
+**Two controls, both run before any figure was quoted:**
+
+| control | result |
+|---|---|
+| put-call parity vs the stored `underlying_entry` | median rel error **0.00232**, 93.2% within 1% |
+| the sim's **own** bars `raw_close` vs `underlying_entry` | median rel error **0.00000**, **100.0%** within 1% |
+
+### 29d · D2 — the door that is NOT resolved, and it is reported as such rather than as zero
+
+> **The `q = 0` control reproduces the banked contract on 3,870 of 3,870 entries — exactly
+> 100.00%.** That is what makes the challenger quotable at all.
+
+The corrected pricer selects a **different contract on 179 entries (4.63%)**. And it is **not a
+near-substitute**, which makes the unresolved part *more* serious, not less:
+
+* median **|delta gap| 0.129** against a 0.35 target (p90 0.225)
+* **93.9% move to a LOWER strike** — the predicted direction, since a positive `q` lowers call
+  delta and the selector must go further in-the-money to reach 0.35
+* 87.7% keep the same expiry
+
+**Its P&L is NOT COMPUTABLE on the frozen book.** The freeze stores the **full chain only on
+ENTRY dates** and just the traded contract thereafter, so a contract the book never held has no
+forward price path — the median alternative has **2 chain dates** and only **10.1%** have more
+than three. Resolving D2 requires a re-mine, which this session was scoped out of. **It is
+recorded as unresolved rather than assumed to be zero.**
+
+### 29e · D3 — and the direction the register got backwards
+
+Ignoring dividends **understates** the solved implied vol by a median **0.00617** (~0.62 vol
+points, max 0.0998) and **overstates** absolute delta by a median **0.00668** (max 0.146). The
+path study's `delta85` arm moves from firing on **6** trades to **2** of 3,870 — which cannot
+disturb its recorded −0.02pp rejection.
+
+**The register predicted a "negative" IV shift and did not state the direction of subtraction.**
+Its stated arithmetic was right — at `q = 0` the model price is higher for any given σ, so the σ
+reproducing a market mid is lower — but that means the *corrected minus published* shift is
+**positive**. Scored as a miss on the label, with the arithmetic confirmed and pinned by a test.
+
+### 29f · The pricer is deliberately NOT changed
+
+Neither clause of the pre-registered materiality bar is met: D1 is +0.20pp against 1.00pp, and no
+published verdict changes its relationship to its bar. **Shipping a selection change on an unmet
+bar is exactly what the register exists to prevent** — passing `q` into `pick_contract` would
+change **which contract the live engine buys on 4.63% of entries**, at a median delta gap of
+0.129. That is a construction change, not a bug fix.
+
+**The non-change is PINNED by two tests** that fail if the live selection path ever silently
+starts passing a yield — the same discipline session 16 used for the sizing quantity and session
+20 for `zscore`.
+
+### 29g · Two defects in my own instrument, both caught before any verdict was read
+
+1. **Spot at exit was first estimated as `max(call_bid + strike)` over the chain.** Parity gives
+   `C ≥ S − K`, so every `bid + K` is an **upper** bound on spot and the **maximum** is the
+   loosest one available. It inflated intrinsic and reported an early-exercise gain of
+   **+5.62pp** on a smoke subset — **eight times** the true figure, and in the direction that
+   would have manufactured a material finding. Replaced by put-call parity, an equality.
+2. **The parity helper then rejected `put_mid <= 0`** — which discards exactly the deep-ITM-call
+   cases early exercise lives in, and scored **zero rows**.
+
+Both are pinned by tests that hold the *direction* of the old error, so neither can quietly
+return. Also found and reported: **`options_backtest.BARS_CACHE` is a RELATIVE path**, so it
+resolves to nothing from a git worktree and returns an empty bar set rather than an error.
+
+### 29h · Expectations — 4 right, 1 wrong
+
+RIGHT: IMMATERIAL (70/30); <2% of exits below intrinsic (65/35) at 0.879%; selection changing on
+<10% (55/45) at 4.63%; `delta85` moving <1pp (75/25) at 0.10pp.
+WRONG: the IV shift's stated sign, as above.
+
+---
+
+## 30 · `O26` — the per-bucket floor. **NULL: it stays 30, and that is not a vindication of 30.**
+
+### 30a · The constant states its own purpose, so the test writes itself
+
+`options_tracker.MIN_CLOSED_PER_BUCKET = 30`, with this comment:
+
+> *"Options outcomes are noisy and heavy-tailed: with ten trades a single triple-up decides the
+> sign of every statistic. 30 is not a magic number, it is 'enough that one lucky contract cannot
+> flip the verdict'."*
+
+That is a **testable property that had never been tested.** The primary statistic is its literal
+reading: **`P_flip(n)`**, the chance that removing the **single most extreme** trade flips the
+sign of a size-`n` bucket's mean. The trade removed is `argmax |R − mean|`, chosen **without**
+reference to which way it moves the mean — removing the *best* trade would build the answer's
+direction into its own definition.
+
+### 30b · It never clears the bar, anywhere on the grid
+
+| n | 10 | 20 | **30** | 50 | 100 | 150 | 200 | 300 |
+|---|---|---|---|---|---|---|---|---|
+| `P_flip` | 0.2226 | 0.2056 | **0.1848** | 0.1672 | 0.1440 | 0.1318 | 0.1206 | 0.1084 |
+
+Nothing on the pre-committed grid reaches **0.05**, on the full sample or on either half, so the
+verdict is **NULL and the constant stays at 30**.
+
+**But that is not a vindication of 30.** Going from 30 to 300 — a tenfold increase **no live
+bucket could supply** — moves the flip probability only **0.185 → 0.108**. The floor is doing far
+less work than its comment implies, and no achievable floor would change that.
+
+### 30c · The secondary is the stronger result, and I checked it against theory
+
+**Half-to-half sign agreement is a coin flip at every bucket size tested:**
+
+| n | 30 | 100 | 150 | 300 |
+|---|---|---|---|---|
+| measured agreement | 0.4942 | 0.5098 | 0.5212 | 0.5482 |
+| **predicted in closed form** | **0.5059** | — | **0.5289** | **0.5561** |
+
+**That agreement with first principles is the control.** The book's own moments — mean **0.0327**,
+per-trade sd **0.9251** — predict the whole curve without any simulation, and the simulation
+reproduces it. This is not a resampling artefact.
+
+> **A bucket would need roughly 6,148 trades before its two halves would agree on the SIGN of
+> expectancy 95% of the time.** The entire banked book is **3,870**. The largest live bucket
+> (large-cap) is **2,058**; mega 994, mid 774, **small 44**.
+
+**So per-bucket expectancy on this book is essentially unmeasurable at any floor.** That is a
+third independent corroboration of R2 and O13 rather than a new claim — the book is too noisy to
+support subgroup statements, and the floor was never the thing standing in the way.
+
+### 30d · Nothing ships, and nothing could
+
+`MIN_CLOSED_PER_BUCKET` is **untouched at 30**. **Zero live buckets change status.** The item
+cannot change live trading behaviour in any case: raising the floor only makes the project *more*
+conservative about which subgroups it will read.
+
+### 30e · Expectations — 2 right, 3 wrong
+
+RIGHT: `P_flip(30) > 0.15` (70/30) at 0.1848; the secondary being weaker than the primary
+(55/45), and by a wide margin.
+WRONG: a floor in the 75–150 range (70/30) — there is none on the grid at all; a RAISE verdict
+(60/40) — it is NULL; at least one bucket losing `enough_to_judge` (65/35) — zero did.
+
+---
+
+## 31 · What I did NOT do, and why
+
+* **Did not change the pricer, `pick_contract`, or `MIN_CLOSED_PER_BUCKET`.** No live code path
+  moved this session. Both non-changes are pinned by tests rather than left implicit.
+* **Did not re-mine.** Both items were scoped to the frozen book, which is exactly why D2's P&L
+  is reported as unresolved instead of estimated.
+* **Did not re-stamp any derived data.** The register makes re-stamping conditional on the
+  materiality bar being met, and it was not.
+* **Did not extend O26's `n` grid** past 300 to hunt for the crossing point. The grid is fixed in
+  the register and extending it after seeing the curve voids the item. The closed-form
+  extrapolation (~6,148) is reported instead and labelled as such.
+* **Did not touch O10 / O18**, per the task: they want O14's tick data, which is still collecting.
+
+## 32 · Trial cost
+
+**Options `N` 246 → 248 — one trial each, and O21's charge was CORRECTED UPWARD mid-session.**
+It was first charged **zero**, on the reasoning that a correctness measurement against a
+pre-committed bar is a `FIXED`-class row. **Another lane's research-page suite rejected that**:
+the log schema requires every non-`FIXED` row to charge at least one trial, and this row is not
+`FIXED` because **nothing was repaired**. It had a pre-committed bar and returned a verdict
+against it, so it is a trial. The correction runs against my own result, which is the right
+direction — understating `N` overstates the significance of every DSR-gated claim in the project.
+**The gate caught a trial-accounting error that no test of mine would have.**
+`research_log.detail()` verified: `{'equity': 155, 'options': 247, 'unified': 0, 'infra': 8}`,
+`rows_malformed: []`. **Equity `N` untouched**, so `BACKTEST_RESULTS.json` needs no re-run.
+
+## 33 · Recommended next step
+
+**Re-mine the 179 alternative contracts and close D2.** It is the only door either item left
+open, the substitution is large (median |delta gap| 0.129, 93.9% to a lower strike), and it is
+the one route by which the dividend omission could still turn out to matter for the headline. It
+needs a re-mine and therefore its own session — and, if it does move the book, its own
+pre-registration, because at that point the pricer change becomes a construction change with a
+measurable consequence rather than a tidy-up.
+
+**Do not raise `MIN_CLOSED_PER_BUCKET`.** O26 says the lever does not work; the useful response
+is to stop making per-bucket expectancy claims on this book, not to pick a bigger number.
+
+---
+
+## 34 · `O10` + `O18` — tick-flow execution. **NO VERDICT: MY OWN VOID CONDITION FIRED, AND IT DISQUALIFIED THE ARM THAT WOULD HAVE CLEARED THE BAR.**
+
+Session 26, 2026-08-11. `PREREG_o10_passive_fills.md` and `PREREG_o18_spread_cost.md` were committed
+**together and ALONE at `34b0c11`** — two `.md`, zero `.py` — before any measurement code for either
+item existed. Frozen book, no re-mine, **no live code path changed**.
+`data/free_analysis/O10_O18_TICKFLOW.json`; `scripts/o10_o18_tickflow.py`;
+`valuation/edge/tickflow.py`; `tests/test_tickflow.py` (39 tests).
+
+### 34.1 Three scope facts, measured before the registers were written
+
+O14's cache is **exactly the alert-days and nothing else** — 3,884 cached symbol-days, and for the
+3,870 split-clean banked entries the **immediate next session is cached for 0 of 3,870** and the
+**exit day for 0 of 3,870**. Consequences, both fixed in the registers before anything was run:
+
+* **The live order-working question is NOT ANSWERABLE.** `auto-scan.yml` runs after the close, so
+  the live bot's order rests on **D+1**, and D+1 is not in this cache for a single entry. Anyone
+  reading this item as *"we measured what the live bot's limit orders fill at"* has misread it.
+* **Only the ENTRY leg is coverable** while a round trip crosses the spread twice, so every
+  round-trip statement here is an extrapolation and is labelled as one.
+
+What is answerable, cleanly: the **execution environment** of the exact contracts the book traded,
+on the day it traded them, measured **quote-relatively** — every quantity is defined against the
+NBBO prevailing at the same instant, so nothing needs a decision time and nothing carries
+look-ahead. **The join is complete: 3,869 of 3,869 units have the traded contract on tape**, the
+one missing alert-day being `BUD` 2024-01-10 (O14's census), which costs **exactly one book row**.
+
+### 34.2 The verdict is that there is no verdict, and why that is the honest outcome
+
+`PREREG_o10 §3 C2` required the behavioural condition-code split to replicate on the full book, and
+said in advance that if it did not, `SINGLE_LEG_CODES` is **void** and only the all-codes arm is
+reported, **with no verdict**. **It did not replicate, and the cause is a single code.**
+
+| code | share | at-touch (full book) | at-touch (120-entry probe) | verdict |
+|---|---|---|---|---|
+| 18 | 0.5384 | 0.5873 | 0.561 | touch-seeking, as classified |
+| 95 | 0.0544 | 0.8054 | 0.871 | touch-seeking, as classified |
+| 0 | 0.0337 | 0.6747 | 0.727 | touch-seeking, as classified |
+| 106 | 0.0290 | 0.4374 | 0.450 | touch-seeking, as classified |
+| **35** | **0.0494** | **0.2496** | **0.439** | **MISCLASSIFIED — behaves package-like** |
+| 125 | 0.1207 | 0.2649 | 0.185 | package-like |
+| 130 | 0.1109 | 0.1793 | 0.136 | package-like |
+| 131 | 0.0389 | 0.1347 | 0.056 | package-like |
+
+Four of five hold with room to spare. **Code 35 sits below package code 125**, so strict separation
+fails and the gate fires. The probe saw 619 of its prints; the full book has 18,922.
+
+**THE VOID IS NOT A TECHNICALITY, AND THIS IS THE PART TO REMEMBER: the arm the register
+disqualified is the one that crosses the bar.** The all-codes fallback reads
+**NPA 1.0029pp against a 1.00pp bar**; the registered primary reads **0.6318pp**. The register said
+in advance that the all-codes arm **credits package liquidity to a single-leg resting order and is
+therefore an OPTIMISTIC bound** — and it is exactly the arm that would have manufactured a
+material finding. A register that only ever confirms what you were going to conclude is not doing
+any work; this one cost a verdict.
+
+**The void did not conceal a crossing, and that is reported because it cuts the other way.** On the
+fallback arm the halves read **1.0760 early and 0.9352 late**, so the both-halves condition is not
+satisfied there either. That is arithmetic on published numbers, **not a verdict, and it may not be
+quoted as one.**
+
+**A PROCESS DEFECT, MINE.** C2 and the outcome statistics were computed in the **same pass**, so I
+cannot claim the control was read before the numbers. A gating control must run and be read in a
+**separate pass**. That is a flaw in the runner, not in the rule, and the successor register fixes it.
+
+### 34.3 What survives as measurement (no verdict is drawn from any of it)
+
+**O10 — a passive fill is not a free half-spread, and the second term is most of the story.**
+At the registered primary cell (rest at the mid, 30-minute horizon), on the void primary arm:
+
+| | gross saving | adverse selection | NPA | fill rate |
+|---|---|---|---|---|
+| full | +2.4555pp | **−1.8237pp** | +0.6318pp, CI95 [0.5014, 0.7643] | 0.5726 |
+| early | +2.6399pp | −1.7240pp | +0.9159pp | 0.5940 |
+| late | +2.2593pp | −1.9298pp | +0.3295pp | 0.5500 |
+
+**Adverse selection eats 74.3% of the gross saving.** The naive answer — *"resting at the mid saves
+you half the spread"* — is 2.46pp; what is left after the fills you actually get is 0.63pp.
+
+The grid (fill rate / NPA pp), void primary arm:
+
+| level | h5 | h15 | h30 | h60 | rest-of-session |
+|---|---|---|---|---|---|
+| ask (+1.0) | 0.61 / −0.07 | 0.72 / −0.30 | 0.79 / −0.44 | 0.85 / −0.59 | 0.90 / −0.40 |
+| +0.5 | 0.44 / +0.58 | 0.57 / +0.21 | 0.65 / −0.01 | 0.72 / −0.16 | 0.79 / +0.26 |
+| mid (0.0) | 0.37 / +1.37 | 0.49 / +0.92 | **0.57 / +0.63** | 0.65 / +0.45 | 0.73 / +1.04 |
+| −0.5 | 0.29 / +1.77 | 0.39 / +1.23 | 0.48 / +0.91 | 0.55 / +0.70 | 0.65 / +1.55 |
+| bid (−1.0) | 0.26 / +2.13 | 0.36 / +1.65 | 0.44 / +1.38 | 0.52 / +1.19 | 0.61 / +2.14 |
+
+Fill rate is monotone in the limit level at every horizon, as it must be.
+
+**A MEASURED BIAS IN MY OWN INSTRUMENT, REPORTED RATHER THAN LEFT IMPLICIT: the `ask` row is the
+instrument's own null and it does not read zero.** By construction the gross saving there is
+exactly 0, so NPA should be ~0; it reads **−0.07 to −0.59pp**, because the reference moments that
+fail to fill at the ask are precisely the late-session ones with truncated windows. So the NPA
+scale carries a bias of that order and the +0.6318pp should be read against it rather than against
+a perfect zero. The bias runs **against** the passive arm, so it does not manufacture the null.
+
+**O18 — trades print well inside the quoted spread, and the decomposition keeps the two reasons
+apart.** Size-weighted `ρ` = **0.6743** (CI95 [0.6617, 0.6871]) on the void primary arm and
+**0.6054** on the fallback; unweighted 0.6737 and 0.5928, so the weighting does not change the
+story. In dollars per share, primary arm:
+
+```
+q_eod_half 0.1544   ->   q_print_half 0.0999   ->   effective 0.0591
+                 availability 0.0545      price improvement 0.0408
+```
+
+**Only the $0.0408 is a property of execution.** The $0.0545 availability term is a **selected**
+quantity — you only avoid it if you trade when the market is there — and the register forbids
+quoting it as a saving. Total apparent overcharge is $0.0953/share = **$9.53 per contract**, of
+which only **$4.08** is defensible as price improvement.
+
+**The strongest conditioning is the one nobody registered as most likely: entry premium, not
+quoted spread.** `ρ` falls monotonically with premium — **0.778, 0.700, 0.674, 0.626, 0.597** —
+with `R_range` 0.1812 against a permutation p95 of 0.0376 (**4.8× the null**) and a negative
+Spearman in both halves and both arms. **A cheap option pays nearly its whole quoted half-spread
+and an expensive one pays under 60% of it**, which is what a fixed tick on a small premium implies.
+`F1` (quoted spread-pct) clears full-sample but not both halves on the primary arm; `F3` (DTE)
+clears nothing; `F4` (market cap) clears full-sample only; `F5` (time of day) clears both halves on
+the primary arm and not on the fallback.
+
+**`F6` (print size) is DEGENERATE and is flagged rather than reported as a failure** — two of its
+five quintile bins are **empty** (`bin_n` `[0, 0, 2771, 2707, 2490]`) because print size is
+overwhelmingly one contract, so the 20th and 40th percentile edges coincide. A bin that cannot
+exist is not evidence about the thing it would have measured. Same treatment O13 gave `opt_right`
+and `horizon`.
+
+### 34.4 The coverage caveat, which is the most important limitation here
+
+**C4 coverage is 0.7162** — 2,771 of 3,869 — clearing the pre-committed 0.70 bar, but only just,
+**and the excluded 28% is not a random subsample**:
+
+| | n | median spread% | median mcap | median ATM OI | pit_liquid | median prints | mean P&L |
+|---|---|---|---|---|---|---|---|
+| included | 2,771 | 0.0571 | $127.8B | 1,575 | 0.901 | 42 | **+5.82%** |
+| excluded | 1,098 | **0.0923** | $69.8B | 736 | 0.772 | 5 | **−3.11%** |
+
+The contracts too thin to support a fill study have **62% wider spreads, roughly half the market
+cap and half the ATM open interest, and NEGATIVE expectancy**. So **every number above is measured
+on the liquid part of the book**, and it is the illiquid part where costs bite hardest — O13
+already found `entry_spread_pct` q5 at −7.41%. A cost model calibrated here would be calibrated on
+the good half and would understate cost exactly where it matters most.
+
+### 34.5 Two things that must travel with any quotation of this work
+
+* **NOTHING IS ADOPTED. `DEFAULT_AGGRESSION` is untouched at 1.0**, no book was re-banked, no
+  published options figure was re-stated, and a test pins the non-change. Both registers fixed that
+  routing in advance: a material result is **routed to Don as a policy change**, because changing
+  the fill constant would re-price every options figure the project has ever published.
+* **CHEAPER FILLS DO NOT RESCUE R2.** The random-entry control is filled by the identical rule, so
+  a cheaper entry lifts the alert book and its control together and leaves the **−5.0640pp** gap
+  exactly where it is. This is arithmetic, not a prediction, and it is the single most likely
+  misreading of the ρ = 0.67 figure.
+
+**The O14 caveat that turned out not to bite, checked rather than assumed:** `HANDOFF_ticks.md`
+warns that `quote_timestamp` can lag `trade_timestamp` by hours, which would make the signed
+aggression meaningless. On the traded contracts the **median lag is 0.0s and only 0.19% of prints
+lag by more than 60 seconds**. Real hazard, negligible exposure here.
+
+## 35 · What I did NOT do, and why
+
+* **Did not change `DEFAULT_AGGRESSION`, any cost constant, or any book.** Pre-committed routing.
+* **Did not claim a verdict for either item.** My own C2 gate fired. Amending the code set after
+  reading outcomes is void condition 3 in both registers.
+* **Did not re-classify code 35 and re-run.** That is the obvious next move and it is precisely
+  what the register forbids doing in the same session, because I have now seen the outcome numbers.
+  It needs a successor register.
+* **Did not extrapolate to the round trip.** Zero exit-day coverage; the exit leg is unmeasured.
+* **Did not touch O14's cache, the frozen chains, or the banked book.**
+
+## 36 · Trial cost
+
+**10 options trials, exactly as pre-committed** — 4 for O10 (the non-incumbent limit levels) and 6
+for O18 (one per family). **Options `N` 248 → 258. Equity `N` untouched at 155**, and
+`BACKTEST_RESULTS.json` needs no re-run because the counter is domain-scoped.
+
+**Charged in full even though neither item returns a verdict**, and the reasoning is worth stating
+because it cuts against my own result: session 8's precedent is that **declining to run** keeps the
+denominator, but these arms *were* run and measured against their bars. A void verdict does not
+refund the search. The fallback arm's 10 further cells are charged at zero because the registers
+pre-declared sensitivities as zero-charge and no verdict is drawn from them — the one place the
+count is arguable, and it is noted rather than buried.
+
+**Expectations scored 8 right, 3 wrong, 1 split, 1 unscorable.**
+
+| # | expectation | outcome |
+|---|---|---|
+| O10 E1 | effective < quoted half-spread | **RIGHT** (ρ 0.674) |
+| O10 E2 | NPA at the primary cell is MATERIAL | **WRONG** — 0.6318pp against a 1.00pp bar |
+| O10 E3 | adverse selection eats ≥ 40% of the gross saving | **RIGHT** — 74.3% |
+| O10 E4 | fill rate at the primary cell ≥ 0.50 | **RIGHT** — 0.5726 |
+| O10 E5 | fill rate monotone in the limit level | **RIGHT** at every horizon |
+| O10 E6 | the package arm shows a HIGHER fill rate | **RIGHT** — 0.6097 vs 0.5726 |
+| O18 E1 | ρ < 1 | **RIGHT** |
+| O18 E2 | WARRANTED in ≥ 1 family | **UNSCORABLE** — no verdict; both arms would have said yes |
+| O18 E3 | F1 has the largest `R_range` | **WRONG** — F2 does, by 4× |
+| O18 E4 | ρ falls as the quoted spread widens | **SPLIT** — right in direction (Spearman −0.087) but it fails both-halves |
+| O18 E5 | F5 clears in both halves | **RIGHT** on the primary arm, wrong on the fallback |
+| O18 E6 | size-weighted and unweighted ρ agree in direction | **RIGHT** — 0.6743 vs 0.6737 |
+
+## 37 · Recommended next step
+
+**Two items, in this order.**
+
+1. **A successor register with the corrected code set, and the gate read in a separate pass.**
+   Code 35 belongs with the package group on its measured behaviour; the fix is one constant. The
+   successor must (a) commit the corrected set **before** any outcome is recomputed, (b) run C2 and
+   **read it** before the outcome statistics exist, and (c) inherit this session's numbers as a
+   disclosed prior. It is cheap — the extract is cached, so a full re-analysis is about 90 seconds.
+   Expect it to land between the two arms measured here, i.e. **near but probably under the 1.00pp
+   bar**, which is why it needs a register rather than a re-run.
+
+2. **The genuinely valuable data item: pull tick flow for EXIT days and D+1.** Everything unresolved
+   here is unresolved for the same reason — the cache has only alert-days. D+1 makes the **live**
+   order-working question answerable for the first time; exit days make the **second half of the
+   round trip** measurable, which is where the cost model is currently pure assumption. O14's lane
+   has the cost model for this: roughly the same again as the first pull.
+
+**Not recommended: acting on ρ = 0.67 to lower the cost line.** It is measured on the liquid 72% of
+the book, covers one leg of two, and carries no verdict. That is three reasons, any one of which is
+enough.
+
+
+## 38 · `O3` + `O4` + `O5` — the surface-anomaly family. **ALL THREE NULL — and the headline is that the prior lane's one suggestive result REVERSES ITS SIGN when the instrument is fixed.**
+
+**One register, three arms, committed ALONE at `d2aa5f9`** — one `.md`, zero `.py`, a strict git
+ancestor of every measurement commit. Frozen book, no re-mine, **no live code path changed, nothing
+adopted.**
+
+### 38.1 · The scope fact that comes first: these were already tested once, and rejected
+
+**This is not a fresh question and it is charged as a second look.** `64955ef` (now on `main`)
+shipped `valuation/edge/options_xsection.py` and tested **all three characteristics with the
+published sign declared before any sort**, returning **REJECT — nothing clears the gate, one
+characteristic sorts backwards**. `HANDOFF_free_analysis.md` audited that run and concluded O3, O4
+and O5 *"should be considered answered by that same run, not re-opened separately."*
+
+**The sole justification for re-opening is a deviation that lane declared in its own write-up and
+never closed:** it used a **straddle**, which is delta-neutral **only at inception**. It accumulates
+directional exposure immediately, so its return variance is dominated by the underlying's move —
+exactly the variance Cao–Han's daily-rebalanced hedge removes. **This register changes the
+INSTRUMENT and nothing else that can be held fixed:** A1 reuses that lane's own `idio_vol` values
+and the panel's own strike and expiry, so it differs from the published rejection **in the
+instrument alone**.
+
+**The power argument held, and it is the reason the re-run was worth its trials.** Delta-hedged
+return dispersion is **sd 0.0303 against the straddle's 0.9055 on the identical events — a 30-fold
+reduction** (E6, predicted at 80/20, right by a wide margin). Every arm's |t| rose against its
+straddle counterpart (E2, 75/25, right on all four comparisons).
+
+### 38.2 · A second scope fact, measured: the frozen chains named in the task cannot do this
+
+The task named the frozen chains as the instrument. **They cannot support a cross-section, and this
+was measured before the register was written.** The freeze holds a **full chain only on the banked
+book's ENTRY dates** — median **1** full-chain name per date, maximum 17, and **0 of 2,498 dates and
+0 of 120 month-ends** reach the ~20 names a quintile sort needs. **The substitution is therefore
+forced and is disclosed in §1 of the register rather than quietly made:** the panel is the prior
+lane's EOD-chain panel, and the freeze is used for nothing here.
+
+### 38.3 · The three arms
+
+Panel: **3,373 formation events, 3,323 priceable** (refusals: 43 unpriceable, 7 no-life), **117
+formation dates, median 25 names per date** — the register's own void condition (fewer than 50 dates
+or fewer than 15 names/date) **did not fire**. Bars are each arm's **own within-date label
+permutation p95**, never the conventional 2.0.
+
+| arm | n | monotonicity (bar 0.6) | LS mean | LS t | own p95 | verdict |
+|---|---|---|---|---|---|---|
+| **A1 — O3 `idio_vol`** | 3,289 | −0.1717 | +0.006043 | 2.5158 | 2.016 | **NULL** |
+| **A2 — O4 `exp_idio_skew`** | 3,154 | −0.0380 | +0.004795 | 1.9143 | 1.9229 | **NULL** |
+| **A3 — O5 `vol_of_vol`** | 3,318 | −0.0690 | +0.006299 | 2.9703 | 1.9459 | **NULL** |
+
+**EVERY ARM IS NULL ON TWO INDEPENDENT LEGS, WHICH IS WHY NOTHING TURNS ON ANY SINGLE BAR.**
+Monotonicity misses 0.6 by three- to fifteen-fold in **both halves of all three arms**, and the
+both-halves *t* leg fails independently: A1 clears early (2.2884 vs 2.0508) and **fails late**
+(1.1509 vs 2.0122); A3 **fails early** (1.8189 vs 1.8877) and clears late (2.5231 vs 1.9431); A2
+clears early (2.2219 vs 1.9608) and fails late (0.4201 vs 1.9201). **The two arms that clear
+full-sample fail in opposite halves** — session 7's LOO pattern again.
+
+**A2 misses its own bar by 0.0086 of a *t*.** Recorded a **NULL**, not rounded into a pass
+(`RUN_RULES` A6). It is the narrowest miss in the register and it changes nothing, because A2 also
+fails monotonicity in both halves and the late-half *t* by 1.5.
+
+### 38.4 · The finding: the published contradiction does not survive the instrument
+
+**This is the part worth carrying.** On the straddle, `idio_vol` sorted at monotonicity **+0.9 with
+LS mean −0.0770 and t −1.2142** — flagged by that lane's own machinery as
+`contradicts_published_sign`, and the single most suggestive result in its run. **On the
+delta-hedged instrument, the same characteristic on the same panel sorts in the CONFIRMING
+direction: mean +0.006043, t +2.5158.**
+
+**Both readings are now unquotable as settled.** The confirming ordering here is far too weak to
+clear the bar, so **O3 is NULL** — but the prior **CONTRADICTS** reading is an artefact of an
+instrument that lets the underlying's move dominate, and **should not be quoted as a finding
+either**. E3 predicted the contradiction would repeat, at 60/40, and was **wrong**.
+
+**Mechanism worth carrying:** `idio_vol` is within-date rank-correlated **+0.8444** with the
+option's own ATM implied vol, so A1 is close to a **pure implied-vol sort** — high idio-vol means
+expensive option, which is Cao–Han's own premise.
+
+**The instrument behaves as the literature says it should, which is corroboration it is real rather
+than a bug:** mean delta-hedged gain **−0.0072**, and **every quintile of every arm is negative** —
+the volatility risk premium stylised fact, reproduced without being targeted.
+
+### 38.5 · A diagnostic run after the arms were read, labelled as such, carrying no verdict
+
+**The three arms share a shape the register did not anticipate: Q5 is the WORST bucket in all three,
+while Q1–Q4 are unordered.** That is precisely how a significant long-short coexists with near-zero
+monotonicity. **Both obvious explanations are REFUTED, and refuting them is the useful part:**
+
+* **Not one effect wearing three names.** `idio_vol` and `vol_of_vol` are **negatively**
+  rank-correlated within date (**−0.2920**) and share only **14.0%** of their Q5 membership
+  (`idio_vol`/`exp_idio_skew` +0.2201 and 42.8%; `exp_idio_skew`/`vol_of_vol` −0.1373 and 21.9%).
+* **Not an illiquidity artefact.** The liquidity gradient runs in **opposite directions**:
+  `idio_vol`'s Q5 is the **most** liquid corner (mean spread 0.0764 against 0.1063 in Q1), while
+  `vol_of_vol`'s Q5 is the **least** liquid (0.0980 against 0.0809).
+
+**Why three largely independent sorts all put their worst bucket at Q5 is left OPEN and needs its
+own register.** Testing it here would be **the fourth arm the register's own void condition 3
+forbids**, and declining keeps the denominator (session 8's precedent).
+
+### 38.6 · A defect reported outside this lane (`RUN_RULES` rule 3)
+
+**In the prior lane's `panel.pkl`, `illiq` and `spread_pct` are THE SAME COLUMN — identical on all
+3,373 rows.** That lane's `illiq` was **the only characteristic in its published run with |t| > 2
+(2.46)** and is described as a mechanical liquidity control. It is the option's **quoted spread
+percentage under a second name**. Not necessarily a wrong definition — a spread *is* a liquidity
+measure — but the panel carries two names for one column, and a reader of that run would reasonably
+believe two independent things were measured. **Reported, not repaired: not this lane's file.**
+
+### 38.7 · Two defects in my own instrument, both caught before any verdict was read
+
+1. **My first tests asserted a delta-hedged gain of exactly zero while ignoring the financing term
+   `−r(C − ΔS)dt`** that the register's own formula specifies. **The model was right and the tests
+   were wrong** — fixed by isolating hedge mechanics at `rate=0.0` and adding a test that pins the
+   financing term's sign explicitly.
+2. **`score_arm` crashed on the disclosed-comparison arms** (`KeyError: 'idio_skew'`), because it
+   read `PUBLISHED_SIGNS[key]` unconditionally and those arms deliberately carry no published sign.
+   It crashed **after** the three registered arms had printed, so no registered number was affected —
+   **proved, not asserted: all three arms reproduce bit-identically after the repair.** The
+   comparison arms now compute **no verdict at all** rather than defaulting a sign and discarding
+   the answer, which would have left a scored-then-hidden arm in the code.
+
+### 38.8 · Disclosed comparisons — the prior lane's own definitions, on the new instrument
+
+No verdict, zero trial cost. Both are **weaker** than the registered versions:
+
+| comparison | LS t | own p95 | vs the registered arm |
+|---|---|---|---|
+| `prior_lane_realised_skew` | 1.5805 | 1.9749 | A2's **expected** skew is STRONGER (1.9143) |
+| `prior_lane_vol_of_vol_60dte` | 1.1236 | 1.9204 | A3's **tenor-aligned** series is STRONGER (2.9703) |
+
+**E4 was wrong in the informative direction** — it predicted the expected-skew construction would be
+weaker than the realised one, and the construction the literature actually specifies is the stronger
+of the two. **E5 was right**: tenor-aligning vol-of-vol moves it materially, so measuring it at a
+tenor the instrument does not trade **understates it by a factor of 2.6**.
+
+## 39 · What I did NOT do, and why
+
+* **I did not test what drives the shared Q5 pattern.** It is the most interesting thing in the
+  file and it would be **a fourth arm**, which §9.3 of my own register forbids. It needs its own
+  register.
+* **I did not adopt anything, and nothing could have been adopted whatever the result.** §6 fixed
+  that before the numbers existed: a CANDIDATE here would be a candidate for **a future book that
+  does not exist**, never a revival of the options entry signal and never evidence R2 was wrong.
+  All three arms are NULL in any case.
+* **I did not re-open R2.** The entry signal is dead; these are cross-sectional characteristics of
+  the option surface, a different object.
+* **I did not use the frozen chains** the task named, because §38.2 measured that they cannot
+  support a cross-section. The substitution is disclosed, not silent.
+* **I did not re-mine any data.** Frozen book throughout.
+* **I did not edit the prior lane's `panel.pkl` or its results file** despite finding the
+  `illiq`/`spread_pct` collision. Reported to its owner instead.
+
+## 40 · Trial cost
+
+**Options `N` 258 → 261**, one trial per arm, **exactly as §8 pre-committed.** Infra untouched at
+**10** — the counter is domain-scoped.
+
+**Equity `N` is untouched BY THIS ITEM but now reads 161, not the 158 I measured while running it.**
+The `S3` lane landed three equity trials the same day and I merged them before pushing. Recorded
+because it is the reusable lesson rather than a footnote: **an equity figure measured during a
+session is stale the moment another lane lands, so re-read `by_domain` after the merge and quote
+that.** `BACKTEST_RESULTS.json` needs no re-run for this item — the `S3` lane already refreshed it
+at its own denominator.
+
+**Charged in full even though all three hypotheses were rejected once already.** A second look at
+the same hypothesis with a better instrument is **another chance for the same hypothesis to clear**,
+which is exactly what the counter exists to price. Diagnostics (mid-to-mid, 0 bps hedge, the prior
+lane's two definitions, the Q5 correlation work) are charged at **zero**: they search nothing and
+carry no verdict.
+
+**Expectations scored 4 right, 2 wrong.** Right: E1 (no arm reaches CANDIDATE, 70/30), E2
+(delta-hedged |t| larger than the straddle's, 75/25), E5 (tenor alignment material, 50/50), E6
+(dispersion well under half, 80/20 — it is **3.3%**). Wrong: E3 (`idio_vol` sorts against the
+published sign again, 60/40 — it **reversed**), E4 (expected skew weaker than realised, 55/45 — it
+is **stronger**).
+
+## 41 · Recommended next step
+
+1. **Register the Q5 question properly.** Three largely independent — in one pair *negatively*
+   correlated — sorts all place their worst delta-hedged bucket at Q5, and neither the
+   one-effect nor the illiquidity explanation survives measurement. That is the only live thread
+   here, and it must be a fresh register with its own bar, not an arm bolted onto this one.
+2. **Fix the prior lane's `illiq`/`spread_pct` collision** before anything else cites that run's
+   2.46. Owner: the options-xsection lane.
+3. **Not recommended: quoting any arm here as a positive.** All three are NULL on two independent
+   legs each. The one durable result is negative-going and belongs in the record as such — **the
+   straddle-based CONTRADICTS reading for `idio_vol` does not survive a properly delta-hedged
+   instrument**, so that prior finding should stop being quoted too.
+
+
+## 42 · `O6` + `O7` + `O17` — the earnings-and-surface-selection family. **ALL TEN ARMS NULL — and the two that came closest each failed on exactly ONE pre-committed leg.**
+
+**One register, three items, ten arms, `PREREG_o6_o7_o17_earnings_surface.md` committed ALONE at
+`779d42c`** — one `.md`, zero `.py`, a strict ancestor of every measurement commit. Frozen book,
+no re-mine, **no live code path changed, nothing adopted.**
+
+### 42.1 · The ledger was wrong about two of these three rows
+
+`VALQUO_LEDGER.md` marked **O6** `src=auto` — *"prose mentions only, no section, no commit"* — and
+**O17** `src=auto` — *"no mention anywhere in the corpus"*. **Both false.**
+`VALQUO_EDGE_AUDIT.md:964` and `:1150` are full sections naming four rules each. **So every
+definition here is QUOTED from the audit rather than invented, which is the opposite of what
+`src=auto` would have licensed.** Both ledger notes are corrected in place.
+
+### 42.2 · The scope fact that governs O7 and O17: coverage is systematic, not thin
+
+`bulk.py` warns that EVENTS code 22 gives *"~2.83 times per ticker per year"* against a full
+calendar's ~4. **On this book's 186 megacaps that is wrong in the reassuring direction: median
+3.96, mean 4.14, and only 0.3% of entries show an entry-to-next gap over 120 days.** The 2.83 is a
+repo-wide average over 17,779 mostly thin tickers.
+
+**The real hole is a systematic exclusion. 29 of 186 names have ZERO earnings dates — 388 trades,
+10.0% of the book — and every one is a foreign private issuer** (ASML, AZN, BABA, BHP, the Canadian
+banks, SHEL, TM, TSM, TTE, UL …) filing 20-F/6-K rather than 8-K. **A filter reading "no date" as
+"no announcement" fails open on a systematically non-random, disproportionately non-US tenth of the
+book** — the exact failure mode this lane declined to ship once already
+(`EarningsCalendar.unknown_means_safe`, §1526).
+
+**Enforced in code rather than intended:** `refuse_within` and `owns_the_event` return **`None` for
+UNKNOWN**, `partition` returns the unknown bucket separately so a caller cannot fold it into either
+side, and four tests fail if `None` ever collapses to `False`. The unknown count in every O17 arm
+is **zero by construction**, because those names are dropped rather than defaulted.
+
+### 42.3 · O6 — all four NULL, and the strongest number in the item is the CONTROL
+
+Entry date, expiry and holding period held fixed; **only the strike changes**; the incumbent is
+re-priced under the identical matched-horizon rule. 3,851 events against a 2,000 void floor.
+
+| arm | gain/trade vs incumbent | own random-alternative p95 | verdict |
+|---|---|---|---|
+| **A1** lowest IV within ±0.05 delta | **+0.074pp** | −11.31pp | **NULL** |
+| **A2** lowest IV vs own trailing IV rank | **−3.505pp** | −11.39pp | **NULL** |
+| **A3** lowest IV vs the fitted smile | **−11.099pp** | −11.24pp | **NULL** |
+| **A4** highest vega per unit spread | **+0.464pp** | −11.39pp | **NULL** |
+
+**THE RANDOM-ALTERNATIVE p95 SITS AT ABOUT −11.3pp, AND THAT IS THE RESULT WORTH KEEPING.**
+Switching to an arbitrary in-band contract costs roughly **eleven percentage points per trade**, so
+**the mechanical 35-delta rule the audit proposed replacing is already far better than arbitrary
+selection.** That is evidence *for* the incumbent, and it was not what the register expected.
+
+**A3 is the audit's own headline suggestion — the ORATS "smoothed market value" idea — and it is
+the WORST arm in the register at −11.1pp/trade.**
+
+**A4 is the near miss and fails on ONE leg only:** positive in **both** halves (+0.534pp early,
++0.401pp late) and clearing its own p95 in both — **NULL solely because tail concentration RISES**
+(0.041→0.042 early, 0.034→0.043 late) against the audit's own no-increase clause.
+
+**THE MECHANISM, and it invalidates the audit's framing** (diagnostic, no verdict, zero trials):
+**the cheapness rules do not hold the trade fixed and improve its price — they change the DELTA.**
+Mean |delta gap| against the incumbent: **A1 0.004, A2 0.248, A3 0.310, A4 0.125**, with A3
+drifting 0.374 → **0.458** — deeper in the money and materially more directional. So A3's −11.1pp
+is an **exposure** effect wearing a cheapness rule's name. The audit argues this *"cleanly separates
+which name from which contract"*; on this candidate set **it does not**.
+
+**A corollary that limits A1, stated because it is the arm most likely to be misread:** a delta gap
+of **0.004** means the ±0.05 band pins A1 to essentially the incumbent contract. **Its near-zero
+gain is close to tautological and is NOT evidence that cheapness is uninformative.**
+
+**PORTABILITY — the pre-registered random-entry control arm, no verdict, zero trials, and the most
+useful thing in the item.** The identical four rules on the five-seed random-entry control book
+(5,984 events) reproduce the same ordering and nearly the same magnitudes: **+0.057, −4.140,
+−9.382, +0.310pp.** So this is a property of **contract selection generally**, not of the dead
+alert days — and it therefore carries to any future book.
+
+### 42.4 · O7 — the diagnostic contradicts the published sign, and the backtest is dead
+
+**Coverage 0.4459** (6,013 of 13,484 events), which **clears its own pre-committed 0.40 floor**, so
+B2 is *not* coverage-bound and carries a verdict.
+
+* **B1 — RICH, contradicting Gao–Xing–Zhang.** Mean implied move **5.4512%** against a mean
+  realised move **4.7773%**; difference **−0.6739pp**, month-block CI95 **[−0.8475, −0.5070]**
+  excluding zero, and realised exceeds implied on only **35.07%** of events. **On this megacap
+  universe earnings options are RICH, not cheap.** Stated as universe-specific rather than as a
+  refutation: their sample is far broader and their own conditioners say the effect is strongest in
+  **smaller** firms, of which this book has none.
+* **B2 — REJECTED decisively.** **−10.340%** per straddle net of four crossings, median −25.468%,
+  only **31.73%** positive, **negative in both halves** (−11.435%, −9.335%) with both CI95
+  excluding zero. The audit predicted the spread would be brutal; it is — the gross event edge is
+  under a percentage point and a straddle crosses the spread four times.
+* **A DEVIATION STATED PLAINLY:** the register specified a non-announcement-date permutation null
+  for B2 and **it was not computed**, because B2 fails the *positivity* leg of its own conjunction
+  in both halves and no null could change the verdict. Reported as a deviation rather than left to
+  look like a control that ran.
+
+### 42.5 · THREE DEFECTS IN MY OWN INSTRUMENT — the first is the U1-SPLIT defect class recurring
+
+**All three were found by disbelieving a number, not by a test failing**, and all were fixed before
+any verdict was read.
+
+1. **THE SPLIT DEFECT, and it is the serious one.** Option chains are as-traded and unadjusted;
+   the bars cache's `close` is split- and dividend-**adjusted** — **NVDA in 2012 reads 0.27 against
+   a raw 11.97, a 43× ratio.** Matching an as-traded strike against an adjusted spot picks a
+   contract nowhere near the money, and it fails **silently**: the straddle still prices, it is
+   simply mostly intrinsic. **Measured against the book's own `underlying_entry` over 1,173 banked
+   entries: `raw_close` agrees EXACTLY (median relative error 0.00000, nothing over 5% off) while
+   the adjusted `close` is off by a median 10.3% and by more than 5% on 67% of entries.**
+   **The first cut reported a mean implied move of 19.57% against a realised 5.26% and a confident
+   RICH verdict — an ARTEFACT**, with 2.82% of events sitting more than 20% from the money and up
+   to 30× off. Repaired to **`raw_close` for anything touching a STRIKE and adjusted `close` only
+   for a RETURN** (an adjusted series cannot manufacture a move when a split lands inside the
+   window). **Coverage rose 0.2738 → 0.4459 and the implied move fell to a credible 5.45%.**
+   It also corrupted the **O6 control arm** and the **O6b IV-rank history** — though **not** the O6
+   alert arm, which used the book's own spot throughout. A control that must stay empty now records
+   any raw close disagreeing with the book's spot and **reads ZERO**; three tests pin the
+   distinction.
+2. **The expiry rule priced the wrong thing.** The first cut took the nearest expiry with DTE ≥ 7,
+   which prices the move **to expiry** — often 30+ days — against a realised move measured over
+   ~4 days. Repaired to the first expiry strictly **after** the announcement and no more than 45
+   days out.
+3. **A copy-paste:** B2's confidence interval was the *diagnostic's* bootstrap, so two different
+   quantities reported bit-identical intervals.
+
+### 42.6 · O17 — all four NULL, and C4 fails on the retention floor ALONE
+
+3,482 usable trades after excluding the 388 foreign-issuer trades. Null = removing a **random**
+subset of the same size, because a filter that removes trades changes expectancy mechanically.
+
+| arm | gain/trade | own null p95 | retention | verdict |
+|---|---|---|---|---|
+| **C1** avoid ≤5d before | +0.797pp | +0.956pp | 0.8745 | **NULL** |
+| **C2** avoid ≤10d | −0.479pp | +1.199pp | 0.8202 | **NULL** |
+| **C3** avoid ≤15d | −1.429pp | +1.485pp | 0.7588 | **NULL** |
+| **C4** own the event | **+4.686pp** | +2.208pp | **0.5706** | **NULL** |
+
+**AVOIDING THE EVENT GETS MONOTONICALLY WORSE AS THE WINDOW WIDENS** (+0.797 → −0.479 → −1.429pp),
+and none clears its own null. **The loser autopsy's IV-crush hypothesis is not merely unsupported —
+the data points the other way.**
+
+**C4 IS THE HEADLINE AND IT FAILS ON EXACTLY ONE PRE-COMMITTED LEG.** Gain **+4.686pp/trade**,
+**positive in BOTH halves** (+5.748pp early, +3.730pp late), **clearing its own calibrated null in
+BOTH** (+3.241pp, +2.941pp) — **NULL solely because retention is 0.5706 against the 70% floor**,
+refusing 43% of the book. **That floor was fixed before any number existed and for a stated
+reason** — a filter achieving its number by refusing almost everything is a *different product*,
+not the one-line rule the audit describes. **The verdict stands and the reason is reported; the
+floor is not relaxed to fit the result.**
+
+**THE CONFOUND I EXPECTED TO KILL C4 IS REFUTED BY MEASUREMENT, and that is the diagnostic worth
+carrying.** Owning the event necessarily selects **longer-dated** contracts, and O13 already
+measured that alert expectancy climbs monotonically with tenor — so C4 could have been a **DTE
+filter wearing an earnings filter's name**, the failure mode U7 and S10 both recorded. **It is
+not.** The tenor difference is small (mean DTE **60.0** kept vs **56.4** refused), and re-scoring
+C4 **within** DTE quartiles leaves the gain positive in **every** bucket: **+6.416, +6.310, +2.138,
++2.711pp**. Tenor itself is strong and independently reconfirms O13 — unfiltered expectancy by DTE
+quartile runs **+0.376, −0.877, +6.736, +8.584pp** — but **C4 is not that effect**.
+
+**THE `term_slope` INTERACTION THE AUDIT REQUIRED** (reported, no verdict): the refused share under
+the 5-day rule falls from **28.9%** in the bottom `term_slope` tercile to **1.7%** in the top, so
+the filter and `term_slope` overlap substantially in *which* trades they touch; in the top tercile
+the refused trades actually **outperform** (+13.976% against a kept +9.316%).
+
+## 43 · What I did NOT do, and why
+
+* **I did not relax the 70% retention floor to let C4 through.** It is the one arm that cleared
+  every statistical leg, and moving a pre-committed threshold after seeing which arm it blocks is
+  the precise thing pre-registration exists to prevent.
+* **I did not compute O7-B2's registered non-announcement null**, because the arm fails positivity
+  in both halves and the conjunction cannot be rescued. Declared as a deviation.
+* **I did not adopt anything.** `pick_contract`, `DEFAULT_AGGRESSION` and every cost constant are
+  untouched, and the register fixed that before any number existed.
+* **I did not re-open R2.** A CANDIDATE here would have been a candidate for a **future** book that
+  does not exist; nothing here is evidence the alert entry works.
+* **I did not treat a missing earnings date as "no announcement" anywhere**, and I did not include
+  the 29 zero-coverage names in any O7 or O17 arm.
+* **I did not repair `bulk.py`'s stale ~2.83 caveat** — it is accurate repo-wide and wrong only for
+  this universe. Reported here instead.
+
+## 44 · Trial cost
+
+**Options `N` 261 → 271** — 4 (O6a–d) + 2 (O7 B1, B2) + 4 (O17 C1–C4), **exactly as §7
+pre-committed.** The counter is domain-scoped, so **equity and infra are untouched BY THIS ITEM**.
+
+**Their LEVELS are not what I measured mid-session, and that is the point: after merging `main`
+they read equity 176 and infra 11, against the 161 and 10 in front of me while the arms ran.**
+Other lanes landed 15 equity trials and one infra trial the same day. **This is the second session
+running that a mid-session equity figure went stale before the push — re-read `by_domain` after
+the merge and quote that, never the number the session measured.**
+`BACKTEST_RESULTS.json` needs no re-run.
+
+Charged at **zero**: the random-entry control arm, the `term_slope` decomposition, the tenor and
+delta-drift diagnostics, and every C-control — none carries a verdict or can produce a claim.
+
+**Expectations scored 6 right, 1 wrong.** Right: E1 (no O6 arm reaches CANDIDATE), E3 (B1 reads
+RICH against the published sign), E4 (B2 negative net of four crossings), E5 (no O17 arm reaches
+CANDIDATE), E6 (C4 beats C1–C3 in point estimate — by a wide margin), E7 (the `term_slope`
+interaction is material). **Wrong: E2**, which predicted a raw O6 improvement killed by the null —
+instructive, because the null sits far *below* zero and both positive arms clear it easily; what
+kills A4 is the **tail clause**, not the null.
+
+## 45 · Recommended next step
+
+1. **C4 deserves its own register as a CONSTRUCTION rule, not a filter.** It is the only arm in
+   three sessions to clear both halves and its calibrated null, its tenor confound is measured and
+   refuted, and it fails only a threshold written for a different kind of rule. A register that
+   treats "expiry must span the next announcement" as a **contract-selection constraint** — where
+   refusing 43% of candidate days is normal rather than disqualifying — is the honest way to ask
+   the question. It inherits this session's numbers as a disclosed prior.
+2. **Re-check every other options result that used the bars cache for spot.** The split defect was
+   silent, and this lane found it only because an implied move of 19.6% was too large to believe.
+   Anything matching an as-traded strike against `close` rather than `raw_close` is suspect.
+3. **Not recommended: any cheapest-on-surface variant.** Three of four rules lose money, the worst
+   is the audit's own headline suggestion, and the diagnostic shows why — on this candidate set a
+   cheapness criterion cannot change the contract without changing the delta.
+
+
+## 46 · `O11` + `O19` + `O22` + `O25` — the portfolio-and-capacity batch. **A BOOK WITH POSITIVE PER-TRADE EXPECTANCY LOSES MONEY AT REALISTIC SIZING, AND THE REASON IS MEASURED.**
+
+**One register, four items, nine arms, `PREREG_o11_o19_o22_o25_portfolio.md` committed ALONE at
+`1203a85`** — one `.md`, zero `.py`. Frozen book, no re-mine, **no live code path changed, nothing
+adopted.**
+
+### 46.1 · THE O-SERIES — what this does and does not close
+
+**Counted from the ledger after this batch: 25 of 26 O-rows are `DONE`. `O14` is the only one
+left, and it is not closed by this work.** Its collection is complete and its first analysis
+landed (O10/O18 used the tick cache for execution cost), but the **put/call ratio and
+unusual-volume studies the cache was justified by remain untested.**
+
+**So the accurate sentence — fixed in the register's §0.2 before any result existed, so it could
+not be inflated afterwards — is: this batch closes the last four OPEN audit HYPOTHESIS rows in the
+O-series, leaving `O14` open as a data-collection row whose justifying analyses are still undone.**
+It is **not** "the O-series is closed", and the difference is one real piece of unfinished work.
+
+### 46.2 · The ledger was wrong about ALL FOUR rows — the third session running
+
+Every one was `src=auto` / *"no mention anywhere in the corpus"*. **All four false**:
+`VALQUO_EDGE_AUDIT.md:1066`, `:1985`, `:2023`, `:2061` are full sections specifying methods.
+Session 29 hit this on O6 and O17, session 30 corrected both, and this session found four more.
+**That note is not evidence of absence and should stop being read as one.** All four corrected.
+
+### 46.3 · The execution order was a MECHANISM, and it was demonstrated before it was needed
+
+The register fixed that **O19 runs first, in its own pass**, and that the O11 stage **refuses** to
+run without O19's artifact, reads its verdict and embeds it. **This was proved by invoking the main
+stage with the artifact absent and getting the refusal**, before O19 had ever been run.
+
+This is the direct repair of **session 26's own process defect**, where O10's gating control `C2`
+and its outcome statistics were computed in one pass, so it could not be claimed the control was
+read first. **The order is load-bearing, not ceremony: O11 sizes in WHOLE CONTRACTS and therefore
+inherits whatever O19 finds about whole-contract arithmetic.**
+
+### 46.4 · O19 — NOT-AN-ARTEFACT, and the audit's premise is largely absent here
+
+| weighting | expectancy |
+|---|---|
+| equal-weighted (current) | **+3.270%** |
+| contract-weighted | **+3.407%** |
+| dollar-weighted | **+3.141%** |
+
+Same sign, **0.27pp apart**. Premium floors move it trivially: **$1.00 keeps 84.8% of trades and
+moves expectancy −0.103pp; $2.00 keeps 60.3% and moves it +0.107pp** — an order of magnitude inside
+the 2.00pp bar.
+
+**WHY THE AUDIT'S PREMISE DOES NOT BITE, and it is worth recording rather than just passing:** the
+median position is **three contracts, not twenty**, because the median entry premium is **$2.57**.
+The twenty-contract penny-option case the audit describes is **rare in a megacap book** — the
+mechanism is real, the exposure is small.
+
+### 46.5 · O11 — THREE OF FOUR CELLS UNSURVIVABLE, THE FOURTH MARGINAL, NONE SURVIVABLE
+
+All 3,870 trades acquired a mark path from the freeze, so the void floor did not fire.
+
+| cell | taken | max drawdown (full / early / late) | total return | verdict |
+|---|---|---|---|---|
+| $50k, conc 10 | 1,842 | **0.6710** / 0.5085 / 0.5129 | **−25.9%** | **UNSURVIVABLE** |
+| $50k, conc 50 | 3,515 | **0.7769** / 0.6158 / 0.6671 | +52.6% | **UNSURVIVABLE** |
+| $250k, conc 10 | 1,902 | 0.3589 / 0.3143 / 0.2820 | +25.9% | **MARGINAL** |
+| $250k, conc 50 | 3,852 | **0.5842** / 0.3782 / 0.6419 | +103.5% | **UNSURVIVABLE** |
+
+**THE HEADLINE IS THE FIRST ROW AND IT CONFIRMS THE AUDIT'S OWN HYPOTHESIS EXACTLY: a book with
+POSITIVE per-trade expectancy of +3.27% LOSES MONEY at $50,000 with a concurrency cap of 10**,
+finishing at **$37,059** from $50,000 after a **67% drawdown**. *Per-trade expectancy and
+survivability are different questions, and this project had only ever measured the first.*
+
+**THE MECHANISM IS MEASURED, NOT ASSERTED — and it is the audit's own third possibility.** Alerts
+**cluster**, and the book's entire edge lives in the crowded weeks:
+
+* over **483 weeks**, median **7** alerts, max **38**;
+* expectancy in quiet weeks (≤ median): **−4.51%**;
+* expectancy in weeks above the 90th percentile: **+14.28%**;
+* **51.5%** of all trades fall in weeks of more than 10 alerts.
+
+**A concurrency cap therefore refuses trades exactly when the opportunity is richest** — 1,677 of
+3,870 skipped on concurrency at cap 10 — which is why the constrained small-capital book is not
+merely more volatile but **outright loss-making**.
+
+**Two disclosures.** `MAX_CONCURRENT` is a module constant in `options_vrp`, not a parameter of
+`simulate_book`, so each cell sets it and the original is restored in a `finally`.
+`MAX_CONTRACTS_PER_SPREAD = 10` also binds.
+
+**The long-leg mapping is the place a sign error would have hidden**, so it is a named function
+with six tests: the layer marks `(credit_ps − mark)`, the P&L of something *sold*, so a long call
+maps by `credit_ps = −debit` with every mark negated, making the layer's own expression
+`mark − debit` exactly. **A sign error there would not raise — it would print the equity curve
+upside down.**
+
+### 46.6 · O22 — capacity ≈ $76.6M on the registered measure, and the measure is a STOCK
+
+Median ATM open-interest notional **$14,986,450**; gross edge **327.0 bps/trade**. Capacity
+**$121.6M / $76.6M / $48.3M** at λ = 0.5 / **1.0** / 2.0. At the headline the median position is
+**10.2%** of the contract's ATM open interest, with **78.4%** of positions above 5%.
+
+**THIS NUMBER MAY NOT BE COMPARED WITH P1's EQUITY $23M, AND THE REASON IS MEASURED RATHER THAN
+ASSERTED: OPEN INTEREST IS A STOCK; P1's ADV IS A FLOW.** On 3,665 matched entry-day quotes the
+traded contract's daily volume is a median **0.1326** of its open interest — **179 contracts traded
+against 1,373 outstanding** — so an OI-based capacity **overstates a flow-based one by ~7.5×**,
+putting the flow-equivalent figure near **$10M**.
+
+**The registered headline STANDS as measured.** Swapping the depth measure after reading the number
+is exactly what §8.2 forbids; the correction is reported beside it. Three caveats travel with every
+figure: **upper bound** (depth from mined names, and mining selected on liquidity), **λ is an
+assumption**, and **mechanical rather than a recommendation** — R2 shows this book's entry loses to
+random entry, so this answers *how much it could hold*, never *how much should be deployed*.
+
+### 46.7 · O25 — NULL on both arms, and not marginally: the wing is reliably WORSE
+
+| arm | n | wing | vs CLOSING | vs HOLDING | verdict |
+|---|---|---|---|---|---|
+| +75% | 1,332 | +0.9928 | **−9.34pp** [−0.1237, −0.0639] | **−9.69pp** [−0.1114, −0.0836] | **NULL** |
+| +100% | 1,082 | +1.2656 | **−13.03pp** [−0.1450, −0.1155] | **−7.76pp** [−0.0857, −0.0699] | **NULL** |
+
+**Negative in both halves against both comparators, every interval excluding zero.** That is
+stronger than a NULL: the wing does not merely fail a bar, it **reliably costs expectancy**.
+
+**THE AUDIT'S OWN PREDICTION IS CONFIRMED ON BOTH LEGS** — reported without a verdict, as
+registered. At +75%: standard deviation falls **0.823 → 0.707** and the share of outcomes above
++100% falls **74.2% → 56.6%**. At +100%: sd 0.648 → 0.635, tail 91.3% → 77.6%. **Whether that trade
+is worth making depends on O12**, which found no fraction is a recommendation for real money on a
+distribution R2 has already shown is worse than random entry.
+
+**A free by-product, no verdict** (it is the path study's territory): closing at the crossing and
+holding to the banked exit are near-identical at +75% (+1.0862 vs +1.0897), but **at +100% CLOSING
+BEATS HOLDING by 5.3pp** (+1.3959 vs +1.3431).
+
+### 46.8 · The split-adjusted-spot guard, built in as instructed
+
+Session 30 found the U1-SPLIT defect class recurring in its own instrument. **`assert_raw_spot` is
+now a shared guard in `portfolio_capacity` that RAISES rather than warns**, is called before any
+instrument here touches a price, and **also raises when it can check nothing** — a guard with an
+empty overlap that reports success is the same failure in a new costume. **It read 3,870 entries at
+a median relative error of exactly 0.00e+00.** Six tests pin it, including one that fails if it is
+downgraded to a return flag, and the register makes downgrading it a void condition.
+
+## 47 · What I did NOT do, and why
+
+* **I did not claim the O-series is closed.** `O14` remains open; §46.1 states exactly what is and
+  is not finished, and the register fixed that wording before any result existed.
+* **I did not swap O22's depth measure after seeing the capacity number**, even though open
+  interest is the wrong kind of quantity for P1's method. The registered headline stands and the
+  7.5× correction is reported next to it.
+* **I did not re-implement the portfolio layer** — the shipped `simulate_book` is imported, so this
+  is the arithmetic the VRP arm was judged by.
+* **I did not sweep a grid on O11.** Four cells were named in advance; the in-search-to-holdout
+  collapse is already paid for once.
+* **I did not adopt anything.** `RISK_PER_TRADE`, `DEFAULT_AGGRESSION`, `pick_contract` and every
+  exit constant are untouched, and pinned by test.
+* **I did not treat O11's result as a verdict on the strategy.** R2 already killed the entry; this
+  is a construction finding on a book whose entry is dead.
+
+## 48 · Trial cost
+
+**Options `N` 271 → 280** — 2 (O19) + 4 (O11) + 1 (O22) + 2 (O25), **exactly as §7
+pre-committed.** Equity and infra are untouched **by this item**; **after merging they read equity
+180 and infra 11.**
+
+**THIS IS THE THIRD CONSECUTIVE SESSION IN WHICH A MID-SESSION EQUITY FIGURE WENT STALE BEFORE THE
+PUSH** — 158→161, 161→176, and now 176→180, each time because another lane landed while this one
+ran. It is no longer worth patching quietly. **The rule for this lane: an equity or infra `N`
+measured while your arms run is a DRAFT. Re-read `research_log.detail()["by_domain"]` after the
+merge and quote that.** Only the domain you charged is yours to state from memory.
+
+Charged **zero**: the λ band, O25's risk-side statistics, the alert-clustering diagnostic, the
+volume-over-open-interest diagnostic and every control.
+
+**Expectations scored 4 right, 2 wrong, 2 split.** Right: E1, E3, E6, E8. Wrong: **E2** (a $1.00
+floor was predicted to raise expectancy; it lowered it by 0.103pp) and **E5** (capacity predicted
+under $10M; it is $76.6M on the registered measure, though the flow-adjusted figure lands near the
+predicted value — scored against the registered definition, not the flattering one). Split: **E4**
+($50k/conc50 is worst by drawdown but $50k/conc10 is worst by return) and **E7** (sd falls on both
+arms, but share-positive rises only at +75%).
+
+## 49 · Recommended next step
+
+1. **`O14`'s justifying studies are the only O-row left.** The put/call ratio and unusual-volume
+   analyses are what the 4.72GB tick cache was collected for, and until they run the cache's
+   justification is unpaid. That is the honest last item in this series.
+2. **O11's clustering result deserves its own register.** That the edge lives in crowded weeks
+   (+14.28% vs −4.51%) is a property of the *alert generator*, not of sizing, and it was found as
+   a diagnostic here. It bears on any future book that has to allocate under a cap.
+3. **Not recommended: deploying capital against O22's number.** It is mechanical, it is an upper
+   bound, its depth measure is a stock, and R2 says the entry loses to random entry. Four
+   independent reasons, any one sufficient.
+
+
+## 50 · `O14` — the tick-flow signal studies. **ALL FIVE NULL — AND THE O-SERIES IS CLOSED: 26 OF 26.**
+
+**One register, five arms, `PREREG_o14_tickflow_signals.md` committed ALONE at `ea48f6b`** — one
+`.md`, zero `.py`. Frozen book, no re-mine, **no live code path changed, nothing adopted.**
+
+### 50.1 · THE SENTENCE, AND IT IS NOW LICENSED
+
+**The `O14` ledger row is `DONE`. Counted from the ledger: 26 of 26 O-rows are `DONE`, none
+open. Every options idea in the catalogue has been tested.**
+
+The register's own void condition 6 forbade saying this before the row actually flipped, and the
+three previous sessions each had to qualify it. It flipped in this commit, so the sentence stands
+without qualification for the first time.
+
+**These were the studies the 4.72GB alert-day tick cache was collected FOR.** The cache's
+justification is now paid: the collection landed 2026-08-11, O10/O18 used it for execution cost,
+and the put/call-ratio and unusual-volume studies it was actually justified by are these.
+
+### 50.2 · The one ledger row a human wrote is the one that was right
+
+Six rows in this series carried `src=auto` notes claiming no audit section existed — `O6`, `O17`,
+`O11`, `O19`, `O22`, `O25` — **and all six were wrong.** `O14`'s row is `src=human`, and it named
+precisely the gap this register closes: *"the put/call and unusual-volume studies this cache was
+justified by are still not done."* **Correct in every particular.** That is the strongest argument
+yet for reading `src=auto` as a lead and never as a fact.
+
+### 50.3 · No sign could be declared, so every arm is two-sided
+
+This is the only register in the options programme that **cannot** declare a published sign, and
+the reason is the audit's own literature note. Pan–Poteshman (2006) found buyer-initiated put-call
+ratios predict returns — **on proprietary data with participant identification**. Bryzgalova et al.
+(2023) found retail is **over 60% of options volume and loses money**, making signed retail flow a
+**fade** candidate. **Public tick data cannot separate the two populations.**
+
+So the same feature is predicted to point one way if the flow is institutional and the other if it
+is retail. **Every arm is therefore tested two-sided on |t|, which costs power, and that is
+accepted as the honest price** — not as licence to read whichever tail is larger. **A
+sign-agreement clause between halves does the work a declared sign would otherwise do**: without
+it, an arm strongly positive in one half and strongly negative in the other clears twice on |t|
+while carrying no usable information.
+
+### 50.4 · A daily cross-section is impossible, so the sort is monthly
+
+Measured before the register: **per date median 2 names, max 17, and ZERO dates reach the ~20 a
+quintile sort needs.** Per month median 31, with **89 of 118 months reaching 20**. A forced choice,
+disclosed rather than discovered later — the same structural fact that redirected O3/O4/O5 and O25.
+
+### 50.5 · Results — all five NULL
+
+3,863 rows over 118 months. Long-short is Q1 − Q5; the bar is each arm's **own** within-month
+label-permutation p95 of |t|.
+
+| arm | LS mean | \|t\| | own p95 | perm p (2-sided) | BH | verdict |
+|---|---|---|---|---|---|---|
+| `signed_volume` | +0.0324 | 0.658 | 1.960 | 0.479 | no | **NULL** |
+| `pc_flow_imbalance` | −0.0106 | 0.256 | 1.963 | 0.818 | no | **NULL** |
+| `sweep_share` | **−0.1390** | **3.061** | 1.952 | **0.00249** | **YES** | **NULL** |
+| `block_share` | −0.0212 | 0.437 | 1.946 | 0.626 | no | **NULL** |
+| `unusual_volume` | +0.0771 | 1.511 | 2.003 | 0.175 | no | **NULL** |
+
+### 50.6 · `sweep_share` is the closest this programme has come to a discovery, and it is still a NULL
+
+It clears its full-sample bar by a wide margin, its two-sided permutation p is **0.00249**, it is
+**the only arm to survive Benjamini–Hochberg**, and its **sign is stable across halves** (−0.1689
+early, −0.1086 late). The negative sign means **high sweep share earns MORE** — the
+**institutional-follow** direction rather than the retail-fade one, which is informative precisely
+because the audit said the sign could not be predicted in advance.
+
+**It is NULL because the late half misses its own bar: |t| 1.7741 against 1.9357**, while the early
+half clears at 2.6443 against 2.1740. **This is not a bar artefact — the late half's bar is the
+LOWER of the two.** The both-halves rule was fixed before any number existed, and it is the only
+thing standing between this and a reported discovery. **That is what pre-registration is for.**
+
+**Two caveats travel with it, both pre-registered rather than added afterwards:**
+
+1. **It is measured across the WHOLE CHAIN on the alert day, not on a tradeable instrument**, and
+   carries no execution model. §4 of the register names this as the most likely misreading.
+2. **It sits on a book whose entry R2 already showed loses to random entry by −5.0640pp.** At best
+   it separates better trades from worse ones *inside a book that should not be traded*.
+
+**The autopsy's record was 0 discoveries in 126 hypotheses, twice. This is 0 in 131.**
+
+### 50.7 · Controls, and one that reproduces an independent measurement exactly
+
+* **Look-ahead:** the banked entry is struck at the alert-day close, so the whole tape precedes it.
+  `entry_premium` against the **traded contract's** last prevailing ask reads a median relative
+  error of **0.0233 over 3,827 rows** — **the same 0.0233 session 26 measured with a different
+  implementation.** Two sessions, two codebases, one number.
+* **Lee–Ready classified a median 98.54%** of eligible single-leg prints.
+* **7 alert-days unusable**, and the composition matters: **one** is the known `BUD` 2024-01-10
+  feed gap, **six** are days whose eligible single-leg print count fell below the floor. **A file
+  that exists but cannot be used is a different thing from a missing file**, and both are reported.
+
+### 50.8 · Three defects in my own instrument, all caught before any verdict was read
+
+1. **`classify_side` contradicted its own docstring.** Lee–Ready's tick test must compare against
+   the previous **different** price; the first cut carried the immediately preceding one, so every
+   print after the first in a run of identical mid-prints went unclassified. **Caught by the test
+   written to pin exactly that behaviour.**
+2. **The look-ahead control measured the wrong instrument** — the last ask of whatever contract
+   printed last anywhere in the chain, rather than the contract the book bought. It read a
+   meaningless **1.5746**. **A control measuring the wrong thing is worse than no control**, and
+   the corrected version is what reproduces session 26's figure.
+3. **Two pieces of dead code in the runner**, including a no-op p-value loop.
+
+A **4.4× speedup** (2.0s → 0.45s per alert-day) was verified **inert**: all four feature values
+reproduce bit-identically.
+
+## 51 · What I did NOT do, and why
+
+* **I did not promote `sweep_share`.** It fails a pre-registered leg. Moving a both-halves rule
+  after seeing which arm it blocks is the precise thing pre-registration exists to prevent, and
+  this arm is the most tempting one the programme has produced.
+* **I did not declare a sign for any arm**, before or after the fact. §7.3 makes that a void
+  condition, and the two-sided treatment is the whole reason the `sweep_share` result can be
+  quoted at all.
+* **I did not say "26 of 26" until the ledger row flipped** — the register forbade it and three
+  earlier sessions had to qualify the claim.
+* **I did not use a tick feature with a trailing cross-session window.** The cache is alert-days
+  only; `unusual_volume` comes from the EOD chain and that substitution is disclosed.
+* **I did not adopt anything.** No live path, no constant.
+
+## 52 · Trial cost
+
+**Options `N` 280 → 285**, one per arm, **exactly as §6 pre-committed.** Equity and infra untouched
+by this item; after merging they read **equity 185, infra 11** — re-read `by_domain` after the
+merge, never quote a mid-session figure.
+
+**Expectations scored 4 right, 2 wrong.** Right: E1 (no arm reaches CANDIDATE), E2 (at least one
+arm clears its own p95 full-sample — `sweep_share` does), E4 (at least one arm flips sign between
+halves — `block_share` and `pc_flow_imbalance` both do), E6 (the one arm needing no tick data is
+not the best — `sweep_share` is a tick feature, so the pull bought something). **Wrong: E3**
+(`pc_flow_imbalance` was predicted to have the largest |t| and has the **smallest**, 0.256) and
+**E5** (BH was predicted to remove an arm that cleared its own bar; it removed nothing, because
+the only arm that cleared also survived it).
+
+## 53 · Recommended next step
+
+**The O-series is finished, so the honest recommendation is that this lane has no catalogued
+options work left.** What remains is a choice, not a queue:
+
+1. **`sweep_share` deserves one successor register, and only one.** It is the single arm in 131
+   hypotheses to clear a calibrated bar and survive BH. A successor must (a) make it *tradeable* —
+   measured on the contract actually bought rather than across the chain — and (b) inherit this
+   session's late-half failure as a disclosed prior, not as something to be re-rolled until it
+   passes. **If it fails again, it is finished.**
+2. **Nothing here rescues the options book.** R2 stands, O11 showed the book is unsurvivable at
+   realistic sizing, and 131 hypotheses have produced no adoption. **The defensible summary of the
+   whole options programme is that it is a well-measured negative result.**
+
+
+## 54 · A CROSS-LANE BUG THAT BLOCKED EVERY LAND, FOUND AND FIXED — `tests/test_track_meter.py`
+
+**This is not my lane's file and the fix is one line, but it stopped `main` accepting anything
+from any lane, so it is reported at length rather than in a footnote.**
+
+**Symptom.** My O14 push passed the full 65-suite gate locally and the auto-land Action **failed**
+(run `31654262421`), leaving `main` untouched. `tests/test_track_meter.py` reported **33 of 34**,
+failing on `test_a_vintage_event_does_not_erase_a_dated_miss`. The same suite passes **34/34**
+locally.
+
+**Cause — a time bomb, and it had detonated about an hour before I pushed.** The test pins
+`as_of=dt.date(2026, 8, 12)` for its `recording_history` call and then, two lines later, calls
+`TM.gap_report(live)` **with no `as_of`**, so that one reads the wall clock. Measured both ways:
+
+| `as_of` | `gap_report(...)["missing_dates"]` |
+|---|---|
+| 2026-08-12 | `[]` — the assertion holds |
+| 2026-08-13 | `['2026-08-12']` — the assertion fails |
+
+**CI runs in UTC.** Local was still 2026-08-12 EDT while CI was already 2026-08-13, so the open
+vintage's 2026-08-12 row had fallen due and gone missing — which is the real, documented
+`PT-WRITER` state, correctly reported. **The test, not the code, was wrong.**
+
+**Why this was urgent rather than tidy: dates only advance.** This was not a flake. From the
+moment UTC crossed midnight the assertion could never pass again, in any lane, on any branch.
+Every subsequent push would have failed the gate with a message pointing at a file the pushing
+lane had never touched.
+
+**Fix.** Pin `as_of=dt.date(2026, 8, 12)` on that call — the same date the sibling call two lines
+above already pins, so the test's evident intent is preserved exactly and nothing about what it
+asserts changes. 34/34 locally, and the suite was swept for other unpinned wall-clock calls: there
+is exactly one other, and it already pins `as_of` on its continuation line.
+
+**Owner: the paper-track / edge-audit lane.** I fixed it because it blocked every land including
+lanes with no involvement in it, and because the correct value was unambiguous. **The general
+lesson is worth more than the fix: a test that reads "today" is a test with an expiry date, and
+this one expired between a green local run and a red CI run on the same commit.**
+
+
+## 55 · U2 — THE OPTIONS SURFACE AS A STOCK SIGNAL. ALL FOUR ARMS REJECTED; THE ROW CLOSES PARTIAL
+
+`PREREG_u2_surface_stock_signals.md`, committed **ALONE at `e8e222b`** (one `.md`, zero `.py`),
+a strict git ancestor of the measurement commit. No panel rebuild — the corrected 69-date panel
+is banked and the surface joins to it point-in-time. **Nothing is adopted and no live code path
+changed.**
+
+### 55.1 · The one-sentence result
+
+**The options surface is genuinely orthogonal to the equity panel and predicts nothing with that
+orthogonality.** The audit's central argument for U2 — that an options-derived signal is
+*"structurally orthogonal to everything already in the panel"* and is therefore the most
+plausible occupant of the empty `sentiment` slot — **is confirmed by measurement.** Its
+conclusion is not. The seven incumbent themes explain **5.5%–8.8%** of these features' variance;
+the orthogonal 91%–94% carries no forward-return information at this panel's resolution.
+
+### 55.2 · Verdicts
+
+| arm | construction | raw IC *t* | **incremental IC *t*** | early / late | verdict |
+|---|---|---|---|---|---|
+| A1 `term_slope` | `atm_iv_60 - atm_iv_front` (O16) | +0.6729 | **+0.9862** | +0.3939 / +1.4742 | REJECTED |
+| A2 `iv_rank` | shipped | +0.0377 | **+0.1931** | +0.2798 / +0.1847 | REJECTED |
+| A3 `skew_25d` | shipped | +1.4870 | **+0.3471** | -0.2870 / +0.3895 | REJECTED |
+| A4 `surface` | decide-then-measure blend | — | **+0.7797 / +0.1508** | (two directions) | REJECTED |
+
+Bar: X7's calibrated **2.71** theme-IC *t*, required in **both halves** with **sign agreement**.
+Nothing comes within a factor of two of it. A3 additionally **flips sign between halves**, which
+is a NULL by the register's own two-sided clause even had the magnitudes cleared.
+
+### 55.3 · Three premise findings, all measured BEFORE the register, each of which changed the design
+
+**(a) A duplicate arm, killed before it was charged.** `skew_25d` is **exactly**
+`iv_put_25d - iv_call_25d` — max absolute difference **0.000e+00** over 217,706 rows, Pearson
+**+1.000000**. The audit names the smirk and *"the ATM call-minus-put implied-vol spread"* as two
+separate features; at 25 delta on this layer the second is **exactly `-skew_25d`**. Their rank
+ICs are exact negatives, so carrying both would have charged two trials for one hypothesis and
+reported the same number twice as two independent results. **This is the `illiq`/`spread_pct`
+defect class the O3/O4/O5 lane found in a prior lane's `panel.pkl` — caught here BEFORE the
+register instead of after a verdict.** Pinned by C5, which raises rather than warns.
+
+**(b) The near-miss, and it is the most transferable thing in this item.** The derived layer
+ships a column called `term_slope_60_30`. It is **exactly `atm_iv_60 - atm_iv_30`**. The
+construction **O16 validated** is `atm_mid - atm_front` — the **front expiry**, not the 30-day
+tenor. Measured on the covered names, **Spearman between the two is only 0.5281**.
+
+A lookup by column name would have found `term_slope_60_30`, computed cleanly, raised nothing,
+and **delivered a U2 verdict on a construction O16 never validated** — while O16's entire finding
+was about separating `term_slope` from a front-end IV level. The arm uses
+`atm_iv_60 - atm_iv_front`, and a **source-level test asserts the shipped column never appears in
+the arm path**, checked for vacuity by also requiring the two O16 legs to be present.
+
+**(c) Coverage forbids a full-panel gate — an impossibility, not a power caveat.** The derived
+layer spans **2016-01-04 → 2025-12-31**; the panel spans **2009-01-15 → 2026-01-28**. So **29 of
+69 rebalance dates carry ZERO coverage and every one of them is early**, and the final panel date
+is uncovered because the layer ends first.
+
+| | |
+|---|---|
+| covered dates (at least 20 names) | **40**, 2016-01-20 … 2025-10-27 |
+| halves after embargoing 2021-01-21 | **20 / 19** — both above the shipped `min_dates=16` |
+| mean covered names per covered date | **436.9** |
+| covered share of the panel cross-section | **~25%** (audit predicted 4–14%) |
+
+**This is S18's situation exactly and it takes S18's replacement:** every half-split in this
+register is a split of the **covered subsample**, never of the full panel. **A pass on 20-date
+halves is not the same object as a pass on 34-date halves and may not be quoted as one.**
+
+### 55.4 · The power control clears — and the same number cuts against the verdict
+
+The audit's own U2 threshold demands a subset power control, *"so a null is interpretable as a
+null rather than as low power."* Measured on the identical covered rows:
+
+| control | raw IC *t* | incremental IC *t* | R2 on the incumbents |
+|---|---|---|---|
+| `z_gp_on_capital` | **+2.4776** | +0.5776 | **0.4130** |
+| `z_ret_6_1` | **+2.4762** | +0.3891 | **0.7843** |
+
+Both clear the audit's 2.0 bar, **so the nulls above are interpretable rather than underpowered.**
+
+**Two qualifications travel with that, and neither is optional.**
+
+1. **Both land BELOW 2.71.** The panel's own best-known signals would not clear the bar the arms
+   were judged against, on this subsample. A null against 2.71 here is weaker evidence than the
+   bar's provenance suggests.
+2. **There is NO valid power control for the INCREMENTAL statistic on this panel at all**, and
+   the R2 column is why: every known-real signal available is already an *input* to an incumbent
+   theme, so residualising it destroys it by construction. This is a genuine limitation of the
+   verdict statistic and it is reported rather than worked around — a control that cannot exist
+   is not the same as a control that passed.
+
+**The surface features are the exception that makes the test meaningful at all**: their R2 on the
+incumbents is **0.0552 / 0.0874 / 0.0880**, so they retain 91%–94% of their variance after
+residualisation. The incremental IC is measuring something real about them; it is simply zero.
+
+### 55.5 · The smirk's published sign does not reproduce
+
+**Declared before the run**, from Xing–Zhang–Zhao (2010): steepest-smirk stocks **underperform**,
+so `skew_25d` (put-minus-call IV) should carry a **negative** IC. Measured: raw median IC
+**+0.02056** at *t* **+1.4870** — **positive**, the contradicting direction.
+
+Stated with its limit: *t* +1.49 refutes nothing, and the register's rule makes a positive result
+on A3 unquotable as a pass however large. What is reportable is that **the declared direction is
+not reproduced on this megacap universe**, which is the same shape as O3/O4/O5's sign reversal
+and consistent with McLean–Pontiff's 58% post-publication decay on the most efficiently priced
+names in the market.
+
+### 55.6 · C6 refutes the obvious alternative explanation outright
+
+A volatility-surface feature is a prime candidate to be a volatility or size exposure wearing a
+new name — **U7's failure mode**, where the "composite veto" turned out to be a market-cap sort.
+Mean per-date Spearman against the incumbents:
+
+| arm | `low_risk` | `size` | `momentum` |
+|---|---|---|---|
+| `term_slope` | -0.0382 | +0.0007 | +0.0141 |
+| `iv_rank` | -0.0334 | -0.0181 | -0.0663 |
+| `skew_25d` | -0.0466 | +0.0569 | -0.0844 |
+
+**The largest absolute value anywhere in the table is 0.0844.** These are not repackaged
+incumbents. Diagnostic, no verdict — but it is what makes 55.1's orthogonality claim measured
+rather than asserted.
+
+### 55.7 · Controls, and what was deliberately NOT run
+
+- **C1 (gate)** — the seven-theme flat-weight book reproduces the published record to **1e-9**
+  (alpha 0.07174142332098163, LS *t* 2.8360640685320595, NW 2.6199121240414884, monotonicity
+  -0.8909090909090909). The run aborts before any arm is read if it does not.
+- **C3** — **ZERO** point-in-time violations over **17,411** joined cells. The join takes the
+  last derived row **STRICTLY BEFORE** the rebalance date. `fwd_ret` runs from that date's
+  *close*, so a same-day EOD surface would have been contemporaneous rather than look-ahead;
+  strictly-before is used anyway because it costs one day of staleness on a quarterly signal and
+  **removes the argument instead of winning it**.
+- **C5** — no arm is another arm's negation. **C4** — the O16 construction is the one used.
+  **C8** — coverage per arm per half, reported before any IC.
+- **NOT RUN AND NOT QUOTED: the book gate and the 2.2837 long-short HAC floor.** The register
+  runs them only on an eligible composite (section 4.3) and A4 is REJECTED. **Both calibrated
+  bars would be EXTRAPOLATIONS here regardless** — X7 and session 10 measured them on the full
+  69-date 2,531-name panel at h63 lag 1, and this is a 40-date ~437-name subsample.
+  Re-calibrating on the subsample after seeing the arms is a void condition.
+
+### 55.8 · A defect in the SHIPPED IC arithmetic — reported, not repaired. Edge lane's.
+
+`fundamental_panel.theme_ic` guards its t-stat with `if sd > 0`. **Whether a constant series has
+an exactly-zero floating-point sd is VALUE-DEPENDENT**: `[0.0, 0.0, 0.0]` gives exactly 0 and the
+guard fires, but **`[0.1, 0.1, 0.1]` has sd about 5.8e-17, so the guard passes and the t-stat
+comes back about 1.0e16.**
+
+**This is precisely the `SECTOR-NEUTRAL-B6` zero-variance defect** — documented there in
+`cross_sectional.zscore`, exact for 0.0 / 50.0 / 2.5 / 0.125 and about 1e-16 for 0.9 / 0.1 / one
+third / 12.34 — **in a second location nobody had checked.**
+
+**Deliberately not repaired here.** Repairing it would make this lane's `ic_tstat` stop being the
+shipped arithmetic, and X7's 2.71 bar would then apply to a statistic it was not calibrated on —
+the exact mismatch session 10 exists to close. A **degeneracy check gates the verdict instead**,
+so an absurd *t* can never be read as a pass, and two tests pin both halves of the behaviour.
+On real data an IC series over 20 dates is never exactly constant, so **the exposure here is
+theoretical** — but the defect is real and it is in a function every calibrated equity bar reads.
+
+### 55.9 · Trial cost and what closes
+
+**Four arms, four equity trials, exactly as pre-committed. Equity `N` 185 → 189 for THIS item
+— and it reads 190 on the merged tree**, because the `S14-WIDTH` lane landed one equity trial
+while this one was running. Options untouched at **285**, infra at **11**, zero malformed rows.
+
+**That is the sixth consecutive session in this lane where the equity count moved under the work
+between the register and the push, and this time it moved AFTER the write-up was drafted and was
+caught only by re-reading `by_domain` on the merged tree.** The rule is not "remember to check" —
+it is: **an equity `N` may only be quoted from `research_log.detail()` run on the tree that is
+actually being pushed.** The per-item charge (4) is the stable number; the denominator is not.
+
+**The three SIGNAL-TRANSFER directions of the unification are now all closed**: `U1` REJECTED
+(the composite as an options entry signal), `U7` REJECTED (the composite as an options veto),
+`U2` REJECTED on the level half.
+
+**THAT IS NOT THE SAME AS CLOSING THE U-SERIES, AND THE DISTINCTION IS THE ONE THE O-SERIES
+REGISTERS SPENT THREE SESSIONS ENFORCING.** Measured on `main` after this landed: the U-series
+reads **3 DONE, 1 PARTIAL, 4 OPEN** — `U3` (convex overlay as insurance), `U4` (one decision
+object), `U6` (CSPs in, covered calls out), `U8` (one risk budget across books). None of the four
+is a signal-transfer question; all four are portfolio, product or risk items. **Nobody may write
+"the unification is closed" until those rows flip.** **`U2`'s row is `PARTIAL`, not `DONE`** — the parity-deviation and
+21-day-change halves are untested, not null, and section 0.5 of the register fixed that before
+any number existed.
+
+Expectations scored **5 right, 3 wrong, 1 split**. The three misses are informative: the residual
+IC was predicted smaller than the raw IC *for every arm* and is smaller on median IC but **larger
+on *t* for two of three**; the largest incumbent correlation was predicted against `low_risk` and
+is against `momentum`; and **at least one NOT_REPLICATED arm was predicted at 60/40 and none
+appeared — breaking a four-session streak in which exactly one arm cleared exactly one half.**
+
+### 55.10 · The recommendation, and it is a narrow one
+
+**Do not re-open U2 on these features.** The orthogonality result means a future attempt has a
+genuine reason to exist, but it must be the **untested** half: **the put–call parity deviation on
+matched strikes**, built from the raw chains, which is Cremers–Weinbaum's actual measure and the
+only one of the audit's four features with a large published effect that this item did not touch.
+It inherits this session's result as a **disclosed prior**: three orthogonal surface levels on the
+same universe and the same 40 dates produced nothing. **A successor must also carry the 55.4
+limitation — that the incremental statistic has no available power control — or it will read its
+own null as stronger than it is.**
+
+---
+
+## 56 · U3 + U4 + U6 + U8 — THE U-SERIES TAIL. THE "INSURANCE" IS LEVERAGE, AND THREE ROWS CLOSE AS DESIGN RECORDS RATHER THAN AS MEASUREMENTS
+
+**Session 37, 2026-08-13.** `PREREG_u3_convex_overlay.md` committed **ALONE at `9603e64`** — one
+`.md`, zero `.py`, a strict git ancestor of the measurement commit. Frozen books on both sides
+(`state_r2_splitclean.pkl`, 3,870 trades; `panel_corrected_69d.pkl`, 69 dates). No re-mine, no
+panel rebuild, **nothing adopted**. `U4`, `U6` and `U8` are filed as `DESIGN_u4_u6_u8.md` at
+**zero trials**.
+
+### 56.1 The headline, and it settles U8 as a by-product
+
+The audit (`VALQUO_EDGE_AUDIT.md:1268`) argues the equity book is short volatility in the tail,
+that the options book is a long-volatility sleeve *"built by accident"*, and that the sleeve's
+conditional correlation to the equity book in its worst quarters *"is the whole question"*.
+
+**The premise is refuted by measuring what the sleeve is made of.** `opt_right` is **`call` on
+3,870 of 3,870 rows**, `horizon` is `swing` on all 3,870, and mean `target_delta` is **+0.3725**.
+A long call is long vega **and** long delta, and for a large adverse move the delta leg dominates.
+
+| measurement | value |
+|---|---|
+| sleeve vs equity top decile, unconditional | **+0.4371** |
+| sleeve vs equal-weighted universe (C7) | **+0.4837** |
+| sleeve mean return, all 40 covered quarters | **+27.52%** |
+| sleeve mean return, equity book's worst 4 quarters | **−84.39%** (equity −14.49%) |
+| COVID 2020Q1 | equity top decile **−28.09%**, sleeve **−76.14%** |
+| sleeve's OWN worst quarter | **2025-01-27, −94.69%** — a quarter in which equity was only −7.22% |
+
+**It is not insurance. It is leverage.** And because C7 puts the sleeve *closer* to the
+equal-weighted universe than to the top decile (gap 0.0466), what it carries is **beta**, not
+information about this book.
+
+### 56.2 A1 — rejected at both concurrency caps, in all twenty cells
+
+Maximum drawdown is **worse than the equity book alone at every X and both caps**, improving
+monotonically toward X = 100:
+
+* cap 10: ΔmaxDD **−0.0002** (X=99) to **−0.0021** (X=90)
+* cap 50: ΔmaxDD **−0.0048** (X=99) to **−0.0480** (X=90)
+
+So a drawdown-minimising allocator over this pair returns a **corner solution at zero sleeve** —
+which is `U8`'s prescribed method answered without running it.
+
+**THE AUDIT'S OWN TWO-LEG BAR IS WHAT CATCHES THIS, AND IT EARNED ITS KEEP.** Sharpe **does**
+improve at cap 10 — 1.1296 → **1.2041** at X = 96 — but purely by raising return
+(+27.01%/yr → **+34.19%/yr**). That is precisely the case `:1284` disqualified in advance:
+*"a long-vol sleeve that improves Sharpe by raising return is not doing the job it is being hired
+for."* **A one-leg Sharpe bar would have adopted this.** The bar was the audit's, quoted
+verbatim, and I could not have tuned it.
+
+### 56.3 THE AUDIT CONTRADICTS ITSELF, AND MEASUREMENT SETTLES WHICH HALF IS RIGHT
+
+Its step 2 (`:1279`) conditions on the equity book's **worst decile of quarters**. Its own
+`:1282` warns that a **return-based** split is a conditioning artefact and prescribes an
+**implied-vol** split instead. Those are the same test with opposite instructions, and measured
+they give **opposite signs**:
+
+| conditioning | correlation |
+|---|---|
+| unconditional (conditions on nothing) | **+0.4371** |
+| high-IV half (the audit's PRIMARY prescription) | **+0.5478** |
+| low-IV half | **+0.5819** |
+| equity worst decile (the audit's own step 2, RETURN-conditioned, n=4) | **−0.6504** |
+
+**The conditional MEAN is the informative statistic and the conditional CORRELATION is the
+trap.** A within-selected-subset correlation on four points reads −0.65 and would have been
+quoted as "an excellent hedge", while the sleeve was simultaneously losing 84% in those very
+quarters. The register named the primary before the run.
+
+### 56.4 The asymmetry, fixed before the run from the audit's own warning
+
+`:1549` states that *"a crash-insurance rule cannot clear a both-halves gate unless the sample
+contains two comparable crashes. The panel has one"*, and `:1553` that recording such a result as
+a failed test when it is an **untestable hypothesis under the chosen protocol** is the error to
+avoid *"so nobody re-runs the same doomed test."*
+
+The register therefore committed an **asymmetric** verdict rule:
+
+* a decisive **REJECT** is available — the failure is one of **sign**, measurable in all 40
+  quarters, not of magnitude;
+* a decisive **ADOPT** is **not** — a clearing arm would have been recorded
+  `ELIGIBLE-BUT-UNRESOLVED`, never adopted, with its drawdown-episode count attached.
+
+**Nobody may read this rejection as evidence that portfolio insurance does not work.** It is a
+statement about a 100%-long-call sleeve on a one-crash sample.
+
+### 56.5 Non-blindness, disclosed in the register rather than after it
+
+Register **§0.5** states that a crude probe of A2's **sign** was run *before* the register was
+written, to decide whether U3 was measurable at all, and reports that probe's numbers. The
+register does not claim blindness. What makes it worth writing anyway: the adoption bar is the
+audit's **verbatim** and was fixed by someone else; the probe computed **none** of A1's
+statistics; and its construction (an unweighted attribution with no capital constraint, no cap
+and no costs) is not the instrument's. Expectation 1 was **excluded from scoring** on that basis.
+
+### 56.6 Coverage forbids a full-panel gate, for the third time
+
+Options alerts span 2016-01-19 → 2025-10-15 against a panel spanning 2009-01-15 → 2026-01-28.
+**40 of 69 quarters covered, 28 uncovered EARLY and 1 late**; halves **20 and 19** after
+embargoing 2021-01-21, both above the shipped `min_dates=16`. S18's and U2's situation exactly.
+**A pass on 20-date halves is not the same object as a pass on 34-date halves.**
+
+### 56.7 U6 is not buildable, and the reason is a number
+
+The audit's method (`:2103`) replays the equity book's entries and exits *"using the mined chains
+for the names where they exist"*. Measured against the 187-name mined universe:
+
+| quantity | measured |
+|---|---|
+| mean top-decile size | **165.6** names |
+| names ENTERING the decile, 68 transitions | **7,132**, of which **129 have chains = 1.81%** |
+| names LEAVING | **7,095**, of which **128 = 1.80%** |
+| covered entries per rebalance | **median 2**, max 8, **ZERO on 18 of 68 dates** |
+
+The replay would substitute the option expression on **two names out of 166** and still print a
+number. **Second, independent blocker:** the entry leg is a cash-secured **put** and the banked
+book is **100% calls**, so no put-chain history exists; the derived layer's `iv_put_25d` is a
+surface point, not a quote with a bid, an ask and an open interest — and O18 measured that spread
+cost (ρ = 0.6743) is the leg that decides the answer. Closed
+**`DESIGN-RECORDED — NOT BUILDABLE ON DATA WE OWN`**, the `S25`/`B13` class. **It remains the most
+tradeable idea in the catalogue if the data is ever bought.**
+
+### 56.8 U4's gate has resolved, and it resolved negative
+
+The row was `src=human` and deliberately gated on U1/U2. **Both rejected, as did U7** — so there
+is no measured signal relationship between the composite and the options book in either
+direction. What is buildable is **one object with two independently-sourced expressions and an
+explicit statement that they are independent**: no combined score, no combined confidence, no
+arrow from view to trade, and V2G's live caveat attached to the fundamental view. **O11 forces an
+addition to the audit's copy rule**: expectancy framing is necessary but **not sufficient**, since
+a user told "positive expectancy per trade" and given $50,000 reproduces O11's **−25.9%**. Product
+work, **web/app lane**. This is U4 *specified*, not U4 *done*.
+
+### 56.9 Defects, controls, and the one production change
+
+* **A DEFECT IN MY OWN INSTRUMENT, PRESENTATIONAL AND PROVEN SO.** A3's column was named
+  `drag_vs_equity_pp` while computing `combined − equity`, which is **positive when the sleeve
+  adds return** — a gain printed under a loss's name. Renamed. The pre-fix and post-fix artifacts
+  diff at **344 shared leaves, ZERO moved, 6 added, 0 removed**, so no conclusion needed
+  re-deriving.
+* **DISCLOSED, because it flatters the sleeve:** the combined book is **rebalanced to weight X
+  every quarter** (register A1), so the sleeve's **geometric −33.35%/yr** coexists with a
+  **+27.52%/quarter arithmetic** mean, and the construction **tops the sleeve back up after a
+  crash quarter**. Both figures ship side by side rather than only the flattering one.
+* **THE LEDGER WAS WRONG ABOUT TWO OF THE FOUR ROWS.** `U3` and `U8` were `src=auto` /
+  *"no mention anywhere in the corpus"*, and `VALQUO_EDGE_AUDIT.md:1268` and `:2123` are full
+  sections. That is **eight** such rows in this lane. Definitions were **quoted, not invented**.
+* **Controls.** C1 reproduces the record at alpha **0.07174142332098163** (published
+  0.071741423321) and aborts the run before any arm otherwise; C2 the book's mean P&L
+  **+3.2702%** on 3,870 trades; C3 **ZERO** look-ahead over **161,610** marks; C4
+  `top == alpha + equal_weight` at max abs deviation **0.000e+00**; C5 at ρ = 1.0 the largest
+  improvement is **+0.000e+00**; C8 X = 100 reproduces the equity book at **0.000e+00**.
+* **THE ONLY PRODUCTION CHANGE IS ONE ADDITIVE KEY.** `quantile_backtest`'s opt-in `series` dict
+  now carries `equal_weight`, because `top = alpha + equal_weight` is an identity of the shipped
+  code and **you cannot compound an alpha**. Inside the existing `return_series` gate, so every
+  current caller's payload is **bit-identical**; pinned by two tests, including one asserting a
+  default payload carries no `series` at all.
+* **Trials: options `N` 285 → 287** (A1 and A2; A3 has no bar and charges nothing, and the three
+  memos charge nothing). **Equity untouched at 190.** Tests **67/67 suites green** by exit code.
+* Expectations **4 right, 2 wrong, 1 excluded**. The two misses: I predicted the sleeve would be
+  a **drag** on combined return and it **adds** to it (the rebalancing effect above), and I
+  predicted the crash quarter would be the sleeve's own worst — it is not, 2025-01-27 is, at
+  **−94.69%** in a quarter the equity book was down only 7.22%.
+
+### 56.10 What this does NOT say, and the recommended next step
+
+* **It does not close portfolio insurance as an idea.** A *put* sleeve, a straddle sleeve or an
+  index hedge is a different instrument and would need its own register. U3 measured the sleeve
+  that exists.
+* **A DESIGN RECORD IS NOT A MEASUREMENT.** `U4`, `U6` and `U8` carry no verdict and no trial.
+  Anyone re-opening one re-opens a live question.
+* **Recommended next step: nothing in the U-series.** All eight rows now carry either a verdict
+  or a design record. The buildable residue — U4's two-expression object and U8's combined
+  exposure report with a **policy** cap rather than a fitted one — is **app/portfolio lane work
+  requiring no new research**. If this lane takes another item, `U6` is the one worth funding,
+  and what it needs is **data** (a put-chain mine over the equity book's own names), not
+  analysis.
+
+Artifact: `data/free_analysis/U3_CONVEX_OVERLAY.json`. Reproduce:
+`python -m scripts.u3_convex_overlay`. Memos: `DESIGN_u4_u6_u8.md`.
+
+---
+
+## 57 · V6-OPT — CASH-SECURED PUTS ON HEALTHY DIPS. THE PREMIUM IS REAL, THE ENTRY BEATS RANDOM, AND THE STRIKE HAS ALREADY SPENT THE RISK EDGE
+
+**Session 38, 2026-08-13.** `PREREG_v6opt_csp.md` committed **ALONE at `88685c9`** — one `.md`,
+zero `.py`, a strict git ancestor of every measurement commit. It fixed **both stages** before
+either ran, so **stage 2 could not be designed on stage 1's numbers**. Frozen caches on both
+sides, no re-mine, **nothing adopted**, no live code path changed.
+
+### 57.1 Why this ran at all, and the prior the task did not name
+
+`V6-B` made this row conditional on its `M1` separating, and it did: healthy 20%+ dips fall a
+further 20% within 126d on **32.51%** of occasions against **43.35%**, a **−10.84pp** gap at HAC
+*t* −10.58.
+
+**The nearest prior is `A3` and it is strongly negative.** `HANDOFF_vrp.md` tested a
+put-credit-spread arm on **this same options data**: 20-delta short leg, 25–50 DTE, entered on IV
+rank — 2,496 trades, **−7.99%/trade**, PF 0.28, book $100k → $20.7k, negative in 9 of 10 years and
+in both halves. Two of its findings shaped this register:
+
+* **"Selling RICHER vol is WORSE"** — IV rank ≥ 0.80 gave **−9.45%** against **−6.24%** at
+  0.50–0.65. **So "post-dip IV is elevated" is not evidence of an opportunity; that thesis was
+  already tested here and ran backwards.** It is why the gate is **not** "is IV elevated".
+* Its worst years (2018, 2020, 2022) are **vol events** — exactly the corner a sell-into-fear
+  trade lives in.
+
+The question that survives A3 is different and is what stage 1 was built to answer: **does the
+option market price the healthy/unhealthy distinction `M1` measures?** The `R2` dead-entry frame
+is deliberately **not** inherited — this entry is a quarterly panel date, not the alert — and the
+random-entry control settles it on this mechanism's own evidence.
+
+### 57.2 Stage 1 — descriptive, and the gate opened
+
+On **4,855 covered dipped rows** (1,631 healthy / 3,224 unhealthy) over **40 of 69** panel dates:
+
+| | healthy | unhealthy |
+|---|---|---|
+| `atm_iv_30` at the dip | **0.4300** | 0.4669 |
+| its own trailing 252d median | 0.3561 | 0.3836 |
+| **elevation over own baseline** | **+17.71%** | **+13.29%** |
+| median credit, 25-delta 30–45 DTE put | **2.550% of strike** | 2.978% |
+| annualised | **27.73%** | 32.94% |
+| **`skew_25d` at the dip** | **0.05125** | 0.05432 |
+| **`skew_25d` minus its own 252d median** | **+0.00885** | +0.00914 |
+| median `spread_frac` | 0.1040 | 0.1124 |
+| **VRP (implied − realised 30d)** | **+0.0391** | +0.0377 |
+
+**Gate: G1 (credit ≥ 0.50% of strike) PASS, G2 (elevation ratio ≥ 0.75) PASS at 1.3328, G3
+(VRP > 0) PASS — all three in BOTH halves.** So the market does **not** price the distinction; if
+anything healthy dips' vol rises *proportionally more*.
+
+**REPORTED BECAUSE IT CUTS AGAINST THE GATE:** in **level** terms the healthy name is the cheaper
+one (IV 0.430 vs 0.467, credit 2.550% vs 2.978%). G2 was specified on **elevation** in advance and
+passes on it; the level reading is the less favourable one and travels with it.
+
+**THE FEAR SHOWS UP IN THE LEVEL OF IMPLIED VOL, NOT IN THE SKEW — and that is worth knowing before anyone builds a skew-conditioned version of this.** `skew_25d` sits at 0.0513 on healthy dips against its own trailing median of 0.0424, i.e. **only +0.0089 richer**, while `atm_iv_30` is **+17.71%** above its baseline. A 20% drawdown re-prices the whole surface up; it barely steepens it. The healthy/unhealthy skew gap is **0.0031**, smaller than either group's own move from baseline, so skew discriminates between the two sets even less than the level does. (`skew_25d` **is** `iv_put_25d − iv_call_25d` exactly — C3 — so this is ONE measurement, never two.)
+
+**The elevation decays away almost entirely inside the horizon it is sold over** — −1.72%,
+−5.64%, −14.42%, **−16.56%** at t+5/10/20/30 against a +17.71% starting elevation.
+
+### 57.3 Stage 2 — REJECTED, on the one control the register named as deciding
+
+| | healthy arm | C-A unhealthy | C-C random (pooled) | C-B stock |
+|---|---|---|---|---|
+| n | 660 | 1,376 | 2,585 over 5 seeds | 660 |
+| mean return on the cash secured | **+1.1342%** | **+1.2651%** | +0.2612% | +3.4269% |
+| early / late half | +1.1348 / +1.1178 | +1.2046 / +1.2349 | — | — |
+| assigned | **25.30%** | **25.73%** | ~29.6% | — |
+| win rate | 84.39% | 81.61% | — | — |
+
+**Three of four conditions pass, and not marginally.** The arm is positive in **both** halves, and
+it **beats random entry decisively**: paired name-year sign test **z +7.2506, p 4.15e-13**, 306 of
+457 cells positive (**66.96%**). **Condition 2 fails**: the identical trade on **UNHEALTHY** dips
+earns **more** and beats it in **both** halves (sign test z −0.9129, p 0.3613 — not separable, and
+certainly not in the arm's favour).
+
+**VERDICT: REJECTED. The health floors do no work; the trade is just short vol, which `A3` already
+rejected.**
+
+### 57.4 THE MECHANISM, AND IT IS THE MOST PORTABLE THING IN THIS SECTION
+
+**A 25-delta put IS a ~25% assignment probability BY CONSTRUCTION.** Measured: assignment comes
+back **25.30% healthy against 25.73% unhealthy** — a **0.43pp** gap — while the unhealthy name pays
+**2.978% of strike against 2.550%** because its implied vol is higher (0.474 vs 0.424). The extra
+premium and the extra risk **cancel**, and the residual runs slightly *against* the healthy arm.
+
+**A delta-targeted rule sets the strike from the name's own volatility, so it neutralises the very
+risk difference the trade was built to exploit.** The confound is refuted: selected deltas are
+like-for-like at a median **−0.2638** against **−0.2658**, DTE **32** against **31**.
+
+**Consequence for anyone re-opening this: a risk signal can only pay through an option if the
+MONEYNESS is held fixed, not the DELTA.** A fixed-%-out-of-the-money CSP is the obvious next
+construction — and it is a **NEW hypothesis needing its own register**, forbidden here by void
+condition 3. It inherits this row's result as its prior, not as its refutation.
+
+### 57.5 The risk edge is a quarter of its headline where it can be traded
+
+`C5` re-measured `M1` on the covered rows: **−2.797pp** (healthy 29.26% vs unhealthy 32.06%)
+against `V6-B`'s full-panel **−10.84pp** — *below* even its own megacap quintile at −3.787pp.
+The reason is structural: options exist on the **large** end, and `V6-B` measured the separation
+**weakest exactly there**. Covered dips carry a median market cap of **$17.92bn against $2.17bn**,
+an **8.26× tilt**. **The register predicted this at 80/20 before measuring it (§1d), and any
+future options result on this population must be quoted against −2.797pp — never −10.84pp
+(void condition 7).**
+
+### 57.6 A PREMISE FINDING THAT CORRECTS MY OWN PRIOR SESSION
+
+Session 37 closed `U6` `DESIGN-RECORDED — NOT BUILDABLE` on **two** blockers, and **one of them is
+false**. It read: *"the banked options book is `opt_right == "call"` on 3,870 of 3,870 rows — 100%
+calls, measured … so there is no banked put-chain history to replay a CSP against."*
+
+**The measurement is right and the inference from it is wrong.** 3,870-of-3,870 is a fact about the
+**traded book**; the **cache** was never checked. Measured on 40 sampled tickers and 2,577,501
+contract-days: **1,288,750 puts against 1,288,751 calls, put share exactly 0.5000, ZERO tickers
+with no puts**, with bid, ask, volume and open interest — and `data/options_derived` carries the
+same contracts with `iv`, `delta`, `mid` and `spread_frac`. **This row then priced 2,038 real
+25-delta puts from that cache and settled them to expiry.**
+
+`U6`'s **coverage** blocker (1.81% of the equity book's entering names have chains) is untouched
+and carries its verdict alone, so **U6's status does not change** — it now rests on one measured
+reason rather than two. Corrected in the ledger, in `CLAUDE.md` and in `DESIGN_u4_u6_u8.md`, with
+the retracted text kept verbatim. **The lesson: a composition fact about a BOOK is not a coverage
+fact about a CACHE.**
+
+### 57.7 The settlement trap, caught before the run rather than after
+
+**Strikes are as-traded; `data/backtest/prices` is split- AND dividend-adjusted.** Measured on
+AAPL: derived `spot` **300.35** against an adjusted close of **72.34** on 2020-01-02, a ratio of
+**4.152**, and the two differ by more than 5% on **46.66%** of that name's 2,514 days. Settling a
+$300 strike against $72 books a fake ~76% assignment loss and **fails silently** — session 30's
+`O6`/`O7`/`O17` defect.
+
+**Session 30's rule is applied in BOTH directions:** the option settles on the **as-traded `spot`**,
+and only the **STOCK control** uses the adjusted close (a return is exactly what the adjusted
+series is for). A further guard drops any trade where the as-traded and adjusted return ratios
+disagree by more than 20% — a corporate action inside the trade; **3 trades dropped**.
+
+### 57.8 Controls, defects, and what is reported against the arm
+
+* **C1** reproduces the premise counts exactly (37,982 / 4,855 / 1,631 / 3,224 / 40 dates) and
+  **ABORTS** the run otherwise. Halves **20 / 19**, boundary **2021-01-21** embargoed.
+* **C2 ZERO point-in-time violations** over 4,836 events.
+* **C3** `skew_25d` equals `iv_put_25d − iv_call_25d` at **max abs diff 0.000e+00 over 902,851
+  rows** — reproducing `U2` on four times the rows. **It is ONE column and never two pieces of
+  evidence.**
+* **C-QUOTE** the derived `mid`/`spread_frac` reconstruct the **RAW chain's own bid** to a max
+  absolute error of **3.815e-06 over 216,872 rows**, so the fill is not priced off a second copy
+  that quietly disagrees (audit B7's class).
+* **C4** median selected delta **−0.2651**, but **only 54.3% sit within ±0.05 of the target** —
+  the exposure drifts, `O6`'s failure mode, reported rather than hidden. It is like-for-like
+  across the two arms, so it cannot explain condition 2.
+* **C-D the no-edge mirror** loses **1.5263%** against the arm's +1.1342%, so **both sides are not
+  profitable** and the fill engine is not manufacturing the result.
+* **THE LIQUIDITY GATE EXCLUDES 58% OF EVENTS** (2,038 selected of 4,836; OI ≥ 100 and
+  `spread_frac` ≤ 0.25). Selection rates are **40.6% healthy / 43.0% unhealthy**, so the exclusion
+  is not strongly differential — but every number here is measured on the **liquid** part of the
+  population, `O10`/`O18`'s standing caveat.
+* **TWO DEFECTS IN MY OWN INSTRUMENT, both caught before the verdict and both PROVED inert by leaf
+  diff rather than asserted.** (a) The halves split **each arm at its own median date** instead of
+  the register's single embargoed boundary — latent rather than active, because both arms draw
+  from the same 40 covered dates so the two boundaries coincide; the fix moved **ZERO of 289
+  shared leaves** and added 5 documentation leaves. (b) Stage 1 banked a contract **without its
+  `expiration`**, so stage 2 could not settle it; the re-run reproduces **668 leaves with ZERO
+  moved**, which also demonstrates the pipeline is deterministic.
+* **REPORTED AGAINST THE ARM.** The survivability leg compounds per-trade returns **sequentially**
+  rather than simulating a capital-weighted book, so it **overstates** drawdown for a diversified
+  book. It **passes anyway** (arm −55.52% vs stock −82.56% at cap 10; −86.50% vs −98.57% at cap
+  50), so the limitation cannot have produced the verdict, which turns on condition 2. **The
+  absolute levels are severe and "better than the stock" is a comparative bar** — neither book is
+  survivable as constructed.
+
+### 57.9 What this does NOT say, cost, and the recommended next step
+
+* **It is NOT a rejection of cash-secured puts.** The register declared the asymmetry in advance
+  (§4.3): the covered sample holds **one** crash (COVID 2020Q1), so a decisive **REJECT** was
+  available and a decisive **ADOPT** was not — a clearing arm would have been recorded
+  `ELIGIBLE-BUT-UNRESOLVED`, never adopted.
+* **It is not a return claim about dips.** `V6`'s four nulls stand, and this row rests on the risk
+  profile and the premium exactly as `V6-B` instructed.
+* **The dip ENTRY is not dead.** Beating random entry at **z +7.25** is a real, separate finding,
+  and it is the opposite shape to `R2`'s dead alert entry. What is dead is the *health
+  conditioning* as expressed through a delta-targeted strike.
+* **Cost: options `N` 287 → 292** — one for the stage-1 gate (a pre-committed bar with a decision
+  consequence, `O21`'s correction) and four for the stage-2 arms. **Equity untouched BY THIS ITEM (218 after the merge)**,
+  infra 11, zero malformed log rows. **72 suites, 0 failures.** Expectations **4 right, 3 wrong**.
+* **RECOMMENDED NEXT STEP: the moneyness-targeted CSP**, registered on its own. It is the single
+  construction this result points at, it needs **no new data** (the cache is already proven to
+  carry puts), and it inherits both this row's mechanism and `A3`'s prior. If instead the lane
+  wants the *risk* claim rather than the *option* claim, the honest target is the **small-cap end**
+  where `M1` is −14.287pp — and there **are no options there**, which is `U6`'s coverage blocker
+  in a new costume.
+
+Artifacts: `data/free_analysis/V6OPT_PREMISE.json`, `V6OPT_STAGE1.json`, `V6OPT_STAGE2.json`.
+Reproduce: `python -m scripts.v6opt_premise`, `python -m scripts.v6opt_stage1`,
+`python -m scripts.v6opt_stage2`. Instrument `valuation/edge/csp_surface.py`, 41 tests in
+`tests/test_csp_surface.py`.
+
+## 58 · AUDIT #3 OFFICIALIZED, 60 MA ROWS INGESTED, AND MA36 + MA37 — THE LIVE OPTIONS RECORD WAS CENSORED AT ONE END AND BLENDED AT THE OTHER
+
+**Session 2026-08-14, options-bot lane.** Three pieces of work, in order: officialize the merged
+cold audit #3, ingest its findings into the ledger, then take this lane's two rows from it.
+`PREREG_ma36_ma37_record_integrity.md` was committed **ALONE at `53c7ecf`** — one `.md`, zero
+`.py` — a strict ancestor of every commit that changes behaviour. **ADOPTS NOTHING, TESTS
+NOTHING, ZERO TRIALS.** No backtested figure moves.
+
+### 58.1 · The merged record, and two facts about the deliverable
+
+`VALQUO_MASTER_AUDIT_ULTIMATE.md` + `valquo_master_audit_ultimate_items.json` +
+`VALQUO_MASTER_AUDIT_ULTIMATE.pdf` were **untracked in the primary checkout**. All three are now
+committed byte-identical (sha256 checked on each); the PDF's staged blob is byte-identical to the
+file on disk at **204,636 bytes**, i.e. `MA35`'s own `*.pdf binary` rule is doing its job on the
+deliverable that motivated it. `VALQUO_MASTER_AUDIT.md` gains **one** header line pointing at the
+merged record; Pass A's 35 items stand as written.
+
+* **IT IS SIXTY ITEMS, NOT 61.** Pass A `MA1`-`MA35` (35) + Pass B `MA36`-`MA60` (25) = **60**, in
+  the prose and in the JSON, with no id in either set missing from the other. Counted, not quoted.
+* **THE JSON DOES NOT CARRY THE AUDIT'S OWN CORRECTION 1, AND IT IS THE ONE THAT MATTERS.**
+  Section 2.3 re-rates **`MA18`** (*"the bound forward track still has no writer, and the
+  five-year clock is running"*) from MEDIUM to **HIGH**, and section 9 lists it under HIGH — but
+  `valquo_master_audit_ultimate_items.json` still reads `"severity": "MEDIUM"` and counts 13 HIGH
+  against the prose's 14. **`MA18` is the audit's #2 action item by its own ordering**, and it is
+  the one finding it says *cannot be recovered later*. Anything ingesting the machine-readable set
+  verbatim — this ingest included — would have silently under-rated exactly that. Ingested as
+  **HIGH**; the deliverable is left unedited, because it is a record of what the auditor found.
+
+### 58.2 · The ingest — 60 rows, evidence-only statuses, and what a mechanical pass would have got wrong
+
+Per the **LA-series precedent**: one out-of-band row per finding, appended verbatim, so *"where do
+we stand on MA37?"* is answerable in the ledger rather than in a 583-line audit. No id collides
+with the 134 audit items or the 197 rows already there, and there are **zero duplicate ids**.
+
+**`src = audit3-ingest`, deliberately neither `auto` nor `human`.** The `src=auto` lesson is that
+a mechanically-proposed row is a *lead, not a fact* — this project has already been bitten by six
+`src=auto` rows asserting *"no audit section exists"* when a full section did. So the rows say
+exactly what stands behind them: **transcribed from the audit's own item entry, NOT independently
+re-verified against the code by this lane**, with the audit's evidence line carried into the note
+so the next reader checks the claim rather than the row.
+
+| status | n | evidence |
+|---|---|---|
+| `OPEN` | 50 | the default. For the eleven proposals (`MA24`-`MA34`, `MA54`-`MA58`) **OPEN means NOT RUN, never broken** — each carries its own kill condition and trial price. |
+| `IN PROGRESS` | 5 | `MA1`/`MA2`/`MA3` (greeks) and `MA5`/`MA6` (app fixer), on Don's direction. **All five carry NO tree evidence** — no commit and no handoff section names any of them — and the rows say so. |
+| `DONE` | 5 | `MA35` (closed on **code**: `.gitattributes` carries `*.pdf binary`), `MA36`/`MA37` below, and `MA13`/`MA19` landed **DONE** by the edge lane in the same window. |
+
+**AND THE MERGE WOULD HAVE BROKEN THE ONE GUARANTEE THE LEDGER MAKES.** The edge lane landed real `MA13` and `MA19` rows (**DONE**, `src=human`, `0eb95b1`) while this lane was ingesting all 60 as `OPEN`, and the two sides conflicted. **Keeping both — the reflex, and exactly what `merge=union` would do — produces two rows with the same id and no rule for which wins**, which is why `.gitattributes` lists `VALQUO_LEDGER.md` as deliberately NOT union-merged. The **human row wins both**, per the contract, and the ingest's `OPEN` versions are discarded rather than kept beside them. Resolved to **60 unique ids, asserted rather than eyeballed**.
+
+**`MA7` IS NOT DONE, AND A COMMIT SUBJECT SAYS IT IS.** `14c00ac` reads *"MA7: /api/rank is the
+sharper case"* and changed **only the audit documents**. That is the ledger's own **trap 5** — a
+commit subject donating a verdict — caught on ingest rather than after it had marked a live
+uncapped-vendor-spend finding as closed.
+
+**AND THE INGEST FOUND THE LEDGER'S REFRESH TOOL REFUSING TO RUN AT ALL.**
+`python scripts/build_ledger.py` was aborting with *"REFUSING TO PROCEED — these ledger rows could
+not be parsed and would be DELETED by a rewrite"* on `S23`, `M1-PARSE` and `V2G`. Four raw `|`
+characters sat **inside** cells. Verified against `HEAD` that all three predate this ingest, so
+the refresh has been unavailable for some time; ledger rule 2 (*"if the ledger cannot answer,
+fixing the ledger is the task"*) makes it in scope. **Four characters changed, no word and no
+claim touched.** `S23` was the dangerous one — its pipes sat in the **verdict** cell, so every
+later column shifted and the parser read `src` out of the handoff slot; **it survived only because
+the string it landed on was not `auto`**, which is the asymmetry protecting the file by luck
+rather than by design. `M1-PARSE` is the one worth noticing: **its own subject IS this hazard and
+it was malformed by it.**
+
+**AND IT CHANGED ANOTHER LANE'S TEST, WHICH IS A CROSS-LANE EDIT AND IS DECLARED RATHER THAN ABSORBED.** `tests/test_la_screener_batch.py::test_the_real_ledger_has_no_UNKNOWN_losses` **asserted the three malformed rows EXIST**, as an allowlist whose stated purpose was *"this test fails if a FOURTH appears, so the known set cannot quietly grow"*. That lane found them and deliberately reported rather than rewrote, because **its own register forbade editing another lane's row** — the right call for that session, with a cost nobody had measured: `build_ledger.py` does not tolerate those rows, it **refuses to run at all** while any of them exists. The expected set is now **empty**, which is **strictly stronger** than the allowlist — the guard still fires the moment a malformed row appears, and now on the FIRST rather than the fourth. Its docstring records who changed it, when, and why. **A small miscount in the audit, while here: `MA60` says the land gate "now runs 77 `test_*.py` suites". The Action globs `tests/test_*.py` and there are **74** on `origin/main`, 75 with this session's addition — the direction that matters (it is three times the ~24 its own livelock arithmetic assumed) is right, the number is not.
+
+### 58.3 · MA36 — the censored tail. A worthless expiry was stranded OPEN forever
+
+**THE DEFECT.** `_exit_decision` returns `"expiry"` from `CLOSE_BEFORE_EXPIRY_DAYS` out and never
+stops; the B5-lesser no-bid branch defers. For a contract that has already expired those two
+compose into a **permanent** defer, and since `_stats`/`paper_report` count `status='closed'`
+only, the position is neither a winner nor a loser but **ABSENT**. A long option that decays to no
+bid is precisely the **total loss**, so the censoring is **one-sided**: winners and quoted losers
+are scored and the −100% tail is dropped. `grep -c intrinsic paper_track.py` → **0**. That is the
+opposite of the backtest this book exists to validate, whose own comment reads *"expire worthless
+settle at intrinsic and post −100%. They are not dropped."*
+
+**THE SETTLEMENT PRICE IS ZERO AND IS NEVER RECONSTRUCTED — the load-bearing choice, made in the
+register before the code existed.** A non-zero intrinsic needs the underlying **at expiry**, and
+`TradierProvider.get_bars` returns `close/high/low/volume` lists and **drops the dates**, so there
+is no way to ask for the close on the expiry date without inventing a calendar alignment. Using
+*today's* underlying instead would book a **fake gain on a dead call** whenever the stock rallied
+after expiry — the settlement trap `V6-OPT` caught in the backtest, in a new costume, **with its
+error running in the flattering direction**. Zero is the conservative bound for a long option, it
+is what the market is quoting by declining to bid, and it is the backtest's own convention.
+
+**THE IN-THE-MONEY GUARD IS WHY ZERO IS NOT APPLIED BLINDLY.** If the underlying says the contract
+would have had intrinsic value, this is not the worthless case and something else is wrong (a dead
+feed, a corporate action). The only thing the guard can ever do is **prevent** an automatic
+−100%, so it cannot manufacture a loss; a blocked row is reported **by name** in
+`out["settlement_blocked"]` with its reason instead of stranding silently.
+
+**B5-LESSER IS NOT REVERSED.** Before expiry a no-bid position still defers, with its reason
+unchanged — inside `CLOSE_BEFORE_EXPIRY_DAYS` the contract is alive and carries time value, and
+settling it at intrinsic would book a loss the market never charged. The test is **strictly**
+`today > expiry`, and the boundary is pinned from both sides.
+
+**THE RESTATEMENT IS DATED AND KEEPS THE FIGURE IT REPLACED.** Settling the censored tail
+*restates a published number*, and a restatement that keeps no record of what it replaced is
+indistinguishable from the figure having always been that. So `scream_log`'s archive convention —
+nothing removed, everything dated — is applied to the **statistic**: `close_matured` snapshots the
+expectancy before any stranded row is settled, and on a cycle that actually settles one it appends
+a dated entry carrying `expectancy_before`, `expectancy_after`, the count and the rows. It
+surfaces on `options_summary`, which is what `hero.py` reads. **A cycle that settles nothing
+writes nothing**, or a real restatement would be lost among the noise.
+
+**SCOPE, STATED SO NOBODY READS THE CLASS AS CLOSED.** A row stranded for any reason *other* than
+an expiry it has passed is untouched and still defers. Pinned by its own test.
+
+### 58.4 · MA37 — the blended eras. A tuning loop was learning from a record the project retired
+
+`record_epoch` is stamped on every row and was **read as a filter by exactly one module**:
+**17** occurrences in `scream_log.py`, **2** in `options_tracker.py` (the `_FIELDS` entry and the
+stamp), **0** in `options_paper.py`. So `scorecard` ran a bare
+`SELECT * FROM option_alerts WHERE status='closed'`, `tuning_candidates` inherited it, and
+`paper_report` took `min(alert_ts)` over **every** row — after the 2026-08-13 reset, all three
+blended an era the project **formally retired** for *"predating the corrected alert stack (B1
+price basis, C-series fixes)"*.
+
+**WHICH ERA USERS SEE, CHOSEN IN THE REGISTER RATHER THAN AFTER SEEING THE NUMBERS: the current
+epoch, and only the current epoch.** `EPOCH_ALL` restores the blend on demand, and **every payload
+carries the per-era row census**, so the archived record is **excluded and never invisible** —
+`scream_log`'s first principle is that a reset is an archive and never a delete, and filtering an
+era out of a statistic without saying it exists would honour the letter and not the point.
+
+**THE TUNING LOOP IS THE POINT, not the display.** `tuning_candidates` proposes which alert
+fingerprints to favour; learning from retired rows is the defect that matters, and it is closed by
+the same default. **The `live_since` blend is the most misleading half:** a bare `min(alert_ts)`
+dated the live book from the archived era, making it look **older than it is**.
+
+**PRE-COMMITTED AND HELD: the current-epoch record is expected to be THIN, and thin is the honest
+state.** The register forbids widening the filter, falling back to the blend when the current era
+is small, or reporting a zero as a result — and a test pins that a store whose current era holds
+nothing reports *"no live alerts logged yet"* rather than the blend.
+
+### 58.5 · Controls, and a defect in my own repair caught by the test written to pin it
+
+All six registered controls pass. **C1** no already-closed row is ever re-touched (running the
+cycle three more times settles nothing and leaves the scorecard identical). **C2** the archive is
+read-only — the per-era census is bit-identical before and after, across every filtered and
+blended call. **C3** a no-bid position before expiry still defers. **C4** an ITM expiry is blocked,
+not settled. **C5** `epoch=EPOCH_ALL` reproduces the blended figure exactly (+100% and −50%
+averaging to +25%), which is the proof the old number was **filtered rather than lost**. **C6**
+`record_outcome` on a `0.0` exit premium returns `pnl_pct` of exactly −1.0 — its guard is
+`if ex is None`, so a falsy-but-valid zero passes, and this is pinned because a `if not
+exit_premium` anywhere upstream would silently drop every total loss.
+
+**A DEFECT IN MY OWN REPAIR, FOUND BY THE TEST WRITTEN TO PIN IT AND FIXED BEFORE SHIPPING.** The
+first cut had `_settle_expired` return a **bool**, so a *blocked* row fell through to the generic
+B5 defer, which **overwrote the note saying why it was blocked**. An operator would have been left
+with a stranded row reading only *"no bid"* while the file knew it looked in-the-money — a
+diagnosis destroyed by the code that produced it. It is now tri-state (`"settled"` / `"blocked"` /
+`None`), the two counters partition cleanly, and the blocked reason survives.
+
+**A DECLARED DEVIATION FROM MY OWN REGISTER.** Section 3 spells the blended view `epoch=None`;
+shipped, it is an explicit `EPOCH_ALL` sentinel, because `scream_log.records` **already** uses
+`None` to mean *the current era* and two modules disagreeing about what `None` means is precisely
+the two-conventions defect this register exists to remove. The substance the register asked for —
+the blend stays computable on demand — is unchanged; only the spelling is, and it moves toward the
+convention already shipped rather than away from it.
+
+**A CORRECTION AGAINST MY OWN REGISTER, AND IT IS THE ERROR THE RECORD WARNS ABOUT TWICE.**
+Section 6 says *"options stays at 292, equity at 218, infra at 11"*. **Measured after this
+session's merge, `by_domain` reads equity 224, options 292, infra 14 (infra 15 once the concurrent `MA19`/`MA13` landing merged in — the same drift one level down, recorded rather than left to rot)** — the 218/11 were quoted
+from a stale mid-session figure instead of being re-read from `by_domain` after merging
+`origin/main`, which is exactly the defect `S17`'s register committed and `O6`/`O7`/`O17` recorded
+before it. **The register is left unedited and the correction recorded here**, per the S5
+precedent. The substantive claim is untouched and verified: **`N` did not move.** Before and after
+the log row, `by_domain` is identical, while `rows_fixed_not_counted` rises **29 → 30** — which is
+the proof the row was *seen and correctly excluded* rather than silently dropped.
+
+### 58.6 · Expectations, scored
+
+1. **The live expectancy falls or is unchanged and cannot rise on MA36** (90/10) — **RIGHT**, and
+   now structural rather than hoped: the repair only ever adds −100% trades, and a test asserts
+   `expectancy_after < expectancy_before` on the restatement entry.
+2. **MA37 leaves the current era thin** (85/15) — **RIGHT** in mechanism, **UNVERIFIABLE on the
+   live book from here**: the local store is dev output, so the real count is whatever Render
+   holds. Reported as unverified rather than asserted.
+3. **The blend and the current era differ materially** (70/30) — **RIGHT** by construction on the
+   fixture (+25% blended against −50% current); the live magnitude is Render's to show.
+4. **No closed row moves** (95/5) — **RIGHT**, C1 passed first time.
+5. **The ITM guard never fires locally** (80/20) — **RIGHT**, and for the stated reason: there is
+   no real stranded position in a dev database.
+6. **`tuning_candidates` is the consumer whose output changes most** (60/40) — **UNRESOLVED.** On
+   a book this thin nothing is actionable in either era, so the arm that would show it does not
+   exist yet. The claim was about a live book and cannot be scored on a fixture.
+
+**4 right, 0 wrong, 1 unverifiable, 1 unresolved.** The two that do not score are both cases where
+the honest answer needs the production database, and neither is dressed up as a pass.
+
+### 58.7 · What this does NOT say
+
+* **It is not evidence about the strategy.** `R2`'s dead-entry frame is **not** inherited and
+  `O11`'s survivability frame is **not** inherited — both were declined in writing in the register
+  before any repair existed. This says the live book was **mis-recorded**, not that it is good or
+  bad. Fixing a censored record is not a claim about what it records.
+* **It does not close the audit's options section.** `MA38`-`MA49` sit in the same section and are
+  **out of scope by void condition 6**; they keep their `OPEN` rows and want their own register.
+* **It changes no backtested number.** `GATED_LATE_HALF_EXPECTANCY = 0.1288` and every figure the
+  research record publishes are untouched.
+* **The stranded rows themselves are on Render, not here.** This ships the mechanism that settles
+  them and dates the restatement; **the first real restatement happens on the next cycle that
+  runs against the live store**, and it will be visible in `options_summary().restatements`.
+
+### 58.8 · Recommended next step (NOT started — Don's call)
+
+**`MA39`** — *"the degraded-run detector watches 6 of 13 result blocks, and `build_payload` never
+reads the error string the run recorded"*. It is the third HIGH in the same audit section, it is
+the same shape as both items closed here (a guard correct in-process and blind at its output
+boundary), it needs **no data and no trials**, and its failure mode is the worst of the three: a
+`BACKTEST_RESULTS.json` that ships `errors: []` after an exception, which the file's own contract
+reads as an **active claim of health**.
+
+---
+
+## 59 · NINE MA ROWS GET THEIR EVIDENCE, AND MA38 — AN ALERT BONUS DIVIDED A WHOLE-CHAIN NUMERATOR BY A PARTIAL DENOMINATOR
+
+**2026-08-15.** Two items. **Zero trials** on both; options `N` stays **292**, equity **224**,
+infra **15**, and `rows_fixed_not_counted` moves **32 → 33**, which is the proof MA38's log row
+was seen and correctly excluded rather than silently dropped.
+
+### 59.0 · The routing premise was already stale, and saying so is part of the answer
+
+The task named nine MA rows "landed on main but still not marked DONE". **After merging
+`origin/main` — 12 commits, none of them mine — seven of the nine were ALREADY DONE.** The list
+was written against a tree that had moved. What was actually wrong was narrower and different:
+
+* **Five DONE rows carried NO commit citation at all** (`MA1`, `MA7`, `MA9`, `MA10`, `MA50`) — an
+  empty `commit` cell, so the row asserted a verdict with nothing to check it against.
+* **Two DONE rows cited the PREREG sha rather than the delivery** (`MA13`, `MA19` both read
+  `0eb95b1`, the register; the delivery is `e1fcd7c`).
+* **Two were genuinely still OPEN while landed** (`MA15`, `MA16`).
+
+All nine now carry sha + date, **verified against the DIFF rather than the commit subject** —
+ledger trap 5 is a subject donating a verdict, and this lane has already been burned by it once.
+
+### 59.1 · What the verification turned up
+
+**`MA1` WAS FIXED TWICE, INDEPENDENTLY, BY TWO LANES.** `4063f6f` (21:23) adds
+`valuation/edge/weight_adoption.py`, a vintage-plus-contract gate on `save_learned`; `f8f6d31`
+(21:57) defaults `cfg.learn_enabled` FALSE with a strict `== "true"` parse and adds
+`tests/test_ma1_learning_disarmed.py`. **Neither is an ancestor of the other** (merge-base
+`3893d6b`), so this is duplicated effort rather than one commit refining another — and it is
+exactly the collision `MA_DEPENDENCY_MAP` was built to prevent, on the item carrying **5 of wave
+1's 8 collisions**. The two are complementary and the end state is correct: `config.py:210`
+parses only `true` as true, and every surviving `run-learning` string in `auto-scan.yml` is a
+**comment documenting the removal** — 0 live lines against 10 cron entries.
+
+**`MA7` IS GENUINELY DONE NOW, WHICH SUPERSEDES THIS LANE'S OWN FINDING OF 2026-08-14.** That
+finding — MA7 is not done though `14c00ac` names it — **was right when made**: `14c00ac` touched
+`VALQUO_MASTER_AUDIT.md`, its PDF and the items JSON, and **zero production files**. A real fix
+landed afterwards at `983e6ee` (`ratelimit.py` +99, `tests/test_vendor_quota.py` +242). **The
+lesson stands and the status does not**, which is the distinction a ledger exists to keep.
+
+**`MA15`/`MA16` ARE CLOSED AND BOTH CORRECT THE AUDIT'S OWN NUMBERS.** `d968651` puts
+`data\options_ticks` in `$KEEP` bucket 2 and moves `data\free_analysis` from `$SKIP` to `$KEEP`
+bucket 1, verified on the drive at 45.84 → 51.04 GB with the arithmetic exact. **MA15's size is
+7% high** (measured 4.40 GB, 70,288,482 prints over 3,884 of 3,885 alert-days, against a claimed
+4.72 GB) and **MA16's is understated ELEVEN-FOLD** (70 MB claimed, 0.80 GB measured, more than
+half of it banked PANELS — and a panel is a snapshot of a code state, so "the script rebuilds it"
+stops being true the moment the script changes, which is the row's own argument confirmed).
+
+**A DEFECT IN MY OWN VERIFICATION, reported because the failure mode is the interesting part.**
+The first present-state check reported **three false MISSes**. Both causes are worth carrying: a
+bare string search **cannot tell live code from a comment documenting that code's removal**, and
+`$SKIP` first appears in `backup_to_D.ps1`'s own **docstring** at line 11, so splitting on its
+first occurrence cut the file *before* `$KEEP` began at line 59. Re-checked between the two
+**assignments** and against non-comment lines only, all three pass.
+
+### 59.2 · MA38 — the premise is confirmed, and the deciding fact is one the audit never states
+
+`chain_summary` sums `call_volume` over **every** contract in the front expiry and `call_oi` over
+**only** those whose open interest is known — B4 made it exclude the `-1` the ThetaData cache
+writes when the OI call failed, which was right. `options_signals` then forms
+`call_volume / call_oi > 0.5` for its **+8 "Unusual call volume vs OI"** bonus, dividing a
+whole-chain numerator by a partial denominator. `grep known_frac` across the repository returns
+**one producer and zero readers**: the disclosure B4 shipped to catch precisely this was wired to
+nothing.
+
+**THE AUDIT'S 11.4% IS A SHARE OF CACHE ROWS AND CANNOT SETTLE WHETHER THE DEFECT FIRES.** If
+missing OI were **all-or-nothing**, `coi` would be either right or exactly **0**, the shipped
+`coi > 0` guard would already block the bonus, and the correct action would have been to
+**retire** the field. Measured over **41,321 front-expiry chain-days across 41 cached symbols**:
+
+| coverage of the front-expiry call chain | days | share |
+|---|---|---|
+| fully covered | 31,064 | 75.2% |
+| **PARTIAL** | **10,296** | **24.87%** |
+| empty (already blocked by `coi > 0`) | 37 | 0.09% |
+
+**A row-level coverage statistic cannot answer a per-day question**, and the per-day answer is
+what decides between fixing and retiring.
+
+**A PRECISION CORRECTION AGAINST THE AUDIT, AND AGAINST MY OWN FIRST DRAFT OF THIS SECTION.** The
+audit says the defect "fires alerts the module's own docstring (*'reconstruction is STRICTER …
+fires fewer, never more'*) says it cannot". The quote is **verbatim and real** — but it is scoped
+to the **volume-surge** deviation in `options_backtest`'s header, not a blanket guarantee about
+the reconstruction, and my first code comment inherited the over-reading. **What the defect
+actually breaks is that docstring's ARGUMENT** — that every known deviation runs in the
+conservative direction, so a surviving edge is not an artifact of one. **This was a second known
+deviation, running the other way.** The header now records it beside the first.
+
+### 59.3 · The blast radius is small, and one-directional
+
+**27 days (0.065%)** cross the 0.5 bar for no reason but the mismatch. **ZERO cross the other
+way.** So the defect could only ever have **ADDED** an alert, never hidden one — which is what
+bounds its effect on the banked books without re-running them.
+
+### 59.4 · Both fixes the audit proposes cost more than the defect
+
+Scored against those same 27 days:
+
+| repair | legitimate fires killed | vs the defect |
+|---|---|---|
+| (a) audit: scale `coi` by `1/known_frac` | 501 | **18.6×** |
+| (b) audit: suppress below 0.9 coverage | 1,005 | **37.2×** |
+| **(c) shipped: both sums over the SAME rows** | — | — |
+
+**The mechanism is measured rather than argued: volume is CONCENTRATED in the known-OI rows,
+median +0.50 excess share of volume over share of rows.** So (a) credits **average** open
+interest to contracts carrying far **below-average** volume, inflating a denominator against a
+numerator those rows barely feed. (b) is additionally an **uncalibrated bar** — the error this
+project's record warns about more than any other.
+
+**AN HONEST LIMIT ON (c), stated in the artifact and the script docstring rather than left to be
+noticed: (c) is the REFERENCE that (a) and (b) are scored against, so "it has no collateral" is
+TRUE BY CONSTRUCTION and is NOT evidence for it.** The case for it is a priori — it imputes
+nothing and introduces no constant — plus the independent concentration measurement above.
+
+### 59.5 · What shipped
+
+New `call_volume_oi_known` / `put_volume_oi_known` on `chain_summary`: volume over exactly the
+rows whose OI was known. `call_volume` **stays whole-chain**, because the put/call ratio wants it
+that way and **only OI goes missing, never volume**. At full coverage the repair is a **bit-exact
+no-op**, which is what makes it safe to apply unconditionally.
+
+**THE LIVE PATH IS BIT-IDENTICAL AND THAT IS THE POINT OF THE SCOPE.** Tradier ships no coverage
+figure, so `call_volume_oi_known` is absent there, the consumer falls back to the old numerator,
+and **no live alert changes** — pinned by test. Changing which alerts the live engine fires would
+be a **construction change, not a bug fix**.
+
+The fraction is **wired rather than retired**: it reaches `detail` beside a new `oi_ratio_basis`
+naming which numerator was used, because an OI ratio built on 20% of a chain is not the same
+statistic as one built on 100% and a reader is entitled to know which they have.
+
+### 59.6 · Not done, and one bug reported outside this lane
+
+**The banked 22b/R2 books are NOT re-run** and were built under the defect. The one-directional
+result bounds the **direction**; it does not price the **size**, and pricing it needs a re-scan.
+
+**REPORTED, NOT FIXED (`RUN_RULES` rule 3, outside this lane): BOTH live producers turn a missing
+open interest into a zero COUNT rather than an unknown** — `providers.py:192-193` reads
+`(o.get("open_interest") or 0)` and `:286-287` reads `openInterest.fillna(0)`. Same defect class as
+the `-1` B4 repaired, and **worse in one respect: neither ships a coverage figure at all**, so
+there is nothing to detect it with — `grep -c oi_known valuation/intraday/providers.py` returns
+**0**, which is also what makes this lane's fallback safe. A total absence is caught by the
+`coi > 0` guard; a partial one is not. **Corrected against my own first draft, which named only
+the Tradier provider.**
+
+`tests/test_ma38_oi_coverage.py` **9/9**, with **4/4 deliberate mutations caught** — including
+reverting the numerator, dropping the `detail` disclosure, and adding the audit's own 0.9 bar.
+`scripts/ma38_coverage.py` reproduces every figure above;
+`data/free_analysis/MA38_OI_COVERAGE.json`.
+
+**Recommended next: `MA39`** — the degraded-run detector watches 6 of 13 result blocks and
+`build_payload` never reads the error string, so an exception can ship a `BACKTEST_RESULTS.json`
+asserting `errors: []`, which its own contract reads as an active claim of health. Zero data,
+zero trials.
+
+---
+
+## 60 · WAVE 2 OF THE MASTER AUDIT — MA44, MA45, MA46, MA48. FOUR CORRECTNESS REPAIRS, AND THE MEASUREMENTS THE AUDIT COULD ONLY HYPOTHESISE
+
+**Taken from `MA_DEPENDENCY_MAP.md` as this lane's wave-2 batch.** They are the four options-bot
+MEDIUMs, and they batch cleanly: **eight distinct files with no overlap between the four items**,
+and none of those files appears in the map's hot-file table, so there is no collision with another
+lane either. `MA31`, `MA32` and `MA56` are **wave 3**, not wave 2 — see §60.6.
+
+**All four are `FIXED`-class: no hypothesis, no pre-committed threshold, no verdict against a bar,
+so ZERO trials are charged** (the `S25` / `PT-WRITER` / MA38 precedent). Options `N` stays **292**.
+
+### 60.1 · MA44 — the docstring was false, and the shape is worse than the audit states
+
+**FOUR sites choose a "front expiry" and they implement TWO rules**, which the audit reports as
+two sites and one rule:
+
+| site | rule |
+|---|---|
+| `intraday/providers.py:168` (Tradier, live) | `dl[0]` — no date filter |
+| `intraday/providers.py:282` (yfinance, live) | `exps[0]` — no date filter |
+| `edge/options_backtest.py::chain_summary` | first expiry **strictly after** `as_of` |
+| `edge/options_live.py::term_read:273-274` | first expiry **strictly after** `as_of` |
+
+**So the odd one out is the LIVE SUMMARY, not the reconstruction** — and the consequence the audit
+does not draw is that **the live scan's own two legs can disagree with each other**: on a day the
+venue lists a same-day expiry, volume, OI and `atm_iv` come from the dying chain while `term_slope`
+comes from the next one. The strictly-after rule is also the one `term_read`'s threshold was
+**fitted** on ("as fitted", its own docstring).
+
+**MEASURED, where the audit's verification was "log expiry == today occurrences in one Friday
+scan".** One Friday is one draw and needs a live session; the chain cache gives years, offline.
+On **19,825 cached chain-days across 39 names**:
+
+* **12.46%** list a same-day expiry alongside a future one — and it is a weekday phenomenon:
+  **60.2% of FRIDAYS**, 1.5% of Thursdays, **0.0% Monday to Wednesday**, and **39 of 39 names**.
+  The audit's "every Friday for weekly names" is confirmed with a number on it.
+* Median call volume on those days: **602 live against 796 reconstruction**.
+* **The 0.5 volume-vs-OI bar — the exact bonus MA38 repaired — is crossed by ONE SIDE ONLY on
+  23.14% of them**, so roughly **2.9% of all chain-days** carry a divergent verdict.
+
+**WHAT IS NOT SETTLED, AND WHY NOTHING MOVED.** Whether Tradier's expirations endpoint really
+lists today on an expiry day is a **live vendor behaviour this repository cannot observe** — it is
+the audit's own HYPOTHESIS. Changing the reconstruction to match a rule that might not hold would
+**break** parity rather than fix it, and changing the live providers would alter which alerts fire,
+which is a construction change and not a bug fix. So: the false claim is **removed and replaced by
+what the code actually does**, `include_expiring` names the other rule so it is testable rather
+than hypothetical (**default bit-identical**), and `front_expiry` / `expiring_listed` are now
+reported by the reconstruction **and by both live providers**, which had never reported the expiry
+at all — the divergence was unobservable in a live payload. **The parity decision is ROUTED.**
+
+### 60.2 · MA45 — confirmed, and the row-level number is the wrong number
+
+`enrich_chain` solved IV from `(bid+ask)/2` with no validity test, while `options_greeks.
+enrich_frame` has always refused `no_quote` and `crossed` rows — and **the unvalidated path is the
+LIVE one**: `term_read → _atm_iv_bs → enrich_chain → nearest strike`. `chain_summary`'s ATM walk
+carried the same defect in **its own separate copy** of the mid, a second site.
+
+* **26.08%** of 4.35M cached rows carry a one-sided quote; **0.00%** are crossed.
+* **But the ATM front row the walk actually LANDS on is one only 0.44% of chain-days**, because
+  ATM rows are nearly always two-sided. **A row-level share cannot answer a per-day question** —
+  MA38's lesson, in a second costume.
+* **When it bites it is severe and one-directional**: front IV moves a median **+0.1262** (12.6
+  vol points) against a shipped term threshold of **0.0105** — twelve times the bar — the 0.0105
+  decision **flips on 0.29% of chain-days**, and **5 of 6 flips are alerts that PASS today and
+  would fail**. **The audit's direction claim is confirmed.**
+
+**SHIPPED: one shared `blackscholes.usable_quote`, deliberately EXACTLY the greeks rule and nothing
+more.** `penny`, `wide_spread`, `dte_band` and `mny_band` are **selection** criteria — statements
+about which contracts a strategy wants — while `no_quote` and `crossed` are statements about
+whether the number is a price at all. Folding selection into a validity test is how a filter comes
+to change a result it was never meant to touch.
+
+**THE ROW IS KEPT AND ITS `iv`/greeks GO NaN, rather than the row being dropped.** That is what
+makes the repair safe: every caller already handles a missing IV, the frame keeps its shape and
+index, and **no caller's row count moves**. **`pick_contract` selection is bit-identical and
+pinned** — `quote_reject_reason` already refused these rows *after* enrichment, so the 22.1% of the
+45-75 DTE band that is one-sided was being enriched and then discarded: **wasted compute, not a
+wrong answer.**
+
+### 60.3 · MA46 — two recorders, one name, two meanings; and a defect in my own first fix
+
+B15 made the backtest's `return_pct` net of the round-trip commission and kept the old quantity as
+`return_pct_gross_comm`; the forward tracker went on computing `ex / entry - 1`, **which IS that
+renamed quantity**. So the live book was scored against a reference computed a different way, on
+the one axis (live vs backtest) the forward book exists to measure.
+
+**MY FIRST CUT TOOK THE AUDIT'S FIRST OPTION — net the tracker's `pnl_pct` — AND IT WAS WRONG.
+It collides with MA36, and the collision is the most useful thing in this item.** A position that
+expires worthless settles at zero and must read **exactly −100%**; that is MA36's whole point and
+its control test asserts it. Netting makes it **−100.26%**. And the deeper reason it is wrong:
+**an expiring option is never SOLD, so there is no second commission leg to charge at all.** One
+correction would have quietly corrupted another.
+
+**It was caught by the suite, not by me** — four suites went red (`test_edge`, `test_intraday`,
+`test_ma36_ma37_record_integrity`, `test_paper_track`), and the temptation there is to read four
+red suites as four stale expectations and edit them. They were not stale; they were right.
+
+**SHIPPED INSTEAD: the audit's SECOND option, record both.** `pnl_pct` keeps exactly the meaning
+it has always had, `expectancy_pct_net` is reported beside `expectancy_pct`, and `pnl_basis` names
+which is which. **No published figure moves** — proved by those same four suites going green again
+**without any edit to their expectations**, which is the strongest available evidence that the
+repair is a labelling change and not a restatement. The ambiguity *was* the defect; two names
+close it.
+
+`options_fill.net_return_pct` is the one shared definition, and `round_trip` **delegates** to it
+rather than keeping a second copy that agrees today. **The contract count cancels out of the
+formula**, so the net series is complete over the whole book from day one — every pre-MA46 row is
+reconstructed exactly from stored premiums, with no migration and nothing assumed about position
+size. (Algebraically exact; **one unit in the last place in IEEE754**, stated in the test rather
+than hidden behind a `round()`.) `rows_net_derived` reports how much of the net series was
+reconstructed rather than read, so it is never mistaken for a fully stored one.
+
+**REPORTED, NOT FIXED:** `net_return_pct` charges **two** commission legs, matching
+`options_fill.round_trip`. For a position that expires worthless there is no closing trade, so
+**both modules overstate the cost by one leg on those rows**. It is consistent between them, and
+changing it would move the backtest's banked figures — so it is named here rather than bundled in.
+`cum_pnl_dollars` also stays gross: the contract count cancels out of the percentage but not the
+dollars, and no contract count is stored, so a netted dollar column could never be reconciled
+across older rows.
+
+### 60.4 · MA48 — confirmed in code, measured LATENT, and my own sharper hypothesis refuted
+
+`_fetch_year` clamps `year_end = min(Dec 31, today)`, so a year mined while still current is
+right-truncated, and `needs_pull`'s only refresh trigger was **DEPTH** (a DTE ceiling), never
+**SPAN** — so such a file is cached forever and a study reading past the mine date gets empty
+slices, uncounted.
+
+**I expected past years to be quietly truncated too**, since once the calendar rolls over the year
+looks complete and the evidence is gone. **Measured across the whole cache: 0 of 5,063 cached
+symbol-years were mined during their own year** — verified against the frames' **own max(date)** on
+a sample rather than trusting file mtime (**14 of 14 ran Jan 2 → Dec 31**) — and there are **zero
+2026 files**. So **no banked study is affected and the repair re-mines nothing**; the audit's "the
+trap arms the moment anyone mines into 2026" is exactly right.
+
+Shipped: a **`.span` sidecar** beside the existing `.dte`, in the file's own idiom; `span_is_stale`
+consulted by both `needs_pull` and `ensure_year`; and **one shared `requested_span_end`** so the
+fetcher's clamp and the staleness test cannot drift. A legacy file with no sidecar is **complete
+for a past year — licensed by that 0-of-5,063 measurement, not assumed** — and **stale for the
+current year**, the safe direction, which costs nothing today.
+
+**Sibling fixed in the same pass:** `thetadata_provider._call` returned `None` for **both** "the
+feed says nothing is here" **and** "every retry failed", and `chain_on` cached an empty frame
+permanently for both — a transient outage became a permanently-empty chain. It now distinguishes
+them. **That path has NO production caller** (near-dead — MA59's territory), which is why the blast
+radius is nil, and that deadness is evidence MA59 can use.
+
+### 60.5 · Tests, and the known-bad direction
+
+**34 new tests across four files, all passing — and 27 of the 34 FAIL against the pre-fix
+sources**, restored from `HEAD` and run, not argued (M3's standard). Notably the pre-fix
+`enrich_chain` returns **iv = 0.222 from a zero-bid row**: the defect demonstrated numerically
+rather than described.
+
+The **full 87-suite gate is green**, and it is worth saying how it got there: the first pass had
+**five** red suites, four of them genuine regressions from MA46's first design (§60.3) and one
+flaky. Each was checked **against `HEAD` rather than reasoned about** — restore the sources, re-run
+the same suites, compare — which is what separated "my regression" from "pre-existing" in one step
+and stopped four correct tests from being edited to fit a wrong fix.
+
+The **7 that pass both before and after are deliberate regression pins** — `pick_contract`
+selection unchanged, `needs_pull` still caching complete years, `term_read` still strictly-after,
+the row kept rather than dropped. A pin that passes before the fix is doing its job; a *fixture*
+that does is worthless, and the two are separated here on purpose.
+
+Reproduce the measurements: `python -m scripts.ma44_ma45_ma48_measure`
+(`data/free_analysis/MA44_45_48.json`).
+
+### 60.6 · A correction to the brief, and what is NOT taken
+
+**`MA31` is WAVE 3, not wave 2.** The brief asked for "MA31 and the other options-bot MEDIUMs";
+the map places MA31, MA32 and MA56 in wave 3, and its wave rule is explicit that wave 2 is the
+**zero-trial-cost** tier. MA31 is the Cremers-Weinbaum matched-strike put-call parity deviation —
+**the largest un-run item either prior audit named**, a genuine research arm that **charges
+trials** and needs its own pre-registration committed blind before anything is measured. Running it
+inside a correctness batch would be exactly the mistake this project's register exists to prevent.
+**It is the recommended next item and it wants a session of its own.**
+
+`U2` already recorded why it is worth having: the parity deviation is **Cremers-Weinbaum's ACTUAL
+measure and the largest effect that section cites (51 bps/week)**, and U2 explicitly declined it as
+a NEW feature and closed `PARTIAL` rather than `DONE` so nobody would think it had been tested.
+
+**Also not taken:** `MA46`'s dependency on `MA37` is satisfied (MA37 closed at `cb3fead`), and the
+epoch scoping it introduced is untouched here.
+
+### 60.7 · Reported outside this lane (RUN_RULES rule 3)
+
+* **Still open from MA38, unchanged:** both live producers turn a missing open interest into a
+  **zero COUNT** rather than an unknown — `intraday/providers.py:192-193` (`... or 0`) and
+  `:286-287` (`openInterest.fillna(0)`). Neither ships a coverage figure to detect it with. MA44
+  touched that file and deliberately did **not** bundle this, because it changes live alert inputs.
+* **`intraday/providers.py:190-191` has the same shape for VOLUME** (`(o.get("volume") or 0)`),
+  found while reading for MA44. Lower stakes — volume coverage is complete in the cache — but it is
+  the same conflation of *absent* with *zero*.
+* **`options_tracker.record_outcome`'s docstring says `pnl_dollars` is "on a fixed 1-contract,
+  100-share basis"** while the code multiplies by `contracts`. Pre-existing, harmless while every
+  caller passes the default of 1, and left alone because changing either the docstring or the
+  arithmetic is a judgement about what that column is meant to be.
+* **`options_fill.round_trip` charges TWO commission legs even when `settled_at_intrinsic` is
+  true.** A contract that expires worthless is never sold, so there is no closing commission to
+  pay; the backtest's `return_pct` is therefore slightly too harsh on exactly the −100% tail MA36
+  restored. Pre-existing and small (~0.26pp on a $5 premium), but it is on the banked books, and
+  correcting it would move published figures — so it is reported rather than bundled into a
+  correctness pass. Found while building MA46's net figure, which inherits the same convention on
+  purpose so the two modules stay consistent.
+
+---
+
+## 61 · WAVE 3 — MA31, MA32, MA56. THE LARGEST UN-RUN ITEM EITHER AUDIT NAMED IS RUN, AND THE ANSWER IS THAT THIS UNIVERSE CANNOT ANSWER IT
+
+**Register: `PREREG_ma31_ma32_parity_openclose.md`, committed ALONE at `a51e372`** — one `.md`,
+zero `.py`, a strict git ancestor of every commit that computes an arm. Code at `4f3a59b`.
+**ADOPTS NOTHING**; no live scoring path changed. **Equity `N` 224 → 227**, options untouched at
+**292**, infra **15**.
+
+**With these three the options-bot lane is CLOSED on audit #3: all ten of its MA rows are `DONE`.**
+
+### 61.0 · A correction to the dispatch brief, made before anything was measured
+
+The brief asked for "MA31 and the other options-bot MEDIUMs" as **wave 2**. `MA31` is **wave 3**.
+Wave 2 is defined in `MA_DEPENDENCY_MAP.md` as *unblocked by wave 1, **zero trial cost***; `MA31`
+and `MA32` carry `trial_cost: "1-2"` each. They therefore need a blind pre-registration, and
+running them inside a correctness batch is exactly what the register exists to prevent. `MA56` is
+`trial_cost: 0 (record only)` and is not a measurement at all.
+
+So this session is **one register for the two research arms** — they share one pass over the same
+27 GB raw chain cache, which is a stronger reason to batch them than the collision table — and
+**a record for `MA56`**.
+
+### 61.1 · The verdict, stated with the caveat that decides how to read it
+
+| arm | item | declared sign | early | late | bar | verdict |
+|---|---|---|---|---|---|---|
+| `parity_dev` | MA31 | **+** (Cremers–Weinbaum) | −1.0886 | −0.3380 | 2.71 (X7, an extrapolation) | **NULL** |
+| `call_open_share` | MA32 | **−** (Ge–Lin–Pearson) | −1.4146 | −0.7169 | 1.9547 / 1.7547 (own permutation p95) | **NULL** |
+| `put_open_share` | MA32 | two-sided | +0.0633 | +1.0895 | 2.0879 / 2.0978 | **NULL** |
+
+**AND ALL THREE NULLS ARE UNINTERPRETABLE BY THE REGISTER'S OWN C-POWER RULE.** That is a
+pre-committed clause firing, not an excuse constructed afterwards — §4 of the register says in
+writing that *if C-POWER comes back under 2.0, a null on A1 is uninterpretable and will be
+reported as uninterpretable*.
+
+### 61.2 · The power measurement is the finding, and it is general rather than local to these arms
+
+The audit's own control bar is **2.0**. Decomposed across three **nested** populations (raw IC *t*):
+
+| signal | full 69-date panel | the 40 covered dates, ALL names | **the ROWS the arms are measured on** |
+|---|---|---|---|
+| `z_gp_on_capital` | **+3.6745** | +2.4776 | **+0.9919** |
+| `z_ret_6_1` | +1.8315 | +2.4762 | +1.5385 |
+| `quality` | **+3.1015** | +2.8014 | **−0.0594** |
+| `momentum` | +1.3117 | +1.6929 | +0.3442 |
+| `value` | +0.8380 | +0.7505 | −0.0681 |
+| **`size`** | −0.3005 | −0.7996 | **+3.0765** |
+
+**On the options-listed sub-population the panel's own best-known signals cannot be separated from
+zero, and `size` — the weakest theme on the full panel — becomes the strongest.** That is `U7`'s
+finding independently reproduced: it measured that *"inside 187 megacaps the other themes are
+compressed and `size` dominates"*, and this is the same result on **906 names**, on a different
+join, in a different decade of the record.
+
+**The consequence outlives these two items.** Any future options-derived signal tested as a
+**stock** predictor on this cache inherits this: the population it is measured on is one where the
+project's own known-real signals do not work. A null there is *"could not be separated at this
+resolution"*, never *"absent"*, and reporting it any other way overstates it.
+
+**It also decomposes cleanly, which is what makes it a finding rather than a suspicion.** Restricting
+to the covered **dates** costs `gp_on_capital` about 1.2 of a *t* (era). Restricting further to the
+covered **rows** costs another 1.5 (population). The second cut is the larger one, and only the
+row-level cut is a property of *being an optionable name*.
+
+### 61.3 · A correction to the record, and it is this lane's own
+
+`CLAUDE.md` records `U2`'s power control as *"`gp_on_capital` **2.4776** and `ret_6_1` **2.4762**
+on the identical covered rows"*. Those two figures reproduce here **to four decimal places** — as
+the **covered-DATES / ALL-NAMES** column, not the covered-rows one. `U2`'s covered geometry is
+identical to this register's (40 dates, halves 20/19, boundary 2021-01-21), so this is not a
+coincidence of different date sets.
+
+**So `U2`'s power control was not restricted to the rows `U2`'s arms were measured on**, and it
+therefore **overstates** the power those arms had.
+
+**`U2`'s verdicts do not change and are not reopened.** A weaker power control cannot rescue a
+rejected arm; it can only make a null *less* interpretable. The correction runs in the
+conservative direction — `U2`'s nulls were even less informative than it claimed — which is why it
+is recorded rather than argued about.
+
+### 61.4 · Two published signs, two different outcomes
+
+* **Cremers–Weinbaum's POSITIVE direction is NOT reproduced in any window.** Every reading is
+  negative: incremental *t* −1.0886 / −0.3380 / −0.6876, raw *t* −1.3676. Far too weak to refute a
+  published result — but on this universe the declared direction does not appear, and a
+  wrong-signed result could never have been a pass. **It is the third published options sign this
+  project has failed to reproduce** (`O7` vs Gao–Xing–Zhang, `U2` vs Xing–Zhang–Zhao, now this).
+* **Ge–Lin–Pearson's NEGATIVE direction for the call arm IS reproduced, in sign, in all three
+  windows** (−1.4146 / −0.7169 / −1.6638) and fails only on **strength**. That is a more
+  informative null than a flat one, and it is the closest anything in this register comes.
+
+### 61.5 · The trap that would have produced a clean, fabricated null
+
+`dividends.spot_from_parity` returns `S = C − P + K·exp(−rT)`. **Feed that back as the spot and
+`iv_call − iv_put` is identically ZERO by construction** — the arm would have reported a tidy,
+plausible, completely manufactured null and nothing would have raised. It is named in the register
+before the run, listed in `FORBIDDEN_CALLS`, and a **source-level** test asserts it never appears
+on the arm path.
+
+**The other half of the same trap is settled by measurement, not assertion.** Strikes are
+as-traded; `close` is split- and dividend-adjusted. `C-SPOT` runs session 31's shared
+`assert_raw_spot` in **both** directions: the raw series matches the stored spot at a median
+relative error of **exactly 0.0** over **16,742** entries, and the adjusted series **RAISES** at a
+median **8.52%**, worst **SIRI 36.5180 against 3.9900**. The trap is real, and this run is not in it.
+
+### 61.6 · Two defects in my own instrument, both caught by gating controls, both of which would have read as RESULTS
+
+Neither raised an exception. Both produced a plausible, publishable-looking answer.
+
+1. **The join matched nothing — 0 of 113,945 rows.** The feature rows carry two dates:
+   `chain_date` (the session observed) and `date` (the rebalance it was built for). `join_pit`
+   implements the strictly-before rule and the 7-day staleness ceiling **itself**, so handing it a
+   frame keyed on the *rebalance* date made it search for the previous rebalance — a quarter old,
+   so everything failed the ceiling. **Coverage simply read zero**, and *"the arms have no
+   coverage"* is a sentence this project has legitimately written five times (`S18`, `U2`, `U3`,
+   `V6-OPT`, `U6`).
+2. **`coverage_report` stringified its dates** so the artifact would read nicely; every consumer
+   then filtered a `datetime64` column with `.isin([...strings])`, matched nothing, and all three
+   arms returned `n_dates = 0` **while coverage simultaneously reported 40 dates and 16,736 joined
+   rows**. Stringify at the JSON boundary, never at the computation boundary.
+
+**The two-pass design is what separated a bug from a finding**: `--controls` computes and writes
+the gating controls and **exits before any arm is scored**, and `--arms` **refuses to run** unless
+that artifact exists and passed. That is session 26's defect — a gating control and the outcomes it
+gated computed in one pass — repaired rather than repeated. Both defects are now regression-pinned.
+
+3. **A third, in my reporting rather than my code.** The MDE was first quoted beside the **median**
+   incremental IC, which is not the statistic it is comparable with (`ic_tstat` is
+   mean/(sd/√n), so the MDE pairs with the **mean**). Corrected: against the mean, **all three arms
+   sit BELOW their own detection threshold** — −0.00667 vs 0.02629, −0.01234 vs 0.01483, +0.00893
+   vs 0.01939. The median-based read would have wrongly said `call_open_share` exceeded its MDE.
+
+### 61.7 · Controls
+
+* **C-DUP — neither arm is another arm renamed, and `MA31` is NOT `U2`'s rejected arm.** Spearman
+  against `U2`'s negated `skew_25d` is **+0.3796** over 14,803 rows, far under the 0.90 bar; the
+  two `MA32` arms correlate **+0.3164** (separate denominators by construction). This is `U2`'s own
+  §0.3 discipline applied to the item that supersedes it — and it was worth running, because the
+  volatility spread and the 25-delta smirk are close cousins.
+* **C-INC — the arms carry genuinely NEW information and predict nothing with it.** Mean R² on the
+  seven incumbents: **0.0438**, **0.0273**, **0.0361**. `U2`'s dissociation, reproduced exactly.
+* **C-SENT — `B4`'s `-1` open-interest sentinel is live and handled.** **931,080 contract-days**
+  excluded, and the register **requires the count to be non-zero**: a zero would mean the filter
+  never reached the data, which is a vacuous guard rather than a clean one.
+* **C-BAND — not an artefact of the a-priori moneyness band.** The 0.20 band correlates **+0.9215**
+  with the 0.10 primary and gives the same answer (raw *t* −1.1634). Reported, **no verdict**.
+* **C-DIV — the arm is weak among payers and non-payers alike** (raw *t* −1.1611 / −0.4962), so it
+  is not a dividend-misspecification artefact in the sense that would matter. Reported honestly:
+  the *level* does differ by dividend status (mean +0.00533 vs −0.00244), which is a limitation of
+  a trailing `q` against American options, not a finding.
+* **C-AMER — NOT RUN, and reported as not-run rather than silently skipped.** It needs a rebuild of
+  the 27 GB feature pass and carries **no verdict** by the register, so it cannot change anything.
+
+### 61.8 · The premise the audit relied on is true and insufficient — the new number
+
+`V6-OPT` removed `U2`'s recorded blocker by measuring the cache at **1,288,750 puts against
+1,288,751 calls, zero tickers with no puts**. That is correct and it is not enough: **a matched
+pair being PRESENT is not a matched pair being USABLE.** A pair needs a two-sided quote on **both**
+legs, so the pair-level rate is roughly the **square** of `MA45`'s leg-level one — measured **42 of
+92, 133 of 329, 10 of 64, 2 of 25** on sampled cross-sections.
+
+It was scoreable anyway: **16,736 rows over 40 covered dates, median 431.5 names per date**, halves
+**20/19**, boundary **2021-01-21**. **A correction to the audit in passing**: its note says *"29 of
+69 dates carry ZERO coverage"*; measured against the **raw** layer it is **28** — `U2`'s 29 was the
+*derived* layer, which starts four days later.
+
+**An asymmetry worth carrying: `MA31` needs an as-traded spot and `MA32` does not.** 420 of the 906
+cache∩panel tickers have no bars file, so `MA31`'s universe is bounded by the price cache in a way
+`MA32`'s is not. The code fails **closed** — no spot, no arm, never a proxy.
+
+### 61.9 · `MA56` — recorded, deliberately not run
+
+Its own kill condition is *"do not run today; carry in the next entry register"*, and
+**measuring it would have breached the audit's own instruction**; the register names quoting it as
+a tested result a **void condition**. It charges **zero trials** (`rows_fixed_not_counted` 40 → 41
+is the proof it was seen and correctly excluded).
+
+The figures are **verified against `O16-REFROZEN` itself**, not copied from the audit's one-line
+summary: `ts_resid = term_slope − β̂·atm_front` at IC **+0.07034** [+0.0287, +0.1131] against raw
+`term_slope` **+0.05673** [+0.0206, +0.0922], with `−atm_front` at **+0.01316** [−0.0333, +0.0626],
+spanning zero.
+
+**It is recorded where the next register's author will be standing** —
+`valuation/edge/options_entry.py::MA56_CARRY_FORWARD` — rather than in a document they may never
+open, and `tests/test_ma56_carry_forward.py` **re-parses the log row and fails if the record drifts
+from its source**. That is the defence against the failure class this project has caught a dozen
+times: the stale theme-IC table, the 1.95pp alpha margin, the "62 suites".
+
+**Three caveats the audit's summary omits travel with it, and are asserted by test:**
+
+1. **The IC is measured against option P&L on `R2`'s book**, which loses to random entry by
+   **−5.0640pp/trade**. A feature that ranks trades well inside a book whose *entry* is an
+   anti-signal has been shown to **sort a losing book**, not to make money. That is precisely why
+   `MA56` says *carry it*, not *adopt it*.
+2. **The `IS DISTINCT` verdict hinges on a pre-registered choice of estimator.** Spearman reads
+   −0.53966 (below the 0.60 bar, so distinct); **Pearson reads −0.82793, clears the 0.80 level bar,
+   and returns the OPPOSITE verdict on the same data.**
+3. **`O16-REFROZEN` was not blind** — it was charged a second time for exactly that reason.
+
+### 61.10 · Expectations, scored
+
+| # | expectation | outcome |
+|---|---|---|
+| E1 | A1 is NULL (70/30) | **RIGHT** |
+| E2 | A1's usable-**pair** coverage materially worse than `U2`'s row coverage (75/25) | **WRONG** — 431.5 names/date against `U2`'s 436.9. The raw cache carries **1,000** tickers against the derived layer's 504, and that width almost exactly offsets the pair-usability loss |
+| E3 | C-DUP does not fire for A1 vs `−skew_25d` (65/35) | **RIGHT** (+0.3796) |
+| E4 | A2 and A3 NULL (75/25) | **RIGHT** |
+| E5 | C-DUP does not fire between A2 and A3 (70/30) | **RIGHT** (+0.3164) |
+| E6 | C-POWER clears 2.0, so the nulls are interpretable (55/45) | **WRONG, and it is the session's finding** — it fails, and the reason is a property of the population rather than of the arms |
+| E7 | The arms carry new information and predict nothing (60/40) | **RIGHT** — R² 0.027–0.044 |
+| E8 | The `-1` sentinel removes a non-trivial number of contract-days (80/20) | **RIGHT** — 931,080 |
+
+**6 right, 2 wrong**, and both misses are the useful kind: one about how wide the raw cache is, one
+about whether this universe can answer the question at all.
+
+### 61.11 · What this does NOT say
+
+* It does **not** refute Cremers–Weinbaum or Ge–Lin–Pearson. It reports that on **this** universe,
+  at **this** resolution, their measures could not be separated from zero — on a subsample where
+  the project's own best signals also cannot be.
+* It does **not** build the **O/S ratio** (stock volume exists for ~290 names, `MA25`) and it does
+  **not** proxy it. A proxy would be a different hypothesis wearing this one's name.
+* It does **not** test surface **changes** (`U2`'s other declined half — surface *momentum*, a
+  different hypothesis).
+* It does **not** re-open `U2`'s three rejected level arms.
+
+**Reported, outside this lane and not repaired here:** `test_the_statistics_N_gates_move_with_it`'s
+docstring claims its derived quantities are *"asserted as RELATIONSHIPS to the stamp rather than as
+second literals, so there is exactly one place to edit"* — the Harvey–Liu–Zhu hurdle **is** a second
+literal, and there were **two copies** of it. Both had to move with the stamp this session. Left as
+literals deliberately (deriving them would make the assertion tautological and lose the formula
+check), but the docstring overstates what the test does.
+
+**Suites: 96, 0 failures** (94 measured on this lane's own tree before MA59/MA60's two suites merged in; both numbers are recorded because a suite count that moves inside one session is exactly what PART 0 stopped hand-maintaining).** 38 new tests across two suites, and 36 of the 38 FAIL against the pre-session sources.** The two that do not are named rather than counted as known-bad: `test_nothing_computes_ts_resid_for_a_verdict` asserts an ABSENCE, so it must pass both ways by design; and `test_the_register_names_quoting_MA56_as_tested_a_void_condition` reads the register DOCUMENT, which this measurement deliberately left in place because it restores sources, not documents. `scripts/ma31_ma32_measure.py`;
+`data/free_analysis/MA31_MA32.json`, `MA31_MA32_CONTROLS.json`, `MA31_MA32_FEATURES.pkl`.
+
+---
+
+## 62 · THE OPTIONS FRONTIER, ITEMS 1-3 — THE GATE FAILS AND THE FAMILY CLOSES; U6's BLOCKER IS WRONG ABOUT ITS UNIVERSE, NOT ITS LEG; AND "OWN THE EVENT" SURVIVES THE ALERT'S DEATH
+
+**Registers: `PREREG_p1s0_optionable_gate.md` committed ALONE at `f4ddd8b`;
+`PREREG_u6_overwrite_leg.md` + `PREREG_o17c4_own_the_event.md` committed together and ALONE at
+`aeca6f0`** — `.md` only, zero `.py`, each a strict git ancestor of every commit that scores its
+own arms. **ADOPTS NOTHING**; no live scoring path changed. **Equity `N` 227 → 230** (Stage 0's
+three horizons), **options `N` 292 → 294** (O17-C4's two arms). U6 Part A charges **zero**.
+
+Executes `VALQUO_OPTIONS_FRONTIER.md`, a read-only design written by a separate session against
+`origin/main` @ `c836b03`. **Its claims are verified here rather than inherited, and three of
+them do not survive.**
+
+### 62.0 · The three caveats the frontier attached to itself, carried as instructed
+
+All three are load-bearing and all three are honoured:
+
+* **Nothing in its §2d or §2e is a verdict.** It says so itself. No figure from either is quoted
+  as a result anywhere in this section, and it is a **void condition** in the Stage 0 register.
+* **Its composite reproduces S22 to 0.31pp, not to the digit** (+7.48% against +7.17%). Stage 0
+  therefore re-runs everything on the **shipped** `quantile_backtest` via S22's own `arm()`,
+  which reproduces `top_decile_alpha` at |Δ| **1.84e-14** and three further fields at exactly
+  **0.00e+00**. The cause of its 0.31pp is diagnosed rather than assumed: its deciles use
+  `nlargest(len(g)//10)` where the shipped path uses `np.array_split(order, n_q)`, so the two do
+  not hold the same names.
+* **Its optionability is measured TODAY, not point-in-time** — a survivorship tilt it correctly
+  called "exactly the flattering direction", the `S25` sector-map defect in a new costume. The
+  whole of Stage 0 is the repair.
+
+**Two corrections to its arithmetic in passing:** it reports **1,044** raw ticker directories
+(measured, **1,000**; the other 44 are non-directory entries), of which **906** are names in the
+equity panel.
+
+### 62.1 · ITEM 1 — P1 STAGE 0. THE GATE FAILS ON ITS POWER ANCHOR AND THE FAMILY IS CLOSED
+
+**`family_verdict: CLOSED`.** The frontier's own kill condition, fired: *"if it fails, the entire
+family dies here and no option is ever priced."*
+
+**THE FRONTIER'S HEADLINE IS CONFIRMED FULL-SAMPLE AND IS NOT A BASIS FOR ACTION.** On the
+PIT-optionable universe the composite sorts strongly across the whole covered window — **H=63
+cumulative +3.51%/quarter (+14.05%/yr) at HAC *t* 3.3731 against its own calibrated floor of
+1.4822** — so *"the composite does NOT weaken on optionable names, it strengthens"* reproduces on
+the shipped instrument and a point-in-time partition. **Then it fails the both-halves rule at
+every horizon, always in the same direction:**
+
+| horizon | early *t* / bar | late *t* / bar | early cum α | late cum α |
+|---|---|---|---|---|
+| **H=63** (anchor) | **0.8352** / 1.6974 ✗ | 4.1471 / 1.6149 ✓ | +0.70% | +6.08% |
+| H=252 | **−0.0379** / 1.5833 ✗ | 2.8778 / 1.6587 ✓ | **−0.08%** | +22.78% |
+| H=504 | **0.4570** / 2.0664 ✗ | 1.9351 / 2.2028 ✗ | +1.03% | +22.58% |
+
+**The early half (2016-2020) is ABSENT** — at H=252 its cumulative alpha is literally **−0.08%**
+— while the late half reads **+24.31%/yr** at H=63. **THE OPTIONABLE-UNIVERSE EDGE IS A
+POST-2021 PHENOMENON**, and `V6`'s warning applies verbatim: *a strategy built and validated on
+the last few years alone would have looked like it worked.*
+
+**IT IS A GENUINE FAIL AND NOT A POWER ARTEFACT, which is the whole reason the register fixed a
+THREE-state grammar before any number existed.** `design_can_see_the_known_effect` is **True at
+all three horizons**: the observed effect and the reference effect (the full panel over the same
+dates — the known-real quantity, `MA31`'s C-POWER pattern) both exceed the MDE, **even at H=504
+where the sample carries ~4.25 independent observations**. So the kill fires on a result rather
+than on thin data — and it fires on **H=63, which has 40 dates at ZERO overlap** and is the only
+horizon at which a null is interpretable at all.
+
+**THE SENSITIVITY UNIVERSE AGREES AT ALL THREE HORIZONS** (`has_chain`, 19,016 rows / 903 names),
+so the verdict does not rest on the primary/sensitivity choice — and the register forbade it from
+rescuing the primary in any case.
+
+**THE PIT CORRECTION MOVED IT IN THE DIRECTION REGISTERED IN ADVANCE:** H=504 cumulative alpha
+falls from the frontier's today-optionable **+17.52%** to **+11.56%** PIT-liquid.
+
+**THE GEOMETRY IS WHY A THIRD HORIZON WAS ADDED, and it should be carried forward.** The chain
+cache spans **2016-2025 only**, so 40 of 69 panel dates are covered and the horizons run 40 / 38
+/ 34 dates at **0% / 75% / 87.5%** window overlap — about **40.0 / 9.5 / 4.25 independent
+observations**. The frontier specified H=252 and H=504; on their own they could not have
+returned an interpretable null. H=63 is the power anchor and it is where the verdict actually
+rests.
+
+**COVERAGE FIRST, per the COVERAGE RULE:** 19,083 partition rows, **40 covered dates**
+(2016-01-20 → 2025-10-27), 29 with no chain at all, **median 287.5 PIT-liquid and 442 any-chain
+names per covered date**, 2,045 unmeasurable rows (10.7%), staleness max 5 days and non-zero on
+**0.01%** of rows — the as-of slice is essentially always same-day. Miner thresholds resolved
+from `mine_options_cache` itself, **not** the fallback copy.
+
+**C10 CONFIRMS THE MECHANISM `U7` AND `MA32` BOTH FOUND:** the optionable decile is **6.635×** the
+full-panel decile by median market cap (**$17.57bn vs $2.65bn**). Optionability tracks size.
+Reported, no verdict.
+
+**A DEFECT IN MY OWN GATING CONTROL, CAUGHT BY RUNNING IT.** C2 compared pandas **dtypes** rather
+than values and failed a bit-identical partition, because `pit_liquid` is **tri-state**: an
+all-`True` probe slice infers `bool` while the full artifact carries `None` and is `object`. It
+failed in the **safe** direction — refusing a correct run — and was still wrong. Fixed; and its
+probe now deliberately contains the hard cases, because an all-`True` slice exercised neither the
+`None` nor the `False` branch, which is the `sector-neutral` vacuity failure.
+
+**WHAT CLOSES, AND WHAT DOES NOT.** Closed at Stage 0: **P1** (deep-ITM long-dated calls), **P3**,
+**U6's overwrite arm**, and any future attempt to express the equity book in derivatives. **No
+option was priced, no LEAPS re-mine was run, and `D2`'s licence question does NOT need to be put
+to Don** — the frontier routed it "before any pull", and there is now no pull. **Not closed:** the
+equity composite itself is untouched; this says nothing about it on the full panel, where its
+published figures stand.
+
+**Expectations 6 right, 2 wrong.** The two misses are the informative ones: the anchor was
+predicted to **PASS** at 70/30, and at least one cell was predicted **UNDERPOWERED** when none is.
+
+### 62.2 · ITEM 2 — U6's BLOCKER IS MEASURED AGAINST THE WRONG UNIVERSE, AND THE RE-OPEN'S OWN PREMISE IS WRONG TOO
+
+**PART A, ZERO TRIALS** — a fact about which set a published number was computed over, the
+`S25` / `PT-WRITER` / `MA56` class.
+
+**THE RE-OPEN WAS PROPOSED ON A PREMISE THAT MEASUREMENT REFUTES.** The ground was that U6's
+1.81% blocker counted decile **ENTRIES** while a covered call is written on **HOLDINGS**. On the
+identical all-transitions denominator, point-in-time:
+
+| set | covered | total | share |
+|---|---|---|---|
+| **entries**, any PIT chain | 648 | 7,138 | **9.08%** |
+| entries, chain + O20's screen | 371 | 7,138 | 5.20% |
+| **holdings**, any PIT chain | 897 | 11,426 | **7.85%** |
+| holdings, chain + O20's screen | 504 | 11,426 | 4.41% |
+
+**Holdings are 0.86× as well covered as entries, not the 6-11× assumed.** The leg distinction is
+real and nearly immaterial.
+
+**WHAT IS ACTUALLY WRONG IS THE DENOMINATOR OF NAMES.** The row's own text says the 1.81% was
+measured *"against the 187-name mined universe"* — the **alert** universe — while the chain cache
+holds **906 panel names**. Universe ratio **4.84×**, coverage ratio **5.02×**; the two agreeing to
+within 4% is the evidence that the universe is the whole explanation. **And the correction is
+UNDERSTATED, because it runs against a STRICTER test:** the row asks whether a ticker has mined
+chains *at all*, this asks whether one exists **on that date**.
+
+**TWO CONTROLS MAKE IT LIKE-FOR-LIKE RATHER THAN MERELY SIMILAR:** entry events reproduce at
+**7,138 against the row's 7,132** (0.08%), and top-decile membership at **11,426 — exactly the
+count `S10` and `V6-B`'s C7 report independently**, which is what establishes that this uses the
+shipped decile convention.
+
+**CONSEQUENCE.** The CSP entry leg is untouched and remains coverage-bound, so **the row's status
+does not change**. The overwrite leg is **buildable** — median **12** PIT-liquid and **21**
+any-chain optionable holdings per covered date against a median decile of 169.5, with **ZERO**
+covered dates holding none — and it is **BOUNDED**, which matters more than the unblocking: it can
+only ever be written on **7.3% to 13.0%** of decile slots. **Part B is registered, gated on Stage
+0, and Stage 0 CLOSED it**, so it does not run and charges nothing.
+
+A reconciliation reported rather than smoothed over: the row records zero covered entries on **18
+of 68** dates and this measures **28** — exactly the pre-2016 dates. A non-dated membership test
+can score a pre-2016 entry as covered because the ticker is mined in some later year. The two
+numbers are not comparable and neither is wrong on its own terms.
+
+### 62.3 · ITEM 3 — "OWN THE EVENT" IS REAL, SURVIVES THE ALERT'S DEATH, AND THE ALERT STILL SUBTRACTS VALUE INSIDE IT
+
+`O17`'s C4 was `NULL` **solely** on a retention floor of 0.70 set for a product reason. The alert
+product is dead, so the constraint applies to nothing. **The bar was DERIVED first rather than
+lowered**, on the `TP-BAR` precedent — *a procedure, not a number argued in prose*.
+
+**THE DECISIVE TEST HAD NEVER BEEN RUN AND WAS RUNNABLE ON OWNED DATA.** As a **filter**, C4's
+null is a random-**REMOVAL** null. As a **strategy**, the comparator must be random **ENTRY**,
+because `R2` is the standing result that the alert loses to random entry by −5.0640pp. The
+five-seed split-clean random-entry books carry every field `owns_the_event` needs.
+
+**THE EFFECT REPRODUCES ON RANDOM ENTRY.** On **27,350** random-entry trades a call spanning the
+next announcement earns **+10.30% against +5.50%** — a **+4.79pp** gain, positive in **both
+halves** (+5.03 / +4.70), paired name-year sign test **z +2.054, p 0.040**. So *"own the event"*
+is a property of **owning an earnings event**, independent of the dead alert.
+
+**AND THE ALERT STILL SUBTRACTS VALUE INSIDE THE SUBSET THAT WAS SUPPOSED TO RESCUE IT.**
+Alert-spanning **+8.42%** loses to random-spanning **+10.30%**: paired sign test **z −4.4726,
+p 7.7e-06** over 952 cells. **R2 reproduced inside the earnings subset.** The strategy is *"buy
+calls spanning earnings"*, with **no alert in it at all**.
+
+**IT IS A MEAN EFFECT, NOT A MEDIAN EFFECT.** DTE-matched at ±5 days on the same name, the mean
+gain **clears a shuffled-label null on both books** (+9.10pp vs p95 +4.00pp on the alert book;
++2.51pp vs +1.44pp on random entry) — while **median-vs-median is +0.40pp** (spanning −51.41%
+against −51.81%). The typical trade is a near-total loss either way. `U1`'s finding restated, and
+the reason a positive expectancy here is not tradeability.
+
+**THREE EXACT CONTROLS:** A1's `spans_mean` **0.084199** reproduces O17's `kept_mean` to the
+digit; the implied all-book mean **0.03734** reproduces its `all_mean` exactly; and the pooled
+random book lands at **+8.47%** against R2's banked **+8.3342%**.
+
+**A DEFECT IN MY OWN BARS, FOUND BY RUNNING THEM, AND IT DECIDES THE REGISTERED VERDICT.** The
+register returns **REJECTED solely on c3 — the breadth bars — while c1, c2 and c4 all pass.** Two
+of the three do not measure what they were written to:
+
+* **B1's trades-per-year axis is UNPASSABLE BY CONSTRUCTION** for A1, which is a *subset* of the
+  book it is drawn from. A subset relation is not a breadth finding.
+* **B1's and B2's NAME axes re-measure the earnings COVERAGE HOLE.** 29 of 186 names are foreign
+  private issuers with zero earnings dates, so the spanning set is capped at **157** names before
+  any concentration exists — and it touches **all 157**, i.e. 100% of eligible names, and 118 of
+  118 months. B2 was comparing a capped set against an uncapped one and reading the cap as
+  concentration.
+* **Only B3 measured its property — and it PASSES**, refuting the prediction that it would bind:
+  the strategy is **less** concurrent than the alert book (peak 37 vs 48; refused at O11's cap of
+  10, **34.1% vs 48.7%**).
+
+**The register is left UNEDITED** and the diagnosis ships beside it as a post-hoc field that feeds
+no pass/fail flag, pinned by a test asserting `all_bars_pass` is assigned **before** the diagnostic
+exists. **So a result that was NULL only because of a bar set for a product reason is now REJECTED
+only because of a bar that was broken — and that is worth more than either verdict.** What the
+measurement says, independent of both bars, is in the three paragraphs above.
+
+**A SECOND DEFECT IN MY OWN INSTRUMENT, and it had already been reported once as a finding before
+it was caught.** The DTE-matched **median** was first read as −35.8pp and described as *"the
+typical spanning trade does worse than its matched counterpart"*. **It is an artifact.** Comparing
+one draw against the **mean** of a right-skewed set is biased low by construction; the shuffled
+null median is **−41.9pp** against the real **−35.8pp**, so the real figure runs **slightly in the
+arm's favour** and the reading was exactly backwards. It is kept in the payload beside its own
+null with a note never to quote it alone — deleting it would leave the next reader free to
+recompute it and reach the same wrong conclusion.
+
+### 62.4 · WHAT IS OPEN AFTER THIS
+
+* **`MA54-2` is answered on its own terms and is Don's to close.** The effect is real and
+  alert-independent; it is tail-carried; and `O11` governs — a book with **+3.27%/trade positive
+  expectancy** still ended at **$37,059 from $50,000** at a concurrency cap of 10. **Nothing here
+  licenses trading it.**
+* **`MA54-3` (`O14` `sweep_share` on new dates, ~4.7 GB) is untouched** and is unaffected by
+  Stage 0 — it is an equity-side conditioner, not an options expression.
+* **The deep-ITM financing arithmetic (frontier §2c) is NOT retested and NOT refuted.** Stage 0
+  closed the family on the **equity** premise, so `rf + 43 bps` stands as measured and simply has
+  nothing left to finance.
+* **`D2`'s licence question does not need routing to Don**, because no pull is proposed.
+
+
+---
+
+## 63 · V5 IS ALREADY DONE AND ITS PREMISE IS REFUTED; AND THE DEEP-ITM FINANCING RATE IS 8x WHAT THE FRONTIER REPORTED ONCE YOU PAY EXECUTABLE PRICES
+
+Register: **`PREREG_v5reread_deepitm_financing.md`**, committed **ALONE at `9ffe05a`** — one
+`.md`, 279 lines, **zero `.py`**, a strict git ancestor of every measurement commit.
+**ADOPTS NOTHING. RECOMMENDS NOTHING.** No file under `valuation/` changed; `.github/` untouched;
+the mutable `data/options` store never read — everything banked comes from the **freeze**.
+
+**Trials: 3, all options.** Equity untouched. Item 1 charges **zero**.
+
+### 63.0 · Two items were briefed and only one of them was a measurement
+
+| item | action | trials |
+|---|---|---|
+| 1 · V5 measured slippage | **NOT RE-RUN** — already live, already answered, and its premise is refuted | 0 |
+| 2 · deep-ITM financing cost | measured | 3 |
+
+### 63.1 · ITEM 1 — V5 LANDED 2026-08-09 AND RE-READS UNCHANGED
+
+`scripts/slippage_report.py` (36,566 b), `PREREG_v5_slippage.md` (10,651 b),
+`tests/test_slippage_report.py` (57 tests). **Its ledger row is in `VALQUO_EXTENSIONS.md` line
+14, NOT `VALQUO_LEDGER.md`** — which is why a ledger grep for "V5" finds nothing and why this
+item can look un-run. That is a real navigation hazard, not a filing quibble.
+
+Re-read today on the shipped instrument:
+
+* **3 entry fills, 0 exit fills.**
+* **M3, the pre-registered headline (exit half-spread vs mid): `n = 0`.**
+* M2 entry-vs-limit `n = 3`, printed as raw values only under an explicit `NOT QUOTABLE (n=3 < 30)`.
+* Verdict **INSUFFICIENT** — exactly what `PREREG_v5_slippage.md` §6 expected at **90/10**.
+
+**THE BRIEF'S PREMISE IS REFUTED BY THE DATES.** The brief says the sandbox *"has been accruing
+fills since session 14"*. The three fills are stamped **2026-08-04, 2026-08-07, 2026-08-07**;
+session 14 is **2026-08-09**. **All three predate it and ZERO have accrued since.**
+
+**THE BRIEF'S BAR IS A CATEGORY ERROR, AND V5 ITSELF ALREADY PRINTS SO.** Audit **B11's 33.4 bps
+is one-way cost in bps of STOCK NOTIONAL on the equity panel**; an options book pays bps of
+**PREMIUM**. The ratio is **~12x**; `slippage_report.py` keeps the constant only under the name
+`EQUITY_ONE_WAY_BPS_NOT_APPLICABLE`. V5's real, measured bar is **410.0 bps of premium (mean) /
+333.3 (median)** over 3,885 banked trades.
+
+**WHY IT WAS NOT RE-REGISTERED.** A second register for a hypothesis that already carries a live
+one is **two definitions of one bar** — the B7 defect class, the reason `statistics.hlz_hurdle`
+exists. Instrument unchanged, data unchanged, verdict rule already committed. **Declining keeps
+the denominator** (session 8's precedent).
+
+**WHAT IS NEW, AT ZERO COST — THE REFRESH PATH IS BROKEN.** The only mechanism that refreshes the
+export is the weekly `track-backup` Action. **It FAILED on 2026-08-16**, run `31932667751`, 3
+seconds, annotation verbatim: *"The job was not started because recent account payments have
+failed or your spending limit needs to be increased."* **Last success 2026-08-09.** So no fresher
+read of the live book exists on any surface this lane can reach. **This needs Don's billing
+attention; it is not a code fault.**
+
+**RE-OPEN CONDITION, so nobody re-derives it: V5 becomes answerable at `n >= 30` CLOSED legs.**
+M3 needs exits and there are none, so until then every re-run returns `INSUFFICIENT` by
+construction.
+
+### 63.2 · ITEM 2 — THE FRONTIER'S `rf + 43 bps` IS A MID-PRICE ARTEFACT
+
+**Population:** 12,904 matched call/put pairs, **185 names**, 2016-01-19 -> 2025-10-15, from
+`data/options_freeze/R2_CORRECTED_2026-08-08/chains.pkl.gz` (2,870,811 rows). Both legs pass the
+shared `blackscholes.usable_quote` rule (MA45, imported). `60 <= DTE <= 90`,
+`0.85 <= delta <= 0.95`, delta computed by solving IV on the **PUT** leg — OTM and
+well-conditioned, where a deep-ITM call's vega is near zero.
+
+**C1 IS AN INDEPENDENT CORROBORATION OF THE FRONTIER AND IT IS CLOSE.** On the comparable
+construction (MID prices, non-payers) the median excess reads **+42.81 bps (n = 5,538)** against
+the frontier's **+43 bps** — a different universe (185 names vs 15), a different source (freeze vs
+the mutable derived store) and different code. **C2** nonsense-moneyness fraction **0.0000**, so
+the as-traded spot is matching as-traded strikes.
+
+**THE FINDING: AT EXECUTABLE PRICES THE EMBEDDED RATE IS 5.1x THE MID FIGURE.**
+
+| arm | median | mean | n |
+|---|---|---|---|
+| **A1** financing spread at **MID** | **+66.94 bps** | +96.86 | 12,904 |
+| **A2** financing spread at **EXECUTABLE** (buy call at ask, sell put at bid) | **+342.35 bps** | +509.38 | 12,904 |
+
+The frontier said its mids convention was *"a lower bound on the embedded rate and an upper bound
+on the saving"*, and it was right — **but a COST question has to be answered at the prices an
+account actually pays**, and there the option market lends at **rf + 342 bps**, not rf + 43.
+
+**A3 — THE ALL-IN ANNUAL COST, AND THE ROLL IS HALF OF IT.**
+
+| component | median |
+|---|---|
+| financing spread (executable) | 342.35 bps |
+| **round-trip spread x rolls/yr** | **340.06 bps/yr** |
+| commission x rolls/yr | 3.57 bps/yr |
+| **all-in** | **701.87 bps/yr** (rho-adjusted 589.92) |
+
+at a median **DTE 73** and **5.0 rolls/year**. **The financing benefit REQUIRES rolling** —
+exercising means paying the strike in cash, which defeats the purpose — so each roll pays a full
+round trip. That is why tenor drives the whole result.
+
+### 63.3 · THE ANSWER: CHEAPER ONLY THAN THE MOST EXPENSIVE CARD
+
+| margin route | assumption | spread over rf | option route | cheaper? |
+|---|---|---|---|---|
+| Robinhood Gold | 5.75% flat | rf + 420 bps | 701.9 | **NO** |
+| Robinhood standard | 11-12% | rf + 995 bps | 701.9 | **YES** |
+| IBKR Pro tiered | ~rf + 150 bps | rf + 150 bps | 701.9 | **NO** |
+
+**The brief expected "cheaper than margin, with caveats". As stated that is WRONG** — it is
+cheaper than *one* of three routes, the most expensive one, and more expensive than both cheap
+ones. **My registered prior predicted exactly this and all four of its cells were right**
+(more expensive than Gold 80/20; cheaper than standard 85/15; answer depends on the card 85/15;
+median mid excess inside [0, +150] bps 90/10). The reasoning was the frontier's own arithmetic:
+60-90 DTE is the **shortest** tenor and therefore the **worst** case for roll cost.
+
+**Margin rates are ASSUMPTIONS — published retail cards, not anything this repository measured —
+and every output says so.**
+
+### 63.4 · TWO POST-HOC ROBUSTNESS CUTS, BOTH LABELLED, NEITHER CARRYING A VERDICT
+
+**By rate era — and it refutes my own reason for running it.** I added the split expecting the
+answer to be era-dependent, because a *flat* margin card against a moving risk-free rate makes
+the margin spread swing enormously. It does swing — **52 to 567 bps** — but the option route is
+**more expensive than Gold in all five eras**, and its own cost is remarkably stable:
+
+| era | n | median rf | option all-in | Gold spread | cheaper? |
+|---|---|---|---|---|---|
+| 2016-2018 | 1,761 | 0.55% | 709.2 | 520.0 | no |
+| 2018-2020 | 1,754 | 1.97% | 615.9 | 378.0 | no |
+| 2020-2022 | 4,221 | 0.08% | 754.4 | 567.0 | no |
+| 2022-2024 | 1,688 | 5.23% | 646.7 | 52.0 | no |
+| 2024-2026 | 3,480 | 4.55% | 710.7 | 120.0 | no |
+
+**By dividend status.** C3 shows payers at **+109.27 bps** at mids against non-payers' **+42.81**
+— 2.5x, and in the **opposite** direction to the bias the frontier warned about, so it is either
+a real clientele effect or residual PV(D) mis-specification and it is **not resolved here**. It
+does **not** move the verdict: non-payers alone give all-in **578.2 bps/yr** against a Gold
+spread of 470 (still more expensive) and a standard spread of 1,045 (still cheaper). Payers alone,
+833.3, same two answers.
+
+### 63.5 · COVERAGE FIRST, AND IT LIMITS THE QUESTION THAT CAN BE ASKED
+
+**11 of the 86 Valquo Index names are in the freeze — 12.8%**: ASML, BNS, EOG, FDX, HON, MU, SU,
+TD, TTE, VRT, WDC. **So "is it cheaper for INDEX names" is NOT answerable on owned data**, and
+the register fixed that before any number existed. The headline is the **185-name freeze
+universe**; the Index cell (482 pairs, 11 names, median 1,064.79 bps/yr) is reported for
+completeness and **carries no verdict**, and quoting an Index-scope claim from the wide universe
+is a **void condition**. This is U6's blocker in a new place.
+
+**46 of 185 names sit below the n = 30 floor and are listed rather than pooled.**
+
+### 63.6 · A DEFECT IN MY OWN INSTRUMENT, AND IT IS ONE I HAD ALREADY WRITTEN A GUARD AGAINST
+
+`_data()` resolved paths with `os.path.exists()`. The worktree carries an **EMPTY**
+`data/bulk/prepared/bars` while the primary checkout holds **502** files, so the empty directory
+shadowed the populated one, **every spot lookup returned nothing**, and the first run reported
+`spot series: 0` and **zero surviving pairs**.
+
+**Existence is not population** — the exact rule I wrote `optionable_universe.is_populated_cache`
+for **last session**, repeated in a new file. It now tests for entries, and the comment says why.
+
+**The more important half is the second fix.** Zero surviving pairs originally flowed downstream
+and crashed on a missing column. Had the frame carried one more column it would have produced a
+clean, plausible **coverage null** — *"no deep-ITM pairs exist at this tenor"* — from an input
+that never loaded. That is `MA31`'s failure mode exactly (0 of 113,945 rows joined; `n_dates = 0`
+beside a coverage of 40 dates), and neither raised. **This one raises**, with a message saying it
+is an instrument failure and not a finding.
+
+### 63.7 · Controls, and what this cannot see
+
+**GATING (the run aborts, and it was mutation-tested):** C1 instrument sanity **PASS**, C2 spot
+fidelity **PASS**. `--arms` **REFUSES** without a passing controls artifact — proved by flipping
+`all_gating_pass` to false and watching it exit **2** with *"REFUSING: controls did not pass; no
+arm is scored"*, then restoring the artifact **byte-for-byte**. A gate that is written but never
+read is the session-26 defect.
+
+**REPORTED:** C3 PV(D) (above); **C4 American exercise uncorrected and declared** — parity is an
+inequality, and the bias is smallest exactly at this corner because the matched put is deep OTM;
+**C5 O18's rho 0.6743 is an EXTRAPOLATION** here (measured on 35-delta ~60 DTE contracts), so
+quoted spread is primary and rho-adjusted is reported beside it; C6 commission imported from
+`options_fill`, never re-typed; C7 roll realism.
+
+**WHAT IT DOES NOT SAY.** It is a **cost** measurement, not a return one. It says nothing about
+whether owning these names is a good idea — **P1 Stage 0 already closed the options-expression
+family on the return side and this does not reopen it.** No trade recommendation is issued in
+either direction. Nothing is adopted.
+
+`scripts/deepitm_financing.py`, `tests/test_deepitm_financing.py` (17);
+`data/free_analysis/DEEPITM_FIN.json`, `DEEPITM_FIN_CONTROLS.json`.
+
+
+---
+
+## 64 · THE CHAIN STORE IS PINNED — AND THE DRIFT THAT MOTIVATED IT NEVER REACHED THE ANALYSIS ARTIFACTS
+
+**ZERO TRIALS.** No hypothesis, no threshold, no verdict against a bar, **and no ledger verdict
+moves**. Infrastructure plus a reproduction report. `.github/` untouched; the mining scripts
+untouched.
+
+### 64.0 · What was done
+
+`valuation/edge/chain_store.py` is now the **one** resolver for the option chain store. It
+returns the **PINNED freeze** by default and the mutable `data/options` only as an **EXPLICIT
+opt-out** (`allow_mutable=True` or `VALQUO_CHAINS=mutable`). If the pin is missing or unusable it
+**raises**. A resolver that fell back silently would reintroduce exactly the drift it exists to
+remove, *while the run still claimed to be pinned* — which is worse than not pinning at all.
+
+**THE NAMED ARTIFACT**, recorded so a future read is against a fingerprint rather than a label:
+
+| field | value |
+|---|---|
+| freeze | `D:\thetadata\freeze_options_2026-08-17` |
+| manifest sha256 | `dc8e9b3582d8af722cfcdebc178b03541408f17e2c7e60711c4430cdbd9a5489` |
+| manifest lines / files recorded | **12,302 / 12,302** |
+| payload units | **5,063** |
+| bytes | 26,983,534,474 |
+| hash mismatches at copy | **0** |
+
+### 64.1 · THE CENSUS FOUND SIX READERS, NOT THREE — AND TWO OF THE THREE NAMED ONES WERE DEAD
+
+| reader | how it reads | action |
+|---|---|---|
+| `o3_o4_o5_surface.py` | own loader | **repointed** |
+| `o6_o7_o17_earnings.py` | own loader — **and it is the SHARED one** | **repointed** |
+| `o11_o19_o22_o25_portfolio.py` | **`CHAINS` was DEAD**; reads via `o6`'s loader | repointed (constant) |
+| `o14_tickflow_signals.py` | **`CHAINS` was DEAD**; reads via `o6`'s loader | repointed (constant) |
+| `ma31_ma32_measure.py` | own loader | **repointed — not in the brief** |
+| `ma44_ma45_ma48_measure.py` | `--root` default | **repointed — not in the brief** |
+| `valuation/edge/theta_bulk.py` | **the MINER — it WRITES the store** | **deliberately NOT repointed**, pinned by test |
+
+So repointing `o6_o7_o17_earnings` repoints three rows at once, and two of the brief's three named
+scripts carried constants that no longer fed anything.
+
+**NOT COVERABLE, and said rather than papered over: `data/options_derived` is NOT in the freeze.**
+`v6opt_premise`, `v6opt_stage1`, `v6opt_stage2`, `studies/surface_stock` and `options_greeks` read
+that layer and therefore remain **UNPINNED** — there is nothing to point them at. Freezing it is
+the data-miner lane's call, not this lane's.
+
+### 64.2 · TWO PREMISE CORRECTIONS, BOTH MEASURED
+
+1. **The manifest mirrored to `data/deep_harvest` is NOT this freeze's.** It carries **1,865**
+   lines and its `FREEZE_SUMMARY` names `dest freeze_rawpull_2026-08-18`, `source
+   D:/thetadata/chains` — the raw-pull tree, a different and later freeze. The options-store
+   freeze's manifest is **12,302** lines and exists **only on D:**. A resolver that verified
+   against the in-repo mirror would have been checking the wrong file list.
+2. **The freeze covers `options/` only** (see 64.1).
+
+### 64.3 · THE FREEZE IS VERIFIED INDEPENDENTLY, NOT ON THE MINER'S OWN SUMMARY
+
+`FREEZE_SUMMARY.json` reporting `hash_mismatches_at_copy: 0` is the miner marking its own
+homework. Re-hashed here, 40 payload files sampled at seed 20260818:
+
+* **40 / 40** frozen bytes match the manifest's recorded sha256;
+* **40 / 40** frozen bytes match the **mutable store** byte-for-byte;
+* **0** sampled files absent from the mutable store.
+
+### 64.4 · THE DRIFT MEASUREMENT — AND IT REFRAMES WHAT THE PIN BUYS
+
+The manifest records `source_mtime_utc` per file, so the exposure of any banked row is directly
+countable rather than inferred.
+
+**Every payload mtime in the store falls in 2026-08-01 → 2026-08-07.** Last write
+**2026-08-07T20:41:35Z**. By day: 08-01 24 (0.5%), 08-02 431 (8.5%), **08-03 1,381 (27.3%)**,
+08-04 272 (5.4%), 08-05 556 (11.0%), **08-06 1,586 (31.3%)**, 08-07 813 (16.1%).
+
+**D11's 44.2% is measured against THE BOOK, and it reproduces.** `state_r2_corrected.pkl` was
+banked 2026-08-05 19:51:35 (a **naive** stamp, against UTC mtimes). Read as UTC it gives 2,637
+(52.1%); at a +8h reading it gives **2,242 (44.3%) against D11's 2,236 (44.2%) — within six
+units.** **The ledger figure stands; the difference is a timestamp convention, not a
+disagreement about the data.**
+
+**RELATIVE TO THE ANALYSIS ARTIFACTS THE EXPOSURE IS ZERO, and that is the finding.** Every one
+was banked on 2026-08-11 or later, four days *after* the store went quiet:
+
+| artifact | banked | units rewritten after | share |
+|---|---|---|---|
+| O3/O4/O5, O6/O7/O17, O11/…, O10/O18 | 2026-08-12 | 0 | **0.0%** |
+| O13, O21 | 2026-08-11 | 0 | **0.0%** |
+| O14 | 2026-08-13 | 0 | **0.0%** |
+| V6-OPT stage 2 | 2026-08-14 | 0 | **0.0%** |
+| MA44/45/48 | 2026-08-15 | 0 | **0.0%** |
+| MA31/MA32 | 2026-08-16 | 0 | **0.0%** |
+
+**So the BOOK is exposed to the drift and the ANALYSES built on it are not exposed to any
+FURTHER drift.** Separately confirmed: **zero** files in `data/options` are newer than
+2026-08-08, so the store has been quiet for eleven days and D11's Tier C pull landed in
+`D:\thetadata\chains`, a different tree.
+
+**WHAT THE PIN BUYS, STATED PLAINLY BECAUSE IT IS EASY TO OVERSELL.** The freeze was taken
+**from** the mutable store and is byte-identical to it now. **It protects FUTURE reads. It does
+not recover the bytes the R2 book was banked on.** Any divergence found by a re-run would be
+drift that had **already happened** before the pin existed.
+
+### 64.5 · REPRODUCTION — BIT-IDENTICAL, AS PREDICTED BEFORE THE RUN
+
+The prediction was written down first: because the store's last write (08-07) predates the
+O3/O4/O5 artifact (08-12), the freeze holds exactly the bytes that run read, so reproduction
+should be bit-identical.
+
+**It is.** `scripts/o3_o4_o5_surface --refresh` re-run in full against the frozen store — 242
+tickers, 3,373 formation events, 3,370 s — then diffed leaf by leaf against the banked artifact:
+
+**255 shared leaves, 0 moved, 0 added, 0 removed. BIT-IDENTICAL.**
+
+Every headline reproduces to the digit: `A1_O3_idio_vol` n 3,289 mono −0.1717 ls_t **2.5158** vs
+p95 2.016; `A2_O4_expected_idio_skew` n 3,154 mono −0.0380 ls_t **1.9143** vs p95 1.9229;
+`A3_O5_vol_of_vol` n 3,318 mono −0.0690 ls_t **2.9703** vs p95 1.9459; dispersion dh sd **0.0303**
+against the straddle's 0.9055. All three verdicts remain **NULL**.
+
+**AND THE SECOND CONSTRUCTION AGREES.** `scripts/o6_o7_o17_earnings --refresh` re-run in full
+against the frozen store — 186 names, 13,484 candidate events, 4,540 s — diffs against its banked
+artifact at **528 shared leaves, 0 moved, 0 added, 0 removed. BIT-IDENTICAL.** Its figures
+reproduce to the digit too: `A3_smile_residual` gain **−0.11099** vs p95 −0.11244;
+`C4_own_the_event` kept 1,987/3,482 gain **+0.04686** vs p95 0.02208; O7 coverage **0.4459**, B1
+**RICH**, B2 mean **−0.1034**. Every verdict still NULL.
+
+**Two constructions, 783 shared leaves, ZERO moved.** That is the whole reproduction result.
+
+**A divergence would have been a finding about the OLD instrument** — that it read a store since
+rewritten — **never a new verdict, and it would have changed no ledger verdict.** There was none
+to report, and §64.4 says why in advance: the store went quiet four days before the earliest
+artifact, so there was no drift left for a re-run to expose.
+
+### 64.6 · A HAZARD FOUND WHILE DOING THIS, WORTH MORE THAN THE REPOINTING
+
+**The re-run OVERWRITES the banked artifact.** `OUT` resolves to
+`data/free_analysis/O3_O4_O5_SURFACE.json` — the banked file itself — and `data/` is gitignored,
+so git is **not** a recovery path. The banked copies were backed up out-of-tree before the first
+re-run and the comparison was made against that backup.
+
+**Anyone re-running a banked construction to check reproduction destroys the thing they are
+checking against, unless they copy it first.** That is not a defect introduced here; it is how
+every one of these scripts has always behaved.
+
+### 64.7 · What is pinned by test
+
+`tests/test_chain_store.py` (13): the mutable store is refused unless explicitly requested; a
+missing, unpopulated, too-small, hash-mismatched, incomplete or wrong-`kind` freeze each **raise**
+rather than falling back; the opt-out carries the drift warning; the fingerprint is emitted; the
+repointed scripts **do not resolve at import** (AST-checked — CI has no `D:` drive and a
+module-level resolve would take the whole suite down); no repointed script still builds the
+mutable path itself; and **the miner is not repointed**.
+
+`scripts/repin_reproduction.py` is the leaf comparator, and its docstring carries the
+zero-trials/no-verdict rule so the next user of it cannot mistake a divergence for a result.
+
+`data/free_analysis/REPIN_REPRODUCTION_O3O4O5.json`, `REPIN_REPRODUCTION_O6O7O17.json`.

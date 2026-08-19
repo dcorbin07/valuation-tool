@@ -27,7 +27,7 @@ def main(argv=None) -> int:
     import pandas as pd
 
     from valuation.edge import ablation as A
-    from valuation.edge import loo_holdout as L
+    from valuation.studies import loo_holdout as L
     from valuation.edge import research_log as RL
     from valuation.edge.fundamental_panel import _base_weights
     from valuation.screener import settings as S

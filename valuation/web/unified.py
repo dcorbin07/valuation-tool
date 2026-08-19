@@ -82,6 +82,13 @@ def _index_membership(rows, ticker, config_name=None):
         kw["top_n"] = cfg["top_n"]
     if cfg.get("top_frac"):
         kw["top_decile"] = cfg["top_frac"]
+    # S14 ADOPTION (2026-08-13): apply the same band the exported Index and the API apply, or
+    # this view answers "is this name in the book?" about a DIFFERENT book. A fixed-N config
+    # (roth) stays band-less -- a universe-fraction band is not the arm S14 measured for it.
+    from ..edge.valquo_index import _previous_book, DEFAULT_PATH
+    if cfg.get("exit_frac") and not cfg.get("top_n"):
+        kw["exit_frac"] = cfg["exit_frac"]
+        kw["held"] = _previous_book(DEFAULT_PATH)
     try:
         book = build_index(rows, **kw)
     except Exception:
@@ -90,6 +97,11 @@ def _index_membership(rows, ticker, config_name=None):
     mine = next((p for p in positions if str(p.get("ticker", "")).upper() == ticker), None)
     return {"config": name, "label": cfg.get("label"), "available": True,
             "in_book": bool(mine), "weight": (mine or {}).get("weight"),
+            # DISPLAY HONESTY: a name the band RETAINED is in the book despite a higher-ranked
+            # challenger being passed over. Without this the owner view would show it as an
+            # ordinary pick and the ranking on the same page would not explain its presence.
+            "band_retained": bool((mine or {}).get("band_retained")),
+            "why_band": (mine or {}).get("why_band") or "",
             "n_positions": len(positions), "n_eligible": book.get("n_eligible")}
 
 
@@ -248,6 +260,9 @@ def name_view(store, ticker: str, book_config: str = None, risk_budget=None,
         except Exception:
             pass
         extra = row.get("extra") or {}
+        # Computed ONCE: `_index_membership` rebuilds the whole book, so calling it per field
+        # would build it twice for every request.
+        _idx = _index_membership(rows, ticker, book_config) if with_book else {"withheld": True}
         out["stock"] = {
             "in_scan": True, "scan_date": scan_date, "n_scored": len(rows),
             "name": row.get("name"), "sector": row.get("sector"), "bucket": row.get("bucket"),
@@ -259,10 +274,16 @@ def name_view(store, ticker: str, book_config: str = None, risk_budget=None,
             "fair_value_withheld_reason": row.get("fair_value_withheld_reason"),
             "fair_value_withheld_kind": row.get("fair_value_withheld_kind"),
             "why": extra.get("why") or [], "why_composite": extra.get("why_composite"),
+            # S14 ADOPTION: the band's divergence, stated at ROW level and not only inside the
+            # `index` block, because this is the field a why-panel renders. A name held by the
+            # band is in the book for a reason the theme decomposition above cannot show -- the
+            # decomposition explains its SCORE, and the band is why that score was enough.
+            # Empty string for every ordinary pick, so it renders only when it has something
+            # to say.
+            "why_band": (_idx or {}).get("why_band") or "",
             # The two owner-only halves. `book_withheld` is carried explicitly so the reader
             # (and _action_lines below) can tell "not published" from "not in the book".
-            "index": (_index_membership(rows, ticker, book_config) if with_book
-                      else {"withheld": True}),
+            "index": _idx,
             "paper_position": (_paper_stock_position(store, ticker) if with_book else None),
             "book_withheld": not with_book,
         }

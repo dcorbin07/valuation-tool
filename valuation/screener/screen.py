@@ -23,6 +23,7 @@ from ..config import CONFIG
 from . import settings as S
 from .attribution import decompose, p_established as _p_established
 from .factors import build_frame, prefilter
+from .live_sanity import live_sanity
 from .providers import get_provider
 from .store import Store
 
@@ -48,11 +49,38 @@ DCF_ATTEMPTS = 2
 NO_DATA_RETRY_WORKERS = 2      # unused; retained with the measurement above
 
 
+# The last time a stored learned weight was refused the live path, per bucket. Read by
+# `weight_adoption.live_override_report` and by anything that wants to show the refusal; kept in
+# memory rather than written back, because a refusal must not mutate the record it is refusing.
+LAST_WEIGHT_REFUSAL = {}
+
+
 def _effective_weights(store):
-    """Live weights = the latest self-learning-adopted weights, else the defaults."""
-    est = (store.latest_learned_weights("established") if store else None) or S.WEIGHTS_ESTABLISHED
-    spec = (store.latest_learned_weights("speculative") if store else None) or S.WEIGHTS_SPECULATIVE
-    return est, spec
+    """Live weights = a REGISTERED self-learning adoption, else the defaults.
+
+    MASTER AUDIT MA1. This used to prefer any row in `learned_config` with `adopted=1`, which
+    made a monthly cron writing to SQLite a live scoring change that the vintage contract could
+    not see. A stored adoption is now used ONLY if `weight_adoption.authorisation` clears it.
+
+    IT REFUSES RATHER THAN REPAIRING, which is the whole point of the ordering here. A row
+    written before this gate existed is a live vintage violation; it stays in the table, stays
+    reportable with its date by `live_override_report`, and simply stops reaching the scorer.
+    Deleting it would neutralise the violation and leave the record looking clean.
+    """
+    from ..edge.weight_adoption import authorisation
+
+    def pick(bucket, default):
+        learned = store.latest_learned_weights(bucket) if store else None
+        if not learned:
+            return default                      # the ordinary case: no file read, no gate cost
+        a = authorisation(bucket)
+        if a["authorised"]:
+            return learned
+        LAST_WEIGHT_REFUSAL[bucket] = a
+        return default
+
+    return (pick("established", S.WEIGHTS_ESTABLISHED),
+            pick("speculative", S.WEIGHTS_SPECULATIVE))
 
 
 def _decompose(df: pd.DataFrame, est_w=None, spec_w=None, soft=None):
@@ -378,6 +406,14 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
         # renormalizes it away, and its 12.5% weight does nothing. This measures the theme
         # AFTER standardization, i.e. what actually reaches the score.
         "theme_contributing": _theme_contribution(scored),
+        # AUDIT MA14 — COVERAGE SAYS PRESENT, THIS SAYS PLAUSIBLE, AND THE LIVE PATH HAD ONLY
+        # THE FIRST. `fundamental_panel.sanity_check` has guarded the backtest since P8, where
+        # the input is a static licensed export that does not drift; the live path reads vendor
+        # feeds that do, and OOB2 is what that costs — Yahoo dropped one beta field, wacc.py
+        # substituted 1.10, and MRK went from "cannot value" to a 91 Strong Buy with nothing
+        # empty and nothing raised. Bands imported from the one definition, never retyped.
+        # Reports only; it changes no score and withholds no row.
+        "value_sanity": live_sanity(scored),
         # How many served names were actually ASKED whether the model refuses them, and how
         # many it did. `screened: 0` on a scan that served hundreds of names is the tell that
         # Bug B is back — a silent zero here is exactly how the gap survived unnoticed.

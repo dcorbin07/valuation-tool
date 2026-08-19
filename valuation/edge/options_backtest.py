@@ -79,6 +79,17 @@ labels fire — only the score, and only downward. The reconstruction is therefo
 live: it fires fewer alerts, never more. That is the conservative direction, and any surviving
 edge is not an artifact of it.
 
+A SECOND DEVIATION, WHICH RAN THE OTHER WAY, AND IS NOW FIXED (audit MA38, 2026-08-15). The
+claim above is scoped to the volume-surge bonus; it was never a blanket promise, and the wider
+argument — that every known deviation is conservative — held only until this one. `chain_summary`
+summed volume over every contract while summing open interest over only the contracts whose OI
+was known, so `intraday.options.options_signals`'s volume-vs-OI bonus divided a whole-chain
+numerator by a partial denominator and fired MORE often than live, not fewer. Measured over
+41,321 front-expiry chain-days: 24.87% are partially covered and 27 days (0.065%) crossed that
+bonus's threshold on the mismatch alone, with ZERO crossing the other way. Repaired by summing
+both sides over the same rows (`call_volume_oi_known`). The conservative-direction argument is
+restored; the banked 22b/R2 books predate the repair.
+
 --------------------------------------------------------------------------------------------
 PRE-COMMITTED ADOPTION BARS (§4 construction choice, §5 filters).
 
@@ -222,10 +233,39 @@ def spot_asof(w) -> Optional[float]:
 
 
 # ============================ option-chain summary (the live shape) ========================
-def chain_summary(chain, underlying: float, as_of) -> Optional[dict]:
+def chain_summary(chain, underlying: float, as_of, include_expiring: bool = False) -> Optional[dict]:
     """The dict `intraday.options.options_signals` expects, rebuilt from a historical chain.
 
-    Uses the FRONT expiry, matching the live provider which reads expirations[0].
+    Uses the first expiry STRICTLY AFTER `as_of`. The live provider does NOT do this, and the
+    docstring here used to claim it did.
+
+    AUDIT MA44 — THE DOCSTRING WAS FALSE, AND IT IS FOUR SITES AND TWO RULES, NOT TWO AND ONE:
+
+      * `intraday.providers.TradierProvider.get_option_summary:168` — `dl[0]`, no date filter
+      * `intraday.providers.FreeProvider.get_option_summary:282`    — `exps[0]`, no date filter
+      * this function                                               — strictly after `as_of`
+      * `edge.options_live.term_read:273-274`                       — strictly after `as_of`
+
+    So the odd one out is the LIVE SUMMARY, not the reconstruction, and the live scan's own two
+    legs can disagree with EACH OTHER on a day when the venue lists a same-day expiry: volume,
+    OI and `atm_iv` come from the dying chain while `term_slope` comes from the next one. The
+    strictly-after rule is also the one `term_read`'s threshold was fitted on ("as fitted").
+
+    MEASURED on 19,825 cached chain-days across 39 names, rather than left as the audit's
+    one-Friday hypothesis: 12.46% list a same-day expiry alongside a future one — 60.2% of
+    FRIDAYS, 1.5% of Thursdays, 0.0% Monday to Wednesday, and 39 of 39 names see it. On those
+    days the two readings differ materially: median call volume 602 against 796, and the 0.5
+    volume-vs-OI bonus bar (see `intraday.options.options_signals`) is crossed by ONE SIDE ONLY
+    on 23.14% of them — about 2.9% of all chain-days carrying a divergent verdict.
+
+    WHAT IS NOT SETTLED, and why nothing moves here: whether Tradier's `expirations` endpoint
+    actually lists today on an expiry day is a LIVE VENDOR BEHAVIOUR this repository cannot
+    observe, and it is the audit's own HYPOTHESIS. Changing the reconstruction to match a rule
+    that might not hold would BREAK parity rather than fix it, and changing the live providers
+    would alter which alerts fire — a construction change, not a bug fix. So the default is
+    bit-identical to before, `include_expiring=True` names the other rule so it is testable
+    rather than hypothetical, and both paths now REPORT the expiry they used so the divergence
+    is observable instead of inferred. The parity decision is routed, not taken.
     """
     import pandas as pd
 
@@ -234,7 +274,8 @@ def chain_summary(chain, underlying: float, as_of) -> Optional[dict]:
     d = chain.copy()
     exp = pd.to_datetime(d["expiration"]).dt.date
     asof = as_of if isinstance(as_of, dt.date) else dt.date.fromisoformat(str(as_of)[:10])
-    future = sorted({e for e in exp if e > asof})
+    expiring_listed = any(e == asof for e in exp)
+    future = sorted({e for e in exp if (e >= asof if include_expiring else e > asof)})
     if not future:
         return None
     front = future[0]
@@ -248,12 +289,21 @@ def chain_summary(chain, underlying: float, as_of) -> Optional[dict]:
     # every unknown row SUBTRACTED one from its side's total and poisoned the put/call OI ratio.
     # `f_d_pc_oi` — one of the closest near-misses in the 64-feature autopsy, rejected on a
     # permutation p of 0.0545 against a 0.05 bar — is built on exactly this quantity.
+    # AUDIT MA38 - the third return value. `cv`/`pv` above sum EVERY contract's volume while the
+    # OI sums cover only the contracts whose open interest is KNOWN, so `cv / coi` divides a
+    # whole-chain numerator by a partial denominator and is inflated by roughly 1/coverage. The
+    # matched sum below is the same quantity taken over the SAME rows, so the ratio the consumer
+    # forms is like-for-like without imputing anything.
     def _oi_sum(part):
         v = pd.to_numeric(part.get("open_interest"), errors="coerce")
         v = v.where(v >= 0)                       # -1 is UNKNOWN, never a count
-        return float(v.sum()), float(v.notna().mean()) if len(v) else 0.0
-    coi, coi_known = _oi_sum(calls)
-    poi, poi_known = _oi_sum(puts)
+        vol = pd.to_numeric(part.get("volume"), errors="coerce").fillna(0)
+        known = v.notna()
+        return (float(v.sum()),
+                float(known.mean()) if len(v) else 0.0,
+                float(vol[known].sum()))
+    coi, coi_known, cv_oi = _oi_sum(calls)
+    poi, poi_known, pv_oi = _oi_sum(puts)
     # ATM IV only. Enriching the WHOLE front chain solved IV on ~100 contracts to return one
     # number - the dominant cost of the whole backtest. Solve the nearest strike, walking out
     # a few if the closest quote is unusable.
@@ -264,6 +314,11 @@ def chain_summary(chain, underlying: float, as_of) -> Optional[dict]:
         r_free = BS.risk_free_rate(asof)
         for _, r in calls_only.sort_values("_d").head(5).iterrows():
             bid, ask = r.get("bid"), r.get("ask")
+            # AUDIT MA45 — the SECOND site with this defect, and it does not go through
+            # `enrich_chain`: this walk carries its own copy of the mid. It delegates the
+            # validity test rather than repeating the rule, so the two cannot drift.
+            if not BS.usable_quote(bid, ask):
+                continue
             try:
                 mid = (float(bid) + float(ask)) / 2.0
             except (TypeError, ValueError):
@@ -277,6 +332,17 @@ def chain_summary(chain, underlying: float, as_of) -> Optional[dict]:
             # AUDIT B4: what share of each side had a REAL open-interest figure. An OI
             # ratio built on 20% coverage is not the same statistic as one on 100%.
             "call_oi_known_frac": coi_known, "put_oi_known_frac": poi_known,
+            # AUDIT MA38: volume over the SAME rows those OI sums were taken over. `call_volume`
+            # stays whole-chain because the put/call ratio wants it that way and volume coverage
+            # is complete - it is only OI that goes missing. These exist so the ONE ratio that
+            # mixes the two, `intraday.options.options_signals`'s volume-vs-OI bonus, can be
+            # formed like-for-like. Absent on the live Tradier path, which ships no coverage
+            # figure at all; the consumer falls back there and behaves exactly as before.
+            "call_volume_oi_known": cv_oi, "put_volume_oi_known": pv_oi,
+            # AUDIT MA44: WHICH expiry this describes, and whether a same-day one was on the
+            # board and skipped. Without these a live-vs-reconstruction comparison cannot tell a
+            # real signal difference from the two sides reading different chains.
+            "front_expiry": front.isoformat(), "expiring_listed": bool(expiring_listed),
             "atm_iv": atm_iv}
 
 

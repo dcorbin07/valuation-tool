@@ -192,6 +192,76 @@ def post_hot_digest(cfg, store, scan_date, rows, sectors=None) -> bool:
     return False
 
 
+def dip_digest_text(scan_date, rows, posture) -> str:
+    """The Dip Detector digest, RISK-FRAMED — and it cannot be framed any other way.
+
+    The claim sentence is not written here. It is `posture["digest_claim"]`, which is
+    `dip_posture.RISK_REGISTERED_SENTENCE` verbatim — the sentence the edge lane registered in
+    `HANDOFF_edge_audit.md` V6-B §3 as the one this product has earned. A digest that composed
+    its own summary would be a second copy authority, and the whole reason `dip_posture` is a
+    module is that this project has repeatedly shipped a stale figure living somewhere nobody
+    thought to grep.
+
+    Two things are therefore structurally impossible rather than merely discouraged:
+      * a RECOVERY framing — there is no return claim anywhere in this text to upgrade, and
+        `post_dip_digest` re-checks the finished message against `dip_posture.violations`
+        before it goes out, so a hand edit that introduced one would refuse to send;
+      * a DISTRESS framing — same check, and `BANNED` carries that family because V6-B's
+        bankruptcy arm is VOID on power while its "fell further" arm is not.
+    """
+    top = list(rows or [])[:10]
+    lines = [f"📉 **Valquo — Healthy Names in a Drawdown** — {scan_date}", "```",
+             f"{'Ticker':<8}{'Fall from high':>15}{'Score':>7}{'Price':>10}"]
+    for r in top:
+        dd, price = r.get("drawdown"), r.get("price")
+        lines.append(f"{(r.get('ticker') or ''):<8}"
+                     f"{(format(dd * 100, '.0f') + '%') if dd is not None else '—':>15}"
+                     f"{(r.get('hot_score') or 0):>7.0f}"
+                     f"{('$' + format(price, ',.2f')) if price else '—':>10}")
+    lines.append("```")
+    # The earned claim, quoted rather than summarised.
+    lines.append(posture.get("digest_claim") or "")
+    # ...and the line that stops it being read as a return claim. Both are mandatory: a
+    # `post_dip_digest` that sent the first without the second would be sending half a finding.
+    lines.append("_" + (posture.get("risk_not_a_promise") or "") + "_")
+    lines.append("_Educational only, not investment advice._")
+    return "\n".join(x for x in lines if x)
+
+
+def post_dip_digest(cfg, store, scan_date, rows) -> bool:
+    """Post the Dip Detector list to Discord, at most once per day. Returns False unless sent.
+
+    Gated on the RISK register (V6-B), not the return register (V6) — see `dip_posture`. Before
+    the V6-B close-out this refused unconditionally, which was correct: an outbound list of
+    names is a recommendation-shaped message and it waited for evidence. The evidence arrived
+    for the risk question and did not arrive for the return question, so what ships is the risk
+    sentence and nothing else.
+
+    THE LAST GATE IS ON THE FINISHED TEXT, not on the inputs. V4's lesson was that a publishing
+    rule has to be asserted against what actually renders; this asserts it against what actually
+    SENDS, which is the same lesson one step further out. If the message ever contains a banned
+    phrasing it is not sent at all — a silent no-send is the safe failure here, and it is
+    reported through the return value rather than swallowed.
+    """
+    from ..web.dip_posture import posture as _posture, violations as _violations
+    p = _posture()
+    if not p.get("digest_eligible"):
+        return False
+    if not getattr(cfg, "discord_webhook_url", "") or store.alerted_today("__DIPDIGEST__"):
+        return False
+    if not rows:
+        return False
+    text = dip_digest_text(scan_date, rows, p)
+    if _violations(text):
+        # Refuse rather than send. Reaching here means the copy drifted out from under the
+        # posture module, which is a defect to fix, not a message to push.
+        return False
+    if send_discord(cfg, text):
+        store.mark_alerted("__DIPDIGEST__", scan_date)
+        return True
+    return False
+
+
 def run_alerts(cfg, store, users) -> dict:
     """New screaming buys from the latest intraday snapshot → Discord + opt-in email.
     De-dupes per ticker per day. Safe to call after every intraday scan."""

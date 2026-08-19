@@ -24,6 +24,8 @@ import numpy as np
 import pandas as pd
 
 from ..screener import settings as S
+from . import statistics as _stats      # AUDIT M2 — the ONE cross-date inference definition
+from . import payload_schema as _schema  # AUDIT M6 — field-level results-file schema guard
 
 
 def _f(d: dict, *keys):
@@ -707,6 +709,20 @@ def _yoy(m, rows, as_of, shares_now, rev_now, assets_now, cut1=None, cut2=None):
             m["growth_accel"] = m["revenue_growth"] - (rev0 / rev2 - 1.0)
 
 
+def _insider_formula(net, buys):
+    """The shipped 0-100 insider score. ONE definition, called by both paths.
+
+    S3 PREMISE CHECK (b): this expression used to be written out twice -- once in
+    `_insider_score` (the row-iterating fallback) and once in `_insider_score_at` (the prepped
+    fast path) -- and the B26 comment in each said the two paths must agree. Two copies of a
+    formula that MUST agree is the B7 defect class, so there is now one copy and the duplicates
+    delegate to it. Bit-identical to what both sites computed before; pinned by
+    `test_s3_both_insider_paths_agree`.
+    """
+    import math
+    return max(0.0, min(100.0, 50 + 40 * math.tanh(net / 5e6) + min(10, 2 * buys)))
+
+
 def _insider_score(rows, as_of, lookback_days=90):
     """0-100 (50 = neutral) net insider buying over the trailing window, by FILING date
     (point-in-time). Mirrors the live insider factor so the two are comparable."""
@@ -732,7 +748,7 @@ def _insider_score(rows, as_of, lookback_days=90):
             buys += 1
     if net == 0 and buys == 0:
         return None
-    return max(0.0, min(100.0, 50 + 40 * math.tanh(net / 5e6) + min(10, 2 * buys)))
+    return _insider_formula(net, buys)
 
 
 def _inst_accum(rows, as_of, lag_days=45):
@@ -795,7 +811,28 @@ def _insider_score_at(prep, as_of, lookback_days=90):
         return None
     w = vals[a:b]
     net, buys = float(w.sum()), int((w > 0).sum())
-    return max(0.0, min(100.0, 50 + 40 * math.tanh(net / 5e6) + min(10, 2 * buys)))
+    return _insider_formula(net, buys)
+
+
+def _insider_raw_at(prep, as_of, lookback_days=90):
+    """The `(net, buys)` pair `_insider_score_at` reduces to a score, exposed unreduced.
+
+    S3 needs the two raw quantities to build its variants, and it must build them from the SAME
+    window the shipped score uses or the arms differ in more than the formula. So this repeats
+    the window arithmetic and nothing else; `_insider_score_at` remains the only scorer.
+    Returns None on exactly the inputs that make the score None.
+    """
+    if prep is None:
+        return None
+    dts, vals = prep
+    hi = np.datetime64(as_of[:10], "D")
+    lo = hi - np.timedelta64(lookback_days, "D")
+    a = int(np.searchsorted(dts, lo, side="left"))
+    b = int(np.searchsorted(dts, hi, side="left"))
+    if b <= a:
+        return None
+    w = vals[a:b]
+    return float(w.sum()), int((w > 0).sum())
 
 
 def _prep_inst(rows):
@@ -901,6 +938,31 @@ def _inst_accum_at(prep, as_of, lag_days=45):
     return (cur / prev - 1.0) if prev > 0 else None
 
 
+# S15 — the VALUE theme's raw inputs, and nothing else. `neg_ev_sales`, `neg_ps` and
+# `neg_ev_ebitda` are DERIVED inside `build_frame` before the sector block runs, so they
+# are available to be de-meaned by the time S15 needs them.
+VALUE_INPUTS = ["earnings_yield", "fcf_yield", "ebit_ev", "book_to_price",
+                "neg_ev_sales", "neg_ps", "neg_ev_ebitda"]
+
+
+def _inst_age_at(prep, as_of, lag_days=45):
+    """S8 — CALENDAR DAYS since the 13F quarter-end `_inst_accum_at` actually used.
+
+    Repeats that function's window arithmetic and nothing else, so the age describes the SAME
+    observation the signal is built from. Returns None on exactly the inputs that make the
+    signal None.
+    """
+    if prep is None:
+        return None
+    dts, vals = prep
+    cutoff = np.datetime64(as_of[:10], "D") - np.timedelta64(lag_days, "D")
+    b = int(np.searchsorted(dts, cutoff, side="right"))
+    if b < 2:
+        return None
+    return float((np.datetime64(as_of[:10], "D") - dts[b - 1]).astype("timedelta64[D]")
+                 .astype(int))
+
+
 def _forward_return(closes, i, h, n_cal):
     """S22 — delisting-aware forward return over `h` trading days from calendar index `i`.
 
@@ -936,7 +998,11 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                             lookback_years=6, horizon=63, inst_lag_days=45,
                             keep_numbers=False, sector_neutral=False,
                             grid_offset=None, extra_horizons=None,
-                            sector_neutral_pair=False, standardizer_arms=None) -> pd.DataFrame:
+                            sector_neutral_pair=False, standardizer_arms=None,
+                            with_insider_raw=False, with_issuance_raw=False,
+                            with_vol_raw=False, with_freshness=False,
+                            bucket_relative_arms=None, sector_value_arm=False,
+                            metrics_sink=None) -> pd.DataFrame:
     """Point-in-time panel of the theme columns per (date, ticker).
 
     keep_numbers=True additionally persists each individual standardized number (z_*), so
@@ -1252,6 +1318,23 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             isc = _insider_score_at(insh.get(t), as_of)
             if isc is not None:
                 m["insider_score"] = isc                          # → insider theme (now backtestable)
+            if with_insider_raw:
+                # S3 — the unreduced (net, buys) the score is built from, so the register's
+                # variants are functions of the SAME window rather than a re-mined one. Opt-in,
+                # so the default panel's column set is untouched.
+                _raw = _insider_raw_at(insh.get(t), as_of)
+                if _raw is not None:
+                    m["ins_net"], m["ins_buys"] = _raw
+            if with_freshness:
+                # S9 — days since the SF1 filing this row's fundamentals came from. The panel
+                # already picks that row point-in-time; only its AGE was never carried.
+                _dk = str((sf1 or {}).get("datekey") or (sf1 or {}).get("date") or "")
+                if _dk:
+                    m["days_since_filing"] = float(
+                        (pd.Timestamp(as_of[:10]) - pd.Timestamp(_dk[:10])).days)
+                _ia_age = _inst_age_at(inst.get(t), as_of, lag_days=inst_lag_days)
+                if _ia_age is not None:
+                    m["days_since_13f"] = float(_ia_age)
             ia = _inst_accum_at(inst.get(t), as_of, lag_days=inst_lag_days)
             if ia is not None:
                 m["inst_accum"] = ia                              # → institutional theme
@@ -1323,7 +1406,40 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             continue
         from ..screener.factors import build_frame
         _by_ticker = {m["ticker"]: m for m in metrics}
+        # S12 — the CAP TIER, computed WITHIN this date's cross-section (terciles, pre-committed;
+        # not quintiles, so the smallest group stays large). Written onto the metrics dicts
+        # before `build_frame` sees them, so the bucket-relative arm can group on it exactly the
+        # way sector_neutral groups on `sector`.
+        if bucket_relative_arms:
+            _mc = [(m.get("ticker"), m.get("market_cap")) for m in metrics]
+            _ok = sorted([x for x in _mc if x[1] is not None and x[1] == x[1]],
+                         key=lambda x: x[1])
+            _n = len(_ok)
+            _tier = {}
+            for _i, (_tk, _v) in enumerate(_ok):
+                _tier[_tk] = "small" if _i < _n / 3 else ("mid" if _i < 2 * _n / 3 else "large")
+            for m in metrics:
+                m["cap_tier"] = _tier.get(m.get("ticker"), "?")
+        # AUDIT M4 — an opt-in capture of the RAW metrics for a date, so the live-replay
+        # harness can score the SAME inputs through the LIVE `build_frame` call and compare
+        # ranks. It exists because the alternative is for the harness to REBUILD these
+        # metrics itself, which is audit B7's defect class exactly: a second assembly of a
+        # quantity that must agree. Off by default; when off this line does nothing.
+        if metrics_sink is not None:
+            metrics_sink[str(as_of)[:10]] = [dict(m) for m in metrics]
         fr = build_frame(metrics, sector_neutral=sector_neutral, residual_momentum=False)
+        # S12 — one extra scoring per bucket-relative arm, from the SAME `metrics` list in the
+        # SAME pass, so the arms are provably scored on one identical row set and the known
+        # `insider` nondeterminism is common-mode and cancels out of every difference.
+        fr_br = {p: build_frame(metrics, sector_neutral=sector_neutral, residual_momentum=False,
+                                bucket_relative=col)
+                 for p, col in (bucket_relative_arms or {}).items()}
+        # S15 — sector-relative on the VALUE theme's inputs ALONE, the narrow variant the three
+        # broad sector-neutral rejections left explicitly open. Same pass, same `metrics` list,
+        # so the arms are provably scored on one identical row set.
+        fr_sv = (build_frame(metrics, sector_neutral=sector_neutral, residual_momentum=False,
+                             sector_relative_cols=VALUE_INPUTS)
+                 if sector_value_arm else None)
         # SECTOR-NEUTRAL-B6 — the OTHER arm, scored from the SAME `metrics` list in the SAME
         # pass. `build_frame` copies its input (`pd.DataFrame(metrics)`) and never mutates the
         # caller's list, so the two calls differ by the flag and by nothing else.
@@ -1362,6 +1478,61 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                     v = (_rs.get(theme) if (_rs is not None and theme in fr_sn.columns)
                          else None)
                     row["sn_" + theme] = None if (v is None or pd.isna(v)) else float(v)
+            # S3 — the unreduced insider inputs on this same row, so the register's variants are
+            # rebuilt from the SAME window the shipped score used. `insider_score` travels too,
+            # so the incumbent arm can be reproduced from the panel rather than trusted.
+            if with_insider_raw:
+                _src3 = _by_ticker.get(t) or {}
+                for _k in ("ins_net", "ins_buys", "insider_score"):
+                    _v3 = _src3.get(_k)
+                    row[_k] = None if (_v3 is None or pd.isna(_v3)) else float(_v3)
+            # S16 — the RAW net share change `capital_discipline` reduces to a single z-score.
+            # The decomposition into buyback / dilution / M&A is a function of this one number
+            # plus a dated ACTIONS join, so emitting it is enough and the panel stays the
+            # authority for the window. Opt-in, so the default column set is untouched.
+            if with_issuance_raw:
+                _src16 = _by_ticker.get(t) or {}
+                _v16 = _src16.get("share_issuance")
+                row["share_issuance"] = (None if (_v16 is None or pd.isna(_v16))
+                                         else float(_v16))
+            # S13 — the RAW trailing volatility, in levels. An inverse-volatility book needs
+            # magnitudes, and the panel otherwise carries only `z_neg_vol`, from which a level
+            # cannot be recovered. Opt-in, so the default column set is untouched.
+            if with_vol_raw:
+                _src13 = _by_ticker.get(t) or {}
+                _v13 = _src13.get("realized_vol")
+                row["realized_vol"] = (None if (_v13 is None or pd.isna(_v13))
+                                       else float(_v13))
+            # S8/S9 — HOW OLD each row's inputs are at this rebalance. `days_since_filing` is
+            # what S9 asks to be ported from the options autopsy; `days_since_13f` is the age
+            # of the quarter-end the institutional signal actually used. Opt-in, so the default
+            # column set is untouched.
+            if with_freshness:
+                _srcf = _by_ticker.get(t) or {}
+                for _k in ("days_since_filing", "days_since_13f"):
+                    _vf = _srcf.get(_k)
+                    row[_k] = None if (_vf is None or pd.isna(_vf)) else float(_vf)
+            # S12 — the bucket-relative arms' themes, on this same row, plus the group labels
+            # so control C7 can report group sizes and C8 the book's size exposure.
+            if fr_br:
+                _srcb = _by_ticker.get(t) or {}
+                row["cap_tier"] = _srcb.get("cap_tier")
+                row["bucket"] = _srcb.get("bucket")
+                for _p, _fb in fr_br.items():
+                    _rb = _fb.loc[t] if t in _fb.index else None
+                    for theme in S.FACTORS_ALL:
+                        v = (_rb.get(theme) if (_rb is not None and theme in _fb.columns)
+                             else None)
+                        row[f"{_p}_{theme}"] = None if (v is None or pd.isna(v)) else float(v)
+            # S15 — the sector-relative-VALUE arm's themes, on this same row. Control C4 checks
+            # that every NON-value theme comes back bit-identical to the deployed one, which is
+            # what makes this the narrow experiment it claims to be.
+            if fr_sv is not None:
+                _rv = fr_sv.loc[t] if t in fr_sv.index else None
+                for theme in S.FACTORS_ALL:
+                    v = (_rv.get(theme) if (_rv is not None and theme in fr_sv.columns)
+                         else None)
+                    row["sv_" + theme] = None if (v is None or pd.isna(v)) else float(v)
             # S20/S21 — the standardizer arms' themes, on this same row.
             for _p, _fr in fr_std.items():
                 _rr = _fr.loc[t] if t in _fr.index else None
@@ -1427,7 +1598,25 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
         "prefilter_note": ("MIN_AVG_DOLLAR_VOLUME has never bound on this path and "
                            "still does not: the price export on disk carries date+close "
                            "only, so avg_dollar_volume cannot be computed here. Wiring "
-                           "it needs SEP volume in the panel loader (audit B13)."),
+                           "it needs SEP volume in the panel loader (audit B13). "
+                           "CORRECTED 2026-08-16 (audit MA25): 'cannot be computed' is "
+                           "true of THIS path and false of the project. "
+                           "data/bulk/prepared/bars/ carries a volume column for 502 "
+                           "names (19.8% of the 2,531-name universe, 2.78M rows, "
+                           "1997-12-31..2026-08-07, so the whole panel window), and "
+                           "scripts/capacity.py:adv_from_bars already computes dollar ADV "
+                           "from it as raw_close*volume. SEP is one route and not the "
+                           "only one. It is a PARTIAL route: 80.2% of the universe still "
+                           "has no measure, so the filter still cannot bind universally."),
+        # AUDIT MA25 — measured, so a reader does not have to take the sentence above on
+        # trust and does not conclude the data exists nowhere. See VALQUO_LEDGER B13/S7.
+        "prefilter_adv_partial_source": {
+            "path": "data/bulk/prepared/bars/*.pkl",
+            "names": 502,
+            "share_of_universe": 0.198,
+            "reader": "scripts/capacity.py::adv_from_bars",
+            "measured": "2026-08-16",
+        },
     }
     _out.attrs["panel_window"] = _win
     LAST_PANEL_DIAGNOSTICS["panel_window"] = _win
@@ -1940,8 +2129,31 @@ def _backtest_hold(panel, cols, weights, top_n=20, exit_rank=None, min_hold=2, h
                            "held": [int(x) for x in held_counts],
                            "bought": bought_series, "sold": sold_series}}
                if return_series else {}),
+            # S28 — the shape of the hold book's own per-period returns, and of its EXCESS over
+            # the equal-weight benchmark. Reporting only. The excess is the object `alpha_vs_
+            # equal_weight` is a mean of, so its distribution is the honest companion to that
+            # number; B17's label_warning below applies to every figure in this block, the
+            # distribution included.
+            **_hold_distribution(used_dates, port, ew),
             "label_warning": ("realised book size is ~exit_rank, NOT top_n; gross of costs and "
                               "taxes unlike every other book in this file (audit B17)")}
+
+
+def _hold_distribution(dates, port, ew):
+    """S28 — per-period shape for the hold book. Never raises: a reporting block must not be
+    able to fail a completed backtest, and an empty series degrades to an empty dict."""
+    try:
+        from .statistics import distribution as _dist
+        p, e = list(port), list(ew)
+        if not p:
+            return {}
+        out = {"return_distribution": _dist(p, dates)}
+        if len(e) == len(p):
+            out["excess_vs_equal_weight_distribution"] = _dist(
+                [a - b for a, b in zip(p, e)], dates)
+        return out
+    except Exception:                                       # noqa: BLE001
+        return {}
 
 
 def sweep_hold_params(panel, cols, weights, top_n=25, horizon=63):
@@ -1995,86 +2207,39 @@ def _spearman(a, b):
     return float((ar * br).sum() / denom) if denom > 0 else np.nan
 
 
+# AUDIT M2 — these four are now thin delegations to `edge/statistics.py`, which holds the ONE
+# cross-date inference definition. They keep their names and their exact semantics because the
+# published record and every pre-committed gate read the keys they feed; what changed is that
+# there is no longer a second copy of the arithmetic here to drift from the first.
 def _tstat(series):
-    """Naive i.i.d. t-statistic of a series' mean against zero."""
-    s = np.asarray([x for x in series if x is not None and x == x], dtype=float)
-    if len(s) < 2:
-        return None
-    sd = float(np.std(s, ddof=1))
-    return float(np.mean(s) / (sd / np.sqrt(len(s)))) if sd > 0 else None
+    """Naive i.i.d. t-statistic of a series' mean against zero. DIAGNOSTIC ONLY (audit M2)."""
+    return _stats.naive_tstat(series)
 
 
 def _nw_tstat(series, lag=1):
-    """AUDIT R9 — Newey-West (Bartlett) HAC t-statistic of the mean against zero.
-
-    The 63-day windows genuinely do not overlap, so the naive i.i.d. t is defensible on the
-    OVERLAP dimension. It is not defensible on autocorrelation: factor spreads are strongly
-    serially correlated and regime-dependent, and the project has never had a serial-correlation
-    diagnostic anywhere. This is the same estimator `scripts/factor_alpha.py` uses for R1, on a
-    mean-only design, so the two lanes report comparable inference.
-    """
-    s = np.asarray([x for x in series if x is not None and x == x], dtype=float)
-    n = len(s)
-    if n < 3:
-        return None
-    e = s - s.mean()                       # residuals of a mean-only regression
-    g0 = float(e @ e) / n
-    S_hac = g0
-    for L in range(1, min(int(lag), n - 1) + 1):
-        gL = float(e[L:] @ e[:-L]) / n
-        S_hac += 2.0 * (1.0 - L / (lag + 1.0)) * gL      # Bartlett kernel
-    if S_hac <= 0:
-        return None
-    se = np.sqrt(S_hac / n)
-    return float(s.mean() / se) if se > 0 else None
+    """AUDIT R9 — Newey-West (Bartlett) HAC t-statistic of the mean against zero."""
+    return _stats.hac_tstat(series, lag=lag)
 
 
 def _ljung_box(series, lags=4):
-    """AUDIT R9 — Ljung-Box Q on a series, so the independence assumption is VISIBLE.
-
-    Returns Q, its degrees of freedom, the autocorrelations used, and a chi-square p-value.
-    A small p means the series is serially correlated and the naive i.i.d. t overstates
-    significance — which is the whole reason the HAC t above is now reported beside it.
-    """
-    s = np.asarray([x for x in series if x is not None and x == x], dtype=float)
-    n = len(s)
-    lags = int(min(lags, n - 2))
-    if n < 8 or lags < 1:
-        return None
-    e = s - s.mean()
-    denom = float(e @ e)
-    if denom <= 0:
-        return None
-    acf, q = [], 0.0
-    for L in range(1, lags + 1):
-        r = float(e[L:] @ e[:-L]) / denom
-        acf.append(r)
-        q += (r * r) / (n - L)
-    q *= n * (n + 2)
-    return {"q": float(q), "df": lags, "acf": [float(x) for x in acf],
-            "p_value": _chi2_sf(float(q), lags),
-            "lag1_autocorr": (float(acf[0]) if acf else None)}
+    """AUDIT R9 — Ljung-Box Q on a series, so the independence assumption is VISIBLE."""
+    return _stats.ljung_box(series, lags=lags)
 
 
 def _chi2_sf(x, k):
-    """Upper-tail chi-square probability. Series expansion for the regularised lower
-    incomplete gamma P(k/2, x/2); adequate at the small dfs used here and avoids a scipy
-    dependency this project does not otherwise carry."""
-    if x <= 0 or k <= 0:
-        return 1.0
-    a, xx = k / 2.0, x / 2.0
-    if xx > a + 40.0:                       # far tail — P ~ 1, report a floor rather than 0.0
-        return 1e-12
-    import math
-    term = 1.0 / math.gamma(a + 1.0)
-    total = term
-    for i in range(1, 512):
-        term *= xx / (a + i)
-        total += term
-        if term < total * 1e-15:
-            break
-    p_lower = total * math.exp(-xx + a * math.log(xx))
-    return float(min(1.0, max(0.0, 1.0 - p_lower)))
+    """Upper-tail chi-square probability (audit M2: one definition, in `statistics.py`)."""
+    return _stats.chi2_sf(x, k)
+
+
+def _inference(series, lag=1, ljung_lags=4):
+    """AUDIT M2 — the clustered-by-default inference block for a cross-date series.
+
+    Additive: it sits BESIDE the existing `*_tstat` / `*_tstat_nw` keys rather than
+    replacing them, because those keys are what the published record and the
+    pre-committed gates read (PREREG_m2_m6.md §2). `t` here is the HAC statistic and
+    equals `*_tstat_nw` by construction; `t_naive` equals `*_tstat`.
+    """
+    return _stats.mean_inference(series, lag=lag, ljung_lags=ljung_lags)
 
 
 def _base_weights(cols, bucket):
@@ -2259,8 +2424,14 @@ def _trials_haircut(n_trials):
     candidates in the immediate comparison. Selecting the best of 8 folds after the project has
     already run ~84 equity trials is not an 8-trial search, and charging it as one is the same
     denominator error the Deflated Sharpe had.
+
+    AUDIT MA5 — the sqrt(2 ln N) arithmetic is `statistics.hlz_hurdle` and is not re-typed here.
+    What stays local is the FLOORING, because that is this function's own decision and is not a
+    property of the hurdle: the argument is `max(immediate candidates, the log's N)`, and passing
+    a larger `N` to one shared formula is the whole mechanism by which M1's count reaches the
+    CPCV adopt gate. Verified bit-identical to the previous `np.sqrt(2.0 * np.log(...))`.
     """
-    return float(np.sqrt(2.0 * np.log(max(2, int(n_trials), _trial_N()))))
+    return _stats.hlz_hurdle(max(int(n_trials), _trial_N()))
 
 
 def walk_forward(panel, cols, base, top_n=25, horizon=63, halflife_days=1260, n_folds=5):
@@ -2501,11 +2672,26 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63, return_series=Fa
     # `dates`/`n_scored` are returned because two arms need NOT score the same dates or the same
     # names: an arm can rank a name the other cannot (the other's themes are all absent on it),
     # so alignment has to be checkable rather than assumed.
+    # U3 — `equal_weight` joins the opt-in dict for the same reason `alpha` did. The top-decile
+    # book's own per-period RETURN is `alpha[i] + equal_weight[i]` by construction (see the two
+    # appends above), and a combined equity/options curve needs the LEVEL, not the excess: you
+    # cannot compound an alpha. Purely additive and inside the existing `return_series` gate, so
+    # every current caller's payload stays bit-identical. The identity is pinned by test.
     series = {"dates": used_dates, "n_scored": n_scored,
               "long_short": [float(x) for x in ls],
-              "alpha": [float(x) for x in alpha_series]}
+              "alpha": [float(x) for x in alpha_series],
+              "equal_weight": [float(x) for x in ewb]}
+    # S28 — the SHAPE of the two series the headlines are means of. Computed ALWAYS (it is a
+    # handful of order statistics, not the series) and deliberately NOT gated on
+    # `return_series`, because the point of the item is that the distribution should be as
+    # available as the mean. Reporting only: no threshold reads it and no verdict depends on it.
+    from .statistics import distribution as _dist
+    _alpha_dist = _dist(alpha_series, used_dates)
+    _ls_dist = _dist(ls, used_dates)
     return {"n_periods": len(ls), "n_quantiles": n_q, "horizon": horizon,
             **({"series": series} if return_series else {}),
+            "top_decile_alpha_distribution": _alpha_dist,
+            "long_short_distribution": _ls_dist,
             "decile_ann_return": decile, "equal_weight_ann": ew_ann,
             "long_short_ann": annmean(ls), "long_short_tstat": tstat(ls),
             # AUDIT R9 — HAC inference and a visible serial-correlation diagnostic. The naive
@@ -2514,6 +2700,10 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63, return_series=Fa
             # `long_short_tstat_nw` is the number to quote.
             "long_short_tstat_nw": _nw_tstat(ls, lag=1),
             "long_short_ljung_box": _ljung_box(ls, lags=4),
+            # AUDIT M2 — clustered-by-default inference, ADDITIVE. `t` is the HAC statistic
+            # (== long_short_tstat_nw); `t_naive` is the i.i.d. one (== long_short_tstat),
+            # labelled a diagnostic. Carries n_eff beside n, which nothing here did before.
+            "long_short_inference": _inference(ls),
             "long_short_hit": float(np.mean([1.0 if x > 0 else 0.0 for x in ls])),
             "top_decile_alpha": (None if decile[0] is None or ew_ann is None else decile[0] - ew_ann),
             # AUDIT R9 — the number on the front of the product finally has a significance
@@ -2521,6 +2711,7 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63, return_series=Fa
             "top_decile_alpha_tstat": _tstat(alpha_series),
             "top_decile_alpha_tstat_nw": _nw_tstat(alpha_series, lag=1),
             "top_decile_alpha_ljung_box": _ljung_box(alpha_series, lags=4),
+            "top_decile_alpha_inference": _inference(alpha_series),      # AUDIT M2
             "top_decile_alpha_hit": (float(np.mean([1.0 if x > 0 else 0.0 for x in alpha_series]))
                                      if alpha_series else None),
             "sw_top_decile_ann": sw_ann,
@@ -2593,6 +2784,7 @@ def benchmark_panel(panel, cols, weights, n_q=10, horizon=63, ew_turnover=1.0):
                 "top_decile_ann": float(np.mean([t for t, _ in pairs]) * ppy),
                 "excess_ann": float(np.mean(exc) * ppy),
                 "excess_tstat": _tstat(exc), "excess_tstat_nw": _nw_tstat(exc, lag=1),
+                "excess_inference": _inference(exc),                     # AUDIT M2
                 "hit_rate": float(np.mean([1.0 if x > 0 else 0.0 for x in exc]))}
 
     return {
@@ -2711,8 +2903,18 @@ def _deflated_sharpe(strategy_rets, all_trial_sr):
     so a reader can see the degeneracy rather than infer it. Feeding a real trial count is item
     M1 (the append-only research log) and is NOT done here.
 
-    The bar that IS meaningful on this evidence is the long-short t-statistic against the
-    Harvey-Liu-Zhu hurdle of 3.0. Lead with that one.
+    CORRECTED 2026-08-15 (audit MA5). This paragraph read: "The bar that IS meaningful on this
+    evidence is the long-short t-statistic against the Harvey-Liu-Zhu hurdle of 3.0. Lead with
+    that one." BOTH HALVES ARE NOW WRONG and it was live guidance, so it is corrected rather
+    than left standing. (a) THERE IS NO 3.0 BAR. The hurdle is `statistics.hlz_hurdle(N)` =
+    sqrt(2 ln N), and 3.0 is that expression frozen at N = 90 — a value this project passed on
+    2026-08-06. At today's equity N = 224 the hurdle is 3.2899 and it only ever rises. (b) THE
+    HEADLINE DOES NOT CLEAR IT. R4 measured the long-short HAC t at 2.6199 against 3.2816, a
+    shortfall of 0.66, and shipped both sides in `multiple_testing.hlz`. So "lead with that one"
+    now points at the project's most-failed bar rather than its best-supported claim. Lead with
+    the top-decile alpha HAC t against X7's calibrated floor, and quote the HLZ comparison with
+    R4's counter-argument attached — HLZ prices the best of N draws and the deployed composite
+    is flat 1/7, never tuned, `cpcv.adopt` false on every run.
     """
     d = _deflated_sharpe_detail(strategy_rets, all_trial_sr)
     return None if d is None else d["probability"]
@@ -3045,6 +3247,111 @@ def validate_institutional(provider, tickers, lags=INST_LAG_GRID, lookback_years
     return out
 
 
+def multiple_testing_accounting(per_signal: dict, headline_ls_hac) -> dict:
+    """AUDIT R4 — the two method bullets M1 did not deliver.
+
+    M1 built the append-only log and fed the real `N` into the Deflated Sharpe. It did NOT do
+    either of R4's other two:
+
+      3. "Apply Benjamini–Hochberg across the family of *equity* signal tests, as the options
+         autopsy already does for its 126 features."  BH existed only in the options lane.
+         The equity analogue of "126 features" is the PER-SIGNAL IC TABLE — not the research
+         log, which records verdicts and has NO p-value column, so BH across it is not
+         computable and never was. That is R4's permanent residual.
+
+      4. "Report the Harvey–Liu–Zhu adjusted hurdle for the number of trials actually run."
+         `_trials_haircut` computed it and the CPCV adopt gate USED it, but nothing ever
+         compared it to the HEADLINE, and no `harvey`/`hlz`/`hurdle` string existed anywhere
+         in the canonical file. This block is that comparison, shipped so it cannot go unread
+         a second time.
+
+    THE ANSWER IS A TENSION AND BOTH SIDES SHIP. The headline HAC *t* clears X7's empirically
+    CALIBRATED floor (2.2837) and FAILS the theoretical HLZ hurdle √(2·ln N) at the honest
+    denominator. The counter-argument travels in the payload rather than being left to a
+    reader: HLZ prices the BEST OF N draws, and the deployed composite is not the best of
+    anything — flat 1/7, never tuned, `cpcv.adopt` false on every run — so the logged trials
+    are overwhelmingly REJECTED ALTERNATIVES to it rather than candidates it beat.
+
+    R4's own prediction was that the long-short *t* "probably clears a properly-computed
+    hurdle". It does not, and both movements ran against it: that 3.52 was the pre-B6 void
+    panel, while `N` went 8 → 200+, so the statistic fell as the hurdle rose.
+    """
+    from . import research_log as _rl
+    sig = (per_signal or {})
+    names = sorted(sig)
+    rows = []
+    for n in names:
+        r = sig[n] or {}
+        t_plain = r.get("ic_tstat")
+        t_hac = (r.get("ic_inference") or {}).get("t")
+        rows.append({"signal": n, "median_ic": r.get("median_ic"),
+                     "coverage": r.get("coverage"), "n_dates": r.get("n_dates"),
+                     "ic_tstat": t_plain, "ic_t_hac": t_hac,
+                     "p_plain": _stats.two_sided_p(t_plain),
+                     "p_hac": _stats.two_sided_p(t_hac)})
+    for key, pk in (("bh_reject_plain", "p_plain"), ("bh_reject_hac", "p_hac")):
+        for x, v in zip(rows, _stats.benjamini_hochberg([x[pk] for x in rows], 0.05)):
+            x[key] = bool(v)
+
+    det = {}
+    try:
+        det = _rl.detail() or {}
+    except Exception:
+        det = {}
+    by = det.get("by_domain") or {}
+    n_eq = int(by.get("equity") or 0)
+    # AUDIT MA5 — one definition. This block SHIPS the hurdle in the canonical results file, so
+    # it is the citation everything else is checked against; it may not be a second arithmetic.
+    hurdle = _stats.hlz_hurdle(n_eq) if n_eq else None
+    t = (float(headline_ls_hac)
+         if headline_ls_hac is not None and headline_ls_hac == headline_ls_hac else None)
+
+    return {
+        "bh": {
+            "family": ("per-signal IC table — the equity analogue of the options autopsy's "
+                       "126 features"),
+            "q": 0.05, "n_signals": len(rows),
+            "n_discoveries_plain": sum(x["bh_reject_plain"] for x in rows),
+            "n_discoveries_hac": sum(x["bh_reject_hac"] for x in rows),
+            "discoveries_plain": sorted(x["signal"] for x in rows if x["bh_reject_plain"]),
+            "discoveries_hac": sorted(x["signal"] for x in rows if x["bh_reject_hac"]),
+            "signals": rows,
+            "not_computable_across_the_log": (
+                "RESEARCH_LOG.md records verdicts and has no p-value column; reconstructing "
+                "one for heterogeneous rows measured against different statistics on "
+                "different universes would be invention. R4's permanent residual."),
+        },
+        "hlz": {
+            "statistic": "construction.long_short_tstat_nw",
+            "value": t,
+            "n_trials_equity": n_eq,
+            "hurdle_sqrt_2_ln_N": hurdle,
+            "clears_hlz_hurdle": (None if (t is None or hurdle is None) else bool(t > hurdle)),
+            "shortfall": (None if (t is None or hurdle is None) else float(hurdle - t)),
+            "x7_calibrated_floor": 2.2837,
+            "clears_x7_calibrated_floor": (None if t is None else bool(t > 2.2837)),
+            "the_tension": (
+                "CLEARS the bar measured against the project's own placebo and FAILS the bar "
+                "derived from counting its own trials. Neither is 'the' answer. HLZ prices "
+                "the best of N draws; the deployed composite is flat 1/7, never tuned, and "
+                "cpcv.adopt is false on every run, so the logged trials are overwhelmingly "
+                "REJECTED ALTERNATIVES to it rather than candidates it beat."),
+        },
+        "by_domain": by,
+        "unified_domain_declared_but_zero": bool("unified" in (_rl.DOMAINS or ())
+                                                 and (by.get("unified") or 0) == 0),
+        "unified_note": (
+            "research_log.DOMAINS declares `unified` and it reads zero: every U-series item "
+            "testing unified equity+options hypotheses was charged to equity or options. "
+            "Three parallel single-lane families and one dead bucket. Measured and ROUTED — "
+            "deciding whether cross-lane claims need their own denominator would move every "
+            "published N and is not made here."),
+        "trials_logged_all_domains": det.get("trials_logged"),
+        "audit_estimate": det.get("audit_estimate"),
+        "gap_to_audit_estimate": det.get("gap_to_audit_estimate"),
+    }
+
+
 def per_signal_ic(panel, horizon_col="fwd_ret", min_names=20, min_dates=8) -> dict:
     """{signal: {median_ic, ic_tstat, coverage, n_dates}} for EVERY wired number.
 
@@ -3073,6 +3380,10 @@ def per_signal_ic(panel, horizon_col="fwd_ret", min_names=20, min_dates=8) -> di
             sd = float(a.std(ddof=1))
             t = float(a.mean() / (sd / (len(a) ** 0.5))) if sd > 0 else 0.0
             out[num] = {"median_ic": float(np.median(a)), "ic_tstat": t,
+                        # AUDIT M2 — an IC series indexed by rebalance date is exactly the
+                        # object R9 showed is serially correlated for the long-short spread,
+                        # and it had NO clustered figure at all. `ic_tstat` above is untouched.
+                        "ic_inference": _inference(a),
                         "coverage": cov, "n_dates": len(a)}
         else:
             out[num] = {"median_ic": None, "ic_tstat": None, "coverage": cov,
@@ -3110,6 +3421,12 @@ def theme_ic(panel, horizon_col="fwd_ret", min_names=20, min_dates=8) -> dict:
             sd = float(a.std(ddof=1))
             t = float(a.mean() / (sd / (len(a) ** 0.5))) if sd > 0 else 0.0
             out[theme] = {"median_ic": float(np.median(a)), "ic_tstat": t,
+                          # AUDIT M2 — `ic_tstat` is the statistic carrying X7's calibrated
+                          # 2.71 bar and it had no clustered variant. This is a NEW statistic
+                          # with NO calibrated floor: nobody may compare `ic_inference.t`
+                          # to 2.71. `ic_tstat` itself is untouched, so the bar still applies
+                          # to exactly the number it was calibrated on.
+                          "ic_inference": _inference(a),
                           "coverage": cov, "n_dates": len(a)}
         else:
             out[theme] = {"median_ic": None, "ic_tstat": None, "coverage": cov,
@@ -3240,33 +3557,17 @@ def _sector_capped(order, tickers, sectors, n_target, max_sector_w):
     return picked
 
 
-def _band_select(comp, tickers, held, n_target, exit_rank):
-    """Which names to hold, given a NO-TRADE BAND (hysteresis).
-
-    Enter on the top `n_target`; keep an existing holding until it falls past `exit_rank`.
-    Without a band a name is sold the instant it slips one place out of the book, and the
-    round-trip costs and — far more expensively — realizes a short-term gain. The band lets a
-    still-good name drift instead of churning.
-
-    Book SIZE is held at `n_target` so the comparison across widths is like-for-like: survivors
-    are kept best-first, then the remaining slots go to the highest-ranked names not held. With
-    `exit_rank == n_target` this reduces exactly to plain top-N, which is what makes the
-    no-band case a true baseline rather than a different code path.
-    """
-    order = np.argsort(-comp)
-    rank = {tickers[order[r]]: r for r in range(len(order))}
-    keep = sorted((t for t in held if rank.get(t, 1 << 30) < exit_rank), key=lambda t: rank[t])
-    out = keep[:n_target]
-    if len(out) < n_target:
-        chosen = set(out)
-        for r in range(len(order)):
-            t = tickers[order[r]]
-            if t not in chosen:
-                out.append(t)
-                chosen.add(t)
-                if len(out) >= n_target:
-                    break
-    return out
+# MOVED 2026-08-13 by the S14 ADOPTION. The band rule used to be defined here, and here only,
+# because only the backtest applied it. Adopting it into the live book meant a second caller, and
+# writing the rule again next to `build_index` would have created two definitions of one
+# construction. So the body moved to `no_trade_band.py` and BOTH callers import it.
+#
+# This is an ALIAS, not a re-implementation: `_band_select is no_trade_band.band_select` is true,
+# and a test pins that identity. The measured path and the live path therefore cannot drift apart
+# by any amount, which is what the construction-fidelity gate needs in order to mean something.
+# Call sites below are unchanged.
+from .no_trade_band import band_select as _band_select        # noqa: E402  (kept at its old site)
+from .no_trade_band import exit_rank_for as _exit_rank_for    # noqa: E402
 
 
 def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=63,
@@ -3312,7 +3613,11 @@ def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
         if exit_mult is not None:
             _xr = max(k, int(round(k * exit_mult)))
         elif exit_frac is not None:
-            _xr = max(k, int(len(sub) * exit_frac))
+            # S14 ADOPTION 2026-08-13: the FRACTION derivation now lives in one place and the
+            # live path imports the same function. Exactly equivalent to the inline
+            # `max(k, int(len(sub) * exit_frac))` this replaces -- the truncation is preserved
+            # deliberately, and a test pins the equivalence over a grid rather than asserting it.
+            _xr = _exit_rank_for(len(sub), k, exit_frac)
         _sel = _band_select(comp, _all_t, set(prev_w), k, _xr)
         if max_sector_w:
             _secmap = dict(zip(_all_t, sub["sector"].values)) if "sector" in sub.columns else {}
@@ -3473,7 +3778,11 @@ def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
         if exit_mult is not None:
             _xr = max(k, int(round(k * exit_mult)))
         elif exit_frac is not None:
-            _xr = max(k, int(len(sub) * exit_frac))
+            # S14 ADOPTION 2026-08-13: the FRACTION derivation now lives in one place and the
+            # live path imports the same function. Exactly equivalent to the inline
+            # `max(k, int(len(sub) * exit_frac))` this replaces -- the truncation is preserved
+            # deliberately, and a test pins the equivalence over a grid rather than asserting it.
+            _xr = _exit_rank_for(len(sub), k, exit_frac)
         _sel = _band_select(comp, _all_t, set(lots), k, _xr)
         if max_sector_w:
             _secmap = dict(zip(_all_t, sub["sector"].values)) if "sector" in sub.columns else {}
@@ -3859,24 +4168,15 @@ def holdout_theme_validate(panel, cols, n_q=10, horizon=63, base_weight=0.125,
 # and the band flagged identical shares before and after the fix — a pure no-op. The SUBGROUP
 # check below is what covers them. `ev_ebitda` is already restricted to POSITIVE EBITDA at
 # construction, so its remaining tail is genuinely "barely profitable", not a sign error.
-SANE_RANGES = {
-    "book_to_price": (-50.0, 50.0),
-    "earnings_yield": (-10.0, 10.0),   # quarterly earnings / market cap
-    "fcf_yield": (-10.0, 10.0),
-    "ebit_ev": (-25.0, 25.0),
-}
-# Ratios measured but intentionally exempt from the range check (see above).
-SANE_RANGE_EXEMPT = ("ev_sales", "ev_ebitda", "ps")
-SANE_VIOLATION_SHARE = 0.01        # >1% of rows outside the band = systematic, not a fat tail
-# A subgroup whose MEDIAN percentile sits this high/low is pegged. 0.70 verified against the
-# pre-P7 values: it catches 4 of the 6 corrupted value ratios (book_to_price and
-# earnings_yield reached 0.86 alone) with ZERO false positives on the corrected data, where
-# every factor lands in 0.49-0.61. This is a detector threshold tuned on known-bad vs
-# known-good data — it affects no return and no weight, so it is not the kind of
-# after-the-fact tuning holdout_theme_validate exists to prevent.
-SUBGROUP_PEG_PCTILE = 0.70
-MC_DIVERGENCE_FACTOR = 3.0         # DAILY market cap vs shares x price
-MC_DIVERGENCE_SHARE = 0.01
+# AUDIT MA14 — THESE ARE RE-EXPORTS, NOT DEFINITIONS. The bands now live in
+# `valuation/edge/sanity_spec.py`, which depends on nothing, so the LIVE scoring path can
+# import them without importing this 5,000-line module. Every existing importer of
+# `fundamental_panel.SANE_RANGES` keeps working unchanged, which is the whole point of a
+# re-export; MA39 established the pattern after a duplicated `RESULT_BLOCKS` drifted and left
+# seven payload blocks unwatched. A test pins that exactly one literal assignment exists.
+from .sanity_spec import (MC_DIVERGENCE_FACTOR, MC_DIVERGENCE_SHARE,  # noqa: E402,F401
+                          SANE_RANGE_EXEMPT, SANE_RANGES, SANE_VIOLATION_SHARE,
+                          SUBGROUP_PEG_PCTILE)
 
 
 def sanity_check(panel, ranges=None, warn=True) -> dict:
@@ -4146,12 +4446,26 @@ def ev_freshness(panel, floor=EV_FRESH_FLOOR, warn=True) -> dict:
 
 
 def run_backtest(provider, tickers, top_n=25, rebalance_days=63, horizon=63, lookback_years=18,
-                 recency_halflife_days=1260, bucket="established") -> dict:
+                 recency_halflife_days=1260, bucket="established", panel=None) -> dict:
+    """`panel` lets a caller inject an already-built frame instead of building one.
+
+    AUDIT B23 — THE REUSE THIS PARAMETER EXISTS FOR WAS TRIED AND REVERTED, and the reason is
+    the finding. Sharing the 63-day `keep_numbers` panel across the 63-day horizon and the
+    hold-until-exit block leaves every HEADLINE bit-identical, but it moves
+    `cleanups.panel_window` and `cleanups.survivorship_mask_coverage`: those blocks are
+    recorded as a SIDE EFFECT of whichever panel was built LAST, so removing a build silently
+    re-points them at the 756-day panel (`horizon` 63 -> 756, `calendar_cut_days` 4659 ->
+    5352, 64 per-date entries dropped). The register's gate was bit-identity and its rule was
+    "revert, do not explain", so it is reverted. The parameter stays because it is inert at
+    its default and is the mechanism any correct version of B23 would use — but binding those
+    diagnostics to the 63-day panel explicitly is a SEPARATE change and is not made here.
+    """
     ok, msg = provider.ready()
     if not ok:
         return {"ready": False, "provider": provider.name, "message": msg}
-    panel = build_fundamental_panel(provider, tickers, rebalance_days=rebalance_days,
-                                    lookback_years=lookback_years, horizon=horizon)
+    if panel is None:
+        panel = build_fundamental_panel(provider, tickers, rebalance_days=rebalance_days,
+                                        lookback_years=lookback_years, horizon=horizon)
     if panel.empty or panel["date"].nunique() < 6:
         return {"ready": True, "provider": provider.name, "status": "insufficient history",
                 "dates": 0 if panel.empty else int(panel["date"].nunique())}
@@ -4389,13 +4703,28 @@ def main(argv=None):
         print(f"# '{nm}' beat the defaults out-of-sample and cleared the overfitting checks (CPCV / walk-forward verdicts above).")
         print("WEIGHTS_ESTABLISHED = " + json.dumps(rwf))
     elif h and h.get("accepted"):
-        print("\n=== Paste into valuation/screener/settings.py, then commit + push ===")
-        print("WEIGHTS_ESTABLISHED = " + json.dumps(h["optimized_weights"]))
+        # MASTER AUDIT MA3, the third door. This used to print the same "paste into settings.py"
+        # instruction as the walk-forward branch above, on a SINGLE 50/50 SPLIT — the gate
+        # `CLAUDE.md` forbids falling back to, weaker even than walk-forward. A human following a
+        # confident instruction is a weight-adoption path like any other, and this one bypassed
+        # the database entirely, so `weight_adoption` could never see it. It now reports the
+        # result and refuses to instruct.
+        print("\n=== A single-split accept — NOT an adoption instruction ===")
+        print("# This weighting cleared a SINGLE 50/50 time split. CPCV is the authority for")
+        print("# weights (CLAUDE.md, core file); a CPCV rejection means KEEP THE DEFAULTS, and")
+        print("# CPCV has rejected on every run this project has done. Do NOT paste this into")
+        print("# settings.py: adopting a weight is a VINTAGE EVENT (PAPER_TRACK_CONTRACT §5a)")
+        print("# that resets the forward track's five-year clock. It takes a registered vintage")
+        print("# and Don's signed row — see valuation/edge/weight_adoption.py.")
+        print("# for reference only: WEIGHTS_ESTABLISHED = " + json.dumps(h["optimized_weights"]))
     else:
         print("\nNo weighting beat the defaults out-of-sample (walk-forward or single-split) — keep the current weights.")
     # Canonical results files at the repo root, written on EVERY run and git-tracked, so the
     # current numbers travel out of a worktree to main for another agent to read. Derived
-    # metrics only, never raw licensed rows. Never allowed to fail a completed backtest.
+    # metrics only, never raw licensed rows. Never allowed to fail a completed backtest —
+    # EXCEPT a schema failure (audit M6), which gets its own `except` below and exits
+    # non-zero WITHOUT discarding any artifact the run already produced.
+    _schema_failed = None
     try:
         import os as _os
         from .results_file import write as _write_results
@@ -4442,6 +4771,16 @@ def main(argv=None):
                             cleanups=_cleanups, per_signal=_psig)
         print(f"Canonical results  -> {_os.path.basename(_w['json'])} + "
               f"{_os.path.basename(_w['md'])} (repo root, tracked)")
+    except _schema.PayloadSchemaError as _se:
+        # AUDIT M6 — this blanket `except Exception` exists so a serialisation hiccup cannot
+        # discard a completed 40-minute backtest, and that intent is right. But it would also
+        # have SWALLOWED the schema guard, printing it as a warning nobody reads — a check
+        # that cannot fail anything is not a check, which is the exact pattern M6 is about.
+        # So the schema failure is caught SEPARATELY: the run keeps every artifact it has
+        # already produced (both canonical files are on disk, and the --json dump below still
+        # happens), and then main() exits NON-ZERO.
+        _schema_failed = str(_se)
+        print(f"[results] SCHEMA FAILURE (audit M6): {_se}")
     except Exception as _e:
         print(f"[results] could not write the canonical results files: {_e}")
 
@@ -4450,18 +4789,25 @@ def main(argv=None):
         with open(args.json, "w") as f:
             json.dump(res, f, indent=2)
         print(f"\nFull results → {args.json}")
+    if _schema_failed:
+        print("\nRUN FAILED: a computed field was dropped from the canonical results file.\n"
+              "Nothing was lost — every artifact above was written. Carry the field in\n"
+              "results_file.build_payload, or declare it in payload_schema.BLOCK_SPEC with\n"
+              "a reason, then re-run.")
+        return 2
     return 0
 
 
 # AUDIT B22 / M6 — the blocks a COMPLETE run must contain. A missing block is now an error
 # recorded in the results file rather than an absence nobody can distinguish from "not run".
-RESULT_BLOCKS = (
-    "construction", "regime", "institutional_dependence", "factors_used", "walk_forward",
-    "cpcv", "hold_until_exit", "holdout_validation", "costs", "book_configs",
-    "no_trade_band", "after_tax",
-    "benchmarks",          # AUDIT R10 — a silently absent benchmark block would leave the
-                           # uninvestable equal-weight figure standing alone again
-)
+#
+# AUDIT MA39 — THE DEFINITION MOVED TO `payload_schema` AND THIS IS A RE-EXPORT, NOT A COPY.
+# It lived here, where the blocks are produced, and `results_file` — which scans them for
+# error statuses — could not import it without a heavyweight cycle, so it carried a hand-typed
+# list of six instead. Seven blocks were stamped by this module and watched by neither. One
+# definition, importable by both, is the only version of this that cannot drift again; the
+# name stays here so every existing importer is unaffected.
+RESULT_BLOCKS = _schema.RESULT_BLOCKS
 
 
 def missing_result_blocks(res: dict) -> list:
@@ -4486,7 +4832,8 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
     for H in horizons:
         rb = max(rebalance_days, int(H))          # rebalance ≥ horizon → NON-overlapping periods
         r = run_backtest(provider, tickers, top_n=top_n, rebalance_days=rb, horizon=int(H),
-                         lookback_years=lookback_years, recency_halflife_days=recency_halflife_days, bucket=bucket)
+                         lookback_years=lookback_years, recency_halflife_days=recency_halflife_days,
+                         bucket=bucket)
         out["horizons"][str(int(H))] = r
     done = [h for h, r in out["horizons"].items() if r.get("optimized_weights")]
     out["primary_horizon"] = max(done, key=lambda x: int(x)) if done else None
@@ -4552,6 +4899,14 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
                 rec, adopted_w, rec_name = base, False, "default"
             out["construction_weighting"] = (rec_name if adopted_w else "default")
             out["construction"] = quantile_backtest(panel, cols, rec, n_q=10, horizon=63)
+            # AUDIT R4 — the two bullets M1 did not deliver. MUST sit AFTER `construction`:
+            # the first cut computed it beside `per_signal`, twenty-five lines EARLIER, so the
+            # headline it exists to compare against was always None and the shipped block read
+            # `clears_hlz_hurdle: null`. That is R4's own finding — a number computed and never
+            # reported — reproduced by R4's own fix, and it is why the assertion below is here
+            # rather than a comment asking the next reader to be careful.
+            out["multiple_testing"] = multiple_testing_accounting(
+                out["per_signal"], (out.get("construction") or {}).get("long_short_tstat_nw"))
             out["regime"] = regime_split(panel, cols, rec, n_tiers=3, horizon=63)           # where the edge lives
             out["benchmarks"] = benchmark_panel(panel, cols, rec, n_q=10, horizon=63)       # AUDIT R10
             out["institutional_dependence"] = institutional_dependence(panel, cols, rec, horizon=63)

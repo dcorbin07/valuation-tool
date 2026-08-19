@@ -1,0 +1,141 @@
+name: PT-WRITER (daily paper-track row)
+
+# v2 — REPLACES the v1 workflow entirely (landed 0e0e86d, 2026-08-16).
+#
+# v1 ran `python -m scripts.track_row --append` on the runner and could not work on
+# ANY runner: `.gitignore` excludes /data/ with no negation, `git ls-tree -r
+# origin/main -- data/` returns zero paths, so a fresh checkout has neither the book
+# nor the bound series and contract_row refuses at load_book before touching a
+# vendor. Diagnosed independently by the Cowork recorder's 2026-08-17 refusal note
+# and by app fixer's 174ecb7.
+#
+# v2 does the only thing that can work: it tells the LIVE SERVICE to write the row.
+# The Render service is the one place holding the book, the bound series AND vendor
+# network access. The write door is POST /admin/track-row?append=1 (174ecb7), whose
+# rules live in index_mark.append_row, not here:
+#   * intraday marks refused, no parameter switches it off (AST-pinned)
+#   * append-only — a date at or before the last recorded row is refused; the
+#     file's previous bytes stay an exact prefix
+#   * idempotent per day — a second POST returns the row ON DISK, never a recompute
+#   * refusals come back as JSON with a non-200 status
+# This job therefore needs no checkout of the data, no pip install, and no
+# permission to push a row — it is a scheduler plus a messenger.
+#
+# Secrets: SITE_BASE_URL and ADMIN_TOKEN (already exist — auto-scan and
+# track-backup use the same two). DISCORD_WEBHOOK_URL optional but recommended.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # 22:12 UTC is 6:12pm EDT / 5:12pm EST — after the US close in BOTH halves of
+    # the year, so no DST cron pair is needed. Backup at 23:37 because GitHub's
+    # free scheduler routinely drops runs; the endpoint is idempotent per day, so
+    # the backup is a no-op if the primary landed. Odd minutes on purpose.
+    - cron: "12 22 * * 1-5"
+    - cron: "37 23 * * 1-5"
+
+concurrency:
+  group: pt-writer
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # only for the failure-note commit; the row itself never touches git
+
+jobs:
+  write-row:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Ask the live service to append today's row
+        id: post
+        env:
+          SITE_BASE_URL: ${{ secrets.SITE_BASE_URL }}
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          set -uo pipefail
+          if [ -z "${SITE_BASE_URL:-}" ] || [ -z "${ADMIN_TOKEN:-}" ]; then
+            echo "body=Missing SITE_BASE_URL or ADMIN_TOKEN secret" >> "$GITHUB_OUTPUT"
+            echo "code=000" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Pricing 86 names + SPY on the service can exceed two minutes, so a
+          # single short-timeout request reads as failure while the work is
+          # still finishing (run #5: curl cut off at exactly 120s). The door is
+          # IDEMPOTENT PER DAY, so retrying is safe: if attempt 1 timed out but
+          # the service completed the write, attempt 2 returns 200 "already
+          # recorded" instead of re-doing anything.
+          BODY_FILE=$(mktemp)
+          CODE="000"
+          for attempt in 1 2 3; do
+            CODE=$(curl -sS -X POST \
+                     -H "X-Admin-Token: ${ADMIN_TOKEN}" \
+                     -o "$BODY_FILE" -w "%{http_code}" \
+                     --max-time 280 \
+                     "${SITE_BASE_URL%/}/admin/track-row?append=1") || CODE="000"
+            echo "attempt $attempt: HTTP $CODE"
+            if [ "$CODE" = "200" ] || [ "$CODE" = "201" ]; then break; fi
+            # 4xx is a real answer (refusal/auth), not a timeout — do not retry it.
+            case "$CODE" in 4*) break;; esac
+            sleep 20
+          done
+          cat "$BODY_FILE"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          {
+            echo "body<<EOF"
+            head -c 4000 "$BODY_FILE"
+            echo ""
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # The door's contract (§7.2b): 201 wrote / 200 already recorded / 409
+      # append-only violation / 422 refused. Both 2xx codes are success — the
+      # first cut accepted only 200, which would have filed the first genuine
+      # write under "refusal".
+      - name: Success — nothing else to do
+        if: steps.post.outputs.code == '200' || steps.post.outputs.code == '201'
+        run: |
+          echo "HTTP ${{ steps.post.outputs.code }}: row written (201) or already present (200)."
+          echo "The service's own series is the record; the weekly track-backup archives it."
+
+      # A refusal or an unreachable service is a legitimate, LOUD outcome. It gets a
+      # dated note in the record, exactly as the contract requires — never a guess.
+      - uses: actions/checkout@v5
+        if: steps.post.outputs.code != '200' && steps.post.outputs.code != '201'
+
+      - name: Record the refusal and push it
+        if: steps.post.outputs.code != '200' && steps.post.outputs.code != '201'
+        env:
+          CODE: ${{ steps.post.outputs.code }}
+          BODY: ${{ steps.post.outputs.body }}
+        run: |
+          set -euo pipefail
+          {
+            echo ""
+            echo "## PT-WRITER $(date -u +%F): the service did not write today's row"
+            echo ""
+            echo "POST /admin/track-row?append=1 returned HTTP ${CODE} from the GitHub"
+            echo "Actions runner. No row was written by this job and no prior row was"
+            echo "modified (the append rules live in index_mark.append_row, service-side)."
+            echo "A gap stays a logged gap."
+            echo ""
+            echo "Service response, verbatim (truncated at 4000 bytes):"
+            echo ""
+            printf '%s\n' "${BODY}" | sed 's/^/    /'
+          } >> HANDOFF_STATUS.md
+          git config user.name  "pt-writer[bot]"
+          git config user.email "pt-writer@users.noreply.github.com"
+          git add HANDOFF_STATUS.md
+          git commit -m "PT-WRITER $(date -u +%F): service refused or unreachable (HTTP ${CODE})"
+          git push
+          exit 1   # the run shows red so the failure is visible in the Actions tab
+
+      - name: Alert Discord
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          MSG: "PT-WRITER: no row for $(date -u +%F) — HTTP ${{ steps.post.outputs.code }}. Note pushed. ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        run: |
+          [ -n "${DISCORD_WEBHOOK_URL:-}" ] || exit 0
+          curl -sS -X POST -H "Content-Type: application/json" \
+            -d "{\"content\": \"${MSG}\"}" "$DISCORD_WEBHOOK_URL" || true
+        continue-on-error: true

@@ -1,9 +1,2158 @@
+# HANDOFF STATUS - shared project state
+
+## edge lane — **P1S0-CONTROL: NULL, and the dichotomy is the finding** (2026-08-16)
+
+`PREREG_p1s0control_period_or_universe.md` committed ALONE at `dc618c4`; budget booked at
+`be4bd36` **before** the run. **Equity `N` 231 → 232.** **P1S0 was NOT re-run and the
+options-expression family stays `CLOSED`.**
+
+**The question was: is P1S0's dead 2016–2020 early half about OPTIONABLE names or a weak PERIOD?
+Measured on the full panel over P1S0's own dates: it is BOTH, and they interact.**
+
+### Four things worth carrying forward
+
+**1. THE FULL PANEL DOES NOT SORT OVER 2016–2020, AND THAT IS NEW.** Monotonicity is **positive at
+all three horizons (+0.115 / +0.152 / +0.248 — deciles running backwards)** and the long-short *t*
+is **negative at all three (−0.078 / −0.846 / −2.424)**, against a late window at −0.915/−0.830/
+−0.818 and +2.07/+1.50/+2.04. **Any item that uses 2016–2020 as an evaluation window inherits
+this.** It corroborates `R1`'s fragility work (a ~10-year window centred 2009–2019 at +1.66%,
+*t* 1.39) and `X4` (investable margin not demonstrable since 2014) — `R1`'s *"passes every
+subperiod"* is about its coarse halves and thirds, **not** this five-year window.
+
+**2. THE OPTIONABLE SUBSET IS WORSE EARLY AND BETTER LATE.** Full panel beats it by +1.467pp /
++6.124pp / +1.527pp early, and loses by −9.704pp / −10.927pp / −1.555pp late. **So "the composite
+strengthens on optionable names" is a full-sample statement that hides a sign flip.**
+
+**3. THE VERDICT IS NULL BECAUSE MY OWN LEG 2 WAS THE WRONG STATISTIC.** It asked *"is top-decile
+cumulative alpha positive?"* — a **level** question — when the item is about **sorting**. A top
+decile can drift up with the market while the ranking carries no information, which is exactly this
+window. **Anyone re-asking this question should gate on a sorting statistic (monotonicity or the
+long-short against its own null), not a level.** That is a design note; it was **not** run here and
+the rule was **not** restated after the fact.
+
+**4. A RESTRICTED-UNIVERSE PLACEBO FLOOR DOES NOT TRANSFER.** The full-panel `early_p95` is
+**1.9308** against P1S0's restricted **1.6974** at H=63 — 0.23 of a *t* higher, i.e. borrowing the
+restricted floor would have been **permissive**. 619 names is not 2,531. Compute your own.
+
+**Still `DESIGN-RECORDED` and untouched: `MA27`, `MA55`, `MA57`, `MA58`.**
+
+## edge lane — **MA28-CARD PASSES** (2026-08-16, the first post-audit research item)
+
+**The ONE register resolving `MA26-A` + `MA28` + `MA54-1`.** `PREREG_ma28_accounting_riskcard.md`
+committed ALONE at `6ff578b`; budget booked at `7f294df` **before** the run. **Equity `N` 230 →
+231.** `BACKTEST_RESULTS.json` needs no re-run.
+
+**The result.** Names flagged by 2 or more of Beneish M > −1.78, Altman Z < 1.81 and top-decile
+within-date external financing lost **more than half their value in a quarter at 2.66% against
+0.87% — a 3.04× ratio — and it replicates in both halves** (3.42× early, 2.93× late), every window
+above the **permutation maximum** of 500 draws. C4 size **5/5**, C5 largest theme |ρ| **0.186**.
+
+### Five things worth carrying forward
+
+**1. QUOTE THE RATIO, NEVER THE DIFFERENCE.** The base rate is era-dependent — kept 0.34% early
+against 1.36% late — so the absolute gap swings 0.86pp → 2.39pp while the ratio barely moves. The
+flag scales the market's crash frequency **multiplicatively**. A card quoting "1.6pp more likely"
+would quote an era average describing neither half.
+
+**2. THIS ONE IS STRONGEST WHERE THE PRODUCT IS, WHICH IS THE OPPOSITE OF `V6-B` M1.** The ratio
+*rises* with size, 2.01× smallest quintile → **5.17× megacap**, because the base rate collapses
+14.5× across quintiles while the flagged rate falls only 5.6×. Large companies almost never halve —
+unless their accounts are stressed. **Both caveats are now on record pointing opposite ways**; do
+not carry V6-B's "weakest where the product is" over to this item.
+
+**3. THE AUDIT'S OWN PRODUCT SENTENCE WAS WRONG.** `VALQUO_MASTER_AUDIT.md:950` pairs the **−50%
+rates** with a **−20% threshold**. At −20% the real figures are **16.85% vs 8.98%, ratio 1.88×**.
+Shipping it verbatim would have published a number that refutes itself.
+
+**4. THE CARD IS NOT BUILT, AND THAT IS THE APP LANE'S.** The register's deliverable is the
+*sentence* (`HANDOFF_edge_audit.md` MA28-CARD, §VERDICT). Build it with the `BANNED` phrase tuple
+asserted against the **RENDERED payload**, not the source — `dip_posture.py`'s design.
+
+**5. FOUR ITEMS REMAIN `DESIGN-RECORDED` AND UNTOUCHED — `MA27`, `MA55`, `MA57`, `MA58`.** Running
+them as a batch is a four-arm search dressed as a backlog at `N` = 231. Each needs its own blind
+register committed alone. `MA57` in particular is already decided: its data blocker was refuted and
+the `_KEEP` change was deliberately not taken.
+
+## edge lane — **AUDIT #3 IS EXECUTED** (2026-08-16, the final nine)
+
+**All 60 items adjudicated, zero `OPEN`: 53 `DONE`, 5 `DESIGN-RECORDED`, 1 `BLOCKED` on the Cowork
+lane (`MA18`), 1 `PARTIAL` blocked on `MA11` and routed to Don (`MA60`).** The final batch was
+`MA24`+`MA26`+`MA27`+`MA28`+`MA33`+`MA54`+`MA55`+`MA57`+`MA58`. **Zero trials, all nine
+`FIXED`-class — equity `N` stays 230, options 294, infra 15, `by_domain` bit-identical across the
+log append (`rows_fixed_not_counted` 53 → 62), and no published claim moves.**
+
+### Five things worth carrying forward
+
+**1. `S19` IS CLOSED PERMANENTLY, and the monthly rebuild does not re-open it.** `MA24`
+pre-committed the condition; it **fires**. `S19`'s MDE — derived from its own artifact, not quoted
+— falls only **+0.020549 → +0.012324** at 114 monthly dates against a **+0.009607** effect, and
+needs **188 months (15.6 years)**. **Do not propose the monthly panel on `S19`'s account.** It may
+still be worth building; justify it by what the *next* item needs, measured in advance.
+
+**2. `MA57` IS UNBLOCKED AND WAS NEVER BLOCKED — it is the highest-EV untested equity item and the
+data has been on disk all along.** `ownername` and `transactioncode` are both in
+`data/backtest/insiders.csv` (24 columns, 5.64M rows, 69,277 owners). It is a **one-line `_KEEP`
+change**, deliberately not taken here because a column with no consumer is dead weight — **land it
+in the same commit as the classifier, with `PREREG_ma57_*.md` alone first.** A tripwire fails a
+suite if the columns arrive without it.
+
+**3. THREE AUDIT IDS ARE ONE HYPOTHESIS.** `MA26`-A, `MA28` and `MA54`-1 are the same accounting-flag
+effect filed three times across two passes. **One register, not three** — building three would
+triple-charge one hypothesis. It gates on the **crash-rate replication**, never on alpha.
+
+**4. `MA54`-2 WAS ANSWERED BY THE OPTIONS LANE THE SAME DAY** (ledger `O17C4`, REJECTED on c3, with
+the effect confirmed real at **+4.79pp** on random-entry control books). **Cite it; do not
+re-measure it.** `MA54`-4's remedy is orphaned — `P1S0` failed and the options-expression family
+closed.
+
+**5. THE HOT-FILE CONSTRAINT IS UNCHANGED.** `fundamental_panel.py` still cannot be split across
+owners, and `MA23` did not change that. This batch avoided it entirely rather than working around
+it.
+
+## edge lane, `MA14` + `MA21` + `MA25` + `MA34` + `MA49` (2026-08-16) — WHERE THE AUDIT'S OWN EVIDENCE IS WRONG
+
+**Wave-2/LOW pipeline batch, severity-then-collision. Zero trials, all five `FIXED`-class — equity
+`N` stays 227, `by_domain` bit-identical across the log append (`rows_fixed_not_counted` 47 → 52),
+no published claim moves.** `BACKTEST_RESULTS.json` needs no re-run.
+
+**THE STANDING QUESTION, ANSWERED WITH A NUMBER: `MA23` DID NOT SHRINK THE HOT FILE AND NEVER
+COULD HAVE.** `fundamental_panel.py` is **5,014 lines, byte-for-byte what it was before MA23
+landed**. MA23 moved the directory's OTHER occupants; the panel is a file and was never one of
+them. So `MA14` and `MA25` still had to share this session, and **`MA24`, `MA26`, `MA27` and
+`MA33` remain mutually exclusive per session** for the same reason. If you are sequencing the
+remaining nine, that constraint is unchanged and is the one that governs.
+
+**Deferred, named so they are not mistaken for done: `MA24`, `MA26`, `MA27`, `MA28`, `MA33`,
+`MA54`, `MA55`, `MA57`, `MA58`.** All nine charge trials and need a blind pre-registration
+committed ALONE before any measurement — MA27 and MA55 are equation candidates, MA57 and MA58
+literature replications, MA33 a panel rebuild. Running one inside a correctness batch is what the
+register exists to prevent.
+
+### Four things worth carrying forward
+
+**1. Two of the five audit items rest on wrong evidence, both in the direction that stops a
+reader.** `MA34`'s verification quotes the **VOID pre-B6 R1 run** — its figures reproduce
+bit-for-bit from `FACTOR_ALPHA_RESULTS.json` at `n_periods` 109 — so its conclusion that the decay
+prior attaches to `size`/`quality`/`momentum` is **inverted**: on the corrected panel HML and UMD
+load while SMB and RMW do not, so it attaches to **`value` and `momentum`**. And `MA25`'s own
+evidence **undercounts by 73%**: the liquidity data is **502 names**, not 290. *Check an audit's
+citation against the artifact, not against its prose.*
+
+**2. `MA21` has a convention that cannot be implemented, and the reason is documented in the file
+it would check.** "Warn on an unknown verdict" would fire on **41 of 230 DONE rows** whose blank
+verdict `build_ledger.py` itself documents as legitimate. A substitute ships. **The three
+enforceable tripwires are mutation-tested 3/3** — a tripwire nobody has proved can bite is not a
+check, and all three pass today.
+
+**3. The live scoring path now has a sanity layer, and it differs from the backtest's on purpose.**
+`valuation/screener/live_sanity.py` reports `columns_absent` / `checked` / `vacuous`, because
+`sanity_check`'s silent skip of an absent column would let a rename produce zero checks and an
+empty `flags` — a clean bill of health from a guard that looked at nothing. Bands come from the new
+dependency-free `valuation/edge/sanity_spec.py`, which `fundamental_panel` **re-exports**: if you
+need those constants anywhere, import the spec, never retype them.
+
+**4. `.github/workflows/` is still unreachable from a branch, and that now blocks two items.**
+`MA21(5)` (schedule M4's fidelity harness) joins `MA60`'s suite split. Both are one small workflow
+edit for a human with write access; neither can auto-land. `MA21(5)` is blocked twice over anyway —
+the harness needs the licensed export CI must never hold.
+
+## edge lane, `MA23` + `MA40` + `MA41` + `MA42` + `MA43` + `MA47` (2026-08-15) — THE BOUNDARY, AND FIVE INSTRUMENTS THAT PRODUCED PLAUSIBLE NUMBERS
+
+**Wave-2 pipeline batch, chosen severity-then-collision. Zero trials, all six `FIXED`-class —
+equity `N` stays 224, `by_domain` bit-identical across the log append, no published claim moves.**
+`SCHEMA_VERSION` 6 → 7 is additive, so `BACKTEST_RESULTS.json` needs no re-run.
+
+**Deferred, named so they are not mistaken for done:** MA14, MA21, MA25, MA34 (wave 2) and all of
+wave 3. MA14 and MA25 cut into the live scoring path inside `fundamental_panel.py` and want a quiet
+tree; MA21 needs a prose-convention survey across `build_ledger.py`; MA49 collides with MA23 on
+`param_search.py` and is LOW.
+
+### For the next session, in one paragraph
+
+`valuation/studies/` now exists and holds the twelve finished one-shot studies —
+`param_search`, `lazy_prices_ic`, `ml_combiner`, `loo_holdout`, `live_replay`, `kelly`,
+`bucket_floor`, `portfolio_capacity`, `convex_overlay`, `earnings_surface`, `surface_stock`,
+`ev_multiples_study`. **Import them from `valuation.studies`, not `valuation.edge`**; the old
+paths are gone and a test fails if any reappear. The engine may not import a study, and that
+direction is pinned. If you edit `scripts/ma_dependency_map.py`, note it now carries a `MOVED`
+alias table so the audit's original paths still resolve — **do not "fix" the audit's items file
+to match the tree**, that record is the point.
+
+### The six, each with its verified premise
+
+| id | premise, checked against the code | what shipped |
+|---|---|---|
+| MA23 | 12 study modules mixed into the shipped package; `ev_multiples_study` zero importers | moved as git renames to `valuation/studies/`, nothing deleted, direction pinned by test |
+| MA40 | `'sector_caps' in BACKTEST_RESULTS.json` → **False**; `walk_forward` ships 6 keys, producer returns 4 | both blocks projected and registered in `BLOCK_SPEC`; schema 6 → 7 |
+| MA41 | `grep -c embargo walkforward.py` → **0**; feeds a live "Adopt" reachable from the web app | one fold-adjacent date purged from every training set; adopt boolean deliberately unchanged |
+| MA42 | pair IS open (v4 over v3); `months_paired` read a key nothing writes; verdict branch unreachable | `months_elapsed` derived and rising, `months_paired` attributable, `paired_months_owed` dated |
+| MA43 | pairs by position, truncates, no dates, under a "SAME periods" docstring | keys on the date intersection; refuses rather than truncates; duplicates refused |
+| MA47 | key stores a ticker COUNT for identity — B12 re-encoded — under a false guarantee | provenance hash + sidecar the read path compares; legacy files refused and rebuilt |
+
+### The three things worth carrying forward
+
+**1. MA23 does not unblock the panel, and the dependency map says it would.** Measured, the twelve
+modules total **4,587 lines** and `fundamental_panel.py` is **5,014 lines and is not among them**.
+The panel is a FILE; MA23 moves a DIRECTORY's other occupants. **The one-owner-at-a-time rule on
+the panel is untouched and still binds** — MA14, MA24, MA25, MA26, MA27 and MA33 all still queue
+behind each other there. A test pins this so the move is never read as having lifted it.
+
+**And a correction against my own first draft, measured after writing it: the move does NOT take
+those 4,587 lines out of the deploy image either.** The `Dockerfile` is `COPY . .` and
+`.dockerignore` excludes `tests` and `*.md` but nothing under `valuation/`, so **one of the
+audit's three stated motivations for MA23 is not met by MA23 as specified.** The residual is one
+`.dockerignore` line, **reported and not taken**: `scripts/` is in the image too and every study's
+runner imports the studies, so excluding one without the other breaks an in-image script. Safe to
+do later for a reason this session established — the boundary test proves no product module
+imports a study.
+
+**2. Two corrections to the audit's own census.** `scripts/ml_combiner.py` does **not** import
+`edge/ml_combiner.py` — they are two independent implementations, and **the published
+`ML_COMBINER.json` came from the script**, so the module's only caller is its test.
+`lazy_prices_ic` has **no `scripts/` runner at all**. A name-match census is not an import census:
+`param_search.bat` was a false hit, running `fundamental_panel --param-search`.
+
+**3. A defect in my own map regeneration.** Repointing the import graph at the new path **silently
+dropped 187 lines and 22 collisions** — the audit's items still name the old path, so the two
+stopped matching and the collisions vanished with no error. Caught by diffing the regenerated
+artifact against `HEAD`, not by reading the code. Verified after the alias: **285 collisions
+before, 285 after**, the same 42 pairs renamed.
+
+**4. The map was also built on a graph MA60 had already measured to be wrong.** MA59+MA60 landed
+mid-session and derived `check_lanes.py`'s import graph after measuring the hand-typed literal at
+13 keys / 40 edges against a real 118 / 546. **`scripts/ma_dependency_map.py` carried the same
+copy** — verified against `408e614^:check_lanes.py`. It is now `import_graph.graph()`.
+**285 → 422 collisions, 192 added, 55 removed.** Credit is MA60's; this is the copy they missed,
+and it is fixed here because regenerating the map for MA23 made the error mine to ship.
+**If you touch either lane tool, there is now ONE import graph — keep it that way.**
+
+### Pinning
+
+`tests/test_ma40_ma43_instruments.py` (23) and `tests/test_studies_boundary.py` (6).
+**22 of the 23 fail against the pre-fix tree**, measured by restoring the five sources to `HEAD`
+and re-depthing only the two imports the move required. **The one that passes is reported as
+passing**: it passes *vacuously*, because pre-fix neither block was in `BLOCK_SPEC` and the guard
+had nothing to look at — which is the blindness MA40 closes.
+
+### Reported outside this lane (`RUN_RULES` rule 3)
+
+**`POST /api/edge/optimize` and `POST /api/edge/backtest` in `valuation/web/app.py` carry no auth
+decorator, and there is no `before_request` guard on that prefix** — both start expensive
+computations for an unauthenticated caller. MA7's class. **Not fixed** (app lane), and **not
+established** whether that blueprint is mounted in the deployed image, so it is a lead rather than
+a finding.
+
+---
+
+## edge lane, `MA5` + `MA6` (2026-08-15) — THE TWO INFERENCE INSTRUMENTS
+
+**Both `FIXED`-class, zero trials.** No hypothesis, no threshold, no verdict. **Equity `N` stays
+224**, options 292, infra 15 — `by_domain` bit-identical across the log append, with
+`rows_fixed_not_counted` 34 → 36 as the proof the rows were seen and correctly excluded. **No
+published claim moves; `BACKTEST_RESULTS.json` needs no re-run.** 83 suites, 0 failures.
+
+- **`MA5` — THE AUDIT FOUND TWO HARVEY–LIU–ZHU BARS; MEASURED, THE SHIPPED PACKAGE CARRIED FOUR:**
+  `statistics.hlz_significant` (the **CONSTANT** `|t| > 3.0`), `fundamental_panel._trials_haircut`,
+  the inline `hurdle` in its `multiple_testing` block, and `ablation.py`'s own copy — **and only
+  `_trials_haircut` saw M1's floor.** One definition now (`statistics.hlz_hurdle`), every shipped
+  site delegating, pinned by a sweep that fails if a second √(2·ln N) appears in `valuation/`.
+- **"3.0" IS NOT A DIFFERENT BAR — it is √(2·ln N) frozen at N = 90**, which this project passed on
+  2026-08-06. **The staleness runs in the FLATTERING direction** (the hurdle only rises with
+  trials), so a frozen constant can only ever be too easy. `hlz_significant` now **requires**
+  `n_trials` with **no default** — a default is exactly how it froze.
+- **WHICH PUBLISHED COMPARISONS MOVE: NONE, checked rather than asserted.** The headline long-short
+  HAC *t* **2.6199** fails both bars. **X2's "clears 3.0 on three of the seven" holds at every `N`
+  the project has ever run** (2.9768 / 3.0 / 3.0478 / 3.0834 / 3.2899), because every candidate
+  hurdle falls in the empty gap between the 4th and 5th grids (**2.926 and 3.374**) — by luck, not
+  design. It first becomes four-of-seven-fail at equity **`N` > 296.5**.
+- **THE REFACTOR IS BIT-IDENTICAL:** max |Δ| **0.000e+00** over 2,010 values; `_trials_haircut(8)`
+  still returns exactly **3.2898772171176964**, the literal MA13's stamp pins, so no stamp edit was
+  required. **A near-miss the sweep caught and the audit never named:** `param_search.py` computes
+  Hansen's SPA recentring **√(2·ln ln T)** over sample length — folding it in would have silently
+  changed the SPA test. Excluded by structure, never by filename.
+- **`MA6` — THE TRIAL COUNTER'S ONE PATH ROUTED TOWARD A *SMALLER* `N`.** A row whose domain cell
+  resolves to no bucket was added to `trials` and to **none** of the buckets `trial_count` reads —
+  a real search charged to nobody, while every other degradation here is routed toward a larger `N`
+  and reported. **M1's own stated error, in M1's own parser, for the second time.** Unresolved rows
+  are now charged to **every** family (they cannot be attributed; overstating `N` is the safe
+  direction), named in `rows_domain_unresolved`, and the
+  `sum(by_domain) + unresolved == trials` invariant ships as a checkable boolean.
+- **DOES `N` MOVE? NO — 0 unresolved rows measured**, so the DSR bar and the HLZ hurdle are
+  unchanged and nothing needed re-checking. The defect is **latent**; a test asserts the zero so a
+  future row that loses its domain surfaces as a deliberate change.
+- **THE AUDIT'S SECOND HAZARD IS CLOSED REPORTED-ONLY, AND HALF OF IT DELIBERATELY IS NOT.** Both
+  log tables are **nine columns wide with different orders**, so the width guard cannot see a
+  misfiled row. `rows_misfiled_table` catches one direction with a zero-false-positive rule and
+  reads empty; **the reverse direction is not detected** — it would need a vocabulary of verdict
+  words that would cry wolf on the first new one. Also closed: `rows()` accepted `use_cache` and
+  ignored it, and both caches now key on (path, mtime, size).
+- **STATUS CORRECTION: neither row was ever `IN PROGRESS`.** The ledger carried both as in flight
+  with the app fixer; that lane's own handoff says *"the real MA5/MA6 are MEDIUM edge-lane items …
+  not this lane at all"* — the **same id collision the ledger already documents two rows away** in
+  `MA9`/`MA10`. **11 fixtures, all 11 failing against the pre-fix tree.**
+- **NOT DONE, named so it is not mistaken for done:** the four `scripts/` copies of √(2·ln N) are
+  untouched (they reproduce banked artifacts), and dated per-session `HANDOFF_*` entries keep their
+  historical "hurdle of 3.0" wording. `HANDOFF_edge_audit.md` MA5+MA6.
+
+## optionsbot lane, ledger evidence + `MA38` (2026-08-15) - NINE ROWS CITED, AND AN ALERT BONUS THAT DIVIDED A WHOLE-CHAIN NUMERATOR BY A PARTIAL DENOMINATOR
+
+**Zero trials.** Options `N` stays **292**, equity **224**, infra **15**;
+`rows_fixed_not_counted` **32 -> 33**, the proof MA38's row was seen and correctly excluded.
+
+- **THE ROUTING PREMISE WAS ALREADY STALE, and that is part of the answer.** The task named nine MA
+  rows "landed but not DONE"; **after merging `origin/main` (12 commits, none of them mine) SEVEN
+  WERE ALREADY DONE.** What was actually wrong was narrower: **five DONE rows carried NO commit
+  citation at all** (MA1, MA7, MA9, MA10, MA50), **two cited the PREREG sha rather than the
+  delivery** (MA13/MA19 read `0eb95b1`; the delivery is `e1fcd7c`), and **two were genuinely OPEN
+  while landed** (MA15, MA16). All nine now carry sha + date, **verified against the DIFF, never
+  the commit subject.**
+- **`MA1` WAS FIXED TWICE, INDEPENDENTLY, BY TWO LANES** - `4063f6f` (21:23) and `f8f6d31` (21:57),
+  **neither an ancestor of the other** (merge-base `3893d6b`). Complementary, end state correct -
+  but it is the collision `MA_DEPENDENCY_MAP` exists to prevent, on the item carrying **5 of wave
+  1's 8 collisions**.
+- **`MA7` IS GENUINELY DONE NOW, SUPERSEDING THIS LANE'S OWN 2026-08-14 FINDING.** That finding was
+  **right when made** (`14c00ac` touched the audit docs and **zero production files**); `983e6ee`
+  landed the real fix afterwards. **The lesson stands and the status does not.**
+- **`MA38` - the premise is confirmed exactly:** `known_frac` had **one producer and zero readers**,
+  while the consumer divided whole-chain volume by known-OI-only open interest, inflating the +8
+  "Unusual call volume vs OI" bonus by roughly 1/coverage.
+- **THE DECIDING FACT IS ONE THE AUDIT NEVER STATES.** Its 11.4% is a share of cache **ROWS**; if
+  missing OI were all-or-nothing then `coi` would be exactly 0 and the shipped `coi > 0` guard
+  would already block the bonus - the defect would be **inert** and the field should be **retired**.
+  Measured over **41,321 front-expiry chain-days on 41 symbols: 75.2% full, 0.09% empty, 24.87%
+  PARTIAL.** It is live. **A row-level statistic cannot answer a per-day question.**
+- **BLAST RADIUS SMALL AND ONE-DIRECTIONAL: 27 days (0.065%) cross the 0.5 bar on the mismatch
+  alone and ZERO cross the other way** - so it could only ever have **ADDED** an alert, never
+  hidden one.
+- **BOTH FIXES THE AUDIT PROPOSED COST MORE THAN THE DEFECT:** scaling `coi` by 1/coverage kills
+  **501** legitimate fires (**18.6x**), suppressing below 0.9 kills **1,005** (**37.2x**), because
+  **volume is CONCENTRATED in the known-OI rows (median +0.50 excess share)**. Shipped a third
+  repair - **both sums over the SAME rows** - which imputes nothing and adds no constant.
+- **LIVE IS BIT-IDENTICAL** (Tradier ships no coverage figure, so the consumer falls back), pinned
+  by test. **NOT DONE:** the banked 22b/R2 books are **not re-run**.
+- **REPORTED, OUTSIDE THIS LANE: BOTH live producers turn a missing open interest into a zero
+  COUNT rather than an unknown** - `valuation/intraday/providers.py:192-193` (`... or 0`) and
+  `:286-287` (`openInterest.fillna(0)`) - same class, and **neither ships a coverage figure at
+  all** to detect it with.
+- `tests/test_ma38_oi_coverage.py` 9/9, 4/4 mutations caught; `scripts/ma38_coverage.py`,
+  `data/free_analysis/MA38_OI_COVERAGE.json`; `HANDOFF_optionsbot.md` section 59.
+## edge lane, `MA39` (2026-08-15) - THE DEGRADED-RUN DETECTOR WATCHED 6 OF 13 BLOCKS, AND THE RUN'S OWN ERROR REPORT WAS BUILT AND THROWN AWAY
+
+**Zero trials, `FIXED`-class** - a correctness repair with no hypothesis, no threshold, no verdict.
+Equity `N` stays **224**, infra **15**; `by_domain` is bit-identical across the log append, which is
+also the check that MA13's committed-literal stamp still holds. No published claim moves and
+`BACKTEST_RESULTS.json` needs no re-run.
+
+- **THE UNWATCHED SEVEN, NAMED AND MEASURED ONE FIXTURE PER BLOCK BEFORE ANY FIX:** `factors_used`,
+  `holdout_validation`, `costs`, `book_configs`, `no_trade_band`, `after_tax`, `benchmarks`. B22
+  stamps an error status onto all **thirteen** `RESULT_BLOCKS`; the scan in `results_file` iterated a
+  hand-typed **six**. An exception inside any of those seven shipped `errors: []` and **no DEGRADED
+  banner** - seven for seven.
+- **AN EMPTY `errors` IS NOT AN ABSENCE OF INFORMATION, IT IS A CLAIM OF HEALTH.** The file's own
+  contract, in the comment above the field, is *"Non-empty means the run is DEGRADED"* - so a broken
+  run was asserting it was fine, in the file this project uses as its memory.
+- **THE DEFECT WAS TWO LISTS, NOT A SHORT ONE - the portable part.** `RESULT_BLOCKS` lived in the
+  module that **produces** the blocks; the module that **scans** them could not import it without a
+  heavyweight cycle, so it grew a copy, and B22 later added `benchmarks` to one of them only. One
+  definition now sits in `payload_schema` (imported by both, depends on nothing);
+  `fundamental_panel.RESULT_BLOCKS` is a **re-export**, so every existing importer is unaffected, and
+  a test pins object identity plus exactly one literal assignment in the tree.
+- **THE AUDIT'S OWN SUGGESTED FIX BREAKS EVERY HEALTHY RUN, and this was verified rather than
+  argued.** *"Iterate all of `RESULT_BLOCKS`"* taken literally raises `AttributeError: 'list' object
+  has no attribute 'get'` **on SUCCESS**, because `factors_used` is a LIST of theme names - a
+  20-40 minute backtest would have lost its results file to it. Proved by monkeypatching the naive
+  scan in and running the healthy fixture against it.
+- **THE SECOND HALF: the run's own findings were computed and discarded.** `build_payload` rebuilt
+  `errors` from scratch and never read `res["errors"]` - which carries B22's `"INCOMPLETE RUN"`
+  report, the **only** signal that a block went **MISSING** rather than raised, and the original
+  exception's type and message. Both are plain **strings** where the payload holds **dicts**, which
+  is how they came to be dropped for being the wrong shape. **A guard whose finding is discarded on
+  the way to the record is not a guard.**
+- **FIXTURES, AT M3's STANDARD: 3 of the 4 FAIL against the pre-fix code**, measured by restoring the
+  three sources to `HEAD` and re-running. **The fourth is reported as passing pre-fix, deliberately** -
+  it is the **refusal direction**, its known-bad input is the *naive fix*, and four green
+  "known-bad" fixtures would be a lie.
+- **CENSUS, as asked - does any other consumer share the shape? YES, one:** `payload_schema.
+  BLOCK_SPEC` guards **7 of the 22** dict-valued payload blocks. **That is `MA40`'s row and is
+  deliberately NOT fixed here** (it carries a real decision: register the blocks, or drop the
+  computation). Correction to the audit in passing: it estimates *"7 of ~17"*; measured against the
+  real artifact it is **7 of 22**. Also **reported, not fixed:** `missing_result_blocks` has exactly
+  **one** caller, so a path reaching `results_file.write()` directly gets no missing-block check -
+  not closed here because `build_payload` has many legitimately partial callers and the check would
+  cry wolf on every one. `render_md` is partial **by design** and makes no health claim, so it is not
+  the same shape and is not padded into the census.
+- **WHAT IT DOES NOT SAY:** no existing result changes. The shipped `BACKTEST_RESULTS.json` carries
+  `errors: []` from a run in which nothing raised, so this retracts nothing - it changes what the
+  **next** broken run will say. **81 suites, 0 failures.** `HANDOFF_edge_audit.md` MA39.
+
+## edge lane, `MA1` (2026-08-14) - PRODUCTION VERIFIED CLEAN; A COLLISION RESOLVED IN THE OTHER LANE'S FAVOUR
+
+**Zero trials.** Equity `N` stays **224**, infra **15**.
+
+- **A SECOND LANE LANDED `MA1` WHILE THIS ONE WAS BUILDING IT** (`4063f6f`). **Their mechanism is
+  stronger and landed first, so the close-out was done on THEIRS and my duplicate was DELETED, not
+  merged** - two modules owning one gate is the defect either would have been written to prevent
+  (the `V6` precedent). Theirs also requires **Don's signed `PAPER_TRACK_CONTRACT` §5c row naming
+  the same vintage**, which mine lacked, and it sits on **`save_learned` - the funnel BOTH weight
+  writers pass through - so it closes `MA3`'s writer too**, which my plan deliberately left armed.
+- **WHAT SURVIVES IS THE HALF THEY COULD NOT DO, AND IT CORRECTS THEIR LANDED ROW.** It read *"loop
+  was armed and HAD NEVER FIRED; live record NOT verifiable from this lane"*. Measured: **the loop
+  HAD fired - once, on 2026-08-01 at 13:32:47 UTC - and it adopted NOTHING.**
+- **PRODUCTION IS CLEAN. NO LEARNED WEIGHTS HAVE EVER OVERRIDDEN SETTINGS.** The live edge-learning
+  read endpoint reports an **EMPTY history** and `current.established` **bit-identical to
+  `settings.WEIGHTS_ESTABLISHED`**. **No live vintage violation to report.**
+- **THE FIRING IS PROVED, NOT INFERRED:** `number_ic.computed_at = 2026-08-01T13:32:47.645510`,
+  status *"insufficient data"*, and `run_number_diagnostics` is the **only** writer of that key in
+  the repo, called from **exactly one place** - inside the admin run-learning handler. The empty
+  history proves `run_learning` returned at its insufficient-data guard, **above** every
+  `save_learned`. Independently, adoption needs 8 scan dates each with a realized **21-trading-day**
+  forward return, and on 2026-08-01 none could exist. **The audit's severity rule turns on this:
+  the JOB fired, the ADOPTION PATH was never reached.** Next fire 2026-09-01 - the disarm beat it
+  by ~2 weeks.
+- **ROUTED, NOT FIXED (app lane):** the edge-learning read endpoint answers **anonymously** on
+  production despite its *"Owner-only"* docstring - that is how this was verified without a token.
+  The other lane's `GET /admin/learned-weight-status` is the token-gated equivalent; **the
+  anonymous route is what needs a decision.**
+- **PROCESS FINDING, the expensive one:** two lanes ran the same CRITICAL row at once, and this
+  one's brief said it *"runs alone"* to prevent exactly that. `git branch -r` would have shown it.
+  **Cost: one duplicated mechanism, discarded.**
+- ~~**`MA2` remains open and untouched**~~ **CORRECTED 2026-08-15: `MA2` and `MA3` are BOTH `DONE`
+  on `main`** - the same lane that built the surviving gate closed them in the same change (two
+  arithmetic defects repaired, two reported unrepaired with reasons; MA3 closed by the shared
+  funnel). This bullet was written from a lane that had not yet merged them.
+  **→ DON, no token:** `curl -s https://valquo.co/api/edge/learning`; `history` must be `[]`.
+
+**AMENDED 2026-08-15 - THE SECOND PRODUCTION READ, AND IT IS THE ONE THAT EXERCISES THE GATE.**
+Don ran the token-gated status route at **`2026-08-15T12:21:47Z`**: `store_readable true`,
+**`n_rows 0`, `n_adopted 0`**, `overriding []`, `violations []`, **`clean true`**, and **both
+buckets `authorised: false` with the reason `"vintage 4 carries no 'weights_adoption' entry"`**.
+
+- **THE CONCLUSION IS NOW MEASURED TWICE, THROUGH TWO INDEPENDENT INSTRUMENTS, A DAY APART. NO LIVE
+  VINTAGE VIOLATION EXISTS AND NOTHING HAS EVER OVERRIDDEN `settings.WEIGHTS_*`.**
+- **WHAT THIS READ ADDS OVER THE FIRST: THE REFUSAL RAN IN PRODUCTION.** The earlier check read the
+  learning *history*; this one runs the gate itself against the real `track_meter.VINTAGES` and the
+  real contract file on the live box. **The reason string is the load-bearing part** - a gate that
+  is merely stuck shut, or one whose fail-closed wrapper is swallowing an exception, refuses
+  identically from the outside. Naming the missing key is what distinguishes working from stuck.
+  **Every prior demonstration was a test with an injected register.** And because the refusal sits
+  on the shared `save_learned` funnel, one read covers **both** writers, not only the learner's.
+- **ONE CORRECTION TO THE WORDING IT ARRIVED WITH:** it was reported as *"the loop never fired in
+  production"*. `live_override_report` reads the adopted-weights table alone, so `n_rows 0`
+  establishes that the **adoption path was never reached** and is silent on whether the cron ran.
+  The bullets above carry positive evidence that **the JOB DID fire on 2026-08-01**. The precise
+  sentence remains **the job fired, the adoption path was never reached** - and the audit's own
+  severity rule turns on that distinction.
+- **NOT A STANDING GUARANTEE:** it describes the record at that timestamp. With the cron removed,
+  nothing is scheduled to exercise the gate again; the next real exercise is a deliberate adoption,
+  which needs a registered vintage **and** Don's signed row naming that same vintage.
+
+## edge lane, `MA19`+`MA13` (2026-08-14) - THE FLOORS ARE RE-DERIVED AT TODAY'S `N`, AND FIVE OF SEVEN NEVER MOVED
+
+**Zero equity trials** - and the reason is self-referential, not bookkeeping: **`N` is the INPUT to
+the floors being computed**, so charging a trial would move `N` to 225 and invalidate the numbers
+the moment they were written. **Equity `N` stays 224**; infra 14 -> 15. `PREREG_ma19_ma13_
+recalibration.md` committed **ALONE at `0eb95b1`**, a strict ancestor of every measurement commit.
+
+- **NO SHIPPED CLAIM CHANGES ITS RELATIONSHIP TO ITS BAR, and both moves are in the strategy's
+  favour. Nothing is retracted.** Across `N` = 84 / 129 / **224**: long-short naive **2.1437**,
+  long-short HAC **2.2837**, theme IC *t* **2.7072** and PBO p5 **19.667%** are **bit-identical in
+  all three regimes**. Only two moved - **top-decile alpha HAC *t* 2.2913 -> 2.0540** and
+  **Deflated Sharpe 0.7216 -> 0.7076 -> 0.6637**.
+- **MA19's OWN PREDICTION IS REFUTED, AND THE REASON IS THE PORTABLE PART.** It expected the
+  long-short floors to FALL as adopters dropped 20 -> 18. **They did not move by a single bit.** A
+  p95 over 100 draws is set by the 5th-and-6th largest values, so **whether a floor moves depends
+  not on HOW MANY draws flip but on WHERE THEY SAT**: the two that flipped ranked **15th/35th** on
+  the long-short statistics and **4th** on the alpha HAC *t* - exactly the floor that moved. **A
+  calibrated floor is a STEP FUNCTION of `N`, and the steps are at the tail.** X7RECON's rule is
+  vindicated *as a rule* - you must check - while its predicted *direction* is not a guide.
+  **This is the first time session 12's "luck, not design" warning actually fired.**
+- **THE UNPREDICTED FINDING: THE RECORD'S 1.95pp ALPHA MARGIN HAS BEEN STALE SINCE 2026-08-07; THE
+  CORRECT FIGURE IS 1.8629pp.** Not a discrepancy - the `N` = 84 regime was **reconstructed** and
+  reproduces X7's 1.95pp to |Δ| **3.2e-05**, so X7 measured it correctly and the regime moved.
+  **Session 10's sweep measured the new value, banked it, and published only the long-short
+  floors.** `RUN_RULES` rule 9 running backwards: **storing the draws is necessary and NOT
+  sufficient - someone has to read them out.** The new bar is LOWER, so the correction is
+  permissive and `S10`'s "1.0pp sits below X7's 1.95pp" holds a fortiori.
+- **THE DEFLATED SHARPE MOVES BY A DIFFERENT CHANNEL AND SO DOES THE REAL STATISTIC.** `N` enters
+  `sr0` in the formula itself, so **every** draw moves. **The shipped DSR reads 0.7863 at
+  `N` = 224** against 0.8628 at 121 and the 0.8674 the record quotes at 116, so **a real-vs-floor
+  comparison must be made at ONE `N`** - the record's *"0.8674 vs the 0.7216 floor"* pairs an
+  `N` = 116 numerator with an `N` = 84 denominator. **At a consistent `N` = 224: 0.7863 vs 0.6637
+  CLEARS; against the 0.95 convention it still FAILS.** Same sentence, now consistent.
+- **THE AUDIT'S METHOD CLAIM IS HALF WRONG.** *"The check is arithmetic, not a sweep"* - the adopt
+  SET is arithmetic (the curve reproduces session 12 exactly), but **the FLOORS are not: only 1 of
+  the 100 banked rows carries BOTH weight-scorings.** Three draws were re-scored on the same panel,
+  seeds and estimator - **435 seconds, not 3.4 hours** - with the 98 untouched draws bit-identical
+  at max |Δ| **0.000e+00**. Eleven controls, two gating, all pass; **the strongest is external** (C10
+  reproduces `BACKTEST_RESULTS.json`'s independently-computed DSR to **2.07e-10**).
+- **`MA13`: `N` NOW HAS TAMPER-EVIDENCE**, and the premise was confirmed by reading the suite - the
+  existing M1 test asserts only *relational* properties, **every one of which still passes after an
+  edit dropping `N` from 224 to 9**, while lowering `N` **raises** every DSR/HLZ-gated claim.
+  `by_domain` is pinned to a **committed literal**, checked for **vacuity** against a really
+  tampered log. **Its first exercise was this session's own MA19 row**: infra moved 14 -> 15, the
+  stamp went red, and the literal was updated deliberately in the same commit - the workflow the
+  mechanism exists to force.
+- **DECLINED WITH A REASON:** sourcing the expectation from `BACKTEST_RESULTS.json` (they agree
+  exactly today). That artifact needs a 20-40 min backtest while `N` rises the moment a register
+  lands, so it would be red for the ordinary interval between the two. *"A gate that cries wolf is
+  one you learn to ignore."* The artifact-vs-log cross-check is **`MA21`'s** row.
+- **NOT DONE, and named so it is not mistaken for done:** `MA16` compounds with this and is
+  untouched - the 100 banked draws that make the cheap route possible live in `data/free_analysis`,
+  which **`backup_to_D.ps1` skips**. This session consumed that directory four times and could not
+  have run without it. `data/free_analysis/MA19_RECALIBRATION.json`; `HANDOFF_edge_audit.md`
+  MA19+MA13.
+
+## edge lane, PT-WRITER's ripe reading (2026-08-14) - THE FAILURE IS DATED; `recording_ok` STILL CANNOT SAY SO
+
+**Zero trials** (facts about disk and code, no threshold, no verdict). Equity `N` stays **224**.
+**`PT-WRITER` STAYS BLOCKED - ROUTED TO COWORK.** The board is **QUIET**, with one qualification.
+
+- **THE CLOCK MOVED UNDER THE PREDICTION FOR THE THIRD TIME.** Don's **S14** adoption (no-trade
+  band, width 0.30) closed vintage 3 and opened **VINTAGE 4 on 2026-08-13**. So `recording_ok`
+  reads **`None`** - `expected_trading_days` on the open vintage is **0**, `row_awaited` is today
+  and **`assessable_from` is 2026-08-17**. **PREMISE CORRECTION: the operational gate is
+  2027-02-13, NOT the 2027-02-11 the record and the task both carried**; verdict 2031-08-13.
+  **Three five-year clock resets in four days.** Derive the vintage from `track_meter.VINTAGES`;
+  every hard-coded copy in the corpus has now been wrong within days.
+- **THE GAP IS DATED AND NAMED - AND ONE INSTRUMENT ALONE SEES IT: vintage 3 owed exactly ONE
+  trading day, `2026-08-12`, and got ZERO.** It closed 2026-08-13, so `recording_ok` - scoped to
+  the open vintage - says nothing about it. **Session 28's second defect firing for real**
+  (*a vintage event silently clears the recording gap*); `track_meter.recording_history`, built
+  for exactly this, is the only place it is visible: v1 **2 of 6**, v2 0/0, **v3 0 of 1**, v4 0/0.
+- **THE DECISIVE EVIDENCE IS A DATED FAILURE NOTE THE WRITER LANE WROTE ITSELF, STRANDED UNPUSHED
+  FOR FOUR DAYS.** Commit **`41d7b12`** on the SHARED CHECKOUT's local `main` (2026-08-10 20:06):
+  *"cannot write row - mechanism for daily prices not documented in repo … Cannot write today's
+  row without (a) a documented price-fetching mechanism, or (b) guessing at a vendor. Per
+  instructions, logging the gap rather than inventing data."* **That is correct behaviour and it
+  is the answer to the row** - the blocker is a **missing documented price mechanism**, not a
+  scheduler fault. It is invisible on `origin/main` because it was never pushed. **→ DON: run
+  `sync.bat`** (RUN_RULES calls it idempotent and safe). This lane did **not** push it - it sits
+  on `main`, and pushing `main` by hand is forbidden.
+- **CONTROLS.** The local copy is **not** a stale mirror of a healthy remote - the live service's
+  own export (2026-08-10 21:27) carries the **same two rows**. Nothing in the repo writes the file
+  (third confirmation). `data/valquo_track_history.csv` mtime still **2026-08-07 18:07** - five
+  further trading days of silence. **HONEST LIMIT: the last authoritative remote read is
+  2026-08-10 21:27** (backup cron is weekly, Sunday 06:17 UTC, next **2026-08-16**), so
+  2026-08-12's absence is confirmed **locally** and not yet on the live service; `workflow_dispatch`
+  is enabled and can settle it on demand.
+- **BOARD QUIET? YES, WITH ONE QUALIFICATION.** Zero `IN PROGRESS` rows (the one string match is
+  `B13`, whose cell reads *"NOT IN PROGRESS"*). **All 57 remote `worktree-*` branches are ancestors
+  of `origin/main`** - none unmerged, no lane mid-session. **The qualification: local `main` is +1,
+  and that commit is `41d7b12` above** - so the board is quiet but **not fully RECORDED**.
+- **NEXT HONEST READING: 2026-08-17**, when vintage 4's first row (2026-08-14) falls due - provided
+  no vintage event lands first, which on the last four days' record is a real proviso.
+
+`HANDOFF_edge_audit.md` 2026-08-14; ledger row `PT-WRITER`.
+
+---
+
+## edge lane, X5+M4+B23+S10ACCT (2026-08-14) - THE CATALOGUE IS EXECUTED
+
+`PREREG_x5_m4_b23_s10acct.md` committed ALONE at `264cc49`. Four rows, two measured and two
+correctness. **All four headlines bit-identical throughout; no score moved; no vintage event.**
+
+- **X5 - THE HEADLINE SURVIVES ITS OWN BOOTSTRAP.** 200 resamples of the 2,531-name universe
+  WITH REPLACEMENT: top-decile alpha **p05 +0.05610**, median +0.07265, and **200 of 200 draws
+  POSITIVE** with the worst still earning **+4.67%/yr**; long-short HAC *t* p05 **+1.633**,
+  also 200/200. The audit's own rule - *"if the 5th percentile is positive, the result is
+  strong"* - is met on both. C2 confirms genuine bootstraps: mean distinct names **0.632511**
+  against the theoretical 1-1/e = **0.632121**. **SCOPE, stated not hidden:** the panel is not
+  rebuilt per draw (~66 hours), so layers 1-2 are held fixed and **the interval is a LOWER
+  BOUND**; PBO is declared absent, not dropped.
+- **S10-ACCT - REJECTED, and the mechanism arm REVERSES S10's first half.** The 2-of-3 veto
+  (Beneish, Altman, external financing at their PUBLISHED thresholds) *improves* alpha
+  +0.197pp, monotonicity -0.891 -> **-0.976** and the long-short *t*, but **fails the drawdown
+  leg at -0.108pp against a +2.0pp bar**. Yet **the excluded names crash at 3.04x the rate of
+  those kept** (2.660% vs 0.874%) - where S10's *valuation* half deleted names crashing at
+  HALF the rate. **The accounting flags carry real information about individual-name
+  catastrophe and still cannot move a drawdown S10 already showed is decided by ONE quarter
+  (COVID 2020Q1).** Deviation fixed in advance: NT filings are unbuildable, so 2-of-THREE,
+  which makes the veto NARROWER - a null here does not close the four-flag rule.
+- **M4 - HARNESS BUILT AND VERIFIED.** Replaying real historical dates through the LIVE and
+  BACKTEST paths: **rho 1.0 on 2026-01-28 (1,843 names) and 0.999999999999999 on 2009-01-15**,
+  with **max |composite diff| exactly 0.0 on both** and zero top-25 changes. B7's fix is
+  confirmed on real data for the first time; its existing pin uses one synthetic frame. The
+  harness RAISES below 0.99 and records both CONFIG flags with the result.
+- **B23 - REVERTED ON ITS OWN GATE, AND THE REASON IS THE FINDING.** The reuse leaves every
+  headline bit-identical but moves `cleanups.panel_window` (**horizon 63 -> 756**,
+  calendar_cut_days 4659 -> 5352, 64 per-date entries dropped) and
+  `survivorship_mask_coverage` - because **both blocks are written as a SIDE EFFECT of
+  whichever panel is built LAST**. The 63-day build ran last, so they described the 63-day
+  panel *by accident of ordering*. **So the audit's "purely a speed issue" is wrong here: the
+  fourth build is load-bearing for two reported blocks.** The register said revert, not
+  explain. Reverted; the follow-up is named.
+- **Three defects, two in my own new code:** `beneish_m` treated a MISSING input as ZERO
+  (inert on this data - re-running gives bit-identical flags - but fixed and pinned); M4's
+  CONFIG reference was wrong in two places and the worse one was **silently** returning null;
+  and the `cleanups` order-dependence above.
+- **Equity `N` 220 -> 224, infra 12 -> 14.** Expectations 5 right, 2 wrong, 1 split.
+
+**THE CATALOGUE IS EXECUTED - EVERY ROW ADJUDICATED. 194 ledger rows; 192 adjudicated; 2
+remain and NEITHER is blocked on analysis** - `B13` on a data field absent from the licensed
+export (`avg_dollar_volume`; the price file carries date and close only) and `PT-WRITER` on
+the Cowork lane, since nothing in this repository writes the bound track file. **That is not a
+claim the findings were positive: the overwhelming majority are rejections, nulls and
+corrections, and that remains the record's central fact.**
+
+## edge lane, R4+X1 (2026-08-13) - the headline survives a NAME split; the HLZ hurdle does not
+
+`PREREG_r4_x1_accounting_and_universe_split.md` committed ALONE at `9aee4f7`. **No score moved,
+no vintage event** - C1 gated the full-universe headline bit-identical before any split.
+
+- **X1: THE HEADLINE SURVIVES AN INDEPENDENCE AXIS IT HAD NEVER BEEN TESTED ON.** Splitting the
+  universe by NAME (the audit's own sha1-of-ticker key, plus 100 random splits) against a null
+  rebuilt for half books: **A1 top-decile alpha SURVIVES with 200 of 200 half-books clearing and
+  100 of 100 splits clearing on both sides**, median half-book **+0.07233** against the full
+  universe's **+0.07174**, and **ZERO of 400 half-book measurements negative**. **A2 long-short
+  HAC t also SURVIVES but distinctly more marginally** (93% / 86%). A time split conflates "does
+  the signal generalise" with "does the period generalise"; a universe split has **no regime
+  confound at all**, which is why the audit called X1 possibly its highest-value methodological
+  change.
+- **R4 closes DONE, and the bullet nobody had delivered is the one that FAILS.** Of its four
+  method bullets, M1 shipped two; this session shipped the other two. **BH across the 53-signal
+  equity family leaves THREE discoveries** - and **the SET CHANGES with the inference choice**
+  (`fcf_margin`+`gp_on_capital` under both, `fcf_yield` under the plain t, `roic` under HAC), so
+  "three survive FDR" is weaker than it sounds.
+- **THE HEADLINE DOES NOT CLEAR THE HARVEY-LIU-ZHU HURDLE.** Long-short HAC **t 2.6199** against
+  **sqrt(2 ln 218) = 3.2816** - a shortfall of **0.66**. R4 predicted it "probably clears"; that
+  3.52 was the pre-B6 void panel, and meanwhile N went 8 -> 218, so **the statistic fell as the
+  hurdle rose**. **The haircut was already computed on every run and used by the CPCV gate -
+  nothing had ever compared it to the headline.**
+- **BOTH SIDES SHIP, because the answer is a tension.** The project **clears** X7's empirically
+  calibrated 2.2837 and **fails** the trial-count hurdle. The counter-argument was registered
+  before the run: **HLZ prices the BEST OF N draws, and the deployed composite is not the best of
+  anything** - flat 1/7, never tuned, `cpcv.adopt` false - so the logged trials are overwhelmingly
+  **rejected alternatives to it**.
+- **Now in the CANONICAL results file, not a side artifact** - `multiple_testing`, registered with
+  M6's field-level guard, because a number that lives only in a study JSON is exactly the failure
+  R4 exists to end. `statistics.benjamini_hochberg` is the shared definition; **BH already existed
+  three times in the options lane and consolidating those is theirs to do.**
+- **R4's permanent residual:** BH across the LOG is **not computable** (no p-value column), and the
+  **`unified` domain is declared and reads ZERO** - every U-series item was charged to equity or
+  options, so there are three parallel single-lane families and one dead bucket. Routed, not
+  decided.
+- Equity `N` 218 -> 220, infra 11 -> 12. Expectations 5 right, 1 wrong, 1 split, 1 unscorable.
+  `data/free_analysis/R4_X1_ACCOUNTING_UNIVERSE.json`; `HANDOFF_edge_audit.md` R4+X1.
+
+## options-bot lane, V6-OPT (2026-08-13) — cash-secured puts on healthy dips: the premium is real, the entry beats random, and the STRIKE has already spent the risk edge
+
+`PREREG_v6opt_csp.md` committed **ALONE at `88685c9`** — one `.md`, zero `.py`, a strict ancestor
+of every measurement commit — and it fixed **BOTH stages** before either ran, so stage 2 could not
+be designed on stage 1's numbers. **ADOPTS NOTHING**; no live code path changed.
+
+**STAGE 1 (descriptive, no arms) OPENED ITS GATE.** On 4,855 covered dipped rows: post-dip
+`atm_iv_30` sits **+17.71%** above the name's **own** trailing 252-day median against **+13.29%**
+for unhealthy dips (**ratio 1.3328**, so the market does **NOT** price the `M1` distinction); a
+real 25-delta 30-45 DTE put pays a median **2.550% of strike** over 32 days (**27.73%
+annualised**) net of the shipped fill engine at the touch; and the variance risk premium is
+**+0.0391** vol points. **The elevation decays away almost entirely inside 30 trading days**
+(-16.56% by t+30).
+
+**STAGE 2 IS REJECTED, AND IT FAILS ONLY ON THE DISCRIMINATOR THE REGISTER NAMED AS DECIDING.**
+The healthy arm clears three of four conditions and is not marginal about it: **+1.1342%/trade**
+on the cash secured, **positive in BOTH halves**, an **84.39% win rate**, and it **beats random
+entry decisively** (pooled +0.2612% over five seeds; paired name-year sign test **z +7.2506,
+p 4.15e-13**, 66.96% of 457 cells positive). **It fails condition 2: the IDENTICAL trade on
+UNHEALTHY dips earns MORE (+1.2651%) and beats it in BOTH halves.** So the health floors do no
+work and the trade is just short vol — which `A3` already rejected at **-7.99%/trade**.
+
+**THE MECHANISM IS MEASURED AND IT IS THE PORTABLE FINDING: a 25-delta put IS a ~25% assignment
+probability BY CONSTRUCTION.** Assignment comes back **25.30% healthy against 25.73% unhealthy**
+while the unhealthy name pays **2.978% of strike against 2.550%** because its implied vol is
+higher. **A delta-targeted rule sets the strike from the name's own volatility, so it neutralises
+the very risk difference the trade was built to exploit.** Deltas are like-for-like (median
+-0.2638 vs -0.2658), so it is not a confound. **A risk signal can only pay through an option if
+the MONEYNESS is held fixed, not the DELTA** — a NEW hypothesis, forbidden here by void condition 3.
+
+**THE RISK EDGE IS A QUARTER OF ITS HEADLINE WHERE IT CAN BE TRADED.** `C5` re-measured `M1` on the
+covered rows at **-2.797pp** (healthy 29.26% vs unhealthy 32.06%) against `V6-B`'s full-panel
+**-10.84pp** — below even its megacap quintile's -3.787pp — because options exist on the large end
+and `V6-B` measured the separation weakest exactly there (median market cap **$17.92bn vs
+$2.17bn**, an **8.26x** tilt). **Any future options result on this population must be quoted
+against -2.797pp, never -10.84pp.**
+
+**A PREMISE FINDING CORRECTS THE PREVIOUS SESSION'S OWN WORK.** `U6` was closed
+`DESIGN-RECORDED - NOT BUILDABLE` on two blockers and **one of them is false**: the claim that the
+chain cache is 100% calls. That measurement (`opt_right == "call"` on 3,870 of 3,870) is of the
+**TRADED BOOK**; the **CACHE** holds **1,288,750 puts against 1,288,751 calls**, zero tickers with
+no puts, with bid, ask, volume and open interest. This row then priced **2,038 real 25-delta puts**
+from it and settled them to expiry. **U6's coverage blocker (1.81%) is untouched and carries its
+verdict alone, so U6's status does not change** — it now rests on one measured reason, not two.
+Corrected in the ledger, `CLAUDE.md` and `DESIGN_u4_u6_u8.md`, with the retracted text kept.
+
+**THE SETTLEMENT TRAP, CAUGHT BEFORE THE RUN.** Strikes are as-traded while
+`data/backtest/prices` is split- **and** dividend-adjusted: AAPL's derived `spot` reads **300.35
+against an adjusted 72.34** on 2020-01-02, differing by >5% on **46.66%** of days. Session 30's
+rule is applied in both directions — the option settles on the as-traded `spot`, only the STOCK
+control uses the adjusted close.
+
+**COVERAGE FORBIDS A FULL-PANEL GATE FOR THE FOURTH TIME** (`S18`, `U2`, `U3`, now this): 4,855 of
+37,982 dipped rows (**12.78%**) over **40 of 69** dates, **28 of the 29 gaps EARLY**, halves 20 and
+19 with 2021-01-21 embargoed.
+
+**CONTROLS.** C1 reproduces the premise counts and **ABORTS** otherwise; C2 **ZERO** point-in-time
+violations over 4,836 events; C3 `skew_25d` equals `iv_put_25d - iv_call_25d` at **0.000e+00 over
+902,851 rows** (reproducing `U2` on 4x the rows, so it is ONE column and never two pieces of
+evidence); C-QUOTE the derived `mid`/`spread_frac` reconstruct the RAW chain's own bid to
+**3.815e-06** over 216,872 rows; C-D the mirror loses 1.5263%, so both sides are not profitable.
+**Reported against the arm:** the liquidity gate excludes 58% of events (40.6% healthy / 43.0%
+unhealthy selection, so not strongly differential); C4's selected delta is within tolerance on only
+**54.3%** of trades; and the survivability leg compounds per-trade returns **sequentially** rather
+than simulating a capital-weighted book, so it **overstates** drawdown — it passes anyway
+(-55.52% vs the stock control's -82.56% at cap 10), so it cannot have produced the verdict.
+
+**TWO DEFECTS IN MY OWN INSTRUMENT**, both caught before the verdict and both **proved inert by
+leaf diff** rather than asserted: the halves split each arm at its own median date instead of the
+register's one embargoed boundary (**ZERO of 289 shared leaves moved**), and stage 1 banked a
+contract without its `expiration` (re-run: **668 leaves, ZERO moved**, which also proves the
+pipeline deterministic).
+
+**NOBODY MAY READ THIS AS EVIDENCE THAT CASH-SECURED PUTS DO NOT WORK.** The register declared the
+asymmetry in advance because the covered sample holds **one** crash, so a decisive REJECT was
+available and a decisive ADOPT was not.
+
+**Cost: options `N` 287 -> 292** (one for the stage-1 gate, four for the stage-2 arms); **equity untouched BY THIS ITEM — it reads 218 after merging concurrent lanes, so an equity figure must be RE-READ from `by_domain` after every merge**, infra 11, zero malformed log rows; **72 suites, 0 failures**. Expectations
+**4 right, 3 wrong**.
+
+**RECOMMENDED NEXT STEP: the moneyness-targeted CSP, registered on its own.** It is the single
+construction this result points at, it needs **no new data** (the cache is now proven to carry
+puts), and it inherits both this row's mechanism and `A3`'s prior. The alternative — chasing the
+risk claim where `M1` is strongest (-14.287pp, small caps) — runs straight into `U6`'s coverage
+blocker, because there are no options there.
+
+Full write-up: `HANDOFF_optionsbot.md` section 57. Artifacts:
+`data/free_analysis/V6OPT_PREMISE.json`, `V6OPT_STAGE1.json`, `V6OPT_STAGE2.json`.
+## edge lane, R5+R6 (2026-08-13) - six nulls, and a live "wrong-signed" claim REFUTED
+
+`PREREG_r5_r6_alphabetical_rerun.md` committed ALONE at `4b9706b`. **SCORES NOTHING and is NOT a
+vintage event - C1 gates on the composite coming back BIT-IDENTICAL, and it did.**
+
+- **ALL SIX NULL**, and **not one clears even the retired 2.0 convention in any window**.
+  Coverage is comfortable everywhere (R5 99.5-100%, R6 73.8%, floor 30%), so no arm is a power
+  failure.
+- **THE HEADLINE IS NOT THE VERDICT: the live "all wrong-signed" claim is REFUTED.**
+  `settings.py` and `factors.py` both recorded the three anomalies at median IC -0.014 /
+  -0.072 / -0.025 on **400 names / 110 rebalances** - void TWICE, under B12 and B6. On the
+  corrected panel **all three signs are POSITIVE** (+0.00715 / +0.02634 / +0.05452). They are
+  still rejected - **for being WEAK, not for being BACKWARDS**, which is a live comment
+  asserting the opposite as current evidence.
+- **R6's mechanism is a SIZE SORT**: the three conviction signals correlate with the `size`
+  theme at **-0.815 / -0.855 / -0.854** and with each other at +0.78 to +0.83, so they are
+  close to ONE signal and it is largely market cap - which the panel already scores.
+  **The SF3 conviction family is CLOSED**, five of five measured on the corrected universe
+  with none clearing.
+- **SIX ARMS ARE NOT SIX INDEPENDENT TESTS** - by C6's own correlations the effective number
+  is nearer three. The SELRULE lesson. The trial charge is paid in full anyway.
+- **THE LIVE `sm_breadth` SWAP SURVIVES ITS VOIDED JUSTIFICATION.** `factors.py:314-316`
+  swapped `inst_breadth` for `sm_breadth` in the LIVE institutional theme on the strength of
+  "+2.37 vs +1.48 on 800 large caps". Corrected head-to-head at near-identical coverage:
+  **+1.8481 vs +1.2371 - the ordering HOLDS**, though the gap narrowed 0.89 -> 0.61 and
+  neither clears 2.0. **And the ledger's own +1.73 for sm_breadth was dated 2026-08-01, three
+  days BEFORE the B6/B7/B13 corrections landed** - so it was never a corrected-panel figure
+  either, and +1.8481 is the first.
+- **BOTH inputs the live `low_risk` theme DOES use are weaker than the two it rejects**:
+  `neg_vol` +0.89 and `neg_beta` **-0.39**, against `neg_max_ret` +1.15 and `neg_idio_vol`
+  +1.21. **The theme carries ZERO weight**, which bounds it - but anyone un-zeroing it should
+  read those four numbers first.
+- Four stale comment sites corrected in place; **the DECISIONS are untouched** and the swap is
+  ROUTED, not made. Equity `N` 212 -> 218; expectations 6 right, 2 wrong.
+  `data/free_analysis/R5_R6_ALPHABETICAL.json`; `HANDOFF_edge_audit.md` R5+R6 sections 0-9.
+
+## edge lane, V6-B (2026-08-13) - the dip branch LIVES: a real, replicated RISK effect
+
+`PREREG_v6b_dip_survival.md` committed ALONE at `dc5ae98`. ADOPTS NOTHING; no file under
+`valuation/` changed. **The kill condition did NOT fire.**
+
+- **ARM 1 M1 is REAL and it is the largest replicated effect this programme has produced in a
+  long time.** Among 20%+ dips, the HEALTHY set falls a further 20% within 126d on **32.51%**
+  of occasions against **43.35%** for the unhealthy set - **a 10.8pp absolute, 25.0% relative
+  reduction**, HAC *t* **-10.58**, replicated in BOTH halves (-9.06pp early, -11.52pp late) and
+  clearing the pre-committed 3.0pp economic floor threefold. **The effect is 4-5x its own MDE
+  in every window** - the opposite of V6 and S19, where nothing reached detection.
+- **IT IS NOT A SIZE SORT, and that was the caveat that decided it.** Healthy dips are 2.06x
+  larger, so C8 was deepened into a within-size stratification (POST-HOC, no verdict):
+  **5 of 5 market-cap quintiles negative, 5 of 5 clearing their own bar, 4 of 5 in both
+  halves, smallest effect 3.79pp - still above the economic floor.** But the gradient cuts
+  against the shipped book: **-14.3pp in the smallest quintile, -3.8pp in megacaps**, where it
+  is also the one quintile failing both halves. **The claim is strongest where the product is
+  not.**
+- **THE WORD "DIED" IS NOT EARNED.** The metric that separated is a further -20% - DEEPENING,
+  not DYING. **M2, the actual bankruptcy/regulatory-delisting metric, is VOID on power** (42
+  events against a pre-committed floor of 60) and none of its numbers are quotable. The earned
+  sentence is about falling further, not about defaulting.
+- **ARM 2 NULL on both horizons** (63d flips sign between halves: -0.1pp early, +10.9pp late;
+  126d sign-stable but neither half clears). **ARM 3 NULL with ABUNDANT coverage** - 106
+  buy-flagged names per date - so not a power failure.
+- **A premise finding that rewrote the task's own second metric: 82.63% of delistings on this
+  universe are ACQUISITIONS.** Distress is bankruptcy + regulatory only. And my registered
+  reason was backwards - measured, the UNHEALTHY set is acquired MORE (0.604x), so a naive
+  P(delisted) would have EXAGGERATED the healthy set's advantage rather than reversing it.
+- **`V6-OPT` (cash-secured puts) is UNLOCKED**, inheriting three caveats: falling-further not
+  defaulting, weakest in megacaps, and V6's four return nulls on the same population.
+- Equity `N` 206 -> 212; expectations 5 right, 2 wrong, 1 split.
+  `data/free_analysis/V6B_DIP_SURVIVAL.json`; `HANDOFF_edge_audit.md` V6-B sections 0-11.
+
+## edge lane, V6 (2026-08-13) - the Dip Detector's claim is NOT supported: four arms, four nulls
+
+`PREREG_v6_dip_detector.md` committed ALONE at `93e3e60`, BEFORE the tab exists and before any
+of its copy was written. ADOPTS NOTHING; no file under `valuation/` changed.
+
+- **ALL FOUR ARMS NULL** (20%/30% drawdown x 63d/126d). Not one clears either leg in both
+  halves. Bars are each leg's OWN within-date permutation p95 (500 draws, t 1.44-1.86); X7's
+  floors were NOT quoted, being calibrated on a different object.
+- **THE NUMBER THE PRODUCT NEEDS IS NOT THE VERDICT: a drawdown is substantially an
+  INVERSE-MOMENTUM SORT on this panel - Spearman(drawdown, `momentum` theme) = +0.6642.** So a
+  dip tab would systematically surface names the live composite is marking down. I registered
+  that correlation below 0.4 at 60/40 and was wrong.
+- **SEVEN OF EIGHT LEG-SERIES FLIP SIGN BETWEEN HALVES, ALL THE SAME WAY** (negative
+  2009-2017, positive 2017-2026). **A Dip Detector validated on the last eight years alone
+  would have looked like it worked** - the early half is the only thing that stops it. Two
+  half-cells clear, both LATE, both on the dipped-vs-dipped leg, one by 0.0148 of a t.
+- **NULL MEANS "COULD NOT BE SEPARATED", NOT "ABSENT": no full-sample cell's observed effect
+  reaches its own MDE** on either reference (own-bar or the conventional |t|=2). S19's lesson.
+- **The conditioning is partly a SIZE screen** - it keeps 26.8% of dipped names and they are
+  1.73x larger by median market cap - which is a live caveat on the dipped-vs-dipped leg.
+- **The HEALTH floor binds harder than quality** (keeps 35.9% vs 41.1%), refuting my own
+  registered prediction.
+- **THE APP LANE SHIPPED THE TAB WHILE THIS WAS MEASURING IT, AND BUILT THE SAME MECHANISM
+  INDEPENDENTLY.** `6b7c358` landed twelve minutes before this did, carrying
+  `valuation/web/dip_posture.py` - modelled on the same `score_confidence.py`, owning the copy,
+  pinned by test, with a three-state `STATUS` gated on **this register** and a designed close-out.
+  **The close-out was performed on THEIR module** (`STATUS = NULL`, verdict fields filled, 39/39
+  `test_dip.py`) rather than a second one being created, so V6 touches `valuation/web/` in exactly
+  one file - a scope change against the register's own section 8, **declared not absorbed**. The
+  alternative was leaving a **live** surface saying *"we are testing it, and this page will say the
+  answer when the register closes"* after it had closed. The tab now says the screen is **a filter,
+  not a forecast**, and that it was tested.
+- **TWO DEFECTS FOUND DOING THE CLOSE-OUT, and the second is the serious one.** Their `REGISTER`
+  cited `PREREG_v6_healthy_drawdown.md`, **a file that does not exist**, against a docstring saying
+  the citation is there so a reader can check it does. And **`digest_eligible` was `STATUS != OPEN`,
+  so the arrival of a NULL - evidence the claim is NOT supported - would have SILENTLY UNBLOCKED an
+  outbound push of a dip list.** Now `STATUS == POSITIVE`. **Whether that list ever goes out is
+  routed to Don, not decided here.** `PT-OUTBOUND`'s family, caught before it could fire.
+- Equity `N` 202 -> 206; suite 372 -> 384 green. `HANDOFF_edge_audit.md` V6 sections 0-11;
+  `data/free_analysis/V6_DIP_DETECTOR.json`.
+## greeks lane, the SCREAM-BUY RECORD rebuilt (2026-08-13) - an archived reset, not a wipe
+
+Don's direction (`PROMPT_dip_detector_and_screamtrack.md` item 2): *"the options scream buys track
+record wiped, and include target sale, price bought in, and current price, same as our paper
+account tracks."* **Backend half only** - schema, archive, status vocabulary, read-time quote. The
+tab is the app fixer's. New `valuation/edge/scream_log.py`; field contract in
+`HANDOFF_appfixes.md`, full write-up in `HANDOFF_live_data_bugs.md` Part 20.
+
+**THE FINDING THAT DECIDED THE DESIGN: the record is not on this machine.** Every local database
+holds **ZERO** scream-buy alerts (`.scan-cache/screener.db` 0, `data/screener.db` 0,
+`data/live_cache/served.db` 0, `data/app.db` has no such table). The real record lives in SQLite on
+the Render service's disk - the same fact `track-backup.yml` exists to work around. **So the reset
+could not be executed here, and nothing was written that pretends otherwise.** The archive manifest
+reports `n_rows`, `n_by_status` and `n_by_epoch` so an empty archive is *visibly* empty rather than
+quietly successful - LA2's lesson, where a relative guard could not catch a quantity that was
+always zero.
+
+**THE RESET ARCHIVES AND THEN DOES NOT DELETE EITHER.** Archive-then-delete still destroys the
+rows, and a dated JSON file is a strictly weaker object than a database row - it cannot be queried,
+joined or scored. So the reset stamps a `record_epoch` and starts a new one; the prior record stays
+in `option_alerts` forever. Same reasoning `paper_index_closed` already carries: rows leave a book
+when they do badly, so erasing them flatters what remains. It writes the archive **first** and moves
+the epoch **only if that succeeded** - the other order leaves a reset record with no archive, which
+is the silent wipe itself. A second reset on one day cannot overwrite the first.
+
+**THE STATUS IS DERIVED, NOT STORED - a deliberate departure from the literal ask.** The close path
+already maintains two fields the status is a pure function of, so a third stored copy can disagree
+with them. And deriving answers a case storing cannot: an alert whose contract **expired with nobody
+closing it** keeps `status='open'` forever, so a stored field would read **LIVE for a contract that
+has not existed for months**. **The trap in the vocabulary is that `time_stop` CONTAINS `stop`** - a
+substring match reports every scheduled close as a stop-out, the opposite claim about expectancy.
+Matching is on the leading token, and the coverage test parses `paper_track._exit_decision` out of
+its own **source** with `ast` rather than trusting a list.
+
+**CURRENT PRICE IS NEVER PERSISTED** - fetched at read time and stale-marked, because a stored
+"current" price begins lying the moment it is written. A missing quote, or one with no timestamp,
+reads stale with a `None` price: absent is not fresh and is not zero. Tradier reports epoch
+**milliseconds**; reading them as seconds would date every quote to 1970 and make the staleness flag
+useless. Handled and pinned.
+
+**A DUPLICATE REMOVED:** `paper_track` had the target/stop arithmetic written out **twice** (inline
+in `_place_entry`, again in `_levels_from`) - how a corrected level and an uncorrected one come to
+coexist, the exact defect session 16 found in these same levels. Both now call one function.
+
+**NOT DONE, AND NAMED: the live record has NOT been reset.** The step is
+`python -m valuation.edge.scream_log --reset --out-dir data_export` on the service, or an admin
+route calling `SL.reset_record(store, out_dir)` - **the route is the web lane's**. Until it runs the
+tab correctly shows the original epoch. The reset is deliberately not wired into any scan.
+
+Zero trials - reporting/product, no hypothesis and no threshold. Full gate **69 suites, 0 failures**.
+
+
+## greeks lane, S14 ADOPTED (2026-08-13) - the band is LIVE, and it had never been applied before
+
+Don adopted S14, the no-trade band at **width 0.30**, on its double-clear (session 35 +
+S14-WIDTH). Executed as a **VINTAGE EVENT**. `PREREG_s14_adoption.md` committed **alone at
+`793f777`** before any wiring existed.
+
+**THE FINDING THAT REFRAMED THE TASK, and it corrects the S14 ledger row: the band had NEVER been
+applied to a live book.** `exit_frac` was consumed in exactly three live places - payload
+metadata, a CLI banner and a web display - and **none of them applied it**. `build_index` was a
+pure top-N selection with no band and no notion of a held name, and the code said so: the band
+"requires the PREVIOUS book, so it is applied at rebalance time, not in this snapshot", emitted
+as an **instruction for a human rebalancer**. So this adoption **wired the band into live
+construction for the first time**, and the `taxable` config's declared 20% band had never
+affected a book anyone received.
+
+**THE CONSTRUCTION-FIDELITY GATE PASSED, and it is provably not vacuous.** The rule moved to
+`valuation/edge/no_trade_band.py` and **both callers import it** - `fundamental_panel._band_select`
+**IS** `no_trade_band.band_select`, one code object, pinned by an identity test. The **live entry
+point** applied to the panel's most recent cross-section reproduced the measured arm's book
+**name-for-name: 184 names, identical set AND identical order, 0 mismatches across all 69 dates**.
+Non-vacuity is asserted rather than hoped for - the band is chained across all 69 dates, and at the
+gate date the banded book differs from plain top-N by **65 of 184 names**; the run **aborts** if
+it does not.
+
+**VINTAGE 4 OPENED 2026-08-13, DERIVED NOT ASSUMED (PT-GAPDUE).** The FIDELITY-2 amendment clause
+applies only at ZERO accrued days and is self-limiting; vintage 3 had accrued **two**, so Amendment
+1's ordinary rule resumed. **Rule 6 is paid in full: the clock resets to zero and vintage 3's two
+days are spent.** **THE FIRST SHADOW PAIR IS NOW OPEN (4 over 3)** - V1 shipped with no pair to
+measure, and vintage 3's parameters were pinned **two days before this adoption was known about**.
+Vintage 2 and 3 pins are NOT retroactively rewritten (0060c5ef3dda, 24878e43a1e3).
+
+**WHERE IT DELIBERATELY DOES NOT APPLY:** `roth` stays band-less. S14 measured the DECILE book and
+`exit_frac` is a fraction of the ranked UNIVERSE; on a 25-name book it would hold nearly every
+name nearly forever. A banded top-25 book is a construction nobody measured.
+
+**TWO FURTHER DIVERGENCES FOUND AND FIXED:** `/api/valquo-index` and `unified._index_membership`
+each rebuilt the book with **no band** while publishing a config block advertising one - they would
+have served a DIFFERENT book from the exported Index under the same name.
+
+**REPORTED, NOT FIXED (other lanes):** three pre-existing malformed ledger rows (`S23`,
+`M1-PARSE`, `V2G`) carry unescaped pipes and are refused by `build_ledger.py`'s fail-closed
+guard; verified present on `origin/main`. `id` and `status` still parse, so "is X done?" is
+unaffected. Also reported: the live book-size rule differs from the panel's on **32 of 69 dates**
+(live rounds and floors at MIN_NAMES, the panel truncates) - predates the band, not folded in.
+
+**THE OPEN ITEM:** the band's effect begins at the **SECOND** rebalance - with no previous book
+there is nothing to hold, so the first export is necessarily plain top-N. `no_trade_band.applied`
+records which happened; nobody should read the first book and conclude the band is broken.
+
+Equity `N` **unchanged** (an adoption searches nothing). 37 new tests; full gate **67 suites, 0
+failures**. Detail: `HANDOFF_live_data_bugs.md` Part 19.
+
+## options-bot lane, session 37 (2026-08-13) — U3 + U4 + U6 + U8: the "convex overlay as insurance" is LEVERAGE, and the U-series closes
+
+**`PREREG_u3_convex_overlay.md` committed ALONE at `9603e64`** (one `.md`, zero `.py`), a strict
+git ancestor of the measurement commit. Frozen books on both sides, no panel rebuild, **nothing
+adopted**. `U4`, `U6` and `U8` close as **design memos** in `DESIGN_u4_u6_u8.md` at **zero
+trials** — no backtest was manufactured where a memo is the honest deliverable.
+
+**THE AUDIT'S PREMISE IS REFUTED BY MEASURING WHAT THE SLEEVE IS MADE OF.** `VALQUO_EDGE_AUDIT.md:1268`
+calls the options book a long-volatility sleeve *"built by accident"* and says its conditional
+correlation to the equity book in the worst quarters *"is the whole question"*. Measured:
+`opt_right` is **`call` on 3,870 of 3,870 rows** at mean delta **+0.3725** — long vega **and**
+long delta. The sleeve's correlation with the equity top decile is **+0.4371**; in the equity
+book's worst four covered quarters it returns **−84.39%** against its own **+27.52%** average
+quarter; and in **COVID 2020Q1 the equity top decile fell −28.09% while the sleeve fell
+−76.14%**. **It is not insurance, it is leverage, and no capital weight can make it insurance.**
+
+**A1 REJECTED AT BOTH O11 CONCURRENCY CAPS, IN ALL TWENTY CELLS.** Maximum drawdown is worse than
+the equity book alone at every X and both caps (cap 10 ΔmaxDD −0.0002 to −0.0021; cap 50
+−0.0048 to −0.0480), improving **monotonically toward X = 100** — so a drawdown-minimising
+allocator returns a **corner solution at zero sleeve**, which answers `U8`'s prescribed method
+without running it.
+
+**THE AUDIT'S OWN TWO-LEG BAR IS WHAT CATCHES IT, AND IT EARNED ITS KEEP.** Sharpe *does* improve
+at cap 10 (1.1296 → **1.2041** at X=96) — purely by raising return (+27.01%/yr → **+34.19%/yr**).
+That is exactly the case `:1284` disqualified in advance: *"a long-vol sleeve that improves
+Sharpe by raising return is not doing the job it is being hired for."* **A one-leg Sharpe bar
+would have adopted this.**
+
+**THE AUDIT CONTRADICTS ITSELF AND MEASUREMENT SETTLES IT.** Its step 2 conditions on the equity
+book's worst decile — precisely the return-based conditioning its own `:1282` warns is an
+artefact — and the two give **opposite signs**: **−0.6504** return-conditioned on n=4, against
+**+0.5478** and **+0.5819** on the high- and low-IV halves. **The conditional MEAN is the
+informative statistic; the conditional CORRELATION is the trap.**
+
+**THE ASYMMETRY WAS FIXED BEFORE THE RUN, from the audit's own `:1549`**: a crash-insurance rule
+cannot clear a both-halves gate unless the sample holds two comparable crashes, and this one
+holds one (S10's trough index 44 of 69). The register committed that a decisive **REJECT** was
+available and a decisive **ADOPT** was not — a clearing arm would have been recorded
+`ELIGIBLE-BUT-UNRESOLVED`, never adopted. **Nobody may read this rejection as evidence that
+portfolio insurance does not work.**
+
+**NON-BLINDNESS DISCLOSED IN THE REGISTER (§0.5), NOT AFTER.** A crude probe of the mechanism
+arm's **sign** was run before the register existed, to decide whether U3 was measurable at all.
+The register says so, reports the probe's numbers, excludes that expectation from scoring, and
+leans on the audit's **verbatim** bar rather than one chosen afterwards.
+
+**COVERAGE: 40 of 69 quarters, 28 uncovered EARLY and 1 late**, halves **20 and 19** after
+embargoing 2021-01-21 — S18's and U2's situation for the third time, so a full-panel gate is
+**impossible** rather than weak.
+
+**`U6` IS NOT BUILDABLE AND THE REASON IS A NUMBER: 1.81% CHAIN COVERAGE.** Of **7,132** names
+entering the top decile across 68 transitions, only **129** have mined chains — **median 2 per
+rebalance** against a mean top-decile size of **165.6**, and **ZERO on 18 of 68 dates**. Second,
+independent blocker: the entry leg is a cash-secured **put** and the cache is **100% calls**.
+Closed `DESIGN-RECORDED — NOT BUILDABLE ON DATA WE OWN`, the `S25`/`B13` class. **It stays the
+most tradeable idea in the catalogue if the data is ever bought.**
+
+**`U4`'s GATE HAS RESOLVED, NEGATIVE.** Gated on U1/U2; both rejected, as did U7. So one object
+may carry **two independently-sourced expressions with an explicit statement that they are
+independent** — no combined score, no combined confidence, no arrow from view to trade. **O11
+forces an addition to the copy rule**: expectancy framing is necessary but **not sufficient**,
+since a user told "positive expectancy per trade" and given $50,000 reproduces O11's **−25.9%**.
+Product work, **web/app lane**.
+
+**A DEFECT IN MY OWN INSTRUMENT, PRESENTATIONAL AND PROVEN SO.** A3's column was named
+`drag_vs_equity_pp` while computing `combined − equity`, which is positive when the sleeve adds
+return — a gain printed under a loss's name. Renamed; the artifacts diff at **344 shared leaves,
+ZERO moved, 6 added, 0 removed**. Also disclosed because it flatters the sleeve: the combined
+book is **rebalanced to weight X every quarter**, so a geometric **−33.35%/yr** coexists with a
+**+27.52%/quarter arithmetic** mean and the construction **tops the sleeve back up after a crash
+quarter**.
+
+**THE LEDGER WAS WRONG ABOUT TWO OF THE FOUR ROWS.** `U3` and `U8` were `src=auto` / *"no mention
+anywhere in the corpus"*; `VALQUO_EDGE_AUDIT.md:1268` and `:2123` are full sections. **Eight**
+such rows in this lane now. Definitions were **quoted, not invented**.
+
+**CONTROLS.** C1 reproduces the record at alpha **0.07174142332098163** and aborts the run
+otherwise; C2 the book's mean P&L **+3.2702%** on 3,870 trades; C3 **ZERO** look-ahead over
+**161,610** marks; C4 the `top == alpha + equal_weight` identity at **0.000e+00**; C5 at ρ = 1.0
+the largest improvement is **+0.000e+00**; C8 X = 100 reproduces the equity book at
+**0.000e+00**. **C7 is the one that cuts**: the sleeve is closer to the equal-weighted universe
+(+0.4837) than to the top decile (+0.4371), so it carries **beta**, not book-specific information.
+
+**THE ONLY PRODUCTION CHANGE IS ONE ADDITIVE KEY.** `quantile_backtest`'s opt-in `series` dict now
+carries `equal_weight`, because `top = alpha + equal_weight` is an identity of the shipped code
+and **you cannot compound an alpha**. Inside the existing `return_series` gate, so every current
+caller's payload is bit-identical; pinned by test.
+
+**TRIALS.** Two options trials: **options `N` 285 → 287** (A1 and A2; A3 has no bar and charges
+nothing, and the three memos charge nothing). **Equity untouched at 190**, infra 11, zero
+malformed log rows. Tests **67/67 suites green** by exit code. Expectations **4 right, 2 wrong,
+1 excluded**.
+
+**THE U-SERIES IS NOW CLOSED — AND THE DISTINCTION SURVIVES THE CLOSURE.** All eight rows carry
+either a verdict (`U1`, `U2` PARTIAL, `U3`, `U5`, `U7`) or a design record (`U4`, `U6`, `U8`).
+**A DESIGN RECORD IS NOT A MEASUREMENT**: anyone re-opening one of those three re-opens a live
+question, not a settled one.
+
+**RECOMMENDED NEXT STEP: nothing in the U-series.** The buildable residue — U4's two-expression
+object and U8's combined exposure report with a **policy** cap rather than a fitted one — is
+**app/portfolio lane work requiring no new research**. If this lane takes another item, `U6` is
+the one worth funding, and what it needs is **data** (a put-chain mine over the equity book's own
+names), not analysis.
+
+Full write-up: `HANDOFF_optionsbot.md` section 56. Artifact:
+`data/free_analysis/U3_CONVEX_OVERLAY.json`. Reproduce: `python -m scripts.u3_convex_overlay`.
+## edge lane, S17 + S19 (2026-08-13) - the last two S-series research rows, both NULL
+
+`PREREG_s17_s19_events_mdna.md` committed **alone at `a92996d`** - one `.md`, zero `.py`.
+**ADOPTS NOTHING. Twelve arms, twelve nulls** - but both nulls are the informative kind.
+
+**`S17` (decode the rest of EVENTS): ALL TEN ARMS NULL, AND NOT BECAUSE THE CODES ARE INERT.**
+Not one clears the both-halves leg - but **8 of 10 clear their own permutation p95 full sample,
+8 of 10 survive Benjamini-Hochberg, and ALL TEN are sign-stable across halves.** They fail by
+being **era-concentrated**: code 91 reads early *t* -3.476 / late -1.862, code 71 early -1.342 /
+late -3.098. Annualised, code 91 -2.2%, code 71 -2.0%, code 34 +3.2% to +4.9%.
+
+**THE MECHANISM QUESTION IS ANSWERED AND THE ANSWER IS NO.** Code 22's mechanism is an
+information shock (it moves **1.64x** a typical day); the project's own decode had already
+scored every arm tested here at **0.94x-1.15x**. PEAD is drift *after* a shock, and these codes
+have no shock. What the register got right was the hedge - day-of **volatility** is not
+directional **drift** - not the prior it hedged.
+
+**THE AUDIT'S METHOD STEP 1 COULD NOT BE EXECUTED: Sharadar ships no legend with the EVENTS
+download**, so codes were tested **by number, unlabelled**, and a positive would have been
+uninterpretable rather than adoptable. **Do not re-run S17 without the legend (`D10`).**
+
+**"8 of 10" IS NOT EIGHT FINDINGS.** The ten arms are five signals at two horizons sharing a
+bit-identical event indicator, and the codes correlate up to **0.4227** at name-date level, so
+the effective number of independent tests is nearer three or four.
+
+**`S19` (MD&A anomaly): BOTH ARMS NULL - BUT THE NULL DOES NOT MEAN THE EFFECT IS ABSENT.** On
+**418 held-out names with ZERO overlap** with the original 195 (15,893 filing pairs newly
+collected from EDGAR, 2.2x the original study): residual IC **+0.012202 at NW *t* +1.1876** and
+**+0.021737 at +1.4012**, neither reaching the audit's 2.0 bar.
+
+**The sign did not reverse - all four half-cells are POSITIVE in the direction committed in
+writing before any new return was joined - and the magnitudes are LARGER than the original's own
++0.009607 at *t* 0.6463.** Critically, **the minimum detectable IC at |*t*|=2 is +0.020549
+against an original effect of +0.0096**, so a positive verdict was **unreachable even if the
+effect were exactly true**. The binding constraint is the **quarterly** theme panel against a
+**monthly** signal (41 of 69 dates covered, all late), **not the name count** - so collecting
+more names cannot re-open it.
+
+**`S10`'s accounting half is NOT closed and was excluded on measurement**, not preference: eight
+SF1 columns it needs are absent from `WRDSProvider._KEEP` so it forces a panel rebuild, and NT
+filings are not buildable from anything we own, which would silently turn the audit's
+"two or more of four" veto into "two of three".
+
+**Equity `N` 190 -> 202.** A defect in my own register is corrected in the open: it said
+186 -> 198, because 186 was quoted from `CLAUDE.md` instead of re-measured after this session's
+merge brought in `U2`'s four equity trials. **`BACKTEST_RESULTS.json` was already stale at 186
+before this session started**, so the refresh corrects that drift too. 66/66 suites green.
+
+## edge lane, S14-WIDTH (2026-08-13) - the knee IS identified, and it is where session 35 found it
+
+`PREREG_s14_width_extension.md` committed **alone at `e63295e`**. **ADOPTS NOTHING - it routes a
+decision.**
+
+**GIVEN THREE WIDER WIDTHS TO CHOOSE FROM, BOTH HALVES STILL PICKED 0.30.** The optimum is
+**INTERIOR**, the knee is identified, and session 35's grid-boundary caveat is **discharged**.
+That is outcome (a) of the three committed in advance, so **`S14` becomes an ADOPTION DECISION
+ROUTED TO DON as a vintage event.**
+
+**THE CORRECTION IS TO MY OWN REASONING, AND IT IS THE PORTABLE PART: a boundary argmax is
+evidence a grid is uninformative about what lies beyond it - NOT evidence the optimum lies
+beyond it.** I registered the opposite lean at 60/40 and the extension moved the answer not at
+all.
+
+**THE MECHANISM IS MEASURED. Gross alpha peaks at exactly 0.30 on BOTH halves and falls away**
+(late +12.77 -> **+13.79** -> +13.33 -> +12.56 -> **+9.65** at 0.75), because the cost saving is
+capped and staleness is not - at 0.30 the drag is already down to ~0.011, so at most ~1.1-1.3pp
+more exists even at zero turnover. **And the freezing argument is now measured: the book's
+incumbent share climbs 0.359 -> 0.701 at 0.30 -> 0.943 at 0.75**, i.e. at 0.75 the book replaces
+one name in sixteen per rebalance and has largely stopped selecting.
+
+**WHAT THIS DOES NOT ADD, STATED PLAINLY: no new held-out evidence about the SIZE of the effect.**
+The pick did not move, so the held-out measurement is numerically **identical** to session 35's
+(+1.780125pp / +1.768484pp, agreeing to ten decimals). The trial buys the **location** finding
+only.
+
+**THE CAVEAT THAT MUST TRAVEL: the knee replicates in LOCATION but not in SHARPNESS.** Late half
+decisive (0.30 -> 0.75 costs 3.59pp); early half nearly **flat** - 0.75 is second best at +2.74pp,
+only 0.14pp below the peak.
+
+**A DEFECT IN MY OWN CONTROL, and it moved nothing.** C3's first cut asserted LIST equality of the
+no-band book against plain top-N and failed 176/200 - `_band_select` returns survivors first, so
+the ORDER differs while the SET is identical (200/200). Proved harmless by swapping a strict-rank
+selector into the real panel: **max |delta| 2.13e-14** across every reported field. **Session 35's
+C6 is also corrected: the early-half surface is non-monotone too**, its monotonicity having been
+an artefact of the grid stopping at its own argmax.
+
+**FOR DON.** Width 0.30, +1.78pp/+1.77pp net alpha held out, turnover roughly halved. It is
+**already live in `taxable`**, so an adopt changes the **default**. It is a **VINTAGE EVENT**: the
+vintage was DERIVED, not assumed - **vintage 3, opened 2026-08-11, two days old** - so adopting
+resets the five-year clock a second time inside three days. And **roughly half the gain is a
+SIGNAL effect**, not the deterministic cost saving the original framing claimed.
+
+**Equity `N` 185 -> 186.** Expectations **2 right, 4 wrong, 1 split**; four of the five misses are
+the same invalid inference above.
+
+**Next: nothing further on the band - a third extension is forbidden and the surface is documented
+end to end.** Otherwise S10's accounting half or the CPCV embargo.
+
+Full write-up: `HANDOFF_edge_audit.md`, S14-WIDTH.
+
+---
+
+## options-bot lane, session 36 (2026-08-13) — U2: the options surface is genuinely ORTHOGONAL to the equity panel and predicts nothing with that orthogonality
+
+**`U2`, one register, four arms, `PREREG_u2_surface_stock_signals.md` committed ALONE at
+`e8e222b`** (one `.md`, zero `.py`), a strict git ancestor of the measurement commit. No panel
+rebuild. **Nothing adopted, no live code path changed.**
+
+**ALL FOUR ARMS REJECTED** against X7's calibrated **2.71** theme-IC bar, required in both halves
+with sign agreement. Incremental IC *t*, full sample: `term_slope` **+0.9862**, `iv_rank`
+**+0.1931**, `skew_25d` **+0.3471**, the composite **+0.7797 / +0.1508** across its two
+decide-then-measure directions. Raw IC *t*: +0.6729, +0.0377, +1.4870. Nothing reaches half the
+bar.
+
+**THE AUDIT'S CENTRAL PREMISE IS CONFIRMED AND ITS CONCLUSION IS REFUTED, AND THAT IS THE RESULT
+WORTH CARRYING.** The audit argued U2 was the highest-expected-value item in the whole catalogue
+because an options-derived signal is *"structurally orthogonal to everything already in the
+panel"*. **It is.** The seven incumbent themes explain only **5.5%–8.8%** of these features'
+variance, against **41.3%** of `gp_on_capital` and **78.4%** of `ret_6_1`. **The features really
+are new information; the new information does not predict.**
+
+**THE POWER CONTROL THE AUDIT ITSELF DEMANDED CLEARS, so these nulls are interpretable rather
+than underpowered**: `gp_on_capital` **+2.4776** and `ret_6_1` **+2.4762** on the identical
+covered rows, against its 2.0 bar. **Two qualifications travel with that and neither is
+optional.** Both land **BELOW 2.71**, so the panel's own best-known signals would not clear the
+bar the arms were judged against on this subsample; and **there is NO valid power control for the
+INCREMENTAL statistic at all**, because every known-real signal here is already an *input* to an
+incumbent theme — which is exactly what the 41% and 78% R2 figures show.
+
+**THE ROW CLOSES `PARTIAL`, NOT `DONE`, AND THE REGISTER FIXED THAT BEFORE ANY RESULT.** The
+audit's U2 names four features; this tested the **levels**. The **put–call parity deviation on
+matched strikes** — Cremers–Weinbaum's actual measure and the largest effect the section cites at
+51 bps/week — needs matched call/put pairs from the raw chains and is a **new feature**, which
+the task forbade; the 21-day changes are a different hypothesis. **Neither is a null.**
+
+**TWO PREMISE FINDINGS REMOVED AN ARM AND REDIRECTED ANOTHER, both measured before the register
+existed.** (a) **`skew_25d` IS EXACTLY `iv_put_25d - iv_call_25d`**, max absolute difference
+**0.000e+00** over 217,706 rows — so the audit's separately-named call-minus-put IV spread is
+exactly `-skew_25d`. **One arm, not two**; the `illiq`/`spread_pct` duplicate-column class,
+caught before the register rather than after a verdict. (b) **The shipped `term_slope_60_30` is
+NOT the O16-validated construction** — it is `atm_iv_60 - atm_iv_30`, while O16 validated
+`atm_mid - atm_front`, and **Spearman between them is only 0.5281**. A lookup by column name
+would have computed cleanly, raised nothing, and reported a U2 verdict on a construction O16
+never validated. A source-level test now pins that the shipped column never enters the arm path.
+
+**COVERAGE FORBIDS A FULL-PANEL GATE — an impossibility, not a power caveat.** The derived layer
+spans 2016-01-04 to 2025-12-31 against a panel starting 2009-01-15, so **29 of 69 rebalance dates
+carry ZERO coverage and ALL are early**. Every split is of the **covered subsample — 40 dates,
+20 and 19 after embargoing 2021-01-21**, both above the shipped `min_dates=16`. S18's situation
+and S18's replacement. **A pass on 20-date halves is not the same object as a pass on 34-date
+halves.**
+
+**`skew_25d`'S PUBLISHED SIGN DOES NOT REPRODUCE.** Xing–Zhang–Zhao's negative direction was
+declared before the run; measured, the raw IC is **positive** (median +0.02056, *t* +1.4870).
+Far too weak to refute them, and a positive result on that arm could never have been a pass — but
+the declared direction is not reproduced on this megacap universe.
+
+**C6 REFUTES THE VOLATILITY-PROXY EXPLANATION OUTRIGHT.** The largest absolute mean per-date
+correlation against ANY incumbent is **0.0844** (`skew_25d` vs `momentum`); against `low_risk`
+all three sit under 0.05. These are not repackaged incumbents — which is what makes the
+orthogonality claim measured rather than asserted.
+
+**CONTROLS.** C1 reproduces the published record to **1e-9** and the run aborts before any arm is
+read if it does not. C3 finds **ZERO** point-in-time violations over **17,411** joined cells —
+the join takes the last derived row **strictly before** the rebalance date, stricter than
+`fwd_ret` requires, to remove the argument rather than win it. C5 confirms no arm is another
+arm's negation. **The book gate and the 2.2837 long-short floor were NOT run and are NOT
+quoted**: the register runs them only on an eligible composite, and both bars would be
+**extrapolations** on a 40-date subsample regardless.
+
+**A DEFECT IN THE SHIPPED IC ARITHMETIC, REPORTED NOT REPAIRED — EDGE LANE'S.**
+`fundamental_panel.theme_ic` guards its t-stat with `if sd > 0`, and whether a constant series
+has an exactly-zero floating-point sd is **value-dependent**: `[0.1, 0.1, 0.1]` has sd about
+5.8e-17, so the guard passes and the t-stat returns about **1.0e16**. This is the
+`SECTOR-NEUTRAL-B6` zero-variance defect **in a second location nobody had checked**. Not
+repaired here, because repairing it would make this lane's copy stop being the shipped arithmetic
+and X7's 2.71 bar would then apply to a statistic it was not calibrated on; a degeneracy check
+gates the verdict instead. Exposure on real data is theoretical, but the function is one every
+calibrated equity bar reads.
+
+**TRIALS.** Four arms, four equity trials: **equity `N` 185 → 189 for this item**. **The merged
+tree reads 190**, because the `S14-WIDTH` lane landed one equity trial concurrently — re-read
+`by_domain` after every merge rather than quoting a mid-session figure. Options untouched at 285,
+infra at 11, zero malformed log rows. Tests **66/66 suites green** by exit code.
+
+**THE THREE SIGNAL-TRANSFER DIRECTIONS OF THE UNIFICATION ARE NOW ALL CLOSED**: `U1` REJECTED
+(composite to options entry), `U7` REJECTED (composite as an options veto), `U2` REJECTED on its
+level half and `PARTIAL` on the row. **THIS DOES NOT CLOSE THE U-SERIES** — measured on `main`,
+it reads 3 DONE, 1 PARTIAL, **4 OPEN**: `U3` convex overlay, `U4` one decision object, `U6` CSPs
+in/covered calls out, `U8` one risk budget across books. None is a signal-transfer question, but
+the O-series discipline holds: do not report a series closed while its rows are open.
+
+**RECOMMENDED NEXT STEP, and it is narrow.** Do not re-open U2 on these features. The
+orthogonality result gives a successor a genuine reason to exist, but it must be the **untested**
+half — the **put–call parity deviation on matched strikes**, built from the raw chains, which is
+Cremers–Weinbaum's actual measure and the only one of the audit's four features with a large
+published effect that this item did not touch. It inherits this session's result as a disclosed
+prior: three orthogonal surface levels on the same universe and the same 40 dates produced
+nothing. It must also carry the limitation above — that the incremental statistic has no
+available power control — or it will read its own null as stronger than it is.
+
+Full write-up: `HANDOFF_optionsbot.md` section 55. Artifact:
+`data/free_analysis/U2_SURFACE_STOCK.json`. Reproduce: `python -m scripts.u2_surface_stock`.
+
+## options-bot lane, session 32 (2026-08-12) — THE O-SERIES IS CLOSED, 26 of 26, and the last item's best arm is a NULL that cleared every bar but one
+
+**`O14`, one register, five arms, `PREREG_o14_tickflow_signals.md` committed ALONE at `ea48f6b`.**
+Frozen book, **no live code path changed, nothing adopted.**
+
+**EVERY OPTIONS IDEA IN THE CATALOGUE HAS NOW BEEN TESTED.** The `O14` ledger row is `DONE`, so all
+26 O-rows are `DONE` and none is open. The register's own void condition forbade saying this before
+the row actually flipped, which is why the three previous sessions each had to qualify the claim.
+**These were the studies the 4.72GB alert-day tick cache was collected FOR**, so its justification
+is now paid.
+
+**ALL FIVE ARMS NULL** on 3,863 rows over 118 months. Full-sample long-short Q1 minus Q5, absolute
+t against each arm's OWN within-month permutation p95: `signed_volume` +0.0324 at 0.658 vs 1.960;
+`pc_flow_imbalance` -0.0106 at 0.256 vs 1.963; `block_share` -0.0212 at 0.437 vs 1.946;
+`unusual_volume` +0.0771 at 1.511 vs 2.003; **`sweep_share` -0.1390 at 3.061 vs 1.952**.
+
+**`sweep_share` IS THE CLOSEST THIS PROGRAMME HAS COME TO A DISCOVERY AND IS STILL A NULL.** It
+clears its full-sample bar widely, its two-sided permutation p is **0.00249**, it is the **only arm
+to survive Benjamini-Hochberg**, and its sign is **stable across halves** (-0.1689, -0.1086) in the
+institutional-FOLLOW direction - high sweep share earns MORE. **It is NULL because the LATE half
+misses its own bar, 1.7741 against 1.9357**, while the early half clears at 2.6443 against 2.1740 -
+and the late bar is the LOWER of the two, so this is not a bar artefact. The both-halves rule was
+fixed before any number existed. **The autopsy's record was 0 discoveries in 126 hypotheses, twice.
+This is 0 in 131.**
+
+**NO SIGN COULD BE DECLARED, SO EVERY ARM IS TWO-SIDED** - the only options register where that is
+true, and the audit's own argument forces it. Pan-Poteshman found buyer-initiated put/call ratios
+predict, on proprietary data with participant identification; Bryzgalova et al. found retail is over
+60 pct of options volume and LOSES money, making signed retail flow a FADE candidate; and public
+tick data cannot separate the two populations. Two-sided costs power and that is the honest price. A
+sign-agreement clause between halves does the work a declared sign would.
+
+**CONTROLS.** The look-ahead control reproduces an independent measurement EXACTLY: `entry_premium`
+against the traded contract's last prevailing ask reads a median relative error of **0.0233 over
+3,827 rows** - the same 0.0233 session 26 measured with a different implementation. Lee-Ready
+classified a median **98.54 pct** of eligible prints. 7 alert-days unusable: one the known BUD feed
+gap, six with too few eligible single-leg prints - a different thing from a missing file, reported
+as such.
+
+**THREE DEFECTS IN MY OWN INSTRUMENT, all caught before any verdict was read**, including
+`classify_side` contradicting its own docstring (Lee-Ready's tick test needs the previous DIFFERENT
+price) and a look-ahead control that first measured the wrong contract entirely.
+
+**Trial cost: options `N` 280 -> 285**, one per arm. Expectations 4 right, 2 wrong.
+
+**RECOMMENDED NEXT: this lane has no catalogued options work left.** `sweep_share` deserves ONE
+successor register - measured on the contract actually bought rather than across the whole chain,
+inheriting this session's late-half failure as a disclosed prior rather than something to re-roll
+until it passes. If it fails again it is finished. **Nothing here rescues the options book**: R2
+stands, O11 showed it is unsurvivable at realistic sizing, and 131 hypotheses have produced no
+adoption. The defensible summary of the whole options programme is that it is a **well-measured
+negative result**. Full write-up: `HANDOFF_optionsbot.md` sections 50-53.
+## edge lane, session 35 (2026-08-12) — the no-trade band CLEARS, and sector-neutral is finished
+
+`PREREG_s14_s15_band_sectorvalue.md` committed **alone at `32051c0`**. **ADOPTS NOTHING.**
+
+**`S14` IS ADOPT-ELIGIBLE — the first arm to clear in eight sessions, and it cleared in BOTH
+directions.** Sweeping the shipped grid on the decide half and measuring the argmax on the held-out
+half: both pick width **0.30**, net alpha **+1.78pp / +1.77pp**, gross alpha **+1.02pp / +0.77pp**,
+measured cost saving +0.76pp / +1.00pp. **Turnover roughly halves.**
+
+**TWO CORRECTIONS TO MY OWN REGISTER, BOTH AGAINST IT.** (1) **The "pure cost mechanism, no signal
+claim" framing is WRONG** — gross alpha improves, so **roughly half the gain is a signal effect**:
+holding a name until it leaves the top 30% rather than the top 10% stops the book churning on rank
+noise. The audit's category-error argument is therefore only **half** applicable. (2) **My
+indictment of the audit's 1.5pp allowance was too strong** — I computed the saving at ~26bps and
+called the allowance 6× the prize; **measured it is 76–100bps**, so ~1.5×.
+
+**THE CAVEAT THAT MUST TRAVEL WITH IT: the argmax sits at the GRID BOUNDARY in both directions.**
+0.30 is the widest width the shipped grid holds and it won twice, so **the optimum is at or beyond
+the edge and the knee is not identified.** **A wider grid is the next test, not an adoption.** C6
+confirms the audit's noise warning — the surface is non-monotone on the late half.
+
+**A mechanism supports it:** S22 measured alpha still accruing at two years while a name typically
+stays in the decile for ONE rebalance, so a wider band harvests persistence the tight exit throws
+away. **Recorded ELIGIBLE, not adopted** (vintage event, Don's call). Note the band is **already
+live in `taxable`**, so an adopt changes the *default*; and **B13 is only PARTIAL**, so the book is
+investable on the categorical screen and not the liquidity one.
+
+**`S15` IS REJECTED AND ESSENTIALLY INERT — AND SECTOR-NEUTRAL IS NOW FINISHED IN EVERY FORM.**
+Δalpha −0.01pp / −0.36pp, rank corr 0.9879, 5 of 25 names changed. **C4 is exact: every non-value
+theme is BIT-IDENTICAL at 0.000e+00** while `value` moves 1.5568, so the intervention is provably
+confined to one theme. `SECTOR-NEUTRAL-B6` named exactly two routes back — **`S25` (closed
+UNOBTAINABLE, session 29) and `S15` (rejected here). Both shut.**
+
+**The standing sector caveat now has no remedy:** TICKERS gives today's sector applied to 1998
+rows, and `S25` was the fix. **Any future sector-aware result inherits a look-ahead that cannot be
+repaired on data we own.**
+
+**Equity `N` 183 → 185.** Expectations **4 right, 3 wrong** — the worst here, and informative:
+both consequential misses are on S14, which was predicted to fail.
+
+**Next: S14's own follow-up — widen the width grid past 0.30** and re-run the same held-out design,
+since the current verdict cannot say where the optimum is. Otherwise S10's accounting half or the
+CPCV embargo. **And the dated one: read `/api/track` → `contract_track.recording_ok` on or after
+2026-08-13.**
+
+Full write-up: `HANDOFF_edge_audit.md` session 35.
+
+---
+
+## edge lane, session 34 (2026-08-12) — S11 + S12: a real turnover cut at 11-23x its cost, and an arm that misses by 18bps
+
+`PREREG_s11_s12_horizon_bucket.md` committed **alone at `d867fe3`**, one register for both. **All
+three arms REJECTED. ADOPTS NOTHING.**
+
+**S11's prior was real** — S22 measured the out-of-sample rank IC rising with horizon (+0.034 →
+~+0.072) — **and the counter-prior won.** REJECTED in both halves by the widest margin of the
+three: Δalpha **−4.22pp / −2.05pp**, Δ*t* −2.353 / −0.927. The long-short leg moved against it
+**exactly as pre-registered**, since S22 had already measured the persistence living entirely in
+the long leg.
+
+**THE AUDIT'S TURNOVER CLAIM IS CONFIRMED AND IS A TERRIBLE TRADE.** Turnover falls **0.6352 →
+0.4976** per rebalance, ~55pp of book a year. **At the measured 33.4bps one-way that saves ~18
+bps/yr against 205–422 bps of alpha given up — 11× to 23× against.**
+
+**C6 confirms the counter-prior directly:** the two horizons' weight vectors correlate **+0.9013
+and +0.9674**, so the ensemble is largely **one composite twice**. **A confound is named:** the
+blend's rank corr against the *deployed* composite is only 0.6939, so most of its deviation comes
+from using **IC-proportional weights at all** (a scheme CPCV has always declined), not from
+blending — unavoidable in the audit's construction, since two flat-weighted composites would be
+identical.
+
+**A scope divergence on S12, named before any result (S10's class):** the audit's S12 is the
+**valuation bucket**, the task framed it as the **cap tier**. Both tested; the row closes on both.
+
+**A2 (valuation bucket) is NOT_REPLICATED and is the closest any arm has come in these sessions** —
+positive on alpha in **both** halves (+1.36pp / +0.82pp) and on Δ*t* in both, failing only because
+the late half misses the +1.00pp bar **by 18 basis points**. That is **S21's shape exactly** (which
+missed by 17bps). Ambiguous is a NULL; **1 of 3 siblings; the fourth consecutive session in which
+exactly one arm clears exactly one half. Not eligible, not adopted.**
+
+**A3 (cap tier) is nearly inert** (+0.09/+0.07pp). **C8 confirms the mechanism** — the book's mean
+`size` z falls 0.5885 → 0.5092, a 13.5% shrink — **but the alpha effect is zero rather than
+negative**, so it fails by being inert, milder than predicted. **No arm triggered the
+bought-*t*-sold-alpha flag**, so sector-neutral's failure shape did not recur.
+
+**A NEAR-MISS CAUGHT BEFORE THE BUILD:** `bucket` is derived *after* the granular standardisation,
+so a naive column lookup would have made the whole arm a **silent no-op that still reported a
+verdict**. Fixed and pinned. **A CONTROL THAT DID NOT RUN, reported as such:** C7's bucket half
+came back empty for the same root cause; **the arms are unaffected** and the number was recovered
+from the key-identical corrected panel — established 1,312 / speculative 339 per date.
+
+**Equity `N` 180 → 183.** Expectations **7 right, 0 wrong**.
+
+**CROSS-LANE — THIRD COLLISION IN FIVE SESSIONS, AND IT NOW NEEDS A CONVENTION CHANGE.** `session 31` names both the options-bot lane's `O11` and this lane's five-scheme register, joining `session 29` and `session 30`. **Three occurrences is not bad luck: the bare-counter convention does not work with two lanes landing on the same day**, and both lanes were correct at the moment they stamped. Not renumbered (theirs is referenced from their own handoff and ledger); this session took **34**. **Candidates: a lane prefix (`E31`/`O31`) or a date-plus-item stamp. That is Don's call, not a lane's.**
+
+**Next:** S10's accounting half, or the CPCV embargo. **And the dated one: read `/api/track` →
+`contract_track.recording_ok` on or after 2026-08-13.**
+
+Full write-up: `HANDOFF_edge_audit.md` session 34.
+
+---
+
+## options-bot lane, session 31 (2026-08-12) — the options book is NOT survivable at realistic sizing, and the O-series is one row from done
+
+**`O11` + `O19` + `O22` + `O25`, one register, nine arms, `PREREG_o11_o19_o22_o25_portfolio.md`
+committed ALONE at `1203a85`.** Frozen book, **no live code path changed, nothing adopted.**
+
+**THE O-SERIES IS NOT CLOSED, AND THE WORDING WAS FIXED BEFORE ANY RESULT EXISTED.** After this
+batch **25 of 26 O-rows are DONE**. **`O14` remains OPEN**: its collection is complete and its
+first analysis landed, but the **put/call and unusual-volume studies the 4.72GB tick cache was
+justified by are still untested.** The accurate sentence is *"this closes the last four OPEN audit
+HYPOTHESIS rows"* - not *"the O-series is closed"*.
+
+**THE HEADLINE: a book with POSITIVE +3.27 pct per-trade expectancy LOSES MONEY at realistic
+sizing.** Applying the shipped portfolio layer (imported, not re-implemented) to the single-leg
+book for the first time: **three of four cells UNSURVIVABLE, the fourth MARGINAL, none
+SURVIVABLE.** At $50,000 with a concurrency cap of 10 the book ends at **$37,059** after a **67 pct
+drawdown** - a **-25.9 pct** total return. Per-trade expectancy and survivability are different
+questions and only the first had ever been measured here.
+
+**THE MECHANISM IS MEASURED AND IS THE MOST PORTABLE RESULT: alerts CLUSTER and the edge lives in
+the crowd.** Over 483 weeks (median 7 alerts, max 38), expectancy is **-4.51 pct in quiet weeks**
+and **+14.28 pct in weeks above the 90th percentile**, with 51.5 pct of trades in weeks of more
+than 10 alerts. A concurrency cap therefore refuses trades **exactly when the opportunity is
+richest** - 1,677 of 3,870 skipped at cap 10. That is the audit's own third possibility, confirmed.
+
+**O19 ran FIRST by mechanism, not promise** - the O11 stage refuses to run without O19's artifact
+and embeds its verdict, demonstrated by invoking it with the artifact absent. This repairs session
+26's process defect, where a gating control and its outcomes were computed in one pass. Verdict
+**NOT-AN-ARTEFACT**: equal +3.270 pct, contract-weighted +3.407 pct, dollar-weighted +3.141 pct.
+The audit's premise barely applies here - the median position is **three** contracts, not twenty.
+
+**O22 capacity approximately $76.6M on the registered depth measure - and it may NOT be compared
+with P1's equity $23M.** Open interest is a STOCK; P1's ADV is a FLOW. Measured: the traded
+contract's daily volume is a median **0.1326** of its open interest, so an OI-based capacity
+overstates a flow-based one by **~7.5x**, putting the flow-equivalent near $10M. The registered
+headline stands as measured and the correction is reported beside it.
+
+**O25 NULL on both arms and not marginally - the wing is reliably worse**, -9.34pp vs closing and
+-9.69pp vs holding at +75 pct, negative in both halves against both comparators. The audit's own
+prediction is confirmed: sd falls 0.823 to 0.707 and the share of outcomes above +100 pct falls
+74.2 pct to 56.6 pct.
+
+**THE SPLIT GUARD IS NOW SHARED AND RAISES**, as instructed after session 30's recurrence:
+`assert_raw_spot` runs before any instrument touches a price, raises rather than warns, and also
+raises when it can check nothing. It read 3,870 entries at median relative error 0.00e+00.
+
+**THE LEDGER WAS WRONG ABOUT ALL FOUR ROWS - the third session running.** All four were `src=auto`
+with "no mention anywhere in the corpus"; the audit has full sections for each. That note is not
+evidence of absence.
+
+**Trial cost: options `N` 271 -> 280**, exactly as pre-committed. Expectations 4 right, 2 wrong, 2
+split. Full write-up: `HANDOFF_optionsbot.md` sections 46-49.
+
+**Recommended next: `O14`'s justifying studies are the only O-row left** - the put/call and
+unusual-volume analyses the tick cache was collected for.
+## edge lane, session 33 (2026-08-12) — S8 + S9: freshness has no cross-section to work with
+
+`PREREG_s8_s9_freshness.md` committed **alone at `b7804d8`**, one register for both. **All four
+verdict arms REJECTED. ADOPTS NOTHING.**
+
+**THE STRUCTURAL FINDING KILLS S8's 13F LEG OUTRIGHT: `days_since_13f` takes a mean of 1.25
+DISTINCT VALUES PER DATE** (median within-date sd 2.054 days), because 13F quarter-ends are common
+calendar dates — at any rebalance every name's 13F is the same age. Its decay multiplier spans p05
+0.5163 → p95 0.5427 with a **within-date sd of 0.00587**, so the arm is a **uniform ~0.54×
+down-weighting of `institutional`** — a weight change, and the weighting family was rejected
+wholesale last session. Rank correlation 0.9880, nearly inert.
+
+**The audit's premise conflates two decays.** The 13F signal genuinely decays as the quarter ages
+(alive Q−2 at *t* 1.36, dead Q−3 at −0.04) — but that is a **time-series** decay common to every
+name, **not a cross-sectional one that could re-rank them**. `days_since_filing` *is*
+cross-sectional (86.81 distinct values per date); `days_since_13f` is not.
+
+**THE S9 DIAGNOSTIC IS THE RESULT AND IT REFUTES THE PREMISE.** Top-decile return by filing-age
+quartile: Q1 +6.15%@38d, Q2 +6.12%@66d, Q3 +6.66%@71d, Q4 +6.35%@88d — **not monotone**, spread
+~half a point on a 6.3% base, and **Q1−Q4 = −0.78%/yr**, i.e. the stalest quartile very slightly
+outperformed the freshest.
+
+**MY REGISTERED LEAN WAS WRONG, IN THE INFORMATIVE DIRECTION.** The register stated a lean because
+the task asked for one: *the gradient is real, the weighted arms fail*. The weighted arms did fail
+— **but the gradient is not there either.**
+
+**Verdicts:** A2 freshness-as-input REJECTED (+0.61/−1.61pp); **A3 fundamental decay 90d
+NOT_REPLICATED — late half alone (+1.73pp, Δt +0.710)**; A4 13F decay REJECTED; A5 combined
+REJECTED, landing between A3 and A4 exactly as pre-registered. **A3 is the THIRD CONSECUTIVE
+SESSION in which exactly one arm clears exactly one half** — the family-wise clause has earned its
+keep three times. **1 of 4 siblings, not adopted.**
+
+**C6 confirms the pre-registered caveat:** freshness quartiles differ by sector, largest gap
+**Consumer Cyclical 15.62pp** — fiscal year-ends cluster by industry, so any gradient would have
+been partly compositional. Moot here, but it binds on any re-opening. **C5 zero negative ages;
+C7 the fundamental decay bites hard (mean 0.4894).** **No half-life was fitted.**
+
+**A DEFECT REPORTED, NOT FIXED:** `bulk.prepare_daily` down-samples DAILY to **one row per
+ticker-month**, so the point-in-time market cap and re-priced EV equity leg can be **up to 31 days
+stale** while `_price_factors`' price is same-day. It keeps the last date actually present and
+never a future one, so it is a **precision** defect, not correctness — and fixing it moves `size`,
+every EV-based ratio and the published headline, needing its own register.
+
+**Equity `N` 176 → 180.** Expectations 6 right, 1 wrong.
+
+**CROSS-LANE, AND NOW THE SECOND TIME IN FOUR SESSIONS: `session 30` names TWO lanes' work** — the options-bot lane's `O6` and this lane's `S16`+`S28`. The same class as the `session 29` collision reported in session 30, both found by a merge rather than by either lane's checks. Not renumbered (theirs is referenced from their own handoff and ledger); this session took **33**. **The rule is not "check once" but check the GLOBAL maximum at stamp time AND re-check after every merge** — the push→land window is long enough for another lane to take your number, which is what happened both times. Routed to the options-bot lane or to Don as a convention call.
+
+**Next:** S10's accounting half, or the CPCV embargo. **And the dated one: read `/api/track` →
+`contract_track.recording_ok` on or after 2026-08-13.**
+
+Full write-up: `HANDOFF_edge_audit.md` session 33.
+
+---
+
+## options-bot lane, session 30 (2026-08-12) — all ten arms NULL, and a split-adjusted-spot defect that every lane should read
+
+**`O6` + `O7` + `O17`, one register, ten arms, `PREREG_o6_o7_o17_earnings_surface.md` committed
+ALONE at `779d42c`** (one `.md`, zero `.py`). Frozen book, **no live code path changed, nothing
+adopted.**
+
+**THE MOST TRANSFERABLE FINDING IS A DEFECT IN MY OWN INSTRUMENT, AND IT IS THE U1-SPLIT CLASS
+RECURRING.** Option chains are as-traded and UNADJUSTED; `data/bulk/prepared/bars`'s `close` is
+split- and dividend-ADJUSTED (NVDA 2012: 0.27 against a raw 11.97, a 43x ratio). Matching an
+as-traded strike against an adjusted spot picks a contract nowhere near the money and **fails
+silently** - the option still prices, it is just mostly intrinsic. Measured against the book's own
+`underlying_entry` on 1,173 banked entries, **`raw_close` agrees EXACTLY** (median relative error
+0.00000) while `close` is off by **>5 pct on 67 pct of entries**. **RULE: `raw_close` for anything
+touching a STRIKE, `close` only for a RETURN.** My first cut reported a mean implied move of
+**19.57 pct** and a confident RICH verdict; that was an artefact. **Anything in this project that
+matches a strike against `close` is suspect and should be re-checked.**
+
+**THE LEDGER WAS WRONG ABOUT TWO OF THE THREE ROWS.** O6 and O17 were both `src=auto` with notes
+saying no audit section exists; `VALQUO_EDGE_AUDIT.md:964` and `:1150` are full sections naming four
+rules each. Definitions were quoted, not invented. Both notes corrected.
+
+**O6 - all four NULL, and the strongest number is the CONTROL.** The random-alternative-contract
+p95 sits near **-11.3pp/trade**, so **the mechanical 35-delta rule the audit proposed replacing
+already beats arbitrary in-band selection by about eleven points.** Gains: A1 +0.074pp, A2
+-3.505pp, A3 -11.099pp, A4 +0.464pp. **A3 is the audit's own headline suggestion and is the worst
+arm.** A4 is positive in both halves and clears both nulls, failing only the tail-concentration
+clause. **Mechanism: the cheapness rules CHANGE THE DELTA rather than repricing a fixed trade**
+(|delta gap| 0.004 / 0.248 / 0.310 / 0.125), so the audit's claim that this separates "which name"
+from "which contract" does not hold. **The same ordering reproduces on the random-entry CONTROL
+book**, so it is a property of contract selection generally and carries to any future book.
+
+**O7 - earnings options are RICH on this universe, contradicting the published sign.** Implied move
+5.4512 pct vs realised 4.7773 pct (difference -0.6739pp, CI95 excludes zero). Backtest dead at
+-10.34 pct per straddle net of four crossings, negative in both halves.
+
+**O17 - avoiding earnings gets monotonically WORSE** (+0.797, -0.479, -1.429pp at 5/10/15 days), so
+the loser autopsy's IV-crush hypothesis points the other way. **C4 "own the event" fails on ONE leg
+only**: +4.686pp/trade, positive in both halves and clearing its null in both, NULL solely because
+retention is 0.5706 against the pre-committed 0.70 floor. **The floor was not relaxed to fit.** The
+tenor confound that should have killed it is **refuted** - within every DTE quartile the gain stays
+positive.
+
+**Trial cost: options `N` 261 -> 271**, exactly as pre-committed. **Equity and infra untouched by
+this item; after merging they read 180 and 11**, not the 161 and 10 measured while the arms ran -
+other lanes landed the same day. **Re-read `by_domain` after merging; do not quote a mid-session
+figure.**
+Expectations 6 right, 1 wrong.
+
+**Recommended next: give C4 its own register as a CONSTRUCTION rule rather than a filter** - it is
+the only arm in three sessions to clear both halves and its calibrated null, and it fails only a
+threshold written for a different kind of rule. Full write-up: `HANDOFF_optionsbot.md` sections
+42-45.
+## edge lane, session 32 (2026-08-12) — S7 + S18: every pre-registered interaction REJECTED
+
+`PREREG_s7_s18_interactions.md` committed **alone at `7fc6ab2`**, one register for both items. No
+panel rebuild. **ADOPTS NOTHING.**
+
+**One of the audit's four named interactions cannot be built.** `size × liquidity` needs a
+liquidity measure and the price export carries **date and close only**, so `avg_dollar_volume`
+cannot be computed in the panel at all — audit B13's blocker. **Reported, not proxied**: a
+stand-in would be a different hypothesis wearing this one's name, and a test pins that none
+appeared. Charges no trial.
+
+**Short interest does not reach half the panel, and the audit's number is understated.** 48,539
+tickers and 3,866,270 records, but coverage is **32 of 69 dates (46.4%)**, not 40%, first covered
+2018-04-20. **Every covered date is in the LATE portion**, so S18 cannot satisfy a both-halves gate
+on the full panel — an impossibility, not a caveat. Its arms are gated on halves of the **covered
+subsample, 16 dates each**, exactly the shipped gate's `min_dates` floor. **A pass on 16-date
+halves is not the same object as a pass on 34-date halves.**
+
+**All six testable arms rejected.** `value × quality` −1.17/−0.84pp; `momentum × vol regime`
+−0.48/−0.19pp; `value × institutional` −0.05/−1.09pp; `value × short_interest` −0.49/−0.86pp.
+**`momentum × short_interest` is NOT_REPLICATED — late half alone (+1.85pp, Δt +0.812), early half
+fails (−2.39pp).** That is **the second consecutive session in which exactly one arm clears exactly
+one half**; the family-wise clause has earned its keep twice. **1 of 6 siblings, not adopted.**
+
+**THE MOST USEFUL RESULT: the short-interest exclusion made drawdown WORSE**, independently
+replicating S10 on a different criterion. Dropping the top 5% most-shorted removed 4.83% of
+top-decile rows, moved return +27.08% → +26.77%, and moved max drawdown **−0.2809 → −0.2863, a
+gain of −0.5404pp**. S10 found a *valuation-band* screen worsened drawdown by 2.61/3.35pp; a
+*crowding* screen worsens it too. S10's caveats travel verbatim — drawdown is negative so the gain
+is `arm − base`, and X7 calibrates no drawdown floor.
+
+**The audit's Bonferroni prescription (p < 0.0125) was declined explicitly**, with the reason
+registered first: it assumes a p-value gate while this project's gate is a margin gate whose
+floors X7 calibrated. Multiplicity is honoured by labelling instead.
+
+**C7 is the clean surprise and the one expectation that missed.** An eighth input dilutes every
+theme 1/7 → 1/8, so each arm is a compound change — registered in advance. Isolated with a
+constant eighth column it is **essentially nil (+0.00017 / +0.00015)**, so the arms measure the
+interactions and nothing else. C5 zero PIT violations; C6 no interaction is a parent proxy
+(largest |corr| 0.4584).
+
+**Equity `N` 170 → 176.** Expectations 6 right, 1 wrong. **Nothing was searched beyond the audit's
+named list.**
+
+**Next:** S10's accounting half, or the CPCV embargo. **And the dated one: read `/api/track` →
+`contract_track.recording_ok` on or after 2026-08-13.**
+
+Full write-up: `HANDOFF_edge_audit.md` session 32.
+
+---
+
+## edge lane, session 31 (2026-08-12) — five alternative weighting schemes, all five REJECTED
+
+`PREREG_s5_s6_s13_s24_s27_weighting.md` committed **alone at `8b0917e`** — one register for all
+five. One panel build, six scorings on one frame. **ADOPTS NOTHING.**
+
+**THE NUMBER THAT PRICES THE WHOLE FAMILY: CPCV's own best challenger (`positive-equal`) beat the
+deployed default by a margin of `0.000265` against a required bar of `0.020830` — it would have to
+be about 79× LARGER to clear.** `adopt=false`, PBO 0.80. Weight tuning on this panel is not
+marginal; it is nowhere near.
+
+**Three of the five propose behaviour already shipped** (all five rows were `src=auto` — the S21
+pattern for the third time). **`S27` is already shipped at the audit's own middle half-life**:
+`halflife_days=1260` (≈5y) is the default of `_weighted_optimize`, `walk_forward` and
+`cpcv_validate`, while the audit proposes 3, 5 and 10. **`S5`'s shrinkage is half-shipped** as
+`ic-shrunk-50` (fixed 50%), already CPCV-rejected. **`S13`'s inverse-vol is shipped at the wrong
+level** (`risk-parity` is across *themes*; S13 asks for it across *names*). And **X6, S27's stated
+dependency, is DONE and NULL** — no confirmed break for recency weighting to respond to.
+
+**Verdicts.** S5 REJECTED (−2.12/−1.68pp, shrinkage intensity 0.5641, so genuinely partial).
+S24 REJECTED and **very nearly the incumbent at rank corr 0.9907** — a seven-signal set has almost
+nothing to bag. S27 REJECTED at **both** half-lives by the widest margins of the five.
+
+**`S6` is the only arm to clear any half and gets the full skeptical treatment the register fixed
+first:** late +3.30pp at Δt +0.678 (improves), early −1.61pp at Δt −1.289 (does not) — a sign flip
+between halves, **and 1 of 5 sibling arms** (at-least-one-clears ≈23% under independence).
+**NOT eligible, NOT adopted, and the +3.30pp may not be quoted without both labels.**
+
+**`S13` fails the alpha gate while improving exactly what it exists to improve**, which the
+register called in advance as an instrument mismatch: equal weight +25.29%/yr, Sharpe 0.5866,
+maxDD −0.2809 → capped inverse-vol +23.53%/yr, **Sharpe 0.6261**, maxDD −0.2804. Its long-short
+leg is unchanged **by construction**, so its *t* margin is N/A and may never read as a pass.
+
+**A defect in my own instrument, resolved under the session-11 protocol.** The register's C5
+defines the reported intensity as the *shrinkage* intensity; the first cut reported its
+*complement*. Caught by its own test before any verdict was read, and **proven presentational by
+a leaf-by-leaf artifact diff: the S5 weight vector is bit-identical (max |Δ| 0.000e+00) and ZERO
+gate cells moved on any arm.** No conclusion needed re-deriving.
+
+**A limitation reported, not glossed:** `cpcv_validate` selects among its own eight
+`_weight_schemes` and cannot evaluate an arbitrary vector, so its authority operates here as a
+blanket keep-the-defaults rule rather than an arm-by-arm verdict — weaker than the register's
+wording implies.
+
+**Equity `N` 165 → 170.** **Expectations 6 right, 0 wrong — the first clean sweep in this record**,
+because the prior was the project's own *measured* standing result rather than intuition.
+
+**Next:** S10's accounting half, or the CPCV embargo. **And the dated one: read `/api/track` →
+`contract_track.recording_ok` on or after 2026-08-13.**
+
+Full write-up: `HANDOFF_edge_audit.md` session 31.
+
+---
+
+## edge lane, session 30 (2026-08-12) — S16 all four arms rejected (and the audit's proposal is a rank identity), S28 shipped, two lying ledger rows corrected
+
+**S16.** `PREREG_s16_issuance_decomposition.md` committed **alone at `afc7578`**. One panel build,
+five scorings, every arm a column on one frame. **All four arms REJECTED.**
+
+**The premise check removed half the audit's method before any arm ran:** all 671,417 ACTIONS rows
+carry one of nineteen action types and **none is a repurchase authorisation**, so
+buyback-announcement drift is **not testable on data we own**; and `initiated` is index/security
+listing initiation (`^VIX`, `^RUT`, `^IXIC`, 1997-12-31), **not** dividend initiation. The M&A leg
+is real — `acquisitionof`/`acquisitionby`, 8,248 dated rows each.
+
+**THE DEEPEST FINDING IS AN IDENTITY, NOT A MEASUREMENT.** S16C's within-date rank correlation
+against the incumbent is **1.000000000000 on all 69 dates**, because `buyback = max(0, −net)` and
+`−dilution = −max(0, net)` are **both non-increasing in `net`** (verified directly). So the
+audit's actual proposal — two inputs *"so the composite can weight them independently"* —
+**cannot express any ordering the single input cannot**. It only shrinks the theme's dispersion
+**1.000315 → 0.774730**, a 22.5% cut in effective weight. S20/S21's rank-invariance lesson again.
+
+**Buyback carries more of the theme's IC than dilution**, refuting two pre-registered
+expectations: theme IC *t* **+3.2066** (buyback-only) vs **+2.7530** (incumbent) vs **+2.5623**
+(dilution-only). **S16A is the only arm clearing X7's calibrated 2.71 bar — and it still fails the
+gate**, the fifth demonstration that theme IC does not judge a construction change. S16D is
+**FLAGGED DEGENERATE** (`mna_dilution` non-zero on 3.19% of rows) though C7's own bar passed.
+
+**C3 FAILED ITS BAR AND IS REPORTED AS A FAILURE.** The rebuilt incumbent is not bit-identical to
+the shipped column (max |Δ| **0.006676**, 0.67% of one sd) because `build_frame` standardises over
+every scored name while the panel drops names with no forward return. Diagnosed — rank correlation
+exactly **1.00000000**, median deviation exactly **0.000e+00**, a per-date affine rescaling — and
+**bounded: every gate re-run against the SHIPPED baseline returns the same four rejects with
+deltas identical to four decimals.**
+
+**Equity `N` 161 → 165. ADOPTS NOTHING**, and adoption costs more here than usual: the vintage is
+**derived** per `PT-GAPDUE` — **vintage 3, opened 2026-08-11, and its reason IS the
+`capital_discipline` restoration** — so a change would close a vintage days old. Expectations 3
+right, 3 wrong.
+
+**S28 — SHIPPED, reporting only, no claim moves.** Four additive payload blocks with quantiles,
+negative-period counts and the **dated** worst/best period; `SCHEMA_VERSION` 5 → 6. **What it
+shows: the published +7.17%/yr top-decile alpha is negative in 20 of 69 quarters (28.99%), with a
+median quarter (+1.41%) BELOW the mean (+1.79%) and a worst quarter of −6.83% on 2016-01-20;** the
+long-short is negative in 33.3% of quarters, worst −20.01%. Units travel in the block because
+**a quantile may not be annualised the way a mean is**. `4 × mean` reproduces `top_decile_alpha` to
+**4e-17** — the check that the block describes the right series. Pinned as reporting-only by a
+guard that was itself checked for vacuity. **Zero equity trials; infra 10 → 11.**
+
+**Two ledger rows were lying about their own state, both corrected.** `O14` read INPROGRESS /
+*"analysis not started"* — false since 2026-08-11, when the tickflow module, script, tests and a
+44KB artifact landed; it stays OPEN for the reason its note already gave (the put/call and
+unusual-volume studies remain undone), not the one the cell gave. `B13` read IN PROGRESS with
+nothing in progress: it is a settled partial state blocked on data the price export does not carry
+(date and close only, so `avg_dollar_volume` cannot be computed there at all), now
+**PARTIAL - BLOCKED ON DATA**.
+
+**CROSS-LANE, FOUND BY THE MERGE: `session 29` now names TWO different lanes' work on `main`** — the options-bot lane's `O3`+`O4`+`O5` and this lane's `S3`+`S25`, both dated 2026-08-12. Not unilaterally renumbered (theirs is already referenced from their own handoff and ledger rows); this session took **30**. Routed to the options-bot lane or to Don as a convention call. The rule that prevents it: take the next number above the GLOBAL maximum in `CLAUDE.md` at the moment you stamp, and re-check after any merge.
+
+**Next:** S10's accounting half, or the CPCV embargo (still the only open item that can move a
+published number). **And the dated freebie: read `/api/track` → `contract_track.recording_ok` on or
+after 2026-08-13.**
+
+Full write-up: `HANDOFF_edge_audit.md` session 30.
+
+---
+
+## options-bot lane, session 29 (2026-08-12) — the surface-anomaly family is NULL on all three arms, and a prior published result reverses its sign
+
+**`O3` + `O4` + `O5`, one register, three arms, `PREREG_o3_o4_o5_surface.md` committed ALONE at
+`d2aa5f9`** (one `.md`, zero `.py`, a strict ancestor of every measurement commit). Frozen book, no
+re-mine, **no live code path changed and nothing adopted.**
+
+**THIS WAS A SECOND LOOK AT AN ALREADY-REJECTED HYPOTHESIS, AND IS CHARGED AS ONE.** Commit
+`64955ef` (now on `main`) already tested all three characteristics with the published sign declared
+first and **REJECTED** them; `HANDOFF_free_analysis.md` concluded they should be considered
+answered. **The only justification for re-opening was a deviation that lane declared itself and
+never closed** — it used a **straddle**, delta-neutral only at inception. This register changed the
+**instrument** and nothing else that could be held fixed.
+
+**The power argument held, and it is the whole reason the trials were worth spending: delta-hedged
+return dispersion is sd 0.0303 against the straddle's 0.9055 on the identical events — a 30-fold
+reduction.**
+
+| arm | n | monotonicity (bar 0.6) | LS t | own permutation p95 | verdict |
+|---|---|---|---|---|---|
+| O3 `idio_vol` | 3,289 | -0.1717 | 2.5158 | 2.016 | **NULL** |
+| O4 `exp_idio_skew` | 3,154 | -0.0380 | 1.9143 | 1.9229 | **NULL** |
+| O5 `vol_of_vol` | 3,318 | -0.0690 | 2.9703 | 1.9459 | **NULL** |
+
+**Every arm is NULL on two independent legs.** Monotonicity misses its bar in **both halves of all
+three**, and the both-halves *t* leg fails separately — **the two arms that clear full-sample fail
+in OPPOSITE halves**. O4 misses its own bar by **0.0086 of a t** and is recorded a NULL rather than
+rounded into a pass (`RUN_RULES` A6).
+
+**THE FINDING RETIRES A CLAIM RATHER THAN ADDING ONE.** On the straddle, `idio_vol` sorted **+0.9
+CONTRADICTING** the published sign (LS *t* -1.2142) — the prior run's single most suggestive result.
+On the delta-hedged instrument the same characteristic on the same panel sorts in the **CONFIRMING**
+direction (+2.5158). **Neither reading is quotable as settled:** this one is far too weak to clear
+its bar, and the prior CONTRADICTS reading is an artefact of an instrument whose variance is
+dominated by the underlying's move.
+
+**The frozen chains named in the task provably cannot support a cross-section** — median 1
+full-chain name per date, **0 of 2,498 dates** reaching the ~20 a quintile sort needs — so the panel
+came from the EOD chain cache. **A forced substitution, disclosed in the register rather than made
+quietly.**
+
+**REPORTED FOR ANOTHER LANE (`RUN_RULES` rule 3): in the options-xsection panel, `illiq` and
+`spread_pct` are THE SAME COLUMN, identical on all 3,373 rows.** That lane's `illiq` was the **only
+characteristic in its published run with |t| > 2 (2.46)** and is described as a mechanical liquidity
+control; it is the option's quoted spread percentage under a second name. **Reported, not repaired.**
+
+**Also corrected in `CLAUDE.md`: the project brief said the auto-land Action runs "24" test suites.
+It runs 62** — all passing — **and they must be judged by EXIT CODE**, since the suites print at
+least three different summary formats and a loop grepping for `OK` falsely reports three passing
+suites as failures.
+
+**Trial cost: options `N` 258 -> 261**, one per arm exactly as pre-committed; infra untouched at 10.
+**Equity `N` is untouched by this item but now reads 161, not the 158 measured while running it** -
+the `S3` lane landed three equity trials the same day. **Re-read `by_domain` after merging rather
+than quoting a figure measured mid-session.** `BACKTEST_RESULTS.json` needs no re-run for this item;
+the `S3` lane already refreshed it at its own denominator. Expectations scored **4 right, 2 wrong**.
+
+**Recommended next step: register the Q5 question.** All three arms put their **worst** delta-hedged
+bucket at Q5 while Q1-Q4 are unordered, and both obvious explanations are refuted by measurement —
+they are not one effect (`idio_vol` vs `vol_of_vol` rank-correlate **-0.2920**, Q5 overlap **14.0%**)
+and not illiquidity (the gradient runs in **opposite** directions). **Deliberately not tested here:
+it would be the fourth arm my own register's void condition forbids.** Full write-up:
+`HANDOFF_optionsbot.md` sections 38-41.
+## edge lane, session 29 (2026-08-12) — S3's three insider rebuilds all REJECTED; S25 closed as unobtainable
+
+**S3.** `PREREG_s3_insider_rebuild.md` committed **alone at `b3a85fa`**. One panel build, four
+scorings, every arm a column on ONE frame. **All three variants REJECTED** against the
+already-committed margins (+0.25 long-short *t* AND +100bps alpha, both halves, boundary
+embargoed, deployed flat 1/7, no grid): **S3A** drop the `buys` bonus Δalpha +0.01pp/+0.79pp;
+**S3B** scale by market cap **+0.82pp/+0.52pp**; **S3C** split into two inputs
+**−0.92pp/−1.24pp**.
+
+**The unusual part is sign-stability, and it cuts both ways.** Session 7's LOO pattern — arms
+flipping sign between halves — is this project's most repeated finding, recorded five times, and
+here **every arm is sign-stable on both metrics in both halves**. But the gains are far below the
+bar and **V2G established there is no calibrated floor for a paired within-panel difference**, so
+small-but-consistent is an observation, not a result. **Nobody may quote S3B's +0.8pp as an
+effect.**
+
+**THE AUDIT'S OWN THRESHOLD IS REFUTED AS AN INSTRUMENT.** Its bar is *"theme IC t clears +1.0"*.
+**No arm clears it, and neither does the shipped incumbent at −0.2259** — so the audit's gate
+rejects all three for a reason unrelated to what the composite did, and +1.0 sits far below X7's
+calibrated **2.71** anyway.
+
+**The most interesting number does not convict.** `insider` is the only theme with a materially
+non-zero mean (−0.1031) at 83.1% coverage, so having a score at all applies a small negative tilt
+— S10's data-availability failure mode. Measured, the pure indicator carries median IC **+0.01345
+at t +1.4471, not separable from zero**, so the artefact is **not demonstrated**. Reported because
+that |t| is **larger than the insider theme's own**: the presence of filings carries more
+forward-return information than the direction of the score. Neither is significant.
+
+**Premise checks before the register:** one audit item was **already fixed by B26**; the formula
+was **duplicated** at `:737`/`:800` and now has one definition, proved bit-identical over 20,006
+cases against `git HEAD`; and **my own opening hypothesis was refuted** — I expected the
+non-z-scored `insider` to be under-weighted, and its per-date sd is **0.9600 vs 0.8296** averaged
+over the other six (~116% of nominal), because the *multi-input* themes are the compressed ones.
+
+**Controls:** C1 reproduces the record to sixteen digits and the run **aborts** before reading any
+arm if it does not; **C3 max |Δ| 0.000e+00 over 94,660 rows**; C6 coverage 0.8308 identical across
+all four arms. **A defect in my own first cut:** it used the default `lookback_years=6` and
+produced a **21-date smoke-test panel**; re-run at the canonical 18, and the shape is now asserted.
+
+**Equity `N` 158 → 161**; options 258, infra 10 untouched. **ADOPTS NOTHING** — adoption is a
+vintage event and the current vintage is **derived** per `PT-GAPDUE` (**vintage 3, opened
+2026-08-11**). Expectations 5 right, 2 wrong.
+
+**S25 — CLOSED as UNOBTAINABLE-WITHOUT-NEW-DATA, zero trials, no register.** The TICKERS snapshot
+has six fields and **zero date fields**; SF1 has no sector or SIC in 112 columns; no bulk file or
+prepared cache holds one. **Source named for the D-series: the EDGAR filing-header
+`ASSIGNED-SIC`** — note `data.sec.gov/submissions` carries only the CURRENT sic and does **not**
+work. **A confound that must travel with any such build: SIC is not the shipped taxonomy**, so a
+SIC map changes point-in-timeness and taxonomy at once.
+
+**And S25 has a finding the ledger did not: the non-PIT sector reaches the point-in-time
+VALUATION, not just the rejected ranking.** `calibration.py:523-527` passes today's sector into
+`pit_company` for a 1998 valuation, selecting `SECTOR_TARGET_MARGIN` (**2.70× spread**) and
+`SECTOR_MULTIPLES` (PE 2.50×, EV/Sales 6.15×). **S23's own code pins beta point-in-time two lines
+below while passing today's sector straight through**, so S23's exit-rule arms and S10's
+bull-case band both inherit it. No data exists to repair it; pinned by test instead.
+
+**Next:** S10's accounting half, or the CPCV embargo (still the only open item that can move a
+published number). **And a dated freebie: read `/api/track` → `contract_track.recording_ok` on or
+after 2026-08-13**, when a missing row finally becomes a dated writer failure.
+
+Full write-up: `HANDOFF_edge_audit.md` session 29.
+
+---
+
+## edge lane, session 28 (2026-08-12) — the PT-WRITER reading returned `None`, and the guard that was supposed to answer it was broken
+
+**The date-gated item sessions 15 and 16 both deferred to 2026-08-12 was read. Neither predicted
+branch fired.** `/api/track` -> `contract_track.recording_ok` is **`None`** — not `true`, not
+`false`. **`PT-WRITER` is neither closed nor refuted; the ledger row stays `BLOCKED`.**
+
+**TWO DATES EVERY LANE MUST PICK UP.** The theme-restoration lane closed vintage 2 and opened
+**vintage 3 on 2026-08-11**, so the bound inception is **2026-08-11** (not 2026-08-10) and the
+operational gate is **2027-02-11** (not 2027-02-10). Vintage 2 lasted **one day**. Vintage 3's
+first row is not owed until **2026-08-13**, which is why `recording_ok` correctly reads `None`.
+**Derive the vintage from the register; do not quote it from a prompt or a handoff.**
+
+**THE INSTRUMENT WAS BROKEN, IN THE ALARMING DIRECTION.** `track_meter.gap_report` counted the
+CURRENT trading day as due from midnight, but a day's row is written after that day's close.
+**Measured: a writer holding every row it could possibly have written still read
+`recording_ok: false` on 11 of 11 replayed trading-day mornings**, always naming the current day.
+That is the mirror of the vacuous-PASS defect session 15 caught in the same function, and since
+LA8 it has been on **public surfaces** — a red light that was on every weekday morning. Fixed: a
+row now falls due at the start of the **next trading day**, keyed to the calendar rather than to
+the writer's 20:01 cron. Detection is delayed at most one trading day, inside the contract's own
+LOGGED-NOT-VOIDED allowance. Permitted as a §7 recording repair; no threshold or meter parameter
+moved.
+
+**A CORRECTION AGAINST MY OWN FIRST CUT.** I first reported that vintage 2 owed 2026-08-11 and
+missed it. **It owed nothing** — that row does not fall due until 2026-08-12 and vintage 2 had
+closed. The claim was an artefact of the very off-by-one being repaired, caught by the test
+written to pin it. It would have been a false escalation to Cowork.
+
+**A SECOND DEFECT: a vintage event silently clears the recording gap.** Vintage 1 owed six rows
+and got two, and its four missing dates (2026-08-03, -04, -05, -07) are unreachable from anything
+`recording_ok` reports today. New `track_meter.recording_history()` reports every vintage side by
+side and reproduces the contract's own 2-of-6 figure; `recording_ok` is deliberately unchanged.
+
+**ON THE WRITER — EVIDENCE, NOT PROOF, AND THE RESTART HYPOTHESIS IS REFUTED.** The bound file
+has mtime **2026-08-07 18:07** and was untouched across both 2026-08-10 and 2026-08-11; no
+matching scheduled task exists; no code in this repo writes it. The machine restarted at **03:33
+on 2026-08-12**, **7.5 hours after** the 20:01 window on 2026-08-11, so it cannot have interrupted
+that write. The live service is not healthier: the weekly `track-backup` cron pulled it on
+2026-08-10 18:09 and committed the same two rows.
+
+**NEXT, AND IT NEEDS NO HUMAN ACTION: read it again on 2026-08-13.** `row_awaited` is 2026-08-12
+and `assessable_from` is 2026-08-13, so from then a missing row is a dated writer failure.
+
+**ZERO TRIAL COST** — a correctness repair, logged `FIXED`. **Equity `N` stays 158**, options 258,
+infra 10; `BACKTEST_RESULTS.json` needs no re-run. Full write-up: `HANDOFF_edge_audit.md`
+session 28.
+
+---
+
 # Valquo — handoff status
 
 Written at the end of every Claude Code session. Overwritten each time, so this is always
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
+## 2026-08-11 — edge lane, session 27 (S10): the downside-exclusion screen is REJECTED, and it is counterproductive
+
+Don's own question, formalised and measured: **should a top-decile name whose point-in-time BULL
+case already sits at or below price make the book at all?** **No.**
+`PREREG_s10_downside_exclusion.md` was committed **alone at `a041e09`** — one `.md`, zero `.py` —
+a strict ancestor of the measurement commit. **ADOPTS NOTHING and no live code path changed.**
+
+**THE SCOPE DIFFERS FROM THE AUDIT'S OWN S10, DELIBERATELY, AND THE REGISTER SAID SO FIRST.**
+`VALQUO_EDGE_AUDIT.md:739` specifies S10 as an **accounting** red-flag veto — Beneish M-score,
+Altman Z-score, external financing, NT filings. **None of those four was tested.** The ledger row
+is therefore **`PARTIAL`, not `DONE`**: closing it would tell the next session that work had been
+done. **S10's accounting half is still open and is a legitimate next item.**
+
+**THE VERDICT.** Against the audit's own asymmetric bar — drawdown better by >2.0pp AND alpha worse
+by <1.0pp, in both halves — **both arms fail**. Drawdown does not merely fail to improve, it gets
+**worse**: −2.61pp (DROP) and −3.35pp (BACKFILL), with alpha down 0.24pp and 0.93pp. The alpha
+effect **flips sign between halves** (helps early, hurts late) — session 7's LOO pattern again.
+
+**THE FINDING THAT OUTLIVES THE VERDICT, and it refutes the premise rather than failing a bar.**
+Within the top decile the **flagged** names return **+6.5125%/63d** against the unflagged
+**+6.2677%** — the names the screen would delete very slightly **OUTPERFORM** the ones it keeps
+(+0.98pp/yr, HAC *t* +0.4775, a clean NULL that flips sign between halves). **And they crash
+LESS**: flagged names fall more than 50% at **0.479%** against **0.832%** for the names retained —
+**roughly half the rate**, on the very count the audit calls *"the number that matters most"*.
+
+**WHY.** Flagged names carry **higher momentum** (+0.9530 vs +0.6741) and **much lower value**
+(+0.2728 vs +0.7362). R1 puts the book on **UMD +0.205 (t 3.65)**, so the screen deletes exactly
+the momentum exposure R1 says is real and tilts the remainder further into value — the FNMA
+value-trap direction. **It is also substantially a SECTOR bet** (U7's failure mode): flagged rate
+**51.38%** for the financial regime and **48.88%** for Financial Services against **15.79%** for
+Industrials.
+
+**A DEFECT IN MY OWN INSTRUMENT, caught before any verdict was read.** `max_drawdown` is negative,
+so improvement is `arm − base`; the first cut had it backwards and **reported a 2.61pp worsening
+as a 2.61pp improvement**. The verdict would not have moved — both arms were already failing — but
+**the reported reason would have been inverted**. Same sign error this project read into
+`monotonicity` for months; now pinned by a known-bad fixture carrying the real measured pair.
+
+**A LIMIT ON THE DRAWDOWN CRITERION GENERALLY, measured rather than asserted:** the worst
+peak-to-trough spans **exactly ONE 63-day period on every arm**, at the same trough (COVID 2020Q1).
+The entire 2.0pp drawdown leg is decided by a single quarter, and **X7 calibrates no drawdown floor
+anywhere**, so that bar is UNCALIBRATED and labelled so. Separately, the audit's 1.0pp alpha leg
+sits **below** X7's calibrated 1.95pp margin and survives only as a non-inferiority allowance.
+
+**CONTROLS.** C1 — the rebuilt valuation panel reproduces S23's banked panel on **all 108,241
+shared keys at `max |Δ| = 0.000e+00`**, so adding the scenario band did not disturb the base by a
+bit. C2 — the band **imports** `pipeline._blend_scenarios`, so it is the same number the site
+renders. C3 — **zero** `bear ≤ base ≤ bull` violations over 108,100 trios. C5 — the harness
+reproduces the published record to sixteen digits, and the run aborts before reading any arm if it
+does not. Coverage first: 11,426 top-decile rows, bull coverage 92.42%, flagged 27.38%; a name
+with no bull case is **kept**, never excluded.
+
+**BUG FOUND OUTSIDE MY LANE, reported not fixed.** Three rows in the main `VALQUO_LEDGER.md` table
+carry **unescaped pipes** — S23 (13), M1-PARSE (14), V2G (13) against an 11-pipe header.
+`test_build_ledger.py` passes, so its parser tolerates them, but this is the class that shifted
+columns in one register and made a row vanish from another. They want escaping by the lanes that
+own them.
+
+**Equity `N` 155 → 158** (three arms charged). `BACKTEST_RESULTS.json` re-run from a clean tree so
+the Deflated Sharpe matches the honest denominator. Tests 312 → **317**, all suites green.
+Expectations scored **5 right, 1 wrong** — unusually good, and for a stated reason: they were
+derived from measured facts already in the record rather than from intuition.
+
+**RECOMMENDED NEXT:** either **S10's accounting half** (Beneish/Altman/external financing/NT — a
+different instrument that inherits none of this verdict), or the **CPCV embargo** carried over from
+session 22, still the only open item that can move a published number.
+## 2026-08-11 - options-bot lane, session 26 (O10 + O18): real trades pay two thirds of the quoted half-spread, a passive fill is not a free half-spread, and BOTH ITEMS RETURN NO VERDICT
+
+First use of O14's tick cache. `PREREG_o10_passive_fills.md` and `PREREG_o18_spread_cost.md` were
+committed **together and ALONE at `34b0c11`** - two `.md`, zero `.py`. Frozen book, no re-mine,
+**no live code path changed**. **Options `N` 248 -> 258** (4 + 6, exactly as pre-committed);
+**equity `N` untouched at 155**, so `BACKTEST_RESULTS.json` needs no re-run.
+
+**THE SCOPE FACTS WERE MEASURED BEFORE THE REGISTERS WERE WRITTEN, AND THEY RULE OUT THE QUESTION
+MOST PEOPLE WILL THINK WAS ANSWERED.** O14's cache is exactly the alert-days and nothing else: for
+the 3,870 banked entries the **next session is cached for 0 of 3,870** and the **exit day for 0 of
+3,870**. The live bot submits after the close and its order rests on D+1, so *"what the live bot's
+limit orders fill at"* is **NOT ANSWERABLE** on this cache and no verdict is issued about it. Only
+the **entry leg** is coverable while a round trip crosses the spread twice. What is answerable is
+the execution environment of the exact contracts the book traded, measured quote-relatively, so it
+needs no decision time and carries no look-ahead. The join is complete at **3,869 of 3,869**, the
+one missing alert-day (`BUD` 2024-01-10) costing exactly one book row.
+
+**THE HEADLINE IS THE VOID, AND IT IS NOT A TECHNICALITY.** Control C2 required the behavioural
+condition-code split to replicate on the full book. It failed on **one code**: code 35, 4.94% of
+prints, reads at-touch **0.2496** on the full book against **0.439** on the 120-entry probe that
+classified it, putting it below package code 125 at 0.2649. The other four hold with room to spare.
+By the register's own clause the primary is void and only the all-codes arm may be reported, with
+no verdict - **and the all-codes arm, disqualified in advance for crediting multi-leg package
+liquidity to a single-leg resting order, reads NPA 1.0029pp against the 1.00pp bar while the
+registered primary reads 0.6318pp.** The arm ruled out first is exactly the one that crosses.
+Reported because it cuts the other way: **the void concealed no crossing** - the fallback's halves
+are 1.0760 and 0.9352, so both-halves fails there too. Arithmetic, not a verdict.
+
+**WHAT SURVIVES AS MEASUREMENT (no verdict is drawn from any of it).** Resting at the mid over a
+30-minute horizon: gross saving **+2.4555pp**, adverse selection **-1.8237pp**, net **+0.6318pp**
+(CI95 0.5014 to 0.7643), fill rate **0.5726**. **Adverse selection eats 74.3% of the gross saving**
+- a resting bid fills when sellers are aggressive, and *"you save half the spread"* overstates by
+nearly fourfold. Size-weighted **rho = 0.6743** (CI95 0.6617 to 0.6871): a real trade pays about
+two thirds of the quoted half-spread. The decomposition keeps apart two things that would flatter
+the answer if added - EOD half-spread **$0.1544** -> prevailing-at-print **$0.0999** -> effective
+**$0.0591** - and the **$0.0545 availability term is SELECTED** and may never be quoted as a
+saving; only the **$0.0408** price-improvement term is an execution property. Of an apparent
+**$9.53/contract** overcharge, **$4.08** is defensible. The strongest conditioning is **entry
+premium, not quoted spread** (the registered expectation was wrong): rho falls monotonically
+**0.778 -> 0.597**, 4.8x its permutation null, in both halves and both arms.
+
+**THE LIMITATION THAT MUST TRAVEL WITH EVERY FIGURE ABOVE:** coverage is **0.7162** and the
+excluded 28% is not random - **62% wider spreads, about half the market cap and half the ATM open
+interest, and NEGATIVE expectancy (-3.11% against +5.82%)**. Every number is measured on the
+**liquid** part of the book, and cost bites hardest on the part excluded.
+
+**Defects reported, both mine.** C2 and the outcome statistics were computed in the **same pass**,
+so it cannot be claimed the control was read before the numbers; a gating control must run and be
+read in a separate pass. And the `lambda = +1` row is the instrument's own null, should read zero
+by construction and reads **-0.07 to -0.59pp**, a measured bias that runs against the passive arm
+and so does not manufacture the null. Separately, O14's quote-staleness caveat was checked rather
+than assumed and **does not bite here**: median quote lag 0.0s, 0.19% of prints over 60 seconds.
+
+**NOTHING IS ADOPTED.** `DEFAULT_AGGRESSION` is untouched at 1.0 and pinned by test; a material
+result is **routed to Don**, because changing the fill constant re-prices every options figure the
+project publishes. **Cheaper fills do NOT rescue R2** - the random-entry control is filled by the
+identical rule, so the -5.0640pp gap is untouched.
+
+**Recommended next step:** (1) a successor register with code 35 reclassified and the gate read in
+a **separate pass** - cheap, since the extract is cached; (2) the genuinely valuable data item,
+**pull tick flow for exit days and D+1**, which is what makes the live order-working question and
+the second leg of the round trip measurable at all. Full write-up in `HANDOFF_optionsbot.md`
+sections 34-37; artifact `data/free_analysis/O10_O18_TICKFLOW.json`.
+
+## 2026-08-11 — edge lane, session 22 (M2 + M6): clustered inference is the default, and the schema guard found TEN dropped fields
+
+Two audit items, both **infrastructure**: no hypothesis, no verdict. **Equity `N` is UNCHANGED at
+155** and the Deflated Sharpe is bit-identical at 0.8340367318547941; the two rows go to the
+**infra** domain at n=1 each (infra 8 → 10), and infra `N` gates no published claim.
+`PREREG_m2_m6.md` was committed **alone at `af88533`**, a strict ancestor, because M2 touches the
+statistic every pre-committed gate reads.
+
+**Scoping removed most of the work, and it was checked against the code rather than the item
+text.** The `M2`/`M6` in `SECURITY_AUDIT.md` are a **different pair, already fixed at `96fd8bf`**.
+Of the real items, **M2's whole trade-level half was already delivered by R3** and **M6's
+block-level half by B22** — the options-bot lane had already published the correct remaining
+scope, and that report was adopted rather than re-derived.
+
+**M2 — "clustered by default" could NOT mean redefining the existing keys.** `long_short_tstat` is
+naive and is what `holdout_compare_panels` reads; its **+0.25 t** margin was committed against it,
+and the floors are statistic- AND lag-specific (naive 2.1437 / HAC 2.2837 / alpha HAC 2.2913, all
+at **lag 1**). So clustered is the default by being what the one shared function returns as its
+unqualified `t`. `statistics.py::mean_inference` is now THE definition; four hand-rolled copies
+delegate to it, **bit-identical over 400 random series, max |Δ| 0.000e+00**. **`n_eff` now travels
+with `n`**: long-short ρ **+0.189046** (reproducing R9's +0.189) → **n_eff 47.06 of 69**.
+
+**The theme IC t — the statistic carrying X7's 2.71 bar — had no clustered variant computed
+anywhere, ever.** It has one now; `ic_tstat` is untouched so the bar still applies to the number it
+was calibrated on, and the new figure has **no calibrated floor** and may not be compared to 2.71.
+**Reported because it cuts against the change: the theme IC series are NOT materially
+autocorrelated** — clustered below naive in only **5 of 9**, max |ρ| 0.164, four of nine negative.
+**The pre-registered expectation was WRONG**; the gap closed is completeness, not a moved number.
+
+**M6 — the field-level guard found FIVE live drops, TEN fields, none previously known.**
+`_backtest_hold` computes **B17's entire disclosure** and `build_payload` carried none of it, so
+`portfolio.cagr` shipped with no warning that the book holds ~`exit_rank` names and pays neither
+costs nor taxes — **the fix for B17 was being computed and thrown away.** The canonical file now
+carries **`held_median = 42`** for the book labelled "top 25". Session 12's `adopt_detail` /
+`challenger_weights_cols` were likewise never serialised. `SCHEMA_VERSION` 4 → 5, additive.
+
+**The tenth field is the best evidence for the guard: it found it against its author.**
+`ev_freshness.rows` — the denominator of the `fresh` fraction — was caught **on the guard's first
+real run**, having escaped my hand-built spec because that spec came from walking each producer's
+AST and `ev_freshness` builds its dict incrementally. Static analysis could not see it; a runtime
+producer-enumerating guard could.
+
+**A defect in my own change, caught before shipping: the guard would have been SWALLOWED** by
+`main()`'s blanket `except Exception`. A check that cannot fail anything is not a check — the exact
+pattern M6 closes. It now has its own handler ahead of the blanket one and exits **non-zero**;
+no env-var escape hatch (RUN_RULES A5). **The integration test FAILED first and then passed**,
+which is why it is worth anything.
+
+**Suites:** `test_edge` 295 → **312**; full sweep 56/57 (the one red since fixed) plus **6/6**
+affected suites re-run green. One assertion in another lane's `test_guards.py` was **narrowed**,
+intent unchanged, and it is called out rather than buried.
+
+**STILL OPEN, reported not fixed:** the **CPCV embargo is ONE rebalance period against a 252-day
+`ret_12_1` lookback** — a results change that moves PBO/DSR and needs its own register; and
+`valuation/engine/calibration.py:737` is a **fourth** hand-rolled naive t-stat (engine lane).
+
+**Recommended next step:** the CPCV embargo, pre-registered on its own, since it is the one M2
+item left and the only one that can move a published number.
+## 2026-08-11 — options-bot lane (O21 + O26): the dividend gap is real but cheap and is deliberately left alone; the bucket floor cannot deliver what its comment promises
+
+Two ledger items closed, frozen book, no re-mine, **no live code path changed**. Both registers
+committed **together and ALONE** at `bf5324c` (two `.md`, zero `.py`). Both ledger rows were bare,
+so the scope was derived and each register states what it derived.
+
+**O21 — the defect is the CALLER, not the model.** `bs_price`, `implied_vol` and `greeks` already
+take a dividend yield `q` and handle it correctly; **every caller uses the default 0.0**. Anyone
+who "adds dividend support to the pricer" is fixing the wrong thing (pinned by a test). And the
+banked P&L comes from **quoted** bid/ask, so the pricer cannot move it directly — it reaches the
+book only via early exercise, contract selection, and stored derived fields.
+
+**Exposure is widespread, the measured cost is not.** 81.4% of trades sit on dividend payers
+(median trailing yield 2.02%) and **2,107 of 3,870 calls span an ex-div date** — but only **34
+exits (0.879%) were booked below intrinsic, worth +0.2002pp** against a pre-registered 1.00pp
+bar. Measured **model-free** (`bid < S − K`) so the answer is not a function of the pricer under
+test. Two controls first: parity recovers the stored entry spot at median rel error 0.00232, and
+the sim's **own** bars at **0.00000 / 100% within 1%**.
+
+**One door is UNRESOLVED and is reported as such, not as zero.** The `q=0` control reproduces the
+banked contract **3,870/3,870 = 100.00%**; the corrected pricer picks a **different contract on
+179 entries (4.63%)**, and **not a near-substitute** — median |delta gap| **0.129** against a 0.35
+target, **93.9% moving to a lower strike** (the predicted direction). **Its P&L is not computable
+on the frozen book**: the freeze holds full chains only on ENTRY dates, so an unheld contract has
+no forward path (median 2 chain dates). Closing it needs a re-mine.
+
+**The pricer is deliberately NOT changed** — neither clause of the materiality bar is met, and
+passing `q` into `pick_contract` would change *which contract the live engine buys* on 4.63% of
+entries: a construction change, not a bug fix. Pinned by two tests.
+
+**Two defects in my own instrument, caught before any verdict was read.** A `max(bid+strike)`
+spot estimate was parity's **loosest upper bound** and inflated the early-exercise gain to
+**+5.62pp — 8× the truth**, in the direction that manufactures a material finding; then the
+parity fix rejected zero-value puts and discarded exactly the deep-ITM cases, scoring **zero
+rows**. Both pinned. Also found: **`options_backtest.BARS_CACHE` is a RELATIVE path** and silently
+resolves to nothing from a worktree.
+
+**O26 — NULL, the floor stays 30, and that is not a vindication of 30.** The constant's own
+comment ("enough that one lucky contract cannot flip the verdict") is testable and had never been
+tested. `P_flip(n)` **never reaches the 0.05 bar anywhere on the pre-committed grid**: 0.1848 at
+the shipped 30, still **0.1084 at n=300**. Going 30 → 300 — a tenfold rise no live bucket could
+supply — buys almost nothing.
+
+**The secondary is the stronger result and it was checked against closed form, not trusted.**
+Half-to-half sign agreement is a **coin flip at every size** (0.4942 at n=30, 0.5482 at n=300),
+and the book's own moments (mean 0.0327, sd 0.9251) **predict that curve analytically** (0.5059 /
+0.5561). **A bucket would need ~6,148 trades for its halves to agree on the sign of expectancy 95%
+of the time — the whole book is 3,870 and the largest live bucket is 2,058.** So per-bucket
+expectancy on this book is essentially unmeasurable **at any floor**; a third independent
+corroboration of R2/O13. **Zero live buckets change status.**
+
+Full gate **60 suites, all green** on the merged tree (two new: `test_dividends.py` 27, `test_bucket_floor.py` 19).
+Options `N` **246 → 248** (O21 charged 1, O26 charged 1); **equity `N` untouched at 155**, so `BACKTEST_RESULTS.json` needs no re-run. Detail in
+`HANDOFF_optionsbot.md` §29–33. **Recommended next:** re-mine the 179 alternative contracts to
+close D2 — the only open door — and **do not raise `MIN_CLOSED_PER_BUCKET`**; the lever does not
+work.
 ## 2026-08-11 — data-spend lane (D4): DON'T BUY the Cboe Open-Close Volume Summary — and a free six-month trial means you never had to pay to find out
 
 **The last open D item is closed, so the D series is now complete.** Research only, **no code
@@ -5500,3 +7649,367 @@ session of why a single number is not a decision: by the same reasoning that jus
 - The most recent SF3 quarter is always incomplete (filings arrive over following weeks) —
   the 45-day `inst_lag_days` convention handles it.
 - The live hot-list scan runs at 22:23 UTC and uses the FMP key.
+
+## PT-WRITER 2026-08-14: could not write today's row — both price vendors unreachable from the recorder lane
+
+Ran the documented mechanism (PAPER_TRACK_CONTRACT.md §7.2a, `python -m scripts.track_row`,
+code at origin/main `3893d6b`) from the Cowork recorder lane on Friday 2026-08-14 ≈20:05 ET,
+after the close. It REFUSED, correctly — exit 2, reason verbatim:
+
+    "the benchmark SPY could not be priced on the inception 2026-07-30 (a benchmark gap makes
+     the excess unmeasurable, so no row is emitted rather than a Valquo-only one)"
+
+Root cause, diagnosed: the recorder lane's sandbox egress allowlist blocks BOTH shipped vendors
+(`stooq.com` and `query1.finance.yahoo.com` → proxy connection refused), so no ticker priced at
+all. This is a lane/network condition, not a mechanism defect: the session was closed, the book
+read fine (86 positions, inception 2026-07-30), and the refusal is the designed no-partial-row
+behaviour. No number was guessed. The Robinhood connector was NOT used as a substitute price
+source — that is the "guessing at a vendor" this contract refuses.
+
+THE BOUND SERIES WAS NOT WRITTEN TONIGHT. `data/valquo_track_history.csv` last row remains
+2026-08-13 (day 10). No prior row was modified. Standing gaps (2026-08-03..05, 08-07,
+08-10..12) stay logged by `track_meter.gap_report`, not filled.
+
+ALSO ON RECORD: this lane holds no git credentials (anonymous HTTPS; no SSH key), so it cannot
+push — the same condition that stranded the 2026-08-10 refusal (local commit `41d7b12`, still
+unlanded on Don's machine; its text is already quoted in §7.2a). This note therefore travels by
+the only lane available: branch `worktree-pt-writer-20260814` in the local repo, based on
+origin/main `3893d6b`, awaiting one credentialed `git push origin worktree-pt-writer-20260814`
+— the land Action takes it from there.
+
+REMEDY — the §3 same-week clause is live ("missing a single day's write that is filled the
+same week" is LOGGED, NOT VOIDED). From any environment with open egress and the real `data/`
+(Claude Code on Don's machine qualifies — something credentialed fetched origin/main there at
+20:01 ET tonight), run from the repo root:
+
+    python -m scripts.track_row --append                      # tonight: the row is on-time
+    python -m scripts.track_row --append --date 2026-08-14    # Saturday: same-week fill — flag it LATE in this file
+
+A Monday write is next week: per the contract that is a logged gap, not a fill. Verify either
+way: last row of `data/valquo_track_history.csv` reads back through `index_track.load()` as
+2026-08-14, then commit "Track: daily row 2026-08-14" and push.
+
+---
+
+## 2026-08-15 — infra lane (r1): MA11 + MA12 + MA17 + MA22, all four DONE
+
+Wave 2 of the master audit, four MEDIUM items, landed on `main` across four commits
+(`fea1ee8`, `3cd0c27`, `131204a`, `9bac768`). **Zero trials** — all four are process or
+correctness repairs with no hypothesis and no threshold, so equity `N` stays **224**.
+Full write-up: `HANDOFF_ci.md`.
+
+**MA11 — the auto-land Action.** The job running `tests/test_*.py` from the merged tree held
+`contents: write`, and `actions/checkout` persists that token into `.git/config` — so a branch
+adding `tests/test_zz.py` could have force-pushed `main` and skipped the gate judging it. Now
+two jobs: `gate` (`contents: read`, all branch code) and `land` (`contents: write`, no branch
+code). Plus `.github/land_policy.py`, read from **main's** checkout before the merge, refusing
+any `.github/` change and any test-suite **deletion**. **RESIDUAL FOR DON: a branch that
+rewrites the workflow YAML still escapes the policy — no file in the repo can prevent that. The
+fix is a GitHub-side ruleset protecting `.github/**`, which is a repository setting.**
+
+**MA12 — dependencies.** Seven of eleven direct requirements were resolving to a *higher major
+version* than their own floor (numpy 2.2.6 on `>=1.24`, yfinance 1.6.0 on `>=0.2.40`, stripe
+15.5.0 on `>=9.0`). Two hash-pinned locks now install with `--require-hashes` in both CI
+workflows and the container. Scope widened past the audit: it names `requirements.txt`, but the
+image installs `requirements-saas.txt`, where **stripe (billing) and gunicorn** were floating.
+No version changed — the caps were proved non-binding by byte-identical regeneration.
+**Local `pip install -r requirements.txt` is unchanged; the locks are linux/cp311 and will not
+install on Windows.**
+
+**MA17 — the bus test.** README did not merely omit the ledger, it stated something **false**:
+*"I have not yet run a point-in-time backtest"*, with that backtest as the top roadmap item,
+months after 224 logged equity trials. Corrected, and new `START_HERE.md` takes a reader from
+clone to green suites to what is actually true — including the licence wall (`D1`: Sharadar is
+personal-use only and forbids commercial use of the data "or any derivation").
+
+**MA22 — CLAUDE.md.** It carried three different counts of its own suites (62 / 24 / measured
+83), which became 86 before the session ended. Operating instructions moved to **`RUN_RULES.md`
+PART 0**, which *derives* the count; the 118-line task list is replaced by a pointer to
+`VALQUO_LEDGER.md`, after checking row by row that every item is recorded more fully elsewhere.
+The findings record is untouched (4,112 → 3,966 lines) and a test asserts it was not trimmed.
+
+**Verification.** Local gate 86/86 in 1,320s before the first push; both locks validated under
+`--require-hashes --dry-run` for the real target; four CI runs. The retry loop fired **twice
+inside a single gate** as two other lanes landed code — which is also how the first cut of MA11
+was caught, having deleted that retry.
+
+**Next in this lane:** nothing blocking. Two bugs reported and not fixed (`HANDOFF_ci.md` §6):
+`auto-scan.yml` grants its jobs no explicit `permissions:` block, and `psycopg2-binary` is named
+only in a comment, so switching Postgres on would put an unpinned dependency into production.
+
+---
+
+## 2026-08-15 — infra lane (r1): MA59 + MA60 — infra's audit-#3 rows are all adjudicated
+
+**Zero trials** — simplification and process work, no hypothesis and no threshold, so equity `N`
+stays **224** and no published claim moves. Full write-up: `HANDOFF_ci.md` §10.
+
+**MA59 — DONE. The audit is right about every entry on both its lists, and that was verified
+against a derived import graph before anything was touched:** all 17 archive candidates are
+unreachable from a real entry point, all 6 "looks dead, is load-bearing" modules are reachable,
+and 53 of 192 modules are unreachable overall. **Deadness is transitive and that is the point** —
+counting *direct* importers calls `surface_xsec` production code, because the file under
+`valuation/` that imports it is `tickflow_signals`, which nothing live reaches. Archived **in
+place** with a banner (the B16 pattern), never moved or deleted, so every study still reproduces.
+The quarantine is pinned in **both** directions, and the second is the one that matters: deleting
+a D-series alt-data module because it "looks dead" changes what a past `BACKTEST_RESULTS.json`
+reproduces. **Two corrections to the audit:** `options_tail` and `ev_multiples_study` have no
+importer anywhere, so the pin test it says to keep did not exist; and `options_vrp_portfolio`
+(which it says to keep) **imports** `options_vrp` (which it says to archive), so the two cannot
+be separated. The three rejected-intervention env vars now warn when set — silent by default,
+because a warning on every ordinary run is noise.
+
+**MA60 — PARTIAL, 3 of 4, and the fourth is blocked by this lane's own MA11.** Bullet 1 was
+already repaired by a prior lane and is re-verified here rather than taken on trust. Bullet 3 is
+the finding and **the audit understates it**: `check_lanes.py`'s hand-typed import dict held 13
+keys and 40 edges against a real **118 and 546**, and 12 of its 13 keys were wrong — worse, wrong
+in a direction that reads as safe, recording four options modules as importing `statistics.py`
+when they import `options_stats.py`. **Measured across all 8,911 item pairs: 150 pairs it called
+safe to run in parallel are genuinely coupled, and 7 collisions it reported never existed.** It
+is now derived from the same graph MA59 uses — one definition, because two copies is the MA39
+defect. Bullet 4 ships three convention checks, each measured before being pinned; the artifact
+already reads **530** all-domain trials against the log's **531**, which is the drift the audit
+says happened twice in a week, caught on the check's first run.
+
+**ROUTED TO DON, and it is the policy working rather than failing:** MA60's remaining bullet asks
+to split the land gate, which means editing `.github/` — and MA11's land policy, landed by this
+lane the day before, **refuses any branch that touches `.github/`**. Weakening it would be
+silencing a check to make a run green. The judgement half ships derived in
+`scripts/suite_manifest.py`, so applying it is a two-line workflow edit. It also corrects the
+audit: **14 of 94 suites** are pure register pins, not the large tail implied, because most
+closed studies' pin tests import a live module too.
+
+**STATUS OF INFRA ON AUDIT #3 — AND THIS IS A CORRECTION TO THE TASK'S OWN FRAMING, MADE BEFORE
+CLAIMING OTHERWISE.** MA59 and MA60 were handed to this lane as "infra's last two", and they are
+landed — MA59 DONE, MA60 PARTIAL with its residual named, mechanised as far as a branch can take
+it, and routed. **But infra is NOT closed on audit #3, because MA21 and MA23 are still OPEN, and
+they are precisely the Pass A parents of the two rows just done** (the audit says so itself:
+*"Pass A's MA23 established the principle … Pass B supplies the specific list (MA59)"*, and MA21
+names the class MA60 mechanises). Both are MEDIUM, one process and one simplification.
+
+They are **substantially advanced and deliberately not closed here.** MA59 draws the boundary
+MA23 asks for — but MA23 also names the `options-bot/` tree, which this lane did not touch. MA60
+mechanises one of MA21's three named manual steps (refreshing `BACKTEST_RESULTS.json` after `N`
+moves is now detected, in the safe direction); `sync.bat` belongs to MA20, and re-reading
+`by_domain` after a merge is still unchecked. **Closing either row on this evidence would be the
+multi-item-commit-donates-a-verdict trap MA60's own bullet 1 warns about**, so they stay OPEN
+with the work recorded against MA59/MA60 where it was actually done.
+
+Two human-only items remain, both now recorded together in `HANDOFF_ci.md` §10.4: the GitHub
+ruleset protecting `.github/**` (MA11's residual) and the land-gate split above.
+
+**Verification.** `test_ma59_quarantine.py` 11/11, `test_ma60_conventions.py` 10/10,
+`test_build_ledger.py` 20/20, **6 of 6 mutations caught**, full local gate green before pushing.
+
+---
+
+## 2026-08-16 - infra lane (r1): the repo went PUBLIC, and the visitor-facing docs are now true
+
+**Zero trials**; equity `N` stays **224**. Ledger row `PUBLIC-DOCS`. Full write-up:
+`HANDOFF_ci.md` section 11.
+
+**READ THIS FIRST, IT IS NOT A DOCS ISSUE. `LAUNCH_CHECKLIST.md` and `GO_LIVE.md` were TRACKED
+and public.** They are internal business planning - a **separate LLC by name**, entity
+structuring to ring-fence liability, and a **securities-law risk posture about this product**.
+Both are now **untracked and gitignored, and both files remain on disk**. **This stops them being
+served going forward and does NOT remove them from public git history.** Only making the repo
+private again, or rewriting history and force-pushing, does that. **It is Don's decision and this
+lane did not take it.** `LAUNCH_CHECKLIST.md` has been in the repo since 2026-07-24.
+
+**Also for Don: there is no `LICENSE` file**, so default copyright (all rights reserved) applies.
+Defensible for a portfolio repo, but it was implicit; the README now states it. Choosing a
+licence is his call.
+
+**The README was three months and three audits stale.** It described the DCF engine well, was
+**silent on four of the five product surfaces**, and its roadmap still listed the point-in-time
+backtest as the top unbuilt item months after 224 equity trials had been charged against it.
+Rewritten around **what each surface actually claims**, since they do not carry equal evidence:
+the screener is the one measured claim; the Valquo Index is a paper track with **no verdict
+before 2031**; the Dip Detector's return claim is **NULL** while its risk claim is measured; and
+the options entry signal is **measured and negative**. Every figure was re-derived from
+`BACKTEST_RESULTS.json`, both sides of the HLZ-vs-calibrated-floor tension are stated, and
+`tests/test_public_docs.py` now asserts the README against the artifact so it cannot drift again.
+Paper-track dates are **derived** from `track_meter`, never quoted.
+
+**A CORRECTION TO `CLAUDE.md` FOUND WHILE VERIFYING: "THE LIVE PRODUCT SCORES A FOUR-THEME BOOK"
+IS SUPERSEDED.** `FIDELITY-2` rebuilt `institutional` and `insider` to the panel's definitions and
+both cleared the fidelity gate (+0.9190, +0.8726), so **all seven weighted themes reach a live
+score**. That was the most quotable honesty caveat the project had and it is no longer true - the
+README does not repeat it.
+
+**`DATA_AND_METHODS.md` was a private consulting memo** in the second person, naming a specific
+university as the data route, recommending data already bought, and listing three shipped
+capabilities as "to add". De-personalised and corrected. The empty GitHub repo description was
+set. Two sibling-project links were relative paths and one named a repository that does not
+exist; both are absolute URLs and a test forbids the pattern.
+
+**Verification:** `test_public_docs.py` 17/17, **6 of 6 mutations caught**, full local gate green.
+
+---
+
+## 2026-08-16 - infra lane (r1): the licensed-data question, ANSWERED; MIT adopted; history decision recorded
+
+**THE SHARADAR EXPORTS WERE PURGED AND ARE NOT IN THE PUBLIC REPOSITORY.** Commits `4376560`,
+`e0a0732`, `4f01655` did add `data/backtest_med` and `data/backtest_test` - fundamentals, ~1.43M
+insider rows, institutional holdings, hundreds of price CSVs - and a history rewrite removed them
+on **2026-07-28 07:35:40**. Five independent checks, all reproducible from
+`HANDOFF_ci.md` section 12: the commits are contained only in two **local** backup refs; none is
+an ancestor of `origin/main`; **zero** commits on any origin ref touch either path; **exactly one
+file has ever been added under `data/` in published history** (`data/.gitignore`); and the
+**GitHub API returns HTTP 422 "No commit found"** for all three, by abbreviated and full SHA.
+**The API check carries a positive control** - the root commit `2971f71` resolves through the
+identical call - so the 422s mean the objects are absent, not that the probe is blind.
+**No `filter-repo` is needed.**
+
+A broader sweep found **no vendor data anywhere in published history**: the only data-shaped
+files are four `data_export/*.csv` (Valquo's own paper-track output) and three source-recovery
+zips containing zero data entries.
+
+**THE REAL GAP WAS THAT NOBODY WROTE IT DOWN.** The rewrite is in no ledger row, handoff or commit
+message - the only trace was a local branch name, which is why the question kept recurring. It is
+recorded now, and `tests/test_public_docs.py::NoLicensedDataIsTracked` makes the **next**
+accidental commit fail before it can be pushed.
+
+**DECISION (Don): the two business docs STAY in history.** Untracked going forward, not rewritten
+out - business-plan notes for a free tool, not credentials or vendor data, and a force-push costs
+every terminal a re-clone and breaks eleven worktrees against a near-zero risk. Recorded so it is
+a choice rather than an oversight. **The asymmetry is the point:** the licensed-data case would
+have justified that same operation and turned out not to need it.
+
+**DECISION (Don): MIT**, (c) 2026 Donovan Corbin, referenced from the README - **with a scope
+note that is not boilerplate.** MIT grants rights over the holder's own work, and this repo
+publishes figures derived from licensed vendor data, so a bare MIT header would purport to grant
+rights that are not Don's to grant. The note scopes MIT to the source and states that
+`BACKTEST_RESULTS.json` and `data/free_analysis/` are a record of what was measured so the claims
+can be checked, not a redistributable dataset. Ledger rows `DATA-HISTORY` and `PUBLIC-DOCS`.
+
+## PT-WRITER 2026-08-17: could not write today's row — the Cowork lane still cannot reach either vendor, and the Action that replaced it has pushed nothing
+
+**NO ROW WRITTEN. NO PRIOR ROW TOUCHED. NO NUMBER GUESSED.** Ran the documented mechanism
+(`PAPER_TRACK_CONTRACT.md` §7.2a, `python -m scripts.track_row --append`) from the Cowork
+recorder lane after Monday's close. It exited **2** and refused, verbatim:
+
+    REFUSED: the benchmark SPY could not be priced on the inception 2026-07-30 (a benchmark
+    gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)
+
+**This is the 2026-08-14 refusal reproduced character-for-character**, three days and one
+structural fix later.
+
+**THE ROW WAS GENUINELY DUE, AND THAT IS ESTABLISHED BY THE REFUSAL'S OWN POSITION IN THE
+CODE RATHER THAN ASSERTED.** `contract_row` checks in order: book readable (`index_mark.py:186`),
+session closed (`:231`, `:245`), trading day (`:250`), mark after inception (`:253`), *then*
+benchmark pricing (`:267`). The refusal came from `:267`, so every gate before it PASSED — the
+book read, 2026-08-17 is a trading day, and the session had closed. The failure is pricing and
+nothing else.
+
+**APPEND-ONLY, PROVED NOT PROMISED.** `data/valquo_track_history.csv` was snapshotted before the
+run and `cmp` reports it **byte-identical** afterwards. Last row remains **2026-08-13 (day 10)**.
+
+**ROOT CAUSE RE-VERIFIED INDEPENDENTLY OF THE SCRIPT**, because "the script refused" and "the
+network is blocked" are different claims and only the second is actionable. Direct `curl` from
+this lane:
+
+| endpoint | result |
+|---|---|
+| `https://stooq.com/q/d/l/?s=spy.us&i=d` | `curl (56) Received HTTP code 403 from proxy after CONNECT` |
+| `https://query1.finance.yahoo.com/...` | `curl (56) 403 from proxy after CONNECT` |
+| `https://query2.finance.yahoo.com/...` | `curl (56) 403 from proxy after CONNECT` |
+
+Both shipped vendors, all three endpoints, proxy-refused. `PR_pt_writer_action.md` already
+called this structural — *"rescheduling, retrying, or adding a fallback vendor cannot fix it"* —
+and tonight is the fourth consecutive weekday it has held.
+
+**2026-08-14 IS NOW A PERMANENT LOGGED GAP AND WAS DELIBERATELY NOT FILLED.** Friday's row was
+never written and today is the following week, so §3's same-week late-write clause has expired.
+Gaps are logged, never filled. `--date 2026-08-14` was NOT run.
+
+### The replacement mechanism has not taken over, and that is the finding
+
+`.github/workflows/track-row.yml` landed **2026-08-16** (`0e0e86d`, PR #1) to move this job to a
+runner that can reach the vendors. Measured tonight at 20:0x ET, after both of its crons
+(22:12 UTC primary, 23:37 UTC backup, both already past):
+
+* `origin/main` is **`eb80e0e`** — Don's `sync.bat` commit at 20:02, nothing from the writer.
+* **Zero commits from `pt-writer[bot]` exist anywhere in the repository.**
+* No `Track: daily row 2026-08-17` and **no refusal note either** — and the workflow is written
+  so that a refusal *must* push a note. Silence from it is therefore not "it refused"; it is the
+  job not having run, or having failed before its first step.
+
+This is consistent with the billing failure already on record — `track-backup` failed 2026-08-16
+(run `31932667751`, 3s, *"recent account payments have failed or your spending limit needs to be
+increased"*) — but **this lane did not verify that**: `api.github.com` is proxy-refused here too,
+so the Actions tab could not be read. **Reported as unconfirmed, and it needs Don.**
+
+### A latent defect in that Action, measured rather than predicted
+
+**Even on a runner that reaches both vendors, the workflow as written cannot produce a row.**
+`.gitignore:33` ignores `/data/` with no negation, and `git ls-tree -r origin/main -- data/`
+returns **zero paths**. So on a fresh `actions/checkout@v5`:
+
+1. `data/valquo_track.json` — the book — **does not exist**, and `contract_row` refuses at
+   `:186` (*"the book file ... is missing or unreadable"*) before it ever reaches a vendor.
+2. `data/valquo_track_history.csv` does not exist either, so the guard reads `already=false`
+   and the snapshot step falls through to its empty-file branch.
+3. Had a row somehow been produced, `git add data/valquo_track_history.csv` would refuse an
+   ignored path anyway.
+
+All 166 lines were read; **no step restores `data/` from any source**. So the Action's only
+reachable outcome is the refusal branch — a nightly pushed note about a missing book, which is
+not the failure anyone would go looking for. The bound series is gitignored by the project's own
+hard rule on `data/`, so this needs a deliberate decision (the `/admin/track-row?append=1`
+off-box door, or the `data_export/` path that `track-backup` already uses), not a one-line fix.
+**Flagged, not fixed** — `.github/` is outside this lane and `MA11`'s land policy refuses agent
+branches that touch it.
+
+### One observation on the record, offered without a verdict
+
+The local bound series carries **2026-08-13 → `4.25, 4.88, -0.62`** at 2dp, where every other row
+is 4dp. The last authoritative pull of the live service, `data_export/valquo_index_track.csv`
+(weekly `track-backup`, last success 2026-08-09), **ends at 2026-08-06** and does not contain it.
+The §7.2a re-derivation for that same date, recorded in `CLAUDE.md`, reads `4.3232 / 4.8794 /
+-0.5562`. Three sources, three different pictures of one date. **Not adjudicated here** — this
+lane wrote nothing and has no standing to decide which is the record.
+
+### What this lane recommends
+
+The Cowork recorder cannot do this job and four weekdays of identical refusals say so. Either
+allowlist `stooq.com` + `query1.finance.yahoo.com` for the sandbox, or **retire the desktop task
+and make the Action work** — which needs the billing question answered *and* the gitignored-book
+defect above resolved. Until one of those happens, every weekday produces a note instead of a row.
+
+Ledger row `PT-WRITER` stays **BLOCKED**.
+
+## PT-WRITER 2026-08-18: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the book file /app/data/valquo_track.json is missing or unreadable","row":null}
+    
+
+## PT-WRITER 2026-08-18: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the book file /app/data/valquo_track.json is missing or unreadable","row":null}
+    
+
+## PT-WRITER 2026-08-18: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 000000 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    

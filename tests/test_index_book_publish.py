@@ -301,6 +301,11 @@ def test_the_set_of_things_that_consume_the_book_path_is_what_we_think_it_is():
         "valuation/edge/paper_track.py",       # mention only (comment above the gate)
         "valuation/saas/index_book.py",        # this publisher (docstring reference)
         "backup_to_D.ps1",                     # backup allowlist, not a consumer
+        # TWO readers were added on 2026-08-17, by two lanes, independently, for the same SHAPE
+        # of question -- how much of the Index the options cache covers. Both are kept. That
+        # they collided here is the guard doing exactly its job: neither lane would otherwise
+        # have known the other was reading this path.
+        #
         # READER, added 2026-08-17, reconciled before adding: the options coverage census opens
         # the book ONLY to enumerate its tickers, and then asks a question about a DIFFERENT
         # object -- how many of those names have cached option chains. It never writes the path,
@@ -309,6 +314,13 @@ def test_the_set_of_things_that_consume_the_book_path_is_what_we_think_it_is():
         # the path as `--index`, so it reads whatever it is pointed at rather than resolving a
         # second opinion about where the book lives.
         "scripts/options_coverage_census.py",
+        # Added 2026-08-17 (DEEPITM-FIN), reconciled rather than allow-listed. It reads
+        # positions[].ticker as a MEMBERSHIP LIST -- to report how many Index names the options
+        # freeze covers (11 of 86) and to ship a no-verdict cell for them. It never writes the
+        # file, never treats it as a book, and never reads a weight, so it is not a second
+        # mechanism that could disagree with the first about what the Index IS. Research-only:
+        # nothing it computes reaches a live surface.
+        "scripts/deepitm_financing.py",        # READER — Index membership for a coverage report
         # READER, added 2026-08-18, reconciled before adding: Tier D of the chain harvest takes
         # the Index's names as a MINING SCOPE -- which symbols to ask the vendor about -- and
         # nothing else. It reads `positions[*].ticker` and discards every other field, including
@@ -317,6 +329,14 @@ def test_the_set_of_things_that_consume_the_book_path_is_what_we_think_it_is():
         # above, and for the same reason it is not a PT-SPLIT risk: the disagreement PT-SPLIT
         # was about is between two mechanisms that both claim to describe the BOOK, and this
         # one describes the option cache.
+        #
+        # THIRD independent collision on this list in two days, and the tally is the point: the
+        # Index's membership is the natural join key for "what does the options cache cover",
+        # so every lane asking a coverage question arrives here. None of the three is a
+        # PT-SPLIT risk, because a reader that takes only the ticker list cannot disagree with
+        # the writer about the book -- but the guard is what made three separate lanes notice
+        # each other at all, which is the whole reason it is a merge conflict rather than a
+        # silent append.
         "mine_deep_chains.py",
         "tests/test_edge.py",
         "tests/test_paper_track.py",

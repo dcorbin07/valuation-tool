@@ -72,7 +72,14 @@ def one(panel, cols, base, seed):
     cpcv = FP.cpcv_validate(pl, cols, base, halflife_days=HALFLIFE, horizon=HORIZON) or {}
     ad = cpcv.get("adopt_detail") or {}
     margin, se = ad.get("margin"), ad.get("se")
-    n_names = 9                                          # 8 schemes + current-default
+    # AUDIT MA49(c). This read `n_names = 9  # 8 schemes + current-default`, and the comment
+    # states its own error: `_weight_schemes` returns EIGHT candidates and `current-default` is
+    # already one of them (measured: current-default, equal-weight, ic-ir, ic-proportional,
+    # ic-shrunk-50, max-ir-decorr, positive-equal, risk-parity). So the reconciliation's `n = 8`
+    # curve point was scored at sqrt(2*ln 9) = 2.0963 rather than sqrt(2*ln 8) = 2.0393.
+    # DERIVED, not corrected to a second literal, because a hand-typed count is what went wrong.
+    n_names = len(FP._weight_schemes(np.zeros(1), np.ones(1), np.eye(1), ["_"],
+                                     {"_": 1.0}, {"_": 1.0}))
     row = {"seed": int(seed), "adopt_as_run": bool(cpcv.get("adopt")),
            "recommend": cpcv.get("recommend"), "margin": margin, "se": se,
            "folds_positive": ad.get("folds_positive"),

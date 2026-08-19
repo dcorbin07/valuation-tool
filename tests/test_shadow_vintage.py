@@ -146,10 +146,16 @@ def test_param_keys_are_the_registered_set():
     `same_model` would report no change while the live book demonstrably changed. The key
     records what actually reaches a score, which is what the declared weights were silently
     assumed to equal. It changes no score.
+
+    IT FIRED AGAIN ON 2026-08-13, for the S14 adoption, which added `no_trade_band`. Unlike
+    `themes_scored_live`, that key WAS pre-registered -- `PREREG_s14_adoption.md` §5, committed
+    alone before the wiring existed. Same justification in a new costume: the band changes no
+    weight and no theme, only WHICH RANKED NAMES BECOME THE BOOK, so without the key vintages 3
+    and 4 hash identical and `same_model` reports no change while the book demonstrably changed.
     """
     assert SV.PARAM_KEYS == ("theme_weights", "sector_neutral", "residual_momentum",
                              "ev_point_in_time", "large_cap_min", "top_decile", "max_weight",
-                             "weighting", "top_n", "themes_scored_live")
+                             "weighting", "top_n", "themes_scored_live", "no_trade_band")
 
 
 # ------------------------------------------------------------------ divergence
@@ -253,11 +259,19 @@ def test_detail_is_not_vacuously_green_now_that_a_pair_exists():
     property under test is unchanged and is now the stronger one — a pair is open and there is
     still no verdict, because no complete month has elapsed. A shadow pair that has not crossed
     is the EXPECTED outcome and is not evidence the adoption was worthless.
+
+    REWRITTEN AGAIN 2026-08-13 (S14 adoption), and this time to stop it needing a rewrite. It
+    asserted the literal pair `live 3 / shadow 2`, so opening vintage 4 failed it — a legitimate
+    vintage event breaking a test that exists to catch something else entirely. It now pins the
+    DERIVATION: whatever the open vintage is, it is shadowed by its immediate predecessor. That
+    holds for every future adoption without edit.
     """
     d = SV.detail()
+    cur = TM.current_vintage()["vintage"]
     assert d["n_pairs"] == 1 and len(d["pairs"]) == 1
-    assert d["pairs"][0]["live_vintage"] == 3 and d["pairs"][0]["shadow_vintage"] == 2
-    assert d["current_vintage"] == TM.current_vintage()["vintage"]
+    assert d["pairs"][0]["live_vintage"] == cur
+    assert d["pairs"][0]["shadow_vintage"] == cur - 1
+    assert d["current_vintage"] == cur
     assert "no verdict of any kind is available" in d["status"]
 
 

@@ -4344,3 +4344,735 @@ time this project's directional calls have failed in a row where the register sa
 3. **The live Form 4 parser exposes unsigned values only**, so a naive sum is gross turnover.
    Worked around with a signed parser; the shipped parser is unchanged and still correct for its
    own purpose.
+
+---
+
+## Part 19 — S14 ADOPTED: THE NO-TRADE BAND AT 0.30, AND IT HAD NEVER BEEN APPLIED TO A LIVE BOOK (2026-08-13, greeks lane)
+
+Don adopted S14 — the no-trade band at width **0.30** — on its double-clear (session 35 +
+S14-WIDTH). Executed as a vintage event. `PREREG_s14_adoption.md` committed **ALONE at `793f777`**,
+one `.md` and zero `.py`, before any wiring existed.
+
+### The finding that reframed the task
+
+The S14 ledger row said *"the band is ALREADY LIVE in the taxable configuration, so an adopt would
+change the DEFAULT rather than introduce the band."* **That is false, and it was verified false
+before the register was written.** `exit_frac` was consumed live in exactly three places and none
+of them applied it:
+
+| site | what it did |
+|---|---|
+| `valquo_index.py:306` | wrote it into the payload as metadata |
+| `valquo_index.py:358` | printed it in the CLI banner |
+| `web/app.py:331` | displayed it |
+
+The only code that had ever *applied* a band was the backtest. `build_index` was a pure top-N
+selection with **no band and no notion of a held name**, and `valquo_index.py:298` said so: the
+band *"requires the PREVIOUS book, so it is applied at rebalance time, not in this snapshot"* —
+emitted as an **instruction for a human rebalancer** rather than executed.
+
+**So this adoption wired the band into live construction for the first time.** The `taxable`
+config's declared 20% band had never affected a book anyone received, and the fidelity gate was
+load-bearing rather than ceremonial.
+
+### The construction-fidelity gate — PASSED
+
+The rule moved to `valuation/edge/no_trade_band.py` and **both callers import it**, so
+`fundamental_panel._band_select` **is** `no_trade_band.band_select` — one code object, not two
+equivalent implementations. Pinned by an identity test.
+
+The **live entry point** (`build_index`) was then applied to the panel's most recent cross-section:
+
+* **184 names, identical set AND identical order**;
+* **0 mismatches across all 69 dates**;
+* exact composite ties at the gate date: **0**, so no argsort ambiguity.
+
+**Non-vacuity is asserted, not hoped for.** With no held set both paths collapse to plain top-N and
+the comparison proves nothing, so the band is **chained across all 69 dates** exactly as
+`turnover_and_costs` chains it. At the gate date the banded book differs from plain top-N by
+**65 of 184 names**, with 65 retained — and the run **aborts** if that is not so.
+
+### Where it applies, and where it deliberately does not
+
+S14 measured the **decile** book. `exit_frac` is a fraction of the ranked **universe**, meaningful
+for a decile book and not for a fixed-N one — on a 25-name book against a large universe it would
+hold nearly every name nearly forever, and the panel's own comment says `exit_mult` is the only
+band meaningful for a fixed-N book. So **`taxable` moves 0.20 → 0.30 and `roth` stays band-less**.
+A banded top-25 book is a construction nobody has measured; shipping one would borrow S14's
+evidence for it.
+
+### Vintage 4 — derived, not assumed
+
+Per **PT-GAPDUE**, `current_vintage()` returned **vintage 3, opened 2026-08-11**. The FIDELITY-2
+amendment clause is explicitly self-limiting — it amends in place only at **zero** accrued complete
+days and *"stops applying the moment vintage 3 has accrued one complete day."* Vintage 3 had
+accrued **two**, so the clause did not apply, Amendment 1's ordinary rule resumed, and **vintage 4
+opened 2026-08-13**. That this agrees with Don's instruction is checkable rather than coincidental.
+
+**Rule 6 is paid in full and not hidden:** the accrued forward clock resets to zero and vintage 3's
+two days are spent.
+
+### The first shadow pair is open
+
+V1 shipped as instrumentation with **no pair to measure** — that was the point. The pair **4 over
+3** is now live, and **vintage 3's parameters were pinned two days before this adoption was known
+about**, so the predecessor is a genuine snapshot rather than a reconstruction.
+
+`no_trade_band` was added to `PARAM_KEYS` — **pre-registered this time**, unlike
+`themes_scored_live` — because without it vintages 3 and 4 hash **identical** (the band changes no
+weight and no theme) and `same_model` would report no change while the book demonstrably changed.
+**Exactly one key separates the pair**, which is the honest description of this adoption: it
+changes selection, not scoring.
+
+Vintage 3's published `params_id` stays **24878e43a1e3** and vintage 2's stays **0060c5ef3dda** —
+neither retroactively rewritten. Vintage 4's pin is a **literal 0.30, not an import**, because a
+pin records what a vintage *was*: importing the constant would let a future width change rewrite
+vintage 4's history **and make vintages 4 and 5 hash identical**.
+
+### Display honesty
+
+* A retained name carries **"held - challenger within band"** in the why-attribution, at row level
+  and in the owner index block.
+* `vintage_label()` (derived, so it cannot drift) now reads: *"Book vintage 4 since 2026-08-13
+  (no-trade band, width 0.30); vintage 3 runs in shadow."*
+* A new `headline_scope` block states the published backtest figures were measured **without** a
+  band. **The `method` string is unchanged** and still describes the validated composite, because
+  S14's evidence is a held-out **difference**, not a re-measured level.
+
+### Two further divergences found and fixed — the same disease
+
+`/api/valquo-index` and `unified._index_membership` each **rebuilt the book with no band while
+publishing a config block advertising one**, so they would have served a *different book from the
+exported Index under the same name*. Both now apply the same band through the same imported rule.
+
+The config block itself is now built in **one place**: `export()` and the route each carried their
+own copy of `band_note`. One would have been corrected and the other left telling readers to apply
+the band by hand — after which it would have run **twice**.
+
+### Reported, not gated and not fixed
+
+* **The live book-size rule differs from the panel's** — live rounds and floors at `MIN_NAMES`, the
+  panel truncates — so they disagree on **32 of 69 dates**. That predates the band and is not
+  something S14 changed, so it is measured and recorded rather than folded into this adoption.
+* **Three pre-existing malformed ledger rows** (`S23`, `M1-PARSE`, `V2G`) carry unescaped pipes and
+  are refused by `build_ledger.py`'s fail-closed guard. Verified present on `origin/main` and
+  untouched by this work. `id` and `status` still parse correctly, so "is X done?" is unaffected;
+  the shift hits later columns only. Left for the lanes that own them.
+* **The `taxable` config's `measured` figures were measured at width 0.20 and are NOT restated** —
+  no run has measured that config at 0.30. They now ship beside an explicit `measured_width` so
+  the two cannot be conflated.
+
+### Six tests had frozen a vintage number
+
+They failed on a legitimate vintage event — including one named
+`test_no_fourth_vintage_was_opened`, which was a true statement about FIDELITY-2's own day rather
+than an invariant. All were rewritten to pin the **derivation** rather than the literal, the lesson
+this codebase had already learned once.
+
+**One of them had been rendered VACUOUS rather than red:** a gap-report test skipped the literal
+date `2026-08-13`, which became the new inception — so the skip stopped matching any row and the
+test asserted a gap report with nothing missing.
+
+### Expectations — 1 right, 2 wrong
+
+1. Gate passes first time (40/60) — **WRONG**, it passed.
+2. Fewer than 20% of names change (70/30) — **WRONG**: 65 of 184, **35.3%**.
+3. At least one further defect in the live path (60/40) — **RIGHT**, three.
+
+### State
+
+Equity `N` **unchanged** — an adoption searches nothing. 37 new tests; full gate **67 suites, 0
+failures**.
+
+### The open item this leaves
+
+**The band's effect begins at the SECOND rebalance.** With no previous book on disk there is
+nothing to hold, so the first export after this ships is necessarily a plain top-N book. That is
+correct rather than degraded, and `no_trade_band.applied` records which happened — but nobody
+should read the first book and conclude the band is not working.
+
+---
+
+## Part 20 — THE SCREAM-BUY RECORD REBUILT: AN ARCHIVED RESET, NOT A WIPE (2026-08-13, greeks lane)
+
+Don's direction, `PROMPT_dip_detector_and_screamtrack.md` item 2: *"the options scream buys track
+record wiped, and include target sale, price bought in, and current price, same as our paper
+account tracks."* This is the backend half — schema, archive, status vocabulary and the read-time
+quote. The rendering is the app fixer's; the field contract it consumes is at the end of this
+part and repeated in `HANDOFF_appfixes.md`.
+
+New module `valuation/edge/scream_log.py`, 14 test groups in `tests/test_scream_log.py`.
+
+### THE FINDING THAT DECIDES HOW THE RESET HAD TO BE BUILT: THE RECORD IS NOT HERE
+
+**Every local database holds ZERO scream-buy alerts.** Measured, not assumed:
+
+| database | `option_alerts` rows |
+|---|---|
+| `.scan-cache/screener.db` | 0 |
+| `data/screener.db` | 0 |
+| `data/live_cache/served.db` | 0 |
+| `data/app.db` | table absent |
+
+The real record lives in SQLite on the Render web service's persistent disk — the same fact
+`track-backup.yml` exists to work around, and the same class as the memory note that the local
+scan archive is entirely test output. **So the reset could not be executed here, and no code path
+was written that pretends otherwise.** What shipped is the machinery plus a CLI; running it
+against the live record is the one step still outstanding, named at the end of this part.
+
+This also means a "did the archive capture anything?" check that merely counts rows would pass
+vacuously on this machine. `archive_record` returns a manifest with `n_rows`, `n_by_status` and
+`n_by_epoch` so an empty archive is *visibly* empty rather than quietly successful — LA2's
+lesson, where a relative guard could not catch a quantity that was always zero.
+
+### THE RESET ARCHIVES, AND THEN DOES NOT DELETE EITHER
+
+A silent wipe is the one thing this project must never do, and Don's own prompt says *"ARCHIVE,
+never delete."* But **archive-then-delete still destroys the rows**, and a dated JSON file is a
+strictly weaker object than a database row — it cannot be queried, joined or scored.
+
+So the reset **stamps an epoch** and starts a new one. `record_epoch` says which era a row belongs
+to; the prior record stays in `option_alerts`, queryable and scoreable, forever. This is the
+reasoning `paper_index_closed` already carries in this codebase: rows leave a book when they do
+badly, so erasing them flatters what remains.
+
+* `reset_record()` writes the archive **first** and moves the epoch **only if that succeeded** —
+  the other order leaves a reset record with no archive, which is the silent wipe itself. Pinned
+  by a test that makes the archive directory unwritable and asserts the epoch did not move.
+* A second reset on the same day **cannot overwrite the first archive** — it takes a `-2` suffix.
+  Overwriting would destroy exactly what the function exists to preserve.
+* A NULL `record_epoch` reads as the **original record**, never as "unknown". Rows written before
+  this module existed are precisely the original record.
+* The register note is Don's wording with two substitutions, so the repo and the tab cannot drift:
+  *"record reset {date} at Don's direction; prior record archived at {path}; reason: predates the
+  corrected alert stack (B1 price basis, C-series fixes) and lacked entry/target/current fields"*.
+  It is stored in store meta as well as in the file, so the footer renders without needing to find
+  a file that lives on the service's own disk.
+
+### THE STATUS IS DERIVED, NOT STORED — A DELIBERATE DEPARTURE FROM THE LITERAL ASK
+
+The prompt asks for *"a status field the close path maintains"*. **It is derived instead**, and
+the reason is worth carrying:
+
+1. The close path already maintains two fields the status is a pure function of (`status`,
+   `exit_reason`). A third, stored, is a copy that can disagree with them — the B7 disease in
+   miniature.
+2. **Deriving answers a case storing cannot.** An alert whose contract simply EXPIRED with nobody
+   closing it keeps `status='open'` forever, because no close path ever ran on it. A stored field
+   would read **LIVE for a contract that has not existed for months**. `display_status` reads
+   EXPIRED off the expiry date with no write required.
+
+**THE TRAP THIS VOCABULARY WALKS INTO, AND THE TEST THAT HOLDS IT: `"time_stop"` CONTAINS
+`"stop"`.** A substring match that checked `stop` first reports every scheduled close as a
+stop-out — and a strategy that closed on schedule would be recorded as one that got stopped out,
+which is the opposite claim about expectancy. Matching is on the **leading token**, and audit
+B5d's `" [pnl vs fill]"` suffix is stripped rather than tripping the mapping.
+
+An unmapped close reason (`record_outcome` writes `"no entry premium"` for an unscoreable close)
+reads **`CLOSED (unscoreable)`**, never LIVE. Forcing it into one of the five would be a lie, and
+reading it as LIVE would put a closed trade back in the book.
+
+**The coverage test is vacuity-proof:** it parses `paper_track._exit_decision` out of its own
+SOURCE with `ast`, collects the literal strings it can return, and fails if any lacks a status —
+plus an assertion that the enumeration found at least four tokens, so it cannot pass by seeing
+nothing. That is M3's finding applied: a registry-driven guard cannot see an unregistered value.
+
+### CURRENT PRICE IS NEVER PERSISTED
+
+Don asked for it on the row; it is on the row, fetched at **read** time and marked stale. Nothing
+in this module writes it. **A stored "current" price is a price that was current once, and it
+begins lying the moment it is written.**
+
+* `attach_live_marks()` takes a `{occ_symbol: quote}` map in exactly the shape
+  `PaperBroker.quotes` returns — the same convention the paper track already marks against, so
+  there is one quote convention and not two.
+* **Absent is not fresh and is not zero.** A missing quote, or a quote carrying no timestamp,
+  reads `current_premium_stale: True` with a `None` price. The failure that matters is a
+  months-old price rendered as today's.
+* **Tradier reports epoch MILLISECONDS.** Reading them as seconds dates every quote to 1970 and
+  marks it stale forever — fail-safe, but it would make the staleness flag useless rather than
+  informative. Handled and pinned.
+* `live_quotes_for()` quotes **only LIVE contracts**, so the broker fan-out does not grow by one
+  call per historical alert forever, and it degrades to stale marks on an outage rather than
+  taking the tab down.
+
+### ONE DERIVATION OF THE EXIT LEVELS, AND IT REMOVED A DUPLICATE
+
+`paper_track` had the target/stop arithmetic written out **twice** — inline in `_place_entry` and
+again in `_levels_from`. That is how a corrected level and an uncorrected one come to coexist,
+which is the exact defect session 16 found in these same exit levels. Both now call
+`scream_log.levels_for`, and a test asserts the inline form is gone from the source.
+
+`levels_for` returns `{}` for a missing or non-positive entry rather than zeros: a target derived
+from no entry price is not a level, and the caller must be able to tell "no policy could be
+applied" from "the target happens to be 0".
+
+**The +100% target is a DEFAULT, not a constant.** An alert that logged its own policy keeps it —
+which is the whole reason the policy is stored on the row rather than read from settings at
+display time. A later change of policy must not retroactively re-price old alerts.
+`policy_is_default` says which happened.
+
+### M6's SCHEMA GUARD, ON THIS PAYLOAD
+
+`records()` raises `PayloadSchemaError` if a stored column reaches the projection unaccounted
+for. It iterates the columns the **database actually returned**, not a registry, so a column added
+to `option_alerts` by any lane is loud until somebody decides in a diff whether the tab carries
+it. Every `_RECORD_ALLOW` entry carries its reason; an entry without one should be read as a bug
+in that table, not a settled decision.
+
+Tested both ways: a column added behind the projection's back fails the run, **and** the guard is
+shown to be inspecting 25+ real columns, so it is not passing by seeing nothing.
+
+### FIELD CONTRACT FOR THE APP FIXER
+
+`from valuation.edge import scream_log as SL`
+
+* `SL.records(store)` → rows. `SL.RECORD_FIELDS` is the authoritative name list:
+  `alert_id, alert_ts, ticker, occ_symbol, opt_right, strike, expiry, entry_premium,
+  target_premium, stop_premium, target_pct, stop_pct, policy_is_default, dte_at_alert,
+  dte_remaining, status, exit_reason, exit_premium, exit_ts, pnl_pct, record_epoch,
+  underlying_price, score, horizon, contract_source`
+* `SL.attach_live_marks(recs, SL.live_quotes_for(recs))` adds `SL.LIVE_FIELDS`:
+  `current_premium, current_premium_ts, current_premium_stale, current_premium_age_seconds,
+  current_premium_source, pnl_pct_live`
+* `SL.record_summary(store)` → the footer: `epoch`, `n_current_epoch`, `n_prior_epochs`,
+  `n_by_epoch`, `reset` (the manifest + register note, `None` if never reset), `statuses`,
+  `stale_after_seconds`.
+* Statuses are exactly `SL.ALL_STATUSES`: **LIVE, HIT TARGET, STOPPED, TIME-STOPPED, EXPIRED,
+  CLOSED (unscoreable)**.
+
+**Three things not to do with these.** `dte_at_alert` and `dte_remaining` are different
+quantities and must not be rendered as one. `entry_premium` is the ALERT-TIME premium, which is
+not the paper track's broker FILL — the two books are different objects and session 16 exists
+because they were conflated. And `current_premium_stale` must be shown when true; a stale mark
+rendered bare is the failure this design is built around.
+
+### WHAT IS NOT DONE, AND WHOSE IT IS
+
+* **THE LIVE RECORD HAS NOT BEEN RESET.** It cannot be from here — see the first section. The
+  step is `python -m valuation.edge.scream_log --reset --out-dir data_export` **on the service**,
+  or an admin route calling `SL.reset_record(store, out_dir)`. The route is the web lane's, and
+  the archive file it writes lands on Render's disk, so it needs exposing through the same
+  `/admin/export-track` path the backup Action already uses if it is to reach the repo. Until
+  that runs, the tab shows the ORIGINAL epoch — which is correct, not broken.
+* The reset is deliberately **not** wired into any scan. It is a dated act on Don's direction and
+  takes an explicit flag.
+* `notify.log_scream_buys` was **not** edited — the epoch is stamped in `options_tracker.log_alert`
+  instead, so every caller of the logger lands in the right era without touching `saas/`.
+
+Full gate: **69 suites, 0 failures.**
+
+---
+
+# Part 21 — MASTER AUDIT MA1 + MA2 + MA3: the self-learning loop was armed, and is now disarmed (2026-08-14)
+
+**The one-line version.** A monthly GitHub cron could have changed the weights the live product
+scores names with, by writing a row into Render's database — no code commit, no diff, no review —
+and the vintage contract had no way to see it. It had never fired. Its next firing would have been
+**2026-09-01**. It is now disconnected in five places, and a learned weight can only ever ship the
+way S14 did: registered, gated, shadow-watched, Don-signed.
+
+## 0. What the audit found, link by link — every one of them real, shipped and tested
+
+```
+auto-scan.yml   - cron: "0 12 1 * *"          # monthly
+auto-scan.yml   curl -fsS -X POST "$BASE/admin/run-learning" ... || true
+config.py       learn_enabled: _get("LEARN_ENABLED", "true").lower() != "false"
+autolearn.py    store.save_learned(bucket, rec, stats, True, note)
+screen.py       est = (store.latest_learned_weights("established") ...) or S.WEIGHTS_ESTABLISHED
+test_edge.py    assert _effective_weights(st)[0] == learned
+```
+
+That last line is the part worth dwelling on. **The behaviour was PINNED BY A TEST**, so "a
+monthly cron can change the live composite" was not an accident anyone had overlooked — it was the
+tested, intended contract, which is exactly why it survived every previous review. Meanwhile
+`CLAUDE.md` roadmap #19 read *"**Later:** gated auto-apply of adopted weights"* and
+`BACKTEST_RUNBOOK.md` stated the architecture as *"the ONLY thing that travels to Render is the
+optimized weights … via a normal code commit."* **Two documents describing a world the code did
+not implement.**
+
+**Why it mattered more than "an unreviewed change".** `PAPER_TRACK_CONTRACT` §5a says an ADOPTED
+change to scoring, weights or construction closes the current vintage and opens the next. The
+vintage register is a literal tuple in Python source; `save_learned` writes a row to SQLite.
+**There is no path from one to the other.** So the composite would have changed while the forward
+track kept accruing under the old vintage — the exact condition Amendment 1 **voided vintage 1**
+for, and the thing three clock resets in four days were paid to avoid.
+
+## 1. The design, and the one decision everything else follows from
+
+**The refusal lives at `store.save_learned`, the single funnel every weight writer passes
+through** — the monthly learner, `/admin/adopt-backtest-weights`, and anything added later.
+Gating the callers instead is how there came to be **two** of them; at a funnel, the third writer
+someone adds is gated on the day it is written rather than the day it is noticed.
+
+Authorisation requires **both**, and each takes a commit:
+
+1. the **OPEN vintage** in `track_meter.VINTAGES` carries a `weights_adoption` entry naming the
+   bucket — the adoption registered *as* that vintage's event, which is what puts it under the
+   §5a clock and V1's shadow scoring; **and**
+2. **Don's signed row** in `PAPER_TRACK_CONTRACT.md` naming that same vintage:
+   `| Learned weights adopted | YES - vintage <n> - <date> |`
+
+**Both live in tracked source.** Reaching either takes a diff and the auto-land gate. Neither is
+reachable by a cron holding an admin token, which is precisely the hole MA1 found. Requiring both
+means neither a lane editing Python nor a human editing markdown can ship a weight alone.
+
+**The signature names a vintage on purpose.** A bare `YES` would authorise the first adoption and
+every later one forever — a signature that outlives what it signed. Tying it to the open vintage's
+NUMBER means the next adoption needs its own vintage and its own row, so Rule 6's five-year clock
+reset is paid consciously each time rather than once.
+
+**IT FAILS CLOSED IN EVERY DIRECTION**, because the asymmetry is not close. A wrong REFUSAL costs
+a month of not re-tuning weights that CPCV has declined to adopt on every run this project has
+ever done. A wrong ADOPTION silently invalidates the forward test — the only out-of-sample
+evidence there is, and five years to rebuild. Unreadable contract, absent register key, malformed
+row, hedged verdict, a signature naming a different vintage, zero OPEN vintages, two OPEN
+vintages, and **any exception at all** all read NOT AUTHORISED.
+
+**EVERY GATE IS EXERCISED IN BOTH DIRECTIONS.** A refusal that has only ever been shown to say no
+is indistinguishable from `return False`, so `authorisation()` takes an injectable register and
+contract path and a test drives it to AUTHORISED. V1's own register makes the same demand of
+itself (HARMED must be exactly as reachable as CONFIRMED-LIVE).
+
+## 2. The five items, and what each actually changed
+
+| # | Item | What landed |
+|---|---|---|
+| 1 | `learn_enabled` defaults FALSE, documented | `config.py`; documented in `ENV_REFERENCE.md`. The audit measured that `LEARN_ENABLED` appeared in **no** `.md`, `.yml`, `.example` or `.bat` file while defaulting ON. Its parse also flipped from *"anything except `false` is true"* to *"only `true` is true"*, so an unrecognised value now fails closed. |
+| 2 | Remove the trigger from the cron | Both the `learn:` job **and** its `- cron: "0 12 1 * *"` line are gone from `auto-scan.yml`. The removed `curl` is quoted in the comment that replaces it, so the next reader sees what was there rather than a gap. |
+| 3 | Adoption REFUSES unless registered | New `valuation/edge/weight_adoption.py`, enforced at `save_learned`. |
+| 4 | MA3's second writer, behind the same refusal | `/admin/adopt-backtest-weights` needs **no new gate of its own** — it calls `save_learned`. It now returns a **403** carrying the refusal, the authorisation detail and `would_have_adopted`, rather than a 500 from an uncaught exception. |
+| 5 | Verify production | **Could not be done from this lane** — see §4. A read-only `GET /admin/learned-weight-status` and a CLI now answer it in one call. |
+
+**The learner still runs.** It still searches, still logs what it found, still emails the owner.
+`run_learning` catches the refusal per bucket and records the outcome as a non-adoption carrying
+the reason, plus `would_have_adopted`. **The research keeps happening; only the live write is
+withheld.** Anything that does *not* catch the refusal gets an exception, which is the intended
+default for a writer nobody has thought about yet.
+
+## 3. MA2 — the gate itself: two defects repaired, two reported
+
+**(a) THE EQUAL-WEIGHT BASELINE WAS COMPUTED, QUOTED IN THE VERDICT, AND EXCLUDED FROM THE
+DECISION.** `optimize.py` computed `eq_oos`, wrote *"Recommended over equal-weight (OOS …)"* into
+the adopt verdict, and **`eq_oos` appeared nowhere in `accepted`**. So the learner could adopt
+weights that were **worse out-of-sample than the incumbent while saying in writing that they beat
+it** — this project's own named class (B8's `rule_fired`, LA5's `health` block), sitting in the
+one function that could move the live book. It is now a leg of `accepted`, failing **closed** when
+`eq_oos` is NaN, because an incomparable baseline is not a beaten one.
+
+**Measured, so this is not theoretical:** on 40 synthetic panels where 50/50 is the true optimum,
+the equal-weight leg binds on **19 to 29 of 40** depending on signal strength, and at least one is
+a **strict** loss rather than a tie. The test *requires* a strict loss — a tie would satisfy the
+leg while pinning the uninteresting half of it.
+
+**(b) THE NULL TREATED OVERLAPPING RETURNS AS INDEPENDENT.** `autolearn` reads **daily** snapshot
+dates and computes `fwd_ret` over **21 trading days**, so consecutive dates share 20 of 21 days of
+window — yet `_std_null` divided by the raw date count. The standard error was understated by
+roughly **√21 ≈ 4.6×**, turning a nominal 1.64σ bar into about **0.36σ**.
+
+Fixed as an `overlap_periods` **parameter, not a constant** — overlap is a property of the CALLER,
+and a blanket √21 would over-penalise a genuinely non-overlapping panel. **The default of 1
+reproduces the previous arithmetic to 1e-12, pinned by test**, so nothing silently re-calibrated.
+`autolearn` passes its real overlap, **estimated from the dates actually present** (median
+spacing, so one dead-scheduler gap cannot make the panel look independent): daily dates read ~21,
+weekly ~4.
+
+**THE KNOWN-BAD FIXTURE THE GUARD NEVER HAD.** The audit's sharpest point was that both existing
+tests feed **i.i.d. panels — the one world in which `_std_null` is correct**. So the guard had a
+clean fixture and no dirty one, which is M3's whole thesis. There is now one: genuinely
+overlapping windows with **no cross-sectional signal at all**, so every accept is a false
+positive. It asserts the corrected floor is strictly higher, the effective date count strictly
+lower, and the corrected accept count never exceeds the naive one.
+
+**REPORTED, NOT REPAIRED, with reasons.** (c) `oos_ic >= 0.5 × is_ic` is loosest when the signal
+is weakest. (d) The panel is built from the top 60 names **by the composite the current weights
+produce**, then weights are tuned on the IC inside that truncated set — range restriction on a
+variable derived from the thing being estimated. Both are design changes needing their own
+register, and neither can ship a weight now in any case.
+
+**THE AUDIT'S OWN KILL CONDITION IS HONOURED.** It says that if the corrected floor changes no
+historical adopt decision AND `learned_config` is empty, this is documentation-only. The table is
+empty in every database this lane can reach; production could not be checked. So (a) and (b) are
+recorded as **repairs to an arithmetic that was wrong on its own terms**, and explicitly **not**
+as changing any decision — no historical adopt decision is known to move, because none is known to
+exist.
+
+## 4. Item 5 — what I could and could not verify, stated as the difference it is
+
+**Local, measured:** `data/screener.db` holds `learned_config` with **ZERO rows and ZERO
+adopted**. `.scan-cache/screener.db` and `data/live_cache/served.db` do not exist. `data/app.db`
+has no such table.
+
+**Production: NOT VERIFIED — DISCHARGED 2026-08-15, see the RESOLVED block below. Kept as written
+because the distinction it draws is the reason the read was worth making.** The live record is
+SQLite on Render's disk and this lane has no token. **I have not established that nothing is
+overriding settings in production**, and I am not reporting that it is clean. What exists now is
+the means to answer it in one call:
+
+    GET /admin/learned-weight-status          (read-only, token-protected)
+    python -m valuation.edge.weight_adoption --status --db <path>
+
+It returns `n_adopted`, the row per bucket the scorer *would* have preferred, **with its
+`created_at` date**, whether each is authorised, and `clean: true|false`. Rows written by the two
+writers stay distinguishable — `/admin/adopt-backtest-weights` stamps
+`{"source": "historical_backtest"}`.
+
+**THE READ SIDE REFUSES TOO, AND REPORTS RATHER THAN REPAIRING.** `_effective_weights` now ignores
+an unauthorised stored adoption and falls back to `settings.WEIGHTS_*`. The row **stays exactly
+where it is**: an adopted row written before this gate existed is a live vintage violation, and
+the audit's instruction was to surface it with dates, not fix it quietly. Deleting it would
+neutralise the violation and leave the record looking clean through a window in which it was not.
+
+**If that endpoint comes back non-clean, it is a live vintage violation to report with dates —
+not something to tidy up.** It would mean the live book was scored on unregistered weights from
+the `created_at` date onward, and the forward track's accrued days for that window describe a
+model the register never named.
+
+### RESOLVED 2026-08-15 — IT CAME BACK CLEAN, AND THE REFUSAL PATH IS VERIFIED LIVE RATHER THAN ONLY IN TESTS
+
+Don ran it against production at **`2026-08-15T12:21:47Z`**:
+
+    store_readable: true    n_rows: 0    n_adopted: 0
+    overriding: []          violations: []            clean: true
+    established / speculative: authorised false
+    reason: "vintage 4 carries no 'weights_adoption' entry"
+
+**THERE IS NO LIVE VINTAGE VIOLATION TO REPORT.** No adopted row has ever been written, so nothing
+has ever overridden `settings.WEIGHTS_*`, and no window of the forward track describes a model the
+register never named.
+
+**THE PART THAT IS NOT MERELY A CLEAN BILL: the refusal ran in production.** Every previous
+demonstration of the gate was a test with an injected register. Here the shipped gate read the real
+`track_meter.VINTAGES` and the real contract file on the live box and returned **NOT AUTHORISED
+naming the missing key** — not a generic denial, not an exception being swallowed by the
+fail-closed wrapper, which is exactly what a broken gate would also look like from the outside. The
+reason string is what separates *working* from *stuck shut*. Both buckets are covered, and because
+the refusal sits on the shared `save_learned` funnel, that one read covers **both** writers — MA1's
+learner and MA3's endpoint — not just the learner's.
+
+**ONE CORRECTION TO THE WORDING THIS ARRIVED WITH, because it claims more than the instrument can
+see.** The read was reported as *"the loop never fired in production"*. `live_override_report`
+reads the learned-weights table and nothing else, so `n_rows 0` establishes that the **adoption
+path was never reached**; it is silent on whether the cron ran. A second lane's independent check
+of the live edge-learning diagnostics carries positive evidence that the **job did fire**, once, on
+**2026-08-01 at 13:32:47 UTC**, returning at the insufficient-data guard that sits above every
+`save_learned` call. **The precise sentence is that the job fired and the adoption path was never
+reached** — and the audit's own severity rule turns on that distinction. The two reads, taken a day
+apart through two independent instruments, agree exactly where it matters.
+
+**What this does NOT license.** It is a statement about the record as of `2026-08-15T12:21:47Z`, not
+a standing guarantee — the endpoint is read-only and answers the question again whenever it is
+asked. The cron and its job are gone from `auto-scan.yml`, so nothing is scheduled to test the gate
+for real; the next genuine exercise of it will be a deliberate adoption, which by design needs a
+registered vintage **and** Don's signed row naming that same vintage.
+
+## 5. The third door, which was not in the audit's file list
+
+`fundamental_panel.py`'s CLI printed **`=== Paste into valuation/screener/settings.py, then commit
++ push ===`** on the same single-50/50-split accept MA3 is about. **A human following a confident
+instruction is a weight-adoption path like any other**, and this one bypasses the database
+entirely, so `weight_adoption` can never see it. It now reports the result, names the gate it did
+not clear, and refuses to instruct.
+
+**Two further defects in the MA3 endpoint, reported not repaired:** it writes **only** the
+`established` bucket, so the two buckets could end up on different regimes with nothing reporting
+the split; and the single-split fallback logic remains in the CLI's own decision. Both are moot
+while nothing can adopt; both want their own register if the endpoint is ever re-armed.
+
+## 6. What is pinned, and what changed in an existing test
+
+`tests/test_weight_adoption.py` — **21 tests**. The load-bearing ones: the gate reaches AUTHORISED
+(the control); either half alone is not enough; a signature does not carry forward to another
+vintage; a documented example row inside a fence authorises nothing; `save_learned` refuses **and
+writes nothing** (row count unchanged); the live scorer ignores an unauthorised stored adoption
+**and uses the very same row when authorised**; the violation is reported with its date and not
+deleted; the workflow no longer triggers a re-tune (with a non-vacuity check that it is still the
+real workflow); `LEARN_ENABLED` defaults off and unrecognised values fail closed.
+
+**`tests/test_edge.py::test_self_learning_gate` was rewritten**, and this is a change to an
+existing pin rather than a new one, so it is called out. It asserted
+`_effective_weights(st)[0] == learned`. **Its statistical half is unchanged and still asserted** —
+the learner must still FIND the edge (`would_have_adopted` non-empty), or the refusal would be
+passing for the wrong reason.
+
+**Zero trials.** A correctness and governance repair: no hypothesis, no threshold, no verdict.
+Equity `N`, options `N` and infra `N` are all untouched, and `BACKTEST_RESULTS.json` needs no
+re-run.
+
+## 7. For Don, plainly
+
+Nothing you can see changed. The hot list, the Index and the track are scored by exactly the
+weights in `settings.py`, as they were yesterday — **and that is now true because it is enforced,
+rather than because a monthly job had not got round to changing it yet.**
+
+**DONE 2026-08-15 — you ran it, and it came back `clean: true`.** Nothing has ever overridden the
+weights in `settings.py`, so there is no vintage violation and nothing to record. The gate itself
+answered from the live box for the first time, refusing both buckets and naming the reason
+(`vintage 4 carries no 'weights_adoption' entry`), which is the difference between a gate that
+works and one that is merely stuck — full detail in §4.
+
+**One wording fix, and it was my sentence to get wrong.** This section used to read *"if it says
+`clean: true`, the loop never fired"*. That is a step further than the check can see: it reads the
+adopted-weights table, so `clean: true` means **nothing was ever adopted**, not that the monthly
+job never ran. It did run once, on **2026-08-01**, and stopped at its not-enough-data guard before
+reaching anything that could change a weight. The conclusion you care about is unchanged and is now
+measured twice: **nothing has ever changed the live weights.**
+
+## 8. Two defects in my own work, both caught by a check rather than by review
+
+**(a) THE SECURITY SUITE CAUGHT MY REFUSAL HANDLER RETURNING RAW EXCEPTION TEXT.** The 403 I added
+to `/admin/adopt-backtest-weights` returned `str(e)`, and
+`test_security.py::test_no_handler_returns_raw_exception_text` failed on it by file and line. The
+refusal message is a fixed string with no server state in it today — and the guard is still right,
+because nothing stops a future `require()` from interpolating a path into it. Fixed with
+`safe_error(e)`; the actionable detail is carried by the structured `authorisation` block, which
+is built from the register and cannot contain server state. **Not exempted, not silenced** — that
+suite exists for exactly this and it earned its keep on a change whose entire purpose was to close
+a hole.
+
+**(b) I REPORTED `test_edge.py` AS EXIT 0 WHEN I HAD READ `tail`'s EXIT CODE.** I ran
+`python tests/test_edge.py 2>&1 | tail -12`; in a pipeline the reported status is the LAST
+command's, so a failing suite came back green. It mattered: `test_edge.py` contained a **second**
+test pinning the defect — `test_adopt_backtest_weights_persists`, which replicated the adopt
+endpoint's core and asserted `_effective_weights(st)[0] == w` — and it was genuinely failing. It
+was found by grepping for other `save_learned` callers, not by the test run that was supposed to
+find it. **Never pipe a suite into `tail` and read the exit code**; the gate runner used for the
+real check runs each suite as a subprocess and reads its own `returncode`, which is why it caught
+both of these. `test_edge.py` is now **428/428, exit 0**, with the second test rewritten to assert
+the refusal.
+
+---
+
+# Part 22 — V6B-PERNAME: M1's risk statistic on the row a reader is actually looking at (2026-08-16)
+
+`V6B-PRODUCT` published V6-B's M1 result as a **paragraph about a population**: healthy names
+already down 20% went on to fall another 20% about a quarter less often than unhealthy ones. True,
+measured, and — sitting in a posture block above twelve rows — not visibly connected to any of them.
+
+This attaches it per name. For each screened row: **which of M1's two measured classes that name
+falls in**, and **the historical rate for that class**. Nothing else.
+
+**It adopts nothing.** No vintage event, no weight change, nothing enters the composite. The field
+is computed *after* every membership decision in `dip.screen`, so it cannot reach one, and the sort
+is on `drawdown` exactly as before. A test runs the whole screen twice over fixtures differing
+**only** in class and asserts the row set and its order are identical — with its own vacuity check,
+because that pin is worthless if the screen could not have dropped anything.
+
+| file | change |
+|---|---|
+| `valuation/web/dip_risk.py` | **new** — the classification, the rates, the four refusals, the copy |
+| `valuation/web/dip.py` | wired at the one point all three inputs coexist; `cash_burning` carried through |
+| `tests/test_dip_risk.py` | **new**, 29/29 |
+
+## 1. The check V6's own register demanded, and why it was owed
+
+V6's register wrote down, *before any result existed*, that a POSITIVE **would not license the tab's
+copy without a separate live-vs-panel fidelity check — "coverage is not fidelity."** M1 came back
+POSITIVE, so the debt fell due, and it falls due at the level of the **classification**: a rate is
+only *this name's class's* rate if this name is classified the way the measured rows were.
+
+M1's rule (`scripts/v6b_dip_survival.py:346-347`) is two clauses:
+
+    healthy = (quality theme z-score  >  0.0)  AND  (financial health score  >=  50.0)
+
+**Both transfer, which is the only reason this is buildable.** `z_quality` is on the scan snapshot,
+written by `screen.py` from the same `build_frame` theme column the panel uses; the 0-100 health
+score comes from `engine/scoring._health_score`, and **M1 called that same shipped function** rather
+than retyping its breakpoints. The rule is reproduced exactly — **including its asymmetry**, quality
+strict and health inclusive — and pinned from both sides. The floors are pinned **against the
+measurement script**, not retyped, so a register that moved a boundary breaks the suite instead of
+silently re-pointing a published rate at a population nobody measured.
+
+## 2. The finding, measured rather than assumed, and it changes what the field means
+
+**A name that lists on the Dip Detector can essentially never classify UNHEALTHY.** Two structural
+reasons: the screen's prefilter already drops `z_quality < 0` — M1's quality clause less its
+strictness — and the screen lists on `health >= 66` while M1's floor is **50**, so every listed name
+clears the health clause with room to spare.
+
+Swept rather than argued: over the live gates crossed with M1's rule, the unhealthy class is
+reachable at **exactly `z_quality == 0.0` and nowhere else**.
+
+So this is **not a discriminator between two groups. It is a verification that each listed name
+really is in the measured group** — which is precisely what licenses attaching the rate at all, and
+precisely the question "coverage is not fidelity" was pointing at. Two things follow and both are on
+the surface: the **43.4% is a comparison baseline describing names this screen does not show**, never
+a label it is about to apply; and `METHOD_NOTE` says out loud that the measurement's "healthy" is a
+**lower** bar than the screen's, since a reader who knows the screen gates at 66/66/66 would
+otherwise assume the rate was measured on names that cleared 66/66/66. It was not.
+
+The finding is pinned, so a loosened gate re-opens the question rather than quietly falsifying the
+module's own docstring.
+
+## 3. Four honest refusals, each firing on real rows
+
+* **DEPTH.** M1 measured names **at least 20% below** their trailing 252-session high; the screen's
+  control reaches **10%**. A widened slider therefore puts rows on the page that are outside the
+  measured population. They keep their class and get **no rate**, with the reason stated. At the
+  default threshold this never fires, which is exactly why it is easy to forget and why it is tested
+  at a threshold where it does.
+* **CASH-BURNING.** `_health_score` has two branches. V6-B's panel could not supply the burner
+  branch's input, and its own C4 control reports **zero** rows took it. A live burner is therefore
+  **excluded** rather than scored against a rate that never saw its kind — detected by reading the
+  shipped `classification.is_cash_burning` flag, not by re-deriving it from `fcf` (audit B7's class).
+* **UNCLASSIFIABLE.** A missing input returns `None`, never a class. Defaulting would attach 43.4% to
+  a name nobody scored — or 32.5%, and **the second is the flattering direction**.
+* **SIZE, and it is one-directional by construction.** The effect runs **−14.287pp** in the smallest
+  tier to **−3.787pp** in the largest, and the largest is the one quintile that does **not** hold in
+  both halves on its own. But the artifact publishes each quintile's **median and not its edges**, so
+  a live name cannot be assigned to a measured tier, and inventing edges would put a confident
+  fabricated number on a public surface. What *is* sound is above the line only: a name above the top
+  quintile's own median is necessarily inside that quintile, since the median sits at about the 90th
+  percentile of the whole distribution. So the flag is **True or unknown, never False** — False would
+  read as "this name is in a tier where the effect is stronger", which the data cannot support.
+
+## 4. V3's rule, which is why the copy is shaped the way it is
+
+A measured group average is not a statement about the next name a reader clicks, and **a percentage
+on a row is the single most natural way to be read as this company's chance**. So every label says
+*"of these names"*, `NOT_A_PROBABILITY` travels with every number, and the field is called
+`further_fall_rate` — a rate over a class — never `risk`, `probability` or `odds` (pinned by name).
+
+**Both classes are written out in full and each quotes the other**, so the unflattering
+classification is exactly as legible as the flattering one — `dip_posture`'s
+NULL-as-reachable-as-POSITIVE rule applied one level down, to a class.
+
+The banned list is **imported from `dip_posture` rather than copied**, and asserted against the
+**rendered payload**. Its DISTRESS family is the live risk here: a further-fall statistic sits one
+paraphrase away from a bankruptcy claim whose own arm (M2) is **VOID on power**.
+
+## 5. What is pinned
+
+31 tests. The load-bearing ones: the floors against the script; the classification *expression*
+against the script (a matching pair of floors would not catch an `or`, a reversed comparison or a
+different column); the strict/inclusive boundaries from both sides; a rate never present beside a
+"does not apply" flag; the display-only pin plus its vacuity check; and the source sweep that fails
+if the rate reaches a sort key or filter predicate, plus its own vacuity check.
+
+**The register gate is enforced at RUNTIME, not only pinned.** If `RISK_STATUS` ever stops being
+POSITIVE, `for_name` withdraws every rate — **and the class with it**, because "healthy" rendered
+beside a withdrawn measurement still invites the lookup the withdrawal exists to stop. This is
+`digest_eligible`'s own lesson applied one surface over: *a close-out that revises the paragraph and
+forgets a second surface leaves the two disagreeing, and the surface nobody remembered is the one
+still making the claim.* A test alone would have caught that only for as long as the test survived
+the edit. Both the withdrawal and its non-vacuity are pinned.
+
+The artifact pin **skips loudly** when `data/` is absent (it is gitignored, so CI has no copy) — the
+floors are still pinned against tracked source, which is the half fidelity depends on.
+
+## 6. For Don, plainly
+
+The Dip Detector now says, on each row, *which measured group this name is in and how often names in
+that group fell another 20% within about six months* — 32.5% for the healthy group against 43.4% for
+the unhealthy one. It is a historical rate for a group of past companies, and the row says so rather
+than leaving it to be inferred.
+
+The honest limitation, up front: because the screen already filters harder than the measurement did,
+**almost every listed name is in the healthy group by construction**. The field is confirming that,
+not sorting names into two piles. It changes no name that appears, no ordering, and nothing in the
+model.
+
+**Not done, named so it is not mistaken for done:** no template or `app.js` change — the payload
+carries the field and whether the tab *renders* it is the web lane's call. And the rate is not
+tiered by company size, because the artifact does not publish the tier edges needed to do it
+honestly.

@@ -109,6 +109,16 @@ class Config:
     email_from: str = field(default_factory=lambda: _get("EMAIL_FROM", "alerts@example.com"))
     public_base_url: str = field(default_factory=lambda: _get("PUBLIC_BASE_URL", "http://127.0.0.1:5000"))
     admin_token: str = field(default_factory=lambda: _get("ADMIN_TOKEN"))
+    # MA10 — the capability split. ONE X-Admin-Token grants every /admin/ route, including the
+    # two that can rewrite the LIVE scoring weights (`/admin/run-learning`,
+    # `/admin/adopt-backtest-weights`). Those two are the whole blast radius of MA1/MA3; the
+    # read and trigger routes have no business sharing a credential with them.
+    #
+    # UNSET => the two write routes fall back to ADMIN_TOKEN, i.e. behaviour is bit-identical
+    # to before the split. Setting it is what ACTIVATES the separation, and is a Render/GitHub
+    # env change this lane cannot make. Shipping the mechanism inert is deliberate: a split
+    # that fails closed on deploy would break five crons to fix a hardening item.
+    admin_write_token: str = field(default_factory=lambda: _get("ADMIN_WRITE_TOKEN"))
     # Screaming-buy alerts: a Discord webhook (owner-level, posts to your channel)
     # and opt-in email. alert_min_score is the score bar a signal must clear to alert.
     discord_webhook_url: str = field(default_factory=lambda: _get("DISCORD_WEBHOOK_URL"))
@@ -184,12 +194,20 @@ class Config:
     backtest_rebalance_days: int = field(default_factory=lambda: int(_get_float("BACKTEST_REBALANCE_DAYS", 63)))
     backtest_top_n: int = field(default_factory=lambda: int(_get_float("BACKTEST_TOP_N", 25)))
     backtest_recency_halflife_years: float = field(default_factory=lambda: _get_float("BACKTEST_RECENCY_HALFLIFE_YEARS", 5))
-    # Self-learning: a monthly, out-of-sample-gated re-tune of the screener's factor
-    # weights from the tool's own accumulated snapshots + realized forward returns.
-    # Adopts a change ONLY if it beats the current weights out-of-sample (no overfit).
+    # LEARN_ENABLED — self-learning: a monthly, out-of-sample-gated re-tune of the screener's
+    # factor weights from the tool's own accumulated snapshots + realized forward returns.
     # Purely statistical — no LLM in the loop (the grid + hold-out test IS the decision).
-    # Needs enough accrued history first, so early runs correctly decline to change anything.
-    learn_enabled: bool = field(default_factory=lambda: _get("LEARN_ENABLED", "true").lower() != "false")
+    #
+    # DEFAULT FALSE SINCE THE MASTER AUDIT (MA1). It used to default TRUE, and it was
+    # undocumented: the string `LEARN_ENABLED` appeared in no .md, .yml, .example or .bat file
+    # in the repository, so the one switch that could change the live composite was on by
+    # default and named nowhere. Setting it to `true` re-arms the LEARNER, not the ADOPTION —
+    # `store.save_learned` still refuses to write an adopted weight without a registered vintage
+    # and Don's signed contract row (`valuation/edge/weight_adoption.py`), so the worst a
+    # re-enabled learner can do is fill the audit log and email the owner. Turning this on is
+    # therefore reversible; adopting a weight is not, because it resets the forward track's
+    # five-year clock (PAPER_TRACK_CONTRACT §5a, Rule 6).
+    learn_enabled: bool = field(default_factory=lambda: _get("LEARN_ENABLED", "false").lower() == "true")
     learn_min_dates: int = field(default_factory=lambda: int(_get_float("LEARN_MIN_DATES", 8)))
     learn_horizon_days: int = field(default_factory=lambda: int(_get_float("LEARN_HORIZON_DAYS", 21)))
     learn_top_per_date: int = field(default_factory=lambda: int(_get_float("LEARN_TOP_PER_DATE", 60)))
@@ -278,6 +296,34 @@ class Config:
     # restores the everything-public behaviour that preceded it. The path list itself lives in
     # `saas/surfaces.py`, one entry per surface with its reason and its data vendor.
     owner_split: bool = field(default_factory=lambda: _get("OWNER_SPLIT", "true").lower() != "false")
+
+    # PUBLIC_FULL_VIEW — anonymous == demo, TEMPORARILY. Don's decision, 2026-08-13:
+    #
+    #   "/app must be 100% ungated - I know the risks - I've submitted applications with the
+    #    non-master link; when I hear back we regate."
+    #
+    # It lifts the ANONYMOUS tier to the DEMO tier: exactly the read-only full view the `/work`
+    # button already grants a recruiter who follows the master link, and nothing more.
+    #
+    # WHY THIS EXISTS RATHER THAN `OWNER_SPLIT=false`, which is the obvious lever and is the
+    # WRONG one. Turning the split off also makes `surfaces.may_act` true for everyone, which
+    # opens `/api/scan/run`, `/api/signals/run` and both Edge Lab runners to anonymous callers —
+    # a free DoS lever on a 512 MB box that spends Don's FMP and Anthropic budget on every
+    # request. This flag CANNOT do that: it is read-only by construction, because it is not
+    # consulted by `may_act` at all and a test pins that it never will be.
+    #
+    # WHAT DOES NOT MOVE UNDER IT, on Don's explicit instruction: no mutation endpoints, no
+    # admin or account surfaces, no raw Sharadar/ThetaData rows (a LICENCE question, which his
+    # "I know the risks" answers for liability and cannot answer for), and every disclaimer,
+    # vintage label and paper-account label stays exactly where it is. Those surfaces carry
+    # their own caveats, and that is what makes this survivable rather than reckless.
+    #
+    # THE REGATE IS THIS ONE FLAG, back to "false", on Don's word. Nothing is deleted and no
+    # other flag needs touching. It is deliberately NOT defaulted to true in code: the default
+    # here stays the safe one so a fresh instance, a test box or a fork is never ungated by
+    # accident — production opts in via render.yaml.
+    public_full_view: bool = field(
+        default_factory=lambda: _get("PUBLIC_FULL_VIEW", "false").lower() == "true")
 
     # PORTFOLIO_PAGE — the ONE deliberate hole in private mode, and its own flag on purpose.
     #
@@ -443,6 +489,38 @@ class Config:
         if self.openai_api_key:
             return "openai"
         return "none"
+
+    # MA59: each of these env vars is a one-variable path back to an
+    # intervention the research eliminated, and switching one on leaves no
+    # trace in any artifact -- the run simply scores a different model and
+    # reports it under the same headline. The audit's instruction was "delete
+    # the override or make it warn"; deleting it would remove the ability to
+    # A/B the rejected arm at all, which is worth keeping. So it warns.
+    #
+    # This fires only when someone opts in, so the default path is unchanged
+    # and silent. `rejected_overrides_active()` is the machine-readable form,
+    # for any surface that wants to say so rather than print it.
+    REJECTED_OVERRIDES = {
+        "sector_neutral": "SCREENER_SECTOR_NEUTRAL — sector-neutral ranking, "
+                          "rejected in both held-out directions, twice "
+                          "(HANDOFF_sector_neutral.md); S15 and S25 are shut too",
+        "residual_momentum": "SCREENER_RESIDUAL_MOMENTUM — defaulted true "
+                             "while every backtest forced it false (audit B7/G)",
+    }
+
+    def rejected_overrides_active(self) -> dict[str, str]:
+        return {k: why for k, why in self.REJECTED_OVERRIDES.items()
+                if getattr(self, k, False)}
+
+    def __post_init__(self) -> None:
+        active = self.rejected_overrides_active()
+        if active:
+            import warnings
+            warnings.warn(
+                "REJECTED INTERVENTION ENABLED — this run does not score the "
+                "model any published Valquo figure describes: "
+                + "; ".join(active.values()),
+                RuntimeWarning, stacklevel=2)
 
 
 CONFIG = Config()

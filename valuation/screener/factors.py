@@ -68,7 +68,8 @@ _GRANULAR = list(S.NUMBERS_ALL)
 
 
 def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None,
-                value_ev_multiples=None, standardizer=None) -> pd.DataFrame:
+                value_ev_multiples=None, standardizer=None, bucket_relative=None,
+                sector_relative_cols=None) -> pd.DataFrame:
     """Return a DataFrame indexed by ticker with the theme columns standardized across
     the universe. sector_neutral scores each number relative to its sector peers (removes
     accidental sector bets); residual_momentum strips the beta component out of momentum.
@@ -210,6 +211,44 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
                 s = pd.to_numeric(df[col], errors="coerce")
                 df[col] = s - s.groupby(_grp).transform("median")
 
+    # LEDGER S15 — sector-relative on a COLUMN SUBSET. The broad `sector_neutral` above
+    # de-means EVERY granular metric, which is what SECTOR-NEUTRAL-B6 rejected three times;
+    # S15 is the narrow variant that rejection left explicitly open, applying the same
+    # operation to the VALUE theme's inputs alone. Same group, same median subtraction, same
+    # global z-score below — only the column list differs. Defaults to None, so every existing
+    # caller and the shipped panel are untouched.
+    if sector_relative_cols and "sector" in df.columns:
+        _sgrp = df["sector"].fillna("?")
+        for col in sector_relative_cols:
+            if col in df.columns:
+                s = pd.to_numeric(df[col], errors="coerce")
+                df[col] = s - s.groupby(_sgrp).transform("median")
+
+    # LEDGER S12 — bucket-relative ranking, the audit's "add a `bucket_relative` toggle to the
+    # standardisation step". Architecturally IDENTICAL to sector_neutral above (subtract the
+    # group median, then let the global z-score below standardise the group-relative value); the
+    # only difference is WHICH column defines the group. `bucket_relative` names that column:
+    # "bucket" for the valuation split the audit specifies (established vs speculative), or a
+    # cap-tier label for the framing the task asked about. Defaults to None, so every existing
+    # caller is unchanged and the shipped panel is untouched.
+    if bucket_relative:
+        # `bucket` is not a column yet at this point — it is derived below, AFTER the granular
+        # standardisation — so asking for it by name here would silently find nothing and make
+        # the whole arm a NO-OP that still reports a verdict. Derive it from the metrics instead,
+        # which is exactly what the line below does; any other group (e.g. `cap_tier`) is a
+        # genuine metrics column and is read from the frame.
+        if bucket_relative == "bucket":
+            _bgrp = pd.Series([classify_bucket(m) for m in metrics], index=df.index).fillna("?")
+        elif bucket_relative in df.columns:
+            _bgrp = df[bucket_relative].fillna("?")
+        else:
+            _bgrp = None
+        if _bgrp is not None:
+            for col in _GRANULAR:
+                if col in df.columns:
+                    s = pd.to_numeric(df[col], errors="coerce")
+                    df[col] = s - s.groupby(_bgrp).transform("median")
+
     # Standardize granular metrics across the universe.  [S20/S21 — layer 1]
     _std = zscore if standardizer is None else standardizer
     for col in _GRANULAR:
@@ -251,10 +290,20 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
             _bc = _b[_mask] - _b[_mask].mean()
             _slope = float((_bc * (_m[_mask] - _m[_mask].mean())).sum() / (_bc ** 2).sum())
             df.loc[_mask, "momentum"] = _m[_mask] - _slope * _bc
-    # The short-horizon anomalies (short-term reversal, MAX, idiosyncratic vol) were built,
-    # measured on the Sharadar panel, and REJECTED - every one carried the wrong sign
-    # (median IC -0.014 / -0.072 / -0.025, none significant). They are still computed in
-    # _price_extras so re-testing is one line, but they do not feed the theme.
+    # The short-horizon anomalies (short-term reversal, MAX, idiosyncratic vol) are built in
+    # _price_extras, are MEASURED (registered in NUMBER_THEME since R5) and do NOT feed this
+    # theme. CORRECTED 2026-08-13 (R5): this comment used to say "every one carried the wrong
+    # sign (median IC -0.014 / -0.072 / -0.025)". That was the 400-name / 110-rebalance
+    # measurement, void under B12 and B6. On the corrected 2,531-name / 69-date panel all
+    # three signs are POSITIVE (+0.00715 / +0.02634 / +0.05452) and all three are still
+    # rejected -- for being weak, not for being backwards. None clears its own permutation
+    # p95 in both halves. PREREG_r5_r6_alphabetical_rerun.md.
+    #
+    # REPORTED BECAUSE IT CUTS AGAINST THE PAIR THIS THEME DOES USE: on the same corrected
+    # panel `neg_vol` reads t +0.89 and `neg_beta` reads t -0.39, so BOTH deployed inputs are
+    # weaker than the two rejected volatility cousins (+1.15, +1.21). The theme carries ZERO
+    # weight in the live composite, which bounds the consequence -- but anyone un-zeroing it
+    # should read those four numbers first.
     df["low_risk"] = df[["z_neg_beta", "z_neg_vol"]].mean(axis=1)
     # Capital discipline is now share issuance ALONE. neg_asset_growth was DROPPED: on the
     # full 2,710-name / 110-date panel it measures median IC -0.0141 with t -0.70 — the wrong
@@ -274,7 +323,20 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
     # available stand-in for "how many funds are buying".
     # Dollar accumulation + breadth of manager buying. sm_breadth (SF3 per-manager holder
     # counts) replaces inst_breadth (aggregate tally) as the breadth term: same quantity,
-    # measured better, IC t +2.37 vs +1.48 on 800 large caps.
+    # measured better.
+    # RE-JUSTIFIED 2026-08-13 (R6). This swap's stated reason was "IC t +2.37 vs +1.48 on 800
+    # large caps" — a comparison VOID under B12, because that universe was an ALPHABETICAL
+    # slice. A LIVE SCORING DECISION was resting on it. Re-measured head to head on the
+    # corrected 2,531-name / 69-date panel, on 49 covered dates at near-identical coverage
+    # (0.7169 vs 0.7185):
+    #     sm_breadth    median IC +0.02504  t +1.8481
+    #     inst_breadth  median IC +0.02175  t +1.2371
+    # THE ORDERING HOLDS, so the swap survives its own voided justification — but the gap
+    # narrowed from 0.89 to 0.61 of a t, and NEITHER clears 2.0. Note also that the +1.73
+    # recorded for sm_breadth below was dated 2026-08-01, three days BEFORE the B6/B7/B13
+    # corrections landed, so it was never a corrected-panel figure either; +1.8481 is the
+    # first. Measured, not changed: swapping a theme input is a construction change and a
+    # vintage event. PREREG_r5_r6_alphabetical_rerun.md.
     df["institutional"] = df[["z_inst_accum", "z_sm_breadth"]].mean(axis=1)
 
     # Insider factor: metrics may carry an insider_score (0-100, 50 neutral).

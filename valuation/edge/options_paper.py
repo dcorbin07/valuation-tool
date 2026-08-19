@@ -44,7 +44,10 @@ from __future__ import annotations
 from typing import Optional
 
 from . import options_confidence as C
-from .options_tracker import MIN_CLOSED_PER_BUCKET, _stats
+from .options_tracker import (MIN_CLOSED_PER_BUCKET, _stats, epoch_census,  # noqa: F401
+                              epoch_filter, EPOCH_ALL)
+# `EPOCH_ALL` is re-exported deliberately: `paper_report`'s own docstring tells a caller to pass
+# it, and making them reach into a second module for the sentinel is how two spellings start.
 
 # The reference the live book is actually comparable to: late-half, behind the term gate.
 GATED_LATE_HALF_EXPECTANCY = 0.1288      # phase 3b, n=307
@@ -57,10 +60,19 @@ def _first_ts(rows) -> Optional[str]:
     return min(ts) if ts else None
 
 
-def paper_report(store) -> dict:
-    """Live realized expectancy against the reference it is genuinely comparable to."""
+def paper_report(store, epoch=None) -> dict:
+    """Live realized expectancy against the reference it is genuinely comparable to.
+
+    AUDIT MA37 — SCOPED TO ONE ERA, defaulting to the current one. This read every row in the
+    table, so after the 2026-08-13 reset both the expectancy AND `live_since` (a bare
+    `min(alert_ts)`) described a blend of the live record and a record the project had formally
+    retired for predating the corrected alert stack. `live since <date>` naming a date from the
+    archived era is the more misleading half: it makes the live book look older than it is.
+    Pass `EPOCH_ALL` for the blend; `epochs` reports every era's row count regardless.
+    """
+    clause, args, ep = epoch_filter(store, epoch)
     with store._conn() as c:
-        cur = c.execute("SELECT * FROM option_alerts")
+        cur = c.execute("SELECT * FROM option_alerts WHERE 1=1" + clause, args)
         keys = [d[0] for d in cur.description]
         rows = [dict(zip(keys, r)) for r in cur.fetchall()]
 
@@ -92,6 +104,10 @@ def paper_report(store) -> dict:
         "thin": thin,
         "min_required": MIN_CLOSED_PER_BUCKET,
         "live": live,
+        # AUDIT MA37 — which era every number above was computed on, and what else exists.
+        # The archived record is EXCLUDED, never deleted and never invisible.
+        "record_epoch": ep,
+        "epochs": epoch_census(store),
         # The headline stays backtested until the live sample is meaningful - same rule as the
         # stock index. `headline_source` says which is being quoted rather than leaving a reader
         # to guess whether a number is measured or expected.

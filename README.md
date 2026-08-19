@@ -1,155 +1,261 @@
-# Adaptive DCF Valuation Tool
+# Valquo
 
-A live-data discounted cash flow engine that values **any ticker** you type in, adapts its assumptions to the kind of company it is (mature compounder, fast grower, cash-burning start-up, cyclical), and returns a fair value with **bull / base / bear** cases, a **Monte Carlo** distribution, a **reverse-DCF** reality check, a **comps** cross-check, and a transparent **1–100 opportunity score** — plus an optional AI layer that writes the qualitative analysis and critiques the model's own assumptions.
+**A stock-analysis toolkit built around a research lab whose job is to disprove it.**
 
-It grew out of, and generalizes, my hand-built [Nike DCF](../nike-dcf-valuation): instead of one company in a spreadsheet, it's an engine that rebuilds that analysis for anything, from live data, in a couple of seconds.
+Valquo is a Flask application with two halves. The first is a **valuation engine**: type any
+ticker and get an adaptive DCF with scenarios, a Monte Carlo distribution, a reverse-DCF check,
+comps and a transparent 1–100 score. The second is an **Edge Lab**: a point-in-time backtest,
+pre-registered and placebo-calibrated, that exists to falsify the first half's screener.
 
-> **Educational tool, not investment advice.** Fair value is a *model output*, not a price target. Automated assumptions are estimates — verify against primary filings before acting on anything.
+Most of what the Edge Lab has produced are **rejections and nulls**. That is the honest headline,
+and it is the main reason to trust anything else here.
+
+> **Educational tool, not investment advice.** Fair value is a *model output*, not a price target.
+> Nothing here executes trades or manages money.
+
+> 🧭 **Working on the repo, or checking what has actually been measured?** Read
+> **[START_HERE.md](START_HERE.md)** — clone-to-green-suites in five minutes and the state of the
+> evidence. **[VALQUO_LEDGER.md](VALQUO_LEDGER.md)** is the contractual answer to "is X done?".
 
 ---
 
-## What it does
+## What Valquo is, and what each part actually claims
 
-- **Any ticker, live data.** Pulls financial statements, market data and the current 10-year Treasury with no API key required (Yahoo Finance + SEC EDGAR).
-- **Adaptive DCF.** Classifies the company and picks an appropriate model: a 5-year forecast for a mature name, a 10-year path-to-profitability with margin convergence for a cash-burning grower, mid-cycle normalization for a cyclical.
-- **Scenarios.** Bull / base / bear, with the cone of outcomes widening automatically for less predictable businesses.
-- **Monte Carlo.** 10,000 trials perturbing growth, margins, WACC and terminal growth → a full distribution of fair value and **P(undervalued)**, the share of trials worth more than today's price.
-- **Reverse DCF.** Solves for the growth and margins the *current price* implies, so you can judge whether the market is pricing in something realistic.
-- **Comps cross-check.** Implies a value from sector-typical multiples (or real peer medians if you supply peers) as a second opinion on the DCF.
-- **1–100 opportunity score.** A regime-aware blend of valuation, quality (ROIC vs WACC), growth (with a Rule-of-40 check), financial health (leverage + cash runway) and momentum — every sub-score and weight is shown, never a black box.
-- **Optional AI analysis.** With an Anthropic (or OpenAI) key, Claude writes the moat read, risks, catalysts, bull/bear theses and a critique of the tool's auto-generated assumptions. Without a key, a transparent rule-based fallback produces the same structure.
-- **Exports.** A live, formula-driven Excel model (mirrors the Nike workbook: DCF / WACC / Sensitivity tabs) and a clean one-page PDF tearsheet.
-- **Watchlist.** Score and rank a whole list of tickers 1–100 side by side.
-- **🔥 Whole-market hot-stocks screener.** Scans the market and ranks every name 1–100 on a cross-sectional value · quality · growth · momentum composite (two buckets, self-calibrating z-scores), with sector-attractiveness and a one-click portfolio builder.
-- **📊 Point-in-time backtest.** Tests whether the ranking actually predicts forward returns — Information Coefficient, quantile spread after costs, equity curve vs benchmark, out-of-sample split — with honest survivorship caveats.
-- **Insider signals (Form 4)** and a **daily auto-scan** you can schedule.
-- **⚡ Intraday Signals (Premium):** an always-running scanner over liquid S&P-500 names that blends reputable technicals (RSI, MACD, 50/200 MA crosses, breakouts, volume) with options context (put/call, IV) into a ranked buy-setup score, with Claude-written reasoning on the top 10. Real-time via Tradier, or free delayed data. Educational — not a proven edge, not an autotrader.
+Five surfaces share one codebase. **They do not carry equal evidence, and the difference matters
+more than any individual number:**
+
+| surface | what it does | evidential status |
+|---|---|---|
+| **Valuation engine** | Adaptive DCF for any ticker from live data, no API key | **A model, not a claim.** Its output is an estimate under stated assumptions; it has never been backtested as a return signal. |
+| **Hot-stocks screener** | Ranks the market 1–100 on a 9-theme cross-sectional composite | **The one measured claim** — see the evidence section below. |
+| **Valquo Index** | A published, pre-registered forward paper track of the screener's picks | **Running, not yet evidence.** No verdict before **2031**. |
+| **Dip Detector** | Flags names well below their recent high that pass quality/health floors | **A screen, with a split verdict** — the *return* claim is NULL, the *risk* claim is measured. |
+| **Options / intraday signals** | Options context, technicals, alerts | **A screen. The entry signal is measured and it does not work** — see "What is not claimed". |
+
+### The screener's evidence, in the record's own numbers
+
+Measured on **2,531 names over 69 quarterly rebalances (2009–2026)**, one panel, point-in-time,
+survivorship-free. Every figure ships in `BACKTEST_RESULTS.json` and is reproduced here from it:
+
+| | |
+|---|---|
+| Top-decile alpha vs the equal-weighted universe | **+7.17%/yr**, gross of costs |
+| …after measured trading costs | **+6.07%/yr** (breakeven 134.1 bps one-way vs a measured 33.4 bps; 261%/yr turnover) |
+| …vs SPY total return over the same windows | **+9.99%/yr** |
+| Long-short spread | +11.04%/yr, HAC *t* **2.62** |
+| Decile ordering (−1.0 is perfect) | **−0.89** |
+
+**What that does and does not survive — quote both halves or neither:**
+
+- ✅ **Its own noise floor.** Thresholds here are not conventions; they are *calibrated* by pushing
+  100 shuffled-signal panels through the real pipeline. The long-short HAC *t* of 2.62 clears the
+  calibrated floor of **2.2837**. (The same exercise found the usual "*t* > 2" bar is cleared by
+  pure noise 8% of the time, and that PBO < 50% is not a bar at all — noise sits at 46.7%.)
+- ✅ **Costs**, with a ~4× margin.
+- ✅ **Factor models.** FF5+MOM leaves **+6.99%/yr** unexplained (NW *t* 3.98).
+- ✅ **A split by name**, which has no regime confound: across 400 half-universe books, **not one
+  came back negative**.
+- ✅ **International, out-of-sample.** The untuned composite mapped onto independent data
+  replicates in Japan (*t* 3.85) and developed Europe (*t* 4.30) — and the **USA is the weakest
+  region tested**, so the structure is not a US artifact. It corroborates that the premia are
+  real; it does **not** corroborate Valquo's magnitude.
+- ❌ **The Harvey–Liu–Zhu hurdle.** Counting all **224** pre-registered equity trials the research
+  log has ever charged gives a hurdle of **3.29**, and 2.62 falls short by 0.67.
+- ❌ **The conventional Deflated Sharpe bar** (0.79 against a >0.95 convention), though it clears
+  the placebo-calibrated 0.66.
+
+The artifact ships the tension rather than resolving it: HLZ prices *the best of N draws*, and the
+deployed composite is flat 1/7 weights that were never tuned — `cpcv.adopt` is `false` on every
+run — so those 224 trials are overwhelmingly *rejected alternatives to it* rather than candidates
+it beat. Reasonable people can read that either way. **It is one panel, and it is not a forward
+test.**
+
+---
+
+## How the evidence is produced
+
+The unusual part of this repo is the protocol, not the model.
+
+- **Pre-registration.** A hypothesis, its threshold and its kill conditions are written to a
+  `PREREG_*.md` file and committed **before** the measurement code exists — 53 of the 59 registers
+  on disk were committed in a markdown-only commit, and a test now enforces that for new ones.
+- **A trial counter that costs something.** Every test charges the research log, and the count
+  feeds the Deflated Sharpe and the HLZ hurdle. Searching harder makes the bar harder. `N` = 224
+  for equity, 292 for options.
+- **Calibrated thresholds.** Bars come from a placebo, not convention (see above).
+- **Three independent cold audits**, ~250 adjudicated items in `VALQUO_LEDGER.md`, each row
+  carrying its verdict, commit and write-up.
+- **Corrections stay in the record.** When a published number turns out to be wrong it is
+  corrected *in place*, with the old value quoted and dated. `CLAUDE.md` is that record. It is why
+  the numbers here can be trusted even though the project has been wrong many times.
+
+Findings that came back **NULL or REJECTED** include: sector-neutral ranking (twice), an ML tree
+combiner (its deciles ran *backwards* out of sample), five alternative weighting schemes,
+short-term reversal, the options entry signal, cash-secured puts on healthy dips, and most of the
+interaction and freshness families. The rejections are the product.
+
+---
+
+## The forward paper track — paper, and years from a verdict
+
+`PAPER_TRACK_CONTRACT.md` is a **signed pre-registration** of a live forward test of the Valquo
+Index. Its terms were fixed before the data existed:
+
+- **Paper only.** No real money, no execution, no broker.
+- **Operational gate 2027-02-13. Verdict 2031-08-13.** Nothing before those dates is a verdict,
+  in either direction.
+- **It is deliberately weak, and says so.** At the backtested edge, power is ~13% at one year.
+  A track that has not crossed its threshold is the *expected* outcome and is **not** evidence
+  against the strategy.
+- **An adopted change to scoring resets the clock.** The track is on its 4th vintage
+  (inception 2026-08-13); improving the model costs elapsed evidence, on purpose.
+- **It is currently not recording.** The bound series has a known writer gap
+  (`recording_ok: false`), tracked as ledger row `PT-WRITER`. The operational gate cannot pass
+  while that is true, and the meter reports it rather than hiding it.
+
+---
+
+## What is **not** claimed
+
+Stated plainly, because each of these is something a reader could reasonably assume:
+
+- **The options entry signal does not work.** Measured against a five-seed random-entry control on
+  the same universe, the alert book earns **+3.27%/trade against the control's +8.33%** — a
+  **−5.06pp** gap, significant on a paired name-year sign test. Picking the *day* subtracts value.
+  The options surfaces are context and education, not a demonstrated edge.
+- **The Dip Detector does not claim returns.** Four arms, four nulls. What *is* measured is a
+  **risk** result: among names already down 20%, those passing the quality/health floors fell a
+  further 20% about **25% less often** (32.5% vs 43.4%). That effect is real and replicated, but
+  it is about *falling further*, not about recovering — and it is **weakest in megacaps**, which
+  is where the live book is concentrated.
+- **The valuation engine's fair value is not a forecast**, and financials (banks/insurers) are
+  flagged low-reliability because unlevered-FCF DCF is the wrong tool for them.
+- **Nothing is auto-tuned into production.** Live weights are flat 1/7 and were never fitted.
+- **No verdict exists from live trading**, because there is none.
+
+---
+
+## Data, and an important licence limit
+
+The product runs on **free data** — Yahoo Finance, SEC EDGAR, Stooq — with no API key required.
+
+The **research** is different, and this constrains what anyone can do with it. The backtest panel
+is built from **licensed Sharadar exports** which are gitignored and never published here.
+Sharadar's terms are **personal-use only and forbid commercial use of the data "or any
+derivation"**. So the headline figures are reproducible only by someone holding their own licence,
+and that licence would not let them publish what they derived. The international replication data
+(JKP Global Factor Data) is **CC BY-NC 4.0, research-only**, and may never ship in the product.
+
+`BACKTEST_RUNBOOK.md` documents the rebuild; `DATA_AND_METHODS.md` explains why point-in-time,
+survivorship-free data is the thing that decides whether a backtest means anything.
+
+### Licence
+
+The **code is [MIT](LICENSE)** — use it, fork it, ship it.
+
+The licence carries a **scope note**, and it is worth reading before you reuse a *number* rather
+than a *function*: MIT covers the source, and cannot cover third-party data or figures derived
+from it. No vendor data is distributed here. `BACKTEST_RESULTS.json` and `data/free_analysis/`
+are published as a **record of what was measured**, so the claims above can be checked — they are
+documentation of a result, not a dataset you have been granted rights to redistribute.
 
 ---
 
 ## Quick start
 
-### Windows (one click)
-Double-click **`run.bat`**. It creates a virtual environment, installs dependencies the first time, and opens the dashboard in your browser.
-
-### macOS / Linux
-```bash
-./run.sh
-```
-
-### Manual (any OS)
 ```bash
 python -m venv .venv
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-python run.py                        # opens http://127.0.0.1:5000
+pip install -r requirements.txt      # NOT the .lock files - those are linux/CI only
+python run.py                        # http://127.0.0.1:5000
 ```
 
-Then type a ticker (e.g. `AAPL`, `NVDA`, `KO`) and hit **Analyze**.
+Windows: double-click **`run.bat`**. macOS/Linux: `./run.sh`.
 
-### Command line / batch
 ```bash
-python cli.py AAPL                   # value one ticker
-python cli.py AAPL --excel --pdf     # also write the Excel model + PDF report
-python cli.py AAPL MSFT NVDA KO --rank   # score & rank a watchlist
-python cli.py AAPL --ai              # include AI qualitative analysis
+python cli.py AAPL                       # value one ticker
+python cli.py AAPL --excel --pdf         # Excel model + PDF tearsheet
+python cli.py AAPL MSFT NVDA KO --rank   # score and rank a watchlist
+python -m valuation.screener.scan        # run a screener scan
 ```
+
+Optional AI layer: copy `.env.example` to `.env` and add `ANTHROPIC_API_KEY` (or
+`OPENAI_API_KEY`). Everything works without a key — a rule-based fallback produces the same
+structure.
+
+### Tests
+
+No pytest needed, and **no `data/` directory required** — every suite runs from a clean clone,
+which is what CI does on every merge:
+
+```bash
+python tests/test_engine.py                                          # one suite
+for f in tests/test_*.py; do python "$f" || echo "FAILED $f"; done    # all of them
+```
+
+Judge a suite by its **exit code**, not by grepping for `OK`.
 
 ---
 
-## How it works
+## How the valuation engine works
 
-### 1. Data (free, no key)
-`yfinance` provides the income statement, balance sheet, cash-flow statement, price, shares, and beta; **SEC EDGAR** fills gaps and cross-checks US fundamentals; the live 10-year Treasury (`^TNX`) sets the risk-free rate. Every field is looked up defensively with fallbacks and any data-quality issues are surfaced in the UI. Fundamentals use the most recent reported fiscal year (like the Nike model's FY2025 base year); market data is live.
-
-### 2. Classification
-The company is sorted into a regime — *mature, growth, hypergrowth, cyclical,* or *financial* — from its growth rate, cash-flow profile and sector. This drives everything downstream, including how much to trust the DCF (flagged explicitly; financials get a "low" reliability flag because unlevered-FCF DCF is the wrong tool for a bank).
-
-### 3. The DCF engine (FCFF, reinvestment-based)
-Unlevered free cash flow to the firm, built the way growth companies actually need to be valued:
-- **Reinvestment is tied to growth** through a sales-to-capital ratio (`reinvestment = ΔRevenue ÷ sales-to-capital`) instead of fixed capex/D&A percentages that break when a company is scaling.
-- **Operating margins converge** from where they are today to a sustainable target — this is what lets the same engine value a turnaround (Nike, 8% → 13%) and a pre-profit SaaS company (−10% → 27%).
-- **Early losses accrue an NOL balance** that shields future taxes, so cash-burners are taxed realistically.
-- **The terminal value uses a reinvestment rate consistent with terminal ROIC** (`reinvestment = g ÷ ROIC`), so perpetual growth is paid for rather than assumed free.
-
-### 4. WACC
-CAPM cost of equity from the live risk-free rate, beta and a ~5% equity risk premium; cost of debt from the company's own interest/debt or, when that's unreliable, a synthetic credit spread inferred from interest coverage (Damodaran's method); weighted by market values.
-
-### 5. Cross-checks & the score
-Monte Carlo, reverse DCF, comps and a WACC × terminal-growth sensitivity grid all triangulate the point estimate. The **1–100 score** then blends five transparent sub-scores with **regime-dependent weights** — a hypergrowth cash-burner leans on growth quality and cash runway (its DCF is down-weighted), a mature compounder leans on valuation and returns on capital.
-
-### 6. Optional AI layer
-The full quantitative result is handed to Claude, which returns structured JSON (moat, risks, catalysts, bull/bear, assumption critique, overall take). It's explicitly prompted to be skeptical and to flag where the tool's automated assumptions look aggressive. No key? The rule-based fallback derives the same commentary from the numbers.
-
----
-
-## Whole-market screener & backtest
-
-The 🔥 **Hot stocks** tab ranks the market 1–100 and the 📊 **Backtest** tab checks whether that ranking has ever paid. It's built in the spirit of my [equity factor screener](../screener): two buckets (profitable "established" vs unprofitable "speculative"), each factor standardized *cross-sectionally* per scan (winsorized z-score, so "good" is relative to that day's peers), combined by weight, then converted to a 1–100 percentile. The top names get the full adaptive DCF for a fair-value gap; sectors are aggregated into an attractiveness ranking; and a portfolio builder turns the winners into a sector-capped, score-weighted basket.
-
-The backtest ports the same discipline: it only calls something an "edge" when the Information Coefficient is significant, the score quintiles are monotonic, the top-minus-bottom spread survives costs, *and* it holds out-of-sample — so a lucky equity curve doesn't pass. It's honest about **survivorship bias** (free feeds drop delisted losers) and about the fact that a fully survivorship-free *fundamental* backtest needs point-in-time filings (the EDGAR reconstruction in the screener project).
-
-Run a scan, then read it in the dashboard:
-```bash
-python -m valuation.screener.scan                 # fast bundled universe
-python -m valuation.screener.scan --whole-market  # every US filer (slow on free feed)
-```
-Data is **free by default** (SEC EDGAR + Stooq + Yahoo). Set an `FMP_API_KEY` to make whole-market scans fast. **See [RUNBOOK.md](RUNBOOK.md) for the full go-live checklist** — scheduling the weekly scan, verifying live data, insider signals, and the backtest.
-
-## Optional AI setup
-Copy `.env.example` to `.env` and add a key:
-```
-ANTHROPIC_API_KEY=sk-ant-...
-```
-The tool auto-detects the provider. OpenAI is supported too (`OPENAI_API_KEY`). Everything works without any key.
+1. **Data (free, no key).** `yfinance` for statements, price, shares and beta; **SEC EDGAR**
+   fills gaps and cross-checks US fundamentals; the live 10-year Treasury sets the risk-free rate.
+2. **Classification** into *mature, growth, hypergrowth, cyclical* or *financial*, which drives
+   everything downstream — including an explicit reliability flag.
+3. **FCFF DCF.** Reinvestment tied to growth through a sales-to-capital ratio; operating margins
+   converge to a sustainable target; early losses accrue an NOL balance that shields future taxes;
+   terminal reinvestment consistent with terminal ROIC, so perpetual growth is paid for.
+4. **WACC.** CAPM cost of equity from the live risk-free rate and beta; cost of debt from the
+   company's own interest expense or a synthetic spread from interest coverage.
+5. **Cross-checks.** Monte Carlo (10,000 trials → P(undervalued)), reverse DCF, comps, and a
+   WACC × terminal-growth sensitivity grid.
+6. **The 1–100 score.** Five sub-scores with regime-dependent weights, every weight shown.
+7. **Optional AI layer.** The quantitative result is handed to Claude, prompted to be skeptical
+   and to flag where the tool's own assumptions look aggressive.
 
 ---
 
 ## Project structure
+
 ```
 valuation-tool/
-├── run.py / run.bat / run.sh      # launchers
+├── run.py / run.bat / run.sh       # launchers
 ├── cli.py                          # command-line / batch mode
-├── requirements.txt
 ├── valuation/
-│   ├── config.py                   # settings & keys (all optional)
+│   ├── engine/                     # classify, assumptions, wacc, dcf, scenarios,
+│   │                               #   montecarlo, reverse_dcf, comps, scoring
 │   ├── data/                       # yahoo, edgar, macro, fetcher, models
-│   ├── engine/                     # classify, assumptions, wacc, dcf,
-│   │                               #   scenarios, montecarlo, reverse_dcf,
-│   │                               #   comps, sensitivity, scoring, pipeline
-│   ├── ai/analyst.py               # optional LLM qualitative layer
-│   ├── report/                     # excel + pdf exporters
-│   └── web/                        # Flask app, dashboard (HTML/CSS/JS)
-└── tests/                          # offline engine tests + fixtures
+│   ├── screener/                   # hot-stocks screener + the Valquo Index track
+│   ├── intraday/                   # intraday + options signals
+│   ├── edge/                       # the Edge Lab: point-in-time backtest, CPCV,
+│   │                               #   placebo calibration, forward paper track
+│   ├── ai/, report/, web/, saas/   # LLM layer, exports, Flask app, hosted tier
+├── scripts/                        # research + maintenance entry points
+└── tests/                          # offline suites, no data/ required
 ```
 
-Run the tests with `python tests/test_engine.py` (no pytest needed) or `python -m pytest tests/`.
+A hosted SaaS layer is included (accounts, tiers, Stripe billing, digests):
+`python run_saas.py`. **[SAAS_RUNBOOK.md](SAAS_RUNBOOK.md)** covers go-live and, importantly, a
+compliance section — charging for stock signals can trigger securities regulation. *(Not legal
+advice.)*
 
 ---
-
-## Run it as a subscription service (optional)
-A full hosted SaaS layer is included: accounts, a marketing landing + pricing page, **Free / Pro / Premium** tiers with feature gating, **Stripe** billing (checkout + webhooks + customer portal), a weekly server-side scan worker, and email digests — plus Docker/gunicorn/Procfile for one-command deploy.
-```bash
-python run_saas.py         # local: landing → register → gated dashboard at /app
-```
-**[SAAS_RUNBOOK.md](SAAS_RUNBOOK.md)** is the go-live checklist (Stripe, hosting, domain, email) and — importantly — a **compliance** section: charging for stock signals can trigger securities regulation, so talk to a securities attorney before launch. *(Not legal advice.)*
 
 ## Honest limitations
-I'd rather state these plainly than oversell the tool:
 
-- **A DCF is only as good as its inputs.** The assumption engine is a sensible starting point, not gospel — use the "tweak & re-run" panel and the reverse-DCF check, and lean on comps where DCF reliability is flagged low.
-- **The 1–100 score is a transparent heuristic, not a proven alpha signal.** It's designed to be explainable and sensible, but I have *not* yet run a point-in-time backtest establishing that it predicts forward returns (in the same spirit as my equity-screener project, I'd rather build the honest test than claim an edge I haven't measured). That backtest is the top item on the roadmap.
-- **Financials (banks/insurers) don't fit an unlevered-FCF DCF** and are flagged accordingly; treat their output as multiples-only.
-- **Comps use sector-benchmark multiples by default** — a rough cross-check, not a curated peer set (supply your own peers for precision).
-- **`yfinance` scrapes Yahoo** and can occasionally be rate-limited or change labels; SEC EDGAR backstops US names.
+- **A DCF is only as good as its inputs.** The assumption engine is a sensible starting point, not
+  gospel. Use the tweak-and-re-run panel and the reverse-DCF check.
+- **The screener's evidence is one panel and one 18-year window**, gross-of-cost figures quoted
+  alongside net, and it fails the strictest multiple-testing bar. The forward test that would
+  settle it does not report until 2031.
+- **`yfinance` scrapes Yahoo** and can be rate-limited or change labels; EDGAR backstops US names.
+- **Comps use sector-benchmark multiples by default** — a rough cross-check, not a curated peer set.
 - **Not investment advice.**
-
-## Roadmap
-- Point-in-time backtest of the score's predictive power (information coefficient, quantile spreads, out-of-sample).
-- Real peer-set selection for comps.
-- Segment-level revenue builds and explicit NWC modeling.
-- Persisted watchlists and historical snapshots.
 
 ---
 
-*Built by Donovan Corbin. Extends the [Nike (NKE) DCF](../nike-dcf-valuation) into a general-purpose valuation engine.*
+*Built by Donovan Corbin. Extends the
+[Nike (NKE) DCF](https://github.com/dcorbin07/nike-dcf-valuation) into a general-purpose
+valuation engine, in the spirit of the
+[equity factor screener](https://github.com/dcorbin07/stock_screener).*

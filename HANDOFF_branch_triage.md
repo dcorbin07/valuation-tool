@@ -436,6 +436,11 @@ worse failure. Flagged in the commit message, in `HANDOFF_edge_audit.md` §8.1, 
 
 ## E. Three refs deleted, with the evidence each rests on
 
+> **CORRECTED 2026-08-12 (Part 3, §J): WHEN THIS WAS WRITTEN, ONLY TWO OF THE THREE HAD ACTUALLY
+> BEEN DELETED.** `worktree-p6-costs-and-robustness` stayed live on `origin` and locally for five
+> more days — it had a verification section (§F) but no command in §4's `THEN DELETE` block. It is
+> deleted now. The other two rows are true. **Do not read this table as a record of completion.**
+
 Deleted **only after** `ef4b7a3` was verified on `main`. Tip SHAs recorded here so any of them can
 be recovered from GitHub or reflog:
 
@@ -509,3 +514,117 @@ uses to answer "is X done?".
    posture on the post-leak public allowlist is that lane's call, not this one's.
 
 **Nothing in Part 2 changed a shipped number, a weight, or a live code path.**
+
+---
+
+# PART 3 — THE LAST STRANDED REF, ACTUALLY DELETED (2026-08-12)
+
+## J. The finding is that Part 2 wrote up a deletion it never performed
+
+§E is headed **"Three refs deleted"** and its table lists three. **Two of them went. The third
+did not** — `worktree-p6-costs-and-robustness` was still live on `origin` **and** as a local ref
+when this session started, five days after §F was written about it in the past tense.
+
+**The mechanism is visible in this file and is worth naming, because it is a documentation failure
+that produces a silent state failure.** §4's `THEN DELETE` block spells out the commands, and it
+spells out **two**:
+
+```
+git push origin --delete worktree-ui-polish
+git push origin --delete worktree-honest-param-search
+```
+
+`p6-costs` appears in §4 only as the *precedent* for how to prune ("prune, but only after an agent
+verified nothing unique remained"). It then acquired a whole verification section (§F) and a row in
+§E's deleted table — **but never acquired a command.** The ref that had prose written about it and
+no line in the runbook is exactly the ref that survived. **Verification is not disposal, and a
+table that records intent in the perfect tense reads afterwards as a record of completion.**
+Checked rather than assumed: `worktree-ui-polish` and `worktree-honest-param-search` are both
+absent from `origin`, so the other two rows in that table are true.
+
+## K. Re-verified from scratch, by content — and §F's line cites had already rotted
+
+§F's evidence is a table of file:line pointers. `CLAUDE.md` warns that line numbers in this project
+rot within days, and **they had**: `score_universe_now()` was cited at `fundamental_panel.py:1355`
+and is now at **`:1453`**; the sector guard was cited at `valquo_index.py:41-51, :140, :157` and is
+now at **`:67, :178, :200, :217`**. Only `attribution.py:46` still resolves. So the disposition was
+re-derived by **content**, not by following the old pointers — `git grep` on `origin/main` for each
+change, plus a function-body diff.
+
+| content of `428f4de` | verified on `origin/main` (`8880f46`) |
+|---|---|
+| `score_universe_now()` + `STALE_PRICE_MAX_DAYS = 10` | present; **main is a strict SUPERSET** — body diff is 33 insertions / 4 deletions, and every insertion is main's added market-cap-divergence guard. Nothing on the branch is absent from main |
+| missing-sector guard + `sector_data_available` | present, and **improved** — main adds `.strip()` and factors it into `_sector_block()` |
+| `np.clip(-(om / 0.05), -700.0, 700.0)` | present at `attribution.py:46`; `screen.py` now *imports* it (`p_established as _p_established`), so there is exactly **one** definition and **zero** unclipped copies anywhere in the tree |
+| `test_index_reports_missing_sector_data_honestly` | `tests/test_edge.py:1243` |
+| `test_index_weights_are_capped_and_sum_to_one` | `tests/test_edge.py:1265` |
+| **`_scan()` per-call temp db** (flake fix) | `tests/test_screener.py:23-29`; the old fixed `/tmp/_test_screener.db` path is gone from the tree |
+| **`5e-5` rounding bound** (flake fix) | `tests/test_screener.py:73` |
+
+**§F's table was INCOMPLETE, and this is reported even though it changes nothing.** It listed six
+items and omitted **both `test_screener` flake fixes** — the per-call temp db and the rounding
+bound. The commit message enumerates four repairs under two headings ("Two defects found while
+validating the output", then "Also fixed two PRE-EXISTING flakes in test_screener"), and **§F's
+table covered the first heading and skipped the second entirely.** They are on `main`, so the
+conclusion held, but it held on evidence that did not cover the whole commit. An evidence table
+that stops short of the commit's own summary is how a real gap would get missed.
+
+## L. The prune conclusion is re-confirmed, and merging would have REGRESSED the record
+
+The one thing genuinely unique to the branch is prose, and §F called it void. **Re-measured, it is
+worse than void — it is a direct downgrade of a payload the Cowork agent parses.** The two
+`method` strings, side by side:
+
+| | branch `428f4de` | `origin/main` today |
+|---|---|---|
+| panel | "full 2,710-name / 110-date" | **2,531-name / 69-date** |
+| gross alpha | +11.8%/yr | **+7.2%/yr** |
+| net alpha | +11.4% | **+6.1%** |
+| breakeven vs actual | 236bps vs ~37bps | **134bps vs 33bps measured** |
+| top-25 | +20.7% gross alpha | **+16.9%** |
+
+Every branch figure is a pre-B6 number this project has declared void, and B11 retired the "~37bps"
+assumption specifically. **So the disposition is not merely "the code is redundant" — a merge would
+have overwritten five current figures with five superseded ones inside a user-facing string.**
+That is the §F re-diagnosis confirmed by measurement: the risk was never the stale
+`BACKTEST_RESULTS.json` the original suspicion named (**the commit does not touch that file at
+all** — five files, all source and tests), it was stale numbers in shipped prose, which is the more
+dangerous of the two because prose in a payload reads as current.
+
+## M. Deleted — both refs, and the identity banked first
+
+Nothing was rescued, because after the checks in §K there was nothing unique to rescue that anyone
+would want. Identity recorded so the commit is recoverable from reflog or GitHub:
+
+```
+tip     428f4de0ba28e49b72bdee2137681d1135296594
+tree    85dbae31c68a3a7fb1de9b46ed7e7392bbf06031
+parent  b0f70b6c51fdebc414e6bd038ea717eb70ea4150   (on main — so the branch is exactly 1 commit)
+```
+
+Checked before deleting: the branch was **checked out in no worktree** (`git worktree list`, ten
+entries, none on it), so the local delete could not orphan a working tree.
+
+## N. The stranded-branch scan reads clean — for the first time
+
+Measured across **all 57** `origin/worktree-*` refs, before the deletion:
+
+- **56 are fully merged into `origin/main`** (`git merge-base --is-ancestor` → true).
+- **1 was ahead: `worktree-p6-costs-and-robustness`, by exactly 1 commit.**
+
+Re-measured after the deletion: **58 refs, 58 merged, 0 ahead.** **The total moved 57 → 58 across
+the two measurements and the difference is not an error** — other lanes pushed and auto-landed
+while this ran, so two refs appeared and both arrived already merged. Both counts are quoted rather
+than one, because on a repo this busy a branch census is a reading at a timestamp, not a constant. Note that §G's exception has resolved itself
+without intervention: `origin/worktree-demo-link` was another lane's work in flight, and it has
+since landed — correctly left alone rather than tidied.
+
+**What that does and does not mean.** It means no ref carries content that is not on `main`. It
+does **not** mean the branch list is short — 56 merged refs remain, which is the auto-land Action's
+normal residue, not stranded work. **Deleting merged refs was not in scope and was not done**: they
+are harmless, and a sweep of 56 remote deletions is a much larger action than the one requested.
+
+## O. Still open — unchanged from §I
+
+None of §I's four items were touched. Part 3 changed **no code**: one markdown append and two ref
+deletions. **Zero trials, no shipped number, weight or code path affected, equity `N` unmoved.**

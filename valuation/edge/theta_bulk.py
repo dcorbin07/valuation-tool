@@ -301,6 +301,56 @@ def cached_dte(symbol: str, year: int, root: str = CACHE_ROOT) -> int:
         return LEGACY_MAX_DTE
 
 
+def requested_span_end(year: int, today: Optional[dt.date] = None) -> dt.date:
+    """The last date a pull of `year` can possibly cover — `_fetch_year`'s own clamp.
+
+    ONE definition, so `_fetch_year` (which decides what to fetch) and `needs_pull` (which decides
+    whether the file on disk still covers it) cannot drift apart. Two copies of a clamp is how a
+    cache comes to disagree with the rule that filled it.
+    """
+    return min(dt.date(year, 12, 31), today or dt.date.today())
+
+
+def cached_span_end(symbol: str, year: int, root: str = CACHE_ROOT) -> Optional[dt.date]:
+    """The last date a cached symbol-year actually covers, or None if it was never recorded.
+
+    AUDIT MA48. `_fetch_year` clamps `year_end = min(Dec 31, today)`, so a year mined while it was
+    still current is RIGHT-TRUNCATED — and nothing recorded where it stopped. `needs_pull`'s only
+    refresh trigger is DEPTH (`cached_dte < max_dte`), never SPAN, so such a file is cached
+    forever and every study whose window runs past the mine date gets empty `chain_on` slices,
+    uncounted. Once the calendar rolls over the year looks complete and the evidence is gone.
+
+    None means a file written before this sidecar existed. That is NOT read as "incomplete" for a
+    past year, and the reason is measured rather than assumed: across all 5,063 cached
+    symbol-years on disk on 2026-08-15, ZERO were mined during their own year (verified against
+    the frames' own max(date) on a sample — 14 of 14 ran Jan 2 to Dec 31). So the legacy cache is
+    complete in fact, and treating it as such re-mines nothing. A missing sidecar on the CURRENT
+    year is treated as incomplete, which is the safe direction and costs nothing today because
+    there are no current-year files.
+    """
+    path = year_path(symbol, year, root)
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path + ".span", encoding="utf-8") as f:
+            return dt.date.fromisoformat(f.read().strip().split()[0])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def span_is_stale(symbol: str, year: int, root: str = CACHE_ROOT,
+                  today: Optional[dt.date] = None) -> bool:
+    """Does the cached file stop short of what a pull TODAY would cover? (audit MA48)"""
+    today = today or dt.date.today()
+    want = requested_span_end(year, today)
+    have = cached_span_end(symbol, year, root)
+    if have is None:
+        # Legacy file: complete for a past year (measured), unknown-and-therefore-stale for the
+        # current one. See `cached_span_end` for why this is a measurement, not an assumption.
+        return year >= today.year
+    return have < want
+
+
 def depth_report(root: str = CACHE_ROOT) -> dict:
     """How many cached symbol-years sit at each DTE ceiling, and which names are fully deep.
 
@@ -515,6 +565,13 @@ class ThetaBulk:
             # keeps it looking eligible.
             return False
         if os.path.exists(path):
+            # AUDIT MA48 — SPAN as well as DEPTH. A year mined while it was still current stops
+            # at its mine date, and depth alone can never notice: `cached_dte` compares DTE
+            # ceilings, not calendars, so a file covering Jan-March of the running year looks
+            # every bit as cached as a finished one. Studies then read empty `chain_on` slices
+            # for the missing months and count them as no-data.
+            if span_is_stale(symbol, year, self.root):
+                return True
             return self.upgrade_depth and cached_dte(symbol, year, self.root) < self.max_dte
         return not os.path.exists(path + ".empty")
 
@@ -756,7 +813,7 @@ class ThetaBulk:
         self._tl.alias_used = set()    # which symbols actually supplied this year's rows
 
         cur = dt.date(year, 1, 1)
-        year_end = min(dt.date(year, 12, 31), today)
+        year_end = requested_span_end(year, today)     # AUDIT MA48: the ONE clamp, shared
         while cur <= year_end:
             if time.time() - t_start > NAME_BUDGET_S:
                 _log(f"{symbol} {year}: budget {NAME_BUDGET_S}s exhausted; abandoning the rest")
@@ -787,9 +844,14 @@ class ThetaBulk:
         """Pull + cache one symbol-year unless already on disk. Atomic write; resumable."""
         path = year_path(symbol, year, self.root)
         if os.path.exists(path):
-            if not (self.upgrade_depth
-                    and cached_dte(symbol, year, self.root) < self.max_dte):
-                return True         # cached, and deep enough for what was asked for
+            stale_span = span_is_stale(symbol, year, self.root)      # AUDIT MA48
+            if not stale_span and not (self.upgrade_depth
+                                       and cached_dte(symbol, year, self.root) < self.max_dte):
+                return True         # cached, deep enough AND covering the whole span asked for
+            if stale_span:
+                _log(f"{symbol} {year}: cached span ends "
+                     f"{cached_span_end(symbol, year, self.root)} < "
+                     f"{requested_span_end(year)}; re-pulling the year")
             # Deepening: keep the shallow frame until the deeper pull has proven itself. A bad
             # network day must never be able to trade good 90-DTE data for nothing.
             _log(f"{symbol} {year}: deepening "
@@ -880,6 +942,13 @@ class ThetaBulk:
             os.replace(tmp, path)                 # atomic: a kill cannot leave a partial file
             with open(path + ".dte", "w", encoding="utf-8") as f:
                 f.write(f"{self.max_dte} pulled {dt.date.today().isoformat()}\n")
+            # AUDIT MA48 — WHERE THIS YEAR ACTUALLY STOPS. Written beside `.dte` because it is
+            # the same kind of fact: what the file on disk covers, as opposed to what its name
+            # suggests. `YYYY-12-31` for a finished year; the mine date for one still running,
+            # which is exactly the case `needs_pull` could not previously see.
+            with open(path + ".span", "w", encoding="utf-8") as f:
+                f.write(f"{requested_span_end(year).isoformat()} pulled "
+                        f"{dt.date.today().isoformat()}\n")
             # PROVENANCE. If any span of this year came from an alias, say so on disk. Without
             # this the AT&T-under-WBD rows were indistinguishable from WBD's own.
             used = sorted(getattr(self._tl, "alias_used", ()) or ())

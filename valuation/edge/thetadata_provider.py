@@ -120,7 +120,19 @@ class ThetaProvider:
         return os.path.join(self.cache_dir, symbol.upper(), f"{date.isoformat()}.pkl")
 
     def _call(self, fn, **kw):
-        """Retry a feed call; return None rather than raising so one bad day cannot kill a run."""
+        """Retry a feed call; return None rather than raising so one bad day cannot kill a run.
+
+        AUDIT MA48 (the sibling defect). `None` meant BOTH "the feed says there is nothing here"
+        and "every retry failed", and `chain_on` cached an empty frame for both — so a transient
+        outage became a permanently-empty chain, indistinguishable on disk from a day that
+        genuinely had no quotes. That is the same disease MA48 fixes one module over: a transient
+        condition frozen into a cache with nothing recording which condition it was.
+
+        `self._last_call_failed` distinguishes them. It is a plain attribute rather than a
+        thread-local because this class has no concurrent caller (see `chain_on`); `theta_bulk`
+        runs the threaded path and owns its own client.
+        """
+        self._last_call_failed = False
         for i in range(RETRY):
             try:
                 return fn(**kw)
@@ -131,8 +143,10 @@ class ThetaProvider:
                     return None
                 if i == RETRY - 1:
                     self._err = f"{type(e).__name__}: {str(e)[:160]}"
+                    self._last_call_failed = True
                     return None
                 time.sleep(RETRY_PAUSE * (i + 1))
+        self._last_call_failed = True
         return None
 
     # -- the one method the backtest needs ----------------------------------------------
@@ -159,7 +173,10 @@ class ThetaProvider:
                          symbol=symbol.upper(), expiration="*", max_dte=max_dte)
         if eod is None or len(eod) == 0:
             out = pd.DataFrame()
-            self._save(path, out)
+            # AUDIT MA48 — cache "there is nothing here", never "we could not find out". Caching
+            # a failure is permanent: nothing in this class ever re-pulls a day that has a file.
+            if not getattr(self, "_last_call_failed", False):
+                self._save(path, out)
             return out
         eod = self._dedupe(eod)
 

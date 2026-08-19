@@ -1,11 +1,11 @@
 {
-  "schema_version": 4,
+  "schema_version": 6,
   "errors": [],
-  "generated_at": "2026-08-11T12:56:37",
-  "generated_at_utc": "2026-08-11T16:56:37+00:00",
+  "generated_at": "2026-08-14T02:23:56",
+  "generated_at_utc": "2026-08-14T06:23:56+00:00",
   "git": {
-    "commit": "9ea8f6ffbba6846aeee2df1ba63e930f676b683a",
-    "short": "9ea8f6f",
+    "commit": "57bc3f2c7d0f3c94b3db5dbff81a9c319a55757c",
+    "short": "57bc3f2",
     "branch": "worktree-options-live",
     "dirty": false
   },
@@ -240,7 +240,63 @@
     "years": 17.2,
     "n_periods": 69,
     "hit_rate": 0.7101449275362319,
-    "avg_hold_years": 0.6
+    "avg_hold_years": 0.6,
+    "label_warning": "realised book size is ~exit_rank, NOT top_n; gross of costs and taxes unlike every other book in this file (audit B17)",
+    "target_n": 25,
+    "exit_rank": 50,
+    "held_min": 25,
+    "held_median": 42,
+    "held_max": 47,
+    "charges_costs": false,
+    "charges_taxes": false,
+    "return_distribution": {
+      "n": 69,
+      "units": "per-period (not annualised) - a quantile is an order statistic and may not be scaled by periods-per-year the way a mean is",
+      "mean": 0.08380075777768924,
+      "sd": 0.13040185388418601,
+      "min": -0.22218261244052384,
+      "p05": -0.11111157809794331,
+      "p25": 0.006863803119088861,
+      "median": 0.07825315537337454,
+      "p75": 0.1444671036979734,
+      "p95": 0.31977050376696475,
+      "max": 0.47468158184477566,
+      "negative_periods": 14,
+      "negative_fraction": 0.2028985507246377,
+      "worst": {
+        "date": "2020-01-22",
+        "value": -0.22218261244052384
+      },
+      "best": {
+        "date": "2020-10-20",
+        "value": 0.47468158184477566
+      },
+      "n_dated": 69
+    },
+    "excess_vs_equal_weight_distribution": {
+      "n": 69,
+      "units": "per-period (not annualised) - a quantile is an order statistic and may not be scaled by periods-per-year the way a mean is",
+      "mean": 0.038457960896640546,
+      "sd": 0.06436249573051639,
+      "min": -0.09189957557320506,
+      "p05": -0.03995923790881444,
+      "p25": 0.0012079266284465637,
+      "median": 0.026123794689329634,
+      "p75": 0.06108449301923592,
+      "p95": 0.1512820741901648,
+      "max": 0.28046266320864116,
+      "negative_periods": 16,
+      "negative_fraction": 0.2318840579710145,
+      "worst": {
+        "date": "2014-07-21",
+        "value": -0.09189957557320506
+      },
+      "best": {
+        "date": "2024-01-24",
+        "value": 0.28046266320864116
+      },
+      "n_dated": 69
+    }
   },
   "cpcv": {
     "n_paths": 15,
@@ -250,21 +306,21 @@
       "meaning": "probability_of_backtest_overfitting"
     },
     "deflated_sharpe_detail": {
-      "probability": 0.8340367318547941,
+      "probability": 0.7863213339664521,
       "sharpe_per_period": 0.5500328707621251,
-      "sr0_benchmark": 0.440537154600876,
-      "n_trials": 155,
+      "sr0_benchmark": 0.4604580339477429,
+      "n_trials": 224,
       "var_sr_across_trials": 0.026997967906897496,
       "n_periods": 69,
       "n_trials_from_weight_schemes": 8,
-      "n_trials_from_research_log": 155,
+      "n_trials_from_research_log": 224,
       "n_trials_source": "RESEARCH_LOG.md (audit M1)",
       "is_effectively_undeflated": false,
       "metric": "deflated_sharpe_ratio"
     },
     "pbo_scope": "weight_scheme_selection_only",
     "deflated_sharpe": {
-      "value": 0.8340367318547941,
+      "value": 0.7863213339664521,
       "want": ">0.95",
       "meaning": "probability_edge_is_real_after_trials_correction"
     },
@@ -280,6 +336,27 @@
       "capital_discipline": 0.14285714285714285,
       "size": 0.14285714285714285,
       "institutional": 0.14285714285714285
+    },
+    "adopt_detail": {
+      "best": "positive-equal",
+      "median_oos_ic_best": 0.04262594853395377,
+      "median_oos_ic_default": 0.0431289535313836,
+      "margin": -0.0005030049974298345,
+      "se": 0.006725017557615581,
+      "folds_positive": 0.9333333333333333,
+      "haircut": 3.2898772171176964,
+      "n_trials_used": 224,
+      "bar": 0.022124482047515995
+    },
+    "challenger_weights": {
+      "value": 0.16666666666666666,
+      "quality": 0.16666666666666666,
+      "momentum": 0.16666666666666666,
+      "insider": 0.0,
+      "low_risk": 0.16666666666666666,
+      "capital_discipline": 0.16666666666666666,
+      "size": 0.0,
+      "institutional": 0.16666666666666666
     },
     "candidates": {
       "ic-proportional": {
@@ -431,6 +508,32 @@
       "p_value": 0.03646885945150591,
       "lag1_autocorr": 0.18904640439716733
     },
+    "long_short_inference": {
+      "t": 2.6199121240414884,
+      "method": "newey_west_hac",
+      "lag": 1,
+      "lag_source": "fixed",
+      "n": 69,
+      "n_eff": 47.059389683756194,
+      "autocorr_lag1": 0.18904640439716733,
+      "t_naive": 2.8360640685320595,
+      "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+      "ljung_box": {
+        "q": 10.246833575247466,
+        "df": 4,
+        "acf": [
+          0.18904640439716733,
+          0.19417784990598275,
+          -0.03384526016036504,
+          0.253151393593389
+        ],
+        "p_value": 0.03646885945150591,
+        "lag1_autocorr": 0.18904640439716733
+      },
+      "auto_lag": 3,
+      "t_auto_lag": 2.3636711593684976,
+      "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+    },
     "long_short_hit": 0.6666666666666666,
     "monotonicity": -0.8909090909090909,
     "monotonicity_want": "negative (-1.0 = perfectly ordered)",
@@ -449,8 +552,82 @@
       "p_value": 0.03591890098593076,
       "lag1_autocorr": 0.0812374099819142
     },
+    "top_decile_alpha_inference": {
+      "t": 4.376230427940328,
+      "method": "newey_west_hac",
+      "lag": 1,
+      "lag_source": "fixed",
+      "n": 69,
+      "n_eff": 58.631543938447635,
+      "autocorr_lag1": 0.0812374099819142,
+      "t_naive": 4.517421601141459,
+      "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+      "ljung_box": {
+        "q": 10.283144878250697,
+        "df": 4,
+        "acf": [
+          0.0812374099819142,
+          0.30621778922644777,
+          0.05347417857880996,
+          0.19063613329897636
+        ],
+        "p_value": 0.03591890098593076,
+        "lag1_autocorr": 0.0812374099819142
+      },
+      "auto_lag": 3,
+      "t_auto_lag": 3.772744773413748,
+      "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+    },
     "top_decile_alpha_hit": 0.7101449275362319,
-    "signal_weighted_top_decile_alpha": 0.08001508891469325
+    "signal_weighted_top_decile_alpha": 0.08001508891469325,
+    "top_decile_alpha_distribution": {
+      "n": 69,
+      "units": "per-period (not annualised) - a quantile is an order statistic and may not be scaled by periods-per-year the way a mean is",
+      "mean": 0.017935355830245418,
+      "sd": 0.03297948871803303,
+      "min": -0.06827541571293919,
+      "p05": -0.025644239577008725,
+      "p25": -0.004759025913538509,
+      "median": 0.014066940662536748,
+      "p75": 0.032412998237211055,
+      "p95": 0.08294873847842618,
+      "max": 0.11469435087862384,
+      "negative_periods": 20,
+      "negative_fraction": 0.2898550724637681,
+      "worst": {
+        "date": "2016-01-20",
+        "value": -0.06827541571293919
+      },
+      "best": {
+        "date": "2022-07-22",
+        "value": 0.11469435087862384
+      },
+      "n_dated": 69
+    },
+    "long_short_distribution": {
+      "n": 69,
+      "units": "per-period (not annualised) - a quantile is an order statistic and may not be scaled by periods-per-year the way a mean is",
+      "mean": 0.027595461541801664,
+      "sd": 0.080825084981248,
+      "min": -0.2000849309015556,
+      "p05": -0.10483972139480391,
+      "p25": -0.011072697876136989,
+      "median": 0.018054388928173515,
+      "p75": 0.07332897975996584,
+      "p95": 0.1631380533472176,
+      "max": 0.2824111335706687,
+      "negative_periods": 23,
+      "negative_fraction": 0.3333333333333333,
+      "worst": {
+        "date": "2025-07-29",
+        "value": -0.2000849309015556
+      },
+      "best": {
+        "date": "2021-10-20",
+        "value": 0.2824111335706687
+      },
+      "n_dated": 69
+    }
   },
   "benchmarks": {
     "n_periods": 69,
@@ -465,6 +642,32 @@
       "excess_ann": 0.07174142332098168,
       "excess_tstat": 4.517421601141459,
       "excess_tstat_nw": 4.376230427940328,
+      "excess_inference": {
+        "t": 4.376230427940328,
+        "method": "newey_west_hac",
+        "lag": 1,
+        "lag_source": "fixed",
+        "n": 69,
+        "n_eff": 58.631543938447635,
+        "autocorr_lag1": 0.0812374099819142,
+        "t_naive": 4.517421601141459,
+        "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+        "ljung_box": {
+          "q": 10.283144878250697,
+          "df": 4,
+          "acf": [
+            0.0812374099819142,
+            0.30621778922644777,
+            0.05347417857880996,
+            0.19063613329897636
+          ],
+          "p_value": 0.03591890098593076,
+          "lag1_autocorr": 0.0812374099819142
+        },
+        "auto_lag": 3,
+        "t_auto_lag": 3.772744773413748,
+        "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+      },
       "hit_rate": 0.7101449275362319
     },
     "equal_weight_costed": {
@@ -476,6 +679,32 @@
       "excess_ann": 0.09212028011927015,
       "excess_tstat": 5.83390872190287,
       "excess_tstat_nw": 5.685407772673987,
+      "excess_inference": {
+        "t": 5.685407772673987,
+        "method": "newey_west_hac",
+        "lag": 1,
+        "lag_source": "fixed",
+        "n": 69,
+        "n_eff": 60.16441655673288,
+        "autocorr_lag1": 0.0684057086216641,
+        "t_naive": 5.83390872190287,
+        "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+        "ljung_box": {
+          "q": 9.581284770692813,
+          "df": 4,
+          "acf": [
+            0.0684057086216641,
+            0.29905396935934236,
+            0.04460610189986371,
+            0.1841970033342707
+          ],
+          "p_value": 0.04810355709465508,
+          "lag1_autocorr": 0.0684057086216641
+        },
+        "auto_lag": 3,
+        "t_auto_lag": 4.9247021879063295,
+        "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+      },
       "hit_rate": 0.7536231884057971
     },
     "cap_weighted": {
@@ -487,6 +716,32 @@
       "excess_ann": 0.10457015074789032,
       "excess_tstat": 4.137670110245667,
       "excess_tstat_nw": 4.291888862760569,
+      "excess_inference": {
+        "t": 4.291888862760569,
+        "method": "newey_west_hac",
+        "lag": 1,
+        "lag_source": "fixed",
+        "n": 69,
+        "n_eff": 69.0,
+        "autocorr_lag1": -0.05690603175610792,
+        "t_naive": 4.137670110245667,
+        "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+        "ljung_box": {
+          "q": 6.648967049285508,
+          "df": 4,
+          "acf": [
+            -0.05690603175610792,
+            0.19096318745446098,
+            -0.13902006487896795,
+            -0.17524563206045093
+          ],
+          "p_value": 0.1556429296717613,
+          "lag1_autocorr": -0.05690603175610792
+        },
+        "auto_lag": 3,
+        "t_auto_lag": 4.094740172493066,
+        "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+      },
       "hit_rate": 0.6811594202898551
     },
     "spy": {
@@ -498,6 +753,32 @@
       "excess_ann": 0.09986436736616329,
       "excess_tstat": 3.6379360028810215,
       "excess_tstat_nw": 3.769758598721771,
+      "excess_inference": {
+        "t": 3.769758598721771,
+        "method": "newey_west_hac",
+        "lag": 1,
+        "lag_source": "fixed",
+        "n": 69,
+        "n_eff": 69.0,
+        "autocorr_lag1": -0.05501871674195641,
+        "t_naive": 3.6379360028810215,
+        "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+        "ljung_box": {
+          "q": 7.697238222359227,
+          "df": 4,
+          "acf": [
+            -0.05501871674195641,
+            0.1863875897082468,
+            -0.16461889558232062,
+            -0.19708236423901665
+          ],
+          "p_value": 0.10331991162420329,
+          "lag1_autocorr": -0.05501871674195641
+        },
+        "auto_lag": 3,
+        "t_auto_lag": 3.6257287943288143,
+        "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+      },
       "hit_rate": 0.6376811594202898
     }
   },
@@ -537,150 +818,800 @@
       "earnings_yield": {
         "median_ic": 0.01209135844016394,
         "ic_tstat": 2.1642366792720207,
+        "ic_inference": {
+          "t": 2.0231932382439948,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 49.851353476734374,
+          "autocorr_lag1": 0.16111424870743304,
+          "t_naive": 2.1642366792720207,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 7.99683870036123,
+            "df": 4,
+            "acf": [
+              0.16111424870743304,
+              0.19204709606077688,
+              0.1576273060635887,
+              0.14504663410501706
+            ],
+            "p_value": 0.09169406555415949,
+            "lag1_autocorr": 0.16111424870743304
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.7726481379950003,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9790776251700382,
         "n_dates": 69
       },
       "fcf_yield": {
         "median_ic": 0.023337866279372555,
         "ic_tstat": 3.0386834981528024,
+        "ic_inference": {
+          "t": 2.8417558539622894,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 49.943715385344056,
+          "autocorr_lag1": 0.16021262286047622,
+          "t_naive": 3.0386834981528024,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 6.412101167900678,
+            "df": 4,
+            "acf": [
+              0.16021262286047622,
+              0.06398379229295373,
+              0.22267657354318185,
+              0.08794821559636183
+            ],
+            "p_value": 0.17041366398006697,
+            "lag1_autocorr": 0.16021262286047622
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 2.572639824430813,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9678880161481417,
         "n_dates": 69
       },
       "ebit_ev": {
         "median_ic": 0.013795807813265391,
         "ic_tstat": 2.015624720746249,
+        "ic_inference": {
+          "t": 1.8931727547671646,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 50.97756614477778,
+          "autocorr_lag1": 0.1502150313123906,
+          "t_naive": 2.015624720746249,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 7.110867899444451,
+            "df": 4,
+            "acf": [
+              0.1502150313123906,
+              0.17629026743231457,
+              0.1592746608274788,
+              0.13282859879049963
+            ],
+            "p_value": 0.1301440773814958,
+            "lag1_autocorr": 0.1502150313123906
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.6682670121216068,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.97411031638071,
         "n_dates": 69
       },
       "neg_ev_sales": {
         "median_ic": 0.02367596798823243,
         "ic_tstat": 1.1762033945165478,
+        "ic_inference": {
+          "t": 1.1693402079402422,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 65.41750127951195,
+          "autocorr_lag1": 0.026652025862603144,
+          "t_naive": 1.1762033945165478,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 5.323948675793368,
+            "df": 4,
+            "acf": [
+              0.026652025862603144,
+              0.028193525446450676,
+              0.2617911595382063,
+              0.04113243579977348
+            ],
+            "p_value": 0.25564336804258636,
+            "lag1_autocorr": 0.026652025862603144
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.0820087329503212,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.953670630567379,
         "n_dates": 69
       },
       "neg_ps": {
         "median_ic": 0.009932162879902522,
         "ic_tstat": 0.8491106796991521,
+        "ic_inference": {
+          "t": 0.837322387768226,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 63.25000841237411,
+          "autocorr_lag1": 0.04347819449429909,
+          "t_naive": 0.8491106796991521,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 6.479512711690547,
+            "df": 4,
+            "acf": [
+              0.04347819449429909,
+              0.08079833232242627,
+              0.2726677280740829,
+              0.06788671141814506
+            ],
+            "p_value": 0.16608583407901178,
+            "lag1_autocorr": 0.04347819449429909
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 0.7553203590096967,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9583132212909737,
         "n_dates": 69
       },
       "book_to_price": {
         "median_ic": -0.024364800740366753,
         "ic_tstat": -0.3610077514552108,
+        "ic_inference": {
+          "t": -0.334627144805991,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 47.84985826079255,
+          "autocorr_lag1": 0.18100271625493364,
+          "t_naive": -0.3610077514552108,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 7.737363451447509,
+            "df": 4,
+            "acf": [
+              0.18100271625493364,
+              0.17805699443738093,
+              0.20260594451012484,
+              -0.012559295078493864
+            ],
+            "p_value": 0.10168672472320173,
+            "lag1_autocorr": 0.18100271625493364
+          },
+          "auto_lag": 3,
+          "t_auto_lag": -0.292011363980574,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9996840580982053,
         "n_dates": 69
       },
       "neg_ev_ebitda": {
         "median_ic": 0.00769608697775345,
         "ic_tstat": 0.7855860430951561,
+        "ic_inference": {
+          "t": 0.7470675022706239,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 53.990362036757745,
+          "autocorr_lag1": 0.12203913960962548,
+          "t_naive": 0.7855860430951561,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 5.910725487149223,
+            "df": 4,
+            "acf": [
+              0.12203913960962548,
+              0.0314466765774762,
+              0.2481510624866409,
+              0.050811366650147696
+            ],
+            "p_value": 0.20591528578150753,
+            "lag1_autocorr": 0.12203913960962548
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 0.6839770557027514,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.8235815525034008,
         "n_dates": 69
       },
       "roic": {
         "median_ic": 0.04141230697882874,
         "ic_tstat": 2.817218383368084,
+        "ic_inference": {
+          "t": 2.977264398988443,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.09145509616392468,
+          "t_naive": 2.817218383368084,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 6.647853087458192,
+            "df": 4,
+            "acf": [
+              -0.09145509616392468,
+              0.23320695559942387,
+              -0.16418772287484842,
+              -0.029959595593622445
+            ],
+            "p_value": 0.1557095864341077,
+            "lag1_autocorr": -0.09145509616392468
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 2.818295451819465,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9651761814910702,
         "n_dates": 69
       },
       "roe": {
         "median_ic": 0.038061872340138636,
         "ic_tstat": 2.7302632553921296,
+        "ic_inference": {
+          "t": 2.7630274118409277,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.009216331115583688,
+          "t_naive": 2.7302632553921296,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 7.90845685602459,
+            "df": 4,
+            "acf": [
+              -0.009216331115583688,
+              0.3045596298519392,
+              -0.11500141561305725,
+              0.04284465822094353
+            ],
+            "p_value": 0.09498968348288839,
+            "lag1_autocorr": -0.009216331115583688
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 2.476576762035157,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9304927816051604,
         "n_dates": 69
       },
       "op_margin": {
         "median_ic": 0.034290155236613634,
         "ic_tstat": 1.2129843871416068,
+        "ic_inference": {
+          "t": 1.158397597834809,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 55.03486636455605,
+          "autocorr_lag1": 0.11259038724158772,
+          "t_naive": 1.2129843871416068,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 5.4075675136845875,
+            "df": 4,
+            "acf": [
+              0.11259038724158772,
+              0.22852957684198685,
+              -0.06910526002785249,
+              -0.06527156646219245
+            ],
+            "p_value": 0.2479746333953653,
+            "lag1_autocorr": 0.11259038724158772
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.0466446903459319,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9608144280135152,
         "n_dates": 69
       },
       "gross_margin": {
         "median_ic": -0.002011662512746461,
         "ic_tstat": 0.6079150115068548,
+        "ic_inference": {
+          "t": 0.6139566185774823,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.005166176507016212,
+          "t_naive": 0.6079150115068548,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 1.980628195337153,
+            "df": 4,
+            "acf": [
+              -0.005166176507016212,
+              -0.12161832210958348,
+              -0.03882935799490214,
+              -0.10207410184383388
+            ],
+            "p_value": 0.739322070693891,
+            "lag1_autocorr": -0.005166176507016212
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 0.6637317994372927,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9608670849971478,
         "n_dates": 69
       },
       "neg_leverage": {
         "median_ic": 0.005058722628352531,
         "ic_tstat": 1.2922632166634416,
+        "ic_inference": {
+          "t": 1.2791364631760787,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 64.25106887817674,
+          "autocorr_lag1": 0.035638972068321055,
+          "t_naive": 1.2922632166634416,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 1.0638588392976236,
+            "df": 4,
+            "acf": [
+              0.035638972068321055,
+              -0.0840737545022635,
+              0.05728241372247706,
+              -0.05303051020782346
+            ],
+            "p_value": 0.8999631867396446,
+            "lag1_autocorr": 0.035638972068321055
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.3030172447418105,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9595067795866427,
         "n_dates": 69
       },
       "gp_on_capital": {
         "median_ic": 0.03888578858763892,
         "ic_tstat": 3.6739062643346085,
+        "ic_inference": {
+          "t": 3.705597836889801,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.0025761406064642232,
+          "t_naive": 3.6739062643346085,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 2.7469932044941294,
+            "df": 4,
+            "acf": [
+              -0.0025761406064642232,
+              0.09288250888384106,
+              -0.12850699817753952,
+              -0.10866154448947274
+            ],
+            "p_value": 0.6010168100074347,
+            "lag1_autocorr": -0.0025761406064642232
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 3.6558305792612664,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9712580631006187,
         "n_dates": 69
       },
       "fcf_margin": {
         "median_ic": 0.028398253035800885,
         "ic_tstat": 3.6986748541872423,
+        "ic_inference": {
+          "t": 3.309275047031014,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 39.87102911276678,
+          "autocorr_lag1": 0.2675548410317857,
+          "t_naive": 3.6986748541872423,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 8.11641340428463,
+            "df": 4,
+            "acf": [
+              0.2675548410317857,
+              0.1625896636361543,
+              -0.08838251039976694,
+              -0.0769537897957531
+            ],
+            "p_value": 0.08740570810293091,
+            "lag1_autocorr": 0.2675548410317857
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 3.0222676996011137,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9476852867611567,
         "n_dates": 69
       },
       "accruals_q": {
         "median_ic": 0.013408374218028525,
         "ic_tstat": 0.27899124645983736,
+        "ic_inference": {
+          "t": 0.2843228505178734,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.02299271210139116,
+          "t_naive": 0.27899124645983736,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 5.450420098671541,
+            "df": 4,
+            "acf": [
+              -0.02299271210139116,
+              0.1346820915409041,
+              -0.17709377336269888,
+              -0.1527288229284997
+            ],
+            "p_value": 0.2441220899923353,
+            "lag1_autocorr": -0.02299271210139116
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 0.27941283545718104,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.967738821361183,
         "n_dates": 69
       },
       "interest_cov": {
         "median_ic": 0.029294411790640157,
         "ic_tstat": 1.9271849772851126,
+        "ic_inference": {
+          "t": 1.9372339899621343,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 68.42200035326799,
+          "autocorr_lag1": 0.004206019743899484,
+          "t_naive": 1.9271849772851126,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 6.742549014396369,
+            "df": 4,
+            "acf": [
+              0.004206019743899484,
+              0.26466347953646785,
+              -0.1385043273343925,
+              -0.05093843325740537
+            ],
+            "p_value": 0.15013507480859944,
+            "lag1_autocorr": 0.004206019743899484
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.7708908077745984,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.770977225854579,
         "n_dates": 69
       },
       "revenue_growth": {
         "median_ic": 0.01130833588843384,
         "ic_tstat": 0.8925498496464825,
+        "ic_inference": {
+          "t": 0.8377372478772889,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 50.80904251410202,
+          "autocorr_lag1": 0.15183292599769196,
+          "t_naive": 0.8925498496464825,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 4.24086086327323,
+            "df": 4,
+            "acf": [
+              0.15183292599769196,
+              0.07402023447594143,
+              -0.052201493188894506,
+              -0.1619644000389993
+            ],
+            "p_value": 0.3743891627392243,
+            "lag1_autocorr": 0.15183292599769196
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 0.7960376156476908,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9284918162271272,
         "n_dates": 69
       },
       "growth_accel": {
         "median_ic": 0.0027235261958822323,
         "ic_tstat": -0.2985384239174907,
+        "ic_inference": {
+          "t": -0.3239069063649984,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.138013958619066,
+          "t_naive": -0.2985384239174907,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 1.7411082746971538,
+            "df": 4,
+            "acf": [
+              -0.138013958619066,
+              0.01491989002997575,
+              -0.053402704627775854,
+              -0.04323129825141995
+            ],
+            "p_value": 0.7832374124148783,
+            "lag1_autocorr": -0.138013958619066
+          },
+          "auto_lag": 3,
+          "t_auto_lag": -0.3402435292876377,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.8952652595550485,
         "n_dates": 69
       },
       "ret_12_1": {
         "median_ic": 0.022867411355897278,
         "ic_tstat": 1.030558171305928,
+        "ic_inference": {
+          "t": 1.0647205914732143,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.04936479455353061,
+          "t_naive": 1.030558171305928,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 10.50649803810201,
+            "df": 4,
+            "acf": [
+              -0.04936479455353061,
+              0.3305773906345246,
+              -0.17656523069649604,
+              0.018675677488525676
+            ],
+            "p_value": 0.0327075988504929,
+            "lag1_autocorr": -0.04936479455353061
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 0.9604508705217699,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9656325420158849,
         "n_dates": 69
       },
       "ret_6_1": {
         "median_ic": 0.04085348896736081,
         "ic_tstat": 1.8328822601032684,
+        "ic_inference": {
+          "t": 2.166771486651993,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.2739223143883506,
+          "t_naive": 1.8328822601032684,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 23.09337524159239,
+            "df": 4,
+            "acf": [
+              -0.2739223143883506,
+              0.3036110742332063,
+              -0.2990604403014722,
+              0.2391024818154421
+            ],
+            "p_value": 0.00012130155475653659,
+            "lag1_autocorr": -0.2739223143883506
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 2.141670088328291,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9830444512703498,
         "n_dates": 69
       },
       "high_prox": {
         "median_ic": 0.029887666586044522,
         "ic_tstat": 0.8953702395729619,
+        "ic_inference": {
+          "t": 0.9676513305182939,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.1312242457808789,
+          "t_naive": 0.8953702395729619,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 9.225738201995869,
+            "df": 4,
+            "acf": [
+              -0.1312242457808789,
+              0.2825988113266064,
+              -0.14499192733078287,
+              0.08811831778562036
+            ],
+            "p_value": 0.05569822019367765,
+            "lag1_autocorr": -0.1312242457808789
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 0.8960059763619826,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9656325420158849,
         "n_dates": 69
       },
       "neg_beta": {
         "median_ic": 0.018392790691131318,
         "ic_tstat": -0.3410525804764037,
+        "ic_inference": {
+          "t": -0.39369228663053835,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.23850151139925477,
+          "t_naive": -0.3410525804764037,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 6.6340493974195285,
+            "df": 4,
+            "acf": [
+              -0.23850151139925477,
+              0.09163310966889844,
+              -0.13769442548914906,
+              0.08263633809418029
+            ],
+            "p_value": 0.15653772231568963,
+            "lag1_autocorr": -0.23850151139925477
+          },
+          "auto_lag": 3,
+          "t_auto_lag": -0.42127881979592074,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9946640923252447,
         "n_dates": 69
       },
       "neg_vol": {
         "median_ic": 0.045311763343926705,
         "ic_tstat": 0.8472157617293655,
+        "ic_inference": {
+          "t": 0.8873389397844664,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.07498419998737674,
+          "t_naive": 0.8472157617293655,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 2.858139294140169,
+            "df": 4,
+            "acf": [
+              -0.07498419998737674,
+              0.1657037568873675,
+              -0.06638712200676557,
+              -0.03960661785002601
+            ],
+            "p_value": 0.5818391032805769,
+            "lag1_autocorr": -0.07498419998737674
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 0.8450002044505239,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9970512089165826,
         "n_dates": 69
       },
       "neg_issuance": {
         "median_ic": 0.029673292522552474,
         "ic_tstat": 2.75557863224069,
+        "ic_inference": {
+          "t": 2.6342147612743507,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 55.28412230486286,
+          "autocorr_lag1": 0.11035905022117594,
+          "t_naive": 2.75557863224069,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 8.780367792161822,
+            "df": 4,
+            "acf": [
+              0.11035905022117594,
+              0.21157579329392795,
+              0.13283959106942678,
+              0.20987896493222843
+            ],
+            "p_value": 0.06682992005321986,
+            "lag1_autocorr": 0.11035905022117594
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 2.3103052447776964,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9682215103778139,
         "n_dates": 69
       },
       "neg_asset_growth": {
         "median_ic": -0.0021003595961246475,
         "ic_tstat": -0.6780482425547277,
+        "ic_inference": {
+          "t": -0.6117707882890289,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 41.712126035939825,
+          "autocorr_lag1": 0.24647592762514445,
+          "t_naive": -0.6780482425547277,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 11.020102837409373,
+            "df": 4,
+            "acf": [
+              0.24647592762514445,
+              0.17010879240459448,
+              0.21516047847344238,
+              0.1203280578847278
+            ],
+            "p_value": 0.02633901275763917,
+            "lag1_autocorr": 0.24647592762514445
+          },
+          "auto_lag": 3,
+          "t_auto_lag": -0.5321459577517313,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9678792399842029,
         "n_dates": 69
       },
@@ -693,12 +1624,64 @@
       "neg_log_mktcap": {
         "median_ic": -0.010853968128165676,
         "ic_tstat": -0.3007596871207122,
+        "ic_inference": {
+          "t": -0.3274885625117834,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.14417069590209092,
+          "t_naive": -0.3007596871207122,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 6.667677550826976,
+            "df": 4,
+            "acf": [
+              -0.14417069590209092,
+              0.2029954128428694,
+              -0.14031254815318808,
+              -0.09608462176004857
+            ],
+            "p_value": 0.15452721134503222,
+            "lag1_autocorr": -0.14417069590209092
+          },
+          "auto_lag": 3,
+          "t_auto_lag": -0.31644904681249597,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 1.0,
         "n_dates": 69
       },
       "inst_accum": {
         "median_ic": 0.01116039539802747,
         "ic_tstat": 1.4723767342081526,
+        "ic_inference": {
+          "t": 1.543091587097096,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 49,
+          "n_eff": 49.0,
+          "autocorr_lag1": -0.07058574705341339,
+          "t_naive": 1.4723767342081526,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 1.5107166464663406,
+            "df": 4,
+            "acf": [
+              -0.07058574705341339,
+              0.09484073762899564,
+              -0.07689728379219166,
+              0.09020075421307805
+            ],
+            "p_value": 0.8247414675931037,
+            "lag1_autocorr": -0.07058574705341339
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.5258689252630921,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.716845846680416,
         "n_dates": 49
       },
@@ -717,106 +1700,1420 @@
       "f_score": {
         "median_ic": 0.015706459504789962,
         "ic_tstat": 1.9095578589068436,
+        "ic_inference": {
+          "t": 1.9027316133122856,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 66.0293983088903,
+          "autocorr_lag1": 0.02199966620834832,
+          "t_naive": 1.9095578589068436,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 7.6484309304888285,
+            "df": 4,
+            "acf": [
+              0.02199966620834832,
+              0.27437137329450223,
+              -0.15920101821468394,
+              0.054985529001815005
+            ],
+            "p_value": 0.10533944416191121,
+            "lag1_autocorr": 0.02199966620834832
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.735978482994701,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9502040458115758,
         "n_dates": 69
       },
       "inst_breadth": {
         "median_ic": 0.021751936551603103,
         "ic_tstat": 1.148106065974398,
+        "ic_inference": {
+          "t": 1.2370630195803685,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 49,
+          "n_eff": 49.0,
+          "autocorr_lag1": -0.12070375832578696,
+          "t_naive": 1.148106065974398,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 3.2803226672586803,
+            "df": 4,
+            "acf": [
+              -0.12070375832578696,
+              0.027823610395565686,
+              -0.2084354406801201,
+              0.046567650428889135
+            ],
+            "p_value": 0.5120559886367315,
+            "lag1_autocorr": -0.12070375832578696
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.346159460854921,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.7184518846812058,
         "n_dates": 49
+      },
+      "neg_ret_1m": {
+        "median_ic": 0.007154987416835121,
+        "ic_tstat": 0.45062680420201157,
+        "ic_inference": {
+          "t": 0.45459322495209215,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.002923909967745436,
+          "t_naive": 0.45062680420201157,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 1.747160925181731,
+            "df": 4,
+            "acf": [
+              -0.002923909967745436,
+              0.09080465438023771,
+              0.0012802902067910317,
+              -0.12317555623374359
+            ],
+            "p_value": 0.7821340165001179,
+            "lag1_autocorr": -0.002923909967745436
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 0.43537207023980823,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
+        "coverage": 0.996866909473869,
+        "n_dates": 69
+      },
+      "neg_max_ret": {
+        "median_ic": 0.026340592798591893,
+        "ic_tstat": 1.0958470743402355,
+        "ic_inference": {
+          "t": 1.150981203457394,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.08017836468733537,
+          "t_naive": 1.0958470743402355,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 4.537277200315612,
+            "df": 4,
+            "acf": [
+              -0.08017836468733537,
+              0.2172654451640927,
+              -0.09095656962182089,
+              -0.010618928276775103
+            ],
+            "p_value": 0.33815022412456974,
+            "lag1_autocorr": -0.08017836468733537
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.0764933533006065,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
+        "coverage": 0.9998244767212251,
+        "n_dates": 69
+      },
+      "neg_idio_vol": {
+        "median_ic": 0.05452227911718604,
+        "ic_tstat": 1.18935866744789,
+        "ic_inference": {
+          "t": 1.2105062277682068,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.02043827924183695,
+          "t_naive": 1.18935866744789,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 3.5099079477664596,
+            "df": 4,
+            "acf": [
+              -0.02043827924183695,
+              0.19805517827658253,
+              -0.04353175073446453,
+              -0.07905048666438655
+            ],
+            "p_value": 0.4763734193788135,
+            "lag1_autocorr": -0.02043827924183695
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.1193357761250171,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
+        "coverage": 0.9946640923252447,
+        "n_dates": 69
+      },
+      "sm_conviction": {
+        "median_ic": 0.015970948551070226,
+        "ic_tstat": 1.201516450351601,
+        "ic_inference": {
+          "t": 1.278605353453631,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 50,
+          "n_eff": 50.0,
+          "autocorr_lag1": -0.09892626697939143,
+          "t_naive": 1.201516450351601,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 2.709309051593051,
+            "df": 4,
+            "acf": [
+              -0.09892626697939143,
+              0.1274427466721292,
+              -0.09388092649574893,
+              -0.12064687458450576
+            ],
+            "p_value": 0.6075866335519344,
+            "lag1_autocorr": -0.09892626697939143
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.2571364773257974,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
+        "coverage": 0.7376014743955417,
+        "n_dates": 50
+      },
+      "sm_holders": {
+        "median_ic": 0.03285438325111249,
+        "ic_tstat": 1.6145162110754516,
+        "ic_inference": {
+          "t": 1.611145654040211,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 50,
+          "n_eff": 47.591246225576675,
+          "autocorr_lag1": 0.024682067988512232,
+          "t_naive": 1.6145162110754516,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 3.0639799362679874,
+            "df": 4,
+            "acf": [
+              0.024682067988512232,
+              0.23021751917351016,
+              -0.011058869626541448,
+              -0.05220636618648386
+            ],
+            "p_value": 0.5471761900848612,
+            "lag1_autocorr": 0.024682067988512232
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.4519424254910296,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
+        "coverage": 0.7376014743955417,
+        "n_dates": 50
+      },
+      "sm_avg_position": {
+        "median_ic": 0.03240079670627162,
+        "ic_tstat": 1.2809309882050104,
+        "ic_inference": {
+          "t": 1.3295545850748363,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 50,
+          "n_eff": 50.0,
+          "autocorr_lag1": -0.05286247246811796,
+          "t_naive": 1.2809309882050104,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 1.8762684941944436,
+            "df": 4,
+            "acf": [
+              -0.05286247246811796,
+              0.10401997469176584,
+              -0.06178617243759258,
+              -0.12832203382667784
+            ],
+            "p_value": 0.7585030454699163,
+            "lag1_autocorr": -0.05286247246811796
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.297943979873168,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
+        "coverage": 0.7376014743955417,
+        "n_dates": 50
       },
       "cash_op_prof": {
         "median_ic": 0.0025644369874580357,
         "ic_tstat": 0.8392408086546717,
+        "ic_inference": {
+          "t": 0.8308462897949336,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 64.29292273517073,
+          "autocorr_lag1": 0.03531378236923633,
+          "t_naive": 0.8392408086546717,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 3.195999914916095,
+            "df": 4,
+            "acf": [
+              0.03531378236923633,
+              0.1497719013126411,
+              0.01859104488993867,
+              0.13823933438506578
+            ],
+            "p_value": 0.5255772715644573,
+            "lag1_autocorr": 0.03531378236923633
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 0.7678891780836982,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9527052525341173,
         "n_dates": 69
       },
       "sm_breadth": {
         "median_ic": 0.02503524588892606,
         "ic_tstat": 1.671620858487314,
+        "ic_inference": {
+          "t": 1.84814355986104,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 49,
+          "n_eff": 49.0,
+          "autocorr_lag1": -0.16486054965585117,
+          "t_naive": 1.671620858487314,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 3.8829134554119746,
+            "df": 4,
+            "acf": [
+              -0.16486054965585117,
+              -0.0031989087011708053,
+              -0.21233608234682277,
+              0.017995315536557525
+            ],
+            "p_value": 0.4220836408776176,
+            "lag1_autocorr": -0.16486054965585117
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 2.1056887380154365,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.7169336083198035,
         "n_dates": 49
       },
       "roe_ttm": {
         "median_ic": 0.030106342981957624,
         "ic_tstat": 1.7260448426553852,
+        "ic_inference": {
+          "t": 1.9013043815908763,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.1637405683334202,
+          "t_naive": 1.7260448426553852,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 9.448213874245663,
+            "df": 4,
+            "acf": [
+              -0.1637405683334202,
+              0.2745756934055301,
+              -0.16124354969067078,
+              0.031369345599856026
+            ],
+            "p_value": 0.05082228226176255,
+            "lag1_autocorr": -0.1637405683334202
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.7854160187396777,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9049190398876651,
         "n_dates": 69
       },
       "roic_ttm": {
         "median_ic": 0.02445107223206066,
         "ic_tstat": 1.931216315486373,
+        "ic_inference": {
+          "t": 2.112287609902014,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.1518045889693204,
+          "t_naive": 1.931216315486373,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 7.744880399800287,
+            "df": 4,
+            "acf": [
+              -0.1518045889693204,
+              0.23764661644830695,
+              -0.1589326265933441,
+              -0.03262357121778257
+            ],
+            "p_value": 0.10138345969016371,
+            "lag1_autocorr": -0.1518045889693204
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 2.0167358808395597,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.93803150642854,
         "n_dates": 69
       },
       "pead_car": {
         "median_ic": 0.011927623925239593,
         "ic_tstat": 2.4572438240826884,
+        "ic_inference": {
+          "t": 2.6215204076098675,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.1084818346839713,
+          "t_naive": 2.4572438240826884,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 1.2812136645953842,
+            "df": 4,
+            "acf": [
+              -0.1084818346839713,
+              -0.060199669011270614,
+              0.012227744688054668,
+              0.04568335526378539
+            ],
+            "p_value": 0.8645547545392834,
+            "lag1_autocorr": -0.1084818346839713
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 2.796947870171529,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.863978235113432,
         "n_dates": 69
       },
       "pead_drift": {
         "median_ic": 0.006753286802004711,
         "ic_tstat": 0.13552058758758903,
+        "ic_inference": {
+          "t": 0.12043732663020817,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 38.4114476908366,
+          "autocorr_lag1": 0.28477925739541954,
+          "t_naive": 0.13552058758758903,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 9.775548785680186,
+            "df": 4,
+            "acf": [
+              0.28477925739541954,
+              -0.1292956783227868,
+              -0.15316740213275626,
+              -0.11339161103264868
+            ],
+            "p_value": 0.044383108168789986,
+            "lag1_autocorr": 0.28477925739541954
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 0.1235281826684829,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.24319627890648998,
         "n_dates": 69
       },
       "sm_elite_conviction": {
         "median_ic": 0.024214498287509885,
         "ic_tstat": 1.3719241627328311,
+        "ic_inference": {
+          "t": 1.4531667110624833,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 46,
+          "n_eff": 46.0,
+          "autocorr_lag1": -0.08888195726842023,
+          "t_naive": 1.3719241627328311,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 2.8196610817381975,
+            "df": 4,
+            "acf": [
+              -0.08888195726842023,
+              0.19574949068200428,
+              -0.023508193383044797,
+              -0.0956326136793059
+            ],
+            "p_value": 0.588443648792,
+            "lag1_autocorr": -0.08888195726842023
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.3532221256896404,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.6823994032208521,
         "n_dates": 46
       },
       "neg_days_to_cover": {
         "median_ic": 0.014878884192472954,
         "ic_tstat": 1.2993442977457483,
+        "ic_inference": {
+          "t": 1.3122957217013218,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 32,
+          "n_eff": 31.242149974104695,
+          "autocorr_lag1": 0.011983305852277568,
+          "t_naive": 1.2993442977457483,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 4.681486819749408,
+            "df": 4,
+            "acf": [
+              0.011983305852277568,
+              0.30421752562550336,
+              -0.1543445587518661,
+              -0.10474032235486039
+            ],
+            "p_value": 0.321566777809026,
+            "lag1_autocorr": 0.011983305852277568
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.1831237904762664,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.4621089121944798,
         "n_dates": 32
       },
       "neg_short_interest_chg": {
         "median_ic": 0.013530852042951028,
         "ic_tstat": 1.2349987459247873,
+        "ic_inference": {
+          "t": 1.1568366049469356,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 32,
+          "n_eff": 22.400476128287238,
+          "autocorr_lag1": 0.17646029143339037,
+          "t_naive": 1.2349987459247873,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 2.919229271574956,
+            "df": 4,
+            "acf": [
+              0.17646029143339037,
+              0.21452976437077123,
+              -0.018564687073626702,
+              -0.0609490384576482
+            ],
+            "p_value": 0.5714319072680683,
+            "lag1_autocorr": 0.17646029143339037
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.0349304646866604,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.4609504585545658,
         "n_dates": 32
       },
       "activist_13d": {
         "median_ic": -0.00739877840923835,
         "ic_tstat": -0.3825528006529036,
+        "ic_inference": {
+          "t": -0.3660734200138887,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 55.53531686046821,
+          "autocorr_lag1": 0.108119395196287,
+          "t_naive": -0.3825528006529036,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 4.2617847058361455,
+            "df": 4,
+            "acf": [
+              0.108119395196287,
+              0.1653764368526222,
+              -0.11877946867277532,
+              0.0703105872201934
+            ],
+            "p_value": 0.37173490778515317,
+            "lag1_autocorr": 0.108119395196287
+          },
+          "auto_lag": 3,
+          "t_auto_lag": -0.3421948405120177,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.6643029531791654,
         "n_dates": 69
       },
       "passive_13g": {
         "median_ic": 0.0044755494271089095,
         "ic_tstat": 1.2870613212731956,
+        "ic_inference": {
+          "t": 1.2594555728427903,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 61.228528999176305,
+          "autocorr_lag1": 0.059675641432399555,
+          "t_naive": 1.2870613212731956,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 1.6055330184928223,
+            "df": 4,
+            "acf": [
+              0.059675641432399555,
+              0.09196202557617546,
+              0.09470015484415964,
+              0.02934890929437531
+            ],
+            "p_value": 0.807797335227028,
+            "lag1_autocorr": 0.059675641432399555
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.1695645847800402,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.6643029531791654,
         "n_dates": 69
       },
       "govt_award_momentum": {
         "median_ic": 0.004749744637385087,
         "ic_tstat": 0.3457918483937262,
+        "ic_inference": {
+          "t": 0.38903960123611603,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 61,
+          "n_eff": 61.0,
+          "autocorr_lag1": -0.19680598432048688,
+          "t_naive": 0.3457918483937262,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 5.00235057815891,
+            "df": 4,
+            "acf": [
+              -0.19680598432048688,
+              -0.08878045139676663,
+              0.12606396167577055,
+              -0.1190243959590467
+            ],
+            "p_value": 0.28705639620464196,
+            "lag1_autocorr": -0.19680598432048688
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 0.42311220014181505,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.04752292772828996,
         "n_dates": 61
       },
       "govt_award_level": {
         "median_ic": -0.016959813628421666,
         "ic_tstat": -0.7916396215190099,
+        "ic_inference": {
+          "t": -0.6885563587308967,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 61,
+          "n_eff": 29.78313741843429,
+          "autocorr_lag1": 0.3438619050769539,
+          "t_naive": -0.7916396215190099,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 29.087146220838182,
+            "df": 4,
+            "acf": [
+              0.3438619050769539,
+              0.5123028219247654,
+              0.16194937246317778,
+              0.1994078427439088
+            ],
+            "p_value": 7.505114309691585e-06,
+            "lag1_autocorr": 0.3438619050769539
+          },
+          "auto_lag": 3,
+          "t_auto_lag": -0.5496310765062832,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.05110360261529685,
         "n_dates": 61
       },
       "congress_net_buy": {
         "median_ic": -0.005675930944493496,
         "ic_tstat": 0.10447071136726888,
+        "ic_inference": {
+          "t": 0.11774514155860845,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 48,
+          "n_eff": 48.0,
+          "autocorr_lag1": -0.1960176938717688,
+          "t_naive": 0.10447071136726888,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 3.7275781479056938,
+            "df": 4,
+            "acf": [
+              -0.1960176938717688,
+              0.11462227702434516,
+              -0.14207544838866007,
+              0.008038592997548666
+            ],
+            "p_value": 0.44412755359799005,
+            "lag1_autocorr": -0.1960176938717688
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 0.12194489281604654,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.1310544560972399,
         "n_dates": 48
       },
       "congress_activity": {
         "median_ic": -0.02062550087640955,
         "ic_tstat": -0.7597672618310589,
+        "ic_inference": {
+          "t": -0.8144715864131877,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 48,
+          "n_eff": 48.0,
+          "autocorr_lag1": -0.1113051670098933,
+          "t_naive": -0.7597672618310589,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 1.9164670754054782,
+            "df": 4,
+            "acf": [
+              -0.1113051670098933,
+              0.05994336006601638,
+              0.14217243062051405,
+              0.01834023573140924
+            ],
+            "p_value": 0.7511193434626687,
+            "lag1_autocorr": -0.1113051670098933
+          },
+          "auto_lag": 3,
+          "t_auto_lag": -0.7819834655797409,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.1310544560972399,
         "n_dates": 48
       }
     }
+  },
+  "multiple_testing": {
+    "bh": {
+      "family": "per-signal IC table \u2014 the equity analogue of the options autopsy's 126 features",
+      "q": 0.05,
+      "n_signals": 53,
+      "n_discoveries_plain": 3,
+      "n_discoveries_hac": 3,
+      "discoveries_plain": [
+        "fcf_margin",
+        "fcf_yield",
+        "gp_on_capital"
+      ],
+      "discoveries_hac": [
+        "fcf_margin",
+        "gp_on_capital",
+        "roic"
+      ],
+      "signals": [
+        {
+          "signal": "accruals_q",
+          "median_ic": 0.013408374218028525,
+          "coverage": 0.967738821361183,
+          "n_dates": 69,
+          "ic_tstat": 0.27899124645983736,
+          "ic_t_hac": 0.2843228505178734,
+          "p_plain": 0.7802515424763132,
+          "p_hac": 0.7761629762515845,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "activist_13d",
+          "median_ic": -0.00739877840923835,
+          "coverage": 0.6643029531791654,
+          "n_dates": 69,
+          "ic_tstat": -0.3825528006529036,
+          "ic_t_hac": -0.3660734200138887,
+          "p_plain": 0.7020513722983972,
+          "p_hac": 0.7143102907171859,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "book_to_price",
+          "median_ic": -0.024364800740366753,
+          "coverage": 0.9996840580982053,
+          "n_dates": 69,
+          "ic_tstat": -0.3610077514552108,
+          "ic_t_hac": -0.334627144805991,
+          "p_plain": 0.7180936524643624,
+          "p_hac": 0.7379063656797734,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "cash_op_prof",
+          "median_ic": 0.0025644369874580357,
+          "coverage": 0.9527052525341173,
+          "n_dates": 69,
+          "ic_tstat": 0.8392408086546717,
+          "ic_t_hac": 0.8308462897949336,
+          "p_plain": 0.40133419142769106,
+          "p_hac": 0.4060604688114984,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "congress_activity",
+          "median_ic": -0.02062550087640955,
+          "coverage": 0.1310544560972399,
+          "n_dates": 48,
+          "ic_tstat": -0.7597672618310589,
+          "ic_t_hac": -0.8144715864131877,
+          "p_plain": 0.4473937152112718,
+          "p_hac": 0.41537484319171314,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "congress_net_buy",
+          "median_ic": -0.005675930944493496,
+          "coverage": 0.1310544560972399,
+          "n_dates": 48,
+          "ic_tstat": 0.10447071136726888,
+          "ic_t_hac": 0.11774514155860845,
+          "p_plain": 0.9167958100140918,
+          "p_hac": 0.9062695977437463,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "earn_rev",
+          "median_ic": null,
+          "coverage": 0.0,
+          "n_dates": 0,
+          "ic_tstat": null,
+          "ic_t_hac": null,
+          "p_plain": null,
+          "p_hac": null,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "earnings_yield",
+          "median_ic": 0.01209135844016394,
+          "coverage": 0.9790776251700382,
+          "n_dates": 69,
+          "ic_tstat": 2.1642366792720207,
+          "ic_t_hac": 2.0231932382439948,
+          "p_plain": 0.030446189601120492,
+          "p_hac": 0.04305322854803044,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "ebit_ev",
+          "median_ic": 0.013795807813265391,
+          "coverage": 0.97411031638071,
+          "n_dates": 69,
+          "ic_tstat": 2.015624720746249,
+          "ic_t_hac": 1.8931727547671646,
+          "p_plain": 0.04383923277379828,
+          "p_hac": 0.05833489935932975,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "f_score",
+          "median_ic": 0.015706459504789962,
+          "coverage": 0.9502040458115758,
+          "n_dates": 69,
+          "ic_tstat": 1.9095578589068436,
+          "ic_t_hac": 1.9027316133122856,
+          "p_plain": 0.05619016538377838,
+          "p_hac": 0.05707557465444134,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "fcf_margin",
+          "median_ic": 0.028398253035800885,
+          "coverage": 0.9476852867611567,
+          "n_dates": 69,
+          "ic_tstat": 3.6986748541872423,
+          "ic_t_hac": 3.309275047031014,
+          "p_plain": 0.0002167280226343023,
+          "p_hac": 0.000935378981095967,
+          "bh_reject_plain": true,
+          "bh_reject_hac": true
+        },
+        {
+          "signal": "fcf_yield",
+          "median_ic": 0.023337866279372555,
+          "coverage": 0.9678880161481417,
+          "n_dates": 69,
+          "ic_tstat": 3.0386834981528024,
+          "ic_t_hac": 2.8417558539622894,
+          "p_plain": 0.0023761434677857683,
+          "p_hac": 0.004486583551027516,
+          "bh_reject_plain": true,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "govt_award_level",
+          "median_ic": -0.016959813628421666,
+          "coverage": 0.05110360261529685,
+          "n_dates": 61,
+          "ic_tstat": -0.7916396215190099,
+          "ic_t_hac": -0.6885563587308967,
+          "p_plain": 0.42857083728574186,
+          "p_hac": 0.4911024923778739,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "govt_award_momentum",
+          "median_ic": 0.004749744637385087,
+          "coverage": 0.04752292772828996,
+          "n_dates": 61,
+          "ic_tstat": 0.3457918483937262,
+          "ic_t_hac": 0.38903960123611603,
+          "p_plain": 0.7294991517324985,
+          "p_hac": 0.6972468518564516,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "gp_on_capital",
+          "median_ic": 0.03888578858763892,
+          "coverage": 0.9712580631006187,
+          "n_dates": 69,
+          "ic_tstat": 3.6739062643346085,
+          "ic_t_hac": 3.705597836889801,
+          "p_plain": 0.00023887039234768702,
+          "p_hac": 0.00021089270183807804,
+          "bh_reject_plain": true,
+          "bh_reject_hac": true
+        },
+        {
+          "signal": "gross_margin",
+          "median_ic": -0.002011662512746461,
+          "coverage": 0.9608670849971478,
+          "n_dates": 69,
+          "ic_tstat": 0.6079150115068548,
+          "ic_t_hac": 0.6139566185774823,
+          "p_plain": 0.5432438428385569,
+          "p_hac": 0.5392439944524163,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "growth_accel",
+          "median_ic": 0.0027235261958822323,
+          "coverage": 0.8952652595550485,
+          "n_dates": 69,
+          "ic_tstat": -0.2985384239174907,
+          "ic_t_hac": -0.3239069063649984,
+          "p_plain": 0.7652922542959674,
+          "p_hac": 0.7460085151161407,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "high_prox",
+          "median_ic": 0.029887666586044522,
+          "coverage": 0.9656325420158849,
+          "n_dates": 69,
+          "ic_tstat": 0.8953702395729619,
+          "ic_t_hac": 0.9676513305182939,
+          "p_plain": 0.3705892040288235,
+          "p_hac": 0.33321853238252874,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "inst_accum",
+          "median_ic": 0.01116039539802747,
+          "coverage": 0.716845846680416,
+          "n_dates": 49,
+          "ic_tstat": 1.4723767342081526,
+          "ic_t_hac": 1.543091587097096,
+          "p_plain": 0.14091917228956397,
+          "p_hac": 0.12280855567207323,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "inst_breadth",
+          "median_ic": 0.021751936551603103,
+          "coverage": 0.7184518846812058,
+          "n_dates": 49,
+          "ic_tstat": 1.148106065974398,
+          "ic_t_hac": 1.2370630195803685,
+          "p_plain": 0.2509247803312506,
+          "p_hac": 0.2160636874328347,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "interest_cov",
+          "median_ic": 0.029294411790640157,
+          "coverage": 0.770977225854579,
+          "n_dates": 69,
+          "ic_tstat": 1.9271849772851126,
+          "ic_t_hac": 1.9372339899621343,
+          "p_plain": 0.05395658147541089,
+          "p_hac": 0.05271674711203962,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "neg_asset_growth",
+          "median_ic": -0.0021003595961246475,
+          "coverage": 0.9678792399842029,
+          "n_dates": 69,
+          "ic_tstat": -0.6780482425547277,
+          "ic_t_hac": -0.6117707882890289,
+          "p_plain": 0.49774110570466606,
+          "p_hac": 0.540689419334867,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "neg_beta",
+          "median_ic": 0.018392790691131318,
+          "coverage": 0.9946640923252447,
+          "n_dates": 69,
+          "ic_tstat": -0.3410525804764037,
+          "ic_t_hac": -0.39369228663053835,
+          "p_plain": 0.7330639985665459,
+          "p_hac": 0.6938082368029966,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "neg_days_to_cover",
+          "median_ic": 0.014878884192472954,
+          "coverage": 0.4621089121944798,
+          "n_dates": 32,
+          "ic_tstat": 1.2993442977457483,
+          "ic_t_hac": 1.3122957217013218,
+          "p_plain": 0.19382579850944473,
+          "p_hac": 0.18942037513530627,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "neg_ev_ebitda",
+          "median_ic": 0.00769608697775345,
+          "coverage": 0.8235815525034008,
+          "n_dates": 69,
+          "ic_tstat": 0.7855860430951561,
+          "ic_t_hac": 0.7470675022706239,
+          "p_plain": 0.43211004376145096,
+          "p_hac": 0.45502281554812263,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "neg_ev_sales",
+          "median_ic": 0.02367596798823243,
+          "coverage": 0.953670630567379,
+          "n_dates": 69,
+          "ic_tstat": 1.1762033945165478,
+          "ic_t_hac": 1.1693402079402422,
+          "p_plain": 0.2395136083637474,
+          "p_hac": 0.24226658952903826,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "neg_idio_vol",
+          "median_ic": 0.05452227911718604,
+          "coverage": 0.9946640923252447,
+          "n_dates": 69,
+          "ic_tstat": 1.18935866744789,
+          "ic_t_hac": 1.2105062277682068,
+          "p_plain": 0.2342985582276658,
+          "p_hac": 0.22608470250072735,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "neg_issuance",
+          "median_ic": 0.029673292522552474,
+          "coverage": 0.9682215103778139,
+          "n_dates": 69,
+          "ic_tstat": 2.75557863224069,
+          "ic_t_hac": 2.6342147612743507,
+          "p_plain": 0.00585884199938004,
+          "p_hac": 0.00843321280132505,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "neg_leverage",
+          "median_ic": 0.005058722628352531,
+          "coverage": 0.9595067795866427,
+          "n_dates": 69,
+          "ic_tstat": 1.2922632166634416,
+          "ic_t_hac": 1.2791364631760787,
+          "p_plain": 0.19626600574636552,
+          "p_hac": 0.2008490052406082,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "neg_log_mktcap",
+          "median_ic": -0.010853968128165676,
+          "coverage": 1.0,
+          "n_dates": 69,
+          "ic_tstat": -0.3007596871207122,
+          "ic_t_hac": -0.3274885625117834,
+          "p_plain": 0.7635977508824812,
+          "p_hac": 0.7432983922641264,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "neg_max_ret",
+          "median_ic": 0.026340592798591893,
+          "coverage": 0.9998244767212251,
+          "n_dates": 69,
+          "ic_tstat": 1.0958470743402355,
+          "ic_t_hac": 1.150981203457394,
+          "p_plain": 0.27314570374263025,
+          "p_hac": 0.24973996850295066,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "neg_ps",
+          "median_ic": 0.009932162879902522,
+          "coverage": 0.9583132212909737,
+          "n_dates": 69,
+          "ic_tstat": 0.8491106796991521,
+          "ic_t_hac": 0.837322387768226,
+          "p_plain": 0.3958197083096891,
+          "p_hac": 0.4024113783866741,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "neg_rating_disp",
+          "median_ic": null,
+          "coverage": 0.0,
+          "n_dates": 0,
+          "ic_tstat": null,
+          "ic_t_hac": null,
+          "p_plain": null,
+          "p_hac": null,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "neg_ret_1m",
+          "median_ic": 0.007154987416835121,
+          "coverage": 0.996866909473869,
+          "n_dates": 69,
+          "ic_tstat": 0.45062680420201157,
+          "ic_t_hac": 0.45459322495209215,
+          "p_plain": 0.6522585447097109,
+          "p_hac": 0.6494019097996249,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "neg_short_interest_chg",
+          "median_ic": 0.013530852042951028,
+          "coverage": 0.4609504585545658,
+          "n_dates": 32,
+          "ic_tstat": 1.2349987459247873,
+          "ic_t_hac": 1.1568366049469356,
+          "p_plain": 0.21683097086946207,
+          "p_hac": 0.24733912338436087,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "neg_vol",
+          "median_ic": 0.045311763343926705,
+          "coverage": 0.9970512089165826,
+          "n_dates": 69,
+          "ic_tstat": 0.8472157617293655,
+          "ic_t_hac": 0.8873389397844664,
+          "p_plain": 0.39687486969888613,
+          "p_hac": 0.3748964468133766,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "op_margin",
+          "median_ic": 0.034290155236613634,
+          "coverage": 0.9608144280135152,
+          "n_dates": 69,
+          "ic_tstat": 1.2129843871416068,
+          "ic_t_hac": 1.158397597834809,
+          "p_plain": 0.22513578980568852,
+          "p_hac": 0.24670181900786878,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "passive_13g",
+          "median_ic": 0.0044755494271089095,
+          "coverage": 0.6643029531791654,
+          "n_dates": 69,
+          "ic_tstat": 1.2870613212731956,
+          "ic_t_hac": 1.2594555728427903,
+          "p_plain": 0.1980729155012999,
+          "p_hac": 0.2078658275299234,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "pead_car",
+          "median_ic": 0.011927623925239593,
+          "coverage": 0.863978235113432,
+          "n_dates": 69,
+          "ic_tstat": 2.4572438240826884,
+          "ic_t_hac": 2.6215204076098675,
+          "p_plain": 0.014000762586482043,
+          "p_hac": 0.008753852115539843,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "pead_drift",
+          "median_ic": 0.006753286802004711,
+          "coverage": 0.24319627890648998,
+          "n_dates": 69,
+          "ic_tstat": 0.13552058758758903,
+          "ic_t_hac": 0.12043732663020817,
+          "p_plain": 0.8922002878691402,
+          "p_hac": 0.9041367242113425,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "rating_rev",
+          "median_ic": null,
+          "coverage": 0.0,
+          "n_dates": 0,
+          "ic_tstat": null,
+          "ic_t_hac": null,
+          "p_plain": null,
+          "p_hac": null,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "ret_12_1",
+          "median_ic": 0.022867411355897278,
+          "coverage": 0.9656325420158849,
+          "n_dates": 69,
+          "ic_tstat": 1.030558171305928,
+          "ic_t_hac": 1.0647205914732143,
+          "p_plain": 0.30274805991971176,
+          "p_hac": 0.2870023889738788,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "ret_6_1",
+          "median_ic": 0.04085348896736081,
+          "coverage": 0.9830444512703498,
+          "n_dates": 69,
+          "ic_tstat": 1.8328822601032684,
+          "ic_t_hac": 2.166771486651993,
+          "p_plain": 0.0668200824479241,
+          "p_hac": 0.030252282613793837,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "revenue_growth",
+          "median_ic": 0.01130833588843384,
+          "coverage": 0.9284918162271272,
+          "n_dates": 69,
+          "ic_tstat": 0.8925498496464825,
+          "ic_t_hac": 0.8377372478772889,
+          "p_plain": 0.3720982859207294,
+          "p_hac": 0.40217828902089403,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "roe",
+          "median_ic": 0.038061872340138636,
+          "coverage": 0.9304927816051604,
+          "n_dates": 69,
+          "ic_tstat": 2.7302632553921296,
+          "ic_t_hac": 2.7630274118409277,
+          "p_plain": 0.006328376816151557,
+          "p_hac": 0.005726795670228319,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "roe_ttm",
+          "median_ic": 0.030106342981957624,
+          "coverage": 0.9049190398876651,
+          "n_dates": 69,
+          "ic_tstat": 1.7260448426553852,
+          "ic_t_hac": 1.9013043815908763,
+          "p_plain": 0.08433934565861277,
+          "p_hac": 0.057262155498640145,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "roic",
+          "median_ic": 0.04141230697882874,
+          "coverage": 0.9651761814910702,
+          "n_dates": 69,
+          "ic_tstat": 2.817218383368084,
+          "ic_t_hac": 2.977264398988443,
+          "p_plain": 0.004844157559581765,
+          "p_hac": 0.0029083307858558537,
+          "bh_reject_plain": false,
+          "bh_reject_hac": true
+        },
+        {
+          "signal": "roic_ttm",
+          "median_ic": 0.02445107223206066,
+          "coverage": 0.93803150642854,
+          "n_dates": 69,
+          "ic_tstat": 1.931216315486373,
+          "ic_t_hac": 2.112287609902014,
+          "p_plain": 0.053456307157839604,
+          "p_hac": 0.034661787928051975,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "sm_avg_position",
+          "median_ic": 0.03240079670627162,
+          "coverage": 0.7376014743955417,
+          "n_dates": 50,
+          "ic_tstat": 1.2809309882050104,
+          "ic_t_hac": 1.3295545850748363,
+          "p_plain": 0.2002179072013983,
+          "p_hac": 0.18366506982926406,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "sm_breadth",
+          "median_ic": 0.02503524588892606,
+          "coverage": 0.7169336083198035,
+          "n_dates": 49,
+          "ic_tstat": 1.671620858487314,
+          "ic_t_hac": 1.84814355986104,
+          "p_plain": 0.09459910900202212,
+          "p_hac": 0.06458157768435784,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "sm_conviction",
+          "median_ic": 0.015970948551070226,
+          "coverage": 0.7376014743955417,
+          "n_dates": 50,
+          "ic_tstat": 1.201516450351601,
+          "ic_t_hac": 1.278605353453631,
+          "p_plain": 0.22955092918657827,
+          "p_hac": 0.20103606383153885,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "sm_elite_conviction",
+          "median_ic": 0.024214498287509885,
+          "coverage": 0.6823994032208521,
+          "n_dates": 46,
+          "ic_tstat": 1.3719241627328311,
+          "ic_t_hac": 1.4531667110624833,
+          "p_plain": 0.17008704753319112,
+          "p_hac": 0.14617747237217268,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        },
+        {
+          "signal": "sm_holders",
+          "median_ic": 0.03285438325111249,
+          "coverage": 0.7376014743955417,
+          "n_dates": 50,
+          "ic_tstat": 1.6145162110754516,
+          "ic_t_hac": 1.611145654040211,
+          "p_plain": 0.10641550343715735,
+          "p_hac": 0.10714797967374509,
+          "bh_reject_plain": false,
+          "bh_reject_hac": false
+        }
+      ],
+      "not_computable_across_the_log": "RESEARCH_LOG.md records verdicts and has no p-value column; reconstructing one for heterogeneous rows measured against different statistics on different universes would be invention. R4's permanent residual."
+    },
+    "hlz": {
+      "statistic": "construction.long_short_tstat_nw",
+      "value": 2.6199121240414884,
+      "n_trials_equity": 224,
+      "hurdle_sqrt_2_ln_N": 3.2898772171176964,
+      "clears_hlz_hurdle": false,
+      "shortfall": 0.669965093076208,
+      "x7_calibrated_floor": 2.2837,
+      "clears_x7_calibrated_floor": true,
+      "the_tension": "CLEARS the bar measured against the project's own placebo and FAILS the bar derived from counting its own trials. Neither is 'the' answer. HLZ prices the best of N draws; the deployed composite is flat 1/7, never tuned, and cpcv.adopt is false on every run, so the logged trials are overwhelmingly REJECTED ALTERNATIVES to it rather than candidates it beat."
+    },
+    "by_domain": {
+      "equity": 224,
+      "options": 292,
+      "unified": 0,
+      "infra": 14
+    },
+    "unified_domain_declared_but_zero": true,
+    "unified_note": "research_log.DOMAINS declares `unified` and it reads zero: every U-series item testing unified equity+options hypotheses was charged to equity or options. Three parallel single-lane families and one dead bucket. Measured and ROUTED \u2014 deciding whether cross-lane claims need their own denominator would move every published N and is not made here.",
+    "trials_logged_all_domains": 530,
+    "audit_estimate": 146,
+    "gap_to_audit_estimate": -384
   },
   "per_theme": {
     "available": true,
@@ -824,42 +3121,224 @@
       "value": {
         "median_ic": 0.010965900753792885,
         "ic_tstat": 0.8380193994947784,
+        "ic_inference": {
+          "t": 0.7891700940207452,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 51.60685754449835,
+          "autocorr_lag1": 0.144213544815098,
+          "t_naive": 0.8380193994947784,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 9.246759451038283,
+            "df": 4,
+            "acf": [
+              0.144213544815098,
+              0.08815498865160978,
+              0.30643299659640333,
+              0.05280498048292347
+            ],
+            "p_value": 0.05521907257468195,
+            "lag1_autocorr": 0.144213544815098
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 0.6991837165322538,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 1.0,
         "n_dates": 69
       },
       "quality": {
         "median_ic": 0.03562743530200842,
         "ic_tstat": 3.1014879183756694,
+        "ic_inference": {
+          "t": 2.9836724611302903,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 56.86385013859134,
+          "autocorr_lag1": 0.09642283982291418,
+          "t_naive": 3.1014879183756694,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 8.052112026826455,
+            "df": 4,
+            "acf": [
+              0.09642283982291418,
+              0.20210248182204854,
+              -0.24217310889723825,
+              -0.02372739786761085
+            ],
+            "p_value": 0.08968780883085692,
+            "lag1_autocorr": 0.09642283982291418
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 2.821999385373378,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9791127298257931,
         "n_dates": 69
       },
       "growth": {
         "median_ic": 0.018121755045027943,
         "ic_tstat": 0.7516546733309294,
+        "ic_inference": {
+          "t": 0.7506658720210612,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 66.64241950269238,
+          "autocorr_lag1": 0.017380849633553044,
+          "t_naive": 0.7516546733309294,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 3.0849290794786146,
+            "df": 4,
+            "acf": [
+              0.017380849633553044,
+              0.06850301042009438,
+              -0.11916596375291022,
+              -0.14867469591959795
+            ],
+            "p_value": 0.5437146893027718,
+            "lag1_autocorr": 0.017380849633553044
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 0.7442521549119688,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9284918162271272,
         "n_dates": 69
       },
       "momentum": {
         "median_ic": 0.021184224054573188,
         "ic_tstat": 1.3118300906697948,
+        "ic_inference": {
+          "t": 1.418216867670515,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.1318194295655428,
+          "t_naive": 1.3118300906697948,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 17.54431300781088,
+            "df": 4,
+            "acf": [
+              -0.1318194295655428,
+              0.35688320065648776,
+              -0.26104236187934104,
+              0.15966880505185857
+            ],
+            "p_value": 0.001514576624134345,
+            "lag1_autocorr": -0.1318194295655428
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.3029191801252016,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9830444512703498,
         "n_dates": 69
       },
       "insider": {
         "median_ic": -0.0051782959605508995,
         "ic_tstat": -0.23616128224391933,
+        "ic_inference": {
+          "t": -0.23191722549192648,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 62.155807473763424,
+          "autocorr_lag1": 0.052183678771568646,
+          "t_naive": -0.23616128224391933,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 5.321762935671374,
+            "df": 4,
+            "acf": [
+              0.052183678771568646,
+              0.16021380129455476,
+              -0.1982560925612862,
+              0.06628760421160178
+            ],
+            "p_value": 0.25584652878333713,
+            "lag1_autocorr": 0.052183678771568646
+          },
+          "auto_lag": 3,
+          "t_auto_lag": -0.2228681768159381,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.8307516784413533,
         "n_dates": 69
       },
       "low_risk": {
         "median_ic": 0.024698824225033326,
         "ic_tstat": 0.46232436101336777,
+        "ic_inference": {
+          "t": 0.5092654385262255,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.16373229224445876,
+          "t_naive": 0.46232436101336777,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 4.167952041079249,
+            "df": 4,
+            "acf": [
+              -0.16373229224445876,
+              0.1331801915167181,
+              -0.1096648593942824,
+              0.024964659308199473
+            ],
+            "p_value": 0.3837529317732634,
+            "lag1_autocorr": -0.16373229224445876
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 0.510340133438772,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9970512089165826,
         "n_dates": 69
       },
       "capital_discipline": {
         "median_ic": 0.029673292522552474,
         "ic_tstat": 2.75557863224069,
+        "ic_inference": {
+          "t": 2.6342147612743507,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 55.28412230486286,
+          "autocorr_lag1": 0.11035905022117594,
+          "t_naive": 2.75557863224069,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 8.780367792161822,
+            "df": 4,
+            "acf": [
+              0.11035905022117594,
+              0.21157579329392795,
+              0.13283959106942678,
+              0.20987896493222843
+            ],
+            "p_value": 0.06682992005321986,
+            "lag1_autocorr": 0.11035905022117594
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 2.3103052447776964,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.9682215103778139,
         "n_dates": 69
       },
@@ -872,12 +3351,64 @@
       "size": {
         "median_ic": -0.010853968128165676,
         "ic_tstat": -0.3007596871207122,
+        "ic_inference": {
+          "t": -0.3274885625117834,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 69,
+          "n_eff": 69.0,
+          "autocorr_lag1": -0.14417069590209092,
+          "t_naive": -0.3007596871207122,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 6.667677550826976,
+            "df": 4,
+            "acf": [
+              -0.14417069590209092,
+              0.2029954128428694,
+              -0.14031254815318808,
+              -0.09608462176004857
+            ],
+            "p_value": 0.15452721134503222,
+            "lag1_autocorr": -0.14417069590209092
+          },
+          "auto_lag": 3,
+          "t_auto_lag": -0.31644904681249597,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 1.0,
         "n_dates": 69
       },
       "institutional": {
         "median_ic": 0.01436659090807151,
         "ic_tstat": 1.5469529061993377,
+        "ic_inference": {
+          "t": 1.6830027863217607,
+          "method": "newey_west_hac",
+          "lag": 1,
+          "lag_source": "fixed",
+          "n": 49,
+          "n_eff": 49.0,
+          "autocorr_lag1": -0.13753921357801718,
+          "t_naive": 1.5469529061993377,
+          "naive_note": "DIAGNOSTIC ONLY \u2014 assumes i.i.d. periods. Quote `t`. Existing *_tstat keys remain naive for record continuity (PREREG_m2_m6.md \u00a72).",
+          "ljung_box": {
+            "q": 3.014936354826077,
+            "df": 4,
+            "acf": [
+              -0.13753921357801718,
+              0.03207163200710614,
+              -0.17974135964909935,
+              0.06297935382027234
+            ],
+            "p_value": 0.5553289558367059,
+            "lag1_autocorr": -0.13753921357801718
+          },
+          "auto_lag": 3,
+          "t_auto_lag": 1.8219960633685823,
+          "auto_lag_note": "REPORTED, NOT ADOPTED \u2014 adopting it would move the published HAC t and invalidate the placebo floor calibrated at lag 1."
+        },
         "coverage": 0.7172407740576594,
         "n_dates": 49
       }
@@ -1168,14 +3699,14 @@
       "equal_weight_ann": 0.17239300820250336,
       "gross_alpha": 0.08119856135218217,
       "net_alpha": 0.06069654078141906,
-      "realised_one_way_bps": 33.359867748008234,
+      "realised_one_way_bps": 33.359867748008256,
       "realised_cost_basis": "market-cap cost table",
       "cost_model_limitations": [
         "keyed on point-in-time market cap ONLY \u2014 no spread, no average daily volume, no price level, no participation rate",
         "the equal-weight benchmark is charged ZERO cost while the strategy pays, so every 'alpha versus equal-weight' figure compares a book that trades against one that does not"
       ],
       "flat_bps": null,
-      "breakeven_one_way_bps": 134.11280625592718,
+      "breakeven_one_way_bps": 134.1128062559273,
       "curve": [
         {
           "bps": 0.0,
@@ -1194,13 +3725,13 @@
         },
         {
           "bps": 50.0,
-          "net_alpha": 0.05042826552867408,
-          "net_ann": 0.22282127373117744
+          "net_alpha": 0.050428265528673855,
+          "net_ann": 0.22282127373117722
         },
         {
           "bps": 100.0,
-          "net_alpha": 0.020224685293041222,
-          "net_ann": 0.19261769349554458
+          "net_alpha": 0.020224685293041444,
+          "net_ann": 0.1926176934955448
         },
         {
           "bps": 150.0,
@@ -1240,14 +3771,14 @@
       "equal_weight_ann": 0.17239300820250336,
       "gross_alpha": 0.14889205697196717,
       "net_alpha": 0.1163488122989853,
-      "realised_one_way_bps": 41.894808649779975,
+      "realised_one_way_bps": 41.894808649779996,
       "realised_cost_basis": "market-cap cost table",
       "cost_model_limitations": [
         "keyed on point-in-time market cap ONLY \u2014 no spread, no average daily volume, no price level, no participation rate",
         "the equal-weight benchmark is charged ZERO cost while the strategy pays, so every 'alpha versus equal-weight' figure compares a book that trades against one that does not"
       ],
       "flat_bps": null,
-      "breakeven_one_way_bps": 198.21638220997417,
+      "breakeven_one_way_bps": 198.21638220997386,
       "curve": [
         {
           "bps": 0.0,
@@ -1281,8 +3812,8 @@
         },
         {
           "bps": 200.0,
-          "net_alpha": -0.0012944629431468346,
-          "net_ann": 0.17109854525935653
+          "net_alpha": -0.0012944629431470567,
+          "net_ann": 0.1710985452593563
         },
         {
           "bps": 300.0,
@@ -1357,7 +3888,7 @@
         "cost_drag_ann": 0.020502020570763113
       },
       "0.12": {
-        "annual_turnover": 2.4388625876979892,
+        "annual_turnover": 2.438862587697989,
         "gross_alpha": 0.08300357706698791,
         "net_alpha": 0.06371136083058992,
         "after_tax_alpha": -0.004702249042870754,
@@ -1378,7 +3909,7 @@
         "cost_drag_ann": 0.01498705106900644
       },
       "0.25": {
-        "annual_turnover": 1.5944717306147034,
+        "annual_turnover": 1.5944717306147036,
         "gross_alpha": 0.08525933211842296,
         "net_alpha": 0.0721413470592025,
         "after_tax_alpha": 0.013414468255314338,
@@ -1406,15 +3937,15 @@
       "after_tax_sharpe": 0.8029400283519644
     },
     "taxable": {
-      "label": "Taxable: after-tax-optimal, decile + 20% no-trade band",
+      "label": "Taxable: after-tax-optimal, decile + 30% no-trade band",
       "rebalance_days": 63,
       "scored_at_horizon": 63,
-      "net_alpha": 0.06977449406050096,
-      "net_sharpe": 1.1513412547722053,
-      "net_max_drawdown": -0.2829987833124398,
-      "annual_turnover": 1.8440441545483666,
-      "after_tax_alpha": 0.00813827593572336,
-      "after_tax_sharpe": 0.89971384864744
+      "net_alpha": 0.07752019016178369,
+      "net_sharpe": 1.2095691568179565,
+      "net_max_drawdown": -0.2754830109769675,
+      "annual_turnover": 1.374714037832626,
+      "after_tax_alpha": 0.021132837959488837,
+      "after_tax_sharpe": 0.9767529353354262
     }
   },
   "sanity_check": {
@@ -1490,6 +4021,7 @@
         },
         "foreign_median_percentile": {
           "neg_log_mktcap": 0.20463727742208754,
+          "sm_holders": 0.33860759493670883,
           "congress_activity": 0.34328358208955223,
           "ev_ebitda": 0.3575712143928036,
           "pead_drift": 0.6344487768400813,
@@ -1517,13 +4049,18 @@
           "ret_6_1": 0.47265502087453304,
           "f_score": 0.47528830313014825,
           "fcf_yield": 0.5245114499795889,
+          "sm_avg_position": 0.5244618395303327,
           "accruals_q": 0.5225960825182467,
           "interest_cov": 0.5214637579169599,
+          "neg_ret_1m": 0.5190199871050934,
+          "neg_idio_vol": 0.5174717368961973,
           "fcf_margin": 0.517298091221146,
           "neg_leverage": 0.4832567301378857,
           "inst_accum": 0.4845921450151057,
+          "neg_max_ret": 0.5138157894736842,
           "neg_short_interest_chg": 0.486784140969163,
           "roe": 0.5123051840583691,
+          "sm_conviction": 0.48785166240409206,
           "roe_ttm": 0.5113714679531358,
           "growth_accel": 0.4890640565849771,
           "inst_breadth": 0.4895833333333333,
@@ -1566,6 +4103,7 @@
   },
   "ev_freshness": {
     "available": true,
+    "rows": 113945,
     "fresh": 1.0,
     "stale": 0.0,
     "floor": 0.95,
@@ -1619,6 +4157,12 @@
       "neg_rating_disp": 0.0,
       "f_score": 0.9502040458115758,
       "inst_breadth": 0.7184518846812058,
+      "neg_ret_1m": 0.996866909473869,
+      "neg_max_ret": 0.9998244767212251,
+      "neg_idio_vol": 0.9946640923252447,
+      "sm_conviction": 0.7376014743955417,
+      "sm_holders": 0.7376014743955417,
+      "sm_avg_position": 0.7376014743955417,
       "cash_op_prof": 0.9527052525341173,
       "sm_breadth": 0.7169336083198035,
       "roe_ttm": 0.9049190398876651,

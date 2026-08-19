@@ -153,9 +153,19 @@ def factor_windows(grid, how="compound"):
     d = _load_daily()
     grid = [pd.Timestamp(x) for x in sorted(pd.to_datetime(pd.Series(grid)).unique())]
     rows = []
+    dropped = []            # AUDIT MA49(a): windows the factor file cannot cover — see below
     for a, b in zip(grid[:-1], grid[1:]):
         w = d[(d["date"] > a) & (d["date"] <= b)]
         if w.empty:
+            # A WINDOW WITH NO FACTOR DAYS IS DROPPED, AND IT USED TO BE DROPPED IN SILENCE.
+            # `fetch_factors._verify` bars the file at a HARD-CODED 2025-12-31, so from 2026 a
+            # year-stale factor file passes the pre-registered check; the panel's trailing
+            # rebalance dates then land past the end of the factor series, arrive here empty,
+            # and vanish. The later `strat.join(fac, how="inner")` removes them again, so the
+            # regression silently runs on a SHORTER sample than the panel it names. Recorded
+            # rather than repaired-by-guessing: the bar is pre-registered and moving it is a
+            # threshold change, so what this does is make the consequence countable.
+            dropped.append({"date": str(a.date()), "end": str(b.date())})
             continue
         rf = _agg(w["RF"], how)
         mkt_tot = _agg(w["MKT_RF"] + w["RF"], how)
@@ -174,7 +184,34 @@ def factor_windows(grid, how="compound"):
             "ME": _agg(w["ME"], how), "IA": _agg(w["IA"], how),
             "ROE": _agg(w["ROE"], how), "EG": _agg(w["EG"], how),
         })
-    return pd.DataFrame(rows).set_index("date")
+    out = pd.DataFrame(rows).set_index("date")
+    # Travels on the frame itself so every caller gets it without changing a signature; a
+    # caller that ignores `.attrs` is no worse off than before, and `windows_report()` below
+    # gives the one that cares a stable reader.
+    out.attrs["windows_requested"] = max(0, len(grid) - 1)
+    out.attrs["windows_dropped_no_factor_days"] = dropped
+    return out
+
+
+def windows_report(fac) -> dict:
+    """What `factor_windows` could not cover, as a dict fit to ship in a results file.
+
+    AUDIT MA49(a). `n_dropped > 0` means the regression's sample is SHORTER than the panel's,
+    and the reason is a factor file that ends before the panel does. It is not an error — the
+    vendor lags — but a run that does not say so reports an alpha for a window it never saw.
+    """
+    dropped = list((getattr(fac, "attrs", {}) or {}).get("windows_dropped_no_factor_days") or [])
+    req = int((getattr(fac, "attrs", {}) or {}).get("windows_requested") or 0)
+    return {
+        "windows_requested": req,
+        "windows_scored": req - len(dropped),
+        "n_dropped": len(dropped),
+        "dropped": dropped[:24],
+        "first_dropped": (dropped[0]["date"] if dropped else None),
+        "note": ("factor series ends before the panel does; these rebalance windows carry no "
+                 "factor days and are absent from every regression in this file"
+                 if dropped else "every panel window is covered by the factor series"),
+    }
 
 
 # --------------------------------------------------------------------------- strategy data
@@ -384,13 +421,23 @@ def main(argv=None) -> int:
     half = len(d) // 2
     subs = {
         "full": np.ones(len(d), dtype=bool),
-        f"ex_b6_first_{B6_CONTAMINATED}": np.arange(len(d)) >= B6_CONTAMINATED,
         "first_half": np.arange(len(d)) < half,
         "second_half": np.arange(len(d)) >= half,
         "from_2014_x4_window": np.asarray(d.index >= "2014-01-01"),
         "from_2000": np.asarray(d.index >= "2000-01-01"),
         "to_2013": np.asarray(d.index < "2014-01-01"),
     }
+    # AUDIT MA49(d) — THE B6 CUT IS CONDITIONAL HERE NOW, AS IT ALREADY WAS 60 LINES ABOVE.
+    # The pre-registered `ex_b6_first_37` cut drops the panel's first 37 dates because B6 left
+    # them with an inverted universe. On the CORRECTED panel B6 already removed those dates, so
+    # the cut lands on 37 perfectly healthy rebalances and ships them in the JSON under a name
+    # that says they were contaminated. The q-model block at `cuts` reasons this out in a
+    # comment and branches on `args.corrected_panel`; THIS block computed the same slice
+    # positionally and unconditionally, so one of two siblings honoured the argument. The
+    # first_half/second_half split above is the replacement that block already uses, and it is
+    # present in both arms, so nothing is lost on the corrected panel.
+    if not args.corrected_panel:
+        subs[f"ex_b6_first_{B6_CONTAMINATED}"] = np.arange(len(d)) >= B6_CONTAMINATED
     results["subperiods_top_minus_ew_ff5_mom"] = {}
     for name, m in subs.items():
         if m.sum() < 25:

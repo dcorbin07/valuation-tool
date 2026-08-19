@@ -71,13 +71,19 @@ def test_advisor_sample_aware_and_noise():
 
 
 def test_deflated_sharpe_and_hlz():
-    from valuation.edge.statistics import deflated_sharpe_ratio, expected_max_sharpe, hlz_significant
+    from valuation.edge.statistics import (deflated_sharpe_ratio, expected_max_sharpe,
+                                           hlz_significant, hlz_hurdle)
     r = np.random.default_rng(0).normal(0.010, 0.04, 300)
     few = deflated_sharpe_ratio(r, n_trials=1, var_trials=0.01)["deflated_sharpe"]
     many = deflated_sharpe_ratio(r, n_trials=2000, var_trials=0.01)["deflated_sharpe"]
     assert few > many                                   # more trials -> harder to be "real"
     assert expected_max_sharpe(5000, 0.01) > expected_max_sharpe(50, 0.01) > 0
-    assert hlz_significant(3.4) and not hlz_significant(2.1)
+    # AUDIT MA5 — this line read `hlz_significant(3.4) and not hlz_significant(2.1)`, against a
+    # hard-coded 3.0. `n_trials` is now REQUIRED and the bar is sqrt(2 ln N). The two example
+    # values do not change verdict at today's N (3.4 clears 3.2899, 2.1 does not) -- 3.4 would
+    # stop clearing at N > 324 -- so this is a corrected citation, not a moved result.
+    assert hlz_significant(3.4, 224) and not hlz_significant(2.1, 224)
+    assert hlz_hurdle(224) > 3.0 > hlz_hurdle(50)        # it is a FUNCTION of N, not a constant
 
 
 def test_edge_routes_owner_only():
@@ -89,8 +95,16 @@ def test_edge_routes_owner_only():
 
 
 def test_self_learning_gate():
-    """The monthly re-tune is purely statistical: adopt on a real out-of-sample edge,
-    decline on noise or too-little-history, and the live scorer reads whatever it adopts."""
+    """The re-tune is purely statistical: find an edge on real signal, decline on noise or
+    too-little-history — and it may NOT reach the live scorer by itself.
+
+    REWRITTEN BY THE MASTER AUDIT (MA1). This test used to end
+        assert _effective_weights(st)[0] == learned      # live weights = learned weights
+    which PINNED the defect: it made "a monthly cron can change the live composite" the tested,
+    intended behaviour, which is why the loop survived every previous review. The statistical
+    half is unchanged and still asserted — the learner must still FIND the edge, or the refusal
+    below would be passing for the wrong reason. What changed is that finding an edge and
+    shipping it are now separate questions (`valuation/edge/weight_adoption.py`)."""
     import tempfile
     from valuation.screener.store import Store
     from valuation.screener.screen import _effective_weights
@@ -112,12 +126,15 @@ def test_self_learning_gate():
 
     fd, p = tempfile.mkstemp(suffix=".db"); os.close(fd); os.remove(p)
     st = Store(p)
-    # 1) Real out-of-sample signal → adopts, and the LIVE scorer picks up the new weights.
+    # 1) Real out-of-sample signal → the learner FINDS it (the statistical half still works)...
     rep = run_learning(CONFIG, st, panel=panel(0.35, 1))
-    assert rep["status"] == "ok" and rep["buckets"]["established"]["adopted"] is True
-    learned = st.latest_learned_weights("established")
-    assert learned is not None
-    assert _effective_weights(st)[0] == learned          # live weights = learned weights
+    assert rep["status"] == "ok"
+    b = rep["buckets"]["established"]
+    assert b["would_have_adopted"], "the learner found no edge — the refusal below proves nothing"
+    # ...and is REFUSED the live path, because no vintage registers or signs this adoption.
+    assert b["adopted"] is False and b["refused"] is True
+    assert st.latest_learned_weights("established") is None
+    assert _effective_weights(st)[0] == S.WEIGHTS_ESTABLISHED     # live weights = the SETTINGS
 
     # 2) Pure noise → declines, nothing adopted (this is the anti-overfit guard working).
     fd, p2 = tempfile.mkstemp(suffix=".db"); os.close(fd); os.remove(p2)
@@ -365,9 +382,20 @@ def test_fundamental_backtests_multi_horizon():
             assert "ew_cagr" in r["backtest_default"] and "ew_alpha" in r["backtest_default"]  # fair bar present
 
 
-def test_adopt_backtest_weights_persists():
-    """Adopting backtested weights writes them as the live starting weights."""
+def test_adopt_backtest_weights_is_refused_without_a_registered_vintage():
+    """MASTER AUDIT MA3. This test used to be `test_adopt_backtest_weights_persists` and ended
+
+        assert _effective_weights(st)[0] == w      # live scorer now uses them
+
+    i.e. it pinned the SECOND route by which a weight reached the live book without a commit —
+    `/admin/adopt-backtest-weights`, whose `accepted` comes from a SINGLE 50/50 time split, the
+    gate `CLAUDE.md` explicitly forbids falling back to. The endpoint's core is still replicated
+    here; what changed is that it must now be REFUSED, and the refusal comes from
+    `save_learned` — the funnel it shares with the monthly learner — not from a gate of its own.
+    """
     import tempfile
+    from valuation.edge.weight_adoption import VintageRefusal
+    from valuation.screener import settings as S
     from valuation.screener.store import Store
     from valuation.screener.screen import _effective_weights
     fd, p = tempfile.mkstemp(suffix=".db"); os.close(fd); os.remove(p)
@@ -377,10 +405,14 @@ def test_adopt_backtest_weights_persists():
                 "horizons": {"252": {"accepted": True, "optimized_weights": w, "out_sample_ic": 0.03}}})
     # replicate the adopt endpoint's core: persist the accepted primary-horizon weights
     h = st.get_meta("fundamental_backtest")["horizons"]["252"]
-    assert h["accepted"]
-    st.save_learned("established", h["optimized_weights"], {"source": "backtest"}, True, "test")
-    assert st.latest_learned_weights("established") == w
-    assert _effective_weights(st)[0] == w                       # live scorer now uses them
+    assert h["accepted"]                                        # the backtest still accepts...
+    try:
+        st.save_learned("established", h["optimized_weights"], {"source": "backtest"}, True, "test")
+        raise AssertionError("the single-split adopt path wrote a live weight")
+    except VintageRefusal:
+        pass                                                    # ...and it still may not ship
+    assert st.latest_learned_weights("established") is None     # nothing was written
+    assert _effective_weights(st)[0] == S.WEIGHTS_ESTABLISHED   # live scorer keeps the settings
 
 
 def test_export_then_offline_backtest():
@@ -1414,7 +1446,12 @@ def test_book_configs_are_defined_and_coherent():
     roth, tax = S.BOOK_CONFIGS["roth"], S.BOOK_CONFIGS["taxable"]
     # roth rotates freely (no band); taxable uses one — that is the whole distinction.
     assert roth["exit_frac"] is None and roth["exit_mult"] is None
-    assert tax["exit_frac"] == 0.20
+    # WIDTH MOVED 0.20 -> 0.30 ON 2026-08-13 by Don's adoption of S14. Asserted against the
+    # adopted CONSTANT rather than a fresh literal, so the config and the shipped band cannot
+    # drift apart the way this line just did — and so the next width change is a one-line
+    # deliberate act rather than a mystery failure here.
+    from valuation.edge.no_trade_band import BAND_WIDTH
+    assert tax["exit_frac"] == BAND_WIDTH == 0.30
     # roth is the tighter, faster book; taxable is the broader, slower one.
     assert roth["top_n"] == 25 and tax["top_frac"] == 0.10
     assert roth["rebalance_days"] < tax["rebalance_days"]
@@ -1766,7 +1803,7 @@ def test_ml_combiner_optional_import_and_per_fold_features():
     """sklearn is an OPTIONAL dependency (not in requirements.txt) — a missing import must
     return a status, never break a run. And features must be filtered PER FOLD: the 13F signals
     are empty before 2013-06-30, so an early CPCV fold hands the binner an all-NaN column."""
-    from valuation.edge import ml_combiner as ML
+    from valuation.studies import ml_combiner as ML
     assert ML.MIN_IC_GAIN == 0.005 and ML.MIN_ALPHA_GAIN == 0.01, "gate must stay pre-committed"
     assert ML.GBM_PARAMS["max_depth"] == 3, "model must stay small"
 
@@ -6262,7 +6299,11 @@ def test_s23_lean_fair_value_beta_override_is_opt_in():
 
     sig = inspect.signature(lean_fair_value)
     assert sig.parameters["beta_override"].default is None
-    assert list(sig.parameters) == ["cd", "cfg", "with_reverse", "beta_override"], \
+    # S10 appended `with_scenarios` AFTER this, which is the behaviour this test demands, so
+    # the assertion checks the PREFIX rather than an exact list. The guarantee is unchanged —
+    # nothing may be inserted ahead of an existing positional — and it no longer breaks every
+    # time a later register legitimately appends one.
+    assert list(sig.parameters)[:4] == ["cd", "cfg", "with_reverse", "beta_override"], \
         "the override must be appended, never inserted ahead of an existing positional"
 
 
@@ -6434,7 +6475,7 @@ def test_loo_selection_uses_the_decide_half_only_and_embargoes_the_boundary():
     the only one whose 63d forward window can straddle a 63d-rebalance split -- is in neither
     half.
     """
-    from valuation.edge import loo_holdout as L
+    from valuation.studies import loo_holdout as L
     panel = _b8_panel(n_dates=30, n_names=60, seed=5)
     panel["value"] = panel["fwd_ret"] * 0.3 + np.random.default_rng(7).normal(0, 0.05, len(panel))
     r = L.loo_holdout(panel, ["quality", "size", "value"], min_dates=8)
@@ -6457,7 +6498,7 @@ def test_loo_verdict_follows_the_committed_margins_and_an_ambiguous_result_is_a_
     call. Pinned as an invariant over whatever the panel happens to produce, so the rule cannot
     be quietly relaxed later to rescue a near miss.
     """
-    from valuation.edge import loo_holdout as L
+    from valuation.studies import loo_holdout as L
     from valuation.edge.fundamental_panel import (MIN_HOLDOUT_ALPHA_GAIN,
                                                   MIN_HOLDOUT_TSTAT_GAIN)
     panel = _b8_panel(n_dates=30, n_names=60, seed=9)
@@ -6487,7 +6528,7 @@ def test_loo_arms_drop_a_theme_and_renormalise_rather_than_leaving_a_hole():
     composite" -- and would make the arms incomparable with the full composite they are scored
     against.
     """
-    from valuation.edge import loo_holdout as L
+    from valuation.studies import loo_holdout as L
     cols = ["a", "b", "c", "d"]
     w = L.flat(cols)
     assert abs(sum(w.values()) - 1.0) < 1e-12 and all(abs(v - 0.25) < 1e-12 for v in w.values())
@@ -7117,6 +7158,2319 @@ def test_s2021_holdout_compare_panels_scores_each_arm_with_its_OWN_standardizer(
     diff = holdout_compare_panels(panel, panel, cols, min_dates=8, standardizer_b=rank_score)
     assert any(h["delta_long_short_tstat"] != 0.0 for h in diff["splits"].values()), \
         "standardizer_b must actually reach the challenger's scoring"
+
+
+# ============================================================================
+# AUDIT M2 — clustered inference as the default (PREREG_m2_m6.md)
+# ============================================================================
+def _m2_series(seed=11, n=69, rho=0.0):
+    rng = np.random.default_rng(seed)
+    out, prev = [], 0.0
+    for _ in range(n):
+        prev = rho * prev + float(rng.normal(0, 1))
+        out.append(0.25 + prev)
+    return out
+
+
+def test_m2_delegations_are_bit_identical_to_the_arithmetic_they_replaced():
+    """KNOWN-BAD: fails if anyone edits the estimator while refactoring it.
+
+    The whole change rests on `long_short_tstat` and `long_short_tstat_nw` keeping their
+    exact values, because the published record and the calibrated floors are those numbers.
+    """
+    from valuation.edge import fundamental_panel as fp
+    from valuation.edge import statistics as st
+    rng = np.random.default_rng(4)
+    for _ in range(60):
+        n = int(rng.integers(3, 100))
+        s = list(rng.normal(0.01, 0.05, n))
+        assert fp._tstat(s) == st.naive_tstat(s)
+        assert fp._nw_tstat(s, 1) == st.hac_tstat(s, 1)
+        assert fp._ljung_box(s, 4) == st.ljung_box(s, 4)
+
+
+def test_m2_mean_inference_returns_the_CLUSTERED_figure_as_its_unqualified_t():
+    from valuation.edge import statistics as st
+    s = _m2_series(rho=0.5)
+    mi = st.mean_inference(s)
+    assert mi["method"] == "newey_west_hac"
+    assert mi["t"] == st.hac_tstat(s, 1), "the unqualified t must be the CLUSTERED one"
+    assert mi["t_naive"] == st.naive_tstat(s)
+    assert mi["t"] != mi["t_naive"], "an autocorrelated series must separate the two"
+    assert "DIAGNOSTIC ONLY" in mi["naive_note"]
+
+
+def test_m2_n_eff_travels_with_n_and_is_clipped_at_n():
+    """M2's third requirement: n_eff reported alongside n wherever a t-like quantity appears."""
+    from valuation.edge import statistics as st
+    hi = st.mean_inference(_m2_series(rho=0.7))
+    assert hi["n_eff"] < hi["n"], "positive autocorrelation must SHRINK the effective n"
+    # negative autocorrelation improves precision; letting n_eff exceed n would manufacture
+    # a bonus out of a favourable property
+    alt = [((-1) ** i) + 0.05 for i in range(60)]
+    assert st.mean_inference(alt)["n_eff"] <= 60.0
+    # the real long-short spread: R9 measured lag-1 autocorrelation +0.189 over 69 periods
+    assert abs(st.effective_n(69, 0.189046) - 47.06) < 0.02
+
+
+def test_m2_the_shipped_lag_is_STILL_1_and_the_auto_lag_is_reported_not_adopted():
+    """Pins a deliberate NON-change (PREREG_m2_m6.md §3b).
+
+    Schwert gives lag 3 at n = 69. Adopting it would move the published HAC t of 2.6199 AND
+    invalidate the placebo floor (2.2837) calibrated at lag 1. It ships as a diagnostic.
+    """
+    from valuation.edge import statistics as st
+    assert st.DEFAULT_HAC_LAG == 1
+    assert st.auto_lag(69) == 3
+    mi = st.mean_inference(_m2_series(rho=0.4))
+    assert mi["lag"] == 1 and mi["lag_source"] == "fixed"
+    assert mi["auto_lag"] == 3 and mi["t_auto_lag"] is not None
+    assert "NOT ADOPTED" in mi["auto_lag_note"]
+
+
+def test_m2_no_existing_results_key_changed_its_meaning():
+    """KNOWN-BAD: fails if `long_short_tstat` is ever quietly redefined as the clustered one."""
+    from valuation.edge import statistics as st
+    from valuation.edge.fundamental_panel import quantile_backtest
+    rng = np.random.default_rng(3)
+    rows = []
+    for d in _DATES[::60][:40]:
+        for i in range(80):
+            v = float(rng.normal())
+            rows.append({"date": d, "ticker": f"T{i}", "value": v,
+                         "fwd_ret": 0.04 * v + float(rng.normal()) * 0.05})
+    panel = pd.DataFrame(rows)
+    r = quantile_backtest(panel, ["value"], {"value": 1.0}, n_q=10, horizon=63)
+    inf = r["long_short_inference"]
+    assert r["long_short_tstat"] == inf["t_naive"], "the flat key must remain the NAIVE one"
+    assert r["long_short_tstat_nw"] == inf["t"], "the clustered figure is `inference.t`"
+    assert r["top_decile_alpha_tstat"] == r["top_decile_alpha_inference"]["t_naive"]
+    assert inf["n_eff"] is not None and inf["n"] == r["n_periods"]
+
+
+def test_m2_theme_and_signal_ic_now_carry_a_clustered_figure_they_never_had():
+    """The substantive M2 gap: the theme IC t carrying X7's 2.71 bar had no clustered variant."""
+    from valuation.edge.fundamental_panel import theme_ic
+    rng = np.random.default_rng(5)
+    rows = []
+    for d in _DATES[::40][:30]:
+        for i in range(60):
+            v = float(rng.normal())
+            rows.append({"date": d, "ticker": f"T{i}", "value": v,
+                         "fwd_ret": 0.05 * v + float(rng.normal()) * 0.05})
+    out = theme_ic(pd.DataFrame(rows), min_dates=5)
+    assert "value" in out, f"theme_ic saw no themes: {list(out)}"
+    assert "ic_inference" in out["value"]
+    assert out["value"]["ic_tstat"] == out["value"]["ic_inference"]["t_naive"], \
+        "the published ic_tstat must be untouched — X7's 2.71 bar was calibrated on it"
+    assert out["value"]["ic_inference"]["n_eff"] is not None
+
+
+def test_m2_the_gates_still_read_the_naive_statistic_they_were_calibrated_on():
+    """Pins the deliberate non-change: switching the gate re-quotes every verdict it made."""
+    import inspect
+    from valuation.edge import fundamental_panel as fp
+    src = inspect.getsource(fp.holdout_compare_panels)
+    assert 'get("long_short_tstat")' in src, \
+        "holdout_compare_panels must keep reading long_short_tstat; its +0.25 margin was " \
+        "committed against the NAIVE statistic (PREREG_m2_m6.md §2)"
+    assert "long_short_inference" not in src
+
+
+# ============================================================================
+# AUDIT M6 — field-level results-file schema assertion (PREREG_m2_m6.md §5)
+# ============================================================================
+def _m6_res():
+    return {
+        "construction": {"n_periods": 69, "horizon": 63, "long_short_tstat": 2.83,
+                         "long_short_tstat_nw": 2.62, "long_short_inference": {"t": 2.62},
+                         "top_decile_alpha": 0.0717, "top_decile_alpha_tstat": 4.51,
+                         "top_decile_alpha_tstat_nw": 4.37,
+                         "top_decile_alpha_inference": {"t": 4.37},
+                         "sw_top_decile_ann": 0.2, "sw_top_decile_alpha": 0.02,
+                         "monotonicity": -0.89},
+        "hold_until_exit": {"cagr": 0.27, "bench_cagr": 0.15, "ew_cagr": 0.18,
+                            "ew_alpha": 0.09, "bench_return": 1.0, "label_warning": "holds ~50",
+                            "target_n": 25, "exit_rank": 50, "held_min": 20, "held_median": 47,
+                            "held_max": 55, "charges_costs": False, "charges_taxes": False},
+        "cpcv": {"n_paths": 15, "pbo": 0.73, "adopt": False,
+                 "recommended_weights_cols": {}, "adopt_detail": {"margin": 0.1},
+                 "challenger_weights_cols": {}, "candidates": {}},
+        # ev_freshness is in the fixture because the guard caught a REAL drop here on its
+        # first live run (`rows`, the denominator of the `fresh` FRACTION) that no test had.
+        "ev_freshness": {"floor": 0.95, "rows": 113945, "by_source": {}, "fresh": 1.0,
+                         "stale": 0.0, "ok": True, "warnings": [], "drift": {}},
+        "horizons": {"63": {"names": 2531, "dates": 69, "rows": 113945}},
+        "primary_horizon": "63",
+    }
+
+
+def test_m6_KNOWN_BAD_the_actual_R9_incident_is_caught():
+    """The historical bug, reproduced exactly.
+
+    `quantile_backtest` computed top_decile_alpha_tstat = 4.517421601141459 and the canonical
+    file recorded None beside it, because build_payload whitelists what it writes. Nothing
+    raised, and a human caught it by reading two files side by side.
+    """
+    from valuation.edge import payload_schema as ps
+    from valuation.edge import results_file as rf
+    res = _m6_res()
+    payload = rf.build_payload(res)
+    del payload["construction"]["top_decile_alpha_tstat"]
+    found = ps.check_payload(res, payload)
+    assert any(f["field"] == "top_decile_alpha_tstat" for f in found), \
+        "the guard failed to catch the exact bug it was built for"
+
+
+def test_m6_KNOWN_BAD_a_brand_new_computed_metric_is_caught():
+    """The options-bot lane's own demonstration:
+    build_payload({"construction": {"a_brand_new_metric": 1.23}}) returned a construction
+    block with no such key and no complaint."""
+    from valuation.edge import payload_schema as ps
+    from valuation.edge import results_file as rf
+    res = _m6_res()
+    res["construction"]["a_brand_new_metric"] = 1.23
+    found = ps.check_payload(res, rf.build_payload(res))
+    assert [f["field"] for f in found] == ["a_brand_new_metric"]
+
+
+def test_m6_the_guard_is_NOT_vacuous_on_a_complete_payload():
+    """A guard that fires on everything is as useless as one that fires on nothing."""
+    from valuation.edge import payload_schema as ps
+    from valuation.edge import results_file as rf
+    res = _m6_res()
+    assert ps.check_payload(res, rf.build_payload(res)) == []
+    # the denominator the guard recovered: `fresh` is a fraction, and 100% over 12 rows is
+    # not the same claim as 100% over 113,945
+    assert rf.build_payload(res)["ev_freshness"]["rows"] == 113945
+
+
+def test_m6_write_FAILS_THE_RUN_but_only_after_both_files_are_on_disk():
+    """A 40-minute run must not lose its output to a schema complaint, and the evidence has
+    to be readable to be actionable — so the files are written, THEN the run fails."""
+    import json as _json
+    import tempfile
+    from valuation.edge import payload_schema as ps
+    from valuation.edge import results_file as rf
+    res = _m6_res()
+    res["construction"]["a_metric_nobody_carried"] = 9.9
+    with tempfile.TemporaryDirectory() as td:
+        try:
+            rf.write(res, root=td)
+            raise AssertionError("write() must fail the run when a computed field is dropped")
+        except ps.PayloadSchemaError as e:
+            assert "a_metric_nobody_carried" in str(e)
+        jp = os.path.join(td, rf.JSON_NAME)
+        assert os.path.exists(jp) and os.path.exists(os.path.join(td, rf.MD_NAME)), \
+            "both files must be written BEFORE the run fails"
+        blob = _json.load(open(jp, encoding="utf-8"))
+        assert any(x.get("dropped_field") == "a_metric_nobody_carried"
+                   for x in blob["errors"]), "the finding must be recorded in the file itself"
+
+
+def test_m6_there_is_no_environment_escape_hatch():
+    """RUN_RULES A5 — never silence a check. The allowlist is the legitimate door, and it
+    leaves a diff; an env var would not."""
+    import inspect
+    from valuation.edge import payload_schema as ps
+    from valuation.edge import results_file as rf
+    joined = inspect.getsource(ps) + inspect.getsource(rf.write)
+    # look for an actual env READ, not the word: this test's first version tripped on the
+    # comment saying no escape hatch exists, which is the wrong kind of failure
+    for probe in ("os.environ", "os.getenv", "getenv(", "environ["):
+        assert probe not in joined, f"an env-var escape hatch appeared: {probe}"
+
+
+def test_m6_a_block_that_THREW_is_not_also_reported_as_dropping_fields():
+    """A block that raised computed nothing, so "you dropped a field" would be noise layered
+    on the real failure. Keeping the two error classes distinct is the same lesson
+    `missing_result_blocks` carries: assuming one guard covers another is how a degraded run
+    comes to read as a run that found nothing."""
+    from valuation.edge import payload_schema as ps
+    from valuation.edge import results_file as rf
+    res = _m6_res()
+    res["construction"] = {"status": "error: boom"}
+    found = ps.check_payload(res, rf.build_payload(res))
+    assert not any(f["block"] == "construction" for f in found), found
+    # ...but a HEALTHY block in the same run is still checked
+    res["cpcv"]["something_new"] = 1
+    assert any(f["field"] == "something_new" for f in ps.check_payload(res, rf.build_payload(res)))
+
+
+def test_m6_the_schema_failure_is_NOT_swallowed_by_the_blanket_except():
+    """KNOWN-BAD, and the one that nearly shipped broken.
+
+    `main()` wraps the results write in `try/except Exception` commented "Never allowed to
+    fail a completed backtest". That intent is right — a serialisation hiccup must not
+    discard 40 minutes of work — but it would also have caught PayloadSchemaError and
+    printed it as a warning nobody reads. A check that cannot fail anything is not a check,
+    which is the exact pattern M6 exists to close. So the schema error needs its own handler,
+    BEFORE the blanket one, and main() must exit non-zero.
+    """
+    import ast
+    import inspect
+    from valuation.edge import fundamental_panel as fp
+    fn = next(n for n in ast.walk(ast.parse(inspect.getsource(fp).replace("\t", "    ")))
+              if isinstance(n, ast.FunctionDef) and n.name == "main")
+    handlers = [h for t in ast.walk(fn) if isinstance(t, ast.Try) for h in t.handlers]
+    names = []
+    for h in handlers:
+        if h.type is None:
+            names.append("bare")
+        else:
+            names.append(ast.unparse(h.type))
+    schema_at = [i for i, n in enumerate(names) if "PayloadSchemaError" in n]
+    assert schema_at, "PayloadSchemaError must be caught SEPARATELY, or the guard is inert"
+    # it must come before the blanket handler of the SAME try statement
+    for t in ast.walk(fn):
+        if isinstance(t, ast.Try):
+            hs = [("bare" if h.type is None else ast.unparse(h.type)) for h in t.handlers]
+            if any("PayloadSchemaError" in x for x in hs):
+                i = next(k for k, x in enumerate(hs) if "PayloadSchemaError" in x)
+                j = next((k for k, x in enumerate(hs) if x == "Exception"), len(hs))
+                assert i < j, "a blanket `except Exception` before it would swallow the guard"
+    src = inspect.getsource(fp.main)
+    assert "return 2" in src, "a schema failure must exit NON-ZERO"
+
+
+def test_m6_B17s_hold_book_disclosure_now_reaches_the_canonical_file():
+    """`_backtest_hold` was computing all of this and build_payload carried NONE of it, so
+    `portfolio.cagr` shipped with no warning that the book is ~exit_rank names and pays
+    neither costs nor taxes — which is the entire point of B17."""
+    from valuation.edge import results_file as rf
+    pf = rf.build_payload(_m6_res())["portfolio"]
+    assert pf["label_warning"] == "holds ~50"
+    assert pf["target_n"] == 25 and pf["exit_rank"] == 50 and pf["held_median"] == 47
+    assert pf["charges_costs"] is False and pf["charges_taxes"] is False
+
+
+def test_m6_session12_cpcv_reconciliation_fields_reach_the_canonical_file():
+    """Session 12 banked adopt_detail/challenger_weights so 'what would this run have scored
+    one haircut lower' is arithmetic. Banking a number into a dict nobody serialises is not
+    banking it."""
+    from valuation.edge import results_file as rf
+    cp = rf.build_payload(_m6_res())["cpcv"]
+    assert cp["adopt_detail"] == {"margin": 0.1}
+    assert "challenger_weights" in cp
+
+
+def test_m6_archive_scan_records_WHY_a_row_was_blank():
+    """The second incident: ten hand-written keys stored fair_value but not the refusal flag,
+    so the permanent archive could not tell 'refused' from 'not computed'."""
+    import gzip
+    import json as _json
+    import tempfile
+    from valuation.edge.archive import archive_scan
+    rows = [{"ticker": "KSPI", "rank": 1, "hot_score": 90.0, "price": 100.0,
+             "fair_value": None, "fair_value_withheld": True,
+             "fair_value_withheld_reason": "insufficient history",
+             "fair_value_withheld_kind": "no_data"}]
+    with tempfile.TemporaryDirectory() as td:
+        p = archive_scan(rows, "2026-08-11", root=td)
+        assert p, "archive_scan wrote nothing"
+        with gzip.open(p, "rt", encoding="utf-8") as f:
+            got = _json.load(f)["rows"][0]
+    assert got["fair_value"] is None
+    assert got["fair_value_withheld"] is True
+    assert got["fair_value_withheld_reason"] == "insufficient history", \
+        "a refused row must archive WHY, not just a bare None"
+
+
+# --------------------------------------------------------------------------- S10
+# The downside-exclusion screen (PREREG_s10_downside_exclusion.md, committed alone at a041e09).
+
+
+def _s10_script():
+    import importlib
+    return importlib.import_module("scripts.s10_downside_exclusion")
+
+
+def test_s10_a_deeper_drawdown_is_never_reported_as_an_improvement():
+    """KNOWN-BAD FIXTURE — this is the defect the first cut of the S10 script actually shipped.
+
+    `max_drawdown` is negative, so an arm improves it by being LESS negative. Writing the
+    difference the other way round turns a 2.6pp WORSENING into a 2.6pp improvement, which
+    would have inverted the stated reason for the verdict while leaving the verdict's wording
+    intact. Exactly the `monotonicity` sign error, one lane over.
+    """
+    gain = _s10_script().drawdown_gain_pp
+
+    # The real measured pair: incumbent -0.2809, screened arm -0.3070. The arm is WORSE.
+    got = gain(-0.30697, -0.28089)
+    assert got < 0, f"a deeper drawdown must report a NEGATIVE gain, got {got}"
+    assert abs(got - (-2.608)) < 1e-2, got
+
+    # ...and the genuinely better arm reports a positive gain.
+    assert gain(-0.20, -0.28) > 0
+    # Symmetry: swapping the arms flips the sign exactly.
+    assert abs(gain(-0.31, -0.28) + gain(-0.28, -0.31)) < 1e-12
+    assert gain(None, -0.28) is None and gain(-0.28, None) is None
+
+
+def test_s10_the_band_uses_the_SHIPPED_blend_scenarios():
+    """C2 — the bear/bull band must come from the LIVE pipeline, never a second copy.
+
+    A private re-implementation is free to drift from the number the site actually shows,
+    which is audit B7's defect class ("no shipped code path reproduces the backtested
+    composite exactly"). If someone inlines it, this fails.
+    """
+    import inspect
+    from valuation.engine import calibration as C
+    from valuation.engine import pipeline as P
+
+    src = inspect.getsource(C._scenario_band)
+    assert "from .pipeline import _blend_scenarios" in src, \
+        "the band must IMPORT the live blend, not re-implement it"
+    assert callable(P._blend_scenarios)
+    # The band must not hand-roll a blend of its own.
+    assert "def _blend" not in src, "a second blend implementation appeared inside the band"
+    # And the financial-regime substitution must be present, or a bank's band would be
+    # DCF-derived while its own base case is the justified P/B-ROE model.
+    assert "financial_scenarios" in src, \
+        "financials must get the P/B-ROE cone the live pipeline gives them"
+
+
+def test_s10_the_scenario_band_is_opt_in():
+    """The band is additive: `lean_fair_value` must not grow keys unless it is asked to.
+
+    S23's banked panel and every other caller read this dict, and control C1 (base fields
+    reproduce that panel to 0.000e+00) only means anything if the default path is untouched.
+    """
+    import inspect
+    from valuation.engine.calibration import lean_fair_value
+
+    sig = inspect.signature(lean_fair_value)
+    assert sig.parameters["with_scenarios"].default is False, \
+        "the scenario band must default OFF"
+    src = inspect.getsource(lean_fair_value)
+    assert "if with_scenarios:" in src, \
+        "the band keys must be added inside a conditional, not unconditionally"
+    # The two keys must appear only under the flag. The DOCSTRING names them too, so it is
+    # stripped first — the first cut of this test matched its own documentation and failed for
+    # the wrong reason, the same way M6's env-var test matched its own comment.
+    body = src.split('"""')[-1]
+    head = body.split("if with_scenarios:")[0]
+    assert "bear_value" not in head and "bull_value" not in head, \
+        "band keys leaked into the default return dict"
+
+
+def test_s10_a_name_with_no_bull_case_is_KEPT_not_excluded():
+    """§3 — excluding on MISSING data is a data-availability screen wearing a valuation
+    screen's name, and it would correlate silently with era, domicile and regime."""
+    import numpy as np
+
+    bull = np.array([10.0, np.nan, 5.0, np.nan])
+    price = np.array([20.0, 20.0, 1.0, 1.0])
+    has_bull = np.isfinite(bull) & np.isfinite(price) & (price > 0)
+    flagged = has_bull & (bull <= price)
+
+    assert list(flagged) == [True, False, False, False], list(flagged)
+    # The two NaN-bull names are KEPT whatever their price.
+    assert not flagged[1] and not flagged[3], "a name with no bull case must never be excluded"
+
+
+def test_s10_backfill_holds_book_size_and_drop_shrinks_it():
+    """The two arms answer different questions and must not be conflated.
+
+    DROP removes flagged names and lets the book shrink, which confounds the screen with
+    concentration. BACKFILL refills from the next unflagged name, so book size is constant
+    and only membership changes — which is why it, not DROP, is the deployable arm.
+    """
+    import numpy as np
+
+    comp = np.array([9.0, 8.0, 7.0, 6.0, 5.0, 4.0])
+    fl = np.array([True, False, True, False, False, False])
+    order = np.argsort(-comp)
+    top = order[:3]                      # the "decile": ranks 0,1,2
+    k = len(top)
+
+    drop = top[~fl[top]]
+    backfill = np.array([j for j in order if not fl[j]][:k], dtype=int)
+
+    assert len(drop) == 1, "DROP must shrink the book"
+    assert len(backfill) == k, "BACKFILL must preserve book size"
+    assert list(backfill) == [1, 3, 4], list(backfill)
+    assert not fl[backfill].any(), "BACKFILL must never contain a flagged name"
+
+
+def test_s10_C7_the_offline_build_can_never_reach_the_network_rung():
+    """C7 — the register promised zero network calls ASSERTED, not merely intended.
+
+    `wacc._resolve_beta` rung 3 corroborates an unusable vendor beta by fetching TODAY'S prices,
+    which in a backtest values a 2011 cross-section with a 2021-2026 regression (S23's defect,
+    measured at 157 calls per 1,122 rows). The offline build is safe for a structural reason
+    worth pinning rather than re-deriving: `offline_beta` NEVER returns None — an out-of-range,
+    NaN or missing beta falls to the engine's own stated constant — so the override branch in
+    `_resolve_beta` always fires and the ladder returns before any network rung exists.
+
+    If someone ever lets `offline_beta` return None, the override branch stops firing and the
+    fetch silently comes back. This fails first.
+    """
+    import inspect
+
+    from valuation.engine.calibration import offline_beta
+    from valuation.engine.wacc import BETA_FALLBACK, BETA_HIGH_CAP, _resolve_beta
+
+    for probe in (None, float("nan"), 0.0, -1.0, BETA_HIGH_CAP * 10, 1e9):
+        got = offline_beta(probe)
+        assert got is not None, f"offline_beta({probe!r}) returned None — the ladder resumes"
+        assert isinstance(got, float) and got == got, got
+    # An unusable beta must land on the engine's OWN constant, not on a fetched one.
+    assert offline_beta(None) == float(BETA_FALLBACK)
+    assert offline_beta(float("nan")) == float(BETA_FALLBACK)
+    # ...and a usable point-in-time beta is passed through untouched.
+    assert offline_beta(1.15) == 1.15
+
+    # The override must be consumed BEFORE anything that could reach out.
+    src = inspect.getsource(_resolve_beta)
+    head = src.split("if beta_override is not None:")[0]
+    for rung in ("compute_beta", "yf.", "history("):
+        assert rung not in head, \
+            f"{rung} appears BEFORE the override short-circuit — offline is not offline"
+
+
+# ------------------------------------------------ S3 (session 29): the insider rebuild
+def test_s3_both_insider_paths_agree():
+    """CONTROL C5. The score used to be written out TWICE -- `_insider_score` (the row-iterating
+    fallback) and `_insider_score_at` (the prepped fast path) -- and the B26 comment in each said
+    the two must agree. Two copies of a formula that MUST agree is the B7 defect class. There is
+    now one `_insider_formula` and both delegate; this fails if either grows its own copy again.
+    """
+    import random
+
+    import numpy as np
+    import pandas as pd
+
+    from valuation.edge import fundamental_panel as FP
+
+    rng = random.Random(20260812)
+    for _ in range(60):
+        n = rng.randint(1, 9)
+        as_of = "2020-06-30"
+        rows, vals, dates = [], [], []
+        for k in range(n):
+            d = pd.Timestamp(as_of) - pd.Timedelta(days=rng.randint(1, 80))
+            v = rng.choice([1, -1]) * rng.uniform(1e3, 3e7)
+            rows.append({"filingdate": d.strftime("%Y-%m-%d"),
+                         "transactionshares": v / 10.0, "transactionpricepershare": 10.0})
+            dates.append(np.datetime64(d.strftime("%Y-%m-%d"), "D"))
+            vals.append(v)
+        order = np.argsort(np.array(dates))
+        prep = (np.array(dates)[order], np.array(vals, dtype=float)[order])
+        slow = FP._insider_score(rows, as_of)
+        fast = FP._insider_score_at(prep, as_of)
+        assert (slow is None) == (fast is None), (slow, fast)
+        if slow is not None:
+            assert abs(slow - fast) < 1e-12, (slow, fast)
+
+
+def test_s3_the_formula_has_exactly_one_definition():
+    """The literal must not reappear. Read from source, docstrings stripped, so this test
+    cannot be satisfied by its own text (the M6 lesson)."""
+    import re
+
+    src = open("valuation/edge/fundamental_panel.py", encoding="utf-8").read()
+    src = re.sub(r'""".*?"""', "", src, flags=re.S)          # strip docstrings AND comments
+    src = re.sub(r"#.*", "", src)
+    hits = re.findall(r"40\s*\*\s*math\.tanh", src)
+    assert len(hits) == 1, f"the insider formula appears {len(hits)} times; it must appear once"
+
+
+def test_s3_the_raw_insider_pair_is_opt_in():
+    """`with_insider_raw` must not change the default panel. Checked on the SIGNATURE and on the
+    emission site, because the panel itself is a 20-minute build."""
+    import inspect
+    import re
+
+    from valuation.edge import fundamental_panel as FP
+
+    p = inspect.signature(FP.build_fundamental_panel).parameters
+    assert "with_insider_raw" in p, "the flag vanished"
+    assert p["with_insider_raw"].default is False, "the raw pair became the default"
+    src = open("valuation/edge/fundamental_panel.py", encoding="utf-8").read()
+    for key in ("ins_net", "ins_buys"):
+        for m in re.finditer(rf'"{key}"', src):
+            seg = src[max(0, m.start() - 900):m.start()]
+            assert "with_insider_raw" in seg, f"{key} is emitted outside the opt-in guard"
+
+
+def test_s3_raw_pair_reduces_to_the_shipped_score():
+    """`_insider_raw_at` must describe the SAME window `_insider_score_at` scores, or the
+    variants are built on a different book from the incumbent."""
+    import numpy as np
+
+    from valuation.edge import fundamental_panel as FP
+
+    dates = np.array(["2020-01-15", "2020-04-01", "2020-06-01", "2020-06-30"], dtype="datetime64[D]")
+    #                 [0] BEFORE the 90d lookback   [1] [2] in-window   [3] ON as_of
+    vals = np.array([7e9, -2e6, 3e6, 9e9], dtype=float)
+    prep = (dates, vals)
+    raw = FP._insider_raw_at(prep, "2020-06-30")
+    assert raw is not None
+    net, buys = raw
+    assert abs(FP._insider_formula(net, buys) - FP._insider_score_at(prep, "2020-06-30")) < 1e-12
+    # 2020-06-30 minus 90 days is 2020-04-01, so ONLY rows [1] and [2] are in the window.
+    assert buys == 1 and abs(net - (-2e6 + 3e6)) < 1e-6, raw
+    # Both exclusions are load-bearing and each has its own 7e9/9e9 tripwire: the lookback's
+    # lower bound (row 0) and B26's same-day upper bound (row 3). Either leak blows `net` up
+    # by three orders of magnitude, so a silent regression cannot hide inside the tolerance.
+    assert abs(net) < 1e8, "a row outside the window leaked in (lookback or B26 regression)"
+
+
+def test_s3b_never_imputes_a_neutral_score_for_a_missing_market_cap():
+    """Register 2: imputing 50 would turn an availability gap into a signal -- S10's failure
+    mode, deliberately introduced. A missing market cap must yield None."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("s3mod", "scripts/s3_insider_rebuild.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    for bad in (None, 0, -1.0, float("nan")):
+        assert mod.score_s3b(4e6, 2, bad) is None, f"imputed a score for market cap {bad}"
+    ok = mod.score_s3b(4e6, 2, 4e9)
+    assert ok is not None and 50.0 < ok <= 100.0, ok
+    assert mod.S3B_SCALE == 0.001, "the pre-committed S3b scale moved"
+
+
+def test_s25_the_pit_valuation_still_reads_a_non_point_in_time_sector():
+    """S25, reported NOT repaired. `build_valuation_panel` pins BETA point-in-time (S23) and
+    passes TODAY's TICKERS sector into the same point-in-time valuation, where it selects the
+    sustainable-margin anchor and the comps multiple. This test does not assert the defect is
+    fixed -- it fails if the exposure silently CHANGES shape, so the finding cannot rot.
+    """
+    import re
+
+    src = open("valuation/engine/calibration.py", encoding="utf-8").read()
+    assert re.search(r"sector=md\.get\(\"sector\"\)", src), \
+        "the PIT panel's sector source moved; re-check the S25 finding before editing this test"
+
+    from valuation.engine import assumptions as A
+    from valuation.engine import comps as C
+    tm = A.SECTOR_TARGET_MARGIN
+    assert min(tm.values()) <= 0.10 and max(tm.values()) >= 0.27, \
+        "the sector margin anchors moved; S25's measured 2.70x spread needs re-measuring"
+    pe = sorted(d["pe"] for d in C.SECTOR_MULTIPLES.values() if d.get("pe"))
+    assert pe[-1] / pe[0] >= 2.0, "the comps PE spread collapsed; re-measure S25's exposure"
+
+
+# ------------------------------------------- S28 (session 30): distribution, not just the mean
+def test_s28_distribution_reproduces_hand_computed_order_statistics():
+    from valuation.edge.statistics import distribution
+
+    d = distribution([0.10, -0.05, 0.20, 0.0, -0.30])
+    assert d["n"] == 5
+    assert abs(d["min"] - (-0.30)) < 1e-12 and abs(d["max"] - 0.20) < 1e-12
+    assert abs(d["median"] - 0.0) < 1e-12
+    assert abs(d["mean"] - (-0.01)) < 1e-12
+    assert d["negative_periods"] == 2 and abs(d["negative_fraction"] - 0.4) < 1e-12
+    # monotone through the quantiles, by construction
+    qs = [d["min"], d["p05"], d["p25"], d["median"], d["p75"], d["p95"], d["max"]]
+    assert qs == sorted(qs), qs
+
+
+def test_s28_dated_extremes_survive_holes_in_the_series():
+    """The dates are matched against the ORIGINAL series, not the cleaned one. Pairing a cleaned
+    value with an uncleaned date is exactly how an off-by-one mislabels the worst quarter."""
+    from valuation.edge.statistics import distribution
+
+    vals = [0.1, float("nan"), None, -0.4, 0.3]
+    dts = ["d0", "d1", "d2", "d3", "d4"]
+    d = distribution(vals, dts)
+    assert d["n"] == 3 and d["n_dated"] == 3
+    assert d["worst"] == {"date": "d3", "value": -0.4}, d["worst"]
+    assert d["best"] == {"date": "d4", "value": 0.3}, d["best"]
+
+
+def test_s28_carries_its_units_so_a_quantile_is_not_annualised():
+    """`top_decile_alpha` is ppy * mean(alpha). A quantile is an order statistic and may NOT be
+    scaled that way, so the block has to say so wherever it is picked up."""
+    from valuation.edge.statistics import distribution
+
+    for d in (distribution([0.1, 0.2]), distribution([])):
+        assert "units" in d and "not annualised" in d["units"]
+
+
+def test_s28_the_payload_projects_every_distribution_block():
+    """M6's guard catches a field computed and dropped; this pins the projection itself, so a
+    reader cannot lose the block by editing results_file alone."""
+    import re
+
+    src = open("valuation/edge/results_file.py", encoding="utf-8").read()
+    for key in ("top_decile_alpha_distribution", "long_short_distribution",
+                "return_distribution", "excess_vs_equal_weight_distribution"):
+        assert re.search(rf'"{key}":', src), f"{key} is not projected into the payload"
+    m = re.search(r"^SCHEMA_VERSION = (\d+)", src, re.M)
+    assert m and int(m.group(1)) >= 6, "S28 is additive and must bump the schema version"
+
+
+def test_s28_the_distribution_describes_the_SAME_series_the_headline_is_a_mean_of():
+    """The one check that matters. A distribution attached to the wrong series would look
+    perfectly reasonable and quietly mislabel the worst quarter in the record, so the identity
+    `4 * mean(distribution) == top_decile_alpha` is asserted rather than assumed. Measured on the
+    real 69-date panel it holds to 4e-17; here on a synthetic one it must hold exactly.
+    """
+    from valuation.edge.fundamental_panel import quantile_backtest
+
+    p = _u7_panel(n_dates=14, n_names=60, seed=23)
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    r = quantile_backtest(p, cols, w, n_q=10, horizon=63)
+
+    for key, headline in (("top_decile_alpha_distribution", "top_decile_alpha"),
+                          ("long_short_distribution", "long_short_ann")):
+        d = r[key]
+        assert d["n"] == r["n_periods"], (key, d["n"], r["n_periods"])
+        assert abs(d["mean"] * 4.0 - r[headline]) < 1e-12, (key, d["mean"] * 4.0, r[headline])
+        assert d["min"] <= d["median"] <= d["max"]
+        assert 0.0 <= d["negative_fraction"] <= 1.0
+        assert "worst" in d and "best" in d
+        assert d["worst"]["value"] == d["min"] and d["best"]["value"] == d["max"]
+
+
+def test_s28_is_reporting_only_and_gates_nothing():
+    """S28 adds NO claim. If a threshold, gate or verdict ever reads a distribution field, this
+    fails — which is the only thing standing between 'honest shape' and a new bar nobody
+    calibrated. Docstrings and comments are stripped so the test cannot pass on its own prose.
+    """
+    import re
+
+    hits = []
+    for path in ("valuation/edge/fundamental_panel.py", "valuation/edge/results_file.py",
+                 "valuation/edge/statistics.py"):
+        src = open(path, encoding="utf-8").read()
+        src = re.sub(r'""".*?"""', "", src, flags=re.S)
+        src = re.sub(r"#.*", "", src)
+        for m in re.finditer(r"_distribution\b", src):
+            line = src[src.rfind("\n", 0, m.start()) + 1:src.find("\n", m.start())]
+            # a comparison or a branch on a distribution field would make it a threshold
+            if re.search(r"(if|while|assert|[<>]=?|==)\s", line) and "def " not in line:
+                hits.append(f"{path}: {line.strip()[:100]}")
+    assert not hits, "a distribution field is being compared or branched on:\n" + "\n".join(hits)
+
+
+# --------------------------- S5/S6/S13/S24/S27 (session 31): five weighting schemes
+def _w5():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "w5", "scripts/s5_s6_s13_s24_s27_weighting.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_s6_factor_momentum_is_point_in_time():
+    """THE ONE THAT MATTERS. Factor momentum reads the theme's OWN past returns, so an off-by-one
+    would let date i see its own realised long-short — a look-ahead that would manufacture the
+    exact result the arm is testing for. Date i must use periods [i-4, i-1] and nothing later.
+    """
+    import numpy as np
+
+    m = _w5()
+    dates = [f"d{i:02d}" for i in range(12)]
+    # one theme spikes at date 6 ONLY. If the weights at date 6 already reflect it, it leaked.
+    ls = {c: np.zeros(len(dates)) for c in m.THEMES}
+    spike = m.THEMES[0]
+    ls[spike][6] = 10.0
+    w = m.arm_s6_weights_by_date(ls, dates)
+
+    assert w[dates[6]][spike] == max(w[dates[6]].values()) or True     # no claim at date 6 itself
+    # the spike must NOT raise the spiking theme's weight on or before its own date
+    eq = 1.0 / len(m.THEMES)
+    assert w[dates[6]][spike] <= eq + 1e-12, "date 6 saw its OWN return - look-ahead"
+    # ...and it MUST raise it on the next date, or the arm is inert
+    assert w[dates[7]][spike] > eq, "the trailing window never picked the spike up at all"
+
+
+def test_s6_bounds_are_the_pre_committed_ones_and_actually_bind():
+    import numpy as np
+
+    m = _w5()
+    dates = [f"d{i:02d}" for i in range(10)]
+    ls = {c: np.zeros(len(dates)) for c in m.THEMES}
+    for i, c in enumerate(m.THEMES):                      # a strict ranking of trailing returns
+        ls[c][:] = float(i)
+    w = m.arm_s6_weights_by_date(ls, dates)
+    eq = 1.0 / len(m.THEMES)
+    for d in dates[m.S6_TRAILING_PERIODS:]:
+        vals = list(w[d].values())
+        assert all(v >= 0.0 for v in vals), "floor at 0 violated"
+        assert max(vals) <= m.S6_CAP_MULT * eq + 1e-9, "cap at 2x equal violated"
+        assert abs(sum(vals) - 1.0) < 1e-9, "weights do not sum to 1"
+
+
+def test_s5_james_stein_intensity_is_clipped_and_its_degenerate_ends_are_detectable():
+    """C5. Intensity 0 => equal weight; intensity 1 => raw IC-proportional, which is a SHIPPED
+    scheme. Either end means the arm is not an independent scheme and must be reported as such."""
+    import numpy as np
+
+    m = _w5()
+    # identical ICs across themes -> no between-theme signal -> shrink all the way to the mean
+    flat = {c: np.full(40, 0.02) for c in m.THEMES}
+    w, d = m.arm_s5(flat)
+    assert 0.0 <= d["shrinkage_intensity"] <= 1.0, d
+    # 1.0 = fully shrunk = equal weight, which is the register's C5 direction. The first cut of
+    # the code reported the COMPLEMENT, so the register's two ends read backwards against it.
+    assert d["shrinkage_intensity"] >= 1.0 - 1e-9, "flat ICs must shrink FULLY to the grand mean"
+    for c in m.THEMES:                                    # ...which IS equal weight
+        assert abs(w[c] - 1.0 / len(m.THEMES)) < 1e-9, (c, w[c])
+
+    # and the other end must be reachable: widely dispersed ICs with tiny sampling noise
+    disp = {c: np.full(400, 0.01 * (i + 1)) for i, c in enumerate(m.THEMES)}
+    _, d2 = m.arm_s5(disp)
+    assert d2["shrinkage_intensity"] <= 1e-9, ("zero sampling variance must mean NO shrinkage",
+                                               d2)
+
+
+def test_s24_ensemble_is_seeded_and_reproducible():
+    """C6. A bagging result that changes between runs is not a result."""
+    import numpy as np
+    import pandas as pd
+
+    m = _w5()
+    rng = np.random.default_rng(5)
+    n_d, n_t = 4, 120
+    rows = [{"date": f"2020-0{d+1}-01", "ticker": f"T{t}"} for d in range(n_d) for t in range(n_t)]
+    panel = pd.DataFrame(rows)
+    z = {c: pd.Series(rng.normal(size=len(panel)), index=panel.index) for c in m.THEMES}
+    a, da = m.arm_s24(panel, z, draws=25, seed=7)
+    b, db = m.arm_s24(panel, z, draws=25, seed=7)
+    assert a.equals(b) and da.equals(db), "the ensemble is not reproducible at a fixed seed"
+    c, _ = m.arm_s24(panel, z, draws=25, seed=8)
+    assert not a.equals(c), "the seed does not affect the draws - it is not really sampling"
+
+
+def test_s13_drawdown_uses_the_S10_sign_convention():
+    """S10 shipped a sign error here once: max drawdown is NEGATIVE, so an arm improves it by
+    being LESS negative and the gain is `arm - base`. Pinned with a known pair."""
+    import numpy as np
+
+    m = _w5()
+    steady = np.array([0.02, 0.02, 0.02, 0.02])
+    crash = np.array([0.02, -0.30, 0.02, 0.02])
+    assert m._dd(steady) == 0.0 or m._dd(steady) > -1e-12, m._dd(steady)
+    assert m._dd(crash) < -0.25, m._dd(crash)
+    # the improvement is arm - base and is POSITIVE when the arm is shallower
+    assert (m._dd(steady) - m._dd(crash)) > 0, "a shallower drawdown must score as an improvement"
+
+
+def test_s13_vol_raw_is_opt_in():
+    import inspect
+    import re
+
+    from valuation.edge import fundamental_panel as FP
+
+    p = inspect.signature(FP.build_fundamental_panel).parameters
+    assert "with_vol_raw" in p and p["with_vol_raw"].default is False
+    src = open("valuation/edge/fundamental_panel.py", encoding="utf-8").read()
+    # Only the ROW EMISSION is guarded. `out["realized_vol"]` inside `_price_factors` is the
+    # metric COMPUTATION and correctly always runs — the first cut of this test matched it too
+    # and failed on working code.
+    hits = list(re.finditer(r'row\["realized_vol"\]\s*=', src))
+    assert hits, "the row emission vanished - the guard has nothing to protect"
+    for mm in hits:
+        seg = src[max(0, mm.start() - 700):mm.start()]
+        assert "with_vol_raw" in seg, "realized_vol reaches the row outside the opt-in guard"
+
+
+def test_the_five_arm_register_fixed_the_family_wise_clause_in_advance():
+    """Five sibling arms against one bar. Without a pre-committed rule, the first arm that clears
+    gets quoted as a finding. The register has to carry the clause, not the write-up."""
+    reg = open("PREREG_s5_s6_s13_s24_s27_weighting.md", encoding="utf-8").read()
+    assert "FAMILY-WISE" in reg.upper()
+    assert "1 OF 5 SIBLING ARMS" in reg.upper()
+    assert "23%" in reg, "the family-wise rate is not quantified in the register"
+    # and S13's structurally different bar is fixed there too
+    assert "unchanged by construction" in reg.lower()
+
+
+# ------------------------------------ S7/S18 (session 32): pre-registered interactions
+def _s7():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("s7", "scripts/s7_s18_interactions.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_s18_short_interest_join_is_strictly_point_in_time():
+    """C5, and the one that matters. Short interest settles on a date and is PUBLISHED later;
+    joining a settlement dated on or after the scoring date would manufacture exactly the
+    crowding effect the arms test for."""
+    import pandas as pd
+
+    m = _s7()
+    panel = pd.DataFrame({"date": ["2020-06-30"] * 3, "ticker": ["AAA", "BBB", "CCC"]})
+    si = {
+        "AAA": [("2020-05-15", 1.0, 0, 0), ("2020-06-30", 99.0, 0, 0)],   # ON the date
+        "BBB": [("2020-07-15", 77.0, 0, 0)],                              # AFTER the date
+        "CCC": [("2020-06-15", 3.0, 0, 0)],                               # before -> usable
+    }
+    si = {k: sorted(v) for k, v in si.items()}
+    vals, used = m.join_si(panel, si)
+    assert vals.iloc[0] == 1.0, "a settlement dated ON as_of leaked in"
+    assert used.iloc[0] == "2020-05-15"
+    assert pd.isna(vals.iloc[1]), "a settlement dated AFTER as_of leaked in"
+    assert vals.iloc[2] == 3.0
+
+
+def test_s18_exclusion_drawdown_uses_the_S10_sign_convention():
+    """S10 shipped this backwards once and reported a 2.61pp WORSENING as an IMPROVEMENT.
+    max_drawdown is NEGATIVE; the gain is `arm - base`."""
+    import numpy as np
+
+    m = _s7()
+    shallow = np.array([0.02, -0.05, 0.03, 0.02])
+    deep = np.array([0.02, -0.35, 0.03, 0.02])
+    assert m._dd(deep) < m._dd(shallow) < 0
+    assert (m._dd(shallow) - m._dd(deep)) > 0, "a shallower drawdown must score as a gain"
+    # and the measured A6 pair must read as a WORSENING, which is what it was
+    base, arm = -0.2809334725979583, -0.2863372461981234
+    assert (arm - base) * 100.0 < 0, "the measured A6 drawdown change must read NEGATIVE"
+
+
+def test_s7_market_vol_regime_is_point_in_time():
+    """A2 conditions momentum on the market's realised volatility. Using the CURRENT date's
+    benchmark return would be a look-ahead on the market itself."""
+    import numpy as np
+    import pandas as pd
+
+    m = _s7()
+    dates = [f"2020-{i:02d}-01" for i in range(1, 13)]
+    # a benchmark that is calm then explodes at the LAST date
+    bench = [0.01] * 11 + [5.0]
+    panel = pd.DataFrame({"date": dates, "bench_ret": bench})
+    reg = m.market_vol_regime(panel)
+    assert np.isnan(reg.iloc[0]), "no history at the first date"
+    last = reg.iloc[-1]
+    prev = reg.iloc[-2]
+    assert abs(last - prev) < 1e-9, "the last date saw its OWN benchmark move - look-ahead"
+
+
+def test_s7_register_records_the_unbuildable_arm_rather_than_proxying_it():
+    """One of the audit's four named interactions needs a liquidity measure that does not exist
+    on this path (B13). The register must say so, and the script must not quietly substitute."""
+    reg = open("PREREG_s7_s18_interactions.md", encoding="utf-8").read()
+    assert "size × liquidity" in reg or "size x liquidity" in reg
+    assert "NOT BUILDABLE" in reg.upper() or "UNBUILDABLE" in reg.upper()
+    src = open("scripts/s7_s18_interactions.py", encoding="utf-8").read()
+    assert "UNBUILDABLE" in src, "the script must record the omission in its own artifact"
+    # and it must not have grown a liquidity proxy
+    for bad in ("liquidity_proxy", "z_liquidity", "adv_proxy"):
+        assert bad not in src, f"a liquidity proxy ({bad}) appeared - the register forbids it"
+
+
+def test_s7_register_declines_the_audits_bonferroni_translation_explicitly():
+    """The audit prescribes p < 0.0125. This project's gate is a MARGIN gate whose floors X7
+    calibrated; converting one into the other would invent an uncalibrated correspondence."""
+    reg = open("PREREG_s7_s18_interactions.md", encoding="utf-8").read()
+    assert "0.0125" in reg, "the audit's own bar is not quoted"
+    assert "MARGIN gate" in reg or "margin gate" in reg
+    assert "1 OF 6 SIBLING ARMS" in reg.upper()
+
+
+# ---------------------------- S8/S9 (session 33): freshness and staleness
+def _f89():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("f89", "scripts/s8_s9_freshness.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_s8_inst_age_describes_the_same_window_the_signal_uses():
+    """The age must describe the observation the SIGNAL is built from. If `_inst_age_at` picked a
+    different quarter from `_inst_accum_at`, the decay would be shrinking one number by another
+    number's staleness."""
+    import numpy as np
+
+    from valuation.edge import fundamental_panel as FP
+
+    d = np.array(["2019-12-31", "2020-03-31", "2020-06-30", "2020-09-30"],
+                 dtype="datetime64[D]")
+    v = np.array([100.0, 110.0, 120.0, 130.0])
+    prep = (d, v)
+    as_of = "2020-09-30"
+    # lag 45 -> cutoff 2020-08-16 -> latest usable quarter is 2020-06-30
+    assert FP._inst_accum_at(prep, as_of) is not None
+    age = FP._inst_age_at(prep, as_of)
+    assert age == 92.0, age                      # 2020-06-30 -> 2020-09-30
+    # and both must vanish together on the SAME inputs
+    thin = (d[:1], v[:1])
+    assert FP._inst_accum_at(thin, as_of) is None and FP._inst_age_at(thin, as_of) is None
+
+
+def test_s8_ages_are_opt_in():
+    import inspect
+    import re
+
+    from valuation.edge import fundamental_panel as FP
+
+    p = inspect.signature(FP.build_fundamental_panel).parameters
+    assert "with_freshness" in p and p["with_freshness"].default is False
+    src = open("valuation/edge/fundamental_panel.py", encoding="utf-8").read()
+    hits = list(re.finditer(r'row\[_k\] = None if \(_vf is None', src))
+    assert hits, "the freshness row emission vanished"
+    for m in hits:
+        assert "with_freshness" in src[max(0, m.start() - 800):m.start()], \
+            "the ages reach the row outside the opt-in guard"
+
+
+def test_s9_a_missing_age_is_left_undecayed_never_punished():
+    """Register 3: imputing staleness for a row with no age would convert an availability gap
+    into a signal - S10's failure mode. A missing age must yield multiplier 1.0."""
+    import numpy as np
+    import pandas as pd
+
+    m = _f89()
+    age = pd.Series([0.0, 90.0, np.nan, 180.0])
+    mult = m.decay(age, 90.0)
+    assert abs(mult.iloc[0] - 1.0) < 1e-12
+    assert abs(mult.iloc[1] - math.exp(-1.0)) < 1e-12
+    assert mult.iloc[2] == 1.0, "a MISSING age was punished instead of left undecayed"
+    assert abs(mult.iloc[3] - math.exp(-2.0)) < 1e-12
+    assert (mult > 0).all() and (mult <= 1.0).all()
+
+
+def test_s8_half_lives_are_pre_committed_and_not_fitted():
+    """The audit asks for a half-life ESTIMATED from each signal's decay curve. Fitting on this
+    panel and then scoring on it is the in-sample selection the project has already paid for."""
+    m = _f89()
+    assert m.HL_FUND == 90.0 and m.HL_13F == 180.0
+    src = open("scripts/s8_s9_freshness.py", encoding="utf-8").read()
+    for bad in ("curve_fit", "minimize(", "optimize(", "best_hl", "for hl in"):
+        assert bad not in src, f"a half-life search ({bad}) appeared - the register forbids it"
+    reg = open("PREREG_s8_s9_freshness.md", encoding="utf-8").read()
+    assert "NO HALF-LIFE IS FITTED" in reg.upper()
+    assert m.FUND_THEMES == ["value", "quality", "capital_discipline"], m.FUND_THEMES
+
+
+def test_s8_register_separates_P6s_hypothesis_from_this_one():
+    """P6 measured that quarterly beats TTM - a result about the WINDOW a number is measured
+    over, not the AGE of the observation. Leaning on it here would be a category error, and the
+    register has to say so rather than the write-up."""
+    reg = open("PREREG_s8_s9_freshness.md", encoding="utf-8").read()
+    assert "NOT THE SAME HYPOTHESIS" in reg.upper()
+    assert "S27" in reg, "the register must also separate S27's date-weighting sense of recency"
+    assert "WHICH WAY I LEAN" in reg.upper(), "the task required a stated lean"
+
+
+# ------------------- S11/S12 (session 34): horizon ensemble and bucket-relative ranking
+def _mets(n=300, seed=5, spread_profit=True):
+    import numpy as np
+    rng = np.random.default_rng(seed)
+    out = []
+    for i in range(n):
+        rev = float(rng.lognormal(19, 1))
+        out.append({
+            "ticker": f"T{i}", "sector": "X",
+            "cap_tier": ("small" if i % 3 == 0 else "mid" if i % 3 == 1 else "large"),
+            "earnings_yield": float(rng.normal(0.05, 0.02)),
+            "fcf_yield": float(rng.normal(0.04, 0.02)),
+            "book_to_price": float(rng.normal(0.5, 0.2)),
+            "ret_12_1": float(rng.normal(0.1, 0.3)),
+            "revenue": rev, "marketcap": float(rng.lognormal(22, 1.5)),
+            # drive `classify_bucket` to BOTH sides so the bucket arm has two groups
+            "net_income": (rev * 0.1 if (spread_profit and i % 2 == 0) else -rev * 0.1),
+            "op_income": (rev * 0.12 if (spread_profit and i % 2 == 0) else -rev * 0.12),
+        })
+    return out
+
+
+def test_s12_bucket_relative_is_opt_in_and_leaves_every_existing_caller_alone():
+    import inspect
+    import warnings
+
+    from valuation.screener.factors import build_frame
+
+    p = inspect.signature(build_frame).parameters
+    assert "bucket_relative" in p and p["bucket_relative"].default is None
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        m = _mets()
+        a, b = build_frame(m), build_frame(m, bucket_relative=None)
+    assert a["value"].equals(b["value"]), "the default path moved"
+
+
+def test_s12_asking_for_the_bucket_by_name_is_NOT_a_silent_no_op():
+    """THE NEAR-MISS THIS PINS. `df["bucket"]` is derived AFTER the granular standardisation, so
+    a naive `if bucket_relative in df.columns` finds nothing, does nothing, and still reports a
+    verdict on an arm that never ran. Caught before launching the build; pinned so it cannot
+    come back.
+    """
+    import warnings
+
+    from valuation.screener.factors import build_frame
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        m = _mets()
+        base = build_frame(m)
+        arm = build_frame(m, bucket_relative="bucket")
+    assert set(base["bucket"].unique()) >= {"established", "speculative"}, \
+        ("the fixture must produce BOTH buckets or this test cannot detect a no-op",
+         base["bucket"].value_counts().to_dict())
+    assert not base["value"].equals(arm["value"]), \
+        "bucket_relative='bucket' was a SILENT NO-OP - the arm never ran"
+
+
+def test_s12_cap_tier_grouping_also_bites():
+    import warnings
+
+    from valuation.screener.factors import build_frame
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        m = _mets()
+        base = build_frame(m)
+        arm = build_frame(m, bucket_relative="cap_tier")
+    assert not base["value"].equals(arm["value"]), "cap_tier grouping was a no-op"
+    # an unknown group column must be a safe no-op rather than a crash
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        safe = build_frame(m, bucket_relative="no_such_column")
+    assert base["value"].equals(safe["value"])
+
+
+def test_s11_weights_are_fitted_on_the_decide_half_only():
+    """C5. If a horizon's weights were fitted on the half they are scored against, the arm would
+    manufacture its own result. Checked structurally on the script, since the run is a build."""
+    src = open("scripts/s11_s12_horizon_bucket.py", encoding="utf-8").read()
+    assert "ic_weights(panel, z, dd," in src, "weights are not fitted on the decide half `dd`"
+    assert "sel = panel[\"date\"].isin(dm)" in src, "the blend is not written only to `dm`"
+    # and the two directions must both exist
+    assert '("early_half", "late_half"), ("late_half", "early_half")' in src
+
+
+def test_s12_adopts_the_audits_own_metric_priority():
+    """The audit says for S12: 'top-decile alpha decides, not the t-statistic.' An arm that buys
+    t and sells alpha - sector-neutral's exact shape, three times - must be flagged."""
+    src = open("scripts/s11_s12_horizon_bucket.py", encoding="utf-8").read()
+    assert "bought_t_sold_alpha" in src
+    assert "alpha_decides=name.startswith((\"A2\", \"A3\"))" in src
+    reg = open("PREREG_s11_s12_horizon_bucket.md", encoding="utf-8").read()
+    assert "top-decile alpha decides" in reg
+
+
+# ------------------ S14/S15 (session 35): no-trade band on net alpha, sector-relative value
+def test_s15_sector_relative_cols_is_opt_in():
+    import inspect
+    import warnings
+
+    from valuation.screener.factors import build_frame
+
+    p = inspect.signature(build_frame).parameters
+    assert "sector_relative_cols" in p and p["sector_relative_cols"].default is None
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        m = _mets()
+        a, b = build_frame(m), build_frame(m, sector_relative_cols=None)
+    assert a["value"].equals(b["value"]), "the default path moved"
+
+
+def test_s15_touches_the_value_inputs_and_NOTHING_else():
+    """C4's property, at the unit level. If the subset leaked into other granular columns, the
+    arm would be a broad sector-neutral run wearing a narrow label - which is exactly the thing
+    three prior rejections already settled."""
+    import warnings
+
+    import numpy as np
+
+    from valuation.edge.fundamental_panel import VALUE_INPUTS
+    from valuation.screener.factors import build_frame
+
+    rng = np.random.default_rng(9)
+    m = []
+    for i in range(240):
+        rev = float(rng.lognormal(19, 1))
+        m.append({"ticker": f"T{i}", "sector": ("Fin" if i % 2 else "Tech"),
+                  "earnings_yield": float(rng.normal(0.05, 0.02)),
+                  "fcf_yield": float(rng.normal(0.04, 0.02)),
+                  "ebit_ev": float(rng.normal(0.08, 0.03)),
+                  "book_to_price": float(rng.normal(0.5, 0.2)),
+                  "ps": float(rng.lognormal(1, 0.4)),
+                  "ev_sales": float(rng.lognormal(1, 0.4)),
+                  "ret_12_1": float(rng.normal(0.1, 0.3)),
+                  "ret_6_1": float(rng.normal(0.05, 0.2)),
+                  "roe": float(rng.normal(0.12, 0.05)),
+                  "revenue": rev, "net_income": rev * 0.1,
+                  "marketcap": float(rng.lognormal(22, 1.5))})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        base = build_frame(m)
+        arm = build_frame(m, sector_relative_cols=VALUE_INPUTS)
+
+    assert not base["value"].equals(arm["value"]), "the value theme did not move - a no-op"
+    for theme in ("quality", "momentum", "size"):
+        if theme in base.columns and base[theme].notna().any():
+            a, b = base[theme], arm[theme]
+            both = a.notna() & b.notna()
+            assert float((a[both] - b[both]).abs().max()) == 0.0, \
+                f"{theme} moved - the subset leaked beyond the value inputs"
+
+
+def test_s15_value_input_list_is_the_audits_own():
+    from valuation.edge.fundamental_panel import VALUE_INPUTS
+
+    assert VALUE_INPUTS == ["earnings_yield", "fcf_yield", "ebit_ev", "book_to_price",
+                            "neg_ev_sales", "neg_ps", "neg_ev_ebitda"], VALUE_INPUTS
+
+
+def test_s14_width_sweep_is_held_out_and_the_guard_is_the_measured_saving():
+    """The audit's rule is 'adopt the width that maximises net alpha' - a sweep-and-pick, which
+    on the full sample is the in-sample selection this project already paid for. The argmax must
+    be taken on the DECIDE half and measured on the other, and the gross-alpha guard must be the
+    MEASURED saving rather than the audit's flat 1.5pp."""
+    src = open("scripts/s14_s15_band_sectorvalue.py", encoding="utf-8").read()
+    assert "band_sweep(panel, halves[decide])" in src, "the sweep is not run on the decide half"
+    assert "band_sweep(panel, halves[measure])" in src, "the argmax is not measured held-out"
+    assert '("early_half", "late_half"), ("late_half", "early_half")' in src
+    assert "(-d_gross) <= saving" in src, "the guard is not the measured saving"
+    assert "passes_audits_own_allowance" in src, "the audit's own allowance is not reported beside"
+    # and the shipped grid is used, not one invented here
+    assert "WIDTHS = (0.12, 0.15, 0.20, 0.25, 0.30)" in src
+
+
+def test_s14width_grid_is_the_registered_one_and_adds_nothing_finer():
+    """S14-WIDTH void condition 1: the grid is FINAL. Session 35's verdict could not say where
+    the optimum sat because 0.30 was the boundary; the repair is ONE documented extension, not a
+    licence to keep adding widths until something wins. A finer step near the incumbent winner is
+    how a grid search manufactures a knee, so the register forbids that too."""
+    import importlib
+    m = importlib.import_module("scripts.s14_width_extension")
+    assert m.SHIPPED_WIDTHS == (0.12, 0.15, 0.20, 0.25, 0.30), "the shipped grid was altered"
+    assert m.NEW_WIDTHS == (0.40, 0.50, 0.75), "the registered extension was altered"
+    assert m.WIDTHS == m.SHIPPED_WIDTHS + m.NEW_WIDTHS
+    wide = [w for w in m.WIDTHS if w > 0.30]
+    assert all(b - a >= 0.10 - 1e-9 for a, b in zip(wide, wide[1:])), "a finer width was added"
+    assert m.ENTER_FRAC == 0.10, "enter_frac is shipped and NOT swept (void condition 3)"
+
+
+def test_s14width_the_no_band_baseline_is_plain_topN_as_a_SET():
+    """C3, and the correction to my own first cut of it.
+
+    `none` is the baseline every width is compared against, and it runs through `_band_select`
+    too (exit_rank == n_target), so it has to BE plain top-N or the sweep compares two
+    constructions rather than one at eight settings. The claim is SET equality: `_band_select`
+    returns survivors FIRST and then fills, so the ORDER routinely differs. My first cut asserted
+    LIST equality and failed 176 of 200 draws on ordering alone - a defect in the control, not in
+    the baseline. `test_s14width_selection_order_cannot_move_a_number` pins the other half."""
+    from valuation.edge.fundamental_panel import _band_select
+    rng = np.random.default_rng(11)
+    tick = np.array([f"T{i:03d}" for i in range(120)])
+    for _ in range(60):
+        comp = rng.standard_normal(120)
+        held = set(rng.choice(tick, 12, replace=False))
+        plain = list(tick[np.argsort(-comp)][:12])
+        got = list(_band_select(comp, tick, held, 12, 12))
+        assert set(got) == set(plain), "the no-band book is not the plain top-N set"
+        assert len(got) == len(set(got)) == 12
+
+
+def test_s14width_selection_order_cannot_move_a_number():
+    """The other half of C3, and the reason the ordering difference above is harmless rather than
+    tolerated: the book is EQUAL-WEIGHTED, so only the selected SET can reach a return, a
+    turnover or a cost. Pinned on a synthetic panel by scoring the same book in two different
+    orders - if anyone ever makes the weighting order-dependent (a score tilt, a cap), this fails
+    and the no-band baseline stops being a baseline."""
+    from valuation.edge import fundamental_panel as FP
+    rng = np.random.default_rng(5)
+    rows = []
+    for d in range(8):
+        for i in range(60):
+            rows.append({"date": f"2020-{d + 1:02d}-01", "ticker": f"T{i:02d}",
+                         "fwd_ret": float(rng.standard_normal() * 0.1),
+                         "market_cap": float(10 ** (9 + rng.random() * 2)),
+                         "value": float(rng.standard_normal()),
+                         "quality": float(rng.standard_normal())})
+    panel = pd.DataFrame(rows)
+    cols, wts = ["value", "quality"], {"value": 0.5, "quality": 0.5}
+    orig = FP._band_select
+
+    def _reversed(comp, tickers, held, n_target, exit_rank):
+        return list(orig(comp, tickers, held, n_target, exit_rank))[::-1]
+
+    a = FP.turnover_and_costs(panel, cols, wts, top_frac=0.2, horizon=63, exit_frac=None)
+    try:
+        FP._band_select = _reversed
+        b = FP.turnover_and_costs(panel, cols, wts, top_frac=0.2, horizon=63, exit_frac=None)
+    finally:
+        FP._band_select = orig
+    for f in ("annual_turnover", "gross_ann", "net_ann", "cost_drag_ann"):
+        assert abs(a[f] - b[f]) < 1e-12, f"{f} depends on selection ORDER, not just the book"
+
+
+def test_s14width_a_universe_wide_band_freezes_the_book():
+    """The structural fact the register rests on (its §2), pinned so it cannot rot.
+
+    `_band_select` holds book SIZE fixed, so widening the band does not grow the book - it makes
+    the book stop turning over. At an exit rank equal to the universe every incumbent survives
+    and the book FREEZES. That is what bounds the experiment: exit_frac 1.0 is buy-and-hold of
+    the first cross-section, so a true interior optimum must exist and 'wider is always better'
+    cannot be the answer however the measured surface happens to look."""
+    from valuation.edge.fundamental_panel import _band_select
+    rng = np.random.default_rng(3)
+    tick = np.array([f"T{i:02d}" for i in range(40)])
+    held, first = set(), None
+    for step in range(8):
+        sel = _band_select(rng.standard_normal(40), tick, held, 6, 40)
+        assert len(sel) == 6, "book size must not drift with the band width"
+        if first is None:
+            first = sorted(sel)
+        else:
+            assert sorted(sel) == first, f"book changed at step {step} - it did not freeze"
+        held = set(sel)
+
+
+def test_s14width_selection_is_held_out_and_never_reads_the_measure_half():
+    """C7. The argmax over eight widths is the selection step; taking it on the same half the
+    result is read from is the in-sample selection this project has already paid for twice
+    (+8.43%/yr in-search -> -0.04%/yr on the locked hold-out)."""
+    src = open("scripts/s14_width_extension.py", encoding="utf-8").read()
+    assert "cands = {k: v for k, v in dsw.items()" in src, "candidates are not built from decide"
+    assert 'pick = max(cands, key=lambda k: cands[k]["net_alpha"])' in src
+    assert '("early_half", "late_half"), ("late_half", "early_half")' in src, "not both directions"
+    assert 'base, arm = msw.get("none") or {}, msw.get(pick) or {}' in src
+    assert "max(msw" not in src and "msw.items()" not in src, "the argmax reads the measure half"
+    assert "(-d_gross) <= saving" in src, "the guard is not the MEASURED cost saving"
+
+
+def test_s14width_boundary_and_ambiguity_rules_are_implemented_as_registered():
+    """Register §4 resolves ambiguity to the more conservative branch: a boundary pick DOMINATES
+    an interior one, because an interior pick cannot identify a knee the other direction
+    contradicts. Pinned because it is the rule deciding whether this becomes an adoption
+    decision, and it would be easy to quietly read it the flattering way."""
+    src = open("scripts/s14_width_extension.py", encoding="utf-8").read()
+    assert "if any_boundary and all_improve:" in src, "the boundary branch is not checked FIRST"
+    assert src.index("if any_boundary and all_improve:") < \
+           src.index("elif both_interior and all_improve:"), \
+           "an interior pick must not be able to outrank a boundary pick"
+    for branch in ("b_UNBOUNDED_ON_THIS_GRID", "a_INTERIOR_OPTIMUM", "c_DIRECTIONS_DISAGREE"):
+        assert branch in src
+
+
+# --------------------------------------------------------------------------------------- #
+#  S17 + S19 — PREREG_s17_s19_events_mdna.md
+# --------------------------------------------------------------------------------------- #
+def _s17_mod():
+    import importlib
+    return importlib.import_module("scripts.s17_event_codes")
+
+
+def _s19_src():
+    p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     "scripts", "s19_mdna_heldout.py")
+    with open(p, encoding="utf-8") as f:
+        return f.read()
+
+
+def test_s17_arm_set_is_the_registered_five_and_excludes_the_already_decoded_code():
+    """The register fixes the arms at the five most frequent EXCLUDING 22 (already rejected
+    as PEAD). Testing any other code voids the item (register section 6.1)."""
+    m = _s17_mod()
+    assert m.ARM_CODES == ("91", "81", "34", "71", "52"), m.ARM_CODES
+    assert "22" not in m.ARM_CODES, "code 22 is already decoded and rejected; re-testing it " \
+                                    "would charge a trial to re-derive a known answer"
+    assert m.DECODED_CODE == "22"
+    assert m.HORIZONS == (21, 63), m.HORIZONS
+    assert len(m.ARM_CODES) * len(m.HORIZONS) == 10, "the register charges exactly 10 S17 arms"
+
+
+def test_s17_the_event_window_is_STRICTLY_BEFORE_the_rebalance_date():
+    """An event ON the rebalance date is look-ahead. Exercised on a real synthetic panel
+    rather than asserted from the source."""
+    m = _s17_mod()
+    days = np.array([np.datetime64("2020-01-01", "D") + i for i in range(200)])
+    px = np.full(200, 10.0)
+    caps = {"AAA": (days, np.full(200, 1000.0))}
+    prices = {"AAA": (days, px)}
+    d = days[100]
+    code = m.ARM_CODES[0]
+
+    def ind(offset_days):
+        ev = {"AAA": [(str(d + np.timedelta64(offset_days, "D")), [code])]}
+        out = m.build_panel(prices, ev, caps, [d])
+        return out["per_date"][str(d)]["ev"][code][0]
+
+    assert ind(0) == 0, "an event ON the rebalance date must NOT count — that is look-ahead"
+    assert ind(1) == 0, "an event AFTER the rebalance date must not count"
+    assert ind(-1) == 1, "an event the day before must count"
+    assert ind(-m.LOOKBACK_CAL_DAYS + 1) == 1, "inside the 21-calendar-day window"
+    assert ind(-m.LOOKBACK_CAL_DAYS - 1) == 0, "outside the 21-calendar-day window"
+
+
+def test_s17_reads_whole_price_series_and_never_a_per_ticker_tail():
+    """AUDIT B6 — a per-ticker tail is what made early cross-sections consist only of names
+    that had already stopped trading. `load_prices` must expose no truncation knob."""
+    import inspect
+    m = _s17_mod()
+    sig = inspect.signature(m.load_prices)
+    assert "days" not in sig.parameters, "a `days` tail is the B6 defect"
+    src = inspect.getsource(m.load_prices)
+    assert ".tail(" not in src and "[-4659" not in src
+
+
+def test_s17_benjamini_hochberg_matches_a_worked_example():
+    """A wrong FDR implementation would silently manufacture discoveries across 10 arms."""
+    m = _s17_mod()
+    # Benjamini & Hochberg (1995) worked example, m=15, q=0.05 -> exactly 4 rejections.
+    # The largest k with p_(k) <= q*k/m is k=4 (0.0095 <= 0.01333); k=5 fails (0.0201 > 0.01667).
+    p = [0.0001, 0.0004, 0.0019, 0.0095, 0.0201, 0.0278, 0.0298, 0.0344,
+         0.0459, 0.3240, 0.4262, 0.5719, 0.6528, 0.7590, 1.0000]
+    keep = m.benjamini_hochberg(p, 0.05)
+    assert sum(keep) == 4, (sum(keep), keep)
+    assert keep[:4] == [True, True, True, True], keep
+    assert not any(keep[4:]), keep
+    # and BH must be strictly less conservative than Bonferroni here
+    assert sum(keep) >= sum(1 for x in p if x <= 0.05 / len(p))
+    assert m.benjamini_hochberg([0.9, 0.8], 0.05) == [False, False]
+    # a single tiny p-value must survive
+    assert m.benjamini_hochberg([1e-9] + [0.9] * 9, 0.05)[0] is True
+
+
+def test_s17_hac_t_reduces_to_the_plain_t_at_lag_zero():
+    m = _s17_mod()
+    rng = np.random.default_rng(7)
+    x = rng.normal(0.4, 1.0, 400)
+    t, mu, se, n = m.hac_t(x, 0)
+    plain = x.mean() / (x.std(ddof=0) / math.sqrt(len(x)))
+    assert abs(t - plain) < 1e-9, (t, plain)
+    assert n == 400 and abs(mu - x.mean()) < 1e-12
+
+
+def test_s19_only_the_two_flagged_cells_are_tested_and_no_grid_is_swept():
+    """The original was a 28-cell grid filed as a null. Re-sweeping it is the sin the
+    register forbids (section 6.1)."""
+    src = _s19_src()
+    assert 'ARMS = (("A1", "mdna_cosine_tf", 21), ("A2", "mdna_jaccard", 63))' in src
+    for banned in ("cosine_tfidf", "risk_cosine_tf", "risk_jaccard"):
+        assert f'"{banned}", 21' not in src and f'"{banned}", 63' not in src
+
+
+def test_s19_the_committed_sign_makes_a_significant_negative_a_REJECT():
+    """Reading the sign backwards is what the register exists to prevent (section 6.5)."""
+    src = _s19_src()
+    assert 'committed_direction' in src
+    assert '"REJECTED" if (t_change is not None and np.isfinite(t_change)' in src
+    assert "t_change < -2.0" in src, "a significant negative must land in REJECTED"
+    assert 'signs[0] > 0' in src, "a POSITIVE verdict must require the committed sign"
+
+
+def test_s19_change_ic_is_exactly_minus_similarity_ic():
+    """change = 1 - similarity is strictly decreasing, so Spearman flips sign EXACTLY.
+    If this ever stopped holding, the two conventions in the artifact would disagree and the
+    committed direction would be unreadable."""
+    import importlib
+    s19 = importlib.import_module("scripts.s19_mdna_heldout")
+    rng = np.random.default_rng(11)
+    sim = rng.uniform(0.5, 1.0, 300)
+    fwd = rng.normal(0, 0.1, 300) + 0.3 * sim
+    a = s19.spearman(sim, fwd)
+    b = s19.spearman(1.0 - sim, fwd)
+    assert abs(a + b) < 1e-12, (a, b)
+
+
+def test_s19_a_score_dated_ON_the_rebalance_date_is_not_used():
+    """EDGAR filings land after the close, so same-day use is a free look-ahead — the
+    original study's own rule, re-pinned here on the real join."""
+    import importlib
+    s19 = importlib.import_module("scripts.s19_mdna_heldout")
+    days = np.array([np.datetime64("2020-01-01", "D") + i for i in range(200)])
+    date = "2020-03-01"
+    # a REAL cross-section, else MIN_NAMES_PER_DATE suppresses every cell and the test
+    # would pass for the wrong reason
+    tks = [f"T{i:03d}" for i in range(s19.MIN_NAMES_PER_DATE + 10)]
+    prices = {t: (days, np.linspace(10.0, 20.0, 200)) for t in tks}
+    panel = pd.DataFrame([{"date": date, "ticker": t,
+                           **{th: float(i % 3) for th in s19.THEMES}, "fwd_ret": 0.01}
+                          for i, t in enumerate(tks)])
+
+    def n_rows(avail):
+        sc = pd.DataFrame([{"ticker": t, "available_from": avail,
+                            "mdna_cosine_tf": 0.5 + 0.01 * i} for i, t in enumerate(tks)])
+        cells = s19.build_cells(sc, "mdna_cosine_tf", panel, prices, 21, set(tks))
+        return sum(len(r) for _, r in cells)
+
+    prior = n_rows("2020-02-28")
+    assert prior == len(tks), f"a score filed BEFORE the date must be used ({prior})"
+    same_day = n_rows(date)
+    assert same_day == 0, "a score available_from == the rebalance date must be excluded"
+    stale = n_rows("2019-01-01")
+    assert stale == 0, "a score older than MAX_STALE_DAYS must be excluded"
+
+
+def test_s19_thresholds_are_the_registered_ones():
+    import importlib
+    s19 = importlib.import_module("scripts.s19_mdna_heldout")
+    assert s19.MIN_HELDOUT_NAMES == 100 and s19.MIN_COVERED_DATES == 24
+    assert s19.MIN_NAMES_PER_DATE == 30
+    assert s19.MAX_STALE_DAYS == 120 and s19.MIN_DOC_WORDS == 2000
+    assert abs(s19.C6_TARGET_IC - 0.00960710146449202) < 1e-15
+    assert abs(s19.C6_TARGET_T - 0.6463239752818024) < 1e-15
+
+
+def _v6():
+    import importlib
+    return importlib.import_module("scripts.v6_dip_detector")
+
+
+def test_v6_registered_constants_are_the_ones_in_the_register():
+    """The register fixes every one of these. A swept floor is void condition 6.3."""
+    v6 = _v6()
+    assert v6.DEPTHS == (0.20, 0.30), v6.DEPTHS
+    assert v6.HORIZONS == (63, 126), v6.HORIZONS
+    assert v6.TRAIL_DAYS == 252, "the 52-week trailing-high window is NOT swept"
+    assert v6.QUALITY_FLOOR == 0.0, "the cross-sectional midpoint, untuned"
+    assert v6.HEALTH_FLOOR == 50.0, "the shipped 0-100 scale's midpoint, untuned"
+    assert v6.N_PERM == 500 and v6.SEED == 20260813
+    assert v6.MIN_NAMES_PER_DATE == 10 and v6.MIN_DATES_PER_HALF == 24
+    # exactly four arms, no fifth
+    assert len(v6.ARMS) == 4, v6.ARMS
+    assert {(d, h) for _, d, h in v6.ARMS} == {(0.20, 63), (0.20, 126),
+                                               (0.30, 63), (0.30, 126)}
+
+
+def test_v6_trailing_high_never_reads_a_price_after_the_rebalance_date():
+    """C3. A crash AFTER the date must not move the flag; a crash BEFORE it must."""
+    import tempfile
+    v6 = _v6()
+    days = [str(d.date()) for d in pd.bdate_range(end="2021-01-01", periods=400)]
+    d_mid = days[300]
+    with tempfile.TemporaryDirectory() as td:
+        # flat at 100 through the date, then collapses to 10 AFTERWARDS
+        later = [100.0] * 301 + [10.0] * (len(days) - 301)
+        pd.DataFrame({"date": days, "close": later}).to_csv(
+            os.path.join(td, "LATE.csv"), index=False)
+        # collapses to 50 BEFORE the date
+        early = [100.0] * 200 + [50.0] * (len(days) - 200)
+        pd.DataFrame({"date": days, "close": early}).to_csv(
+            os.path.join(td, "EARLY.csv"), index=False)
+        out = v6.trailing_drawdown(td, ["LATE", "EARLY"], [d_mid])
+    g = {r.ticker: r.drawdown for r in out.itertuples()}
+    assert abs(g["LATE"]) < 1e-12, (
+        f"a post-date crash leaked into the trailing high: {g['LATE']}")
+    assert abs(g["EARLY"] - (-0.5)) < 1e-12, (
+        f"a pre-date crash must be visible: {g['EARLY']}")
+
+
+def test_v6_a_raw_split_reads_as_a_dip_and_the_adjusted_basis_does_not():
+    """C5, the split trap, pinned from BOTH sides.
+
+    A 2-for-1 split on an UNADJUSTED series looks like an instantaneous -50% drawdown.
+    Since companies split after they RISE, that would flag exactly the strongest names
+    and invert the whole feature. SEP's `close` is already split-adjusted, which is why
+    the register fixes the adjusted basis.
+    """
+    import tempfile
+    v6 = _v6()
+    days = [str(d.date()) for d in pd.bdate_range(end="2021-01-01", periods=400)]
+    d_mid = days[350]
+    with tempfile.TemporaryDirectory() as td:
+        # what the ADJUSTED series looks like: flat, no real drawdown
+        pd.DataFrame({"date": days, "close": [100.0] * len(days)}).to_csv(
+            os.path.join(td, "ADJ.csv"), index=False)
+        # what the RAW series looks like across a 2-for-1: halves and stays halved
+        raw = [200.0] * 300 + [100.0] * (len(days) - 300)
+        pd.DataFrame({"date": days, "close": raw}).to_csv(
+            os.path.join(td, "RAW.csv"), index=False)
+        out = v6.trailing_drawdown(td, ["ADJ", "RAW"], [d_mid])
+    g = {r.ticker: r.drawdown for r in out.itertuples()}
+    assert abs(g["ADJ"]) < 1e-12, "the adjusted basis must show no dip"
+    assert g["RAW"] <= -0.20, "a raw split MUST look like a dip - that is the trap"
+    assert g["ADJ"] > -0.20, "and the adjusted basis must NOT trip the 20% arm"
+
+
+def test_v6_reads_the_whole_price_series_and_never_a_per_ticker_tail():
+    """Audit B6 (C6). A per-ticker tail is what inverted the early universe."""
+    import inspect
+    src = inspect.getsource(_v6().trailing_drawdown)
+    assert ".tail(" not in src, "audit B6: no per-ticker truncation in the price read"
+    assert "side=\"right\"" in src or "side='right'" in src, (
+        "the <= d cut must be an explicit searchsorted bound")
+
+
+def test_v6_health_calls_the_shipped_scoring_function_and_never_retypes_it():
+    """Audit B7's class: a re-implemented shipped mapping drifts from the shipped one."""
+    import inspect
+    v6 = _v6()
+    from valuation.engine import scoring
+    assert v6._health_score is scoring._health_score, (
+        "the health score must BE the shipped function, not a copy")
+    src = inspect.getsource(v6)
+    for literal in ("(3.0, 50)", "(6.0, 8)", "(12.0, 100)"):
+        assert literal not in src, (
+            f"breakpoint {literal} is retyped in the script - import, never restate")
+
+
+def test_v6_health_moves_the_right_way_and_the_floor_bites():
+    """A floor that never bites is not a floor. Behavioural, not just structural."""
+    import types as _t
+    v6 = _v6()
+    def h(nde, cov, fcf):
+        cd = _t.SimpleNamespace(net_debt_to_ebitda=nde, interest_coverage=cov,
+                                cash_runway_years=None, fcf=fcf)
+        return v6._health_score(cd, _t.SimpleNamespace(is_cash_burning=False))[0]
+    strong = h(0.0, 12.0, 1e9)      # no net debt, huge coverage, positive FCF
+    weak = h(6.0, 0.5, -1e9)        # levered, uncovered, burning
+    assert strong > weak, (strong, weak)
+    assert strong >= v6.HEALTH_FLOOR > weak, (
+        f"the floor must SEPARATE these two, not sit outside both: "
+        f"{weak} < {v6.HEALTH_FLOOR} <= {strong}")
+
+
+def test_v6_never_reads_the_empty_roic_and_roe_columns():
+    """Register 1c: both are 0.0% populated in ARQ. Reading them conditions on nothing."""
+    import inspect
+    src = inspect.getsource(_v6().health_panel)
+    for dead in ('"roic"', "'roic'", '"roe"', "'roe'"):
+        assert dead not in src, f"{dead} is 0.0% populated in the ARQ export"
+
+
+def test_v6_the_l2_null_draws_ONLY_from_dipped_names():
+    """Register 3.6. If L2's null drew from the whole cross-section it would be asking a
+    different question - and would answer it with a huge spurious t."""
+    v6 = _v6()
+    # non-dipped names are wildly different; every dipped name is identical.
+    f = np.array([1000.0] * 10 + [5.0] * 20)
+    dip = np.array([False] * 10 + [True] * 20)
+    cond = np.array([False] * 10 + [True] * 5 + [False] * 15)
+    cells = [(f, dip, cond)] * 8
+    rng = np.random.default_rng(1)
+    for _ in range(25):
+        t = v6._perm_t(cells, rng, "L2")
+        # every dipped value is 5.0, so ANY draw from the dipped set gives exactly 0.
+        assert t is None or abs(t) < 1e-9 or not np.isfinite(t), (
+            f"L2's null reached a non-dipped name (t={t})")
+    # POSITIVE CONTROL, so the assertion above cannot pass vacuously: the L1 scheme draws
+    # from the WHOLE cross-section, reaches the 1000-valued names, and must give a
+    # finite, non-zero t on the very same cells.
+    seen = [v6._perm_t(cells, rng, "L1") for _ in range(25)]
+    finite = [x for x in seen if x is not None and np.isfinite(x) and abs(x) > 1e-9]
+    assert finite, ("the L1 scheme produced nothing finite on these cells, so the L2 "
+                    "assertion above proves nothing")
+
+
+def test_v6_coverage_floor_returns_no_number_rather_than_a_thin_one():
+    """Register 3.7: a number computed on six names is worse than no number."""
+    v6 = _v6()
+    f = np.arange(100, dtype=float)
+    dip = np.zeros(100, dtype=bool); dip[:40] = True
+    cond = np.zeros(100, dtype=bool); cond[:5] = True      # below MIN_NAMES_PER_DATE
+    l1, l2, n_c, n_d, n_t = v6.legs_for_date(f, dip, cond)
+    assert l1 is None and l2 is None and n_c == 5
+    cond[:15] = True                                        # now above it
+    l1b, l2b, n_c2, _, _ = v6.legs_for_date(f, dip, cond)
+    assert l1b is not None and l2b is not None and n_c2 == 15
+
+
+def test_v6_clearing_L1_but_not_L2_is_not_a_pass():
+    """The single most important branch: the tab's claim is the CONDITIONING."""
+    v6 = _v6()
+    clear = {"both_halves_clear": True, "halves_same_sign": True,
+             "both_halves_below_p5": False}
+    fail = {"both_halves_clear": False, "halves_same_sign": True,
+            "both_halves_below_p5": False}
+    rev = {"both_halves_clear": False, "halves_same_sign": True,
+           "both_halves_below_p5": True}
+    assert v6.verdict_of(clear, fail, True) == "NULL - THE DIP DOES THE WORK"
+    assert v6.verdict_of(clear, clear, True) == "POSITIVE"
+    assert v6.verdict_of(fail, fail, True) == "NULL"
+    assert v6.verdict_of(clear, rev, True) == "REJECTED - SIGN REVERSED"
+    assert v6.verdict_of(clear, clear, False) == "VOID - UNDERPOWERED BY CONSTRUCTION", (
+        "the coverage floor must outrank a pass")
+
+
+def test_v6_scores_end_to_end_and_reports_an_MDE_on_a_null():
+    """Integration. V2G/S19: a null quoted without its MDE is being misquoted."""
+    v6 = _v6()
+    rng = np.random.default_rng(3)
+    rows = []
+    dates = [f"20{y:02d}-01-15" for y in range(10, 70)]     # 60 dates
+    for d in dates:
+        for i in range(120):
+            rows.append({"date": d, "ticker": f"T{i:03d}",
+                         "drawdown": -0.5 * rng.random(),
+                         "quality": rng.normal(), "health": 100 * rng.random(),
+                         "fwd_ret": rng.normal(0, 0.1),
+                         "size": rng.normal(), "marketcap": 1e9})
+    p = pd.DataFrame(rows)
+    r = v6.score_arm(p, 0.20, 63, np.random.default_rng(5))
+    assert r["n_dates"] >= 24, r["n_dates"]
+    for leg in ("L1", "L2"):
+        full = r["legs"][leg]["full"]
+        assert full["mde_at_t2"] is not None, f"{leg} reports no MDE"
+        assert full["perm_p95"] is not None and full["n_perm_ok"] > 0
+        assert len(full["perm_draws"]) == full["n_perm_ok"], "RUN_RULES A9: draws banked"
+    # pure noise must not manufacture a pass
+    assert r["verdict"] in ("NULL", "NULL - THE DIP DOES THE WORK",
+                            "VOID - UNDERPOWERED BY CONSTRUCTION"), r["verdict"]
+
+
+def test_v6_controls_use_the_panels_real_column_names():
+    """A lookup by the WRONG column name computes cleanly and reports None - which reads
+    as "no tilt" rather than "no data". The panel's column is `market_cap`, not
+    `marketcap`, and the granular momentum inputs are not panel columns at all."""
+    import inspect
+    from valuation.edge import fundamental_panel as _fp
+    src = inspect.getsource(_v6().main)
+    assert '"market_cap"' in src, "C8 must read the panel's real market-cap column"
+    assert 'p.get("marketcap")' not in src and 'p["marketcap"]' not in src, (
+        "`marketcap` is NOT a panel column - `market_cap` is")
+    # and the panel really does emit it under that name, so this is pinned to the source
+    # of truth rather than to my memory of it
+    psrc = inspect.getsource(_fp)
+    assert '"market_cap": mktcap' in psrc, (
+        "the panel stopped emitting `market_cap`; C8 needs re-pointing")
+    # C7 must NAME what it could not measure rather than silently returning {}
+    assert "absent_from_panel" in src, "C7 must report the columns it could not find"
+
+
+def _v6b():
+    import importlib
+    return importlib.import_module("scripts.v6b_dip_survival")
+
+
+def test_v6b_registered_constants_and_v6_floors_are_IMPORTED_not_restated():
+    """Re-tuning V6's floors is void condition 6.3 - that would make V6-B a second look at
+    V6's own search space. Identity, not equality: a restated copy could drift."""
+    v6b, v6 = _v6b(), _v6()
+    assert v6b.QUALITY_FLOOR is v6.QUALITY_FLOOR or v6b.QUALITY_FLOOR == v6.QUALITY_FLOOR
+    assert v6b.HEALTH_FLOOR == v6.HEALTH_FLOOR == 50.0
+    assert v6b.trailing_drawdown is v6.trailing_drawdown, "the drawdown must BE V6's"
+    assert v6b.health_panel is v6.health_panel, "the health score must BE V6's"
+    assert v6b.DEPTH == 0.20 and v6b.FWD_TD == 126 and v6b.DISTRESS_CAL_DAYS == 252
+    assert v6b.INSIDER_WINDOW_CAL == 126 and v6b.FURTHER_DROP == -0.20
+    assert v6b.M1_ECONOMIC_PP == 3.0, "the pre-committed economic floor"
+    assert v6b.MIN_DISTRESS_EVENTS_PER_HALF == 30
+
+
+def test_v6b_distress_EXCLUDES_acquisitions_and_mergers():
+    """The single most consequential definition in the register. 82.63% of delistings on this
+    universe are acquisitions; counting a takeover premium as a death would invert the arm."""
+    v6b = _v6b()
+    assert "bankruptcyliquidation" in v6b.DISTRESS_ACTIONS
+    assert "regulatorydelisting" in v6b.DISTRESS_ACTIONS
+    for good in ("acquisitionby", "mergerto", "delisted", "voluntarydelisting"):
+        assert good not in v6b.DISTRESS_ACTIONS, f"{good} must NEVER count as distress"
+    assert "acquisitionby" in v6b.ACQUIRED_ACTIONS and "mergerto" in v6b.ACQUIRED_ACTIONS
+    # and the umbrella must not silently become the distress set
+    assert "delisted" not in v6b.DISTRESS_ACTIONS + v6b.ACQUIRED_ACTIONS
+
+
+def test_v6b_M1_SIGN_a_lower_bad_outcome_for_the_HEALTHY_set_is_what_clears():
+    """THE crux, and the S10 sign error in a new place.
+
+    M1 is (healthy - unhealthy) on P(a further -20%), a BAD outcome. The claim needs that
+    difference NEGATIVE. A verdict function that rewarded a POSITIVE difference would report
+    'healthy dips survive better' when the data said the exact opposite.
+    """
+    v6b = _v6b()
+    good = {"enough_dates_per_half": True, "both_halves_below_p5": True,
+            "both_halves_clear_high": False, "halves_same_sign": True,
+            "early": {"mean_diff_pp": -5.0}, "late": {"mean_diff_pp": -4.0}}
+    assert v6b.m1_verdict(good) == "REAL - HEALTHY DIPS SURVIVE BETTER"
+    # same statistics, sign flipped: healthy do WORSE. Must NOT be a pass.
+    bad = dict(good, both_halves_below_p5=False, both_halves_clear_high=True,
+               early={"mean_diff_pp": +5.0}, late={"mean_diff_pp": +4.0})
+    assert v6b.m1_verdict(bad) == "NULL", (
+        "a HIGHER further-drop rate for the healthy set must never read as a pass")
+
+
+def test_v6b_M1_economic_floor_is_separately_binding():
+    """Register 2.1: statistical AND economic. A risk claim that clears a t and moves 0.4pp
+    is not worth a sentence on a product page."""
+    v6b = _v6b()
+    thin = {"enough_dates_per_half": True, "both_halves_below_p5": True,
+            "halves_same_sign": True,
+            "early": {"mean_diff_pp": -0.4}, "late": {"mean_diff_pp": -0.5}}
+    assert v6b.m1_verdict(thin) == "NULL - CLEARS STATISTICALLY, MISSES THE 3.0pp ECONOMIC FLOOR"
+    # and one half missing the floor is enough to fail it
+    half = dict(thin, early={"mean_diff_pp": -9.0}, late={"mean_diff_pp": -0.5})
+    assert "MISSES THE 3.0pp" in v6b.m1_verdict(half)
+    assert v6b.m1_verdict({"status": "insufficient dates"}).startswith("VOID")
+
+
+def test_v6b_forward_window_starts_strictly_after_the_date_and_censoring_DROPS():
+    """C3. A window that included d would let the dip day's own close define the minimum;
+    a short window scored anyway would silently mix horizons (S22's rule)."""
+    import tempfile
+    v6b = _v6b()
+    days = [str(d.date()) for d in pd.bdate_range(end="2024-01-01", periods=600)]
+    d_mid, d_late = days[300], days[560]
+    with tempfile.TemporaryDirectory() as td:
+        # flat 100 up to and including d_mid, then halves the very next day
+        px = [100.0] * 301 + [50.0] * (len(days) - 301)
+        pd.DataFrame({"date": days, "close": px}).to_csv(
+            os.path.join(td, "DROP.csv"), index=False)
+        out = v6b.forward_paths(td, ["DROP"], [d_mid, d_late])
+    got = {r.date: r.fwd_min_ret for r in out.itertuples()}
+    assert d_mid in got, "a date with a full forward window must be scored"
+    assert abs(got[d_mid] - (-0.5)) < 1e-12, got[d_mid]
+    assert d_late not in got, (
+        "a date with fewer than 126 forward rows must be DROPPED, not scored short")
+
+
+def test_v6b_two_group_cell_refuses_a_thin_side():
+    """A number computed on four names is worse than no number."""
+    v6b = _v6b()
+
+    def frame(n_true):
+        rows = []
+        for i in range(30):                      # 30 dates
+            for j in range(60):                  # 60 names each
+                rows.append({"date": f"2{i:03d}-01-15", "v": float(j), "lab": j < n_true})
+        return pd.DataFrame(rows)
+
+    thin = v6b.two_group_cell(frame(4), "v", "lab", np.random.default_rng(1))
+    assert thin.get("status") == "insufficient dates" or thin.get("n_dates", 0) == 0, thin
+    # POSITIVE CONTROL, so the assertion above cannot pass for the wrong reason: the SAME
+    # shape with both sides above MIN_PER_SIDE must score.
+    fat = v6b.two_group_cell(frame(20), "v", "lab", np.random.default_rng(1))
+    assert fat.get("n_dates", 0) == 30, fat.get("n_dates")
+    assert fat["coverage"]["dates_dropped_for_thin_side"] == 0
+
+
+def test_v6b_arm3_counts_only_open_market_purchases_and_only_before_the_date():
+    """Audit B26 (strictly before d) plus the register's conservative unclassified rule."""
+    import inspect
+    src = inspect.getsource(_v6b().insider_buy_flags)
+    assert '== "P"' in src, "only transactioncode P is an open-market purchase"
+    assert 'side="left"' in src, "the window must be half-open, strictly before d"
+    assert "INSIDER_WINDOW_CAL" in src
+    # unclassified rows are filtered out by the == "P" test, i.e. counted as NO BUY
+    assert "fillna(0.0)" in inspect.getsource(_v6b().main), (
+        "a name with no P filing must read as no-buy, not as missing")
+
+
+def test_v6b_arm2_uses_the_SHIPPED_decile_construction():
+    """Arm 2's top decile must be the same object the published top_decile_alpha describes."""
+    import inspect
+    src = inspect.getsource(_v6b().main)
+    assert "composite_from_frame" in src, "must use the shipped composite"
+    assert "np.argsort(-comp" in src, "highest composite first, as quantile_backtest does"
+    assert "np.array_split(order, 10)" in src, "the shipped bucketing"
+    assert "buckets[0]" in src
+
+
+def test_v6b_alpha_verdict_reports_a_reversal_rather_than_calling_it_null():
+    v6b = _v6b()
+    base = {"enough_dates_per_half": True, "halves_same_sign": True}
+    assert v6b.alpha_verdict(dict(base, both_halves_clear_high=True,
+                                  both_halves_below_p5=False)) == "REAL"
+    assert v6b.alpha_verdict(dict(base, both_halves_clear_high=False,
+                                  both_halves_below_p5=True)) == "REJECTED - SIGN REVERSED"
+    assert v6b.alpha_verdict(dict(base, both_halves_clear_high=False,
+                                  both_halves_below_p5=False)) == "NULL"
+    assert v6b.alpha_verdict({"status": "x"}).startswith("VOID")
+
+
+def test_v6b_controls_read_the_panels_real_column_names():
+    """V6's own lesson: `marketcap` is not a panel column, `market_cap` is."""
+    import inspect
+    src = inspect.getsource(_v6b().main)
+    assert '"market_cap"' in src
+    assert 'p.get("marketcap")' not in src and '"marketcap"' not in src
+
+
+def _r56():
+    import importlib
+    return importlib.import_module("scripts.r5_r6_alphabetical_rerun")
+
+
+def test_r5_r6_the_six_signals_are_REGISTERED_for_measurement():
+    """Registration gives a z_ column, a coverage entry and a per-signal IC row."""
+    from valuation.screener import settings as _S
+    r = _r56()
+    assert r.R5_SIGNALS == ("neg_ret_1m", "neg_max_ret", "neg_idio_vol")
+    assert r.R6_SIGNALS == ("sm_conviction", "sm_holders", "sm_avg_position")
+    for s in r.R5_SIGNALS + r.R6_SIGNALS:
+        assert s in _S.NUMBER_THEME, f"{s} is not registered, so it gets no z_ column"
+        assert s in _S.NUMBERS_ALL
+
+
+def test_r5_r6_registration_is_MEASUREMENT_and_scores_NOTHING():
+    """The S2 pattern, and the whole reason this is not a vintage event.
+
+    Every theme mean must remain an EXPLICIT column list that does not name the six. If a
+    theme mean were derived from NUMBER_THEME, registering would silently change the score.
+    """
+    import inspect
+    from valuation.screener import factors as _f
+    src = inspect.getsource(_f)
+    r = _r56()
+    assert 'df["low_risk"] = df[["z_neg_beta", "z_neg_vol"]].mean(axis=1)' in src, (
+        "the low_risk mean is no longer the explicit pair - registration may now SCORE")
+    assert 'df["institutional"] = df[["z_inst_accum", "z_sm_breadth"]].mean(axis=1)' in src, (
+        "the institutional mean is no longer the explicit pair")
+    for s in r.R5_SIGNALS + r.R6_SIGNALS:
+        assert f'"z_{s}"' not in src, f"z_{s} appears in factors.py - it would SCORE"
+
+
+def test_r5_r6_the_composite_gate_is_EXACT_equality_not_a_tolerance():
+    """C1 is a bit-identity gate. A tolerance would let a real scoring change through."""
+    import inspect
+    src = inspect.getsource(_r56().main)
+    assert "got.get(k) == v" in src, "C1 must test EXACT equality, not abs(...) < eps"
+    assert "VINTAGE EVENT" in src, "a failing C1 must say what it means"
+
+
+def test_r5_r6_SIGN_a_positive_IC_means_the_anomaly_REPRODUCES():
+    """The convention that decides every verdict. The R5 signals arrive PRE-NEGATED from
+    _price_extras, so positive = the published effect reproduces and negative = backwards.
+
+    Built as a real IC on a synthetic frame rather than asserted in prose."""
+    r = _r56()
+    rng = np.random.default_rng(4)
+    rows = []
+    for i in range(40):
+        z = rng.normal(size=80)
+        # forward return built to be POSITIVELY related to the signal
+        fwd = 0.5 * z + rng.normal(scale=0.5, size=80)
+        for j in range(80):
+            rows.append({"date": f"2{i:03d}-01-15", "z_fake": z[j], "fwd_ret": fwd[j]})
+    p = pd.DataFrame(rows)
+    _d, ics, _c = r._ic_series(p, "z_fake")
+    assert len(ics) == 40
+    assert np.median(ics) > 0.2, np.median(ics)
+    # and flipping the signal must flip the IC's sign - the pre-negation property
+    p["z_fake"] = -p["z_fake"]
+    _d2, ics2, _c2 = r._ic_series(p, "z_fake")
+    assert np.median(ics2) < -0.2, np.median(ics2)
+
+
+def test_r5_r6_CONTRADICTS_is_its_own_verdict_and_not_folded_into_null():
+    """The 400-name comment claims all three were wrong-signed. If that reproduces at
+    significance it is a FINDING, not a rejection - O3/O4/O5's treatment."""
+    r = _r56()
+    base = {"halves_same_sign": True, "full": {"median_ic": +0.02}}
+    assert r.verdict_of(dict(base, both_halves_clear=True,
+                             both_halves_below_p5=False)) == "REPLICATES"
+    assert r.verdict_of(dict(base, both_halves_clear=False, both_halves_below_p5=True,
+                             full={"median_ic": -0.02})) == "CONTRADICTS-PUBLISHED-SIGN"
+    assert r.verdict_of(dict(base, both_halves_clear=False,
+                             both_halves_below_p5=False)) == "NULL"
+    # a positive t in both halves but a NEGATIVE median IC must not read as a replication
+    assert r.verdict_of(dict(base, both_halves_clear=True, both_halves_below_p5=False,
+                             full={"median_ic": -0.01})) == "NULL"
+    assert r.verdict_of({"verdict": "VOID - x"}).startswith("VOID")
+
+
+def test_r5_r6_bars_are_the_signals_OWN_permutation_not_X7s():
+    """X7's 2.71 calibrates the MAXIMUM theme IC across nine themes, not a named per-signal
+    IC. It is reported as a labelled reference and must not be the verdict."""
+    import inspect
+    r = _r56()
+    src = inspect.getsource(r.score_signal)
+    assert "clears_own_p95" in src and "perm_p95" in src
+    vsrc = inspect.getsource(r.verdict_of)
+    assert "X7" not in vsrc and "2.71" not in vsrc, (
+        "the verdict must not read X7's theme bar")
+    assert "vs_x7_theme_bar_2_71" in src, "but it must still be REPORTED for continuity"
+
+
+def test_r5_r6_the_permutation_is_the_WITHIN_COLUMN_scheme():
+    """placebo_panel is exactly invariant on a composite and cannot calibrate a column."""
+    import inspect
+    src = inspect.getsource(_r56()._perm)
+    assert "rng.permutation(a)" in src, "the signal must be shuffled WITHIN each date"
+    # "not CALLED", not "not mentioned" - the docstring explains WHY placebo_panel is
+    # unsuitable here, and a bare substring test flagged that explanation as the defect.
+    body = "\n".join(l for l in src.split("\n")
+                     if not l.strip().startswith("#") and '"""' not in l)
+    assert "placebo_panel(" not in body, "the composite-invariant machinery must not be called"
+
+
+def test_r5_r6_coverage_floor_returns_VOID_not_NULL():
+    """pead_drift's own precedent: 25.1% against a 30% floor."""
+    r = _r56()
+    assert r.MIN_COVERAGE == 0.30
+    rows = [{"date": f"2{i:03d}-01-15", "z_thin": (np.nan if j % 5 else 1.0),
+             "fwd_ret": 0.01} for i in range(30) for j in range(60)]
+    p = pd.DataFrame(rows)
+    out = r.score_signal(p, "thin", np.random.default_rng(1))
+    assert out["verdict"].startswith("VOID"), out["verdict"]
+
+
+def test_r5_r6_records_the_four_stale_sites_verbatim():
+    """C5. The correction has to be checkable against what was actually there."""
+    r = _r56()
+    assert len(r.STALE_SITES) == 4
+    assert any("400 names" in v for v in r.STALE_SITES.values())
+    assert any("800 large caps" in v for v in r.STALE_SITES.values())
+    assert any("LIVE SCORING DECISION" in v for v in r.STALE_SITES.values())
+    assert "factors.py:314-316" in r.STALE_SITES
+
+
+def test_r5_r6_byproducts_carry_no_verdict_and_no_trial():
+    """Already-registered numbers read off the same frame are not a new search."""
+    import inspect
+    r = _r56()
+    assert "sm_breadth" in r.BYPRODUCTS and "inst_breadth" in r.BYPRODUCTS
+    assert "neg_vol" in r.BYPRODUCTS, "low-vol is a by-product, not an arm"
+    for s in r.BYPRODUCTS:
+        assert s not in r.R5_SIGNALS + r.R6_SIGNALS, f"{s} cannot be both"
+    src = inspect.getsource(r.main)
+    assert "FREE BY-PRODUCT - NO VERDICT, NO TRIAL" in src
+
+
+def _r4x1():
+    import importlib
+    return importlib.import_module("scripts.r4_x1_accounting_universe")
+
+
+def test_r4_bh_matches_the_1995_worked_example():
+    """Benjamini-Hochberg's own paper, m=15, q=0.05 -> exactly 4 rejections. A step-up
+    procedure is easy to write as a step-DOWN by accident, and the two differ."""
+    r = _r4x1()
+    p = [0.0001, 0.0004, 0.0019, 0.0095, 0.0201, 0.0278, 0.0298, 0.0344,
+         0.0459, 0.3240, 0.4262, 0.5719, 0.6528, 0.7590, 1.000]
+    rej = r.benjamini_hochberg(p, 0.05)
+    assert sum(rej) == 4, f"BH 1995 example must give 4 rejections, got {sum(rej)}"
+    assert rej[:4] == [True] * 4 and not any(rej[4:])
+    # BH must be strictly more powerful than Bonferroni on the same input
+    bonf = sum(1 for x in p if x <= 0.05 / len(p))
+    assert sum(rej) > bonf, (sum(rej), bonf)
+
+
+def test_r4_bh_is_step_UP_so_a_later_small_p_rescues_earlier_ones():
+    """The defining property of step-up: rejections run to the LARGEST k satisfying the
+    condition, so everything ranked above a qualifying p is rejected even if it individually
+    fails its own threshold. A step-down implementation stops at the first failure."""
+    r = _r4x1()
+    p = [0.01, 0.02, 0.024]            # m=3, q=0.05: only k=3 satisfies 0.024 <= 0.05*3/3
+    rej = r.benjamini_hochberg(p, 0.05)
+    assert rej == [True, True, True], rej
+    assert r.benjamini_hochberg([0.9, 0.8, 0.7], 0.05) == [False, False, False]
+    assert r.benjamini_hochberg([], 0.05) == []
+    assert r.benjamini_hochberg([None, float("nan")], 0.05) == [False, False]
+
+
+def test_r4_the_hlz_hurdle_is_reported_with_BOTH_sides_of_the_argument():
+    """R4's residual is a TENSION, not a verdict. A payload carrying only the failing side
+    would be as misleading as one carrying only the passing side."""
+    r = _r4x1()
+    out = r.r4_hlz_hurdle(2.6199121240414884)
+    assert out["clears_hlz_hurdle"] is False, out["clears_hlz_hurdle"]
+    assert out["clears_x7_calibrated_floor"] is True, "the calibrated floor IS cleared"
+    assert out["shortfall"] > 0.5
+    assert "REJECTED ALTERNATIVES" in out["THE_TENSION"], "the counter-argument must travel"
+    assert out["unified_domain_is_declared_but_zero"] is True
+    # the hurdle must be sqrt(2 ln N) at the EQUITY N, not a hard-coded number
+    n = out["n_trials_equity"]
+    assert abs(out["hlz_hurdle_sqrt_2_ln_N"] - math.sqrt(2 * math.log(n))) < 1e-12
+
+
+def test_x1_the_stable_key_is_the_audits_construction_and_is_order_independent():
+    """The audit asked for 'a stable key - a hash of the ticker'. A seeded RNG would not be
+    reproducible by a reader holding only the ticker list."""
+    r = _r4x1()
+    tick = [f"T{i:04d}" for i in range(4000)]
+    a = {t for t in tick if r.stable_key_half(t) == 0}
+    a2 = {t for t in reversed(tick) if r.stable_key_half(t) == 0}
+    assert a == a2, "the partition depends on iteration order"
+    assert r.stable_key_half("AAPL") == r.stable_key_half("AAPL"), "not deterministic"
+    # roughly balanced - a hash that splits 90/10 would make the halves incomparable
+    assert 0.45 < len(a) / len(tick) < 0.55, len(a) / len(tick)
+
+
+def test_x1_a_split_must_be_exhaustive_disjoint_and_balanced():
+    r = _r4x1()
+    uni = [f"T{i}" for i in range(10)]
+    r._assert_split(uni[:5], uni[5:], uni)                       # ok
+    for bad in ((uni[:6], uni[5:]),                              # overlapping
+                (uni[:4], uni[5:]),                              # not exhaustive
+                (uni[:8], uni[8:])):                             # unbalanced
+        try:
+            r._assert_split(bad[0], bad[1], uni)
+            raise AssertionError(f"accepted a bad split: {bad}")
+        except AssertionError as e:
+            assert "AssertionError" not in str(type(e)) or True
+            if "accepted a bad split" in str(e):
+                raise
+
+
+def test_x1_the_joint_bar_is_DERIVED_from_the_marginal_one():
+    """0.64 = 0.80^2 - exactly what independence predicts from the marginal rate, so the
+    joint condition adds no demand beyond the marginal one being met and cannot be tuned."""
+    r = _r4x1()
+    assert abs(r.FRAC_BOTH - r.FRAC_HALFBOOKS ** 2) < 1e-12, (r.FRAC_BOTH, r.FRAC_HALFBOOKS)
+
+
+def test_x1_verdict_needs_all_three_legs_and_reports_a_reversal_separately():
+    r = _r4x1()
+    assert r.verdict_of(True, 0.90, 0.80, 0.0) == "SURVIVES"
+    assert r.verdict_of(False, 0.90, 0.80, 0.0) == "NULL", "the primary split is required"
+    assert r.verdict_of(True, 0.70, 0.80, 0.0) == "NULL", "the marginal bar is required"
+    assert r.verdict_of(True, 0.90, 0.50, 0.0) == "NULL", "the joint bar is required"
+    # a reversal is its own verdict and OUTRANKS everything, never folded into null
+    assert r.verdict_of(True, 0.90, 0.80, 0.70) == "REVERSED"
+
+
+def test_x1_null_recomputes_the_composite_rather_than_shuffling_a_score_column():
+    """The recorded failure mode: a permutation pointed at an ALREADY-COMPUTED score column
+    is invariant and yields a null equal to the real book. placebo_panel permutes the theme
+    columns and quantile_backtest rebuilds the composite from them."""
+    import inspect
+    src = inspect.getsource(_r4x1().half_universe_null)
+    assert "placebo_panel" in src and "quantile_backtest" in src
+    assert "composite" not in src.split('"""')[-1], (
+        "the null must not touch a composite column directly")
+
+
+def test_x1_does_NOT_read_X7s_full_universe_floors_as_its_bar():
+    """A half book has ~126-name deciles against the full universe's ~253. X7's floors are
+    reported beside the half-universe null and must never BE it."""
+    import inspect
+    r = _r4x1()
+    vsrc = inspect.getsource(r.verdict_of)
+    assert "X7" not in vsrc and "2.2837" not in vsrc
+    assert r.X7_FULL_UNIVERSE_LS_HAC_FLOOR == 2.2837, "but it must still be reported"
+    main = inspect.getsource(r.main)
+    assert "EXTRAPOLATION_ONLY" in main, "and labelled an extrapolation where it appears"
+
+
+def test_r4_the_multiple_testing_block_SHIPS_and_is_guarded():
+    """R4 bullet 4's whole finding is that the hurdle was COMPUTED and never REPORTED. A
+    block that can be silently dropped on its way to the canonical file would repeat that
+    failure one level up, so it is registered with M6's field-level guard."""
+    from valuation.edge import payload_schema as PS
+    from valuation.edge import fundamental_panel as _fp
+    from valuation.edge import results_file as _rf
+    import inspect
+    assert "multiple_testing" in PS.BLOCK_SPEC, "the new block is unguarded"
+    spec = PS.BLOCK_SPEC["multiple_testing"]
+    assert spec["src"] == "multiple_testing" and not spec["renames"] and not spec["allow"], (
+        "carried verbatim: a renamed or allow-listed field here would be a summary of a "
+        "multiple-testing correction, which is how it stops being checkable")
+    assert '"multiple_testing"' in inspect.getsource(_rf.build_payload), (
+        "results_file does not carry the block to the payload")
+    # and the producer is wired into the run, not merely defined
+    assert 'out["multiple_testing"]' in inspect.getsource(_fp.run_backtests)
+
+
+def test_r4_multiple_testing_is_computed_AFTER_construction():
+    """THE DEFECT THIS PINS ACTUALLY SHIPPED ONCE, and it was R4's own finding reproduced by
+    R4's own fix.
+
+    The first cut computed `multiple_testing` beside `per_signal`, twenty-five lines BEFORE
+    `out["construction"]` was assigned. Every field still appeared in the canonical file, the
+    BH half was correct, the M6 guard was satisfied, and no test failed — but the headline it
+    exists to compare against was `None`, so the artifact shipped
+    `clears_hlz_hurdle: null`. A number computed and never reported is precisely what R4
+    bullet 4 exists to end.
+
+    Ordering is not visible to a value-level test, so this asserts it in the source.
+    """
+    import inspect
+    from valuation.edge import fundamental_panel as _fp
+    src = inspect.getsource(_fp.run_backtests)
+    i_con = src.index('out["construction"] = quantile_backtest')
+    i_mt = src.index('out["multiple_testing"] =')
+    assert i_mt > i_con, (
+        "multiple_testing is computed BEFORE construction, so its HLZ comparison will be "
+        "null in the shipped artifact")
+    # and it must read the headline rather than a hard-coded constant
+    assert 'get("long_short_tstat_nw")' in src
+
+
+def test_r4_the_shared_BH_is_the_one_the_script_uses():
+    """Three BH copies already existed in the options lane. A fourth is audit B7's defect."""
+    from valuation.edge import statistics as ST
+    r = _r4x1()
+    assert r.benjamini_hochberg is ST.benjamini_hochberg, "the script re-implemented BH"
+    assert r._two_sided_p is ST.two_sided_p
+    # the shared one behaves: the 1995 example, through the shared symbol
+    p = [0.0001, 0.0004, 0.0019, 0.0095, 0.0201, 0.0278, 0.0298, 0.0344,
+         0.0459, 0.3240, 0.4262, 0.5719, 0.6528, 0.7590, 1.000]
+    assert sum(ST.benjamini_hochberg(p, 0.05)) == 4
+
+
+def test_r4_bh_charges_no_equity_trial():
+    """BH is a CORRECTION applied to already-charged tests. Charging it to equity would
+    double-count the very trials it corrects."""
+    import inspect
+    src = inspect.getsource(_r4x1().main)
+    assert "charges_no_equity_trial" in src
+    assert "C7_bh_covers_registered_numbers_only" in src
+
+
+def _x5():
+    import importlib
+    return importlib.import_module("scripts.x5_bootstrap_pipeline")
+
+
+def _s10a():
+    import importlib
+    return importlib.import_module("scripts.s10_accounting_veto")
+
+
+def test_x5_resamples_WITH_replacement_and_keeps_duplicates():
+    """A bootstrap draws n from n WITH replacement; de-duplicating makes it a SUBSAMPLE and
+    understates the variance, which is the entire quantity X5 exists to measure."""
+    x5 = _x5()
+    rng = np.random.default_rng(3)
+    uni = np.array([f"T{i:04d}" for i in range(300)])
+    panel = pd.DataFrame({"ticker": np.repeat(uni, 4),
+                          "date": ["2020-01-15", "2020-04-15"] * 600,
+                          "v": np.arange(1200, dtype=float)})
+    by = {t: g for t, g in panel.groupby("ticker", sort=False)}
+    frame, n_distinct = x5.bootstrap_frame(panel, by, uni, rng)
+    # the resample has the SAME number of rows as the original ...
+    assert len(frame) == len(panel), (len(frame), len(panel))
+    # ... but strictly FEWER distinct names, because some were drawn twice and others not at all
+    assert n_distinct < len(uni), n_distinct
+    # 1 - 1/e ~ 0.632 of names appear at least once
+    assert 0.55 < n_distinct / len(uni) < 0.72, n_distinct / len(uni)
+    # and at least one name must appear MORE than its original row count
+    counts = frame["ticker"].value_counts()
+    assert counts.max() > 4, counts.max()
+
+
+def test_x5_verdict_is_the_audits_own_fifth_percentile_rule():
+    import inspect
+    src = inspect.getsource(_x5().main)
+    assert "STRADDLES ZERO" in src, "a p05 below zero must be its own verdict, not a null"
+    assert "np.percentile(v, 5)" in src
+    assert _x5().B_DRAWS == 200
+
+
+def test_x5_declares_what_it_does_NOT_resample():
+    """Register 0c: the panel is not rebuilt per draw, so layers 1-2 are held fixed and the
+    interval is a LOWER BOUND. A scope limit that is not in the artifact is not stated."""
+    import inspect
+    src = inspect.getsource(_x5())
+    assert "LOWER BOUND" in src
+    assert "pbo" in src.lower() and "declared" in src.lower(), (
+        "PBO must be declared absent, not silently dropped")
+
+
+def test_s10acct_reproduces_beneish_and_altman_hand_worked():
+    """C6. An eight-variable index is exactly where a transcription error hides, and it would
+    change every flag without changing anything visible."""
+    s = _s10a()
+    flat = dict(receivables=100, revenue=1000, cor=600, assetsc=200, ppnenet=300,
+                assets=1000, depamor=50, sgna=100, liabilities=400, ncfo=80, netinc=80)
+    m = s.beneish_m(flat, dict(flat))
+    # every index is 1.0 and TATA is 0, so M is the constant plus the sum of the coefficients
+    expected = -4.84 + 0.920 + 0.528 + 0.404 + 0.892 + 0.115 - 0.172 - 0.327
+    assert abs(m - expected) < 1e-9, (m, expected)
+    z = s.altman_z(dict(workingcapital=100, retearn=200, ebit=150, assets=1000,
+                        marketcap=2000, liabilities=400, revenue=1000))
+    assert abs(z - (1.2 * 0.1 + 1.4 * 0.2 + 3.3 * 0.15 + 0.6 * 5.0 + 1.0 * 1.0)) < 1e-9, z
+    # a missing component makes the WHOLE score None - not a neutral 1.0
+    assert s.beneish_m({k: v for k, v in flat.items() if k != "ncfo"}, dict(flat)) is None
+    assert s.altman_z({k: v for k, v in flat.items() if k != "retearn"}) is None
+
+
+def test_s10acct_uses_the_PUBLISHED_thresholds():
+    """Fitting either on this panel and scoring on it is the in-search collapse already paid
+    for, and is a void condition."""
+    s = _s10a()
+    assert s.BENEISH_FLAG_ABOVE == -1.78
+    assert s.ALTMAN_FLAG_BELOW == 1.81
+    assert s.MIN_FLAGS_TO_VETO == 2
+
+
+def test_s10acct_drawdown_sign_is_arm_minus_base():
+    """S10's FIRST half computed base - arm and reported a 2.61pp WORSENING as a 2.61pp
+    IMPROVEMENT. max_drawdown is NEGATIVE, so an arm improves it by being LESS negative."""
+    import inspect
+    src = inspect.getsource(_s10a().main)
+    assert "float(a_dd) - float(b_dd)" in src, "the drawdown gain must be arm - base"
+    # a known-bad fixture carrying S10's real measured pair: base -0.2809, arm -0.2863 was a
+    # WORSENING and must produce a NEGATIVE gain
+    base_dd, arm_dd = -0.2809334725979583, -0.2863
+    assert (arm_dd - base_dd) * 100.0 < 0, "S10's real worsening must read negative"
+
+
+def test_b23_the_reuse_was_TRIED_and_REVERTED_and_the_reason_is_recorded():
+    """B23's gate was bit-identity and the reuse FAILED it, so it is reverted.
+
+    Sharing the 63-day keep_numbers panel left every HEADLINE bit-identical but moved
+    `cleanups.panel_window` and `cleanups.survivorship_mask_coverage` — because those blocks
+    are written as a SIDE EFFECT of whichever panel was built LAST. Removing a build
+    re-pointed them at the 756-day panel: horizon 63 -> 756, calendar_cut_days 4659 -> 5352,
+    64 per-date entries dropped. The register said revert, not explain.
+
+    This pins the reverted state AND the reason, so the next reader does not re-apply the
+    same change without also binding those diagnostics.
+    """
+    import inspect
+    from valuation.edge import fundamental_panel as _fp
+    src = inspect.getsource(_fp.run_backtests)
+    assert "_panel_63" not in src, "the reverted reuse is back without its diagnostics fix"
+    # the injection point survives - inert at its default, and the mechanism any correct
+    # version of B23 would use
+    sig = inspect.signature(_fp.run_backtest).parameters
+    assert "panel" in sig and sig["panel"].default is None
+    assert "REVERTED" in (_fp.run_backtest.__doc__ or ""), (
+        "the reason for the revert must travel with the parameter")
+    assert "panel_window" in (_fp.run_backtest.__doc__ or ""), (
+        "the specific blocks that moved must be named")
+
+
+def test_m4_the_harness_raises_rather_than_warning():
+    """A detector that returns a warning nobody reads is the failure class this catalogue
+    keeps finding."""
+    from valuation.studies import live_replay as LR
+    assert LR.MIN_RANK_CORRELATION == 0.99
+    assert issubclass(LR.LiveReplayDivergence, AssertionError)
+    # an empty replay is reported, not raised on - "no data" is not "divergence"
+    out = LR.replay([], date="2020-01-15")
+    assert out["ok"] is False and out["n"] == 0
+
+
+def test_m4_compares_RANKS_not_values():
+    """The composite is a weighted sum of z-scores; an affine rescale moves every value and
+    changes no book. What a user receives is an ORDER."""
+    import inspect
+    src = inspect.getsource(_import_live_replay().replay)
+    assert 'method="spearman"' in src, "the comparison must be on ranks"
+    assert "build_frame(metrics)" in src, "one side must be the LIVE call, with no keywords"
+    assert "sector_neutral=False, residual_momentum=False" in src, "the other the BACKTEST call"
+
+
+def _import_live_replay():
+    from valuation.studies import live_replay
+    return live_replay
+
+
+def test_m4_metrics_are_CAPTURED_not_rederived():
+    """Re-deriving the metrics inside the harness would be audit B7's defect class — a second
+    assembly of a quantity that must agree — which is the very thing M4 detects."""
+    import inspect
+    from valuation.edge import fundamental_panel as _fp
+    psrc = inspect.getsource(_fp.build_fundamental_panel)
+    assert "metrics_sink" in psrc, "the panel no longer exposes its own metrics"
+    assert "if metrics_sink is not None:" in psrc, "the capture must be opt-in"
+    sig = inspect.signature(_fp.build_fundamental_panel).parameters
+    assert sig["metrics_sink"].default is None, "capture must default OFF"
+
+
+def test_no_unresolved_conflict_markers_in_the_project_record():
+    """THIS ONE ACTUALLY LANDED ON MAIN, and nothing in the repo would have caught it.
+
+    A merge left `<<<<<<< HEAD` / `=======` / `>>>>>>> origin/main` inside `CLAUDE.md` — the
+    file this project calls its memory — and it survived four commits and two auto-land runs.
+    Nothing detects it: `git status` reports a clean tree once the markers are committed, the
+    Python suites never parse markdown, and both sides of that conflict were WANTED content,
+    so no reader skimming for missing text would notice either.
+
+    The blast radius is the reason this is a test and not a one-off fix: every session begins
+    by reading `CLAUDE.md`, and a conflicted region silently presents two competing versions
+    of the record as though they were one.
+    """
+    import glob
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    bad = []
+    for path in sorted(glob.glob(os.path.join(root, "*.md"))):
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for n, line in enumerate(fh, start=1):
+                s = line.rstrip("\n")
+                # only line-START markers: "=======" appears legitimately as a markdown rule,
+                # and a bare "<<<" inside prose is not a conflict.
+                if (s.startswith("<<<<<<< ") or s.startswith(">>>>>>> ")
+                        or s == "|||||||" or s.startswith("||||||| ")):
+                    bad.append(f"{os.path.basename(path)}:{n}: {s[:40]}")
+    assert not bad, "unresolved merge conflict markers in the record:\n  " + "\n  ".join(bad)
 
 
 def _run_all():

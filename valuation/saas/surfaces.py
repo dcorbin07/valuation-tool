@@ -54,6 +54,39 @@ one click deep. The mitigations that make it acceptable are all here or next to 
 A demo session is still NOT an owner. `is_owner` is unchanged, `private.is_owner` still
 refuses it outright under the licence lockdown, and `/demo` is refused there too.
 
+THE FOURTH SIDE, AND IT IS TEMPORARY: PUBLIC_FULL_VIEW (added 2026-08-13)
+------------------------------------------------------------------------
+Don's decision, recorded verbatim because the code cannot justify itself here:
+
+    "/app must be 100% ungated - I know the risks - I've submitted applications with the
+     non-master link; when I hear back we regate."
+
+He sent applications carrying the plain `/app` URL rather than the master link, so recruiters
+are arriving at the public half and seeing a fraction of the tool. `PUBLIC_FULL_VIEW=true`
+makes an ANONYMOUS visitor equivalent to a DEMO session — the same read-only full view the
+`/work` button already grants, and nothing beyond it.
+
+It reuses the demo rail entirely rather than adding a parallel one, which is what keeps the
+blast radius small: `DEMO_DENIED_PATHS` still applies to a stranger under the flag, so every
+trigger, the account and billing stay refused; `may_act` does not read the flag AT ALL, so no
+mutation surface can move; and every disclaimer, vintage label and paper-account caveat is
+untouched, because — as with demo — this renders the same templates by the same code path.
+
+WHAT IT IS NOT: it is not `OWNER_SPLIT=false`. That would ALSO make `may_act` true for
+everyone, handing anonymous callers `/api/scan/run`, `/api/signals/run` and both Edge Lab
+runners — a free DoS lever on a 512 MB box that spends Don's FMP and Anthropic budget per
+request. The whole reason this is a separate flag is that the obvious lever is the wrong one.
+
+THE REGATE IS ONE FLAG. Set `PUBLIC_FULL_VIEW=false` in the Render dashboard, on Don's word,
+when he hears back. No code change, nothing deleted, and the split underneath is intact and
+still tested in both states.
+
+RAW VENDOR ROWS ARE A LICENCE QUESTION AND ARE NOT COVERED BY "I know the risks", which
+answers for liability. They do not move: the audit that cleared the demo tier route by route
+(HANDOFF_appfixes.md Session 18) applies unchanged, because this grants the demo tier and not
+a wider one — `DEMO_DENIED_VENDOR_ROWS` remains the place any future Sharadar-backed READ
+route must be listed.
+
 FAILURE MODE, DELIBERATELY CHOSEN
 ---------------------------------
 This is an explicit DENY list, not an allowlist, which is the opposite of `private.py`. That
@@ -102,6 +135,11 @@ OWNER_ONLY_PATHS = frozenset({
     "/api/index-track",       # the Index's live equity curve vs SPY                  [Tradier sandbox / FMP]
     "/api/options-paper",     # the paper option book vs its backtest reference       [Tradier sandbox / ThetaData ref]
     "/api/options-scorecard",  # expectancy of closed alerts                          [broker fills / ThetaData ref]
+    "/api/scream-track",      # the rebuilt scream-buy record: entry, target, stop,
+                              # current mark and status per alert. Category (1) twice
+                              # over — it is a forward performance record AND it names
+                              # live open contracts with the levels they are trading
+                              # to.                                                    [Tradier sandbox]
 
     # (2) Actionable live picks.
     "/api/valquo-index",      # the constructed book: names AND weights, today        [FMP]
@@ -129,6 +167,12 @@ PUBLIC_API = frozenset({
     "/api/value",             # the DCF for one ticker the visitor asked for          [FMP]
     "/api/rank",              # score a small watchlist                               [FMP]
     "/api/hotstocks",         # the ranking — analysis, and the product               [FMP]
+    "/api/dip",               # the Dip Detector: the same snapshot the hot list
+                              # publishes, filtered on drawdown and health. Public for
+                              # the same reason /api/hotstocks is — it is model output
+                              # over names, not a book, a weight or a contract — and it
+                              # carries no forward-return claim at all until the V6
+                              # register closes (see web/dip_posture.py).              [FMP]
     "/api/whatdo",            # one name across the product; book/options half is
                               # stripped for non-owners inside `unified.name_view`    [FMP]
     "/api/tickers",           # local typeahead, no network                           [none]
@@ -180,17 +224,136 @@ DEMO_DENIED_PATHS = frozenset({
     "/billing/portal",
 })
 
-#: Not currently used — every raw-vendor surface is already denied above by the mutation
-#: rule, and no READ route returns a vendor row verbatim (checked route by route, recorded
-#: in HANDOFF_appfixes.md Session 18). It exists so that exclusion (2) has somewhere
-#: obvious to go when the next Sharadar-backed read route is added, instead of being
-#: remembered.
+# ---------------------------------------------------------------------------------------
+# EXCLUSION (2), THE LICENCE BOUNDARY — MA52, 2026-08-15.
+#
+# `DEMO_DENIED_VENDOR_ROWS` is EMPTY, and that is the correct answer today: no read route
+# returns a vendor row verbatim (checked route by route, HANDOFF_appfixes.md Session 18).
+# The defect MA52 names is not the emptiness — it is that an empty deny list and an
+# unconsidered one are INDISTINGUISHABLE, so the only thing standing between the next
+# Sharadar-backed read route and the public tier was somebody remembering this set exists.
+#
+# THE FIX IS THE ONE LA13 ALREADY PROVED IN THIS MODULE, applied to the second axis. LA13
+# made the public/owner/admin question a REQUIRED answer — a route in none of the three
+# lists returns `None` from `classify()` and fails `test_public.py` until someone decides.
+# The licence question now works the same way: `vendor_review()` returns `None` for a route
+# nobody has answered for, and the sweep below fails on it. A deny list cannot be forgotten
+# if the suite will not go green until the route is on one side of it.
+#
+# WHY THE REVIEW SET IS "WHAT A PREVIEW CAN READ" AND NOT "EVERY /api ROUTE". The licence
+# question is about REDISTRIBUTION, so it bites exactly where an un-authenticated or
+# preview reader can see the payload. An owner-only route the demo tier is denied, and an
+# admin-token route that refuses a tokenless caller, redistribute nothing. Both are already
+# pinned elsewhere (`test_public.py`), so this axis deliberately does not re-assert them.
+#
+# WHAT "CLEARED" MEANS, because the distinction is the whole judgement: the route returns
+# numbers DERIVED from vendor data — a score, a rank, a ratio, an aggregate statistic — and
+# not a row copied out of a vendor's record. Deriving is what the product is; copying is
+# what the licence forbids. A route that starts echoing a vendor field belongs in
+# `DEMO_DENIED_VENDOR_ROWS`, and moving it there is a one-line edit with a test behind it.
+# ---------------------------------------------------------------------------------------
 DEMO_DENIED_VENDOR_ROWS = frozenset()
+
+#: Reviewed and cleared: derived output only, no vendor row echoed. The vendor in brackets
+#: is the one behind the numbers, kept in the same notation the two lists above use.
+VENDOR_ROW_CLEARED = frozenset({
+    # Public tier — a stranger sees these with no session at all.
+    "/api/health",            # config booleans; no market data reaches the payload   [none]
+    "/api/tickers",           # the bundled symbol list; local, no vendor at all      [none]
+    "/api/value",             # a DCF the visitor asked for: model output over inputs [FMP]
+    "/api/rank",              # composite scores over a watchlist the caller supplied [FMP]
+    "/api/hotstocks",         # the ranking — theme z-scores and a composite          [FMP]
+    "/api/dip",               # the same snapshot filtered on drawdown and health     [FMP]
+    "/api/whatdo",            # one name across the product; derived views only       [FMP]
+    "/api/regime",            # three levels and two comparisons, not a price series  [FMP / yfinance]
+    "/api/export/excel",      # the visitor's OWN valuation, rendered                 [FMP]
+    "/api/export/pdf",        # ditto                                                 [FMP]
+
+    # Owner surfaces the demo/public read tier also reaches (`DEMO_DENIED_PATHS` denies the
+    # triggers, not these). Performance records and constructed books — derived by
+    # definition, since every one of them is an arithmetic result over positions.
+    "/api/track",             # the forward record: marks, excess, contract meter     [Tradier sandbox / FMP]
+    "/api/index-track",       # the Index's equity curve vs SPY                       [Tradier sandbox / FMP]
+    "/api/valquo-index",      # names and weights the model constructed               [FMP]
+    "/api/portfolio",         # an allocation built from the existing snapshot        [FMP]
+    "/api/signals",           # the intraday feed: alert rows the model wrote         [Tradier / free stack]
+    "/api/options-alerts",    # contract, size and risk budget — model output         [Tradier chains]
+    "/api/options-paper",     # the paper option book vs its backtest reference       [Tradier sandbox / ThetaData ref]
+    "/api/options-scorecard",  # expectancy of closed alerts, i.e. an aggregate       [broker fills / ThetaData ref]
+    "/api/scream-track",      # per-alert entry, target, stop, mark, status           [Tradier sandbox]
+
+    # THE CLOSEST CALL IN THE APP, and it is recorded as a judgement rather than assumed.
+    # This module's own docstring names `/api/edge/` as "the one place Sharadar-derived
+    # output reaches an HTTP route", and `gating.py` deliberately grants this ONE path to
+    # the read tier. Its payload is the adopted weights, the learning history, and two meta
+    # blobs (`number_ic`, `fundamental_backtest`) — IC statistics, weight vectors and
+    # accept/reject flags computed OVER the licensed panel. Nothing in it is a Sharadar row:
+    # there is no ticker-date fundamental, no price, no filing figure. Cleared on that
+    # basis, and it is the entry to re-read first if that payload ever widens.
+    "/api/edge/learning",     # weights + IC/backtest summary statistics              [Sharadar-derived]
+})
+
+
+def vendor_review(path: str):
+    """Has the licence question been answered for this path? 'denied', 'cleared', or None.
+
+    `None` is UNREVIEWED and is what `test_public.py` fails on — the same shape as
+    `classify()` returning `None` for an unclassified route, on purpose.
+    """
+    if path in DEMO_DENIED_VENDOR_ROWS:
+        return "denied"
+    if path in VENDOR_ROW_CLEARED:
+        return "cleared"
+    return None
+
+
+def unreviewed_vendor_paths(rules) -> list:
+    """The preview-readable /api paths in `rules` that carry no licence answer.
+
+    Takes `(path, methods)` pairs rather than reading the app itself, so the suite can feed
+    it a synthetic route and show the sweep is not vacuous. A guard that has never been
+    demonstrated to fire is indistinguishable from one that cannot.
+    """
+    out = []
+    for path, methods in rules:
+        if not path.startswith("/api/") or "<" in path:
+            continue
+        if classify(path) not in ("public", "owner"):   # admin-token refuses tokenless callers
+            continue
+        if is_demo_denied(path):                        # the preview never sees the payload
+            continue
+        if not ({"GET", "POST"} & set(methods or ())):
+            continue
+        if vendor_review(path) is None:
+            out.append(path)
+    return sorted(out)
 
 
 def is_demo(user) -> bool:
     """A recruiter master-link preview session. Not an owner, never an owner."""
     return bool(user and user.get("is_demo"))
+
+
+def public_full_view(cfg) -> bool:
+    """ANONYMOUS == DEMO, temporarily. Don's decision, 2026-08-13.
+
+        "/app must be 100% ungated - I know the risks - I've submitted applications with the
+         non-master link; when I hear back we regate."
+
+    The single read of the flag for policy purposes, same as `enabled` above.
+
+    WHAT IT GRANTS: exactly the demo tier's READ access, to everybody, with no token. Nothing
+    wider. `DEMO_DENIED_PATHS` still applies (see `check`), so the account, the billing routes
+    and every trigger stay refused to a stranger.
+
+    WHAT IT CANNOT GRANT, and this is the property worth protecting: it is not consulted by
+    `may_act`. Widening reading and widening writing are separate functions here precisely so
+    one cannot silently become the other, and this flag only ever touches the reading one.
+    `test_public_full_view.py` pins that `may_act` is unmoved in every combination.
+
+    THE REGATE: set it back to `false`. One flag, no code change, nothing deleted.
+    """
+    return bool(getattr(cfg, "public_full_view", False))
 
 
 def is_demo_denied(path: str) -> bool:
@@ -273,10 +436,14 @@ def may_see_owner_surfaces(user, cfg) -> bool:
     Demo was added 2026-08-07 (PROMPT_recruiter_master_link.md) and is the whole point of the
     recruiter link. It grants READING only — `may_act` below is the other half, and the two
     are separate functions precisely so that widening one cannot silently widen the other.
+
+    `public_full_view` (2026-08-13, Don's decision) is the third grant and rides the SAME
+    read-only rail: it makes an anonymous visitor equivalent to a demo session. It is added
+    here and NOT to `may_act`, which is the whole safety property.
     """
     if not enabled(cfg):
         return True
-    return is_owner(user, cfg) or is_demo(user)
+    return is_owner(user, cfg) or is_demo(user) or public_full_view(cfg)
 
 
 def may_act(user, cfg) -> bool:
@@ -306,7 +473,17 @@ def check(path: str, user, cfg):
     # The demo read-only rule runs FIRST and outside the flag. See the module docstring:
     # OWNER_SPLIT=false is a decision about what strangers may read, and it must not be
     # able to turn a résumé link into a scan trigger as a side effect.
-    if is_demo(user) and is_demo_denied(path):
+    #
+    # `public_full_view` joins this rule rather than bypassing it, and that is the point: it
+    # lifts anonymous to the DEMO tier, and the demo tier's defining property is that this set
+    # is refused. An anonymous visitor under the flag therefore reaches every owner READ and no
+    # trigger, no account page and no billing route.
+    #
+    # `not is_owner(...)` guards the owner out of it. Without that clause the flag would refuse
+    # the OWNER his own /account and billing pages the moment it was switched on — the flag is
+    # about widening a stranger's reach, and it must not narrow Don's.
+    if (not is_owner(user, cfg) and (is_demo(user) or public_full_view(cfg))
+            and is_demo_denied(path)):
         if path.startswith("/api/"):
             return {"kind": "json", "status": 403,
                     "payload": {"error": DEMO_DENY_MESSAGE, "owner_only": True,
@@ -316,7 +493,7 @@ def check(path: str, user, cfg):
         return None
     if not is_owner_only(path):
         return None
-    if is_owner(user, cfg) or is_demo(user):
+    if is_owner(user, cfg) or is_demo(user) or public_full_view(cfg):
         return None
     if path.startswith("/api/"):
         return {"kind": "json", "status": 403,

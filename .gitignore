@@ -61,3 +61,10 @@ options-bot/screener/.cache/
 options-bot/screener/prefetch.*
 options-bot/screener/insider.*
 options-bot/quant_bots/c5_ingest.*
+
+# Internal business/launch planning - untracked 2026-08-16 when the repo went public.
+# These name a separate LLC, entity structuring and securities-law posture, and are
+# not project documentation. They remain on disk. NOTE: they are still present in
+# public git HISTORY - see HANDOFF_ci.md for the full remediation options.
+LAUNCH_CHECKLIST.md
+GO_LIVE.md

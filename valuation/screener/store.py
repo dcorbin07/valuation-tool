@@ -303,6 +303,42 @@ class Store:
             return [dict(r) for r in c.execute(
                 "SELECT * FROM scans ORDER BY scan_date DESC").fetchall()]
 
+    def recent_ranks(self, n_scans: int = 20):
+        """`[(scan_date, scored, {ticker: rank}), ...]`, newest first, for the last `n_scans`.
+
+        Ranks alone — deliberately NOT `load_snapshot`, which parses a JSON `extra` blob per
+        row and applies the publication guard. Tenure needs a name's POSITION on past scans
+        and nothing else, and reading twenty full snapshots to count memberships would put a
+        display disclosure on the critical path of a public request.
+
+        `scored` comes from the `scans` row rather than being recomputed as `COUNT(*)` over
+        `snapshot_rows`. The two agree on the day a scan is saved — `save_snapshot` writes
+        `len(rows)` into that column — so this buys nothing on a healthy row and everything
+        on a damaged one: a partially written or partially deleted snapshot would make
+        `COUNT(*)` shrink, and a decile taken over the survivors would quietly admit names
+        that were never in the top tenth of the scan that actually ran. The scan's own record
+        of its size cannot drift that way. (An earlier draft of this docstring justified the
+        choice by `archive_scan`'s top-100 truncation, which is a DIFFERENT sink and does not
+        touch this table — corrected rather than left, because a plausible wrong reason is
+        harder to catch later than none.)
+
+        A scan that never recorded its own size yields `None`, which the caller must treat as
+        "cannot say", never as zero.
+        """
+        n = max(0, int(n_scans))
+        if not n:
+            return []
+        with self._conn() as c:
+            dates = [dict(r) for r in c.execute(
+                "SELECT scan_date, scored FROM scans ORDER BY scan_date DESC LIMIT ?", (n,))]
+            out = []
+            for d in dates:
+                ranks = {r["ticker"]: r["rank"] for r in c.execute(
+                    "SELECT ticker, rank FROM snapshot_rows WHERE scan_date=?",
+                    (d["scan_date"],)) if r["rank"] is not None}
+                out.append((d["scan_date"], d["scored"], ranks))
+        return out
+
     # ---- intraday signals ----
     def save_intraday(self, run_time, rows, provider=""):
         with self._conn() as c:
@@ -390,6 +426,18 @@ class Store:
 
     # ---- self-learning (adopted factor weights + audit log) ----
     def save_learned(self, bucket, weights, stats, adopted, note):
+        """Log a learning outcome. `adopted=True` is a LIVE SCORING CHANGE and is gated.
+
+        MASTER AUDIT MA1/MA3. This is the one funnel every weight writer passes through — the
+        monthly learner, `/admin/adopt-backtest-weights`, and anything added later — so the
+        refusal lives HERE rather than at each call site. Gating the callers instead would mean
+        the next writer someone adds is ungated by default, which is how there came to be two of
+        them. An unauthorised adoption raises `VintageRefusal` and writes NOTHING; the caller
+        decides whether to log the attempt as a non-adoption, which `autolearn` does.
+        """
+        if adopted:
+            from ..edge.weight_adoption import require
+            require(bucket)
         with self._conn() as c:
             c.execute("INSERT INTO learned_config (created_at,bucket,weights,stats,adopted,note) VALUES (?,?,?,?,?,?)",
                       (_dt.datetime.utcnow().isoformat(), bucket, json.dumps(weights),

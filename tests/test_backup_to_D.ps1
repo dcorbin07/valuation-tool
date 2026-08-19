@@ -35,7 +35,12 @@ function Reset-Fixture {
     New-Item -ItemType Directory -Path "$src\data\archive\scans"                -Force | Out-Null
     New-Item -ItemType Directory -Path "$src\data\bulk\prepared\bars"           -Force | Out-Null
     New-Item -ItemType Directory -Path "$src\data_export"                       -Force | Out-Null
+    New-Item -ItemType Directory -Path "$src\data\options_ticks\aapl"           -Force | Out-Null
+    New-Item -ItemType Directory -Path "$src\data\free_analysis"                -Force | Out-Null
     Set-Content "$src\.env"                                        "SECRET=x"     -Encoding utf8
+    Set-Content "$src\data\options_ticks\aapl\AAPL-2018-03-14.pkl" "prints"       -Encoding utf8
+    Set-Content "$src\data\free_analysis\panel_corrected_69d.pkl"  "panel"        -Encoding utf8
+    Set-Content "$src\data\free_analysis\O14_TICKFLOW_SIGNALS.json" "{}"          -Encoding utf8
     Set-Content "$src\data\backtest_freeze_2026-08\bulk\sep.csv"   "frozen"       -Encoding utf8
     Set-Content "$src\data\options\aapl\AAPL-2018.pkl"             "chain"        -Encoding utf8
     Set-Content "$src\data\raw\SHARADAR_DAILY.zip"                 "zip"          -Encoding utf8
@@ -79,6 +84,21 @@ Check "prepared caches copied"    (Test-Path "$($f.Dst)\data\bulk\prepared\bars\
 Check "app.db copied"             (Test-Path "$($f.Dst)\data\app.db")
 Check "track history copied"      (Test-Path "$($f.Dst)\data\valquo_track_history.csv")
 Check "data_export copied"        (Test-Path "$($f.Dst)\data_export\paper_track_index.csv")
+
+# --- MA15 / MA16. Both were UNNAMED or wrongly named, and this is an allowlist: silence
+# means "not copied". Pinned from both ends - the copy must happen, AND the path must not
+# reappear in $SKIP, because a future edit could re-skip it and every path test above
+# would still pass.
+Check "MA15: options_ticks copied"  (Test-Path "$($f.Dst)\data\options_ticks\aapl\AAPL-2018-03-14.pkl")
+Check "MA16: free_analysis copied"  (Test-Path "$($f.Dst)\data\free_analysis\panel_corrected_69d.pkl")
+Check "MA16: the banked results JSONs come too" (Test-Path "$($f.Dst)\data\free_analysis\O14_TICKFLOW_SIGNALS.json")
+$srcTxt = Get-Content $SCRIPT -Raw
+$keepBlock = ($srcTxt -split '\$SKIP\s*=\s*@\(')[0]
+$skipBlock = ($srcTxt -split '\$SKIP\s*=\s*@\(')[1]
+Check "MA15: options_ticks is in KEEP, not SKIP" (($keepBlock -match 'data\\options_ticks') -and (-not ($skipBlock -match 'data\\options_ticks')))
+Check "MA16: free_analysis is in KEEP, not SKIP" (($keepBlock -match 'data\\free_analysis') -and (-not ($skipBlock -match 'data\\free_analysis')))
+Check "MA15: the ticks entry says WHY (a bare path is the defect)" ($r.Out -match "OPRA")
+Check "MA16: the free_analysis entry says WHY" ($r.Out -match "banked PANELS")
 
 # the whole point: the big derived trees must be absent
 Check "options_derived NOT copied (16.6 GB saved)" (-not (Test-Path "$($f.Dst)\data\options_derived"))
@@ -145,6 +165,50 @@ $r = Run-Backup $f.Src $f.Dst @("-Prune")
 Check "-Prune removes the stray subdirectory" (-not (Test-Path "$($f.Dst)\data\options_derived"))
 Check "-Prune removes the stray top-level"    (-not (Test-Path "$($f.Dst)\some_old_top_level"))
 Check "-Prune leaves the real backup intact"  (Test-Path "$($f.Dst)\data\options\aapl\AAPL-2018.pkl")
+
+# ------------------------------------------------------------------ second-writer guard
+# A .claude or .git under the backup root can only come from a writer that is not this script.
+# That is what happened on 2026-08-13: backup_now.bat was a second schedule with /E and no /XJ,
+# so it followed the worktree junctions, and the exclusion-based backup could not purge what it
+# was excluding. The guard turns a silent two-writer race into a refusal that names the cause.
+$f = Reset-Fixture
+New-Item -ItemType Directory -Path "$($f.Dst)\.claude\worktrees\r1" -Force | Out-Null
+Set-Content "$($f.Dst)\.claude\worktrees\r1\stray.txt" "left by another writer" -Encoding utf8
+$r = Run-Backup $f.Src $f.Dst @()
+Check "a .claude in the destination aborts the run"   ($r.Code -eq 1) "(got $($r.Code))"
+Check "the abort names the offending directory"       ($r.Out -match "\.claude")
+Check "the abort says something else is writing"      ($r.Out -match "ELSE is backing up")
+Check "the abort points at the scheduled tasks"       ($r.Out -match "Get-ScheduledTask")
+Check "the abort names -Prune as the remedy"          ($r.Out -match "-Prune")
+Check "the aborted run copied NOTHING"        (-not (Test-Path "$($f.Dst)\data\backtest_freeze_2026-08\bulk\sep.csv"))
+Check "the aborted run deleted NOTHING"       (Test-Path "$($f.Dst)\.claude\worktrees\r1\stray.txt")
+
+# -Prune is the documented way out, so it must NOT be blocked -- otherwise the guard leaves the
+# destination in a state the script itself cannot repair.
+$r = Run-Backup $f.Src $f.Dst @("-Prune")
+Check "-Prune is allowed through the guard"           ($r.Code -eq 0) "(got $($r.Code))"
+Check "-Prune removes the second writer's .claude"    (-not (Test-Path "$($f.Dst)\.claude"))
+Check "-Prune then backs up normally"                 (Test-Path "$($f.Dst)\data\backtest_freeze_2026-08\bulk\sep.csv")
+
+# the same for .git, which is the other half of what the old backup left behind
+$f = Reset-Fixture
+New-Item -ItemType Directory -Path "$($f.Dst)\.git\objects" -Force | Out-Null
+$r = Run-Backup $f.Src $f.Dst @()
+Check "a .git in the destination aborts the run"      ($r.Code -eq 1) "(got $($r.Code))"
+
+# a NESTED one counts: a worktree mirror carries its own .git, so a top-level-only check would
+# pass a destination that is still full of them.
+$f = Reset-Fixture
+New-Item -ItemType Directory -Path "$($f.Dst)\data\options\aapl\.git" -Force | Out-Null
+$r = Run-Backup $f.Src $f.Dst @()
+Check "a NESTED .git aborts the run too"              ($r.Code -eq 1) "(got $($r.Code))"
+Check "the nested path is named, not just the leaf"   ($r.Out -match "options")
+
+# and the guard must stay quiet on a clean destination, or every normal run pays for it
+$f = Reset-Fixture
+$r = Run-Backup $f.Src $f.Dst @()
+Check "a clean destination does not trip the guard"   ($r.Code -eq 0) "(got $($r.Code))"
+Check "a clean run says nothing about a second writer" (-not ($r.Out -match "ELSE is backing up"))
 
 # ------------------------------------------------------------------ missing source item
 $f = Reset-Fixture

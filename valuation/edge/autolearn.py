@@ -17,6 +17,15 @@ returns. This is the honest version of "it gets smarter over time":
 
 Early on there isn't enough accrued history, so it correctly declines to change
 anything until the track record is deep enough — which is exactly right.
+
+CORRECTED BY THE MASTER AUDIT (MA1), because step 3 above was wrong about its own scope. "Adopt
+the change ONLY if it beats the current weights out-of-sample" described the whole gate, and an
+out-of-sample IC test answers whether a weighting is any GOOD — never whether it may SHIP. Under
+`PAPER_TRACK_CONTRACT` §5a an adopted weight is a VINTAGE EVENT: it resets the forward track's
+five-year clock, so it takes a registered vintage and Don's signature, not a monthly cron. The
+grid search is still the entire statistical decision; it is simply no longer the entire decision.
+See `valuation/edge/weight_adoption.py`. Two consequences worth stating plainly: this module can
+no longer change the live book by itself, and the loop is no longer scheduled at all.
 """
 from __future__ import annotations
 
@@ -88,8 +97,32 @@ def build_panel_from_snapshots(store, price_fn, top_per_date=60, horizon=21,
     return df.dropna(subset=["fwd_ret"])
 
 
+def _overlap_periods(panel, horizon_days) -> float:
+    """How many consecutive panel dates share a forward-return window (MA2(b)).
+
+    Estimated from the dates actually present rather than assumed: `list_scans` gives DAILY
+    dates today, but a weekly snapshot cadence would make the same horizon overlap ~5x less, and
+    hard-coding the horizon would then over-penalise it. Median spacing is used because one long
+    gap (a dead scheduler, which this project has had) must not make the panel look independent.
+    Returns >= 1.0; 1.0 means non-overlapping, which is what a caller passing nothing assumes.
+    """
+    try:
+        import pandas as _pd
+        ds = _pd.to_datetime(_pd.Series(sorted(panel["date"].unique())), errors="coerce").dropna()
+        if len(ds) < 2:
+            return 1.0
+        gap_cal = float(ds.diff().dropna().dt.days.median())
+        if not (gap_cal > 0):
+            return 1.0
+        gap_trading = max(1.0, gap_cal * 5.0 / 7.0)      # calendar days -> trading days
+        return max(1.0, float(horizon_days) / gap_trading)
+    except Exception:
+        return 1.0                                        # never let the estimate break a run
+
+
 def run_learning(cfg, store, price_fn=None, panel=None) -> dict:
     from ..backtest.optimize import optimize_weights
+    from .weight_adoption import VintageRefusal, authorisation
     if price_fn is None:
         from ..screener.prices import close_series
         price_fn = lambda t: close_series(t, days=1500)
@@ -106,23 +139,49 @@ def run_learning(cfg, store, price_fn=None, panel=None) -> dict:
 
     for bucket, factors, default in _BUCKETS:
         bp = panel[panel["bucket"] == bucket]
-        base = store.latest_learned_weights(bucket) or dict(default)
+        # The baseline must be the weights the live book ACTUALLY uses, or the learner tunes
+        # against something users never received. An unauthorised stored adoption no longer
+        # reaches `screen._effective_weights`, so it must not reach this either — otherwise a
+        # row that cannot ship still sets what every candidate is measured against.
+        _prev = store.latest_learned_weights(bucket)
+        if _prev and not authorisation(bucket)["authorised"]:
+            _prev = None
+        base = _prev or dict(default)
         if bp.empty or bp["date"].nunique() < cfg.learn_min_dates:
             store.save_learned(bucket, base, {"reason": "insufficient bucket data"}, False,
                                "Not enough accrued data for this bucket — kept current weights.")
             report["buckets"][bucket] = {"adopted": False, "note": "insufficient data",
                                          "weights": base, "previous": base}
             continue
-        opt = optimize_weights(bp, factors, default_weights=base)
+        opt = optimize_weights(bp, factors, default_weights=base,
+                               overlap_periods=_overlap_periods(bp, cfg.learn_horizon_days))
         stats = {k: opt.get(k) for k in ("accepted", "in_sample_ic", "out_sample_ic",
-                                         "equal_weight_oos_ic", "n_periods", "verdict")}
-        accepted = bool(opt.get("accepted"))       # out-of-sample test is the ENTIRE decision
+                                         "equal_weight_oos_ic", "beats_equal_weight",
+                                         "significance_floor", "oos_dates", "overlap_periods",
+                                         "effective_oos_dates", "n_periods", "verdict")}
+        accepted = bool(opt.get("accepted"))       # the OOS test decides whether it is any GOOD...
         rec = _normalize(opt.get("recommended_weights") or base)
         note = opt.get("verdict") or ("adopted out-of-sample" if accepted else "no robust improvement — kept current")
         if accepted:
-            store.save_learned(bucket, rec, stats, True, note)
-            report["buckets"][bucket] = {"adopted": True, "weights": rec, "previous": base,
-                                         "out_sample_ic": opt.get("out_sample_ic"), "note": note}
+            # ...and the vintage register decides whether it may SHIP. MASTER AUDIT MA1: those
+            # are different questions and only the first was ever asked. The refusal is caught
+            # here so the learner still runs, still logs what it found and still emails the
+            # owner — the research keeps happening; only the live write is withheld. Anything
+            # that does NOT catch it gets an exception, which is the intended default.
+            try:
+                store.save_learned(bucket, rec, stats, True, note)
+                report["buckets"][bucket] = {"adopted": True, "weights": rec, "previous": base,
+                                             "out_sample_ic": opt.get("out_sample_ic"), "note": note}
+                continue
+            except VintageRefusal as e:
+                note = f"{note} | NOT ADOPTED — {e}"
+                stats = dict(stats, adoption_refused=True)
+                store.save_learned(bucket, base, stats, False, note)
+                report["buckets"][bucket] = {
+                    "adopted": False, "refused": True, "weights": base, "previous": base,
+                    "would_have_adopted": rec, "out_sample_ic": opt.get("out_sample_ic"),
+                    "note": note}
+                continue
         else:
             store.save_learned(bucket, base, stats, False, note)
             report["buckets"][bucket] = {"adopted": False, "weights": base, "previous": base, "note": note}

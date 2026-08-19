@@ -20,44 +20,29 @@ import json, sys, itertools, pathlib, collections
 HERE = pathlib.Path(__file__).parent
 ITEMS = json.loads((HERE / "valquo_audit_items.json").read_text())
 
-# verified import edges: "A imports B"  ->  editing B can break A
-IMPORTS = {
-    "valuation/edge/options_universe.py": {
-        "valuation/edge/options_backtest.py", "valuation/edge/options_fill.py",
-        "valuation/edge/options_signals_v2.py", "valuation/edge/options_autopsy.py",
-        "valuation/edge/options_tracker.py", "valuation/edge/statistics.py"},
-    "valuation/edge/options_backtest.py": {
-        "valuation/edge/options_fill.py", "valuation/edge/options_tracker.py",
-        "valuation/edge/blackscholes.py"},
-    "valuation/edge/options_autopsy.py": {
-        "valuation/edge/options_signals_v2.py", "valuation/edge/options_tracker.py",
-        "valuation/edge/statistics.py"},
-    "valuation/edge/options_signals_v2.py": {
-        "valuation/edge/blackscholes.py", "valuation/edge/options_tracker.py",
-        "valuation/edge/statistics.py"},
-    "valuation/edge/options_greeks.py": {"valuation/edge/blackscholes.py"},
-    "valuation/edge/options_live.py": {
-        "valuation/edge/options_backtest.py", "valuation/edge/options_fill.py",
-        "valuation/edge/options_sizing.py", "valuation/edge/blackscholes.py",
-        "valuation/edge/options_tracker.py"},
-    "valuation/edge/options_vrp.py": {
-        "valuation/edge/options_fill.py", "valuation/edge/options_tracker.py",
-        "valuation/edge/statistics.py"},
-    "valuation/edge/paper_track.py": {
-        "valuation/edge/paper_broker.py", "valuation/edge/options_tracker.py"},
-    "valuation/edge/fundamental_panel.py": {
-        "valuation/screener/factors.py", "valuation/screener/settings.py",
-        "valuation/screener/cross_sectional.py", "valuation/edge/data_providers.py",
-        "valuation/config.py"},
-    "valuation/screener/factors.py": {
-        "valuation/screener/settings.py", "valuation/screener/cross_sectional.py",
-        "valuation/config.py"},
-    "valuation/screener/screen.py": {
-        "valuation/screener/factors.py", "valuation/screener/settings.py",
-        "valuation/screener/cross_sectional.py"},
-    "valuation/edge/bulk.py": {"valuation/edge/data_providers.py"},
-    "valuation/edge/data_providers.py": {"valuation/edge/bulk.py", "valuation/config.py"},
-}
+sys.path.insert(0, str(HERE / "scripts"))
+import import_graph
+
+# Import edges: "A imports B"  ->  editing B can break A.
+#
+# DERIVED, NOT TYPED (master audit MA60, 2026-08-15). This was a hand-maintained
+# dict, and the audit's charge that it had "admitted gaps" understated it.
+# Measured against the real graph on the day it was replaced:
+#
+#     hand-typed : 13 keys,  40 edges
+#     derived    : 118 keys, 546 edges
+#
+# 105 files with real imports were absent from it entirely, and 12 of its 13
+# keys were wrong. The failure that matters is not the absences -- it is that
+# it was wrong in a direction that reads as safe. Four options modules were
+# recorded as importing `statistics.py` when they actually import
+# `options_stats.py`, so a SOFT collision between two options items fired
+# against a file they do not share and never fired against the file they do.
+# `screen.py` was recorded with 3 edges against a real 15.
+#
+# A lane checker whose graph is stale reports "safe to run in parallel" for
+# work that is not, which is the one answer it exists to get right.
+IMPORTS = import_graph.graph()
 
 def w(i):   return set(ITEMS[i]["modifies"])
 def soft(a, b):
@@ -121,7 +106,7 @@ TERRITORY = [
                  "valuation/edge/options_tracker.py","valuation/edge/options_live.py",
                  "valuation/edge/options_sizing.py","valuation/edge/options_vrp_portfolio.py"]),
  ("DATASETS",   ["valuation/edge/bulk.py","valuation/edge/short_interest.py",
-                 "valuation/research/lazy_prices_ic.py"]),
+                 "valuation/studies/lazy_prices_ic.py"]),
  ("STATS",      ["valuation/edge/statistics.py"]),
  ("OPTIONS-BOT",["options-bot/"]),
  ("INFRA",      [".github/","tests/","CLAUDE.md","valuation/web/"]),

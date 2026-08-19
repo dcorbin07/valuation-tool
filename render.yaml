@@ -37,6 +37,42 @@ services:
       # OWNER_SPLIT=false publishes all of it — do not set that without reading the Terms.
       - key: OWNER_SPLIT
         value: "true"
+      # PUBLIC_FULL_VIEW — ANONYMOUS == DEMO, TEMPORARILY. Don's decision, 2026-08-13:
+      #   "/app must be 100% ungated - I know the risks - I've submitted applications with
+      #    the non-master link; when I hear back we regate."
+      # Applications went out carrying the plain /app URL rather than the master link, so
+      # recruiters were landing on the public half. This lifts an anonymous visitor to the
+      # DEMO tier — the same read-only full view the /work button already grants — and
+      # nothing more. Track Record, Edge Lab, Index, Signals and Watchlist become readable
+      # signed out.
+      #
+      # ==> THE REGATE IS TWO CHANGES, NOT ONE (corrected 2026-08-14, audit MA9). This block
+      #     used to read "THE REGATE IS THIS ONE VALUE ... nothing else needs touching", and
+      #     that was wrong in the direction that matters.
+      #
+      #     1. Set PUBLIC_FULL_VIEW to "false". OWNER_SPLIT stays "true" underneath and is
+      #        still enforced.
+      #     2. ROTATE DEMO_ACCESS_TOKEN in the same window.
+      #
+      #     Why (2) is not optional: until 2026-08-14 the token's VALUE was rendered into the
+      #     HTML of /work, a page anonymous visitors can read. Every value that was ever live
+      #     before that date must be treated as PUBLIC. After the regate the token is once
+      #     again the only gate on /api/track, /api/index-track, /api/valquo-index (names AND
+      #     weights), /api/options-alerts and /api/scream-track — so regating without rotating
+      #     restores a posture whose sole lock is a key the product already handed out.
+      #
+      #     The publication is fixed (the button now POSTs to /preview and the server sets the
+      #     session; the token reaches no response body), so a token rotated AFTER that deploy
+      #     stays private. Rotating is still required once, to retire the published ones.
+      #     Generate: python -c "import secrets;print(secrets.token_urlsafe(24))"
+      #
+      # DO NOT regate by flipping OWNER_SPLIT instead: that also makes may_act true for
+      # everyone, opening /api/scan/run, /api/signals/run and both Edge Lab runners to
+      # anonymous callers. This flag is read-only by construction and cannot do that.
+      # What does NOT move under it: mutation endpoints, admin/account/billing surfaces,
+      # raw Sharadar/ThetaData rows, and every disclaimer, vintage and paper-account label.
+      - key: PUBLIC_FULL_VIEW
+        value: "true"
       # The unlisted portfolio page Don puts on a résumé — static prose plus statistics
       # computed in-house, reading no store and calling no API. It kept its own flag through
       # the posture change: it survived private mode, and it is independent of the split

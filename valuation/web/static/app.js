@@ -30,13 +30,14 @@ const scoreClass = (s) => s >= 66 ? "g" : (s >= 46 ? "a" : "r");
 /* ---------- tabs ---------- */
 function switchTab(t) {
   document.querySelectorAll(".tab").forEach(el => el.classList.toggle("active", el.dataset.tab === t));
-  ["single", "hot", "index", "signals", "track", "rank", "edge"].forEach(name => {
+  ["single", "hot", "dip", "index", "signals", "track", "rank", "edge"].forEach(name => {
     const el = document.getElementById("tab-" + name);
     if (el) el.style.display = (name === t) ? "block" : "none";
   });
   if (t === "hot" && !STATE.hotLoaded) { STATE.hotLoaded = true; loadHotStocks(); }
+  if (t === "dip" && !STATE.dipLoaded) { STATE.dipLoaded = true; loadDip(); }
   if (t === "index" && !STATE.indexLoaded) { STATE.indexLoaded = true; loadValquoIndex(); loadIndexTrack(); }
-  if (t === "signals" && !STATE.sigLoaded) { STATE.sigLoaded = true; loadSignals(); loadOptionsScorecard(); }
+  if (t === "signals" && !STATE.sigLoaded) { STATE.sigLoaded = true; loadSignals(); loadOptionsScorecard(); loadScreamTrack(); }
   if (t === "track" && !STATE.trackLoaded) { STATE.trackLoaded = true; loadTrack(); }
   // The Edge Lab has no autoload for the owner — every button on it is expensive, so it
   // waits to be asked. A READ-ONLY session has no such buttons, so the tab would open
@@ -1007,6 +1008,39 @@ function renderHot(d) {
     carry a peer-relative estimate here, because a ratio of two same-currency figures survives the mismatch that
     breaks the valuation. <b>When they disagree, the Single-valuation page's refusal is the one to believe</b>, and
     fixing the disagreement is open work.</div>`;
+  // MA29 — "what the model cannot value". The refusal count reaches a reader, so LA1's failure
+  // mode (a refusal that is recorded and then seen by nobody) is loud instead of silent. Every
+  // string comes from the `refusals` block: `web/refusals.py` owns the wording and a test pins
+  // it verbatim, so nothing here may paraphrase. The two KINDS are drawn as separate sentences
+  // on purpose — "we could not look" must never render as "we looked and refused".
+  const rf = d.refusals || null;
+  if (rf && rf.available && rf.sentence) {
+    const extra = [rf.unavailable_sentence, rf.display_sentence].filter(Boolean)
+      .map(s => ` ${esc(s)}`).join("");
+    html += `<div class="note"><b>${esc(rf.label)}.</b> ${esc(rf.sentence)}${extra} ` +
+      `${esc(rf.explainer)}</div>`;
+  }
+  // MA28-CARD — accounting stress and the risk of a very bad quarter. A DISCLOSURE: it puts a
+  // measured group statistic in front of a reader and attaches nothing to any row. Every string
+  // comes from `web/accounting_risk.py`, which owns the calibrated wording and pins it verbatim
+  // by test, so nothing here may paraphrase — the paraphrase is where "these accounts are
+  // stressed" turns into "this company is cooking the books", which is banned and unmeasured.
+  //
+  // ORDER IS PART OF THE MEANING, not layout taste. `not_scored_note` renders IMMEDIATELY after
+  // the figures, because the one misreading this card exists to prevent is a reader taking the
+  // numbers as a label on the names directly above them. `coverage_note` carries the reason a
+  // blank means "not scored" and never "clean", and it is rendered on the same footing as the
+  // headline rather than tucked into a tooltip.
+  const ar = d.accounting_risk || null;
+  if (ar && ar.available && ar.headline) {
+    const body = [ar.headline, ar.not_scored_note, ar.why_the_ratio, ar.what_is_measured,
+                  ar.not_a_return_claim, ar.size_note, ar.coverage_note, ar.always]
+      .filter(Boolean).map(s => esc(s)).join(" ");
+    html += `<div class="note"><b>${esc(ar.label)}.</b> ${body}</div>`;
+  } else if (ar && !ar.available && ar.withdrawn_note) {
+    // A withdrawal is exactly as sayable as the result — `dip_posture`'s rule about a NULL.
+    html += `<div class="note"><b>${esc(ar.label)}.</b> ${esc(ar.withdrawn_note)}</div>`;
+  }
   // Prefer theme_contributing over theme_coverage: a theme can be 100% "covered" and still be
   // a constant, which standardizes to nothing and drops out of the score entirely. Reporting
   // the presence number here would call such a theme healthy.
@@ -1091,6 +1125,276 @@ function renderSectors(sectors) {
       <span style="width:96px;text-align:right;color:${col};font-weight:700">${z(s.avg_composite)} <span class="muted" style="font-weight:400">(${s.count})</span></span></div>`;
   });
   document.getElementById("sectorBox").innerHTML = html;
+}
+
+/* ====================== DIP DETECTOR ======================
+   Healthy names trading well below their own 52-week high.
+
+   THE COPY IS NOT HERE. Every claim-bearing sentence on this tab is server-rendered from
+   `web/dip_posture.py` into the template, because it is written to be replaced when a register
+   closes — and TWO have now closed, to opposite answers: V6 found no return edge, V6-B found a
+   large and replicated reduction in how often these names fall a further 20%. Neither verdict
+   appears in this file. It renders NUMBERS and the per-check badges, and the one string it does
+   own — the "not checked" label — describes the payload rather than the world.
+
+   WHY A CHECK THAT DID NOT RUN GETS ITS OWN BADGE. Two of the four disqualifiers need a full
+   DCF. Rendering "not checked" as a tick would tell a reader that four things were verified
+   when two were, which is the same defect as an out-of-sample block reporting zero directions
+   tested as a pass. The badge is deliberately neutral-coloured: not a warning, not a tick. */
+const _DIP_CHECK_LABEL = { pass: "✓", fail: "✕", not_run: "–" };
+
+function _dipChecks(row, defs) {
+  const ch = row.checks || {};
+  return Object.keys(ch).sort().map(k => {
+    const v = ch[k], mark = _DIP_CHECK_LABEL[v] || "?";
+    const col = v === "pass" ? "var(--green)" : (v === "fail" ? "var(--red)" : "var(--muted)");
+    const why = v === "not_run"
+      ? "Not checked — this one needs a full discounted-cash-flow valuation, which this screen does not run for every name."
+      : ((defs || {})[k] || k);
+    return `<span class="chip" style="color:${col}" title="${esc(why)}">${mark} ${esc(k.replace(/_/g, " "))}</span>`;
+  }).join(" ");
+}
+
+function _dipHealthChips(row, floors) {
+  const h = row.health || {};
+  return Object.keys(h).sort().map(k => {
+    const v = h[k];
+    const floor = (floors || {})[k];
+    const col = (v == null) ? "var(--muted)" : scoreColor(v);
+    return `<span class="chip" style="color:${col}" title="${esc(k)} ${v == null ? "not computed" : Math.round(v)} of 100, floor ${floor == null ? "—" : Math.round(floor)}">`
+      + `${esc(k)} ${v == null ? "—" : Math.round(v)}</span>`;
+  }).join(" ");
+}
+
+/* V6-B's per-name further-fall rate. Served on /api/dip since 2026-08-16 and, until this
+   function existed, rendered to nobody: `HANDOFF_v6b_health_gap.md` §5 measured
+   `grep -c dip_risk app.js` -> 0, so the class, both rates, the method note and the "not a
+   probability" caveat were computed on every request and displayed to no reader.
+
+   EVERY STRING COMES FROM THE SERVER. `web/dip_risk.py` owns the wording and a test pins it
+   verbatim, so nothing here may paraphrase — the rate, the reason a row has none, the size
+   caveat, the method note, the pre-filter note and the "not a probability" caveat are all
+   rendered exactly as served. This file contributes layout.
+
+   THE PEER RATE IS DELIBERATELY NOT RENDERED ON A ROW, and that is the whole point of the
+   change. r1 measured that this screen's own prefilter removes M1's unhealthy side before the
+   classification runs, so a listed name essentially never classifies unhealthy. Putting
+   "32.5% against 43.4%" on a row would therefore invite reading the screen as having done the
+   separating when the prefilter did it upstream (§6.1) — a comparison the live data cannot
+   make. The panel contrast is stated ONCE below the table, as a fact about the panel, beside
+   the sentence saying it does not exist here. */
+function _dipRate(r) {
+  const b = (r || {}).dip_risk || null;
+  if (!b) return "—";
+  /* A class with no rate renders its REASON, never a blank and never a zero. "shallower than
+     the measurement" and "we could not place this name" are different facts and a dash that
+     means both is the failure `checks_not_run` already exists to avoid. */
+  if (!b.applies) {
+    return `<span class="muted" title="${esc(b.why_not || "No rate applies to this name.")}">—</span>`;
+  }
+  const tip = [b.label, b.not_a_probability].filter(Boolean).join(" ");
+  const dagger = b.size_caveat
+    ? ` <span class="muted" title="${esc(b.size_caveat)}">†</span>` : "";
+  return `<span title="${esc(tip)}">${pct(b.further_fall_rate, 1)}</span>${dagger}`;
+}
+
+async function loadDip() {
+  eshow("dipErr", "");
+  toggle("dipLoader", true);
+  const sel = document.getElementById("dipThreshold");
+  const thr = sel ? sel.value : "0.20";
+  try {
+    const d = await (await fetch("/api/dip?min_drawdown=" + encodeURIComponent(thr))).json();
+    renderDip(d);
+  } catch (e) {
+    eshow("dipErr", e.message);
+    setHtml("dipResults", "");
+  }
+  toggle("dipLoader", false);
+}
+
+function renderDip(d) {
+  d = d || {};
+  setHtml("dipDisclaimer", esc(d.disclaimer || ""));
+  setHtml("dipFreshness", d.freshness ? freshnessBanner(d.freshness) : "");
+  if (d.error) { eshow("dipErr", d.error); setHtml("dipResults", ""); return; }
+  if (d.empty) {
+    setHtml("dipResults", `<div class="card"><div class="muted">${esc(d.message || "Nothing to screen yet.")}</div></div>`);
+    setHtml("dipMeta", "");
+    return;
+  }
+  const rows = d.rows || [];
+
+  /* THE BOUNDS ARE REPORTED, ALWAYS — including when they did not bite. A screen that says
+     "12 names" without saying "out of 340 eligible, 12 measured" reads as coverage, and this
+     project has paid for silent truncation before. */
+  const bits = [];
+  bits.push(`${num(d.n_universe)} names scanned`);
+  bits.push(`${num(d.n_eligible)} passed the pre-filter`);
+  /* `n_measured` counts measurement ATTEMPTS, not successes — the ones that failed are in
+     `n_unmeasured` below. "fully measured" would overstate it whenever a valuation fell over. */
+  bits.push(`${num(d.n_measured)} examined in detail`);
+  if (d.capped) bits.push(`<b>${num(d.capped)} more not measured (per-request limit)</b>`);
+  if (d.n_unmeasured) bits.push(`${num(d.n_unmeasured)} could not be measured`);
+  setHtml("dipMeta", bits.join(" · "));
+
+  if (!rows.length) {
+    setHtml("dipResults", `<div class="card"><div class="muted">No name cleared a
+      ${pct(d.min_drawdown, 0)} fall from its 52-week high while also scoring healthy today.
+      ${d.capped ? "Note the per-request measurement limit above — this is not a statement about every name in the universe." : ""}</div></div>`);
+    return;
+  }
+
+  /* The risk block's own coverage summary. Its strings are the column's vocabulary too — the
+     header's tooltip is the SERVED caveat, not a second wording of it, because two copies of
+     one rule is how a badge and a tooltip come to disagree. */
+  const rk = d.dip_risk || {};
+
+  let html = `<div class="card"><h3>Down ${pct(d.min_drawdown, 0)}+ from the 52-week high, fundamentals still healthy</h3>
+    <div class="section-hint">${esc(d.health_floor_note || "")}</div>
+    <table><tr><th>Ticker</th><th class="num">Fall from high</th><th class="num">Price</th>
+      <th class="num">52-wk high</th><th>Health</th><th class="num">Fair value</th>
+      <th class="num" title="${esc(rk.not_a_probability || "")}">Past group rate</th>
+      <th>Checks</th></tr>`;
+  rows.forEach(r => {
+    const fv = r.fair_value_withheld_reason
+      ? `<span class="muted" title="${esc(r.fair_value_withheld_reason)}">withheld</span>`
+      : (r.fair_value == null ? "—" : money(r.fair_value));
+    html += `<tr>
+      <td><a href="#" onclick="gotoValue('${esc(r.ticker)}');return false"><b>${esc(r.ticker)}</b></a>
+        <div class="muted" style="font-size:11px">${esc(String(r.name || "").slice(0, 28))}</div></td>
+      <td class="num neg">−${pct(r.drawdown, 1)}</td>
+      <td class="num">${money(r.price)}</td>
+      <td class="num">${money(r.high_52w)}</td>
+      <td>${_dipHealthChips(r, d.health_floors)}</td>
+      <td class="num">${fv}</td>
+      <td class="num">${_dipRate(r)}</td>
+      <td>${_dipChecks(r, d.checks)}</td></tr>`;
+  });
+  html += "</table>";
+  if (rows.some(r => (r.checks_not_run || []).length)) {
+    html += `<div class="note" style="margin-top:10px">A “–” means that check was <b>not run</b>
+      for this name, not that it passed. Two of the four need a full discounted-cash-flow
+      valuation, which this screen does not run for every name.</div>`;
+  }
+  /* The rate never appears without its scope. `HANDOFF_v6b_health_gap.md` §6.1 is explicit that
+     a bare percentage beside a list of names is "the one presentation §3 and §4 do not
+     support", so the method note and the pre-filter note render whenever any rate does —
+     rendered from the payload, in the server's words, and only when there is a rate to
+     qualify. */
+  if (rows.some(r => ((r.dip_risk || {}).applies))) {
+    html += `<div class="note" style="margin-top:10px"><b>Past group rate.</b>
+      ${esc(rk.screen_contrast_note || "")} ${esc(rk.method_note || "")}
+      ${esc(rk.not_a_probability || "")}</div>`;
+  }
+  if (rows.some(r => ((r.dip_risk || {}).size_caveat))) {
+    html += `<div class="note" style="margin-top:6px">† ${esc(
+      (rows.find(r => (r.dip_risk || {}).size_caveat).dip_risk || {}).size_caveat || "")}</div>`;
+  }
+  html += "</div>";
+  setHtml("dipResults", html);
+}
+
+/* ====================== SCREAM-BUY TRACK RECORD ======================
+   Reset 2026-08-13 at Don's direction; the prior record is archived, not deleted, and the
+   register note below renders with the table every time. Entry / target / stop / current are
+   READ from the stored columns — see web/scream_track.py for why re-deriving them would look
+   right and be wrong. */
+/* Six statuses, not five. `CLOSED (unscoreable)` is the logger's own sixth: a closed row whose
+   exit reason maps to none of Don's five must not be forced into one that misdescribes it. It
+   is deliberately muted rather than red — unscoreable is not a loss. */
+function _screamStatusColor(s) {
+  if (s === "HIT TARGET") return "var(--green)";
+  if (s === "STOPPED") return "var(--red)";
+  if (s === "LIVE") return "var(--navy)";
+  return "var(--muted)";
+}
+
+async function loadScreamTrack() {
+  const box = document.getElementById("screamTrack");
+  if (!box) return;
+  let d;
+  try { d = await (await fetch("/api/scream-track")).json(); } catch (e) { return; }
+  box.style.display = "";
+  renderScreamTrack(d || {});
+}
+
+function renderScreamTrack(d) {
+  const foot = d.summary || {};
+  const reset = d.reset || null;
+  setHtml("screamContext", esc(d.context || ""));
+  const rows = d.rows || [];
+
+  let body;
+  if (!rows.length) {
+    body = `<div class="muted">${d.unavailable
+      ? "The record could not be read just now."
+      : "No scream-buy alerts in the current record yet."}</div>`;
+  } else {
+    body = `<div class="metricline" style="margin:6px 0 12px">
+      ${metric("Live", d.n_live)}${metric("Closed", d.n_closed)}
+      ${metric("Record", foot.epoch || "—")}</div>`;
+    /* dte_at_alert and dte_remaining are DIFFERENT QUANTITIES and the logger's contract says
+       not to render them as one. Both columns, both labelled. */
+    body += `<table><tr><th>Alert</th><th>Contract</th><th>Status</th>
+      <th class="num">Bought in</th><th class="num">Target sale</th><th class="num">Stop</th>
+      <th class="num">Current</th><th class="num">P&amp;L</th>
+      <th class="num">DTE now</th><th class="num">DTE at alert</th></tr>`;
+    rows.forEach(r => {
+      const col = _screamStatusColor(r.status);
+      /* A stale mark is LABELLED, never silently rendered as current. The logger sets
+         current_premium_stale true when the quote is older than its own window OR when no
+         quote arrived at all — absent is not fresh, and a row the market could not price must
+         never render as a live price. */
+      const age = r.current_premium_age_seconds;
+      const stale = r.current_premium_stale
+        ? ` <span class="muted" title="Quoted ${esc(r.current_premium_ts || "never")}${age == null ? "" : " — " + Math.round(age / 60) + " min ago"}">⚠ stale</span>`
+        : "";
+      const contract = [r.opt_right ? String(r.opt_right).toUpperCase() : "",
+        r.strike == null ? "" : money(r.strike, 2), r.expiry || ""].filter(Boolean).join(" ");
+      /* A non-default exit policy is flagged, because the whole point of reading the stored
+         level rather than deriving it is that the policy can differ from +100%/-50%. */
+      const pol = (r.policy_is_default === false)
+        ? ` <span class="muted" title="This alert carries its own exit policy, not the default +100%/-50%.">·custom</span>` : "";
+      const live = r.pnl_pct_live;
+      body += `<tr>
+        <td><b>${esc(r.ticker || "—")}</b><div class="muted" style="font-size:11px">${esc(String(r.alert_ts || "").slice(0, 10))}</div></td>
+        <td style="font-size:12px">${esc(contract || r.occ_symbol || "—")}</td>
+        <td style="color:${col};font-weight:700">${esc(r.status)}${stale}</td>
+        <td class="num">${money(r.entry_premium)}</td>
+        <td class="num">${money(r.target_premium)}${r.target_pct == null ? "" : ` <span class="muted">(${spct(r.target_pct, 0)})</span>`}${pol}</td>
+        <td class="num">${money(r.stop_premium)}${r.stop_pct == null ? "" : ` <span class="muted">(${spct(r.stop_pct, 0)})</span>`}</td>
+        <td class="num">${money(r.current_premium)}</td>
+        <td class="num ${live == null ? "" : (live >= 0 ? "pos" : "neg")}">${live == null ? (r.pnl_pct == null ? "—" : spct(r.pnl_pct, 0)) : spct(live, 0)}</td>
+        <td class="num">${r.dte_remaining == null ? "—" : r.dte_remaining + "d"}</td>
+        <td class="num muted">${r.dte_at_alert == null ? "—" : r.dte_at_alert + "d"}</td></tr>`;
+    });
+    body += "</table>";
+  }
+
+  const lc = d.paper_level_conformance;
+  if (lc && lc.off_spec) {
+    body += `<div class="note" style="margin-top:10px;border-left:3px solid #c0392b;padding-left:9px">
+      ⚠️ <b>${num(lc.off_spec)} live PAPER position(s) are trading to a target or stop the
+      strategy does not specify.</b> That is the paper book, a different object from this
+      record. Reported read-only; the next paper cycle repairs them.</div>`;
+  }
+  setHtml("screamBody", body);
+
+  /* THE FOOTER. `reset` is null until a reset has ACTUALLY run — the record cannot be reset
+     from a dev box — so the surface says the record is original rather than implying a reset
+     happened. `n_prior_epochs` is what makes a reset visible rather than merely honest. */
+  let note;
+  if (reset && reset.note) {
+    note = esc(reset.note);
+    if (foot.n_prior_epochs) {
+      note += ` <b>${num(foot.n_prior_epochs)} earlier record${foot.n_prior_epochs === 1 ? "" : "s"}</b> remain queryable — nothing was deleted.`;
+    }
+  } else {
+    note = "This is the original record — it has not been reset. Nothing here has ever been "
+      + "deleted, and a reset would archive first and keep the prior rows queryable.";
+  }
+  setHtml("screamRegister", note);
 }
 
 async function buildPortfolio() {

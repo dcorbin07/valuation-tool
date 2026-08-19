@@ -94,7 +94,22 @@ PARAM_KEYS = ("theme_weights", "sector_neutral", "residual_momentum", "ev_point_
               # weights were silently assumed to equal. It changes NO score — only what the
               # vintage comparator can see. Vintage 2's pinned entry deliberately omits it, so
               # its `params_id` stays 0060c5ef3dda and the pin is not retroactively rewritten.
-              "themes_scored_live")
+              "themes_scored_live",
+              # ADDED 2026-08-13 BY THE S14 ADOPTION, and registered in
+              # `PREREG_s14_adoption.md` §5 before the wiring existed -- unlike
+              # `themes_scored_live` above, which was disclosed after the fact.
+              #
+              # WITHOUT IT THE FIRST REAL SHADOW PAIR WOULD BE INVISIBLE TO THIS MACHINERY.
+              # The band changes no weight and no theme; it changes WHICH RANKED NAMES BECOME
+              # THE BOOK. Every existing key would hash identically across vintages 3 and 4, so
+              # `same_model` would report no change while the book demonstrably changed -- the
+              # exact failure `themes_scored_live` was added to fix, in a new costume.
+              #
+              # Vintage 3's pinned entry deliberately OMITS this key, so its published
+              # `params_id` stays 24878e43a1e3 and the pin is not retroactively rewritten.
+              # `snapshot()` skips absent keys, so absence means "this vintage had no band",
+              # which is exactly true of vintage 3.
+              "no_trade_band")
 
 
 def snapshot(params: Dict) -> Dict:
@@ -193,6 +208,39 @@ PINNED: Dict[int, Dict] = {
             # genuinely changed; vintage 2's pin is untouched at 0060c5ef3dda.
             "themes_scored_live": ["capital_discipline", "insider", "institutional",
                                    "momentum", "quality", "size", "value"]})},
+    # VINTAGE 4 - the no-trade band at width 0.30, adopted by Don 2026-08-13.
+    #
+    # THIS OPENS THE FIRST REAL SHADOW PAIR. V1 shipped as instrumentation with no pair to
+    # measure ("blinder than any previous register here: no vintage pair exists"), which was
+    # the point -- no parameter could have been tuned to a comparison that did not exist. The
+    # pair 4-over-3 is now live, and vintage 3's parameters were pinned two days before this
+    # adoption was known about, so the predecessor is a genuine snapshot rather than a
+    # reconstruction.
+    #
+    # WHAT DIFFERS FROM VINTAGE 3 IS EXACTLY ONE KEY. Every weight, theme and construction
+    # parameter is carried over verbatim; only `no_trade_band` appears. That is the honest
+    # description of this adoption -- it changes selection, not scoring -- and it means the
+    # shadow difference is attributable to the band alone.
+    4: {"vintage": 4, "opened": _dt.date(2026, 8, 13),
+        "label": "no-trade band, width 0.30",
+        "predecessor": 3,
+        "snapshot": snapshot({
+            "theme_weights": {"quality": 0.125, "momentum": 0.125, "value": 0.125,
+                              "growth": 0.125, "capital_discipline": 0.125,
+                              "institutional": 0.125, "insider": 0.125, "low_risk": 0.0},
+            "sector_neutral": False, "residual_momentum": False, "ev_point_in_time": True,
+            "large_cap_min": 10e9, "top_decile": 0.10, "max_weight": 0.08,
+            "weighting": "score", "top_n": None,
+            "themes_scored_live": ["capital_discipline", "insider", "institutional",
+                                   "momentum", "quality", "size", "value"],
+            # A LITERAL, deliberately, and this is the one place in the codebase where writing
+            # 0.30 again is correct. Every other pinned value here is a literal for the same
+            # reason: a PIN records what the vintage WAS, so it must not track a live constant.
+            # Importing `BAND_WIDTH` here would mean that a future adoption of a different width
+            # retroactively rewrote vintage 4's history AND made vintages 4 and 5 hash
+            # IDENTICAL, which would defeat the comparator entirely. A test asserts this literal
+            # equals the adopted constant TODAY, so a width change with no new vintage is loud.
+            "no_trade_band": 0.30})},
 }
 
 
@@ -344,6 +392,35 @@ def open_pairs() -> List[Dict]:
     return pairs
 
 
+def _complete_months_since(opened, today=None) -> int:
+    """Complete calendar months from `opened` to `today`.  [AUDIT MA42]
+
+    COMPLETE means elapsed in full: a pair opened on the 13th has completed one month on the
+    13th of the following month, not on the 1st. Partial months are not counted, because the
+    verdict machinery is defined on complete monthly returns and counting a part-month would
+    inflate the denominator of a five-year clock.
+    """
+    import datetime as _dt
+    today = today or _dt.date.today()
+    if hasattr(opened, "date"):
+        opened = opened.date()
+    months = (today.year - opened.year) * 12 + (today.month - opened.month)
+    if today.day < opened.day:
+        months -= 1
+    return max(0, months)
+
+
+def _paired_months(pairs) -> int:
+    """How many months carry a paired difference for BOTH vintages.  [AUDIT MA42]
+
+    Measured, not assumed: no module in this repository produces a shadow monthly series, so
+    there is nothing to count and this returns 0. It is a function rather than a literal so
+    that when a producer is built there is one place to wire it, and so the zero is
+    attributable — `detail()` reports `paired_series_source` beside it saying why.
+    """
+    return 0
+
+
 def detail() -> Dict:
     """Status of the shadow machinery. Deliberately NOT vacuously green.
 
@@ -380,14 +457,44 @@ def detail() -> Dict:
     # register's central honest point is that A SHADOW PAIR THAT HAS NOT CROSSED IS THE EXPECTED
     # OUTCOME AND IS NOT EVIDENCE THE ADOPTION WAS WORTHLESS. Found by a test that was rewritten
     # for the new state and failed anyway — correctly.
-    months = int(out.get("months_paired") or 0)
-    out["months_paired"] = months
+    # MA42 — THIS READ A KEY NOTHING EVER WROTE. It was `months = int(out.get("months_paired")
+    # or 0)`, and `out` is built above without that key, so `months` was 0 on every call
+    # regardless of elapsed time, the `>= MIN_MONTHS_FOR_ANY_VERDICT` branch below was
+    # UNREACHABLE, and years into a live pair the status would still have read "0 complete
+    # paired month(s)". The docstring says this function exists so the status is not vacuous;
+    # that is the vacuous failure inverted — vacuously STUCK rather than vacuously green.
+    #
+    # THE REPAIR SEPARATES TWO QUANTITIES THE OLD CODE CONFLATED INTO ONE ZERO, and that
+    # separation is the whole value of the fix:
+    #
+    #   * `months_elapsed` — complete calendar months since the pair opened. Derived from the
+    #     register, rises on its own, and is what says whether paired months are OWED.
+    #   * `months_paired`  — months for which a paired difference actually EXISTS.
+    #
+    # TODAY THE SECOND IS STILL 0, AND NOT BECAUSE OF THIS BUG: measured, NOTHING IN THIS
+    # REPOSITORY WRITES A SHADOW MONTHLY SERIES. `verdict()` takes `monthly_diff_pp` as an
+    # argument from a caller that does not exist yet. So the honest report is "0 paired months,
+    # because no producer exists", not a bare 0 — and `paired_months_owed` makes the gap dated
+    # rather than discovered years later. This is `track_meter`'s own distinction between
+    # not-yet-due and due-and-missing, applied to the machinery that borrowed its lesson.
+    opened = [p.get("opened") for p in pairs if p.get("opened")]
+    out["months_elapsed"] = _complete_months_since(min(opened)) if opened else 0
+    out["months_paired"] = months = _paired_months(pairs)
+    out["paired_series_source"] = (
+        "none — no module in this repository writes a shadow monthly return series; "
+        "`verdict()` expects `monthly_diff_pp` from a producer that has not been built. "
+        "Until one exists `months_paired` is 0 BY ABSENCE, not by measurement.")
+    out["paired_months_owed"] = max(0, out["months_elapsed"] - months)
     if months < MIN_MONTHS_FOR_ANY_VERDICT:
+        owed = out["paired_months_owed"]
+        gap = ("" if not owed else
+               f" {owed} month(s) have elapsed with no paired observation recorded, which is a "
+               f"RECORDING GAP in the shadow producer rather than a property of the comparison.")
         out["status"] = (
             f"{len(pairs)} vintage pair(s) under shadow, with {months} complete paired month(s) "
             f"against a minimum of {MIN_MONTHS_FOR_ANY_VERDICT} — so no verdict of any kind is "
             f"available yet, and none is due for years. A shadow pair that has not crossed is "
-            f"the EXPECTED outcome and is not evidence the adoption was worthless.")
+            f"the EXPECTED outcome and is not evidence the adoption was worthless.{gap}")
     else:
         out["status"] = (
             f"{len(pairs)} vintage pair(s) under shadow, {months} complete paired month(s). "

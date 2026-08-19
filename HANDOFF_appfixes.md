@@ -5,6 +5,2393 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 40 — 2026-08-18 — `PT-WRITER`: the seed door
+
+**THE WRITE DOOR WAS NEVER THE BLOCKER, AND THE SERVICE SAID SO ITSELF WITHIN HOURS OF BEING
+POINTED AT IT.** Session 39 shipped `POST /admin/track-row?append=1`; Don's PR #2 (`cb8c86e`)
+repointed `track-row.yml` at it the same day; it ran at 20:31 UTC, authenticated, reached the
+door, and returned **HTTP 422**:
+
+```json
+{"ok":false,"reason":"the book file /app/data/valquo_track.json is missing or unreadable","row":null}
+```
+
+That is `index_mark.load_book` working exactly as written, and the refusal note was pushed
+exactly as designed (`121f5c3`). **`data/` is gitignored, so the book has never shipped with any
+deploy — it exists only on Don's machine. The service has nothing to mark.** This session builds
+the door that fixes that.
+
+**Zero trials** — a door and its enforcement, no hypothesis and no verdict against a bar, so
+equity `N` stays **231** and no research-log row is written. **No row was written to the real
+track**: every test runs on `state_isolation` temp paths with an injected price tape, and `data/`
+was never touched.
+
+---
+
+## 0. Two things I checked before designing, and one of them removed a design
+
+**(a) `/admin/ingest-index-track` already exists and CANNOT do this.** It looked like the seed
+door half-built. It is not: it writes into the **Store** (`Store().set_meta(index_track.STORE_KEY,
+...)`), and `index_track.from_store` is a display-only fallback for *"deploys where the tracker
+files are not on disk"*. The contract's own reader — `index_track.load()` — and both halves of
+`index_mark` (`load_book`, `append_row`) read and write **FILES**. So that endpoint cannot unblock
+`PT-WRITER`, and a seed built on it would have installed a track the writer could not see.
+
+**A finding that falls out of it and is worth its own line: the live service may already be
+DISPLAYING a track from the Store while the file-backed contract series is empty.** Two
+representations of one track on one service, only one of them the contract's. Not touched here —
+naming it, because "the site shows a track" is not evidence the bound series exists.
+
+**(b) The real book carries no `effective_max_weight`.** `conformance` needs one. Measured on
+Don's actual `valquo_track.json`: it holds `benchmark`, `inception_date`, `positions`,
+`scan_date` and nothing else, and each position is `{ticker, weight}`. So the cap is **derived**
+from the observed maximum weight, and the derivation is stated in the code rather than assumed:
+a cap is an upper bound, so an observed max at or under 8% cannot have been produced by a cap
+that failed to bind at 8%. The one case where the two diverge — a book of 13 or fewer names whose
+score weights happen to peak below the relaxed cap — misses the 50-name floor by a wide margin,
+so `conforms` is unmoved. A recorded value is **preferred** if the file ever gains one, so this
+degrades to reading the truth rather than inferring it.
+
+---
+
+## 1. What shipped
+
+`POST /admin/track-seed`, `X-Admin-Token`, body `{"book": {...}, "history": "csv text"}`.
+The rules live in **`index_mark.seed`**, not the handler — the same reason §7.2b gives, and the
+handler is pinned to contain no `open(`, `csv.`, `os.replace`, `conformance(` or `json.dumps`.
+
+`python -m scripts.seed_track` is its command line: dry run by default, `--send` to do it,
+`SITE_BASE_URL` (or `PUBLIC_BASE_URL`, which is the name already in this project's `.env`) and
+`ADMIN_TOKEN` from `.env`. **The token is never printed, on any path, including the failure
+paths** — asserted, not intended.
+
+---
+
+## 2. The three rules, and why each one is there
+
+1. **The book must BE the Index** — `valquo_index.conformance`, the check `PT-SPLIT` built and
+   `paper_track.seed_book` gates on. 50 names, cap binding. A refusal carries `why_not` verbatim
+   and **writes nothing at all**, which is the load-bearing half: a refusal must not leave a
+   half-installed service behind.
+
+2. **An upload may EXTEND and may never rewrite.** Two checks, reported separately on purpose.
+   The **record** check compares the upload's first N rows to the disk's cell for cell and names
+   the row, the column and both values on a mismatch — because a caller told only "refused" will
+   reach for a flag to turn the refusal off. The **byte** check requires the disk bytes to be an
+   exact prefix of the canonicalised upload, in the same terms `track-row.yml`'s `cmp` uses. When
+   the first passes and the second fails, the reason names the encoding difference rather than
+   reading as a mystery.
+
+   **BOTH SIDES GO THROUGH ONE SERIALISER**, which is what makes the byte rule immune to the
+   caller's line endings: an upload sent with bare LF and one sent with CRLF canonicalise
+   identically, so a refusal means a recorded value changed. **Verified against reality rather
+   than asserted: the canonical bytes are BYTE-IDENTICAL to Don's real
+   `valquo_track_history.csv`**, so a re-seed will never need the encoding escape hatch.
+
+3. **A book may not be seeded without a history to stand on** — the trap that would have lost the
+   recorded days **invisibly**. Seed a book onto an empty series and the next append starts a
+   fresh series at today's date; `day_n` is computed from the inception date, so the new first row
+   carries a plausible day number and nothing raises. The four recorded days would simply not be
+   in the copy the seed had just declared the record.
+
+**AND A FOURTH THAT IS ABOUT THE SEQUENCE RATHER THAN THE SEED: the uploaded header must be the
+one `append_row` would compute.** `append_only` REFUSES a header it would have to widen (widening
+rewrites every line and cannot preserve the byte prefix), so seeding a differently-shaped header
+installs a series the unattended writer can never append to — succeeding, looking healthy, and
+producing a service where every subsequent write is refused with the reason pointing at the
+writer. **The end-to-end sequence is the deliverable, not the seed**, and one test runs the seed
+and then the write door against one service and asserts the second succeeds.
+
+---
+
+## 3. Status codes, and the write ordering
+
+**201** the copy changed · **200** nothing changed, it already held exactly this · **409** the
+upload disagrees with the record · **422** not the Index / no history to stand on / malformed ·
+**400** no book · **500** unexpected only. 4xx not 5xx for §7.2b's reason: nothing happened, and
+retrying the same bytes will not change that.
+
+**200 IS A FACT, NOT AN ASSUMPTION.** Both writes are skipped when the bytes already match, so a
+retrying caller touches neither file — asserted on the book's mtime, not merely on its contents.
+
+**THE HISTORY IS WRITTEN FIRST, AND THE TWO ORDERINGS ARE NOT SYMMETRIC.** History-then-book
+leaves, on a failed book write, a service that refuses at `load_book` — exactly today's state, no
+harm done. Book-then-history would leave a service holding a book and no series, which is the one
+state rule 3 exists to prevent. Both go through a temp file and `os.replace`, like `append_row`.
+
+---
+
+## 4. Two defects in existing guards, both the same family, both found by running things
+
+**(a) A STALE-WINDOW GUARD, AND IT IS THE `src[i:i+2000]` DEFECT IN A NEW SHAPE.**
+`test_the_module_never_writes_unless_asked` sliced `contract_row` up to `def append_row` — the
+same thing, right up until `seed` and its three helpers were added **between** the two, at which
+point the window covered four functions that write files by design and **the guard failed against
+a correct tree**. Session 39 found the identical class on the write door (a fixed 2,000-character
+window that had drifted off the delegation call). *A window anchored on a distant landmark
+measures whatever drifts into it.* Now bounded by the next top-level definition, plus a
+non-vacuity test asserting the window actually contains `contract_row`'s body.
+
+**(b) MY OWN SMOKE TEST REFUSED FOR THE WRONG REASON.** The rewrite case ran against a file an
+earlier case had already extended, so it was refused as a **truncation** and I would have recorded
+"the rewrite rule works" on the strength of a truncation check. *A test that fails for a reason
+other than the one it names is not evidence about the thing it names* — session 39's lesson, hit
+again the next day. Fixed to compare a same-length upload; the assertion now pins the reason text,
+not just the refusal.
+
+**(c) I SILENTLY DELETED AN EXISTING TEST BY NAMING MINE THE SAME THING.** The seed door's
+byte-prefix positive control was written as `test_the_byte_prefix_check_is_not_vacuous` — which
+is what the WRITE door's control is called. Python rebinds silently, `globals()` keeps one entry,
+and the older control simply stopped running the moment the seed tests landed. Nothing raised;
+the suite was green throughout. **Caught by counting `def test_` in the file (62) against what
+the runner reported (61)** — a one-off hand comparison, which is not a thing to rely on twice, so
+`test_no_test_in_this_file_is_shadowed_by_a_duplicate_name` now runs that census as a test and
+was checked for vacuity by reintroducing the collision and watching the suite go red.
+**A test deleted by a name collision is invisible in a green run**, and this file is now 63
+definitions and 63 reachable tests rather than 62 and 61.
+
+**(d) `prefix_verified` REPORTED A CHECK THAT HAD NOT RUN.** On a first seed there is nothing
+on disk to be a prefix of, and the payload said `true` anyway — a green light for a comparison
+that did not happen. It is `None` there now and `True` only when a prefix was actually compared,
+which is the idiom `contract_track.recording_ok` already uses (None before its vintage opens,
+rather than a cheerful true). Pinned by its own test. Nobody had asked; it was caught reading
+the field back while writing the handoff.
+
+**(e) TWO DEFECTS IN `scripts/seed_track.py`'s OUTPUT, in my own escaping.** `\\n` printed
+literally, then a repair turned five of them into backslash-newline **line continuations** —
+which parse, and emit nothing. Caught by running the command rather than by reading it. Em dashes
+also mojibake on the Windows console (cp1252), so everything this script prints is ASCII.
+
+---
+
+## 5. Verified by execution
+
+* **`tests/test_index_mark.py`: 64 passed** — 59 after the new tests, 61 after the two the
+  mutation harness demanded, 63 after the shadowed control was restored and the census added,
+  64 with the `prefix_verified` vacuity pin. Was 44 at the end of session 39, and **64
+  definitions against 64 reachable tests**, which is now asserted rather than counted by hand.
+* **Full gate: 112/112 suites, exit 0.**
+* **Mutations: 14 of 14 caught, 0 missed** on the seed door, all anchors matching exactly once,
+  baseline green, `-B` + `PYTHONDONTWRITEBYTECODE=1` + a `__pycache__` purge, restore in
+  `finally`. **The write door's 10 were re-run and are still 10 of 10** (one anchor needed
+  widening: `if not res.get("ok"):` is no longer unique to one handler).
+* **THE MUTATION HARNESS FOUND TWO REAL COVERAGE GAPS, which is the whole reason to run it.**
+  Deleting the byte-prefix check and deleting the disk-header check both left the suite **green**:
+  every fixture I had written was caught by an earlier branch, so neither was ever reached. Two
+  tests were added to reach them — a file holding the right records in the wrong bytes, and an
+  upload dropping a column the recorded file had gained. Without the harness those two rules would
+  have shipped tested-in-name-only.
+* **A LIVE HTTP RUN of the real script against a real local instance** — not the Flask test
+  client, which cannot cover urllib, the header, `.env` or the exit codes. Seven scenarios: dry
+  run sends nothing (exit 0), install (201, exit 0), re-send (200, exit 0), extend (201, exit 0),
+  rewrite (409, exit 2, file unchanged), non-Index book (422, exit 2), unreachable host (exit 3).
+  **The token appears in no output on any of them.**
+* **THE REAL BOOK AND THE REAL HISTORY** were run through `seed()` into temp paths: 86 positions,
+  conformance `conforms: true` at an effective cap of 0.02315, 4 rows installed, reading back
+  through `index_track.load()` as 4 rows ending 2026-08-17, and a re-seed as a clean no-op.
+
+---
+
+## 6. Not done, named so it is not mistaken for done
+
+* **`PT-WRITER` IS NOT CLOSED.** Nothing has been seeded. Running `scripts/seed_track.py --send`
+  against the live service is an irreversible write to the contract-bound record and is **Don's**,
+  not mine. The row closes when a row is actually written.
+* **`.github/` UNTOUCHED**, as instructed. `track-row.yml` is already correct — it needs no change
+  once the seed lands; it will simply stop getting 422.
+* **The Store-vs-files divergence in §0(a) is named, not resolved.**
+* **The three-source disagreement on 2026-08-13 is not adjudicated** — the recorded row reads
+  `4.25 / 4.88 / -0.62` and §7.2a's re-derivation gave `4.3232 / 4.8794 / -0.5562`. The seed
+  installs **what is recorded**, verbatim, and does not arbitrate. Carried from session 39.
+* **The ~0.02pp seam from §7.2a stands** (book leg +0.0201pp; benchmark leg exact).
+* Carried: rotate `DEMO_ACCESS_TOKEN`; optionally set `ADMIN_WRITE_TOKEN`; `TRUSTED_PROXY_HOPS`
+  wants one production reading of `/admin/proxy-shape`; `/admin/*` sits outside the limiter block;
+  commit `41d7b12` is still stranded unpushed on the shared checkout's local `main`.
+
+---
+
+## 7. For Don — one command
+
+```
+python -m scripts.seed_track            # dry run: shows what would be sent, sends nothing
+python -m scripts.seed_track --send     # installs it
+```
+
+Then trigger the PT-WRITER Action from the Actions tab rather than waiting for 22:12 UTC. It
+should return **201** and write a row, instead of 422.
+
+**Read this before running it: after the seed, the SERVICE's copy is the record.** Your two local
+files become a backup, nothing syncs them back, and the weekly `track-backup` Action archives the
+service's copy from then on. Re-running the seeder later is safe — it refuses anything that would
+rewrite or truncate what the service has recorded, and answers 200 without writing if nothing has
+changed.
+
+# Session 39 — 2026-08-18 — `PT-WRITER`: the bound series gets a write door that cannot rewrite it
+
+**Zero trials.** A door and its enforcement — no hypothesis, no threshold, no verdict against a
+bar. Equity `N` stays **231**, options 294, infra 15, and no research-log row is written.
+`BACKTEST_RESULTS.json` needs no re-run and no published claim moves.
+
+**`PT-WRITER` STAYS `BLOCKED`, DELIBERATELY.** This supplies the door; nothing calls it yet.
+Pointing `track-row.yml` at it is a `.github/` change — Don's, and `MA11`'s land policy refuses
+an agent branch that touches it — and the row should not close until a row is actually written.
+
+---
+
+## 0. Two premises in the task were wrong, and the second one is why this work is necessary
+
+**(1) `GET /admin/track-row` WAS NOT READ-ONLY. It already wrote.** The task describes the
+existing HTTP door as *"READ-ONLY — returns the computed row, appends nothing"*. Measured: the
+route has declared `methods=["GET", "POST"]` since it landed, and `?append=1` called
+`index_mark.append_row` on **either** verb. So the third door already half-existed. What was
+missing was not the write — it was every rule the contract puts on the write, and a status code
+the caller could branch on.
+
+**(2) THE WORKFLOW HALF IS NOT "COMING AFTER THIS LANDS". IT LANDED TWO DAYS AGO, AND IT CANNOT
+EVER PRODUCE A ROW.** `.github/workflows/track-row.yml` landed 2026-08-16 (`0e0e86d`, PR #1) and
+calls the **in-repo CLI**, `python -m scripts.track_row --append`, then commits `data/`. On a
+fresh `actions/checkout` that is unreachable by construction:
+
+| | measured |
+|---|---|
+| `.gitignore` | excludes `/data/` with **no negation** |
+| `git ls-tree -r origin/main -- data/` | **zero paths** |
+| consequence 1 | `data/valquo_track.json` (the book) does not exist → `contract_row` refuses at `load_book` before reaching a vendor |
+| consequence 2 | `git add data/valquo_track_history.csv` would refuse an ignored path anyway |
+
+**Its only reachable outcome is the refusal branch** — a nightly pushed note about a missing
+book, which is not the failure anyone would go looking for. This was already measured and
+flagged by the edge lane in `HANDOFF_STATUS.md` (*"Flagged, not fixed — `.github/` is outside
+this lane"*), and its own recommendation names the fix: **the `/admin/track-row?append=1` off-box
+door**, because **the Render service is the one place that has both the book and the history**,
+on its persistent disk. That is what this session builds. The `data/`-is-gitignored defect in the
+landed workflow is **not repaired here** — it is a `.github/` edit — but it is now answerable
+without one.
+
+---
+
+## 1. What shipped
+
+| file | change |
+|---|---|
+| `valuation/screener/index_mark.py` | `append_row(..., append_only=True)` — the contract's write rules, in the library; `typed_row()` |
+| `valuation/saas/app_saas.py` | `POST /admin/track-row?append=1` is the write door; GET is read-only; four distinct status codes |
+| `tests/test_index_mark.py` | 44 tests (was 31): 13 new, 2 existing repointed |
+| `PAPER_TRACK_CONTRACT.md` | §7.2a doors table corrected; new **§7.2b** for the write door |
+
+**THE RULES LIVE IN THE LIBRARY, NOT IN THE HANDLER, AND THAT IS THE LOAD-BEARING CHOICE.**
+`append_only=True` is one implementation both doors obey. Had the endpoint enforced them itself,
+the CLI would have been a second writer with its own idea of the contract — the B7 split this
+project keeps paying for — and the handler now does **no arithmetic and no file IO at all**,
+pinned by a test that forbids `open(`, `csv.` and `os.replace` anywhere in it.
+
+---
+
+## 2. The four rules, and how each is made unable to be violated silently
+
+**INTRADAY MARKS ARE REFUSED, AND THE REFUSAL IS NOT A PARAMETER.** `contract_row`'s close
+refusal already existed; what is new is that this door offers **no way to switch it off** — not
+`?refuse_before_close=0`, not `?allow_open_session=1`, not `?force=1`. All four are asserted to
+return 422 with nothing written. This matters because the recorded **day-1 row appears to carry
+an intraday mark under a closing-price column** (§7.2a's reproduction note: its benchmark leg
+misses by 0.0297pp in the direction an intraday quote would), so it is the one failure in this
+mechanism's history that actually happened.
+
+**APPEND-ONLY.** A date at or before the last recorded row is refused with **409** and the file
+is asserted byte-identical afterwards. Filling a gap stays a deliberate human act under the
+contract's §3 same-week clause, on the CLI's `--date`. The reason to split them: an unattended
+writer that can reach backwards can rewrite history on a retry, and nothing in the record
+afterwards can tell that apart from a correction.
+
+**IDEMPOTENT PER DAY, AND THE NO-OP RETURNS THE ROW ON DISK.** A second POST for a recorded date
+returns **200**, `wrote: false`, and the row **already in the file** — never the freshly computed
+one. Those genuinely differ: a vendor revises, the yfinance fallback answers where Stooq did not,
+and a retry an hour later can compute a different close for a day already written. Returning the
+recomputed row would report a number the bound file does not contain — the same class of failure
+as writing it, minus the evidence. **This is the case the scheduler hits most**, because
+`track-row.yml` has two crons by design (the backup exists precisely because GitHub drops
+scheduled runs), so both firing on one day is the normal path and not an error path.
+
+**THE ORDER OF THOSE TWO CHECKS IS LOAD-BEARING AND IS COMMENTED AS SUCH.** Today's date is not
+strictly greater than itself, so if the append-only comparison ran first, the second POST would
+be **refused as a backfill** rather than answered as a no-op — turning the most common outcome
+into a 409 and a pushed failure note every single day the backup cron fires.
+
+**THE BYTE PREFIX IS PRESERVED.** Asserted in the same terms the Action checks it in — after a
+write, the file's previous **bytes** are still an exact prefix. `track-row.yml` compares
+`head -n N` with `cmp`; a guarantee phrased more weakly ("the values are preserved") would be
+untestable against that check. It carries **a positive control**: a default-mode write of an
+earlier date genuinely breaks the prefix, so `after.startswith(before)` is not passing for any
+implementation that merely appends — or for one that had quietly stopped writing at all.
+
+---
+
+## 3. The status codes, and why 4xx is not a reversal of §7.2a's rule
+
+```
+201  wrote                              → the Action commits a row
+200  already recorded (no-op)           → the Action does nothing
+409  refused: append-only               → loud; something is wrong with the caller
+422  refused: the mechanism declined    → the ordinary evening case; note, no row
+500  an unexpected exception, and only that
+```
+
+The original handler returned refusals as **200**, with the stated reason *"a 5xx would tell a
+scheduler to retry something that is not broken."* **That reason is right about 5xx and does not
+require 200.** A 4xx says "this did not happen, and retrying unchanged will not change that" —
+exactly the signal wanted — while a 200 for a refusal makes *wrote* and *refused*
+indistinguishable from the status line alone, which is the one thing the caller needs.
+
+**GET KEEPS ITS 200 ON A REFUSAL, and the asymmetry is principled rather than legacy:** a GET
+asks *what would today's row be*, and "no row, the session has not closed" is a complete and
+successful answer to that question. A POST asks for a write and must report whether the write
+happened. The existing `test_a_refusal_is_a_200_and_not_a_500` is therefore **untouched and still
+passes**.
+
+---
+
+## 4. A GET can no longer write, and that is a deliberate removal
+
+`GET ?append=1` now returns **405** and touches nothing. A side-effecting GET on the one dataset
+here that cannot be re-derived is reachable by a retry, a prefetch, a proxy or a pasted link, and
+none of those is a decision to record a day. Two doors that both write would also have meant
+enforcing the contract twice or leaving one as a bypass.
+
+**IT IS A BREAKING CHANGE TO A DOCUMENTED DOOR, so it is stated rather than absorbed.** §7.2a's
+table and `HANDOFF_pt_writer_2026-08-14.md` both name `GET ...?append=1`. Measured before
+removing: **nothing in the repository calls it** — the landed workflow uses the CLI, and no
+`.yml`, `.sh`, `.bat` or `.py` references it. The contract's table is corrected in the same
+change.
+
+---
+
+## 5. Two existing tests were repointed, and one of them was one prose edit from vacuous
+
+**`test_the_LIVE_endpoint_row_equals_what_index_track_reads_back`** used `GET ...&append=1`. Its
+verb moved to `POST` and its expected status to 201; **every assertion is kept** and one added
+(`wrote is True`). The round trip it exists to pin — the emitted row reading back through
+`index_track.load()` unchanged — is now additionally pinned on the POST path in its own test,
+because that is the path that will actually write the series every weekday.
+
+**`test_the_endpoint_returns_exactly_what_the_module_computes` READ `src[i:i + 2000]`, AND THE
+HANDLER'S DOCSTRING IS NOW LONGER THAN THAT.** Measured: the real handler is **5,921** characters
+and `index_mark.contract_row` **does not appear in its first 2,000**. So a delegation check would
+have become a window over the **docstring alone** — passing vacuously while reporting that the
+endpoint delegates. It is now bounded by the next `@app.route`, so the window tracks the function
+instead of a guess about its length, and it gained two assertions (no file IO in the handler;
+`append_only=True` is actually passed). **Strictly stronger, not adjusted to fit.**
+
+---
+
+## 6. Three defects of mine, all found by running things
+
+**(a) THE COMMENT-VERSUS-CODE TRAP, FOR THE FOURTH TIME IN THIS PROJECT'S RECORD.** The
+close-refusal test's source half swept for the string `refuse_before_close` outside the
+docstring — and fired on the handler's own **comment explaining why the refusal is not a
+parameter**. A correct tree, failed by a guard reading prose about code. It now walks the
+**syntax tree**: no `ast.Call` in the handler may pass `refuse_before_close` as a keyword, and no
+string constant may be `refuse_before_close` or `allow_open_session`. Comments are not in an AST
+at all, so the class is closed rather than dodged. (Prior instances: `MA5`'s source sweep,
+`MA49(c)`'s fixture, `MA23`'s stale-path guard.)
+
+**(b) A MUTATION TEST THAT WOULD HAVE PASSED FOR THE WRONG REASON.** The "backfill" case used
+`date=2026-08-05`, which the test tape had no prices for — so it refused at the **benchmark**
+(422) and never reached the append-only rule (409) it was written to exercise. It read as a
+status-code mismatch; it was a fixture gap. The tape gained the date. **A test that fails for a
+reason other than the one it names is not evidence about the thing it names.**
+
+**(c) ONE PAYLOAD KEY CHANGED TYPE DEPENDING ON WHICH OUTCOME THE CALLER GOT, AND NO TEST WAS
+GOING TO FIND IT.** Found by inspecting the running endpoint rather than by a failure: the
+**201** body carried `valquo_pct: 4.0` and the **200** body carried `"4.0"` for the same
+recorded day, because the no-op path returns a row that has been through a CSV and is therefore
+all strings. A consumer that does arithmetic on that field works on the day it writes and breaks
+on the day it retries — the rarer path, and so the later discovery. `index_mark.typed_row()` now
+casts the recorded columns back to their natural types, and **an unreadable cell is kept
+verbatim rather than nulled**: the whole reason to return the row on disk is to report what is
+actually recorded, and replacing a corrupt cell with `None` would hide a bad record behind a
+well-typed payload — the same failure as normalising a ragged file. Pinned from both sides, and
+both mutations are caught.
+
+**(d) I TRUNCATED THE TEST FILE TO ZERO BYTES MID-SESSION, AND THE MECHANISM IS WORTH KNOWING.**
+`io.open(path, "w", newline="\\n")` — a double-escaped newline argument — raises `ValueError:
+illegal newline value`. **It raises from the TextIOWrapper constructor, which runs *after* the
+underlying file has already been opened in `"w"` mode and truncated.** So the failed call
+destroyed 702 lines while reporting only a bad argument. Recovered with `git checkout --` and
+re-applied; the file had not been committed, and the loss was visible immediately because
+`wc -l` read 0. **A "w" open truncates before it validates.**
+
+---
+
+## 7. Verified by execution, not by reading
+
+| check | result |
+|---|---|
+| `tests/test_index_mark.py` | **44 passed** (31 before) |
+| mutation harness, 10 mutations | **10 caught, 0 missed** |
+| anchors validated before mutating | 10 of 10 matched exactly once |
+| baseline green before mutating | yes |
+| tree restored after mutating | verified by grep + re-run |
+
+The mutations are the ones that matter, not incidental edits: dropping `append_only=True`;
+re-opening the GET write; collapsing 201→200; collapsing 409→422; making a refusal a 200;
+removing the duplicate-date no-op; removing the backfill refusal; returning the **recomputed**
+row from the no-op instead of the one on disk; dropping the type cast; and nulling an unreadable
+cell instead of reporting it. **All ten caught.**
+
+Bytecode note, carried from session 38: the harness runs `python -B` with
+`PYTHONDONTWRITEBYTECODE=1` and purges every `__pycache__` between mutations, because CPython
+validates a cached `.pyc` on `(mtime, size)` and a **same-length** edit inside one mtime tick is
+invisible — the suite then runs against stale bytecode and reports a false MISS.
+
+---
+
+## 8. Not done, named so it is not mistaken for done
+
+* **`PT-WRITER` IS NOT CLOSED.** Nothing calls the new door. The row closes when a row is written.
+* **`.github/` IS UNTOUCHED**, as instructed. `track-row.yml` still calls the CLI and still cannot
+  produce a row on a runner (§0). Repointing it at `POST /admin/track-row?append=1` with the
+  admin token is Don's PR.
+* **THE `data/`-IS-GITIGNORED DEFECT IN THE LANDED WORKFLOW IS NOT REPAIRED** — only made
+  answerable. Whichever way it is resolved (this door, or restoring `data/` from `data_export/`)
+  is a `.github/` decision.
+* **THE ~0.02pp SEAM STANDS.** §7.2a measured that this mechanism reproduces the recorded
+  benchmark leg exactly and the **book** leg to +0.0201pp. Nothing here changes that, and a series
+  that switches to this door still acquires the seam. It is immaterial against the contract's own
+  σ of 3.9847pp per month; it is disclosed, not rounded away.
+* **NO ROW WAS WRITTEN TO THE REAL TRACK.** Every test runs against `state_isolation`'s temp
+  paths and an injected price tape. `data/` was not touched.
+* **THE THREE-SOURCE DISAGREEMENT ON 2026-08-13 IS NOT ADJUDICATED** (local `4.25/4.88/-0.62` at
+  2dp, the §7.2a re-derivation `4.3232/4.8794/-0.5562`, and the last authoritative remote pull
+  which ends 2026-08-06). Flagged by the edge lane; this lane wrote nothing and has no standing
+  to decide which is the record.
+
+---
+
+## 9. For Don
+
+One decision, and it is the `.github/` half: point `track-row.yml` at the service instead of the
+CLI. The call is
+
+    POST https://<service>/admin/track-row?append=1     header: X-Admin-Token: <ADMIN_TOKEN>
+
+and the job branches on the status alone — **201** commit nothing (the service already recorded
+it, on its own disk), **200** no-op, **409/422** write the failure note, **5xx** retry. Note that
+this removes the `git commit data/` step entirely, which is what makes the gitignore problem go
+away rather than be worked around.
+
+**Still open from earlier sessions:** rotate `DEMO_ACCESS_TOKEN`; optionally set
+`ADMIN_WRITE_TOKEN`; `TRUSTED_PROXY_HOPS` wants one production reading of `/admin/proxy-shape`;
+`/admin/*` sits outside the limiter block; commit `41d7b12` is still stranded unpushed on the
+shared checkout's local `main`.
+
+---
+
+# Session 38 — 2026-08-16 — `MA28-CARD`: the accounting red-flag crash statistic reaches a reader, as a disclosure and not a verdict
+
+**Zero trials.** A display of an already-measured statistic — no hypothesis, no threshold, no
+verdict against a bar. Equity `N` stays **231** and no research-log row is written. The register
+(`PREREG_ma28_accounting_riskcard.md`, `6ff578b`) already charged its trial; this ships its
+deliverable and measures nothing.
+
+The register's own close-out says so in as many words: *"NOT DONE, named so it is not mistaken
+for done: THE CARD IS NOT BUILT. The register's deliverable is the sentence; shipping a surface
+is a product change and belongs to the app lane, with the `BANNED` phrase tuple asserted against
+the RENDERED payload rather than the source."* This is that.
+
+## 0. What shipped
+
+`valuation/web/accounting_risk.py` (new) owns the copy and the figures; `/api/hotstocks` serves
+it as `accounting_risk`; `renderHot` renders it as a note under the hot list. It is a
+**disclosure** — it reads the rows, annotates none, reorders none, drops none, and a test fails
+if that stops being true.
+
+The claim, in the exact shape the register permits:
+
+> On an 18-year panel of 2,531 companies, names tripping at least two of three published
+> accounting stress tests went on to lose more than half their value over the next quarter
+> **2.66%** of the time, against **0.87%** for the names that did not trip them — a ratio of
+> **3.04x**. It held separately in both halves of the period: **3.42x** early and **2.93x** late.
+
+## 1. The ratio and both rates, never the difference — and it is pinned twice
+
+This is the register's sharpest instruction and it is a measured rule, not a style preference.
+The base rate is era-dependent: **0.34% early against 1.36% late**, a four-fold move spanning
+COVID 2020Q1 and 2022. So the absolute gap swings **0.86pp → 2.39pp** across the halves while the
+ratio barely moves (3.42 → 2.93). The flag scales the market's own crash frequency
+**multiplicatively**; it does not add a constant. A card saying "1.6 percentage points more
+likely" would quote an era average that describes neither half.
+
+Two guards, and they fail in different ways:
+
+* **The module cannot subtract the two rates.** Asserted against the **syntax tree**, not by
+  grep, so a subtraction cannot hide behind a helper name or whitespace — and so that a comment
+  *about* subtraction does not fire it. The guard carries its own positive control: the same walk
+  over a snippet that does subtract them must fire, or it proves nothing.
+* **The rendered text must carry all three figures**, and `BANNED` carries the forbidden
+  arithmetic in words ("percentage points more likely", "points more likely").
+
+**Only the four counts per window are pinned.** Every rate and every ratio is derived from them,
+and a test asserts the derived values reproduce the published artifact's own `rate_flagged`,
+`rate_kept` and `ratio` — max |Δ| **0.0** on all three windows. A second test refuses any rate
+literal in the module's code (docstrings stripped, so the prose may still quote "2.66%" to a
+reader while the arithmetic cannot). After four separate stale-figure corrections in this
+project's record, a rate typed beside its own counts is two copies of one fact.
+
+## 2. Coverage first — and "not scored is not clean" turns out to have a number
+
+Per the standing coverage rule, stated on the surface before the result: Beneish computable on
+**68.6%** of panel rows, Altman **76.7%**, external financing **94.5%**, and **22.0%** of rows
+carry fewer than two computable inputs and cannot be flagged at all. Those rows sit in the
+base-rate group by construction, which understates rather than flatters the flag.
+
+The brief's rule — *a name that cannot be scored must render as "not scored", never as "clean"* —
+is usually argued from principle. Here it has a measurement behind it, taken from the register's
+own `C7` block:
+
+| rows | share | crash rate |
+|---|---|---|
+| 0 inputs computable | 3,191 | 2.80% | **1.75%** |
+| 1 input computable | 21,888 | 19.21% | 0.68% |
+| scored and NOT flagged | 107,403 | — | 0.87% |
+
+**The sliver where nothing at all could be computed crashed at 2.01x the rate of the names that
+were scored and came back unflagged.** Absence of a flag is not absence of risk, and on the
+thinnest-data rows it ran the wrong way. That ratio is derived, not typed, and it ships inside
+the sentence.
+
+## 3. THE PREMISE FINDING: not one of the three flags is computable on the live path, and all three fail on the same field
+
+This is the substantive discovery of the session and it decided the shape of the card.
+
+Measured, not assumed. The required-input names are read out of the **shipped formula source**
+(`scripts/s10_accounting_veto.py`) by AST; the available names are read out of the live metrics
+contract by actually building one (`providers.company_to_metrics(CompanyData(...))`).
+
+* **17 fields required. 1 present** (`revenue`). Alias-aware — `ebit`→`operating_income`,
+  `marketcap`→`market_cap`, `netinc`→`net_income`, `cor` derivable from gross profit — it is 5,
+  and the 12 genuinely absent are `assets`, `liabilities`, `workingcapital`, `retearn`,
+  `receivables`, `assetsc`, `ppnenet`, `depamor`, `sgna`, `ncfo`, `ncfcommon`, `ncfdebt`: every
+  balance-sheet and cash-flow-statement line, on every live source. The broker feed's own
+  `BROKER_FIELDS` list does not carry them either.
+* **The single decisive fact, which makes the gate one checkable thing rather than a 17-item
+  list to eyeball: all three flags need `assets`, and no live source has total assets.** Beneish
+  needs it, Altman needs it in four of its five terms, external financing is a ratio to it.
+
+There is a **second, independent** reason, and it survives any amount of new data: **external
+financing flags the top decile *within each date***. It is a cross-sectional rank, so a single
+name has no flag until the whole cross-section is scored. Even complete inputs would require
+scoring the **list**, not the name.
+
+### 3a. So the module deliberately contains no flag arithmetic, and that is a decision not an omission
+
+Writing Beneish and Altman into `valuation/web/` would put a **second copy** of both formulas in
+the tree — `scripts/s10_accounting_veto.py` is the one definition and `scripts/ma28_riskcard.py`
+imports it rather than retyping it — and that copy **could not execute on a single live row**. A
+duplicate definition of a formula that can never run is audit **B7**'s defect class and the
+cannot-fire-guard class at once.
+
+What ships instead is a **capability gate that is measured per request**. `missing_inputs(row)`
+reads the row it is handed, so `names_scored: 0` is re-derived from live data on every call
+rather than frozen in a comment.
+
+### 3b. And a tripwire, so this cannot quietly become false
+
+`test_the_day_the_inputs_arrive_this_card_owes_a_scorer` fails the moment `names_scored` stops
+being zero — i.e. the day a lane adds total assets to the metrics contract — with a message
+saying what is owed: build the per-name half against the one formula definition, and remember
+external financing scores a list. Today the card says "none of these names is scored on this";
+that sentence becomes false silently, and nothing else in the product would notice.
+
+`track_meter`'s not-yet-due-versus-due-and-missing distinction, applied to a product surface. It
+is paired with a **positive control** — a synthetic row carrying all 17 inputs must come back
+scoreable — because without it both the gate test and the tripwire would pass on `return False`.
+
+## 4. What the card may not say, and why each family is there
+
+`BANNED` is asserted against the **rendered payload**, not this file, on `dip_posture`'s design
+and V4's lesson that rendering is where copy leaks.
+
+* **FRAUD** — Beneish's M-score is an earnings-*manipulation* index in the literature, so this is
+  the family a copy edit reaches for naturally, and the one that would put an accusation about a
+  named real company on a public page. A published statistic crossing a published threshold is
+  not evidence anyone did anything wrong, and the card says so in as many words.
+* **RETURNS** — the register gated this on the crash rate and **explicitly not** on alpha
+  (`top_decile_alpha` is computed nowhere in its arm path, pinned there by an AST test), and
+  `S10-ACCT` **rejected** the same flag as a portfolio screen. `S10` had already measured why
+  that leg can never pass: this book's maximum drawdown is one market-wide quarter, COVID 2020Q1
+  at trough index 44 of 69, which no name-level flag can move. The card renders that scope limit.
+* **ADVICE** — this product does not give it anywhere, and a risk card is the surface most likely
+  to slip.
+* **PREDICTION / PER-NAME PROBABILITY** — V3's rule. A percentage on a page about named companies
+  is most naturally misread as one company's odds.
+
+**It caught the module's own first draft.** `why_the_ratio` explained the forbidden form by
+quoting it — *"a single 'so many points more likely' figure would be an average of two eras"* —
+which contains the banned substring verbatim. The guard was not weakened; the copy was rewritten.
+That is `MA5`'s shape, where a source sweep fired on its own documentation twice.
+
+## 5. The size control is on the surface, because it is the finding and it is a reader's first objection
+
+`C4` was registered as the likely killer — Altman Z contains market cap directly
+(`X4 = marketcap / liabilities`), so the flag is *mechanically* size-linked, and `U7`, `S10` and
+`V6-B` were each decided by exactly that failure mode. Flagged names **are** smaller (median cap
+$2.69bn against $5.19bn). The effect nonetheless **strengthens monotonically with size**:
+**2.01x** in the smallest quintile to **5.17x** in the largest, 5 of 5 clearing.
+
+The card renders both extremes and the mechanism: large companies almost never halve in a
+quarter — unless their accounts are stressed, in which case they still do. It is the mirror image
+of `V6-B` M1's gradient, whose standing caveat is *"the claim is strongest exactly where the
+product is not"*. **This one is strongest exactly where the product is.**
+
+## 6. Three defects in my own work, and one in my own harness — all found by running things
+
+1. **The BANNED guard fired on the module's first draft** — §4 above.
+2. **The paraphrase sweep fired on my own JS comment.** The block comment above the renderer
+   opens *"MA28-CARD — accounting stress and the risk of a very bad quarter"*, so the test
+   asserting that `app.js` does not retype served copy failed against a tree that retypes
+   nothing. **Comment-versus-code, for the fourth time in this project's record** (`MA5`'s source
+   sweep, `MA49(c)`'s fixture, last session's boundary test, this). The sweep now strips `//` and
+   `/* */` before reading, with a vacuity check that the strip keeps every read it searches for.
+
+   **And the fix's first cut was itself wrong in a more interesting way.** The sweep used a
+   hand-typed phrase list, and `"ratio of"` fired on a **pre-existing** sentence forty lines away
+   about currency mismatch — a false positive on innocent code. A typed list also only ever
+   covers the copy that existed when it was typed. It is now **derived**: no 30-character stretch
+   of any served sentence may appear in the renderer's code. Long enough that ordinary English
+   overlap cannot trip it, short enough that a paraphrase worth having cannot avoid it, and it
+   covers sentences added later. It carries its own positive control.
+
+3. **READING IS NOT RENDERING, and I shipped a rule about this last session and then broke it.**
+   The mutation that deletes the one `html +=` emitting the card was **MISSED** on the first run.
+   Deleting it leaves `const ar = d.accounting_risk` and `const body = [ar.headline, ...]`
+   standing, so every assertion about the block being read still passed **while nothing reached a
+   reader** — the same dead-code-passes-as-wired failure `V6B-RENDER` found twice.
+
+   The rule I wrote then was *"anchor on the CALL SITE, never on a name the declaration also
+   contains"*, and it was not sharp enough: `d.accounting_risk` **is** a call site, and a read is
+   not a render. **The sharpened rule: anchor on the thing that puts text into the output.** A
+   `_EMIT` constant now pins the exact interpolation, and a second test pins the withdrawal
+   branch's own emission — which the same run also missed, and which is the branch that matters
+   most, since a retraction rendering nothing is indistinguishable from a card that was never
+   built.
+
+### 6a. And a defect in the MUTATION HARNESS that misdiagnosed itself as a weak test
+
+`ALTMAN_FLAG_BELOW = 1.81` → `2.00` came back **MISSED**, and run by hand the same mutation is
+caught instantly. **Cause: it is a SAME-LENGTH edit, and CPython validates a cached `.pyc` on
+(mtime, size).** Inside the harness's tight loop the write lands within one mtime tick of the
+previous restore, so both match and the suite imports **stale bytecode** — it ran against the
+unmutated module and passed.
+
+It bit twice: once in the harness, and then again interactively, where a restored source read
+`1.81` on disk while `AR.ALTMAN_FLAG_BELOW` was still `2.0`. That is what made it diagnosable
+rather than a shrug.
+
+**A mutation the harness cannot deliver is not a test that failed to notice**, and reporting it as
+MISSED points the fix at exactly the wrong file — I would have "strengthened" a test that was
+already correct. The harness now runs `-B` with `PYTHONDONTWRITEBYTECODE` and purges
+`__pycache__` before it starts. This sits beside the earlier harness lesson from `V6B-RENDER`
+(replace-all, not replace-once): **a mutation that is too weak is indistinguishable from a test
+that is too weak, and both directions of that confusion are expensive.**
+
+## 7. Verified by execution, not by parsing
+
+The V6B-RENDER lesson applied on the way in: `node --check` says a file parses, only running it
+says the function produces the right markup. `renderHot` was executed under a DOM shim against
+four real payloads:
+
+| payload | result |
+|---|---|
+| normal (2 rows) | full card renders, 6,819 chars |
+| `STATUS = withdrawn` | the withdrawal note only, **no figures**, 2,775 chars |
+| block absent | nothing renders, page intact (2,598 chars) |
+| block malformed (`available: true`, no headline) | nothing renders, page intact |
+
+The withdrawal branch matters: `dip_posture`'s rule is that a NULL must be as sayable as a
+POSITIVE, and here that means a retraction must **say so** rather than fall silent. A surface
+that quietly stops updating is how a retracted number goes on being believed.
+
+## 8. Reported, not fixed / not done
+
+* **The per-name half is not built** and the reason is §3. It is the tripwire's job to demand it
+  when it becomes buildable.
+* **The 4-flag rule is not closed.** The audit's version includes NT late-filing notices, which
+  are not buildable from anything this project owns, so the measured rule is 2-of-**three** and
+  is therefore NARROWER. A pass on it does not license the wider one; the card says "two of
+  three" and a test pins that.
+* **The audit's own product sentence was wrong and correcting it in silence is how it comes
+  back.** `VALQUO_MASTER_AUDIT.md:950` pairs these rates with a **-20%** threshold; they are the
+  **-50%** rates. At -20% the real figures are 16.8% against 9.0%, ratio 1.88x. The error runs in
+  the direction that *discredits* the card — a 20%+ quarterly fall is ordinary and a 0.87% base
+  rate for it is transparently impossible — so shipping it verbatim would have published a number
+  that refutes itself. The card states the -50% threshold **in the same sentence as the rates**,
+  which is the placement that makes the mis-pairing impossible to repeat.
+* **Whether a reader reads eight sentences under a hot list is unmeasured.** This is the densest
+  note on that surface and it now sits below three others. A product question, Don's.
+* **The card is on the hot list only.** The Dip Detector and the single-valuation page do not
+  carry it. That is a scope choice, not an oversight: the hot list is the surface that puts names
+  in front of a reader as candidates.
+
+## 9. Ledger corrections made on the way past
+
+* `V6B-RENDER`'s commit cell read `PENDING`; it landed at `45d0694` and now says so.
+
+## 10. Numbers
+
+`tests/test_accounting_risk.py` **39/39** (three of them added *because* mutations exposed real
+gaps — see §6). Mutations **24 caught, 0 missed, 0 skipped**, after the harness defect in §6a was
+repaired; the first run read 20/4 and **three of those four misses were mine**. Full gate
+**110/110 suites, exit 0**. Zero trials; equity `N` unchanged at 231.
+
+---
+
+# Session 37 — 2026-08-16 — `V6B-RENDER`: the dip risk statistic reaches a reader, and stops claiming a comparison this screen cannot make
+
+**Zero trials.** A display of an already-measured statistic plus a copy correction — no
+hypothesis, no threshold, no verdict against a bar. Equity `N` stays **224** and no research-log
+row is written. Out-of-band (product, Don's direction); not one of the 134 audit items, so
+`build_ledger.py` will drop the `V6B-RENDER` row on its next regeneration.
+
+## 0. The two parts, and the second is why the first is not just plumbing
+
+`HANDOFF_v6b_health_gap.md` (r1, read-only, `c76ca30`) routed two things to this lane.
+
+1. **The per-name statistic was served and rendered to nobody.** `grep -c dip_risk
+   static/app.js` → **0**. The class, both rates, the method note and the "not a probability"
+   caveat were computed on every `/api/dip` request and displayed to no reader.
+2. **A listed name essentially never classifies UNHEALTHY**, because the screen's own prefilter
+   removes M1's entire unhealthy side before the classifier runs. **So the live screen does not
+   reproduce M1's comparison** — and the copy was rendering that comparison on every row.
+
+Part 2 is the substantive half. Part 1 alone would have shipped a misleading number to a reader
+who could not previously see it.
+
+## 1. What the per-row comparison actually communicated
+
+`label_for` rendered, on every row:
+
+> Healthy group: 32.5% of these names went on to fall another 20% within about six months,
+> **against 43.4% of the unhealthy group** in the same drawdown.
+
+To an ordinary reader that says *this name is in the better of the two groups on this page*.
+**There is no second group on this page.** The handoff's §6.1 puts it exactly: a rate presented
+that way "invites reading the screen as having done the separating when the prefilter did it
+upstream".
+
+The label now renders **one class's panel rate and no comparison**:
+
+> Healthy group **on the measured panel**: 32.5% of these names went on to fall another 20%
+> within about six months.
+
+"on the measured panel" is **in the sentence** rather than left to a nearby note, because a
+number and its scope get separated the moment anything is copied, tooltipped or truncated.
+
+## 2. The contrast is moved and scoped, not deleted — and my first cut deleted it
+
+New `SCREEN_CONTRAST_NOTE`, rendered **once**, below the table, whenever any rate renders:
+
+> The comparison behind this figure was made on the measured panel, where 73.2% of drawdown
+> episodes were in the unhealthy group and 43.4% of those went on to fall another 20%, against
+> 32.5% of the healthy group. That comparison cannot be made on this page. This screen's own
+> filters remove the unhealthy side before the classification runs, so essentially every name
+> listed here is already in the healthy group — the separating was done by those filters
+> upstream, not by the figure shown. Read the rate as a check that a listed name is inside the
+> group that was measured, not as this screen sorting names into a better half and a worse one.
+
+**A DEFECT IN MY OWN WORK, AND EXECUTING THE RENDERER IS WHAT CAUGHT IT.** The first cut took
+the peer rate off the row and put it **nowhere**. On a normal all-healthy screen — which r1
+measured is *every* screen — **43.4% then appeared exactly zero times**, while `METHOD_NOTE`
+went on promising the unhealthy figure was *"here so the healthy one has something to be read
+against"* and the module docstring I had just written claimed *"the other side is still
+rendered"*. Both were **false as built**.
+
+It was found by running `renderDip` under **node** against a real four-row payload and reading
+the emitted HTML. A `node --check` says the file is valid JavaScript; **executing it says the
+function produces the right markup**, and only the second catches a promise made by a constant
+in another file. New test: the served text of an **all-healthy** screen must quote 43.4%.
+
+## 3. What shipped
+
+* **`valuation/web/dip_risk.py`** — `label_for` drops the peer comparison; new
+  `SCREEN_CONTRAST_NOTE`, `SIZE_CAVEAT`, `unhealthy_share()`; `size_caveat` on the per-name
+  block; contrast note + share in `summary()`; both new strings swept by `rendered_text`.
+* **`valuation/web/static/app.js`** — `_dipRate(r)` and a "Past group rate" column; the two
+  notes below the table; a dagger carrying the size caveat. **Every string comes from the
+  server** — a test fails if any substantial phrase of the served copy is retyped in the JS.
+* **`tests/test_dip_risk.py`** — 31 → **43**.
+
+**The panel share is derived, never typed.** `unhealthy_share()` computes 27,090 / 37,014 and a
+test refuses a `73.2` literal anywhere in the module. Four separate stale-figure corrections in
+this project's record are the reason.
+
+**`SIZE_CAVEAT` rides only on rows whose one-directional tier flag is True.** The effect runs
+−3.79pp in the largest tier against −14.29pp in the smallest, and the largest is the one
+quintile that does not hold in both halves on its own. The live book is megacap-tilted, so on
+this surface the caveat applies to most of what a reader sees — CLAUDE.md's *"the claim is
+strongest exactly where the product is not"*, put where a reader meets it.
+
+## 4. Where the guard sits, and why not on the payload
+
+**`peer_rate` stays in the payload, and it has ZERO consumers today** — measured, not assumed:
+`grep -rn "dip_risk\|peer_rate"` outside the module and its tests returns `dip.py` (the
+producer) and `app.js` (the new consumer) and nothing else. **A first draft of this handoff
+justified keeping it with "the digest may legitimately want it"; that was speculative and is
+corrected here.** The Discord digest renders `dip_posture`'s `digest_claim`, not `dip_risk`, so
+**no outbound path is affected by the copy change at all.**
+
+The honest reasons to keep it are narrower: two existing pins assert on it
+(`test_a_rate_is_never_present_beside_a_does_not_apply_flag` and the runtime-withdrawal test),
+and a payload that records what was measured is not the thing that misleads. **The thing that
+misleads is a row**, so **the guard sits on the renderer**: a source sweep fails if `peer_rate`
+— or any measured literal like `43.4` — appears in `renderDip`, and a second fails if the rate
+can render without both notes.
+
+**The copy is pinned cross-file, per V6B-PRODUCT's precedent.**
+`test_the_copy_is_pinned_to_the_handoffs_own_findings` asserts r1's 73.19% split, the
+9,924 / 27,090 / 37,014 counts, the prefilter mechanism and §6.1's constraint all still appear
+in `HANDOFF_v6b_health_gap.md`, because `SCREEN_CONTRAST_NOTE` asserts findings **this lane did
+not measure**. If that pass is revised or retracted, the copy claiming "essentially every name
+listed here is already in the healthy group" loses its support and breaks here rather than
+going on rendering. Whitespace is flattened first — the handoff is hard-wrapped, so a naive
+substring search reports a false absence — and the pin carries its own vacuity check.
+
+## 4a. One judgement call: the class is rendered in the sentence, not as a badge
+
+The commissioning note listed **class** among the fields to render. It reaches the reader inside
+the label ("Healthy group on the measured panel: …"), **not as a visible chip on the row**, and
+that is deliberate. A "healthy" badge would sit directly beside the row's existing health chips
+— which come from the screen's **66/66/66** floors — putting **two different definitions of
+"healthy" side by side**. That is precisely the confusion `METHOD_NOTE` exists to prevent: *"a
+reader who knows the screen lists at 66/66/66 would reasonably assume the rate was measured on
+names that cleared 66/66/66. It was not."* Inside the sentence the class is unambiguous, because
+the same sentence says which population it belongs to. **Reversible in one line if Don wants it
+on the row.**
+
+## 5. One pin inverted, not deleted
+
+`test_both_classes_are_written_out_in_full_and_each_quotes_the_other` required each label to
+quote the other's rate. It now reads `..._and_neither_quotes_the_other`, with the reason in its
+docstring. **What it was really protecting is untouched and still asserted** — both classes
+written out in full, neither a stub — because an unhealthy row rendering nothing would make the
+unflattering class read as missing data. Inverting a pin on a measured finding is not the same
+as relaxing one, and the docstring says which this is.
+
+## 5a. Two defects in my own pins, both found by mutation and both the same mistake
+
+**18 mutations: 18 caught, 0 missed, 0 skipped — but the first run was 15/3**, and two of those
+three were real gaps rather than weak mutations.
+
+**`_dipRate(r)` occurs TWICE in `app.js`** — once as `function _dipRate(r) {` and once as the
+`${...}` interpolation in the table row. Both failing tests anchored on the bare name, which
+matches the **definition**:
+
+* `assert "_dipRate(r)" in body` passed with the `<td>` deleted entirely. **A helper that is
+  defined and never called read as wired** — the dead-code-passes-as-wired failure, in the one
+  test whose whole job is "does this reach a reader".
+* `tail = body[body.index("_dipRate(r)"):]` started at the definition, so the whole helper sat
+  inside `tail` and a generic `"applies"` search matched `_dipRate`'s own `if (!b.applies)`
+  guard rather than the notes gate. **Replacing the gate with `if (true)` was missed.**
+
+Both now anchor on `_CALL_SITE = "${_dipRate(r)}"`, held as a constant so the two tests cannot
+drift apart. **The portable rule: when a test asserts that something is WIRED, anchor on the
+call site, never on a name that the declaration also contains.**
+
+**The third miss was the harness, not the suite.** `73.19%` appears twice in the handoff and the
+mutation replaced only the first, so the pin passed on the surviving copy. A mutation that is
+too weak is indistinguishable from a test that is too weak, so the harness now replaces **all**
+occurrences.
+
+## 6. Reported, not fixed
+
+* **`test_dip.py` was not extended.** The renderer is pinned from `test_dip_risk.py`; a second
+  suite asserting the same JS region would be two definitions of one rule.
+* **The `METHOD_NOTE` / `SCREEN_CONTRAST_NOTE` pair is now two notes long** on a surface that
+  also carries the posture paragraph and the health-floor note. Nobody has measured whether a
+  reader reads all four. That is a product question, not a correctness one, and it is Don's.
+* **The r1 pass's own recommendation to consider marking the field payload-only** was declined:
+  the field's whole purpose is that a reader becomes the check, and V6B-PERNAME built it to be
+  read. Making it deliberately invisible would preserve the state r1 flagged as the finding.
+
+## 7. Ledger corrections made on the way past
+
+* **`V6B-HEALTHGAP`'s commit cell read `PENDING`** → `c76ca30`.
+* **`V6B-PERNAME`'s verdict cell read "display only"**, which the handoff §6.3 flagged as
+  readable as *"it is displayed"* when it meant *"affects display only, adopts nothing"*. It now
+  says both, and names `V6B-RENDER` as the row that made it actually displayed.
+* **Two claims in `V6B-PERNAME`'s note are now false and are corrected in place** rather than
+  edited away: "each quotes the other" (deliberately reversed here) and its 31/31 test count.
+
+---
+
+# Session 36 — 2026-08-15 — `MA29`, and the app-fixer lane CLOSES on audit #3
+
+## 0. What this is, and the lane's status
+
+**`MA29` was the app-fixer lane's last open row on audit #3. It is DONE, so the lane is
+CLOSED** — every app-fixer item across both waves (`MA7`, `MA8`, `MA9`, `MA10`, `MA50`, `MA51`,
+`MA53`, `MA29`) is adjudicated. `MA52` and `MA30` were the greeks lane's and landed separately.
+
+`MA29` is a **HYPOTHESIS row — a feature proposal, not a defect.** `OPEN` meant NOT BUILT, never
+BROKEN, and nothing was regressed or repaired here. **Zero trials**: it measures no hypothesis
+and clears no threshold, so no equity `N` moves and no research-log row is written. A test pins
+that `refusals.py` never references the research log or a threshold, and the sweep is checked
+for vacuity.
+
+## 1. The premise holds, and all three named pieces are real
+
+The audit says the measured pieces are *"`withhold.py`'s band, `record_refusal`, and the
+`fair_value_withheld` flag — all shipped, all already computed on every scan."* Verified:
+
+* the band is `publication.FV_BAND_HIGH = 5.0`, imported by `withhold._band()` rather than
+  restated;
+* the flag is `publication.ROW_WITHHELD`, and it **survives the store round trip** —
+  `save_snapshot`/`load_snapshot` persist the flag, the reason and the kind;
+* `record_refusal` **is real but is not in `withhold.py`** — it is in
+  `valuation/engine/publication.py`. A small correction to the audit's pointer.
+
+And the counts already exist: `screen.publication_audit` computes `withheld_refused`,
+`withheld_no_data` and `rows_checked` on **every** scan, and ships them inside `health`, which
+`/api/hotstocks` already serves. **So the number MA29 wanted was already on the wire and nothing
+rendered it.** Its only consumer in the whole tree was `scripts/ci_scan.py`.
+
+## 2. FOUR THINGS THE AUDIT'S OWN PROPOSED SENTENCE GETS WRONG
+
+The proposal reads: *"Today the engine refused to publish a fair value for N of M names it
+scored, because its estimate was more than X× the market price."* Each of these was measured
+before anything was built, and each one would have shipped a false statement.
+
+1. **IT CONFLATES TWO KINDS OF SILENCE THAT `publication.py` EXISTS TO SEPARATE.** `refused`
+   means the model produced a number and its guard rejected it — stable, a statement about the
+   valuation. `unavailable` means the data could not be fetched — **temporary**, a statement
+   about the feed. That module's own comment says collapsing them *"is how 'we could not look'
+   gets read as 'we looked and refused', which would make a transient feed problem look like a
+   permanent verdict on a company."* The audit's single sentence asserts one CAUSE for both.
+   **Not hypothetical:** `record_unavailable` was adopted on measured evidence that ~5% of
+   served rows were affected, and the live 2026-08-14 scan read **zero** — so the two move
+   independently, and a bad feed day is exactly when a collapsed count misleads most.
+2. **THE CAUSE CLAUSE IS FALSE FOR SOME REFUSALS.** `decide()` refuses on the band **or** on an
+   unresolved currency mismatch, and **the currency branch carries `ratio = None`** — measured,
+   not assumed: `decide(100.0, 92.19, cd=<KZT statements, USD price>)` returns `ratio None`.
+   There is no multiple to quote. The shipped copy names the band as the *usual* cause and does
+   not assert it was this one; a mutation removing that hedge is caught.
+3. **THE DENOMINATOR IS NOT "NAMES IT SCORED".** Only the first `refusal_screen` ranked names
+   are ASKED (production runs **500**). On the live scan **795 were scored and 500 asked**, so
+   "N of 795" understates the refusal rate by **1.59x**. The block uses `rows_checked`.
+4. **"TODAY" IS WRONG ON A STALE SCAN.** The copy names the scan's own date and the word
+   "today" never appears; a reader looking at a three-day-old scan is not told it is today's.
+
+## 3. The finding the audit does not contain: "withheld" has THREE meanings, not two
+
+`withhold_implausible_fair_values` runs at **serve** time over the displayed slice and withholds
+a peer estimate that breaches the band. It sets the flag and a reason but **no `kind`** — so it
+is neither `refused` nor `unavailable`, and it is a statement about the **peer estimator**, not
+about the model's own DCF. **Its count was computed and thrown away**: the function returns the
+number of rows it withheld and `app.py` discarded the return value. That is the same
+computed-and-discarded shape `MA39` found in the results writer. It is now captured and reported
+**separately, with its own denominator**, because it is tier-dependent — a reader served 50 rows
+and one served 500 are looking at different slices and one number cannot describe both.
+
+## 4. What shipped
+
+* **`valuation/web/refusals.py`** — a `V3`/`score_confidence.py`-style pinned-copy module.
+  Owns `LABEL`, `EXPLAINER`, a `BANNED` tuple and `violations()`. **It recounts nothing**: every
+  figure is READ from `publication_audit`, because a second count is a second definition of
+  "refused" free to drift from the first — the exact defect `engine/publication.py` was created
+  to end, having found five copies of that one decision.
+* **Wired additively** into `/api/hotstocks` as a `refusals` block, and **rendered** in
+  `static/app.js` as a note beside the existing fair-value disclosure. Rendering is the point:
+  a payload block nobody draws does not make `LA1`'s failure mode loud.
+* **Fail-soft.** A snapshot with no `health` block reports `available: false` and **no
+  sentence** — never `0 refused`, which would be a confident wrong claim that the model refused
+  nobody. A missing count and a zero count are different statements.
+* **`tests/test_refusals.py` — 28/28.**
+
+## 5. Measured against production, not only against fixtures
+
+Read from the **public** payload on 2026-08-15 (scan of 2026-08-14): universe 800, **scored
+795**, **asked 500**, **refused 2**, **unavailable 0**; both withheld served rows carried kind
+`refused`; 494 rows carried a fair value and 4 had none while not being withheld. The rendered
+sentence for that scan is pinned verbatim in the suite. **Unlike `MA30`, this is verified as a
+description of the live book and not only as a computation** — with one honest limit: the
+**third state read zero that day**, so it is verified by fixture only, and no user has yet seen
+the rendered wording.
+
+## 6. Two defects in my own work, both caught before shipping
+
+**(a) I MISREAD THE VERY RETURN VALUE THIS ROW EXISTS TO RESCUE.** I described
+`withhold_implausible_fair_values`'s return value as the third state and fed it to the
+peer-estimate sentence. It is not: the function increments its counter for rows that were
+**already** marked withheld at scan time as well as for rows it newly withholds, so it is the
+**TOTAL withheld in the served slice**. On the live scan that total is 2 and **both are model
+refusals** — so the shipped sentence would have told a reader that the model's own refusals were
+peer-estimate withholds, which is precisely the conflation this row's whole design argues
+against. The third state is now derived from the **absent `kind`** at the call site, both
+figures are reported under separate names, and three mutations plus a dedicated test pin the
+distinction. Found by re-reading the function I had cited rather than by a failing test, which
+is the uncomfortable part.
+
+**(b) A DEFECT IN MY OWN TEST, and the lesson is last session's.** The zero-trials sweep grepped
+`refusals.py` for `"threshold"` and **failed on the module's own docstring**, which says it
+*"clears no threshold"* — prose asserting the thing is ABSENT, read as the thing being present.
+Rather than add a file exemption — which is what stops a sweep from finding the next real case —
+the check now reduces the module to **code only** via `ast.unparse` with docstring nodes
+removed, and **that reduction is itself checked for vacuity** so it cannot pass by seeing
+nothing.
+
+## 7. Mutations: 16 caught, 0 missed, 0 skipped
+
+Including the fail-soft gate, the denominator, the two-kinds collapse, the cause hedge, the
+`bool`-is-not-a-count and non-finite-band guards, folding the serve-time count into the
+scan-time refusals, neutering the `BANNED` guard, discarding the return value again, the three
+§6(a) mutations, and two renderer mutations (paraphrasing instead of quoting the module, and dropping the unavailable
+sentence). **One apparent miss was not one:** `replace(..., 1)` hit the identical sentence in
+the module docstring rather than the `EXPLAINER` constant, so it mutated prose and changed no
+behaviour. Re-anchored on the literal and it is caught.
+
+## 8. Reported, not fixed
+
+* **`publication_audit` is computed over `rows[:refusal_screen]` while `scored` counts the whole
+  scan.** Nothing is wrong with either number; they are simply different denominators sitting in
+  the same payload, and any future consumer must not divide one by the other.
+* **4 served rows had no fair value and were not withheld** — a fourth state (the model does not
+  apply and no peer estimate landed). Deliberately NOT counted as refusals and deliberately not
+  given a sentence; it is not what MA29 asked for and it needs its own decision about wording.
+* **The serve-time band withhold writes no `kind`.** Left as-is: giving it one is a change to a
+  field three surfaces read, which is bigger than this row.
+
+---
+
+# Session 35 — 2026-08-15 — `MA51` + `MA8` + `MA53`, wave-2 app-fixer batch
+
+**Lane:** app fixer. **Branch:** `worktree-demo-link`.
+
+## 0. Which IDs I took, and which I left
+
+The map's app-fixer lane is 8 items. Four were already `DONE` (`MA9`, `MA10`, `MA50` in wave 1,
+`MA7` last session), which leaves **`MA51` as the lane's only open wave-2 MEDIUM**.
+
+**Taken: `MA51` (MEDIUM, wave 2), `MA8` (LOW), `MA53` (LOW).** The batching rule is the map's own
+— all three land in files last session already touched, and all three are the same question asked
+three times: *what does this app do with a value the caller chose?*
+
+| id | sev | wave | file it shares | why batched |
+|---|---|---|---|---|
+| `MA51` | MEDIUM | 2 | `saas/auth.py` — MA9's `/preview` grant | the mandate |
+| `MA53` | LOW | 3 | `web/app.py:519` — **MA50's exact clamp site** | the map's own edge says splitting them "invites a re-break" |
+| `MA8` | LOW | 3 | `saas/ratelimit.py` — MA7's buckets | third touch of one file otherwise |
+
+**Left, deliberately: `MA29`** (HYPOTHESIS — *"What the model cannot value"* is a new product
+surface, not a fix; it wants its own session and arguably its own register). **`MA52`** is in
+`screener/surfaces.py` and the map assigns it to **greeks**, not this lane.
+
+## 1. Headline
+
+**`MA51` is the only one of the three that was live as described.** `MA53`'s two claims are
+**both already closed** — and the sweep for its class found a third defect the audit never named,
+which is the one real fix in that row. `MA8` was never a wrong line; it was an **unwritten
+number**.
+
+## 2. `MA51` — open redirect (MEDIUM). Fixed.
+
+`auth.py:99` read `return redirect(request.args.get("next") or "/app")`, raw — verified verbatim.
+
+**The blast radius was verified rather than trusted.** `redirect(` appears 23 times under
+`valuation/`; `auth.py:99` is the **only** one whose argument comes from the request. The other
+four `next` values are server-written literals (`"/login?next=/account"` etc.). So the audit's
+*"only login honours arbitrary next"* holds, and the fix is one site.
+
+**Why this site in particular.** An open redirect leaks nothing by itself — it is a phishing
+primitive that borrows the domain's credibility, and it is most convincing exactly where this one
+fires: **immediately after a successful login on the genuine site**, when the user has just proved
+the site is real.
+
+**It is a module, not an `if`, and that is the one decision worth arguing with.** One call site
+argues for an inline check. The sweep argues against it: a guard inside a view cannot be asserted
+over the *codebase*, so the second such route gets written the same raw way and nothing notices —
+audit **B7**'s defect class, which this repo has paid for three times.
+`valuation/saas/safe_redirect.py::safe_next_path`.
+
+**Two rejections the audit's own prescribed rule would not have made:**
+
+* **`//evil.example`** — protocol-relative. Satisfies `startswith("/")`; browsers resolve it to a
+  different **origin**. The audit names this one, which is why its rule reads *"not `//`"*.
+* **`/\evil.example`** — the one that **cannot be justified from the RFC**. `urlsplit` reports an
+  empty netloc, so it looks same-origin to correct standards-based code; browsers normalise the
+  backslash into the authority position and navigate away. **A validator that trusts the parser
+  here is right about the standard and wrong about the thing performing the navigation.** The
+  `urlsplit` premise is *asserted in the test*, not assumed, so a future urllib change reports
+  itself instead of silently making the comment wrong.
+
+## 3. `MA8` — who the limiter thinks the caller is (LOW). Made explicit and observable.
+
+**A severity disagreement, recorded not resolved:** `VALQUO_MASTER_AUDIT.md` heads this
+`LOW/MEDIUM`; the ULTIMATE summary lists it under **MEDIUM (28)**; the items JSON and the map say
+**LOW**. Same class as the MA18 disagreement the map already flags. Worked as LOW.
+
+The defect is not a wrong line. `client_ip` took the rightmost `X-Forwarded-For` entry — correct
+for **exactly one** trusted proxy — and that "one" appeared nowhere. Both failure modes are silent:
+
+* **Too low** (configured 1, actually 2 — a CDN in front of Render): the entry taken is the inner
+  proxy's view of the **outer** one, a single shared address. **Every visitor lands in one bucket**
+  and the per-IP limiter becomes a global cap one scraper exhausts for everybody — which, from the
+  inside, is indistinguishable from the limiter working.
+* **Too high**: the entry taken is the client's own claim, spoofable by rotating a header.
+
+**Shipped:** `TRUSTED_PROXY_HOPS` (=1, env-overridable — the day it becomes wrong is a deploy-time
+infrastructure change made by someone who should not have to edit Python), plus
+`ratelimit.forwarded_shape()` and **`GET /admin/proxy-shape`**, modelled on MA1's read-only
+`/admin/learned-weight-status`. The audit's prescribed check was *"one deploy, one grep"*; the
+chain **length** is the whole question and is observable on every request already being served, so
+this answers it **without the deploy**.
+
+**The default is bit-identical to the behaviour it replaced**, pinned across seven header shapes
+including empty, whitespace and doubled commas — otherwise this is a behaviour change wearing a
+diagnostic's clothes. A chain **shorter** than configured falls back to `remote_addr` (the one
+address that cannot be forged off-box), never to the leftmost entry.
+
+**Not vacuously green:** the report returns `insufficient` below 20 observations rather than a
+confident `consistent` off three requests. It stores **counts only** — pinned by a test that greps
+the payload for the octets it was fed — and depths are bucketed at 10 so a pathological header
+cannot grow the dict.
+
+**What it does not do:** it does not decide which world Render is in. That still needs one real
+production request — but now it needs a *request*, not a *deploy*.
+
+## 4. `MA53` — verified closed on arrival, and the sweep found a third (LOW).
+
+**(a) "Two public endpoints 500 on a malformed numeric param" — CLOSED.** Measured against a live
+test client: `?top=abc`, `?top=-1`, `?limit=abc` all return **200**. Closed by **MA50's
+`clamp_int`**, which landed hours before this item was read — and the parse guard was the one
+declared addition to the audit's own prescribed arithmetic. This is what it was for. (The audit's
+line numbers had also drifted: 536/550 are now 544/558.)
+
+**(b) "LA12's `median_upside` population-mix is unfixed" — the mix is real, the defect is not
+unaddressed.** `median_upside` really is computed over only the DCF'd names while `count` reports
+the whole sector. But **LA12's shipped remedy was disclosure, not equalising the populations**:
+`sectors.py` emits `median_upside_n` beside it, and `median_upside_n == 0` exactly when the median
+is `None`. **The audit looked for the remedy it expected and did not find the one that shipped.**
+
+Deliberately **not** changed to value the full population: that is a latency and *meaning* change
+on a public endpoint with no consumer today (`app.js` reads `avg_composite`) — a product decision,
+not a bug fix. Pinned instead.
+
+**(c) The sweep found the row's only live defect, and the audit did not name it.**
+`/api/options-alerts?risk_budget=` was parsed with a bare `float()`. **`float` accepts three
+strings `int` rejects — `nan`, `inf`, `-inf`** — so that parameter had no defence at all, not even
+the accidental one of raising. A NaN budget does not raise, does not log and does not stop: it
+propagates into position sizing, where **every comparison against it is False, so the downstream
+guards read as satisfied.** Strictly worse than a 500. Owner-only, so not a public hole; fixed as
+the same class rather than left because the blast radius is small.
+
+## 5. Three defects in my own work, all caught before shipping
+
+1. **A clamp in the wrong units, which nearly re-sized every alert.** I wrote the `risk_budget`
+   bound as `lo=0.0001, hi=1.0`, reading it as a fraction. **It is dollars** —
+   `DEFAULT_RISK_BUDGET` is `$1,000` per signal — so that clamp would have silently clamped the
+   shipped default to `$1`. Caught by checking the unit before trusting the bound. A test now pins
+   the shipped default inside the shipped range, whatever either becomes.
+
+2. **A wrong claim in my own docstring, and the truth is worse.** I wrote that NaN survives a
+   min/max clamp. Measured, the behaviour is **order-dependent**:
+
+   | spelling | result on NaN |
+   |---|---|
+   | `max(lo, min(v, hi))` | `lo` — garbage becomes a plausible-looking floor |
+   | `min(max(v, lo), hi)` | **`nan`** — passes straight through |
+   | `max(min(v, hi), lo)` | **`nan`** — passes straight through |
+
+   **Two of the three natural spellings let NaN out untouched, none of them is a clamp, and all
+   three look identical in review.** Same value-dependent-guard family as the `zscore`
+   zero-variance check this project has been bitten by twice. Pinned as a table.
+
+3. **A vacuity trap in my own test.** The end-to-end MA51 test first created its user via
+   `POST /register` and treated `302` as success. `signup_enabled` is **False** by default and a
+   *disabled* signup **also** returns `302` — to `/app`. So the guard passed on a redirect that
+   created nothing, and the login then failed for a reason unrelated to MA51. **A status code
+   shared by the success and the refusal cannot distinguish them.** The user is now created through
+   the store.
+
+Also corrected: the first sweep was a line grep and flagged five false positives — four
+server-written literals and **this module's own docstring**, which quotes MA51's defective line
+verbatim. Rewritten as an **AST walk**, because the alternative was a file-exemption list, and an
+exemption list is what makes a sweep stop finding the next case.
+
+## 5a. Mutation testing found two things reading the code could not
+
+Both in `safe_next_path`, and neither was visible from the passing suite.
+
+**(a) Three of my guards were unreachable — dead code wearing defence-in-depth's clothes.** My
+first draft led with `value[:1] != "/"`. A value starting with `/` can carry neither a scheme
+(which must precede any slash) nor a netloc (which needs `//`), so the `urlsplit` branches below
+it **could never fire**. The mutant that deleted them passed every test. Restructured so the
+textual check covers only what the parser gets wrong, and the parser covers the rest.
+
+**(b) `///evil.example` — and this one was a live hole for about ten minutes.** Delegating the
+authority question to `urlsplit` accepts it: three slashes parse to an **empty netloc** and path
+`/evil.example`, i.e. it reads as same-origin. Caught because the restructure made a test fail.
+The authority position is now refused **textually**, which covers `//`, `///` and `/\` alike.
+
+**(c) `https:/evil.example` — one slash, not two.** After (a), deleting the scheme check *still*
+passed, because `https://evil.example` parses to an **empty path** and was already caught by the
+relative-path branch. Only the single-slash form reaches the scheme check: it parses to path
+`/evil.example`, which starts with a slash and sails through everything else. Browsers resolve it
+off-origin. **The gap here was in my tests, not the code** — the guard was right and nothing
+proved it was load-bearing. Now pinned by its own case.
+
+The general lesson, which is the transferable part: **a guard that no test can distinguish from
+its own absence is indistinguishable from dead code, and you cannot tell which by reading.**
+
+## 6. Evidence
+
+`tests/test_redirect_and_proxy.py` **35/35**. Full gate **84/84 exit 0**. Mutations
+**19/19 caught, 0 missed, 0 skipped** — including reverting each guard individually, taking the
+leftmost hop, downgrading the shape verdict to `consistent`, dropping the admin check on the
+diagnostic, removing the `isfinite` guard, and deleting `median_upside_n`. Two of those mutants
+initially **survived**; both are written up in §5a, and both changed the shipped code.
+
+**Zero trials** for all three — correctness and security changes, no hypothesis, no threshold, no
+verdict. Equity `N` stays **224**.
+
+## 7. Reported, not fixed
+
+* **`/admin/*` still sits outside the limiter block entirely** (carried from session 34):
+  `/admin/run-scan` remains uncapped. `/admin/proxy-shape` is read-only and cheap, so it adds
+  nothing to that exposure — but it does not close it either.
+* **MA8 is only half-answerable from here.** The diagnostic reports what the app sees; deciding
+  `TRUSTED_PROXY_HOPS` needs one look at `/admin/proxy-shape` on **production**. If its verdict
+  reads `mismatch`, the per-IP limiter has been global and every per-IP cap in the record —
+  including MA7's vendor budget — has been bounding everyone together rather than each caller.
+* **The `median_upside` population mix is disclosed, not removed.** If a surface ever renders it,
+  read `median_upside_n` first.
+
+---
+
+# Session 34 — 2026-08-14 — `MA7`, the uncapped vendor quota
+
+**Lane:** app fixer. **Branch:** `worktree-demo-link`.
+
+## 0. Headline
+
+`ratelimit` capped `/api/scan/run` at 3/hour because *"FMP quota, 3 requests per uncached
+name"*, and deliberately left `/api/value` **unlimited** unless `run_ai` was set, because
+*"the plain valuation is the product's core action."*
+
+**That comment was half right, and the wrong half was load-bearing.** The AI layer is a paid
+call — but the *plain* valuation runs the full adaptive DCF on a **caller-supplied symbol**, so
+it reaches the same upstream and spends the same FMP quota the 22:23 UTC scan depends on. The
+result cache defends against **repeats**; nothing defended against **enumeration**, and the
+universe is ~7,100 names.
+
+`/api/rank` was the sharper case and sat in **no bucket at all**: up to 25 `value_ticker` calls
+per request at 2,000 Monte Carlo trials each, on a 512 MB box.
+
+## 1. The sweep found a third the audit did not name
+
+**`/api/dip` is public, in no bucket, and fans out through the same `_get_or_compute` for up to
+`MAX_SHORTLIST` names — with the fan-out taken from a caller-supplied query parameter.** That
+is the same caller-controlled-cost property that made `/api/rank` the sharp case.
+
+Found by walking `app.py`'s routes for anything reaching `value_ticker`, rather than by
+re-reading the audit's list. **That sweep now ships as a test**, so the next such route is
+caught on arrival instead of in the next audit.
+
+## 2. The budget is denominated in name-valuations, not requests
+
+This is the one design decision worth arguing with, so here is the reasoning.
+
+The three requests differ in cost by up to **25×**. A per-*request* cap has to be set for the
+worst case and is then absurdly tight for the common one. Charging the actual scarce unit
+instead means the audit's own **120/hour** buys either 120 single valuations, or ~5 full
+25-name ranks, or any mix — **its number, charged correctly** — and `/api/rank`'s cap falls out
+at the 1/25th the audit asked for without a second constant to keep in step.
+
+| endpoint | cost per request |
+|---|---|
+| `/api/value` | 1 |
+| `/api/rank` | the list length, capped at the `[:25]` the route actually values |
+| `/api/dip` | its shortlist (caller-supplied, clamped 1–25) |
+
+`check()` gained a `cost` parameter **defaulting to 1**, so every per-request bucket behaves
+exactly as before — pinned by a test, because MA7 must not quietly re-tune limits it was not
+asked to touch. The guard moved from `len(stamps) >= limit` to `len(stamps) + cost > limit`,
+which is bit-identical at cost 1.
+
+## 3. Three properties that were easy to get wrong
+
+- **A request that cannot afford its cost is refused *whole* and consumes nothing.** Charging
+  12 of a 25-name request and then running all 25 would be a limiter reporting a number it did
+  not enforce.
+- **`buckets_for` returns several `(bucket, cost)` pairs, not one.** A request can be scarce in
+  two ways at once: `/api/value` with `run_ai` spends the FMP quota **and** an Anthropic call.
+  The old single-bucket form could only charge one of them — and it charged the AI while
+  letting the vendor spend straight through. That *is* the hole. The AI cap is unchanged at
+  20/hour and is now charged **alongside** the vendor budget rather than instead of it.
+- **An uncomputable fan-out is charged the ceiling, not a free pass**, so the limiter cannot
+  open under its own errors.
+
+## 4. Disclosed rather than hidden: worst-case charging
+
+The limiter runs in `before_request`, so it **cannot know which names will be cache hits** and
+charges the full fan-out either way. That over-charges a warm cache. It is the only direction
+available there — the alternative is to charge nothing until the money is already spent — and
+it errs tight, which is right for a spend limiter.
+
+**Reads are untouched and pinned so:** `/api/hotstocks`, `/api/health`, `/api/signals`,
+`/api/valquo-index`, `/api/track`, `/api/index-track`. Open access is a product decision, not a
+bug, and a fix that capped reading would be a worse outcome than the defect.
+
+## 5. One test inverted, not weakened
+
+`test_security.py` asserted `bucket_for("/api/value", {...}) is None` under the comment
+*"/api/value is the core action and stays free"* — **the defect, pinned, in the suite meant to
+catch it.** It now asserts the opposite, plus that an AI request is charged for *both* things
+it spends, which the old single-bucket assertion could not express.
+
+## 6. Verification
+
+- **Full gate 80/80 suites, exit 0**, judged by exit code. (80, not the 76 this line first
+  claimed — merging `main` mid-session brought in four more suites. Measured, then corrected.)
+- `tests/test_vendor_quota.py` **15/15** (new) — including a test that pins `RANK_MAX` against
+  the literal `[:25]` slice in `api_rank`'s own source, so the **charge cannot drift from the
+  doing**, and the route sweep from §1.
+- `test_security.py` **22/22**, `test_row_caps_and_admin_split.py` **18/18**,
+  `test_public.py` **35/35**, `test_saas.py` **30/30**, `test_build_ledger.py` **20/20**.
+- **Mutations 14/14 caught, 0 missed, 0 skipped.**
+
+## 7. Reported, not fixed
+
+**MA8's `client_ip` caveat is untouched and bounds every per-IP cap here.** A caller who can
+rotate IPs faster than the window evades all of them — a property of per-IP limiting rather
+than of this change, and MA8's own item.
+
+Zero trials — a correctness/security change with no hypothesis and no threshold. Equity `N`
+stays **224**.
+
+---
+
+# Session 33 — 2026-08-14 — `MA9` + `MA10` + `MA50`, three HIGH security items
+
+**Lane:** app fixer. **Branch:** `worktree-demo-link`.
+
+## 0. The id correction, first, because it changes what was fixed
+
+The task commissioned **"MA5, MA6, MA50"**. Two of those three ids point at different items
+than the prose describes:
+
+| task called it | actual id | what MA5/MA6 really are |
+|---|---|---|
+| MA5 — demo token in public HTML | **MA9** (HIGH) | MA5 is MEDIUM: two Harvey–Liu–Zhu bars that disagree (3.0 vs √(2·ln N)) |
+| MA6 — `ADMIN_TOKEN` one credential | **MA10** (HIGH) | MA6 is MEDIUM: the trial counter's silent domain path |
+| MA50 — `?top=-1` paywall bypass | **MA50** ✔ | — |
+
+The descriptions, the HIGH severities and the named files match MA9/MA10/MA50 exactly, and
+the real MA5/MA6 are MEDIUM **edge-lane** items in `valuation/edge/`, i.e. not this lane at
+all. **MA9, MA10 and MA50 are what was fixed.** Same id-collision class `CLAUDE.md` already
+records for `SECURITY_AUDIT.md`'s M2/M6 — worth knowing that it has now happened twice.
+
+Also: the sections are in **`VALQUO_MASTER_AUDIT_ULTIMATE.md`**, which is **untracked, in the
+parent checkout only**. The tracked `VALQUO_MASTER_AUDIT.md` that merged with `main` is Pass A
+(MA1–MA35) and contains no MA50 at all.
+
+## 1. `MA50` — the live paywall bypass
+
+`web/app.py` read `top = min(int(request.args.get("top", 100)), cap)`. **`min` bounds from
+above only**, `min(-1, 500)` is `-1`, and `store.load_snapshot` interpolates that into
+`q += f" LIMIT {int(top)}"` — which **SQLite treats as unlimited**. The per-tier cap
+(`g.hotstocks_cap`, free 10 / premium 500) *is* the paywall, so `?top=-1` returned the whole
+snapshot. Live the moment `OPEN_ACCESS=false`.
+
+**Fixed behind one shared helper**, `valuation/web/query_params.clamp_int`, not six hand-rolled
+copies. The same one-sided clamp had been written independently at **six sites in two
+blueprints** — fixing the reported one and leaving five is precisely how audit B7's
+three-composite-functions defect happened. Sites now routed through it: `/api/hotstocks`,
+`/api/signals`, the ticker search, the scream-buy top, the dip shortlist,
+`/api/option-alerts/open`, and the backtest universe limit — the last being the widest, since
+an unclamped `int` became a **universe size on a 512 MB box**.
+
+The arithmetic is **the audit's own prescribed remedy**, `min(max(1, int(...)), cap)`, pinned
+against a reference implementation so a later tidy-up cannot silently change it. The one
+declared addition is a parse guard: the registered fix still raises on `?top=abc`, and an
+unhandled `ValueError` is a 500 on a public endpoint. **Garbage degrades to the default and is
+then capped, never toward the cap** — a limiter whose failure mode is "serve everything" is the
+failure being fixed.
+
+**My first draft was worse than the audit's fix and was reverted to match it.** It degraded a
+negative to the default rather than the floor, which is a semantic invention on a security fix
+— exactly the kind of divergence that makes a remedy stop matching the item that registered it.
+
+## 2. `MA9` — the demo token was published on a public page
+
+`app_saas.py` built `demo_url = f"/demo/{token}"` and rendered it into `portfolio.html`, the
+anonymous `/work` page. **Anyone who ever viewed source held a permanent, shareable
+credential.** It bites hardest at the moment the posture tightens: after
+`PUBLIC_FULL_VIEW=false` that token is again the **only** gate on `/api/track`,
+`/api/index-track`, `/api/valquo-index` (names *and* weights), `/api/options-alerts` and
+`/api/scream-track` — the exact set `surfaces.py` exists to withhold.
+
+**Fixed structurally.** The button is now `<form method="post" action="/preview">`, and
+`auth.demo_grant_view` sets the session server-side. What reaches the template is a
+**boolean**. Reading `/work` grants a **session**, never a **credential** — there is nothing
+on the page to copy.
+
+- **`/demo/<token>` is deliberately kept** — it is the résumé master-link Don has already sent.
+  What changed is that its value stops being published, which is what makes rotating it
+  afterwards meaningful: the new secret has never been rendered anywhere.
+- **The token still gates the grant**, so clearing `DEMO_ACCESS_TOKEN` remains the single off
+  switch for button, deep links and route together — unchanged.
+- **Same rate-limit bucket** as `/demo` (`demo:session`). A second door onto the same room
+  needs the same lock; a separate limiter would have moved the hole, not closed it.
+- **POST-only**, so a crawler, a prefetch or a pasted URL cannot create a session.
+- **Refuses when a real `uid` is in session.** That is the one cross-site POST with real
+  content: `session.clear()` would otherwise log the owner out of their own account.
+
+### 2c. A correction against my own first cut: `SameSite=Lax` hid the evidence, it did not close the hole
+
+I first shipped `/preview` **without** CSRF protection, on this reasoning: a forced preview
+grants a stranger only what the public button grants anyone who clicks it, and the one case
+with content — a cross-site POST clearing a signed-in owner's session — is refused by the
+`uid` check. `/work` is also pinned byte-identical, and a per-session field breaks that pin.
+
+**The `uid` check cannot see the uid on a genuine cross-site POST.** The session cookie is
+`SameSite=Lax`, so it is *not sent* cross-site: the route reads an empty session, **the guard
+passes vacuously**, and the response's own `Set-Cookie` replaces the victim's session anyway.
+SameSite looked like it closed the hole when what it actually did was withhold the evidence
+the guard needed to refuse.
+
+It was caught by the repo's own catch-all —
+`test_security.py::test_every_form_template_carries_the_csrf_field`, which has no exemption
+list and fired on the new form. **The blanket guard was right and my reasoned exception was
+wrong**, which is the argument for having blanket guards.
+
+`/preview` is now in `csrf.PROTECTED` and the form carries the field. The `uid` refusal is
+**kept** — it is still correct for the same-site case, where the cookie *is* sent and a preview
+session would silently downgrade a real account.
+
+**The static-page pin was strengthened rather than allowed to erode.** The CSRF field is the
+page's only per-session value, and the old test used **one client** — so both requests shared a
+session and therefore shared the token, and it would have gone on passing while the page
+quietly became per-visitor. It now compares **two separate sessions with the token masked**,
+which is strictly stronger than what it replaced: the old form could not have detected a
+value that varied per visitor, and this one can, for everything but the single field it names.
+Verified directly — raw pages from two sessions **differ**, masked pages are **identical**.
+
+### 2a. The near-miss that would have broken the button in production
+
+`/preview` was going to be classified onto `surfaces.DEMO_DENIED_PATHS`, which is the obvious
+structural list and is **wrong**. `surfaces.check` denies those paths to every non-owner once
+`public_full_view` is on (`surfaces.py:388`) — **today's live flag** — so listing it there
+would have **403'd the anonymous visitor the button exists for**, while every list-based test
+stayed green. It is classified with `/login`, `/register`, `/forgot` instead, which is what it
+is: session creation.
+
+### 2b. The docs, corrected where the next reader will look
+
+`render.yaml` said **"THE REGATE IS THIS ONE VALUE … nothing else needs touching"**. That was
+the false sentence MA9 is about, and it sits exactly where whoever regates will read it. It now
+states the regate as **two changes**, with the reason and a generator command. `ENV_REFERENCE.md`,
+`.env.example` and `GO_LIVE.md` no longer document the value as the dictionary word `preview`.
+
+## 3. `MA10` — one credential for the product and the record
+
+One `X-Admin-Token` opened at least nine `/admin/` routes **including the two that rewrite the
+live scoring weights** (`/admin/run-learning`, `/admin/adopt-backtest-weights` — the whole
+blast radius of MA1/MA3), and it **bypassed the rate limiter entirely**.
+
+**Half 1 — the capability split.** New `cfg.admin_write_token` (`ADMIN_WRITE_TOKEN`) and
+`_admin_write_ok()`, on those two routes and nothing else. **Shipped inert by design:** unset,
+it delegates to `_admin_ok()` and behaviour is bit-identical, so no cron breaks on deploy; set,
+the ordinary `ADMIN_TOKEN` no longer opens them. Accepted in either `X-Admin-Write-Token` or
+the existing `X-Admin-Token`, so activating it is a **secret-value change in the two jobs that
+need it** rather than a code change in ten callers. Fails closed like `_admin_ok`.
+
+**Half 2 — the limiter.** The exemption becomes a **ceiling**: an admin caller lands in a
+dedicated `ratelimit.ADMIN_BUCKET` of 600/hour per IP instead of skipping the module. Generous
+enough that ten scheduled jobs never approach it, tight enough that a leaked token cannot drain
+the Anthropic/FMP budget. Deliberately **not** shared with any public bucket, so an anonymous
+flood cannot starve the scan cron — pinned by a control asserting anonymous traffic still lands
+in the endpoint's own bucket, because *"admin is limited now"* could otherwise be satisfied by
+routing **everyone** into the generous bucket and quietly loosening the public limits.
+
+## 4. Reported, NOT fixed — named so it is not mistaken for done
+
+**(a) The limiter block sits inside `if path.startswith("/api/")`, so `/admin/*` routes are not
+rate-limited at all** — including `/admin/run-scan`, which is the actual spend lever a leaked
+token would pull. The audit names `app_saas.py:864` and that line is fixed; extending the
+limiter to the `/admin/` prefix carries real cron-breakage risk and needs its own item.
+
+**(b) `VALQUO_MASTER_AUDIT_ULTIMATE.md` is UNTRACKED and exists only in the parent checkout.**
+It is the merged 60-item audit — **2 CRITICAL and 14 HIGH**, including the three worked here —
+and `VALQUO_MASTER_AUDIT.md` (Pass A only, 35 items, **no MA50 at all**) is what actually
+landed on `main`. So the document these fixes cite cannot be read from a clone, and the
+severities and ids in it are unreachable by anyone but this machine. The project already paid
+for this once and recorded the fix ("audit source files are now tracked", 2026-08-09); this
+regressed it. **Not landed by this lane** — a `.md` + `.pdf` + `.json` triple is plainly
+someone's in-flight deliverable (Pass A landed with `main` mid-session), and committing another
+lane's artifacts under it would be the wrong kind of helpful. Whoever owns it should land the
+`_ULTIMATE` set.
+
+## 5. Two defects in my own test harness, both caught before they mattered
+
+- **A test drove a real whole-market scan 600 times** and hung the suite. Rewritten to stub
+  `ratelimit.check` so the request is refused in `before_request` and the route never executes;
+  the ceiling's *biting* is proved separately against the real limiter with the limit
+  temporarily lowered. Two other tests would have executed a **real live-weight re-tune** — a
+  passing test that retrains the shipped model — so the learner is switched off and what is
+  measured is the auth gate.
+- **The source sweep matched the tail of `clamp_int(` itself** and reported the repair as the
+  defect. Fixed with a lookbehind.
+
+## 6. Verification
+
+- **Full gate: 75/75 suites, exit 0**, judged by exit code (the suites print at least three
+  summary formats; grepping for `OK` misreports three of them). An earlier run read 74/75 —
+  the one failure was the CSRF catch-all in §2c, which is why that section exists.
+- `tests/test_row_caps_and_admin_split.py` **18/18** (new). `tests/test_public.py` **35/35**
+  (was 31). `tests/test_private.py` **30/30**, `test_security.py` **22/22**,
+  `test_saas.py` **30/30**, `test_build_ledger.py` **20/20** (197 rows = 133 audit + 64
+  out-of-band, with MA9/MA10/MA50 recognised).
+- **Mutations 19/19 caught, 0 missed, 0 skipped** across all three items. **Two were MISSED on
+  the first run and both were real gaps**, not harness noise: (a) "clearing the token no longer
+  disables the grant" survived, because with the button gone there is no CSRF field on the
+  page, so the helper posted an empty form and read the resulting **400 as though it were the
+  refusal under test** — a vacuity trap the CSRF work introduced; the helper now falls back to
+  a token from `/login`. (b) The dropped-CSRF-field mutation was pointed at `test_private`,
+  where the button never renders under private mode; it is now pointed at the two suites that
+  actually own that guard, and `test_public` gained an assertion on the **rendered** field so a
+  context-processor change that emptied `csrf_token` is caught too.
+- **No test was deleted or weakened.**
+  `test_the_work_button_carries_the_current_token_and_rotation_kills_old_links` is **replaced**:
+  it asserted the token *was* in the page, because that was the design. The replacement forbids
+  exactly that, re-pins everything the old one protected (rotation kills copied links, clearing
+  the token removes the button) and adds four properties it could not express — including that
+  clearing the token also disables the grant, and that a GET cannot grant at all.
+- **New catch-all** `test_no_public_response_ever_contains_the_demo_or_admin_token` walks 18
+  public surfaces and asserts neither credential appears in the **body or the headers**. Headers
+  because a token in a `Location` or `Set-Cookie` is published just as surely as one in HTML,
+  and a redirect is the likeliest place to leak one by accident.
+
+## 7. What Don still owes — the part no code lane can do
+
+1. **Rotate `DEMO_ACCESS_TOKEN`** (Render). The publication is closed, but **every value live
+   before 2026-08-14 must be treated as public**. Rotating retires them.
+   `python -c "import secrets;print(secrets.token_urlsafe(24))"`
+2. **Optionally set `ADMIN_WRITE_TOKEN`** in *both* Render env and GitHub Actions secrets, and
+   point the `run-learning` / `adopt-backtest-weights` jobs at it. Until then the split exists
+   in code and **not in operation**, and nothing here claims otherwise.
+
+Zero trials for all three — correctness and security repairs with no hypothesis and no
+threshold. Equity `N` stays **224**.
+
+---
+
+# Session 32 — 2026-08-14 — `PT-WRITER`'s missing ingredient, supplied
+
+**Lane:** app fixer. **Branch:** `worktree-demo-link`.
+
+## 0. Headline
+
+`PT-WRITER` has been BLOCKED since 2026-08-09 and the 2026-08-14 reading finally dated *why*:
+the writer lane tried, refused, and said what it lacked (commit `41d7b12`, 2026-08-10 20:06) —
+
+> *"The mechanism for retrieving daily closing prices to calculate the Index returns is NOT
+> DOCUMENTED IN THIS REPOSITORY ... Cannot write today's row without (a) a documented
+> price-fetching mechanism, or (b) guessing at a vendor. Per instructions, logging the gap
+> rather than inventing data."*
+
+**That was the correct call. The ingredient is now in the repo**, documented in the contract's
+own recorder section so a fresh session finds it by reading rather than by digging.
+
+| | |
+|---|---|
+| **Module** | `valuation/screener/index_mark.py` — `contract_row()` returns the Index mark, the SPY mark and the date |
+| **In-repo writer** | `python -m scripts.track_row` (`--csv`, `--append`, `--date`, `--book`) |
+| **Off-box writer** | `GET /admin/track-row` with the existing `X-Admin-Token`; `?append=1` writes |
+| **Docs** | `PAPER_TRACK_CONTRACT.md` §7.2a, inside the blocker it answers |
+| **Tests** | `tests/test_index_mark.py` — **22/22** |
+
+**No new vendor**, which was the other half of the blocker: prices come from
+`valuation/screener/prices.py` (Stooq → yfinance), the module the momentum factor and the
+liquidity gate already run on. No API key, no licensed row. The "guess at a vendor" the failure
+note refused is refused here too, by there not being one to guess at.
+
+**`PT-WRITER` STAYS BLOCKED AND STAYS COWORK'S.** This supplies the mechanism; it does not
+schedule itself and does not decide to write. Scheduling the recorder is the Cowork lane's call
+under §7.2, and the row should not be closed until something actually runs.
+
+## 0a. It was run for real, end to end, against the live 86-name book
+
+`python -m scripts.track_row --date 2026-08-13 --book <real book>` — **exit 0**, all 86 names
+priced, nothing unpriced:
+
+```json
+{"date": "2026-08-13", "day_n": 10, "valquo_pct": 4.3232,
+ "spy_pct": 4.8794, "excess_pp": -0.5562, "n_priced": 86}
+```
+
+**That row is exactly what `PT-WRITER` could not produce on 2026-08-10.** The mechanism is not a
+design — it ran, it priced the whole book, and it emitted a complete, schema-correct row.
+
+**It was NOT written.** No `--append`, so the bound series is untouched; this was a read.
+
+**Do not quote the −0.5562pp as the track's record.** It is this mechanism's output, not a
+recorded row, and it carries the ~0.02pp book-leg seam described in §1. The recorded series
+still ends at 2026-08-06.
+
+## 1. How closely it reproduces the recorded rows — and the two legs differ
+
+Re-derived both existing rows against live prices, all 86 names:
+
+| row | field | recorded | re-derived | gap |
+|---|---|---|---|---|
+| 2026-08-06 | `spy_pct` | 3.6228 | 3.6228 | **EXACT** |
+| 2026-08-06 | `valquo_pct` | 0.7760 | 0.7961 | +0.0201pp |
+| 2026-07-31 | `spy_pct` | 0.6903 | 0.7200 | +0.0297pp |
+
+**The benchmark leg reproduces exactly and the book leg does not.** The exact hit on SPY is what
+confirms the *convention* — closing prices, cumulative-since-inception, this vendor — because a
+wrong base date or a daily-return convention would miss by percent, not by nothing. The book leg
+sits 0.0201pp away with all 86 names priced on both sides.
+
+**I corrected my own first draft here.** It said this module "is the source of the recorded
+series, not a new estimate of it". That is true of the benchmark leg and false of the book leg,
+and the wording is now measured rather than asserted. **Hypothesis, not diagnosed:**
+dividend/adjustment treatment across 86 names, or a different quote vendor for the equity leg.
+Not chased — the rows were hand-made and nobody recorded how they were priced.
+
+**Consequence, disclosed rather than rounded away:** a series that switches to this mechanism
+acquires a **~0.02pp seam**. Against the contract's own **σ of 3.9847pp/month** that is about
+half a percent of one month's noise, and far inside §3's LOGGED-NOT-VOIDED tolerances — but it
+is a real discontinuity and it is written down.
+
+**The day-1 row is not a usable comparison in either direction:** only 78 of 86 names have a
+2026-07-31 close in this tape against a recorded `n_priced` of 86, so its book leg compares two
+different books. Its benchmark leg misses by 0.0297pp in the same direction. **Hypothesis, not a
+finding:** that row looks marked from an *intraday* quote rather than the close — consistent in
+sign and size, and exactly what the close refusal now prevents.
+
+## 2. Refusing is a first-class outcome
+
+Every failure path returns `ok: false` with a reason and **`row: None`** — never a partial
+number. Pinned by `test_no_refusal_path_ever_leaks_a_number`, which walks all five: session not
+closed, non-trading day, unreadable book, unpriceable benchmark, and under 95% of the book's
+**weight** priced (weight, not name count — losing one 2.3% name is not the same event as losing
+one 0.4% name).
+
+The CLI exits **2** on a refusal and **0** on a row. **Exit 2 is normal** — "the session has not
+closed yet" is the common case, and a scheduler treating it as a hard failure will page somebody
+every weekend. The endpoint returns a refusal as **200, not 500**, for the same reason: a 5xx
+tells a scheduler to retry something that is not broken.
+
+## 2a. A hole I put in myself, found by re-reading rather than by a failure
+
+The close guard originally sat **inside the `as_of is None` branch**, so it only ever protected
+the default path. **`--date <today>` walked straight past it** — and a vendor returning a partial
+bar for a live session would then have priced the row against an intraday quote under a
+closing-price column. That is exactly the failure the recorded day-1 row appears to carry, in a
+module written to prevent it.
+
+The guard is now on the **date**, not on how the date was chosen: it refuses when the mark date
+*is* the current unclosed session, while still allowing backfill of any day that has ended.
+Pinned by `test_naming_todays_date_explicitly_does_not_buy_what_omitting_it_refuses`, which
+asserts both halves — the refusal *and* that an already-closed earlier day still succeeds, so
+the fix cannot freeze backfill.
+
+## 3. A gap the live run found, that the tests could not
+
+The first live invocation **could not reach the book at all**: `data/` is gitignored, so a
+recorder running from a git worktree — or any fresh clone — has no `data/valquo_track.json` at
+the default path. The mechanism was unusable from exactly the places an automated writer is most
+likely to run. Fixed with `--book`, and pinned by
+`test_the_cli_can_be_pointed_at_a_book_outside_its_own_checkout`.
+
+## 4. Posture — nothing widened
+
+`/admin/track-row` inherits `private.ADMIN_PREFIXES` (`/admin/`), so it is owner-only by
+construction and **needed no new entry in any posture allowlist**. Same `X-Admin-Token` as
+`/admin/export-track`, which is the call pattern the weekly backup cron already uses. Read-only
+unless `?append=1`. The unauthenticated 401 is asserted in the endpoint test.
+
+## 5. One function, two doors
+
+The endpoint and the CLI both delegate to `index_mark.contract_row`; neither does its own
+arithmetic. Pinned three ways: source-level (`test_the_endpoint_returns_exactly_what_the_module_
+computes`, `test_the_script_delegates_to_the_same_module`) and **end to end through Flask**
+(`test_the_LIVE_endpoint_row_equals_what_index_track_reads_back`), which is the only one that
+could catch a route growing its own maths. Two doors onto one function is fine; two
+implementations is the B7 split this project keeps paying for.
+
+## 6. The required pin
+
+`test_the_emitted_row_reads_back_through_index_track_unchanged` — the row this mechanism emits
+is written and then read back by `index_track.load()`, and every field must match. A writer that
+emits a column the reader ignores fails **silently on both sides**, so the round trip is asserted
+rather than the header eyeballed.
+
+## 7. Verification
+
+* **Full gate 74/74 suites exit 0** — judged by exit code, never by grepping for `OK`.
+* **`tests/test_index_mark.py` 23/23.**
+* **Mutations 11/11 caught, 0 missed, 0 skipped.** Every pin was broken deliberately and every
+  one failed: holding an unpriced name flat, counting coverage by name instead of weight, a
+  refusal leaking a row, removing the explicit-today close guard, flipping `refuse_before_close`
+  to default False, `day_n` counting inception as day 1, dropping `excess_pp` from the header,
+  `append_row` duplicating a date, skipping the benchmark refusal, the endpoint answering without
+  a token, and a refusal returned as 500. **Zero skipped — a skipped mutation is a harness
+  failure, not a pass.**
+* **The contract's gate row is unaffected by the §7.2a insertion** — `index_track.gate_state()`
+  still reads `pending`, `passed: False`. That parser is deliberately dumb and one-directional,
+  and a documentation edit inside §7.2 must not be able to flip it.
+* **Python 3.11 parse-checked** (`ast.parse(feature_version=(3,11))`) on all four touched files —
+  CI is 3.11 and a 3.12-only f-string has silently blocked three lands before.
+* **Ledger column integrity**: the PT-WRITER row still carries 11 pipes, matching the header;
+  `tests/test_build_ledger.py` 20/20, 194 rows = 133 audit + 61 out-of-band.
+
+## 8. What is NOT done
+
+* **Nothing is scheduled.** No cron, no task, no workflow. Cowork's call.
+* **No row was written to the real track.** The live run was read-only.
+* **The book leg's 0.02pp gap is not diagnosed**, only bounded and disclosed.
+* **`recording_ok` still cannot see a closed vintage's miss** — that is session 28's second
+  defect and `recording_history` remains the only instrument that shows it. Untouched here.
+
+---
+
+# Session 31 — 2026-08-13 — The full view had holes with labels on them
+
+**Lane:** app fixer. **Branch:** `worktree-demo-link`. Follow-up to Session 30.
+
+## 0. Headline
+
+Two leftover gating banners rendered to anonymous visitors under `PUBLIC_FULL_VIEW`. Both are
+gone. **The owner view is unchanged and the mutating tools stay owner-locked** — that line does
+not move.
+
+**The Edge Lab one was a gap in Session 30's own work, not a cosmetic leftover.**
+
+## 1. The Edge Lab red bar — a THIRD gate the ungating did not know about
+
+`switchTab` auto-calls `edgeLearning()` for any session without the runner buttons, so opening
+the Edge Lab tab fetches `/api/edge/learning`. Session 30 wired `PUBLIC_FULL_VIEW` into
+`surfaces.check` — but **`gating.check_request` is a separate gate** and tested
+`user.get("is_demo")`, which is false for an anonymous visitor. The request passed the surface
+split and was refused by the second gate, and the JS painted **"Owner-only research tools."**
+across the tab.
+
+**Three gates stack on this path** — `private.check`, `surfaces.check`, `gating.check_request`.
+Wiring a flag into one of them is not wiring it in.
+
+**Why Session 30's tests missed it:** they exercised `surfaces` as a *pure function*, plus two
+end-to-end routes (`/api/index-track`, `/api/scream-track`) — neither under `/api/edge/`, which
+is the only prefix `gating` treats specially. The end-to-end coverage was real but did not touch
+the one path with a third gate on it.
+
+**Fixed at the source rather than by suppressing the bar.** The read now answers `200`, so the
+tab opens onto the self-learning log — the thing a read-only session came to see. Suppressing
+the banner would have left the hole and removed the sign.
+
+**Scoped to the identical path and method the demo session gets** (`GET /api/edge/learning`).
+Widening to `/api/edge/` generally would make an anonymous visitor strictly *wider* than the
+preview it is defined to equal. The three POST runners stay shut for both, in both gates.
+
+## 2. The bar that told visitors they could not see it
+
+`index.html` rendered, on `{% elif may_see_owner %}`:
+
+> *Live forward track — … owner-only notice, visitors see nothing here*
+
+It is a note to **Don** that the forward track has not started. Under `PUBLIC_FULL_VIEW` a
+visitor *is* a `may_see_owner` reader, so a stranger was shown a bar stating that strangers
+cannot see it — self-contradictory, and a hole with a label on it. Changed to `{% elif is_owner %}`.
+
+## 3. The sweep
+
+Done empirically rather than by eye: render `/app` signed out under the flag, strip HTML
+comments, and search for the whole class of phrasing.
+
+* **Before:** 4 matches for `owner-only` — **3 were HTML comments** explaining why a block is
+  gated (invisible, correct, left alone) and **1 was the live bar above**.
+* **After:** **0 visible occurrences.**
+* JS carries exactly two 403→banner handlers, both `"Owner-only research tools."`, both on the
+  Edge Lab; the runner one is unreachable for a non-owner because the buttons are not rendered.
+* The template's `{% if may_act %}` split was already correct — runners hidden, and a
+  **"Read-only preview"** note that explains what the session *is*, not what it lacks.
+
+**The comment-stripping is load-bearing.** The template legitimately contains three `owner-only`
+comments; a naive substring scan over raw HTML fails on those forever, and the next person
+deletes the test rather than the banner.
+
+## 4. Verification
+
+* `tests/test_public_full_view.py` **19/19** (14 + 5 new).
+* **Full gate 73/73 suites exited 0.** Mutations **6/6 caught, 0 missed, 0 skipped.**
+* **A MUTATION FINDING WORTH THE SPACE — "independent" was a claim, not a fact.** Two mutations
+  initially MISSED: widening `gating`'s `demo_read` to every `/api/edge/` path, and dropping its
+  method test. Neither changed what the app returns, because `surfaces.DEMO_DENIED_PATHS`
+  refuses those routes in `_guard` *before* `gating` runs. **Defence in depth working exactly as
+  designed** — and precisely because it worked, the end-to-end test was pinning the OUTER layer
+  while proving nothing about the inner one. `gating`'s own comment calls itself *"the second,
+  independent line of that defence"*, but a second line only ever exercised through the first is
+  not independent, it is unverified: remove the `surfaces` entry later and nothing catches the
+  widening here. Added
+  `test_the_gating_layers_own_scoping_holds_INDEPENDENTLY_of_the_surface_split`, which calls
+  `gating.check_request` directly. Both mutations now caught. **The safety was never in
+  question; the coverage claim was.**
+* Confirmed directly: anonymous `/api/edge/learning` → **200** with the flag on, **403** with it
+  off (the regate still closes it); signed-out page has **0** visible owner-only phrases; the
+  owner still sees his not-started notice and all three runners; the visitor keeps the
+  self-learning log button.
+
+## 5. What did NOT change
+
+* The Edge Lab runners (`/api/edge/backtest`, `/optimize`, `/track`) — refused in **both** gates,
+  under **both** flag states, pinned.
+* `may_act` — still does not read the flag.
+* Every disclaimer, vintage and paper-account label.
+* The regate is still one value: `PUBLIC_FULL_VIEW=false`.
+
+---
+
+# Session 30 — 2026-08-13 — `/app` ungated: anonymous == demo, temporarily
+
+**Lane:** app fixer. **Ledger:** `PUBLIC-FULL`. **Branch:** `worktree-demo-link`.
+
+## 0. THE REGATE — read this first
+
+> **Set `PUBLIC_FULL_VIEW` to `false` in the Render dashboard.**
+> Service → Environment → `PUBLIC_FULL_VIEW` → `false` → save. Render redeploys.
+
+That is the whole regate. **One value. No code change, nothing deleted.** `OWNER_SPLIT` stays
+`true` underneath and is still enforced and still tested in both states. The key is in
+`render.yaml` with the same instruction beside it, and a test asserts it is really there — so
+the promise is not just prose in a handoff.
+
+**Do NOT regate by flipping `OWNER_SPLIT` instead.** See §2.
+
+## 1. The decision
+
+Don, 2026-08-13, recorded verbatim because the code cannot justify itself here:
+
+> *"/app must be 100% ungated - I know the risks - I've submitted applications with the
+> non-master link; when I hear back we regate."*
+
+Applications went out carrying the plain `/app` URL rather than the recruiter master link, so
+recruiters were landing on the public half and seeing a fraction of the tool.
+
+**Implemented as ANONYMOUS == DEMO.** One flag lifts the anonymous tier to the read-only full
+view the `/work` button already grants — Track Record, Edge Lab, Index, Signals, Watchlist —
+and nothing beyond it.
+
+## 2. Why a new flag and not `OWNER_SPLIT=false`
+
+`OWNER_SPLIT=false` is the obvious lever and it is the wrong one. It also makes
+`surfaces.may_act` true for **everyone**, which hands anonymous callers:
+
+* `/api/scan/run` — writes a scan snapshot, 3 FMP requests per uncached name
+* `/api/signals/run` — writes intraday rows, one Anthropic call per run
+* `/api/backtest/run`, `/api/edge/backtest`, `/api/edge/optimize` — CPU-heavy on a 512 MB box
+
+That is a free DoS lever that spends Don's data budget on every request. **`PUBLIC_FULL_VIEW`
+cannot do that**: `may_act` does not consult it, and that is pinned *structurally* — the test
+reads `may_act`'s source (docstring stripped, since the docstring discusses the flag) rather
+than trusting only the combinations someone thought to enumerate.
+
+## 3. What does not move
+
+| line | status under the flag |
+|---|---|
+| mutation endpoints | **refused** — all six triggers stay 403 to a stranger |
+| admin / account / billing | **refused** — `/account`, `/account/alerts`, `/billing/*` |
+| raw Sharadar / ThetaData rows | **unchanged** — see §5 |
+| disclaimers, vintage, paper-account labels | **unchanged** — same templates, same code path |
+
+It **reuses the demo rail entirely** rather than adding a parallel one, which is what keeps the
+blast radius small: `DEMO_DENIED_PATHS` applies to a stranger under the flag exactly as it does
+to a demo session. A test asserts anonymous and demo return the **identical decision on every
+owner-only path** — i.e. the lift is exactly the demo tier and not a millimetre wider.
+
+## 4. A defect caught while wiring it
+
+Extending the demo-denied rule to anonymous would have **refused the owner his own `/account`
+and billing pages** the moment the flag went on, because that rule fires *before* the owner
+check. A flag that exists to widen a stranger's reach would have quietly narrowed Don's.
+Guarded with `not is_owner(...)` and pinned by
+`test_the_owner_is_not_NARROWED_by_a_flag_that_exists_to_widen`.
+
+## 5. The licence line, which "I know the risks" does not cover
+
+**"I know the risks" answers for LIABILITY. It cannot answer for a vendor's licence terms.**
+Sharadar and ThetaData are individual-plan, backtest-only vendors whose terms forbid
+redistribution.
+
+Nothing moves here, and the reason is structural rather than a fresh promise: this grants the
+**demo tier**, so the route-by-route audit that cleared demo (Session 18 — no READ route returns
+a vendor row verbatim) applies unchanged. A test asserts `DEMO_DENIED_VENDOR_ROWS` still exists
+**and is still consulted**, so the next Sharadar-backed READ route cannot be published by
+default.
+
+## 6. Both states pinned, no posture test deleted
+
+Per the instruction. The regate is *planned*, not hypothetical — so a suite pinning only the
+ungated state would go green on regate day while proving nothing about it, and one that had
+deleted the old assertions could not tell anyone what the posture used to be.
+
+* `tests/test_public_full_view.py` — **14/14**, runs every assertion in **both** flag states and
+  cites the decision and the planned regate in its own docstring.
+* `tests/test_public.py` **31/31** and `tests/test_private.py` **30/30** — **untouched**, still
+  pinning the flag-off world in full.
+
+**The live-app test carries its own control**, because `create_saas_app` is **idempotent**: a
+test that builds a "second app" with different flags gets the *first* app back and passes
+vacuously. So the flag is flipped on the live `CONFIG`, and the test **fails if flipping it
+changed nothing observable**.
+
+**The code default stays `false`** so a fork, a test box or a fresh instance is never ungated by
+accident; production opts in through `render.yaml`. Only an explicit `"true"` ungates — `"yes"`
+fails closed.
+
+## 7. Verification
+
+* `tests/test_public_full_view.py` 14/14; `test_public.py` 31/31; `test_private.py` 30/30.
+* **Full gate: 72/72 suites exited 0** (71 + the new suite), judged by exit code.
+* **Mutations 11/11 caught, 0 missed, 0 skipped.** The ones that matter: `may_act` made to read
+  the flag; the `not is_owner(...)` guard removed; the denied set stopped applying to anonymous;
+  the lift widened past the demo tier; the config default flipped to unsafe; the flag made to
+  fail OPEN on a junk value; `render.yaml` losing the regate key. Every one is caught.
+* Post-mutation the worktree is clean and both safety-critical lines are verified intact —
+  `may_act` contains **zero** references to `public_full_view`.
+
+## 8. FOR DON — check this yourself before assuming recruiters see it
+
+1. **Hard-refresh** (Ctrl+Shift+R) — the old page is cached and will lie to you.
+2. Open **`/app` in a private/incognito window** so you are genuinely signed out.
+3. You should see **Track Record, Edge Lab, Index, Signals and Watchlist** — the same view the
+   `/work` button gives.
+4. Sanity-check that the limits held: **Run scan** and the Edge Lab runners should refuse, and
+   `/account` should refuse.
+
+**Render must redeploy for the new env key to exist.** If `/app` still looks gated, check the
+Render dashboard actually shows `PUBLIC_FULL_VIEW=true` — `render.yaml` sets it on a fresh
+provision, and an existing service may need the key added by hand.
+
+---
+
+# Session 29 — 2026-08-13 — V6-B lands on the surface: one dead claim, one live one
+
+**Lane:** app fixer. **Prompt:** out-of-band, product, Don's direction — flip the Dip Detector's
+explainer to the V6-B verdict. **Branch:** `worktree-demo-link`.
+**Ledger:** `V6B-PRODUCT`. **Research half:** `HANDOFF_edge_audit.md` V6-B (edge lane).
+
+## 0. Headline
+
+The Dip Detector now publishes **two verdicts that disagree, on purpose**, and the entire design
+risk is a reader collapsing them into "healthy dips are good buys":
+
+| register | question | verdict | on the surface |
+|---|---|---|---|
+| **V6** (`STATUS`) | do these names **beat the market**? | **NULL** — four arms | kept, unchanged |
+| **V6-B** (`RISK_STATUS`) | do they **fall further** less often? | **POSITIVE** — M1 | new, with numbers |
+
+The risk claim shipped with its effect size on the surface — **32.5% against 43.4%**, a 10.8-point
+absolute and ~25% relative reduction, 37,014 episodes, 2,531 names — plus replication in both
+halves, the size-tier gradient, and the one-panel caveat. The Discord digest is unblocked and
+**regated onto the risk register**, risk-framed by construction.
+
+**Adopts nothing, measures nothing.** This lane publishes what the edge lane measured.
+
+## 1. Two constants, not one overloaded status
+
+`STATUS` was documented as "the one thing the V6 close-out flips". There are now two registers
+with two answers, so there are two constants. `RISK_STATUS` is separate because overloading a
+single status would have forced a choice about which verdict the tab "really" says — and it says
+both.
+
+`headline`/`explainer` stay bound to the **return** register, so every pin previously written
+against them still holds; the risk claim arrives on its own keys beside them. The template
+renders them as two visually distinct blocks rather than one merged paragraph.
+
+**A test asserts the dead verdict is not dropped once good news landed beside it** — and it
+asserts both its **headline and its detail**, which a mutation forced: deleting the explainer
+block left the headline standing, so an assertion on the headline alone passed while the null's
+actual content had stopped rendering.
+
+## 2. The copy is pinned to the handoff, not paraphrased
+
+`RISK_REGISTERED_SENTENCE` is asserted to appear **verbatim in `HANDOFF_edge_audit.md`**. If the
+edge lane revises it, the suite fails rather than the product drifting. §3 of that handoff exists
+precisely because the originally proposed wording described an arm that is VOID.
+
+## 3. The distress family is now banned — the only banned family whose neighbour is TRUE
+
+M1 measured **a further −20% fall** and separated decisively. **M2 measured actual bankruptcy and
+regulatory delisting and is VOID on power** (42 events against a floor of 60).
+
+> "fell further less often" and "went bust less often" have the **same shape**. One is replicated;
+> the other is unmeasured.
+
+So `BANNED` gained `bankrupt`, `insolven`, `goes to zero`, `blow up`, `went bust`, `died less`,
+`goes under` and ~18 more, enforced against the **rendered HTML** alongside the advice and
+prediction families.
+
+**Flagged deliberately:** the commissioning note's own phrase — *"less likely to blow up"* — is
+among the banned phrasings, on the edge lane's own reasoning (§3, "the word DIED is not earned")
+rather than against it. The tab says these names **fell a further 20% less often**. It does not
+say they survived, failed less, or avoided going under.
+
+## 4. One number in the brief did not match the measurement
+
+The brief said the result replicated "across both halves and **every size tier**".
+
+* **Both halves — correct.** −9.064pp early, −11.515pp late.
+* **Every size tier — narrower than stated.** Five of five quintiles separate **on the full
+  sample**; only **four of five** also hold **in both halves**. The exception is **Q5, the
+  megacaps** ($21.85B median), which is also the **weakest** tier at −3.787pp against −14.287pp
+  in the smallest.
+
+The surface says the narrower true thing, and states the gradient explicitly — **the effect is
+largest in the smallest companies and weakest in the very largest, which is the opposite of where
+this site's coverage sits.** That caveat matters more than usual here: the live hot list is
+megacap-tilted, so the claim is weakest exactly where the product lives.
+
+## 5. The digest — unblocked, regated, and unable to frame itself any other way
+
+`digest_eligible` moves `STATUS == POSITIVE` → `RISK_STATUS == POSITIVE`. That is **strictly
+tighter** than what it replaces: the return register can no longer unblock an outbound push at
+**any** value, so a future revision of V6 cannot start a digest going out on its own. Both
+directions are pinned. The previous close-out's reasoning is **amended in the test comment, not
+deleted**.
+
+Three structural guarantees, each mutation-caught:
+
+1. **The digest cannot write its own claim.** It renders `posture["digest_claim"]`, which is the
+   registered sentence, and the "not a promise" qualifier — pinned to be present, because the ban
+   list catches *wrong* sentences and cannot catch a *missing* one.
+2. **It re-checks its own finished message** against `violations()` before sending, and refuses
+   rather than sends on a trip. V4's assert-against-what-*renders*, moved one step out to
+   assert-against-what-**sends**.
+3. **A refused send does not mark the day done — and neither does a failed one**, so a transient
+   outage does not silently skip the next day.
+
+## 6. One screen, two callers
+
+`dip.screen_snapshot` now holds the snapshot load, both publication passes, the screen and the
+call budget. Written the moment there was a second caller: two copies of that sequence is how the
+Index and the hot list once disagreed, and **a digest that skipped `withhold` would push a name
+the site itself refuses to display — outbound, where the discrepancy is invisible until after it
+has been sent.** `/api/dip` and `scan_worker.run_weekly` both call it; a test pins that the route
+no longer re-implements the passes.
+
+## 7. Verification
+
+* **`tests/test_dip.py` 46/46.**
+* **Mutations 15/15 caught, 0 missed, 0 skipped** — including the three that initially MISSED and
+  exposed real test weaknesses (§1 detail-vs-headline, §5 missing-qualifier, §5 failed-send
+  marking). All three tests were strengthened, not the mutations retargeted, except one that was
+  genuinely pointed at the wrong test.
+* **Full gate: 71/71 suites exited 0.** Judged by exit code, never by grepping for `OK` —
+  `CLAUDE.md` records that the suites print at least three summary formats and that an
+  `OK`-scraping loop reports three passing suites as failing. `test_shadow_vintage.py` 26/26, so
+  the **V1 outbound fence is intact** with the new copy in place; `test_public.py` green, so the
+  surface split still classifies every route; `test_scream_track.py` 19/19 unaffected.
+  `test_guards.py` carries its pre-existing XFAIL note at exit 0 (options-bot lane, untouched).
+* **CI is Python 3.11 and this machine only has 3.13**, so all six changed `.py` files were
+  scanned for PEP 701 constructs (same-quote nesting and backslashes inside f-string braces):
+  **0 suspect**. A 3.12-only f-string has silently blocked three lands on this repo before.
+* Ledger `V6B-PRODUCT`; `tests/test_build_ledger.py` 20 passed, 192 rows = 133 audit + 59
+  out-of-band.
+
+## 8. BUGS FOUND
+
+1. **A test that passed on the headline while the body had stopped rendering.** `..._two_verdicts
+   _are_rendered_as_two` asserted only `VERDICT_HEADLINE`; deleting the `explainer` div left it
+   green. Mutation-caught, now asserts the detail too. *This is the shape of every stale-copy
+   defect in this project's record — the summary survives, the substance quietly leaves.*
+2. **A ban list cannot catch a missing sentence.** The digest's risk/return qualifier could be
+   deleted and the message still passed every check, because `violations()` only ever sees what
+   *is* there. Presence is now pinned separately.
+3. **A failed Discord send marked the day as already-digested**, so a transient network error
+   would silently skip the push and never retry. Pre-existing pattern in `post_hot_digest`'s
+   shape; fixed in the new sender and pinned. **Not fixed in `post_hot_digest` itself** — that is
+   a live path with its own callers and is filed below rather than changed under this prompt.
+
+## 9. Still open (not mine, or not this prompt)
+
+* **`post_hot_digest` has the same mark-on-failure shape** as bug 3 above. One line; different
+  surface; not touched here.
+* `SL.reset_record` still has not been run — the live record is on Render's disk and cannot be
+  reset from a dev box (`V6-LOG`).
+* `screen.py::_rows_from` still drops raw `high_prox` (screener lane).
+* `track_export._trade_rows` still drops `target_premium`/`stop_premium`/`last_mark` (edge lane).
+* `/methodology` still calls the Deflated Sharpe "undeflated" (M1 settled this 2026-08-05).
+
+## 10. If V6-B is ever revised
+
+One constant: `dip_posture.RISK_STATUS`. Set it to `NULL` (or `OPEN`) and the risk block stops
+rendering, the digest stops sending, and `digest_claim` empties — all derived, none of it needing
+anyone to remember a second place. The suite fails until the filled state is internally
+consistent, so a half-finished flip cannot ship quietly.
+
+---
+
+# Session 28 — 2026-08-13 — The Dip Detector, and the scream-buy record rebuilt
+
+**Lane:** app fixer. **Prompt:** `PROMPT_dip_detector_and_screamtrack.md` (out-of-band, product,
+Don's direction). **Branch:** `worktree-demo-link`.
+
+## 0. Headline
+
+Two surfaces shipped, and the interesting finding is in neither of them: **the quantity the
+Dip Detector screens on is computed by every scan and then thrown away.**
+
+`prices.get_quote` computes `high_prox = price / max(close, trailing 252 sessions)` for every
+name, because the momentum theme z-scores it. Drawdown from the 52-week high is exactly
+`1 - high_prox`. But `screen.py::_rows_from` builds `extra` from a fixed list of raw fields
+and `high_prox` is not on it — what survives is `extra["numbers"]["high_prox"]`, the
+**cross-sectional z-score**.
+
+**A z-score cannot be turned back into a percentage.** It is `(x - mean) / sd` over that
+date's cross-section, so the same z is a different drawdown on every scan date — deep on a
+calm day, shallow on a day the whole market is down. Rendering it as a percentage would put a
+fabricated, confident, per-name number on a public surface, which is the failure class
+`withhold.py` exists to prevent. (The other tempting inversion — "some name is always at its
+high, so `max(high_prox) = 1.0` anchors it" — needs a *second* anchor to solve two unknowns,
+and "some name is always at its high" is an assumption about the cross-section rather than a
+measurement of it.)
+
+**What IS true about the z-score, and is what makes the tab affordable:** standardisation
+within a date is a strictly monotone affine transform, so ordering by `z_high_prox` ascending
+is *exactly* ordering by drawdown descending. Not approximately — identically. So the z-score
+is a perfect **ranking** key and a useless **threshold** key, and the screen uses it for
+precisely the first: rank, take a bounded shortlist, then measure the real percentage for that
+shortlist only. **Every drawdown the tab reports is a measured ratio of two prices.**
+
+## 1. ITEM 1 — the Dip Detector tab
+
+`valuation/web/dip.py` (the screen), `valuation/web/dip_posture.py` (what it may say),
+`/api/dip`, a public tab, `tests/test_dip.py` (39 tests).
+
+**The gates, in cost order.** The row-level disqualifiers and a cross-sectional prefilter are
+free (they read the cached snapshot); measuring is not. Filtering first and measuring second
+gives the same set as the reverse — a conjunction does not care about order — while measuring
+far fewer names.
+
+| stage | cost | what it does |
+|---|---|---|
+| publication flags | free | drops withheld / fail-closed rows |
+| prefilter `z_quality`, `z_growth` ≥ 0 | free | **not the health gate** — a budget-saver |
+| order by `z_high_prox` | free | **exact** drawdown order |
+| measure top N (default 12, max 25) | a valuation each | drawdown, sub-scores, DCF checks |
+
+**Why a full valuation and not a cheap quote.** A price lookup gives the drawdown for pennies.
+It does not give the three 0-100 sub-scores the health gate is defined on, and it leaves two of
+the four disqualifiers permanently `not_run`. One valuation supplies all four — and it is the
+**same** valuation the name's own page renders, from the same TTL cache, so a name cannot show
+one health score on the Dip Detector and a different one when the reader clicks it.
+
+**The health floor is derived, not invented: 66.** That is where `scoring._recommendation`
+stops saying "Hold" and starts saying "Buy", and `app.js::scoreColor` independently uses the
+same boundary for green. Two places already treat 66 as healthy, so the screen takes it rather
+than adding a third opinion. Pinned by a test that fails if that calibration moves.
+
+**Momentum is deliberately excluded from the health gate.** A name 20% off its high has poor
+momentum *by construction* — `_momentum_score` reads price vs the 200-day average and the
+6-month return — so requiring healthy momentum would reject the entire population the screen
+exists to find. Valuation is excluded for a different reason: it is the sub-score the
+withholding machinery suppresses, and gating on a sometimes-withheld figure would make the
+screen's membership depend on data availability.
+
+**A CHECK THAT DID NOT RUN IS NOT A CHECK THAT PASSED.** Don named four disqualifiers and they
+do not live on one surface. `withheld` and the fail-closed `no_data` kind are on every snapshot
+row. `terminal_share` and `beta_provenance` exist only where a full DCF ran. Rows carry a
+per-check `pass` / `fail` / `not_run`, the badge for `not_run` is neutral-coloured and says so
+on hover, and the table footer explains it. This is the same distinction
+`holdout_theme_validate` had to learn: `oos_directions_tested = 0` means no test was run, which
+is a different statement from a negative result.
+
+**THE POSTURE LINE, and it is the part with a deadline.** The screen is measurement. The
+interesting claim — *"no good reason besides sentiment"*, *"will very likely pass over"* — is a
+statement about forward returns that nothing in this repository has measured, and is exactly
+what the pipeline lane is pre-registering as **V6**. So:
+
+* every claim-bearing sentence is server-rendered from `dip_posture.posture()`; **the template
+  holds none of it**, pinned by a test that strips Jinja and asserts the prose is absent.
+* the close-out flips **one constant**, `dip_posture.STATUS`. `OPEN` → `POSITIVE` or `NULL`.
+* `NULL` is exactly as reachable as `POSITIVE` — same rule as `shadow_vintage`'s missing sign
+  branch, and pinned. The state nobody wants to publish must be as easy to publish as the one
+  everybody does.
+* a half-finished flip is **visibly empty rather than plausible**: a test simulates flipping
+  `STATUS` without filling `VERDICT_DETAIL` and asserts the headline comes back blank.
+* **the digest stays blocked** while the register is open, derived from `STATUS` rather than
+  set by hand — an outbound "dip alert" is a recommendation-shaped push and waits for the
+  evidence. A close-out that upgrades the copy and forgets the digest would otherwise leave the
+  two disagreeing.
+* `BANNED` lists the phrasings that may never appear in any state, in two families:
+  **recommendation** ("buy the dip", "load up") and **prediction** ("will recover",
+  "temporary", "oversold", "sentiment-driven"). Enforced against the **rendered HTML** in both
+  the public and the owner render — rendering is where copy leaks, which is what V4 learned.
+  Note `sentiment-driven` is banned *even though Don used the phrase*: attributing a drawdown
+  to sentiment is a causal claim about why a price moved, and this screen reads no news, no
+  flow and no positioning. It sees a price and a balance sheet.
+
+**The bounds are reported, always.** `n_universe`, `n_eligible`, `n_measured`, `capped`,
+`n_unmeasured` all render in the tab's meta line, including when the cap did not bite. A screen
+that truncates silently reads as coverage.
+
+**Public tier**, per the split — model output over names, no book, no weights, no contract, and
+no forward-return claim at all while V6 is open. `/api/dip` added to `surfaces.PUBLIC_API`.
+
+## 2. ITEM 2 — the scream-buy record: a TAB that consumes the logger
+
+`valuation/web/scream_track.py`, `/api/scream-track`, a card on Signals,
+`tests/test_scream_track.py` (19 tests).
+
+**THIS SECTION WAS REWRITTEN MID-SESSION, AND THE REWRITE IS THE MOST USEFUL THING IN IT.**
+The prompt says the greeks lane owns the logger and warns *"do not build a second logger"*.
+When this lane started, `valuation/edge/scream_log.py` did not exist, so it built the display
+against the columns that did — `paper_option_orders`. Greeks landed at `7e4ddf2` while this
+work was in flight. The tab is now a **pure consumer** of `scream_log`, and reconciling
+against their field contract turned up **three ways the standalone version was wrong**, not
+merely duplicated:
+
+1. **"Price bought in" was the BROKER FILL.** `scream_log.entry_premium` is the **alert-time**
+   premium; `paper_option_orders.entry_premium` is what the sandbox broker filled at. Two
+   different books. **Session 16 exists because those two were conflated — and the standalone
+   version quoted session 16 at length in its own docstring while making the same mistake one
+   layer up.** This is the correction that would otherwise have put a wrong number on screen.
+2. **The epoch was a DATE COMPARISON** (`alert_ts >= "2026-08-13"`). The real boundary is
+   `record_epoch`, a value stamped on the row by `reset_record`. **The record has not been
+   reset and cannot be from a dev box** — every local database holds zero scream-buy rows and
+   the real one is on Render's disk. So a date-based epoch would have hidden every earlier row
+   **as though a reset had already run**. For a track record that is the worst available
+   failure: it *looks* reset.
+3. **Staleness was a two-day calendar rule.** The logger marks a quote stale at **15 minutes**,
+   because a live option premium is a different object from a daily scan's freshness.
+   Borrowing one constant across two clocks is the `MIN_LIVE_DAYS` / `MIN_DAYS_FOR_MEANING`
+   defect, and this had it.
+
+Also: there are **six** statuses, not five. `CLOSED (unscoreable)` exists so a closed row whose
+exit reason maps to none of Don's five is not forced into one that misdescribes it.
+
+`SCREAM_TRACK_RESET.md`, written earlier this session, **was deleted** — it described the
+date-based epoch and a register note this lane no longer owns, and leaving it would have been a
+second, contradictory account of the same reset. A test asserts it is gone.
+
+**What the tab does now**, and it is deliberately only three things: calls
+`records` → `attach_live_marks` → `record_summary`; carries the R2 context line quoted from
+`web/payoff.py`; and fails soft, returning its footer even when the record cannot be read. It
+issues no SQL, defines no status, computes no level and **cannot trigger the reset** — pinned,
+because a display module that could reset a track record is one refresh away from erasing one.
+
+**The footer does not imply a reset that has not happened.** `reset` is `None` until one
+actually runs, so the tab says *"This is the original record — it has not been reset"* rather
+than printing a register note for an archive that does not exist. When a reset does run,
+`n_prior_epochs` renders beside it — the number that makes a reset **visible** rather than
+merely honest, since three rows read very differently when the footer says 41 alerts sit in an
+earlier epoch.
+
+**Both DTE columns are rendered and labelled apart** (`DTE now` / `DTE at alert`), per the
+contract's explicit warning that they are different quantities. A non-default exit policy is
+flagged `·custom`, which is the whole point of reading the stored level instead of deriving it.
+
+Verified live: `/api/scream-track` returns `epoch: "original"`, `reset: None`,
+`n_prior_epochs: 0`, and the six statuses straight from `SL.ALL_STATUSES`.
+
+**Owner-only**, per the split: a forward performance record that also names live open
+contracts with the levels they are trading to.
+
+## 3. Verification
+
+* `tests/test_dip.py` **39/39**; `tests/test_scream_track.py` **19/19** (rewritten against the
+  logger's contract — see §2); the greeks lane's own `tests/test_scream_log.py` still green
+  after this lane consumed it, and `tests/test_paper_track.py` **70/70**.
+* `tests/test_public.py` **31/31** — the catch-all walk classifies both new routes; a route in
+  neither `PUBLIC_API` nor `OWNER_ONLY_PATHS` fails that suite by design, so the split is a
+  decision rather than an omission.
+* **Full gate: 70 suites, 1360/1361 assertions, 0 non-zero exits.** The single assertion
+  shortfall is `tests/test_guards.py` 35/36, the pre-existing declared XFAIL (exit 0,
+  options-bot lane), unchanged by this session.
+* **Mutations: 32/32 caught, 0 missed, 0 skipped** — after a first pass that caught 30 and
+  **missed 2**, both of which were my own tests being weaker than they read. See §3a. The
+  scream-track half of that pass was run against the standalone version; those mutations were
+  retired with it, and the rewritten suite carries the strengthened staleness pin plus five
+  new no-second-authority pins (no statuses, no levels, no epoch, no paper-fill read, no SQL).
+* Rendered and checked, not assumed: `GET /` as a visitor and as an owner, `GET /api/dip`,
+  `GET /api/scream-track`.
+* `tests/test_shadow_vintage.py` **26/26** and `tests/test_build_ledger.py` **20/20**
+  (188 rows = 133 audit + 55 out-of-band).
+
+## 3a. The two mutations that were MISSED, and why that matters more than the 30 that were not
+
+A pin that is never exercised is a decoration. The first mutation pass caught 30 of 32 and the
+two it missed were both tests that *looked* right:
+
+1. **"unknown drawdown sorts FIRST and eats the measurement budget."** The rule is that a name
+   with no `z_high_prox` sorts LAST — unknown is not "shallow", and letting unknowns lead would
+   spend the whole budget on names nobody can even rank. Deleting the rule left my test green,
+   because the fixture compared the unknown against a name at **z = −3.0**: a broken
+   implementation hands an unknown `0.0`, and `−3.0` still sorts first, so the assertion held
+   for the wrong reason. The fixture now includes a name at **z = +1.5** — barely off its high —
+   which is the only case that separates the two implementations.
+2. **"the renderer stops labelling a stale mark."** My test asserted the string `mark_stale`
+   *appears* in `renderScreamTrack`. That survives `const stale = false && r.mark_stale`, which
+   renders every stale mark as fresh while keeping the identifier in the file. The test now
+   pins the **assignment**: the expression must start with `r.mark_stale` and must contain no
+   short-circuit.
+
+Both are the same failure: **an assertion that a name is present is not an assertion that it is
+load-bearing.** Neither would have been found by re-reading the tests, and both were on the
+honesty-critical paths — the budget-spending rule and the staleness badge.
+
+## 4. BUGS FOUND
+
+1. **The Dip Detector tab shipped inside the owner gate on the first cut.** The tab *button*
+   sits outside `{% if may_see_owner %}` and the *panel* landed inside it, so every visitor saw
+   a button that opened nothing. Caught by rendering the page and grepping for the **panel**;
+   grepping for the button would have passed. Fixed by moving the gate to open immediately
+   before the Index block, and pinned by a test that asserts the panel renders for a visitor
+   while the owner-only neighbours do not. **Class of defect worth naming: a feature-flag test
+   that checks the entry point rather than the thing it opens.**
+2. **`screen.py::_rows_from` drops raw `high_prox`.** The scan computes it for every name and
+   persists only its z-score, so the drawdown has to be re-measured at request time. **One line
+   in the screener lane** — add `"high_prox"` to the raw-field list in `_rows_from` alongside
+   `ret_12_1`. **NOT FIXED HERE** (screener lane is read-only for this lane). *Recorded
+   because it is the obvious guess and it is wrong:* this would **not** remove the shortlist
+   cap. The cap pays for the **valuation**, not the price history — the health gate is defined
+   on sub-scores only a valuation produces, and so are two of the four disqualifiers.
+3. **`track_export._trade_rows` drops the fields this display needs.** The weekly backup joins
+   `option_alerts` to `paper_option_orders` but keeps neither `target_premium`, `stop_premium`,
+   `last_mark` nor `last_mark_ts` — so the committed archive can answer "what was it bought and
+   sold at" but not "what was it *trying* to sell at". The live table reads the database
+   directly and is unaffected; the **archive** is the poorer record. Edge lane. **NOT FIXED.**
+4. **THE SCREAM TAB WAS BUILT AS A SECOND LOGGER AND HAD TO BE REWRITTEN — see §2.** Filed as
+   a bug against this lane's own work rather than a design note, because the three defects it
+   carried (paper fill read as the alert premium, a date-based epoch that would have looked
+   like a reset, staleness in days against the logger's minutes) were all live on a branch
+   that was already pushed. The prompt's *"do not build a second logger"* was followed in
+   intent and violated in fact, because the logger did not exist yet at the time. **The
+   general lesson: when a prompt names a parallel lane's deliverable, re-check for it before
+   pushing, not only before starting.**
+5. **Two of my own first-cut tests failed on prose rather than code** — the module's register
+   note contains the sentence "Nothing was deleted", and its docstring names
+   `freshness.WARN_AFTER` precisely in order to explain why it is *not* used. Both scans were
+   flagging the explanation as the defect it documents. Fixed by scanning stripped code (and,
+   for the write check, by parsing `execute(...)` calls rather than bare words). **Same trap as
+   last session's ban-list test.** Recorded because the wrong fix — deleting the explanation to
+   make the check green — is the tempting one.
+
+## 5. Still open, other lanes, unchanged by this session
+
+* **`PT-WRITER`** (Cowork) — nothing in this repository writes the contract-bound series.
+* **`/methodology` still calls the Deflated Sharpe "undeflated"**; M1 settled that 2026-08-05.
+  Carried forward from sessions 25–27.
+* **`providers.py:162`** still reads `"share_issuance": None,  # ... (needs share history)`,
+  stale since `screen.py::_enrich_with_issuance` fills it. Screener lane; a comment, not a
+  rendered claim.
+* **`tests/test_guards.py`** XFAIL (35/36, exit 0) — pre-existing, options-bot lane.
+* **Greeks' scream-buy logger** has not landed. This lane built the **display** against the
+  columns that exist today (`paper_option_orders`), so nothing here waits on it and there is no
+  second logger. If greeks emits the same fields on the **alert** side, `scream_track.build_rows`
+  takes an `alerts` dict already and the join is one line.
+
 # Session 27 — 2026-08-11 — the operated record now names its vintage, and the
 label it was commissioned with was wrong
 (prompt: vintage 2 is live (theme restoration, 2026-08-11); surface the vintage on the
@@ -4210,3 +6597,44 @@ Landed on `main` as b459d9a. Summary retained for continuity:
 - **Formatting**: one `mcap()` ($B/$T/$M, 2dp) everywhere; removed two local `pct`/`num` shadows;
   added `spct()` and `esc()`.
 - Scan health gained `display_coverage` and a recorded reason for universe fallbacks.
+
+---
+
+## FROM THE GREEKS LANE — the scream-buy logger's field contract (2026-08-13)
+
+Backend for `PROMPT_dip_detector_and_screamtrack.md` ITEM 2 is landed. Full write-up in
+`HANDOFF_live_data_bugs.md` Part 20. **Consume these, do not recompute them, and do not build a
+second logger.**
+
+    from valuation.edge import scream_log as SL
+
+    recs = SL.records(store)                          # the table rows, current epoch
+    recs = SL.attach_live_marks(recs, SL.live_quotes_for(recs))   # adds the live price
+    foot = SL.record_summary(store)                   # epoch, counts, reset note
+
+* `SL.RECORD_FIELDS` - authoritative names: `alert_id, alert_ts, ticker, occ_symbol, opt_right,
+  strike, expiry, entry_premium, target_premium, stop_premium, target_pct, stop_pct,
+  policy_is_default, dte_at_alert, dte_remaining, status, exit_reason, exit_premium, exit_ts,
+  pnl_pct, record_epoch, underlying_price, score, horizon, contract_source`
+* `SL.LIVE_FIELDS` - added at READ time, never stored: `current_premium, current_premium_ts,
+  current_premium_stale, current_premium_age_seconds, current_premium_source, pnl_pct_live`
+* `SL.ALL_STATUSES` - **LIVE, HIT TARGET, STOPPED, TIME-STOPPED, EXPIRED, CLOSED (unscoreable)**.
+  The sixth exists because a closed row whose reason maps to none of Don's five (`record_outcome`
+  writes "no entry premium") must not be forced into one that misdescribes it.
+* `foot["reset"]` is the archive manifest + the register note for the footer, or `None` if the
+  record has never been reset. `foot["n_prior_epochs"]` is what makes a reset visible: a table
+  showing three rows reads very differently when the footer says 41 alerts sit in an earlier
+  epoch.
+
+**THREE THINGS NOT TO DO.** `dte_at_alert` and `dte_remaining` are different quantities - do not
+render them as one. `entry_premium` is the ALERT-TIME premium and is NOT the paper track's broker
+FILL; the two books are different objects and session 16 exists because they were conflated.
+`current_premium_stale` must be shown when true - a stale mark rendered bare is the failure the
+whole read-time design is built around.
+
+**THE RECORD HAS NOT ACTUALLY BEEN RESET YET** and cannot be from a dev box: every local database
+holds ZERO scream-buy rows, the real record being on Render's disk. The reset is
+`SL.reset_record(store, out_dir)` behind an admin route (web lane) or
+`python -m valuation.edge.scream_log --reset --out-dir data_export` on the service. It archives
+first and moves the epoch only if that succeeded, and it DELETES NOTHING - the prior record stays
+queryable at its old `record_epoch`. Until it runs the tab correctly shows the original epoch.

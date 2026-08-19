@@ -53,6 +53,7 @@ from typing import Optional
 
 from ..config import CONFIG
 from . import options_tracker as OT
+from . import scream_log as SL
 from .paper_broker import DATA_CAVEAT, PaperBroker, now_iso, today_iso
 
 # An alert older than this is NOT submitted. The forward track's only claim is that it was
@@ -246,13 +247,14 @@ def _policy_for(store, order_row: dict) -> dict:
 
 
 def _levels_from(store, order_row: dict, price) -> dict:
-    """`target_premium` / `stop_premium` for an order row at `price`, on the alert's own policy."""
-    px = _f(price)
-    if px is None or px <= 0:
-        return {}
-    pol = _policy_for(store, order_row)
-    return {"target_premium": round(px * (1.0 + (pol["target_pct"] or 0)), 4),
-            "stop_premium": round(px * (1.0 + (pol["stop_pct"] or 0)), 4)}
+    """`target_premium` / `stop_premium` for an order row at `price`, on the alert's own policy.
+
+    The arithmetic itself lives in `scream_log.levels_for` and is not repeated here. It used to
+    be written out twice in this file — once here and once inline in `_place_entry` — which is
+    how a corrected level and an uncorrected one come to coexist, the exact defect session 16
+    found in these same exit levels.
+    """
+    return SL.levels_for(price, _policy_for(store, order_row))
 
 
 def _sizing(alert: dict) -> dict:
@@ -435,10 +437,10 @@ def _place_entry(store, broker: PaperBroker, alert_id, ticker, occ, contracts,
     oid = PaperBroker.order_id(res)
     fields = {"state": "submitted", "entry_order_id": oid, "entry_ts": now_iso()}
     if policy:
-        px = _f(price)
-        if px:
-            fields["target_premium"] = round(px * (1.0 + (policy["target_pct"] or 0)), 4)
-            fields["stop_premium"] = round(px * (1.0 + (policy["stop_pct"] or 0)), 4)
+        # Same one derivation the fill path uses (`_levels_from`), so a submit-anchored level and
+        # a fill-anchored level can never disagree about the ARITHMETIC — only about the price
+        # they are anchored to, which is the real distinction session 16 drew.
+        fields.update(SL.levels_for(price, policy))
     if res.get("dry_run"):
         # A preview validated the order at the broker but created nothing. Record that
         # plainly instead of leaving a row that looks like a live position.
@@ -567,6 +569,95 @@ def _exit_decision(row: dict, today: _dt.date) -> Optional[str]:
     return None
 
 
+def _settle_expired(store, broker: PaperBroker, row: dict, reason: str,
+                    day: _dt.date, out: dict) -> Optional[str]:
+    """Settle a PAST-EXPIRY, no-bid position at zero.
+
+    Returns "settled", "blocked", or None meaning "not my case, defer exactly as before". The
+    three are kept distinct so the caller cannot overwrite a NAMED block with a generic defer
+    note, and so the two counters partition cleanly: `deferred_no_bid` is an ordinary defer and
+    `settlement_blocked` is a past-expiry row that needs a human.
+
+    AUDIT MA36. `_exit_decision` returns "expiry" from `CLOSE_BEFORE_EXPIRY_DAYS` out and never
+    stops, and the B5-lesser no-bid branch defers. For a contract that has already expired those
+    two facts compose into a permanent defer: the row sits `state='open'` forever, and because
+    `_stats` and `paper_report` count `status='closed'` only, it is neither a winner nor a loser
+    but ABSENT. A long option that decays to no bid is precisely the total loss, so the censoring
+    is ONE-SIDED — winners and quoted losers are scored and the -100% tail is dropped, which is
+    the opposite of the backtest this book exists to validate (`options_backtest.py:29`: "expire
+    worthless settle at intrinsic and post -100%. They are not dropped.").
+
+    THE SETTLEMENT PRICE IS ZERO AND IS NEVER RECONSTRUCTED, which is the load-bearing choice.
+    A non-zero intrinsic needs the underlying AT EXPIRY, and the shipped provider cannot supply
+    it — `TradierProvider.get_bars` returns close/high/low/volume lists and drops the dates, so
+    there is no way to ask for "the close on the expiry date" without inventing a calendar
+    alignment. Using TODAY's underlying instead would book a fake gain on a dead call whenever
+    the stock rallied after expiry: the settlement trap V6-OPT caught in the backtest, in a new
+    costume, with its error running in the FLATTERING direction. Zero is the conservative bound
+    for a long option, it is what the market is quoting by declining to bid, and it is the
+    backtest's own convention.
+
+    THE IN-THE-MONEY GUARD IS WHY ZERO IS NOT APPLIED BLINDLY. If the underlying says the
+    contract would have had intrinsic value, this is not the worthless case and something else
+    is wrong (a dead feed, a corporate action); the only thing the guard can ever do is PREVENT
+    an automatic -100%, so it cannot manufacture a loss. A blocked row is reported by name in
+    `out["settlement_blocked"]` rather than left to strand silently, which is the whole defect.
+
+    NOT a general repair for stranded rows. A position stranded for any reason other than an
+    expiry it has passed is untouched and still defers — said here so nobody reads the class as
+    closed. Registered in PREREG_ma36_ma37_record_integrity.md section 2 before it was written.
+    """
+    if reason != "expiry":
+        return None
+    exp = _d(row.get("expiry"))
+    # STRICTLY after expiry. Inside CLOSE_BEFORE_EXPIRY_DAYS the contract is alive and still
+    # carries time value, so B5-lesser's defer is the correct behaviour and is preserved.
+    if exp is None or day <= exp:
+        return None
+
+    a = _alert_row(store, row.get("alert_id")) or {}
+    right = str(a.get("opt_right") or "").strip().lower()
+    strike = _f(a.get("strike"))
+    try:
+        tk = row.get("ticker")
+        uq = broker.quotes([tk]).get(tk) if tk else None
+    except Exception:                                                # noqa: BLE001
+        uq = None
+    under = PaperBroker.mark_from_quote(uq)
+
+    block = None
+    if right not in ("call", "put") or strike is None:
+        block = "contract detail missing on the alert row (opt_right/strike)"
+    elif under is None:
+        block = "underlying quote unavailable, so the worthless case cannot be distinguished"
+    elif (right == "call" and under > strike) or (right == "put" and under < strike):
+        block = (f"looks IN THE MONEY on the current underlying ({under} vs strike {strike}) - "
+                 f"not the worthless case, so it is NOT settled at zero")
+    if block:
+        _update(store, row["alert_id"],
+                note=f"expiry settlement BLOCKED (audit MA36): {block}")
+        out.setdefault("settlement_blocked", [])
+        out["settlement_blocked"].append({"ticker": row.get("ticker"),
+                                          "alert_id": row.get("alert_id"),
+                                          "expiry": row.get("expiry"), "why": block})
+        return "blocked"
+
+    days_past = (day - exp).days
+    ok = _record(store, row, 0.0,
+                 f"expiry (expired worthless; no bid {days_past}d past expiry, settled at 0.00 "
+                 f"per audit MA36 - underlying {under} vs {right} strike {strike})", out)
+    if not ok:
+        # `_record` has already stamped its own DESYNC note. Do not claim a settlement that the
+        # tracker did not accept, and do not swallow the row: fall back to the ordinary defer.
+        return None
+    out.setdefault("expired_worthless", 0)
+    out["expired_worthless"] += 1
+    out.setdefault("expired_worthless_rows", []).append(
+        {"ticker": row.get("ticker"), "alert_id": row.get("alert_id"),
+         "expiry": row.get("expiry"), "days_past_expiry": days_past})
+    return "settled"
+
+
 def close_matured(store, broker: PaperBroker, today=None) -> dict:
     """Sell to close on the alert's exit policy, then hand the fill to `record_outcome`.
 
@@ -604,7 +695,14 @@ def close_matured(store, broker: PaperBroker, today=None) -> dict:
             out["closing"] += 1
 
     # 2) Open positions that have hit a rule.
-    for r in paper_orders(store, states=("open",)):
+    # AUDIT MA36 — snapshot the expectancy BEFORE any stranded row is settled. Settling the
+    # censored -100% tail RESTATES a published figure, and a restatement that keeps no record of
+    # the number it replaced is indistinguishable from the figure having always been that. The
+    # archive convention `scream_log` sets for the record itself — nothing removed, everything
+    # dated — applied to the statistic. Only paid for when there is something open to settle.
+    _open_rows = paper_orders(store, states=("open",))
+    _pre = OT.scorecard(store).get("overall") if _open_rows else None
+    for r in _open_rows:
         reason = _exit_decision(r, day)
         if not reason:
             continue
@@ -615,6 +713,20 @@ def close_matured(store, broker: PaperBroker, today=None) -> dict:
         # this repo is net of. If there is no bid there is no two-sided market and no defensible
         # exit price; defer to the next run rather than take an unmodelled fill.
         if not (bid and bid > 0):
+            # AUDIT MA36 — B5's refusal is right for a LIVE contract and wrong for a DEAD one.
+            # Past expiry there is no fill to model and no next run that will find a bid, so the
+            # defer became permanent and the position was censored out of the record entirely.
+            # `_settle_expired` handles exactly that case; everything else still defers.
+            outcome = _settle_expired(store, broker, r, reason, day, out)
+            if outcome == "settled":
+                out["closed"] += 1
+                continue
+            if outcome == "blocked":
+                # Its own note and its own counter. Falling through to the generic defer below
+                # would OVERWRITE the reason the row was blocked — found by the test written to
+                # pin it, and it would have left an operator with a stranded row saying only
+                # "no bid" when the file knew it looked in-the-money.
+                continue
             _update(store, r["alert_id"],
                     note=f"{reason} deferred: no bid, and a market order is outside the "
                          f"bid-out convention (audit B5)")
@@ -642,7 +754,52 @@ def close_matured(store, broker: PaperBroker, today=None) -> dict:
                 exit_order_id=PaperBroker.order_id(res))
         out["closing"] += 1
         out["exits"].append({"ticker": r["ticker"], "reason": reason})
+    if out.get("expired_worthless"):
+        _record_restatement(store, day, out, _pre)
     return out
+
+
+# AUDIT MA36 — where the dated restatements live. A list, appended to, never replaced.
+RESTATEMENTS_META = "paper_track_ma36_restatements"
+
+MA36_RESTATEMENT_NOTE = (
+    "expired-worthless positions that had been stranded OPEN are settled at 0.00 and scored "
+    "(audit MA36). The live expectancy FALLS by construction: the repair only ever adds -100% "
+    "trades that the record was censoring. The figure it replaced is recorded here rather than "
+    "overwritten, on the archive convention scream_log sets - nothing removed, everything dated.")
+
+
+def restatements(store) -> list:
+    """Every dated MA36 restatement of the live options record, oldest first."""
+    try:
+        return list(store.get_meta(RESTATEMENTS_META) or [])
+    except Exception:                                                # noqa: BLE001
+        return []
+
+
+def _record_restatement(store, day, out: dict, pre) -> None:
+    """Stamp a dated entry saying the live figure moved, and what it was before.
+
+    Called only when at least one stranded row was actually settled, so a cycle that changes
+    nothing writes nothing.
+    """
+    post = OT.scorecard(store).get("overall") or {}
+    pre = pre or {}
+    entry = {
+        "as_of": str(day),
+        "n_settled": int(out.get("expired_worthless") or 0),
+        "settled": list(out.get("expired_worthless_rows") or []),
+        "n_closed_before": pre.get("n_closed"), "n_closed_after": post.get("n_closed"),
+        "expectancy_before": pre.get("expectancy_pct"),
+        "expectancy_after": post.get("expectancy_pct"),
+        "note": MA36_RESTATEMENT_NOTE,
+    }
+    try:
+        store.set_meta(RESTATEMENTS_META, restatements(store) + [entry])
+    except Exception:                                                # noqa: BLE001
+        # The settlement itself is the important half and has already been written. A meta
+        # failure must not roll it back or raise into the daily cycle.
+        out.setdefault("errors", []).append("could not record the MA36 restatement note")
 
 
 def _record(store, row: dict, exit_premium: float, reason: str, out: dict) -> bool:
@@ -1068,6 +1225,10 @@ def options_summary(store) -> dict:
             "meaningful": n_closed >= MIN_CLOSED_FOR_MEANING,
             "min_closed_for_meaning": MIN_CLOSED_FOR_MEANING,
             "level_conformance": _level_conformance(store, rows),
+            # AUDIT MA36. Dated, and on the surface `hero.py` reads: a reader who sees the live
+            # expectancy move should be able to see WHY without reading the database.
+            "restatements": restatements(store),
+            "record_epoch": sc.get("record_epoch"), "epochs": sc.get("epochs"),
             "label": _label(inception, n_closed, MIN_DAYS_FOR_MEANING)}
 
 

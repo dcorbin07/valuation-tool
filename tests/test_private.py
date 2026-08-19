@@ -22,6 +22,7 @@ private mode OFF and test the public product. Between them, both sides of the fl
 """
 import json
 import os
+import re
 import sys
 import tempfile
 
@@ -337,11 +338,34 @@ def test_the_page_is_static_so_no_vendor_data_can_reach_it():
     the browser makes no follow-up call, so nothing can arrive after render either. Together
     these make "no ThetaData or Sharadar value appears here" checkable by machine, which is
     the only way it stays true after the next edit.
+
+    STRENGTHENED 2026-08-14 (MA9). The page gained ONE per-session value — the CSRF field on
+    the preview button, required because a cross-site POST could otherwise clear a signed-in
+    owner's session. Left alone, this test would still have passed while quietly meaning less:
+    it used ONE client, so both requests shared a session and therefore shared the token.
+
+    So it now compares TWO SEPARATE SESSIONS with the token masked. That is strictly stronger
+    than what it replaced — the old form could not have detected a value that varied per
+    visitor, and this one can, for everything except the single field it names.
     """
-    with APP.test_client() as c:
-        a = c.get(PORTFOLIO).get_data(as_text=True)
-        b = c.get(PORTFOLIO).get_data(as_text=True)
-    assert a == b, "the page changed between requests, so something live is feeding it"
+    csrf_field = re.compile(r'(name="_csrf" value=")[^"]*(")')
+
+    def _fetch():
+        with APP.test_client() as c:      # a NEW client => a new session => a new token
+            return csrf_field.sub(r"\1MASKED\2", c.get(PORTFOLIO).get_data(as_text=True))
+
+    a, b = _fetch(), _fetch()
+    assert a == b, "the page changed between sessions, so something live is feeding it"
+    # Vacuity note, deliberately conditional. THIS SUITE RUNS UNDER PRIVATE_MODE, where the
+    # preview button never renders at all (`/demo` refuses outright, so a button onto a
+    # refusal is worse than no button) — so the page here carries NO per-session value, which
+    # is the stronger state rather than a gap. The mask therefore does nothing in this suite,
+    # and the two-session comparison above is still strictly stronger than the single-client
+    # form it replaced. The field's PRESENCE is pinned where the button actually renders:
+    # tests/test_security.py::test_every_form_template_carries_the_csrf_field (all templates)
+    # and tests/test_public.py::test_the_work_button_grants_a_session... (this button).
+    if 'class="demo-cta"' in a:
+        assert "MASKED" in a, "the button rendered but its CSRF field was not masked"
     low = a.lower()
     for live in ("/api/", "fetch(", "xmlhttprequest", "<script", "sharadar", "thetadata",
                  "tradier"):

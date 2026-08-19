@@ -544,6 +544,51 @@ rather than starting a conforming one, and `seed_refused` says so on every cycle
 
 ---
 
+## 5c. ADOPTING A LEARNED WEIGHT — the signature row, and why one exists at all
+
+**Added 2026-08-14 by the master audit (MA1/MA3). Nothing here changes §2's arithmetic, §5's
+thresholds or any vintage's dates**, so §3's whole-run void clause is not engaged; it closes a
+route by which a vintage event could have happened *without anyone recording one*.
+
+**What the audit found.** A monthly GitHub cron POSTed `/admin/run-learning`, which re-tuned the
+screener's factor weights and wrote the winner into Render's own SQLite with `adopted=1`. The live
+scorer **preferred that row over `settings.WEIGHTS_*`**. Every link was shipped and tested. So the
+composite users receive could have changed with **no code commit, no diff and no review** — and
+§5a's vintage rule would never have fired, because the vintage register is a literal tuple in
+Python source and there is no path from a database row to it. The forward track would have gone on
+accruing under the old vintage while the model underneath it changed. **That is exactly the
+condition Amendment 1 voided vintage 1 for.** It had not fired: the `learned_config` table is
+empty in every database this project can reach, and the next firing would have been 2026-09-01.
+
+**The rule, now enforced in code.** A learned weight may reach the live scoring path only when
+**both** of the following are true, and both take a commit:
+
+1. the **OPEN vintage** in `track_meter.VINTAGES` carries a `weights_adoption` entry naming the
+   bucket — i.e. the adoption is registered *as* that vintage's event, which is what puts it under
+   the §5a clock and V1's shadow scoring; **and**
+2. **Don has signed this row**, naming that same vintage:
+
+   ```
+   | Learned weights adopted | YES - vintage <n> - <date> |
+   ```
+
+Everything else — an absent row, `pending`, a signature naming a *different* vintage, an
+unreadable file, a malformed register — reads **not authorised**. The signature names a vintage on
+purpose: a bare `YES` would authorise the first adoption and every later one forever, and Rule 6's
+clock reset must be paid consciously each time.
+
+**Live status: NOT AUTHORISED.** No vintage registers a weight adoption and this contract carries
+no signed row. That is the intended resting state — the example above is inside a fenced block and
+authorises nothing, which is pinned by test. Verify with
+`python -m valuation.edge.weight_adoption --status`.
+
+**This does not make the learner illegitimate.** It still runs on demand, still logs what it
+found, and still emails the owner. What it can no longer do is ship. Enforced at
+`valuation/screener/store.py::save_learned` — the one funnel both weight writers pass through —
+and pinned by `tests/test_weight_adoption.py`.
+
+---
+
 ## 6. The evidence meter — pre-registered, parameters frozen at this commit
 
 Don's Option E asks for a meter that runs from inception, first renders at the operational gate
@@ -652,6 +697,75 @@ the bound is anti-conservative and `sigma` must be **raised**, with the change l
 construction event. Measured: at 1.5× the assumed volatility the false-crossing rate is **20%**,
 a four-fold breach. The meter reports `sigma_breach` on every call so this cannot go unnoticed.
 
+### 6.6 The post-publication decay prior — written 2026-08-16, before the window accrues (`MA34`)
+
+**Zero trials.** This is an EXPECTATION, not a hypothesis test: nothing here is measured against
+a threshold and no verdict is issued. It is written now for one reason — **an expectation
+recorded after the window has accrued is worthless**, and this is the only item in the audit that
+gets cheaper the sooner it is done.
+
+**THE PRIOR.** McLean–Pontiff and its successors find that published anomaly premia decay
+materially once institutions trade them; the audit states the decay as roughly one-third. The
+forward track is the one instrument in this project that could ever see it, because a decay prior
+is a statement about the FUTURE and every other number here is in-sample.
+
+**SO THE REGISTERED EXPECTATION IS:** the forward excess should be expected to come in **BELOW**
+the backtested **+9.99 pp/yr vs SPY**, and the shortfall should be concentrated in whichever legs
+of the composite are genuinely standard premia rather than something this project found on its
+own. Stated in advance and in this direction so that a shortfall is a *predicted* outcome rather
+than an excuse invented afterwards.
+
+**WHICH LEGS — AND THE AUDIT'S OWN ANSWER IS INVERTED, MEASURED RATHER THAN ARGUED.** `MA34`'s
+verification reasons from R1's loadings and cites *"SMB +0.39 t 3.84, RMW +0.30 t 4.49, UMD +0.18
+t 3.49"* with *"HML t 1.08, CMA t 1.08"* not loading — concluding the prior applies to `size`,
+`quality` and `momentum`. **Those are the VOID pre-B6 run's numbers.** Verified against the banked
+artifact `data/free_analysis/FACTOR_ALPHA_RESULTS.json`, whose `compound/full → ff5_mom →
+top_minus_ew` block reads SMB +0.394 (t +3.84), RMW +0.298 (t +4.49), UMD +0.181 (t +3.49), HML
+(t +1.08), CMA (t +1.08) — **bit-for-bit the audit's figures** — at `n_periods = 109`, i.e. the
+110-date panel `B6` removed. `CLAUDE.md` marks that run **VOID** and says of it *"DO NOT QUOTE
+IT."*
+
+On the **corrected** 69-date panel (`HANDOFF_edge_audit.md` Part 5):
+
+| factor | corrected | void run | reads on |
+|---|---|---|---|
+| HML | **+0.251 (t +2.93)** — loads | t 1.08 — did not | `value` |
+| UMD | **+0.205 (t +3.65)** — loads | t 3.49 — did | `momentum` |
+| SMB | +0.208 (t +1.39) — does not | t 3.84 — did | `size` |
+| RMW | +0.092 (t +0.90) — does not | t 4.49 — did | `quality` |
+
+**So the prior attaches to `value` and `momentum`, NOT to `size` and `quality`.** The audit's
+conclusion — that it applies to part of the composite and not the rest — survives; **the
+partition is the other way round.** `value` and `momentum` are 2 of the 7 weighted themes at
+0.125 each (0.875 total mass), so **28.6% of the effective composite** carries the exposure the
+prior is about.
+
+**NO POINT FORECAST IS ISSUED, AND REFUSING TO ISSUE ONE IS THE POINT.** The arithmetic is
+inviting — 28.6% of the composite decaying by a third is a ~9.5% haircut, +9.99 → ~+9.0 pp/yr —
+and it rests on the assumption that a theme's contribution to alpha is proportional to its
+weight. **This project has measured that assumption to be false.** X3 found `size` has the WORST
+theme IC (−0.30) and carries the composite's ENTIRE statistical significance: adding it last took
+alpha +4.10% → +7.17% and long-short *t* 1.02 → 2.84. A weight-proportional decay estimate would
+therefore be a number with no support, and inventing an uncalibrated one is the error this
+project's record warns about more than any other. **Direction and affected fraction are
+registered; the magnitude is not.**
+
+**THE CONSEQUENCE FOR §6.2, AND IT RUNS AGAINST THE STRATEGY.** The meter's power table is
+computed **at** the backtested +9.99 pp/yr. If this prior is right the true forward edge is
+smaller, so the **real power is LOWER than the 13.3% at 60 months already stated** — the
+already-unflattering table is optimistic. That strengthens §6.2's binding consequence rather than
+weakening it: a meter that has not crossed is even less informative than it looked, and is still
+not evidence against the strategy.
+
+**WHAT THIS MAY NEVER BE USED FOR, fixed here so it cannot be reached for later.** A decay prior
+is the easiest thing in this document to abuse, because it makes any disappointment look
+foreseen. Three limits: it may **not** be invoked to void or restart a vintage (§5a's clause
+exists precisely to stop a change chosen after seeing a vintage go badly); it may **not** be used
+to lower `sigma` or any bar (§6.5); and it may **not** be cited as explaining a shortfall in
+`size` or `quality`, which is what the audit's own inverted partition would have licensed. If the
+forward track underperforms in the legs this section names, that is a *predicted* outcome; if it
+underperforms elsewhere, this prior says nothing about it.
+
 ---
 
 ## 7. Known gaps this contract does not itself fix
@@ -714,6 +828,208 @@ Recorded so they are not mistaken for oversights, and so the operational gate ha
    > run #2's inception the meter block reports every missing trading day on every request. **If
    > 2026-08-11 shows no row for 2026-08-10, the writer is not running.** That is a one-day test
    > and it needs no further investigation now.
+   >
+   > ---
+   >
+   > ### 7.2a THE PRICE MECHANISM — the missing ingredient, supplied 2026-08-14
+   >
+   > **THE BLOCKER WAS NAMED BY THE WRITER LANE ITSELF, AND IT WAS NOT A SCHEDULER FAULT.** On
+   > 2026-08-10 the writer attempted the day's row, could not produce it, and dated its refusal
+   > (commit `41d7b12`): *"The mechanism for retrieving daily closing prices to calculate the
+   > Index returns is NOT DOCUMENTED IN THIS REPOSITORY ... Cannot write today's row without
+   > (a) a documented price-fetching mechanism, or (b) guessing at a vendor. Per instructions,
+   > logging the gap rather than inventing data."* **That was the correct call.** Refusing to
+   > invent a number is the behaviour this contract wants; what was missing was the ingredient.
+   >
+   > **THE INGREDIENT IS `valuation/screener/index_mark.py`.** It computes today's contract row
+   > — the Valquo Index mark, the SPY mark and the date — from the book this contract binds, and
+   > hands it back. Two doors, one function, so there is no second implementation to drift:
+   >
+   > | | |
+   > |---|---|
+   > | **In-repo writer** | `python -m scripts.track_row` — prints the row; `--csv` for the recorded line, `--append` to write it, `--date YYYY-MM-DD` to backfill one past trading day |
+   > | **Off-box reader** | `GET /admin/track-row` with the same `X-Admin-Token` as `/admin/export-track` — computes and returns the row, writes nothing |
+   > | **Off-box writer** | `POST /admin/track-row?append=1`, same token — appends to the service's own bound series under the contract's rules, enforced in code |
+   > | **Off-box seeder** | `POST /admin/track-seed`, same token — installs the book and the recorded history on a service that has neither, and may only EXTEND what is already recorded (§7.2c). `python -m scripts.seed_track` is its command line |
+   > | **Library** | `screener.index_mark.contract_row()` -> `{"ok": bool, "row": {...}, "reason": str}` |
+   >
+   > **NO NEW VENDOR, WHICH WAS THE OTHER HALF OF THE BLOCKER.** Prices come from
+   > `valuation/screener/prices.py` — Stooq primary, yfinance fallback — the module the momentum
+   > factor and the liquidity gate already run on. No API key, no licensed row, nothing a fresh
+   > deploy does not already have. The "guess at a vendor" the failure note refused is refused
+   > here too, by there not being one to guess at.
+   >
+   > **HOW CLOSELY IT REPRODUCES THE RECORDED ROWS — MEASURED 2026-08-14 AGAINST LIVE PRICES,
+   > AND THE TWO LEGS DIFFER.**
+   >
+   > | row | field | recorded | re-derived | gap |
+   > |---|---|---|---|---|
+   > | 2026-08-06 | `spy_pct` | 3.6228 | 3.6228 | **EXACT** |
+   > | 2026-08-06 | `valquo_pct` | 0.7760 | 0.7961 | +0.0201pp |
+   > | 2026-07-31 | `spy_pct` | 0.6903 | 0.7200 | +0.0297pp |
+   >
+   > **THE BENCHMARK LEG REPRODUCES EXACTLY AND THE BOOK LEG DOES NOT.** The exact hit on SPY is
+   > what confirms the CONVENTION — closing prices, cumulative since inception, this vendor —
+   > since a wrong base date or a daily-return convention would miss by percent, not by nothing.
+   > The book leg sits 0.0201pp away with all 86 names priced on both sides. **So this mechanism
+   > is CLOSE to the recorded series and is NOT the same arithmetic, and it may not be described
+   > as the source of it.** **HYPOTHESIS, NOT DIAGNOSED:** dividend/adjustment treatment across
+   > 86 names, or a different quote vendor for the equity leg. Not chased — the rows were
+   > hand-made and nobody recorded how they were priced.
+   >
+   > **CONSEQUENCE, STATED SO NOBODY DISCOVERS IT LATER: a series that switches to this
+   > mechanism acquires a ~0.02pp seam** against the two hand-made rows. Against this contract's
+   > own **sigma of 3.9847pp per month** that is immaterial — about half a percent of one
+   > month's noise, and far inside the LOGGED-NOT-VOIDED tolerances in §3 — but it is a real
+   > discontinuity and it is disclosed rather than rounded away.
+   >
+   > **THE DAY-1 ROW IS NOT A USABLE COMPARISON IN EITHER DIRECTION:** only 78 of 86 names have
+   > a 2026-07-31 close in this tape against a recorded `n_priced` of 86, so its book leg
+   > compares two different books. Its benchmark leg misses by 0.0297pp in the same direction.
+   > **HYPOTHESIS, NOT A FINDING:** that row looks marked from an intraday quote rather than the
+   > close — consistent in sign and size, and exactly what `contract_row`'s close refusal now
+   > prevents. Not confirmed and not claimed; reported because **anyone re-deriving the series
+   > will hit the same 0.03pp on day 1 and should know it is expected.**
+   >
+   > **REFUSING IS A FIRST-CLASS OUTCOME AND RETURNS NO NUMBER.** `ok: false` with a reason, and
+   > `row: None`, on: the session not having closed; a non-trading day; an unreadable book; a
+   > benchmark that cannot be priced at both ends; or under 95% of the book's **weight** pricing.
+   > The CLI exits **2** on a refusal and **0** on a row. **Exit 2 is normal** — "the session has
+   > not closed yet" is the common case, and a scheduler that treats it as a hard failure will
+   > page somebody every weekend.
+   >
+   > ---
+   >
+   > ### 7.2b THE WRITE DOOR — `POST /admin/track-row?append=1`, added 2026-08-18
+   >
+   > **WHY A THIRD DOOR AT ALL, AND IT IS NOT A CONVENIENCE.** `.github/workflows/track-row.yml`
+   > landed 2026-08-16 (`0e0e86d`, PR #1) to move the write onto a runner that can reach the
+   > vendors, and it calls the **in-repo CLI**. That job **cannot produce a row on any runner**:
+   > `.gitignore` excludes `/data/` with no negation and `git ls-tree -r origin/main -- data/`
+   > returns zero paths, so on a fresh `actions/checkout` the book `data/valquo_track.json` does
+   > not exist and `contract_row` refuses at `load_book` before it ever reaches a price. Its only
+   > reachable outcome is the refusal branch — a nightly pushed note about a missing book.
+   > **The service on Render is the one place that HAS both the book and the history**, on its
+   > persistent disk, so the write has to happen there and be triggered from outside.
+   >
+   > **THE RULES ARE ENFORCED IN CODE, IN `index_mark.append_row(append_only=True)`, NOT IN THE
+   > CALLER.** Putting them in the library is what keeps the CLI and the HTTP door on one
+   > implementation rather than two that drift — this project's recurring B7 split — and it is
+   > why the handler does no arithmetic and no file IO of its own:
+   >
+   >   * **Intraday marks are refused, and the refusal is not a parameter.** There is no query
+   >     string, header or body key that switches it off; pinned by a test that reads the
+   >     handler's *syntax tree* rather than its text.
+   >   * **Append-only.** A date at or before the last recorded row is refused. Filling a gap
+   >     stays a deliberate human act under section 3's same-week clause, on the CLI's `--date`.
+   >   * **Idempotent per day.** A second POST for a recorded date is a no-op that returns the
+   >     row **on disk** — never the freshly computed one, because a vendor revision or a
+   >     fallback answering where the primary did not can make those differ, and handing back
+   >     the recomputed row would report a number the bound file does not contain.
+   >   * **The byte prefix is preserved.** After a write the file's previous bytes are still an
+   >     exact prefix of the new file — the same terms `track-row.yml`'s own `cmp` check uses.
+   >
+   > **THE STATUS CODE CARRIES THE OUTCOME**, because the caller is unattended and must branch
+   > without parsing prose: **201** wrote · **200** already recorded · **409** refused,
+   > append-only · **422** refused, the mechanism declined (the ordinary "session has not
+   > closed" evening case, and every non-trading day) · **500** an unexpected exception, only.
+   > 4xx rather than 5xx is deliberate and is not a reversal of §7.2a's rule: that rule is right
+   > that *a 5xx tells a scheduler to retry something that is not broken*, and a 4xx says "this
+   > did not happen and retrying unchanged will not change it", which is the signal wanted.
+   > **`GET` keeps its 200 on a refusal** — a GET asks *what would today's row be* and "no row,
+   > the session has not closed" is a complete answer to that question; a POST asks for a write
+   > and must report whether the write happened.
+   >
+   > **A GET CAN NO LONGER WRITE.** `GET ?append=1` did write, until this door existed; it now
+   > returns 405 and touches nothing. A side-effecting GET on the one dataset here that cannot
+   > be re-derived is reachable by a retry, a prefetch, a proxy or a pasted link, and none of
+   > those is a decision to record a day.
+   >
+   > **THIS STILL SCHEDULES NOTHING, AND `PT-WRITER` STAYS BLOCKED.** No workflow calls this
+   > door yet; pointing `track-row.yml` at it is a `.github/` change, which is Don's, and the
+   > row should not close until something actually writes a row.
+   >
+   > **AMENDED 2026-08-18: THE WORKFLOW WAS POINTED AT IT THE SAME DAY, AND IT WAS REFUSED FOR
+   > A REASON NEITHER DOOR COULD FIX.** `cb8c86e` (PR #2) repointed `track-row.yml` at this
+   > endpoint and it ran at 20:31 UTC. It authenticated, reached the door, and got **HTTP 422**:
+   >
+   > ```
+   > {"ok":false,"reason":"the book file /app/data/valquo_track.json is missing or unreadable",
+   >  "row":null}
+   > ```
+   >
+   > That is `load_book` working exactly as written, and the refusal note was pushed exactly as
+   > designed (`121f5c3`). **The write door was never the blocker: the service has nothing to
+   > mark.** `data/` is gitignored, so the book has never shipped with any deploy — it has only
+   > ever existed on Don's machine. §7.2c is the door that fixes that.
+   >
+   > ---
+   >
+   > ### 7.2c THE SEED DOOR — `POST /admin/track-seed`, added 2026-08-18
+   >
+   > **AFTER A SUCCESSFUL SEED THE SERVICE COPY IS THE RECORD.** This is the part that binds:
+   > the local `data/valquo_track.json` and `data/valquo_track_history.csv` become a **stale
+   > backup** the moment the service writes its first row, nothing syncs them back, and the
+   > weekly `track-backup` Action archives the SERVICE's copy. That is a deliberate choice of
+   > ONE recorder over two. §7.2's own §0a.2 already records what two recorders cost this
+   > project — two different "Valquo Index vs SPY" numbers published from two books — and the
+   > cure for that is a single authority, not better reconciliation between several.
+   >
+   > **THREE RULES, ENFORCED IN `index_mark.seed`, NOT IN THE CALLER** — the same reason §7.2b
+   > gives, so the HTTP door and any future caller cannot drift apart:
+   >
+   >   1. **The book must BE the Index.** Validated through `valquo_index.conformance`, the same
+   >      check §5b's `PT-SPLIT` built and `paper_track.seed_book` gates on: at least
+   >      `CONTRACT_MIN_POSITIONS` = 50 names, and the 8% cap genuinely binding. A truncated
+   >      scan cannot be installed under this contract's name, and the refusal carries
+   >      `why_not` verbatim.
+   >   2. **An upload may EXTEND the recorded series and may never rewrite it.** If the service
+   >      already holds rows, the upload's first N records must match them cell for cell AND the
+   >      bytes on disk must be an exact prefix of the canonicalised upload. Both are checked and
+   >      reported separately: the record check is the substantive rule, and when it passes while
+   >      the byte check fails the reason names the encoding difference rather than reading as a
+   >      mystery refusal. A shorter upload is a truncation and is refused. A stale local copy
+   >      re-uploaded after the service has moved on is the ordinary way this fires.
+   >   3. **A book may not be seeded without a history to stand on.** If the service holds no
+   >      rows and none are supplied, this refuses — because the next append would then create a
+   >      fresh series whose first row is TODAY, every earlier recorded day would be absent from
+   >      the copy the seed is about to make the record, and **nothing would raise**. `day_n` is
+   >      computed from the inception date, so that new first row would carry a plausible day
+   >      number, which is precisely what would make the loss invisible.
+   >
+   > **THE UPLOADED HEADER MUST BE THE ONE `append_row` WOULD COMPUTE** — `ROW_COLUMNS` in
+   > order, then any columns the file has gained. Not tidiness: `append_only` REFUSES a header
+   > it would have to widen (widening rewrites every line and so cannot preserve the byte
+   > prefix), so seeding a differently-shaped header installs a series the unattended writer can
+   > never append to, with every subsequent refusal pointing at the writer. **The end-to-end
+   > sequence is the deliverable, not the seed** — `tests/test_index_mark.py` runs the seed and
+   > then the write door against one service and asserts the second succeeds.
+   >
+   > **STATUS CODES**, again because the caller is a script: **201** the service's copy changed ·
+   > **200** nothing changed, it already held exactly this · **409** refused, the upload
+   > disagrees with the recorded series · **422** refused, not the Index / no history to stand
+   > on / malformed · **400** no book · **500** unexpected only. Re-running is safe by
+   > construction: both writes are skipped when the bytes already match, so 200 is a fact about
+   > the two files rather than an assumption.
+   >
+   > **THE COMMAND IS `python -m scripts.seed_track`** — dry run by default, `--send` to do it,
+   > reading `SITE_BASE_URL` (or `PUBLIC_BASE_URL`) and `ADMIN_TOKEN` from `.env`. It never
+   > prints the token, on any path.
+   >
+   > **`PT-WRITER` STILL DOES NOT CLOSE.** Nothing has been seeded — this ships the door and the
+   > command, and running it against the live service is Don's to do, being an irreversible
+   > write to the bound record. The row closes when a row is actually written.
+   >
+   > ---
+   >
+   > **WHAT THIS DOES NOT DO, AND THE ROW STAYS OPEN BECAUSE OF IT.** It does not schedule
+   > itself and it does not decide to write. `PT-WRITER` is a **Cowork-lane** row and remains
+   > one; this repository now documents the mechanism so that lane has something to call. It
+   > also never re-derives the BOOK — the 86 names and weights are read from the recorded
+   > `valquo_track.json`, because re-scoring the universe on the mark date would substitute
+   > today's book for the one the track has been recording since inception, which is a different
+   > series wearing the same name. Pinned by `tests/test_index_mark.py`, whose required test is
+   > that the row this emits reads back through `index_track.load()` unchanged.
 3. **The engine that this contract governs has never been fed** — 0 rows in all three paper
    tables, while the accrued 5 days come from a different mechanism. Either the sandbox engine
    becomes the source of truth or the contract should name the Cowork file as the source. **This

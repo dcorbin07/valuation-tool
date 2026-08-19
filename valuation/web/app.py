@@ -22,9 +22,11 @@ from ..engine.pipeline import value_ticker
 from ..report import excel as excel_report
 from ..report import pdf as pdf_report
 from . import resultcache, withhold
+from .query_params import clamp_int, clamp_float   # MA50/MA53 — one clamp per caller number
 from . import score_confidence as _score_confidence
 from . import theme_status as _theme_status
 from . import hold_horizon as _hold_horizon
+from . import dip_posture as _dip_posture
 
 app = Flask(__name__)
 
@@ -113,6 +115,12 @@ def _site_context():
             # in app.js described `capital_discipline` as dormant on the very day it was
             # restored, and listed an input the theme had stopped using.
             "theme_status": _theme_status.payload(),
+            # What the Dip Detector is allowed to claim, gated on the V6 register. Site-wide
+            # for the same reason as the three above — index.html has two renderers — and
+            # because this one has a deadline: the copy is written to be REPLACED when V6
+            # closes, and a surface holding its own copy is a surface that keeps saying "we
+            # are testing it" after the answer has landed.
+            "dip_posture": _dip_posture.posture(),
             "live_hero": _live_hero}
 
 
@@ -322,16 +330,19 @@ def api_valquo_index():
         kw["top_n"] = cfg["top_n"]
     if cfg.get("top_frac"):
         kw["top_decile"] = cfg["top_frac"]
+    # S14 ADOPTION (2026-08-13): this route used to build the book with NO band while publishing
+    # a config block that advertised one, so it served a DIFFERENT book from the exported Index
+    # under the same name -- the B7 disease on a public surface. It now applies the same band,
+    # against the same previous book on disk, through the same imported rule.
+    #
+    # A fixed-N config (roth) stays band-less: `exit_frac` is a fraction of the ranked UNIVERSE
+    # and is not the arm S14 measured for a 25-name book.
+    from ..edge.valquo_index import config_block, _previous_book, DEFAULT_PATH
+    if cfg.get("exit_frac") and not cfg.get("top_n"):
+        kw["exit_frac"] = cfg["exit_frac"]
+        kw["held"] = _previous_book(DEFAULT_PATH)
     payload = build_index(rows, **kw)
-    payload["config"] = {
-        "name": name, "label": cfg.get("label"),
-        "rebalance_days": cfg.get("rebalance_days"),
-        "rebalance_months": (round(cfg["rebalance_days"] / 21.0, 1)
-                             if cfg.get("rebalance_days") else None),
-        "exit_frac": cfg.get("exit_frac"),
-        "band_note": ("hold a position until it falls past this fraction; applied at rebalance "
-                      "against the previous book, not in this snapshot"),
-        "measured": cfg.get("measured")}
+    payload["config"] = config_block(name, cfg)
     payload["scan_date"] = scan_date
     payload["available_configs"] = sorted(S.BOOK_CONFIGS or {})
     payload["source_note"] = ("built from the same scan snapshot as the Hot Stocks ranking — "
@@ -468,10 +479,21 @@ def api_options_alerts():
             return jsonify({"empty": True, "message": "No intraday scan yet — hit Refresh."})
         picks, term_stats = screaming_buys_with_stats(st.load_intraday(rt),
                                                       CONFIG.alert_min_score)
-        top = max(1, min(int(request.args.get("top", 5)), 15))
-        budget = float(request.args.get("risk_budget",
-                                        getattr(CONFIG, "options_risk_per_trade", None)
-                                        or DEFAULT_RISK_BUDGET))
+        # Already two-sided before MA50 — this is the site the other four should have copied.
+        # Routed through the shared clamp anyway so the sweep leaves NO hand-rolled clamp
+        # behind: one correct copy beside four wrong ones is how the wrong ones survive.
+        top = clamp_int(request.args.get("top"), default=5, cap=15)
+        # MA53 sweep: this was a bare `float(...)`, so `?risk_budget=nan` parsed cleanly and
+        # propagated into position sizing, where every comparison against it is False and the
+        # downstream guards therefore read as satisfied. Owner-only, so not a public hole —
+        # fixed as the same class rather than left because the blast radius is small.
+        _default_budget = (getattr(CONFIG, "options_risk_per_trade", None)
+                           or DEFAULT_RISK_BUDGET)
+        # The bounds are DOLLARS, not a fraction: DEFAULT_RISK_BUDGET is $1,000 per signal.
+        # Writing this as a 0..1 range would have clamped the shipped default to 1.0 and
+        # silently re-sized every alert — a clamp is only safe once its units are checked.
+        budget = clamp_float(request.args.get("risk_budget"),
+                             default=_default_budget, lo=1.0, hi=1_000_000.0)
         with_chain = request.args.get("chain", "1") != "0"
         alerts, stats = build_alerts(picks[:top],
                                      provider=get_provider(CONFIG) if with_chain else None,
@@ -506,7 +528,11 @@ def api_hotstocks():
     from flask import g
     from ..screener.sectors import sector_attractiveness
     cap = getattr(g, "hotstocks_cap", 500)          # per-tier cap (set by the SaaS layer)
-    top = min(int(request.args.get("top", 100)), cap)
+    # MA50: this read `min(int(...), cap)`, which bounds from above only. `min(-1, 500)` is
+    # -1, and `store.load_snapshot` interpolates it into `LIMIT -1`, which SQLite treats as
+    # UNLIMITED — so `?top=-1` returned the whole snapshot and defeated the per-tier cap that
+    # IS the paywall. Masked in production only by OPEN_ACCESS=true.
+    top = clamp_int(request.args.get("top"), default=100, cap=cap)
     st = _store()
     scan_date = st.latest_scan_date()
     if not scan_date:
@@ -528,7 +554,15 @@ def api_hotstocks():
     # bridge is `3 + 2 x (net debt / market cap)` times the price, so a leveraged name can
     # clear the valuation page's 5x refusal band on this PUBLIC surface while that page is
     # refusing the very same claim. One number, one meaning — the band is the page's own.
-    withhold.withhold_implausible_fair_values(rows)
+    # MA29 — the return value is the count of rows left withheld in the served slice, and it
+    # used to be discarded here. It is NOT the third state: it increments for rows already
+    # marked withheld at scan time as well as for band breaches, so it is the TOTAL. The third
+    # state — a peer estimate that breached the band — is the withheld rows carrying no `kind`,
+    # counted separately below. See `web/refusals.py`.
+    _band_withheld = withhold.withhold_implausible_fair_values(rows)
+    from ..engine.publication import ROW_WITHHELD as _RW, ROW_WITHHELD_KIND as _RWK
+    _peer_only = sum(1 for r in rows
+                     if isinstance(r, dict) and r.get(_RW) and not r.get(_RWK))
     scans = st.list_scans()
     meta = next((s for s in scans if s["scan_date"] == scan_date), {})
     try:
@@ -536,7 +570,34 @@ def api_hotstocks():
     except Exception:
         params = {}
     from ..screener.freshness import status as _freshness
-    return jsonify({"scan_date": scan_date, "rows": rows,
+    # MA30 — churn disclosure. Additive: it annotates `rows` with `tenure_scans` and never
+    # reorders or drops one. Sorting or filtering on this field converts a disclosure into a
+    # screen and needs its own register (see web/tenure.py); `tests/test_tenure.py` fails if
+    # anyone does. Fail-soft by construction, so it cannot break the public hot list.
+    from . import tenure as _tenure
+    tenure_block = _tenure.annotate(rows, st)
+    # MA29 — "what the model cannot value", said out loud. READS the scan's own
+    # `publication_audit` rather than recounting: one number, one meaning. Fail-soft, so a
+    # snapshot saved before that block existed reports `available: false` and no sentence
+    # rather than a confident "0 refused".
+    from . import refusals as _refusals
+    _health = params.get("health")
+    _health = _health if isinstance(_health, dict) else {}
+    refusals_block = _refusals.block(
+        _health.get("publication_audit"), scan_date=scan_date,
+        displayed=len(rows), display_withheld=_band_withheld,
+        display_peer_only=_peer_only)
+    # MA28-CARD — the accounting red-flag crash statistic, disclosed rather than applied.
+    # READ-ONLY over `rows`: it counts how many could be scored (zero, and the count is measured
+    # per request rather than assumed) and returns a block. It annotates no row, reorders none
+    # and drops none — `tests/test_accounting_risk.py` fails if that stops being true, on the
+    # same rule `tenure.py` and `refusals.py` carry: a disclosure that touches the rows has
+    # become a screen and needs its own register.
+    from . import accounting_risk as _acct_risk
+    accounting_block = _acct_risk.block(rows)
+    return jsonify({"scan_date": scan_date, "rows": rows, "tenure": tenure_block,
+                    "refusals": refusals_block,
+                    "accounting_risk": accounting_block,
                     "sectors": sector_attractiveness(all_rows),
                     "universe_size": meta.get("universe_size"), "scored": meta.get("scored"),
                     "provider": meta.get("provider"), "filtered": params.get("filtered"),
@@ -544,6 +605,81 @@ def api_hotstocks():
                     "freshness": _freshness(scan_date, label="ranking"),
                     "disclaimer": RISK_DISCLAIMER,
                     "history": [s["scan_date"] for s in scans][:12]})
+
+
+@app.route("/api/dip")
+def api_dip():
+    """The Dip Detector: healthy names trading well below their own 52-week high.
+
+    A SCREEN, NOT A PREDICTION, and the payload says so in its own `posture` block rather
+    than leaving it to the template — see `dip_posture` for why that is a module and what the
+    V6 close-out flips.
+
+    THE COST MODEL IS THE INTERESTING PART. The whole universe is sieved for free off the
+    cached scan snapshot (publication flags, then a cross-sectional prefilter), ordered
+    EXACTLY by drawdown using the persisted `z_high_prox` — standardisation within a date is
+    strictly monotone, so the ordering is identical to ordering by the raw ratio — and only
+    the top few names are actually valued. Each valuation goes through the SAME TTL cache the
+    single-name page uses, so a row here can never disagree with that name's own page, and a
+    reader who opens one has warmed the cache for the other.
+
+    Everything the bound dropped is reported (`capped`, `n_unmeasured`): a screen that
+    silently truncates reads as coverage.
+    """
+    from . import dip
+    try:
+        st = _store()
+        scan_date = st.latest_scan_date()
+        posture = _dip_posture.posture()
+        if not scan_date:
+            return jsonify({"empty": True, "posture": posture, "rows": [],
+                            "disclaimer": RISK_DISCLAIMER,
+                            "message": "The daily scan hasn't loaded into this site yet — the "
+                                       "Dip Detector reads the same snapshot the hot list does."})
+        # The snapshot load, both publication passes, the screen and the call budget now live
+        # in `dip.screen_snapshot`, because the Discord digest became a second caller and two
+        # copies of this sequence is how the Index and the hot list came to disagree once
+        # already. The route contributes the request parsing and nothing else.
+        # Two-sided already; routed through the shared clamp for the parse guard and so the
+        # sweep leaves nothing hand-rolled behind (MA50).
+        shortlist = clamp_int(request.args.get("shortlist"),
+                              default=dip.DEFAULT_SHORTLIST, cap=dip.MAX_SHORTLIST)
+        out = dip.screen_snapshot(st, _get_or_compute,
+                                  min_drawdown=request.args.get("min_drawdown"),
+                                  shortlist=shortlist, scan_date=scan_date)
+        out["posture"] = posture
+        out["disclaimer"] = RISK_DISCLAIMER
+        from ..screener.freshness import status as _freshness
+        out["freshness"] = _freshness(scan_date, label="screen")
+        return jsonify(out)
+    except Exception as e:
+        log_exception()
+        return jsonify({"error": safe_error(e), "rows": [],
+                        "posture": _dip_posture.posture()}), 200
+
+
+@app.route("/api/scream-track")
+def api_scream_track():
+    """The scream-buy record: every alert with what it was bought at, sold at and is worth now.
+
+    A pure CONSUMER of `edge/scream_log.py`, which the greeks lane owns — see that module's
+    field contract in `HANDOFF_appfixes.md`. Nothing here recomputes a premium, a status, a
+    staleness flag or the epoch boundary, and this route cannot trigger the reset.
+
+    `entry_premium` is the ALERT-TIME premium and is NOT the paper broker's fill. Those are
+    two different books, and session 16 exists because they were once conflated.
+
+    The footer travels with the table on every response, including `n_prior_epochs` — the
+    number that makes a reset visible rather than merely honest.
+    """
+    from . import scream_track
+    try:
+        return jsonify(scream_track.summary(_store()))
+    except Exception as e:
+        log_exception()
+        return jsonify({"error": safe_error(e), "rows": [], "n_rows": 0,
+                        "summary": {"epoch": None, "reset": None,
+                                    "n_prior_epochs": None, "unavailable": True}}), 200
 
 
 @app.route("/api/whatdo")
@@ -586,7 +722,9 @@ def api_tickers():
     q = (request.args.get("q") or "").strip().upper()
     if not q:
         return jsonify({"results": []})
-    limit = min(int(request.args.get("limit", 8) or 8), 25)
+    # MA50 class. Public (this fires on every keystroke in the search box) and previously
+    # one-sided: `limit=-1` slid straight through into the slice below.
+    limit = clamp_int(request.args.get("limit"), default=8, cap=25)
 
     seen, cands = set(), []
     try:
@@ -865,7 +1003,11 @@ def api_signals():
     if not rt:
         return jsonify({"empty": True, "message": "No intraday scan yet — hit Refresh. "
                         "Add a TRADIER_TOKEN for real-time; otherwise it uses free delayed data."})
-    top = int(request.args.get("top", 40))
+    # MA50, same class: this was an unclamped `int(...)` feeding `load_intraday(top=...)`,
+    # which builds the same `LIMIT {int(top)}`. Owner-only today, so the exposure is smaller
+    # than /api/hotstocks — but it is the identical defect and is fixed with it, because the
+    # one that gets fixed alone is the one that comes back.
+    top = clamp_int(request.args.get("top"), default=40, cap=500)
     # Intraday feed: a run_time is a timestamp, so freshness is measured off its DATE. An
     # options signal from three days ago is not a signal, it is a historical note.
     from ..screener.freshness import status as _freshness
