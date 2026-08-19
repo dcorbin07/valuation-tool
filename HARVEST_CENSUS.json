@@ -1,0 +1,108 @@
+{
+ "generated_utc": "2026-08-19T03:34:43+00:00",
+ "raw_root": "D:\\thetadata",
+ "max_dte": 1200,
+ "per_tier": {
+  "A": {
+   "by_status": {
+    "ok": 393
+   },
+   "rows": 69715407,
+   "bytes": 3487087320,
+   "rows_over_200dte": 12732656
+  },
+  "B": {
+   "by_status": {
+    "ok": 485,
+    "ok_partial": 5
+   },
+   "rows": 128017028,
+   "bytes": 6402910450,
+   "rows_over_200dte": 32868715
+  },
+  "C": {
+   "by_status": {
+    "ok": 958,
+    "empty_vendor": 278,
+    "ok_partial": 24
+   },
+   "rows": 50910785,
+   "bytes": 2547569906,
+   "rows_over_200dte": 8054183
+  },
+  "D": {
+   "by_status": {
+    "ok": 81,
+    "ok_partial": 86,
+    "empty_vendor": 2
+   },
+   "rows": 21351202,
+   "bytes": 1068035423,
+   "rows_over_200dte": 5606010
+  },
+  "E": {
+   "by_status": {
+    "ok": 788,
+    "ok_partial": 30,
+    "empty_vendor": 18
+   },
+   "rows": 83691315,
+   "bytes": 4186680063,
+   "rows_over_200dte": 14278981
+  }
+ },
+ "banked_units": 2850,
+ "unreachable_empty_vendor": 298,
+ "failed": 0,
+ "total_rows": 353685737,
+ "total_bytes": 17692283162,
+ "total_gb": 17.692,
+ "rows_over_200dte": 73540545,
+ "short_years_ok_partial": 145,
+ "units_with_empty_quarters": 29,
+ "units_with_failed_quarters": 55,
+ "pre_panel_history_units": 45,
+ "pre_panel_history_symbols": [
+  "AA",
+  "AM",
+  "AZPN",
+  "BAM",
+  "BTI",
+  "CR",
+  "DOW",
+  "EDR",
+  "FOXA",
+  "FTI",
+  "IR",
+  "LIN",
+  "LINE",
+  "MDB",
+  "MRNA",
+  "RPRX",
+  "SE",
+  "SN",
+  "SNDK",
+  "SNOW",
+  "TAK",
+  "TLN",
+  "TME",
+  "TW",
+  "VG",
+  "ZTO"
+ ],
+ "overlap_verdicts": {
+  "agree": 873,
+  "no_baseline": 1107,
+  "not_compared_adopted": 870,
+  "null": 298
+ },
+ "relabelled_units": 29,
+ "repaired_units": 0,
+ "adopted_from_disk": 870,
+ "tier_c_skipped": {
+  "entries": 75,
+  "by_reason": {
+   "known_empty_all_three_years": 75
+  }
+ }
+}
