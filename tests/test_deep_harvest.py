@@ -203,6 +203,63 @@ def test_tier_e_selects_exactly_the_shallow_units_that_exist():
         "a `.empty` sidecar is not a payload -- that name belongs to tier C, not E"
 
 
+# ------------------------------------------------------------------ BUG 9: the current year
+
+def test_a_quarter_that_has_not_happened_yet_is_never_requested():
+    """The current year is not a whole year.
+
+    Tier D pulled 2026 on 2026-08-18 and the first two units came back `failed` -- Q4
+    NoDataFoundError, Q3 a gRPC fault -- which threw away seven months of 2026 the vendor serves
+    perfectly well, and would have re-probed them on every restart forever. BUG 7's repair does
+    not catch it, because a gRPC fault is not NoDataFound.
+    """
+    seen = []
+
+    class _Cli:
+        def option_history_eod(self, start_date, end_date, symbol, expiration, max_dte):
+            seen.append((start_date, end_date))
+            return None
+
+    class _TB:
+        def _cli(self):
+            return _Cli()
+
+    root = _root()
+    horizon = dt.date.today() - dt.timedelta(days=1)
+    rec = M.pull_unit(_TB(), "CUR", horizon.year, root)
+
+    assert seen, "no request was made at all"
+    assert all(e <= horizon for _, e in seen), (
+        f"a request reached past the last completed session: {seen}")
+    started = {s.month for s, _ in seen}
+    for q in range(4):
+        q_start = dt.date(horizon.year, 1 + q * 3, 1)
+        if q_start > horizon:
+            assert (1 + q * 3) not in started, f"Q{q+1} has not started and was requested anyway"
+    assert rec.get("quarters_future"), "a future quarter must be recorded, not silently dropped"
+
+
+def test_a_future_quarter_is_not_recorded_as_a_missing_one():
+    """`quarters_future` is the calendar; `quarters_missing` is a fault. A live year that reads
+    as damaged would re-pull forever and would look like a data defect in the census."""
+    src = open(M.__file__, encoding="utf-8").read()
+    assert '"quarters_future": future_q or None' in src
+    assert '"pulled_through"' in src, "a partial-because-live year must say how far it reaches"
+
+
+def test_relabel_does_not_call_a_future_quarter_empty():
+    root = _root()
+    yr = dt.date.today().year
+    _payload(root, "FULL", yr, [1, 2])
+    _payload(root, "SHORT", yr, [1])
+    out = M.relabel(root)
+    for r in out["relabelled"]:
+        for q in r["quarters_empty"]:
+            qi = int(q[1]) - 1
+            assert dt.date(yr, 1 + qi * 3, 1) <= dt.date.today(), \
+                f"{q} of {yr} has not started and was called empty"
+
+
 def test_terminal_statuses_are_never_re_probed():
     """An irreplaceable window may not be spent re-confirming a negative the cache already holds."""
     root = _root()

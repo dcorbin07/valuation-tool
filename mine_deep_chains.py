@@ -439,12 +439,29 @@ def pull_unit(tb, sym: str, year: int, root: str):
     """One symbol-year, quarter by quarter (the span size theta_bulk found survivable)."""
     import pandas as pd
 
-    frames, failed, errs, empty_q = [], [], [], []
+    frames, failed, errs, empty_q, future_q = [], [], [], [], []
     t0 = time.time()
+    # BUG 9. THE CURRENT YEAR IS NOT A WHOLE YEAR, and asking for the rest of it is not a
+    # question the vendor can answer. Tier D pulls 2026 on 2026-08-18: Q4 has not happened, and
+    # Q3 is half unwritten. The first two units proved it -- ACGL-2026 and AEIS-2026 both came
+    # back `failed` with Q4 NoDataFoundError and Q3 _MultiThreadedRendezvous. `failed` is the
+    # damaging part: BUG 7's repair does not catch this because the Q3 error is a gRPC fault
+    # rather than NoDataFound, so `nodata_only` is False and the WHOLE unit is refused --
+    # throwing away seven and a half months of 2026 that the vendor serves perfectly well, and
+    # re-probing it on every restart forever. All 86 of Tier D's 2026 units were on that path.
+    #
+    # A quarter that has not started yet is SKIPPED, not requested; a quarter in progress is
+    # requested only up to the last completed session. Clamped to YESTERDAY rather than today
+    # because an EOD bar does not exist until after the close.
+    horizon = dt.date.today() - dt.timedelta(days=1)
     for q in range(4):
         s = dt.date(year, 1 + q * 3, 1)
         e = (dt.date(year + 1, 1, 1) if q == 3
              else dt.date(year, 4 + q * 3, 1)) - dt.timedelta(days=1)
+        if s > horizon:
+            future_q.append(f"Q{q+1}")          # not yet in the past: nothing to ask for
+            continue
+        e = min(e, horizon)
         # BUG 3, fixed here: `tb._cli()` used to be written as an ARGUMENT to
         # _call_with_timeout, so it was evaluated before the deadline existed. After a fault
         # nulls the client, the next connect is unbounded -- that hung PID 3172 for twelve
@@ -480,6 +497,7 @@ def pull_unit(tb, sym: str, year: int, root: str):
         # negative. Mirrors the breadth cache's own `.pkl.empty` convention.
         if nodata_only:
             return {"status": "empty_vendor", "quarters_failed": failed, "errors": errs[:4],
+                    "quarters_future": future_q or None,
                     "seconds": round(time.time() - t0, 1)}
         return {"status": "failed", "quarters_failed": failed, "errors": errs[:4],
                 "seconds": round(time.time() - t0, 1)}
@@ -495,7 +513,10 @@ def pull_unit(tb, sym: str, year: int, root: str):
     # records which quarters returned nothing, so a short year can never be mistaken for a
     # complete one downstream.
     if not frames:
-        return {"status": "empty", "seconds": round(time.time() - t0, 1)}
+        # A current-year unit with nothing yet is not the same object as a name the vendor
+        # has never carried, so it must still say which quarters had not happened.
+        return {"status": "empty", "quarters_future": future_q or None,
+                "seconds": round(time.time() - t0, 1)}
 
     df = slim(pd.concat(frames, ignore_index=True))
     verdict, detail = compare_overlap(df, sym, year)
@@ -514,9 +535,15 @@ def pull_unit(tb, sym: str, year: int, root: str):
     dat = pd.to_datetime(df["date"].astype(str))
     dte = (exp - dat).dt.days
     pfy = panel_first_year(sym)
-    return {"status": "ok_partial" if (failed or empty_q) else "ok",
+    # A year short only because it is not OVER is `ok_partial` too, but for a reason that is not
+    # a defect and must not read like one: `quarters_future` says the calendar has not caught up,
+    # where `quarters_missing` says a request faulted. Conflating them would make a live year
+    # look damaged, and would make it re-pull forever.
+    return {"status": "ok_partial" if (failed or empty_q or future_q) else "ok",
             "quarters_missing": failed or None,
             "quarters_empty": empty_q or None,
+            "quarters_future": future_q or None,
+            "pulled_through": horizon.isoformat() if future_q else None,
             "rows": int(len(df)), "bytes": os.path.getsize(p),
             "panel_first_year": pfy,
             "pre_panel_history": bool(pfy and year < pfy),
@@ -589,9 +616,15 @@ def relabel(root: str) -> dict:
         except Exception as e:                                       # noqa: BLE001
             out["unreadable"].append({"symbol": sym, "year": year, "error": type(e).__name__})
             continue
+        # BUG 9's other half: a quarter that has not happened yet is not an EMPTY quarter. On the
+        # current year every remaining quarter would otherwise be relabelled `quarters_empty`,
+        # which reads as a data defect and is only the calendar.
+        horizon = dt.date.today() - dt.timedelta(days=1)
         empty = [f"Q{q+1}" for q in range(4)
-                 if not months & {1 + q * 3, 2 + q * 3, 3 + q * 3}]
-        want_status = "ok_partial" if (empty or rec.get("quarters_missing")) else "ok"
+                 if dt.date(year, 1 + q * 3, 1) <= horizon
+                 and not months & {1 + q * 3, 2 + q * 3, 3 + q * 3}]
+        want_status = "ok_partial" if (empty or rec.get("quarters_missing")
+                                       or rec.get("quarters_future")) else "ok"
         if rec.get("status") == want_status and (rec.get("quarters_empty") or None) == (empty or None):
             out["already_correct"] += 1
             continue
@@ -899,6 +932,81 @@ def summarise(root: str, out_json: str = None):
     return summary
 
 
+def census(root: str, out_md: str = "") -> dict:
+    """THE PERMANENT RECORD OF THE HARVEST: what exists, what is unreachable, what was skipped.
+
+    After 2026-09-01 the Pro window is gone and this is the answer to "what did we get, and what
+    can never be got". It is deliberately three separate quantities, because collapsing them is
+    how a gap gets mistaken for a decision:
+
+      * BANKED     -- units with a payload on disk (`ok` whole years, `ok_partial` short ones).
+      * UNREACHABLE -- `empty_vendor`: the feed has nothing, mostly names that had not listed.
+                       No future subscription recovers these. NOT the same as "not pulled".
+      * SKIPPED    -- never asked, with the reason recorded. A choice, not a fact about the world.
+
+    `ok_partial` is reported separately from `ok` rather than summed into a "units" total, which
+    is the BUG 7/BUG 8 lesson made structural: a short year that reads as a whole one is the
+    defect this harvest hit twice.
+    """
+    man = load_manifest(root)
+    tiers = collections.defaultdict(lambda: collections.Counter())
+    rows = collections.Counter()
+    byts = collections.Counter()
+    deep = collections.Counter()
+    for rec in man.values():
+        t = rec.get("tier", "?")
+        tiers[t][rec.get("status", "?")] += 1
+        rows[t] += rec.get("rows", 0)
+        byts[t] += rec.get("bytes", 0)
+        deep[t] += rec.get("rows_over_200dte", 0)
+
+    banked = [r for r in man.values() if r.get("status") in ("ok", "ok_partial")]
+    out = {
+        "generated_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "raw_root": root,
+        "max_dte": MAX_DTE,
+        "per_tier": {t: {"by_status": dict(c), "rows": rows[t], "bytes": byts[t],
+                         "rows_over_200dte": deep[t]} for t, c in sorted(tiers.items())},
+        "banked_units": len(banked),
+        "unreachable_empty_vendor": sum(1 for r in man.values()
+                                        if r.get("status") == "empty_vendor"),
+        "failed": sum(1 for r in man.values() if r.get("status") == "failed"),
+        "total_rows": sum(rows.values()),
+        "total_bytes": sum(byts.values()),
+        "total_gb": round(sum(byts.values()) / 1e9, 3),
+        "rows_over_200dte": sum(deep.values()),
+        "short_years_ok_partial": sum(1 for r in banked if r.get("status") == "ok_partial"),
+        "units_with_empty_quarters": sum(1 for r in banked if r.get("quarters_empty")),
+        "units_with_failed_quarters": sum(1 for r in banked if r.get("quarters_missing")),
+        "pre_panel_history_units": sum(1 for r in banked if r.get("pre_panel_history")),
+        "pre_panel_history_symbols": sorted({r["symbol"] for r in banked
+                                             if r.get("pre_panel_history")}),
+        "overlap_verdicts": dict(collections.Counter(r.get("overlap") for r in man.values())),
+        "relabelled_units": sum(1 for r in man.values() if r.get("relabelled")),
+        "repaired_units": sum(1 for r in man.values() if r.get("repair")),
+        "adopted_from_disk": sum(1 for r in man.values() if r.get("adopted_from_disk")),
+    }
+    for name, path in (("tier_c_skipped", os.path.join(root, "tier_c_skipped.json")),):
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as fh:
+                sk = json.load(fh)
+            out[name] = {"entries": len(sk),
+                         "by_reason": dict(collections.Counter(s["reason"] for s in sk))}
+    p = os.path.join(root, "HARVEST_CENSUS.json")
+    with open(p, "w", encoding="utf-8") as fh:
+        json.dump(out, fh, indent=1)
+    if out_md:
+        with open(out_md, "w", encoding="utf-8") as fh:
+            fh.write("| tier | ok | ok_partial | empty_vendor | failed | rows | GB | rows >200 DTE |\n")
+            fh.write("|---|---|---|---|---|---|---|---|\n")
+            for t, c in sorted(tiers.items()):
+                fh.write(f"| {t} | {c['ok']} | {c['ok_partial']} | {c['empty_vendor']} | "
+                         f"{c['failed']} | {rows[t]:,} | {byts[t]/1e9:.2f} | {deep[t]:,} |\n")
+    print(json.dumps({k: v for k, v in out.items()
+                      if k != "pre_panel_history_symbols"}, indent=1))
+    return out
+
+
 def verify(root: str, full: bool = False) -> dict:
     """Check every `ok` record against its payload. This is the disaster-recovery tool.
 
@@ -936,6 +1044,9 @@ def main():
     ap.add_argument("--summary", action="store_true")
     ap.add_argument("--adopt-orphans", action="store_true",
                     help="re-checkpoint payloads on disk with no manifest record (BUG 5)")
+    ap.add_argument("--census", action="store_true",
+                    help="the permanent record: banked vs unreachable vs skipped, per tier")
+    ap.add_argument("--census-md", default="", help="with --census, also write a markdown table")
     ap.add_argument("--relabel", action="store_true",
                     help="offline: correct ok->ok_partial for units missing a whole quarter")
     ap.add_argument("--repair", action="store_true",
@@ -947,6 +1058,9 @@ def main():
 
     if args.verify:
         print(json.dumps(verify(args.raw_root, args.full_hash), indent=1))
+        return
+    if args.census:
+        census(args.raw_root, args.census_md)
         return
     if args.relabel:
         print(json.dumps(relabel(args.raw_root), indent=1))
