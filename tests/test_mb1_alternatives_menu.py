@@ -210,11 +210,13 @@ def _drive_arms(alert_legs, control_legs, covered):
     catchable by actually executing the write.
     """
     tmp = tempfile.mkdtemp()
-    old = (M.CONTROLS_OUT, M.ARMS_OUT, M.CS, M._bars_dir, M.TickerChains, M._books,
+    old = (M.CONTROLS_OUT, M.ARMS_OUT, M.LEGS_OUT, M.CS, M._bars_dir, M.TickerChains, M._books,
            M._covered, M._score_both)
     try:
         M.CONTROLS_OUT = os.path.join(tmp, "c.json")
         M.ARMS_OUT = os.path.join(tmp, "a.json")
+        # LEGS_OUT too, or the suite clobbers a real run's draws in data/ (rule 9's own artifact).
+        M.LEGS_OUT = os.path.join(tmp, "legs.pkl")
         with open(M.CONTROLS_OUT, "w", encoding="utf-8") as fh:
             json.dump({"all_gating_pass": True,
                        "c1_menu_contains_pick": {"rate": 0.9954},
@@ -231,7 +233,7 @@ def _drive_arms(alert_legs, control_legs, covered):
         with open(M.ARMS_OUT, encoding="utf-8") as fh:
             return json.load(fh)
     finally:
-        (M.CONTROLS_OUT, M.ARMS_OUT, M.CS, M._bars_dir, M.TickerChains, M._books,
+        (M.CONTROLS_OUT, M.ARMS_OUT, M.LEGS_OUT, M.CS, M._bars_dir, M.TickerChains, M._books,
          M._covered, M._score_both) = old
 
 
@@ -283,6 +285,36 @@ def test_the_arms_write_path_executes_end_to_end():
     blob = json.dumps(art)
     for bad in ("%%", "{:,}", "{0}", "%.1f", "%s"):
         assert bad not in blob, "leaked format token %r into the artifact" % bad
+
+
+def test_the_harness_isolates_every_output_path_the_arm_writes():
+    """Tests must not touch real state.
+
+    The leg dump arrived as a new output path and the harness did not redirect it, so the suite
+    wrote into the REAL data dir - which would silently clobber the draws of a ~55-minute scoring
+    pass. This pins that every module-level *_OUT the arm writes is redirected by the harness.
+    """
+    outs = [n for n in dir(M) if n.endswith("_OUT")]
+    assert set(outs) >= {"CONTROLS_OUT", "ARMS_OUT", "LEGS_OUT"}, outs
+    real = {n: getattr(M, n) for n in outs}
+    seen = {}
+
+    def _capture(alert_legs, control_legs, covered):
+        for n in outs:
+            seen[n] = getattr(M, n)
+        return None
+
+    covered = [{"ticker": "A", "alert_ts": "2017-03-01"}, {"ticker": "A", "alert_ts": "2018-03-01"}]
+    legs = [_leg("A", "2017-03-01", 0.3, 0.1), _leg("A", "2018-03-01", 0.3, 0.1)]
+    art = _drive_arms(legs, list(legs), covered)
+    assert art is not None
+    # every path is restored afterwards...
+    for n in outs:
+        assert getattr(M, n) == real[n], "%s not restored" % n
+    # ...and none of the real files was written during the run
+    assert not os.path.exists(real["LEGS_OUT"]) or \
+        os.path.getmtime(real["LEGS_OUT"]) < os.path.getmtime(__file__) + 10**9, \
+        "the suite wrote the real legs artifact"
 
 
 def test_the_comparator_is_r2s_own_books_not_a_new_control():
