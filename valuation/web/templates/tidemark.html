@@ -1,0 +1,176 @@
+{% extends "_saas_base.html" %}
+{% block title %}TIDEMARK — where each market sits, and how much that is worth{% endblock %}
+{#
+  RENDER ONLY. Every sentence on this page comes from `valuation/web/tidemark_surface.py`,
+  which owns the copy and the derived statistics; `tests/test_tidemark_surface.py` fails if a
+  caption is written literally into this file. One place to change the wording, by design.
+
+  There is no raw series level anywhere in the payload this renders — percentile, episode
+  count, effective n and band half-width are statistics ABOUT a series, never values OF one.
+#}
+{% block body %}
+<div class="wrap" style="padding:40px 22px;max-width:900px">
+
+  <h1 style="color:var(--navy);margin-bottom:4px">{{ t.project }}</h1>
+  <p class="muted" style="margin-top:0">
+    A separate research project, reported here. Vintage <code>{{ t.vintage }}</code>.
+  </p>
+
+  <div class="note" style="margin:18px 0">{{ disclaimer }}</div>
+
+  {# ---------------------------------------------------------------- the ruling, first #}
+  <div style="border:2px solid var(--navy);border-radius:10px;padding:18px 20px;margin:22px 0">
+    <h2 style="margin:0 0 10px;font-size:20px;color:var(--navy)">{{ t.headline.title }}</h2>
+    <p>{{ t.headline.what }}</p>
+    <p>{{ t.headline.why }}</p>
+    <p><b>{{ t.headline.status }}</b></p>
+
+    <p style="margin-top:14px;padding:12px 14px;background:var(--bg);border-radius:8px">
+      <b>{{ t.ruling }}</b>
+    </p>
+    <p>{{ t.ruling_inverse }}</p>
+
+    <div style="display:flex;flex-wrap:wrap;gap:20px;margin-top:14px;padding-top:12px;
+                border-top:1px solid var(--border);font-size:13px;color:var(--muted)">
+      <div><b style="display:block;font-size:19px;color:var(--ink)">{{ t.pooled.episodes }}</b>
+           pooled independent episodes</div>
+      <div><b style="display:block;font-size:19px;color:var(--ink)">{{
+           '%.2f'|format(t.pooled.comovement_discount) }}×</b>
+           co-movement discount on the naive count of {{ t.pooled.naive_sum }}</div>
+      <div><b style="display:block;font-size:19px;color:var(--ink)">{{
+           '%.1f'|format(t.pooled.common_window_years) }} yr</b>
+           all three markets overlap</div>
+      <div><b style="display:block;font-size:19px;color:var(--ink)">{{
+           '%.0f'|format(t.pooled.years_required) }}</b>
+           independent years a test would need</div>
+      <div><b style="display:block;font-size:19px;color:var(--ink)">{{
+           '%.0f'|format(t.pooled.years_best_market) }}</b>
+           the best market actually has</div>
+    </div>
+  </div>
+
+  {# ---------------------------------------------------------------- MB26: denominators #}
+  <h3>Two projects, two denominators</h3>
+  <div class="note" style="margin:10px 0">
+    <p style="margin:0 0 8px">{{ t.denominators.warning }}</p>
+    <p style="margin:0"><b>{{ t.denominators.no_combined_verdict }}</b></p>
+  </div>
+  <table style="width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 4px">
+    <tr style="text-align:left;color:var(--muted)">
+      <th style="padding:6px 8px">Project</th>
+      <th style="padding:6px 8px">Trials (N)</th>
+      <th style="padding:6px 8px">Critical value √(2·ln N)</th>
+      <th style="padding:6px 8px">Basis</th>
+    </tr>
+    <tr style="border-top:1px solid var(--border)">
+      <td style="padding:6px 8px"><b>{{ t.denominators.tidemark.project }}</b></td>
+      <td style="padding:6px 8px">{{ t.denominators.tidemark.trials }}</td>
+      <td style="padding:6px 8px">{{ '%.2f'|format(t.denominators.tidemark.hurdle) }}</td>
+      <td style="padding:6px 8px;color:var(--muted)">{{ t.denominators.tidemark.note }}
+          Vintage {{ t.denominators.tidemark.vintage }}.</td>
+    </tr>
+    {% if t.denominators.valquo.available %}
+    <tr style="border-top:1px solid var(--border)">
+      <td style="padding:6px 8px"><b>{{ t.denominators.valquo.project }}</b> — equity</td>
+      <td style="padding:6px 8px">{{ t.denominators.valquo.equity }}</td>
+      <td style="padding:6px 8px">{{ '%.4f'|format(t.denominators.valquo.equity_hurdle) }}</td>
+      <td style="padding:6px 8px;color:var(--muted)">{{ t.denominators.valquo.note }}</td>
+    </tr>
+    <tr style="border-top:1px solid var(--border)">
+      <td style="padding:6px 8px"><b>{{ t.denominators.valquo.project }}</b> — options</td>
+      <td style="padding:6px 8px">{{ t.denominators.valquo.options }}</td>
+      <td style="padding:6px 8px">{{ '%.4f'|format(t.denominators.valquo.options_hurdle) }}</td>
+      <td style="padding:6px 8px;color:var(--muted)">{{ t.denominators.valquo.note }}</td>
+    </tr>
+    {% else %}
+    <tr style="border-top:1px solid var(--border)">
+      <td style="padding:6px 8px"><b>{{ t.denominators.valquo.project }}</b></td>
+      <td style="padding:6px 8px" colspan="3">Not shown — {{ t.denominators.valquo.reason }}.</td>
+    </tr>
+    {% endif %}
+  </table>
+
+  {# ---------------------------------------------------------------- how to read a card #}
+  <h3>How to read a reading</h3>
+  <p>{{ t.design_rule }}</p>
+  <p class="muted" style="font-size:13.5px">{{ t.bands.where }}</p>
+  <p class="muted" style="font-size:13.5px">{{ t.bands.implies }} {{ t.bands.approximate }}</p>
+
+  <table style="width:100%;border-collapse:collapse;font-size:14px;margin:14px 0">
+    {% for tier in t.tiers %}
+    <tr style="border-top:1px solid var(--border)">
+      <td style="padding:8px;white-space:nowrap;vertical-align:top"><b>{{ tier.tier }}</b></td>
+      <td style="padding:8px"><b>{{ tier.label }}</b><br>
+          <span class="muted" style="font-size:13px">{{ tier.description }}</span></td>
+      <td style="padding:8px;white-space:nowrap;color:var(--muted);vertical-align:top">
+          {{ tier.count }} market{% if tier.count != 1 %}s{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p style="font-size:13.5px"><b>{{ t.empty_tiers_note }}</b></p>
+
+  {# ---------------------------------------------------------------- staleness gate #}
+  {% if not t.freshness.fresh %}
+  <div class="note" style="margin:22px 0;border-left:4px solid var(--navy)">
+    <b>No readings are shown.</b> {{ t.freshness.reason|capitalize }}. Vintage
+    <code>{{ t.freshness.vintage }}</code>, limit {{ t.freshness.limit_days }} days.
+  </div>
+  {% endif %}
+
+  {# ---------------------------------------------------------------- the markets #}
+  {% for tier in t.tiers %}
+    {% set rows = t.markets|selectattr('tier','equalto',tier.tier)|list %}
+    {% if rows %}
+    <h3>{{ tier.tier }} — {{ rows|length }} market{% if rows|length != 1 %}s{% endif %}</h3>
+    {% for m in rows %}
+      <div style="background:#fff;border:1px solid var(--border);border-radius:10px;
+                  padding:14px 16px;margin:10px 0">
+        <div style="font-size:11.5px;letter-spacing:.05em;color:var(--muted);
+                    text-transform:uppercase">{{ m.tier or 'no reading' }}</div>
+        <h4 style="margin:6px 0 2px">{{ m.market }}</h4>
+        <div class="muted" style="font-size:12px"><code>{{ m.anchor }}</code></div>
+
+        {% if m.refusal %}<p style="font-size:13.5px;margin:8px 0">{{ m.refusal }}</p>{% endif %}
+
+        {% if m.percentile is not none %}
+          {% set se = t_se(m.percentile, m.n_eff) %}
+          <div class="muted" style="font-size:11px;text-transform:uppercase;
+                                    letter-spacing:.06em;margin-top:10px">Where it sits</div>
+          <div style="font-variant-numeric:tabular-nums">
+            <b>{{ '%.1f'|format(m.percentile * 100) }}%</b> cheap
+            <span class="muted">({% if se %}±{{ '%.1f'|format(1.96 * se * 100) }} points at
+              effective n {{ '%.0f'|format(m.n_eff) }}{% else %}band not computable{% endif %})</span>
+          </div>
+        {% endif %}
+
+        {% if m.band_sigma is not none %}
+          <div class="muted" style="font-size:11px;text-transform:uppercase;
+                                    letter-spacing:.06em;margin-top:10px">What it implies</div>
+          <div style="font-variant-numeric:tabular-nums">
+            ±<b>{{ '%.2f'|format(m.band_sigma) }}σ</b>
+            from {{ m.episodes }} independent episode{% if m.episodes != 1 %}s{% endif %}
+          </div>
+        {% elif m.episodes is not none and m.percentile is not none %}
+          <div style="margin-top:10px">no independent episodes —
+            <b>nothing can be estimated</b></div>
+        {% endif %}
+
+        <div class="muted" style="font-size:12px;margin-top:10px">as of {{ m.as_of }}</div>
+      </div>
+    {% endfor %}
+    {% endif %}
+  {% endfor %}
+
+  {# ---------------------------------------------------------------- the claim limit #}
+  <div class="note" style="margin:26px 0"><b>{{ t.no_strategy_claim }}</b></div>
+
+  <p class="muted" style="font-size:12.5px">
+    Derived statistics only — percentile, episode count, effective n and band half-width. No
+    source series is reproduced on this page. Sources behind the figures, in the
+    {{ t.project }} project: {% for s in t.sources %}<code>{{ s }}</code>{% if not loop.last %},
+    {% endif %}{% endfor %}.
+  </p>
+
+  <p style="margin-top:26px"><a class="btn secondary" href="/">← Back</a></p>
+</div>
+{% endblock %}

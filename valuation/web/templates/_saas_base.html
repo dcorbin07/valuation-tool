@@ -93,7 +93,7 @@
 <footer><div class="disclaimer">
   {# Every link on this row is gated under private mode, so showing them to a logged-out
    # visitor is a row of 401s. The owner still gets them once signed in. #}
-  {% if user or not private_mode %}<div style="margin-bottom:10px"><a href="/methodology">How it works</a> &nbsp;·&nbsp; <a href="/terms">Terms &amp; liability</a> &nbsp;·&nbsp; <a href="/privacy">Privacy</a>{% if signup_enabled %} &nbsp;·&nbsp; <a href="/pricing">Pricing</a>{% endif %}
+  {% if user or not private_mode %}<div style="margin-bottom:10px"><a href="/methodology">How it works</a> &nbsp;·&nbsp; <a href="/tidemark">TIDEMARK</a> &nbsp;·&nbsp; <a href="/terms">Terms &amp; liability</a> &nbsp;·&nbsp; <a href="/privacy">Privacy</a>{% if signup_enabled %} &nbsp;·&nbsp; <a href="/pricing">Pricing</a>{% endif %}
     {# The hidden owner login. Deliberately here and deliberately dull: there is no public
      # signup and exactly one account, so this is a door for one person, not a call to action. #}
     {% if not user %}&nbsp;·&nbsp; <a href="/login" style="color:inherit">Owner login</a>{% endif %}</div>{% endif %}
