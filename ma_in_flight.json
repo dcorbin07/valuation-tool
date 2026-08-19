@@ -1,65 +1,76 @@
 {
  "_meta": {
-  "what": "Which MA items are being worked RIGHT NOW, so the map does not route a claimed item to a second lane.",
-  "measured": "2026-08-14 ~20:35 local, from local branches ahead of origin/main plus `git worktree list`.",
-  "how_to_refresh": "git branch --format='%(refname:short)' | for each: git log origin/main..$b --oneline",
-  "caveat": "This can only see work that has been COMMITTED to a local branch. An agent editing files in a worktree with nothing committed yet is invisible here, and so is any other machine. Absence from this file is not evidence an item is free.",
-  "correction": "The brief that commissioned this map named MA1-MA3 and MA5/MA6 as in flight. MEASURED, none of the five has a commit on any local or remote branch, on main, or in any worktree. What IS in flight is MA13+MA19 and MA36+MA37, and both were committed within twenty minutes of the map being built."
+  "STATUS": "RETIRED 2026-08-19 (MB27). This file no longer answers the question it was built for.",
+  "what": "Which items are being worked RIGHT NOW.",
+  "how_to_find_out": "python scripts/board_state.py",
+  "why_retired": "Hand-typed on 2026-08-14. Measured on 2026-08-19 it listed MA13, MA19, MA36, MA37, MA15, MA16, MA20 and MA35 - eight items, ALL EIGHT since DONE. Five days stale and 100% wrong, while carrying its own how_to_refresh command that nobody ran. That is MA59/MA60 one level up: a hand-typed snapshot of something git already knows.",
+  "why_not_a_generated_file_in_its_place": "MB27 proposed committing a GENERATED board plus a test that fails when it is older than the newest branch tip it describes. Measured, that assertion cries wolf: the board's own strongest ingredient - worktrees carrying uncommitted work, 8 of 12 on the day this was written - changes whenever anybody saves a file, so a committed snapshot goes stale within minutes and the pin would be red on ordinary work. MA21's failure mode reached by a pin instead of by a warning. A generated snapshot rots exactly like a hand-typed one; it just rots honestly. So there is ONE copy of the fact and it is git. `board_state.py --write` emits a snapshot on request, to a gitignored path, for handing to another session.",
+  "what_it_could_never_see": "Its own caveat named the hole: an agent editing files in a worktree with nothing committed yet was invisible to it. board_state.py measures that directly, and it read 8 of 12 worktrees dirty on the day the hand file was retired.",
+  "kept_not_deleted": "RUN_RULES rule 9. The 2026-08-14 contents are below, verbatim."
  },
- "MA13": {
-  "branch": "worktree-options-live",
-  "commit": "PREREG MA19+MA13: recalibrate X7's floors at N=224, and give N tamper-evidence",
-  "at": "2026-08-14 20:22",
-  "state": "PREREG committed blind - the register exists, the measurement does not",
-  "do_not": "do not open N tamper-evidence in a second lane; it is claimed"
- },
- "MA19": {
-  "branch": "worktree-options-live",
-  "commit": "PREREG MA19+MA13: recalibrate X7's floors at N=224, and give N tamper-evidence",
-  "at": "2026-08-14 20:22",
-  "state": "PREREG committed blind",
-  "do_not": "do not re-derive X7's floors elsewhere; a second sweep at a different N would produce a second set of floors and nothing would say which is authoritative"
- },
- "MA36": {
-  "branch": "worktree-optionsbot-lane",
-  "commit": "PREREG MA36+MA37: the live options record is censored at one end and blended at the other",
-  "at": "2026-08-14 20:28",
-  "state": "PREREG committed blind",
-  "do_not": "claimed; MA46 depends on it and must wait rather than fork"
- },
- "MA37": {
-  "branch": "worktree-optionsbot-lane",
-  "commit": "PREREG MA36+MA37: the live options record is censored at one end and blended at the other",
-  "at": "2026-08-14 20:28",
-  "state": "PREREG committed blind",
-  "do_not": "claimed"
- },
- "MA15": {
-  "branch": "worktree-crowding-p2",
-  "commit": "MA-MAP + MA15 + MA16 + MA20",
-  "at": "2026-08-14 21:00",
-  "state": "DELIVERED - data\\options_ticks added to $KEEP bucket 2; 4.40 GB verified on D:",
-  "do_not": "done"
- },
- "MA16": {
-  "branch": "worktree-crowding-p2",
-  "commit": "MA-MAP + MA15 + MA16 + MA20",
-  "at": "2026-08-14 21:00",
-  "state": "DELIVERED - data\\free_analysis moved $SKIP -> $KEEP bucket 1; 0.80 GB verified on D:",
-  "do_not": "done"
- },
- "MA20": {
-  "branch": "worktree-crowding-p2",
-  "commit": "MA-MAP + MA15 + MA16 + MA20",
-  "at": "2026-08-14 21:00",
-  "state": "ALARM DELIVERED, cure is Don's - scripts/checkout_drift.py + check_drift.bat, wired into git_push.bat. Measured 1 ahead / 514 behind.",
-  "do_not": "the guard is written; what remains is Don running sync.bat once, which no agent should do for him"
- },
- "MA35": {
-  "branch": "origin/main",
-  "commit": "c759250",
-  "at": "2026-08-14",
-  "state": "LANDED - .gitattributes carries `*.pdf binary`, verified",
-  "do_not": "closed"
+ "_retired_2026_08_14": {
+  "_meta": {
+   "what": "Which MA items are being worked RIGHT NOW, so the map does not route a claimed item to a second lane.",
+   "measured": "2026-08-14 ~20:35 local, from local branches ahead of origin/main plus `git worktree list`.",
+   "how_to_refresh": "git branch --format='%(refname:short)' | for each: git log origin/main..$b --oneline",
+   "caveat": "This can only see work that has been COMMITTED to a local branch. An agent editing files in a worktree with nothing committed yet is invisible here, and so is any other machine. Absence from this file is not evidence an item is free.",
+   "correction": "The brief that commissioned this map named MA1-MA3 and MA5/MA6 as in flight. MEASURED, none of the five has a commit on any local or remote branch, on main, or in any worktree. What IS in flight is MA13+MA19 and MA36+MA37, and both were committed within twenty minutes of the map being built."
+  },
+  "MA13": {
+   "branch": "worktree-options-live",
+   "commit": "PREREG MA19+MA13: recalibrate X7's floors at N=224, and give N tamper-evidence",
+   "at": "2026-08-14 20:22",
+   "state": "PREREG committed blind - the register exists, the measurement does not",
+   "do_not": "do not open N tamper-evidence in a second lane; it is claimed"
+  },
+  "MA19": {
+   "branch": "worktree-options-live",
+   "commit": "PREREG MA19+MA13: recalibrate X7's floors at N=224, and give N tamper-evidence",
+   "at": "2026-08-14 20:22",
+   "state": "PREREG committed blind",
+   "do_not": "do not re-derive X7's floors elsewhere; a second sweep at a different N would produce a second set of floors and nothing would say which is authoritative"
+  },
+  "MA36": {
+   "branch": "worktree-optionsbot-lane",
+   "commit": "PREREG MA36+MA37: the live options record is censored at one end and blended at the other",
+   "at": "2026-08-14 20:28",
+   "state": "PREREG committed blind",
+   "do_not": "claimed; MA46 depends on it and must wait rather than fork"
+  },
+  "MA37": {
+   "branch": "worktree-optionsbot-lane",
+   "commit": "PREREG MA36+MA37: the live options record is censored at one end and blended at the other",
+   "at": "2026-08-14 20:28",
+   "state": "PREREG committed blind",
+   "do_not": "claimed"
+  },
+  "MA15": {
+   "branch": "worktree-crowding-p2",
+   "commit": "MA-MAP + MA15 + MA16 + MA20",
+   "at": "2026-08-14 21:00",
+   "state": "DELIVERED - data\\options_ticks added to $KEEP bucket 2; 4.40 GB verified on D:",
+   "do_not": "done"
+  },
+  "MA16": {
+   "branch": "worktree-crowding-p2",
+   "commit": "MA-MAP + MA15 + MA16 + MA20",
+   "at": "2026-08-14 21:00",
+   "state": "DELIVERED - data\\free_analysis moved $SKIP -> $KEEP bucket 1; 0.80 GB verified on D:",
+   "do_not": "done"
+  },
+  "MA20": {
+   "branch": "worktree-crowding-p2",
+   "commit": "MA-MAP + MA15 + MA16 + MA20",
+   "at": "2026-08-14 21:00",
+   "state": "ALARM DELIVERED, cure is Don's - scripts/checkout_drift.py + check_drift.bat, wired into git_push.bat. Measured 1 ahead / 514 behind.",
+   "do_not": "the guard is written; what remains is Don running sync.bat once, which no agent should do for him"
+  },
+  "MA35": {
+   "branch": "origin/main",
+   "commit": "c759250",
+   "at": "2026-08-14",
+   "state": "LANDED - .gitattributes carries `*.pdf binary`, verified",
+   "do_not": "closed"
+  }
  }
 }

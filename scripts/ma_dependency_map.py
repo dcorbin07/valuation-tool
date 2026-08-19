@@ -346,7 +346,7 @@ def build(items: dict) -> dict:
             "wave": wave, "wave_note": note, "needs": {k: sorted(v) for k, v in needs.items()}}
 
 
-def emit_json(m: dict, source: str, in_flight: dict) -> dict:
+def emit_json(m: dict, source: str) -> dict:
     return {
         "_meta": {
             "generated_by": "scripts/ma_dependency_map.py",
@@ -376,7 +376,6 @@ def emit_json(m: dict, source: str, in_flight: dict) -> dict:
                       "wave": m["wave"][k], "wave_reason": m["wave_note"][k],
                       "needs_first": m["needs"].get(k, []),
                       "trial_cost": v.get("trial_cost"),
-                      "in_flight": in_flight.get(k),
                       "lane_evidence": m["lane_why"][k]}
                   for k, v in sorted(m["items"].items(), key=lambda x: int(x[0][2:]))},
         "edges": m["edges"],
@@ -407,7 +406,8 @@ def emit_md(m: dict, doc: dict, source: str) -> str:
     A("|---|---|")
     A(f"| `{source}` | the record: per item, severity, files, depends_on |")
     A("| `ma_dependency_edges.json` | machine-readable: nodes with lane + wave, four kinds of edge, every collision |")
-    A("| `ma_in_flight.json` | what is being worked RIGHT NOW, so nothing is dispatched twice |")
+    A("| `python scripts/board_state.py` | what is being worked RIGHT NOW, so nothing is "
+      "dispatched twice. A COMMAND, not a file - see below |")
     A("| this document | the human-readable version |")
     A("")
     A("---")
@@ -444,7 +444,7 @@ def emit_md(m: dict, doc: dict, source: str) -> str:
     A("")
     A("**4. Two of the wave-1 items are already delivered by the branch that wrote this map** "
       "(MA15, MA16), and a third (MA20) has its alarm delivered with the cure left to Don. "
-      "See `ma_in_flight.json` before starting anything.")
+      "Run `python scripts/board_state.py` before starting anything.")
     A("")
     A("---")
     A("")
@@ -504,11 +504,8 @@ def emit_md(m: dict, doc: dict, source: str) -> str:
             v = n[k]
             nf = " ".join(v["needs_first"]) or "-"
             co = " ".join(x for x in v["co_lanes"] if x != lane) or "-"
-            fl = v.get("in_flight") or {}
-            st = (fl.get("state") or "").split(" -")[0].split(",")[0].strip()
-            flag = f" **[{st or 'IN FLIGHT'}]**" if fl else ""
             A(f"| **{k}** | {v['wave'] or 'done'} | {v['severity']} | "
-              f"{v['title'][:88]}{flag} | {nf} | {co} |")
+              f"{v['title'][:88]} | {nf} | {co} |")
         A("")
     A("---")
     A("")
@@ -522,10 +519,7 @@ def emit_md(m: dict, doc: dict, source: str) -> str:
         A("|---|---|---|---|")
         for k in ids:
             v = n[k]
-            fl = v.get("in_flight") or {}
-            st = (fl.get("state") or "").split(" -")[0].split(",")[0].strip()
-            flag = f" **[{st or 'IN FLIGHT'}]**" if fl else ""
-            A(f"| **{k}** | {v['severity']} | {v['lane']} | {v['title'][:92]}{flag} |")
+            A(f"| **{k}** | {v['severity']} | {v['lane']} | {v['title'][:92]} |")
         A("")
     done = sorted([k for k in n if n[k]["wave"] == 0], key=lambda x: int(x[2:]))
     if done:
@@ -605,9 +599,15 @@ def emit_md(m: dict, doc: dict, source: str) -> str:
     A("- **Pass B items name files, not intentions.** MA36-MA60 declare no `modifies`, so an "
       "item that ends up editing a file the audit did not name carries an edge nothing here "
       "can see.")
-    A("- **`ma_in_flight.json` sees only committed work.** An agent with uncommitted edits in a "
-      "worktree is invisible, and so is any other machine. Absence is not evidence an item is "
-      "free.")
+    A("- **THIS DOCUMENT DOES NOT KNOW WHAT IS IN FLIGHT, DELIBERATELY (MB27, 2026-08-19).** It "
+      "used to stamp an `[IN FLIGHT]` flag on each item from the hand-typed `ma_in_flight.json`, "
+      "which was measured five days stale and wrong on 8 of 8 items and is now retired. A "
+      "COMMITTED artifact cannot carry live board state without going stale every time a branch "
+      "moves - and it did: retiring that one file staled this map, which is how the coupling was "
+      "found. **Run `python scripts/board_state.py`**, which derives lanes, worktrees carrying "
+      "UNCOMMITTED work (invisible to the old file, and 8 of 12 the day it was retired), ledger "
+      "rows claiming IN PROGRESS, handoff ages and git locks. It never warns. Other machines "
+      "remain invisible to everything here: absence is not evidence an item is free.")
     A("- **The import graph is grepped, not executed.** A dynamic import or runtime lookup would "
       "not appear. Nothing suggested one; the map cannot prove their absence.")
     A("- **Lane assignment is counted, then overridden by hand where counting was wrong** "
@@ -626,9 +626,13 @@ def main(argv=None) -> int:
 
     source, items = load_items()
     m = build(items)
-    in_flight = json.loads((ROOT / "ma_in_flight.json").read_text(encoding="utf-8")) \
-        if (ROOT / "ma_in_flight.json").exists() else {}
-    doc = emit_json(m, source, in_flight)
+    # NO in-flight state is embedded, and that is MB27's finding rather than a
+    # simplification. A COMMITTED artifact cannot carry live board state without going
+    # stale every time a branch moves -- and this generator is the proof: retiring the
+    # hand-typed ma_in_flight.json (five days stale, wrong on 8 of 8 items) staled this
+    # map, which is how the coupling was found at all. The board is a COMMAND now:
+    #     python scripts/board_state.py
+    doc = emit_json(m, source)
     text = json.dumps(doc, indent=1, ensure_ascii=False) + "\n"
 
     md = emit_md(m, doc, source)

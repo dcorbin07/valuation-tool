@@ -39,7 +39,9 @@ first. `CLAUDE.md` keeps the findings record, which is load-bearing and was not 
 - **`.env` holds real secrets** (SHARADAR_API_KEY, ANTHROPIC_API_KEY, TRADIER_TOKEN, SECRET_KEY) — never print, commit, or overwrite.
 - **Do NOT execute trades or move money** — a Robinhood connector exists (Cowork side); produce target/rebalance lists, Don executes.
 - **Ignore Don's resume files entirely.**
-- Repo is private; keep it clean. Keep the suites green after every change.
+- **The repo is PUBLIC** (since 2026-08-16, MIT — see `LICENSE`). It used to say "private" here,
+  which is the rule most likely to be relied on when deciding what is safe to commit. Anything
+  you push is world-readable and permanent in history. Keep the suites green after every change.
 - **Sharadar data is personal-use only and forbids commercial use of it "or any derivation"**
   (ledger `D1`); the JKP factor data is CC BY-NC 4.0, research-only, and may never ship in the
   product. Both constraints travel with any number derived from them.
@@ -142,8 +144,11 @@ it **OUT-OF-BAND** explicitly.
 
 **3. `check_lanes.py` answers collisions ONLY.**
 It does not answer "are this item's inputs correct yet?" Collision-safe ≠ dependency-ready. Conflating them
-put R1 on an uncorrected panel. Its map also has known gaps (it reported "(nobody)" for `config.py` and
-`screen.py` while the app-fixer lane was live in both) — treat it as advisory, cross-check `git log`.
+put R1 on an uncorrected panel. **The "known gaps" caveat that used to sit here is SPENT and is corrected
+rather than repeated:** it warned that the map reported "(nobody)" for `config.py` and `screen.py`, which
+was a symptom of a hand-typed import dictionary measured at **13 keys / 40 edges against a real 118 / 546**.
+`MA59`/`MA60` replaced it with a derived graph (`scripts/import_graph.py`), so the map now reads the tree.
+Still advisory on *dependency* questions; no longer advisory on *who imports what*.
 
 **4. A provisional number carries its caveat in the same sentence.**
 Not a paragraph later, not "worth noting." If it is provisional, the first mention says so.
@@ -152,9 +157,21 @@ Not a paragraph later, not "worth noting." If it is provisional, the first menti
 Don would rather run `sync.bat` or send a screenshot than have the manager infer wrong. Guessing has cost
 more time than asking ever has.
 
-**6. Handoffs only cover finished, pushed work.**
-An agent's live reasoning exists in no file. If the question is about work in flight, **ask for a
-screenshot** — that is not a failure of the handoff method, it is its boundary.
+**6. Handoffs only cover finished, pushed work — but the BOARD is derivable. Run
+`python scripts/board_state.py`.**
+This rule used to end *"if the question is about work in flight, ask for a screenshot"*, and
+`MB27` moved that boundary. The board derives from git in ~6s: lanes ahead of `origin/main`
+(and whether each is pushed or **local only**), every worktree **including which carry
+uncommitted work** — 8 of 12 the day this was written, the thing the old hand-typed
+`ma_in_flight.json` admitted it could not see — plus ledger rows claiming `IN PROGRESS`, handoff
+ages, git locks and the drift heartbeat. It **never warns**: counts only, exit 0 on every
+finding.
+
+**Do not write the answer down.** `ma_in_flight.json` was that mistake — hand-typed, then five
+days stale and wrong on 8 of 8 items while carrying its own unrun refresh command. It is retired
+to a pointer; `--write` emits a snapshot only to a gitignored path. **What survives of the old
+rule is the genuinely unobservable part: an agent's live reasoning, and any other machine. For
+those, still ask for a screenshot.**
 
 ---
 
