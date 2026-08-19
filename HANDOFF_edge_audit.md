@@ -13599,7 +13599,7 @@ on **identical** `(date, ticker)` sets, asserted. **C5** mean per-date Spearman 
   result**, whether to residualise on six incumbents or to impute — and that is a change to the
   TEMPLATE every incremental-IC item shares, so it belongs to its own register with its own trials.
 
-**113 suites, 1 failure and it is NOT this item's - `MA18`'s ledger row carried 9 cells against a 10-column header, repaired on main at `1b50f0b`; re-measured after merging; 19 new tests, 4 of 4 tripwires mutation-tested.**
+**115 suites, 0 failures after merging `origin/main` - the one pre-merge failure was NOT this item's (`MA18`'s ledger row carried 9 cells against a 10-column header, already repaired on main at `1b50f0b`); 19 new tests, 4 of 4 tripwires mutation-tested.**
 `scripts/ma58_seasonality.py`, `tests/test_ma58_seasonality.py`,
 `data/free_analysis/MA58_CONTROLS.json`, `MA58_SEASONALITY.json`.
 

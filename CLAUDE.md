@@ -112,7 +112,7 @@ the project's memory and the old versions had been repeated for months.
     pinned by an AST test). **A re-open is NOT a re-run of this design**: the binding constraint is
     the template's complete-case rule, and changing it changes what every incremental-IC item
     measures, so it needs its own register and its own trials. **Expectations 3 right, 3 wrong, 1
-    split. 113 suites, 1 failure and it is NOT this item's - `MA18`'s ledger row carried 9 cells against a 10-column header, repaired on main at `1b50f0b`; re-measured after merging; 19 new tests, 4 of 4 tripwires mutation-tested.**
+    split. 115 suites, 0 failures after merging `origin/main` - the one pre-merge failure was NOT this item's (`MA18`'s ledger row carried 9 cells against a 10-column header, already repaired on main at `1b50f0b`); 19 new tests, 4 of 4 tripwires mutation-tested.**
     `scripts/ma58_seasonality.py`, `data/free_analysis/MA58_SEASONALITY.json`,
     `MA58_CONTROLS.json`; `HANDOFF_edge_audit.md` MA58.
 - **THE FRONTIER'S `rf + 43 bps` FINANCING EDGE IS A MID-PRICE ARTEFACT - AT EXECUTABLE PRICES IT
