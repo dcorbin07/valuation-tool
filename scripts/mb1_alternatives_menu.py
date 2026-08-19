@@ -358,47 +358,63 @@ def _pct(xs, q):
     return xs[i]
 
 
-def _score_arm(rows, tc, bars_dir, label):
-    """Return per-leg records. One load per ticker, two passes over it."""
+def _score_both(alert_rows, ctrl_rows, tc, bars_dir):
+    """Score BOTH arms in ONE ticker loop.
+
+    Unit loading dominates, and scoring the arms in separate passes loaded every ticker's harvest
+    units TWICE. Nothing definitional changes here - same menu, same simulator, same entries, and
+    the arms are still kept separate and labelled. Only the iteration order moves.
+    """
     by_t = {}
-    for r in rows:
-        by_t.setdefault(r["ticker"], []).append(r)
-    legs = []
-    for i, (sym, rs) in enumerate(sorted(by_t.items())):
-        if i % 20 == 0:
-            _log("  %s %d/%d names (legs %s)" % (label, i, len(by_t), "{:,}".format(len(legs))))
+    for r in alert_rows:
+        by_t.setdefault(r["ticker"], ([], []))[0].append(r)
+    for r in ctrl_rows:
+        by_t.setdefault(r["ticker"], ([], []))[1].append(r)
+
+    a_legs, c_legs = [], []
+    names = sorted(by_t)
+    for i, sym in enumerate(names):
+        arows, crows = by_t[sym]
+        if i % 10 == 0:
+            _log("  %d/%d names (alert %s legs, control %s legs)"
+                 % (i, len(names), "{:,}".format(len(a_legs)), "{:,}".format(len(c_legs))))
         years = set()
-        for r in rs:
+        for r in arows + crows:
             years.update(_years(r))
         tc.load(sym, years)
-        built = []
+
+        built = []          # (row, entry_date, menu, which)
         wanted = set()
-        for r in rs:
-            a = dt.date.fromisoformat(str(r["alert_ts"])[:10])
-            u = underlying_on(sym, a, bars_dir)
-            if u is None:
-                continue
-            ch = tc.chain_on(a)
-            if ch is None:
-                continue
-            m = build_menu(ch, u, a)
-            if not m:
-                continue
-            built.append((r, a, m))
-            for x in m:
-                wanted.add((float(x["strike"]), pd.Timestamp(x["expiration"]).date()))
+        for rows, which in ((arows, "a"), (crows, "c")):
+            for r in rows:
+                a = dt.date.fromisoformat(str(r["alert_ts"])[:10])
+                u = underlying_on(sym, a, bars_dir)
+                if u is None:
+                    continue
+                ch = tc.chain_on(a)
+                if ch is None:
+                    continue
+                m = build_menu(ch, u, a)
+                if not m:
+                    continue
+                built.append((r, a, m, which))
+                for x in m:
+                    wanted.add((float(x["strike"]), pd.Timestamp(x["expiration"]).date()))
         tc.index_contracts(wanted)
-        for r, a, m in built:
+        bars = bars_for(sym, bars_dir) or {}
+        for r, a, m, which in built:
             for x in m:
-                t = OB.simulate_trade(tc, sym, x, a, bars_for(sym, bars_dir) or {})
+                t = OB.simulate_trade(tc, sym, x, a, bars)
                 if not t or not t.get("ok"):
                     continue
-                legs.append({"ticker": sym, "entry": a.isoformat(),
-                             "delta": abs(float(x["delta"])),
-                             "ret": float(t["return_pct"]),
-                             "seed": r.get("_seed")})
-    _log("  %s DONE: %s legs" % (label, "{:,}".format(len(legs))))
-    return legs
+                leg = {"ticker": sym, "entry": a.isoformat(),
+                       "delta": abs(float(x["delta"])),
+                       "ret": float(t["return_pct"]),
+                       "seed": r.get("_seed")}
+                (a_legs if which == "a" else c_legs).append(leg)
+    _log("  DONE: alert %s legs, control %s legs"
+         % ("{:,}".format(len(a_legs)), "{:,}".format(len(c_legs))))
+    return a_legs, c_legs
 
 
 def _summarise(legs):
@@ -443,8 +459,7 @@ def run_arms() -> int:
     alert, ctrl = _books()
     ca, cc = _covered(alert, tc), _covered(ctrl, tc)
 
-    a_legs = _score_arm(ca, tc, bars_dir, "ALERT")
-    c_legs = _score_arm(cc, tc, bars_dir, "CONTROL")
+    a_legs, c_legs = _score_both(ca, cc, tc, bars_dir)
     if not a_legs or not c_legs:
         raise RuntimeError(
             "ZERO legs in an arm. An instrument failure, not a finding - a coverage null produced "
