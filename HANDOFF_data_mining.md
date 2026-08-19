@@ -53,8 +53,30 @@ understates coverage by the holiday count. Tier A years in bold.
 | **total** | **42,650** | **42,608** | **42** | **99.9015** |
 
 **Zero missing symbol-years** (`q1_missing_units` is empty — no unit is absent or unreadable).
-All 42 absent days are **39 of one contiguous MA gap** (2019-08-26 → 2019-09-20) plus three
-isolated singletons (DHR 2016-07-05, TMUS 2020-06-25, SONY 2025-09-29).
+All 42 absent days are **39 of one contiguous MA gap** plus three isolated singletons
+(DHR 2016-07-05, TMUS 2020-06-25, SONY 2025-09-29).
+
+**CORRECTED 2026-08-18: ALL 42 ARE VENDOR ABSENCES AND NOT ONE OF THEM IS CLOSEABLE. The
+coverage figure should therefore read 100% of what is obtainable, not 99.90%.** This file used
+to call them "cheap to close as a targeted re-pull … ~4 units, minutes", which was an inference
+from the cache rather than a measurement of the feed. Probed directly:
+
+* **MA's option EOD data stops dead at 2019-08-23.** Every request past it returns
+  `NoDataFoundError` — at `max_dte` 1200 and at 90, for single days and for month spans. The two
+  stores agree to the day: `data/options` and the D: raw pull both end 2019-08-23, independently.
+* **The three singletons are the same class, and the probe is unusually clean:** the feed serves
+  DHR 2016-07-01 then 2016-07-06, TMUS 2020-06-24 then 06-26, SONY 2025-09-26 then 09-30 —
+  skipping precisely the missing day while serving both neighbours.
+* **A fresh reconciliation reproduces the census's 39 exactly.** MA has 89 holding-period
+  *trading* days in 2019, 39 absent, every one of them after 2019-08-23. The first pass of that
+  check counted 42 because it used weekdays, which swept in Memorial Day, 4 July and Labor Day —
+  the weekday-is-not-a-trading-day trap this harvest has now hit twice.
+* **One figure in the old sentence does not reproduce and is not restated:** the gap's END was
+  recorded as 2019-09-20; re-derived it is 2019-10-18, the last 2019 day the book needed. The
+  census artifact does not retain per-day detail, so the discrepancy cannot be reconciled from
+  the repository — only re-derived. The count (39) and the start (2019-08-26) agree exactly, and
+  the verdict does not depend on the end date, since every absent day falls after the vendor's
+  last served one.
 
 **The perishable years are the most complete ones.** That is the whole finding: 2016 is 99.97%
 and 2017–2018 are exactly 100%, so the years that vanish on 2026-09-01 are the years with
@@ -140,15 +162,24 @@ was queued on both a false coverage premise and a false urgency premise.
 | **0 — freeze `data/options`** | **PROMOTED, running** | Free, no deadline, and the actual unlock for O21-D2 |
 | **A** — alert 2016–2018 | **DEAD** | 99.97 / 100.00 / 100.00% already present |
 | **B** — alert 2019–2025 | **DEAD TWICE OVER** | 98.9–100% present **and** inside Standard's window |
-| **C** — 2016–18, 420 never-tried optionable names | **COMPLETE** | Was the only perishable item. 6.39 h, 2.53 GB, 76.0% hit rate |
-| **D** — Index 86 names | **DEFERRED past Sep 1** | 2025–26 stays reachable on Standard |
-| *depth (the tenor redirect)* | **DEMOTED** | Real absence, but no re-open row is blocked on tenor |
+| **C** — 2016–18, 420 never-tried optionable names | **COMPLETE** | 6.39 h, 2.53 GB, 76.0% hit rate |
+| **E** — tenor depth, 2016–18, 836 shallow-only units | **RUN 2026-08-18** | **PERISHABLE, and this file said it was not.** 393-pair sizing, ~5.1 GB |
+| **D** — Index 86 names, 2025–26 | **RUN 2026-08-18** | Not perishable; run because the window was already paid for |
 
 **On my own earlier redirect, plainly:** I found the date axis complete and redirected the harvest
 to the **tenor** axis (0–1200 DTE instead of 0–90/200). That absence is real — 90 DTE dominates
 every year in the cache — but no item on the re-open list is blocked on it, so it was the wrong
-thing to spend an expiring window on. **I fixed the axis and not the question.** It ranks below
-Tier C and below the freeze, and only for 2016–2018.
+thing to spend an expiring window on **at that moment**. **I fixed the axis and not the
+question.** It ranked below Tier C and below the freeze.
+
+**CORRECTION 2026-08-18, and it reordered the closing run: THE TENOR DEPTH IS PERISHABLE AND
+THIS FILE'S CLOSING SECTION SAID IT WAS NOT.** Standard's window rolls forward from roughly
+2018-08-18, so the 836 shallow-only units — all 2016, 2017 and 2018 — go dark the day Pro lapses.
+"Nothing perishable remains" was a true statement about the **date** axis, which Tier C closed,
+and I carried it across to the **tenor** axis without re-deriving it. Demoting depth on *value*
+was right and is unchanged; calling it *non-perishable* was wrong. It therefore ran **before**
+Tier D, which stays reachable in perpetuity — if only one of the two had finished, it had to be
+the one that cannot be re-fetched.
 
 ---
 
@@ -255,6 +286,27 @@ Two things deliberately not counted as disagreement, both by construction: the c
 slim-filtered (`mine_options_cache.slim_filter`) so it legitimately holds **fewer** keys — only the
 intersection is compared; and the cached frame is float32 where the raw arrives float64, so floats
 are compared at 1e-3.
+
+**TIER E IS THE FIRST TIER WHERE *EVERY* UNIT CARRIES A BASELINE**, because it is defined as the
+symbol-years that already hold a shallow unit. Tier C had none by construction (982 of its units
+returned `no_baseline`), so this is the widest overlap test the harvest has run.
+
+**And it verifies Tier E's own premise per unit, which was checked BEFORE committing twelve more
+hours to it rather than assumed:**
+
+| unit | cached rows | new rows | × | cached max DTE | new max DTE | new rows >200 DTE |
+|---|---|---|---|---|---|---|
+| AA-2016 | 119,764 | 131,228 | 1.10 | **200** | 858 | 11,464 |
+| ABBV-2016 | 155,080 | 203,316 | 1.31 | **88** | 823 | 28,320 |
+| ADI-2016 | 24,913 | 65,892 | **2.64** | **88** | 795 | 23,824 |
+| ADM-2018 | 88,892 | 132,050 | 1.49 | **88** | 851 | 21,476 |
+
+**The cached units cap at exactly 88 or 200 DTE — the shallow bounds — and the deep pull reaches
+795–858.** The premise holds. **But read the multiple, not the headline:** rows rise only
+1.10–2.64×, because long-dated contracts are far fewer than short-dated ones. The quantity worth
+quoting is the **11k–31k rows per unit beyond 200 DTE**, which exist in no other store. Units
+cached at 88 DTE gain proportionally most, which is the expected direction and a small check that
+the numbers mean what they say.
 
 ---
 
@@ -449,6 +501,35 @@ them a name whose listing falls inside 2016–2018. A partial year is now kept a
 for a complete one; a *real* fault on a quarter still refuses the whole unit. Re-running the 26
 recovered **24 partial years and left 0 failed**.
 
+**8. A quarter that returned ZERO ROWS was dropped in silence, so a short year was banked as
+`ok`.** BUG 7's sibling, and the one it did not cover: 7 handles a quarter that *errored*, this
+one a quarter that returned successfully with nothing in it. The empty frame was skipped by
+`if r is not None and len(r)` and never recorded, so the unit reported `status: ok` — meaning a
+complete year — while holding as little as 65% of one. **Measured across the finished harvest:
+19 units carry `ok` while under 95% of their year's date count**, LLY / LMT / LOW / MA appearing
+repeatedly and at identical counts (164 dates in 2019, 208 in 2020, 231 in 2022).
+
+* **The label is now correct in code and on disk.** An empty quarter is recorded in
+  `quarters_empty` and forces `ok_partial`. Existing records were corrected by an **offline**
+  `--relabel` pass, which derives the empty quarters from the banked payload itself and so needs
+  no vendor call: **29 units corrected, 14 already correct, 0 unreadable**, idempotent on a
+  second run (0 further changes).
+* **`--repair` re-pulled all 43 short units and recovered NOTHING: 0 improved, 43 confirmed
+  short.** The vendor genuinely serves no more. The rule that makes that safe to run unattended
+  is that **a repair may never shrink a unit** — the re-pull is written only if it holds strictly
+  more dates, and otherwise the original is restored byte-for-byte from a `.prerepair` copy. 0
+  safety copies were left behind. Pinned by `tests/test_deep_harvest.py`.
+* **REPORTED BECAUSE I GOT IT WRONG MID-INVESTIGATION AND THE ERROR IS INSTRUCTIVE:** I probed
+  Nov–Dec for these units, found the feed serving those months, and concluded ~15 units of
+  recoverable data were sitting behind a bad label. **The short units are short at the START of
+  the year, not the end** — PEN-2016 begins 2016-03-31, LLY-2020 begins 2020-03-09, WELL-2018
+  begins 2018-02-28 — so the probe tested a span that was never missing. The full-year re-pull
+  refuted it. **The defect was real and the recoverable data was not.**
+* **What it cost: nothing in bytes, and it would have cost a verdict.** No data was lost. But
+  `ok` meaning "complete" is exactly the kind of claim an analysis leans on without checking, and
+  19 units silently missing a quarter is the shape of a bug that surfaces as a strange result
+  months later. Same family as the five silently-empty factors in `CLAUDE.md`'s coverage rule.
+
 **4. Windows `os.replace` races the AV scanner on a freshly written file.** The first full freeze
 run died ~3,000 files in with `PermissionError [WinError 32]` on a `.tmp` rename. It is a race, not
 corruption. Now retried with backoff, and **raised rather than skipped** if it still will not
@@ -474,9 +555,11 @@ land — a skipped file would be a silent hole in a freeze whose entire purpose 
 * **Tick-resolution data across holding periods.** ~190 GB; fits D:'s 426 GB but nothing else
   would. The existing tick cache (`data/options_ticks/`, 4.72 GB) is **entry-days only** — 3,884
   alert-days, 70.3 M prints.
-* **The 42 absent holding-period chain-days**, of which 39 are one contiguous MA gap
-  (2019-08-26 → 2019-09-20). Cheap to close as a targeted re-pull of MA-2019 and three singletons —
-  ~4 units, minutes — and **not deadline-bound** (all are 2019+, inside Standard's window).
+* **The 42 absent holding-period chain-days — UNREACHABLE, not unpulled.** Measured 2026-08-18
+  by probing the feed directly rather than inferring from the cache: MA stops at 2019-08-23 and
+  every later request returns `NoDataFoundError`; the three singletons are served on both
+  neighbouring days and skipped on the day itself. **No subscription recovers these.** See the
+  correction under Q1.
 * **Anything beyond ~836 DTE.** The feed stops there (`max_dte=1200` returns a max observed DTE of
   836 on AAPL) — a source limit, not a choice.
 
