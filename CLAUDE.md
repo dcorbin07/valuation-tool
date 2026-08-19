@@ -554,7 +554,7 @@ the project's memory and the old versions had been repeated for months.
     why: the width's maximum is 3,585, four orders of magnitude above its median** - without a floor
     the arm becomes a *disagreement* screen rather than a precision-weighted mispricing signal.
     **A correction both registers must carry: the audit quotes the alpha margin as 1.95pp and
-    `MA19` recalibrated it to 1.8629pp** at today's `N` nine days ago.
+    `MA19` recalibrated it to 1.8629pp** at `N` = 224 nine days ago (still current at the live `N` = 234 - `MB31`).
   * **`MA58`'s PREMISE HOLDS, WITH THE `MA23` LESSON ATTACHED: A NAME MATCH IS NOT A PAPER CENSUS.**
     Every *"seasonal"* hit in the corpus outside the audit documents is **fiscal-quarter seasonality
     in fundamentals**, and `NUMBER_THEME`'s 53 entries contain no seasonality-shaped key - so the
@@ -2999,7 +2999,7 @@ the project's memory and the old versions had been repeated for months.
     anywhere**, so the 2.0pp bar is **UNCALIBRATED** and is labelled so.
   * **THE ALPHA LEG CANNOT RESOLVE ITS OWN BAR, AND THE REGISTER SAID SO FIRST.** The audit's
     1.0pp allowance sits **BELOW X7's calibrated 1.95pp** alpha margin *(**CORRECTED 2026-08-14,
-    `MA19`: the calibrated margin is **1.8629pp** at today's `N`, not 1.95pp — that figure was X7's
+    `MA19`: the calibrated margin is **1.8629pp** at `N` = 224, not 1.95pp — that figure was X7's
     at `N` = 84 and has been superseded since session 10. **The argument is unaffected and holds a
     fortiori**, since 1.0pp sits below both.)*. It survives only because
     it is a **non-inferiority** allowance, so **a pass means "no alpha loss detectable at this
@@ -3561,7 +3561,7 @@ the project's memory and the old versions had been repeated for months.
   existed.
   * **VERDICT IMMATERIAL, BY THE RULE FIXED IN ADVANCE: top-decile alpha +7.17% → +5.86%,
     Δ −1.3133pp against a −1.95pp bar, paired HAC t −1.4040 over 69 paired dates.** *(**CORRECTED
-    2026-08-14, `MA19`: the calibrated margin at today's `N` is **1.8629pp**. V2G's bar was correct
+    2026-08-14, `MA19`: the calibrated margin at `N` = 224 is **1.8629pp**. V2G's bar was correct
     when it ran; re-read against 1.8629pp the verdict is **UNCHANGED — still IMMATERIAL**, since
     1.3133pp remains below it. The power caveat below tightens slightly and its substance stands.)*
     Building live
@@ -4177,9 +4177,11 @@ the project's memory and the old versions had been repeated for months.
   **RECALIBRATED 2026-08-14 AT `N` = 224 (`MA19`). THE TABLE ABOVE IS X7's, MEASURED AT `N` = 84,
   AND IT IS KEPT BECAUSE IT IS CORRECT FOR ITS OWN REGIME — every one of its bars was reproduced
   from the banked draws to within rounding. TWO OF THE SIX HAVE SINCE MOVED, AND ONE OF THOSE HAD
-  BEEN STALE FOR NINE DAYS. Quote the `N` = 224 column.**
+  BEEN STALE FOR NINE DAYS. Quote the `derived at N = 224` column - and see the `MB31`
+  bullet immediately below, which proves those values are STILL CURRENT at the live
+  `N` = 234 rather than asking you to assume it.**
 
-  | floor | X7 @ N=84 | session 10 @ N=129 | **N = 224 (QUOTE THIS)** | moved? |
+  | floor | X7 @ N=84 | session 10 @ N=129 | **derived at N = 224** | moved? |
   |---|---|---|---|---|
   | theme IC t | 2.7072 | 2.7072 | **2.7072** | never |
   | long-short t (naive) | 2.1437 | 2.1437 | **2.1437** | never |
@@ -4189,6 +4191,56 @@ the project's memory and the old versions had been repeated for months.
   | PBO (p5) | 19.667% | 19.667% | **19.667%** | never |
   | Deflated Sharpe | 0.7216 | 0.7076 | **0.6637** | **both steps** |
 
+  * **THE COLUMN IS ONE DENOMINATOR BEHIND THE LIVE COUNT AND EVERY PERMUTATION FLOOR IN IT IS
+    NEVERTHELESS STILL CORRECT - PROVED ARITHMETICALLY, NOT ASSUMED (2026-08-19, `MB31`+`MB32`).**
+    Live `by_domain` reads **equity 234, options 300, infra 15**, so the table's `N` = 224 column
+    is stale as a LABEL. It is not stale as a set of NUMBERS, and the reason is `MA19`'s own
+    mechanism run forwards: **`N` enters a permutation floor ONLY through the CPCV adopt gate
+    `margin > sqrt(2 ln N) * se`**, so a floor can move only when a DRAW FLIPS. That gate is
+    arithmetic on `X7RECON`'s banked `(margin, se)` rows, and **the adopt set at `N` = 234 is
+    IDENTICAL to the set at 224 - zero draws flip, in either direction.** So the four
+    insensitive-so-far floors AND both of the two `MB31` lists as DUE are **provably unmoved
+    today**. The rule was verified against the record rather than trusted: margin-passers minus
+    the two draws (1031, 1036) that fail an `N`-INDEPENDENT condition reproduces `MA19`'s recorded
+    adopt count of 20 exactly.
+  * **AND IT COMES WITH A DATED TRIGGER, WHICH IS THE POINT OF DERIVING IT RATHER THAN TABULATING
+    IT: the next draw to flip is seed 1003 at `margin/se` 3.319188, and it flips when
+    sqrt(2 ln N) exceeds that - i.e. at equity `N` = 247. THIRTEEN TRIALS OF HEADROOM FROM
+    TODAY.** Below 247 no permutation floor can move; at 247 a **bounded** re-derivation is owed
+    (`MA19` re-scored three draws in ~400 seconds, not a 3.4-hour sweep - `RUN_RULES` rule 9 is
+    why it is bounded), and whether any floor then actually moves depends on where seed 1003 sits
+    in each statistic's ranking. **Still report the four as INSENSITIVE-SO-FAR and never as
+    invariant** - session 12's *"luck, not design"*, and on the alpha HAC floor the luck ran out.
+  * **THE DEFLATED SHARPE IS THE ONE EXCEPTION AND IT DOES NOT GET THE ABOVE ARGUMENT.** `sr0` is
+    a function of `N` DIRECTLY, so every draw moves at every `N` and the adopt-set proof simply
+    does not apply to it. Recomputed: **`sr0` 0.4604580337 -> 0.4627730517** between 224 and 234
+    (reproducing the shipped 0.4604580339 to **2.302e-10**, the tolerance `MA19`'s own C10 control
+    reported), so `sr0` RISES and **the DSR therefore FALLS**. **The probability itself is
+    deliberately NOT restated at 234**: it needs the returns series' skew and kurtosis, and
+    assuming normality shifts it by **-0.0319**, an order of magnitude more than the change being
+    measured - a fabricated figure would be worse than none. Both the statistic (0.7863) and its
+    floor (0.6637) stay labelled **`N` = 224, STALE BY CONSTRUCTION**. **This correction is one
+    the map's own test caught in the map itself**, which had first labelled the DSR floor
+    "provably unmoved" by inheriting an argument that never covered it.
+  * **THE HLZ HURDLE IS THE ONE NUMBER THAT REALLY DID MOVE, AND THE VERDICT DOES NOT.** Equity
+    **3.2898772171176964 at `N` = 224 -> 3.3031261300040304 at 234**, so the headline long-short
+    HAC *t* of 2.6199 fails it by **0.6832** rather than 0.6700. `clears_hlz_hurdle` is `false`
+    at both. **For an OPTIONS claim the hurdle is 3.3794754082179290 at `N` = 302** - quote that,
+    never the equity one. **That figure moved WHILE THIS ITEM WAS BEING WRITTEN** - it read
+    3.3775086897463940 at `N` = 300 an hour earlier, until `MB1` booked two options trials -
+    which is `MB32`'s own thesis demonstrated on `MB32`: the DERIVED map absorbed the change
+    with a re-run and this hand-written sentence had to be edited. **Derive it; do not quote
+    it from here.** `BACKTEST_RESULTS.json` legitimately LAGS at 224/292/14 per `MA21`
+    (trials only accumulate, so the artifact may lag and may never lead) and **needs no re-run
+    for this**, since no claim changes side.
+  * **THE SENTENCE SHAPE TO KEEP WATCHING, because it recurs automatically: a numerator at one
+    `N` paired with a floor at another.** `MA19` caught it once - *"0.8674 vs the 0.7216 floor"*
+    pairs an `N` = 116 Deflated Sharpe with an `N` = 84 floor - and the DSR moves at EVERY `N`, so
+    the shape regenerates unless the text names the `N` on both sides. The phrase **"at today's
+    `N`"** is the same defect in slower motion and was removed from three sites in this file by
+    `MB32`: *today* moves, a number does not. `data/free_analysis/MB31_STALENESS_MAP.json` is
+    DERIVED (`python -m scripts.mb31_staleness_map`) precisely so this table never has to be
+    re-typed again.
   * **NO SHIPPED CLAIM CHANGES ITS RELATIONSHIP TO ITS BAR** — all seven clear (or, for PBO, fail)
     exactly as before, and both moves are in the strategy's favour. **Nothing is retracted.**
   * **THE 1.95pp ALPHA MARGIN WAS STALE AND THE RECORD KEPT QUOTING IT.** The correct figure has
@@ -4437,10 +4489,13 @@ the project's memory and the old versions had been repeated for months.
     X7's raw draws were never saved.** This sweep saves all 100.
   * **FREE BY-PRODUCT, and it is the stronger number: the top-decile alpha HAC t now has a floor
     too — 2.2913 — and the shipped +4.376 sits ABOVE ALL 100 NOISE DRAWS (empirical p 0.00).**
-    **RECALIBRATED 2026-08-14 (`MA19`): this floor is 2.0540 at today's `N` = 224 — the ONLY X7
+    **RECALIBRATED 2026-08-14 (`MA19`): this floor is 2.0540 at `N` = 224 — the ONLY X7
     floor to move on the adoption channel, because the draw that stopped adopting sat 4th of 100
     on this statistic and 15th on the long-short one. The shipped +4.3762 still sits above all 100
     draws, so the claim is unchanged and only the bar moved (downward, i.e. easier).**
+    **STILL 2.0540 AT THE LIVE `N` = 234 (2026-08-19, `MB31`) — proved rather than
+    assumed: the adopt set is identical at 224 and 234, and it cannot change before
+    equity `N` = 247.**
     The long-ONLY book remains far better measured than the long-short the project leads with.
   * **R9's autocorrelation finding is corroborated:** Ljung–Box on noise draws has median
     p 0.406 and rejects at 7%, i.e. near nominal — so the real series' p 0.036 is a property of
