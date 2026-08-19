@@ -526,7 +526,17 @@ def test_the_two_verdicts_are_rendered_as_two_and_the_dead_one_is_not_dropped():
         "the RETURN null's detail stopped rendering; the headline alone is not the verdict")
     assert "not shown" in page, "the null's own caveat about what NULL means is missing"
     assert "32.5% of the time against 43.4%" in page, "the RISK result is not on the surface"
-    assert "10.8-point absolute reduction" in page, "the effect size is not on the surface"
+    # MB10 — STRICTLY STRONGER THAN THE PIN IT REPLACES. This asserted the ABSOLUTE GAP was on
+    # the surface ("10.8-point absolute reduction"). `MA28-CARD`'s rule is quote the ratio and
+    # both rates and NEVER the difference, so the surface now states the ratio with both rates
+    # and the gap is gone. The replacement checks BOTH halves of that — the ratio and rates are
+    # present AND the gap is absent — which the old assertion did not do in either direction.
+    assert "about a quarter fewer in relative terms" in page, (
+        "the effect size is not on the surface")
+    assert "32.5% against 43.4%" in page, (
+        "the ratio is on the surface without both rates beside it")
+    for gap in ("10.8-point", "10.8 point", "10.8pp", "10.8 percentage point"):
+        assert gap not in page, f"the absolute gap is back on the surface: {gap!r}"
     assert "one historical panel" in page, "the one-panel caveat is not on the surface"
     assert "never as a forecast that they will get better" in page, (
         "the risk/return distinction is not stated on the surface")

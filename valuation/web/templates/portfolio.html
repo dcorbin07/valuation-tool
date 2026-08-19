@@ -559,6 +559,39 @@
     <code>HANDOFF_free_analysis.md</code>, <code>HANDOFF_edge_audit.md</code>.</p>
 </section>
 
+{# ------------------------------------------------------------------ MB11: the partition
+   RENDER ONLY. Every sentence and every figure comes from `web/optionable_partition.py`;
+   nothing here may be written literally, and the gaps in the table are DERIVED there from the
+   two sides rather than typed. The page stays static by construction — the module takes no
+   argument, reads no store and has no clock. #}
+<section>
+  <h2>{{ optionable.heading }}</h2>
+  <p class="lede">{{ optionable.lede }}</p>
+  <p>{{ optionable.what_it_is }}</p>
+  <p>{{ optionable.what_was_measured }}</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Held for</th><th>2016&ndash;2020: all names</th>
+      <th>2016&ndash;2020: options-listed</th><th>2021&ndash;2025: all names</th>
+      <th>2021&ndash;2025: options-listed</th></tr></thead>
+    <tbody>
+      {% for r in optionable.rows %}
+      <tr><td class="k">{{ r.label }}</td>
+        <td class="num">{{ "%+.2f"|format(r.full_early) }}%</td>
+        <td class="num">{{ "%+.2f"|format(r.opt_early) }}%</td>
+        <td class="num">{{ "%+.2f"|format(r.full_late) }}%</td>
+        <td class="num">{{ "%+.2f"|format(r.opt_late) }}%</td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  <div class="callout">
+    <span class="h">{{ optionable.callout_heading }}</span>
+    <p>{{ optionable.not_a_forecast }}</p>
+    <p>{{ optionable.cannot_separate }}</p>
+  </div>
+  <p class="src">{{ optionable.source_note }} Registered in
+    <code>{{ optionable.register }}</code>.</p>
+</section>
+
 <section>
   <h2>The forward track</h2>
   <p class="lede">The only test that has not been contaminated by hindsight is the one that
