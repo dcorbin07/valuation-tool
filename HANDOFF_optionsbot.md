@@ -7346,7 +7346,7 @@ zero-trials/no-verdict rule so the next user of it cannot mistake a divergence f
 
 ---
 
-## 65 · O21-D2 — THE ALTERNATIVE CONTRACT IS PRICED AT LAST, AND THE ANSWER IS THAT IT TRADES TAIL FOR TYPICALITY
+## 65 · O21-D2 — THE ALTERNATIVE CONTRACT IS PRICED AT LAST, AND THE DIFFERENCE DOES NOT SEPARATE FROM ZERO
 
 **Register: `PREREG_o21d2_alternative_contract_pnl.md`, committed ALONE at `1d23ee1`** — one
 `.md`, zero `.py`, a strict ancestor of every measurement commit. **Trial booked at `f86ebba`
@@ -7379,22 +7379,38 @@ it is 0.17pp of book expectancy.
 contract-selection error is too small a share of the book to matter, measured on 63.1% of the
 affected entries. Those are different claims.
 
-### 65.2 · THE FINDING IS THE MEAN/MEDIAN SPLIT, AND IT HAS A MECHANISM
+### 65.2 · THE MEAN AND THE MEDIAN POINT OPPOSITE WAYS — AND NEITHER SEPARATES FROM ZERO
 
-**The mean is NEGATIVE and the median is POSITIVE: -3.57 pp against +0.67 pp.** The alternative
-does not simply lose; **the typical divergent trade is slightly BETTER on it and the mean is
-dragged negative by a minority of large give-ups.** 54.0% of the 113 pairs favour the
-alternative outright.
+**This section is a CORRECTION AGAINST MY OWN FIRST DRAFT, made before publication rather than
+after.** That draft was headed *"it trades tail for typicality"* and told a mechanism story: the
+alternative sits at a lower strike on 93.9% of entries at a median absolute delta gap of 0.129
+above a 0.35 target, so it is deeper in the money and **less levered**, and a less-levered call
+should fail totally less often (**a higher median**) while giving up the right tail this book's
+expectancy is built from (**a lower mean**). The point estimates have exactly that shape — mean
+**-3.57 pp**, median **+0.67 pp**.
 
-**That shape is what the substitution mechanically predicts.** O21 measured the alternative to sit
-at a **lower strike on 93.9%** of entries, median absolute delta gap **0.129** above a 0.35 target
-— i.e. **deeper in the money and LESS levered.** A less-levered call fails totally less often
-(**a higher median**) and gives up the right tail this book's positive expectancy is built from
-(**a lower mean**). **The alternative trades tail for typicality**, and both halves of that
-sentence are measured rather than argued.
+**Then I tested them, and neither separates from zero.**
+
+| statistic | value | support |
+|---|---|---|
+| mean `alt - base` | **-3.57 pp** | *t* **-0.8045**, CI95 **[-12.28, +5.13] pp** — straddles zero |
+| median | **+0.67 pp** | alt better on **61 of 113**, two-sided binomial **p 0.4519** — a coin flip |
+
+**So the shape is CONSISTENT WITH that mechanism and is not EVIDENCE for it.** A story fitted to
+two estimates that do not separate from zero is a story, and this record's own repeated lesson is
+that such stories survive by being repeated. **No directional claim and no mechanism claim is
+made.** The pre-committed halves rule (65.3) independently forbids the directional half.
+
+**AND THE VERDICT GETS STRONGER RATHER THAN WEAKER, WHICH IS THE POINT OF TESTING IT.** A bound
+has to hold across the INTERVAL, not merely at the point estimate. **At the CI95's most adverse
+end the implied book effect is -0.5681 pp, and at the other end +0.2374 pp — so the ENTIRE
+95% interval sits inside the +/-1.00pp bar.** That is a far more robust `IMMATERIAL` than a point
+estimate of -0.1653 pp, and it is what makes the door genuinely closed rather than closed at one
+number.
 
 Base and alternative mean returns on the scored pairs: **-0.37 pp** against **-3.94 pp**; the
-difference distribution runs p05 **-89.20 pp** to p95 **+40.33 pp**, min -173.88 pp, max +192.92 pp.
+difference distribution runs p05 **-89.20 pp** to p95 **+40.33 pp**, min -173.88 pp, max +192.92 pp — a
+spread wide enough that 113 pairs cannot resolve a few points of mean.
 
 ### 65.3 · NO DIRECTIONAL CLAIM IS MADE, BY THE REGISTER'S OWN RULE
 
