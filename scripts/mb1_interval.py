@@ -53,7 +53,25 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd  # noqa: E402
 
-DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _data_root() -> str:
+    """Find the data root that actually HOLDS this script's input.
+
+    In a git worktree the licensed data lives in the primary checkout - the worktree's own data/
+    carries only some subdirectories - so the arms pass writes the legs there. Rather than copy the
+    arm's heuristic (and rather than import the arm, which the no-verdict test forbids on purpose
+    so the bar can never be re-tested here), probe for the INPUT ITSELF: that finds where the arms
+    actually wrote instead of guessing where they should have.
+    """
+    for cand in (os.path.join(_HERE, "data"), os.path.join(_HERE, "..", "..", "..", "data")):
+        if os.path.isfile(os.path.join(cand, "MB1_LEGS.pkl")):
+            return os.path.abspath(cand)
+    return os.path.abspath(os.path.join(_HERE, "data"))
+
+
+DATA = _data_root()
 LEGS_IN = os.path.join(DATA, "MB1_LEGS.pkl")
 ARMS_IN = os.path.join(DATA, "free_analysis", "MB1_MENU.json")
 OUT = os.path.join(DATA, "free_analysis", "MB1_INTERVAL.json")
