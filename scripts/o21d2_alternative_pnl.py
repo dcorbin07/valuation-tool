@@ -368,6 +368,16 @@ def run_controls() -> int:
     return 0 if out["all_gating_pass"] else 2
 
 
+
+def _binom_two_sided(k: int, n: int) -> float:
+    """Two-sided binomial p against p=0.5. Exact; n here is ~113 so there is no need to approximate."""
+    from math import comb
+    if n <= 0:
+        return 1.0
+    k = min(k, n - k)
+    tail = sum(comb(n, i) for i in range(0, k + 1)) / (2 ** n)
+    return min(1.0, 2.0 * tail)
+
 # ============================ pass 2 — THE ARM ============================================
 def run_arms() -> int:
     if not os.path.exists(CONTROLS_OUT):
@@ -441,6 +451,21 @@ def run_arms() -> int:
     n = len(d)
     mean_d = sum(d) / n
     med_d = d[n // 2]
+
+    # THE UNCERTAINTY OF THE REGISTERED STATISTIC. Not a new arm - the register named this exact
+    # estimate and a bar, and an interval on it is not a second hypothesis. A point estimate
+    # quoted without one invites reading a few pp as an effect when it does not separate from
+    # zero, and the bound in the register has to hold across the INTERVAL, not merely at the
+    # point.
+    var = sum((x - mean_d) ** 2 for x in d) / (n - 1) if n > 1 else 0.0
+    sd = var ** 0.5
+    se = sd / (n ** 0.5) if n else 0.0
+    tstat = (mean_d / se) if se else 0.0
+    ci_lo, ci_hi = mean_d - 1.96 * se, mean_d + 1.96 * se
+    # and the median's own support: a sign count against a coin flip.
+    n_better = sum(1 for x in d if x > 0)
+    n_nonzero = sum(1 for x in d if x != 0)
+    sign_p = _binom_two_sided(n_better, n_nonzero)
     implied_all = (N_DIVERGENT_EXPECTED / N_BOOK) * mean_d * 100.0     # in pp of book expectancy
     implied_cov = (n / N_BOOK) * mean_d * 100.0
     required_mean = MATERIAL_BOOK_PP / (N_DIVERGENT_EXPECTED / N_BOOK) / 100.0
@@ -461,8 +486,14 @@ def run_arms() -> int:
     _log("=== A1 ===")
     _log("n scored pairs: %d of %d divergent (%.1f%%)"
          % (n, N_DIVERGENT_EXPECTED, 100.0 * n / N_DIVERGENT_EXPECTED))
-    _log("mean delta   %+.4f  (%+.2f pp/trade)" % (mean_d, 100.0 * mean_d))
-    _log("median delta %+.4f  (%+.2f pp/trade)" % (med_d, 100.0 * med_d))
+    _log("mean delta   %+.4f  (%+.2f pp/trade)  t %+.4f  CI95 [%+.2f, %+.2f] pp"
+         % (mean_d, 100.0 * mean_d, tstat, 100.0 * ci_lo, 100.0 * ci_hi))
+    _log("median delta %+.4f  (%+.2f pp/trade); alt better on %d of %d, two-sided p %.4f"
+         % (med_d, 100.0 * med_d, n_better, n_nonzero, sign_p))
+    _log("NEITHER SEPARATES FROM ZERO -> no effect is claimed in either direction")
+    _log("book effect implied by the CI95 ENDS: [%+.4f, %+.4f] pp"
+         % ((N_DIVERGENT_EXPECTED / N_BOOK) * ci_lo * 100.0,
+            (N_DIVERGENT_EXPECTED / N_BOOK) * ci_hi * 100.0))
     _log("implied BOOK effect across all 179: %+.4f pp  (bar %.2f pp)"
          % (implied_all, MATERIAL_BOOK_PP))
     _log("a mean of %+.2f pp/trade would be required to reach the bar" % (100.0 * required_mean))
@@ -490,6 +521,16 @@ def run_arms() -> int:
             "p05_delta": d[int(0.05 * n)], "p95_delta": d[int(0.95 * n)],
             "min_delta": d[0], "max_delta": d[-1],
             "share_alt_better": sum(1 for x in d if x > 0) / n,
+            "sd": sd, "se": se, "t": tstat,
+            "ci95_low": ci_lo, "ci95_high": ci_hi,
+            "n_alt_better": n_better, "n_nonzero": n_nonzero,
+            "sign_test_two_sided_p": sign_p,
+            "separates_from_zero": bool(abs(tstat) >= 1.96),
+            "inference_note": ("NOT A NEW ARM - this is the uncertainty of the estimate the "
+                               "register already named. NEITHER the mean nor the sign count "
+                               "separates from zero, so no directional or mechanism claim is "
+                               "made; the verdict rests on the bound, which holds across the "
+                               "whole interval and not merely at the point."),
             "mean_base_ret": sum(r["base_ret"] for r in rows) / n,
             "mean_alt_ret": sum(r["alt_ret"] for r in rows) / n,
         },
@@ -498,6 +539,8 @@ def run_arms() -> int:
             "implied_pp_scored_only": implied_cov,
             "bar_pp": MATERIAL_BOOK_PP,
             "mean_delta_required_to_reach_bar": required_mean,
+            "implied_pp_at_ci95_low": (N_DIVERGENT_EXPECTED / N_BOOK) * ci_lo * 100.0,
+            "implied_pp_at_ci95_high": (N_DIVERGENT_EXPECTED / N_BOOK) * ci_hi * 100.0,
             # A DEFECT IN MY OWN INSTRUMENT, FIXED HERE: this note used %-formatting while its
             # prose quotes literal percentages ("4.63% divergence"), so `% d` was read as a
             # conversion and the write raised TypeError AFTER every statistic had been computed
