@@ -89,6 +89,19 @@ def _fake_harvest(tmp, n_dirs=500, populate=True, **over):
     return root
 
 
+
+def _same_path(a: str, b: str) -> bool:
+    """Separator- and case-insensitive path comparison, MB42.
+
+    `os.path.normcase`/`normpath` are NOT enough: on POSIX a backslash is an ordinary filename
+    character, so a Windows path compared on Linux normalises to itself and the two spellings
+    still differ. Folding the separator explicitly makes the assertion mean the same thing on
+    both platforms, which is the whole point of the fix.
+    """
+    def norm(x):
+        return str(x).replace("\\", "/").rstrip("/").lower()
+    return norm(a) == norm(b)
+
 def _raises(fn, exc=CS.ChainStoreError):
     try:
         fn()
@@ -301,9 +314,40 @@ def test_the_real_harvest_freeze_resolves_when_mounted():
         return
     d, prov = CS.resolve_harvest()
     assert prov["pinned"] is True
-    assert prov["frozen_from"] == "D:/thetadata/chains"
+    # MB42. This used to be `== "D:/thetadata/chains"`. The freeze summary spells the source with
+    # BACKSLASHES, so the literal was red on the only machine that owns the data while the CI
+    # runner - which has no D: drive - skipped the whole test and the auto-land Action stayed
+    # green. Compared separator-insensitively now; `_same_path` is exercised on every platform by
+    # the fixture test below, so this is not the only place the comparison runs.
+    assert _same_path(prov["frozen_from"], "D:/thetadata/chains"), prov["frozen_from"]
     assert prov["hash_mismatches_at_copy"] == 0
     assert len(prov["manifest_sha256"]) == 64
+
+
+def test_the_frozen_from_comparison_runs_on_every_platform():
+    """MB42's kill condition: normalising is not enough if the comparison still only runs on one
+    platform. This builds a freeze whose summary spells the source the way the real one does -
+    with BACKSLASHES - and asserts the resolver's provenance matches the forward-slash spelling.
+
+    It uses a temp dir, so it executes on Linux and Windows alike. The mounted test above skips
+    without a D: drive; this one never skips.
+    """
+    tmp = tempfile.mkdtemp()
+    root = _fake_harvest(tmp, source="D:\\thetadata\\chains")
+    with _Env(**{CS.ENV_HARVEST_ROOT: root}):
+        _d, prov = CS.resolve_harvest()
+    assert prov["frozen_from"] == "D:\\thetadata\\chains"
+    assert _same_path(prov["frozen_from"], "D:/thetadata/chains")
+    # and it must still be able to tell genuinely different paths apart
+    assert not _same_path(prov["frozen_from"], "D:/thetadata/other")
+
+
+def test_the_path_comparison_is_not_vacuous():
+    """A comparison that returns True for everything would make the test above meaningless."""
+    assert _same_path("D:\\a\\b", "D:/a/b")
+    assert _same_path("D:/a/b/", "d:\\A\\B")
+    assert not _same_path("D:/a/b", "D:/a/c")
+    assert not _same_path("", "D:/a")
 
 
 if __name__ == "__main__":
