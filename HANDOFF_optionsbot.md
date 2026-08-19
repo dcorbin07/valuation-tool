@@ -7342,3 +7342,186 @@ mutable path itself; and **the miner is not repointed**.
 zero-trials/no-verdict rule so the next user of it cannot mistake a divergence for a result.
 
 `data/free_analysis/REPIN_REPRODUCTION_O3O4O5.json`, `REPIN_REPRODUCTION_O6O7O17.json`.
+
+
+---
+
+## 65 · O21-D2 — THE ALTERNATIVE CONTRACT IS PRICED AT LAST, AND THE ANSWER IS THAT IT TRADES TAIL FOR TYPICALITY
+
+**Register: `PREREG_o21d2_alternative_contract_pnl.md`, committed ALONE at `1d23ee1`** — one
+`.md`, zero `.py`, a strict ancestor of every measurement commit. **Trial booked at `f86ebba`
+BEFORE the run: options `N` 297 -> 298.** Equity untouched. **ADOPTS NOTHING, CHANGES NO LEDGER
+VERDICT, and does not re-open O21.**
+
+**THE ONLY SAME-HYPOTHESIS RE-OPEN the blind re-open list (`10977a2`) authorized.** O21 measured
+that the dividend-corrected pricer picks a DIFFERENT contract on **179 of 3,870 entries (4.63%)**
+and reported that alternative book's P&L as **NOT COMPUTABLE rather than as zero** — which is the
+only reason this was answerable rather than settled. The referent now exists.
+
+### 65.1 · VERDICT: IMMATERIAL — and the bound said so before the run
+
+| | |
+|---|---|
+| scored pairs | **113 of 179 divergent (63.1%)** |
+| mean difference `alt - base` | **-3.57 pp/trade** |
+| median difference | **+0.67 pp/trade** |
+| implied BOOK expectancy effect across all 179 | **-0.1653 pp** |
+| the bar (O21's own, reused verbatim) | 1.00 pp |
+| mean per-trade difference REQUIRED to reach it | **+21.62 pp** |
+
+**The register fixed that bound in writing before any number: a 4.63% divergence share means a
+21.62pp mean per-trade difference would be needed to move book expectancy by 1.00pp.** The
+measured effect is **-0.1653 pp**, roughly **6x** inside the bar. **Quote the bound with
+the verdict or do not quote the verdict** — a 3.6pp per-trade number reads as large until you see
+it is 0.17pp of book expectancy.
+
+**A NULL HERE IS NOT A FINDING THAT THE PRICER IS CORRECT.** It is a finding that the pricer's
+contract-selection error is too small a share of the book to matter, measured on 63.1% of the
+affected entries. Those are different claims.
+
+### 65.2 · THE FINDING IS THE MEAN/MEDIAN SPLIT, AND IT HAS A MECHANISM
+
+**The mean is NEGATIVE and the median is POSITIVE: -3.57 pp against +0.67 pp.** The alternative
+does not simply lose; **the typical divergent trade is slightly BETTER on it and the mean is
+dragged negative by a minority of large give-ups.** 54.0% of the 113 pairs favour the
+alternative outright.
+
+**That shape is what the substitution mechanically predicts.** O21 measured the alternative to sit
+at a **lower strike on 93.9%** of entries, median absolute delta gap **0.129** above a 0.35 target
+— i.e. **deeper in the money and LESS levered.** A less-levered call fails totally less often
+(**a higher median**) and gives up the right tail this book's positive expectancy is built from
+(**a lower mean**). **The alternative trades tail for typicality**, and both halves of that
+sentence are measured rather than argued.
+
+Base and alternative mean returns on the scored pairs: **-0.37 pp** against **-3.94 pp**; the
+difference distribution runs p05 **-89.20 pp** to p95 **+40.33 pp**, min -173.88 pp, max +192.92 pp.
+
+### 65.3 · NO DIRECTIONAL CLAIM IS MADE, BY THE REGISTER'S OWN RULE
+
+Split at the median entry date of the scored set (**2019-07-08**): early **-10.59 pp** (n 56), late
+**+3.32 pp** (n 57). **The signs DISAGREE**, so the pre-committed halves rule forbids any claim
+of the form *"the dividend-corrected pricer picks worse contracts"* **in either direction**, and
+**E2 is recorded UNRESOLVED rather than confirmed even though its full-sample sign was right.**
+
+**The register predicted this and said why in advance**: n = 113 split in two is thin, and the
+halves are unbalanced by a coverage tilt registered before any outcome. **The cost measurement is
+the primary reading; the direction is the secondary one and it did not survive.**
+
+### 65.4 · THE CONTROLS, AND C2 IS THE STRONGEST INSTRUMENT RESULT IN THIS LANE
+
+Both gating controls ran in **their own pass**, and `--arms` **refuses** without a passing
+artifact — session 26's defect, repaired in O19 and kept here.
+
+* **C1 — the selection reproduces EXACTLY.** Scored **3870**, the `q = 0` control returns the
+  banked contract on **3870 of 3870**, and the divergent count is **179**. These are literally
+  O21's 179, not a re-derivation that happens to agree on a count.
+* **C2 — THE NULL INSTRUMENT, and it is perfect. 2309 non-divergent entries re-simulated on the
+  harvest reproduce the banked `return_pct` on 2309 of 2309 — reproduction 1.0000, ZERO
+  differing, zero unusable.** Those entries hold the SAME contract in both arms, so this is the
+  check that the harvest and the banked instrument agree where they cannot legitimately disagree.
+  **The register named a genuine risk in advance — the harvest carries MORE holding days than the
+  trade-scope freeze, so a stop or target could fire on a day the banked simulation never saw —
+  and it did not materialise on a single one of 2309 trades.**
+
+**And the instrument agreement was established BEFORE the arm, not inferred from it:** on the
+banked contract at its entry date the harvest and the trade-scope freeze match on **bid AND ask
+exactly, 115 of 115, 0 mismatches**. That is what licenses pricing both arms on one instrument.
+(**115, not 113**: that check was run on the set coverable under the looser exit-date window,
+before 65.6's correction narrowed the arm's own set. It is a superset, so it is the stronger
+check, and the two figures are not in conflict.)
+
+### 65.5 · COVERAGE — 63.1%, SYSTEMATIC, AND FIXED BEFORE ANY OUTCOME
+
+| entry year | divergent | coverable | % |
+|---|---|---|---|
+| 2016 | 16 | 16 | 100.0 |
+| 2017 | 22 | 22 | 100.0 |
+| 2018 | 19 | 18 | 94.7 |
+| 2019 | 16 | 5 | 31.2 |
+| 2020 | 17 | 6 | 35.3 |
+| 2021 | 25 | 15 | 60.0 |
+| 2022 | 14 | 7 | 50.0 |
+| 2023 | 15 | 7 | 46.7 |
+| 2024 | 25 | 10 | 40.0 |
+| 2025 | 10 | 7 | 70.0 |
+
+**The gap is not random.** Tier A (alert symbol-years 2016-2018) ran to completion; Tier B
+(2019-2025) was cancelled at 490 of 961 units once the census showed those years were not
+perishable. **So the covered set is EARLY-TILTED** — 56 of 113 scored entries are 2016-2018
+against 57 of 179 in the full divergent set.
+
+**The 66 uncoverable entries are UNMEASURED and are never read as zero.** Any
+book-level statement carries the 63.1% coverage figure.
+
+### 65.6 · THREE DEFECTS IN MY OWN INSTRUMENT, ALL CAUGHT BY RUNNING IT
+
+* **A literal `%` in prose about a percentage, read as a format conversion.** The artifact's own
+  explanatory note said *"a 4.63% divergence share ..."* inside a `%`-formatted string, so `% d`
+  consumed an argument and the write raised `TypeError`. **It fired AFTER every statistic had been
+  computed and printed, so no number was affected** — but the artifact was never written and the
+  first run produced a verdict with nothing on disk to support it. Repaired by removing
+  `%`-formatting from prose about percentages **rather than escaping it**, because an escaped
+  `%%` is one edit away from breaking again. The re-run reproduces every figure.
+* **My own coverage window was wrong, and it is recorded in the register rather than replaced.**
+  The first probe required harvest units only to the EXIT date and returned **115 (64.2%)**.
+  `simulate_trade` holds to **EXPIRY** whenever no trigger fires, and **12.3% of alternatives
+  carry a different expiry from the banked contract**, so the correct requirement is stricter:
+  **113 (63.1%)**. The looser figure is used nowhere.
+* **AND THE THIRD IS THE WORST OF THE THREE, BECAUSE IT WOULD HAVE MADE THE OTHER TWO
+  UNVERIFIABLE: my test suite would have PASSED VACUOUSLY under this project's own runner.**
+  `RUN_RULES` line 25 runs each suite as its own process — `for f in tests/test_*.py; do python
+  "$f"; done` — and judges by **exit code**. A file with no `if __name__ == "__main__"` block
+  defines its test functions, **executes nothing, and exits 0**. Mine had none, so all 21 tests
+  would have been counted as a passing suite while testing nothing at all. Found by running the
+  documented runner instead of `pytest tests/`, and fixed. **Censused afterwards rather than
+  assumed: 113 of 113 suites now carry the block and mine was the only exception**, so there is
+  no repo-wide vacuity problem to report — the convention is universally followed and I was the
+  one who broke it.
+* **A METHOD NOTE THAT COST HALF AN HOUR AND IS WORTH CARRYING: `pytest tests/` IS NOT THIS
+  PROJECT'S TEST COMMAND.** Run in one process it shares module state across files and produced
+  roughly ten failures that are artefacts of the runner rather than of the code. **The project
+  counts SUITES, not tests, precisely because each one is meant to be its own process.** I raised
+  a false alarm on those failures before checking `RUN_RULES` line 25.
+
+### 65.7 · CONTROLS REPORTED RATHER THAN CLAIMED
+
+* **C5 `pre_panel_history` is VACUOUS, not PASSING**, and the distinction is the point: the key is
+  **ABSENT** on all 114 harvest units this arm reads rather than present-and-false, because
+  those are Tier A/B units and the flag is stamped on Tier C. None of the five named ticker-reuse
+  symbols (FOXA, IR, VG, CR, AZPN) appears among the 59 coverable names. **A vacuous filter
+  reported as a clean pass is this project's most repeated failure class.**
+* **U1-SPLIT refuses 0 of 113 in either arm**, so no comparison is confounded by a refused trade.
+* **Settlement is on as-traded `raw_close`**, per the U1-SPLIT/O6 rule, through the shipped engine.
+* **The arm never opened the mutable `data/options`**, and `load_bars_offline` reads the cache and
+  **never fetches** — `options_backtest.load_bars` falls through to a live Sharadar call on a
+  miss, and a banked reproduction that silently reaches the network is S23's defect.
+
+**NAMED ARTIFACT.** Harvest freeze `D:\thetadata\freeze_rawpull_2026-08-18`, manifest sha256 **`db7f0f84fba6150a610a9130c46c7decb18dc43e4495ad68cd38fd8d22bd1947`**, 1,865 manifest
+lines, 1,865 payload units, `hash_mismatches_at_copy` 0.
+
+### 65.8 · EXPECTATIONS, SCORED — AND THE SWEEP SHOULD BE DISCOUNTED
+
+**E1 IMMATERIAL (85/15) RIGHT. E3 |mean| < 15pp (60/40) RIGHT. E5 halves DISAGREE (55/45) RIGHT.
+E6 median closer to zero than the mean (70/30) RIGHT — and more than predicted, the median is the
+OPPOSITE SIGN. E4 (C2 >= 99%) was a harness check and is not scored; it read 100.00%.
+E2 (mean negative) had the right full-sample sign and is recorded UNRESOLVED, because my own
+halves rule says so.**
+
+**4 right, 0 wrong, 1 unresolved — and it deserves discounting, not celebrating.** The priors were
+derived from measured facts already in the record (the 4.63% share bound, O21's own substitution
+statistics, and this book's known right-skew from O13 and O17-C4), not from intuition. **When the
+prior is a measurement, the calls stop being wrong** — the same caveat session 31 attached to its
+own clean sweep.
+
+### 65.9 · NOT DONE, named so it is not mistaken for done
+
+**O21's verdict does not move and the pricer is still NOT changed.** This register cannot move it;
+it replaces the string `NOT COMPUTABLE` with a measurement. **Had the result been material the
+consequence would have been a NEW register proposing a pricer change, not an edit to O21.**
+`q_scheduled` still carries no verdict. **No sub-population cut was added after seeing A1**, and
+the 66 uncoverable entries stay unmeasured until Tier B is completed — which the census
+already showed is **not perishable**, so it is available whenever someone wants it.
+
+`data/free_analysis/O21D2_CONTROLS.json`, `O21D2_ALT_PNL.json`;
+`scripts/o21d2_alternative_pnl.py`, `tests/test_o21d2_alternative_pnl.py` (21 tests, 3 of 3
+tripwires mutation-tested).

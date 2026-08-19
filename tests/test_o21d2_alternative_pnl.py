@@ -304,3 +304,20 @@ def test_the_real_harvest_freeze_resolves_when_mounted():
     assert prov["frozen_from"] == "D:/thetadata/chains"
     assert prov["hash_mismatches_at_copy"] == 0
     assert len(prov["manifest_sha256"]) == 64
+
+
+if __name__ == "__main__":
+    # RUN_RULES line 25 runs each suite as its own process: `python tests/test_*.py`.
+    # WITHOUT THIS BLOCK THE FILE WOULD EXIT 0 HAVING RUN NOTHING - a vacuous pass, which is the
+    # failure class this project keeps finding in its own guards.
+    fails = 0
+    names = [n for n in sorted(globals()) if n.startswith("test_")]
+    for name in names:
+        try:
+            globals()[name]()
+            print("PASS", name)
+        except Exception as e:                                       # noqa: BLE001
+            fails += 1
+            print("FAIL", name, "->", repr(e))
+    print("%d passed, %d failed" % (len(names) - fails, fails))
+    sys.exit(1 if fails else 0)
