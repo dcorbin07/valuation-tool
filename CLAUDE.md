@@ -48,6 +48,87 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE VENUE-BASED RETAIL PROXY DIES BEFORE ANY ARM RUNS, ON THREE INDEPENDENT MEASUREMENTS - AND
+  THE AXIS THE LITERATURE ACTUALLY USES IS SITTING UNREAD IN THE SAME CACHE (2026-08-19,
+  `MB15`).** **NO ARM RAN, NO REGISTER WAS COMMITTED, ZERO TRIALS** - the item's own pre-outcome
+  kill fired first, so options `N` stays **304** and `by_domain` is bit-identical across the log
+  append (`rows_fixed_not_counted` 69 -> 70, the proof the row was seen and correctly excluded).
+  * **THE GATE IS A TEST OF A MAPPING, AND THE MAPPING IS CHOSEN RATHER THAN GIVEN.** MB15 asks
+    that *"the venue->retail mapping reproduce the published retail share (~60%) to within
+    +/-15pp"*. The cache ships `exchange` as a bare `uint8` and **no legend travels with it**, so
+    there is no mapping to test until somebody picks one.
+  * **(1) THE IDENTIFIER IS NOT ON THIS AXIS, BY MARKET STRUCTURE RATHER THAN BY A DATA GAP.** In
+    EQUITIES the standard retail identifier is the off-exchange TRF print - a venue fact. In
+    OPTIONS there is **no off-exchange execution at all**; wholesaler internalisation surfaces as
+    an on-exchange price-improvement auction, not as a distinct venue. Measured: ThetaData's
+    published legend **does** carry off-exchange venues (**57** FINRA/NASDAQ TRF, **58** BSE TRF,
+    **59** NYSE TRF) and **NOT ONE appears in 70,288,482 prints** - all 20 observed codes are lit
+    options exchanges. **Their absence is informative rather than an artefact of an incomplete
+    legend, which is exactly why obtaining the legend mattered**: without it, "no TRF codes seen"
+    would have been indistinguishable from "the legend does not name them".
+  * **(2) THE GATE IS NOT DISCRIMINATING, AND THIS IS A MEASUREMENT RATHER THAN AN OPINION.** With
+    20 codes there are **2^20 = 1,048,576** retail/non-retail partitions; enumerated exhaustively,
+    **633,666 - 60.4311% - land inside the registered 45-75% band**, the smallest clearing retail
+    set is **5 of 20** venues, and **94.03%** of all 12-venue partitions clear. **A gate more than
+    half of arbitrary mappings pass cannot fail against anyone free to choose the mapping after
+    seeing the data.** Pinned with a **positive control** - a tight 59.95-60.05% band admits under
+    2% - so the figure reads the band and not the arithmetic.
+  * **THE AXIS THE IDENTIFIER ACTUALLY LIVES ON IS IN THIS SAME CACHE, AND NO STUDY HAS READ IT.**
+    Bryzgalova-Pavlova-Sikorskaya (*J. Finance* 2023), **the source of the ~60% figure the gate is
+    calibrated against**, build their proxy from an **OPRA trade CONDITION flag** - quoted from the
+    paper, because my first draft used a looser search-summary formulation and dropped the date
+    that turns out to matter: *"a flag for price improvement mechanisms, introduced by ... OPRA in
+    **November 2019** ... trades executed through a single-leg price improvement mechanism, which
+    we abbreviate as SLIM."* Not venue. Coverage is ample:
+    `condition` **18 AUTO_EXECUTION 55.12%**, **125 SINGLE_LEG_AUCTION_NON_ISO 15.34%**, 126
+    SINGLE_LEG_AUCTION_ISO 0.03%, 131 MULTI_LEG_AUCTION 4.95%; **`size` < 5 contracts 76.01%**,
+    `size` == 1 **52.18%**; 33 distinct condition codes.
+  * **(3) A THIRD DEFECT, INDEPENDENT OF BOTH, AND IT WOULD HAVE APPLIED ON THE RIGHT AXIS TOO: THE
+    PERIOD IS WRONG.** The gate asks for ~60% **on the POOLED cache**; the published >60% is a
+    **2020-21** figure and **the flag did not exist before November 2019**, while this cache starts
+    in **2016**. A recent-period statistic is scored against a denominator spanning four years in
+    which the flag **cannot fire at all**, so **even a perfectly correct proxy would have been
+    measured against the wrong target.** Any successor must state its period and **cannot begin
+    before November 2019**.
+  * **MY OWN CENSUS INDEPENDENTLY REPRODUCES THAT DATE - the strongest verification available,
+    since neither was tuned to the other.** Condition 125 by year: **absent 2016, 2017, 2018**,
+    a partial-year **4.79% in 2019**, then **18.16 / 15.95 / 15.60 / 16.64 / 18.44 / 19.88%**
+    through 2025 - exactly the shape of a flag switched on in November of 2019.
+  * **THE UNION OF THOSE MARGINALS WAS DELIBERATELY NOT COMPUTED, AND THAT RESTRAINT IS THE POINT.**
+    `single-leg auction OR (auto-execution AND size < 5)` **IS the successor register's gate**, so
+    computing it here - after seeing the registered axis fail - would be choosing the design on the
+    outcome. **Marginal coverage of each field is a feasibility fact; their union is the
+    hypothesis.** Pinned by an AST test over the shipped scripts so it cannot be quietly relaxed.
+  * **A PREMISE CORRECTION TO THE ITEM'S OWN TITLE.** It is headed *"the `exchange` field, unread
+    by every prior study"*. **It has been read** - O14's `sweep_share` reads it - but **only as
+    CARDINALITY** (how many distinct venues a burst touches), **never as identity**, which is the
+    narrower true claim and is pinned both ways. O14's module docstring **already cites Bryzgalova
+    et al. and the >60% figure**, so the reference was in the tree before this item raised it.
+  * **TWO BRIEF INSTRUCTIONS COULD NOT BE FOLLOWED LITERALLY, BOTH REPORTED RATHER THAN SILENTLY
+    DROPPED.** There is **NO pinned freeze for the tick cache** - `D:` holds only the two CHAIN
+    freezes - so a **SHA-256 fingerprint over every unit** is recorded instead, which is the
+    substance of what pinning protects. And **`pre_panel_history` is ABSENT from all 3,884 tick
+    payloads**, reported **VACUOUS rather than PASSING** (O21-D2's `C5` precedent): a filter that
+    never ran and a filter that ran and found nothing must not read the same.
+  * **A DEFECT IN MY OWN GUARD, THE FOURTH IN THIS FAMILY IN TWO SESSIONS.** The test pinning
+    *"`sweep_share` reads venue only as cardinality"* banned the substring `retail` and **FAILED
+    AGAINST THE CORRECT TREE**, because O14's own docstring discusses retail flow - the
+    comment-versus-code family after `MB1`'s three substring bans and `MA5`'s source sweep. It now
+    strips comments and string literals with `tokenize`, and **the stripper itself is pinned
+    non-vacuous in both directions** (it must keep `def sweep_share` and drop `retail`), because a
+    stripper returning `""` would make the guard pass by seeing nothing.
+  * **SCOPE, STATED IN EVERY OUTPUT: alert-days only.** The cache is exactly the alert days, so
+    every figure here is conditioned on them and **none generalises to the tape**. 3,884 units,
+    186 symbols, 1,574 dates, **70,288,482 prints**.
+  * **NOT DONE, named so it is not mistaken for done: THE REGISTERED ARMS ARE UNTESTED, NOT
+    REJECTED**, and **the successor is NOT registered here** - an item on the condition+size axis
+    needs its own blind pre-registration, its own trials and its own session, with the
+    range-restriction control in a separate pass (`O10`'s process defect, which the item itself
+    names). **`MB1`'s selection follow-up is not folded in.** **19 tests, 7 of 7 mutations caught
+    with sources restored byte-for-byte.** `scripts/mb15_venue_census.py`,
+    `mb15_gate_satisfiability.py`, `mb15_condition_census.py`;
+    `data/free_analysis/MB15_VENUE_CENSUS.json`, `MB15_GATE_SATISFIABILITY.json`,
+    `MB15_CONDITION_CENSUS.json`; `HANDOFF_optionsbot.md` 67.
 - **THE ALTERNATIVES MENU IS SCORED AND THE KILL FIRES - AND THE CLOSURE IT ANNOUNCES IS NOT
   SOUND, REFUTED ON THREE MEASUREMENTS OF THE SAME DATA (2026-08-19, `MB1`).**
   `PREREG_mb1_alternatives_menu.md` committed **ALONE at `33ad7ee`**, markdown only, a strict
