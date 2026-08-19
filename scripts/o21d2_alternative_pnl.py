@@ -498,9 +498,17 @@ def run_arms() -> int:
             "implied_pp_scored_only": implied_cov,
             "bar_pp": MATERIAL_BOOK_PP,
             "mean_delta_required_to_reach_bar": required_mean,
+            # A DEFECT IN MY OWN INSTRUMENT, FIXED HERE: this note used %-formatting while its
+            # prose quotes literal percentages ("4.63% divergence"), so `% d` was read as a
+            # conversion and the write raised TypeError AFTER every statistic had been computed
+            # and printed. No number was affected - the crash is downstream of the arithmetic -
+            # but the artifact was never written. The repair removes %-formatting from prose
+            # about percentages entirely rather than escaping it, because an escaped `%%` is one
+            # edit away from breaking again.
             "note": ("the bound is quoted WITH the verdict or the verdict is not quoted: a "
-                     "4.63% divergence share means a mean per-trade difference of %.2f pp would "
-                     "be needed to move book expectancy by 1.00pp." % (100.0 * required_mean)),
+                     "4.63% divergence share means a mean per-trade difference of "
+                     + ("%.2f" % (100.0 * required_mean)) + " pp would be needed to move book "
+                     "expectancy by 1.00pp."),
         },
         "halves": {"cut_date": cut, "mean_early": me, "mean_late": ml,
                    "n_early": len(early), "n_late": len(late),
