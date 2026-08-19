@@ -48,8 +48,8 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
-- **O21's DEFERRED ARM IS RESOLVED AT LAST, AND THE ALTERNATIVE CONTRACT TRADES TAIL FOR
-  TYPICALITY - MEAN -3.57pp, MEDIAN +0.67pp (2026-08-18, `O21-D2`).**
+- **O21's DEFERRED ARM IS RESOLVED AT LAST, AND THE DIFFERENCE DOES NOT SEPARATE FROM ZERO -
+  THE WHOLE 95% INTERVAL SITS INSIDE THE BAR (2026-08-18, `O21-D2`).**
   `PREREG_o21d2_alternative_contract_pnl.md` committed **ALONE at `1d23ee1`**, markdown only, a
   strict ancestor of every measurement commit; **trial booked at `f86ebba` BEFORE the run, options
   `N` 297 -> 298**, equity untouched at 232. **ADOPTS NOTHING, CHANGES NO LEDGER VERDICT, AND DOES
@@ -68,14 +68,25 @@ the project's memory and the old versions had been repeated for months.
     difference to move book expectancy by 1.00pp**, so a 3.6pp per-trade figure reads as large
     only until you see it is 0.17pp of the book. **Quote the bound with the verdict or do not
     quote the verdict.**
-  * **THE FINDING IS THE MEAN/MEDIAN SPLIT RATHER THAN THE NULL, AND IT HAS A MECHANISM.** Mean
-    **-3.57pp** against a **MEDIAN +0.67pp**, with **54.0% of pairs favouring the alternative
-    outright** - so the typical divergent trade is slightly BETTER on it and the mean is dragged
-    negative by a minority of large give-ups. `O21` measured the alternative at a lower strike on
-    **93.9%** of entries and a median absolute delta gap of **0.129** above a 0.35 target, i.e.
-    **deeper ITM and LESS levered**, which fails totally less often (higher median) and gives up
-    the right tail this book's positive expectancy is built from (lower mean). **Both halves of
-    that sentence are measured rather than argued.**
+  * **NEITHER STATISTIC SEPARATES FROM ZERO, AND THIS IS A CORRECTION AGAINST MY OWN FIRST
+    DRAFT, MADE BEFORE PUBLICATION RATHER THAN AFTER.** That draft was headed *"it trades tail for
+    typicality"* and told a mechanism story: the alternative sits at a **lower strike on 93.9%** of
+    entries at a median absolute delta gap of **0.129** above a 0.35 target, so it is deeper ITM
+    and **LESS levered**, which should fail totally less often (**higher median**) while giving up
+    the right tail this book's expectancy is built from (**lower mean**). **The point estimates
+    have exactly that shape - mean -3.57pp, median +0.67pp - and then neither survives a test.**
+    The mean reads *t* **-0.8045** with **CI95 [-12.28, +5.13] pp**, straddling zero; the median rests on
+    the alternative winning **61 of 113** pairs, two-sided binomial **p 0.4519**, a coin flip.
+    **So the shape is CONSISTENT WITH that mechanism and is NOT EVIDENCE FOR IT** - a story fitted
+    to two estimates that do not separate from zero is a story, and this record's own repeated
+    lesson is that such stories survive by being repeated. **No directional or mechanism claim is
+    made.**
+  * **AND THE VERDICT GETS STRONGER RATHER THAN WEAKER, WHICH IS THE POINT OF TESTING IT.** A
+    bound has to hold across the **INTERVAL**, not merely at the point estimate. **At the CI95's
+    most adverse end the implied book effect is -0.5681 pp and at the other end +0.2374 pp, so the
+    ENTIRE 95% interval sits inside the +/-1.00pp bar.** That is a far more robust `IMMATERIAL`
+    than a point estimate, and it is what makes the door genuinely closed rather than closed at
+    one number.
   * **NO DIRECTIONAL CLAIM IS MADE, BY THE REGISTER'S OWN RULE.** The halves DISAGREE - early
     **-10.59pp** (n 56), late **+3.32pp** (n 57) - so the pre-committed rule forbids
     *"the corrected pricer picks worse contracts"* **in either direction**, and **E2 is recorded
