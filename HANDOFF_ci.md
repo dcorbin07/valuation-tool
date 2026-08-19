@@ -2206,16 +2206,19 @@ honest reading is "I ran the wrong command". Mirror the loop when checking a bra
   what is genuinely unobservable: an agent's live reasoning, and other machines. **A tool nobody
   is told to run reproduces the disease it cures**, which is why this edit is part of the item
   and not decoration.
-* **`tests/test_o21d2_alternative_pnl.py::test_the_real_harvest_freeze_resolves_when_mounted`
-  cannot pass on any machine where it is not skipped — options-bot lane's.** It skips when the
-  freeze is absent, which is why it landed green (Linux CI has no `D:`). On a machine where the
-  freeze IS mounted it asserts `prov["frozen_from"] == "D:/thetadata/chains"` while the value is
-  `D:\thetadata\chains` — **a path-separator comparison, forward slash against backslash**.
-  Reproduced: every other field in that assertion block is correct (`pinned` True, mismatches 0,
-  64-char sha), so it is the separator alone. The effect is that the suite is red on every
-  Windows local gate and green in CI forever, which is the worst of both. **Not fixed here** —
-  changing what another lane's test asserts is exactly what rule 3 exists to prevent — but it is
-  a one-character fix (`os.path.normpath`, or compare against `D:\\thetadata\\chains`).
+* **~~`tests/test_o21d2_alternative_pnl.py::test_the_real_harvest_freeze_resolves_when_mounted`
+  is unpassable wherever it is not skipped~~ — SUPERSEDED THE SAME DAY, and the correction is
+  recorded rather than the finding quietly dropped.** Diagnosed here independently: it skips when
+  the freeze is absent (Linux CI has no `D:`), so it landed green, while on the machine that
+  actually holds the data it asserted `prov["frozen_from"] == "D:/thetadata/chains"` against a
+  real `D:\thetadata\chains` — a path-separator comparison, every other field in the block
+  correct. **The options-bot lane had already fixed it as `MB42` (`90738f7`), landing while this
+  was being written**, and their fix is better than the one I was about to suggest: a `_same_path`
+  helper plus `test_the_frozen_from_comparison_runs_on_every_platform`, which pins both
+  separators **and** a negative case, so the comparison is exercised on Linux CI where the
+  original could only ever skip. Confirmed green on the merged tree. **Reported, not fixed, was
+  the right call** — rule 3 — and it is a clean instance of two lanes finding one defect from
+  opposite ends within hours.
 * **`tests/test_sync_checkout.py` failed in the full-gate loop and passes 32/32 in isolation.**
   The known intermittent temp-directory permission error on `%TEMP%` under Windows, already
   recorded; Linux CI is unaffected. Reported so the next reader does not chase it.
