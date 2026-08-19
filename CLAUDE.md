@@ -48,6 +48,95 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE ALTERNATIVES MENU IS SCORED AND THE KILL FIRES - AND THE CLOSURE IT ANNOUNCES IS NOT
+  SOUND, REFUTED ON THREE MEASUREMENTS OF THE SAME DATA (2026-08-19, `MB1`).**
+  `PREREG_mb1_alternatives_menu.md` committed **ALONE at `33ad7ee`**, markdown only, a strict
+  ancestor of every measurement commit; **2 options trials booked at `476650e` BEFORE the run,
+  `N` 300 -> 302**, exactly the counter the audit item specifies. **RE-READ AFTER MERGING, per
+  this file's own repeated rule: the live options `N` is 304, NOT 302** - a concurrent lane landed
+  `MB7`, `MB31` and `MB32` the same day and charged 2 further options trials. 300 -> 302 describes
+  MB1's own booking; 304 is the figure to quote. Read only from the **pinned**
+  harvest freeze. **ADOPTS NOTHING; `O11` binds and nothing here licenses a trade.**
+  * **THE REGISTERED VERDICT: the pooled menu MEDIAN gaps are -0.7310pp early and -0.5366pp late,
+    both inside the 1.00pp bar, so the kill FIRES on the weaker half as written** (`any`, never
+    `all`, pinned by an AST test) and the arms pass records `CLOSED - contract selection is
+    IRRELEVANT`.
+  * **AND THAT CLOSURE IS NOT SOUND. (1) THE REGISTERED STATISTIC IS STRUCTURALLY BLIND.** Both
+    arms' menu medians sit at about **-0.50** - the typical menu leg is a near-total loss on BOTH
+    books - so the median is pinned in that dense loss mass where it cannot see the right tail an
+    option book's expectancy is built from. **`O17C4` had ALREADY measured this on this book**,
+    recording the effect as *"a MEAN effect, not a MEDIAN one"*. **The register chose the one
+    statistic this project had already shown cannot detect what is being tested.**
+  * **(2) A PAIRED CLUSTER BOOTSTRAP DOES NOT RESOLVE THE RULE IN ANY WINDOW.** The register
+    commits **no uncertainty measure at all** and closes a question permanently on a bare point
+    estimate. On R3's own name-year cell, same keys drawn for both arms: **CI95 [-13.8011,
+    +15.7701] early, [-1.2154, +0.0922] late, [-7.0143, +0.1521] full - the early interval spans
+    29.6pp around a -0.73pp estimate.** The clustering is pinned **by measurement**: on correlated
+    legs it must widen the interval more than threefold or the diagnostic measures nothing.
+  * **(3) THE DECOMPOSITION THE ITEM EXISTS TO PRODUCE CONTRADICTS THE VERDICT.** Re-derived on
+    **exactly** the covered entries rather than differenced against R2's whole-book figure:
+    `pick_gap = menu_gap + selection_residual` reads **-6.0326pp = -4.7564pp DAY (78.8%) +
+    -1.2762pp SELECTION (21.2%)**, same sign both halves (-1.7223pp early, -1.1450pp late).
+    **Selection carries about a fifth of the loss and its residual EXCEEDS the 1.00pp bar the
+    register itself set for materiality.** The instrument exposure is bounded rather than
+    hand-waved - the residual is a **difference of differences**, so a bias constant across the
+    arms cancels exactly, pinned by test.
+  * **(4) THE KILL CONDITION'S INFERENCE IS INVERTED RELATIVE TO THE ITEM'S OWN LOGIC.** Under
+    that identity, menus that **coincide** mean the day effect is nil and therefore the ENTIRE
+    loss is selection - so a small menu gap implies selection carries **everything**, not nothing.
+    **The rule was registered VERBATIM from the audit because the brief required it, and running
+    it verbatim is precisely what surfaced that it does not follow.** **THE BEST AVAILABLE ANSWER
+    is TIMING ~79% and SELECTION ~21% on the covered subset - not a closure, and this row must NOT
+    be read as having closed contract selection.**
+  * **THREE GATING CONTROLS IN THEIR OWN PASS, `--arms` refusing without a passing artifact.**
+    **C1 the menu contains the shipped pick on 2,446 of 2,446 covered entries AND the menu's own
+    argmin IS that pick at 1.0000** - what makes this the engine's menu rather than a
+    reconstruction; **C2** coverage parity **0.7134pp** against 2.0pp; **C7, a control the register
+    did not anticipate** - the control books store **no** `underlying_entry`, so BOTH arms derive
+    it from `raw_close` and it reproduces the alert book's stored value **EXACTLY on 2,446 of
+    2,446** at median relative error 0.000e+00. **Composition is ruled out by measurement**: mean
+    menu depth **6.816** against **6.771**.
+  * **A PREMISE CORRECTION FIXED BEFORE ANY OUTCOME: the audit's "median 636 alternatives per
+    entry" is the WHOLE CHAIN, and the engine's own in-band fillable menu has a median of FIVE** -
+    864 raw -> 432 calls -> 31 DTE -> 10 moneyness -> 9 solvable delta -> **5 fillable**, the
+    fillability filter alone removing nearly half (low volume 53.5%, wide spread 44.1%). **`MA31`'s
+    warning, far more severe than the item anticipated** - it predicted the direction, not the
+    magnitude - so **any reading leaning on a distribution over ~636 is void**. The arms still pool
+    **16,672** and **123,415** legs.
+  * **DEFECTS IN MY OWN INSTRUMENT, all caught before any result.** The half boundary was taken
+    over alert **LEGS** where the register says the covered **ALERT SET** - a four-year error on
+    the pin's own fixture, driven by one deep-chain entry - and taking it over the covered set also
+    fixes it BEFORE any leg is scored. **The raw legs were not persisted** (rule 9), so the
+    interval would have cost a second 75-minute pass; caught 3 minutes in and restarted, and the
+    dump now precedes all summarising. **That fix then carried its own defect** - the test harness
+    did not redirect the new path, so the suite wrote into the REAL `data/` dir and would have
+    clobbered the artifact rule 9 exists to protect. **And my own no-verdict test was wrong three
+    times, each by banning a SUBSTRING**, flagging in turn a docstring disclaiming the kill, a key
+    named `pass` that labels which pass wrote a file, and a local naming which side of the bar an
+    interval reaches; it now reads the AST and separates label from decision by **value type**.
+  * **COVERAGE 63.20% and 62.49%; the uncovered remainder is UNMEASURED and never read as zero.**
+    **121 suites, 0 failures after merging `origin/main`; 36 new tests across three suites.**
+    `scripts/mb1_alternatives_menu.py`, `mb1_interval.py`, `mb1_decomposition.py`;
+    `data/free_analysis/MB1_CONTROLS.json`, `MB1_MENU.json`, `MB1_INTERVAL.json`,
+    `MB1_DECOMPOSITION.json`; `HANDOFF_optionsbot.md` 66.
+  * **`MB42` LANDED ALONGSIDE, `FIXED`-class and ZERO trials** (`by_domain` bit-identical,
+    `rows_fixed_not_counted` 65 -> 66). A gate suite was **GREEN in CI and RED on the only machine
+    holding the data it guards**: a path-separator literal behind a mount guard that returns early
+    when the D: drive is absent, so on Linux the assertion **never executed**. **A CORRECTION TO
+    THE AUDIT'S OWN PRESCRIBED FIX, measured on both platform implementations:**
+    `normcase(normpath(x))` is **EQUAL under `ntpath` and DIFFERS under `posixpath`**, because a
+    backslash is an ordinary filename character on POSIX - invisible while the test skips, but
+    **MB42's own kill condition requires a fixture making the comparison RUN on both, and at that
+    point the prescribed fix breaks the test it was meant to repair.** Shipped a separator- and
+    case-insensitive comparison plus both fixtures. **The durable part is MB42's own framing, the
+    `MA5`/`MA23` family restated: a guard whose only real execution is skipped is the defect, and
+    the separator is merely how it surfaced.**
+  * **REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3): `VALQUO_MASTER_AUDIT_4.md` is tracked with
+    its PDF and items JSON and carries 42 `MB` items, and NONE had a ledger row before this
+    session** - a grep for any `MB` id returned nothing, so every audit-4 item read as never
+    raised. The `MA` precedent is one row per item ingested as its own verified batch, which is
+    where `MA18`'s severity mismatch was caught. **That ingest has not happened and is NOT done
+    here.**
 - **O21's DEFERRED ARM IS RESOLVED AT LAST, AND THE DIFFERENCE DOES NOT SEPARATE FROM ZERO -
   THE WHOLE 95% INTERVAL SITS INSIDE THE BAR (2026-08-18, `O21-D2`).**
   `PREREG_o21d2_alternative_contract_pnl.md` committed **ALONE at `1d23ee1`**, markdown only, a
