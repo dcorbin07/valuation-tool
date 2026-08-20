@@ -195,8 +195,14 @@ def _joined():
     j = ok.merge(panel[keep], left_on=["date", "symbol"], right_on=["date", "ticker"],
                  how="inner", validate="one_to_one")
 
-    flags = build_flags(_data("backtest"), sorted(j["ticker"].unique()),
-                        sorted(j["date"].unique()))
+    # THE FLAGS ARE BUILT ON THE FULL PANEL CROSS-SECTION, NOT ON MY SUBSET, AND THAT IS NOT A
+    # DETAIL. `MA28`'s external-financing leg flags the TOP DECILE WITHIN EACH DATE, so handing
+    # `build_flags` only the ~440 optionable names would compute a decile boundary on a different
+    # universe and produce a flag that is NOT the published one -- it would compute cleanly,
+    # raise nothing, and quietly answer a different question. `MA31`'s column-name trap in a new
+    # costume. Restricting to my rows happens AFTER the flag is formed.
+    all_tickers = sorted(panel["ticker"].unique())
+    flags = build_flags(_data("backtest"), all_tickers, sorted(j["date"].unique()))
     flags["date"] = pd.to_datetime(flags["date"])
     j = j.merge(flags[["date", "ticker", "vetoed", "n_flags"]], on=["date", "ticker"],
                 how="left")
@@ -208,11 +214,11 @@ def _joined():
     j["market_flag"] = mt.within_date_worst_quintile(j, "tail_mass")
     qual = set(mt.qualifying_dates(j, "tail_mass"))
     j["date_qualifies"] = j["date"].isin(qual)
-    return tail, j
+    return tail, j, flags
 
 
 def controls() -> dict:
-    tail, j = _joined()
+    tail, j, flags = _joined()
     q = j.loc[j["date_qualifies"]].copy()
 
     chains, prov = cs.resolve_chains(_data())
@@ -273,6 +279,20 @@ def controls() -> dict:
                  "The kill is taken on the direction that can attain its bar."),
     }
 
+    # ---- C-ACCT: the accounting arm IS MA28's flag, verified rather than assumed (MA28's C3)
+    rep["C_ACCT_FIDELITY"] = {
+        "flagged_share_on_full_cross_section": float(flags["vetoed"].mean()),
+        "MA28_published_panel_share": 0.057414,
+        "rows_on_full_cross_section": int(len(flags)),
+        "n_dates": int(flags["date"].nunique()),
+        "flagged_share_on_the_optionable_subset": float(q["acct_flag"].mean()) if len(q) else None,
+        "note": ("Built on the FULL panel cross-section and restricted afterwards, because the "
+                 "external-financing leg is a within-date TOP DECILE and a subset universe would "
+                 "move the boundary. The subset share is expected to sit BELOW the panel share: "
+                 "accounting flags fire on distressed small names and this universe is large and "
+                 "liquid. Reported, not asserted."),
+    }
+
     # ---- C-VOL, C-TENOR: mean per-date Spearman
     def mean_rho(col):
         vals = []
@@ -330,11 +350,14 @@ def arm() -> dict:
         raise SystemExit("E-4 --arm REFUSES: controls did not pass (all_gating_pass=%r)."
                          % c.get("all_gating_pass"))
 
-    _, j = _joined()
+    _, j, _flags = _joined()
     q = j.loc[j["date_qualifies"]].copy()
     q = q.rename(columns={"market_flag": "flagged"})
 
-    early, late = cg.halves(q)
+    # `halves` EMBARGOES the middle date so neither half can borrow it, and it
+    # returns that boundary -- recorded, because a half-split whose boundary is not
+    # reported cannot be checked against any other item's.
+    early, late, boundary = cg.halves(q)
     windows = {}
     for label, frame in (("full", q), ("early", early), ("late", late)):
         windows[label] = cg.window_result(
@@ -426,6 +449,7 @@ def arm() -> dict:
                     "crash_threshold": CRASH, "min_events": MIN_EVENTS,
                     "n_perm": N_PERM, "perm_seed": PERM_SEED,
                     "source": "MA28-CARD verbatim; min_events declared in this register"},
+           "halves_boundary_embargoed": boundary,
            "windows": windows, "realised_power": realised, "required_rows": req,
            "mde_80pct_per_date_diff": mde80,
            "two_by_two": tt, "incremental": incremental, "sensitivity_NO_VERDICT": sens,
