@@ -728,6 +728,19 @@ re-read from `by_domain` after merging rather than quoted from a mid-run figure 
 **ADOPTS NOTHING** — no file under `valuation/` that the product imports changed, and no card is
 built. `MB31` proves no calibrated permutation floor can move below equity `N` = 247.
 
+**AND THE FIGURE TO QUOTE IS 241, NOT 239 — RE-READ AFTER MERGING, WHICH IS `MA37`'s RULE FOR THE
+FOURTH TIME.** `238 → 239` describes *this item's own booking*. While it ran, two other lanes
+landed `E-2` and `E-3`, each of which had also booked off a base of 238, so **both sides of the
+resulting `EXPECTED_BY_DOMAIN` conflict were wrong** — mine said 239, `origin/main` said 240, and
+the merged log carries all three rows. **The stamp was reconciled to the MEASURED count of 241**
+(options 305, infra 19 untouched) and the HLZ hurdle it drives re-derived to
+**3.312037721249761**, rather than by taking a side, which would have mis-stamped a domain
+neither lane had wrong — `MB22`/`MB23`'s exact situation, resolved the same way. **Keep-both is
+right for ROWS and wrong for CONSTANTS:** the nine Season-2 ledger rows were all kept (one each,
+verified), while the stamp is asserted to be assigned **exactly once**, because a duplicated copy
+silently defeats the tamper-evidence it exists for. Equity 241 is still below `MB31`'s 247, so no
+calibrated floor moves.
+
 ## 1. THE VERDICT IS `UNDERPOWERED`, AND THE COMPARISON THE ITEM EXISTS FOR SURVIVES IT
 
 **The market flag DOES catch crashes the accounting flags miss.** On the **8,275 + 1,980 =
