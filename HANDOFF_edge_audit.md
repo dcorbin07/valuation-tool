@@ -13860,6 +13860,259 @@ derive it rather than copying it from any document including this one.
   normal-moments substitute would be a worse answer than none.
 * **`MB8` is NOT run.** It charges a trial and needs its own blind pre-registration; it is the
   item that quotes the 1.8629pp margin `MB31` just re-dated.
+
+---
+
+## MB21 — S22 against a null that remembers (2026-08-19, edge lane) — **S22 STANDS**, and the artifact it was never tested against is real, small, and appears exactly where BRW says it must
+
+`PREREG_mb21_persistence_null.md` committed **ALONE at `ec55efe`** — one `.md`, 338 lines, zero
+`.py` — a strict ancestor of every measurement commit. **1 infra trial** (infra 15 -> 16); equity
+`N` **unmoved at 234**, both asserted rather than assumed. **Options read 304 when this item's
+log row landed and 305 an hour later**, because `MB16` landed in another lane mid-session -- which
+is why an `N` is RE-READ from `by_domain` after every merge and never quoted from a session's own
+mid-run measurement. Neither figure is this item's; nothing here charges options. **ADOPTS NOTHING, CHANGES NO PRODUCT COPY, AND RE-OPENS NOTHING.** `TERM_STRUCTURE.json`
+was opened read-only; `valuation/web/hold_horizon.py` was not edited by this lane and a test pins
+that it was not.
+
+Executes `VALQUO_MASTER_AUDIT_4.md`'s highest-EV item. The audit's own summary called it *"the
+single cheapest experiment that could genuinely surprise us"* and said its most likely outcome was
+that the project would have to take something **off** the product. **It does not.**
+
+### The verdict, and the decisive cell was read first as the register requires
+
+**H=504 `alpha_t_hac`: observed 3.830087 against a persistence-preserving p95 floor of
+1.929708.** The kill condition was pre-committed in both directions before the number existed:
+below the observed, `S22` stands; at or above it, the two-year copy comes off. **It is below, by
+1.90 of a *t* — the floor would have had to rise a further 1.985x to fire.**
+
+| H | quarters | HAC lag | observed alpha *t* | `S22` p95 | thinned p95 | **persistence p95** | draws >= observed |
+|---|---|---|---|---|---|---|---|
+| 63 | 1 | 1 | +3.7695 | 1.5151 | 1.6258 | **1.6123** | 0 of 200 |
+| 126 | 2 | 1 | +4.3836 | 1.3101 | 1.7806 | **1.6879** | 0 of 200 |
+| 189 | 3 | 2 | +3.2912 | 1.5335 | 1.6110 | **1.8534** | 1 of 200 |
+| 252 | 4 | 3 | +3.1608 | 1.4884 | 1.6665 | **1.7434** | 1 of 200 |
+| 315 | 5 | 4 | +3.4240 | 1.5614 | 1.5991 | **1.8265** | 0 of 200 |
+| 378 | 6 | 5 | +3.3887 | 1.5553 | 1.7803 | **1.8061** | 0 of 200 |
+| 441 | 7 | 6 | +3.4180 | 1.5538 | 1.6501 | **1.7383** | 0 of 200 |
+| **504** | **8** | **7** | **+3.8301** | 1.6720 | 1.8146 | **1.9297** | **0 of 200** |
+
+**All eight horizons clear, and six of the eight clear ALL 200 DRAWS OF THE CORRECTED NULL** —
+empirical *p* <= 0.005, with the other two at 1 of 200. The observed value at two years exceeds the
+**maximum** of 200 persistence-preserving draws (3.1948) as well as the p95. `C4` passes at every
+horizon: the null is centred (median alpha *t* -0.0615 at H=63, -0.2383 at H=504), so it is not a
+broken instrument reporting a comfortable answer.
+
+### THE ARTIFACT IS REAL AND IT IS SMALL — and its signature is the finding, not its size
+
+The audit's premise is confirmed: `S22`'s null **was** too easy, at every horizon. But the total
+correction at two years is **+0.2577 of a *t*** — about 15% of the floor — against a claim sitting
+1.90 above it.
+
+**The decomposition, registered in section 7 before the run and reported as a diagnosis rather
+than a defence, splits it almost evenly:** at H=504, **coverage +0.1426, memory +0.1151**. My
+instrument's own coverage cost is comparable in size to the effect it was built to measure, which
+is a real limitation and is stated as one.
+
+**AND THE MEMORY TERM APPEARS EXACTLY WHERE BOUDOUKH-RICHARDSON-WHITELAW SAY IT MUST.** Their
+artifact requires **overlapping** returns. Sorted by HAC lag rather than by horizon:
+
+| HAC lag | horizons | memory effect | sign |
+|---|---|---|---|
+| **1** (no or one-period overlap) | 63, 126 | -0.0135, -0.0927 | **0 of 2 positive** |
+| **2 to 7** (real overlap) | 189, 252, 315, 378, 441, 504 | +0.2424, +0.0769, +0.2274, +0.0258, +0.0882, +0.1151 | **6 of 6 positive** |
+
+A clean binary split on the exact axis the theory names. **The direction was named in the
+register's section 8 before the run** — *"BRW's overlap artifact requires overlapping windows and
+so is absent at H=63"* — so this is a pre-named mechanism confirmed, **but it is scored POST-HOC
+and carries NO verdict**: no formal test was pre-registered on it, and the individual cells sit
+within the sampling error of a p95 over 200 draws. **The SIGN PATTERN is what is worth carrying,
+not any one cell.**
+
+### A CORRECTION TO THE AUDIT, MEASURED: THE SHORTFALL DOES NOT GROW WITH HORIZON
+
+The audit states the error *"grows with horizon — which is precisely the axis `S22`'s headline
+lives on"*, and the case for ranking the item first partly rests on it. Measured, the total effect
+is **+0.0972 at H=63, jumps to +0.3778 at H=126, and is then flat or falling**: 0.3200, 0.2550,
+0.2651, 0.2508, **0.1844 at H=441**, 0.2577 at H=504. **It steps up once, where overlap begins,
+and then stops.** The audit's mechanism is right and its monotonicity claim is not.
+
+### THE ONE PLACE THE CORRECTED NULL DOES BITE IS THE LONG-SHORT LEG, AND IT COSTS A HORIZON
+
+`S22` already reported the long-short spread decaying and failing its own floor from H=315. Under
+the persistence-preserving null it fails from **H=252**:
+
+| H | observed LS *t* | `S22` LS p95 | **persistence LS p95** | |
+|---|---|---|---|---|
+| 63 | +2.7167 | 1.7494 | **1.5247** | clears |
+| 126 | +2.7111 | 1.7938 | **1.6615** | clears |
+| 189 | +2.1446 | 1.6360 | **1.8921** | clears |
+| **252** | **+1.8561** | 1.6292 | **1.9637** | **NEWLY FAILS** |
+| 315 | +1.6495 | 1.7336 | **1.9815** | fails |
+| 378 | +1.1632 | 1.5721 | **2.0102** | fails |
+| 441 | +0.6619 | 1.8245 | **2.0095** | fails |
+| 504 | +0.6846 | 2.0837 | **2.2146** | fails |
+
+**Note the LS floor FALLS at the two lag-1 horizons and RISES at every overlapping one** — the
+same overlap signature, on a second statistic, arrived at independently. `S22`'s standing
+instruction (*"nobody may quote a long-short figure beyond about a year"*) is **strengthened and
+its boundary moves in**: the honest cut is now **one year, not H=315**. **The long-only book —
+which is the shipped product — is untouched.**
+
+### The premise reproduced, with a correction to the audit's own numbers
+
+Every one of the audit's **per-theme** lag-1 persistence figures reproduces to four decimals:
+`size` **0.9915**, `capital_discipline` 0.8882, `value` 0.6981, `quality` 0.6786, `momentum`
+0.6414, `insider` 0.3152, `institutional` 0.1181. The within-date `placebo_panel` reads
+**-0.0016 / +0.0010 / +0.0016** across three seeds.
+
+**The COMPOSITE does not reproduce, and the reason is a convention.** The audit reports 0.5802 at
+lag 1 and 0.4099 at lag 8. Measured with the **shipped** composite — `composite_from_frame`, which
+renormalises by the present-weight mass, audit `B7`'s convention and the composite `S22` actually
+scores — it is **0.5677 / 0.3983**. Diagnosed rather than asserted: a raw 0.125-weighted sum with
+**no renormalisation** reproduces the audit at 0.5796 / 0.4134, and 16.3% of rows on a mid-panel
+date are missing at least one of the seven, so the two conventions genuinely differ. **The audit
+measured persistence on a composite that is not the one `S22` scores.** Immaterial — 0.57 against
+0.00 either way — and recorded so the figures are not quoted as exactly reproduced.
+
+### The instrument, and the shortcut that was disqualified BEFORE it could flatter anything
+
+`valuation/studies/persistence_null.py`. One permutation of the name list applied at **every**
+date, so a name inherits a real name's whole signal path: the single change from `placebo_panel`,
+which draws an independent permutation per date. Persistence is not approximated, it is inherited
+— `C2` measures real 0.5665 against placebo **0.5680** at lag 1 and 0.4028 against **0.4020** at
+lag 8.
+
+**The obvious way to avoid the coverage cost is not a null, and that was measured before the
+register was written rather than after seeing whether it helped.** Permuting within exact
+presence-pattern strata (986 of 2,531 names live on all 69 dates) keeps **96.7%** of rows against
+the primary's 66.4% — and leaves **~170 names per draw paired with THEMSELVES**, with a live
+residual association: H=504 median rank IC **+0.01067 at *t* +4.106**, H=63 *t* +1.630 / +2.039 /
++3.029. Pairing within a lifespan stratum pairs a name with one of similar era and size, and
+`size` is both the most persistent theme (0.9915) and, per `X3`, the carrier of the composite's
+entire significance. **Stratifying to protect coverage smuggles the signal back in.** It ships as
+`stratified_panel` so the disqualification stays reproducible, and `assert_not_primary` refuses to
+let it become the instrument.
+
+### CONTROLS — six gating, all pass, computed and READ in their own pass
+
+`--floors` **exits non-zero** without a controls artifact whose `all_gating_pass` is true; both
+refusal paths are exercised by test.
+
+* **`C1` IS THE STRONGEST CONTROL AVAILABLE AND IT IS EXACT.** The runner **imports `S22`'s own
+  `arm()`**, and reproduces `S22`'s stored within-date placebo draws at **max |delta| 0.000e+00
+  across 160 of 160 cells** at seeds 2000-2004, all eight horizons, all four statistics. The two
+  instruments are not merely comparable; the scoring path is the same object.
+* **`C3` association nil**, at the registered 200 draws: mean median rank IC **+0.00022** (H=63)
+  and **+0.00043** (H=504) against a +/-0.003 bar — **with a within-date REFERENCE arm at -0.00021
+  and +0.00015**, so a nonzero reading could have been attributed to the statistic rather than to
+  this instrument. That reference arm is why the control is readable in either direction.
+* **`C6` fixed points: mean 1.02 of 2,474 names** — the theoretical expectation of a uniform
+  permutation is exactly 1.
+* **`C8` effective coverage PRINTED, not assumed** (`MB7`'s rule, `RUN_RULES` PART A rule 10):
+  **66.4% of rows**, per-date cross-section median **1,553 -> 976**, min 862, clearing the
+  100-name floor. **`MB7`'s MODULE does not apply here** — there is no residualisation in this
+  register — **but its DISCIPLINE does, and it is the reason the coverage cost is a reported
+  number rather than something a later reader discovers.**
+* **`C7`** no forward return is ever permuted; **`C4`** the null is centred at every horizon.
+
+### THREE DEFECTS IN MY OWN INSTRUMENT, ALL CAUGHT BY RUNNING IT, AND THE FIRST IS THE FAMILY THIS RECORD KEEPS FINDING
+
+1. **`C1` FIRST PASSED VACUOUSLY, AT A PERFECT 0.000e+00, ON AN EMPTY PANEL.** The panel's `date`
+   column is **`str`**, not datetime64; coercing `S22`'s stored dates to `pd.Timestamp` matched
+   **ZERO of 113,945 rows**; `arm()` returned a bare status dict for the empty frame; and a
+   max-|delta| loop that skips a `None` cell scored perfectly **by comparing nothing.** It was
+   exposed only because `C2` crashed on the same empty frame two controls later. **`C1` now COUNTS
+   the cells it compared and gates on the count**, and `_load` refuses a filter that matches zero
+   rows. **Sixth instance of the vacuous-pass family in this record, and the first where the
+   vacuous control was the one certifying the instrument.**
+2. **A read-only numpy view in the thinning control.** `to_numpy()` handed back a read-only view
+   of the frame's block and the mask assignment raised — caught by this suite **before** it could
+   take down a two-hour floors run partway through.
+3. **A DEVIATION FROM MY OWN REGISTER, CORRECTED IN THE CODE RATHER THAN IN THE REGISTER.** The
+   first cut ran `C3` on 20 draws where section 4 fixes **200**. At 20 draws it read **+0.00288
+   against a +/-0.003 bar** — a knife-edge pass I nearly reported as a tight but passing control.
+   At the registered 200 draws it is **+0.00022**. The 20-draw reading was noise, and the register
+   was right to fix the count in advance.
+
+### A FOURTH DEFECT, IN MY PROCESS RATHER THAN MY INSTRUMENT, AND THE PROJECT'S OWN GUARD CAUGHT IT
+
+Merging `origin/main` a second time (`MB16` landed mid-session) conflicted in **three** files.
+`git merge` NAMED two of them — `VALQUO_LEDGER.md` and `tests/test_research_log_integrity.py` — in
+its final two lines, and **I checked for markers only in the files it named.** `CLAUDE.md` had
+conflicted too, further up the same output, because both lanes inserted a bullet at the head of
+CURRENT STATE. `git add -A` then staged the markers and they were committed.
+
+**It was caught by `test_edge.py::test_no_unresolved_conflict_markers_in_the_project_record`**,
+which exists for precisely this, and it is the reason the full gate is run before a push rather
+than after. Resolved by keeping **both** bullets. **The rule: after any merge, grep the WHOLE TREE
+for conflict markers — `git merge`'s closing summary is not a complete list.** Same family as
+`MB7`'s own merge collision, where two branches touched different files, git merged them cleanly,
+and the result did not import.
+
+### WHAT THIS DOES NOT SAY, and the misreadings are predictable
+
+* **It does not prove `S22` correct.** It shows the two-year claim survives the one null its own
+  headline shape most required, on 62 dates, on one panel. A better null is always possible.
+* **It does not license the long-short leg.** That leg got **worse** and now fails from one year.
+* **It does not vindicate `placebo_panel`.** That null really was too easy at every horizon; it is
+  simply too easy by an amount that does not reach this claim. Any FUTURE result measured against
+  `placebo_panel` on an overlapping long horizon inherits a floor understated by roughly **+0.1 to
+  +0.25 of a *t***, and a claim sitting that close to its floor is not safe.
+* **The coverage cost is genuine** and comparable in size to the memory term it isolates. A
+  coverage-lossless persistence-preserving null on this panel is an **open problem**; the obvious
+  construction is disqualified above.
+
+### Expectations, scored — **4 right, 1 wrong, 2 split**, and the audit's own prior was wrong too
+
+Registered in section 8 before the run. Right: floors rise at every horizon (90/10); **H=504 does
+not cross** (I put the kill at 45/55, i.e. leaned narrowly against it); H=63's floor rises least
+of the eight (70/30, and it does, +0.0972); `C1` reproduces exactly (90/10). **Wrong: the rise is
+broadly monotone in horizon** (65/35) — it is not, and that is the same claim the audit made.
+Split: the long-short floors rising proportionally more than the alpha floors (true at long
+horizons, **false at short ones, where they FALL**); and `C5` within +0.30 of `S22`'s floors
+(7 of 8 horizons, H=126 at +0.4705). **The audit's own prior was ~55% that at least one horizon
+crosses; none does, at any horizon, and six of eight clear all 200 draws.**
+
+### NOT DONE, named so it is not mistaken for done
+
+* **`MB23` LANDED IN ANOTHER LANE WHILE THIS WAS RUNNING, AND IT DOES NOT COVER THE HORIZONS
+  THIS ITEM IS ABOUT — so the follow-on is narrower and cheaper than "run MB23".** It ports and
+  validates the Hodrick 1992 1B estimator against Wei-Wright's printed Monte Carlo (6 of 6 cells
+  at max abs deviation 0.0075) and cross-checks the **shipped H=63** statistics: long-short
+  Newey-West 2.619912 against Hodrick 2.860434, a 9.18% gap inside its 10% bar. **VALIDATED, and
+  nothing moves.** But **its own caveat is the load-bearing part here**: *"at h=1 the horizon
+  equals the rebalance interval, the windows do not overlap, and Hodrick's sandwich carries NO
+  autocovariance term at all."* **So `MB23` validated the estimator at the ONE horizon where the
+  overlap problem is absent, and `S22`'s long horizons — the ones `MB21` just re-floored — are
+  still uncrossed-checked on the estimator side.** That is now a cheap item, because the port
+  exists and is verified: **run Hodrick at H=126 through H=504 and compare against the HAC *t*s
+  this register scored.** **Recommended next, and it is a different item from `MB23`.**
+* **`S22` was NOT re-run**, no arm of it recomputed, and `TERM_STRUCTURE.json` never written to.
+* **No product copy changed**, because the verdict is `STANDS`. Had it been `NOT SUPPORTED`, the
+  register named the exact constants in `valuation/web/hold_horizon.py` and routed the edit to the
+  app lane. **The routing was never exercised and is not claimed as tested.**
+* **The long-short boundary change is REPORTED, NOT MADE.** `hold_horizon.py` does not display a
+  long-short figure, so nothing ships wrong today; moving `S22`'s "about a year" caveat to a hard
+  one-year cut is a documentation change for whoever next quotes that leg.
+
+**REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3), AND IT IS THE SECOND INDEPENDENT SIGHTING OF
+ONE CLASS.** A full-gate run of this tree failed once on `tests/test_options_freeze.py` with
+`PermissionError: [Errno 13] Permission denied` on `%TEMP%reeze_test_*rozen.pkl.gz` inside
+`GzipFile`. **It passes 6 of 6 standalone runs on the identical tree**, and the failure is a
+filesystem permission on a tempdir file rather than an assertion. `MB16` reported the *same class*
+the same day in a *different* suite — `tests/test_checkout_drift.py`, `Permission denied` writing
+git objects under `%TEMP%` — and measured the cause as sustained concurrent disk I/O on the temp
+volume, **naming this item's own `--floors` shards as part of the load.** So: two lanes, two
+suites, one root cause, and **this lane was a contributor to the contention that exposed the
+other one.** Both are invisible in CI, where a Linux runner has no contention — `MB42`'s shape.
+The pattern is that suites building real artifacts under `%TEMP%` wrap no I/O in a retry. **Not
+fixed here** (neither suite is this lane's) and reported so the second sighting is on record
+beside the first.
+
+**126 suites, 1 environmental failure (above), 0 substantive; 31 new tests, 6 of 6 tripwire mutations
+caught with sources restored byte-for-byte.**
+`valuation/studies/persistence_null.py`, `scripts/mb21_persistence_null.py`,
+`data/free_analysis/MB21_PERSISTENCE_NULL.json`, `MB21_CONTROLS.json`.
 ---
 
 # MB22 + MB23 — the required-n power gate, and the Hodrick 1B cross-check (2026-08-19)

@@ -48,6 +48,124 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **S22's TERM-STRUCTURE CLAIM SURVIVES THE ONE NULL ITS OWN SHAPE MOST REQUIRED - AND THE
+  ARTIFACT IT HAD NEVER BEEN TESTED AGAINST IS REAL, SMALL, AND APPEARS EXACTLY WHERE
+  BOUDOUKH-RICHARDSON-WHITELAW SAY IT MUST (2026-08-19, `MB21`).**
+  `PREREG_mb21_persistence_null.md` committed **ALONE at `ec55efe`**, markdown only, 338 lines, a
+  strict ancestor of every measurement commit. **1 infra trial, infra 15 -> 16; equity `N`
+  DELIBERATELY UNMOVED at 234** - re-scoring a LANDED claim on a NEW INSTRUMENT is not a new
+  search, and the register said so before running rather than after. **ADOPTS NOTHING AND CHANGES
+  NO PRODUCT COPY.** The audit ranked this its highest-EV item and said its most likely outcome
+  was that something would come **off** the product. It does not.
+  * **THE KILL WAS PRE-COMMITTED IN BOTH DIRECTIONS AND THE DECISIVE CELL WAS READ FIRST.** H=504
+    `alpha_t_hac` **observed 3.830087 against a persistence-preserving p95 of 1.929708** - clears
+    by **1.90 of a *t***, and the floor would have had to rise a further **1.985x** to fire. The
+    observed value was **READ from the shipped `TERM_STRUCTURE.json` and pinned in the register**,
+    so the target could not move once the floors were known; an AST test fails if it ever appears
+    as a literal in the script. **All eight horizons clear, and SIX OF THE EIGHT clear ALL 200
+    DRAWS of the corrected null** (empirical *p* <= 0.005; the other two at 1 of 200), the
+    two-year observation exceeding the null's **maximum** of 3.1948 as well as its p95.
+  * **THE AUDIT'S PREMISE IS CONFIRMED AND ITS MAGNITUDE IS NOT.** `S22`'s `fixed_weights_null`
+    permutes **within** each date, so the placebo has no memory at all (**-0.0016 / +0.0010 /
+    +0.0016** across three seeds) while the real composite's per-name rank autocorrelation is
+    **0.5677** at one quarter and still **0.3983** at two years. That null WAS too easy at every
+    horizon - **but only by +0.2577 of a *t* at two years, about 15% of the floor**, against a
+    claim sitting 1.90 above it.
+  * **THE DECOMPOSITION, REGISTERED BEFORE THE RUN AS A DIAGNOSIS AND EXPLICITLY NOT A DEFENCE,
+    SPLITS ALMOST EVENLY: coverage +0.1426, memory +0.1151** at H=504. **This instrument's own
+    coverage cost is comparable in size to the effect it was built to measure**, which is a real
+    limitation and is stated as one rather than discovered later.
+  * **THE MEMORY TERM'S SIGNATURE IS THE FINDING. BRW's artifact requires OVERLAP, and sorted by
+    HAC LAG rather than by horizon it is 0 of 2 positive at lag 1 (H=63, H=126) and 6 of 6
+    positive at lag 2 through 7.** A clean binary split on the exact axis the theory names. The
+    direction was **named in the register before the run**, but it is scored **POST-HOC and
+    carries NO verdict** - no formal test was pre-registered on it and single cells sit inside the
+    sampling error of a p95 over 200 draws. **Quote the sign pattern, never a single cell.**
+  * **A CORRECTION TO THE AUDIT, MEASURED: THE SHORTFALL DOES NOT GROW WITH HORIZON.** The audit
+    says it *"grows with horizon - which is precisely the axis `S22`'s headline lives on"*, and
+    part of the case for ranking the item first rests on that. Measured, the total effect **steps
+    up once where overlap begins (+0.0972 at H=63 to +0.3778 at H=126) and is then flat or
+    falling** - 0.3200, 0.2550, 0.2651, 0.2508, **0.1844 at H=441**, 0.2577 at H=504. **The
+    mechanism is right and the monotonicity claim is not.**
+  * **THE ONE PLACE THE CORRECTED NULL BITES IS THE LONG-SHORT LEG, AND IT COSTS A HORIZON.** It
+    failed its own floor from H=315 under `S22`'s null and fails from **H=252** under this one
+    (observed 1.8561 against 1.9637). **The LS floor FALLS at the two lag-1 horizons and RISES at
+    every overlapping one** - the same overlap signature on a second statistic, reached
+    independently. **`S22`'s standing instruction that no long-short figure may be quoted beyond
+    about a year is STRENGTHENED and its boundary moves IN to a hard one year. The long-only book,
+    which is the shipped product, is untouched** - `S22-DISPLAY`'s copy stands unchanged, and had
+    the verdict gone the other way the register named the exact constants in
+    `valuation/web/hold_horizon.py` and **routed** the edit to the app lane.
+  * **`C1` IS THE STRONGEST CONTROL AVAILABLE AND IT IS EXACT: the runner IMPORTS `S22`'s own
+    `arm()` and reproduces `S22`'s stored placebo draws at max |delta| 0.000e+00 across 160 of 160
+    cells**, five seeds, eight horizons, four statistics. The two instruments are not merely
+    comparable; the scoring path is the same object. `C2` persistence retained (real 0.5665 vs
+    placebo **0.5680** at lag 1, 0.4028 vs 0.4020 at lag 8); `C3` association nil at the
+    registered 200 draws (**+0.00022** and **+0.00043** against a 0.003 bar) **with a within-date
+    REFERENCE arm** at -0.00021 / +0.00015, so a nonzero reading could have been attributed to the
+    statistic rather than to this instrument; `C6` fixed points **1.02 of 2,474 names**, the
+    theoretical expectation being exactly 1; `C8` effective coverage **PRINTED** per `MB7` and
+    `RUN_RULES` PART A rule 10 (**66.4%** of rows, cross-section median **1,553 -> 976**).
+  * **THE COVERAGE-PRESERVING SHORTCUT IS NOT A NULL, AND IT WAS DISQUALIFIED BEFORE THE REGISTER
+    WAS WRITTEN rather than after seeing whether it flattered anything.** Permuting within exact
+    presence-pattern strata keeps **96.7%** of rows against the primary's 66.4% - and leaves
+    **~170 names per draw paired with THEMSELVES**, with a live residual association at H=504
+    (median IC **+0.01067**, *t* **+4.106**). Pairing within a lifespan stratum pairs a name with
+    one of similar era and size, and `size` is both the most persistent theme (**0.9915**) and,
+    per `X3`, the carrier of the composite's entire significance. **Stratifying to protect
+    coverage smuggles the signal back in.**
+  * **THREE DEFECTS IN MY OWN INSTRUMENT, ALL CAUGHT BY RUNNING IT, AND THE FIRST IS THIS RECORD'S
+    OWN RECURRING FAMILY.** (1) **`C1` FIRST PASSED VACUOUSLY, AT A PERFECT 0.000e+00, ON AN EMPTY
+    PANEL** - the panel's `date` column is **`str`**, coercing `S22`'s stored dates to
+    `pd.Timestamp` matched **ZERO of 113,945 rows**, `arm()` returned a bare status dict, and a
+    max-|delta| loop that skips a `None` cell **scored perfectly by comparing nothing**. Exposed
+    only because `C2` crashed on the same empty frame two controls later; `C1` now **counts the
+    cells it compared and gates on the count**. **Sixth instance of the family, and the first in
+    which the vacuous control was the one certifying the instrument.** (2) A read-only numpy view
+    in the thinning control, caught before it could take down a two-hour run partway through.
+    (3) **A DEVIATION FROM MY OWN REGISTER, CORRECTED IN THE CODE RATHER THAN IN THE REGISTER**:
+    `C3` first ran on 20 draws where section 4 fixes 200, reading a knife-edge **+0.00288** against
+    a 0.003 bar that the registered 200 draws showed to be noise.
+  * **A CORRECTION TO THE AUDIT'S OWN PERSISTENCE FIGURES, IMMATERIAL TO THE VERDICT.** All seven
+    **per-theme** values reproduce to four decimals (`size` 0.9915, `capital_discipline` 0.8882,
+    `value` 0.6981, `quality` 0.6786, `momentum` 0.6414, `insider` 0.3152, `institutional`
+    0.1181). The **COMPOSITE** does not: the audit's **0.5802 / 0.4099** come from a composite
+    that does **not** renormalise by present-weight mass, while the **shipped**
+    `composite_from_frame` - audit `B7`'s convention, and the composite `S22` actually scores -
+    gives **0.5677 / 0.3983**. Diagnosed rather than asserted: an un-renormalised 0.125-weighted
+    sum reproduces the audit at 0.5796 / 0.4134, and 16.3% of rows on a mid-panel date are missing
+    at least one of the seven.
+  * **WHAT IT DOES NOT SAY. It does not prove `S22` correct** - it shows the two-year claim
+    survives the null its own shape most required, on 62 dates, on one panel. **It does not
+    license the long-short leg**, which got worse. **And it does not vindicate `placebo_panel`:**
+    that null really was too easy at every horizon, by roughly **+0.1 to +0.25 of a *t*** on
+    overlapping long horizons, **so any future claim sitting that close to a `placebo_panel` floor
+    is not safe.**
+  * **NOT DONE, named so it is not mistaken for done - AND THE OBVIOUS FOLLOW-ON IS NARROWER THAN
+    IT LOOKS.** `MB23` landed in another lane while this was running: it ports and VALIDATES the
+    Hodrick 1992 1B estimator (6 of 6 Wei-Wright cells at max |dev| 0.0075) and cross-checks the
+    **shipped H=63** statistics at a 9.18% gap inside its 10% bar. **But its own caveat binds
+    here: at h=1 the windows DO NOT OVERLAP and Hodrick's sandwich carries no autocovariance term
+    at all - so `MB23` validated the estimator at the ONE horizon where the overlap problem is
+    absent, and `S22`'s LONG horizons are still uncross-checked on the estimator side.** The
+    follow-on is therefore **not** *"run `MB23`"* but *"run the now-verified Hodrick estimator at
+    H=126 through H=504 against the HAC *t*s this register scored"* - cheap, because the port
+    already exists. **`S22` was NOT re-run** and `TERM_STRUCTURE.json` never written to.
+    **Expectations 4 right, 1 wrong, 2 split** - the miss being monotonicity, which is the audit's
+    own claim; **the audit's prior was ~55% that at least one horizon crosses and none does.**
+    **126 suites, 1 ENVIRONMENTAL failure and 0 substantive after merging `origin/main`; 31 new
+    tests, 6 of 6 tripwires mutation-tested with sources restored byte-for-byte.** The one
+    failure is `tests/test_options_freeze.py` at `PermissionError` on a `%TEMP%` file inside
+    `GzipFile`, passing **6 of 6 standalone runs** on the identical tree - **the SECOND
+    independent sighting of one class the same day**, `MB16` having hit `Permission denied` on
+    git objects under `%TEMP%` in `tests/test_checkout_drift.py` and measured the cause as
+    sustained concurrent temp-volume I/O, **naming this item's own `--floors` shards as part of
+    the load.** Suites that build real artifacts under `%TEMP%` wrap no I/O in a retry, and both
+    are invisible in CI where a Linux runner has no contention - `MB42`'s shape. Reported, not
+    fixed; neither suite is this lane's.
+    `valuation/studies/persistence_null.py`, `scripts/mb21_persistence_null.py`,
+    `data/free_analysis/MB21_PERSISTENCE_NULL.json`, `MB21_CONTROLS.json`;
+    `HANDOFF_edge_audit.md` MB21.
 - **QUOTE-CLASSIFIED VPIN SURVIVES ITS PRE-SCORING KILL AND THEN FAILS ALL THREE LEGS OF ITS OWN
   BAR - AND THE KILL STATISTIC THE ITEM REGISTERED IS STRUCTURALLY BLIND TO THE RENAMING IT EXISTS
   TO CATCH (2026-08-19, `MB16`).** `PREREG_mb16_vpin.md` committed **ALONE at `7fa88e5`**, markdown
