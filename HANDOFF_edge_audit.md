@@ -15682,3 +15682,155 @@ does not price is worth reading twice.**
 **137 suites, 0 failures after merging `origin/main`; 19 new tests.**
 `scripts/e1_graveyard_stouffer.py`, `data/free_analysis/E1_KILLS.json`;
 `PREREG_e1_graveyard_stouffer.md` at `e05c33c`; `VALQUO_LEDGER.md` E-1.
+
+---
+
+## E-2 / S-SEED-3 — Δcomposite, fundamental momentum of the score itself (2026-08-20, edge lane) — **NULL on both co-primary bases, and the largest cell points the wrong way**
+
+Register **ACCEPTED VERBATIM** from the Frontier Scout's `PREREG_DRAFT_s3_delta_composite.md`
+and committed **ALONE at `c93ffc8`** — one `.md`, 194 lines, zero `.py`, a strict git ancestor of
+every measurement commit — with the **equity trial BOOKED AT `441344c` BEFORE the instrument was
+written or run** (`N` 238 → 239). **ADOPTS NOTHING.** Nothing under `.github/` was touched.
+
+### 1. The counter was stale TWICE OVER, which is why it is re-read and never quoted
+
+The draft says "235 → 236". Live at acceptance: equity **238** — `E-1` took it to 237 and `E-5`
+to 238, **both earlier the same day**. This register charges **238 → 239**, hurdle
+`3.3082535192066147 → 3.3095206758476405`. `MA37`'s rule, earning its keep for the fourth time.
+
+### 2. Non-blindness, and the line drawn deliberately
+
+A **feasibility** census ran before acceptance: coverage and column-existence facts only.
+**No kill statistic was computed.** That line is where `E-1`'s differs — its pre-acceptance census
+was a *count of registry entries*, a structural fact that cannot be tuned to; K1/K2/K3 here are
+**correlations on data**, and computing one before committing would be seeing a kill's outcome
+before committing to its bar. What was seen: 97.61% of rows have a consecutive-rebalance
+predecessor, 68 of 68 possible dates carry a Δ cross-section. No bar, kill, sign or rule changed.
+
+### 3. Four defects declared before any outcome
+
+**D1 — K2 names "the banked PEAD column" and TWO exist**: `z_pead_car` (0.8640 coverage) and
+`z_pead_drift` (0.2432). Resolved **in writing, before the run**: taken against **BOTH**, firing
+if **EITHER** exceeds 0.60 — **stricter than either alone**, and `MB16`'s resolution when its own
+kill's registered cross-section did not exist. A single arbitrary choice would not have honoured
+K2's stated purpose.
+
+**D2 — the draft had NO control that the composite is the SHIPPED one.** `MB18` re-derived a
+construction two items ago and its probe appeared to refute a mechanism it in fact confirmed;
+`MA28`'s equivalent control **fired on its own first run** against a nine-theme composite wearing
+a seven-theme name. **`C-FIDELITY` added** — a control, not a bar; it can only BLOCK, never
+produce (`MB1-SEL`), and it changes no registered threshold.
+
+**D3 — the power figures were the right design class at the wrong date counts.** A first
+difference **loses the first date**, so the bases are `n` = 68 and 48, not 69 and 49.
+
+**D4 — THE OBJECT IS A CHANGE IN RELATIVE STANDING, and §1's mechanism prose overstates it.**
+`composite_from_frame` standardises **within each date**, so a name whose fundamentals improve
+exactly as much as the cross-section's has **Δc ≈ 0**, and a name standing still amid
+deterioration has **Δc > 0**. §1 describes an *absolute* improvement; the object measures a
+*relative* one. **Not a reason to reject** — a cross-sectional book ranks names against each
+other, so relative standing is the decision-relevant quantity — but every verdict here is a
+verdict about relative standing, and that sentence ships in the artifact.
+
+### 4. The instrument checks out, and the not-a-costume line holds on all three axes
+
+| check | statistic | bar | outcome |
+|---|---|---|---|
+| **C-FIDELITY** | max abs delta vs the published record | 0 | **0.000e+00 — PASS** |
+| K1 | mean per-date abs rho vs the `momentum` theme | ≤ 0.60 | **0.1320 — PASS** |
+| K2 | max over BOTH banked PEAD columns | ≤ 0.60 | **0.1030 — PASS** |
+| K3 | vs the composite **level** | ≤ 0.60 | **0.4149 — PASS** |
+
+`C-FIDELITY` reproduces `top_decile_alpha` **0.07174142332098163**, both long-short *t*s and
+monotonicity **exactly**, so the object being differenced provably *is* the shipped composite.
+
+**This is worth stating plainly because it is rare here: Δc is genuinely new and genuinely not a
+costume.** `z_pead_car` at 0.1030 and `z_pead_drift` at 0.0986 mean it is not PEAD resurrected;
+0.1320 against `momentum` means it is not price momentum; and 0.4149 against the level — with
+**zero of 68 dates above the bar** — means it is not a re-ranking of the product. Five of the last
+six candidates in this record were confirmed orthogonal and predicted nothing. **This one clears
+its costume tests more cleanly than any of them and then also predicts nothing.**
+
+**Coverage 97.61%** (111,217 of 113,945 rows), 68 of 69 dates, median 1,548 names. **Survivor tilt
+PRINTED as §2 requires rather than assumed, and it is material: median market cap kept $5.12bn
+against dropped $1.80bn, a 2.845× tilt.** The Δ-eligible set is markedly larger-cap than the rows
+it drops, and that caveat travels with the null.
+
+### 5. The verdict: NULL, six cells of six
+
+Declared sign **POSITIVE**, bar **2.71**, both halves, both co-primary bases.
+
+| basis | window | n | mean IC | *t* | std effect | its own 80% MDE | ratio |
+|---|---|---|---|---|---|---|---|
+| six | full | 68 | −0.006005 | **−0.8501** | −0.1031 SD | 0.4307 SD | 0.24× |
+| six | early | 34 | −0.019057 | **−2.6511** | −0.4547 SD | 0.6091 SD | 0.75× |
+| six | late | 33 | +0.007281 | **+0.6234** | +0.1085 SD | 0.6183 SD | 0.18× |
+| seven | full | 49 | −0.004347 | **−0.5428** | −0.0775 SD | 0.5074 SD | 0.15× |
+| seven | early | 24 | −0.003057 | **−0.3342** | −0.0682 SD | 0.7250 SD | 0.09× |
+| seven | late | 24 | −0.009776 | **−0.7799** | −0.1592 SD | 0.7250 SD | 0.22× |
+
+**Every cell sits below its own 80%-power detection threshold**, at 0.09× to 0.75×. §5's sentence
+therefore binds and travels: **a NULL here means "no trajectory effect at least as large as the
+best single signal this panel has ever carried" (0.4346 SD), never "no effect".**
+
+### 6. The largest |*t*| anywhere is in the WRONG direction — and it carries no claim
+
+**Basis six's EARLY half reads *t* = −2.6511, missing the bar's magnitude by 0.0589**, against a
+declared POSITIVE sign. It is reported because a reader would otherwise discover it, and it
+carries **no claim whatever**: it is one of six cells, it contradicts the declared direction, and
+it sits at **0.75× of its own 80%-power MDE** — the design could not have returned a positive
+verdict for an effect of that size even in the declared direction.
+
+**AND THE DECLARED SIGN IS NOT WHAT PRODUCED THE NULL**, which forecloses the obvious objection.
+A **two-sided** reading is *also* NULL, for two independent reasons, and it is pinned by test:
+
+* **basis six's halves DISAGREE IN SIGN** (−2.6511 early, +0.6234 late), so the both-halves rule
+  fails in *either* direction;
+* **basis seven's halves agree in sign** (both negative) and its largest |*t*| is **0.7799**,
+  nowhere near 2.71.
+
+**The halves disagreeing in sign is this record's single most repeated pattern** — session 7's
+LOO, `S17`, `V6`, `S8`/`S9`, `S11`/`S12`, `O21-D2` — and this is a seventh instrument showing it.
+
+### 7. `MB7`'s repaired gate did real work, for the first time outside the register that repaired it
+
+On **basis seven** the effective-coverage block reads:
+
+```
+split on EFFECTIVE dates    early 24 / late 24   boundary 2020-01-22   ok=True
+split on RAW then intersect early 15 / late 33   boundary 2017-10-18   ok=False
+```
+
+That `ok=False` is **exactly the refusal-3 case** `split_used="effective"` was created for in
+`MB18` — a refusal keyed on a property of the DATA rather than on the caller's BEHAVIOUR, which
+fires whenever the raw split would have been unsafe. **Without that repair this register would
+have been refused for doing the right thing.** `MB18` was its first outside caller in the sense
+of finding the defect; **this is the first register to be saved by the fix.**
+
+### 8. Expectations, scored
+
+| # | the draft's prediction | outcome |
+|---|---|---|
+| 1 | K1 does not fire but abs rho lands 0.3–0.6 — 60/40 | **SPLIT** — right that it does not fire, wrong on magnitude: **0.1320**, far below the predicted band |
+| 2 | K2 does not fire — 70/30 | **RIGHT** (0.1030 max) |
+| 3 | verdict NULL — 80/20 | **RIGHT** |
+| 4 | if any cell clears it is the six-basis LATE half — 55/45 | **WRONG, and interestingly** — no cell clears, and the cell nearest the bar's magnitude is the six-basis **EARLY** half, in the **opposite** direction. Right basis, wrong half, wrong sign |
+| 5 | one number contradicts this list — 60/40 | **RIGHT** |
+
+**The most informative miss: the draft priced a positive late-half effect, and the data's
+strongest cell is a negative early-half one.**
+
+### 9. NOT DONE, named so it is not mistaken for done
+
+* **No smoothing, no longer lookback, no multi-horizon Δ.** §6 void condition 1 forbids a grid,
+  and the consecutive-dates-only rule is pinned by test on a synthetic panel with a deliberate
+  hole — a name absent for a quarter gets `NaN`, never a two-quarter difference.
+* **PEAD is not re-opened**; K2 establishes only that Δc is not PEAD in a costume.
+* **No product copy** (§6 void condition 4), **no weighting or theme-membership change**, and
+  **no holding-period claim** — `S22`/`S23` own those.
+* **The early-half −2.6511 is NOT a lead to be followed.** Chasing it would be selecting a cell on
+  its outcome, and it would need its own register, its own declared sign and its own trial.
+
+**141 suites, 0 failures after merging `origin/main`; 19 new tests.**
+`scripts/e2_delta_composite.py`, `data/free_analysis/E2_KILLS.json`, `E2_ARM.json`;
+`PREREG_e2_delta_composite.md` at `c93ffc8`; `VALQUO_LEDGER.md` E-2.
