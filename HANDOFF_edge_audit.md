@@ -14034,6 +14034,21 @@ refusal paths are exercised by test.
    At the registered 200 draws it is **+0.00022**. The 20-draw reading was noise, and the register
    was right to fix the count in advance.
 
+### A FOURTH DEFECT, IN MY PROCESS RATHER THAN MY INSTRUMENT, AND THE PROJECT'S OWN GUARD CAUGHT IT
+
+Merging `origin/main` a second time (`MB16` landed mid-session) conflicted in **three** files.
+`git merge` NAMED two of them — `VALQUO_LEDGER.md` and `tests/test_research_log_integrity.py` — in
+its final two lines, and **I checked for markers only in the files it named.** `CLAUDE.md` had
+conflicted too, further up the same output, because both lanes inserted a bullet at the head of
+CURRENT STATE. `git add -A` then staged the markers and they were committed.
+
+**It was caught by `test_edge.py::test_no_unresolved_conflict_markers_in_the_project_record`**,
+which exists for precisely this, and it is the reason the full gate is run before a push rather
+than after. Resolved by keeping **both** bullets. **The rule: after any merge, grep the WHOLE TREE
+for conflict markers — `git merge`'s closing summary is not a complete list.** Same family as
+`MB7`'s own merge collision, where two branches touched different files, git merged them cleanly,
+and the result did not import.
+
 ### WHAT THIS DOES NOT SAY, and the misreadings are predictable
 
 * **It does not prove `S22` correct.** It shows the two-year claim survives the one null its own

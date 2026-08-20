@@ -48,7 +48,6 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
-<<<<<<< HEAD
 - **S22's TERM-STRUCTURE CLAIM SURVIVES THE ONE NULL ITS OWN SHAPE MOST REQUIRED - AND THE
   ARTIFACT IT HAD NEVER BEEN TESTED AGAINST IS REAL, SMALL, AND APPEARS EXACTLY WHERE
   BOUDOUKH-RICHARDSON-WHITELAW SAY IT MUST (2026-08-19, `MB21`).**
@@ -153,7 +152,6 @@ the project's memory and the old versions had been repeated for months.
     `valuation/studies/persistence_null.py`, `scripts/mb21_persistence_null.py`,
     `data/free_analysis/MB21_PERSISTENCE_NULL.json`, `MB21_CONTROLS.json`;
     `HANDOFF_edge_audit.md` MB21.
-=======
 - **QUOTE-CLASSIFIED VPIN SURVIVES ITS PRE-SCORING KILL AND THEN FAILS ALL THREE LEGS OF ITS OWN
   BAR - AND THE KILL STATISTIC THE ITEM REGISTERED IS STRUCTURALLY BLIND TO THE RENAMING IT EXISTS
   TO CATCH (2026-08-19, `MB16`).** `PREREG_mb16_vpin.md` committed **ALONE at `7fa88e5`**, markdown
@@ -240,7 +238,6 @@ the project's memory and the old versions had been repeated for months.
     mutations refused. Expectations 3 right, 1 wrong, 1 split.** `scripts/mb16_vpin.py`, `scripts/mb16_arm.py`;
     `data/free_analysis/MB16_KILL.json`, `MB16_ARM.json`, `MB16_VPIN_UNITS.pkl`;
     `HANDOFF_optionsbot.md` 68.
->>>>>>> origin/main
 - **THE VENUE-BASED RETAIL PROXY DIES BEFORE ANY ARM RUNS, ON THREE INDEPENDENT MEASUREMENTS - AND
   THE AXIS THE LITERATURE ACTUALLY USES IS SITTING UNREAD IN THE SAME CACHE (2026-08-19,
   `MB15`).** **NO ARM RAN, NO REGISTER WAS COMMITTED, ZERO TRIALS** - the item's own pre-outcome
