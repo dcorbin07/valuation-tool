@@ -259,7 +259,7 @@ def test_the_statistics_N_gates_move_with_it():
     assert RL.trial_count(domain="equity") == n
 
     # The Harvey-Liu-Zhu hurdle the record quotes.
-    assert abs(math.sqrt(2.0 * math.log(n)) - 3.3031261300040304) < 1e-12, (
+    assert abs(math.sqrt(2.0 * math.log(n)) - 3.304416896865212) < 1e-12, (
         "the HLZ hurdle no longer matches the stamped N")
 
     # The CPCV adopt gate's multiplier. `_trials_haircut` is FLOORED at the log's N, so handing
@@ -391,7 +391,7 @@ def test_ma5_the_two_bars_disagree_today_and_the_gap_only_widens():
 
     assert hlz_hurdle(90) < 3.0 < hlz_hurdle(91), "3.0 is sqrt(2 ln N) at N = 90"
     n = EXPECTED_BY_DOMAIN["equity"]
-    assert abs(hlz_hurdle(n) - 3.3031261300040304) < 1e-12
+    assert abs(hlz_hurdle(n) - 3.304416896865212) < 1e-12
     assert hlz_hurdle(n) > 3.0, "the derived bar is HARDER than the constant at today's N"
 
     # A statistic in the gap is 'significant' under the constant and is NOT at today's N. This

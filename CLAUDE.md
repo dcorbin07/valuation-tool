@@ -1008,7 +1008,8 @@ the project's memory and the old versions had been repeated for months.
     why: the width's maximum is 3,585, four orders of magnitude above its median** - without a floor
     the arm becomes a *disagreement* screen rather than a precision-weighted mispricing signal.
     **A correction both registers must carry: the audit quotes the alpha margin as 1.95pp and
-    `MA19` recalibrated it to 1.8629pp** at `N` = 224 nine days ago (still current at the live `N` = 234 - `MB31`).
+    `MA19` recalibrated it to 1.8629pp** at `N` = 224 nine days ago - and `MB31` proves it is
+    **unmoved at every equity `N` below 247**, so it is current today without needing a date.
   * **`MA58`'s PREMISE HOLDS, WITH THE `MA23` LESSON ATTACHED: A NAME MATCH IS NOT A PAPER CENSUS.**
     Every *"seasonal"* hit in the corpus outside the audit documents is **fiscal-quarter seasonality
     in fundamentals**, and `NUMBER_THEME`'s 53 entries contain no seasonality-shaped key - so the
@@ -4947,7 +4948,7 @@ the project's memory and the old versions had been repeated for months.
     floor to move on the adoption channel, because the draw that stopped adopting sat 4th of 100
     on this statistic and 15th on the long-short one. The shipped +4.3762 still sits above all 100
     draws, so the claim is unchanged and only the bar moved (downward, i.e. easier).**
-    **STILL 2.0540 AT THE LIVE `N` = 234 (2026-08-19, `MB31`) — proved rather than
+    **STILL 2.0540, AND PROVABLY UNMOVED AT EVERY EQUITY `N` BELOW 247 (2026-08-19, `MB31`) — proved rather than
     assumed: the adopt set is identical at 224 and 234, and it cannot change before
     equity `N` = 247.**
     The long-ONLY book remains far better measured than the long-short the project leads with.
