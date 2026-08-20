@@ -102,7 +102,8 @@ the project's memory and the old versions had been repeated for months.
     gate is proved **no hard-coded refusal** by exercising it in isolation on a synthetic passing
     artifact, **so the gate returns while the arm itself is never run**.
   * **THE DECISION, STATED EXPLICITLY: NEITHER FIRES. `MB2` STAYS PARKED AND CONTRACT SELECTION
-    STAYS OPEN.** CONFIRMED would have unparked `MB2`'s grid for Don; REFUTED would have closed
+    STAYS OPEN** - and `MB2`'s own ledger row, landed by the concurrent audit-4 ingest, reads
+    **PARKED BY DON 2026-08-19**, so it is parked by Don's decision rather than by default.** CONFIRMED would have unparked `MB2`'s grid for Don; REFUTED would have closed
     contract selection with the sound argument `MB1`'s kill could not supply. **A VOID does neither,
     and it is explicitly NOT a licence to re-run with a different statistic or a looser control
     until something clears** - a re-open needs a **materially different construction**, the obvious

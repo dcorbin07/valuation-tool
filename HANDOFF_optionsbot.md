@@ -8188,7 +8188,10 @@ The register fixed the mapping before the answer was known:
 * **UNRESOLVED / VOID → NEITHER.**
 
 **The outcome is VOID before the arm, so NEITHER fires. `MB2` STAYS PARKED. CONTRACT SELECTION
-STAYS OPEN.** And it is explicitly **not** a licence to re-run this with a different statistic or
+STAYS OPEN.** A precision the concurrent audit-4 ingest supplies: `MB2`'s ledger row reads
+**PARKED BY DON 2026-08-19**, so it is parked by Don's own decision rather than by default —
+CONFIRMED would have been a reason to put it back in front of him, and a VOID supplies no such
+reason. And it is explicitly **not** a licence to re-run this with a different statistic or
 a looser control until something clears — that is the search the register exists to prevent. A
 re-open needs a **materially different construction**: the obvious one is a coverage-matched or
 coverage-reweighted decomposition, which is a new design and needs its own register and its own
