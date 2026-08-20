@@ -14494,6 +14494,143 @@ bounded/unbounded partition changing the verdict** (25/75) — the verdict does 
 * **The panel's `fair_value` is `S23`'s RECONSTRUCTION, not what the live site published that day**
   (`MA26-C`). Nothing here is a claim about what users saw.
 
+### REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3) — THE SCREENER FIXTURE IS NON-DETERMINISTIC ACROSS PROCESSES, AND THE CAUSE IS MEASURED RATHER THAN GUESSED
+
+`MB18`'s first land attempt FAILED in CI on `tests/test_screener.py ::
+test_portfolio_sector_cap_and_weights`. **It is not this lane's**, and that is established rather
+than asserted:
+
+* **This item's change cannot reach that path.** Importing `valuation.screener.screen` pulls in
+  **NONE** of this lane's study modules — measured by inspecting `sys.modules` after the import,
+  not inferred from the boundary test.
+* **The suite passes 83 of 83 locally**, on this branch *and* on the tree merged with `origin/main`.
+* **`MB21` landed with the same suite green hours earlier.**
+
+**THE CAUSE.** `tests/screener_fixtures.py:18` seeds the synthetic universe from the ticker's
+**string hash**:
+
+```python
+return np.random.default_rng(abs(hash(ticker)) % (2**32))
+```
+
+**Python salts `hash()` for `str` per process** (`PYTHONHASHSEED`), so **every invocation generates
+a different universe.** Measured: the same call, `synth_metrics('SYN0000', 'Technology')`, in five
+separate processes returns five different names — earnings yield **-0.00968 / +0.05902 / -0.02846
+/ -0.01550 / +0.16340** and market cap **$224.5bn / $210.2bn / $191.7bn / $271.0bn / $189.1bn**.
+
+So `test_portfolio_sector_cap_and_weights` asserts `max_sector_weight <= 0.301` and
+`n_names == 15` **against a universe that is redrawn on every run**, and two of its three
+assertions carry no message — which is why the CI log shows a bare `FAIL ...:` with nothing after
+it. **The test's own comment already records the symptom** — *"an intermittent failure, observed
+once"* — and a previous fix loosened a tolerance rather than removing the randomness.
+
+**Not fixed here** (it is not this lane's file, and the fix is a design choice between seeding the
+fixture deterministically and widening the bounds). **Owner: the screener lane.** The one-line
+version is `hash(ticker)` → a stable digest, e.g. `zlib.crc32(ticker.encode())`, which makes the
+whole suite reproducible and would have made this failure appear on the first local run instead of
+once in CI.
+
+**This is the THIRD flake reported in one day** and the third with the same shape — a guard or
+fixture that behaves differently where it is run: `MB42`'s path-separator assertion (green in CI,
+red on the machine that owns the data), `MB16`'s and this lane's `%TEMP%` contention, and now a
+per-process hash salt. **All three are invisible in exactly one environment and all three take the
+whole gate red for a reason unrelated to the change under test.**
+
 **27 new tests, 8 of 8 tripwire mutations caught with sources restored byte-for-byte.**
 `scripts/mb18_expectations_gap.py`, `data/free_analysis/MB18_EXPECTATIONS_GAP.json`,
 `MB18_CONTROLS.json`; `valuation/studies/incremental_ic.py` (the gate repair).
+---
+
+# MB3 — event ownership: the deciding arithmetic (2026-08-19)
+
+**ZERO TRIALS.** A computation on banked distributions with no hypothesis and no bar of its own —
+the `S25` / `X7RECON` / `MB31` class, exactly as `VALQUO_MASTER_AUDIT_4.md` MB3 specifies. No
+counter moves; equity stays 234, options 305, infra 17.
+
+## 1. The question and the pre-committed condition, both quoted rather than restated
+
+> *"at what account equity does the cap-10 ruin arithmetic permit an earnings-spanning book to end
+> above where it started?"*
+
+> *"If the required equity exceeds **$250,000**, the answer is final for this operator and the
+> family closes permanently … Below it, the question becomes a live design and needs its own blind
+> register."*
+
+A third outcome was fixed before the run and did not fire: if the equity curve crossed break-even
+**more than once**, "the required equity" would not be a single well-defined number and the result
+would be recorded **UNRESOLVED** (`RUN_RULES` A6 — ambiguous against a pre-committed threshold is a
+null, never a judgement call).
+
+## 2. THE ANSWER: $5,000. The kill condition does NOT fire.
+
+| | |
+|---|---|
+| required equity | **$5,000** |
+| bracketed between | $2,500 (below start) and $5,000 (above) |
+| break-even crossings | **1** — well defined, so UNRESOLVED does not apply |
+| the bar | $250,000 |
+| verdict | **BELOW THE BAR by two orders of magnitude** |
+
+**The audit's own ~85% prior that this closes is refuted.** Event ownership does *not* close as
+out-of-reach on the account-size argument.
+
+## 3. The partition reproduces `O17C4` exactly, which is what makes it the same object
+
+**1,987 spanning and 1,495 not, against `O17C4`'s recorded `n_spans` of 1,987** — and **388 UNKNOWN
+rows DROPPED and COUNTED**, never folded either way, because 29 of 186 names are foreign private
+issuers with no earnings dates at all. Nothing is reimplemented: the simulator is the shipped
+`options_vrp_portfolio.simulate_book` under the shipped `options_vrp.MAX_CONCURRENT`, and the
+partition is the shipped `earnings_surface.owns_the_event`. A second copy of either would make this
+a measurement of my own arithmetic rather than of `O11`'s and `O17C4`'s (audit B7's defect class).
+
+## 4. THE CONTROL IS THE FINDING — it attributes `O11`'s result
+
+`O11`'s headline is that a book with **+3.27%/trade positive expectancy ends at $37,059 from
+$50,000** at cap 10. If the spanning half ends *above* its start, the immediate question is where
+that loss came from. Running the complement on the identical grid, cap and simulator answers it by
+measurement:
+
+| book at $50,000, cap 10 | final equity |
+|---|---|
+| earnings-**spanning** half | **$130,855** |
+| **not**-spanning complement | **$24,391** |
+| `O11`'s whole book (quoted from the record) | $37,059 |
+
+**So `O11`'s ruin result is driven by the trades that do NOT span an earnings announcement**, and
+the whole-book figure sits between the two halves as it should. The two halves are not required to
+sum, because the 388 UNKNOWN rows are dropped from both.
+
+**The control's own resolution is `UNRESOLVED`** by the same pre-committed rule — two break-even
+crossings, off a thin 71-trade cell at $2,500 — so it is reported as a **direction** and not as a
+required-equity figure: below its starting equity at **every cell from $5,000 upward**.
+
+## 5. Two things that must travel with the verdict
+
+**(a) THIS IS THE ALERT BOOK'S SPANNING SUBSET.** `O17C4` measured that alert-spanning **loses** to
+random-spanning (+8.42% against +10.30%, *z* −4.4726, *p* 7.7e-06), so the tradeable form is *"buy
+calls spanning earnings"* **with no alert in it**, and that book was **not** simulated here. The
+arithmetic answers the question as posed.
+
+**(b) `O11` GOVERNS AND NOTHING HERE LICENSES A TRADE.** Below the bar means this becomes a **live
+design need** requiring its own blind register — which is **not proposed here**. It also inherits
+`O17C4`'s mechanism caveat: this is a **MEAN** effect, DTE-matched median-vs-median +0.40pp
+(−51.41% against −51.81%), so the typical trade is a near-total loss either way.
+
+## 6. A defect in the audit's mechanism, found by running it
+
+The audit reasons that harvesting a thin-right-tail mean *"requires many small independent
+positions held without intervention — which is exactly the configuration `O11` measured to end
+below its starting equity."* Measured, **the low-end failures are AFFORDABILITY, not ruin**: at
+$1,000 only **2 of 1,987** trades are taken because the account cannot afford the premium, and at
+$2,500 only 40. The book does not go broke at small size; it never gets on. That is a different
+mechanism from the one the argument rests on, and it is why break-even arrives as low as it does.
+
+## 7. Declared deviation
+
+The grid's floor was **extended downward after the first run**, and it is declared rather than
+quietly made: the original floor of $25,000 left the book above its start at *every* cell, so the
+answer was not bracketed from below. The added cells ($1,000–$20,000) run **away** from the
+$250,000 bar in the direction that cannot change an ABOVE/BELOW verdict — a downward extension can
+only make the reported number smaller and the refusal weaker, never manufacture a pass.
+
+`scripts/mb3_event_ownership_equity.py`, `data/free_analysis/MB3_EVENT_EQUITY.json`.
