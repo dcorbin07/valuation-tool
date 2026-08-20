@@ -553,3 +553,162 @@ forever and covers nothing.
   denied routes that return derived numbers, which is the product.
 - **The live service was not read** for any of this. Every measurement is local, and MA18's section
   says exactly where that limit bites.
+
+---
+
+# I-1 — the Breeden–Litzenberger RND builder (2026-08-20)
+
+`valuation/studies/rnd.py`, `tests/test_rnd.py` (**45/45**), `scripts/i1_rnd_census.py`,
+artifact `data/free_analysis/I1_RND_CENSUS.json` (gitignored, re-derivable by the script).
+
+**ZERO TRIALS. This is an INSTRUMENT, and its neutrality is the deliverable.** It computes no
+relationship between any RND quantity and any forward return — not a correlation, not an IC, not
+a bucketed mean. It is consumed by `PREREG_DRAFT_o1_flagged_puts.md` as a **stage-0 kill that
+fires before any arm exists**, so a builder that had already been pointed at returns would be
+scoring that kill on a tool which had seen the answer. Enforced, not promised: `test_rnd.py`
+sweeps the module's own source (AST, docstrings stripped) for forward-return vocabulary and for
+a mutable-store escape hatch, and both sweeps carry a positive control.
+
+## 1. The headline: SR-677 as written does not survive contact with an equity chain
+
+The scout's citation names NY Fed SR-677 (Malz 2014) as the standard stable implementation, and
+it was implemented **literally first** — implied vols, cubic spline in **delta** space, **flat**
+vol extrapolation, Breeden–Litzenberger by finite difference. On the frozen chains it produced
+**0 usable slices out of 387**. Two distinct causes, both measured before anything was changed:
+
+* **The delta→strike map is not invertible on a steep skew.** Measured on AAPL 2025-07-07:
+  **7 folding steps at delta 0.0059–0.0074, where K doubles back through 265–270**, exactly where
+  `max|d²σ|` peaks. Sorting by K and de-duplicating silently discards the folded branch, leaving
+  a jump in σ(K) that BL turns into a density spike of **−0.90 against a peak of +0.72**. Delta is
+  the right coordinate for FX, where SR-677 is aimed and quotes arrive at five well-separated
+  deltas; it is the wrong one for a 31-strike equity chain.
+* **Flat extrapolation manufactures negative density at BOTH seams, by construction.** The density
+  carries `C_σ·σ''`. Clamping vol flat puts a **step in σ′**, and a step in σ′ is a **delta
+  function in σ''** — so a negative spike at each edge is guaranteed whenever the smile has any
+  slope there, which an equity skew always does. This is arithmetic, not bad luck.
+
+**Two departures, each adopted only after the literal version was measured to fail:**
+
+1. **Abscissa is `ln(K/F)`**, monotone in K by construction — the fold is removed structurally
+   rather than detected and patched.
+2. **Wings are C¹ smooth-pasted**, `σ(x) = σ_e + slope_e·L·(1 − exp(−|x−x_e|/L))` — no delta
+   function at the seam, and **asymptotically constant**, so the far tails stay lognormal, which
+   is the property flat extrapolation existed to provide.
+
+Effect of the pasting alone, holding everything else fixed: benchmark negative mass
+**1.1e-3 → 1e-12**, real-chain median **3.3e-2 → 1e-11**, share of clean densities **0.04 → 0.83**.
+
+**The smile fit is a spread-weighted smoothing spline** (`s = n`, the standard chi-square target).
+Each point's vol uncertainty is *measured* — solve IV at the bid, at the ask, halve the difference
+— so one rule serves a 31-quote AAPL chain and a 9-quote ABBV chain without anyone choosing a
+smoothing constant per name. Interpolating every quote exactly puts tick noise straight into σ''
+and rings; a rigid polynomial cannot follow a real skew. Selected on the benchmarks plus
+real-chain stability and **better on both axes at once** — max mixture error **7.0e-3 vs 1.6e-2**
+for a cubic polynomial, real-chain clean share **0.913 vs 0.812** — so the choice cost no
+trade-off. `SMOOTH_S_MULT = 1.0` was checked to sit on a **plateau** (1.0/2.0/4.0 identical), not
+at a tuned edge.
+
+## 2. Verified against published closed forms, because that is the only honest test
+
+* **Flat smile → Black–Scholes lognormal**, tail mass exactly `N(−d2)`. Max error **1.8e-5**.
+* **Two-lognormal mixture — Bahra, BoE WP 66 (1997)**, the canonical published RND test case:
+  skewed, fat-tailed, and priceable in closed form so the estimator is fed EXACT prices and any
+  error found is its own. Errors **1.9e-4 to 7.0e-3**.
+* **The control that makes the mixture test mean something.** A lognormal is the case a broken
+  estimator still gets right, so an estimator tested only against it has not been tested. At the
+  0.70 threshold the true mass is **0.10715**, a single lognormal at the ATM vol says **0.03966**,
+  and this estimator returns **0.10563** — it recovers a tail a lognormal understates ~2.7-fold.
+  The test asserts the lognormal control **fails**, so it cannot pass vacuously.
+* **The benchmarks are themselves verified before anything is scored against them** — the mixture
+  CDF against numerical integration of its own density, the mixture call against numerical
+  integration of the payoff, and the one-component mixture against the lognormal formula to 1e-12.
+  A benchmark nobody checked is not a benchmark.
+* **Mutation battery on the tail-mass arithmetic, 7 mutations, all caught**: survival-instead-of-CDF,
+  flipped BL sign, corrupted discount factor, corrupted second-difference stencil, threshold read at
+  the wrong strike, corrupted parity forward, and `N(−d2)→N(−d1)` **in the analytic reference
+  itself**. A baseline test asserts the suite is green before mutation, so no mutation can "pass"
+  against an already-red baseline.
+
+## 3. The census — fit diagnostics per slice, not an assumption of convergence
+
+`python -m scripts.i1_rnd_census --symbols 60 --dates 3`, pinned harvest freeze
+(`manifest_sha256 ee6d38e5…`), **2,174 slices over 60 symbols**:
+
+| | |
+|---|---|
+| in DTE band | 1,700 of 2,174 (474 refused as weeklies/LEAPS, a designed exclusion) |
+| **usable** | **1,168 = 68.7% of in-band** |
+| **K1 parity vs `raw_close` within quoted-spread band** | **0.9858 — PASS**, register wants ≥0.95 |
+| integral | med 0.999999, p95 1.000003, max 1.0171 |
+| negative mass | med 4.5e-12, p95 5.0e-4, max 9.7e-3 (gate 1e-2) |
+| CDF two-route gap | med 2.2e-6 |
+| \|parity dev frac\| | med 0.0028, p95 0.0175 |
+
+Refusals are attributed, never silent: `cdf_not_monotone_in_read_region` 417,
+`negative_density` 124, `too_few_smile_points` 73, `integral_off` 35, `parity_spot_mismatch` 15,
+`no_parity_forward` 8. `build_name_day` **returns unusable slices rather than dropping them**,
+because a caller writing a coverage census needs the refusals.
+
+## 4. Two findings the consumer must read before quoting anything
+
+* **80.5% of `Q(S_T ≤ 0.50·S_0)` readings are EXTRAPOLATIONS beyond the lowest quoted strike** —
+  and that is precisely the threshold O-1's **K2** reads. By threshold: **0.50 → 80.5%,
+  0.60 → 62.2%, 0.70 → 46.1%, 0.80 → 27.7%, 0.90 → 5.7%.** Every slice carries a per-threshold
+  `threshold_extrapolated` flag and the builder will not hide it. **The error is one-directional**:
+  a real equity smile keeps steepening into the left wing while the pasted continuation flattens
+  it, so an extrapolated left-tail mass is a **LOWER BOUND**. For K2 — "does the market already
+  price the flag?" — that is the conservative direction: it biases toward *the market charges less
+  than it really does*, making the `ρ_RND ≥ 3.04` **VOID** verdict **harder** to reach, not easier.
+  K2 is still runnable; it must be quoted with the extrapolated share beside it, and a
+  ratio-of-medians is far more robust here than either median alone.
+* **O-1's K1 "integrates to 1 ± 0.02" is close to VACUOUS as a check, and should not be leaned on.**
+  Computed this way the integral **telescopes** — it is a sum of second differences of the call
+  curve — so it returns ≈1 almost regardless of how badly the smile behaves. Measured: on the
+  AAPL chain whose density was oscillating between **−0.90 and +0.72**, the integral read
+  **1.00000**. It is retained because the register asks for it and it does catch one real thing (a
+  grid that truncates mass), but **`negative_mass` is the diagnostic that actually detects a broken
+  density** and is the one to read first. The other two legs of K1 — monotone CDF, parity vs
+  as-traded spot — are genuine and both are enforced.
+
+## 5. The traps, handled
+
+* **`raw_close`, never `close`** (`U1-SPLIT`, `O6`). Pinned from both sides: the correct spot
+  passes the parity check, and a 4-for-1 "adjusted" spot **fails and says
+  `parity_spot_mismatch`**. An adjustment mismatch throws parity by tens of percent, so that
+  check's real job is catching a corporate action, not auditing dividends.
+* **The circular-parity trap, avoided by name.** `dividends.spot_from_parity` returns
+  `S = C − P + K·e^{−rT}`; deriving the forward from parity and checking it against a spot derived
+  from parity is TRUE BY CONSTRUCTION — MA31 named that failure. The check here is against
+  `raw_close` from the bars, an **independent** series.
+* **`usable_quote` on BOTH legs**, the one shipped definition (`MA45`), delegated to and pinned by
+  identity (`R.usable_quote is BS.usable_quote`) — audit B7's class. A matched pair with one dead
+  leg is not a pair. Excluded rows are **counted**, never imputed.
+* **`bs_price`/`implied_vol` reused, not re-derived.** Black-76 is obtained by passing
+  `S = F·e^{−rT}, q=0` to the shipped solver — the substitution cancels the `rT` term exactly — so
+  no second pricer sits beside the first.
+* **PINNED FREEZE ONLY.** `chain_store.resolve_chains` / `resolve_harvest`, which **raise** rather
+  than fall back; the mutable store is `O16`'s defect (44.2% of payload units rewritten after the
+  books were banked). Pinned by a source sweep plus a test that a missing freeze raises.
+
+## What I did NOT do
+
+- **No relationship to forward returns, anywhere.** That is the point of the instrument and it is
+  the one thing that would void it. O-1's stage 1 is not started and not designed here.
+- **`I1_RND_CENSUS.json` is NOT committed** — it lands under gitignored `data/`. Re-derive with the
+  script; the provenance block records the freeze manifest hash the numbers came from.
+- **The options freeze (`freeze_options_2026-08-17`) was not censused**, only the harvest freeze.
+  The harvest holds a full chain on every session while the options store holds one only on entry
+  dates, so it is the right source for per-name-day densities — but `--store options` exists and
+  its coverage is **unmeasured**. Anyone running O-1 against entry-date chains should census it
+  first rather than assume these rates carry over.
+- **No term structure and no cross-expiry interpolation.** Each (name, date, expiry) is independent;
+  nothing here builds a constant-maturity RND.
+- **31.3% of in-band slices are refused**, and I did not chase the residual. The dominant reason is
+  `cdf_not_monotone_in_read_region` (417), which is a genuine butterfly violation in the quotes
+  rather than an instrument defect — but I did not separate "the chain is arbitraged" from "the fit
+  could be better", and that split is worth having before anyone reads a coverage number as a
+  data-quality claim.
+- **`GRID_SIGMAS`, `PASTE_L` and the DTE band were not swept jointly.** `PASTE_L = 0.50` was taken
+  from a 1-D sweep (pass rates climb steeply 0.10→0.50 then flatten); a joint sweep might do
+  better, and nothing here claims these are optimal — only that they are on a plateau rather than
+  an edge.
