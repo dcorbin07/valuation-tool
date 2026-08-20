@@ -938,7 +938,20 @@ were genuine calls.
   it cost me ~40 minutes watching an output path that would never be written. **Reported, not
   fixed** — changing the resolution order would move where every existing consumer's artifacts
   land, which is not this item's call.
-* **No bug found outside this lane this session.**
+* **`valuation/edge/power_gate.py` carries TWO definitions of the 80%-power z, and they
+  disagree in the fifth decimal.** `state()` — the one-line statement `RUN_RULES` PART A rule 11
+  asks every register to print — defaults to `Z_POWER_CONVENTION = 0.84`, while `z_for_power(0.80)`
+  returns the exact quantile **0.8416212335729144**. On this item the two MDEs are **0.011037928**
+  and **0.011042240**, a difference of **4.31e-06** (0.0004pp), which changes nothing here and has
+  changed nothing anywhere yet. It is reported because it is the `B7`/`MA5` family — one idea
+  written twice, with only one copy in the printed statement — and because a register that
+  computes its own MDE with `z_for_power` and prints `state()` beside it is quoting two numbers
+  for one quantity. **Both appear in `E4_ARM.json`**: the verdict branch uses the exact route and
+  the printed statement uses the convention, and the handoff quotes 1.1038pp from the statement.
+  **Reported, not fixed** — `power_gate` is calibration infrastructure that several landed
+  registers have already printed from, and changing which constant `state()` uses would move a
+  figure in every future printed statement for no measurable gain. Edge lane's call.
+* **No other bug found outside this lane this session.**
 
 ## What I did NOT do
 
