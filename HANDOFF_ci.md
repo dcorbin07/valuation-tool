@@ -2260,3 +2260,81 @@ honest reading is "I ran the wrong command". Mirror the loop when checking a bra
   generated and hand boards to be compared over four weeks and the generated one deleted if they
   disagree on fewer than two items. They disagree on **8 of 8** today, so the comparison is
   already decisive; the hand file is retired rather than kept running for four more weeks.
+---
+
+## 14. MB34 + MB35 — remote-ref hygiene (2026-08-19)
+
+**Zero trials. No hypothesis, no threshold, no verdict against a bar.** Pure ref operations;
+`origin/main` untouched throughout and verified bit-identical afterwards.
+
+### 14.1 What the remote looked like, measured before anything was touched
+
+| | audit | **measured 2026-08-19** |
+|---|---|---|
+| total remote refs | 68 | **69** |
+| merged `worktree-*` | 64 | **65** |
+| `rescue/*` | 2 | **3** |
+
+**Both discrepancies reconcile and neither is the audit being careless.** The 65th merged branch
+is *this session's own lane*, which did not exist when the audit was written — so the audit's 64 is
+exactly right for its own moment, and the delete count came out at 64 too. The third `rescue/*`
+ref is a genuine omission: **`rescue/wip-main-b6aed72` is named nowhere in the audit.**
+
+### 14.2 MB34 — 64 deleted, ancestry re-checked per delete
+
+The proof is `git merge-base --is-ancestor <sha> origin/main`, and it is re-run **for each ref
+immediately before that ref's own delete** rather than once for the whole list — so a branch that
+had moved since the census would be skipped rather than deleted on a stale check. All 64 passed;
+64 deleted; 0 failed; 1 skipped by name (this session's lane, still in use).
+
+**Verified by RE-CENSUS afterwards, not by intent** — remote went **69 refs → 2 branches + 2
+archive tags**, `origin/main` bit-identical at `7d8cc6e`. That check is deliberate: this project's
+record already contains a handoff claiming three branch deletions when two had run.
+
+### 14.3 MB35 — tag, verify, *then* delete, in that order
+
+**The instructed tag:** `archive/pt-writer-refusal-2026-08-10` → `41d7b12`, the dated failure note
+`CLAUDE.md` cites as the decisive evidence for what blocked `PT-WRITER`, and the only object
+carrying that message.
+
+**A deviation from the audit, taken on measurement.** The audit says `d39ec84` "is a snapshot of
+two generated/handoff files and needs no tag". Measured before deleting: **both its blobs differ
+from `origin/main`** —
+
+| file | at `d39ec84` | on `main` |
+|---|---|---|
+| `LAZY_PRICES_COVERAGE.md` | `2cba9a8` | `e575ebf` |
+| `HANDOFF_STATUS.md` | `3a5e459` | `ff70d8a` |
+
+— and its parent `41d7b12` is not on main either, so deleting the ref would have made both
+versions unreachable. They are almost certainly superseded rather than valuable; **"almost
+certainly" is not the standard this record sets for a deletion**, particularly with the audit's
+census of these same refs already wrong twice. Tagged `archive/rescue-wip-c4a3939-2026-08-10`,
+with the measurement in the annotation.
+
+**And the opposite call, on the same evidence standard.** `ad82faf` (the unnamed third ref)
+**deletes** three `options-bot/quant_bots/options/data/*.py` modules off a parent `d073400` that
+**is** an ancestor of `origin/main` — so it adds no content and deleting it makes nothing
+unreachable. **Deleted without a tag.** That reading was confirmed independently within the hour:
+the same three deletions landed on `main` through the normal route while this session was running.
+
+**Verification at each step, and the one that matters is the last.** Tags created → pushed →
+confirmed on the **remote** by `ls-remote`, dereferencing to `41d7b12cf9e7` and `d39ec848a9a7` with
+the refusal message intact → three branches deleted → **`ls-remote` re-run and both tags still
+present with the same commits.** The whole point of tagging first is that the tag must survive the
+branch, and that is only demonstrable *after* the branch is gone.
+
+### 14.4 THIS IS HYGIENE, NOT A CLOSED HOLE — and the evidence arrived within the hour
+
+Zero `rescue/*` refs remained after MB35. **A new one, `rescue/wip-main-0b472a5`, appeared before
+this session finished**, carrying `f7ecf90 sync_checkout: working-tree snapshot of main @ 07012aa`.
+`sync_checkout` creates these automatically, so the ref count regenerates and **MB34/MB35 are items
+that need re-running, not items that stay done.**
+
+That ref is **deliberately NOT touched**: it is a live snapshot from a concurrent session rather
+than a relic, and the whole discipline here is to look before deleting.
+
+**Anyone re-running this:** `scripts/board_state.py` (MB27) reports the lane census, and the
+per-delete ancestry check is the only safety argument needed — but the `rescue/*` refs are a
+different case and want the tag-then-verify-then-delete sequence above, because a `rescue` ref by
+construction holds something that was *not* on `main`.
