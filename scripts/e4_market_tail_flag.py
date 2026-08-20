@@ -144,8 +144,22 @@ def build(rate: float = RATE) -> pd.DataFrame:
     for d in dates:
         by_year.setdefault(str(d)[:4], []).append(d)
 
+    # RESUME. A 45-minute build that writes once at the end loses everything to any
+    # interruption -- measured, not hypothesised: the first attempt was killed at 15 minutes with
+    # its wrapper and left nothing. The checkpoint is keyed on the SYMBOL set already done, so a
+    # resume neither duplicates a row nor silently skips one.
     rows = []
+    done = set()
+    ckpt = _out(TAIL_PANEL + ".partial")
+    if os.path.exists(ckpt):
+        prev = pd.read_pickle(ckpt)
+        rows = prev.to_dict("records")
+        done = set(prev["symbol"].astype(str))
+        print("resuming: %d rows, %d symbols already done" % (len(rows), len(done)), flush=True)
+
     for i, t in enumerate(names, 1):
+        if t in done:
+            continue
         rc = raw_close_series(bars, t)
         if rc is None:
             continue
@@ -170,12 +184,16 @@ def build(rate: float = RATE) -> pd.DataFrame:
                 spot = float(rc.loc[d]) if d in rc.index else None
                 sub = df.loc[dcol == d]
                 rows.append(mt.tail_mass_row(sub, spot, d, t, rate))
-        if i % 50 == 0:
-            print("  ... %d/%d names, %d rows" % (i, len(names), len(rows)), flush=True)
+        if i % 25 == 0:
+            pd.DataFrame(rows).to_pickle(ckpt)
+            print("  ... %d/%d names, %d rows (checkpointed)" % (i, len(names), len(rows)),
+                  flush=True)
 
     out = pd.DataFrame(rows)
     # RULE 9: the draws land on disk BEFORE anything is summarised.
     out.to_pickle(_out(TAIL_PANEL))
+    if os.path.exists(ckpt):
+        os.remove(ckpt)
     print("wrote %s  rows %d  usable %d" % (TAIL_PANEL, len(out), int(out["usable"].sum())))
     return out
 
