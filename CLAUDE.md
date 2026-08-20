@@ -48,6 +48,92 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE IMPLIED-GROWTH EXPECTATIONS GAP IS REJECTED - AND IT IS THE FOURTH ITEM RUNNING WHOSE
+  MOTIVATION WAS "STRUCTURALLY ORTHOGONAL TO THE INCUMBENTS", CONFIRMED ORTHOGONAL, AND
+  PREDICTING NOTHING (2026-08-19, `MB18`).** `PREREG_mb18_expectations_gap.md` committed **ALONE
+  at `1ee03ac`**, markdown only, 240 lines, a strict ancestor of every measurement commit, with
+  the **equity trial BOOKED AT `be14d0c` BEFORE the instrument was written or run** (equity `N`
+  234 -> 235). **ADOPTS NOTHING** - no file under `valuation/screener`, `valuation/web` or
+  `valuation/engine` changed, pinned by test. The audit called it *"the cheapest genuinely-new
+  equity hypothesis in this audit"* at a ~15% prior.
+  * **REJECTED, AND NOT NARROWLY: the largest |*t*| in ANY cell of EITHER basis is 1.5617 against
+    the 2.71 bar.** Incremental IC *t*, declared sign NEGATIVE, both halves both bases - basis six
+    (69 effective dates) **full -0.6572 / early -0.6173 / late -0.4538**; basis seven (49 dates)
+    **full -0.5055 / early +0.5567 / late -1.5617**. The full-sample sign is negative on both
+    bases as declared, and **basis seven's halves disagree in sign.**
+  * **THE NULL IS BOUNDED AND THE BOUND WAS STATED BEFORE THE RUN - which is exactly what `MB22`'s
+    required-n gate was ported for.** At crit 2.71 and 80% power the design detects **0.4274 SD**
+    (basis six) and **0.5071 SD** (seven), against a measured effect of **-0.0791 SD** - **5.4x
+    below its own detection threshold.** For scale the strongest **RAW** anchor on exactly these
+    rows is `z_fcf_margin` at **0.4346 SD** (raw *t* +3.6097). **So a NULL here means "no effect
+    at least as large as the best thing this panel has ever carried", never "no effect".** The RAW
+    anchors are the right control because `U2` established there is **no valid INCREMENTAL power
+    control here** - every known-real signal is already an INPUT to an incumbent theme, so
+    residualisation removes it by construction (confirmed: the same anchors score incremental *t*
+    of +1.5509 and +0.2563).
+  * **ALL THREE KILLS RAN AND NONE FIRED, AND THE COSTUME RISK WAS REAL IN DIRECTION.** `C2`
+    survives at mean per-date rho vs `value` of **-0.3062** against the audit's 0.60 bar - **but
+    `value` IS the largest |rho| against any of the seven incumbents** (`quality` -0.2227,
+    `capital_discipline` -0.2189, everything else under 0.08), so the audit pointed the right way
+    and was simply not large enough to withdraw the arm. **I registered 30/70 that it would kill
+    the item.**
+  * **THE LOOK-AHEAD PIN IS STRUCTURAL RATHER THAN BY INSPECTION.** `realized_growth` is FORWARD
+    three-year growth - the OUTCOME - and is **never loaded at all**: the loader takes an explicit
+    five-column allowlist, so the arm path cannot reference what is not in the frame, and an AST
+    test asserts no attribute or subscript access anywhere names it (**the syntax tree, not a
+    grep** - `MA49`'s defect, where a fixture failed against the FIXED tree because the repair
+    comment quoted the defect verbatim). Mutation-tested twice, both caught.
+  * **THE COLUMN-NAME TRAP IS THE SHARPEST THING HERE.** The panel already ships a column
+    literally called **`gap`**, and it reproduces **`log(fair_value / price)` at max |delta|
+    0.000e+00** - a **VALUATION** gap, correlating with the expectations gap at only **-0.5251**. A
+    lookup by that name computes cleanly, raises nothing, and answers a different question - **and
+    a much more `value`-like one, i.e. precisely the costume the arm is tested against.** Never
+    loaded. `U2` pinned `term_slope_60_30` out of its arm for the same reason.
+  * **THE ONE RESULT WORTH CARRYING: THE SIGN LIVES IN THE SOLVER'S BOUND, NOT IN THE
+    EXPECTATIONS.** `implied_bounded` is a 3-state flag at 100% coverage - **75,034 free against
+    22,283 `above` and 9,703 `below`, so 30.0% of rows hit a bound** - and the register made it a
+    mandatory PARTITION rather than a pool. **Restricted to the UNBOUNDED rows the sign FLIPS
+    POSITIVE on both bases (+0.2133 and +0.9267).** The verdict does not change either way, **but
+    the small negative full-sample reading is carried by the bounded rows and reverses where the
+    solver ran free, so it may NOT be quoted as weak support for the hypothesis** - a bounded
+    `implied_growth` is a CENSORED value, and censoring correlates with extreme
+    price-to-fundamentals, which is `value` again.
+  * **ORTHOGONALITY IS CONFIRMED AND IS WORTH NOTHING, FOR THE FOURTH TIME.** Mean per-date R2 on
+    the incumbents is **0.1392 / 0.1447**, so the gap is **~86% new information**, exactly as the
+    audit argued - and it predicts nothing. **`U2`, `MA31`/`MA32`, `MA58` and now `MB18`: four
+    items motivated by structural orthogonality, R2 between 0.027 and 0.145, not one clearing its
+    bar.** This file already names that motivation as one nobody should run again; this is the
+    fourth data point and it should settle it.
+  * **TWO THINGS THE AUDIT'S ITEM DOES NOT STATE, BOTH MEASURED.** (1) `panel_s23_fairvalue.pkl`
+    carries **NONE** of the seven incumbent theme columns, so the incremental-IC gate needs an
+    inner join to `panel_corrected_69d.pkl` - **107,020 rows, 69 dates, 2,432 names, 98.87% of the
+    S23 panel** - with `fwd_ret` from the THEME panel. (2) **`MB7`'s date defect reproduces on this
+    third panel**: basis seven leaves **49 of 69 dates from 2014-01-17**, and the RAW split gives
+    **14/34** against a floor of 16 while the EFFECTIVE split gives **24/24**. **Both bases were
+    scored CO-PRIMARY and the arm had to clear BOTH** - taking six alone would be choosing the
+    design to buy power, `MA58`'s void condition 5.
+  * **A DEFECT IN `MB7`'s OWN GATE, FOUND BY BEING ITS FIRST OUTSIDE CALLER AND FIXED THE SAME
+    DAY.** `require_effective_coverage` **REFUSED this register for doing the right thing**, and
+    its own refusal message instructed the register to do what it had just done - because refusal
+    3 keys on a property of the **DATA** rather than on the caller's **BEHAVIOUR**, so it fires
+    whenever the raw split would have been unsafe, which is true of basis seven on every panel.
+    Repaired with a `split_used` argument the caller must **DECLARE**, defaulting to **`"raw"`**
+    so every existing caller is bit-identical and an undeclared caller is still refused;
+    `"effective"` exempts refusal 3 **only**, refusal 2 still guaranteeing both effective halves
+    clear the shipped floor. **`MB7`'s own 22 tests pass unchanged**, four new tests and two
+    mutations pin both directions, and it **charges zero trials** - a correctness repair with no
+    hypothesis and no bar.
+  * **NOT DONE, named so it is not mistaken for done: `realized_growth` was NEVER SCORED, in any
+    direction.** The register permits it only as an ex-post attribution computed after the verdict,
+    and **that attribution was not run**; the column is not loaded at all. **`MB19` and `MB20` are
+    NOT run** - each charges its own equity trial and needs its own blind register. **No claim is
+    made about WHY the unbounded subset flips sign** - the censoring mechanism is a hypothesis, not
+    a measurement. **Expectations 5 right, 1 wrong, 1 split** - the miss being that I put 65/35 on
+    |rho| vs `value` exceeding 0.40 and it is 0.3062, so the candidate is LESS of a `value` costume
+    than I expected, which makes the null slightly more interesting rather than less.
+    **27 new tests, 8 of 8 tripwire mutations caught with sources restored byte-for-byte.**
+    `scripts/mb18_expectations_gap.py`, `data/free_analysis/MB18_EXPECTATIONS_GAP.json`,
+    `MB18_CONTROLS.json`; `HANDOFF_edge_audit.md` MB18.
 - **S22's TERM-STRUCTURE CLAIM SURVIVES THE ONE NULL ITS OWN SHAPE MOST REQUIRED - AND THE
   ARTIFACT IT HAD NEVER BEEN TESTED AGAINST IS REAL, SMALL, AND APPEARS EXACTLY WHERE
   BOUDOUKH-RICHARDSON-WHITELAW SAY IT MUST (2026-08-19, `MB21`).**
