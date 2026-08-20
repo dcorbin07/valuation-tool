@@ -106,6 +106,13 @@ from valuation.edge import research_log as RL               # noqa: E402
 #                                                               which is why this dict is
 #                                                               re-read post-merge and
 #                                                               never quoted from a draft.)
+#   2026-08-20  equity 239 -> 240   RECONCILED, NOT BOOKED. E-2 and E-3 BOTH booked
+#               238 -> 239 concurrently, from the same base, each correctly stamping 239
+#               for its own lane. Merged, the log carries BOTH rows and the true count is
+#               240 while both stamps read 239 -- so E-2's land FAILED on this very test,
+#               which is the tamper-evidence working rather than a defect. Reconciled to
+#               the MEASURED post-merge count, never to either lane's side (MA37). No
+#               third trial was charged: two registers, two trials, 238 -> 240.
 #   ---- the two infra entries above are INDEPENDENT registers landing the same day, and
 #        the dict below is MEASURED post-merge rather than taken from either side.
 #   2026-08-20  infra 18 -> 19                                 (SC-1, 1 trial BOOKED BEFORE the run
@@ -161,7 +168,7 @@ from valuation.edge import research_log as RL               # noqa: E402
 # and separate convention (the master audit lists it under MA21); it belongs to that row, with
 # its own decision about staleness tolerance, not smuggled in here.
 # ---------------------------------------------------------------------------------------------
-EXPECTED_BY_DOMAIN = {"equity": 239, "options": 305, "unified": 0, "infra": 19}
+EXPECTED_BY_DOMAIN = {"equity": 240, "options": 305, "unified": 0, "infra": 19}
 
 
 def _diff(expected, actual):
@@ -333,7 +340,7 @@ def test_the_statistics_N_gates_move_with_it():
     assert RL.trial_count(domain="equity") == n
 
     # The Harvey-Liu-Zhu hurdle the record quotes.
-    assert abs(math.sqrt(2.0 * math.log(n)) - 3.3095206758476405) < 1e-12, (
+    assert abs(math.sqrt(2.0 * math.log(n)) - 3.3107820596777406) < 1e-12, (
         "the HLZ hurdle no longer matches the stamped N")
 
     # The CPCV adopt gate's multiplier. `_trials_haircut` is FLOORED at the log's N, so handing
@@ -465,7 +472,7 @@ def test_ma5_the_two_bars_disagree_today_and_the_gap_only_widens():
 
     assert hlz_hurdle(90) < 3.0 < hlz_hurdle(91), "3.0 is sqrt(2 ln N) at N = 90"
     n = EXPECTED_BY_DOMAIN["equity"]
-    assert abs(hlz_hurdle(n) - 3.3095206758476405) < 1e-12
+    assert abs(hlz_hurdle(n) - 3.3107820596777406) < 1e-12
     assert hlz_hurdle(n) > 3.0, "the derived bar is HARDER than the constant at today's N"
 
     # A statistic in the gap is 'significant' under the constant and is NOT at today's N. This
