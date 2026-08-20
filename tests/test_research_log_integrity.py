@@ -59,6 +59,13 @@ from valuation.edge import research_log as RL               # noqa: E402
 #                                                               side of the conflict. Taking one
 #                                                               side would have mis-stamped a
 #                                                               domain neither lane had wrong.)
+#   2026-08-19  equity 234 -> 235                              (MB18, 1 arm, BOOKED BEFORE
+#                                                               THE RUN. No outcome existed at
+#                                                               the booking commit -- which is
+#                                                               the point: an N that rises only
+#                                                               when a result is worth reporting
+#                                                               understates every multiplicity
+#                                                               correction in the project.)
 #   2026-08-19  infra 15 -> 16                                 (MB21, 1 arm: the persistence-preserving
 #                                                               null for S22. Charged INFRA on the
 #                                                               HACFLOOR / X7RECON precedent -- building
@@ -113,7 +120,7 @@ from valuation.edge import research_log as RL               # noqa: E402
 # and separate convention (the master audit lists it under MA21); it belongs to that row, with
 # its own decision about staleness tolerance, not smuggled in here.
 # ---------------------------------------------------------------------------------------------
-EXPECTED_BY_DOMAIN = {"equity": 234, "options": 305, "unified": 0, "infra": 18}
+EXPECTED_BY_DOMAIN = {"equity": 235, "options": 305, "unified": 0, "infra": 18}
 
 
 def _diff(expected, actual):
