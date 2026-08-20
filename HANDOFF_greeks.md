@@ -732,14 +732,29 @@ built. `MB31` proves no calibrated permutation floor can move below equity `N` =
 FOURTH TIME.** `238 → 239` describes *this item's own booking*. While it ran, two other lanes
 landed `E-2` and `E-3`, each of which had also booked off a base of 238, so **both sides of the
 resulting `EXPECTED_BY_DOMAIN` conflict were wrong** — mine said 239, `origin/main` said 240, and
-the merged log carries all three rows. **The stamp was reconciled to the MEASURED count of 241**
-(options 305, infra 19 untouched) and the HLZ hurdle it drives re-derived to
-**3.312037721249761**, rather than by taking a side, which would have mis-stamped a domain
-neither lane had wrong — `MB22`/`MB23`'s exact situation, resolved the same way. **Keep-both is
+the merged log carries all three rows. **The stamp was reconciled to the MEASURED count**
+(options 305, infra 19 untouched) and the HLZ hurdle it drives re-derived, rather than by taking a
+side, which would have mis-stamped a domain neither lane had wrong — `MB22`/`MB23`'s exact
+situation, resolved the same way. **It then had to be done a THIRD time: `E-6` landed while
+CI was gating this branch, so the live figure is `equity` = 242 and the hurdle
+**3.313287710464241**. **Keep-both is
 right for ROWS and wrong for CONSTANTS:** the nine Season-2 ledger rows were all kept (one each,
 verified), while the stamp is asserted to be assigned **exactly once**, because a duplicated copy
 silently defeats the tamper-evidence it exists for. Equity 241 is still below `MB31`'s 247, so no
 calibrated floor moves.
+
+**AND THE THIRD RECONCILIATION IS THE ONE WORTH CARRYING, BECAUSE THE MERGE WAS CLEAN.** `E-6`
+landed while GitHub was gating this branch — the Action's own annotation reads *"main moved with
+CODE during the gate … re-merging and re-running"* — and it had already reconciled the stamp to
+241. **My branch also read 241. So git saw two identical lines, produced NO CONFLICT, and the
+merged stamp was still WRONG**, because the merged *log* carries both my row and `E-6`'s and the
+measured count is **242**. **Git can see that two lines agree; it cannot see that the quantity
+those lines describe is a function of the file they were merged into.** The record's existing
+lesson is about a *conflicting* stamp (`MB22`/`MB23`, and this item's own second reconciliation);
+**this is the same defect with the conflict removed, which is strictly harder to notice — nothing
+prompts you to look.** The rule that survives is therefore stronger than the one I started with:
+**re-measure `by_domain` after EVERY merge, not only after a conflicting one.** Caught here by
+CI rather than by me, which is the honest version of how it was found.
 
 ## 1. THE VERDICT IS `UNDERPOWERED`, AND THE COMPARISON THE ITEM EXISTS FOR SURVIVES IT
 
