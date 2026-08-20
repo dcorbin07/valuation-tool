@@ -232,6 +232,22 @@ def controls() -> dict:
                     "manifest_sha256": prov.get("manifest_sha256"),
                     "freeze_root": prov.get("freeze_root"),
                     "mutable_store_opened": False}
+    # The covered date set is checked against an INDEPENDENTLY produced object rather than
+    # against my own arithmetic -- `P1S0` built its optionable partition from the same store for
+    # a different question, and if the two disagree one of them is wrong.
+    p1s0 = _data("free_analysis", "P1S0_OPTIONABLE_PARTITION.pkl")
+    if os.path.exists(p1s0):
+        their = set(str(x)[:10] for x in
+                    pd.to_datetime(pd.read_pickle(p1s0)["date"]).unique())
+        mine = set(str(x)[:10] for x in j["date"].unique())
+        rep["C_PIN"]["p1s0_dates"] = len(their)
+        rep["C_PIN"]["my_dates"] = len(mine)
+        rep["C_PIN"]["dates_only_in_p1s0"] = sorted(their - mine)
+        rep["C_PIN"]["dates_only_in_mine"] = sorted(mine - their)
+        rep["C_PIN"]["date_sets_identical"] = bool(their == mine)
+    else:
+        rep["C_PIN"]["p1s0_dates"] = None
+        rep["C_PIN"]["note_p1s0"] = "VACUOUS, not passing: P1S0_OPTIONABLE_PARTITION.pkl absent"
 
     # ---- coverage / C-INSTRUMENT
     reasons = {}
@@ -324,6 +340,27 @@ def controls() -> dict:
         "ratio_flagged_over_kept": (float(mc[m].median() / mc[~m].median())
                                     if m.sum() and (~m).sum() and mc[~m].median() else None),
     }
+    # MA28's C4, and the control that decided three sibling items (`U7`, `S10`, `V6-B`): a flag
+    # that is really a size sort separates only BECAUSE small names crash more. Compared WITHIN
+    # market-cap quintile, formed per date so it is a cross-sectional control and not an era one.
+    qq = q.copy()
+    qq["_capq"] = np.nan
+    for _, g in qq.groupby("date"):
+        v = pd.to_numeric(g["market_cap"], errors="coerce")
+        if int(v.notna().sum()) < 25:
+            continue
+        qq.loc[g.index, "_capq"] = pd.qcut(v.rank(method="first"), 5, labels=False,
+                                           duplicates="drop")
+    by_q = {}
+    for lab in sorted(x for x in qq["_capq"].dropna().unique()):
+        g = qq.loc[qq["_capq"] == lab].rename(columns={"market_flag": "flagged"})
+        po = cg.pooled(g, crash_col="crash", flag_col="flagged")
+        by_q["cap_quintile_%d" % (int(lab) + 1)] = cg.quotable(po, min_events=MIN_EVENTS)
+    rep["C_SIZE"]["within_cap_quintile"] = by_q
+    rep["C_SIZE"]["within_cap_quintile_note"] = (
+        "Quintile 1 is the SMALLEST. Every ratio is withheld where either bucket carries fewer "
+        "than %d crashes -- on this universe most of them will be, and that is the finding "
+        "rather than a gap." % MIN_EVENTS)
 
     rep["all_gating_pass"] = bool(
         rep["C_PIN"]["pinned"]
