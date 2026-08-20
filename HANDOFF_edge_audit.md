@@ -13868,8 +13868,14 @@ derive it rather than copying it from any document including this one.
 `.md`, 262 lines, zero `.py` — a strict git ancestor of every measurement commit.
 
 **Trials: 2, both `infra`. `by_domain` re-read from `research_log.detail()` after merging
-`origin/main`, not quoted: equity 234, options 304, infra 15 → 17.** Equity and options are
-untouched. **Infra `N` gates no published claim** (V1 / M2 / M6 / HACFLOOR / X7RECON precedent),
+`origin/main`, not quoted: equity 234, infra 15 → 17.** Equity and options are untouched by
+this item. **AND THE OPTIONS FIGURE MOVED UNDER ME WHILE LANDING — it reads 305, not the 304
+measured mid-session**, because a concurrent lane booked a trial and its landing collided with
+mine on `tests/test_research_log_integrity.py`. The stamp was reconciled to the **measured**
+post-merge count (`equity 234, options 305, infra 17`, verified against `research_log.detail()`)
+rather than to either side of the conflict — taking one side would have mis-stamped a domain
+neither lane had wrong. The register is left unedited at 304, which was correct when written.
+`MA37`'s rule for the third time in this record: **re-read `by_domain` after a merge.** **Infra `N` gates no published claim** (V1 / M2 / M6 / HACFLOOR / X7RECON precedent),
 and `BACKTEST_RESULTS.json` needs no re-run — per `MA21` the artifact may legitimately LAG the log.
 
 **ADOPTS NOTHING. MOVES NO CLAIM.** Both branches of MB23's bar were pre-committed to move
