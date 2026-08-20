@@ -229,13 +229,69 @@ class TestRegisterDiscipline(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 M.run_arm(REPO, p, os.path.join(td, "o.json"))
 
+    #: Resolved from the item's own files rather than written down, so a rebase or a re-land
+    #: cannot make this check quietly stop looking.
+    LANE_FILES = ("scripts/mb8_sizing_haircut.py", "PREREG_mb8_sizing_haircut.md")
+    LIVE_PATHS = ("valuation/screener", "valuation/web", "valuation/engine", "valuation/edge")
+
     def test_this_lane_touched_no_live_scoring_path(self):
+        """MB8's OWN commits, not the working tree.
+
+        CORRECTED 2026-08-20 (SC-4's lane, reported under RUN_RULES rule 3). The first cut ran
+        `git diff --name-only origin/main -- <live paths>` and required EMPTY. That compares
+        `origin/main` against WHATEVER IS CHECKED OUT, so it never measured MB8 at all: it
+        fails for any lane that touches one of those four directories again, FOREVER. It
+        failed the land gate for an app-fixer change to the public research page — a change
+        with no relationship to MB8 whatever.
+
+        THE SAME DEFECT WAS IN `test_mb18_expectations_gap.py` AND IS FIXED THE SAME WAY. Two
+        copies means this is a TEMPLATE being carried between lanes, not an accident, which is
+        why a repo-wide convention check now forbids the working-tree form outright.
+
+        Scoped to the commits that actually carry MB8's files. That is what the test's own name
+        says, it stays true however the tree moves afterwards, and it is STRICTER in the
+        direction that matters: a working-tree diff goes green the moment such a change is
+        committed and merged, whereas reading the commit cannot.
+        """
         import subprocess
-        r = subprocess.run(["git", "diff", "--name-only", "origin/main", "--",
-                            "valuation/screener", "valuation/web", "valuation/engine",
-                            "valuation/edge"],
-                           capture_output=True, text=True, cwd=REPO)
-        self.assertEqual(r.stdout.strip(), "", "MB8 touched a live path: %r" % r.stdout)
+
+        def _git(*args):
+            r = subprocess.run(("git",) + args, capture_output=True, text=True, cwd=REPO)
+            return r.stdout.strip() if r.returncode == 0 else None
+
+        shas = set()
+        for f in self.LANE_FILES:
+            out = _git("log", "--format=%H", "--", f)
+            if out:
+                shas.update(out.split("\n"))
+        self.assertTrue(shas, "no commit carries MB8's own files — this check sees nothing")
+
+        touched = set()
+        for sha in shas:
+            out = _git("show", "--name-only", "--format=", sha, "--", *self.LIVE_PATHS)
+            if out:
+                touched.update(l for l in out.split("\n") if l.strip())
+        self.assertEqual(sorted(touched), [],
+                         "MB8's own commits touched a live path: %r" % sorted(touched))
+
+    def test_the_live_path_check_can_actually_fail(self):
+        """Positive control: the check above passes by finding NOTHING, which is also what a
+        broken lookup returns. The commit is FOUND rather than typed, so it cannot go vacuous
+        while the repository has any history."""
+        import subprocess
+
+        def _git(*args):
+            r = subprocess.run(("git",) + args, capture_output=True, text=True, cwd=REPO)
+            return r.stdout.strip() if r.returncode == 0 else None
+
+        out = _git("log", "--format=%H", "-n", "1", "--", *self.LIVE_PATHS)
+        self.assertTrue(out, "no commit in history touches a live path — history unreadable")
+        sha = out.split("\n")[0]
+        shown = _git("show", "--name-only", "--format=", sha, "--", *self.LIVE_PATHS)
+        touched = [l for l in (shown or "").split("\n") if l.strip()]
+        self.assertTrue(touched,
+                        "the mechanism returned nothing for a commit that touches a live "
+                        "path (%s) — the check above passes by seeing nothing" % sha[:8])
 
     def test_adoption_is_routed_never_taken(self):
         src = _src()

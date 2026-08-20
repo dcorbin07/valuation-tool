@@ -25,6 +25,7 @@ it, because leading means rows left the log after the artifact counted them.
 """
 import json
 import os
+import ast as _ast
 import re
 import subprocess
 import sys
@@ -153,6 +154,94 @@ class LedgerRowsNameRealCommits(unittest.TestCase):
         if not HAVE_GIT:
             self.skipTest("git unavailable")
         self.assertFalse(any(f.startswith("dead1234beef") for f in self.all_shas))
+
+
+class NoSuiteAssertsOnAWorkingTreeDiff(unittest.TestCase):
+    """A lane-scope check must read its own COMMITS, never the checked-out tree.  [SC-4]
+
+    MEASURED, NOT ANTICIPATED. Two suites shipped the same construction within two days --
+    `test_mb18_expectations_gap.py` and `test_mb8_sizing_haircut.py`, each with a
+    `test_this_lane_touched_no_live_scoring_path` running `git diff --name-only origin/main --
+    <live paths>` and requiring the output to be EMPTY. That compares `origin/main` against
+    WHATEVER IS CHECKED OUT, so it does not measure the lane that wrote it at all: it becomes a
+    permanent tripwire on whole directories, owned by an item that has already landed, and it
+    fires on the next lane to touch one of them. It failed a land gate for an app-fixer change
+    to the public research page, which had no relationship to either item.
+
+    TWO COPIES IS A TEMPLATE, NOT AN ACCIDENT, which is why this is a convention rather than
+    two repairs.
+
+    IT READS THE SYNTAX TREE, AND THE FIRST CUT DID NOT -- IT GREPPED, AND FAILED AGAINST A
+    CORRECT TREE ON ITS OWN POSITIVE CONTROL, whose planted example necessarily contains the
+    forbidden text. That is `MA5`'s hurdle sweep firing on its own documentation and
+    `MA49(c)`'s fixture firing on the comment describing its repair, met a third time. Stripping
+    strings the way `MA5` did is not available here, because the thing being forbidden IS a list
+    of string constants -- so the distinction has to be a CALL versus a string that merely
+    contains those words, which only the AST can draw.
+
+    THE RULE IS NARROW ON PURPOSE: it forbids a call passing both `diff` and `origin/main`.
+    `git show`, `git log`, and a diff between two named commits are all untouched, because
+    those read history rather than the working copy.
+    """
+
+    @staticmethod
+    def _offending_calls(src):
+        """Calls that pass both `diff` and `origin/main` as literal arguments."""
+        try:
+            tree = _ast.parse(src)
+        except SyntaxError:                            # pragma: no cover - not a python suite
+            return []
+        out = []
+        for node in _ast.walk(tree):
+            if not isinstance(node, _ast.Call):
+                continue
+            consts = set()
+            for sub in _ast.walk(node):
+                if isinstance(sub, _ast.Constant) and isinstance(sub.value, str):
+                    consts.add(sub.value)
+            if "diff" in consts and "origin/main" in consts:
+                out.append(getattr(node, "lineno", 0))
+        return out
+
+    def _suites(self):
+        d = os.path.join(ROOT, "tests")
+        return [os.path.join(d, f) for f in sorted(os.listdir(d))
+                if f.startswith("test_") and f.endswith(".py")]
+
+    def test_no_suite_diffs_the_working_tree_against_origin_main(self):
+        bad = []
+        for path in self._suites():
+            with open(path, encoding="utf-8") as fh:
+                src = fh.read()
+            if self._offending_calls(src):
+                bad.append(os.path.basename(path))
+        self.assertEqual(
+            bad, [],
+            "these suites assert on a working-tree diff against origin/main, which measures "
+            "whatever is checked out rather than the lane that wrote them, and becomes a "
+            "permanent tripwire for every later lane: %s. Read the commits carrying the "
+            "lane's own files instead." % bad)
+
+    def test_the_working_tree_diff_check_can_actually_fail(self):
+        """Positive control. The check above passes by finding NOTHING across every suite,
+        which is exactly what a broken matcher also returns.
+
+        The example is PARSED rather than searched, which is the whole difference: as a string
+        in this file it is prose about the defect, and only parsing it makes it the call the
+        rule forbids.
+        """
+        planted = ('import subprocess\n'
+                   'r = subprocess.run(["git", "diff", "--name-only", "origin/main", "--",\n'
+                   '                    "valuation/web"], capture_output=True)\n')
+        self.assertTrue(self._offending_calls(planted),
+                        "the matcher no longer sees the construction it exists to forbid")
+
+    def test_the_check_does_not_fire_on_a_commit_to_commit_diff(self):
+        """Reading history is fine; only the working tree is forbidden."""
+        ok = ('import subprocess\n'
+              'subprocess.run(["git", "diff", "--name-only", "a1b2c3d", "e4f5a6b"])\n')
+        self.assertFalse(self._offending_calls(ok),
+                         "the rule fires on a legitimate commit-to-commit diff")
 
 
 class RegistersAreCommittedBlind(unittest.TestCase):

@@ -271,6 +271,40 @@ rm ".git/refs/heads/worktree-scout-season2.lock.stale.1381"
 
 ---
 
+## 5d. The land failed, and the same defect turned out to be a TEMPLATE
+
+The push landed nothing: the gate failed on `tests/test_mb8_sizing_haircut.py`, a suite that
+landed on `main` after the merge above and **carries a verbatim copy of `MB18`'s defect** —
+same `test_this_lane_touched_no_live_scoring_path`, same working-tree diff against
+`origin/main`, one directory wider. **Two copies in two days is a template being carried
+between lanes, not an accident**, and every app-fixer lane touching `valuation/web/` would
+have hit it indefinitely.
+
+Fixed the same way, with the same non-vacuous positive control. **And a repo-wide convention
+now forbids the construction outright** (`test_ma60_conventions.py`): no suite may call `git
+diff` with `origin/main` as an endpoint. `git show`, `git log` and a diff between two named
+commits are untouched, because those read history rather than the working copy.
+
+**THE CONVENTION'S FIRST CUT GREPPED AND FAILED AGAINST A CORRECT TREE — ON ITS OWN POSITIVE
+CONTROL**, whose planted example necessarily contains the forbidden text. That is `MA5`'s
+sweep firing on its own documentation and `MA49(c)`'s fixture firing on the comment describing
+its repair, met a third time **in a paragraph I had just written about that family**. Stripping
+strings the way `MA5` did is not available here, because the thing being forbidden **is** a
+list of string constants — so the distinction has to be a CALL versus prose that contains those
+words, which only the syntax tree can draw. **Verified against the real defect rather than the
+planted one: the matcher flags both pre-fix files at their exact lines (251 and 234) and is
+clean on both after.**
+
+**THE CORRUPT REF WAS REMOVED AFTER ALL, AND THE REASON CHANGED.** Section 5c recorded it as
+cosmetic and left it alone. It then **blocked `git fetch` outright** — `did not send all
+necessary objects` — so this worktree could not sync to verify the land at all. Re-checked
+before touching it: **zero bytes, pointing at all-zeros, the real branch intact at `25e9a05b`,
+and absent from `origin`**, so nothing could be lost. Removed; `git rev-list --all` now returns
+1,109 commits and `test_ma60_conventions.py` goes green, which is what that suite had been
+failing on all along.
+
+---
+
 ## 6. An honest weakness in what this renders, reported rather than tuned away
 
 **A THIRD OF THIS WEEK'S ENTRIES BUCKET AS "OTHER VERDICT" — 25 of 75.** `bucket()` recognises
