@@ -285,17 +285,47 @@ def test_the_panel_share_is_derived_from_the_row_counts_and_not_typed():
 
 
 def test_the_size_caveat_rides_only_on_the_rows_it_is_true_of():
-    """The effect runs -3.79pp in the largest tier against -14.29pp in the smallest, and the
-    live book is megacap-tilted — so on this surface the caveat applies to most of what a
-    reader sees. It must not appear on a row whose tier is unknown."""
+    """The effect is weakest in the largest tier and the live book is megacap-tilted — so on
+    this surface the caveat applies to most of what a reader sees. It must not appear on a row
+    whose tier is unknown."""
     big = dip_risk.for_name(0.35, 1.0, 80.0,
                             market_cap=dip_risk.TOP_QUINTILE_MEDIAN_MCAP * 2)
     unknown = dip_risk.for_name(0.35, 1.0, 80.0,
                                 market_cap=dip_risk.TOP_QUINTILE_MEDIAN_MCAP * 0.5)
     assert big["weakest_size_tier"] is True and big["size_caveat"], big
     assert unknown["weakest_size_tier"] is None and unknown["size_caveat"] is None, unknown
-    assert "-3.79" in big["size_caveat"] and "-14.29" in big["size_caveat"], big["size_caveat"]
+    assert "weakest" in big["size_caveat"], big["size_caveat"]
     assert not dip_risk.violations(big["size_caveat"])
+
+
+def test_mb10_no_per_tier_gap_reaches_the_payload():
+    """MB10. The per-tier figures are absolute GAPS and the artifact publishes no rates behind
+    them, so no per-tier ratio exists and the gaps cannot be compared like for like.
+
+    `MA28-CARD`'s rule — the ratio and both rates, never the difference — therefore forbids
+    quoting them at all here rather than merely preferring a different form. The direction is
+    stated, the magnitude is refused, and the refusal says why.
+
+    This pin replaces one that REQUIRED the gaps to be present. It is strictly stronger: it
+    checks the constants survive as the record AND that neither reaches a reader.
+    """
+    assert dip_risk.SIZE_STRONGEST_PP == -14.287, "the measured record was deleted, not hidden"
+    assert dip_risk.SIZE_WEAKEST_PP == -3.787
+
+    rendered = " ".join(str(v) for v in dip_risk.for_name(
+        0.35, 1.0, 80.0, market_cap=dip_risk.TOP_QUINTILE_MEDIAN_MCAP * 2).values())
+    rendered += " " + dip_risk.SIZE_CAVEAT + " " + dip_risk.METHOD_NOTE
+    for gap in ("14.29", "14.287", "3.79", "3.787", "-14.2", "-3.7"):
+        assert gap not in rendered, f"a per-tier gap reached the payload: {gap!r}"
+
+    # ...and the refusal must SAY why, or it reads as an omission a later edit will "fix".
+    low = dip_risk.SIZE_CAVEAT.lower()
+    assert "not quoted" in low, "the caveat hides the magnitude without saying it is refused"
+    assert "rate" in low, "the caveat does not give the reason the tiers are incomparable"
+
+    # The control: the check can fail. A caveat carrying the gap must trip it.
+    planted = dip_risk.SIZE_CAVEAT + " -3.79 against -14.29."
+    assert any(g in planted for g in ("14.29", "3.79")), "the gap check is vacuous"
 
 
 def test_the_rendered_payload_carries_no_banned_phrasing():

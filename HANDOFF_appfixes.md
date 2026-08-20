@@ -5,6 +5,360 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 43 — 2026-08-19 — `MB10` + `MB11`: two disclosures, and neither is a signal
+
+**BOTH ZERO-TRIAL DISPLAY ITEMS.** No hypothesis, no threshold, no verdict against a bar, so no
+`RESEARCH_LOG.md` row and `by_domain` is untouched. Nothing under `valuation/edge/` changed and
+no research figure moved.
+
+---
+
+## 0. The premise check, and it removed most of `MB10`
+
+**`MB10` ASKS FOR SOMETHING THAT IS ALREADY SHIPPED.** The item's deliverable is *"on the
+existing dip surface, state the gradient and where the displayed name sits in it"*. Measured
+before writing anything: **`valuation/web/dip_risk.py` already does both.** It classifies each
+screened name into `M1`'s two measured classes, carries that class's historical rate, and
+renders `SIZE_CAVEAT` on exactly the rows in the largest tier — with `weakest_size_tier`
+deliberately **True-or-unknown and never False**, because the artifact publishes each
+quintile's MEDIAN market cap and **not its edges**, so a name below the top median cannot be
+placed at all.
+
+So the genuinely open part of `MB10` is the one the brief names: **`MA28-CARD`'s rule.** And
+that turned out to bite harder here than it did there.
+
+---
+
+## 1. `MB10` — the rule, and why it forbids the number rather than reshaping it
+
+`MA28-CARD`'s rule is **quote the RATIO and BOTH RATES, never the difference**, because a
+difference moves with the base rate underneath it and can end up describing neither stratum.
+
+**THE ARTIFACT MAKES THE RATIO UNCOMPUTABLE.**
+`diagnostics.D2_m1_within_market_cap_quintiles` publishes, per quintile: `full_diff_pp`,
+`full_t`, its own permutation floor, `n_rows`, `n_dates` and `median_mcap`. **It does not
+publish the two rates the difference is between.** There is therefore no measured number from
+which a per-tier ratio can be derived, and the shipped caveat's **−3.79pp against −14.29pp**
+could not be converted into the form the rule requires.
+
+**AND THAT IS NOT A FORMATTING PROBLEM — IT IS AN INTERPRETATION ONE.** Whether the effect is
+genuinely ~3.8× stronger in small companies, **or whether small companies simply fall a further
+20% more often so an identical proportional reduction shows up as a bigger gap, IS NOT
+DECIDABLE FROM THE ARTIFACT.** Quoting the gaps invites the first reading. Only rates nobody
+published could rule out the second.
+
+So: **the direction is stated, the magnitude is refused, and the refusal says why.**
+
+* `SIZE_STRONGEST_PP` and `SIZE_WEAKEST_PP` **stay** as the record of what was measured, and
+  are pinned **never to reach the payload** — `MB38`'s pattern, where an operand a surface must
+  compare against is kept in the module and kept off the page. Deleting a measured figure to
+  make a copy rule easy to obey is how a record loses the thing it was keeping.
+* **The same rule was applied to `dip_posture.RISK_DETAIL`**, which read *"a 10.8-point
+  absolute reduction, or about a quarter fewer in relative terms"* and now carries the ratio
+  with both rates. One surface should not run two conventions.
+
+**STATED HONESTLY, BECAUSE THE REASON DIFFERS FROM `MA28-CARD`'s.** MA28's base rate moved
+about **fourfold** between halves, which is what made *its* absolute gap uninformative. V6-B's
+does not: its per-date gap reads **−9.06pp early against −11.51pp late**. So the 10.8-point
+figure was **not** misleading in the way MA28's would have been. It comes off for consistency
+across the two disclosure surfaces, and because the ratio and both rates say everything it said
+and travel correctly. Borrowing a rule while pretending its *reason* transferred would be the
+easy version of this and it is not what happened.
+
+**TWO SHIPPED PINS WERE REPLACED, AND BOTH REPLACEMENTS ARE STRICTLY STRONGER.**
+`tests/test_dip.py` **required the absolute gap to be present**; it now requires the ratio and
+both rates present **and** the gap absent. `tests/test_dip_risk.py` required `-3.79` and
+`-14.29` inside `size_caveat`; it now requires that **no** per-tier gap reaches the payload in
+any form, that the constants survive as the record, and that the refusal states its reason —
+with its own vacuity control. **Changing a pin because the convention deliberately changed is
+not `RUN_RULES` A5's forbidden move; weakening one to get green is, and neither replacement is
+weaker in any direction.**
+
+---
+
+## 2. `MB11` — the optionable partition, reported and not used
+
+New `valuation/web/optionable_partition.py` owns every sentence and every figure; a new section
+on `portfolio.html` (`/work`) renders it and holds no copy of its own.
+
+**THE AUDIT'S ARITHMETIC IS VERIFIED RATHER THAN QUOTED, AND ALL SIX FIGURES REPRODUCE
+EXACTLY** — the full panel's arm from `P1S0_CONTROL.json` (`horizons.*.full_panel`) and the
+optionable arm from `P1S0_GATE.json` (`modes.pit_liquid.arms`):
+
+| held for | 2016–2020 all / optionable | gap | 2021–2025 all / optionable | gap |
+|---|---|---|---|---|
+| next quarter | +4.28% / +2.82% | **+1.467pp** | +14.60% / +24.31% | **−9.704pp** |
+| next year | +6.04% / −0.08% | **+6.124pp** | +11.85% / +22.78% | **−10.927pp** |
+| next two years | +2.04% / +0.52% | **+1.527pp** | +9.73% / +11.29% | **−1.555pp** |
+
+**THE COPY LEADS WITH THE REVERSAL**, not with either half: a description that changes sign
+between the two halves of its own sample is the last thing anyone should carry forward.
+
+**THREE MEASURED REASONS IT CARRIES NO FORECAST, ALL THREE ON THE SURFACE:**
+
+1. **The attribution failed.** `P1S0-CONTROL`'s pre-committed rule was *both legs clear →
+   UNIVERSE, both fail → PERIOD, anything else → NULL*. It returned **NULL**.
+2. **The full panel did not sort either in that window.** Over 2016–2020 the whole 2,531-name
+   panel ran its deciles **backwards** at all three horizons (monotonicity +0.115, +0.152,
+   +0.248). So the early weakness is at least partly a fact about those five years, for
+   everything — not a fact about options-listed companies.
+3. **The family is closed** on the evidence and stays closed; nothing here reopens it.
+
+The surface states `P1S0-CONTROL`'s own summary — **a weak PERIOD and a weaker UNIVERSE at
+once, inseparable by that gate** — and then refuses the causal sentence a reader builds unaided.
+
+**WHY THE FIGURES ARE DIFFERENCES HERE AND RATIOS ON THE DIP SURFACE**, said in the module
+rather than left as an inconsistency: `MA28-CARD`'s rule governs a **rate**. These are
+annualised alpha, and a ratio of alphas is uninterpretable because **both sides cross zero** —
+the optionable subset's own H=252 early figure is **negative**. So both sides are printed beside
+every gap, which is the ratio rule's actual purpose: **never publish one number that hides the
+two it came from.**
+
+---
+
+## 3. The guard that must not defeat its own item
+
+`BANNED` carries FORECAST, RECOMMENDATION and **ATTRIBUTION** — the causal claim the register
+was built to test and explicitly could not make, and the most tempting family here because the
+late column invites it.
+
+**DELIBERATELY NOT BANNED: ordinary past-tense description.** Banning "outperform" outright
+would forbid stating the finding the surface exists to state. **The line is the TENSE, not the
+verb**, and `test_past_tense_description_stays_sayable` **fails** if that stops being true. A
+guard that forbids its own item's deliverable is not a guard.
+
+---
+
+## 4. A defect in my own work — the third instance of this family in two sessions
+
+**THE BANNED TUPLE, RUN AGAINST THE WHOLE `/work` PAGE, FIRED ON `tradable`, `buy` AND `sell`
+IN OTHER ITEMS' SENTENCES.** That is `MA28-CARD-UI`'s hand-typed-phrase-list defect, and the
+same shape as last session's boast check firing on the word **provenance**.
+
+`dip_posture` asserts its tuple against the whole rendered page because it **owns** that page.
+`/work` carries nine sections written by different items. The rule is now asserted against
+**this item's own rendered section** — still the rendered payload, because rendering is where
+copy leaks, but scoped to the copy this item owns. Policing another item's prose is not this
+guard's job and would be switched off inside a week.
+
+Two smaller ones, both caught by reading the render: the panel count rendered as `2531` rather
+than `2,531`, and the callout heading was **typed into the template** and duplicated
+`NOT_A_FORECAST`'s first sentence word for word directly above it — a second place a sentence
+lives, which is the defect `dip_posture` was made a module to prevent.
+
+---
+
+## 5. Verification
+
+* **`tests/test_optionable_partition.py` 14/14** (new), `tests/test_dip_risk.py` **46/46**,
+  `tests/test_dip.py` **46/46**, `tests/test_private.py` **30/30**.
+* **13 mutations, 13 caught, 0 missed**, sources restored byte-for-byte; `-B`,
+  `PYTHONDONTWRITEBYTECODE=1` and a `__pycache__` purge.
+* `/work` is still **byte-identical across requests** and still makes **no `/api/` call** — the
+  new module takes no argument, reads no store and has no clock, pinned by AST.
+* Full gate run by **exit code**, never by grepping for `OK`.
+
+---
+
+## 6. Not done, named so it is not mistaken for done
+
+* **`MB10`'s sizing version is NOT built and is recommended against by the audit itself** — it
+  costs an equity trial and its kill condition is nearly pre-decided, since `V6-B` already
+  measured the megacap separation.
+* **The per-tier rates were NOT re-derived.** Recomputing `D2` would need the panel and belongs
+  to the edge lane; this lane reports what the artifact publishes and refuses what it does not.
+* **`MB39` is NOT started** — `S28`'s own distribution of the headline is the strongest
+  remaining card and needs its own session.
+* **`MB11` is on `/work` and NOT on the hot list.** A return-difference figure beside a list of
+  named tickers is exactly the per-name misreading `V3`'s rules exist to stop; `/work` already
+  publishes alpha figures with their caveats and carries no tickers.
+* **`.github/` untouched**, as instructed.
+
+---
+
+# Session 42 — 2026-08-19 — `MB38`: publish the denominator, and the headline failing it
+
+**THE RESEARCH PAGE NOW PUBLISHES HOW MANY THINGS THIS PROJECT TRIED, THE BAR THAT COUNT
+DEMANDS, AND THE FACT THAT ITS OWN HEADLINE DOES NOT CLEAR IT.** Three numbers and one
+paragraph appended to `/work/research`, which already existed. Nothing else on the page moved
+except one sentence that the new section made untrue. **ZERO TRIALS** — a display surface over
+a count that was already derived for the Deflated Sharpe: no hypothesis, no threshold, no
+verdict against a bar, so no `RESEARCH_LOG.md` row and `by_domain` is untouched.
+
+---
+
+## 0. The kill condition, run before any copy existed — which is what the item asked for
+
+`MB38`'s own instruction: *"If `withhold()` cannot be made to pass a trial count and a derived
+hurdle without also passing a performance figure, do not ship — the posture wins, and the
+failure is itself worth recording. Test it against the existing assertion that the rendered
+page contains no performance figure before writing any copy."*
+
+**MEASURED FIRST, against the shipped guard, unmodified:**
+
+| probe | result |
+|---|---|
+| trial counts `234` / `304` / `15` / `553` | **pass** — plain integers are not figures, by design |
+| both verdict words | **pass** |
+| the hurdle at `3.3031`, `3.30`, `3.3` | **`[figure withheld]` at every precision** |
+
+**SO IT FIRES AS SHIPPED**, because `_FIGURE`'s effect-size branch is a bare decimal and a
+multiplicity hurdle is one. The item's wording is *"cannot be **made** to"*, so the live
+question was whether the guard could be made to admit the hurdle **and nothing else**.
+
+**IT CAN, AND THE ARGUMENT IS THAT TWO DIFFERENT KINDS OF NUMBER WERE BEING CAUGHT BY ONE
+PATTERN.** `sqrt(2 * ln N)` is arithmetic on a count of this project's own decisions. It
+carries no vendor data, says nothing whatever about how the strategy performed, and is
+identical for any project that ran the same number of tests. That is not the thing the
+withholding rule exists to stop.
+
+**THE HOLE IS EXACTLY ONE STRING WIDE, AND THAT IS MEASURED RATHER THAN ASSERTED.**
+`contains_figure` now iterates `_FIGURE`'s matches and exempts a match only if it is,
+character for character, a hurdle **derivable from the register right now**:
+
+* **`13.3031` still fires** — a different number, and the exemption matches whole `_FIGURE`
+  matches, never substrings. A `replace()`-based version would have reduced it to `1` and
+  reported no figure; that mutation is in the harness and is caught.
+* **`3.3031%` still fires** — the percent branch matches the unit along with the digits, and a
+  percentage is a performance figure whatever its digits are.
+* **`t 3.3031` and `alpha 3.3031` still fire** — the statistic-name branch matches `t 3`.
+  **Naming it as a statistic brings it straight back under the rule.**
+* 24 adversarial strings tested; **24 fire**.
+
+**AND IT FAILS CLOSED TWICE OVER.** The exemption is **derived**, never typed, so it cannot rot
+into a literal; and it is **empty whenever the register cannot be read**, so a broken parse
+CLOSES the guard rather than opening it. The section on the page disappears in the same case —
+show nothing rather than something wrong.
+
+**`withhold()` DELIBERATELY DOES NOT GET THE EXEMPTION.** It is the redactor for text this page
+does not own — log rows, register titles — and stays maximally conservative there. The
+exemption belongs only to the question *"would this publish a performance figure"*, asked of
+the page's own rendered output, where the hurdle is a value the page derived a moment earlier.
+`test_the_rendered_page_contains_no_performance_figure` was green before this session and is
+green now, with the hurdle on the page.
+
+---
+
+## 1. What ships
+
+`valuation/web/research_record.py` gains `multiplicity()`, and the template gains one section.
+
+**N BY DOMAIN, DERIVED AT RENDER**, from `research_log.detail()` — the same parse that sets the
+trial denominator inside the Deflated Sharpe, so the published count cannot drift from the one
+the model uses. A test asserts that equality directly: publishing a denominator the model does
+not use would be worse than publishing none.
+
+**ONE NAMING CORRECTION MADE ON THE WAY IN, because two quantities were sharing a word.** The
+tally section directly above already calls its ROW count *"searches"*; the new total is a TRIAL
+count, and one logged row can carry a whole grid and be charged once per setting. A reader
+comparing the two would have concluded something was broken. The new tile reads **Total
+trials**, and the lede now says why it exceeds the entry count above it.
+
+**THE HURDLE IS NOT COMPUTED HERE.** `sqrt(2 * ln N)` is written exactly once in the shipped
+package, in `statistics.hlz_hurdle` — `MA5`'s rule — and this module delegates. **The first cut
+did not, and `MA5`'s own guard named this file**: a fifth copy of that expression, written by a
+lane that had the warning in view. Fixed, and pinned locally by an AST test that fails if this
+module ever computes a square root or a logarithm of its own.
+
+**THE VERDICT WORD, AND THE STATISTIC STAYS WITHHELD.** `HEADLINE_STATISTIC` and
+`PLACEBO_FLOOR` are module constants because the page performs a **real comparison** — a verdict
+word derived from invented operands would be worthless — and a test asserts that **neither
+reaches the payload or the HTML**. Flip the statistic and both words flip; that is what proves
+they are compared rather than typed.
+
+**WHAT THE READER CAN AND CANNOT RECOVER, said on the page rather than glossed:** knowing the
+headline falls short of the bar puts a **ceiling** on it. It does not give its value. The
+calibrated floor's value is withheld too, so the published pair is one-sided.
+
+---
+
+## 2. The audit's own denominator was stale again — twice, inside this session
+
+`MB38` quotes *"549 pre-registered trials — equity 234, options 300, infra 15"* at a hurdle of
+3.3031.
+
+| when | equity | options | infra | total |
+|---|---|---|---|---|
+| the audit's text | 234 | 300 | 15 | 549 |
+| measured pre-merge | 234 | 302 | 15 | 551 |
+| measured after merging `origin/main` mid-session | 234 | **304** | 15 | **553** |
+
+**The page followed both moves with no edit to anything.** A count typed onto a public surface
+would have been wrong twice in one sitting, and a stale denominator is not a cosmetic problem —
+it is a false claim about multiplicity on a page whose entire subject is multiplicity. Equity
+held at 234, so the hurdle is still 3.3031; that is luck, not design, and it is exactly why the
+count is derived.
+
+---
+
+## 3. Both sides of the record's own tension
+
+The paragraph states both and does not choose the flattering one:
+
+* the headline **does not clear** the trial-counting hurdle;
+* it **does clear** a second bar that was **measured rather than assumed** — a hundred
+  deliberately worthless signals pushed through the identical pipeline, with the bar set where
+  only the luckiest one in twenty of them reached;
+* **`R4`'s registered caveat, stated once and not argued**: the trial-counting hurdle prices the
+  best of N attempts, and the deployed model is not the best of anything — flat weights, chosen
+  in advance, never tuned — so the counted trials are overwhelmingly alternatives that were
+  rejected, not candidates it beat.
+
+**A CORRECTION TO THE PAGE'S OWN POSTURE COPY, which the new section made untrue.** It read
+*"no return, no t-statistic, no threshold"*. The bar **is** threshold-shaped. It now says what
+the one number is and why it is not a performance figure. **A page whose own stated rule is
+false is worse than a page with no rule**, and this page's only claim is that it says true
+things about itself.
+
+---
+
+## 4. Three defects in my own work
+
+1. **THE COPY MIS-DESCRIBED THIS PROJECT'S OWN INSTRUMENT.** The first draft said the calibrated
+   bar was set at *"what the best of them managed"*. X7's floor is the **95th percentile** of
+   100 placebo draws, not their maximum. It would have overstated the bar on a public page.
+2. **MY BOAST CHECK WAS `MA28-CARD-UI`'s DEFECT, EXACTLY.** It searched the whole rendered page
+   for the substring `"proven"` and failed against a correct tree on the word **PROVENANCE** in
+   a log row — a hand-typed phrase list firing on innocent pre-existing text. It is now
+   word-boundaried and scoped to the copy **this item owns**, since the log's prose is not this
+   item's to police, and it carries its own vacuity check.
+3. **MUTATION FOUND A REAL GAP, not just a defective mutation.** Every fail-closed test replaced
+   `multiplicity()` wholesale, so **nothing ever entered its own `except` branch** — a mutation
+   making that branch return `available: True` with a typed hurdle survived the entire suite.
+   A test for it was added. (Two mutations in my first harness were also defective — a no-op
+   `if False: pass`, and one that edited only the caveat's tail while the assertion checked its
+   head. Both were the harness's fault and both were re-anchored; the second exposed that the
+   caveat test checked one phrase of three, which is now fixed.)
+
+---
+
+## 5. Verification
+
+* **`tests/test_research_page.py` 29/29**, up from 13 — **16 new**, including the kill condition
+  itself, made permanent so a later change to `_FIGURE` cannot quietly re-break it either way.
+* **10 mutations, 10 caught, 0 missed**, sources restored byte-for-byte; run with `-B`,
+  `PYTHONDONTWRITEBYTECODE=1` and a `__pycache__` purge.
+* The pre-existing `test_the_rendered_page_contains_no_performance_figure` is **green
+  throughout**, with the hurdle rendered — verified non-vacuously by dumping the rendered
+  section and confirming all four counts, the hurdle and both verdict words are present.
+* Full gate run by **exit code**, never by grepping for `OK`.
+
+---
+
+## 6. Not done, named so it is not mistaken for done
+
+* **`MB39` and `MB40` are NOT started.** `MB39` (a second disclosure card on `S28`'s own
+  distribution of the headline) is the strongest remaining pioneer item and needs its own
+  session; `MB40` ranks last by the audit's own reasoning.
+* **No `RESEARCH_LOG.md` row** — zero trials, and adding one would move the very denominator
+  this page publishes.
+* **The page is owner-only under private mode**, as `/work` and `/methodology` are. That gate
+  was not touched.
+* **`.github/` untouched**, as instructed.
+* **Nothing in `valuation/edge/` changed**, and no research figure moved.
+
+---
+
 # Session 41 — 2026-08-19 — `MB25` + `MB26`: the TIDEMARK surface
 
 **A SECOND PROJECT'S PHASE-1 RESULT NOW HAS A PAGE HERE, AND THE PAGE'S WHOLE CONTENT IS A
