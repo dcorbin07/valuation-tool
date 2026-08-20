@@ -145,6 +145,31 @@ audit's own claim that `U2`/`MA31`/`MA32` inherited it is **false** — they sco
 layer and are immune by construction, which is exactly the rule: **you are exposed only if your covered
 window reaches back before 2014-01-17.**
 
+**11. State your MINIMUM DETECTABLE EFFECT before you run, and say which one it is.**
+A register that cannot detect its own hypothesis has already decided its answer, and it decides it the
+flattering way: it returns a null that reads as "absent" when it means "invisible at this resolution". Print
+one line, from `power_gate.state(effect, se, n_trials=...)` so the arithmetic is not retyped:
+
+> `MDE at |t| > 3.3031 (N = 234): detection threshold X (50% power); Y at 80% power. Power against the
+> registered effect Z is P%.`
+
+**The two numbers are different quantities and this project has only ever published the first.** `S19`'s
++0.020549, `V2G`'s 1.8708pp and `V6`'s +4.177pp are all `crit × se` — the effect at which the *point
+estimate* would just reach the bar, which is detected **half the time**. The 80%-power figure is
+`(crit + 0.84) × se`, **1.42× larger at `crit = 2.0`**. Neither is wrong; quoting one as the other is.
+`V2G` is the proof they are one quantity read twice: it published 1.8708pp *and* computed its own power at
+55%, and `power_gate.power_at(1.95, 0.9354, crit=1.96)` reproduces that 55.0% exactly.
+
+Cost so far: `S19` and `V6` both returned nulls their designs could not have distinguished from a true
+effect — `S19`'s observed +0.0122 sits **below its own detection threshold** — and each derived the figure
+by hand, differently, *after* the run. `MA58-SEAS` returned `UNINTERPRETABLE` on the same axis.
+
+**What this rule is NOT: a check.** Nothing greps `PREREG_*.md`, nothing warns, nothing fails a build.
+~68 historical registers state no MDE in this form, so a sweep would fire on essentially all of them and be
+switched off inside a week — `MA21` refused exactly that once already (a blank-verdict warning would have
+fired on 41 legitimate ledger rows) and `MB30` refuses it again. This binds registers written from now on,
+and the library is there to make obeying it one line.
+
 ---
 
 ## PART B — COWORK (the manager). Failure modes, and the rule that closes each.

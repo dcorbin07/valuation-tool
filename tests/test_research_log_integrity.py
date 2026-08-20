@@ -50,11 +50,15 @@ from valuation.edge import research_log as RL               # noqa: E402
 #   2026-08-16  equity 227 -> 230, options 292 -> 294          (P1S0 3 horizons; O17C4 2 arms)
 #   2026-08-16  equity 230 -> 231                              (MA28-CARD, 1 arm, budget booked BEFORE the run)
 #   2026-08-16  equity 231 -> 232                              (P1S0-CONTROL, 1 arm, budget booked BEFORE the run)
-#   2026-08-19  options 304 -> 305                             (MB16, another lane, landed the same
-#                                                               day. Recorded here because this block
-#                                                               is a ledger of MOVES and an incomplete
-#                                                               one is misleading; the row itself is
-#                                                               that lane's.)
+#   2026-08-19  infra 15 -> 17                                 (MB22 + MB23, 1 each, one register
+#                                                               committed ALONE at 9dee135)
+#   2026-08-19  options 304 -> 305                             (a CONCURRENT lane, merged in while
+#                                                               MB22/MB23 were landing -- so this
+#                                                               dict was reconciled to the MEASURED
+#                                                               post-merge count, not to either
+#                                                               side of the conflict. Taking one
+#                                                               side would have mis-stamped a
+#                                                               domain neither lane had wrong.)
 #   2026-08-19  infra 15 -> 16                                 (MB21, 1 arm: the persistence-preserving
 #                                                               null for S22. Charged INFRA on the
 #                                                               HACFLOOR / X7RECON precedent -- building
@@ -64,6 +68,8 @@ from valuation.edge import research_log as RL               # noqa: E402
 #                                                               instrument is not a new search and
 #                                                               charges nothing further, so equity is
 #                                                               deliberately unmoved at 234.)
+#   ---- the two infra entries above are INDEPENDENT registers landing the same day, and
+#        the dict below is MEASURED post-merge rather than taken from either side.
 #
 # The 2026-08-16 line moved BOTH scored domains in one session and is the first time it has. The
 # HLZ literal moved with it again, for the second time running and for the reason the note below
@@ -107,7 +113,7 @@ from valuation.edge import research_log as RL               # noqa: E402
 # and separate convention (the master audit lists it under MA21); it belongs to that row, with
 # its own decision about staleness tolerance, not smuggled in here.
 # ---------------------------------------------------------------------------------------------
-EXPECTED_BY_DOMAIN = {"equity": 234, "options": 305, "unified": 0, "infra": 16}
+EXPECTED_BY_DOMAIN = {"equity": 234, "options": 305, "unified": 0, "infra": 18}
 
 
 def _diff(expected, actual):

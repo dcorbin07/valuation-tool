@@ -14075,10 +14075,18 @@ crosses; none does, at any horizon, and six of eight clear all 200 draws.**
 
 ### NOT DONE, named so it is not mistaken for done
 
-* **`MB23` (the Hodrick 1992 1B estimator) is NOT run.** The audit says it *"should be run with
-  [`MB21`] or not at all"*. It was not in this brief's scope, it charges its own infra trial, and
-  it is the natural companion: it attacks the same overlap problem from the estimator side rather
-  than the null side. **Recommended next.**
+* **`MB23` LANDED IN ANOTHER LANE WHILE THIS WAS RUNNING, AND IT DOES NOT COVER THE HORIZONS
+  THIS ITEM IS ABOUT — so the follow-on is narrower and cheaper than "run MB23".** It ports and
+  validates the Hodrick 1992 1B estimator against Wei-Wright's printed Monte Carlo (6 of 6 cells
+  at max abs deviation 0.0075) and cross-checks the **shipped H=63** statistics: long-short
+  Newey-West 2.619912 against Hodrick 2.860434, a 9.18% gap inside its 10% bar. **VALIDATED, and
+  nothing moves.** But **its own caveat is the load-bearing part here**: *"at h=1 the horizon
+  equals the rebalance interval, the windows do not overlap, and Hodrick's sandwich carries NO
+  autocovariance term at all."* **So `MB23` validated the estimator at the ONE horizon where the
+  overlap problem is absent, and `S22`'s long horizons — the ones `MB21` just re-floored — are
+  still uncrossed-checked on the estimator side.** That is now a cheap item, because the port
+  exists and is verified: **run Hodrick at H=126 through H=504 and compare against the HAC *t*s
+  this register scored.** **Recommended next, and it is a different item from `MB23`.**
 * **`S22` was NOT re-run**, no arm of it recomputed, and `TERM_STRUCTURE.json` never written to.
 * **No product copy changed**, because the verdict is `STANDS`. Had it been `NOT SUPPORTED`, the
   register named the exact constants in `valuation/web/hold_horizon.py` and routed the edit to the
@@ -14087,7 +14095,247 @@ crosses; none does, at any horizon, and six of eight clear all 200 draws.**
   long-short figure, so nothing ships wrong today; moving `S22`'s "about a year" caveat to a hard
   one-year cut is a documentation change for whoever next quotes that leg.
 
-**125 suites, 0 failures after merging `origin/main`; 31 new tests, 6 of 6 tripwire mutations
+**REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3), AND IT IS THE SECOND INDEPENDENT SIGHTING OF
+ONE CLASS.** A full-gate run of this tree failed once on `tests/test_options_freeze.py` with
+`PermissionError: [Errno 13] Permission denied` on `%TEMP%reeze_test_*rozen.pkl.gz` inside
+`GzipFile`. **It passes 6 of 6 standalone runs on the identical tree**, and the failure is a
+filesystem permission on a tempdir file rather than an assertion. `MB16` reported the *same class*
+the same day in a *different* suite — `tests/test_checkout_drift.py`, `Permission denied` writing
+git objects under `%TEMP%` — and measured the cause as sustained concurrent disk I/O on the temp
+volume, **naming this item's own `--floors` shards as part of the load.** So: two lanes, two
+suites, one root cause, and **this lane was a contributor to the contention that exposed the
+other one.** Both are invisible in CI, where a Linux runner has no contention — `MB42`'s shape.
+The pattern is that suites building real artifacts under `%TEMP%` wrap no I/O in a retry. **Not
+fixed here** (neither suite is this lane's) and reported so the second sighting is on record
+beside the first.
+
+**126 suites, 1 environmental failure (above), 0 substantive; 31 new tests, 6 of 6 tripwire mutations
 caught with sources restored byte-for-byte.**
 `valuation/studies/persistence_null.py`, `scripts/mb21_persistence_null.py`,
 `data/free_analysis/MB21_PERSISTENCE_NULL.json`, `MB21_CONTROLS.json`.
+---
+
+# MB22 + MB23 — the required-n power gate, and the Hodrick 1B cross-check (2026-08-19)
+
+**Register:** `PREREG_mb22_mb23_power_and_hodrick.md`, committed **ALONE at `9dee135`** — one
+`.md`, 262 lines, zero `.py` — a strict git ancestor of every measurement commit.
+
+**Trials: 2, both `infra`. `by_domain` re-read from `research_log.detail()` after merging
+`origin/main`, not quoted: equity 234, infra 15 → 17.** Equity and options are untouched by
+this item. **AND THE OPTIONS FIGURE MOVED UNDER ME WHILE LANDING — it reads 305, not the 304
+measured mid-session**, because a concurrent lane booked a trial and its landing collided with
+mine on `tests/test_research_log_integrity.py`. The stamp was reconciled to the **measured**
+post-merge count (`equity 234, options 305, infra 17`, verified against `research_log.detail()`)
+rather than to either side of the conflict — taking one side would have mis-stamped a domain
+neither lane had wrong. The register is left unedited at 304, which was correct when written.
+`MA37`'s rule for the third time in this record: **re-read `by_domain` after a merge.** **Infra `N` gates no published claim** (V1 / M2 / M6 / HACFLOOR / X7RECON precedent),
+and `BACKTEST_RESULTS.json` needs no re-run — per `MA21` the artifact may legitimately LAG the log.
+
+**ADOPTS NOTHING. MOVES NO CLAIM.** Both branches of MB23's bar were pre-committed to move
+nothing, so this register could validate an instrument or flag one and could not re-score a result
+either way.
+
+## 1. What was run
+
+| | |
+|---|---|
+| A | MB22 positive controls — external (TIDEMARK) and internal (Valquo's own recorded MDEs) |
+| B | MB23 estimator verification against **printed** Wei-Wright Table 1 numbers |
+| C | The null-calibration positive control, reproducing `POWER_GATE.md` §5.2's error independently |
+| D | **The cross-check**, against the pre-committed 10% bar, on the shipped H=63 statistics |
+| E | The h-sweep — **diagnostic, no verdict** |
+
+`python -m scripts.mb22_mb23_power_and_hodrick` → `data/free_analysis/MB22_MB23.json`, ~15s.
+The artifact banks the per-draw rows (`RUN_RULES` rule 9): every coverage cell's hit count and
+the full null-calibration summary, not only the percentages.
+
+## 2. MB22 — PORTED, 13 of 13 controls reproduce
+
+**External.** The charter power table at `crit` 1.96 — IR 0.20 → **196.0000** against a printed
+196, 0.30 → **87.1111** against 87, 0.15 → **348.4444** against 348. `hlz_hurdle(66)` = **2.8947**.
+`required_n(0.30, N=66)` = **154.9779** against a printed 155.0. The four IR-needed figures
+**0.4117 / 0.5519 / 0.7440 / 0.5159** against 0.41 / 0.55 / 0.74 / 0.52.
+
+**Internal, and these matter more**, because they are the evidence that the port measures the
+quantity Valquo already means by "MDE" rather than a same-shaped different one:
+
+| register | inputs on record | recorded | reproduced |
+|---|---|---|---|
+| `S19` A1 (via `MA33`) | IC 0.012202150018043164, t 1.1876022080477582 | +0.020549 | **0.02054922** |
+| `V2G` | paired HAC se 0.9354 pp | 1.8708 pp | **1.8708 exactly** |
+| `V6` A1 | implied se 2.0885 pp | +4.177 pp | **4.177 exactly** |
+
+**The two routes are ONE function**: `mde_from_observed(effect, t)` and
+`detection_threshold(effect/|t|)` disagree on **0 of 2,000** random pairs, exactly rather than to
+a tolerance.
+
+### 2.1 THE FINDING — every published MDE here is a 50%-power figure
+
+All three are `crit × se`: the effect at which the **point estimate** would just reach the bar,
+which a true effect of that size clears **half the time**. The 80%-power MDE is `(crit + 0.84) × se`,
+**1.42× larger at `crit` 2.0** — so +0.020549 → **+0.029180**, 1.8708pp → **2.6565pp**, +4.177pp →
+**5.9313pp**. **Neither is wrong as stated. Quoting one as the other is.**
+
+**The strongest control is Valquo's own, not TIDEMARK's.** `V2G` published 1.8708pp as what its
+design "resolves" *and*, separately, computed its power against a true 1.95pp gap as **55.0%**.
+`power_at(1.95, se 0.9354, crit 1.96)` returns **55.0%** by a different route. Both halves were on
+the page and nobody had connected them: a design whose detection threshold sits just below the
+effect it is testing has about a coin flip of seeing it, which is what a 50%-power threshold *means*.
+
+### 2.2 What MB22 deliberately does NOT ship
+
+**No sweep over the register corpus, no warning, no build failure.** ~68 historical `PREREG_*.md`
+state no MDE in this form, so such a check would fire on essentially all of them on its first run
+and be switched off inside a week. That is **`MA21`'s** precedent exactly — it declined a
+blank-verdict warning that would have fired on 41 legitimate ledger rows — and **`MB30`'s**
+refusal. What ships instead is `RUN_RULES.md` **PART A rule 11**, binding registers written from
+now on, plus the library that makes obeying it one line.
+
+`hlz_hurdle` is **imported and never re-derived** (`MA5`), and `critical_value` **refuses to
+default** — a default is precisely how the HLZ bar froze at the constant 3.0.
+
+**Also ported: a REFUSAL.** `POWER_GATE.md` §5.1 records a validation that could not be run — the
+`n_overlapping / deff` bridge was asked to reproduce a charter column of "independent n", and that
+column is exactly `n/h`, the count of non-overlapping windows, a different quantity reached by an
+unrelated route sitting in the adjacent column of the same table. So the two routes are **separate
+functions with separate names**, and `compare_routes()` labels their agreement
+**corroboration, never validation**.
+
+## 3. MB23 — VALIDATED, with the margin and the mechanism attached
+
+**Estimator, against printed numbers.** 6 of 6 Wei-Wright Table 1 cells at `alpha = 0` reproduce at
+**max abs deviation 0.0075** against a pre-registered 0.03 — and so does the more discriminating
+half, the published **collapse** away from the null: coverage **0.700** against a printed 0.71 at
+`alpha` 0.05, **0.495** against 0.53 at 0.10. An estimator merely returning ~0.95 everywhere passes
+the null test and fails that one. Plus two exact identities: `h = 1` collapses to the White
+sandwich at `rtol 1e-12`, and `r_t` provably does not leak into `y_t`.
+
+**The cross-check.**
+
+| statistic | Newey-West (shipped) | NW (same rows) | Hodrick 1B | naive | gap | |
+|---|---|---|---|---|---|---|
+| long-short spread | 2.6199121240 | 2.6242758816 | **2.8604340439** | 2.8360640685 | **9.18%** | AGREES |
+| top-decile alpha | 4.3762304279 | 4.4996075037 | **4.6719260410** | 4.5174216011 | **6.76%** | AGREES |
+
+Both clear the 10% bar against **both** comparators — stricter than the register's own wording, so
+the verdict cannot be accused of picking the flattering one. **VALIDATED. Nothing moves.**
+
+### 3.1 Two things that must travel with that verdict
+
+**(a) THE LONG-SHORT CELL CLEARS BY 0.82 OF A PERCENTAGE POINT.** A 9% bar would have failed it.
+Quote the margin with the verdict.
+
+**(b) `VALIDATED` MEANS LESS THAN IT SOUNDS, AND THIS IS THE HONEST PART.** At `h = 1` the horizon
+**equals** the rebalance interval, the windows do not overlap, and Hodrick's sandwich carries **no
+autocovariance term at all** — so it is *structurally incapable* of seeing the lag-1
+autocorrelation Newey-West corrects for (**0.189** long-short, **0.081** alpha). The two agree
+because that correction is small here, **not because two independent methods converged**, and the
+Hodrick *t* lands nearer the **naive** *t* than the HAC one on both statistics. **This validates
+the ported instrument. It does not independently corroborate the HAC number.** A reader taking
+"two estimators agree" as corroboration of the published 2.6199 would be over-reading it.
+
+### 3.2 `POWER_GATE.md` §5.2 reproduced independently
+
+On the verified Wei-Wright cell this implementation gives Var(*t*) **1.012**, rejection **0.040**
+against a nominal 0.05 — correctly sized — while the criterion **as committed there** (q97.5 of
+|*t*| within 10% of 1.96) **FAILS on it**, because 1.96 is the 97.5th percentile of the **signed**
+*t* and the right figure is ~2.24 (measured **2.187**). **A rule that flags a known-good case is
+broken, not a finding about the data.** The rejection rate ships as the decision rule; the
+misspecified quantile is computed and carried beside it, marked.
+
+### 3.3 The h-sweep — DIAGNOSTIC, NO VERDICT
+
+| h | H (days) | long-short gap | alpha gap |
+|---|---|---|---|
+| 1 | 63 | 9.0% | 3.8% |
+| 2 | 126 | 8.7% | 6.0% |
+| 3 | 189 | 13.3% | 11.6% |
+| 4 | 252 | 16.0% | 16.9% |
+| 5 | 315 | 17.5% | 21.9% |
+| 6 | 378 | 18.3% | 27.0% |
+| 7 | 441 | 18.1% | 29.7% |
+| 8 | 504 | 17.4% | **31.5%** |
+
+The Newey-West *t* **falls** with horizon (long-short 2.62 → 2.45, alpha 4.50 → 3.51) while the
+Hodrick *t* stays roughly flat (2.86 → 2.87, 4.67 → 4.61).
+
+**QUOTING ANY `h > 1` CELL AS A VERDICT ABOUT `S22` VOIDS THE REGISTER**, for two reasons fixed in
+advance. First, **`MB21` measures that `S22`'s null is separately mis-specified** in a way that
+compounds with horizon, so re-scoring one half of that comparison while leaving the other alone is
+worse than leaving both. Second, **this sweep cumulates the same 69 quarterly draws**, whereas
+`S22` built per-horizon forward returns from the panel's own `fwd_ret_h{H}` columns — a related
+object, not `S22`'s construction. **`MB23` is `MB21`'s companion instrument and shipping the
+instrument is not running the item.**
+
+## 4. Defects in my own instruments — three, all caught by running them
+
+1. **THE CRITERION TEST ASSERTED SOMETHING ITS OWN SAMPLE COULD NOT RESOLVE — which is MB22's
+   subject committed inside MB23's tests.** It ran `null_calibration` at 250 draws, where the
+   corrected criterion's ±0.015 window is **1.1 Monte-Carlo standard errors** wide
+   (`sqrt(0.05·0.95/250)` = 0.0138), so a correctly-sized estimator fails it by chance roughly a
+   quarter of the time. It did, on the first run. **Fixed by DERIVING the draw count** (1,200 →
+   2.4 se, ~0.9s), **not** by loosening the criterion, which would have been silencing the check
+   (`RUN_RULES` A5).
+2. **TWO OF MY GUARDS FIRED ON THEIR OWN DOCSTRINGS** — the comment-versus-code family for the
+   sixth time in this record, after `MA5`'s source sweep, `MA49`'s fixture, `MA23`'s stale-import
+   guard and two others. One banned the substring `sqrt(2` in a module whose docstring *quotes the
+   formula*; the other banned `PREREG_` in a module whose docstring *cites its own register*, as
+   convention requires. Both now read the **AST**: the first checks that `math.log` is never
+   *called*, the second that the module **performs no I/O and terminates nothing** — a stronger
+   property than any substring ban, because a module that opens no file cannot scan the corpus.
+3. **I GOT TWO OF THE THREE 80%-POWER CONVERSIONS WRONG BY TYPING THEM** — multiplying the rounded
+   50%-power figure by 1.42 rather than deriving from the standard error: **+0.029249 for `S19`
+   against a true +0.029180**, and **2.6567pp for `V2G` against 2.6565pp**. Caught by re-deriving
+   before publishing; corrected in `CLAUDE.md`, the log row and here, and now **pinned by a test**,
+   because retyped arithmetic is exactly what `MA5` and `MA22` exist to stop.
+
+## 5. Tests
+
+**37 new tests** — `tests/test_mb22_power_gate.py` (20), `tests/test_mb23_hodrick.py` (17).
+**8 of 8 mutations caught, 0 missed, sources restored byte-for-byte** and verified by SHA-256:
+collapsing the regressor window to 1; using `r_t` for `r_{t+1}`; making `overlapping_sums` include
+the regressor date; making the sweep emit a verdict; making `cross_check` reimplement Newey-West
+instead of calling the shipped one; re-deriving the hurdle in `power_gate`; giving
+`critical_value` a default; and silently turning `detection_threshold` into the 80%-power figure.
+
+**The known defect is reconstructed and pinned** — the h-period-residual bug, which cannot reject
+anything at any horizon (median |*t*| under 0.30 against the 0.674 a correct estimator gives). If a
+future session reintroduces it, the suite goes red instead of quietly reporting "no evidence".
+
+## 6. Expectations, scored
+
+| # | prediction | outcome |
+|---|---|---|
+| 1 | cross-check AGREES on both (85/15) | **RIGHT** |
+| 2 | Hodrick lands near the NAIVE *t*, not between naive and HAC (70/30) | **RIGHT** — and slightly *above* naive on both |
+| 3 | long-short is the LOOSER comparison (60/40) | **RIGHT** — 9.18% vs 6.76%, and for the registered reason (its autocorrelation is 2.3× the alpha series') |
+| 4 | the h-sweep diverges monotonically (75/25) | **SPLIT** — monotone for alpha, **not** for long-short, which dips at h=2 and peaks at h=6 |
+| 5 | all three internal MDE controls reproduce (90/10) | **RIGHT** |
+| 6 | at least one ported number contradicts something I expected (60/40) | **RIGHT** — the 50%-vs-80% power distinction was not anticipated when the register was written |
+
+## 7. NOT DONE, named so it is not mistaken for done
+
+* **`MB21` IS NOT RUN.** No persistence-preserving null is built, `S22`'s null is not replaced, and
+  `S22`'s verdict does not move. The audit says MB23 "should be run with it or not at all" *for the
+  purpose of moving a claim*; shipping the verified instrument is the half that can be done alone,
+  and it is explicitly the half that changes nothing.
+* **No horizon result is re-scored** — not `S22`, not `R1`, not the headline.
+* **No MDE was added to any existing register.** Rule 11 binds future ones. The three converted
+  figures above are a **reading correction**, not an edit to `S19`, `V2G` or `V6`.
+* **No required-n gate for the options lane's clustered statistics.** The design-effect route
+  exists there (`options_stats.effective_n`, shuffled null included); wiring it into the required-n
+  arithmetic is a further item.
+* **No TIDEMARK data crosses.** `MB24` marks data flow out of scope; only the *method* crosses,
+  re-derived from the published sources.
+
+## BUGS FOUND (outside this lane — `RUN_RULES` rule 3)
+
+* **`valuation/edge/statistics.py:220` `hac_tstat` inherits the value-and-length-dependent
+  zero-variance guard `MA58` reported and `U2` reported before it** (`[0.1]×3` → *t* ≈ 1.0e16,
+  `[0.1]×4` → exactly 0.0). It is still open and still the edge lane's; `MB23` did **not** repair
+  it, because `cross_check` deliberately calls the shipped function and repairing it here would
+  decouple the statistic from the floors calibrated on it. Re-reported because MB23 now has a
+  second estimator that could be used to *detect* the condition cheaply — a Hodrick *t* and a HAC
+  *t* diverging by orders of magnitude on the same series is a degeneracy signature.
+* **Nothing else new.** `data/` was read (the banked corrected panel) and never written except for
+  this item's own artifact.
