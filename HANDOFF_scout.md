@@ -1,4 +1,43 @@
-# HANDOFF_scout.md — Frontier Scout, session 2: EXPEDITION 2 (2026-08-20)
+# HANDOFF_scout.md — Frontier Scout
+
+## SESSION 3 — THE OPTIONS BRAINSTORM (2026-08-21, divergent mode)
+
+**Commission:** `PROMPT_scout_options_brainstorm.md`. Deliverable: **`OPTIONS_BRAINSTORM.md`**
+— a new scout-owned file: ~79 tagged entries + a 29-row re-gloss table over every options
+closure, a ranked top-10, the honest where-the-edge-hides paragraph, and Don's batched
+questions. Divergent rules applied (quality bar suspended); the two hard rules held: zero
+outcome statistics computed, every entry tagged with its nearest dead row or VIRGIN.
+
+**State read before writing (Section A prerequisite):** the season largely executed —
+instruments I-1..I-4 BUILT; E-1 WITHDRAWN by its own size-sort kill (rho 0.6114, R6's autopsy
+firing as pinned); E-2/E-3/E-6 NULL; E-4 UNDERPOWERED (full sample clears MA28's three legs
+at 3.19×, early half 1.69); E-5 UNRESOLVED (hazard decays monotonically 9/9). **MB3's ruin
+arithmetic ran and the kill did NOT fire — $5,000 vs the $250,000 bar, the event family is
+OPEN** (the 85% closure prior refuted). **EVOWN** (relayed via the commission; its result row
+had not reached the refs I can read at write time): event ownership is **AMBIENT at 45–75
+DTE** — tenor and event-count are the live axes, not own/not-own. My season-2 branch LANDED
+(25e9a05 on origin/main), so the EO rubric's blindness proof holds; note EVOWN's "ambient"
+outcome is the rubric's unpartitionable case — no stratified re-read is possible on the book
+and the rubric closes itself, exactly as written.
+
+**The top-10 shortlist** (full versions in the brainstorm file): O-1 flagged puts (queued);
+puts on dip-detector REJECTS (V6-B's 10.2pp separation, the strongest unconsumed measurement
+in the record); the event-free short-tenor premium book (EVOWN's inversion); CSPs on
+UNFLAGGED names (V6-OPT's own reasoning inverted through MA28's flags); the live limit-order
+fill A/B (ρ=0.674 — a cost edge, the closest thing to certain in the file); the
+IV-vs-own-history cheap-convexity screen (I-2 has never touched vol); the alert-density
+regime gate (O11's +14.28/−4.51 split, never registered); multi-event LEAPS (MB3 opened it,
+Tier E owns the tenor); MA56's carried residual-term-slope instruction; the FDA
+unpriced-catalyst calendar (free forward data).
+
+**For the next session:** if Don answers the brainstorm's six questions, convergent mode
+follows — take the approved subset of the top-10 through the full quality bar as Season 3.
+The re-gloss table is the map; A3's corpse and the V6-OPT autopsy are the walls every
+sell-side entry must face in its register.
+
+---
+
+# SESSION 2 (kept verbatim below) — EXPEDITION 2 (2026-08-20)
 
 **Commission:** `PROMPT_scout_expedition2.md` (the deep scrub). Charter unchanged: no tests,
 no trials, no outcome statistics; owns `IDEAS_LEDGER.md`, `PREREG_DRAFT_*.md`, this file.
