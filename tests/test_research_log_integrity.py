@@ -59,6 +59,13 @@ from valuation.edge import research_log as RL               # noqa: E402
 #                                                               side of the conflict. Taking one
 #                                                               side would have mis-stamped a
 #                                                               domain neither lane had wrong.)
+#   2026-08-19  equity 234 -> 235                              (MB18, 1 arm, BOOKED BEFORE
+#                                                               THE RUN. No outcome existed at
+#                                                               the booking commit -- which is
+#                                                               the point: an N that rises only
+#                                                               when a result is worth reporting
+#                                                               understates every multiplicity
+#                                                               correction in the project.)
 #   2026-08-19  infra 15 -> 16                                 (MB21, 1 arm: the persistence-preserving
 #                                                               null for S22. Charged INFRA on the
 #                                                               HACFLOOR / X7RECON precedent -- building
@@ -74,6 +81,12 @@ from valuation.edge import research_log as RL               # noqa: E402
 #                                                               per its own register, committed ALONE
 #                                                               at e95cffb; equity 234 and options 305
 #                                                               untouched - SC-1 opens no market data)
+#   2026-08-20  equity 234 -> 235                             (a CONCURRENT lane, merged in
+#                                                               while SC-1 was landing - the
+#                                                               stamp is reconciled to the
+#                                                               MEASURED post-merge count,
+#                                                               never to one side of a
+#                                                               conflict)
 #
 # The 2026-08-16 line moved BOTH scored domains in one session and is the first time it has. The
 # HLZ literal moved with it again, for the second time running and for the reason the note below
@@ -117,7 +130,7 @@ from valuation.edge import research_log as RL               # noqa: E402
 # and separate convention (the master audit lists it under MA21); it belongs to that row, with
 # its own decision about staleness tolerance, not smuggled in here.
 # ---------------------------------------------------------------------------------------------
-EXPECTED_BY_DOMAIN = {"equity": 234, "options": 305, "unified": 0, "infra": 19}
+EXPECTED_BY_DOMAIN = {"equity": 235, "options": 305, "unified": 0, "infra": 19}
 
 
 def _diff(expected, actual):
@@ -256,7 +269,7 @@ def test_the_statistics_N_gates_move_with_it():
     assert RL.trial_count(domain="equity") == n
 
     # The Harvey-Liu-Zhu hurdle the record quotes.
-    assert abs(math.sqrt(2.0 * math.log(n)) - 3.3031261300040304) < 1e-12, (
+    assert abs(math.sqrt(2.0 * math.log(n)) - 3.304416896865212) < 1e-12, (
         "the HLZ hurdle no longer matches the stamped N")
 
     # The CPCV adopt gate's multiplier. `_trials_haircut` is FLOORED at the log's N, so handing
@@ -388,7 +401,7 @@ def test_ma5_the_two_bars_disagree_today_and_the_gap_only_widens():
 
     assert hlz_hurdle(90) < 3.0 < hlz_hurdle(91), "3.0 is sqrt(2 ln N) at N = 90"
     n = EXPECTED_BY_DOMAIN["equity"]
-    assert abs(hlz_hurdle(n) - 3.3031261300040304) < 1e-12
+    assert abs(hlz_hurdle(n) - 3.304416896865212) < 1e-12
     assert hlz_hurdle(n) > 3.0, "the derived bar is HARDER than the constant at today's N"
 
     # A statistic in the gap is 'significant' under the constant and is NOT at today's N. This
