@@ -14530,8 +14530,9 @@ once"* — and a previous fix loosened a tolerance rather than removing the rand
 PYTHONHASHSEED=179 python tests/test_screener.py test_portfolio_sector_cap_and_weights
 ```
 
-**4 of 4 runs fail**; it failed on **1 of the first 200 seeds** swept, which is the ~0.5% rate that
-makes it "observed once" rather than obviously broken.
+**4 of 4 runs fail.** The sweep has since completed: **2 of 400 seeds fail — 0.50% — at seeds 179
+and 276.** That is the rate that makes it *"observed once"* rather than obviously broken, and it is
+now a measured figure rather than an estimate from a partial run.
 
 **THE ASSERTION THAT FAILS IS THE SECTOR CAP, AND UNDER IT SITS A REAL PRODUCT BEHAVIOUR RATHER
 THAN A LOOSE TEST BOUND.** Under seed 179 `build_portfolio(..., max_sector_weight=0.30)` reports
@@ -14682,3 +14683,162 @@ $250,000 bar in the direction that cannot change an ABOVE/BELOW verdict — a do
 only make the reported number smaller and the refusal weaker, never manufacture a pass.
 
 `scripts/mb3_event_ownership_equity.py`, `data/free_analysis/MB3_EVENT_EQUITY.json`.
+
+---
+
+## MB8 — MA28's crash flags as a position-SIZING haircut (2026-08-20, edge lane) — **KILL, and the flag turns out to be nearly disjoint from the book it was meant to protect**
+
+`PREREG_mb8_sizing_haircut.md` committed **ALONE at `a6d57c1`** — one `.md`, 267 lines, zero `.py`
+— a strict ancestor of every measurement commit, with the **equity trial booked at `18a4ecc`
+BEFORE the instrument was written or run** (equity `N` 235 → 236). **ADOPTS NOTHING**; no file under
+`valuation/` changed at all, pinned by test. `MA28_CARD.json` opened read-only.
+
+### The verdict, and the guard rail was checked first
+
+**The alpha non-inferiority guard rail PASSES** — the arm gives up **0.1499pp** annualised against
+a calibrated margin of **1.8629pp** — so the arm is not rejected on alpha. **It is killed on the
+crash bar**, and not narrowly:
+
+| window | dates | crashes | reduction | bar 20% | alpha base | alpha arm |
+|---|---|---|---|---|---|---|
+| full sample | 69 | 84 | **−1.44%** | FAILS | 7.174% | 7.024% |
+| early half | 34 | 11 | **−2.15%** | FAILS | 2.817% | 2.666% |
+| late half | 34 | 72 | **−1.32%** | FAILS | 11.580% | 11.418% |
+
+**The reduction is NEGATIVE. The haircut made the book's crash exposure slightly WORSE.**
+
+> **KILL — the 0.5×-haircut sizing family CLOSES PERMANENTLY, on the register's own
+> pre-committed terms.**
+
+### THE FINDING: MA28's FLAG IS REAL ON THE PANEL AND NEARLY ABSENT FROM THE BOOK
+
+The register's §1 arithmetic said a 0.5× haircut can remove at most **half the crash exposure it
+touches**, so clearing 20% needs the flagged names to carry **≥ 40%** of the book's crash exposure.
+`MA28`'s panel-wide figure is **19.14%**, implying ~6.1%. **In the top decile it is 1.19% — one
+crash of eighty-four.** The arithmetic ceiling on the reduction is therefore **0.595%**, and on the
+early half it is **exactly zero** (no flagged holding crashed at all in 34 dates).
+
+The `C5` census, on 11,426 top-decile holdings — **the same count `S10` and `V6-B`'s C7 report
+independently**, which is what makes this the same object:
+
+| bucket | holdings | share | crashes | share of crashes | crash rate |
+|---|---|---|---|---|---|
+| flagged | 407 | 3.56% | **1** | 1.19% | 0.246% |
+| flaggable, kept | 8,081 | 70.72% | 52 | 61.90% | 0.643% |
+| **unflaggable** | **2,938** | **25.71%** | **31** | **36.90%** | **1.055%** |
+
+**The flag fires on 3.56% of the book against 5.74% of the panel, and the holdings it does flag
+account for 1.19% of the book's crashes against 19.14% panel-wide.** The composite's top decile is
+quality- and megacap-tilted; `MA28`'s flags fire on distressed, aggressively-accounted names —
+**which the composite has already declined to hold.** A risk overlay can only help where it fires,
+and this one barely fires inside the book.
+
+**And that is the mechanism for the NEGATIVE reduction.** Renormalising to keep the book fully
+invested pushes weight off the 3.56% that is flagged and onto the 96.44% that is not — and the
+unflagged holdings carry **98.81% of the crashes**. The haircut moves capital toward the more
+crash-prone part of the book. The un-renormalised ("hold cash") sensitivity gives **+0.595%**,
+exactly the arithmetic ceiling and therefore an internal consistency check rather than an
+independent result.
+
+### A CORRECTION AGAINST MY OWN REGISTER, MADE BY MEASUREMENT BEFORE PUBLICATION
+
+The register's §6 priced the fail-open from `MA28`'s **panel-wide** figures — unflaggable rows
+crash at **0.8134%** against flaggable-and-kept **0.8928%** — and concluded they are *"marginally
+SAFER than the names the rule sees and declines to haircut"*, calling that *"a material
+mitigation"*.
+
+**IN THE BOOK THAT IS BACKWARDS.** Unflaggable holdings crash at **1.055%** against the
+flaggable-and-kept **0.643%** — they are **the most crash-prone bucket in the book**, and they
+carry **31 of the 84 crashes** while taking **no haircut at all**.
+
+**So the fail-open is not benign here: the sizing rule is blind to the single largest crash bucket
+it faces, and it is blind to a quarter of the book.** That is precisely the failure the register
+named as *"the one that matters"* — and the register got its sign wrong by pricing a book-level
+question with panel-level data. **The measurement is reported as `POST-HOC, NO VERDICT`** (`MA28`'s
+own C4 precedent) and **no ratio is quoted on the flagged bucket, which carries a single crash — one
+event is not a rate.**
+
+### The controls, all four gating and all exact
+
+* **C1 — the panel is the published object.** `quantile_backtest` on the deployed seven at 0.125
+  reproduces the record at **max |delta| 0.000e+00** across `top_decile_alpha`,
+  `long_short_tstat`, the HAC variant and `monotonicity`. `MA28` records this control actually
+  firing on its own first run — nine themes at 1/7 gave alpha 0.0499 against 0.0717.
+* **C2 — MY DECILE MEMBERSHIP IS THE SHIPPED ONE, PROVED NOT ASSUMED.** `quantile_backtest` does
+  not return membership, so it is rebuilt from the same primitives and then required to reproduce
+  the shipped per-date `series.alpha`: **69 of 69 dates, max |delta| 0.000e+00.** **This control
+  exists because `MB18` was burned by exactly this two items ago** — a re-derived construction that
+  quietly answered a different question, audit `B7`'s class.
+* **C3 — the flags are `MA28`'s.** `build_flags` is **imported** from `s10_accounting_veto`, never
+  redefined, and the thresholds are never retyped. Flagged share **0.057414** against `MA28`'s
+  0.057414 and **6,542** rows against 6,542; unflaggable share **0.2201** against 0.22010.
+* **C4 — the haircut is inert at 1.0×**, exposure and return both at **0.000e+00**. A sizing arm
+  that moves something at 1.0× is not measuring the haircut.
+
+### THE POWER STATEMENT WAS WRONG BY SIX-FOLD, IN THE HELPFUL DIRECTION
+
+The register's §5 predicted a resolution near **1.87pp** — *"matched to its bar with no room to
+spare"* — by borrowing `V2G`'s measured paired HAC SE of 0.9354pp. **Measured here the paired SE is
+0.1106pp, giving an 80%-power MDE of 0.314pp — about six times finer than registered.**
+
+The reason is a difference in perturbation size I failed to account for: `V2G` swapped whole themes
+in and out, a large and noisy intervention, while this arm rescales 3.56% of holdings by half. **A
+paired difference between two highly correlated books is measured far more precisely than one
+between two different books.** So the non-inferiority pass here is **genuinely informative** rather
+than the weak *"undetectable at this resolution"* the register warned it would be: the design can
+resolve a loss six times smaller than the margin, and the measured loss (0.1499pp) is 1.36 SE from
+zero.
+
+**Borrowing another register's SE without checking that the perturbation is comparable is the error,
+and it is `B7`'s family again — a number reused outside the construction it was measured on.**
+
+### Expectations, scored — **4 right, 2 wrong, and both misses are the same miss**
+
+**Right:** the reduction does not clear 20% in both halves (7/93); nor in either (12/88); the guard
+rail passes (75/25); the eligible-rows-only sensitivity does not change the verdict (85/15, at
+−1.72% against −1.44%).
+
+**Wrong, and they are one error:** I put **55/45** that the top-decile flagged share of crash
+exposure would **exceed** the panel-wide 19.14% — it is **1.19%, sixteen times smaller** — and
+**70/30** that the measured reduction would land within ±3pp of the arithmetic's 6.12%, where it is
+**−1.44%**, 7.6pp away. **Both follow from assuming the book looks like the panel. It does not, and
+that is the whole finding.**
+
+**The audit's own prior was ~50%.** Its §1 arithmetic was available to it and, as the register
+noted, *"the audit set a 20% bar and a fixed 0.5× haircut without multiplying them together"*.
+
+### WHAT THIS DOES NOT SAY
+
+* **It does not weaken `MA28`.** That register measured the flag on the panel, replicated it in both
+  halves against its own permutation maximum, and survived a size control. **Nothing here touches
+  it.** The finding is that the flag and the book are nearly disjoint — which is a statement about
+  the composite's selection, not about the flag's validity.
+* **It is not evidence that the composite manages this risk well.** The book still suffers 84
+  crashes over 69 dates, and the largest bucket of them — **31, at the highest rate of the three**
+  — is the one no accounting flag can even be computed for.
+* **It closes the 0.5×-haircut design only.** Per the register, no other haircut strength carries a
+  verdict, because sweeping it was forbidden in advance.
+* **Adoption was never on the table** and no eligible result arose; had one arisen it would have
+  been **routed to Don** as a vintage event, never taken here.
+
+### A DEFECT IN MY OWN TEST, AND IT IS THE FIFTH INSTANCE OF ONE FAMILY
+
+`test_the_flags_are_imported_and_the_thresholds_are_never_retyped` **failed against the correct
+tree.** It grepped the source for `-1.78`, and the script's own docstring says *"the thresholds
+−1.78 and 1.81 are never retyped"* — a comment documenting the rule, quoting the value the rule
+forbids. **That is `MA49`'s comment-versus-code defect, which this project has now hit five times.**
+Fixed by reading the **AST**: imports, function definitions and numeric literals, none of which see
+prose about code.
+
+### NOT DONE, named so it is not mistaken for done
+
+* **No other haircut strength was tried** (register void condition 10.1).
+* **`MB9` and `MB10` are NOT run** — `MB9` is refused as stated by the audit itself (`V6-OPT` in
+  costume), and `MB10`'s disclosure version is the app lane's.
+* **No claim is made about WHY the composite already avoids flagged names.** The mechanism is
+  visible in the counts and is not measured here.
+* **The register was NOT amended** after its §6 sign turned out to be wrong; the correction ships
+  beside it.
+
+**24 new tests, 9 of 9 tripwire mutations caught with sources restored byte-for-byte.**
+`scripts/mb8_sizing_haircut.py`, `data/free_analysis/MB8_SIZING_HAIRCUT.json`, `MB8_CONTROLS.json`.
