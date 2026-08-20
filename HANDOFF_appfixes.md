@@ -232,6 +232,45 @@ and the reason the counts are derived at render. `MB32` had the same experience 
 
 ---
 
+## 5c. Two failures on the merged gate — one repaired outside this lane, one environmental
+
+**`test_mb18_expectations_gap.py` — A PERMANENT TRIPWIRE ON THREE DIRECTORIES, REPAIRED
+(`RUN_RULES` rule 3).** Its `test_this_lane_touched_no_live_scoring_path` ran
+`git diff --name-only origin/main -- valuation/screener valuation/web valuation/engine` and
+required the result to be **empty**. That compares `origin/main` against **whatever is checked
+out**, so it does not measure `MB18` at all: **it fails for any lane that ever touches one of
+those three directories again, forever**, and the first to do so had nothing to do with `MB18` —
+it went red naming `valuation/web/research_record.py`, this item's own file. That is the
+cry-wolf failure this repository has now written down three times (`MA21`, `MB30`, and the
+sibling comment in `test_research_page.py` two days ago).
+
+**Scoped to the commits that actually carry `MB18`'s files**, which is what the test's own name
+says and stays true however the tree moves. **It is also STRICTER in the direction that
+matters**: a working-tree diff goes green the moment such a change is committed and merged;
+reading the commit itself cannot. Its positive control **skipped itself as VACUOUS** on the
+first cut — `HEAD` is a merge, and `git show --name-only` prints nothing for one — so the
+control now *finds* a qualifying commit instead of assuming one.
+
+**`test_ma60_conventions.py` — ENVIRONMENTAL, NOT REPAIRED, AND IT IS NOT THIS TREE'S.** It
+reported **143** ledger rows citing commits "not in this repository's history", including `B1`.
+The shas resolve fine by hand. Cause: `git rev-list --all` **aborts** on a corrupt ref in the
+shared repository — `refs/heads/worktree-scout-season2.lock.stale.1381`, a **zero-byte** file
+pointing at all-zeros, left at 00:38 by a crashed lock in a concurrent lane. The helper returns
+`None`, the sha set is empty, and every row reads as missing.
+
+**Bounded before deciding anything: the real branch `refs/heads/worktree-scout-season2` is
+intact at `25e9a05b`, and the bad ref holds no sha, so nothing can be lost.** It is **local
+only** — `git ls-remote` shows no corrupt ref on `origin` — so CI clones clean and the land gate
+does not see it. **Deliberately NOT deleted by this lane**: it is a write to shared `.git` state
+outside this worktree that another lane may be mid-operation on, and it blocks nothing that a
+fresh clone would hit. **For Don, one line, and it cannot lose work because the file is empty:**
+
+```
+rm ".git/refs/heads/worktree-scout-season2.lock.stale.1381"
+```
+
+---
+
 ## 6. An honest weakness in what this renders, reported rather than tuned away
 
 **A THIRD OF THIS WEEK'S ENTRIES BUCKET AS "OTHER VERDICT" — 25 of 75.** `bucket()` recognises
