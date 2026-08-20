@@ -80,10 +80,22 @@ def _text(html):
 
 # --------------------------------------------------------------------- it is on the page
 def test_the_section_renders_and_every_sentence_comes_from_the_module():
+    """Split into LEVEL copy and MOTION copy, which is the distinction the block is built on.
+
+    The level sentences render on every week — a standing count is true whether or not
+    anything happened. The verdict note is about verdicts, so it renders only when there were
+    some. Asserting it unconditionally is what a quiet week caught.
+    """
     sec = _section()
-    for name in ("WEEK_HEADING", "WEEK_LEDE", "WEEK_HURDLE_NOTE", "WEEK_VERDICT_NOTE",
-                 "WEEK_FLOOR_NOTE", "WEEK_NOT_A_RESULT"):
-        assert getattr(RR, name) in sec, f"{name} is not rendered verbatim"
+    for name in ("WEEK_HEADING", "WEEK_LEDE", "WEEK_HURDLE_NOTE", "WEEK_FLOOR_NOTE",
+                 "WEEK_NOT_A_RESULT"):
+        assert getattr(RR, name) in sec, f"{name} is not rendered verbatim on every week"
+    if RR.weekly()["quiet"]:
+        assert RR.WEEK_QUIET in sec, "a quiet week rendered no quiet sentence"
+        assert RR.WEEK_VERDICT_NOTE not in sec, "a quiet week talked about verdicts"
+    else:
+        assert RR.WEEK_VERDICT_NOTE in sec, "WEEK_VERDICT_NOTE is not rendered verbatim"
+        assert RR.WEEK_QUIET not in sec, "a busy week claimed to be quiet"
 
 
 def test_the_template_holds_no_copy_of_its_own():
@@ -283,6 +295,18 @@ def test_no_count_from_this_block_is_typed_into_the_source_or_the_template():
         live |= {str(d["now"]), str(d["before"]), d["hurdle_after"]}
         if d["hurdle_before"]:
             live.add(d["hurdle_before"])
+    # DECLARED DISPLAY PARAMETERS ARE NOT DERIVED COUNTS, and excluding them by identity is
+    # the whole point. Found by the clock rolling past midnight mid-session: the
+    # infrastructure book's "before" count reached 12, which is also the row cap, and the
+    # check failed against a correct tree. A stated limit follows — a genuine typed count that
+    # happens to equal one of these two is not caught — and it is the right trade, because the
+    # alternative is a guard that fails on ordinary days and gets switched off.
+    display_parameters = {str(RR.WEEK_MAX_ROWS), str(RR.WEEK_DAYS)}
+    # ...and 0 and 1, which on a quiet week are legitimate derived counts and are also what
+    # every `max(0, ...)` and slice bound in the module is written with. A typed 0 is not a
+    # count that can go stale, which is the only thing this check exists to catch.
+    live -= display_parameters | {"0", "1"}
+    assert live, "every live count coincided with a display parameter; this check is vacuous"
     for v in live:
         # Standalone-number match, not substring — see `_typed` in test_research_page.py for
         # why: a two-digit count is a substring of half the decimals in the tree.
@@ -318,15 +342,59 @@ def test_a_quiet_week_says_so_rather_than_rendering_nothing():
         RR.weekly = real
     assert RR.WEEK_QUIET[:50] in sec, "the quiet week rendered no sentence"
 
+    # A LEVEL IS ALWAYS TRUE, AND THIS IS THE ASSERTION THE TEMPLATE DEFECT BROKE. The first
+    # cut nested the per-book bars and the headroom inside the busy-week branch, so a quiet
+    # week dropped the options and infrastructure bars off the page entirely — and dropped the
+    # headroom, which is most worth reading when nothing is happening. The payload was right
+    # and the render was not, which is why this has to be asserted HERE and not on `w`.
+    for d in w["domains"]:
+        assert d["label"] in sec, f"a quiet week hid the {d['key']} book"
+        assert d["hurdle_after"] in sec, f"a quiet week hid the {d['key']} bar"
+    assert str(w["floor"]["flip_n"]) in sec, "a quiet week hid the headroom"
+
 
 def test_the_cap_is_never_silent():
-    """A trimmed list that says nothing about the trimming reads as the whole of it."""
+    """A trimmed list that says nothing about the trimming reads as the whole of it.
+
+    RENDERED FROM THE SAME PAYLOAD IT ASSERTS ON. The first cut built the payload at a fixed
+    date and rendered the page from the LIVE clock, so the two described different windows and
+    it failed the moment the date rolled — a date-fragile test on a page whose entire subject
+    is the passage of time.
+    """
     w = RR.weekly(today=dt.date(2026, 8, 19))
     assert w["hidden"] > 0, "the fixture failed to produce a trimmed list"
     assert w["shown"] + w["hidden"] == w["rows"]
-    sec = _text(_section())
+    assert w["shown"] == RR.WEEK_MAX_ROWS
+
+    real = RR.weekly
+    try:
+        RR.weekly = lambda *a, **k: w
+        sec = _text(_section())
+    finally:
+        RR.weekly = real
     assert str(w["hidden"]) in sec, "the number of trimmed entries is not on the page"
     assert str(w["rows"]) in sec, "the untrimmed total is not on the page"
+
+
+def test_no_assertion_here_depends_on_todays_date():
+    """THE FIFTH DEFECT OF THIS SESSION, AND THE MOST ON-POINT ONE.
+
+    Two tests broke when the clock rolled past midnight mid-session — on a page whose whole
+    subject is the record moving. Every test that renders now either drives the payload from
+    the live clock on BOTH sides or patches `weekly` so payload and render are the same
+    object; no test compares a fixed-date payload against a live render.
+    """
+    src = _src(os.path.abspath(__file__))
+    tree = ast.parse(src)
+    for node in tree.body:
+        if not (isinstance(node, ast.FunctionDef) and node.name.startswith("test_")):
+            continue
+        body = ast.unparse(node)
+        fixed = "dt.date(" in body
+        renders = "_section(" in body or "_page(" in body
+        patched = "RR.weekly = " in body
+        assert not (fixed and renders and not patched), (
+            f"{node.name} compares a fixed-date payload against a live render")
 
 
 def test_it_fails_closed_when_the_register_raises():

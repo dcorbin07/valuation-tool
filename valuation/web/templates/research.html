@@ -206,11 +206,11 @@
     <h2>{{ week_heading }}</h2>
     <p class="lede">{{ week_lede }}</p>
 
-    {% if weekly.quiet %}
-    <div class="callout"><span class="h">{{ weekly.start }} to {{ weekly.end }}</span>
-      <p>{{ week_quiet }}</p></div>
-    {% else %}
-
+    {# A LEVEL IS ALWAYS TRUE; ONLY THE MOTION IS CONDITIONAL. The first cut put the counts,
+       the per-book bars and the floor block inside the busy-week branch, so a quiet week hid
+       the options and infrastructure bars from the page altogether — and hid the headroom,
+       which is most worth reading precisely when nothing is happening. Found by running this
+       suite under simulated later dates rather than by reading it. #}
     <div class="tally">
       <div class="t"><div class="n">{{ weekly.rows }}</div><div class="l">Entries added</div></div>
       <div class="t"><div class="n">{{ weekly.charged }}</div><div class="l">Trials charged</div></div>
@@ -234,6 +234,11 @@
       </table>
     </div>
     <p>{{ week_hurdle_note }}</p>
+
+    {% if weekly.quiet %}
+    <div class="callout"><span class="h">{{ weekly.start }} to {{ weekly.end }}</span>
+      <p>{{ week_quiet }}</p></div>
+    {% else %}
 
     <h3>How they came out</h3>
     <div class="chips">
@@ -283,6 +288,8 @@
        measured on. That is a cost, and it is recorded here as one.</p>
     {% endif %}
 
+    {% endif %}
+
     {% if weekly.floor %}
     <div class="callout">
       <span class="h">The measured bars, and how much further the search can go</span>
@@ -299,7 +306,6 @@
       {% endif %}
       <p>{{ week_floor_note }}</p>
     </div>
-    {% endif %}
     {% endif %}
 
     <p class="src">{{ week_not_a_result }}</p>

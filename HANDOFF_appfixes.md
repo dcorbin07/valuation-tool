@@ -133,7 +133,7 @@ trimming reads as the whole of it.
 
 ---
 
-## 5. Four defects in my own work, and one of them was caught by another item's test
+## 5. Five defects in my own work, and one of them was caught by another item's test
 
 * **I BROKE `MB38`'s FAIL-CLOSED PROPERTY AND `MB38`'s OWN TEST CAUGHT IT.** Adding a second
   contributor to the guard's exemption re-opened the hole whenever the first was unavailable,
@@ -170,6 +170,45 @@ trimming reads as the whole of it.
 * **A PROPERTY WORTH RECORDING, seen while doing that:** the typed pooled bar is *also* caught
   by the figure guard, because a bar the page does not legitimately render is **not in the
   exemption**. The narrowness bought in section 1 is doing real work rather than sitting there.
+* **THE CLOCK ROLLED PAST MIDNIGHT MID-SESSION AND BROKE TWO OF MY OWN TESTS — ON A PAGE WHOSE
+  ENTIRE SUBJECT IS THE RECORD MOVING.** `test_the_cap_is_never_silent` built its payload at a
+  fixed date and rendered the page from the **live** clock, so the two described different
+  windows the moment the date changed; and the no-typed-count check fired on `12`, because the
+  infrastructure book's *before* count reached 12 and 12 is also the row cap. **The second is
+  the substring family a third time in one session, now as a collision between a derived count
+  and a legitimate constant.** Repaired by naming the cap `WEEK_MAX_ROWS` and excluding
+  **declared display parameters by identity** (with the limit stated: a real typed count equal
+  to one of them is not caught, which is the right trade against a guard that fails on ordinary
+  days), and by rendering the cap test from the same payload it asserts on.
+
+---
+
+## 5a. And chasing that found a defect in the SHIPPED page, not just in the tests
+
+Running the suite under **five simulated dates** rather than reading it: at any date where the
+last seven days are empty, three tests failed — and the cause was the template, not them.
+
+**THE PER-BOOK BARS AND THE HEADROOM WERE NESTED INSIDE THE BUSY-WEEK BRANCH.** So a quiet week
+would have dropped the **options and infrastructure bars off the page altogether** — the equity
+one survives only because the block above it renders that — and dropped the **headroom**, which
+is the number most worth reading precisely when nothing is happening.
+
+**The payload was right and the render was not**, which is exactly why the assertion now lives
+against the rendered section: my own quiet-week test asserted `w["domains"]` was populated,
+which it always was, and said in its comment that the bars are still shown *"because they are a
+level and a level is always true"*. **The comment described the intent and the template did
+something else, and only rendering it at a later date could tell the difference.**
+
+Fixed by splitting the block on that distinction: **the level renders every week** (the window,
+the counts, each book's bar, the headroom) and **only the motion is conditional** (the verdict
+tally, the entry list, the vintage events). Both nestings are mutation-tested.
+
+**A DEFECT IN THE VERIFICATION ITSELF, CAUGHT BY A POSITIVE CONTROL.** The first clock sweep
+ran the suite with `exec(open(...).read())`, so it had no `__file__`, crashed at import, printed
+no failures — and the harness judged success by the **absence of failure lines** and reported
+five passes. That is this project's own rule broken inside my own harness: **judge a suite by
+its exit code, never by grepping its output.** Rewritten with `runpy` and a positive control
+that must fail; it then found the template defect above.
 
 ---
 
@@ -188,10 +227,22 @@ decisive than it is. **Reported so the next reader does not mistake it for a ren
 
 ## 7. Verification
 
-* **`tests/test_record_this_week.py` 25/25** (new); `tests/test_research_page.py` **30/30**;
-  `tests/test_research_log_integrity.py` **16/16**; 15 affected suites green **by exit code**.
-* **18 mutations, 18 caught, 0 missed**, sources restored byte-for-byte, with `-B`,
-  `PYTHONDONTWRITEBYTECODE=1` and a `__pycache__` purge between each.
+* **`tests/test_record_this_week.py` 26/26** (new); `tests/test_research_page.py` **30/30**;
+  `tests/test_research_log_integrity.py` **16/16**; affected suites green **by exit code**.
+* **The suite passes at five simulated dates** — 2026-08-19, 08-20, 08-24, 2026-09-15 and
+  2027-01-05 — covering both a busy window and an empty one, with a positive control proving
+  the sweep can fail. A structural test additionally forbids the shape that caused the
+  breakage: no test may compare a fixed-date payload against a live render.
+* **22 mutations, 22 caught, 0 missed**, sources restored byte-for-byte, with `-B`,
+  `PYTHONDONTWRITEBYTECODE=1` and a `__pycache__` purge between each. **Two of my own first
+  attempts were defective and are reported as such** — one was a no-op (it referenced a payload
+  key that does not exist, so Jinja filtered it straight out) and one targeted the wrong branch;
+  both rewritten until they failed with a message naming the defect.
+* **`tests/test_sync_checkout.py` is FLAKY IN THIS ENVIRONMENT AND IT IS NOT THIS ITEM'S.** It
+  failed once in a full-gate run and then failed **2 of 4 sequential standalone runs**, always
+  with `unable to write file` inside its own temporary git repositories under `%TEMP%` — a
+  filesystem contention fault, not an assertion. It references nothing this session changed.
+  **Reported rather than retried until green.**
 * The rendered section was read end to end and scanned line by line: **zero lines contain a
   figure**.
 

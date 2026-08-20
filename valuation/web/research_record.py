@@ -440,6 +440,14 @@ def reset_hurdle_cache() -> None:
 #: How far back "this week" reaches, inclusive of today.
 WEEK_DAYS = 7
 
+#: How many entries the list shows before trimming. A DISPLAY PARAMETER, not a count derived
+#: from the register: it does not move when the record does and it cannot go stale. Named
+#: because it must be excluded from the no-typed-count check by IDENTITY rather than by value
+#: — on the day this was written the infrastructure book's own "before" count reached 12 and
+#: the check fired on this literal, which is a real collision between a derived count and a
+#: constant that has nothing to do with it.
+WEEK_MAX_ROWS = 12
+
 #: `MB31`'s banked measurement: the margin-to-standard-error ratio of the first placebo draw
 #: whose CPCV adopt decision is still to flip. NEVER RENDERED — it is a bare decimal and the
 #: guard is right to treat it as one. The trial count it implies is DERIVED from it below and
@@ -627,7 +635,8 @@ def weekly(log_path: str = None, today=None, days: int = None) -> dict:
         # NO SILENT CAP. The list is trimmed because a busy week runs to dozens of entries and
         # the full record is on this same page — but the number trimmed is rendered, because a
         # truncated list with nothing said about it reads as "that was all of it".
-        shown, hidden = items[:12], max(0, len(items) - 12)
+        shown = items[:WEEK_MAX_ROWS]
+        hidden = max(0, len(items) - WEEK_MAX_ROWS)
 
         vints = []
         try:
