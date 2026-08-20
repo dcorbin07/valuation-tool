@@ -8057,7 +8057,25 @@ test of VPIN against `|signed_volume|` was run (that is a second arm and would b
 and **nothing here is evidence about the alert entry** — `R2` stands at −5.0640pp/trade against
 random entry, so a candidate would have been a candidate for a future book that does not exist.
 
+### 68.11 REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3): a suite that is FLAKY UNDER LOAD
+
+**`tests/test_checkout_drift.py` failed once in a post-merge full run and is not this item's.** The
+error is `unable to write file .git/objects/95/…: Permission denied` during a `git fetch` into a
+`tempfile.mkdtemp` directory — the suite builds **real git repositories under `%TEMP%`** and wraps
+none of the git calls in a retry.
+
+**It passed on two immediate re-runs on the identical tree**, so it is flaky rather than broken,
+and the cause is measured rather than guessed: **the machine was running three
+`scripts.mb21_persistence_null --floors --shard N` processes from another lane (since 19:06) plus
+a second session's gate**, i.e. sustained concurrent disk I/O against the same temp volume.
+
+**Why it is worth a report rather than a shrug: it takes the WHOLE gate red for a reason unrelated
+to the change under test**, it will be **invisible in CI** (a Linux runner with no contention) and
+visible only on the loaded developer machine — **`MB42`'s shape exactly**, green where the risky
+path does not really execute. Owner: the `MB27`/`MB28` lane (`d968651`). A retry around the git
+calls, or `git config core.fscache`/a per-call backoff, would close it.
+
 **Scripts:** `scripts/mb16_vpin.py`, `scripts/mb16_arm.py`. **Artifacts** (gitignored):
 `data/free_analysis/MB16_KILL.json`, `MB16_ARM.json`, `MB16_VPIN_UNITS.pkl`. **Tests:**
-`tests/test_mb16_vpin.py`, 22 tests; 4 of 4 gate mutations refused with the artifact restored
-byte-for-byte.
+`tests/test_mb16_vpin.py`, 26 tests; 4 of 4 gate mutations refused with the artifact restored
+byte-for-byte. **125 suites, 0 failures after merging `origin/main`.**

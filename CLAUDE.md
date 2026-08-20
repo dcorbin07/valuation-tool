@@ -130,8 +130,8 @@ the project's memory and the old versions had been repeated for months.
     is evidence about the ALERT ENTRY** - `R2` stands at -5.0640pp/trade against random entry, so a
     candidate would have been a candidate for a **future book that does not exist**. **ALERT DAYS
     ONLY**, and there is no pinned freeze for the tick cache so the units are pinned by a recorded
-    fingerprint. **Expectations 3 right, 1 wrong, 1 split. 22 tests, 4 of 4 gate mutations
-    refused.** `scripts/mb16_vpin.py`, `scripts/mb16_arm.py`;
+    fingerprint. **125 suites, 0 failures after merging origin/main; 26 new tests, 4 of 4 gate
+    mutations refused. Expectations 3 right, 1 wrong, 1 split.** `scripts/mb16_vpin.py`, `scripts/mb16_arm.py`;
     `data/free_analysis/MB16_KILL.json`, `MB16_ARM.json`, `MB16_VPIN_UNITS.pkl`;
     `HANDOFF_optionsbot.md` 68.
 - **THE VENUE-BASED RETAIL PROXY DIES BEFORE ANY ARM RUNS, ON THREE INDEPENDENT MEASUREMENTS - AND
