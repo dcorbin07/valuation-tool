@@ -16164,3 +16164,151 @@ every register that reads a prior item's artifact inherits that.**
 
 `scripts/e6_temporal_axis.py`; `data/free_analysis/E6_CONTROLS.json`, `E6_TEMPORAL_AXIS.json`;
 `tests/test_e6_temporal_axis.py` (16 tests).
+---
+
+# SC-1b — sharpening SC-1's CANNOT-TELL by clustering the gap by ITEM (2026-08-20)
+
+**`PREREG_sc1b_cluster_by_item.md` committed ALONE at `329402d` — markdown only, zero `.py`,
+190 lines, a strict ancestor of every measurement commit. ONE infra trial booked at `58cf538`
+BEFORE the runner existed: infra 19 → 20. Equity 242 and options 305 untouched; infra `N` gates
+no published claim.**
+
+## VERDICT `CALIBRATED-IN-THE-LARGE`, clearing by 0.0068
+
+| | naive | **item (verdict)** | file (`SC-1`'s own) |
+|---|---|---|---|
+| clusters | — | **15** | 3 |
+| CI95 | [−0.16860, +0.06977] | **[−0.173171, +0.113235]** | [−0.10000, +0.28333] |
+| half-width | 0.119186 | **0.143203** | 0.191667 |
+| against the 0.15 ceiling | — | **clears by 0.006797** | fails |
+
+The gap is **unmoved at −0.0500** — a point estimate does not depend on how pairs are grouped —
+so `SC-1`'s CANNOT-TELL was always a statement about RESOLUTION, and this recovers it.
+
+## LICENSED BY A PRE-COMMITMENT, NOT BY AN ARGUMENT
+
+`SC-1` wrote, in its own handoff and **before its interval existed**:
+
+> *"Clustering by ITEM rather than by file would give many more units, and it was NOT done —
+> changing the clustering key after seeing the interval is choosing the design on the outcome.
+> It is named here as the obvious successor instead, and it needs its own register."*
+
+That is why this could be run at all, and it is a stronger licence than any argument assembled
+afterwards would have been.
+
+## THE STRUCTURAL BOUND, DERIVED BEFORE RUNNING — AND IT HELD
+
+§1 declared, from `SC-1`'s own banked figures rather than from an estimate, that **both
+miscalibration verdicts were UNREACHABLE**: the gap cannot move under re-grouping, `SC-1`'s
+naive CI already contained zero at half-width **0.119186**, and `C4` requires the clustered
+interval to be **no narrower**. A wider interval around the same point still contains zero.
+
+**So SC-1b could only ever return CALIBRATED-IN-THE-LARGE or CANNOT-TELL. It is a test of
+resolution and never of direction**, and the register said so before it ran. Measured: the CI
+contains zero, as declared.
+
+**AND THE ANSWER WAS BRACKETED IN ADVANCE.** Item clusters nest inside file clusters, so the
+item rung had to land between the naive floor and `SC-1`'s file value — **[0.119186, 0.191667]**
+— with the **0.15 bar inside the bracket**. It landed at **0.143203**, a third of the way up.
+
+## AN ARITHMETIC SLIP IN MY OWN REGISTER, CORRECTED HERE AND NOT EDITED AWAY
+
+§7 says the 0.15 bar *"sits at 38% of its width"*. It is **42.5%**:
+`(0.15 − 0.119186) / (0.191667 − 0.119186) = 0.4251`. **The error made CALIBRATED look HARDER
+than it was**, so the registered 55/45 lean was if anything conservative. The register is left
+**UNEDITED**; the correction lives here, which is the convention.
+
+## `G1` — WHAT MAKES THIS ONE OBJECT UNDER TWO CLUSTERINGS
+
+The re-run reproduces `SC-1`'s banked artifact **at tolerance 0.0** on the pair count (43), the
+gap, the Brier (0.1548), both skill figures, the Murphy decomposition and **both** of its
+intervals. Anything moving would have meant the extraction changed, and the comparison would
+have been between two studies rather than two clusterings of one.
+
+**THE CORPUS IS PINNED TO `SC-1`'s MEASUREMENT COMMIT `8e2e9fe`, AND THAT IS FORCED RATHER THAN
+CHOSEN.** §6.2 forbids adding a pair, and the record has grown since — so running on today's
+tree would confound *more data* with *different clustering*. It also happens to remove any
+self-scoring concern, since three of the day's four items are this lane's own.
+
+## POWER — both `MB22` vocabularies, with `SC-1`'s declared D1 defect REPAIRED
+
+`SC-1` flagged before running that its §5 formed the MDE from **Brier** variance where the gap
+needs **`Var(p − y)`**. Computed correctly here:
+
+| | 50% power (detection threshold) | 80% power (MDE) |
+|---|---|---|
+| iid | **0.120446** | **0.171033** |
+| cluster-adjusted (deff **1.4436**) | **0.144717** | **0.205498** |
+
+**The observed gap of 0.0500 sits below even the 50%-power iid threshold**, so
+`CALIBRATED-IN-THE-LARGE` here means *"no miscalibration this design could have seen"* — which
+is exactly what an aggregate calibration result is entitled to say and no more.
+
+## THE LIMITATION A SUCCESSOR NEEDS — and it is the most useful thing in this item
+
+The today's-corpus diagnostic (no verdict, no bar) returns an **IDENTICAL 43 pairs**. **A day
+carrying four new items added ZERO calibration evidence**, and the funnel says why — measured,
+not inferred:
+
+| | scoring rows | SPLIT/UNRESOLVED | untraceable | scoreable | **OUTCOME** |
+|---|---|---|---|---|---|
+| pinned (`8e2e9fe`) | 119 | 15 | 0 | 104 | **43** |
+| today | 131 | 18 | 0 | 113 | **43** |
+
+Twelve new rows, eight of them scoreable, and **all eight classify as `UNCLASSIFIED`**. Across
+the whole corpus the class mix is **UNCLASSIFIED 65, OUTCOME 43, INSTRUMENT 3, PROCESS 2** — so
+**the largest class is the discarded one, at 55% of scoreable rows**, and the discarded examples
+include plainly outcome-shaped predictions whose event cell reduced to a bare number (`"4"`,
+`"5"`, `"HR(1) - 3.0422"`).
+
+**So the 43 pairs are selected by a keyword classifier whose miss rate is UNMEASURED.** That
+bounds the generality of `SC-1` *and* `SC-1b`: the verdict is about the pairs the classifier
+admitted, not about every prior the record has stated. **It is NOT repaired here** — §6.2
+forbids re-classifying, and doing it after seeing the verdict would be design-on-outcome. It is
+named as the successor, and it is a bigger one than the clustering key was.
+
+**A practical consequence worth acting on independently of any register: a write-up that scores
+its expectations as a numbered LIST rather than a pipe-delimited TABLE is invisible to this
+study.** Three of this session's own items did exactly that.
+
+## TWO DEFECTS IN MY OWN INSTRUMENT, BOTH CAUGHT BEFORE ANYTHING WAS REPORTED
+
+1. **`G2`'s double-entry re-derivation was not `SC-1`'s.** Mine matched the odds VALUE and
+   dropped the class-agreement condition, returning a confident **0.0000** against `SC-1`'s
+   published **11.7%**. The class is the discriminating half; without it the check cannot fail.
+   Same family as the blank-code counter that read zero on a column carrying 1,544,490 blanks.
+   **Caught by disbelieving a zero that disagreed with a published figure**; fixed to `SC-1`'s
+   exact predicate, it reproduces **0.1169**.
+2. **A guard of mine asserted the register contained a counterfactual argument**, copied from a
+   sibling register whose licence *was* one. SC-1b's licence is `SC-1`'s written
+   pre-commitment, so the assertion tested the wrong property — **corrected to the quote that
+   actually does the work, rather than deleted.**
+
+## EXPECTATIONS — 7 RIGHT, 0 WRONG, AND DISCOUNTED RATHER THAN CELEBRATED
+
+| # | prediction | outcome |
+|---|---|---|
+| 1 | verdict CALIBRATED-IN-THE-LARGE — 55/45 | **RIGHT** |
+| 2 | the CI contains zero (§1's bound holds) — 90/10 | **RIGHT** |
+| 3 | item clusters in [8, 20] — 60/40 | **RIGHT** (15) |
+| 4 | `G3` holds, item ≥ naive — 70/30 | **RIGHT** (0.1432 ≥ 0.1192) |
+| 5 | `G1` reproduces `SC-1` exactly — 95/5 | **RIGHT** |
+| 6 | half-width falls by ≥ a third, to ≤ 0.1278 — 40/60 | **RIGHT** (it did not; 0.1432, a 25.3% fall) |
+| 7 | at least one number contradicts this list — 60/40 | **RIGHT** (§7's own 38% is 42.5%) |
+
+**A study of whether this record's priors are calibrated scoring its own 7 of 7 is worth less
+than it looks, and saying so is the point.** Five of the seven follow directly from §1's
+arithmetic and `SC-1`'s banked figures — they are near-deductions, not forecasts. Only #1 was a
+genuine coin-flip, and it was registered at 55/45. **`SC-1` scored its own 2 right and 2 wrong;
+neither number says anything about the record as a whole, which is precisely why the aggregate
+study exists.**
+
+## NOT DONE
+
+* **The classifier's miss rate** — the successor this item found, and the larger one.
+* `SC-1` §4.1(b)'s stability set, the shrinkage arm, π₀ / local FDR — each its own register.
+* **No individual prior, item or verdict is re-scored or re-opened.**
+* **No `/research` paragraph ships.**
+
+`scripts/sc1b_cluster_by_item.py`; `data/free_analysis/SC1B_CONTROLS.json`,
+`SC1B_CLUSTER_BY_ITEM.json`; `tests/test_sc1b_cluster_by_item.py` (18 tests).

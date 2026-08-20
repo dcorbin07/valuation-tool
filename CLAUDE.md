@@ -48,6 +48,65 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE RECORD'S STATED PRIORS ARE CALIBRATED-IN-THE-LARGE - AND THE STUDY THAT SAYS SO SCORES
+  ONLY 43 OF 113 ROWS, BECAUSE ITS LARGEST CLASS IS THE ONE IT DISCARDS (2026-08-20, `SC-1b`).**
+  `PREREG_sc1b_cluster_by_item.md` committed **ALONE at `329402d`**, markdown only, zero `.py`;
+  **1 infra trial booked at `58cf538` BEFORE the runner existed, infra 19 -> 20**, equity 242 and
+  options 305 untouched. **Infra `N` gates no published claim.**
+  * **VERDICT `CALIBRATED-IN-THE-LARGE`, CLEARING BY 0.0068.** Clustering `SC-1`'s identical 43
+    OUTCOME pairs by ITEM instead of by FILE gives **15 clusters against 3** and a CI95 of
+    **[-0.173171, +0.113235]**, half-width **0.143203** against `SC-1`'s own 0.15 ceiling. **The
+    gap is unmoved at -0.0500** - a point estimate does not depend on how pairs are grouped - so
+    `SC-1`'s CANNOT-TELL was always about RESOLUTION, and this recovers it.
+  * **LICENSED BY A PRE-COMMITMENT RATHER THAN AN ARGUMENT.** `SC-1` named this successor in
+    writing *before its own interval existed*, saying explicitly that changing the key
+    afterwards would be choosing the design on the outcome. That is a stronger licence than any
+    reasoning assembled later.
+  * **THE STRUCTURAL BOUND WAS DERIVED BEFORE RUNNING AND HELD: both miscalibration verdicts
+    were UNREACHABLE.** The gap cannot move under re-grouping, `SC-1`'s naive CI already
+    contained zero at half-width 0.119186, and `C4` requires the clustered interval to be no
+    narrower. **So this was a test of RESOLUTION and never of direction**, and the answer was
+    **bracketed in advance** between the naive 0.119186 and `SC-1`'s file-clustered 0.191667,
+    with the bar inside the bracket. It landed a third of the way up.
+  * **THE LIMITATION IS THE MOST USEFUL THING HERE, AND IT BOUNDS `SC-1` TOO. The today's-corpus
+    diagnostic returns an IDENTICAL 43 pairs: a day carrying four new items added ZERO
+    calibration evidence.** Measured - today's tree yields 131 scoring rows against the pinned
+    119, of which 8 new rows are scoreable and **ALL EIGHT classify as `UNCLASSIFIED`**. Across
+    the corpus the mix is **`UNCLASSIFIED` 65, `OUTCOME` 43, `INSTRUMENT` 3, `PROCESS` 2** - so
+    **the LARGEST class is the discarded one at 55% of scoreable rows**, and the discards include
+    plainly outcome-shaped predictions whose event cell reduced to a bare number. **The 43 pairs
+    are therefore selected by a keyword classifier whose miss rate is UNMEASURED.** Not repaired
+    here (§6.2 forbids re-classifying, and doing it after the verdict is design-on-outcome) and
+    named as the successor - a bigger one than the clustering key was. **PRACTICAL CONSEQUENCE:
+    a write-up scoring its expectations as a numbered LIST rather than a pipe-delimited TABLE is
+    INVISIBLE to this study, and three of this session's own items did exactly that.**
+  * **`G1` IS WHAT MAKES IT ONE OBJECT UNDER TWO CLUSTERINGS: the re-run reproduces `SC-1`'s
+    banked pair count, gap, Brier, both skills, the Murphy decomposition and BOTH intervals at
+    tolerance 0.0.** The corpus is pinned to `SC-1`'s measurement commit `8e2e9fe`, **forced by
+    §6.2 rather than chosen** - the record has grown since, and running on today's tree would
+    confound MORE DATA with DIFFERENT CLUSTERING.
+  * **POWER, with `SC-1`'s own declared D1 defect REPAIRED** (its §5 formed the MDE from Brier
+    variance where the gap needs `Var(p - y)`): **50% 0.120446 / 80% 0.171033 iid**, and
+    **0.144717 / 0.205498 cluster-adjusted** at a realised design effect of **1.4436**. **The
+    observed 0.0500 gap sits below even the 50%-power iid threshold**, so CALIBRATED here means
+    *"no miscalibration this design could have seen"* - and it validates **no individual prior**.
+  * **TWO DEFECTS IN MY OWN INSTRUMENT.** (1) `G2`'s double-entry re-derivation dropped `SC-1`'s
+    CLASS-agreement condition and matched only the odds value, returning a confident **0.0000**
+    against `SC-1`'s published 11.7% - **a check that cannot fail**, the blank-code-counter
+    family, **caught by disbelieving a zero that disagreed with a published figure** and
+    reproducing 0.1169 once fixed. (2) A guard asserted the register contained a counterfactual
+    argument, copied from a sibling whose licence WAS one; corrected to the quote that actually
+    licenses this item.
+  * **AN ARITHMETIC SLIP IN MY OWN REGISTER, CORRECTED IN THE WRITE-UP AND NOT EDITED AWAY:** §7
+    says the 0.15 bar sits at 38% of the bracket; it is **42.5%**. The error made CALIBRATED look
+    HARDER than it was, so the registered 55/45 lean was if anything conservative.
+  * **EXPECTATIONS 7 RIGHT, 0 WRONG - AND WORTH LESS THAN IT LOOKS, WHICH IS THE POINT.** Five of
+    the seven follow from §1's arithmetic and `SC-1`'s banked figures and are near-deductions
+    rather than forecasts; only the verdict itself was a coin-flip, registered at 55/45. **`SC-1`
+    scored its own 2 right and 2 wrong. Neither number says anything about the record as a
+    whole, which is exactly why the aggregate study exists.** **18 new tests.**
+    `scripts/sc1b_cluster_by_item.py`, `data/free_analysis/SC1B_CLUSTER_BY_ITEM.json`,
+    `SC1B_CONTROLS.json`; `HANDOFF_edge_audit.md` SC-1b.
 - **A NAME'S OWN VALUATION HISTORY CARRIES ~71% NEW INFORMATION AND PREDICTS NOTHING WITH IT -
   AND THE DURABLE PART IS THE CONTAMINATION §0 HAD TO RESOLVE BEFORE THE ARM COULD RUN
   (2026-08-20, `E-6`/`S-SEED-2`).** `PREREG_e6_temporal_axis.md` committed **ALONE at
