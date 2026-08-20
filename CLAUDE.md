@@ -48,6 +48,87 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE CROSS-THEME DISPERSION SORTS IN THE PUBLISHED DIRECTION AND IS A REPACKAGING OF THE
+  INCUMBENTS - AND ITS ORTHOGONALITY IS GUARANTEED BY CONSTRUCTION, SO IT WAS NEVER WORTH
+  ANYTHING (2026-08-20, `E-3`/`S-SEED-1`).** `PREREG_e3_theme_dispersion.md` **ACCEPTED** from
+  the Frontier Scout's draft and committed **ALONE and BLIND at `5d308f5`**, markdown only, zero
+  `.py`, 218 lines, a strict ancestor of every measurement commit; **1 equity trial booked at
+  `fa5433a` BEFORE the runner existed, equity 238 -> 239.** **ADOPTS NOTHING, touches no book,
+  ships no copy.**
+  * **VERDICT `NULL`, REJECTED ON BOTH CO-PRIMARY BASES.** Incremental IC *t*: basis six
+    **-0.1753** full / -0.3241 early / -0.0743 late over 69 effective dates; basis seven
+    **-1.0895** / -1.0240 / -0.6799 over 49. **The largest |*t*| in any cell of either basis is
+    1.0895 against the 2.71 bar**, and the arm had to clear BOTH bases (`MB18`'s rule).
+  * **THE FINDING IS THE COLLAPSE RATHER THAN THE NULL. The RAW dispersion sorts in the declared
+    NEGATIVE direction - median IC -0.0243 and -0.0387 at raw *t* -2.1733 and -2.3041 - and
+    residualising on the incumbents removes essentially all of it.** Mean R2 on incumbents
+    **0.3467 / 0.4125**, which is where `U2` measured a REPACKAGED incumbent (`gp_on_capital`
+    41.3%) and nowhere near the **0.027-0.145** band four orthogonality-motivated items
+    reported. The PEAD template detecting a repackaging is exactly what it is for.
+  * **AND THE RAW READING CLEARS NEITHER BAR THAT GOVERNS HERE, which is the sentence that stops
+    it being quoted as a near-miss: 2.17 and 2.30 pass the RETIRED 2.0 convention and fail X7's
+    calibrated 2.71** - and X7 retired 2.0 because it measured **39% of PURE-NOISE draws**
+    producing at least one theme at 2.0 or better.
+  * **THE INTERPRETIVE CONSTRAINT THE EXECUTOR ADDED TO THE DRAFT, AND IT BINDS ANY SUCCESSOR:
+    `residualise` is LINEAR and a row-wise SD is a NON-LINEAR function of the very columns it is
+    residualised against, so a surviving residual here is guaranteed by construction.** A high
+    R2 was therefore the PREDICTION rather than a disappointment (registered at 70/30, measured
+    0.347/0.413), and a surviving incremental IC would have been a claim about **FUNCTIONAL
+    FORM**, never about new information. This file already names structural orthogonality as a
+    motivation nobody should run again; **this register never rested on it.**
+  * **BOUNDED, NOT ABSENT, AND THE MDE TRAVELS WITH THE VERDICT.** Observed incremental effect
+    **0.0211 SD against an 80%-power MDE of 0.4274** on basis six (**20.25x below**) and
+    **0.1556 against 0.5071** on seven (**3.26x**). The two 80% figures reproduce `MB18`'s
+    published design class **to four decimals**, an independent check that the power arithmetic
+    is this record's own; and `MB18` measured the strongest RAW anchor on rows of this shape at
+    **0.4346 SD**, so a NULL here means *"nothing as large as the best thing this panel has ever
+    carried"*, never *"no effect"*.
+  * **`B7` HONOURED BY MEASUREMENT: `composite_from_frame` is CALLED and never re-implemented,
+    and C-IDENT gates on `composite(Z, w)` reproducing it elementwise at max |delta| 0.000e+00
+    across 113,945 values on BOTH bases** - proved NON-VACUOUS by perturbing one cell of `Z` by
+    1e-12 and requiring the identity to break, and by refusing an empty comparison rather than
+    scoring it perfect (`MB21`'s C1).
+  * **FOUR DEPARTURES FROM THE DRAFT THAT CHANGED THE MEASUREMENT, ALL DECLARED BEFORE RUNNING.**
+    (1) **Its eligibility justification cited an unrelated measurement** - *"`C7` measured 22.01%
+    of rows carrying fewer than two computable inputs"* is `MA28-CARD`'s C7 counting
+    **ACCOUNTING-FLAG** inputs, not themes; the floor was kept on its own merits and the real
+    cost MEASURED at **1.10% and 0.91%**, so the borrowed figure was wrong by twenty-fold.
+    (2) `disp` is taken over the **PER-DATE STANDARDISED** columns, because
+    `composite_from_frame` re-standardises and the raw theme spreads differ by construction
+    (`S3`: `quality` near 0.50 against `insider` near 0.96) - a dispersion over raw columns is a
+    sort on how many INPUTS a theme happens to have. (3) `disp` is defined **PER BASIS**, so the
+    statistic and its control cover the same themes. (4) **K3 is DEGENERATE on the arm's own
+    rows** - the complete-case rule makes the theme count CONSTANT there and a Spearman against
+    a constant is undefined, not a pass - so all three kills are read on BOTH populations and
+    fire if EITHER exceeds, and K3 is reported **STRUCTURALLY ABSENT** on the scored rows.
+  * **NO KILL FIRED, AND `R6`'s GHOST DOES NOT WALK.** K1 vs `size` is the **SMALLEST** of the
+    three (0.016/0.058 eligible, 0.008/0.049 on the arm), so this conviction statistic is not
+    the size sort its predecessor decomposed into. K2 vs `|composite|` is the largest at
+    **0.211-0.236** against a 0.60 bar - the mechanical link (`mean^2 + var = mean of squares`)
+    is real and simply not large enough. **The draft called K2 the likeliest to fire at 40/60
+    against firing and was right on both halves.**
+  * **THE `MB7` DEFECT IS VISIBLE IN THE ARTIFACT RATHER THAN ARGUED:** basis seven records
+    **`split on RAW then intersect early 14 / late 34 ok=False`** against **`EFFECTIVE 24 / 24
+    ok=True`** - the exact cell `MB7` exists for. The register declared `split_used="effective"`
+    beforehand, and the boundary moves **2017-07-20 -> 2020-01-22** with the required
+    disclosure.
+  * **EXPECTATIONS 5 RIGHT, 1 WRONG, 1 SPLIT. The miss is the draft's own expectation 4 and it
+    is BACKWARDS:** it predicted dispersion's largest input correlation would be with
+    `institutional` on basis seven; measured, **`institutional` is the SMALLEST at +0.008** and
+    **`capital_discipline` the LARGEST at -0.198**. **And that expectation was written against a
+    quantity the registered design never emits** - the three kills produce no per-theme table -
+    so scoring it required a labelled post-hoc one, which is a small finding about the draft.
+    The SPLIT is the sign: the RAW column is negative everywhere, while the **INCREMENTAL
+    full-sample median is POSITIVE on basis six**, so *"the direction points the right way"* is
+    false of the incremental statistic and may not be written.
+  * **NOT DONE: no interaction arm** (§6.2, `S7`), **no weighting or sizing use** (§6.1, `S13`),
+    **no `MA55` claim** (different lenses, still unrun), **no product copy** (`V3` forbids a
+    per-name conviction label), and **the mechanism behind the collapse is NOT separated** -
+    which incumbent carries the raw signal, and whether the residual is functional form or
+    noise, would need its own register and its own trial. **21 new tests.**
+    `scripts/e3_theme_dispersion.py`, `scripts/e3_addendum.py`,
+    `data/free_analysis/E3_DISPERSION.json`, `E3_CONTROLS.json`, `E3_ADDENDUM.json`;
+    `HANDOFF_edge_audit.md` E-3.
 - **THE FLAG'S EXCESS CRASH HAZARD DECAYS MONOTONICALLY IN ALL THREE WINDOWS - 9 OF 9 STEPS
   DOWN - AND THE EXCESS CRASH *COUNT* PEAKS IN THE SECOND QUARTER, SO "FLAGS DECAY,
   THEREFORE BUY SHORT-DATED" IS THE ONE INFERENCE THIS ITEM REFUTES (2026-08-20, `E-5`/`INV-A`).**
