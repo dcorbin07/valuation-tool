@@ -115,6 +115,124 @@ the project's memory and the old versions had been repeated for months.
     to amend, and that error's direction is the safe one. **22 tests.**
     `scripts/mb1sel_range_control.py`, `scripts/mb1sel_arm.py` (shipped complete and **never run**);
     `data/free_analysis/MB1SEL_RANGE_CONTROL.json`; `HANDOFF_optionsbot.md` 69.
+- **S22's TERM-STRUCTURE CLAIM SURVIVES THE ONE NULL ITS OWN SHAPE MOST REQUIRED - AND THE
+  ARTIFACT IT HAD NEVER BEEN TESTED AGAINST IS REAL, SMALL, AND APPEARS EXACTLY WHERE
+  BOUDOUKH-RICHARDSON-WHITELAW SAY IT MUST (2026-08-19, `MB21`).**
+  `PREREG_mb21_persistence_null.md` committed **ALONE at `ec55efe`**, markdown only, 338 lines, a
+  strict ancestor of every measurement commit. **1 infra trial, infra 15 -> 16; equity `N`
+  DELIBERATELY UNMOVED at 234** - re-scoring a LANDED claim on a NEW INSTRUMENT is not a new
+  search, and the register said so before running rather than after. **ADOPTS NOTHING AND CHANGES
+  NO PRODUCT COPY.** The audit ranked this its highest-EV item and said its most likely outcome
+  was that something would come **off** the product. It does not.
+  * **THE KILL WAS PRE-COMMITTED IN BOTH DIRECTIONS AND THE DECISIVE CELL WAS READ FIRST.** H=504
+    `alpha_t_hac` **observed 3.830087 against a persistence-preserving p95 of 1.929708** - clears
+    by **1.90 of a *t***, and the floor would have had to rise a further **1.985x** to fire. The
+    observed value was **READ from the shipped `TERM_STRUCTURE.json` and pinned in the register**,
+    so the target could not move once the floors were known; an AST test fails if it ever appears
+    as a literal in the script. **All eight horizons clear, and SIX OF THE EIGHT clear ALL 200
+    DRAWS of the corrected null** (empirical *p* <= 0.005; the other two at 1 of 200), the
+    two-year observation exceeding the null's **maximum** of 3.1948 as well as its p95.
+  * **THE AUDIT'S PREMISE IS CONFIRMED AND ITS MAGNITUDE IS NOT.** `S22`'s `fixed_weights_null`
+    permutes **within** each date, so the placebo has no memory at all (**-0.0016 / +0.0010 /
+    +0.0016** across three seeds) while the real composite's per-name rank autocorrelation is
+    **0.5677** at one quarter and still **0.3983** at two years. That null WAS too easy at every
+    horizon - **but only by +0.2577 of a *t* at two years, about 15% of the floor**, against a
+    claim sitting 1.90 above it.
+  * **THE DECOMPOSITION, REGISTERED BEFORE THE RUN AS A DIAGNOSIS AND EXPLICITLY NOT A DEFENCE,
+    SPLITS ALMOST EVENLY: coverage +0.1426, memory +0.1151** at H=504. **This instrument's own
+    coverage cost is comparable in size to the effect it was built to measure**, which is a real
+    limitation and is stated as one rather than discovered later.
+  * **THE MEMORY TERM'S SIGNATURE IS THE FINDING. BRW's artifact requires OVERLAP, and sorted by
+    HAC LAG rather than by horizon it is 0 of 2 positive at lag 1 (H=63, H=126) and 6 of 6
+    positive at lag 2 through 7.** A clean binary split on the exact axis the theory names. The
+    direction was **named in the register before the run**, but it is scored **POST-HOC and
+    carries NO verdict** - no formal test was pre-registered on it and single cells sit inside the
+    sampling error of a p95 over 200 draws. **Quote the sign pattern, never a single cell.**
+  * **A CORRECTION TO THE AUDIT, MEASURED: THE SHORTFALL DOES NOT GROW WITH HORIZON.** The audit
+    says it *"grows with horizon - which is precisely the axis `S22`'s headline lives on"*, and
+    part of the case for ranking the item first rests on that. Measured, the total effect **steps
+    up once where overlap begins (+0.0972 at H=63 to +0.3778 at H=126) and is then flat or
+    falling** - 0.3200, 0.2550, 0.2651, 0.2508, **0.1844 at H=441**, 0.2577 at H=504. **The
+    mechanism is right and the monotonicity claim is not.**
+  * **THE ONE PLACE THE CORRECTED NULL BITES IS THE LONG-SHORT LEG, AND IT COSTS A HORIZON.** It
+    failed its own floor from H=315 under `S22`'s null and fails from **H=252** under this one
+    (observed 1.8561 against 1.9637). **The LS floor FALLS at the two lag-1 horizons and RISES at
+    every overlapping one** - the same overlap signature on a second statistic, reached
+    independently. **`S22`'s standing instruction that no long-short figure may be quoted beyond
+    about a year is STRENGTHENED and its boundary moves IN to a hard one year. The long-only book,
+    which is the shipped product, is untouched** - `S22-DISPLAY`'s copy stands unchanged, and had
+    the verdict gone the other way the register named the exact constants in
+    `valuation/web/hold_horizon.py` and **routed** the edit to the app lane.
+  * **`C1` IS THE STRONGEST CONTROL AVAILABLE AND IT IS EXACT: the runner IMPORTS `S22`'s own
+    `arm()` and reproduces `S22`'s stored placebo draws at max |delta| 0.000e+00 across 160 of 160
+    cells**, five seeds, eight horizons, four statistics. The two instruments are not merely
+    comparable; the scoring path is the same object. `C2` persistence retained (real 0.5665 vs
+    placebo **0.5680** at lag 1, 0.4028 vs 0.4020 at lag 8); `C3` association nil at the
+    registered 200 draws (**+0.00022** and **+0.00043** against a 0.003 bar) **with a within-date
+    REFERENCE arm** at -0.00021 / +0.00015, so a nonzero reading could have been attributed to the
+    statistic rather than to this instrument; `C6` fixed points **1.02 of 2,474 names**, the
+    theoretical expectation being exactly 1; `C8` effective coverage **PRINTED** per `MB7` and
+    `RUN_RULES` PART A rule 10 (**66.4%** of rows, cross-section median **1,553 -> 976**).
+  * **THE COVERAGE-PRESERVING SHORTCUT IS NOT A NULL, AND IT WAS DISQUALIFIED BEFORE THE REGISTER
+    WAS WRITTEN rather than after seeing whether it flattered anything.** Permuting within exact
+    presence-pattern strata keeps **96.7%** of rows against the primary's 66.4% - and leaves
+    **~170 names per draw paired with THEMSELVES**, with a live residual association at H=504
+    (median IC **+0.01067**, *t* **+4.106**). Pairing within a lifespan stratum pairs a name with
+    one of similar era and size, and `size` is both the most persistent theme (**0.9915**) and,
+    per `X3`, the carrier of the composite's entire significance. **Stratifying to protect
+    coverage smuggles the signal back in.**
+  * **THREE DEFECTS IN MY OWN INSTRUMENT, ALL CAUGHT BY RUNNING IT, AND THE FIRST IS THIS RECORD'S
+    OWN RECURRING FAMILY.** (1) **`C1` FIRST PASSED VACUOUSLY, AT A PERFECT 0.000e+00, ON AN EMPTY
+    PANEL** - the panel's `date` column is **`str`**, coercing `S22`'s stored dates to
+    `pd.Timestamp` matched **ZERO of 113,945 rows**, `arm()` returned a bare status dict, and a
+    max-|delta| loop that skips a `None` cell **scored perfectly by comparing nothing**. Exposed
+    only because `C2` crashed on the same empty frame two controls later; `C1` now **counts the
+    cells it compared and gates on the count**. **Sixth instance of the family, and the first in
+    which the vacuous control was the one certifying the instrument.** (2) A read-only numpy view
+    in the thinning control, caught before it could take down a two-hour run partway through.
+    (3) **A DEVIATION FROM MY OWN REGISTER, CORRECTED IN THE CODE RATHER THAN IN THE REGISTER**:
+    `C3` first ran on 20 draws where section 4 fixes 200, reading a knife-edge **+0.00288** against
+    a 0.003 bar that the registered 200 draws showed to be noise.
+  * **A CORRECTION TO THE AUDIT'S OWN PERSISTENCE FIGURES, IMMATERIAL TO THE VERDICT.** All seven
+    **per-theme** values reproduce to four decimals (`size` 0.9915, `capital_discipline` 0.8882,
+    `value` 0.6981, `quality` 0.6786, `momentum` 0.6414, `insider` 0.3152, `institutional`
+    0.1181). The **COMPOSITE** does not: the audit's **0.5802 / 0.4099** come from a composite
+    that does **not** renormalise by present-weight mass, while the **shipped**
+    `composite_from_frame` - audit `B7`'s convention, and the composite `S22` actually scores -
+    gives **0.5677 / 0.3983**. Diagnosed rather than asserted: an un-renormalised 0.125-weighted
+    sum reproduces the audit at 0.5796 / 0.4134, and 16.3% of rows on a mid-panel date are missing
+    at least one of the seven.
+  * **WHAT IT DOES NOT SAY. It does not prove `S22` correct** - it shows the two-year claim
+    survives the null its own shape most required, on 62 dates, on one panel. **It does not
+    license the long-short leg**, which got worse. **And it does not vindicate `placebo_panel`:**
+    that null really was too easy at every horizon, by roughly **+0.1 to +0.25 of a *t*** on
+    overlapping long horizons, **so any future claim sitting that close to a `placebo_panel` floor
+    is not safe.**
+  * **NOT DONE, named so it is not mistaken for done - AND THE OBVIOUS FOLLOW-ON IS NARROWER THAN
+    IT LOOKS.** `MB23` landed in another lane while this was running: it ports and VALIDATES the
+    Hodrick 1992 1B estimator (6 of 6 Wei-Wright cells at max |dev| 0.0075) and cross-checks the
+    **shipped H=63** statistics at a 9.18% gap inside its 10% bar. **But its own caveat binds
+    here: at h=1 the windows DO NOT OVERLAP and Hodrick's sandwich carries no autocovariance term
+    at all - so `MB23` validated the estimator at the ONE horizon where the overlap problem is
+    absent, and `S22`'s LONG horizons are still uncross-checked on the estimator side.** The
+    follow-on is therefore **not** *"run `MB23`"* but *"run the now-verified Hodrick estimator at
+    H=126 through H=504 against the HAC *t*s this register scored"* - cheap, because the port
+    already exists. **`S22` was NOT re-run** and `TERM_STRUCTURE.json` never written to.
+    **Expectations 4 right, 1 wrong, 2 split** - the miss being monotonicity, which is the audit's
+    own claim; **the audit's prior was ~55% that at least one horizon crosses and none does.**
+    **126 suites, 1 ENVIRONMENTAL failure and 0 substantive after merging `origin/main`; 31 new
+    tests, 6 of 6 tripwires mutation-tested with sources restored byte-for-byte.** The one
+    failure is `tests/test_options_freeze.py` at `PermissionError` on a `%TEMP%` file inside
+    `GzipFile`, passing **6 of 6 standalone runs** on the identical tree - **the SECOND
+    independent sighting of one class the same day**, `MB16` having hit `Permission denied` on
+    git objects under `%TEMP%` in `tests/test_checkout_drift.py` and measured the cause as
+    sustained concurrent temp-volume I/O, **naming this item's own `--floors` shards as part of
+    the load.** Suites that build real artifacts under `%TEMP%` wrap no I/O in a retry, and both
+    are invisible in CI where a Linux runner has no contention - `MB42`'s shape. Reported, not
+    fixed; neither suite is this lane's.
+    `valuation/studies/persistence_null.py`, `scripts/mb21_persistence_null.py`,
+    `data/free_analysis/MB21_PERSISTENCE_NULL.json`, `MB21_CONTROLS.json`;
+    `HANDOFF_edge_audit.md` MB21.
 - **QUOTE-CLASSIFIED VPIN SURVIVES ITS PRE-SCORING KILL AND THEN FAILS ALL THREE LEGS OF ITS OWN
   BAR - AND THE KILL STATISTIC THE ITEM REGISTERED IS STRUCTURALLY BLIND TO THE RENAMING IT EXISTS
   TO CATCH (2026-08-19, `MB16`).** `PREREG_mb16_vpin.md` committed **ALONE at `7fa88e5`**, markdown
@@ -282,6 +400,86 @@ the project's memory and the old versions had been repeated for months.
     `mb15_gate_satisfiability.py`, `mb15_condition_census.py`;
     `data/free_analysis/MB15_VENUE_CENSUS.json`, `MB15_GATE_SATISFIABILITY.json`,
     `MB15_CONDITION_CENSUS.json`; `HANDOFF_optionsbot.md` 67.
+- **EVERY "MINIMUM DETECTABLE EFFECT" THIS PROJECT HAS EVER PUBLISHED IS A 50%-POWER FIGURE,
+  NOT AN 80%-POWER ONE - AND THE HODRICK CROSS-CHECK VALIDATES THE H=63 STATISTICS WHILE BEING
+  STRUCTURALLY UNABLE TO CORROBORATE THEM (2026-08-19, `MB22`+`MB23`).**
+  `PREREG_mb22_mb23_power_and_hodrick.md` committed **ALONE at `9dee135`**, markdown only, a
+  strict ancestor of every measurement commit. **Both items are INFRA: `N` 15 -> 17, equity
+  untouched at 234, and infra `N` gates no published claim. ADOPTS NOTHING, MOVES NO CLAIM** -
+  both branches of `MB23`'s bar were pre-committed to move nothing. **Options is untouched BY
+  THIS ITEM and reads 305, not the 304 measured mid-session** - a concurrent lane booked a trial
+  while this was landing, and the stamp in `tests/test_research_log_integrity.py` was reconciled
+  to the MEASURED post-merge count rather than to either side of the merge conflict. Taking one
+  side would have mis-stamped a domain neither lane had wrong. The register is left unedited at
+  304, which was correct when it was written; **`MA37`'s rule, for the third time: RE-READ
+  `by_domain` after merging and never quote a session's own mid-run figure.**
+  * **`MB22` - THE VOCABULARY CORRECTION, AND IT APPLIES TO THREE FIGURES ALREADY IN THIS FILE.**
+    `S19`'s **+0.020549**, `V2G`'s **1.8708pp** and `V6`'s **+4.177pp** are all `crit x se` - the
+    effect at which the **POINT ESTIMATE** would just reach the bar, which is detected **half the
+    time**. The 80%-power MDE is `(crit + 0.84) x se`, **1.42x larger at `crit` 2.0**, so those
+    become +0.029180, 2.6565pp and 5.9313pp. **Neither number is wrong as stated; quoting one as
+    the other is.** All three reproduce from the ported function without being told the answer,
+    which is what proves it measures the quantity Valquo already means.
+  * **THE STRONGEST CONTROL IS VALQUO'S OWN, NOT TIDEMARK'S. `V2G` published 1.8708pp as what its
+    design "resolves" and then separately computed its power against a true 1.95pp gap as
+    55.0%** - and `power_at(1.95, se 0.9354, crit 1.96)` returns **55.0%** by a different route.
+    A design whose detection threshold sits just below the effect it tests has about a coin flip
+    of seeing it. That is exactly what a 50%-power threshold means, and `V2G` had both halves of
+    it on the page without the two being connected.
+  * **THE EXTERNAL CONTROLS REPRODUCE TIDEMARK'S PRINTED ARITHMETIC EXACTLY** - the charter power
+    table at `crit` 1.96 (IR 0.20 -> 196, 0.30 -> 87, 0.15 -> 348), `hlz_hurdle(66)` 2.8947,
+    155.0 required years at IR 0.30, and the four IR-needed figures 0.41 / 0.55 / 0.74 / 0.52.
+    **`hlz_hurdle` is IMPORTED and never re-derived (`MA5`), and `critical_value` REFUSES to
+    default** - a default is precisely how the HLZ bar froze at the constant 3.0.
+  * **NO CHECK SHIPS, AND THE REFUSAL IS THE POINT (`MB30`, with `MA21` binding).** ~68 historical
+    registers state no MDE in this form, so a corpus sweep would fire on essentially all of them
+    and be switched off inside a week - the identical shape `MA21` already declined when a
+    blank-verdict warning would have fired on 41 legitimate ledger rows. **`RUN_RULES` PART A
+    rule 11 binds future registers instead**, and the library makes obeying it one line.
+  * **`MB23` - VERDICT `VALIDATED`, AND THE MARGIN AND THE MECHANISM BOTH TRAVEL WITH IT.**
+    Long-short Newey-West **2.6199** against Hodrick **2.8604**, gap **9.18%**; top-decile alpha
+    **4.3762** against **4.6719**, gap **6.76%**; bar 10%, required on both. **THE LONG-SHORT CELL
+    CLEARS BY 0.82 OF A PERCENTAGE POINT - a 9% bar would have failed it.**
+  * **AND `VALIDATED` MEANS LESS THAN IT SOUNDS, WHICH IS THE HONEST PART. At `h = 1` the horizon
+    EQUALS the rebalance interval, the windows do not overlap, and Hodrick's sandwich carries NO
+    autocovariance term at all** - so it **structurally cannot see** the lag-1 autocorrelation
+    Newey-West corrects for (**0.189** long-short, **0.081** alpha). The two agree because that
+    correction is small here, **not because two independent methods converged**, and the Hodrick
+    *t* lands nearer the **NAIVE** *t* (2.8361, 4.5174) than the HAC one in both cases. **This
+    validates the ported instrument. It does NOT independently corroborate the HAC number.**
+  * **THE ESTIMATOR IS VERIFIED AGAINST PRINTED NUMBERS, NEVER AGAINST MY OWN EXPECTATION** -
+    Wei-Wright (2009) FEDS 2009-27 Table 1, **6 of 6 coverage cells at `alpha` = 0 at max abs
+    deviation 0.0075** against a pre-registered 0.03, **plus the more discriminating half, the
+    PUBLISHED COLLAPSE away from the null** (0.700 against a printed 0.71 at `alpha` 0.05, 0.495
+    against 0.53 at 0.10). An estimator merely returning ~0.95 everywhere passes the null test
+    and fails that one. **The reason for that standard is on the record: TIDEMARK's own first
+    implementation summed the regressors while keeping the h-period residual and returned
+    *t* ~ 0.3 at every horizon against a bootstrap p ~ 0.018** - it looked like "no evidence" and
+    was believed. **The defect is reconstructed and pinned**, so a future session reintroducing it
+    goes red.
+  * **`POWER_GATE` 5.2's SPECIFICATION ERROR IS REPRODUCED INDEPENDENTLY ON THIS IMPLEMENTATION**:
+    on the verified cell the estimator is correctly sized (Var(*t*) **1.012**, rejection **0.040**
+    against a nominal 0.05) and the criterion **as committed** there - q97.5 of |*t*| within 10%
+    of 1.96 - **FAILS on it**, because 1.96 is the 97.5th percentile of the **SIGNED** *t* and the
+    right figure is ~2.24. **A rule that flags a known-good case is broken**, so the rejection
+    rate ships as the decision rule and the misspecified quantile is carried beside it, marked.
+  * **THE H-SWEEP IS A DIAGNOSTIC AND CARRIES NO VERDICT, by a void condition fixed in advance.**
+    The gap widens to **17.4%** (long-short) and **31.5%** (alpha) by `h = 8` - `S22`'s territory -
+    and **`MB21` is NOT run here**, so re-scoring `S22` against a better standard error while
+    leaving its null mis-specified would change one half of a comparison. The sweep also cumulates
+    the same 69 quarterly draws rather than rebuilding `S22`'s per-horizon panel columns, so it is
+    a **related object, not `S22`'s own construction**. **Quoting any `h > 1` cell as a verdict
+    about `S22` voids the register.**
+  * **A DEFECT IN MY OWN INSTRUMENT, AND IT IS `MB22`'s SUBJECT COMMITTED INSIDE `MB23`'s TESTS.**
+    The criterion test first ran at 250 draws, where its own +/-0.015 tolerance is **1.1
+    Monte-Carlo standard errors wide** - so it asserted something its sample could not resolve,
+    and a correctly-sized estimator failed it. Fixed by deriving the draw count (1,200, 2.4 se),
+    **not** by loosening the criterion, which would have been silencing the check. **Two further
+    guards of mine fired on their own docstrings** - the comment-versus-code family for the sixth
+    time - and now read the **AST**. **37 tests, 8 of 8 mutations caught across both modules with
+    sources restored byte-for-byte.** `valuation/edge/power_gate.py`, `valuation/edge/hodrick.py`,
+    `scripts/mb22_mb23_power_and_hodrick.py`, `data/free_analysis/MB22_MB23.json`;
+    `HANDOFF_edge_audit.md` MB22+MB23.
 - **THE ALTERNATIVES MENU IS SCORED AND THE KILL FIRES - AND THE CLOSURE IT ANNOUNCES IS NOT
   SOUND, REFUTED ON THREE MEASUREMENTS OF THE SAME DATA (2026-08-19, `MB1`).**
   `PREREG_mb1_alternatives_menu.md` committed **ALONE at `33ad7ee`**, markdown only, a strict
