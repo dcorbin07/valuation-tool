@@ -856,3 +856,32 @@ postdates its earliest pulled year**.
 **THE SUBSCRIPTION CAN NOW LAPSE ON SCHEDULE.** Nothing left on this page requires Pro.
 
 **Zero trials. Nothing here is a research result and nothing here may be quoted as one.**
+---
+
+## MB6 — Tier C's 420 small caps: two constraints that go in the register BEFORE it runs
+
+**Recorded here, not in the audit, because this is where a Tier C consumer will actually be
+standing.** Zero trials; the equity-side question this population uniquely answers is `MB17`'s and
+is not opened here.
+
+The 420 never-tried optionable names hold **982 units with data, 50.6 M rows, 2016–2018** — a
+population no options study has ever touched, and the only one that is small-cap. Both constraints
+below come from the census, and both are live ways to get a confidently wrong answer.
+
+**1. 28 of 982 units (2.9%), across 14 symbols, carry ANOTHER COMPANY'S option data.** They are
+flagged `pre_panel_history`, with `panel_first_year` on every row — FOXA, IR, VG, CR, AZPN and nine
+others. A ticker that was reassigned carries the *previous* issuer's chains before
+`panel_first_year`, and treating them as the modern company silently mixes two firms into one
+series. **The flag must be FILTERED ON, not merely present in the payload.**
+
+**2. 278 units are `empty_vendor`.** A name's absence there is a fact about the **vendor**, not
+about the market — reading it as "this name did not trade" is the COVERAGE RULE's own failure mode,
+and this record has paid for that class four times.
+
+**AND A CAUTION THAT MUST TRAVEL WITH CONSTRAINT 1, because it is how the filter passes without
+doing anything.** Two separate registers have now reported the key **ABSENT** rather than present:
+`O21-D2` recorded `pre_panel_history` **VACUOUS rather than PASSING** — absent on all 114 units it
+read — and `MB15` reported the same across all 3,884 payloads it read. So a register must **assert
+the key is PRESENT on the units it is about to score** before treating a clean filter as evidence
+of anything. A filter that finds nothing because the field is missing looks identical to a filter
+that finds nothing because the data is clean.

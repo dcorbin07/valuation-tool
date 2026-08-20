@@ -400,6 +400,43 @@ the project's memory and the old versions had been repeated for months.
     `mb15_gate_satisfiability.py`, `mb15_condition_census.py`;
     `data/free_analysis/MB15_VENUE_CENSUS.json`, `MB15_GATE_SATISFIABILITY.json`,
     `MB15_CONDITION_CENSUS.json`; `HANDOFF_optionsbot.md` 67.
+- **`O11`'s RUIN RESULT IS THE NON-EARNINGS HALF OF THE BOOK - THE EARNINGS-SPANNING HALF ENDS
+  ABOVE ITS START AT $5,000, NOT THE $250,000 THE AUDIT EXPECTED (2026-08-19, `MB3`).**
+  **ZERO TRIALS** - a computation on banked distributions with no hypothesis and no bar of its own
+  (the `S25` / `X7RECON` / `MB31` class), so equity stays **234**, options **305**, infra **17**.
+  **ADOPTS NOTHING AND LICENSES NO TRADE.**
+  * **THE QUESTION AND ITS KILL CONDITION WERE THE AUDIT'S, QUOTED VERBATIM BEFORE THE RUN:**
+    *"at what account equity does the cap-10 ruin arithmetic permit an earnings-spanning book to
+    end above where it started?"*, closing the family permanently above **$250,000** and becoming
+    a live design need below it. **MEASURED: $5,000**, bracketed between $2,500 and $5,000, a
+    **single** break-even crossing - so the pre-committed `UNRESOLVED` branch (more than one
+    crossing) did not fire. **The audit's own ~85% prior that this closes is REFUTED.**
+  * **THE CONTROL IS THE FINDING.** At $50,000 and cap 10 the **spanning** half ends at
+    **$130,855** and the **not-spanning** complement at **$24,391**, with `O11`'s recorded
+    whole-book **$37,059** sitting between them. **So `O11`'s headline - a +3.27%/trade
+    positive-expectancy book ending BELOW its start - is driven by the trades that do NOT span an
+    earnings announcement.** The halves are not required to sum: 388 `UNKNOWN` rows are dropped
+    from both.
+  * **THE PARTITION REPRODUCES `O17C4` EXACTLY, which is what makes it the same object** - 1,987
+    spanning against its recorded `n_spans` of 1,987, 1,495 not, 388 UNKNOWN **dropped and
+    counted** rather than folded either way (29 of 186 names are foreign private issuers with no
+    earnings dates). Nothing is reimplemented: the shipped `simulate_book` under the shipped
+    `MAX_CONCURRENT`, and the shipped `owns_the_event`.
+  * **A DEFECT IN THE AUDIT'S MECHANISM, FOUND BY RUNNING IT.** It reasons that harvesting a
+    thin-tail mean needs many small positions *"which is exactly the configuration `O11` measured
+    to end below its starting equity"*. **The low-end failures are AFFORDABILITY, not ruin**: at
+    $1,000 only **2 of 1,987** trades are taken because the account cannot afford the premium.
+    The book does not go broke at small size - it never gets on.
+  * **TWO CAVEATS THAT MUST TRAVEL WITH IT. (a) This is the ALERT book's spanning subset**, and
+    `O17C4` measured alert-spanning **LOSING** to random-spanning (+8.42% against +10.30%, *z*
+    **-4.4726**), so the tradeable form is *"buy calls spanning earnings"* **with no alert in it**
+    and that book was **NOT** simulated. **(b) `O11` GOVERNS** - below the bar means a live design
+    need requiring its own blind register, **which is not proposed**. The effect is a **MEAN** one:
+    DTE-matched median-vs-median is **+0.40pp**, so the typical trade is a near-total loss either
+    way. The control's own resolution is **UNRESOLVED** by the same rule (two crossings, off a thin
+    71-trade cell) and is reported as a **direction**, not a figure.
+    `scripts/mb3_event_ownership_equity.py`, `data/free_analysis/MB3_EVENT_EQUITY.json`;
+    `HANDOFF_edge_audit.md` MB3.
 - **EVERY "MINIMUM DETECTABLE EFFECT" THIS PROJECT HAS EVER PUBLISHED IS A 50%-POWER FIGURE,
   NOT AN 80%-POWER ONE - AND THE HODRICK CROSS-CHECK VALIDATES THE H=63 STATISTICS WHILE BEING
   STRUCTURALLY UNABLE TO CORROBORATE THEM (2026-08-19, `MB22`+`MB23`).**

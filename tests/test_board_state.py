@@ -332,6 +332,61 @@ class Heartbeat(unittest.TestCase):
         self.assertNotIn("drift_heartbeat", boot)
 
 
+class PromptReceipts(unittest.TestCase):
+    """MB29 - a lane's prompt should be discoverable on its branch, and this REPORTS it.
+
+    The miss it closes is dated: audit #4's own commission sat untracked as
+    `?? PROMPT_audit4_master.md` while that audit was being written, so at the moment it began
+    no other lane could have found out what was being worked.
+    """
+
+    def test_it_returns_one_row_per_lane_and_nothing_else(self):
+        rows = bs.prompt_receipts(["worktree-does-not-exist-xyz"])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["lane"], "worktree-does-not-exist-xyz")
+
+    def test_an_unreadable_branch_is_UNMEASURED_and_never_False(self):
+        """The distinction the whole board file rests on: `None` means 'could not look', and
+        reading it as 'no prompt' would report a lane as undocumented on the strength of a
+        failed git call."""
+        rows = bs.prompt_receipts(["worktree-does-not-exist-xyz"])
+        self.assertIsNone(rows[0]["prompt"])
+        self.assertIsNot(rows[0]["prompt"], False)
+
+    def test_it_carries_no_verdict_and_no_warning(self):
+        """MB29's own 'false-alarm risk: none', and MB30/MA21's rule. A lane without a prompt
+        is a discoverability fact, not a defect.
+
+        READ FROM THE AST, not grepped. The first cut banned the substring `warn` and failed
+        against the CORRECT function, because its docstring says 'nothing here fails, warns or
+        exits non-zero'. That is the comment-versus-code family for the seventh time in this
+        record (MA5's own guard on its own documentation, MA49's fixture against the fixed tree,
+        MA23's stale-import guard, and three in MB22/MB23). A text sweep cannot tell code from
+        prose about code; the syntax tree can.
+        """
+        import ast
+        with io.open(os.path.join(ROOT, "scripts", "board_state.py"),
+                     encoding="utf-8") as fh:
+            tree = ast.parse(fh.read())
+        fn = next(n for n in ast.walk(tree)
+                  if isinstance(n, ast.FunctionDef) and n.name == "prompt_receipts")
+        for node in ast.walk(fn):
+            self.assertNotIsInstance(node, ast.Raise, "prompt_receipts raises - it reports only")
+            if isinstance(node, ast.Call):
+                f = node.func
+                name = (f.id if isinstance(f, ast.Name)
+                        else f.attr if isinstance(f, ast.Attribute) else "")
+                self.assertNotIn(name, ("warn", "exit", "print", "error"),
+                                 f"prompt_receipts calls {name!r} - it reports only")
+
+    def test_the_board_counts_receipts_without_requiring_them(self):
+        b = bs.board()
+        self.assertIn("lanes_with_a_prompt_receipt", b["counts"])
+        n = b["counts"]["lanes_with_a_prompt_receipt"]
+        if n is not None:
+            self.assertLessEqual(n, b["counts"]["lanes_in_flight"] or 0)
+
+
 class ItRunsFromTheCommandLine(unittest.TestCase):
     def test_board_state_runs_as_a_subprocess(self):
         p = subprocess.run([sys.executable, "scripts/board_state.py"],

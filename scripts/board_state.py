@@ -319,6 +319,36 @@ def fetch_age(now: float | None = None) -> dict:
     return {"age_hours": round((now - fh.stat().st_mtime) / 3600.0, 2)}
 
 
+def prompt_receipts(lanes: list[str]) -> list[dict]:
+    """MB29 - per in-flight lane, does a `PROMPT_*.md` exist on it?
+
+    The register discipline requires a `PREREG_*.md` committed ALONE and a strict ancestor of
+    every measurement commit, precisely so intent is provably prior to result. MB29 applies the
+    same shape one level up: **a lane's first commit is its prompt**, so what was ASKED is
+    discoverable on `origin/main` rather than living in a manager's head.
+
+    The miss it closes is dated: at audit #4's start `git status` read
+    `?? PROMPT_audit4_master.md` — the commission defining that audit was untracked, so at the
+    moment it began no other lane could have discovered what was being worked.
+
+    **REPORTED, NEVER ASSERTED.** This returns a count and a boolean per lane and nothing here
+    fails, warns or exits non-zero — MB29's own "false-alarm risk: none", and MB30/MA21's rule
+    that a guard firing on legitimate cases gets switched off within a week. A lane without a
+    prompt file is a fact about discoverability, not a defect to be alarmed about.
+    """
+    out = []
+    for lane in lanes:
+        try:
+            files = _git("ls-tree", "-r", "--name-only", f"origin/{lane}").splitlines()
+        except Exception:
+            out.append({"lane": lane, "prompt": None, "files": None})   # UNMEASURED, not False
+            continue
+        found = sorted(f for f in files
+                       if f.startswith("PROMPT_") and f.endswith(".md"))
+        out.append({"lane": lane, "prompt": bool(found), "files": found[:5]})
+    return out
+
+
 def board(now: float | None = None) -> dict:
     now = time.time() if now is None else now
     b = {"_meta": {
@@ -353,8 +383,16 @@ def board(now: float | None = None) -> dict:
                     for r in (b["branches"] or []) if r["kind"] == "lane"})
     dirty = [w for w in (b["worktrees"] or []) if (w.get("dirty") or w.get("untracked"))]
     b["lanes"] = lanes
+    try:
+        b["prompt_receipts"] = prompt_receipts(lanes)          # MB29
+    except Exception as e:
+        b["prompt_receipts"] = None
+        b["_meta"].setdefault("unmeasured", {})["prompt_receipts"] = str(e)[:200]
+    _pr = b.get("prompt_receipts") or []
     b["counts"] = {
         "lanes_in_flight": None if b["branches"] is None else len(lanes),
+        "lanes_with_a_prompt_receipt": (None if b.get("prompt_receipts") is None
+                                        else len([r for r in _pr if r["prompt"]])),
         "kept_refs": None if b["branches"] is None else
                      len([r for r in b["branches"] if r["kind"] == "kept"]),
         "worktrees": None if b["worktrees"] is None else len(b["worktrees"]),
@@ -383,7 +421,12 @@ def render(b: dict) -> list[str]:
                 if r["ref"].removeprefix("origin/") == lane]
         where = "local+remote" if len(refs) > 1 else (
             "remote only" if refs and refs[0]["remote"] else "local only")
-        out.append(f"    {lane:<44} +{refs[0]['ahead']:<4} {where}")
+        pr = next((r for r in (b.get("prompt_receipts") or []) if r["lane"] == lane), None)
+        # MB29: reported, never asserted. "no prompt" is a discoverability fact, not a defect.
+        rec = "" if pr is None else (
+            "  prompt: yes" if pr["prompt"] else
+            "  prompt: none on branch" if pr["prompt"] is False else "  prompt: UNMEASURED")
+        out.append(f"    {lane:<44} +{refs[0]['ahead']:<4} {where}{rec}")
     if c["lanes_in_flight"] == 0:
         out.append("    none - no worktree-* branch carries a commit origin/main lacks")
 

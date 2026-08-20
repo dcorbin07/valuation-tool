@@ -2338,3 +2338,84 @@ than a relic, and the whole discipline here is to look before deleting.
 per-delete ancestry check is the only safety argument needed — but the `rescue/*` refs are a
 different case and want the tag-then-verify-then-delete sequence above, because a `rescue` ref by
 construction holds something that was *not* on `main`.
+---
+
+## 15. MB29 + MB36 — the prompt receipt, and the docs move deferred with its hazards pinned
+
+Zero trials. Both are factory items; neither touches a verdict.
+
+### 15.1 MB29 — ADOPTED, and the reporting half now exists
+
+**The failure:** the manager's roadmap listed a lane as in flight *on an intention rather than a
+pasted prompt*.
+
+**The convention:** the register discipline requires a `PREREG_*.md` committed **alone** and a
+strict ancestor of every measurement commit, precisely so intent is provably prior to result.
+Applied one level up — **a lane's first commit on its branch is its prompt**, committed alone as
+`PROMPT_<lane>.md`, so *what was asked* is discoverable on `origin/main` rather than living in a
+manager's head.
+
+**Evidence it would have bitten, dated:** at audit #4's session start `git status` read
+`?? PROMPT_audit4_master.md` — the commission defining that audit was **untracked**, so at the
+moment it began no other lane could have discovered what was being worked.
+
+**What shipped:** `scripts/board_state.py` gains `prompt_receipts()`, reporting per in-flight lane
+whether a `PROMPT_*` blob exists on that branch, with the count in `counts` and a per-lane marker
+in the rendered view. **Measured at adoption: 2 lanes in flight, 2 carrying a prompt** — the
+convention is already being observed and this makes it checkable.
+
+**It reports and never asserts.** MB29's own *"false-alarm risk: none"*, and MB30/MA21's rule. A
+lane without a prompt is a fact about discoverability, not a defect; an unreadable branch reports
+**UNMEASURED and never `False`**, which is the distinction the whole board file rests on. Four new
+tests — and one of them reads the **AST** after its first cut fired on its own docstring (the
+docstring says *"nothing here fails, warns or exits non-zero"*, and a substring ban on `warn` found
+exactly that). **Comment-versus-code, seventh instance in this record.**
+
+### 15.2 MB36 — DEFERRED, with both hazards neutralized and pinned
+
+**The move is NOT made.** What ships is `tests/test_mb36_docs_move_hazard.py` (8 tests), so whoever
+performs it later is protected rather than trusted.
+
+**HAZARD 1 — the one the audit named, confirmed verbatim at source.**
+`valuation/web/research_record.py:217` lists the pre-registration documents by
+`glob.glob(os.path.join(root, "PREREG_*.md"))` — the filesystem, not a manifest. A move that does
+not update that glob **in the same commit** silently empties the public research page's register
+list and **nothing raises**: an empty list is not an error, it renders as a page with no registers,
+on a public page whose whole purpose is to evidence the register discipline.
+**Mutation-tested:** repointing the glob at `register/` turns the suite RED; source restored
+byte-for-byte.
+
+**HAZARD 2 — which the audit does not name, and whose failure mode is INVISIBLE.**
+`.gitattributes` sets `HANDOFF_*.md merge=union`, and that rule is what keeps five parallel lanes
+landing — its own header records `HANDOFF_STATUS.md` taking **29 commits from many lanes in three
+days**, every conflict resolved the same way. Measured with `git check-attr`:
+
+| path | `merge` |
+|---|---|
+| `HANDOFF_edge_audit.md` | **union** |
+| `handoff/HANDOFF_edge_audit.md` (prefix kept) | **union** |
+| `handoff/edge_audit.md` (prefix dropped) | **unspecified** |
+
+So the move is safe **only if the filenames keep their prefix** — and `handoff/HANDOFF_x.md`
+stutters, so de-stuttering is the obvious tidy and it is the one that breaks it. Unlike hazard 1
+this fails **invisibly** and surfaces weeks later as branches that stop landing.
+
+**Why deferred rather than executed — measured reasons, not caution.**
+
+1. **Discovering a hazard the audit did not name is itself the signal that the hazard analysis was
+   incomplete.** Executing a 119-file restructure on an analysis now known to be incomplete is the
+   wrong call.
+2. **18 hard-coded filesystem couplings to `PREREG_*` paths across 12 test files** (`test_edge.py`
+   alone opens six by relative path), every one of which breaks unless updated in the same commit.
+3. **At least two lanes were in flight while this ran.** A 119-file rename conflicts with every one
+   of them — and that is `MA23`'s own precedent, where two branches touched different files, git
+   merged them cleanly, and the result did not import.
+
+**And `MA23`'s correction must travel with any future move:** `MA23` found *after the fact* that
+its move did not achieve one of its three stated motivations, because `.dockerignore` already
+excludes `*.md`. **A documentation move buys READABILITY ONLY** and must not be sold as anything
+else.
+
+**Re-open condition:** a session with no other lane in flight, performing the renames, the 18
+test-path updates and the glob update in **one commit**, **keeping the `HANDOFF_` prefix**, and
+running the full gate afterwards. The guard is already in place to verify it.
