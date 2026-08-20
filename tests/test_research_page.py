@@ -302,6 +302,7 @@ def test_work_links_to_the_record():
 # was measured before any copy existed, and it is asserted here permanently so a later change
 # to `_FIGURE` cannot quietly re-break it in either direction.
 import ast as _ast
+import re as _re
 import html as _htmlmod
 
 MODULE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -327,6 +328,18 @@ def _module_code_without_docstrings():
         if isinstance(node, (_ast.Constant,)):
             out.append(repr(node.value))
     return "\n".join(out)
+
+
+def _module_numeric_literals():
+    """Every numeric literal in the module, as a SET OF EXACT STRINGS.
+
+    The set is the point. `"19" in "2.6199121240414884"` is True and means nothing; `"19" in
+    {"2.6199121240414884", ...}` is False and means what the guard intends - that no literal IS
+    the count. See the note in the MB38 test for what this cost.
+    """
+    tree = _ast.parse(_src(MODULE))
+    return {repr(n.value) for n in _ast.walk(tree)
+            if isinstance(n, _ast.Constant) and not isinstance(n.value, (str, bool))}
 
 
 def _mb38_section_of_template():
@@ -506,12 +519,38 @@ def test_mb38_no_count_and_no_hurdle_is_typed_into_the_source():
     m = RR.multiplicity()
     live = {str(m["equity"]), str(m["options"]), str(m["infra"]), str(m["trials"]),
             m["hurdle_text"]}
-    code = _module_code_without_docstrings()
+    # CORRECTED 2026-08-20 (SC-1's lane, reported under RUN_RULES rule 3): this compared each
+    # live count as a SUBSTRING of the module's concatenated numeric literals, so a count fired
+    # whenever its digits appeared INSIDE a longer number. It went red at infra = 19 against the
+    # legitimately-typed long-short HAC t of 2.6199121240414884 - nobody had typed a count
+    # anywhere. A latent cry-wolf that only surfaced when a counter reached a colliding value
+    # (infra 12 and 21 would do it too), and MA21/MB30's family: a guard that fires on correct
+    # code gets switched off. Compared as VALUES now. Strictly MORE precise, not weaker - a
+    # genuinely typed count is still an exact literal and is still caught, which the mutation
+    # test below proves.
+    lits = _module_numeric_literals()
     for v in live:
-        assert v not in code, f"{v} is typed into research_record.py"
+        assert v not in lits, f"{v} is typed into research_record.py"
+        # ...and the same number typed at GREATER PRECISION. Mutation testing caught this: the
+        # exact-value form above alone would MISS a hurdle typed as 3.3031261300040304 when
+        # `hurdle_text` reads 3.3031, which the old substring form did catch. Compared
+        # numerically at the live value's own precision, so it collides with nothing.
+        try:
+            want = float(v)
+        except ValueError:
+            continue
+        dp = len(v.split(".")[1]) if "." in v else 0
+        for lit in lits:
+            try:
+                got = float(lit)
+            except ValueError:
+                continue
+            assert round(got, dp) != round(want, dp), \
+                f"{v} is typed into research_record.py as {lit} (same number, more digits)"
     section = _mb38_section_of_template()
     for v in live:
-        assert v not in section, f"{v} is typed into the template"
+        assert not _re.search(r"(?<![\d.])" + _re.escape(v) + r"(?![\d.])", section), \
+            f"{v} is typed into the template"
 
 
 def test_mb38_the_hurdle_is_not_computed_in_this_module():
