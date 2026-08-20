@@ -228,7 +228,7 @@ def effective_coverage(frame: pd.DataFrame, cand: str, incumbents: Sequence[str]
     }
 
 
-def require_effective_coverage(block: Dict[str, object]) -> None:
+def require_effective_coverage(block: Dict[str, object], split_used: str = "raw") -> None:
     """Gate. Raise unless the block is present, complete and describes a usable geometry.
 
     Three refusals, and the third is the one `MB7` exists for:
@@ -236,7 +236,24 @@ def require_effective_coverage(block: Dict[str, object]) -> None:
       2. the effective dates cannot make two halves at the shipped floor;
       3. the register split the RAW dates and the effective halves fall below the floor -
          the silent case, where `halves()` passes and the statistic is scored on a thin cell.
+
+    `split_used` DECLARES which date list the caller actually split, and it exists because the
+    first cut of this gate had a real defect: refusal 3 keys on a property of the DATA rather
+    than on the caller's BEHAVIOUR, so it refused a register that had already done the right
+    thing - and its own refusal message instructed that register to do what it had just done.
+    Found by `MB18`, the first outside caller, on the day this module landed.
+
+    The default is "raw", which is the STRICT reading and reproduces the original behaviour
+    bit-for-bit for every existing caller: an undeclared caller is assumed to have split raw and
+    is refused. A caller passing "effective" is exempt from refusal 3 ONLY - refusal 2 still
+    guarantees both effective halves clear the shipped floor, which is the hazard refusal 3
+    was protecting against in the first place. The raw geometry is then a DISCLOSURE the
+    register must print (the boundary moves), not a refusal.
     """
+    if split_used not in ("raw", "effective"):
+        raise RegisterViolation(
+            "split_used must be 'raw' or 'effective', got %r - name which date list the "
+            "register actually split, because the gate cannot see it" % (split_used,))
     required = ("candidate", "basis", "n_dates_raw", "n_dates_effective",
                 "split_on_effective", "split_on_raw_then_intersect")
     if not isinstance(block, dict):
@@ -256,6 +273,9 @@ def require_effective_coverage(block: Dict[str, object]) -> None:
         raise RegisterViolation(
             "the effective dates cannot make two halves at the shipped floor: %s"
             % eff.get("refusal", "no split reported"))
+
+    if split_used == "effective":
+        return          # refusal 2 above already guarantees the cells clear the floor
 
     inter = block.get("split_on_raw_then_intersect") or {}
     if inter.get("ok") is False:

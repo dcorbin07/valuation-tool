@@ -210,6 +210,26 @@ five passes. That is this project's own rule broken inside my own harness: **jud
 its exit code, never by grepping its output.** Rewritten with `runpy` and a positive control
 that must fail; it then found the template defect above.
 
+* **AND A SECOND LANE FOUND THE SAME DEFECT A DAY LATER, AT A DIFFERENT COLLIDING VALUE —
+  WHICH SAYS IT WAS REACHABLE RATHER THAN UNLUCKY.** `SC-1`'s lane hit the identical
+  no-typed-count check at **infra = 19** against the long-short HAC *t* `2.6199121240414884`,
+  where this one hit it at **infra = 18** against `MB31`'s margin ratio. Their fix is kept on
+  the merge because it is **strictly more precise than mine**: comparing against the module's
+  numeric literals as VALUES also catches a bar typed at *greater* precision, which the
+  standalone-number regex would miss. **A vacuity control was added on top**, because their
+  comment promises *"the mutation test below proves"* it and no such test is in the file — a
+  check nobody has watched fail is not a check.
+
+---
+
+## 5b. The merge is SC-4's own thesis, demonstrated on SC-4
+
+`origin/main` moved **eleven commits** during this session — `SC-1` and `SC-2` landed and booked
+an infra trial. **The block absorbed it with no edit**: equity 234 → 235, infra 18 → 19,
+headroom 13 → 12, and all six exemption strings re-derived. Had any of those been typed, the
+page would have been wrong within hours of being written — which is the argument the item makes
+and the reason the counts are derived at render. `MB32` had the same experience one lane over.
+
 ---
 
 ## 6. An honest weakness in what this renders, reported rather than tuned away

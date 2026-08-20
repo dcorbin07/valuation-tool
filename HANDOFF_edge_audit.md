@@ -14339,6 +14339,254 @@ future session reintroduces it, the suite goes red instead of quietly reporting 
   *t* diverging by orders of magnitude on the same series is a degeneracy signature.
 * **Nothing else new.** `data/` was read (the banked corrected panel) and never written except for
   this item's own artifact.
+
+---
+
+## MB18 — the implied-growth expectations gap (2026-08-19, edge lane) — **REJECTED**, and the fourth consecutive "genuinely orthogonal and predicts nothing"
+
+`PREREG_mb18_expectations_gap.md` committed **ALONE at `1ee03ac`** — one `.md`, 240 lines, zero
+`.py` — a strict ancestor of every measurement commit, with the **equity trial booked at `be14d0c`
+BEFORE the instrument was written or run** (equity `N` 234 -> 235). **ADOPTS NOTHING**; no file
+under `valuation/screener`, `valuation/web` or `valuation/engine` changed, pinned by test.
+
+The audit called this *"the cheapest genuinely-new equity hypothesis in this audit"* at a ~15%
+prior. **It is rejected, and not narrowly: the largest |t| in any cell of any basis is 1.5617
+against a bar of 2.71.**
+
+### The result
+
+Incremental IC *t*, declared sign NEGATIVE, against X7's calibrated theme-IC floor of **2.71** in
+**both halves** on **both bases** (co-primary):
+
+| basis | dates | boundary | full | early | late | unbounded only |
+|---|---|---|---|---|---|---|
+| **six** | 69 | 2017-07-20 | **−0.6572** | −0.6173 | −0.4538 | **+0.2133** |
+| **seven** | 49 | 2020-01-22 | **−0.5055** | **+0.5567** | −1.5617 | **+0.9267** |
+
+**Nothing clears anywhere.** The full-sample sign is NEGATIVE on both bases as declared — the one
+prediction that landed — but the magnitude is not close, and **basis seven's halves disagree in
+sign**, which is session 7's LOO pattern for the umpteenth time.
+
+### THE NULL IS BOUNDED, AND THE BOUND WAS STATED BEFORE THE RUN
+
+`MB22`'s required-n gate, used for what it was ported for. At crit 2.71 and the 80% power
+convention: the design detects **0.4274 SD** on basis six and **0.5071 SD** on basis seven.
+
+**The observed effect is −0.0791 SD — 5.4x BELOW the design's own detection threshold.**
+
+For scale, the strongest **raw** anchor on exactly these rows is `z_fcf_margin` at **0.4346 SD**
+(raw *t* +3.6097), with `z_gp_on_capital` at 0.3776. **So the design could only ever have detected
+an effect about the size of the best signal this panel carries, and the candidate is nowhere near
+it.** The raw anchors are the right control because `U2` established there is **no valid
+incremental power control here** — every known-real signal is already an INPUT to an incumbent
+theme, so residualisation removes it by construction. (Measured, confirming that: the same anchors
+score incremental *t* of +1.5509 and +0.2563.)
+
+> **A NULL here means "no effect at least as large as the best thing this panel has ever carried".
+> It does not mean "no effect", and it may not be quoted as one.**
+
+### THE THREE KILLS, ALL RUN, NONE FIRED — AND THE COSTUME RISK WAS REAL IN DIRECTION
+
+* **`C2` COSTUME — SURVIVES at mean per-date rho vs `value` of −0.3062**, comfortably inside the
+  audit's 0.60 kill. **But `value` is the LARGEST |rho| against any of the seven incumbents**
+  (`quality` −0.2227, `capital_discipline` −0.2189, everything else under 0.08), so the audit's
+  suspicion was pointed the right way; it simply was not large enough to withdraw the arm.
+  **I registered 30/70 that this would kill the item and it did not.**
+* **`C1` LOOK-AHEAD — enforced STRUCTURALLY, not by inspection.** `realized_growth` is FORWARD
+  three-year growth and is **never loaded at all**: `_load` selects an explicit five-column
+  allowlist, so the arm path cannot reference what is not in the frame. An AST test asserts no
+  attribute or subscript access anywhere names it, reading the **syntax tree** rather than
+  grepping (`MA49`'s defect, where a fixture failed against the FIXED tree because the repair
+  comment quoted the defect verbatim). **Mutation-tested twice** — adding it to the allowlist, and
+  indexing it in the arm path — **both caught.**
+* **`C3` THE COLUMN-NAME TRAP, and it is the sharpest thing here.** The panel already ships a
+  column literally called **`gap`**, and it reproduces **`log(fair_value / price)` at max |delta|
+  0.000e+00** — a *valuation* gap, correlating with the expectations gap at only **−0.5251**. A
+  lookup by that name computes cleanly, raises nothing, and answers a different question — **and a
+  much more `value`-like one, i.e. precisely the costume the arm is being tested against.** It is
+  never loaded either. `U2` pinned `term_slope_60_30` out of its arm for the same reason; this is
+  that hazard in a new panel.
+
+### THE ONE RESULT WORTH CARRYING: THE SIGN LIVES IN THE SOLVER'S BOUND, NOT IN THE EXPECTATIONS
+
+`implied_bounded` is a 3-state solver flag at 100% coverage: **75,034 free / 22,283 `above` /
+9,703 `below` — 30.0% of rows hit a bound.** The register made it a mandatory partition rather
+than a pool.
+
+**Restricted to the UNBOUNDED rows the sign FLIPS POSITIVE on both bases** (+0.2133 and +0.9267
+against full-sample −0.6572 and −0.5055). **So the small negative full-sample reading is carried
+by the 30% of rows where the solver hit a bound, and it reverses where the solver ran free.**
+
+That does not change the verdict — nothing clears either way — **but it means the negative sign
+must not be quoted as weak support for the hypothesis.** A bounded `implied_growth` is a censored
+value, and censoring correlates with extreme price-to-fundamentals, which is `value` again. **The
+honest reading is that the directional signal is a solver artifact, not an expectations effect.**
+
+### ORTHOGONALITY IS CONFIRMED AND IS WORTH NOTHING, FOR THE FOURTH TIME
+
+Mean per-date R² of the candidate on the incumbents: **0.1392** (basis six) and **0.1447** (seven).
+So the expectations gap is **~86% new information** relative to the deployed themes — genuinely
+orthogonal, exactly as the audit argued.
+
+**And it predicts nothing.** That is `U2`, `MA31`/`MA32`, `MA58` and now `MB18`: four items whose
+motivating argument was structural orthogonality, R² between 0.027 and 0.145, and not one clearing
+its bar. **CLAUDE.md already names that motivation as one nobody should run again; this is the
+fourth data point and it should settle it.**
+
+### A DEFECT IN `MB7`'s OWN GATE, FOUND BY BEING ITS FIRST OUTSIDE CALLER — AND IT LANDED THE SAME DAY
+
+`require_effective_coverage` **refused this register for doing the right thing, and its own
+refusal message instructed the register to do what it had just done**:
+
+> *"splitting the RAW dates leaves an effective half of 14/34 against a floor of 16 ... Split the
+> EFFECTIVE dates instead (24/24), and report that the boundary moves"*
+
+**Refusal 3 keys on a property of the DATA, not on the caller's BEHAVIOUR.** It fires whenever the
+raw split would have been unsafe — which is true of basis seven on every panel — so a register
+that split the effective dates, as `MB7` itself prescribes, is refused anyway.
+
+**Fixed with `split_used`, which the caller must DECLARE**, because the gate cannot see it.
+Default **`"raw"`** — the strict reading — so every existing caller's behaviour is bit-identical
+and an undeclared caller is still refused; `"effective"` exempts refusal 3 **only**, and refusal 2
+still guarantees both effective halves clear the shipped floor, which is the hazard refusal 3 was
+protecting against. **`MB7`'s own 22 tests pass unchanged**, and four new tests plus two mutations
+pin both directions. **Zero trials — a correctness repair with no hypothesis and no bar.**
+
+### The structural fact the audit's item does not state
+
+**`panel_s23_fairvalue.pkl` carries NONE of the seven incumbent theme columns.** The incremental-IC
+gate therefore requires an inner join to `panel_corrected_69d.pkl` on `(date, ticker)` — **107,020
+rows, 69 dates, 2,432 names: 98.87% of the S23 panel and 93.92% of the theme panel** — with
+`fwd_ret` taken from the **theme** panel so the arm is scored against the same forward return every
+other incremental-IC register uses. The audit's item specifies the gate without mentioning that the
+panel it names cannot run it alone.
+
+### `MB7`'s disclosure, reproduced on a third panel
+
+| basis | effective dates | first effective | effective rows | split on EFFECTIVE | split on RAW then intersect |
+|---|---|---|---|---|---|
+| seven | **49 of 69** | **2014-01-17** | 65,334 (61.05%) | 24 / 24 **ok** | 14 / 34 **NOT ok** |
+| six | 69 of 69 | 2009-01-15 | 91,241 (85.26%) | 34 / 34 **ok** | 34 / 34 ok |
+
+**Both bases were scored as CO-PRIMARY and the arm had to clear both** — taking basis six alone
+would have been choosing the design to buy power, `MA58`'s void condition 5. It cleared neither, so
+the conjunction never bound.
+
+### Expectations, scored — **5 right, 1 wrong, 1 split**
+
+Right: the arm does not clear (8/92); `C2` does not withdraw it (30/70, and I leaned the other
+way at 30%); the full-sample sign is NEGATIVE as declared (70/30); the bases do not disagree in
+full-sample sign (40/60); R² below 0.15 (60/40, at 0.1392 and 0.1447, narrowly). **Wrong: |rho| vs
+`value` above 0.40** (65/35) — it is **0.3062**, so the candidate is less of a `value` costume than
+I expected, which makes the null slightly more interesting rather than less. **Split: the
+bounded/unbounded partition changing the verdict** (25/75) — the verdict does not change, but the
+**sign flips**, which is more than "no change" and is the item's most portable finding.
+
+### NOT DONE, named so it is not mistaken for done
+
+* **`realized_growth` was never scored, in any direction.** The register permits it only as an
+  ex-post attribution computed after the verdict, and **that attribution was not run.** The column
+  is not loaded at all.
+* **`MB19` and `MB20` are NOT run** — each charges its own equity trial and needs its own blind
+  register.
+* **No claim is made about WHY the unbounded subset flips sign.** The censoring mechanism is
+  hypothesised, not measured, and would be its own item.
+* **The panel's `fair_value` is `S23`'s RECONSTRUCTION, not what the live site published that day**
+  (`MA26-C`). Nothing here is a claim about what users saw.
+
+### REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3) — THE SCREENER FIXTURE IS NON-DETERMINISTIC ACROSS PROCESSES, AND THE CAUSE IS MEASURED RATHER THAN GUESSED
+
+`MB18`'s first land attempt FAILED in CI on `tests/test_screener.py ::
+test_portfolio_sector_cap_and_weights`. **It is not this lane's**, and that is established rather
+than asserted:
+
+* **This item's change cannot reach that path.** Importing `valuation.screener.screen` pulls in
+  **NONE** of this lane's study modules — measured by inspecting `sys.modules` after the import,
+  not inferred from the boundary test.
+* **The suite passes 83 of 83 locally**, on this branch *and* on the tree merged with `origin/main`.
+* **`MB21` landed with the same suite green hours earlier.**
+
+**THE CAUSE.** `tests/screener_fixtures.py:18` seeds the synthetic universe from the ticker's
+**string hash**:
+
+```python
+return np.random.default_rng(abs(hash(ticker)) % (2**32))
+```
+
+**Python salts `hash()` for `str` per process** (`PYTHONHASHSEED`), so **every invocation generates
+a different universe.** Measured: the same call, `synth_metrics('SYN0000', 'Technology')`, in five
+separate processes returns five different names — earnings yield **-0.00968 / +0.05902 / -0.02846
+/ -0.01550 / +0.16340** and market cap **$224.5bn / $210.2bn / $191.7bn / $271.0bn / $189.1bn**.
+
+So `test_portfolio_sector_cap_and_weights` asserts `max_sector_weight <= 0.301` and
+`n_names == 15` **against a universe that is redrawn on every run**, and two of its three
+assertions carry no message — which is why the CI log shows a bare `FAIL ...:` with nothing after
+it. **The test's own comment already records the symptom** — *"an intermittent failure, observed
+once"* — and a previous fix loosened a tolerance rather than removing the randomness.
+
+**AND THE FAILURE IS NOW A ONE-COMMAND REPRODUCER RATHER THAN AN INTERMITTENT:**
+
+```
+PYTHONHASHSEED=179 python tests/test_screener.py test_portfolio_sector_cap_and_weights
+```
+
+**4 of 4 runs fail**; it failed on **1 of the first 200 seeds** swept, which is the ~0.5% rate that
+makes it "observed once" rather than obviously broken.
+
+**THE ASSERTION THAT FAILS IS THE SECTOR CAP, AND UNDER IT SITS A REAL PRODUCT BEHAVIOUR RATHER
+THAN A LOOSE TEST BOUND.** Under seed 179 `build_portfolio(..., max_sector_weight=0.30)` reports
+**`max_sector_weight = 0.304900`** against the test's 0.301 - a **+0.0049 overshoot**, five times
+the ~0.001 residual that bound assumes. Under seed 0 the cap does not bind at all (0.2789), which
+is why the test usually passes.
+
+**`_apply_sector_cap` is a TRUNCATED FIXED-POINT ITERATION.** Each pass scales the over-cap sector
+to exactly `cap` and then calls `_normalize`, which re-inflates it; the residual shrinks
+geometrically and the loop stops at a hard `passes=6` whether or not it has converged. Measured on
+seed 179's own universe, using `build_portfolio`'s own raw-weight construction:
+
+| passes | max sector weight | overshoot |
+|---|---|---|
+| 1 | 0.348943 | +0.048943 |
+| 2 | 0.332552 | +0.032552 |
+| 4 | 0.313081 | +0.013081 |
+| **6 (shipped)** | **0.304915** | **+0.004915** |
+| 10 | 0.300651 | +0.000651 |
+| 20 | 0.300004 | +0.000004 |
+| 60 | 0.300000 | 0.000000 |
+
+The shipped `build_portfolio` reports **0.304900**, matching the `passes=6` row to rounding. **So
+the sector cap is SOFT by an amount that depends on how concentrated the book is, `passes=6` is an
+undeclared convergence budget, and nothing currently reports the residual.**
+
+**A CORRECTION AGAINST MY OWN FIRST TWO ATTEMPTS AT THIS MECHANISM, recorded because the error is
+the instructive part.** I proposed the truncation mechanism, then ran a probe that appeared to
+REFUTE it - +0.000029 at `passes=6` - and was one step from reporting the mechanism as
+not-diagnosed. **That probe was wrong: it built the raw weights as `max(hot_score, 0)` while
+`build_portfolio` uses `hot_score - min + 1.0`, a SHIFT rather than a clip**, which is a much
+flatter vector and a differently concentrated book. Re-running against the shipped construction
+reproduces the shipped number exactly. **This is audit `B7`'s class in miniature: I re-derived a
+construction instead of calling it, and the re-derivation quietly answered a different question.**
+
+**Not fixed here** - `valuation/screener/portfolio.py` is a LIVE PRODUCT PATH and not this lane's,
+and there are two separable decisions in it. **Owner: the screener lane.**
+
+1. **The flakiness** is `tests/screener_fixtures.py:18`. `hash(ticker)` -> a stable digest such as
+   `zlib.crc32(ticker.encode())` makes the whole suite reproducible, and would have surfaced this
+   on the first local run instead of once in CI.
+2. **The soft cap** is `_apply_sector_cap`'s `passes=6`: iterate to a tolerance rather than a fixed
+   count, or normalise only the UNCAPPED names, or declare the cap soft and report the residual.
+   **Changing it moves a shipped portfolio's weights, so it is a construction change rather than a
+   bug fix** - which is precisely why this lane reports it and does not take it.
+
+**This is the THIRD flake reported in one day** and the third with the same shape — a guard or
+fixture that behaves differently where it is run: `MB42`'s path-separator assertion (green in CI,
+red on the machine that owns the data), `MB16`'s and this lane's `%TEMP%` contention, and now a
+per-process hash salt. **All three are invisible in exactly one environment and all three take the
+whole gate red for a reason unrelated to the change under test.**
+
+**27 new tests, 8 of 8 tripwire mutations caught with sources restored byte-for-byte.**
+`scripts/mb18_expectations_gap.py`, `data/free_analysis/MB18_EXPECTATIONS_GAP.json`,
+`MB18_CONTROLS.json`; `valuation/studies/incremental_ic.py` (the gate repair).
 ---
 
 # MB3 — event ownership: the deciding arithmetic (2026-08-19)
@@ -14434,3 +14682,186 @@ $250,000 bar in the direction that cannot change an ABOVE/BELOW verdict — a do
 only make the reported number smaller and the refusal weaker, never manufacture a pass.
 
 `scripts/mb3_event_ownership_equity.py`, `data/free_analysis/MB3_EVENT_EQUITY.json`.
+---
+
+# SC-1 + SC-2 — the prior-calibration study, and the S17 legend correction (2026-08-20)
+
+## SC-1 — executed from the Frontier Scout's draft
+
+**The draft was ACCEPTED and committed ALONE** as `PREREG_sc1_prior_calibration.md` at `e95cffb`
+(markdown, zero `.py`, a strict ancestor of every measurement commit). The scout's text is
+**byte-identical** below the acceptance block — no bar, rule, verdict state or void condition was
+altered. The draft itself sits on `main` inside the three-file batch `5da7660` and was therefore
+never a register, which is exactly why a separate file exists.
+
+**One infra trial, booked at `d37999a` BEFORE the run: infra 18 → 19.** The draft's stated
+"17 → 18" was stale as it predicted it would be. **Equity 234 and options 305 are untouched** —
+the script opens **no market data at all**, pinned by an AST test (C3).
+
+### The result
+
+| | |
+|---|---|
+| scoreable OUTCOME pairs | **43** (kill threshold 25 — the kill did **not** fire) |
+| clusters | **3** |
+| mean stated prior | 0.6477 |
+| realised base rate | 0.6977 |
+| **gap** (`mean p − mean y`) | **−0.0500** |
+| cluster-bootstrap CI95 | **[−0.1000, +0.2833]**, half-width **0.1917** |
+| **verdict** | **CANNOT-TELL** |
+| Brier | 0.1548 |
+| skill vs in-sample base rate / vs uniform 0.5 | **+0.266 / +0.381** |
+| Murphy reliability / resolution / uncertainty | 0.0485 / 0.0956 / 0.2109 |
+
+**CANNOT-TELL is the register's own refusal working, not a failure to compute.** §3.1 fixed in
+advance that a wide interval containing zero is never "calibrated"; the half-width is 0.1917
+against a 0.15 ceiling.
+
+### The binding constraint is CLUSTERS, not pairs — and that is the finding
+
+The pair count cleared its bar comfortably. **The interval is wide because the cluster bootstrap
+has three units**: the register clusters by file, and the write-ups' per-expectation scoring
+tables live in only three handoffs (`HANDOFF_edge_audit.md` 86 lines, `HANDOFF_optionsbot.md` 34,
+`HANDOFF_live_data_bugs.md` 10).
+
+**Clustering by ITEM rather than by file would give many more units, and it was NOT done** —
+changing the clustering key after seeing the interval is choosing the design on the outcome. It
+is named here as the obvious successor instead, and it needs its own register.
+
+### What is positive, and nobody predicted it
+
+**The priors are INFORMATIVE even though their calibration is unresolved.** Brier 0.1548 against
+0.2109 for the in-sample base-rate forecaster — a skill of **+0.266** — with resolution (0.0956)
+above reliability (0.0485). *The record's odds discriminate between things that happened and
+things that did not; whether they are level-correct cannot be said at this resolution.*
+
+**And the sign runs against the expected direction**: mean prior 0.6477 against a base rate of
+0.6977, so outcomes came out slightly **better** than predicted — mildly pessimistic, not
+overconfident. The register predicted OVERCONFIDENT-OPTIMISTIC at 70/30.
+
+### Extraction, and two rules operationalised
+
+387 numeric priors from 73 `PREREG` + 4 audits + 2 `DESIGN` files (186 OUTCOME-class). **94
+`NN/MM` tokens rejected as not-odds** because they do not sum to 100 — the flat `1/7` and `1/8`
+theme weights, test counts. 113 write-up scoring rows; **13 SPLIT/UNRESOLVED excluded and
+counted** (the `O21-D2` precedent); **zero untraceable priors** — every scored row's odds value
+also occurs in a register, which is how §1's "handoffs adjudicate, never supply priors" is
+honoured without refusing to read them. Double-entry disagreement **11.7%** on a 20% sample at
+seed 20260820, under the 15% kill.
+
+**Stage 2 is EMPTY and reported as empty**: zero decide/measure pairs are extractable, because the
+record does not bank both figures for one statistic in one sentence. §4 attaches **no bar** to
+that arm, so this is a thin yield and **not a null about shrinkage** — the rule-consequence to Don
+is therefore not triggered.
+
+### A DEFECT IN MY OWN INSTRUMENT, caught before anything was reported
+
+**The first adjudicator looked for outcome markers inside the REGISTER** and found 9 of 387 —
+which fired the pre-outcome kill at 6 OUTCOME pairs and would have shipped
+**CANNOT-TELL BY CONSTRUCTION as an artefact of reading the wrong file.** §1's route (1) is *the
+item's own WRITE-UP*, and a census found **146 lines pairing odds with an outcome marker, 120 of
+them in `HANDOFF_*.md`**. Fixed, re-run, 43 pairs. The kill is a real instrument; it must not fire
+because the extractor was pointed at the wrong file.
+
+### Controls
+
+* **C1 PASS** — and it **caught an error in my own hand-computed fixture** on its first run
+  (`calibrated_070` written as `0.7·0.09 + 0.3·0.49` = 0.21, weighting by the forecast instead of
+  the realised 3:1 split; the Brier of those four rows is 0.19). That is what a fixture control is
+  for.
+* **C4 PASS** — the cluster bootstrap genuinely widens the naive interval.
+* **C2 FIRES, 31 of 31, exactly as declared in advance.** The register's acceptance block named
+  this as defect **D2** *before* the run: write-ups score **every** expectation they stated, while
+  §1 makes only the odds-bearing ones scoreable, so a mismatch is guaranteed by construction. The
+  firing is about C2's specification, not about the extraction.
+* **D1**, also declared in advance: §5's power arithmetic forms the MDE from **Brier** variance
+  where the gap needs `Var(p − y)`, so its figures are optimistic. The empirical line is the one
+  to quote — **detection threshold 0.1285 (50% power), 0.1824 (80%); power against a 0.10 gap is
+  32.9%.**
+
+### Expectations, scored: 2 right, 2 wrong, 2 unresolved
+
+| # | prediction | outcome |
+|---|---|---|
+| 1 | ≥ 40 scoreable OUTCOME pairs — 70/30 | **RIGHT** (43) |
+| 2 | primary verdict OVERCONFIDENT-OPTIMISTIC — 70/30 | **WRONG** (CANNOT-TELL, and the point estimate runs the other way) |
+| 3 | shrinkage median in [0.3, 0.7] — 60/40 | **UNRESOLVED** (0 pairs) |
+| 4 | halves sign-agreement > 70% — 55/45 | **UNRESOLVED** (stability set not built) |
+| 5 | double-entry disagreement under 8% — 60/40 | **WRONG** (11.7%) |
+| 6 | at least one number contradicts this list — 60/40 | **RIGHT** |
+
+*A study asking whether this record's priors are calibrated scored its own at 2 right, 2 wrong.*
+
+### NOT DONE, named so it is not mistaken for done
+
+Clustering by item (the obvious successor, needs its own register). The stability set of §4.1(b).
+π₀ / local FDR — **void condition 5**, named there as a decision rather than an oversight. No
+`/research` paragraph is shipped: §8 *proposes* one through the existing `MB38` gate and this
+lane does not open that gate. **No individual trial is re-opened, re-scored or re-litigated** —
+void condition 3, and aggregates only.
+
+---
+
+## SC-2 — the S17 legend correction (zero trials)
+
+`SHARADAR_REFERENCE.md` landed at **`47cb189` on 2026-08-03** carrying the full **37-code
+`EVENTCODES` legend** transcribed from the live API. **`S17` closed on 2026-08-13** recording that
+the legend did not exist and that its method step 1 was *"PERMANENT UNTIL `D10` RUNS"* — ten days
+after the legend was committed.
+
+**Be precise about what was wrong, because the premise survives.** Sharadar genuinely ships no
+legend *with the EVENTS bulk download* — that is what `bulk.py` records and what
+`SHARADAR_REFERENCE.md` says of itself (*"Not present in any bulk download — it must be pulled
+from the API, which is why it is transcribed in full below"*). **What is refuted is the inference**
+drawn from it: that the codes were therefore tested by number and unlabelled.
+
+**`S17`'s five arms, by that legend:** 91 Financial Statements and Exhibits · 71 Regulation FD
+Disclosure · 81 Other Events · 52 Departure of Directors or Certain Officers · 34 Schedule 13G
+Filing.
+
+**Three deliverables:** `S17`'s ledger row corrected; the `S17` bullet in `CLAUDE.md` corrected
+**in place**; and a one-line pointer added to `CLAUDE.md`'s bulk-data note — because **`CLAUDE.md`
+cited `SHARADAR_REFERENCE.md` zero times**, which is the likeliest reason it was missed. The
+memory did not know the file existed.
+
+**NO VERDICT MOVES.** All ten `S17` arms remain NULL on the both-halves leg.
+
+### A candidate mechanism for the era-concentration — a LEAD, not a finding
+
+The legend carries a **first/last-seen date per code**, and **codes 34 and 35 stop**: 13G on
+**2024-12-17**, 13D on **2025-05-16**. Every other `S17` arm (91, 71, 81, 52) runs to 2026-07-31.
+A code that stops being emitted 13 months before the panel ends is era-concentrated **by
+construction** — which is precisely the failure mode `S17` reported.
+
+**Its limits are the point and travel with it:** it can touch **at most one of the five arms**,
+because the other four have no sunset at all, so it **cannot** explain the era-concentration of 91
+or 71 — the two `S17` reports in detail. And `S17`'s halves split around 2017, so a 2024 sunset
+sits deep inside the late half rather than at the boundary. **Whether it drives anything is
+UNMEASURED.**
+
+**The gated `S17` successor is NOT licensed by this correction.** It charges trials and needs its
+own blind register.
+## BUGS FOUND (outside this lane — `RUN_RULES` rule 3)
+
+**`MB38`'s denominator guard is a latent cry-wolf, and it fired for the first time on this
+session's own trial.** `tests/test_research_page.py::test_mb38_no_count_and_no_hurdle_is_typed_
+into_the_source` compared each live trial count as a **SUBSTRING** of the module's concatenated
+numeric literals. Booking SC-1's trial took infra to **19**, and `research_record.py`
+legitimately carries the published long-short HAC *t* of **`2.6199121240414884`** — which
+contains the digits `19`. The suite went red claiming *"19 is typed into research_record.py"*
+when **nobody had typed a count anywhere**.
+
+It is latent rather than new: infra **12** and **21** collide with the same literal, so it would
+have fired on some future session regardless. That is `MA21`/`MB30`'s family exactly — a guard
+that fires on correct code gets switched off — and it was worth fixing rather than tolerating.
+
+**Fixed, and NOT by weakening it.** Counts are now compared as **values** against the set of
+numeric literals, plus a numeric check at the live value's own precision so the *same number
+typed with more digits* is still caught. **Mutation-tested 2 of 2**, source restored
+byte-for-byte: a count typed as an exact literal fires, and a hurdle typed as
+`3.3031261300040304` against a `hurdle_text` of `3.3031` fires.
+
+**And the mutation testing caught a regression in MY OWN first fix**: the exact-value form alone
+**missed** the higher-precision hurdle, which the old substring form did catch. Reported because
+a repair that silently trades one blind spot for another is worse than the defect — the second
+mutation is the only reason it was found.

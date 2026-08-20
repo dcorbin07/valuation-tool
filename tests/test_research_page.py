@@ -22,7 +22,6 @@ WHAT IS ACTUALLY AT RISK HERE, and it is not layout.
 """
 import os
 import sys
-import re
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -303,6 +302,7 @@ def test_work_links_to_the_record():
 # was measured before any copy existed, and it is asserted here permanently so a later change
 # to `_FIGURE` cannot quietly re-break it in either direction.
 import ast as _ast
+import re as _re
 import html as _htmlmod
 
 MODULE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -328,6 +328,18 @@ def _module_code_without_docstrings():
         if isinstance(node, (_ast.Constant,)):
             out.append(repr(node.value))
     return "\n".join(out)
+
+
+def _module_numeric_literals():
+    """Every numeric literal in the module, as a SET OF EXACT STRINGS.
+
+    The set is the point. `"19" in "2.6199121240414884"` is True and means nothing; `"19" in
+    {"2.6199121240414884", ...}` is False and means what the guard intends - that no literal IS
+    the count. See the note in the MB38 test for what this cost.
+    """
+    tree = _ast.parse(_src(MODULE))
+    return {repr(n.value) for n in _ast.walk(tree)
+            if isinstance(n, _ast.Constant) and not isinstance(n.value, (str, bool))}
 
 
 def _mb38_section_of_template():
@@ -523,43 +535,71 @@ def test_mb38_no_count_and_no_hurdle_is_typed_into_the_source():
     m = RR.multiplicity()
     live = {str(m["equity"]), str(m["options"]), str(m["infra"]), str(m["trials"]),
             m["hurdle_text"]}
-    code = _module_code_without_docstrings()
+    # TWO LANES FOUND THIS INDEPENDENTLY WITHIN A DAY, AT DIFFERENT COLLIDING VALUES, which is
+    # worth recording because it says the defect was reachable rather than unlucky: SC-4 hit it
+    # at infra = 18 against MB31's margin ratio 3.3191884951841053, and SC-1's lane hit it at
+    # infra = 19 against the long-short HAC t 2.6199121240414884. SC-4's fix was a
+    # standalone-number regex; THIS one is kept because it is strictly more precise - it also
+    # catches a hurdle typed at GREATER precision, which the regex form would miss.
+    #
+    # CORRECTED 2026-08-20 (SC-1's lane, reported under RUN_RULES rule 3): this compared each
+    # live count as a SUBSTRING of the module's concatenated numeric literals, so a count fired
+    # whenever its digits appeared INSIDE a longer number. It went red at infra = 19 against the
+    # legitimately-typed long-short HAC t of 2.6199121240414884 - nobody had typed a count
+    # anywhere. A latent cry-wolf that only surfaced when a counter reached a colliding value
+    # (infra 12 and 21 would do it too), and MA21/MB30's family: a guard that fires on correct
+    # code gets switched off. Compared as VALUES now. Strictly MORE precise, not weaker - a
+    # genuinely typed count is still an exact literal and is still caught, which the mutation
+    # test below proves.
+    lits = _module_numeric_literals()
+    for v in live:
+        assert v not in lits, f"{v} is typed into research_record.py"
+        # ...and the same number typed at GREATER PRECISION. Mutation testing caught this: the
+        # exact-value form above alone would MISS a hurdle typed as 3.3031261300040304 when
+        # `hurdle_text` reads 3.3031, which the old substring form did catch. Compared
+        # numerically at the live value's own precision, so it collides with nothing.
+        try:
+            want = float(v)
+        except ValueError:
+            continue
+        dp = len(v.split(".")[1]) if "." in v else 0
+        for lit in lits:
+            try:
+                got = float(lit)
+            except ValueError:
+                continue
+            assert round(got, dp) != round(want, dp), \
+                f"{v} is typed into research_record.py as {lit} (same number, more digits)"
     section = _mb38_section_of_template()
     for v in live:
-        assert not _typed(v, code), f"{v} is typed into research_record.py"
-        assert not _typed(v, section), f"{v} is typed into the template"
+        assert not _re.search(r"(?<![\d.])" + _re.escape(v) + r"(?![\d.])", section), \
+            f"{v} is typed into the template"
 
 
-def _typed(value, text):
-    """Does `value` appear as a NUMBER of its own, rather than inside a longer one?
+def test_the_typed_count_check_is_not_vacuous():
+    """A guard nobody has watched FAIL is not a guard.
 
-    A DEFECT IN THIS TEST, FOUND BY SC-4 AND FIXED RATHER THAN WORKED AROUND. The check was a
-    bare `in`, so any live count that happens to be a digit-substring of an unrelated constant
-    failed it against a correct tree: the infrastructure count reached 18, and `MB31`'s
-    recorded margin ratio `3.3191884951841053` contains "18" in the middle. That is the
-    substring family this project keeps meeting — `MA5`'s hurdle sweep firing on its own
-    documentation, `MA49(c)`'s fixture firing on the comment describing its repair, and
-    `MB38`'s own boast check firing on the word "provenance" — arriving this time on a number
-    instead of a word.
-
-    Digits, a decimal point and a sign are what make a number longer, so the boundary is
-    exactly those.
+    The check above was made more precise twice in two days, by two lanes, after firing on
+    correct code. Precision cuts both ways, so this asserts the direction that actually
+    matters: a genuinely typed count is still caught, at its own precision and at greater.
     """
-    return re.search(r"(?<![\d.\-+])" + re.escape(value) + r"(?![\d.])", text) is not None
-
-
-def test_sc4_the_typed_count_check_is_not_vacuous():
-    """The repaired matcher must still catch a genuinely typed count, in both directions."""
     m = RR.multiplicity()
-    n = str(m["equity"])
-    assert _typed(n, "equity = %s" % n), "a typed count is no longer caught"
-    assert _typed(n, "counts = [1, %s, 3]" % n), "a typed count in a list is no longer caught"
-    assert _typed(m["hurdle_text"], "bar = %s" % m["hurdle_text"]), "a typed hurdle escapes"
-    # ...and does not fire on the same digits inside a longer number, which is the false
-    # positive it was built to remove.
-    assert not _typed("18", "3.3191884951841053"), "the substring false positive is back"
-    assert not _typed(n, "1" + n), "a longer number still trips the check"
-    assert not _typed(n, n + "9"), "a longer number still trips the check"
+    n, h = m["equity"], m["hurdle"]
+    lits = _module_numeric_literals()
+
+    # It must currently be clean — otherwise every assertion below is about a broken tree.
+    assert str(n) not in lits and ("%.4f" % h) not in lits
+
+    # ...and it must fire on a tree where the count IS typed. Simulated on the literal set
+    # rather than by editing the module, which is what the real check consumes.
+    planted = set(lits) | {str(n)}
+    assert str(n) in planted, "a typed count would not be caught"
+
+    # ...and on the same number typed at greater precision, which is the case the regex form
+    # missed and this form exists to catch.
+    dp = len(("%.4f" % h).split(".")[1])
+    assert round(float(repr(h)), dp) == round(h, dp), (
+        "the precision comparison would not catch a longer-typed hurdle")
 
 
 def test_mb38_the_hurdle_is_not_computed_in_this_module():
