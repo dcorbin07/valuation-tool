@@ -48,6 +48,82 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE GRAVEYARD AGGREGATE IS A SIZE SORT AND THE ARM NEVER RAN - `R6`'s AUTOPSY CALLED THIS
+  FAILURE IN ADVANCE, ON A SET FIVE TIMES LARGER AND BUILT BY A DIFFERENT RULE (2026-08-20,
+  `E-1`).** `PREREG_e1_graveyard_stouffer.md` **ACCEPTED VERBATIM** from the Frontier Scout's
+  draft and committed **ALONE at `e05c33c`**, markdown only, 203 lines, a strict ancestor of every
+  measurement commit, with the **equity trial BOOKED AT `dff46bc` BEFORE the instrument was
+  written or run** (equity `N` 236 -> 237). **ADOPTS NOTHING** - no file under `valuation/`
+  changed.
+  * **THE VERDICT IS `WITHDRAWN`, NOT `NULL`, AND THE DISTINCTION IS THE WHOLE ITEM: the arm was
+    never run.** `K2` - mean per-date |rho| against the `size` theme - reads **0.6114 against the
+    register's 0.60 bar**, and section 4 withdraws the arm rather than scoring it. `--arm` refuses
+    non-zero and a test asserts no arm artifact exists.
+  * **THE KILL FIRES BY 0.0114 AND IS NOT A KNIFE EDGE, which is why the distribution was added
+    as a labelled diagnostic.** Per-date |rho|: **median 0.6757, p05 0.3062, p95 0.7457, and 50 of
+    69 dates (72.5%) individually above the bar.** **The registered MEAN is dragged DOWN by a left
+    tail rather than up by a few dates** - the median sits 0.076 clear of the bar.
+  * **THE MECHANISM, AND `R6` NAMED IT FIRST.** `K2` exists because `R6`'s autopsy found the last
+    conviction aggregate decomposing into a size sort. Of the 29 graveyard signals **7 are
+    `low_risk`** - the theme this file already records at **-0.352 against `size`, the strongest
+    anticorrelation in the theme matrix**, with the standing note that *"low-beta/low-vol names ARE
+    large caps"* - and **6 are institutional-conviction signals**, which `R6` measured at **-0.815
+    to -0.854** against `size`. **Thirteen of twenty-nine come from two families already measured
+    to be size proxies, and flat-weighting two proxies for one thing CONCENTRATES the exposure
+    rather than diversifying it.**
+  * **THE PAIR WORTH CARRYING, BECAUSE IT LOOKS CONTRADICTORY AND IS NOT: the aggregate is nearly
+    ORTHOGONAL to the shipped composite (`K1` = 0.1097, passing its 0.60 bar by a mile) and
+    strongly correlated with `size` (0.6114).** Both hold at once because `size` is one seventh of
+    the composite's weight - and it is the sharp form of `X3`'s finding that **`size` has the WORST
+    theme IC and carries the composite's ENTIRE statistical significance.** A candidate orthogonal
+    to the blend while proxying its most load-bearing component is the costume that matters most.
+    **The sixth structurally-orthogonal candidate in this record, and the first to die on a
+    COSTUME kill rather than on a bar.**
+  * **A CORRECTION TO THE DRAFT THAT RUNS AGAINST IT, DECLARED BEFORE ANY OUTCOME.** Its "expected
+    ~40+" signals is wrong: **the graveyard holds 29.** And getting there required correcting my
+    own first count of 16 - **the theme MEANS use far fewer columns than `NUMBER_THEME` ASSIGNS**
+    (`institutional` **2 of 9**, `quality` **10 of 13**, `momentum` **3 of 5**,
+    `capital_discipline` **1 of 2**), so the seven weighted themes take **24 distinct z-columns**
+    and taking the registry's mapping instead would have put **17 genuinely non-incumbent signals
+    in the incumbent bucket and fired `K3` spuriously.** The census is DERIVED from the theme means
+    via the AST. **The direction matters: the draft set `K3`'s floor at 25 while expecting 40+, so
+    the true margin is FOUR rather than the comfortable one its author assumed.**
+  * **`§1` DEMANDS A "PUBLISHED SIGN RECORDED AT REGISTRATION" AND NO SUCH REGISTRY EXISTS FOR
+    EQUITY SIGNALS** - `PUBLISHED_SIGNS` is options-lane machinery. Read literally the next
+    sentence would exclude all 29 and fire `K3` at zero; that reading was **rejected in writing
+    before the run**, for the clause's own stated reason (it exists to prevent *in-sample*
+    orientation), and **the sign record was declared to be the shipped `z_` construction
+    convention** - the `neg_` prefix, applied at build time in tracked source, predating the
+    register, not derived from this panel's outcomes. **The arm applies no sign flip of its own**,
+    pinned by test.
+  * **A DEFECT IN MY OWN TEST, AND IT WAS A VOID-CONDITION BREACH.** The first mutation test proved
+    the gate by flipping `all_kills_pass` to `True` and checking the refusal vanished - **which RAN
+    THE WITHDRAWN ARM**, scoring the hypothesis the register had just withdrawn and writing
+    `E1_ARM.json`. Caught by this suite's **own next assertion** on the following run; the file was
+    **deleted UNREAD** and no figure from it was ever opened, printed or recorded. **THE PORTABLE
+    LESSON: a test that proves a refusal by REMOVING it is not safe when the thing behind the
+    refusal is forbidden.** Replaced by **two DISTINCT refusal messages** (missing artifact versus
+    failing artifact - a hard-coded refusal cannot tell two states apart) plus an **AST check** that
+    the refusal is conditional, neither of which executes the arm.
+  * **THE TRIAL IS KEPT AT 237 AND THE COUNTER-ARGUMENT IS STATED.** `MB1-SEL` would license
+    **zero** - it booked trials contingent on an arm that never ran and charged nothing, on the
+    reasoning that a control can only BLOCK a finding. **It is kept anyway** because un-booking
+    after seeing a kill fire is the shape this record warns against hardest, and **overstating `N`
+    is the safe direction** (`MA6`'s call, for the same reason). Amendable if a later reader
+    disagrees; the error runs the safe way.
+  * **WHAT IT DOES NOT SAY: it is NOT a finding that subthreshold signals carry no aggregate
+    information.** The arm never ran. `K2` is a **costume** kill - this particular flat aggregate
+    cannot be told apart from a size sort. **NO COMPONENT-LEVEL CLAIM IS MADE OR REACHABLE**: no
+    per-signal outcome statistic is computed anywhere in the arm path, pinned by an AST test, and
+    **that prohibition would have bound identically had the arm CLEARED - clearing licenses no
+    mining.** A re-open needs a materially different construction (size-neutralising the aggregate
+    is the obvious one), its own register and its own trial; **it is not proposed.** The Stouffer
+    secondary was **never computed on the real panel.** **Expectations: 2 right, 1 right-on-
+    direction-wrong-on-margin, 2 unscorable - and the most informative miss is not on the list:
+    the draft priced `K1` as the plausible kill and did not price `K2` at all. When a register
+    carries several kills, the one its author does not price is worth reading twice.**
+    **137 suites, 0 failures; 19 new tests.** `scripts/e1_graveyard_stouffer.py`,
+    `data/free_analysis/E1_KILLS.json`; `HANDOFF_edge_audit.md` E-1.
 - **THE SEASON-2 INSTRUMENTS ARE BUILT, AND ONE OF THEM DECIDES `E-6` BY A WORD: A FIVE-YEAR
   BURN-IN MEANS 60.61% OF ROWS IF IT IS TWENTY OBSERVATIONS AND 58.89% IF IT IS FIVE CALENDAR
   YEARS, WHICH LAND EITHER SIDE OF `E-6`'s OWN PRE-COMMITTED 60% KILL (2026-08-20, `I-2`+`I-3`).**
