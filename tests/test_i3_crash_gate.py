@@ -520,7 +520,9 @@ class TestTheValidationArtifact(unittest.TestCase):
         if root is None:
             _SKIPS.append("panel_r5r6.pkl absent (data/ is gitignored)")
             self.skipTest("panel absent")
-        card = os.path.join(REPO, "data", "free_analysis", "MA28_CARD.json")
+        # was `REPO`: the helper resolves the data root and the next line ignored it, so on
+        # any worktree this check skipped even with the card present at the resolved root.
+        card = os.path.join(root, "free_analysis", "MA28_CARD.json")
         if not os.path.isfile(card):
             _SKIPS.append("MA28_CARD.json absent")
             self.skipTest("banked card absent")

@@ -48,6 +48,101 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE FLAG'S EXCESS CRASH HAZARD DECAYS MONOTONICALLY IN ALL THREE WINDOWS - 9 OF 9 STEPS
+  DOWN - AND THE EXCESS CRASH *COUNT* PEAKS IN THE SECOND QUARTER, SO "FLAGS DECAY,
+  THEREFORE BUY SHORT-DATED" IS THE ONE INFERENCE THIS ITEM REFUTES (2026-08-20, `E-5`/`INV-A`).**
+  `PREREG_e5_hazard_curve.md` committed **ALONE and BLIND at `dd6fe93`**, markdown only, zero
+  `.py`, 308 lines, a strict ancestor of every measurement commit; **1 equity trial booked at
+  `5696055` BEFORE the runner existed, equity 236 -> 237**, options 305 and infra 19 untouched.
+  **ADOPTS NOTHING, CHANGES NO PRODUCT COPY, LICENSES NO TRADE.** The Frontier Scout's
+  invention, executed by this lane, and the first consumer of `I-3`'s crash-gate library.
+  * **VERDICT `UNRESOLVED` - TWO LEGS OF THREE, ON A CONJUNCTION FIXED BEFORE THE RUN.** **L1
+    clears** at `HR(1)` **3.0422123745999063**, `MA28-CARD`'s own banked figure to all sixteen
+    digits. **L2 clears and not narrowly.** **L3 FAILS at 0.5701 against the proposal's own 0.60
+    bar, missing by 2.99pp.** Ambiguous against a pre-committed threshold is a NULL and never a
+    judgement (`RUN_RULES` A6), so it is not reported as *"mostly front-loaded"*.
+  * **THE RATIO PATH IS THE CLEANEST THING HERE: full 3.0422 / 2.6494 / 2.1897 / 1.8974, early
+    3.4209 / 3.0680 / 2.5245 / 2.3129, late 2.9321 / 2.5315 / 2.0931 / 1.7754** - every window,
+    every step down. The decay statistic reads **0.7345** full sample against a within-date
+    flag-permutation p95 of **0.1932** and the null's **MAXIMUM of 0.3413 over 500 draws**, so
+    the observed value exceeds every draw.
+  * **AND THE TWO LEGS DISAGREE FOR A MEASURED REASON, WHICH IS THE FINDING. The excess crash
+    COUNT peaks in quarter TWO - 116.8, 164.4, 125.5, 86.6 - because the KEPT base rate itself
+    nearly doubles from quarter one to quarter two (0.8743% -> 1.5994%).** That is a property of
+    the cumulative WINDOW, not of the flag: two quarters have more room to reach -50% than one
+    does. **So the ratio falls while the excess count does not front-load, and a register with a
+    single statistic would have reported whichever one it happened to pick.**
+  * **FOR `O-1`'s PUT TENOR, STATED PLAINLY: NOT SUPPORTED AS A SHORT-TENOR ARGUMENT.** Quarters
+    three and four together carry **~43%** of the four-quarter excess and the largest single
+    quarter is the **second**. **FOR THE CARD'S COPY** the ratio is the right figure and it fades
+    without vanishing - ~3.0x in the first quarter, **~1.9x in the fourth**. Quote the ratio and
+    BOTH rates, never the difference (`crash_gate`'s rule, a measurement about this panel's
+    era-dependent base rate).
+  * **THE INSTRUMENT REPRODUCES `MA28-CARD` ON FIVE INDEPENDENT COUNTS** - 6,542 flagged rows,
+    flagged share 5.7414%, full **3.0422123745999063**, early **3.4208900608295076**, late
+    **2.9321220447443164** - **and the reconstructed forward return equals the panel's shipped
+    `fwd_ret` at max |delta| 0.000e+00 on all 113,354 rows where both exist.**
+  * **A DEFECT IN MY OWN INSTRUMENT, CAUGHT PRE-ARM BY `K3` REFUSING, AND IT IS THE REGISTER'S
+    OWN §0b IN MY OWN CODE.** The first controls run failed K3 while the crash-indicator
+    agreement was already a perfect **1.000000**: the gap was **591 rows whose ticker STOPS
+    TRADING inside the window**, which a 63-trading-day price path cannot see, so it silently
+    deleted **16 crashes, 5 of them flagged** - survivorship selection of exactly the kind §0b
+    was written to forbid. **The repair is the panel's own rule RECOVERED rather than chosen:
+    `fwd_ret` equals `last_close / c0 - 1` on 591 of 591 of those rows at max |delta|
+    0.000e+00.** So **a DELISTED name has a TERMINAL value** - a last close is not a short
+    window, it is the value of a security that ceased to exist - **while an ADMINISTRATIVE end
+    of data still censors, which keeps `S22`'s and `V6-B`'s no-last-price-fallback rule intact
+    exactly where it applies.** Those two censoring causes had been treated as one. After the
+    repair K3 reproduces `MA28` EXACTLY rather than within tolerance. **A second defect, also
+    pre-arm: the permutation null marked every shuffled cell as qualifying while the observed
+    statistic pooled over cells qualifying under the REAL flag** - two different functionals,
+    one of them calibrating the other.
+  * **A QUALIFICATION ON MY OWN PASSING LEG, MEASURED BECAUSE IT CUTS AGAINST IT.** L2's bar is
+    calibrated where the flag carries nothing (`HR` ~ 1) and the statistic is measured where
+    `HR` ~ 3, and a ratio's sampling variance grows with the ratio. At a delta-method se under
+    the OBSERVED rates the decay is **4.10 sigma** full sample and **3.66** late - **and only
+    1.83 EARLY, whose own 80%-power MDE is 1.179 against an observed 0.760.** **So the decay is
+    established on the full sample and the late half, and the early half is directionally
+    consistent but is NOT independent corroboration.**
+  * **THE FLAG IS TRANSIENT, AND IT IS THE NUMBER A TENOR CHOICE MOST NEEDS: only 33.5% of names
+    flagged at a date are still flagged one quarter later, 27.5% at two, 23.2% at three, 22.1% at
+    four.** So *"the flag's information decays"* and *"the flag goes away"* are entangled here and
+    **this register does not separate them** - a name that stops being flagged is not a name whose
+    risk resolved. Diagnostic, no verdict.
+  * **CONTROLS. `C4`'s distress-delisting sensitivity is TIGHT and agrees** (42 events added;
+    `HR(1)` 3.0422 -> 3.0384, decay -> 0.7216, share -> 0.5693, verdict UNRESOLVED). **`C3`
+    REFUTES my own expectation** - flagged rows are censored by delisting at 1.93% against 1.52%,
+    a ratio of **1.27x** where I registered 65/35 on 2x or more. `C6` the null is non-vacuous (500
+    distinct draws, zero undefined). `C8` median market cap $2.69bn flagged against $5.19bn kept,
+    reproducing `MA28` again.
+  * **`K2`'s ALLOCATION PENALTY TRAVELS BEYOND THIS ITEM: 69,445 rows required at 80% power
+    against 106,660 observable, where the textbook EQUAL-allocation figure is 11,640** - so
+    ignoring that the flag fires on 5.74% of the panel understates the requirement **5.97x**.
+    `I-3`'s `required_rows` reports both by design.
+  * **REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3): `MA28_CARD.json` was STRANDED IN ANOTHER
+    WORKTREE and `I-3`'s validation could not run.** It refuses rather than passing vacuously,
+    which is the correct direction; the file was in `.claude/worktrees/options-live/data/`, a
+    directory that disappears with that worktree. **Copied to the primary data root and
+    `i3_crash_gate_validate.py` now passes fully again - 66 leaves, max |delta| 0.000e+00, both
+    routes.** Rule 9's own failure mode: the draws were stored, in a place that does not survive.
+    **AND A SECOND, FIXED HERE BECAUSE IT IS ONE TOKEN:**
+    `tests/test_i3_crash_gate.py`'s banked-card test resolves the data root with a helper
+    and then reads the card from `REPO` instead of from the resolved root, so on ANY
+    worktree it skipped even with the card present. It skipped LOUDLY, so never a vacuous
+    pass - but a guard that resolves a location and then reads a different one is the
+    wrong-object family. **That suite now runs 36 tests with ZERO skips**, and its own
+    reproduction of `MA28`'s three window ratios independently confirms this item's `K3`.
+  * **NOT DONE, named so it is not mistaken for done: `E-4` and `E-8` are NOT run**, each charges
+    its own trial and needs its own blind register; **no fifth quarter, no second threshold, no
+    second flag definition**; **the MECHANISM is UNMEASURED**; and **nothing here transfers to the
+    BOOK** - `MB8` measured this flag firing on 3.56% of the top-decile book and catching one
+    crash of eighty-four. **Expectations 7 right, 1 wrong, and discounted rather than celebrated**
+    (`SC-1`'s own lesson): three were near-certainties, two were the record's default null, **and
+    the binary being right hides a wrong shape - I expected L2 to be the marginal leg and L3 to
+    fail clearly, and the opposite happened.** **31 new tests.**
+    `scripts/e5_hazard_curve.py`, `scripts/e5_addendum.py`, `valuation/studies/hazard_curve.py`,
+    `data/free_analysis/E5_HAZARD_CURVE.json`, `E5_CONTROLS.json`, `E5_ADDENDUM.json`;
+    `HANDOFF_edge_audit.md` E-5.
 - **THE SEASON-2 INSTRUMENTS ARE BUILT, AND ONE OF THEM DECIDES `E-6` BY A WORD: A FIVE-YEAR
   BURN-IN MEANS 60.61% OF ROWS IF IT IS TWENTY OBSERVATIONS AND 58.89% IF IT IS FIVE CALENDAR
   YEARS, WHICH LAND EITHER SIDE OF `E-6`'s OWN PRE-COMMITTED 60% KILL (2026-08-20, `I-2`+`I-3`).**
