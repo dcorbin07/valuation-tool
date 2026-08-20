@@ -8221,4 +8221,4 @@ read** and the key is absent from the banked artifacts — reported **VACUOUS ra
 
 **Scripts:** `scripts/mb1sel_range_control.py`, `scripts/mb1sel_arm.py` (shipped complete and
 never run). **Artifact** (gitignored): `data/free_analysis/MB1SEL_RANGE_CONTROL.json`. **Tests:**
-`tests/test_mb1sel_selection_residual.py`, 22 tests.
+`tests/test_mb1sel_selection_residual.py`, 22 tests. **129 suites, 0 failures after merging `origin/main`.**

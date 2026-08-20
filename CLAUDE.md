@@ -112,7 +112,7 @@ the project's memory and the old versions had been repeated for months.
     bar and is computed on returns, and **`O21` was corrected UPWARD for exactly that shape** - the
     distinction taken is that **a control can only ever BLOCK a finding, never produce one**, so it
     adds no degree of freedom to any published claim. If a later reader disagrees the row is there
-    to amend, and that error's direction is the safe one. **22 tests.**
+    to amend, and that error's direction is the safe one. **129 suites, 0 failures after merging `origin/main`; 22 new tests.**
     `scripts/mb1sel_range_control.py`, `scripts/mb1sel_arm.py` (shipped complete and **never run**);
     `data/free_analysis/MB1SEL_RANGE_CONTROL.json`; `HANDOFF_optionsbot.md` 69.
 - **S22's TERM-STRUCTURE CLAIM SURVIVES THE ONE NULL ITS OWN SHAPE MOST REQUIRED - AND THE
