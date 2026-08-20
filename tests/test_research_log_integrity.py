@@ -50,6 +50,11 @@ from valuation.edge import research_log as RL               # noqa: E402
 #   2026-08-16  equity 227 -> 230, options 292 -> 294          (P1S0 3 horizons; O17C4 2 arms)
 #   2026-08-16  equity 230 -> 231                              (MA28-CARD, 1 arm, budget booked BEFORE the run)
 #   2026-08-16  equity 231 -> 232                              (P1S0-CONTROL, 1 arm, budget booked BEFORE the run)
+#   2026-08-19  options 304 -> 305                             (MB16, another lane, landed the same
+#                                                               day. Recorded here because this block
+#                                                               is a ledger of MOVES and an incomplete
+#                                                               one is misleading; the row itself is
+#                                                               that lane's.)
 #   2026-08-19  infra 15 -> 16                                 (MB21, 1 arm: the persistence-preserving
 #                                                               null for S22. Charged INFRA on the
 #                                                               HACFLOOR / X7RECON precedent -- building
@@ -102,7 +107,7 @@ from valuation.edge import research_log as RL               # noqa: E402
 # and separate convention (the master audit lists it under MA21); it belongs to that row, with
 # its own decision about staleness tolerance, not smuggled in here.
 # ---------------------------------------------------------------------------------------------
-EXPECTED_BY_DOMAIN = {"equity": 234, "options": 304, "unified": 0, "infra": 16}
+EXPECTED_BY_DOMAIN = {"equity": 234, "options": 305, "unified": 0, "infra": 16}
 
 
 def _diff(expected, actual):

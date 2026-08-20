@@ -13867,8 +13867,10 @@ derive it rather than copying it from any document including this one.
 
 `PREREG_mb21_persistence_null.md` committed **ALONE at `ec55efe`** — one `.md`, 338 lines, zero
 `.py` — a strict ancestor of every measurement commit. **1 infra trial** (infra 15 -> 16); equity
-`N` **unmoved at 234** and options at 304 after merging `origin/main`, both asserted rather than
-assumed. **ADOPTS NOTHING, CHANGES NO PRODUCT COPY, AND RE-OPENS NOTHING.** `TERM_STRUCTURE.json`
+`N` **unmoved at 234**, both asserted rather than assumed. **Options read 304 when this item's
+log row landed and 305 an hour later**, because `MB16` landed in another lane mid-session -- which
+is why an `N` is RE-READ from `by_domain` after every merge and never quoted from a session's own
+mid-run measurement. Neither figure is this item's; nothing here charges options. **ADOPTS NOTHING, CHANGES NO PRODUCT COPY, AND RE-OPENS NOTHING.** `TERM_STRUCTURE.json`
 was opened read-only; `valuation/web/hold_horizon.py` was not edited by this lane and a test pins
 that it was not.
 
