@@ -1,5 +1,40 @@
 # HANDOFF_scout.md — Frontier Scout
 
+## SESSION 4 — THE SEASON 3 MAP (2026-08-21, convergent; Don's rulings binding)
+
+**Commission:** `PROMPT_scout_season3_map.md`. Don ruled: everything in scope, forward-first
+default, free data now + index chains pre-authorized behind a named question, **no
+cut-to-budget** — so the deliverable is the full ordered map with a cumulative cost curve
+instead of cut lines.
+
+**Produced:** **`SEASON3_MAP.md`** — 7 instruments (the FLEET HARNESS is the season's first;
+everything in Track F waits on it), **Track F** (20 declared-forward books with declaration
+sketches, dependencies, honest verdict horizons), **Track B** (the freeze-only queue in
+execution order: in-flight items, zero-trial censuses, 9 equity singles, 7 options
+registers, the data-gated tail), the dependency graph with collisions, lane routing, **the
+cost curve** (equity 3.3133→3.3255 across +10 with the ★N=247 floor-flip milestone named at
+B-5e; options 3.3843→~3.4180 including horizon-dated fleet verdicts), the exclusions (only
+(a) unchanged re-runs and (b) unpowered-by-construction, each with its condition), and **the
+sweep proof** — every non-terminal ledger status mapped, including the four audit-4 items
+(MB14/MB17/MB19/MB20) that turn out to have **no ledger row at all** (reported as a bug).
+**First-wave drafts shipped:** `PREREG_DRAFT_fleet_harness.md` (incl. the short-book
+assignment/margin module per Don's ruling and the charge-at-first-verdict-read trial
+convention on the MLPREREG→MLCOMB precedent) + four declarations
+(`DECL_DRAFT_f1_fill_ab.md`, `f3_bear_puts`, `f5_ivcheap`, `f6_collar_ledger`).
+
+**State read fresh:** equity 242 / options 305+2-in-flight / infra 20; **SC-1b landed:
+CALIBRATED-IN-THE-LARGE** (clearing by 0.0068 on 15 item-clusters — the record's stated
+priors are officially calibrated; SC-1's cluster problem fixed exactly as parked).
+EVOWN's row is still branch-side; the brainstorm branch `3b9bda7` is still unpushed.
+
+**Don's five map questions** are at the end of `SEASON3_MAP.md` (index-chain purchase
+timing; fleet launch size; the flip-milestone pause; MB2 vs B-14; the utility-class ruling).
+
+**Next session:** verify this branch AND `3b9bda7` landed; relay Don's answers into the map;
+if the harness is building, the Wave-1 declarations go to the options-bot lane as-is.
+
+---
+
 ## SESSION 3 — THE OPTIONS BRAINSTORM (2026-08-21, divergent mode)
 
 **Commission:** `PROMPT_scout_options_brainstorm.md`. Deliverable: **`OPTIONS_BRAINSTORM.md`**
