@@ -15682,3 +15682,166 @@ does not price is worth reading twice.**
 **137 suites, 0 failures after merging `origin/main`; 19 new tests.**
 `scripts/e1_graveyard_stouffer.py`, `data/free_analysis/E1_KILLS.json`;
 `PREREG_e1_graveyard_stouffer.md` at `e05c33c`; `VALQUO_LEDGER.md` E-1.
+---
+
+# E-3 / S-SEED-1 — theme dispersion, the conviction statistic (2026-08-20)
+
+**Season 2 register `E-3`, ACCEPTED from the Frontier Scout's draft
+`PREREG_DRAFT_s1_theme_dispersion.md` and committed ALONE and BLIND at `5d308f5` — markdown
+only, zero `.py`, 218 lines, a strict git ancestor of every measurement commit. ONE equity
+trial booked at `fa5433a` BEFORE the runner existed: equity 238 -> 239, options 305 and infra
+19 untouched. ADOPTS NOTHING, touches no book, ships no copy.**
+
+## VERDICT `NULL` — rejected on BOTH co-primary bases
+
+| basis | dates | full | early | late | median incremental IC | R2 on incumbents |
+|---|---|---|---|---|---|---|
+| six | 69 | **-0.1753** | -0.3241 | -0.0743 | +0.001441 | **0.3467** |
+| seven | 49 | **-1.0895** | -1.0240 | -0.6799 | -0.011059 | **0.4125** |
+
+The largest |*t*| in any cell of either basis is **1.0895** against the **2.71** bar. Both
+bases are co-primary and the arm had to clear BOTH (`MB18`'s rule; taking one alone is
+`MA58`'s void condition 5).
+
+## THE FINDING IS THE COLLAPSE, NOT THE NULL
+
+**The RAW dispersion sorts in the declared NEGATIVE direction and the INCREMENTAL one does
+not.** Raw median IC **-0.0243** (basis six) and **-0.0387** (seven), at raw *t* **-2.1733**
+and **-2.3041**; residualising on the incumbents takes those to -0.1753 and -1.0895. That is
+the PEAD template detecting a repackaging, which is exactly what it is for.
+
+**AND THE RAW READING CLEARS NEITHER BAR THAT GOVERNS HERE, which is the sentence that stops
+it being quoted as a near-miss.** 2.17 and 2.30 clear the **RETIRED 2.0 convention** and fail
+X7's calibrated **2.71** — and X7 retired 2.0 precisely because it measured **39% of
+PURE-NOISE draws** producing at least one theme at |*t*| >= 2.0.
+
+**R2 PUTS THE COLUMN WHERE IT BELONGS.** `U2` measured the incumbents explaining **41.3%** of
+`gp_on_capital` and **78.4%** of `ret_6_1`, against **5.5-8.8%** for genuinely new
+options-derived columns, and four orthogonality-motivated items landed at **0.027-0.145**.
+`disp` sits at **0.347 / 0.413** — squarely in the REPACKAGED-INCUMBENT range, which is what a
+function OF the incumbents should look like.
+
+## THE INTERPRETIVE CONSTRAINT I ADDED TO THE DRAFT, AND WHY IT BINDS
+
+`surface_stock.residualise` is a **LINEAR** cross-sectional OLS; a row-wise standard deviation
+is a **NON-LINEAR** function of the very columns it is residualised against. **So a surviving
+residual here is guaranteed by construction and orthogonality is worth nothing.** Two
+consequences, both stated in the register before the run and both borne out:
+
+* a HIGH `R2` was the prediction, not a low one — expectation (6), 70/30, **RIGHT** at
+  0.347/0.413;
+* a surviving incremental IC would have been a claim about **FUNCTIONAL FORM**, never about
+  new information. `CLAUDE.md` records structural orthogonality as a motivation nobody should
+  run again after four failures; **this register never rested on it.**
+
+## BOUNDED, NOT ABSENT — the MDE beside the verdict (`V6`/`S19`/`MB16`)
+
+| basis | observed incremental effect | 50%-power threshold | 80%-power MDE | factor below |
+|---|---|---|---|---|
+| six | **0.0211 SD** | 0.3262 | **0.4274** | **20.25x** |
+| seven | **0.1556 SD** | 0.3871 | **0.5071** | **3.26x** |
+
+Units are SD of the per-date IC series; `ic_tstat` is the SHIPPED `mean / (sd / sqrt(n))`, so
+the effect is `|t| / sqrt(n)` — **derived from the shipped definition rather than assumed.**
+The two 80% figures reproduce `MB18`'s published design class (**0.4274 / 0.5071**) to four
+decimals, which is an independent check that the power arithmetic is the one this record
+already uses. `MB18` measured the strongest RAW anchor on rows of this shape at
+`z_fcf_margin` **0.4346 SD**, so **a NULL here means "nothing as large as the best thing this
+panel has ever carried", never "no effect".**
+
+## `B7` HONOURED BY MEASUREMENT, NOT BY ASSERTION
+
+`composite_from_frame` is **called and never re-implemented** (an AST test pins that no second
+`composite`, `zscore`, `residualise`, `arm_ic`, `arm_verdict` or `halves` is DEFINED here), and
+the one thing this register supplies — the standardised matrix `Z` it takes a row-wise SD over
+— is gated by **C-IDENT: `composite(Z, w)` reproduces `composite_from_frame(...)` elementwise
+at max |delta| 0.000e+00 across 113,945 values, on BOTH bases, zero dates failing.** Both
+sides are shipped functions, so the identity is what proves `disp` and the composite are two
+moments of ONE object. **Proved NON-VACUOUS**: perturbing one cell of `Z` by 1e-12 must break
+it, and an empty comparison is a refusal rather than a perfect score (`MB21`'s C1).
+
+## FIVE DEPARTURES FROM THE DRAFT, ALL DECLARED BEFORE RUNNING
+
+1. **Counters re-read** (`MA37`, fifth time): the draft's 235 -> 236 was stale; measured
+   238 -> 239.
+2. **The eligibility justification was borrowed from an unrelated measurement.** The draft cited
+   *"`C7` measured 22.01% of rows carrying fewer than two computable inputs"* — that is
+   `MA28-CARD`'s C7 counting **accounting-flag** inputs (`scripts/ma28_riskcard.py:244`), not
+   theme columns. The floor was kept on its own merits and the real cost **MEASURED: 1.10% and
+   0.91%** of scoreable rows. **The borrowed figure was wrong by twenty-fold** — expectation
+   (7) said under 2% at 75/25, **RIGHT**.
+3. **`disp` is taken over the PER-DATE STANDARDISED columns**, because `composite_from_frame`
+   re-standardises and the raw theme spreads differ by construction (`S3`: `quality` near 0.50
+   against `insider` near 0.96). A dispersion over raw columns is a sort on how many inputs a
+   theme happens to have; a test makes the two answers differ, so this is not decoration.
+4. **`disp` is defined PER BASIS**, so the statistic and its control cover the same themes.
+5. **K3 is DEGENERATE on the arm's own rows** — `residualise` drops any row missing an
+   incumbent, so the theme count is CONSTANT there and a Spearman against a constant is
+   undefined, not a pass. All three kills are therefore read on **BOTH** populations and fire
+   if **EITHER** exceeds (`MB16`'s device); on the scored rows K3 is reported **STRUCTURALLY
+   ABSENT**.
+
+## KILLS — none fired, and K2 was the one to watch
+
+| kill | eligible population (six / seven) | arm rows (six / seven) | bar |
+|---|---|---|---|
+| K1 vs `size` | 0.0160 / 0.0583 | 0.0075 / 0.0487 | 0.60 |
+| K2 vs `\|composite\|` | **0.2246 / 0.2356** | **0.2114 / 0.2228** | 0.60 |
+| K3 vs theme count | 0.0802 / 0.0984 | structurally absent | 0.60 |
+
+The draft's expectation (1) called K2 the kill most likely to fire and put **40/60 against it
+firing**; it is comfortably the largest of the three and it did not fire — **both halves
+RIGHT**. The mechanical link is real (`mean^2 + var = mean of squares`, so a name of
+near-constant norm has |mean| and SD in exact opposition) and it is simply not large enough
+here. **`R6`'s ghost does not walk**: K1 is the SMALLEST of the three, so this conviction
+statistic is not the size sort its predecessor decomposed into.
+
+## THE MB7 DEFECT IS VISIBLE IN THE ARTIFACT RATHER THAN ARGUED
+
+On basis seven the coverage block records **`split on RAW then intersect early 14 / late 34
+ok=False`** against **`split on EFFECTIVE early 24 / late 24 ok=True`** — the exact 14/34 cell
+`MB7` was built for. The register declared `split_used="effective"` before running, so the
+gate returned rather than refusing, and the boundary moves **2017-07-20 -> 2020-01-22** with
+the disclosure `MB7` requires. Basis six loses nothing (69 of 69 effective dates).
+
+## EXPECTATIONS — 5 RIGHT, 1 WRONG, 1 SPLIT
+
+1. K2 the likeliest kill, 40/60 against firing — **RIGHT** (largest of three; did not fire).
+2. Verdict NULL, 80/20 — **RIGHT**.
+3. The sign, if anything shows, is negative as declared, 65/35 — **SPLIT**. The RAW column is
+   negative on both bases and in every half; the INCREMENTAL full-sample median is **POSITIVE
+   on basis six** (+0.001441) against negative on seven. Both are indistinguishable from zero,
+   which is why the verdict does not turn on it — but *"the direction points the right way"*
+   is FALSE of the incremental statistic on basis six and may not be written.
+4. Dispersion's largest input correlation is with `institutional` on basis seven, 55/45 —
+   **WRONG, and backwards.** Measured: `institutional` is the **SMALLEST** at **+0.008** and
+   `capital_discipline` the **LARGEST** at **-0.198** (then `quality` -0.104, `value` -0.093,
+   `momentum` -0.086, `size` +0.049, `insider` +0.041).
+5. One number contradicts this list, 60/40 — **RIGHT**, and it is (4) itself, plus the raw
+   column clearing the retired convention while the incremental collapses.
+6. `R2` above 0.20 on both bases, 70/30 (added by the executor) — **RIGHT**, 0.347 / 0.413.
+7. Eligibility costs under 2%, 75/25 (added by the executor) — **RIGHT**, 1.10% / 0.91%.
+
+**A NOTE ON (4) THAT IS ITSELF A FINDING ABOUT THE DRAFT: it was written against a quantity the
+registered design never emits.** The three kills correlate `disp` against `size`,
+`|composite|` and the theme COUNT — there is no per-theme table anywhere in the arm. Scoring
+the expectation at all required computing one, which `scripts/e3_addendum.py` does, **labelled
+post-hoc and carrying no bar**. Refusing to compute it would have meant quietly dropping an
+expectation the register promised to score.
+
+## NOT DONE, NAMED SO IT IS NOT MISTAKEN FOR DONE
+
+* **No interaction arm** (`disp` x level, `disp` x anything) — §6.2, `S7` closed casual
+  interactions and each would be its own register.
+* **No weighting or sizing use of `disp`** — §6.1, `S13`'s instrument mismatch. This tested a
+  COLUMN and did not touch the book.
+* **No `MA55` claim.** Different lenses, still `DESIGN-RECORDED - NOT RUN`, its own register.
+* **No product copy.** A per-name "conviction" label is a precision claim `V3` forbids.
+* **The mechanism behind the raw-versus-incremental collapse is NOT separated.** That `disp`
+  is largely explained by a linear projection on its own inputs is measured; WHICH incumbent
+  carries the raw signal, and whether the residual's near-zero reading is functional form or
+  noise, is unmeasured and would need its own register and its own trial.
+
+`scripts/e3_theme_dispersion.py`, `scripts/e3_addendum.py`;
+`data/free_analysis/E3_CONTROLS.json`, `E3_DISPERSION.json`, `E3_ADDENDUM.json`;
+`tests/test_e3_theme_dispersion.py` (21 tests).
