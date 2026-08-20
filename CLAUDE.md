@@ -134,6 +134,74 @@ the project's memory and the old versions had been repeated for months.
     **27 new tests, 8 of 8 tripwire mutations caught with sources restored byte-for-byte.**
     `scripts/mb18_expectations_gap.py`, `data/free_analysis/MB18_EXPECTATIONS_GAP.json`,
     `MB18_CONTROLS.json`; `HANDOFF_edge_audit.md` MB18.
+- **MB1's "SELECTION CARRIES A FIFTH OF THE LOSS" IS CONFOUNDED - THE COVERED SUBSET IS SELECTED
+  DIFFERENTLY IN THE TWO ARMS, AND THE CONFOUND IS TWICE THE SIZE OF THE EFFECT AND IN THE SAME
+  DIRECTION (2026-08-19, `MB1-SEL`).** `PREREG_mb1sel_selection_residual.md` committed **ALONE at
+  `134d8c6`**, markdown only, zero `.py`, a strict ancestor of every commit computing any new
+  statistic. **ZERO TRIALS - THE ARM NEVER RAN** (`MB15`'s precedent from the same day), so options
+  `N` stays **305** and `by_domain` is bit-identical (`rows_fixed_not_counted` 70 -> 71).
+  **NEITHER decision is unlocked.**
+  * **THE QUESTION, AND WHY IT NEEDED ITS OWN REGISTER.** `MB1` read its identity `pick_gap =
+    menu_gap + selection_residual` as **TIMING ~79% / SELECTION ~21%** with a residual of
+    **-1.2762pp** exceeding its own 1.00pp bar. **Every one of those is a BARE POINT ESTIMATE** -
+    `MB1`'s register committed no uncertainty measure at all, and the interval it computed
+    afterwards was on the **MEDIAN MENU GAP**, a different quantity. The reading was **post-hoc**.
+  * **THE GATING CONTROL FIRES AND THE ARM DOES NOT RUN.** `C-RANGE` ran in **its own pass** and
+    was **read before the arm** (`O10`'s process defect, not repeated), with its bar fixed in the
+    register beforehand. Covered entries out-earn uncovered ones in **BOTH** arms - alert **2,446
+    at +3.9830pp against 1,424 at +2.0458pp**, a shift of **+1.9372pp**; control **18,531 at
+    +10.0155pp against 11,123 at +5.5330pp**, a shift of **+4.4826pp** - so the **DIFFERENTIAL is
+    -2.5454pp against a bar of 1.00pp** and the arm is VOID by the register's own void condition 4.
+  * **THE CONTROL IS MEASURING THE RIGHT OBJECT, VERIFIED RATHER THAN ASSUMED: its covered counts
+    reproduce `MB1`'s published coverage EXACTLY** - 2,446 of 3,870 = **63.20%**, 18,531 of 29,654
+    = **62.49%**.
+  * **WHY THIS IS A FINDING RATHER THAN A FAILED RUN.** The residual is a **difference of
+    differences**, so a coverage effect **constant across the arms cancels exactly** - that is
+    `MB1`'s own robustness argument and **it is correct**. What it does not survive is a coverage
+    effect that **DIFFERS** between the arms, and the control arm's is **2.3x** the alert arm's.
+    **The confound is -2.5454pp; the residual it would have to explain is -1.2762pp. TWICE THE SIZE,
+    SAME DIRECTION.** **So `MB1`'s selection-carries-a-fifth reading MUST NOT be quoted as evidence
+    that contract selection matters.**
+  * **THE MECHANISM CORROBORATES IT RATHER THAN BEING HAND-WAVED:** coverage requires a fillable
+    in-band menu, i.e. a **liquid chain** - and `O10` independently measured the liquid part of this
+    book at **+5.82%** expectancy against **-3.11%** for the tape-thin part. Covered ~ liquid ~
+    better, on both arms; the arms simply differ in how much.
+  * **AN HONEST LIMIT, STATED RATHER THAN BURIED:** the confound's path runs through `pick_gap`, and
+    whether it is **fully** absorbed by the `menu_gap` subtraction is **NOT established**. So the
+    correct statement is that the residual **cannot be attributed to selection**, not that it is
+    **entirely** coverage. **The gate fired on a pre-committed bar and is honoured as written.**
+  * **WHAT WAS FIXED BEFORE ANYTHING WAS READ, and it is the repair of `MB1`'s own failure.** **The
+    MEDIAN IS BANNED BY MEASUREMENT, twice** - `O17C4` recorded the effect as *"a MEAN effect, not a
+    MEDIAN one"* (+0.40pp median-vs-median against means separating 4.79pp) and `MB1` reproduced it
+    on this exact object (menu medians ~**-0.50** against a **-4.7564pp** mean gap on the *same
+    legs*), pinned by AST. **The verdict rule states what the interval must EXCLUDE**, in three
+    mutually exclusive and all-reachable states: **CONFIRMED** needs the CI95 to exclude zero in the
+    full sample **and both halves**, same sign throughout, **and the materiality bound to hold
+    ACROSS THE INTERVAL** (`O21-D2`'s lesson - the nearer-to-zero end beyond 1.00pp); **REFUTED**
+    needs the full-sample CI95 **entirely inside +/-1.00pp**; everything else is **UNRESOLVED**.
+    **A test pins that a -1.28pp point with an interval reaching near zero - MB1's exact shape -
+    does NOT confirm.** The 1.00pp bar is `MB1`'s own, **reused verbatim** rather than re-chosen
+    with the estimate already published.
+  * **THE GATE IS NOT VACUOUS, WHICH IS WHAT MAKES THE VOID WORTH ANYTHING.** It **PASSES** when
+    both arms carry a large but **SHARED** coverage effect - the very structure that makes the
+    residual robust must not trip it - fires when they are selected differently, and the arm's own
+    gate is proved **no hard-coded refusal** by exercising it in isolation on a synthetic passing
+    artifact, **so the gate returns while the arm itself is never run**.
+  * **THE DECISION, STATED EXPLICITLY: NEITHER FIRES. `MB2` STAYS PARKED AND CONTRACT SELECTION
+    STAYS OPEN** - and `MB2`'s own ledger row, landed by the concurrent audit-4 ingest, reads
+    **PARKED BY DON 2026-08-19**, so it is parked by Don's decision rather than by default.** CONFIRMED would have unparked `MB2`'s grid for Don; REFUTED would have closed
+    contract selection with the sound argument `MB1`'s kill could not supply. **A VOID does neither,
+    and it is explicitly NOT a licence to re-run with a different statistic or a looser control
+    until something clears** - a re-open needs a **materially different construction**, the obvious
+    one being a coverage-matched decomposition, with its own register and its own trials.
+  * **TRIALS ZERO, AND THE COUNTER-ARGUMENT IS STATED BECAUSE IT IS NOT FRIVOLOUS.** The register
+    booked **3 CONTINGENT on the arm running**; it never ran. `C-RANGE` does have a pre-committed
+    bar and is computed on returns, and **`O21` was corrected UPWARD for exactly that shape** - the
+    distinction taken is that **a control can only ever BLOCK a finding, never produce one**, so it
+    adds no degree of freedom to any published claim. If a later reader disagrees the row is there
+    to amend, and that error's direction is the safe one. **129 suites, 0 failures after merging `origin/main`; 22 new tests.**
+    `scripts/mb1sel_range_control.py`, `scripts/mb1sel_arm.py` (shipped complete and **never run**);
+    `data/free_analysis/MB1SEL_RANGE_CONTROL.json`; `HANDOFF_optionsbot.md` 69.
 - **S22's TERM-STRUCTURE CLAIM SURVIVES THE ONE NULL ITS OWN SHAPE MOST REQUIRED - AND THE
   ARTIFACT IT HAD NEVER BEEN TESTED AGAINST IS REAL, SMALL, AND APPEARS EXACTLY WHERE
   BOUDOUKH-RICHARDSON-WHITELAW SAY IT MUST (2026-08-19, `MB21`).**

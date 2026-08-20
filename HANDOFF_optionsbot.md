@@ -8079,3 +8079,170 @@ calls, or `git config core.fscache`/a per-call backoff, would close it.
 `data/free_analysis/MB16_KILL.json`, `MB16_ARM.json`, `MB16_VPIN_UNITS.pkl`. **Tests:**
 `tests/test_mb16_vpin.py`, 26 tests; 4 of 4 gate mutations refused with the artifact restored
 byte-for-byte. **125 suites, 0 failures after merging `origin/main`.**
+
+
+## 69. MB1-SEL — the selection residual: the gating control fires, the arm never runs, and MB1's decomposition is CONFOUNDED (2026-08-19)
+
+`PREREG_mb1sel_selection_residual.md` committed **ALONE at `134d8c6`**, markdown only, zero `.py`,
+a strict ancestor of every commit computing any new statistic. **ZERO TRIALS: the arm never ran**,
+so options `N` stays **305** and `by_domain` is bit-identical across the log append
+(`rows_fixed_not_counted` 70 -> 71). **NEITHER decision is unlocked** — see §69.6.
+
+### 69.1 What this item was for
+
+`MB1` obtained the identity `pick_gap = menu_gap + selection_residual` and read it as **TIMING
+~79% / SELECTION ~21%**, with the selection residual at **−1.2762pp** exceeding the register's own
+1.00pp materiality bar. **Every one of those is a bare point estimate.** `MB1`'s register committed
+no uncertainty measure, and the interval it did compute afterwards was on the **MEDIAN MENU GAP**,
+a different quantity — so the residual's own sampling variability had never been measured, and the
+"selection matters" reading was **post-hoc**.
+
+This register was written to confirm or refute it properly: a **tail-capable** primary (the MEAN,
+with the median **banned by measurement**), a **paired name-year cluster bootstrap**, and — the
+thing `MB1` omitted — **a verdict rule stating what the interval must exclude, fixed before
+anything was read**.
+
+### 69.2 THE GATING CONTROL FIRES, AND THE ARM DOES NOT RUN
+
+`C-RANGE` ran in **its own pass** and was **read before the arm** (`O10`'s process defect, not
+repeated). Its bar was fixed in the register before it ran.
+
+| | covered | mean | uncovered | mean | **shift** |
+|---|---|---|---|---|---|
+| alert | 2,446 | +3.9830pp | 1,424 | +2.0458pp | **+1.9372pp** |
+| control | 18,531 | +10.0155pp | 11,123 | +5.5330pp | **+4.4826pp** |
+
+**DIFFERENTIAL = −2.5454pp against a bar of 1.00pp → VOID.** Register void condition 4: the arm
+does not run, and it has not been run.
+
+**The control is measuring the right object, verified rather than assumed:** its covered counts
+reproduce `MB1`'s published coverage **exactly** — 2,446 of 3,870 = **63.20%**, 18,531 of 29,654 =
+**62.49%**.
+
+### 69.3 WHY THIS IS A FINDING AND NOT A FAILED RUN
+
+The selection residual is a **difference of differences**, so a coverage effect **constant across
+the arms cancels exactly** — that is `MB1`'s own robustness argument and it is correct. What it
+does not survive is a coverage effect that **differs** between the arms, and that is what was
+measured.
+
+**Covered entries out-earn uncovered ones in BOTH arms — but 2.3× more strongly on the control
+arm.** So the covered subset is not a neutral window onto the book: it is a *differently* selected
+sample on each side. The consequence is direct, because `pick_gap` is computed on covered entries
+only:
+
+> **The confound is −2.5454pp. The residual it would have to explain is −1.2762pp. The confound is
+> TWICE THE SIZE OF THE EFFECT, AND IN THE SAME DIRECTION.**
+
+**So `MB1`'s "selection carries about a fifth of the loss" must not be quoted as evidence that
+contract selection matters.** It rests on a covered-subset pick gap carrying a differential
+coverage effect larger than the residual itself.
+
+**The mechanism is not mysterious and it corroborates the measurement:** coverage requires a
+fillable in-band menu on the entry date, i.e. a liquid chain — and `O10` independently measured
+that the liquid part of this book carries **+5.82%** expectancy against **−3.11%** for the
+tape-thin part. Covered ≈ liquid ≈ better, on both arms; the arms simply differ in how much.
+
+**AN HONEST LIMIT ON THE INFERENCE, stated rather than buried.** The confound's path runs through
+`pick_gap`; whether it is *fully* absorbed by the `menu_gap` subtraction is **not established** —
+the menu legs are a different instrument on the same entries. So the correct statement is that the
+residual **cannot be attributed to selection**, not that it is **entirely** coverage. Establishing
+which would need its own register. **The gate fired on a pre-committed bar and is honoured as
+written; this paragraph reports what it does and does not license, and changes nothing.**
+
+### 69.4 What was fixed before anything was read, and why it matters here
+
+* **THE MEDIAN IS BANNED BY MEASUREMENT, twice.** `O17C4` recorded the effect as *"a MEAN effect,
+  not a MEDIAN one"* (median-vs-median **+0.40pp** against means separating **4.79pp**), and `MB1`
+  reproduced it on this exact object (both arms' menu medians at about **−0.50**, a 0.43pp gap,
+  against a **−4.7564pp** mean gap on the *same legs*). Pinned by AST: no median is computed
+  anywhere in the arm or control path.
+* **THE VERDICT RULE, in three mutually exclusive states, all reachable and all pinned.**
+  **CONFIRMED** needs the CI95 to exclude zero in the full sample **and both halves**, the same
+  sign throughout, **and the materiality bound to hold ACROSS THE INTERVAL** — the nearer-to-zero
+  end beyond 1.00pp (`O21-D2`'s lesson). **REFUTED** needs the full-sample CI95 **entirely inside
+  ±1.00pp**. Everything else is **UNRESOLVED** and decides nothing. **A test pins that a −1.28pp
+  point estimate with an interval reaching near zero — MB1's exact shape — does NOT confirm.**
+* **The 1.00pp bar is `MB1`'s own, reused verbatim.** Re-picking it now, with the point estimate
+  already published at −1.28pp, would be choosing the bar around the answer.
+* **The trimmed means are declared SECONDARIES with no verdict power**, pinned by a test that the
+  rule reads `"mean"` and that neither `trim10` nor `trim20` appears in it.
+
+### 69.5 THE GATE IS NOT VACUOUS, WHICH IS WHAT MAKES THE VOID WORTH ANYTHING
+
+A control that fires on every input proves nothing. Pinned in both directions:
+
+* **it PASSES when both arms carry a large but SHARED coverage effect** (+8pp on each, differential
+  exactly 0) — the very structure that makes the residual robust must not trip it;
+* it **fires** when the arms are selected differently;
+* and the arm's own gate is proved to be **no hard-coded refusal** — exercised in isolation on a
+  synthetic passing artifact, so the gate returns while **the arm itself is never run**, which
+  register void condition 4 forbids while the control is firing.
+
+### 69.6 THE DECISION, STATED EXPLICITLY AS THE BRIEF REQUIRES
+
+The register fixed the mapping before the answer was known:
+
+* **CONFIRMED → `MB2`'s grid unparked and sent to Don.**
+* **REFUTED → contract selection CLOSED, with the sound argument `MB1`'s kill could not supply.**
+* **UNRESOLVED / VOID → NEITHER.**
+
+**The outcome is VOID before the arm, so NEITHER fires. `MB2` STAYS PARKED. CONTRACT SELECTION
+STAYS OPEN.** A precision the concurrent audit-4 ingest supplies: `MB2`'s ledger row reads
+**PARKED BY DON 2026-08-19**, so it is parked by Don's own decision rather than by default —
+CONFIRMED would have been a reason to put it back in front of him, and a VOID supplies no such
+reason. And it is explicitly **not** a licence to re-run this with a different statistic or
+a looser control until something clears — that is the search the register exists to prevent. A
+re-open needs a **materially different construction**: the obvious one is a coverage-matched or
+coverage-reweighted decomposition, which is a new design and needs its own register and its own
+trials.
+
+### 69.7 Trials: ZERO, on `MB15`'s precedent from earlier the same day
+
+The register booked **3 contingent on the arm running** — one for the mean primary and one for
+each declared trimmed secondary. **The arm never ran, so none was booked**, exactly as `MB15`
+ended when its pre-outcome kill fired: no hypothesis about returns was scored against its bar, so
+nothing was searched. `by_domain` is bit-identical across the log append, which is the proof the
+row was seen and correctly excluded.
+
+**The counter-argument, stated because it is not frivolous:** `C-RANGE` *does* have a pre-committed
+bar and *is* computed on returns, and `O21` was corrected **upward** for exactly that shape. The
+distinction taken here is that a control can only ever **block** a finding, never produce one, so
+it adds no degree of freedom to any published claim. If a later reader disagrees, the row is there
+to amend — and **the direction of that error is the safe one**, since charging would only raise
+future bars.
+
+### 69.8 Scope
+
+Covered subset only — **63.20%** and **62.49%** — and **the uncovered remainder is measured here
+but is not the object of any verdict.** The menu legs are `MB1`'s, banked from the **pinned**
+harvest freeze by its arms pass and **read rather than re-simulated**, so there is no
+re-simulation drift between `MB1`'s decomposition and this control; the legs artifact is
+fingerprinted in the output. `pre_panel_history` filtering is **inherited from `MB1`'s freeze
+read** and the key is absent from the banked artifacts — reported **VACUOUS rather than PASSING**
+(`O21-D2`'s C5 precedent). **`R2` stands and `O11` binds.**
+
+### 69.9 A DEFECT IN MY OWN SUITE THAT PASSED LOCALLY AND FAILED IN CI — the worst way to be wrong
+
+**The land gate caught it, and the local gate could not have.** `_data_root()` raised `SystemExit`
+at **module scope** when `MB1_LEGS.pkl` was absent. This suite imports the module; **CI has no
+`data/`**; so the whole suite **died at import** with the refusal printed and **nothing run**,
+while passing here because the data is on this machine.
+
+**`O14`'s `chains_dir()` documents the identical hazard in a comment I had read earlier in the same
+session:** *"Resolved on first USE rather than at import: tests import this module and CI has no
+D: drive, so resolving at module level would raise at import time and take the suite down."*
+
+**Repaired at the right layer rather than by weakening the check:** the resolver is now import-safe
+by default and **the refusal moved to USE**, where `main()` calls it with `strict=True`. So a
+data-less machine can import and test, and a real run still refuses.
+
+**VERIFIED AGAINST THE CI CONDITION RATHER THAN ASSUMED** — which is the whole lesson, since the
+local run is what missed it: the two scripts were copied into a throwaway tree with no `data/`
+anywhere above them, and **import exits 0 while `python -m scripts.mb1sel_range_control` still
+exits 1 with the refusal**. Four tests pin it, including an AST check that **no module-level
+statement resolves strictly**.
+
+**Scripts:** `scripts/mb1sel_range_control.py`, `scripts/mb1sel_arm.py` (shipped complete and
+never run). **Artifact** (gitignored): `data/free_analysis/MB1SEL_RANGE_CONTROL.json`. **Tests:**
+`tests/test_mb1sel_selection_residual.py`, 26 tests. **129 suites, 0 failures after merging `origin/main`.**
