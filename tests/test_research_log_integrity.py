@@ -70,6 +70,10 @@ from valuation.edge import research_log as RL               # noqa: E402
 #                                                               deliberately unmoved at 234.)
 #   ---- the two infra entries above are INDEPENDENT registers landing the same day, and
 #        the dict below is MEASURED post-merge rather than taken from either side.
+#   2026-08-20  infra 18 -> 19                                 (SC-1, 1 trial BOOKED BEFORE the run
+#                                                               per its own register, committed ALONE
+#                                                               at e95cffb; equity 234 and options 305
+#                                                               untouched - SC-1 opens no market data)
 #
 # The 2026-08-16 line moved BOTH scored domains in one session and is the first time it has. The
 # HLZ literal moved with it again, for the second time running and for the reason the note below
@@ -113,7 +117,7 @@ from valuation.edge import research_log as RL               # noqa: E402
 # and separate convention (the master audit lists it under MA21); it belongs to that row, with
 # its own decision about staleness tolerance, not smuggled in here.
 # ---------------------------------------------------------------------------------------------
-EXPECTED_BY_DOMAIN = {"equity": 234, "options": 305, "unified": 0, "infra": 18}
+EXPECTED_BY_DOMAIN = {"equity": 234, "options": 305, "unified": 0, "infra": 19}
 
 
 def _diff(expected, actual):
