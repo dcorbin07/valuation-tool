@@ -7910,3 +7910,154 @@ dates, 70,288,482 prints.
 **Scripts**: `scripts/mb15_venue_census.py`, `mb15_gate_satisfiability.py`,
 `mb15_condition_census.py`. **Tests**: `tests/test_mb15_venue_axis.py`, 19 tests, 7 of 7 mutations
 caught with sources restored byte-for-byte.
+
+
+## 68. MB16 — quote-classified VPIN: the kill does not fire, the arm is NULL, and the register's own comparison is blind (2026-08-19)
+
+`PREREG_mb16_vpin.md` committed **ALONE at `7fa88e5`**, markdown only, zero `.py`, a strict
+ancestor of every commit that scores an outcome; **1 options trial booked at `2e7bf92` BEFORE the
+arm ran, `N` 304 -> 305**. **ADOPTS NOTHING. `R2` stands and `O11` binds.**
+
+### 68.1 Only the quote-classified version is built, and that is the point of the item
+
+Andersen & Bondarenko's critique of Easley-López de Prado-O'Hara's VPIN names its target
+precisely: the **Bulk Volume Classification** scheme, which they find inferior to a standard tick
+rule, with VPIN predicting volatility largely because rising volatility induces systematic BVC
+classification errors. **The contested component is the classifier** — and that is the component
+this project already does properly. `O14` built a quote-based Lee-Ready classifier and measured it
+classifying a median **98.54%** of eligible prints. So the BVC classifier is **built nowhere**,
+pinned by an AST test.
+
+### 68.2 THE INSTRUMENT WAS VALIDATED BEFORE THE HYPOTHESIS, AND IT IS EXACT
+
+`MB15`'s lesson applied. The gating control ran and was **read before the kill**, not after:
+
+* the classifier reproduces `O14`'s banked `classified_rate` median **0.9854035696220825 to all
+  sixteen digits**;
+* per-unit `signed_volume` reproduces `O14`'s banked values at **max absolute deviation 0.0 across
+  all 3,863 units**.
+
+So VPIN is built on `O14`'s instrument rather than on a lookalike, and every comparison against
+`O14`'s features means what it says. The arm **refuses to run** without a passing kill artifact —
+mutation-tested 4 of 4 (kill reported as fired, either control leg flipped, artifact deleted),
+with the artifact restored byte-for-byte.
+
+### 68.3 THE KILL DOES NOT FIRE
+
+| comparison | pooled | within-month |
+|---|---|---|
+| `signed_volume` | **−0.0683** | −0.0429 |
+| `unusual_volume` | −0.0348 | −0.0372 |
+| **registered kill statistic** | **0.0683 against a bar of 0.90 → DOES NOT FIRE** | |
+| **\|signed_volume\|** — *not the registered comparison* | **+0.5661** | +0.5357 |
+
+### 68.4 TWO DEPARTURES FROM THE ITEM'S WORDING, DECLARED IN THE REGISTER RATHER THAN MADE SILENTLY
+
+**(1) The kill's "within date" cross-section does not exist on this book.** Measured: **1,570
+dates, median 2 names per date, max 17, ZERO dates reaching 20, and 39.7% carrying exactly one
+name.** A within-date Spearman is undefined at n = 1 and identically ±1 at n = 2 — it would be a
+constant or noise, never a measurement. **`O14` hit the identical wall and sorted MONTHLY**, so the
+kill is taken within month with the pooled figure beside it and **fires if EITHER exceeds the
+bar**, which is stricter than either alone.
+
+**(2) THE REGISTERED COMPARISON CANNOT DETECT THE RENAMING IT EXISTS TO CATCH.** VPIN is
+**unsigned** — mean `|buy − sell|` per equal-volume bucket — and `signed_volume` is **signed**.
+Flipping every aggressor side leaves VPIN bit-identical and negates `signed_volume`, both pinned
+by test. So correlating the two cannot see a VPIN that is a pure function of that feature's
+**magnitude**, which is exactly the renaming the kill is for.
+
+**The rule was run AS WRITTEN and the defect is reported rather than repaired** — `MB1`'s
+discipline. **And here the blind spot concealed nothing**: the magnitude comparison reads
+**+0.5661**, eight times the registered statistic and still comfortably inside the bar, so roughly
+two-thirds of VPIN's rank variance is information neither `O14` feature carries. **A register can
+be wrong about what its own statistic measures and right about the answer, and both halves have to
+be said.**
+
+### 68.5 THE ARM IS NULL, ON ALL THREE LEGS
+
+`O14`'s `score_arm` imported verbatim — the identical monthly-quintile long-short, month-block *t*
+and within-month permutation null that `O3`/`O4`/`O5`/`O14` were judged by. **n = 3,863 over 115
+months**, split 2020-12, two-sided.
+
+| | Q1 | Q2 | Q3 | Q4 | Q5 |
+|---|---|---|---|---|---|
+| mean return | +0.0205 | +0.0504 | +0.0147 | −0.0625 | −0.0631 |
+
+* **full sample:** long-short **+0.0835**, *t* **+1.7345** against its own permutation p95 of
+  **2.0005** — **fails**; CI95 **[−0.0088, +0.1784]**, straddling zero.
+* **early:** ls +0.0682, *t* +0.9262 vs p95 2.0180 — fails.
+* **late:** ls +0.0992, *t* +1.5943 vs p95 2.0498 — fails.
+* **the halves DO agree in sign** — the one leg it passes.
+
+**Direction, stated with its verdict and carrying no claim:** low-VPIN alert-days earn **8.35pp
+per trade more** than high-VPIN ones, and the two bottom quintiles are the only negative cells.
+That is the *opposite* of a naive "informed flow is on the alert's side" story — **and it is NULL,
+so no directional claim is made.**
+
+### 68.6 THE NULL CARRIES ITS OWN RESOLUTION, AND THE EFFECT IS CLOSE RATHER THAN ABSENT
+
+`V6` and `S19`'s rule: a NULL means *"could not be separated from zero at this resolution"*, never
+*"absent"*. Derived from the arm's **own** standard error (0.04817) and its **own** calibrated bar:
+
+* **MDE at the arm's own p95 bar: +9.64pp.** Observed: **+8.35pp.**
+* **So the observed effect sits BELOW its own detection threshold — by 1.3pp.**
+
+**Quote the MDE with the verdict or do not quote the verdict.** This is a design that could not
+have returned a positive verdict for an effect of the size it actually saw.
+
+### 68.7 Diagnostics, no verdict
+
+* **The bucket count is not load-bearing**, which is the best evidence the construction is not an
+  artefact of n = 50: rank correlation against the primary is **0.9493 (n=10), 0.9800 (n=20),
+  0.9929 (n=100)**.
+* VPIN's own distribution: p05 **0.1438**, median **0.4160**, p95 **0.8076**.
+* **VPIN is the SECOND-STRONGEST of the six flow features ever measured on this book, and all six
+  are NULL:** `sweep_share` 3.0607, **VPIN 1.7345**, `unusual_volume` 1.5107, `signed_volume`
+  0.6577, `block_share` 0.4366, `pc_flow_imbalance` 0.2556.
+* **ρ against `sweep_share` is −0.5180** — substantial and **NEGATIVE**, i.e. toxic flow carries
+  *fewer* sweeps. Reported because it refutes half my own registered expectation (§68.9).
+
+### 68.8 REPORTED OUTSIDE THIS ITEM (`RUN_RULES` rule 3), AND HALF OF IT IS THIS SESSION'S OWN
+
+**`research_log._parse` has NO DEDUP BY ID, so an item that books a `PRE-REGISTERED` row and later
+appends a separate verdict row is counted TWICE.** Measured:
+
+* **`MB1` carries 2 counted rows at `n=2` and charged 4 options trials against a record that says
+  2** — that is this session's own work, from earlier today;
+* **`O21-D2` carries 3 counted rows at `n=1` and charged 3 against a record that says 1.**
+
+**Options `N` is therefore OVERSTATED BY 4 — 305 as reported against 301 distinct searches.**
+The direction is the **safe** one, because a larger `N` raises every bar, which is why nothing
+broke and no published claim moves. **It is deliberately NOT corrected here:** lowering `N` moves a
+denominator every published options claim is gated on in the **permissive** direction, and it
+touches another lane's rows, so it needs its own decision. **MB16 books ONE row and its verdict
+cell is EDITED IN PLACE rather than duplicated**, which is the fix for the behaviour rather than
+for the count.
+
+### 68.9 Expectations: 3 right, 1 wrong, 1 split
+
+| # | prediction | outcome |
+|---|---|---|
+| E1 | A1 is NULL (85%) | **RIGHT** |
+| E2 | it fails the both-halves leg rather than the full-sample leg (60%) | **WRONG** — it fails all three |
+| E3 | VPIN's \|t\| exceeds `signed_volume`'s +0.6577 (60%) | **RIGHT** (1.7345) |
+| E4 | the quintile means are non-monotone (70%) | **RIGHT** (Q2 > Q1) |
+| E5 | ρ against `sweep_share` above 0.30 (55%) | **SPLIT** — 0.518 in magnitude, but NEGATIVE |
+
+### 68.10 Scope, and what is not done
+
+**ALERT DAYS ONLY.** The tick cache is exactly the alert days, so every figure is conditioned on
+them and **none generalises to the tape**. There is **no pinned freeze for the tick cache** —
+`D:` holds only the two CHAIN freezes — so the units are pinned by a recorded fingerprint
+(`MB15`'s finding, inherited).
+
+**NOT DONE, named so it is not mistaken for done:** the **BVC** version is not built and MB16's
+verdict says nothing about it; `O14`'s five arms are **not reopened** and stay NULL; no incremental
+test of VPIN against `|signed_volume|` was run (that is a second arm and would be a second trial);
+and **nothing here is evidence about the alert entry** — `R2` stands at −5.0640pp/trade against
+random entry, so a candidate would have been a candidate for a future book that does not exist.
+
+**Scripts:** `scripts/mb16_vpin.py`, `scripts/mb16_arm.py`. **Artifacts** (gitignored):
+`data/free_analysis/MB16_KILL.json`, `MB16_ARM.json`, `MB16_VPIN_UNITS.pkl`. **Tests:**
+`tests/test_mb16_vpin.py`, 22 tests; 4 of 4 gate mutations refused with the artifact restored
+byte-for-byte.
