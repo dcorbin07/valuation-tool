@@ -712,3 +712,247 @@ because a caller writing a coverage census needs the refusals.
   from a 1-D sweep (pass rates climb steeply 0.10→0.50 then flatten); a joint sweep might do
   better, and nothing here claims these are optimal — only that they are on a plateau rather than
   an edge.
+
+---
+
+# E-4 — the market-tail crash flag beside the accounting card (2026-08-20)
+
+**Season 2 register `E-4` (`IDEAS_LEDGER.md`, S-SEED-5), the OPTION-IMPLIED half — the half the
+ledger's own `I-1` entry names as unblocked by the RND builder.** Executed by this lane, which
+also built `I-1`.
+
+`PREREG_e4_market_tail_flag.md` committed **ALONE and BLIND at `cf7c7fc`** — markdown only, zero
+`.py`, 378 lines, a strict git ancestor of every measurement commit. **ONE equity trial booked at
+`654326a` BEFORE the runner existed**, equity **238 → 239**; options 305 and infra 19 untouched,
+re-read from `by_domain` after merging rather than quoted from a mid-run figure (`MA37`).
+**ADOPTS NOTHING** — no file under `valuation/` that the product imports changed, and no card is
+built. `MB31` proves no calibrated permutation floor can move below equity `N` = 247.
+
+## 1. THE VERDICT IS `UNDERPOWERED`, AND THE COMPARISON THE ITEM EXISTS FOR SURVIVES IT
+
+**The market flag DOES catch crashes the accounting flags miss.** On the **8,275 + 1,980 =
+10,255 accounting-CLEAN rows**, the market flag separates at **ratio 3.0541 — 0.9596% (19 crashes
+of 1,980) against 0.3142% (26 of 8,275)** — and both buckets clear the declared `min_events = 10`,
+so that ratio is **quotable**.
+
+**Whether the accounting flag catches crashes the MARKET flag misses is UNANSWERABLE on this
+universe, and the register said so before the run.** On market-clean rows the accounting flag has
+**286 rows carrying 4 crashes**; `crash_gate.quotable` **withholds the ratio** with its reason
+attached. §7 predicted exactly this — *"if that is what happens, the 'vice versa' half of the
+comparison is UNANSWERABLE and will be reported as unanswerable, not as a null."* It is reported
+as unanswerable.
+
+**THE 2×2** (crash = `fwd_ret ≤ −0.50` over the panel's 63-trading-day window; 10,707 rows,
+40 dates, 486 names, 54 crashes):
+
+| | accounting-flagged | accounting-clean |
+|---|---|---|
+| **market-flagged** | 166 rows, 5 crashes, **3.0120%** | 1,980 rows, 19 crashes, **0.9596%** |
+| **market-clean** | 286 rows, 4 crashes, **1.3986%** | 8,275 rows, 26 crashes, **0.3142%** |
+
+**The two flags are very nearly independent: Cohen's κ = 0.0624**, co-firing odds ratio 2.4257.
+They are finding different names, which is what makes the 2×2 worth having. Arithmetic on those
+published cells, no new computation and no extra arm: the market flag fires on **20.04%** of rows
+and carries **24 of 54 crashes (44.4%)**; the accounting flag fires on **4.22%** and carries **9
+of 54 (16.7%)**; their union fires on **22.71%** and carries **28 of 54 (51.9%)**. **Neither flag
+sees the other 26.**
+
+## 2. WHY IT IS `UNDERPOWERED` AND NOT `PASS`, DECIDED BY ARITHMETIC RATHER THAN JUDGEMENT
+
+| window | dates | mean per-date diff | NW *t* | pooled ratio | B1 | B2 ≥ 2.0× | B3 ≥ 0.50pp | all three |
+|---|---|---|---|---|---|---|---|---|
+| **full** | 40 | **+0.6789pp** | **+2.3813** | **3.1914** | ✔ | ✔ | ✔ | **✔** |
+| early | 19 | +0.3875pp | +1.1117 | 1.6882 | ✘ | ✘ | ✘ | ✘ |
+| late | 20 | +0.9897pp | +2.2483 | *withheld* | ✔ | ✔ | ✔ | ✔ |
+
+Halves boundary **embargoed at 2020-10-20**. Bars are `MA28`'s, reused verbatim.
+
+**The full sample clears all three of `MA28`'s legs at a ratio of 3.1914 — within 5% of `MA28`'s
+own 3.0422 — and the early half does not.** The register requires full **and** both halves, so
+this is not a PASS.
+
+**And the pre-committed three-state rule then makes it UNDERPOWERED rather than FAIL, because the
+observed effect sits below the design's own detection threshold:**
+
+> MDE at |*t*| > 3.3095 (N = 239): detection threshold **0.00880349** (50% power); **0.0110379**
+> at 80% power. Power against the observed effect 0.00678927 is **22.4%**.
+
+> MDE at |*t*| > 2.0000: detection threshold **0.0053201** (50% power); **0.00755454** at 80%
+> power. Power against the observed effect is **71.0%**.
+
+**Both vocabularies, as `RUN_RULES` PART A rule 11 requires, and they disagree in the way that
+matters: at the conventional bar this effect is visible (*t* +2.38, and the design has 71% power
+against it); at this project's own multiple-testing hurdle it is not.** `V6`/`S19`'s rule stands
+— **UNDERPOWERED means "could not be separated at this resolution", never "absent".**
+
+**THE LATE HALF'S RATIO IS WITHHELD AND MUST NEVER BE QUOTED.** It computes to 12.96, on **4
+crashes in the kept bucket of 4,650 rows**. `quotable()` refuses it. This is `MB8`'s lesson
+firing for real rather than as a precaution.
+
+**THE PRE-RUN POWER STATEMENT WAS RIGHT AND ITS SE WAS 1.62× TOO OPTIMISTIC.** The register
+predicted the binomial se would understate, at 80/20; measured, the **realised per-date se is
+0.2660pp against the pre-run binomial 0.1638pp**. Crashes cluster — `MA28` measured the base rate
+moving 4× between halves around COVID 2020Q1 — so the independence assumption was wrong in the
+direction stated in advance. At the realised base rate the pooled route needs **54,854 rows at
+the 2.0× floor and 19,176 at 3.0422×** against **10,707** available.
+
+## 3. THE CONTROL THAT SHOULD DECIDE HOW ANYONE READS THIS
+
+**`C-VOL` reads 0.8901 against my own 0.90 relabel bar. It missed by 0.0099.**
+
+The pre-committed rule was that at |ρ| ≥ 0.90 the flag **must** be described as an implied-vol
+sort. **It did not fire, so I do not claim the mandatory relabel — and nobody should lean on a
+margin of 0.0099 either.** The honest sentence is that **at a mean per-date Spearman of 0.8901
+against ATM implied vol, this design cannot distinguish "the RND's left-tail shape predicts
+crashes" from "implied volatility predicts crashes"**, and the second is a far older and duller
+claim. A register wanting the first would have to hold implied vol fixed, which is a different
+construction needing its own trial.
+
+**`C-TENOR` reads 0.4608 and is a real confound, foreseen but larger than I expected.**
+`Q(S_T ≤ 0.70·S_0)` grows mechanically with T, the band is [50,140] (median DTE 86, p05 53, p95
+119, a 2.8× range), so the within-date quintile is partly a tenor sort. Reported, no bar.
+
+**`C-SIZE`: flagged names are 3.2× SMALLER** — median market cap $11.50bn against $36.91bn
+(ratio 0.3115) — and the flag fires overwhelmingly in the small end (1,018 of 2,158 rows in the
+smallest cap quintile against 84 of 2,146 in the largest).
+
+**Within cap quintile, EVERY RATIO IS WITHHELD, and that is the finding rather than a gap:**
+
+| cap quintile | flagged n / crashes / rate | kept n / crashes / rate | ratio |
+|---|---|---|---|
+| 1 (smallest) | 1,018 / 8 / 0.786% | 1,140 / 7 / 0.614% | withheld |
+| 2 | 535 / 7 / 1.308% | 1,599 / 7 / 0.438% | withheld |
+| 3 | 320 / 5 / 1.562% | 1,815 / 10 / 0.551% | withheld |
+| 4 | 189 / 2 / 1.058% | 1,945 / 6 / 0.308% | withheld |
+| 5 (largest) | 84 / 2 / 2.381% | 2,062 / 0 / 0.000% | withheld |
+
+**The direction is the same in 5 of 5 — flagged above kept in every quintile — and not one cell
+carries enough crashes to support a ratio.** So `MA28`'s C4, the control that decided `U7`,
+`S10` and `V6-B`, **cannot be evaluated on this universe**. The size story is neither confirmed
+nor refuted here, and saying so is the whole point of the `min_events` rule.
+
+## 4. THE KILL, AND THE ARITHMETIC THAT HAD TO COME FIRST
+
+The ledger's condition is *"flag-overlap census vs accounting flags > 70% → withdrawn"*.
+
+**Stated in the register before running it: as literally written it CANNOT FIRE.** `MA28` flags
+5.74% of the panel and this flag flags 20% by construction, so `P(accounting | market)` is
+bounded above by the accounting share divided by 0.20. **Measured, that ceiling is 0.2111 and the
+statistic reads 0.0774** — the bar is 0.70. **This is `MB8`'s failure exactly** — an audit that
+set a 20% bar and a 0.5× haircut without multiplying them together — **and it applies to the
+ledger's own Hill-index proposal too**, since that flag is also a quintile. **Anyone running the
+physical half of E-4 should read this before quoting its kill as a safeguard.**
+
+The kill was therefore taken on the direction that can attain the same bar:
+**`P(market | accounting) = 0.3673` against 0.70 — DOES NOT FIRE.** The arm was licensed to run.
+
+## 5. CONTROLS, AND THE ONE THAT IS EXACT
+
+* **`C-PIN` — the covered date set is IDENTICAL to `P1S0_OPTIONABLE_PARTITION.pkl`'s**: 40 dates
+  each, **zero in either direction only**. An independently produced object, built from the same
+  store for a different question — which is what makes it a check rather than a restatement.
+  Store provenance asserted `pinned: True`, `manifest_sha256 dc8e9b35…`; the mutable
+  `data/options` store is never opened, pinned by an AST test.
+* **`C-ACCT-FIDELITY`** — the accounting arm is `MA28`'s flag, built on the **full panel
+  cross-section** and restricted afterwards: flagged share **0.06017** on 85,332 rows across
+  those 40 dates, against `MA28`'s published panel-wide **0.057414**. On the optionable subset it
+  is **0.04222** — lower, as predicted, because accounting flags fire on distressed small names.
+* **`C-INSTRUMENT`** — integral median **0.9999970**, negative-mass p95 **0.00177**,
+  `Q(≤0.70)` extrapolated on **41.20%** of rows (I-1's census said 46.06%). Outcome coverage
+  **1.0**, so `crash_flag`'s NaN fail-open never fires — reported because a filter that cannot
+  fire and one that fires and finds nothing must not read the same (`O21-D2`'s C5).
+* **Coverage** — 17,558 name-days attempted, **10,707 usable (60.98%)**, all on qualifying dates,
+  min 163 names per date, median 273.5. Refusals: `cdf_not_monotone_in_read_region` 3,164,
+  `negative_density` 1,560, `no_expiry_in_dte_band` 854, `too_few_smile_points` 737,
+  `integral_off` 291, `no_chain_on_date` 148, `parity_spot_mismatch` 67, `no_parity_forward` 30.
+  **`chain_unreadable` is 0**, which matters because that path emits one refusal row per
+  *ticker-year* rather than per date and would have undercounted; it never fired.
+
+**SENSITIVITY, NO VERDICT (quoting one of these as the result voids the register §8.1).** The
+finding is not an artefact of the 0.70 choice: ratios **2.5386 (0.50), 2.5386 (0.60), 3.1914
+(0.70, primary), 2.9598 (0.80), 3.9893 (0.90)**, rank agreement with the primary **0.8712 to
+0.9741**. The 0.50 and 0.60 cells are identical because the quintile membership is identical
+there.
+
+## 6. WHAT THIS DOES NOT SAY
+
+* **It is not about the panel or the book.** 40 late dates, 486 names, and **this universe
+  crashes at 0.4218% against 1.3250% for all panel names on the SAME 40 dates — 3.14× lower, a
+  UNIVERSE effect and not a period one**, since the same-dates row controls for period.
+* **It does not weaken `MA28`.** That register measured its flag on the panel, replicated it in
+  both halves against its own permutation maximum, and survived a size control this one cannot
+  even evaluate.
+* **It is not evidence the market prices the flag.** That is `O-1`'s K2, it is not run here, and
+  it needs its own register and its own trials.
+* **It licenses no card and no trade.** `MA28-CARD`'s deliverable was the *sentence*; a surface
+  is the app lane's, with the `BANNED` phrase tuple asserted against the RENDERED payload.
+
+## 7. DEFECTS IN MY OWN WORK, all caught before the arm ran
+
+1. **The accounting arm would not have been `MA28`'s flag.** `build_flags` computes the
+   external-financing leg as a **top decile WITHIN EACH DATE**, so passing only the ~440
+   optionable names computes the boundary on a different universe. It raises nothing and returns
+   a clean, plausible flag answering a different question — `MA31`'s column-name trap in a new
+   costume. Flags are now built on the full cross-section and restricted afterwards.
+2. **Two controls the register promised were absent** until I audited the runner against the
+   register line by line: `C-SIZE`'s within-cap-quintile comparison and `C-PIN`'s P1S0
+   reproduction. **Writing a control and implementing it are not the same act.**
+3. **`cg.halves` returns three values**, not two — the third is the embargoed boundary, now
+   recorded, because a half-split whose boundary is unreported cannot be checked against another
+   item's.
+4. **Two defects in my own mutation battery, and the second is the instructive one.** The three
+   2×2 mutations called the patched name and recursed into themselves, so a `RecursionError` was
+   reading as *caught* for entirely the wrong reason. And **mutation m3 — `>` replaced by `>=` at
+   the quantile — SURVIVED**: on 0..99 the 80th percentile interpolates to 79.2 and both flag
+   exactly 20 rows, so the accuracy property contained no tie. It now includes a constant column,
+   which `>=` flags entirely and `>` flags not at all. **A battery whose property cannot
+   distinguish the mutation reports 8 of 8 while testing 7.**
+5. **The build wrote once at the end and lost 15 minutes to a kill.** Now checkpointed every 25
+   names, **keyed on the completed SYMBOL set rather than a row count** (a count-keyed resume
+   both duplicates and skips the moment a symbol yields a different number of rows), and
+   relaunched detached. `RUN_RULES` rule 9; `O21-D2` lost 75 minutes to the same shape.
+6. **My completion watchers were pointed at the wrong path for ~40 minutes.** `_data()` resolves
+   a *directory* to the worktree when it is non-empty but a *file* to the primary checkout, so
+   inputs came from the primary while outputs landed in the worktree — see BUGS FOUND.
+
+## 8. EXPECTATIONS: 7 right, 0 wrong — and DISCOUNTED, not celebrated
+
+(1) verdict UNDERPOWERED ✔ · (2) `P(market|accounting)` < 0.40 ✔ (0.3673) · (3) `C-VOL` |ρ| ≥
+0.70 ✔ (0.8901) · (4) flagged names smaller ✔ (0.3115) · (5) accounting arm withheld ✔ ·
+(6) pooled ratio > 1 ✔ (3.1914) · (7) realised sd exceeds the binomial estimate ✔ (1.62×).
+
+**Five of the seven were derived from measured facts already in the record** — `MA28`'s size
+gradient, `MB8`'s thin-events lesson, the overlap ceiling's arithmetic — **so a clean sweep is
+mostly a statement about the record, not about my judgement** (`SC-1`'s lesson). Only (1) and (3)
+were genuine calls.
+
+## BUGS FOUND
+
+* **`scripts/e4_market_tail_flag.py` and `scripts/i1_rnd_census.py` share a `_data()` helper that
+  resolves DIRECTORIES and FILES to different checkouts.** `_data("free_analysis")` returns the
+  **worktree** path when that directory is non-empty (it holds one unrelated pickle), while
+  `_data("free_analysis", "panel_r5r6.pkl")` falls through to the **primary** checkout because
+  that file is absent from the worktree. Both behaviours are individually correct — the helper's
+  docstring is about *"existence is not population"* — and together they mean a run reads its
+  inputs from one checkout and writes its outputs to another. Nothing is wrong with the numbers;
+  it cost me ~40 minutes watching an output path that would never be written. **Reported, not
+  fixed** — changing the resolution order would move where every existing consumer's artifacts
+  land, which is not this item's call.
+* **No bug found outside this lane this session.**
+
+## What I did NOT do
+
+* **The `O-1` question is NOT answered.** Whether the market *prices* the accounting flag is
+  `O-1`'s K2; it charges its own trials and needs its own blind register. Nothing here is
+  evidence about it.
+* **The physical half of `E-4` (the Hill tail index) is NOT run.** This is the option-implied
+  half only. **Its kill condition is broken in the same way (§4) and should be repaired before
+  it runs.**
+* **`C-VOL` was not converted into an incremental test.** Holding implied vol fixed and asking
+  whether the RND's *shape* adds anything is a different construction, a different arm and a
+  different trial. **The 0.8901 reading is why it is the obvious next item, and also why it
+  should not be run casually.**
+* **No card, no surface, no product copy.** `MA28` is not re-opened, re-scored or weakened.
+* **The tenor confound is reported, not removed.** A tenor-matched construction is a new design.
+* **The options freeze's 2026 dates were not reachable** — the panel's last date is 2026-01-28
+  and the freeze's files stop at 2025, so the covered window ends 2025-10-27.
