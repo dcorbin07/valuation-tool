@@ -53,6 +53,9 @@ the project's memory and the old versions had been repeated for months.
   (2026-08-20, `E-6`/`S-SEED-2`).** `PREREG_e6_temporal_axis.md` committed **ALONE at
   `0008008`**, markdown only, zero `.py`, 268 lines, a strict ancestor of every measurement
   commit; **1 equity trial booked at `cfa9722` BEFORE the runner existed, equity 239 -> 240.**
+  **RE-READ AFTER MERGING (`MA37`, sixth time): the live equity `N` is 241, not 240** - the
+  `E-2` lane landed a trial while this was pushing, and the stamp was reconciled to the MEASURED
+  post-merge count with both hurdle literals DERIVED rather than typed.
   **ADOPTS NOTHING.**
   * **THE CONTAMINATION, AND WHY IT IS THE PART TO REMEMBER.** `I-2`'s burn-in census was
     **already published** with two readings of the seed's *"burn-in pre-committed at 5y"* -

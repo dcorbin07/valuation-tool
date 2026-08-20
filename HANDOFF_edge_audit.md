@@ -16004,6 +16004,13 @@ expectation the register promised to score.
 **Season 2 `E-6`, gated on `I-2`. `PREREG_e6_temporal_axis.md` committed ALONE at `0008008` —
 markdown only, zero `.py`, 268 lines, a strict ancestor of every measurement commit. ONE equity
 trial booked at `cfa9722` BEFORE the runner existed: equity 239 -> 240. ADOPTS NOTHING.**
+**RE-READ AFTER MERGING (`MA37`, sixth time on this record): the live equity `N` is 241,
+not 240** -- the `E-2` lane landed a trial while this was pushing. 239 -> 240 describes
+E-6's own booking; **241 is the figure to quote**, and the stamp was reconciled to the
+MEASURED post-merge count with both hurdle literals DERIVED rather than typed. **A
+process note against myself: I chained the merge and the push in one command, so the
+stamp was stale for the length of one push. The rule is re-read `by_domain` BETWEEN the
+merge and the push, never after it.**
 
 ## §0 IS THE DURABLE DELIVERABLE, AND IT HAD TO BE WRITTEN BEFORE THE ARM COULD RUN
 
