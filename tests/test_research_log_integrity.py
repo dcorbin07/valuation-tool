@@ -27,6 +27,7 @@ the comparison rejects a tampered count in BOTH directions, and
 `test_a_tampered_log_really_does_lower_N` performs the exact edit the docstring warns about on a
 real copy of the log and shows the count fall.
 """
+import io
 import os
 import re
 import shutil
@@ -138,7 +139,6 @@ from valuation.edge import research_log as RL               # noqa: E402
 # and separate convention (the master audit lists it under MA21); it belongs to that row, with
 # its own decision about staleness tolerance, not smuggled in here.
 # ---------------------------------------------------------------------------------------------
-EXPECTED_BY_DOMAIN = {"equity": 235, "options": 305, "unified": 0, "infra": 19}
 EXPECTED_BY_DOMAIN = {"equity": 236, "options": 305, "unified": 0, "infra": 19}
 
 
@@ -177,6 +177,39 @@ def test_the_trial_counts_match_the_committed_stamp():
     actual = RL.detail()["by_domain"]
     msg = _diff(EXPECTED_BY_DOMAIN, actual)
     assert not msg, msg
+
+
+def test_the_stamp_is_assigned_EXACTLY_ONCE():
+    """A duplicated stamp defeats the tamper-evidence it exists to provide.
+
+    FOUND 2026-08-20, AND IT WAS THIS SUITE'S OWN, INTRODUCED BY A MERGE RESOLUTION. Commit
+    `3def224` resolved two lanes booking a trial concurrently by KEEPING BOTH sides -- which is
+    right for ledger ROWS, where two lanes' rows both belong, and wrong for a single-valued
+    CONSTANT, where the first assignment becomes dead code. The suite went on passing because
+    Python takes the last one, and for four days the file carried `equity: 235` above
+    `equity: 236` with nothing to say which was live.
+
+    That is the whole point of the guard defeated: a reader checking the count could read the
+    dead line, and an editor updating it would see no effect. The merge was CLEAN -- adjacent
+    insertions, no conflict markers, nothing to review -- which is the shape `MA23`'s
+    cross-lane collision already recorded: *no file was edited by both sides, so there was no
+    conflict to resolve and nothing to review.*
+
+    Two lanes booking trials concurrently is now routine, so this will recur. Read from the
+    SYNTAX TREE, so a comment quoting an old stamp cannot trip it.
+    """
+    import ast
+    here = os.path.dirname(os.path.abspath(__file__))
+    with io.open(os.path.join(here, "test_research_log_integrity.py"), encoding="utf-8") as fh:
+        tree = ast.parse(fh.read())
+    n = sum(1 for node in tree.body if isinstance(node, ast.Assign)
+            for t in node.targets
+            if isinstance(t, ast.Name) and t.id == "EXPECTED_BY_DOMAIN")
+    assert n == 1, (
+        f"EXPECTED_BY_DOMAIN is assigned {n} times. Keeping both sides of a merge is correct "
+        f"for ledger ROWS and wrong for a single-valued CONSTANT: only the last assignment is "
+        f"live, so the stamp stops being tamper-evidence. Re-read `by_domain` after the merge "
+        f"and keep ONE line carrying the MEASURED counts (MA37's rule).")
 
 
 def test_the_stamp_is_not_vacuous():
