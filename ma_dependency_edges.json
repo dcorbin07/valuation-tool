@@ -51,7 +51,6 @@
    "wave_reason": "top severity, nothing to wait for",
    "needs_first": [],
    "trial_cost": "0 - this is a correctness/governance finding, not a hypothesis",
-   "in_flight": null,
    "lane_evidence": "the write path is saas, but the object being governed is the live weight vector and its vintage - an edge-lane contract"
   },
   "MA2": {
@@ -75,7 +74,6 @@
     "MA19"
    ],
    "trial_cost": "0",
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 3}"
   },
   "MA3": {
@@ -98,7 +96,6 @@
     "MA1"
    ],
    "trial_cost": "0",
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 1, 'app-fixer': 1}"
   },
   "MA4": {
@@ -117,7 +114,6 @@
    "wave_reason": "top severity, nothing to wait for",
    "needs_first": [],
    "trial_cost": "0",
-   "in_flight": null,
    "lane_evidence": "index_mark.py is the screener's writer for the contract-bound history"
   },
   "MA5": {
@@ -139,7 +135,6 @@
     "MA6"
    ],
    "trial_cost": "0",
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 2}"
   },
   "MA6": {
@@ -159,7 +154,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": "0",
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 2}"
   },
   "MA7": {
@@ -181,7 +175,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": "0",
-   "in_flight": null,
    "lane_evidence": "{'app-fixer': 4}"
   },
   "MA8": {
@@ -200,7 +193,6 @@
    "wave_reason": "speculative or low severity",
    "needs_first": [],
    "trial_cost": "0",
-   "in_flight": null,
    "lane_evidence": "{'app-fixer': 1}"
   },
   "MA9": {
@@ -224,7 +216,6 @@
    "wave_reason": "top severity, nothing to wait for",
    "needs_first": [],
    "trial_cost": "0",
-   "in_flight": null,
    "lane_evidence": "{'infra': 2, 'app-fixer': 3}"
   },
   "MA10": {
@@ -249,7 +240,6 @@
     "MA3"
    ],
    "trial_cost": "0",
-   "in_flight": null,
    "lane_evidence": "the credential is the product's; the workflow and render.yaml are consumers of it, and they outvoted the owner"
   },
   "MA11": {
@@ -268,7 +258,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": "0",
-   "in_flight": null,
    "lane_evidence": "{'infra': 1}"
   },
   "MA12": {
@@ -292,7 +281,6 @@
     "MA11"
    ],
    "trial_cost": "0",
-   "in_flight": null,
    "lane_evidence": "{'infra': 4}"
   },
   "MA13": {
@@ -315,13 +303,6 @@
     "MA6"
    ],
    "trial_cost": "0",
-   "in_flight": {
-    "branch": "worktree-options-live",
-    "commit": "PREREG MA19+MA13: recalibrate X7's floors at N=224, and give N tamper-evidence",
-    "at": "2026-08-14 20:22",
-    "state": "PREREG committed blind - the register exists, the measurement does not",
-    "do_not": "do not open N tamper-evidence in a second lane; it is claimed"
-   },
    "lane_evidence": "{'pipeline': 3}"
   },
   "MA14": {
@@ -343,7 +324,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": "0 for the port (reporting only); a register if any threshold ever gates on it",
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 2, 'greeks': 1}"
   },
   "MA15": {
@@ -368,13 +348,6 @@
     "MA20"
    ],
    "trial_cost": "0",
-   "in_flight": {
-    "branch": "worktree-crowding-p2",
-    "commit": "MA-MAP + MA15 + MA16 + MA20",
-    "at": "2026-08-14 21:00",
-    "state": "DELIVERED - data\\options_ticks added to $KEEP bucket 2; 4.40 GB verified on D:",
-    "do_not": "done"
-   },
    "lane_evidence": "the change is one allowlist entry in backup_to_D.ps1; the tickflow scripts are consumers, not the work"
   },
   "MA16": {
@@ -397,13 +370,6 @@
     "MA20"
    ],
    "trial_cost": "0",
-   "in_flight": {
-    "branch": "worktree-crowding-p2",
-    "commit": "MA-MAP + MA15 + MA16 + MA20",
-    "at": "2026-08-14 21:00",
-    "state": "DELIVERED - data\\free_analysis moved $SKIP -> $KEEP bucket 1; 0.80 GB verified on D:",
-    "do_not": "done"
-   },
    "lane_evidence": "same - one $SKIP entry moved to $KEEP in backup_to_D.ps1"
   },
   "MA17": {
@@ -425,7 +391,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": "0",
-   "in_flight": null,
    "lane_evidence": "{'infra': 4}"
   },
   "MA18": {
@@ -448,7 +413,6 @@
    "wave_reason": "top severity, nothing to wait for",
    "needs_first": [],
    "trial_cost": "0",
-   "in_flight": null,
    "lane_evidence": "the writer lives in screener/index_mark.py; the DAILY WRITE itself is Cowork's, and no repo lane can close this alone"
   },
   "MA19": {
@@ -474,13 +438,6 @@
     "MA6"
    ],
    "trial_cost": "0 if re-derived from banked draws; a full 3.4-hour sweep if they are gone",
-   "in_flight": {
-    "branch": "worktree-options-live",
-    "commit": "PREREG MA19+MA13: recalibrate X7's floors at N=224, and give N tamper-evidence",
-    "at": "2026-08-14 20:22",
-    "state": "PREREG committed blind",
-    "do_not": "do not re-derive X7's floors elsewhere; a second sweep at a different N would produce a second set of floors and nothing would say which is authoritative"
-   },
    "lane_evidence": "{'pipeline': 4}"
   },
   "MA20": {
@@ -502,13 +459,6 @@
    "wave_reason": "top severity, nothing to wait for",
    "needs_first": [],
    "trial_cost": "0",
-   "in_flight": {
-    "branch": "worktree-crowding-p2",
-    "commit": "MA-MAP + MA15 + MA16 + MA20",
-    "at": "2026-08-14 21:00",
-    "state": "ALARM DELIVERED, cure is Don's - scripts/checkout_drift.py + check_drift.bat, wired into git_push.bat. Measured 1 ahead / 514 behind.",
-    "do_not": "the guard is written; what remains is Don running sync.bat once, which no agent should do for him"
-   },
    "lane_evidence": "{'infra': 2, 'pipeline': 1}"
   },
   "MA21": {
@@ -533,7 +483,6 @@
     "MA13"
    ],
    "trial_cost": "0",
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 3, 'infra': 1}"
   },
   "MA22": {
@@ -553,7 +502,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": "0",
-   "in_flight": null,
    "lane_evidence": "{'infra': 2}"
   },
   "MA23": {
@@ -583,7 +531,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": "0",
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 12}"
   },
   "MA24": {
@@ -603,7 +550,6 @@
    "wave_reason": "charges trials - needs a register first",
    "needs_first": [],
    "trial_cost": "2 arms, plus the rebuild's own cost (a panel build is ~20 min; a monthly panel is ~3x the dates)",
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 2}"
   },
   "MA25": {
@@ -624,7 +570,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": "0 for the record correction; 2 arms if the interaction is ever run",
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 3}"
   },
   "MA26": {
@@ -646,7 +591,6 @@
    "wave_reason": "charges trials - needs a register first",
    "needs_first": [],
    "trial_cost": "A: 1-2 · B: 2 · C: 0 (unbuildable) · D: 0 (closed)",
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 2, 'app-fixer': 1}"
   },
   "MA27": {
@@ -666,7 +610,6 @@
    "wave_reason": "charges trials - needs a register first",
    "needs_first": [],
    "trial_cost": "1 if a single pre-committed gamma rule; 2 for both decide/measure directions, which the shipped gate requires. N 224 -> 226 moves the HLZ hurdle 3.28988 -> 3.29277, i.e. 0.003 of a t.",
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 2}"
   },
   "MA28": {
@@ -689,7 +632,6 @@
     "MA26"
    ],
    "trial_cost": "1-2",
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 1, 'app-fixer': 1}"
   },
   "MA29": {
@@ -710,7 +652,6 @@
    "wave_reason": "speculative or low severity",
    "needs_first": [],
    "trial_cost": "0",
-   "in_flight": null,
    "lane_evidence": "{'greeks': 1, 'app-fixer': 1}"
   },
   "MA30": {
@@ -731,7 +672,6 @@
    "wave_reason": "charges trials - needs a register first",
    "needs_first": [],
    "trial_cost": "0 for display",
-   "in_flight": null,
    "lane_evidence": "a display change on the screener's hot list; the panel reference is the definition of tenure, not a panel edit"
   },
   "MA31": {
@@ -752,7 +692,6 @@
    "wave_reason": "charges trials - needs a register first",
    "needs_first": [],
    "trial_cost": "1-2",
-   "in_flight": null,
    "lane_evidence": "an options-surface arm on the raw chains"
   },
   "MA32": {
@@ -773,7 +712,6 @@
    "wave_reason": "charges trials - needs a register first",
    "needs_first": [],
    "trial_cost": "1-2",
-   "in_flight": null,
    "lane_evidence": "an options-volume arm on the raw chains"
   },
   "MA33": {
@@ -797,7 +735,6 @@
     "MA24"
    ],
    "trial_cost": "the rebuild itself charges nothing; each arm scored on it charges normally",
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 3}"
   },
   "MA34": {
@@ -818,7 +755,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": "0",
-   "in_flight": null,
    "lane_evidence": "the contract text is the deliverable, but the prior belongs to the lane that owns track_meter and the meter's power arithmetic"
   },
   "MA35": {
@@ -839,13 +775,6 @@
    "wave_reason": "already landed",
    "needs_first": [],
    "trial_cost": "0",
-   "in_flight": {
-    "branch": "origin/main",
-    "commit": "c759250",
-    "at": "2026-08-14",
-    "state": "LANDED - .gitattributes carries `*.pdf binary`, verified",
-    "do_not": "closed"
-   },
    "lane_evidence": ".gitattributes - repository plumbing"
   },
   "MA36": {
@@ -866,13 +795,6 @@
    "wave_reason": "top severity, nothing to wait for",
    "needs_first": [],
    "trial_cost": null,
-   "in_flight": {
-    "branch": "worktree-optionsbot-lane",
-    "commit": "PREREG MA36+MA37: the live options record is censored at one end and blended at the other",
-    "at": "2026-08-14 20:28",
-    "state": "PREREG committed blind",
-    "do_not": "claimed; MA46 depends on it and must wait rather than fork"
-   },
    "lane_evidence": "the forward OPTIONS book's censored -100% tail"
   },
   "MA37": {
@@ -895,13 +817,6 @@
     "MA36"
    ],
    "trial_cost": null,
-   "in_flight": {
-    "branch": "worktree-optionsbot-lane",
-    "commit": "PREREG MA36+MA37: the live options record is censored at one end and blended at the other",
-    "at": "2026-08-14 20:28",
-    "state": "PREREG committed blind",
-    "do_not": "claimed"
-   },
    "lane_evidence": "{'options-bot': 3}"
   },
   "MA38": {
@@ -921,7 +836,6 @@
    "wave_reason": "top severity, nothing to wait for",
    "needs_first": [],
    "trial_cost": null,
-   "in_flight": null,
    "lane_evidence": "{'options-bot': 2}"
   },
   "MA39": {
@@ -941,7 +855,6 @@
    "wave_reason": "top severity, nothing to wait for",
    "needs_first": [],
    "trial_cost": null,
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 2}"
   },
   "MA40": {
@@ -961,7 +874,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": null,
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 2}"
   },
   "MA41": {
@@ -981,7 +893,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": null,
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 2}"
   },
   "MA42": {
@@ -1000,7 +911,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": null,
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 1}"
   },
   "MA43": {
@@ -1021,7 +931,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": null,
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 3}"
   },
   "MA44": {
@@ -1042,7 +951,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": null,
-   "in_flight": null,
    "lane_evidence": "{'options-bot': 1, 'greeks': 1}"
   },
   "MA45": {
@@ -1062,7 +970,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": null,
-   "in_flight": null,
    "lane_evidence": "{'options-bot': 2}"
   },
   "MA46": {
@@ -1084,7 +991,6 @@
     "MA37"
    ],
    "trial_cost": null,
-   "in_flight": null,
    "lane_evidence": "{'options-bot': 2}"
   },
   "MA47": {
@@ -1103,7 +1009,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": null,
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 1}"
   },
   "MA48": {
@@ -1123,7 +1028,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": null,
-   "in_flight": null,
    "lane_evidence": "{'options-bot': 2}"
   },
   "MA49": {
@@ -1146,7 +1050,6 @@
    "wave_reason": "speculative or low severity",
    "needs_first": [],
    "trial_cost": null,
-   "in_flight": null,
    "lane_evidence": "a bundle spanning statistics, scripts and param_search; statistics.py has ten importers and decides the lane"
   },
   "MA50": {
@@ -1167,7 +1070,6 @@
    "wave_reason": "top severity, nothing to wait for",
    "needs_first": [],
    "trial_cost": null,
-   "in_flight": null,
    "lane_evidence": "{'greeks': 1, 'app-fixer': 1}"
   },
   "MA51": {
@@ -1186,7 +1088,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": null,
-   "in_flight": null,
    "lane_evidence": "{'app-fixer': 1}"
   },
   "MA52": {
@@ -1205,7 +1106,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": null,
-   "in_flight": null,
    "lane_evidence": "{'greeks': 1}"
   },
   "MA53": {
@@ -1226,7 +1126,6 @@
     "MA50"
    ],
    "trial_cost": null,
-   "in_flight": null,
    "lane_evidence": "{'app-fixer': 1}"
   },
   "MA54": {
@@ -1245,7 +1144,6 @@
    "wave_reason": "charges trials - needs a register first",
    "needs_first": [],
    "trial_cost": "1-4 trials",
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 1}"
   },
   "MA55": {
@@ -1268,7 +1166,6 @@
     "MA25"
    ],
    "trial_cost": "~2 trials",
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 1, 'greeks': 1}"
   },
   "MA56": {
@@ -1287,7 +1184,6 @@
    "wave_reason": "speculative or low severity",
    "needs_first": [],
    "trial_cost": "0 (record only)",
-   "in_flight": null,
    "lane_evidence": "residual term-slope is an options-entry feature"
   },
   "MA57": {
@@ -1308,7 +1204,6 @@
    "wave_reason": "charges trials - needs a register first",
    "needs_first": [],
    "trial_cost": "1-2 trials",
-   "in_flight": null,
    "lane_evidence": "{'greeks': 1, 'pipeline': 1}"
   },
   "MA58": {
@@ -1327,7 +1222,6 @@
    "wave_reason": "charges trials - needs a register first",
    "needs_first": [],
    "trial_cost": "1-2 trials",
-   "in_flight": null,
    "lane_evidence": "{'pipeline': 1}"
   },
   "MA59": {
@@ -1357,7 +1251,6 @@
    "wave_reason": "unblocked, zero trial cost",
    "needs_first": [],
    "trial_cost": null,
-   "in_flight": null,
    "lane_evidence": "a deletion/archival policy question across four lanes' dead files - process, not any one engine"
   },
   "MA60": {
@@ -1382,7 +1275,6 @@
     "MA13"
    ],
    "trial_cost": null,
-   "in_flight": null,
    "lane_evidence": "{'infra': 3, 'pipeline': 1}"
   }
  },

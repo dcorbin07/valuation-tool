@@ -172,29 +172,46 @@ class T(unittest.TestCase):
         self.assertEqual(sorted(TIE_ORDER), sorted(LANES))
 
     # ------------------------------------------------------------ in-flight
-    def test_in_flight_items_are_flagged_on_their_nodes(self):
-        """A map that routes a claimed item to a second lane is worse than no map."""
-        flag = ROOT / "ma_in_flight.json"
-        if not flag.exists():
-            self.skipTest("no ma_in_flight.json")
-        live = {k for k in json.loads(flag.read_text(encoding="utf-8")) if k != "_meta"}
-        for k in live & set(self.n):
-            self.assertIsNotNone(self.n[k]["in_flight"], k)
+    #
+    # THESE TWO TESTS USED TO READ `ma_in_flight.json` AND ASSERT THE MAP FLAGGED EVERY
+    # CLAIMED ITEM. MB27 (2026-08-19) retired that file -- measured five days stale and
+    # wrong on 8 of 8 items -- and the retirement immediately staled this map's committed
+    # artifact, which is how the coupling was found at all. That is the finding, not an
+    # inconvenience: **a committed artifact cannot carry live board state**, because a
+    # branch moving makes it wrong and the staleness check then fires on ordinary work.
+    #
+    # Left as-is they would have passed VACUOUSLY: the retired stub's only non-`_meta` key
+    # is `_retired_2026_08_14`, which is not an MA id, so both loops iterate nothing. A
+    # green test that inspects nothing is the failure mode this repo keeps finding, so they
+    # are replaced by two that pin the new contract and cannot go stale.
 
-    def test_the_document_flags_every_claimed_item_and_records_the_correction(self):
-        """The flag carries the item's actual STATE (PREREG committed blind / DELIVERED /
-        LANDED), not a generic label - 'claimed' and 'finished' route differently."""
+    def test_the_map_embeds_no_live_board_state(self):
+        """The artifact is derived from the items file and the import graph, and nothing
+        that moves when a branch moves."""
+        for k, v in self.n.items():
+            self.assertNotIn("in_flight", v, f"{k} still carries embedded board state")
+        self.assertNotIn("IN FLIGHT]**", MD.read_text(encoding="utf-8"))
+
+    def test_the_map_points_at_the_derivation_and_records_the_correction(self):
+        """A map that routes a claimed item to a second lane is worse than no map -- so
+        the guarantee moves to a COMMAND that cannot be stale, and the map must say so."""
         txt = MD.read_text(encoding="utf-8")
         self.assertIn("Corrections this map makes to its own brief", txt)
-        flag = ROOT / "ma_in_flight.json"
-        if not flag.exists():
-            self.skipTest("no ma_in_flight.json")
-        live = json.loads(flag.read_text(encoding="utf-8"))
-        for k, row in live.items():
-            if k == "_meta" or k not in self.n:
-                continue
-            state = row["state"].split(" -")[0].split(",")[0].strip()
-            self.assertIn(f"**[{state}]**", txt, f"{k} is claimed but unflagged in the map")
+        self.assertIn("scripts/board_state.py", txt)
+        # And it must not go on advertising the retired file as the live authority.
+        flat = " ".join(txt.split())
+        self.assertNotIn("`ma_in_flight.json` | what is being worked RIGHT NOW", flat)
+
+    def test_the_retired_board_file_is_not_read_by_the_generator(self):
+        """One copy of the fact, and it is git."""
+        src = (ROOT / "scripts" / "ma_dependency_map.py").read_text(encoding="utf-8")
+        # NAME THE READ, NOT THE FILENAME. A first cut stripped comment lines and asserted
+        # the bare filename was absent -- and failed against the FIXED tree, because the
+        # generator now emits a paragraph of prose ABOUT the retired file into the map. That
+        # is the comment-versus-code family inverted: documentation inside a string literal
+        # reads as code to a line filter. The only thing that matters is whether it opens it.
+        self.assertNotIn('ROOT / "ma_in_flight.json"', src)
+        self.assertNotIn("ROOT / 'ma_in_flight.json'", src)
 
 
 def run():

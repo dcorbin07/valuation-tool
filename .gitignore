@@ -68,3 +68,9 @@ options-bot/quant_bots/c5_ingest.*
 # public git HISTORY - see HANDOFF_ci.md for the full remediation options.
 LAUNCH_CHECKLIST.md
 GO_LIVE.md
+
+# MB27: board_state.py --write emits a SNAPSHOT here. Never tracked - a committed
+# snapshot of live git state goes stale within minutes (8 of 12 worktrees carried
+# uncommitted work when this was written), and a stale snapshot is the disease MB27
+# exists to cure, not the cure. The board is derived on demand; git is the one copy.
+.board_state.json

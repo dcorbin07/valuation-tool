@@ -89,8 +89,44 @@ def withhold(text: str) -> str:
 
 
 def contains_figure(text: str) -> bool:
-    """True if `text` would publish a performance figure. Used by the page's own test."""
-    return bool(_FIGURE.search(_DATE.sub("", str(text or ""))))
+    """True if `text` would publish a performance figure. Used by the page's own test.
+
+    ONE EXEMPTION, AND IT IS NARROWER THAN IT LOOKS.  [MB38]
+
+    A multiplicity hurdle is a bare decimal, so `_FIGURE`'s effect-size branch redacts it —
+    measured before any of `MB38`'s copy was written, which is what its kill condition asks
+    for. But `sqrt(2 * ln N)` is not a performance figure in the sense this rule exists to
+    stop: it is arithmetic on a count of this project's own decisions, it carries no vendor
+    data, and it says nothing whatever about how the strategy performed. Two different
+    numbers were being caught by one pattern.
+
+    So the guard is made PRECISE rather than weaker. It still fires on every `_FIGURE` match
+    it ever fired on, with exactly one exception: a match that is, character for character,
+    a hurdle DERIVABLE FROM THE REGISTER RIGHT NOW. Three properties make that hole
+    measurable rather than a matter of trust:
+
+      * it is DERIVED, never typed, so it cannot be a literal that rots (`derived_hurdles()`
+        reads `research_log`, the same parse that sets the Deflated Sharpe's denominator);
+      * it is EMPTY when the register cannot be read, so a broken parse CLOSES the guard
+        rather than opening it;
+      * it matches WHOLE `_FIGURE` MATCHES, not substrings, so `13.3031` still fires (it is
+        a different number), `3.3031%` still fires (the percent branch matches the unit with
+        it, and a percentage is a performance figure whatever its digits), and `t 3.3031`
+        still fires (the statistic-name branch matches `t 3`). Naming it as a statistic is
+        enough to bring it back under the rule.
+
+    `withhold()` deliberately does NOT get this exemption. It is the redactor for text this
+    page does not own — log rows, register titles — and it stays maximally conservative
+    there. The exemption belongs only to the question "would this publish a performance
+    figure", asked of the page's own rendered output, where the hurdle is a value the page
+    itself derived a moment earlier.
+    """
+    t = _DATE.sub("", str(text or ""))
+    exempt = derived_hurdles()
+    for m in _FIGURE.finditer(t):
+        if m.group(0).strip() not in exempt:
+            return True
+    return False
 
 
 # --------------------------------------------------------------------------- verdicts
@@ -200,6 +236,154 @@ def preregistrations(root: str = None) -> list:
     return sorted(out, key=lambda r: r["file"])
 
 
+# --------------------------------------------------------------------------- the denominator
+#
+# MB38. The register already ships; what nobody publishes is the DENOMINATOR — an honest count
+# of how many things a research project tried, the multiplicity hurdle that count implies, and
+# whether its own headline clears it. All three are computed here; none is typed.
+#
+# THE TWO OPERANDS STAY WITHHELD AND THE COMPARISON DOES NOT. The headline statistic and the
+# calibrated floor live below as module constants because the page needs to COMPARE against
+# them, and a comparison whose operands are invented is worthless. They are never placed in
+# the payload and never rendered — pinned by test, which is the only form of "withheld" worth
+# anything. Knowing a statistic falls short of a published hurdle bounds it from above; it
+# does not give you its value, and that asymmetry is stated on the page rather than glossed.
+#
+# Both constants are already public in this repository's own record (`CLAUDE.md`, MIT, public
+# since 2026-08-16). The rule MB38 respects is about what the SITE publishes, not about what
+# the source contains — so quoting them here is not the leak; rendering them would be.
+
+# The long-short spread's autocorrelation-corrected t-statistic (R9 made the HAC figure the
+# one this project quotes; R4 compared it to the hurdle for the first time). NEVER RENDERED.
+HEADLINE_STATISTIC = 2.6199121240414884
+
+# X7's calibrated floor for the same statistic: the 95th percentile of what came back when
+# 100 deliberately worthless signals were pushed through the identical pipeline. Re-derived at
+# N = 224 by MA19 and unmoved at every N this project has run. NEVER RENDERED.
+PLACEBO_FLOOR = 2.2837
+
+HEADLINE_LABEL = ("the long-short spread's t-statistic, corrected for the autocorrelation "
+                  "the record measured in it")
+
+MULTIPLICITY_HEADING = "How many things we tried, and what that count demands"
+
+MULTIPLICITY_LEDE = (
+    "Every result should be read against the number of things that were tried to get it. "
+    "Almost no research record publishes that number. This one does. One entry in the log "
+    "can be worth more than one trial: a test that swept a grid of settings is charged "
+    "once for every setting, which is why the total below is larger than the number of "
+    "entries above it.")
+
+MULTIPLICITY_PARAGRAPH = (
+    "Trying many things and keeping the best inflates the winner by luck alone, so the "
+    "standard correction asks the winner to clear a bar that grows with the size of the "
+    "search. The counts above are not a summary written by hand: they come out of the log on "
+    "this page, through the same parse that sets the trial count inside the model's own "
+    "significance correction, so the two cannot drift apart. The bar is arithmetic on the "
+    "count, and it only ever rises as the search gets bigger.")
+
+MULTIPLICITY_BOTH_SIDES = (
+    "There is a second bar, and the record holds both against the same statistic rather than "
+    "quoting whichever is kinder. The second one was measured instead of assumed: a hundred "
+    "deliberately worthless signals were pushed through the identical pipeline, and the bar "
+    "was set where only the luckiest one in twenty of them reached. A bar calibrated that way "
+    "answers a different question from a bar derived by counting — how far noise gets on this "
+    "data, rather than how far the best of many attempts should be expected to get — and the "
+    "two can disagree about the same number.")
+
+MULTIPLICITY_CAVEAT = (
+    "The registered argument against the strict reading, stated once and not argued: the "
+    "trial-counting hurdle prices the best of N attempts, and the model that is deployed is "
+    "not the best of anything — its weights are flat, chosen in advance and never tuned — so "
+    "the trials counted here are overwhelmingly alternatives that were rejected, not "
+    "candidates it beat.")
+
+MULTIPLICITY_WHY_PUBLISHABLE = (
+    "This page carries no performance figures, and these are not an exception to that. A "
+    "trial count is a count of this project's own decisions, not a derivation of anyone's "
+    "market data, and the bar is arithmetic on that count. The statistic they are about is "
+    "still withheld: knowing that it falls short of the bar puts a ceiling on it and does "
+    "not tell you what it is.")
+
+# The verdict WORDS. Chosen so neither reads as a number and neither reads as a boast.
+VERDICT_FAIL = "does not clear it"
+VERDICT_PASS = "clears it"
+
+_HURDLE_CACHE = {}
+
+
+def multiplicity(log_path: str = None) -> dict:
+    """N by domain, the hurdle that count implies, and the verdict WORD.  [MB38]
+
+    DERIVED AT RENDER, EVERY TIME. The audit that proposed this item quoted 549 trials at a
+    hurdle of 3.3031; measured on the day it was built the register read 551, and the options
+    count it quoted was wrong by two. A hard-coded count on a public page goes stale inside a
+    week of ordinary work, and a stale denominator makes a claim about multiplicity that is
+    itself untrue.
+
+    The hurdle is NOT computed here. `sqrt(2 * ln N)` is written exactly once in the shipped
+    package, in `statistics.hlz_hurdle` — MA5's rule, which exists because the same idea
+    written four times is how a hard-coded 3.0 (that expression frozen at N = 90) survived in
+    three of them.
+
+    FAILS CLOSED. Any failure to read the register returns `available: False` with no numbers,
+    so the section renders nothing rather than rendering something wrong — and the guard's
+    exemption is empty in exactly the same case.
+    """
+    out = {"available": False, "reason": "the research log could not be read",
+           "equity": None, "options": None, "infra": None, "trials": None,
+           "hurdle": None, "hurdle_text": None, "hurdle_n": None,
+           "verdict": None, "placebo_verdict": None}
+    try:
+        from ..edge import research_log as RL
+        from ..edge.statistics import hlz_hurdle
+
+        d = RL.detail(path=log_path)
+        by = d.get("by_domain") or {}
+        eq = int(by.get("equity") or 0)
+        if eq <= 0:
+            out["reason"] = "the register reports no equity trials"
+            return out
+        op = int(by.get("options") or 0)
+        inf = int(by.get("infra") or 0)
+        total = int(d.get("trials_logged") or (eq + op + inf))
+        h = hlz_hurdle(eq)
+        out.update(
+            available=True,
+            reason="derived from RESEARCH_LOG.md at render time",
+            equity=eq, options=op, infra=inf, trials=total,
+            hurdle=h, hurdle_text=("%.4f" % h), hurdle_n=eq,
+            # The comparison is real; its operands are not in this dict and never reach the
+            # template. That is what "the statistic stays withheld" means here.
+            verdict=(VERDICT_PASS if HEADLINE_STATISTIC > h else VERDICT_FAIL),
+            placebo_verdict=(VERDICT_PASS if HEADLINE_STATISTIC > PLACEBO_FLOOR
+                             else VERDICT_FAIL),
+        )
+    except Exception:                                  # noqa: BLE001 — fail closed, always
+        return out
+    return out
+
+
+def derived_hurdles() -> frozenset:
+    """The hurdle strings the page may render right now — the guard's ONE exemption.  [MB38]
+
+    Derived from the live register, cached because the rendered-page test asks the guard
+    about every line of the page. Empty when the register cannot be read, so a parse failure
+    closes the guard instead of opening it.
+    """
+    if "texts" not in _HURDLE_CACHE:
+        m = multiplicity()
+        _HURDLE_CACHE["texts"] = (frozenset({m["hurdle_text"]})
+                                  if m.get("available") and m.get("hurdle_text")
+                                  else frozenset())
+    return _HURDLE_CACHE["texts"]
+
+
+def reset_hurdle_cache() -> None:
+    """Drop the memo. For tests that move `N` and re-ask."""
+    _HURDLE_CACHE.clear()
+
+
 # --------------------------------------------------------------------------- the record
 def record(log_path: str = None, root: str = None) -> dict:
     """Everything the page renders. Composes; computes no research result of its own."""
@@ -244,4 +428,12 @@ def record(log_path: str = None, root: str = None) -> dict:
         "prereg_sentence": PREREGISTRATION_SENTENCE,
         "log_file": "RESEARCH_LOG.md",
         "as_of": _dt.date.today().isoformat(),
+        # MB38 — the denominator. Note what is NOT here: the statistic the verdict is about.
+        "multiplicity": multiplicity(log_path),
+        "mult_heading": MULTIPLICITY_HEADING,
+        "mult_lede": MULTIPLICITY_LEDE,
+        "mult_paragraph": MULTIPLICITY_PARAGRAPH,
+        "mult_both_sides": MULTIPLICITY_BOTH_SIDES,
+        "mult_caveat": MULTIPLICITY_CAVEAT,
+        "mult_why": MULTIPLICITY_WHY_PUBLISHABLE,
     }

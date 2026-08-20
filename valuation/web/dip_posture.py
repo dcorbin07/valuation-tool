@@ -126,8 +126,25 @@ RISK_HEADLINE = ("Tested: among names already down 20%, the healthy ones fell an
                  "far less often — 32.5% of the time against 43.4%.")
 
 #: The numbers, the replication, and the two caveats that must travel with them.
+#:
+#: MB10 — THE ABSOLUTE GAP CAME OFF THIS SENTENCE. It read "a 10.8-point absolute reduction,
+#: or about a quarter fewer in relative terms". Both describe the same measurement and only
+#: one of them survives being carried anywhere else: `MA28-CARD` measured, on a neighbouring
+#: surface, that an absolute gap moves with the base rate underneath it while a ratio barely
+#: does, and its rule is quote the RATIO and BOTH RATES, never the difference. The rule is
+#: adopted here for consistency across the two disclosure surfaces AND because this surface
+#: also carries a SIZE gradient (`dip_risk.SIZE_CAVEAT`) where the same arithmetic is the
+#: whole problem — there the per-tier rates were never published, so the per-tier gaps cannot
+#: be compared at all.
+#:
+#: STATED HONESTLY, BECAUSE THE REASON DIFFERS FROM MA28-CARD'S: MA28's base rate moved about
+#: fourfold between halves, which is what made its own absolute gap uninformative. V6-B's does
+#: not move nearly that much — its per-date gap reads -9.06pp early against -11.51pp late — so
+#: the 10.8-point figure was NOT misleading in the way MA28's would have been. It comes off
+#: because one surface should not carry two conventions, and because the ratio and both rates
+#: say everything the gap said and travel correctly.
 RISK_DETAIL = (
-    "That is a 10.8-point absolute reduction, or about a quarter fewer in relative terms, "
+    "That is about a quarter fewer in relative terms — 32.5% against 43.4% — "
     "measured on 37,014 drawdown episodes across an 18-year point-in-time panel of 2,531 "
     "companies. It held in both halves of the period separately — 2009-2017 and 2017-2026 — "
     "and it held in all five company-size tiers, though only four of the five also held in "

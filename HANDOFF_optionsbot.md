@@ -7541,3 +7541,372 @@ already showed is **not perishable**, so it is available whenever someone wants 
 `data/free_analysis/O21D2_CONTROLS.json`, `O21D2_ALT_PNL.json`;
 `scripts/o21d2_alternative_pnl.py`, `tests/test_o21d2_alternative_pnl.py` (21 tests, 3 of 3
 tripwires mutation-tested).
+
+
+---
+
+## 66. MB1 — the alternatives MENU: the kill fires, and the closure it announces is not sound (2026-08-19)
+
+`PREREG_mb1_alternatives_menu.md` committed **ALONE at `33ad7ee`**, markdown only, a strict
+ancestor of every measurement commit. **Two options trials booked at `476650e` BEFORE the run,
+`N` 300 → 302** — exactly the counter the audit item specifies. Read only from the **pinned**
+harvest freeze; the mutable store was never opened. **ADOPTS NOTHING. O11 binds and nothing here
+licenses a trade.**
+
+### 66.1 The registered verdict, evaluated exactly as written
+
+The register's primary is the **pooled menu MEDIAN**, and its kill condition is verbatim from the
+audit: *"If the alert-day and random-day pooled menu medians differ by LESS THAN 1.0pp in EITHER
+half, contract selection is declared IRRELEVANT and no further contract-selection register may be
+opened on this book."*
+
+| window | median gap | inside the 1.0pp bar? |
+|---|---|---|
+| early | **−0.7310 pp** | yes |
+| late | **−0.5366 pp** | yes |
+| full | −0.4323 pp | — |
+
+**THE KILL FIRES.** The arms pass records `CLOSED - contract selection is IRRELEVANT`, and it
+fires on the *weaker* half as registered (`any`, never `all`, pinned by an AST test).
+
+### 66.2 THE CLOSURE IS NOT SOUND, AND THE REFUTATION IS ON THE SAME DATA
+
+This is the item's real finding, and it is a finding about my own register.
+
+**(1) THE REGISTERED STATISTIC IS STRUCTURALLY BLIND TO THE EFFECT.** Both arms' menu medians sit
+at about **−0.50** — the typical menu leg is a near-total loss on *both* books — so the median is
+pinned in that dense loss mass and cannot see the right tail an option book's expectancy is built
+from. **`O17C4` had already measured exactly this on this book**, recording that the effect is
+*"a MEAN effect, not a MEDIAN one"* with median-vs-median at +0.40pp while the means separated.
+**The register chose the one statistic this project had already shown cannot detect the thing
+being tested.**
+
+**(2) A PAIRED CLUSTER BOOTSTRAP DOES NOT RESOLVE THE RULE IN ANY WINDOW.** The register commits
+**no uncertainty measure at all** — the kill is a bare comparison of two point estimates, and it
+closes a question *permanently*. Resampling R3's own name-year cell, drawing the **same** keys for
+both arms so common name and period effects cancel:
+
+| window | point gap | CI95 | resolves the rule? |
+|---|---|---|---|
+| early | −0.7274 pp | **[−13.8011, +15.7701]** | **no** |
+| late | −0.5366 pp | [−1.2154, +0.0922] | **no** |
+| full | −0.4341 pp | [−7.0143, +0.1521] | **no** |
+
+The early interval spans **29.6 percentage points around a −0.73pp point estimate**. A permanent
+closure is resting on numbers indistinguishable from gaps an order of magnitude larger. The
+clustering is not decorative and is pinned **by measurement rather than assertion**: on correlated
+legs it must widen the interval more than threefold or the diagnostic is measuring nothing.
+
+**(3) THE DECOMPOSITION THE ITEM EXISTS TO PRODUCE CONTRADICTS THE VERDICT.** Re-derived on
+*exactly* the covered entries — never differenced against R2's whole-book figure, which is a
+different entry set:
+
+    pick_gap  =  menu_gap (the DAY)  +  selection residual (the CONTRACT)
+
+| window | pick gap | DAY | share | SELECTION | share |
+|---|---|---|---|---|---|
+| full | −6.0326 pp | −4.7564 pp | 78.8% | **−1.2762 pp** | **21.2%** |
+| early | −4.5589 pp | −2.8367 pp | 62.2% | −1.7223 pp | 37.8% |
+| late | −7.4864 pp | −6.3414 pp | 84.7% | −1.1450 pp | 15.3% |
+
+**Contract selection carries about a fifth of the loss, same sign in both halves, and its residual
+is LARGER than the 1.0pp bar the register itself set for materiality.** The instrument exposure is
+bounded rather than hand-waved: the residual is a **difference of differences**, so any bias
+constant across the two arms cancels *exactly* — pinned by a test that shifts both picks and
+requires the residual not to move, with a companion test showing an arm-*differential* bias does
+move it.
+
+**(4) AND THE KILL CONDITION'S INFERENCE IS INVERTED RELATIVE TO THE ITEM'S OWN LOGIC.** Under the
+identity above, menus that **coincide** mean the day effect is nil and therefore the **entire**
+loss is selection. So a small menu gap implies contract selection carries *everything*, not
+nothing. The audit's rule reads a sub-1pp menu gap as *"selection is irrelevant"*, which is
+backwards. **The rule was registered verbatim from the audit because the brief required it, and
+running it verbatim is precisely what surfaced that it does not follow.**
+
+**THE BEST AVAILABLE ANSWER to the item's actual question — bad DAYS or bad CONTRACTS? — is
+TIMING ≈ 79%, SELECTION ≈ 21% on the covered subset. That is not a closure, and this row should
+not be read as closing contract selection on this book.**
+
+### 66.3 Controls — three, in their own pass, with `--arms` refusing without a passing artifact
+
+* **C1 — the menu IS the engine's menu, at 2,446 of 2,446 = 1.0000**, and in the stronger form
+  too: the menu's own **argmin IS the shipped pick** at 1.0000. Without this a null would have been
+  uninterpretable, because a "menu" that did not contain the pick would be a reconstruction.
+* **C2 — coverage parity 0.7134pp** against a 2.0pp tolerance (alert 2,446/3,870 = 63.20%,
+  control 18,531/29,654 = 62.49%), so the comparison is not confounded by differential coverage.
+* **C7 — a control the register did not anticipate.** The control books store **no
+  `underlying_entry`**, and the menu's moneyness band needs it, so *both* arms must derive it from
+  `raw_close`; deriving it for one arm while reading a stored value for the other would make the
+  menus incomparable at exactly the filter that defines them. The derivation reproduces the alert
+  book's stored value **EXACTLY on 2,446 of 2,446, median relative error 0.000e+00**.
+* **Composition is ruled out by measurement:** mean menu depth **6.816** (alert) against **6.771**
+  (control), so no gap here is an artefact of one arm carrying deeper chains.
+* **The books are provably R2's own:** alert 3,870 and control 29,654 reproduce the published
+  split-clean counts exactly, and the banked `pnl_pct` mean is **0.032702 = +3.2702%/trade**, R2's
+  published alert-book figure to the digit.
+
+### 66.4 A premise correction, fixed before any outcome
+
+The audit's MB1 rests on *"median 636 alternatives per entry date"*. **That is the whole chain.**
+The engine's own in-band fillable menu has a median of **FIVE** — measured stage by stage through
+the shipped prefilter: **864 raw → 432 calls → 31 in the DTE band → 10 in the moneyness band → 9
+with solvable delta → 5 fillable**, with the fillability filter alone removing nearly half of what
+survives (low volume 53.5%, wide spread 44.1%, thin premium 2.4%). That is **MA31's**
+pair-availability warning, far more severe than the item anticipated — the audit's own note
+predicted the direction and not the magnitude. **Any reading leaning on a distribution over ~636 is
+void.** The arms still pool 16,672 and 123,415 legs, ample for a 1.0pp bar.
+
+### 66.5 Defects in my own instrument, all caught before any result existed
+
+* **The half boundary was leg-weighted where the register says entry-weighted.** *"Split at the
+  median entry date of the covered ALERT set"* — the covered set is entries, not legs, and each
+  entry contributes a variable number of legs. On the pin's own fixture the leg-weighted answer is
+  **four years earlier**, dragged by a single deep-chain entry. Taking it over the covered set also
+  fixes the boundary *before* any leg is scored, so no outcome can influence it. Mutation-tested,
+  source restored byte-for-byte.
+* **The raw legs were not persisted** (RUN_RULES rule 9), so the clustered interval — which needs
+  leg values inside each cluster and cannot be computed from summaries — would have cost a second
+  75-minute scoring pass. Caught 3 minutes into the first arms run and restarted. The dump now
+  happens **before** any summarising, so a defect downstream still leaves the scoring recoverable.
+* **AND THAT FIX CARRIED ITS OWN DEFECT:** the test harness redirected the other two output paths
+  and not the new one, so running the suite **wrote into the real `data/` dir** and would have
+  clobbered exactly the artifact rule 9 exists to protect. Pinned by a test that enumerates every
+  module-level `*_OUT` the arm writes and asserts the harness redirects and restores all of them.
+* **My own no-verdict test was wrong three times, each by banning a substring** — it flagged the
+  docstring that explains the kill in order to disclaim it, then a key named `pass` that labels
+  which pass wrote the file, then a local naming which side of the bar an interval reaches. A
+  substring ban cannot tell a decision from prose about a decision. It now reads the AST, matches
+  exact decision names, and separates label from decision by **value type** (a decision holds a
+  boolean, a label holds a string); the variables were renamed rather than weakening it a fourth
+  time.
+* **The arms write path is now driven end-to-end on synthetic legs before any long run** — O21-D2
+  lost a whole pass to a crash that fired *after* every statistic had been computed.
+* **A verifier defect, the second false alarm a ledger check of mine has produced.** It read the
+  HEAD baseline through `subprocess(text=True)`, which on Windows decodes with the **locale** codec
+  rather than UTF-8, mojibaking all 80 ledger lines carrying an em-dash or arrow, and reported
+  `P1S0` as changed while git said 1 added / 0 removed. The edit was correct both times — first a
+  positional index shift, now an encoding. **A verifier that manufactures diffs is worse than none.**
+
+### 66.6 Scope, and what this does not say
+
+**Coverage is 63.20% (alert) and 62.49% (control); the uncovered remainder is UNMEASURED and is
+never read as zero.** The decomposition's two sides come from different instruments (banked
+`pnl_pct` against harvest-re-simulated returns) and that exposure is bounded by the
+difference-of-differences argument, not eliminated. **No trade is licensed — `O11` binds, and R2's
+book loses to random entry regardless of which contract is chosen.** The `MB1` row is `DONE`
+because the register was executed faithfully; **it must not be read as having closed contract
+selection**, and a future contract-selection register is not barred by a rule whose own instrument
+is demonstrably blind.
+
+`scripts/mb1_alternatives_menu.py`, `scripts/mb1_interval.py`, `scripts/mb1_decomposition.py`;
+`data/free_analysis/MB1_CONTROLS.json`, `MB1_MENU.json`, `MB1_INTERVAL.json`,
+`MB1_DECOMPOSITION.json`, and the persisted draws at `data/MB1_LEGS.pkl`.
+**121 suites, 0 failures** after merging `origin/main`, on the documented per-file runner (judged by exit code, never
+by grepping for `OK`); 36 new tests across three suites.
+`tests/test_mb1_alternatives_menu.py` (19), `tests/test_mb1_interval.py` (9),
+`tests/test_mb1_decomposition.py` (8).
+
+### 66.7 MB42 — a gate suite green in CI and red on the only machine that owns the data
+
+**Zero trials, `FIXED`-class** — `by_domain` bit-identical across the append, options staying
+**302**, and `rows_fixed_not_counted` **65 → 66**, the proof the row was seen and correctly
+excluded. Landed at `90738f7`.
+
+The premise is confirmed exactly: `tests/test_o21d2_alternative_pnl.py` compared the freeze
+provenance's `frozen_from` against the literal `D:/thetadata/chains` while the freeze reports the
+same path spelled with backslashes, and the suite opens with a mount guard that returns early when
+the D: drive is absent — **so on Linux CI the assertion never executed and the auto-land Action
+stayed green while the same suite was red on the one machine holding the data it guards.**
+
+**A CORRECTION TO THE AUDIT'S OWN PRESCRIBED FIX, measured on both platform implementations rather
+than argued.** MB42 prescribes `os.path.normcase(os.path.normpath(x))` on both sides. That is
+**EQUAL under `ntpath` and DIFFERS under `posixpath`**, because a backslash is an ordinary filename
+character on POSIX so `normpath` leaves a Windows spelling untouched. It is invisible while the
+test skips on Linux — but **MB42's own kill condition requires adding a fixture so the comparison
+RUNS on both**, and at that point the prescribed fix breaks the very test it was meant to repair.
+**The proposed remedy does not satisfy the condition attached to it.** Shipped instead: a
+separator- and case-insensitive comparison, EQUAL on both, plus the two fixtures the kill condition
+demands — one building a freeze summary spelled with backslashes in a temp dir so the comparison
+executes on Linux, and one proving the comparison is not vacuous. **23 tests, 2 of 2 mutations
+caught**, including restoring the exact literal MB42 reports, which turns the suite red again.
+
+The durable part is MB42's own framing, and it is the `MA5`/`MA23` family restated: **a guard whose
+only real execution is skipped is the defect, and the separator is merely how it surfaced.**
+
+### 66.8 Reported outside this lane (RUN_RULES rule 3)
+
+**`VALQUO_MASTER_AUDIT_4.md` is tracked with its PDF and items JSON and carries 42 `MB` items, and
+before this session NONE had a ledger row** — a grep for any `MB` id returned nothing, so every
+audit-4 item read as never raised. The `MA` precedent is one row per item ingested as its own
+verified batch, which is where `MA18`'s severity mismatch between the audit prose and its JSON was
+caught. **That ingest has not happened for audit 4 and is NOT done here**; rows exist only for the
+two items this brief executed.
+
+
+## 67. MB15 — the tick cache's venue axis: the kill fires BEFORE any arm, and the item is registered on the wrong axis (2026-08-19)
+
+**NO ARM RAN. ZERO TRIALS. Options `N` stays 304 and `by_domain` is bit-identical across the log
+append**, which is the proof the row was seen and correctly excluded (`rows_fixed_not_counted`
+69 -> 70). No register was committed, because the item's own pre-outcome gate fired first and the
+brief's instruction is explicit: *"record it and stop."*
+
+### 67.1 The gate, and why it never became evaluable
+
+MB15's kill condition is a statement about the INSTRUMENT rather than about a return: *"the
+venue->retail mapping must reproduce the published retail share (~60%) on the pooled cache to
+within +/-15pp, or the proxy is invalid and the item ends there with no arm run."*
+
+That is a test OF A MAPPING. The cache ships `exchange` as a bare `uint8` and no legend travels
+with it, so the mapping is **chosen, not given**. Three independent measurements kill it - two about the axis, one about the period.
+
+### 67.2 THE IDENTIFIER IS NOT ON THIS AXIS, AND IT IS MARKET STRUCTURE RATHER THAN A DATA GAP
+
+The item's motivating sentence is *"the retail-flow literature's identifier lives on exactly that
+axis."* **It does not, and the axis it does live on is in this same cache.**
+
+In EQUITIES the standard retail identifier is the off-exchange TRF print (Boehmer-Jones-Zhang-
+Zhang), which is a venue fact. In OPTIONS there is no off-exchange execution: every trade prints
+to a lit options exchange, and wholesaler internalisation surfaces as an on-exchange
+price-improvement auction rather than as a distinct venue. So the equities identifier has no
+analogue on this axis **by construction**.
+
+Measured rather than argued, and the vendor legend is what makes the measurement mean anything:
+
+* ThetaData's published legend **does** carry off-exchange venues — **57 FINRA/NASDAQ TRF, 58 BSE
+  TRF, 59 NYSE TRF**.
+* **NOT ONE of the three appears in 70,288,482 option prints.** All 20 observed codes are lit
+  options exchanges: Nasdaq, CBOE, ISE, NYSE ARCA, PHLX, BOX, ISE Gemini/Mercury, C2, MIAX /
+  Emerald / Pearl, BATS, EDGX, MEMX.
+
+**Their absence is informative rather than an artefact of an incomplete legend, and that is
+exactly why obtaining the legend mattered** — without it, "no TRF codes observed" would have been
+indistinguishable from "the legend does not name them."
+
+### 67.3 THE GATE IS NOT DISCRIMINATING — 60.43% OF ARBITRARY MAPPINGS CLEAR IT
+
+Grant the venue axis anyway, and the gate still validates nothing. With 20 observed codes there
+are **2^20 = 1,048,576** retail/non-retail partitions. Enumerated exhaustively against the
+registered band of 45%-75%:
+
+* **633,666 of 1,048,576 partitions land inside it — 60.4311%.**
+* The smallest clearing "retail" set is **5 of 20** venues; at cardinality 12, **94.03%** of all
+  partitions clear.
+
+**A gate more than half of arbitrary mappings pass cannot fail against anyone free to choose the
+mapping after seeing the data.** That is a measurement, not an opinion — "the bar is too loose" is
+arguable and "60.43% of all partitions clear it" is not — and it is pinned with a **positive
+control**: a genuinely tight band (59.95%-60.05%) admits under 2%, so the figure reads the band
+rather than the arithmetic.
+
+### 67.4 THE AXIS THE IDENTIFIER ACTUALLY LIVES ON IS IN THIS CACHE, UNREAD
+
+Bryzgalova-Pavlova-Sikorskaya (*Journal of Finance*, 2023) — the source of the ~60% figure the
+item's gate is calibrated against — build their retail proxy from an **OPRA trade CONDITION flag**,
+in their own words:
+
+> *"Exploiting a flag for price improvement mechanisms, introduced by the Options Price Reporting
+> Authority (OPRA) **in November 2019** for transaction-level data, we are able to identify
+> wholesaler trades and build a novel measure of retail trading in options. In our data, these are
+> trades executed through a **single-leg price improvement mechanism, which we abbreviate as
+> SLIM**."*
+
+Not venue. **This is quoted from the paper rather than from a search summary, and correcting it
+mattered**: my first draft of this section had SLIM as *"single-leg auction trades, or automatic
+executions of fewer than five contracts"*, which is a looser secondary formulation and omits the
+date that turns out to be load-bearing.
+
+The flag is in these payloads, and the coverage is not marginal:
+
+| field | code | share of 70.3M prints |
+|---|---|---|
+| `condition` | 18 AUTO_EXECUTION | **55.12%** |
+| `condition` | 125 SINGLE_LEG_AUCTION_NON_ISO | **15.34%** |
+| `condition` | 126 SINGLE_LEG_AUCTION_ISO | 0.03% |
+| `condition` | 131 MULTI_LEG_AUCTION | 4.95% |
+| `size` | `< 5` contracts | **76.01%** |
+| `size` | `== 1` contract | 52.18% |
+
+33 distinct condition codes observed; the four `ext_condition` slots are present too.
+
+**MY OWN CENSUS INDEPENDENTLY REPRODUCES THE PAPER'S NOVEMBER 2019 DATE, WHICH IS THE STRONGEST
+VERIFICATION AVAILABLE HERE** — neither was tuned to the other. Condition **125** by year:
+
+| 2016 | 2017 | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 |
+|---|---|---|---|---|---|---|---|---|---|
+| — | — | — | **4.79%** | 18.16% | 15.95% | 15.60% | 16.64% | 18.44% | 19.88% |
+
+**Absent in 2016-2018, a partial-year 4.79% in 2019, then stable at 15.6-19.9%** — exactly what a
+flag switched on in November of 2019 looks like.
+
+### 67.4a A THIRD DEFECT IN THE GATE, AND IT IS INDEPENDENT OF THE OTHER TWO: THE PERIOD IS WRONG
+
+MB15 asks that the proxy *"reproduce the published retail share (~60%) **on the pooled cache**"*.
+But the paper's *">60% of total market volume"* is a **2020-21** figure, and **the identifier did
+not exist before November 2019**. This cache starts in **2016**.
+
+So the gate compares a recent-period statistic against a pooled one spanning four years in which
+the flag **cannot fire at all** — a denominator that guarantees dilution. **Even a perfectly
+correct proxy would have been scored against the wrong number.** That is a third, independent
+reason the registered gate could not have validated anything, and unlike the other two it would
+have applied on the RIGHT axis as well. **Any successor register must state its period, and it
+cannot begin before November 2019.**
+
+**WHAT WAS DELIBERATELY NOT COMPUTED: the union `single-leg auction OR (auto-execution AND size <
+5)`, i.e. the retail share itself.** That union IS the successor register's gate, and computing it
+here — after seeing the registered axis fail — would be choosing the design on the outcome.
+Marginal coverage of each field is a feasibility fact; their union is the hypothesis. The
+separation is pinned by an AST test over the shipped scripts, so it cannot be quietly relaxed.
+
+### 67.5 A PREMISE CORRECTION TO THE ITEM'S TITLE
+
+The item is headed *"the exchange field, unread by every prior study."* **It has been read** —
+O14's `sweep_share` reads it at `valuation/edge/tickflow_signals.py:171`. What is true is narrower
+and is the part worth keeping: it reads the field **only as CARDINALITY** (`np.unique(ex[win]).
+size`, how many distinct venues a burst touches), **never as identity**. Pinned both ways.
+
+O14's module docstring also already cites Bryzgalova et al. and the >60% figure, so the reference
+was in the tree before this item raised it.
+
+### 67.6 TWO INSTRUCTIONS IN THE BRIEF THAT COULD NOT BE FOLLOWED LITERALLY, BOTH REPORTED
+
+* **"Read through the pinned freeze resolver only."** There is **no pinned freeze for the tick
+  cache** — `D:\thetadata` holds only the two CHAIN freezes. A fingerprint over every unit is
+  recorded instead (`(filename, size, mtime)`, SHA-256
+  `c9ca54b0b83439cf5ce55f7d60705aa2d32e8143d6a0b92426890374635be245`), which is the substance of
+  what pinning protects: it makes a later mutation detectable, which is how the harvest freeze
+  being rewritten under this lane was caught.
+* **"Filter `pre_panel_history`."** The key is **ABSENT from all 3,884 tick payloads** — they carry
+  `schema / symbol / date / dte_cap / source / pulled_utc / rows / alias_used` and nothing else.
+  Reported **VACUOUS rather than PASSING**, per O21-D2's C5 precedent: a filter that never ran and
+  a filter that ran and found nothing must not read the same.
+
+### 67.7 A DEFECT IN MY OWN GUARD, THE FOURTH IN THIS FAMILY IN TWO SESSIONS
+
+The test pinning "sweep_share reads venue only as cardinality" banned the substring `retail` and
+**failed against the correct tree** — because O14's own docstring discusses retail flow. That is
+the comment-versus-code family again, after MB1's three substring bans and MA5's source sweep. It
+now strips comments and string literals with `tokenize` before checking, and **the stripper itself
+is pinned non-vacuous in both directions** (it must keep `def sweep_share` and drop `retail`),
+because a stripper returning `""` would make the guard pass by seeing nothing.
+
+### 67.8 The scope of the census, stated
+
+Alert-days only — the cache is exactly the alert days and nothing else, so **every figure above is
+conditioned on alert days and none generalises to the tape**. 3,884 units, 186 symbols, 1,574
+dates, 70,288,482 prints.
+
+### 67.9 What is NOT done, named so it is not mistaken for done
+
+* **No arm ran and no register was committed.** MB15's registered arms are untested, not rejected.
+* **The successor is NOT registered here.** An item on the condition+size axis needs its own blind
+  pre-registration, its own trials, and its own session — and it must state the range-restriction
+  control in a separate pass (O10's process defect, which the item itself names).
+* **MB1's selection follow-up is NOT folded in**, per the brief.
+* **The audit-4 ingest still has not happened** (`RUN_RULES` rule 3, carried from 66): 42 `MB`
+  items, and only the handful this lane and the CI lane have touched carry ledger rows.
+
+**Artifacts** (gitignored): `data/free_analysis/MB15_VENUE_CENSUS.json`,
+`MB15_GATE_SATISFIABILITY.json`, `MB15_CONDITION_CENSUS.json`.
+**Scripts**: `scripts/mb15_venue_census.py`, `mb15_gate_satisfiability.py`,
+`mb15_condition_census.py`. **Tests**: `tests/test_mb15_venue_axis.py`, 19 tests, 7 of 7 mutations
+caught with sources restored byte-for-byte.

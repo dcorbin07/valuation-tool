@@ -287,6 +287,344 @@ def test_work_links_to_the_record():
     assert URL in work, "/work does not link to the research record"
 
 
+# --------------------------------------------------------------------- MB38: the denominator
+#
+# WHAT IS AT RISK IN THIS SECTION, and it is not the paragraph.
+#
+# MB38 publishes three things on a page whose absolute rule is "no performance figures": a
+# trial count, the multiplicity bar that count implies, and the verdict word for the headline
+# against it. Making that possible required ONE exemption in the guard. Everything below
+# exists to keep that hole exactly one string wide, derived rather than typed, and closed
+# whenever the register cannot be read.
+#
+# THE KILL CONDITION IS A TEST, NOT A NOTE. The item said: if the guard cannot be made to pass
+# a count and a derived hurdle WITHOUT also passing a performance figure, do not ship. That
+# was measured before any copy existed, and it is asserted here permanently so a later change
+# to `_FIGURE` cannot quietly re-break it in either direction.
+import ast as _ast
+import html as _htmlmod
+
+MODULE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                      "valuation", "web", "research_record.py")
+TEMPLATE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "valuation", "web", "templates", "research.html")
+
+
+def _src(path):
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def _module_code_without_docstrings():
+    """The module's CODE. Docstrings stripped, because this file's own prose quotes the very
+    numbers the tests below forbid in code — MA5's guard fired on its own documentation, and
+    MA49(c)'s fixture failed against a fixed tree for the same reason."""
+    tree = _ast.parse(_src(MODULE))
+    out = []
+    for node in _ast.walk(tree):
+        if isinstance(node, _ast.Constant) and isinstance(node.value, str):
+            continue
+        if isinstance(node, (_ast.Constant,)):
+            out.append(repr(node.value))
+    return "\n".join(out)
+
+
+def _mb38_section_of_template():
+    t = _src(TEMPLATE)
+    i = t.index("MB38: the denominator")
+    j = t.index("{% endif %}", i)
+    return t[i:j]
+
+
+def _rendered_mb38_section(plain_page):
+    """Just MB38's own section of the rendered page. The rest of the page is other items'
+    copy and the log's own prose, and neither is this item's to police."""
+    i = plain_page.index(RR.MULTIPLICITY_HEADING)
+    return plain_page[i:plain_page.index("</section>", i)]
+
+
+def _plain(html_text):
+    """The page as a reader sees it: entities resolved, so `&#39;` matches an apostrophe."""
+    return _htmlmod.unescape(html_text)
+
+
+def test_mb38_kill_condition_the_guard_passes_a_count_and_a_derived_hurdle():
+    """THE ITEM'S OWN KILL CONDITION, run before any copy was written and pinned here.
+
+    Measured against the shipped guard first: counts passed, the verdict word passed, and
+    `3.3031` came back `[figure withheld]` at every precision. The item's wording is "cannot
+    be MADE to", so the exemption below is the answer to it — and this test is the standing
+    proof that both halves still hold.
+    """
+    m = RR.multiplicity()
+    assert m["available"], m["reason"]
+
+    for count in (m["equity"], m["options"], m["infra"], m["trials"]):
+        assert not RR.contains_figure(str(count)), f"a trial count is being withheld: {count}"
+
+    assert not RR.contains_figure(m["hurdle_text"]), "the derived hurdle is being withheld"
+    for word in (m["verdict"], m["placebo_verdict"]):
+        assert not RR.contains_figure(word), f"a verdict word reads as a figure: {word!r}"
+
+
+def test_mb38_the_exemption_admits_the_hurdle_and_nothing_else():
+    """The hole is one string wide, and every near miss on it still fires.
+
+    `13.3031` is a different number. `3.3031%` is a percentage whatever its digits. `t 3.3031`
+    is a named statistic, and naming it brings it straight back under the rule.
+    """
+    m = RR.multiplicity()
+    h = m["hurdle_text"]
+    assert RR.derived_hurdles() == frozenset({h}), RR.derived_hurdles()
+
+    for a in ("+7.17%", "134 bps", "-2.85 pp", "t 2.62", "$4.9M", "0.8556", "261%", "1.17x",
+              "IC +0.03", "2.6199", "2.2837", f"alpha {h}", f"t {h}", f"IC {h}", f"Sharpe {h}",
+              f"{h}%", f"{h} pp", f"{h}x", f"1{h}", f"{h}1", f"${h}M", f"-{h}", "13.3031"):
+        assert RR.contains_figure(a), f"the exemption let a real figure through: {a!r}"
+
+
+def test_mb38_the_exemption_is_derived_from_the_register_and_moves_with_it():
+    """Not a literal. Point the derivation at a different register and the hurdle must move.
+
+    A frozen hurdle would be wrong within a week: the audit that proposed this item quoted a
+    count that was already stale when it was executed.
+    """
+    from valuation.edge.statistics import hlz_hurdle
+    live = RR.multiplicity()
+    with tempfile.TemporaryDirectory() as d:
+        alt = RR.multiplicity(log_path=_fake_log(d))
+    assert alt["available"], alt["reason"]
+    assert alt["equity"] != live["equity"], "the fixture failed to move N"
+    assert alt["hurdle"] == hlz_hurdle(alt["equity"]), "the hurdle is not a function of N"
+    assert live["hurdle"] == hlz_hurdle(live["equity"])
+    assert alt["hurdle_text"] != live["hurdle_text"], "the hurdle did not follow N"
+
+
+def test_mb38_the_exemption_is_empty_when_the_register_cannot_be_read():
+    """FAILS CLOSED. A broken parse must CLOSE the guard, not open it."""
+    real = RR.multiplicity
+    RR.reset_hurdle_cache()
+    try:
+        RR.multiplicity = lambda *a, **k: {"available": False, "hurdle_text": None}
+        assert RR.derived_hurdles() == frozenset(), "an unreadable register left a hole open"
+        assert RR.contains_figure("3.3031"), "the hurdle stayed exempt with no register"
+    finally:
+        RR.multiplicity = real
+        RR.reset_hurdle_cache()
+    assert RR.derived_hurdles(), "the cache did not restore"
+
+
+def test_mb38_multiplicity_fails_closed_when_the_parse_itself_raises():
+    """FOUND BY MUTATION. Every other fail-closed test here replaces `multiplicity` wholesale,
+    so none of them ever entered its own `except` branch — a mutation that made that branch
+    return `available: True` with a typed hurdle survived the whole suite.
+
+    A register that raises must produce no numbers and no exemption, exactly as a register
+    that reads empty does.
+    """
+    real = RL.detail
+    RR.reset_hurdle_cache()
+    try:
+        def _boom(*a, **k):
+            raise RuntimeError("the register is unreadable")
+        RL.detail = _boom
+        m = RR.multiplicity()
+        assert m["available"] is False, "a raising parse produced a published denominator"
+        for k in ("equity", "options", "infra", "trials", "hurdle", "hurdle_text", "verdict"):
+            assert m[k] is None, f"{k} survived a raising parse: {m[k]!r}"
+        assert RR.derived_hurdles() == frozenset(), "a raising parse left the guard open"
+    finally:
+        RL.detail = real
+        RR.reset_hurdle_cache()
+    assert RR.multiplicity()["available"], "the register did not restore"
+
+
+def test_mb38_withhold_is_not_given_the_exemption():
+    """The redactor handles text this page does not own and stays maximally conservative.
+
+    The exemption belongs to the question "would this publish a figure", asked of the page's
+    own output — not to the sweep that cleans up log rows.
+    """
+    h = RR.multiplicity()["hurdle_text"]
+    assert RR.withhold(h) == RR.WITHHELD, "withhold() acquired the exemption"
+    assert RR.WITHHELD in RR.withhold(f"the margin was {h} overall")
+
+
+def test_mb38_the_withheld_statistic_never_reaches_the_page_or_the_payload():
+    """THE ONE THAT MATTERS HERE. The comparison ships; its operands do not.
+
+    Both constants are real and are used for a real comparison — a verdict word derived from
+    invented operands would be worthless. They must not appear in the payload or the HTML.
+    """
+    page = _plain(_html())
+    for bad in (repr(RR.HEADLINE_STATISTIC), repr(RR.PLACEBO_FLOOR),
+                "2.6199", "2.2837", "2.62", "2.28"):
+        assert bad not in page, f"a withheld operand reached the page: {bad}"
+
+    def leaves(o):
+        if isinstance(o, dict):
+            for v in o.values():
+                yield from leaves(v)
+        elif isinstance(o, (list, tuple)):
+            for v in o:
+                yield from leaves(v)
+        else:
+            yield o
+
+    vals = list(leaves(RR.record()["multiplicity"]))
+    assert RR.HEADLINE_STATISTIC not in vals, "the statistic is in the payload"
+    assert RR.PLACEBO_FLOOR not in vals, "the calibrated floor is in the payload"
+
+
+def test_mb38_both_verdict_words_are_derived_from_a_real_comparison():
+    """Flip the statistic and both words must flip. A typed word would not move.
+
+    This also pins the direction the PROSE asserts: the paragraph says the two bars can
+    disagree about the same number, and today they do.
+    """
+    m = RR.multiplicity()
+    assert m["verdict"] == RR.VERDICT_FAIL, m["verdict"]
+    assert m["placebo_verdict"] == RR.VERDICT_PASS, m["placebo_verdict"]
+
+    keep = RR.HEADLINE_STATISTIC
+    try:
+        RR.HEADLINE_STATISTIC = keep + 10.0
+        assert RR.multiplicity()["verdict"] == RR.VERDICT_PASS, "the verdict word is typed"
+        RR.HEADLINE_STATISTIC = 0.0
+        assert RR.multiplicity()["placebo_verdict"] == RR.VERDICT_FAIL
+    finally:
+        RR.HEADLINE_STATISTIC = keep
+    assert RR.multiplicity()["verdict"] == RR.VERDICT_FAIL, "the comparison did not restore"
+
+
+def test_mb38_no_count_and_no_hurdle_is_typed_into_the_source():
+    """DERIVED AT RENDER, per the item. A typed count goes stale within a week.
+
+    Docstrings are stripped from the module before the check, because this suite's own prose
+    and the module's own docstrings legitimately quote these numbers.
+    """
+    m = RR.multiplicity()
+    live = {str(m["equity"]), str(m["options"]), str(m["infra"]), str(m["trials"]),
+            m["hurdle_text"]}
+    code = _module_code_without_docstrings()
+    for v in live:
+        assert v not in code, f"{v} is typed into research_record.py"
+    section = _mb38_section_of_template()
+    for v in live:
+        assert v not in section, f"{v} is typed into the template"
+
+
+def test_mb38_the_hurdle_is_not_computed_in_this_module():
+    """MA5's rule: sqrt(2 * ln N) is written exactly ONCE, in `statistics.hlz_hurdle`.
+
+    The first cut of `multiplicity()` computed it inline and the project-wide MA5 guard named
+    this file — the check MA5 built catching a fifth copy from a lane that had the warning in
+    view.
+    """
+    code = _src(MODULE)
+    assert "hlz_hurdle" in code, "the module does not delegate to the one definition"
+    tree = _ast.parse(code)
+    for node in _ast.walk(tree):
+        if isinstance(node, _ast.Attribute) and node.attr == "log":
+            raise AssertionError("research_record.py computes a logarithm of its own")
+        if isinstance(node, _ast.Attribute) and node.attr == "sqrt":
+            raise AssertionError("research_record.py computes a square root of its own")
+
+
+def test_mb38_the_rendered_copy_is_pinned_verbatim():
+    """V3 / dip_posture pattern: the sentences the page shows are owned in one place and
+    asserted against the RENDERED output, because rendering is where copy leaks."""
+    page = _plain(_html())
+    for name in ("MULTIPLICITY_HEADING", "MULTIPLICITY_LEDE", "MULTIPLICITY_PARAGRAPH",
+                 "MULTIPLICITY_BOTH_SIDES", "MULTIPLICITY_CAVEAT",
+                 "MULTIPLICITY_WHY_PUBLISHABLE"):
+        text = getattr(RR, name)
+        assert text in page, f"{name} is not on the page verbatim"
+
+
+def test_mb38_the_template_holds_no_copy_of_its_own():
+    """Every sentence comes from the module. A second copy in the template is a second
+    version of the truth, which is the defect this whole page exists to avoid."""
+    section = _mb38_section_of_template()
+    for name in ("MULTIPLICITY_LEDE", "MULTIPLICITY_PARAGRAPH", "MULTIPLICITY_CAVEAT"):
+        text = getattr(RR, name)
+        for chunk in (text[:40], text[-40:]):
+            assert chunk not in section, f"{name} is retyped in the template"
+
+
+def test_mb38_the_section_disappears_when_the_register_cannot_be_read():
+    """Fail closed on the SURFACE too: show nothing rather than something wrong."""
+    real = RR.multiplicity
+    RR.reset_hurdle_cache()
+    try:
+        RR.multiplicity = lambda *a, **k: {"available": False, "reason": "x", "equity": None,
+                                           "options": None, "infra": None, "trials": None,
+                                           "hurdle": None, "hurdle_text": None,
+                                           "hurdle_n": None, "verdict": None,
+                                           "placebo_verdict": None}
+        r = _get()
+        assert r.status_code == 200, "the page died instead of hiding the section"
+        page = r.get_data(as_text=True)
+        assert RR.MULTIPLICITY_HEADING not in page, "the section rendered with no numbers"
+    finally:
+        RR.multiplicity = real
+        RR.reset_hurdle_cache()
+    assert RR.MULTIPLICITY_HEADING in _html(), "the section did not come back"
+
+
+def test_mb38_the_page_states_the_registered_caveat_and_claims_no_success():
+    """Both sides of the record's own tension, and no chest-thumping.
+
+    The caveat is R4's registered argument against the strict reading. It is stated once; the
+    page does not argue it, and it does not use it to retract the verdict word.
+    """
+    page = _plain(_html())
+    assert RR.VERDICT_FAIL in page, "the failing verdict is not on the page"
+
+    # R4's caveat has THREE load-bearing parts and all three must survive: what the hurdle
+    # prices, why the deployed model is not that thing, and what the counted trials therefore
+    # are. Checking one phrase let a mutation gut the other two.
+    caveat = RR.MULTIPLICITY_CAVEAT
+    assert caveat in page, "the registered caveat is not on the page"
+    assert "best of N attempts" in caveat, "the caveat does not say what the hurdle prices"
+    assert "not the best of anything" in caveat, "the caveat does not say why that matters"
+    assert "never tuned" in caveat, "the caveat does not say the weights were never tuned"
+    assert "rejected" in caveat, "the caveat does not say what the counted trials were"
+
+    # SCOPED TO THE COPY THIS ITEM OWNS, and word-boundaried — both corrections to my own
+    # first cut, which searched the WHOLE page for the substring "proven" and failed against
+    # a correct tree on the word "provenance" in a log row forty rows away. That is
+    # MA28-CARD-UI's defect exactly: a hand-typed phrase list firing on innocent pre-existing
+    # text. The log's own prose is not this item's to police, and a substring is not a word.
+    owned = " ".join(getattr(RR, n) for n in (
+        "MULTIPLICITY_HEADING", "MULTIPLICITY_LEDE", "MULTIPLICITY_PARAGRAPH",
+        "MULTIPLICITY_BOTH_SIDES", "MULTIPLICITY_CAVEAT", "MULTIPLICITY_WHY_PUBLISHABLE",
+        "VERDICT_FAIL", "VERDICT_PASS")) + " " + _rendered_mb38_section(page)
+    import re as _re
+    for boast in ("proven", "beats the market", "outperforms", "outperformed", "guaranteed",
+                  "risk[- ]free", "significant", "edge"):
+        assert not _re.search(rf"\b{boast}\b", owned, _re.I), \
+            f"MB38's own copy claims too much: {boast!r}"
+
+    # ...and the check must be able to fail: a planted boast in the same scope must trip it.
+    assert _re.search(r"\bproven\b", owned + " proven", _re.I), "the boast check is vacuous"
+
+
+def test_mb38_the_denominator_is_the_same_parse_that_sets_the_deflated_sharpe():
+    """The page's claim is that its count cannot drift from the model's own correction.
+
+    Asserted against `research_log` directly: if these ever diverge the page is publishing a
+    denominator the model does not use, which is worse than publishing none.
+    """
+    m = RR.multiplicity()
+    det = RL.detail()
+    assert m["equity"] == det["by_domain"]["equity"], (m["equity"], det["by_domain"])
+    assert m["options"] == det["by_domain"]["options"]
+    assert m["infra"] == det["by_domain"]["infra"]
+    assert m["trials"] == det["trials_logged"]
+    assert m["hurdle_n"] == RL.trial_count(domain="equity"), "the hurdle uses a different N"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

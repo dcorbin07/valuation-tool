@@ -6,7 +6,7 @@
 |---|---|
 | `valquo_master_audit_ultimate_items.json` | the record: per item, severity, files, depends_on |
 | `ma_dependency_edges.json` | machine-readable: nodes with lane + wave, four kinds of edge, every collision |
-| `ma_in_flight.json` | what is being worked RIGHT NOW, so nothing is dispatched twice |
+| `python scripts/board_state.py` | what is being worked RIGHT NOW, so nothing is dispatched twice. A COMMAND, not a file - see below |
 | this document | the human-readable version |
 
 ---
@@ -19,7 +19,7 @@
 
 **3. The size of a lane is a poor guide to how much of it is urgent.** Pipeline carries 28 of 60 items but only 2 of the 11 in wave 1; infra carries 10 and 3 of wave 1. Wave 1 spreads 2/2/2/2/3 across pipeline/options-bot/app-fixer/greeks/infra - the urgent work is thin and even, which is the argument for running wave 1 wide rather than deep.
 
-**4. Two of the wave-1 items are already delivered by the branch that wrote this map** (MA15, MA16), and a third (MA20) has its alarm delivered with the cure left to Don. See `ma_in_flight.json` before starting anything.
+**4. Two of the wave-1 items are already delivered by the branch that wrote this map** (MA15, MA16), and a third (MA20) has its alarm delivered with the cure left to Don. Run `python scripts/board_state.py` before starting anything.
 
 ---
 
@@ -67,9 +67,9 @@
 | **MA3** | 2 | HIGH | A second live-weight writer adopts on the single-split gate CLAUDE.md forbids | MA1 | app-fixer |
 | **MA5** | 2 | MEDIUM | Two Harvey-Liu-Zhu bars exist and already disagree (3.0 constant vs sqrt(2 ln N) = 3.289 | MA6 | - |
 | **MA6** | 2 | MEDIUM | The trial counter has one silent path that understates N, and no counter for it | - | - |
-| **MA13** | 2 | MEDIUM | N - the denominator of every significance claim - has no tamper-evidence **[PREREG committed blind]** | MA6 | - |
+| **MA13** | 2 | MEDIUM | N - the denominator of every significance claim - has no tamper-evidence | MA6 | - |
 | **MA14** | 2 | MEDIUM | Fail-closed covers absence; nothing covers wrong-but-plausible on the LIVE scoring path | - | greeks |
-| **MA19** | 2 | HIGH | X7's calibrated floors were last checked two N-regimes ago; the project's own adopt curv **[PREREG committed blind]** | MA13 MA16 MA6 | - |
+| **MA19** | 2 | HIGH | X7's calibrated floors were last checked two N-regimes ago; the project's own adopt curv | MA13 MA16 MA6 | - |
 | **MA21** | 2 | MEDIUM | Conventions that exist only in prose and could be enforced by a check | MA13 | infra |
 | **MA23** | 2 | MEDIUM | valuation/edge/ mixes the shipped engine with a dozen finished one-shot studies | - | - |
 | **MA24** | 3 | MEDIUM | Wrong rejections: three 'the design could not have caught it' verdicts, all already labe | - | - |
@@ -99,8 +99,8 @@
 |---|---|---|---|---|---|
 | **MA31** | 3 | MEDIUM | Cremers-Weinbaum matched-strike put-call parity deviation - the largest un-run item eith | - | pipeline |
 | **MA32** | 3 | MEDIUM | Open-vs-close decomposition of options volume (Ge-Lin-Pearson) - buildable from open-int | - | pipeline |
-| **MA36** | 1 | HIGH | Forward paper track strands worthless-expired options open forever; the -100% tail is ce **[PREREG committed blind]** | - | pipeline |
-| **MA37** | 2 | HIGH | The 2026-08-13 options record reset (record_epoch) is invisible to scorecard, tuning and **[PREREG committed blind]** | MA36 | - |
+| **MA36** | 1 | HIGH | Forward paper track strands worthless-expired options open forever; the -100% tail is ce | - | pipeline |
+| **MA37** | 2 | HIGH | The 2026-08-13 options record reset (record_epoch) is invisible to scorecard, tuning and | MA36 | - |
 | **MA38** | 1 | HIGH | chain_summary ships an OI coverage fraction no consumer reads, so the 'unusual volume' a | - | - |
 | **MA44** | 2 | MEDIUM | Live vs reconstruction disagree on the front expiry on 0DTE days, and the docstring clai | - | greeks |
 | **MA45** | 2 | MEDIUM | blackscholes.enrich_chain solves IV from an unvalidated mid=(bid+ask)/2, biasing the ter | - | - |
@@ -142,12 +142,12 @@
 |---|---|---|---|---|---|
 | **MA11** | 2 | MEDIUM | The auto-land Action is unreviewed arbitrary code execution with write access to main | - | - |
 | **MA12** | 2 | MEDIUM | Every dependency is unpinned on a chain that installs fresh and auto-deploys | MA11 | - |
-| **MA15** | 1 | HIGH | data/options_ticks (4.72 GB) is in neither the backup allowlist nor its skip list **[DELIVERED]** | MA20 | pipeline |
-| **MA16** | 1 | HIGH | data/free_analysis is skipped from backup on the exact argument RUN_RULES rule 9 rejects **[DELIVERED]** | MA20 | pipeline |
+| **MA15** | 1 | HIGH | data/options_ticks (4.72 GB) is in neither the backup allowlist nor its skip list | MA20 | pipeline |
+| **MA16** | 1 | HIGH | data/free_analysis is skipped from backup on the exact argument RUN_RULES rule 9 rejects | MA20 | pipeline |
 | **MA17** | 2 | MEDIUM | The bus test: the code survives a stranger, the claims do not | - | - |
-| **MA20** | 1 | HIGH | The shared checkout drifts invisibly; it is now 508 commits behind and holds one unpushe **[ALARM DELIVERED]** | - | pipeline |
+| **MA20** | 1 | HIGH | The shared checkout drifts invisibly; it is now 508 commits behind and holds one unpushe | - | pipeline |
 | **MA22** | 2 | MEDIUM | CLAUDE.md has outgrown its job and now contains the failure class it exists to prevent | - | - |
-| **MA35** | done | MEDIUM | Git corrupts every PDF in this repository on checkout, and it has already done it **[LANDED]** | - | pipeline |
+| **MA35** | done | MEDIUM | Git corrupts every PDF in this repository on checkout, and it has already done it | - | pipeline |
 | **MA59** | 2 | MEDIUM | Deletion candidates with import-graph deadness evidence - archive, do not delete; and th | - | pipeline options-bot greeks |
 | **MA60** | 2 | MEDIUM | The register machinery is honesty-dependent in three mechanisable places, and its own bu | MA13 | pipeline |
 
@@ -162,11 +162,11 @@
 | **MA1** | CRITICAL | pipeline | A scheduled job can change the live scoring weights, invisibly to the vintage contract |
 | **MA4** | HIGH | greeks | append_row rewrites the contract-bound history non-atomically and drops unknown columns |
 | **MA9** | HIGH | app-fixer | 'The regate is one flag' is wrong: the demo token is rendered into a public page |
-| **MA15** | HIGH | infra | data/options_ticks (4.72 GB) is in neither the backup allowlist nor its skip list **[DELIVERED]** |
-| **MA16** | HIGH | infra | data/free_analysis is skipped from backup on the exact argument RUN_RULES rule 9 rejects **[DELIVERED]** |
+| **MA15** | HIGH | infra | data/options_ticks (4.72 GB) is in neither the backup allowlist nor its skip list |
+| **MA16** | HIGH | infra | data/free_analysis is skipped from backup on the exact argument RUN_RULES rule 9 rejects |
 | **MA18** | HIGH | greeks | The bound forward track still has no writer, and the five-year clock is running |
-| **MA20** | HIGH | infra | The shared checkout drifts invisibly; it is now 508 commits behind and holds one unpushed co **[ALARM DELIVERED]** |
-| **MA36** | HIGH | options-bot | Forward paper track strands worthless-expired options open forever; the -100% tail is censor **[PREREG committed blind]** |
+| **MA20** | HIGH | infra | The shared checkout drifts invisibly; it is now 508 commits behind and holds one unpushed co |
+| **MA36** | HIGH | options-bot | Forward paper track strands worthless-expired options open forever; the -100% tail is censor |
 | **MA38** | HIGH | options-bot | chain_summary ships an OI coverage fraction no consumer reads, so the 'unusual volume' alert |
 | **MA39** | HIGH | pipeline | results_file degraded-run scan watches 6 of 13 result blocks; build_payload rebuilds errors  |
 | **MA50** | HIGH | app-fixer | /api/hotstocks?top=-1 defeats the per-tier row cap via a negative SQL LIMIT |
@@ -183,16 +183,16 @@
 | **MA10** | HIGH | app-fixer | ADMIN_TOKEN is one credential for the product and the record, bypasses rate limiting, and ha |
 | **MA11** | MEDIUM | infra | The auto-land Action is unreviewed arbitrary code execution with write access to main |
 | **MA12** | MEDIUM | infra | Every dependency is unpinned on a chain that installs fresh and auto-deploys |
-| **MA13** | MEDIUM | pipeline | N - the denominator of every significance claim - has no tamper-evidence **[PREREG committed blind]** |
+| **MA13** | MEDIUM | pipeline | N - the denominator of every significance claim - has no tamper-evidence |
 | **MA14** | MEDIUM | pipeline | Fail-closed covers absence; nothing covers wrong-but-plausible on the LIVE scoring path |
 | **MA17** | MEDIUM | infra | The bus test: the code survives a stranger, the claims do not |
-| **MA19** | HIGH | pipeline | X7's calibrated floors were last checked two N-regimes ago; the project's own adopt curve sa **[PREREG committed blind]** |
+| **MA19** | HIGH | pipeline | X7's calibrated floors were last checked two N-regimes ago; the project's own adopt curve sa |
 | **MA21** | MEDIUM | pipeline | Conventions that exist only in prose and could be enforced by a check |
 | **MA22** | MEDIUM | infra | CLAUDE.md has outgrown its job and now contains the failure class it exists to prevent |
 | **MA23** | MEDIUM | pipeline | valuation/edge/ mixes the shipped engine with a dozen finished one-shot studies |
 | **MA25** | MEDIUM | pipeline | 'There is no liquidity measure on this path' is true of the panel and false of the project |
 | **MA34** | MEDIUM | pipeline | Write the post-publication decay prior into the contract's expectations, at zero trial cost |
-| **MA37** | HIGH | options-bot | The 2026-08-13 options record reset (record_epoch) is invisible to scorecard, tuning and pap **[PREREG committed blind]** |
+| **MA37** | HIGH | options-bot | The 2026-08-13 options record reset (record_epoch) is invisible to scorecard, tuning and pap |
 | **MA40** | MEDIUM | pipeline | B21 sector_caps and the walk_forward parameter sweep are computed every run and reach no rea |
 | **MA41** | MEDIUM | pipeline | walkforward.py has no purge/embargo (the only splitter without one) and feeds a live 'Adopt' |
 | **MA42** | MEDIUM | pipeline | shadow_vintage.detail() reads months_paired before anything writes it; the shadow-pair statu |
@@ -308,7 +308,7 @@ soft-import  MA36 x MA50: valuation/edge/paper_track.py <-> valuation/web/app.py
 
 - **Write-sets are the audit's PROPOSAL.** An executing session that solves an item a different way changes its write-set, and this map goes stale. Record the files actually touched and regenerate.
 - **Pass B items name files, not intentions.** MA36-MA60 declare no `modifies`, so an item that ends up editing a file the audit did not name carries an edge nothing here can see.
-- **`ma_in_flight.json` sees only committed work.** An agent with uncommitted edits in a worktree is invisible, and so is any other machine. Absence is not evidence an item is free.
+- **THIS DOCUMENT DOES NOT KNOW WHAT IS IN FLIGHT, DELIBERATELY (MB27, 2026-08-19).** It used to stamp an `[IN FLIGHT]` flag on each item from the hand-typed `ma_in_flight.json`, which was measured five days stale and wrong on 8 of 8 items and is now retired. A COMMITTED artifact cannot carry live board state without going stale every time a branch moves - and it did: retiring that one file staled this map, which is how the coupling was found. **Run `python scripts/board_state.py`**, which derives lanes, worktrees carrying UNCOMMITTED work (invisible to the old file, and 8 of 12 the day it was retired), ledger rows claiming IN PROGRESS, handoff ages and git locks. It never warns. Other machines remain invisible to everything here: absence is not evidence an item is free.
 - **The import graph is grepped, not executed.** A dynamic import or runtime lookup would not appear. Nothing suggested one; the map cannot prove their absence.
 - **Lane assignment is counted, then overridden by hand where counting was wrong** (15 overrides, each with its reason on the node as `lane_evidence` and in the generator). It is a dispatch aid, not a statement about who is allowed to touch what.
 

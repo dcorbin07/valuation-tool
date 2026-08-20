@@ -1928,3 +1928,335 @@ assertion first read the LICENSE raw and failed, because the file wraps the phra
 `"or any\n    derivation"`. The identical wrap had already produced a misleading MISSED in the
 mutation harness that morning. **A wrapped claim is still the claim** — assert on the flattened
 text.
+
+
+---
+
+# 13. MB27 + MB28 — the board derives itself, and the monitor gets a clock (2026-08-19)
+
+**Zero trials.** Every statement here is a fact about what git says or what a scheduled task
+does — no hypothesis, no threshold, no verdict against a bar. `RESEARCH_LOG.md` is untouched, so
+`by_domain` is unchanged by construction; **re-read after this merge it is equity 234, options
+300, infra 15**, which independently corroborates `MB31`'s staleness map. No `RESEARCH_LOG` row
+is appended, following `MA59`/`MA60`, which are infra items of this same class and appear
+nowhere in that log. Nothing under `valuation/` changed and no published figure moves.
+
+**A correction to my own first draft of this line, made before it shipped:** it read *"equity `N`
+stays 224, options 292"* — figures carried from a prior session's context rather than re-read.
+This file records that error twice already (*"an equity figure must be RE-READ from `by_domain`
+after a merge and never quoted from a session's own mid-run measurement"*), and it was committed
+here with the warning in view.
+
+`.github/` was not touched. Both items were checked against the tree before being built, and
+**three of the audit's own prescriptions did not survive that check** — they are corrected below
+rather than obeyed (`RUN_RULES` A8: verify, do not repeat).
+
+---
+
+## 13.1 MB27 — the premise is exact, and two of its four derivations are not
+
+**The premise, verified rather than repeated.** `ma_in_flight.json` was hand-typed on 2026-08-14
+and lists `MA13`, `MA19`, `MA36`, `MA37`, `MA15`, `MA16`, `MA20`, `MA35`. Read back through
+`build_ledger.read_ledger()`, **all eight are `DONE`** — so "five days stale and 100% wrong" is
+exact, and the file was carrying its own `how_to_refresh` command that nobody ran. That is
+`MA59`/`MA60` one level up: a hand-typed snapshot of something git already knows.
+
+**Shipped: `scripts/board_state.py`.** Six ingredients, no hand-typed input, ~6 seconds.
+
+```
+  LANES IN FLIGHT: 1   (kept rescue/backup refs, not lanes: 5)
+    worktree-optionsbot-lane                     +3    local+remote
+  WORKTREES: 12   with uncommitted work: 8
+  ITEMS CLAIMING TO BE IN FLIGHT: 1     D11  INPROGRESS
+  HANDOFFS: 48   oldest by last commit: HANDOFF_growth_valuation.md 16.94 d
+  GIT LOCKS: 2       39.57 h  objects/maintenance.lock
+  DRIFT HEARTBEAT (MB28): NOT INSTALLED
+```
+
+### The two derivations that are wrong, both measured
+
+**(1) `IN ?PROGRESS` against the ledger status cell matches a cell that says the opposite.**
+`B13`'s status reads `**PARTIAL - BLOCKED ON DATA, NOT IN PROGRESS**`. The audit predicts two
+hits and names both; **one of the two is a negation**, so the literal rule carries a **50%
+false-positive rate on its own predicted evidence**. This project already found that exact trap
+once, by hand, in the `PT-WRITER` session — *"the single string match is `B13`, whose cell reads
+'NOT IN PROGRESS' — a negation"* — and the audit re-proposed the naive rule anyway. Negation is
+handled, and it ships with a **control that fails if the naive rule ever stops being wrong**,
+so the guard cannot quietly become pointless.
+
+**(2) A HANDOFF's mtime is not its freshness.** Measured in this worktree immediately after
+`git merge origin/main`: `HANDOFF_edge_audit.md` and `HANDOFF_optionsbot.md` both carried
+**11:27, the merge minute**, as their mtime, while `HANDOFF_ci.md` — which the merge did not
+touch — still read three days old. **mtime records when git last WROTE the file into this
+checkout**, so in a fresh worktree every handoff would read as newly touched and the ingredient
+would be pure noise. Age comes from the newest commit touching the file; uncommitted
+modification is read from `git status` rather than inferred.
+
+### (3) The one permitted assertion cries wolf, and is declined — with the reason
+
+MB27 allows exactly one failing assertion: *"the generated board file is older than the newest
+branch tip it claims to describe."* Measured against this board's own strongest ingredient, that
+fires constantly. **Worktrees carrying uncommitted work read 8 of 12 today and change whenever
+anybody saves a file**, so a committed snapshot goes stale within minutes of every regeneration
+and the pin would be red on ordinary work — **`MA21`'s failure mode reached by a pin instead of
+by a warning**, which is precisely what `MB30` makes binding on this item.
+
+**A generated snapshot rots exactly like a hand-typed one; it just rots honestly.** So there is
+**one copy of the fact and it is git**:
+
+* `ma_in_flight.json` is **RETIRED into a pointer** carrying its 2026-08-14 contents verbatim
+  (rule 9 — nothing deleted), plus the measurement that retired it and the reason a generated
+  file did not take its place;
+* `--write` emits a snapshot **to a gitignored `.board_state.json`** when a session actually
+  wants one to hand on;
+* and the assertion that **cannot** cry wolf is the one that ships: **the retired file makes no
+  dated claim at all.** A file that says nothing about today can never again be wrong about it.
+
+### What it adds that the hand file could not
+
+`ma_in_flight.json`'s own caveat named its hole: *"an agent editing files in a worktree with
+nothing committed yet is invisible here."* That is derivable, and it is **8 of 12 worktrees
+right now** — the ingredient most likely to catch a live collision, and the one the audit's
+table does not have. The board also reports **how old the refs it derived from are**, because a
+board saying "0 lanes in flight" off a week-old fetch is not measuring the board.
+
+**It corrects the audit's own table in passing:** MB27 gives in-flight branches as **0**;
+measured, it is **1** — `worktree-optionsbot-lane`, +3, live on local and remote.
+
+**And it demonstrated its own point inside one session.** Run again thirty minutes later the
+board read **2** lanes: `worktree-demo-link` had gone +2 and is **local only**, so no other
+lane's `git fetch` can see it at all. In the same half hour the `audit4-frontier` worktree lock
+was released and two more worktrees picked up modifications. **That is four state changes in
+thirty minutes on a file that was hand-refreshed once in five days** — the reason the answer is
+a command and not a document.
+
+### It never warns
+
+Counts only. **Exit 0 on every finding** — a stale lock, eight dirty worktrees and an empty
+board all exit 0. The only non-zero exit is **2, meaning the script itself broke**.
+`checkout_drift.py` takes the opposite line (*"'I could not tell' and 'all clear' must never
+share an exit code"*) and both are right, because an **ALARM exists to fail and a REPORT exists
+to describe**. What carries across is the half that always applies: **an unmeasurable ingredient
+reads `null` and renders `UNMEASURED`, never silently `0`.** A zero meaning "nothing in flight"
+and a zero meaning "git did not answer" would be `checkout_drift`'s founding defect in a new
+costume.
+
+---
+
+## 13.2 MB28 — the item's first half holds, its framing is out of date
+
+**Confirmed:** nothing invokes `checkout_drift.py` on a schedule. No task, no workflow.
+
+**Corrected, and this changes what the fix is for.** The **cure** has a clock and it is working:
+
+| | MA20 measured (2026-08-14) | today (2026-08-19) |
+|---|---|---|
+| shared checkout | **1 ahead, 514 behind** | **0 ahead, 19 behind** |
+| `ValquoSyncCheckout` | not yet installed | registered, daily 19:30, last run 2026-08-18 19:30:01, result **0**, 19 runs logged |
+| stranded `PT-WRITER` commit | unpushed since 2026-08-10 | rescued |
+
+So the alarm's job is no longer *"tell Don he has drifted"* — the nightly sync handles that,
+unattended. Its job is the one nothing covers: **tell the next session whether that sync is
+still running at all.** If the task is deleted, or the machine is off for a week, `sync.log`
+simply stops growing and no surface anywhere says so. That is the mandate's own thesis, one
+layer further in.
+
+**Shipped and proven runnable:**
+
+* `scripts/drift_heartbeat.py` — measures once and writes `%LOCALAPPDATA%\Valquo\drift.json`.
+  **The file's mtime is the measurement**; `board_state.py` reports its age, so a dead clock
+  shows up as a number in a report somebody already reads instead of as silence.
+* `drift_heartbeat.bat` — what the task runs; passes the alarm's exit code straight through so
+  Task Scheduler's `LastTaskResult` keeps meaning what the alarm means.
+* `install_drift_task.bat` — registers `ValquoDriftCheck`, daily **20:30**, no admin rights.
+
+**Three design points, each pinned by test:**
+
+1. **One measure, not two.** It imports `checkout_drift.measure`/`verdict`. A second
+   implementation of "how far behind is the checkout" is the defect `MA5` and `MA39` each closed.
+2. **It always writes, even when it cannot measure.** A failed run still writes `state:
+   "unknown"` and exits `ALARM`. Skipping the write would make *"could not measure"* and *"the
+   task is not installed"* produce the identical observable — a missing or frozen file.
+3. **It is a separate task, not a line in the sync bootstrap.** Bolting it on would make it die
+   exactly when the sync task dies, **which is the failure it exists to detect.** 20:30 is after
+   the 19:30 sync and the 20:00 auto-push, so it measures what the day's automation left behind.
+
+**The regress is bounded, not solved, and it is stated in the source.** If `ValquoDriftCheck` is
+itself deleted, its heartbeat freezes silently too. What stops that being invisible is that the
+age is **reported to a reader** rather than watched by another watcher: there is no chain of
+watchers that terminates, only the point at which a human sees a number.
+
+**NOT INSTALLED BY ME, and that is deliberate.** Registering a scheduled task is Don's machine
+state. The board currently reports the heartbeat as **NOT INSTALLED**, which is the truth and is
+what makes the field non-vacuous.
+
+### For Don — the two-line wiring (`MA60`'s pattern)
+
+```
+  double-click   install_drift_task.bat        (once; no administrator rights)
+  then any time  python scripts\board_state.py
+```
+
+To remove it: `schtasks /Delete /TN "ValquoDriftCheck" /F`. It only looks — it never fetches,
+merges, pushes or repairs. The cure is still `sync.bat` and still a human's call.
+
+---
+
+## 13.3 Defects in my own work, reported because each produced a plausible wrong answer
+
+* **The board counted one lane as two.** `worktree-optionsbot-lane` and
+  `origin/worktree-optionsbot-lane` are the same lane seen locally and remotely; the first run
+  printed **"LANES IN FLIGHT: 2"** for a single live lane. Caught by running it, pinned.
+* **A speedup that was wrong, reverted rather than kept.** Replacing 48 per-file `git log -1`
+  calls with one `--name-only` walk cut 10.1s to 1.0s and **disagreed on 2 of 48**, always
+  returning an *older* commit — because **`--name-only` prints no filenames for a MERGE commit**,
+  and this repo lands every lane through a merge, so it is the common case rather than a corner.
+  The identical command is parallelised instead (2.8s), **verified bit-identical on all 48**.
+  `branches()` kept its optimisation, which is a different shape: `for-each-ref --no-merged`
+  narrows the candidate set before counting, 17.3s to 1.3s, and cannot change an answer.
+* **Two of my own tests passed against a defective tree**, both caught by the mutation harness
+  rather than in production:
+  * the mtime test touched a file to `now` and compared before with after — but the file it
+    picked **already carried a near-`now` mtime**, so both readings were ~0 under the defect and
+    it agreed with itself. It now drives the mtime to a value no handoff can legitimately have.
+  * `assertIn("20:30", bat)` passed against an installer whose schedule had been moved to 09:00,
+    because **the comment block above still said 20:30**. Comment-versus-code — the family this
+    project has now found five times. It reads the `set "WHEN=..."` assignment.
+
+* **AND ONE OF MY TESTS PASSED LOCALLY AND FAILED IN CI, which is the worst way to be wrong.**
+  `test_a_healthy_run_writes_ok_and_exits_zero` ran the heartbeat with no `--repo`, so it
+  measured `checkout_drift.SHARED_CHECKOUT` — a pinned `C:\Users\donni\...` path that exists on
+  exactly one machine. Green on that machine, and on the ubuntu runner it read
+  `AssertionError: 'unknown' not found in ('ok', 'alarm')`. **The pin is correct and deliberate**
+  — `checkout_drift`'s own header explains that a copy measuring "its own tree" would always see
+  a fresh worktree and always say fine — so the defect is a test that silently inherited a
+  machine-specific default. It now builds its own origin-and-clone via
+  `test_checkout_drift.build`, the one fixture builder, and **the fix is verified against the CI
+  condition rather than assumed**: re-run with `SHARED_CHECKOUT` pointed at a nonexistent path,
+  all 31 pass. The local gate could not have caught this, because locally the path exists.
+
+**MUTATION-TESTED 8 of 8 caught, 0 missed.** The eight include the audit's own naive
+`IN ?PROGRESS` rule, rescue refs counted as lanes, `UNMEASURED` degrading to `0`, the board
+exiting non-zero on a finding, handoff age following the filesystem, the two modules disagreeing
+on the heartbeat path, the heartbeat skipping its write, and the installer scheduled before the
+sync. **A tripwire that cannot bite is not a check.**
+
+---
+
+## 13.3a The retirement broke a consumer, and the break IS the finding
+
+**`scripts/ma_dependency_map.py` read `ma_in_flight.json`**, stamping an `[IN FLIGHT]` flag onto
+every item in two rendered tables and into `ma_dependency_edges.json`. Retiring the file left
+those fields null, so the committed artifact no longer matched its generator and
+`test_ma_dependency_map.py::test_the_committed_artifacts_are_current_against_the_items_file`
+went red.
+
+**A CORRECTION AGAINST MY OWN FIRST DIAGNOSIS, WHICH I HAD ALREADY REPORTED.** I attributed the
+staleness to the merge — nine new modules under `valuation/`, since `MA59`/`MA60` made the map's
+import graph derived — and said it was not mine. **Measured, it is entirely mine:** restoring the
+original `ma_in_flight.json` and re-running `--check` exits **0**. The nine modules moved nothing.
+The right control was one command and I published a hypothesis before running it.
+
+**Why the break is worth more than the fix.** It is the concrete demonstration of the very
+argument §13.1 makes for declining MB27's assertion: **retiring one hand-typed file staled a
+committed artifact.** If a *file being replaced* can do that, a *branch moving* certainly can —
+which is what a committed board snapshot would have to survive, several times a day, forever.
+
+**AND THE FLAGS WERE NOT MERELY STALE, THEY WERE ROUTING PEOPLE AWAY FROM FINISHED WORK.** The
+regeneration diff removes `**[PREREG committed blind]**` from **`MA13`, `MA19`, `MA36` and
+`MA37`** — every one of them `DONE`. A dispatcher reading the map to pick an item was being told
+that four completed items were claimed and half-measured, which is the precise harm the flag was
+built to prevent, inverted. **A stale in-flight flag is worse than none**, because absence
+prompts a check and a confident wrong label does not.
+
+**So the coupling is cut rather than patched.** Regenerating would have "fixed" it while leaving
+the generator reading a retired file to emit a permanently-null field, and leaving the map's own
+prose advertising that file as the live authority in three places. Instead:
+
+* the generator no longer opens `ma_in_flight.json`, and `in_flight` is gone from the schema —
+  the artifact now derives only from the items file and the import graph, neither of which moves
+  when a branch does;
+* the map's three pointers now name `python scripts/board_state.py`, and it carries a paragraph
+  saying it **deliberately does not know** what is in flight, with the reason;
+* the two tests that read the retired file are replaced. **Left alone they would have passed
+  VACUOUSLY** — the stub's only non-`_meta` key is `_retired_2026_08_14`, which is not an MA id,
+  so both loops iterated nothing. A green test that inspects nothing is the failure this repo
+  keeps finding, so they now pin that no live board state is embedded and that the map points at
+  the derivation.
+
+**And the comment-versus-code family showed up inverted.** My replacement test stripped comment
+lines and asserted the bare filename was absent from the generator — and **failed against the
+fixed tree**, because the generator now emits a paragraph of prose *about* the retired file into
+the map. Documentation inside a string literal reads as code to a line filter. It names the read
+(`ROOT / "ma_in_flight.json"`) instead.
+
+---
+
+## 13.4 A trap worth writing down: `pytest tests/` is not the gate
+
+Verifying this work, `python -m pytest tests/` reported **115 failed / 3176 passed** in 20
+minutes on a tree the real gate passes clean. **CI runs `for f in tests/test_*.py; do python
+"$f"; done` — one process per suite — and that isolation is load-bearing**: run everything in a
+single process and Flask app singletons, `create_saas_app`'s idempotency and shared module state
+contaminate each other. Every one of the 115 is an artefact CI will never see.
+
+It is recorded here because the failure mode is expensive in the wrong direction: **115 red
+suites is exactly the sort of result that gets read as "my branch broke the world"**, and the
+honest reading is "I ran the wrong command". Mirror the loop when checking a branch.
+
+---
+
+## 13.5 Reported outside this lane (`RUN_RULES` rule 3)
+
+* **`RUN_RULES.md` said "Repo is private"** — false since 2026-08-16, and it is the rule most
+  likely to be relied on when deciding what is safe to commit. **Fixed here** as a one-clause
+  correction, declared as a scope departure rather than absorbed: leaving a false privacy claim
+  standing in the governing document of a public repo is not a stylistic matter.
+* **`RUN_RULES` Part B rule 6 told agents in flight work is unobservable** — *"ask for a
+  screenshot … that is not a failure of the handoff method, it is its boundary."* `MB27` moved
+  that boundary, so the rule now points at `board_state.py` first and keeps the screenshot for
+  what is genuinely unobservable: an agent's live reasoning, and other machines. **A tool nobody
+  is told to run reproduces the disease it cures**, which is why this edit is part of the item
+  and not decoration.
+* **~~`tests/test_o21d2_alternative_pnl.py::test_the_real_harvest_freeze_resolves_when_mounted`
+  is unpassable wherever it is not skipped~~ — SUPERSEDED THE SAME DAY, and the correction is
+  recorded rather than the finding quietly dropped.** Diagnosed here independently: it skips when
+  the freeze is absent (Linux CI has no `D:`), so it landed green, while on the machine that
+  actually holds the data it asserted `prov["frozen_from"] == "D:/thetadata/chains"` against a
+  real `D:\thetadata\chains` — a path-separator comparison, every other field in the block
+  correct. **The options-bot lane had already fixed it as `MB42` (`90738f7`), landing while this
+  was being written**, and their fix is better than the one I was about to suggest: a `_same_path`
+  helper plus `test_the_frozen_from_comparison_runs_on_every_platform`, which pins both
+  separators **and** a negative case, so the comparison is exercised on Linux CI where the
+  original could only ever skip. Confirmed green on the merged tree. **Reported, not fixed, was
+  the right call** — rule 3 — and it is a clean instance of two lanes finding one defect from
+  opposite ends within hours.
+* **`tests/test_sync_checkout.py` failed in the full-gate loop and passes 32/32 in isolation.**
+  The known intermittent temp-directory permission error on `%TEMP%` under Windows, already
+  recorded; Linux CI is unaffected. Reported so the next reader does not chase it.
+* **`RUN_RULES` Part B rule 3 carried a caveat `MA59`/`MA60` had already spent** — it warned that
+  `check_lanes.py`'s map "reported (nobody) for `config.py` and `screen.py`", a symptom of the
+  hand-typed import dict measured at 13 keys / 40 edges against a real 118 / 546. That dict is
+  gone; the caveat is corrected in place rather than repeated.
+* **Audit #4 is not ingested into the ledger.** `grep -c '^| MB' VALQUO_LEDGER.md` read **0**
+  before this session; only `MB27` and `MB28` are added here. The other MB rows are somebody's
+  ingest job, and the `MA` precedent says do it deliberately — that ingest previously collided
+  with live human rows and had to be resolved by contract rather than by `merge=union`.
+* **`D11` is the only genuine `IN PROGRESS` row and its own handoff says the miner is idle.**
+  Reported, not changed: correcting another lane's status cell from outside it is exactly the
+  kind of edit the ledger's `src` column exists to prevent.
+
+## 13.6 What this did not do, named so it is not mistaken for done
+
+* **`MB29` (the prompt receipt) is NOT implemented.** The audit costs it as *"a convention plus
+  ~5 lines inside `MB27`'s script"*, and the reporting half genuinely is nearly free — but the
+  **convention** half is the load-bearing part (*a lane's first commit on its branch is its
+  prompt, committed alone, as `PROMPT_<lane>.md`*), and adopting a convention for every other
+  lane is not a thing this lane can do by writing five lines. Reporting a receipt nobody has
+  agreed to leave would put a permanently-red-looking column on the board on day one.
+* **`ValquoDriftCheck` is not registered.** Shipped runnable, routed to Don, and the board says
+  `NOT INSTALLED` until he runs it.
+* **`MB27`'s kill condition is answered early and in favour of deriving**: it asks for the
+  generated and hand boards to be compared over four weeks and the generated one deleted if they
+  disagree on fewer than two items. They disagree on **8 of 8** today, so the comparison is
+  already decisive; the hand file is retired rather than kept running for four more weeks.

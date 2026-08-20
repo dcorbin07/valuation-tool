@@ -56,6 +56,7 @@ DATA = _data_root()
 UNIV = os.path.join(DATA, "options_universe")
 CONTROLS_OUT = os.path.join(DATA, "free_analysis", "MB1_CONTROLS.json")
 ARMS_OUT = os.path.join(DATA, "free_analysis", "MB1_MENU.json")
+LEGS_OUT = os.path.join(DATA, "MB1_LEGS.pkl")   # RUN_RULES rule 9: store the draws
 
 KILL_PP = 1.0                 # under this, in EITHER half, contract selection is closed for good
 C1_FLOOR = 0.99               # menu must contain the shipped pick
@@ -465,7 +466,20 @@ def run_arms() -> int:
             "ZERO legs in an arm. An instrument failure, not a finding - a coverage null produced "
             "from an input that never loaded is MA31's failure mode. Refusing to write it.")
 
-    cut = sorted(l["entry"] for l in a_legs)[len(a_legs) // 2]
+    # RULE 9: the draws go to disk BEFORE anything is summarised, so a defect in the summarising
+    # or the write still leaves a ~55-minute scoring pass recoverable. O21-D2 lost a whole run to a
+    # crash that fired after every statistic had been computed.
+    pd.to_pickle({"alert": a_legs, "control": c_legs}, LEGS_OUT)
+    _log("wrote %s (alert %s legs, control %s legs)"
+         % (LEGS_OUT, "{:,}".format(len(a_legs)), "{:,}".format(len(c_legs))))
+
+    # The register: "Split at the median entry date of the covered ALERT set, applied to both
+    # arms." THE COVERED SET IS ENTRIES, NOT LEGS. An earlier cut took the median over a_legs,
+    # which is LEG-weighted - each entry contributes a variable number of legs (median 5), so an
+    # entry sitting on a deep chain would drag the boundary toward its own date. It is also
+    # computable BEFORE any leg is scored, so the boundary cannot be influenced by an outcome.
+    _entry_dates = sorted(dt.date.fromisoformat(str(r["alert_ts"])[:10]).isoformat() for r in ca)
+    cut = _entry_dates[len(_entry_dates) // 2]
     halves = {}
     for name, pred in (("early", lambda e: e < cut), ("late", lambda e: e >= cut)):
         al = [l for l in a_legs if pred(l["entry"])]
@@ -521,6 +535,7 @@ def run_arms() -> int:
                           "remainder is UNMEASURED and never read as zero"
                           % (100.0 * ctrl_art["c2_coverage_parity"]["alert_share"],
                              100.0 * ctrl_art["c2_coverage_parity"]["control_share"])),
+        "legs_artifact": LEGS_OUT,
         "menu_premise": ("the audit's 636 alternatives per entry is the WHOLE CHAIN; the engine's "
                          "own in-band fillable menu has a median of 5. Any reading leaning on a "
                          "distribution over ~636 is void."),
