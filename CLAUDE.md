@@ -2672,6 +2672,24 @@ the project's memory and the old versions had been repeated for months.
     works.** A positive would have been a lead requiring the legend, never an adoption. **Do not
     re-run `S17` without the legend** — it would buy the same uninterpretable numbers for another
     10 trials.
+    * **CORRECTED 2026-08-20 (`SC-2`, zero trials): THE LEGEND EXISTED, IN THIS REPO, TEN DAYS
+      BEFORE `S17` CLOSED.** `SHARADAR_REFERENCE.md` landed at **`47cb189` on 2026-08-03** with
+      the full **37-code `EVENTCODES` legend** transcribed from the live API; `S17` closed
+      2026-08-13. **The premise above holds and the inference does not:** Sharadar genuinely
+      ships no legend *with the bulk download* — the reference says so of itself — but it had
+      already been pulled and committed, so "tested BY NUMBER, UNLABELLED" and "PERMANENT UNTIL
+      `D10` RUNS" are both wrong. **`S17`'s five arms are 91 Financial Statements and Exhibits,
+      71 Regulation FD Disclosure, 81 Other Events, 52 Departure of Directors or Certain
+      Officers, and 34 Schedule 13G Filing.** **NO VERDICT MOVES** — all ten arms are still NULL
+      and nothing re-opens them. **AND A CANDIDATE MECHANISM FOR THE ERA-CONCENTRATION, A LEAD
+      AND NOT A FINDING: codes 34 and 35 STOP — 13G on 2024-12-17, 13D on 2025-05-16 — while
+      91, 71, 81 and 52 all run to 2026-07-31.** A code that stops being emitted 13 months
+      before the panel ends is era-concentrated *by construction*. **Its limits are the point:
+      it can touch at most ONE of the five arms, so it cannot explain 91's or 71's
+      era-concentration — the two `S17` reports in detail — and `S17`'s halves split around
+      2017, so a 2024 sunset sits deep inside the late half rather than at the boundary.
+      Whether it drives anything is UNMEASURED.** **The gated `S17` successor is NOT licensed
+      by this correction**; it charges trials and needs its own blind register.
   * **THE MECHANISM QUESTION IS ANSWERED *NO*, AND THE PROJECT HAD ALREADY MEASURED IT.** The
     empirical decode that identified code 22 scored every registered arm on the way past
     (`bulk.py:243-247`): day-of median absolute return against a 1.292% baseline — **code 22 at
@@ -5623,6 +5641,13 @@ PBO 73.3% / DS 0.8674. The three era headers read newest-to-oldest: **CURRENT ST
 - **Bulk data loaded fast+safe** via `valuation/edge/bulk.py` (raw zips in `data/raw/`, extracts in
   `data/bulk/`, caches in `data/bulk/prepared/`): SF3 per-manager conviction, DAILY point-in-time
   marketcap+ratios, ACTIONS splits/delistings, EVENTS raw codes.
+- **THE SCHEMA LEGENDS ARE IN `SHARADAR_REFERENCE.md` (`47cb189`, 2026-08-03) — CHECK IT BEFORE
+  CONCLUDING A CODE IS UNLABELLED.** It transcribes what the bulk downloads do NOT carry and the
+  API does: the full **`EVENTCODES` (37)** and **`ACTIONTYPES` (19)** legends, per-column
+  `unittype` for all 112 SF1 fields, and a **first/last-seen date per event code** — which is how
+  `SC-2` found that codes 34 and 35 stop in 2024-12/2025-05. `CLAUDE.md` cited this file **zero
+  times** until now, which is why `S17` closed on 2026-08-13 recording that the legend did not
+  exist while it had been in-tree for ten days.
 - **Now CONSUMED by the panel (2026-07-29 s3):** point-in-time market cap from DAILY (replaces the buggy
   shares×price path; AAPL 2015Q2 $722.6B verified), survivorship-free returns via the ACTIONS delisting
   mask (SEP is ALREADY split-adjusted, so split ratios deliberately NOT re-applied — don't "fix" that),

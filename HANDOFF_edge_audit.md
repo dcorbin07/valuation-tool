@@ -14434,3 +14434,186 @@ $250,000 bar in the direction that cannot change an ABOVE/BELOW verdict — a do
 only make the reported number smaller and the refusal weaker, never manufacture a pass.
 
 `scripts/mb3_event_ownership_equity.py`, `data/free_analysis/MB3_EVENT_EQUITY.json`.
+---
+
+# SC-1 + SC-2 — the prior-calibration study, and the S17 legend correction (2026-08-20)
+
+## SC-1 — executed from the Frontier Scout's draft
+
+**The draft was ACCEPTED and committed ALONE** as `PREREG_sc1_prior_calibration.md` at `e95cffb`
+(markdown, zero `.py`, a strict ancestor of every measurement commit). The scout's text is
+**byte-identical** below the acceptance block — no bar, rule, verdict state or void condition was
+altered. The draft itself sits on `main` inside the three-file batch `5da7660` and was therefore
+never a register, which is exactly why a separate file exists.
+
+**One infra trial, booked at `d37999a` BEFORE the run: infra 18 → 19.** The draft's stated
+"17 → 18" was stale as it predicted it would be. **Equity 234 and options 305 are untouched** —
+the script opens **no market data at all**, pinned by an AST test (C3).
+
+### The result
+
+| | |
+|---|---|
+| scoreable OUTCOME pairs | **43** (kill threshold 25 — the kill did **not** fire) |
+| clusters | **3** |
+| mean stated prior | 0.6477 |
+| realised base rate | 0.6977 |
+| **gap** (`mean p − mean y`) | **−0.0500** |
+| cluster-bootstrap CI95 | **[−0.1000, +0.2833]**, half-width **0.1917** |
+| **verdict** | **CANNOT-TELL** |
+| Brier | 0.1548 |
+| skill vs in-sample base rate / vs uniform 0.5 | **+0.266 / +0.381** |
+| Murphy reliability / resolution / uncertainty | 0.0485 / 0.0956 / 0.2109 |
+
+**CANNOT-TELL is the register's own refusal working, not a failure to compute.** §3.1 fixed in
+advance that a wide interval containing zero is never "calibrated"; the half-width is 0.1917
+against a 0.15 ceiling.
+
+### The binding constraint is CLUSTERS, not pairs — and that is the finding
+
+The pair count cleared its bar comfortably. **The interval is wide because the cluster bootstrap
+has three units**: the register clusters by file, and the write-ups' per-expectation scoring
+tables live in only three handoffs (`HANDOFF_edge_audit.md` 86 lines, `HANDOFF_optionsbot.md` 34,
+`HANDOFF_live_data_bugs.md` 10).
+
+**Clustering by ITEM rather than by file would give many more units, and it was NOT done** —
+changing the clustering key after seeing the interval is choosing the design on the outcome. It
+is named here as the obvious successor instead, and it needs its own register.
+
+### What is positive, and nobody predicted it
+
+**The priors are INFORMATIVE even though their calibration is unresolved.** Brier 0.1548 against
+0.2109 for the in-sample base-rate forecaster — a skill of **+0.266** — with resolution (0.0956)
+above reliability (0.0485). *The record's odds discriminate between things that happened and
+things that did not; whether they are level-correct cannot be said at this resolution.*
+
+**And the sign runs against the expected direction**: mean prior 0.6477 against a base rate of
+0.6977, so outcomes came out slightly **better** than predicted — mildly pessimistic, not
+overconfident. The register predicted OVERCONFIDENT-OPTIMISTIC at 70/30.
+
+### Extraction, and two rules operationalised
+
+387 numeric priors from 73 `PREREG` + 4 audits + 2 `DESIGN` files (186 OUTCOME-class). **94
+`NN/MM` tokens rejected as not-odds** because they do not sum to 100 — the flat `1/7` and `1/8`
+theme weights, test counts. 113 write-up scoring rows; **13 SPLIT/UNRESOLVED excluded and
+counted** (the `O21-D2` precedent); **zero untraceable priors** — every scored row's odds value
+also occurs in a register, which is how §1's "handoffs adjudicate, never supply priors" is
+honoured without refusing to read them. Double-entry disagreement **11.7%** on a 20% sample at
+seed 20260820, under the 15% kill.
+
+**Stage 2 is EMPTY and reported as empty**: zero decide/measure pairs are extractable, because the
+record does not bank both figures for one statistic in one sentence. §4 attaches **no bar** to
+that arm, so this is a thin yield and **not a null about shrinkage** — the rule-consequence to Don
+is therefore not triggered.
+
+### A DEFECT IN MY OWN INSTRUMENT, caught before anything was reported
+
+**The first adjudicator looked for outcome markers inside the REGISTER** and found 9 of 387 —
+which fired the pre-outcome kill at 6 OUTCOME pairs and would have shipped
+**CANNOT-TELL BY CONSTRUCTION as an artefact of reading the wrong file.** §1's route (1) is *the
+item's own WRITE-UP*, and a census found **146 lines pairing odds with an outcome marker, 120 of
+them in `HANDOFF_*.md`**. Fixed, re-run, 43 pairs. The kill is a real instrument; it must not fire
+because the extractor was pointed at the wrong file.
+
+### Controls
+
+* **C1 PASS** — and it **caught an error in my own hand-computed fixture** on its first run
+  (`calibrated_070` written as `0.7·0.09 + 0.3·0.49` = 0.21, weighting by the forecast instead of
+  the realised 3:1 split; the Brier of those four rows is 0.19). That is what a fixture control is
+  for.
+* **C4 PASS** — the cluster bootstrap genuinely widens the naive interval.
+* **C2 FIRES, 31 of 31, exactly as declared in advance.** The register's acceptance block named
+  this as defect **D2** *before* the run: write-ups score **every** expectation they stated, while
+  §1 makes only the odds-bearing ones scoreable, so a mismatch is guaranteed by construction. The
+  firing is about C2's specification, not about the extraction.
+* **D1**, also declared in advance: §5's power arithmetic forms the MDE from **Brier** variance
+  where the gap needs `Var(p − y)`, so its figures are optimistic. The empirical line is the one
+  to quote — **detection threshold 0.1285 (50% power), 0.1824 (80%); power against a 0.10 gap is
+  32.9%.**
+
+### Expectations, scored: 2 right, 2 wrong, 2 unresolved
+
+| # | prediction | outcome |
+|---|---|---|
+| 1 | ≥ 40 scoreable OUTCOME pairs — 70/30 | **RIGHT** (43) |
+| 2 | primary verdict OVERCONFIDENT-OPTIMISTIC — 70/30 | **WRONG** (CANNOT-TELL, and the point estimate runs the other way) |
+| 3 | shrinkage median in [0.3, 0.7] — 60/40 | **UNRESOLVED** (0 pairs) |
+| 4 | halves sign-agreement > 70% — 55/45 | **UNRESOLVED** (stability set not built) |
+| 5 | double-entry disagreement under 8% — 60/40 | **WRONG** (11.7%) |
+| 6 | at least one number contradicts this list — 60/40 | **RIGHT** |
+
+*A study asking whether this record's priors are calibrated scored its own at 2 right, 2 wrong.*
+
+### NOT DONE, named so it is not mistaken for done
+
+Clustering by item (the obvious successor, needs its own register). The stability set of §4.1(b).
+π₀ / local FDR — **void condition 5**, named there as a decision rather than an oversight. No
+`/research` paragraph is shipped: §8 *proposes* one through the existing `MB38` gate and this
+lane does not open that gate. **No individual trial is re-opened, re-scored or re-litigated** —
+void condition 3, and aggregates only.
+
+---
+
+## SC-2 — the S17 legend correction (zero trials)
+
+`SHARADAR_REFERENCE.md` landed at **`47cb189` on 2026-08-03** carrying the full **37-code
+`EVENTCODES` legend** transcribed from the live API. **`S17` closed on 2026-08-13** recording that
+the legend did not exist and that its method step 1 was *"PERMANENT UNTIL `D10` RUNS"* — ten days
+after the legend was committed.
+
+**Be precise about what was wrong, because the premise survives.** Sharadar genuinely ships no
+legend *with the EVENTS bulk download* — that is what `bulk.py` records and what
+`SHARADAR_REFERENCE.md` says of itself (*"Not present in any bulk download — it must be pulled
+from the API, which is why it is transcribed in full below"*). **What is refuted is the inference**
+drawn from it: that the codes were therefore tested by number and unlabelled.
+
+**`S17`'s five arms, by that legend:** 91 Financial Statements and Exhibits · 71 Regulation FD
+Disclosure · 81 Other Events · 52 Departure of Directors or Certain Officers · 34 Schedule 13G
+Filing.
+
+**Three deliverables:** `S17`'s ledger row corrected; the `S17` bullet in `CLAUDE.md` corrected
+**in place**; and a one-line pointer added to `CLAUDE.md`'s bulk-data note — because **`CLAUDE.md`
+cited `SHARADAR_REFERENCE.md` zero times**, which is the likeliest reason it was missed. The
+memory did not know the file existed.
+
+**NO VERDICT MOVES.** All ten `S17` arms remain NULL on the both-halves leg.
+
+### A candidate mechanism for the era-concentration — a LEAD, not a finding
+
+The legend carries a **first/last-seen date per code**, and **codes 34 and 35 stop**: 13G on
+**2024-12-17**, 13D on **2025-05-16**. Every other `S17` arm (91, 71, 81, 52) runs to 2026-07-31.
+A code that stops being emitted 13 months before the panel ends is era-concentrated **by
+construction** — which is precisely the failure mode `S17` reported.
+
+**Its limits are the point and travel with it:** it can touch **at most one of the five arms**,
+because the other four have no sunset at all, so it **cannot** explain the era-concentration of 91
+or 71 — the two `S17` reports in detail. And `S17`'s halves split around 2017, so a 2024 sunset
+sits deep inside the late half rather than at the boundary. **Whether it drives anything is
+UNMEASURED.**
+
+**The gated `S17` successor is NOT licensed by this correction.** It charges trials and needs its
+own blind register.
+## BUGS FOUND (outside this lane — `RUN_RULES` rule 3)
+
+**`MB38`'s denominator guard is a latent cry-wolf, and it fired for the first time on this
+session's own trial.** `tests/test_research_page.py::test_mb38_no_count_and_no_hurdle_is_typed_
+into_the_source` compared each live trial count as a **SUBSTRING** of the module's concatenated
+numeric literals. Booking SC-1's trial took infra to **19**, and `research_record.py`
+legitimately carries the published long-short HAC *t* of **`2.6199121240414884`** — which
+contains the digits `19`. The suite went red claiming *"19 is typed into research_record.py"*
+when **nobody had typed a count anywhere**.
+
+It is latent rather than new: infra **12** and **21** collide with the same literal, so it would
+have fired on some future session regardless. That is `MA21`/`MB30`'s family exactly — a guard
+that fires on correct code gets switched off — and it was worth fixing rather than tolerating.
+
+**Fixed, and NOT by weakening it.** Counts are now compared as **values** against the set of
+numeric literals, plus a numeric check at the live value's own precision so the *same number
+typed with more digits* is still caught. **Mutation-tested 2 of 2**, source restored
+byte-for-byte: a count typed as an exact literal fires, and a hurdle typed as
+`3.3031261300040304` against a `hurdle_text` of `3.3031` fires.
+
+**And the mutation testing caught a regression in MY OWN first fix**: the exact-value form alone
+**missed** the higher-precision hurdle, which the old substring form did catch. Reported because
+a repair that silently trades one blind spot for another is worse than the defect — the second
+mutation is the only reason it was found.
