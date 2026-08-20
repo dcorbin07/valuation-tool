@@ -48,6 +48,91 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **MA28's CRASH FLAGS ARE REAL ON THE PANEL AND NEARLY ABSENT FROM THE BOOK - AS A 0.5x SIZING
+  HAIRCUT THEY REMOVE ONE CRASH IN EIGHTY-FOUR, AND RENORMALISING MAKES THE BOOK'S CRASH EXPOSURE
+  SLIGHTLY WORSE (2026-08-20, `MB8`).** `PREREG_mb8_sizing_haircut.md` committed **ALONE at
+  `a6d57c1`**, markdown only, 267 lines, a strict ancestor of every measurement commit, with the
+  **equity trial BOOKED AT `18a4ecc` BEFORE the instrument was written or run** (equity `N` 235 ->
+  236). **ADOPTS NOTHING - no file under `valuation/` changed at all**, pinned by test; adoption
+  would have been **ROUTED TO DON** as a vintage event, never taken here.
+  * **THE GUARD RAIL WAS CHECKED FIRST AND PASSES, so the arm dies on the crash bar and not on
+    alpha.** It gives up **0.1499pp** annualised against `X7`'s calibrated **1.8629pp**
+    non-inferiority margin. **KILL on the primary: the reduction is NEGATIVE - -1.44% full sample,
+    -2.15% early, -1.32% late, against a 20% bar.** The 0.5x-haircut sizing family **CLOSES
+    PERMANENTLY** on the register's own pre-committed terms.
+  * **THE ARITHMETIC WAS DONE IN THE REGISTER BEFORE THE RUN AND IT IS WHY THE ITEM IS
+    INTERPRETABLE.** A 0.5x haircut removes at most **half** the crash exposure it touches, so
+    clearing 20% needs the flagged names to carry **>= 40%** of the book's crash exposure.
+    `MA28`'s panel-wide figure is **19.14%**, implying ~6.1%. **In the top decile it is 1.19% - ONE
+    crash of eighty-four - and the early half has ZERO flagged crashes across 34 dates**, so the
+    ceiling on the reduction is **0.595%** full and **exactly zero** early. **The audit set a 20%
+    bar and a fixed 0.5x haircut without multiplying them together.**
+  * **THE FINDING, AND IT IS ABOUT THE BOOK RATHER THAN THE FLAG.** The `C5` census on **11,426
+    top-decile holdings - the same count `S10` and `V6-B`'s C7 report independently**, which is
+    what makes it the same object: **flagged 407 rows (3.56%), 1 crash, rate 0.246%;
+    flaggable-and-kept 8,081 (70.72%), 52 crashes, 0.643%; UNFLAGGABLE 2,938 (25.71%), 31 crashes,
+    1.055%.** The flag fires on **3.56% of the book against 5.74% of the panel**, and what it
+    flags carries **1.19% of the book's crashes against 19.14% panel-wide**. **The composite's top
+    decile is quality- and megacap-tilted while `MA28`'s flags fire on distressed,
+    aggressively-accounted names the composite has ALREADY declined to hold** - so the overlay has
+    almost nothing left to protect.
+  * **AND THAT IS THE MECHANISM FOR THE NEGATIVE REDUCTION.** Renormalising to keep the book fully
+    invested pushes weight off the 3.56% that is flagged and onto the 96.44% that is not - and the
+    unflagged holdings carry **98.81% of the crashes**. The haircut moves capital toward the more
+    crash-prone part of the book. The un-renormalised hold-cash sensitivity returns **+0.595%**,
+    **exactly** the arithmetic ceiling, so it is an internal consistency check and not an
+    independent result.
+  * **A CORRECTION AGAINST MY OWN REGISTER, MADE BY MEASUREMENT BEFORE PUBLICATION - AND IT IS THE
+    FAILURE THE REGISTER ITSELF NAMED AS THE ONE THAT MATTERS.** Section 6 priced the fail-open
+    from `MA28`'s **PANEL-WIDE** figures - unflaggable rows crash at 0.8134% against the
+    flaggable-and-kept 0.8928% - and called them *"marginally SAFER"* and *"a material
+    mitigation"*. **IN THE BOOK THAT IS BACKWARDS: unflaggable holdings crash at 1.055% against
+    0.643%, they are the MOST crash-prone bucket, and they carry 31 of the 84 crashes while taking
+    NO haircut at all.** So the sizing rule is blind to a quarter of the book **and** to its
+    largest crash bucket. **The register got its SIGN wrong by pricing a book-level question with
+    panel-level data.** Reported **POST-HOC with NO VERDICT** (`MA28`'s own C4 precedent), and **no
+    ratio is quoted on the flagged bucket - one crash is not a rate.**
+  * **CONTROLS: FOUR GATING, ALL EXACT.** `C1` reproduces the published record at **max |delta|
+    0.000e+00**, the control `MA28` records actually firing on its own first run (nine themes at
+    1/7 gave alpha 0.0499 against 0.0717). **`C2` PROVES my decile membership IS the shipped one** -
+    `quantile_backtest` does not return membership, so it is rebuilt from the same primitives and
+    then required to reproduce the shipped per-date `series.alpha`: **69 of 69 dates, max |delta|
+    0.000e+00**. **That control exists because `MB18` was burned by exactly this two items ago.**
+    `C3` **imports** `build_flags` from `s10_accounting_veto` rather than redefining it and
+    reproduces `MA28`'s flagged share **0.057414** and **6,542** rows exactly; `C4` the haircut is
+    **inert at 1.0x** on both exposure and return.
+  * **THE POWER STATEMENT WAS WRONG BY SIX-FOLD, IN THE HELPFUL DIRECTION, AND THE REASON IS
+    PORTABLE.** The register predicted resolution near **1.87pp** - *"matched to its bar with no
+    room to spare"* - by borrowing `V2G`'s measured paired HAC SE of 0.9354pp. **Measured, the
+    paired SE is 0.1106pp, an 80%-power MDE of 0.314pp.** `V2G` swapped whole themes, a large and
+    noisy intervention; this arm rescales 3.56% of holdings by half. **A paired difference between
+    two HIGHLY CORRELATED books is measured far more precisely than one between two different
+    books, so an SE may not be borrowed across perturbation sizes** - `B7`'s family, a number
+    reused outside the construction it was measured on. The non-inferiority pass is therefore
+    **genuinely informative** rather than the weak *"undetectable"* the register warned of.
+  * **WHAT THIS DOES NOT SAY: IT DOES NOT WEAKEN `MA28`.** That register measured the flag on the
+    **panel**, replicated it in both halves against its own permutation MAXIMUM and survived the
+    size control that killed three sibling items. **Nothing here touches it** - the finding is that
+    the flag and the book are nearly disjoint, which is a statement about the composite's
+    SELECTION rather than about the flag's validity. **Nor is it evidence that the composite
+    manages this risk well:** the book still suffers 84 crashes over 69 dates and the largest
+    bucket of them is the one no accounting flag can even be computed for. **It closes the 0.5x
+    design ONLY** - sweeping the haircut was forbidden in advance, so no other strength carries a
+    verdict.
+  * **A DEFECT IN MY OWN TEST, THE FIFTH INSTANCE OF ONE FAMILY.** The threshold-retyping guard
+    grepped the source and **FAILED against the CORRECT tree**, because the script's own docstring
+    says *"the thresholds -1.78 and 1.81 are never retyped"* - a comment documenting the rule,
+    quoting the values the rule forbids. **`MA49`'s comment-versus-code defect.** Fixed by reading
+    the **AST** - imports, function definitions and numeric literals - which sees code and not
+    prose about code.
+  * **Expectations 4 right, 2 wrong, and both misses are ONE miss:** I put 55/45 that the
+    top-decile flagged share of crash exposure would EXCEED the panel-wide 19.14% (it is sixteen
+    times smaller) and 70/30 that the reduction would land within 3pp of 6.12% (it is -1.44%).
+    **Both follow from assuming the book looks like the panel. It does not, and that is the whole
+    finding.** The audit's own prior was ~50%. **24 new tests, 9 of 9 tripwire mutations caught
+    with sources restored byte-for-byte.** `scripts/mb8_sizing_haircut.py`,
+    `data/free_analysis/MB8_SIZING_HAIRCUT.json`, `MB8_CONTROLS.json`;
+    `HANDOFF_edge_audit.md` MB8.
 - **THE IMPLIED-GROWTH EXPECTATIONS GAP IS REJECTED - AND IT IS THE FOURTH ITEM RUNNING WHOSE
   MOTIVATION WAS "STRUCTURALLY ORTHOGONAL TO THE INCUMBENTS", CONFIRMED ORTHOGONAL, AND
   PREDICTING NOTHING (2026-08-19, `MB18`).** `PREREG_mb18_expectations_gap.md` committed **ALONE
