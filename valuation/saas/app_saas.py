@@ -919,9 +919,16 @@ def create_saas_app(cfg=CONFIG):
         # The research record (V4). Derived from the same config path, so rotating
         # PORTFOLIO_PATH moves the page and this link together. It is a PATH, not a number —
         # the page stays static by construction.
+        # MB11 — the optionable partition, a REPORTED DIAGNOSTIC. Literals only: the module
+        # takes no argument, reads no store and has no clock, so the page stays byte-identical
+        # across requests exactly as this docstring promises. It is imported here rather than
+        # at module scope for the same reason the other web helpers are — this blueprint is
+        # built once and the import graph stays flat.
+        from ..web import optionable_partition as _optionable
         resp = make_response(render_template("portfolio.html",
                                              contact_email=cfg.contact_email,
                                              demo_available=demo_available,
+                                             optionable=_optionable.payload(),
                                              research_url=cfg.resolved_portfolio_path
                                              + "/research"))
         # Belt and braces with the <meta> tag and robots.txt. The header is the one of the

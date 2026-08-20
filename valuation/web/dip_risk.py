@@ -204,6 +204,12 @@ N_DATES = 68
 
 #: `diagnostics.D2_m1_within_market_cap_quintiles`. The extremes and the one that did not
 #: replicate in both halves on its own.
+#:
+#: RECORD ONLY, NEVER RENDERED (MB10). These are absolute gaps with no published rates behind
+#: them, so they cannot be compared across tiers — see `SIZE_CAVEAT`. They are kept because
+#: deleting a measured figure to make a copy rule easy to obey is how a record loses the thing
+#: it was keeping; `test_mb10_no_per_tier_gap_reaches_the_payload` pins that they stay off
+#: every surface.
 SIZE_STRONGEST_PP = -14.287
 SIZE_WEAKEST_PP = -3.787
 #: The TOP quintile's own median market cap. Used only as a one-directional test — see the
@@ -308,13 +314,35 @@ SCREEN_CONTRAST_NOTE = (
 
 #: Rendered only on the rows it is true of. The effect is not uniform across company size and
 #: the live book is megacap-tilted, so on this surface the caveat applies to most of what a
-#: reader sees — CLAUDE.md's "the claim is strongest exactly where the product is not". Both
-#: figures are interpolated from the pinned constants rather than retyped.
+#: reader sees — CLAUDE.md's "the claim is strongest exactly where the product is not".
+#:
+#: MB10 — THE TIER NUMBERS CAME OFF THIS SENTENCE, AND THE REASON IS THE ARTIFACT'S.
+#: This used to read "weakest — -3.79 percentage points against -14.29 in the smallest tier".
+#: Both figures are real and both are DIFFERENCES, and `MA28-CARD` established on a
+#: neighbouring surface why a difference is the wrong statistic to quote across strata: a
+#: difference moves with the base rate underneath it, so it can describe neither stratum. That
+#: card's rule is quote the RATIO and BOTH RATES, never the difference.
+#:
+#: HERE THE RULE BITES HARDER THAN IT DID THERE, because the ratio is NOT COMPUTABLE.
+#: `diagnostics.D2_m1_within_market_cap_quintiles` publishes each quintile's `full_diff_pp`,
+#: its `full_t`, its own permutation floor and its median market cap — and **not the two rates
+#: the difference is between**. So there is no published number from which a per-tier ratio
+#: can be derived, and the tier gaps cannot be compared like for like from what was measured.
+#: Whether the effect is genuinely ~3.8x stronger in small companies, or whether small
+#: companies simply fall a further 20% more often so the same proportional reduction shows up
+#: as a bigger gap, IS NOT DECIDABLE FROM THE ARTIFACT. Quoting the gaps invites the first
+#: reading; only the second could be ruled out by rates nobody published.
+#:
+#: So the DIRECTION is stated, the magnitude is refused, and the refusal says why. That is
+#: strictly less than the surface used to claim, and it is what the measurement supports.
+#: `SIZE_STRONGEST_PP` and `SIZE_WEAKEST_PP` stay as the record of what was measured and are
+#: pinned NEVER to reach the payload — the `MB38` pattern, where an operand a surface must
+#: compare against is kept in the module and kept off the page.
 SIZE_CAVEAT = (
-    "This name is in the largest size tier, where the measured effect is weakest — %.2f "
-    "percentage points against %.2f in the smallest tier — and that tier is the one that did "
-    "not hold in both halves of the sample on its own."
-    % (SIZE_WEAKEST_PP, SIZE_STRONGEST_PP))
+    "This name is in the largest size tier, where the measured effect was weakest, and that "
+    "tier is the one that did not hold in both halves of the sample on its own. How much "
+    "weaker is not quoted here: the panel published each tier's absolute gap without the "
+    "underlying rates, so the tiers cannot be compared like for like.")
 
 
 # --------------------------------------------------------------------------------------- #
