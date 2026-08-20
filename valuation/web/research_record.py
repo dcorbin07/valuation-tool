@@ -372,16 +372,298 @@ def derived_hurdles() -> frozenset:
     closes the guard instead of opening it.
     """
     if "texts" not in _HURDLE_CACHE:
+        texts = set()
         m = multiplicity()
-        _HURDLE_CACHE["texts"] = (frozenset({m["hurdle_text"]})
-                                  if m.get("available") and m.get("hurdle_text")
-                                  else frozenset())
+        # FAILS CLOSED AS A UNIT, AND THIS IS TIGHTER THAN IT WAS.  [SC-4]
+        #
+        # SC-4 added a second contributor to this set and, in doing so, broke the property the
+        # first one was built for: with the level unavailable, the motion block still read the
+        # register on its own and re-opened the hole. MB38's own fail-closed test caught it.
+        #
+        # The repair is to close on the WEAKER of the two rather than to teach the test about
+        # the new source. Both read the same file, so a register the level cannot parse is not
+        # one the motion may parse either, and requiring both is the conservative direction:
+        # the cost of being wrong here is an over-redacted page, and the cost of the other
+        # direction is a published figure nobody approved.
+        if not (m.get("available") and m.get("hurdle_text")):
+            _HURDLE_CACHE["texts"] = frozenset()
+            return _HURDLE_CACHE["texts"]
+        texts.add(m["hurdle_text"])
+        # SC-4 widens this from ONE string to at most SIX — three books, each before and
+        # after. The widening was measured before the copy was written, and the measurement is
+        # pinned by test rather than described: over every trial count from 2 to 1200, exactly
+        # ten hurdle strings collide with something the register itself writes as a whole
+        # figure. Eight of the ten are this project's OWN earlier hurdles, quoted in the log,
+        # which is a collision between a hurdle and a hurdle. One is not: at 225 equity trials
+        # the bar reads the same as an autocorrelation-corrected t recorded elsewhere in the
+        # log.
+        #
+        # THAT COLLISION IS SAFE, AND SAYING WHY IS THE POINT. The exemption does not publish
+        # anything — `withhold()` never consults it, so every log row is redacted exactly as
+        # before. It only tells the page's own test that a string it is looking at is a bar
+        # rather than a result. A reader who sees that string sees it labelled as the bar at
+        # 225 trials, and learns nothing whatever about the unrelated t that shares its value.
+        #
+        # The set is bounded to the strings the page is ACTUALLY rendering right now, not to a
+        # range of counts it might one day render, so it is as small as the page allows.
+        w = weekly()
+        if w.get("available"):
+            texts.update(w.get("hurdle_texts") or ())
+        _HURDLE_CACHE["texts"] = frozenset(texts)
     return _HURDLE_CACHE["texts"]
 
 
 def reset_hurdle_cache() -> None:
     """Drop the memo. For tests that move `N` and re-ask."""
     _HURDLE_CACHE.clear()
+
+
+# ------------------------------------------------------------------- SC-4: the record's motion
+#
+# `MB38` publishes the denominator as a LEVEL: how many things were tried, and what that count
+# demands. This publishes its MOTION: what the level did over the last week, which register
+# entries moved it, what came back, and whether any calibrated instrument fell due as a result.
+#
+# WHY MOTION IS THE PART WORTH PUBLISHING. A level can be assembled after the fact by anyone
+# willing to count once. A dated diff cannot: it only exists if the record was being kept
+# continuously, and it is falsifiable by a reader who comes back next week. That is the whole
+# claim this page makes, so it is the one thing worth rendering.
+#
+# SOURCED FROM THE SAME PARSE AS `N`. Every count, date and verdict below comes out of
+# `research_log`, the parse that sets the trial denominator inside the model's own significance
+# correction. A DELIBERATE DEVIATION FROM THE ITEM AS PROPOSED: it also named `VALQUO_LEDGER.md`
+# as a source. It is not read here. The ledger answers "where do we stand" and the log answers
+# "what was searched over the data", and this block is about the search; wiring a second reader
+# of the same facts is the defect this module's own docstring already says the project has
+# shipped twice. One source, or the counts and the verdicts can drift apart.
+
+#: How far back "this week" reaches, inclusive of today.
+WEEK_DAYS = 7
+
+#: `MB31`'s banked measurement: the margin-to-standard-error ratio of the first placebo draw
+#: whose CPCV adopt decision is still to flip. NEVER RENDERED — it is a bare decimal and the
+#: guard is right to treat it as one. The trial count it implies is DERIVED from it below and
+#: never transcribed, so the two cannot drift.
+FLOOR_FLIP_MARGIN_OVER_SE = 3.3191884951841053
+
+WEEK_HEADING = "What the record did this week"
+
+WEEK_LEDE = (
+    "The block above is a level: how many things have been tried, and what that count demands "
+    "of a result. This one is the same record in motion. It is rebuilt from the register every "
+    "time the page is loaded, so it is a claim that can be checked again next week and found "
+    "to have moved — which is the part of a research record that cannot be assembled after the "
+    "fact.")
+
+WEEK_HURDLE_NOTE = (
+    "Each book carries its own count and therefore its own bar, and they are shown apart rather "
+    "than pooled: a search of the equity book says nothing about how hard the options book "
+    "should have to work. The bar only ever rises, so every entry here makes the standing "
+    "results harder to believe rather than easier — which is the direction that makes it worth "
+    "publishing.")
+
+WEEK_VERDICT_NOTE = (
+    "Verdicts are given as the word that was recorded and nothing more. What each result "
+    "actually measured is in the record below; how large it was is not on this page at all.")
+
+WEEK_FLOOR_NOTE = (
+    "There is a second family of bars on this project, set by measurement rather than by "
+    "counting, and those move in steps rather than continuously — they can only change when a "
+    "particular one of the stored comparison runs changes its mind, and that happens at a "
+    "count which is known in advance. So it is possible to say now, rather than discover later, "
+    "how much further the search can go before they have to be worked out again.")
+
+WEEK_QUIET = (
+    "Nothing was added to the register in the last seven days. That is recorded plainly rather "
+    "than by the section disappearing: a changelog that renders nothing on a quiet week is "
+    "indistinguishable from one that has stopped working.")
+
+WEEK_NOT_A_RESULT = (
+    "None of this is a result. It is a count of what was attempted and a record of which way "
+    "each attempt came out — reporting only, with no hypothesis, no threshold and no verdict "
+    "of its own."
+)
+
+
+#: Phrasing this section may never carry, in three families.  [SC-4]
+#:
+#: The risk here is not that someone writes a lie. It is SUMMARISATION DRIFT: a changelog of
+#: research activity is one careless edit away from reading as a progress report, and a
+#: progress report about a research record is a performance claim wearing a process claim's
+#: clothes. These are the shapes that edit takes.
+#:
+#: SCOPED TO THIS SECTION, NOT THE PAGE. `/work/research` renders 200-odd log rows written by
+#: other items, and a tuple run across all of them fires on innocent pre-existing prose - the
+#: defect `MA28-CARD-UI` names, which `MB38`'s boast check hit on the word "provenance" and
+#: `MB11`'s hit on `tradable`. The section this item owns is the section it polices.
+#:
+#: DELIBERATELY NOT BANNED: "proof" and "will". The floor paragraph has to be able to say that
+#: nothing has moved YET and that this is NOT proof it will hold - which is the most important
+#: sentence in the block, and a tuple that forbade it would have defeated the item it guards.
+#: `MB11`'s rule, restated: ban the CLAIM, never the vocabulary the honest sentence needs.
+WEEK_BANNED = (
+    # (1) FORECAST — the record's motion said to imply where it is going.
+    "on track", "we expect", "expected to", "should improve", "is improving", "trending",
+    "momentum is", "getting closer", "closing in", "nearly there", "any week now",
+    # (2) PERFORMANCE — a result, an effect size, or a comparison between two of them.
+    "outperform", "beat the", "ahead of the market", "returned", "gains", "profit",
+    "the edge is real", "proves", "confirms the edge", "validates the strategy",
+    "better than the market", "worse than the market",
+    # (3) BOAST — the tone this page exists to not have.
+    "breakthrough", "world-class", "industry-leading", "unmatched", "unprecedented",
+    "remarkable", "extraordinary", "rigorous beyond",
+)
+
+#: Named statistics. The section may say a verdict LANDED and give the WORD; naming the
+#: quantity is how a comparison gets in without a number attached to it.
+WEEK_BANNED_STATISTICS = ("t-statistic", "t-stat", "sharpe", "p-value", "alpha",
+                          "information ratio", "effect size", "drawdown")
+
+
+def week_violations(text: str) -> list:
+    """Which banned phrasings appear in `text`. Case-insensitive substring.  [SC-4]"""
+    t = (text or "").lower()
+    return [b for b in (WEEK_BANNED + WEEK_BANNED_STATISTICS) if b in t]
+
+
+def floor_flip_n() -> int:
+    """The equity trial count at which the measured floors must be worked out again.  [SC-4]
+
+    DERIVED, NEVER TYPED. `MB31` reports this as 247. Transcribing that would put a fourth
+    copy of a derived quantity into the tree — the `MA5` defect — and it would rot silently if
+    the banked draws were ever re-scored. Here it is recovered from the draw's own recorded
+    margin ratio through the ONE hurdle definition, so it is right by construction.
+    """
+    from ..edge.statistics import hlz_hurdle
+
+    n = 2
+    while n < 100000 and hlz_hurdle(n) <= FLOOR_FLIP_MARGIN_OVER_SE:
+        n += 1
+    return n
+
+
+def _iso(d):
+    try:
+        return _dt.date.fromisoformat((d or "").strip())
+    except Exception:                                  # noqa: BLE001
+        return None
+
+
+def weekly(log_path: str = None, today=None, days: int = None) -> dict:
+    """The register's own motion over the last `days`, derived at render.  [SC-4]
+
+    FAILS CLOSED, like `multiplicity`. Any failure to read the register returns
+    `available: False` with no numbers and no hurdle strings, so the section renders nothing
+    rather than something wrong — and the guard's exemption stays shut in the same case.
+    """
+    span = int(days or WEEK_DAYS)
+    out = {"available": False, "reason": "the research log could not be read",
+           "days": span, "start": None, "end": None, "rows": 0, "charged": 0,
+           "domains": [], "verdicts": [], "entries": [], "shown": 0, "hidden": 0,
+           "vintages": [], "floor": None, "quiet": False, "hurdle_texts": []}
+    try:
+        from ..edge import research_log as RL
+        from ..edge.statistics import hlz_hurdle
+
+        end = today or _dt.date.today()
+        start = end - _dt.timedelta(days=span - 1)
+        out.update(start=start.isoformat(), end=end.isoformat())
+
+        live = (RL.detail(path=log_path) or {}).get("by_domain") or {}
+        win = []
+        for r in RL.rows(path=log_path):
+            d = _iso(r.get("date"))
+            if d is not None and start <= d <= end:
+                win.append((d, r))
+        win.sort(key=lambda p: (p[0], p[1].get("id") or ""), reverse=True)
+
+        charged = {}
+        for _, r in win:
+            dom = (r.get("domain") or "").strip().lower()
+            charged[dom] = charged.get(dom, 0) + int(r.get("n_trials") or 0)
+
+        hurdle_texts = []
+        domains = []
+        for key, label in (("equity", "Equity"), ("options", "Options"),
+                           ("infra", "Infrastructure")):
+            now = int(live.get(key) or 0)
+            if now <= 0:
+                continue
+            moved = int(charged.get(key) or 0)
+            before = now - moved
+            # A "before" below where the correction is defined is stated as such rather than
+            # floored silently — `hlz_hurdle` floors at 2, and a floored bar quoted as a real
+            # one would be a number that never existed.
+            ok = before >= 2
+            b_text = ("%.4f" % hlz_hurdle(before)) if ok else None
+            a_text = "%.4f" % hlz_hurdle(now)
+            if b_text:
+                hurdle_texts.append(b_text)
+            hurdle_texts.append(a_text)
+            domains.append({
+                "key": key, "label": label, "before": before, "now": now, "charged": moved,
+                "moved": bool(moved), "hurdle_before": b_text, "hurdle_after": a_text,
+                "hurdle_before_defined": ok,
+            })
+
+        tally = {}
+        for _, r in win:
+            b = bucket(r.get("verdict"))
+            tally[b] = tally.get(b, 0) + 1
+        verdicts = [{"bucket": b, "label": BUCKET_LABEL.get(b, b), "n": tally[b]}
+                    for b in BUCKETS if tally.get(b)]
+
+        items = []
+        for _, r in win:
+            items.append({
+                "id": r.get("id") or "",
+                "date": (r.get("date") or "").strip(),
+                "domain": (r.get("domain") or "").strip().lower(),
+                "bucket": bucket(r.get("verdict")),
+                "label": BUCKET_LABEL.get(bucket(r.get("verdict")), "Other verdict"),
+                "source": source_file(r.get("source")),
+                "trials": int(r.get("n_trials") or 0),
+            })
+        # NO SILENT CAP. The list is trimmed because a busy week runs to dozens of entries and
+        # the full record is on this same page — but the number trimmed is rendered, because a
+        # truncated list with nothing said about it reads as "that was all of it".
+        shown, hidden = items[:12], max(0, len(items) - 12)
+
+        vints = []
+        try:
+            from ..edge.track_meter import VINTAGES
+            for v in VINTAGES:
+                for kind, when in (("opened", v.get("opened")), ("closed", v.get("closed"))):
+                    if when and start <= when <= end:
+                        vints.append({
+                            "n": v.get("vintage"), "event": kind,
+                            "date": when.isoformat(), "status": v.get("status"),
+                            # Another module's prose, so it goes through the same withholder
+                            # every log row does. It carries a construction PARAMETER, which
+                            # the rule redacts — over-withholding by design, and left visible
+                            # as a redaction rather than special-cased around.
+                            "label": withhold(v.get("label")),
+                        })
+            vints.sort(key=lambda x: (x["date"], x["n"]))
+        except Exception:                              # noqa: BLE001
+            vints = []
+
+        flip = floor_flip_n()
+        n_eq = int(live.get("equity") or 0)
+        out["floor"] = {"flip_n": flip, "n": n_eq, "headroom": max(0, flip - n_eq),
+                        "due": n_eq >= flip}
+
+        out.update(available=True, reason="derived from RESEARCH_LOG.md at render time",
+                   rows=len(win), charged=sum(charged.values()), domains=domains,
+                   verdicts=verdicts, entries=shown, shown=len(shown), hidden=hidden,
+                   vintages=vints, quiet=(not win),
+                   hurdle_texts=sorted(set(hurdle_texts)))
+    except Exception:                                  # noqa: BLE001 — fail closed, always
+        return {"available": False, "reason": "the research log could not be read",
+                "days": span, "start": None, "end": None, "rows": 0, "charged": 0,
+                "domains": [], "verdicts": [], "entries": [], "shown": 0, "hidden": 0,
+                "vintages": [], "floor": None, "quiet": False, "hurdle_texts": []}
+    return out
 
 
 # --------------------------------------------------------------------------- the record
@@ -436,4 +718,15 @@ def record(log_path: str = None, root: str = None) -> dict:
         "mult_both_sides": MULTIPLICITY_BOTH_SIDES,
         "mult_caveat": MULTIPLICITY_CAVEAT,
         "mult_why": MULTIPLICITY_WHY_PUBLISHABLE,
+        # SC-4 — the same denominator in MOTION. Note again what is NOT here: no effect size,
+        # no statistic, no comparison. A verdict WORD and a count, and the bar each count
+        # implies.
+        "weekly": weekly(log_path),
+        "week_heading": WEEK_HEADING,
+        "week_lede": WEEK_LEDE,
+        "week_hurdle_note": WEEK_HURDLE_NOTE,
+        "week_verdict_note": WEEK_VERDICT_NOTE,
+        "week_floor_note": WEEK_FLOOR_NOTE,
+        "week_quiet": WEEK_QUIET,
+        "week_not_a_result": WEEK_NOT_A_RESULT,
     }

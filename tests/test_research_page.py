@@ -22,6 +22,7 @@ WHAT IS ACTUALLY AT RISK HERE, and it is not layout.
 """
 import os
 import sys
+import re
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -368,14 +369,30 @@ def test_mb38_kill_condition_the_guard_passes_a_count_and_a_derived_hurdle():
 
 
 def test_mb38_the_exemption_admits_the_hurdle_and_nothing_else():
-    """The hole is one string wide, and every near miss on it still fires.
+    """The hole is exactly as wide as the page, and every near miss on it still fires.
 
     `13.3031` is a different number. `3.3031%` is a percentage whatever its digits. `t 3.3031`
     is a named statistic, and naming it brings it straight back under the rule.
+
+    WIDENED BY SC-4, AND THE REPLACEMENT IS STRICTLY STRONGER. The rule used to be "exactly
+    the one live hurdle". SC-4 renders three books' bars before AND after, so the rule is now
+    "exactly the bars this page is rendering right now, and nothing else" — which pins the
+    same near-miss behaviour over a set six times larger AND additionally pins that no string
+    got in which the page does not actually show. The old assertion could not say the second
+    thing, because with one element there was nothing for a stray member to hide behind.
     """
     m = RR.multiplicity()
     h = m["hurdle_text"]
-    assert RR.derived_hurdles() == frozenset({h}), RR.derived_hurdles()
+    w = RR.weekly()
+    rendered = {h} | set(w.get("hurdle_texts") or ())
+    assert RR.derived_hurdles() == frozenset(rendered), RR.derived_hurdles()
+    # ...and every member is genuinely on the page, so the exemption cannot grow a string the
+    # reader never sees.
+    assert h in rendered
+    for d in w.get("domains") or ():
+        assert d["hurdle_after"] in rendered
+        if d["moved"] and d["hurdle_before_defined"]:
+            assert d["hurdle_before"] in rendered
 
     for a in ("+7.17%", "134 bps", "-2.85 pp", "t 2.62", "$4.9M", "0.8556", "261%", "1.17x",
               "IC +0.03", "2.6199", "2.2837", f"alpha {h}", f"t {h}", f"IC {h}", f"Sharpe {h}",
@@ -507,11 +524,42 @@ def test_mb38_no_count_and_no_hurdle_is_typed_into_the_source():
     live = {str(m["equity"]), str(m["options"]), str(m["infra"]), str(m["trials"]),
             m["hurdle_text"]}
     code = _module_code_without_docstrings()
-    for v in live:
-        assert v not in code, f"{v} is typed into research_record.py"
     section = _mb38_section_of_template()
     for v in live:
-        assert v not in section, f"{v} is typed into the template"
+        assert not _typed(v, code), f"{v} is typed into research_record.py"
+        assert not _typed(v, section), f"{v} is typed into the template"
+
+
+def _typed(value, text):
+    """Does `value` appear as a NUMBER of its own, rather than inside a longer one?
+
+    A DEFECT IN THIS TEST, FOUND BY SC-4 AND FIXED RATHER THAN WORKED AROUND. The check was a
+    bare `in`, so any live count that happens to be a digit-substring of an unrelated constant
+    failed it against a correct tree: the infrastructure count reached 18, and `MB31`'s
+    recorded margin ratio `3.3191884951841053` contains "18" in the middle. That is the
+    substring family this project keeps meeting — `MA5`'s hurdle sweep firing on its own
+    documentation, `MA49(c)`'s fixture firing on the comment describing its repair, and
+    `MB38`'s own boast check firing on the word "provenance" — arriving this time on a number
+    instead of a word.
+
+    Digits, a decimal point and a sign are what make a number longer, so the boundary is
+    exactly those.
+    """
+    return re.search(r"(?<![\d.\-+])" + re.escape(value) + r"(?![\d.])", text) is not None
+
+
+def test_sc4_the_typed_count_check_is_not_vacuous():
+    """The repaired matcher must still catch a genuinely typed count, in both directions."""
+    m = RR.multiplicity()
+    n = str(m["equity"])
+    assert _typed(n, "equity = %s" % n), "a typed count is no longer caught"
+    assert _typed(n, "counts = [1, %s, 3]" % n), "a typed count in a list is no longer caught"
+    assert _typed(m["hurdle_text"], "bar = %s" % m["hurdle_text"]), "a typed hurdle escapes"
+    # ...and does not fire on the same digits inside a longer number, which is the false
+    # positive it was built to remove.
+    assert not _typed("18", "3.3191884951841053"), "the substring false positive is back"
+    assert not _typed(n, "1" + n), "a longer number still trips the check"
+    assert not _typed(n, n + "9"), "a longer number still trips the check"
 
 
 def test_mb38_the_hurdle_is_not_computed_in_this_module():

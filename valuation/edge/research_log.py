@@ -98,7 +98,29 @@ def _cell(cells, hdr, field):
     return cells[i] if i is not None and i < len(cells) else None
 
 
-def _emit(out, cells, hdr, rid, aligned, vcell, k):
+def _resolve_domain(cells, hdr, aligned):
+    """The row's family, resolved ONCE.  [SC-4]
+
+    Lifted out of `_parse` unchanged so the EMITTED row and the COUNTED bucket cannot disagree
+    about which book a row belongs to. It was previously resolved inline, after `_emit` had
+    already run, which is why the emitted rows carried no domain at all and the public
+    research page rendered an empty column on every one of them.
+
+    Returns `(raw_cell, resolved, legacy)` - `legacy` being the pre-session-12 whole-row scan,
+    kept because `_parse` reports every disagreement between the two.
+    """
+    dcell = ((_cell(cells, hdr, "domain") if aligned else None) or "").lower()
+    dom = dcell if dcell in DOMAINS else None
+    if dom is None:                               # no domain column: best available guess
+        for d in DOMAINS:
+            if any(c.lower() == d for c in cells):
+                dom = d
+                break
+    legacy = next((d for d in DOMAINS if any(c.lower() == d for c in cells)), None)
+    return dcell, dom, legacy
+
+
+def _emit(out, cells, hdr, rid, aligned, vcell, k, dom=None):
     """Record one row for surfaces that render the RECORD rather than the denominator.
 
     Collected inside the one parse, so the public research page and the trial counter can
@@ -112,7 +134,11 @@ def _emit(out, cells, hdr, rid, aligned, vcell, k):
     parser that pre-censored them would make the counter depend on a publishing rule.
     """
     row = {"id": rid, "n_trials": k, "aligned": aligned,
-           "verdict": (vcell or "").strip()}
+           "verdict": (vcell or "").strip(),
+           # SC-4 - the RESOLVED family, not the raw cell, so a surface that groups rows by
+           # book groups them exactly as `by_domain` counts them. `None` where the row's
+           # family could not be resolved, which `_parse` already reports separately.
+           "domain": dom or ""}
     for f in ("date", "hypothesis", "metric", "threshold", "source", "pre", "universe"):
         row[f] = ((_cell(cells, hdr, f) if aligned else None) or "").strip()
     out.append(row)
@@ -170,6 +196,11 @@ def _parse(path):
                               "row_width": len(cells),
                               "reason": "unescaped `|` in a cell shifts the columns"})
 
+        # --- domain: THE DOMAIN CELL ALONE ------------------------------------------------
+        # Resolved HERE rather than after the emit, so a `FIXED` row - which returns early -
+        # carries its family too. The counting below is unchanged and uses these same values.
+        dcell, dom, legacy_dom = _resolve_domain(cells, hdr, aligned)
+
         # --- verdict: THE VERDICT CELL ALONE ---------------------------------------------
         vcell = _cell(cells, hdr, "verdict") if aligned else None
         is_fixed = bool(vcell) and vcell.strip().upper().startswith("FIXED")
@@ -184,7 +215,7 @@ def _parse(path):
             # data — that is why it does not count toward `N` — but it IS part of the record,
             # and the public research page renders it as such. The two questions are
             # different and this is the only place that says so.
-            _emit(rows_out, cells, hdr, rid, aligned, vcell, 0)
+            _emit(rows_out, cells, hdr, rid, aligned, vcell, 0, dom)
             continue
 
         # --- grid multiplier: THE `n` CELL ALONE ------------------------------------------
@@ -201,7 +232,7 @@ def _parse(path):
         trials += k
         counted += 1
         ids.append(rid)
-        _emit(rows_out, cells, hdr, rid, aligned, vcell, k)
+        _emit(rows_out, cells, hdr, rid, aligned, vcell, k, dom)
 
         # --- misfiled row: a table-2 row sitting under table-1's header  [AUDIT MA6] ------
         # THE WIDTH GUARD CANNOT SEE THIS. `aligned` compares `len(cells)` to the header width
@@ -223,15 +254,7 @@ def _parse(path):
                                        "certainly appended under the WRONG table's header; both "
                                        "tables are 9 columns wide so the width guard cannot see it"})
 
-        # --- domain: THE DOMAIN CELL ALONE ------------------------------------------------
-        dcell = ((_cell(cells, hdr, "domain") if aligned else None) or "").lower()
-        dom = dcell if dcell in DOMAINS else None
-        if dom is None:                               # no domain column: best available guess
-            for d in DOMAINS:
-                if any(c.lower() == d for c in cells):
-                    dom = d
-                    break
-        legacy_dom = next((d for d in DOMAINS if any(c.lower() == d for c in cells)), None)
+        # --- domain: counted from the values resolved above, never re-resolved ------------
         if dom != legacy_dom:
             changed.append({"id": rid, "field": "domain", "was": legacy_dom, "now": dom})
         if dom:

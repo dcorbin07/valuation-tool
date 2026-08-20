@@ -5,6 +5,209 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 44 — 2026-08-19 — `SC-4`: the denominator page made temporal
+
+**ZERO TRIALS, DISPLAY + ONE PARSE REPAIR.** No hypothesis, no threshold, no verdict against a
+bar, so no `RESEARCH_LOG.md` row and `by_domain` is untouched — verified bit-identical across
+the change rather than asserted. Nothing under `valuation/edge/` changed except the emission
+repair in section 2, which moves no count.
+
+---
+
+## 0. What the item asked, and the one thing it already had
+
+`MB38` shipped the denominator as a **level**: how many things were tried, the bar that count
+implies, and the verdict word for the headline against it. `SC-4` asks for the same record in
+**motion** — a dated diff of counts, bars before and after, verdicts landed as words, vintage
+events, and whether any calibrated floor has fallen due.
+
+**WHY MOTION IS THE PART WORTH PUBLISHING, and it is not a presentation argument.** A level can
+be assembled after the fact by anyone willing to count once. A dated diff cannot: it only
+exists if the record was being kept continuously, and **it is falsifiable by a reader who comes
+back next week.** That is the whole claim this page makes about itself, so it is the one thing
+worth rendering.
+
+---
+
+## 1. The kill condition, run BEFORE any copy existed — and it produced a measurement
+
+Inherited verbatim from `MB38`: can `withhold()` pass a dated diff of counts, bars and verdict
+words **without also passing a performance figure**?
+
+**LEG 1 — twenty candidate elements, one at a time.** Counts, prose counts, dates, window
+phrasing, verdict words in both directions, the bucket vocabulary, vintage prose, register ids
+(including hyphenated ones), pre-registration filenames and the floor-headroom integers **all
+pass `withhold()` untouched**. **Seven are redacted, and all seven are bars** — a bar is a bare
+decimal, which is exactly what `_FIGURE`'s effect-size branch exists to catch.
+
+**LEG 2 — so the question is really whether `MB38`'s exemption can WIDEN.** `MB38` opened a
+hole one string wide: the live equity bar. `SC-4` renders up to **six** — three books, before
+and after. Widening a guard's exemption is the part that could have killed this, so it was
+measured rather than argued.
+
+* **THE FIRST MEASUREMENT WAS WRONG AND OVERSTATED THE DANGER, and it is corrected here rather
+  than quietly replaced.** Comparing bar strings against *substrings* of the register returned
+  **six collisions**, two of them alarming (`+3.2702%/trade` is a real per-trade expectancy).
+  That is the wrong comparison: the exemption is tested against `m.group(0).strip()`, a WHOLE
+  `_FIGURE` match, and the whole match of `+3.2702%/trade` carries its unit, so the bare token
+  can never equal it.
+* **MEASURED CORRECTLY: over every trial count from 2 to 1200, exactly TEN bar strings equal a
+  whole `_FIGURE` match anywhere in the register.** Eight of the ten are this project's **own
+  earlier bars**, quoted in the log — a collision between a bar and a bar. **One is not: at 225
+  equity trials the bar reads `3.2912`, which the log also records as an autocorrelation-
+  corrected *t* at h189.** Two of the ten (224, 225) are inside the range a single week could
+  reach from today's counts.
+* **THAT COLLISION IS SAFE, AND SAYING WHY IS THE POINT RATHER THAN A RELIEF.** The exemption
+  **publishes nothing** — `withhold()` never consults it, so every log row is redacted exactly
+  as before. It only tells the page's own test that a string it is looking at is a bar rather
+  than a result. A reader meeting `3.2912` meets it **labelled as the bar at 225 searches** and
+  learns nothing whatever about the unrelated *t* that happens to share its value.
+
+**VERDICT: the kill condition PASSES**, with the exemption bounded to the strings the page is
+**actually rendering right now** — six today — and pinned to exactly that set.
+
+---
+
+## 2. The defect the item surfaced: a column that had rendered empty since `V4`
+
+**`record()` has always read `r.get("domain")` off every log row, and `_emit` never wrote one.**
+Measured on the live page before anything was changed: **216 of 216 rows rendered `—`** in the
+domain column of the public research record.
+
+It matters for `SC-4` specifically because `MB26`'s two-denominators rule requires every count
+to render beside **its own** book and **its own** bar, and that is not derivable without a
+per-row family.
+
+**FIXED INSIDE THE ONE PARSE, WHICH IS THE ONLY ACCEPTABLE PLACE.** `_parse` already resolved
+the family — it just did so *after* `_emit` had run, and `FIXED` rows returned before reaching
+it at all. `_resolve_domain` is lifted out unchanged and called **before** the emit, so the
+emitted row and the counted bucket are the same resolution rather than two of them. This
+module's own docstring names the alternative as a bug the project has shipped twice.
+
+**NOTHING MOVED: `by_domain`, `trials_logged`, `rows_counted`, `rows_fixed_not_counted`,
+`trials_domain_unresolved` and `n_used` are BIT-IDENTICAL**, `MA13`'s committed-literal stamp
+is green, and a new test asserts the emitted rows **sum to** `by_domain` so the two views
+cannot drift apart later.
+
+---
+
+## 3. What ships
+
+A section on `/work/research`, below the denominator block, rendered only when the register
+parses:
+
+* **the window**, dated, and the entries and trials it carries;
+* **each book's count and bar, before → after**, side by side and never pooled (`MB26`);
+* **the verdict tally as words**, and the twelve most recent entries with their register link;
+* **vintage events** in the window — a change to how the model is built restarts the forward
+  record, and that cost is recorded as one;
+* **the measured floors' headroom**: how many further searches before the calibrated bars must
+  be worked out again.
+
+**`floor_flip_n()` IS DERIVED, NOT TRANSCRIBED, AND THAT IS STRONGER THAN `MB31`'s OWN
+ARTIFACT.** `MB31` reports 247 by re-scoring banked draws out of `data/`, which is gitignored
+and never ships — so the render path cannot read it, and typing 247 would be a fourth copy of a
+derived quantity (`MA5`'s defect). Instead the draw's own recorded margin ratio is kept as a
+constant and the count is recovered from it through the **one** hurdle definition. It comes out
+at **247** with **13 searches of headroom**, reproducing `MB31` exactly without reading a byte
+of `data/`.
+
+**THE QUIET WEEK IS A SENTENCE, NOT AN ABSENCE.** A changelog that renders nothing when nothing
+happened is indistinguishable from one that has stopped working, so a quiet window says so and
+still shows the standing counts. Pinned.
+
+**NO SILENT CAP.** A busy week runs to dozens of entries and the list is trimmed to twelve —
+and the number trimmed is **rendered**, because a trimmed list that says nothing about the
+trimming reads as the whole of it.
+
+---
+
+## 4. Two deviations from the item as written, both with reasons
+
+* **`VALQUO_LEDGER.md` IS NOT READ.** The item names it as a source. The ledger answers *where
+  do we stand*; the log answers *what was searched over the data*; this block is about the
+  search, and every count on it must come from the same parse that sets `N` or the diff and the
+  denominator can drift. Wiring a second reader of the same facts is the defect this module's
+  docstring already says the project shipped twice.
+* **`MB31`'s SCRIPT IS NOT CALLED AT RENDER** — see section 3. It reads `data/`.
+
+---
+
+## 5. Four defects in my own work, and one of them was caught by another item's test
+
+* **I BROKE `MB38`'s FAIL-CLOSED PROPERTY AND `MB38`'s OWN TEST CAUGHT IT.** Adding a second
+  contributor to the guard's exemption re-opened the hole whenever the first was unavailable,
+  because the second still read the register on its own. **Repaired by closing on the WEAKER of
+  the two rather than by teaching the test about the new source** — both read the same file, so
+  a register the level cannot parse is not one the motion may parse either. The cost of being
+  wrong in that direction is an over-redacted page; the other direction publishes a figure
+  nobody approved. A test in the new suite now records the regression so it stays caught.
+* **THE SUBSTRING FAMILY, FOR THE FOURTH TIME IN THREE SESSIONS — THIS TIME ON A NUMBER.**
+  `MB38`'s no-typed-count pin used a bare `in`, and **failed against a correct tree**: the
+  infrastructure count reached **18**, and `MB31`'s recorded margin ratio
+  `3.3191884951841053` contains "18" in the middle. Repaired to a standalone-number match
+  (digits, dot and sign are what make a number longer) **with its own vacuity control in both
+  directions**, so a genuinely typed count is still caught. Same shape as `MA5`'s sweep firing
+  on its own documentation, `MA49(c)`'s fixture firing on the comment describing its repair,
+  and last session's `tradable`/`buy`/`sell`.
+* **AND THE SCOPING HALF OF THAT FAMILY, TWICE MORE.** My banned-phrase check run against the
+  **whole page** returns **fifteen** hits, every one in another item's prose or a log row — so
+  it is asserted against **this item's own rendered section**. My typed-count check run against
+  the **whole template** failed on the stylesheet's `margin:0 0 18px`, so it is scoped to this
+  item's own markup. Both are the same lesson: **a guard has to look at the thing the item
+  owns, or it reports on its neighbours.**
+
+* **A FOURTH DEFECT, IN MY OWN MUTATION HARNESS, AND CHASING IT MADE A REAL TEST STRONGER.**
+  The mutation for `MB26`'s no-pooled-bar rule was a **no-op**: it referenced a payload key
+  that does not exist, so Jinja produced `Undefined` and the template's own `if` filtered it
+  straight back out. Rewritten to actually append a pooled book, it was then caught **for the
+  wrong reason** — a key-ordering assertion raised first, leaving the assertion that encodes
+  the rule unexercised. **A guard that fires for an incidental reason is a guard nobody has
+  tested.** The rule was moved to the front of its test and its total is now computed from the
+  register rather than from the payload the mutation pollutes, and a **second** mutation types
+  the pooled bar straight into the markup so the render-level half is exercised too. Both
+  forms now fail with a message naming the defect.
+* **A PROPERTY WORTH RECORDING, seen while doing that:** the typed pooled bar is *also* caught
+  by the figure guard, because a bar the page does not legitimately render is **not in the
+  exemption**. The narrowness bought in section 1 is doing real work rather than sitting there.
+
+---
+
+## 6. An honest weakness in what this renders, reported rather than tuned away
+
+**A THIRD OF THIS WEEK'S ENTRIES BUCKET AS "OTHER VERDICT" — 25 of 75.** `bucket()` recognises
+five verdict openings (`ADOPTED`, `REJECTED`, `NULL`, `INCONCLUSIVE`, `FIXED`) and this week's
+register legitimately carries `STANDS`, `PORTED`, `VALIDATED` and others. **Widening that
+vocabulary was deliberately NOT done**: it is shared with the main record's own counts, so a
+new word would silently restate them, and `MA6` already refused exactly this for exactly this
+reason — a vocabulary of verdict words *"would cry wolf the first time someone wrote a new
+one"*. The blurb already says these are kept distinct so the record does not read as more
+decisive than it is. **Reported so the next reader does not mistake it for a rendering bug.**
+
+---
+
+## 7. Verification
+
+* **`tests/test_record_this_week.py` 25/25** (new); `tests/test_research_page.py` **30/30**;
+  `tests/test_research_log_integrity.py` **16/16**; 15 affected suites green **by exit code**.
+* **18 mutations, 18 caught, 0 missed**, sources restored byte-for-byte, with `-B`,
+  `PYTHONDONTWRITEBYTECODE=1` and a `__pycache__` purge between each.
+* The rendered section was read end to end and scanned line by line: **zero lines contain a
+  figure**.
+
+---
+
+## 8. Not done, named so it is not mistaken for done
+
+* **`SC-1`, `SC-2` and `SC-3` are NOT started.** `SC-3` charges 2 options trials and needs its
+  own blind register.
+* **The verdict vocabulary is NOT widened** — see section 6.
+* **No `RESEARCH_LOG.md` row**, zero trials, and `BACKTEST_RESULTS.json` needs no re-run.
+* **`/work/research` remains owner-only under private mode**; that allowlist was not widened.
+* **`.github/` untouched**, as instructed.
+
+---
+
 # Session 43 — 2026-08-19 — `MB10` + `MB11`: two disclosures, and neither is a signal
 
 **BOTH ZERO-TRIAL DISPLAY ITEMS.** No hypothesis, no threshold, no verdict against a bar, so no

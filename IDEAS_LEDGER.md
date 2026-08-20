@@ -168,7 +168,9 @@ correlated to 0.42).
 
 ---
 
-### SC-4 — "The record this week": the honest-research changelog as a product surface — `PROPOSED`
+### SC-4 — "The record this week": the honest-research changelog as a product surface — `EXECUTED 2026-08-19`
+
+*(Shipped on `/work/research`. The kill condition was run first and passes; the exemption widening it required was measured rather than argued. Ledger row `SC-4`; `HANDOFF_appfixes.md` session 44.)*
 
 *(Ranked above SC-3 on the zero-cost-items-rank-on-value rule.)*
 
