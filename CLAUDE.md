@@ -48,6 +48,87 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **A NAME'S OWN VALUATION HISTORY CARRIES ~71% NEW INFORMATION AND PREDICTS NOTHING WITH IT -
+  AND THE DURABLE PART IS THE CONTAMINATION §0 HAD TO RESOLVE BEFORE THE ARM COULD RUN
+  (2026-08-20, `E-6`/`S-SEED-2`).** `PREREG_e6_temporal_axis.md` committed **ALONE at
+  `0008008`**, markdown only, zero `.py`, 268 lines, a strict ancestor of every measurement
+  commit; **1 equity trial booked at `cfa9722` BEFORE the runner existed, equity 239 -> 240.**
+  **RE-READ AFTER MERGING (`MA37`, sixth time): the live equity `N` is 241, not 240** - the
+  `E-2` lane landed a trial while this was pushing, and the stamp was reconciled to the MEASURED
+  post-merge count with both hurdle literals DERIVED rather than typed.
+  **ADOPTS NOTHING.**
+  * **THE CONTAMINATION, AND WHY IT IS THE PART TO REMEMBER.** `I-2`'s burn-in census was
+    **already published** with two readings of the seed's *"burn-in pre-committed at 5y"* -
+    **60.607% at twenty observations** and **58.886% at twenty observations AND five calendar
+    years** - which **straddle the pre-committed 60% kill**. Choosing between them with both on
+    the page is `MA58`'s void condition 5, and **no argument from which side either lands
+    appears anywhere in the register.**
+  * **THE INTERNAL ANCHOR CANNOT DECIDE IT, CHECKED RATHER THAN ASSUMED:** the seed says *"5y"*
+    but *"first usable date ~2014"* fits 20 observations or 21, and *"a 10y burn-in leaves ~28
+    dates"* fits 41 slightly better than 40. **The seed is indeterminate to within ONE QUARTER,
+    which is exactly the size of the disagreement.**
+  * **RESOLVED ON AN EXTERNAL ANCHOR PREDATING THE CENSUS, VERIFIED IN THE SOURCE AND IN ITS OWN
+    GIT.** TIDEMARK's `percentile.py` rule 3 commits burn-in as an **OBSERVATION COUNT** and
+    `expanding_percentile` returns NaN before that many **valid observations** exist. **A
+    CORRECTION TO THE BRIEF: the commit is `76fa895`, 2026-08-16, NOT 2026-08-17** - a day
+    earlier, four days before the census, and it is recorded because a provenance argument with
+    a wrong date is not one. Three outcome-independent grounds: that provenance; **the PORT
+    implements the observation count while `min_history_years` is an OPTIONAL extra with no
+    default, so 58.886% is the engine PLUS a filter rather than a second reading of it**; and a
+    percentile's precision is a function of order statistics, not elapsed time. **THE
+    COUNTERFACTUAL TEST IS IN THE REGISTER: had the census come out the other way all three
+    grounds would still have chosen the observation count and the kill would have FIRED.**
+  * **`VOID-BY-CONTAMINATION` WAS AVAILABLE AND DECLINED WITH A REASON**, and the residual risk
+    is **BOUNDED rather than trusted**: a calendar sensitivity carrying no verdict and no trial
+    **AGREES** (NULL on both bases). **The asymmetry is stated - agreement is NOT proof the
+    choice was immaterial, because under the calendar reading the census fails its own kill and
+    that arm is underpowered by its own gate.**
+  * **TWO FINDINGS ABOUT THE BAR, TRUE WHICHEVER SIDE FALLS. (1) The two definitions differ by
+    ONE QUARTER** - 20 quarterly observations span 19 intervals and buy **4.75** years, not five
+    - **worth 1.77pp of eligibility, and the 60% bar sits INSIDE that single step**, so the kill
+    cannot discriminate at the resolution that separates them. **A successor must not set a
+    knife-edge burn-in bar.** **(2) The observation count is NOT the weaker requirement in
+    practice: the median scored row carries 10.018 calendar years**, p05 5.005, minimum 4.75.
+    The port's own invitation was to check whether twenty observations bought five years or
+    nine; **it bought ten.**
+  * **VERDICT `NULL`, rejected on both co-primary bases.** Incremental IC *t*: basis six
+    **-0.0010** full / +1.1315 early / -0.7862 late over 50 effective dates; basis seven
+    **+0.0386** / +1.2752 / -0.8469 over 49. **Largest absolute *t* in any cell of any arm is
+    1.2752 against 2.71.**
+  * **AND UNLIKE `E-3`, THE RAW COLUMN DOES NOT SORT EITHER - raw IC *t* +0.0296 and +0.0621.**
+    `E-3`'s dispersion raw-sorted at -2.17/-2.30 and lost it all to residualisation, which is a
+    repackaging; **here there was no signal to lose.** Observed incremental effect **0.0001 SD**
+    and **0.0055 SD** against 80%-power MDEs of 0.5020 and 0.5071 - **92x to 3,503x below its
+    own detection threshold.**
+  * **R2 ON INCUMBENTS 0.2926 / 0.2936, so the column is ~71% new information and predicts
+    nothing with it - the FIFTH item on that pattern**, though at a higher R2 than the
+    0.027-0.145 band of the four this file already names, so it extends the pattern rather than
+    repeating it.
+  * **CONTROLS.** `K1` re-derives the census rather than reading `I-2`'s JSON and **reproduces
+    its published figure exactly**. `K2` `MB7`'s repaired gate costs basis seven **exactly ONE
+    date** (2013-10-17 -> 2014-01-17), **precisely the exposure the register predicted before
+    running**, which is why it took both bases. `K3` largest |rho| is **`value` itself at
+    +0.4806**, then **`momentum` at -0.2721, NEGATIVE** - the direction the register
+    hypothesised for a change signal; diagnostic, no verdict. `K4` look-ahead **0.000e+00** over
+    52,519 rows.
+  * **A DEFECT IN MY OWN INSTRUMENT, CAUGHT BY THE SUITE:** `build` merged the percentile frame
+    on `date` without normalising, and while a dtype mismatch RAISES, **the dangerous case is a
+    merge matching ZERO rows in SILENCE** - this record's own documented hazard for these
+    string-dated panels. Both sides are now forced to one form **and the merge must have
+    attached a history to at least half the rows**. **Proved inert by re-running: every figure
+    bit-identical.**
+  * **REPORTED OUTSIDE THIS LANE: `I2_BURN_IN_CENSUS.json` was STRANDED in the `options-live`
+    worktree - the SECOND instance in two sessions** after `MA28_CARD.json`. Restored to the
+    primary data root; without it `K1` could not re-derive and `K4` could not read at all.
+    **An artifact written by a worktree-run script does not survive the worktree, and every
+    register reading a prior item's artifact inherits that.**
+  * **NOT DONE: no second theme, no burn-in grid, no interaction arm, no standardiser swap, no
+    adoption**, and **the mechanism is unmeasured** - that the column is orthogonal and inert is
+    measured; why a name's own valuation history carries nothing forward on this panel is not.
+    **Expectations 5 right, 1 wrong, 1 unscorable** - the miss is R2 (predicted below 0.20), and
+    the unscorable one is the sign, whose antecedent never fired. **16 new tests.**
+    `scripts/e6_temporal_axis.py`, `data/free_analysis/E6_TEMPORAL_AXIS.json`,
+    `E6_CONTROLS.json`; `HANDOFF_edge_audit.md` E-6.
 - **THE CROSS-THEME DISPERSION SORTS IN THE PUBLISHED DIRECTION AND IS A REPACKAGING OF THE
   INCUMBENTS - AND ITS ORTHOGONALITY IS GUARANTEED BY CONSTRUCTION, SO IT WAS NEVER WORTH
   ANYTHING (2026-08-20, `E-3`/`S-SEED-1`).** `PREREG_e3_theme_dispersion.md` **ACCEPTED** from

@@ -15997,3 +15997,170 @@ expectation the register promised to score.
 `scripts/e3_theme_dispersion.py`, `scripts/e3_addendum.py`;
 `data/free_analysis/E3_CONTROLS.json`, `E3_DISPERSION.json`, `E3_ADDENDUM.json`;
 `tests/test_e3_theme_dispersion.py` (21 tests).
+---
+
+# E-6 / S-SEED-2 — the temporal axis (TIDEMARK transform) (2026-08-20)
+
+**Season 2 `E-6`, gated on `I-2`. `PREREG_e6_temporal_axis.md` committed ALONE at `0008008` —
+markdown only, zero `.py`, 268 lines, a strict ancestor of every measurement commit. ONE equity
+trial booked at `cfa9722` BEFORE the runner existed: equity 239 -> 240. ADOPTS NOTHING.**
+**RE-READ AFTER MERGING (`MA37`, sixth time on this record): the live equity `N` is 241,
+not 240** -- the `E-2` lane landed a trial while this was pushing. 239 -> 240 describes
+E-6's own booking; **241 is the figure to quote**, and the stamp was reconciled to the
+MEASURED post-merge count with both hurdle literals DERIVED rather than typed. **A
+process note against myself: I chained the merge and the push in one command, so the
+stamp was stale for the length of one push. The rule is re-read `by_domain` BETWEEN the
+merge and the push, never after it.**
+
+## §0 IS THE DURABLE DELIVERABLE, AND IT HAD TO BE WRITTEN BEFORE THE ARM COULD RUN
+
+`I-2`'s burn-in census was **already published** with two readings of the seed's *"burn-in
+pre-committed at 5y"*:
+
+| reading | share | against the 60% kill |
+|---|---|---|
+| **20 observations** (declared) | **60.607%** | clears by 0.61pp |
+| 20 observations AND 5 calendar years | **58.886%** | fails by 1.11pp |
+| 21 observations, for context | 58.836% | fails |
+
+**Both are visible and they straddle the bar, so choosing between them now would be `MA58`'s
+void condition 5.** No argument from which side either lands appears in the register or here.
+
+**THE INTERNAL ANCHOR CANNOT DECIDE IT — CHECKED, NOT ASSUMED.** The seed says *"5y"* but its
+own worked examples point both ways: *"first usable date ~2014"* fits 20 observations
+(2014-01) or 21 (2014-04); *"a 10y burn-in leaves ~28 dates"* fits 41 observations (28)
+slightly better than 40 (29). **The seed is indeterminate to within ONE QUARTER, which is
+exactly the size of the disagreement.**
+
+**RESOLVED ON AN EXTERNAL ANCHOR THAT PREDATES THE CENSUS, VERIFIED IN THE SOURCE AND IN ITS
+OWN GIT.** `TIDEMARK/tidemark/stats/percentile.py` rule 3 commits burn-in as an **observation
+count** (*"360 months (30 years) for monthly series, 30 observations for annual"*), and
+`expanding_percentile` *"returns NaN before `burn_in` valid **observations** exist"* —
+`dropna()` then positional indexing, with *"(30 years)"* a parenthetical gloss on a dense
+series, **the same shape as the seed's "5y" gloss on a quarterly one.**
+
+**A CORRECTION TO THE INSTRUCTION THAT SENT ME: the commit is `76fa895`, `2026-08-16`, not
+2026-08-17** — one day earlier, four days before the census. It is recorded because a
+provenance argument whose date is wrong is not a provenance argument.
+
+**THREE OUTCOME-INDEPENDENT GROUNDS.** (1) That provenance. (2) **The PORT implements the
+observation count while `min_history_years` is an OPTIONAL extra with NO default**, so 58.886%
+is the engine *plus a filter a register must choose to impose* — the question is not which of
+two readings to take but whether to ADD a condition, and adding one needs a reason. (3) A
+percentile's precision is a function of order statistics, not of elapsed time; TIDEMARK's own
+rule says *"a percentile computed on eleven observations"*.
+
+**THE COUNTERFACTUAL TEST, STATED SO A READER CAN CHECK FOR RATIONALISATION:** had the census
+come out the other way, all three grounds would still have selected the observation count and
+**the kill would have fired**. None of them can see the outcome.
+
+**`VOID-BY-CONTAMINATION` WAS AVAILABLE AND IS DECLINED WITH A REASON** — a legitimate external
+anchor exists, predates the census, and is the engine this item is gated on; voiding where a
+principled resolution exists discards a real question to settle a definitional coin-flip. **The
+residual risk is BOUNDED rather than left to trust** by §4.3's calendar sensitivity.
+
+## TWO FINDINGS ABOUT THE BAR, TRUE WHICHEVER SIDE FALLS
+
+* **The two definitions differ by ONE QUARTER.** 20 quarterly observations span 19 intervals =
+  **4.75** years, so the calendar reading is essentially "one more observation" — worth
+  **1.77pp** of eligibility — and **the 60% bar sits INSIDE that single step.** The kill cannot
+  discriminate at the resolution that separates the two definitions (`MB15`'s
+  non-discriminating-gate finding in a smaller costume). **A successor must not set a
+  knife-edge burn-in bar.**
+* **The observation count is NOT the weaker requirement in practice.** On scored rows the
+  median history is **10.018 calendar years**, the 5th percentile **5.005**, the minimum
+  **4.75**. The port's own invitation was to *"check whether its median row got five years or
+  nine"* — **it got ten**, and only the bottom few percent sit near the boundary at all.
+
+## VERDICT `NULL` — rejected on both co-primary bases, and the sensitivity AGREES
+
+| arm | basis | dates | full | early | late | raw *t* | R2 |
+|---|---|---|---|---|---|---|---|
+| primary (observations) | six | 50 | **-0.0010** | +1.1315 | -0.7862 | +0.0296 | 0.2926 |
+| primary (observations) | seven | 49 | **+0.0386** | +1.2752 | -0.8469 | +0.0621 | 0.2936 |
+| calendar sensitivity | six | 50 | -0.0348 | +1.0127 | -0.7133 | +0.0919 | 0.2916 |
+| calendar sensitivity | seven | 49 | +0.0395 | +1.2137 | -0.7649 | +0.0919 | 0.2949 |
+
+Largest absolute incremental IC *t* in any cell of any arm is **1.2752** against **2.71**.
+
+**AND UNLIKE `E-3`, THE RAW COLUMN DOES NOT SORT EITHER.** `E-3`'s dispersion raw-sorted at
+*t* -2.17/-2.30 and lost all of it to residualisation — a repackaging. **Here the raw IC *t* is
++0.0296 and +0.0621, essentially zero before anything is removed.** There was no signal to lose.
+
+**BOUNDED, NOT ABSENT.** The observed incremental effect is **0.0001 SD** (basis six) and
+**0.0055 SD** (seven) against 80%-power MDEs of **0.5020** and **0.5071** — between **92x and
+3,503x below its own detection threshold**, where `MB18`'s strongest RAW anchor on rows of this
+shape is 0.4346 SD.
+
+**R2 ON INCUMBENTS 0.2926 / 0.2936**, so the column carries ~71% information the incumbents do
+not — **the FIFTH item to confirm orthogonality and predict nothing with it**, though at a
+higher R2 than the 0.027-0.145 band of the four `CLAUDE.md` already names, so it extends that
+pattern rather than repeating it exactly.
+
+## CONTROLS
+
+* **K1** the census is **RE-DERIVED** rather than read from `I-2`'s JSON and **reproduces its
+  published figure exactly** (`reproduces_I2_published = True`, tolerance 1e-12).
+* **K2** `MB7`'s repaired gate, `split_used="effective"`, coverage printed. **Basis seven loses
+  exactly ONE date** (2013-10-17 -> 2014-01-17) to `institutional`'s late start — **precisely
+  the exposure the register predicted before running**, which is why it took both bases rather
+  than the kinder one.
+* **K3** not a renamed incumbent: largest is **`value` itself at +0.4806** against a 0.90 bar,
+  then **`momentum` at -0.2721 — NEGATIVE**, which is the direction the register hypothesised
+  for a change signal (a name whose value score has RISEN). Diagnostic, no verdict.
+* **K4** no look-ahead: max |delta| **0.000e+00** over 52,519 rows on a truncated panel.
+* **§4.3** the calendar sensitivity **AGREES** (NULL on both bases), so §0's choice was
+  immaterial to the verdict. **The asymmetry is stated: agreement is NOT proof of
+  immateriality, because under the calendar reading the census fails its own kill and that arm
+  is underpowered by its own gate.**
+
+## A DEFECT IN MY OWN INSTRUMENT, CAUGHT BY THE SUITE
+
+`build` merged the percentile frame onto the panel on `date` without normalising. The port
+canonicalises dates while these panels carry them as **strings**, so the two sides can differ
+in dtype — and while a dtype mismatch raises (the safe direction), **the dangerous case is a
+merge that matches ZERO rows in SILENCE**, which is this record's own documented hazard for
+these panels. Both sides are now forced to one form **and the merge is required to have
+attached a history to at least half the rows**, so a near-empty join is loud. **Proved inert on
+the real panel by re-running: every figure is bit-identical to the pre-fix run.**
+
+Separately, the AST guard's non-vacuity companion had been copied from `E-3`, where it leaned
+on the runner's docstring happening to name a banned token. **This runner's docstring does not,
+so the guard was proved non-vacuous by an accident of prose** — it now shows the extractor
+discriminates instead.
+
+## EXPECTATIONS — 5 RIGHT, 1 WRONG, 1 UNSCORABLE
+
+1. Verdict NULL, 85/15 — **RIGHT**.
+2. `K3`'s largest |rho| is `value` itself, not `momentum`, 60/40 — **RIGHT** (+0.4806 vs
+   -0.2721).
+3. R2 below 0.20 on both bases, 70/30 — **WRONG**, 0.2926 / 0.2936.
+4. The sign, if anything shows, is POSITIVE as declared, 60/40 — **UNSCORABLE**: nothing shows,
+   so the antecedent never fired. The full-sample median incremental IC is positive on both
+   bases (+0.00174, +0.00172) while the late half is negative, so `declared_sign_respected` is
+   False everywhere — reported rather than counted as a win.
+5. Both bases give the same verdict, 80/20 — **RIGHT**.
+6. The calendar sensitivity agrees, 85/15 — **RIGHT**.
+7. Median `history_years` on scored rows exceeds 8 years, 80/20 — **RIGHT**, 10.018.
+
+## REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3)
+
+**`I2_BURN_IN_CENSUS.json` was STRANDED in `.claude/worktrees/options-live/data/` — the SECOND
+instance in two sessions of rule 9's own failure mode**, after `MA28_CARD.json` last session.
+Restored to the primary data root, which is what let `K1` re-derive against it and what lets
+`K4` read the look-ahead check at all. **The pattern is now worth a rule rather than two
+one-off fixes: an artifact written by a worktree-run script does not survive the worktree, and
+every register that reads a prior item's artifact inherits that.**
+
+## NOT DONE
+
+* **No second theme's percentile, no burn-in grid, no interaction arm** — §6.4, each is a new
+  hypothesis and charges its own trial. **One arm, no grid**, per the seed.
+* **No standardiser swap, no weighting, no book change** — §6.3; `S20`/`S21` are the graveyard.
+* **No adoption**, and nothing here is evidence about any theme other than `value`.
+* **The mechanism is unmeasured.** That the column is ~71% orthogonal and predicts nothing is
+  measured; WHY a name's own valuation history carries no forward information on this panel is
+  not, and would need its own register.
+
+`scripts/e6_temporal_axis.py`; `data/free_analysis/E6_CONTROLS.json`, `E6_TEMPORAL_AXIS.json`;
+`tests/test_e6_temporal_axis.py` (16 tests).
