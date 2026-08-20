@@ -303,6 +303,62 @@ def test_both_are_runnable_as_their_own_process():
         assert 'if __name__ == "__main__":' in _src(rel)
 
 
+# ---------------------------------------------------------------- import safety
+
+def test_the_resolver_does_not_raise_at_import_when_the_data_is_absent():
+    """THE REPAIR OF A TEST THAT PASSED LOCALLY AND FAILED IN CI - the worst way to be wrong.
+
+    The first cut raised SystemExit at MODULE SCOPE when MB1_LEGS.pkl was missing. This suite
+    imports the module, CI has no `data/`, so the whole suite died at import with the refusal
+    printed and nothing run - while passing here, because the data is on this machine. O14's
+    `chains_dir()` documents the identical hazard in a comment.
+
+    Verified against the CI CONDITION rather than assumed: a candidate list that resolves to
+    nothing must RETURN a path, not raise.
+    """
+    from scripts.mb1sel_range_control import _resolve_root
+    got = _resolve_root([os.path.join(REPO, "no-such-dir-a"),
+                         os.path.join(REPO, "no-such-dir-b")])
+    assert isinstance(got, str) and got, got
+
+
+def test_the_refusal_still_exists_but_only_under_strict():
+    """Import-safe must not mean silent: at USE it must still refuse."""
+    from scripts.mb1sel_range_control import _resolve_root
+    try:
+        _resolve_root([os.path.join(REPO, "no-such-dir")], strict=True)
+        raise AssertionError("strict mode let a missing artifact through")
+    except SystemExit:
+        pass
+
+
+def test_the_control_refuses_at_use_rather_than_at_import():
+    """Pinned on the source: `main` must call the strict resolver."""
+    tree = ast.parse(_src(CONTROL_SRC))
+    main = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "main")
+    strict = [n for n in ast.walk(main)
+              if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+              and n.func.id == "_resolve_root"
+              and any(k.arg == "strict" for k in n.keywords)]
+    assert strict, "main must invoke the strict resolver"
+
+
+def test_module_scope_raises_nothing():
+    """No module-level statement in either script may raise on a data-less machine."""
+    for rel in (CONTROL_SRC, ARM_SRC):
+        tree = ast.parse(_src(rel))
+        for node in tree.body:
+            if isinstance(node, ast.Raise):
+                raise AssertionError("%s raises at module scope" % rel)
+            if isinstance(node, ast.Assign):
+                for sub in ast.walk(node):
+                    if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name) \
+                            and sub.func.id == "_resolve_root":
+                        assert not any(k.arg == "strict" and getattr(k.value, "value", False)
+                                       for k in sub.keywords), \
+                            "%s resolves strictly at module scope" % rel
+
+
 if __name__ == "__main__":
     fails = 0
     names = [n for n in sorted(globals()) if n.startswith("test_")]

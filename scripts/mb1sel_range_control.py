@@ -34,12 +34,36 @@ import numpy as np
 _HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def _data_root() -> str:
-    for cand in (os.path.join(_HERE, "data"),
-                 os.path.join(_HERE, "..", "..", "..", "data")):
+def _resolve_root(candidates, strict: bool = False) -> str:
+    """Probe for the LEGS ARTIFACT itself, never for the directory.
+
+    `DEEPITM-FIN` shipped a resolver that preferred an EMPTY `bars` directory over a populated one
+    because it tested existence; existence is not population.
+
+    IMPORT-SAFE BY DESIGN, and that is a repair rather than a preference. The first cut raised
+    `SystemExit` here, at module scope - so importing this module on a machine without `data/`
+    killed the process. `tests/test_mb1sel_selection_residual.py` imports it, CI has no `data/`,
+    and the whole suite died at import with the refusal printed and nothing run. It passed locally
+    because the data is here. `O14`'s `chains_dir()` documents this exact hazard in a comment:
+    *"Resolved on first USE rather than at import: tests import this module and CI has no D:
+    drive, so resolving at module level would raise at import time and take the suite down."*
+
+    So the refusal moved to USE (`main`), where it belongs, and import returns a best-effort path.
+    """
+    for cand in candidates:
         if os.path.isfile(os.path.join(cand, "MB1_LEGS.pkl")):
             return os.path.abspath(cand)
-    raise SystemExit("REFUSING: MB1_LEGS.pkl not found - MB1's arms pass must have run")
+    if strict:
+        raise SystemExit("REFUSING: MB1_LEGS.pkl not found - MB1's arms pass must have run")
+    return os.path.abspath(candidates[0])
+
+
+def _candidates():
+    return [os.path.join(_HERE, "data"), os.path.join(_HERE, "..", "..", "..", "data")]
+
+
+def _data_root() -> str:
+    return _resolve_root(_candidates())
 
 
 DATA = _data_root()
@@ -65,6 +89,8 @@ def _shift(covered, uncovered):
 
 
 def main():
+    # The refusal lives HERE, at use, not at import - see `_resolve_root`.
+    _resolve_root(_candidates(), strict=True)
     legs = pickle.load(open(LEGS_IN, "rb"))
     a_legs, c_legs = legs["alert"], legs["control"]
 

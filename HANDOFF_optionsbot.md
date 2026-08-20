@@ -8219,6 +8219,27 @@ fingerprinted in the output. `pre_panel_history` filtering is **inherited from `
 read** and the key is absent from the banked artifacts — reported **VACUOUS rather than PASSING**
 (`O21-D2`'s C5 precedent). **`R2` stands and `O11` binds.**
 
+### 69.9 A DEFECT IN MY OWN SUITE THAT PASSED LOCALLY AND FAILED IN CI — the worst way to be wrong
+
+**The land gate caught it, and the local gate could not have.** `_data_root()` raised `SystemExit`
+at **module scope** when `MB1_LEGS.pkl` was absent. This suite imports the module; **CI has no
+`data/`**; so the whole suite **died at import** with the refusal printed and **nothing run**,
+while passing here because the data is on this machine.
+
+**`O14`'s `chains_dir()` documents the identical hazard in a comment I had read earlier in the same
+session:** *"Resolved on first USE rather than at import: tests import this module and CI has no
+D: drive, so resolving at module level would raise at import time and take the suite down."*
+
+**Repaired at the right layer rather than by weakening the check:** the resolver is now import-safe
+by default and **the refusal moved to USE**, where `main()` calls it with `strict=True`. So a
+data-less machine can import and test, and a real run still refuses.
+
+**VERIFIED AGAINST THE CI CONDITION RATHER THAN ASSUMED** — which is the whole lesson, since the
+local run is what missed it: the two scripts were copied into a throwaway tree with no `data/`
+anywhere above them, and **import exits 0 while `python -m scripts.mb1sel_range_control` still
+exits 1 with the refusal**. Four tests pin it, including an AST check that **no module-level
+statement resolves strictly**.
+
 **Scripts:** `scripts/mb1sel_range_control.py`, `scripts/mb1sel_arm.py` (shipped complete and
 never run). **Artifact** (gitignored): `data/free_analysis/MB1SEL_RANGE_CONTROL.json`. **Tests:**
-`tests/test_mb1sel_selection_residual.py`, 22 tests. **129 suites, 0 failures after merging `origin/main`.**
+`tests/test_mb1sel_selection_residual.py`, 26 tests. **129 suites, 0 failures after merging `origin/main`.**
