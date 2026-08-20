@@ -95,6 +95,24 @@ from valuation.edge import research_log as RL               # noqa: E402
 #                                                               PLACE - MB16 measured that
 #                                                               a second verdict row
 #                                                               charges the trial twice.)
+#   2026-08-20  equity 238 -> 239                             (E-2, 1 arm, BOOKED BEFORE
+#                                                               THE RUN. Accepted VERBATIM
+#                                                               from the scout's draft and
+#                                                               committed ALONE at c93ffc8.
+#                                                               The draft's own stated
+#                                                               charge was stale TWICE
+#                                                               over - equity moved via
+#                                                               E-1 and E-5 the same day -
+#                                                               which is why this dict is
+#                                                               re-read post-merge and
+#                                                               never quoted from a draft.)
+#   2026-08-20  equity 239 -> 240   RECONCILED, NOT BOOKED. E-2 and E-3 BOTH booked
+#               238 -> 239 concurrently, from the same base, each correctly stamping 239
+#               for its own lane. Merged, the log carries BOTH rows and the true count is
+#               240 while both stamps read 239 -- so E-2's land FAILED on this very test,
+#               which is the tamper-evidence working rather than a defect. Reconciled to
+#               the MEASURED post-merge count, never to either lane's side (MA37). No
+#               third trial was charged: two registers, two trials, 238 -> 240.
 #   ---- the two infra entries above are INDEPENDENT registers landing the same day, and
 #        the dict below is MEASURED post-merge rather than taken from either side.
 #   2026-08-20  infra 18 -> 19                                 (SC-1, 1 trial BOOKED BEFORE the run

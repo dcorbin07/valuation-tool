@@ -307,6 +307,71 @@ the project's memory and the old versions had been repeated for months.
     `scripts/e5_hazard_curve.py`, `scripts/e5_addendum.py`, `valuation/studies/hazard_curve.py`,
     `data/free_analysis/E5_HAZARD_CURVE.json`, `E5_CONTROLS.json`, `E5_ADDENDUM.json`;
     `HANDOFF_edge_audit.md` E-5.
+- **DELTA-COMPOSITE IS THE CLEANEST NON-COSTUME THIS RECORD HAS EVER MEASURED AND IT PREDICTS
+  NOTHING - SIX CELLS OF SIX NULL, AND THE LARGEST ONE POINTS THE WRONG WAY (2026-08-20, `E-2`).**
+  `PREREG_e2_delta_composite.md` **ACCEPTED VERBATIM** from the Frontier Scout's draft and
+  committed **ALONE at `c93ffc8`**, markdown only, 194 lines, a strict ancestor of every
+  measurement commit, with the **equity trial BOOKED AT `441344c` BEFORE the instrument was
+  written or run** (equity `N` 238 -> 239). **ADOPTS NOTHING.**
+  * **THE OBJECT.** `dc(i,t) = c(i,t) - c(i,t-1)` on consecutive rebalance dates, `c` being the
+    SHIPPED composite via `composite_from_frame` - Novy-Marx's fundamental-momentum hypothesis
+    applied to the score itself. Verified never tested: no row among 289 in the ledger and no item
+    in the 134-item audit set tests a change-in-score signal.
+  * **IT CLEARS ITS COSTUME TESTS MORE CLEANLY THAN ANY CANDIDATE BEFORE IT, WHICH IS WHY THE NULL
+    IS WORTH RECORDING.** `K1` vs the `momentum` theme **0.1320**; `K2` vs the banked PEAD columns
+    **0.1030** max (`z_pead_car` 0.1030, `z_pead_drift` 0.0986); `K3` vs the composite **LEVEL**
+    **0.4149 with ZERO of 68 dates above the 0.60 bar**. So it is not price momentum, not PEAD
+    resurrected, and not a re-ranking of the product. **Five of the last six candidates were
+    confirmed orthogonal and predicted nothing; this one is the cleanest of them and also predicts
+    nothing.**
+  * **VERDICT NULL, SIX CELLS OF SIX, declared sign POSITIVE against a 2.71 bar.** Basis six full
+    *t* **-0.8501**, early **-2.6511**, late **+0.6234**; basis seven full **-0.5428**, early
+    **-0.3342**, late **-0.7799**. **EVERY CELL SITS BELOW ITS OWN 80%-POWER MDE, at 0.09x to
+    0.75x**, so the register's own sentence binds: a NULL means *"no trajectory effect at least as
+    large as the best single signal this panel has ever carried"* (**0.4346 SD**), never "no
+    effect".
+  * **THE LARGEST |t| ANYWHERE IS IN THE WRONG DIRECTION AND CARRIES NO CLAIM.** Basis six's EARLY
+    half at **-2.6511** misses the bar's magnitude by **0.0589** against a declared POSITIVE sign.
+    It is one of six cells, contradicts the declared direction, and sits at **0.75x of its own
+    detection threshold**. Reported only because a reader would otherwise discover it; **chasing it
+    would be selecting a cell on its outcome and needs its own register.**
+  * **AND THE DECLARED SIGN IS NOT WHAT PRODUCED THE NULL - a TWO-SIDED reading is ALSO null, for
+    two independent reasons, pinned by test.** Basis six's halves **DISAGREE IN SIGN** (-2.6511
+    early, +0.6234 late) so the both-halves rule fails in EITHER direction; basis seven's halves
+    agree in sign and its largest |t| is **0.7799**. **The halves disagreeing in sign is this
+    record's most repeated pattern - session 7's LOO, `S17`, `V6`, `S8`/`S9`, `S11`/`S12`,
+    `O21-D2` - and this is a seventh instrument showing it.**
+  * **`C-FIDELITY` WAS ADDED BY THE EXECUTOR BECAUSE THE DRAFT HAD NO SUCH CONTROL, and it is
+    EXACT.** The composite being differenced reproduces the published record at **max |delta|
+    0.000e+00** on all four figures. That hole is the one `MB18` fell into two items ago and the
+    one `MA28`'s equivalent control caught **on its own first run**. A control can only BLOCK,
+    never produce (`MB1-SEL`), and it moved no registered bar.
+  * **`MB7`'s REPAIRED GATE DID REAL WORK, AND THIS IS THE FIRST REGISTER SAVED BY IT.** On basis
+    seven the RAW-then-intersect split reads **`ok=False` at 15/33** while the EFFECTIVE split is
+    **24/24** - exactly the refusal-3 case `split_used="effective"` was created for in `MB18`,
+    where a refusal keyed on a property of the DATA rather than the caller's BEHAVIOUR fired
+    against a register doing the right thing. **Without that repair E-2 would have been refused.**
+  * **A SCOPE CORRECTION THE DRAFT DOES NOT MAKE, DECLARED BEFORE THE RUN: THE OBJECT IS A CHANGE
+    IN RELATIVE STANDING.** `composite_from_frame` standardises **WITHIN each date**, so a name
+    whose fundamentals improve exactly as much as the cross-section's has **`dc` near ZERO**, and a
+    name standing still amid deterioration has `dc > 0`. The register's section 1 describes an
+    **ABSOLUTE** improvement and the object measures a **RELATIVE** one. **Not a reason to reject** -
+    a cross-sectional book ranks names against each other - but every verdict here is a verdict
+    about relative standing, and that sentence ships in the artifact.
+  * **THE COUNTER WAS STALE TWICE OVER**, which is why `by_domain` is re-read and never quoted: the
+    draft says 235 -> 236 and equity had already moved to **238** the same day via `E-1` and `E-5`.
+    **`MA37`'s rule, for the fourth time.** And a **`M1-PARSE` near-miss**: the first cut of both
+    rows wrote `|t|` in prose, splitting the log row into 15 cells against a 9-column header -
+    caught by `rows_malformed` before landing, and the only fix is not to put a pipe in the prose.
+  * **SURVIVOR TILT PRINTED RATHER THAN ASSUMED, as section 2 requires, and it is material: median
+    market cap kept $5.12bn against dropped $1.80bn, a 2.845x tilt** on 97.61% coverage over 68 of
+    69 dates. **NOT DONE: no smoothing, no longer lookback, no multi-horizon delta** (section 6
+    void condition 1 forbids a grid, and the consecutive-dates-only rule is pinned on a synthetic
+    panel with a deliberate hole); **PEAD is not re-opened**; no product copy, no weighting change,
+    no holding-period claim. **Expectations 3 right, 1 wrong, 1 split - the informative miss being
+    that the draft priced a POSITIVE LATE-half effect and the strongest cell is a NEGATIVE
+    EARLY-half one.** **141 suites, 0 failures; 19 new tests.** `scripts/e2_delta_composite.py`,
+    `data/free_analysis/E2_KILLS.json`, `E2_ARM.json`; `HANDOFF_edge_audit.md` E-2.
 - **THE GRAVEYARD AGGREGATE IS A SIZE SORT AND THE ARM NEVER RAN - `R6`'s AUTOPSY CALLED THIS
   FAILURE IN ADVANCE, ON A SET FIVE TIMES LARGER AND BUILT BY A DIFFERENT RULE (2026-08-20,
   `E-1`).** `PREREG_e1_graveyard_stouffer.md` **ACCEPTED VERBATIM** from the Frontier Scout's
