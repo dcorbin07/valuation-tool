@@ -14524,11 +14524,59 @@ assertions carry no message — which is why the CI log shows a bare `FAIL ...:`
 it. **The test's own comment already records the symptom** — *"an intermittent failure, observed
 once"* — and a previous fix loosened a tolerance rather than removing the randomness.
 
-**Not fixed here** (it is not this lane's file, and the fix is a design choice between seeding the
-fixture deterministically and widening the bounds). **Owner: the screener lane.** The one-line
-version is `hash(ticker)` → a stable digest, e.g. `zlib.crc32(ticker.encode())`, which makes the
-whole suite reproducible and would have made this failure appear on the first local run instead of
-once in CI.
+**AND THE FAILURE IS NOW A ONE-COMMAND REPRODUCER RATHER THAN AN INTERMITTENT:**
+
+```
+PYTHONHASHSEED=179 python tests/test_screener.py test_portfolio_sector_cap_and_weights
+```
+
+**4 of 4 runs fail**; it failed on **1 of the first 200 seeds** swept, which is the ~0.5% rate that
+makes it "observed once" rather than obviously broken.
+
+**THE ASSERTION THAT FAILS IS THE SECTOR CAP, AND UNDER IT SITS A REAL PRODUCT BEHAVIOUR RATHER
+THAN A LOOSE TEST BOUND.** Under seed 179 `build_portfolio(..., max_sector_weight=0.30)` reports
+**`max_sector_weight = 0.304900`** against the test's 0.301 - a **+0.0049 overshoot**, five times
+the ~0.001 residual that bound assumes. Under seed 0 the cap does not bind at all (0.2789), which
+is why the test usually passes.
+
+**`_apply_sector_cap` is a TRUNCATED FIXED-POINT ITERATION.** Each pass scales the over-cap sector
+to exactly `cap` and then calls `_normalize`, which re-inflates it; the residual shrinks
+geometrically and the loop stops at a hard `passes=6` whether or not it has converged. Measured on
+seed 179's own universe, using `build_portfolio`'s own raw-weight construction:
+
+| passes | max sector weight | overshoot |
+|---|---|---|
+| 1 | 0.348943 | +0.048943 |
+| 2 | 0.332552 | +0.032552 |
+| 4 | 0.313081 | +0.013081 |
+| **6 (shipped)** | **0.304915** | **+0.004915** |
+| 10 | 0.300651 | +0.000651 |
+| 20 | 0.300004 | +0.000004 |
+| 60 | 0.300000 | 0.000000 |
+
+The shipped `build_portfolio` reports **0.304900**, matching the `passes=6` row to rounding. **So
+the sector cap is SOFT by an amount that depends on how concentrated the book is, `passes=6` is an
+undeclared convergence budget, and nothing currently reports the residual.**
+
+**A CORRECTION AGAINST MY OWN FIRST TWO ATTEMPTS AT THIS MECHANISM, recorded because the error is
+the instructive part.** I proposed the truncation mechanism, then ran a probe that appeared to
+REFUTE it - +0.000029 at `passes=6` - and was one step from reporting the mechanism as
+not-diagnosed. **That probe was wrong: it built the raw weights as `max(hot_score, 0)` while
+`build_portfolio` uses `hot_score - min + 1.0`, a SHIFT rather than a clip**, which is a much
+flatter vector and a differently concentrated book. Re-running against the shipped construction
+reproduces the shipped number exactly. **This is audit `B7`'s class in miniature: I re-derived a
+construction instead of calling it, and the re-derivation quietly answered a different question.**
+
+**Not fixed here** - `valuation/screener/portfolio.py` is a LIVE PRODUCT PATH and not this lane's,
+and there are two separable decisions in it. **Owner: the screener lane.**
+
+1. **The flakiness** is `tests/screener_fixtures.py:18`. `hash(ticker)` -> a stable digest such as
+   `zlib.crc32(ticker.encode())` makes the whole suite reproducible, and would have surfaced this
+   on the first local run instead of once in CI.
+2. **The soft cap** is `_apply_sector_cap`'s `passes=6`: iterate to a tolerance rather than a fixed
+   count, or normalise only the UNCAPPED names, or declare the cap soft and report the residual.
+   **Changing it moves a shipped portfolio's weights, so it is a construction change rather than a
+   bug fix** - which is precisely why this lane reports it and does not take it.
 
 **This is the THIRD flake reported in one day** and the third with the same shape — a guard or
 fixture that behaves differently where it is run: `MB42`'s path-separator assertion (green in CI,
