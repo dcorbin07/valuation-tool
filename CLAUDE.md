@@ -48,6 +48,112 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE SEASON-2 INSTRUMENTS ARE BUILT, AND ONE OF THEM DECIDES `E-6` BY A WORD: A FIVE-YEAR
+  BURN-IN MEANS 60.61% OF ROWS IF IT IS TWENTY OBSERVATIONS AND 58.89% IF IT IS FIVE CALENDAR
+  YEARS, WHICH LAND EITHER SIDE OF `E-6`'s OWN PRE-COMMITTED 60% KILL (2026-08-20, `I-2`+`I-3`).**
+  `IDEAS_LEDGER.md` PART 3, one batch, **ZERO TRIALS, both `FIXED`-class** - no hypothesis, no
+  bar, no verdict, and for `I-2` no outcome relationship computed at all. `by_domain` is
+  **bit-identical** across the log append (equity **236**, options **305**, infra **19**) while
+  `rows_fixed_not_counted` rises **71 -> 73**, the proof both rows were seen and correctly
+  excluded. **ADOPTS NOTHING AND MOVES NO PUBLISHED CLAIM.** Nothing under `.github/` changed.
+  * **THE TRIAL DIVERGENCE IS DELIBERATE AND THE COUNTER-ARGUMENT IS ON THE RECORD.**
+    `IDEAS_LEDGER` prices each at 1 infra trial; both are logged at **zero** on the `MA5`
+    precedent (a consolidation is a correctness repair) and the `S25`/`MB15`/`MB3` precedent (a
+    census is a fact about what data exists). The scout lane's own header says its entries are
+    **proposals that move no counter**, and **infra `N` gates no published claim** either way.
+    The honest objection is that `I-2`'s census IS `E-6`'s pre-outcome kill input - and
+    `MB1-SEL` governs: *"a control can only ever BLOCK a finding, never produce one, so it adds
+    no degree of freedom to any published claim."* **No comparison to 60% is made or recorded
+    anywhere in the batch.**
+  * **`I-2` - THE FINDING, AND THE MECHANISM IS AN OFF-BY-ONE WORTH KEEPING.** TIDEMARK's
+    expanding-percentile engine ported to **per-name** histories (expanding window; no
+    look-ahead enforced by test; a burn-in returning `NaN` and never a number; publication lag
+    applied). On 113,945 rows over 69 quarterly dates and 2,531 names the eligible row share runs
+    **0.9335 at a 4-observation burn-in, 0.6821 at 16, 0.6061 at 20, 0.5394 at 24, 0.3160 at
+    40**. **On a QUARTERLY panel the 20th observation sits NINETEEN quarters - 4.75 years - after
+    the first, so twenty quarters is not five years**: requiring twenty observations AND five
+    calendar years leaves **0.5889**, and twenty-one observations **0.5884**. TIDEMARK never had
+    to choose because its series is dense; this panel's median name is present on 48 of 69 dates,
+    so **an observation count and an elapsed span come apart and a register must say which it
+    means**. `history_years` now ships on every row so a register saying "five years" can check
+    whether it got five years. **`E-6` MUST DECLARE ITS READING BEFORE IT RUNS** - both shares
+    are on the record, so choosing after seeing them is `MA58`'s void condition 5.
+  * **THE LOAD-BEARING TEST IS PORTED AND ITS PANEL FORM IS STRONGER THAN THE SERIES FORM.**
+    TIDEMARK's own comment on it is *"if this fails, every percentile in the project is a lie"*;
+    the panel version must hold **for every name at once, including names that enter and leave**,
+    which a single dense series never exercises. Demonstrated on the **REAL panel** rather than
+    only a fixture: truncate to the first 34 of 69 dates, **52,519 rows, keys identical, max
+    |delta| 0.000e+00**. **`MB24` UNTOUCHED - method crosses, no TIDEMARK data crosses**, the
+    `MB22`/`MB23` fence, pinned by a path-shape sweep. **The scout's 10-year suspicion is
+    CONFIRMED with a small correction: 30 eligible dates against its predicted 28, and `S18`
+    needs 32**, so a decade-long burn-in does die at that floor.
+  * **`I-3` - MA28's VERDICT MACHINERY IS NOW ONE IMPLEMENTATION, AND IT IS PROVED UNMOVED TWO
+    WAYS.** `B7`'s nine-call-sites lesson; the consumers the ledger names are `E-4`, `E-5`
+    (`INV-A`), `E-8` (`X-SEED-1`) and `O-1`'s C1. `scripts/ma28_riskcard.py` DELEGATES, and the
+    library reproduces the banked `MA28_CARD.json` at **66 leaves, max |delta| 0.000e+00, zero
+    moved, nothing added or removed** - and separately reproduces the **pre-refactor source
+    restored from git**, which is what isolates the refactor from any data drift the first
+    comparison alone cannot see. The leaf COUNT is gated, because `MB21`'s `C1` scored a perfect
+    0.000e+00 on an empty frame by comparing nothing.
+  * **THE DESIGN DECISION: THE ARITHMETIC MOVED AND THE BARS DID NOT.** Moving `MA28`'s constants
+    into the library is the obvious approach and it is wrong - `MA5` measured that a default is
+    exactly how the Harvey-Liu-Zhu bar froze at 3.0, and **these bars are worse because they are
+    PRE-COMMITTED** (`MA28`'s own source: *"EVERY CONSTANT BELOW IS FROM THE REGISTER. Changing
+    one after a measurement voids the item."*). A library default would let a future register
+    inherit `MA28`'s pre-registration **without writing one**. So every bar is keyword-only with
+    **no default**, a test asserts **no bar-shaped constant exists in the module at all**, and
+    the `B2`/`B3` result keys are **FORMATTED from the bars rather than typed** - or a 3.0x
+    comparison ships under a key saying 2.0x, which is `MA49`/`MA46`/`U3`'s family.
+  * **`quotable()` HAS NO DIFFERENCE FIELD IN ANY STATE, AND WITHHOLDS A RATIO BUILT ON TOO FEW
+    EVENTS.** `MA28-CARD`'s rule is a measurement: the base rate moved **0.3413% early against
+    1.3595% late**, so the absolute gap swings **0.86pp -> 2.39pp** while the ratio barely moves
+    (**3.42 -> 2.93**). The difference is still computed - `MA28`'s B1 and B3 are defined on it -
+    so the library separates an internal STATISTIC from a quoted FIGURE. And `MB8`'s lesson is
+    structural now: one crash of 407 is a count, not a rate, so the counts travel and the ratio
+    does not.
+  * **THE REQUIRED-N HOOK PRODUCES A NUMBER `E-4` NEEDS, AND IT IS NOT THE TEXTBOOK ONE.** At
+    `E-4`'s own 0.87%/qtr clean-subset base rate, a 2.0x target ratio and `MA28`'s 3.56% flagged
+    share, the honest requirement is **52,190 rows against the equal-allocation 5,489 - ignoring
+    the allocation understates by 9.51x**, because the textbook two-proportion formula assumes
+    equal group sizes and this book is nowhere near it. **So `E-4` is powered on the 113,945-row
+    PANEL and is NOT powered on the 11,426-holding BOOK**, by nearly five-fold. The critical value
+    is delegated to `power_gate` and still refuses to default through the extra layer.
+  * **A MISSING OUTCOME IS NOT AN ABSENT CRASH - AND HERE THE GUARD IS VACUOUS, NOT PASSING.**
+    `crash_flag` fails OPEN on a NaN forward return, as `MA28`'s did, and that is preserved so
+    the arithmetic stays `MA28`'s; `coverage()` now reports the hole. **On this panel it is zero -
+    113,945 of 113,945 rows carry an outcome - so it is reported VACUOUS rather than PASSING**
+    (`O21-D2`'s `C5` precedent).
+  * **FOUR OF MY OWN GUARDS FIRED AGAINST THE CORRECT TREE, AND ALL FOUR ARE ONE DEFECT.** A
+    docstring citing TIDEMARK's file paths; an artifact key `fwd_ret_loaded` whose whole job is
+    to record that the outcome was NOT loaded; a key
+    `e6_reads_this_but_no_verdict_is_recorded_here`; and an error message containing both the
+    word TIDEMARK and a colon. **Every one was a ban on a SUBSTRING tripped by prose documenting
+    the rule** - `MA49`'s family, and `MB1` already wrote the fix down after hitting it three
+    times in one register. **The substring ban is not a technique that works.** Replaced by exact
+    match, a verdict VOCABULARY, and a path-SHAPE regex requiring a separator, **each with a
+    positive control proving it still bites**. A fifth defect was found by mutation rather than by
+    reading: a date test asserted that *something* raised `ValueError` and **passed with the guard
+    deleted**, because pandas rejects the same string downstream - repaired by asserting the
+    message and adding a case pandas accepts happily.
+  * **A DEFECT OF MY OWN FROM THE PREVIOUS ITEM, FOUND HERE.** `EXPECTED_BY_DOMAIN` was assigned
+    **TWICE** in `tests/test_research_log_integrity.py` - `equity: 235` above `equity: 236` - for
+    four days, from `MB8`'s own merge commit `3def224`, which resolved two lanes booking trials
+    concurrently by **keeping both sides**. That is right for ledger ROWS and **wrong for a
+    single-valued CONSTANT**, where the first becomes dead code. The suite passed throughout
+    because Python takes the last one, **which is precisely the tamper-evidence defeated**. The
+    merge was CLEAN - adjacent insertions, no conflict markers, nothing to review - `MA23`'s
+    cross-lane shape. Fixed, with a new guard reading the **AST** so a comment quoting an old
+    stamp cannot trip it.
+  * **NOT DONE, named so it is not mistaken for done: `E-6` IS NOT RUN, NOT RESOLVED AND NOT
+    PRE-JUDGED**, and its 60% comparison is made nowhere in this batch; **`E-4`, `E-5`, `E-8` and
+    `O-1`'s C1 are NOT run** - the library has no consumer beyond `MA28`, which is the point,
+    since it was validated BEFORE anything new used it (`MB15`); **`I-1` and `I-4` are NOT
+    built**; and **`IDEAS_LEDGER.md` WAS NOT EDITED** - the scout lane reserves that file and
+    routes outcomes through Don, so the census wants relaying into its `OUTCOMES RELAYED`
+    section. **67 new tests (30 + 36 + 1), 13 of 13 mutations caught with sources restored byte-for-byte.**
+    `valuation/studies/name_percentile.py`, `crash_gate.py`, `scripts/i2_burn_in_census.py`,
+    `scripts/i3_crash_gate_validate.py`, `data/free_analysis/I2_BURN_IN_CENSUS.json`,
+    `I3_CRASH_GATE_VALIDATION.json`; `HANDOFF_edge_audit.md` I-2 plus I-3.
 - **MA28's CRASH FLAGS ARE REAL ON THE PANEL AND NEARLY ABSENT FROM THE BOOK - AS A 0.5x SIZING
   HAIRCUT THEY REMOVE ONE CRASH IN EIGHTY-FOUR, AND RENORMALISING MAKES THE BOOK'S CRASH EXPOSURE
   SLIGHTLY WORSE (2026-08-20, `MB8`).** `PREREG_mb8_sizing_haircut.md` committed **ALONE at
