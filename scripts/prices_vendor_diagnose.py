@@ -50,16 +50,6 @@ MARK_DATE = "2026-08-06"        # the recorded row index_mark re-derived
 MAX_EMPTY = 12                  # contamination floor: above this we are throttled, not measuring
 
 
-def _data(*parts) -> str:
-    p = os.path.join(_REPO, "data", *parts)
-    if os.path.isdir(p):
-        if os.listdir(p):
-            return p
-    elif os.path.exists(p):
-        return p
-    return os.path.join(_PRIMARY, "data", *parts)
-
-
 def probe() -> dict:
     """Which vendor actually serves, and HOW the primary refuses."""
     import requests
@@ -109,9 +99,18 @@ def seam() -> dict:
     """Is `index_mark`'s +0.0201pp book-leg seam the adjustment flag? Same vendor, same dates."""
     import yfinance as yf
 
-    book = json.load(io.open(_data("valquo_index.json"), encoding="utf-8"))
-    positions = book.get("positions") or book.get("holdings") or []
-    bench = book.get("benchmark") or "SPY"
+    # THE BOOK IS READ THROUGH `index_mark.load_book()`, NOT OPENED HERE. Two mechanisms
+    # reading one named object is the `PT-SPLIT` shape -- that is how the Index and the sandbox
+    # engine came to record different books under one name -- and
+    # `tests/test_index_book_publish.py` polices exactly this. `load_book` resolves the path via
+    # `index_track.default_paths()`, which is the one place it is spelled.
+    from valuation.screener import index_mark as _im
+
+    book = _im.load_book()
+    if not book.get("ok"):
+        raise SystemExit("book unreadable: %s" % book.get("reason"))
+    positions = book["positions"]
+    bench = book["benchmark"] or "SPY"
     if not positions:
         raise SystemExit("no positions in the book — refusing to report a vacuous seam")
     print("book: %d positions, benchmark %s" % (len(positions), bench))

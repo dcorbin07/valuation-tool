@@ -1188,6 +1188,22 @@ the old source for the right reason.
   `PRICES-SRC`:** the failure is a filesystem write, the test passes 3 runs in 4, and it flakes
   identically whether or not the vendor label is present.
 
+* **A PROCESS ERROR OF MINE, CAUGHT BY CI RATHER THAN BY ME, AND THE GUARD THAT CAUGHT IT WAS
+  RIGHT.** `scripts/prices_vendor_diagnose.py` opened `data/valquo_index.json` directly, and
+  `tests/test_index_book_publish.py` failed the land with *"new consumers of
+  data/valquo_index.json ... Two mechanisms reading one named object is the `PT-SPLIT` shape —
+  reconcile them deliberately, then add the file here."* **That is exactly the defect it
+  describes**: `PT-SPLIT` is the item where the Index and the sandbox engine recorded *different
+  books under one name* for four days. Fixed the way the guard asks — the script now reads the
+  book through **`index_mark.load_book()`**, the one reader, which resolves the path via
+  `index_track.default_paths()` — rather than by widening the allowlist, which would have added
+  a second mechanism and called it approved.
+
+  **Why it reached CI at all is the part worth recording: I added that file AFTER my local gate
+  had already started, and pushed without re-running it.** The gate reported 145/146 on a tree
+  that did not contain the new script. **A gate is evidence about the tree it ran on, and adding
+  a file afterwards silently invalidates it.** The re-gate below runs on the final tree.
+
 ## What I did NOT do
 
 * **I did not change how the book is priced.** The seam is now diagnosed; closing it means
