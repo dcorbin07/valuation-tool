@@ -70,6 +70,21 @@ yfinance, and **the fallback is what serves this today**: Stooq's daily-CSV endp
 rather than as a gap in SPMO. yfinance returns SPMO cleanly on every date the series needs.
 That `get_history_df` swallows the primary's failure and falls through silently is a property
 of the shipped module, reported and not repaired here.
+
+**REPAIRED 2026-08-21 (`PRICES-SRC`), and this module gets the fix for free.** The fallback
+stays -- resilience was never the defect, silence was -- but every frame `get_history_df`
+returns now carries `df.attrs["valquo_src"]` (`stooq` or `yfinance`) and `valquo_adjusted`, read
+with `prices.source_of(df)` / `prices.adjustment_of(df)`, and a `WARNING` names the primary's
+actual exception when it falls through. **The measurement above was independently reproduced
+that day on ten tickers -- Stooq served 0 of 10 -- so this module's "the fallback is what serves
+this today" is confirmed rather than merely suspected.**
+
+**AND IT MATTERS HERE SPECIFICALLY, because yfinance AUTO-ADJUSTS.** `PRICES-SRC` measured that
+the adjustment flag alone accounts for the whole +0.0201pp book-leg seam `index_mark` documents
+(adjusted 0.7961, unadjusted 0.7760, recorded 0.7760, benchmark leg identical at 3.6228 under
+both). A reported benchmark priced on an auto-adjusted basis is a TOTAL-RETURN series; if that
+is not what the copy claims, the copy is wrong rather than the number. Not changed here -- this
+module's basis is its own lane's call -- but it is now a labelled fact rather than an unknown.
 """
 from __future__ import annotations
 

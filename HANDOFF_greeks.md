@@ -1173,6 +1173,21 @@ the old source for the right reason.
   in-gate tally is **145 of 146 with 0 failures**, plus the timed-out suite verified green
   standalone.
 
+* **REPORTED OUTSIDE THIS LANE, AND IT IS A THIRD SIGHTING OF ONE CLASS IN ONE SESSION:
+  `tests/test_reported_benchmark.py` IS FLAKY ON THIS MACHINE.** Measured over four consecutive
+  runs it came back **26/26, 25/26, 26/26, 26/26**, and the failure is always the same test —
+  `test_the_backfill_reproduces_the_bound_valquo_leg_byte_for_byte`, failing with **"could not
+  write C:\Users\...\AppData\Local\Temp"**. That is `MB21`/`MB16`'s documented class exactly:
+  `MB21` hit `PermissionError` on a `%TEMP%` file inside `GzipFile` in `test_options_freeze.py`,
+  `MB16` hit `Permission denied` on git objects under `%TEMP%` in `test_checkout_drift.py`, and
+  both measured the cause as sustained concurrent temp-volume I/O from parallel lanes. **What is
+  new is that this is a suite that landed TODAY** — so the class is still being reproduced by new
+  code rather than being a legacy quirk, and a suite that writes to `%TEMP%` without retrying is
+  the pattern to stop writing. **Not this lane's suite and NOT FIXED HERE.** It is `MB42`'s shape
+  and will be invisible in CI, where a Linux runner has no contention. **It is unrelated to
+  `PRICES-SRC`:** the failure is a filesystem write, the test passes 3 runs in 4, and it flakes
+  identically whether or not the vendor label is present.
+
 ## What I did NOT do
 
 * **I did not change how the book is priced.** The seam is now diagnosed; closing it means
