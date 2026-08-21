@@ -1162,6 +1162,16 @@ the old source for the right reason.
   jobs (`pipeline.py`, `sync_checkout.py`) running concurrently on the same machine. Same family
   as `MB21`/`MB16`'s `%TEMP%` contention — invisible in CI, real on this box. My gate harness now
   applies a **per-suite timeout and reports a TIMEOUT as its own state, never as a pass.**
+  **AND IT HAPPENED A SECOND TIME IN THE SAME SESSION, which is why it is reported rather
+  than shrugged off: the timeout-guarded re-run came back 145 of 146 with
+  `test_security.py` TIMING OUT at >900s — and it too passes standalone, 22/22.** Two
+  different suites, both of which build real app state, both hanging only under concurrent
+  load from other lanes, and neither referencing the module I changed (`test_security.py`
+  mentions `prices` zero times). **The guard earned its keep immediately: without it the
+  second run would have blocked for another ten hours and reported nothing.** A suite that
+  TIMED OUT is not a suite that passed, and this handoff does not count it as one — the
+  in-gate tally is **145 of 146 with 0 failures**, plus the timed-out suite verified green
+  standalone.
 
 ## What I did NOT do
 
