@@ -48,6 +48,37 @@ recorded series.** HYPOTHESIS, NOT DIAGNOSED: dividend/adjustment treatment acro
 (the yfinance fallback auto-adjusts) or a different quote vendor for the equity leg. It was
 not chased, because the rows were hand-made and nobody recorded how they were priced.
 
+**DIAGNOSED 2026-08-20, AND IT IS THE FIRST OF THOSE TWO CANDIDATES, EXACTLY.** Re-priced on
+all 86 names against the same vendor and the same dates, changing nothing but the adjustment
+flag:
+
+    auto_adjust=True    valquo_pct 0.7961   spy_pct 3.6228
+    auto_adjust=False   valquo_pct 0.7760   spy_pct 3.6228
+    recorded row        valquo_pct 0.7760   spy_pct 3.6228
+
+**The adjustment flag moves the book leg by +0.0201pp and the benchmark leg by +0.0000pp, and
++0.0201pp is the whole seam.** 86 of 86 priced under both settings, zero empty fetches. So the
+recorded row was priced on an **UNADJUSTED** basis and this mechanism re-derives on an
+**ADJUSTED** one, because `yfinance` defaults `auto_adjust=True`.
+
+**AND THE EXACT BENCHMARK HIT IS WHAT MADE THIS HARD TO SEE.** SPY reads 3.6228 under BOTH
+settings, so the leg that "confirmed the convention" is precisely the leg that CANNOT
+distinguish the two conventions — it agreed for a reason unrelated to the question. A control
+that passes identically under both arms of the thing you are testing is not evidence about it.
+
+**THE SECOND CANDIDATE IS ELIMINATED FOR THIS MACHINE.** "A different quote vendor for the
+equity leg" requires two vendors, and measured the same day, **Stooq serves 0 of 10 probed
+tickers** (HTTP 404 on the default user-agent, a JavaScript bot-challenge page on a browser
+one), so every figure on this path comes from yfinance and there is no vendor mixing to blame.
+`screener/prices.py` now LABELS every frame with the vendor that served it, so this question is
+answerable from the payload instead of by re-derivation — see `contract_row`'s `vendors` block.
+
+**NOTHING IS CHANGED HERE ABOUT HOW THE BOOK IS PRICED.** Switching the mechanism to an
+unadjusted basis would make it reproduce the two hand-made rows exactly, and it is a
+CONSTRUCTION CHANGE to a bound record — Don's call under the contract, not this lane's. The
+seam is now diagnosed rather than merely disclosed; it is still ~0.02pp against a monthly sigma
+of 3.9847pp, and it is still a real discontinuity.
+
 CONSEQUENCE, STATED SO NOBODY DISCOVERS IT LATER: a row written by this mechanism is not
 bit-comparable with the two hand-made rows, and a series that switches to it acquires a
 ~0.02pp seam. Against the contract's own sigma of 3.9847pp per MONTH that is immaterial —
@@ -175,12 +206,18 @@ def _date(s) -> Optional[_dt.date]:
         return None
 
 
-def _closes(ticker: str, fetch: Callable) -> dict:
+def _closes(ticker: str, fetch: Callable, seen: Optional[dict] = None) -> dict:
     """`{'YYYY-MM-DD': close}` for one ticker, or `{}`.
 
     The fetcher is injected so the tests can run the whole mechanism offline against fixed
     prices. A price path that can only be exercised against the live internet is a path
     nobody exercises.
+
+    `seen`, when supplied, accumulates `{ticker: vendor}` from the label `prices.get_history_df`
+    stamps on the frame. It is read OFF THE FRAME rather than from a module-global precisely
+    because `fetch` is injectable — a global would be blind to whatever the caller passed, and
+    an injected fetcher that carries no label is recorded as `None`, meaning "cannot tell",
+    never as the primary.
     """
     try:
         import pandas as pd
@@ -189,7 +226,14 @@ def _closes(ticker: str, fetch: Callable) -> dict:
     try:
         df = fetch(ticker, days=HISTORY_DAYS)
     except Exception:
+        if seen is not None:
+            seen[ticker] = "fetch_raised"
         return {}
+    if seen is not None:
+        try:
+            seen[ticker] = (df.attrs.get("valquo_src") if df is not None else None)
+        except Exception:                                               # noqa: BLE001
+            seen[ticker] = None
     if df is None or getattr(df, "empty", True):
         return {}
     if "Date" not in df.columns or "Close" not in df.columns:
@@ -299,7 +343,8 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
 
     # --- benchmark ---
     bench = book["benchmark"]
-    bc = _closes(bench, fetch)
+    vendors: dict = {}
+    bc = _closes(bench, fetch, vendors)
     b_base, b_mark = bc.get(base_key), bc.get(mark_key)
     if not b_base or not b_mark:
         which = "inception " + base_key if not b_base else "mark date " + mark_key
@@ -317,7 +362,7 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
     num, wsum, unpriced = 0.0, 0.0, []
     total_w = sum(p["weight"] for p in book["positions"])
     for p in book["positions"]:
-        m = _closes(p["ticker"], fetch)
+        m = _closes(p["ticker"], fetch, vendors)
         base, cur = m.get(base_key), m.get(mark_key)
         if not base or not cur:
             unpriced.append(p["ticker"])
@@ -345,8 +390,40 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
     }
     return {"ok": True, "reason": "", "row": row, "coverage": coverage, "unpriced": unpriced,
             "inception_date": inception.isoformat(), "benchmark": bench,
-            "n_positions": len(book["positions"]), "source": "screener/prices.py (Stooq -> yfinance)"}
+            "n_positions": len(book["positions"]),
+            "source": "screener/prices.py (Stooq primary, yfinance fallback)",
+            "vendors": _vendor_census(vendors, bench)}
 
+
+def _vendor_census(seen: dict, benchmark: str) -> dict:
+    """WHICH vendor actually served, per leg. Not the route -- the route is a constant.
+
+    The benchmark leg is broken out because it is the one `index_mark`'s own reproduction note
+    found EXACT (SPY 3.6228 recorded against 3.6228 re-derived) while the book leg missed by
+    +0.0201pp. If those two legs are ever served by different vendors, that is a candidate
+    explanation for the seam and this block is where it becomes visible instead of being
+    hypothesised again.
+
+    `None` counts as `unlabelled` and is reported as its own bucket -- it means the fetcher did
+    not say, which a reader must not resolve to the primary.
+    """
+    def bucket(v):
+        return v if v else "unlabelled"
+
+    by = {}
+    for t, v in seen.items():
+        if t == benchmark:
+            continue
+        by[bucket(v)] = by.get(bucket(v), 0) + 1
+    return {
+        "benchmark_leg": bucket(seen.get(benchmark)),
+        "book_leg_by_vendor": by,
+        "book_leg_single_vendor": (len(by) <= 1),
+        "legs_agree": (bucket(seen.get(benchmark)) in by) if by else None,
+        "note": ("A vendor label of 'unlabelled' means the fetcher did not record one -- it "
+                 "does NOT mean the primary served. yfinance's Close is AUTO-ADJUSTED and is a "
+                 "different quantity from an as-traded close."),
+    }
 
 def _canonical_csv(rows: list, fields: list) -> bytes:
     """The rows serialised exactly as `append_row` writes them.
