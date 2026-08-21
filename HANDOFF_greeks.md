@@ -1156,37 +1156,29 @@ the old source for the right reason.
   deliberately: a name that cannot be priced there is counted into `unpriced` and gated by the
   `MIN_COVERAGE` floor, so that failure is already loud in the payload. It now also records
   `"fetch_raised"` into the vendor census, so the reason is visible rather than merely the count.
-* **ENVIRONMENTAL, not in the repo: a full-suite gate run blocked for ~10 hours on
-  `test_calibration.py`.** The suite itself passes standalone (23/23) and its process had already
-  exited; the runner was waiting on a **pipe held open by a grandchild**, with two other lanes'
-  jobs (`pipeline.py`, `sync_checkout.py`) running concurrently on the same machine. Same family
-  as `MB21`/`MB16`'s `%TEMP%` contention — invisible in CI, real on this box. My gate harness now
-  applies a **per-suite timeout and reports a TIMEOUT as its own state, never as a pass.**
-  **AND IT HAPPENED A SECOND TIME IN THE SAME SESSION, which is why it is reported rather
-  than shrugged off: the timeout-guarded re-run came back 145 of 146 with
-  `test_security.py` TIMING OUT at >900s — and it too passes standalone, 22/22.** Two
-  different suites, both of which build real app state, both hanging only under concurrent
-  load from other lanes, and neither referencing the module I changed (`test_security.py`
-  mentions `prices` zero times). **The guard earned its keep immediately: without it the
-  second run would have blocked for another ten hours and reported nothing.** A suite that
-  TIMED OUT is not a suite that passed, and this handoff does not count it as one — the
-  in-gate tally is **145 of 146 with 0 failures**, plus the timed-out suite verified green
-  standalone.
+* **ENVIRONMENTAL, NOT IN THE REPO, AND IT HAPPENED FOUR TIMES IN ONE SESSION — WHICH IS WHY IT
+  IS REPORTED AS A CONDITION RATHER THAN AS FOUR FLAKES.** Every one is a `%TEMP%` write or a
+  process holding a `%TEMP%` resource, on a machine simultaneously running other lanes'
+  `pipeline.py` and `sync_checkout.py`:
 
-* **REPORTED OUTSIDE THIS LANE, AND IT IS A THIRD SIGHTING OF ONE CLASS IN ONE SESSION:
-  `tests/test_reported_benchmark.py` IS FLAKY ON THIS MACHINE.** Measured over four consecutive
-  runs it came back **26/26, 25/26, 26/26, 26/26**, and the failure is always the same test —
-  `test_the_backfill_reproduces_the_bound_valquo_leg_byte_for_byte`, failing with **"could not
-  write C:\Users\...\AppData\Local\Temp"**. That is `MB21`/`MB16`'s documented class exactly:
-  `MB21` hit `PermissionError` on a `%TEMP%` file inside `GzipFile` in `test_options_freeze.py`,
-  `MB16` hit `Permission denied` on git objects under `%TEMP%` in `test_checkout_drift.py`, and
-  both measured the cause as sustained concurrent temp-volume I/O from parallel lanes. **What is
-  new is that this is a suite that landed TODAY** — so the class is still being reproduced by new
-  code rather than being a legacy quirk, and a suite that writes to `%TEMP%` without retrying is
-  the pattern to stop writing. **Not this lane's suite and NOT FIXED HERE.** It is `MB42`'s shape
-  and will be invisible in CI, where a Linux runner has no contention. **It is unrelated to
-  `PRICES-SRC`:** the failure is a filesystem write, the test passes 3 runs in 4, and it flakes
-  identically whether or not the vendor label is present.
+  | suite | symptom | standalone |
+  |---|---|---|
+  | `test_calibration.py` | gate blocked **~10 hours** on a pipe held open by a grandchild | 23/23 |
+  | `test_security.py` | **TIMEOUT >900s** in the guarded re-run | 22/22 |
+  | `test_reported_benchmark.py` | *"could not write ...\AppData\Local\Temp"*, 1 run in 4 | 26/26 |
+  | `test_checkout_drift.py` | *"unable to write .git/objects/...: Permission denied"* under `%TEMP%` | 18/18 on retry |
+
+  **All four pass standalone, and none references the module I changed.** This is `MB21`/`MB16`'s
+  documented class — `MB21` hit `PermissionError` on a `%TEMP%` file inside `GzipFile`, `MB16`
+  hit the **identical** git-objects message in **this same suite** — and both measured the cause
+  as sustained concurrent temp-volume I/O. **What is new is the rate and the spread**: four
+  distinct suites in one session, one of which (`test_reported_benchmark.py`) landed *today*, so
+  the class is still being reproduced by new code rather than being a legacy quirk. `MB42`'s
+  shape: invisible in CI, where a Linux runner has no contention. **Not fixed here — suites that
+  build real artifacts under `%TEMP%` wrap no I/O in a retry, and that is a decision about the
+  test harness rather than about any one suite.** My own gate harness now applies a per-suite
+  timeout and **reports a TIMEOUT as its own state, never as a pass**; without it the second
+  occurrence would have blocked another ten hours and reported nothing.
 
 * **A PROCESS ERROR OF MINE, CAUGHT BY CI RATHER THAN BY ME, AND THE GUARD THAT CAUGHT IT WAS
   RIGHT.** `scripts/prices_vendor_diagnose.py` opened `data/valquo_index.json` directly, and
