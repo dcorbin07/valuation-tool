@@ -158,7 +158,13 @@ HISTORY_DAYS = 400
 #: endpoint before this existed: the 201 body carried `valquo_pct: 4.0` and the 200 body
 #: carried `"4.0"`, for the same recorded day.
 _ROW_TYPES = {"date": str, "day_n": int, "valquo_pct": float, "spy_pct": float,
-              "excess_pp": float, "n_priced": int}
+              "excess_pp": float, "n_priced": int,
+              # PT-SPMO's sibling series. Additive and inert on the bound row, whose header
+              # never carries these: `typed_row` is keyed by COLUMN NAME, so a column the bound
+              # file does not have cannot change what the bound row types to. They are
+              # registered here rather than in the sibling module for the reason this file
+              # gives for everything else -- one spelling, so a second table cannot drift.
+              "spmo_pct": float, "valquo_src": str}
 
 
 def typed_row(row: dict) -> dict:
@@ -740,7 +746,8 @@ def seed(book: dict, history_text: str = None, *, meta_path: str = None,
     return out
 
 
-def append_row(row: dict, history_path: str = None, *, append_only: bool = False) -> dict:
+def append_row(row: dict, history_path: str = None, *, append_only: bool = False,
+               columns: tuple = None) -> dict:
     """Append (or replace) one row in the recorded CSV, idempotently.
 
     Offered so the writer does not have to re-spell the header — a writer that hand-builds
@@ -791,6 +798,17 @@ def append_row(row: dict, history_path: str = None, *, append_only: bool = False
       * **A schema change is REFUSED** rather than performed, because widening the header
         rewrites every line and so cannot preserve the prefix below.
 
+    `columns` IS HOW THE SPMO SIBLING SERIES REUSES THIS RULE SET RATHER THAN COPYING IT.
+    It defaults to `ROW_COLUMNS`, so every existing caller is bit-identical and the
+    contract-bound file cannot be written under any other schema by accident. `PT-SPMO`
+    records a SECOND, unbound series (`data/valquo_vs_spmo.csv`) that needs the same three
+    refusals, the same idempotency and the same byte-prefix property against a different
+    header -- and a second implementation of "append-only" is exactly the B7 split this
+    module keeps warning about. The alternative considered and rejected was adding an SPMO
+    column to the bound file: that widens the contract-bound header, rewrites every line, and
+    so cannot preserve the prefix `track-row.yml` verifies. The sibling is a different FILE
+    for that reason, not for tidiness.
+
     THE GUARANTEE IS BYTE-LEVEL, BECAUSE THE ACTION'S OWN CHECK IS. After an `append_only`
     write the file's previous bytes are still an exact prefix of the new file.
     `.github/workflows/track-row.yml` verifies precisely that -- `cmp` on `head -n N` -- and
@@ -803,6 +821,7 @@ def append_row(row: dict, history_path: str = None, *, append_only: bool = False
     from . import index_track
     _, hp = index_track.default_paths()
     history_path = history_path or hp
+    columns = tuple(columns) if columns else ROW_COLUMNS
     if not row or not row.get("date"):
         return {"ok": False, "reason": "no row to append", "wrote": False}
 
@@ -825,7 +844,7 @@ def append_row(row: dict, history_path: str = None, *, append_only: bool = False
                     + " does not match its header, so a rewrite would discard or invent "
                       "cells. Repair the file by hand."}
 
-    fields = list(ROW_COLUMNS) + [c for c in on_disk if c not in ROW_COLUMNS]
+    fields = list(columns) + [c for c in on_disk if c not in columns]
     ignored = sorted(k for k in row if k not in fields)
 
     dates_on_disk = [(r.get("date") or "").strip() for r in existing]
