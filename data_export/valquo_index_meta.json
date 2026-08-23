@@ -353,7 +353,7 @@
   "sources": {
     "committed_backup": 0,
     "ingested_store": 0,
-    "tracker_files": 2
+    "tracker_files": 8
   },
   "what_this_is": "The contract-bound Valquo Index: the book and inception PAPER_TRACK_CONTRACT.md binds. NOT the Tradier sandbox engine, whose files are named paper_track_*."
 }
