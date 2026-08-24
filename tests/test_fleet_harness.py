@@ -54,6 +54,9 @@ def _decl_text(book=BOOK, **over):
         "book": book, "domain": "options", "hypothesis_class": "cost",
         "entry_rule": "fixture", "structure": {"strike_selection": "moneyness"},
         "universe": "fixture", "sizing": "1", "concurrency_cap": 10, "side": "long",
+        # `sells_premium` is MANDATORY on every book -- r1's S3-I3 rule, adopted whole: an
+        # absent field would let a short book pass by OMISSION.
+        "sells_premium": False,
         "records_schema": [],
         "verdict_horizon": {"expected_fills_per_month": 30, "min_effect": 0.1, "sigma": 1.0,
                             "rho": 3.0, "alpha": 0.05, "fills_needed": 60,
@@ -460,35 +463,102 @@ class Declarations(unittest.TestCase):
 # THE S3-I3 SEAM -- interface only; this module builds no assignment model
 # =======================================================================================
 class AssignmentSeam(unittest.TestCase):
+    """RECONCILED 2026-08-24 to the LANDED `S3-I3`, and the drift is the point.
+
+    `S3-I1` froze three callable names and three required fields BEFORE the model existed.
+    r1 landed `assignment_at_expiry` (one name apart from my `assign_at_expiry`), plus
+    `settle_short` and `validate_declaration` I had not anticipated, and FIVE required fields
+    none of whose names matched my three. Registering the real module against the frozen
+    interface REFUSED it.
+
+    The runbook decides which side moves: *"confirm the interface text against the LANDED
+    S3-I3, not against the map."* So these tests hold the harness to r1's contract, which is
+    strictly stronger than the one I guessed.
+    """
+
+    SHORT = {"sells_premium": True, "side": "short",
+             "assignment_model": "at expiry per moneyness",
+             "margin_method": "cash_secured_put", "spot_basis": "as_traded",
+             "early_assignment_flag": "O21 q-machinery", "return_denominator": "secured_cash"}
 
     def tearDown(self):
-        F._PROVIDER = None
+        # Restore the import-time registration rather than leaving the seam empty, or a later
+        # test in this process would see a harness that refuses every short book.
+        F.register_assignment_provider(F._SB)
+
+    def test_the_landed_s3i3_satisfies_the_interface_and_is_registered_at_import(self):
+        """The check that would have caught the drift, had it existed a day earlier."""
+        self.assertTrue(F._S3I3_REGISTRATION["ok"], F._S3I3_REGISTRATION)
+        self.assertEqual(F._S3I3_REGISTRATION["missing"], [])
+        self.assertIsNotNone(F.assignment_provider())
+        for name in F.ASSIGNMENT_INTERFACE["callables"]:
+            self.assertTrue(callable(getattr(F._SB, name, None)),
+                            "the interface names %r and the landed module does not" % name)
 
     def test_a_short_book_is_refused_with_no_provider(self):
-        d = F.parse_declaration(_decl_text(
-            side="short", assignment="at expiry", margin="Reg-T",
-            secured_cash_is_denominator=True))["declaration"]
+        F._PROVIDER = None
+        d = F.parse_declaration(_decl_text(**self.SHORT))["declaration"]
         r = F.validate_declaration(d, book=BOOK)
         self.assertIn("SHORT_BOOK_WITHOUT_ASSIGNMENT", r["refusals"])
         self.assertIn("assignment_interface", r["detail"])
 
-    def test_a_short_book_missing_the_margin_clause_is_refused_even_with_a_provider(self):
-        class P:
-            assign_at_expiry = early_assignment_flag = secured_cash = staticmethod(lambda *a: None)
-        F.register_assignment_provider(P())
-        d = F.parse_declaration(_decl_text(side="short", assignment="at expiry"))["declaration"]
+    def test_a_complete_short_book_validates_against_the_landed_module(self):
+        d = F.parse_declaration(_decl_text(**self.SHORT))["declaration"]
         r = F.validate_declaration(d, book=BOOK)
-        self.assertIn("MISSING_SHORT_FIELD:margin", r["refusals"])
+        self.assertTrue(r["ok"], r["refusals"])
+
+    def test_a_short_book_missing_a_required_field_is_refused_BY_S3I3(self):
+        short = dict(self.SHORT)
+        short.pop("margin_method")
+        d = F.parse_declaration(_decl_text(**short))["declaration"]
+        r = F.validate_declaration(d, book=BOOK)
+        self.assertIn("SHORT_BOOK_REFUSED_BY_S3I3", r["refusals"])
+        # The delegate RAISES and this harness COLLECTS, so its message must survive the
+        # conversion rather than being replaced by a code.
+        self.assertIn("margin_method", r["detail"]["s3i3_refusal"])
+
+    def test_the_three_rules_that_are_r1s_and_not_mine_all_fire(self):
+        """`naked`, an adjusted spot basis, and a premium denominator. None was in my guess."""
+        for field, bad in (("margin_method", "naked"),
+                           ("spot_basis", "adjusted"),
+                           ("return_denominator", "premium")):
+            short = dict(self.SHORT)
+            short[field] = bad
+            d = F.parse_declaration(_decl_text(**short))["declaration"]
+            r = F.validate_declaration(d, book=BOOK)
+            self.assertIn("SHORT_BOOK_REFUSED_BY_S3I3", r["refusals"],
+                          "%s=%r was not refused" % (field, bad))
+
+    def test_sells_premium_is_mandatory_on_EVERY_book_including_long_ones(self):
+        """r1's rule, adopted whole: an absent field lets a short book pass by OMISSION."""
+        d = F.parse_declaration(_decl_text())["declaration"]
+        d.pop("sells_premium")
+        r = F.validate_declaration(d, book=BOOK)
+        self.assertIn("MISSING_FIELD:sells_premium", r["refusals"])
+
+    def test_side_and_sells_premium_must_AGREE(self):
+        """Two sources for one fact is a split; requiring agreement makes it tamper-evidence."""
+        d = F.parse_declaration(_decl_text(side="long", sells_premium=True))["declaration"]
+        r = F.validate_declaration(d, book=BOOK)
+        self.assertIn("SIDE_AND_SELLS_PREMIUM_DISAGREE", r["refusals"])
 
     def test_a_provider_missing_a_callable_is_refused(self):
         class Half:
-            def assign_at_expiry(self, *a):
+            def assignment_at_expiry(self, *a, **k):
                 return None
-        r = F.register_assignment_provider(Half())
+        half = Half()
+        r = F.register_assignment_provider(half)
         self.assertFalse(r["ok"])
         self.assertEqual(sorted(r["missing"]),
-                         ["early_assignment_flag", "secured_cash"])
-        self.assertIsNone(F.assignment_provider())
+                         ["early_assignment_flag", "secured_cash", "settle_short",
+                          "validate_declaration"])
+        # THE HALF-BUILT PROVIDER IS NOT INSTALLED -- and it does not EVICT the working one
+        # either. The first cut of this asserted `is None`, which was right while the seam was
+        # empty and became wrong the moment S3-I3 landed and registered at import: a failed
+        # registration knocking out a good provider would make a typo in a new module silently
+        # stop every short book in the fleet.
+        self.assertIsNot(F.assignment_provider(), half)
+        self.assertIs(F.assignment_provider(), F._SB)
 
     def test_this_module_computes_no_assignment_and_no_margin(self):
         """`S3-I3` is r1's. A model here would be two implementations of one thing."""

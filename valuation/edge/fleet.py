@@ -51,6 +51,7 @@ import subprocess
 from typing import Optional
 
 from . import append_only as AO
+from . import short_book as _SB
 from . import track_meter as TM
 
 # ---------------------------------------------------------------------------------------
@@ -97,7 +98,15 @@ REQUIRED_HORIZON_FIELDS = (
     "fills_needed", "earliest_honest_read",
 )
 # A short book states these or it does not exist (draft section 1.4, Don's ruling #1).
-REQUIRED_SHORT_FIELDS = ("assignment", "margin", "secured_cash_is_denominator")
+#
+# THE LIST IS `S3-I3`'s, IMPORTED, NOT A SECOND COPY. The seam DRIFTED between two lanes: this
+# module froze `("assignment", "margin", "secured_cash_is_denominator")` before the model
+# existed, and r1 landed `("assignment_model", "margin_method", "spot_basis",
+# "early_assignment_flag", "return_denominator")` -- five fields against three, none of the
+# names shared. The runbook settles which wins: *"confirm the interface text against the LANDED
+# S3-I3, not against the map."* My three were a GUESS written before the module existed; r1's
+# five are the contract the model actually enforces, and they are strictly stronger.
+REQUIRED_SHORT_FIELDS = tuple(_SB.REQUIRED_SHORT_FIELDS)
 
 DOMAINS = ("equity", "options")
 HYPOTHESIS_CLASSES = ("edge", "cost", "utility")
@@ -105,17 +114,37 @@ SIDES = ("long", "short")
 STRIKE_SELECTION = ("moneyness", "fixed", "delta")
 
 # ---------------------------------------------------------------------------------------
-# THE S3-I3 SEAM. Defined here, BUILT BY r1. This module computes no assignment and no margin.
+# THE S3-I3 SEAM -- RECONCILED TO THE LANDED MODULE, 2026-08-24
+#
+# This module computes no assignment and no margin; `valuation/edge/short_book.py` (r1's) does.
+#
+# THE SEAM DRIFTED AND THE LANDED MODULE WON. `S3-I1` froze three callable names before the
+# model existed -- `assign_at_expiry`, `early_assignment_flag`, `secured_cash` -- with invented
+# signatures. r1 landed `assignment_at_expiry` (one name apart), plus `settle_short` and a
+# `validate_declaration` this file did not anticipate at all, and every signature is
+# keyword-only and different from the guess. Registering `short_book` against the frozen
+# interface REFUSED it for missing `assign_at_expiry`.
+#
+# The runbook decides: *"confirm the interface text against the LANDED S3-I3, not against the
+# map."* So the names here are corrected to the module's, NOT aliased -- an alias is how a seam
+# rots into two vocabularies for one thing. Nothing is loosened: the check still requires every
+# callable to be present, and it now requires MORE of them.
 # ---------------------------------------------------------------------------------------
 ASSIGNMENT_INTERFACE = {
-    "module": "valuation.edge.assignment (S3-I3, r1's)",
+    "module": "valuation.edge.short_book (S3-I3, r1's, LANDED)",
     "callables": {
-        "assign_at_expiry": "(occ, settle_price, side, qty) -> dict with keys "
-                            "{assigned: bool, shares: int, cash: float, basis: str}",
-        "early_assignment_flag": "(occ, as_of, q) -> dict with keys {flagged: bool, reason: str} "
-                                 "-- q is the dividend yield, O21's machinery",
-        "secured_cash": "(occ, strike, qty) -> float, the Reg-T cash-secured convention; this "
-                        "IS the denominator of every return the book quotes",
+        "assignment_at_expiry": "(*, spot_at_expiry, strike, right, spot_basis, contracts) -> "
+                                "dict. `spot_basis` must be as-traded: r1's C3 measured 29.1% "
+                                "of assignment verdicts flipping on adjusted closes.",
+        "secured_cash": "(*, method, strike, right, credit, contracts, ...) -> float. THE "
+                        "DENOMINATOR of every return a short book quotes.",
+        "settle_short": "(*, strike, credit, spot_at_expiry, right, spot_basis, method) -> "
+                        "dict. A worthless SHORT expiry settles at ZERO, not -100%; MA36's "
+                        "rule is the LONG-side rule and this module knows the difference.",
+        "early_assignment_flag": "(*, right, spot, strike, option_bid, spot_basis, ...) -> dict",
+        "validate_declaration": "(decl) -> dict, RAISES ShortBookError. The refusal itself; "
+                                "this harness delegates to it rather than carrying a second "
+                                "short-book contract (B7).",
     },
     "registered_by": "fleet.register_assignment_provider(obj)",
     "refusal_if_absent": "SHORT_BOOK_WITHOUT_ASSIGNMENT",
@@ -142,6 +171,19 @@ def register_assignment_provider(obj) -> dict:
 
 def assignment_provider():
     return _PROVIDER
+
+
+# THE LANDED MODULE IS REGISTERED AT IMPORT, and the refusal keeps its teeth.
+#
+# `S3-I1` shipped with NO provider, so every short book was refused -- correct when no model
+# existed, and it would now refuse the seven short books FOREVER unless somebody remembered a
+# call. `S3-I3` has landed, so it registers here.
+#
+# THIS IS NOT THE REFUSAL BEING SWITCHED OFF. It goes through the same interface check as any
+# other provider, so a future `short_book` that loses a callable is REFUSED at import and every
+# short book stops declaring -- loudly, and by the same rule. `_S3I3_REGISTRATION` records the
+# outcome so a reader can see whether the seam is live rather than assuming it.
+_S3I3_REGISTRATION = register_assignment_provider(_SB)
 
 
 # ---------------------------------------------------------------------------------------
@@ -197,7 +239,7 @@ def validate_declaration(decl: dict, *, book: str = None) -> dict:
     Refusals are COLLECTED rather than raised one at a time, so an author fixes a declaration
     in one pass instead of discovering its faults serially.
     """
-    r = []
+    r, short_detail = [], ""
     if not isinstance(decl, dict):
         return {"ok": False, "refusals": ["DECLARATION_NOT_AN_OBJECT"], "detail": {}}
 
@@ -276,10 +318,29 @@ def validate_declaration(decl: dict, *, book: str = None) -> dict:
             and t.get("domain") != "none":
         r.append("UTILITY_BOOK_CHARGES_A_TRIAL")
 
-    if decl.get("side") == "short":
-        for f in REQUIRED_SHORT_FIELDS:
-            if decl.get(f) in (None, "", [], {}):
-                r.append("MISSING_SHORT_FIELD:" + f)
+    # ---- the short leg DELEGATES to the landed S3-I3 rather than re-deciding it -------------
+    #
+    # `sells_premium` IS MANDATORY ON EVERY BOOK, and that is r1's rule adopted whole: an
+    # absent field would let a short book pass by OMISSION, which is exactly the refusal Don's
+    # ruling asks for. It is also a SECOND source of truth alongside this file's `side`, so the
+    # two are required to AGREE -- a declaration reading `side: long` with `sells_premium: true`
+    # is refused as self-contradictory rather than silently resolved in either direction.
+    sp = decl.get("sells_premium")
+    if not isinstance(sp, bool):
+        r.append("MISSING_FIELD:sells_premium")
+    elif (decl.get("side") == "short") != sp:
+        r.append("SIDE_AND_SELLS_PREMIUM_DISAGREE")
+
+    if sp is True or decl.get("side") == "short":
+        try:
+            _SB.validate_declaration(decl)
+        except Exception as e:                                # noqa: BLE001
+            # r1's validator RAISES, because "a refusal that returns a flag is a refusal
+            # somebody forgets to read". This harness COLLECTS refusals so an author fixes a
+            # declaration in one pass, so the raise is converted here -- and its message is
+            # carried verbatim into `detail`, never discarded.
+            r.append("SHORT_BOOK_REFUSED_BY_S3I3")
+            short_detail = str(e)
         if _PROVIDER is None:
             r.append("SHORT_BOOK_WITHOUT_ASSIGNMENT")
 
@@ -289,9 +350,12 @@ def validate_declaration(decl: dict, *, book: str = None) -> dict:
         if clash:
             r.append("RECORDS_SCHEMA_CLASHES_WITH_BASE:" + ",".join(sorted(clash)))
 
-    return {"ok": not r, "refusals": sorted(set(r)),
-            "detail": {"assignment_interface": ASSIGNMENT_INTERFACE} if
-            any(x == "SHORT_BOOK_WITHOUT_ASSIGNMENT" for x in r) else {}}
+    detail = {}
+    if "SHORT_BOOK_WITHOUT_ASSIGNMENT" in r:
+        detail["assignment_interface"] = ASSIGNMENT_INTERFACE
+    if short_detail:
+        detail["s3i3_refusal"] = short_detail
+    return {"ok": not r, "refusals": sorted(set(r)), "detail": detail}
 
 
 def declaration_sha(text: str) -> str:
@@ -794,6 +858,9 @@ def declaration_template(book: str, *, domain: str = "options", side: str = "lon
         "entry_rule": "TODO computable from data available at entry time, code-level pseudocode",
         "structure": {"strike_selection": "moneyness", "moneyness": 0.90, "dte": [30, 45]},
         "universe": "TODO", "sizing": "TODO", "concurrency_cap": 10, "side": side,
+        # Mandatory on EVERY book, long or short -- an absent field would let a short book pass
+        # by omission, which is the refusal Don's ruling #1 asks for (S3-I3's rule).
+        "sells_premium": side == "short",
         "records_schema": [],
         "verdict_horizon": {
             "expected_fills_per_month": 0, "min_effect": 0.0, "sigma": 0.0, "rho": 3.0,
@@ -803,9 +870,14 @@ def declaration_template(book: str, *, domain: str = "options", side: str = "lon
         "o11_sentence": O11_SENTENCE,
     }
     if side == "short":
-        d["assignment"] = "TODO at expiry per moneyness; early flagged via O21's q-machinery"
-        d["margin"] = "TODO Reg-T cash-secured"
-        d["secured_cash_is_denominator"] = True
+        # r1's five fields, not my three. `spot_basis` and `return_denominator` are pinned
+        # rather than left TODO because S3-I3 accepts exactly one value for each and a
+        # placeholder there would only ever be refused.
+        d["assignment_model"] = "TODO at expiry per moneyness"
+        d["margin_method"] = "cash_secured_put"
+        d["spot_basis"] = "as_traded"
+        d["early_assignment_flag"] = "TODO O21's q-machinery"
+        d["return_denominator"] = "secured_cash"
     return ("# DECL " + book + "\n\n**Committed ALONE, before this book's first fill.**\n\n"
             "```json\n" + json.dumps(d, indent=2) + "\n```\n")
 
