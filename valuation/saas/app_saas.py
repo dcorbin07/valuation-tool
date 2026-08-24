@@ -745,7 +745,13 @@ def create_saas_app(cfg=CONFIG):
             res["history"] = fleet_history.coverage()
             if wants_run:
                 res["history_recorded"] = fleet_history.record_all()
-            res["gates"] = fleet_gates.coverage()
+            # Flat, to match `history`. A consumer reading two coverage blocks in one body
+            # should not have to remember that one of them nests and the other does not.
+            _g = fleet_gates.coverage()
+            res["gates"] = _g.get("gates") or {}
+            res["gates_ok"] = bool(_g.get("ok"))
+            if not _g.get("ok"):
+                res["gates_reason"] = _g.get("reason", "")
             res["assignment_provider_registered"] = fleet.assignment_provider() is not None
             res["assignment_note"] = (
                 "S3-I3 registered: the six short books no longer refuse with "
