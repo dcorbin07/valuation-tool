@@ -9095,7 +9095,21 @@ that they were the right diagnosis.**
 **ARMED: 3** — F-1, F-3 (HANDOFF 72) and now **F-8** (`1ff0a71`), the fleet's first SHORT book.
 **REFUSED BACK: 2** — F-2 and F-13, unchanged.
 **STILL PROSE: 12.**
-**ZERO TRIALS** throughout; `by_domain` untouched at equity 242, options 305, infra 20.
+**ZERO TRIALS** throughout — this lane booked none, and no meter was read.
+
+**RE-READ AFTER MERGING, AND IT MOVED: the live `by_domain` is equity 242, options 307, infra
+20.** This section first said **options 305**, measured mid-session and correct when written.
+The `EVOWN` lane landed while this work was in flight and booked **2 options trials (305 →
+307)**, so the figure was stale before the branch was pushed. **`MA37`'s rule, and it has now
+fired on this record more times than any other single instruction: never quote a session's own
+mid-run `by_domain`; re-measure after EVERY merge, including a clean one.**
+
+It also surfaced as a scare worth recording: `git diff origin/main..HEAD` showed this branch
+**DELETING** five EVOWN files, which would have tripped `MA11`'s land policy. **Nothing was
+deleted** — they were NEW on `origin/main` and absent from a branch that had not yet merged
+it, so the diff read the gap as a deletion. Merging cleared all five. **A deletion in a
+branch diff can mean "they added it", and the check is to merge and re-read rather than to
+start reverting.**
 
 ---
 
