@@ -8554,3 +8554,246 @@ red on this suite alone.
   this module was frozen and is no longer. **No `DECL_` file was written and no book was
   declared** — the module makes short books DECLARABLE, it does not declare one.
 * **No `DECL_<book>.md` was written and no book was declared.**
+
+---
+
+## 71. THE DECLARATION CEREMONY — 17 books declared, 3 refused, and **THE FLEET IS DECLARED-BUT-NOT-BREATHING** (2026-08-24)
+
+**Executor: options-live lane. Author of the twenty drafts and the runbook: the Frontier Scout,
+which declined to accept its own work.** The runbook (`DECL_CEREMONY_RUNBOOK.md`) governed;
+where it and the task differed, the runbook won.
+
+### THE COUNT, WHICH IS WHAT THE RUNBOOK ASKS FOR
+
+**DECLARED: 17.** F-1, F-2, F-3, F-4, F-5, F-6, F-8, F-10, F-11, F-12, F-13, F-14, F-15, F-17,
+F-18, F-19, F-20 — each committed **ALONE**, one file per commit, verified by
+`git show --name-only` returning exactly one path for all seventeen.
+
+**REFUSED: 3** (F-7, F-9, F-16), returned to the scout in `CEREMONY_REJECTIONS.md` with the
+number each revision has to move. **Their drafts stay on disk, unedited** — they are still
+drafts and the scout needs them.
+
+**FILLS PENDING ON: THE ENTRY RULES, NOT THE SCHEDULER.** This is the finding of the day and it
+is worse than the runbook's own worst case.
+
+---
+
+### ⚠️ **THE FLEET IS DECLARED-BUT-NOT-BREATHING, AND SCHEDULING IT WOULD NOT CHANGE THAT**
+
+The runbook's section 3 says, in bold: *"until one of those exists, the fleet is
+DECLARED-BUT-UNSCHEDULED — twenty frozen entry rules and zero fills accruing."* **The real state
+is one step worse and the distinction matters, because the fix is different work.**
+
+**A DECLARATION FREEZES AN ENTRY RULE IN PROSE. IT DOES NOT EXECUTE ONE.** Nothing in this
+repository turns *"names whose flag count transitions from 0-or-1 to ≥2 of MA28's three
+published-threshold flags"* into an order. **Measured: 17 books declared, `entry_rules_
+implemented: 0`.** So even with the cron landed and the endpoint live, **every cycle would place
+nothing, forever, until somebody writes seventeen entry-rule implementations.**
+
+**THE HARNESS REFUSES TO BLUR THOSE TWO STATES**, because blurring them is how a paper fleet
+reports a cycle that placed nothing as a cycle that *found* nothing. `cycle()` reports
+`ARMED_NO_ENTRY_RULE` and never *"no candidates today"*; `register_entry_rule(book, fn)` is the
+seam, and it is empty. **`[]` from a registered rule is a market observation. No rule at all is
+a build gap.**
+
+**SCHEDULE IT ANYWAY, and the reason is not sentimental:** it dates the silence, it proves the
+path end to end while the stakes are exactly zero, and the first implemented rule starts
+accruing the day it lands rather than the day somebody remembers to wire a cron.
+
+---
+
+### THE RUNNER — endpoint LANDED, workflow REQUESTED, task NAMED
+
+* **LANDED: `GET|POST /admin/fleet-cycle`** (`valuation/saas/app_saas.py`). `PT-WRITER`'s
+  architecture exactly — the Render service is the only place holding the Tradier sandbox
+  token, network **and** the fleet records store at once.
+* **THE VERB CARRIES THE WRITE, from the first commit rather than after the defect.** `GET`
+  computes and returns; only `POST?run=1` may write; **`GET?run=1` is a 405 and writes
+  nothing.** `/admin/track-row` shipped a side-effecting GET and the recorded cure was this
+  split — on an append-only, hash-chained record a GET is reachable by a retry, a prefetch, a
+  proxy or a pasted link, and none of those is a decision to record a trading day.
+* **REQUESTED: `FLEET_RUNNER_PR_REQUEST.md`** — the complete `fleet-cycle.yml` for Don, on the
+  `track-row.yml` precedent, **no new secret** (`SITE_BASE_URL` + `ADMIN_TOKEN` already exist).
+  `.github/` is untouchable to every agent lane, so this is a request, not a change.
+* **TWO DEPARTURES FROM `track-row.yml`, both reasoned. (1) ONE cron, not two.** track-row runs
+  a 23:37 backup because GitHub's free scheduler drops runs and **that endpoint is idempotent
+  per DAY**. The fleet door is deliberately **not** — a book records many orders a day, which is
+  why `S3-I1` keys its streams on a sequence rather than a date (register finding `E2`) — so a
+  blind retry could **double-record**. A dropped run costs one day and is recoverable; a
+  double-recorded day is not. **(2) 200 is the only success and a quiet day is a 200**, surfaced
+  as a GitHub *warning*. A refusal as 5xx tells a scheduler to retry something that is not
+  broken; a quiet day as an error teaches an operator to ignore the alert.
+* **STOPGAP NAMED: a Cowork scheduled task `valquo-fleet-cycle`**, weekdays 18:19
+  America/New_York, same one-liner against the same door. **It is a strictly worse home** — a
+  Cowork schedule is not in the repo, so it rots invisibly, which is `PT-WRITER`'s failure
+  exactly (a task nobody could find, a write nobody could date). If it is used, write its
+  existence into `PAPER_TRACK_CONTRACT.md`.
+
+---
+
+### THE THREE REFUSALS
+
+**F-7 (covered calls on band-exiting names) — REFUSED, on a stronger ground than the runbook
+anticipated.** Its entry rule reads a `pending_exit` band state, and **`grep -rn "pending[_-]
+exit"` over every `.py`, `.md`, `.csv` and `.json` returns ZERO hits.** It is not merely
+unstored: **`no_trade_band.band_select` returns a LIST of holdings, so the decision and the exit
+are the same instant** — there is no interval in which a name is held *and* condemned, which is
+exactly the window the structure needs, and knowing at rebalance *t* that a name exits at *t+1*
+requires *t+1*'s composite. **The literal reading is look-ahead, not a plumbing gap.** The one
+defensible reading — a held name in the hysteresis grace zone, `n_target ≤ rank < exit_rank` —
+is real and **still needs the composite RANK, which no published artifact carries**
+(`paper_track_holdings.csv` has eight columns and none is a rank). That is the runbook's own
+reject test verbatim. **The contrast is what makes it specific rather than categorical: F-8 and
+F-11 were checked against the identical test and PASSED** — F-8's *"newly entering"* is
+`entry_date` in a shipped CSV, and F-11's dip-REJECT classifier is the screen's own published
+`dip.health_check` / `dip.clamp_drawdown`, with only `screen()`'s aggregation discarding the
+failures.
+
+**F-9 (flag-transition puts) — REFUSED ON HORIZON: 11.5 YEARS.** Derived from its own declared
+boundary at its own MEI +25pp and the **MEASURED** σ 92.51 (`O12`): **138 fills, not 30**, at
+~1/month. Resolving inside five years needs MEI ≥ **+36.8pp**, which is a different declaration.
+**`MA28`'s 3.04× is untouched; it is the SPEED of this expression that fails.**
+
+**F-16 (13F breadth-surge calls) — REFUSED ON HORIZON: 21 YEARS**, pre-authorised by the
+runbook. **420 fills, not 30**, at a rate the book's own rule fixes at 5/quarter. Resolving
+inside five years needs MEI ≥ **+29.0pp**. A revision should also carry a **costume kill against
+`size`** — `E-1` measured a flat aggregate of institutional-conviction signals at **0.6114**
+against `size` and withdrew before its arm ran.
+
+---
+
+### **"30 FILLS" WAS A CONVENTION, NOT A DERIVATION — AND IT IS WRONG IN THE ACCEPTED BOOKS TOO**
+
+All twenty drafts wrote *"30 fills"*. **Derived per book from the anytime-valid boundary each
+one declares, it is wrong by 3× to 40× everywhere it appears.** Every accepted declaration now
+carries a `fills_needed` computed as *the smallest n at which `track_meter.boundary(n, σ, ρ, α)/n`
+falls to that book's own minimum effect*:
+
+| book | fills_needed | years at its own projected rate |
+|---|---|---|
+| F-1 | 164 | 0.3 |
+| F-13 | 420 | 0.9 |
+| F-3, F-12 | 420 | 2.3 / 4.7 |
+| F-4 | 306 | 2.3 |
+| F-14 | 93 | 2.9 |
+| F-11 | 138 | 2.9 |
+| F-5 | 224 | 3.7 |
+| F-15 | 420 | 6.4 |
+| F-8 | 395 | 7.3 |
+| F-10, F-17 | 306 | 8.5 |
+| F-18 | 1202 | 20.0 |
+| F-19 | 1015 | 21.1 |
+| F-20 | 395 | 21.9 |
+| F-6 | 1202 | 33.4 *(UTILITY — no meter is ever read)* |
+| F-2 | 4563 | 47.5 |
+
+**σ IS A STATED PRIOR EXCEPT WHERE MARKED MEASURED**, and only 92.51pp is measured (`O12`, this
+project's own options book at per-trade sd 0.9251). **`track_meter`'s rule binds: σ may only
+ever be RAISED, never lowered.** `MB8` is why the provenance travels with the number — it
+borrowed an SE measured on a different perturbation size and was wrong six-fold.
+
+**F-2, F-18, F-19 and F-20 were ACCEPTED with horizons beyond five years**, deliberately and
+with the number on the face rather than rejected: F-2 and F-19 are **gates that hold no
+position**, F-6 is a **utility ledger measuring a cost**, and none of them charges a trial on a
+schedule. The two rejected books are rejected because they are **edge books making a return
+claim** they cannot resolve. **The horizon is disclosed for all seventeen either way**, which is
+what stops a book being read early.
+
+---
+
+### DAY-1 SELF-VERIFICATION AGAINST THE REAL SANDBOX — AND IT CAUGHT A FABRICATED FILL
+
+**19 of 19 synthetic checks passed. The FIRST REAL SANDBOX ORDER exposed a defect none of them
+could see.** `fill_fields` read `avg_fill_price or price`; **Tradier reports an unfilled limit
+order as `avg_fill_price: 0.0`, which is falsy**, so the fallback took the **LIMIT** and
+recorded a **PENDING order as FILLED at 11.06**.
+
+**THE PORTABLE PART: a synthetic fixture supplies the field it expects. Only the real broker
+supplies a zero where the code assumed absence.** Fixed by delegating to `PaperBroker.fill_price`
+(which gates on `exec_quantity`) and deriving a seven-state `fate` from the broker's own status;
+`L7` strengthened and a new `L9b` requires the recorded row to AGREE with the broker. **The false
+row was VOIDED BY A NEW ROW (`seq 00000006`), never edited** — `PT-AMEND1`'s rule, a correction
+is a new dated row. **The test-book is closed with a zero-charge row at `seq 00000008`.**
+
+---
+
+### THE MERGE THAT DID NOT IMPORT, AND THE SEAM THAT MOVED TWICE
+
+**r1 renamed `short_book.py` → `assignment.py` (`aff934a`). `fleet.py` imported `short_book`. NO
+FILE WAS EDITED BY BOTH SIDES, so git produced no conflict, there was nothing to review, and the
+tree did not import.** `MA23`'s `parity_flow` collision in a new costume: **a clean merge is not
+a safe one.**
+
+**AND THE MIDDLE VERSION OF THE SEAM WAS MINE AND WAS WRONG.** Mid-ceremony I "reconciled to the
+landed module" — repointed the interface at `short_book.py`'s five internal function names and
+imported it at module scope. **Reverted, on both counts:**
+
+1. **r1 had already built `_AssignmentProvider`, an ADAPTER exposing exactly the three names
+   `S3-I1` froze.** The interface never needed changing; **r1 had adapted to it, which is what a
+   published interface is for.** Chasing the module's internal names made this file depend on
+   r1's private vocabulary rather than on the contract between the lanes.
+2. **`assignment.py` states the direction outright** — *"fleet does not import this module (its
+   check is duck-typed on purpose), so the dependency runs one way only"* — and that
+   registration is *"an explicit CALL and never an import side effect, so importing this module
+   to read one number cannot silently unblock every short book in the fleet."* **My module-scope
+   import plus import-time registration was precisely that side effect. r1's design is better
+   and this lane yields to it.**
+
+`REQUIRED_SHORT_FIELDS` is now r1's five as a **committed literal** — importing them would have
+inverted the direction r1 documented — with a test importing **both** and asserting equality
+(`MA13`'s idiom: production holds the literal, the test holds the comparison).
+
+**THE CONSEQUENCE, NAMED: with nothing registered, F-4, F-6, F-8, F-10, F-17 and F-18 refuse
+with `SHORT_BOOK_WITHOUT_ASSIGNMENT`.** That is correct, and it makes the **runner** the
+composition root — `/admin/fleet-cycle` calls `assignment.register()` and reports
+`assignment_provider_registered`; **a broken model still returns 200**, because the long books
+are unaffected and the short ones then refuse by the ordinary rule.
+
+---
+
+### FOUR MORE DEFECTS, ALL MINE, ALL CAUGHT BY RUNNING OR READING RATHER THAN BY A TEST
+
+* **`ledger_row` hard-coded the id and the commit.** The id was `"F-" + book`, yielding
+  `F-f13_second_event` where the map says **F-13**; the commit was the literal `PENDING`, honest
+  while nothing was committed and false the moment seventeen declarations landed. Both defaults
+  kept **bit-identical** so every prior caller is unaffected (verified: 60/60 before the new
+  tests).
+* **The horizon sentence was truncated at the DECIMAL POINT.** Splitting on a bare period turned
+  *"0.3 years at the projected 45.00 fills/month"* into **`"0"`** — a horizon of **zero**, i.e.
+  *readable now*, **the precise misreading the field exists to prevent**. It ran the **unsafe**
+  direction, so it is pinned rather than merely fixed.
+* **The row generator read `dc.get("sha")` where `declaration_commit` returns `commit`**, so it
+  produced seventeen rows with an **empty commit cell that still looked like filled rows**. A
+  `.get` on an absent key returns `None` and the row renders fine. Now asserted.
+* **The cycle's not-breathing note DERIVED the implemented count** as
+  `declared − unscheduled − blocked` — right only while no book is both blocked and
+  unimplemented, **true that day by accident**. `MB8`'s family: an arithmetic never checked
+  against the thing it claims to count. **Counted now, and pinned.**
+* Plus a real **file-handle leak** in `harness_fingerprint` (a bare `open().read()` on every
+  gate check), surfaced as a `ResourceWarning` by the endpoint test — the first caller to hit it
+  in a loop.
+
+---
+
+### NOT DONE, named so it is not mistaken for done
+
+* **NO ENTRY RULE IS IMPLEMENTED FOR ANY BOOK.** Seventeen to write. This is the binding work.
+* **NO FILL HAS BEEN PLACED** on any declared book. **No meter has been read, so NO TRIAL IS
+  CHARGED** — the harness charges at FIRST VERDICT READ. `by_domain` is unmoved.
+* **NO WORKFLOW IS SCHEDULED.** The endpoint is live behind the admin token; the cron needs
+  Don's PR, and `.github/` is untouchable to every agent lane.
+* **NO BOOK HAS RUN ITS DAY-1 GATE ON THE SERVICE**, so all seventeen read `SELFCHECK_ABSENT`
+  (or `DECLARATION_INVALID` for the short six until the runner registers). That is the correct
+  and safe state.
+* **`IDEAS_LEDGER.md` and `SEASON3_MAP.md` are NOT edited** — the scout lane reserves them.
+
+### RELAYED TO THE SCOUT LANE, for its ledger
+
+**`S3-I1`'s zero-vs-one infra-trial pricing departure.** `IDEAS_LEDGER.md` prices `S3-I1` at
+**1 infra trial**; it was logged at **ZERO**, on the reasoning that the draft's own §2 charges at
+FIRST VERDICT READ and the harness reads none — the `I-2`/`I-3` precedent, both priced at 1 infra
+and both logged at zero. **The counter-argument is on the record and the departure runs the
+UNSAFE direction** (overstating `N` is the safe one, `MA6`), so it is flagged rather than
+assumed: the harness fixes a convention every future fleet verdict inherits, and `MB1-SEL` is
+what governs — machinery that can only BLOCK or RECORD adds no degree of freedom. **Amendable;
+the scout lane owns the ledger row.**
