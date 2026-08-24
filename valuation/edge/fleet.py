@@ -853,7 +853,58 @@ def record_fill(book: str, fields: dict, root: str = None) -> dict:
 # ---------------------------------------------------------------------------------------
 # One ledger row per book (draft section 1.5) -- emitted, so nobody hand-types a pipe
 # ---------------------------------------------------------------------------------------
-def ledger_row(decl: dict, *, status: str = "DECLARED - no verdict", note: str = "") -> str:
+def _first_sentence(s) -> str:
+    """The first sentence of `s`, split on a period FOLLOWED BY A SPACE.
+
+    Splitting on a bare period truncates `"0.3 years at the projected 45.00 fills/month"` to
+    `"0"` -- which reads as a horizon of zero, i.e. *"readable now"*, the exact misreading the
+    horizon field exists to prevent. Caught by reading the emitted row rather than by any test,
+    which is why the row is printed and inspected before it is pasted anywhere.
+    """
+    s = str(s or "").strip()
+    for i in range(len(s) - 1):
+        if s[i] == "." and s[i + 1] == " ":
+            return s[:i]
+    return s
+
+
+def horizon_note(decl: dict) -> str:
+    """The verdict horizon, FIELD BY FIELD, as one pipe-free ledger sentence.
+
+    Every field is named with its own value rather than summarised, because the horizon's
+    whole job is to stop a book being read early and a summary is exactly what gets rounded.
+    `sigma_provenance` travels with `sigma` for the reason `MB8` paid for: it borrowed a
+    standard error measured on a different perturbation size and was wrong by six-fold. An
+    ASSUMED sigma and a MEASURED one are different objects and the row says which.
+    """
+    h = decl.get("verdict_horizon") or {}
+    t = decl.get("trial") or {}
+    dom = str(t.get("domain") or "")
+    charge = ("ZERO TRIALS - hypothesis_class %r charges nothing and no meter is ever read"
+              % str(decl.get("hypothesis_class") or "")
+              if dom in ("", "none") else
+              "Trial 1 %s, charged at %s" % (dom, t.get("charged_at") or "first_verdict_read"))
+    sig = h.get("sigma")
+    prov = str(h.get("sigma_provenance") or "")
+    measured = prov.strip().upper().startswith("MEASURED")
+    return (
+        "Fleet book under S3-I1, declared and committed ALONE before any fill. %s. "
+        "VERDICT HORIZON, field by field: min_effect %s; sigma %s (%s); rho %s; alpha %s; "
+        "fills_needed %s, DERIVED as the smallest n at which the anytime-valid boundary falls "
+        "to min_effect and NOT the drafts' round 30; expected_fills_per_month %s; "
+        "years_to_horizon_at_projected_rate %s; earliest_honest_read %s. "
+        "sigma may only ever be RAISED, never lowered. %s"
+        % (charge, h.get("min_effect"), sig,
+           "MEASURED" if measured else "PRIOR, not measured - replace with the realised SD at "
+           "first read",
+           h.get("rho"), h.get("alpha"), h.get("fills_needed"),
+           h.get("expected_fills_per_month"), h.get("years_to_horizon_at_projected_rate"),
+           _first_sentence(h.get("earliest_honest_read")), O11_SENTENCE))
+
+
+def ledger_row(decl: dict, *, status: str = "DECLARED - no verdict", note: str = "",
+               tag: str = None, commit: str = "PENDING", handoff: str = None,
+               date: str = None) -> str:
     """The book's `VALQUO_LEDGER.md` row, ten cells, REFUSING any raw pipe in the prose.
 
     `M1-PARSE` is this record's most repeated clerical defect and it has NO ESCAPE:
@@ -861,18 +912,21 @@ def ledger_row(decl: dict, *, status: str = "DECLARED - no verdict", note: str =
     backslash, so one in a cell shifts every column after it and the row silently changes
     meaning. `E-2` hit it three days ago by writing an absolute value in prose. Emitting the
     row and REFUSING the character is cheaper than catching it after the fact.
+
+    `tag` and `commit` were ADDED AT THE CEREMONY (2026-08-24) and the defect they close is
+    this function's own. It was written while no book had been accepted, so it hard-coded the
+    id as `"F-" + book` -- which yields `F-f13_second_event` where the map says **F-13** -- and
+    the commit as the literal `PENDING`, which was true when nothing was committed and became
+    false the moment seventeen declarations landed. Both defaults are UNCHANGED so every
+    existing caller and test is bit-identical; the ceremony passes the real values.
     """
     book = str(decl.get("book") or "")
     cells = [
-        "F-" + book, "F", str(decl.get("entry_rule") or "")[:180], status,
+        tag or ("F-" + book), "F", str(decl.get("entry_rule") or "")[:180], status,
         "No verdict at declaration; amended at first verdict read",
-        "PENDING", "DECL_" + book + ".md", _dt.date.today().isoformat(), "human",
-        (note or ("Fleet book under S3-I1. Trial: 1 " + str((decl.get("trial") or {}).get("domain"))
-                  + ", charged at FIRST VERDICT READ. Horizon "
-                  + str((decl.get("verdict_horizon") or {}).get("fills_needed"))
-                  + " fills, earliest honest read "
-                  + str((decl.get("verdict_horizon") or {}).get("earliest_honest_read"))
-                  + ". " + O11_SENTENCE)),
+        commit or "PENDING", handoff or ("DECL_" + book + ".md"),
+        date or _dt.date.today().isoformat(), "human",
+        (note or horizon_note(decl)),
     ]
     bad = [i for i, c in enumerate(cells) if "|" in c]
     if bad:

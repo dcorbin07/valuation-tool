@@ -788,6 +788,61 @@ class LedgerRowAndTemplate(unittest.TestCase):
             F.ledger_row(d)
         self.assertIn("M1-PARSE", str(cm.exception))
 
+    def test_the_ceremony_can_supply_the_map_tag_and_the_real_commit(self):
+        """Both were hard-coded, and both were wrong the moment a book was actually accepted.
+
+        The id defaulted to `"F-" + book`, which yields `F-f13_second_event` where the map and
+        every human reference say **F-13**; the commit defaulted to the literal `PENDING`,
+        which was honest while nothing was committed and false afterwards.
+        """
+        d = F.parse_declaration(_decl_text())["declaration"]
+        row = F.ledger_row(d, tag="F-13", commit="bcf8af3")
+        cells = [c.strip() for c in row.strip().strip("|").split("|")]
+        self.assertEqual(cells[0], "F-13")
+        self.assertEqual(cells[5], "bcf8af3")
+
+    def test_the_defaults_are_UNCHANGED_so_every_prior_caller_is_bit_identical(self):
+        """The new keywords must be additive: a caller passing neither gets the old row."""
+        d = F.parse_declaration(_decl_text())["declaration"]
+        cells = [c.strip() for c in F.ledger_row(d).strip().strip("|").split("|")]
+        self.assertEqual(cells[0], "F-" + str(d["book"]))
+        self.assertEqual(cells[5], "PENDING")
+
+    def test_a_horizon_of_zero_point_three_years_is_NOT_truncated_to_zero(self):
+        """Splitting a sentence on a bare period truncates at the DECIMAL POINT.
+
+        `"0.3 years at the projected 45.00 fills/month"` became `"0"` -- which reads as a
+        horizon of zero, i.e. *readable now*, the precise misreading the horizon field exists
+        to prevent. It ran the UNSAFE direction, so it is pinned rather than merely fixed.
+        """
+        self.assertEqual(F._first_sentence("0.3 years at 45.00 a month. Next."),
+                         "0.3 years at 45.00 a month")
+        self.assertEqual(F._first_sentence("no trailing period"), "no trailing period")
+
+    def test_the_horizon_note_names_every_field_and_says_whether_sigma_was_MEASURED(self):
+        """`MB8` borrowed an SE measured on a different perturbation and was wrong six-fold.
+
+        An assumed sigma and a measured one are different objects, so the row says which.
+        """
+        d = F.parse_declaration(_decl_text())["declaration"]
+        d["verdict_horizon"] = dict(d["verdict_horizon"])
+        d["verdict_horizon"]["sigma_provenance"] = "PRIOR, not measured: a guess"
+        note = F.horizon_note(d)
+        for field in ("min_effect", "sigma", "rho", "alpha", "fills_needed",
+                      "expected_fills_per_month", "years_to_horizon_at_projected_rate",
+                      "earliest_honest_read"):
+            self.assertIn(field, note)
+        self.assertIn("PRIOR, not measured", note)
+        d["verdict_horizon"]["sigma_provenance"] = "MEASURED: O12 reports sd 0.9251"
+        self.assertIn("MEASURED", F.horizon_note(d))
+
+    def test_a_utility_book_charges_ZERO_TRIALS_in_its_own_ledger_row(self):
+        """F-6 measures the COST of a service, not a hypothesis, so no meter is ever read."""
+        d = F.parse_declaration(_decl_text())["declaration"]
+        d["hypothesis_class"] = "utility"
+        d["trial"] = {"domain": "none"}
+        self.assertIn("ZERO TRIALS", F.horizon_note(d))
+
     def test_the_template_parses_and_is_REFUSED_until_its_placeholders_are_filled(self):
         """A skeleton that validated would be a book declared with no horizon."""
         t = F.declaration_template("fX")
