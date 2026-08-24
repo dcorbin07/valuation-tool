@@ -206,6 +206,16 @@ Attribution is measured, not asserted: the JSON is byte-identical to `origin/mai
 updating rather than the test, and a contract amendment is Don's and `PT-SPLIT`'s, not a
 display lane's.
 
+**RESOLVED WHILE THIS WAS LANDING, BY ANOTHER LANE, AND THE ROOT CAUSE IS WORTH KEEPING.**
+`09ea4cc` *"Unblock the shared gate: a cron job went red, and a control picked a merge"* landed
+on `main` and names `hero-shelf` among the six consecutive land failures across five branches.
+Its diagnosis: a **SCHEDULED** workflow commits refreshed data straight to `main` **without
+passing the land gate**, so a test asserting a fact about that data went red with nothing
+re-running to catch it. This branch merged the fix and `tests/test_paper_track.py` is back to
+**70 of 70**. The paragraph above is left as written because it was true when it was written,
+and because the attribution work it records is the reason this session did not silence someone
+else's test to get its own branch green.
+
 ## 5. Not done, named so it is not mistaken for done
 
 * **No service copy of the SPMO sibling still exists.** `data/` is gitignored, so the live door
