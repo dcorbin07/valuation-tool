@@ -1,0 +1,21 @@
+{
+  "bar": 0.15,
+  "cluster_adjusted_detection_threshold_50pct": 0.14471665442688625,
+  "corpus_pinned_to": "8e2e9fe",
+  "detection_threshold_50pct": 0.12044583109484722,
+  "gap": -0.04999999999999993,
+  "half_width": 0.1432030129124821,
+  "item": "SC-1b",
+  "may_not_be_quoted_as": [
+    "validation of any individual prior -- calibration-in-the-large is an aggregate property (SC-1 §231)",
+    "a re-scoring of any item, or a reason to re-open one",
+    "evidence about whether the priors are INFORMATIVE -- that is SC-1's separate Brier-skill finding and this register neither strengthens nor weakens it"
+  ],
+  "n": 43,
+  "n_clusters": 15,
+  "register": "PREREG_sc1b_cluster_by_item.md",
+  "register_commit": "329402d",
+  "source": "data/free_analysis/SC1B_CLUSTER_BY_ITEM.json",
+  "source_sha256": "855eb62f5725828cc54cece807db72dbe0728ccbb1fa6cdb523f13b75ad515da",
+  "verdict": "CALIBRATED-IN-THE-LARGE"
+}

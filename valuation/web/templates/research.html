@@ -312,6 +312,111 @@
   </section>
   {% endif %}
 
+  {# ---------------------------------------------------------------------------- SC-1
+     WHETHER THE PREDICTIONS WERE ANY GOOD. Same rule as the two blocks above: every sentence
+     is a constant in `research_record.py`, every number is derived there at render time, and
+     `calibration.available` is false — so the whole section disappears — whenever the card
+     cannot be read, is malformed, carries a verdict this page has no word for, or disagrees
+     with its own interval. Fail closed.
+
+     TWO FIGURES APPEAR HERE AND BOTH ARE DERIVED. They are the pre-committed ceiling and the
+     measured half-width of an interval around a calibration gap: arithmetic on this project's
+     own written predictions and their outcomes, carrying no market data and saying nothing
+     about how the strategy performed. The page's own guard exempts exactly those two strings
+     and nothing else, and the exemption is empty when the card cannot be read. #}
+  {% if calibration.available %}
+  <section>
+    <h2>{{ calibration.heading }}</h2>
+    <p class="lede">{{ calibration.lede }}</p>
+    <div class="tally">
+      <div class="t"><div class="n">{{ calibration.n }}</div>
+        <div class="l">Predictions scored</div></div>
+      <div class="t"><div class="n">{{ calibration.n_clusters }}</div>
+        <div class="l">Studies they came from</div></div>
+    </div>
+    <div class="callout">
+      <span class="h">The verdict, and the line it was held to</span>
+      <p>Scored as a group, the record's stated probabilities
+         <b>{{ calibration.verdict_phrase }}</b>. The ceiling was committed in advance at
+         <b>{{ calibration.bar_text }}</b> on the width of the interval around the average gap
+         between what was predicted and what happened; the measured half-width is
+         <b>{{ calibration.half_width_text }}</b>, so the interval
+         <b>{{ calibration.clears_word }}</b>.</p>
+      <p>The lean, such as it is, runs {{ calibration.direction }}.</p>
+    </div>
+    <p>{{ calibration.method }}</p>
+    <p>{{ calibration.limit }}</p>
+    {% if calibration.may_not_be_quoted_as %}
+    {# THE STUDY'S OWN LIST, carried in the payload rather than re-worded here. A page that
+       paraphrased the limits of the result it is publishing would be the one place on this
+       site where the caveat and the claim could drift apart. #}
+    <div class="callout">
+      <span class="h">What this may not be quoted as</span>
+      <ul>
+        {% for q in calibration.may_not_be_quoted_as %}<li>{{ q }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    <p class="src">{{ calibration.why }} Registered in
+       <b>{{ calibration.register }}</b>, committed on its own at
+       <b>{{ calibration.register_commit }}</b>, and scored against the record as it stood at
+       <b>{{ calibration.corpus_pinned_to }}</b>.</p>
+  </section>
+  {% endif %}
+
+  {# ---------------------------------------------------------------------------- S3-I7
+     THE DECLARED BOOKS. Provenance, never performance: a commit, a horizon and a status, and
+     no figure of any kind. The section renders WHILE EMPTY on purpose — a shelf that appeared
+     only once it had something to show would be evidence of nothing at all.
+
+     Nothing here is inferred. A commit and a status come from the harness record or read as
+     not-yet-recorded; a horizon is read from a labelled field or shown as unlabelled; and a
+     closed window with no verdict read is shown as such rather than rolled quietly forward. #}
+  {% if declared.available %}
+  <section>
+    <h2>{{ declared.heading }}</h2>
+    <p class="lede">{{ declared.lede }}</p>
+
+    {% if declared.empty %}
+    <div class="callout">
+      <span class="h">Nothing declared yet</span>
+      <p>{{ declared.empty_note }}</p>
+    </div>
+    {% else %}
+    <div class="tbl">
+      <table class="mv">
+        <thead><tr><th>Book</th><th>Declared in commit</th><th>Verdict horizon</th>
+          <th>Status</th></tr></thead>
+        <tbody>
+        {% for b in declared.books %}
+          <tr>
+            <td>{{ b.title }}<div class="src">{{ b.file }}</div></td>
+            <td class="id">{% if b.commit_known %}{{ b.commit }}{% else %}<span class="same">not
+              yet recorded</span>{% endif %}</td>
+            <td class="d">{% if b.horizon_labelled %}{{ b.horizon }}{% elif b.fills_needed
+              %}{{ b.fills_needed }} fills{% else %}<span class="same">not stated</span>{% endif
+              %}</td>
+            <td><span class="verdict">{{ b.status }}</span>
+              {%- if b.overdue %} <span class="same">&mdash; window closed, verdict not yet
+              read</span>{% endif %}
+              <div class="src">{{ b.status_blurb }}</div></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if not declared.record_available %}<p>{{ declared.pending_note }}</p>{% endif %}
+    {% if declared.any_overdue %}<p>{{ declared.overdue_note }}</p>{% endif %}
+    {% endif %}
+
+    {# A DRAFT IS NOT A DECLARATION. Said out loud only when some were skipped, so the page
+       does not carry a permanent caveat about a category that may never appear again. #}
+    {% if declared.drafts_excluded %}<p class="src">{{ declared.drafts_note }}</p>{% endif %}
+
+    <p class="src">{{ declared.no_figures }}</p>
+  </section>
+  {% endif %}
+
   <section>
     <h2>What is deliberately not here</h2>
     <p><b>No performance figures.</b> Not one — no return, no t-statistic, no effect size, and
@@ -320,11 +425,13 @@
        publish live on the surfaces that are allowed to carry them, with their caveats attached;
        repeating them here would turn a page about <em>method</em> into an unaudited second
        source for <em>numbers</em>, and this project has already shipped that mistake.</p>
-    <p><b>One number above is not an exception to that, and it is worth saying why.</b> The bar
-       derived from the trial count is arithmetic on how many things were tried — a count of
-       this project's own decisions. It contains no market data and nothing about how the
-       strategy performed, and it is the same for any project that ran the same number of
-       tests. The statistic it is compared against is withheld like every other.</p>
+    <p><b>A few numbers above are not exceptions to that, and it is worth saying why.</b> The
+       bar derived from the trial count is arithmetic on how many things were tried — a
+       count of this project's own decisions. The calibration ceiling and half-width are
+       arithmetic on this project's own written predictions and what became of them. All three
+       contain no market data and say nothing about how the strategy performed; the first is the
+       same for any project that ran the same number of tests. The statistics they are compared
+       against are withheld like every other.</p>
     <p>No market data, no holdings, no vendor rows. Vendor <em>names</em> appear because they
        are part of the record.</p>
   </section>
