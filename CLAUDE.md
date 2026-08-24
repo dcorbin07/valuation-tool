@@ -146,8 +146,21 @@ the project's memory and the old versions had been repeated for months.
   * **DON'S FLEET RULING MAKES THE DRAFT'S FIRST EXPECTATION UNSCORABLE (`E5`)** - it prices
     *"≥6 books declared within two weeks"* at 70/30 while the ruling declares all ~18 TOGETHER,
     so it is recorded **VOID-BY-RULING**, neither right nor wrong. (2), (3) and (4) stand.
-  * **SEVEN DEFECTS IN MY OWN INSTRUMENTS, ALL CAUGHT BY RUNNING THEM, and two are the portable
-    ones. (a) THE HASH CHAIN COULD NOT VERIFY A SINGLE ROW IT HAD JUST WRITTEN** - it hashed
+  * **ONE REAL REGRESSION, AND MY OWN 275-CASE GATE COULD NOT SEE IT - THE FULL 148-SUITE RUN
+    CAUGHT IT.** `append_row` takes a **`columns=`** keyword, added by the PT-SPMO lane so the
+    reported-benchmark sibling could reuse this writer with its own schema; **my first
+    delegation hard-coded `ROW_COLUMNS`, so the argument was ACCEPTED AND SILENTLY DROPPED** and
+    a correct sibling write came back **refused for widening a header nobody asked to widen**.
+    `tests/test_reported_benchmark.py` went **26/26 to 24/26**, and it was confirmed mine by
+    restoring `index_mark.py` to the register commit and re-running to 26/26. **THE PORTABLE
+    PART: a branch sweep perturbs the DATA and this defect lived in the SIGNATURE, where no
+    amount of data variation reaches it.** The register's obligation ("cover every branch") was
+    **weaker than the job required**; the sweep now runs 275 cases over 11 branches including
+    two that vary the caller's `columns`, and it is pinned twice - by the suite that found it
+    and by a new test of this lane's own, since the delegation is this session's code.
+    **A differential harness must exercise every PARAMETER of the contract it proves, not merely
+    every path through the implementation.**
+  * **EIGHT DEFECTS IN MY OWN INSTRUMENTS, ALL CAUGHT BY RUNNING THEM, and two more are portable. (a) THE HASH CHAIN COULD NOT VERIFY A SINGLE ROW IT HAD JUST WRITTEN** - it hashed
     native types while CSV returns strings, so the whole stream read as broken; the invariant is
     now **hash what you PERSIST**, and the payload keys come from the file's own header so a
     book using `records_schema` can verify at all. **(b) A GUARD THAT COULD NOT FIRE:** the
@@ -175,7 +188,7 @@ the project's memory and the old versions had been repeated for months.
     `tests/test_paper_track.py` reads 69/70 and the failure PREDATES this session** - proved by
     restoring the tree and re-running to the identical 69/70 - **it is a live disagreement
     between the engine's recorded book and `PAPER_TRACK_CONTRACT.md` §5b, the paper-track lane's
-    to adjudicate.** **51 new tests plus the repointed `MA4` guard (64/64); 12 of 12 mutations
+    to adjudicate.** **52 new tests plus the repointed `MA4` guard (64/64); 12 of 12 mutations
     caught across the append-only and declaration-before-fill guards, plus 3 of 3 on the `MA4`
     guard, every one with sources restored byte-for-byte.**
     `valuation/edge/append_only.py`, `valuation/edge/fleet.py`,

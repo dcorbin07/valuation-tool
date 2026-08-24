@@ -833,6 +833,13 @@ def append_row(row: dict, history_path: str = None, *, append_only: bool = False
     from . import index_track
     from ..edge import append_only as AO
     _, hp = index_track.default_paths()
-    return AO.append(row, history_path or hp, key="date", columns=ROW_COLUMNS,
+    # `columns` is the CALLER'S, defaulting to the bound series' own schema. The first cut of
+    # this delegation hard-coded `ROW_COLUMNS` and so SILENTLY IGNORED the argument the SPMO
+    # sibling passes to reuse this writer with its own header -- the parameter was accepted and
+    # dropped, which refused a correct write rather than raising. Caught by the full gate;
+    # `scripts/i1_append_only_validate.py` could not see it, because 200 cases swept every
+    # BRANCH and never varied a PARAMETER.
+    return AO.append(row, history_path or hp, key="date",
+                     columns=(ROW_COLUMNS if columns is None else columns),
                      append_only=append_only, typer=typed_row,
                      backfill_hint=_BACKFILL_HINT)

@@ -188,6 +188,29 @@ class AppendOnly(unittest.TestCase):
                  if isinstance(n, ast.ImportFrom) for a in n.names}
         self.assertIn("append_only", names)
 
+    def test_append_row_honours_a_CALLER_S_columns_and_does_not_hard_code_its_own(self):
+        """The regression the full gate caught and my own 200-case sweep could not.
+
+        `append_row` takes `columns=` so the SPMO sibling can reuse this writer with its own
+        schema. The first cut of the delegation hard-coded `ROW_COLUMNS`, so the argument was
+        ACCEPTED AND SILENTLY DROPPED and a correct write came back refused for widening a
+        header nobody had asked to widen. A branch sweep varies the DATA; this defect lived in
+        the SIGNATURE, which is why `tests/test_reported_benchmark.py` found it and the
+        differential harness did not.
+        """
+        from valuation.screener import index_mark as IM
+        sib = ("date", "day_n", "valquo_pct", "valquo_src", "spmo_pct", "excess_pp")
+        p = os.path.join(self.d, "sibling.csv")
+        first = {"date": "2026-08-17", "day_n": 12, "valquo_pct": 6.97,
+                 "valquo_src": "computed", "spmo_pct": 8.7, "excess_pp": -1.7}
+        r1 = IM.append_row(first, p, append_only=True, columns=sib)
+        self.assertTrue(r1["ok"] and r1["wrote"], r1)
+        self.assertEqual(tuple(r1["columns"]), sib, "the caller's schema was not honoured")
+        fwd = dict(first, date="2026-08-18", day_n=13)
+        r2 = IM.append_row(fwd, p, append_only=True, columns=sib)
+        self.assertTrue(r2["ok"] and r2["wrote"], r2)
+        self.assertNotIn("spy_pct", r2["columns"], "the bound series' schema leaked in")
+
     def test_the_fleet_defines_no_second_csv_writer(self):
         """A `csv.DictWriter` inside `fleet.py` would be exactly the copy E2 refuses."""
         fsrc = io.open(os.path.join(REPO, "valuation", "edge", "fleet.py"),

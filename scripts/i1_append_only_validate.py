@@ -6,7 +6,9 @@ obligations, all pre-committed:
 
   1. Reproduce the pre-refactor `index_mark.append_row` BIT-IDENTICALLY over a randomised case
      sweep covering every branch -- first write, duplicate key, backward key, header widening,
-     ragged file, missing file, ignored fields, replacement.
+     ragged file, missing file, ignored fields, replacement -- AND every PARAMETER of its
+     signature, which is a stronger obligation than the register wrote and is here because the
+     weaker one let a real regression through. See `REQUIRED_BRANCHES`.
   2. Reproduce the BYTE-LEVEL PREFIX guarantee `.github/workflows/track-row.yml` verifies.
   3. `tests/test_index_mark.py` passes unchanged (run separately, by the suite runner).
 
@@ -48,8 +50,15 @@ PRE_REFACTOR_REF = "b995940"
 REQUIRED_BRANCHES = (
     "first_write", "duplicate_key", "backward_key", "header_widen",
     "ragged_file", "no_key", "ignored_fields", "replacement", "append_forward",
+    # ADDED AFTER THE FULL GATE CAUGHT WHAT THIS SWEEP COULD NOT. `append_row` takes a
+    # `columns=` keyword -- the SPMO sibling passes its own schema to reuse the writer -- and
+    # the first delegation hard-coded `ROW_COLUMNS`, so the argument was accepted and silently
+    # DROPPED, refusing a correct write. 200 cases over every BRANCH never saw it, because a
+    # branch sweep varies the DATA and this defect lives in the SIGNATURE. A differential
+    # harness must exercise every PARAMETER, not merely every code path.
+    "caller_columns", "caller_columns_forward",
 )
-MIN_CASES = 200
+MIN_CASES = 275
 
 
 def _old_module():
@@ -108,6 +117,7 @@ def _case(rng, i):
              "n_priced": rng.randint(50, 90)} for d in range(1, rng.randint(2, 7))]
     branch = REQUIRED_BRANCHES[i % len(REQUIRED_BRANCHES)]
     header, rows, row, append_only = list(cols), list(base), None, bool(i % 2)
+    kw = {}                                   # extra kwargs the two implementations both get
 
     if branch == "first_write":
         rows, header = [], list(cols)
@@ -138,10 +148,26 @@ def _case(rng, i):
         row = {"date": "2026-09-%02d" % rng.randint(1, 28), "day_n": 99,
                "valquo_pct": 3.0, "spy_pct": 2.0, "excess_pp": 1.0, "n_priced": 86}
         append_only = True
+    elif branch in ("caller_columns", "caller_columns_forward"):
+        # A CALLER'S OWN SCHEMA, the SPMO sibling's shape: same key, different columns. This is
+        # the parameter the first delegation dropped.
+        sib = ["date", "day_n", "valquo_pct", "valquo_src", "spmo_pct", "excess_pp"]
+        header = list(sib)
+        rows = [{"date": "2026-08-%02d" % d, "day_n": d, "valquo_pct": 1.0 * d,
+                 "valquo_src": "computed", "spmo_pct": 2.0 * d, "excess_pp": -1.0 * d}
+                for d in range(1, 5)]
+        kw["columns"] = tuple(sib)
+        if branch == "caller_columns_forward":
+            row = {"date": "2026-09-01", "day_n": 9, "valquo_pct": 7.0,
+                   "valquo_src": "computed", "spmo_pct": 8.0, "excess_pp": -1.0}
+            append_only = True
+        else:
+            row = dict(rows[-1]); row["valquo_pct"] = 42.0
+            append_only = False
     else:                                                     # replacement
         row = dict(rows[-1]); row["valquo_pct"] = 77.0
         append_only = False
-    return branch, header, rows, row, append_only
+    return branch, header, rows, row, append_only, kw
 
 
 def _norm(res, tmpdir):
@@ -156,7 +182,7 @@ def _norm(res, tmpdir):
     return txt.replace(json.dumps(tmpdir)[1:-1], "<DIR>").replace(tmpdir, "<DIR>")
 
 
-def _run(fn, tmpdir, branch, header, rows, row, append_only):
+def _run(fn, tmpdir, branch, header, rows, row, append_only, kw=None):
     path = os.path.join(tmpdir, "book.csv")
     if branch == "ragged_file":
         _write(path, header, rows)
@@ -173,7 +199,7 @@ def _run(fn, tmpdir, branch, header, rows, row, append_only):
     attempts = 0
     for attempts in range(1, 4):
         try:
-            res = fn(row, path, append_only=append_only)
+            res = fn(row, path, append_only=append_only, **(kw or {}))
         except Exception as e:                                # noqa: BLE001
             res = {"__raised__": type(e).__name__ + ": " + str(e)}
         if "WinError 32" not in str(res.get("reason", "")) + str(res.get("__raised__", "")):
@@ -190,13 +216,13 @@ def main() -> int:
     seen, mismatches, prefix_checked, prefix_ok, env_retries = {}, [], 0, 0, 0
 
     for i in range(MIN_CASES):
-        branch, header, rows, row, append_only = _case(rng, i)
+        branch, header, rows, row, append_only, kw = _case(rng, i)
         seen[branch] = seen.get(branch, 0) + 1
         with tempfile.TemporaryDirectory() as d1, tempfile.TemporaryDirectory() as d2:
             r_old, b_old_before, b_old_after, ro = _run(
-                old.append_row, d1, branch, header, rows, row, append_only)
+                old.append_row, d1, branch, header, rows, row, append_only, kw)
             r_new, b_new_before, b_new_after, rn = _run(
-                new.append_row, d2, branch, header, rows, row, append_only)
+                new.append_row, d2, branch, header, rows, row, append_only, kw)
             env_retries += ro + rn
             n_old, n_new = _norm(r_old, d1), _norm(r_new, d2)
 

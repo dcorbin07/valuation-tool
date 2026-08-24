@@ -16392,7 +16392,34 @@ safety-critical writer, which is the safe direction for the thing the obligation
 it is a departure from a pre-commitment made hours earlier, and it is recorded as one.** The
 register is left UNEDITED.
 
-## SEVEN DEFECTS IN MY OWN INSTRUMENTS, every one caught by running them
+## THE ONE REAL REGRESSION, AND MY OWN GATE DID NOT CATCH IT — the full suite did
+
+**This is the most important thing in this section, because it is the one defect that reached
+correct code rather than an instrument.** `index_mark.append_row` takes a **`columns=`**
+keyword — the PT-SPMO lane added it so the reported-benchmark sibling could reuse this writer
+with its own six-column schema rather than growing a second one. **My first delegation
+hard-coded `ROW_COLUMNS`, so the argument was ACCEPTED AND SILENTLY DROPPED**, and a correct
+sibling write came back **refused for widening a header nobody had asked to widen**.
+
+**`tests/test_reported_benchmark.py` went 26/26 → 24/26.** It was caught by running the FULL
+148-suite gate, and confirmed to be mine by restoring `index_mark.py` to the register commit
+and re-running to 26/26.
+
+**WHY THE DIFFERENTIAL HARNESS MISSED IT, AND THIS IS THE PORTABLE PART: 275 randomised cases
+over every BRANCH never varied a PARAMETER.** A branch sweep perturbs the DATA — duplicate key,
+backward key, ragged file, header widening — and **this defect lived in the SIGNATURE**, where
+no amount of data variation can reach it. The obligation the register wrote ("cover every
+branch") was **weaker than the job required**, and it is now strengthened rather than merely
+satisfied: two `caller_columns` branches were added, the sweep runs 275 cases over 11 branches,
+and `scripts/i1_append_only_validate.py`'s own docstring now states the stronger obligation.
+**Pinned twice** — by `test_reported_benchmark.py`, which found it, and by a new test in
+`tests/test_fleet_harness.py`, because the delegation is this session's code and should carry
+its own regression test rather than relying on another lane's.
+
+**A differential harness must exercise every parameter of the contract it is proving, not
+merely every path through the implementation.**
+
+## EIGHT DEFECTS IN MY OWN INSTRUMENTS, every one caught by running them
 
 **In the append-only validation harness:**
 
@@ -16605,5 +16632,5 @@ register, and it is the paper-track lane's to adjudicate.**
 
 `valuation/edge/append_only.py`, `valuation/edge/fleet.py`,
 `scripts/i1_append_only_validate.py`, `scripts/fleet_selfcheck.py`;
-`tests/test_fleet_harness.py` (51 tests) plus the repointed `MA4` guard in
+`tests/test_fleet_harness.py` (52 tests) plus the repointed `MA4` guard in
 `tests/test_index_mark.py` (64/64).
