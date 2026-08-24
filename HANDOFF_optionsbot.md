@@ -8560,7 +8560,7 @@ red on this suite alone.
 ## 71. THE DECLARATION CEREMONY — 17 books declared, 3 refused, and **THE FLEET IS DECLARED-BUT-NOT-BREATHING** (2026-08-24)
 
 **Executor: options-live lane. Author of the twenty drafts and the runbook: the Frontier Scout,
-which declined to accept its own work.** The runbook (`DECL_CEREMONY_RUNBOOK.md`) governed;
+which declined to accept its own work.** The runbook (`CEREMONY_RUNBOOK.md`) governed;
 where it and the task differed, the runbook won.
 
 ### THE COUNT, WHICH IS WHAT THE RUNBOOK ASKS FOR

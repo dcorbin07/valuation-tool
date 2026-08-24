@@ -1,4 +1,4 @@
-# DECL_CEREMONY_RUNBOOK.md — the declaration ceremony, packaged for the executing lane
+# CEREMONY_RUNBOOK.md — the declaration ceremony, packaged for the executing lane
 ## Frontier Scout, 2026-08-24. For Don to route to the options-bot lane (the harness owner).
 
 **Why this is a runbook and not the ceremony itself, in one paragraph:** the scout drafted

@@ -718,17 +718,30 @@ DECL_GLOB = "DECL_*.md"
 DECL_DRAFT_PREFIX = "DECL_DRAFT_"
 
 DECLARED, FILLING, VERDICT_READ = "DECLARED", "FILLING", "VERDICT-READ"
-DECL_STATUSES = (DECLARED, FILLING, VERDICT_READ)
+#: CLOSED was added at the ceremony of 2026-08-24, and the defect it closes was live and
+#: PUBLIC. The harness has always been able to write a `close` record — the day-1 test-book
+#: was deliberately closed with a zero-charge row — and this vocabulary had no word for it, so
+#: a closed book rendered as **FILLING**: *"the record it will be judged on is still filling"*,
+#: said of a book that will never fill again. A page whose entire claim is provenance cannot
+#: describe a shut book as running.
+CLOSED = "CLOSED"
+DECL_STATUSES = (DECLARED, FILLING, VERDICT_READ, CLOSED)
 
 DECL_STATUS_BLURB = {
     DECLARED: "committed, with nothing recorded against it yet",
     FILLING: "committed, and the record it will be judged on is still filling",
     VERDICT_READ: "its meter was read, which is the moment the trial is charged",
+    CLOSED: "closed on the record; it takes no further fills",
 }
 
 #: The harness's own event kinds, in the order that decides a status. A meter read IS a
 #: verdict read under `S3-I1` section 2, which is why it outranks a fill.
-_DECL_KIND_STATUS = ((("meter_read",), VERDICT_READ), (("fill",), FILLING))
+#:
+#: CLOSED OUTRANKS BOTH, because it is the last thing that can happen to a book and the only
+#: one of the three that is terminal. A closed book that was also read still reads as closed;
+#: reporting it as VERDICT-READ would say the meter is the latest news when the shutter is.
+_DECL_KIND_STATUS = ((("close",), CLOSED), (("meter_read",), VERDICT_READ),
+                     (("fill",), FILLING))
 
 _JSON_BLOCK = re.compile(r"```json\s*\n(.*?)\n```", re.S)
 

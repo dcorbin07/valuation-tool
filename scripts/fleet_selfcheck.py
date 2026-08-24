@@ -304,7 +304,7 @@ def run(verbose=True) -> dict:
 def run_live(book: str, verbose: bool = True) -> dict:
     """One real sandbox fill, recorded through the harness and read back bit-identical.
 
-    `DECL_CEREMONY_RUNBOOK.md` section 1 requires this and it is the half the synthetic run
+    `CEREMONY_RUNBOOK.md` section 1 requires this and it is the half the synthetic run
     cannot do: the synthetic checks prove the RULES, this proves the harness against a real
     broker, a real chain and the real records store. A harness that passes on fixtures and
     fails on a live quote has proved nothing about the fleet.
@@ -488,7 +488,7 @@ def main() -> int:
     ap.add_argument("--book", help="record the outcome on this book's real stream")
     ap.add_argument("--live", action="store_true",
                     help="ALSO run the real-sandbox leg: one real fill on --book, recorded and "
-                         "read back bit-identical (DECL_CEREMONY_RUNBOOK section 1)")
+                         "read back bit-identical (CEREMONY_RUNBOOK section 1)")
     ap.add_argument("--close", action="store_true",
                     help="close --book with a ZERO-CHARGE closing row (test-books only)")
     ap.add_argument("--json", action="store_true")

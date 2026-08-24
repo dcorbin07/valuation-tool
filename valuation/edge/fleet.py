@@ -1054,7 +1054,7 @@ def declared_books(root: str = None) -> list:
     Discovery is by parse rather than by a hand-kept list, so a book cannot be declared and
     then silently left out of the cycle -- `MA5`'s lesson, where one hand-typed copy of a
     fact drifted from another. Files that do not parse are RETURNED with their reason rather
-    than skipped: `DECL_CEREMONY_RUNBOOK.md` is not a book and neither is a prose draft, and
+    than skipped: `CEREMONY_RUNBOOK.md` is not a book and neither is a prose draft, and
     the difference between *"not a book"* and *"a book whose declaration is broken"* is
     exactly what a silent skip would destroy.
     """

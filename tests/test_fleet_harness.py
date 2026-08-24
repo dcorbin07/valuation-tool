@@ -897,22 +897,29 @@ class TheDailyCycle(unittest.TestCase):
         shutil.rmtree(self.root, ignore_errors=True)
 
     def test_a_file_that_is_not_a_declaration_is_REPORTED_and_never_silently_skipped(self):
-        """`DECL_CEREMONY_RUNBOOK.md` is not a book. Neither is a prose draft.
+        """A `DECL_*.md` that carries no declaration block is not a book. Nor is a prose draft.
 
-        Skipping both silently would make *"not a book"* and *"a book whose declaration is
+        THE FIXTURE IS A GENERIC NAME ON PURPOSE, and the reason is a defect this ceremony
+        fixed. It used to be `DECL_CEREMONY_RUNBOOK.md`, the real file — which was named INTO
+        the declaration namespace and, because the public shelf excludes drafts by FILENAME
+        PREFIX rather than by parse, **was published on the research page as a declared fleet
+        book**. The root-cause fix was to rename the runbook out of the namespace, so the real
+        file no longer exercises this path. Pinning the case to that one filename would have
+        made this test evaporate with the rename; a synthetic name keeps it alive.
+        Skipping either silently would make *"not a book"* and *"a book whose declaration is
         broken"* indistinguishable -- and the second is the one that must be loud.
         """
-        io.open(os.path.join(self.root, "DECL_CEREMONY_RUNBOOK.md"), "w",
-                encoding="utf-8").write("# a runbook, not a book\n")
+        io.open(os.path.join(self.root, "DECL_NOT_A_BOOK.md"), "w",
+                encoding="utf-8").write("# a document, not a book\n")
         io.open(os.path.join(self.root, "DECL_DRAFT_fZ.md"), "w",
                 encoding="utf-8").write("# prose only, no fenced block\n")
         got = {d["book"]: d for d in F.declared_books(self.root)}
-        self.assertIn("CEREMONY_RUNBOOK", got)
-        self.assertFalse(got["CEREMONY_RUNBOOK"]["parses"])
-        self.assertTrue(got["CEREMONY_RUNBOOK"]["reason"])
+        self.assertIn("NOT_A_BOOK", got)
+        self.assertFalse(got["NOT_A_BOOK"]["parses"])
+        self.assertTrue(got["NOT_A_BOOK"]["reason"])
         res = F.cycle(self.root)
         states = {r["book"]: r["state"] for r in res["books"]}
-        self.assertEqual(states["CEREMONY_RUNBOOK"], "NOT_A_DECLARATION")
+        self.assertEqual(states["NOT_A_BOOK"], "NOT_A_DECLARATION")
         self.assertEqual(res["books_declared"], 0)
 
     def test_an_UNIMPLEMENTED_entry_rule_is_never_reported_as_no_candidates_today(self):

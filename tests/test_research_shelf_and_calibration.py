@@ -437,15 +437,27 @@ def _fleet_dir(d: str, files: dict) -> str:
 
 
 def test_an_empty_fleet_renders_an_honest_sentence_rather_than_hiding():
-    """THE SHIPPING STATE. A shelf that appeared only once it had something to show would be
-    evidence of nothing at all."""
+    """A shelf that appeared only once it had something to show would be evidence of nothing.
+
+    AMENDED AT THE DECLARATION CEREMONY, 2026-08-24. The second half used to assert that the
+    LIVE page reads *"No books have been declared yet"* — true on the day it was written and
+    made false by the ceremony, which declared seventeen books. **The behaviour is unchanged
+    and correct; what was wrong was pinning a transient state to the live page.** The empty
+    case is still tested, on a controlled root where it can be constructed rather than waited
+    for, and the live page is now asserted to render the shelf and to be CONSISTENT with
+    whatever the fleet actually holds — which is the property that does not expire.
+    """
     with tempfile.TemporaryDirectory() as d:
         s = RR.declared_books(root=d)
         assert s["available"] and s["empty"] and s["n"] == 0, s
         assert "No books have been declared yet" in s["empty_note"], s["empty_note"]
+
+    live = RR.declared_books()
     html = _page()
-    assert RR.DECL_HEADING in html, "the shelf is hidden while empty"
-    assert "No books have been declared yet" in html
+    assert RR.DECL_HEADING in html, "the shelf is hidden"
+    # The empty sentence appears if and only if the fleet is empty. Both directions, so this
+    # cannot rot again in either state.
+    assert ("No books have been declared yet" in html) == live["empty"], live["n"]
 
 
 def test_a_draft_is_not_a_declaration():
@@ -583,7 +595,17 @@ def test_a_title_from_a_declaration_is_withheld_like_any_other_borrowed_text():
 
 
 def test_the_status_vocabulary_is_closed_and_every_status_has_a_blurb():
-    assert set(RR.DECL_STATUSES) == {RR.DECLARED, RR.FILLING, RR.VERDICT_READ}
+    """CLOSED added 2026-08-24 at the declaration ceremony, and this literal is why it had to
+    be a deliberate act: the vocabulary is pinned here, so widening it fails until the same
+    commit widens both. `MA13`'s idiom.
+
+    THE DEFECT IT CLOSES WAS LIVE AND PUBLIC. The harness has always been able to write a
+    `close` record — line 603 below already admitted `"close"` as a valid harness kind — and
+    the vocabulary had no word for it, so a book closed on the record rendered as **FILLING**:
+    *"the record it will be judged on is still filling"*, said of a book that will never fill
+    again. The day-1 test-book, closed with a zero-charge row, is exactly that case.
+    """
+    assert set(RR.DECL_STATUSES) == {RR.DECLARED, RR.FILLING, RR.VERDICT_READ, RR.CLOSED}
     for st in RR.DECL_STATUSES:
         assert RR.DECL_STATUS_BLURB.get(st), st
     # The kinds the status is derived from are the harness's, not invented here.
