@@ -420,6 +420,12 @@ def api_index_track():
     try:
         from ..screener import reported_benchmark
         out["reported_benchmark"] = reported_benchmark.claim()
+        # The chart's third line. `attach_series` hangs the recorded SPMO level on the bound
+        # rows that have one and adds nothing to the rows that do not, so the sibling's own
+        # start date shows up as a gap in the line rather than as a flat stretch. It is a
+        # READ of the sibling: this route writes nothing, and a test byte-compares the file
+        # across a request to keep it that way.
+        reported_benchmark.attach_series(out)
     except Exception:                                    # noqa: BLE001
         pass                        # a reported benchmark must never break the bound card
     out["disclaimer"] = RISK_DISCLAIMER

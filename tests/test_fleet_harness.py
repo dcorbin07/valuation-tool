@@ -463,17 +463,21 @@ class Declarations(unittest.TestCase):
 # THE S3-I3 SEAM -- interface only; this module builds no assignment model
 # =======================================================================================
 class AssignmentSeam(unittest.TestCase):
-    """RECONCILED 2026-08-24 to the LANDED `S3-I3`, and the drift is the point.
+    """SETTLED WITH r1 2026-08-24, after moving TWICE -- and the middle version was wrong.
 
-    `S3-I1` froze three callable names and three required fields BEFORE the model existed.
-    r1 landed `assignment_at_expiry` (one name apart from my `assign_at_expiry`), plus
-    `settle_short` and `validate_declaration` I had not anticipated, and FIVE required fields
-    none of whose names matched my three. Registering the real module against the frozen
-    interface REFUSED it.
+    `S3-I1` froze three duck-typed callables before any model existed. Mid-ceremony this
+    harness was "reconciled to the landed module": repointed at `short_book.py`'s own five
+    function names and importing it at module scope. **That was reverted**, because r1 had
+    already built `_AssignmentProvider`, an ADAPTER exposing exactly the three frozen names --
+    the interface never needed changing, which is what a published interface is for -- and
+    because `assignment.py` states the dependency direction outright: *"fleet does not import
+    this module (its check is duck-typed on purpose), so the dependency runs one way only"*,
+    with registration *"an explicit CALL and never an import side effect."*
 
-    The runbook decides which side moves: *"confirm the interface text against the LANDED
-    S3-I3, not against the map."* So these tests hold the harness to r1's contract, which is
-    strictly stronger than the one I guessed.
+    So what these pin is the CONTRACT BETWEEN TWO LANES, not either lane's vocabulary:
+    the harness refuses every short book until something registers a provider, the provider
+    r1 ships satisfies the frozen interface, and neither module imports the other in
+    production code.
     """
 
     SHORT = {"sells_premium": True, "side": "short",
@@ -481,53 +485,72 @@ class AssignmentSeam(unittest.TestCase):
              "margin_method": "cash_secured_put", "spot_basis": "as_traded",
              "early_assignment_flag": "O21 q-machinery", "return_denominator": "secured_cash"}
 
+    def setUp(self):
+        self._saved = F._PROVIDER
+
     def tearDown(self):
-        # Restore the import-time registration rather than leaving the seam empty, or a later
-        # test in this process would see a harness that refuses every short book.
-        F.register_assignment_provider(F._SB)
+        F._PROVIDER = self._saved
 
-    def test_the_landed_s3i3_satisfies_the_interface_and_is_registered_at_import(self):
-        """The check that would have caught the drift, had it existed a day earlier."""
-        self.assertTrue(F._S3I3_REGISTRATION["ok"], F._S3I3_REGISTRATION)
-        self.assertEqual(F._S3I3_REGISTRATION["missing"], [])
-        self.assertIsNotNone(F.assignment_provider())
-        for name in F.ASSIGNMENT_INTERFACE["callables"]:
-            self.assertTrue(callable(getattr(F._SB, name, None)),
-                            "the interface names %r and the landed module does not" % name)
+    def test_the_harness_does_NOT_import_the_assignment_model(self):
+        """r1's rule, and this file yields to it. Checked on the SYNTAX TREE, not by grep.
 
-    def test_a_short_book_is_refused_with_no_provider(self):
+        An import-time registration means any path that imports the model to read one number
+        -- a script, a test, a notebook -- silently unblocks every short book in the fleet.
+        Refusing by default is the safe direction.
+        """
+        src = io.open(os.path.join(REPO, "valuation", "edge", "fleet.py"),
+                      encoding="utf-8").read()
+        tree = ast.parse(src)
+        imported = set()
+        for n in ast.walk(tree):
+            if isinstance(n, ast.ImportFrom):
+                for a in n.names:
+                    imported.add(a.name)
+                if n.module:
+                    imported.add(n.module)
+            elif isinstance(n, ast.Import):
+                for a in n.names:
+                    imported.add(a.name)
+        self.assertIn("append_only", imported, "the import scan saw nothing")
+        self.assertNotIn("assignment", imported)
+        self.assertNotIn("short_book", imported)
+
+    def test_nothing_is_registered_at_import_and_short_books_are_refused_by_default(self):
+        """The consequence, named rather than discovered: F-4/6/8/10/17/18 do not fill."""
+        self.assertFalse(hasattr(F, "_S3I3_REGISTRATION"),
+                         "an import-time registration is back")
         F._PROVIDER = None
         d = F.parse_declaration(_decl_text(**self.SHORT))["declaration"]
         r = F.validate_declaration(d, book=BOOK)
         self.assertIn("SHORT_BOOK_WITHOUT_ASSIGNMENT", r["refusals"])
         self.assertIn("assignment_interface", r["detail"])
 
-    def test_a_complete_short_book_validates_against_the_landed_module(self):
+    def test_r1s_provider_satisfies_the_FROZEN_interface_without_either_side_aliasing(self):
+        """The seam's actual test: r1 adapted to the published names and it fits."""
+        from valuation.edge import assignment as A
+        reg = A.register()
+        self.assertTrue(reg["ok"], reg)
+        self.assertEqual(reg["missing"], [])
+        for name in F.ASSIGNMENT_INTERFACE["callables"]:
+            self.assertTrue(callable(getattr(A.PROVIDER, name, None)),
+                            "the interface names %r and r1's provider does not" % name)
+
+    def test_the_required_short_fields_LITERAL_matches_r1s_and_drift_fails_here(self):
+        """`MA13`'s idiom: production holds the literal, the TEST holds the comparison.
+
+        `tuple(assignment.REQUIRED_SHORT_FIELDS)` in `fleet` would have inverted the
+        dependency direction r1 documented, so the list is a literal there and this is the
+        only place the two are ever compared.
+        """
+        from valuation.edge import assignment as A
+        self.assertEqual(tuple(F.REQUIRED_SHORT_FIELDS), tuple(A.REQUIRED_SHORT_FIELDS))
+
+    def test_a_complete_short_book_validates_once_a_provider_is_registered(self):
+        from valuation.edge import assignment as A
+        A.register()
         d = F.parse_declaration(_decl_text(**self.SHORT))["declaration"]
         r = F.validate_declaration(d, book=BOOK)
         self.assertTrue(r["ok"], r["refusals"])
-
-    def test_a_short_book_missing_a_required_field_is_refused_BY_S3I3(self):
-        short = dict(self.SHORT)
-        short.pop("margin_method")
-        d = F.parse_declaration(_decl_text(**short))["declaration"]
-        r = F.validate_declaration(d, book=BOOK)
-        self.assertIn("SHORT_BOOK_REFUSED_BY_S3I3", r["refusals"])
-        # The delegate RAISES and this harness COLLECTS, so its message must survive the
-        # conversion rather than being replaced by a code.
-        self.assertIn("margin_method", r["detail"]["s3i3_refusal"])
-
-    def test_the_three_rules_that_are_r1s_and_not_mine_all_fire(self):
-        """`naked`, an adjusted spot basis, and a premium denominator. None was in my guess."""
-        for field, bad in (("margin_method", "naked"),
-                           ("spot_basis", "adjusted"),
-                           ("return_denominator", "premium")):
-            short = dict(self.SHORT)
-            short[field] = bad
-            d = F.parse_declaration(_decl_text(**short))["declaration"]
-            r = F.validate_declaration(d, book=BOOK)
-            self.assertIn("SHORT_BOOK_REFUSED_BY_S3I3", r["refusals"],
-                          "%s=%r was not refused" % (field, bad))
 
     def test_sells_premium_is_mandatory_on_EVERY_book_including_long_ones(self):
         """r1's rule, adopted whole: an absent field lets a short book pass by OMISSION."""
@@ -542,23 +565,21 @@ class AssignmentSeam(unittest.TestCase):
         r = F.validate_declaration(d, book=BOOK)
         self.assertIn("SIDE_AND_SELLS_PREMIUM_DISAGREE", r["refusals"])
 
-    def test_a_provider_missing_a_callable_is_refused(self):
+    def test_a_provider_missing_a_callable_is_refused_and_does_not_EVICT_a_working_one(self):
+        """A typo in a new module must not silently stop every short book in the fleet."""
+        from valuation.edge import assignment as A
+        A.register()
+        good = F.assignment_provider()
+
         class Half:
-            def assignment_at_expiry(self, *a, **k):
+            def assign_at_expiry(self, *a, **k):
                 return None
         half = Half()
         r = F.register_assignment_provider(half)
         self.assertFalse(r["ok"])
-        self.assertEqual(sorted(r["missing"]),
-                         ["early_assignment_flag", "secured_cash", "settle_short",
-                          "validate_declaration"])
-        # THE HALF-BUILT PROVIDER IS NOT INSTALLED -- and it does not EVICT the working one
-        # either. The first cut of this asserted `is None`, which was right while the seam was
-        # empty and became wrong the moment S3-I3 landed and registered at import: a failed
-        # registration knocking out a good provider would make a typo in a new module silently
-        # stop every short book in the fleet.
+        self.assertEqual(sorted(r["missing"]), ["early_assignment_flag", "secured_cash"])
         self.assertIsNot(F.assignment_provider(), half)
-        self.assertIs(F.assignment_provider(), F._SB)
+        self.assertIs(F.assignment_provider(), good)
 
     def test_this_module_computes_no_assignment_and_no_margin(self):
         """`S3-I3` is r1's. A model here would be two implementations of one thing."""
@@ -578,9 +599,6 @@ class AssignmentSeam(unittest.TestCase):
         self.assertIn("ASSIGNMENT_INTERFACE", code, "the stripper saw nothing")
         self.assertNotIn("intrinsic", code.lower())
 
-
-# =======================================================================================
-# THE TRIAL CONVENTION, MADE MECHANICAL
 # =======================================================================================
 class TrialConvention(unittest.TestCase):
 

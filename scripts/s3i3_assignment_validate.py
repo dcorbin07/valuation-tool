@@ -41,7 +41,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from valuation.edge import dividends as DIV                                        # noqa: E402
-from valuation.edge import short_book as SB                                        # noqa: E402
+from valuation.edge import assignment as SB                                        # noqa: E402
 from valuation.edge.csp_surface import settle_put                                  # noqa: E402
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -261,7 +261,7 @@ def main() -> int:
     print("C5 early-assignment census: %d of %d trades span an ex-date%s"
           % (ex_hits, with_divs, "  (VACUOUS - no dividend table)" if not with_divs else ""))
 
-    out = {"item": "S3-I3", "instrument": "valuation/edge/short_book.py",
+    out = {"item": "S3-I3", "instrument": "valuation/edge/assignment.py",
            "trials": 0, "class": "FIXED",
            "interface": "PREREG_DRAFT_fleet_harness.md section 1.4 (S3-I1)",
            "corpus": "V6OPT_STAGE2_TRADES.pkl x V6OPT_STAGE1_EVENTS.pkl",

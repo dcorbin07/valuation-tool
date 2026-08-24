@@ -695,7 +695,27 @@ def create_saas_app(cfg=CONFIG):
                                "not record it."),
                 }), 405
 
+            # REGISTER S3-I3 HERE, AT THE COMPOSITION ROOT, because r1's model requires an
+            # explicit call and deliberately does not self-register on import: *"importing
+            # this module to read one number cannot silently unblock every short book in the
+            # fleet."* A script that reads one assignment number must not arm six short books;
+            # the process that actually runs the fleet must. Without this the six short books
+            # (F-4, F-6, F-8, F-10, F-17, F-18) refuse with SHORT_BOOK_WITHOUT_ASSIGNMENT --
+            # the safe direction, and not the one a live runner wants.
+            registration = {"ok": False, "reason": "not attempted"}
+            try:
+                from ..edge import assignment
+                registration = assignment.register(fleet)
+            except Exception as e:                                   # noqa: BLE001
+                # A missing or broken model must NOT take the cycle down: the long books are
+                # unaffected and the short ones then refuse by the ordinary rule, which is
+                # exactly what should happen.
+                registration = {"ok": False, "reason": safe_error(e)}
+
             res = fleet.cycle(write=wants_run, books=[only] if only else None)
+            res["assignment_provider_registered"] = bool(registration.get("ok"))
+            if not registration.get("ok"):
+                res["assignment_registration_error"] = registration.get("reason") or registration
             # 200 on a dry run OR a run that legitimately produced nothing. A cycle that
             # placed no fill is not an error -- it is the ordinary case and, today, the only
             # case. The body's `breathing` flag and `note` carry that, so a scheduler can

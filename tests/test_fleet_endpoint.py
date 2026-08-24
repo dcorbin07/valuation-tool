@@ -86,10 +86,47 @@ class TheRunnersDoor(unittest.TestCase):
         """B7. A door that recomputes is a second implementation waiting to drift."""
         c, hdr = _client()
         b = c.get("/admin/fleet-cycle", headers=hdr).get_json()
+        from valuation.edge import assignment
+        assignment.register(F)          # the door registers; match it before comparing
         direct = F.cycle(write=False)
         for k in ("books_declared", "armed", "blocked", "entry_rules_implemented",
                   "breathing"):
             self.assertEqual(b[k], direct[k], k)
+
+    def test_the_door_registers_S3I3_so_the_SIX_SHORT_BOOKS_are_not_refused(self):
+        """THE COMPOSITION ROOT. r1's model does not self-register on import, on purpose:
+        *"importing this module to read one number cannot silently unblock every short book
+        in the fleet."* So the process that actually runs the fleet must make the call, and
+        a script that reads one number must not. Without it F-4, F-6, F-8, F-10, F-17 and
+        F-18 refuse with SHORT_BOOK_WITHOUT_ASSIGNMENT -- the safe direction, and not the one
+        a live runner wants."""
+        c, hdr = _client()
+        b = c.get("/admin/fleet-cycle", headers=hdr).get_json()
+        self.assertTrue(b.get("assignment_provider_registered"),
+                        b.get("assignment_registration_error"))
+        states = {r["book"]: r["state"] for r in b["books"] if r.get("is_book")}
+        for short in ("f4_eventfree_premium", "f6_collar_ledger", "f8_csp_entry_financing",
+                      "f10_clean_csp", "f17_vrp_percentile_sells", "f18_boring_book"):
+            self.assertIn(short, states)
+            self.assertNotEqual(states[short], "DECLARATION_INVALID",
+                                "%s refused for want of an assignment provider" % short)
+
+    def test_a_broken_assignment_model_does_not_take_the_whole_cycle_down(self):
+        """The long books are unaffected by it and the short ones then refuse by the ordinary
+        rule, which is exactly what should happen -- so this must be a 200, not a 500."""
+        import valuation.edge.assignment as A
+        real = A.register
+        A.register = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("model is broken"))
+        try:
+            c, hdr = _client()
+            r = c.get("/admin/fleet-cycle", headers=hdr)
+            self.assertEqual(r.status_code, 200)
+            b = r.get_json()
+            self.assertFalse(b["assignment_provider_registered"])
+            self.assertIn("broken", str(b["assignment_registration_error"]))
+            self.assertGreaterEqual(b["books_declared"], 17)
+        finally:
+            A.register = real
 
 
 if __name__ == "__main__":

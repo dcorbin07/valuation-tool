@@ -51,7 +51,7 @@ import subprocess
 from typing import Optional
 
 from . import append_only as AO
-from . import short_book as _SB
+# NOTE: `assignment.py` (S3-I3) is deliberately NOT imported -- see THE S3-I3 SEAM below.
 from . import track_meter as TM
 
 # ---------------------------------------------------------------------------------------
@@ -99,14 +99,20 @@ REQUIRED_HORIZON_FIELDS = (
 )
 # A short book states these or it does not exist (draft section 1.4, Don's ruling #1).
 #
-# THE LIST IS `S3-I3`'s, IMPORTED, NOT A SECOND COPY. The seam DRIFTED between two lanes: this
-# module froze `("assignment", "margin", "secured_cash_is_denominator")` before the model
-# existed, and r1 landed `("assignment_model", "margin_method", "spot_basis",
-# "early_assignment_flag", "return_denominator")` -- five fields against three, none of the
-# names shared. The runbook settles which wins: *"confirm the interface text against the LANDED
-# S3-I3, not against the map."* My three were a GUESS written before the module existed; r1's
-# five are the contract the model actually enforces, and they are strictly stronger.
-REQUIRED_SHORT_FIELDS = tuple(_SB.REQUIRED_SHORT_FIELDS)
+# THE LIST IS `S3-I3`'s, PINNED AS A LITERAL RATHER THAN IMPORTED, AND THE DISTINCTION IS THE
+# WHOLE POINT. The seam DRIFTED between two lanes: this module froze `("assignment", "margin",
+# "secured_cash_is_denominator")` before the model existed, and r1 landed the five below --
+# none of the names shared. The runbook settles which WINS (*"confirm the interface text
+# against the LANDED S3-I3"*): r1's five are the contract the model enforces and are strictly
+# stronger, so they are adopted whole.
+#
+# It is a LITERAL because `assignment.py` states the dependency direction and this file must
+# honour it: *"fleet does not import this module ... so the dependency runs one way only."*
+# `tuple(_SB.REQUIRED_SHORT_FIELDS)` would have inverted that. Drift is caught instead by
+# `test_fleet_harness`, which imports BOTH and asserts equality -- `MA13`'s committed-literal
+# idiom, where the production code holds the literal and a test holds the comparison.
+REQUIRED_SHORT_FIELDS = ("assignment_model", "margin_method", "spot_basis",
+                         "early_assignment_flag", "return_denominator")
 
 DOMAINS = ("equity", "options")
 HYPOTHESIS_CLASSES = ("edge", "cost", "utility")
@@ -114,39 +120,46 @@ SIDES = ("long", "short")
 STRIKE_SELECTION = ("moneyness", "fixed", "delta")
 
 # ---------------------------------------------------------------------------------------
-# THE S3-I3 SEAM -- RECONCILED TO THE LANDED MODULE, 2026-08-24
+# THE S3-I3 SEAM -- SETTLED WITH r1, 2026-08-24, AND THE MIDDLE VERSION WAS THE WRONG ONE
 #
-# This module computes no assignment and no margin; `valuation/edge/short_book.py` (r1's) does.
+# This module computes no assignment and no margin; `valuation/edge/assignment.py` (r1's) does.
 #
-# THE SEAM DRIFTED AND THE LANDED MODULE WON. `S3-I1` froze three callable names before the
-# model existed -- `assign_at_expiry`, `early_assignment_flag`, `secured_cash` -- with invented
-# signatures. r1 landed `assignment_at_expiry` (one name apart), plus `settle_short` and a
-# `validate_declaration` this file did not anticipate at all, and every signature is
-# keyword-only and different from the guess. Registering `short_book` against the frozen
-# interface REFUSED it for missing `assign_at_expiry`.
+# THE HISTORY MATTERS BECAUSE THE SEAM MOVED TWICE. `S3-I1` froze three duck-typed callables
+# before any model existed. Mid-ceremony this file was "reconciled to the landed module" --
+# repointed at `short_book.py`'s own five function names and importing it at module scope --
+# on the runbook's instruction to confirm against the LANDED S3-I3. **That reconciliation is
+# now REVERTED, and it was wrong on both counts.**
 #
-# The runbook decides: *"confirm the interface text against the LANDED S3-I3, not against the
-# map."* So the names here are corrected to the module's, NOT aliased -- an alias is how a seam
-# rots into two vocabularies for one thing. Nothing is loosened: the check still requires every
-# callable to be present, and it now requires MORE of them.
+#   1. r1 had already built `_AssignmentProvider`, an ADAPTER exposing exactly the three names
+#      frozen here. The interface never needed changing; r1 had adapted to it, which is what a
+#      published interface is for. Chasing the module's internal names made this file depend
+#      on r1's private vocabulary instead of on the contract between us.
+#   2. `assignment.py` states the direction explicitly -- *"fleet does not import this module
+#      (its check is duck-typed on purpose), so the dependency runs one way only"* -- and that
+#      registration is *"an explicit CALL and never an import side effect, so importing this
+#      module to read one number cannot silently unblock every short book in the fleet."*
+#      The module-scope `from . import short_book` plus auto-registration was precisely that
+#      side effect. r1's design is the better one and this file yields to it.
+#
+# THE COLLISION IS ALSO THE LESSON. The rename `short_book.py` -> `assignment.py` merged
+# CLEANLY into this branch and the tree then DID NOT IMPORT: no file was edited by both sides,
+# so there was no conflict to resolve and nothing to review. `MA23`'s `parity_flow` collision
+# in a new costume -- a clean merge is not a safe one.
 # ---------------------------------------------------------------------------------------
 ASSIGNMENT_INTERFACE = {
-    "module": "valuation.edge.short_book (S3-I3, r1's, LANDED)",
+    "module": "valuation.edge.assignment (S3-I3, r1's, LANDED). Registered by ITS OWN "
+              "`assignment.register()`, never by an import here.",
     "callables": {
-        "assignment_at_expiry": "(*, spot_at_expiry, strike, right, spot_basis, contracts) -> "
-                                "dict. `spot_basis` must be as-traded: r1's C3 measured 29.1% "
-                                "of assignment verdicts flipping on adjusted closes.",
-        "secured_cash": "(*, method, strike, right, credit, contracts, ...) -> float. THE "
-                        "DENOMINATOR of every return a short book quotes.",
-        "settle_short": "(*, strike, credit, spot_at_expiry, right, spot_basis, method) -> "
-                        "dict. A worthless SHORT expiry settles at ZERO, not -100%; MA36's "
-                        "rule is the LONG-side rule and this module knows the difference.",
-        "early_assignment_flag": "(*, right, spot, strike, option_bid, spot_basis, ...) -> dict",
-        "validate_declaration": "(decl) -> dict, RAISES ShortBookError. The refusal itself; "
-                                "this harness delegates to it rather than carrying a second "
-                                "short-book contract (B7).",
+        "assign_at_expiry": "(occ, settle_price, side, qty) -> dict. The settle price must be "
+                            "AS-TRADED: r1's C3 measured 29.1% of assignment verdicts flipping "
+                            "when settled against an adjusted close instead of `raw_close`.",
+        "secured_cash": "(occ, qty) -> float. THE DENOMINATOR of every return a short book "
+                        "quotes. `options_sizing` makes the PREMIUM the capital at risk, which "
+                        "overstates a short's return by ~40x on r1's own book.",
+        "early_assignment_flag": "(occ, as_of, q, ...) -> dict. Reports RATIONALITY; whether a "
+                                 "holder acts is unobservable and no probability is estimated.",
     },
-    "registered_by": "fleet.register_assignment_provider(obj)",
+    "registered_by": "assignment.register() -> fleet.register_assignment_provider(PROVIDER)",
     "refusal_if_absent": "SHORT_BOOK_WITHOUT_ASSIGNMENT",
 }
 
@@ -173,17 +186,19 @@ def assignment_provider():
     return _PROVIDER
 
 
-# THE LANDED MODULE IS REGISTERED AT IMPORT, and the refusal keeps its teeth.
+# NOTHING IS REGISTERED HERE, ON PURPOSE, AND THE COST IS STATED SO NOBODY "FIXES" IT.
 #
-# `S3-I1` shipped with NO provider, so every short book was refused -- correct when no model
-# existed, and it would now refuse the seven short books FOREVER unless somebody remembered a
-# call. `S3-I3` has landed, so it registers here.
+# An earlier cut of this file did `_S3I3_REGISTRATION = register_assignment_provider(_SB)` at
+# module scope, reasoning that a provider nobody remembers to register refuses the six short
+# books forever. That reasoning is real and it loses to r1's: an import-time registration means
+# ANY code path that imports the assignment model -- a script reading one number, a test, a
+# notebook -- silently unblocks every short book in the fleet. **Refusing by default is the
+# safe direction; auto-registering is not.**
 #
-# THIS IS NOT THE REFUSAL BEING SWITCHED OFF. It goes through the same interface check as any
-# other provider, so a future `short_book` that loses a callable is REFUSED at import and every
-# short book stops declaring -- loudly, and by the same rule. `_S3I3_REGISTRATION` records the
-# outcome so a reader can see whether the seam is live rather than assuming it.
-_S3I3_REGISTRATION = register_assignment_provider(_SB)
+# THE CONSEQUENCE, NAMED RATHER THAN DISCOVERED LATER: until something calls
+# `assignment.register()`, `may_fill` returns `SHORT_BOOK_WITHOUT_ASSIGNMENT` for F-4, F-6,
+# F-8, F-10, F-17 and F-18. That is correct -- a short book with no assignment model must not
+# fill -- and it is the runner's job to make the call, not this module's.
 
 
 # ---------------------------------------------------------------------------------------
@@ -332,15 +347,23 @@ def validate_declaration(decl: dict, *, book: str = None) -> dict:
         r.append("SIDE_AND_SELLS_PREMIUM_DISAGREE")
 
     if sp is True or decl.get("side") == "short":
-        try:
-            _SB.validate_declaration(decl)
-        except Exception as e:                                # noqa: BLE001
-            # r1's validator RAISES, because "a refusal that returns a flag is a refusal
-            # somebody forgets to read". This harness COLLECTS refusals so an author fixes a
-            # declaration in one pass, so the raise is converted here -- and its message is
-            # carried verbatim into `detail`, never discarded.
-            r.append("SHORT_BOOK_REFUSED_BY_S3I3")
-            short_detail = str(e)
+        # DELEGATED TO THE MODEL, LAZILY AND OPTIONALLY -- never imported at module scope.
+        # r1's `assignment.py` states the dependency direction explicitly: *"fleet does not
+        # import this module (its check is duck-typed on purpose), so the dependency runs one
+        # way only"*, and registration is *"an explicit CALL and never an import side effect,
+        # so importing this module to read one number cannot silently unblock every short book
+        # in the fleet."* Both are right and this harness yields to them.
+        v = getattr(_PROVIDER, "validate_declaration", None)
+        if callable(v):
+            try:
+                v(decl)
+            except Exception as e:                            # noqa: BLE001
+                # The model RAISES, because "a refusal that returns a flag is a refusal
+                # somebody forgets to read". This harness COLLECTS refusals so an author fixes
+                # a declaration in one pass, so the raise is converted -- and its message is
+                # carried verbatim into `detail`, never discarded.
+                r.append("SHORT_BOOK_REFUSED_BY_S3I3")
+                short_detail = str(e)
         if _PROVIDER is None:
             r.append("SHORT_BOOK_WITHOUT_ASSIGNMENT")
 

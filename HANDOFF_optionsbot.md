@@ -8263,9 +8263,9 @@ options-bot's, and this section exists so the module is found rather than rebuil
 
 ### What it is
 
-`valuation/edge/short_book.py`, plus `tests/test_short_book.py` (48 tests, 13 of 13 mutations
+`valuation/edge/assignment.py`, plus `tests/test_assignment_s3i3.py` (62 tests, 19 of 19 mutations
 caught with sources restored byte-for-byte) and
-`scripts/s3i3_short_book_validate.py` → `data/free_analysis/S3I3_SHORT_BOOK_VALIDATION.json`.
+`scripts/s3i3_assignment_validate.py` → `data/free_analysis/S3I3_SHORT_BOOK_VALIDATION.json`.
 
 Four entry points, matching S3-I1 §1.4 clause by clause:
 
@@ -8405,6 +8405,137 @@ worktree, so every script must resolve the PRIMARY data root before writing** �
 can never legitimately differ, and worth consolidating when someone is next in those files.
 This module IMPORTS from `options_fill` and a test asserts it does not add a third.
 
+### `main` WAS RED, ANOTHER LANE FIXED IT FIRST, AND I WITHDREW MY VERSION
+
+**Recorded because a near-duplicate is worth more as a record than as a merge conflict.** S3-I3's
+land verification independently found the two failures that had `main` red, diagnosed both, and
+committed fixes — and while that was happening `09ea4cc` landed doing the same two things. **My
+versions are fully withdrawn: `test_mb8_sizing_haircut.py`, `test_mb18_expectations_gap.py`,
+`test_paper_track.py` and `PAPER_TRACK_CONTRACT.md` are byte-identical to `origin/main` on this
+branch.** One guard, one convention, one owner; a second lane re-litigating the same check the
+same night is churn, and they landed first.
+
+**Their diagnosis and mine agree on both, independently, which is the useful part.**
+
+**(1) The cron-shaped hole.** A scheduled workflow ("Track backup") commits refreshed data
+straight to `main` without passing the land gate. `70ef5ef` re-pointed
+`data_export/paper_track_history.json`, and a test asserting a FACT ABOUT THAT DATA went red with
+nothing re-running the suite. Their commit records **six consecutive land failures across five
+branches**, none of them the lane that caused it. **A cron job that can turn the shared gate red
+without any lane pushing code is a real gap**, and it belongs to whoever owns
+`track-backup.yml` — unfixed by either of us, and worth escalating.
+
+**(2) The control that blinded itself.** `git log -- <paths>` will return a MERGE commit;
+`git show` prints no diff for one unless asked. So the positive control selected a subject its
+own mechanism structurally cannot see. They fixed it with `--no-merges` on the SELECTOR; I had
+fixed it with `--diff-merges=first-parent` on the VERIFIER, which additionally closes the
+sibling check's blindness. **Theirs is the landed convention and mine is withdrawn** — and they
+are right that the sibling repair is a design choice belonging to MB8's lane, since making the
+verifier see merges would flag an integration merge as "this lane touched a live path".
+**`test_mb18_expectations_gap.py` carries the same template and the same latent hole**, unfired
+only because its `LIVE_PATHS` omit `valuation/edge`; left alone deliberately, so that whoever
+makes MB8's design call makes it once, for both.
+
+**THE ONE THING THIS LANE ADDS, AND IT CORROBORATES THEIR SCOPING RATHER THAN CORRECTING IT.**
+Their §5b update says the engine is *"no longer recording a truncated top-N list under the
+Index's name"* and is careful NOT to claim it now records the Index — *"§5's register still
+binds the published Valquo Index and only that, and no engine figure may be quoted as Index
+evidence."* **Measured on the same export, that caution is doing real work: the bound Index
+carries 86 positions at a 2.315% maximum, the engine 68 at 3.083%, and they OVERLAP ON TWELVE
+NAMES** — engine-only 56, Index-only 74. So the engine's book now CONFORMS structurally while
+remaining a substantially different book. **Conforming is not being the Index**, and anyone
+reading the §5b update quickly could take "aligned going forward" for "same book". It is not,
+yet.
+
+### Landing state
+
+**Merged `origin/main` BEFORE pushing and re-read `by_domain` BETWEEN the merge and the push**
+— `MA37`'s rule, and specifically the process slip this lane made on `E-6`, where the merge and
+the push were chained in one command so the stamp was stale for the length of the push and the
+land Action failed. Post-merge `by_domain` reads **equity 242, options 305, infra 20**,
+identical to the committed stamp, so **no reconciliation was owed** and the stamp is untouched;
+`rows_fixed_not_counted` rises **73 -> 75** across this row and a merged lane's own
+`FIXED`-class row. The diff against `origin/main` is **exactly seven files** and **zero under
+`.github/`**.
+
+**151 suites, 0 failures on the merged tree, after merging `origin/main` FOUR TIMES** --
+the second to take another lane's gate fixes in place of my own, the third and fourth because `S3-I1` and then three product surfaces landed while this was verifying. `by_domain` was re-read after EVERY one and matched the stamp each time. **Main moved four times in one session, so a local full gate cannot track it** -- the land Action's run on the merged tree is the authoritative one, and this branch was verified green against the tree as it stood at each merge. The validation reproduces every figure
+identically after the merge.
+
+### S3-I1 LANDED MID-FLIGHT, AND THE SEAM IT DEFINED IS NOW SATISFIED
+
+**This module was frozen against S3-I1's DRAFT because that is all that existed.** `9b1d064`
+then landed the real harness, which defines a CONCRETE provider seam and says of it: *"Until r1
+lands one, every short book is REFUSED"* (`SHORT_BOOK_WITHOUT_ASSIGNMENT`). **r1 is this
+worktree**, so satisfying that seam is not scope creep — it is the task's own sentence, *"it
+plugs the interface S3-I1 defines"*, now that the interface is concrete rather than sketched.
+
+**WHAT CHANGED, AND WHAT DID NOT.** The seam is duck-typed on three callables and names the
+module `valuation.edge.assignment`, so `short_book.py` is **renamed to `assignment.py`** —
+matching the name the harness advertises, rather than leaving a documented pointer to a file
+that does not exist. **No arithmetic moved.** The three seam callables are an ADAPTER: they
+parse the OCC symbol, then delegate to the functions validated against V6-OPT's 660 real trades.
+`fleet`'s own docstring says it *"computes no assignment and no margin"* — if the adapter
+computed any, the project would have two definitions at the exact join the seam exists to make,
+which is `B7`.
+
+**THE ARTIFACT KEEPS ITS `S3I3_SHORT_BOOK_VALIDATION.json` NAME DELIBERATELY.** The module renamed; the artifact did not, because it is already written under that name in the primary data root and renaming it would leave a stale twin beside a new one. The name is still accurate -- it validates the short-book model -- and it is consistent across the script and all three records. **Do not tidy it.**
+
+**IT WORKS END TO END, and the refusal lifting is the deliverable.** On the harness's own
+short-book template: **before registration the refusals include
+`SHORT_BOOK_WITHOUT_ASSIGNMENT`; after `assignment.register()` they do not**, and the test pins
+that registering lifts **exactly that one refusal** and no other — so it cannot pass by making
+validation succeed for an unrelated reason.
+
+**THREE PLACES THE ADAPTER IS NARROWER THAN THE MODEL, DISCLOSED RATHER THAN PAPERED OVER.**
+(1) `early_assignment_flag(occ, as_of, q)` passes **no spot and no bid**, so `O21`'s model-free
+`exercise_gain` — the trigger O21 was allowed to carry a verdict on — **cannot run through the
+seam**. The three-argument call returns the DIVIDEND reading only and says so on the row
+(`moneyness_unknown`, plus a `limitation` string); `spot=` and `option_bid=` are keyword-only
+extras that reach the full test, so the seam is satisfied either way. (2) `secured_cash(occ,
+strike, qty)` **refuses a CALL** — cash-securing one is unbounded, i.e. naked, and a covered
+call is secured by shares whose price the seam does not pass. (3) The seam's `strike` is
+redundant with `occ`, so it is **cross-checked rather than trusted**: a disagreement means two
+different contracts, and settling against the wrong one fails silently.
+
+**REGISTRATION IS AN EXPLICIT CALL AND NEVER AN IMPORT SIDE EFFECT**, pinned by an AST test —
+importing this module to read one number must not silently unblock every short book in the
+fleet. And `fleet` does not import this module (its check is duck-typed on purpose), so the
+dependency runs one way only.
+
+### The first land failed on a COIN FLIP, and here is the measurement
+
+`tests/test_screener.py::test_portfolio_sector_cap_and_weights` failed the land gate on run
+`32691725545` while passing every local run. **It is not this branch: the diff against
+`origin/main` contains ZERO files under `valuation/screener/`.**
+
+**ROOT CAUSE, one line.** `tests/screener_fixtures.py:18` seeds its per-ticker generator with
+`np.random.default_rng(abs(hash(ticker)) % (2**32))`. Python **salts `hash()` per process**, so
+the fixture universe is different on every run unless `PYTHONHASHSEED` is pinned — and CI pins
+nothing. The test is therefore a coin flip on every land, for every lane.
+
+**MEASURED RATHER THAN ASSERTED.** Swept eight seeds locally on this exact tree:
+
+| PYTHONHASHSEED | 0 | 1 | 7 | 42 | **179** | 512 | 1000 | 2026 |
+|---|---|---|---|---|---|---|---|---|
+| result | pass | pass | pass | pass | **FAIL** | pass | pass | pass |
+
+**1 of 8. The reproducer is `PYTHONHASHSEED=179`**, and it is the same seed the record already
+carries for this test, so this is a known flake that has now cost a land.
+
+**DELIBERATELY NOT FIXED, and the reason is the interesting half.** The one-line repair —
+swapping `hash()` for a stable digest — is not obviously right, because **the flake is exposing
+something real**: the record notes it surfaces a *soft* sector cap. Pinning the seed would
+either freeze the test into always-passing, which HIDES that, or into always-failing, which
+exposes it. **Which of those is correct is a screener-lane judgement about the cap, not a test
+hygiene decision**, and this lane has no standing to make it — the same call made an hour
+earlier about MB8's sibling check, for the same reason.
+
+**What a successor should do:** make the fixture deterministic AND decide the cap question in
+the same change, so the test stops being a lottery on everyone else's lands without quietly
+burying what it found. Until then every lane's land carries a ~1-in-8 chance of an unrelated
+red on this suite alone.
+
 ### What it does NOT do, named so it is not mistaken for done
 
 * **Naked shorts are REFUSED BY NAME, not approximated.** FINRA 4210's maintenance formula is a
@@ -8418,8 +8549,8 @@ This module IMPORTS from `options_fill` and a test asserts it does not add a thi
   inequality to match `settle_put` and MA36. The divergence is a knife edge, it is NAMED rather
   than silently reconciled, and changing it would move a landed V6-OPT figure — a decision, not
   a default.
-* **S3-I1 IS NOT BUILT.** This is its short-book module and the harness it plugs into is still a
-  scout draft (`PREREG_DRAFT_fleet_harness.md`, scout branch only). **No F-book can declare
-  until the recorder exists**, and `validate_declaration` has no caller yet — deliberately, on
-  `MB15`'s precedent: the instrument is validated BEFORE anything consumes it.
+* **S3-I1 LANDED WHILE THIS WAS IN FLIGHT, AND THE SEAM IS NOW SATISFIED — see the section
+  below.** The earlier draft of this handoff said the harness did not exist; that was true when
+  this module was frozen and is no longer. **No `DECL_` file was written and no book was
+  declared** — the module makes short books DECLARABLE, it does not declare one.
 * **No `DECL_<book>.md` was written and no book was declared.**
