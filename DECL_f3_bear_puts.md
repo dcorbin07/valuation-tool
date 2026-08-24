@@ -105,3 +105,63 @@ refuses a declaration it cannot read. Converting is part of acceptance, not a re
   "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money."
 }
 ```
+
+---
+
+## AMENDMENTS — added at ARMING, 2026-08-24, options-live lane
+
+**A NEW SECTION, NEVER AN EDIT** (`PT-AMEND1`). Everything above this line is untouched.
+**They land before this book's first fill, which is mechanical rather than tidy:**
+`verify_chain` anchors on the declaration's CONTENT hash, so amending a declaration that
+already has records breaks its own chain at row 0 and reads as tampering. F-3 has zero
+records.
+
+### Amendment 1 — the tie-break was not stated
+
+**The frozen rule says *"take the scanner's top-N bearish verdicts (N=3)"* and never says what
+happens when two names score equally.** The bear score is rounded to one decimal, so ties are
+ordinary rather than exotic. An unstated tie-break is a non-reproducible rule, and a
+pre-registration cannot be one.
+
+**Resolved: ALPHABETICAL, after score descending.** It is the fleet's own convention — F-4,
+F-10, F-13, F-14, F-15, F-18 and F-20 all state it explicitly — so this imports a sibling's
+stated rule rather than inventing one. Nothing about it depends on an outcome.
+
+### Amendment 2 — "nearest 0.85× spot, expiry nearest 60 DTE" does not say which binds first
+
+**The two orders pick different contracts, and not marginally.** Strike-first can land on an
+expiry weeks away from 60 DTE because some far month happens to list a strike a few cents
+closer to target; tenor is then whatever falls out.
+
+**Resolved: EXPIRY FIRST, THEN STRIKE within that expiry.** The declared 60-DTE tenor is the
+parameter this book's theta bleed is measured against — a long OTM put book's whole cost
+structure is a function of tenor — so a rule that lets tenor drift to protect a few cents of
+moneyness is measuring something the declaration did not register. **The strike target is
+unchanged at 0.85× as-traded spot, and no delta is solved anywhere** (this book's own void
+condition, honouring `V6-OPT`'s autopsy).
+
+### Amendment 3 — "equal premium per position" has no denominator
+
+**The declaration says *"equal premium per position; concurrency cap 10; cash never exceeds
+the sandbox book's allocation"* and states NO allocation figure anywhere.** So the sizing rule
+cannot be executed as written: there is no budget to divide.
+
+**Resolved: ONE CONTRACT per position, recorded as such, until an allocation is declared.**
+**This is measurement-neutral rather than a silent sizing choice, and that is checkable:** the
+book's own verdict statistic is *"mean per-trade return on premium"*, which is invariant to
+quantity. Sizing therefore cannot move this book's verdict in either direction. It would
+matter to a survivability question, and `O11` already binds that — nothing here licenses one.
+
+### NOT an amendment — the event-skip clause is inert, BY MEASUREMENT
+
+The frozen rule skips a name *"ONLY if the scanner's own signal names the event"*. **Measured:
+neither `bearish_technical` nor `signals.evaluate_bearish` emits any label naming a scheduled
+event** — the vocabulary is trend, death cross, MACD, RSI, Bollinger, new-low and put-heavy
+flow, and nothing else. **So the clause never fires, and that is the declaration working as
+intended rather than a gap:** it exists to stop silent event filtering, and F-4 owns
+event-avoidance.
+
+This is pinned as a measurement rather than assumed. `tests/test_fleet_f3.py` derives the
+label vocabulary from the two source files and fails if any of them ever begins naming an
+event — at which point the clause becomes live and someone has to decide what it means,
+rather than discovering years later that a filter had quietly switched itself on.

@@ -60,6 +60,192 @@ def f1_fill_ab(decl: dict, root: str = None) -> list:
 
 
 # ---------------------------------------------------------------------------------------
+# Shared helpers. Small, and deliberately NOT clever.
+# ---------------------------------------------------------------------------------------
+def _num(x):
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return None
+    return v if v == v else None
+
+
+def _date(x):
+    import datetime as _dt
+    try:
+        return _dt.date.fromisoformat(str(x)[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+def _read(path: str) -> str:
+    with open(path, encoding="utf-8") as fh:
+        return fh.read()
+
+
+def held_symbols(book: str, root: str = None) -> set:
+    """Underlyings this book already has on its own record stream.
+
+    **CONSERVATIVE ON PURPOSE: a name that has ever filled counts as held.** No exit machinery
+    exists yet, so there is no honest way to tell a closed position from an open one, and the
+    two possible errors are not symmetric -- treating a closed name as held costs one skipped
+    entry, treating an open one as free doubles a position against a declared concurrency cap.
+    """
+    rows = (F.read_records(book, root) or {}).get("rows") or []
+    out = set()
+    for r in rows:
+        if (r.get("kind") or "") != "fill":
+            continue
+        if (r.get("fate") or "") in ("filled", "partial"):
+            sym = str(r.get("symbol") or "").upper().strip()
+            if sym:
+                out.add(sym)
+    return out
+
+
+# ---------------------------------------------------------------------------------------
+# F-3 -- BEAR-SCANNER PUTS
+# ---------------------------------------------------------------------------------------
+# The scanner's ENTIRE label vocabulary comes from `valuation/intraday/bearish.py` and
+# `signals.evaluate_bearish`. F-3 skips a name *"ONLY if the scanner's own signal names the
+# event"* -- and NONE of those labels names an event, so the clause is STRUCTURALLY INERT.
+# That is a MEASUREMENT, not an assumption: `tests/test_fleet_f3.py` derives the vocabulary
+# from the two source files and fails if a label ever begins naming one, at which point the
+# clause becomes live and somebody has to decide what it means. Recorded, never dropped.
+F3_EVENT_LABELS = ()          # empty BY MEASUREMENT, and pinned as empty
+
+# "the scanner's top-N bearish verdicts (N=3)" -- the declaration's PROSE, which is where this
+# number lives. Named here as the declaration's figure, not as a choice made in code.
+F3_TOP_N = 3
+
+# Amendment 3: the declaration says *"equal premium per position"* and states NO allocation,
+# so the rule has no denominator. One contract per position until an allocation is declared --
+# and the verdict statistic is RETURN ON PREMIUM, which is invariant to quantity, so this is
+# measurement-neutral rather than a silent sizing choice.
+F3_QTY = 1
+
+
+def f3_select(rows, held, *, n: int, cap: int) -> list:
+    """The frozen rule: top-N bearish verdicts among names not already held. PURE.
+
+    `n` and `cap` have NO DEFAULTS. A default is exactly how a pre-committed bar freezes and
+    then drifts from the declaration that set it (`MA5`'s measured lesson; `I-3`'s rule that a
+    library carries no bar-shaped constant of its own). The caller reads them from the
+    declaration or it does not get to call this.
+
+    **THE TIE-BREAK IS ALPHABETICAL AND THE DECLARATION DOES NOT STATE ONE** -- amendment 1 in
+    `DECL_f3_bear_puts.md`. Six other books in the fleet state alphabetical explicitly; an
+    unstated tie-break is a non-reproducible rule, and a pre-registration cannot be that.
+    """
+    room = max(0, int(cap) - len(held))
+    if room <= 0:
+        return []
+    out = []
+    for r in rows:
+        t = str(r.get("ticker") or "").upper().strip()
+        if not t or t in held:
+            continue
+        sc = _num(r.get("bear_score"))
+        if sc is None:
+            continue
+        labels = [str(x) for x in (r.get("labels_bear") or [])]
+        if any(lab in F3_EVENT_LABELS for lab in labels):
+            continue
+        out.append({"ticker": t, "score": sc, "labels": labels, "price": r.get("price")})
+    out.sort(key=lambda d: (-d["score"], d["ticker"]))
+    return out[:min(int(n), room)]
+
+
+def f3_pick_contract(chain, spot, today, *, moneyness: float, dte: int):
+    """The listed PUT nearest `moneyness` x as-traded spot, at the expiry nearest `dte`. PURE.
+
+    **EXPIRY FIRST, THEN STRIKE** -- amendment 2. The frozen sentence names both targets and
+    not their precedence, and the two orders pick different contracts: strike-first can land
+    on an expiry weeks away from 60 DTE because some far month happens to list a closer
+    strike. Expiry-first keeps the declared 60-DTE tenor, which is the parameter this book's
+    theta bleed is measured against.
+
+    **THE SPOT IS AS-TRADED AND MUST BE.** A strike compared against a split-adjusted price
+    picks a contract nowhere near the money and fails SILENTLY -- this record measured
+    `raw_close` 411.80 against an adjusted 8.236 on one real row. A live quote is as-traded by
+    construction, which is why this takes a live spot and never a panel price.
+
+    NO DELTA IS SOLVED OR TARGETED ANYWHERE: F-3's own void condition is *"delta-targeted
+    strikes"*, honouring `V6-OPT`'s autopsy. This is moneyness-fixed by construction.
+    """
+    tgt_spot = _num(spot)
+    if not chain or tgt_spot is None:
+        return None
+    target = tgt_spot * float(moneyness)
+    puts = []
+    for c in chain:
+        if str(c.get("option_type") or "").lower() != "put":
+            continue
+        exp, k = _date(c.get("expiration_date")), _num(c.get("strike"))
+        if exp is None or k is None:
+            continue
+        puts.append((exp, k, c))
+    if not puts:
+        return None
+    best_exp = min({e for e, _, _ in puts},
+                   key=lambda e: (abs((e - today).days - int(dte)), e))
+    same = [(k, c) for e, k, c in puts if e == best_exp]
+    k, c = min(same, key=lambda kc: (abs(kc[0] - target), kc[0]))
+    return {"contract": c, "expiration": best_exp.isoformat(), "strike": k,
+            "target_strike": round(target, 4), "dte": (best_exp - today).days}
+
+
+def f3_bear_puts(decl: dict, root: str = None, *, store=None, provider=None,
+                 broker=None, today=None) -> list:
+    """F-3 live. Reads the scanner's own stored verdicts; every parameter comes from `decl`.
+
+    The injectable `store`/`provider`/`broker`/`today` exist so the rule is testable without a
+    broker or a network, and default to the live objects. Nothing about the RULE changes with
+    them -- the selection and the contract choice are the two pure functions above, and this
+    is the plumbing that feeds them.
+    """
+    import datetime as _dt
+    from ..screener.store import Store
+    from ..intraday.providers import get_provider
+
+    st = decl.get("structure") or {}
+    today = today or _dt.date.today()
+    store = store if store is not None else Store()
+    provider = provider if provider is not None else get_provider()
+
+    rows = []
+    for r in (store.load_intraday() or []):
+        d = r.get("detail") or {}
+        rows.append({"ticker": r.get("ticker"),
+                     "bear_score": (d.get("scores_bear") or {}).get("swing"),
+                     "labels_bear": d.get("labels_bear") or [],
+                     "price": d.get("price")})
+
+    picks = f3_select(rows, held_symbols("f3_bear_puts", root),
+                      n=F3_TOP_N, cap=int(decl.get("concurrency_cap") or 0))
+    if not picks:
+        return []
+
+    if broker is None:
+        from .paper_broker import PaperBroker
+        broker = PaperBroker()
+
+    sha = F.declaration_sha(_read(F.declaration_path("f3_bear_puts", root)))
+    out = []
+    for p in picks:
+        got = f3_pick_contract(provider.get_option_chain(p["ticker"], dte_range=(45, 75)),
+                               p["price"], today,
+                               moneyness=float(st.get("moneyness")), dte=int(st.get("dte")))
+        if got is None:
+            continue
+        c = got["contract"]
+        out.append(F.submit("f3_bear_puts", broker=broker, occ=str(c.get("symbol")),
+                            underlying=p["ticker"], side="buy_to_open", qty=F3_QTY,
+                            decl_sha=sha, symbol=p["ticker"], quote=c))
+    return out
+
+
+# ---------------------------------------------------------------------------------------
 # THE REGISTRY
 # ---------------------------------------------------------------------------------------
 # book -> (callable, places_orders). `places_orders=False` marks a RIDER: a book whose own
@@ -67,6 +253,7 @@ def f1_fill_ab(decl: dict, root: str = None) -> list:
 # breathing fleet and `cycle()` must not report one.
 RULES = {
     "f1_fill_ab": (f1_fill_ab, False),
+    "f3_bear_puts": (f3_bear_puts, True),
 }
 
 
