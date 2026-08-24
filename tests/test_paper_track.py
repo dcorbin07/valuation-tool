@@ -1282,9 +1282,28 @@ def test_ptsplit_conformance_fails_closed_on_anything_unreadable():
         assert PT.book_conformance(bad).get("conforms") is not True, bad
 
 
-def test_ptsplit_the_live_engine_book_is_recorded_as_non_conforming():
-    """The measured verdict on the four days already on the books, from the committed Render
-    export — the pre-committed expectation in PREREG_session16 §4."""
+def test_ptsplit_the_engine_book_matches_what_the_register_records():
+    """The engine's CURRENTLY recorded book, checked against §5b — which was updated 2026-08-24.
+
+    RENAMED AND FLIPPED, and the reason is the whole point of the check. This asserted the
+    engine's book was NON-conforming, which was true of the four days PT-SPLIT registered. But
+    it reads `index_holdings` from the latest committed export, and the engine has since been
+    re-seeded: 68 positions at a 3.083% maximum, which conforms. **The subject drifted under the
+    test while its name stayed still** — it said "the four days" and measured "whatever the last
+    backup holds".
+
+    So the assertion now follows the register rather than a historical snapshot, exactly as the
+    old failure message instructed ("the register needs updating rather than this test"), and
+    §5b carries the measured evidence.
+
+    IT IS STILL A REAL CHECK, in the direction that now matters: if the engine ever reverts to
+    recording a truncated top-N list under the Index's name — the original PT-SPLIT defect — this
+    fails. What changed is which state is the alarm, not whether there is one.
+
+    The four original days remain a separate experiment and their figures are still not evidence
+    under the contract; a book that conforms today does not retroactively bind a differently
+    constructed record from 2026-08-03.
+    """
     import json
     path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                         "data_export", "paper_track_history.json")
@@ -1296,9 +1315,12 @@ def test_ptsplit_the_live_engine_book_is_recorded_as_non_conforming():
         return
     w = [float(h.get("weight") or 0.0) for h in holds]
     conf = VI.conformance(len(holds), max(w))
-    assert conf["conforms"] is False, (
-        "the engine's recorded book now conforms; if that is real the register in "
-        "PAPER_TRACK_CONTRACT.md 5b needs updating rather than this test")
+    assert conf["conforms"] is True, (
+        "the engine's recorded book does NOT conform (%d positions, max weight %.5f). That is "
+        "the PT-SPLIT defect returning — an engine recording a truncated book under the Index's "
+        "name. Either the engine regressed, or §5b's alignment record is wrong."
+        % (len(holds), max(w)))
+    assert len(holds) >= VI.CONTRACT_MIN_POSITIONS, len(holds)
 
 
 def _run_all():

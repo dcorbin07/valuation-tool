@@ -284,7 +284,21 @@ class TestRegisterDiscipline(unittest.TestCase):
             r = subprocess.run(("git",) + args, capture_output=True, text=True, cwd=REPO)
             return r.stdout.strip() if r.returncode == 0 else None
 
-        out = _git("log", "--format=%H", "-n", "1", "--", *self.LIVE_PATHS)
+        # --no-merges, and the reason is a defect this control hit for real on 2026-08-24.
+        # The SELECTOR (`git log -- <paths>`) will happily return a MERGE commit, but the
+        # VERIFIER (`git show`) prints no diff for a merge unless asked with -m/--first-parent/-c.
+        # So the moment a merge became the most recent commit touching a live path, the control
+        # selected a subject its own mechanism structurally cannot see, and failed claiming the
+        # mechanism was broken. Restricting the selector to ordinary commits does not weaken the
+        # check -- it still finds a real commit touching a live path and still demands the
+        # mechanism see it; it only stops choosing a subject with no first-parent diff to show.
+        #
+        # REPORTED, NOT FIXED HERE (different lane, and the fix is a design choice):
+        # `test_this_lane_touched_no_live_scoring_path` above has the SAME blindness in the
+        # dangerous direction -- it asserts `git show` finds nothing, so a merge commit carrying
+        # a live-path change would pass it silently. That check is load-bearing and is MB8's to
+        # decide on (`git show -m --first-parent`, or an explicit merge policy).
+        out = _git("log", "--no-merges", "--format=%H", "-n", "1", "--", *self.LIVE_PATHS)
         self.assertTrue(out, "no commit in history touches a live path — history unreadable")
         sha = out.split("\n")[0]
         shown = _git("show", "--name-only", "--format=", sha, "--", *self.LIVE_PATHS)
