@@ -353,6 +353,25 @@ def validate_declaration(decl: dict, *, book: str = None) -> dict:
         # way only"*, and registration is *"an explicit CALL and never an import side effect,
         # so importing this module to read one number cannot silently unblock every short book
         # in the fleet."* Both are right and this harness yields to them.
+        # PRESENCE IS THIS HARNESS'S OWN GATE and is checked here rather than delegated.
+        #
+        # THE DEFECT THIS CLOSES WAS CAUGHT BY THE DAY-1 SELF-CHECK, and it is the exact shape
+        # this project keeps recording: making the delegation OPTIONAL silently switched the
+        # short-field rules OFF, because r1's `_AssignmentProvider` exposes the three interface
+        # callables and NOT `validate_declaration`. A short book missing `margin_method`
+        # validated CLEANLY. A guard that quietly stops running is worse than one that was
+        # never written, and the split of duties is now explicit: **this harness checks that a
+        # short book STATES its clauses; the model checks that the stated VALUES cohere.**
+        for f in REQUIRED_SHORT_FIELDS:
+            if not str(decl.get(f) or "").strip():
+                r.append("MISSING_FIELD:" + f)
+
+        # REPORTED, NOT WORKED AROUND: with r1's current provider the VALUE rules -- `naked`
+        # refused, `spot_basis` as-traded, `return_denominator` secured cash -- are NOT enforced
+        # at declaration time, because the adapter does not carry the validator. Adding
+        # `validate_declaration` to `_AssignmentProvider` restores them through this seam with
+        # no change here. Re-implementing them in this file would be a second short-book
+        # contract (B7) and is deliberately not done.
         v = getattr(_PROVIDER, "validate_declaration", None)
         if callable(v):
             try:

@@ -212,44 +212,58 @@ def run(verbose=True) -> dict:
            (not g3["ok"]) and g3["code"] == "DECLARATION_NOT_COMMITTED_ALONE", g3.get("code"))
 
         # 8 ---------------------------------------------------- the S3-I3 seam, both ways
-        # RECONCILED 2026-08-24: r1's module LANDED and registers at import, so the empty-seam
-        # case must be created deliberately rather than assumed. The stub that used to stand in
-        # for r1 is gone -- the real module is here, and testing a stub now would be testing the
-        # stub (the runbook's own rule about confirming against the LANDED S3-I3).
+        # RECONCILED AGAIN 2026-08-24, AFTER THE SEAM SETTLED WITH r1. The previous cut read
+        # `F._S3I3_REGISTRATION` and `F._SB`, which existed only while this harness imported
+        # r1's module and registered it AT IMPORT. Both are gone: `assignment.py` states that
+        # *"fleet does not import this module"* and that registration is *"an explicit CALL and
+        # never an import side effect"*, and this lane yielded to that. So the seam starts EMPTY
+        # and the day-1 gate REGISTERS IT ITSELF -- which is also the honest shape, since the
+        # runner is the composition root and this script stands in for the runner.
+        from valuation.edge import assignment as ASSIGN        # the REAL module, never a stub
         shortd = F.parse_declaration(_decl("short", with_short_fields=True))["declaration"]
 
-        ck("8a the LANDED S3-I3 satisfies the interface and registered at import",
-           F._S3I3_REGISTRATION.get("ok") and F.assignment_provider() is F._SB,
-           F._S3I3_REGISTRATION)
+        v_no_first = F.validate_declaration(shortd, book=BOOK)
+        ck("8a a SHORT book is REFUSED before anything registers -- the DEFAULT, not a "
+           "contrived case",
+           "SHORT_BOOK_WITHOUT_ASSIGNMENT" in v_no_first["refusals"], v_no_first["refusals"])
+
+        reg = ASSIGN.register(F)
+        ck("8b r1's LANDED provider satisfies the FROZEN interface with nothing aliased",
+           reg.get("ok") and F.assignment_provider() is ASSIGN.PROVIDER, reg)
+
+        ck("8c the required-short-field lists AGREE across the two lanes",
+           tuple(F.REQUIRED_SHORT_FIELDS) == tuple(ASSIGN.REQUIRED_SHORT_FIELDS),
+           (F.REQUIRED_SHORT_FIELDS, ASSIGN.REQUIRED_SHORT_FIELDS))
 
         v_yes = F.validate_declaration(shortd, book=BOOK)
-        ck("8b a complete SHORT book validates against the landed module",
+        ck("8d a complete SHORT book validates once a provider is registered",
            v_yes["ok"], v_yes.get("refusals"))
 
-        F._PROVIDER = None                                    # the empty seam, made on purpose
-        v_no = F.validate_declaration(shortd, book=BOOK)
-        F.register_assignment_provider(F._SB)                 # and restored immediately
-        ck("8c a SHORT book is REFUSED when no provider is registered",
-           "SHORT_BOOK_WITHOUT_ASSIGNMENT" in v_no["refusals"], v_no["refusals"])
-
         bad_reg = F.register_assignment_provider(object())
-        ck("8d a provider that does NOT satisfy the interface is refused, and does not evict "
+        ck("8e a provider that does NOT satisfy the interface is refused, and does not evict "
            "the working one",
            (not bad_reg["ok"])
            and len(bad_reg["missing"]) == len(F.ASSIGNMENT_INTERFACE["callables"])
-           and F.assignment_provider() is F._SB, bad_reg)
+           and F.assignment_provider() is ASSIGN.PROVIDER, bad_reg)
 
         missing_field = dict(shortd)
         missing_field.pop("margin_method")
         v_mf = F.validate_declaration(missing_field, book=BOOK)
-        ck("8e a SHORT book missing an S3-I3 field is REFUSED and the reason survives",
-           "SHORT_BOOK_REFUSED_BY_S3I3" in v_mf["refusals"]
-           and "margin_method" in (v_mf["detail"].get("s3i3_refusal") or ""), v_mf["refusals"])
+        # 8f, not a second 8e -- the duplicate label was hiding one of two checks in the output.
+        #
+        # THIS IS THE CHECK THAT EARNED ITS KEEP TODAY. It asserted the delegated refusal
+        # `SHORT_BOOK_REFUSED_BY_S3I3`, and when the seam settled it went RED against a tree
+        # everything else called green: r1's provider exposes the three interface callables and
+        # NOT `validate_declaration`, so making the delegation optional switched the short-field
+        # rules silently OFF and a book missing `margin_method` validated cleanly. Presence is
+        # now this harness's own gate, so the code it names is this harness's own.
+        ck("8f a SHORT book missing an S3-I3 field is REFUSED, BY NAME",
+           "MISSING_FIELD:margin_method" in v_mf["refusals"], v_mf["refusals"])
 
         contradiction = dict(shortd)
         contradiction["side"] = "long"                        # while sells_premium stays True
         v_cd = F.validate_declaration(contradiction, book=BOOK)
-        ck("8f `side` and `sells_premium` must AGREE, or the declaration is refused",
+        ck("8g `side` and `sells_premium` must AGREE, or the declaration is refused",
            "SIDE_AND_SELLS_PREMIUM_DISAGREE" in v_cd["refusals"], v_cd["refusals"])
 
         # 9 ----------------------------------------------------------------- the randomizer
