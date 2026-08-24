@@ -731,10 +731,21 @@ def create_saas_app(cfg=CONFIG):
             # `entry_rules_implemented: 0` with the rules sitting built and unreachable, which
             # is a worse failure than not building them -- it looks like the work was not done.
             from ..edge import fleet_books
+            from ..edge import fleet_gates
             res_reg = fleet_books.register_all()
 
             res = fleet.cycle(write=wants_run, books=[only] if only else None)
             res["entry_rules_registered"] = res_reg["registered"]
+
+            # (D) THE RECORDERS. Four books gate on a series nothing wrote, and no amount of
+            # coding produces one retroactively -- a book that needs two years of history
+            # should be banking day 1 TODAY. They run on the WRITE path only: a dry-run GET
+            # must stay side-effect free, which is the same split the verb already carries.
+            from ..edge import fleet_history
+            res["history"] = fleet_history.coverage()
+            if wants_run:
+                res["history_recorded"] = fleet_history.record_all()
+            res["gates"] = fleet_gates.coverage()
             res["assignment_provider_registered"] = fleet.assignment_provider() is not None
             res["assignment_note"] = (
                 "S3-I3 registered: the six short books no longer refuse with "
