@@ -714,15 +714,33 @@ def create_saas_app(cfg=CONFIG):
             # three: lift `dividends` out of the archive with a register, break `assignment`'s
             # dependency on it, or run the fleet from a process that is not the web app. This
             # handler must not be the place that quietly decides.
+            # THE ENTRY RULES *ARE* REGISTERED HERE, AND THE CONTRAST WITH S3-I3 ABOVE IS THE
+            # WHOLE POINT: THE QUARANTINE IS THE TEST, NOT A BLANKET BAN ON REGISTERING.
+            #
+            # `fleet_books` is registered because its dependency closure is quarantine-CLEAN,
+            # measured rather than assumed -- `bearish`, `dip`, `name_percentile`,
+            # `event_spine`, `catalyst_calendar`, `options_universe` and `paper_broker` reach
+            # nothing on `MA59`'s archived list. `assignment` is NOT registered because its
+            # closure reaches `dividends`, which is archived. Same rule, two answers.
+            #
+            # WITHOUT THIS CALL THE ARMING IS INVISIBLE WHERE IT MATTERS. Registration is an
+            # explicit call and never an import side effect (`S3-I3`'s convention), so nothing
+            # else was going to make it happen: the door would have gone on reporting
+            # `entry_rules_implemented: 0` with the rules sitting built and unreachable, which
+            # is a worse failure than not building them -- it looks like the work was not done.
+            from ..edge import fleet_books
+            res_reg = fleet_books.register_all()
+
             res = fleet.cycle(write=wants_run, books=[only] if only else None)
+            res["entry_rules_registered"] = res_reg["registered"]
             res["assignment_provider_registered"] = fleet.assignment_provider() is not None
             if not res["assignment_provider_registered"]:
                 res["assignment_note"] = (
                     "S3-I3 is not registered in the web process: valuation.edge.assignment "
                     "imports the ARCHIVED valuation.edge.dividends, and MA59's quarantine "
                     "forbids the live product reaching a closed study. Short books refuse "
-                    "until that is resolved by the S3-I3 lane. No book can fill regardless "
-                    "while no entry rule is implemented.")
+                    "until that is resolved by the S3-I3 lane. Every short book is blocked on "
+                    "this and F-8 is blocked on NOTHING ELSE.")
             # 200 on a dry run OR a run that legitimately produced nothing. A cycle that
             # placed no fill is not an error -- it is the ordinary case and, today, the only
             # case. The body's `breathing` flag and `note` carry that, so a scheduler can

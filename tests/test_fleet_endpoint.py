@@ -120,6 +120,41 @@ class TheRunnersDoor(unittest.TestCase):
         self.assertNotIn("assignment", names)
         self.assertNotIn("dividends", names)
 
+    def test_the_door_REGISTERS_the_entry_rules_or_the_arming_is_invisible(self):
+        """Registration is an explicit call and never an import side effect (`S3-I3`'s
+        convention), so if this handler does not make it, NOTHING does.
+
+        The failure this closes is worse than not building the rules: the door would keep
+        reporting `entry_rules_implemented: 0` with the rules sitting built and unreachable,
+        which reads as *"the work was not done"* rather than *"the work is not wired"*.
+        """
+        c, hdr = _client()
+        b = c.get("/admin/fleet-cycle", headers=hdr).get_json()
+        self.assertIn("f1_fill_ab", b["entry_rules_registered"])
+        self.assertIn("f3_bear_puts", b["entry_rules_registered"])
+        self.assertGreaterEqual(b["entry_rules_implemented"], 2)
+
+    def test_registering_the_rules_did_not_smuggle_in_a_quarantined_study(self):
+        """The contrast that makes the quarantine a TEST rather than a blanket ban.
+
+        `fleet_books` is registered and `assignment` is not, and the difference is measured:
+        one closure is clean, the other reaches the archived `dividends`. If importing
+        `fleet_books` ever pulled an archived module in, `tests/test_ma59_quarantine.py`
+        fails -- this asserts the narrower thing the handler itself controls.
+        """
+        import ast
+        src = io.open(os.path.join(REPO, "valuation", "saas", "app_saas.py"),
+                      encoding="utf-8").read()
+        names = set()
+        for n in ast.walk(ast.parse(src)):
+            if isinstance(n, ast.ImportFrom):
+                names.update(a.name for a in n.names)
+            elif isinstance(n, ast.Import):
+                names.update(a.name.rsplit(".", 1)[-1] for a in n.names)
+        self.assertIn("fleet_books", names)
+        self.assertNotIn("assignment", names)
+        self.assertNotIn("dividends", names)
+
     def test_the_short_books_refuse_and_the_body_SAYS_WHY(self):
         """The cost of the quarantine, stated in the response rather than left to be inferred.
 
