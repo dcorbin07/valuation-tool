@@ -8479,6 +8479,8 @@ parse the OCC symbol, then delegate to the functions validated against V6-OPT's 
 computed any, the project would have two definitions at the exact join the seam exists to make,
 which is `B7`.
 
+**THE ARTIFACT KEEPS ITS `S3I3_SHORT_BOOK_VALIDATION.json` NAME DELIBERATELY.** The module renamed; the artifact did not, because it is already written under that name in the primary data root and renaming it would leave a stale twin beside a new one. The name is still accurate -- it validates the short-book model -- and it is consistent across the script and all three records. **Do not tidy it.**
+
 **IT WORKS END TO END, and the refusal lifting is the deliverable.** On the harness's own
 short-book template: **before registration the refusals include
 `SHORT_BOOK_WITHOUT_ASSIGNMENT`; after `assignment.register()` they do not**, and the test pins
@@ -8500,6 +8502,39 @@ different contracts, and settling against the wrong one fails silently.
 importing this module to read one number must not silently unblock every short book in the
 fleet. And `fleet` does not import this module (its check is duck-typed on purpose), so the
 dependency runs one way only.
+
+### The first land failed on a COIN FLIP, and here is the measurement
+
+`tests/test_screener.py::test_portfolio_sector_cap_and_weights` failed the land gate on run
+`32691725545` while passing every local run. **It is not this branch: the diff against
+`origin/main` contains ZERO files under `valuation/screener/`.**
+
+**ROOT CAUSE, one line.** `tests/screener_fixtures.py:18` seeds its per-ticker generator with
+`np.random.default_rng(abs(hash(ticker)) % (2**32))`. Python **salts `hash()` per process**, so
+the fixture universe is different on every run unless `PYTHONHASHSEED` is pinned — and CI pins
+nothing. The test is therefore a coin flip on every land, for every lane.
+
+**MEASURED RATHER THAN ASSERTED.** Swept eight seeds locally on this exact tree:
+
+| PYTHONHASHSEED | 0 | 1 | 7 | 42 | **179** | 512 | 1000 | 2026 |
+|---|---|---|---|---|---|---|---|---|
+| result | pass | pass | pass | pass | **FAIL** | pass | pass | pass |
+
+**1 of 8. The reproducer is `PYTHONHASHSEED=179`**, and it is the same seed the record already
+carries for this test, so this is a known flake that has now cost a land.
+
+**DELIBERATELY NOT FIXED, and the reason is the interesting half.** The one-line repair —
+swapping `hash()` for a stable digest — is not obviously right, because **the flake is exposing
+something real**: the record notes it surfaces a *soft* sector cap. Pinning the seed would
+either freeze the test into always-passing, which HIDES that, or into always-failing, which
+exposes it. **Which of those is correct is a screener-lane judgement about the cap, not a test
+hygiene decision**, and this lane has no standing to make it — the same call made an hour
+earlier about MB8's sibling check, for the same reason.
+
+**What a successor should do:** make the fixture deterministic AND decide the cap question in
+the same change, so the test stops being a lottery on everyone else's lands without quietly
+burying what it found. Until then every lane's land carries a ~1-in-8 chance of an unrelated
+red on this suite alone.
 
 ### What it does NOT do, named so it is not mistaken for done
 
