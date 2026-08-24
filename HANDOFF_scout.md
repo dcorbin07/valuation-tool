@@ -1,5 +1,39 @@
 # HANDOFF_scout.md — Frontier Scout
 
+## SESSION 5 — THE FULL FLEET DECLARED (2026-08-24)
+
+**Commission (Don, via session):** the harness is mid-build and ALL fleet declarations
+commit together the moment it lands. **Produced: the 16 remaining Track F declarations**
+(F-2 and F-19 as the fleet-wide gate conventions they are, with host-attachment rules;
+F-4/F-7/F-8/F-10/F-17/F-18 written to the harness §1.4 assignment/margin interface with
+their could-shift assumptions marked, since r1 is building S3-I3 now; F-9/F-11/F-12/F-13/
+F-14/F-15/F-16/F-20 long books with frozen entry rules and honest horizons — F-16 says 4+
+quarters out loud, F-20 says it may sit empty in calm regimes and that starving is data).
+With the map session's four, **all 20 Track F books are declaration-ready.** Premium-book
+dedup is frozen in-declaration (F-4 > F-17 > F-10). Zero trials charged; zero outcome
+statistics.
+
+**Bookkeeping landed in `IDEAS_LEDGER.md` (2026-08-24 amend):** EVOWN NOT-DEMONSTRATED →
+the O-3 rubric CLOSED-SELF exactly as pre-committed; the ambient finding's reshaping noted
+(F-12/F-13/B-15 carry the hostile family prior; B-14's re-scope stands; F-4 unaffected);
+E-1..E-6 finals (two pre-outcome kills fired correctly); SC-1b CALIBRATED-IN-THE-LARGE;
+S3-I1 accepted from this lane's draft and mid-build; S3-I2+I5 built (Tier C/E block
+lifted).
+
+**Verification owed and done:** the scout branch had NOT landed at session start —
+`3b9bda7` and `ed58d7f` were still local-only, and this session stacks a third commit on
+the same branch. **One `sync.bat` click (or `git push -u origin worktree-scout-brainstorm`)
+lands all three scout sessions at once.** Land verified next session, per the ritual.
+
+**For the next session:** (1) verify the branch landed; (2) if the harness passed
+self-verification, the 20 declarations go to the options-bot lane for the group commit —
+each must be committed ALONE per the harness convention, in the fleet launch order the map
+gives (Wave 1: F-1/F-3/F-5/F-6 + gates; Wave 2 the rest); (3) re-check whether O-1/O-2/
+SC-3 have landed rows and move statuses; (4) relay Don's answers to the map's five
+questions if given.
+
+---
+
 ## SESSION 4 — THE SEASON 3 MAP (2026-08-21, convergent; Don's rulings binding)
 
 **Commission:** `PROMPT_scout_season3_map.md`. Don ruled: everything in scope, forward-first
