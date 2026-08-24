@@ -553,3 +553,659 @@ forever and covers nothing.
   denied routes that return derived numbers, which is the product.
 - **The live service was not read** for any of this. Every measurement is local, and MA18's section
   says exactly where that limit bites.
+
+---
+
+# I-1 — the Breeden–Litzenberger RND builder (2026-08-20)
+
+`valuation/studies/rnd.py`, `tests/test_rnd.py` (**45/45**), `scripts/i1_rnd_census.py`,
+artifact `data/free_analysis/I1_RND_CENSUS.json` (gitignored, re-derivable by the script).
+
+**ZERO TRIALS. This is an INSTRUMENT, and its neutrality is the deliverable.** It computes no
+relationship between any RND quantity and any forward return — not a correlation, not an IC, not
+a bucketed mean. It is consumed by `PREREG_DRAFT_o1_flagged_puts.md` as a **stage-0 kill that
+fires before any arm exists**, so a builder that had already been pointed at returns would be
+scoring that kill on a tool which had seen the answer. Enforced, not promised: `test_rnd.py`
+sweeps the module's own source (AST, docstrings stripped) for forward-return vocabulary and for
+a mutable-store escape hatch, and both sweeps carry a positive control.
+
+## 1. The headline: SR-677 as written does not survive contact with an equity chain
+
+The scout's citation names NY Fed SR-677 (Malz 2014) as the standard stable implementation, and
+it was implemented **literally first** — implied vols, cubic spline in **delta** space, **flat**
+vol extrapolation, Breeden–Litzenberger by finite difference. On the frozen chains it produced
+**0 usable slices out of 387**. Two distinct causes, both measured before anything was changed:
+
+* **The delta→strike map is not invertible on a steep skew.** Measured on AAPL 2025-07-07:
+  **7 folding steps at delta 0.0059–0.0074, where K doubles back through 265–270**, exactly where
+  `max|d²σ|` peaks. Sorting by K and de-duplicating silently discards the folded branch, leaving
+  a jump in σ(K) that BL turns into a density spike of **−0.90 against a peak of +0.72**. Delta is
+  the right coordinate for FX, where SR-677 is aimed and quotes arrive at five well-separated
+  deltas; it is the wrong one for a 31-strike equity chain.
+* **Flat extrapolation manufactures negative density at BOTH seams, by construction.** The density
+  carries `C_σ·σ''`. Clamping vol flat puts a **step in σ′**, and a step in σ′ is a **delta
+  function in σ''** — so a negative spike at each edge is guaranteed whenever the smile has any
+  slope there, which an equity skew always does. This is arithmetic, not bad luck.
+
+**Two departures, each adopted only after the literal version was measured to fail:**
+
+1. **Abscissa is `ln(K/F)`**, monotone in K by construction — the fold is removed structurally
+   rather than detected and patched.
+2. **Wings are C¹ smooth-pasted**, `σ(x) = σ_e + slope_e·L·(1 − exp(−|x−x_e|/L))` — no delta
+   function at the seam, and **asymptotically constant**, so the far tails stay lognormal, which
+   is the property flat extrapolation existed to provide.
+
+Effect of the pasting alone, holding everything else fixed: benchmark negative mass
+**1.1e-3 → 1e-12**, real-chain median **3.3e-2 → 1e-11**, share of clean densities **0.04 → 0.83**.
+
+**The smile fit is a spread-weighted smoothing spline** (`s = n`, the standard chi-square target).
+Each point's vol uncertainty is *measured* — solve IV at the bid, at the ask, halve the difference
+— so one rule serves a 31-quote AAPL chain and a 9-quote ABBV chain without anyone choosing a
+smoothing constant per name. Interpolating every quote exactly puts tick noise straight into σ''
+and rings; a rigid polynomial cannot follow a real skew. Selected on the benchmarks plus
+real-chain stability and **better on both axes at once** — max mixture error **7.0e-3 vs 1.6e-2**
+for a cubic polynomial, real-chain clean share **0.913 vs 0.812** — so the choice cost no
+trade-off. `SMOOTH_S_MULT = 1.0` was checked to sit on a **plateau** (1.0/2.0/4.0 identical), not
+at a tuned edge.
+
+## 2. Verified against published closed forms, because that is the only honest test
+
+* **Flat smile → Black–Scholes lognormal**, tail mass exactly `N(−d2)`. Max error **1.8e-5**.
+* **Two-lognormal mixture — Bahra, BoE WP 66 (1997)**, the canonical published RND test case:
+  skewed, fat-tailed, and priceable in closed form so the estimator is fed EXACT prices and any
+  error found is its own. Errors **1.9e-4 to 7.0e-3**.
+* **The control that makes the mixture test mean something.** A lognormal is the case a broken
+  estimator still gets right, so an estimator tested only against it has not been tested. At the
+  0.70 threshold the true mass is **0.10715**, a single lognormal at the ATM vol says **0.03966**,
+  and this estimator returns **0.10563** — it recovers a tail a lognormal understates ~2.7-fold.
+  The test asserts the lognormal control **fails**, so it cannot pass vacuously.
+* **The benchmarks are themselves verified before anything is scored against them** — the mixture
+  CDF against numerical integration of its own density, the mixture call against numerical
+  integration of the payoff, and the one-component mixture against the lognormal formula to 1e-12.
+  A benchmark nobody checked is not a benchmark.
+* **Mutation battery on the tail-mass arithmetic, 7 mutations, all caught**: survival-instead-of-CDF,
+  flipped BL sign, corrupted discount factor, corrupted second-difference stencil, threshold read at
+  the wrong strike, corrupted parity forward, and `N(−d2)→N(−d1)` **in the analytic reference
+  itself**. A baseline test asserts the suite is green before mutation, so no mutation can "pass"
+  against an already-red baseline.
+
+## 3. The census — fit diagnostics per slice, not an assumption of convergence
+
+`python -m scripts.i1_rnd_census --symbols 60 --dates 3`, pinned harvest freeze
+(`manifest_sha256 ee6d38e5…`), **2,174 slices over 60 symbols**:
+
+| | |
+|---|---|
+| in DTE band | 1,700 of 2,174 (474 refused as weeklies/LEAPS, a designed exclusion) |
+| **usable** | **1,168 = 68.7% of in-band** |
+| **K1 parity vs `raw_close` within quoted-spread band** | **0.9858 — PASS**, register wants ≥0.95 |
+| integral | med 0.999999, p95 1.000003, max 1.0171 |
+| negative mass | med 4.5e-12, p95 5.0e-4, max 9.7e-3 (gate 1e-2) |
+| CDF two-route gap | med 2.2e-6 |
+| \|parity dev frac\| | med 0.0028, p95 0.0175 |
+
+Refusals are attributed, never silent: `cdf_not_monotone_in_read_region` 417,
+`negative_density` 124, `too_few_smile_points` 73, `integral_off` 35, `parity_spot_mismatch` 15,
+`no_parity_forward` 8. `build_name_day` **returns unusable slices rather than dropping them**,
+because a caller writing a coverage census needs the refusals.
+
+## 4. Two findings the consumer must read before quoting anything
+
+* **80.5% of `Q(S_T ≤ 0.50·S_0)` readings are EXTRAPOLATIONS beyond the lowest quoted strike** —
+  and that is precisely the threshold O-1's **K2** reads. By threshold: **0.50 → 80.5%,
+  0.60 → 62.2%, 0.70 → 46.1%, 0.80 → 27.7%, 0.90 → 5.7%.** Every slice carries a per-threshold
+  `threshold_extrapolated` flag and the builder will not hide it. **The error is one-directional**:
+  a real equity smile keeps steepening into the left wing while the pasted continuation flattens
+  it, so an extrapolated left-tail mass is a **LOWER BOUND**. For K2 — "does the market already
+  price the flag?" — that is the conservative direction: it biases toward *the market charges less
+  than it really does*, making the `ρ_RND ≥ 3.04` **VOID** verdict **harder** to reach, not easier.
+  K2 is still runnable; it must be quoted with the extrapolated share beside it, and a
+  ratio-of-medians is far more robust here than either median alone.
+* **O-1's K1 "integrates to 1 ± 0.02" is close to VACUOUS as a check, and should not be leaned on.**
+  Computed this way the integral **telescopes** — it is a sum of second differences of the call
+  curve — so it returns ≈1 almost regardless of how badly the smile behaves. Measured: on the
+  AAPL chain whose density was oscillating between **−0.90 and +0.72**, the integral read
+  **1.00000**. It is retained because the register asks for it and it does catch one real thing (a
+  grid that truncates mass), but **`negative_mass` is the diagnostic that actually detects a broken
+  density** and is the one to read first. The other two legs of K1 — monotone CDF, parity vs
+  as-traded spot — are genuine and both are enforced.
+
+## 5. The traps, handled
+
+* **`raw_close`, never `close`** (`U1-SPLIT`, `O6`). Pinned from both sides: the correct spot
+  passes the parity check, and a 4-for-1 "adjusted" spot **fails and says
+  `parity_spot_mismatch`**. An adjustment mismatch throws parity by tens of percent, so that
+  check's real job is catching a corporate action, not auditing dividends.
+* **The circular-parity trap, avoided by name.** `dividends.spot_from_parity` returns
+  `S = C − P + K·e^{−rT}`; deriving the forward from parity and checking it against a spot derived
+  from parity is TRUE BY CONSTRUCTION — MA31 named that failure. The check here is against
+  `raw_close` from the bars, an **independent** series.
+* **`usable_quote` on BOTH legs**, the one shipped definition (`MA45`), delegated to and pinned by
+  identity (`R.usable_quote is BS.usable_quote`) — audit B7's class. A matched pair with one dead
+  leg is not a pair. Excluded rows are **counted**, never imputed.
+* **`bs_price`/`implied_vol` reused, not re-derived.** Black-76 is obtained by passing
+  `S = F·e^{−rT}, q=0` to the shipped solver — the substitution cancels the `rT` term exactly — so
+  no second pricer sits beside the first.
+* **PINNED FREEZE ONLY.** `chain_store.resolve_chains` / `resolve_harvest`, which **raise** rather
+  than fall back; the mutable store is `O16`'s defect (44.2% of payload units rewritten after the
+  books were banked). Pinned by a source sweep plus a test that a missing freeze raises.
+
+## What I did NOT do
+
+- **No relationship to forward returns, anywhere.** That is the point of the instrument and it is
+  the one thing that would void it. O-1's stage 1 is not started and not designed here.
+- **`I1_RND_CENSUS.json` is NOT committed** — it lands under gitignored `data/`. Re-derive with the
+  script; the provenance block records the freeze manifest hash the numbers came from.
+- **The options freeze (`freeze_options_2026-08-17`) was not censused**, only the harvest freeze.
+  The harvest holds a full chain on every session while the options store holds one only on entry
+  dates, so it is the right source for per-name-day densities — but `--store options` exists and
+  its coverage is **unmeasured**. Anyone running O-1 against entry-date chains should census it
+  first rather than assume these rates carry over.
+- **No term structure and no cross-expiry interpolation.** Each (name, date, expiry) is independent;
+  nothing here builds a constant-maturity RND.
+- **31.3% of in-band slices are refused**, and I did not chase the residual. The dominant reason is
+  `cdf_not_monotone_in_read_region` (417), which is a genuine butterfly violation in the quotes
+  rather than an instrument defect — but I did not separate "the chain is arbitraged" from "the fit
+  could be better", and that split is worth having before anyone reads a coverage number as a
+  data-quality claim.
+- **`GRID_SIGMAS`, `PASTE_L` and the DTE band were not swept jointly.** `PASTE_L = 0.50` was taken
+  from a 1-D sweep (pass rates climb steeply 0.10→0.50 then flatten); a joint sweep might do
+  better, and nothing here claims these are optimal — only that they are on a plateau rather than
+  an edge.
+
+---
+
+# E-4 — the market-tail crash flag beside the accounting card (2026-08-20)
+
+**Season 2 register `E-4` (`IDEAS_LEDGER.md`, S-SEED-5), the OPTION-IMPLIED half — the half the
+ledger's own `I-1` entry names as unblocked by the RND builder.** Executed by this lane, which
+also built `I-1`.
+
+`PREREG_e4_market_tail_flag.md` committed **ALONE and BLIND at `cf7c7fc`** — markdown only, zero
+`.py`, 378 lines, a strict git ancestor of every measurement commit. **ONE equity trial booked at
+`654326a` BEFORE the runner existed**, equity **238 → 239**; options 305 and infra 19 untouched,
+re-read from `by_domain` after merging rather than quoted from a mid-run figure (`MA37`).
+**ADOPTS NOTHING** — no file under `valuation/` that the product imports changed, and no card is
+built. `MB31` proves no calibrated permutation floor can move below equity `N` = 247.
+
+**AND THE FIGURE TO QUOTE IS 241, NOT 239 — RE-READ AFTER MERGING, WHICH IS `MA37`'s RULE FOR THE
+FOURTH TIME.** `238 → 239` describes *this item's own booking*. While it ran, two other lanes
+landed `E-2` and `E-3`, each of which had also booked off a base of 238, so **both sides of the
+resulting `EXPECTED_BY_DOMAIN` conflict were wrong** — mine said 239, `origin/main` said 240, and
+the merged log carries all three rows. **The stamp was reconciled to the MEASURED count**
+(options 305, infra 19 untouched) and the HLZ hurdle it drives re-derived, rather than by taking a
+side, which would have mis-stamped a domain neither lane had wrong — `MB22`/`MB23`'s exact
+situation, resolved the same way. **It then had to be done a THIRD time: `E-6` landed while
+CI was gating this branch, so the live figure is `equity` = 242 and the hurdle
+**3.313287710464241**. **Keep-both is
+right for ROWS and wrong for CONSTANTS:** the nine Season-2 ledger rows were all kept (one each,
+verified), while the stamp is asserted to be assigned **exactly once**, because a duplicated copy
+silently defeats the tamper-evidence it exists for. Equity 241 is still below `MB31`'s 247, so no
+calibrated floor moves.
+
+**AND THE THIRD RECONCILIATION IS THE ONE WORTH CARRYING, BECAUSE THE MERGE WAS CLEAN.** `E-6`
+landed while GitHub was gating this branch — the Action's own annotation reads *"main moved with
+CODE during the gate … re-merging and re-running"* — and it had already reconciled the stamp to
+241. **My branch also read 241. So git saw two identical lines, produced NO CONFLICT, and the
+merged stamp was still WRONG**, because the merged *log* carries both my row and `E-6`'s and the
+measured count is **242**. **Git can see that two lines agree; it cannot see that the quantity
+those lines describe is a function of the file they were merged into.** The record's existing
+lesson is about a *conflicting* stamp (`MB22`/`MB23`, and this item's own second reconciliation);
+**this is the same defect with the conflict removed, which is strictly harder to notice — nothing
+prompts you to look.** The rule that survives is therefore stronger than the one I started with:
+**re-measure `by_domain` after EVERY merge, not only after a conflicting one.** Caught here by
+CI rather than by me, which is the honest version of how it was found.
+
+## 1. THE VERDICT IS `UNDERPOWERED`, AND THE COMPARISON THE ITEM EXISTS FOR SURVIVES IT
+
+**The market flag DOES catch crashes the accounting flags miss.** On the **8,275 + 1,980 =
+10,255 accounting-CLEAN rows**, the market flag separates at **ratio 3.0541 — 0.9596% (19 crashes
+of 1,980) against 0.3142% (26 of 8,275)** — and both buckets clear the declared `min_events = 10`,
+so that ratio is **quotable**.
+
+**Whether the accounting flag catches crashes the MARKET flag misses is UNANSWERABLE on this
+universe, and the register said so before the run.** On market-clean rows the accounting flag has
+**286 rows carrying 4 crashes**; `crash_gate.quotable` **withholds the ratio** with its reason
+attached. §7 predicted exactly this — *"if that is what happens, the 'vice versa' half of the
+comparison is UNANSWERABLE and will be reported as unanswerable, not as a null."* It is reported
+as unanswerable.
+
+**THE 2×2** (crash = `fwd_ret ≤ −0.50` over the panel's 63-trading-day window; 10,707 rows,
+40 dates, 486 names, 54 crashes):
+
+| | accounting-flagged | accounting-clean |
+|---|---|---|
+| **market-flagged** | 166 rows, 5 crashes, **3.0120%** | 1,980 rows, 19 crashes, **0.9596%** |
+| **market-clean** | 286 rows, 4 crashes, **1.3986%** | 8,275 rows, 26 crashes, **0.3142%** |
+
+**The two flags are very nearly independent: Cohen's κ = 0.0624**, co-firing odds ratio 2.4257.
+They are finding different names, which is what makes the 2×2 worth having. Arithmetic on those
+published cells, no new computation and no extra arm: the market flag fires on **20.04%** of rows
+and carries **24 of 54 crashes (44.4%)**; the accounting flag fires on **4.22%** and carries **9
+of 54 (16.7%)**; their union fires on **22.71%** and carries **28 of 54 (51.9%)**. **Neither flag
+sees the other 26.**
+
+## 2. WHY IT IS `UNDERPOWERED` AND NOT `PASS`, DECIDED BY ARITHMETIC RATHER THAN JUDGEMENT
+
+| window | dates | mean per-date diff | NW *t* | pooled ratio | B1 | B2 ≥ 2.0× | B3 ≥ 0.50pp | all three |
+|---|---|---|---|---|---|---|---|---|
+| **full** | 40 | **+0.6789pp** | **+2.3813** | **3.1914** | ✔ | ✔ | ✔ | **✔** |
+| early | 19 | +0.3875pp | +1.1117 | 1.6882 | ✘ | ✘ | ✘ | ✘ |
+| late | 20 | +0.9897pp | +2.2483 | *withheld* | ✔ | ✔ | ✔ | ✔ |
+
+Halves boundary **embargoed at 2020-10-20**. Bars are `MA28`'s, reused verbatim.
+
+**The full sample clears all three of `MA28`'s legs at a ratio of 3.1914 — within 5% of `MA28`'s
+own 3.0422 — and the early half does not.** The register requires full **and** both halves, so
+this is not a PASS.
+
+**And the pre-committed three-state rule then makes it UNDERPOWERED rather than FAIL, because the
+observed effect sits below the design's own detection threshold:**
+
+> MDE at |*t*| > 3.3095 (N = 239): detection threshold **0.00880349** (50% power); **0.0110379**
+> at 80% power. Power against the observed effect 0.00678927 is **22.4%**.
+
+> MDE at |*t*| > 2.0000: detection threshold **0.0053201** (50% power); **0.00755454** at 80%
+> power. Power against the observed effect is **71.0%**.
+
+**Both vocabularies, as `RUN_RULES` PART A rule 11 requires, and they disagree in the way that
+matters: at the conventional bar this effect is visible (*t* +2.38, and the design has 71% power
+against it); at this project's own multiple-testing hurdle it is not.** `V6`/`S19`'s rule stands
+— **UNDERPOWERED means "could not be separated at this resolution", never "absent".**
+
+**THE LATE HALF'S RATIO IS WITHHELD AND MUST NEVER BE QUOTED.** It computes to 12.96, on **4
+crashes in the kept bucket of 4,650 rows**. `quotable()` refuses it. This is `MB8`'s lesson
+firing for real rather than as a precaution.
+
+**THE PRE-RUN POWER STATEMENT WAS RIGHT AND ITS SE WAS 1.62× TOO OPTIMISTIC.** The register
+predicted the binomial se would understate, at 80/20; measured, the **realised per-date se is
+0.2660pp against the pre-run binomial 0.1638pp**. Crashes cluster — `MA28` measured the base rate
+moving 4× between halves around COVID 2020Q1 — so the independence assumption was wrong in the
+direction stated in advance. At the realised base rate the pooled route needs **54,854 rows at
+the 2.0× floor and 19,176 at 3.0422×** against **10,707** available.
+
+## 3. THE CONTROL THAT SHOULD DECIDE HOW ANYONE READS THIS
+
+**`C-VOL` reads 0.8901 against my own 0.90 relabel bar. It missed by 0.0099.**
+
+The pre-committed rule was that at |ρ| ≥ 0.90 the flag **must** be described as an implied-vol
+sort. **It did not fire, so I do not claim the mandatory relabel — and nobody should lean on a
+margin of 0.0099 either.** The honest sentence is that **at a mean per-date Spearman of 0.8901
+against ATM implied vol, this design cannot distinguish "the RND's left-tail shape predicts
+crashes" from "implied volatility predicts crashes"**, and the second is a far older and duller
+claim. A register wanting the first would have to hold implied vol fixed, which is a different
+construction needing its own trial.
+
+**`C-TENOR` reads 0.4608 and is a real confound, foreseen but larger than I expected.**
+`Q(S_T ≤ 0.70·S_0)` grows mechanically with T, the band is [50,140] (median DTE 86, p05 53, p95
+119, a 2.8× range), so the within-date quintile is partly a tenor sort. Reported, no bar.
+
+**`C-SIZE`: flagged names are 3.2× SMALLER** — median market cap $11.50bn against $36.91bn
+(ratio 0.3115) — and the flag fires overwhelmingly in the small end (1,018 of 2,158 rows in the
+smallest cap quintile against 84 of 2,146 in the largest).
+
+**Within cap quintile, EVERY RATIO IS WITHHELD, and that is the finding rather than a gap:**
+
+| cap quintile | flagged n / crashes / rate | kept n / crashes / rate | ratio |
+|---|---|---|---|
+| 1 (smallest) | 1,018 / 8 / 0.786% | 1,140 / 7 / 0.614% | withheld |
+| 2 | 535 / 7 / 1.308% | 1,599 / 7 / 0.438% | withheld |
+| 3 | 320 / 5 / 1.562% | 1,815 / 10 / 0.551% | withheld |
+| 4 | 189 / 2 / 1.058% | 1,945 / 6 / 0.308% | withheld |
+| 5 (largest) | 84 / 2 / 2.381% | 2,062 / 0 / 0.000% | withheld |
+
+**The direction is the same in 5 of 5 — flagged above kept in every quintile — and not one cell
+carries enough crashes to support a ratio.** So `MA28`'s C4, the control that decided `U7`,
+`S10` and `V6-B`, **cannot be evaluated on this universe**. The size story is neither confirmed
+nor refuted here, and saying so is the whole point of the `min_events` rule.
+
+## 4. THE KILL, AND THE ARITHMETIC THAT HAD TO COME FIRST
+
+The ledger's condition is *"flag-overlap census vs accounting flags > 70% → withdrawn"*.
+
+**Stated in the register before running it: as literally written it CANNOT FIRE.** `MA28` flags
+5.74% of the panel and this flag flags 20% by construction, so `P(accounting | market)` is
+bounded above by the accounting share divided by 0.20. **Measured, that ceiling is 0.2111 and the
+statistic reads 0.0774** — the bar is 0.70. **This is `MB8`'s failure exactly** — an audit that
+set a 20% bar and a 0.5× haircut without multiplying them together — **and it applies to the
+ledger's own Hill-index proposal too**, since that flag is also a quintile. **Anyone running the
+physical half of E-4 should read this before quoting its kill as a safeguard.**
+
+The kill was therefore taken on the direction that can attain the same bar:
+**`P(market | accounting) = 0.3673` against 0.70 — DOES NOT FIRE.** The arm was licensed to run.
+
+## 5. CONTROLS, AND THE ONE THAT IS EXACT
+
+* **`C-PIN` — the covered date set is IDENTICAL to `P1S0_OPTIONABLE_PARTITION.pkl`'s**: 40 dates
+  each, **zero in either direction only**. An independently produced object, built from the same
+  store for a different question — which is what makes it a check rather than a restatement.
+  Store provenance asserted `pinned: True`, `manifest_sha256 dc8e9b35…`; the mutable
+  `data/options` store is never opened, pinned by an AST test.
+* **`C-ACCT-FIDELITY`** — the accounting arm is `MA28`'s flag, built on the **full panel
+  cross-section** and restricted afterwards: flagged share **0.06017** on 85,332 rows across
+  those 40 dates, against `MA28`'s published panel-wide **0.057414**. On the optionable subset it
+  is **0.04222** — lower, as predicted, because accounting flags fire on distressed small names.
+* **`C-INSTRUMENT`** — integral median **0.9999970**, negative-mass p95 **0.00177**,
+  `Q(≤0.70)` extrapolated on **41.20%** of rows (I-1's census said 46.06%). Outcome coverage
+  **1.0**, so `crash_flag`'s NaN fail-open never fires — reported because a filter that cannot
+  fire and one that fires and finds nothing must not read the same (`O21-D2`'s C5).
+* **Coverage** — 17,558 name-days attempted, **10,707 usable (60.98%)**, all on qualifying dates,
+  min 163 names per date, median 273.5. Refusals: `cdf_not_monotone_in_read_region` 3,164,
+  `negative_density` 1,560, `no_expiry_in_dte_band` 854, `too_few_smile_points` 737,
+  `integral_off` 291, `no_chain_on_date` 148, `parity_spot_mismatch` 67, `no_parity_forward` 30.
+  **`chain_unreadable` is 0**, which matters because that path emits one refusal row per
+  *ticker-year* rather than per date and would have undercounted; it never fired.
+
+**SENSITIVITY, NO VERDICT (quoting one of these as the result voids the register §8.1).** The
+finding is not an artefact of the 0.70 choice: ratios **2.5386 (0.50), 2.5386 (0.60), 3.1914
+(0.70, primary), 2.9598 (0.80), 3.9893 (0.90)**, rank agreement with the primary **0.8712 to
+0.9741**. The 0.50 and 0.60 cells are identical because the quintile membership is identical
+there.
+
+## 6. WHAT THIS DOES NOT SAY
+
+* **It is not about the panel or the book.** 40 late dates, 486 names, and **this universe
+  crashes at 0.4218% against 1.3250% for all panel names on the SAME 40 dates — 3.14× lower, a
+  UNIVERSE effect and not a period one**, since the same-dates row controls for period.
+* **It does not weaken `MA28`.** That register measured its flag on the panel, replicated it in
+  both halves against its own permutation maximum, and survived a size control this one cannot
+  even evaluate.
+* **It is not evidence the market prices the flag.** That is `O-1`'s K2, it is not run here, and
+  it needs its own register and its own trials.
+* **It licenses no card and no trade.** `MA28-CARD`'s deliverable was the *sentence*; a surface
+  is the app lane's, with the `BANNED` phrase tuple asserted against the RENDERED payload.
+
+## 7. DEFECTS IN MY OWN WORK, all caught before the arm ran
+
+1. **The accounting arm would not have been `MA28`'s flag.** `build_flags` computes the
+   external-financing leg as a **top decile WITHIN EACH DATE**, so passing only the ~440
+   optionable names computes the boundary on a different universe. It raises nothing and returns
+   a clean, plausible flag answering a different question — `MA31`'s column-name trap in a new
+   costume. Flags are now built on the full cross-section and restricted afterwards.
+2. **Two controls the register promised were absent** until I audited the runner against the
+   register line by line: `C-SIZE`'s within-cap-quintile comparison and `C-PIN`'s P1S0
+   reproduction. **Writing a control and implementing it are not the same act.**
+3. **`cg.halves` returns three values**, not two — the third is the embargoed boundary, now
+   recorded, because a half-split whose boundary is unreported cannot be checked against another
+   item's.
+4. **Two defects in my own mutation battery, and the second is the instructive one.** The three
+   2×2 mutations called the patched name and recursed into themselves, so a `RecursionError` was
+   reading as *caught* for entirely the wrong reason. And **mutation m3 — `>` replaced by `>=` at
+   the quantile — SURVIVED**: on 0..99 the 80th percentile interpolates to 79.2 and both flag
+   exactly 20 rows, so the accuracy property contained no tie. It now includes a constant column,
+   which `>=` flags entirely and `>` flags not at all. **A battery whose property cannot
+   distinguish the mutation reports 8 of 8 while testing 7.**
+5. **The build wrote once at the end and lost 15 minutes to a kill.** Now checkpointed every 25
+   names, **keyed on the completed SYMBOL set rather than a row count** (a count-keyed resume
+   both duplicates and skips the moment a symbol yields a different number of rows), and
+   relaunched detached. `RUN_RULES` rule 9; `O21-D2` lost 75 minutes to the same shape.
+6. **My completion watchers were pointed at the wrong path for ~40 minutes.** `_data()` resolves
+   a *directory* to the worktree when it is non-empty but a *file* to the primary checkout, so
+   inputs came from the primary while outputs landed in the worktree — see BUGS FOUND.
+
+## 8. EXPECTATIONS: 7 right, 0 wrong — and DISCOUNTED, not celebrated
+
+(1) verdict UNDERPOWERED ✔ · (2) `P(market|accounting)` < 0.40 ✔ (0.3673) · (3) `C-VOL` |ρ| ≥
+0.70 ✔ (0.8901) · (4) flagged names smaller ✔ (0.3115) · (5) accounting arm withheld ✔ ·
+(6) pooled ratio > 1 ✔ (3.1914) · (7) realised sd exceeds the binomial estimate ✔ (1.62×).
+
+**Five of the seven were derived from measured facts already in the record** — `MA28`'s size
+gradient, `MB8`'s thin-events lesson, the overlap ceiling's arithmetic — **so a clean sweep is
+mostly a statement about the record, not about my judgement** (`SC-1`'s lesson). Only (1) and (3)
+were genuine calls.
+
+## BUGS FOUND
+
+* **`scripts/e4_market_tail_flag.py` and `scripts/i1_rnd_census.py` share a `_data()` helper that
+  resolves DIRECTORIES and FILES to different checkouts.** `_data("free_analysis")` returns the
+  **worktree** path when that directory is non-empty (it holds one unrelated pickle), while
+  `_data("free_analysis", "panel_r5r6.pkl")` falls through to the **primary** checkout because
+  that file is absent from the worktree. Both behaviours are individually correct — the helper's
+  docstring is about *"existence is not population"* — and together they mean a run reads its
+  inputs from one checkout and writes its outputs to another. Nothing is wrong with the numbers;
+  it cost me ~40 minutes watching an output path that would never be written. **Reported, not
+  fixed** — changing the resolution order would move where every existing consumer's artifacts
+  land, which is not this item's call.
+* **`valuation/edge/power_gate.py` carries TWO definitions of the 80%-power z, and they
+  disagree in the fifth decimal.** `state()` — the one-line statement `RUN_RULES` PART A rule 11
+  asks every register to print — defaults to `Z_POWER_CONVENTION = 0.84`, while `z_for_power(0.80)`
+  returns the exact quantile **0.8416212335729144**. On this item the two MDEs are **0.011037928**
+  and **0.011042240**, a difference of **4.31e-06** (0.0004pp), which changes nothing here and has
+  changed nothing anywhere yet. It is reported because it is the `B7`/`MA5` family — one idea
+  written twice, with only one copy in the printed statement — and because a register that
+  computes its own MDE with `z_for_power` and prints `state()` beside it is quoting two numbers
+  for one quantity. **Both appear in `E4_ARM.json`**: the verdict branch uses the exact route and
+  the printed statement uses the convention, and the handoff quotes 1.1038pp from the statement.
+  **Reported, not fixed** — `power_gate` is calibration infrastructure that several landed
+  registers have already printed from, and changing which constant `state()` uses would move a
+  figure in every future printed statement for no measurable gain. Edge lane's call.
+* **No other bug found outside this lane this session.**
+
+## What I did NOT do
+
+* **The `O-1` question is NOT answered.** Whether the market *prices* the accounting flag is
+  `O-1`'s K2; it charges its own trials and needs its own blind register. Nothing here is
+  evidence about it.
+* **The physical half of `E-4` (the Hill tail index) is NOT run.** This is the option-implied
+  half only. **Its kill condition is broken in the same way (§4) and should be repaired before
+  it runs.**
+* **`C-VOL` was not converted into an incremental test.** Holding implied vol fixed and asking
+  whether the RND's *shape* adds anything is a different construction, a different arm and a
+  different trial. **The 0.8901 reading is why it is the obvious next item, and also why it
+  should not be run casually.**
+* **No card, no surface, no product copy.** `MA28` is not re-opened, re-scored or weakened.
+* **The tenor confound is reported, not removed.** A tenor-matched construction is a new design.
+* **The options freeze's 2026 dates were not reachable** — the panel's last date is 2026-01-28
+  and the freeze's files stop at 2025, so the covered window ends 2025-10-27.
+
+---
+
+# PRICES-SRC — the silent yfinance fallback, and the seam it turns out to explain (2026-08-21)
+
+**Reported OUT-OF-LANE by the app fixer, fixed here.** `prices.get_history_df` wrapped the whole
+primary path in a bare `except Exception` and fell through to yfinance with nothing recording
+it, so any price-derived figure in the product could silently be a yfinance figure — and
+yfinance **auto-adjusts**. `COVERAGE-RULE` family: the run completes, nothing raises, and the
+number means something else than its name implies.
+
+**ZERO TRIALS, `FIXED`-class** — a correctness repair with no hypothesis and no bar (the
+`MA5`/`MA38` precedent). `by_domain` is bit-identical across the log append; equity stays
+**242**, options 305, infra **20** — re-read after the append rather than quoted, and
+`rows_fixed_not_counted` rises **73 -> 74**, which is the proof the row was seen and correctly
+excluded rather than silently dropped. **No published claim moves.**
+
+## 1. THE FALLBACK IS NOT HYPOTHETICAL — IT IS THE ONLY PATH
+
+Measured 2026-08-20, ten tickers, one at a time: **Stooq served 0 of 10.** SPY, AAPL, KO, NVDA,
+JNJ, MSFT, XOM, T, IBM, PG — **every one a failure**, so **every figure on this path is a
+yfinance figure today**, and nothing recorded that.
+
+Two distinct refusals, depending on the header sent, and neither is a transient blip the retry
+loop can help with:
+
+| request | result |
+|---|---|
+| default `requests` user-agent | **HTTP 404** — *"the page you requested does not exist"* |
+| browser user-agent | **HTTP 200 carrying a JavaScript bot-verification page**, never CSV |
+
+**No attempt is made to defeat that challenge.** Evading a vendor's access control is not a fix,
+and it would not work anyway. The honest response to a primary that will not serve is to say so
+on every figure it did not serve — which is what this change does.
+
+## 2. THE SEAM IS DIAGNOSED, AND IT IS EXACTLY THE ADJUSTMENT FLAG
+
+`index_mark`'s own reproduction note recorded a **+0.0201pp** book-leg discrepancy against the
+recorded track and offered two candidates without choosing: *"dividend/adjustment treatment
+across 86 names (the yfinance fallback auto-adjusts) **or** a different quote vendor for the
+equity leg"*, adding *"HYPOTHESIS, NOT DIAGNOSED"*.
+
+Re-priced on all 86 book names, same vendor, same dates, changing nothing but the flag:
+
+| basis | `valquo_pct` | `spy_pct` |
+|---|---|---|
+| `auto_adjust=True` | **0.7961** | 3.6228 |
+| `auto_adjust=False` | **0.7760** | 3.6228 |
+| **the recorded row** | **0.7760** | **3.6228** |
+
+**The adjustment flag moves the book leg by +0.0201pp and the benchmark leg by +0.0000pp, and
++0.0201pp is the entire seam.** 86 of 86 priced under both settings, zero empty fetches, so this
+is not a coverage artefact. The recorded row was priced **unadjusted**; the mechanism re-derives
+**adjusted**, because yfinance defaults `auto_adjust=True`.
+
+**AND THE EXACT BENCHMARK HIT IS WHY THIS WENT UNDIAGNOSED.** SPY reads **3.6228 under both
+settings**, so the leg that "confirmed the convention" is precisely the leg that **cannot
+distinguish the two conventions** — it agreed for a reason unrelated to the question. *A control
+that passes identically under both arms of the thing you are testing is not evidence about it.*
+
+**DOES THE SEAM'S MAGNITUDE CORRELATE WITH WHICH VENDOR SERVED? IT CANNOT — AND THAT IS THE
+ANSWER.** The correlation is undefined because **only one vendor serves**: Stooq answers
+nothing, so there is no vendor mixing to correlate against. `index_mark`'s second candidate is
+**eliminated for this machine**, and its first is confirmed to four decimals. The seam is a
+**within-vendor adjustment artefact**, not a vendor-mixing one.
+
+**The uncomfortable corollary, stated because it is the real cost of the defect: nobody can say
+what served on 2026-08-14, when that note was written, because nothing recorded it.** If Stooq
+was answering then and is not now, the same code silently produces different numbers on
+different days. That is precisely the argument for this change, and it is why the fix is a
+LABEL rather than a vendor swap.
+
+**NOTHING IS CHANGED ABOUT HOW THE BOOK IS PRICED.** Switching to an unadjusted basis would make
+the mechanism reproduce the two hand-made rows exactly — and it is a **construction change to a
+bound record**, Don's under the contract, not this lane's. Routed, not taken.
+
+## 3. THE STRIKE RULE DOES NOT BITE HERE, AND THE DISTINCTION STILL DOES
+
+`U1-SPLIT`'s rule is `raw_close` for anything touching a **strike**, because strikes are
+as-traded and an adjusted close is a different quantity (NVDA 2012: 0.27 against a raw 11.97,
+43×, failing **silently**).
+
+Measured from the **AST**: **12 modules import `screener.prices`**, **32 modules touch a strike
+in code**, and the **intersection is EMPTY**. The options work sources its as-traded prices from
+`data/bulk/prepared/bars`'s `raw_close` and the pinned chain freezes — never from here.
+
+**So the strike hazard is structurally absent on this path. The adjusted-vs-raw distinction
+still bites, for a different reason: against the recorded track, where §2 shows it is the whole
+seam.** Pinned by a test, so wiring the two together later is a deliberate act with a red suite
+attached rather than a quiet import.
+
+## 4. WHAT THE FIX ACTUALLY DOES
+
+* **The fallback stays.** A screener that dies because one free vendor is having a bad afternoon
+  is worse than one that switches. Resilience was never the defect; silence was.
+* **Every frame is LABELLED** — `df.attrs["valquo_src"]` plus `valquo_adjusted`, read with
+  `source_of(df)` / `adjustment_of(df)`. **On the frame rather than in a module-global alone**,
+  because `index_mark.contract_row` takes an **injectable** `fetch` and a global would be blind
+  to it; the label has to ride the object that crossed the boundary.
+* **`source_of` returns `None` for unlabelled and NEVER a vendor.** `None` means *cannot tell*.
+  Resolving it to the primary is the defect itself, and a mutation test pins that.
+* **The fallback is LOUD** — a `WARNING` naming the ticker, the primary's actual exception, and
+  the fact that yfinance's close is auto-adjusted.
+* **The except is NARROW**: `requests.RequestException`, `pandas` parser/empty errors,
+  `UnicodeDecodeError`, and this module's own `ValueError`. **`ImportError` now propagates** —
+  the imports sat *inside* the old try, so a broken install looked exactly like a bad afternoon
+  at Stooq and produced yfinance numbers under a healthy-looking run. So do `MemoryError`,
+  `KeyboardInterrupt` and a plain programming error.
+* **`auto_adjust=True` is passed EXPLICITLY**, not inherited. Relying on a vendor library's
+  default is how a convention changes under you between releases, and yfinance has moved this
+  one before.
+* **Stooq's convention is recorded as `unverified`, not guessed.** It cannot be measured from
+  here because Stooq will not serve this client, and guessing it would invent the one fact this
+  module exists to stop people inventing.
+* **`index_mark`'s payload now records WHICH vendor served each leg** (`vendors`), with the
+  benchmark leg broken out — it used to carry the constant `"screener/prices.py (Stooq ->
+  yfinance)"`, a description of the *route*, true whichever vendor answered. A field that looks
+  like provenance and carries none.
+* **`close_series`'s shape is deliberately unchanged** — ~20 call sites unpack it as a pair.
+  `close_series_with_source` is additive, and `close_series`'s docstring now says plainly that
+  the label does not survive it.
+
+## 5. TESTS
+
+**22 tests, 3 of 3 mutations caught with a baseline**, no network. The required one is
+`test_A_PRIMARY_FAILURE_PRODUCES_A_LABELLED_FALLBACK_NEVER_A_SILENT_ONE`, which drives **six
+distinct primary failures** — 404, connection, timeout, non-CSV body, empty body, missing
+`Close` column — and asserts a labelled yfinance frame every time.
+
+**Against the pre-fix tree the suite fails hard: 2 failures and 23 errors, sources restored
+byte-for-byte.** Reported precisely rather than as "25 fail": **23 are ERRORS because the new
+API does not exist pre-fix**, which is a weaker pin than a behavioural one. **The two genuine
+behavioural pins are the AST checks** — that `get_history_df` no longer contains a bare
+`except Exception`, and that `auto_adjust` is passed rather than inherited. Both fail against
+the old source for the right reason.
+
+## BUGS FOUND
+
+* **A DEFECT IN MY OWN GUARD, caught by my own vacuity check, and wrong in BOTH directions.**
+  The first cut of the strike-rule scan was a regex. It **matched `index_mark.py` on its
+  DOCSTRING** (which contains "screener/prices.py", and `.` matches the slash) rather than on an
+  import, and it **MISSED that file's actual import**, `from . import prices as _prices`,
+  because the pattern only covered the `from .prices` spelling. **A grep that finds a module for
+  the wrong reason and misses it for the right one cannot support a disjointness claim.** Now
+  reads imports from the **AST** and strips docstrings before looking for strikes. **The
+  corrected census is 12 importers and 32 strike modules against my first pass's 10 and 39** —
+  both counts were wrong; the empty intersection survived. `MA49`'s family, and it was found
+  only because the vacuity test named a specific expected member.
+* **`options-bot/screener/prices.py` IS A SECOND COPY OF THIS MODULE and carries the same bare
+  `except Exception` fallback.** It has drifted from the live one (different docstring,
+  module-level imports, and a `_stooq_symbol` that does **not** replace `.` with `-`, so it
+  mis-spells any ticker with a dot). **NOT FIXED HERE:** nothing under `valuation/` or
+  `scripts/` imports it — verified — so it is out of the live path, and repairing a copy in a
+  sub-project I do not own is how two divergent copies become three. `B7`/`MA5`'s family;
+  **reported for whoever owns `options-bot/`.**
+* **`index_mark._closes` has its own bare `except Exception` around the fetch.** Left as-is,
+  deliberately: a name that cannot be priced there is counted into `unpriced` and gated by the
+  `MIN_COVERAGE` floor, so that failure is already loud in the payload. It now also records
+  `"fetch_raised"` into the vendor census, so the reason is visible rather than merely the count.
+* **ENVIRONMENTAL, NOT IN THE REPO, AND IT HAPPENED FOUR TIMES IN ONE SESSION — WHICH IS WHY IT
+  IS REPORTED AS A CONDITION RATHER THAN AS FOUR FLAKES.** Every one is a `%TEMP%` write or a
+  process holding a `%TEMP%` resource, on a machine simultaneously running other lanes'
+  `pipeline.py` and `sync_checkout.py`:
+
+  | suite | symptom | standalone |
+  |---|---|---|
+  | `test_calibration.py` | gate blocked **~10 hours** on a pipe held open by a grandchild | 23/23 |
+  | `test_security.py` | **TIMEOUT >900s** in the guarded re-run | 22/22 |
+  | `test_reported_benchmark.py` | *"could not write ...\AppData\Local\Temp"*, 1 run in 4 | 26/26 |
+  | `test_checkout_drift.py` | *"unable to write .git/objects/...: Permission denied"* under `%TEMP%` | 18/18 on retry |
+
+  **All four pass standalone, and none references the module I changed.** This is `MB21`/`MB16`'s
+  documented class — `MB21` hit `PermissionError` on a `%TEMP%` file inside `GzipFile`, `MB16`
+  hit the **identical** git-objects message in **this same suite** — and both measured the cause
+  as sustained concurrent temp-volume I/O. **What is new is the rate and the spread**: four
+  distinct suites in one session, one of which (`test_reported_benchmark.py`) landed *today*, so
+  the class is still being reproduced by new code rather than being a legacy quirk. `MB42`'s
+  shape: invisible in CI, where a Linux runner has no contention. **Not fixed here — suites that
+  build real artifacts under `%TEMP%` wrap no I/O in a retry, and that is a decision about the
+  test harness rather than about any one suite.** My own gate harness now applies a per-suite
+  timeout and **reports a TIMEOUT as its own state, never as a pass**; without it the second
+  occurrence would have blocked another ten hours and reported nothing.
+
+* **A PROCESS ERROR OF MINE, CAUGHT BY CI RATHER THAN BY ME, AND THE GUARD THAT CAUGHT IT WAS
+  RIGHT.** `scripts/prices_vendor_diagnose.py` opened `data/valquo_index.json` directly, and
+  `tests/test_index_book_publish.py` failed the land with *"new consumers of
+  data/valquo_index.json ... Two mechanisms reading one named object is the `PT-SPLIT` shape —
+  reconcile them deliberately, then add the file here."* **That is exactly the defect it
+  describes**: `PT-SPLIT` is the item where the Index and the sandbox engine recorded *different
+  books under one name* for four days. Fixed the way the guard asks — the script now reads the
+  book through **`index_mark.load_book()`**, the one reader, which resolves the path via
+  `index_track.default_paths()` — rather than by widening the allowlist, which would have added
+  a second mechanism and called it approved.
+
+  **Why it reached CI at all is the part worth recording: I added that file AFTER my local gate
+  had already started, and pushed without re-running it.** The gate reported 145/146 on a tree
+  that did not contain the new script. **A gate is evidence about the tree it ran on, and adding
+  a file afterwards silently invalidates it.** The re-gate below runs on the final tree.
+
+## What I did NOT do
+
+* **I did not change how the book is priced.** The seam is now diagnosed; closing it means
+  choosing an adjustment basis for a **bound record**, which is Don's call under the contract.
+* **I did not try to restore Stooq.** It is refusing this client with a bot challenge, and
+  working around that is not a bug fix. If it is meant to be the primary, that needs a decision
+  about the vendor, not a patch here.
+* **I did not thread the label through `close_series`'s return shape** — ~20 call sites unpack a
+  pair, and changing that to record provenance nobody currently reads would be a large blast
+  radius for no consumer. `close_series_with_source` exists for when one appears.
+* **I did not fix the `options-bot/` copy** (see BUGS FOUND) and **did not touch `.github/`**.
+* **No backtest was re-run.** Every figure this path feeds was produced under the old code; this
+  change makes the **next** run say which vendor served, and retracts nothing.

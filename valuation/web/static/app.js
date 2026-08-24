@@ -2300,6 +2300,22 @@ function _renderIndexTrack(d) {
   const vintageLine = vin ? `<div class="muted" style="font-size:11px;margin-top:8px"
       title="${esc(vin.rule || "")}"><b>${esc(vin.phrase)}</b></div>` : "";
 
+  // PT-SPMO — the REPORTED second benchmark, rendered BESIDE the SPY excess and never in
+  // place of it. Everything it says about itself comes from the server (label, why, posture):
+  // the contract binds SPY alone, and a card that worded its own caveat is exactly where that
+  // distinction would quietly soften. It renders nothing at all when the sibling series has
+  // no rows — a surface with no claim must print no claim — and it is deliberately the LAST
+  // thing in the forward card, because a second benchmark printed above the bound one starts
+  // to read like the headline.
+  const rb = d.reported_benchmark || null;
+  const rbRows = (rb && rb.available && rb.excess_pp != null)
+    ? `<div class="metricline" style="margin-top:8px">
+         ${metric("vs " + esc(rb.ticker), spct(rb.excess_pp / 100))}
+       </div>
+       <div class="muted" style="font-size:11px;margin-top:4px">
+         <b>${esc(rb.label)}.</b> ${esc(rb.why)} ${esc(rb.posture)}</div>`
+    : "";
+
   let liveRows;
   if (!d.available || !live) {
     liveRows = vintageLine +
@@ -2332,7 +2348,8 @@ function _renderIndexTrack(d) {
           ? `Annualised figures are withheld until ${d.min_live_days} RECORDED trading days —
              compounding ${live.days} recorded day${live.days === 1 ? "" : "s"} to a yearly rate
              would invent a number.`
-          : "Net of the same cost model as the backtest."}</div>`;
+          : "Net of the same cost model as the backtest."}</div>`
+      + rbRows;
   }
 
   body.innerHTML = `<div class="grid2" style="margin-top:10px">`

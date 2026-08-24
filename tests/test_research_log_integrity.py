@@ -27,6 +27,7 @@ the comparison rejects a tampered count in BOTH directions, and
 `test_a_tampered_log_really_does_lower_N` performs the exact edit the docstring warns about on a
 real copy of the log and shows the count fall.
 """
+import io
 import os
 import re
 import shutil
@@ -83,6 +84,35 @@ from valuation.edge import research_log as RL               # noqa: E402
 #                                                               instrument is not a new search and
 #                                                               charges nothing further, so equity is
 #                                                               deliberately unmoved at 234.)
+#   2026-08-20  equity 236 -> 237                             (E-1, 1 arm, BOOKED BEFORE
+#                                                               THE RUN. The register was
+#                                                               accepted VERBATIM from the
+#                                                               Frontier Scout's draft and
+#                                                               committed ALONE at e05c33c,
+#                                                               a strict ancestor of every
+#                                                               measurement commit. ONE log
+#                                                               row, verdict edited IN
+#                                                               PLACE - MB16 measured that
+#                                                               a second verdict row
+#                                                               charges the trial twice.)
+#   2026-08-20  equity 238 -> 239                             (E-2, 1 arm, BOOKED BEFORE
+#                                                               THE RUN. Accepted VERBATIM
+#                                                               from the scout's draft and
+#                                                               committed ALONE at c93ffc8.
+#                                                               The draft's own stated
+#                                                               charge was stale TWICE
+#                                                               over - equity moved via
+#                                                               E-1 and E-5 the same day -
+#                                                               which is why this dict is
+#                                                               re-read post-merge and
+#                                                               never quoted from a draft.)
+#   2026-08-20  equity 239 -> 240   RECONCILED, NOT BOOKED. E-2 and E-3 BOTH booked
+#               238 -> 239 concurrently, from the same base, each correctly stamping 239
+#               for its own lane. Merged, the log carries BOTH rows and the true count is
+#               240 while both stamps read 239 -- so E-2's land FAILED on this very test,
+#               which is the tamper-evidence working rather than a defect. Reconciled to
+#               the MEASURED post-merge count, never to either lane's side (MA37). No
+#               third trial was charged: two registers, two trials, 238 -> 240.
 #   ---- the two infra entries above are INDEPENDENT registers landing the same day, and
 #        the dict below is MEASURED post-merge rather than taken from either side.
 #   2026-08-20  infra 18 -> 19                                 (SC-1, 1 trial BOOKED BEFORE the run
@@ -138,8 +168,7 @@ from valuation.edge import research_log as RL               # noqa: E402
 # and separate convention (the master audit lists it under MA21); it belongs to that row, with
 # its own decision about staleness tolerance, not smuggled in here.
 # ---------------------------------------------------------------------------------------------
-EXPECTED_BY_DOMAIN = {"equity": 235, "options": 305, "unified": 0, "infra": 19}
-EXPECTED_BY_DOMAIN = {"equity": 236, "options": 305, "unified": 0, "infra": 19}
+EXPECTED_BY_DOMAIN = {"equity": 242, "options": 305, "unified": 0, "infra": 20}
 
 
 def _diff(expected, actual):
@@ -177,6 +206,39 @@ def test_the_trial_counts_match_the_committed_stamp():
     actual = RL.detail()["by_domain"]
     msg = _diff(EXPECTED_BY_DOMAIN, actual)
     assert not msg, msg
+
+
+def test_the_stamp_is_assigned_EXACTLY_ONCE():
+    """A duplicated stamp defeats the tamper-evidence it exists to provide.
+
+    FOUND 2026-08-20, AND IT WAS THIS SUITE'S OWN, INTRODUCED BY A MERGE RESOLUTION. Commit
+    `3def224` resolved two lanes booking a trial concurrently by KEEPING BOTH sides -- which is
+    right for ledger ROWS, where two lanes' rows both belong, and wrong for a single-valued
+    CONSTANT, where the first assignment becomes dead code. The suite went on passing because
+    Python takes the last one, and for four days the file carried `equity: 235` above
+    `equity: 236` with nothing to say which was live.
+
+    That is the whole point of the guard defeated: a reader checking the count could read the
+    dead line, and an editor updating it would see no effect. The merge was CLEAN -- adjacent
+    insertions, no conflict markers, nothing to review -- which is the shape `MA23`'s
+    cross-lane collision already recorded: *no file was edited by both sides, so there was no
+    conflict to resolve and nothing to review.*
+
+    Two lanes booking trials concurrently is now routine, so this will recur. Read from the
+    SYNTAX TREE, so a comment quoting an old stamp cannot trip it.
+    """
+    import ast
+    here = os.path.dirname(os.path.abspath(__file__))
+    with io.open(os.path.join(here, "test_research_log_integrity.py"), encoding="utf-8") as fh:
+        tree = ast.parse(fh.read())
+    n = sum(1 for node in tree.body if isinstance(node, ast.Assign)
+            for t in node.targets
+            if isinstance(t, ast.Name) and t.id == "EXPECTED_BY_DOMAIN")
+    assert n == 1, (
+        f"EXPECTED_BY_DOMAIN is assigned {n} times. Keeping both sides of a merge is correct "
+        f"for ledger ROWS and wrong for a single-valued CONSTANT: only the last assignment is "
+        f"live, so the stamp stops being tamper-evidence. Re-read `by_domain` after the merge "
+        f"and keep ONE line carrying the MEASURED counts (MA37's rule).")
 
 
 def test_the_stamp_is_not_vacuous():
@@ -278,7 +340,7 @@ def test_the_statistics_N_gates_move_with_it():
     assert RL.trial_count(domain="equity") == n
 
     # The Harvey-Liu-Zhu hurdle the record quotes.
-    assert abs(math.sqrt(2.0 * math.log(n)) - 3.3057016819506297) < 1e-12, (
+    assert abs(math.sqrt(2.0 * math.log(n)) - 3.313287710464241) < 1e-12, (
         "the HLZ hurdle no longer matches the stamped N")
 
     # The CPCV adopt gate's multiplier. `_trials_haircut` is FLOORED at the log's N, so handing
@@ -410,7 +472,7 @@ def test_ma5_the_two_bars_disagree_today_and_the_gap_only_widens():
 
     assert hlz_hurdle(90) < 3.0 < hlz_hurdle(91), "3.0 is sqrt(2 ln N) at N = 90"
     n = EXPECTED_BY_DOMAIN["equity"]
-    assert abs(hlz_hurdle(n) - 3.3057016819506297) < 1e-12
+    assert abs(hlz_hurdle(n) - 3.313287710464241) < 1e-12
     assert hlz_hurdle(n) > 3.0, "the derived bar is HARDER than the constant at today's N"
 
     # A statistic in the gap is 'significant' under the constant and is NOT at today's N. This

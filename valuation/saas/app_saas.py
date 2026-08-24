@@ -642,10 +642,54 @@ def create_saas_app(cfg=CONFIG):
                 # The row the caller asked for is the one already on disk, not the one just
                 # computed — see append_row's docstring for why those can differ.
                 res["row"] = ap.get("existing") or res["row"]
+                res["reported_benchmark"] = _record_reported_benchmark(res["row"])
                 return jsonify(res), 200
+            res["reported_benchmark"] = _record_reported_benchmark(res["row"])
             return jsonify(res), 201
         except Exception as e:
             return jsonify({"ok": False, "error": safe_error(e)}), 500
+
+    def _record_reported_benchmark(bound_row: dict) -> dict:
+        """PT-SPMO's sibling series, written from the row the BOUND door just settled on.
+
+        IT RUNS AFTER THE BOUND WRITE AND CANNOT AFFECT IT. The status code, the body's `row`
+        and every existing key are decided before this is called, and everything here is
+        inside one `except Exception` that returns a reason instead of raising. A REPORTED
+        benchmark that could fail the recording of the CONTRACT-BOUND one would be a strictly
+        worse product than not having it, and `data/` on a fresh service is exactly the kind
+        of place a second write finds a surprise.
+
+        IT COPIES, IT DOES NOT RECOMPUTE. `bound_row` is whatever `append_row` settled on —
+        the freshly written row on a 201, the row already on disk on a 200 — so the two files
+        can never show two different Valquo numbers. That failure has happened here before,
+        from two different books, and the recorded cure was one authority rather than better
+        reconciliation.
+
+        THE FIRST CALL BACKFILLS AND EVERY LATER ONE APPENDS, which is a real distinction and
+        not an optimisation. A full write cannot preserve the byte prefix, so it happens once,
+        when the file does not exist yet; from then on the sibling is append-only under
+        `index_mark.append_row`'s own three refusals. On that first call today's row is
+        already IN the bound CSV — the append above put it there — so the backfill picks it up
+        with the rest and no separate write is needed.
+        """
+        try:
+            from ..screener import index_mark, reported_benchmark as rb
+            book = index_mark.load_book()
+            inception = book.get("inception_date")
+            if not inception:
+                return {"ok": False, "wrote": False,
+                        "reason": book.get("reason") or "no readable inception date"}
+            if not os.path.exists(rb.sibling_path()):
+                out = rb.backfill()
+                out["mode"] = "backfill"
+                return out
+            out = rb.record(bound_row, inception, src=rb.SRC_COMPUTED)
+            out["mode"] = "append"
+            return out
+        except Exception as e:                                   # noqa: BLE001
+            return {"ok": False, "wrote": False, "mode": "error",
+                    "reason": "the reported-benchmark sibling was not written: "
+                              + safe_error(e)}
 
     @app.route("/admin/track-seed", methods=["POST"])
     def admin_track_seed():

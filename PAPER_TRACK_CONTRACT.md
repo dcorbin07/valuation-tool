@@ -589,6 +589,42 @@ and pinned by `tests/test_weight_adoption.py`.
 
 ---
 
+## 5d. A SECOND BENCHMARK EXISTS AND IT IS NOT BOUND BY THIS CONTRACT — 2026-08-20 (`PT-SPMO`)
+
+Don asked for **SPMO** — Invesco's S&P 500 Momentum ETF — to be shown beside the Index's SPY
+excess. It is recorded here because a reader who has read this register and then sees a second
+benchmark on the site is owed a sentence in the register saying which one binds.
+
+**Nothing in sections 2, 3, 5, 5a or 6 moves.** The sigma, the alpha, the rho, the operational
+gate, the 60-month verdict and the anytime-valid meter are all defined against the SPY excess
+and remain so. SPMO is **reported**, which in this document means: shown, labelled, and
+carrying no verdict, no gate and no clock.
+
+**Why SPMO rather than something easier.** `R1`'s factor regression on the corrected panel puts
+the book on **UMD +0.205 at t +3.65** — momentum is one of only two standard premia it loads
+on. A cap-weighted broad-market benchmark charges the book nothing for that exposure, so an
+excess over SPY can be a momentum premium wearing a stock-picking label. An investable momentum
+ETF is the harder comparison, and it was added *because* it is harder.
+
+**And it is harder in practice, not only in principle.** Measured on the four recorded rows at
+2026-08-20, the SPMO excess is below the SPY excess on three of the four; on the latest row the
+two disagree by 4.01pp in SPY's favour. **Twelve trading days is not evidence of anything**, and
+no figure from this comparison may be quoted as a result.
+
+**Where it lives, and why it is not a column.** A sibling file, `data/valquo_vs_spmo.csv`,
+written by the same append-only mechanism on the same daily POST. It is a separate FILE because
+adding a column to `valquo_track_history.csv` widens the header, which rewrites every line,
+which cannot preserve the byte prefix `.github/workflows/track-row.yml` verifies with `cmp` —
+so a reported benchmark would have forced a re-seed of the one dataset that cannot be
+re-derived. Its Valquo leg is **copied out of the bound series as raw cell text and never
+re-derived**, so the two files cannot show two different Valquo numbers.
+
+Owned by `valuation/screener/reported_benchmark.py`; the containment is pinned by
+`tests/test_reported_benchmark.py`, which byte-compares the bound file across every sibling
+operation and asserts at source level that the meter, the gate and `vs_spy_claim` never read it.
+
+---
+
 ## 6. The evidence meter — pre-registered, parameters frozen at this commit
 
 Don's Option E asks for a meter that runs from inception, first renders at the operational gate
