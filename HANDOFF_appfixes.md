@@ -212,7 +212,26 @@ on `main` and names `hero-shelf` among the six consecutive land failures across 
 Its diagnosis: a **SCHEDULED** workflow commits refreshed data straight to `main` **without
 passing the land gate**, so a test asserting a fact about that data went red with nothing
 re-running to catch it. This branch merged the fix and `tests/test_paper_track.py` is back to
-**70 of 70**. The paragraph above is left as written because it was true when it was written,
+**70 of 70**.
+
+**AND THEN A SECOND INHERITED FAILURE SURFACED, WHICH THAT COMMIT HAD PREDICTED AND LEFT
+OPEN.** `09ea4cc` repaired a merge-blind control in `tests/test_mb8_sizing_haircut.py` and
+reported in its own diff that *the same blindness* lived on elsewhere.
+`tests/test_mb18_expectations_gap.py` is the elsewhere, and this branch is what surfaced it:
+its control SELECTS the newest commit touching `valuation/screener|web|engine` with
+`git log -- <paths>` and then VERIFIES it with `git show --name-only`, which **prints no diff
+for a merge**. A branch touching `valuation/web` makes that newest commit a merge the instant
+the gate merges it, so the control picked a subject its own mechanism structurally cannot see
+and failed claiming the mechanism was broken.
+
+Repaired with the identical one-word fix — `--no-merges` on the SELECTOR — and it is a repair
+rather than a silencing: the control still finds a real commit touching a live path and still
+demands the mechanism see it; it only stops choosing a subject with no first-parent diff.
+Measured rather than argued: **4 of 8 merge commits sampled from this repository's own history
+return ZERO paths** from that verifier. The dangerous-direction twin
+(`test_this_lane_touched_no_live_scoring_path`, which asserts `git show` finds NOTHING and so
+would pass a merge carrying a live-path change) is **reported and not touched**, exactly as
+`09ea4cc` did with MB8's copy — it is MB18's lane's design call. The paragraph above is left as written because it was true when it was written,
 and because the attribution work it records is the reason this session did not silence someone
 else's test to get its own branch green.
 
