@@ -695,25 +695,27 @@ def create_saas_app(cfg=CONFIG):
                                "not record it."),
                 }), 405
 
-            # S3-I3 IS DELIBERATELY *NOT* REGISTERED HERE, AND THE SHORT BOOKS PAY FOR IT.
+            # S3-I3 IS REGISTERED HERE, AND THE QUARANTINE OBJECTION THAT BLOCKED IT IS GONE
+            # RATHER THAN OVERRIDDEN.
             #
-            # This handler briefly did register it, on the reasoning that the runner is the
-            # composition root and r1's model requires an explicit call. **Reverted, because
-            # `MA59`'s quarantine caught it: `valuation/edge/assignment.py` imports
-            # `valuation/edge/dividends.py`, an ARCHIVED study.** Importing the model from the
-            # web app makes a closed study reachable from a production entry point, and that
-            # test's own sentence is the ruling — *"reaching one from the live app means the
-            # product is running an experiment."*
+            # This handler used to refuse to register it, because `MA59` caught that
+            # `valuation/edge/assignment.py` imports `valuation/edge/dividends.py`, an ARCHIVED
+            # study — *"reaching one from the live app means the product is running an
+            # experiment."* That was correct at the time and the fix was NOT to silence it.
             #
-            # THE COST IS EXACTLY ZERO TODAY AND IS NAMED SO IT IS NOT DISCOVERED LATER: the
-            # six short books (F-4, F-6, F-8, F-10, F-17, F-18) refuse with
-            # SHORT_BOOK_WITHOUT_ASSIGNMENT, and **no book of any side can fill anyway** while
-            # no entry rule is implemented. Refusing is the safe direction regardless.
+            # `dividends.py` WAS MOVED OUT OF THE ARCHIVE on 2026-08-24, because MA59's own
+            # criterion — *"modules whose only importer is a closed study's own script"* — had
+            # stopped being true of it: S3-I3 delegates five primitives to it (B7), so it is
+            # load-bearing for every short book. **It moved between two CHECKED lists, archived
+            # (asserts UNREACHABLE) to load-bearing (asserts REACHABLE), so the guard now bites
+            # in the opposite direction rather than not at all.** What stays closed is O21's
+            # STUDY; what is reachable is its arithmetic.
             #
-            # UNBLOCKING IT IS r1's CALL, not this lane's, and it is a genuine choice between
-            # three: lift `dividends` out of the archive with a register, break `assignment`'s
-            # dependency on it, or run the fleet from a process that is not the web app. This
-            # handler must not be the place that quietly decides.
+            # Registration is an explicit CALL, never an import side effect (r1's convention,
+            # and the same one `fleet_books` follows below), so nothing is unblocked by a stray
+            # import — this door is the composition root and says so.
+            from ..edge import assignment as _s3i3
+            _s3i3.register(fleet)
             # THE ENTRY RULES *ARE* REGISTERED HERE, AND THE CONTRAST WITH S3-I3 ABOVE IS THE
             # WHOLE POINT: THE QUARANTINE IS THE TEST, NOT A BLANKET BAN ON REGISTERING.
             #
@@ -734,13 +736,16 @@ def create_saas_app(cfg=CONFIG):
             res = fleet.cycle(write=wants_run, books=[only] if only else None)
             res["entry_rules_registered"] = res_reg["registered"]
             res["assignment_provider_registered"] = fleet.assignment_provider() is not None
-            if not res["assignment_provider_registered"]:
-                res["assignment_note"] = (
-                    "S3-I3 is not registered in the web process: valuation.edge.assignment "
-                    "imports the ARCHIVED valuation.edge.dividends, and MA59's quarantine "
-                    "forbids the live product reaching a closed study. Short books refuse "
-                    "until that is resolved by the S3-I3 lane. Every short book is blocked on "
-                    "this and F-8 is blocked on NOTHING ELSE.")
+            res["assignment_note"] = (
+                "S3-I3 registered: the six short books no longer refuse with "
+                "SHORT_BOOK_WITHOUT_ASSIGNMENT. valuation.edge.dividends was moved from "
+                "MA59's ARCHIVED list to its LOAD_BEARING list on 2026-08-24 -- the "
+                "classification had gone stale, since S3-I3 delegates five primitives to it. "
+                "O21's STUDY stays closed; its arithmetic is what is reachable."
+                if res["assignment_provider_registered"] else
+                "S3-I3 did NOT register in this process. Every short book will refuse with "
+                "SHORT_BOOK_WITHOUT_ASSIGNMENT. This is a real fault, not the documented "
+                "quarantine state, which was resolved on 2026-08-24.")
             # 200 on a dry run OR a run that legitimately produced nothing. A cycle that
             # placed no fill is not an error -- it is the ordinary case and, today, the only
             # case. The body's `breathing` flag and `note` carry that, so a scheduler can
