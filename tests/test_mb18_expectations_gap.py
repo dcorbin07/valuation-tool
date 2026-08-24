@@ -310,7 +310,27 @@ class TestRegisterDiscipline(unittest.TestCase):
             r = subprocess.run(("git",) + args, capture_output=True, text=True, cwd=REPO)
             return r.stdout.strip() if r.returncode == 0 else None
 
-        out = _git("log", "--format=%H", "-n", "1", "--", *self.LIVE_PATHS)
+        # --no-merges, and it is the SAME defect `09ea4cc` repaired in MB8's identical control
+        # hours earlier; that commit reported the blindness as still living elsewhere and this
+        # is the elsewhere. The SELECTOR (`git log -- <paths>`) will happily return a MERGE
+        # commit, but the VERIFIER (`git show`) prints no diff for a merge unless asked with
+        # -m/--first-parent/-c. So the moment a merge became the most recent commit touching a
+        # live path — which is what a branch touching `valuation/web` does the instant the gate
+        # merges it — the control selected a subject its own mechanism structurally cannot see
+        # and failed claiming the mechanism was broken.
+        #
+        # It does NOT weaken the check: it still finds a real commit touching a live path and
+        # still demands the mechanism see it. It only stops choosing a subject with no
+        # first-parent diff to show. The docstring above already recorded half of this ("HEAD
+        # was the first choice and it is a merge ... so the control skipped itself as vacuous")
+        # — the selector was fixed to stop picking HEAD and not to stop picking merges.
+        #
+        # REPORTED, NOT FIXED HERE (MB18's lane, and the repair is a design choice):
+        # `test_this_lane_touched_no_live_scoring_path` above carries the SAME blindness in the
+        # DANGEROUS direction — it asserts `git show` finds nothing, so a merge commit carrying
+        # a live-path change passes it silently. `09ea4cc` made exactly this report about MB8's
+        # copy and left it to that lane; this one is left to MB18's for the same reason.
+        out = _git("log", "--no-merges", "--format=%H", "-n", "1", "--", *self.LIVE_PATHS)
         self.assertTrue(out, "no commit in history touches a live path — history unreadable")
         sha = out.split("\n")[0]
 

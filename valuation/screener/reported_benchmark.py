@@ -384,6 +384,66 @@ def claim(*, bound_history_path: str = None, meta_path: str = None) -> dict:
     return out
 
 
+def series(*, bound_history_path: str = None) -> dict:
+    """The recorded SPMO cumulative levels, in date order, for a chart to align against.
+
+    READ-ONLY, LIKE EVERY OTHER DISPLAY PATH HERE. It opens the sibling and nothing else --
+    it never writes, never backfills a missing day, and never recomputes a level from a
+    close. A chart that could write the series it draws is a chart that can invent history.
+
+    Returns levels, NOT the excess. The excess against SPMO and the excess against SPY are
+    different quantities that share a name, which is the whole reason the two series live in
+    different files; a chart plotting cumulative levels must plot levels or it is comparing
+    one arithmetic against another.
+    """
+    from . import index_mark
+
+    out = {"available": False, "reason": "", "ticker": TICKER, "points": []}
+    hist = index_mark._read_history(sibling_path(bound_history_path))
+    if not hist.get("ok"):
+        out["reason"] = hist.get("reason") or "the sibling series could not be read"
+        return out
+    pts = []
+    for r in (hist.get("rows") or []):
+        t = index_mark.typed_row(r)
+        d, v = (t.get("date") or "").strip(), _f(t.get("spmo_pct"))
+        if d and v is not None:
+            pts.append({"date": d, "spmo": v})
+    if not pts:
+        out["reason"] = ("no " + TICKER + " comparison has been recorded yet, so there is "
+                         "no reported-benchmark line to draw")
+        return out
+    out.update(available=True, points=sorted(pts, key=lambda r: r["date"]))
+    return out
+
+
+def attach_series(payload: dict, *, bound_history_path: str = None) -> dict:
+    """Hang the recorded SPMO level on each bound series row that HAS one. Additive only.
+
+    ALIGNED BY DATE AND NEVER FILLED. A day the sibling does not carry gets no key at all,
+    so the chart draws a gap rather than a straight line between two real points. The two
+    series can legitimately differ in length -- the sibling begins when its first comparison
+    was recorded -- and carrying a level forward across a hole would draw a flat stretch that
+    reads as a day the benchmark did not move.
+
+    It adds keys and removes none, so a caller that has never heard of a reported benchmark
+    gets a payload identical to the one it got before. The bound rows are not reordered and
+    their own values are not touched, pinned by test.
+    """
+    rows = (payload or {}).get("series") or []
+    if not rows:
+        return payload
+    ser = series(bound_history_path=bound_history_path)
+    if not ser.get("available"):
+        return payload
+    by_date = {p["date"]: p["spmo"] for p in ser["points"]}
+    for r in rows:
+        v = by_date.get((r or {}).get("date"))
+        if v is not None:
+            r["spmo"] = v
+    return payload
+
+
 def violations(text: str) -> list:
     """Banned phrases present in one rendered SPMO block.
 

@@ -498,15 +498,51 @@ def test_a_surface_with_no_recorded_comparison_prints_no_claim():
 
 
 def test_the_api_payload_exposes_the_block_without_breaking_the_bound_card():
-    """`/api/index-track` gains one additive key. Asserted on the SOURCE so it is checked even
-    where the route needs a store the test does not have."""
+    """`/api/index-track` gains additive keys, and every one of them is inside a handler.
+
+    Asserted on the SOURCE so it is checked even where the route needs a store the test does
+    not have, and on the SYNTAX TREE rather than on the source text.
+
+    IT USED TO MEASURE A DISTANCE, and that is why it is written this way now. The first
+    version required the string `except Exception` to appear within 400 characters after the
+    assignment — which is a proxy for "inside a try" that a comment can break without
+    changing a line of behaviour, and one did. The rule being asserted is structural: every
+    statement that touches the reported benchmark sits inside a `try` that catches, so a
+    reported benchmark cannot take the bound card down with it. A tree check cannot be
+    fooled by how much prose sits in between, and it also catches the case a character
+    window never could — a SECOND reported-benchmark statement added outside the handler.
+    """
     src = open(os.path.join(ROOT, "valuation", "web", "app.py"), encoding="utf-8").read()
-    i = src.find("def api_index_track")
-    assert i > 0
-    body = src[i:i + 3000]
-    assert 'out["reported_benchmark"]' in body, "the payload does not carry the block"
-    assert "except Exception" in body.split('out["reported_benchmark"]')[1][:400], \
-        "a reported benchmark can break the bound card"
+    tree = ast.parse(src)
+    fn = next((n for n in ast.walk(tree)
+               if isinstance(n, ast.FunctionDef) and n.name == "api_index_track"), None)
+    assert fn is not None, "api_index_track is gone"
+
+    def _mentions_rb(node) -> bool:
+        for n in ast.walk(node):
+            if isinstance(n, ast.Constant) and n.value == "reported_benchmark":
+                return True
+            if isinstance(n, ast.Attribute) and n.attr in ("claim", "attach_series"):
+                return True
+            if isinstance(n, ast.Name) and n.id == "reported_benchmark":
+                return True
+        return False
+
+    guarded, unguarded = [], []
+    for node in fn.body:
+        if isinstance(node, ast.Try):
+            if not _mentions_rb(node):
+                continue
+            assert node.handlers, "the reported-benchmark block has no handler at all"
+            guarded.append(node)
+        elif _mentions_rb(node):
+            unguarded.append(node)
+
+    assert guarded, "the payload does not carry the reported-benchmark block"
+    assert not unguarded, ("a reported-benchmark statement sits outside the handler at line "
+                           + ", ".join(str(n.lineno) for n in unguarded)
+                           + " -- it can break the bound card")
+    assert 'out["reported_benchmark"]' in src, "the payload key was renamed"
 
 
 def test_the_derivation_note_is_written_beside_the_sibling():
@@ -518,6 +554,189 @@ def test_the_derivation_note_is_written_beside_the_sibling():
         text = open(note, encoding="utf-8").read()
         assert "never re-derived here" in text, text[:400]
         assert "not bound" in text.lower(), text[:400]
+
+
+# =======================================================================================
+# THE HERO CARD — the sparkline's third line and the numbers row's fourth tile
+# =======================================================================================
+def _app_js() -> str:
+    return open(os.path.join(ROOT, "valuation", "web", "static", "app.js"),
+                encoding="utf-8").read()
+
+
+def test_the_series_is_read_only_and_both_files_are_byte_identical_after_it():
+    """A chart that could write the series it draws is a chart that can invent history."""
+    with tempfile.TemporaryDirectory() as d:
+        meta, hist = _bound(d)
+        rb.backfill(fetch=_tape(SPMO_TAPE), meta_path=meta, bound_history_path=hist)
+        sib = rb.sibling_path(hist)
+        before_bound = open(hist, "rb").read()
+        before_sib = open(sib, "rb").read()
+
+        rb.series(bound_history_path=hist)
+        rb.attach_series({"series": [{"date": "2026-08-06", "valquo": 1.0, "spy": 1.0}]},
+                         bound_history_path=hist)
+        rb.claim(bound_history_path=hist)
+
+        assert open(hist, "rb").read() == before_bound, "the bound file moved on a READ path"
+        assert open(sib, "rb").read() == before_sib, "the sibling moved on a READ path"
+
+
+def test_the_series_returns_levels_in_date_order_and_not_the_excess():
+    """Levels, because the chart plots levels. The two excesses are different quantities."""
+    with tempfile.TemporaryDirectory() as d:
+        meta, hist = _bound(d)
+        rb.backfill(fetch=_tape(SPMO_TAPE), meta_path=meta, bound_history_path=hist)
+        ser = rb.series(bound_history_path=hist)
+        assert ser["available"], ser["reason"]
+        dates = [p["date"] for p in ser["points"]]
+        assert dates == sorted(dates), dates
+        assert dates == ["2026-07-31", "2026-08-06", "2026-08-13", "2026-08-17"], dates
+
+        # Every point must be the recorded LEVEL, never the recorded excess.
+        rows = {r["date"]: r for r in index_mark._read_history(rb.sibling_path(hist))["rows"]}
+        for pt in ser["points"]:
+            r = rows[pt["date"]]
+            assert abs(pt["spmo"] - float(r["spmo_pct"])) < 1e-12, (pt, r)
+            if abs(float(r["spmo_pct"]) - float(r["excess_pp"])) > 1e-9:
+                assert abs(pt["spmo"] - float(r["excess_pp"])) > 1e-9, \
+                    "series() is emitting the excess where a level belongs"
+
+
+def test_attach_series_adds_the_level_only_where_it_was_recorded():
+    with tempfile.TemporaryDirectory() as d:
+        meta, hist = _bound(d)
+        rb.backfill(fetch=_tape(SPMO_TAPE), meta_path=meta, bound_history_path=hist)
+        payload = {"series": [{"date": "2026-07-31", "valquo": 0.4126, "spy": 0.6903},
+                              {"date": "2026-08-06", "valquo": 0.776, "spy": 3.6228}]}
+        rb.attach_series(payload, bound_history_path=hist)
+        assert all("spmo" in r for r in payload["series"]), payload
+
+
+def test_attach_series_leaves_a_gap_rather_than_carrying_a_level_forward():
+    """A day the sibling does not carry gets NO key, so the line breaks instead of flattening.
+
+    Joining across a hole draws a flat stretch that reads as a day the benchmark did not
+    move, which is a claim nobody measured.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        meta, hist = _bound(d)
+        rb.backfill(fetch=_tape(SPMO_TAPE), meta_path=meta, bound_history_path=hist)
+        payload = {"series": [{"date": "2026-07-31", "valquo": 0.4126, "spy": 0.6903},
+                              {"date": "2026-08-04", "valquo": 0.5, "spy": 1.0},
+                              {"date": "2026-08-06", "valquo": 0.776, "spy": 3.6228}]}
+        rb.attach_series(payload, bound_history_path=hist)
+        assert "spmo" in payload["series"][0]
+        assert "spmo" not in payload["series"][1], \
+            "a date the sibling never recorded was given a level"
+        assert "spmo" in payload["series"][2]
+
+        # And the client must be told not to bridge it.
+        js = _app_js()
+        assert "spanGaps: false" in js, "the chart may bridge a gap it should draw"
+
+
+def test_attach_series_is_inert_when_no_sibling_exists():
+    """The normal state on a service that has not recorded a comparison yet."""
+    with tempfile.TemporaryDirectory() as d:
+        _, hist = _bound(d)
+        payload = {"series": [{"date": "2026-07-31", "valquo": 0.4126, "spy": 0.6903}]}
+        before = json.dumps(payload, sort_keys=True)
+        rb.attach_series(payload, bound_history_path=hist)
+        assert json.dumps(payload, sort_keys=True) == before, payload
+
+
+def test_attach_series_never_touches_a_bound_value_or_the_row_order():
+    """Additive only: it may add `spmo` and may change nothing else."""
+    with tempfile.TemporaryDirectory() as d:
+        meta, hist = _bound(d)
+        rb.backfill(fetch=_tape(SPMO_TAPE), meta_path=meta, bound_history_path=hist)
+        rows = [{"date": "2026-08-13", "valquo": 4.25, "spy": 4.88, "excess": -0.62},
+                {"date": "2026-07-31", "valquo": 0.4126, "spy": 0.6903, "excess": -0.2777}]
+        payload = {"series": rows, "available": True}
+        before = [dict(r) for r in rows]
+        rb.attach_series(payload, bound_history_path=hist)
+        assert [r["date"] for r in payload["series"]] == [b["date"] for b in before], \
+            "attach_series reordered the bound rows"
+        for got, was in zip(payload["series"], before):
+            for k, v in was.items():
+                assert got[k] == v, (k, got[k], v)
+            assert set(got) - set(was) == {"spmo"}, set(got) - set(was)
+
+
+def test_the_numbers_row_labels_the_spmo_tile_reported():
+    """THE WHOLE POINT OF THE TILE. It sits in the same row as the bound SPY level, so the
+    word that separates them has to be in the row — a caption underneath does not survive
+    the row being screenshotted on its own."""
+    js = _app_js()
+    i = js.find("const rbTile")
+    assert i > 0, "no SPMO tile is built"
+    tile = js[i:i + 700]
+    assert "reported" in tile, tile[:300]
+    assert "rb.spmo_pct" in tile, "the tile is not showing the recorded SPMO level"
+
+    # ...and it is rendered INSIDE the bound numbers row, immediately after Excess.
+    j = js.find('${metric("Excess"')
+    assert j > 0
+    after = js[j:j + 260]
+    assert "${rbTile}" in after, after
+
+
+def test_the_third_chart_line_is_distinct_and_shares_the_one_scale():
+    """SPY is already dashed, so a third dashed line is told apart only by colour.
+
+    And it must share the y-axis: a second scale lets two different arithmetics share a
+    picture and look comparable, when the whole value of this line is that it IS comparable.
+    """
+    js = _app_js()
+    i = js.find("STATE.charts.idx")
+    assert i > 0
+    chart = js[i:i + 2600]
+    assert "r.spmo" in chart, "the chart never reads the attached SPMO level"
+    assert "borderDash: [2, 3]" in chart, "the SPMO line is not dotted"
+    assert "borderDash: [5, 4]" in chart, "the SPY line stopped being dashed"
+    assert "yAxisID" not in chart, "a second axis was introduced"
+    assert "(reported)" in chart, "the legend does not mark the line as reported"
+
+
+def test_the_chart_caption_says_the_reported_line_is_not_the_contract():
+    """A chart travels further than the card around it."""
+    js = _app_js()
+    i = js.find("Cumulative return of the MODEL portfolio")
+    assert i > 0
+    cap = js[i:i + 900]
+    assert "reported benchmark" in cap, cap[:400]
+    assert "contract" in cap, cap[:400]
+
+
+def test_the_index_route_attaches_the_series_and_writes_nothing():
+    """The route may READ the sibling. An AST check, because a runtime one only sees the
+    paths a test happens to exercise."""
+    src = open(os.path.join(ROOT, "valuation", "web", "app.py"), encoding="utf-8").read()
+    tree = ast.parse(src)
+    fn = next((n for n in ast.walk(tree)
+               if isinstance(n, ast.FunctionDef) and n.name == "api_index_track"), None)
+    assert fn is not None, "api_index_track is gone"
+    called = {n.func.attr for n in ast.walk(fn)
+              if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+    assert "attach_series" in called, "the route never attaches the reported series"
+    for writer in ("record", "backfill", "append_row", "write"):
+        assert writer not in called, \
+            "the index route calls %s -- a display path must not write the record" % writer
+
+
+def test_the_rendered_payload_with_the_series_carries_no_banned_phrase():
+    """The banned check runs on what a surface actually renders, including the new fields."""
+    with tempfile.TemporaryDirectory() as d:
+        meta, hist = _bound(d)
+        rb.backfill(fetch=_tape(SPMO_TAPE), meta_path=meta, bound_history_path=hist)
+        c = rb.claim(bound_history_path=hist)
+        ser = rb.series(bound_history_path=hist)
+        text = " ".join([str(v) for v in c.values() if isinstance(v, str)]
+                        + [str(ser.get("reason") or ""), str(ser.get("ticker") or "")])
+        assert rb.violations(text) == [], rb.violations(text)
+        # the negative control: the honest sentence must survive, and it is not a trivial one
+        assert "contract" in c["label"] and "t 3.65" in c["why"], c
 
 
 def test_no_test_in_this_file_is_shadowed_by_a_duplicate_name():

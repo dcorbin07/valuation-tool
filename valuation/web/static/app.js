@@ -2308,6 +2308,18 @@ function _renderIndexTrack(d) {
   // thing in the forward card, because a second benchmark printed above the bound one starts
   // to read like the headline.
   const rb = d.reported_benchmark || null;
+
+  // The tile, beside the bound SPY level in the SAME row. It carries the word "reported" in
+  // its own label rather than relying on the caption underneath, because the row is the part
+  // that survives being screenshotted at card size — and a momentum ETF sitting next to SPY
+  // with no qualifier is exactly how a reported benchmark starts reading as a bound one. It
+  // is a LEVEL, like the two tiles before it; the excess against SPMO is a different
+  // quantity from the bound excess and stays in its own line below, never in this row.
+  const rbTile = (rb && rb.available && rb.spmo_pct != null)
+    ? metric(esc(rb.ticker) + ` <span class="muted" style="font-weight:400">· reported</span>`,
+             spct(rb.spmo_pct / 100))
+    : "";
+
   const rbRows = (rb && rb.available && rb.excess_pp != null)
     ? `<div class="metricline" style="margin-top:8px">
          ${metric("vs " + esc(rb.ticker), spct(rb.excess_pp / 100))}
@@ -2328,6 +2340,7 @@ function _renderIndexTrack(d) {
         ${metric("Index", spct(live.cum_valquo_pct / 100))}
         ${metric(esc(d.benchmark || "SPY"), spct(live.cum_spy_pct / 100))}
         ${metric("Excess", live.excess_pp == null ? "—" : spct(live.excess_pp / 100))}
+        ${rbTile}
       </div>
       <div class="metricline" style="margin-top:6px">
         ${metric("Alpha / yr", live.ann_alpha == null ? "—" : spct(live.ann_alpha))}
@@ -2386,9 +2399,16 @@ function indexChart(d) {
   el.style.display = "";
   // The caption carries the framing, because a chart travels: this is the one element on the
   // page most likely to be screenshotted away from every other caveat around it.
+  // The caption carries the bound-vs-reported distinction too, because a chart travels
+  // further than the card around it and the third line is the one a reader has no other way
+  // to place.
+  const rbT = (d.reported_benchmark || {}).ticker || "SPMO";
+  const hasRb = s.some(r => r.spmo != null);
   if (note) note.textContent = `Cumulative return of the MODEL portfolio since inception vs `
     + `${d.benchmark || "SPY"}, net of modelled costs. No capital is invested — these are `
-    + `closing-price marks, not fills, and not a return anyone received.`;
+    + `closing-price marks, not fills, and not a return anyone received.`
+    + (hasRb ? ` The dotted ${rbT} line is a reported benchmark shown for context on the same `
+             + `scale; the record's contract is against ${d.benchmark || "SPY"} alone.` : "");
   STATE.charts.idx = new Chart(el, {
     type: "line",
     data: {
@@ -2398,6 +2418,27 @@ function indexChart(d) {
           backgroundColor: "rgba(52,84,164,.10)", fill: true, tension: .2, pointRadius: 0, borderWidth: 2 },
         { label: d.benchmark || "SPY", data: s.map(r => r.spy), borderColor: "#9aa4b8",
           borderDash: [5, 4], fill: false, tension: .2, pointRadius: 0, borderWidth: 2 },
+        // PT-SPMO — the REPORTED benchmark, on the SAME y-axis as the other two. A second
+        // scale would let two different arithmetics share a picture and look comparable, and
+        // the whole value of this line is that it IS comparable: same base date, same
+        // cumulative-since-inception convention, same units.
+        //
+        // DOTTED AND LOWER-CONTRAST, deliberately. SPY is already dashed, so a third dashed
+        // line would be told apart only by colour — and the ordering the eye picks up from
+        // weight is the ordering the contract asserts: the bound comparison is the solid and
+        // dashed pair, and this one is quieter than both. The legend says "reported" for the
+        // same reason the tile does.
+        //
+        // `spanGaps` is FALSE and that is load-bearing: the sibling begins when its first
+        // comparison was recorded, so a day it does not carry must draw a hole. Joining
+        // across one would draw a flat stretch that reads as a day the benchmark did not
+        // move, which is a claim nobody measured.
+        ...(s.some(r => r.spmo != null)
+          ? [{ label: ((d.reported_benchmark || {}).ticker || "SPMO") + " (reported)",
+               data: s.map(r => (r.spmo == null ? null : r.spmo)), borderColor: "#b9c0cd",
+               borderDash: [2, 3], fill: false, tension: .2, pointRadius: 0, borderWidth: 2,
+               spanGaps: false }]
+          : []),
       ],
     },
     options: {
