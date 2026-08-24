@@ -23,12 +23,12 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import tests.state_isolation  # noqa: F401,E402  MUST precede the valuation imports
 
-from valuation.edge import short_book as SB                                        # noqa: E402
+from valuation.edge import assignment as SB                                        # noqa: E402
 from valuation.edge.csp_surface import settle_put                                  # noqa: E402
 from valuation.edge.options_fill import CONTRACT_MULTIPLIER                        # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(REPO, "valuation", "edge", "short_book.py")
+SRC = os.path.join(REPO, "valuation", "edge", "assignment.py")
 
 _SKIPS = []
 
@@ -188,7 +188,7 @@ class TestB7Fidelity(unittest.TestCase):
     def test_the_fidelity_check_is_live_at_call_time_not_only_in_this_file(self):
         """Perturb settle_put and settle_short must REFUSE, proving the in-function assertion is
         not dead code. MB21's C1 is why: a check that cannot fail is not a check."""
-        import valuation.edge.short_book as mod
+        import valuation.edge.assignment as mod
         original = mod.settle_put
         try:
             mod.settle_put = lambda k, c, s: {"assigned": True, "intrinsic_loss": 0.0,
@@ -425,10 +425,10 @@ class TestEarlyAssignment(unittest.TestCase):
 # =========================================================================================== #
 GOOD = {
     "sells_premium": True,
-    "assignment_model": "valuation.edge.short_book.assignment_at_expiry",
+    "assignment_model": "valuation.edge.assignment.assignment_at_expiry",
     "margin_method": SB.CASH_SECURED_PUT,
     "spot_basis": SB.AS_TRADED,
-    "early_assignment_flag": "valuation.edge.short_book.early_assignment_flag",
+    "early_assignment_flag": "valuation.edge.assignment.early_assignment_flag",
     "return_denominator": "secured_cash",
 }
 
@@ -534,15 +534,32 @@ class TestRefusals(unittest.TestCase):
     def test_no_threshold_shaped_constant_lives_in_the_module(self):
         """I-3's design decision: a library default is exactly how a bar freezes (MA5)."""
         allowed = {0, 1, 0.0}
+        # Two exemptions, each permitted ONLY as the named constant it is assigned to, so the
+        # guard stays sharp: `1000.0` is the OCC symbol format's own strike scale and `1e-9` is
+        # a float-equality tolerance. Neither is a pre-registrable BAR, which is what I-3's rule
+        # is about. Naming them is the point -- a bare literal anywhere else still fails.
+        exempt = {"_OCC_STRIKE_SCALE": 1000.0, "_STRIKE_EPS": 1e-9}
+        tree = _tree()
+        exempt_nodes = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign) and len(node.targets) == 1 \
+                    and isinstance(node.targets[0], ast.Name) \
+                    and node.targets[0].id in exempt \
+                    and isinstance(node.value, ast.Constant) \
+                    and node.value.value == exempt[node.targets[0].id]:
+                exempt_nodes.add(id(node.value))
+        self.assertEqual(len(exempt_nodes), len(exempt),
+                         "the exemptions are not where the test thinks they are")
+
         offenders, seen = [], 0
-        for node in ast.walk(_tree()):
+        for node in ast.walk(tree):
             if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) \
                     and not isinstance(node.value, bool):
                 seen += 1
-                if node.value not in allowed:
+                if node.value not in allowed and id(node) not in exempt_nodes:
                     offenders.append(node.value)
         self.assertFalse(offenders,
-                         "threshold-shaped literals in short_book.py: %s" % offenders)
+                         "threshold-shaped literals in assignment.py: %s" % offenders)
         # non-vacuity: a scan that finds no constants at all passes by seeing nothing
         self.assertGreater(seen, 5, "the literal scan found only %d constants; it is not "
                                     "reading the module" % seen)
@@ -559,7 +576,7 @@ class TestPlacement(unittest.TestCase):
         by the one caller that must call it."""
         self.assertTrue(os.path.isfile(SRC))
         self.assertFalse(os.path.exists(
-            os.path.join(REPO, "valuation", "studies", "short_book.py")))
+            os.path.join(REPO, "valuation", "studies", "assignment.py")))
 
     def test_it_imports_no_study(self):
         for node in ast.walk(_tree()):
@@ -569,7 +586,146 @@ class TestPlacement(unittest.TestCase):
             elif isinstance(node, ast.Import):
                 mod = ",".join(a.name for a in node.names)
             if mod and "valuation.studies" in mod:
-                self.fail("short_book.py imports a study: %s" % mod)
+                self.fail("assignment.py imports a study: %s" % mod)
+
+
+# =========================================================================================== #
+# THE S3-I1 SEAM -- fleet.ASSIGNMENT_INTERFACE
+# =========================================================================================== #
+class TestFleetSeam(unittest.TestCase):
+    """S3-I1 landed after this module was frozen against its DRAFT and defines a CONCRETE
+    provider seam. `fleet.py`: *"Until r1 lands one, every short book is REFUSED."*"""
+
+    PUT = "AAPL  260619P00150000"
+    CALL = "AAPL  260619C00150000"
+
+    def setUp(self):
+        from valuation.edge import fleet
+        self.fleet = fleet
+        self._saved = fleet.assignment_provider()
+
+    def tearDown(self):
+        # never leave a provider registered for another suite -- registration is global state
+        self.fleet._PROVIDER = self._saved
+
+    def test_the_provider_satisfies_the_interface_fleet_declares(self):
+        for name in self.fleet.ASSIGNMENT_INTERFACE["callables"]:
+            self.assertTrue(callable(getattr(SB.PROVIDER, name, None)),
+                            "PROVIDER is missing %s" % name)
+        r = SB.register(self.fleet)
+        self.assertTrue(r["registered"], r)
+        self.assertEqual(r["missing"], [])
+
+    def test_registering_LIFTS_the_short_book_refusal_and_that_is_the_deliverable(self):
+        import json
+        import re
+        md = self.fleet.declaration_template("demo-short", side="short")
+        decl = json.loads(re.search(r"```json\n(.*?)\n```", md, re.S).group(1))
+
+        self.fleet._PROVIDER = None
+        before = self.fleet.validate_declaration(decl)["refusals"]
+        self.assertIn("SHORT_BOOK_WITHOUT_ASSIGNMENT", before)
+
+        SB.register(self.fleet)
+        after = self.fleet.validate_declaration(decl)["refusals"]
+        self.assertNotIn("SHORT_BOOK_WITHOUT_ASSIGNMENT", after)
+        # non-vacuity: the template's other refusals are untouched, so registering did not
+        # simply make validation pass -- it lifted exactly one refusal.
+        self.assertEqual(sorted(set(before) - set(after)), ["SHORT_BOOK_WITHOUT_ASSIGNMENT"])
+
+    def test_a_half_built_provider_is_refused_rather_than_half_used(self):
+        class Partial(object):
+            def assign_at_expiry(self, *a, **k):
+                return {}
+        r = self.fleet.register_assignment_provider(Partial())
+        self.assertFalse(r["registered"])
+        self.assertIn("secured_cash", r["missing"])
+
+    def test_the_adapter_adds_no_arithmetic_it_delegates(self):
+        """B7 at the exact join the seam exists to make. fleet's own docstring says it
+        'computes no assignment and no margin' -- if the adapter computed any, there would be
+        two definitions."""
+        got = SB.PROVIDER.assign_at_expiry(self.PUT, 140.0, "short", 2)
+        ref = SB.assignment_at_expiry(spot_at_expiry=140.0, strike=150.0, right="put",
+                                      spot_basis=SB.AS_TRADED, contracts=2)
+        self.assertEqual(got["assigned"], ref["assigned"])
+        self.assertEqual(got["shares"], ref["shares_delta"])        # exact
+        self.assertEqual(got["cash"], ref["cash_delta"])            # exact
+        self.assertEqual(got["intrinsic_obligation"], ref["intrinsic_obligation"])
+
+    def test_a_long_position_is_the_exact_mirror_of_the_short(self):
+        s = SB.PROVIDER.assign_at_expiry(self.PUT, 140.0, "short", 1)
+        lg = SB.PROVIDER.assign_at_expiry(self.PUT, 140.0, "long", 1)
+        self.assertEqual(lg["shares"], -s["shares"])
+        self.assertEqual(lg["cash"], -s["cash"])
+        self.assertEqual(lg["assigned"], s["assigned"])
+
+    def test_secured_cash_is_the_strike_and_scales_with_qty(self):
+        self.assertEqual(SB.PROVIDER.secured_cash(self.PUT, 150.0, 1), 150.0 * 100)
+        self.assertEqual(SB.PROVIDER.secured_cash(self.PUT, 150.0, 3), 150.0 * 300)
+
+    def test_a_strike_disagreeing_with_the_symbol_is_refused(self):
+        """The seam passes strike AND occ; a mismatch means two different contracts."""
+        with self.assertRaises(SB.ShortBookError) as cm:
+            SB.PROVIDER.secured_cash(self.PUT, 145.0, 1)
+        self.assertIn("disagrees", str(cm.exception))
+
+    def test_cash_securing_a_CALL_is_refused_because_it_is_unbounded(self):
+        with self.assertRaises(SB.ShortBookError) as cm:
+            SB.PROVIDER.secured_cash(self.CALL, 150.0, 1)
+        self.assertIn("naked", str(cm.exception))
+
+    def test_an_unparseable_occ_is_refused_rather_than_guessed(self):
+        for bad in ("AAPL", "", None, "AAPL 2026-06-19 P 150", "AAPL  260619X00150000"):
+            with self.assertRaises(SB.ShortBookError):
+                SB.parse_occ(bad)
+
+    def test_the_occ_parser_round_trips_the_fields_that_touch_a_strike(self):
+        p = SB.parse_occ(self.PUT)
+        self.assertEqual(p["root"], "AAPL")
+        self.assertEqual(p["right"], "put")
+        self.assertEqual(p["strike"], 150.0)
+        self.assertEqual(p["expiry"], "2026-06-19")
+        self.assertEqual(SB.parse_occ(self.CALL)["right"], "call")
+
+    def test_the_three_argument_flag_says_what_it_could_not_test(self):
+        """The seam passes no spot and no bid, so O21's model-free trigger cannot run. That is
+        DISCLOSED on the row rather than silently degraded."""
+        f = SB.PROVIDER.early_assignment_flag(self.CALL, "2026-05-01", 0.01)
+        self.assertTrue(f["flagged"])                     # dividend reading on a call
+        self.assertIn("limitation", f["detail"])
+        self.assertTrue(f["detail"]["moneyness_unknown"])
+
+        p = SB.PROVIDER.early_assignment_flag(self.PUT, "2026-05-01", 0.01)
+        self.assertFalse(p["flagged"])                    # the sign runs the other way
+        self.assertIn("DISCOURAGES", p["reason"])
+
+    def test_passing_a_quote_reaches_O21s_model_free_test(self):
+        f = SB.PROVIDER.early_assignment_flag(self.CALL, "2026-05-01", 0.0,
+                                              spot=180.0, option_bid=28.0)
+        self.assertTrue(f["flagged"])
+        self.assertIn("model-free", f["reason"])
+        self.assertAlmostEqual(f["detail"]["exercise_gain"], 2.0, places=9)
+
+    def test_registration_is_never_an_import_side_effect(self):
+        """Importing this module to read one number must not silently unblock every short book
+        in the fleet. The AST is read, not the behaviour, because the import already happened."""
+        # ONE tree. The first cut called `_tree()` twice, so the call node and the function
+        # bodies came from DIFFERENT parses and the identity test could never match -- it
+        # reported "registration happens at import time" against a module that does no such
+        # thing. A guard that cannot pass is as useless as one that cannot fail.
+        tree = _tree()
+        calls = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+                    and node.func.attr == "register_assignment_provider":
+                calls.append(node)
+        self.assertEqual(len(calls), 1, "expected exactly one registration call site")
+        inside = [n.name for n in ast.walk(tree)
+                  if isinstance(n, ast.FunctionDef)
+                  and any(c is calls[0] for c in ast.walk(n))]
+        self.assertEqual(inside, ["register"],
+                         "registration happens outside register(), i.e. at import time")
 
 
 if __name__ == "__main__":

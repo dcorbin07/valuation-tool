@@ -8263,9 +8263,9 @@ options-bot's, and this section exists so the module is found rather than rebuil
 
 ### What it is
 
-`valuation/edge/short_book.py`, plus `tests/test_short_book.py` (48 tests, 13 of 13 mutations
+`valuation/edge/assignment.py`, plus `tests/test_assignment_s3i3.py` (62 tests, 19 of 19 mutations
 caught with sources restored byte-for-byte) and
-`scripts/s3i3_short_book_validate.py` → `data/free_analysis/S3I3_SHORT_BOOK_VALIDATION.json`.
+`scripts/s3i3_assignment_validate.py` → `data/free_analysis/S3I3_SHORT_BOOK_VALIDATION.json`.
 
 Four entry points, matching S3-I1 §1.4 clause by clause:
 
@@ -8462,6 +8462,45 @@ identical to the committed stamp, so **no reconciliation was owed** and the stam
 the second time to take another lane's gate fixes in place of my own (see the section above). The validation reproduces every figure
 identically after the merge.
 
+### S3-I1 LANDED MID-FLIGHT, AND THE SEAM IT DEFINED IS NOW SATISFIED
+
+**This module was frozen against S3-I1's DRAFT because that is all that existed.** `9b1d064`
+then landed the real harness, which defines a CONCRETE provider seam and says of it: *"Until r1
+lands one, every short book is REFUSED"* (`SHORT_BOOK_WITHOUT_ASSIGNMENT`). **r1 is this
+worktree**, so satisfying that seam is not scope creep — it is the task's own sentence, *"it
+plugs the interface S3-I1 defines"*, now that the interface is concrete rather than sketched.
+
+**WHAT CHANGED, AND WHAT DID NOT.** The seam is duck-typed on three callables and names the
+module `valuation.edge.assignment`, so `short_book.py` is **renamed to `assignment.py`** —
+matching the name the harness advertises, rather than leaving a documented pointer to a file
+that does not exist. **No arithmetic moved.** The three seam callables are an ADAPTER: they
+parse the OCC symbol, then delegate to the functions validated against V6-OPT's 660 real trades.
+`fleet`'s own docstring says it *"computes no assignment and no margin"* — if the adapter
+computed any, the project would have two definitions at the exact join the seam exists to make,
+which is `B7`.
+
+**IT WORKS END TO END, and the refusal lifting is the deliverable.** On the harness's own
+short-book template: **before registration the refusals include
+`SHORT_BOOK_WITHOUT_ASSIGNMENT`; after `assignment.register()` they do not**, and the test pins
+that registering lifts **exactly that one refusal** and no other — so it cannot pass by making
+validation succeed for an unrelated reason.
+
+**THREE PLACES THE ADAPTER IS NARROWER THAN THE MODEL, DISCLOSED RATHER THAN PAPERED OVER.**
+(1) `early_assignment_flag(occ, as_of, q)` passes **no spot and no bid**, so `O21`'s model-free
+`exercise_gain` — the trigger O21 was allowed to carry a verdict on — **cannot run through the
+seam**. The three-argument call returns the DIVIDEND reading only and says so on the row
+(`moneyness_unknown`, plus a `limitation` string); `spot=` and `option_bid=` are keyword-only
+extras that reach the full test, so the seam is satisfied either way. (2) `secured_cash(occ,
+strike, qty)` **refuses a CALL** — cash-securing one is unbounded, i.e. naked, and a covered
+call is secured by shares whose price the seam does not pass. (3) The seam's `strike` is
+redundant with `occ`, so it is **cross-checked rather than trusted**: a disagreement means two
+different contracts, and settling against the wrong one fails silently.
+
+**REGISTRATION IS AN EXPLICIT CALL AND NEVER AN IMPORT SIDE EFFECT**, pinned by an AST test —
+importing this module to read one number must not silently unblock every short book in the
+fleet. And `fleet` does not import this module (its check is duck-typed on purpose), so the
+dependency runs one way only.
+
 ### What it does NOT do, named so it is not mistaken for done
 
 * **Naked shorts are REFUSED BY NAME, not approximated.** FINRA 4210's maintenance formula is a
@@ -8475,8 +8514,8 @@ identically after the merge.
   inequality to match `settle_put` and MA36. The divergence is a knife edge, it is NAMED rather
   than silently reconciled, and changing it would move a landed V6-OPT figure — a decision, not
   a default.
-* **S3-I1 IS NOT BUILT.** This is its short-book module and the harness it plugs into is still a
-  scout draft (`PREREG_DRAFT_fleet_harness.md`, scout branch only). **No F-book can declare
-  until the recorder exists**, and `validate_declaration` has no caller yet — deliberately, on
-  `MB15`'s precedent: the instrument is validated BEFORE anything consumes it.
+* **S3-I1 LANDED WHILE THIS WAS IN FLIGHT, AND THE SEAM IS NOW SATISFIED — see the section
+  below.** The earlier draft of this handoff said the harness did not exist; that was true when
+  this module was frozen and is no longer. **No `DECL_` file was written and no book was
+  declared** — the module makes short books DECLARABLE, it does not declare one.
 * **No `DECL_<book>.md` was written and no book was declared.**

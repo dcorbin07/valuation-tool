@@ -35,6 +35,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import ast
 import re
 import sys
 import tempfile
@@ -701,14 +702,100 @@ def test_ma4_a_key_in_neither_the_file_nor_the_header_is_reported_not_silently_d
             assert "vaquo_pct" not in (csv.DictReader(f).fieldnames or []), "typo widened the file"
 
 
+def _code_only(src):
+    """The source with every docstring blanked, so a guard sees code and not prose about it.
+
+    THE ELEVENTH COPY OF THIS HELPER IN `tests/`. Reported, deliberately not consolidated
+    here: eleven suites would have to change in one commit for a helper that is four lines,
+    and `S3-I1`'s own subject is that consolidating a WRITER is worth its blast radius while
+    consolidating a test helper is not obviously so. Left for whoever wants it.
+    """
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            if (node.body and isinstance(node.body[0], ast.Expr)
+                    and isinstance(node.body[0].value, ast.Constant)
+                    and isinstance(node.body[0].value.value, str)):
+                node.body[0].value.value = ""
+    return ast.unparse(tree)
+
+
+def _func_src(src, name):
+    """One function's source, resolved by the SYNTAX TREE rather than by a text offset."""
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            return ast.unparse(node)
+    return ""
+
+
+def _opens_for_writing(src, varname):
+    """True if `src` calls `open(<varname>, "w"...)` anywhere. Structural, not textual.
+
+    A TEXT MATCH CANNOT DO THIS JOB AND THE MUTATION PROVED IT. The first cut asserted the
+    literal `open(path, "w"` was absent from `ast.unparse` output -- and `unparse` normalises
+    string quoting to single quotes, so the needle could never appear and the guard PASSED
+    against a delegate mutated to truncate the target in place. A check that cannot fail is
+    not a check; matching the call SHAPE is immune to how the quotes are spelled.
+    """
+    for node in ast.walk(ast.parse(src)):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "open" and node.args):
+            continue
+        target = node.args[0]
+        if not (isinstance(target, ast.Name) and target.id == varname):
+            continue
+        mode = node.args[1] if len(node.args) > 1 else None
+        for kw in node.keywords:
+            if kw.arg == "mode":
+                mode = kw.value
+        if isinstance(mode, ast.Constant) and isinstance(mode.value, str) \
+                and ("w" in mode.value or "a" in mode.value):
+            return True
+    return False
+
+
 def test_ma4_the_write_goes_through_a_rename_and_never_opens_the_target_for_writing():
-    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                            "valuation", "screener", "index_mark.py"), encoding="utf-8").read()
-    i = src.find("def append_row")
-    assert i > 0, "append_row moved"
-    body = src[i:]
-    assert "os.replace(tmp, history_path)" in body, "the write is not a rename"
-    assert 'open(history_path, "w"' not in body, "the bound file is opened for writing in place"
+    """REPOINTED 2026-08-23 (`S3-I1`), IN THE SAME COMMIT AS THE MOVE — `MA59`'s rule.
+
+    This guard asserted `os.replace(tmp, history_path)` inside `append_row`'s own source, and
+    `S3-I1` moved the implementation to `valuation/edge/append_only.py` so the fleet's books
+    could share it instead of growing a second copy (the B7 split `append_row`'s docstring
+    warns about). **The guard then FAILED against the CORRECT tree**, because it keyed on
+    WHERE the rename lives rather than on WHETHER the write is a rename.
+
+    It is repointed rather than relaxed, and it is now STRICTLY STRONGER: it FOLLOWS the
+    delegation instead of hard-coding a path, and it holds the property against BOTH modules,
+    so neither the caller nor the shared writer can start truncating the bound file in place.
+    A delegation to a module that does not exist, or to one that does not rename, fails here.
+
+    THE NEGATIVE HALF READS CODE, NOT PROSE ABOUT CODE. The first repoint grepped the raw
+    source for `open(path, "w"` and fired on the delegate's own DOCSTRING, which quotes that
+    call while explaining why it is forbidden -- `MA49`'s comment-versus-code family, which
+    this record has now hit enough times that `MB1` wrote the fix down: strip comments and
+    string literals with `tokenize` and match on what is left. The stripper is itself pinned
+    non-vacuous below, because one returning "" would make this guard pass by seeing nothing.
+    """
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    src = open(os.path.join(root, "valuation", "screener", "index_mark.py"),
+               encoding="utf-8").read()
+    body = _code_only(_func_src(src, "append_row"))
+    assert body, "append_row moved"
+    assert not _opens_for_writing(body, "history_path"), \
+        "the bound file is opened for writing in place"
+
+    if "os.replace(tmp, history_path)" not in body:
+        # Delegated: resolve the module it delegates to and hold the property THERE.
+        m = re.search(r"from \.\.(\w+) import (\w+) as (\w+)", body)
+        assert m, "append_row neither renames nor delegates to a module that could"
+        pkg, mod, alias = m.group(1), m.group(2), m.group(3)
+        assert (alias + ".append(") in body, "the import is not the writer append_row uses"
+        dele = open(os.path.join(root, "valuation", pkg, mod + ".py"), encoding="utf-8").read()
+        code = _code_only(dele)
+        assert "def append(" in code and "os" in code, \
+            "the comment stripper returned nothing recognisable, so this guard sees nothing"
+        assert "os.replace(tmp, path)" in code, "the delegate's write is not a rename"
+        assert not _opens_for_writing(code, "path"), \
+            "the delegate opens the target for writing"
 
 
 # =======================================================================================

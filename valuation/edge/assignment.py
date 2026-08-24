@@ -457,3 +457,176 @@ def validate_declaration(decl: dict) -> dict:
     return {"sells_premium": True, "short_module_required": True, "ok": True,
             "margin_method": method, "spot_basis": basis, "return_denominator": denom,
             "fields_checked": list(REQUIRED_SHORT_FIELDS)}
+
+
+# ------------------------------------------------------------------------------------------- #
+# 6. THE S3-I1 SEAM -- `fleet.ASSIGNMENT_INTERFACE`, satisfied
+# ------------------------------------------------------------------------------------------- #
+# `S3-I1` landed AFTER this module was frozen against its DRAFT, and it defines a concrete
+# provider seam this module must satisfy or **every short book in the fleet is REFUSED**
+# (`fleet.py`: *"Until r1 lands one, every short book is REFUSED"*, refusal code
+# `SHORT_BOOK_WITHOUT_ASSIGNMENT`). The seam is duck-typed on three callables, deliberately, so
+# that `fleet` never imports a module that might not exist.
+#
+# THE ADAPTER ADDS NO ARITHMETIC. Every number below comes from the functions above, which are
+# the ones validated against V6-OPT's 660 real settled puts at max |delta| 0.000e+00. A seam
+# that re-derived its own assignment would be the `B7` defect at the exact join it exists to
+# make -- and `fleet`'s own docstring says it "computes no assignment and no margin", so if this
+# adapter computed any, the project would have two.
+
+import re as _re
+
+# NOT bars, and named so the no-threshold guard can tell the difference. `1000` is the OCC
+# symbol format's own strike scale (strikes are encoded in thousandths) and `1e-9` is a
+# float-equality tolerance for comparing two spellings of the same strike. Neither is a
+# pre-registrable threshold, which is what `I-3`'s no-default rule is about.
+_OCC_STRIKE_SCALE = 1000.0
+_STRIKE_EPS = 1e-9
+
+_OCC = _re.compile(r"^\s*(?P<root>[A-Z][A-Z0-9.\-]{0,5})\s*"
+                   r"(?P<yy>\d{2})(?P<mm>\d{2})(?P<dd>\d{2})"
+                   r"(?P<right>[CP])(?P<strike>\d{8})\s*$")
+
+
+def parse_occ(occ) -> dict:
+    """`AAPL  260619C00150000` -> root, expiry, right, strike.
+
+    REFUSES anything it cannot parse rather than guessing a strike. A mis-parsed strike is the
+    U1-SPLIT failure in a new costume: it would price cleanly and settle against the wrong
+    number, and nothing would raise.
+    """
+    m = _OCC.match(str(occ or "").upper())
+    if not m:
+        raise ShortBookError(
+            "cannot parse %r as an OCC option symbol (expected ROOT + YYMMDD + C/P + strike in "
+            "thousandths, e.g. 'AAPL  260619C00150000'). Refusing rather than guessing a "
+            "strike." % (occ,))
+    g = m.groupdict()
+    return {"root": g["root"], "expiry": "20%s-%s-%s" % (g["yy"], g["mm"], g["dd"]),
+            "right": "call" if g["right"] == "C" else "put",
+            "strike": int(g["strike"]) / _OCC_STRIKE_SCALE}
+
+
+class _AssignmentProvider(object):
+    """`fleet.ASSIGNMENT_INTERFACE`'s three callables, delegating to this module."""
+
+    interface_version = "S3-I3/1"
+
+    def assign_at_expiry(self, occ, settle_price, side, qty) -> dict:
+        """`(occ, settle_price, side, qty) -> {assigned, shares, cash, basis}`.
+
+        `settle_price` MUST be the as-traded close. The seam cannot police that from a bare
+        float, so the basis is DECLARED in the return and every path here runs through
+        `_check_basis` -- a caller that hands over an adjusted price gets a wrong answer this
+        module cannot detect, which is why `basis` ships on the row for the recorder to keep and
+        why `portfolio_capacity.assert_raw_spot` remains the measured half.
+
+        `side` is `fleet.SIDES`. A SHORT is assigned; a LONG auto-exercises, which is the exact
+        mirror -- so the long case is the short case negated rather than a second derivation.
+        """
+        s = str(side or "").strip().lower()
+        if s not in ("long", "short"):
+            raise ShortBookError("side must be 'long' or 'short' (fleet.SIDES), got %r" % (side,))
+        p = parse_occ(occ)
+        a = assignment_at_expiry(spot_at_expiry=settle_price, strike=p["strike"],
+                                 right=p["right"], spot_basis=AS_TRADED, contracts=qty)
+        sign = 1 if s == "short" else -1
+        return {"assigned": a["assigned"],
+                "shares": int(sign * a["shares_delta"]),
+                "cash": float(sign * a["cash_delta"]),
+                "basis": AS_TRADED,
+                # beyond the seam's four keys, and useful to the recorder: what is owed.
+                "intrinsic_obligation": a["intrinsic_obligation"],
+                "right": p["right"], "strike": p["strike"], "expiry": p["expiry"]}
+
+    def early_assignment_flag(self, occ, as_of, q, *, spot=None, option_bid=None,
+                              divs=None) -> dict:
+        """`(occ, as_of, q) -> {flagged, reason}`, with O21's fuller test available.
+
+        THE SEAM'S THREE ARGUMENTS CANNOT REACH O21's STRONGEST TEST, and that is stated rather
+        than papered over. `exercise_gain` -- the model-free trigger O21 was allowed to carry a
+        verdict on -- needs the SPOT and the option's BID, and the seam passes neither. With
+        `(occ, as_of, q)` alone the only honest signal is the dividend one, which applies to
+        short CALLS only (a dividend DISCOURAGES early exercise of a put, whose driver is
+        interest on the strike, so flagging one would be a sign error).
+
+        `spot` and `option_bid` are keyword-only EXTRAS. The harness calls with three positional
+        arguments and gets the dividend reading; a caller holding a quote gets the model-free
+        test too. Optional, so the seam is satisfied either way.
+        """
+        p = parse_occ(occ)
+        if spot is not None and option_bid is not None:
+            f = early_assignment_flag(right=p["right"], spot=spot, strike=p["strike"],
+                                      option_bid=option_bid, spot_basis=AS_TRADED,
+                                      divs=divs, ticker=p["root"], as_of=as_of,
+                                      expiry=p["expiry"])
+            reason = ("holder does better exercising than selling (O21 model-free, gain %.4f)"
+                      % f["exercise_gain"]) if f["model_free_trigger"] else (
+                      "in-the-money short call with an ex-date inside the window"
+                      if f["dividend_trigger"] else "no trigger")
+            return {"flagged": f["flagged"], "reason": reason, "detail": f}
+
+        try:
+            qy = float(q)
+        except (TypeError, ValueError):
+            qy = 0.0
+        divi = bool(p["right"] == "call" and qy > 0.0)
+        return {
+            "flagged": divi,
+            "reason": ("a dividend-paying underlying (q=%.4f) makes an in-the-money short call "
+                       "assignable around any ex-date" % qy) if divi else
+                      ("a dividend DISCOURAGES early exercise of a put, whose driver is interest "
+                       "on the strike, so q raises no flag on this right" if p["right"] == "put"
+                       else "no dividend yield, so no ex-date trigger"),
+            "detail": {"q": qy, "right": p["right"], "as_of": str(as_of),
+                       "moneyness_unknown": True,
+                       "limitation": ("the seam passes no spot and no bid, so O21's model-free "
+                                      "exercise_gain test could not run and this flag is the "
+                                      "dividend reading only -- pass spot= and option_bid= for "
+                                      "the full test")}}
+
+    def secured_cash(self, occ, strike, qty) -> float:
+        """`(occ, strike, qty) -> float`, the Reg-T cash-secured convention.
+
+        This IS the denominator of every return the book quotes (`S3-I1` section 1.4). The
+        seam's `strike` is redundant with `occ` and is therefore CROSS-CHECKED rather than
+        trusted: a disagreement means the caller and the symbol describe different contracts,
+        which is exactly the mismatch that settles a trade against the wrong number.
+
+        A short CALL is REFUSED here. Cash-securing a call is unbounded -- that is a naked
+        short, which this instrument does not model. A covered call is secured by SHARES, so its
+        denominator needs the stock price and the caller must ask for it explicitly.
+        """
+        p = parse_occ(occ)
+        k = _pos(strike, "strike")
+        if abs(k - p["strike"]) > _STRIKE_EPS:
+            raise ShortBookError(
+                "strike %r disagrees with the OCC symbol's %r (%s). One of them describes a "
+                "different contract, and settling against the wrong one fails silently."
+                % (k, p["strike"], occ))
+        if p["right"] != "put":
+            raise ShortBookError(
+                "secured_cash's Reg-T CASH-SECURED convention applies to a short PUT. %s is a "
+                "CALL: cash-securing one is unbounded (that is a naked short, not modelled "
+                "here), and a COVERED call is secured by shares -- call "
+                "`secured_cash(method=COVERED_CALL, ..., underlying_at_entry=...)` directly, "
+                "which needs the stock price the seam does not pass." % (occ,))
+        return secured_cash(method=CASH_SECURED_PUT, strike=k, right="put", credit=0.0,
+                            contracts=qty)["secured_cash"]
+
+
+PROVIDER = _AssignmentProvider()
+
+
+def register(fleet_module=None) -> dict:
+    """Hand `PROVIDER` to `fleet.register_assignment_provider`. Until this runs, every short
+    book is refused with `SHORT_BOOK_WITHOUT_ASSIGNMENT`.
+
+    Registration is an explicit CALL and never an import side effect, so importing this module
+    to read one number cannot silently unblock every short book in the fleet. `fleet_module` is
+    injectable for tests; `fleet` does not import this module (its check is duck-typed on
+    purpose), so the dependency runs one way only.
+    """
+    if fleet_module is None:
+        from valuation.edge import fleet as fleet_module
+    return fleet_module.register_assignment_provider(PROVIDER)
