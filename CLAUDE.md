@@ -48,6 +48,892 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE FLEET HARNESS IS BUILT, AND THE MACHINERY THE DRAFT NAMED FOR ITS RECORDS WOULD HAVE
+  SILENTLY DROPPED EVERY FILL AFTER THE FIRST EACH DAY (2026-08-23, `S3-I1`).**
+  `PREREG_s3i1_fleet_harness.md` **ACCEPTED** from the Frontier Scout's draft and committed
+  **ALONE at `b995940`**, markdown only, zero `.py`, 261 lines, a strict ancestor of every build
+  commit, with the draft reproduced **VERBATIM below the rule at `sha256 5654d818`** (5,719
+  bytes, 88 lines) and nothing below the rule edited. **ZERO TRIALS - infra stays 20, equity
+  242, options 305, `by_domain` bit-identical across the log append. ADOPTS NOTHING, TRADES
+  NOTHING, LICENSES NO REAL MONEY, COMPUTES NO OUTCOME STATISTIC.**
+  * **THE FINDING, AND IT IS THE ONE THAT CHANGED THE BUILD (`E2`). The draft says fleet
+    records go "on the PT-WRITER machinery, reused not rebuilt". Measured:
+    `index_mark.append_row` is keyed on `date` and idempotent per date** - with
+    `append_only=True` a duplicate date is a **NO-OP returning the row already on disk**, and
+    in the default mode a **REPLACEMENT** - **while a fleet book records many orders per day.**
+    Reusing it verbatim drops every fill after the first each day, **in the direction that reads
+    as a quiet book rather than as an error**, which is this record's worst failure shape.
+    Honoured by **EXTRACTION AND DELEGATION** (`B7`, the `MA5`/`I-3` pattern for the third
+    time): the rules move to `valuation/edge/append_only.py` with the **key as a parameter**,
+    `append_row` **delegates** with `key="date"`, the fleet calls it with `key="seq"`. A second
+    implementation is refused by name - `append_row`'s own docstring already calls it *"the B7
+    split this module already warns about."*
+  * **GATED BEFORE ANYTHING NEW USED IT (`MB15`'s ordering), and the gate is against git rather
+    than against my expectation: bit-identical to the pre-refactor source restored from
+    `b995940` across 200 randomised cases and ALL NINE branches, compared on BOTH the returned
+    dict and the file bytes, with the byte-level prefix guarantee the shipped Action verifies
+    holding on 33 of 33 append-only writes.**
+  * **A PRE-COMMITTED OBLIGATION FIRED AND IT IS REPORTED RATHER THAN GLOSSED - THE DEFECT IS IN
+    MY OWN OBLIGATION.** The register required *"`tests/test_index_mark.py` passes UNCHANGED"*
+    and committed to REVERTING on any failure. It did not pass: the `MA4` rename guard asserts
+    `os.replace(tmp, history_path)` **inside `index_mark.py`'s own source**, so it **FIRED
+    AGAINST THE CORRECT TREE**. **The obligation was self-contradictory when written** - it
+    required a refactor to leave no trace in a suite containing a source-shape tripwire on the
+    very function it declared it would move. `MB18`'s shape: a gate keyed on a property of the
+    LAYOUT rather than on the BEHAVIOUR it protects. **Repointed in the SAME commit so the move
+    shows in the diff (`MA59`) and strengthened to follow the delegation and hold the property
+    against BOTH modules. A stricter reader would have taken the revert branch; the departure
+    is recorded, and the error runs toward FEWER implementations of a safety-critical writer.**
+  * **WHAT IS ENFORCED MECHANICALLY, which is the task's own word. DECLARATION BEFORE FILL is
+    checked against git** - the introducing commit must **EXIST**, be an **ANCESTOR of HEAD**,
+    and have touched **EXACTLY ONE file** - tested against a **real temporary repository**,
+    because checking a commit rule against a stub checks the stub. **THE HONEST LIMIT SHIPS WITH
+    IT: it proves the declaration landed before the fill was RECORDED, on the harness's clock,
+    and CANNOT prove no order was placed at a broker beforehand.** Also enforced: entry rules
+    frozen at declaration; **a delta-targeted strike REFUSED unless the declaration argues past
+    `V6-OPT`'s autopsy**; `O11` **verbatim** or refused; the seven-field verdict horizon refused
+    field by field; **refusals are RECORDS, not crashes**; and `fleet_aggregate()` **RAISES**,
+    because void condition 3 forbids reading a cross-book aggregate as a verdict.
+  * **THE PEEK RULE WAS AN HONOUR SYSTEM AND IS NOW A DATED FACT (`E4`).** The draft makes a
+    peek *"the verdict read"* that books the trial, which nothing could check. `read_meter()` is
+    the ONLY reader and **it writes before it returns**, flagging `is_first_verdict_read` and
+    `early`. The meter delegates to `track_meter.boundary` and **has no defaults** for
+    sigma/rho/alpha/min_effect - `MA5`'s lesson, since a default is exactly how a bar freezes,
+    and these are frozen in the DECLARATION.
+  * **THE CHAIN'S CLAIM IS OVERSTATED IN THE DRAFT AND THE BOUND SHIPS WITH IT (`E3`).** §4
+    invokes *"`MA13`'s committed-literal idiom applied to records"* - but `MA13`'s idiom is a
+    literal committed in a TEST and fleet records live under `data/`, which is **gitignored**,
+    so no committed literal can track a growing stream. **What the chain buys: reordering,
+    interior deletion, truncation and any edit by anything that does not RECOMPUTE it. It is NOT
+    tamper-proof against a writer that recomputes the chain.** Anchored at the declaration's
+    content hash; an empty stream reports **VACUOUS, never PASSING** (`O21-D2`'s `C5`).
+  * **DAY-1 SELF-VERIFICATION, REQUIRED BY DON'S RULING AND ABSENT FROM THE DRAFT (`E6`): 17 of
+    17.** The run-#6 pattern end to end - fills round-trip and read back unchanged, the chain
+    verifies, **a tampered copy is REFUSED and LOCATED**, the stream restores byte-for-byte, an
+    out-of-order write is refused, an uncommitted declaration and one landed alongside another
+    file each refuse the fill, the short-book seam refuses both ways, the randomizer is
+    deterministic and salted. **It failed 8 of 17 on its first pass and found three real
+    defects, which is the evidence that its checks can fail.** The recorder **REFUSES every fill
+    while the last self-check is ABSENT, STALE or FAILING - three states, not one.**
+  * **`S3-I3` IS r1's: the INTERFACE is defined and no assignment or margin is computed here**,
+    pinned by an AST test over the docstring-stripped tree. `register_assignment_provider()`
+    checks the **interface**, not an import, so this file never depends on a module that does
+    not exist. **With no provider registered every short book is REFUSED** - the safe direction.
+  * **"V5-GRADE" MEANS THE TWO COLUMNS V5 ROUTED AND NOBODY TOOK (`E9`).**
+    `scripts/slippage_report.py` records its own binding gap - *"stores no bid, ask or mid at
+    submit time ... the fix is two columns ... this is ROUTED"* - so a fleet fill stores
+    **`quote_bid`, `quote_ask`, `quote_mid` at submission** as first-class columns, taken from
+    Tradier's own quote shape - and **a one-sided quote records NO mid rather than falling back
+    to `last`**, because a stale `last` under the name `quote_mid` is the wrong-object family
+    and a missing mid is a fact `F-1` needs to see. **No derived outcome statistic is stored on
+    a fill.** **V5's sandbox caveat is STAMPED rather than remembered: a measured cost BELOW the
+    model is the direction the measurement error already points and is weak evidence.**
+  * **THREE HELPERS MAKE DON'S ~18-BOOK RULING TRACTABLE.** `declaration_template()` emits a
+    complete skeleton that **parses and is then REFUSED by name** on its placeholder horizon,
+    so nobody can ship it unfilled; `ledger_row()` emits the book's ledger row and **REFUSES any
+    raw pipe in the prose** (`M1-PARSE` has no escape, and `E-2` hit it three days ago); and
+    **the format is a fenced `json` block, so the scout's four `DECL_DRAFT_*` files are all
+    REFUSED as they stand - verified, not asserted.** That is the machinery working: **prose
+    cannot be validated**, and each draft needs its JSON block before it is a declaration.
+  * **ZERO TRIALS AGAINST THE DRAFT'S OWN "1 infra trial", and the counter-argument is stated
+    (`E1`).** The draft's §2 charges at **FIRST VERDICT READ** and the harness reads none, so
+    under its own convention it charges nothing - the `I-2`/`I-3` precedent, both priced at 1
+    infra in `IDEAS_LEDGER.md` three days ago and both logged at zero. **The objection is that
+    the harness fixes a convention every future fleet verdict inherits; `MB1-SEL` governs, since
+    machinery that can only BLOCK or RECORD adds no degree of freedom. Note the direction:
+    overstating `N` is the safe direction (`MA6`), so this departure runs the UNSAFE way and is
+    flagged rather than assumed.**
+  * **DON'S FLEET RULING MAKES THE DRAFT'S FIRST EXPECTATION UNSCORABLE (`E5`)** - it prices
+    *"≥6 books declared within two weeks"* at 70/30 while the ruling declares all ~18 TOGETHER,
+    so it is recorded **VOID-BY-RULING**, neither right nor wrong. (2), (3) and (4) stand.
+  * **ONE REAL REGRESSION, AND MY OWN 275-CASE GATE COULD NOT SEE IT - THE FULL 148-SUITE RUN
+    CAUGHT IT.** `append_row` takes a **`columns=`** keyword, added by the PT-SPMO lane so the
+    reported-benchmark sibling could reuse this writer with its own schema; **my first
+    delegation hard-coded `ROW_COLUMNS`, so the argument was ACCEPTED AND SILENTLY DROPPED** and
+    a correct sibling write came back **refused for widening a header nobody asked to widen**.
+    `tests/test_reported_benchmark.py` went **26/26 to 24/26**, and it was confirmed mine by
+    restoring `index_mark.py` to the register commit and re-running to 26/26. **THE PORTABLE
+    PART: a branch sweep perturbs the DATA and this defect lived in the SIGNATURE, where no
+    amount of data variation reaches it.** The register's obligation ("cover every branch") was
+    **weaker than the job required**; the sweep now runs 275 cases over 11 branches including
+    two that vary the caller's `columns`, and it is pinned twice - by the suite that found it
+    and by a new test of this lane's own, since the delegation is this session's code.
+    **A differential harness must exercise every PARAMETER of the contract it proves, not merely
+    every path through the implementation.**
+  * **SEVEN FURTHER DEFECTS, ALL IN INSTRUMENTS RATHER THAN IN PRODUCT CODE - the `columns`
+    regression above is the only one that reached shipped code - and every one caught by running
+    the thing rather than by reading it. Two are portable. (a) THE HASH CHAIN COULD NOT VERIFY A SINGLE ROW IT HAD JUST WRITTEN** - it hashed
+    native types while CSV returns strings, so the whole stream read as broken; the invariant is
+    now **hash what you PERSIST**, and the payload keys come from the file's own header so a
+    book using `records_schema` can verify at all. **(b) A GUARD THAT COULD NOT FIRE:** the
+    repointed `MA4` check asserted the literal `open(path, "w"` was absent from `ast.unparse`
+    output, and **unparse normalises quotes**, so the needle could never appear and the guard
+    PASSED against a delegate mutated to truncate the target in place - **found by mutation, not
+    by reading**, and replaced with a structural AST check on the call shape. The others: a
+    validation harness comparing two different temp paths (175 false mismatches); fixtures
+    written with `\n` against a writer emitting `\r\n` (the prefix obligation read 0 of 33); a
+    prefix check that first passed on ZERO writes; a declaration validator treating an empty
+    `records_schema` as MISSING and refusing correct books; and a self-check probing ordering
+    with a DUPLICATE key, i.e. testing idempotency under the name of ordering.
+  * **AND MUTATION FOUND AN UNREACHABLE BRANCH IN MY OWN GUARD:** `declaration_commit` searched
+    only HEAD's history, so a declaration on an unmerged branch was never SEEN and the
+    ancestor check was **dead code** - and the refusal a reader got said *"not committed"* when
+    the truth was *"committed, but not landed here"*. Now searches `--all`, so the condition is
+    reachable, honest and pinned.
+  * **NOT DONE, named so it is not mistaken for done: NO BOOK IS DECLARED** (the ~18 commit
+    TOGETHER under Don's ruling, and the four `DECL_DRAFT_*` files on the scout branch are
+    DRAFTS, which the harness will refuse as it stands); **no fill is placed; `S3-I3` is not
+    built; `S3-I7` is not built; no schedule; no meter is read**, so nothing here charges a
+    trial under §2; and **`IDEAS_LEDGER.md` and `SEASON3_MAP.md` are NOT edited** - the scout
+    lane reserves them, and the zero-trial departure wants relaying since the map prices this
+    item at 1 infra trial. **REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3):
+    `tests/test_paper_track.py` reads 69/70 and the failure PREDATES this session** - proved by
+    restoring the tree and re-running to the identical 69/70 - **it is a live disagreement
+    between the engine's recorded book and `PAPER_TRACK_CONTRACT.md` §5b, the paper-track lane's
+    to adjudicate.** **52 new tests plus the repointed `MA4` guard (64/64); 12 of 12 mutations
+    caught across the append-only and declaration-before-fill guards, plus 3 of 3 on the `MA4`
+    guard, every one with sources restored byte-for-byte.**
+    `valuation/edge/append_only.py`, `valuation/edge/fleet.py`,
+    `scripts/i1_append_only_validate.py`, `scripts/fleet_selfcheck.py`;
+    `HANDOFF_edge_audit.md` S3-I1.
+- **THE SHORT-BOOK ASSIGNMENT MODEL IS BUILT, AND ITS VALIDATION TURNS A FOLKLORE RULE INTO A
+  NUMBER: SETTLING 660 REAL CASH-SECURED PUTS AGAINST THE ADJUSTED CLOSE INSTEAD OF `raw_close`
+  FLIPS 192 ASSIGNMENT VERDICTS - 29.1% (2026-08-23, `S3-I3`).** Don's ruling #1, *"no short
+  book declares without it"*; `SEASON3_MAP.md`'s own deliverable, assigned to options-bot and
+  built by this lane because that lane is mid-queue. **ZERO TRIALS, `FIXED`-class** - `by_domain`
+  bit-identical across the log append (equity **242**, options **305**, infra **20**) while
+  `rows_fixed_not_counted` rises **73 -> 74**, the proof the row was seen and correctly excluded.
+  **ADOPTS NOTHING, LICENSES NO TRADE, AND NO BOOK DECLARES ON IT YET** - `O11` binds.
+  * **WHY A SHORT BOOK CANNOT REUSE THE LONG ONE, WHICH IS THE WHOLE REASON THE MODULE EXISTS:
+    every settlement convention this project owns was written for a book that BUYS options, and
+    each is wrong BY A SIGN when the book sells.** `MA36` settles a worthless expiry at 0.00 and
+    posts **-100%**, correct for a long holder and exactly backwards for a short, for whom the
+    identical event is the best possible outcome and settles at **exactly zero**. Measured on the
+    real book: **493 of the 660 trades expired worthless and every one owes EXACTLY zero**, so
+    inheriting MA36's rule unchanged would have booked **three quarters of the book's trades at
+    -100%**. Separately `options_sizing` makes the PREMIUM the capital at risk, where a short's
+    exposure is the STRIKE - which is why `S3-I1` §1.4 makes the secured cash *"the denominator
+    of every return quoted"*, and quoting a short on premium overstates it ~40x on this book.
+  * **`B7` FIDELITY IS EXACT AND IT IS WHAT LICENSES THE REST.** `settle_short` DELEGATES to
+    `csp_surface.settle_put` rather than reimplementing it, and reproduces both it and V6-OPT's
+    **published** per-trade `ret_on_strike` on **660 of 660 rows at max |delta| 0.000e+00**, zero
+    assignment mismatches. The COUNT is gated (`MB21`'s C1 scored a perfect zero on an empty
+    frame by comparing nothing), and the instrument was validated BEFORE any consumer existed
+    (`MB15`).
+  * **THE SPLIT TRAP IS LIVE ON THIS BOOK AND NOT MARGINAL.** Median absolute basis gap
+    **5.03%**, **half the rows differ by more than 5%**, and the worst is **CMG at expiry
+    2016-11-18: `raw_close` 411.80 against an adjusted 8.236**, a 50x gap on a 365 strike, where
+    the adjusted basis books an obligation of **97.7% of the strike on a trade that actually
+    expired worthless**. `raw_close` for anything touching a STRIKE was already the rule; this is
+    the first time its cost has been counted on real rows.
+  * **A DEFECT IN MY OWN INSTRUMENT, CAUGHT BY MY OWN GATE ON THE FIRST REAL ROW, AND THE FIX WAS
+    NOT A TOLERANCE.** `settle_short` computed the return as `pnl_total / secured_cash`, i.e.
+    `(pnl x 100) / (k x 100)` - **not the same float as `pnl / k`**, which is what `settle_put`
+    does. A tolerance would have hidden that the two were doing DIFFERENT ARITHMETIC, so the
+    ratio is now taken per share and the identity is exact BY CONSTRUCTION. **The portable half
+    is why the tests missed it: all six original fidelity cases used ROUND NUMBERS, on which the
+    scaled and unscaled forms agree bit-for-bit.** Real strikes and fifteen-significant-figure
+    credits broke it on contact. **A float identity tested only on round numbers is untested.**
+  * **TWO DEFECTS IN MY OWN TESTS, BOTH FOUND BY MUTATION RATHER THAN BY READING.** (1) The
+    required-field test **ITERATED the very constant it was meant to pin**, so deleting a field
+    from the tuple deleted its test too - the wrong-object family, repaired with `MA13`'s
+    committed-literal idiom. (2) The O21-imported test **banned a NAME while the defect that
+    actually happens is an INLINE re-derivation** - `max(0.0, k - s)` written in place defines no
+    function and slipped straight through. **The substring-ban family again**; repaired by
+    asserting the POSITIVE property that `DIV.intrinsic` is CALLED. **A third, in the validator's
+    path resolution:** it probed `isdir` on `data/free_analysis` and the WORKTREE carries that
+    directory **EMPTY** - `DEEPITM-FIN`'s **existence-is-not-population** defect - so it now
+    probes for the file it cannot run without and writes to the PRIMARY root.
+  * **A PREMISE CORRECTION TO THE MAP, CHECKABLE RATHER THAN A MATTER OF TASTE: `SEASON3_MAP.md`
+    GIVES THREE MUTUALLY INCONSISTENT LISTS OF WHICH BOOKS CONSUME `S3-I3`, AND THE `S3-I3` ROW'S
+    OWN LIST IS THE WRONG ONE.** The per-book *"waits on"* column names **eight** (F-4, F-6, F-7,
+    F-8, F-10, F-17, F-18, F-20); the §5 dependency graph names the same set **minus F-6**; and
+    the S3-I3 row names **five** (F-4, F-10, F-11, F-12, F-19) whose intersection with the
+    per-book column is only F-4 and F-10. **The documentary fact settles it without needing a
+    reading: F-11, F-12 and F-19 do not claim I3 in their own rows.** As corroboration and
+    labelled as this lane's reading, F-11 and F-12 are long-option structures with no short leg
+    and F-19 is *"a gate, not a book"*, while **F-6 is a zero-cost COLLAR whose short call leg is
+    exactly what this module is for - so the graph's omission of F-6 is the one gap that could
+    have let a short leg declare unmodelled.** **AND THE PER-BOOK COLUMN IS NOT CLEAN EITHER,
+    said because I built against it: F-20 is a MARRIED PUT - long stock plus a LONG protective
+    put - so its `I3` claim is the same over-claim in the other direction.** Reading the map's
+    own structure text, **seven** books genuinely carry a short option: F-4, F-6, F-7, F-8,
+    F-10, F-17, F-18. **The two errors are not equally dangerous:** omitting F-6 could have let
+    a collar's short call declare unmodelled, while including F-20 costs an unused import.
+    Built against the per-book column because it is the SUPERSET; **reported, not edited**,
+    since the map is the scout's file.
+  * **IT LIVES IN `valuation/edge/` AND THAT WAS FORCED RATHER THAN PREFERRED:** `MA23`'s
+    boundary test forbids any non-study module importing `valuation.studies`, and the `S3-I1`
+    recorder is `paper_track` lineage, so a `studies/` placement would have been unimportable by
+    the one caller that must call it. **REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3):
+    `CONTRACT_MULTIPLIER = 100` is defined TWICE**, at `options_fill.py:70` and
+    `options_sizing.py:108` - `MA5`'s shape; this module imports it and a test asserts no third.
+  * **NOT DONE, named so it is not mistaken for done: NAKED SHORTS ARE REFUSED BY NAME** rather
+    than approximated (FINRA 4210's maintenance formula has its own floor, and a cash-secured
+    stand-in would **UNDERSTATE** the requirement - the unsafe direction); **the STOCK LEG of a
+    covered call is not marked here** (the host book owns it; modelling it would double-count);
+    **no assignment PROBABILITY is estimated** - the flag reports rationality, and whether a
+    holder acts is unobservable; **the OCC's real $0.01 auto-exercise threshold is NOT
+    implemented**, strict inequality being used to match `settle_put` and `MA36`, with the
+    divergence NAMED because changing it would move a landed V6-OPT figure; and **`S3-I1` IS NOT
+    BUILT** - the harness is still a scout draft, `validate_declaration` has no caller, and **no
+    `DECL_` file was written and no book was declared. 62 tests, 19 of 19 mutations caught with
+    sources restored byte-for-byte.** `valuation/edge/assignment.py`,
+    `scripts/s3i3_assignment_validate.py`,
+    `data/free_analysis/S3I3_SHORT_BOOK_VALIDATION.json`; `HANDOFF_optionsbot.md` §70.
+- **THE RECORD'S STATED PRIORS ARE CALIBRATED-IN-THE-LARGE - AND THE STUDY THAT SAYS SO SCORES
+  ONLY 43 OF 113 ROWS, BECAUSE ITS LARGEST CLASS IS THE ONE IT DISCARDS (2026-08-20, `SC-1b`).**
+  `PREREG_sc1b_cluster_by_item.md` committed **ALONE at `329402d`**, markdown only, zero `.py`;
+  **1 infra trial booked at `58cf538` BEFORE the runner existed, infra 19 -> 20**, equity 242 and
+  options 305 untouched. **Infra `N` gates no published claim.**
+  * **VERDICT `CALIBRATED-IN-THE-LARGE`, CLEARING BY 0.0068.** Clustering `SC-1`'s identical 43
+    OUTCOME pairs by ITEM instead of by FILE gives **15 clusters against 3** and a CI95 of
+    **[-0.173171, +0.113235]**, half-width **0.143203** against `SC-1`'s own 0.15 ceiling. **The
+    gap is unmoved at -0.0500** - a point estimate does not depend on how pairs are grouped - so
+    `SC-1`'s CANNOT-TELL was always about RESOLUTION, and this recovers it.
+  * **LICENSED BY A PRE-COMMITMENT RATHER THAN AN ARGUMENT.** `SC-1` named this successor in
+    writing *before its own interval existed*, saying explicitly that changing the key
+    afterwards would be choosing the design on the outcome. That is a stronger licence than any
+    reasoning assembled later.
+  * **THE STRUCTURAL BOUND WAS DERIVED BEFORE RUNNING AND HELD: both miscalibration verdicts
+    were UNREACHABLE.** The gap cannot move under re-grouping, `SC-1`'s naive CI already
+    contained zero at half-width 0.119186, and `C4` requires the clustered interval to be no
+    narrower. **So this was a test of RESOLUTION and never of direction**, and the answer was
+    **bracketed in advance** between the naive 0.119186 and `SC-1`'s file-clustered 0.191667,
+    with the bar inside the bracket. It landed a third of the way up.
+  * **THE LIMITATION IS THE MOST USEFUL THING HERE, AND IT BOUNDS `SC-1` TOO. The today's-corpus
+    diagnostic returns an IDENTICAL 43 pairs: a day carrying four new items added ZERO
+    calibration evidence.** Measured - today's tree yields 131 scoring rows against the pinned
+    119, of which 8 new rows are scoreable and **ALL EIGHT classify as `UNCLASSIFIED`**. Across
+    the corpus the mix is **`UNCLASSIFIED` 65, `OUTCOME` 43, `INSTRUMENT` 3, `PROCESS` 2** - so
+    **the LARGEST class is the discarded one at 55% of scoreable rows**, and the discards include
+    plainly outcome-shaped predictions whose event cell reduced to a bare number. **The 43 pairs
+    are therefore selected by a keyword classifier whose miss rate is UNMEASURED.** Not repaired
+    here (§6.2 forbids re-classifying, and doing it after the verdict is design-on-outcome) and
+    named as the successor - a bigger one than the clustering key was. **PRACTICAL CONSEQUENCE:
+    a write-up scoring its expectations as a numbered LIST rather than a pipe-delimited TABLE is
+    INVISIBLE to this study, and three of this session's own items did exactly that.**
+  * **`G1` IS WHAT MAKES IT ONE OBJECT UNDER TWO CLUSTERINGS: the re-run reproduces `SC-1`'s
+    banked pair count, gap, Brier, both skills, the Murphy decomposition and BOTH intervals at
+    tolerance 0.0.** The corpus is pinned to `SC-1`'s measurement commit `8e2e9fe`, **forced by
+    §6.2 rather than chosen** - the record has grown since, and running on today's tree would
+    confound MORE DATA with DIFFERENT CLUSTERING.
+  * **POWER, with `SC-1`'s own declared D1 defect REPAIRED** (its §5 formed the MDE from Brier
+    variance where the gap needs `Var(p - y)`): **50% 0.120446 / 80% 0.171033 iid**, and
+    **0.144717 / 0.205498 cluster-adjusted** at a realised design effect of **1.4436**. **The
+    observed 0.0500 gap sits below even the 50%-power iid threshold**, so CALIBRATED here means
+    *"no miscalibration this design could have seen"* - and it validates **no individual prior**.
+  * **TWO DEFECTS IN MY OWN INSTRUMENT.** (1) `G2`'s double-entry re-derivation dropped `SC-1`'s
+    CLASS-agreement condition and matched only the odds value, returning a confident **0.0000**
+    against `SC-1`'s published 11.7% - **a check that cannot fail**, the blank-code-counter
+    family, **caught by disbelieving a zero that disagreed with a published figure** and
+    reproducing 0.1169 once fixed. (2) A guard asserted the register contained a counterfactual
+    argument, copied from a sibling whose licence WAS one; corrected to the quote that actually
+    licenses this item.
+  * **AN ARITHMETIC SLIP IN MY OWN REGISTER, CORRECTED IN THE WRITE-UP AND NOT EDITED AWAY:** §7
+    says the 0.15 bar sits at 38% of the bracket; it is **42.5%**. The error made CALIBRATED look
+    HARDER than it was, so the registered 55/45 lean was if anything conservative.
+  * **EXPECTATIONS 7 RIGHT, 0 WRONG - AND WORTH LESS THAN IT LOOKS, WHICH IS THE POINT.** Five of
+    the seven follow from §1's arithmetic and `SC-1`'s banked figures and are near-deductions
+    rather than forecasts; only the verdict itself was a coin-flip, registered at 55/45. **`SC-1`
+    scored its own 2 right and 2 wrong. Neither number says anything about the record as a
+    whole, which is exactly why the aggregate study exists.** **18 new tests.**
+    `scripts/sc1b_cluster_by_item.py`, `data/free_analysis/SC1B_CLUSTER_BY_ITEM.json`,
+    `SC1B_CONTROLS.json`; `HANDOFF_edge_audit.md` SC-1b.
+- **A NAME'S OWN VALUATION HISTORY CARRIES ~71% NEW INFORMATION AND PREDICTS NOTHING WITH IT -
+  AND THE DURABLE PART IS THE CONTAMINATION §0 HAD TO RESOLVE BEFORE THE ARM COULD RUN
+  (2026-08-20, `E-6`/`S-SEED-2`).** `PREREG_e6_temporal_axis.md` committed **ALONE at
+  `0008008`**, markdown only, zero `.py`, 268 lines, a strict ancestor of every measurement
+  commit; **1 equity trial booked at `cfa9722` BEFORE the runner existed, equity 239 -> 240.**
+  **RE-READ AFTER MERGING (`MA37`, sixth time): the live equity `N` is 241, not 240** - the
+  `E-2` lane landed a trial while this was pushing, and the stamp was reconciled to the MEASURED
+  post-merge count with both hurdle literals DERIVED rather than typed.
+  **ADOPTS NOTHING.**
+  * **THE CONTAMINATION, AND WHY IT IS THE PART TO REMEMBER.** `I-2`'s burn-in census was
+    **already published** with two readings of the seed's *"burn-in pre-committed at 5y"* -
+    **60.607% at twenty observations** and **58.886% at twenty observations AND five calendar
+    years** - which **straddle the pre-committed 60% kill**. Choosing between them with both on
+    the page is `MA58`'s void condition 5, and **no argument from which side either lands
+    appears anywhere in the register.**
+  * **THE INTERNAL ANCHOR CANNOT DECIDE IT, CHECKED RATHER THAN ASSUMED:** the seed says *"5y"*
+    but *"first usable date ~2014"* fits 20 observations or 21, and *"a 10y burn-in leaves ~28
+    dates"* fits 41 slightly better than 40. **The seed is indeterminate to within ONE QUARTER,
+    which is exactly the size of the disagreement.**
+  * **RESOLVED ON AN EXTERNAL ANCHOR PREDATING THE CENSUS, VERIFIED IN THE SOURCE AND IN ITS OWN
+    GIT.** TIDEMARK's `percentile.py` rule 3 commits burn-in as an **OBSERVATION COUNT** and
+    `expanding_percentile` returns NaN before that many **valid observations** exist. **A
+    CORRECTION TO THE BRIEF: the commit is `76fa895`, 2026-08-16, NOT 2026-08-17** - a day
+    earlier, four days before the census, and it is recorded because a provenance argument with
+    a wrong date is not one. Three outcome-independent grounds: that provenance; **the PORT
+    implements the observation count while `min_history_years` is an OPTIONAL extra with no
+    default, so 58.886% is the engine PLUS a filter rather than a second reading of it**; and a
+    percentile's precision is a function of order statistics, not elapsed time. **THE
+    COUNTERFACTUAL TEST IS IN THE REGISTER: had the census come out the other way all three
+    grounds would still have chosen the observation count and the kill would have FIRED.**
+  * **`VOID-BY-CONTAMINATION` WAS AVAILABLE AND DECLINED WITH A REASON**, and the residual risk
+    is **BOUNDED rather than trusted**: a calendar sensitivity carrying no verdict and no trial
+    **AGREES** (NULL on both bases). **The asymmetry is stated - agreement is NOT proof the
+    choice was immaterial, because under the calendar reading the census fails its own kill and
+    that arm is underpowered by its own gate.**
+  * **TWO FINDINGS ABOUT THE BAR, TRUE WHICHEVER SIDE FALLS. (1) The two definitions differ by
+    ONE QUARTER** - 20 quarterly observations span 19 intervals and buy **4.75** years, not five
+    - **worth 1.77pp of eligibility, and the 60% bar sits INSIDE that single step**, so the kill
+    cannot discriminate at the resolution that separates them. **A successor must not set a
+    knife-edge burn-in bar.** **(2) The observation count is NOT the weaker requirement in
+    practice: the median scored row carries 10.018 calendar years**, p05 5.005, minimum 4.75.
+    The port's own invitation was to check whether twenty observations bought five years or
+    nine; **it bought ten.**
+  * **VERDICT `NULL`, rejected on both co-primary bases.** Incremental IC *t*: basis six
+    **-0.0010** full / +1.1315 early / -0.7862 late over 50 effective dates; basis seven
+    **+0.0386** / +1.2752 / -0.8469 over 49. **Largest absolute *t* in any cell of any arm is
+    1.2752 against 2.71.**
+  * **AND UNLIKE `E-3`, THE RAW COLUMN DOES NOT SORT EITHER - raw IC *t* +0.0296 and +0.0621.**
+    `E-3`'s dispersion raw-sorted at -2.17/-2.30 and lost it all to residualisation, which is a
+    repackaging; **here there was no signal to lose.** Observed incremental effect **0.0001 SD**
+    and **0.0055 SD** against 80%-power MDEs of 0.5020 and 0.5071 - **92x to 3,503x below its
+    own detection threshold.**
+  * **R2 ON INCUMBENTS 0.2926 / 0.2936, so the column is ~71% new information and predicts
+    nothing with it - the FIFTH item on that pattern**, though at a higher R2 than the
+    0.027-0.145 band of the four this file already names, so it extends the pattern rather than
+    repeating it.
+  * **CONTROLS.** `K1` re-derives the census rather than reading `I-2`'s JSON and **reproduces
+    its published figure exactly**. `K2` `MB7`'s repaired gate costs basis seven **exactly ONE
+    date** (2013-10-17 -> 2014-01-17), **precisely the exposure the register predicted before
+    running**, which is why it took both bases. `K3` largest |rho| is **`value` itself at
+    +0.4806**, then **`momentum` at -0.2721, NEGATIVE** - the direction the register
+    hypothesised for a change signal; diagnostic, no verdict. `K4` look-ahead **0.000e+00** over
+    52,519 rows.
+  * **A DEFECT IN MY OWN INSTRUMENT, CAUGHT BY THE SUITE:** `build` merged the percentile frame
+    on `date` without normalising, and while a dtype mismatch RAISES, **the dangerous case is a
+    merge matching ZERO rows in SILENCE** - this record's own documented hazard for these
+    string-dated panels. Both sides are now forced to one form **and the merge must have
+    attached a history to at least half the rows**. **Proved inert by re-running: every figure
+    bit-identical.**
+  * **REPORTED OUTSIDE THIS LANE: `I2_BURN_IN_CENSUS.json` was STRANDED in the `options-live`
+    worktree - the SECOND instance in two sessions** after `MA28_CARD.json`. Restored to the
+    primary data root; without it `K1` could not re-derive and `K4` could not read at all.
+    **An artifact written by a worktree-run script does not survive the worktree, and every
+    register reading a prior item's artifact inherits that.**
+  * **NOT DONE: no second theme, no burn-in grid, no interaction arm, no standardiser swap, no
+    adoption**, and **the mechanism is unmeasured** - that the column is orthogonal and inert is
+    measured; why a name's own valuation history carries nothing forward on this panel is not.
+    **Expectations 5 right, 1 wrong, 1 unscorable** - the miss is R2 (predicted below 0.20), and
+    the unscorable one is the sign, whose antecedent never fired. **16 new tests.**
+    `scripts/e6_temporal_axis.py`, `data/free_analysis/E6_TEMPORAL_AXIS.json`,
+    `E6_CONTROLS.json`; `HANDOFF_edge_audit.md` E-6.
+- **THE CROSS-THEME DISPERSION SORTS IN THE PUBLISHED DIRECTION AND IS A REPACKAGING OF THE
+  INCUMBENTS - AND ITS ORTHOGONALITY IS GUARANTEED BY CONSTRUCTION, SO IT WAS NEVER WORTH
+  ANYTHING (2026-08-20, `E-3`/`S-SEED-1`).** `PREREG_e3_theme_dispersion.md` **ACCEPTED** from
+  the Frontier Scout's draft and committed **ALONE and BLIND at `5d308f5`**, markdown only, zero
+  `.py`, 218 lines, a strict ancestor of every measurement commit; **1 equity trial booked at
+  `fa5433a` BEFORE the runner existed, equity 238 -> 239.** **ADOPTS NOTHING, touches no book,
+  ships no copy.**
+  * **VERDICT `NULL`, REJECTED ON BOTH CO-PRIMARY BASES.** Incremental IC *t*: basis six
+    **-0.1753** full / -0.3241 early / -0.0743 late over 69 effective dates; basis seven
+    **-1.0895** / -1.0240 / -0.6799 over 49. **The largest |*t*| in any cell of either basis is
+    1.0895 against the 2.71 bar**, and the arm had to clear BOTH bases (`MB18`'s rule).
+  * **THE FINDING IS THE COLLAPSE RATHER THAN THE NULL. The RAW dispersion sorts in the declared
+    NEGATIVE direction - median IC -0.0243 and -0.0387 at raw *t* -2.1733 and -2.3041 - and
+    residualising on the incumbents removes essentially all of it.** Mean R2 on incumbents
+    **0.3467 / 0.4125**, which is where `U2` measured a REPACKAGED incumbent (`gp_on_capital`
+    41.3%) and nowhere near the **0.027-0.145** band four orthogonality-motivated items
+    reported. The PEAD template detecting a repackaging is exactly what it is for.
+  * **AND THE RAW READING CLEARS NEITHER BAR THAT GOVERNS HERE, which is the sentence that stops
+    it being quoted as a near-miss: 2.17 and 2.30 pass the RETIRED 2.0 convention and fail X7's
+    calibrated 2.71** - and X7 retired 2.0 because it measured **39% of PURE-NOISE draws**
+    producing at least one theme at 2.0 or better.
+  * **THE INTERPRETIVE CONSTRAINT THE EXECUTOR ADDED TO THE DRAFT, AND IT BINDS ANY SUCCESSOR:
+    `residualise` is LINEAR and a row-wise SD is a NON-LINEAR function of the very columns it is
+    residualised against, so a surviving residual here is guaranteed by construction.** A high
+    R2 was therefore the PREDICTION rather than a disappointment (registered at 70/30, measured
+    0.347/0.413), and a surviving incremental IC would have been a claim about **FUNCTIONAL
+    FORM**, never about new information. This file already names structural orthogonality as a
+    motivation nobody should run again; **this register never rested on it.**
+  * **BOUNDED, NOT ABSENT, AND THE MDE TRAVELS WITH THE VERDICT.** Observed incremental effect
+    **0.0211 SD against an 80%-power MDE of 0.4274** on basis six (**20.25x below**) and
+    **0.1556 against 0.5071** on seven (**3.26x**). The two 80% figures reproduce `MB18`'s
+    published design class **to four decimals**, an independent check that the power arithmetic
+    is this record's own; and `MB18` measured the strongest RAW anchor on rows of this shape at
+    **0.4346 SD**, so a NULL here means *"nothing as large as the best thing this panel has ever
+    carried"*, never *"no effect"*.
+  * **`B7` HONOURED BY MEASUREMENT: `composite_from_frame` is CALLED and never re-implemented,
+    and C-IDENT gates on `composite(Z, w)` reproducing it elementwise at max |delta| 0.000e+00
+    across 113,945 values on BOTH bases** - proved NON-VACUOUS by perturbing one cell of `Z` by
+    1e-12 and requiring the identity to break, and by refusing an empty comparison rather than
+    scoring it perfect (`MB21`'s C1).
+  * **FOUR DEPARTURES FROM THE DRAFT THAT CHANGED THE MEASUREMENT, ALL DECLARED BEFORE RUNNING.**
+    (1) **Its eligibility justification cited an unrelated measurement** - *"`C7` measured 22.01%
+    of rows carrying fewer than two computable inputs"* is `MA28-CARD`'s C7 counting
+    **ACCOUNTING-FLAG** inputs, not themes; the floor was kept on its own merits and the real
+    cost MEASURED at **1.10% and 0.91%**, so the borrowed figure was wrong by twenty-fold.
+    (2) `disp` is taken over the **PER-DATE STANDARDISED** columns, because
+    `composite_from_frame` re-standardises and the raw theme spreads differ by construction
+    (`S3`: `quality` near 0.50 against `insider` near 0.96) - a dispersion over raw columns is a
+    sort on how many INPUTS a theme happens to have. (3) `disp` is defined **PER BASIS**, so the
+    statistic and its control cover the same themes. (4) **K3 is DEGENERATE on the arm's own
+    rows** - the complete-case rule makes the theme count CONSTANT there and a Spearman against
+    a constant is undefined, not a pass - so all three kills are read on BOTH populations and
+    fire if EITHER exceeds, and K3 is reported **STRUCTURALLY ABSENT** on the scored rows.
+  * **NO KILL FIRED, AND `R6`'s GHOST DOES NOT WALK.** K1 vs `size` is the **SMALLEST** of the
+    three (0.016/0.058 eligible, 0.008/0.049 on the arm), so this conviction statistic is not
+    the size sort its predecessor decomposed into. K2 vs `|composite|` is the largest at
+    **0.211-0.236** against a 0.60 bar - the mechanical link (`mean^2 + var = mean of squares`)
+    is real and simply not large enough. **The draft called K2 the likeliest to fire at 40/60
+    against firing and was right on both halves.**
+  * **THE `MB7` DEFECT IS VISIBLE IN THE ARTIFACT RATHER THAN ARGUED:** basis seven records
+    **`split on RAW then intersect early 14 / late 34 ok=False`** against **`EFFECTIVE 24 / 24
+    ok=True`** - the exact cell `MB7` exists for. The register declared `split_used="effective"`
+    beforehand, and the boundary moves **2017-07-20 -> 2020-01-22** with the required
+    disclosure.
+  * **EXPECTATIONS 5 RIGHT, 1 WRONG, 1 SPLIT. The miss is the draft's own expectation 4 and it
+    is BACKWARDS:** it predicted dispersion's largest input correlation would be with
+    `institutional` on basis seven; measured, **`institutional` is the SMALLEST at +0.008** and
+    **`capital_discipline` the LARGEST at -0.198**. **And that expectation was written against a
+    quantity the registered design never emits** - the three kills produce no per-theme table -
+    so scoring it required a labelled post-hoc one, which is a small finding about the draft.
+    The SPLIT is the sign: the RAW column is negative everywhere, while the **INCREMENTAL
+    full-sample median is POSITIVE on basis six**, so *"the direction points the right way"* is
+    false of the incremental statistic and may not be written.
+  * **NOT DONE: no interaction arm** (§6.2, `S7`), **no weighting or sizing use** (§6.1, `S13`),
+    **no `MA55` claim** (different lenses, still unrun), **no product copy** (`V3` forbids a
+    per-name conviction label), and **the mechanism behind the collapse is NOT separated** -
+    which incumbent carries the raw signal, and whether the residual is functional form or
+    noise, would need its own register and its own trial. **21 new tests.**
+    `scripts/e3_theme_dispersion.py`, `scripts/e3_addendum.py`,
+    `data/free_analysis/E3_DISPERSION.json`, `E3_CONTROLS.json`, `E3_ADDENDUM.json`;
+    `HANDOFF_edge_audit.md` E-3.
+- **THE FLAG'S EXCESS CRASH HAZARD DECAYS MONOTONICALLY IN ALL THREE WINDOWS - 9 OF 9 STEPS
+  DOWN - AND THE EXCESS CRASH *COUNT* PEAKS IN THE SECOND QUARTER, SO "FLAGS DECAY,
+  THEREFORE BUY SHORT-DATED" IS THE ONE INFERENCE THIS ITEM REFUTES (2026-08-20, `E-5`/`INV-A`).**
+  `PREREG_e5_hazard_curve.md` committed **ALONE and BLIND at `dd6fe93`**, markdown only, zero
+  `.py`, 308 lines, a strict ancestor of every measurement commit; **1 equity trial booked at
+  `5696055` BEFORE the runner existed, equity 236 -> 237**, options 305 and infra 19 untouched.
+  **RE-READ AFTER MERGING (`MA37`'s rule, fourth time on this record): the live equity `N` is
+  238, NOT 237** - the `E-1` lane booked a trial while this was landing, so 236 -> 237
+  describes E-5's own booking and 238 is the figure to quote. The stamp was reconciled to the
+  MEASURED post-merge count rather than to either side of the merge; the register is left
+  UNEDITED at 237, which was correct when it was written.
+  **ADOPTS NOTHING, CHANGES NO PRODUCT COPY, LICENSES NO TRADE.** The Frontier Scout's
+  invention, executed by this lane, and the first consumer of `I-3`'s crash-gate library.
+  * **VERDICT `UNRESOLVED` - TWO LEGS OF THREE, ON A CONJUNCTION FIXED BEFORE THE RUN.** **L1
+    clears** at `HR(1)` **3.0422123745999063**, `MA28-CARD`'s own banked figure to all sixteen
+    digits. **L2 clears and not narrowly.** **L3 FAILS at 0.5701 against the proposal's own 0.60
+    bar, missing by 2.99pp.** Ambiguous against a pre-committed threshold is a NULL and never a
+    judgement (`RUN_RULES` A6), so it is not reported as *"mostly front-loaded"*.
+  * **THE RATIO PATH IS THE CLEANEST THING HERE: full 3.0422 / 2.6494 / 2.1897 / 1.8974, early
+    3.4209 / 3.0680 / 2.5245 / 2.3129, late 2.9321 / 2.5315 / 2.0931 / 1.7754** - every window,
+    every step down. The decay statistic reads **0.7345** full sample against a within-date
+    flag-permutation p95 of **0.1932** and the null's **MAXIMUM of 0.3413 over 500 draws**, so
+    the observed value exceeds every draw.
+  * **AND THE TWO LEGS DISAGREE FOR A MEASURED REASON, WHICH IS THE FINDING. The excess crash
+    COUNT peaks in quarter TWO - 116.8, 164.4, 125.5, 86.6 - because the KEPT base rate itself
+    nearly doubles from quarter one to quarter two (0.8743% -> 1.5994%).** That is a property of
+    the cumulative WINDOW, not of the flag: two quarters have more room to reach -50% than one
+    does. **So the ratio falls while the excess count does not front-load, and a register with a
+    single statistic would have reported whichever one it happened to pick.**
+  * **FOR `O-1`'s PUT TENOR, STATED PLAINLY: NOT SUPPORTED AS A SHORT-TENOR ARGUMENT.** Quarters
+    three and four together carry **~43%** of the four-quarter excess and the largest single
+    quarter is the **second**. **FOR THE CARD'S COPY** the ratio is the right figure and it fades
+    without vanishing - ~3.0x in the first quarter, **~1.9x in the fourth**. Quote the ratio and
+    BOTH rates, never the difference (`crash_gate`'s rule, a measurement about this panel's
+    era-dependent base rate).
+  * **THE INSTRUMENT REPRODUCES `MA28-CARD` ON FIVE INDEPENDENT COUNTS** - 6,542 flagged rows,
+    flagged share 5.7414%, full **3.0422123745999063**, early **3.4208900608295076**, late
+    **2.9321220447443164** - **and the reconstructed forward return equals the panel's shipped
+    `fwd_ret` at max |delta| 0.000e+00 on all 113,354 rows where both exist.**
+  * **A DEFECT IN MY OWN INSTRUMENT, CAUGHT PRE-ARM BY `K3` REFUSING, AND IT IS THE REGISTER'S
+    OWN §0b IN MY OWN CODE.** The first controls run failed K3 while the crash-indicator
+    agreement was already a perfect **1.000000**: the gap was **591 rows whose ticker STOPS
+    TRADING inside the window**, which a 63-trading-day price path cannot see, so it silently
+    deleted **16 crashes, 5 of them flagged** - survivorship selection of exactly the kind §0b
+    was written to forbid. **The repair is the panel's own rule RECOVERED rather than chosen:
+    `fwd_ret` equals `last_close / c0 - 1` on 591 of 591 of those rows at max |delta|
+    0.000e+00.** So **a DELISTED name has a TERMINAL value** - a last close is not a short
+    window, it is the value of a security that ceased to exist - **while an ADMINISTRATIVE end
+    of data still censors, which keeps `S22`'s and `V6-B`'s no-last-price-fallback rule intact
+    exactly where it applies.** Those two censoring causes had been treated as one. After the
+    repair K3 reproduces `MA28` EXACTLY rather than within tolerance. **A second defect, also
+    pre-arm: the permutation null marked every shuffled cell as qualifying while the observed
+    statistic pooled over cells qualifying under the REAL flag** - two different functionals,
+    one of them calibrating the other.
+  * **A QUALIFICATION ON MY OWN PASSING LEG, MEASURED BECAUSE IT CUTS AGAINST IT.** L2's bar is
+    calibrated where the flag carries nothing (`HR` ~ 1) and the statistic is measured where
+    `HR` ~ 3, and a ratio's sampling variance grows with the ratio. At a delta-method se under
+    the OBSERVED rates the decay is **4.10 sigma** full sample and **3.66** late - **and only
+    1.83 EARLY, whose own 80%-power MDE is 1.179 against an observed 0.760.** **So the decay is
+    established on the full sample and the late half, and the early half is directionally
+    consistent but is NOT independent corroboration.**
+  * **THE FLAG IS TRANSIENT, AND IT IS THE NUMBER A TENOR CHOICE MOST NEEDS: only 33.5% of names
+    flagged at a date are still flagged one quarter later, 27.5% at two, 23.2% at three, 22.1% at
+    four.** So *"the flag's information decays"* and *"the flag goes away"* are entangled here and
+    **this register does not separate them** - a name that stops being flagged is not a name whose
+    risk resolved. Diagnostic, no verdict.
+  * **CONTROLS. `C4`'s distress-delisting sensitivity is TIGHT and agrees** (42 events added;
+    `HR(1)` 3.0422 -> 3.0384, decay -> 0.7216, share -> 0.5693, verdict UNRESOLVED). **`C3`
+    REFUTES my own expectation** - flagged rows are censored by delisting at 1.93% against 1.52%,
+    a ratio of **1.27x** where I registered 65/35 on 2x or more. `C6` the null is non-vacuous (500
+    distinct draws, zero undefined). `C8` median market cap $2.69bn flagged against $5.19bn kept,
+    reproducing `MA28` again.
+  * **`K2`'s ALLOCATION PENALTY TRAVELS BEYOND THIS ITEM: 69,445 rows required at 80% power
+    against 106,660 observable, where the textbook EQUAL-allocation figure is 11,640** - so
+    ignoring that the flag fires on 5.74% of the panel understates the requirement **5.97x**.
+    `I-3`'s `required_rows` reports both by design.
+  * **REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3): `MA28_CARD.json` was STRANDED IN ANOTHER
+    WORKTREE and `I-3`'s validation could not run.** It refuses rather than passing vacuously,
+    which is the correct direction; the file was in `.claude/worktrees/options-live/data/`, a
+    directory that disappears with that worktree. **Copied to the primary data root and
+    `i3_crash_gate_validate.py` now passes fully again - 66 leaves, max |delta| 0.000e+00, both
+    routes.** Rule 9's own failure mode: the draws were stored, in a place that does not survive.
+    **AND A SECOND, FIXED HERE BECAUSE IT IS ONE TOKEN:**
+    `tests/test_i3_crash_gate.py`'s banked-card test resolves the data root with a helper
+    and then reads the card from `REPO` instead of from the resolved root, so on ANY
+    worktree it skipped even with the card present. It skipped LOUDLY, so never a vacuous
+    pass - but a guard that resolves a location and then reads a different one is the
+    wrong-object family. **That suite now runs 36 tests with ZERO skips**, and its own
+    reproduction of `MA28`'s three window ratios independently confirms this item's `K3`.
+  * **NOT DONE, named so it is not mistaken for done: `E-4` and `E-8` are NOT run**, each charges
+    its own trial and needs its own blind register; **no fifth quarter, no second threshold, no
+    second flag definition**; **the MECHANISM is UNMEASURED**; and **nothing here transfers to the
+    BOOK** - `MB8` measured this flag firing on 3.56% of the top-decile book and catching one
+    crash of eighty-four. **Expectations 7 right, 1 wrong, and discounted rather than celebrated**
+    (`SC-1`'s own lesson): three were near-certainties, two were the record's default null, **and
+    the binary being right hides a wrong shape - I expected L2 to be the marginal leg and L3 to
+    fail clearly, and the opposite happened.** **31 new tests.**
+    `scripts/e5_hazard_curve.py`, `scripts/e5_addendum.py`, `valuation/studies/hazard_curve.py`,
+    `data/free_analysis/E5_HAZARD_CURVE.json`, `E5_CONTROLS.json`, `E5_ADDENDUM.json`;
+    `HANDOFF_edge_audit.md` E-5.
+- **DELTA-COMPOSITE IS THE CLEANEST NON-COSTUME THIS RECORD HAS EVER MEASURED AND IT PREDICTS
+  NOTHING - SIX CELLS OF SIX NULL, AND THE LARGEST ONE POINTS THE WRONG WAY (2026-08-20, `E-2`).**
+  `PREREG_e2_delta_composite.md` **ACCEPTED VERBATIM** from the Frontier Scout's draft and
+  committed **ALONE at `c93ffc8`**, markdown only, 194 lines, a strict ancestor of every
+  measurement commit, with the **equity trial BOOKED AT `441344c` BEFORE the instrument was
+  written or run** (equity `N` 238 -> 239). **ADOPTS NOTHING.**
+  * **THE OBJECT.** `dc(i,t) = c(i,t) - c(i,t-1)` on consecutive rebalance dates, `c` being the
+    SHIPPED composite via `composite_from_frame` - Novy-Marx's fundamental-momentum hypothesis
+    applied to the score itself. Verified never tested: no row among 289 in the ledger and no item
+    in the 134-item audit set tests a change-in-score signal.
+  * **IT CLEARS ITS COSTUME TESTS MORE CLEANLY THAN ANY CANDIDATE BEFORE IT, WHICH IS WHY THE NULL
+    IS WORTH RECORDING.** `K1` vs the `momentum` theme **0.1320**; `K2` vs the banked PEAD columns
+    **0.1030** max (`z_pead_car` 0.1030, `z_pead_drift` 0.0986); `K3` vs the composite **LEVEL**
+    **0.4149 with ZERO of 68 dates above the 0.60 bar**. So it is not price momentum, not PEAD
+    resurrected, and not a re-ranking of the product. **Five of the last six candidates were
+    confirmed orthogonal and predicted nothing; this one is the cleanest of them and also predicts
+    nothing.**
+  * **VERDICT NULL, SIX CELLS OF SIX, declared sign POSITIVE against a 2.71 bar.** Basis six full
+    *t* **-0.8501**, early **-2.6511**, late **+0.6234**; basis seven full **-0.5428**, early
+    **-0.3342**, late **-0.7799**. **EVERY CELL SITS BELOW ITS OWN 80%-POWER MDE, at 0.09x to
+    0.75x**, so the register's own sentence binds: a NULL means *"no trajectory effect at least as
+    large as the best single signal this panel has ever carried"* (**0.4346 SD**), never "no
+    effect".
+  * **THE LARGEST |t| ANYWHERE IS IN THE WRONG DIRECTION AND CARRIES NO CLAIM.** Basis six's EARLY
+    half at **-2.6511** misses the bar's magnitude by **0.0589** against a declared POSITIVE sign.
+    It is one of six cells, contradicts the declared direction, and sits at **0.75x of its own
+    detection threshold**. Reported only because a reader would otherwise discover it; **chasing it
+    would be selecting a cell on its outcome and needs its own register.**
+  * **AND THE DECLARED SIGN IS NOT WHAT PRODUCED THE NULL - a TWO-SIDED reading is ALSO null, for
+    two independent reasons, pinned by test.** Basis six's halves **DISAGREE IN SIGN** (-2.6511
+    early, +0.6234 late) so the both-halves rule fails in EITHER direction; basis seven's halves
+    agree in sign and its largest |t| is **0.7799**. **The halves disagreeing in sign is this
+    record's most repeated pattern - session 7's LOO, `S17`, `V6`, `S8`/`S9`, `S11`/`S12`,
+    `O21-D2` - and this is a seventh instrument showing it.**
+  * **`C-FIDELITY` WAS ADDED BY THE EXECUTOR BECAUSE THE DRAFT HAD NO SUCH CONTROL, and it is
+    EXACT.** The composite being differenced reproduces the published record at **max |delta|
+    0.000e+00** on all four figures. That hole is the one `MB18` fell into two items ago and the
+    one `MA28`'s equivalent control caught **on its own first run**. A control can only BLOCK,
+    never produce (`MB1-SEL`), and it moved no registered bar.
+  * **`MB7`'s REPAIRED GATE DID REAL WORK, AND THIS IS THE FIRST REGISTER SAVED BY IT.** On basis
+    seven the RAW-then-intersect split reads **`ok=False` at 15/33** while the EFFECTIVE split is
+    **24/24** - exactly the refusal-3 case `split_used="effective"` was created for in `MB18`,
+    where a refusal keyed on a property of the DATA rather than the caller's BEHAVIOUR fired
+    against a register doing the right thing. **Without that repair E-2 would have been refused.**
+  * **A SCOPE CORRECTION THE DRAFT DOES NOT MAKE, DECLARED BEFORE THE RUN: THE OBJECT IS A CHANGE
+    IN RELATIVE STANDING.** `composite_from_frame` standardises **WITHIN each date**, so a name
+    whose fundamentals improve exactly as much as the cross-section's has **`dc` near ZERO**, and a
+    name standing still amid deterioration has `dc > 0`. The register's section 1 describes an
+    **ABSOLUTE** improvement and the object measures a **RELATIVE** one. **Not a reason to reject** -
+    a cross-sectional book ranks names against each other - but every verdict here is a verdict
+    about relative standing, and that sentence ships in the artifact.
+  * **THE COUNTER WAS STALE TWICE OVER**, which is why `by_domain` is re-read and never quoted: the
+    draft says 235 -> 236 and equity had already moved to **238** the same day via `E-1` and `E-5`.
+    **`MA37`'s rule, for the fourth time.** And a **`M1-PARSE` near-miss**: the first cut of both
+    rows wrote `|t|` in prose, splitting the log row into 15 cells against a 9-column header -
+    caught by `rows_malformed` before landing, and the only fix is not to put a pipe in the prose.
+  * **SURVIVOR TILT PRINTED RATHER THAN ASSUMED, as section 2 requires, and it is material: median
+    market cap kept $5.12bn against dropped $1.80bn, a 2.845x tilt** on 97.61% coverage over 68 of
+    69 dates. **NOT DONE: no smoothing, no longer lookback, no multi-horizon delta** (section 6
+    void condition 1 forbids a grid, and the consecutive-dates-only rule is pinned on a synthetic
+    panel with a deliberate hole); **PEAD is not re-opened**; no product copy, no weighting change,
+    no holding-period claim. **Expectations 3 right, 1 wrong, 1 split - the informative miss being
+    that the draft priced a POSITIVE LATE-half effect and the strongest cell is a NEGATIVE
+    EARLY-half one.** **141 suites, 0 failures; 19 new tests.** `scripts/e2_delta_composite.py`,
+    `data/free_analysis/E2_KILLS.json`, `E2_ARM.json`; `HANDOFF_edge_audit.md` E-2.
+- **THE GRAVEYARD AGGREGATE IS A SIZE SORT AND THE ARM NEVER RAN - `R6`'s AUTOPSY CALLED THIS
+  FAILURE IN ADVANCE, ON A SET FIVE TIMES LARGER AND BUILT BY A DIFFERENT RULE (2026-08-20,
+  `E-1`).** `PREREG_e1_graveyard_stouffer.md` **ACCEPTED VERBATIM** from the Frontier Scout's
+  draft and committed **ALONE at `e05c33c`**, markdown only, 203 lines, a strict ancestor of every
+  measurement commit, with the **equity trial BOOKED AT `dff46bc` BEFORE the instrument was
+  written or run** (equity `N` 236 -> 237). **ADOPTS NOTHING** - no file under `valuation/`
+  changed.
+  * **THE VERDICT IS `WITHDRAWN`, NOT `NULL`, AND THE DISTINCTION IS THE WHOLE ITEM: the arm was
+    never run.** `K2` - mean per-date |rho| against the `size` theme - reads **0.6114 against the
+    register's 0.60 bar**, and section 4 withdraws the arm rather than scoring it. `--arm` refuses
+    non-zero and a test asserts no arm artifact exists.
+  * **THE KILL FIRES BY 0.0114 AND IS NOT A KNIFE EDGE, which is why the distribution was added
+    as a labelled diagnostic.** Per-date |rho|: **median 0.6757, p05 0.3062, p95 0.7457, and 50 of
+    69 dates (72.5%) individually above the bar.** **The registered MEAN is dragged DOWN by a left
+    tail rather than up by a few dates** - the median sits 0.076 clear of the bar.
+  * **THE MECHANISM, AND `R6` NAMED IT FIRST.** `K2` exists because `R6`'s autopsy found the last
+    conviction aggregate decomposing into a size sort. Of the 29 graveyard signals **7 are
+    `low_risk`** - the theme this file already records at **-0.352 against `size`, the strongest
+    anticorrelation in the theme matrix**, with the standing note that *"low-beta/low-vol names ARE
+    large caps"* - and **6 are institutional-conviction signals**, which `R6` measured at **-0.815
+    to -0.854** against `size`. **Thirteen of twenty-nine come from two families already measured
+    to be size proxies, and flat-weighting two proxies for one thing CONCENTRATES the exposure
+    rather than diversifying it.**
+  * **THE PAIR WORTH CARRYING, BECAUSE IT LOOKS CONTRADICTORY AND IS NOT: the aggregate is nearly
+    ORTHOGONAL to the shipped composite (`K1` = 0.1097, passing its 0.60 bar by a mile) and
+    strongly correlated with `size` (0.6114).** Both hold at once because `size` is one seventh of
+    the composite's weight - and it is the sharp form of `X3`'s finding that **`size` has the WORST
+    theme IC and carries the composite's ENTIRE statistical significance.** A candidate orthogonal
+    to the blend while proxying its most load-bearing component is the costume that matters most.
+    **The sixth structurally-orthogonal candidate in this record, and the first to die on a
+    COSTUME kill rather than on a bar.**
+  * **A CORRECTION TO THE DRAFT THAT RUNS AGAINST IT, DECLARED BEFORE ANY OUTCOME.** Its "expected
+    ~40+" signals is wrong: **the graveyard holds 29.** And getting there required correcting my
+    own first count of 16 - **the theme MEANS use far fewer columns than `NUMBER_THEME` ASSIGNS**
+    (`institutional` **2 of 9**, `quality` **10 of 13**, `momentum` **3 of 5**,
+    `capital_discipline` **1 of 2**), so the seven weighted themes take **24 distinct z-columns**
+    and taking the registry's mapping instead would have put **17 genuinely non-incumbent signals
+    in the incumbent bucket and fired `K3` spuriously.** The census is DERIVED from the theme means
+    via the AST. **The direction matters: the draft set `K3`'s floor at 25 while expecting 40+, so
+    the true margin is FOUR rather than the comfortable one its author assumed.**
+  * **`§1` DEMANDS A "PUBLISHED SIGN RECORDED AT REGISTRATION" AND NO SUCH REGISTRY EXISTS FOR
+    EQUITY SIGNALS** - `PUBLISHED_SIGNS` is options-lane machinery. Read literally the next
+    sentence would exclude all 29 and fire `K3` at zero; that reading was **rejected in writing
+    before the run**, for the clause's own stated reason (it exists to prevent *in-sample*
+    orientation), and **the sign record was declared to be the shipped `z_` construction
+    convention** - the `neg_` prefix, applied at build time in tracked source, predating the
+    register, not derived from this panel's outcomes. **The arm applies no sign flip of its own**,
+    pinned by test.
+  * **A DEFECT IN MY OWN TEST, AND IT WAS A VOID-CONDITION BREACH.** The first mutation test proved
+    the gate by flipping `all_kills_pass` to `True` and checking the refusal vanished - **which RAN
+    THE WITHDRAWN ARM**, scoring the hypothesis the register had just withdrawn and writing
+    `E1_ARM.json`. Caught by this suite's **own next assertion** on the following run; the file was
+    **deleted UNREAD** and no figure from it was ever opened, printed or recorded. **THE PORTABLE
+    LESSON: a test that proves a refusal by REMOVING it is not safe when the thing behind the
+    refusal is forbidden.** Replaced by **two DISTINCT refusal messages** (missing artifact versus
+    failing artifact - a hard-coded refusal cannot tell two states apart) plus an **AST check** that
+    the refusal is conditional, neither of which executes the arm.
+  * **THE TRIAL IS KEPT AT 237 AND THE COUNTER-ARGUMENT IS STATED.** `MB1-SEL` would license
+    **zero** - it booked trials contingent on an arm that never ran and charged nothing, on the
+    reasoning that a control can only BLOCK a finding. **It is kept anyway** because un-booking
+    after seeing a kill fire is the shape this record warns against hardest, and **overstating `N`
+    is the safe direction** (`MA6`'s call, for the same reason). Amendable if a later reader
+    disagrees; the error runs the safe way.
+  * **WHAT IT DOES NOT SAY: it is NOT a finding that subthreshold signals carry no aggregate
+    information.** The arm never ran. `K2` is a **costume** kill - this particular flat aggregate
+    cannot be told apart from a size sort. **NO COMPONENT-LEVEL CLAIM IS MADE OR REACHABLE**: no
+    per-signal outcome statistic is computed anywhere in the arm path, pinned by an AST test, and
+    **that prohibition would have bound identically had the arm CLEARED - clearing licenses no
+    mining.** A re-open needs a materially different construction (size-neutralising the aggregate
+    is the obvious one), its own register and its own trial; **it is not proposed.** The Stouffer
+    secondary was **never computed on the real panel.** **Expectations: 2 right, 1 right-on-
+    direction-wrong-on-margin, 2 unscorable - and the most informative miss is not on the list:
+    the draft priced `K1` as the plausible kill and did not price `K2` at all. When a register
+    carries several kills, the one its author does not price is worth reading twice.**
+    **137 suites, 0 failures; 19 new tests.** `scripts/e1_graveyard_stouffer.py`,
+    `data/free_analysis/E1_KILLS.json`; `HANDOFF_edge_audit.md` E-1.
+- **THE SEASON-2 INSTRUMENTS ARE BUILT, AND ONE OF THEM DECIDES `E-6` BY A WORD: A FIVE-YEAR
+  BURN-IN MEANS 60.61% OF ROWS IF IT IS TWENTY OBSERVATIONS AND 58.89% IF IT IS FIVE CALENDAR
+  YEARS, WHICH LAND EITHER SIDE OF `E-6`'s OWN PRE-COMMITTED 60% KILL (2026-08-20, `I-2`+`I-3`).**
+  `IDEAS_LEDGER.md` PART 3, one batch, **ZERO TRIALS, both `FIXED`-class** - no hypothesis, no
+  bar, no verdict, and for `I-2` no outcome relationship computed at all. `by_domain` is
+  **bit-identical** across the log append (equity **236**, options **305**, infra **19**) while
+  `rows_fixed_not_counted` rises **71 -> 73**, the proof both rows were seen and correctly
+  excluded. **ADOPTS NOTHING AND MOVES NO PUBLISHED CLAIM.** Nothing under `.github/` changed.
+  * **THE TRIAL DIVERGENCE IS DELIBERATE AND THE COUNTER-ARGUMENT IS ON THE RECORD.**
+    `IDEAS_LEDGER` prices each at 1 infra trial; both are logged at **zero** on the `MA5`
+    precedent (a consolidation is a correctness repair) and the `S25`/`MB15`/`MB3` precedent (a
+    census is a fact about what data exists). The scout lane's own header says its entries are
+    **proposals that move no counter**, and **infra `N` gates no published claim** either way.
+    The honest objection is that `I-2`'s census IS `E-6`'s pre-outcome kill input - and
+    `MB1-SEL` governs: *"a control can only ever BLOCK a finding, never produce one, so it adds
+    no degree of freedom to any published claim."* **No comparison to 60% is made or recorded
+    anywhere in the batch.**
+  * **`I-2` - THE FINDING, AND THE MECHANISM IS AN OFF-BY-ONE WORTH KEEPING.** TIDEMARK's
+    expanding-percentile engine ported to **per-name** histories (expanding window; no
+    look-ahead enforced by test; a burn-in returning `NaN` and never a number; publication lag
+    applied). On 113,945 rows over 69 quarterly dates and 2,531 names the eligible row share runs
+    **0.9335 at a 4-observation burn-in, 0.6821 at 16, 0.6061 at 20, 0.5394 at 24, 0.3160 at
+    40**. **On a QUARTERLY panel the 20th observation sits NINETEEN quarters - 4.75 years - after
+    the first, so twenty quarters is not five years**: requiring twenty observations AND five
+    calendar years leaves **0.5889**, and twenty-one observations **0.5884**. TIDEMARK never had
+    to choose because its series is dense; this panel's median name is present on 48 of 69 dates,
+    so **an observation count and an elapsed span come apart and a register must say which it
+    means**. `history_years` now ships on every row so a register saying "five years" can check
+    whether it got five years. **`E-6` MUST DECLARE ITS READING BEFORE IT RUNS** - both shares
+    are on the record, so choosing after seeing them is `MA58`'s void condition 5.
+  * **THE LOAD-BEARING TEST IS PORTED AND ITS PANEL FORM IS STRONGER THAN THE SERIES FORM.**
+    TIDEMARK's own comment on it is *"if this fails, every percentile in the project is a lie"*;
+    the panel version must hold **for every name at once, including names that enter and leave**,
+    which a single dense series never exercises. Demonstrated on the **REAL panel** rather than
+    only a fixture: truncate to the first 34 of 69 dates, **52,519 rows, keys identical, max
+    |delta| 0.000e+00**. **`MB24` UNTOUCHED - method crosses, no TIDEMARK data crosses**, the
+    `MB22`/`MB23` fence, pinned by a path-shape sweep. **The scout's 10-year suspicion is
+    CONFIRMED with a small correction: 30 eligible dates against its predicted 28, and `S18`
+    needs 32**, so a decade-long burn-in does die at that floor.
+  * **`I-3` - MA28's VERDICT MACHINERY IS NOW ONE IMPLEMENTATION, AND IT IS PROVED UNMOVED TWO
+    WAYS.** `B7`'s nine-call-sites lesson; the consumers the ledger names are `E-4`, `E-5`
+    (`INV-A`), `E-8` (`X-SEED-1`) and `O-1`'s C1. `scripts/ma28_riskcard.py` DELEGATES, and the
+    library reproduces the banked `MA28_CARD.json` at **66 leaves, max |delta| 0.000e+00, zero
+    moved, nothing added or removed** - and separately reproduces the **pre-refactor source
+    restored from git**, which is what isolates the refactor from any data drift the first
+    comparison alone cannot see. The leaf COUNT is gated, because `MB21`'s `C1` scored a perfect
+    0.000e+00 on an empty frame by comparing nothing.
+  * **THE DESIGN DECISION: THE ARITHMETIC MOVED AND THE BARS DID NOT.** Moving `MA28`'s constants
+    into the library is the obvious approach and it is wrong - `MA5` measured that a default is
+    exactly how the Harvey-Liu-Zhu bar froze at 3.0, and **these bars are worse because they are
+    PRE-COMMITTED** (`MA28`'s own source: *"EVERY CONSTANT BELOW IS FROM THE REGISTER. Changing
+    one after a measurement voids the item."*). A library default would let a future register
+    inherit `MA28`'s pre-registration **without writing one**. So every bar is keyword-only with
+    **no default**, a test asserts **no bar-shaped constant exists in the module at all**, and
+    the `B2`/`B3` result keys are **FORMATTED from the bars rather than typed** - or a 3.0x
+    comparison ships under a key saying 2.0x, which is `MA49`/`MA46`/`U3`'s family.
+  * **`quotable()` HAS NO DIFFERENCE FIELD IN ANY STATE, AND WITHHOLDS A RATIO BUILT ON TOO FEW
+    EVENTS.** `MA28-CARD`'s rule is a measurement: the base rate moved **0.3413% early against
+    1.3595% late**, so the absolute gap swings **0.86pp -> 2.39pp** while the ratio barely moves
+    (**3.42 -> 2.93**). The difference is still computed - `MA28`'s B1 and B3 are defined on it -
+    so the library separates an internal STATISTIC from a quoted FIGURE. And `MB8`'s lesson is
+    structural now: one crash of 407 is a count, not a rate, so the counts travel and the ratio
+    does not.
+  * **THE REQUIRED-N HOOK PRODUCES A NUMBER `E-4` NEEDS, AND IT IS NOT THE TEXTBOOK ONE.** At
+    `E-4`'s own 0.87%/qtr clean-subset base rate, a 2.0x target ratio and `MA28`'s 3.56% flagged
+    share, the honest requirement is **52,190 rows against the equal-allocation 5,489 - ignoring
+    the allocation understates by 9.51x**, because the textbook two-proportion formula assumes
+    equal group sizes and this book is nowhere near it. **So `E-4` is powered on the 113,945-row
+    PANEL and is NOT powered on the 11,426-holding BOOK**, by nearly five-fold. The critical value
+    is delegated to `power_gate` and still refuses to default through the extra layer.
+  * **A MISSING OUTCOME IS NOT AN ABSENT CRASH - AND HERE THE GUARD IS VACUOUS, NOT PASSING.**
+    `crash_flag` fails OPEN on a NaN forward return, as `MA28`'s did, and that is preserved so
+    the arithmetic stays `MA28`'s; `coverage()` now reports the hole. **On this panel it is zero -
+    113,945 of 113,945 rows carry an outcome - so it is reported VACUOUS rather than PASSING**
+    (`O21-D2`'s `C5` precedent).
+  * **FOUR OF MY OWN GUARDS FIRED AGAINST THE CORRECT TREE, AND ALL FOUR ARE ONE DEFECT.** A
+    docstring citing TIDEMARK's file paths; an artifact key `fwd_ret_loaded` whose whole job is
+    to record that the outcome was NOT loaded; a key
+    `e6_reads_this_but_no_verdict_is_recorded_here`; and an error message containing both the
+    word TIDEMARK and a colon. **Every one was a ban on a SUBSTRING tripped by prose documenting
+    the rule** - `MA49`'s family, and `MB1` already wrote the fix down after hitting it three
+    times in one register. **The substring ban is not a technique that works.** Replaced by exact
+    match, a verdict VOCABULARY, and a path-SHAPE regex requiring a separator, **each with a
+    positive control proving it still bites**. A fifth defect was found by mutation rather than by
+    reading: a date test asserted that *something* raised `ValueError` and **passed with the guard
+    deleted**, because pandas rejects the same string downstream - repaired by asserting the
+    message and adding a case pandas accepts happily.
+  * **A DEFECT OF MY OWN FROM THE PREVIOUS ITEM, FOUND HERE.** `EXPECTED_BY_DOMAIN` was assigned
+    **TWICE** in `tests/test_research_log_integrity.py` - `equity: 235` above `equity: 236` - for
+    four days, from `MB8`'s own merge commit `3def224`, which resolved two lanes booking trials
+    concurrently by **keeping both sides**. That is right for ledger ROWS and **wrong for a
+    single-valued CONSTANT**, where the first becomes dead code. The suite passed throughout
+    because Python takes the last one, **which is precisely the tamper-evidence defeated**. The
+    merge was CLEAN - adjacent insertions, no conflict markers, nothing to review - `MA23`'s
+    cross-lane shape. Fixed, with a new guard reading the **AST** so a comment quoting an old
+    stamp cannot trip it.
+  * **NOT DONE, named so it is not mistaken for done: `E-6` IS NOT RUN, NOT RESOLVED AND NOT
+    PRE-JUDGED**, and its 60% comparison is made nowhere in this batch; **`E-4`, `E-5`, `E-8` and
+    `O-1`'s C1 are NOT run** - the library has no consumer beyond `MA28`, which is the point,
+    since it was validated BEFORE anything new used it (`MB15`); **`I-1` and `I-4` are NOT
+    built**; and **`IDEAS_LEDGER.md` WAS NOT EDITED** - the scout lane reserves that file and
+    routes outcomes through Don, so the census wants relaying into its `OUTCOMES RELAYED`
+    section. **67 new tests (30 + 36 + 1), 13 of 13 mutations caught with sources restored byte-for-byte.**
+    `valuation/studies/name_percentile.py`, `crash_gate.py`, `scripts/i2_burn_in_census.py`,
+    `scripts/i3_crash_gate_validate.py`, `data/free_analysis/I2_BURN_IN_CENSUS.json`,
+    `I3_CRASH_GATE_VALIDATION.json`; `HANDOFF_edge_audit.md` I-2 plus I-3.
+- **MA28's CRASH FLAGS ARE REAL ON THE PANEL AND NEARLY ABSENT FROM THE BOOK - AS A 0.5x SIZING
+  HAIRCUT THEY REMOVE ONE CRASH IN EIGHTY-FOUR, AND RENORMALISING MAKES THE BOOK'S CRASH EXPOSURE
+  SLIGHTLY WORSE (2026-08-20, `MB8`).** `PREREG_mb8_sizing_haircut.md` committed **ALONE at
+  `a6d57c1`**, markdown only, 267 lines, a strict ancestor of every measurement commit, with the
+  **equity trial BOOKED AT `18a4ecc` BEFORE the instrument was written or run** (equity `N` 235 ->
+  236). **ADOPTS NOTHING - no file under `valuation/` changed at all**, pinned by test; adoption
+  would have been **ROUTED TO DON** as a vintage event, never taken here.
+  * **THE GUARD RAIL WAS CHECKED FIRST AND PASSES, so the arm dies on the crash bar and not on
+    alpha.** It gives up **0.1499pp** annualised against `X7`'s calibrated **1.8629pp**
+    non-inferiority margin. **KILL on the primary: the reduction is NEGATIVE - -1.44% full sample,
+    -2.15% early, -1.32% late, against a 20% bar.** The 0.5x-haircut sizing family **CLOSES
+    PERMANENTLY** on the register's own pre-committed terms.
+  * **THE ARITHMETIC WAS DONE IN THE REGISTER BEFORE THE RUN AND IT IS WHY THE ITEM IS
+    INTERPRETABLE.** A 0.5x haircut removes at most **half** the crash exposure it touches, so
+    clearing 20% needs the flagged names to carry **>= 40%** of the book's crash exposure.
+    `MA28`'s panel-wide figure is **19.14%**, implying ~6.1%. **In the top decile it is 1.19% - ONE
+    crash of eighty-four - and the early half has ZERO flagged crashes across 34 dates**, so the
+    ceiling on the reduction is **0.595%** full and **exactly zero** early. **The audit set a 20%
+    bar and a fixed 0.5x haircut without multiplying them together.**
+  * **THE FINDING, AND IT IS ABOUT THE BOOK RATHER THAN THE FLAG.** The `C5` census on **11,426
+    top-decile holdings - the same count `S10` and `V6-B`'s C7 report independently**, which is
+    what makes it the same object: **flagged 407 rows (3.56%), 1 crash, rate 0.246%;
+    flaggable-and-kept 8,081 (70.72%), 52 crashes, 0.643%; UNFLAGGABLE 2,938 (25.71%), 31 crashes,
+    1.055%.** The flag fires on **3.56% of the book against 5.74% of the panel**, and what it
+    flags carries **1.19% of the book's crashes against 19.14% panel-wide**. **The composite's top
+    decile is quality- and megacap-tilted while `MA28`'s flags fire on distressed,
+    aggressively-accounted names the composite has ALREADY declined to hold** - so the overlay has
+    almost nothing left to protect.
+  * **AND THAT IS THE MECHANISM FOR THE NEGATIVE REDUCTION.** Renormalising to keep the book fully
+    invested pushes weight off the 3.56% that is flagged and onto the 96.44% that is not - and the
+    unflagged holdings carry **98.81% of the crashes**. The haircut moves capital toward the more
+    crash-prone part of the book. The un-renormalised hold-cash sensitivity returns **+0.595%**,
+    **exactly** the arithmetic ceiling, so it is an internal consistency check and not an
+    independent result.
+  * **A CORRECTION AGAINST MY OWN REGISTER, MADE BY MEASUREMENT BEFORE PUBLICATION - AND IT IS THE
+    FAILURE THE REGISTER ITSELF NAMED AS THE ONE THAT MATTERS.** Section 6 priced the fail-open
+    from `MA28`'s **PANEL-WIDE** figures - unflaggable rows crash at 0.8134% against the
+    flaggable-and-kept 0.8928% - and called them *"marginally SAFER"* and *"a material
+    mitigation"*. **IN THE BOOK THAT IS BACKWARDS: unflaggable holdings crash at 1.055% against
+    0.643%, they are the MOST crash-prone bucket, and they carry 31 of the 84 crashes while taking
+    NO haircut at all.** So the sizing rule is blind to a quarter of the book **and** to its
+    largest crash bucket. **The register got its SIGN wrong by pricing a book-level question with
+    panel-level data.** Reported **POST-HOC with NO VERDICT** (`MA28`'s own C4 precedent), and **no
+    ratio is quoted on the flagged bucket - one crash is not a rate.**
+  * **CONTROLS: FOUR GATING, ALL EXACT.** `C1` reproduces the published record at **max |delta|
+    0.000e+00**, the control `MA28` records actually firing on its own first run (nine themes at
+    1/7 gave alpha 0.0499 against 0.0717). **`C2` PROVES my decile membership IS the shipped one** -
+    `quantile_backtest` does not return membership, so it is rebuilt from the same primitives and
+    then required to reproduce the shipped per-date `series.alpha`: **69 of 69 dates, max |delta|
+    0.000e+00**. **That control exists because `MB18` was burned by exactly this two items ago.**
+    `C3` **imports** `build_flags` from `s10_accounting_veto` rather than redefining it and
+    reproduces `MA28`'s flagged share **0.057414** and **6,542** rows exactly; `C4` the haircut is
+    **inert at 1.0x** on both exposure and return.
+  * **THE POWER STATEMENT WAS WRONG BY SIX-FOLD, IN THE HELPFUL DIRECTION, AND THE REASON IS
+    PORTABLE.** The register predicted resolution near **1.87pp** - *"matched to its bar with no
+    room to spare"* - by borrowing `V2G`'s measured paired HAC SE of 0.9354pp. **Measured, the
+    paired SE is 0.1106pp, an 80%-power MDE of 0.314pp.** `V2G` swapped whole themes, a large and
+    noisy intervention; this arm rescales 3.56% of holdings by half. **A paired difference between
+    two HIGHLY CORRELATED books is measured far more precisely than one between two different
+    books, so an SE may not be borrowed across perturbation sizes** - `B7`'s family, a number
+    reused outside the construction it was measured on. The non-inferiority pass is therefore
+    **genuinely informative** rather than the weak *"undetectable"* the register warned of.
+  * **WHAT THIS DOES NOT SAY: IT DOES NOT WEAKEN `MA28`.** That register measured the flag on the
+    **panel**, replicated it in both halves against its own permutation MAXIMUM and survived the
+    size control that killed three sibling items. **Nothing here touches it** - the finding is that
+    the flag and the book are nearly disjoint, which is a statement about the composite's
+    SELECTION rather than about the flag's validity. **Nor is it evidence that the composite
+    manages this risk well:** the book still suffers 84 crashes over 69 dates and the largest
+    bucket of them is the one no accounting flag can even be computed for. **It closes the 0.5x
+    design ONLY** - sweeping the haircut was forbidden in advance, so no other strength carries a
+    verdict.
+  * **A DEFECT IN MY OWN TEST, THE FIFTH INSTANCE OF ONE FAMILY.** The threshold-retyping guard
+    grepped the source and **FAILED against the CORRECT tree**, because the script's own docstring
+    says *"the thresholds -1.78 and 1.81 are never retyped"* - a comment documenting the rule,
+    quoting the values the rule forbids. **`MA49`'s comment-versus-code defect.** Fixed by reading
+    the **AST** - imports, function definitions and numeric literals - which sees code and not
+    prose about code.
+  * **Expectations 4 right, 2 wrong, and both misses are ONE miss:** I put 55/45 that the
+    top-decile flagged share of crash exposure would EXCEED the panel-wide 19.14% (it is sixteen
+    times smaller) and 70/30 that the reduction would land within 3pp of 6.12% (it is -1.44%).
+    **Both follow from assuming the book looks like the panel. It does not, and that is the whole
+    finding.** The audit's own prior was ~50%. **24 new tests, 9 of 9 tripwire mutations caught
+    with sources restored byte-for-byte.** `scripts/mb8_sizing_haircut.py`,
+    `data/free_analysis/MB8_SIZING_HAIRCUT.json`, `MB8_CONTROLS.json`;
+    `HANDOFF_edge_audit.md` MB8.
 - **THE IMPLIED-GROWTH EXPECTATIONS GAP IS REJECTED - AND IT IS THE FOURTH ITEM RUNNING WHOSE
   MOTIVATION WAS "STRUCTURALLY ORTHOGONAL TO THE INCUMBENTS", CONFIRMED ORTHOGONAL, AND
   PREDICTING NOTHING (2026-08-19, `MB18`).** `PREREG_mb18_expectations_gap.md` committed **ALONE
@@ -2759,6 +3645,24 @@ the project's memory and the old versions had been repeated for months.
     works.** A positive would have been a lead requiring the legend, never an adoption. **Do not
     re-run `S17` without the legend** — it would buy the same uninterpretable numbers for another
     10 trials.
+    * **CORRECTED 2026-08-20 (`SC-2`, zero trials): THE LEGEND EXISTED, IN THIS REPO, TEN DAYS
+      BEFORE `S17` CLOSED.** `SHARADAR_REFERENCE.md` landed at **`47cb189` on 2026-08-03** with
+      the full **37-code `EVENTCODES` legend** transcribed from the live API; `S17` closed
+      2026-08-13. **The premise above holds and the inference does not:** Sharadar genuinely
+      ships no legend *with the bulk download* — the reference says so of itself — but it had
+      already been pulled and committed, so "tested BY NUMBER, UNLABELLED" and "PERMANENT UNTIL
+      `D10` RUNS" are both wrong. **`S17`'s five arms are 91 Financial Statements and Exhibits,
+      71 Regulation FD Disclosure, 81 Other Events, 52 Departure of Directors or Certain
+      Officers, and 34 Schedule 13G Filing.** **NO VERDICT MOVES** — all ten arms are still NULL
+      and nothing re-opens them. **AND A CANDIDATE MECHANISM FOR THE ERA-CONCENTRATION, A LEAD
+      AND NOT A FINDING: codes 34 and 35 STOP — 13G on 2024-12-17, 13D on 2025-05-16 — while
+      91, 71, 81 and 52 all run to 2026-07-31.** A code that stops being emitted 13 months
+      before the panel ends is era-concentrated *by construction*. **Its limits are the point:
+      it can touch at most ONE of the five arms, so it cannot explain 91's or 71's
+      era-concentration — the two `S17` reports in detail — and `S17`'s halves split around
+      2017, so a 2024 sunset sits deep inside the late half rather than at the boundary.
+      Whether it drives anything is UNMEASURED.** **The gated `S17` successor is NOT licensed
+      by this correction**; it charges trials and needs its own blind register.
   * **THE MECHANISM QUESTION IS ANSWERED *NO*, AND THE PROJECT HAD ALREADY MEASURED IT.** The
     empirical decode that identified code 22 scored every registered arm on the way past
     (`bulk.py:243-247`): day-of median absolute return against a 1.292% baseline — **code 22 at
@@ -5710,6 +6614,13 @@ PBO 73.3% / DS 0.8674. The three era headers read newest-to-oldest: **CURRENT ST
 - **Bulk data loaded fast+safe** via `valuation/edge/bulk.py` (raw zips in `data/raw/`, extracts in
   `data/bulk/`, caches in `data/bulk/prepared/`): SF3 per-manager conviction, DAILY point-in-time
   marketcap+ratios, ACTIONS splits/delistings, EVENTS raw codes.
+- **THE SCHEMA LEGENDS ARE IN `SHARADAR_REFERENCE.md` (`47cb189`, 2026-08-03) — CHECK IT BEFORE
+  CONCLUDING A CODE IS UNLABELLED.** It transcribes what the bulk downloads do NOT carry and the
+  API does: the full **`EVENTCODES` (37)** and **`ACTIONTYPES` (19)** legends, per-column
+  `unittype` for all 112 SF1 fields, and a **first/last-seen date per event code** — which is how
+  `SC-2` found that codes 34 and 35 stop in 2024-12/2025-05. `CLAUDE.md` cited this file **zero
+  times** until now, which is why `S17` closed on 2026-08-13 recording that the legend did not
+  exist while it had been in-tree for ten days.
 - **Now CONSUMED by the panel (2026-07-29 s3):** point-in-time market cap from DAILY (replaces the buggy
   shares×price path; AAPL 2015Q2 $722.6B verified), survivorship-free returns via the ACTIONS delisting
   mask (SEP is ALREADY split-adjusted, so split ratios deliberately NOT re-applied — don't "fix" that),

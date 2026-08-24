@@ -246,12 +246,99 @@ class TestRegisterDiscipline(unittest.TestCase):
         self.assertGreater(eighty, fifty)
         self.assertAlmostEqual(eighty, (crit + PG.Z_POWER_CONVENTION) / np.sqrt(n), places=12)
 
+    #: The commits that carry MB18's own work. Resolved from the item's own files rather than
+    #: written down, so a rebase or a re-land cannot make this check quietly stop looking.
+    LANE_FILES = ("scripts/mb18_expectations_gap.py", "PREREG_mb18_expectations_gap.md")
+    LIVE_PATHS = ("valuation/screener", "valuation/web", "valuation/engine")
+
     def test_this_lane_touched_no_live_scoring_path(self):
+        """MB18's OWN commits, not the working tree.
+
+        CORRECTED 2026-08-20 (SC-4's lane, reported under RUN_RULES rule 3). The first cut ran
+        `git diff --name-only origin/main -- valuation/screener valuation/web
+        valuation/engine` and required the result to be EMPTY. That compares `origin/main`
+        against WHATEVER IS CHECKED OUT, so it does not measure MB18 at all: it fails for any
+        lane that ever touches one of those three directories again, forever, and the first
+        one to do so had nothing to do with MB18. It went red naming
+        `valuation/web/research_record.py` — an app-fixer change to the public research page.
+
+        A permanent tripwire on three whole directories, owned by an item that has already
+        landed, is the cry-wolf failure this repository has now written down three times
+        (`MA21`, `MB30`, and the sibling comment in `test_research_page.py` two days ago).
+
+        Scoped to the commits that actually carry MB18's files. That is what the test's own
+        name says, it stays true however the tree moves afterwards, and it is STRICTER in the
+        direction that matters: a working-tree diff would go green the moment MB18's own live
+        change was committed and merged, whereas this reads the commit itself and cannot.
+        """
         import subprocess
-        r = subprocess.run(["git", "diff", "--name-only", "origin/main", "--",
-                            "valuation/screener", "valuation/web", "valuation/engine"],
-                           capture_output=True, text=True, cwd=REPO)
-        self.assertEqual(r.stdout.strip(), "", "MB18 touched a live path: %r" % r.stdout)
+
+        def _git(*args):
+            r = subprocess.run(("git",) + args, capture_output=True, text=True, cwd=REPO)
+            return r.stdout.strip() if r.returncode == 0 else None
+
+        shas = set()
+        for f in self.LANE_FILES:
+            out = _git("log", "--format=%H", "--", f)
+            if out:
+                shas.update(out.split("\n"))
+        self.assertTrue(shas, "no commit carries MB18's own files — this check sees nothing")
+
+        touched = set()
+        for sha in shas:
+            out = _git("show", "--name-only", "--format=", sha, "--", *self.LIVE_PATHS)
+            if out:
+                touched.update(l for l in out.split("\n") if l.strip())
+        self.assertEqual(sorted(touched), [],
+                         "MB18's own commits touched a live path: %r" % sorted(touched))
+
+    def test_the_live_path_check_can_actually_fail(self):
+        """Positive control, and it must not be vacuous.
+
+        The check above passes by finding NOTHING, which is exactly what a broken lookup also
+        returns. So the same mechanism is pointed at a commit that demonstrably DID touch a
+        live path and required to come back non-empty.
+
+        The commit is FOUND, not typed: `HEAD` was the first choice and it is a merge, on which
+        `git show --name-only` prints nothing, so the control skipped itself as vacuous. Asking
+        the history for a qualifying commit cannot go vacuous while the repository has any
+        history at all.
+        """
+        import subprocess
+
+        def _git(*args):
+            r = subprocess.run(("git",) + args, capture_output=True, text=True, cwd=REPO)
+            return r.stdout.strip() if r.returncode == 0 else None
+
+        # --no-merges, and it is the SAME defect `09ea4cc` repaired in MB8's identical control
+        # hours earlier; that commit reported the blindness as still living elsewhere and this
+        # is the elsewhere. The SELECTOR (`git log -- <paths>`) will happily return a MERGE
+        # commit, but the VERIFIER (`git show`) prints no diff for a merge unless asked with
+        # -m/--first-parent/-c. So the moment a merge became the most recent commit touching a
+        # live path — which is what a branch touching `valuation/web` does the instant the gate
+        # merges it — the control selected a subject its own mechanism structurally cannot see
+        # and failed claiming the mechanism was broken.
+        #
+        # It does NOT weaken the check: it still finds a real commit touching a live path and
+        # still demands the mechanism see it. It only stops choosing a subject with no
+        # first-parent diff to show. The docstring above already recorded half of this ("HEAD
+        # was the first choice and it is a merge ... so the control skipped itself as vacuous")
+        # — the selector was fixed to stop picking HEAD and not to stop picking merges.
+        #
+        # REPORTED, NOT FIXED HERE (MB18's lane, and the repair is a design choice):
+        # `test_this_lane_touched_no_live_scoring_path` above carries the SAME blindness in the
+        # DANGEROUS direction — it asserts `git show` finds nothing, so a merge commit carrying
+        # a live-path change passes it silently. `09ea4cc` made exactly this report about MB8's
+        # copy and left it to that lane; this one is left to MB18's for the same reason.
+        out = _git("log", "--no-merges", "--format=%H", "-n", "1", "--", *self.LIVE_PATHS)
+        self.assertTrue(out, "no commit in history touches a live path — history unreadable")
+        sha = out.split("\n")[0]
+
+        shown = _git("show", "--name-only", "--format=", sha, "--", *self.LIVE_PATHS)
+        touched = [l for l in (shown or "").split("\n") if l.strip()]
+        self.assertTrue(touched,
+                        "the mechanism returned nothing for a commit that touches a live "
+                        "path (%s) — the check above passes by seeing nothing" % sha[:8])
 
 
 # --------------------------------------------------------------------------- artifacts

@@ -5,6 +5,773 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 46 — 2026-08-23 — three product items: `PT-SPMO` on the card, the declared-books shelf, and the record's own calibration
+
+**Three small items, one session, ZERO TRIALS.** No hypothesis, no threshold, no verdict
+against a bar in any of them, so no `RESEARCH_LOG.md` row and every published `N` is
+untouched. `.github/` untouched. Nothing under `data/` was written or committed.
+
+## 0. What shipped
+
+`valuation/web/research_record.py` (two new sections), `scripts/publish_calibration_card.py`
+(new), `data_export/calibration_card.json` (new, derived), `tests/test_research_shelf_and_
+calibration.py` (new, 36 tests), plus edits to `reported_benchmark.py`, `web/app.py`,
+`static/app.js`, `templates/research.html` and 11 new tests in `test_reported_benchmark.py`.
+**11 of 11 tripwire mutations caught with every source restored byte-for-byte.**
+
+## 1. `PT-SPMO` ON THE CARD — and the word that has to travel with it
+
+Session 45 put SPMO in a caption UNDER the forward card. Don's call was to put it ON the card:
+a fourth tile in the numbers row carrying the recorded SPMO **level** beside the bound SPY
+level, and a third line on the sparkline.
+
+**THE LABEL IS IN THE TILE AND IN THE LEGEND, NOT ONLY IN THE CAPTION, AND THAT IS THE ITEM.**
+The numbers row is the part that survives being screenshotted on its own, and a momentum ETF
+sitting next to SPY with no qualifier is exactly how a reported benchmark starts reading as a
+bound one. The tile reads `SPMO · reported`; the legend reads `SPMO (reported)`.
+
+**DOTTED, NOT DASHED, AND ON ONE AXIS.** SPY is already dashed, so a third dashed line would
+be told apart only by colour. And the SPMO line shares the y-axis: a second scale lets two
+different arithmetics share a picture and look comparable, when the whole value of this line is
+that it IS comparable — same base date, same cumulative-since-inception convention, same units.
+
+**`spanGaps` IS FALSE AND IT IS LOAD-BEARING.** The sibling series begins when its first
+comparison was recorded, so a day it does not carry must draw a HOLE. Bridging one draws a flat
+stretch that reads as a day the benchmark did not move, which is a claim nobody measured.
+`attach_series` adds a key only where a level was recorded and adds none where it was not,
+pinned from both sides.
+
+**READ-ONLY, PROVED BY BYTES.** `series()` and `attach_series()` open the sibling and nothing
+else. Both the bound file and the sibling are byte-compared across a full
+claim-plus-series-plus-attach cycle, and the route is AST-asserted to call no writer — a chart
+that could write the series it draws is a chart that can invent history.
+
+**A PRE-EXISTING GUARD FIRED, AND IT WAS REPLACED RATHER THAN WIDENED.**
+`test_the_api_payload_exposes_the_block_without_breaking_the_bound_card` required the string
+`except Exception` to appear within **400 characters** of the payload line. That is a proxy for
+*inside a try* which a comment can break without changing a line of behaviour, and my comment
+did. Widening the window to 900 would have been tuning the check to pass. It is now an AST
+check that every reported-benchmark statement sits inside a handler — strictly stronger, and it
+catches the case a character window never could: a SECOND such statement added outside it.
+Mutation-tested by moving the call out of the `try`, which fails it by line number.
+
+**THE RECORD STILL LOOKS WORSE FOR IT.** The sibling now carries FIVE rows, and the SPMO excess
+is below the SPY excess on four of the five. That is the case for showing it.
+
+## 2. `S3-I7` — the declared-books shelf, and the format I had to go and find
+
+Each declaration listed with its commit, its verdict horizon and its status. **No performance
+figures**: `MB38`'s gate governs, and a test walks every string the shelf emits through the
+page's own figure guard. The point is the ORDERING — a declaration fixes the portfolio before
+the history it will be judged on has happened — and what a reader can check is the commit, not
+the return.
+
+**I BUILT IT AGAINST A FORMAT I INVENTED, THEN WENT LOOKING AND FOUND THE REAL ONE IN FLIGHT.**
+That check should have come first, and it is the most useful thing in this section.
+`origin/worktree-scout-brainstorm` carries **twenty `DECL_DRAFT_*.md` files**, and
+`origin/worktree-ma5-ma6-inference-bars` carries `S3-I1` itself — `valuation/edge/fleet.py`,
+`scripts/fleet_selfcheck.py`, a register and a suite. Neither has landed, and both contradicted
+what I had written:
+
+* a declaration is **`DECL_<book>.md` carrying exactly ONE fenced ```json block**, not the
+  markdown field I had invented;
+* its horizon lives at **`verdict_horizon.earliest_honest_read`** and its size at
+  `fills_needed` — and several drafted books' horizons are **fill counts, not dates**;
+* the records live at **`data/fleet/<book>.csv`**, which is gitignored, so the harness's own
+  register says plainly that *no committed literal can anchor a growing stream*. My
+  `data_export/declared_books.json` did not exist and was never going to.
+
+The shelf now **prefers the harness's own parser** (`fleet.parse_declaration`,
+`fleet.declaration_commit`, `fleet.read_records`) wherever it can import it, so the page and
+the harness cannot come to disagree about what a declaration is, and falls back to reading the
+same single block itself where it cannot — which is the state today.
+
+**AND ONE OF THOSE FINDINGS WOULD HAVE PUT A FALSE CLAIM ON A PUBLIC PAGE.** A glob of
+`DECL_*.md` matches all twenty **drafts** — documents whose own text says they are *"to be
+committed ALONE ... before any fleet order is placed"*, i.e. awaiting the very commit that
+would make them declarations. The moment the scout lane landed, a page whose entire claim is
+that these books were committed in advance would have listed twenty that were not. Drafts are
+excluded by name, and `test_a_draft_is_not_a_declaration` is the pin.
+
+**NOTHING IS INFERRED, AND THAT IS MOST OF THE REST OF THE DESIGN.**
+
+* **A status is never read off the calendar.** It comes from the harness's own event kinds — a
+  `meter_read` outranks a `fill`, because under `S3-I1` a meter read IS the verdict read and is
+  the moment the trial is charged. A book whose earliest honest read has arrived with no meter
+  read is FLAGGED rather than rolled forward: `track_meter`'s not-yet-due-versus-due-and-missing
+  distinction, on a different surface.
+* **A horizon comes out of the structured block, never out of the prose.**
+  `preregistrations()` in the same module records what scraping costs: it once gave a register
+  a registration date of **1998-01-01**, out of its own contents.
+* **A placeholder is not a date.** The harness's own `declaration_template` ships
+  `earliest_honest_read` as the literal string `TODO YYYY-MM-DD`; accepting the raw value
+  publishes a to-do on a public page. A horizon is taken only if it parses, and the fills count
+  carries the honest answer otherwise.
+* **Two blocks are refused rather than merged**, because the harness refuses them — picking one
+  chooses which rules the book is held to after the fact, and a page that merged them would be
+  doing that on the reader's behalf.
+* **A commit cannot come from the document** — a file cannot contain its own hash — so it comes
+  from the harness or reads as not yet recorded.
+
+**NOT DONE:** `S3-I1` is not built or vendored here, and it has not landed. Until it does, and
+on the service afterwards, the commit and status columns read *not yet recorded* — the records
+are under `data/`, which never ships. That is the honest state, not a defect, and the shelf
+says so in its own copy.
+
+## 3. `SC-1` — the record's own calibration, and the constraint that shaped it
+
+One section, in `MB38`'s vocabulary: the priors were scored as a group and came back
+**CALIBRATED-IN-THE-LARGE**, a half-width of `0.1432` against a ceiling committed in advance at
+`0.15`, so it **clears**. The lean is mildly cautious.
+
+**EVERY MEASURED VALUE IS DERIVED AT RENDER AND NONE IS TYPED**, asserted on the syntax tree
+rather than grepped, because this module's own prose quotes the values the rule forbids. The
+count of scored predictions grows as the record grows, and a hard-coded count on a public page
+is stale the week after it ships — `MB38`'s own argument for deriving the denominator, applied
+to the other number on that page that moves.
+
+**THE CONSTRAINT, AND IT IS WHY THIS IS NOT THREE LINES OF COPY.** `data/` is gitignored and
+never ships with a deploy, so a surface reading the study's artifact directly would be
+permanently **unavailable in production**. That is why every other card on this site
+transcribes literals and cites the artifact — and transcribing is exactly what this count may
+not be. Both halves are real. The join is `data_export/`, which is **tracked**, **ships in the
+image** (checked against `.dockerignore` rather than assumed) and already exists to publish
+things derived out of the ignored data root. `scripts/publish_calibration_card.py` copies a
+strict subset of the artifact, nothing typed, and carries the artifact's SHA-256; a test
+**re-derives** the card wherever the artifact is reachable and fails on any drift, so the card
+is a derived publication rather than a second version of the truth.
+
+**AND THAT TEST NEARLY SHIPPED DEAD.** It first resolved the artifact under its own root, which
+a git worktree does not carry — so it skipped on every worktree while still reporting a pass.
+That is precisely the defect `tests/test_i3_crash_gate.py` shipped and `CLAUDE.md` records. It
+now resolves the data root the way `optionable_universe._data_root` does, and it **runs**: the
+committed card is byte-identical to a fresh derivation.
+
+**THE GUARD GOT A SECOND EXEMPTION, ON `MB38`'s EXACT TERMS.** Both figures are bare decimals,
+so the page's own no-figures rule redacted them. The exemption is DERIVED, matches WHOLE
+`_FIGURE` matches only, and is **EMPTY when the card cannot be read** — pinned in the direction
+that matters, that the figure comes back UNDER the rule rather than that the page still
+renders. `0.1432%`, `t 0.1432`, `0.1433`, `0.15x` and `$0.15` all still fire. `withhold()` is
+deliberately NOT given it, so a log row carrying either value is redacted exactly as before,
+and the two exemptions fail closed INDEPENDENTLY.
+
+**THE LIMITS TRAVEL WITH THE CLAIM, FROM THE ARTIFACT RATHER THAN RE-WORDED.** The study's own
+`may_not_be_quoted_as` list is rendered; the section says in words that the measured gap is
+below the smallest one this design had a coin-flip's chance of detecting, so *calibrated* here
+means *no miscalibration this test could have seen*; and it says the pairs are picked out of the
+record by a keyword rule whose miss rate has never been measured. A page that paraphrased the
+limits of the result it publishes is the one place on this site where caveat and claim could
+drift apart.
+
+**A DEVIATION FROM THE BRIEF, DECLARED RATHER THAN ABSORBED.** The brief's word was
+*pessimistic*. The page says **cautious**, spelled out as *predicted these things slightly LESS
+often than they went on to happen*. "Pessimistic" is the correct technical term and it reads as
+a view about the market two clicks from a performance card. The claim is identical; the wording
+is not.
+
+**IT FORCED A CORRECTION ELSEWHERE ON THE PAGE.** The standing sentence *"One number above is
+not an exception to that"* became false the moment two more figures rendered. A page that
+contradicts itself about its own publishing rule is worse than one that never stated it, so
+the paragraph now names all three and says which is which.
+
+## 4. Verification
+
+**Three suites, 36 + 37 + 30 tests, and the whole gate green.** The new sections are proved to
+render **non-vacuously**: `test_the_rendered_page_still_carries_no_performance_figure` is only
+worth anything if the figures are actually on the page, so a companion asserts the derived
+half-width, the ceiling, the verdict phrase and the count all appear in the rendered HTML.
+
+**13 of 13 tripwire mutations caught, sources restored byte-for-byte** — the scored count
+becoming a literal, the exemption ceasing to fail closed, `withhold()` being given the
+exemption, a verdict published against its own interval, a status inferred from the calendar, a
+declaration title published unredacted, drafts listed as declared books, a `TODO` placeholder
+published as a horizon, two json blocks merged instead of refused, the chart bridging a gap,
+the tile losing its label, `attach_series` filling a missing day, and the route's handler
+removed. The harness judges by **exit code**, never by grepping for `OK`.
+
+**AND THE GATE'S OWN EXIT CODE LIED ONCE, WHICH IS WORTH RECORDING.** The first full run was
+launched as `python gate.py 2>&1 | tail -25`, and a pipeline's exit status is the LAST
+command's — so `tail` returned 0 over a gate reporting a failure. Same shape as the `gh run
+watch` false green from the session before. Read the summary line, not the status.
+
+**REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3), AND IT IS NOT THIS SESSION'S:**
+`tests/test_paper_track.py::test_ptsplit_the_live_engine_book_is_recorded_as_non_conforming`
+**fails on `origin/main`**. This morning's `70ef5ef` *"Track backup: forward paper record as of
+2026-08-23"* updated `data_export/paper_track_history.json`, and the engine's recorded book now
+reads **68 holdings at a max weight of 0.03083 — which CONFORMS** (at least 50 positions, the
+0.08 cap binding), where `PAPER_TRACK_CONTRACT.md` §5b registered it as non-conforming.
+Attribution is measured, not asserted: the JSON is byte-identical to `origin/main`, and neither
+`valuation/edge/valquo_index.py` nor `tests/test_paper_track.py` is touched by this branch.
+**Not silenced and not fixed here** — the test's own failure message says the register needs
+updating rather than the test, and a contract amendment is Don's and `PT-SPLIT`'s, not a
+display lane's.
+
+**RESOLVED WHILE THIS WAS LANDING, BY ANOTHER LANE, AND THE ROOT CAUSE IS WORTH KEEPING.**
+`09ea4cc` *"Unblock the shared gate: a cron job went red, and a control picked a merge"* landed
+on `main` and names `hero-shelf` among the six consecutive land failures across five branches.
+Its diagnosis: a **SCHEDULED** workflow commits refreshed data straight to `main` **without
+passing the land gate**, so a test asserting a fact about that data went red with nothing
+re-running to catch it. This branch merged the fix and `tests/test_paper_track.py` is back to
+**70 of 70**.
+
+**AND THEN A SECOND INHERITED FAILURE SURFACED, WHICH THAT COMMIT HAD PREDICTED AND LEFT
+OPEN.** `09ea4cc` repaired a merge-blind control in `tests/test_mb8_sizing_haircut.py` and
+reported in its own diff that *the same blindness* lived on elsewhere.
+`tests/test_mb18_expectations_gap.py` is the elsewhere, and this branch is what surfaced it:
+its control SELECTS the newest commit touching `valuation/screener|web|engine` with
+`git log -- <paths>` and then VERIFIES it with `git show --name-only`, which **prints no diff
+for a merge**. A branch touching `valuation/web` makes that newest commit a merge the instant
+the gate merges it, so the control picked a subject its own mechanism structurally cannot see
+and failed claiming the mechanism was broken.
+
+Repaired with the identical one-word fix — `--no-merges` on the SELECTOR — and it is a repair
+rather than a silencing: the control still finds a real commit touching a live path and still
+demands the mechanism see it; it only stops choosing a subject with no first-parent diff.
+Measured rather than argued: **4 of 8 merge commits sampled from this repository's own history
+return ZERO paths** from that verifier. The dangerous-direction twin
+(`test_this_lane_touched_no_live_scoring_path`, which asserts `git show` finds NOTHING and so
+would pass a merge carrying a live-path change) is **reported and not touched**, exactly as
+`09ea4cc` did with MB8's copy — it is MB18's lane's design call. The paragraph above is left as written because it was true when it was written,
+and because the attribution work it records is the reason this session did not silence someone
+else's test to get its own branch green.
+
+## 5. Not done, named so it is not mistaken for done
+
+* **No service copy of the SPMO sibling still exists.** `data/` is gitignored, so the live door
+  builds it on its next successful `POST /admin/track-row?append=1`. Until then the tile and
+  the third line simply do not render — `available: False` is the normal state, not a failure.
+* **The calibration card must be REPUBLISHED when `SC-1` is next re-scored.** It is a snapshot
+  by construction; the drift test catches a stale one only on a machine holding the artifact.
+  One command: `python -m scripts.publish_calibration_card --write`.
+* **`S3-I1`'s harness has not landed**, so every shelf row would today read *not yet
+  recorded* even if a `DECL_*` file existed — and its records live under `data/`, so those two
+  columns stay unrecorded on the service afterwards too.
+* **The hero BAND above the tabs is still untouched** — one display surface, deliberately.
+* **The meter is not extended**, no SPMO power arithmetic exists, and `SC-1b` is not re-run.
+
+# Session 45 — 2026-08-20 — `PT-SPMO`: a second benchmark that makes the record look worse
+
+**Don's call, queued 2026-08-19 and lost in the season wave.** Show **SPMO** — Invesco's S&P 500
+Momentum ETF — beside the Valquo Index's SPY excess, as a **reported** benchmark. The contract
+binds SPY and only SPY; the meter, the operational gate and the 2031 verdict do not move, and
+the bound series does not gain a column. **Zero trials** — no hypothesis, no threshold, no
+verdict against a bar, so no `RESEARCH_LOG.md` row and every published `N` is untouched.
+
+## 0. What shipped
+
+`valuation/screener/reported_benchmark.py` (new), `scripts/spmo_backfill.py` (new),
+`tests/test_reported_benchmark.py` (new, 26 tests), plus four edits: one parameter on
+`index_mark.append_row`, one helper on the daily write door, one additive key on
+`/api/index-track`, one block in the Index tab's render. `PAPER_TRACK_CONTRACT.md` gains
+**§5d**, which records that a second benchmark exists and is not bound by the register.
+
+## 1. THE ANSWER TO THE VENDOR QUESTION, AND THE CONTROL IS THE POINT
+
+The task asks to *"verify it resolves on Stooq and yfinance; say which serves it."* **yfinance
+serves it, and whether Stooq carries SPMO is NOT ANSWERABLE from this machine.**
+
+Stooq's daily-CSV endpoint returns **HTTP 404 for every symbol tried — `spmo.us`, `spy.us` AND
+`aapl.us`** — a 271-byte *"the page you requested does not exist"* HTML page rather than a CSV.
+**AAPL and SPY are the controls and they fail identically**, so this is the vendor being
+unreachable from here, not a gap in SPMO. Reporting *"SPMO does not resolve on Stooq"* would
+have been a clean, confident, wrong finding; the control is the only reason it is recorded as
+unresolved instead.
+
+**A PROPERTY OF THE SHIPPED MODULE, REPORTED AND NOT REPAIRED (`RUN_RULES` rule 3):
+`prices.get_history_df` swallows the primary's failure and falls through to the fallback
+inside a bare `except Exception`, so every caller in the product is silently running on
+yfinance right now with nothing anywhere saying so.** That is not this item's to fix — it is
+the live-data lane's, it moves the momentum factor and the liquidity gate, and it wants its own
+change. But it means *"Stooq primary, yfinance fallback"* describes a configuration rather than
+what is happening.
+
+yfinance returns SPMO cleanly on every date the series needs: **400 rows**, and a close on
+inception and on all four recorded dates.
+
+## 2. THE FIRST THING IT DID WAS MAKE THE RECORD LOOK WORSE
+
+| date | valquo (recorded) | SPY excess | **SPMO excess** |
+|---|---|---|---|
+| 2026-07-31 | 0.4126 | −0.2777 | **+0.1267** |
+| 2026-08-06 | 0.776 | −2.8468 | **−3.1844** |
+| 2026-08-13 | 4.25 | −0.62 | **−2.2345** |
+| 2026-08-17 | 6.9705 | +2.7936 | **−1.2153** |
+
+**Below the SPY excess on three of the four rows, and on the latest one the two disagree by
+4.01pp.** SPMO has outrun SPY over this stretch, so the harder benchmark is measurably harder.
+A second benchmark that flattered the book would be worth very little; this one does not, and
+that is the whole case for adding it without a register.
+
+**A CORRECTION AGAINST MY OWN FIRST DRAFT, MADE BEFORE THE COMMIT.** The module docstring first
+read *"the SPMO excess is BELOW the SPY excess on every one of them."* It is not — day 1 is
+**above** (+0.13pp against −0.28pp). Written before the numbers were read, kept as a wrong
+sentence for about ten minutes, corrected in place against the measurement rather than left as
+a plausible generalisation.
+
+**AND NONE OF IT IS EVIDENCE OF ANYTHING. Four recorded rows over twelve trading days.** The
+posture string travels in the payload rather than sitting in a docstring nobody renders.
+
+## 3. WHY A SIBLING FILE, AND IT IS THE HARD RULE'S OWN ARITHMETIC
+
+The hard rule says the bound series may not gain a column. It is worth restating *why*, because
+the reason is stronger than the instruction: `data/valquo_track_history.csv` is protected by a
+**byte-prefix** append-only rule that `.github/workflows/track-row.yml` verifies with `cmp` on
+`head -n N`. **Widening the header rewrites every line, and a rewritten file cannot be a prefix
+of itself** — so an SPMO column would have forced a re-seed of the one dataset in this project
+that cannot be re-derived, to add a benchmark that settles nothing.
+
+So: `data/valquo_vs_spmo.csv`, header
+`date,day_n,valquo_pct,valquo_src,spmo_pct,excess_pp`.
+
+**`excess_pp` deliberately shares a NAME with the bound file's excess while being a DIFFERENT
+QUANTITY.** That is exactly why the two never share a file and why every surface rendering this
+one is required to carry the label — pinned by a test that removes the label and watches the
+suite go red.
+
+## 4. THE VALQUO LEG IS COPIED AS RAW CELL TEXT, NOT RE-DERIVED
+
+Two files showing two different Valquo numbers is a failure this project has already shipped
+once, from two different books, and the recorded cure was **one authority** rather than better
+reconciliation. So the sibling never computes the book:
+
+* `backfill` copies `valquo_pct` out of the bound CSV **as the raw cell string**, so the two
+  legs are **byte-identical** rather than agreeing to a rounding. The recorded rows carry
+  ragged precision — `0.776` and `4.25`, typed by a human — and a copy that round-tripped them
+  through `float` would write the same thing today and something else under a future formatter.
+  The test compares **strings**, not floats, for that reason.
+* The live path copies whatever `append_row` **SETTLED ON**: the freshly written row on a 201,
+  **the row already on disk on a 200**. `append_row`'s own docstring is explicit that those two
+  can differ when a vendor revises, and following the computation instead of the file is
+  precisely how the two series would diverge on a retry.
+* Every row carries **`valquo_src`**, so the provenance is per-row and cannot go stale the way a
+  file-level note would.
+
+**A DEVIATION FROM THE TASK, DECLARED RATHER THAN ABSORBED.** The task asks for *"a derivation
+note in the file header"*. A `#` comment line at the top of the CSV would be read as the header
+by `csv.DictReader`, so honouring it literally means a second parser — the B7 split
+`index_mark` already warns about twice in its own docstrings. Shipped instead: the per-row
+`valquo_src` column (better than a header note, because it cannot go stale and it is per-row)
+plus a sidecar **`data/valquo_vs_spmo.csv.NOTE.md`** written by the backfill, carrying the
+derivation statement verbatim.
+
+## 5. `append_row` GAINED ONE PARAMETER RATHER THAN A TWIN
+
+The sibling needs the same three append-only refusals, the same idempotent no-op and the same
+byte-prefix property against a different header. A second implementation of "append-only" is
+the split this module spends four paragraphs warning about, so `append_row` took a `columns`
+argument defaulting to `ROW_COLUMNS`. **Every existing caller is bit-identical** — pinned by
+writing the same row through both the default and the explicit path and byte-comparing the two
+files — and a mutation that changes the default is caught.
+
+**THE FIRST CALL BACKFILLS AND EVERY LATER ONE APPENDS**, which is a real distinction rather
+than an optimisation: a full write cannot preserve a byte prefix, so it happens exactly once,
+when the file does not exist. On that first call today's row is already IN the bound CSV — the
+bound append put it there moments earlier — so the backfill picks it up with the rest.
+
+## 6. THE CONTAINMENT, AND IT IS TESTED IN BOTH DIRECTIONS
+
+* **The bound file is BYTE-COMPARED across every sibling operation** — backfill, append, and a
+  refusal. Not "the same rows": a value-level check passes through a header widening, a
+  re-quoted cell and a line-ending change, and every one of those breaks the prefix rule.
+* **The meter, the gate and `vs_spy_claim` never read it**, asserted at **source level** over
+  four named modules (`track_meter`, `shadow_vintage`, `index_track`, `index_mark`) via the
+  syntax tree, because a runtime check only sees the paths a test happens to exercise. Named
+  individually rather than swept: a directory sweep quietly starts covering modules nobody
+  meant it to and quietly stops covering a renamed one.
+* A runtime companion asserts no SPMO figure appears anywhere in `track_meter.detail()`.
+* `index_track.vs_spy_claim` is captured before and after a full backfill and required to be
+  **equal**.
+* **Nothing in the module can rebuild the book**: an AST test fails if it ever reads a position
+  weight or reaches for `build_frame` / `run_scan`.
+
+## 7. THE BANNED-PHRASE CHECK HAS BOTH CONTROLS, AND IS SCOPED
+
+Whole phrases, never bare tokens, and scoped to this item's own rendered block. `SC-4` measured
+the alternative one day earlier: a banned tuple run page-wide fired **fifteen times** on
+neighbouring items' honest prose, and a guard that cries wolf is switched off within the week.
+This repository has now paid for that family five separate times.
+
+* **Positive control** — a planted *"will outperform ... this record proves it"* must be caught.
+* **Negative control** — the honest sentence must pass, and it is not a trivial one: the label
+  itself contains the word *"contract"* and the why-sentence contains a **t-statistic**, both of
+  which a careless tuple would have flagged.
+
+## 8. WHAT IT DOES NOT DO, NAMED SO IT IS NOT MISTAKEN FOR DONE
+
+* **The hero band is untouched.** The SPMO block renders in the **Index tab's forward card
+  only**. The band above the tabs is a compressed four-tile summary and it cannot carry *"not
+  bound by the contract"* without the caveat dominating the tile — and that band is the single
+  most screenshot-able element on the page. One surface, deliberately.
+* **No service copy exists yet.** `data/` is gitignored, so the sibling is built by the live
+  door on its next successful `POST /admin/track-row?append=1`. Nothing has been written to
+  Don's machine or to Render by this session.
+* **`scripts/spmo_backfill.py` defaults to a DRY RUN**, matching `scripts/track_row.py`'s
+  opt-in `--append`. It is for inspecting the derivation, not for feeding production.
+* **The meter is not extended and no SPMO power arithmetic was computed.** A second benchmark
+  with its own sigma, its own bar and its own clock is a second register, not a display change.
+* **`prices.py`'s silent-fallback defect is reported, not repaired** — section 1.
+* **No `RESEARCH_LOG.md` row, `.github/` untouched, `data/` never committed.**
+
+## 9. Verification
+
+**26 new tests, and 7 of 7 tripwire mutations caught with every source restored byte-for-byte**
+— backfill writing into the bound path, the valquo leg rounded instead of copied, the reported
+excess silently becoming the bound quantity, the meter importing the module, `append_row`'s
+default header changing, the label dropped from the render, and the claim leaking a zero when
+the series is unavailable. The mutation harness judges by **exit code**, never by grepping for
+`OK` — `SC-4`'s vacuous-harness lesson from the day before.
+
+`gate_state()` re-read after the `§5d` edit: the contract parser still finds one
+`Operational gate passed` row and still reads it as **not passed**. The new section is prose
+with no pipe table, precisely so it cannot introduce a second row for that field.
+
+# Session 44 — 2026-08-19 — `SC-4`: the denominator page made temporal
+
+**ZERO TRIALS, DISPLAY + ONE PARSE REPAIR.** No hypothesis, no threshold, no verdict against a
+bar, so no `RESEARCH_LOG.md` row and `by_domain` is untouched — verified bit-identical across
+the change rather than asserted. Nothing under `valuation/edge/` changed except the emission
+repair in section 2, which moves no count.
+
+---
+
+## 0. What the item asked, and the one thing it already had
+
+`MB38` shipped the denominator as a **level**: how many things were tried, the bar that count
+implies, and the verdict word for the headline against it. `SC-4` asks for the same record in
+**motion** — a dated diff of counts, bars before and after, verdicts landed as words, vintage
+events, and whether any calibrated floor has fallen due.
+
+**WHY MOTION IS THE PART WORTH PUBLISHING, and it is not a presentation argument.** A level can
+be assembled after the fact by anyone willing to count once. A dated diff cannot: it only
+exists if the record was being kept continuously, and **it is falsifiable by a reader who comes
+back next week.** That is the whole claim this page makes about itself, so it is the one thing
+worth rendering.
+
+---
+
+## 1. The kill condition, run BEFORE any copy existed — and it produced a measurement
+
+Inherited verbatim from `MB38`: can `withhold()` pass a dated diff of counts, bars and verdict
+words **without also passing a performance figure**?
+
+**LEG 1 — twenty candidate elements, one at a time.** Counts, prose counts, dates, window
+phrasing, verdict words in both directions, the bucket vocabulary, vintage prose, register ids
+(including hyphenated ones), pre-registration filenames and the floor-headroom integers **all
+pass `withhold()` untouched**. **Seven are redacted, and all seven are bars** — a bar is a bare
+decimal, which is exactly what `_FIGURE`'s effect-size branch exists to catch.
+
+**LEG 2 — so the question is really whether `MB38`'s exemption can WIDEN.** `MB38` opened a
+hole one string wide: the live equity bar. `SC-4` renders up to **six** — three books, before
+and after. Widening a guard's exemption is the part that could have killed this, so it was
+measured rather than argued.
+
+* **THE FIRST MEASUREMENT WAS WRONG AND OVERSTATED THE DANGER, and it is corrected here rather
+  than quietly replaced.** Comparing bar strings against *substrings* of the register returned
+  **six collisions**, two of them alarming (`+3.2702%/trade` is a real per-trade expectancy).
+  That is the wrong comparison: the exemption is tested against `m.group(0).strip()`, a WHOLE
+  `_FIGURE` match, and the whole match of `+3.2702%/trade` carries its unit, so the bare token
+  can never equal it.
+* **MEASURED CORRECTLY: over every trial count from 2 to 1200, exactly TEN bar strings equal a
+  whole `_FIGURE` match anywhere in the register.** Eight of the ten are this project's **own
+  earlier bars**, quoted in the log — a collision between a bar and a bar. **One is not: at 225
+  equity trials the bar reads `3.2912`, which the log also records as an autocorrelation-
+  corrected *t* at h189.** Two of the ten (224, 225) are inside the range a single week could
+  reach from today's counts.
+* **THAT COLLISION IS SAFE, AND SAYING WHY IS THE POINT RATHER THAN A RELIEF.** The exemption
+  **publishes nothing** — `withhold()` never consults it, so every log row is redacted exactly
+  as before. It only tells the page's own test that a string it is looking at is a bar rather
+  than a result. A reader meeting `3.2912` meets it **labelled as the bar at 225 searches** and
+  learns nothing whatever about the unrelated *t* that happens to share its value.
+
+**VERDICT: the kill condition PASSES**, with the exemption bounded to the strings the page is
+**actually rendering right now** — six today — and pinned to exactly that set.
+
+---
+
+## 2. The defect the item surfaced: a column that had rendered empty since `V4`
+
+**`record()` has always read `r.get("domain")` off every log row, and `_emit` never wrote one.**
+Measured on the live page before anything was changed: **216 of 216 rows rendered `—`** in the
+domain column of the public research record.
+
+It matters for `SC-4` specifically because `MB26`'s two-denominators rule requires every count
+to render beside **its own** book and **its own** bar, and that is not derivable without a
+per-row family.
+
+**FIXED INSIDE THE ONE PARSE, WHICH IS THE ONLY ACCEPTABLE PLACE.** `_parse` already resolved
+the family — it just did so *after* `_emit` had run, and `FIXED` rows returned before reaching
+it at all. `_resolve_domain` is lifted out unchanged and called **before** the emit, so the
+emitted row and the counted bucket are the same resolution rather than two of them. This
+module's own docstring names the alternative as a bug the project has shipped twice.
+
+**NOTHING MOVED: `by_domain`, `trials_logged`, `rows_counted`, `rows_fixed_not_counted`,
+`trials_domain_unresolved` and `n_used` are BIT-IDENTICAL**, `MA13`'s committed-literal stamp
+is green, and a new test asserts the emitted rows **sum to** `by_domain` so the two views
+cannot drift apart later.
+
+---
+
+## 3. What ships
+
+A section on `/work/research`, below the denominator block, rendered only when the register
+parses:
+
+* **the window**, dated, and the entries and trials it carries;
+* **each book's count and bar, before → after**, side by side and never pooled (`MB26`);
+* **the verdict tally as words**, and the twelve most recent entries with their register link;
+* **vintage events** in the window — a change to how the model is built restarts the forward
+  record, and that cost is recorded as one;
+* **the measured floors' headroom**: how many further searches before the calibrated bars must
+  be worked out again.
+
+**`floor_flip_n()` IS DERIVED, NOT TRANSCRIBED, AND THAT IS STRONGER THAN `MB31`'s OWN
+ARTIFACT.** `MB31` reports 247 by re-scoring banked draws out of `data/`, which is gitignored
+and never ships — so the render path cannot read it, and typing 247 would be a fourth copy of a
+derived quantity (`MA5`'s defect). Instead the draw's own recorded margin ratio is kept as a
+constant and the count is recovered from it through the **one** hurdle definition. It comes out
+at **247** with **13 searches of headroom**, reproducing `MB31` exactly without reading a byte
+of `data/`.
+
+**THE QUIET WEEK IS A SENTENCE, NOT AN ABSENCE.** A changelog that renders nothing when nothing
+happened is indistinguishable from one that has stopped working, so a quiet window says so and
+still shows the standing counts. Pinned.
+
+**NO SILENT CAP.** A busy week runs to dozens of entries and the list is trimmed to twelve —
+and the number trimmed is **rendered**, because a trimmed list that says nothing about the
+trimming reads as the whole of it.
+
+---
+
+## 4. Two deviations from the item as written, both with reasons
+
+* **`VALQUO_LEDGER.md` IS NOT READ.** The item names it as a source. The ledger answers *where
+  do we stand*; the log answers *what was searched over the data*; this block is about the
+  search, and every count on it must come from the same parse that sets `N` or the diff and the
+  denominator can drift. Wiring a second reader of the same facts is the defect this module's
+  docstring already says the project shipped twice.
+* **`MB31`'s SCRIPT IS NOT CALLED AT RENDER** — see section 3. It reads `data/`.
+
+---
+
+## 5. Five defects in my own work, and one of them was caught by another item's test
+
+* **I BROKE `MB38`'s FAIL-CLOSED PROPERTY AND `MB38`'s OWN TEST CAUGHT IT.** Adding a second
+  contributor to the guard's exemption re-opened the hole whenever the first was unavailable,
+  because the second still read the register on its own. **Repaired by closing on the WEAKER of
+  the two rather than by teaching the test about the new source** — both read the same file, so
+  a register the level cannot parse is not one the motion may parse either. The cost of being
+  wrong in that direction is an over-redacted page; the other direction publishes a figure
+  nobody approved. A test in the new suite now records the regression so it stays caught.
+* **THE SUBSTRING FAMILY, FOR THE FOURTH TIME IN THREE SESSIONS — THIS TIME ON A NUMBER.**
+  `MB38`'s no-typed-count pin used a bare `in`, and **failed against a correct tree**: the
+  infrastructure count reached **18**, and `MB31`'s recorded margin ratio
+  `3.3191884951841053` contains "18" in the middle. Repaired to a standalone-number match
+  (digits, dot and sign are what make a number longer) **with its own vacuity control in both
+  directions**, so a genuinely typed count is still caught. Same shape as `MA5`'s sweep firing
+  on its own documentation, `MA49(c)`'s fixture firing on the comment describing its repair,
+  and last session's `tradable`/`buy`/`sell`.
+* **AND THE SCOPING HALF OF THAT FAMILY, TWICE MORE.** My banned-phrase check run against the
+  **whole page** returns **fifteen** hits, every one in another item's prose or a log row — so
+  it is asserted against **this item's own rendered section**. My typed-count check run against
+  the **whole template** failed on the stylesheet's `margin:0 0 18px`, so it is scoped to this
+  item's own markup. Both are the same lesson: **a guard has to look at the thing the item
+  owns, or it reports on its neighbours.**
+
+* **A FOURTH DEFECT, IN MY OWN MUTATION HARNESS, AND CHASING IT MADE A REAL TEST STRONGER.**
+  The mutation for `MB26`'s no-pooled-bar rule was a **no-op**: it referenced a payload key
+  that does not exist, so Jinja produced `Undefined` and the template's own `if` filtered it
+  straight back out. Rewritten to actually append a pooled book, it was then caught **for the
+  wrong reason** — a key-ordering assertion raised first, leaving the assertion that encodes
+  the rule unexercised. **A guard that fires for an incidental reason is a guard nobody has
+  tested.** The rule was moved to the front of its test and its total is now computed from the
+  register rather than from the payload the mutation pollutes, and a **second** mutation types
+  the pooled bar straight into the markup so the render-level half is exercised too. Both
+  forms now fail with a message naming the defect.
+* **A PROPERTY WORTH RECORDING, seen while doing that:** the typed pooled bar is *also* caught
+  by the figure guard, because a bar the page does not legitimately render is **not in the
+  exemption**. The narrowness bought in section 1 is doing real work rather than sitting there.
+* **THE CLOCK ROLLED PAST MIDNIGHT MID-SESSION AND BROKE TWO OF MY OWN TESTS — ON A PAGE WHOSE
+  ENTIRE SUBJECT IS THE RECORD MOVING.** `test_the_cap_is_never_silent` built its payload at a
+  fixed date and rendered the page from the **live** clock, so the two described different
+  windows the moment the date changed; and the no-typed-count check fired on `12`, because the
+  infrastructure book's *before* count reached 12 and 12 is also the row cap. **The second is
+  the substring family a third time in one session, now as a collision between a derived count
+  and a legitimate constant.** Repaired by naming the cap `WEEK_MAX_ROWS` and excluding
+  **declared display parameters by identity** (with the limit stated: a real typed count equal
+  to one of them is not caught, which is the right trade against a guard that fails on ordinary
+  days), and by rendering the cap test from the same payload it asserts on.
+
+---
+
+## 5a. And chasing that found a defect in the SHIPPED page, not just in the tests
+
+Running the suite under **five simulated dates** rather than reading it: at any date where the
+last seven days are empty, three tests failed — and the cause was the template, not them.
+
+**THE PER-BOOK BARS AND THE HEADROOM WERE NESTED INSIDE THE BUSY-WEEK BRANCH.** So a quiet week
+would have dropped the **options and infrastructure bars off the page altogether** — the equity
+one survives only because the block above it renders that — and dropped the **headroom**, which
+is the number most worth reading precisely when nothing is happening.
+
+**The payload was right and the render was not**, which is exactly why the assertion now lives
+against the rendered section: my own quiet-week test asserted `w["domains"]` was populated,
+which it always was, and said in its comment that the bars are still shown *"because they are a
+level and a level is always true"*. **The comment described the intent and the template did
+something else, and only rendering it at a later date could tell the difference.**
+
+Fixed by splitting the block on that distinction: **the level renders every week** (the window,
+the counts, each book's bar, the headroom) and **only the motion is conditional** (the verdict
+tally, the entry list, the vintage events). Both nestings are mutation-tested.
+
+**A DEFECT IN THE VERIFICATION ITSELF, CAUGHT BY A POSITIVE CONTROL.** The first clock sweep
+ran the suite with `exec(open(...).read())`, so it had no `__file__`, crashed at import, printed
+no failures — and the harness judged success by the **absence of failure lines** and reported
+five passes. That is this project's own rule broken inside my own harness: **judge a suite by
+its exit code, never by grepping its output.** Rewritten with `runpy` and a positive control
+that must fail; it then found the template defect above.
+
+* **AND A SECOND LANE FOUND THE SAME DEFECT A DAY LATER, AT A DIFFERENT COLLIDING VALUE —
+  WHICH SAYS IT WAS REACHABLE RATHER THAN UNLUCKY.** `SC-1`'s lane hit the identical
+  no-typed-count check at **infra = 19** against the long-short HAC *t* `2.6199121240414884`,
+  where this one hit it at **infra = 18** against `MB31`'s margin ratio. Their fix is kept on
+  the merge because it is **strictly more precise than mine**: comparing against the module's
+  numeric literals as VALUES also catches a bar typed at *greater* precision, which the
+  standalone-number regex would miss. **A vacuity control was added on top**, because their
+  comment promises *"the mutation test below proves"* it and no such test is in the file — a
+  check nobody has watched fail is not a check.
+
+---
+
+## 5b. The merge is SC-4's own thesis, demonstrated on SC-4
+
+`origin/main` moved **eleven commits** during this session — `SC-1` and `SC-2` landed and booked
+an infra trial. **The block absorbed it with no edit**: equity 234 → 235, infra 18 → 19,
+headroom 13 → 12, and all six exemption strings re-derived. Had any of those been typed, the
+page would have been wrong within hours of being written — which is the argument the item makes
+and the reason the counts are derived at render. `MB32` had the same experience one lane over.
+
+---
+
+## 5c. Two failures on the merged gate — one repaired outside this lane, one environmental
+
+**`test_mb18_expectations_gap.py` — A PERMANENT TRIPWIRE ON THREE DIRECTORIES, REPAIRED
+(`RUN_RULES` rule 3).** Its `test_this_lane_touched_no_live_scoring_path` ran
+`git diff --name-only origin/main -- valuation/screener valuation/web valuation/engine` and
+required the result to be **empty**. That compares `origin/main` against **whatever is checked
+out**, so it does not measure `MB18` at all: **it fails for any lane that ever touches one of
+those three directories again, forever**, and the first to do so had nothing to do with `MB18` —
+it went red naming `valuation/web/research_record.py`, this item's own file. That is the
+cry-wolf failure this repository has now written down three times (`MA21`, `MB30`, and the
+sibling comment in `test_research_page.py` two days ago).
+
+**Scoped to the commits that actually carry `MB18`'s files**, which is what the test's own name
+says and stays true however the tree moves. **It is also STRICTER in the direction that
+matters**: a working-tree diff goes green the moment such a change is committed and merged;
+reading the commit itself cannot. Its positive control **skipped itself as VACUOUS** on the
+first cut — `HEAD` is a merge, and `git show --name-only` prints nothing for one — so the
+control now *finds* a qualifying commit instead of assuming one.
+
+**`test_ma60_conventions.py` — ENVIRONMENTAL, NOT REPAIRED, AND IT IS NOT THIS TREE'S.** It
+reported **143** ledger rows citing commits "not in this repository's history", including `B1`.
+The shas resolve fine by hand. Cause: `git rev-list --all` **aborts** on a corrupt ref in the
+shared repository — `refs/heads/worktree-scout-season2.lock.stale.1381`, a **zero-byte** file
+pointing at all-zeros, left at 00:38 by a crashed lock in a concurrent lane. The helper returns
+`None`, the sha set is empty, and every row reads as missing.
+
+**Bounded before deciding anything: the real branch `refs/heads/worktree-scout-season2` is
+intact at `25e9a05b`, and the bad ref holds no sha, so nothing can be lost.** It is **local
+only** — `git ls-remote` shows no corrupt ref on `origin` — so CI clones clean and the land gate
+does not see it. **Deliberately NOT deleted by this lane**: it is a write to shared `.git` state
+outside this worktree that another lane may be mid-operation on, and it blocks nothing that a
+fresh clone would hit. **For Don, one line, and it cannot lose work because the file is empty:**
+
+```
+rm ".git/refs/heads/worktree-scout-season2.lock.stale.1381"
+```
+
+---
+
+## 5d. The land failed, and the same defect turned out to be a TEMPLATE
+
+The push landed nothing: the gate failed on `tests/test_mb8_sizing_haircut.py`, a suite that
+landed on `main` after the merge above and **carries a verbatim copy of `MB18`'s defect** —
+same `test_this_lane_touched_no_live_scoring_path`, same working-tree diff against
+`origin/main`, one directory wider. **Two copies in two days is a template being carried
+between lanes, not an accident**, and every app-fixer lane touching `valuation/web/` would
+have hit it indefinitely.
+
+Fixed the same way, with the same non-vacuous positive control. **And a repo-wide convention
+now forbids the construction outright** (`test_ma60_conventions.py`): no suite may call `git
+diff` with `origin/main` as an endpoint. `git show`, `git log` and a diff between two named
+commits are untouched, because those read history rather than the working copy.
+
+**THE CONVENTION'S FIRST CUT GREPPED AND FAILED AGAINST A CORRECT TREE — ON ITS OWN POSITIVE
+CONTROL**, whose planted example necessarily contains the forbidden text. That is `MA5`'s
+sweep firing on its own documentation and `MA49(c)`'s fixture firing on the comment describing
+its repair, met a third time **in a paragraph I had just written about that family**. Stripping
+strings the way `MA5` did is not available here, because the thing being forbidden **is** a
+list of string constants — so the distinction has to be a CALL versus prose that contains those
+words, which only the syntax tree can draw. **Verified against the real defect rather than the
+planted one: the matcher flags both pre-fix files at their exact lines (251 and 234) and is
+clean on both after.**
+
+**THE CORRUPT REF WAS REMOVED AFTER ALL, AND THE REASON CHANGED.** Section 5c recorded it as
+cosmetic and left it alone. It then **blocked `git fetch` outright** — `did not send all
+necessary objects` — so this worktree could not sync to verify the land at all. Re-checked
+before touching it: **zero bytes, pointing at all-zeros, the real branch intact at `25e9a05b`,
+and absent from `origin`**, so nothing could be lost. Removed; `git rev-list --all` now returns
+1,109 commits and `test_ma60_conventions.py` goes green, which is what that suite had been
+failing on all along.
+
+---
+
+## 6. An honest weakness in what this renders, reported rather than tuned away
+
+**A THIRD OF THIS WEEK'S ENTRIES BUCKET AS "OTHER VERDICT" — 25 of 75.** `bucket()` recognises
+five verdict openings (`ADOPTED`, `REJECTED`, `NULL`, `INCONCLUSIVE`, `FIXED`) and this week's
+register legitimately carries `STANDS`, `PORTED`, `VALIDATED` and others. **Widening that
+vocabulary was deliberately NOT done**: it is shared with the main record's own counts, so a
+new word would silently restate them, and `MA6` already refused exactly this for exactly this
+reason — a vocabulary of verdict words *"would cry wolf the first time someone wrote a new
+one"*. The blurb already says these are kept distinct so the record does not read as more
+decisive than it is. **Reported so the next reader does not mistake it for a rendering bug.**
+
+---
+
+## 7. Verification
+
+* **`tests/test_record_this_week.py` 26/26** (new); `tests/test_research_page.py` **30/30**;
+  `tests/test_research_log_integrity.py` **16/16**; affected suites green **by exit code**.
+* **The suite passes at five simulated dates** — 2026-08-19, 08-20, 08-24, 2026-09-15 and
+  2027-01-05 — covering both a busy window and an empty one, with a positive control proving
+  the sweep can fail. A structural test additionally forbids the shape that caused the
+  breakage: no test may compare a fixed-date payload against a live render.
+* **22 mutations, 22 caught, 0 missed**, sources restored byte-for-byte, with `-B`,
+  `PYTHONDONTWRITEBYTECODE=1` and a `__pycache__` purge between each. **Two of my own first
+  attempts were defective and are reported as such** — one was a no-op (it referenced a payload
+  key that does not exist, so Jinja filtered it straight out) and one targeted the wrong branch;
+  both rewritten until they failed with a message naming the defect.
+* **`tests/test_sync_checkout.py` is FLAKY IN THIS ENVIRONMENT AND IT IS NOT THIS ITEM'S.** It
+  failed once in a full-gate run and then failed **2 of 4 sequential standalone runs**, always
+  with `unable to write file` inside its own temporary git repositories under `%TEMP%` — a
+  filesystem contention fault, not an assertion. It references nothing this session changed.
+  **Reported rather than retried until green.**
+* The rendered section was read end to end and scanned line by line: **zero lines contain a
+  figure**.
+
+---
+
+## 8. Not done, named so it is not mistaken for done
+
+* **`SC-1`, `SC-2` and `SC-3` are NOT started.** `SC-3` charges 2 options trials and needs its
+  own blind register.
+* **The verdict vocabulary is NOT widened** — see section 6.
+* **No `RESEARCH_LOG.md` row**, zero trials, and `BACKTEST_RESULTS.json` needs no re-run.
+* **`/work/research` remains owner-only under private mode**; that allowlist was not widened.
+* **`.github/` untouched**, as instructed.
+
+---
+
 # Session 43 — 2026-08-19 — `MB10` + `MB11`: two disclosures, and neither is a signal
 
 **BOTH ZERO-TRIAL DISPLAY ITEMS.** No hypothesis, no threshold, no verdict against a bar, so no

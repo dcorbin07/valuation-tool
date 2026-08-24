@@ -86,6 +86,16 @@
     text-transform:uppercase;padding:2px 7px;border-radius:20px;margin-left:6px;
     background:var(--soft);color:var(--blue);vertical-align:1px}
   .src{font-size:12.5px;color:var(--faint);margin-top:16px}
+  .mv{width:100%;border-collapse:collapse;font-size:14px;margin:0 0 6px}
+  .mv th{padding:0 10px 7px 0} .mv td{padding:9px 10px 9px 0}
+  .mv td.n{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .mv .bk{font-weight:700;color:var(--navy);white-space:nowrap}
+  .mv .same{color:var(--faint)}
+  .arrow{color:var(--muted);padding:0 5px}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin:2px 0 10px}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--soft);
+    border-radius:20px;padding:4px 11px;font-size:12.5px;color:var(--muted)}
+  .chip b{color:var(--navy);font-size:13px}
   .legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;
     margin:0 0 4px}
   .legend div{font-size:13.5px;color:var(--muted)}
@@ -181,6 +191,232 @@
   </section>
   {% endif %}
 
+  {# ---------------------------------------------------------------------------- SC-4
+     THE SAME DENOMINATOR IN MOTION. Every number below is rebuilt from the register on this
+     request; none of it is written down anywhere in this template. `weekly.available` is
+     false whenever the register cannot be read, and the whole section then renders nothing
+     rather than rendering a diff that might be wrong — the same fail-closed rule the block
+     above uses, and the same reason: a stale claim about the record is worse than no claim.
+
+     WHAT MAY APPEAR HERE, pinned by test: counts, dates, verdict WORDS, register ids, and the
+     bar each count implies. Never an effect size, never a statistic, never a comparison
+     between two results. #}
+  {% if weekly.available %}
+  <section>
+    <h2>{{ week_heading }}</h2>
+    <p class="lede">{{ week_lede }}</p>
+
+    {# A LEVEL IS ALWAYS TRUE; ONLY THE MOTION IS CONDITIONAL. The first cut put the counts,
+       the per-book bars and the floor block inside the busy-week branch, so a quiet week hid
+       the options and infrastructure bars from the page altogether — and hid the headroom,
+       which is most worth reading precisely when nothing is happening. Found by running this
+       suite under simulated later dates rather than by reading it. #}
+    <div class="tally">
+      <div class="t"><div class="n">{{ weekly.rows }}</div><div class="l">Entries added</div></div>
+      <div class="t"><div class="n">{{ weekly.charged }}</div><div class="l">Trials charged</div></div>
+      <div class="t"><div class="n">{{ weekly.days }}</div><div class="l">Days covered</div></div>
+    </div>
+    <p class="src">Window: {{ weekly.start }} to {{ weekly.end }}, inclusive.</p>
+
+    <h3>What each book's bar did</h3>
+    <div class="tbl">
+      <table class="mv">
+        <thead><tr><th>Book</th><th>Searches</th><th>Bar that count implies</th></tr></thead>
+        <tbody>
+        {% for d in weekly.domains %}
+          <tr>
+            <td class="bk">{{ d.label }}</td>
+            <td class="n">{% if d.moved %}{{ d.before }}<span class="arrow">&rarr;</span><b>{{ d.now }}</b>{% else %}<span class="same">{{ d.now }} (unchanged)</span>{% endif %}</td>
+            <td class="n">{% if d.moved and d.hurdle_before_defined %}{{ d.hurdle_before }}<span class="arrow">&rarr;</span><b>{{ d.hurdle_after }}</b>{% else %}<span class="same">{{ d.hurdle_after }}</span>{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p>{{ week_hurdle_note }}</p>
+
+    {% if weekly.quiet %}
+    <div class="callout"><span class="h">{{ weekly.start }} to {{ weekly.end }}</span>
+      <p>{{ week_quiet }}</p></div>
+    {% else %}
+
+    <h3>How they came out</h3>
+    <div class="chips">
+      {% for v in weekly.verdicts %}
+        <span class="chip"><b>{{ v.n }}</b> <span class="verdict v-{{ v.bucket }}">{{ v.label }}</span></span>
+      {% endfor %}
+    </div>
+    <p>{{ week_verdict_note }}</p>
+
+    <div class="tbl">
+      <table class="mv">
+        <thead><tr><th>Entry</th><th>Date</th><th>Book</th><th>Verdict</th><th>Register</th></tr></thead>
+        <tbody>
+        {% for i in weekly.entries %}
+          <tr>
+            <td class="id">{{ i.id }}</td>
+            <td class="d">{{ i.date }}</td>
+            <td class="dom">{{ i.domain or "&mdash;" }}</td>
+            <td><span class="verdict v-{{ i.bucket }}">{{ i.label }}</span></td>
+            <td class="d">{{ i.source or "&mdash;" }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if weekly.hidden %}
+    {# NO SILENT CAP: the number left out is rendered, because a trimmed list that says
+       nothing about the trimming reads as the whole of it. #}
+    <p class="src">Showing the {{ weekly.shown }} most recent of {{ weekly.rows }}. The
+       remaining {{ weekly.hidden }} are in the full record below.</p>
+    {% endif %}
+
+    {% if weekly.vintages %}
+    <h3>Changes to the model being tracked</h3>
+    <div class="tbl">
+      <table class="mv">
+        <thead><tr><th>Vintage</th><th>Event</th><th>Date</th><th>What changed</th></tr></thead>
+        <tbody>
+        {% for v in weekly.vintages %}
+          <tr><td class="bk">{{ v.n }}</td><td class="n">{{ v.event }}</td>
+              <td class="d">{{ v.date }}</td><td>{{ v.label }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="src">A change to how the model is built restarts the forward record it is being
+       measured on. That is a cost, and it is recorded here as one.</p>
+    {% endif %}
+
+    {% endif %}
+
+    {% if weekly.floor %}
+    <div class="callout">
+      <span class="h">The measured bars, and how much further the search can go</span>
+      {% if weekly.floor.due %}
+      <p>At <b>{{ weekly.floor.n }}</b> equity searches the count has reached
+         <b>{{ weekly.floor.flip_n }}</b>, the point at which those bars have to be worked out
+         again. That is <b>due</b>.</p>
+      {% else %}
+      <p>At <b>{{ weekly.floor.n }}</b> equity searches, those bars cannot have moved: the
+         first count at which any of them can is <b>{{ weekly.floor.flip_n }}</b>, leaving <b>{{
+         weekly.floor.headroom }}</b> searches of room. Not proof that they will hold afterwards
+         &mdash; only that nothing has changed yet, which is a different and much weaker
+         statement.</p>
+      {% endif %}
+      <p>{{ week_floor_note }}</p>
+    </div>
+    {% endif %}
+
+    <p class="src">{{ week_not_a_result }}</p>
+  </section>
+  {% endif %}
+
+  {# ---------------------------------------------------------------------------- SC-1
+     WHETHER THE PREDICTIONS WERE ANY GOOD. Same rule as the two blocks above: every sentence
+     is a constant in `research_record.py`, every number is derived there at render time, and
+     `calibration.available` is false — so the whole section disappears — whenever the card
+     cannot be read, is malformed, carries a verdict this page has no word for, or disagrees
+     with its own interval. Fail closed.
+
+     TWO FIGURES APPEAR HERE AND BOTH ARE DERIVED. They are the pre-committed ceiling and the
+     measured half-width of an interval around a calibration gap: arithmetic on this project's
+     own written predictions and their outcomes, carrying no market data and saying nothing
+     about how the strategy performed. The page's own guard exempts exactly those two strings
+     and nothing else, and the exemption is empty when the card cannot be read. #}
+  {% if calibration.available %}
+  <section>
+    <h2>{{ calibration.heading }}</h2>
+    <p class="lede">{{ calibration.lede }}</p>
+    <div class="tally">
+      <div class="t"><div class="n">{{ calibration.n }}</div>
+        <div class="l">Predictions scored</div></div>
+      <div class="t"><div class="n">{{ calibration.n_clusters }}</div>
+        <div class="l">Studies they came from</div></div>
+    </div>
+    <div class="callout">
+      <span class="h">The verdict, and the line it was held to</span>
+      <p>Scored as a group, the record's stated probabilities
+         <b>{{ calibration.verdict_phrase }}</b>. The ceiling was committed in advance at
+         <b>{{ calibration.bar_text }}</b> on the width of the interval around the average gap
+         between what was predicted and what happened; the measured half-width is
+         <b>{{ calibration.half_width_text }}</b>, so the interval
+         <b>{{ calibration.clears_word }}</b>.</p>
+      <p>The lean, such as it is, runs {{ calibration.direction }}.</p>
+    </div>
+    <p>{{ calibration.method }}</p>
+    <p>{{ calibration.limit }}</p>
+    {% if calibration.may_not_be_quoted_as %}
+    {# THE STUDY'S OWN LIST, carried in the payload rather than re-worded here. A page that
+       paraphrased the limits of the result it is publishing would be the one place on this
+       site where the caveat and the claim could drift apart. #}
+    <div class="callout">
+      <span class="h">What this may not be quoted as</span>
+      <ul>
+        {% for q in calibration.may_not_be_quoted_as %}<li>{{ q }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    <p class="src">{{ calibration.why }} Registered in
+       <b>{{ calibration.register }}</b>, committed on its own at
+       <b>{{ calibration.register_commit }}</b>, and scored against the record as it stood at
+       <b>{{ calibration.corpus_pinned_to }}</b>.</p>
+  </section>
+  {% endif %}
+
+  {# ---------------------------------------------------------------------------- S3-I7
+     THE DECLARED BOOKS. Provenance, never performance: a commit, a horizon and a status, and
+     no figure of any kind. The section renders WHILE EMPTY on purpose — a shelf that appeared
+     only once it had something to show would be evidence of nothing at all.
+
+     Nothing here is inferred. A commit and a status come from the harness record or read as
+     not-yet-recorded; a horizon is read from a labelled field or shown as unlabelled; and a
+     closed window with no verdict read is shown as such rather than rolled quietly forward. #}
+  {% if declared.available %}
+  <section>
+    <h2>{{ declared.heading }}</h2>
+    <p class="lede">{{ declared.lede }}</p>
+
+    {% if declared.empty %}
+    <div class="callout">
+      <span class="h">Nothing declared yet</span>
+      <p>{{ declared.empty_note }}</p>
+    </div>
+    {% else %}
+    <div class="tbl">
+      <table class="mv">
+        <thead><tr><th>Book</th><th>Declared in commit</th><th>Verdict horizon</th>
+          <th>Status</th></tr></thead>
+        <tbody>
+        {% for b in declared.books %}
+          <tr>
+            <td>{{ b.title }}<div class="src">{{ b.file }}</div></td>
+            <td class="id">{% if b.commit_known %}{{ b.commit }}{% else %}<span class="same">not
+              yet recorded</span>{% endif %}</td>
+            <td class="d">{% if b.horizon_labelled %}{{ b.horizon }}{% elif b.fills_needed
+              %}{{ b.fills_needed }} fills{% else %}<span class="same">not stated</span>{% endif
+              %}</td>
+            <td><span class="verdict">{{ b.status }}</span>
+              {%- if b.overdue %} <span class="same">&mdash; window closed, verdict not yet
+              read</span>{% endif %}
+              <div class="src">{{ b.status_blurb }}</div></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if not declared.record_available %}<p>{{ declared.pending_note }}</p>{% endif %}
+    {% if declared.any_overdue %}<p>{{ declared.overdue_note }}</p>{% endif %}
+    {% endif %}
+
+    {# A DRAFT IS NOT A DECLARATION. Said out loud only when some were skipped, so the page
+       does not carry a permanent caveat about a category that may never appear again. #}
+    {% if declared.drafts_excluded %}<p class="src">{{ declared.drafts_note }}</p>{% endif %}
+
+    <p class="src">{{ declared.no_figures }}</p>
+  </section>
+  {% endif %}
+
   <section>
     <h2>What is deliberately not here</h2>
     <p><b>No performance figures.</b> Not one — no return, no t-statistic, no effect size, and
@@ -189,11 +425,13 @@
        publish live on the surfaces that are allowed to carry them, with their caveats attached;
        repeating them here would turn a page about <em>method</em> into an unaudited second
        source for <em>numbers</em>, and this project has already shipped that mistake.</p>
-    <p><b>One number above is not an exception to that, and it is worth saying why.</b> The bar
-       derived from the trial count is arithmetic on how many things were tried — a count of
-       this project's own decisions. It contains no market data and nothing about how the
-       strategy performed, and it is the same for any project that ran the same number of
-       tests. The statistic it is compared against is withheld like every other.</p>
+    <p><b>A few numbers above are not exceptions to that, and it is worth saying why.</b> The
+       bar derived from the trial count is arithmetic on how many things were tried — a
+       count of this project's own decisions. The calibration ceiling and half-width are
+       arithmetic on this project's own written predictions and what became of them. All three
+       contain no market data and say nothing about how the strategy performed; the first is the
+       same for any project that ran the same number of tests. The statistics they are compared
+       against are withheld like every other.</p>
     <p>No market data, no holdings, no vendor rows. Vendor <em>names</em> appear because they
        are part of the record.</p>
   </section>

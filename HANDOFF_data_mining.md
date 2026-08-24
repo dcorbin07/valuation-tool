@@ -1,4 +1,20 @@
-# HANDOFF — the ThetaData Pro harvest. Deadline 2026-09-01.
+# HANDOFF — the data-miner lane. Chain harvest (closed) + the I-4 event spine.
+
+**LATEST: S3-I5 (ticker-reuse adjudication) + S3-I2 (catalyst calendar) — SHIPPED
+2026-08-23.** S3-I5 **lifts the Tier C/E quotability block** this file imposed on itself: 45
+units over 26 symbols adjudicated against a point-in-time identity — **36 REUSED, 7 SPLIT_YEAR
+(with cut dates), 2 SAME_COMPANY**. S3-I2 ships the FDA half of the catalyst calendar
+forward-only and records the index half **BLOCKED with evidence** rather than inventing one.
+Both FIXED/collection class, **zero trials**. Jump to *S3-I5* and *S3-I2* at the end.
+
+**I-4, THE EVENT SPINE — SHIPPED 2026-08-20.** One canonical point-in-time
+earnings-date table, code 22, with the coverage census, the 29 fail-closed names, the 34/35
+sunset, and a test that it agrees with the shipped `refuse_within` / `owns_the_event` paths.
+**Zero trials, collection-and-provenance class.** Jump to *THE I-4 EVENT SPINE* below.
+
+---
+
+## The chain harvest (closed 2026-08-18)
 
 **Lane:** data miner. **Status: HARVEST CLOSED 2026-08-18. THE MINER IS IDLE AND THE
 SUBSCRIPTION CAN LAPSE ON SCHEDULE.** All five tiers complete, **2,850 units / 353.7 M rows /
@@ -885,3 +901,307 @@ read — and `MB15` reported the same across all 3,884 payloads it read. So a re
 the key is PRESENT on the units it is about to score** before treating a clean filter as evidence
 of anything. A filter that finds nothing because the field is missing looks identical to a filter
 that finds nothing because the data is clean.
+
+---
+
+# THE I-4 EVENT SPINE — shipped 2026-08-20
+
+**Instrument I-4 of Season 2.** One canonical point-in-time earnings-date table. **Zero trials,
+collection-and-provenance class** — it computes no signal, scores no arm, returns no verdict.
+
+`valuation/edge/event_spine.py` · `tests/test_event_spine.py` (16 tests) ·
+`scripts/i4_event_spine.py` · artifact `data/free_analysis/I4_EVENT_SPINE.json` (gitignored).
+
+Reproduce: `python -m scripts.i4_event_spine`
+
+## Why one table, and why the test is the deliverable
+
+The project has already paid for two mechanisms describing one named object: **`PT-SPLIT`** was
+two recorders disagreeing about what the Valquo Index held, and it shipped an engine figure as an
+Index claim. An earnings date is that shape exactly — several lanes need one, each could derive
+one plausibly, and **two derivations that drift are indistinguishable from one that is right**
+until something downstream disagrees.
+
+So **X-2's census, O-2's 2×2 and every EO follow-on read this table and nothing else.** That is
+worth nothing as an intention, which is why the instrument's real deliverable is the agreement
+check, run in two independent places:
+
+| check | scope | result |
+|---|---|---|
+| `tests/test_event_spine.py` — exhaustive synthetic grid | 7 calendars × 3 entries × 5 windows, plus 4 expiries | **agrees on every cell** |
+| `scripts/i4_event_spine.py` — the real alert book | 3,870 rows × 3 windows + `owns_the_event` = **15,480 comparisons** | **0 disagreements** |
+
+**Both are needed and they prove different things.** The synthetic grid proves the LOGIC matches
+— including which cells are `UNKNOWN`, which a True/False-only test would miss. The real book
+proves the DATA feeding it matches. A spine that agreed on invented calendars and disagreed on
+the book would pass the first and be useless.
+
+**Disagreements are LISTED, never counted** — the artifact carries the offending
+`(row, ticker, fn, window, entry, expiry, spine, shipped)`, because "3 cells differ" is not
+actionable and a named row is.
+
+## It reproduces the banked join exactly
+
+The ledger's validation for I-4 is *"reproduces `O6`/`O7`'s banked earnings joins"*. It does,
+against `O6_O7_O17_EARNINGS.json` on the same split-clean book:
+
+| | banked (O17) | spine | |
+|---|---|---|---|
+| zero-coverage names | 29 | **29** | **identical list, zero either way** |
+| excluded trades | 388 | **388** | 10.03% of the book |
+| `C_5d_avoid` kept / refused | 3045 / 437 | **3045 / 437** | ✓ |
+| `C_10d_avoid` kept / refused | 2856 / 626 | **2856 / 626** | ✓ |
+| `C_15d_avoid` kept / refused | 2642 / 840 | **2642 / 840** | ✓ |
+| `C4_own_the_event` owns / not | 1987 / 1495 | **1987 / 1495** | ✓ |
+
+## THE ONE RULE: a missing date is UNKNOWN, never "no announcement"
+
+O17's rule, enforced here structurally rather than by convention:
+
+* `coverage()` returns a **state**, never a bool.
+* `dates()` **raises `UnknownCoverage`** for an uncovered name. Deliberately an exception and not
+  `[]` — an empty list is precisely what a caller folds into "nothing announced in the window"
+  without noticing. A raise cannot be folded into anything. `dates_or_unknown()` returns `None`
+  for callers that want the sentinel.
+* **`FAIL_CLOSED` names are listed BY NAME in the census, not merely counted**, so a consumer
+  drops them deliberately.
+
+**The exposure, measured on both scopes:**
+
+| scope | names | COVERED | PARTIAL | **FAIL_CLOSED** | |
+|---|---|---|---|---|---|
+| options book | 186 | 157 | 0 | **29 (15.6%)** | **10.0% of trades** |
+| equity panel | 2,531 | 2,215 | 10 | **306 (12.1%)** | for X-2 / O-2 |
+
+The 29 are foreign private issuers filing 20-F/6-K rather than 8-K — ASML, AZN, BABA, GSK, NVO,
+NVS, RIO, SHEL, TSM, TTE, UL, the Canadian banks. **The panel's 306 is the same mechanism at
+scale** and is dominated by ADR tickers (ABBNY, ALLGF, ARVLF, ASAIY) and FPIs. A filter reading
+"no date" as "safe" fails open on a systematically non-random tenth of the book, and the failure
+is invisible because those rows look like passes.
+
+**Four coverage states, not two.** `COVERED` (≥3 dates in the year) · `PARTIAL` (1–2: real
+coverage, demonstrably incomplete) · `GAP` (the name has coverage elsewhere, none this year) ·
+`FAIL_CLOSED` (none anywhere). Code 22 runs **~2.83 per ticker-year against a quarterly 4**, so
+rounding `PARTIAL` up to `COVERED` is how a hole in a calendar becomes an implied "no
+announcement". The `EXPECTED_MIN = 3` line is recorded, not tuned — no arm selects on it.
+
+## Provenance, so nobody re-derives what is settled
+
+* **Code 22 = "Results of Operations and Financial Condition"**, the 8-K item an earnings release
+  is filed under. Decoded EMPIRICALLY in `bulk.py` (2026-08-01) by timing-vs-filing and by
+  information content, then **CONFIRMED against the published legend** that `S17`'s correction
+  retrieved from `SHARADAR/INDICATORS?table=EVENTCODES` and transcribed into
+  `SHARADAR_REFERENCE.md` §2. **It is no longer an inference.** 385,896 occurrences, 10,149
+  tickers, 2004-08-23 .. 2026-07-31.
+* **`bulk.py`'s decode is REUSED, not reimplemented.** The spine calls `prepare_events` and
+  `earnings_dates`; it never re-parses the CSV and never keeps its own `EARNINGS_CODES`. Pinned
+  by a test that checks the module NAMESPACE and its AST assignments — not its text, because the
+  docstring legitimately says the words while explaining that it keeps no copy.
+* **The spine does NOT import the archived `earnings_surface`.** MA59 quarantines it, and a live
+  module importing it would make a closed study reachable from the product. The comparison lives
+  in the test and the script — never in the spine. Pinned by parsing the spine's imports.
+
+## THE 34/35 SUNSET — recorded so nobody reads it as a signal
+
+From the legend's own first/last-seen columns: **Schedule 13G (code 34) stops 2024-12-17** and
+**Schedule 13D (code 35) stops 2025-05-16**. Every other `S17` arm code runs to 2026-07-31.
+
+**A code that stops being emitted is era-concentrated BY CONSTRUCTION.** It is carried in the
+census — attached to the table every event-time consumer reads — specifically so a future study
+does not rediscover the cliff in its own data and report it as a finding.
+
+**Its limits travel with it. It touches NO earnings date:** code 22 has no sunset, and this spine
+is code 22 only. Whether the sunset drives anything anywhere is **UNMEASURED**.
+
+## A second not-a-signal, found by building the census
+
+**2026 shows 77 PARTIAL against 80 COVERED, and that is the calendar, not decay.** The source
+ends 2026-07-31, so the last year is bounded by the extract rather than by data quality — as is
+2004, where code 22 begins on 2004-08-23 and 113 of 186 names read PARTIAL.
+
+The census now marks both ends as `source_bounded_years` with the reason. **This is the same
+mistake in a different costume as BUG 9 in the chain harvest** — reading a not-yet-complete
+period as a damaged one — which cost that harvest seven and a half months of data across 86
+names before it was caught. An unmarked cliff at the end of a coverage census is exactly what a
+trend-spotting consumer reports. Pinned by a test that also requires an INTERIOR year to be
+excused by nothing.
+
+**Interior coverage is healthy and rises as names list:** COVERED 121 (2005) → 157 (2025), GAP
+falling 35 → 0 over the same span.
+
+## What this is NOT
+
+Not a full earnings calendar — code 22's ~2.83/ticker-year is partial even for covered names,
+which is why coverage is stated per NAME-YEAR. Not a signal, not an arm, not a verdict: **zero
+trials, and no figure here may be quoted as a research result.**
+
+---
+
+# S3-I5 — THE TICKER-REUSE ADJUDICATION. Shipped 2026-08-23. THE TIER C/E BLOCK IS LIFTED.
+
+**FIXED-class: facts, not hypotheses. Zero trials.** `valuation/edge/ticker_identity.py` ·
+`tests/test_ticker_identity.py` (14) · `scripts/s3i5_ticker_adjudication.py` · table
+**`TICKER_REUSE_ADJUDICATION.json` (TRACKED)**.
+
+Reproduce: `python -m scripts.s3i5_ticker_adjudication`
+
+This is the precondition this handoff imposed on itself — *"nothing built on Tier C or Tier E is
+quotable until the 26 symbols are adjudicated"* — and the map's *"single most blocking unbuilt
+thing in Track B"*. It gates `SC-3`'s Tier-E strata, `B-14`'s long tenors, `B-15` and `B-6e`.
+
+## The verdict, per unit
+
+| verdict | units | meaning |
+|---|---|---|
+| **REUSED** | **36** | the whole year predates this company on this ticker — another company's data |
+| **SPLIT_YEAR** | **7** | the listing date falls *inside* the year — part is this company, part is not |
+| **SAME_COMPANY** | **2** | BTI, TAK — the flag was a late PANEL debut, not a change of hands |
+
+**Scope taken from the harvest manifest, not transcribed:** 45 units, 26 symbols. A hand-copied
+list goes stale the next time a tier runs.
+
+## THE ANCHOR, AND THE CHECK THAT WOULD HAVE FAILED SILENTLY
+
+The obvious test — *does this ticker map to two `permaticker`s?* — **returns a clean pass on every
+one of the 26, including SNOW and SNDK.** `TICKERS` is a CURRENT snapshot: one row per
+(ticker, table) for today's holder, so a reused ticker still shows exactly one permaticker. A
+check built on it would have reported 26 clean symbols and been wrong about 43 of 45 units.
+
+What the snapshot does carry is **`firstpricedate`** — the day *this* company began trading under
+*this* symbol — which is a real point-in-time boundary: **a year entirely before it cannot be this
+company.** The three verdicts follow mechanically from where the boundary falls.
+
+**SPLIT_YEAR is why two states are not enough.** Seven units need a *cut date*, not a verdict:
+
+| symbol | year | usable from | what it is |
+|---|---|---|---|
+| AA | 2016 | **2016-11-01** | Alcoa Corp lists; before that AA is Alcoa Inc |
+| ZTO | 2016 | **2016-10-27** | ZTO Express IPO |
+| MDB | 2017 | **2017-10-19** | MongoDB IPO |
+| SE | 2017 | **2017-10-20** | Sea Ltd IPO (and SE-2016 is REUSED outright) |
+| LIN | 2018 | **2018-10-31** | Linde plc post-merger listing |
+| MRNA | 2018 | **2018-12-07** | Moderna IPO |
+| TME | 2018 | **2018-12-12** | Tencent Music IPO |
+
+Round it down and a year of real data is thrown away; round it up and another company's is
+imported. `usable_from()` returns the date so a consumer cuts rather than guesses.
+
+## THREE EVIDENCE STREAMS, AND A CROSS-TABLE CONTROL
+
+Each verdict carries **registry** (`firstpricedate`, `permaticker`, `cusips`), **corporate
+action** (`listed` / `tickerchangefrom` / `acquisitionby` from ACTIONS) and **behavioural**
+(median-strike step, reusing `ticker_reuse_audit.py`'s discriminator and its 1.5 threshold —
+one definition of "a step", not two).
+
+**The cross-table control: ACTIONS' `listed` date equals TICKERS' `firstpricedate` on 25 of 26
+symbols.** Two separately-built Sharadar tables agreeing on the exact boundary the whole verdict
+turns on is independent confirmation, not a restatement. **The single exception is BTI, which has
+no `listed` row at all because it listed in 1986, before ACTIONS coverage begins** — an
+explainable absence, and BTI is a `SAME_COMPANY` verdict, so nothing rests on it.
+
+## THE STRIKE TEST IS ONE-SIDED, AND THAT IS THE SUBTLE PART
+
+Three symbols — **DOW (1.24), FTI (1.07), SE (1.03)** — show *no* strike step while the registry
+says REUSED. **The disagreements are recorded and change no verdict**, because the two tests ask
+different questions:
+
+* A **large** step corroborates a change of hands: SNOW **15.71**, SN **8.33**, SNDK **1.94**.
+  Two companies at very different price levels cannot be one continuous underlying.
+* A **small** step proves nothing. Unrelated companies routinely trade at similar prices. **SE is
+  the clean example: 1.03 across Spectra Energy → Sea Ltd is a coincidence of price level, not
+  continuity.**
+
+DOW and FTI are the honest middle — DowDuPont and TechnipFMC are restructurings where a roughly
+continuous *business* is re-registered as a new *registrant*, so "same underlying" and "same
+company" genuinely differ. **The prior `ticker_reuse_audit.py` independently called DOW
+`continuous_underlying` (0.88), so both runs agree on the behaviour and on the registrant — they
+are simply not the same fact.** Collapsing them would discard the only signal that a case is
+subtle.
+
+## What consumers must do
+
+Read `TICKER_REUSE_ADJUDICATION.json`; do not re-derive. `verdict(ticker, year)` returns
+`UNKNOWN` for anything unadjudicated — **never `SAME_COMPANY`** — because a fail-open default
+turns an unexamined ticker into an implicit clean bill of health, which is the failure
+`pre_panel_history` was invented to catch.
+
+**Found and fixed while building it:** the first data-root resolver probed for the `data/bulk`
+*directory*, and a worktree carries a thin one. It selected it happily and every symbol came back
+`UNKNOWN` — the right failure *direction*, the wrong *outcome*, and easy to misread as
+"adjudicated, nothing conclusive" rather than "pointed at an empty cupboard". It now probes for
+the registry FILE and refuses to write an all-UNKNOWN table.
+
+---
+
+# S3-I2 — THE CATALYST CALENDAR, FREE TIER. Shipped 2026-08-23. FORWARD-ONLY.
+
+**Collection-and-provenance, zero trials.** `valuation/edge/catalyst_calendar.py` ·
+`tests/test_catalyst_calendar.py` (16) · `scripts/s3i2_catalyst_scrape.py` · store
+`data/catalysts/CATALYST_CALENDAR.json` (gitignored, mirrored to `D:\thetadata\catalysts`) ·
+**`CATALYST_CALENDAR_SUMMARY.json` (TRACKED)**.
+
+Run: `python -m scripts.s3i2_catalyst_scrape` — safe on a schedule; it appends and never rewrites.
+
+## THE HONEST NOTE, FIRST, BECAUSE IT BOUNDS EVERYTHING
+
+**This table has no history and cannot be given one.** It records what a free surface published
+on the day we asked. Snapshots are append-only, every row is stamped with when it was observed,
+and nothing is ever rewritten. **The usable record starts at the first snapshot and accrues one
+day per day — the earliest honest event-study is roughly a year out, by construction.** The map
+said this in advance; it is a property of the instrument, not a shortfall in it.
+
+## First live pull, 2026-08-23
+
+| | |
+|---|---|
+| rows | **452** over **284 tickers** |
+| by type | Readout 327 · PDUFA 82 · Conference 41 · AdComm 2 |
+| **day precision** | **124** |
+| **IMPRECISE (month or quarter)** | **328** |
+| forward + day-precision (the usable set) | **99** |
+
+**FAIL-CLOSED ON PRECISION IS THE BIGGEST TRAP HERE, AND IT IS MEASURED RATHER THAN ASSUMED.**
+The source publishes a `date` field for all 452 events, and **328 of them are not dates** —
+they are months or quarters. A consumer reading `date` as a day would silently acquire a 328-row
+phantom calendar. `usable_date()` returns `None` for anything coarser than a day and **never
+rounds to the first of the month** — rounding invents a day the source never published, which is
+backfilling from *inference* rather than from memory and is no better for it.
+
+## NEVER BACKFILLED FROM MEMORY — as a code path, not a promise
+
+`add_snapshot()` **raises** on any row whose source has no *successful* fetch record in the same
+snapshot. There is no path by which a remembered PDUFA date, a reconstructed Russell schedule, or
+a hand-typed correction becomes a row. It raises rather than dropping, because a silently
+discarded row makes a partial write look complete. Pinned by three tests.
+
+## The index-reconstitution half: BLOCKED, with evidence
+
+**It does not ship as an empty table, because empty would be a lie.** Probed 2026-08-23:
+
+| surface | result |
+|---|---|
+| S&P Dow Jones Indices | **HTTP 403 on `/robots.txt` itself** — crawl permission cannot be established, so it was not fetched |
+| FTSE Russell | **`/robots.txt` soft-404s to an HTML page** — no robots file to honour, not fetched |
+| catalystalert.com | TLS `CERTIFICATE_VERIFY_FAILED` — **not bypassed**; verification is not disabled to make a scrape work |
+
+`STATUS_BLOCKED` means *we did not have permission to look*, which is a different fact from *we
+looked and found nothing*, and the four states (`OK` / `EMPTY` / `UNREACHABLE` / `BLOCKED`) are
+distinguishable by test. **I did not write a reconstitution calendar from memory**, which would
+have been easy and is precisely what the instrument forbids. Re-opening it needs a surface that
+grants permission, or a paid feed.
+
+## The source that does work, and its licence
+
+**`https://www.pdufa.bio/api/v1/events`** — robots explicitly `Allow: /api/v1/` while
+disallowing `/api/`, so the structured endpoint is the sanctioned one. Its licence is carried in
+every artifact: **"Attribution + link-back required. Facts and historical statistics only — not
+investment advice."** Attribution: <https://www.pdufa.bio/>.
+
+## Durability — this store cannot be rebuilt
+
+Unlike the chain harvest, which was re-fetchable until a deadline, **a lost catalyst snapshot is
+lost permanently**: the free surfaces publish a current calendar and keep no history. `data/` is
+gitignored, so the store is **mirrored to `D:\thetadata\catalysts`** and a **tracked provenance
+summary** carries the snapshot count, dates, source states and the store's sha256 — counts only,
+no vendor rows, so nothing is redistributed. A lost or silently truncated store is then loud
+rather than invisible.

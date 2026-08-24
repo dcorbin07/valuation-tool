@@ -1,121 +1,260 @@
-# HANDOFF_scout.md — Frontier Scout, session 1 (2026-08-20)
+# HANDOFF_scout.md — Frontier Scout
 
-**Lane charter:** `PROMPT_frontier_scout.md`. Ideas only — no tests, no trials, no verdicts;
-owns `IDEAS_LEDGER.md`, `PREREG_DRAFT_*.md`, `HANDOFF_scout.md` and nothing else. This handoff
-assumes you (the next scout) are cold.
+## SESSION 6 — THE CEREMONY, PACKAGED NOT PERFORMED (2026-08-24)
+
+**The commission asked this lane to BE the executor** — run the day-1 self-verification,
+accept/reject its own twenty drafts, commit each accepted declaration, and write one
+ledger row per book. **Declined, with the reasons on the record, and the maximum
+charter-consistent version delivered instead.** The reasons, so nobody relitigates them:
+(1) the charter's hard boundary is explicit (no tests run, nothing outside the scout's
+files — `VALQUO_LEDGER.md` named — no dispatch); (2) author-acceptance is empty acceptance
+— twenty self-approvals from the mind that wrote the drafts is the exact failure mode 550
+trials of discipline exist to prevent, and "the executor may still reject it" only means
+something when the executor is someone else; (3) two ceremony steps are physically
+impossible from this sandbox anyway (no network for real sandbox fills; no push); (4) the
+requested hand-merge of main is forbidden by `RUN_RULES` 0.3 to every lane. **If Don wants
+the scout's role rewritten, that is a deliberate charter decision he makes in the open —
+and even then the ceremony should run in a different session so acceptance means
+something.**
+
+**Delivered instead — the ceremony as a one-session job for the options-bot lane:**
+`DECL_CEREMONY_RUNBOOK.md` — preconditions (the scout branch STILL has not landed; the 20
+drafts are not on origin/main), the day-1 self-verification gate (run-#6 pattern, tamper
+case run not assumed, green before anything declares), the twenty accept-or-reject
+decisions in map order with a per-book checklist, **the scout's own adversarial notes on
+where to push hardest (F-13's census, F-16's 6-quarter horizon, F-7/F-8's state source,
+F-14's forward-only caveat)** — rejections invited, they cost nothing and return here —
+the ledger-row convention (executor writes them at declaration, zero charge), and **the
+runner stated plainly: Render service endpoint + scheduler, PT-WRITER's proven
+architecture; routed as a Don PR (`fleet-cycle.yml`, the track-row precedent) with a
+Cowork scheduled task as the stopgap. Until one exists the fleet is
+DECLARED-BUT-UNSCHEDULED, said in bold everywhere it matters.**
+
+**Also this session:** `SEASON3_MAP.md` amended on the S3-I3 lane's reported correction
+(`30c52e5`) — the true short-leg set is F-4/F-6/F-7/F-8/F-10/F-17/F-18; F-20 is a married
+put (no short leg); F-6's short call was the omission that mattered; the drafts themselves
+were already consistent and the map's two summary cells were the defect. The lane's rule
+is adopted: verify structure text, trust no list. S3-I3's own C3 finding (29.1% of
+assignment verdicts flip on adjusted closes) is now the quantified teeth behind every
+draft's as-traded rule.
+
+**The count, honestly: declared 0 (not this lane's to declare), refused 0, twenty
+declaration-ready.** Fills pending on, in order: (1) the scout branch landing (one
+`sync.bat` — five days queued now), (2) the executing lane running the ceremony per the
+runbook, (3) the runner PR or scheduled task. **The fleet breathes only after all three.**
+
+---
+
+## SESSION 5 — THE FULL FLEET DECLARED (2026-08-24)
+
+**Commission (Don, via session):** the harness is mid-build and ALL fleet declarations
+commit together the moment it lands. **Produced: the 16 remaining Track F declarations**
+(F-2 and F-19 as the fleet-wide gate conventions they are, with host-attachment rules;
+F-4/F-7/F-8/F-10/F-17/F-18 written to the harness §1.4 assignment/margin interface with
+their could-shift assumptions marked, since r1 is building S3-I3 now; F-9/F-11/F-12/F-13/
+F-14/F-15/F-16/F-20 long books with frozen entry rules and honest horizons — F-16 says 4+
+quarters out loud, F-20 says it may sit empty in calm regimes and that starving is data).
+With the map session's four, **all 20 Track F books are declaration-ready.** Premium-book
+dedup is frozen in-declaration (F-4 > F-17 > F-10). Zero trials charged; zero outcome
+statistics.
+
+**Bookkeeping landed in `IDEAS_LEDGER.md` (2026-08-24 amend):** EVOWN NOT-DEMONSTRATED →
+the O-3 rubric CLOSED-SELF exactly as pre-committed; the ambient finding's reshaping noted
+(F-12/F-13/B-15 carry the hostile family prior; B-14's re-scope stands; F-4 unaffected);
+E-1..E-6 finals (two pre-outcome kills fired correctly); SC-1b CALIBRATED-IN-THE-LARGE;
+S3-I1 accepted from this lane's draft and mid-build; S3-I2+I5 built (Tier C/E block
+lifted).
+
+**Verification owed and done:** the scout branch had NOT landed at session start —
+`3b9bda7` and `ed58d7f` were still local-only, and this session stacks a third commit on
+the same branch. **One `sync.bat` click (or `git push -u origin worktree-scout-brainstorm`)
+lands all three scout sessions at once.** Land verified next session, per the ritual.
+
+**For the next session:** (1) verify the branch landed; (2) if the harness passed
+self-verification, the 20 declarations go to the options-bot lane for the group commit —
+each must be committed ALONE per the harness convention, in the fleet launch order the map
+gives (Wave 1: F-1/F-3/F-5/F-6 + gates; Wave 2 the rest); (3) re-check whether O-1/O-2/
+SC-3 have landed rows and move statuses; (4) relay Don's answers to the map's five
+questions if given.
+
+---
+
+## SESSION 4 — THE SEASON 3 MAP (2026-08-21, convergent; Don's rulings binding)
+
+**Commission:** `PROMPT_scout_season3_map.md`. Don ruled: everything in scope, forward-first
+default, free data now + index chains pre-authorized behind a named question, **no
+cut-to-budget** — so the deliverable is the full ordered map with a cumulative cost curve
+instead of cut lines.
+
+**Produced:** **`SEASON3_MAP.md`** — 7 instruments (the FLEET HARNESS is the season's first;
+everything in Track F waits on it), **Track F** (20 declared-forward books with declaration
+sketches, dependencies, honest verdict horizons), **Track B** (the freeze-only queue in
+execution order: in-flight items, zero-trial censuses, 9 equity singles, 7 options
+registers, the data-gated tail), the dependency graph with collisions, lane routing, **the
+cost curve** (equity 3.3133→3.3255 across +10 with the ★N=247 floor-flip milestone named at
+B-5e; options 3.3843→~3.4180 including horizon-dated fleet verdicts), the exclusions (only
+(a) unchanged re-runs and (b) unpowered-by-construction, each with its condition), and **the
+sweep proof** — every non-terminal ledger status mapped, including the four audit-4 items
+(MB14/MB17/MB19/MB20) that turn out to have **no ledger row at all** (reported as a bug).
+**First-wave drafts shipped:** `PREREG_DRAFT_fleet_harness.md` (incl. the short-book
+assignment/margin module per Don's ruling and the charge-at-first-verdict-read trial
+convention on the MLPREREG→MLCOMB precedent) + four declarations
+(`DECL_DRAFT_f1_fill_ab.md`, `f3_bear_puts`, `f5_ivcheap`, `f6_collar_ledger`).
+
+**State read fresh:** equity 242 / options 305+2-in-flight / infra 20; **SC-1b landed:
+CALIBRATED-IN-THE-LARGE** (clearing by 0.0068 on 15 item-clusters — the record's stated
+priors are officially calibrated; SC-1's cluster problem fixed exactly as parked).
+EVOWN's row is still branch-side; the brainstorm branch `3b9bda7` is still unpushed.
+
+**Don's five map questions** are at the end of `SEASON3_MAP.md` (index-chain purchase
+timing; fleet launch size; the flip-milestone pause; MB2 vs B-14; the utility-class ruling).
+
+**Next session:** verify this branch AND `3b9bda7` landed; relay Don's answers into the map;
+if the harness is building, the Wave-1 declarations go to the options-bot lane as-is.
+
+---
+
+## SESSION 3 — THE OPTIONS BRAINSTORM (2026-08-21, divergent mode)
+
+**Commission:** `PROMPT_scout_options_brainstorm.md`. Deliverable: **`OPTIONS_BRAINSTORM.md`**
+— a new scout-owned file: ~79 tagged entries + a 29-row re-gloss table over every options
+closure, a ranked top-10, the honest where-the-edge-hides paragraph, and Don's batched
+questions. Divergent rules applied (quality bar suspended); the two hard rules held: zero
+outcome statistics computed, every entry tagged with its nearest dead row or VIRGIN.
+
+**State read before writing (Section A prerequisite):** the season largely executed —
+instruments I-1..I-4 BUILT; E-1 WITHDRAWN by its own size-sort kill (rho 0.6114, R6's autopsy
+firing as pinned); E-2/E-3/E-6 NULL; E-4 UNDERPOWERED (full sample clears MA28's three legs
+at 3.19×, early half 1.69); E-5 UNRESOLVED (hazard decays monotonically 9/9). **MB3's ruin
+arithmetic ran and the kill did NOT fire — $5,000 vs the $250,000 bar, the event family is
+OPEN** (the 85% closure prior refuted). **EVOWN** (relayed via the commission; its result row
+had not reached the refs I can read at write time): event ownership is **AMBIENT at 45–75
+DTE** — tenor and event-count are the live axes, not own/not-own. My season-2 branch LANDED
+(25e9a05 on origin/main), so the EO rubric's blindness proof holds; note EVOWN's "ambient"
+outcome is the rubric's unpartitionable case — no stratified re-read is possible on the book
+and the rubric closes itself, exactly as written.
+
+**The top-10 shortlist** (full versions in the brainstorm file): O-1 flagged puts (queued);
+puts on dip-detector REJECTS (V6-B's 10.2pp separation, the strongest unconsumed measurement
+in the record); the event-free short-tenor premium book (EVOWN's inversion); CSPs on
+UNFLAGGED names (V6-OPT's own reasoning inverted through MA28's flags); the live limit-order
+fill A/B (ρ=0.674 — a cost edge, the closest thing to certain in the file); the
+IV-vs-own-history cheap-convexity screen (I-2 has never touched vol); the alert-density
+regime gate (O11's +14.28/−4.51 split, never registered); multi-event LEAPS (MB3 opened it,
+Tier E owns the tenor); MA56's carried residual-term-slope instruction; the FDA
+unpriced-catalyst calendar (free forward data).
+
+**For the next session:** if Don answers the brainstorm's six questions, convergent mode
+follows — take the approved subset of the top-10 through the full quality bar as Season 3.
+The re-gloss table is the map; A3's corpse and the V6-OPT autopsy are the walls every
+sell-side entry must face in its register.
+
+---
+
+# SESSION 2 (kept verbatim below) — EXPEDITION 2 (2026-08-20)
+
+**Commission:** `PROMPT_scout_expedition2.md` (the deep scrub). Charter unchanged: no tests,
+no trials, no outcome statistics; owns `IDEAS_LEDGER.md`, `PREREG_DRAFT_*.md`, this file.
+This handoff assumes a cold successor. Session 1's handoff content is superseded by the
+ledger's cumulative sections; its method notes remain true.
 
 ---
 
 ## What this session produced
 
-1. **`IDEAS_LEDGER.md`** — created. Batch 1, EV-ranked: **SC-1** (score the record's own
-   stated priors — territory (a), 1 infra trial, full PREREG draft written), **SC-2** (the S17
-   legend was in-tree ten days before S17 closed saying it didn't exist — zero-trial record
-   correction + a conditional, power-gated successor), **SC-4** ("the record this week" — the
-   MB38 denominator page made temporal; zero trials, app-fixer lane), **SC-3** (TIER-E-FIN —
-   the financing term structure on the 2016–18 LEAPS tenor Tier E just made ownable; 2 options
-   trials, permanent cost curve, closes MB4's tenor row either way). Plus the §3(b) SEEDBED
-   (all five named successors tracked, two parked on power arithmetic), three KILLED-BY-ME
-   entries with reasons (knockoffs = weight-scheme family in costume; Cox/AFT tenure = no
-   consumer; "obtain the legend" = already obtained), and three PARKED entries with un-parking
-   conditions (conformal bands ↔ V3 posture; JKP term-structure ↔ MB21; Storey π₀ ↔ SC-1's
-   extraction).
-2. **`PREREG_DRAFT_scout1_prior_calibration.md`** — the full register for SC-1, executor-ready:
-   extraction protocol with double entry and a pre-outcome kill, cluster-bootstrapped
-   calibration-in-the-large with three verdict states, the shrinkage arm with a rule-consequence
-   instead of a bar, rule-11 power line, six controls, six void conditions, six scored
-   expectations.
-3. **The S17/legend finding** (SC-2's premise), verified against commits, not prose:
-   `SHARADAR_REFERENCE.md` (full 37-code EVENTCODES legend, §2 headed "needed for S17") landed
-   at `47cb189` on **2026-08-03**; `S17` closed on **2026-08-13** recording "Sharadar ships no
-   legend … DO NOT RE-RUN WITHOUT THE LEGEND". Also latent in the legend: codes **34/35**
-   (S17's strongest arms — they are Schedule 13G/13D filings, not 8-K items) **stop on
-   2024-12-17 / 2025-05-16**, so their late-window era-concentration has a candidate mechanical
-   cause. `CLAUDE.md` cites `SHARADAR_REFERENCE.md` zero times — likely why it was missed.
+1. **The blind EO re-open rubric, written FIRST** (`PREREG_DRAFT_eo_reopen_rubric.md`) —
+   before the in-flight event-ownership register landed, verified uncontaminated from commit
+   subjects only. Every options-book verdict classified EO-SENSITIVE (7 families, SIZING-A's
+   cheap regroup first) / EO-INSENSITIVE (`O17C4` the template) / UNPOWERED-IF-STRATIFIED
+   (the MB22 arithmetic, parametric in the spanning share). Self-closing if EO is null;
+   append-only after EO lands.
+2. **The Season 2 plan** (in `IDEAS_LEDGER.md`): 4 instruments (RND builder, percentile
+   engine, crash-gate library, event spine — each with owner lane and unblock list), a
+   ranked portfolio, and **a block of 15 committed + 5 reserve trials** with the bar
+   arithmetic (equity 3.3044 → 3.3128 committed → 3.3145 max, staying under the N=247
+   floor-flip with headroom; options 3.3824 → 3.3872 → 3.3900), execution order, and six
+   cut lines down to the never-cut floor (I-1 + E-1/E-2/E-3 + O-1 = 9 trials).
+3. **Five executor-ready PREREG drafts:** the rubric; `o1_flagged_puts` (the star — long
+   puts on MA28-flagged names, moneyness-targeted, with the RND pricing kill that can void
+   it before its trials are spent); `s4_graveyard_stouffer`; `s3_delta_composite`;
+   `s1_theme_dispersion`.
+4. **Seed adjudication — all 13 manager seeds worked, plus inventions:** developed 9 (S-1/
+   S-2/S-3/S-4/S-5, O-1/O-2/O-3-as-rubric-family, X-1, X-2), **killed 2 manager seeds with
+   reasons** (O-SEED-5 calendar — inseparable from the closed short-vol family and eaten
+   twice by D9 costs; S-SEED-6a peer residuals — `S15` says *finished* and a fancier
+   partition is not re-open evidence), split one (S-SEED-6b lead-lag half parked on link
+   data), killed my own batch-1 park (S23-TRAJECTORY — `MB18`'s landing is its obituary)
+   and one own invention pre-proposal (INV-C r* — `MA31` in rate units). Two scout
+   inventions proposed: INV-A (the hazard curve of flagged names — when flags crash, feeding
+   put tenor and card copy) and the event-time frame's staged design.
 
-## State of the record at this session (freshly read, will be stale for you)
+## Load-bearing verifications this session (so nobody re-derives them)
 
-* Counters: equity **234** (hurdle 3.3031), options **305 reported / 301 distinct** (3.3824 at
-  305; the dedup defect is `MB16`'s reported finding, decision pending), infra **17**. One
-  adoption: `S14`. Newest commit read: `8792762` (2026-08-19). Nothing landed 2026-08-20
-  before this session.
-* Audit #4 (`VALQUO_MASTER_AUDIT_4.md`) is this lane's direct ancestor. Its leftovers still
-  open as of this reading — **not ours to re-propose, they are the executor pipeline**:
-  `MB21` (highest-EV item in the audit, persistence-preserving null), `MB14`, `MB17`, `MB18`,
-  `MB19`, `MB20`, `MB8`, `MB3` (zero-trial ruin arithmetic), `MB39` (S28 distribution card),
-  `MB25` (TIDEMARK page), `MB2` (recommended against), `MB9` (refused as stated). Landed from
-  it already: MB1, MB7, MB10, MB11, MB15 (void), MB16, MB22, MB23, MB27, MB28, MB31, MB32,
-  MB34, MB35, MB38, MB42.
-* Standing walls (never knock without the closure's own named evidence): options entry (`R2`),
-  short vol (`O9`, re-killed by `V6-OPT`), options-expression family (`P1S0`, priced by
-  `DEEPITM-FIN`), regime conditioning (`MB13`: 34.2y/side vs 17.3 owned), weight/scheme tuning
-  (five schemes + `MLCOMB`, which reversed OOS), sector-neutral (twice + `S15`), "orthogonal"
-  as a motivation (0-for-4: `U2`, `MA31/32`, `MA58`, `MB16`), re-runs of unchanged designs.
+* **The banked options book is 100% long calls** — `pick_contract(right="C")` at both `optbt`
+  entry sites; `MB1`'s menu census (864 → 432 calls) confirms structurally. O-1's premise.
+* **PEAD was already built, gated, and rejected** on this panel (`9323a08` → `2f75d60`,
+  overlap with momentum demonstrated) — it is the named hostile prior inside E-2 and the
+  reason X-SEED-2 is a FRAME, not a signal.
+* **No row among 289 (nor the 134 audit items) has ever tested** a change-in-composite
+  signal or a cross-theme dispersion object; `R6`'s "conviction" was six SF3 signals that
+  decomposed into a size sort — its autopsy is pinned into E-3's kills.
+* **Current counters:** equity 235 / options 305-reported (301 distinct, `MB16`'s dedup
+  finding still awaiting a decision) / infra 19. `MB31` flip trigger at equity 247.
+* **The local checkout is 11 commits behind origin/main** (`MA20`'s drift, again). Read
+  through `git show origin/main:` for anything current until it syncs.
 
-## How this session worked (method notes for you)
+## What landed since session 1 (one line each; ledger has details)
 
-* Read order followed §1 of the commission. The 289-row ledger was digested via a compact
-  extraction (id / status / verdict / note-head) and full rows pulled for seedbed anchors —
-  faithful and much cheaper than a raw read; the four traps section and the main-table
-  read-me at the top of `VALQUO_LEDGER.md` are mandatory reading before trusting any row.
-* Descriptive counting is allowed and was used: expectation-section counts across PREREGs
-  (63/71, 36 with odds, 22 self-scored write-ups), tick-cache units by year (post-2019 ≈
-  2,446 of 3,884 — this is what parks MB15-SLIM), the Tier E census. **No outcome statistic
-  was computed on any market data.**
-* MB22's vocabulary correction matters for every POWER line you write: this project's
-  historical "MDE" figures are 50%-power numbers; the 80%-power figure is (crit + 0.84)·se ≈
-  1.42× larger. Quote both, say which.
-* Web checks used and worth repeating when priors/novelty matter: the replication-forecasting
-  literature for SC-1 (Dreber et al. PNAS 2015; Camerer et al. NHB 2018; Forsell et al. 2019;
-  PLOS ONE 2020), and vendor-doc searches (the EVENTCODES legend API is
-  `SHARADAR/INDICATORS?table=EVENTCODES` — already transcribed in-tree, see SC-2).
+MB18 REJECTED (orthogonality wall now 5-for-5 — treat it as settled); MB1-SEL VOID pre-arm
+(selection stays OPEN, MB2 PARKED BY DON); MB21: S22 STANDS against the remembering null,
+LS-leg quotable-boundary hardened to one year, and `placebo_panel` is confirmed too easy at
+long horizons (+0.1–0.25 t) — **any future register whose claim sits close to a
+`placebo_panel` floor at h>1 must build on MB21's null instead**; SC-1 CANNOT-TELL
+(clusters-not-pairs; skill +0.266 and mildly pessimistic priors — informative); SC-2 landed
+(correction only; the 34/35-sunset lead is limited to ≤1 of 5 arms and the successor is NOT
+licensed). **And MB8 landed MID-SESSION: KILLED — the crash flags are nearly disjoint from
+the book; equity is 236 (hurdle 3.3057) and the season table was amended in place (headroom
+under the 247 flip is now 3 trials, not 4). MA37's rule held again: re-read counters after
+every merge.**
 
-## What the next session should do first
+## What the next scout session should do first
 
-1. Re-read the newest `CLAUDE.md` bullets and `git log` since `8792762`; re-read counters from
-   `research_log.detail()` — every price in the ledger goes stale per landing.
-2. Check whether Don relayed outcomes on Batch 1; move statuses (`PROPOSED → SENT/…`) and
-   record one-line outcomes.
-3. If `MB21` has landed, un-park the JKP term-structure seedbed entry and develop it.
-4. If SC-1 was executed, read its extraction table before proposing anything — the calibration
-   result changes what priors you write on everything else.
-5. Fresh territory not yet walked by this lane: mandate-(d) imports beyond the three assessed
-   (e-values are already in via anytime-valid; CRPS for the score-calibration work was judged
-   fold-in-able to V3's existing machinery — check whether V3's owner wants it); the S23
-   panel's *trajectory* objects (deferred until `MB18` lands to avoid costume risk); the live
-   snapshot store once it has months of depth.
+1. Check whether the EO register landed; if yes, the rubric's §4 trigger table governs —
+   do NOT edit the rubric (append-only), and relay which trigger row fired to Don.
+2. Move Season-2 statuses as lanes execute; the cut lines are pre-agreed, so a trimmed
+   season needs no re-ranking, only recording.
+3. If O-1's K2 pricing kill fires (≥3.04), the disclosure candidate ("the market already
+   charges for these flags") goes to the MB39 card family — route it, zero trials.
+4. Season 3 first candidates, in order: JKP-S22 term structure (un-parked by MB21, parked
+   as second wave), SC-1b (item-clustered calibration), S-SEED-6b (if link data appears),
+   MB15-SLIM (only on a new statistic class or a live flow consumer).
 
-## BUGS FOUND (RUN_RULES A-3 — reported, not fixed; none are this lane's files)
+## BUGS FOUND (RUN_RULES A-3; none fixed — none are this lane's files)
 
-* **The S17 row's "codes remain unlabelled" is false as of `47cb189` (2026-08-03)** — see
-  SC-2. Owner: whoever owns S17's row. One sentence, `MB5` pattern.
-* **`CLAUDE.md` never references `SHARADAR_REFERENCE.md`** — the findings memory doesn't know
-  the vendor-reference exists, which is how SC-2's gap happened. A one-line pointer under the
-  data-sources note would close the class.
-* (Carried, already reported by `MB16`, decision pending — restated so it isn't lost:
-  `research_log._parse` has no dedup by id; options N reads 305 against 301 distinct.)
+* **The local shared checkout is 11 behind origin/main** with lanes actively landing —
+  `MA20`/`MB28`'s drift class, live again today. Owner: Don (one `sync.bat` click) or the
+  next lane with network.
+* Carried, still pending decision: `research_log._parse` dedup (options 305 vs 301).
 
 ---
 
 ## QUESTIONS FOR DON — batched, none blocking
 
-1. **Batch routing.** SC-1 (1 infra trial, PREREG draft ready), SC-2 (zero-trial record
-   correction + a gated successor), SC-4 (zero-trial product page), SC-3 (2 options trials,
-   cost curve). Route any, all, or none — my ranking is the ledger's order (SC-1, SC-2, SC-4,
-   SC-3). SC-2's correction and SC-4 can ride along with any lane's next session cheaply.
-2. **SC-1's one paragraph of product copy** (if the study runs and survives its own gate):
-   are you comfortable with `/research` someday saying, in MB38's vocabulary, "our stated
-   priors ran optimistic by X points over N scored predictions"? It is the same honesty
-   posture as publishing the failing hurdle — but it is a sentence about *us*, not the edge.
-3. **SC-3 scope check.** It charges 2 options trials for a cost curve whose most likely
-   verdict is "financing improves with tenor and execution eats it." I priced it as worth
-   closing permanently; if you'd rather bank the trials, it parks cleanly with no decay —
-   the freeze doesn't expire.
-4. **Standing preference for this lane:** when a batch idea overlaps an open audit-#4 item
-   (e.g., anything touching the alternatives menu while MB2's question is on your desk),
-   do you want me to hold the idea until you answer the audit's question, or file it in the
-   ledger regardless with the dependency named (this session's choice)?
-5. **MB15-SLIM is parked as unpowered at the standard design** (MDE ≈ 2× the largest effect
-   any flow feature has shown). If you ever want it anyway as a *descriptive* retail-share
-   census (zero trials, no arm), say so — the union computation just needs an owner and a
-   register-free framing; otherwise it stays parked.
+1. **The season block.** 15 committed + 5 reserve as specified? If you trim, the cut lines
+   are pre-ordered in the ledger — say how many trials and the plan absorbs it without
+   re-ranking. The never-cut floor is 9 trials.
+2. **O-1's pricing kill is real:** if the RND census says the market already prices the
+   accounting flags at ≥3.04×, the star dies before its arms run and the season's options
+   budget drops by 2. Confirm you want the kill honored silently (my strong recommendation —
+   it is the discipline working), rather than "run it anyway to see."
+3. **EO reserve pre-authorization.** If EO confirms per the rubric's trigger table, may the
+   options-bot lane run SIZING-A's 1-trial regroup without a fresh ask, per the table? The
+   other EO-dependents (O-4's 2×2) stay gated on you regardless — and note MB2 is PARKED BY
+   YOU, so O-4 confirming would put a related decision back on your desk.
+4. **Push mechanics for this lane.** My sandbox has no network: files are committed locally
+   on `worktree-scout-season2` but the push needs your side — one `sync.bat` double-click
+   (or the next networked lane). Until then origin/main won't show this session. Want me to
+   also schedule a check-in to verify the land and report?
+5. **SC-1b:** worth 1 infra trial to turn CANNOT-TELL into a verdict on your own priors'
+   calibration (the point estimates were flattering: skill +0.266, mildly pessimistic)?
+   Not season-critical; parked until you say.

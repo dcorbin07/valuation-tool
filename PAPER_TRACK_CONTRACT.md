@@ -466,6 +466,32 @@ brake; the trial charge is the accounting.
 
 ## 5b. THE SANDBOX ENGINE IS A REGISTERED EXPERIMENT — 2026-08-10 (session 16, `PT-SPLIT`)
 
+> **UPDATE 2026-08-24 — THE "ALIGNED GOING FORWARD" HALF HAS HAPPENED, AND IT IS MEASURED.**
+> This section promised two things: alignment forward, and the already-recorded days registered
+> as a separate experiment. The second was done on the day. **The first is now true in the
+> data.** Measured on the committed Render export (`data_export/paper_track_history.json`, from
+> the scheduled backup at `70ef5ef`, 2026-08-23): the engine's recorded book holds **68
+> positions at a maximum weight of 3.083%**, so `valquo_index.conformance` returns
+> **`conforms: True`** with the 8% cap genuinely non-binding at that book size. The engine is no
+> longer recording a truncated top-N list under the Index's name.
+>
+> **WHAT DOES NOT CHANGE, and it is the part that matters.** The **four original days remain a
+> separate experiment** and their figures are still not evidence under this contract — a book
+> that conforms *today* does not retroactively make a differently-constructed record from
+> 2026-08-03 into the bound series. **§5's register still binds the published Valquo Index and
+> only that**, and no engine figure may be quoted as Index evidence. Nothing in §5 or §6 moves:
+> no threshold, no date, no parameter.
+>
+> **HOW THIS WAS FOUND, because the mechanism is worth recording.** A **scheduled** workflow
+> ("Track backup") commits refreshed data straight to `main` without passing the land gate, so
+> it changed the world under `tests/test_paper_track.py::test_ptsplit_the_live_engine_book_is_
+> recorded_as_non_conforming` — a test asserting a *fact about that data* — and nothing re-ran
+> the suite. **Six consecutive land attempts across five branches then failed on an inherited
+> red**, none of them the lane that caused it. The test's own failure message prescribed this
+> update ("the register needs updating rather than this test"), and it was right. **A cron job
+> that can turn the shared gate red without any lane pushing code is a real gap in the gate**,
+> and it belongs to whoever owns `track-backup.yml` — not fixed here.
+
 §0a.2 recorded that two mechanisms record something called "the Valquo Index" and that they hold
 **different books**. This section closes that split the only two ways it can honestly be closed:
 the mechanism is **aligned going forward**, and the **already-recorded days are registered as a
@@ -586,6 +612,42 @@ authorises nothing, which is pinned by test. Verify with
 found, and still emails the owner. What it can no longer do is ship. Enforced at
 `valuation/screener/store.py::save_learned` — the one funnel both weight writers pass through —
 and pinned by `tests/test_weight_adoption.py`.
+
+---
+
+## 5d. A SECOND BENCHMARK EXISTS AND IT IS NOT BOUND BY THIS CONTRACT — 2026-08-20 (`PT-SPMO`)
+
+Don asked for **SPMO** — Invesco's S&P 500 Momentum ETF — to be shown beside the Index's SPY
+excess. It is recorded here because a reader who has read this register and then sees a second
+benchmark on the site is owed a sentence in the register saying which one binds.
+
+**Nothing in sections 2, 3, 5, 5a or 6 moves.** The sigma, the alpha, the rho, the operational
+gate, the 60-month verdict and the anytime-valid meter are all defined against the SPY excess
+and remain so. SPMO is **reported**, which in this document means: shown, labelled, and
+carrying no verdict, no gate and no clock.
+
+**Why SPMO rather than something easier.** `R1`'s factor regression on the corrected panel puts
+the book on **UMD +0.205 at t +3.65** — momentum is one of only two standard premia it loads
+on. A cap-weighted broad-market benchmark charges the book nothing for that exposure, so an
+excess over SPY can be a momentum premium wearing a stock-picking label. An investable momentum
+ETF is the harder comparison, and it was added *because* it is harder.
+
+**And it is harder in practice, not only in principle.** Measured on the four recorded rows at
+2026-08-20, the SPMO excess is below the SPY excess on three of the four; on the latest row the
+two disagree by 4.01pp in SPY's favour. **Twelve trading days is not evidence of anything**, and
+no figure from this comparison may be quoted as a result.
+
+**Where it lives, and why it is not a column.** A sibling file, `data/valquo_vs_spmo.csv`,
+written by the same append-only mechanism on the same daily POST. It is a separate FILE because
+adding a column to `valquo_track_history.csv` widens the header, which rewrites every line,
+which cannot preserve the byte prefix `.github/workflows/track-row.yml` verifies with `cmp` —
+so a reported benchmark would have forced a re-seed of the one dataset that cannot be
+re-derived. Its Valquo leg is **copied out of the bound series as raw cell text and never
+re-derived**, so the two files cannot show two different Valquo numbers.
+
+Owned by `valuation/screener/reported_benchmark.py`; the containment is pinned by
+`tests/test_reported_benchmark.py`, which byte-compares the bound file across every sibling
+operation and asserts at source level that the meter, the gate and `vs_spy_claim` never read it.
 
 ---
 

@@ -91,106 +91,51 @@ def _w(path, obj):
         json.dump(obj, f, indent=2, default=float)
 
 
-def _nw_t(x, lag=1):
-    """Newey-West(lag) t of a mean. The shipped definition, imported not re-typed."""
-    from valuation.edge.statistics import mean_inference
-    r = mean_inference(list(map(float, x)), lag=lag)
-    return float(r["t"]) if r and r.get("t") is not None else None
+# ---------------------------------------------------------------------------------------
+# the statistic -- DELEGATED to valuation/studies/crash_gate.py (I-3), 2026-08-20.
+#
+# The four functions that used to be written out here are now ONE implementation shared with
+# every other crash-flag register (`E-4`, `E-5`/`INV-A`, `E-8`, `O-1`'s C1). B7's lesson: an
+# idea written twice is an idea maintained once.
+#
+# WHAT DID NOT MOVE, DELIBERATELY: the register's CONSTANTS. `crash_gate` takes every bar
+# keyword-only with no default, so the 2.0x ratio floor, the 0.50pp absolute floor, the 30/100
+# per-date qualification counts and the seed are still declared HERE, by this register, and are
+# still governed by the comment above them. MA5's finding is that a shared default is exactly
+# how a bar freezes; a library that supplied these would let the next register inherit MA28's
+# pre-registration without writing one.
+#
+# The refactor is proved INERT rather than asserted to be: `scripts/i3_crash_gate_validate.py`
+# reproduces this file's own banked MA28_CARD.json at max |delta| 0.000e+00 across all three
+# windows, and separately checks the library against the pre-refactor source restored from git.
+# ---------------------------------------------------------------------------------------
+from valuation.studies import crash_gate as CG                      # noqa: E402
+
+_nw_t = CG.nw_t
 
 
-# ---------------------------------------------------------------------------------------
-# the statistic
-# ---------------------------------------------------------------------------------------
 def per_date_diff(df, crash_col="_crash"):
-    """d_t = P(crash | flagged, t) - P(crash | kept, t), on qualifying dates only.
-
-    A date qualifies on FLAGGED and KEPT counts fixed in the register BEFORE any value was
-    seen, so a thin date cannot be dropped after its number is read.
-    """
-    rows = []
-    for d, g in df.groupby("date", sort=True):
-        f = g["flagged"].to_numpy(dtype=bool)
-        c = g[crash_col].to_numpy(dtype=bool)
-        nf, nk = int(f.sum()), int((~f).sum())
-        if nf < MIN_FLAGGED_PER_DATE or nk < MIN_KEPT_PER_DATE:
-            continue
-        rows.append({"date": str(d)[:10], "n_flagged": nf, "n_kept": nk,
-                     "rate_flagged": float(c[f].mean()), "rate_kept": float(c[~f].mean()),
-                     "n_crash_flagged": int(c[f].sum()), "n_crash_kept": int(c[~f].sum())})
-    r = pd.DataFrame(rows)
-    if len(r):
-        r["d"] = r["rate_flagged"] - r["rate_kept"]
-    return r
+    return CG.per_date_diff(df, crash_col=crash_col,
+                            min_flagged_per_date=MIN_FLAGGED_PER_DATE,
+                            min_kept_per_date=MIN_KEPT_PER_DATE)
 
 
 def pooled(df, crash_col="_crash"):
-    f = df["flagged"].to_numpy(dtype=bool)
-    c = df[crash_col].to_numpy(dtype=bool)
-    nf, nk = int(f.sum()), int((~f).sum())
-    rf = float(c[f].mean()) if nf else None
-    rk = float(c[~f].mean()) if nk else None
-    return {"n_flagged": nf, "n_kept": nk,
-            "n_crash_flagged": int(c[f].sum()) if nf else 0,
-            "n_crash_kept": int(c[~f].sum()) if nk else 0,
-            "rate_flagged": rf, "rate_kept": rk,
-            "rate_all": float(c.mean()) if len(c) else None,
-            "ratio": (rf / rk) if (rf is not None and rk) else None}
+    return CG.pooled(df, crash_col=crash_col)
 
 
 def permutation_p95(df, crash_col="_crash", n=N_PERM, seed=PERM_SEED):
-    """B1's null: shuffle the FLAG within each date.
-
-    This preserves each date's flagged COUNT and its crash outcomes EXACTLY and destroys only
-    which names carry the flag -- so the cross-sectional and time-series structure is held
-    fixed and the flag's identity is the single thing under test. X7's method.
-    """
-    rng = np.random.default_rng(seed)
-    groups = []
-    for d, g in df.groupby("date", sort=True):
-        f = g["flagged"].to_numpy(dtype=bool)
-        c = g[crash_col].to_numpy(dtype=bool)
-        if int(f.sum()) < MIN_FLAGGED_PER_DATE or int((~f).sum()) < MIN_KEPT_PER_DATE:
-            continue
-        groups.append((int(f.sum()), c))
-    if not groups:
-        return None
-    draws = np.empty(n, dtype=float)
-    for i in range(n):
-        ds = []
-        for nf, c in groups:
-            idx = rng.permutation(len(c))
-            fs = np.zeros(len(c), dtype=bool)
-            fs[idx[:nf]] = True
-            ds.append(c[fs].mean() - c[~fs].mean())
-        draws[i] = float(np.mean(ds))
-    return {"p95": float(np.quantile(draws, 0.95)), "p50": float(np.median(draws)),
-            "max": float(draws.max()), "n_draws": int(n)}
+    return CG.permutation_null(df, crash_col=crash_col, n_draws=n, seed=seed,
+                               min_flagged_per_date=MIN_FLAGGED_PER_DATE,
+                               min_kept_per_date=MIN_KEPT_PER_DATE)
 
 
 def window_result(df, label):
-    pd_ = per_date_diff(df)
-    if not len(pd_):
-        return {"label": label, "VOID": "no qualifying dates"}
-    mean_d = float(pd_["d"].mean())
-    po = pooled(df)
-    null = permutation_p95(df)
-    b1 = bool(null and mean_d > null["p95"])
-    b2 = bool(po["ratio"] is not None and po["ratio"] >= RATIO_FLOOR)
-    b3 = bool(mean_d * 100.0 >= ABS_FLOOR_PP)
-    return {
-        "label": label,
-        "n_dates": int(len(pd_)),
-        "mean_per_date_diff": mean_d,
-        "mean_per_date_diff_pp": mean_d * 100.0,
-        "nw_t": _nw_t(pd_["d"].tolist()),
-        "pooled": po,
-        "permutation_null": null,
-        "B1_clears_permutation_p95": b1,
-        "B2_ratio_ge_2.0x": b2,
-        "B3_abs_diff_ge_0.50pp": b3,
-        "clears_all_three": bool(b1 and b2 and b3),
-        "dates_with_zero_flagged_crashes": int((pd_["n_crash_flagged"] == 0).sum()),
-    }
+    return CG.window_result(df, label, crash_col="_crash",
+                            ratio_floor=RATIO_FLOOR, abs_floor_pp=ABS_FLOOR_PP,
+                            n_perm=N_PERM, perm_seed=PERM_SEED,
+                            min_flagged_per_date=MIN_FLAGGED_PER_DATE,
+                            min_kept_per_date=MIN_KEPT_PER_DATE)
 
 
 # ---------------------------------------------------------------------------------------

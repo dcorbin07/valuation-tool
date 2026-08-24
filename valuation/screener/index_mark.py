@@ -48,6 +48,37 @@ recorded series.** HYPOTHESIS, NOT DIAGNOSED: dividend/adjustment treatment acro
 (the yfinance fallback auto-adjusts) or a different quote vendor for the equity leg. It was
 not chased, because the rows were hand-made and nobody recorded how they were priced.
 
+**DIAGNOSED 2026-08-20, AND IT IS THE FIRST OF THOSE TWO CANDIDATES, EXACTLY.** Re-priced on
+all 86 names against the same vendor and the same dates, changing nothing but the adjustment
+flag:
+
+    auto_adjust=True    valquo_pct 0.7961   spy_pct 3.6228
+    auto_adjust=False   valquo_pct 0.7760   spy_pct 3.6228
+    recorded row        valquo_pct 0.7760   spy_pct 3.6228
+
+**The adjustment flag moves the book leg by +0.0201pp and the benchmark leg by +0.0000pp, and
++0.0201pp is the whole seam.** 86 of 86 priced under both settings, zero empty fetches. So the
+recorded row was priced on an **UNADJUSTED** basis and this mechanism re-derives on an
+**ADJUSTED** one, because `yfinance` defaults `auto_adjust=True`.
+
+**AND THE EXACT BENCHMARK HIT IS WHAT MADE THIS HARD TO SEE.** SPY reads 3.6228 under BOTH
+settings, so the leg that "confirmed the convention" is precisely the leg that CANNOT
+distinguish the two conventions — it agreed for a reason unrelated to the question. A control
+that passes identically under both arms of the thing you are testing is not evidence about it.
+
+**THE SECOND CANDIDATE IS ELIMINATED FOR THIS MACHINE.** "A different quote vendor for the
+equity leg" requires two vendors, and measured the same day, **Stooq serves 0 of 10 probed
+tickers** (HTTP 404 on the default user-agent, a JavaScript bot-challenge page on a browser
+one), so every figure on this path comes from yfinance and there is no vendor mixing to blame.
+`screener/prices.py` now LABELS every frame with the vendor that served it, so this question is
+answerable from the payload instead of by re-derivation — see `contract_row`'s `vendors` block.
+
+**NOTHING IS CHANGED HERE ABOUT HOW THE BOOK IS PRICED.** Switching the mechanism to an
+unadjusted basis would make it reproduce the two hand-made rows exactly, and it is a
+CONSTRUCTION CHANGE to a bound record — Don's call under the contract, not this lane's. The
+seam is now diagnosed rather than merely disclosed; it is still ~0.02pp against a monthly sigma
+of 3.9847pp, and it is still a real discontinuity.
+
 CONSEQUENCE, STATED SO NOBODY DISCOVERS IT LATER: a row written by this mechanism is not
 bit-comparable with the two hand-made rows, and a series that switches to it acquires a
 ~0.02pp seam. Against the contract's own sigma of 3.9847pp per MONTH that is immaterial —
@@ -127,7 +158,13 @@ HISTORY_DAYS = 400
 #: endpoint before this existed: the 201 body carried `valquo_pct: 4.0` and the 200 body
 #: carried `"4.0"`, for the same recorded day.
 _ROW_TYPES = {"date": str, "day_n": int, "valquo_pct": float, "spy_pct": float,
-              "excess_pp": float, "n_priced": int}
+              "excess_pp": float, "n_priced": int,
+              # PT-SPMO's sibling series. Additive and inert on the bound row, whose header
+              # never carries these: `typed_row` is keyed by COLUMN NAME, so a column the bound
+              # file does not have cannot change what the bound row types to. They are
+              # registered here rather than in the sibling module for the reason this file
+              # gives for everything else -- one spelling, so a second table cannot drift.
+              "spmo_pct": float, "valquo_src": str}
 
 
 def typed_row(row: dict) -> dict:
@@ -175,12 +212,18 @@ def _date(s) -> Optional[_dt.date]:
         return None
 
 
-def _closes(ticker: str, fetch: Callable) -> dict:
+def _closes(ticker: str, fetch: Callable, seen: Optional[dict] = None) -> dict:
     """`{'YYYY-MM-DD': close}` for one ticker, or `{}`.
 
     The fetcher is injected so the tests can run the whole mechanism offline against fixed
     prices. A price path that can only be exercised against the live internet is a path
     nobody exercises.
+
+    `seen`, when supplied, accumulates `{ticker: vendor}` from the label `prices.get_history_df`
+    stamps on the frame. It is read OFF THE FRAME rather than from a module-global precisely
+    because `fetch` is injectable — a global would be blind to whatever the caller passed, and
+    an injected fetcher that carries no label is recorded as `None`, meaning "cannot tell",
+    never as the primary.
     """
     try:
         import pandas as pd
@@ -189,7 +232,14 @@ def _closes(ticker: str, fetch: Callable) -> dict:
     try:
         df = fetch(ticker, days=HISTORY_DAYS)
     except Exception:
+        if seen is not None:
+            seen[ticker] = "fetch_raised"
         return {}
+    if seen is not None:
+        try:
+            seen[ticker] = (df.attrs.get("valquo_src") if df is not None else None)
+        except Exception:                                               # noqa: BLE001
+            seen[ticker] = None
     if df is None or getattr(df, "empty", True):
         return {}
     if "Date" not in df.columns or "Close" not in df.columns:
@@ -299,7 +349,8 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
 
     # --- benchmark ---
     bench = book["benchmark"]
-    bc = _closes(bench, fetch)
+    vendors: dict = {}
+    bc = _closes(bench, fetch, vendors)
     b_base, b_mark = bc.get(base_key), bc.get(mark_key)
     if not b_base or not b_mark:
         which = "inception " + base_key if not b_base else "mark date " + mark_key
@@ -317,7 +368,7 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
     num, wsum, unpriced = 0.0, 0.0, []
     total_w = sum(p["weight"] for p in book["positions"])
     for p in book["positions"]:
-        m = _closes(p["ticker"], fetch)
+        m = _closes(p["ticker"], fetch, vendors)
         base, cur = m.get(base_key), m.get(mark_key)
         if not base or not cur:
             unpriced.append(p["ticker"])
@@ -345,8 +396,40 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
     }
     return {"ok": True, "reason": "", "row": row, "coverage": coverage, "unpriced": unpriced,
             "inception_date": inception.isoformat(), "benchmark": bench,
-            "n_positions": len(book["positions"]), "source": "screener/prices.py (Stooq -> yfinance)"}
+            "n_positions": len(book["positions"]),
+            "source": "screener/prices.py (Stooq primary, yfinance fallback)",
+            "vendors": _vendor_census(vendors, bench)}
 
+
+def _vendor_census(seen: dict, benchmark: str) -> dict:
+    """WHICH vendor actually served, per leg. Not the route -- the route is a constant.
+
+    The benchmark leg is broken out because it is the one `index_mark`'s own reproduction note
+    found EXACT (SPY 3.6228 recorded against 3.6228 re-derived) while the book leg missed by
+    +0.0201pp. If those two legs are ever served by different vendors, that is a candidate
+    explanation for the seam and this block is where it becomes visible instead of being
+    hypothesised again.
+
+    `None` counts as `unlabelled` and is reported as its own bucket -- it means the fetcher did
+    not say, which a reader must not resolve to the primary.
+    """
+    def bucket(v):
+        return v if v else "unlabelled"
+
+    by = {}
+    for t, v in seen.items():
+        if t == benchmark:
+            continue
+        by[bucket(v)] = by.get(bucket(v), 0) + 1
+    return {
+        "benchmark_leg": bucket(seen.get(benchmark)),
+        "book_leg_by_vendor": by,
+        "book_leg_single_vendor": (len(by) <= 1),
+        "legs_agree": (bucket(seen.get(benchmark)) in by) if by else None,
+        "note": ("A vendor label of 'unlabelled' means the fetcher did not record one -- it "
+                 "does NOT mean the primary served. yfinance's Close is AUTO-ADJUSTED and is a "
+                 "different quantity from an as-traded close."),
+    }
 
 def _canonical_csv(rows: list, fields: list) -> bytes:
     """The rows serialised exactly as `append_row` writes them.
@@ -663,7 +746,13 @@ def seed(book: dict, history_text: str = None, *, meta_path: str = None,
     return out
 
 
-def append_row(row: dict, history_path: str = None, *, append_only: bool = False) -> dict:
+_BACKFILL_HINT = (" A gap stays a logged gap; filling one is a deliberate act under "
+                  "PAPER_TRACK_CONTRACT.md section 3 and lives on "
+                  "scripts.track_row --date.")
+
+
+def append_row(row: dict, history_path: str = None, *, append_only: bool = False,
+               columns: tuple = None) -> dict:
     """Append (or replace) one row in the recorded CSV, idempotently.
 
     Offered so the writer does not have to re-spell the header — a writer that hand-builds
@@ -714,6 +803,17 @@ def append_row(row: dict, history_path: str = None, *, append_only: bool = False
       * **A schema change is REFUSED** rather than performed, because widening the header
         rewrites every line and so cannot preserve the prefix below.
 
+    `columns` IS HOW THE SPMO SIBLING SERIES REUSES THIS RULE SET RATHER THAN COPYING IT.
+    It defaults to `ROW_COLUMNS`, so every existing caller is bit-identical and the
+    contract-bound file cannot be written under any other schema by accident. `PT-SPMO`
+    records a SECOND, unbound series (`data/valquo_vs_spmo.csv`) that needs the same three
+    refusals, the same idempotency and the same byte-prefix property against a different
+    header -- and a second implementation of "append-only" is exactly the B7 split this
+    module keeps warning about. The alternative considered and rejected was adding an SPMO
+    column to the bound file: that widens the contract-bound header, rewrites every line, and
+    so cannot preserve the prefix `track-row.yml` verifies. The sibling is a different FILE
+    for that reason, not for tidiness.
+
     THE GUARANTEE IS BYTE-LEVEL, BECAUSE THE ACTION'S OWN CHECK IS. After an `append_only`
     write the file's previous bytes are still an exact prefix of the new file.
     `.github/workflows/track-row.yml` verifies precisely that -- `cmp` on `head -n N` -- and
@@ -722,94 +822,24 @@ def append_row(row: dict, history_path: str = None, *, append_only: bool = False
     second write implementation for the strict case is the B7 split this module already warns
     about, and the three refusals above are exactly what make the shared path's output
     prefix-identical rather than merely value-identical.
+    THE IMPLEMENTATION MOVED TO `valuation.edge.append_only` AND THIS FUNCTION DELEGATES.
+    `S3-I1`'s fleet books need these exact rules on a key that is not `date` -- a book records
+    many orders per day, and every rule above is about the key. Copying them would be the B7
+    split the paragraph above warns about, so the rules are keyed on a parameter now and both
+    callers share one implementation. Every refusal message, the check ORDER, the header union
+    and the byte prefix are unchanged, and `scripts/i1_append_only_validate.py` proves it
+    against the pre-refactor source restored from git before anything new used it.
     """
     from . import index_track
+    from ..edge import append_only as AO
     _, hp = index_track.default_paths()
-    history_path = history_path or hp
-    if not row or not row.get("date"):
-        return {"ok": False, "reason": "no row to append", "wrote": False}
-
-    existing, on_disk = [], []
-    try:
-        with open(history_path, encoding="utf-8", newline="") as f:
-            rd = csv.DictReader(f, restkey=_RESTKEY, restval=_RESTVAL)
-            existing = [r for r in rd]
-            on_disk = [c for c in (rd.fieldnames or []) if c]
-    except FileNotFoundError:
-        existing, on_disk = [], []
-    except Exception as e:                                   # noqa: BLE001
-        return {"ok": False, "reason": "could not read " + str(history_path) + ": " + str(e),
-                "wrote": False}
-
-    for i, r in enumerate(existing):
-        if _RESTKEY in r or any(v is _RESTVAL for v in r.values()):
-            return {"ok": False, "wrote": False, "reason":
-                    "refusing to rewrite " + str(history_path) + ": data row " + str(i + 2)
-                    + " does not match its header, so a rewrite would discard or invent "
-                      "cells. Repair the file by hand."}
-
-    fields = list(ROW_COLUMNS) + [c for c in on_disk if c not in ROW_COLUMNS]
-    ignored = sorted(k for k in row if k not in fields)
-
-    dates_on_disk = [(r.get("date") or "").strip() for r in existing]
-    dates_on_disk = [d for d in dates_on_disk if d]
-
-    if append_only:
-        # IDEMPOTENCY IS CHECKED FIRST, AND THE ORDER IS LOAD-BEARING. Today's date is not
-        # strictly greater than itself, so if the append-only comparison ran first a second
-        # POST would be REFUSED as a backfill rather than answered as the no-op the contract
-        # asks for -- turning the one case a retrying scheduler hits most into an error.
-        if row["date"] in dates_on_disk:
-            was = next(r for r in existing
-                       if (r.get("date") or "").strip() == row["date"])
-            return {"ok": True, "wrote": False, "already_present": True,
-                    "replaced": False, "reason": "",
-                    "existing": typed_row({k: was.get(k) for k in fields}),
-                    "path": history_path, "rows": len(existing), "columns": fields,
-                    "ignored_fields": ignored}
-        if dates_on_disk and row["date"] <= max(dates_on_disk):
-            return {"ok": False, "wrote": False, "already_present": False,
-                    "would_modify": True,
-                    "reason": ("refusing to write " + row["date"] + " into "
-                               + str(history_path) + ": the series already reaches "
-                               + max(dates_on_disk) + ", and this door is append-only. A gap "
-                               "stays a logged gap; filling one is a deliberate act under "
-                               "PAPER_TRACK_CONTRACT.md section 3 and lives on "
-                               "scripts.track_row --date.")}
-        if on_disk and fields != on_disk:
-            return {"ok": False, "wrote": False, "already_present": False,
-                    "reason": ("refusing to widen the header of " + str(history_path)
-                               + " on an append-only write: on disk "
-                               + ",".join(on_disk) + " against " + ",".join(fields)
-                               + ". Rewriting every line cannot preserve the byte prefix the "
-                                 "append-only check verifies; make a schema change "
-                                 "deliberately, in the repo.")}
-
-    kept = [r for r in existing if (r.get("date") or "").strip() != row["date"]]
-    replaced = len(kept) != len(existing)
-    kept.append({k: row.get(k) for k in fields})
-    kept.sort(key=lambda r: (r.get("date") or ""))
-
-    d = os.path.dirname(os.path.abspath(history_path))
-    if d and not os.path.isdir(d):
-        os.makedirs(d, exist_ok=True)
-    tmp = history_path + ".tmp"
-    try:
-        with open(tmp, "w", encoding="utf-8", newline="") as f:
-            w = csv.DictWriter(f, fieldnames=fields)
-            w.writeheader()
-            for r in kept:
-                w.writerow({k: r.get(k) for k in fields})
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, history_path)
-    except Exception as e:                                   # noqa: BLE001
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
-        return {"ok": False, "wrote": False,
-                "reason": "could not write " + str(history_path) + ": " + str(e)}
-    return {"ok": True, "reason": "", "wrote": True, "replaced": replaced,
-            "path": history_path, "rows": len(kept), "columns": fields,
-            "ignored_fields": ignored}
+    # `columns` is the CALLER'S, defaulting to the bound series' own schema. The first cut of
+    # this delegation hard-coded `ROW_COLUMNS` and so SILENTLY IGNORED the argument the SPMO
+    # sibling passes to reuse this writer with its own header -- the parameter was accepted and
+    # dropped, which refused a correct write rather than raising. Caught by the full gate;
+    # `scripts/i1_append_only_validate.py` could not see it, because 200 cases swept every
+    # BRANCH and never varied a PARAMETER.
+    return AO.append(row, history_path or hp, key="date",
+                     columns=(ROW_COLUMNS if columns is None else columns),
+                     append_only=append_only, typer=typed_row,
+                     backfill_hint=_BACKFILL_HINT)
