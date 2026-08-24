@@ -8447,6 +8447,21 @@ remaining a substantially different book. **Conforming is not being the Index**,
 reading the §5b update quickly could take "aligned going forward" for "same book". It is not,
 yet.
 
+### Landing state
+
+**Merged `origin/main` BEFORE pushing and re-read `by_domain` BETWEEN the merge and the push**
+— `MA37`'s rule, and specifically the process slip this lane made on `E-6`, where the merge and
+the push were chained in one command so the stamp was stale for the length of the push and the
+land Action failed. Post-merge `by_domain` reads **equity 242, options 305, infra 20**,
+identical to the committed stamp, so **no reconciliation was owed** and the stamp is untouched;
+`rows_fixed_not_counted` rises **73 -> 75** across this row and a merged lane's own
+`FIXED`-class row. The diff against `origin/main` is **exactly seven files** and **zero under
+`.github/`**.
+
+**150 suites, 0 failures on the merged tree, after merging `origin/main` TWICE** --
+the second time to take another lane's gate fixes in place of my own (see the section above). The validation reproduces every figure
+identically after the merge.
+
 ### What it does NOT do, named so it is not mistaken for done
 
 * **Naked shorts are REFUSED BY NAME, not approximated.** FINRA 4210's maintenance formula is a
