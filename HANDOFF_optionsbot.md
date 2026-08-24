@@ -8797,3 +8797,28 @@ UNSAFE direction** (overstating `N` is the safe one, `MA6`), so it is flagged ra
 assumed: the harness fixes a convention every future fleet verdict inherits, and `MB1-SEL` is
 what governs — machinery that can only BLOCK or RECORD adds no degree of freedom. **Amendable;
 the scout lane owns the ledger row.**
+
+### THE ONE CHECKLIST ITEM THAT IS ONLY PARTLY SATISFIED, REPORTED RATHER THAN TICKED
+
+The runbook's per-book item 2 asks that strikes be *"moneyness-fixed on **as-traded** spot"*.
+**Item 2 is satisfied on its first half everywhere and on its second half only in part.**
+
+* **FIRST HALF, CLEAN: no book selects on DELTA.** All seventeen declare `moneyness` or
+  `fixed` (F-1, F-2 and F-19 are `fixed`; the other fourteen `moneyness`), so the harness's
+  refusal of a delta-targeted strike absent an argument past `V6-OPT`'s autopsy never had to
+  fire. Verified by reading the parsed declarations, not the prose.
+* **SECOND HALF, PARTIAL: the six SHORT books carry `spot_basis: as_traded` as a REQUIRED
+  FIELD** (`S3-I3` enforces it, and r1's C3 is why — 29.1% of assignment verdicts flip on
+  adjusted closes). **Of the eleven long books, only three say it: F-3, F-11 and F-20.**
+* **IT DOES NOT BITE TODAY, AND THE REASON IS WHY IT WAS EASY TO MISS.** At ENTRY a forward
+  book reads a LIVE quote, and there is no adjusted alternative in real time — the rule is
+  satisfied by construction and is unfalsifiable at the moment it is applied. **It bites at
+  SETTLEMENT**, comparing a strike to a spot at expiry, which is exactly where `U1-SPLIT`
+  found a $0.27 call settling against a post-split underlying and booking **+31,921% against
+  a true zero**.
+* **THE FIX IS NOT TO AMEND THE DECLARATIONS.** They are committed ALONE and frozen; editing
+  one to add a field is the tampering the whole convention exists to prevent, and a prose
+  field is weaker than a check. **The right fix is that the settlement path REFUSE a non-as-
+  traded basis for every book, long or short, the way `S3-I3` already does for short ones.**
+  Nothing settles yet — no fill exists — so this is owed before the first expiry, not before
+  the first fill. **Named here so it is not discovered by a wrong number.**
