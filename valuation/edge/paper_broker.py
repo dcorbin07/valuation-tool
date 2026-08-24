@@ -284,6 +284,36 @@ class PaperBroker:
         res["dry_run"] = self.dry_run
         return res
 
+    def _delete(self, path: str) -> dict:
+        import requests
+        r = requests.delete(self._url(path), headers=self._headers(), timeout=self.timeout)
+        if r.status_code >= 400:
+            try:
+                body = r.json()
+            except ValueError:
+                body = {"error": r.text[:300]}
+            return {"ok": False, "http_status": r.status_code, "error": body}
+        out = r.json() or {}
+        out["ok"] = True
+        return out
+
+    def cancel(self, order_id) -> dict:
+        """Cancel a working order. Added for `F-1`'s frozen arm B, not as a convenience.
+
+        The declaration's arm B is *"limit at mid, worked 60 seconds, then
+        cancel-and-market"*. There was no cancel on this broker, so that clause was
+        **unimplementable as written** -- and the honest fix is to build the missing verb
+        rather than to quietly redefine arm B as *"place a limit and hope"*. A limit left
+        working while a market order is sent beside it is a DOUBLE POSITION, which on a book
+        whose entire subject is fill quality would corrupt exactly the measurement it exists
+        to take.
+
+        A failed cancel is returned, never raised: the caller must be able to see that the
+        limit is still live and decline to send the market leg. Sending both is the one
+        outcome worse than sending neither.
+        """
+        return self._delete(f"accounts/{self._require_account()}/orders/{order_id}")
+
     # ------------------------------------------------------------------ helpers
     @staticmethod
     def order_id(res: Optional[dict]) -> Optional[str]:

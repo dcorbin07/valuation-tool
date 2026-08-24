@@ -8246,3 +8246,837 @@ statement resolves strictly**.
 **Scripts:** `scripts/mb1sel_range_control.py`, `scripts/mb1sel_arm.py` (shipped complete and
 never run). **Artifact** (gitignored): `data/free_analysis/MB1SEL_RANGE_CONTROL.json`. **Tests:**
 `tests/test_mb1sel_selection_residual.py`, 26 tests. **129 suites, 0 failures after merging `origin/main`.**
+
+---
+
+## 70. S3-I3 — the assignment and margin model for short-side forward books (2026-08-23)
+
+**ZERO TRIALS, `FIXED`-class.** No hypothesis, no bar, no verdict against a threshold — an
+instrument, the `S25`/`MB15`/`I-2`/`I-3` class. `by_domain` is bit-identical across the log
+append (equity 242, options 305, infra 20) and `rows_fixed_not_counted` rises, which is the
+proof the row was seen and correctly excluded. **ADOPTS NOTHING, LICENSES NO TRADE, AND NO
+BOOK DECLARES ON IT YET** — `O11` binds, sandbox only.
+
+**ROUTED HERE RATHER THAN OWNED HERE.** `SEASON3_MAP.md` assigns S3-I3 to options-bot; that
+lane is mid-queue, so this lane built it. The recorder, the F-books and S3-I1 itself remain
+options-bot's, and this section exists so the module is found rather than rebuilt.
+
+### What it is
+
+`valuation/edge/assignment.py`, plus `tests/test_assignment_s3i3.py` (62 tests, 19 of 19 mutations
+caught with sources restored byte-for-byte) and
+`scripts/s3i3_assignment_validate.py` → `data/free_analysis/S3I3_SHORT_BOOK_VALIDATION.json`.
+
+Four entry points, matching S3-I1 §1.4 clause by clause:
+
+* `assignment_at_expiry` — assigned per MONEYNESS, strict inequality, matching
+  `csp_surface.settle_put`'s `s < k` and `paper_track`'s MA36 guard. Returns the per-share
+  obligation, the share delta and the cash delta.
+* `secured_cash` — Reg-T CASH-SECURED and COVERED-CALL conventions. This is S3-I1's *"the
+  secured cash is the denominator of every return quoted"*, and it is the whole reason a short
+  book cannot reuse `options_sizing`, which makes the PREMIUM the capital at risk.
+* `early_assignment_flag` — `O21`'s machinery IMPORTED, never re-derived.
+* `validate_declaration` — S3-I1 §4's *"a short book without the assignment module is
+  REFUSED"*, in code.
+
+**IT LIVES IN `valuation/edge/` AND THAT WAS FORCED, NOT PREFERRED.** MA23's boundary test
+forbids any non-study module importing `valuation.studies`, and the S3-I1 recorder is
+`paper_track` lineage, i.e. engine. A `studies/` placement would have been unimportable by the
+one caller that must call it. Pinned by test, with the reason in the test's own name.
+
+### The premise correction, and it is checkable rather than a matter of taste
+
+**`SEASON3_MAP.md` gives THREE mutually inconsistent lists of which books consume S3-I3, and
+the S3-I3 row's own list is the wrong one.**
+
+* Its per-book *"waits on"* column names **eight**: F-4, F-6, F-7, F-8, F-10, F-17, F-18, F-20.
+* Its §5 dependency graph names **seven** — the same set minus **F-6**.
+* **S3-I3's own row names five: F-4, F-10, F-11, F-12, F-19** — and the intersection with the
+  per-book column is only F-4 and F-10.
+
+The documentary fact settles it without needing my reading: **F-11, F-12 and F-19 do not claim
+I3 in their own rows.** As corroboration, and labelled as my reading rather than the map's:
+F-11 and F-12 are long-option structures with no short leg to assign, and F-19 is *"a gate, not
+a book"*. F-6 is a zero-cost COLLAR, whose short call leg is exactly what this module exists
+for, so the graph's omission of it is the one gap that could have let a short leg declare
+unmodelled.
+
+**AND THE PER-BOOK COLUMN IS NOT CLEAN EITHER, which is said here because I built against it
+and a successor should not inherit it on my word.** **F-20** is a *married put* — long stock
+plus a LONG protective put — and as written it has no short leg to assign, so its `S3-I1+I3`
+claim looks like the same over-claim in the other direction. Reading the map's own structure
+text, the books that genuinely carry a short option are **F-4, F-6, F-7, F-8, F-10, F-17 and
+F-18 — seven.**
+
+**The two errors are not equally dangerous and that is the operative point.** Omitting **F-6**
+from the graph is the direction that matters: a zero-cost collar's short call leg is exactly
+what this module exists for, so a book could have declared with an unmodelled assignment
+obligation. Including **F-20** costs nothing but an unused import.
+
+**I built against the per-book column (eight), which is the superset and therefore the safe
+one.** A successor should treat the S3-I3 row's list as superseded, verify each book's
+structure text rather than any of the three lists, and note that the map is the scout's file,
+so all of this is reported rather than edited.
+
+### Validated against a banked figure before anything consumes it (`MB15`)
+
+Five controls on V6-OPT's own 660 settled cash-secured puts, joined to its stage-1 events for
+strike and credit.
+
+* **C1 — B7 FIDELITY, EXACT.** `settle_short` reproduces `csp_surface.settle_put` AND V6-OPT's
+  published per-trade `ret_on_strike` on **660 of 660 rows at max |delta| 0.000e+00**, zero
+  assignment mismatches. The COUNT is gated, because `MB21`'s C1 scored a perfect 0.000e+00 on
+  an empty frame by comparing nothing.
+* **C2** — 660 reproduces the artifact's own published `n`, so this is V6-OPT's book.
+* **C3 — THE SPLIT TRAP IS LIVE ON THIS BOOK AND IT IS NOT MARGINAL: re-settling every trade
+  against the ADJUSTED close instead of `raw_close` FLIPS 192 of 660 assignment verdicts,
+  29.1%.** Median absolute basis gap **5.03%**, and **half the rows differ by more than 5%**.
+  The worst is **CMG at expiry 2016-11-18: `raw_close` 411.80 against an adjusted 8.236**, a
+  50x gap on a 365 strike — the adjusted basis books an obligation of **97.7% of the strike on
+  a trade that actually expired worthless.** This is the measurement that turns *"remember to
+  use `raw_close`"* from folklore into a number.
+* **C4 — the MA36 mirror, on real rows.** **493 of the 660 expired worthless and every one owes
+  EXACTLY zero.** Inheriting MA36's long-side rule unchanged would have booked all 493 at
+  **-100%** — a short book's best outcome recorded as a total loss, on three quarters of its
+  trades.
+* **C5 — early-assignment census, DIAGNOSTIC, NO VERDICT.** 113 of 454 trades with a dividend
+  history span an ex-date. These are PUTS, where a dividend DISCOURAGES early exercise, so the
+  census sizes the exposure for the CALL books (F-6, F-7, F-18) and says nothing about these
+  rows. The flag reports RATIONALITY, never a probability; no assignment rate may be read off
+  it.
+
+### A defect in my own instrument, caught by my own gate on the first real row
+
+`settle_short` first computed the return as `pnl_total / secured_cash`, i.e.
+`(pnl x 100) / (k x 100)`. **That is not the same float as `pnl / k`** — the multiplier
+round-trip loses a bit — and `settle_put` divides by the bare strike. The B7 assertion fired
+immediately on V6-OPT's first row, at the last digit (…246308 against …246304).
+
+**The fix was not a tolerance.** A tolerance would have hidden the fact that the two were doing
+different arithmetic. `secured_cash` now also returns `secured_per_share` and the ratio is taken
+per share, so the identity is exact BY CONSTRUCTION rather than within an epsilon.
+
+**And the reason the tests missed it is the portable part: every one of my six original fidelity
+cases used round numbers**, on which the scaled and unscaled forms happen to agree bit-for-bit.
+Real strikes and fifteen-significant-figure credits broke it on contact. **A float identity
+tested only on round numbers is untested**; four messy cases from the real book are now in the
+suite, including the row that caught it.
+
+### Two defects in my own TESTS, both found by mutation rather than by reading
+
+1. **The required-field test read the very constant it was supposed to pin.** It iterated
+   `SB.REQUIRED_SHORT_FIELDS`, so deleting a field from the tuple silently deleted its test too.
+   Repaired with `MA13`'s committed-literal idiom. *(The mutation that exposed it dropped
+   `spot_basis`, which turns out to be behaviour-PRESERVING because a second check catches it
+   downstream — so the honest statement is that the pin, not the refusal, is what now bites
+   there. Two further mutations dropping `assignment_model` and `early_assignment_flag`, which
+   have no downstream check, are caught by the refusal itself.)*
+2. **The O21-imported test banned a NAME while the defect that happens is an INLINE
+   re-derivation.** `max(0.0, k - s)` written in place defines no function and slipped straight
+   through. This is the substring-ban family in a new costume — `never-ban-a-substring` for the
+   Nth time — and the repair asserts the POSITIVE property instead: `DIV.intrinsic` and its four
+   siblings must be CALLED, and `assignment_at_expiry` must obtain the obligation from
+   `DIV.intrinsic` exactly once.
+
+### A third defect, in the validator's own path resolution
+
+`_data_root` first probed `os.path.isdir(data/free_analysis)` and the WORKTREE carries that
+directory EMPTY, so it resolved to a root holding nothing and refused. **EXISTENCE IS NOT
+POPULATION** — `DEEPITM-FIN`'s defect exactly, where an empty `data/bulk/prepared/bars`
+shadowed the primary's 502 files and the run reported `spot series: 0`. It now probes for the
+FILE it cannot run without, and the artifact is written to the PRIMARY root, because two items
+in two sessions found an artifact stranded in a worktree that later disappeared.
+
+### Reported outside this lane (`RUN_RULES` rule 3)
+
+**A THIRD STRANDED ARTIFACT, AND IT IS THIS LANE'S OWN.**
+`I3_CRASH_GATE_VALIDATION.json` was sitting in `.claude/worktrees/r1/data/free_analysis/` and
+was **ABSENT from the primary root** — so `I-3`'s own validation output would have died with
+this worktree. That is the THIRD instance in three sessions after `MA28_CARD.json` (found by
+`E-5`) and `I2_BURN_IN_CENSUS.json` (found by `E-6`), and unlike those two it was written by
+the same lane that found it. Copied to the primary root; `tests/test_i3_crash_gate.py` runs
+**36 tests with zero skips** against it. **The pattern is now regular enough to be a rule
+rather than an anecdote: an artifact written by a worktree-run script does not survive the
+worktree, so every script must resolve the PRIMARY data root before writing** — which is what
+`s3i3_short_book_validate.py`'s `_data_root` does, and why its own probe had to be repaired.
+
+**`CONTRACT_MULTIPLIER = 100` is defined TWICE** — `options_fill.py:70` and
+`options_sizing.py:108`. `MA5`'s four-copies-of-one-idea shape, harmless today because the two
+can never legitimately differ, and worth consolidating when someone is next in those files.
+This module IMPORTS from `options_fill` and a test asserts it does not add a third.
+
+### `main` WAS RED, ANOTHER LANE FIXED IT FIRST, AND I WITHDREW MY VERSION
+
+**Recorded because a near-duplicate is worth more as a record than as a merge conflict.** S3-I3's
+land verification independently found the two failures that had `main` red, diagnosed both, and
+committed fixes — and while that was happening `09ea4cc` landed doing the same two things. **My
+versions are fully withdrawn: `test_mb8_sizing_haircut.py`, `test_mb18_expectations_gap.py`,
+`test_paper_track.py` and `PAPER_TRACK_CONTRACT.md` are byte-identical to `origin/main` on this
+branch.** One guard, one convention, one owner; a second lane re-litigating the same check the
+same night is churn, and they landed first.
+
+**Their diagnosis and mine agree on both, independently, which is the useful part.**
+
+**(1) The cron-shaped hole.** A scheduled workflow ("Track backup") commits refreshed data
+straight to `main` without passing the land gate. `70ef5ef` re-pointed
+`data_export/paper_track_history.json`, and a test asserting a FACT ABOUT THAT DATA went red with
+nothing re-running the suite. Their commit records **six consecutive land failures across five
+branches**, none of them the lane that caused it. **A cron job that can turn the shared gate red
+without any lane pushing code is a real gap**, and it belongs to whoever owns
+`track-backup.yml` — unfixed by either of us, and worth escalating.
+
+**(2) The control that blinded itself.** `git log -- <paths>` will return a MERGE commit;
+`git show` prints no diff for one unless asked. So the positive control selected a subject its
+own mechanism structurally cannot see. They fixed it with `--no-merges` on the SELECTOR; I had
+fixed it with `--diff-merges=first-parent` on the VERIFIER, which additionally closes the
+sibling check's blindness. **Theirs is the landed convention and mine is withdrawn** — and they
+are right that the sibling repair is a design choice belonging to MB8's lane, since making the
+verifier see merges would flag an integration merge as "this lane touched a live path".
+**`test_mb18_expectations_gap.py` carries the same template and the same latent hole**, unfired
+only because its `LIVE_PATHS` omit `valuation/edge`; left alone deliberately, so that whoever
+makes MB8's design call makes it once, for both.
+
+**THE ONE THING THIS LANE ADDS, AND IT CORROBORATES THEIR SCOPING RATHER THAN CORRECTING IT.**
+Their §5b update says the engine is *"no longer recording a truncated top-N list under the
+Index's name"* and is careful NOT to claim it now records the Index — *"§5's register still
+binds the published Valquo Index and only that, and no engine figure may be quoted as Index
+evidence."* **Measured on the same export, that caution is doing real work: the bound Index
+carries 86 positions at a 2.315% maximum, the engine 68 at 3.083%, and they OVERLAP ON TWELVE
+NAMES** — engine-only 56, Index-only 74. So the engine's book now CONFORMS structurally while
+remaining a substantially different book. **Conforming is not being the Index**, and anyone
+reading the §5b update quickly could take "aligned going forward" for "same book". It is not,
+yet.
+
+### Landing state
+
+**Merged `origin/main` BEFORE pushing and re-read `by_domain` BETWEEN the merge and the push**
+— `MA37`'s rule, and specifically the process slip this lane made on `E-6`, where the merge and
+the push were chained in one command so the stamp was stale for the length of the push and the
+land Action failed. Post-merge `by_domain` reads **equity 242, options 305, infra 20**,
+identical to the committed stamp, so **no reconciliation was owed** and the stamp is untouched;
+`rows_fixed_not_counted` rises **73 -> 75** across this row and a merged lane's own
+`FIXED`-class row. The diff against `origin/main` is **exactly seven files** and **zero under
+`.github/`**.
+
+**151 suites, 0 failures on the merged tree, after merging `origin/main` FOUR TIMES** --
+the second to take another lane's gate fixes in place of my own, the third and fourth because `S3-I1` and then three product surfaces landed while this was verifying. `by_domain` was re-read after EVERY one and matched the stamp each time. **Main moved four times in one session, so a local full gate cannot track it** -- the land Action's run on the merged tree is the authoritative one, and this branch was verified green against the tree as it stood at each merge. The validation reproduces every figure
+identically after the merge.
+
+### S3-I1 LANDED MID-FLIGHT, AND THE SEAM IT DEFINED IS NOW SATISFIED
+
+**This module was frozen against S3-I1's DRAFT because that is all that existed.** `9b1d064`
+then landed the real harness, which defines a CONCRETE provider seam and says of it: *"Until r1
+lands one, every short book is REFUSED"* (`SHORT_BOOK_WITHOUT_ASSIGNMENT`). **r1 is this
+worktree**, so satisfying that seam is not scope creep — it is the task's own sentence, *"it
+plugs the interface S3-I1 defines"*, now that the interface is concrete rather than sketched.
+
+**WHAT CHANGED, AND WHAT DID NOT.** The seam is duck-typed on three callables and names the
+module `valuation.edge.assignment`, so `short_book.py` is **renamed to `assignment.py`** —
+matching the name the harness advertises, rather than leaving a documented pointer to a file
+that does not exist. **No arithmetic moved.** The three seam callables are an ADAPTER: they
+parse the OCC symbol, then delegate to the functions validated against V6-OPT's 660 real trades.
+`fleet`'s own docstring says it *"computes no assignment and no margin"* — if the adapter
+computed any, the project would have two definitions at the exact join the seam exists to make,
+which is `B7`.
+
+**THE ARTIFACT KEEPS ITS `S3I3_SHORT_BOOK_VALIDATION.json` NAME DELIBERATELY.** The module renamed; the artifact did not, because it is already written under that name in the primary data root and renaming it would leave a stale twin beside a new one. The name is still accurate -- it validates the short-book model -- and it is consistent across the script and all three records. **Do not tidy it.**
+
+**IT WORKS END TO END, and the refusal lifting is the deliverable.** On the harness's own
+short-book template: **before registration the refusals include
+`SHORT_BOOK_WITHOUT_ASSIGNMENT`; after `assignment.register()` they do not**, and the test pins
+that registering lifts **exactly that one refusal** and no other — so it cannot pass by making
+validation succeed for an unrelated reason.
+
+**THREE PLACES THE ADAPTER IS NARROWER THAN THE MODEL, DISCLOSED RATHER THAN PAPERED OVER.**
+(1) `early_assignment_flag(occ, as_of, q)` passes **no spot and no bid**, so `O21`'s model-free
+`exercise_gain` — the trigger O21 was allowed to carry a verdict on — **cannot run through the
+seam**. The three-argument call returns the DIVIDEND reading only and says so on the row
+(`moneyness_unknown`, plus a `limitation` string); `spot=` and `option_bid=` are keyword-only
+extras that reach the full test, so the seam is satisfied either way. (2) `secured_cash(occ,
+strike, qty)` **refuses a CALL** — cash-securing one is unbounded, i.e. naked, and a covered
+call is secured by shares whose price the seam does not pass. (3) The seam's `strike` is
+redundant with `occ`, so it is **cross-checked rather than trusted**: a disagreement means two
+different contracts, and settling against the wrong one fails silently.
+
+**REGISTRATION IS AN EXPLICIT CALL AND NEVER AN IMPORT SIDE EFFECT**, pinned by an AST test —
+importing this module to read one number must not silently unblock every short book in the
+fleet. And `fleet` does not import this module (its check is duck-typed on purpose), so the
+dependency runs one way only.
+
+### The first land failed on a COIN FLIP, and here is the measurement
+
+`tests/test_screener.py::test_portfolio_sector_cap_and_weights` failed the land gate on run
+`32691725545` while passing every local run. **It is not this branch: the diff against
+`origin/main` contains ZERO files under `valuation/screener/`.**
+
+**ROOT CAUSE, one line.** `tests/screener_fixtures.py:18` seeds its per-ticker generator with
+`np.random.default_rng(abs(hash(ticker)) % (2**32))`. Python **salts `hash()` per process**, so
+the fixture universe is different on every run unless `PYTHONHASHSEED` is pinned — and CI pins
+nothing. The test is therefore a coin flip on every land, for every lane.
+
+**MEASURED RATHER THAN ASSERTED.** Swept eight seeds locally on this exact tree:
+
+| PYTHONHASHSEED | 0 | 1 | 7 | 42 | **179** | 512 | 1000 | 2026 |
+|---|---|---|---|---|---|---|---|---|
+| result | pass | pass | pass | pass | **FAIL** | pass | pass | pass |
+
+**1 of 8. The reproducer is `PYTHONHASHSEED=179`**, and it is the same seed the record already
+carries for this test, so this is a known flake that has now cost a land.
+
+**DELIBERATELY NOT FIXED, and the reason is the interesting half.** The one-line repair —
+swapping `hash()` for a stable digest — is not obviously right, because **the flake is exposing
+something real**: the record notes it surfaces a *soft* sector cap. Pinning the seed would
+either freeze the test into always-passing, which HIDES that, or into always-failing, which
+exposes it. **Which of those is correct is a screener-lane judgement about the cap, not a test
+hygiene decision**, and this lane has no standing to make it — the same call made an hour
+earlier about MB8's sibling check, for the same reason.
+
+**What a successor should do:** make the fixture deterministic AND decide the cap question in
+the same change, so the test stops being a lottery on everyone else's lands without quietly
+burying what it found. Until then every lane's land carries a ~1-in-8 chance of an unrelated
+red on this suite alone.
+
+### What it does NOT do, named so it is not mistaken for done
+
+* **Naked shorts are REFUSED BY NAME, not approximated.** FINRA 4210's maintenance formula is a
+  different model with its own floor; a cash-secured stand-in would UNDERSTATE the requirement,
+  which is the unsafe direction.
+* **The stock leg of a covered call is not marked here** — the host book owns it and already
+  marks it, and modelling it here would double-count.
+* **No assignment PROBABILITY is estimated.** The flag says whether assignment is rational for
+  the holder now. Whether a given holder acts is unobservable.
+* **The OCC's real $0.01 auto-exercise threshold is NOT implemented.** This module uses strict
+  inequality to match `settle_put` and MA36. The divergence is a knife edge, it is NAMED rather
+  than silently reconciled, and changing it would move a landed V6-OPT figure — a decision, not
+  a default.
+* **S3-I1 LANDED WHILE THIS WAS IN FLIGHT, AND THE SEAM IS NOW SATISFIED — see the section
+  below.** The earlier draft of this handoff said the harness did not exist; that was true when
+  this module was frozen and is no longer. **No `DECL_` file was written and no book was
+  declared** — the module makes short books DECLARABLE, it does not declare one.
+* **No `DECL_<book>.md` was written and no book was declared.**
+
+---
+
+## 71. THE DECLARATION CEREMONY — 17 books declared, 3 refused, and **THE FLEET IS DECLARED-BUT-NOT-BREATHING** (2026-08-24)
+
+**Executor: options-live lane. Author of the twenty drafts and the runbook: the Frontier Scout,
+which declined to accept its own work.** The runbook (`CEREMONY_RUNBOOK.md`) governed;
+where it and the task differed, the runbook won.
+
+### THE COUNT, WHICH IS WHAT THE RUNBOOK ASKS FOR
+
+**DECLARED: 17.** F-1, F-2, F-3, F-4, F-5, F-6, F-8, F-10, F-11, F-12, F-13, F-14, F-15, F-17,
+F-18, F-19, F-20 — each committed **ALONE**, one file per commit, verified by
+`git show --name-only` returning exactly one path for all seventeen.
+
+**REFUSED: 3** (F-7, F-9, F-16), returned to the scout in `CEREMONY_REJECTIONS.md` with the
+number each revision has to move. **Their drafts stay on disk, unedited** — they are still
+drafts and the scout needs them.
+
+**FILLS PENDING ON: THE ENTRY RULES, NOT THE SCHEDULER.** This is the finding of the day and it
+is worse than the runbook's own worst case.
+
+---
+
+### ⚠️ **THE FLEET IS DECLARED-BUT-NOT-BREATHING, AND SCHEDULING IT WOULD NOT CHANGE THAT**
+
+The runbook's section 3 says, in bold: *"until one of those exists, the fleet is
+DECLARED-BUT-UNSCHEDULED — twenty frozen entry rules and zero fills accruing."* **The real state
+is one step worse and the distinction matters, because the fix is different work.**
+
+**A DECLARATION FREEZES AN ENTRY RULE IN PROSE. IT DOES NOT EXECUTE ONE.** Nothing in this
+repository turns *"names whose flag count transitions from 0-or-1 to ≥2 of MA28's three
+published-threshold flags"* into an order. **Measured: 17 books declared, `entry_rules_
+implemented: 0`.** So even with the cron landed and the endpoint live, **every cycle would place
+nothing, forever, until somebody writes seventeen entry-rule implementations.**
+
+**THE HARNESS REFUSES TO BLUR THOSE TWO STATES**, because blurring them is how a paper fleet
+reports a cycle that placed nothing as a cycle that *found* nothing. `cycle()` reports
+`ARMED_NO_ENTRY_RULE` and never *"no candidates today"*; `register_entry_rule(book, fn)` is the
+seam, and it is empty. **`[]` from a registered rule is a market observation. No rule at all is
+a build gap.**
+
+**SCHEDULE IT ANYWAY, and the reason is not sentimental:** it dates the silence, it proves the
+path end to end while the stakes are exactly zero, and the first implemented rule starts
+accruing the day it lands rather than the day somebody remembers to wire a cron.
+
+---
+
+### THE RUNNER — endpoint LANDED, workflow REQUESTED, task NAMED
+
+* **LANDED: `GET|POST /admin/fleet-cycle`** (`valuation/saas/app_saas.py`). `PT-WRITER`'s
+  architecture exactly — the Render service is the only place holding the Tradier sandbox
+  token, network **and** the fleet records store at once.
+* **THE VERB CARRIES THE WRITE, from the first commit rather than after the defect.** `GET`
+  computes and returns; only `POST?run=1` may write; **`GET?run=1` is a 405 and writes
+  nothing.** `/admin/track-row` shipped a side-effecting GET and the recorded cure was this
+  split — on an append-only, hash-chained record a GET is reachable by a retry, a prefetch, a
+  proxy or a pasted link, and none of those is a decision to record a trading day.
+* **REQUESTED: `FLEET_RUNNER_PR_REQUEST.md`** — the complete `fleet-cycle.yml` for Don, on the
+  `track-row.yml` precedent, **no new secret** (`SITE_BASE_URL` + `ADMIN_TOKEN` already exist).
+  `.github/` is untouchable to every agent lane, so this is a request, not a change.
+* **TWO DEPARTURES FROM `track-row.yml`, both reasoned. (1) ONE cron, not two.** track-row runs
+  a 23:37 backup because GitHub's free scheduler drops runs and **that endpoint is idempotent
+  per DAY**. The fleet door is deliberately **not** — a book records many orders a day, which is
+  why `S3-I1` keys its streams on a sequence rather than a date (register finding `E2`) — so a
+  blind retry could **double-record**. A dropped run costs one day and is recoverable; a
+  double-recorded day is not. **(2) 200 is the only success and a quiet day is a 200**, surfaced
+  as a GitHub *warning*. A refusal as 5xx tells a scheduler to retry something that is not
+  broken; a quiet day as an error teaches an operator to ignore the alert.
+* **STOPGAP NAMED: a Cowork scheduled task `valquo-fleet-cycle`**, weekdays 18:19
+  America/New_York, same one-liner against the same door. **It is a strictly worse home** — a
+  Cowork schedule is not in the repo, so it rots invisibly, which is `PT-WRITER`'s failure
+  exactly (a task nobody could find, a write nobody could date). If it is used, write its
+  existence into `PAPER_TRACK_CONTRACT.md`.
+
+---
+
+### THE THREE REFUSALS
+
+**F-7 (covered calls on band-exiting names) — REFUSED, on a stronger ground than the runbook
+anticipated.** Its entry rule reads a `pending_exit` band state, and **`grep -rn "pending[_-]
+exit"` over every `.py`, `.md`, `.csv` and `.json` returns ZERO hits.** It is not merely
+unstored: **`no_trade_band.band_select` returns a LIST of holdings, so the decision and the exit
+are the same instant** — there is no interval in which a name is held *and* condemned, which is
+exactly the window the structure needs, and knowing at rebalance *t* that a name exits at *t+1*
+requires *t+1*'s composite. **The literal reading is look-ahead, not a plumbing gap.** The one
+defensible reading — a held name in the hysteresis grace zone, `n_target ≤ rank < exit_rank` —
+is real and **still needs the composite RANK, which no published artifact carries**
+(`paper_track_holdings.csv` has eight columns and none is a rank). That is the runbook's own
+reject test verbatim. **The contrast is what makes it specific rather than categorical: F-8 and
+F-11 were checked against the identical test and PASSED** — F-8's *"newly entering"* is
+`entry_date` in a shipped CSV, and F-11's dip-REJECT classifier is the screen's own published
+`dip.health_check` / `dip.clamp_drawdown`, with only `screen()`'s aggregation discarding the
+failures.
+
+**F-9 (flag-transition puts) — REFUSED ON HORIZON: 11.5 YEARS.** Derived from its own declared
+boundary at its own MEI +25pp and the **MEASURED** σ 92.51 (`O12`): **138 fills, not 30**, at
+~1/month. Resolving inside five years needs MEI ≥ **+36.8pp**, which is a different declaration.
+**`MA28`'s 3.04× is untouched; it is the SPEED of this expression that fails.**
+
+**F-16 (13F breadth-surge calls) — REFUSED ON HORIZON: 21 YEARS**, pre-authorised by the
+runbook. **420 fills, not 30**, at a rate the book's own rule fixes at 5/quarter. Resolving
+inside five years needs MEI ≥ **+29.0pp**. A revision should also carry a **costume kill against
+`size`** — `E-1` measured a flat aggregate of institutional-conviction signals at **0.6114**
+against `size` and withdrew before its arm ran.
+
+---
+
+### **"30 FILLS" WAS A CONVENTION, NOT A DERIVATION — AND IT IS WRONG IN THE ACCEPTED BOOKS TOO**
+
+All twenty drafts wrote *"30 fills"*. **Derived per book from the anytime-valid boundary each
+one declares, it is wrong by 3× to 40× everywhere it appears.** Every accepted declaration now
+carries a `fills_needed` computed as *the smallest n at which `track_meter.boundary(n, σ, ρ, α)/n`
+falls to that book's own minimum effect*:
+
+| book | fills_needed | years at its own projected rate |
+|---|---|---|
+| F-1 | 164 | 0.3 |
+| F-13 | 420 | 0.9 |
+| F-3, F-12 | 420 | 2.3 / 4.7 |
+| F-4 | 306 | 2.3 |
+| F-14 | 93 | 2.9 |
+| F-11 | 138 | 2.9 |
+| F-5 | 224 | 3.7 |
+| F-15 | 420 | 6.4 |
+| F-8 | 395 | 7.3 |
+| F-10, F-17 | 306 | 8.5 |
+| F-18 | 1202 | 20.0 |
+| F-19 | 1015 | 21.1 |
+| F-20 | 395 | 21.9 |
+| F-6 | 1202 | 33.4 *(UTILITY — no meter is ever read)* |
+| F-2 | 4563 | 47.5 |
+
+**σ IS A STATED PRIOR EXCEPT WHERE MARKED MEASURED**, and only 92.51pp is measured (`O12`, this
+project's own options book at per-trade sd 0.9251). **`track_meter`'s rule binds: σ may only
+ever be RAISED, never lowered.** `MB8` is why the provenance travels with the number — it
+borrowed an SE measured on a different perturbation size and was wrong six-fold.
+
+**F-2, F-18, F-19 and F-20 were ACCEPTED with horizons beyond five years**, deliberately and
+with the number on the face rather than rejected: F-2 and F-19 are **gates that hold no
+position**, F-6 is a **utility ledger measuring a cost**, and none of them charges a trial on a
+schedule. The two rejected books are rejected because they are **edge books making a return
+claim** they cannot resolve. **The horizon is disclosed for all seventeen either way**, which is
+what stops a book being read early.
+
+---
+
+### DAY-1 SELF-VERIFICATION AGAINST THE REAL SANDBOX — AND IT CAUGHT A FABRICATED FILL
+
+**19 of 19 synthetic checks passed. The FIRST REAL SANDBOX ORDER exposed a defect none of them
+could see.** `fill_fields` read `avg_fill_price or price`; **Tradier reports an unfilled limit
+order as `avg_fill_price: 0.0`, which is falsy**, so the fallback took the **LIMIT** and
+recorded a **PENDING order as FILLED at 11.06**.
+
+**THE PORTABLE PART: a synthetic fixture supplies the field it expects. Only the real broker
+supplies a zero where the code assumed absence.** Fixed by delegating to `PaperBroker.fill_price`
+(which gates on `exec_quantity`) and deriving a seven-state `fate` from the broker's own status;
+`L7` strengthened and a new `L9b` requires the recorded row to AGREE with the broker. **The false
+row was VOIDED BY A NEW ROW (`seq 00000006`), never edited** — `PT-AMEND1`'s rule, a correction
+is a new dated row. **The test-book is closed with a zero-charge row at `seq 00000008`.**
+
+---
+
+### THE MERGE THAT DID NOT IMPORT, AND THE SEAM THAT MOVED TWICE
+
+**r1 renamed `short_book.py` → `assignment.py` (`aff934a`). `fleet.py` imported `short_book`. NO
+FILE WAS EDITED BY BOTH SIDES, so git produced no conflict, there was nothing to review, and the
+tree did not import.** `MA23`'s `parity_flow` collision in a new costume: **a clean merge is not
+a safe one.**
+
+**AND THE MIDDLE VERSION OF THE SEAM WAS MINE AND WAS WRONG.** Mid-ceremony I "reconciled to the
+landed module" — repointed the interface at `short_book.py`'s five internal function names and
+imported it at module scope. **Reverted, on both counts:**
+
+1. **r1 had already built `_AssignmentProvider`, an ADAPTER exposing exactly the three names
+   `S3-I1` froze.** The interface never needed changing; **r1 had adapted to it, which is what a
+   published interface is for.** Chasing the module's internal names made this file depend on
+   r1's private vocabulary rather than on the contract between the lanes.
+2. **`assignment.py` states the direction outright** — *"fleet does not import this module (its
+   check is duck-typed on purpose), so the dependency runs one way only"* — and that
+   registration is *"an explicit CALL and never an import side effect, so importing this module
+   to read one number cannot silently unblock every short book in the fleet."* **My module-scope
+   import plus import-time registration was precisely that side effect. r1's design is better
+   and this lane yields to it.**
+
+`REQUIRED_SHORT_FIELDS` is now r1's five as a **committed literal** — importing them would have
+inverted the direction r1 documented — with a test importing **both** and asserting equality
+(`MA13`'s idiom: production holds the literal, the test holds the comparison).
+
+**THE CONSEQUENCE, NAMED: with nothing registered, F-4, F-6, F-8, F-10, F-17 and F-18 refuse
+with `SHORT_BOOK_WITHOUT_ASSIGNMENT`.** That is correct, and it makes the **runner** the
+composition root — `/admin/fleet-cycle` calls `assignment.register()` and reports
+`assignment_provider_registered`; **a broken model still returns 200**, because the long books
+are unaffected and the short ones then refuse by the ordinary rule.
+
+---
+
+### FOUR MORE DEFECTS, ALL MINE, ALL CAUGHT BY RUNNING OR READING RATHER THAN BY A TEST
+
+* **`ledger_row` hard-coded the id and the commit.** The id was `"F-" + book`, yielding
+  `F-f13_second_event` where the map says **F-13**; the commit was the literal `PENDING`, honest
+  while nothing was committed and false the moment seventeen declarations landed. Both defaults
+  kept **bit-identical** so every prior caller is unaffected (verified: 60/60 before the new
+  tests).
+* **The horizon sentence was truncated at the DECIMAL POINT.** Splitting on a bare period turned
+  *"0.3 years at the projected 45.00 fills/month"* into **`"0"`** — a horizon of **zero**, i.e.
+  *readable now*, **the precise misreading the field exists to prevent**. It ran the **unsafe**
+  direction, so it is pinned rather than merely fixed.
+* **The row generator read `dc.get("sha")` where `declaration_commit` returns `commit`**, so it
+  produced seventeen rows with an **empty commit cell that still looked like filled rows**. A
+  `.get` on an absent key returns `None` and the row renders fine. Now asserted.
+* **The cycle's not-breathing note DERIVED the implemented count** as
+  `declared − unscheduled − blocked` — right only while no book is both blocked and
+  unimplemented, **true that day by accident**. `MB8`'s family: an arithmetic never checked
+  against the thing it claims to count. **Counted now, and pinned.**
+* Plus a real **file-handle leak** in `harness_fingerprint` (a bare `open().read()` on every
+  gate check), surfaced as a `ResourceWarning` by the endpoint test — the first caller to hit it
+  in a loop.
+
+---
+
+### NOT DONE, named so it is not mistaken for done
+
+* **NO ENTRY RULE IS IMPLEMENTED FOR ANY BOOK.** Seventeen to write. This is the binding work.
+* **NO FILL HAS BEEN PLACED** on any declared book. **No meter has been read, so NO TRIAL IS
+  CHARGED** — the harness charges at FIRST VERDICT READ. `by_domain` is unmoved.
+* **NO WORKFLOW IS SCHEDULED.** The endpoint is live behind the admin token; the cron needs
+  Don's PR, and `.github/` is untouchable to every agent lane.
+* **NO BOOK HAS RUN ITS DAY-1 GATE ON THE SERVICE**, so all seventeen read `SELFCHECK_ABSENT`
+  (or `DECLARATION_INVALID` for the short six until the runner registers). That is the correct
+  and safe state.
+* **`IDEAS_LEDGER.md` and `SEASON3_MAP.md` are NOT edited** — the scout lane reserves them.
+
+### RELAYED TO THE SCOUT LANE, for its ledger
+
+**`S3-I1`'s zero-vs-one infra-trial pricing departure.** `IDEAS_LEDGER.md` prices `S3-I1` at
+**1 infra trial**; it was logged at **ZERO**, on the reasoning that the draft's own §2 charges at
+FIRST VERDICT READ and the harness reads none — the `I-2`/`I-3` precedent, both priced at 1 infra
+and both logged at zero. **The counter-argument is on the record and the departure runs the
+UNSAFE direction** (overstating `N` is the safe one, `MA6`), so it is flagged rather than
+assumed: the harness fixes a convention every future fleet verdict inherits, and `MB1-SEL` is
+what governs — machinery that can only BLOCK or RECORD adds no degree of freedom. **Amendable;
+the scout lane owns the ledger row.**
+
+### THE ONE CHECKLIST ITEM THAT IS ONLY PARTLY SATISFIED, REPORTED RATHER THAN TICKED
+
+The runbook's per-book item 2 asks that strikes be *"moneyness-fixed on **as-traded** spot"*.
+**Item 2 is satisfied on its first half everywhere and on its second half only in part.**
+
+* **FIRST HALF, CLEAN: no book selects on DELTA.** All seventeen declare `moneyness` or
+  `fixed` (F-1, F-2 and F-19 are `fixed`; the other fourteen `moneyness`), so the harness's
+  refusal of a delta-targeted strike absent an argument past `V6-OPT`'s autopsy never had to
+  fire. Verified by reading the parsed declarations, not the prose.
+* **SECOND HALF, PARTIAL: the six SHORT books carry `spot_basis: as_traded` as a REQUIRED
+  FIELD** (`S3-I3` enforces it, and r1's C3 is why — 29.1% of assignment verdicts flip on
+  adjusted closes). **Of the eleven long books, only three say it: F-3, F-11 and F-20.**
+* **IT DOES NOT BITE TODAY, AND THE REASON IS WHY IT WAS EASY TO MISS.** At ENTRY a forward
+  book reads a LIVE quote, and there is no adjusted alternative in real time — the rule is
+  satisfied by construction and is unfalsifiable at the moment it is applied. **It bites at
+  SETTLEMENT**, comparing a strike to a spot at expiry, which is exactly where `U1-SPLIT`
+  found a $0.27 call settling against a post-split underlying and booking **+31,921% against
+  a true zero**.
+* **THE FIX IS NOT TO AMEND THE DECLARATIONS.** They are committed ALONE and frozen; editing
+  one to add a field is the tampering the whole convention exists to prevent, and a prose
+  field is weaker than a check. **The right fix is that the settlement path REFUSE a non-as-
+  traded basis for every book, long or short, the way `S3-I3` already does for short ones.**
+  Nothing settles yet — no fill exists — so this is owed before the first expiry, not before
+  the first fill. **Named here so it is not discovered by a wrong number.**
+
+### AND ONE MORE, FOUND BY THE SWEEP AFTER THE RUNNER LANDED: **THE SIX SHORT BOOKS REFUSE, ON AN ARCHITECTURAL BOUNDARY**
+
+`valuation/edge/assignment.py` — S3-I3, the model every short book needs — imports
+`valuation/edge/dividends.py`, an **ARCHIVED study** under `MA59`'s quarantine. The fleet-cycle
+handler briefly registered the model itself, on the reasoning that the runner is the natural
+composition root, and **`tests/test_ma59_quarantine.py` caught it on the next run**: *"reaching
+one from the live app means the product is running an experiment."*
+
+**THE BOUNDARY WINS AND THE REGISTRATION IS GONE.** F-4, F-6, F-8, F-10, F-17 and F-18 return
+`SHORT_BOOK_WITHOUT_ASSIGNMENT`, and the cycle body carries `assignment_note` saying exactly
+why — so a reader seeing six books at `DECLARATION_INVALID` can tell *"the model is not
+registered in this process"* from *"these six declarations are malformed"*. **The cost today is
+exactly zero** (nothing can fill without entry rules) and refusing is the safe direction
+regardless.
+
+**ROUTED TO THE S3-I3 LANE, NOT DECIDED HERE.** It is a genuine three-way choice — lift
+`dividends` out of the archive with a register, break `assignment`'s dependency on it, or run
+the fleet from a process that is not the web app — and this lane must not quietly pick one.
+The guard is pinned from this side by an **AST** check that the web app imports neither
+`assignment` nor `dividends`, so a lazy import inside the handler is caught too: hiding an edge
+from a static guard is silencing it, not satisfying it.
+
+### THE SWEEP: 153 SUITES, 2 FAILURES, 1 REAL AND FIXED
+
+* **`test_research_shelf_and_calibration.py` — REAL, MINE, FIXED (now 39/39).** Two defects,
+  both LIVE and PUBLIC, both caused by the ceremony. **(a)** The S3-I7 shelf excludes drafts by
+  **filename prefix** rather than by parse, so `DECL_CEREMONY_RUNBOOK.md` — a runbook named into
+  the declaration namespace — **was published on the research page as a declared fleet book**.
+  Fixed at the ROOT by renaming it to `CEREMONY_RUNBOOK.md` (`git mv`), **not** by changing the
+  shelf: my first cut made the shelf require a parse and that fought the shelf lane's deliberate
+  design, which lists a block-less `DECL_x.md` *"without inventing fields"* and has a test saying
+  so. **(b)** The status vocabulary had no word for a closed book, so the day-1 test-book — shut
+  with a zero-charge row — rendered as **FILLING**, *"the record it will be judged on is still
+  filling"*, of a book that will never fill again. `CLOSED` added, outranking the others because
+  it is the only terminal state.
+* **`test_sync_checkout.py` — ENVIRONMENTAL.** `Permission denied` writing git objects under
+  `%TEMP%` during the concurrent sweep; **exit 0 on 3 of 3 standalone runs afterwards**. This is
+  the third sighting of one class — `MB16` hit it in `test_checkout_drift.py` and measured the
+  cause as sustained concurrent temp-volume I/O, and `MB21` hit it on a `GzipFile`. Reported, not
+  fixed; the suite is not this lane's.
+* **A TEST OF MINE THE RENAME WOULD HAVE SILENTLY EVAPORATED:** my not-a-declaration fixture was
+  pinned to the literal filename `DECL_CEREMONY_RUNBOOK.md`, so renaming the real file moved the
+  fixture out of the glob and the case stopped being exercised. Repointed to a synthetic
+  `DECL_NOT_A_BOOK.md`. **A test pinned to one real filename dies with that file.**
+* **`DECL_testbook.md` still names the old path in its prose and is DELIBERATELY NOT EDITED** —
+  it is a declaration committed ALONE, and its content hash anchors its own record chain, so
+  editing it is precisely the tampering the convention exists to prevent. `HANDOFF_scout.md`
+  also names it; that is the scout lane's file and is reported, not edited.
+
+---
+
+## 72. ARMING THE FLEET — 2 books armed, 2 entry rules refused back, and **THE BINDING CONSTRAINT IS NOT THE SEVENTEEN RULES** (2026-08-24)
+
+**Executor: options-live lane.** HANDOFF 71 declared seventeen books and measured
+`entry_rules_implemented: 0`. This pass turned frozen prose into code under one law — **the
+code matches the declaration exactly; ambiguity is amended in the open or refused back, never
+interpreted silently.**
+
+### THE COUNT
+
+**ARMED: 2.** **F-1** (`eb2a84b`) and **F-3** (`969ec27`), one book per commit, each with its
+amendments dated in its own declaration file.
+
+**ENTRY RULE REFUSED BACK: 2.** **F-13** (`2ef8e5d`) and **F-2** (`bd55435`), with the number
+each revision has to move, in `CEREMONY_REJECTIONS.md`.
+
+**STILL PROSE: 13.** Not for want of writing them — see below.
+
+**ZERO TRIALS.** Implementation is not measurement. `by_domain` is untouched at equity 242,
+options 305, infra 20; no meter is read, no fill is placed, no verdict moves.
+
+---
+
+### ⚠️ THE FINDING: **THE FLEET IS NOT BLOCKED ON SEVENTEEN UNWRITTEN RULES. IT IS BLOCKED ON FIVE INFRASTRUCTURE GAPS, AND THE RULES ARE DOWNSTREAM OF THEM.**
+
+HANDOFF 71 concluded *"somebody writes seventeen entry-rule implementations"*. **That framing
+is wrong, and writing two of them is how it was found.** Sorted by what actually blocks them,
+the thirteen remaining books collapse into five families — and **not one of the five is
+"nobody has written the rule yet".**
+
+**(A) THE ASSIGNMENT MODEL IS NOT REGISTERED — 6 books.** F-4, F-6, F-8, F-10, F-17, F-18.
+`valuation/edge/assignment.py` imports the ARCHIVED `dividends.py`, so `MA59`'s quarantine
+forbids reaching it from the web app, which is where the runner lives. **Unchanged since
+HANDOFF 71 and still the S3-I3 lane's call between three options.** **F-8 is the closest book
+in the fleet to armable and this is its ONLY blocker** — it reads the published
+`data_export/paper_track_holdings.csv`, needs no licensed export and no harness change.
+
+**(B) NO LICENSED EXPORT REACHES THE DEPLOYED IMAGE — 6 books.** F-4, F-10, F-12, F-15, F-17,
+F-18. **`.dockerignore` excludes `data/` WHOLESALE** — its own comment says *"The WHOLE data
+directory, not just the databases"* — and the fleet cycle runs on the Render service because
+only that process holds the sandbox token, the network and the records store together
+(`PT-WRITER`'s architecture). **So an entry rule reading `data/bulk/events.csv` or
+`data/backtest/insiders.csv` cannot run where the runner runs, ever, as things stand — and it
+would fail THERE, not here, which is the worst possible place to discover it.** This is the
+same shape as the ceremony's own discovery that the paper-track book had never shipped
+(HTTP 422, `/app/data/valquo_track.json` missing).
+  * **`data_export/` is NOT excluded, and the distinction decides which lane owns what.**
+    F-6, F-8 and F-20 read a PUBLISHED artifact that IS in the image; their blockers are
+    elsewhere. Pinned both ways in `tests/test_fleet_triage.py`.
+
+**(C) THE HARNESS CANNOT EXPRESS WHAT THREE BOOKS DECLARED — 3 books.**
+  * **F-6 and F-20 are MULTI-LEG** (collar: buy put and sell call financed to near-zero net;
+    married put: stock plus put). `fleet.submit` places one leg. A two-leg structure submitted
+    as two independent orders is not the structure either book declared — the collar's whole
+    definition is a NET cost constraint across the pair.
+  * **F-14 declares that its SKIPS are first-class records** (*"the skips ARE the control
+    population"*). `cycle()` calls `record_fill` and nothing else, so **an entry rule currently
+    has no way to record a non-fill observation.** F-14's control arm is unrepresentable, and
+    it is the arm that makes the book interpretable.
+
+**(D) THE HISTORY A RULE NEEDS IS NOT STORED BY ANYTHING — 4 books.** F-5 needs an own-history
+percentile of **60-DTE ATM implied vol** and nothing writes a 60-DTE IV series (the scan stores
+front-month `opt_atm_iv`). F-11 needs *"a name's FIRST appearance this quarter"* in the
+dip-reject population and nothing stores that population's history. F-19 needs a trailing
+**two-year** market-wide alert count. F-20 needs a trailing **two-year** realized vol of the
+paper index book's own daily series, which currently has **four rows**. **These accrue forward
+or not at all — no amount of coding produces them today.**
+
+**(E) PREMISE ERRORS IN THE DECLARATIONS THEMSELVES — 2 books, both refused back.** F-13 and
+F-2, below.
+
+**The honest one-line state: `armed 2 / blocked-on-another-lane 6 / blocked-on-infrastructure
+7 / refused 2`.** Landing the runner cron changes none of it.
+
+---
+
+### THE TWO REFUSALS, both measured rather than judged
+
+**F-13 (the second event) — THE I-4 SPINE CANNOT HOLD A DATE THAT HAS NOT HAPPENED.** Its rule
+needs event #2, a FUTURE earnings date, *"KNOWN from the I-4 spine"*. The spine reads the
+Sharadar EVENTS export, whose rows are dated observations of filings that occurred.
+**MEASURED: 385,426 code-22 rows and the latest is 2026-07-29 — not one date in the future, on
+any code, anywhere in the file.** And the rule closes its own only exit: the single way to
+derive a forward date from a backward record is cadence inference, which the declaration
+**BANS BY NAME**, correctly. **So the entry condition cannot be satisfied — not "is not
+satisfied today", cannot be, by construction.**
+  * **WHY NO MACHINE CHECK COULD HAVE CAUGHT IT, which is the portable half.** The spine
+    exists, imports, and `is_known` returns True for thousands of names. It answers *"do we
+    have any history for this name"* truthfully, and **answering a different question
+    truthfully is what made the gap invisible.** **A declaration naming a data source should
+    name the FIELD AND ITS DIRECTION IN TIME:** *"known from the I-4 spine"* reads as
+    satisfied; *"a scheduled FUTURE date from the I-4 spine"* would have failed on sight.
+
+**F-2 (the menu gate) — "MB1's SHIPPED PREFILTER VERBATIM" IS NOT WHAT THAT PREFILTER DOES.**
+Five divergences, each checkable against `scripts/mb1_alternatives_menu.py::build_menu`:
+moneyness is **(0.90, 1.20) for calls and (0.80, 1.10) for puts**, not a side-independent
+0.85-1.15; the moneyness filter **is not binding** (`if len(near) == 0: near = d`, a fallback
+its own docstring calls load-bearing); the DTE band is the **fixed** `DTE_RANGE = (45, 75)`,
+not *"+/-25% of target"*; a **solvable delta is required** and never mentioned; and *"two-sided
+usable quotes"* under-describes `quote_reject_reason`, which also rejects locked, thin-premium
+and wide-spread quotes.
+  * **ONE OF THOSE BREAKS A REAL HOST RATHER THAN BEING PEDANTRY. F-11 declares 91 DTE, which
+    is outside the fixed band — so the gate would judge F-11's entry against a menu that CANNOT
+    CONTAIN IT and refuse every order**, not because the menu is thin but because it was built
+    on the wrong tenor. A fleet-wide gate must be tenor-relative or declare itself swing-only.
+  * **Refused although it is inert today** — `gates:` appears in **ZERO** of the seventeen
+    declarations, so F-2 refuses nothing whatever it does. The opt-in is a one-line amendment
+    somebody will make without re-reading this, and **a defect that is harmless until it is
+    suddenly decisive is worth fixing while it is harmless.**
+  * **WHAT IS REFUSED IS THE ENTRY RULE, NOT THE BOOK.** Both files stay on disk unedited and
+    both books stay DECLARED. Renaming either back to a draft would destroy the
+    `--diff-filter=A` evidence that the declaration predates every line of fleet code, which is
+    the entire reason the ceremony committed things alone. **Each needs a dated amendment from
+    the scout, and it must land BEFORE that book's first fill** — `verify_chain` anchors on the
+    declaration's content hash, so amending a book that already has records breaks its own
+    chain at row 0 and reads as tampering. Both have zero records; both are free today.
+
+---
+
+### THE TWO ARMED BOOKS, and the five clauses that had no executable reading
+
+**F-1 (the fill A/B) — THE POLICY IS THE HARNESS'S, AND "CANCEL-AND-MARKET" HAD NO CANCEL.**
+Implemented where its own sentence puts it: *"**every order any fleet book submits** is
+assigned by the harness's deterministic randomizer"*, so it lives in `fleet.submit`, the single
+order door, not in a per-book callable that could never reach the orders of books that are not
+F-1.
+  * **Amendment 1 — arm B is *"limit at mid"* and a one-sided quote has no mid.** Recorded as
+    its own `B-nomid`, pooled with neither arm: *"B could not be attempted"* and *"B was
+    attempted and did not fill"* are different observations, and pooling them biases the
+    fallback-drag term that decides the `B-COSTS` verdict.
+  * **Amendment 2 — `PaperBroker` had no cancel at all**, so the clause was unimplementable.
+    Built the missing verb rather than redefining arm B as *"place a limit and hope"*. **A
+    FAILED cancel now sends NO market leg** (`B-cancel-failed`): a live limit plus a market
+    order beside it is a **double position** on the one book whose subject is fill quality, and
+    an unfilled order is an observation where a doubled one is a corrupted measurement.
+  * **A RIDER IS NOT A BREATHING FLEET.** Three declared books never place an order by their
+    own prose (F-1, F-2, F-19). `register_entry_rule` now takes `places_orders`, `cycle()`
+    reports `RAN_RIDER`, and `breathing` ignores it — otherwise registering F-1 would have
+    flipped the fleet to *"breathing"* with zero fills, the same blur `ARMED_NO_ENTRY_RULE`
+    exists to prevent one level up. **Declared at REGISTRATION, never sniffed from the
+    declaration's wording**, because a guard keyed on prose fires against correct text.
+  * **FOUND BY TESTING AND PINNED RATHER THAN STEPPED AROUND: a rider is GATED too.** `cycle()`
+    runs `may_fill` before it reaches any rule, so `RAN_RIDER` is unreachable until the day-1
+    self-check passes. The first cut of that test asserted it against the live root and got
+    `SELFCHECK_ABSENT` — **the harness refusing correctly.** On the service every book reads
+    `SELFCHECK_ABSENT` until day-1 runs there.
+
+**F-3 (bear-scanner puts) — three amendments, all in the declaration, all dated.** The rule
+reads **the scanner's own stored verdicts** — the live daily scan already computes
+`scores_bear` for every universe name and consumes none of it — rather than re-deriving a bear
+score, which would be a second implementation of the signal the declaration named.
+  * **The tie-break was not stated** and the score is rounded to one decimal, so ties are
+    ordinary. Resolved **alphabetical**, imported from the fleet's own convention (seven
+    sibling books state it explicitly) rather than invented.
+  * **"Nearest 0.85x spot, expiry nearest 60 DTE" does not say which binds first**, and the two
+    orders pick different contracts. Resolved **expiry first** — tenor is the parameter a long
+    OTM put book's theta bleed is measured against. **The fixture is built so the two orders
+    DISAGREE**; a test where they agree pins nothing.
+  * **"Equal premium per position" has no denominator** — no allocation figure appears
+    anywhere. Resolved **one contract**, and it is **measurement-neutral rather than a silent
+    sizing choice, which is checkable**: the verdict statistic is RETURN ON PREMIUM, invariant
+    to quantity. It would matter to survivability, and `O11` already binds that.
+  * **NOT an amendment, and measured rather than assumed: the event-skip clause is
+    STRUCTURALLY INERT.** The scanner's entire label vocabulary is seven strings and none names
+    a scheduled event, so *"skip ONLY if the scanner's own signal names the event"* never
+    fires — which is the declaration working, since it exists to stop SILENT event filtering
+    and F-4 owns event-avoidance. **The vocabulary is DERIVED by AST and compared against a
+    COMMITTED LITERAL (`MA13`)**, so a new label fails the test and a human decides; nothing is
+    substring-banned. The clause is separately proved able to **bite** on a temporary
+    vocabulary — a guard that cannot fire is not a guard.
+
+---
+
+### A PREMISE CORRECTION TO THE TASK: **THE RUNNER PR WAS NOT MERGED**
+
+The task states Don has merged `fleet-cycle.yml`. **Measured against GitHub rather than
+against the local tree: the repository has exactly two PRs, #1 and #2, both PT-WRITER, and the
+default branch carries four workflows — `auto-scan`, `land-agent-branch`, `track-backup`,
+`track-row`.** There is no `fleet-cycle.yml`. **So the optional end-to-end runner verification
+could not be performed**, and `FLEET_RUNNER_PR_REQUEST.md` still stands unactioned. Nothing
+about the arming work depended on it — and the cron would still place nothing, for all the
+reasons above.
+
+---
+
+### RELAYED OUT OF THIS LANE
+
+* **TO THE S3-I3 LANE:** unchanged from HANDOFF 71 — `assignment.py`'s import of the archived
+  `dividends.py` blocks six short books, and **F-8 is blocked by nothing else.** Three options,
+  none this lane's to pick: de-archive `dividends` with a register, break the dependency, or
+  run the fleet from a process that is not the web app. **Option three would also solve
+  blocker (B) for six more books**, which is new information since HANDOFF 71 and probably
+  changes the calculus.
+* **TO THE SCOUT LANE:** F-13 and F-2 need dated amendments (routes named in
+  `CEREMONY_REJECTIONS.md`); F-11's *"first appearance this quarter"* needs a source or an
+  amendment; F-14's skip-records need the harness change in (C) before its rule can be written
+  at all. **And the S3-I1 zero-vs-one infra-trial pricing departure is still owed a line in
+  `IDEAS_LEDGER.md`** — relayed in HANDOFF 71, repeated here because it has not landed.
+
+### NOT DONE, named so it is not mistaken for done
+
+**Thirteen books are still prose and no fill has ever been placed by any book.** No exit
+machinery exists for any armed book — F-3 declares a scanner-reversal exit and nothing
+implements it, so an entered position would be held to expiry by default rather than by rule.
+`held_symbols` is deliberately conservative (a name that has ever filled counts as held)
+precisely because there is no honest way to tell a closed position from an open one yet.
+**No meter has been read and no trial charged; every verdict remains at its declared horizon.**

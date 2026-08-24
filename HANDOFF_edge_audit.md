@@ -16312,3 +16312,329 @@ study exists.**
 
 `scripts/sc1b_cluster_by_item.py`; `data/free_analysis/SC1B_CONTROLS.json`,
 `SC1B_CLUSTER_BY_ITEM.json`; `tests/test_sc1b_cluster_by_item.py` (18 tests).
+
+---
+
+# S3-I1 — THE FLEET HARNESS (2026-08-23)
+
+**`PREREG_s3i1_fleet_harness.md` ACCEPTED from the Frontier Scout's draft and committed ALONE
+at `b995940`** — markdown only, zero `.py`, 261 lines, a strict ancestor of every build commit,
+with the draft reproduced **VERBATIM below the rule at `sha256 5654d818…`** (5,719 bytes, 88
+lines) and nothing below the rule edited. **ZERO TRIALS. ADOPTS NOTHING, TRADES NOTHING,
+LICENSES NO REAL MONEY, AND COMPUTES NO OUTCOME STATISTIC ANYWHERE.** It is an instrument: the
+convention is the deliverable, and this session's job was to make the convention *mechanical*
+rather than aspirational.
+
+## The verdict on the draft: ACCEPTED, with eleven executor items declared before any code
+
+The draft's convention is right. Eleven items were declared in the accepted register **before
+a line was written, a declaration validated or a fill recorded** — the `SC-1` pattern. The one
+that changed the build is `E2`, and it is the finding of the session.
+
+## E2 — THE NAMED MACHINERY DOES NOT FIT THE NAMED USE, and it fails in the quiet direction
+
+Draft §1.2 says fleet records go *"on the PT-WRITER machinery, reused not rebuilt"* and names
+`MA4`'s atomic append. **Measured: `index_mark.append_row` is keyed on `date` and idempotent
+per date.** With `append_only=True` a duplicate date is a **NO-OP that returns the row already
+on disk**; in the default mode it is a **REPLACEMENT**. **A fleet book records many orders per
+day.**
+
+**So reusing it verbatim would have silently dropped every fill after the first each day — and
+it would have failed in the direction that reads as a quiet book rather than as an error**,
+which is this record's worst failure shape. A book recording one fill a day looks like a book
+with a strict entry rule.
+
+**"Reuse, do not reimplement" is honoured by EXTRACTION AND DELEGATION**, which is `B7`'s
+lesson and the `MA5`/`I-3` pattern this record has now run three times: the append-only rules
+move into `valuation/edge/append_only.py` with the **key as a parameter**;
+`index_mark.append_row` **DELEGATES** with `key="date"`; the fleet recorder calls the same code
+with `key="seq"`. **A second implementation was refused explicitly — `append_row`'s own
+docstring already names it *"the B7 split this module already warns about."***
+
+## The refactor is gated, and the gate is against git rather than against my expectation
+
+Because `append_row` writes the one file this project calls un-re-derivable, the register fixed
+three obligations **before** anything new could use it (`MB15`'s ordering).
+
+* **Obligation 1 MET, exactly: bit-identical to the pre-refactor source restored from
+  `b995940` across 200 randomised cases and ALL NINE branches** — first write, duplicate key,
+  backward key, header widening, ragged file, missing key, ignored fields, replacement, forward
+  append. Compared on **both the returned dict and the file bytes**, because a writer can
+  return the right dict and write the wrong file.
+* **Obligation 2 MET: the byte-level prefix guarantee held on 33 of 33 append-only writes** —
+  the property `.github/workflows/track-row.yml` verifies with `cmp` on `head -n N`.
+* **Obligation 3 FAILED AS WRITTEN, and it is reported rather than glossed.** See below.
+
+## OBLIGATION 3 FAILED, AND THE DEFECT IS IN MY OWN OBLIGATION
+
+The register said *"`tests/test_index_mark.py` passes **unchanged**, with no edit to any
+expectation"*, and committed to REVERTING the refactor if any obligation failed. **It did not
+pass unchanged.** `test_ma4_the_write_goes_through_a_rename_and_never_opens_the_target_for_
+writing` asserts the literal `os.replace(tmp, history_path)` **inside `index_mark.py`'s own
+source**, so it **FIRED AGAINST THE CORRECT TREE** the moment the rename moved.
+
+**THE OBLIGATION WAS SELF-CONTRADICTORY AT THE MOMENT I WROTE IT.** It required a refactor to
+leave no trace in a suite containing a **source-shape tripwire on the very function I had just
+declared I would move**. That is `MB18`'s shape exactly — `require_effective_coverage` refusing
+a register *for doing the right thing*, because it keyed on a property of the data rather than
+on the caller's behaviour. Here the guard keys on **where the rename lives** rather than on
+**whether the write is a rename**.
+
+**What was done, and the counter-argument is stated because a stricter reader would revert.**
+The guarded PROPERTY is still true and is now proved far more strongly than the tripwire ever
+proved it (200 cases, byte-level, plus 33 of 33 on the prefix), and `index_mark` opens the
+target for writing **zero** times. So the guard was **REPOINTED IN THE SAME COMMIT so the move
+is visible in the diff** — `MA59`'s rule, whose own words are *"a renamed file must not
+silently empty either list"* — and **strengthened**: it now FOLLOWS the delegation instead of
+hard-coding a path and holds the property against **BOTH** modules. **A stricter reader would
+have taken the register's own revert branch. The error runs toward FEWER implementations of a
+safety-critical writer, which is the safe direction for the thing the obligation protects — but
+it is a departure from a pre-commitment made hours earlier, and it is recorded as one.** The
+register is left UNEDITED.
+
+## THE ONE REAL REGRESSION, AND MY OWN GATE DID NOT CATCH IT — the full suite did
+
+**This is the most important thing in this section, because it is the one defect that reached
+correct code rather than an instrument.** `index_mark.append_row` takes a **`columns=`**
+keyword — the PT-SPMO lane added it so the reported-benchmark sibling could reuse this writer
+with its own six-column schema rather than growing a second one. **My first delegation
+hard-coded `ROW_COLUMNS`, so the argument was ACCEPTED AND SILENTLY DROPPED**, and a correct
+sibling write came back **refused for widening a header nobody had asked to widen**.
+
+**`tests/test_reported_benchmark.py` went 26/26 → 24/26.** It was caught by running the FULL
+148-suite gate, and confirmed to be mine by restoring `index_mark.py` to the register commit
+and re-running to 26/26.
+
+**WHY THE DIFFERENTIAL HARNESS MISSED IT, AND THIS IS THE PORTABLE PART: 275 randomised cases
+over every BRANCH never varied a PARAMETER.** A branch sweep perturbs the DATA — duplicate key,
+backward key, ragged file, header widening — and **this defect lived in the SIGNATURE**, where
+no amount of data variation can reach it. The obligation the register wrote ("cover every
+branch") was **weaker than the job required**, and it is now strengthened rather than merely
+satisfied: two `caller_columns` branches were added, the sweep runs 275 cases over 11 branches,
+and `scripts/i1_append_only_validate.py`'s own docstring now states the stronger obligation.
+**Pinned twice** — by `test_reported_benchmark.py`, which found it, and by a new test in
+`tests/test_fleet_harness.py`, because the delegation is this session's code and should carry
+its own regression test rather than relying on another lane's.
+
+**A differential harness must exercise every parameter of the contract it is proving, not
+merely every path through the implementation.**
+
+## SEVEN FURTHER DEFECTS, all in INSTRUMENTS rather than in product code
+
+The `columns` regression above is the only one that reached shipped code. These seven are in
+the harnesses, guards and validators built this session, and every one was caught by running
+the thing rather than by reading it.
+
+**In the append-only validation harness:**
+
+1. **It compared two different temp paths and reported 175 mismatches that were its own
+   fixture.** Old and new ran against `old.csv` and `new.csv`, and the comparison included a
+   `path` field. **A comparator that cannot tell the object from the scaffolding is not
+   measuring the object.**
+2. **It built fixtures with `"\n"` while the writer emits `"\r\n"`, so the byte-prefix
+   obligation failed 33 of 33 and was measuring my line endings.** Fixtures are now built with
+   the same `csv.DictWriter` under test. **A prefix check is only meaningful against bytes the
+   writer would itself have produced.**
+3. **The prefix obligation first passed on ZERO writes.** Every append-only branch legitimately
+   refuses or no-ops, so until an explicit forward-append branch was added the check was scoring
+   an empty comparison — `MB21`'s `C1` in a new costume. Branch coverage is now COUNTED and
+   gated, and a missing branch REFUSES rather than passing.
+
+**In the repointed `MA4` guard, twice, and the second is the instructive one:**
+
+4. **The first repoint fired on the delegate's own DOCSTRING**, which quotes `open(path, "w")`
+   in the sentence explaining why it is forbidden. `MA49`'s comment-versus-code family, which
+   `MB1` already wrote the fix down for: strip docstrings and match what is left.
+5. **After switching to `ast.unparse`, the negative assertion COULD NOT FIRE AT ALL** — unparse
+   normalises string quoting to single quotes, so the needle `open(path, "w"` can never appear
+   and the guard **PASSED against a delegate mutated to truncate the target in place**. **Found
+   by mutation, not by reading.** Replaced with a structural AST check on the call SHAPE, which
+   is immune to how the quotes are spelled. **A guard that cannot fail is not a guard, and this
+   one was invisible until something mutated the code it watches.**
+
+**In the recorder itself, both caught by its own day-1 self-verification on its first run:**
+
+6. **THE HASH CHAIN COULD NOT VERIFY A SINGLE ROW IT HAD JUST WRITTEN.** It hashed the payload
+   with native types — `2.5`, `1` — and every value comes back from CSV as a **string**, so the
+   canonical form differed and the whole stream read as broken. **The invariant is now stated
+   and pinned: hash what you PERSIST, not what was passed in.** The chain also now takes its
+   payload keys from the **file's own header** rather than from the constant, or a book
+   declaring extra columns via `records_schema` could never verify.
+7. **The declaration validator refused correct declarations**, because it tested required
+   fields with `in (None, "", [], {})` and an empty `records_schema` is a legitimate ANSWER —
+   a book declaring no extra columns. **A validator that cannot tell "unanswered" from
+   "answered with nothing" refuses the correct case.** Presence and emptiness are now separate
+   rules, stated per field.
+
+**And one in the self-check itself:** its out-of-order probe used a **duplicate** key, which is
+correctly a no-op, so it was **testing idempotency under the name of ordering**. It probes
+sequence zero now — not on disk, below every key that is.
+
+## What the harness enforces MECHANICALLY, which is the task's own word
+
+* **DECLARATION BEFORE FILL, checked against git.** `declaration_commit()` requires the
+  introducing commit to **EXIST**, to be an **ANCESTOR of HEAD**, and to have touched **EXACTLY
+  ONE file** — that declaration. All three are tested against a **real temporary repository**,
+  because checking a commit rule against a stub checks the stub.
+  **THE HONEST LIMIT SHIPS WITH IT (`E8`): this proves the declaration landed before the fill
+  was RECORDED, on the harness's own clock. IT CANNOT PROVE NO ORDER WAS PLACED AT A BROKER
+  BEFOREHAND.** The record stream is the evidence; the broker is not.
+* **ENTRY RULES FROZEN AT DECLARATION**, and a **delta-targeted strike is REFUSED unless the
+  declaration argues past `V6-OPT`'s autopsy** — the draft's own clause, and `V6-OPT` measured a
+  delta-targeted rule **neutralising the very risk difference the trade was built to exploit**.
+  Silence is not an argument.
+* **`O11` VERBATIM.** A declaration that paraphrases it is REFUSED. A book that softens the
+  sentence has changed what it claims.
+* **THE MANDATORY VERDICT-HORIZON FIELD**, seven sub-fields, each refused by name if absent, and
+  `sigma`/`rho`/`alpha`/`min_effect` refused if non-positive.
+* **REFUSALS ARE RECORDS, NOT CRASHES** — the draft's §4, and a refusal recorded by a different
+  route is a refusal that can be lost.
+* **A CROSS-BOOK AGGREGATE IS NOT OFFERED.** `fleet_aggregate()` RAISES, citing void condition
+  3. Raising beats returning something a reader would quote.
+
+## E4 — the peek rule was an honour system, and is now a dated fact
+
+The draft's §2 makes a peek *"the verdict read"* that books the trial. **That is unenforceable
+if nothing records the peek.** So `read_meter()` is the ONLY reader and **it writes before it
+returns**: every meter read is itself an append-only record, flagged `is_first_verdict_read`
+and `early`, carrying the trial-charge instruction. **"Nobody peeked" is now checkable rather
+than remembered.**
+
+## E3 — the chain's claim is overstated in the draft, and the BOUND ships with it
+
+§4 claims *"a tampered row is DETECTED (hash chain … `MA13`'s committed-literal idiom applied
+to records)"*. **`MA13`'s idiom is a literal committed in a TEST, and fleet records live under
+`data/`, which is gitignored** — no committed literal can track a growing stream, so the analogy
+does not carry. **What the chain actually buys: reordering, interior deletion, truncation and
+any edit by anything that does not RECOMPUTE the chain. It is NOT tamper-proof against a writer
+that recomputes it.** The anchor is the **declaration's content hash**, the strongest available
+without putting records in git. **The bound ships in the module, in `verify_chain`'s own return
+value and in the artifact** — never as something a reader has to infer. And an empty stream
+reports **VACUOUS, never PASSING** (`O21-D2`'s `C5`).
+
+## E6 — day-1 self-verification, Don's ruling, absent from the draft
+
+Don's ruling makes fills conditional on the harness passing its own first-day check and the
+draft designs none. Built: `scripts/fleet_selfcheck.py`, **17 of 17 checks passing**, the
+run-#6 pattern end to end — a declared book's fills round-trip into append-only records that
+read back unchanged, the chain verifies, **a tampered copy is REFUSED and LOCATED**, the stream
+is restored byte-for-byte, an out-of-order write is refused, an uncommitted declaration refuses
+the fill, a declaration landed alongside another file refuses the fill, the short-book seam
+refuses both ways, and the randomizer is deterministic, salted and balanced.
+**Every check can FAIL — that was the design constraint, and the run proved it by failing 8 of
+17 on its first pass and finding three real defects.**
+
+**The recorder REFUSES every fill while the last self-check on record is ABSENT, STALE (the
+harness fingerprint moved) or FAILING — and those are reported as three states, not one,
+because "no check has run" and "a check ran and failed" are different facts and only one is a
+bug.** Under Don's ruling that gate is the only staging there is.
+
+## E7 — the `S3-I3` seam is DEFINED and NOT BUILT
+
+r1 is building assignment and margin in parallel, so this harness **computes neither**, pinned
+by an AST test over the docstring-stripped tree. `ASSIGNMENT_INTERFACE` names the three
+callables (`assign_at_expiry`, `early_assignment_flag`, `secured_cash`) and their contracts;
+`register_assignment_provider()` checks the **interface**, not an import, so this file never
+depends on a module that does not exist and a half-built provider is refused rather than
+half-used. **With no provider registered, EVERY short book is REFUSED** — the safe direction —
+and the refusal names the interface rather than crashing.
+
+## E9 — "V5-grade" means the two columns V5 routed and nobody took
+
+`scripts/slippage_report.py` states its own binding gap: *"`paper_option_orders` stores no bid,
+ask or mid at submit time … The fix is two columns written in `_place_entry` … so this is
+ROUTED."* **Nobody took it.** A fleet fill record stores **`quote_bid`, `quote_ask`,
+`quote_mid` at submission** as first-class columns — exactly the object V5 could not recover
+and `F-1` is built to read — beside order type, limit, fill price, time-to-fill, unfilled fate,
+fallback flag and venue. **And V5's sandbox caveat is STAMPED rather than remembered:** sandbox
+quotes are delayed ~15 minutes and fills simulated against them, so **a measured cost BELOW the
+model is the direction the measurement error already points and is weak evidence; a measured
+cost ABOVE it runs against the bias.**
+
+**`fill_fields()` consumes Tradier's own quote and order shapes**, so a book runner does not
+re-derive the schema — and **a one-sided quote records NO mid rather than falling back to
+`last`.** A stale `last` stored under the name `quote_mid` is the wrong-object family, and a
+missing mid is a **fact about the quote that `F-1` needs to see**, not a hole to be filled.
+**No derived outcome statistic is stored on a fill** — capture is computed at READ time, the
+`F-1` draft's own rule, so the stream carries observations and not conclusions. `record_fill()`
+re-runs the whole gate itself rather than trusting a caller, and **a refusal becomes a refusal
+RECORD rather than an exception a scheduler swallows.**
+
+## Three helpers that make Don's ruling tractable rather than eighteen hand-built files
+
+Don's ruling is that **all ~18 declarations commit TOGETHER**. Three things make that cheap and
+were added because the ruling demands the volume:
+
+* **`declaration_template(book, side=…)`** emits a complete skeleton. **It parses and is then
+  REFUSED**, by name, on `FILLS_NEEDED_BELOW_ONE` and its non-positive `sigma` and `min_effect`
+  — so **an author cannot ship the skeleton unfilled**, which a template that validated would
+  have allowed.
+* **`ledger_row(decl)`** emits the book's ledger row at the ledger's own cell count and
+  **REFUSES any raw pipe in the prose**. `M1-PARSE` is this record's most repeated clerical
+  defect and it has **no escape** — both parsers split on a bare pipe and honour no backslash,
+  so one in a cell silently shifts every column after it. `E-2` hit it three days ago writing
+  an absolute value. Emitting the row and refusing the character is cheaper than catching it.
+* **THE FORMAT IS A FENCED `json` BLOCK, AND THE SCOUT'S FOUR `DECL_DRAFT_*` FILES ARE PROSE, SO
+  ALL FOUR ARE REFUSED — verified, not asserted.** That is the machinery working, not a defect
+  in the drafts: **prose cannot be validated, and the register's subject is a convention
+  enforced mechanically rather than promised.** Each will need its JSON block before it can
+  become a declaration.
+
+## E1 — ZERO TRIALS, against the draft's own "1 infra trial", and the counter-argument is stated
+
+The draft prices itself at 1 infra trial (20 → 21). **Logged at ZERO.** The draft's own §2
+charges at **FIRST VERDICT READ**, and the harness **states no hypothesis, sets no bar, returns
+no verdict and computes no outcome relationship** — under its own convention it charges nothing.
+Precedent is direct: **`I-2` and `I-3` were each priced at 1 infra trial in `IDEAS_LEDGER.md`
+and logged at ZERO** three days ago. `by_domain` is **bit-identical** across the log append
+(equity **242**, options **305**, infra **20**) while `rows_fixed_not_counted` rises by exactly
+**1** — the proof the row was seen and correctly excluded.
+
+**The honest objection: the harness fixes a convention every future fleet verdict inherits,
+which is arguably a design degree of freedom.** Against it, `MB1-SEL` governs — machinery that
+can only ever BLOCK or RECORD, never produce a finding, adds no degree of freedom to any
+published claim. **Note the direction: overstating `N` is the safe direction (`MA6`), so this
+departure runs the UNSAFE way** and is therefore stated here loudly rather than left in a
+commit message. Amendable if a later reader disagrees.
+
+## E5 — Don's fleet ruling makes the draft's first expectation UNSCORABLE
+
+§6(1) prices *"≥6 books declared within two weeks of the harness landing — 70/30"*. **Don's
+ruling is that all ~18 declarations commit TOGETHER and fills begin for every book the moment
+day-1 self-verification passes.** An expectation about staging cannot be scored against a ruling
+that removes the staging. **Recorded VOID-BY-RULING — neither right nor wrong.** §6(2), (3) and
+(4) stand and stay scorable.
+
+## NOT DONE, named so it is not mistaken for done
+
+* **NO BOOK IS DECLARED.** The ~18 declarations commit TOGETHER under Don's ruling, as a
+  separate act. **The four `DECL_DRAFT_*` files on the scout branch are DRAFTS, not
+  declarations** — a draft is not committed alone and will be refused by the harness as it
+  stands, which is the machinery working.
+* **NO FILL IS PLACED.** Nothing here touches a broker.
+* **`S3-I3` IS NOT BUILT** — interface only, r1's.
+* **`S3-I7` (the `/research` shelf) is not built** — app lane's.
+* **NO SCHEDULE** — the fleet heartbeat is Cowork's.
+* **NO METER IS READ**, so nothing here charges a trial under §2.
+* **`IDEAS_LEDGER.md` AND `SEASON3_MAP.md` ARE NOT EDITED** — the scout lane reserves them.
+  **The `E1` trial-accounting departure wants relaying into them**, since the map prices S3-I1
+  at 1 infra trial and this lane logged zero.
+* **The eleventh copy of `_code_only` now exists in `tests/`.** Reported, deliberately not
+  consolidated: eleven suites would change in one commit for a four-line helper, and this
+  session's own subject is that consolidating a WRITER is worth its blast radius while
+  consolidating a test helper is not obviously so.
+
+## REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3)
+
+**`tests/test_paper_track.py` reads 69/70 and the failure is NOT this session's** — proved
+rather than asserted, by restoring `index_mark.py`, `test_index_mark.py` and removing
+`append_only.py`, re-running, and getting the identical 69/70 with the identical failure:
+`test_ptsplit_the_live_engine_book_is_recorded_as_non_conforming` — *"the engine's recorded book
+now conforms; if that is real the register in `PAPER_TRACK_CONTRACT.md` 5b needs updating rather
+than this test."* **It is a live disagreement between the engine's recorded book and the §5b
+register, and it is the paper-track lane's to adjudicate.**
+
+`valuation/edge/append_only.py`, `valuation/edge/fleet.py`,
+`scripts/i1_append_only_validate.py`, `scripts/fleet_selfcheck.py`;
+`tests/test_fleet_harness.py` (52 tests) plus the repointed `MA4` guard in
+`tests/test_index_mark.py` (64/64).

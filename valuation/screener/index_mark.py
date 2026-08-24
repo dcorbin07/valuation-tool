@@ -746,6 +746,11 @@ def seed(book: dict, history_text: str = None, *, meta_path: str = None,
     return out
 
 
+_BACKFILL_HINT = (" A gap stays a logged gap; filling one is a deliberate act under "
+                  "PAPER_TRACK_CONTRACT.md section 3 and lives on "
+                  "scripts.track_row --date.")
+
+
 def append_row(row: dict, history_path: str = None, *, append_only: bool = False,
                columns: tuple = None) -> dict:
     """Append (or replace) one row in the recorded CSV, idempotently.
@@ -817,95 +822,24 @@ def append_row(row: dict, history_path: str = None, *, append_only: bool = False
     second write implementation for the strict case is the B7 split this module already warns
     about, and the three refusals above are exactly what make the shared path's output
     prefix-identical rather than merely value-identical.
+    THE IMPLEMENTATION MOVED TO `valuation.edge.append_only` AND THIS FUNCTION DELEGATES.
+    `S3-I1`'s fleet books need these exact rules on a key that is not `date` -- a book records
+    many orders per day, and every rule above is about the key. Copying them would be the B7
+    split the paragraph above warns about, so the rules are keyed on a parameter now and both
+    callers share one implementation. Every refusal message, the check ORDER, the header union
+    and the byte prefix are unchanged, and `scripts/i1_append_only_validate.py` proves it
+    against the pre-refactor source restored from git before anything new used it.
     """
     from . import index_track
+    from ..edge import append_only as AO
     _, hp = index_track.default_paths()
-    history_path = history_path or hp
-    columns = tuple(columns) if columns else ROW_COLUMNS
-    if not row or not row.get("date"):
-        return {"ok": False, "reason": "no row to append", "wrote": False}
-
-    existing, on_disk = [], []
-    try:
-        with open(history_path, encoding="utf-8", newline="") as f:
-            rd = csv.DictReader(f, restkey=_RESTKEY, restval=_RESTVAL)
-            existing = [r for r in rd]
-            on_disk = [c for c in (rd.fieldnames or []) if c]
-    except FileNotFoundError:
-        existing, on_disk = [], []
-    except Exception as e:                                   # noqa: BLE001
-        return {"ok": False, "reason": "could not read " + str(history_path) + ": " + str(e),
-                "wrote": False}
-
-    for i, r in enumerate(existing):
-        if _RESTKEY in r or any(v is _RESTVAL for v in r.values()):
-            return {"ok": False, "wrote": False, "reason":
-                    "refusing to rewrite " + str(history_path) + ": data row " + str(i + 2)
-                    + " does not match its header, so a rewrite would discard or invent "
-                      "cells. Repair the file by hand."}
-
-    fields = list(columns) + [c for c in on_disk if c not in columns]
-    ignored = sorted(k for k in row if k not in fields)
-
-    dates_on_disk = [(r.get("date") or "").strip() for r in existing]
-    dates_on_disk = [d for d in dates_on_disk if d]
-
-    if append_only:
-        # IDEMPOTENCY IS CHECKED FIRST, AND THE ORDER IS LOAD-BEARING. Today's date is not
-        # strictly greater than itself, so if the append-only comparison ran first a second
-        # POST would be REFUSED as a backfill rather than answered as the no-op the contract
-        # asks for -- turning the one case a retrying scheduler hits most into an error.
-        if row["date"] in dates_on_disk:
-            was = next(r for r in existing
-                       if (r.get("date") or "").strip() == row["date"])
-            return {"ok": True, "wrote": False, "already_present": True,
-                    "replaced": False, "reason": "",
-                    "existing": typed_row({k: was.get(k) for k in fields}),
-                    "path": history_path, "rows": len(existing), "columns": fields,
-                    "ignored_fields": ignored}
-        if dates_on_disk and row["date"] <= max(dates_on_disk):
-            return {"ok": False, "wrote": False, "already_present": False,
-                    "would_modify": True,
-                    "reason": ("refusing to write " + row["date"] + " into "
-                               + str(history_path) + ": the series already reaches "
-                               + max(dates_on_disk) + ", and this door is append-only. A gap "
-                               "stays a logged gap; filling one is a deliberate act under "
-                               "PAPER_TRACK_CONTRACT.md section 3 and lives on "
-                               "scripts.track_row --date.")}
-        if on_disk and fields != on_disk:
-            return {"ok": False, "wrote": False, "already_present": False,
-                    "reason": ("refusing to widen the header of " + str(history_path)
-                               + " on an append-only write: on disk "
-                               + ",".join(on_disk) + " against " + ",".join(fields)
-                               + ". Rewriting every line cannot preserve the byte prefix the "
-                                 "append-only check verifies; make a schema change "
-                                 "deliberately, in the repo.")}
-
-    kept = [r for r in existing if (r.get("date") or "").strip() != row["date"]]
-    replaced = len(kept) != len(existing)
-    kept.append({k: row.get(k) for k in fields})
-    kept.sort(key=lambda r: (r.get("date") or ""))
-
-    d = os.path.dirname(os.path.abspath(history_path))
-    if d and not os.path.isdir(d):
-        os.makedirs(d, exist_ok=True)
-    tmp = history_path + ".tmp"
-    try:
-        with open(tmp, "w", encoding="utf-8", newline="") as f:
-            w = csv.DictWriter(f, fieldnames=fields)
-            w.writeheader()
-            for r in kept:
-                w.writerow({k: r.get(k) for k in fields})
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, history_path)
-    except Exception as e:                                   # noqa: BLE001
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
-        return {"ok": False, "wrote": False,
-                "reason": "could not write " + str(history_path) + ": " + str(e)}
-    return {"ok": True, "reason": "", "wrote": True, "replaced": replaced,
-            "path": history_path, "rows": len(kept), "columns": fields,
-            "ignored_fields": ignored}
+    # `columns` is the CALLER'S, defaulting to the bound series' own schema. The first cut of
+    # this delegation hard-coded `ROW_COLUMNS` and so SILENTLY IGNORED the argument the SPMO
+    # sibling passes to reuse this writer with its own header -- the parameter was accepted and
+    # dropped, which refused a correct write rather than raising. Caught by the full gate;
+    # `scripts/i1_append_only_validate.py` could not see it, because 200 cases swept every
+    # BRANCH and never varied a PARAMETER.
+    return AO.append(row, history_path or hp, key="date",
+                     columns=(ROW_COLUMNS if columns is None else columns),
+                     append_only=append_only, typer=typed_row,
+                     backfill_hint=_BACKFILL_HINT)

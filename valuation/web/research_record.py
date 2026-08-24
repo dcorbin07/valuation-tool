@@ -122,7 +122,13 @@ def contains_figure(text: str) -> bool:
     itself derived a moment earlier.
     """
     t = _DATE.sub("", str(text or ""))
-    exempt = derived_hurdles()
+    # TWO exemptions now, unioned. SC-1 adds the calibration section's half-width and its
+    # pre-committed ceiling on exactly MB38's terms — derived, empty when unreadable, whole
+    # matches only. They are kept as separate sets rather than merged into one because they
+    # fail closed independently: a register this page cannot parse must not withdraw the
+    # calibration exemption, and a calibration card that goes missing must not withdraw the
+    # hurdle's.
+    exempt = derived_hurdles() | derived_calibration_figures()
     for m in _FIGURE.finditer(t):
         if m.group(0).strip() not in exempt:
             return True
@@ -675,6 +681,472 @@ def weekly(log_path: str = None, today=None, days: int = None) -> dict:
     return out
 
 
+# ------------------------------------------------------------- S3-I7: the declared books
+#
+# A pre-registration fixes a QUESTION before the data is looked at. A book declaration fixes a
+# PORTFOLIO before the data it will be judged on exists at all -- the rule, the structure, the
+# horizon, written down and committed ALONE, and then left alone while the future arrives.
+# That is a stronger claim than pre-registration and it is worth showing on its own, because
+# the thing a reader can check is not the return: it is the commit.
+#
+# SO THE SHELF SHOWS PROVENANCE AND NOT PERFORMANCE. No return, no excess, no figure of any
+# kind -- `MB38`'s gate governs here exactly as it governs the rest of the page, and a shelf
+# that quoted how the books are doing would be the back door around it.
+#
+# IT READS `S3-I1`'s FORMAT, NOT ONE OF ITS OWN. The harness (`valuation.edge.fleet`) defines
+# a declaration as `DECL_<book>.md` carrying exactly ONE fenced ```json block, committed
+# ALONE before the book's first fill; it records events under `data/fleet/<book>.csv` with
+# kinds `selfcheck`, `fill`, `refusal`, `meter_read`, `close`. This module PREFERS the
+# harness's own parser wherever it can import it, so the page and the harness cannot come to
+# disagree about what a declaration is, and falls back to reading the same one block itself
+# where it cannot -- which is the state today, since `S3-I1` has not landed.
+#
+# A DRAFT IS NOT A DECLARATION, AND THIS IS THE ONE THAT WOULD HAVE PUBLISHED A FALSE CLAIM.
+# The scout lane carries twenty `DECL_DRAFT_*.md` files whose own text says they are *"to be
+# committed ALONE ... before any fleet order is placed"* -- i.e. they are awaiting the very
+# commit that would make them declarations. A glob of `DECL_*.md` lists all twenty as
+# declared books, on a page whose entire claim is that these things were committed in
+# advance. Drafts are excluded by name, and a test pins it.
+#
+# THE DATE IS READ FROM THE DECLARATION'S OWN FIELD OR NOT AT ALL. `preregistrations()` above
+# records why: scraping the first ISO date out of a document gave one register a registration
+# date of 1998-01-01, from its own contents. The horizon here comes out of the structured
+# block (`verdict_horizon.earliest_honest_read`), never out of the prose.
+DECL_GLOB = "DECL_*.md"
+
+#: A draft awaiting its own alone-commit. NOT a declaration, and the distinction is the point.
+DECL_DRAFT_PREFIX = "DECL_DRAFT_"
+
+DECLARED, FILLING, VERDICT_READ = "DECLARED", "FILLING", "VERDICT-READ"
+#: CLOSED was added at the ceremony of 2026-08-24, and the defect it closes was live and
+#: PUBLIC. The harness has always been able to write a `close` record — the day-1 test-book
+#: was deliberately closed with a zero-charge row — and this vocabulary had no word for it, so
+#: a closed book rendered as **FILLING**: *"the record it will be judged on is still filling"*,
+#: said of a book that will never fill again. A page whose entire claim is provenance cannot
+#: describe a shut book as running.
+CLOSED = "CLOSED"
+DECL_STATUSES = (DECLARED, FILLING, VERDICT_READ, CLOSED)
+
+DECL_STATUS_BLURB = {
+    DECLARED: "committed, with nothing recorded against it yet",
+    FILLING: "committed, and the record it will be judged on is still filling",
+    VERDICT_READ: "its meter was read, which is the moment the trial is charged",
+    CLOSED: "closed on the record; it takes no further fills",
+}
+
+#: The harness's own event kinds, in the order that decides a status. A meter read IS a
+#: verdict read under `S3-I1` section 2, which is why it outranks a fill.
+#:
+#: CLOSED OUTRANKS BOTH, because it is the last thing that can happen to a book and the only
+#: one of the three that is terminal. A closed book that was also read still reads as closed;
+#: reporting it as VERDICT-READ would say the meter is the latest news when the shutter is.
+_DECL_KIND_STATUS = ((("close",), CLOSED), (("meter_read",), VERDICT_READ),
+                     (("fill",), FILLING))
+
+_JSON_BLOCK = re.compile(r"```json\s*\n(.*?)\n```", re.S)
+
+DECL_HEADING = "Books declared before their data existed"
+
+DECL_LEDE = (
+    "A registered question fixes what will be asked. A declared book goes further: the "
+    "portfolio itself — the rule, the structure, the horizon it will be judged over — is "
+    "written down and committed on its own before any of the history it will be judged on "
+    "has happened. What makes that checkable is not the outcome, it is the commit: a "
+    "declaration cannot be quietly improved afterwards without the change showing.")
+
+DECL_NO_FIGURES = (
+    "This shelf deliberately carries no performance figures. It is a record of what was "
+    "committed and when, which is the part a reader can verify independently; how the books "
+    "have done is a separate question and is not answered here.")
+
+DECL_EMPTY = (
+    "No books have been declared yet. This shelf lists them as they are committed, and it is "
+    "shown while it is empty on purpose — a surface that appeared only once it had something "
+    "flattering to show would be worth nothing.")
+
+DECL_PENDING_RECORD = (
+    "The declarations below are read from the committed documents. The commit each one landed "
+    "in, and how far its record has filled, come from the harness that keeps them; those "
+    "columns read as not yet recorded wherever that harness cannot be reached rather than "
+    "being inferred from anything else.")
+
+DECL_OVERDUE_NOTE = (
+    "A book whose earliest honest read has arrived without its meter having been read is "
+    "shown as such rather than quietly rolled forward. Reaching a horizon is not the same as "
+    "reading the answer, and only the second one charges a trial.")
+
+DECL_DRAFTS_NOTE = (
+    "Drafts are not listed. A declaration counts from the commit that carries it and nothing "
+    "earlier, so a document still being written is not a book.")
+
+
+def _fleet():
+    """`valuation.edge.fleet` if it is importable, else None. Never raises.
+
+    PREFERRED RATHER THAN REQUIRED. Where the harness is present the page uses ITS parser and
+    ITS paths, so the two cannot drift apart about what a declaration is. Where it is absent —
+    which is the state until `S3-I1` lands — the shelf reads the same single fenced block
+    itself and says plainly that the recorded columns are unavailable.
+    """
+    try:
+        from ..edge import fleet as F                                  # noqa: WPS433
+        return F
+    except Exception:                                                  # noqa: BLE001
+        return None
+
+
+def _declaration(text: str, F=None) -> dict:
+    """The declaration's structured block, through the harness's parser where possible."""
+    if F is not None:
+        try:
+            got = F.parse_declaration(text)
+            if got.get("ok"):
+                return got.get("declaration") or {}
+            return {}
+        except Exception:                                              # noqa: BLE001
+            return {}
+    m = _JSON_BLOCK.findall(text or "")
+    if len(m) != 1:            # two blocks are two declarations; picking one chooses the rules
+        return {}
+    try:
+        import json
+        d = json.loads(m[0])
+        return d if isinstance(d, dict) else {}
+    except Exception:                                                  # noqa: BLE001
+        return {}
+
+
+def _decl_status(F, book: str, root: str) -> tuple:
+    """(status, commit, recorded) from the harness. Never inferred from the calendar."""
+    if F is None:
+        return DECLARED, "", False
+    status, commit, recorded = DECLARED, "", False
+    try:
+        got = F.declaration_commit(book, root)
+        if isinstance(got, dict) and got.get("ok"):
+            commit = str(got.get("commit") or "")[:12]
+    except Exception:                                                  # noqa: BLE001
+        commit = ""
+    try:
+        rd = F.read_records(book, root)
+        if rd.get("ok"):
+            recorded = True
+            kinds = {(r.get("kind") or "") for r in (rd.get("rows") or [])}
+            for names, st in _DECL_KIND_STATUS:
+                if kinds.intersection(names):
+                    status = st
+                    break
+    except Exception:                                                  # noqa: BLE001
+        pass
+    return status, commit, recorded
+
+
+def declared_books(root: str = None, today=None) -> dict:
+    """The declared-book shelf. Provenance only — no figure of any kind reaches this. [S3-I7]
+
+    Tolerant of an EMPTY fleet by design: it renders a sentence saying so rather than hiding,
+    because a shelf that appeared only once it had something to show would be evidence of
+    nothing.
+    """
+    root = root or _repo_root()
+    # Compared as DATES, never as strings. A malformed horizon parses to None and the book is
+    # simply never overdue, which is the safe direction: calling a book overdue because its
+    # date failed to parse invents the one state here that reads as a broken promise.
+    day = _iso(today) if isinstance(today, str) else today
+    day = day or _dt.date.today()
+    F = _fleet()
+
+    books, drafts = [], 0
+    for path in sorted(glob.glob(os.path.join(root, DECL_GLOB))):
+        name = os.path.basename(path)
+        if name.startswith(DECL_DRAFT_PREFIX):
+            drafts += 1
+            continue
+        book = name[len("DECL_"):-len(".md")]
+        try:
+            with open(path, encoding="utf-8") as f:
+                text = f.read()
+        except OSError:
+            continue
+
+        title = ""
+        for line in text.splitlines():
+            t = line.strip()
+            if t.startswith("# "):
+                title = withhold(t[2:].strip())
+                break
+
+        decl = _declaration(text, F)
+        hz = decl.get("verdict_horizon") if isinstance(decl.get("verdict_horizon"), dict) else {}
+        # ONLY A DATE THAT PARSES. The harness's own template ships this field as the literal
+        # placeholder "TODO YYYY-MM-DD", so accepting the raw string publishes a to-do on a
+        # public page. A horizon that does not parse is reported as unlabelled, which is what
+        # it is, and the fills count below carries the honest answer for a book whose horizon
+        # is an event count rather than a calendar date -- several of the drafted ones are.
+        raw_hz = str(hz.get("earliest_honest_read") or "").strip()
+        horizon = raw_hz if _iso(raw_hz) else None
+        # A fill count is a plain integer and is not a figure; it is also the honest answer
+        # where a book's horizon is an event count rather than a date, which several of the
+        # drafted books' are.
+        fills_needed = hz.get("fills_needed")
+        try:
+            fills_needed = int(fills_needed) if fills_needed is not None else None
+        except (TypeError, ValueError):
+            fills_needed = None
+
+        status, commit, recorded = _decl_status(F, book, root)
+        h = _iso(horizon) if horizon else None
+        overdue = bool(h and h <= day and status != VERDICT_READ)
+        books.append({
+            "file": name,
+            "book": book,
+            "title": title or book,
+            "commit": commit,
+            "commit_known": bool(commit),
+            "horizon": horizon,
+            "horizon_labelled": horizon is not None,
+            "fills_needed": fills_needed,
+            "status": status,
+            "status_blurb": DECL_STATUS_BLURB[status],
+            "recorded": recorded,
+            "overdue": overdue,
+        })
+
+    return {
+        "available": True,
+        "books": books,
+        "n": len(books),
+        "empty": not books,
+        "drafts_excluded": drafts,
+        "harness_available": F is not None,
+        "record_available": any(b["recorded"] for b in books),
+        "any_overdue": any(b["overdue"] for b in books),
+        "any_unlabelled": any(not b["horizon_labelled"] for b in books),
+        "heading": DECL_HEADING,
+        "lede": DECL_LEDE,
+        "no_figures": DECL_NO_FIGURES,
+        "empty_note": DECL_EMPTY,
+        "pending_note": DECL_PENDING_RECORD,
+        "overdue_note": DECL_OVERDUE_NOTE,
+        "drafts_note": DECL_DRAFTS_NOTE,
+        "statuses": DECL_STATUSES,
+    }
+
+
+# ----------------------------------------------------------- SC-1: the record's calibration
+#
+# The denominator says how many things were tried. It says nothing about whether the guesses
+# were any good, and those are different questions: a project can count its trials honestly
+# and still be systematically over-confident every time it writes a probability down. `SC-1`
+# scored the record's own stated priors against what happened, and `SC-1b` re-ran the scoring
+# with the pairs grouped by ITEM rather than by FILE -- a change `SC-1` named in writing
+# BEFORE its own interval existed, which is a stronger licence than any argument assembled
+# afterwards.
+#
+# DERIVED AT RENDER, NOT TYPED, and the count is the reason. The number of scored predictions
+# grows every time this project writes another one down, so a hard-coded count on a public
+# page is stale the week after it ships -- `MB38`'s own argument for deriving the trial
+# denominator, applied to the other number on this page that moves.
+#
+# WHERE IT READS FROM, AND WHY IT IS NOT THE ARTIFACT ITSELF. The study's artifact lives
+# under the repo-root `data/`, which is gitignored and never ships with a deploy: a surface
+# reading it directly would be permanently unavailable in production, which is the constraint
+# `optionable_partition` documents and answers by transcribing literals. Transcribing is
+# exactly what the count may not be. So `scripts/publish_calibration_card.py` derives a strict
+# subset of the artifact into `data_export/` -- tracked, shipped in the image, and already the
+# place this project publishes things derived out of the ignored data root -- and the card
+# carries the artifact's SHA-256 so a test can prove which artifact it came from. One
+# authority, one direction, and a test that re-derives the card whenever the artifact is
+# present and fails if the committed file has drifted from it.
+#
+# FAIL-CLOSED, exactly as the denominator is. A missing card, a malformed card, a card with a
+# verdict this page has no word for -- every one returns `available: False` with a reason and
+# the section does not render. A page that guessed at a calibration verdict would be the one
+# claim on it that nobody could check.
+CALIBRATION_CARD = os.path.join("data_export", "calibration_card.json")
+
+#: The verdict WORDS. A card carrying a verdict absent from this table is unavailable rather
+#: than rendered raw: the vocabulary is the page's, and an unrecognised verdict is a study
+#: this page has not been taught to describe. `MB38`'s rule that the verdict is a word.
+CALIBRATION_PHRASE = {
+    "CALIBRATED-IN-THE-LARGE": "came back calibrated in the large",
+    "MISCALIBRATED-OPTIMISTIC": "came back miscalibrated, in the flattering direction",
+    "MISCALIBRATED-PESSIMISTIC": "came back miscalibrated, in the cautious direction",
+    "CANNOT-TELL": "could not be told apart from chance at this resolution",
+}
+
+CALIBRATION_HEADING = "Whether the predictions themselves were any good"
+
+CALIBRATION_LEDE = (
+    "Counting the searches says nothing about the quality of the guesses. A project can be "
+    "scrupulous about its denominator and still be over-confident every time it writes a "
+    "probability down. This record attaches a stated probability to many of its predictions "
+    "before the answer is known, which makes them scoreable after the fact — so they were "
+    "scored.")
+
+CALIBRATION_METHOD = (
+    "The pairs are grouped by the item that produced them rather than by the document they "
+    "were written in, because several predictions from one study are not several independent "
+    "pieces of evidence. That grouping was named in writing before the first interval was "
+    "computed, which matters more than the argument for it: choosing how to group after "
+    "seeing the answer is choosing the design on the outcome.")
+
+CALIBRATION_LIMIT = (
+    "Read it for exactly what it is. It is an AGGREGATE property and it validates no "
+    "individual prediction on this page. The measured gap is smaller than the smallest gap "
+    "this design had a coin-flip's chance of detecting, so \"calibrated\" here means \"no "
+    "miscalibration this test could have seen\", not \"no miscalibration\". And the pairs "
+    "are picked out of the record by a keyword rule whose miss rate has never been measured: "
+    "a prediction written as a numbered list instead of a table is invisible to it, which the "
+    "study reports against itself.")
+
+CALIBRATION_WHY_PUBLISHABLE = (
+    "As with the counts above, these are not performance figures and are not an exception to "
+    "the rule against them. A calibration gap is arithmetic on this project's own written "
+    "predictions and their outcomes; it derives from no vendor's data and says nothing "
+    "whatever about how the strategy performed.")
+
+_CALIBRATION_CACHE = {}
+
+
+def _fmt(x, places: int) -> str:
+    """A fixed-precision decimal with trailing zeros trimmed, so `0.15` renders as `0.15`.
+
+    The rendered STRING is what the guard's exemption is built from, so this function and the
+    exemption cannot be allowed to disagree -- they call it on the same value.
+    """
+    t = ("%%.%df" % places) % float(x)
+    if "." in t:
+        t = t.rstrip("0").rstrip(".")
+    return t or "0"
+
+
+def calibration(card_path: str = None) -> dict:
+    """The record's own calibration verdict, derived from the published card.  [SC-1]
+
+    Everything measured is read; nothing measured is typed. Fails closed on any malformed
+    input, and returns a REASON rather than a blank so a missing section is explicable.
+    """
+    import json
+
+    out = {"available": False, "reason": "", "heading": CALIBRATION_HEADING}
+    path = card_path or os.path.join(_repo_root(), CALIBRATION_CARD)
+    try:
+        with open(path, encoding="utf-8") as f:
+            card = json.load(f)
+        if not isinstance(card, dict):
+            raise ValueError("the calibration card is not an object")
+        verdict = str(card["verdict"])
+        phrase = CALIBRATION_PHRASE.get(verdict)
+        if not phrase:
+            out["reason"] = ("the calibration card carries a verdict this page has no "
+                             "vocabulary for")
+            return out
+        n, n_clusters = int(card["n"]), int(card["n_clusters"])
+        gap = float(card["gap"])
+        half_width, bar = float(card["half_width"]), float(card["bar"])
+        # The detection threshold the honest reading depends on. Cluster-adjusted where the
+        # card carries it, because the pairs are clustered and the naive figure would flatter
+        # the design's resolution.
+        thresh = float(card.get("cluster_adjusted_detection_threshold_50pct")
+                       or card["detection_threshold_50pct"])
+        quoted = [str(x) for x in (card.get("may_not_be_quoted_as") or [])]
+    except Exception as e:                                             # noqa: BLE001
+        out["reason"] = ("the calibration card could not be read (%s); the section is "
+                         "withheld rather than guessed at" % type(e).__name__)
+        return out
+
+    if n <= 0 or half_width <= 0 or bar <= 0:
+        out["reason"] = "the calibration card is not internally consistent"
+        return out
+
+    # DERIVED, INCLUDING THE VERDICT WORD. The card records the study's verdict and this
+    # re-derives the comparison behind it, so a card whose verdict disagreed with its own
+    # numbers renders as unavailable instead of publishing the disagreement.
+    clears = half_width <= bar
+    if clears != verdict.startswith("CALIBRATED"):
+        out["reason"] = ("the calibration card's verdict disagrees with its own interval; "
+                         "the section is withheld")
+        return out
+
+    # The direction, in words. A NEGATIVE gap means the record predicted a thing less often
+    # than it went on to happen -- under-confident, which is the cautious direction. "If
+    # anything" is not a hedge for its own sake: the gap is below the threshold above, so the
+    # direction is a lean this design could not have resolved.
+    #
+    # SAID IN FULL RATHER THAN NAMED. The technical word for a negative gap is "pessimistic",
+    # and on a page that sits two clicks from a performance card that word reads as a view
+    # about the market rather than a property of the predictions. So the direction is spelled
+    # out: what was predicted, against what happened.
+    small = abs(gap) < thresh
+    if gap == 0:
+        direction = "there is no lean in either direction"
+    elif gap < 0:
+        direction = ("cautious — the record predicted these things slightly LESS often than "
+                     "they went on to happen")
+    else:
+        direction = ("flattering — the record predicted these things slightly MORE often "
+                     "than they went on to happen")
+    if small and gap != 0:
+        direction = "mildly " + direction[0].lower() + direction[1:]
+
+    out.update(
+        available=True,
+        verdict=verdict,
+        verdict_phrase=phrase,
+        n=n,
+        n_clusters=n_clusters,
+        half_width_text=_fmt(half_width, 4),
+        bar_text=_fmt(bar, 4),
+        clears=clears,
+        clears_word=VERDICT_PASS if clears else VERDICT_FAIL,
+        direction=direction,
+        below_detection=small,
+        may_not_be_quoted_as=quoted,
+        register=str(card.get("register") or ""),
+        register_commit=str(card.get("register_commit") or ""),
+        corpus_pinned_to=str(card.get("corpus_pinned_to") or ""),
+        lede=CALIBRATION_LEDE,
+        method=CALIBRATION_METHOD,
+        limit=CALIBRATION_LIMIT,
+        why=CALIBRATION_WHY_PUBLISHABLE,
+    )
+    return out
+
+
+def derived_calibration_figures() -> frozenset:
+    """The calibration strings the page may render -- the guard's SECOND exemption.  [SC-1]
+
+    Built on exactly `MB38`'s three properties, and for the same reason: a half-width and a
+    pre-committed ceiling are bare decimals, so `_FIGURE` redacts them, and they are not
+    performance figures in the sense that rule exists to stop.
+
+      * DERIVED from the published card, never typed, so it cannot rot into a literal;
+      * EMPTY when the card cannot be read, so a broken card CLOSES the guard rather than
+        opening it;
+      * WHOLE `_FIGURE` matches only, so `0.1432%` still fires (a percentage is a performance
+        figure whatever its digits) and `t 0.1432` still fires (naming it as a statistic
+        brings it straight back under the rule).
+
+    Bounded to the two strings the section is ACTUALLY rendering, not to a range it might one
+    day render. And `withhold()` does NOT get this exemption -- it is the redactor for text
+    this page does not own, and a log row carrying either value is redacted exactly as before.
+    """
+    if "texts" not in _CALIBRATION_CACHE:
+        c = calibration()
+        if not c.get("available"):
+            _CALIBRATION_CACHE["texts"] = frozenset()
+        else:
+            _CALIBRATION_CACHE["texts"] = frozenset(
+                {c["half_width_text"], c["bar_text"]})
+    return _CALIBRATION_CACHE["texts"]
+
+
+def reset_calibration_cache() -> None:
+    """Drop the memo. For tests that move the card and re-ask."""
+    _CALIBRATION_CACHE.clear()
+
+
 # --------------------------------------------------------------------------- the record
 def record(log_path: str = None, root: str = None) -> dict:
     """Everything the page renders. Composes; computes no research result of its own."""
@@ -738,4 +1210,12 @@ def record(log_path: str = None, root: str = None) -> dict:
         "week_floor_note": WEEK_FLOOR_NOTE,
         "week_quiet": WEEK_QUIET,
         "week_not_a_result": WEEK_NOT_A_RESULT,
+        # SC-1 — whether the predictions themselves were any good. An AGGREGATE property with
+        # its own limits shipped beside it, and the study's own list of what it may not be
+        # quoted as, carried in the payload rather than left to each surface to remember.
+        "calibration": calibration(),
+        "cal_heading": CALIBRATION_HEADING,
+        # S3-I7 — the declared books. Provenance, never performance.
+        "declared": declared_books(root),
+        "decl_heading": DECL_HEADING,
     }
