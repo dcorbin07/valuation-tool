@@ -9251,3 +9251,162 @@ face of the response rather than inferable.
 armed book** — F-3 declares a scanner-reversal exit and F-8 declares a three-cycle re-sell,
 and neither is implemented, so an entered position would be held to expiry by default rather
 than by rule. `held_symbols` stays deliberately conservative for that reason.
+
+## 73. EVOWN — event ownership as its own strategy family: NOT-DEMONSTRATED, and the control already owns the event (2026-08-20)
+
+`PREREG_evown_event_ownership.md` committed **ALONE at `4661c03`**, markdown only, zero `.py`, a
+strict ancestor of every commit that scores an outcome. **2 options trials, `N` 305 -> 307**
+(re-read post-merge: `by_domain` reads **equity 242, options 307, infra 20**). **ADOPTS NOTHING.
+`O11` governs and nothing here licenses a trade.**
+
+**AN ORDERING CAVEAT, STATED BECAUSE THE HISTORY CANNOT SHOW IT.** The register's blindness is
+git-provable. The **booking** is not: the row and stamp were written into the working tree and
+verified at 305 -> 307 before the arms ran, but the commit landed afterwards. That is a weaker
+claim than the register's and it is recorded as one rather than implied away.
+
+### 73.1 A NEW DESIGN, and the census changed it before any bar was chosen
+
+`O17C4`'s verdict rests solely on a c3 bar the record already diagnoses as broken. Nothing from it
+is reused. The coverage census ran first, in its own pass, and **touched no return** — and it
+produced a finding rather than a coverage number.
+
+**ON THIS ENTRY RULE, "SPANNING" IS VACUOUS.** The count of contracts whose expiry spans the
+announcement equals the count the engine's own rule produced **at all**, exactly, at every
+candidate offset:
+
+| K (trading days) | events | chain on entry | engine contract | **spans** |
+|---|---|---|---|---|
+| 5 | 6,361 | 6,278 (98.7%) | 4,769 (75.0%) | **4,769 (75.0%)** |
+| 10 | 6,361 | 6,269 (98.6%) | 4,512 (70.9%) | **4,512 (70.9%)** |
+| 15 | 6,361 | 6,244 (98.2%) | 4,607 (72.4%) | **4,607 (72.4%)** |
+
+It is structural: the engine's band is **45–75 DTE** and K ≤ 15 trading days is ≤ ~21 calendar
+days, so the contract **cannot** expire before the announcement. **`O17C4`'s spanning /
+not-spanning partition existed only because ALERT dates fall where they fall relative to
+earnings.** Anchor entry to the announcement and it dissolves. So the arm is against a
+**DTE-matched random-entry control**, matched by design rather than checked afterwards.
+
+**K = 5 fixed on AVAILABILITY** (75.0%, the highest) before any return was computed.
+
+### 73.2 The universe, stated honestly
+
+| universe | names | zero-earnings **DROPPED** | scoreable | events (all history) |
+|---|---|---|---|---|
+| alert book | 186 | **29** | **157** | 13,484 |
+| pinned freeze ∩ bars | 502 | **67** | **435** | 33,735 |
+
+The 157 reproduces `O17C4`'s 157 exactly — the instrument check. **But 435 names are available on
+the pinned freeze**, so the cap is an artefact of the ALERT BOOK, not the strategy, and the
+binding constraint is the **bars cache at 502 names** (`MA25`) rather than options data. **The arm
+runs on the 157 for comparability; the 435 extension is NOT measured and is named as not-done.**
+
+**A premise correction:** the chain freeze is **not** alert-day conditioned — AAPL-2018 carries
+**251 dates, every session**. That conditioning belongs to the *tick* cache (`MB15`'s object).
+
+**Book: 4,754 trades over 157 names**, and the funnel closes exactly against the census —
+4,754 + 1,509 no-pick + 81 no-chain + 15 refused + 2 no-session = **6,361**.
+
+### 73.3 A1 FAILS — every window positive, none separable from zero
+
+| window | strategy | DTE-matched control | gap | CI95 |
+|---|---|---|---|---|
+| full | +9.7844pp | +9.1361pp | **+0.6483pp** | [−2.8567, +4.1366] |
+| early | +9.4602pp | +9.4163pp | +0.0439pp | [−4.9911, +5.0966] |
+| late | +10.1071pp | +8.8499pp | +1.2572pp | [−3.8572, +5.9454] |
+
+3,586 matched strategy trades against 12,726 control, over 1,875 cells; 1,168 strategy trades
+dropped for an empty control cell and counted.
+
+### 73.4 A2 PASSES at all four cells — and this is where the prior was wrong
+
+| cap | equity | taken | refused (concurrency) | final |
+|---|---|---|---|---|
+| 10 | $50,000 | 1,732 / 3,586 | **1,835** | **$517,076** |
+| 10 | $250,000 | 1,736 / 3,586 | 1,847 | **$845,460** |
+| 50 | $50,000 | 3,496 / 3,586 | 24 | $1,057,428 |
+| 50 | $250,000 | 3,554 / 3,586 | 30 | $1,373,781 |
+
+**THE REGISTERED PRIOR IS REFUTED, AND IN THE OPPOSITE DIRECTION TO THE ONE PREDICTED.** I put
+**55%** on REAL-BUT-UNSURVIVABLE — A1 passing, A2 failing on concurrency. **The concurrency
+mechanism was real and `E1` was right**: cap 10 refused **51.2%** of trades against `MB3`'s 32%,
+exactly as predicted. **But the surviving half was profitable enough that survivability was never
+the binding constraint. A2 was the easy leg and A1 was the hard one.**
+
+### 73.5 THE MEASURED REASON A1 FAILS, AND IT IS THE FINDING
+
+**The DTE-matched control is 61.9% spanning** — 16,943 of 27,350 control trades on these names
+own an earnings announcement, measured with the shipped `owns_the_event`, zero unknown.
+
+A 45–75 DTE contract entered on a **random** day already owns an announcement most of the time,
+because announcements arrive every ~63 trading days. **So the control was never a "no-event"
+comparison; it was mostly the same trade.** This is §73.1's vacuity finding extended to the
+control side, and it is the honest reading of the null:
+
+> **Event ownership is not distinguishable from ordinary random entry at the same tenor, because
+> ordinary random entry at that tenor already owns the event.**
+
+### 73.6 A DEFECT IN MY OWN REGISTER, AND THE POWER LINE IS WHAT EXPOSES IT
+
+Emitted before any arm was scored, as registered:
+
+> MDE at |t| > 3.3843 (N = 307): detection threshold **6.17628** (50% power); **7.70925** at 80%
+> power. **Power against the registered effect 4.79 is 22.4%.**
+
+**I set floors on `n` and the arm clears them easily** — 3,586 trades against a floor of 500, and
+1,789 / 1,797 halves against 200 — **so the register records NOT UNDERPOWERED. But `n` was never
+the binding constraint; DISPERSION was.** At a detection threshold of **6.18pp** this design could
+not have found `O17C4`'s own **+4.79pp** more than **22%** of the time, and the observed +0.65pp is
+a **tenth** of what it can see.
+
+**An n-floor is not a power floor.** `MB22`'s gate says so in one line, and I ran it before
+*scoring* when I should have run it before *writing the floors*. **So this NULL means "could not be
+separated at this resolution", and nothing stronger** — `V6`/`S19`'s rule, and it binds hard here.
+
+### 73.7 A DEFECT IN MY OWN INSTRUMENT, CAUGHT BY DISBELIEVING THE NUMBERS
+
+The first smoke test returned **six consecutive trades exiting at "target" at +105% to +457%**.
+The contract history handed to `simulate_trade` contained **both the call and the put** at that
+strike and expiry: `by_contract` was keyed on `(strike, expiration)` and dropped **`right`**. At
+AAPL 99.87 on 2016-07-19 the 105 call is bid **1.18** and the 105 **put** bid **6.70**, so a put
+quote read as a call's is an instant several-hundred-percent phantom gain.
+
+**Nothing raised.** It produced a clean, plausible, enormous number — `MA31`'s failure mode — and
+it would have made the strategy look spectacular. Keyed correctly the same eight trades read as
+this book actually reads: stops at −0.53 to −0.90, targets at +1.74 to +3.03, one time-stop.
+
+**REPORTED OUTSIDE THIS ITEM (`RUN_RULES` rule 3): `scripts/mb1_alternatives_menu.py`'s provider
+has the SAME key shape.** It is **NOT contaminated** — it filters to calls at *load* time, so its
+`_all` never holds puts, and **MB1's numbers stand**. But the safety lives in an upstream filter
+rather than in the key, and a future caller reusing that provider on an unfiltered store gets what
+I got. **A latent hazard, not a live defect.**
+
+**Three build passes for what should have been one, both re-runs my own omissions:** pass 1 stored
+returns but not the survivability inputs; pass 2 stored them under `simulate_trade`'s names
+(`entry_fill` / `net_pnl`) rather than the book vocabulary `long_leg_as_book_trade` consumes
+(`entry_premium` / `pnl_dollars`), leaving all 4,754 rows `None`. The mapping was then verified
+end-to-end on three real trades before paying the third pass, and the P&L identity
+`pnl_dollars = ret x entry_premium x 100` reproduces on my rows at **1.8e-12**, the same tolerance
+as the shipped book.
+
+**A fifth instance of the substring-ban family, in my own test:** the median guard banned the word
+and **failed against the correct tree** on `np.median(df["dte"])`. The ban is by measurement and it
+is about **RETURNS**; a tenor's median is an ordinary descriptive. It reads the median call's
+**ARGUMENT** now, with a positive control proving the narrowed rule still catches a median of a
+return.
+
+### 73.8 What is NOT done, named so it is not mistaken for done
+
+* **The 435-name universe is not measured.** Event-level fillability was censused on the 157 only.
+* **`O17C4` is not reopened** and its verdict stands as recorded.
+* **The uncovered quarter is not random**: 1,509 of 6,361 announcements produced no contract while
+  AAPL and JPM produced one on 41/41 and 35/35, so the covered set tilts **liquid**.
+* **No claim is made about the alert entry.** `R2` stands — the alert subtracts value inside this
+  very effect.
+* **This is not a licence to re-run at a different K.** K = 10 and 15 carry no verdict.
+
+**Expectations: 1 right (E1, the concurrency refusal), 1 wrong (the headline prior), 1 unscorable.**
+
+**Scripts:** `scripts/mb_evown_census.py`, `evown_build.py`, `evown_arms.py`. **Artifacts**
+(gitignored): `MB_EVOWN_CENSUS_A.json`, `MB_EVOWN_CENSUS_B.json`, `EVOWN_BOOK.pkl/.json`,
+`EVOWN_ARMS.json`. **Tests:** `tests/test_evown_event_ownership.py`, 23 tests, 5 of 5 mutations
+caught with sources restored byte-for-byte.
