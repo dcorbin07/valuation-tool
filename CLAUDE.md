@@ -160,7 +160,9 @@ the project's memory and the old versions had been repeated for months.
     and by a new test of this lane's own, since the delegation is this session's code.
     **A differential harness must exercise every PARAMETER of the contract it proves, not merely
     every path through the implementation.**
-  * **EIGHT DEFECTS IN MY OWN INSTRUMENTS, ALL CAUGHT BY RUNNING THEM, and two more are portable. (a) THE HASH CHAIN COULD NOT VERIFY A SINGLE ROW IT HAD JUST WRITTEN** - it hashed
+  * **SEVEN FURTHER DEFECTS, ALL IN INSTRUMENTS RATHER THAN IN PRODUCT CODE - the `columns`
+    regression above is the only one that reached shipped code - and every one caught by running
+    the thing rather than by reading it. Two are portable. (a) THE HASH CHAIN COULD NOT VERIFY A SINGLE ROW IT HAD JUST WRITTEN** - it hashed
     native types while CSV returns strings, so the whole stream read as broken; the invariant is
     now **hash what you PERSIST**, and the payload keys come from the file's own header so a
     book using `records_schema` can verify at all. **(b) A GUARD THAT COULD NOT FIRE:** the

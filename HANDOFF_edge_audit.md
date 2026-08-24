@@ -16419,7 +16419,11 @@ its own regression test rather than relying on another lane's.
 **A differential harness must exercise every parameter of the contract it is proving, not
 merely every path through the implementation.**
 
-## EIGHT DEFECTS IN MY OWN INSTRUMENTS, every one caught by running them
+## SEVEN FURTHER DEFECTS, all in INSTRUMENTS rather than in product code
+
+The `columns` regression above is the only one that reached shipped code. These seven are in
+the harnesses, guards and validators built this session, and every one was caught by running
+the thing rather than by reading it.
 
 **In the append-only validation harness:**
 
