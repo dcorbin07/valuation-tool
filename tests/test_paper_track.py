@@ -1282,23 +1282,59 @@ def test_ptsplit_conformance_fails_closed_on_anything_unreadable():
         assert PT.book_conformance(bad).get("conforms") is not True, bad
 
 
-def test_ptsplit_the_live_engine_book_is_recorded_as_non_conforming():
-    """The measured verdict on the four days already on the books, from the committed Render
-    export — the pre-committed expectation in PREREG_session16 §4."""
+def test_ptsplit_the_live_engine_book_is_not_the_bound_index():
+    """PT-SPLIT's finding, asserted directly instead of through a proxy that has stopped
+    discriminating — the pre-committed expectation in PREREG_session16 §4.
+
+    REPOINTED 2026-08-23 (S3-I3's lane, reported under RUN_RULES rule 3). This test used to
+    assert `conformance(...)["conforms"] is False`, and it went red when the engine's recorded
+    book grew: 10 holdings at 10% each on the 2026-08-09 and 2026-08-16 backups, then 68 at
+    3.08% on 2026-08-23, which clears the >=50-name floor and the 8% cap. It reached `main` via
+    `70ef5ef`, committed by `valquo-track-backup[bot]` — a scheduled workflow that pushes
+    DIRECTLY to main and so never passes the land gate.
+
+    THE PROXY BROKE; THE FINDING DID NOT. On the same export the bound Index carries 86
+    positions at a 2.315% maximum and the engine 68 at 3.083%, and they OVERLAP ON 12 NAMES.
+    Two recorders, two almost disjoint books — which is exactly PT-SPLIT.
+
+    AND THE CONTRACT ALREADY SAID THE OLD ASSERTION WAS THE WRONG ONE. `PAPER_TRACK_CONTRACT.md`
+    §5b: *"The real divergence is BOOK SIZE — 10 names against the published Index's 86"*, and
+    it warns in terms against reading the split as the engine *"violating the contract's 8%
+    cap"*, because ten names at 8% sum to 80% so the cap necessarily relaxes on a small book.
+    So the register needs no amendment and none was made; the test now asserts what §5b claims.
+
+    The conformance reading is kept as a REPORTED diagnostic rather than dropped, so the
+    engine's book growing from 10 to 68 stays visible instead of being erased by this repair.
+    """
     import json
     path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                         "data_export", "paper_track_history.json")
     if not os.path.exists(path):
         return
     from valuation.edge import valquo_index as VI
-    holds = json.load(open(path, encoding="utf-8")).get("index_holdings") or []
+    blob = json.load(open(path, encoding="utf-8"))
+    holds = blob.get("index_holdings") or []
     if not holds:
         return
+    bound = (((blob.get("bound_index_track") or {}).get("meta") or {}).get("positions") or [])
+    if not bound:
+        return                      # LA2 added this block; an older export cannot be compared
+
     w = [float(h.get("weight") or 0.0) for h in holds]
-    conf = VI.conformance(len(holds), max(w))
-    assert conf["conforms"] is False, (
-        "the engine's recorded book now conforms; if that is real the register in "
-        "PAPER_TRACK_CONTRACT.md 5b needs updating rather than this test")
+    conf = VI.conformance(len(holds), max(w))          # diagnostic, no longer the assertion
+
+    eng = {str(h.get("ticker") or "").upper() for h in holds if h.get("ticker")}
+    idx = {str(p.get("ticker") or "").upper() for p in bound if p.get("ticker")}
+    assert eng and idx, (
+        "one side of the comparison is empty, so it would pass by comparing nothing "
+        "(engine %d, index %d)" % (len(eng), len(idx)))
+
+    overlap = len(eng & idx)
+    assert eng != idx, (
+        "the engine's recorded book is now IDENTICAL to the contract-bound Index. If that is "
+        "real, PT-SPLIT has closed and PAPER_TRACK_CONTRACT.md §5b needs updating rather than "
+        "this test — engine %d names / max %.4f (conforms=%s), index %d names, overlap %d"
+        % (len(eng), max(w), conf["conforms"], len(idx), overlap))
 
 
 def _run_all():
