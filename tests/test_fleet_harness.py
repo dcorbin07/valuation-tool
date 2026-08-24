@@ -867,6 +867,88 @@ class LedgerRowAndTemplate(unittest.TestCase):
         self.assertFalse(F.parse_declaration("# DECL f1\n\nSome prose, no block.\n")["ok"])
 
 
+class TheDailyCycle(unittest.TestCase):
+    """`cycle()` -- what the runner kicks, and the distinction it must never collapse."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="fleetcycle_")
+        F._ENTRY_RULES.clear()
+
+    def tearDown(self):
+        F._ENTRY_RULES.clear()
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_a_file_that_is_not_a_declaration_is_REPORTED_and_never_silently_skipped(self):
+        """`DECL_CEREMONY_RUNBOOK.md` is not a book. Neither is a prose draft.
+
+        Skipping both silently would make *"not a book"* and *"a book whose declaration is
+        broken"* indistinguishable -- and the second is the one that must be loud.
+        """
+        io.open(os.path.join(self.root, "DECL_CEREMONY_RUNBOOK.md"), "w",
+                encoding="utf-8").write("# a runbook, not a book\n")
+        io.open(os.path.join(self.root, "DECL_DRAFT_fZ.md"), "w",
+                encoding="utf-8").write("# prose only, no fenced block\n")
+        got = {d["book"]: d for d in F.declared_books(self.root)}
+        self.assertIn("CEREMONY_RUNBOOK", got)
+        self.assertFalse(got["CEREMONY_RUNBOOK"]["parses"])
+        self.assertTrue(got["CEREMONY_RUNBOOK"]["reason"])
+        res = F.cycle(self.root)
+        states = {r["book"]: r["state"] for r in res["books"]}
+        self.assertEqual(states["CEREMONY_RUNBOOK"], "NOT_A_DECLARATION")
+        self.assertEqual(res["books_declared"], 0)
+
+    def test_an_UNIMPLEMENTED_entry_rule_is_never_reported_as_no_candidates_today(self):
+        """THE DISTINCTION THE WHOLE FUNCTION EXISTS FOR.
+
+        A declaration FREEZES a rule in prose; it does not execute one. *"The rule ran and
+        nobody qualified"* is a market observation. *"No code exists to decide"* is a build
+        gap. Collapsing them is how a paper fleet reports a cycle that placed nothing as a
+        cycle that found nothing.
+        """
+        self.assertIsNone(F.entry_rule("fQ"))
+        ran = []
+        F.register_entry_rule("fQ", lambda decl, root: ran.append(1) or [])
+        self.assertIsNotNone(F.entry_rule("fQ"))
+        self.assertEqual(F.entry_rule("fQ")({}, None), [])
+        self.assertEqual(len(ran), 1)
+
+    def test_registering_a_non_callable_is_REFUSED(self):
+        with self.assertRaises(TypeError):
+            F.register_entry_rule("fQ", "not a function")
+
+    def test_the_dry_run_is_the_DEFAULT_and_writes_nothing(self):
+        """A side-effecting default on an append-only chained record is the `track-row` defect."""
+        res = F.cycle(self.root)
+        self.assertFalse(res["wrote"])
+        self.assertEqual(res["fills_written"], 0)
+
+    def test_the_implemented_count_is_COUNTED_and_not_derived_by_subtraction(self):
+        """The first cut computed it as `declared - unscheduled - blocked`.
+
+        That is right only while no book is both blocked AND unimplemented -- true on the day
+        it was written, by accident, and false the moment one self-check lands. A number that
+        is only coincidentally correct is `MB8`'s family.
+        """
+        res = F.cycle(self.root)
+        self.assertEqual(res["entry_rules_implemented"], 0)
+        self.assertIn("entry_rules_implemented", res)
+
+    def test_a_fleet_with_no_running_book_reports_NOT_BREATHING_in_its_own_body(self):
+        res = F.cycle(self.root)
+        self.assertFalse(res["breathing"])
+        self.assertIn("DECLARED-BUT-NOT-BREATHING", res["note"])
+
+    def test_the_real_repo_cycle_reports_every_accepted_book_and_fills_nothing(self):
+        """Against the REAL tree, because a cycle checked only against a fixture checks a fixture."""
+        res = F.cycle()
+        self.assertGreaterEqual(res["books_declared"], 17)
+        self.assertEqual(res["fills_written"], 0)
+        self.assertFalse(res["breathing"])
+        for r in res["books"]:
+            if r.get("is_book"):
+                self.assertIn("entry_rule_implemented", r)
+
+
 if __name__ == "__main__":
     r = unittest.main(exit=False, verbosity=2).result
     raise SystemExit(0 if r.wasSuccessful() else 1)

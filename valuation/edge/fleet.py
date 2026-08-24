@@ -562,7 +562,11 @@ def harness_fingerprint() -> str:
     for p in (os.path.abspath(__file__),
               os.path.join(os.path.dirname(os.path.abspath(__file__)), "append_only.py")):
         try:
-            h.update(open(p, "rb").read())
+            # `with`, not a bare open: this runs on every gate check, so on a long-lived
+            # service the leaked handles accumulate. Surfaced as a ResourceWarning by the
+            # endpoint test, which is the first caller to hit it in a loop.
+            with open(p, "rb") as fh:
+                h.update(fh.read())
         except OSError:
             h.update(b"<missing>")
     return h.hexdigest()
@@ -971,6 +975,156 @@ def declaration_template(book: str, *, domain: str = "options", side: str = "lon
         d["return_denominator"] = "secured_cash"
     return ("# DECL " + book + "\n\n**Committed ALONE, before this book's first fill.**\n\n"
             "```json\n" + json.dumps(d, indent=2) + "\n```\n")
+
+
+# ---------------------------------------------------------------------------------------
+# THE DAILY CYCLE -- what a scheduler kicks, and what it honestly does today
+# ---------------------------------------------------------------------------------------
+_ENTRY_RULES: dict = {}
+
+
+def register_entry_rule(book: str, fn) -> dict:
+    """Register the CALLABLE that decides whether `book` enters today.
+
+    A declaration FREEZES an entry rule in prose; it does not execute one. Nothing in this
+    repository turns `"names whose flag count transitions from 0-or-1 to >=2"` into an order,
+    and pretending otherwise is how a paper fleet reports a cycle that placed nothing as a
+    cycle that found nothing. **The two are different facts and `cycle()` keeps them apart.**
+
+    `fn(decl, root) -> list[dict]` returns zero or more candidate fills, each a kwargs dict
+    for `fill_fields`. Returning `[]` means *the rule ran and today qualifies nobody*, which
+    is a real observation. Not being registered at all means *the rule has never been built*,
+    which is not.
+    """
+    if not callable(fn):
+        raise TypeError("an entry rule must be callable")
+    _ENTRY_RULES[str(book)] = fn
+    return {"ok": True, "book": str(book)}
+
+
+def entry_rule(book: str):
+    return _ENTRY_RULES.get(str(book))
+
+
+def declared_books(root: str = None) -> list:
+    """Every book with a `DECL_<book>.md` carrying a machine-checkable block, in name order.
+
+    Discovery is by parse rather than by a hand-kept list, so a book cannot be declared and
+    then silently left out of the cycle -- `MA5`'s lesson, where one hand-typed copy of a
+    fact drifted from another. Files that do not parse are RETURNED with their reason rather
+    than skipped: `DECL_CEREMONY_RUNBOOK.md` is not a book and neither is a prose draft, and
+    the difference between *"not a book"* and *"a book whose declaration is broken"* is
+    exactly what a silent skip would destroy.
+    """
+    d = root or repo_root()
+    out = []
+    try:
+        names = sorted(os.listdir(d))
+    except OSError:
+        return out
+    for fn in names:
+        if not (fn.startswith("DECL_") and fn.endswith(".md")):
+            continue
+        book = fn[len("DECL_"):-len(".md")]
+        try:
+            with open(os.path.join(d, fn), encoding="utf-8") as fh:
+                text = fh.read()
+        except OSError as e:
+            out.append({"book": book, "parses": False, "reason": str(e)})
+            continue
+        p = parse_declaration(text)
+        out.append({"book": book, "parses": bool(p["ok"]),
+                    "reason": "" if p["ok"] else p["reason"]})
+    return out
+
+
+def cycle(root: str = None, *, write: bool = False, books: list = None) -> dict:
+    """One fleet cycle. Reports every book's gate state, and fills only where a rule exists.
+
+    **THIS FUNCTION RECORDS NOTHING WHEN THERE IS NOTHING TO RECORD, ON PURPOSE.** The obvious
+    alternative -- write a row per book per day saying "could not fill" -- would put roughly
+    4,250 rows a year of pure noise into streams whose whole value is that every row is an
+    event. The gap is reported in the response and, once a day, in the Action's log; it does
+    not need to be in the chain to be visible.
+
+    `write=False` (the default) is a DRY RUN that computes the identical report and records
+    nothing, so a scheduler, a health check and a human all read the same object and only the
+    POST can move the record -- the `track-row` split, for the same reason: a side-effecting
+    GET on an append-only record is reachable by a retry, a prefetch or a pasted link.
+    """
+    root = root or repo_root()
+    today = _dt.date.today().isoformat()
+    rows, armed, filled, blocked = [], 0, 0, 0
+    for d in declared_books(root):
+        if books is not None and d["book"] not in books:
+            continue
+        if not d["parses"]:
+            # Not a book. Reported, never counted, never silently dropped.
+            rows.append({"book": d["book"], "is_book": False, "state": "NOT_A_DECLARATION",
+                         "reason": d["reason"]})
+            continue
+        book = d["book"]
+        gate = may_fill(book, root)
+        rec = read_records(book, root)
+        item = {"book": book, "is_book": True, "may_fill": bool(gate["ok"]),
+                "state": gate.get("code") or "ARMED", "reason": gate.get("reason", ""),
+                "records": len(rec.get("rows") or []),
+                "entry_rule_implemented": entry_rule(book) is not None}
+        if not gate["ok"]:
+            blocked += 1
+            rows.append(item)
+            continue
+        armed += 1
+        fn = entry_rule(book)
+        if fn is None:
+            # THE HONEST DISTINCTION. The gate permits a fill and no code exists to decide
+            # one, which is a BUILD gap and not a market observation. It is never reported as
+            # "no candidates today".
+            item["state"] = "ARMED_NO_ENTRY_RULE"
+            rows.append(item)
+            continue
+        try:
+            cands = list(fn(gate["declaration"], root) or [])
+        except Exception as e:                                   # noqa: BLE001
+            item["state"] = "ENTRY_RULE_RAISED"
+            item["reason"] = str(e)
+            rows.append(item)
+            continue
+        item["candidates"] = len(cands)
+        item["state"] = "RAN"
+        if write:
+            wrote = []
+            for c in cands:
+                wrote.append(record_fill(book, fill_fields(**c), root))
+            item["wrote"] = len(wrote)
+            filled += len(wrote)
+        rows.append(item)
+
+    books_only = [r for r in rows if r.get("is_book")]
+    unscheduled = [r["book"] for r in books_only if r["state"] == "ARMED_NO_ENTRY_RULE"]
+    # COUNTED, not derived. The first cut computed this as `declared - unscheduled - blocked`,
+    # which is right only while no book is both blocked AND unimplemented -- true today by
+    # accident and false the moment one book's self-check lands. A number that is
+    # coincidentally correct is the `MB8` family: an arithmetic that was never checked against
+    # the thing it claims to count.
+    implemented = sum(1 for r in books_only if r["entry_rule_implemented"])
+    ran = any(r["state"] == "RAN" for r in books_only)
+    return {
+        "ok": True, "date": today, "wrote": bool(write),
+        "books_declared": len(books_only), "armed": armed, "blocked": blocked,
+        "fills_written": filled,
+        "entry_rules_implemented": implemented,
+        "books_with_no_entry_rule": unscheduled,
+        "breathing": bool(filled) or ran,
+        "note": ("" if ran else
+                 "DECLARED-BUT-NOT-BREATHING: %d books declared, %d with an entry rule "
+                 "implemented, %d blocked at the gate. No fill can be produced by any "
+                 "scheduler until entry rules exist. Declaring without building them is a "
+                 "paper fleet in the worst sense."
+                 % (len(books_only), implemented, blocked)),
+        "sandbox_caveat": SANDBOX_CAVEAT,
+        "books": rows,
+    }
 
 
 # ---------------------------------------------------------------------------------------
