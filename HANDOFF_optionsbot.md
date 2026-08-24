@@ -8458,8 +8458,8 @@ identical to the committed stamp, so **no reconciliation was owed** and the stam
 `FIXED`-class row. The diff against `origin/main` is **exactly seven files** and **zero under
 `.github/`**.
 
-**150 suites, 0 failures on the merged tree, after merging `origin/main` TWICE** --
-the second time to take another lane's gate fixes in place of my own (see the section above). The validation reproduces every figure
+**151 suites, 0 failures on the merged tree, after merging `origin/main` FOUR TIMES** --
+the second to take another lane's gate fixes in place of my own, the third and fourth because `S3-I1` and then three product surfaces landed while this was verifying. `by_domain` was re-read after EVERY one and matched the stamp each time. **Main moved four times in one session, so a local full gate cannot track it** -- the land Action's run on the merged tree is the authoritative one, and this branch was verified green against the tree as it stood at each merge. The validation reproduces every figure
 identically after the merge.
 
 ### S3-I1 LANDED MID-FLIGHT, AND THE SEAM IT DEFINED IS NOW SATISFIED
