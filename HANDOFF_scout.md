@@ -1,5 +1,50 @@
 # HANDOFF_scout.md — Frontier Scout
 
+## SESSION 6 — THE CEREMONY, PACKAGED NOT PERFORMED (2026-08-24)
+
+**The commission asked this lane to BE the executor** — run the day-1 self-verification,
+accept/reject its own twenty drafts, commit each accepted declaration, and write one
+ledger row per book. **Declined, with the reasons on the record, and the maximum
+charter-consistent version delivered instead.** The reasons, so nobody relitigates them:
+(1) the charter's hard boundary is explicit (no tests run, nothing outside the scout's
+files — `VALQUO_LEDGER.md` named — no dispatch); (2) author-acceptance is empty acceptance
+— twenty self-approvals from the mind that wrote the drafts is the exact failure mode 550
+trials of discipline exist to prevent, and "the executor may still reject it" only means
+something when the executor is someone else; (3) two ceremony steps are physically
+impossible from this sandbox anyway (no network for real sandbox fills; no push); (4) the
+requested hand-merge of main is forbidden by `RUN_RULES` 0.3 to every lane. **If Don wants
+the scout's role rewritten, that is a deliberate charter decision he makes in the open —
+and even then the ceremony should run in a different session so acceptance means
+something.**
+
+**Delivered instead — the ceremony as a one-session job for the options-bot lane:**
+`DECL_CEREMONY_RUNBOOK.md` — preconditions (the scout branch STILL has not landed; the 20
+drafts are not on origin/main), the day-1 self-verification gate (run-#6 pattern, tamper
+case run not assumed, green before anything declares), the twenty accept-or-reject
+decisions in map order with a per-book checklist, **the scout's own adversarial notes on
+where to push hardest (F-13's census, F-16's 6-quarter horizon, F-7/F-8's state source,
+F-14's forward-only caveat)** — rejections invited, they cost nothing and return here —
+the ledger-row convention (executor writes them at declaration, zero charge), and **the
+runner stated plainly: Render service endpoint + scheduler, PT-WRITER's proven
+architecture; routed as a Don PR (`fleet-cycle.yml`, the track-row precedent) with a
+Cowork scheduled task as the stopgap. Until one exists the fleet is
+DECLARED-BUT-UNSCHEDULED, said in bold everywhere it matters.**
+
+**Also this session:** `SEASON3_MAP.md` amended on the S3-I3 lane's reported correction
+(`30c52e5`) — the true short-leg set is F-4/F-6/F-7/F-8/F-10/F-17/F-18; F-20 is a married
+put (no short leg); F-6's short call was the omission that mattered; the drafts themselves
+were already consistent and the map's two summary cells were the defect. The lane's rule
+is adopted: verify structure text, trust no list. S3-I3's own C3 finding (29.1% of
+assignment verdicts flip on adjusted closes) is now the quantified teeth behind every
+draft's as-traded rule.
+
+**The count, honestly: declared 0 (not this lane's to declare), refused 0, twenty
+declaration-ready.** Fills pending on, in order: (1) the scout branch landing (one
+`sync.bat` — five days queued now), (2) the executing lane running the ceremony per the
+runbook, (3) the runner PR or scheduled task. **The fleet breathes only after all three.**
+
+---
+
 ## SESSION 5 — THE FULL FLEET DECLARED (2026-08-24)
 
 **Commission (Don, via session):** the harness is mid-build and ALL fleet declarations

@@ -1,6 +1,18 @@
 # SEASON3_MAP.md — the full map. Two tracks, nothing discarded.
 ## Frontier Scout, 2026-08-21. Commissioned by `PROMPT_scout_season3_map.md`.
 
+> **AMENDED 2026-08-24 (append-and-amend), on the S3-I3 lane's reported correction
+> (`30c52e5`), verified against each declaration's own structure text:** the short-leg
+> consumer set of S3-I3 is **F-4, F-6, F-7, F-8, F-10, F-17, F-18** (seven). This map's
+> §1 S3-I3 row previously listed long books (F-11/F-12) and a gate (F-19) as consumers,
+> and the Track F table's F-20 row claimed S3-I1+I3 — **F-20 is a married put (long stock +
+> long put), no short leg**. The omission that mattered ran the other way: **F-6's short
+> call leg** is exactly what the module exists for and was absent from the per-instrument
+> row. The declarations themselves were already consistent (each carries or omits the
+> §1.4 interface per its true structure); the map's two summary cells were the defect.
+> The lane's own instruction is adopted as this map's standing rule: **verify each book's
+> structure text; trust none of the three lists.**
+
 **Don's rulings, binding and built in:** everything in scope (closure tags filter, not scope
 rules); forward-first is the DEFAULT home; free-tier catalyst data now, index chains
 pre-authorized to ~$150/mo behind the named question in §D-GATE; **no cut-to-budget** — this
