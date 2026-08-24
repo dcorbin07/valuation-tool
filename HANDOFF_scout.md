@@ -1,4 +1,112 @@
-# HANDOFF_scout.md — Frontier Scout, session 2: EXPEDITION 2 (2026-08-20)
+# HANDOFF_scout.md — Frontier Scout
+
+## SESSION 5 — THE FULL FLEET DECLARED (2026-08-24)
+
+**Commission (Don, via session):** the harness is mid-build and ALL fleet declarations
+commit together the moment it lands. **Produced: the 16 remaining Track F declarations**
+(F-2 and F-19 as the fleet-wide gate conventions they are, with host-attachment rules;
+F-4/F-7/F-8/F-10/F-17/F-18 written to the harness §1.4 assignment/margin interface with
+their could-shift assumptions marked, since r1 is building S3-I3 now; F-9/F-11/F-12/F-13/
+F-14/F-15/F-16/F-20 long books with frozen entry rules and honest horizons — F-16 says 4+
+quarters out loud, F-20 says it may sit empty in calm regimes and that starving is data).
+With the map session's four, **all 20 Track F books are declaration-ready.** Premium-book
+dedup is frozen in-declaration (F-4 > F-17 > F-10). Zero trials charged; zero outcome
+statistics.
+
+**Bookkeeping landed in `IDEAS_LEDGER.md` (2026-08-24 amend):** EVOWN NOT-DEMONSTRATED →
+the O-3 rubric CLOSED-SELF exactly as pre-committed; the ambient finding's reshaping noted
+(F-12/F-13/B-15 carry the hostile family prior; B-14's re-scope stands; F-4 unaffected);
+E-1..E-6 finals (two pre-outcome kills fired correctly); SC-1b CALIBRATED-IN-THE-LARGE;
+S3-I1 accepted from this lane's draft and mid-build; S3-I2+I5 built (Tier C/E block
+lifted).
+
+**Verification owed and done:** the scout branch had NOT landed at session start —
+`3b9bda7` and `ed58d7f` were still local-only, and this session stacks a third commit on
+the same branch. **One `sync.bat` click (or `git push -u origin worktree-scout-brainstorm`)
+lands all three scout sessions at once.** Land verified next session, per the ritual.
+
+**For the next session:** (1) verify the branch landed; (2) if the harness passed
+self-verification, the 20 declarations go to the options-bot lane for the group commit —
+each must be committed ALONE per the harness convention, in the fleet launch order the map
+gives (Wave 1: F-1/F-3/F-5/F-6 + gates; Wave 2 the rest); (3) re-check whether O-1/O-2/
+SC-3 have landed rows and move statuses; (4) relay Don's answers to the map's five
+questions if given.
+
+---
+
+## SESSION 4 — THE SEASON 3 MAP (2026-08-21, convergent; Don's rulings binding)
+
+**Commission:** `PROMPT_scout_season3_map.md`. Don ruled: everything in scope, forward-first
+default, free data now + index chains pre-authorized behind a named question, **no
+cut-to-budget** — so the deliverable is the full ordered map with a cumulative cost curve
+instead of cut lines.
+
+**Produced:** **`SEASON3_MAP.md`** — 7 instruments (the FLEET HARNESS is the season's first;
+everything in Track F waits on it), **Track F** (20 declared-forward books with declaration
+sketches, dependencies, honest verdict horizons), **Track B** (the freeze-only queue in
+execution order: in-flight items, zero-trial censuses, 9 equity singles, 7 options
+registers, the data-gated tail), the dependency graph with collisions, lane routing, **the
+cost curve** (equity 3.3133→3.3255 across +10 with the ★N=247 floor-flip milestone named at
+B-5e; options 3.3843→~3.4180 including horizon-dated fleet verdicts), the exclusions (only
+(a) unchanged re-runs and (b) unpowered-by-construction, each with its condition), and **the
+sweep proof** — every non-terminal ledger status mapped, including the four audit-4 items
+(MB14/MB17/MB19/MB20) that turn out to have **no ledger row at all** (reported as a bug).
+**First-wave drafts shipped:** `PREREG_DRAFT_fleet_harness.md` (incl. the short-book
+assignment/margin module per Don's ruling and the charge-at-first-verdict-read trial
+convention on the MLPREREG→MLCOMB precedent) + four declarations
+(`DECL_DRAFT_f1_fill_ab.md`, `f3_bear_puts`, `f5_ivcheap`, `f6_collar_ledger`).
+
+**State read fresh:** equity 242 / options 305+2-in-flight / infra 20; **SC-1b landed:
+CALIBRATED-IN-THE-LARGE** (clearing by 0.0068 on 15 item-clusters — the record's stated
+priors are officially calibrated; SC-1's cluster problem fixed exactly as parked).
+EVOWN's row is still branch-side; the brainstorm branch `3b9bda7` is still unpushed.
+
+**Don's five map questions** are at the end of `SEASON3_MAP.md` (index-chain purchase
+timing; fleet launch size; the flip-milestone pause; MB2 vs B-14; the utility-class ruling).
+
+**Next session:** verify this branch AND `3b9bda7` landed; relay Don's answers into the map;
+if the harness is building, the Wave-1 declarations go to the options-bot lane as-is.
+
+---
+
+## SESSION 3 — THE OPTIONS BRAINSTORM (2026-08-21, divergent mode)
+
+**Commission:** `PROMPT_scout_options_brainstorm.md`. Deliverable: **`OPTIONS_BRAINSTORM.md`**
+— a new scout-owned file: ~79 tagged entries + a 29-row re-gloss table over every options
+closure, a ranked top-10, the honest where-the-edge-hides paragraph, and Don's batched
+questions. Divergent rules applied (quality bar suspended); the two hard rules held: zero
+outcome statistics computed, every entry tagged with its nearest dead row or VIRGIN.
+
+**State read before writing (Section A prerequisite):** the season largely executed —
+instruments I-1..I-4 BUILT; E-1 WITHDRAWN by its own size-sort kill (rho 0.6114, R6's autopsy
+firing as pinned); E-2/E-3/E-6 NULL; E-4 UNDERPOWERED (full sample clears MA28's three legs
+at 3.19×, early half 1.69); E-5 UNRESOLVED (hazard decays monotonically 9/9). **MB3's ruin
+arithmetic ran and the kill did NOT fire — $5,000 vs the $250,000 bar, the event family is
+OPEN** (the 85% closure prior refuted). **EVOWN** (relayed via the commission; its result row
+had not reached the refs I can read at write time): event ownership is **AMBIENT at 45–75
+DTE** — tenor and event-count are the live axes, not own/not-own. My season-2 branch LANDED
+(25e9a05 on origin/main), so the EO rubric's blindness proof holds; note EVOWN's "ambient"
+outcome is the rubric's unpartitionable case — no stratified re-read is possible on the book
+and the rubric closes itself, exactly as written.
+
+**The top-10 shortlist** (full versions in the brainstorm file): O-1 flagged puts (queued);
+puts on dip-detector REJECTS (V6-B's 10.2pp separation, the strongest unconsumed measurement
+in the record); the event-free short-tenor premium book (EVOWN's inversion); CSPs on
+UNFLAGGED names (V6-OPT's own reasoning inverted through MA28's flags); the live limit-order
+fill A/B (ρ=0.674 — a cost edge, the closest thing to certain in the file); the
+IV-vs-own-history cheap-convexity screen (I-2 has never touched vol); the alert-density
+regime gate (O11's +14.28/−4.51 split, never registered); multi-event LEAPS (MB3 opened it,
+Tier E owns the tenor); MA56's carried residual-term-slope instruction; the FDA
+unpriced-catalyst calendar (free forward data).
+
+**For the next session:** if Don answers the brainstorm's six questions, convergent mode
+follows — take the approved subset of the top-10 through the full quality bar as Season 3.
+The re-gloss table is the map; A3's corpse and the V6-OPT autopsy are the walls every
+sell-side entry must face in its register.
+
+---
+
+# SESSION 2 (kept verbatim below) — EXPEDITION 2 (2026-08-20)
 
 **Commission:** `PROMPT_scout_expedition2.md` (the deep scrub). Charter unchanged: no tests,
 no trials, no outcome statistics; owns `IDEAS_LEDGER.md`, `PREREG_DRAFT_*.md`, this file.
