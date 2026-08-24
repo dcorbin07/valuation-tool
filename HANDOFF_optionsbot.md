@@ -8246,3 +8246,180 @@ statement resolves strictly**.
 **Scripts:** `scripts/mb1sel_range_control.py`, `scripts/mb1sel_arm.py` (shipped complete and
 never run). **Artifact** (gitignored): `data/free_analysis/MB1SEL_RANGE_CONTROL.json`. **Tests:**
 `tests/test_mb1sel_selection_residual.py`, 26 tests. **129 suites, 0 failures after merging `origin/main`.**
+
+---
+
+## 70. S3-I3 — the assignment and margin model for short-side forward books (2026-08-23)
+
+**ZERO TRIALS, `FIXED`-class.** No hypothesis, no bar, no verdict against a threshold — an
+instrument, the `S25`/`MB15`/`I-2`/`I-3` class. `by_domain` is bit-identical across the log
+append (equity 242, options 305, infra 20) and `rows_fixed_not_counted` rises, which is the
+proof the row was seen and correctly excluded. **ADOPTS NOTHING, LICENSES NO TRADE, AND NO
+BOOK DECLARES ON IT YET** — `O11` binds, sandbox only.
+
+**ROUTED HERE RATHER THAN OWNED HERE.** `SEASON3_MAP.md` assigns S3-I3 to options-bot; that
+lane is mid-queue, so this lane built it. The recorder, the F-books and S3-I1 itself remain
+options-bot's, and this section exists so the module is found rather than rebuilt.
+
+### What it is
+
+`valuation/edge/short_book.py`, plus `tests/test_short_book.py` (48 tests, 13 of 13 mutations
+caught with sources restored byte-for-byte) and
+`scripts/s3i3_short_book_validate.py` → `data/free_analysis/S3I3_SHORT_BOOK_VALIDATION.json`.
+
+Four entry points, matching S3-I1 §1.4 clause by clause:
+
+* `assignment_at_expiry` — assigned per MONEYNESS, strict inequality, matching
+  `csp_surface.settle_put`'s `s < k` and `paper_track`'s MA36 guard. Returns the per-share
+  obligation, the share delta and the cash delta.
+* `secured_cash` — Reg-T CASH-SECURED and COVERED-CALL conventions. This is S3-I1's *"the
+  secured cash is the denominator of every return quoted"*, and it is the whole reason a short
+  book cannot reuse `options_sizing`, which makes the PREMIUM the capital at risk.
+* `early_assignment_flag` — `O21`'s machinery IMPORTED, never re-derived.
+* `validate_declaration` — S3-I1 §4's *"a short book without the assignment module is
+  REFUSED"*, in code.
+
+**IT LIVES IN `valuation/edge/` AND THAT WAS FORCED, NOT PREFERRED.** MA23's boundary test
+forbids any non-study module importing `valuation.studies`, and the S3-I1 recorder is
+`paper_track` lineage, i.e. engine. A `studies/` placement would have been unimportable by the
+one caller that must call it. Pinned by test, with the reason in the test's own name.
+
+### The premise correction, and it is checkable rather than a matter of taste
+
+**`SEASON3_MAP.md` gives THREE mutually inconsistent lists of which books consume S3-I3, and
+the S3-I3 row's own list is the wrong one.**
+
+* Its per-book *"waits on"* column names **eight**: F-4, F-6, F-7, F-8, F-10, F-17, F-18, F-20.
+* Its §5 dependency graph names **seven** — the same set minus **F-6**.
+* **S3-I3's own row names five: F-4, F-10, F-11, F-12, F-19** — and the intersection with the
+  per-book column is only F-4 and F-10.
+
+The documentary fact settles it without needing my reading: **F-11, F-12 and F-19 do not claim
+I3 in their own rows.** As corroboration, and labelled as my reading rather than the map's:
+F-11 and F-12 are long-option structures with no short leg to assign, and F-19 is *"a gate, not
+a book"*. F-6 is a zero-cost COLLAR, whose short call leg is exactly what this module exists
+for, so the graph's omission of it is the one gap that could have let a short leg declare
+unmodelled.
+
+**AND THE PER-BOOK COLUMN IS NOT CLEAN EITHER, which is said here because I built against it
+and a successor should not inherit it on my word.** **F-20** is a *married put* — long stock
+plus a LONG protective put — and as written it has no short leg to assign, so its `S3-I1+I3`
+claim looks like the same over-claim in the other direction. Reading the map's own structure
+text, the books that genuinely carry a short option are **F-4, F-6, F-7, F-8, F-10, F-17 and
+F-18 — seven.**
+
+**The two errors are not equally dangerous and that is the operative point.** Omitting **F-6**
+from the graph is the direction that matters: a zero-cost collar's short call leg is exactly
+what this module exists for, so a book could have declared with an unmodelled assignment
+obligation. Including **F-20** costs nothing but an unused import.
+
+**I built against the per-book column (eight), which is the superset and therefore the safe
+one.** A successor should treat the S3-I3 row's list as superseded, verify each book's
+structure text rather than any of the three lists, and note that the map is the scout's file,
+so all of this is reported rather than edited.
+
+### Validated against a banked figure before anything consumes it (`MB15`)
+
+Five controls on V6-OPT's own 660 settled cash-secured puts, joined to its stage-1 events for
+strike and credit.
+
+* **C1 — B7 FIDELITY, EXACT.** `settle_short` reproduces `csp_surface.settle_put` AND V6-OPT's
+  published per-trade `ret_on_strike` on **660 of 660 rows at max |delta| 0.000e+00**, zero
+  assignment mismatches. The COUNT is gated, because `MB21`'s C1 scored a perfect 0.000e+00 on
+  an empty frame by comparing nothing.
+* **C2** — 660 reproduces the artifact's own published `n`, so this is V6-OPT's book.
+* **C3 — THE SPLIT TRAP IS LIVE ON THIS BOOK AND IT IS NOT MARGINAL: re-settling every trade
+  against the ADJUSTED close instead of `raw_close` FLIPS 192 of 660 assignment verdicts,
+  29.1%.** Median absolute basis gap **5.03%**, and **half the rows differ by more than 5%**.
+  The worst is **CMG at expiry 2016-11-18: `raw_close` 411.80 against an adjusted 8.236**, a
+  50x gap on a 365 strike — the adjusted basis books an obligation of **97.7% of the strike on
+  a trade that actually expired worthless.** This is the measurement that turns *"remember to
+  use `raw_close`"* from folklore into a number.
+* **C4 — the MA36 mirror, on real rows.** **493 of the 660 expired worthless and every one owes
+  EXACTLY zero.** Inheriting MA36's long-side rule unchanged would have booked all 493 at
+  **-100%** — a short book's best outcome recorded as a total loss, on three quarters of its
+  trades.
+* **C5 — early-assignment census, DIAGNOSTIC, NO VERDICT.** 113 of 454 trades with a dividend
+  history span an ex-date. These are PUTS, where a dividend DISCOURAGES early exercise, so the
+  census sizes the exposure for the CALL books (F-6, F-7, F-18) and says nothing about these
+  rows. The flag reports RATIONALITY, never a probability; no assignment rate may be read off
+  it.
+
+### A defect in my own instrument, caught by my own gate on the first real row
+
+`settle_short` first computed the return as `pnl_total / secured_cash`, i.e.
+`(pnl x 100) / (k x 100)`. **That is not the same float as `pnl / k`** — the multiplier
+round-trip loses a bit — and `settle_put` divides by the bare strike. The B7 assertion fired
+immediately on V6-OPT's first row, at the last digit (…246308 against …246304).
+
+**The fix was not a tolerance.** A tolerance would have hidden the fact that the two were doing
+different arithmetic. `secured_cash` now also returns `secured_per_share` and the ratio is taken
+per share, so the identity is exact BY CONSTRUCTION rather than within an epsilon.
+
+**And the reason the tests missed it is the portable part: every one of my six original fidelity
+cases used round numbers**, on which the scaled and unscaled forms happen to agree bit-for-bit.
+Real strikes and fifteen-significant-figure credits broke it on contact. **A float identity
+tested only on round numbers is untested**; four messy cases from the real book are now in the
+suite, including the row that caught it.
+
+### Two defects in my own TESTS, both found by mutation rather than by reading
+
+1. **The required-field test read the very constant it was supposed to pin.** It iterated
+   `SB.REQUIRED_SHORT_FIELDS`, so deleting a field from the tuple silently deleted its test too.
+   Repaired with `MA13`'s committed-literal idiom. *(The mutation that exposed it dropped
+   `spot_basis`, which turns out to be behaviour-PRESERVING because a second check catches it
+   downstream — so the honest statement is that the pin, not the refusal, is what now bites
+   there. Two further mutations dropping `assignment_model` and `early_assignment_flag`, which
+   have no downstream check, are caught by the refusal itself.)*
+2. **The O21-imported test banned a NAME while the defect that happens is an INLINE
+   re-derivation.** `max(0.0, k - s)` written in place defines no function and slipped straight
+   through. This is the substring-ban family in a new costume — `never-ban-a-substring` for the
+   Nth time — and the repair asserts the POSITIVE property instead: `DIV.intrinsic` and its four
+   siblings must be CALLED, and `assignment_at_expiry` must obtain the obligation from
+   `DIV.intrinsic` exactly once.
+
+### A third defect, in the validator's own path resolution
+
+`_data_root` first probed `os.path.isdir(data/free_analysis)` and the WORKTREE carries that
+directory EMPTY, so it resolved to a root holding nothing and refused. **EXISTENCE IS NOT
+POPULATION** — `DEEPITM-FIN`'s defect exactly, where an empty `data/bulk/prepared/bars`
+shadowed the primary's 502 files and the run reported `spot series: 0`. It now probes for the
+FILE it cannot run without, and the artifact is written to the PRIMARY root, because two items
+in two sessions found an artifact stranded in a worktree that later disappeared.
+
+### Reported outside this lane (`RUN_RULES` rule 3)
+
+**A THIRD STRANDED ARTIFACT, AND IT IS THIS LANE'S OWN.**
+`I3_CRASH_GATE_VALIDATION.json` was sitting in `.claude/worktrees/r1/data/free_analysis/` and
+was **ABSENT from the primary root** — so `I-3`'s own validation output would have died with
+this worktree. That is the THIRD instance in three sessions after `MA28_CARD.json` (found by
+`E-5`) and `I2_BURN_IN_CENSUS.json` (found by `E-6`), and unlike those two it was written by
+the same lane that found it. Copied to the primary root; `tests/test_i3_crash_gate.py` runs
+**36 tests with zero skips** against it. **The pattern is now regular enough to be a rule
+rather than an anecdote: an artifact written by a worktree-run script does not survive the
+worktree, so every script must resolve the PRIMARY data root before writing** — which is what
+`s3i3_short_book_validate.py`'s `_data_root` does, and why its own probe had to be repaired.
+
+**`CONTRACT_MULTIPLIER = 100` is defined TWICE** — `options_fill.py:70` and
+`options_sizing.py:108`. `MA5`'s four-copies-of-one-idea shape, harmless today because the two
+can never legitimately differ, and worth consolidating when someone is next in those files.
+This module IMPORTS from `options_fill` and a test asserts it does not add a third.
+
+### What it does NOT do, named so it is not mistaken for done
+
+* **Naked shorts are REFUSED BY NAME, not approximated.** FINRA 4210's maintenance formula is a
+  different model with its own floor; a cash-secured stand-in would UNDERSTATE the requirement,
+  which is the unsafe direction.
+* **The stock leg of a covered call is not marked here** — the host book owns it and already
+  marks it, and modelling it here would double-count.
+* **No assignment PROBABILITY is estimated.** The flag says whether assignment is rational for
+  the holder now. Whether a given holder acts is unobservable.
+* **The OCC's real $0.01 auto-exercise threshold is NOT implemented.** This module uses strict
+  inequality to match `settle_put` and MA36. The divergence is a knife edge, it is NAMED rather
+  than silently reconciled, and changing it would move a landed V6-OPT figure — a decision, not
+  a default.
+* **S3-I1 IS NOT BUILT.** This is its short-book module and the harness it plugs into is still a
+  scout draft (`PREREG_DRAFT_fleet_harness.md`, scout branch only). **No F-book can declare
+  until the recorder exists**, and `validate_declaration` has no caller yet — deliberately, on
+  `MB15`'s precedent: the instrument is validated BEFORE anything consumes it.
+* **No `DECL_<book>.md` was written and no book was declared.**
