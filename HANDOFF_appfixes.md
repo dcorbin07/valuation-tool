@@ -5,6 +5,221 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 46 — 2026-08-23 — three product items: `PT-SPMO` on the card, the declared-books shelf, and the record's own calibration
+
+**Three small items, one session, ZERO TRIALS.** No hypothesis, no threshold, no verdict
+against a bar in any of them, so no `RESEARCH_LOG.md` row and every published `N` is
+untouched. `.github/` untouched. Nothing under `data/` was written or committed.
+
+## 0. What shipped
+
+`valuation/web/research_record.py` (two new sections), `scripts/publish_calibration_card.py`
+(new), `data_export/calibration_card.json` (new, derived), `tests/test_research_shelf_and_
+calibration.py` (new, 36 tests), plus edits to `reported_benchmark.py`, `web/app.py`,
+`static/app.js`, `templates/research.html` and 11 new tests in `test_reported_benchmark.py`.
+**11 of 11 tripwire mutations caught with every source restored byte-for-byte.**
+
+## 1. `PT-SPMO` ON THE CARD — and the word that has to travel with it
+
+Session 45 put SPMO in a caption UNDER the forward card. Don's call was to put it ON the card:
+a fourth tile in the numbers row carrying the recorded SPMO **level** beside the bound SPY
+level, and a third line on the sparkline.
+
+**THE LABEL IS IN THE TILE AND IN THE LEGEND, NOT ONLY IN THE CAPTION, AND THAT IS THE ITEM.**
+The numbers row is the part that survives being screenshotted on its own, and a momentum ETF
+sitting next to SPY with no qualifier is exactly how a reported benchmark starts reading as a
+bound one. The tile reads `SPMO · reported`; the legend reads `SPMO (reported)`.
+
+**DOTTED, NOT DASHED, AND ON ONE AXIS.** SPY is already dashed, so a third dashed line would
+be told apart only by colour. And the SPMO line shares the y-axis: a second scale lets two
+different arithmetics share a picture and look comparable, when the whole value of this line is
+that it IS comparable — same base date, same cumulative-since-inception convention, same units.
+
+**`spanGaps` IS FALSE AND IT IS LOAD-BEARING.** The sibling series begins when its first
+comparison was recorded, so a day it does not carry must draw a HOLE. Bridging one draws a flat
+stretch that reads as a day the benchmark did not move, which is a claim nobody measured.
+`attach_series` adds a key only where a level was recorded and adds none where it was not,
+pinned from both sides.
+
+**READ-ONLY, PROVED BY BYTES.** `series()` and `attach_series()` open the sibling and nothing
+else. Both the bound file and the sibling are byte-compared across a full
+claim-plus-series-plus-attach cycle, and the route is AST-asserted to call no writer — a chart
+that could write the series it draws is a chart that can invent history.
+
+**A PRE-EXISTING GUARD FIRED, AND IT WAS REPLACED RATHER THAN WIDENED.**
+`test_the_api_payload_exposes_the_block_without_breaking_the_bound_card` required the string
+`except Exception` to appear within **400 characters** of the payload line. That is a proxy for
+*inside a try* which a comment can break without changing a line of behaviour, and my comment
+did. Widening the window to 900 would have been tuning the check to pass. It is now an AST
+check that every reported-benchmark statement sits inside a handler — strictly stronger, and it
+catches the case a character window never could: a SECOND such statement added outside it.
+Mutation-tested by moving the call out of the `try`, which fails it by line number.
+
+**THE RECORD STILL LOOKS WORSE FOR IT.** The sibling now carries FIVE rows, and the SPMO excess
+is below the SPY excess on four of the five. That is the case for showing it.
+
+## 2. `S3-I7` — the declared-books shelf, and the format I had to go and find
+
+Each declaration listed with its commit, its verdict horizon and its status. **No performance
+figures**: `MB38`'s gate governs, and a test walks every string the shelf emits through the
+page's own figure guard. The point is the ORDERING — a declaration fixes the portfolio before
+the history it will be judged on has happened — and what a reader can check is the commit, not
+the return.
+
+**I BUILT IT AGAINST A FORMAT I INVENTED, THEN WENT LOOKING AND FOUND THE REAL ONE IN FLIGHT.**
+That check should have come first, and it is the most useful thing in this section.
+`origin/worktree-scout-brainstorm` carries **twenty `DECL_DRAFT_*.md` files**, and
+`origin/worktree-ma5-ma6-inference-bars` carries `S3-I1` itself — `valuation/edge/fleet.py`,
+`scripts/fleet_selfcheck.py`, a register and a suite. Neither has landed, and both contradicted
+what I had written:
+
+* a declaration is **`DECL_<book>.md` carrying exactly ONE fenced ```json block**, not the
+  markdown field I had invented;
+* its horizon lives at **`verdict_horizon.earliest_honest_read`** and its size at
+  `fills_needed` — and several drafted books' horizons are **fill counts, not dates**;
+* the records live at **`data/fleet/<book>.csv`**, which is gitignored, so the harness's own
+  register says plainly that *no committed literal can anchor a growing stream*. My
+  `data_export/declared_books.json` did not exist and was never going to.
+
+The shelf now **prefers the harness's own parser** (`fleet.parse_declaration`,
+`fleet.declaration_commit`, `fleet.read_records`) wherever it can import it, so the page and
+the harness cannot come to disagree about what a declaration is, and falls back to reading the
+same single block itself where it cannot — which is the state today.
+
+**AND ONE OF THOSE FINDINGS WOULD HAVE PUT A FALSE CLAIM ON A PUBLIC PAGE.** A glob of
+`DECL_*.md` matches all twenty **drafts** — documents whose own text says they are *"to be
+committed ALONE ... before any fleet order is placed"*, i.e. awaiting the very commit that
+would make them declarations. The moment the scout lane landed, a page whose entire claim is
+that these books were committed in advance would have listed twenty that were not. Drafts are
+excluded by name, and `test_a_draft_is_not_a_declaration` is the pin.
+
+**NOTHING IS INFERRED, AND THAT IS MOST OF THE REST OF THE DESIGN.**
+
+* **A status is never read off the calendar.** It comes from the harness's own event kinds — a
+  `meter_read` outranks a `fill`, because under `S3-I1` a meter read IS the verdict read and is
+  the moment the trial is charged. A book whose earliest honest read has arrived with no meter
+  read is FLAGGED rather than rolled forward: `track_meter`'s not-yet-due-versus-due-and-missing
+  distinction, on a different surface.
+* **A horizon comes out of the structured block, never out of the prose.**
+  `preregistrations()` in the same module records what scraping costs: it once gave a register
+  a registration date of **1998-01-01**, out of its own contents.
+* **A placeholder is not a date.** The harness's own `declaration_template` ships
+  `earliest_honest_read` as the literal string `TODO YYYY-MM-DD`; accepting the raw value
+  publishes a to-do on a public page. A horizon is taken only if it parses, and the fills count
+  carries the honest answer otherwise.
+* **Two blocks are refused rather than merged**, because the harness refuses them — picking one
+  chooses which rules the book is held to after the fact, and a page that merged them would be
+  doing that on the reader's behalf.
+* **A commit cannot come from the document** — a file cannot contain its own hash — so it comes
+  from the harness or reads as not yet recorded.
+
+**NOT DONE:** `S3-I1` is not built or vendored here, and it has not landed. Until it does, and
+on the service afterwards, the commit and status columns read *not yet recorded* — the records
+are under `data/`, which never ships. That is the honest state, not a defect, and the shelf
+says so in its own copy.
+
+## 3. `SC-1` — the record's own calibration, and the constraint that shaped it
+
+One section, in `MB38`'s vocabulary: the priors were scored as a group and came back
+**CALIBRATED-IN-THE-LARGE**, a half-width of `0.1432` against a ceiling committed in advance at
+`0.15`, so it **clears**. The lean is mildly cautious.
+
+**EVERY MEASURED VALUE IS DERIVED AT RENDER AND NONE IS TYPED**, asserted on the syntax tree
+rather than grepped, because this module's own prose quotes the values the rule forbids. The
+count of scored predictions grows as the record grows, and a hard-coded count on a public page
+is stale the week after it ships — `MB38`'s own argument for deriving the denominator, applied
+to the other number on that page that moves.
+
+**THE CONSTRAINT, AND IT IS WHY THIS IS NOT THREE LINES OF COPY.** `data/` is gitignored and
+never ships with a deploy, so a surface reading the study's artifact directly would be
+permanently **unavailable in production**. That is why every other card on this site
+transcribes literals and cites the artifact — and transcribing is exactly what this count may
+not be. Both halves are real. The join is `data_export/`, which is **tracked**, **ships in the
+image** (checked against `.dockerignore` rather than assumed) and already exists to publish
+things derived out of the ignored data root. `scripts/publish_calibration_card.py` copies a
+strict subset of the artifact, nothing typed, and carries the artifact's SHA-256; a test
+**re-derives** the card wherever the artifact is reachable and fails on any drift, so the card
+is a derived publication rather than a second version of the truth.
+
+**AND THAT TEST NEARLY SHIPPED DEAD.** It first resolved the artifact under its own root, which
+a git worktree does not carry — so it skipped on every worktree while still reporting a pass.
+That is precisely the defect `tests/test_i3_crash_gate.py` shipped and `CLAUDE.md` records. It
+now resolves the data root the way `optionable_universe._data_root` does, and it **runs**: the
+committed card is byte-identical to a fresh derivation.
+
+**THE GUARD GOT A SECOND EXEMPTION, ON `MB38`'s EXACT TERMS.** Both figures are bare decimals,
+so the page's own no-figures rule redacted them. The exemption is DERIVED, matches WHOLE
+`_FIGURE` matches only, and is **EMPTY when the card cannot be read** — pinned in the direction
+that matters, that the figure comes back UNDER the rule rather than that the page still
+renders. `0.1432%`, `t 0.1432`, `0.1433`, `0.15x` and `$0.15` all still fire. `withhold()` is
+deliberately NOT given it, so a log row carrying either value is redacted exactly as before,
+and the two exemptions fail closed INDEPENDENTLY.
+
+**THE LIMITS TRAVEL WITH THE CLAIM, FROM THE ARTIFACT RATHER THAN RE-WORDED.** The study's own
+`may_not_be_quoted_as` list is rendered; the section says in words that the measured gap is
+below the smallest one this design had a coin-flip's chance of detecting, so *calibrated* here
+means *no miscalibration this test could have seen*; and it says the pairs are picked out of the
+record by a keyword rule whose miss rate has never been measured. A page that paraphrased the
+limits of the result it publishes is the one place on this site where caveat and claim could
+drift apart.
+
+**A DEVIATION FROM THE BRIEF, DECLARED RATHER THAN ABSORBED.** The brief's word was
+*pessimistic*. The page says **cautious**, spelled out as *predicted these things slightly LESS
+often than they went on to happen*. "Pessimistic" is the correct technical term and it reads as
+a view about the market two clicks from a performance card. The claim is identical; the wording
+is not.
+
+**IT FORCED A CORRECTION ELSEWHERE ON THE PAGE.** The standing sentence *"One number above is
+not an exception to that"* became false the moment two more figures rendered. A page that
+contradicts itself about its own publishing rule is worse than one that never stated it, so
+the paragraph now names all three and says which is which.
+
+## 4. Verification
+
+**Three suites, 36 + 37 + 30 tests, and the whole gate green.** The new sections are proved to
+render **non-vacuously**: `test_the_rendered_page_still_carries_no_performance_figure` is only
+worth anything if the figures are actually on the page, so a companion asserts the derived
+half-width, the ceiling, the verdict phrase and the count all appear in the rendered HTML.
+
+**13 of 13 tripwire mutations caught, sources restored byte-for-byte** — the scored count
+becoming a literal, the exemption ceasing to fail closed, `withhold()` being given the
+exemption, a verdict published against its own interval, a status inferred from the calendar, a
+declaration title published unredacted, drafts listed as declared books, a `TODO` placeholder
+published as a horizon, two json blocks merged instead of refused, the chart bridging a gap,
+the tile losing its label, `attach_series` filling a missing day, and the route's handler
+removed. The harness judges by **exit code**, never by grepping for `OK`.
+
+**AND THE GATE'S OWN EXIT CODE LIED ONCE, WHICH IS WORTH RECORDING.** The first full run was
+launched as `python gate.py 2>&1 | tail -25`, and a pipeline's exit status is the LAST
+command's — so `tail` returned 0 over a gate reporting a failure. Same shape as the `gh run
+watch` false green from the session before. Read the summary line, not the status.
+
+**REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3), AND IT IS NOT THIS SESSION'S:**
+`tests/test_paper_track.py::test_ptsplit_the_live_engine_book_is_recorded_as_non_conforming`
+**fails on `origin/main`**. This morning's `70ef5ef` *"Track backup: forward paper record as of
+2026-08-23"* updated `data_export/paper_track_history.json`, and the engine's recorded book now
+reads **68 holdings at a max weight of 0.03083 — which CONFORMS** (at least 50 positions, the
+0.08 cap binding), where `PAPER_TRACK_CONTRACT.md` §5b registered it as non-conforming.
+Attribution is measured, not asserted: the JSON is byte-identical to `origin/main`, and neither
+`valuation/edge/valquo_index.py` nor `tests/test_paper_track.py` is touched by this branch.
+**Not silenced and not fixed here** — the test's own failure message says the register needs
+updating rather than the test, and a contract amendment is Don's and `PT-SPLIT`'s, not a
+display lane's.
+
+## 5. Not done, named so it is not mistaken for done
+
+* **No service copy of the SPMO sibling still exists.** `data/` is gitignored, so the live door
+  builds it on its next successful `POST /admin/track-row?append=1`. Until then the tile and
+  the third line simply do not render — `available: False` is the normal state, not a failure.
+* **The calibration card must be REPUBLISHED when `SC-1` is next re-scored.** It is a snapshot
+  by construction; the drift test catches a stale one only on a machine holding the artifact.
+  One command: `python -m scripts.publish_calibration_card --write`.
+* **`S3-I1`'s harness has not landed**, so every shelf row would today read *not yet
+  recorded* even if a `DECL_*` file existed — and its records live under `data/`, so those two
+  columns stay unrecorded on the service afterwards too.
+* **The hero BAND above the tabs is still untouched** — one display surface, deliberately.
+* **The meter is not extended**, no SPMO power arithmetic exists, and `SC-1b` is not re-run.
+
 # Session 45 — 2026-08-20 — `PT-SPMO`: a second benchmark that makes the record look worse
 
 **Don's call, queued 2026-08-19 and lost in the season wave.** Show **SPMO** — Invesco's S&P 500
