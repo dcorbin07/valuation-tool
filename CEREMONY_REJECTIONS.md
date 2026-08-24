@@ -135,3 +135,87 @@ carried across all twenty drafts as a convention rather than derived per book** 
 by 3× to 40× everywhere it appears, **including in books that were accepted**. Every accepted
 declaration now carries a `fills_needed` derived from its own boundary, its own MEI and its own
 sigma. **A round number is not a horizon.**
+
+---
+
+## F-13 (THE SECOND EVENT) — REFUSED BACK AT ARMING, 2026-08-24, options-live lane
+
+**Refused during implementation rather than at the ceremony, and the ceremony was right to
+accept it.** Its declaration is well-formed, its horizon is derived, its verdict grammar is
+complete — it passed every check the harness can make against a declaration. **What it cannot
+survive is being written as code**, and that is a category of defect a validator cannot reach:
+the rule is internally consistent and names a source that cannot supply what it asks for.
+
+### THE FROZEN RULE ASKS THE I-4 SPINE FOR A DATE THE SPINE CANNOT HOLD
+
+> *"Each session: names whose earnings event #1 occurred EXACTLY 5 sessions ago **AND whose
+> event #2 date is KNOWN from the I-4 spine**. Both dates known or no entry; **cadence
+> inference is BANNED**."*
+
+**Event #2 is in the future. The I-4 spine is a record of filings that have HAPPENED.**
+`EventSpine.build` reads `bulk.prepare_events` over the Sharadar EVENTS export, whose rows are
+dated observations of code-22 filings. **Measured on the real file: 385,426 code-22 rows, and
+the latest is 2026-07-29 — there is not one date in the future, on any code, anywhere in the
+file.** A forward earnings calendar is a different product from a filing history, and this
+project owns the second.
+
+**AND THE RULE ITSELF CLOSES THE ONLY DOOR OUT.** The one way to derive a forward earnings
+date from a backward filing record is to infer it from the name's reporting cadence — which
+the declaration **bans by name**, correctly, because a cadence guess dressed as a KNOWN date
+is exactly the fail-open this book's `"both dates known or no entry"` clause exists to
+prevent.
+
+**So the entry condition can never be satisfied. Not "is not satisfied today" — cannot be, by
+construction.** An implementation would be a rule that provably returns `[]` forever while
+reporting itself as a market observation, which is the precise blur `ARMED_NO_ENTRY_RULE` was
+built to prevent one level up.
+
+### WHY THIS WAS NOT VISIBLE AT THE CEREMONY
+
+The ceremony validated declarations. **A declaration cannot state that its named source is
+capable of answering it**, and no machine check the harness owns could have caught this: the
+spine EXISTS, it is IMPORTABLE, it has an `is_known` method, and `is_known` returns `True` for
+thousands of names. It answers a different question — *"do we have any history for this
+name"* — and answering it truthfully is what makes the gap invisible.
+
+**The portable half: a declaration that names a data source should name the FIELD and its
+DIRECTION IN TIME.** *"Known from the I-4 spine"* reads as satisfied because the spine knows
+things. *"A scheduled future date from the I-4 spine"* would have failed on sight.
+
+### WHAT A REVISION HAS TO MOVE, and there are three routes
+
+1. **Name a forward source.** `valuation/edge/catalyst_calendar.py` (S3-I2) is a live scraper
+   of forward-dated events and is already the source F-14 uses — but its one reachable source
+   is **PDUFA/FDA decision dates, not earnings**, so it does not answer this book as written.
+   A forward earnings calendar would be a new dependency with its own licence question.
+2. **Permit cadence inference under a stated, frozen rule** — and then say what happens when
+   the inference is wrong, because the whole point of the ban was that a wrong guess enters a
+   position the book believes is event-free.
+3. **Drop the event-#2 condition** and declare the book on event #1 alone. That is a
+   materially different hypothesis and needs its own horizon, not an edit to this one.
+
+**Route 3 is the cheapest and the most honest; it is also a different book.** This lane is not
+choosing — the drafts are the scout's.
+
+### NOT REFUSED FOR THIS, and worth separating
+
+**F-13's horizon is the fleet's second shortest (0.88 years, 420 fills at 40/month).** Nothing
+about the refusal is a judgement on the hypothesis, which is untested and interesting. It is
+refused on the mechanics of one clause.
+
+### WHAT IS REFUSED IS THE ENTRY RULE, NOT THE BOOK — and the distinction is not pedantry
+
+**F-13 is DECLARED. It is not a draft.** F-7, F-9 and F-16 were refused *before* acceptance
+and their `DECL_DRAFT_*` files never became declarations; F-13's did, at `6bab2d4`, committed
+alone. **That commit is tamper-evidence and it is not being undone.** Renaming the file back
+to a draft would rewrite the ceremony's own record and destroy the `--diff-filter=A` evidence
+that this declaration predates every line of fleet code — which is the whole reason the
+ceremony committed things alone.
+
+**So the accurate state is: DECLARED, ENTRY RULE REFUSED AS UNIMPLEMENTABLE.** The file stays
+exactly as it is, its ledger row stays `DECLARED - no verdict`, no trial is charged, no meter
+exists and nothing is retracted. **What the book needs is a dated AMENDMENT from the scout —
+in the file, below the rule, on `PT-AMEND1`'s terms — and it must land before F-13's first
+fill**, because `verify_chain` anchors on the declaration's content hash and an amendment
+after records exist breaks the book's own chain at row 0. F-13 has zero records, so that
+amendment is free today.
