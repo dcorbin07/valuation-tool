@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import hashlib
+import time as _time
 import json
 import os
 import re
@@ -803,6 +804,31 @@ def _fate(order: dict, fill) -> str:
     return "working"
 
 
+def quote_mid(quote: dict):
+    """THE one definition of this book's mid. `None` when the quote is one-sided.
+
+    `B7`. `fill_fields` records the mid and `submit` PRICES arm B's limit at it, and the two
+    must be the same number by construction -- a book whose subject is half-spread capture
+    cannot afford a limit priced by one convention and a record written by another. The
+    convention is `PaperBroker.mark_from_quote`'s: the mid when there are two sides, and
+    EMPTY when there are not, never a fallback to `last`. A stale `last` under the name
+    `quote_mid` is the wrong-object family.
+    """
+    q = quote or {}
+
+    def _n(x):
+        try:
+            v = float(x)
+        except (TypeError, ValueError):
+            return None
+        return v if v == v else None
+
+    bid, ask = _n(q.get("bid")), _n(q.get("ask"))
+    if bid is None or ask is None or ask <= 0 or ask < bid:
+        return None
+    return round((bid + ask) / 2.0, 4)
+
+
 def fill_fields(*, symbol: str, occ: str, side: str, qty: int, order_type: str,
                 quote: dict, order: dict = None, submitted_ts: str, filled_ts: str = None,
                 limit_price=None, arm: str = "", fallback: str = "",
@@ -835,8 +861,7 @@ def fill_fields(*, symbol: str, occ: str, side: str, qty: int, order_type: str,
         return v if v == v else None
 
     bid, ask = _f(q.get("bid")), _f(q.get("ask"))
-    mid = round((bid + ask) / 2.0, 4) if (bid is not None and ask is not None
-                                          and ask > 0 and ask >= bid) else None
+    mid = quote_mid(q)
     # THE FILL PRICE COMES FROM THE BROKER'S OWN HELPER, NEVER RE-DERIVED HERE.
     #
     # THE DEFECT THIS REPLACES FABRICATED A FILL, and the live leg caught it on its first real
@@ -874,6 +899,105 @@ def fill_fields(*, symbol: str, occ: str, side: str, qty: int, order_type: str,
         "fallback": fallback, "venue": venue,
         "detail": SANDBOX_CAVEAT,
     }
+
+
+# ---------------------------------------------------------------------------------------
+# F-1's ARM POLICY -- the harness's single order door
+# ---------------------------------------------------------------------------------------
+WORK_SECONDS = 60          # F-1 frozen: arm B is "worked 60 seconds". Not a tuning knob.
+
+_TERMINAL = ("filled", "rejected", "canceled", "cancelled", "expired", "error")
+
+
+def _status(order: dict) -> str:
+    return str((order or {}).get("status") or "").strip().lower()
+
+
+def submit(book: str, *, broker, occ: str, underlying: str, side: str, qty: int,
+           decl_sha: str, symbol: str = None, date: str = None, quote: dict = None,
+           work_seconds: int = WORK_SECONDS, clock=None, sleep=None, now=None) -> dict:
+    """Submit ONE order under `F-1`'s frozen arm policy. Returns `fill_fields` kwargs.
+
+    **THIS IS `F-1`'s ENTRY RULE, AND IT DELIBERATELY DOES NOT LIVE IN `F-1`.** That book's
+    declaration says *"No entries of its own. **Every order any fleet book submits** is
+    assigned by the harness's deterministic randomizer"* -- so the policy belongs to the
+    harness's submission path, and a per-book callable could not reach the orders of books
+    that are not it. Every fleet book routes its orders through here; that is what makes the
+    A/B a property of the fleet rather than an opt-in.
+
+    Arm A is marketable. Arm B is a limit at the mid, worked `WORK_SECONDS`, then
+    cancel-and-market with the fallback FLAGGED so it is never pooled with a clean B fill --
+    the draft's own rule, and the reason the record carries `fallback` as a first-class
+    column rather than a derived one.
+
+    **THE CANCEL IS CHECKED BEFORE THE MARKET LEG IS SENT.** If the cancel fails the limit is
+    still live, and sending a market order beside it opens a DOUBLE POSITION on the one book
+    whose subject is fill quality. That case returns the working order flagged
+    `B-cancel-failed` and sends nothing further: an unfilled order is an observation, and a
+    doubled one is a corrupted measurement.
+    """
+    from .paper_broker import PaperBroker as _PB
+    clock = clock or _time.monotonic
+    sleep = sleep or _time.sleep
+    now = now or (lambda: _dt.datetime.now().isoformat(timespec="seconds"))
+    symbol = symbol or underlying
+    date = date or _dt.date.today().isoformat()
+
+    a = arm(book, date, symbol, decl_sha)
+    if quote is None:
+        quote = (broker.quotes([occ]) or {}).get(occ) or {}
+
+    def _kw(order, order_type, fallback, limit_price=None, filled_ts=None, submitted_ts=None):
+        return {"symbol": symbol, "occ": occ, "side": side, "qty": qty,
+                "order_type": order_type, "quote": quote, "order": order or {},
+                "submitted_ts": submitted_ts, "filled_ts": filled_ts,
+                "limit_price": limit_price, "arm": a, "fallback": fallback, "venue": ""}
+
+    def _market(fallback):
+        ts = now()
+        res = broker.place_option(occ, underlying, side, qty)
+        oid = _PB.order_id(res)
+        order = broker.order(oid) if oid else {}
+        fts = now() if _PB.fill_price(order) is not None else None
+        return _kw(order, "market", fallback, submitted_ts=ts, filled_ts=fts)
+
+    if a == "A":
+        return _market("")
+
+    mid = quote_mid(quote)
+    if mid is None:
+        # AMENDMENT 1 to DECL_f1_fill_ab.md, 2026-08-24. Arm B is "limit at mid" and a
+        # one-sided quote HAS no mid, so the frozen rule has nothing to price. Recorded as
+        # its OWN fallback value rather than pooled with either arm, because "B could not be
+        # attempted" and "B was attempted and did not fill" are different observations and
+        # only the second is evidence about working a limit.
+        return _market("B-nomid")
+
+    ts = now()
+    res = broker.place_option(occ, underlying, side, qty, price=mid)
+    oid = _PB.order_id(res)
+    if not oid:
+        return _kw(res.get("order") or {}, "limit", "B-unplaced", limit_price=mid,
+                   submitted_ts=ts)
+
+    deadline = clock() + float(work_seconds)
+    order = broker.order(oid) or {}
+    while _PB.fill_price(order) is None and _status(order) not in _TERMINAL:
+        if clock() >= deadline:
+            break
+        sleep(1)
+        order = broker.order(oid) or {}
+
+    if _PB.fill_price(order) is not None:
+        return _kw(order, "limit", "", limit_price=mid, submitted_ts=ts, filled_ts=now())
+
+    cancelled = broker.cancel(oid) or {}
+    if not cancelled.get("ok"):
+        return _kw(order, "limit", "B-cancel-failed", limit_price=mid, submitted_ts=ts)
+
+    out = _market("B-fallback")
+    out["limit_price"] = mid
+    return out
 
 
 def record_fill(book: str, fields: dict, root: str = None) -> dict:
@@ -1025,7 +1149,7 @@ def declaration_template(book: str, *, domain: str = "options", side: str = "lon
 _ENTRY_RULES: dict = {}
 
 
-def register_entry_rule(book: str, fn) -> dict:
+def register_entry_rule(book: str, fn, *, places_orders: bool = True) -> dict:
     """Register the CALLABLE that decides whether `book` enters today.
 
     A declaration FREEZES an entry rule in prose; it does not execute one. Nothing in this
@@ -1040,12 +1164,34 @@ def register_entry_rule(book: str, fn) -> dict:
     """
     if not callable(fn):
         raise TypeError("an entry rule must be callable")
-    _ENTRY_RULES[str(book)] = fn
-    return {"ok": True, "book": str(book)}
+    _ENTRY_RULES[str(book)] = {"fn": fn, "places_orders": bool(places_orders)}
+    return {"ok": True, "book": str(book), "places_orders": bool(places_orders)}
 
 
 def entry_rule(book: str):
-    return _ENTRY_RULES.get(str(book))
+    e = _ENTRY_RULES.get(str(book))
+    return e["fn"] if e else None
+
+
+def places_orders(book: str) -> bool:
+    """False for a RIDER -- a book whose own declaration says it never sends an order.
+
+    **THREE OF THE SEVENTEEN DECLARED BOOKS CAN NEVER PRODUCE A FILL OF THEIR OWN**, by their
+    own frozen prose: `F-1` (*"No entries of its own"*), `F-2` (*"A GATE, holds no
+    positions"*) and `F-19` (*"A LABELING GATE, refuses nothing"*). Their records accrue only
+    when a HOST book fills.
+
+    This is declared at REGISTRATION rather than sniffed out of the declaration's prose,
+    because detecting it by substring is the family this record has been bitten by repeatedly
+    -- a guard keyed on wording fires against correct text and misses a rephrasing.
+
+    It exists so `cycle()` cannot report the fleet as breathing on the strength of a book that
+    is not able to trade. A rider returning `[]` is not *"the market qualified nobody"*; it is
+    a book doing exactly what it declared, and pooling the two would be the same blur
+    `ARMED_NO_ENTRY_RULE` was created to prevent, one level up.
+    """
+    e = _ENTRY_RULES.get(str(book))
+    return True if e is None else bool(e["places_orders"])
 
 
 def declared_books(root: str = None) -> list:
@@ -1133,7 +1279,8 @@ def cycle(root: str = None, *, write: bool = False, books: list = None) -> dict:
             rows.append(item)
             continue
         item["candidates"] = len(cands)
-        item["state"] = "RAN"
+        item["places_orders"] = places_orders(book)
+        item["state"] = "RAN" if item["places_orders"] else "RAN_RIDER"
         if write:
             wrote = []
             for c in cands:
@@ -1150,6 +1297,8 @@ def cycle(root: str = None, *, write: bool = False, books: list = None) -> dict:
     # coincidentally correct is the `MB8` family: an arithmetic that was never checked against
     # the thing it claims to count.
     implemented = sum(1 for r in books_only if r["entry_rule_implemented"])
+    riders = [r["book"] for r in books_only if r["state"] == "RAN_RIDER"]
+    # `RAN_RIDER` is excluded ON PURPOSE. A gate that ran is not a fleet that traded.
     ran = any(r["state"] == "RAN" for r in books_only)
     return {
         "ok": True, "date": today, "wrote": bool(write),
@@ -1157,6 +1306,7 @@ def cycle(root: str = None, *, write: bool = False, books: list = None) -> dict:
         "fills_written": filled,
         "entry_rules_implemented": implemented,
         "books_with_no_entry_rule": unscheduled,
+        "riders_ran": riders,
         "breathing": bool(filled) or ran,
         "note": ("" if ran else
                  "DECLARED-BUT-NOT-BREATHING: %d books declared, %d with an entry rule "
