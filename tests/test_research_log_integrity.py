@@ -120,7 +120,7 @@ from valuation.edge import research_log as RL               # noqa: E402
 # and separate convention (the master audit lists it under MA21); it belongs to that row, with
 # its own decision about staleness tolerance, not smuggled in here.
 # ---------------------------------------------------------------------------------------------
-EXPECTED_BY_DOMAIN = {"equity": 235, "options": 305, "unified": 0, "infra": 18}
+EXPECTED_BY_DOMAIN = {"equity": 235, "options": 307, "unified": 0, "infra": 18}
 
 
 def _diff(expected, actual):
