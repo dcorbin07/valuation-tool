@@ -360,7 +360,10 @@ def run_live(book: str, verbose: bool = True) -> dict:
     # --- ONE real sandbox order -------------------------------------------------------------
     submitted = _dt.datetime.now().isoformat(timespec="seconds")
     limit = round(float(pick["ask"]), 2)          # marketable limit; arm A's convention
-    res = b.place_option(occ, "SPY", "buy_to_open", 1, order_type="limit", price=limit)
+    # `place_option(occ, underlying, side, quantity, price=...)` -- LIMIT when a price is
+    # given, MARKET otherwise. Priced at the ASK, which is `options_fill.DEFAULT_AGGRESSION
+    # = 1.0`, the punishing convention every validated options number in this repo is net of.
+    res = b.place_option(occ, "SPY", "buy_to_open", 1, price=limit)
     oid = PaperBroker.order_id(res)
     ck("L6 a REAL sandbox order was accepted and returned an id", bool(oid), res)
 
@@ -373,8 +376,20 @@ def run_live(book: str, verbose: bool = True) -> dict:
         time.sleep(2.0)
     if order.get("avg_fill_price"):
         filled_ts = _dt.datetime.now().isoformat(timespec="seconds")
-    ck("L7 the order reached a terminal state", bool(order.get("status")),
-       {"status": order.get("status"), "avg_fill_price": order.get("avg_fill_price")})
+    # L7 WAS TOO WEAK AND IT LET A FABRICATED FILL THROUGH. Its first cut asserted only that
+    # a status string existed, so it PASSED on `status: pending` while the record said
+    # `fate: filled` at the limit price. What matters is not that the order finished -- a
+    # marketable limit in a 15-minute-delayed sandbox legitimately rests -- but that the
+    # RECORD AGREES WITH THE BROKER about what happened.
+    st = str(order.get("status") or "").lower()
+    try:
+        execd = float(order.get("exec_quantity") or 0)
+    except (TypeError, ValueError):
+        execd = 0.0
+    ck("L7 the broker reports a status this harness understands",
+       st in ("filled", "pending", "open", "partially_filled", "rejected", "canceled",
+              "cancelled", "expired"),
+       {"status": order.get("status"), "exec_quantity": order.get("exec_quantity")})
 
     fields = F.fill_fields(symbol="SPY", occ=occ, side="buy_to_open", qty=1,
                            order_type="limit", quote=quote, order=order,
@@ -388,6 +403,16 @@ def run_live(book: str, verbose: bool = True) -> dict:
     w = F.record_fill(book, fields)
     ck("L9 the fill was RECORDED through the harness's only write door",
        bool(w.get("wrote")), w.get("reason") or w.get("code"))
+
+    # THE CHECK THAT WOULD HAVE CAUGHT THE FABRICATED FILL, and it is the load-bearing one.
+    truthful = ((fields["fate"] == "filled" and execd > 0 and fields["fill_price"] != "")
+                or (fields["fate"] in ("working", "rejected", "canceled", "expired")
+                    and execd == 0 and fields["fill_price"] == "")
+                or (fields["fate"] == "partial" and execd > 0))
+    ck("L9b the RECORD AGREES WITH THE BROKER -- no fill price without an execution",
+       truthful, {"fate": fields["fate"], "fill_price": fields["fill_price"],
+                  "exec_quantity": order.get("exec_quantity"),
+                  "status": order.get("status")})
 
     # --- read back and compare BIT-IDENTICAL ------------------------------------------------
     rows = F.read_records(book)["rows"]

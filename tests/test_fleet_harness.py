@@ -674,7 +674,9 @@ class FillRecording(unittest.TestCase):
     def test_the_bid_ask_and_mid_at_submission_are_stored(self):
         """The columns V5 ROUTED and nobody took. `F-1` cannot be run without them."""
         f = F.fill_fields(symbol="AAPL", occ="A", side="buy", qty=1, order_type="limit_mid",
-                          quote={"bid": 2.50, "ask": 2.70}, order={"avg_fill_price": 2.70},
+                          quote={"bid": 2.50, "ask": 2.70},
+                          order={"status": "filled", "avg_fill_price": 2.70,
+                                 "exec_quantity": 1.0, "quantity": 1.0},
                           submitted_ts="2026-08-24T15:00:00",
                           filled_ts="2026-08-24T15:00:02", limit_price=2.60, arm="B")
         self.assertEqual((f["quote_bid"], f["quote_ask"], f["quote_mid"]), (2.50, 2.70, 2.60))
@@ -692,17 +694,63 @@ class FillRecording(unittest.TestCase):
                           quote={"bid": 1.0, "ask": None, "last": 9.99},
                           submitted_ts="2026-08-24T15:00:00")
         self.assertEqual(f["quote_mid"], "")
-        self.assertEqual(f["fate"], "unfilled")
+        self.assertEqual(f["fate"], "unknown")          # no order at all: not "unfilled"
 
     def test_no_derived_outcome_statistic_is_stored_on_a_fill(self):
         """`F-1`'s own rule: capture is computed at READ time, not stored."""
         f = F.fill_fields(symbol="X", occ="X", side="buy", qty=1, order_type="market",
-                          quote={"bid": 1.0, "ask": 2.0}, order={"avg_fill_price": 2.0},
+                          quote={"bid": 1.0, "ask": 2.0},
+                          order={"status": "filled", "avg_fill_price": 2.0,
+                                 "exec_quantity": 1.0, "quantity": 1.0},
                           submitted_ts="2026-08-24T15:00:00", filled_ts="2026-08-24T15:00:01")
         for k in f:
             self.assertNotIn("capture", k)
             self.assertNotIn("slippage", k)
             self.assertNotIn("pnl", k)
+
+    def test_a_PENDING_order_is_never_recorded_as_a_FILL(self):
+        """The defect the live leg caught on its first real order, pinned.
+
+        Tradier reports an unfilled limit as `status: pending, avg_fill_price: 0.0,
+        exec_quantity: 0.0, price: <the limit>`. The first cut read `avg_fill_price or price`
+        -- and **0.0 is falsy**, so the fallback took the LIMIT and recorded a pending order as
+        FILLED at the price it had asked for. On `F-1`, whose whole subject is fill quality and
+        which reads every other book's fills, that turns every unfilled order into a perfect
+        one. Silent, and in the flattering direction.
+        """
+        pending = {"status": "pending", "type": "limit", "price": 11.06,
+                   "avg_fill_price": 0.0, "exec_quantity": 0.0, "quantity": 1.0}
+        f = F.fill_fields(symbol="SPY", occ="SPY260918C00766000", side="buy_to_open", qty=1,
+                          order_type="limit", quote={"bid": 11.01, "ask": 11.06},
+                          order=pending, submitted_ts="2026-08-24T10:00:00", limit_price=11.06)
+        self.assertEqual(f["fate"], "working")
+        self.assertEqual(f["fill_price"], "", "the LIMIT price was recorded as a FILL")
+
+    def test_the_fate_comes_from_the_broker_and_not_from_a_number_being_present(self):
+        for order, want in (
+                ({"status": "filled", "avg_fill_price": 2.0, "exec_quantity": 1.0,
+                  "quantity": 1.0}, "filled"),
+                ({"status": "partially_filled", "avg_fill_price": 2.0, "exec_quantity": 1.0,
+                  "quantity": 5.0}, "partial"),
+                ({"status": "rejected", "avg_fill_price": 0.0, "exec_quantity": 0.0}, "rejected"),
+                ({"status": "expired", "avg_fill_price": 0.0, "exec_quantity": 0.0}, "expired"),
+                ({"status": "open", "avg_fill_price": 0.0, "exec_quantity": 0.0}, "working")):
+            f = F.fill_fields(symbol="X", occ="X", side="buy", qty=1, order_type="limit",
+                              quote={"bid": 1.0, "ask": 2.0}, order=order,
+                              submitted_ts="2026-08-24T10:00:00", limit_price=2.0)
+            self.assertEqual(f["fate"], want, order)
+            self.assertIn(f["fate"], F.FATES)
+
+    def test_the_fill_price_delegates_to_the_brokers_own_helper(self):
+        """B7: `PaperBroker.fill_price` already gates on `exec_quantity`. One definition."""
+        src = io.open(os.path.join(REPO, "valuation", "edge", "fleet.py"),
+                      encoding="utf-8").read()
+        fn = [n for n in ast.walk(ast.parse(src))
+              if isinstance(n, ast.FunctionDef) and n.name == "fill_fields"]
+        self.assertEqual(len(fn), 1)
+        code = ast.unparse(fn[0])
+        self.assertIn("fill_price(order)", code, "fill_fields re-derives the fill price")
+        self.assertNotIn("avg_fill_price", code, "fill_fields reads the raw field again")
 
     def test_record_fill_re_checks_the_gate_and_a_refusal_becomes_a_record(self):
         root = _repo()

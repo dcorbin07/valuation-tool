@@ -732,6 +732,31 @@ def read_meter(book: str, values, *, decl_sha: str, root: str = None, why: str =
 # ---------------------------------------------------------------------------------------
 # THE TRADIER SEAM -- V5-grade fill recording, consuming the sandbox's own shapes
 # ---------------------------------------------------------------------------------------
+# The fate vocabulary. A fate is read from the BROKER'S STATE, never inferred from whether a
+# number happens to be present -- which is how a pending order came to be recorded as filled.
+FATES = ("filled", "partial", "working", "rejected", "canceled", "expired", "unknown")
+
+
+def _fate(order: dict, fill) -> str:
+    """What actually happened to the order, in the broker's own terms."""
+    o = order or {}
+    st = str(o.get("status") or "").strip().lower()
+    if st in ("rejected", "canceled", "cancelled", "expired"):
+        return "canceled" if st == "cancelled" else st
+    try:
+        execd = float(o.get("exec_quantity") or 0)
+        want = float(o.get("quantity") or 0)
+    except (TypeError, ValueError):
+        execd = want = 0.0
+    if fill is not None and execd > 0:
+        return "filled" if (want and execd >= want) else "partial"
+    if st in ("pending", "open", "partially_filled"):
+        return "working"
+    if not st:
+        return "unknown"
+    return "working"
+
+
 def fill_fields(*, symbol: str, occ: str, side: str, qty: int, order_type: str,
                 quote: dict, order: dict = None, submitted_ts: str, filled_ts: str = None,
                 limit_price=None, arm: str = "", fallback: str = "",
@@ -766,9 +791,21 @@ def fill_fields(*, symbol: str, occ: str, side: str, qty: int, order_type: str,
     bid, ask = _f(q.get("bid")), _f(q.get("ask"))
     mid = round((bid + ask) / 2.0, 4) if (bid is not None and ask is not None
                                           and ask > 0 and ask >= bid) else None
+    # THE FILL PRICE COMES FROM THE BROKER'S OWN HELPER, NEVER RE-DERIVED HERE.
+    #
+    # THE DEFECT THIS REPLACES FABRICATED A FILL, and the live leg caught it on its first real
+    # order. The first cut read `avg_fill_price or price`; Tradier reports an unfilled limit
+    # order as `status: pending, avg_fill_price: 0.0, exec_quantity: 0.0, price: <the limit>`,
+    # and `0.0` is FALSY -- so the fallback took the LIMIT and this function reported a
+    # PENDING order as FILLED at its own limit price. On `F-1`, the book whose entire subject
+    # is fill quality and which reads every other book's fills, that is the worst silent
+    # corruption available: every unfilled order becomes a perfect fill at the price asked for.
+    #
+    # `PaperBroker.fill_price` already gates on `exec_quantity`, so this delegates (B7).
     fill = None
     if order:
-        fill = _f(order.get("avg_fill_price")) or _f(order.get("price"))
+        from .paper_broker import PaperBroker as _PB
+        fill = _PB.fill_price(order)
     ttf = ""
     if submitted_ts and filled_ts:
         try:
@@ -787,7 +824,7 @@ def fill_fields(*, symbol: str, occ: str, side: str, qty: int, order_type: str,
         "fill_price": "" if fill is None else fill,
         "submitted_ts": submitted_ts or "", "filled_ts": filled_ts or "",
         "time_to_fill_s": ttf,
-        "fate": "filled" if fill is not None else "unfilled",
+        "fate": _fate(order, fill),
         "fallback": fallback, "venue": venue,
         "detail": SANDBOX_CAVEAT,
     }
