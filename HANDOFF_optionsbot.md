@@ -8405,65 +8405,47 @@ worktree, so every script must resolve the PRIMARY data root before writing** �
 can never legitimately differ, and worth consolidating when someone is next in those files.
 This module IMPORTS from `options_fill` and a test asserts it does not add a third.
 
-### Two cross-lane repairs the land verification turned up, and `main` was ALREADY RED
+### `main` WAS RED, ANOTHER LANE FIXED IT FIRST, AND I WITHDREW MY VERSION
 
-Neither is S3-I3's, both blocked the gate, and **the second means `origin/main` has been red for
-every lane since 2026-08-23 with nothing to announce it.**
+**Recorded because a near-duplicate is worth more as a record than as a merge conflict.** S3-I3's
+land verification independently found the two failures that had `main` red, diagnosed both, and
+committed fixes — and while that was happening `09ea4cc` landed doing the same two things. **My
+versions are fully withdrawn: `test_mb8_sizing_haircut.py`, `test_mb18_expectations_gap.py`,
+`test_paper_track.py` and `PAPER_TRACK_CONTRACT.md` are byte-identical to `origin/main` on this
+branch.** One guard, one convention, one owner; a second lane re-litigating the same check the
+same night is churn, and they landed first.
 
-**(1) THE LIVE-PATH CHECK IS BLIND TO MERGE COMMITS** — `tests/test_mb8_sizing_haircut.py` and
-`tests/test_mb18_expectations_gap.py`, the same template in both. `git log -- <paths>` hides a
-merge that is TREESAME to a parent, but NOT one that is treesame to neither — which is exactly
-what a lane produces by adding a file under one live path and merging main's changes to
-another. `git show --name-only <merge>` then returns **nothing**, so `git log` can hand the
-check a commit `git show` cannot describe, and the check passes by seeing nothing. That is what
-the positive control says in its own assertion message, and **this is the first time it has
-fired.** Reproduced exactly: S3-I3 added `valuation/edge/short_book.py` and merged
-`origin/main`, which carried `valuation/screener` and `valuation/web` changes. Repaired with
-`--diff-merges=first-parent`, which is **strictly strengthening** — non-merge behaviour is
-bit-identical and the main check can now see a class of commit it was previously blind to.
-**Proved non-vacuous on the real merge: the old mechanism returns EMPTY, the new one returns 5
-files.** MB18 does not fire today only because its `LIVE_PATHS` omit `valuation/edge`, which is
-an accident of this session's file placement rather than a property of the test; fixed in both,
-since MB8's own docstring already records that two copies means a template is travelling.
-**A semantic question left to those lanes rather than decided here:** with merges now visible, a
-future lane-commit that is a merge bringing in another lane's live-path work would be flagged as
-"this lane touched a live path". That errs STRICT, which is the safe direction, and it is
-visible rather than silently blind. Neither lane's own commits are merges today.
+**Their diagnosis and mine agree on both, independently, which is the useful part.**
 
-**(2) `main` IS RED, AND THE PROXY BROKE WHILE THE FINDING HELD.**
-`test_paper_track.py::test_ptsplit_the_live_engine_book_is_recorded_as_non_conforming` asserted
-`conformance(...)["conforms"] is False`. Measured across the three committed backups:
+**(1) The cron-shaped hole.** A scheduled workflow ("Track backup") commits refreshed data
+straight to `main` without passing the land gate. `70ef5ef` re-pointed
+`data_export/paper_track_history.json`, and a test asserting a FACT ABOUT THAT DATA went red with
+nothing re-running the suite. Their commit records **six consecutive land failures across five
+branches**, none of them the lane that caused it. **A cron job that can turn the shared gate red
+without any lane pushing code is a real gap**, and it belongs to whoever owns
+`track-backup.yml` — unfixed by either of us, and worth escalating.
 
-| backup | engine holdings | max weight | conforms |
-|---|---|---|---|
-| 2026-08-09 | 10 | 0.1000 | False |
-| 2026-08-16 (`LA2`) | 10 | 0.1000 | False |
-| **2026-08-23** | **68** | **0.0308** | **TRUE** |
+**(2) The control that blinded itself.** `git log -- <paths>` will return a MERGE commit;
+`git show` prints no diff for one unless asked. So the positive control selected a subject its
+own mechanism structurally cannot see. They fixed it with `--no-merges` on the SELECTOR; I had
+fixed it with `--diff-merges=first-parent` on the VERIFIER, which additionally closes the
+sibling check's blindness. **Theirs is the landed convention and mine is withdrawn** — and they
+are right that the sibling repair is a design choice belonging to MB8's lane, since making the
+verifier see merges would flag an integration merge as "this lane touched a live path".
+**`test_mb18_expectations_gap.py` carries the same template and the same latent hole**, unfired
+only because its `LIVE_PATHS` omit `valuation/edge`; left alone deliberately, so that whoever
+makes MB8's design call makes it once, for both.
 
-So it went red the moment the engine's recorded book grew past the >=50-name floor. **It reached
-`main` in `70ef5ef`, committed by `valquo-track-backup[bot]` — a scheduled workflow that pushes
-DIRECTLY to `main` and therefore never passes the land gate.** The gate runs every suite on the
-merged tree and hard-fails, so **every lane's land has been blocked since, and because the bot
-never lands there was no failing run to notice.** That routing gap is the durable finding here
-and it is the paper-track / Cowork lane's to close.
-
-**THE PROXY BROKE; PT-SPLIT DID NOT.** On the same export the bound Index carries **86 positions
-at a 2.315% maximum** and the engine **68 at 3.083%**, and they **overlap on TWELVE names** —
-engine-only 56, Index-only 74. Two recorders, two almost disjoint books, which is precisely
-PT-SPLIT.
-
-**AND THE CONTRACT ALREADY SAID THE OLD ASSERTION WAS THE WRONG ONE, so no register was
-amended.** `PAPER_TRACK_CONTRACT.md` §5b: *"The real divergence is BOOK SIZE — 10 names against
-the published Index's 86"*, and its own line 42 warns against reading the split as the engine
-*"violating the contract's 8% cap"*, because ten names at 8% sum to 80% so the cap necessarily
-relaxes on a small book. **The test was asserting the reading its own register disclaims.** It
-is repointed at what §5b actually claims — the engine's book is NOT the bound Index — using
-`bound_index_track`, which `LA2` added to that very file and which did not exist when the test
-was written. The conformance reading is KEPT as a reported diagnostic so the growth from 10 to
-68 stays visible rather than being erased by the repair. **Mutation-tested: making the engine
-book identical to the Index fails the test with the right message, source restored
-byte-for-byte.** **No claim in `PAPER_TRACK_CONTRACT.md` moved and none should — §5b stands, and
-it stands on a stronger measurement than it had.**
+**THE ONE THING THIS LANE ADDS, AND IT CORROBORATES THEIR SCOPING RATHER THAN CORRECTING IT.**
+Their §5b update says the engine is *"no longer recording a truncated top-N list under the
+Index's name"* and is careful NOT to claim it now records the Index — *"§5's register still
+binds the published Valquo Index and only that, and no engine figure may be quoted as Index
+evidence."* **Measured on the same export, that caution is doing real work: the bound Index
+carries 86 positions at a 2.315% maximum, the engine 68 at 3.083%, and they OVERLAP ON TWELVE
+NAMES** — engine-only 56, Index-only 74. So the engine's book now CONFORMS structurally while
+remaining a substantially different book. **Conforming is not being the Index**, and anyone
+reading the §5b update quickly could take "aligned going forward" for "same book". It is not,
+yet.
 
 ### What it does NOT do, named so it is not mistaken for done
 

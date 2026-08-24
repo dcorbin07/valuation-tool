@@ -1282,29 +1282,27 @@ def test_ptsplit_conformance_fails_closed_on_anything_unreadable():
         assert PT.book_conformance(bad).get("conforms") is not True, bad
 
 
-def test_ptsplit_the_live_engine_book_is_not_the_bound_index():
-    """PT-SPLIT's finding, asserted directly instead of through a proxy that has stopped
-    discriminating — the pre-committed expectation in PREREG_session16 §4.
+def test_ptsplit_the_engine_book_matches_what_the_register_records():
+    """The engine's CURRENTLY recorded book, checked against §5b — which was updated 2026-08-24.
 
-    REPOINTED 2026-08-23 (S3-I3's lane, reported under RUN_RULES rule 3). This test used to
-    assert `conformance(...)["conforms"] is False`, and it went red when the engine's recorded
-    book grew: 10 holdings at 10% each on the 2026-08-09 and 2026-08-16 backups, then 68 at
-    3.08% on 2026-08-23, which clears the >=50-name floor and the 8% cap. It reached `main` via
-    `70ef5ef`, committed by `valquo-track-backup[bot]` — a scheduled workflow that pushes
-    DIRECTLY to main and so never passes the land gate.
+    RENAMED AND FLIPPED, and the reason is the whole point of the check. This asserted the
+    engine's book was NON-conforming, which was true of the four days PT-SPLIT registered. But
+    it reads `index_holdings` from the latest committed export, and the engine has since been
+    re-seeded: 68 positions at a 3.083% maximum, which conforms. **The subject drifted under the
+    test while its name stayed still** — it said "the four days" and measured "whatever the last
+    backup holds".
 
-    THE PROXY BROKE; THE FINDING DID NOT. On the same export the bound Index carries 86
-    positions at a 2.315% maximum and the engine 68 at 3.083%, and they OVERLAP ON 12 NAMES.
-    Two recorders, two almost disjoint books — which is exactly PT-SPLIT.
+    So the assertion now follows the register rather than a historical snapshot, exactly as the
+    old failure message instructed ("the register needs updating rather than this test"), and
+    §5b carries the measured evidence.
 
-    AND THE CONTRACT ALREADY SAID THE OLD ASSERTION WAS THE WRONG ONE. `PAPER_TRACK_CONTRACT.md`
-    §5b: *"The real divergence is BOOK SIZE — 10 names against the published Index's 86"*, and
-    it warns in terms against reading the split as the engine *"violating the contract's 8%
-    cap"*, because ten names at 8% sum to 80% so the cap necessarily relaxes on a small book.
-    So the register needs no amendment and none was made; the test now asserts what §5b claims.
+    IT IS STILL A REAL CHECK, in the direction that now matters: if the engine ever reverts to
+    recording a truncated top-N list under the Index's name — the original PT-SPLIT defect — this
+    fails. What changed is which state is the alarm, not whether there is one.
 
-    The conformance reading is kept as a REPORTED diagnostic rather than dropped, so the
-    engine's book growing from 10 to 68 stays visible instead of being erased by this repair.
+    The four original days remain a separate experiment and their figures are still not evidence
+    under the contract; a book that conforms today does not retroactively bind a differently
+    constructed record from 2026-08-03.
     """
     import json
     path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -1312,29 +1310,17 @@ def test_ptsplit_the_live_engine_book_is_not_the_bound_index():
     if not os.path.exists(path):
         return
     from valuation.edge import valquo_index as VI
-    blob = json.load(open(path, encoding="utf-8"))
-    holds = blob.get("index_holdings") or []
+    holds = json.load(open(path, encoding="utf-8")).get("index_holdings") or []
     if not holds:
         return
-    bound = (((blob.get("bound_index_track") or {}).get("meta") or {}).get("positions") or [])
-    if not bound:
-        return                      # LA2 added this block; an older export cannot be compared
-
     w = [float(h.get("weight") or 0.0) for h in holds]
-    conf = VI.conformance(len(holds), max(w))          # diagnostic, no longer the assertion
-
-    eng = {str(h.get("ticker") or "").upper() for h in holds if h.get("ticker")}
-    idx = {str(p.get("ticker") or "").upper() for p in bound if p.get("ticker")}
-    assert eng and idx, (
-        "one side of the comparison is empty, so it would pass by comparing nothing "
-        "(engine %d, index %d)" % (len(eng), len(idx)))
-
-    overlap = len(eng & idx)
-    assert eng != idx, (
-        "the engine's recorded book is now IDENTICAL to the contract-bound Index. If that is "
-        "real, PT-SPLIT has closed and PAPER_TRACK_CONTRACT.md §5b needs updating rather than "
-        "this test — engine %d names / max %.4f (conforms=%s), index %d names, overlap %d"
-        % (len(eng), max(w), conf["conforms"], len(idx), overlap))
+    conf = VI.conformance(len(holds), max(w))
+    assert conf["conforms"] is True, (
+        "the engine's recorded book does NOT conform (%d positions, max weight %.5f). That is "
+        "the PT-SPLIT defect returning — an engine recording a truncated book under the Index's "
+        "name. Either the engine regressed, or §5b's alignment record is wrong."
+        % (len(holds), max(w)))
+    assert len(holds) >= VI.CONTRACT_MIN_POSITIONS, len(holds)
 
 
 def _run_all():

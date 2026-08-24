@@ -1,0 +1,1871 @@
+{
+ "instrument": "S3-I5",
+ "class": "FIXED - facts, not hypotheses",
+ "trials": 0,
+ "generated_utc": "2026-08-24T02:34:50+00:00",
+ "anchor": "TICKERS.firstpricedate -- the day the CURRENT holder began trading under this symbol. A year entirely before it cannot be this company.",
+ "why_not_permaticker": "TICKERS is a CURRENT snapshot: one row per ticker per table for today's holder, so every symbol returns exactly one permaticker whether or not it was reused. A distinct-permaticker check reports a clean pass on a reused ticker.",
+ "verdicts": {
+  "SAME_COMPANY": "year starts on/after firstpricedate",
+  "REUSED": "whole year predates firstpricedate",
+  "SPLIT_YEAR": "firstpricedate falls inside the year; cut on the date",
+  "UNKNOWN": "not adjudicated -- never treat as SAME_COMPANY"
+ },
+ "source": {
+  "tickers_csv": "tickers.csv",
+  "actions_csv": "actions.csv"
+ },
+ "symbols": {
+  "AA": {
+   "symbol": "AA",
+   "registry_rows": 3,
+   "permaticker": "124392",
+   "permaticker_disagreement": false,
+   "current_name": "ALCOA CORP",
+   "firstpricedate": "2016-11-01",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "013872106"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2016-11-01",
+     "action": "listed",
+     "name": "ALCOA CORP",
+     "contraticker": "AA",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [
+    "2016-11-01"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016
+   ],
+   "year_verdicts": {
+    "2016": "SPLIT_YEAR"
+   },
+   "usable_from": {
+    "2016": "2016-11-01"
+   },
+   "strike_before": [],
+   "strike_after": [
+    [
+     2016,
+     11.5
+    ],
+    [
+     2017,
+     38.0
+    ],
+    [
+     2018,
+     44.5
+    ]
+   ],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "AM": {
+   "symbol": "AM",
+   "registry_rows": 3,
+   "permaticker": "123160",
+   "permaticker_disagreement": false,
+   "current_name": "ANTERO MIDSTREAM CORP",
+   "firstpricedate": "2017-05-04",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "03676B102 03675Y103"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2017-05-04",
+     "action": "listed",
+     "name": "ANTERO MIDSTREAM CORP",
+     "contraticker": "AMGP",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2019-03-12",
+     "action": "acquisitionof",
+     "name": "ANTERO MIDSTREAM CORP",
+     "contraticker": "AM2",
+     "contraname": "ANTERO MIDSTREAM PARTNERS LP"
+    },
+    {
+     "date": "2019-03-21",
+     "action": "tickerchangefrom",
+     "name": "ANTERO MIDSTREAM CORP",
+     "contraticker": "AMGP",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2019-03-21",
+     "action": "tickerchangeto",
+     "name": "ANTERO MIDSTREAM CORP",
+     "contraticker": "AM",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": {
+    "date": "2019-03-21",
+    "action": "tickerchangefrom",
+    "name": "ANTERO MIDSTREAM CORP",
+    "contraticker": "AMGP",
+    "contraname": "N/A"
+   },
+   "actions_listed_dates": [
+    "2017-05-04"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016
+   ],
+   "year_verdicts": {
+    "2016": "REUSED"
+   },
+   "usable_from": {
+    "2016": null
+   },
+   "strike_before": [],
+   "strike_after": [],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "AZPN": {
+   "symbol": "AZPN",
+   "registry_rows": 3,
+   "permaticker": "638677",
+   "permaticker_disagreement": false,
+   "current_name": "ASPEN TECHNOLOGY INC",
+   "firstpricedate": "2022-05-17",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2025-03-11"
+   ],
+   "isdelisted": [
+    "Y"
+   ],
+   "cusips": [
+    "29109X106"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2022-05-17",
+     "action": "listed",
+     "name": "ASPEN TECHNOLOGY INC",
+     "contraticker": "AZPN",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2025-03-11",
+     "action": "delisted",
+     "name": "ASPEN TECHNOLOGY INC",
+     "contraticker": "N/A",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2025-03-11",
+     "action": "acquisitionby",
+     "name": "ASPEN TECHNOLOGY INC",
+     "contraticker": "EMR",
+     "contraname": "EMERSON ELECTRIC CO"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [
+    "2022-05-17"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016,
+    2017,
+    2018
+   ],
+   "year_verdicts": {
+    "2016": "REUSED",
+    "2017": "REUSED",
+    "2018": "REUSED"
+   },
+   "usable_from": {
+    "2016": null,
+    "2017": null,
+    "2018": null
+   },
+   "strike_before": [],
+   "strike_after": [
+    [
+     2024,
+     180.0
+    ]
+   ],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "BAM": {
+   "symbol": "BAM",
+   "registry_rows": 2,
+   "permaticker": "639273",
+   "permaticker_disagreement": false,
+   "current_name": "BROOKFIELD ASSET MANAGEMENT LTD",
+   "firstpricedate": "2022-12-12",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "113004105"
+   ],
+   "tables": [
+    "SEP",
+    "SF1"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2022-12-12",
+     "action": "listed",
+     "name": "BROOKFIELD ASSET MANAGEMENT LTD",
+     "contraticker": "BAM",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2026-04-07",
+     "action": "acquisitionof",
+     "name": "BROOKFIELD ASSET MANAGEMENT LTD",
+     "contraticker": "AL",
+     "contraname": "AIR LEASE CORP"
+    },
+    {
+     "date": "2026-05-05",
+     "action": "acquisitionof",
+     "name": "BROOKFIELD ASSET MANAGEMENT LTD",
+     "contraticker": "PKST",
+     "contraname": "PEAKSTONE REALTY TRUST"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [
+    "2022-12-12"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016,
+    2017,
+    2018
+   ],
+   "year_verdicts": {
+    "2016": "REUSED",
+    "2017": "REUSED",
+    "2018": "REUSED"
+   },
+   "usable_from": {
+    "2016": null,
+    "2017": null,
+    "2018": null
+   },
+   "strike_before": [],
+   "strike_after": [
+    [
+     2024,
+     40.0
+    ]
+   ],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "BTI": {
+   "symbol": "BTI",
+   "registry_rows": 2,
+   "permaticker": "119360",
+   "permaticker_disagreement": false,
+   "current_name": "BRITISH AMERICAN TOBACCO PLC",
+   "firstpricedate": "1986-01-01",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "110448107 055270508"
+   ],
+   "tables": [
+    "SEP",
+    "SF1"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2017-07-24",
+     "action": "acquisitionof",
+     "name": "BRITISH AMERICAN TOBACCO PLC",
+     "contraticker": "RAI",
+     "contraname": "REYNOLDS AMERICAN INC"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [],
+   "listed_matches_firstpricedate": false,
+   "flagged_years": [
+    2016
+   ],
+   "year_verdicts": {
+    "2016": "SAME_COMPANY"
+   },
+   "usable_from": {
+    "2016": "2016-01-01"
+   },
+   "strike_before": [],
+   "strike_after": [],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "CR": {
+   "symbol": "CR",
+   "registry_rows": 3,
+   "permaticker": "639896",
+   "permaticker_disagreement": false,
+   "current_name": "CRANE CO",
+   "firstpricedate": "2023-03-29",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "224408104"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2023-03-29",
+     "action": "listed",
+     "name": "CRANE CO",
+     "contraticker": "CR.W",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2023-04-04",
+     "action": "tickerchangefrom",
+     "name": "CRANE CO",
+     "contraticker": "CR.W",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2023-04-04",
+     "action": "tickerchangeto",
+     "name": "CRANE CO",
+     "contraticker": "CR",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": {
+    "date": "2023-04-04",
+    "action": "tickerchangefrom",
+    "name": "CRANE CO",
+    "contraticker": "CR.W",
+    "contraname": "N/A"
+   },
+   "actions_listed_dates": [
+    "2023-03-29"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016,
+    2017,
+    2018
+   ],
+   "year_verdicts": {
+    "2016": "REUSED",
+    "2017": "REUSED",
+    "2018": "REUSED"
+   },
+   "usable_from": {
+    "2016": null,
+    "2017": null,
+    "2018": null
+   },
+   "strike_before": [],
+   "strike_after": [
+    [
+     2024,
+     135.0
+    ]
+   ],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "DOW": {
+   "symbol": "DOW",
+   "registry_rows": 3,
+   "permaticker": "111061",
+   "permaticker_disagreement": false,
+   "current_name": "DOW INC",
+   "firstpricedate": "2019-04-02",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "260557103"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2019-04-02",
+     "action": "tickerchangefrom",
+     "name": "DOW INC",
+     "contraticker": "DOW.W",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2019-04-02",
+     "action": "listed",
+     "name": "DOW INC",
+     "contraticker": "DOW.W",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2019-04-02",
+     "action": "tickerchangeto",
+     "name": "DOW INC",
+     "contraticker": "DOW",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": {
+    "date": "2019-04-02",
+    "action": "tickerchangefrom",
+    "name": "DOW INC",
+    "contraticker": "DOW.W",
+    "contraname": "N/A"
+   },
+   "actions_listed_dates": [
+    "2019-04-02"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016,
+    2017
+   ],
+   "year_verdicts": {
+    "2016": "REUSED",
+    "2017": "REUSED"
+   },
+   "usable_from": {
+    "2016": null,
+    "2017": null
+   },
+   "strike_before": [
+    [
+     2016,
+     50.0
+    ],
+    [
+     2017,
+     62.0
+    ]
+   ],
+   "strike_after": [
+    [
+     2019,
+     50.0
+    ],
+    [
+     2020,
+     44.0
+    ],
+    [
+     2021,
+     60.0
+    ]
+   ],
+   "strike_step": 1.24,
+   "behavioural": "CONTINUOUS",
+   "evidence_disagreement": true,
+   "disagreement_note": "registry REUSED/SPLIT with no strike step: the behavioural test is one-sided and cannot refute the registry; verdict stands"
+  },
+  "EDR": {
+   "symbol": "EDR",
+   "registry_rows": 3,
+   "permaticker": "634954",
+   "permaticker_disagreement": false,
+   "current_name": "ENDEAVOR GROUP HOLDINGS INC",
+   "firstpricedate": "2021-04-29",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2025-03-21"
+   ],
+   "isdelisted": [
+    "Y"
+   ],
+   "cusips": [
+    "29260Y109"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2021-04-29",
+     "action": "listed",
+     "name": "ENDEAVOR GROUP HOLDINGS INC",
+     "contraticker": "EDR",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2025-03-21",
+     "action": "acquisitionby",
+     "name": "ENDEAVOR GROUP HOLDINGS INC",
+     "contraticker": "N/A",
+     "contraname": "SILVER LAKE PARTNERS LP"
+    },
+    {
+     "date": "2025-03-21",
+     "action": "delisted",
+     "name": "ENDEAVOR GROUP HOLDINGS INC",
+     "contraticker": "N/A",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [
+    "2021-04-29"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016,
+    2017,
+    2018
+   ],
+   "year_verdicts": {
+    "2016": "REUSED",
+    "2017": "REUSED",
+    "2018": "REUSED"
+   },
+   "usable_from": {
+    "2016": null,
+    "2017": null,
+    "2018": null
+   },
+   "strike_before": [],
+   "strike_after": [],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "FOXA": {
+   "symbol": "FOXA",
+   "registry_rows": 3,
+   "permaticker": "111125",
+   "permaticker_disagreement": false,
+   "current_name": "FOX CORP",
+   "firstpricedate": "2019-03-13",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "35137L105"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2019-03-13",
+     "action": "listed",
+     "name": "FOX CORP",
+     "contraticker": "FOXAV",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2019-03-19",
+     "action": "tickerchangefrom",
+     "name": "FOX CORP",
+     "contraticker": "FOXAV",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2019-03-19",
+     "action": "tickerchangeto",
+     "name": "FOX CORP",
+     "contraticker": "FOXA",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": {
+    "date": "2019-03-19",
+    "action": "tickerchangefrom",
+    "name": "FOX CORP",
+    "contraticker": "FOXAV",
+    "contraname": "N/A"
+   },
+   "actions_listed_dates": [
+    "2019-03-13"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016,
+    2017,
+    2018
+   ],
+   "year_verdicts": {
+    "2016": "REUSED",
+    "2017": "REUSED",
+    "2018": "REUSED"
+   },
+   "usable_from": {
+    "2016": null,
+    "2017": null,
+    "2018": null
+   },
+   "strike_before": [],
+   "strike_after": [],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "FTI": {
+   "symbol": "FTI",
+   "registry_rows": 3,
+   "permaticker": "124182",
+   "permaticker_disagreement": false,
+   "current_name": "TECHNIPFMC PLC",
+   "firstpricedate": "2017-01-17",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "G87110105"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2017-01-17",
+     "action": "listed",
+     "name": "TECHNIPFMC PLC",
+     "contraticker": "FTI",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [
+    "2017-01-17"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016
+   ],
+   "year_verdicts": {
+    "2016": "REUSED"
+   },
+   "usable_from": {
+    "2016": null
+   },
+   "strike_before": [
+    [
+     2016,
+     29.0
+    ]
+   ],
+   "strike_after": [
+    [
+     2017,
+     31.0
+    ],
+    [
+     2018,
+     31.0
+    ],
+    [
+     2019,
+     24.0
+    ]
+   ],
+   "strike_step": 1.07,
+   "behavioural": "CONTINUOUS",
+   "evidence_disagreement": true,
+   "disagreement_note": "registry REUSED/SPLIT with no strike step: the behavioural test is one-sided and cannot refute the registry; verdict stands"
+  },
+  "IR": {
+   "symbol": "IR",
+   "registry_rows": 3,
+   "permaticker": "123548",
+   "permaticker_disagreement": false,
+   "current_name": "INGERSOLL RAND INC",
+   "firstpricedate": "2017-05-12",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "45687V106 36555P107"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2017-05-12",
+     "action": "listed",
+     "name": "INGERSOLL RAND INC",
+     "contraticker": "GDI",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2020-03-02",
+     "action": "tickerchangeto",
+     "name": "INGERSOLL RAND INC",
+     "contraticker": "IR",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2020-03-02",
+     "action": "tickerchangefrom",
+     "name": "INGERSOLL RAND INC",
+     "contraticker": "GDI",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": {
+    "date": "2020-03-02",
+    "action": "tickerchangefrom",
+    "name": "INGERSOLL RAND INC",
+    "contraticker": "GDI",
+    "contraname": "N/A"
+   },
+   "actions_listed_dates": [
+    "2017-05-12"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016
+   ],
+   "year_verdicts": {
+    "2016": "REUSED"
+   },
+   "usable_from": {
+    "2016": null
+   },
+   "strike_before": [],
+   "strike_after": [],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "LIN": {
+   "symbol": "LIN",
+   "registry_rows": 3,
+   "permaticker": "113554",
+   "permaticker_disagreement": false,
+   "current_name": "LINDE PLC",
+   "firstpricedate": "2018-10-31",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "G54950103 G5494J103"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2018-10-30",
+     "action": "acquisitionof",
+     "name": "LINDE PLC",
+     "contraticker": "PX1",
+     "contraname": "PRAXAIR INC"
+    },
+    {
+     "date": "2018-10-31",
+     "action": "listed",
+     "name": "LINDE PLC",
+     "contraticker": "LIN",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [
+    "2018-10-31"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2018
+   ],
+   "year_verdicts": {
+    "2018": "SPLIT_YEAR"
+   },
+   "usable_from": {
+    "2018": "2018-10-31"
+   },
+   "strike_before": [],
+   "strike_after": [],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "LINE": {
+   "symbol": "LINE",
+   "registry_rows": 3,
+   "permaticker": "642104",
+   "permaticker_disagreement": false,
+   "current_name": "LINEAGE INC",
+   "firstpricedate": "2024-07-25",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "53566V106"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2024-07-25",
+     "action": "listed",
+     "name": "LINEAGE INC",
+     "contraticker": "LINE",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [
+    "2024-07-25"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016
+   ],
+   "year_verdicts": {
+    "2016": "REUSED"
+   },
+   "usable_from": {
+    "2016": null
+   },
+   "strike_before": [],
+   "strike_after": [
+    [
+     2024,
+     80.0
+    ]
+   ],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "MDB": {
+   "symbol": "MDB",
+   "registry_rows": 3,
+   "permaticker": "121821",
+   "permaticker_disagreement": false,
+   "current_name": "MONGODB INC",
+   "firstpricedate": "2017-10-19",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "60937P106"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2017-10-19",
+     "action": "listed",
+     "name": "MONGODB INC",
+     "contraticker": "MDB",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [
+    "2017-10-19"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2017
+   ],
+   "year_verdicts": {
+    "2017": "SPLIT_YEAR"
+   },
+   "usable_from": {
+    "2017": "2017-10-19"
+   },
+   "strike_before": [],
+   "strike_after": [
+    [
+     2017,
+     30.0
+    ],
+    [
+     2018,
+     50.0
+    ],
+    [
+     2019,
+     140.0
+    ]
+   ],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "MRNA": {
+   "symbol": "MRNA",
+   "registry_rows": 3,
+   "permaticker": "113480",
+   "permaticker_disagreement": false,
+   "current_name": "MODERNA INC",
+   "firstpricedate": "2018-12-07",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "60770K107"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2018-12-07",
+     "action": "listed",
+     "name": "MODERNA INC",
+     "contraticker": "MRNA",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [
+    "2018-12-07"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2018
+   ],
+   "year_verdicts": {
+    "2018": "SPLIT_YEAR"
+   },
+   "usable_from": {
+    "2018": "2018-12-07"
+   },
+   "strike_before": [],
+   "strike_after": [
+    [
+     2018,
+     15.0
+    ],
+    [
+     2019,
+     17.5
+    ],
+    [
+     2020,
+     64.0
+    ]
+   ],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "RPRX": {
+   "symbol": "RPRX",
+   "registry_rows": 3,
+   "permaticker": "631545",
+   "permaticker_disagreement": false,
+   "current_name": "ROYALTY PHARMA PLC",
+   "firstpricedate": "2020-06-16",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "G7709Q104"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2020-06-16",
+     "action": "listed",
+     "name": "ROYALTY PHARMA PLC",
+     "contraticker": "RPRX",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [
+    "2020-06-16"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016,
+    2017,
+    2018
+   ],
+   "year_verdicts": {
+    "2016": "REUSED",
+    "2017": "REUSED",
+    "2018": "REUSED"
+   },
+   "usable_from": {
+    "2016": null,
+    "2017": null,
+    "2018": null
+   },
+   "strike_before": [],
+   "strike_after": [],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "SE": {
+   "symbol": "SE",
+   "registry_rows": 3,
+   "permaticker": "120655",
+   "permaticker_disagreement": false,
+   "current_name": "SEA LTD",
+   "firstpricedate": "2017-10-20",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "81141R100"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2017-10-20",
+     "action": "listed",
+     "name": "SEA LTD",
+     "contraticker": "SE",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [
+    "2017-10-20"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016,
+    2017
+   ],
+   "year_verdicts": {
+    "2016": "REUSED",
+    "2017": "SPLIT_YEAR"
+   },
+   "usable_from": {
+    "2016": null,
+    "2017": "2017-10-20"
+   },
+   "strike_before": [
+    [
+     2016,
+     31.0
+    ]
+   ],
+   "strike_after": [
+    [
+     2017,
+     39.0
+    ],
+    [
+     2018,
+     12.5
+    ],
+    [
+     2019,
+     30.0
+    ]
+   ],
+   "strike_step": 1.03,
+   "behavioural": "CONTINUOUS",
+   "evidence_disagreement": true,
+   "disagreement_note": "registry REUSED/SPLIT with no strike step: the behavioural test is one-sided and cannot refute the registry; verdict stands"
+  },
+  "SN": {
+   "symbol": "SN",
+   "registry_rows": 3,
+   "permaticker": "640278",
+   "permaticker_disagreement": false,
+   "current_name": "SHARKNINJA INC",
+   "firstpricedate": "2023-07-31",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "G8068L108"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2023-07-31",
+     "action": "listed",
+     "name": "SHARKNINJA INC",
+     "contraticker": "SN",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [
+    "2023-07-31"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016,
+    2017,
+    2018
+   ],
+   "year_verdicts": {
+    "2016": "REUSED",
+    "2017": "REUSED",
+    "2018": "REUSED"
+   },
+   "usable_from": {
+    "2016": null,
+    "2017": null,
+    "2018": null
+   },
+   "strike_before": [
+    [
+     2016,
+     9.0
+    ],
+    [
+     2017,
+     10.0
+    ],
+    [
+     2018,
+     5.0
+    ],
+    [
+     2019,
+     2.0
+    ]
+   ],
+   "strike_after": [
+    [
+     2023,
+     50.0
+    ],
+    [
+     2024,
+     75.0
+    ],
+    [
+     2025,
+     95.0
+    ]
+   ],
+   "strike_step": 8.33,
+   "behavioural": "STEP",
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "SNDK": {
+   "symbol": "SNDK",
+   "registry_rows": 3,
+   "permaticker": "643888",
+   "permaticker_disagreement": false,
+   "current_name": "SANDISK CORP",
+   "firstpricedate": "2025-02-24",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "80004C200"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2025-02-24",
+     "action": "tickerchangefrom",
+     "name": "SANDISK CORP",
+     "contraticker": "SNDKV",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2025-02-24",
+     "action": "listed",
+     "name": "SANDISK CORP",
+     "contraticker": "SNDKV",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2025-02-24",
+     "action": "tickerchangeto",
+     "name": "SANDISK CORP",
+     "contraticker": "SNDK",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": {
+    "date": "2025-02-24",
+    "action": "tickerchangefrom",
+    "name": "SANDISK CORP",
+    "contraticker": "SNDKV",
+    "contraname": "N/A"
+   },
+   "actions_listed_dates": [
+    "2025-02-24"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016
+   ],
+   "year_verdicts": {
+    "2016": "REUSED"
+   },
+   "usable_from": {
+    "2016": null
+   },
+   "strike_before": [
+    [
+     2016,
+     72.5
+    ]
+   ],
+   "strike_after": [
+    [
+     2025,
+     141.0
+    ]
+   ],
+   "strike_step": 1.94,
+   "behavioural": "STEP",
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "SNOW": {
+   "symbol": "SNOW",
+   "registry_rows": 3,
+   "permaticker": "631956",
+   "permaticker_disagreement": false,
+   "current_name": "SNOWFLAKE INC",
+   "firstpricedate": "2020-09-16",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "833445109"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2020-09-16",
+     "action": "listed",
+     "name": "SNOWFLAKE INC",
+     "contraticker": "SNOW",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [
+    "2020-09-16"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016,
+    2017
+   ],
+   "year_verdicts": {
+    "2016": "REUSED",
+    "2017": "REUSED"
+   },
+   "usable_from": {
+    "2016": null,
+    "2017": null
+   },
+   "strike_before": [
+    [
+     2016,
+     10.0
+    ],
+    [
+     2017,
+     17.5
+    ]
+   ],
+   "strike_after": [
+    [
+     2020,
+     275.0
+    ],
+    [
+     2021,
+     280.0
+    ],
+    [
+     2022,
+     200.0
+    ]
+   ],
+   "strike_step": 15.71,
+   "behavioural": "STEP",
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "TAK": {
+   "symbol": "TAK",
+   "registry_rows": 3,
+   "permaticker": "114459",
+   "permaticker_disagreement": false,
+   "current_name": "TAKEDA PHARMACEUTICAL CO LTD",
+   "firstpricedate": "2010-01-05",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "874060205 874060106"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2008-05-14",
+     "action": "acquisitionof",
+     "name": "TAKEDA PHARMACEUTICAL CO LTD",
+     "contraticker": "MLNM",
+     "contraname": "MILLENNIUM PHARMACEUTICALS INC"
+    },
+    {
+     "date": "2009-06-24",
+     "action": "acquisitionof",
+     "name": "TAKEDA PHARMACEUTICAL CO LTD",
+     "contraticker": "IDMI",
+     "contraname": "IDM PHARMA INC"
+    },
+    {
+     "date": "2010-01-05",
+     "action": "listed",
+     "name": "TAKEDA PHARMACEUTICAL CO LTD",
+     "contraticker": "TKPYY",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2017-02-15",
+     "action": "acquisitionof",
+     "name": "TAKEDA PHARMACEUTICAL CO LTD",
+     "contraticker": "ARIA",
+     "contraname": "ARIAD PHARMACEUTICALS INC"
+    },
+    {
+     "date": "2018-07-25",
+     "action": "acquisitionof",
+     "name": "TAKEDA PHARMACEUTICAL CO LTD",
+     "contraticker": "TIG2",
+     "contraname": "TIGENIX NV"
+    },
+    {
+     "date": "2018-12-26",
+     "action": "tickerchangefrom",
+     "name": "TAKEDA PHARMACEUTICAL CO LTD",
+     "contraticker": "TKPYY",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2018-12-26",
+     "action": "tickerchangeto",
+     "name": "TAKEDA PHARMACEUTICAL CO LTD",
+     "contraticker": "TAK",
+     "contraname": "N/A"
+    },
+    {
+     "date": "2019-01-07",
+     "action": "acquisitionof",
+     "name": "TAKEDA PHARMACEUTICAL CO LTD",
+     "contraticker": "SHPG",
+     "contraname": "SHIRE PLC"
+    }
+   ],
+   "predecessor_named_by_actions": {
+    "date": "2018-12-26",
+    "action": "tickerchangefrom",
+    "name": "TAKEDA PHARMACEUTICAL CO LTD",
+    "contraticker": "TKPYY",
+    "contraname": "N/A"
+   },
+   "actions_listed_dates": [
+    "2010-01-05"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2018
+   ],
+   "year_verdicts": {
+    "2018": "SAME_COMPANY"
+   },
+   "usable_from": {
+    "2018": "2018-01-01"
+   },
+   "strike_before": [],
+   "strike_after": [],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "TLN": {
+   "symbol": "TLN",
+   "registry_rows": 3,
+   "permaticker": "642054",
+   "permaticker_disagreement": false,
+   "current_name": "TALEN ENERGY CORP",
+   "firstpricedate": "2024-07-10",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "87422Q109"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2024-07-10",
+     "action": "listed",
+     "name": "TALEN ENERGY CORP",
+     "contraticker": "TLN",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [
+    "2024-07-10"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016
+   ],
+   "year_verdicts": {
+    "2016": "REUSED"
+   },
+   "usable_from": {
+    "2016": null
+   },
+   "strike_before": [],
+   "strike_after": [
+    [
+     2024,
+     150.0
+    ]
+   ],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "TME": {
+   "symbol": "TME",
+   "registry_rows": 3,
+   "permaticker": "113475",
+   "permaticker_disagreement": false,
+   "current_name": "TENCENT MUSIC ENTERTAINMENT GROUP",
+   "firstpricedate": "2018-12-12",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "88034P109"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2018-12-12",
+     "action": "listed",
+     "name": "TENCENT MUSIC ENTERTAINMENT GROUP",
+     "contraticker": "TME",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [
+    "2018-12-12"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2018
+   ],
+   "year_verdicts": {
+    "2018": "SPLIT_YEAR"
+   },
+   "usable_from": {
+    "2018": "2018-12-12"
+   },
+   "strike_before": [],
+   "strike_after": [
+    [
+     2018,
+     12.0
+    ],
+    [
+     2019,
+     15.0
+    ],
+    [
+     2020,
+     13.0
+    ]
+   ],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "TW": {
+   "symbol": "TW",
+   "registry_rows": 3,
+   "permaticker": "110994",
+   "permaticker_disagreement": false,
+   "current_name": "TRADEWEB MARKETS INC",
+   "firstpricedate": "2019-04-04",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "892672106"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2019-04-04",
+     "action": "listed",
+     "name": "TRADEWEB MARKETS INC",
+     "contraticker": "TW",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [
+    "2019-04-04"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016
+   ],
+   "year_verdicts": {
+    "2016": "REUSED"
+   },
+   "usable_from": {
+    "2016": null
+   },
+   "strike_before": [],
+   "strike_after": [],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "VG": {
+   "symbol": "VG",
+   "registry_rows": 3,
+   "permaticker": "643213",
+   "permaticker_disagreement": false,
+   "current_name": "VENTURE GLOBAL INC",
+   "firstpricedate": "2025-01-24",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "92333F101"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2025-01-24",
+     "action": "listed",
+     "name": "VENTURE GLOBAL INC",
+     "contraticker": "VG",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [
+    "2025-01-24"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016,
+    2017,
+    2018
+   ],
+   "year_verdicts": {
+    "2016": "REUSED",
+    "2017": "REUSED",
+    "2018": "REUSED"
+   },
+   "usable_from": {
+    "2016": null,
+    "2017": null,
+    "2018": null
+   },
+   "strike_before": [],
+   "strike_after": [
+    [
+     2025,
+     13.5
+    ]
+   ],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  },
+  "ZTO": {
+   "symbol": "ZTO",
+   "registry_rows": 3,
+   "permaticker": "124204",
+   "permaticker_disagreement": false,
+   "current_name": "ZTO EXPRESS (CAYMAN) INC",
+   "firstpricedate": "2016-10-27",
+   "firstpricedate_disagreement": false,
+   "lastpricedate": [
+    "2026-07-31"
+   ],
+   "isdelisted": [
+    "N"
+   ],
+   "cusips": [
+    "98980A105"
+   ],
+   "tables": [
+    "SEP",
+    "SF1",
+    "SF2"
+   ],
+   "corporate_actions": [
+    {
+     "date": "2016-10-27",
+     "action": "listed",
+     "name": "ZTO EXPRESS (CAYMAN) INC",
+     "contraticker": "ZTO",
+     "contraname": "N/A"
+    }
+   ],
+   "predecessor_named_by_actions": null,
+   "actions_listed_dates": [
+    "2016-10-27"
+   ],
+   "listed_matches_firstpricedate": true,
+   "flagged_years": [
+    2016
+   ],
+   "year_verdicts": {
+    "2016": "SPLIT_YEAR"
+   },
+   "usable_from": {
+    "2016": "2016-10-27"
+   },
+   "strike_before": [],
+   "strike_after": [
+    [
+     2016,
+     15.0
+    ],
+    [
+     2017,
+     14.0
+    ],
+    [
+     2018,
+     17.0
+    ]
+   ],
+   "strike_step": null,
+   "behavioural": null,
+   "evidence_disagreement": false,
+   "disagreement_note": null
+  }
+ }
+}

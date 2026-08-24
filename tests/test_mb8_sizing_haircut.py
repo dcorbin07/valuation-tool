@@ -248,15 +248,6 @@ class TestRegisterDiscipline(unittest.TestCase):
         copies means this is a TEMPLATE being carried between lanes, not an accident, which is
         why a repo-wide convention check now forbids the working-tree form outright.
 
-
-        MERGE-BLINDNESS REPAIRED 2026-08-23 (S3-I3's lane, reported under RUN_RULES rule 3).
-        `git show --name-only` returns NOTHING for a merge commit unless asked, while
-        `git log -- <paths>` will hand one over whenever the merge is treesame to neither
-        parent for those paths -- which is what a lane produces by adding a file under one live
-        path and merging main's changes to another. The mechanism could therefore be given a
-        commit it could not describe, and the check would pass by seeing nothing.
-        `--diff-merges=first-parent` fixes it; non-merge behaviour is bit-identical.
-
         Scoped to the commits that actually carry MB8's files. That is what the test's own name
         says, it stays true however the tree moves afterwards, and it is STRICTER in the
         direction that matters: a working-tree diff goes green the moment such a change is
@@ -277,8 +268,7 @@ class TestRegisterDiscipline(unittest.TestCase):
 
         touched = set()
         for sha in shas:
-            out = _git("show", "--diff-merges=first-parent", "--name-only", "--format=",
-                        sha, "--", *self.LIVE_PATHS)
+            out = _git("show", "--name-only", "--format=", sha, "--", *self.LIVE_PATHS)
             if out:
                 touched.update(l for l in out.split("\n") if l.strip())
         self.assertEqual(sorted(touched), [],
@@ -294,11 +284,24 @@ class TestRegisterDiscipline(unittest.TestCase):
             r = subprocess.run(("git",) + args, capture_output=True, text=True, cwd=REPO)
             return r.stdout.strip() if r.returncode == 0 else None
 
-        out = _git("log", "--format=%H", "-n", "1", "--", *self.LIVE_PATHS)
+        # --no-merges, and the reason is a defect this control hit for real on 2026-08-24.
+        # The SELECTOR (`git log -- <paths>`) will happily return a MERGE commit, but the
+        # VERIFIER (`git show`) prints no diff for a merge unless asked with -m/--first-parent/-c.
+        # So the moment a merge became the most recent commit touching a live path, the control
+        # selected a subject its own mechanism structurally cannot see, and failed claiming the
+        # mechanism was broken. Restricting the selector to ordinary commits does not weaken the
+        # check -- it still finds a real commit touching a live path and still demands the
+        # mechanism see it; it only stops choosing a subject with no first-parent diff to show.
+        #
+        # REPORTED, NOT FIXED HERE (different lane, and the fix is a design choice):
+        # `test_this_lane_touched_no_live_scoring_path` above has the SAME blindness in the
+        # dangerous direction -- it asserts `git show` finds nothing, so a merge commit carrying
+        # a live-path change would pass it silently. That check is load-bearing and is MB8's to
+        # decide on (`git show -m --first-parent`, or an explicit merge policy).
+        out = _git("log", "--no-merges", "--format=%H", "-n", "1", "--", *self.LIVE_PATHS)
         self.assertTrue(out, "no commit in history touches a live path — history unreadable")
         sha = out.split("\n")[0]
-        shown = _git("show", "--diff-merges=first-parent", "--name-only", "--format=",
-                        sha, "--", *self.LIVE_PATHS)
+        shown = _git("show", "--name-only", "--format=", sha, "--", *self.LIVE_PATHS)
         touched = [l for l in (shown or "").split("\n") if l.strip()]
         self.assertTrue(touched,
                         "the mechanism returned nothing for a commit that touches a live "

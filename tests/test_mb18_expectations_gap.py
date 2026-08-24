@@ -266,15 +266,6 @@ class TestRegisterDiscipline(unittest.TestCase):
         landed, is the cry-wolf failure this repository has now written down three times
         (`MA21`, `MB30`, and the sibling comment in `test_research_page.py` two days ago).
 
-
-        MERGE-BLINDNESS REPAIRED 2026-08-23 (S3-I3's lane, reported under RUN_RULES rule 3).
-        `git show --name-only` returns NOTHING for a merge commit unless asked, while
-        `git log -- <paths>` will hand one over whenever the merge is treesame to neither
-        parent for those paths -- which is what a lane produces by adding a file under one live
-        path and merging main's changes to another. The mechanism could therefore be given a
-        commit it could not describe, and the check would pass by seeing nothing.
-        `--diff-merges=first-parent` fixes it; non-merge behaviour is bit-identical.
-
         Scoped to the commits that actually carry MB18's files. That is what the test's own
         name says, it stays true however the tree moves afterwards, and it is STRICTER in the
         direction that matters: a working-tree diff would go green the moment MB18's own live
@@ -295,8 +286,7 @@ class TestRegisterDiscipline(unittest.TestCase):
 
         touched = set()
         for sha in shas:
-            out = _git("show", "--diff-merges=first-parent", "--name-only", "--format=",
-                        sha, "--", *self.LIVE_PATHS)
+            out = _git("show", "--name-only", "--format=", sha, "--", *self.LIVE_PATHS)
             if out:
                 touched.update(l for l in out.split("\n") if l.strip())
         self.assertEqual(sorted(touched), [],
@@ -324,8 +314,7 @@ class TestRegisterDiscipline(unittest.TestCase):
         self.assertTrue(out, "no commit in history touches a live path — history unreadable")
         sha = out.split("\n")[0]
 
-        shown = _git("show", "--diff-merges=first-parent", "--name-only", "--format=",
-                        sha, "--", *self.LIVE_PATHS)
+        shown = _git("show", "--name-only", "--format=", sha, "--", *self.LIVE_PATHS)
         touched = [l for l in (shown or "").split("\n") if l.strip()]
         self.assertTrue(touched,
                         "the mechanism returned nothing for a commit that touches a live "
