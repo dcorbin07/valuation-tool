@@ -123,3 +123,26 @@ curl -sS -H "X-Admin-Token: $ADMIN_TOKEN" "$SITE_BASE_URL/admin/fleet-cycle" | p
 A GET computes the identical report and writes nothing. Expect `books_declared: 17` (plus the
 closed `testbook`), `entry_rules_implemented: 0`, `breathing: false` and every book at
 `SELFCHECK_ABSENT` until each runs its day-1 gate on the service.
+
+---
+
+## ONE MORE HONEST LIMIT, FOUND AFTER THIS FILE WAS FIRST WRITTEN
+
+**The six SHORT books will refuse even once the cron lands**, and the reason is an
+architectural boundary rather than a bug in any of them.
+
+`valuation/edge/assignment.py` (S3-I3, the assignment model every short book needs) imports
+`valuation/edge/dividends.py`, which is an **ARCHIVED study** under `MA59`'s quarantine. The
+fleet-cycle handler briefly registered the model itself — the runner is, after all, the natural
+composition root — and `tests/test_ma59_quarantine.py` caught it immediately: *"reaching one
+from the live app means the product is running an experiment."*
+
+**So the registration was removed and the refusal is the shipped behaviour.** F-4, F-6, F-8,
+F-10, F-17 and F-18 return `SHORT_BOOK_WITHOUT_ASSIGNMENT`, and the cycle body says exactly why
+in `assignment_note` rather than leaving a reader to guess that six declarations are malformed.
+
+**THE COST TODAY IS ZERO** — no book of any side can fill while no entry rule is implemented —
+and refusing is the safe direction regardless. **Resolving it is the S3-I3 lane's call**, and it
+is a real choice between three: lift `dividends` out of the archive with a register, break
+`assignment`'s dependency on it, or run the fleet from a process that is not the web app. This
+lane must not quietly pick one.

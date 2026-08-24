@@ -8822,3 +8822,52 @@ The runbook's per-book item 2 asks that strikes be *"moneyness-fixed on **as-tra
   traded basis for every book, long or short, the way `S3-I3` already does for short ones.**
   Nothing settles yet — no fill exists — so this is owed before the first expiry, not before
   the first fill. **Named here so it is not discovered by a wrong number.**
+
+### AND ONE MORE, FOUND BY THE SWEEP AFTER THE RUNNER LANDED: **THE SIX SHORT BOOKS REFUSE, ON AN ARCHITECTURAL BOUNDARY**
+
+`valuation/edge/assignment.py` — S3-I3, the model every short book needs — imports
+`valuation/edge/dividends.py`, an **ARCHIVED study** under `MA59`'s quarantine. The fleet-cycle
+handler briefly registered the model itself, on the reasoning that the runner is the natural
+composition root, and **`tests/test_ma59_quarantine.py` caught it on the next run**: *"reaching
+one from the live app means the product is running an experiment."*
+
+**THE BOUNDARY WINS AND THE REGISTRATION IS GONE.** F-4, F-6, F-8, F-10, F-17 and F-18 return
+`SHORT_BOOK_WITHOUT_ASSIGNMENT`, and the cycle body carries `assignment_note` saying exactly
+why — so a reader seeing six books at `DECLARATION_INVALID` can tell *"the model is not
+registered in this process"* from *"these six declarations are malformed"*. **The cost today is
+exactly zero** (nothing can fill without entry rules) and refusing is the safe direction
+regardless.
+
+**ROUTED TO THE S3-I3 LANE, NOT DECIDED HERE.** It is a genuine three-way choice — lift
+`dividends` out of the archive with a register, break `assignment`'s dependency on it, or run
+the fleet from a process that is not the web app — and this lane must not quietly pick one.
+The guard is pinned from this side by an **AST** check that the web app imports neither
+`assignment` nor `dividends`, so a lazy import inside the handler is caught too: hiding an edge
+from a static guard is silencing it, not satisfying it.
+
+### THE SWEEP: 153 SUITES, 2 FAILURES, 1 REAL AND FIXED
+
+* **`test_research_shelf_and_calibration.py` — REAL, MINE, FIXED (now 39/39).** Two defects,
+  both LIVE and PUBLIC, both caused by the ceremony. **(a)** The S3-I7 shelf excludes drafts by
+  **filename prefix** rather than by parse, so `DECL_CEREMONY_RUNBOOK.md` — a runbook named into
+  the declaration namespace — **was published on the research page as a declared fleet book**.
+  Fixed at the ROOT by renaming it to `CEREMONY_RUNBOOK.md` (`git mv`), **not** by changing the
+  shelf: my first cut made the shelf require a parse and that fought the shelf lane's deliberate
+  design, which lists a block-less `DECL_x.md` *"without inventing fields"* and has a test saying
+  so. **(b)** The status vocabulary had no word for a closed book, so the day-1 test-book — shut
+  with a zero-charge row — rendered as **FILLING**, *"the record it will be judged on is still
+  filling"*, of a book that will never fill again. `CLOSED` added, outranking the others because
+  it is the only terminal state.
+* **`test_sync_checkout.py` — ENVIRONMENTAL.** `Permission denied` writing git objects under
+  `%TEMP%` during the concurrent sweep; **exit 0 on 3 of 3 standalone runs afterwards**. This is
+  the third sighting of one class — `MB16` hit it in `test_checkout_drift.py` and measured the
+  cause as sustained concurrent temp-volume I/O, and `MB21` hit it on a `GzipFile`. Reported, not
+  fixed; the suite is not this lane's.
+* **A TEST OF MINE THE RENAME WOULD HAVE SILENTLY EVAPORATED:** my not-a-declaration fixture was
+  pinned to the literal filename `DECL_CEREMONY_RUNBOOK.md`, so renaming the real file moved the
+  fixture out of the glob and the case stopped being exercised. Repointed to a synthetic
+  `DECL_NOT_A_BOOK.md`. **A test pinned to one real filename dies with that file.**
+* **`DECL_testbook.md` still names the old path in its prose and is DELIBERATELY NOT EDITED** —
+  it is a declaration committed ALONE, and its content hash anchors its own record chain, so
+  editing it is precisely the tampering the convention exists to prevent. `HANDOFF_scout.md`
+  also names it; that is the scout lane's file and is reported, not edited.

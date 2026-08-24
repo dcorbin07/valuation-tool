@@ -695,27 +695,34 @@ def create_saas_app(cfg=CONFIG):
                                "not record it."),
                 }), 405
 
-            # REGISTER S3-I3 HERE, AT THE COMPOSITION ROOT, because r1's model requires an
-            # explicit call and deliberately does not self-register on import: *"importing
-            # this module to read one number cannot silently unblock every short book in the
-            # fleet."* A script that reads one assignment number must not arm six short books;
-            # the process that actually runs the fleet must. Without this the six short books
-            # (F-4, F-6, F-8, F-10, F-17, F-18) refuse with SHORT_BOOK_WITHOUT_ASSIGNMENT --
-            # the safe direction, and not the one a live runner wants.
-            registration = {"ok": False, "reason": "not attempted"}
-            try:
-                from ..edge import assignment
-                registration = assignment.register(fleet)
-            except Exception as e:                                   # noqa: BLE001
-                # A missing or broken model must NOT take the cycle down: the long books are
-                # unaffected and the short ones then refuse by the ordinary rule, which is
-                # exactly what should happen.
-                registration = {"ok": False, "reason": safe_error(e)}
-
+            # S3-I3 IS DELIBERATELY *NOT* REGISTERED HERE, AND THE SHORT BOOKS PAY FOR IT.
+            #
+            # This handler briefly did register it, on the reasoning that the runner is the
+            # composition root and r1's model requires an explicit call. **Reverted, because
+            # `MA59`'s quarantine caught it: `valuation/edge/assignment.py` imports
+            # `valuation/edge/dividends.py`, an ARCHIVED study.** Importing the model from the
+            # web app makes a closed study reachable from a production entry point, and that
+            # test's own sentence is the ruling — *"reaching one from the live app means the
+            # product is running an experiment."*
+            #
+            # THE COST IS EXACTLY ZERO TODAY AND IS NAMED SO IT IS NOT DISCOVERED LATER: the
+            # six short books (F-4, F-6, F-8, F-10, F-17, F-18) refuse with
+            # SHORT_BOOK_WITHOUT_ASSIGNMENT, and **no book of any side can fill anyway** while
+            # no entry rule is implemented. Refusing is the safe direction regardless.
+            #
+            # UNBLOCKING IT IS r1's CALL, not this lane's, and it is a genuine choice between
+            # three: lift `dividends` out of the archive with a register, break `assignment`'s
+            # dependency on it, or run the fleet from a process that is not the web app. This
+            # handler must not be the place that quietly decides.
             res = fleet.cycle(write=wants_run, books=[only] if only else None)
-            res["assignment_provider_registered"] = bool(registration.get("ok"))
-            if not registration.get("ok"):
-                res["assignment_registration_error"] = registration.get("reason") or registration
+            res["assignment_provider_registered"] = fleet.assignment_provider() is not None
+            if not res["assignment_provider_registered"]:
+                res["assignment_note"] = (
+                    "S3-I3 is not registered in the web process: valuation.edge.assignment "
+                    "imports the ARCHIVED valuation.edge.dividends, and MA59's quarantine "
+                    "forbids the live product reaching a closed study. Short books refuse "
+                    "until that is resolved by the S3-I3 lane. No book can fill regardless "
+                    "while no entry rule is implemented.")
             # 200 on a dry run OR a run that legitimately produced nothing. A cycle that
             # placed no fill is not an error -- it is the ordinary case and, today, the only
             # case. The body's `breathing` flag and `note` carry that, so a scheduler can
