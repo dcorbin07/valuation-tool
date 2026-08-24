@@ -219,3 +219,82 @@ in the file, below the rule, on `PT-AMEND1`'s terms — and it must land before 
 fill**, because `verify_chain` anchors on the declaration's content hash and an amendment
 after records exist breaks the book's own chain at row 0. F-13 has zero records, so that
 amendment is free today.
+
+---
+
+## F-2 (THE MENU GATE) — ENTRY RULE REFUSED BACK AT ARMING, 2026-08-24, options-live lane
+
+**Refused on a PREMISE ERROR that is checkable line by line, not on a judgement.** F-2's
+entry rule claims to reproduce a shipped function *"verbatim"* and then describes something
+that function does not do. The sentence is self-contradictory, and the contradiction is
+material because the menu COUNT is what the gate's `< 4` threshold is measured against — two
+different menus give two different counts and therefore two different refusal sets.
+
+> *"compute the host entry's fillable in-band menu by **MB1's shipped prefilter verbatim**
+> (side-matched right -> DTE band **+/-25% of target** -> moneyness **0.85-1.15** -> two-sided
+> usable quotes -> volume > 0)"*
+
+**The prefilter it names is `scripts/mb1_alternatives_menu.py::build_menu`**, whose own
+docstring says *"`pick_contract`'s prefilter, VERBATIM, minus the final argmin ... Removing
+the fallback would make this a different menu from the engine's, which is a void condition of
+the register."* Read against it, the parenthetical diverges FIVE ways:
+
+1. **THE MONEYNESS BAND IS NOT 0.85-1.15, AND IT IS SIDE-DEPENDENT.** `build_menu` uses
+   **(0.90, 1.20) for calls and (0.80, 1.10) for puts**. F-2's band is neither, and being
+   side-independent it cannot be either.
+2. **THE MONEYNESS FILTER IS NOT BINDING IN THE ORIGINAL.** `build_menu` carries an explicit
+   fallback — `if len(near) == 0: near = d` — kept deliberately, and called out in its own
+   docstring as load-bearing. F-2 presents moneyness as a filter; in the shipped prefilter it
+   is a preference that yields entirely when it would empty the set. **A gate that drops the
+   fallback refuses names the engine would happily trade.**
+3. **THE DTE BAND IS FIXED, NOT RELATIVE TO THE HOST'S TARGET — AND THIS ONE BREAKS A REAL
+   HOST.** `build_menu` takes `OB.DTE_RANGE`, which is the constant `(45, 75)`, commented
+   `_DTE["swing"]`. For a 60-DTE host that happens to equal +/-25% of target, which is
+   presumably where the phrasing came from. **For F-11, whose declared structure is `dte: 91,
+   "nearest above 91"`, the fixed band EXCLUDES ITS OWN CONTRACT ENTIRELY** — the gate would
+   compute a menu that cannot contain the entry it is judging and refuse every F-11 order, not
+   because the menu is thin but because it was built on the wrong tenor. A fleet-wide gate
+   must be tenor-relative or it is a swing-only gate wearing a fleet-wide name.
+4. **A SOLVABLE DELTA IS REQUIRED AND IS NOT MENTIONED.** `build_menu` runs `enrich_chain`
+   then `dropna(subset=["delta"])`, so a contract whose IV will not solve is off the menu.
+   **That is in direct tension with the books this gate would host:** F-3's and F-11's
+   structures are moneyness-fixed and F-3's void condition is *"delta-targeted strikes"*,
+   honouring `V6-OPT`'s autopsy. A gate that silently requires the delta machinery those books
+   declined is not a neutral breadth check.
+5. **"TWO-SIDED USABLE QUOTES -> VOLUME > 0" UNDER-DESCRIBES `quote_reject_reason`**, which
+   also rejects `locked` (bid == ask), `thin_premium` (below `MIN_PREMIUM`) and `wide_spread`
+   (above `MAX_SPREAD_PCT`). Those are the filters that actually bite on a thin chain, so the
+   description omits most of what makes the count small.
+
+### AND A SIXTH, STRUCTURAL RATHER THAN NUMERICAL
+
+**`build_menu` is in `scripts/`, and `valuation/` may not import it.** `MA23`'s boundary test
+forbids a product module importing a study, and the direction here is worse — a package
+importing a runner. It also operates on a **pandas frame with columns `right` / `expiration` /
+`strike`**, while a live Tradier chain is a **list of dicts with `option_type` /
+`expiration_date` / `strike`**. So *"verbatim"* is not available even in principle without an
+adapter, and the moment an adapter exists the claim needs re-verifying rather than asserting.
+
+### WHY THIS MATTERS EVEN THOUGH THE GATE IS INERT TODAY
+
+**No book in the fleet has opted in.** `gates:` appears in ZERO of the seventeen declarations,
+so F-2 refuses nothing today whatever it is implemented to do. **It is refused anyway, because
+the moment a host opts in the gate becomes load-bearing on that host's every entry** — and
+the opt-in is a one-line declaration amendment that someone will make without re-reading this.
+A defect that is harmless until it is suddenly decisive is worth fixing while it is harmless.
+
+### WHAT A REVISION HAS TO MOVE
+
+**Pick one and say which:** (a) *the shipped prefilter*, in which case delete the parenthetical
+and accept the fallback, the side-dependent bands, the fixed swing tenor and the delta
+requirement, and say what happens to non-swing hosts; or (b) *this parenthetical as its own
+frozen spec*, in which case drop the word "verbatim", drop the claim of lineage to MB1, and
+state the band, the fallback behaviour and the tenor rule in F-2's own terms. **(b) is
+cleaner and this lane recommends it** — the gate's hypothesis is about menu BREADTH, which
+does not need the engine's exact argmin prefilter to be meaningful. Either way the DTE rule
+must be relative to the host's declared target, or the gate must declare itself swing-only.
+
+**`DECL_f2_menu_gate.md` STAYS ON DISK, unedited, and the book stays DECLARED** — the same
+treatment as F-13. Its commit is tamper-evidence; the fix is a dated amendment below the
+rule, and it must land before F-2's first fill because `verify_chain` anchors on the
+declaration's content hash. F-2 has zero records. No trial is charged and nothing is retracted.
