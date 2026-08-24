@@ -997,3 +997,215 @@ were genuine calls.
 * **The tenor confound is reported, not removed.** A tenor-matched construction is a new design.
 * **The options freeze's 2026 dates were not reachable** — the panel's last date is 2026-01-28
   and the freeze's files stop at 2025, so the covered window ends 2025-10-27.
+
+---
+
+# PRICES-SRC — the silent yfinance fallback, and the seam it turns out to explain (2026-08-21)
+
+**Reported OUT-OF-LANE by the app fixer, fixed here.** `prices.get_history_df` wrapped the whole
+primary path in a bare `except Exception` and fell through to yfinance with nothing recording
+it, so any price-derived figure in the product could silently be a yfinance figure — and
+yfinance **auto-adjusts**. `COVERAGE-RULE` family: the run completes, nothing raises, and the
+number means something else than its name implies.
+
+**ZERO TRIALS, `FIXED`-class** — a correctness repair with no hypothesis and no bar (the
+`MA5`/`MA38` precedent). `by_domain` is bit-identical across the log append; equity stays
+**242**, options 305, infra **20** — re-read after the append rather than quoted, and
+`rows_fixed_not_counted` rises **73 -> 74**, which is the proof the row was seen and correctly
+excluded rather than silently dropped. **No published claim moves.**
+
+## 1. THE FALLBACK IS NOT HYPOTHETICAL — IT IS THE ONLY PATH
+
+Measured 2026-08-20, ten tickers, one at a time: **Stooq served 0 of 10.** SPY, AAPL, KO, NVDA,
+JNJ, MSFT, XOM, T, IBM, PG — **every one a failure**, so **every figure on this path is a
+yfinance figure today**, and nothing recorded that.
+
+Two distinct refusals, depending on the header sent, and neither is a transient blip the retry
+loop can help with:
+
+| request | result |
+|---|---|
+| default `requests` user-agent | **HTTP 404** — *"the page you requested does not exist"* |
+| browser user-agent | **HTTP 200 carrying a JavaScript bot-verification page**, never CSV |
+
+**No attempt is made to defeat that challenge.** Evading a vendor's access control is not a fix,
+and it would not work anyway. The honest response to a primary that will not serve is to say so
+on every figure it did not serve — which is what this change does.
+
+## 2. THE SEAM IS DIAGNOSED, AND IT IS EXACTLY THE ADJUSTMENT FLAG
+
+`index_mark`'s own reproduction note recorded a **+0.0201pp** book-leg discrepancy against the
+recorded track and offered two candidates without choosing: *"dividend/adjustment treatment
+across 86 names (the yfinance fallback auto-adjusts) **or** a different quote vendor for the
+equity leg"*, adding *"HYPOTHESIS, NOT DIAGNOSED"*.
+
+Re-priced on all 86 book names, same vendor, same dates, changing nothing but the flag:
+
+| basis | `valquo_pct` | `spy_pct` |
+|---|---|---|
+| `auto_adjust=True` | **0.7961** | 3.6228 |
+| `auto_adjust=False` | **0.7760** | 3.6228 |
+| **the recorded row** | **0.7760** | **3.6228** |
+
+**The adjustment flag moves the book leg by +0.0201pp and the benchmark leg by +0.0000pp, and
++0.0201pp is the entire seam.** 86 of 86 priced under both settings, zero empty fetches, so this
+is not a coverage artefact. The recorded row was priced **unadjusted**; the mechanism re-derives
+**adjusted**, because yfinance defaults `auto_adjust=True`.
+
+**AND THE EXACT BENCHMARK HIT IS WHY THIS WENT UNDIAGNOSED.** SPY reads **3.6228 under both
+settings**, so the leg that "confirmed the convention" is precisely the leg that **cannot
+distinguish the two conventions** — it agreed for a reason unrelated to the question. *A control
+that passes identically under both arms of the thing you are testing is not evidence about it.*
+
+**DOES THE SEAM'S MAGNITUDE CORRELATE WITH WHICH VENDOR SERVED? IT CANNOT — AND THAT IS THE
+ANSWER.** The correlation is undefined because **only one vendor serves**: Stooq answers
+nothing, so there is no vendor mixing to correlate against. `index_mark`'s second candidate is
+**eliminated for this machine**, and its first is confirmed to four decimals. The seam is a
+**within-vendor adjustment artefact**, not a vendor-mixing one.
+
+**The uncomfortable corollary, stated because it is the real cost of the defect: nobody can say
+what served on 2026-08-14, when that note was written, because nothing recorded it.** If Stooq
+was answering then and is not now, the same code silently produces different numbers on
+different days. That is precisely the argument for this change, and it is why the fix is a
+LABEL rather than a vendor swap.
+
+**NOTHING IS CHANGED ABOUT HOW THE BOOK IS PRICED.** Switching to an unadjusted basis would make
+the mechanism reproduce the two hand-made rows exactly — and it is a **construction change to a
+bound record**, Don's under the contract, not this lane's. Routed, not taken.
+
+## 3. THE STRIKE RULE DOES NOT BITE HERE, AND THE DISTINCTION STILL DOES
+
+`U1-SPLIT`'s rule is `raw_close` for anything touching a **strike**, because strikes are
+as-traded and an adjusted close is a different quantity (NVDA 2012: 0.27 against a raw 11.97,
+43×, failing **silently**).
+
+Measured from the **AST**: **12 modules import `screener.prices`**, **32 modules touch a strike
+in code**, and the **intersection is EMPTY**. The options work sources its as-traded prices from
+`data/bulk/prepared/bars`'s `raw_close` and the pinned chain freezes — never from here.
+
+**So the strike hazard is structurally absent on this path. The adjusted-vs-raw distinction
+still bites, for a different reason: against the recorded track, where §2 shows it is the whole
+seam.** Pinned by a test, so wiring the two together later is a deliberate act with a red suite
+attached rather than a quiet import.
+
+## 4. WHAT THE FIX ACTUALLY DOES
+
+* **The fallback stays.** A screener that dies because one free vendor is having a bad afternoon
+  is worse than one that switches. Resilience was never the defect; silence was.
+* **Every frame is LABELLED** — `df.attrs["valquo_src"]` plus `valquo_adjusted`, read with
+  `source_of(df)` / `adjustment_of(df)`. **On the frame rather than in a module-global alone**,
+  because `index_mark.contract_row` takes an **injectable** `fetch` and a global would be blind
+  to it; the label has to ride the object that crossed the boundary.
+* **`source_of` returns `None` for unlabelled and NEVER a vendor.** `None` means *cannot tell*.
+  Resolving it to the primary is the defect itself, and a mutation test pins that.
+* **The fallback is LOUD** — a `WARNING` naming the ticker, the primary's actual exception, and
+  the fact that yfinance's close is auto-adjusted.
+* **The except is NARROW**: `requests.RequestException`, `pandas` parser/empty errors,
+  `UnicodeDecodeError`, and this module's own `ValueError`. **`ImportError` now propagates** —
+  the imports sat *inside* the old try, so a broken install looked exactly like a bad afternoon
+  at Stooq and produced yfinance numbers under a healthy-looking run. So do `MemoryError`,
+  `KeyboardInterrupt` and a plain programming error.
+* **`auto_adjust=True` is passed EXPLICITLY**, not inherited. Relying on a vendor library's
+  default is how a convention changes under you between releases, and yfinance has moved this
+  one before.
+* **Stooq's convention is recorded as `unverified`, not guessed.** It cannot be measured from
+  here because Stooq will not serve this client, and guessing it would invent the one fact this
+  module exists to stop people inventing.
+* **`index_mark`'s payload now records WHICH vendor served each leg** (`vendors`), with the
+  benchmark leg broken out — it used to carry the constant `"screener/prices.py (Stooq ->
+  yfinance)"`, a description of the *route*, true whichever vendor answered. A field that looks
+  like provenance and carries none.
+* **`close_series`'s shape is deliberately unchanged** — ~20 call sites unpack it as a pair.
+  `close_series_with_source` is additive, and `close_series`'s docstring now says plainly that
+  the label does not survive it.
+
+## 5. TESTS
+
+**22 tests, 3 of 3 mutations caught with a baseline**, no network. The required one is
+`test_A_PRIMARY_FAILURE_PRODUCES_A_LABELLED_FALLBACK_NEVER_A_SILENT_ONE`, which drives **six
+distinct primary failures** — 404, connection, timeout, non-CSV body, empty body, missing
+`Close` column — and asserts a labelled yfinance frame every time.
+
+**Against the pre-fix tree the suite fails hard: 2 failures and 23 errors, sources restored
+byte-for-byte.** Reported precisely rather than as "25 fail": **23 are ERRORS because the new
+API does not exist pre-fix**, which is a weaker pin than a behavioural one. **The two genuine
+behavioural pins are the AST checks** — that `get_history_df` no longer contains a bare
+`except Exception`, and that `auto_adjust` is passed rather than inherited. Both fail against
+the old source for the right reason.
+
+## BUGS FOUND
+
+* **A DEFECT IN MY OWN GUARD, caught by my own vacuity check, and wrong in BOTH directions.**
+  The first cut of the strike-rule scan was a regex. It **matched `index_mark.py` on its
+  DOCSTRING** (which contains "screener/prices.py", and `.` matches the slash) rather than on an
+  import, and it **MISSED that file's actual import**, `from . import prices as _prices`,
+  because the pattern only covered the `from .prices` spelling. **A grep that finds a module for
+  the wrong reason and misses it for the right one cannot support a disjointness claim.** Now
+  reads imports from the **AST** and strips docstrings before looking for strikes. **The
+  corrected census is 12 importers and 32 strike modules against my first pass's 10 and 39** —
+  both counts were wrong; the empty intersection survived. `MA49`'s family, and it was found
+  only because the vacuity test named a specific expected member.
+* **`options-bot/screener/prices.py` IS A SECOND COPY OF THIS MODULE and carries the same bare
+  `except Exception` fallback.** It has drifted from the live one (different docstring,
+  module-level imports, and a `_stooq_symbol` that does **not** replace `.` with `-`, so it
+  mis-spells any ticker with a dot). **NOT FIXED HERE:** nothing under `valuation/` or
+  `scripts/` imports it — verified — so it is out of the live path, and repairing a copy in a
+  sub-project I do not own is how two divergent copies become three. `B7`/`MA5`'s family;
+  **reported for whoever owns `options-bot/`.**
+* **`index_mark._closes` has its own bare `except Exception` around the fetch.** Left as-is,
+  deliberately: a name that cannot be priced there is counted into `unpriced` and gated by the
+  `MIN_COVERAGE` floor, so that failure is already loud in the payload. It now also records
+  `"fetch_raised"` into the vendor census, so the reason is visible rather than merely the count.
+* **ENVIRONMENTAL, NOT IN THE REPO, AND IT HAPPENED FOUR TIMES IN ONE SESSION — WHICH IS WHY IT
+  IS REPORTED AS A CONDITION RATHER THAN AS FOUR FLAKES.** Every one is a `%TEMP%` write or a
+  process holding a `%TEMP%` resource, on a machine simultaneously running other lanes'
+  `pipeline.py` and `sync_checkout.py`:
+
+  | suite | symptom | standalone |
+  |---|---|---|
+  | `test_calibration.py` | gate blocked **~10 hours** on a pipe held open by a grandchild | 23/23 |
+  | `test_security.py` | **TIMEOUT >900s** in the guarded re-run | 22/22 |
+  | `test_reported_benchmark.py` | *"could not write ...\AppData\Local\Temp"*, 1 run in 4 | 26/26 |
+  | `test_checkout_drift.py` | *"unable to write .git/objects/...: Permission denied"* under `%TEMP%` | 18/18 on retry |
+
+  **All four pass standalone, and none references the module I changed.** This is `MB21`/`MB16`'s
+  documented class — `MB21` hit `PermissionError` on a `%TEMP%` file inside `GzipFile`, `MB16`
+  hit the **identical** git-objects message in **this same suite** — and both measured the cause
+  as sustained concurrent temp-volume I/O. **What is new is the rate and the spread**: four
+  distinct suites in one session, one of which (`test_reported_benchmark.py`) landed *today*, so
+  the class is still being reproduced by new code rather than being a legacy quirk. `MB42`'s
+  shape: invisible in CI, where a Linux runner has no contention. **Not fixed here — suites that
+  build real artifacts under `%TEMP%` wrap no I/O in a retry, and that is a decision about the
+  test harness rather than about any one suite.** My own gate harness now applies a per-suite
+  timeout and **reports a TIMEOUT as its own state, never as a pass**; without it the second
+  occurrence would have blocked another ten hours and reported nothing.
+
+* **A PROCESS ERROR OF MINE, CAUGHT BY CI RATHER THAN BY ME, AND THE GUARD THAT CAUGHT IT WAS
+  RIGHT.** `scripts/prices_vendor_diagnose.py` opened `data/valquo_index.json` directly, and
+  `tests/test_index_book_publish.py` failed the land with *"new consumers of
+  data/valquo_index.json ... Two mechanisms reading one named object is the `PT-SPLIT` shape —
+  reconcile them deliberately, then add the file here."* **That is exactly the defect it
+  describes**: `PT-SPLIT` is the item where the Index and the sandbox engine recorded *different
+  books under one name* for four days. Fixed the way the guard asks — the script now reads the
+  book through **`index_mark.load_book()`**, the one reader, which resolves the path via
+  `index_track.default_paths()` — rather than by widening the allowlist, which would have added
+  a second mechanism and called it approved.
+
+  **Why it reached CI at all is the part worth recording: I added that file AFTER my local gate
+  had already started, and pushed without re-running it.** The gate reported 145/146 on a tree
+  that did not contain the new script. **A gate is evidence about the tree it ran on, and adding
+  a file afterwards silently invalidates it.** The re-gate below runs on the final tree.
+
+## What I did NOT do
+
+* **I did not change how the book is priced.** The seam is now diagnosed; closing it means
+  choosing an adjustment basis for a **bound record**, which is Don's call under the contract.
+* **I did not try to restore Stooq.** It is refusing this client with a bot challenge, and
+  working around that is not a bug fix. If it is meant to be the primary, that needs a decision
+  about the vendor, not a patch here.
+* **I did not thread the label through `close_series`'s return shape** — ~20 call sites unpack a
+  pair, and changing that to record provenance nobody currently reads would be a large blast
+  radius for no consumer. `close_series_with_source` exists for when one appears.
+* **I did not fix the `options-bot/` copy** (see BUGS FOUND) and **did not touch `.github/`**.
+* **No backtest was re-run.** Every figure this path feeds was produced under the old code; this
+  change makes the **next** run say which vendor served, and retracts nothing.

@@ -5,6 +5,182 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 45 — 2026-08-20 — `PT-SPMO`: a second benchmark that makes the record look worse
+
+**Don's call, queued 2026-08-19 and lost in the season wave.** Show **SPMO** — Invesco's S&P 500
+Momentum ETF — beside the Valquo Index's SPY excess, as a **reported** benchmark. The contract
+binds SPY and only SPY; the meter, the operational gate and the 2031 verdict do not move, and
+the bound series does not gain a column. **Zero trials** — no hypothesis, no threshold, no
+verdict against a bar, so no `RESEARCH_LOG.md` row and every published `N` is untouched.
+
+## 0. What shipped
+
+`valuation/screener/reported_benchmark.py` (new), `scripts/spmo_backfill.py` (new),
+`tests/test_reported_benchmark.py` (new, 26 tests), plus four edits: one parameter on
+`index_mark.append_row`, one helper on the daily write door, one additive key on
+`/api/index-track`, one block in the Index tab's render. `PAPER_TRACK_CONTRACT.md` gains
+**§5d**, which records that a second benchmark exists and is not bound by the register.
+
+## 1. THE ANSWER TO THE VENDOR QUESTION, AND THE CONTROL IS THE POINT
+
+The task asks to *"verify it resolves on Stooq and yfinance; say which serves it."* **yfinance
+serves it, and whether Stooq carries SPMO is NOT ANSWERABLE from this machine.**
+
+Stooq's daily-CSV endpoint returns **HTTP 404 for every symbol tried — `spmo.us`, `spy.us` AND
+`aapl.us`** — a 271-byte *"the page you requested does not exist"* HTML page rather than a CSV.
+**AAPL and SPY are the controls and they fail identically**, so this is the vendor being
+unreachable from here, not a gap in SPMO. Reporting *"SPMO does not resolve on Stooq"* would
+have been a clean, confident, wrong finding; the control is the only reason it is recorded as
+unresolved instead.
+
+**A PROPERTY OF THE SHIPPED MODULE, REPORTED AND NOT REPAIRED (`RUN_RULES` rule 3):
+`prices.get_history_df` swallows the primary's failure and falls through to the fallback
+inside a bare `except Exception`, so every caller in the product is silently running on
+yfinance right now with nothing anywhere saying so.** That is not this item's to fix — it is
+the live-data lane's, it moves the momentum factor and the liquidity gate, and it wants its own
+change. But it means *"Stooq primary, yfinance fallback"* describes a configuration rather than
+what is happening.
+
+yfinance returns SPMO cleanly on every date the series needs: **400 rows**, and a close on
+inception and on all four recorded dates.
+
+## 2. THE FIRST THING IT DID WAS MAKE THE RECORD LOOK WORSE
+
+| date | valquo (recorded) | SPY excess | **SPMO excess** |
+|---|---|---|---|
+| 2026-07-31 | 0.4126 | −0.2777 | **+0.1267** |
+| 2026-08-06 | 0.776 | −2.8468 | **−3.1844** |
+| 2026-08-13 | 4.25 | −0.62 | **−2.2345** |
+| 2026-08-17 | 6.9705 | +2.7936 | **−1.2153** |
+
+**Below the SPY excess on three of the four rows, and on the latest one the two disagree by
+4.01pp.** SPMO has outrun SPY over this stretch, so the harder benchmark is measurably harder.
+A second benchmark that flattered the book would be worth very little; this one does not, and
+that is the whole case for adding it without a register.
+
+**A CORRECTION AGAINST MY OWN FIRST DRAFT, MADE BEFORE THE COMMIT.** The module docstring first
+read *"the SPMO excess is BELOW the SPY excess on every one of them."* It is not — day 1 is
+**above** (+0.13pp against −0.28pp). Written before the numbers were read, kept as a wrong
+sentence for about ten minutes, corrected in place against the measurement rather than left as
+a plausible generalisation.
+
+**AND NONE OF IT IS EVIDENCE OF ANYTHING. Four recorded rows over twelve trading days.** The
+posture string travels in the payload rather than sitting in a docstring nobody renders.
+
+## 3. WHY A SIBLING FILE, AND IT IS THE HARD RULE'S OWN ARITHMETIC
+
+The hard rule says the bound series may not gain a column. It is worth restating *why*, because
+the reason is stronger than the instruction: `data/valquo_track_history.csv` is protected by a
+**byte-prefix** append-only rule that `.github/workflows/track-row.yml` verifies with `cmp` on
+`head -n N`. **Widening the header rewrites every line, and a rewritten file cannot be a prefix
+of itself** — so an SPMO column would have forced a re-seed of the one dataset in this project
+that cannot be re-derived, to add a benchmark that settles nothing.
+
+So: `data/valquo_vs_spmo.csv`, header
+`date,day_n,valquo_pct,valquo_src,spmo_pct,excess_pp`.
+
+**`excess_pp` deliberately shares a NAME with the bound file's excess while being a DIFFERENT
+QUANTITY.** That is exactly why the two never share a file and why every surface rendering this
+one is required to carry the label — pinned by a test that removes the label and watches the
+suite go red.
+
+## 4. THE VALQUO LEG IS COPIED AS RAW CELL TEXT, NOT RE-DERIVED
+
+Two files showing two different Valquo numbers is a failure this project has already shipped
+once, from two different books, and the recorded cure was **one authority** rather than better
+reconciliation. So the sibling never computes the book:
+
+* `backfill` copies `valquo_pct` out of the bound CSV **as the raw cell string**, so the two
+  legs are **byte-identical** rather than agreeing to a rounding. The recorded rows carry
+  ragged precision — `0.776` and `4.25`, typed by a human — and a copy that round-tripped them
+  through `float` would write the same thing today and something else under a future formatter.
+  The test compares **strings**, not floats, for that reason.
+* The live path copies whatever `append_row` **SETTLED ON**: the freshly written row on a 201,
+  **the row already on disk on a 200**. `append_row`'s own docstring is explicit that those two
+  can differ when a vendor revises, and following the computation instead of the file is
+  precisely how the two series would diverge on a retry.
+* Every row carries **`valquo_src`**, so the provenance is per-row and cannot go stale the way a
+  file-level note would.
+
+**A DEVIATION FROM THE TASK, DECLARED RATHER THAN ABSORBED.** The task asks for *"a derivation
+note in the file header"*. A `#` comment line at the top of the CSV would be read as the header
+by `csv.DictReader`, so honouring it literally means a second parser — the B7 split
+`index_mark` already warns about twice in its own docstrings. Shipped instead: the per-row
+`valquo_src` column (better than a header note, because it cannot go stale and it is per-row)
+plus a sidecar **`data/valquo_vs_spmo.csv.NOTE.md`** written by the backfill, carrying the
+derivation statement verbatim.
+
+## 5. `append_row` GAINED ONE PARAMETER RATHER THAN A TWIN
+
+The sibling needs the same three append-only refusals, the same idempotent no-op and the same
+byte-prefix property against a different header. A second implementation of "append-only" is
+the split this module spends four paragraphs warning about, so `append_row` took a `columns`
+argument defaulting to `ROW_COLUMNS`. **Every existing caller is bit-identical** — pinned by
+writing the same row through both the default and the explicit path and byte-comparing the two
+files — and a mutation that changes the default is caught.
+
+**THE FIRST CALL BACKFILLS AND EVERY LATER ONE APPENDS**, which is a real distinction rather
+than an optimisation: a full write cannot preserve a byte prefix, so it happens exactly once,
+when the file does not exist. On that first call today's row is already IN the bound CSV — the
+bound append put it there moments earlier — so the backfill picks it up with the rest.
+
+## 6. THE CONTAINMENT, AND IT IS TESTED IN BOTH DIRECTIONS
+
+* **The bound file is BYTE-COMPARED across every sibling operation** — backfill, append, and a
+  refusal. Not "the same rows": a value-level check passes through a header widening, a
+  re-quoted cell and a line-ending change, and every one of those breaks the prefix rule.
+* **The meter, the gate and `vs_spy_claim` never read it**, asserted at **source level** over
+  four named modules (`track_meter`, `shadow_vintage`, `index_track`, `index_mark`) via the
+  syntax tree, because a runtime check only sees the paths a test happens to exercise. Named
+  individually rather than swept: a directory sweep quietly starts covering modules nobody
+  meant it to and quietly stops covering a renamed one.
+* A runtime companion asserts no SPMO figure appears anywhere in `track_meter.detail()`.
+* `index_track.vs_spy_claim` is captured before and after a full backfill and required to be
+  **equal**.
+* **Nothing in the module can rebuild the book**: an AST test fails if it ever reads a position
+  weight or reaches for `build_frame` / `run_scan`.
+
+## 7. THE BANNED-PHRASE CHECK HAS BOTH CONTROLS, AND IS SCOPED
+
+Whole phrases, never bare tokens, and scoped to this item's own rendered block. `SC-4` measured
+the alternative one day earlier: a banned tuple run page-wide fired **fifteen times** on
+neighbouring items' honest prose, and a guard that cries wolf is switched off within the week.
+This repository has now paid for that family five separate times.
+
+* **Positive control** — a planted *"will outperform ... this record proves it"* must be caught.
+* **Negative control** — the honest sentence must pass, and it is not a trivial one: the label
+  itself contains the word *"contract"* and the why-sentence contains a **t-statistic**, both of
+  which a careless tuple would have flagged.
+
+## 8. WHAT IT DOES NOT DO, NAMED SO IT IS NOT MISTAKEN FOR DONE
+
+* **The hero band is untouched.** The SPMO block renders in the **Index tab's forward card
+  only**. The band above the tabs is a compressed four-tile summary and it cannot carry *"not
+  bound by the contract"* without the caveat dominating the tile — and that band is the single
+  most screenshot-able element on the page. One surface, deliberately.
+* **No service copy exists yet.** `data/` is gitignored, so the sibling is built by the live
+  door on its next successful `POST /admin/track-row?append=1`. Nothing has been written to
+  Don's machine or to Render by this session.
+* **`scripts/spmo_backfill.py` defaults to a DRY RUN**, matching `scripts/track_row.py`'s
+  opt-in `--append`. It is for inspecting the derivation, not for feeding production.
+* **The meter is not extended and no SPMO power arithmetic was computed.** A second benchmark
+  with its own sigma, its own bar and its own clock is a second register, not a display change.
+* **`prices.py`'s silent-fallback defect is reported, not repaired** — section 1.
+* **No `RESEARCH_LOG.md` row, `.github/` untouched, `data/` never committed.**
+
+## 9. Verification
+
+**26 new tests, and 7 of 7 tripwire mutations caught with every source restored byte-for-byte**
+— backfill writing into the bound path, the valquo leg rounded instead of copied, the reported
+excess silently becoming the bound quantity, the meter importing the module, `append_row`'s
+default header changing, the label dropped from the render, and the claim leaking a zero when
+the series is unavailable. The mutation harness judges by **exit code**, never by grepping for
+`OK` — `SC-4`'s vacuous-harness lesson from the day before.
+
+`gate_state()` re-read after the `§5d` edit: the contract parser still finds one
+`Operational gate passed` row and still reads it as **not passed**. The new section is prose
+with no pipe table, precisely so it cannot introduce a second row for that field.
+
 # Session 44 — 2026-08-19 — `SC-4`: the denominator page made temporal
 
 **ZERO TRIALS, DISPLAY + ONE PARSE REPAIR.** No hypothesis, no threshold, no verdict against a
