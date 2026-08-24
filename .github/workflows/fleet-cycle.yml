@@ -1,0 +1,62 @@
+name: FLEET CYCLE (S3-I1 declared paper books)
+
+# The same architecture as PT-WRITER and for the same reason. A fleet cycle needs the
+# Tradier sandbox token, network access AND the fleet records store at once, and only the
+# Render service holds all three: Cowork has the book and no network, a GitHub runner has
+# network and no book (`.gitignore` excludes /data/ with no negation). So this job is a
+# scheduler plus a messenger -- no checkout of data, no pip install, no push permission.
+#
+# The door is POST /admin/fleet-cycle?run=1. Its rules live in valuation/edge/fleet.py,
+# not here:
+#   * append-only, hash-chained records -- a broken chain refuses the fill
+#   * a book with no valid declaration committed ALONE before its first fill is REFUSED
+#   * a stale, absent or failing day-1 self-check REFUSES every fill (three states)
+#   * short books are REFUSED unless S3-I3's assignment provider is registered
+#   * refusals are RECORDS, not crashes
+#   * GET computes and returns; only POST?run=1 may write (a GET with run=1 is a 405)
+#
+# Secrets: SITE_BASE_URL and ADMIN_TOKEN -- both already exist; auto-scan, track-backup
+# and track-row use the same two. DISCORD_WEBHOOK_URL optional.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # 22:19 UTC is 6:19pm EDT / 5:19pm EST -- after the US close in BOTH halves of the
+    # year, so no DST cron pair is needed. Deliberately 7 minutes after PT-WRITER's 22:12
+    # so the two never contend for the same dyno wake-up. Odd minutes on purpose.
+    - cron: "19 22 * * 1-5"
+
+concurrency:
+  group: fleet-cycle
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  cycle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST the fleet-cycle door
+        env:
+          SITE_BASE_URL: ${{ secrets.SITE_BASE_URL }}
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          set -uo pipefail
+          if [ -z "${SITE_BASE_URL:-}" ] || [ -z "${ADMIN_TOKEN:-}" ]; then
+            echo "::error::SITE_BASE_URL or ADMIN_TOKEN is unset"; exit 1
+          fi
+          BODY=$(mktemp)
+          CODE=$(curl -sS -o "$BODY" -w '%{http_code}' -X POST \
+                   --max-time 120 \
+                   -H "X-Admin-Token: ${ADMIN_TOKEN}" \
+                   "${SITE_BASE_URL%/}/admin/fleet-cycle?run=1") || CODE="000"
+          echo "HTTP ${CODE}"
+          cat "$BODY"
+          # 200 is the ONLY success. A cycle that placed nothing is not an error -- it is
+          # the ordinary case and, until entry rules exist, the only case. Alerting on a
+          # quiet day would teach everyone to ignore this job.
+          [ "$CODE" = "200" ] || { echo "::error::fleet-cycle returned ${CODE}"; exit 1; }
+          # Surface the state without failing on it.
+          grep -q '"breathing": *true' "$BODY" \
+            || echo "::warning::fleet is DECLARED-BUT-NOT-BREATHING (no entry rule implemented)"
