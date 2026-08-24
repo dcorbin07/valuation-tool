@@ -8301,8 +8301,22 @@ a book"*. F-6 is a zero-cost COLLAR, whose short call leg is exactly what this m
 for, so the graph's omission of it is the one gap that could have let a short leg declare
 unmodelled.
 
-**I built against the per-book column (eight).** A successor should treat the S3-I3 row's list
-as superseded, and the map is the scout's file, so it is reported rather than edited.
+**AND THE PER-BOOK COLUMN IS NOT CLEAN EITHER, which is said here because I built against it
+and a successor should not inherit it on my word.** **F-20** is a *married put* — long stock
+plus a LONG protective put — and as written it has no short leg to assign, so its `S3-I1+I3`
+claim looks like the same over-claim in the other direction. Reading the map's own structure
+text, the books that genuinely carry a short option are **F-4, F-6, F-7, F-8, F-10, F-17 and
+F-18 — seven.**
+
+**The two errors are not equally dangerous and that is the operative point.** Omitting **F-6**
+from the graph is the direction that matters: a zero-cost collar's short call leg is exactly
+what this module exists for, so a book could have declared with an unmodelled assignment
+obligation. Including **F-20** costs nothing but an unused import.
+
+**I built against the per-book column (eight), which is the superset and therefore the safe
+one.** A successor should treat the S3-I3 row's list as superseded, verify each book's
+structure text rather than any of the three lists, and note that the map is the scout's file,
+so all of this is reported rather than edited.
 
 ### Validated against a banked figure before anything consumes it (`MB15`)
 

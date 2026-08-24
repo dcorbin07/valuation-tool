@@ -106,8 +106,14 @@ the project's memory and the old versions had been repeated for months.
     labelled as this lane's reading, F-11 and F-12 are long-option structures with no short leg
     and F-19 is *"a gate, not a book"*, while **F-6 is a zero-cost COLLAR whose short call leg is
     exactly what this module is for - so the graph's omission of F-6 is the one gap that could
-    have let a short leg declare unmodelled.** Built against the per-book column; **reported, not
-    edited**, since the map is the scout's file.
+    have let a short leg declare unmodelled.** **AND THE PER-BOOK COLUMN IS NOT CLEAN EITHER,
+    said because I built against it: F-20 is a MARRIED PUT - long stock plus a LONG protective
+    put - so its `I3` claim is the same over-claim in the other direction.** Reading the map's
+    own structure text, **seven** books genuinely carry a short option: F-4, F-6, F-7, F-8,
+    F-10, F-17, F-18. **The two errors are not equally dangerous:** omitting F-6 could have let
+    a collar's short call declare unmodelled, while including F-20 costs an unused import.
+    Built against the per-book column because it is the SUPERSET; **reported, not edited**,
+    since the map is the scout's file.
   * **IT LIVES IN `valuation/edge/` AND THAT WAS FORCED RATHER THAN PREFERRED:** `MA23`'s
     boundary test forbids any non-study module importing `valuation.studies`, and the `S3-I1`
     recorder is `paper_track` lineage, so a `studies/` placement would have been unimportable by
