@@ -568,8 +568,29 @@ def run_live(book: str, verbose: bool = True) -> dict:
     short_probe = dict(F.parse_declaration(_decl("short", with_short_fields=True))["declaration"])
     short_probe.pop("margin_method")
     v_sp = F.validate_declaration(short_probe, book=BOOK)
-    ck("L16 a SHORT declaration missing an S3-I3 field is REFUSED",
-       "SHORT_BOOK_REFUSED_BY_S3I3" in v_sp["refusals"], v_sp["refusals"])
+    # L16 ASSERTED A REFUSAL CODE THE SEAM NO LONGER PRODUCES, AND IT HAD NEVER RUN ANYWHERE.
+    #
+    # It required `SHORT_BOOK_REFUSED_BY_S3I3`, which fires only when the provider exposes a
+    # `validate_declaration` and that raises. r1's provider exposes three callables and no such
+    # method, so the refusal comes from `fleet`'s OWN presence check as `MISSING_FIELD:
+    # margin_method`. The book is refused either way -- the code names which LAYER caught it.
+    #
+    # **IT FIRST EXECUTED IN PRODUCTION.** The live leg runs only under `--live` and nobody had
+    # ever run it, so a wrong assertion sat green in the file for as long as it existed. *A
+    # check that has never executed is not evidence, and counting it among "17 of 17" was
+    # counting a check that had never been tried.*
+    #
+    # Rewritten to assert the PROPERTY rather than the layer, and STRENGTHENED rather than
+    # relaxed: the incomplete declaration must be refused AND the refusal must NAME the missing
+    # field, and a COMPLETE one must validate -- a positive control, so this cannot pass by
+    # refusing everything.
+    named = any("margin_method" in r for r in v_sp["refusals"])
+    v_ok = F.validate_declaration(
+        F.parse_declaration(_decl("short", with_short_fields=True))["declaration"], book=BOOK)
+    ck("L16 a SHORT declaration missing an S3-I3 field is REFUSED, and the refusal NAMES it",
+       (not v_sp["ok"]) and named, v_sp["refusals"])
+    ck("L16b and a COMPLETE short declaration still validates (positive control)",
+       v_ok["ok"], v_ok["refusals"])
 
     n_pass = sum(1 for c in checks if c["pass"])
     return {"ok": n_pass == len(checks), "checks": checks, "n_pass": n_pass,
