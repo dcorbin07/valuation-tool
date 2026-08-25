@@ -764,6 +764,21 @@ _DECL_KIND_STATUS = ((("close",), CLOSED), (("meter_read",), VERDICT_READ),
 
 _JSON_BLOCK = re.compile(r"```json\s*\n(.*?)\n```", re.S)
 
+#: A leading `DECL` / `DECL DRAFT` marker in a document's own heading. Stripped for display.
+#:
+#: MEASURED 2026-08-24: 17 of the 18 COMMITTED declarations still open with `# DECL DRAFT —`.
+#: The fleet lane renamed them out of `DECL_DRAFT_*`, gave them their json blocks and committed
+#: them alone — which is what makes them declarations — and left the heading behind. Rendering
+#: that verbatim puts the word DRAFT on every row of a shelf whose entire claim is that these
+#: books were committed in advance, which is the same false impression as listing drafts, in
+#: the opposite direction.
+#:
+#: The status column is this page's own and is derived from the harness, so the document's
+#: heading has no business restating it. Stripping the marker is a DISPLAY normalisation and
+#: not a rewrite: the documents are another lane's and are untouched, and the discrepancy is
+#: reported rather than quietly papered over.
+_DECL_TITLE_MARK = re.compile(r"^\s*DECL(\s+DRAFT)?\s*[\u2014\u2013:\-]*\s*", re.I)
+
 DECL_HEADING = "Books declared before their data existed"
 
 DECL_LEDE = (
@@ -888,11 +903,13 @@ def declared_books(root: str = None, today=None) -> dict:
         except OSError:
             continue
 
-        title = ""
+        title, title_said_draft = "", False
         for line in text.splitlines():
             t = line.strip()
             if t.startswith("# "):
-                title = withhold(t[2:].strip())
+                head = t[2:].strip()
+                title_said_draft = bool(re.match(r"^\s*DECL\s+DRAFT\b", head, re.I))
+                title = withhold(_DECL_TITLE_MARK.sub("", head).strip())
                 break
 
         decl = _declaration(text, F)
@@ -920,6 +937,10 @@ def declared_books(root: str = None, today=None) -> dict:
             "file": name,
             "book": book,
             "title": title or book,
+            # True when the DOCUMENT still calls itself a draft while being a committed
+            # declaration. Reported in the payload rather than only smoothed over, because a
+            # display fix that hides a real inconsistency is how it stays unfixed.
+            "title_said_draft": title_said_draft,
             "commit": commit,
             "commit_known": bool(commit),
             "horizon": horizon,
@@ -941,6 +962,7 @@ def declared_books(root: str = None, today=None) -> dict:
         "record_available": any(b["recorded"] for b in books),
         "any_overdue": any(b["overdue"] for b in books),
         "any_unlabelled": any(not b["horizon_labelled"] for b in books),
+        "titles_saying_draft": sum(1 for b in books if b["title_said_draft"]),
         "heading": DECL_HEADING,
         "lede": DECL_LEDE,
         "no_figures": DECL_NO_FIGURES,

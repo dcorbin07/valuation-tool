@@ -594,6 +594,55 @@ def test_a_title_from_a_declaration_is_withheld_like_any_other_borrowed_text():
         assert "7.17" not in b["title"], b["title"]
 
 
+def test_a_committed_declaration_is_not_rendered_under_a_draft_heading():
+    """MEASURED ON THE REAL FLEET, 2026-08-24: 17 of the 18 committed declarations still open
+    with `# DECL DRAFT —`. The lane renamed them out of `DECL_DRAFT_*`, gave them their json
+    blocks and committed them alone — which is what makes them declarations — and left the
+    heading behind.
+
+    Rendering that verbatim puts the word DRAFT on every row of a shelf whose entire claim is
+    that these books were committed in advance: the same false impression as listing drafts,
+    in the opposite direction. The status column is this page's own and is derived from the
+    harness, so the document's heading has no business restating it.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        body = _decl("a", horizon="2027-08-20")
+        body = body.replace("# DECL a", "# DECL DRAFT — F-1: THE FILL A/B (fleet book #1)")
+        _fleet_dir(d, {"DECL_a.md": body})
+        s = RR.declared_books(root=d)
+        b = s["books"][0]
+        assert "DRAFT" not in b["title"].upper(), b["title"]
+        assert b["title"].startswith("F-1:"), b["title"]
+        # ...and the discrepancy is REPORTED, not silently smoothed over: a display fix that
+        # hides a real inconsistency is how it stays unfixed.
+        assert b["title_said_draft"] is True, b
+        assert s["titles_saying_draft"] == 1, s["titles_saying_draft"]
+
+
+def test_a_clean_heading_is_left_alone_and_is_not_counted():
+    """The negative control. Stripping must not fire on a heading that never said draft."""
+    with tempfile.TemporaryDirectory() as d:
+        body = _decl("a").replace("# DECL a", "# F-9: FLAG-TRANSITION PUTS (long book)")
+        _fleet_dir(d, {"DECL_a.md": body})
+        s = RR.declared_books(root=d)
+        assert s["books"][0]["title"] == "F-9: FLAG-TRANSITION PUTS (long book)"
+        assert s["books"][0]["title_said_draft"] is False
+        assert s["titles_saying_draft"] == 0
+
+
+def test_normalising_the_heading_does_not_readmit_a_draft_FILE():
+    """The two are different things and only one of them is cosmetic. A file still NAMED
+    `DECL_DRAFT_*` is excluded whatever its heading says."""
+    with tempfile.TemporaryDirectory() as d:
+        _fleet_dir(d, {
+            "DECL_a.md": _decl("a").replace("# DECL a", "# DECL DRAFT — F-1: something"),
+            "DECL_DRAFT_b.md": _decl("b").replace("# DECL b", "# F-2: a clean heading"),
+        })
+        s = RR.declared_books(root=d)
+        assert [b["file"] for b in s["books"]] == ["DECL_a.md"], s["books"]
+        assert s["drafts_excluded"] == 1, s["drafts_excluded"]
+
+
 def test_the_status_vocabulary_is_closed_and_every_status_has_a_blurb():
     """CLOSED added 2026-08-24 at the declaration ceremony, and this literal is why it had to
     be a deliberate act: the vocabulary is pinned here, so widening it fails until the same

@@ -90,9 +90,34 @@ Reported because they were real and because both were found by mutation rather t
   the **mobile override**, which sets `border-left:0` — so deleting the real separator left the
   test green. It now examines every `.lb-stat.rep` block and requires a **non-zero** border.
 
+## 4b. THE SHELF WENT LIVE MID-SESSION, AND IT CAUGHT SOMETHING IMMEDIATELY
+
+Merging `origin/main` brought the fleet's real declarations in, so `S3-I7`'s shelf — shipped
+empty last session — now renders **18 books, with 3 drafts correctly excluded**, commits
+resolved from the harness and fill counts shown. The draft exclusion is doing real work on the
+first day it had anything to exclude.
+
+**AND IT SURFACED AN INCONSISTENCY IN THE OTHER DIRECTION. 17 of the 18 COMMITTED declarations
+still open with `# DECL DRAFT —`.** The lane renamed them out of `DECL_DRAFT_*`, gave them
+their json blocks and committed them alone — which is exactly what makes them declarations —
+and left the heading behind. Rendered verbatim, that puts the word DRAFT on every row of a
+shelf whose entire claim is that these books were committed in advance: the same false
+impression as listing drafts, pointing the other way.
+
+The status column is this page's own and is derived from the harness, so a document's heading
+has no business restating it. The rendered title now has a leading `DECL` / `DECL DRAFT` marker
+stripped — a display normalisation, not a rewrite; **the documents are the fleet lane's and are
+untouched**. The discrepancy is **counted in the payload** (`titles_saying_draft`) rather than
+only smoothed over, because a display fix that hides a real inconsistency is how it stays
+unfixed. **REPORTED to the fleet lane: 17 committed declarations want their heading updated.**
+
+Pinned three ways, including a negative control (a clean heading is left exactly alone) and the
+one that matters most: **normalising a heading does not readmit a draft FILE** — the two are
+different things and only one of them is cosmetic.
+
 ## 5. Verification
 
-**50 of 50 in the PT-SPMO suite; 11 of 11 tripwire mutations caught with every source restored
+**50 of 50 in the PT-SPMO suite, 42 of 42 in the shelf suite; 13 of 13 tripwire mutations caught with every source restored
 byte-for-byte** — the hero deriving its own excess, the hero bypassing `claim()`, the reported
 block gating the band, the subordinate class dropped, the not-bound sentence dropped, the as-of
 mismatch absorbed, the tiles losing their size and weight difference, the separator removed,
