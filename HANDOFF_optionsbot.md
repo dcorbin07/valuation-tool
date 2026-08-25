@@ -9462,3 +9462,116 @@ that Action ran.
 itself is Don's. It is reported here because family (D)'s whole value is that a series starts
 accruing TODAY, and a silently unreachable service is the one failure that would make that
 false while every test still passes.
+
+---
+
+## 74. THE FIRST REAL DISPATCH FOUND WHAT NO LOCAL TEST COULD — **the declarations never reached the image** (2026-08-25)
+
+**Executor: options-live lane.** `fleet-cycle.yml` merged (PR #3, `d2bda55`) and Don dispatched
+run #1: **HTTP 200 in nine seconds.** Its annotation said the fleet had *"no entry rule
+implemented"* while F-1, F-3 and F-8 were armed and the `register_all` gap was fixed. **Both
+halves of that contradiction were wrong, and resolving it is this section.**
+
+### WHAT THE LIVE BODY ACTUALLY SAID
+
+    assignment_provider_registered : true
+    entry_rules_registered         : ["f1_fill_ab", ...]
+    books_declared                 : 0        <- THE DEFECT
+    entry_rules_implemented        : 0
+    breathing                      : false
+
+**The rules were registered. The BOOKS were not.** `entry_rules_implemented` counts PER-BOOK
+rows, so with zero books it reads zero however many rules exist — which is why it looked like
+the arming had not landed when it had.
+
+**TWO STACKED GAPS IN `.dockerignore`, AND NEITHER IS FIXED BY THE OTHER.** `*.md` is excluded
+(only `!README.md` negated), so **no `DECL_*.md` reaches the image**; and `.git` is excluded,
+so `declaration_commit` cannot run `git log` there. **Shipping the markdown alone would have
+turned zero books into eighteen books that all refuse with `GIT_UNAVAILABLE`** — the
+"committed ALONE" proof is a git fact and there is no git in the image. **The commit evidence
+had to travel with the declaration.**
+
+### THE FIX: A DECLARATION MANIFEST, ON THE SAME PRECEDENT AS THE GATES
+
+`data_export/fleet_declarations.json` carries per book: the declaration's **content hash**, its
+parsed block, and the three git facts — introducing commit, touched exactly one file, ancestor
+of the manifest's HEAD. **Computed where git exists; verified where it does not.** 18 books,
+all `committed_alone`; the three prose DRAFTS are **skipped with reasons and never exported**,
+because a record of what was verified must not carry what was not. It **refuses to write an
+empty manifest**, which would silently disarm the whole fleet in the image.
+
+**TWO EVIDENCE GRADES, AND THE GATE ALWAYS SAYS WHICH.** In any worktree the strong path is
+**untouched**: the declaration is read from disk, the commit facts are RE-DERIVED from git
+every time, and the manifest is never consulted (`evidence: "git"`). In the image it falls back
+(`evidence: "manifest"`). **That is a real weakening and it is never silent** — a
+manifest-graded gate trusts a file built from a commit and shipped in an image, where a
+git-graded one re-derives the proof. Recorded on every gate result, so no fill can later be
+read as carrying git-grade evidence when it does not.
+
+**Measured on a simulated image** (`data_export/` only, no markdown, no `.git`):
+`books_declared` **0 → 18**, `entry_rules_implemented` **3**, `evidence: "manifest"`.
+
+### THE ANNOTATION BLAMED THE ONE THING THAT WAS NOT WRONG — **AND IT IS MY STRING**
+
+`fleet-cycle.yml` prints *"no entry rule implemented"* whenever `breathing` is not true, having
+tested **only** `breathing`. **It is the exact defect the harness was built to avoid** — a
+cause asserted without being measured — **and I shipped it in the yaml I wrote.**
+
+`cycle()` now derives **`not_breathing_reason`**: `NO_BOOKS_VISIBLE`,
+`NO_ENTRY_RULE_IMPLEMENTED`, `ALL_BOOKS_BLOCKED_AT_GATE:<codes>`, `NO_ARMED_BOOK_RAN` —
+**ordered most-fundamental first**, because a fleet with no books also has no implemented rules
+and no blocked books, and reporting the downstream symptom sends a reader to the wrong fix.
+That is precisely what happened. `.github/` is untouchable to this lane, so the one-line
+workflow correction is a **request** in `FLEET_RUNNER_PR_REQUEST.md`; the body now carries the
+true cause beside the wrong annotation until it lands.
+
+### (D) A SERIES THAT FAILS TO START IS NOW LOUD
+
+Family (D)'s whole value is a clock that starts TODAY, and **the one failure that makes that
+false while every test still passes is a series that quietly records nothing.** Every series is
+now RE-READ from disk after the attempt; one still ABSENT lands in `failed_to_start` with an
+alarm the door surfaces at the top of the body.
+
+**ABSENT-AFTER-ATTEMPT is the test, not the writer's return value** — pinned with a CHEERFUL
+writer that returns `ok: true, wrote: true` and leaves nothing on disk, which the read-back
+catches. An idempotent re-run still counts as STARTED: the clock IS running.
+
+### THE DEPLOYMENT STATE, PLAINLY
+
+* **The service is UP.** Run #1 succeeded in nine seconds. **Today's `PT-WRITER` HTTP 000 was
+  transient, not a dead deployment** — my previous section could not distinguish those and said
+  so; it is now settled, and **that day is still a logged gap**, by the same rule this lane
+  built into its own recorders.
+* **Deployed and working in production:** the assignment provider (A), the gates artifact
+  (`evt_clean` 211 names as of 2025-10-27), the `register_all` fix, and **the recorders** —
+  `history_recorded {"date":"2026-08-25","recorded":3}`. **The two-year clocks are running in
+  production**, which the previous handoff explicitly could not assert.
+* **NOT yet deployed:** everything in this section, until the branch lands and the service
+  redeploys.
+* **THE NEXT BLOCKER, AND IT IS NOW THE ONLY ONE BETWEEN THE FLEET AND A FILL: every book on
+  the service reads `SELFCHECK_ABSENT`.** Don's ruling is that no book fills until the harness
+  passes its own day-1 verification, and **nothing runs that verification on the service** —
+  `scripts/fleet_selfcheck.py` is a local runner and there is no door for it. **Deliberately
+  not slipped into the cycle here:** a self-verification that a cycle silently runs on its own
+  behalf is exactly the kind of gate that should be adopted on purpose rather than acquired as
+  a side effect, and it is the last gate standing between a declared book and a real order.
+
+### THE COUNT
+
+**ARMED 3** — F-1, F-3, F-8. **REFUSED BACK 2** — F-2, F-13. **STILL PROSE 12.**
+
+**BLOCKED BY FAMILY, after this pass:**
+
+* **(A) S3-I3 — CLEARED, and proven in production**, not merely locally.
+* **(B) THE IMAGE GAP — CLEARED for flags AND for declarations.** What remains is **one
+  decision, Don's**: whether per-name DATES may leave the licensed store. Blocks F-12 and F-15
+  and nothing else. A bit per name ships; a date per name is much closer to the vendor's
+  dataset and this lane did not make that call.
+* **(C) HARNESS — CLEARED** (landed §73): multi-leg as a net-cost structure, first-class skips.
+* **(D) HISTORY — STARTED, RUNNING IN PRODUCTION, AND NOW LOUD IF IT STOPS.** What remains is
+  TIME: F-5 needs ~20 observations, F-19 and F-20 two years. Nothing accelerates these.
+* **STRUCTURAL, unchanged: F-4 and F-17 are refusal candidates on F-13's exact ground** — both
+  need a FORWARD earnings date from a backward-only filing record. Held for one scout decision
+  rather than three.
+
+**ZERO TRIALS.** `by_domain` untouched by this lane; no fill, no meter read.
