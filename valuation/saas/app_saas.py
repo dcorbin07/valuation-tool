@@ -794,6 +794,20 @@ def create_saas_app(cfg=CONFIG):
             res["gates_ok"] = bool(_g.get("ok"))
             if not _g.get("ok"):
                 res["gates_reason"] = _g.get("reason", "")
+
+            # THE IMAGE AUDIT, measured HERE because here is where the runner runs. Four
+            # deploy-only defects were each invisible to a green local suite, so the claim
+            # "only a bit leaves the licensed store" travels as a measurement taken by the
+            # deployed process rather than as an assertion made in a worktree.
+            res["image_audit"] = fleet_gates.image_audit()
+            # Also state what the HARNESS can express here, so a reader does not have to infer
+            # from a version number whether the multi-leg and skip machinery actually shipped.
+            res["harness"] = {
+                "multileg": hasattr(fleet, "submit_multileg"),
+                "net_rules": list(getattr(fleet, "NET_RULES", ())),
+                "skip_records": "skip" in getattr(fleet, "EVENT_KINDS", ()),
+                "never_fires_after": getattr(fleet, "NEVER_FIRES_AFTER", None),
+            }
             res["assignment_provider_registered"] = fleet.assignment_provider() is not None
             res["assignment_note"] = (
                 "S3-I3 registered: the six short books no longer refuse with "

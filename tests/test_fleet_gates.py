@@ -23,6 +23,7 @@ import datetime as dt
 import io
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -205,6 +206,67 @@ class ThreeStatesNeverTwo(unittest.TestCase):
         cov = G.coverage(self.root)
         self.assertFalse(cov["gates"]["evt_clean"]["present"])
         self.assertIn("stranded", cov["gates"]["evt_clean"]["reason"])
+
+
+class TheImageAuditPinsBothDirections(unittest.TestCase):
+    """`image_audit` is measured BY the deployed process, so it must be able to FAIL.
+
+    A negative check that cannot fire is the vacuous pass this record has caught repeatedly --
+    and this one passes trivially in a worktree, whose `data/` is empty. So both halves get a
+    positive control here rather than resting on the image happening to be clean.
+    """
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="audit_")
+        os.makedirs(os.path.join(self.root, "data_export"), exist_ok=True)
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_a_clean_image_passes_and_says_only_booleans_left(self):
+        _write(self.root, _payload(g1={"as_of": "2026-01-28",
+                                       "tickers": {"AAPL": True, "MSFT": False}}))
+        a = G.image_audit(self.root)
+        self.assertTrue(a["ok"])
+        self.assertEqual(a["non_bool"], 0)
+        self.assertEqual(a["type_census"], {"bool": 2})
+        self.assertIn("ONLY BOOLEANS", a["verdict"])
+
+    def test_a_NON_BOOLEAN_value_FAILS_the_audit_and_is_counted(self):
+        """The leak this forbids: a Beneish M or a tail mass smuggled in beside its flag."""
+        _write(self.root, _payload(g1={"as_of": "2026-01-28",
+                                       "tickers": {"AAPL": True, "MSFT": 1.234}}))
+        a = G.image_audit(self.root)
+        self.assertFalse(a["ok"])
+        self.assertEqual(a["non_bool"], 1)
+        self.assertIn("float", a["type_census"])
+        self.assertIn("non-boolean", a["verdict"])
+
+    def test_a_LICENSED_EXPORT_on_the_filesystem_FAILS_the_audit_BY_NAME(self):
+        """Probed by looking for the FILES, never by reading `.dockerignore` -- a rule reading
+        `data/` must not be able to work off a stray copy while the audit reads a config."""
+        _write(self.root, _payload(g1={"as_of": "2026-01-28", "tickers": {"AAPL": True}}))
+        self.assertTrue(G.image_audit(self.root)["ok"], "control: clean first")
+        leak = os.path.join(self.root, "data", "bulk", "events.csv")
+        os.makedirs(os.path.dirname(leak), exist_ok=True)
+        with io.open(leak, "w", encoding="utf-8") as fh:
+            fh.write("ticker,date,eventcodes\n")
+        a = G.image_audit(self.root)
+        self.assertFalse(a["ok"])
+        self.assertIn("data/bulk/events.csv", a["licensed_present"])
+        self.assertIn("licensed exports PRESENT", a["verdict"])
+
+    def test_a_MISSING_artifact_fails_rather_than_passing_by_seeing_nothing(self):
+        a = G.image_audit(self.root)
+        self.assertFalse(a["ok"])
+        self.assertFalse(a["artifact_present"])
+        self.assertEqual(a["type_census"], {}, "nothing counted, and that is a FAILURE")
+
+    def test_every_licensed_path_it_probes_is_named_so_the_list_can_be_reviewed(self):
+        self.assertGreaterEqual(len(G.LICENSED_PATHS), 5)
+        joined = " ".join(G.LICENSED_PATHS).replace("\\", "/")
+        for expect in ("events.csv", "insiders.csv", "fundamentals.csv"):
+            self.assertIn(expect, joined)
 
 
 class TheShippedArtifactIsReadableInTheImage(unittest.TestCase):
