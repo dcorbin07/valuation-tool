@@ -53,7 +53,23 @@ PRODUCTS = {
     },
     "ibes_actu_epsus": {
         "lib": "ibes", "table": "actu_epsus", "year_col": "anndats",
-        "why": "IBES actuals (unadjusted) -- the realised number behind a surprise.",
+        "why": "IBES actuals (UNADJUSTED) -- pairs with detu_epsus, NOT with det_epsus.",
+    },
+    # THE PULL WAS INTERNALLY INCONSISTENT UNTIL THIS ROW EXISTED, and the D6 ledger note had
+    # already written down the exact hazard: "det_epsus (split-adjusted) and detu_epsus
+    # (unadjusted) are NOT interchangeable -- an adjusted estimate against an unadjusted actual
+    # is a units error that reads as a surprise". The pull then took `det_epsus` (ADJUSTED) and
+    # `actu_epsus` (UNADJUSTED), i.e. the warned-against pairing, because the two file names
+    # differ by ONE LETTER and only one of the four names carries the `u`.
+    #
+    # Nothing was computed from it, so nothing is retracted -- but a surprise built from the pull
+    # as it stood would have been wrong by every split in the sample, silently, in a direction
+    # that varies by name. `act_epsus` is the ADJUSTED actual and is the counterpart `det_epsus`
+    # needs; `actu_epsus` is kept because it is the counterpart `detu_epsus` would need.
+    # A register must still DECLARE which pair it uses.
+    "ibes_act_epsus": {
+        "lib": "ibes", "table": "act_epsus", "year_col": "anndats",
+        "why": "IBES actuals (ADJUSTED) -- the counterpart det_epsus needs; see the note above.",
     },
     "ibes_statsum_epsus": {
         "lib": "ibes", "table": "statsum_epsus", "year_col": "statpers",
@@ -118,6 +134,46 @@ def append_manifest(rec: dict, root: str = "") -> None:
         os.fsync(fh.fileno())        # the checkpoint must survive a hard kill
 
 
+def _replace_retry(tmp: str, dst: str, tries: int = 8) -> None:
+    """os.replace, retried on the Windows AV race.
+
+    Measured here 2026-08-24: `comp_pit` 2003 failed with
+    `PermissionError [WinError 32] ... being used by another process` on a freshly written .pkl,
+    which is the scanner still holding the temp file, not corruption and not a data problem.
+
+    THIRD TIME THIS EXACT RACE HAS BEEN HIT IN THIS PROJECT and the second time in this lane --
+    `freeze_chain_store.py` already carries the identical helper, written after the same failure
+    ~3,000 files into the first chain freeze. It did not travel with the code. Any writer on this
+    machine that does tmp + os.replace needs it.
+
+    It RAISES rather than skipping if the file still will not land: a skipped chunk is a silent
+    hole in a pull whose whole point is completeness.
+
+    A MISSING tmp is a DIFFERENT failure and is deliberately NOT retried here: retrying
+    `os.replace` on a file that no longer exists can only fail eight more times. It is raised
+    straight through to the caller's retry loop, which re-fetches the chunk.
+
+    A CORRECTION AGAINST THIS DOCSTRING'S OWN FIRST DRAFT, kept because the error is the useful
+    part. It said `FileNotFoundError [WinError 2]` on `comp_pit` 2022 was "the same scanner,
+    quarantining rather than merely holding". **THAT CAUSE WAS ASSERTED, NOT MEASURED, AND THE
+    MEASURED CAUSE IS AN OPERATOR ERROR OF MINE: two `wrds_pull` processes were running against
+    the same product at once**, so one replaced the tmp the other was about to replace. WinError 2
+    and WinError 32 are exactly what that looks like from either side. The 2003 WinError 32 that
+    prompted this helper WAS single-process and is still the scanner race; the later ones were
+    not. **A file-layer symptom does not identify its cause, and "the antivirus did it" is the
+    most available explanation rather than the demonstrated one.** The concurrency hole itself is
+    closed by `_acquire_lock` rather than by tolerating it here.
+    """
+    for k in range(tries):
+        try:
+            os.replace(tmp, dst)
+            return
+        except PermissionError:
+            if k == tries - 1:
+                raise
+            time.sleep(0.25 * (k + 1))
+
+
 def sha256(path: str) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as fh:
@@ -136,11 +192,29 @@ def needs_pull(product: str, chunk: str, man: dict, root: str = "") -> bool:
     return os.path.getsize(p) != rec.get("bytes")
 
 
+#: Chunk key for rows whose chunk column is NULL. Not a year, deliberately -- naming it "0000"
+#: or similar would let it sort in among the years and read as a data range.
+NULLDATE = "nulldate"
+
+
 def chunks_for(db, product: str) -> list:
     """Chunk keys, derived from the DATA rather than assumed.
 
     A hard-coded year range would silently drop a year the vendor added, and silently spend
     queries on years that do not exist. Ask.
+
+    AND A ROW WITH NO DATE BELONGS TO NO YEAR, WHICH COST 102,213 ROWS BEFORE IT WAS CAUGHT.
+    Every chunk predicate is `>= Jan 1 and < Jan 1`, so a NULL date satisfies neither and the row
+    is dropped by EVERY chunk. Measured on `ibes.actu_epsus`: the census counted 1,323,271 rows,
+    the 51 year-chunks summed to 1,221,058, and the gap is exactly the 102,213 rows whose
+    `anndats` is NULL. **The hole is silent and it is in the flattering direction -- a pull that
+    looks complete, with a manifest full of `ok`.**
+
+    It was found by RECONCILING the summed chunk rows against the census `count(*)`, not by
+    anything raising, and the mechanism was then confirmed by control rather than assumed:
+    `det_epsus` and `statsum_epsus` reconcile EXACTLY and carry ZERO nulls on their own chunk
+    columns. A `nulldate` chunk closes it, and it is emitted only where such rows actually exist,
+    so no product acquires an empty chunk it does not need.
     """
     spec = PRODUCTS[product]
     if not spec["year_col"]:
@@ -148,7 +222,11 @@ def chunks_for(db, product: str) -> list:
     yc, lib, tbl = spec["year_col"], spec["lib"], spec["table"]
     df = db.raw_sql(f"select distinct extract(year from {yc})::int as y "
                     f"from {lib}.{tbl} where {yc} is not null order by 1")
-    return [str(int(y)) for y in df["y"].tolist()]
+    keys = [str(int(y)) for y in df["y"].tolist()]
+    n = db.raw_sql(f"select count(*) as n from {lib}.{tbl} where {yc} is null")
+    if int(n["n"].iloc[0]):
+        keys.append(NULLDATE)
+    return keys
 
 
 def pull_chunk(db, product: str, chunk: str, root: str = "") -> dict:
@@ -157,6 +235,8 @@ def pull_chunk(db, product: str, chunk: str, root: str = "") -> dict:
     t0 = time.time()
     if chunk == "all":
         sql = f"select * from {lib}.{tbl}"
+    elif chunk == NULLDATE:
+        sql = f"select * from {lib}.{tbl} where {yc} is null"
     else:
         y = int(chunk)
         sql = (f"select * from {lib}.{tbl} where {yc} >= '{y}-01-01' "
@@ -167,7 +247,7 @@ def pull_chunk(db, product: str, chunk: str, root: str = "") -> dict:
     p = os.path.join(product_root(product, root), f"{product}_{chunk}.pkl")
     tmp = p + ".tmp"
     df.to_pickle(tmp, compression="gzip")
-    os.replace(tmp, p)               # payload lands BEFORE its manifest line
+    _replace_retry(tmp, p)           # payload lands BEFORE its manifest line
     rec = {"schema": SCHEMA, "product": product, "chunk": chunk,
            "library": lib, "table": tbl, "rows": int(len(df)),
            "columns": int(df.shape[1]), "bytes": os.path.getsize(p),
@@ -178,7 +258,96 @@ def pull_chunk(db, product: str, chunk: str, root: str = "") -> dict:
     return rec
 
 
+#: How many times a chunk is retried on a CONNECTION failure, each on a fresh connection.
+def _acquire_lock(product: str, root: str = "") -> str:
+    """Refuse to run while another process is pulling the same product.
+
+    MEASURED, NOT ANTICIPATED (2026-08-24). Two `wrds_pull --product comp_pit` processes were
+    started against the same tree, both computed the same `todo` list from the same manifest, and
+    both wrote `comp_pit_<year>.pkl.tmp`. Three chunks then failed with WinError 32 and WinError 2
+    -- symptoms that read as antivirus and were briefly written up as antivirus. Nothing was
+    corrupted, because the payload write is atomic and the manifest is append-only, so between
+    them the two runs finished the product. **It was luck: the loser of the race could equally
+    have replaced a truncated file, and a resume design whose safety depends on who wins is not a
+    safe design.**
+
+    Deliberately a plain lock file with the owning pid, not a lease: it fails CLOSED and a stale
+    lock is removed by hand after looking at the pid, which on a data pull is the right way round.
+    """
+    p = os.path.join(root or W.DEFAULT_RAW_ROOT, f".pull.{product}.lock")
+    if os.path.exists(p):
+        try:
+            who = open(p, encoding="utf-8").read().strip()
+        except Exception:                                               # noqa: BLE001
+            who = "unreadable"
+        raise SystemExit(
+            f"[wrds] REFUSED: {product} is already being pulled ({who}).\n"
+            f"       Two pullers on one product race on the same .tmp path.\n"
+            f"       If that process is gone, delete {p} and re-run.")
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, "w", encoding="utf-8") as fh:
+        fh.write(f"pid={os.getpid()} started={W.stamp()}")
+    return p
+
+
+MAX_RECONNECTS = 3
+
+#: Substrings that mean "the SESSION is unusable", not "the query was wrong". Only these are
+#: retried -- retrying a genuine SQL error just burns the same error three times.
+#:
+#: THE SECOND GROUP IS THE ONE THAT COST A RUN, and it is the first group's defect wearing a
+#: different message. Measured 2026-08-24: after `comp_pit` 2022 failed at the file layer, every
+#: remaining chunk came back "Can't reconnect until invalid transaction is rolled back" -- a
+#: POISONED transaction rather than a dead socket, so `_is_dead_connection` did not match, the
+#: retry never fired, and 2024/2025/2026 failed in a row for a reason none of them caused.
+#: Identical shape to the original one-connection defect: ONE bad chunk silently condemns the
+#: rest. A recovery rule keyed on one spelling of "the session is gone" is not a recovery rule.
+#: EVERY NEEDLE MUST BE LOWERCASE -- the haystack is lowercased and the needles are not, so a
+#: capitalised entry can never match. That is not hypothetical: "SSL connection has been closed"
+#: and "EOF detected" were carried over verbatim from a version that lowercased both sides, and
+#: were dead for exactly as long as it took the two-directional test below to run. A guard that
+#: silently cannot fire is the failure family this project has now hit six times.
+_DEAD_CONN = ("server closed the connection", "connection already closed",
+              "terminating connection", "ssl connection has been closed",
+              "could not receive data", "connection not open", "eof detected",
+              # poisoned session: the handle is alive and refuses to do any further work
+              "invalid transaction is rolled back", "can't reconnect until",
+              "current transaction is aborted", "connection is closed")
+
+#: A tmp file that vanished between write and replace. Not a connection fault at all, but the
+#: recoverable action is the same one -- re-fetch and rewrite the chunk -- so it joins the
+#: retryable set rather than getting a second, parallel retry loop.
+_TRANSIENT_FS = ("cannot find the file specified", "winerror 2",
+                 "being used by another process", "winerror 32")
+
+
+def _is_retryable(err: str) -> bool:
+    low = err.lower()
+    return any(s in low for s in _DEAD_CONN) or any(s in low for s in _TRANSIENT_FS)
+
+
 def run(product: str, root: str = "", limit: int = 0) -> dict:
+    lock = _acquire_lock(product, root)
+    try:
+        return _run_locked(product, root, limit)
+    finally:
+        try:
+            os.remove(lock)
+        except OSError:
+            pass
+
+
+def _run_locked(product: str, root: str = "", limit: int = 0) -> dict:
+    # ONE connection reused across every chunk was a real defect, measured 2026-08-24: WRDS
+    # closed the connection during `comp_pit`'s 2002 chunk and the SAME dead handle was then used
+    # for every remaining chunk, so 25 of 66 failed in a row with
+    # "server closed the connection unexpectedly". None of them was a data problem.
+    #
+    # This is the ThetaData miner's dead-channel defect in a second costume -- that lane already
+    # carries the comment "force a fresh channel; a dead one stays dead" -- and the lesson did not
+    # travel with the code. A long pull WILL be disconnected by the server; that is normal
+    # operation for a shared database, not an incident, so the puller reconnects and retries the
+    # affected chunk rather than recording a failure it could have avoided.
     db = W.connect()
     man = load_manifest(root)
     keys = chunks_for(db, product)
@@ -191,13 +360,42 @@ def run(product: str, root: str = "", limit: int = 0) -> dict:
     done, gb = 0, 0.0
     t0 = time.time()
     for c in todo:
-        try:
-            rec = pull_chunk(db, product, c, root)
-        except Exception as e:                                          # noqa: BLE001
-            rec = {"schema": SCHEMA, "product": product, "chunk": c,
-                   "status": "failed", "error": f"{type(e).__name__}: {str(e)[:240]}",
-                   "utc": W.stamp()}
-            print(f"[wrds] {product} {c}: FAILED {rec['error'][:120]}", flush=True)
+        rec = None
+        for attempt in range(MAX_RECONNECTS + 1):
+            try:
+                rec = pull_chunk(db, product, c, root)
+                if attempt:
+                    rec["reconnects"] = attempt
+                break
+            except Exception as e:                                      # noqa: BLE001
+                err = f"{type(e).__name__}: {str(e)[:240]}"
+                if attempt < MAX_RECONNECTS and _is_retryable(str(e)):
+                    wait = 5 * (attempt + 1)
+                    print(f"[wrds] {product} {c}: session unusable ({type(e).__name__}) "
+                          f"(attempt {attempt + 1}/{MAX_RECONNECTS}), reconnecting in {wait}s",
+                          flush=True)
+                    time.sleep(wait)
+                    try:
+                        db.close()
+                    except Exception:                                   # noqa: BLE001
+                        pass                     # a dead handle may refuse to close; irrelevant
+                    db = W.connect()
+                    continue
+                rec = {"schema": SCHEMA, "product": product, "chunk": c,
+                       "status": "failed", "error": err,
+                       "attempts": attempt + 1, "utc": W.stamp()}
+                print(f"[wrds] {product} {c}: FAILED {err[:120]}", flush=True)
+                # A chunk that gives up may leave the session poisoned, and the NEXT chunk then
+                # fails for a reason it did not cause -- which is exactly how 25 chunks and then
+                # 3 more went down in this lane. One failure must cost ONE chunk, so the handle
+                # is replaced unconditionally before moving on. A fresh connect is ~2s against a
+                # multi-minute chunk, so the cost of doing this when it was not needed is nil.
+                try:
+                    db.close()
+                except Exception:                                       # noqa: BLE001
+                    pass
+                db = W.connect()
+                break
         append_manifest(rec, root)
         done += 1
         gb += rec.get("bytes", 0) / 1e9
@@ -210,6 +408,32 @@ def run(product: str, root: str = "", limit: int = 0) -> dict:
     print(f"[wrds] {product} finished: {done} chunks, {gb:.2f} GB, "
           f"{(time.time()-t0)/60:.0f} min", flush=True)
     return {"product": product, "chunks": done, "gb": round(gb, 3)}
+
+
+def reconcile(db, product: str, root: str = "") -> dict:
+    """Do the pulled chunks sum to the table's own `count(*)`?
+
+    THE CHECK THAT WOULD HAVE CAUGHT THE NULL-DATE HOLE ON DAY ONE, and it exists because
+    nothing else could: every chunk reported `ok`, every hash verified, every byte count matched,
+    and 102,213 rows were missing. **File-level integrity checks confirm that what was written is
+    intact; they cannot see what was never fetched.** A completeness check has to compare against
+    the SOURCE, so this asks the server.
+
+    Reported per product rather than raised: a legitimate mismatch exists the moment the vendor
+    adds rows after a pull, and a checker that cries wolf on ordinary staleness gets ignored.
+    """
+    spec = PRODUCTS[product]
+    lib, tbl = spec["lib"], spec["table"]
+    n = int(db.raw_sql(f"select count(*) as n from {lib}.{tbl}")["n"].iloc[0])
+    man = load_manifest(root)
+    got = sum(r.get("rows", 0) for k, r in man.items()
+              if r.get("product") == product and r.get("status") in ("ok", "empty"))
+    res = {"product": product, "source_rows": n, "pulled_rows": got,
+           "difference": n - got,
+           "reconciles": n == got}
+    print(f"[wrds] {product}: source {n:,} vs pulled {got:,} "
+          f"-> {'RECONCILES' if res['reconciles'] else f'SHORT BY {n-got:,}'}", flush=True)
+    return res
 
 
 def verify(root: str = "", full: bool = False) -> dict:
@@ -262,10 +486,20 @@ def main(argv=None):
     ap.add_argument("--root", default="")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--verify", action="store_true")
+    ap.add_argument("--reconcile", action="store_true",
+                    help="compare pulled row counts against the server's own count(*)")
     ap.add_argument("--full-hash", action="store_true")
     ap.add_argument("--summary", action="store_true")
     a = ap.parse_args(argv)
 
+    if a.reconcile:
+        db = W.connect()
+        man = load_manifest(a.root)
+        seen = sorted({r["product"] for r in man.values() if r.get("product") in PRODUCTS})
+        out = [reconcile(db, p, a.root) for p in ([a.product] if a.product else seen)]
+        print(json.dumps({"reconcile": out,
+                          "all_reconcile": all(r["reconciles"] for r in out)}, indent=1))
+        return
     if a.verify:
         verify(a.root, a.full_hash)
         return

@@ -1,5 +1,34 @@
 # HANDOFF — the data-miner lane. Chain harvest (closed) + the I-4 event spine.
 
+**LATEST: WRDS — CENSUS, PULL, PHASE 2 PROBES, AND A RE-PROBE THAT CORRECTED THE CENSUS
+(2026-08-24). Zero trials throughout; the full record is `WRDS_CENSUS.md`.** Four things a
+future reader needs and will not guess:
+
+1. **This account's Thomson verdict flipped, and the census had it wrong.** All eight `tfn.*`
+   tables genuinely return `permission denied` — re-verified on eight FRESH connections — but
+   `tfn` is a legacy shell, and WRDS's own SEC-derived products are ENTITLED:
+   **`wrdssec_all.wrds_13f_holdings`, 103,984,958 rows, 1987→2025**, and
+   **`wrdssec_insiders.table1`, 10,083,927 Form 4 transactions.** *A census that probes the names
+   in a brief measures the brief* — enumerate libraries first.
+2. **The 13F history does NOT repair the pre-2013 `institutional` hole. It buys ONE rebalance
+   date.** Filing managers step from 71 (2012) to 3,457 (2013) at the SEC's structured-XML
+   mandate, so pre-2013 rows are a handful of early filers touching many issuers. `MA58`'s
+   49-of-69 defect stands, and it is structural rather than an entitlement problem.
+3. **The pull had a silent hole and file-level checks could not see it.** `ibes.actu_epsus` was
+   short **102,213** rows while every chunk read `ok` and every sha256 verified: a NULL date
+   satisfies neither `>= Jan 1` nor `< Jan 1`, so those rows belonged to no chunk. Found by
+   reconciling against the server's own `count(*)`. **`wrds_pull.py --reconcile` now does that,
+   and all eight products reconcile to the row — 53,512,283 rows, 1.263 GB.**
+4. **Two ledger rows unpark and one permanently-closed row re-opens**, on PHASE 2's probes:
+   `B13`/`S7` on CRSP `dsf` ($ADV at 89.7% of the universe against the current path's 19.8%, over
+   64 of 69 dates), and **`S25` on `comp.co_hgic`** — a genuinely dated GICS history, 94.9%
+   coverage, 41.9% of our names reclassified — with the taxonomy caveat that its 11 GICS sectors
+   are not the panel's 11 Yahoo-style ones, so the crosswalk is a choice a register must own.
+
+**Fences unchanged: `D:\wrds` only, nothing licensed committed, derived statistics out.**
+
+---
+
 **LATEST: S3-I5 (ticker-reuse adjudication) + S3-I2 (catalyst calendar) — SHIPPED
 2026-08-23.** S3-I5 **lifts the Tier C/E quotability block** this file imposed on itself: 45
 units over 26 symbols adjudicated against a point-in-time identity — **36 REUSED, 7 SPLIT_YEAR
