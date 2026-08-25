@@ -9695,3 +9695,102 @@ accused of being unable to fire. Self-checks and refusals are not counted as obs
 No meter read, no verdict, `by_domain` untouched by this lane. **The test-book's real sandbox
 fill is machinery verification, not a measurement**, and it closes with a zero-charge row: the
 charge comes at FIRST VERDICT READ and there was none.
+
+---
+
+## 76. **THE FLEET IS BREATHING** — day-1 passed on the service, and three more defects that only production could find (2026-08-25)
+
+**Executor: options-live lane.** `HANDOFF 75` landed the machinery; this section is what
+happened when it was dispatched. **The gate is open.**
+
+### THE DOOR'S OWN NUMBERS, run `32812925499`, HTTP 200
+
+    books_declared          : 18
+    entry_rules_implemented : 3
+    breathing               : TRUE
+    not_breathing_reason    : ""          (was ALL_BOOKS_BLOCKED_AT_GATE:SELFCHECK_ABSENT)
+    fills_written           : 0
+
+    selfcheck  synthetic 20/20 · live 19/19 · 17 books certified · test-book CLOSED
+
+**`fills_written: 0` IS NOW A MARKET OBSERVATION AND NOT A BUILD GAP**, and that distinction is
+the whole reason the harness reports a measured cause: the rules RAN and selected nobody today.
+That is the state the fleet was built to be able to report honestly.
+
+**THE REAL SANDBOX FILL HAPPENED**, on the throwaway test-book, through the recorder — fill
+round-tripped and read back unchanged, chain verified, a tampered COPY refused and located, the
+out-of-order write refused, the short-book seam refused both ways, `F-1`'s randomizer
+reproduced from `(book, date, symbol)` — and the book was then **closed with a ZERO-CHARGE
+row.** No trial is charged: the charge comes at FIRST VERDICT READ and there was none.
+
+### THREE DEFECTS, ALL FOUND BY DISPATCHING RATHER THAN BY TESTING
+
+1. **THE SYNTHETIC SUITE COULD NOT RUN IN THE IMAGE AT ALL: THERE IS NO GIT BINARY.** The
+   Dockerfile is `python:3.11-slim` with no `apt-get install git`, and the suite builds a REAL
+   repository on purpose — checking a commit rule against a stub checks the stub. It raised on
+   its first line and reported `n_checks: 1, n_pass: 0`. **Fixed by mirroring the process being
+   verified rather than weakening the suite:** with no git the fixture seeds a MANIFEST, which
+   is the evidence grade the service's `may_fill` uses anyway, so the suite tests the path that
+   will actually run. **Checks 6 and 7 are reported NOT-RUN, never passed** (`O21-D2`'s C5) —
+   they exercise `declaration_commit`, and on the service `may_fill` does not take that path
+   either. Measured both ways: **20/20 with git, 20/20 without.**
+2. **`read_meter` WAS MANIFEST-BLIND** — it read the declaration from disk only, and it is the
+   **only door to a verdict**, so a file-only read made the meter unreadable on the one machine
+   that will ever have fills to read.
+3. **`L16` ASSERTED A REFUSAL CODE THE SEAM NO LONGER PRODUCES, AND IT FIRST EXECUTED IN
+   PRODUCTION.** It required `SHORT_BOOK_REFUSED_BY_S3I3`, which fires only if the provider
+   exposes a `validate_declaration`; r1's exposes three callables and none, so the refusal comes
+   from `fleet`'s own presence check as `MISSING_FIELD:margin_method`. The book is refused
+   either way — the code names which LAYER caught it, and I moved that layer in an earlier
+   session without updating the check that named it. **The live leg runs only under `--live`
+   and nobody had ever run it, so a wrong assertion sat green for as long as it existed — and
+   was counted among the register's own "17 of 17".** *A check that has never executed is not
+   evidence.* **STRENGTHENED, not relaxed:** it now asserts the property (refused AND the
+   refusal NAMES the field) plus a POSITIVE CONTROL that a complete short declaration still
+   validates, so it cannot pass by refusing everything.
+
+### THE PATTERN, WHICH IS WORTH MORE THAN THE THREE FIXES
+
+**FOUR TIMES NOW, THE SAME FAMILY: something present everywhere the code is TESTED and absent
+where the runner RUNS.** The licensed exports, the declarations themselves, the git binary, and
+`read_meter`'s file. **A local environment is not evidence about a deployed one, and every
+dependency that is ambient locally is a deployment question.** Every one of these was invisible
+to a green local suite and obvious within one dispatch.
+
+### THE SCOUT'S FIVE AMENDMENTS — ACCEPTED IN FULL, applied as dated sections
+
+* **F-2 REPAIRED, better than this lane recommended** — it now restates NO parameter (it calls
+  the engine's own menu builder and counts what comes back) and declares itself **SWING-ONLY**,
+  so a host outside the engine's fixed band is **INELIGIBLE TO HOST the gate rather than refused
+  BY it**. F-11 (91 DTE) is excluded by construction — the case that would have had the gate
+  refusing every F-11 order for a reason that was not about menu breadth.
+* **F-13 WITHDRAWN** — not refused, not failed: no trial, no meter, no verdict either way.
+* **AND THREE THE CEREMONY MISSED. F-4 carries F-13's defect in a book that was ACCEPTED**, and
+  F-17/F-18 inherit it **by prose reference** — which mutates silently when the parent is
+  amended, so each now adopts F-4's repaired rule **by content hash**. **None of the three is
+  armed and none may be until F-4's route resolves.**
+
+### `RULE_ARMED_NEVER_FIRES` — IMPLEMENTED
+
+The scout's third state. The harness separated *"no rule built"* from *"the rule ran and nobody
+qualified"*; it did **not** separate that from *"the rule CANNOT qualify anybody, ever"*. F-4 is
+the second — it *"arms cleanly and reports skip_rate 1.0 forever, indistinguishable from a quiet
+market."* **It cannot cry wolf** (`MA21`'s standard): a rule that has selected nothing across
+many cycles is a fact about the RULE, and **one fill clears it however many skips surround it.**
+
+### THE COUNT, AND THE DEPLOYMENT STATE
+
+**ARMED 3** (F-1, F-3, F-8) · **REFUSED BACK / WITHDRAWN 2** (F-2 repaired-and-back, F-13
+withdrawn) · **STILL PROSE 12**, of which **F-4, F-17 and F-18 are explicitly barred from arming**
+until F-4's route resolves.
+
+**BLOCKED BY FAMILY:** (A) cleared and proven in production. (B) cleared for flags, declarations
+AND the git binary; **one decision remains, Don's** — whether per-name DATES may leave the
+licensed store (F-12, F-15 only). (C) cleared. (D) running in production and loud if a series
+fails to start; what remains is TIME.
+
+**DEPLOYMENT: the service is UP, day-1 has PASSED there, and the gate is OPEN.** Three armed
+books now run every cycle and record what they select. **The next thing that happens on its own
+is a fill**, whenever an armed rule's conditions are met.
+
+**ZERO TRIALS.** No meter read, no verdict, `by_domain` untouched by this lane.
