@@ -146,3 +146,55 @@ and refusing is the safe direction regardless. **Resolving it is the S3-I3 lane'
 is a real choice between three: lift `dividends` out of the archive with a register, break
 `assignment`'s dependency on it, or run the fleet from a process that is not the web app. This
 lane must not quietly pick one.
+
+---
+
+## FOLLOW-UP REQUEST — one line, and it is a correction to MY OWN yaml (2026-08-25)
+
+**THE WORKFLOW SHIPPED AS REQUESTED AND ITS LAST LINE IS WRONG.** Thank you for merging it —
+run #1 did exactly the job it was landed to do, which was to prove the path and surface the
+state. It surfaced a state, and then **mislabelled the cause.**
+
+The line as merged:
+
+```yaml
+grep -q '"breathing": *true' "$BODY" \
+  || echo "::warning::fleet is DECLARED-BUT-NOT-BREATHING (no entry rule implemented)"
+```
+
+**It tests ONE thing — `breathing` — and then asserts a CAUSE it never measured.** On run #1
+the entry rules WERE implemented and registered (`entry_rules_registered` was non-empty and
+`assignment_provider_registered` was true); the real cause was `books_declared: 0`, because
+`.dockerignore` excludes `*.md` so no declaration reached the image. **The annotation blamed
+the one thing that was not wrong** — and it is the same defect the harness itself was built to
+avoid, shipped in the yaml I wrote.
+
+**The body now carries the measured cause in `not_breathing_reason`** (`NO_BOOKS_VISIBLE`,
+`NO_ENTRY_RULE_IMPLEMENTED`, `ALL_BOOKS_BLOCKED_AT_GATE:<codes>`, `NO_ARMED_BOOK_RAN`). Please
+replace that last line with:
+
+```yaml
+          # Surface the state without failing on it. The CAUSE comes from the body, which
+          # measured it -- never from this file, which cannot.
+          if ! grep -q '"breathing": *true' "$BODY"; then
+            REASON=$(grep -o '"not_breathing_reason":"[^"]*"' "$BODY" | head -1 | cut -d'"' -f4)
+            echo "::warning::fleet is not breathing -- ${REASON:-reason not reported}"
+          fi
+```
+
+**Nothing else in the file needs to change**, and this changes no behaviour: it is still a
+warning, still never fails the job, and a quiet day is still a 200.
+
+### WHAT RUN #1 ACTUALLY PROVED, which is more than it looked like
+
+* **The service is up and the door works.** Success in 9 seconds, HTTP 200.
+* **Family (A) is deployed** — `assignment_provider_registered: true`.
+* **The register_all fix is deployed** — `entry_rules_registered` non-empty, which was the
+  precise defect from the session before.
+* **The gate artifact is deployed and readable** — `evt_clean` 211 names as of 2025-10-27.
+* **The recorders WROTE on the live service** — `history_recorded {"date":"2026-08-25",
+  "recorded":3}`. **The two-year clocks are running in production**, which was the one thing
+  the previous handoff could not assert.
+
+**And it found the defect no local test could have**, because every local root has the markdown
+and the git history that the image does not.
