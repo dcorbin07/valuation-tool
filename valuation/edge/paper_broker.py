@@ -268,6 +268,38 @@ class PaperBroker:
         res["dry_run"] = self.dry_run
         return res
 
+    def place_multileg(self, underlying: str, legs, order_type: str = "market",
+                       price: Optional[float] = None, duration: str = "day") -> dict:
+        """ONE order carrying every leg. Built for F-6's collar, not as a convenience.
+
+        **THE REASON IT IS ONE ORDER IS THE WHOLE POINT: A PARTIALLY FILLED STRUCTURE IS A
+        DIFFERENT BOOK.** F-6 declares a collar -- long put plus short call, financed to
+        near-zero net. Submit that as two independent orders and the failure modes are not
+        symmetric: if only the put fills you are running F-20's married put, and **if only the
+        call fills you are running a NAKED SHORT CALL**, which `S3-I3` refuses by name because
+        FINRA 4210's maintenance formula has its own floor and a cash-secured stand-in would
+        UNDERSTATE it. Neither is the book that was declared, and one of them is the single
+        structure this project has explicitly forbidden.
+
+        `order_type` is Tradier's multileg vocabulary -- `market`, `debit`, `credit`, `even`.
+        The NET-COST constraint is not enforced here: it is a property of the declared
+        structure, so `fleet.submit_multileg` owns it and this stays a transport.
+        """
+        payload = {"class": "multileg", "symbol": str(underlying).upper(),
+                   "type": str(order_type), "duration": duration}
+        for i, leg in enumerate(legs):
+            payload["option_symbol[%d]" % i] = str(leg["occ"]).upper()
+            payload["side[%d]" % i] = str(leg["side"])
+            payload["quantity[%d]" % i] = str(int(leg["qty"]))
+        px = _f(price)
+        if px is not None and str(order_type) != "market":
+            payload["price"] = f"{abs(px):.2f}"
+        if self.dry_run:
+            payload["preview"] = "true"
+        res = self._post(f"accounts/{self._require_account()}/orders", payload)
+        res["dry_run"] = self.dry_run
+        return res
+
     def place_equity(self, ticker: str, side: str, quantity: int,
                      price: Optional[float] = None, duration: str = "day") -> dict:
         """Equity order (buy / sell). Used only by the opt-in equity mirror of the Index."""

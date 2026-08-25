@@ -84,9 +84,14 @@ RECORD_COLUMNS = (
     "venue",
     # --- refusals, meter reads and lifecycle ---
     "refusal_code", "detail",
+    # --- (C) multi-leg structures and first-class skips, added 2026-08-24 ---
+    # ADDITIVE. `verify_chain` reads each file's OWN header, so streams written before these
+    # existed still verify; and `harness_fingerprint` moves, so every book's day-1 self-check
+    # goes STALE and must be re-run. That is the STALE state working, not a regression.
+    "structure_id", "leg_index", "net_cost", "skip_reason",
 )
 
-EVENT_KINDS = ("selfcheck", "fill", "refusal", "meter_read", "close")
+EVENT_KINDS = ("selfcheck", "fill", "refusal", "meter_read", "close", "skip")
 
 # Every clause a declaration must state. Absent -> REFUSED, and the refusal names the field.
 REQUIRED_DECL_FIELDS = (
@@ -832,7 +837,8 @@ def quote_mid(quote: dict):
 def fill_fields(*, symbol: str, occ: str, side: str, qty: int, order_type: str,
                 quote: dict, order: dict = None, submitted_ts: str, filled_ts: str = None,
                 limit_price=None, arm: str = "", fallback: str = "",
-                venue: str = "") -> dict:
+                venue: str = "", structure_id: str = "", leg_index=None,
+                net_cost=None) -> dict:
     """One V5-grade fill record from a Tradier quote and order. Records, never decides.
 
     **THE BID, ASK AND MID AT SUBMISSION ARE STORED, and that is the whole point.**
@@ -897,6 +903,11 @@ def fill_fields(*, symbol: str, occ: str, side: str, qty: int, order_type: str,
         "time_to_fill_s": ttf,
         "fate": _fate(order, fill),
         "fallback": fallback, "venue": venue,
+        # A single-leg fill leaves these EMPTY rather than defaulting to a fake structure of
+        # one: "not part of a structure" and "leg 0 of a structure" are different facts.
+        "structure_id": structure_id,
+        "leg_index": "" if leg_index is None else int(leg_index),
+        "net_cost": "" if net_cost is None else net_cost,
         "detail": SANDBOX_CAVEAT,
     }
 
@@ -997,6 +1008,180 @@ def submit(book: str, *, broker, occ: str, underlying: str, side: str, qty: int,
 
     out = _market("B-fallback")
     out["limit_price"] = mid
+    return out
+
+
+# ---------------------------------------------------------------------------------------
+# (C) MULTI-LEG STRUCTURES -- one order, one net-cost constraint, never a naked leg
+# ---------------------------------------------------------------------------------------
+NET_DEBIT_ONLY = "debit_only"
+NET_ANY = "any"
+NET_RULES = (NET_DEBIT_ONLY, NET_ANY)
+
+
+def net_cost(legs) -> Optional[float]:
+    """Net cost of a structure at MARKETABLE prices. `None` if any leg is not two-sided.
+
+    Buys are priced at the ASK and sells at the BID -- `options_fill.DEFAULT_AGGRESSION = 1.0`,
+    the punishing convention every validated options number in this repo is net of. A mid-based
+    net would make a collar look financeable at prices nobody can trade, which is precisely the
+    error `F-1` exists to measure and must not be baked into the structure that F-1 measures.
+
+    POSITIVE is a debit (you pay), NEGATIVE is a credit (you are paid).
+    """
+    total = 0.0
+    for leg in legs or ():
+        q = leg.get("quote") or {}
+
+        def _n(x):
+            try:
+                v = float(x)
+            except (TypeError, ValueError):
+                return None
+            return v if v == v else None
+
+        bid, ask = _n(q.get("bid")), _n(q.get("ask"))
+        if bid is None or ask is None or ask <= 0 or ask < bid:
+            return None
+        qty = int(leg.get("qty") or 0)
+        if str(leg.get("side", "")).startswith("buy"):
+            total += ask * qty
+        else:
+            total -= bid * qty
+    return round(total, 4)
+
+
+def check_structure(legs, *, net_rule: str) -> dict:
+    """Every refusal a multi-leg structure can earn, checked BEFORE anything is placed.
+
+    **THE NAKED-SHORT REFUSAL IS THE ONE THAT MATTERS.** `S3-I3` refuses a naked short BY NAME
+    -- FINRA 4210's maintenance formula has its own floor and a cash-secured stand-in would
+    UNDERSTATE the requirement, which is the unsafe direction. A structure whose only option
+    leg is a short is that trade, whatever the declaration calls it.
+    """
+    legs = list(legs or ())
+    r = []
+    if len(legs) < 2:
+        r.append("MULTILEG_SINGLE_LEG")
+    if str(net_rule) not in NET_RULES:
+        r.append("MULTILEG_UNKNOWN_NET_RULE:" + str(net_rule))
+    shorts = [l for l in legs if str(l.get("side", "")).startswith("sell")]
+    longs = [l for l in legs if str(l.get("side", "")).startswith("buy")]
+    if shorts and not longs:
+        r.append("MULTILEG_NAKED_SHORT")
+    nc = net_cost(legs)
+    if nc is None:
+        r.append("MULTILEG_UNUSABLE_QUOTE")
+    elif net_rule == NET_DEBIT_ONLY and nc < 0:
+        r.append("MULTILEG_NET_CREDIT")
+    return {"ok": not r, "refusals": r, "net_cost": nc,
+            "n_legs": len(legs), "n_short": len(shorts), "n_long": len(longs)}
+
+
+def submit_multileg(book: str, *, broker, underlying: str, legs, decl_sha: str,
+                    net_rule: str = NET_DEBIT_ONLY, symbol: str = None, date: str = None,
+                    now=None) -> dict:
+    """Submit ONE multi-leg order, or refuse the whole structure. Never a partial structure.
+
+    Returns `{"ok", "refusals", "net_cost", "structure_id", "candidates"}`, where
+    `candidates` is one `fill_fields` kwargs dict PER LEG, sharing a `structure_id`, the arm
+    and the net cost. One record per leg keeps the V5-grade per-leg quote block that `F-1`
+    reads off every book's fills; the shared id is what makes the structure recoverable.
+
+    **THE ARM IS ASSIGNED ONCE FOR THE STRUCTURE, not per leg.** F-1's unit is an ORDER and
+    this is one order; arming legs independently would put one collar in both arms and make
+    its half-spread capture uninterpretable.
+
+    **A REFUSAL IS A RECORD, NOT A CRASH**, and no order is placed on any refusal -- the check
+    runs first and returns before the broker is touched, which is what stops a naked leg
+    existing for the duration of an exception.
+    """
+    now = now or (lambda: _dt.datetime.now().isoformat(timespec="seconds"))
+    symbol = symbol or underlying
+    date = date or _dt.date.today().isoformat()
+
+    chk = check_structure(legs, net_rule=net_rule)
+    if not chk["ok"]:
+        return {"ok": False, "refusals": chk["refusals"], "net_cost": chk["net_cost"],
+                "structure_id": "", "candidates": []}
+
+    a = arm(book, date, symbol, decl_sha)
+    sid = hashlib.sha256(
+        "|".join([decl_sha or "", book or "", date or "", symbol or "",
+                  ",".join(str(l.get("occ")) for l in legs)]).encode("utf-8")
+    ).hexdigest()[:12]
+
+    ts = now()
+    otype = "even" if abs(chk["net_cost"]) < 0.005 else "debit"
+    res = broker.place_multileg(underlying, legs, order_type=otype, price=chk["net_cost"])
+    from .paper_broker import PaperBroker as _PB
+    oid = _PB.order_id(res)
+    order = broker.order(oid) if oid else {}
+    fts = now() if _PB.fill_price(order) is not None else None
+
+    cands = []
+    for i, leg in enumerate(legs):
+        cands.append({
+            "symbol": symbol, "occ": leg["occ"], "side": leg["side"],
+            "qty": int(leg["qty"]), "order_type": otype, "quote": leg.get("quote") or {},
+            "order": order or {}, "submitted_ts": ts, "filled_ts": fts,
+            "limit_price": chk["net_cost"], "arm": a, "fallback": "", "venue": "",
+            "structure_id": sid, "leg_index": i, "net_cost": chk["net_cost"],
+        })
+    return {"ok": True, "refusals": [], "net_cost": chk["net_cost"],
+            "structure_id": sid, "candidates": cands}
+
+
+# ---------------------------------------------------------------------------------------
+# (C) FIRST-CLASS SKIPS -- an observation a book declared, not the absence of one
+# ---------------------------------------------------------------------------------------
+def skip_fields(*, symbol: str, skip_reason: str, occ: str = "", quote: dict = None,
+                detail: str = "") -> dict:
+    """One SKIP observation. `F-14` declares *"the skips ARE the control population"*.
+
+    Before this existed a rule could record only fills, so a book whose control arm is its
+    skipped candidates could not represent the half that makes it interpretable -- it would
+    have published a treatment arm with no control and no way to say so.
+
+    THE QUOTE IS RECORDED WHERE THERE IS ONE, deliberately: `F-2`'s gate wants *"the
+    would-have-been quote pair"* on a refused entry, and a skip with no quote block cannot
+    answer what the trade would have cost. `skip_reason` is REQUIRED and has no default,
+    because an unexplained skip is indistinguishable from a rule that silently did nothing.
+    """
+    if not str(skip_reason or "").strip():
+        raise ValueError("a skip must carry a reason; an unexplained skip is not an "
+                         "observation, it is a gap")
+    q = quote or {}
+    mid = quote_mid(q)
+
+    def _c(x):
+        return "" if x is None else x
+
+    return {"symbol": symbol, "occ": occ, "side": "", "qty": 0, "arm": "",
+            "order_type": "", "quote_bid": _c(q.get("bid")), "quote_ask": _c(q.get("ask")),
+            "quote_mid": _c(mid), "limit_price": "", "fill_price": "",
+            "submitted_ts": "", "filled_ts": "", "time_to_fill_s": "",
+            "fate": "", "fallback": "", "venue": "",
+            "skip_reason": str(skip_reason), "detail": detail or SANDBOX_CAVEAT}
+
+
+def record_skip(book: str, fields: dict, root: str = None) -> dict:
+    """Record one skip AFTER re-checking every precondition -- the same gate a fill passes.
+
+    A skip places no order, so it is tempting to let it through a looser door. It must not:
+    a skip is a ROW on an append-only, hash-chained stream that a verdict will be read from,
+    so the declaration, the self-check and the chain all have to hold exactly as they do for a
+    fill. The gate is about the RECORD, not about the order.
+    """
+    gate = may_fill(book, root)
+    if not gate["ok"]:
+        sha = gate.get("decl_sha") or ""
+        if sha:
+            refuse(book, gate["code"], gate["reason"], decl_sha=sha, root=root)
+        return {"ok": False, "wrote": False, "code": gate["code"], "reason": gate["reason"],
+                "refusal_recorded": bool(sha)}
+    out = record(book, "skip", fields, decl_sha=gate["decl_sha"], root=root)
+    out["code"] = ""
     return out
 
 
@@ -1281,12 +1466,28 @@ def cycle(root: str = None, *, write: bool = False, books: list = None) -> dict:
         item["candidates"] = len(cands)
         item["places_orders"] = places_orders(book)
         item["state"] = "RAN" if item["places_orders"] else "RAN_RIDER"
+        # A candidate may declare its KIND. `fill` is the legacy shape and stays the default
+        # so every rule written before skips existed is untouched; `skip` is F-14's control
+        # population. An UNRECOGNISED kind is REFUSED onto the book's own stream rather than
+        # dropped -- a candidate the cycle cannot classify is a defect in a rule, and a silent
+        # drop is how it would survive.
+        item["skipped"] = 0
         if write:
             wrote = []
             for c in cands:
-                wrote.append(record_fill(book, fill_fields(**c), root))
+                c = dict(c)
+                kind = str(c.pop("kind", "fill"))
+                if kind == "fill":
+                    wrote.append(record_fill(book, fill_fields(**c), root))
+                    filled += 1
+                elif kind == "skip":
+                    wrote.append(record_skip(book, skip_fields(**c), root))
+                    item["skipped"] += 1
+                else:
+                    refuse(book, "UNKNOWN_CANDIDATE_KIND",
+                           "entry rule returned kind=%r; expected fill or skip" % kind,
+                           decl_sha=gate["decl_sha"], root=root)
             item["wrote"] = len(wrote)
-            filled += len(wrote)
         rows.append(item)
 
     books_only = [r for r in rows if r.get("is_book")]

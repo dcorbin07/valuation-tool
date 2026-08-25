@@ -1,9 +1,35 @@
 """
-ARCHIVED (master audit MA59, 2026-08-15) - a CLOSED study, kept so its
-result stays reproducible. It is NOT reachable from the live product and
-`tests/test_ma59_quarantine.py` fails if that ever changes.
-Still imported by: scripts/o21_dividends.py, tests/test_dividends.py.
-Do not extend this module; a new question needs a new register.
+DE-ARCHIVED 2026-08-24 (fleet arming, options-live lane). It was archived by
+MA59 on 2026-08-15 and has since acquired a PRODUCTION importer, so the
+classification went stale rather than the code going wrong.
+
+WHAT CHANGED, and it is a fact about the tree rather than a judgement:
+`valuation/edge/assignment.py` (S3-I3, landed 2026-08-23) imports five
+primitives from here -- `intrinsic`, `exercise_gain`, `dividends_between`,
+`q_trailing`, `q_scheduled` -- and DELEGATES to them rather than re-deriving
+them, which is the `B7` discipline and is what licenses S3-I3's fidelity
+claim. Every short book in the fleet needs that model, so this module is now
+load-bearing for the live product. The banner it replaces still read "Still
+imported by: scripts/o21_dividends.py, tests/test_dividends.py" -- true when
+written, and it never named the importer that mattered.
+
+MA59's ARCHIVED list means "modules whose only importer is a closed study's
+own script". That stopped being true of this file. It now sits on MA59's
+LOAD_BEARING list instead, and `tests/test_ma59_quarantine.py` asserts it is
+REACHABLE -- the opposite direction, checked just as hard.
+
+WHAT IS ARCHIVED IS THE STUDY, NOT THE LIBRARY, and the distinction is the
+whole reason this move is safe. `O21`'s verdict lives in
+`scripts/o21_dividends.py` and `data/free_analysis/O21_DIVIDENDS.json`; those
+stay closed and nothing here re-opens them. This file holds arithmetic --
+`intrinsic` is `max(0, S - K)`. Reaching it from the live app is reusing one
+definition, which is the opposite of "the product is running an experiment".
+It imports stdlib only (`datetime`, `os`, `typing`), has ZERO dependencies in
+the import graph and does no I/O at import time -- all measured before the
+move.
+
+Do not extend this module with new STUDY code; a new question needs a new
+register. New primitives that S3-I3 needs are fine.
 
 Dividends and early exercise on the banked options book.  [O21]
 
