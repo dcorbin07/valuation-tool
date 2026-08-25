@@ -130,6 +130,77 @@ def gate(name: str, ticker: str, *, max_age_days: int = None, today=None,
     return out
 
 
+#: Licensed exports a fleet rule might reach for. NONE of these may exist in the image, and
+#: the audit asserts their ABSENCE rather than trusting `.dockerignore` to have been read.
+LICENSED_PATHS = (
+    os.path.join("data", "bulk", "events.csv"),
+    os.path.join("data", "backtest", "insiders.csv"),
+    os.path.join("data", "bulk", "fundamentals.csv"),
+    os.path.join("data", "free_analysis", "E5_FLAGS.pkl"),
+    os.path.join("data", "free_analysis", "E4_TAIL_PANEL.pkl"),
+)
+
+
+def image_audit(root: str = None) -> dict:
+    """WHAT THIS PROCESS ACTUALLY SEES — run it where the runner runs, not where you test.
+
+    **THE LESSON THIS EXISTS FOR IS ONE THIS LANE PAID FOR FOUR TIMES.** Licensed exports, the
+    declarations, the git binary and `read_meter`'s file were each present everywhere the code
+    was TESTED and absent where it RUNS, and every one was invisible to a green local suite.
+    So the claim *"only a bit leaves the licensed store"* is not asserted from a worktree — it
+    is measured **in the image, by the image**, and returned so a dispatch can print it.
+
+    **BOTH DIRECTIONS, because either alone is satisfiable by an accident:**
+
+      * **POSITIVE** -- the derived gates ARE present and readable here, with their counts and
+        vintages. Without this the audit would pass on a process that shipped nothing at all.
+      * **NEGATIVE** -- **not one licensed export exists on this filesystem**, checked by
+        probing for the files themselves rather than by reading `.dockerignore`. A rule that
+        reads `data/` cannot be silently working off a stray copy.
+
+    **AND THE TYPE CENSUS IS THE STRUCTURAL HALF.** Every value in every gate is counted by
+    Python type. A boolean cannot carry a vendor row; a float could carry a Beneish M and a
+    string could carry anything. The census is returned in full so the number is READ rather
+    than trusted, and `non_bool` is the one field an alert should key on.
+    """
+    res = load(root)
+    out = {"artifact_present": bool(res.get("ok")), "reason": res.get("reason", ""),
+           "gates": {}, "type_census": {}, "non_bool": 0,
+           "licensed_present": [], "licensed_checked": len(LICENSED_PATHS)}
+    base = root or repo_root()
+    for rel in LICENSED_PATHS:
+        if os.path.exists(os.path.join(base, rel)):
+            out["licensed_present"].append(rel.replace("\\", "/"))
+    if not res.get("ok"):
+        # THE EARLY RETURN MUST STILL CARRY `ok` AND `verdict`. The first cut did not, so a
+        # MISSING artifact raised `KeyError` in any caller that checked the audit's own verdict
+        # -- and the one caller is the runner's door, where an exception is the loudest
+        # possible way to report the quietest possible fact. A failure path that fails
+        # DIFFERENTLY from the success path is not a failure path.
+        out["ok"] = False
+        out["verdict"] = "AUDIT FAILED: no gates artifact in this process -- " + out["reason"]
+        return out
+    for name, g in (res.get("gates") or {}).items():
+        ticks = g.get("tickers") or {}
+        out["gates"][name] = {"n": len(ticks), "as_of": g.get("as_of")}
+        for v in ticks.values():
+            t = type(v).__name__
+            out["type_census"][t] = out["type_census"].get(t, 0) + 1
+            if not isinstance(v, bool):
+                out["non_bool"] += 1
+    out["ok"] = (out["artifact_present"] and out["non_bool"] == 0
+                 and not out["licensed_present"])
+    out["verdict"] = (
+        "ONLY BOOLEANS LEFT THE LICENSED STORE, and no licensed export exists in this process"
+        if out["ok"] else
+        "AUDIT FAILED: " + ("; ".join(filter(None, [
+            "" if out["artifact_present"] else "no gates artifact",
+            ("%d non-boolean values in the gates" % out["non_bool"]) if out["non_bool"] else "",
+            ("licensed exports PRESENT: " + ", ".join(out["licensed_present"]))
+            if out["licensed_present"] else ""]))))
+    return out
+
+
 def coverage(root: str = None) -> dict:
     """What the artifact carries, for a cycle to report without opening it.
 
