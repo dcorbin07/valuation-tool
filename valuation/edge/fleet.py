@@ -646,18 +646,82 @@ def selfcheck_state(book: str, root: str = None) -> dict:
 # ---------------------------------------------------------------------------------------
 # The one entry point a book's runner calls
 # ---------------------------------------------------------------------------------------
+MANIFEST_REL = os.path.join("data_export", "fleet_declarations.json")
+
+
+def declaration_manifest(root: str = None) -> dict:
+    """The shipped manifest, or an ABSENT marker. Never raises.
+
+    Built by `scripts/fleet_export_declarations.py` where git exists, consumed where it does
+    not. See that module for why shipping the markdown alone would have fixed nothing.
+    """
+    path = os.path.join(root or repo_root(), MANIFEST_REL)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except OSError:
+        return {"ok": False, "absent": True, "books": {},
+                "reason": "no declaration manifest at " + path}
+    except ValueError as e:
+        return {"ok": False, "absent": False, "books": {},
+                "reason": "declaration manifest is not valid JSON: %s" % e}
+    if payload.get("schema") != "fleet_declarations/1":
+        return {"ok": False, "absent": False, "books": {},
+                "reason": "manifest schema is %r" % payload.get("schema")}
+    return {"ok": True, "absent": False, "books": payload.get("books") or {},
+            "head": payload.get("head", ""), "reason": ""}
+
+
 def may_fill(book: str, root: str = None) -> dict:
     """Every precondition on recording a fill, checked together. Refusals are RECORDS.
 
     Order is deliberate: the declaration is checked before the self-check, because a book with
     no valid declaration has nowhere to record a refusal about its self-check.
+
+    **TWO EVIDENCE GRADES, AND THE RESULT ALWAYS SAYS WHICH.** Where the `DECL_*.md` and `.git`
+    are both present -- any worktree -- the declaration is read from disk and its commit facts
+    are RE-DERIVED from git every time, and the manifest is not consulted at all. In the
+    deployed image neither exists (`.dockerignore` excludes `*.md` AND `.git`), so the gate
+    falls back to the shipped manifest and reports `evidence: "manifest"`.
+
+    **THAT FALLBACK IS A REAL WEAKENING AND IS NEVER SILENT.** A manifest-graded gate trusts a
+    file that was built from a commit and shipped in an image; a git-graded one re-derives the
+    proof. Both are recorded, so no fill can later be read as carrying git-grade evidence when
+    it does not -- which is the whole reason the field exists rather than a boolean "ok".
     """
     path = declaration_path(book, root)
+    text = None
     try:
         with open(path, encoding="utf-8") as fh:
             text = fh.read()
     except OSError:
-        return {"ok": False, "code": "DECLARATION_MISSING", "reason": path + " not found"}
+        pass
+
+    if text is None:
+        man = declaration_manifest(root)
+        entry = (man.get("books") or {}).get(str(book))
+        if not entry:
+            return {"ok": False, "code": "DECLARATION_MISSING",
+                    "reason": (path + " not found and no manifest entry for " + str(book)
+                               + "; " + man.get("reason", ""))}
+        v = validate_declaration(entry.get("declaration") or {}, book=book)
+        if not v["ok"]:
+            return {"ok": False, "code": "DECLARATION_INVALID",
+                    "reason": ",".join(v["refusals"]), "refusals": v["refusals"],
+                    "evidence": "manifest", "detail": v.get("detail", {})}
+        sha = entry.get("decl_sha") or ""
+        s = selfcheck_state(book, root)
+        if not s["ok"]:
+            return {"ok": False, "code": "SELFCHECK_" + s["state"], "reason": s["reason"],
+                    "decl_sha": sha, "evidence": "manifest"}
+        ch = verify_chain(book, root, decl_sha=sha)
+        if not ch["ok"]:
+            return {"ok": False, "code": "CHAIN_BROKEN", "reason": ch["reason"],
+                    "decl_sha": sha, "evidence": "manifest"}
+        return {"ok": True, "code": "", "reason": "", "decl_sha": sha,
+                "declaration": entry.get("declaration") or {},
+                "commit": entry.get("commit", ""), "evidence": "manifest",
+                "sandbox_caveat": SANDBOX_CAVEAT}
 
     p = parse_declaration(text)
     if not p["ok"]:
@@ -683,7 +747,7 @@ def may_fill(book: str, root: str = None) -> dict:
 
     return {"ok": True, "code": "", "reason": "", "decl_sha": sha,
             "declaration": p["declaration"], "commit": c["commit"],
-            "sandbox_caveat": SANDBOX_CAVEAT}
+            "evidence": "git", "sandbox_caveat": SANDBOX_CAVEAT}
 
 
 def refuse(book: str, code: str, reason: str, *, decl_sha: str, root: str = None) -> dict:
@@ -1394,7 +1458,16 @@ def declared_books(root: str = None) -> list:
     try:
         names = sorted(os.listdir(d))
     except OSError:
-        return out
+        names = []
+    if not any(n.startswith("DECL_") and n.endswith(".md") for n in names):
+        # NO MARKDOWN HERE. In the deployed image that is the ORDINARY case rather than a
+        # fault: `.dockerignore` excludes `*.md`, so `DECL_*.md` never ships and a
+        # directory-only discovery finds zero books -- which is exactly what production
+        # returned on the first real dispatch (`books_declared: 0` beside a non-empty
+        # `entry_rules_registered`). Fall back to the shipped manifest.
+        man = declaration_manifest(root)
+        return [{"book": b, "parses": True, "reason": "", "source": "manifest"}
+                for b in sorted(man.get("books") or {})]
     for fn in names:
         if not (fn.startswith("DECL_") and fn.endswith(".md")):
             continue
@@ -1409,6 +1482,25 @@ def declared_books(root: str = None) -> list:
         out.append({"book": book, "parses": bool(p["ok"]),
                     "reason": "" if p["ok"] else p["reason"]})
     return out
+
+
+def _not_breathing_reason(books_only, implemented, blocked, ran) -> str:
+    """The DOMINANT measured cause, in a short code. `""` when the fleet IS breathing.
+
+    Ordered most-fundamental first, because a fleet with no books also has no implemented
+    rules and no blocked books, and reporting the downstream symptom would send a reader to
+    the wrong fix -- which is precisely what happened on the first production dispatch.
+    """
+    if ran:
+        return ""
+    if not books_only:
+        return "NO_BOOKS_VISIBLE"
+    if implemented == 0:
+        return "NO_ENTRY_RULE_IMPLEMENTED"
+    if blocked == len(books_only):
+        codes = sorted({r.get("state", "") for r in books_only if not r.get("may_fill")})
+        return "ALL_BOOKS_BLOCKED_AT_GATE:" + ",".join(c for c in codes if c)[:80]
+    return "NO_ARMED_BOOK_RAN"
 
 
 def cycle(root: str = None, *, write: bool = False, books: list = None) -> dict:
@@ -1509,12 +1601,19 @@ def cycle(root: str = None, *, write: bool = False, books: list = None) -> dict:
         "books_with_no_entry_rule": unscheduled,
         "riders_ran": riders,
         "breathing": bool(filled) or ran,
+        # THE CAUSE IS MEASURED, NEVER GUESSED -- and this exists because a GUESSED one shipped
+        # and was wrong in production. `fleet-cycle.yml`'s annotation prints "no entry rule
+        # implemented" whenever `breathing` is not true, having tested only `breathing`. On the
+        # first real dispatch the true cause was `books_declared: 0` (no `DECL_*.md` in the
+        # image) while the rules WERE registered, so the annotation blamed the one thing that
+        # was not wrong. A short machine-readable code now travels in the body so a log reader
+        # -- and a future one-line workflow fix -- can print the cause that was actually found.
+        "not_breathing_reason": _not_breathing_reason(books_only, implemented, blocked, ran),
         "note": ("" if ran else
-                 "DECLARED-BUT-NOT-BREATHING: %d books declared, %d with an entry rule "
-                 "implemented, %d blocked at the gate. No fill can be produced by any "
-                 "scheduler until entry rules exist. Declaring without building them is a "
-                 "paper fleet in the worst sense."
-                 % (len(books_only), implemented, blocked)),
+                 "DECLARED-BUT-NOT-BREATHING (%s): %d books declared, %d entry rules "
+                 "implemented, %d blocked at the gate."
+                 % (_not_breathing_reason(books_only, implemented, blocked, ran),
+                    len(books_only), implemented, blocked)),
         "sandbox_caveat": SANDBOX_CAVEAT,
         "books": rows,
     }

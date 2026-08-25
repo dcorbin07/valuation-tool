@@ -198,6 +198,16 @@ def record_all(date: str = None, *, store=None, rejects=None, quotes=None,
 
     A recorder that raised would take the whole cycle down with it, and the cycle's other work
     -- the gates, the refusals, the fills -- is independent of whether a series accrued.
+
+    **BUT A SERIES THAT FAILS TO START IS LOUD, AND THAT IS THE POINT OF THIS FAMILY.** The
+    whole value of a recorder is that a two-year clock begins TODAY, and **the one failure that
+    would make that false while every test still passes is a series that quietly records
+    nothing** -- an unreachable service, a read-only disk, a permissions fault. So after every
+    attempt each series is RE-READ from disk, and one that is still ABSENT is reported in
+    `failed_to_start`, which the runner's door surfaces and the cycle note names.
+
+    ABSENT-AFTER-ATTEMPT IS THE TEST, not the return value of the write. A writer can return
+    a cheerful `ok` and leave nothing on disk; only reading it back can tell.
     """
     date = date or _dt.date.today().isoformat()
     out = {"date": date, "series": {}}
@@ -211,6 +221,23 @@ def record_all(date: str = None, *, store=None, rejects=None, quotes=None,
                                    "ok": bool(r.get("ok")),
                                    "reason": r.get("reason", "")}
         except Exception as e:                                   # noqa: BLE001
-            out["series"][name] = {"wrote": False, "ok": False, "reason": str(e)}
+            out["series"][name] = {"wrote": False, "ok": False, "already_present": False,
+                                   "reason": str(e)}
     out["recorded"] = sum(1 for v in out["series"].values() if v["wrote"])
+
+    failed = []
+    for name in SERIES:
+        back = read(name, root)
+        started = bool(back.get("ok")) and not back.get("absent") and back.get("n")
+        out["series"].setdefault(name, {"wrote": False, "ok": False, "reason": "not attempted"})
+        out["series"][name]["series_started"] = bool(started)
+        if not started:
+            failed.append(name)
+    out["failed_to_start"] = failed
+    out["ok"] = not failed
+    out["loud"] = ("" if not failed else
+                   "SERIES FAILED TO START: %s. A recorder whose series is still ABSENT after "
+                   "an attempted write has recorded NOTHING, and a clock that has not started "
+                   "cannot be started retroactively. Check the filesystem is writable where "
+                   "the cycle runs." % ", ".join(failed))
     return out

@@ -167,6 +167,105 @@ class TestPullDiscipline(unittest.TestCase):
             self.assertIn("lib", spec)
             self.assertIn("table", spec)
 
+    def test_the_retry_rule_catches_a_poisoned_session_and_not_a_bad_query(self):
+        """Both directions, because a rule that retries everything is not a rule.
+
+        The poisoned-transaction spellings are here because they COST A RUN: after one chunk
+        failed at the file layer, every later chunk came back "Can't reconnect until invalid
+        transaction is rolled back", which the first version of this rule did not match, so three
+        chunks failed for a reason none of them caused.
+        """
+        retry = [
+            "Can't reconnect until invalid transaction is rolled back",
+            "current transaction is aborted, commands ignored",
+            "server closed the connection unexpectedly",
+            "SSL connection has been closed unexpectedly",
+            "[WinError 2] The system cannot find the file specified",
+            "[WinError 32] being used by another process",
+        ]
+        keep = [
+            'column "tic" does not exist',
+            "permission denied for table s34",
+            "relation optionm.opprcd does not exist",
+        ]
+        for m in retry:
+            self.assertTrue(self.P._is_retryable(m), f"should retry: {m}")
+        for m in keep:
+            self.assertFalse(self.P._is_retryable(m), f"must NOT retry: {m}")
+        # the needles are matched against a lowercased haystack, so a capitalised needle is a
+        # dead entry. This found two on its first run.
+        for needle in self.P._DEAD_CONN + self.P._TRANSIENT_FS:
+            self.assertEqual(needle, needle.lower(), f"dead needle, can never match: {needle!r}")
+
+    def test_a_second_puller_on_one_product_is_refused(self):
+        """Measured defect: two pullers computed the same todo list and raced on the same .tmp,
+        producing WinError 32/2 that read as antivirus. Nothing was corrupted, by luck."""
+        lock = self.P._acquire_lock("ibes_id", self.root)
+        try:
+            self.assertTrue(os.path.exists(lock))
+            with self.assertRaises(SystemExit) as cm:
+                self.P._acquire_lock("ibes_id", self.root)
+            self.assertIn("already being pulled", str(cm.exception))
+            # a DIFFERENT product is unaffected -- the lock is per product, not global
+            other = self.P._acquire_lock("crsp_delist", self.root)
+            os.remove(other)
+        finally:
+            os.remove(lock)
+        # and it is released, so a re-run after a clean finish is not blocked
+        again = self.P._acquire_lock("ibes_id", self.root)
+        os.remove(again)
+
+    def test_a_null_dated_row_gets_its_own_chunk(self):
+        """102,213 rows of `ibes.actu_epsus` were silently dropped by year-range predicates,
+        because a NULL date satisfies neither `>= Jan 1` nor `< Jan 1` and so belongs to no
+        chunk. Every chunk reported `ok`. The hole was found by reconciling against the source
+        count, and it runs in the flattering direction: a pull that looks complete."""
+
+        class FakeDB:
+            """Two products: one with null-dated rows, one without."""
+
+            def __init__(self, nulls):
+                self.nulls = nulls
+                self.asked = []
+
+            def raw_sql(self, sql):
+                import pandas as pd
+                self.asked.append(sql)
+                if "is null" in sql:
+                    return pd.DataFrame({"n": [self.nulls]})
+                return pd.DataFrame({"y": [2019, 2020]})
+
+        p = sorted(k for k, v in self.P.PRODUCTS.items() if v.get("year_col"))[0]
+
+        with_nulls = self.P.chunks_for(FakeDB(102213), p)
+        self.assertEqual(with_nulls, ["2019", "2020", self.P.NULLDATE])
+
+        # and a product with no null-dated rows must NOT gain an empty chunk
+        without = self.P.chunks_for(FakeDB(0), p)
+        self.assertEqual(without, ["2019", "2020"])
+
+        # the nulldate key must not be mistakable for a year
+        self.assertFalse(self.P.NULLDATE.isdigit())
+
+    def test_the_nulldate_chunk_selects_exactly_the_rows_no_year_chunk_can(self):
+        seen = {}
+
+        class FakeDB:
+            def raw_sql(self, sql):
+                import pandas as pd
+                seen["sql"] = sql
+                return pd.DataFrame({"a": [1]})
+
+        spec = self.P.PRODUCTS
+        p = sorted(k for k, v in spec.items() if v.get("year_col"))[0]
+        yc = spec[p]["year_col"]
+        try:
+            self.P.pull_chunk(FakeDB(), p, self.P.NULLDATE, self.root)
+        except Exception:                                               # noqa: BLE001
+            pass          # the write half is not under test here; the predicate is
+        self.assertIn(f"{yc} is null", seen["sql"])
+        self.assertNotIn(">=", seen["sql"])
+
     def test_the_raw_root_is_the_d_drive_and_not_the_repo(self):
         """Licensed rows never land inside the checkout, where a stray `git add -A` reaches."""
         self.assertTrue(W.DEFAULT_RAW_ROOT.upper().startswith("D:"))
