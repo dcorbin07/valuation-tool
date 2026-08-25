@@ -206,3 +206,108 @@ does not make Sharpe a bar anywhere, including in the fleet: forward books would
 4× their current fill horizons to resolve a Sharpe, which puts fleet Sharpe verdicts **5–10
 years out** — stated so nobody quotes one at 30 fills. And it does not weaken the DSR, which
 remains the project's only calibrated risk-adjusted bar and is `MB31`-stale at every new `N`.
+
+---
+
+# AMENDED 2026-08-25 — **DON'S RULING: R-1 IS PARKED, AND THE REASON IS ECONOMIC**
+*(append-and-amend; nothing above is rewritten. The section above stands as written — this
+records what it got wrong.)*
+
+## 1. The ruling, and why it is right
+
+**R-1's alpha non-inferiority margin is `X7`'s calibrated 1.8629pp — so the register could PASS
+while surrendering 26.0% of the book's +7.17%/yr alpha (1.8629 ÷ 7.17). `S13` surrendered
+1.76pp — 24.5% — and was REJECTED.** The register I designed could therefore have adopted a
+larger alpha loss than the one the record already refused, and called it a pass. That is not a
+subtle mis-calibration; it is a gate pointing the wrong way, and §3 above did not see it because
+I priced the margin for **statistical resolvability** and never asked whether it was
+**economically acceptable**. Those are different questions and I answered only one.
+
+**Don's standing rule, recorded as binding on the whole family:**
+
+> **A Sharpe or volatility gain bought with alpha is not worth having unless the Sharpe itself
+> is bad — and it is not.** Book Sharpe **0.5866**, IR **≈0.88/yr against SPY**.
+
+That is an economic precondition, and it belongs *before* the statistical design, not after it.
+A risk register is worth writing only where the risk statistic is the binding complaint. Here it
+is not: the book's problem has never been its Sharpe.
+
+## 2. **STATUS: PARKED WITH A CONDITION** — not discarded, and the condition is checkable
+
+R-1 re-opens only if **BOTH** hold:
+
+* **(i) the margin is tightened to a level Don would adopt** — taken as **≈0.5pp/yr** (7.0% of
+  the headline alpha) unless he names another; **and**
+* **(ii) the design is still powered at that margin.**
+
+## 3. The MB22 arithmetic for a ~0.5pp margin, both vocabularies
+
+The paired alpha difference between two constructions on the same names, from published summary
+statistics only (quarterly top-decile alpha **sd 3.298pp**, design effect **1.177** → `n_eff` =
+69 × 0.850 = **58.65**), annualised:
+
+`SE(Δalpha) = 4 × 3.298 × √(2(1−ρ)) ⁄ √58.65 = 1.7224 × √(2(1−ρ))` pp/yr
+
+A margin `m` is **policeable** only if the design can distinguish Δ = 0 from Δ = −m: at 50%
+power `m ≥ crit × SE`, at 80% power `m ≥ (crit + 0.84) × SE`, crit = **3.3133**.
+
+| ρ (base vs arm returns) | SE (pp/yr) | smallest policeable margin — 50% / 80% power |
+|---|---|---|
+| 0.95 | 0.545 | 1.81 / 2.26 |
+| 0.97 | 0.422 | **1.40 / 1.75** |
+| 0.99 | 0.244 | 0.81 / 1.01 |
+| 0.996 | 0.154 | **0.51** / 0.64 |
+| 0.998 | 0.109 | 0.36 / **0.45** |
+| 0.999 | 0.077 | 0.26 / 0.32 |
+
+**Read three ways, and all three matter:**
+
+1. **The margin I chose was the margin the design could see, not the margin Don would accept.**
+   At a plausible ρ ≈ 0.97 the smallest policeable margin is **1.75pp at 80% power** — which is
+   why 1.8629pp fit so neatly. The fit was a symptom, not a validation.
+2. **A 0.5pp margin requires ρ ≥ 0.996 (50% power) or ρ ≥ 0.998 (80% power).** That is the
+   condition, and it is a number someone can check.
+3. **The gap is a factor of ~3.5** between what the design can police (≈1.75pp) and what is
+   worth adopting (≈0.5pp), and only a very high arm-to-base correlation closes it.
+
+**Unlike the Sharpe kill in §1, this is not self-defeating.** There, power required ρ → 1 and
+ρ → 1 abolished the effect, because both lived in the first moment. Here the effect under test
+lives in the **second** moment: two books can correlate at 0.998 in returns and still differ
+in volatility (in the limit, `Y = 0.9X` correlates at 1.000 with 10% less vol). **So the
+condition is satisfiable in principle** — it is an empirical question about how much composition
+an inverse-vol re-weighting actually changes, and nobody has measured it.
+
+## 4. How the condition gets tested — free, and before any register is rewritten
+
+ρ is a correlation between two **return** series, so it is an outcome-touching measurement and
+**this lane may not compute it**. It is cheap for the edge lane and needs no register:
+
+**Build the arm's return series, compute ONLY ρ and the implied SE, bank them, and stop.** The
+mean difference is *not* computed — the `MB15` separation exactly (marginal facts are
+feasibility; their combination is the hypothesis), pinned the same way. Then:
+
+* **ρ ≥ 0.998** → R-1 re-opens at a 0.5pp margin, and the rewrite is small: swap the margin,
+  re-derive the power line, keep everything else in `PREREG_DRAFT_r1_variance_primary.md`.
+* **ρ < 0.996** → R-1 **stays parked permanently on this panel**, and the parked reason upgrades
+  from "Don declined the margin" to "no acceptable margin is policeable here" — which is a
+  stronger and more durable closure than the one this file originally proposed.
+
+**My honest expectation, written now: ρ lands in 0.95–0.99 and R-1 stays parked** (~70/30). An
+inverse-vol re-weighting changes position sizes across ~250 names; that is more composition
+change than ρ ≥ 0.998 allows.
+
+## 5. What this ruling does to the rest of the family
+
+The economic precondition binds **every** entry in §4's candidate table, and two change status:
+
+* **Factor-exposure neutralisation** — was ALIVE/LOW-PRIOR; now **PARKED under the same rule**.
+  It is a construction change with the same shape and the same problem: whatever variance it
+  buys, it buys with alpha, and the Sharpe it would improve is not the binding complaint.
+  Re-opens on the same two-part condition.
+* **Turnover / cost-adjusted** — **UNAFFECTED, and now the family's only live member.** It is
+  the one variant that does not trade alpha for risk: it *keeps* alpha by spending less. `S14`
+  is the record's single adoption and it won exactly there. Don's rule does not touch it —
+  which is itself an argument that the cost axis, not the risk axis, is where this project's
+  remaining edge lives.
+* The single-book Sharpe **disclosure** is likewise unaffected (it decides nothing) and is now
+  the honest public form of this whole investigation: *we looked, and the number cannot decide.*

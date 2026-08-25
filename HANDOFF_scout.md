@@ -1,5 +1,92 @@
 # HANDOFF_scout.md — Frontier Scout
 
+## SESSION 9 — REFUSALS REPAIRED, A RULING ABSORBED, AND A BRIEF FOR THE SIBLING (2026-08-25)
+
+**PART 1 — two books came back and I found three more.** Both refusals accepted in full;
+**`AMEND_f2_menu_gate.md` (FIX)** and **`AMEND_f13_second_event.md` (WITHDRAWN)**. F-2's
+"verbatim" claim was false in five ways and the sixth was the dangerous one — **a fixed
+`DTE_RANGE (45,75)` would have judged F-11's 91-DTE orders against a menu that cannot contain
+them and refused every order, silently zeroing a host.** The fix restates *no* parameter (the
+gate counts what the engine's own builder returns — `MA5`'s rule applied to a menu definition),
+declares itself **swing-only** rather than inventing tenor-relative bands the engine does not
+have, carries `build_menu`'s load-bearing empty-set fallback, and **leaves its `< 4` threshold
+UNSET until a live census** — the old one was picked off `MB1`'s frozen-chain median. If no
+adapter is built across the `scripts/`→`valuation/` boundary, **F-2 withdraws rather than
+approximates**; approximation is what produced the amendment. F-13 is **WITHDRAWN**: the routes
+are a forward feed (S3-I2's only reachable feed is PDUFA), cadence inference (banned by its own
+declaration, correctly), or dropping event-#2 (a different book) — and **`EVOWN` came back
+NOT-DEMONSTRATED, "the control already owns the event"**, which weakens the ownership axis
+further. Re-open needs a daily-snapshotted forward earnings calendar **and** post-EVOWN evidence.
+
+**THE THREE I FOUND, self-reported (`RUN_RULES` A-3):** F-4's declared rule requires the *next*
+earnings date "KNOWN via the I-4 spine" — **the same backward-record-forward-date defect, in a
+book the ceremony ACCEPTED**, and F-17/F-18 inherit it by prose reference.
+**`AMEND_f4_eventfree_premium.md`, `AMEND_f17...`, `AMEND_f18...`** filed. F-4's failure is
+*worse* than F-13's in one way worth naming: F-13 refuses loudly at arming, while **F-4 arms
+cleanly, runs forever, places nothing, and reports skip_rate = 1.0 — indistinguishable from a
+quiet market.** Proposed to the pipeline lane (routed, not dispatched): a third harness state,
+**`RULE_ARMED_NEVER_FIRES`**, beside `ARMED_NO_ENTRY_RULE` and "no candidates" — it cannot cry
+wolf, since a rule that has fired zero times over many cycles is a fact about the rule. F-4's
+routes are ranked: **(A) a forward earnings feed that MUST be snapshotted daily** (re-reading a
+live calendar later returns today's revised dates — look-ahead in forward clothing), **(B) a
+labelled cadence-*exclusion* proxy with a censused miss rate** — a different use of cadence from
+the one F-13 banned, and the difference is statable (supplying a date fails silently; excluding a
+window fails measurably), **(C) withdraw**, which is the default if neither is taken up.
+F-17/F-18 get their own amendments **because a rule adopted by prose reference mutates silently
+when its parent is amended** — each chain anchors on its own declaration.
+
+**PART 2 — Don's ruling absorbed into `RISK_PRIMARY_MAP.md` (append-and-amend).** **R-1 is
+PARKED WITH A CONDITION.** The ruling is right and the miss was mine: I priced the non-inferiority
+margin for **statistical resolvability** and never asked whether it was **economically
+acceptable** — at `X7`'s 1.8629pp the register could PASS while surrendering **26.0% of the
++7.17%/yr alpha**, more than the **24.5%** `S13` surrendered when it was REJECTED. Don's rule is
+recorded as binding on the family: *a Sharpe or volatility gain bought with alpha is not worth
+having unless the Sharpe itself is bad — and it is not (0.5866, IR ≈0.88).* The condition is
+checkable: **at ρ = 0.97 the smallest policeable margin is 1.75pp at 80% power; a 0.5pp margin
+needs ρ ≥ 0.996 (50%) or ρ ≥ 0.998 (80%)** — a factor-3.5 gap, closed only by very high
+arm-to-base correlation. **Unlike the Sharpe kill this is not self-defeating** (the effect lives
+in the second moment, so ρ → 1 does not abolish it), so the test is real: the edge lane can
+measure ρ alone, bank it, and stop — `MB15`'s separation. My expectation, written: ρ lands
+0.95–0.99 and R-1 stays parked (~70/30). **Factor-neutralisation parks under the same rule;
+turnover/cost is now the family's only live member** — and `S14`, the record's one adoption, won
+there by spending less rather than predicting better.
+
+**PART 3 — `DAYTRADE_SCOUT_BRIEF.md` for the sibling project**, fence stated first and twice
+(methods/findings cross; licensed data and trial counters never; their N starts at zero and
+quoting ours at them would err in the punitive direction; I do not touch their ledger). Four
+sections: the graveyard swept for short-horizon evidence with **TRANSFERS / PARTIAL /
+DOES-NOT-TRANSFER / UNKNOWN / HANDOFF** tags; ~27 tagged ideas with replication status; exact
+reachability; and the cost arithmetic first. **Three things in it are worth more than the idea
+list:** (1) **`B2`** — stop-day quotes were censored *exactly when the stop fires*, which is the
+single most dangerous bug shape for a stops-based intraday program; (2) **`MB15` INVERTS for
+them** — the venue/TRF axis that is structurally dead in options is the live retail identifier in
+equities; (3) **short-term reversal is UNKNOWN, not killed** — `B12` means that era's rejection
+ran on an alphabetical slice, so they should re-derive rather than inherit it.
+
+**And a correction I owed:** I mis-described **WRDS Intraday Indicators** as "daily per-name
+aggregates." Its own product page says **daily *and* 5/15/30-minute** indicators from TAQ —
+richer than I said — **and that "a subscription to the TAQ dataset is required"**, which this
+account lacks. **A product listed as subscribed may be gated behind one that is not**, and that
+contradiction is now the first query their scoping run should make. It also re-prices my own
+`W-16`: the $ADV half of it unparks via CRSP regardless (phase 2 measured 89.7% coverage), but
+the spread/impact half may be unreachable.
+
+**Bookkeeping from the record while I was here:** **`S25` HAS RE-OPENED** — `comp.co_hgic` is
+entitled and dated, 94.9% coverage of the panel, 30.2% of gvkeys carrying more than one dated row
+— **the first permanently-closed ledger row to have its own named exit criterion met**, and my
+W-1 called it. Two caveats to carry into that register: the GICS 11 are not the panel's 11, so
+the crosswalk is a choice a register must own, and **GICS's own taxonomy changes (Real Estate
+2016, Communication Services 2018) will read as a wave of simultaneous reclassifications** — a
+confound my W-1 disagreement-rate check must handle. The **Thomson/13F repair does NOT happen**
+(all eight `tfn.*` tables genuinely denied on eight fresh connections), so **W-5 is DEAD via that
+route** and any substitute is the census's to name.
+
+**For the next session:** (1) whether the five amendments landed and were accepted; (2) whether
+more books came back from families B and C — handle them the same way; (3) the R-1 ρ measurement
+if the edge lane takes it; (4) `WRDS_CENSUS.md` tick-through, now with S25 confirmed and W-5 dead.
+
+---
+
 ## SESSION 8 — THE REDRAW, AND THE RISK AXIS (2026-08-24)
 
 **Part 1 — `WRDS_UNLOCK_MAP.md` REDRAWN as v2** against the official subscription list. §1 is
