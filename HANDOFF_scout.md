@@ -1,5 +1,43 @@
 # HANDOFF_scout.md — Frontier Scout
 
+## SESSION 7 — THE WRDS UNLOCK MAP (2026-08-24)
+
+**Commission:** the WRDS unlock map, census-conditional and blind. **Produced:
+`WRDS_UNLOCK_MAP.md`** — 13 entries in three tiers (reopens-a-closed-door: the PIT sector
+map through S25's own two-routes-back language; IvyDB's index options dissolving P6 and
+the $150/mo question; IBES unparking D6/D7 by their own text; TAQ iff entitled ·
+repairs-a-defect: the s34 backfill of the panel's most consequential coverage hole priced
+as the panel-change register it is, the CRSP delisting cross-check, $ADV dissolving B13+S7
+· merely-extends: the Compustat twin — with the honest MB13 statement that new inputs
+re-derive an arithmetic on a NEW object and void nothing as written — S18's backfill,
+surface features at 1996-scale, MA31/32 reopenable ONLY carrying a borrow-fee control per
+the 2026 JFE finding). **The anti-seed list is explicit** so nobody quotes "we bought
+data" at a mechanism closure, a time-bound clock, an N-bound floor, or the alert-cache
+power walls. Top-3 full sketches (W-1 sector rerun with the same-instrument kill; W-2
+revision breadth with PEAD faced by name; W-3 the s34 splice with the FIDELITY-2 gate and
+the X7-floor consequence priced, not hidden). Every entry carries its `CENSUS:` line and
+the one-block interlock checklist mirrors them for the data miner. Licensing fence
+throughout: research-only, never public, raw rows never leave `D:\wrds`.
+
+**State verified at session start:** the scout branch LANDED (through `953367a`). **The
+ceremony ran in the executing lane, per the runbook: 17 declared, 3 refused, and the
+fleet is DECLARED-BUT-NOT-BREATHING** — `entry_rules_implemented` 0 of 17, the runner door
+exists (`9f8aec4`), and fills pend on entry-rule implementations, not the scheduler.
+**The three refusals return to this desk, logged:** F-7 (the `pending_exit` state exists
+nowhere and the defensible reading needs a composite RANK no published artifact carries —
+revision blocked on a small state-source publication, routed as the ask; F-8/F-11 passed
+the identical test, making it specific), F-9 and F-16 (refused on HORIZON at 11.5 and 21
+YEARS derived from their own bounds at measured sigma 92.51 — my projections were too kind
+once real dispersion arrived; F-16 goes to Track B as my own adversarial note suggested,
+F-9 needs a redesigned entry cadence or the same route). Next scout session owns the three
+revisions.
+
+**For the next session:** (1) read `WRDS_CENSUS.md` when it lands and mark each unlock
+CONFIRMED/DENIED — the map is written to be ticked; (2) the three refusal revisions;
+(3) verify this session's commit landed.
+
+---
+
 ## SESSION 6 — THE CEREMONY, PACKAGED NOT PERFORMED (2026-08-24)
 
 **The commission asked this lane to BE the executor** — run the day-1 self-verification,
