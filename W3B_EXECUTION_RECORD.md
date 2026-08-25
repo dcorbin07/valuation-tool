@@ -1,5 +1,19 @@
 # W-3b — IBES ACTUALS INTO THE EARNINGS-DATE SPINE
-## EXECUTOR'S REGISTER. **ACCEPTED WITH TWO AMENDMENTS**, both forced by measurement.
+## EXECUTOR'S EXECUTION RECORD. **ACCEPTED WITH TWO AMENDMENTS**, both forced by measurement.
+
+> **THIS FILE IS NOT A PRE-REGISTRATION AND IS DELIBERATELY NOT NAMED `PREREG_`.** It was
+> written AFTER the measurement, as the executor's adjudication of the scout's draft. It
+> was first committed as `PREREG_w3b_ibes_event_spine.md` and
+> `tests/test_ma60_conventions.py` correctly refused it: that suite requires every
+> `PREREG_*.md` to have landed in a markdown-only commit, precisely so nobody can claim
+> thresholds were fixed first when they were not. Renaming was the honest fix; adding it to
+> the grandfather list would have exempted a file that genuinely is not blind. **The
+> pre-registration for this item is the scout's `PREREG_DRAFT_w3b_ibes_event_spine.md`,
+> which is reproduced unedited and which this file adjudicates.**
+>
+> A note on how it was caught, because it is a real gap in my own verification: the full
+> suite was green locally BEFORE the commit existed, and this check can only bite once
+> there is a commit to inspect. **A local run cannot see a commit-shape violation.**
 ## Zero trials, FIXED / instrument class. Executor: this lane, 2026-08-25.
 
 The scout's draft is `PREREG_DRAFT_w3b_ibes_event_spine.md`, unedited. This file is the

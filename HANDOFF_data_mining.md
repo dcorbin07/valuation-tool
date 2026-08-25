@@ -2,7 +2,7 @@
 
 **LATEST: W-3b — IBES ACTUALS INTO THE EARNINGS-DATE SPINE, SHIPPED 2026-08-25. Executor run of
 the scout's draft; ACCEPTED WITH TWO AMENDMENTS. Zero trials.** Adjudication in
-`PREREG_w3b_ibes_event_spine.md`; the four things a future reader needs:
+`W3B_EXECUTION_RECORD.md`; the four things a future reader needs:
 
 1. **The repair works and beats the draft: 29 of 29 FAIL_CLOSED names recovered, all 186 now
    COVERED.** Those 29 were every foreign private issuer in the book.
