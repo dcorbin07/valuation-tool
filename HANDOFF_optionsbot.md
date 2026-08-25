@@ -9197,7 +9197,11 @@ served (`I-2`'s finding, in its most damaging form). An unsolvable IV is OMITTED
 stored as 0.0, which would enter the percentile as the cheapest observation the name ever had.
 
 **F-20's RECORDER ALREADY EXISTS AND IS NOT REBUILT.** Its series is the BOUND paper index
-track, written by `PT-WRITER`'s door, standing at four rows and needing about five hundred. A
+track, written by `PT-WRITER`'s door, standing at **eight** rows and needing about five hundred.
+**CORRECTED AFTER LANDING: this said FOUR rows, quoted from `CLAUDE.md` rather than measured.
+The bound series runs 2026-07-31 → 2026-08-21 and holds EIGHT rows — the second time in this
+session I took a figure from the record instead of the file, after the E-4 claim. Measure the
+artifact.** A
 second writer would be a second copy of a fact (`MA5`) and would put two series under one name
 — the split `PT-SPLIT` had to unpick. **F-20 is TIME-starved, not recorder-starved.**
 
@@ -9424,3 +9428,37 @@ return.
 (gitignored): `MB_EVOWN_CENSUS_A.json`, `MB_EVOWN_CENSUS_B.json`, `EVOWN_BOOK.pkl/.json`,
 `EVOWN_ARMS.json`. **Tests:** `tests/test_evown_event_ownership.py`, 23 tests, 5 of 5 mutations
 caught with sources restored byte-for-byte.
+
+---
+
+### POST-LANDING CORRECTION AND ONE LIVE FAULT (2026-08-24, same lane)
+
+**TWO ERRORS OF MINE, BOTH THE SAME SHAPE: I QUOTED THE RECORD INSTEAD OF MEASURING THE FILE.**
+(1) Section 73 said E-4 had not run; it landed 2026-08-20. (2) It said the bound index track
+stands at FOUR rows; measured, it holds **EIGHT**, spanning 2026-07-31 → 2026-08-21. Both
+figures came from `CLAUDE.md`, both were true when that file was written, and neither was
+checked against the artifact. **`CLAUDE.md`'s numbers are trustworthy about the day they were
+measured and not about today.**
+
+**AND A LIVE FAULT, REPORTED OUTSIDE THIS LANE: TODAY'S `PT-WRITER` RUN FAILED.** `origin/main`
+carries `cf0c340 PT-WRITER 2026-08-24: service refused or unreachable (HTTP 000)`. **HTTP 000
+is not a refusal, it is no connection at all** — so the Render service was unreachable when
+that Action ran.
+
+**THAT MATTERS TO THIS WORK IN TWO WAYS AND BOTH SHOULD BE READ BEFORE ANYONE TRUSTS A CYCLE:**
+
+* **F-20's CLOCK IS NOT MERELY SLOW, IT MISSED TODAY.** Section 73 called F-20 *"TIME-starved,
+  not recorder-starved"*. With the writer failing, **it is currently both** — and a missed day
+  on that series is a GAP that stays one, by the same rule this lane just built into its own
+  recorders.
+* **THE FLEET-CYCLE DOOR LIVES ON THAT SAME SERVICE.** Every recorder wired in family (D) runs
+  on the write path of `/admin/fleet-cycle`. **If the service is unreachable, the three new
+  series do not accrue either** — so "the clocks are running as of today" is true of the CODE
+  and cannot be asserted of the DEPLOYMENT until a cycle actually reaches it. The end-to-end
+  proof in section 73 was through the local Flask app, which is exactly the gap a manual
+  dispatch of the Action would have closed, and the Action is still not merged.
+
+**Neither is this lane's to fix** — `PT-WRITER`'s health is its own open row and the service
+itself is Don's. It is reported here because family (D)'s whole value is that a series starts
+accruing TODAY, and a silently unreachable service is the one failure that would make that
+false while every test still passes.
