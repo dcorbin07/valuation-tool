@@ -12,7 +12,8 @@ score. **Raw rows never leave `D:\wrds`**; registers bank derived aggregates onl
 PUBLIC — `D:\wrds` joins `.gitignore`'s licensed-data class **before** the first pull, not after
 (`DATA-HISTORY`'s lesson, applied in advance).
 
-**Counters:** equity ~242 (hurdle **3.3133**), options 305, infra ~20 — re-read at run (`MA37`).
+**Counters:** equity ~242 (hurdle **3.3133**), options **307** (305 was a mid-session read,
+corrected on landing), infra ~20 — re-read at run (`MA37`).
 
 ---
 
@@ -21,18 +22,18 @@ PUBLIC — `D:\wrds` joins `.gitignore`'s licensed-data class **before** the fir
 | v1 entry | product it rested on | status | what stays shut |
 |---|---|---|---|
 | **W-2** index options → `P6`/`O8`/`B-G1` | OptionMetrics IvyDB | **DEAD** | `P6` stays `NEEDS-DATA`; `O8` stays INCONCLUSIVE-on-proxies. **The B-G1 dispersion question returns to Don's desk as a real ~$150/mo purchase decision** — it did not become free |
-| **W-4** intraday momentum → `MB41` | TAQ | **DEAD** | `MB41` stays `NOT-TESTABLE-HERE`. **Intraday Indicators does NOT revive it** — that product is daily per-name aggregates; `MB41` needs SPY half-hour returns. Honest distinction, stated so nobody mistakes the substitute for the thing |
+| **W-4** intraday momentum → `MB41` | TAQ | **DEAD** | `MB41` stays `NOT-TESTABLE-HERE`. **CONCLUSION RIGHT, REASONING WRONG — see §7.2:** I called Intraday Indicators "daily per-name aggregates"; it also ships 5/15/30-minute bars. It still does not revive `MB41` (stock-specific, not the index series it needs) **and it is TAQ-gated on this grant anyway** — the row now stands on two sound legs instead of one wrong one |
 | **W-8** clean options instruments | IvyDB | **DEAD** | No loss worth mourning: `I-1` is built and its parity check clears at **0.9858** against a 0.95 bar. `O-1`'s K2 stays on raw-chain Breeden–Litzenberger |
 | **W-10** short interest pre-2018 → `S18` | US short interest | **DEAD** | `S18` stays partial-sample (32 of 69 dates, all late). The both-halves gate remains impossible |
 | **W-11** surface features at 1996 scale | IvyDB | **DEAD** | `B-11` stays on the owned deep freeze (2016+) |
 | **W-12** `MA31`/`MA32` reopen | Markit securities lending | **DEAD** (absent from the list) | The family **stays shut**, and this is now a plain tombstone: the 2026 JFE borrow-fee finding says the reopen needs a borrow control, and no borrow product is subscribed |
 | **W-13** as-first-reported robustness | Compustat PIT/unrestated | **CENSUS-DEPENDENT** | Live only if the PIT product sits inside the 276 Compustat–CapIQ tables. Ask; expect no |
 | — | **Audit Analytics** | **DEAD** | **The NT-filing route for `MA28`'s fourth flag is gone.** `MA28` stays a **three-flag** card, and `MA28-CARD`'s published thresholds stay as shipped |
-| **W-1** PIT sector map | Compustat hist. GICS | **LIVE — and now stronger** (two routes) | see W-1 below |
+| **W-1** PIT sector map | Compustat hist. GICS | **CONFIRMED — `S25` HAS RE-OPENED** | `comp.co_hgic` entitled and dated: 45,836 rows / 32,012 gvkeys, **94.9%** panel coverage, **30.2% carrying more than one dated row** — a history, not a snapshot wearing a date. Two caveats travel: the GICS 11 are not the panel's 11 (the crosswalk is a register's choice), and **GICS's own taxonomy changes (Real Estate 2016, Communication Services 2018) will read as a wave of simultaneous reclassifications** |
 | **W-3** revisions | LSEG IBES | **LIVE — and larger than v1 knew** | see W-3 / W-3b |
-| **W-5** institutional backfill | Thomson/Refinitiv s34 | **PROVISIONALLY LIVE** — subscribed; our probe's DENIED was a library-naming error and the data miner is re-probing | see W-5 |
+| **W-5** institutional backfill | Thomson/Refinitiv s34 | **DEAD via this route** | All eight `tfn.*` tables genuinely denied, re-verified on eight fresh connections; `tfn` is a legacy shell. Any substitute is the census's to name, and until it does, `MB7`'s 49-of-69-date defect stands unrepaired |
 | **W-6** delisting cross-check | CRSP | **LIVE** | see W-6 |
-| **W-7** $ADV → `B13`/`S7` | CRSP volume | **LIVE but SUPERSEDED by W-16** | CRSP volume is the fallback if Intraday Indicators' coverage is thin |
+| **W-7** $ADV → `B13`/`S7` | CRSP volume | **LIVE — NO LONGER SUPERSEDED (§7.2)** | W-16 is dead, so CRSP `dsf` is the route rather than the fallback. Phase 2 measured **2,271 of 2,531 = 89.7%** against the current path's 19.8%; `B13` and `S7`'s fourth interaction unpark here |
 | **W-9** Compustat twin | Compustat + CRSP | **LIVE** | see W-9 |
 
 ---
@@ -56,7 +57,10 @@ and the register dies free on it) · SEC Analytics Suite → filing-header SIC �
 link. **Sketch:** v1's W-1 sketch survives the correction **intact** — use it as written
 (2 equity trials; same-instrument kill at <10% disagreement).
 
-### W-14 · Cboe open-close volume — `D4`'s declined purchase becomes free, and the options book gets its FIRST exogenous signal
+### W-14 · Cboe open-close volume — **REJECTED AT THE CENSUS GATE 2026-08-26 · see §7.1**
+*Left UNEDITED below as the record of what was proposed and why it was wrong (`MA18`'s
+precedent). **Its central claim — that this dissolves `D4`'s purchase — measures FALSE.
+`D4` is UNDISSOLVED.***
 **Tags: [`D4` DON'T BUY (priced from SEC-filed schedules: **$500/mo EOD, $400 per
 request-month**, and this project's own window is **94 purchasable months**) · `MB15` (venue
 proxy VOID) · `MB16`/`O14` (six flow features NULL) · `R2` (the alert entry)]**
@@ -121,7 +125,9 @@ old panel**, so any register *scoring* on the extended panel owes a floor re-der
 (the DENIED was ours), then s34 → mgrno, cusip, shares, fdate, rdate → gap window 2009→2014 +
 overlap 2013-06→present → **rdate−fdate lag distribution** (PIT honesty is the lag) → cusip↔permno.
 
-### W-16 · Intraday Indicators by WRDS — a REAL liquidity measure, and a better cost model
+### W-16 · Intraday Indicators by WRDS — **DEAD 2026-08-26 (TAQ-gated) · see §7.2**
+*Left unedited below. The `B13`/`S7` half survives via **W-7** (CRSP `dsf`, 89.7% coverage);
+the spread / price-impact half and the `S14` cost-model refinement are gone.*
 **Tags: [`B13` PARTIAL-BLOCKED (*"MIN_AVG_DOLLAR_VOLUME structurally cannot bind — the price
 export carries date and close ONLY"*) · `S7` (*"size × liquidity IS NOT BUILDABLE"*) · `MA25`
 (the record correction: the project has a liquidity measure, on a different path) · `O18`
@@ -237,3 +243,112 @@ downstream study and looks like a result.
 
 *Zero trials charged by this file. Every reopen argues past its tag inside its own register,
 and the census gates all of it. — Scout*
+
+---
+
+## 7. CORRECTIONS LOG — 2026-08-26 (append-and-amend; §2–§4 left unedited above)
+
+*Three corrections owed, and a fourth thing this lane got structurally wrong. Entries above are
+NOT rewritten — their headings carry a pointer and the bodies stand as the record of what was
+proposed. `MA18`'s precedent: a deliverable is a record of what was found, including by whom.*
+
+### 7.1 · **W-14 IS REJECTED. The claim measured FALSE and `D4` is UNDISSOLVED.**
+
+**Measured: Cboe open-close is NOT on this WRDS grant under any name — zero candidates across
+221 libraries.** W-14's headline claim — that it "dissolves `D4`'s declined $500/mo purchase" —
+**is false**, and the consequences are recorded rather than softened:
+
+* **`D4` stays `REJECTED / DON'T BUY`, and its purchase question is UNDISSOLVED.** The SEC-filed
+  prices stand as `D4` measured them ($500/mo EOD; $400 per request-month; 94 purchasable months
+  for this project's window). If the retail-flow question is ever wanted, **it costs what `D4`
+  said it costs** — this map bought nothing there.
+* **The options book still has no exogenous signal**, and every flow feature in the record stays
+  alert-day-conditioned. Nothing about the *argument* for exogenous flow was refuted; the
+  **product** is absent. Those are different, and only the second is now known.
+
+**On whose kill fired — and I want to be exact rather than flattering.** My W-14 sketch named
+**K3 (identification)** as "the one most likely to fire", and the family of risk was right. But
+**K3 did not fire and could not have**: it tests whether an obtained product separates customer
+from firm volume, and no product was obtained. **The gate that rejected W-14 was the CENSUS,
+upstream of every kill in the register.** The distinction is the lesson:
+
+> **A register's kill conditions can only protect against properties of data you have. They are
+> structurally blind to a product that is not there. Only the census guards that door — which is
+> why §7.4 matters more than this paragraph does.**
+
+Recorded so no future reader concludes that well-written kill conditions catch access failures.
+They do not, and mine did not.
+
+### 7.2 · **W-16 IS DEAD: WRDS Intraday Indicators requires TAQ, and this grant has none.**
+
+The product page states it plainly and I quoted it a session ago while marking the entry only
+"verify first" — **that was too soft and it is now DEAD**, not qualified. What survives and what
+does not:
+
+* **DEAD:** the spread / depth / price-impact half, the external anchor for `O18`'s ρ, and the
+  `S14` cost-model refinement (per-name price impact). The `MB41` non-revival stands.
+* **SURVIVES, via W-7 instead:** `B13`'s unbindable `MIN_AVG_DOLLAR_VOLUME` and `S7`'s fourth
+  interaction unpark on **CRSP `dsf`** — phase 2 measured **89.7%** panel coverage against the
+  current path's 19.8%. W-7 is promoted from fallback to route.
+* **The constructive substitute, and it costs nothing:** effective spreads are estimable **from
+  daily OHLC alone** — Ardia–Guidotti–Kroencke (*JFE* 2024), with Corwin–Schultz and Holden
+  (2009) as the older members of that family. CRSP daily carries OHLC. **A cost model is
+  therefore still buildable without TAQ**, at lower resolution and with its estimator named.
+* **And a correction to my own correction:** the death-ledger's W-4 row said Intraday Indicators
+  is "daily per-name aggregates". It also ships **5/15/30-minute** bars. The row's conclusion
+  (`MB41` stays dead) was right for the wrong reason and now stands on two better ones.
+
+### 7.3 · **The O-1 design lesson, and it is the most expensive thing on this page**
+
+**`O-1`'s arm returned UNDERPOWERED because a chain-coverage figure measured on the ALERT BOOK
+was applied to the PANEL: ~75% assumed against 5.89% actual — a factor of ~17.** That number
+came from my draft. I wrote *"every panel rebalance date with chain coverage (expected ≈40 of 69,
+the `V6-OPT` window)"* — importing a coverage rate from a population (dipped names with options
+activity) that is not the population the arm would test (all MA28-flagged panel names). The
+register then ran and could not have cleared.
+
+**Adopted as a standing drafting rule for every future draft this lane writes:**
+
+> **COVERAGE IS MEASURED ON THE POPULATION THE ARM WILL TEST, AND STATED BEFORE THE ARM.** A
+> coverage rate borrowed from any other population — an earlier study, an adjacent screen, a
+> book with different selection — is an assumption wearing a measurement's clothes. It goes in
+> the pre-outcome control pass, and the arm refuses without it.
+
+This joins two rules the same way, and together they are now this lane's checklist:
+
+1. **Name the FIELD and its DIRECTION IN TIME**, never just the source (`F-13`, `2ef8e5d`).
+2. **Measure coverage on the arm's own population, before the arm** (`O-1`, this entry).
+3. **Price a margin for what is economically acceptable, not only for what is statistically
+   resolvable** (`R-1`, `RISK_PRIMARY_MAP.md` §amended).
+
+Three drafts, three different ways to be confidently wrong about something checkable in advance.
+All three are cheap to check and none was checked.
+
+### 7.4 · **What the census could NOT have answered — and the convention that follows**
+
+**`WRDS_CENSUS.md` probed the OptionMetrics-replacement shape and never probed open-close.** Its
+denial of six `optprice`-shaped tables was **never a measurement of this product**, and reading
+it as one would have been a second error on top of the first. The decisive evidence is the
+separate **221-library sweep returning zero candidates** — a different instrument answering a
+different question, and it is the one that settles W-14.
+
+> **CONVENTION, binding on every future entry in this map: a `CENSUS:` line must name the EXACT
+> LIBRARY AND TABLES to probe — `library.table`, not a product's marketing name — plus the fields
+> and span. A product name is a thing to search for; a table name is a thing to test.**
+
+**Existing entries whose `CENSUS:` lines are under this standard and must be sharpened before
+anyone acts on them:** W-3/W-3b (IBES — name `ibes.det_epsus`, `ibes.statsum_epsus`,
+`ibes.act_epsus`, `wrdsapps.ibcrsphist`), W-17 (SPDJI), W-19 (TRACE), W-21 (Blockholders),
+W-22 (Beta Suite / Pastor–Stambaugh), W-25 (SEC Order Execution), W-23 (Financial Ratios).
+W-1 and W-7 are already confirmed by probe and need nothing. **Until an entry's tables are named,
+its "IF the census confirms" is not a testable condition — it is a wish with a colon after it.**
+
+### 7.5 · Net effect on the map
+
+**Tier 1 is now one entry, not three:** W-1 (**CONFIRMED — `S25` re-opened**, the first
+permanently-closed row to meet its own exit criterion) and W-3 (IBES, live but tables unnamed).
+**W-14 is rejected; W-5 is dead via `tfn`; W-16 is dead.** The map's honest score after contact
+with the census: **one confirmed unlock, one live, two dead on entitlement, one dead on gating,
+one rejected outright.** That is a normal hit rate for a speculative map and it is why every
+entry was written conditional — but the conditionality only worked where the condition named
+something testable, which is §7.4's whole point.
