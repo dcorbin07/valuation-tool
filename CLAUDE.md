@@ -48,6 +48,105 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE MARKET ALREADY PRICES ABOUT HALF OF `MA28`'s ACCOUNTING FLAG, AND THE FIRST LONG-PUT BOOK
+  THIS PROJECT HAS EVER RUN IS UNDERPOWERED BY CONSTRUCTION — 74 FLAGGED TRADES AGAINST A
+  POWER-DERIVED FLOOR OF 3,600 (2026-08-25, `O-1`).**
+  `PREREG_o1_long_puts_accounting_flags.md` committed **ALONE and BLIND at `c82c15b`**, markdown
+  only, zero `.py`, 249 lines, a strict ancestor of every measurement commit; **1 options trial
+  booked at `5423515` BEFORE any runner existed, `N` 307 -> 308**. **ADOPTS NOTHING; `O11` GOVERNS
+  and `R2` STANDS.**
+  * **WHY IT EXISTS: THE ENTIRE O-SERIES BOOK IS 100% CALLS.** `O13` measured `opt_right` CONSTANT
+    across all 3,870 banked trades, so every options claim this project has made is about long
+    calls at swing horizon and **long puts had never been tested**. The mechanism is `MA28-CARD`,
+    verified here against its own banked card rather than quoted — `rate_flagged` **0.026597**,
+    `rate_kept` **0.008743**, `ratio` **3.0422123745999063**, `n_flagged` **6542**, and
+    **`B2_ratio_floor` 2.0**, which is what makes this kill bar `MA28`'s own reused verbatim
+    rather than one chosen here.
+  * **THE KILL DOES NOT FIRE AND IT DOES NOT FIRE DECISIVELY, WHICH IS THE FINDING.** On 2,844
+    usable slices over 1,265 name-year cells the risk-neutral left-tail ratio is **1.5299 [1.1902,
+    1.9201]** at x=0.50, **1.3757 [1.1333, 1.6299]** at 0.65 and **1.1997 [1.0833, 1.3330]** at
+    0.80 — **every interval EXCLUDES BOTH 1.0 AND THE 2.0 BAR.** **Both halves matter and neither
+    may be quoted alone: the market GENUINELY DOES price the flag, and it prices only PART of it**,
+    with the differential **largest in the DEEPEST tail** where `MA28`'s crash lives.
+  * **THE COMPARISON THE REGISTER WAS BUILT TO MAKE: `MA28`'s PHYSICAL crash-rate ratio of 3.0422
+    sits ABOVE THE ENTIRE 95% INTERVAL of the risk-neutral one.** That gap is the residual a put
+    would buy, and it is the first time this project has priced one of its own risk findings
+    against the market's own quote. **THE LIMITATION TRAVELS WITH IT: `MA28`'s figure is a
+    63-TRADING-DAY PHYSICAL rate and this tail is a ~185-DAY RISK-NEUTRAL one, so the LEVELS are
+    not comparable — only the RATIO is, and how the ratio scales with horizon is UNMEASURED.**
+    `E-4`'s prior was declared IN ADVANCE and held (kappa **0.0624**, odds ratio **2.4257**, both
+    verified in E-4's own artifacts); **`E-4`'s UNDERPOWERED verdict is NOT reopened.**
+  * **A PREMISE CORRECTION FORCED BY THE DATA, DECLARED BEFORE ANY OUTCOME: THE DECLARED TENOR DOES
+    NOT EXIST IN THE FREEZE THE REGISTER NAMED.** `resolve_chains` returns the EOD chain freeze,
+    which carries **8 expiries per date at DTE 3-59** — nothing at 150-210 at all. Repointed to the
+    **PINNED HARVEST freeze** rather than moving the tenor, **because changing the tenor to fit the
+    data available is choosing the design on the data.**
+  * **A DEFECT IN MY OWN REGISTER, RUNNING ~17x THE WRONG WAY.** It claims *"~75% chain coverage"*;
+    measured, the harvest freeze reaches **6,711 of 113,945 panel cells — 5.89%** — because it is a
+    **TARGETED** pull and the constraint stacks: 775 of 2,531 panel names present, but only **421**
+    also carrying a populated bars file. **The 75% was measured on the ALERT BOOK and applied to
+    the PANEL** — `V6-OPT`'s own lesson that a composition fact about a BOOK is not a coverage fact
+    about a CACHE, committed with the warning in view.
+  * **THE ARM IS UNDERPOWERED BY CONSTRUCTION AND THE REGISTER PRE-COMMITTED THAT BRANCH** (*"if it
+    lands below, the honest outcome is UNDERPOWERED and the trial still charges"*). Primary
+    (name-year): **74 flagged vs 121 over 62 cells, gap -0.0675 [-0.2301, +0.1068]**, early -0.1348
+    and late +0.0777 so **the halves DISAGREE IN SIGN**, MDE80 0.3020 at **0.224x** of its own
+    detection threshold. Secondary (year x cap-quintile): 96 vs 2,490, gap **-0.1111 [-0.1924,
+    +0.0104]**, 0.381x. **BOTH GAPS ARE NEGATIVE — the OPPOSITE of the hypothesised direction — and
+    NEITHER CARRIES A CLAIM IN EITHER DIRECTION**, both sitting far below detection with intervals
+    straddling zero. **POWER AGAINST THE REGISTER'S OWN 0.07 SD PRIOR IS 0.19%: this design could
+    not have returned a positive verdict for the effect it was built to look for.**
+  * **THE FLOOR DERIVATION WAS RIGHT AND ONLY THE COVERAGE ESTIMATE WAS WRONG.** `MB22`'s own
+    `required_n` returns **3,643** at 0.07 SD and `N` = 308, reproducing the register's hand-derived
+    3,600; the binding constraint is the **FLAGGED leg at 74**.
+  * **FOUR DEFECTS OF MY OWN, FOUR BUILD PASSES FOR WHAT SHOULD HAVE BEEN ONE, and every one caught
+    by disbelieving a number against a constant the engine already owned rather than by anything
+    raising.** (a) **The x100 multiplier** — `net_pnl` is DOLLARS and `entry_fill` the PER-SHARE
+    premium, so returns first read **+102.46 instead of +1.0246**, `EVOWN`'s pass-2 defect exactly;
+    the ENGINE'S OWN CONSTANTS proved the fix (`TARGET_PCT` 1.00, `STOP_PCT` -0.50) and the identity
+    reproduces at **1.8e-12**. (b) **A non-random dropout from a DATE TYPE** — 26 trades lost to
+    `TypeError` because I hand-built a `bars` dict of `date` objects where the canonical cache
+    stores **ISO STRINGS**, and those 26 are exactly the trades reaching the **SETTLE** branch.
+    **AND A CORRECTION AGAINST MY OWN FIRST READING, made by measuring rather than reasoning: I said
+    it ran AGAINST the hypothesis and that fixing it would move the gap toward the arm. IT MOVED
+    AWAY** — all 26 are **UNFLAGGED** at a mean of **+0.7799** against the book's -0.2001, so the
+    tail belonged to the **CONTROL**. (c) **THE SPLIT GUARD, THE ONE TO REMEMBER** — MNST entered
+    2016-10-18 on a 135 strike and split **3-for-1** on 2016-11-10, and since strikes are AS-TRADED
+    while `raw_close` crosses the split the settle branch booked a fake **+1453%**, `U1-SPLIT`'s GE
+    defect in a new costume. **The engine HAS the guard and `simulate_trade`'s `splits=` DEFAULTS TO
+    `None` as "the historical behaviour exactly", SO A CALLER THAT FORGETS IT SILENTLY GETS NO
+    GUARD** — and it was not one trade, the new test failing against the pre-fix book at **16 traded
+    rows spanning a split**. **THE PORTABLE PART: A GUARD WHOSE DEFAULT IS OFF FOR BACKWARD
+    COMPATIBILITY IS A GUARD A NEW CALLER SILENTLY LOSES.** (d) **A refused trade is TRUTHY** —
+    `simulate_trade` signals refusal as a dict with `ok: False`, so the row landed marked `traded`
+    with its **reason discarded**; the scoring was never wrong (null returns are filtered) but a
+    book that says it traded what it refused is wrong about its own history.
+  * **REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3): `valuation/studies/market_tail.tail_mass_row`
+    takes `thresholds` as a parameter and then indexes a HARD-CODED `PRIMARY_THRESHOLD = 0.70` into
+    the result**, so it **RAISES `KeyError`** for any caller whose thresholds omit 0.70, while the
+    sensitivity loop two lines below guards correctly with `if frac in s.tail_mass` — **the
+    parameter is honoured everywhere except the one column named for it** — and its emitted columns
+    come from `SENSITIVITY_THRESHOLDS = (0.50, 0.60, 0.80, 0.90)`, which does not contain this
+    register's declared **0.65**, so even a superset could not emit it. **NOT EDITED** — it is
+    `E-4`'s instrument and editing it would move a landed figure — so this register dropped to the
+    shipped primitives underneath (`pick_expiry` + `rnd.build_slice`). **E-4's lane's to fix.**
+    **AND `HANDOFF_optionsbot.md` CARRIES TWO `## 73.` SECTIONS** from two lanes, merged cleanly
+    because neither touched the other's region; harmless for content, ambiguous for citation, the
+    same shape as the `EXPECTED_BY_DOMAIN` double-assign. **Not renumbered here.**
+  * **NOT DONE, named so it is not mistaken for done: the declared SECONDARY 330-400 DTE tenor is
+    NOT RUN and carries no verdict** (LEAPS cluster at January, so that window is empty on most
+    observation dates); **the engine's own 45-75 DTE band is NOT run**; **no cost-adjusted verdict
+    is taken** — the verdict is on the FULL QUOTED SPREAD with `O18`'s rho beside it **LABELLED AN
+    EXTRAPOLATION** because rho was measured on 35-delta ~60-DTE **CALLS**; **`MA28` is NOT weakened
+    and NOT reopened**, this being a statement about whether the crash is **PURCHASABLE** rather
+    than about whether the flag is real; **`MB8` is not reopened** and no arm path reads a book
+    file, pinned by test; and **the 5.89% ceiling is a property of the harvest freeze's TARGETING,
+    not of options data** — a deeper pull would move it, and that is a data purchase rather than an
+    analysis. **Expectations: the register put the kill firing at 15%, UNDERPOWERED at 35%, NULL at
+    35% and separation at 15% — the outcome is the MODAL branch, and the one whose cause I estimated
+    17x wrong. 34 tests, exit 0.** `scripts/o1_kill.py`, `scripts/o1_arm.py`;
+  `data/free_analysis/O1_KILL.json`, `O1_KILL_CI.json`, `O1_ARM.json`, `O1_TAIL_PANEL.pkl`,
+  `O1_PUT_BOOK.pkl`; `HANDOFF_optionsbot.md` 76.
 - **A SHARPE OR VOLATILITY GAIN BOUGHT WITH ALPHA IS NOT WORTH HAVING UNLESS THE SHARPE ITSELF
   IS BAD - DON'S STANDING RULING, NOW BINDING ON THE WHOLE RISK-PRIMARY FAMILY (2026-08-24,
   `R1-VAR`, PARKED BEFORE REGISTRATION).** **ZERO TRIALS** - no register committed, no runner, no
