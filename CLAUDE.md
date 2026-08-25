@@ -48,6 +48,58 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **A SHARPE OR VOLATILITY GAIN BOUGHT WITH ALPHA IS NOT WORTH HAVING UNLESS THE SHARPE ITSELF
+  IS BAD - DON'S STANDING RULING, NOW BINDING ON THE WHOLE RISK-PRIMARY FAMILY (2026-08-24,
+  `R1-VAR`, PARKED BEFORE REGISTRATION).** **ZERO TRIALS** - no register committed, no runner, no
+  measurement on market data; `by_domain` bit-identical (equity **242**, options **305**, infra
+  **20**) while `rows_fixed_not_counted` rises **76 -> 77**. The book runs **Sharpe 0.5866** at an
+  **IR of ~0.88/yr vs SPY**, so the antecedent does not fire.
+  * **THE DEFECT, AND IT IS ABOUT WHAT A NUMBER MEANS RATHER THAN WHETHER IT IS STALE.** The
+    scout's `PREREG_DRAFT_r1_variance_primary.md` sets its alpha non-inferiority margin at X7's
+    calibrated **1.8629pp**, which is **25.98% of the book's own +7.17pp/yr top-decile alpha** -
+    so the register could **PASS while surrendering about a quarter of the alpha**. **Derived at
+    today's `N` rather than quoted (`MA19`'s lesson): equity `N` = 242, hurdle 3.3132877, and
+    `MB31`'s adopt set is IDENTICAL at 224 and 242 with five trials of headroom to 247, so the
+    figure is CURRENT.** The number is right; the use is wrong.
+  * **THE SHARPEST FORM, AND THE DRAFT SUPPLIES THE PREMISE AND THEN READS IT BACKWARDS: `S13`
+    SURRENDERED 1.76pp AND WAS REJECTED.** That sits **INSIDE** the margin with **0.1029pp** to
+    spare, so **`S13` would have PASSED this register's alpha leg.** The draft's §3 notes the
+    containment and concludes the leg is *"genuinely binding rather than decorative"* - it is
+    decorative at exactly the magnitude the project has already ruled on. **A register whose
+    winning condition is one the owner would decline to adopt should not be run: it spends a
+    trial, raises every hurdle, and cannot change what we do.**
+  * **THE PORTABLE PART: X7's ALPHA MARGIN IS A *DETECTION* THRESHOLD AND WAS USED AS A
+    *PREFERENCE* THRESHOLD.** Its calibrated column is a **placebo p95** - *"how large must an
+    alpha difference be before this panel can tell it from noise?"* A non-inferiority margin asks
+    *"how much alpha is the owner willing to surrender?"*, and **the two have no reason to
+    coincide.** `S10` recorded the consequence one step milder, for a **1.0pp** allowance it noted
+    sat **BELOW** the calibrated figure: a pass means *"no alpha loss detectable at this panel's
+    resolution"*, **never** that the loss is small. **This margin sits AT the calibrated figure,
+    so it is LOOSER than the one `S10` flagged and that caveat applies a fortiori.**
+  * **IT IS A PREFERENCE KILL AND NOT A POWER KILL, WHICH IS THE FAIR THING TO RECORD.** The
+    scout's variance-leg power table **reproduces in ALL NINE CELLS at both `MB22` vocabularies**
+    from its own stated `SE = sqrt(4(1-rho^2)/n)` (rho 0.95/0.97/0.99 -> 80%-power vol reductions
+    **14.45 / 11.45 / 6.81%** against a claimed 14.5 / 11.4 / 6.8), correctly labelled, and its
+    pre-outcome kill bites only below rho **0.8949** (solved; rho 0.90 reads 19.58% and PASSES). **`RISK_PRIMARY_MAP.md`'s VERDICT 3 is NOT overturned
+    - variance really is the leg this panel can see**, and its two kills (Sharpe-primary needs 87
+    independent years against 14.7 effective, or rho >= 0.9993 paired; drawdown is n=1 on one
+    COVID quarter) stand.
+  * **RE-OPEN CONDITIONS, CHECKABLE RATHER THAN ASPIRATIONAL.** **(a)** a margin Don would adopt
+    AND still powered at it - at **0.5pp** the maximum tolerable **paired HAC SE** is **0.1761pp**
+    at 80% power under crit 2.0 and **0.1204pp** under the honest hurdle (0.2500 / 0.1509 at 50%).
+    **The record's two MEASURED paired SEs BRACKET the decision**: `MB8`'s **0.1106pp** clears both
+    (though at the hurdle its 80% MDE is **0.4594pp against 0.5pp - 8.1% of headroom, a knife
+    edge**) while `V2G`'s **0.9354pp** fails by 5.3x-7.8x. Control: `MB8`'s published 0.314pp
+    reproduces from its own SE at **0.3141pp**. **`MB8`'s own lesson forbids borrowing an SE across
+    perturbation sizes, so this arm needs its OWN measured paired SE - a CONTROL, which under
+    `MB1-SEL` can only BLOCK and therefore costs ZERO TRIALS and may be taken BEFORE any register
+    is written.** **(b)** the book's Sharpe or drawdown materially deteriorates - a **forward-track**
+    question, since the panel cannot resolve a Sharpe change at all.
+  * **RELAYED, NOT EDITED:** `RISK_PRIMARY_MAP.md` and the draft are the scout lane's files and
+    are byte-identical on `main` and `worktree-scout-wrds` (`3348732`); the map names **no margin
+    anywhere**, which is precisely the gap this ruling fills. **The id is `R1-VAR` because `R1` is
+    already taken** (Factor-adjusted alpha, DONE 2026-08-05) - the ledger's own documented
+    collision hazard. `HANDOFF_edge_audit.md` R1-VAR.
 - **EVENT OWNERSHIP IS NOT DISTINGUISHABLE FROM ORDINARY RANDOM ENTRY AT THE SAME TENOR, BECAUSE
   ORDINARY RANDOM ENTRY AT THAT TENOR ALREADY OWNS THE EVENT (2026-08-20, `EVOWN`).**
   `PREREG_evown_event_ownership.md` committed **ALONE at `4661c03`**, markdown only, zero `.py`, a

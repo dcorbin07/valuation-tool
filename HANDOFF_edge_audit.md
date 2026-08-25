@@ -16638,3 +16638,136 @@ register, and it is the paper-track lane's to adjudicate.**
 `scripts/i1_append_only_validate.py`, `scripts/fleet_selfcheck.py`;
 `tests/test_fleet_harness.py` (52 tests) plus the repointed `MA4` guard in
 `tests/test_index_mark.py` (64/64).
+
+---
+
+# R1-VAR — THE VARIANCE-PRIMARY REGISTER, PARKED BY DON BEFORE REGISTRATION (2026-08-24)
+
+**ZERO TRIALS. No register was committed, no runner exists, no measurement was taken.**
+`by_domain` is **bit-identical** across the log append (equity **242**, options **305**, infra
+**20**) while `rows_fixed_not_counted` rises **76 -> 77**, which is the proof the row was seen
+and correctly excluded rather than silently dropped. **PARKED WITH A CONDITION** under Don's
+no-discard rule, not discarded.
+
+**THE ID IS `R1-VAR` AND NOT `R1`, AND THAT IS A COLLISION AVOIDED RATHER THAN A PREFERENCE.**
+The ledger already carries **`R1` — Factor-adjusted alpha, DONE 2026-08-05**, and this handoff
+already carries a `## R1` section on that subject. The scout's draft titles itself *"R-1"*.
+Filing a PARKED row under `R1` would put two unrelated subjects and two different verdicts under
+one id, which is the hazard the ledger already documents for `MA9`/`MA10` and for `M2`/`M6`.
+
+## Don's ruling, which is now binding on the family and not only on this draft
+
+*A Sharpe or volatility gain bought with alpha is not worth having unless the Sharpe itself is
+bad, and it is not* — the book runs **Sharpe 0.5866** with an **IR of about 0.88/yr against
+SPY**. A register whose winning condition is one the owner would decline to adopt should not be
+run: **it spends a trial, raises every hurdle for every future equity claim, and cannot change
+what we do.**
+
+## The defect, derived at today's `N` rather than quoted
+
+`MA19`'s lesson is that **1.95pp was stale for nine days because it was quoted rather than
+derived**, so nothing here is quoted. Live `by_domain` re-read: **equity `N` = 242**, HLZ hurdle
+**3.3132877**. `scripts/mb31_staleness_map.py` re-derives the adopt set and finds it **IDENTICAL
+at `N` = 224 and `N` = 242**, with the next flip at **`N` = 247 (seed 1003), five trials of
+headroom** — so **X7's calibrated alpha margin is still 1.8629pp today**, and the draft's figure
+is current rather than stale. The defect is not that the number is wrong. It is what the number
+*means*.
+
+* **THE MARGIN IS 25.98 PERCENT OF THE BOOK'S OWN ALPHA.** 1.8629pp against a top-decile alpha of
+  **+7.17pp/yr**. So a PASS is compatible with surrendering about a quarter of the alpha, and the
+  register would report that as a success.
+* **THE SHARPEST FORM, AND THE DRAFT SUPPLIES THE PREMISE ITSELF: `S13` SURRENDERED 1.76pp AND
+  WAS REJECTED.** 1.76 sits **INSIDE** 1.8629 with **0.1029pp** to spare, so **`S13` would have
+  PASSED this register's alpha leg.** The draft's section 3 states exactly this and draws the
+  **opposite** inference — it says the leg is therefore *"genuinely binding rather than
+  decorative"*. It is decorative precisely where it matters: at the one magnitude this project
+  has already ruled on.
+* **THE PORTABLE PART, AND IT OUTLIVES THIS ITEM: X7's ALPHA MARGIN IS A *DETECTION* THRESHOLD
+  BEING USED AS A *PREFERENCE* THRESHOLD.** The calibrated column of X7's table is a **placebo
+  p95** — it answers *"how large must an alpha difference be before this panel can tell it from
+  noise?"*. A non-inferiority margin answers a different question — *"how much alpha is the owner
+  willing to surrender?"* — and **the two have no reason to coincide.** Setting the second from
+  the first means the margin is fixed by the panel's resolution rather than by the owner's
+  appetite, which is how a register comes to have a winning condition its owner rejects.
+* **THE RECORD ALREADY CONTAINS THE WARNING, ONE STEP MILDER.** `S10` used a **1.0pp** allowance,
+  noted that it sits **BELOW** the calibrated margin, and recorded that it survives *"only because
+  it is a non-inferiority allowance, so a pass means 'no alpha loss detectable at this panel's
+  resolution', NEVER 'the loss is under 1pp'"*. **This draft's margin sits AT the calibrated
+  figure, so it is LOOSER than the one `S10` flagged and `S10`'s caveat applies a fortiori.**
+
+## WHAT THIS IS NOT: it is a PREFERENCE kill, not a POWER kill, and the scout is right on the primary
+
+The executor's brief was to kill the item if its power arithmetic did not survive checking.
+**It survives.** The variance-leg table was reproduced from the draft's own stated formula
+`SE = sqrt(4(1 - rho^2)/n)` at `n` = 69 and the hurdle 3.3133:
+
+| rho | SE (draft / derived) | 50 pct power (draft / derived) | 80 pct power (draft / derived) |
+|---|---|---|---|
+| 0.95 | 0.0752 / 0.07518 | 11.7 / 11.71 | **14.5 / 14.45** |
+| 0.97 | 0.0585 / 0.05853 | 9.2 / 9.24 | **11.4 / 11.45** |
+| 0.99 | 0.0340 / 0.03397 | 5.5 / 5.47 | **6.8 / 6.81** |
+
+**All nine cells reproduce, at BOTH `MB22` vocabularies, and the draft labels which column is
+which** — the one thing `MB22` exists to catch. Its own pre-outcome kill (stop if the 80 pct MDE
+exceeds a 20 pct vol reduction) **bites only below rho 0.8949, solved rather than eyeballed** (rho 0.90 gives 19.58 pct and PASSES, rho 0.85
+gives 23.2 pct). **It is reachable, but it is a BACKSTOP rather than a live constraint** - the draft's own expectation 4 prices rho at or above 0.95 at 75/25, well clear of the boundary, so a successor should not read "the design passed its own power gate" as evidence of anything. **The scout's two kills stand
+and `RISK_PRIMARY_MAP.md`'s VERDICT 3 is NOT overturned: variance genuinely is the leg this panel
+can see.** The park is about the **gating** leg only, and a successor inherits a *checked* power
+table.
+
+## Re-open conditions, stated so they are CHECKABLE rather than aspirational
+
+**(a) The margin is tightened to a level Don would actually adopt AND the design is still powered
+at it.** At a **0.5pp** margin, the maximum tolerable **paired HAC standard error** is:
+
+| crit | max SE @ 50 pct power | max SE @ 80 pct power |
+|---|---|---|
+| 2.0 (the conventional bar `MB8` used) | 0.2500pp | **0.1761pp** |
+| 3.3133 (the honest hurdle at `N` = 242) | 0.1509pp | **0.1204pp** |
+
+**Against the only two paired HAC SEs this record has ever MEASURED, and they BRACKET the
+decision:**
+
+* **`MB8`: 0.1106pp** — rescaled 3.56 pct of holdings by half, membership identical. **Clears both
+  crits** — but at the honest hurdle its 80 pct MDE is **0.4594pp against a 0.5pp margin, i.e.
+  8.1 pct of headroom.** A knife edge, and it must be reported as one.
+* **`V2G`: 0.9354pp** — a whole-theme swap, i.e. a genuinely different book. **Fails by 5.3x at
+  crit 2.0 and 7.8x at the hurdle.**
+
+**CONTROL, because an anchor asserted is an anchor untested: `MB8`'s published 80 pct-power MDE of
+0.314pp reproduces from its own SE at 0.3141pp.** The anchor is right.
+
+**SO CONDITION (a) CANNOT BE SETTLED FROM THE ARMCHAIR, AND THAT IS THE USEFUL HALF.** The two
+anchors differ by **8.5x** and the answer flips between them, while **`MB8`'s own recorded lesson
+forbids borrowing an SE across perturbation sizes** (*"a paired difference between two HIGHLY
+CORRELATED books is measured far more precisely than one between two different books"*). This arm
+re-weights **every** name in the decile while holding membership fixed, which sits between the two
+anchors and resembles neither. **It therefore needs its OWN measured paired SE — and that
+measurement is a CONTROL, which under `MB1-SEL` can only ever BLOCK a finding and never produce
+one, so it costs ZERO TRIALS and may be taken BEFORE any register is written.** That is the
+cheapest possible next step and it is the one this park recommends.
+
+**(b) The book's Sharpe or drawdown materially deteriorates.** Explicitly a **forward-track**
+question rather than a panel one — the panel cannot resolve a Sharpe change at all
+(`RISK_PRIMARY_MAP.md` VERDICT 1), so nothing on the panel can satisfy this condition.
+
+## RELAYED TO THE SCOUT LANE, NOT EDITED
+
+**`RISK_PRIMARY_MAP.md` and `PREREG_DRAFT_r1_variance_primary.md` are the scout lane's files and
+were NOT touched** — verified byte-identical on `origin/main` and `origin/worktree-scout-wrds`
+(both `3348732`). The map carries **VERDICT 3** (*"THE FAMILY SURVIVES, RE-SPECIFIED: variance-
+primary with alpha non-inferiority"*) and **names no margin anywhere**, deferring the full sketch
+to the draft. **That is exactly the gap this ruling fills, and the relay is the point of this
+section:** the map's re-specification fixed the *primary* statistic correctly and left the
+*gating* leg at a value that makes the win worthless. **A constructive successor must carry Don's
+ruling and the (a)/(b) conditions above, or it will re-derive the same parked design.**
+
+## NOT DONE, named so it is not mistaken for done
+
+**No register was committed and none may be** until a condition is met. **No trial was booked** —
+equity `N` stays 242. **No measurement of any kind was taken on market data**: every number here
+is either re-derived from a shipped module (`research_log`, `power_gate`, `mb31_staleness_map`) or
+read from a banked figure already in the record. **The arm was not built, `rho` was not measured,
+and the paired SE that condition (a) turns on was NOT measured** — that is the recommended next
+step and it is deliberately left to whoever takes it, because taking it here would begin the
+design this ruling parks. **`S13` is not re-opened**; its alpha verdict stands on its own terms.
