@@ -9696,7 +9696,7 @@ No meter read, no verdict, `by_domain` untouched by this lane. **The test-book's
 fill is machinery verification, not a measurement**, and it closes with a zero-charge row: the
 charge comes at FIRST VERDICT READ and there was none.
 
-## 76. O-1 — LONG PUTS ON ACCOUNTING-FLAGGED NAMES: the kill does not fire, the market prices
+## 77. O-1 — LONG PUTS ON ACCOUNTING-FLAGGED NAMES: the kill does not fire, the market prices
 about half the flag, and the arm is UNDERPOWERED BY CONSTRUCTION (2026-08-25)
 
 `PREREG_o1_long_puts_accounting_flags.md` committed **ALONE and BLIND at `c82c15b`**, markdown

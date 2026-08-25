@@ -146,7 +146,7 @@ the project's memory and the old versions had been repeated for months.
     35% and separation at 15% — the outcome is the MODAL branch, and the one whose cause I estimated
     17x wrong. 34 tests, exit 0.** `scripts/o1_kill.py`, `scripts/o1_arm.py`;
   `data/free_analysis/O1_KILL.json`, `O1_KILL_CI.json`, `O1_ARM.json`, `O1_TAIL_PANEL.pkl`,
-  `O1_PUT_BOOK.pkl`; `HANDOFF_optionsbot.md` 76.
+  `O1_PUT_BOOK.pkl`; `HANDOFF_optionsbot.md` 77.
 - **A SHARPE OR VOLATILITY GAIN BOUGHT WITH ALPHA IS NOT WORTH HAVING UNLESS THE SHARPE ITSELF
   IS BAD - DON'S STANDING RULING, NOW BINDING ON THE WHOLE RISK-PRIMARY FAMILY (2026-08-24,
   `R1-VAR`, PARKED BEFORE REGISTRATION).** **ZERO TRIALS** - no register committed, no runner, no
