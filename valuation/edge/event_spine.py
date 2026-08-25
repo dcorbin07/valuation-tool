@@ -139,6 +139,12 @@ class EventSpine:
         self.source = source
         self.built_utc = built_utc or dt.datetime.now(dt.timezone.utc).isoformat(
             timespec="seconds")
+        #: {"TICKER|ISO-date": "code22" | "<label>" | "both"} -- populated by `merge_source`.
+        #: Empty on a single-source spine, and empty is the honest state: every date came from
+        #: `self.source`. It is NOT defaulted to "code22" for every date, because then a reader
+        #: could not tell a stamped spine from an unstamped one.
+        self.date_sources: dict = {}
+        self.merged_from: dict = {}
 
     # ----------------------------------------------------------------- construction
     @classmethod
@@ -285,6 +291,70 @@ class EventSpine:
                 "A missing earnings date is UNKNOWN, never 'no announcement'. FAIL_CLOSED names "
                 "must be dropped and counted, never treated as having no event."),
         }
+
+    # ----------------------------------------------------------------- W-3b: the second source
+    def merge_source(self, other: dict, label: str,
+                     precedence: str = "other") -> "EventSpine":
+        """Return a NEW spine merging a second dated source, stamping every date with its origin.
+
+        `other` is `{ticker: [ISO date, ...]}`. `precedence` decides which source supplies a date
+        when both do -- and it is fixed in the register BEFORE agreement is measured, because
+        picking the winner after seeing which one you prefer is choosing the design on the
+        outcome.
+
+        **THE PARAMETER WAS ACCEPTED AND SILENTLY IGNORED IN THE FIRST CUT OF THIS METHOD.** It
+        validated the argument, stored it on the result, and then took the union regardless, so a
+        caller asking for either precedence got neither. That is `S3-I1`'s `columns=` regression
+        in a second place -- an argument the signature promises and the body drops -- and it is
+        not cosmetic here: the union ADDS the non-earnings Item 2.02 dates that the precedence
+        rule exists to displace, so the two produce materially different spines. `union` is now a
+        third named value rather than what a caller gets by accident.
+
+        NEVER A SILENT UNION. Three states survive the merge and are distinguishable afterwards
+        via `date_sources`: a date only code 22 has, a date only the second source has, and a
+        date both have. A name neither source covers stays FAIL_CLOSED -- **no date is ever
+        imputed from cadence**, which is this register's first void condition. `S3-I6`'s guidance
+        table may CONFIRM a date; it may not supply one.
+
+        Returns a new object rather than mutating: consumers hold the spine and a mutating merge
+        would change what an already-running study is reading.
+        """
+        if precedence not in ("self", "other", "union"):
+            raise ValueError("precedence must be 'self', 'other' or 'union'")
+        merged, sources = {}, {}
+        names = set(self.by_ticker) | set(self.zero_coverage) | set(other)
+        for t in sorted(names):
+            mine = {str(d)[:10] for d in self.by_ticker.get(t, [])}
+            theirs = {str(d)[:10] for d in (other.get(t) or [])}
+            if precedence == "union":
+                alld = mine | theirs
+            else:
+                # PRECEDENCE IS RESOLVED PER NAME-YEAR, not per name and not per date.
+                # Per name would let one covered year silence a source across two decades;
+                # per date is not a precedence rule at all, it is a union, because two sources
+                # never emit the identical string for a date they disagree about. A year is the
+                # grain at which "this source covers this name" is actually true or false.
+                win, lose = (theirs, mine) if precedence == "other" else (mine, theirs)
+                years = {d[:4] for d in win}
+                alld = set(win) | {d for d in lose if d[:4] not in years}
+            if alld:
+                merged[t] = sorted(alld)
+            for d in alld:
+                if d in mine and d in theirs:
+                    sources[f"{t}|{d}"] = "both"
+                elif d in theirs:
+                    sources[f"{t}|{d}"] = label
+                else:
+                    sources[f"{t}|{d}"] = self.source_label
+        out = EventSpine(merged, source=f"{self.source} + {label} [{precedence}]")
+        out.date_sources = sources
+        out.merged_from = {"base": self.source_label, "added": label,
+                           "precedence": precedence}
+        return out
+
+    #: Label for dates originating in THIS spine. A merge that could not name its own side would
+    #: leave a reader unable to tell which source a date came from, which is the whole point.
+    source_label = "code22"
 
     def write_census(self, path: str, names: Optional[Sequence[str]] = None,
                      years: Optional[Sequence[int]] = None) -> dict:

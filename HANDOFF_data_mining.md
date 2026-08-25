@@ -1,5 +1,28 @@
 # HANDOFF — the data-miner lane. Chain harvest (closed) + the I-4 event spine.
 
+**LATEST: W-3b — IBES ACTUALS INTO THE EARNINGS-DATE SPINE, SHIPPED 2026-08-25. Executor run of
+the scout's draft; ACCEPTED WITH TWO AMENDMENTS. Zero trials.** Adjudication in
+`PREREG_w3b_ibes_event_spine.md`; the four things a future reader needs:
+
+1. **The repair works and beats the draft: 29 of 29 FAIL_CLOSED names recovered, all 186 now
+   COVERED.** Those 29 were every foreign private issuer in the book.
+2. **`I-4`'s dates are "Item 2.02 results filings", not "earnings announcements", and the two
+   differ in 23.3% of name-years.** PNC files 7.67 code-22 dates a year against IBES's 4.00, NKE
+   6.20, ROST 8/yr until 2013 (monthly sales); MSFT/JPM/AAPL are exactly 4.00 = 4.00. The clean
+   case is **AAPL `2019-01-02`, Apple's revenue-guidance letter**. **No landed number is wrong** —
+   each is right for the dates it used — but `owns_the_event` has been answering *"owns the next
+   Item 2.02 filing"*. **Nothing is re-read here.**
+3. **THE MERGED SPINE IS A NEW INSTRUMENT, NOT A DROP-IN.** It is additive in dates (nothing
+   deleted) and **not inert for consumers** — it adds 11,863 dates to already-covered names, so
+   the predicates answer differently. It lives in its own artifact so adopting it is deliberate.
+4. **Three identifier traps, all measured, all of which the obvious route walks into:** `oftic` is
+   17.7% wrong-company across the 29; escaping reuse needs a **date**, not a different column
+   (current-cusip-only truncated HWM by 82.9%); and **IBES masks cusip characters with `X`**
+   (`0636711X` vs `06367110`), which returns zero rows and reads as "not covered" — it hit BMO,
+   CNQ and TD. Use `valuation/edge/ibes_events.py`, never a bare ticker join.
+
+---
+
 **LATEST: WRDS — CENSUS, PULL, PHASE 2 PROBES, AND A RE-PROBE THAT CORRECTED THE CENSUS
 (2026-08-24). Zero trials throughout; the full record is `WRDS_CENSUS.md`.** Four things a
 future reader needs and will not guess:
