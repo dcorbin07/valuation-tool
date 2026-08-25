@@ -1,5 +1,32 @@
 # HANDOFF — the data-miner lane. Chain harvest (closed) + the I-4 event spine.
 
+**LATEST: O-1 COVERAGE PULL — SHIPPED 2026-08-25, STAGE 1 COMPLETE, STAGE 2 NOT RUN. Zero
+trials.** Full record in `O1_COVERAGE_PULL_RECORD.md`; four things a future reader needs:
+
+1. **The pull raises `O-1`'s flagged coverage from 74 names to 2,969 usable cells — and that is
+   0.82× its own registered floor of 3,600 matched trades.** Matching can only reduce it, so
+   **the floor is not reachable at the registered primary tenor even from a complete pull of
+   everything the vendor holds.** The half-split constraint *is* met (1,467 / 1,502 against a
+   1,200 sub-floor) — the total binds, not the balance. A coverage fact, not a verdict.
+2. **The vendor's option history starts 2012-07-17**, measured on the panel's own rebalance
+   dates. **1,311 of 6,542 flagged rows (20.0%) are unobtainable at any price** — recorded as
+   not-obtainable, never as a pull that fell short. The handoff's "chain store starts 2016" is
+   *our store's* start, not the vendor's; using it would have discarded three good years.
+3. **STAGE 2 — the exit path of a held contract — IS NOT PULLED**, and it is the thing to run
+   next if anyone buys more vendor time. Sized at **53.6 s/span → ~78 h flagged, ~156 h with a
+   control**, outside the window. Stage 1 supports a **hold-to-expiry** settlement (entry chain +
+   the underlying's close at expiry, which we already own); **a stop-or-target exit rule needs
+   stage 2.** Warning: 3 of 23 sampled spans returned 0 rows after 154 s, the call-timeout
+   ceiling, so the per-span cost is bimodal and a mean understates the tail.
+4. **Whole chains are stored to 1200 DTE, unfiltered** — not narrowed to puts or to a moneyness
+   band, because collection must not bake in a selection rule that a register might move, and
+   after 2026-09-01 there is no second chance. The secondary 330–400 DTE band is **thin at 771
+   cells against the primary's 2,969**.
+
+New freeze `D:\thetadata\freeze_o1_coverage_2026-08-25` — never a mutation of an existing one.
+
+---
+
 **LATEST: W-3b — IBES ACTUALS INTO THE EARNINGS-DATE SPINE, SHIPPED 2026-08-25. Executor run of
 the scout's draft; ACCEPTED WITH TWO AMENDMENTS. Zero trials.** Adjudication in
 `W3B_EXECUTION_RECORD.md`; the four things a future reader needs:
