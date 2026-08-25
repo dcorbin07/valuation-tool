@@ -16955,3 +16955,139 @@ pair, any `fpi` other than 1, quarterly horizons, revision **magnitude** as oppo
 or the consensus-change construction `statsum` would support — **each is a new hypothesis with its
 own trial and its own blind register.** Nothing is adopted; adoption is a vintage event and Don's
 call.
+
+---
+
+# D6/D7 — STAGE 2: THE ARM IS RUN. REJECTED ON BOTH BASES, AND THE NULL IS INTERPRETABLE (2026-08-25)
+
+**Executed exactly as `PREREG_d6_analyst_revisions.md` registers it: no new variant, no grid, no
+parameter the register does not name.** The register was committed ALONE at `d03ee67` and the
+equity trial booked at `a4b67b2`, both strict ancestors of every commit here. **Equity `N` stays
+243 — the verdict was edited INTO the booked row's own cell rather than appended, because `MB16`
+measured that `research_log._parse` has no dedup by id and a second row charges the trial twice.**
+**ADOPTS NOTHING.**
+
+## The verdict, quoted with its MDE because quoting it without one is a void condition
+
+| | basis six | basis seven |
+|---|---|---|
+| effective dates / rows | 69 / 66,255 | 49 / 49,575 |
+| **incremental IC *t*, full** | **+0.7199** | **+0.7957** |
+| early / late | +0.6426 / +0.1041 | +1.0015 / **−0.2345** |
+| bar | 2.71 | 2.71 |
+| **80%-power MDE** | **0.4274 SD** | **0.5071 SD** |
+| observed effect | 0.0867 SD | 0.1137 SD |
+| **observed / MDE80** | **0.203x** | **0.224x** |
+| **verdict** | **REJECTED** | **REJECTED** |
+
+**The observed effect sits four to five times BELOW its own detection threshold**, and on basis
+seven **the halves disagree in sign** — this record's most repeated failure pattern, now on an
+eighth instrument.
+
+## THE NULL IS INTERPRETABLE, AND THAT WAS ESTABLISHED RATHER THAN ASSUMED
+
+The Stage-2 instruction was explicit: *if the design cannot resolve at the measured coverage, say
+so and report UNINTERPRETABLE rather than scoring a null that means "could not see it."* **The
+register's C1–C6 contain no power control, so one was ADDED and is declared as a departure**
+(`scripts/d6_power_control.py`). It is a control and **can only BLOCK** — its two possible effects
+are to leave the verdict REJECTED or to downgrade it — so under `MB1-SEL` it adds no degree of
+freedom and charges no trial.
+
+`MA58`'s rule, on **the rows the arm is actually measured on** rather than on the panel — the
+correction `MA31`/`MA32` made to `U2`, whose power control ran on a wider population than its arms
+and so overstated the power they had:
+
+| anchor | basis six raw *t* | basis seven raw *t* |
+|---|---|---|
+| **`z_fcf_margin`** | **+2.7243** (clears 2.71) | **+3.4633** (clears 2.71) |
+| `z_gp_on_capital` | +2.9082 (clears 2.71) | +2.1951 (clears 2.0, not 2.71) |
+| `z_ret_6_1` | +1.0985 (clears neither) | +1.9050 (clears neither) |
+
+**A known-real signal clears the arm's OWN calibrated bar on the arm's OWN rows, on both bases.**
+So this is **not** `MA58`'s outcome, where both anchors failed and the only honest label was
+UNINTERPRETABLE. **REJECTED is earned here.**
+
+**THE HONEST LIMIT SHIPS WITH IT, and it is `MB18`'s: there is NO valid INCREMENTAL power control
+on this template at all.** Every known-real signal is already an INPUT to an incumbent theme, so
+residualising removes it by construction — `MB18` measured the same anchors scoring incremental
+*t* of +1.55 and +0.26 for exactly that reason. **The control establishes that the RAW channel
+resolves; the bound on the INCREMENTAL statistic is the MDE above.**
+
+## THE FINDING IS THE COLLAPSE, NOT THE NULL
+
+**The raw column sorts in the DECLARED POSITIVE direction and residualising removes essentially
+all of it** — raw median IC **+0.014861** at *t* **+1.5975** (six) and **+0.020649** at **+2.1625**
+(seven), against incremental *t* of +0.7199 and +0.7957. That is `E-3`'s shape on a second
+instrument.
+
+**And the raw reading clears NEITHER bar that governs here, which is the sentence that stops it
+being quoted as a near miss: basis seven's +2.1625 passes the RETIRED 2.0 convention and fails
+X7's calibrated 2.71** — and 2.0 was retired because X7 measured **39% of PURE-NOISE draws**
+producing at least one theme at 2.0 or better.
+
+**A SECOND ASYMMETRY, REPORTED BECAUSE A READER WOULD OTHERWISE MISQUOTE IT: the incremental MEAN
+is POSITIVE while the incremental MEDIAN is NEGATIVE on both bases** (−0.002327 and −0.001000).
+The registered statistic is the *t*, which is built on the mean. So *"the incremental IC is
+positive"* and *"the typical date's incremental IC is negative"* are **both true**, and only the
+first is the registered object.
+
+## Orthogonality is confirmed and is worth nothing — as the register pre-committed
+
+Mean R² on the incumbents is **0.1580** and **0.1579**, so the signal is **~84% new information
+and predicts nothing measurable with it**. **`U2`, `MA31`/`MA32`, `MA58`, `MB18` and now `D6`:
+five items, all confirmed orthogonal, not one clearing.** §2c of the register stated **before the
+run** that a low R² would be NO evidence for this item, which is the only reason that sentence is
+worth anything now.
+
+## Coverage on the population the arm actually tested — read BEFORE the arm, in its own pass
+
+`O-1` returned 0.19% power by applying an alert-book coverage figure to the panel, a ~17x error;
+`W-14` died the same week on an unmeasured premise. **The controls pass ran first and was read
+first** (`O10`'s process defect), and `--arm` **refuses** without a passing artifact, distinguishing
+ABSENT from FAILING because `S3-I1` measured that a recorder which cannot tell them apart reports a
+clean bill of health from a check that never ran.
+
+* **Cross-sections: min 644, median 950, max 1,278 (six); min 689, median 980, max 1,277 (seven).
+  ZERO dates below the `MIN_NAMES` floor of 20 on either basis.** The design is not thin where it
+  counts, which is what makes the REJECTED interpretable.
+* Raw panel coverage **78,723 of 113,945 cells (69.09%)**, all 69 dates, **no era hole**.
+* **C5 survivor tilt printed, not assumed: the covered set is 2.91x larger by median market cap**
+  ($7.09bn against $2.44bn). IBES follows large names and that tilt travels with the verdict.
+* **C6 the CRSP ceiling is reported as a LIMIT: 260 of 2,531 panel names carry no dated interval
+  and are unreachable by ANY cusip route** — counted, never read as zero coverage.
+
+## Two defects in my own work, both caught rather than argued
+
+**(a) A DEFECT IN MY OWN CONTROL, CAUGHT BY THE CONTROL.** C1's Newey-West key was written as
+`long_short_tstat_hac`; the shipped key is **`long_short_tstat_nw`**. **C1 FIRED AGAINST A
+CORRECT PANEL** — three of its four figures reproduced exactly and the fourth read `NaN`. A
+guessed key name is the wrong-object family, and it is the good outcome: the gate refused to score
+an arm behind a control it could not satisfy. Fixed by reading the key the artifact actually
+ships; C1 now reproduces all four exactly.
+
+**(b) A CORRECTION AGAINST MY OWN REGISTER.** Its coverage table records *"2,214 of 2,531 names
+ever covered"* — that is the **at-least-ONE-revision** figure, while the declared floor is **3**.
+At the floor it is **2,173 (85.85%)**. **The cell count of 69.09% was already at the floor and is
+unaffected**, so no power figure moves; the register is left unedited and the correction is
+recorded here.
+
+## What this does NOT say
+
+**It does not say analyst revisions do not predict returns.** It says that on this panel, on top
+of seven incumbent themes including momentum, the registered construction carries no incremental
+information the design could see — and the design can see **~0.43 SD**, about the largest raw
+effect this panel has ever carried. **A NULL bounded at that resolution is not a refutation of a
+literature.**
+
+It closes **the registered construction and nothing wider**. No claim is made about the unadjusted
+pair, any `fpi` other than 1, quarterly horizons, revision **magnitude** as opposed to direction,
+a second window, or the consensus-change construction `statsum` would support — **each is a new
+hypothesis with its own trial and its own blind register, and none is proposed.** `D7` is not
+re-opened. Nothing is adopted; adoption is a vintage event and Don's call.
+
+**Expectations: 4 right, 0 wrong, 3 unscorable — and discounted rather than celebrated
+(`SC-1`'s own lesson): predicting a null in a project where essentially everything is null is
+nearly free, and two of the three unscorables were declared so in §0 because their answers were
+already measured.** **18 tests, 10 of 10 mutations caught with sources restored byte-for-byte.**
+`valuation/studies/revisions.py`, `scripts/d6_revisions.py`, `scripts/d6_power_control.py`;
+`data/free_analysis/D6_CONTROLS.json`, `D6_ARM.json`, `D6_POWER_CONTROL.json`.
