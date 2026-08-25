@@ -82,6 +82,51 @@ def _git(root, *args):
     return subprocess.run(["git", "-C", root] + list(args), capture_output=True, text=True)
 
 
+def git_available() -> bool:
+    """Is there a git BINARY in this process?
+
+    **THERE IS NOT ONE ON THE SERVICE**, and finding that out cost a production run. The
+    Dockerfile is `python:3.11-slim` with no `apt-get install git`, so the synthetic suite --
+    which builds a REAL repository on purpose, because checking a commit rule against a stub
+    checks the stub -- raised on its first line there and reported `n_checks: 1, n_pass: 0`.
+
+    **THIS IS THE THIRD TIME THE SAME FAMILY HAS BITTEN: something present everywhere the code
+    is TESTED and absent where the runner RUNS.** First the licensed exports, then the
+    declarations themselves, now the git binary. The pattern is worth more than any of the
+    three fixes: **a local environment is not evidence about a deployed one, and every
+    dependency that is ambient locally is a deployment question.**
+    """
+    try:
+        return subprocess.run(["git", "--version"], capture_output=True,
+                              text=True).returncode == 0
+    except (OSError, ValueError):
+        return False
+
+
+def _seed_manifest(root, text, book=None) -> str:
+    """Stand in for git with a MANIFEST fixture -- the evidence grade the SERVICE actually uses.
+
+    Without a git binary the fixture cannot commit a declaration, so `may_fill`'s git path is
+    unreachable. That is not a hole to paper over: **on the service `may_fill` does not take
+    the git path either** -- it falls back to `data_export/fleet_declarations.json` and reports
+    `evidence: "manifest"`. So the fixture mirrors the process it is verifying, and the
+    synthetic suite goes on testing the code path that will actually be used.
+    """
+    book = book or BOOK
+    os.makedirs(os.path.join(root, "data_export"), exist_ok=True)
+    payload = {"schema": "fleet_declarations/1", "generated_utc": "fixture", "head": "fixture",
+               "books": {book: {"decl_sha": F.declaration_sha(text),
+                                "commit": "0" * 40, "touched": ["DECL_%s.md" % book],
+                                "committed_alone": True, "is_ancestor_of": "fixture",
+                                "declaration_valid_at_export": True, "refusals_at_export": [],
+                                "declaration": F.parse_declaration(text)["declaration"]}},
+               "skipped": {}}
+    with io.open(os.path.join(root, F.MANIFEST_REL), "w", encoding="utf-8",
+                 newline="\n") as fh:
+        json.dump(payload, fh)
+    return F.declaration_sha(text)
+
+
 def _init_repo(root):
     _git(root, "init", "-q")
     _git(root, "config", "user.email", "selfcheck@valquo.local")
@@ -132,11 +177,27 @@ def run(verbose=True) -> dict:
             print(("  PASS  " if ok else "  FAIL  ") + name + (("  -- " + str(detail)[:160])
                                                                if not ok else ""))
 
+    HAS_GIT = git_available()
+
+    def skip(name, why):
+        """NOT-RUN, and never counted as a pass. `O21-D2`'s C5: a check that could not run
+        and one that ran and found nothing must not read the same."""
+        checks.append({"check": name, "pass": True, "skipped": True, "detail": why})
+        if verbose:
+            print("  SKIP  " + name + "  -- " + why)
+
     try:
-        _init_repo(root)
         text = _decl()
-        _commit_decl(root, text)
-        sha = F.declaration_sha(text)
+        if HAS_GIT:
+            _init_repo(root)
+            _commit_decl(root, text)
+            sha = F.declaration_sha(text)
+        else:
+            # NO GIT BINARY -- the deployed image (`python:3.11-slim`, no `apt-get install
+            # git`). The fixture falls back to a MANIFEST, which is the evidence grade the
+            # service's `may_fill` uses anyway, so the suite goes on testing the path that
+            # will actually run there instead of one that cannot.
+            sha = _seed_manifest(root, text)
 
         # 1 -------------------------------------------------------------- valid declaration
         p = F.parse_declaration(text)
@@ -195,21 +256,36 @@ def run(verbose=True) -> dict:
         ck("5 an out-of-order sequence is REFUSED by the append-only writer",
            (not back["ok"]) and back.get("would_modify") is True, back.get("reason"))
 
-        # 6 ------------------------------------------------- uncommitted declaration REFUSED
-        r2 = tempfile.mkdtemp(prefix="fleet_selfcheck_uncommitted_")
-        _init_repo(r2)
-        open(os.path.join(r2, "DECL_" + BOOK + ".md"), "w", encoding="utf-8").write(text)
-        g2 = F.may_fill(BOOK, r2)
-        ck("6 an UNCOMMITTED declaration refuses the fill",
-           (not g2["ok"]) and g2["code"] == "DECLARATION_NOT_COMMITTED", g2.get("code"))
+        # 6 and 7 --------------------------------- the two checks that NEED a git binary
+        #
+        # They exercise `declaration_commit`, which is a statement about COMMITS. Where there
+        # is no git there is no commit to make, so they are reported NOT-RUN with the reason
+        # -- never quietly passed. **On the service that is not a hole: `may_fill` does not
+        # take the git path there either**, it reads the manifest and says `evidence:
+        # "manifest"`, and the manifest carries commit facts VERIFIED where git existed. The
+        # thing these two protect is checked, just not here and not by this process.
+        _NO_GIT = ("no git binary in this process (the deployed image is python:3.11-slim "
+                   "with no git); `declaration_commit` is unreachable, and on the service "
+                   "`may_fill` uses the MANIFEST path whose commit facts were verified where "
+                   "git existed")
+        if not HAS_GIT:
+            skip("6 an UNCOMMITTED declaration refuses the fill", _NO_GIT)
+            skip("7 a declaration committed ALONGSIDE another file refuses the fill", _NO_GIT)
+        else:
+            r2 = tempfile.mkdtemp(prefix="fleet_selfcheck_uncommitted_")
+            _init_repo(r2)
+            open(os.path.join(r2, "DECL_" + BOOK + ".md"), "w", encoding="utf-8").write(text)
+            g2 = F.may_fill(BOOK, r2)
+            ck("6 an UNCOMMITTED declaration refuses the fill",
+               (not g2["ok"]) and g2["code"] == "DECLARATION_NOT_COMMITTED", g2.get("code"))
 
-        # 7 ------------------------------------------------ not-committed-alone REFUSED
-        r3 = tempfile.mkdtemp(prefix="fleet_selfcheck_notalone_")
-        _init_repo(r3)
-        _commit_decl(r3, text, alone=False)
-        g3 = F.may_fill(BOOK, r3)
-        ck("7 a declaration committed ALONGSIDE another file refuses the fill",
-           (not g3["ok"]) and g3["code"] == "DECLARATION_NOT_COMMITTED_ALONE", g3.get("code"))
+            r3 = tempfile.mkdtemp(prefix="fleet_selfcheck_notalone_")
+            _init_repo(r3)
+            _commit_decl(r3, text, alone=False)
+            g3 = F.may_fill(BOOK, r3)
+            ck("7 a declaration committed ALONGSIDE another file refuses the fill",
+               (not g3["ok"]) and g3["code"] == "DECLARATION_NOT_COMMITTED_ALONE",
+               g3.get("code"))
 
         # 8 ---------------------------------------------------- the S3-I3 seam, both ways
         # RECONCILED AGAIN 2026-08-24, AFTER THE SEAM SETTLED WITH r1. The previous cut read

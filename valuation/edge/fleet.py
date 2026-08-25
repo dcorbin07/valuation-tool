@@ -880,12 +880,21 @@ def read_meter(book: str, values, *, decl_sha: str, root: str = None, why: str =
     the trial, and that rule is an honour system unless the peek is a dated fact. So this is
     the only reader, and it writes before it returns.
     """
+    # MANIFEST-AWARE, like every other reader of a declaration. In the deployed image there is
+    # no `DECL_*.md`, so a file-only read here would make the meter unreadable on the one
+    # machine that will ever have fills to read -- the same gap that made `books_declared: 0`,
+    # found again in the one function whose whole job is to be the ONLY door to a verdict.
     path = declaration_path(book, root)
+    decl = None
     try:
         with open(path, encoding="utf-8") as fh:
             decl = parse_declaration(fh.read()).get("declaration") or {}
     except OSError:
-        return {"ok": False, "reason": path + " not found"}
+        entry = (declaration_manifest(root).get("books") or {}).get(str(book))
+        decl = (entry or {}).get("declaration")
+    if not decl:
+        return {"ok": False,
+                "reason": path + " not found and no manifest entry for " + str(book)}
     h = decl.get("verdict_horizon") or {}
     try:
         m = book_meter(values, sigma=float(h["sigma"]), rho=float(h["rho"]),
