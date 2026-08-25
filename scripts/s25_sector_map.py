@@ -183,7 +183,15 @@ def repair() -> dict:
     from valuation.engine.assumptions import SECTOR_TARGET_MARGIN
     from valuation.engine.comps import SECTOR_MULTIPLES, _DEFAULT
 
-    smap = SM.load(os.path.join(_data_root(), "free_analysis", "S25_SECTOR_MAP.json"))
+    map_path = os.path.join(_data_root(), "free_analysis", "S25_SECTOR_MAP.json")
+    smap = SM.load(map_path)
+    # THE DISAGREEMENT TRAVELS WITH REPAIR-B, IN THIS FILE. The register makes quoting B's
+    # total WITHOUT it a void condition, and it lives in the other artifact -- so a reader of
+    # this one alone could breach the condition without ever seeing the number. Carried here
+    # rather than cross-referenced.
+    with io.open(map_path, encoding="utf-8") as fh:
+        dis = (json.load(fh).get("taxonomy_disagreement") or {})
+
     panel = pd.read_pickle(os.path.join(_data_root(), "free_analysis",
                                         "panel_s23_fairvalue.pkl"))
 
@@ -269,8 +277,12 @@ def repair() -> dict:
         "repair_b_full_CONFOUNDED": {
             "rows_changed": b_changed,
             "share_of_panel": round(b_changed / n, 6) if n else None,
+            "taxonomy_disagreement_rate": dis.get("disagreement_rate"),
+            "taxonomy_disagreement_compared": dis.get("compared"),
             "note": ("CONFOUNDED BY CONSTRUCTION: fixes look-ahead AND switches taxonomy in "
-                     "one step. Quote only beside taxonomy_disagreement, never alone."),
+                     "one step. The register makes quoting this total WITHOUT the taxonomy "
+                     "disagreement beside it a VOID CONDITION, so the rate is carried in this "
+                     "block rather than cross-referenced to the other artifact."),
         },
         "fair_value_not_recomputed": (
             "ev_ebitda_used / ev_sales_used are BOOLEAN METHOD FLAGS on this panel, not the "
