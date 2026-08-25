@@ -32,6 +32,50 @@ def _tree(p):
     return ast.parse(_src(p))
 
 
+def _has_data():
+    """True when the licensed data root is populated on THIS machine.
+
+    `data/` is gitignored, so CI has none of it. `MB42`'s lesson is that a guard whose only real
+    execution is skipped IS the defect - so the source-level guards below (AST shape, declared
+    constants, the median ban, the refusal grammar) touch NO data and run everywhere, and only
+    the genuinely data-bound checks gate on this. When they skip they skip LOUDLY, never silently
+    passing.
+    """
+    import o1_kill as K
+
+    try:
+        bars = K._bars_dir()
+    except SystemExit:
+        return False
+    return os.path.isfile(K._out(K.PANEL_NAME)) and os.path.isdir(bars)
+
+
+class _TempOut:
+    """Redirect `o1_kill._out` at a temp directory.
+
+    The kill-gate tests are about the REFUSAL GRAMMAR, not about the data, so they must run in CI
+    too - skipping them would leave the arm's only gate unexercised exactly where a regression
+    would land unnoticed. They also must never touch the real artifact.
+    """
+
+    def __enter__(self):
+        import tempfile
+        import o1_kill as K
+
+        self._K = K
+        self._orig = K._out
+        self._d = tempfile.mkdtemp(prefix="o1gate_")
+        K._out = lambda name: os.path.join(self._d, name)
+        return self._d
+
+    def __exit__(self, *a):
+        import shutil
+
+        self._K._out = self._orig
+        shutil.rmtree(self._d, ignore_errors=True)
+        return False
+
+
 def _strip_prose(p):
     """Source with comments and string literals removed. A guard that cannot tell CODE from
     PROSE ABOUT CODE is not measuring the tree - `MB15`'s defect, and the substring-ban family
@@ -146,6 +190,10 @@ class TestKillGate(unittest.TestCase):
         import o1_arm as A
         import o1_kill as K
 
+        with _TempOut():
+            self._three_states(A, K)
+
+    def _three_states(self, A, K):
         p = K._out(K.OUT)
         real = _src(p) if os.path.isfile(p) else None
         try:
@@ -181,17 +229,13 @@ class TestKillGate(unittest.TestCase):
         import o1_arm as A
         import o1_kill as K
 
-        p = K._out(K.OUT)
-        real = _src(p) if os.path.isfile(p) else None
-        try:
+        with _TempOut():
+            p = K._out(K.OUT)
             with io.open(p, "w", encoding="utf-8") as fh:
                 json.dump({"kill_fires": False, "kill_statistic": 1.2, "kill_bar": 2.0}, fh)
             self.assertEqual(A.require_kill()["kill_statistic"], 1.2)
-        finally:
-            if real is not None:
-                io.open(p, "w", encoding="utf-8", newline="").write(real)
-            elif os.path.isfile(p):
-                os.remove(p)
+        return
+
 
     def test_build_and_score_both_call_the_gate(self):
         """A gate one entry point skips is not a gate."""
@@ -344,6 +388,10 @@ class TestBarsContract(unittest.TestCase):
         from valuation.edge import options_backtest as OB
         import o1_kill as K
 
+        if not _has_data():
+            self.skipTest("no licensed data root on this machine (data/ is gitignored; CI has "
+                          "none of it). The SOURCE-level guards in this file still run.")
+
         b = OB.load_bars("AAPL", cache_dir=K._bars_dir())
         self.assertIsNotNone(b, "no populated bars cache")
         self.assertIsInstance(b["date"][0], str)
@@ -382,8 +430,8 @@ class TestBookIntegrity(unittest.TestCase):
         import o1_arm as A
 
         p = K._out(A.BOOK)
-        if not os.path.isfile(p):
-            self.skipTest("no put book on disk yet (build has not run)")
+        if not _has_data() or not os.path.isfile(p):
+            self.skipTest("no licensed data root or no put book on this machine")
         return pd.read_pickle(p)
 
     def test_no_row_was_dropped_to_a_simulator_error(self):
@@ -452,6 +500,10 @@ class TestSplitGuard(unittest.TestCase):
         from valuation.edge import options_backtest as OB
         import o1_kill as K
 
+        if not _has_data():
+            self.skipTest("no licensed data root on this machine (data/ is gitignored; CI has "
+                          "none of it). The SOURCE-level guards in this file still run.")
+
         sp = OB.load_splits(K._data())
         self.assertTrue(sp, "no split table on disk")
         self.assertTrue(OB.split_in_window(sp, "MNST", _dt.date(2016, 10, 18),
@@ -467,8 +519,8 @@ class TestSplitGuard(unittest.TestCase):
         import o1_arm as A
 
         bp = K._out(A.BOOK)
-        if not os.path.isfile(bp):
-            self.skipTest("no put book on disk yet")
+        if not _has_data() or not os.path.isfile(bp):
+            self.skipTest("no licensed data root or no put book on this machine")
         b = pd.read_pickle(bp)
         t = b[b["traded"].fillna(False)]
         if not len(t):
