@@ -82,6 +82,51 @@ def _git(root, *args):
     return subprocess.run(["git", "-C", root] + list(args), capture_output=True, text=True)
 
 
+def git_available() -> bool:
+    """Is there a git BINARY in this process?
+
+    **THERE IS NOT ONE ON THE SERVICE**, and finding that out cost a production run. The
+    Dockerfile is `python:3.11-slim` with no `apt-get install git`, so the synthetic suite --
+    which builds a REAL repository on purpose, because checking a commit rule against a stub
+    checks the stub -- raised on its first line there and reported `n_checks: 1, n_pass: 0`.
+
+    **THIS IS THE THIRD TIME THE SAME FAMILY HAS BITTEN: something present everywhere the code
+    is TESTED and absent where the runner RUNS.** First the licensed exports, then the
+    declarations themselves, now the git binary. The pattern is worth more than any of the
+    three fixes: **a local environment is not evidence about a deployed one, and every
+    dependency that is ambient locally is a deployment question.**
+    """
+    try:
+        return subprocess.run(["git", "--version"], capture_output=True,
+                              text=True).returncode == 0
+    except (OSError, ValueError):
+        return False
+
+
+def _seed_manifest(root, text, book=None) -> str:
+    """Stand in for git with a MANIFEST fixture -- the evidence grade the SERVICE actually uses.
+
+    Without a git binary the fixture cannot commit a declaration, so `may_fill`'s git path is
+    unreachable. That is not a hole to paper over: **on the service `may_fill` does not take
+    the git path either** -- it falls back to `data_export/fleet_declarations.json` and reports
+    `evidence: "manifest"`. So the fixture mirrors the process it is verifying, and the
+    synthetic suite goes on testing the code path that will actually be used.
+    """
+    book = book or BOOK
+    os.makedirs(os.path.join(root, "data_export"), exist_ok=True)
+    payload = {"schema": "fleet_declarations/1", "generated_utc": "fixture", "head": "fixture",
+               "books": {book: {"decl_sha": F.declaration_sha(text),
+                                "commit": "0" * 40, "touched": ["DECL_%s.md" % book],
+                                "committed_alone": True, "is_ancestor_of": "fixture",
+                                "declaration_valid_at_export": True, "refusals_at_export": [],
+                                "declaration": F.parse_declaration(text)["declaration"]}},
+               "skipped": {}}
+    with io.open(os.path.join(root, F.MANIFEST_REL), "w", encoding="utf-8",
+                 newline="\n") as fh:
+        json.dump(payload, fh)
+    return F.declaration_sha(text)
+
+
 def _init_repo(root):
     _git(root, "init", "-q")
     _git(root, "config", "user.email", "selfcheck@valquo.local")
@@ -132,11 +177,27 @@ def run(verbose=True) -> dict:
             print(("  PASS  " if ok else "  FAIL  ") + name + (("  -- " + str(detail)[:160])
                                                                if not ok else ""))
 
+    HAS_GIT = git_available()
+
+    def skip(name, why):
+        """NOT-RUN, and never counted as a pass. `O21-D2`'s C5: a check that could not run
+        and one that ran and found nothing must not read the same."""
+        checks.append({"check": name, "pass": True, "skipped": True, "detail": why})
+        if verbose:
+            print("  SKIP  " + name + "  -- " + why)
+
     try:
-        _init_repo(root)
         text = _decl()
-        _commit_decl(root, text)
-        sha = F.declaration_sha(text)
+        if HAS_GIT:
+            _init_repo(root)
+            _commit_decl(root, text)
+            sha = F.declaration_sha(text)
+        else:
+            # NO GIT BINARY -- the deployed image (`python:3.11-slim`, no `apt-get install
+            # git`). The fixture falls back to a MANIFEST, which is the evidence grade the
+            # service's `may_fill` uses anyway, so the suite goes on testing the path that
+            # will actually run there instead of one that cannot.
+            sha = _seed_manifest(root, text)
 
         # 1 -------------------------------------------------------------- valid declaration
         p = F.parse_declaration(text)
@@ -195,21 +256,36 @@ def run(verbose=True) -> dict:
         ck("5 an out-of-order sequence is REFUSED by the append-only writer",
            (not back["ok"]) and back.get("would_modify") is True, back.get("reason"))
 
-        # 6 ------------------------------------------------- uncommitted declaration REFUSED
-        r2 = tempfile.mkdtemp(prefix="fleet_selfcheck_uncommitted_")
-        _init_repo(r2)
-        open(os.path.join(r2, "DECL_" + BOOK + ".md"), "w", encoding="utf-8").write(text)
-        g2 = F.may_fill(BOOK, r2)
-        ck("6 an UNCOMMITTED declaration refuses the fill",
-           (not g2["ok"]) and g2["code"] == "DECLARATION_NOT_COMMITTED", g2.get("code"))
+        # 6 and 7 --------------------------------- the two checks that NEED a git binary
+        #
+        # They exercise `declaration_commit`, which is a statement about COMMITS. Where there
+        # is no git there is no commit to make, so they are reported NOT-RUN with the reason
+        # -- never quietly passed. **On the service that is not a hole: `may_fill` does not
+        # take the git path there either**, it reads the manifest and says `evidence:
+        # "manifest"`, and the manifest carries commit facts VERIFIED where git existed. The
+        # thing these two protect is checked, just not here and not by this process.
+        _NO_GIT = ("no git binary in this process (the deployed image is python:3.11-slim "
+                   "with no git); `declaration_commit` is unreachable, and on the service "
+                   "`may_fill` uses the MANIFEST path whose commit facts were verified where "
+                   "git existed")
+        if not HAS_GIT:
+            skip("6 an UNCOMMITTED declaration refuses the fill", _NO_GIT)
+            skip("7 a declaration committed ALONGSIDE another file refuses the fill", _NO_GIT)
+        else:
+            r2 = tempfile.mkdtemp(prefix="fleet_selfcheck_uncommitted_")
+            _init_repo(r2)
+            open(os.path.join(r2, "DECL_" + BOOK + ".md"), "w", encoding="utf-8").write(text)
+            g2 = F.may_fill(BOOK, r2)
+            ck("6 an UNCOMMITTED declaration refuses the fill",
+               (not g2["ok"]) and g2["code"] == "DECLARATION_NOT_COMMITTED", g2.get("code"))
 
-        # 7 ------------------------------------------------ not-committed-alone REFUSED
-        r3 = tempfile.mkdtemp(prefix="fleet_selfcheck_notalone_")
-        _init_repo(r3)
-        _commit_decl(r3, text, alone=False)
-        g3 = F.may_fill(BOOK, r3)
-        ck("7 a declaration committed ALONGSIDE another file refuses the fill",
-           (not g3["ok"]) and g3["code"] == "DECLARATION_NOT_COMMITTED_ALONE", g3.get("code"))
+            r3 = tempfile.mkdtemp(prefix="fleet_selfcheck_notalone_")
+            _init_repo(r3)
+            _commit_decl(r3, text, alone=False)
+            g3 = F.may_fill(BOOK, r3)
+            ck("7 a declaration committed ALONGSIDE another file refuses the fill",
+               (not g3["ok"]) and g3["code"] == "DECLARATION_NOT_COMMITTED_ALONE",
+               g3.get("code"))
 
         # 8 ---------------------------------------------------- the S3-I3 seam, both ways
         # RECONCILED AGAIN 2026-08-24, AFTER THE SEAM SETTLED WITH r1. The previous cut read
@@ -492,8 +568,29 @@ def run_live(book: str, verbose: bool = True) -> dict:
     short_probe = dict(F.parse_declaration(_decl("short", with_short_fields=True))["declaration"])
     short_probe.pop("margin_method")
     v_sp = F.validate_declaration(short_probe, book=BOOK)
-    ck("L16 a SHORT declaration missing an S3-I3 field is REFUSED",
-       "SHORT_BOOK_REFUSED_BY_S3I3" in v_sp["refusals"], v_sp["refusals"])
+    # L16 ASSERTED A REFUSAL CODE THE SEAM NO LONGER PRODUCES, AND IT HAD NEVER RUN ANYWHERE.
+    #
+    # It required `SHORT_BOOK_REFUSED_BY_S3I3`, which fires only when the provider exposes a
+    # `validate_declaration` and that raises. r1's provider exposes three callables and no such
+    # method, so the refusal comes from `fleet`'s OWN presence check as `MISSING_FIELD:
+    # margin_method`. The book is refused either way -- the code names which LAYER caught it.
+    #
+    # **IT FIRST EXECUTED IN PRODUCTION.** The live leg runs only under `--live` and nobody had
+    # ever run it, so a wrong assertion sat green in the file for as long as it existed. *A
+    # check that has never executed is not evidence, and counting it among "17 of 17" was
+    # counting a check that had never been tried.*
+    #
+    # Rewritten to assert the PROPERTY rather than the layer, and STRENGTHENED rather than
+    # relaxed: the incomplete declaration must be refused AND the refusal must NAME the missing
+    # field, and a COMPLETE one must validate -- a positive control, so this cannot pass by
+    # refusing everything.
+    named = any("margin_method" in r for r in v_sp["refusals"])
+    v_ok = F.validate_declaration(
+        F.parse_declaration(_decl("short", with_short_fields=True))["declaration"], book=BOOK)
+    ck("L16 a SHORT declaration missing an S3-I3 field is REFUSED, and the refusal NAMES it",
+       (not v_sp["ok"]) and named, v_sp["refusals"])
+    ck("L16b and a COMPLETE short declaration still validates (positive control)",
+       v_ok["ok"], v_ok["refusals"])
 
     n_pass = sum(1 for c in checks if c["pass"])
     return {"ok": n_pass == len(checks), "checks": checks, "n_pass": n_pass,
