@@ -9975,3 +9975,89 @@ books now run every cycle and record what they select. **The next thing that hap
 is a fill**, whenever an armed rule's conditions are met.
 
 **ZERO TRIALS.** No meter read, no verdict, `by_domain` untouched by this lane.
+
+---
+
+## 77. (B) AND (C) VERIFIED **IN THE IMAGE**, and the honest count of how much fleet is actually alive (2026-08-25)
+
+**Executor: options-live lane.** Families (B) and (C) and `RULE_ARMED_NEVER_FIRES` were built
+and landed in §§73-76. What was missing was the thing this lane's own git-binary find demands:
+**they had been verified locally, and a local environment is not evidence about a deployed
+one.** This section closes that.
+
+### THE VERIFICATION, MEASURED BY THE DEPLOYED PROCESS — run `32879645343`, HTTP 200
+
+    image_audit  artifact_present TRUE · type_census {bool: 3229} · non_bool 0
+                 licensed_present []  (5 licensed paths probed)
+                 verdict "ONLY BOOLEANS LEFT THE LICENSED STORE, and no licensed
+                          export exists in this process"
+
+    harness      multileg TRUE · net_rules [debit_only, any]
+                 skip_records TRUE · never_fires_after 10
+
+**Docker is not installed on this machine**, so a local image build was unavailable. The
+substitute is stronger rather than weaker: **the REAL deployment reports what it sees**, which
+is the artifact that actually shipped in the process that actually runs, not a rebuild of it.
+
+**BOTH DIRECTIONS, BECAUSE EITHER ALONE IS SATISFIABLE BY AN ACCIDENT.**
+
+* **POSITIVE** — the derived gates ARE present and readable there, with counts and vintages.
+  Without this half the audit would pass on a process that shipped nothing at all.
+* **NEGATIVE** — **not one licensed export exists on that filesystem**, probed by looking for
+  the FILES (`events.csv`, `insiders.csv`, `fundamentals.csv`, the two panels) rather than by
+  reading `.dockerignore`. **A rule reading `data/` cannot be silently working off a stray copy
+  while the audit reads a config file.**
+* **STRUCTURAL** — every value in every gate counted BY PYTHON TYPE, census returned in full so
+  the number is READ rather than trusted. A boolean cannot carry a vendor row; a float could
+  carry a Beneish M.
+
+**PINNED WITH POSITIVE CONTROLS, because this audit passes TRIVIALLY in a worktree** whose
+`data/` is empty — and a negative check that cannot fire is the vacuous pass this record keeps
+catching. A planted non-boolean fails it and is counted; a planted `data/bulk/events.csv` fails
+it BY NAME; a missing artifact fails rather than passing by seeing nothing.
+
+**A DEFECT IN THE AUDIT ITSELF, caught by its own tests:** the early return on a MISSING
+artifact omitted `ok` and `verdict`, so a caller checking the verdict raised `KeyError` — in
+the runner's door, where an exception is the loudest possible way to report the quietest
+possible fact. **A failure path that fails DIFFERENTLY from the success path is not a failure
+path.**
+
+### THE DOOR'S OWN NUMBERS
+
+    books_declared          : 18
+    entry_rules_implemented : 3
+    not_breathing_reason    : ""
+    fills_written           : 0
+    breathing               : TRUE      never_fires: []
+
+**`fills_written: 0` is a market observation**: three armed rules ran and selected nobody
+today. **`never_fires: []`** says none of them has been running blind.
+
+### THE HONEST ANSWER TO "HOW MUCH OF THE FLEET IS ALIVE": 3 OF 18, AND (B) IS NO LONGER WHAT LIMITS IT
+
+The brief's premise was that the deployed-image gap is the binding constraint. **It was, and it
+is not any more** — and saying so plainly matters more than the fix:
+
+* **(B) IS CLOSED FOR EVERYTHING IT CAN CLOSE.** The flags, the declarations and the optionable
+  universe all ship as derived booleans and are verified present in the image. **What remains is
+  ONE DECISION, DON'S** — whether per-name **DATES** may leave the licensed store. That blocks
+  **F-12 and F-15 and nothing else**; a bit per name is defensibly derived, a date per name is
+  much closer to the vendor's dataset, and this lane did not make that call.
+* **(C) IS CLOSED** — multi-leg net-cost submission and first-class skips both present in the
+  image, both mutation-tested.
+* **SO THE REMAINING 12 ARE NOT BLOCKED ON INFRASTRUCTURE.** Three are **barred from arming by
+  their own amendments** (F-4, F-17, F-18 — the backward-record/forward-date defect). Two wait
+  on Don's dates decision (F-12, F-15). Four wait on **TIME** for a series that started on
+  2026-08-25 (F-5, F-19, F-20, and F-11's appearance history). **The rest simply need their
+  rule written**, which is now ordinary work rather than a blocked dependency.
+
+### WHAT DID NOT NEED DOING, said so it is not mistaken for skipped
+
+**(B), (C) and `RULE_ARMED_NEVER_FIRES` were already implemented and landed** in §§73-76 —
+measured before starting rather than assumed: the gates artifact reads 3 gates / 3,229 flags,
+the manifest carries 18 books, `submit_multileg` and `NET_RULES` exist, `skip` is an event kind,
+and `never_fires` carries its threshold. **This section added the in-image verification they
+lacked, not a second implementation.** Re-implementing them would have produced two copies of
+the same machinery, which is the defect this record names most often.
+
+**ZERO TRIALS.** No meter read, no verdict, `by_domain` untouched by this lane.
