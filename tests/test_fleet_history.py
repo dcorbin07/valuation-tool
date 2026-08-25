@@ -205,6 +205,85 @@ class TheCoverageReport(unittest.TestCase):
                          ("2026-08-20", "2026-08-24", 2))
 
 
+class ASeriesThatFailsToStartIsLOUD(unittest.TestCase):
+    """(D)'s whole value is a clock that starts TODAY, and the ONE failure that makes that
+    false while every test still passes is a series that quietly records nothing.
+
+    ABSENT-AFTER-ATTEMPT is the test, not the writer's return value: a writer can return a
+    cheerful `ok` and leave nothing on disk, and only reading it back can tell.
+    """
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="fleethist_")
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_a_healthy_run_reports_ok_and_no_failures(self):
+        out = H.record_all("2026-08-24", store=FakeStore(3), rejects=["AAA"],
+                           quotes={"AAA": 0.4}, root=self.root)
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["failed_to_start"], [])
+        self.assertEqual(out["loud"], "")
+        self.assertTrue(all(v["series_started"] for v in out["series"].values()))
+
+    def test_an_UNWRITABLE_root_is_reported_LOUDLY_and_names_every_series(self):
+        """The unreachable-service / read-only-disk case, simulated at the one seam every
+        recorder passes through."""
+        real = H.record
+        try:
+            H.record = lambda *a, **k: {"ok": False, "wrote": False,
+                                        "reason": "disk is read-only"}
+            out = H.record_all("2026-08-24", store=FakeStore(3), rejects=["AAA"],
+                               quotes={"AAA": 0.4}, root=self.root)
+        finally:
+            H.record = real
+        self.assertFalse(out["ok"])
+        self.assertEqual(sorted(out["failed_to_start"]),
+                         ["alert_count", "dip_rejects", "iv60_atm"])
+        self.assertIn("FAILED TO START", out["loud"])
+        self.assertIn("cannot be started retroactively", out["loud"])
+
+    def test_a_RAISING_recorder_still_reports_the_series_as_not_started(self):
+        real = H.record_alert_count
+        try:
+            def boom(*a, **k):
+                raise RuntimeError("service unreachable")
+            H.record_alert_count = boom
+            out = H.record_all("2026-08-24", store=FakeStore(3), rejects=["AAA"],
+                               quotes={"AAA": 0.4}, root=self.root)
+        finally:
+            H.record_alert_count = real
+        self.assertIn("alert_count", out["failed_to_start"])
+        self.assertIn("unreachable", out["series"]["alert_count"]["reason"])
+        # The OTHER two still started -- one recorder failing must not take the rest down.
+        self.assertNotIn("dip_rejects", out["failed_to_start"])
+        self.assertNotIn("iv60_atm", out["failed_to_start"])
+
+    def test_a_CHEERFUL_writer_that_leaves_nothing_on_disk_is_still_caught(self):
+        """The defect the read-back exists for: `ok: True, wrote: True` and an empty series."""
+        real = H.record
+        try:
+            H.record = lambda *a, **k: {"ok": True, "wrote": True, "reason": ""}
+            out = H.record_all("2026-08-24", store=FakeStore(3), rejects=["AAA"],
+                               quotes={"AAA": 0.4}, root=self.root)
+        finally:
+            H.record = real
+        self.assertEqual(out["recorded"], 3, "the writer CLAIMED three writes")
+        self.assertFalse(out["ok"], "and the read-back caught that none landed")
+        self.assertEqual(len(out["failed_to_start"]), 3)
+
+    def test_an_already_present_day_still_counts_as_STARTED(self):
+        """Idempotency must not read as failure: the clock IS running."""
+        H.record_all("2026-08-24", store=FakeStore(3), rejects=["AAA"],
+                     quotes={"AAA": 0.4}, root=self.root)
+        again = H.record_all("2026-08-24", store=FakeStore(3), rejects=["AAA"],
+                             quotes={"AAA": 0.4}, root=self.root)
+        self.assertEqual(again["recorded"], 0)
+        self.assertTrue(again["ok"], "a second run on the same day is not a failure")
+        self.assertEqual(again["failed_to_start"], [])
+
+
 class F20IsNotRebuiltHere(unittest.TestCase):
 
     def test_no_series_duplicates_the_bound_paper_index_track(self):

@@ -744,7 +744,15 @@ def create_saas_app(cfg=CONFIG):
             from ..edge import fleet_history
             res["history"] = fleet_history.coverage()
             if wants_run:
-                res["history_recorded"] = fleet_history.record_all()
+                rec = fleet_history.record_all()
+                res["history_recorded"] = rec
+                # LOUD, not buried in a sub-object. A series that failed to START has
+                # recorded nothing, and a clock that has not started cannot be started
+                # retroactively -- so it is surfaced at the top of the body where a log
+                # reader and an alert both see it.
+                if rec.get("failed_to_start"):
+                    res["history_failed_to_start"] = rec["failed_to_start"]
+                    res["history_alarm"] = rec["loud"]
             # Flat, to match `history`. A consumer reading two coverage blocks in one body
             # should not have to remember that one of them nests and the other does not.
             _g = fleet_gates.coverage()
