@@ -649,6 +649,128 @@ def create_saas_app(cfg=CONFIG):
         except Exception as e:
             return jsonify({"ok": False, "error": safe_error(e)}), 500
 
+    @app.route("/admin/fleet-cycle", methods=["GET", "POST"])
+    def admin_fleet_cycle():
+        """The daily cycle for the S3-I1 declared fleet. THE RUNNER'S DOOR.
+
+        `PT-WRITER`'s lesson is the architecture and this is the same shape. A fleet cycle
+        needs three things at once -- the Tradier sandbox token, network, and the fleet
+        records store -- and only the Render service holds all three. Cowork has the book and
+        no network; a GitHub runner has network and no book. So the runner is a cron POSTing
+        this door, exactly as `track-row.yml` does for the bound Index track.
+
+        GET COMPUTES AND RETURNS. POST?run=1 MAY WRITE. Same split as `/admin/track-row`, for
+        the same reason: the fleet records are APPEND-ONLY and hash-chained, and a
+        side-effecting GET on an append-only record is reachable by a retry, a prefetch, a
+        proxy or a pasted link -- none of which is a decision to record a trading day.
+
+        **WHAT IT HONESTLY DOES TODAY, and the handoff says this in bold: NOTHING FILLS.**
+        Seventeen books are declared and their entry rules are FROZEN IN PROSE; not one is
+        implemented as code, so there is nothing for a scheduler to execute. `cycle()` reports
+        that as `ARMED_NO_ENTRY_RULE` and never as *"no candidates today"* -- a build gap and
+        a market observation are different facts, and collapsing them is how a paper fleet
+        reports a cycle that placed nothing as a cycle that found nothing. Scheduling this
+        door before the rules exist is still worth doing: it dates the silence, it proves the
+        path end to end, and it means the first implemented rule starts accruing immediately
+        rather than after somebody remembers to wire a cron.
+
+        Owner-only via the same `X-Admin-Token` as every other admin route, inheriting
+        `/admin/` so no posture allowlist gains an entry. Deliberately NOT `_admin_write_ok()`
+        -- `MA10`'s split guards the two routes that can re-tune the live composite, and a
+        sandbox paper fill changes no model and touches no real money (`O11` binds).
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..edge import fleet
+            body = request.get_json(silent=True) or {}
+            wants_run = bool(request.args.get("run") or body.get("run"))
+            only = request.args.get("book") or body.get("book")
+
+            if wants_run and request.method != "POST":
+                return jsonify({
+                    "ok": False, "wrote": False, "error": "run is POST-only",
+                    "reason": ("recording fills against append-only, hash-chained streams is "
+                               "POST-only. A GET may compute the cycle and return it; it may "
+                               "not record it."),
+                }), 405
+
+            # S3-I3 IS REGISTERED HERE, AND THE QUARANTINE OBJECTION THAT BLOCKED IT IS GONE
+            # RATHER THAN OVERRIDDEN.
+            #
+            # This handler used to refuse to register it, because `MA59` caught that
+            # `valuation/edge/assignment.py` imports `valuation/edge/dividends.py`, an ARCHIVED
+            # study — *"reaching one from the live app means the product is running an
+            # experiment."* That was correct at the time and the fix was NOT to silence it.
+            #
+            # `dividends.py` WAS MOVED OUT OF THE ARCHIVE on 2026-08-24, because MA59's own
+            # criterion — *"modules whose only importer is a closed study's own script"* — had
+            # stopped being true of it: S3-I3 delegates five primitives to it (B7), so it is
+            # load-bearing for every short book. **It moved between two CHECKED lists, archived
+            # (asserts UNREACHABLE) to load-bearing (asserts REACHABLE), so the guard now bites
+            # in the opposite direction rather than not at all.** What stays closed is O21's
+            # STUDY; what is reachable is its arithmetic.
+            #
+            # Registration is an explicit CALL, never an import side effect (r1's convention,
+            # and the same one `fleet_books` follows below), so nothing is unblocked by a stray
+            # import — this door is the composition root and says so.
+            from ..edge import assignment as _s3i3
+            _s3i3.register(fleet)
+            # THE ENTRY RULES *ARE* REGISTERED HERE, AND THE CONTRAST WITH S3-I3 ABOVE IS THE
+            # WHOLE POINT: THE QUARANTINE IS THE TEST, NOT A BLANKET BAN ON REGISTERING.
+            #
+            # `fleet_books` is registered because its dependency closure is quarantine-CLEAN,
+            # measured rather than assumed -- `bearish`, `dip`, `name_percentile`,
+            # `event_spine`, `catalyst_calendar`, `options_universe` and `paper_broker` reach
+            # nothing on `MA59`'s archived list. `assignment` is NOT registered because its
+            # closure reaches `dividends`, which is archived. Same rule, two answers.
+            #
+            # WITHOUT THIS CALL THE ARMING IS INVISIBLE WHERE IT MATTERS. Registration is an
+            # explicit call and never an import side effect (`S3-I3`'s convention), so nothing
+            # else was going to make it happen: the door would have gone on reporting
+            # `entry_rules_implemented: 0` with the rules sitting built and unreachable, which
+            # is a worse failure than not building them -- it looks like the work was not done.
+            from ..edge import fleet_books
+            from ..edge import fleet_gates
+            res_reg = fleet_books.register_all()
+
+            res = fleet.cycle(write=wants_run, books=[only] if only else None)
+            res["entry_rules_registered"] = res_reg["registered"]
+
+            # (D) THE RECORDERS. Four books gate on a series nothing wrote, and no amount of
+            # coding produces one retroactively -- a book that needs two years of history
+            # should be banking day 1 TODAY. They run on the WRITE path only: a dry-run GET
+            # must stay side-effect free, which is the same split the verb already carries.
+            from ..edge import fleet_history
+            res["history"] = fleet_history.coverage()
+            if wants_run:
+                res["history_recorded"] = fleet_history.record_all()
+            # Flat, to match `history`. A consumer reading two coverage blocks in one body
+            # should not have to remember that one of them nests and the other does not.
+            _g = fleet_gates.coverage()
+            res["gates"] = _g.get("gates") or {}
+            res["gates_ok"] = bool(_g.get("ok"))
+            if not _g.get("ok"):
+                res["gates_reason"] = _g.get("reason", "")
+            res["assignment_provider_registered"] = fleet.assignment_provider() is not None
+            res["assignment_note"] = (
+                "S3-I3 registered: the six short books no longer refuse with "
+                "SHORT_BOOK_WITHOUT_ASSIGNMENT. valuation.edge.dividends was moved from "
+                "MA59's ARCHIVED list to its LOAD_BEARING list on 2026-08-24 -- the "
+                "classification had gone stale, since S3-I3 delegates five primitives to it. "
+                "O21's STUDY stays closed; its arithmetic is what is reachable."
+                if res["assignment_provider_registered"] else
+                "S3-I3 did NOT register in this process. Every short book will refuse with "
+                "SHORT_BOOK_WITHOUT_ASSIGNMENT. This is a real fault, not the documented "
+                "quarantine state, which was resolved on 2026-08-24.")
+            # 200 on a dry run OR a run that legitimately produced nothing. A cycle that
+            # placed no fill is not an error -- it is the ordinary case and, today, the only
+            # case. The body's `breathing` flag and `note` carry that, so a scheduler can
+            # alert on it without treating a quiet day as a failure.
+            return jsonify(res), 200
+        except Exception as e:
+            return jsonify({"ok": False, "error": safe_error(e)}), 500
+
     def _record_reported_benchmark(bound_row: dict) -> dict:
         """PT-SPMO's sibling series, written from the row the BOUND door just settled on.
 

@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import hashlib
+import time as _time
 import json
 import os
 import re
@@ -51,6 +52,7 @@ import subprocess
 from typing import Optional
 
 from . import append_only as AO
+# NOTE: `assignment.py` (S3-I3) is deliberately NOT imported -- see THE S3-I3 SEAM below.
 from . import track_meter as TM
 
 # ---------------------------------------------------------------------------------------
@@ -82,9 +84,14 @@ RECORD_COLUMNS = (
     "venue",
     # --- refusals, meter reads and lifecycle ---
     "refusal_code", "detail",
+    # --- (C) multi-leg structures and first-class skips, added 2026-08-24 ---
+    # ADDITIVE. `verify_chain` reads each file's OWN header, so streams written before these
+    # existed still verify; and `harness_fingerprint` moves, so every book's day-1 self-check
+    # goes STALE and must be re-run. That is the STALE state working, not a regression.
+    "structure_id", "leg_index", "net_cost", "skip_reason",
 )
 
-EVENT_KINDS = ("selfcheck", "fill", "refusal", "meter_read", "close")
+EVENT_KINDS = ("selfcheck", "fill", "refusal", "meter_read", "close", "skip")
 
 # Every clause a declaration must state. Absent -> REFUSED, and the refusal names the field.
 REQUIRED_DECL_FIELDS = (
@@ -97,7 +104,21 @@ REQUIRED_HORIZON_FIELDS = (
     "fills_needed", "earliest_honest_read",
 )
 # A short book states these or it does not exist (draft section 1.4, Don's ruling #1).
-REQUIRED_SHORT_FIELDS = ("assignment", "margin", "secured_cash_is_denominator")
+#
+# THE LIST IS `S3-I3`'s, PINNED AS A LITERAL RATHER THAN IMPORTED, AND THE DISTINCTION IS THE
+# WHOLE POINT. The seam DRIFTED between two lanes: this module froze `("assignment", "margin",
+# "secured_cash_is_denominator")` before the model existed, and r1 landed the five below --
+# none of the names shared. The runbook settles which WINS (*"confirm the interface text
+# against the LANDED S3-I3"*): r1's five are the contract the model enforces and are strictly
+# stronger, so they are adopted whole.
+#
+# It is a LITERAL because `assignment.py` states the dependency direction and this file must
+# honour it: *"fleet does not import this module ... so the dependency runs one way only."*
+# `tuple(_SB.REQUIRED_SHORT_FIELDS)` would have inverted that. Drift is caught instead by
+# `test_fleet_harness`, which imports BOTH and asserts equality -- `MA13`'s committed-literal
+# idiom, where the production code holds the literal and a test holds the comparison.
+REQUIRED_SHORT_FIELDS = ("assignment_model", "margin_method", "spot_basis",
+                         "early_assignment_flag", "return_denominator")
 
 DOMAINS = ("equity", "options")
 HYPOTHESIS_CLASSES = ("edge", "cost", "utility")
@@ -105,19 +126,46 @@ SIDES = ("long", "short")
 STRIKE_SELECTION = ("moneyness", "fixed", "delta")
 
 # ---------------------------------------------------------------------------------------
-# THE S3-I3 SEAM. Defined here, BUILT BY r1. This module computes no assignment and no margin.
+# THE S3-I3 SEAM -- SETTLED WITH r1, 2026-08-24, AND THE MIDDLE VERSION WAS THE WRONG ONE
+#
+# This module computes no assignment and no margin; `valuation/edge/assignment.py` (r1's) does.
+#
+# THE HISTORY MATTERS BECAUSE THE SEAM MOVED TWICE. `S3-I1` froze three duck-typed callables
+# before any model existed. Mid-ceremony this file was "reconciled to the landed module" --
+# repointed at `short_book.py`'s own five function names and importing it at module scope --
+# on the runbook's instruction to confirm against the LANDED S3-I3. **That reconciliation is
+# now REVERTED, and it was wrong on both counts.**
+#
+#   1. r1 had already built `_AssignmentProvider`, an ADAPTER exposing exactly the three names
+#      frozen here. The interface never needed changing; r1 had adapted to it, which is what a
+#      published interface is for. Chasing the module's internal names made this file depend
+#      on r1's private vocabulary instead of on the contract between us.
+#   2. `assignment.py` states the direction explicitly -- *"fleet does not import this module
+#      (its check is duck-typed on purpose), so the dependency runs one way only"* -- and that
+#      registration is *"an explicit CALL and never an import side effect, so importing this
+#      module to read one number cannot silently unblock every short book in the fleet."*
+#      The module-scope `from . import short_book` plus auto-registration was precisely that
+#      side effect. r1's design is the better one and this file yields to it.
+#
+# THE COLLISION IS ALSO THE LESSON. The rename `short_book.py` -> `assignment.py` merged
+# CLEANLY into this branch and the tree then DID NOT IMPORT: no file was edited by both sides,
+# so there was no conflict to resolve and nothing to review. `MA23`'s `parity_flow` collision
+# in a new costume -- a clean merge is not a safe one.
 # ---------------------------------------------------------------------------------------
 ASSIGNMENT_INTERFACE = {
-    "module": "valuation.edge.assignment (S3-I3, r1's)",
+    "module": "valuation.edge.assignment (S3-I3, r1's, LANDED). Registered by ITS OWN "
+              "`assignment.register()`, never by an import here.",
     "callables": {
-        "assign_at_expiry": "(occ, settle_price, side, qty) -> dict with keys "
-                            "{assigned: bool, shares: int, cash: float, basis: str}",
-        "early_assignment_flag": "(occ, as_of, q) -> dict with keys {flagged: bool, reason: str} "
-                                 "-- q is the dividend yield, O21's machinery",
-        "secured_cash": "(occ, strike, qty) -> float, the Reg-T cash-secured convention; this "
-                        "IS the denominator of every return the book quotes",
+        "assign_at_expiry": "(occ, settle_price, side, qty) -> dict. The settle price must be "
+                            "AS-TRADED: r1's C3 measured 29.1% of assignment verdicts flipping "
+                            "when settled against an adjusted close instead of `raw_close`.",
+        "secured_cash": "(occ, qty) -> float. THE DENOMINATOR of every return a short book "
+                        "quotes. `options_sizing` makes the PREMIUM the capital at risk, which "
+                        "overstates a short's return by ~40x on r1's own book.",
+        "early_assignment_flag": "(occ, as_of, q, ...) -> dict. Reports RATIONALITY; whether a "
+                                 "holder acts is unobservable and no probability is estimated.",
     },
-    "registered_by": "fleet.register_assignment_provider(obj)",
+    "registered_by": "assignment.register() -> fleet.register_assignment_provider(PROVIDER)",
     "refusal_if_absent": "SHORT_BOOK_WITHOUT_ASSIGNMENT",
 }
 
@@ -142,6 +190,21 @@ def register_assignment_provider(obj) -> dict:
 
 def assignment_provider():
     return _PROVIDER
+
+
+# NOTHING IS REGISTERED HERE, ON PURPOSE, AND THE COST IS STATED SO NOBODY "FIXES" IT.
+#
+# An earlier cut of this file did `_S3I3_REGISTRATION = register_assignment_provider(_SB)` at
+# module scope, reasoning that a provider nobody remembers to register refuses the six short
+# books forever. That reasoning is real and it loses to r1's: an import-time registration means
+# ANY code path that imports the assignment model -- a script reading one number, a test, a
+# notebook -- silently unblocks every short book in the fleet. **Refusing by default is the
+# safe direction; auto-registering is not.**
+#
+# THE CONSEQUENCE, NAMED RATHER THAN DISCOVERED LATER: until something calls
+# `assignment.register()`, `may_fill` returns `SHORT_BOOK_WITHOUT_ASSIGNMENT` for F-4, F-6,
+# F-8, F-10, F-17 and F-18. That is correct -- a short book with no assignment model must not
+# fill -- and it is the runner's job to make the call, not this module's.
 
 
 # ---------------------------------------------------------------------------------------
@@ -197,7 +260,7 @@ def validate_declaration(decl: dict, *, book: str = None) -> dict:
     Refusals are COLLECTED rather than raised one at a time, so an author fixes a declaration
     in one pass instead of discovering its faults serially.
     """
-    r = []
+    r, short_detail = [], ""
     if not isinstance(decl, dict):
         return {"ok": False, "refusals": ["DECLARATION_NOT_AN_OBJECT"], "detail": {}}
 
@@ -276,10 +339,56 @@ def validate_declaration(decl: dict, *, book: str = None) -> dict:
             and t.get("domain") != "none":
         r.append("UTILITY_BOOK_CHARGES_A_TRIAL")
 
-    if decl.get("side") == "short":
+    # ---- the short leg DELEGATES to the landed S3-I3 rather than re-deciding it -------------
+    #
+    # `sells_premium` IS MANDATORY ON EVERY BOOK, and that is r1's rule adopted whole: an
+    # absent field would let a short book pass by OMISSION, which is exactly the refusal Don's
+    # ruling asks for. It is also a SECOND source of truth alongside this file's `side`, so the
+    # two are required to AGREE -- a declaration reading `side: long` with `sells_premium: true`
+    # is refused as self-contradictory rather than silently resolved in either direction.
+    sp = decl.get("sells_premium")
+    if not isinstance(sp, bool):
+        r.append("MISSING_FIELD:sells_premium")
+    elif (decl.get("side") == "short") != sp:
+        r.append("SIDE_AND_SELLS_PREMIUM_DISAGREE")
+
+    if sp is True or decl.get("side") == "short":
+        # DELEGATED TO THE MODEL, LAZILY AND OPTIONALLY -- never imported at module scope.
+        # r1's `assignment.py` states the dependency direction explicitly: *"fleet does not
+        # import this module (its check is duck-typed on purpose), so the dependency runs one
+        # way only"*, and registration is *"an explicit CALL and never an import side effect,
+        # so importing this module to read one number cannot silently unblock every short book
+        # in the fleet."* Both are right and this harness yields to them.
+        # PRESENCE IS THIS HARNESS'S OWN GATE and is checked here rather than delegated.
+        #
+        # THE DEFECT THIS CLOSES WAS CAUGHT BY THE DAY-1 SELF-CHECK, and it is the exact shape
+        # this project keeps recording: making the delegation OPTIONAL silently switched the
+        # short-field rules OFF, because r1's `_AssignmentProvider` exposes the three interface
+        # callables and NOT `validate_declaration`. A short book missing `margin_method`
+        # validated CLEANLY. A guard that quietly stops running is worse than one that was
+        # never written, and the split of duties is now explicit: **this harness checks that a
+        # short book STATES its clauses; the model checks that the stated VALUES cohere.**
         for f in REQUIRED_SHORT_FIELDS:
-            if decl.get(f) in (None, "", [], {}):
-                r.append("MISSING_SHORT_FIELD:" + f)
+            if not str(decl.get(f) or "").strip():
+                r.append("MISSING_FIELD:" + f)
+
+        # REPORTED, NOT WORKED AROUND: with r1's current provider the VALUE rules -- `naked`
+        # refused, `spot_basis` as-traded, `return_denominator` secured cash -- are NOT enforced
+        # at declaration time, because the adapter does not carry the validator. Adding
+        # `validate_declaration` to `_AssignmentProvider` restores them through this seam with
+        # no change here. Re-implementing them in this file would be a second short-book
+        # contract (B7) and is deliberately not done.
+        v = getattr(_PROVIDER, "validate_declaration", None)
+        if callable(v):
+            try:
+                v(decl)
+            except Exception as e:                            # noqa: BLE001
+                # The model RAISES, because "a refusal that returns a flag is a refusal
+                # somebody forgets to read". This harness COLLECTS refusals so an author fixes
+                # a declaration in one pass, so the raise is converted -- and its message is
+                # carried verbatim into `detail`, never discarded.
+                r.append("SHORT_BOOK_REFUSED_BY_S3I3")
+                short_detail = str(e)
         if _PROVIDER is None:
             r.append("SHORT_BOOK_WITHOUT_ASSIGNMENT")
 
@@ -289,9 +398,12 @@ def validate_declaration(decl: dict, *, book: str = None) -> dict:
         if clash:
             r.append("RECORDS_SCHEMA_CLASHES_WITH_BASE:" + ",".join(sorted(clash)))
 
-    return {"ok": not r, "refusals": sorted(set(r)),
-            "detail": {"assignment_interface": ASSIGNMENT_INTERFACE} if
-            any(x == "SHORT_BOOK_WITHOUT_ASSIGNMENT" for x in r) else {}}
+    detail = {}
+    if "SHORT_BOOK_WITHOUT_ASSIGNMENT" in r:
+        detail["assignment_interface"] = ASSIGNMENT_INTERFACE
+    if short_detail:
+        detail["s3i3_refusal"] = short_detail
+    return {"ok": not r, "refusals": sorted(set(r)), "detail": detail}
 
 
 def declaration_sha(text: str) -> str:
@@ -498,7 +610,11 @@ def harness_fingerprint() -> str:
     for p in (os.path.abspath(__file__),
               os.path.join(os.path.dirname(os.path.abspath(__file__)), "append_only.py")):
         try:
-            h.update(open(p, "rb").read())
+            # `with`, not a bare open: this runs on every gate check, so on a long-lived
+            # service the leaked handles accumulate. Surfaced as a ResourceWarning by the
+            # endpoint test, which is the first caller to hit it in a loop.
+            with open(p, "rb") as fh:
+                h.update(fh.read())
         except OSError:
             h.update(b"<missing>")
     return h.hexdigest()
@@ -668,10 +784,61 @@ def read_meter(book: str, values, *, decl_sha: str, root: str = None, why: str =
 # ---------------------------------------------------------------------------------------
 # THE TRADIER SEAM -- V5-grade fill recording, consuming the sandbox's own shapes
 # ---------------------------------------------------------------------------------------
+# The fate vocabulary. A fate is read from the BROKER'S STATE, never inferred from whether a
+# number happens to be present -- which is how a pending order came to be recorded as filled.
+FATES = ("filled", "partial", "working", "rejected", "canceled", "expired", "unknown")
+
+
+def _fate(order: dict, fill) -> str:
+    """What actually happened to the order, in the broker's own terms."""
+    o = order or {}
+    st = str(o.get("status") or "").strip().lower()
+    if st in ("rejected", "canceled", "cancelled", "expired"):
+        return "canceled" if st == "cancelled" else st
+    try:
+        execd = float(o.get("exec_quantity") or 0)
+        want = float(o.get("quantity") or 0)
+    except (TypeError, ValueError):
+        execd = want = 0.0
+    if fill is not None and execd > 0:
+        return "filled" if (want and execd >= want) else "partial"
+    if st in ("pending", "open", "partially_filled"):
+        return "working"
+    if not st:
+        return "unknown"
+    return "working"
+
+
+def quote_mid(quote: dict):
+    """THE one definition of this book's mid. `None` when the quote is one-sided.
+
+    `B7`. `fill_fields` records the mid and `submit` PRICES arm B's limit at it, and the two
+    must be the same number by construction -- a book whose subject is half-spread capture
+    cannot afford a limit priced by one convention and a record written by another. The
+    convention is `PaperBroker.mark_from_quote`'s: the mid when there are two sides, and
+    EMPTY when there are not, never a fallback to `last`. A stale `last` under the name
+    `quote_mid` is the wrong-object family.
+    """
+    q = quote or {}
+
+    def _n(x):
+        try:
+            v = float(x)
+        except (TypeError, ValueError):
+            return None
+        return v if v == v else None
+
+    bid, ask = _n(q.get("bid")), _n(q.get("ask"))
+    if bid is None or ask is None or ask <= 0 or ask < bid:
+        return None
+    return round((bid + ask) / 2.0, 4)
+
+
 def fill_fields(*, symbol: str, occ: str, side: str, qty: int, order_type: str,
                 quote: dict, order: dict = None, submitted_ts: str, filled_ts: str = None,
                 limit_price=None, arm: str = "", fallback: str = "",
-                venue: str = "") -> dict:
+                venue: str = "", structure_id: str = "", leg_index=None,
+                net_cost=None) -> dict:
     """One V5-grade fill record from a Tradier quote and order. Records, never decides.
 
     **THE BID, ASK AND MID AT SUBMISSION ARE STORED, and that is the whole point.**
@@ -700,11 +867,22 @@ def fill_fields(*, symbol: str, occ: str, side: str, qty: int, order_type: str,
         return v if v == v else None
 
     bid, ask = _f(q.get("bid")), _f(q.get("ask"))
-    mid = round((bid + ask) / 2.0, 4) if (bid is not None and ask is not None
-                                          and ask > 0 and ask >= bid) else None
+    mid = quote_mid(q)
+    # THE FILL PRICE COMES FROM THE BROKER'S OWN HELPER, NEVER RE-DERIVED HERE.
+    #
+    # THE DEFECT THIS REPLACES FABRICATED A FILL, and the live leg caught it on its first real
+    # order. The first cut read `avg_fill_price or price`; Tradier reports an unfilled limit
+    # order as `status: pending, avg_fill_price: 0.0, exec_quantity: 0.0, price: <the limit>`,
+    # and `0.0` is FALSY -- so the fallback took the LIMIT and this function reported a
+    # PENDING order as FILLED at its own limit price. On `F-1`, the book whose entire subject
+    # is fill quality and which reads every other book's fills, that is the worst silent
+    # corruption available: every unfilled order becomes a perfect fill at the price asked for.
+    #
+    # `PaperBroker.fill_price` already gates on `exec_quantity`, so this delegates (B7).
     fill = None
     if order:
-        fill = _f(order.get("avg_fill_price")) or _f(order.get("price"))
+        from .paper_broker import PaperBroker as _PB
+        fill = _PB.fill_price(order)
     ttf = ""
     if submitted_ts and filled_ts:
         try:
@@ -723,10 +901,288 @@ def fill_fields(*, symbol: str, occ: str, side: str, qty: int, order_type: str,
         "fill_price": "" if fill is None else fill,
         "submitted_ts": submitted_ts or "", "filled_ts": filled_ts or "",
         "time_to_fill_s": ttf,
-        "fate": "filled" if fill is not None else "unfilled",
+        "fate": _fate(order, fill),
         "fallback": fallback, "venue": venue,
+        # A single-leg fill leaves these EMPTY rather than defaulting to a fake structure of
+        # one: "not part of a structure" and "leg 0 of a structure" are different facts.
+        "structure_id": structure_id,
+        "leg_index": "" if leg_index is None else int(leg_index),
+        "net_cost": "" if net_cost is None else net_cost,
         "detail": SANDBOX_CAVEAT,
     }
+
+
+# ---------------------------------------------------------------------------------------
+# F-1's ARM POLICY -- the harness's single order door
+# ---------------------------------------------------------------------------------------
+WORK_SECONDS = 60          # F-1 frozen: arm B is "worked 60 seconds". Not a tuning knob.
+
+_TERMINAL = ("filled", "rejected", "canceled", "cancelled", "expired", "error")
+
+
+def _status(order: dict) -> str:
+    return str((order or {}).get("status") or "").strip().lower()
+
+
+def submit(book: str, *, broker, occ: str, underlying: str, side: str, qty: int,
+           decl_sha: str, symbol: str = None, date: str = None, quote: dict = None,
+           work_seconds: int = WORK_SECONDS, clock=None, sleep=None, now=None) -> dict:
+    """Submit ONE order under `F-1`'s frozen arm policy. Returns `fill_fields` kwargs.
+
+    **THIS IS `F-1`'s ENTRY RULE, AND IT DELIBERATELY DOES NOT LIVE IN `F-1`.** That book's
+    declaration says *"No entries of its own. **Every order any fleet book submits** is
+    assigned by the harness's deterministic randomizer"* -- so the policy belongs to the
+    harness's submission path, and a per-book callable could not reach the orders of books
+    that are not it. Every fleet book routes its orders through here; that is what makes the
+    A/B a property of the fleet rather than an opt-in.
+
+    Arm A is marketable. Arm B is a limit at the mid, worked `WORK_SECONDS`, then
+    cancel-and-market with the fallback FLAGGED so it is never pooled with a clean B fill --
+    the draft's own rule, and the reason the record carries `fallback` as a first-class
+    column rather than a derived one.
+
+    **THE CANCEL IS CHECKED BEFORE THE MARKET LEG IS SENT.** If the cancel fails the limit is
+    still live, and sending a market order beside it opens a DOUBLE POSITION on the one book
+    whose subject is fill quality. That case returns the working order flagged
+    `B-cancel-failed` and sends nothing further: an unfilled order is an observation, and a
+    doubled one is a corrupted measurement.
+    """
+    from .paper_broker import PaperBroker as _PB
+    clock = clock or _time.monotonic
+    sleep = sleep or _time.sleep
+    now = now or (lambda: _dt.datetime.now().isoformat(timespec="seconds"))
+    symbol = symbol or underlying
+    date = date or _dt.date.today().isoformat()
+
+    a = arm(book, date, symbol, decl_sha)
+    if quote is None:
+        quote = (broker.quotes([occ]) or {}).get(occ) or {}
+
+    def _kw(order, order_type, fallback, limit_price=None, filled_ts=None, submitted_ts=None):
+        return {"symbol": symbol, "occ": occ, "side": side, "qty": qty,
+                "order_type": order_type, "quote": quote, "order": order or {},
+                "submitted_ts": submitted_ts, "filled_ts": filled_ts,
+                "limit_price": limit_price, "arm": a, "fallback": fallback, "venue": ""}
+
+    def _market(fallback):
+        ts = now()
+        res = broker.place_option(occ, underlying, side, qty)
+        oid = _PB.order_id(res)
+        order = broker.order(oid) if oid else {}
+        fts = now() if _PB.fill_price(order) is not None else None
+        return _kw(order, "market", fallback, submitted_ts=ts, filled_ts=fts)
+
+    if a == "A":
+        return _market("")
+
+    mid = quote_mid(quote)
+    if mid is None:
+        # AMENDMENT 1 to DECL_f1_fill_ab.md, 2026-08-24. Arm B is "limit at mid" and a
+        # one-sided quote HAS no mid, so the frozen rule has nothing to price. Recorded as
+        # its OWN fallback value rather than pooled with either arm, because "B could not be
+        # attempted" and "B was attempted and did not fill" are different observations and
+        # only the second is evidence about working a limit.
+        return _market("B-nomid")
+
+    ts = now()
+    res = broker.place_option(occ, underlying, side, qty, price=mid)
+    oid = _PB.order_id(res)
+    if not oid:
+        return _kw(res.get("order") or {}, "limit", "B-unplaced", limit_price=mid,
+                   submitted_ts=ts)
+
+    deadline = clock() + float(work_seconds)
+    order = broker.order(oid) or {}
+    while _PB.fill_price(order) is None and _status(order) not in _TERMINAL:
+        if clock() >= deadline:
+            break
+        sleep(1)
+        order = broker.order(oid) or {}
+
+    if _PB.fill_price(order) is not None:
+        return _kw(order, "limit", "", limit_price=mid, submitted_ts=ts, filled_ts=now())
+
+    cancelled = broker.cancel(oid) or {}
+    if not cancelled.get("ok"):
+        return _kw(order, "limit", "B-cancel-failed", limit_price=mid, submitted_ts=ts)
+
+    out = _market("B-fallback")
+    out["limit_price"] = mid
+    return out
+
+
+# ---------------------------------------------------------------------------------------
+# (C) MULTI-LEG STRUCTURES -- one order, one net-cost constraint, never a naked leg
+# ---------------------------------------------------------------------------------------
+NET_DEBIT_ONLY = "debit_only"
+NET_ANY = "any"
+NET_RULES = (NET_DEBIT_ONLY, NET_ANY)
+
+
+def net_cost(legs) -> Optional[float]:
+    """Net cost of a structure at MARKETABLE prices. `None` if any leg is not two-sided.
+
+    Buys are priced at the ASK and sells at the BID -- `options_fill.DEFAULT_AGGRESSION = 1.0`,
+    the punishing convention every validated options number in this repo is net of. A mid-based
+    net would make a collar look financeable at prices nobody can trade, which is precisely the
+    error `F-1` exists to measure and must not be baked into the structure that F-1 measures.
+
+    POSITIVE is a debit (you pay), NEGATIVE is a credit (you are paid).
+    """
+    total = 0.0
+    for leg in legs or ():
+        q = leg.get("quote") or {}
+
+        def _n(x):
+            try:
+                v = float(x)
+            except (TypeError, ValueError):
+                return None
+            return v if v == v else None
+
+        bid, ask = _n(q.get("bid")), _n(q.get("ask"))
+        if bid is None or ask is None or ask <= 0 or ask < bid:
+            return None
+        qty = int(leg.get("qty") or 0)
+        if str(leg.get("side", "")).startswith("buy"):
+            total += ask * qty
+        else:
+            total -= bid * qty
+    return round(total, 4)
+
+
+def check_structure(legs, *, net_rule: str) -> dict:
+    """Every refusal a multi-leg structure can earn, checked BEFORE anything is placed.
+
+    **THE NAKED-SHORT REFUSAL IS THE ONE THAT MATTERS.** `S3-I3` refuses a naked short BY NAME
+    -- FINRA 4210's maintenance formula has its own floor and a cash-secured stand-in would
+    UNDERSTATE the requirement, which is the unsafe direction. A structure whose only option
+    leg is a short is that trade, whatever the declaration calls it.
+    """
+    legs = list(legs or ())
+    r = []
+    if len(legs) < 2:
+        r.append("MULTILEG_SINGLE_LEG")
+    if str(net_rule) not in NET_RULES:
+        r.append("MULTILEG_UNKNOWN_NET_RULE:" + str(net_rule))
+    shorts = [l for l in legs if str(l.get("side", "")).startswith("sell")]
+    longs = [l for l in legs if str(l.get("side", "")).startswith("buy")]
+    if shorts and not longs:
+        r.append("MULTILEG_NAKED_SHORT")
+    nc = net_cost(legs)
+    if nc is None:
+        r.append("MULTILEG_UNUSABLE_QUOTE")
+    elif net_rule == NET_DEBIT_ONLY and nc < 0:
+        r.append("MULTILEG_NET_CREDIT")
+    return {"ok": not r, "refusals": r, "net_cost": nc,
+            "n_legs": len(legs), "n_short": len(shorts), "n_long": len(longs)}
+
+
+def submit_multileg(book: str, *, broker, underlying: str, legs, decl_sha: str,
+                    net_rule: str = NET_DEBIT_ONLY, symbol: str = None, date: str = None,
+                    now=None) -> dict:
+    """Submit ONE multi-leg order, or refuse the whole structure. Never a partial structure.
+
+    Returns `{"ok", "refusals", "net_cost", "structure_id", "candidates"}`, where
+    `candidates` is one `fill_fields` kwargs dict PER LEG, sharing a `structure_id`, the arm
+    and the net cost. One record per leg keeps the V5-grade per-leg quote block that `F-1`
+    reads off every book's fills; the shared id is what makes the structure recoverable.
+
+    **THE ARM IS ASSIGNED ONCE FOR THE STRUCTURE, not per leg.** F-1's unit is an ORDER and
+    this is one order; arming legs independently would put one collar in both arms and make
+    its half-spread capture uninterpretable.
+
+    **A REFUSAL IS A RECORD, NOT A CRASH**, and no order is placed on any refusal -- the check
+    runs first and returns before the broker is touched, which is what stops a naked leg
+    existing for the duration of an exception.
+    """
+    now = now or (lambda: _dt.datetime.now().isoformat(timespec="seconds"))
+    symbol = symbol or underlying
+    date = date or _dt.date.today().isoformat()
+
+    chk = check_structure(legs, net_rule=net_rule)
+    if not chk["ok"]:
+        return {"ok": False, "refusals": chk["refusals"], "net_cost": chk["net_cost"],
+                "structure_id": "", "candidates": []}
+
+    a = arm(book, date, symbol, decl_sha)
+    sid = hashlib.sha256(
+        "|".join([decl_sha or "", book or "", date or "", symbol or "",
+                  ",".join(str(l.get("occ")) for l in legs)]).encode("utf-8")
+    ).hexdigest()[:12]
+
+    ts = now()
+    otype = "even" if abs(chk["net_cost"]) < 0.005 else "debit"
+    res = broker.place_multileg(underlying, legs, order_type=otype, price=chk["net_cost"])
+    from .paper_broker import PaperBroker as _PB
+    oid = _PB.order_id(res)
+    order = broker.order(oid) if oid else {}
+    fts = now() if _PB.fill_price(order) is not None else None
+
+    cands = []
+    for i, leg in enumerate(legs):
+        cands.append({
+            "symbol": symbol, "occ": leg["occ"], "side": leg["side"],
+            "qty": int(leg["qty"]), "order_type": otype, "quote": leg.get("quote") or {},
+            "order": order or {}, "submitted_ts": ts, "filled_ts": fts,
+            "limit_price": chk["net_cost"], "arm": a, "fallback": "", "venue": "",
+            "structure_id": sid, "leg_index": i, "net_cost": chk["net_cost"],
+        })
+    return {"ok": True, "refusals": [], "net_cost": chk["net_cost"],
+            "structure_id": sid, "candidates": cands}
+
+
+# ---------------------------------------------------------------------------------------
+# (C) FIRST-CLASS SKIPS -- an observation a book declared, not the absence of one
+# ---------------------------------------------------------------------------------------
+def skip_fields(*, symbol: str, skip_reason: str, occ: str = "", quote: dict = None,
+                detail: str = "") -> dict:
+    """One SKIP observation. `F-14` declares *"the skips ARE the control population"*.
+
+    Before this existed a rule could record only fills, so a book whose control arm is its
+    skipped candidates could not represent the half that makes it interpretable -- it would
+    have published a treatment arm with no control and no way to say so.
+
+    THE QUOTE IS RECORDED WHERE THERE IS ONE, deliberately: `F-2`'s gate wants *"the
+    would-have-been quote pair"* on a refused entry, and a skip with no quote block cannot
+    answer what the trade would have cost. `skip_reason` is REQUIRED and has no default,
+    because an unexplained skip is indistinguishable from a rule that silently did nothing.
+    """
+    if not str(skip_reason or "").strip():
+        raise ValueError("a skip must carry a reason; an unexplained skip is not an "
+                         "observation, it is a gap")
+    q = quote or {}
+    mid = quote_mid(q)
+
+    def _c(x):
+        return "" if x is None else x
+
+    return {"symbol": symbol, "occ": occ, "side": "", "qty": 0, "arm": "",
+            "order_type": "", "quote_bid": _c(q.get("bid")), "quote_ask": _c(q.get("ask")),
+            "quote_mid": _c(mid), "limit_price": "", "fill_price": "",
+            "submitted_ts": "", "filled_ts": "", "time_to_fill_s": "",
+            "fate": "", "fallback": "", "venue": "",
+            "skip_reason": str(skip_reason), "detail": detail or SANDBOX_CAVEAT}
+
+
+def record_skip(book: str, fields: dict, root: str = None) -> dict:
+    """Record one skip AFTER re-checking every precondition -- the same gate a fill passes.
+
+    A skip places no order, so it is tempting to let it through a looser door. It must not:
+    a skip is a ROW on an append-only, hash-chained stream that a verdict will be read from,
+    so the declaration, the self-check and the chain all have to hold exactly as they do for a
+    fill. The gate is about the RECORD, not about the order.
+    """
+    gate = may_fill(book, root)
+    if not gate["ok"]:
+        sha = gate.get("decl_sha") or ""
+        if sha:
+            refuse(book, gate["code"], gate["reason"], decl_sha=sha, root=root)
+        return {"ok": False, "wrote": False, "code": gate["code"], "reason": gate["reason"],
+                "refusal_recorded": bool(sha)}
+    out = record(book, "skip", fields, decl_sha=gate["decl_sha"], root=root)
+    out["code"] = ""
+    return out
 
 
 def record_fill(book: str, fields: dict, root: str = None) -> dict:
@@ -752,7 +1208,58 @@ def record_fill(book: str, fields: dict, root: str = None) -> dict:
 # ---------------------------------------------------------------------------------------
 # One ledger row per book (draft section 1.5) -- emitted, so nobody hand-types a pipe
 # ---------------------------------------------------------------------------------------
-def ledger_row(decl: dict, *, status: str = "DECLARED - no verdict", note: str = "") -> str:
+def _first_sentence(s) -> str:
+    """The first sentence of `s`, split on a period FOLLOWED BY A SPACE.
+
+    Splitting on a bare period truncates `"0.3 years at the projected 45.00 fills/month"` to
+    `"0"` -- which reads as a horizon of zero, i.e. *"readable now"*, the exact misreading the
+    horizon field exists to prevent. Caught by reading the emitted row rather than by any test,
+    which is why the row is printed and inspected before it is pasted anywhere.
+    """
+    s = str(s or "").strip()
+    for i in range(len(s) - 1):
+        if s[i] == "." and s[i + 1] == " ":
+            return s[:i]
+    return s
+
+
+def horizon_note(decl: dict) -> str:
+    """The verdict horizon, FIELD BY FIELD, as one pipe-free ledger sentence.
+
+    Every field is named with its own value rather than summarised, because the horizon's
+    whole job is to stop a book being read early and a summary is exactly what gets rounded.
+    `sigma_provenance` travels with `sigma` for the reason `MB8` paid for: it borrowed a
+    standard error measured on a different perturbation size and was wrong by six-fold. An
+    ASSUMED sigma and a MEASURED one are different objects and the row says which.
+    """
+    h = decl.get("verdict_horizon") or {}
+    t = decl.get("trial") or {}
+    dom = str(t.get("domain") or "")
+    charge = ("ZERO TRIALS - hypothesis_class %r charges nothing and no meter is ever read"
+              % str(decl.get("hypothesis_class") or "")
+              if dom in ("", "none") else
+              "Trial 1 %s, charged at %s" % (dom, t.get("charged_at") or "first_verdict_read"))
+    sig = h.get("sigma")
+    prov = str(h.get("sigma_provenance") or "")
+    measured = prov.strip().upper().startswith("MEASURED")
+    return (
+        "Fleet book under S3-I1, declared and committed ALONE before any fill. %s. "
+        "VERDICT HORIZON, field by field: min_effect %s; sigma %s (%s); rho %s; alpha %s; "
+        "fills_needed %s, DERIVED as the smallest n at which the anytime-valid boundary falls "
+        "to min_effect and NOT the drafts' round 30; expected_fills_per_month %s; "
+        "years_to_horizon_at_projected_rate %s; earliest_honest_read %s. "
+        "sigma may only ever be RAISED, never lowered. %s"
+        % (charge, h.get("min_effect"), sig,
+           "MEASURED" if measured else "PRIOR, not measured - replace with the realised SD at "
+           "first read",
+           h.get("rho"), h.get("alpha"), h.get("fills_needed"),
+           h.get("expected_fills_per_month"), h.get("years_to_horizon_at_projected_rate"),
+           _first_sentence(h.get("earliest_honest_read")), O11_SENTENCE))
+
+
+def ledger_row(decl: dict, *, status: str = "DECLARED - no verdict", note: str = "",
+               tag: str = None, commit: str = "PENDING", handoff: str = None,
+               date: str = None) -> str:
     """The book's `VALQUO_LEDGER.md` row, ten cells, REFUSING any raw pipe in the prose.
 
     `M1-PARSE` is this record's most repeated clerical defect and it has NO ESCAPE:
@@ -760,18 +1267,21 @@ def ledger_row(decl: dict, *, status: str = "DECLARED - no verdict", note: str =
     backslash, so one in a cell shifts every column after it and the row silently changes
     meaning. `E-2` hit it three days ago by writing an absolute value in prose. Emitting the
     row and REFUSING the character is cheaper than catching it after the fact.
+
+    `tag` and `commit` were ADDED AT THE CEREMONY (2026-08-24) and the defect they close is
+    this function's own. It was written while no book had been accepted, so it hard-coded the
+    id as `"F-" + book` -- which yields `F-f13_second_event` where the map says **F-13** -- and
+    the commit as the literal `PENDING`, which was true when nothing was committed and became
+    false the moment seventeen declarations landed. Both defaults are UNCHANGED so every
+    existing caller and test is bit-identical; the ceremony passes the real values.
     """
     book = str(decl.get("book") or "")
     cells = [
-        "F-" + book, "F", str(decl.get("entry_rule") or "")[:180], status,
+        tag or ("F-" + book), "F", str(decl.get("entry_rule") or "")[:180], status,
         "No verdict at declaration; amended at first verdict read",
-        "PENDING", "DECL_" + book + ".md", _dt.date.today().isoformat(), "human",
-        (note or ("Fleet book under S3-I1. Trial: 1 " + str((decl.get("trial") or {}).get("domain"))
-                  + ", charged at FIRST VERDICT READ. Horizon "
-                  + str((decl.get("verdict_horizon") or {}).get("fills_needed"))
-                  + " fills, earliest honest read "
-                  + str((decl.get("verdict_horizon") or {}).get("earliest_honest_read"))
-                  + ". " + O11_SENTENCE)),
+        commit or "PENDING", handoff or ("DECL_" + book + ".md"),
+        date or _dt.date.today().isoformat(), "human",
+        (note or horizon_note(decl)),
     ]
     bad = [i for i, c in enumerate(cells) if "|" in c]
     if bad:
@@ -794,6 +1304,9 @@ def declaration_template(book: str, *, domain: str = "options", side: str = "lon
         "entry_rule": "TODO computable from data available at entry time, code-level pseudocode",
         "structure": {"strike_selection": "moneyness", "moneyness": 0.90, "dte": [30, 45]},
         "universe": "TODO", "sizing": "TODO", "concurrency_cap": 10, "side": side,
+        # Mandatory on EVERY book, long or short -- an absent field would let a short book pass
+        # by omission, which is the refusal Don's ruling #1 asks for (S3-I3's rule).
+        "sells_premium": side == "short",
         "records_schema": [],
         "verdict_horizon": {
             "expected_fills_per_month": 0, "min_effect": 0.0, "sigma": 0.0, "rho": 3.0,
@@ -803,11 +1316,208 @@ def declaration_template(book: str, *, domain: str = "options", side: str = "lon
         "o11_sentence": O11_SENTENCE,
     }
     if side == "short":
-        d["assignment"] = "TODO at expiry per moneyness; early flagged via O21's q-machinery"
-        d["margin"] = "TODO Reg-T cash-secured"
-        d["secured_cash_is_denominator"] = True
+        # r1's five fields, not my three. `spot_basis` and `return_denominator` are pinned
+        # rather than left TODO because S3-I3 accepts exactly one value for each and a
+        # placeholder there would only ever be refused.
+        d["assignment_model"] = "TODO at expiry per moneyness"
+        d["margin_method"] = "cash_secured_put"
+        d["spot_basis"] = "as_traded"
+        d["early_assignment_flag"] = "TODO O21's q-machinery"
+        d["return_denominator"] = "secured_cash"
     return ("# DECL " + book + "\n\n**Committed ALONE, before this book's first fill.**\n\n"
             "```json\n" + json.dumps(d, indent=2) + "\n```\n")
+
+
+# ---------------------------------------------------------------------------------------
+# THE DAILY CYCLE -- what a scheduler kicks, and what it honestly does today
+# ---------------------------------------------------------------------------------------
+_ENTRY_RULES: dict = {}
+
+
+def register_entry_rule(book: str, fn, *, places_orders: bool = True) -> dict:
+    """Register the CALLABLE that decides whether `book` enters today.
+
+    A declaration FREEZES an entry rule in prose; it does not execute one. Nothing in this
+    repository turns `"names whose flag count transitions from 0-or-1 to >=2"` into an order,
+    and pretending otherwise is how a paper fleet reports a cycle that placed nothing as a
+    cycle that found nothing. **The two are different facts and `cycle()` keeps them apart.**
+
+    `fn(decl, root) -> list[dict]` returns zero or more candidate fills, each a kwargs dict
+    for `fill_fields`. Returning `[]` means *the rule ran and today qualifies nobody*, which
+    is a real observation. Not being registered at all means *the rule has never been built*,
+    which is not.
+    """
+    if not callable(fn):
+        raise TypeError("an entry rule must be callable")
+    _ENTRY_RULES[str(book)] = {"fn": fn, "places_orders": bool(places_orders)}
+    return {"ok": True, "book": str(book), "places_orders": bool(places_orders)}
+
+
+def entry_rule(book: str):
+    e = _ENTRY_RULES.get(str(book))
+    return e["fn"] if e else None
+
+
+def places_orders(book: str) -> bool:
+    """False for a RIDER -- a book whose own declaration says it never sends an order.
+
+    **THREE OF THE SEVENTEEN DECLARED BOOKS CAN NEVER PRODUCE A FILL OF THEIR OWN**, by their
+    own frozen prose: `F-1` (*"No entries of its own"*), `F-2` (*"A GATE, holds no
+    positions"*) and `F-19` (*"A LABELING GATE, refuses nothing"*). Their records accrue only
+    when a HOST book fills.
+
+    This is declared at REGISTRATION rather than sniffed out of the declaration's prose,
+    because detecting it by substring is the family this record has been bitten by repeatedly
+    -- a guard keyed on wording fires against correct text and misses a rephrasing.
+
+    It exists so `cycle()` cannot report the fleet as breathing on the strength of a book that
+    is not able to trade. A rider returning `[]` is not *"the market qualified nobody"*; it is
+    a book doing exactly what it declared, and pooling the two would be the same blur
+    `ARMED_NO_ENTRY_RULE` was created to prevent, one level up.
+    """
+    e = _ENTRY_RULES.get(str(book))
+    return True if e is None else bool(e["places_orders"])
+
+
+def declared_books(root: str = None) -> list:
+    """Every book with a `DECL_<book>.md` carrying a machine-checkable block, in name order.
+
+    Discovery is by parse rather than by a hand-kept list, so a book cannot be declared and
+    then silently left out of the cycle -- `MA5`'s lesson, where one hand-typed copy of a
+    fact drifted from another. Files that do not parse are RETURNED with their reason rather
+    than skipped: `CEREMONY_RUNBOOK.md` is not a book and neither is a prose draft, and
+    the difference between *"not a book"* and *"a book whose declaration is broken"* is
+    exactly what a silent skip would destroy.
+    """
+    d = root or repo_root()
+    out = []
+    try:
+        names = sorted(os.listdir(d))
+    except OSError:
+        return out
+    for fn in names:
+        if not (fn.startswith("DECL_") and fn.endswith(".md")):
+            continue
+        book = fn[len("DECL_"):-len(".md")]
+        try:
+            with open(os.path.join(d, fn), encoding="utf-8") as fh:
+                text = fh.read()
+        except OSError as e:
+            out.append({"book": book, "parses": False, "reason": str(e)})
+            continue
+        p = parse_declaration(text)
+        out.append({"book": book, "parses": bool(p["ok"]),
+                    "reason": "" if p["ok"] else p["reason"]})
+    return out
+
+
+def cycle(root: str = None, *, write: bool = False, books: list = None) -> dict:
+    """One fleet cycle. Reports every book's gate state, and fills only where a rule exists.
+
+    **THIS FUNCTION RECORDS NOTHING WHEN THERE IS NOTHING TO RECORD, ON PURPOSE.** The obvious
+    alternative -- write a row per book per day saying "could not fill" -- would put roughly
+    4,250 rows a year of pure noise into streams whose whole value is that every row is an
+    event. The gap is reported in the response and, once a day, in the Action's log; it does
+    not need to be in the chain to be visible.
+
+    `write=False` (the default) is a DRY RUN that computes the identical report and records
+    nothing, so a scheduler, a health check and a human all read the same object and only the
+    POST can move the record -- the `track-row` split, for the same reason: a side-effecting
+    GET on an append-only record is reachable by a retry, a prefetch or a pasted link.
+    """
+    root = root or repo_root()
+    today = _dt.date.today().isoformat()
+    rows, armed, filled, blocked = [], 0, 0, 0
+    for d in declared_books(root):
+        if books is not None and d["book"] not in books:
+            continue
+        if not d["parses"]:
+            # Not a book. Reported, never counted, never silently dropped.
+            rows.append({"book": d["book"], "is_book": False, "state": "NOT_A_DECLARATION",
+                         "reason": d["reason"]})
+            continue
+        book = d["book"]
+        gate = may_fill(book, root)
+        rec = read_records(book, root)
+        item = {"book": book, "is_book": True, "may_fill": bool(gate["ok"]),
+                "state": gate.get("code") or "ARMED", "reason": gate.get("reason", ""),
+                "records": len(rec.get("rows") or []),
+                "entry_rule_implemented": entry_rule(book) is not None}
+        if not gate["ok"]:
+            blocked += 1
+            rows.append(item)
+            continue
+        armed += 1
+        fn = entry_rule(book)
+        if fn is None:
+            # THE HONEST DISTINCTION. The gate permits a fill and no code exists to decide
+            # one, which is a BUILD gap and not a market observation. It is never reported as
+            # "no candidates today".
+            item["state"] = "ARMED_NO_ENTRY_RULE"
+            rows.append(item)
+            continue
+        try:
+            cands = list(fn(gate["declaration"], root) or [])
+        except Exception as e:                                   # noqa: BLE001
+            item["state"] = "ENTRY_RULE_RAISED"
+            item["reason"] = str(e)
+            rows.append(item)
+            continue
+        item["candidates"] = len(cands)
+        item["places_orders"] = places_orders(book)
+        item["state"] = "RAN" if item["places_orders"] else "RAN_RIDER"
+        # A candidate may declare its KIND. `fill` is the legacy shape and stays the default
+        # so every rule written before skips existed is untouched; `skip` is F-14's control
+        # population. An UNRECOGNISED kind is REFUSED onto the book's own stream rather than
+        # dropped -- a candidate the cycle cannot classify is a defect in a rule, and a silent
+        # drop is how it would survive.
+        item["skipped"] = 0
+        if write:
+            wrote = []
+            for c in cands:
+                c = dict(c)
+                kind = str(c.pop("kind", "fill"))
+                if kind == "fill":
+                    wrote.append(record_fill(book, fill_fields(**c), root))
+                    filled += 1
+                elif kind == "skip":
+                    wrote.append(record_skip(book, skip_fields(**c), root))
+                    item["skipped"] += 1
+                else:
+                    refuse(book, "UNKNOWN_CANDIDATE_KIND",
+                           "entry rule returned kind=%r; expected fill or skip" % kind,
+                           decl_sha=gate["decl_sha"], root=root)
+            item["wrote"] = len(wrote)
+        rows.append(item)
+
+    books_only = [r for r in rows if r.get("is_book")]
+    unscheduled = [r["book"] for r in books_only if r["state"] == "ARMED_NO_ENTRY_RULE"]
+    # COUNTED, not derived. The first cut computed this as `declared - unscheduled - blocked`,
+    # which is right only while no book is both blocked AND unimplemented -- true today by
+    # accident and false the moment one book's self-check lands. A number that is
+    # coincidentally correct is the `MB8` family: an arithmetic that was never checked against
+    # the thing it claims to count.
+    implemented = sum(1 for r in books_only if r["entry_rule_implemented"])
+    riders = [r["book"] for r in books_only if r["state"] == "RAN_RIDER"]
+    # `RAN_RIDER` is excluded ON PURPOSE. A gate that ran is not a fleet that traded.
+    ran = any(r["state"] == "RAN" for r in books_only)
+    return {
+        "ok": True, "date": today, "wrote": bool(write),
+        "books_declared": len(books_only), "armed": armed, "blocked": blocked,
+        "fills_written": filled,
+        "entry_rules_implemented": implemented,
+        "books_with_no_entry_rule": unscheduled,
+        "riders_ran": riders,
+        "breathing": bool(filled) or ran,
+        "note": ("" if ran else
+                 "DECLARED-BUT-NOT-BREATHING: %d books declared, %d with an entry rule "
+                 "implemented, %d blocked at the gate. No fill can be produced by any "
+                 "scheduler until entry rules exist. Declaring without building them is a "
+                 "paper fleet in the worst sense."
+                 % (len(books_only), implemented, blocked)),
+        "sandbox_caveat": SANDBOX_CAVEAT,
+        "books": rows,
+    }
 
 
 # ---------------------------------------------------------------------------------------

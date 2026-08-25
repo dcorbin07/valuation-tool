@@ -32,12 +32,16 @@ Run:  python -m scripts.fleet_selfcheck            (dry)
 from __future__ import annotations
 
 import argparse
+import csv
+import datetime as _dt
+import io
 import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -54,6 +58,7 @@ def _decl(side="long", with_short_fields=False) -> str:
         "structure": {"strike_selection": "moneyness", "moneyness": 0.90, "dte": [30, 45]},
         "universe": "fixture", "sizing": "1 contract", "concurrency_cap": 10,
         "side": side,
+        "sells_premium": side == "short",
         "records_schema": [],
         "verdict_horizon": {"expected_fills_per_month": 30, "min_effect": 0.10,
                             "sigma": 1.0, "rho": 3.0, "alpha": 0.05,
@@ -63,9 +68,13 @@ def _decl(side="long", with_short_fields=False) -> str:
         "o11_sentence": F.O11_SENTENCE,
     }
     if with_short_fields:
-        d["assignment"] = "at expiry per moneyness; early flagged via O21's q-machinery"
-        d["margin"] = "Reg-T cash-secured"
-        d["secured_cash_is_denominator"] = True
+        # S3-I3's five fields, not S3-I1's original three -- the seam was reconciled to the
+        # LANDED module on 2026-08-24 (runbook: confirm against the landed S3-I3, not the map).
+        d["assignment_model"] = "at expiry per moneyness"
+        d["margin_method"] = "cash_secured_put"
+        d["spot_basis"] = "as_traded"
+        d["early_assignment_flag"] = "O21's q-machinery"
+        d["return_denominator"] = "secured_cash"
     return "# DECL " + BOOK + "\n\n```json\n" + json.dumps(d, indent=2) + "\n```\n"
 
 
@@ -203,31 +212,59 @@ def run(verbose=True) -> dict:
            (not g3["ok"]) and g3["code"] == "DECLARATION_NOT_COMMITTED_ALONE", g3.get("code"))
 
         # 8 ---------------------------------------------------- the S3-I3 seam, both ways
+        # RECONCILED AGAIN 2026-08-24, AFTER THE SEAM SETTLED WITH r1. The previous cut read
+        # `F._S3I3_REGISTRATION` and `F._SB`, which existed only while this harness imported
+        # r1's module and registered it AT IMPORT. Both are gone: `assignment.py` states that
+        # *"fleet does not import this module"* and that registration is *"an explicit CALL and
+        # never an import side effect"*, and this lane yielded to that. So the seam starts EMPTY
+        # and the day-1 gate REGISTERS IT ITSELF -- which is also the honest shape, since the
+        # runner is the composition root and this script stands in for the runner.
+        from valuation.edge import assignment as ASSIGN        # the REAL module, never a stub
         shortd = F.parse_declaration(_decl("short", with_short_fields=True))["declaration"]
-        v_no = F.validate_declaration(shortd, book=BOOK)
-        ck("8a a SHORT book is REFUSED with no assignment provider registered",
-           "SHORT_BOOK_WITHOUT_ASSIGNMENT" in v_no["refusals"], v_no["refusals"])
 
-        class _Stub:                                          # satisfies ASSIGNMENT_INTERFACE
-            def assign_at_expiry(self, *a, **k):
-                raise NotImplementedError("S3-I3 is r1's; this stub only proves the seam")
+        v_no_first = F.validate_declaration(shortd, book=BOOK)
+        ck("8a a SHORT book is REFUSED before anything registers -- the DEFAULT, not a "
+           "contrived case",
+           "SHORT_BOOK_WITHOUT_ASSIGNMENT" in v_no_first["refusals"], v_no_first["refusals"])
 
-            def early_assignment_flag(self, *a, **k):
-                raise NotImplementedError("S3-I3 is r1's; this stub only proves the seam")
+        reg = ASSIGN.register(F)
+        ck("8b r1's LANDED provider satisfies the FROZEN interface with nothing aliased",
+           reg.get("ok") and F.assignment_provider() is ASSIGN.PROVIDER, reg)
 
-            def secured_cash(self, *a, **k):
-                raise NotImplementedError("S3-I3 is r1's; this stub only proves the seam")
+        ck("8c the required-short-field lists AGREE across the two lanes",
+           tuple(F.REQUIRED_SHORT_FIELDS) == tuple(ASSIGN.REQUIRED_SHORT_FIELDS),
+           (F.REQUIRED_SHORT_FIELDS, ASSIGN.REQUIRED_SHORT_FIELDS))
 
-        reg = F.register_assignment_provider(_Stub())
         v_yes = F.validate_declaration(shortd, book=BOOK)
+        ck("8d a complete SHORT book validates once a provider is registered",
+           v_yes["ok"], v_yes.get("refusals"))
+
         bad_reg = F.register_assignment_provider(object())
-        F._PROVIDER = None                                    # leave no provider registered
-        ck("8b a SHORT book validates once a provider satisfying the interface is registered",
-           reg["ok"] and v_yes["ok"], v_yes.get("refusals"))
-        ck("8c a provider that does NOT satisfy the interface is refused",
-           (not bad_reg["ok"]) and len(bad_reg["missing"]) == 3, bad_reg)
-        ck("8d the seam is left EMPTY -- this run registers no provider permanently",
-           F.assignment_provider() is None)
+        ck("8e a provider that does NOT satisfy the interface is refused, and does not evict "
+           "the working one",
+           (not bad_reg["ok"])
+           and len(bad_reg["missing"]) == len(F.ASSIGNMENT_INTERFACE["callables"])
+           and F.assignment_provider() is ASSIGN.PROVIDER, bad_reg)
+
+        missing_field = dict(shortd)
+        missing_field.pop("margin_method")
+        v_mf = F.validate_declaration(missing_field, book=BOOK)
+        # 8f, not a second 8e -- the duplicate label was hiding one of two checks in the output.
+        #
+        # THIS IS THE CHECK THAT EARNED ITS KEEP TODAY. It asserted the delegated refusal
+        # `SHORT_BOOK_REFUSED_BY_S3I3`, and when the seam settled it went RED against a tree
+        # everything else called green: r1's provider exposes the three interface callables and
+        # NOT `validate_declaration`, so making the delegation optional switched the short-field
+        # rules silently OFF and a book missing `margin_method` validated cleanly. Presence is
+        # now this harness's own gate, so the code it names is this harness's own.
+        ck("8f a SHORT book missing an S3-I3 field is REFUSED, BY NAME",
+           "MISSING_FIELD:margin_method" in v_mf["refusals"], v_mf["refusals"])
+
+        contradiction = dict(shortd)
+        contradiction["side"] = "long"                        # while sells_premium stays True
+        v_cd = F.validate_declaration(contradiction, book=BOOK)
+        ck("8g `side` and `sells_premium` must AGREE, or the declaration is refused",
+           "SIDE_AND_SELLS_PREMIUM_DISAGREE" in v_cd["refusals"], v_cd["refusals"])
 
         # 9 ----------------------------------------------------------------- the randomizer
         syms = ["SYM%03d" % i for i in range(400)]
@@ -261,9 +298,199 @@ def run(verbose=True) -> dict:
             "ok": n_pass == len(checks) and len(checks) >= 15}
 
 
+# ===========================================================================================
+# THE LIVE LEG -- against the REAL Tradier sandbox, on a REAL declared book
+# ===========================================================================================
+def run_live(book: str, verbose: bool = True) -> dict:
+    """One real sandbox fill, recorded through the harness and read back bit-identical.
+
+    `CEREMONY_RUNBOOK.md` section 1 requires this and it is the half the synthetic run
+    cannot do: the synthetic checks prove the RULES, this proves the harness against a real
+    broker, a real chain and the real records store. A harness that passes on fixtures and
+    fails on a live quote has proved nothing about the fleet.
+
+    SANDBOX ONLY, and pinned: `assert_sandbox` refuses any base but Tradier's sandbox host, so
+    this cannot be pointed at a live account by editing a constant. One contract, one order.
+
+    The tamper case runs on a COPY of the real stream, never on the stream itself -- proving
+    detection must not corrupt the evidence it is proving something about.
+    """
+    from valuation.edge.paper_broker import PaperBroker, assert_sandbox, SANDBOX_BASE
+
+    checks = []
+
+    def ck(name, ok, detail=""):
+        checks.append({"check": name, "pass": bool(ok), "detail": str(detail)[:220]})
+        if verbose:
+            print(("  PASS  " if ok else "  FAIL  ") + name
+                  + (("  -- " + str(detail)[:170]) if not ok else ""))
+
+    ck("L0 the broker base is PINNED to the sandbox",
+       assert_sandbox(SANDBOX_BASE).startswith("https://sandbox.tradier.com"))
+
+    b = PaperBroker()
+    h = b.health()
+    ck("L1 the sandbox account is reachable", bool(h.get("ok")) and bool(h.get("sandbox")),
+       {k: h.get(k) for k in ("ok", "sandbox", "base")})
+    if not h.get("ok"):
+        return {"ok": False, "checks": checks, "reason": "sandbox unreachable"}
+
+    gate = F.may_fill(book)
+    ck("L2 the harness permits fills for the declared test-book", gate["ok"],
+       gate.get("code") or gate.get("reason"))
+    if not gate["ok"]:
+        return {"ok": False, "checks": checks, "reason": gate.get("reason")}
+    sha = gate["decl_sha"]
+
+    # --- pick a REAL contract: nearest-ATM SPY call, 25-60 DTE, two-sided quote -------------
+    spot = None
+    q_spy = b.quotes(["SPY"]).get("SPY") or {}
+    for k in ("last", "close", "prevclose"):
+        try:
+            spot = float(q_spy.get(k))
+            break
+        except (TypeError, ValueError):
+            continue
+    ck("L3 a real SPY spot is available", spot is not None, q_spy.get("last"))
+
+    chain = b.provider.get_option_chain("SPY", dte_range=(25, 60)) or []
+    usable = [c for c in chain
+              if str(c.get("option_type")).lower() == "call"
+              and c.get("bid") is not None and c.get("ask") is not None
+              and float(c.get("ask") or 0) > 0
+              and float(c.get("ask") or 0) >= float(c.get("bid") or 0)]
+    ck("L4 the real chain returns usable two-sided calls", len(usable) > 0, len(chain))
+    if not usable or spot is None:
+        return {"ok": False, "checks": checks, "reason": "no usable contract"}
+
+    pick = min(usable, key=lambda c: abs(float(c.get("strike") or 0) - spot))
+    occ = pick.get("symbol")
+    quote = {"bid": pick.get("bid"), "ask": pick.get("ask")}
+    arm = F.arm(book, _dt.date.today().isoformat(), "SPY", sha)
+    ck("L5 the F-1 randomizer assigns an arm and REPRODUCES it",
+       arm in ("A", "B")
+       and arm == F.arm(book, _dt.date.today().isoformat(), "SPY", sha), arm)
+
+    # --- ONE real sandbox order -------------------------------------------------------------
+    submitted = _dt.datetime.now().isoformat(timespec="seconds")
+    limit = round(float(pick["ask"]), 2)          # marketable limit; arm A's convention
+    # `place_option(occ, underlying, side, quantity, price=...)` -- LIMIT when a price is
+    # given, MARKET otherwise. Priced at the ASK, which is `options_fill.DEFAULT_AGGRESSION
+    # = 1.0`, the punishing convention every validated options number in this repo is net of.
+    res = b.place_option(occ, "SPY", "buy_to_open", 1, price=limit)
+    oid = PaperBroker.order_id(res)
+    ck("L6 a REAL sandbox order was accepted and returned an id", bool(oid), res)
+
+    order, filled_ts = {}, None
+    for _ in range(12):
+        order = b.order(oid) or {}
+        st = str(order.get("status") or "").lower()
+        if st in ("filled", "rejected", "canceled", "expired") or order.get("avg_fill_price"):
+            break
+        time.sleep(2.0)
+    if order.get("avg_fill_price"):
+        filled_ts = _dt.datetime.now().isoformat(timespec="seconds")
+    # L7 WAS TOO WEAK AND IT LET A FABRICATED FILL THROUGH. Its first cut asserted only that
+    # a status string existed, so it PASSED on `status: pending` while the record said
+    # `fate: filled` at the limit price. What matters is not that the order finished -- a
+    # marketable limit in a 15-minute-delayed sandbox legitimately rests -- but that the
+    # RECORD AGREES WITH THE BROKER about what happened.
+    st = str(order.get("status") or "").lower()
+    try:
+        execd = float(order.get("exec_quantity") or 0)
+    except (TypeError, ValueError):
+        execd = 0.0
+    ck("L7 the broker reports a status this harness understands",
+       st in ("filled", "pending", "open", "partially_filled", "rejected", "canceled",
+              "cancelled", "expired"),
+       {"status": order.get("status"), "exec_quantity": order.get("exec_quantity")})
+
+    fields = F.fill_fields(symbol="SPY", occ=occ, side="buy_to_open", qty=1,
+                           order_type="limit", quote=quote, order=order,
+                           submitted_ts=submitted, filled_ts=filled_ts,
+                           limit_price=limit, arm=arm, venue="TRADIER_SANDBOX")
+    ck("L8 the fill record carries bid, ask and mid at submission (the columns V5 routed)",
+       fields["quote_bid"] != "" and fields["quote_ask"] != "" and fields["quote_mid"] != "",
+       {k: fields[k] for k in ("quote_bid", "quote_ask", "quote_mid")})
+
+    before = F.read_records(book)["rows"]
+    w = F.record_fill(book, fields)
+    ck("L9 the fill was RECORDED through the harness's only write door",
+       bool(w.get("wrote")), w.get("reason") or w.get("code"))
+
+    # THE CHECK THAT WOULD HAVE CAUGHT THE FABRICATED FILL, and it is the load-bearing one.
+    truthful = ((fields["fate"] == "filled" and execd > 0 and fields["fill_price"] != "")
+                or (fields["fate"] in ("working", "rejected", "canceled", "expired")
+                    and execd == 0 and fields["fill_price"] == "")
+                or (fields["fate"] == "partial" and execd > 0))
+    ck("L9b the RECORD AGREES WITH THE BROKER -- no fill price without an execution",
+       truthful, {"fate": fields["fate"], "fill_price": fields["fill_price"],
+                  "exec_quantity": order.get("exec_quantity"),
+                  "status": order.get("status")})
+
+    # --- read back and compare BIT-IDENTICAL ------------------------------------------------
+    rows = F.read_records(book)["rows"]
+    got = [r for r in rows if r.get("kind") == "fill"]
+    same = bool(got) and all(str(fields[k]) == str(got[-1].get(k, "")) for k in fields)
+    ck("L10 the record reads back UNCHANGED, field for field", same,
+       [(k, fields[k], got[-1].get(k)) for k in fields
+        if got and str(fields[k]) != str(got[-1].get(k, ""))][:4])
+    ck("L11 the stream GREW by exactly one row", len(rows) == len(before) + 1,
+       (len(before), len(rows)))
+
+    chain_ok = F.verify_chain(book, decl_sha=sha)
+    ck("L12 the hash chain verifies over the real stream",
+       chain_ok["ok"] and not chain_ok.get("vacuous"), chain_ok.get("reason"))
+
+    # --- the tamper case, RUN, on a COPY ----------------------------------------------------
+    real = F.records_path(book)
+    tmpdir = tempfile.mkdtemp(prefix="fleet_tamper_")
+    try:
+        os.makedirs(os.path.join(tmpdir, "data", "fleet"), exist_ok=True)
+        shutil.copy(real, F.records_path(book, tmpdir))
+        original = open(real, "rb").read()
+        rws, header, err = AO.read_rows(F.records_path(book, tmpdir))
+        rws[-1]["fill_price"] = "999.99"
+        with io.open(F.records_path(book, tmpdir), "w", encoding="utf-8", newline="") as fh:
+            wtr = csv.DictWriter(fh, fieldnames=header)
+            wtr.writeheader()
+            for r in rws:
+                wtr.writerow({k: r.get(k) for k in header})
+        bad = F.verify_chain(book, tmpdir, decl_sha=sha)
+        ck("L13 a TAMPERED row is DETECTED and located (run, not assumed)",
+           (not bad["ok"]) and bad.get("broken_at") == len(rws) - 1, bad.get("reason"))
+        ck("L14 the REAL stream was never touched by the tamper test",
+           open(real, "rb").read() == original)
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+    # --- the refusals fire on the real repo -------------------------------------------------
+    g_undeclared = F.may_fill("no-such-book-exists")
+    ck("L15 an UNDECLARED book is refused on the real repo",
+       (not g_undeclared["ok"]) and g_undeclared["code"] == "DECLARATION_MISSING",
+       g_undeclared.get("code"))
+
+    short_probe = dict(F.parse_declaration(_decl("short", with_short_fields=True))["declaration"])
+    short_probe.pop("margin_method")
+    v_sp = F.validate_declaration(short_probe, book=BOOK)
+    ck("L16 a SHORT declaration missing an S3-I3 field is REFUSED",
+       "SHORT_BOOK_REFUSED_BY_S3I3" in v_sp["refusals"], v_sp["refusals"])
+
+    n_pass = sum(1 for c in checks if c["pass"])
+    return {"ok": n_pass == len(checks), "checks": checks, "n_pass": n_pass,
+            "n_checks": len(checks), "occ": occ, "arm": arm,
+            "order_id": oid, "order_status": order.get("status"),
+            "fill_price": fields["fill_price"], "quote": quote}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--book", help="record the outcome on this book's real stream")
+    ap.add_argument("--live", action="store_true",
+                    help="ALSO run the real-sandbox leg: one real fill on --book, recorded and "
+                         "read back bit-identical (CEREMONY_RUNBOOK section 1)")
+    ap.add_argument("--close", action="store_true",
+                    help="close --book with a ZERO-CHARGE closing row (test-books only)")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
 
@@ -271,11 +498,15 @@ def main() -> int:
     out = run(verbose=not a.json)
     if a.json:
         print(json.dumps(out, indent=2))
+    print("\n%d/%d synthetic checks passed" % (out["n_pass"], out["n_checks"]))
 
+    # The self-check row is recorded BEFORE the live leg, because `may_fill` gates on it and
+    # the live leg's whole point is to go through that gate rather than around it.
     if a.book:
         path = F.declaration_path(a.book)
         try:
-            sha = F.declaration_sha(open(path, encoding="utf-8").read())
+            with open(path, encoding="utf-8") as fh:
+                sha = F.declaration_sha(fh.read())
         except OSError:
             print("\nREFUSED to record: " + path + " not found. A self-check is recorded on a "
                   "DECLARED book's stream or not at all.")
@@ -283,13 +514,47 @@ def main() -> int:
         w = F.record(a.book, "selfcheck",
                      {"fate": "pass" if out["ok"] else "fail",
                       "detail": F.harness_fingerprint()}, decl_sha=sha)
-        print("\nrecorded on %s: wrote=%s %s" % (a.book, w.get("wrote"), w.get("reason", "")))
+        print("recorded on %s: wrote=%s %s" % (a.book, w.get("wrote"), w.get("reason", "")))
 
-    print("\n%d/%d checks passed" % (out["n_pass"], out["n_checks"]))
-    if not out["ok"]:
-        print("FAILED -- under Don's ruling no fleet book fills until this passes.")
+    live = None
+    if a.live:
+        if not a.book:
+            print("\nREFUSED: --live needs --book. A real fill is recorded on a DECLARED "
+                  "book's stream or not at all.")
+            return 2
+        if not out["ok"]:
+            print("\nREFUSED: the synthetic checks did not pass, so the live leg does not run. "
+                  "Fix the harness, never the check.")
+            return 1
+        print("\n--- LIVE LEG: real Tradier sandbox, book %r ---" % a.book)
+        live = run_live(a.book, verbose=not a.json)
+        if a.json:
+            print(json.dumps(live, indent=2))
+        print("\n%d/%d live checks passed" % (live["n_pass"], live["n_checks"]))
+
+    if a.close:
+        if not a.book:
+            print("\nREFUSED: --close needs --book.")
+            return 2
+        with open(F.declaration_path(a.book), encoding="utf-8") as fh:
+            sha = F.declaration_sha(fh.read())
+        c = F.record(a.book, "close",
+                     {"fate": "closed",
+                      "detail": ("ZERO-CHARGE CLOSE. This book carried no hypothesis and no "
+                                 "bar; no meter was ever read on it, so no trial is charged "
+                                 "in any domain (harness section 2: the charge comes at FIRST "
+                                 "VERDICT READ, and there was none).")},
+                     decl_sha=sha)
+        print("\nclosed %s with a zero-charge row: wrote=%s %s"
+              % (a.book, c.get("wrote"), c.get("reason", "")))
+
+    ok = out["ok"] and (live is None or live["ok"])
+    if not ok:
+        print("\nFAILED -- under Don's ruling no fleet book fills until this passes.")
         return 1
-    print("PASS -- the harness has verified itself; declared books may begin filling.")
+    print("\nPASS -- the harness has verified itself"
+          + (" against the REAL sandbox" if live else "")
+          + "; declared books may begin filling.")
     return 0
 
 

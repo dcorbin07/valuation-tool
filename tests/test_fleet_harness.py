@@ -54,6 +54,9 @@ def _decl_text(book=BOOK, **over):
         "book": book, "domain": "options", "hypothesis_class": "cost",
         "entry_rule": "fixture", "structure": {"strike_selection": "moneyness"},
         "universe": "fixture", "sizing": "1", "concurrency_cap": 10, "side": "long",
+        # `sells_premium` is MANDATORY on every book -- r1's S3-I3 rule, adopted whole: an
+        # absent field would let a short book pass by OMISSION.
+        "sells_premium": False,
         "records_schema": [],
         "verdict_horizon": {"expected_fills_per_month": 30, "min_effect": 0.1, "sigma": 1.0,
                             "rho": 3.0, "alpha": 0.05, "fills_needed": 60,
@@ -460,35 +463,123 @@ class Declarations(unittest.TestCase):
 # THE S3-I3 SEAM -- interface only; this module builds no assignment model
 # =======================================================================================
 class AssignmentSeam(unittest.TestCase):
+    """SETTLED WITH r1 2026-08-24, after moving TWICE -- and the middle version was wrong.
+
+    `S3-I1` froze three duck-typed callables before any model existed. Mid-ceremony this
+    harness was "reconciled to the landed module": repointed at `short_book.py`'s own five
+    function names and importing it at module scope. **That was reverted**, because r1 had
+    already built `_AssignmentProvider`, an ADAPTER exposing exactly the three frozen names --
+    the interface never needed changing, which is what a published interface is for -- and
+    because `assignment.py` states the dependency direction outright: *"fleet does not import
+    this module (its check is duck-typed on purpose), so the dependency runs one way only"*,
+    with registration *"an explicit CALL and never an import side effect."*
+
+    So what these pin is the CONTRACT BETWEEN TWO LANES, not either lane's vocabulary:
+    the harness refuses every short book until something registers a provider, the provider
+    r1 ships satisfies the frozen interface, and neither module imports the other in
+    production code.
+    """
+
+    SHORT = {"sells_premium": True, "side": "short",
+             "assignment_model": "at expiry per moneyness",
+             "margin_method": "cash_secured_put", "spot_basis": "as_traded",
+             "early_assignment_flag": "O21 q-machinery", "return_denominator": "secured_cash"}
+
+    def setUp(self):
+        self._saved = F._PROVIDER
 
     def tearDown(self):
-        F._PROVIDER = None
+        F._PROVIDER = self._saved
 
-    def test_a_short_book_is_refused_with_no_provider(self):
-        d = F.parse_declaration(_decl_text(
-            side="short", assignment="at expiry", margin="Reg-T",
-            secured_cash_is_denominator=True))["declaration"]
+    def test_the_harness_does_NOT_import_the_assignment_model(self):
+        """r1's rule, and this file yields to it. Checked on the SYNTAX TREE, not by grep.
+
+        An import-time registration means any path that imports the model to read one number
+        -- a script, a test, a notebook -- silently unblocks every short book in the fleet.
+        Refusing by default is the safe direction.
+        """
+        src = io.open(os.path.join(REPO, "valuation", "edge", "fleet.py"),
+                      encoding="utf-8").read()
+        tree = ast.parse(src)
+        imported = set()
+        for n in ast.walk(tree):
+            if isinstance(n, ast.ImportFrom):
+                for a in n.names:
+                    imported.add(a.name)
+                if n.module:
+                    imported.add(n.module)
+            elif isinstance(n, ast.Import):
+                for a in n.names:
+                    imported.add(a.name)
+        self.assertIn("append_only", imported, "the import scan saw nothing")
+        self.assertNotIn("assignment", imported)
+        self.assertNotIn("short_book", imported)
+
+    def test_nothing_is_registered_at_import_and_short_books_are_refused_by_default(self):
+        """The consequence, named rather than discovered: F-4/6/8/10/17/18 do not fill."""
+        self.assertFalse(hasattr(F, "_S3I3_REGISTRATION"),
+                         "an import-time registration is back")
+        F._PROVIDER = None
+        d = F.parse_declaration(_decl_text(**self.SHORT))["declaration"]
         r = F.validate_declaration(d, book=BOOK)
         self.assertIn("SHORT_BOOK_WITHOUT_ASSIGNMENT", r["refusals"])
         self.assertIn("assignment_interface", r["detail"])
 
-    def test_a_short_book_missing_the_margin_clause_is_refused_even_with_a_provider(self):
-        class P:
-            assign_at_expiry = early_assignment_flag = secured_cash = staticmethod(lambda *a: None)
-        F.register_assignment_provider(P())
-        d = F.parse_declaration(_decl_text(side="short", assignment="at expiry"))["declaration"]
-        r = F.validate_declaration(d, book=BOOK)
-        self.assertIn("MISSING_SHORT_FIELD:margin", r["refusals"])
+    def test_r1s_provider_satisfies_the_FROZEN_interface_without_either_side_aliasing(self):
+        """The seam's actual test: r1 adapted to the published names and it fits."""
+        from valuation.edge import assignment as A
+        reg = A.register()
+        self.assertTrue(reg["ok"], reg)
+        self.assertEqual(reg["missing"], [])
+        for name in F.ASSIGNMENT_INTERFACE["callables"]:
+            self.assertTrue(callable(getattr(A.PROVIDER, name, None)),
+                            "the interface names %r and r1's provider does not" % name)
 
-    def test_a_provider_missing_a_callable_is_refused(self):
+    def test_the_required_short_fields_LITERAL_matches_r1s_and_drift_fails_here(self):
+        """`MA13`'s idiom: production holds the literal, the TEST holds the comparison.
+
+        `tuple(assignment.REQUIRED_SHORT_FIELDS)` in `fleet` would have inverted the
+        dependency direction r1 documented, so the list is a literal there and this is the
+        only place the two are ever compared.
+        """
+        from valuation.edge import assignment as A
+        self.assertEqual(tuple(F.REQUIRED_SHORT_FIELDS), tuple(A.REQUIRED_SHORT_FIELDS))
+
+    def test_a_complete_short_book_validates_once_a_provider_is_registered(self):
+        from valuation.edge import assignment as A
+        A.register()
+        d = F.parse_declaration(_decl_text(**self.SHORT))["declaration"]
+        r = F.validate_declaration(d, book=BOOK)
+        self.assertTrue(r["ok"], r["refusals"])
+
+    def test_sells_premium_is_mandatory_on_EVERY_book_including_long_ones(self):
+        """r1's rule, adopted whole: an absent field lets a short book pass by OMISSION."""
+        d = F.parse_declaration(_decl_text())["declaration"]
+        d.pop("sells_premium")
+        r = F.validate_declaration(d, book=BOOK)
+        self.assertIn("MISSING_FIELD:sells_premium", r["refusals"])
+
+    def test_side_and_sells_premium_must_AGREE(self):
+        """Two sources for one fact is a split; requiring agreement makes it tamper-evidence."""
+        d = F.parse_declaration(_decl_text(side="long", sells_premium=True))["declaration"]
+        r = F.validate_declaration(d, book=BOOK)
+        self.assertIn("SIDE_AND_SELLS_PREMIUM_DISAGREE", r["refusals"])
+
+    def test_a_provider_missing_a_callable_is_refused_and_does_not_EVICT_a_working_one(self):
+        """A typo in a new module must not silently stop every short book in the fleet."""
+        from valuation.edge import assignment as A
+        A.register()
+        good = F.assignment_provider()
+
         class Half:
-            def assign_at_expiry(self, *a):
+            def assign_at_expiry(self, *a, **k):
                 return None
-        r = F.register_assignment_provider(Half())
+        half = Half()
+        r = F.register_assignment_provider(half)
         self.assertFalse(r["ok"])
-        self.assertEqual(sorted(r["missing"]),
-                         ["early_assignment_flag", "secured_cash"])
-        self.assertIsNone(F.assignment_provider())
+        self.assertEqual(sorted(r["missing"]), ["early_assignment_flag", "secured_cash"])
+        self.assertIsNot(F.assignment_provider(), half)
+        self.assertIs(F.assignment_provider(), good)
 
     def test_this_module_computes_no_assignment_and_no_margin(self):
         """`S3-I3` is r1's. A model here would be two implementations of one thing."""
@@ -508,9 +599,6 @@ class AssignmentSeam(unittest.TestCase):
         self.assertIn("ASSIGNMENT_INTERFACE", code, "the stripper saw nothing")
         self.assertNotIn("intrinsic", code.lower())
 
-
-# =======================================================================================
-# THE TRIAL CONVENTION, MADE MECHANICAL
 # =======================================================================================
 class TrialConvention(unittest.TestCase):
 
@@ -604,7 +692,9 @@ class FillRecording(unittest.TestCase):
     def test_the_bid_ask_and_mid_at_submission_are_stored(self):
         """The columns V5 ROUTED and nobody took. `F-1` cannot be run without them."""
         f = F.fill_fields(symbol="AAPL", occ="A", side="buy", qty=1, order_type="limit_mid",
-                          quote={"bid": 2.50, "ask": 2.70}, order={"avg_fill_price": 2.70},
+                          quote={"bid": 2.50, "ask": 2.70},
+                          order={"status": "filled", "avg_fill_price": 2.70,
+                                 "exec_quantity": 1.0, "quantity": 1.0},
                           submitted_ts="2026-08-24T15:00:00",
                           filled_ts="2026-08-24T15:00:02", limit_price=2.60, arm="B")
         self.assertEqual((f["quote_bid"], f["quote_ask"], f["quote_mid"]), (2.50, 2.70, 2.60))
@@ -622,17 +712,63 @@ class FillRecording(unittest.TestCase):
                           quote={"bid": 1.0, "ask": None, "last": 9.99},
                           submitted_ts="2026-08-24T15:00:00")
         self.assertEqual(f["quote_mid"], "")
-        self.assertEqual(f["fate"], "unfilled")
+        self.assertEqual(f["fate"], "unknown")          # no order at all: not "unfilled"
 
     def test_no_derived_outcome_statistic_is_stored_on_a_fill(self):
         """`F-1`'s own rule: capture is computed at READ time, not stored."""
         f = F.fill_fields(symbol="X", occ="X", side="buy", qty=1, order_type="market",
-                          quote={"bid": 1.0, "ask": 2.0}, order={"avg_fill_price": 2.0},
+                          quote={"bid": 1.0, "ask": 2.0},
+                          order={"status": "filled", "avg_fill_price": 2.0,
+                                 "exec_quantity": 1.0, "quantity": 1.0},
                           submitted_ts="2026-08-24T15:00:00", filled_ts="2026-08-24T15:00:01")
         for k in f:
             self.assertNotIn("capture", k)
             self.assertNotIn("slippage", k)
             self.assertNotIn("pnl", k)
+
+    def test_a_PENDING_order_is_never_recorded_as_a_FILL(self):
+        """The defect the live leg caught on its first real order, pinned.
+
+        Tradier reports an unfilled limit as `status: pending, avg_fill_price: 0.0,
+        exec_quantity: 0.0, price: <the limit>`. The first cut read `avg_fill_price or price`
+        -- and **0.0 is falsy**, so the fallback took the LIMIT and recorded a pending order as
+        FILLED at the price it had asked for. On `F-1`, whose whole subject is fill quality and
+        which reads every other book's fills, that turns every unfilled order into a perfect
+        one. Silent, and in the flattering direction.
+        """
+        pending = {"status": "pending", "type": "limit", "price": 11.06,
+                   "avg_fill_price": 0.0, "exec_quantity": 0.0, "quantity": 1.0}
+        f = F.fill_fields(symbol="SPY", occ="SPY260918C00766000", side="buy_to_open", qty=1,
+                          order_type="limit", quote={"bid": 11.01, "ask": 11.06},
+                          order=pending, submitted_ts="2026-08-24T10:00:00", limit_price=11.06)
+        self.assertEqual(f["fate"], "working")
+        self.assertEqual(f["fill_price"], "", "the LIMIT price was recorded as a FILL")
+
+    def test_the_fate_comes_from_the_broker_and_not_from_a_number_being_present(self):
+        for order, want in (
+                ({"status": "filled", "avg_fill_price": 2.0, "exec_quantity": 1.0,
+                  "quantity": 1.0}, "filled"),
+                ({"status": "partially_filled", "avg_fill_price": 2.0, "exec_quantity": 1.0,
+                  "quantity": 5.0}, "partial"),
+                ({"status": "rejected", "avg_fill_price": 0.0, "exec_quantity": 0.0}, "rejected"),
+                ({"status": "expired", "avg_fill_price": 0.0, "exec_quantity": 0.0}, "expired"),
+                ({"status": "open", "avg_fill_price": 0.0, "exec_quantity": 0.0}, "working")):
+            f = F.fill_fields(symbol="X", occ="X", side="buy", qty=1, order_type="limit",
+                              quote={"bid": 1.0, "ask": 2.0}, order=order,
+                              submitted_ts="2026-08-24T10:00:00", limit_price=2.0)
+            self.assertEqual(f["fate"], want, order)
+            self.assertIn(f["fate"], F.FATES)
+
+    def test_the_fill_price_delegates_to_the_brokers_own_helper(self):
+        """B7: `PaperBroker.fill_price` already gates on `exec_quantity`. One definition."""
+        src = io.open(os.path.join(REPO, "valuation", "edge", "fleet.py"),
+                      encoding="utf-8").read()
+        fn = [n for n in ast.walk(ast.parse(src))
+              if isinstance(n, ast.FunctionDef) and n.name == "fill_fields"]
+        self.assertEqual(len(fn), 1)
+        code = ast.unparse(fn[0])
+        self.assertIn("fill_price(order)", code, "fill_fields re-derives the fill price")
+        self.assertNotIn("avg_fill_price", code, "fill_fields reads the raw field again")
 
     def test_record_fill_re_checks_the_gate_and_a_refusal_becomes_a_record(self):
         root = _repo()
@@ -670,6 +806,61 @@ class LedgerRowAndTemplate(unittest.TestCase):
             F.ledger_row(d)
         self.assertIn("M1-PARSE", str(cm.exception))
 
+    def test_the_ceremony_can_supply_the_map_tag_and_the_real_commit(self):
+        """Both were hard-coded, and both were wrong the moment a book was actually accepted.
+
+        The id defaulted to `"F-" + book`, which yields `F-f13_second_event` where the map and
+        every human reference say **F-13**; the commit defaulted to the literal `PENDING`,
+        which was honest while nothing was committed and false afterwards.
+        """
+        d = F.parse_declaration(_decl_text())["declaration"]
+        row = F.ledger_row(d, tag="F-13", commit="bcf8af3")
+        cells = [c.strip() for c in row.strip().strip("|").split("|")]
+        self.assertEqual(cells[0], "F-13")
+        self.assertEqual(cells[5], "bcf8af3")
+
+    def test_the_defaults_are_UNCHANGED_so_every_prior_caller_is_bit_identical(self):
+        """The new keywords must be additive: a caller passing neither gets the old row."""
+        d = F.parse_declaration(_decl_text())["declaration"]
+        cells = [c.strip() for c in F.ledger_row(d).strip().strip("|").split("|")]
+        self.assertEqual(cells[0], "F-" + str(d["book"]))
+        self.assertEqual(cells[5], "PENDING")
+
+    def test_a_horizon_of_zero_point_three_years_is_NOT_truncated_to_zero(self):
+        """Splitting a sentence on a bare period truncates at the DECIMAL POINT.
+
+        `"0.3 years at the projected 45.00 fills/month"` became `"0"` -- which reads as a
+        horizon of zero, i.e. *readable now*, the precise misreading the horizon field exists
+        to prevent. It ran the UNSAFE direction, so it is pinned rather than merely fixed.
+        """
+        self.assertEqual(F._first_sentence("0.3 years at 45.00 a month. Next."),
+                         "0.3 years at 45.00 a month")
+        self.assertEqual(F._first_sentence("no trailing period"), "no trailing period")
+
+    def test_the_horizon_note_names_every_field_and_says_whether_sigma_was_MEASURED(self):
+        """`MB8` borrowed an SE measured on a different perturbation and was wrong six-fold.
+
+        An assumed sigma and a measured one are different objects, so the row says which.
+        """
+        d = F.parse_declaration(_decl_text())["declaration"]
+        d["verdict_horizon"] = dict(d["verdict_horizon"])
+        d["verdict_horizon"]["sigma_provenance"] = "PRIOR, not measured: a guess"
+        note = F.horizon_note(d)
+        for field in ("min_effect", "sigma", "rho", "alpha", "fills_needed",
+                      "expected_fills_per_month", "years_to_horizon_at_projected_rate",
+                      "earliest_honest_read"):
+            self.assertIn(field, note)
+        self.assertIn("PRIOR, not measured", note)
+        d["verdict_horizon"]["sigma_provenance"] = "MEASURED: O12 reports sd 0.9251"
+        self.assertIn("MEASURED", F.horizon_note(d))
+
+    def test_a_utility_book_charges_ZERO_TRIALS_in_its_own_ledger_row(self):
+        """F-6 measures the COST of a service, not a hypothesis, so no meter is ever read."""
+        d = F.parse_declaration(_decl_text())["declaration"]
+        d["hypothesis_class"] = "utility"
+        d["trial"] = {"domain": "none"}
+        self.assertIn("ZERO TRIALS", F.horizon_note(d))
+
     def test_the_template_parses_and_is_REFUSED_until_its_placeholders_are_filled(self):
         """A skeleton that validated would be a book declared with no horizon."""
         t = F.declaration_template("fX")
@@ -692,6 +883,95 @@ class LedgerRowAndTemplate(unittest.TestCase):
         stand -- which is why `declaration_template` exists, so Don's ~18-book wave is cheap.
         """
         self.assertFalse(F.parse_declaration("# DECL f1\n\nSome prose, no block.\n")["ok"])
+
+
+class TheDailyCycle(unittest.TestCase):
+    """`cycle()` -- what the runner kicks, and the distinction it must never collapse."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="fleetcycle_")
+        F._ENTRY_RULES.clear()
+
+    def tearDown(self):
+        F._ENTRY_RULES.clear()
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_a_file_that_is_not_a_declaration_is_REPORTED_and_never_silently_skipped(self):
+        """A `DECL_*.md` that carries no declaration block is not a book. Nor is a prose draft.
+
+        THE FIXTURE IS A GENERIC NAME ON PURPOSE, and the reason is a defect this ceremony
+        fixed. It used to be `DECL_CEREMONY_RUNBOOK.md`, the real file — which was named INTO
+        the declaration namespace and, because the public shelf excludes drafts by FILENAME
+        PREFIX rather than by parse, **was published on the research page as a declared fleet
+        book**. The root-cause fix was to rename the runbook out of the namespace, so the real
+        file no longer exercises this path. Pinning the case to that one filename would have
+        made this test evaporate with the rename; a synthetic name keeps it alive.
+        Skipping either silently would make *"not a book"* and *"a book whose declaration is
+        broken"* indistinguishable -- and the second is the one that must be loud.
+        """
+        io.open(os.path.join(self.root, "DECL_NOT_A_BOOK.md"), "w",
+                encoding="utf-8").write("# a document, not a book\n")
+        io.open(os.path.join(self.root, "DECL_DRAFT_fZ.md"), "w",
+                encoding="utf-8").write("# prose only, no fenced block\n")
+        got = {d["book"]: d for d in F.declared_books(self.root)}
+        self.assertIn("NOT_A_BOOK", got)
+        self.assertFalse(got["NOT_A_BOOK"]["parses"])
+        self.assertTrue(got["NOT_A_BOOK"]["reason"])
+        res = F.cycle(self.root)
+        states = {r["book"]: r["state"] for r in res["books"]}
+        self.assertEqual(states["NOT_A_BOOK"], "NOT_A_DECLARATION")
+        self.assertEqual(res["books_declared"], 0)
+
+    def test_an_UNIMPLEMENTED_entry_rule_is_never_reported_as_no_candidates_today(self):
+        """THE DISTINCTION THE WHOLE FUNCTION EXISTS FOR.
+
+        A declaration FREEZES a rule in prose; it does not execute one. *"The rule ran and
+        nobody qualified"* is a market observation. *"No code exists to decide"* is a build
+        gap. Collapsing them is how a paper fleet reports a cycle that placed nothing as a
+        cycle that found nothing.
+        """
+        self.assertIsNone(F.entry_rule("fQ"))
+        ran = []
+        F.register_entry_rule("fQ", lambda decl, root: ran.append(1) or [])
+        self.assertIsNotNone(F.entry_rule("fQ"))
+        self.assertEqual(F.entry_rule("fQ")({}, None), [])
+        self.assertEqual(len(ran), 1)
+
+    def test_registering_a_non_callable_is_REFUSED(self):
+        with self.assertRaises(TypeError):
+            F.register_entry_rule("fQ", "not a function")
+
+    def test_the_dry_run_is_the_DEFAULT_and_writes_nothing(self):
+        """A side-effecting default on an append-only chained record is the `track-row` defect."""
+        res = F.cycle(self.root)
+        self.assertFalse(res["wrote"])
+        self.assertEqual(res["fills_written"], 0)
+
+    def test_the_implemented_count_is_COUNTED_and_not_derived_by_subtraction(self):
+        """The first cut computed it as `declared - unscheduled - blocked`.
+
+        That is right only while no book is both blocked AND unimplemented -- true on the day
+        it was written, by accident, and false the moment one self-check lands. A number that
+        is only coincidentally correct is `MB8`'s family.
+        """
+        res = F.cycle(self.root)
+        self.assertEqual(res["entry_rules_implemented"], 0)
+        self.assertIn("entry_rules_implemented", res)
+
+    def test_a_fleet_with_no_running_book_reports_NOT_BREATHING_in_its_own_body(self):
+        res = F.cycle(self.root)
+        self.assertFalse(res["breathing"])
+        self.assertIn("DECLARED-BUT-NOT-BREATHING", res["note"])
+
+    def test_the_real_repo_cycle_reports_every_accepted_book_and_fills_nothing(self):
+        """Against the REAL tree, because a cycle checked only against a fixture checks a fixture."""
+        res = F.cycle()
+        self.assertGreaterEqual(res["books_declared"], 17)
+        self.assertEqual(res["fills_written"], 0)
+        self.assertFalse(res["breathing"])
+        for r in res["books"]:
+            if r.get("is_book"):
+                self.assertIn("entry_rule_implemented", r)
 
 
 if __name__ == "__main__":
