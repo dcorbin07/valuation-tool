@@ -95,3 +95,32 @@ refuses a declaration it cannot read. Converting is part of acceptance, not a re
   "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money."
 }
 ```
+
+
+---
+
+## SCOUT AMENDMENT ACCEPTED — applied at arming, 2026-08-25, options-live lane
+
+**A NEW DATED SECTION, NEVER AN EDIT** (`PT-AMEND1`). Everything above is untouched, so the
+ceremony's `--diff-filter=A` evidence that this declaration predates every line of fleet code
+is intact. **It lands before this book's first fill**, which is mechanical: `verify_chain`
+anchors on the declaration's CONTENT hash, so amending a book that already has records breaks
+its own chain at row 0. This book has zero records.
+
+**The scout's amendment is `AMEND_f13_second_event.md` (Frontier Scout lane, commit `6b6426f`), and it is
+ACCEPTED IN FULL.** Its text is the record; this section states the operational consequence
+for the harness, and nothing here reinterprets it.
+
+**F-13 IS WITHDRAWN.** The refusal at `2ef8e5d` is accepted in full: the rule asks a
+backward record for a forward date, and it closes its own only exit by banning cadence
+inference. **The condition cannot be satisfied — not "is not satisfied today".**
+
+**OPERATIONAL CONSEQUENCE HERE: F-13 IS NOT ARMED AND MUST NOT BE.** No entry rule is
+registered for it, its declaration stays on disk unedited, and it holds zero records. A
+withdrawn book is not a refused one and not a failed one: **no trial is charged, no meter
+exists and no verdict is implied in either direction.**
+
+**The drafting rule the scout adopts from it travels further than the book did:** *naming a
+data source is not enough — a declaration must name the FIELD and its DIRECTION IN TIME.*
+`is_known` answered *"do we have history for this name"* truthfully, and answering a different
+question truthfully is what hid the gap from every machine check the ceremony could run.

@@ -103,3 +103,34 @@ refuses a declaration it cannot read. Converting is part of acceptance, not a re
   "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money."
 }
 ```
+
+
+---
+
+## SCOUT AMENDMENT ACCEPTED — applied at arming, 2026-08-25, options-live lane
+
+**A NEW DATED SECTION, NEVER AN EDIT** (`PT-AMEND1`). Everything above is untouched, so the
+ceremony's `--diff-filter=A` evidence that this declaration predates every line of fleet code
+is intact. **It lands before this book's first fill**, which is mechanical: `verify_chain`
+anchors on the declaration's CONTENT hash, so amending a book that already has records breaks
+its own chain at row 0. This book has zero records.
+
+**The scout's amendment is `AMEND_f17_vrp_percentile_sells.md` (Frontier Scout lane, commit `6b6426f`), and it is
+ACCEPTED IN FULL.** Its text is the record; this section states the operational consequence
+for the harness, and nothing here reinterprets it.
+
+**F-17 INHERITS F-4's DEFECT BY PROSE REFERENCE** — its rule adopts *"event-free per
+F-4's window rule"*, which is unevaluable on a backward spine, so its eligible set is empty for
+the same reason.
+
+**THE SECOND HAZARD IS THE REASON THIS BOOK NEEDS ITS OWN AMENDMENT, AND IT IS RIGHT: A RULE
+ADOPTED BY PROSE MUTATES SILENTLY WHEN ITS PARENT IS AMENDED.** F-4 has three live routes and
+they are not equivalent — under the proxy route F-17 would inherit a *measured-miss-rate* screen
+while its own declaration still claimed a clean one. **Each book's chain anchors on its own
+declaration, so each adopts the repaired rule explicitly, by reference to
+`AMEND_f4_eventfree_premium.md` and its committed content hash, never by prose.**
+
+**OPERATIONAL CONSEQUENCE HERE: F-17 IS NOT ARMED and may not arm before F-4's route
+resolves.** If F-4 resolves to the proxy route, F-17's hypothesis is re-declared as *"event-free
+at a measured miss rate of X%"* and X travels with every verdict sentence. **If F-4 withdraws,
+F-17 withdraws with it.** The frozen F-4 > F-17 > F-10 dedup priority stands either way.

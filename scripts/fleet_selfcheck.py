@@ -222,6 +222,20 @@ def run(verbose=True) -> dict:
         from valuation.edge import assignment as ASSIGN        # the REAL module, never a stub
         shortd = F.parse_declaration(_decl("short", with_short_fields=True))["declaration"]
 
+        # THE SEAM IS RESET SO THIS BLOCK IS HERMETIC, AND THAT IS A REPAIR RATHER THAN A
+        # CONVENIENCE. `8a` asserts the DEFAULT -- a short book refused before anything
+        # registers -- by reading a MODULE-LEVEL global, so it failed whenever the CALLING
+        # process had already registered a provider. That is not hypothetical: the runner's
+        # door registers S3-I3 before it runs this check, so on the service `8a` failed, the
+        # synthetic suite reported 19/20, nothing was certified, and the fleet would have
+        # stayed blocked forever behind a message blaming the harness.
+        #
+        # Found by running the day-1 gate the way the SERVICE runs it rather than the way a
+        # terminal does. A check whose result depends on what its caller happened to do first
+        # is testing the caller, and the fix belongs here rather than in the assertion.
+        _saved_provider = F._PROVIDER
+        F._PROVIDER = None
+
         v_no_first = F.validate_declaration(shortd, book=BOOK)
         ck("8a a SHORT book is REFUSED before anything registers -- the DEFAULT, not a "
            "contrived case",
@@ -265,6 +279,11 @@ def run(verbose=True) -> dict:
         v_cd = F.validate_declaration(contradiction, book=BOOK)
         ck("8g `side` and `sells_premium` must AGREE, or the declaration is refused",
            "SIDE_AND_SELLS_PREMIUM_DISAGREE" in v_cd["refusals"], v_cd["refusals"])
+
+        # RESTORED. The self-check borrows the seam and gives it back: leaving it registered
+        # (or cleared) would make this function change its CALLER's world, and a caller that
+        # runs the gate and then fills would be relying on a side effect of a verification.
+        F._PROVIDER = _saved_provider
 
         # 9 ----------------------------------------------------------------- the randomizer
         syms = ["SYM%03d" % i for i in range(400)]
@@ -483,6 +502,132 @@ def run_live(book: str, verbose: bool = True) -> dict:
             "fill_price": fields["fill_price"], "quote": quote}
 
 
+def run_day1(book: str = "testbook", *, live: bool = True, close: bool = True,
+             certify_all: bool = True, verbose: bool = False) -> dict:
+    """THE WHOLE DAY-1 VERIFICATION, callable from a process that is not a terminal.
+
+    **THIS EXISTS BECAUSE THE GATE HAD TO BE OPENED WHERE THE RECORDS LIVE.** The self-check
+    ran green locally for weeks and every book on the SERVICE still read `SELFCHECK_ABSENT`,
+    because `selfcheck_state` reads each book's own stream and the service's streams had never
+    seen one. **Local green was never the thing being asked for** -- a harness that verifies
+    itself in a worktree has proved nothing about the process that will actually fill.
+
+    ORDER IS THE POINT AND IT IS NOT REARRANGEABLE:
+
+      1. the SYNTHETIC checks, which prove the RULES;
+      2. the book's own self-check row, BEFORE the live leg -- because `may_fill` gates on it
+         and the live leg's whole purpose is to go THROUGH that gate rather than around it;
+      3. the LIVE leg: one real sandbox fill, read back, tampered on a COPY, refusals fired;
+      4. certification of every OTHER declared book, and **only if 1-3 all passed**;
+      5. the test-book closed with a ZERO-CHARGE row.
+
+    **CERTIFYING THE OTHER BOOKS IS A CLAIM ABOUT THE HARNESS, NOT ABOUT THEM.**
+    `selfcheck_state` compares each book's last row against `harness_fingerprint()`, which is a
+    property of the CODE. One verification of that code is what the fingerprint denotes, so
+    stamping it onto every book is recording the fact that was established -- not eighteen
+    separate claims. If the harness changes, every stamp goes STALE together, which is the
+    behaviour that makes this safe.
+    """
+    out = {"synthetic": None, "live": None, "certified": [], "closed": False,
+           "ok": False, "reason": "", "write_refusals": {}}
+
+    def _note(where, res):
+        """Any refused write is RECORDED, never inferred from a missing side effect.
+
+        The case this exists for is real and general: `append_only` REFUSES to widen the
+        header of a stream that already has rows, because rewriting line 1 would break the
+        byte-prefix guarantee it verifies. So a book whose stream PREDATES a schema change
+        cannot take another row until the change is migrated deliberately -- which is exactly
+        what the refusal says. Without this, that arrives as a silent `closed: false` and
+        reads as "the close did not happen" rather than "the schema moved".
+        """
+        if res is not None and not res.get("wrote") and not res.get("ok"):
+            out["write_refusals"][where] = str(res.get("reason", ""))[:400]
+        return res
+
+    syn = run(verbose=verbose)
+    out["synthetic"] = {"ok": syn["ok"], "n_pass": syn["n_pass"], "n_checks": syn["n_checks"],
+                        "failed": [c["check"] for c in syn["checks"] if not c["pass"]]}
+    if not syn["ok"]:
+        out["reason"] = ("synthetic checks failed; the live leg does not run and nothing is "
+                         "certified. Fix the harness, never the check.")
+        return out
+
+    sha = F.decl_sha_for(book)
+    if not sha:
+        out["reason"] = ("no declaration for %r on disk or in the manifest; a self-check is "
+                         "recorded on a DECLARED book's stream or not at all" % book)
+        return out
+    # A stream written before a column was ADDED is frozen by the append-only writer, which is
+    # correct and which its own refusal says to fix deliberately. `migrate_stream` is that
+    # door: it archives the old bytes untouched and only ever for a PURE widening. Invoked
+    # here rather than left to a human because the alternative is a fleet blocked indefinitely
+    # behind a message nobody is watching for -- and it is REPORTED, never silent.
+    for b in [book] + [d["book"] for d in F.declared_books() if d.get("parses")]:
+        m = F.migrate_stream(b)
+        if m.get("migrated"):
+            out.setdefault("migrated", {})[b] = m
+
+    seeded = _note("selfcheck:" + book,
+                   F.record(book, "selfcheck",
+                            {"fate": "pass", "detail": F.harness_fingerprint()},
+                            decl_sha=sha))
+    if not seeded.get("wrote"):
+        # FATAL, and it was not before -- a defect of mine that this run caught. The first cut
+        # returned `ok: True` with the TEST-BOOK's own certification refused, so the live leg
+        # would then fail at its own gate (`L2`) and the report would say the harness passed.
+        # **The book the live leg runs on is the one book whose certification cannot be
+        # optional.**
+        out["reason"] = ("could not record the self-check on the test-book %r, so the live leg "
+                         "cannot pass its own gate and nothing is certified: %s"
+                         % (book, seeded.get("reason", "")))
+        return out
+
+    if live:
+        lv = run_live(book, verbose=verbose)
+        out["live"] = {"ok": lv["ok"], "n_pass": lv.get("n_pass"),
+                       "n_checks": lv.get("n_checks"),
+                       "reason": lv.get("reason", ""),
+                       "failed": [c["check"] for c in lv.get("checks", []) if not c["pass"]]}
+        if not lv["ok"]:
+            out["reason"] = ("the LIVE leg failed against the real sandbox; nothing is "
+                             "certified. " + str(lv.get("reason", "")))
+            return out
+
+    if certify_all:
+        for d in F.declared_books():
+            if not d.get("parses"):
+                continue
+            b = d["book"]
+            if b == book:
+                continue
+            s = F.decl_sha_for(b)
+            if not s:
+                continue
+            w = _note("selfcheck:" + b,
+                      F.record(b, "selfcheck",
+                               {"fate": "pass", "detail": F.harness_fingerprint()},
+                               decl_sha=s))
+            if w.get("wrote"):
+                out["certified"].append(b)
+
+    if close:
+        cr = _note("close:" + book,
+                   F.record(book, "close",
+                            {"fate": "closed",
+                             "detail": ("ZERO-CHARGE CLOSE. This book carried no hypothesis "
+                                        "and no bar; no meter was ever read on it, so no "
+                                        "trial is charged in any domain (harness section 2: "
+                                        "the charge comes at FIRST VERDICT READ, and there "
+                                        "was none).")},
+                            decl_sha=sha))
+        out["closed"] = bool(cr.get("wrote")) or "already" in str(cr.get("reason", ""))
+
+    out["ok"] = True
+    out["reason"] = ""
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--book", help="record the outcome on this book's real stream")
@@ -503,13 +648,13 @@ def main() -> int:
     # The self-check row is recorded BEFORE the live leg, because `may_fill` gates on it and
     # the live leg's whole point is to go through that gate rather than around it.
     if a.book:
-        path = F.declaration_path(a.book)
-        try:
-            with open(path, encoding="utf-8") as fh:
-                sha = F.declaration_sha(fh.read())
-        except OSError:
-            print("\nREFUSED to record: " + path + " not found. A self-check is recorded on a "
-                  "DECLARED book's stream or not at all.")
+        # Manifest-aware: the deployed image carries no `DECL_*.md`, so resolving the hash
+        # from the file alone would refuse every book on the one machine that matters.
+        sha = F.decl_sha_for(a.book)
+        if not sha:
+            print("\nREFUSED to record: no declaration for " + a.book + " on disk or in the "
+                  "manifest. A self-check is recorded on a DECLARED book's stream or not "
+                  "at all.")
             return 2
         w = F.record(a.book, "selfcheck",
                      {"fate": "pass" if out["ok"] else "fail",
@@ -536,8 +681,10 @@ def main() -> int:
         if not a.book:
             print("\nREFUSED: --close needs --book.")
             return 2
-        with open(F.declaration_path(a.book), encoding="utf-8") as fh:
-            sha = F.declaration_sha(fh.read())
+        sha = F.decl_sha_for(a.book)
+        if not sha:
+            print("\nREFUSED to close: no declaration for " + a.book + ".")
+            return 2
         c = F.record(a.book, "close",
                      {"fate": "closed",
                       "detail": ("ZERO-CHARGE CLOSE. This book carried no hypothesis and no "

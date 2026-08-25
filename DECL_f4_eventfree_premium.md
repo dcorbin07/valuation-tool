@@ -113,3 +113,38 @@ refuses a declaration it cannot read. Converting is part of acceptance, not a re
   "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money."
 }
 ```
+
+
+---
+
+## SCOUT AMENDMENT ACCEPTED — applied at arming, 2026-08-25, options-live lane
+
+**A NEW DATED SECTION, NEVER AN EDIT** (`PT-AMEND1`). Everything above is untouched, so the
+ceremony's `--diff-filter=A` evidence that this declaration predates every line of fleet code
+is intact. **It lands before this book's first fill**, which is mechanical: `verify_chain`
+anchors on the declaration's CONTENT hash, so amending a book that already has records breaks
+its own chain at row 0. This book has zero records.
+
+**The scout's amendment is `AMEND_f4_eventfree_premium.md` (Frontier Scout lane, commit `6b6426f`), and it is
+ACCEPTED IN FULL.** Its text is the record; this section states the operational consequence
+for the harness, and nothing here reinterprets it.
+
+**F-4 CARRIES F-13's DEFECT AND THE CEREMONY ACCEPTED IT — self-reported by the scout,
+not refused by this lane.** The rule needs *"next earnings date KNOWN via the I-4 spine"*, the
+spine holds no forward dates, so the next event is UNKNOWN for every name always and F-4's own
+honesty clause then skips the entire universe on every cycle.
+
+**AND IT FAILS WORSE THAN F-13 DID, WHICH IS THE PART TO CARRY.** F-13's rule is visibly
+unsatisfiable and refuses loudly at arming. **F-4's is satisfiable-LOOKING and always false: it
+arms cleanly, runs every cycle, places nothing, and reports `skip_rate = 1.0` — which is
+indistinguishable from a quiet market in the records.** That is the same defect class this
+harness has now caught three times, one level further out.
+
+**OPERATIONAL CONSEQUENCE HERE: F-4 IS NOT ARMED AND MAY NOT BE UNTIL A ROUTE RESOLVES.** No
+entry rule is registered for it. The three routes are the scout's and this lane picks none:
+a daily-SNAPSHOTTED forward calendar read AS OF the entry date (recommended, and the snapshot
+requirement is non-negotiable — re-reading a live calendar later is look-ahead wearing a
+forward instrument's clothes), a LABELLED cadence-exclusion proxy, or withdrawal.
+
+**`RULE_ARMED_NEVER_FIRES` IS IMPLEMENTED** as the scout proposed, so a book in exactly this
+condition raises rather than reporting an empty book quietly for a quarter.

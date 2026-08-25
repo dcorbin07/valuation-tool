@@ -734,7 +734,41 @@ def create_saas_app(cfg=CONFIG):
             from ..edge import fleet_gates
             res_reg = fleet_books.register_all()
 
+            # THE DAY-1 SELF-CHECK, RUN WHERE THE RECORDS LIVE.
+            #
+            # `selfcheck_state` reads each book's OWN stream, so a self-check that passes in a
+            # worktree certifies nothing on the service -- which is why every book here read
+            # `SELFCHECK_ABSENT` while the local run was green for weeks. Don's ruling is that
+            # no book fills until the harness passes its own first-day verification, and there
+            # was no way to satisfy it in the process that actually fills.
+            #
+            # IT RUNS ONLY WHEN THE GATE ACTUALLY NEEDS IT -- ABSENT or STALE -- and only on
+            # the WRITE path. Once certified, `selfcheck_state` reads PASS and this is skipped;
+            # when the harness changes, every stamp goes STALE together and it runs again. A
+            # self-check on every cycle would place a real sandbox order every cycle for no
+            # added evidence.
+            #
+            # A FAILURE CERTIFIES NOTHING AND BLOCKS EVERYTHING, which is the existing
+            # behaviour rather than a new one: `run_day1` refuses to certify unless the
+            # synthetic AND live legs both pass, and an uncertified book stays gated.
+            day1 = {"ran": False}
+            if wants_run:
+                stale = [d["book"] for d in fleet.declared_books()
+                         if d.get("parses")
+                         and not fleet.selfcheck_state(d["book"])["ok"]]
+                if stale:
+                    from scripts import fleet_selfcheck as _sc
+                    day1 = {"ran": True, "needed_by": len(stale),
+                            "result": _sc.run_day1(verbose=False)}
+
+            # The cycle runs AFTER the self-check, so a freshly certified book is gated on
+            # this run rather than on the next one -- otherwise the first dispatch after
+            # certification would still report every book blocked and look unchanged.
             res = fleet.cycle(write=wants_run, books=[only] if only else None)
+            res["selfcheck_ran"] = day1["ran"]
+            if day1["ran"]:
+                res["selfcheck"] = day1["result"]
+                res["selfcheck_needed_by"] = day1["needed_by"]
             res["entry_rules_registered"] = res_reg["registered"]
 
             # (D) THE RECORDERS. Four books gate on a series nothing wrote, and no amount of
