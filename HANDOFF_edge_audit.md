@@ -16818,3 +16818,140 @@ read from a banked figure already in the record. **The arm was not built, `rho` 
 and the paired SE that condition (a) turns on was NOT measured** — that is the recommended next
 step and it is deliberately left to whoever takes it, because taking it here would begin the
 design this ruling parks. **`S13` is not re-opened**; its alpha verdict stands on its own terms.
+
+---
+
+# D6/D7 — THE ANALYST ESTIMATE-REVISION REGISTER, PRE-REGISTERED (2026-08-25)
+
+**`PREREG_d6_analyst_revisions.md` committed ALONE at `d03ee67`** — markdown only, zero `.py`,
+327 lines, **a strict git ancestor** of the booking commit `a4b67b2` and of every future
+measurement commit (verified with `git merge-base --is-ancestor`). **1 equity trial booked in its
+own commit BEFORE any runner exists: equity `N` 242 -> 243, hurdle 3.3132877 -> 3.3145321.**
+**THE ARM IS NOT RUN. NO RUNNER EXISTS. NO OUTCOME STATISTIC HAS BEEN COMPUTED.** ADOPTS NOTHING.
+
+## Why the item is alive at all, and it is not a re-run
+
+`D6` has been PARKED since 2026-08-06 on *"no retail point-in-time revisions exist at any price;
+the path is IBES via WRDS"*. `WRDS-CENSUS` opened that path and `W-3b` proved the join. **The
+parking reason is gone; the REJECTED verdict on retail sources stands on its own terms, and `D7`
+is not re-opened** — WRDS is still not purchasable by an unaffiliated account.
+
+## The single most important thing this register does differently, and it is a direct answer to `O-1`
+
+**`O-1` returned 0.19% power three days ago because a 75% coverage figure measured on the ALERT
+BOOK was applied to the PANEL — 17x the wrong way, with the floor derivation right and only the
+coverage wrong.** `W-3b`'s headline figures — *"29 of 29 recovered"*, *"all 186 names COVERED"* —
+are the **186-name OPTIONS universe**. This is an **EQUITY** register on the **2,531-name panel**.
+**Importing W-3b's number would have been the identical error, so coverage was re-measured from
+scratch on our own population before a word of the register was written.**
+
+| measured on the 113,945-cell panel | value |
+|---|---|
+| CRSP dated intervals reach | **2,271 of 2,531 names (89.7%)** — a ceiling before IBES is consulted |
+| revisions mapped into our universe | **1,314,963 over 2,229 names** |
+| cells with >= 3 revisions (the declared floor) | **78,723 (69.09%)** |
+| names ever covered | 2,214 of 2,531 (87.48%) |
+| **dates with coverage** | **69 of 69** |
+| per-date covered cells | min 970, median 1,258, max 1,731 |
+
+**THE COVERAGE IS UNIFORM ACROSS THE WINDOW AND THAT IS WHAT MAKES THIS ITEM DIFFERENT FROM ITS
+NEIGHBOURS** — 1,088 covered cells on the first date against 1,657 on the last. **No era hole**,
+unlike `institutional` (starts 2014), `S18`'s short interest (32 of 69 dates, all late), `U2`'s
+options surface (29 dates empty, all early) or `S19`'s MD&A (41 dates, all late). **A full
+both-halves gate is available on basis six rather than a covered-subsample substitute.**
+
+## MB22 power, both vocabularies, before any floor was written
+
+At `crit = 2.71` (X7's calibrated theme-IC bar, which `MB31` proves unmoved below equity `N` 247),
+in units of the per-date IC's own standard deviation:
+
+| basis | effective dates | 50%-power | **80%-power** |
+|---|---|---|---|
+| six | **69** (rows 66,255, 84.16% of raw) | 0.3262 SD | **0.4274 SD** |
+| seven | **49** (rows 49,575, 62.97%) | 0.3871 SD | **0.5071 SD** |
+
+**These reproduce `MB18`'s and `E-3`'s published design class to four decimals**, which is the
+check that the arithmetic is this record's own rather than a plausible re-derivation. Splits on
+the EFFECTIVE dates are **34/34** (boundary 2017-07-20) and **24/24** (2020-01-22), both `ok`.
+
+**THE SENTENCE THAT WILL TRAVEL WITH ANY NULL:** the strongest **RAW** anchor ever measured on rows
+of this shape is **0.4346 SD**, and basis six's 80%-power MDE is **0.4274 SD**. So a NULL will mean
+*"no incremental effect as large as the best single thing this panel has ever carried"* and never
+*"no effect"*. **Quoting a verdict without its MDE is a void condition.**
+
+## The pre-outcome kills ran BEFORE the register, and that non-blindness is disclosed rather than hidden
+
+The task's own instruction is that a price-momentum costume *"must be killed by a pre-outcome
+correlation kill, not discovered afterwards"*. A kill that runs after the arm is not a kill, so
+K1 and K2 were measured first and the register says so in its §0 (`V6-OPT` §0.5's shape).
+
+| against | mean abs rho | verdict |
+|---|---|---|
+| **momentum** | **0.3652** (max 0.4730) | does not fire |
+| z_pead_car / z_pead_drift | 0.2997 / 0.2672 | does not fire |
+| quality / insider / institutional | 0.1853 / 0.1605 / 0.1535 | — |
+| value / size / capital_discipline | 0.0961 / 0.0747 / 0.0481 | — |
+
+**Momentum is unambiguously the nearest neighbour, exactly as the mechanism predicts** — prices
+move when analysts revise — **and 0.3652 sits inside the bar that WITHDREW `E-1` at 0.6114 and that
+`MB18` survived at 0.3062.** **THE 0.60 BAR IS NOT MINE**: it is the record's standing costume bar,
+used verbatim by `E-1`'s K2, `E-3`'s K2 and `MB18`'s C2, so it was not chosen with the estimate in
+view (`MB1-SEL`'s discipline). **Two expectations are recorded UNSCORABLE for that reason.**
+
+## The graveyard, argued past in writing rather than waved at
+
+* **PEAD** — earnings **surprise** is the gap between a realised announcement and expectation; a
+  **revision** is a change in the forward expectation itself. Different event (company vs
+  analyst), different frequency (**~4 announcements a year against 69.1% of cells carrying three
+  or more revisions in a single quarter**), and **no realised outcome enters the signal at all**.
+  Gated at K2 rather than asserted.
+* **Momentum** — K1 above, pre-outcome.
+* **The four structurally-orthogonal corpses** (`U2`, `MA31`/`MA32`, `MA58`, `MB18`; all confirmed
+  orthogonal at R² 0.027–0.145, none clearing) — **the register states IN ADVANCE that a low R²
+  would be NO evidence for this item**, and the claimed mechanism is analyst underreaction rather
+  than novelty. **If the defence ever reduces to "the signal is new information", the item has
+  failed and those four are the reason.** R² ships as a diagnostic carrying no verdict.
+
+## Three construction traps the register had to disarm, and two of them are the record's own
+
+1. **THE ADJUSTED/UNADJUSTED PAIR.** The D6 row warns in its own words that *"an adjusted estimate
+   against an unadjusted actual is a units error that reads as a surprise"* — **and the pull that
+   row licensed then committed exactly that pairing**, because IBES ships each file twice and the
+   names differ by one letter. Both pairs are on disk, **so the right choice is possible and not
+   automatic.** This register declares `det_epsus` + `act_epsus`, the ADJUSTED pair, and the
+   unadjusted files are not opened.
+2. **`fpi` MIXES HORIZONS.** A naive `SELECT` pools FY1, FY2 and the quarterly codes, measuring a
+   different object on every row. **`fpi = '1'` is declared.**
+3. **`revdats` IS A REVIEW DATE, NOT A REVISION DATE** — it records when IBES last confirmed an
+   estimate is *still current*. Using it as the revision date is a known error. **The gate is
+   `actdats`**, IBES's activation date; `anndats` is the looser alternative and is refused, because
+   a signal built on it is usable only by someone who was not reading IBES.
+
+**And the join is `W-3b`'s, imported rather than re-implemented (`B7`).** Its three measured traps
+are inherited: `oftic` is a lease (17.7% contamination), escaping ticker reuse needs a **date**
+rather than a different column, and IBES's `X` cusip mask needs a **positional** wildcard — a
+7-character prefix rule merges 328 distinct cusips.
+
+## The honest prior, stated at registration
+
+**~20% CONFIRMED.** Analyst revisions are among the most widely traded effects in existence and
+post-publication decay is the base case. **This project has already failed to reproduce three
+published options results on its own data** — Cremers–Weinbaum (`MA31`), Xing–Zhang–Zhao (`U2`,
+sign not even reproduced) and Gao–Xing–Zhang (`O7`, sign reversed). It is nonetheless the highest
+prior this lane has written for an equity candidate, for two **measured** reasons rather than
+optimism: coverage is uniform across the whole window, and **the signal is not an input to any
+incumbent theme**, so its incremental IC is not structurally suppressed the way `MB18`'s own power
+anchors were (they scored incremental *t* of +1.55 and +0.26 precisely because they live inside
+`quality` and `momentum`).
+
+## NOT DONE, named so it is not mistaken for done
+
+**THE ARM IS NOT RUN and no runner exists in the tree.** The coverage and costume figures above
+came from throwaway census scripts **outside** the repository, which is why the register is still
+a strict ancestor of every future measurement commit. **The controls pass C1–C6 is not built**, and
+the register forbids reading the arm before it is banked and green. **No `fwd_ret` relationship of
+any kind has been computed.** **`D7` is not re-opened.** No claim is made about the unadjusted
+pair, any `fpi` other than 1, quarterly horizons, revision **magnitude** as opposed to direction,
+or the consensus-change construction `statsum` would support — **each is a new hypothesis with its
+own trial and its own blind register.** Nothing is adopted; adoption is a vintage event and Don's
+call.
