@@ -16762,6 +16762,53 @@ section:** the map's re-specification fixed the *primary* statistic correctly an
 *gating* leg at a value that makes the win worthless. **A constructive successor must carry Don's
 ruling and the (a)/(b) conditions above, or it will re-derive the same parked design.**
 
+## REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3): `tests/test_sync_checkout.py` FAILS THE GATE WHILE PASSING ITS OWN TESTS -- SECOND SIGHTING, AND IT REFUTES THE FIRST ONE'S CAUSE
+
+**It reports `32 passed, 0 failed` and still fails the land gate**, because this project's runner
+executes each suite as its own process and **judges by EXIT CODE**. The suite ends with a
+demonstration block that deliberately syncs a non-existent path to show the alarm exits non-zero.
+**A suite whose tests all pass and whose process exits non-zero is the exact mirror of `O21-D2`'s
+defect**, where a file with no `__main__` block executed nothing and exited 0 - the same runner
+contract failing in the other direction.
+
+**THIS IS THE SECOND INDEPENDENT SIGHTING.** The `MB31`/`MB32` batch already recorded it (this
+file, under *"Full gate: 118 suites"*), investigated it, found it *"passes standalone"* and *"not
+this batch's"*, and proposed a cause: it *"had been caught mid-write while this session was
+editing `CLAUDE.md` during the run"*.
+
+**THAT CAUSE DOES NOT EXPLAIN THIS SIGHTING, AND THE EVIDENCE IS INVERTED.** On this branch the
+suite **PASSED** the pre-merge sweep of 152 suites - a run **during which `CLAUDE.md` and this
+handoff were both being rewritten by `sed`** - and then **FAILED** the post-merge sweep of 162,
+during which **nothing wrote to the tree at all** (the only concurrent commands were read-only
+`grep`/`awk`). **Pass-with-writes, fail-without-writes.** So a concurrent edit is neither
+necessary nor sufficient, and the first sighting's explanation should not be carried forward as
+settled.
+
+**WHAT IS MEASURED HERE, and it is not this branch.** (1) The suite was **present at this
+branch's base `131a036`** and ran GREEN there. (2) `git log 131a036..origin/main` shows it
+**unmodified** between that base and `origin/main`. (3) It references **none** of the four
+markdown files this branch touches - and this branch adds **no `.py` at all**. (4) Re-run **4 of
+4 times under the runner's exact conditions** (same cwd, `DEVNULL` pipes) it **exits 0 every
+time**.
+
+**BEST REMAINING DIAGNOSIS, offered as a hypothesis rather than a finding: the `MB16`/`MB21`
+environmental class.** The suite does **real git work under `%TEMP%`**, and this record already
+measures `test_options_freeze.py` and `test_checkout_drift.py` failing there under **sustained
+concurrent temp-volume I/O** - invisible in CI, where a Linux runner has no contention. That fits
+a failure which is load-dependent rather than edit-dependent. **AND THE SIGNATURE RECURRED IN
+THIS SESSION'S OWN COMMIT PATH, OUTSIDE ANY TEST:** staging this very report failed with
+`error: unable to write file .git/objects/72/f405...: Permission denied`, and **succeeded on an
+immediate retry with nothing changed**. That is the same `Permission denied`-on-git-objects
+signature `MB16` measured, occurring here on the real object store rather than under `%TEMP%`. **It is not established**, and
+saying so is the point: two sightings now exist and the only proposed mechanism has been refuted.
+
+**NOT FIXED, and deliberately.** The suite is not this lane's, and the honest repair is a
+judgement about its demo block - drop it, or make the expected alarm exit 0 - belonging to
+whoever owns the sync tooling. **It is the SECOND flake to redden a land in this session**; the
+first was `tests/test_screener.py`'s `PYTHONHASHSEED` coin flip (1 of 8 seeds), reported in
+`HANDOFF_optionsbot.md`. **Two independent suites can now redden any lane's land for reasons
+unrelated to its diff, and neither is a lottery a lane can see coming.**
+
 ## NOT DONE, named so it is not mistaken for done
 
 **No register was committed and none may be** until a condition is met. **No trial was booked** —
