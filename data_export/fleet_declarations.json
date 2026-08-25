@@ -1,0 +1,1010 @@
+{
+  "books": {
+    "f10_clean_csp": {
+      "commit": "8964bafbb961b6c1cf9414f06fcd258b9d762611",
+      "committed_alone": true,
+      "decl_sha": "72ccdec0dd60bb27002dc771578f447313bdd404fb2c7f806e05f94eb8da1fe0",
+      "declaration": {
+        "assignment_model": "at expiry per moneyness, S3-I3 assignment_at_expiry",
+        "book": "f10_clean_csp",
+        "concurrency_cap": 10,
+        "domain": "options",
+        "early_assignment_flag": "S3-I3 early_assignment_flag, FLAGGED not simulated",
+        "entry_rule": "First Monday of each month: universe = optionable names MA28 0-of-3 AND EVT-clean (bottom 4 quintiles), NO event filter deliberately. EXCLUDES any name F-4 entered or could enter that week (cross-book dedup frozen here, self-contained). Take the 3 largest eligible by market cap not already held; alphabetical tie-break.",
+        "hypothesis_class": "edge",
+        "margin_method": "cash_secured_put",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "return_denominator": "secured_cash",
+        "sells_premium": true,
+        "side": "short",
+        "sizing": "equal secured cash",
+        "spot_basis": "as_traded",
+        "structure": {
+          "dte": 52,
+          "dte_rule": "nearest 52, ties -> longer",
+          "exit": "hold to expiry",
+          "moneyness": 0.9,
+          "right": "put",
+          "strike_selection": "moneyness"
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "optionable, MA28-clean, EVT-clean, events ambient",
+        "verdict_grammar": [
+          "PAYS",
+          "BLEEDS",
+          "CANNOT-TELL(horizon)"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "8.5 years at the projected 3.00 fills/month (306 fills). The draft said 30 fills; 30 is a round number and this is the derivation. At 3 fills/month this is the fleet's slowest short book. The F-4 contrast reads only after BOTH horizons.",
+          "expected_fills_per_month": 3.0,
+          "fills_needed": 306,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED, not the draft's round 30.",
+          "min_effect": 0.75,
+          "power_gate_note": "Anytime-valid, so the 50%/80% power vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n, and `fills_needed` is where it first falls to the declared minimum effect. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*sigma/mei)^2 = 223, reported beside it so the two vocabularies are both on the face.",
+          "rho": 3.0,
+          "sigma": 4.0,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "PRIOR, not measured: assumed SD of a 0.90-moneyness 52-DTE CSP return on secured cash. Replace with the realised SD at first read.",
+          "years_to_horizon_at_projected_rate": 8.5
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f10_clean_csp.md"
+      ]
+    },
+    "f11_dip_reject_puts": {
+      "commit": "ab5471d1428e84204ba999194b55bced27596418",
+      "committed_alone": true,
+      "decl_sha": "bf9672e661fb26cb075da58b722e749fc405b02077ba39e3b17cb3f1d18d95aa",
+      "declaration": {
+        "book": "f11_dip_reject_puts",
+        "concurrency_cap": 10,
+        "domain": "options",
+        "entry_rule": "Daily: the dip-detector REJECT population -- names down >=20%% from the 252-session high that FAIL the shipped health floors, classified by the screen's own published functions valuation.web.dip.health_check and dip.clamp_drawdown on the same rows the live screen uses (the classifier is published; only screen()'s aggregation discards the failures). Enter within 2 sessions of a name's FIRST appearance this quarter; skip names already held or entered this quarter.",
+        "hypothesis_class": "edge",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "sells_premium": false,
+        "side": "long",
+        "sizing": "equal premium",
+        "structure": {
+          "dte": 91,
+          "dte_rule": "nearest above 91",
+          "exit": "hold to expiry, no exits",
+          "moneyness": 0.8,
+          "right": "put",
+          "strike_selection": "moneyness"
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "optionable dip REJECTS",
+        "verdict_grammar": [
+          "PAYS",
+          "BLEEDS",
+          "CANNOT-TELL(horizon)"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "2.9 years at the projected 4.00 fills/month (138 fills). The draft said 30 fills; 30 is a round number and this is the derivation. Dip frequency is the market's to give: near zero in a melt-up. STARVING IS DATA, NOT FAILURE, and the fill count is printed.",
+          "expected_fills_per_month": 4.0,
+          "fills_needed": 138,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED, not the draft's round 30.",
+          "min_effect": 25.0,
+          "power_gate_note": "Anytime-valid, so the 50%/80% power vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n, and `fills_needed` is where it first falls to the declared minimum effect. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*sigma/mei)^2 = 107, reported beside it so the two vocabularies are both on the face.",
+          "rho": 3.0,
+          "sigma": 92.51,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "MEASURED. O12 reports this project's own options book at mean 0.0327, sd 0.9251 per trade, so 92.51pp is the per-trade return SD of a long option book on this universe. Borrowed across books, not across perturbation sizes (MB8's rule).",
+          "years_to_horizon_at_projected_rate": 2.88
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f11_dip_reject_puts.md"
+      ]
+    },
+    "f12_postevent_reversal": {
+      "commit": "79cb9506dc9e197d9c6e0a95cb9f01cb8d8ba694",
+      "committed_alone": true,
+      "decl_sha": "e799beef119783c3ca65d123035fcebb7a334909c63d3a5d16caad92206f0eaa",
+      "declaration": {
+        "book": "f12_postevent_reversal",
+        "concurrency_cap": 10,
+        "domain": "options",
+        "entry_rule": "Each session: names whose earnings event (I-4 spine, code-22 date KNOWN) occurred the PREVIOUS session. Direction = the live composite's sign: positive -> call; negative or absent -> SKIP. Cap 3 entries/session; tie-break highest |composite z| then alphabetical. Names with unknown event dates NEVER enter.",
+        "hypothesis_class": "edge",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "sells_premium": false,
+        "side": "long",
+        "sizing": "equal premium",
+        "structure": {
+          "dte": 60,
+          "dte_rule": "nearest 60, ties -> longer",
+          "exit": "hold to expiry, no exits",
+          "moneyness": 1.0,
+          "right": "call",
+          "strike_selection": "moneyness"
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "optionable, I-4-covered names",
+        "verdict_grammar": [
+          "PAYS",
+          "BLEEDS",
+          "CANNOT-TELL(horizon)"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "4.7 years at the projected 7.50 fills/month (420 fills). The draft said 30 fills; 30 is a round number and this is the derivation. EVOWN's NOT-DEMONSTRATED family verdict is carried as an explicit hostile prior on this declaration's face.",
+          "expected_fills_per_month": 7.5,
+          "fills_needed": 420,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED, not the draft's round 30.",
+          "min_effect": 15.0,
+          "power_gate_note": "Anytime-valid, so the 50%/80% power vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n, and `fills_needed` is where it first falls to the declared minimum effect. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*sigma/mei)^2 = 298, reported beside it so the two vocabularies are both on the face.",
+          "rho": 3.0,
+          "sigma": 92.51,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "MEASURED. O12 reports this project's own options book at mean 0.0327, sd 0.9251 per trade, so 92.51pp is the per-trade return SD of a long option book on this universe. Borrowed across books, not across perturbation sizes (MB8's rule).",
+          "years_to_horizon_at_projected_rate": 4.67
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f12_postevent_reversal.md"
+      ]
+    },
+    "f13_second_event": {
+      "commit": "bcf8af3b09be247f6dc50a520c44af94570f9ed4",
+      "committed_alone": true,
+      "decl_sha": "1944d79fc769f0378359ea0af9ed984b07371c3a494465dfdf8d59a36aa9a72b",
+      "declaration": {
+        "book": "f13_second_event",
+        "concurrency_cap": 8,
+        "domain": "options",
+        "entry_rule": "Each session: names whose earnings event #1 occurred EXACTLY 5 sessions ago AND whose event #2 date is KNOWN from the I-4 spine. Both dates known or no entry; cadence inference is BANNED. Direction = live composite sign, positive only -> call, else SKIP. Cap 2 entries/session; tie-break highest |composite z| then alphabetical.",
+        "hypothesis_class": "edge",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "sells_premium": false,
+        "side": "long",
+        "sizing": "equal premium",
+        "structure": {
+          "dte": "nearest above event-#2 date + 10 sessions",
+          "exit": "EXIT at event-#2 date + 1 session, at bid (frozen)",
+          "moneyness": 1.0,
+          "right": "call",
+          "strike_selection": "moneyness"
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "optionable, double-date-covered names",
+        "verdict_grammar": [
+          "PAYS",
+          "BLEEDS",
+          "CANNOT-TELL(horizon)"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "0.9 years at the projected 40.00 fills/month (420 fills). The draft said 30 fills; 30 is a round number and this is the derivation. ELIGIBILITY CENSUS RUN BEFORE ACCEPTANCE, as the runbook demands: on the owned events file the last two years carry 32,129 code-22 event-1s of which 27,861 (86.7%%) have a KNOWN next event, median 1,084/month universe-wide against the runbook's ~5/month reject bar. THAT IS AN UPPER BOUND computed with hindsight -- the owned data records no ANNOUNCEMENT date, so it cannot say when a date became knowable, and live eligibility will be lower. The eligible count is printed weekly from launch and the book CLOSES with a zero-charge row if it starves.",
+          "expected_fills_per_month": 40.0,
+          "fills_needed": 420,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED, not the draft's round 30.",
+          "min_effect": 15.0,
+          "power_gate_note": "Anytime-valid, so the 50%/80% power vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n, and `fills_needed` is where it first falls to the declared minimum effect. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*sigma/mei)^2 = 298, reported beside it so the two vocabularies are both on the face.",
+          "rho": 3.0,
+          "sigma": 92.51,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "MEASURED. O12 reports this project's own options book at mean 0.0327, sd 0.9251 per trade, so 92.51pp is the per-trade return SD of a long option book on this universe. Borrowed across books, not across perturbation sizes (MB8's rule).",
+          "years_to_horizon_at_projected_rate": 0.88
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f13_second_event.md"
+      ]
+    },
+    "f14_fda_nohump": {
+      "commit": "996fa8e2fb2ba6d42af3929c6152ce283fb657a8",
+      "committed_alone": true,
+      "decl_sha": "fb8fdd05e6ab87a717e1cb3123f538e6833391132a75c2ffb80c0c7cf249b6bf",
+      "declaration": {
+        "book": "f14_fda_nohump",
+        "concurrency_cap": 6,
+        "domain": "options",
+        "entry_rule": "Weekly: every optionable name with an S3-I2 catalyst date (PDUFA/decision class) inside 90 days. Hump check at entry: event-month ATM IV vs the adjacent later month. If event-month <= 1.10x adjacent (NO hump) ENTER; if > 1.10x (priced) RECORD-AND-SKIP -- the skips ARE the control population and are first-class records. If more than 8 qualify in a week take the largest by market cap, alphabetical tie-break, skips counted.",
+        "hypothesis_class": "edge",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "sells_premium": false,
+        "side": "long",
+        "sizing": "equal premium",
+        "structure": {
+          "dte": "nearest above the catalyst date",
+          "exit": "EXIT at catalyst date + 2 sessions, at bid (frozen)",
+          "moneyness": 1.0,
+          "right": "straddle (nearest-ATM call + put, same strike where listed, else the strangle minimising |call strike - put strike|)",
+          "strike_selection": "moneyness"
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "optionable names on the S3-I2 catalyst calendar",
+        "verdict_grammar": [
+          "PAYS",
+          "BLEEDS",
+          "CANNOT-TELL(horizon)"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "2.9 years at the projected 2.70 fills/month (93 fills). The draft said 30 fills; 30 is a round number and this is the derivation. FORWARD-ONLY BY CONSTRUCTION: the S3-I2 calendar's first snapshot is 2026-08-24T02:39Z with 452 rows (82 PDUFA, 124 day-precision), so this book has NO history and can never be backfilled. The no-hump RATE and the skip census are reported descriptively from week one and are findings about PRICING before any P&L verdict exists.",
+          "expected_fills_per_month": 2.7,
+          "fills_needed": 93,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED, not the draft's round 30.",
+          "min_effect": 30.0,
+          "power_gate_note": "Anytime-valid, so the 50%/80% power vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n, and `fills_needed` is where it first falls to the declared minimum effect. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*sigma/mei)^2 = 75, reported beside it so the two vocabularies are both on the face.",
+          "rho": 3.0,
+          "sigma": 92.51,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "MEASURED. O12 reports this project's own options book at mean 0.0327, sd 0.9251 per trade, so 92.51pp is the per-trade return SD of a long option book on this universe. Borrowed across books, not across perturbation sizes (MB8's rule).",
+          "years_to_horizon_at_projected_rate": 2.87
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f14_fda_nohump.md"
+      ]
+    },
+    "f15_insider_cluster": {
+      "commit": "83a4d6e93c960bb331750244d7db5dd2708f8e72",
+      "committed_alone": true,
+      "decl_sha": "38dd1ab8451d86bda0166c7c9b40320516d063b0bbcd35be21fac50ef5ecde3d",
+      "declaration": {
+        "book": "f15_insider_cluster",
+        "concurrency_cap": 10,
+        "domain": "options",
+        "entry_rule": "Daily, on the FILING-DATE clock (filingdate, never transactiondate): a CLUSTER fires when >=3 distinct ownernames on one ticker file open-market purchases (transactioncode P) within any rolling 5-session window. Enter the session after the third filing. Max 1 entry per name per quarter. Cap 2 entries/session; tie-break most distinct buyers then alphabetical.",
+        "hypothesis_class": "edge",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "sells_premium": false,
+        "side": "long",
+        "sizing": "equal premium",
+        "structure": {
+          "dte": 60,
+          "dte_rule": "nearest 60, ties -> longer",
+          "exit": "hold to expiry, no exits",
+          "moneyness": 1.0,
+          "right": "call",
+          "strike_selection": "moneyness"
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "optionable names with insider coverage",
+        "verdict_grammar": [
+          "PAYS",
+          "BLEEDS",
+          "CANNOT-TELL(horizon)"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "6.4 years at the projected 5.50 fills/month (420 fills). The draft said 30 fills; 30 is a round number and this is the derivation. MB20's routine/opportunistic share is STAMPED as a label where the classifier exists by launch, and is NEVER used as a rule here -- a conditioned version is a new declaration.",
+          "expected_fills_per_month": 5.5,
+          "fills_needed": 420,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED, not the draft's round 30.",
+          "min_effect": 15.0,
+          "power_gate_note": "Anytime-valid, so the 50%/80% power vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n, and `fills_needed` is where it first falls to the declared minimum effect. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*sigma/mei)^2 = 298, reported beside it so the two vocabularies are both on the face.",
+          "rho": 3.0,
+          "sigma": 92.51,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "MEASURED. O12 reports this project's own options book at mean 0.0327, sd 0.9251 per trade, so 92.51pp is the per-trade return SD of a long option book on this universe. Borrowed across books, not across perturbation sizes (MB8's rule).",
+          "years_to_horizon_at_projected_rate": 6.36
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f15_insider_cluster.md"
+      ]
+    },
+    "f17_vrp_percentile_sells": {
+      "commit": "e1682ed68cc5ed6c1c8660183c5a4a0615f0bfcb",
+      "committed_alone": true,
+      "decl_sha": "68815d26423bb04b477200120d9032ef555cc5d771ed9c6a4719dfea0ec385fd",
+      "declaration": {
+        "assignment_model": "at expiry per moneyness, S3-I3 assignment_at_expiry",
+        "book": "f17_vrp_percentile_sells",
+        "concurrency_cap": 5,
+        "domain": "options",
+        "early_assignment_flag": "S3-I3 early_assignment_flag, FLAGGED not simulated",
+        "entry_rule": "First Monday of each month: universe = names passing F-4's cleanliness rules verbatim AND event-free per F-4's window rule, EXCLUDING any name F-4 or F-10 entered or could enter that week (priority F-4 > F-17 > F-10, stated in all three). Compute each name's own-history percentile (valuation.studies.name_percentile) of the 30-day VRP = ATM 30-DTE implied vol minus trailing-21-session realized vol. Enter the top 3 with percentile >= 90; fewer qualify -> fewer enter.",
+        "hypothesis_class": "edge",
+        "margin_method": "cash_secured_put",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "return_denominator": "secured_cash",
+        "sells_premium": true,
+        "side": "short",
+        "sizing": "equal secured cash",
+        "spot_basis": "as_traded",
+        "structure": {
+          "dte": 30,
+          "exit": "hold to expiry",
+          "moneyness": 0.9,
+          "right": "put",
+          "strike_selection": "moneyness"
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "optionable, clean, event-free, VRP percentile >= 90",
+        "verdict_grammar": [
+          "PAYS",
+          "BLEEDS",
+          "CANNOT-TELL(horizon)"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "8.5 years at the projected 3.00 fills/month (306 fills). The draft said 30 fills; 30 is a round number and this is the derivation.",
+          "expected_fills_per_month": 3.0,
+          "fills_needed": 306,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED, not the draft's round 30.",
+          "min_effect": 0.75,
+          "power_gate_note": "Anytime-valid, so the 50%/80% power vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n, and `fills_needed` is where it first falls to the declared minimum effect. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*sigma/mei)^2 = 223, reported beside it so the two vocabularies are both on the face.",
+          "rho": 3.0,
+          "sigma": 4.0,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "PRIOR, not measured: assumed SD of a 0.90-moneyness 30-DTE CSP return on secured cash. Replace with the realised SD at first read.",
+          "years_to_horizon_at_projected_rate": 8.5
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f17_vrp_percentile_sells.md"
+      ]
+    },
+    "f18_boring_book": {
+      "commit": "ad74e2c2db95206b85ebc05c3f61fee12a129ad5",
+      "committed_alone": true,
+      "decl_sha": "ba1a1772e1e137d89585d14e898756d758d6e938b4b2ad156284dc607ec977a9",
+      "declaration": {
+        "assignment_model": "at expiry per moneyness; covered assignment closes the position at strike, S3-I3 assignment_at_expiry",
+        "book": "f18_boring_book",
+        "concurrency_cap": 5,
+        "domain": "options",
+        "early_assignment_flag": "S3-I3 early_assignment_flag, FLAGGED not simulated",
+        "entry_rule": "First Monday of each month: hard filters first -- MA28 0-of-3 AND EVT-clean AND event-free per F-4's window rule. Rank the survivors by a frozen dullness composite = mean of two percentile ranks: (a) LOW cross-theme dispersion (E-3's banked column, >=4 computable themes), (b) LOW own-history realized-vol percentile. Take the 5 dullest; alphabetical tie-break; skip names held.",
+        "hypothesis_class": "edge",
+        "margin_method": "covered_call",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "return_denominator": "secured_cash",
+        "sells_premium": true,
+        "side": "short",
+        "sizing": "equal position value",
+        "spot_basis": "as_traded",
+        "structure": {
+          "dte": 45,
+          "exit": "assigned -> done; unassigned -> re-write while the name still qualifies at the monthly recompute, else sell the shares at close",
+          "moneyness": 1.05,
+          "right": "buy-write: long 100 shares + short call",
+          "strike_selection": "moneyness"
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "optionable, clean, event-free, dullest 5",
+        "verdict_grammar": [
+          "PAYS",
+          "BLEEDS",
+          "CANNOT-TELL(horizon)"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "20.0 years at the projected 5.00 fills/month (1202 fills). The draft said 30 fills; 30 is a round number and this is the derivation. The longest horizon of any accepted book. It is on the face precisely so nobody reads it early; E-3's dispersion column is reused here as a descriptive DULLNESS input and its equity-IC NULL is not disturbed.",
+          "expected_fills_per_month": 5.0,
+          "fills_needed": 1202,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED, not the draft's round 30.",
+          "min_effect": 0.5,
+          "power_gate_note": "Anytime-valid, so the 50%/80% power vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n, and `fills_needed` is where it first falls to the declared minimum effect. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*sigma/mei)^2 = 784, reported beside it so the two vocabularies are both on the face.",
+          "rho": 3.0,
+          "sigma": 5.0,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "PRIOR, not measured: assumed SD of a monthly buy-write net return as a %% of position. Replace with the realised SD at first read.",
+          "years_to_horizon_at_projected_rate": 20.03
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f18_boring_book.md"
+      ]
+    },
+    "f19_density_gate": {
+      "commit": "89e8213002b0b50c0c7ffe26de2b3328b84096ec",
+      "committed_alone": true,
+      "decl_sha": "4c478e2db677a049491906d1e4deb2a21141645190024441b5bd4314c48e6f0f",
+      "declaration": {
+        "book": "f19_density_gate",
+        "concurrency_cap": 1,
+        "domain": "options",
+        "entry_rule": "A LABELING GATE, refuses nothing. Weekly, compute the market-wide alert-count percentile against the trailing 2 years from the live daily scan; stamp every entry of an opted-in host with density_pct and bin HIGH (>=90th) or NORMAL. No entry is blocked, sized or timed by the stamp. Hosts opt in via gates:[alert_density] in their own declaration, before first fill.",
+        "hypothesis_class": "cost",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "sells_premium": false,
+        "side": "long",
+        "sizing": "none",
+        "structure": {
+          "note": "gate, no structure of its own",
+          "strike_selection": "fixed"
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "opted-in hosts' entries",
+        "verdict_grammar": [
+          "HIGH-PAYS",
+          "NO-MATERIAL-DIFFERENCE",
+          "HIGH-COSTS",
+          "CANNOT-TELL(horizon)",
+          "UNDERPOWERED-CELL"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "21.1 years at the projected 4.00 fills/month (1015 fills). The draft said 30 fills; 30 is a round number and this is the derivation. THE HIGH CELL IS THE BINDING CONSTRAINT -- it accrues ~1 week in 10 by construction, so the horizon is set by that cell and not the calendar. A cell under 15 fills is UNDERPOWERED, never null (O26's floor).",
+          "expected_fills_per_month": 4.0,
+          "fills_needed": 1015,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED, not the draft's round 30.",
+          "min_effect": 10.0,
+          "power_gate_note": "Anytime-valid, so the 50%/80% power vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n, and `fills_needed` is where it first falls to the declared minimum effect. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*sigma/mei)^2 = 671, reported beside it so the two vocabularies are both on the face.",
+          "rho": 3.0,
+          "sigma": 92.51,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "MEASURED. O12 reports this project's own options book at mean 0.0327, sd 0.9251 per trade, so 92.51pp is the per-trade return SD of a long option book on this universe. Borrowed across books, not across perturbation sizes (MB8's rule).",
+          "years_to_horizon_at_projected_rate": 21.15
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f19_density_gate.md"
+      ]
+    },
+    "f1_fill_ab": {
+      "commit": "0778663eb4663f3626586a4788a16862102e2fa8",
+      "committed_alone": true,
+      "decl_sha": "48705fed6f160124940836bc8a79e6a6b6c81dafd517b12633e45b16ee6106b2",
+      "declaration": {
+        "book": "f1_fill_ab",
+        "concurrency_cap": 1,
+        "domain": "options",
+        "entry_rule": "No entries of its own. Every order any fleet book submits is assigned by fleet.arm(book, date, symbol, decl_sha) to arm A (marketable) or arm B (limit at mid, worked 60s, then cancel-and-market; the fallback fill is recorded as B-fallback and never pooled). Deterministic and salted by the declaration hash, so the split is fixed the moment this lands.",
+        "hypothesis_class": "cost",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "sells_premium": false,
+        "side": "long",
+        "sizing": "inherits the host's",
+        "structure": {
+          "note": "inherits the host book's structure",
+          "strike_selection": "fixed"
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "whatever the other fleet books trade",
+        "verdict_grammar": [
+          "B-CAPTURES",
+          "NO-MATERIAL-DIFFERENCE",
+          "B-COSTS",
+          "horizon-not-reached"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "0.3 years at the projected 45.00 fills/month (164 fills). The draft said 30 fills; 30 is a round number and this is the derivation.",
+          "expected_fills_per_month": 45.0,
+          "fills_needed": 164,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED, not the draft's round 30.",
+          "min_effect": 10.0,
+          "power_gate_note": "Anytime-valid, so the 50%/80% power vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n, and `fills_needed` is where it first falls to the declared minimum effect. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*sigma/mei)^2 = 125, reported beside it so the two vocabularies are both on the face.",
+          "rho": 3.0,
+          "sigma": 40.0,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "PRIOR, not measured: assumed SD of per-order half-spread capture in pp of the quoted half-spread. Replace with the realised SD at first read.",
+          "years_to_horizon_at_projected_rate": 0.3
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f1_fill_ab.md"
+      ]
+    },
+    "f20_married_put_storm": {
+      "commit": "ca6a6b8324dbfb27ab07e876c9753cf43bb875ea",
+      "committed_alone": true,
+      "decl_sha": "91f7511ac10d9df398fd866706de9cd4f6544e06f9c0803d88ecb7e7ab961fe5",
+      "declaration": {
+        "book": "f20_married_put_storm",
+        "concurrency_cap": 6,
+        "domain": "options",
+        "entry_rule": "At each monthly rebalance, IF the storm flag is on: every name newly entering the published paper index book (up to 3; composite-score tie-break then alphabetical) is entered as stock + put instead of plain stock. STORM FLAG, frozen: the trailing 21-session realized vol of the paper index book's own daily series is at or above its own 80th percentile over the trailing 2 years. Flag off -> the book does nothing that month.",
+        "hypothesis_class": "edge",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "sells_premium": false,
+        "side": "long",
+        "sizing": "equal position value",
+        "structure": {
+          "dte": 91,
+          "dte_rule": "nearest above 91",
+          "exit": "at put expiry the position reverts to plain stock; NO roll",
+          "moneyness": 0.85,
+          "right": "married put: long 100 shares + long put",
+          "strike_selection": "moneyness"
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "names newly entering the published paper index book during a storm",
+        "verdict_grammar": [
+          "INSURANCE-PAYS",
+          "INSURANCE-COSTS",
+          "CANNOT-TELL(horizon-or-no-storm)"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "21.9 years at the projected 1.50 fills/month (395 fills). The draft said 30 fills; 30 is a round number and this is the derivation. STORM-GATED: possibly ZERO entries for quarters at a stretch. An empty book in a calm regime is CORRECT BEHAVIOUR, not failure.",
+          "expected_fills_per_month": 1.5,
+          "fills_needed": 395,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED, not the draft's round 30.",
+          "min_effect": 0.5,
+          "power_gate_note": "Anytime-valid, so the 50%/80% power vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n, and `fills_needed` is where it first falls to the declared minimum effect. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*sigma/mei)^2 = 282, reported beside it so the two vocabularies are both on the face.",
+          "rho": 3.0,
+          "sigma": 3.0,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "PRIOR, not measured: assumed SD of the paired married-minus-plain net return as a %% of position. Paired on the SAME name, so far tighter than an unpaired per-trade SD (MB8).",
+          "years_to_horizon_at_projected_rate": 21.94
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f20_married_put_storm.md"
+      ]
+    },
+    "f2_menu_gate": {
+      "commit": "2f8a1a4f5d51b6f53932a8a9ca7eb206403ba3b0",
+      "committed_alone": true,
+      "decl_sha": "e6f7a1fc54f4cdf9bd073829cfed6a5115cf756a4663d48c80ba4ee2c7b0a735",
+      "declaration": {
+        "book": "f2_menu_gate",
+        "concurrency_cap": 1,
+        "domain": "options",
+        "entry_rule": "A GATE, holds no positions. At order time compute the host entry's fillable in-band menu by MB1's shipped prefilter verbatim (side-matched right -> DTE band +/-25%% of target -> moneyness 0.85-1.15 -> two-sided usable quotes -> volume > 0). If the fillable count < 4 the entry is REFUSED and the would-have-been quote pair recorded. Hosts opt in via gates:[menu_breadth] in their own declaration, before first fill; all entries or none.",
+        "hypothesis_class": "cost",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "sells_premium": false,
+        "side": "long",
+        "sizing": "none",
+        "structure": {
+          "note": "gate, no structure of its own",
+          "strike_selection": "fixed"
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "opted-in hosts' entries",
+        "verdict_grammar": [
+          "REFUSAL-HELPS",
+          "NO-MATERIAL-DIFFERENCE",
+          "REFUSAL-COSTS",
+          "CANNOT-TELL(horizon)"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "47.5 years at the projected 8.00 fills/month (4563 fills). The draft said 30 fills; 30 is a round number and this is the derivation. The refusal RATE is descriptive from week one and does not wait for this. The counterfactual is QUOTE-MARKED, never filled (O10's C2).",
+          "expected_fills_per_month": 8.0,
+          "fills_needed": 4563,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED, not the draft's round 30.",
+          "min_effect": 5.0,
+          "power_gate_note": "Anytime-valid, so the 50%/80% power vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n, and `fills_needed` is where it first falls to the declared minimum effect. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*sigma/mei)^2 = 2684, reported beside it so the two vocabularies are both on the face.",
+          "rho": 3.0,
+          "sigma": 92.51,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "MEASURED. O12 reports this project's own options book at mean 0.0327, sd 0.9251 per trade, so 92.51pp is the per-trade return SD of a long option book on this universe. Borrowed across books, not across perturbation sizes (MB8's rule).",
+          "years_to_horizon_at_projected_rate": 47.53
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f2_menu_gate.md"
+      ]
+    },
+    "f3_bear_puts": {
+      "commit": "314adb5eb4a3590f5fe4dfe4570f5c4e92750153",
+      "committed_alone": true,
+      "decl_sha": "c10a70e074ccbc31ad2b412fb08bf00e06cdc45a0987d726be674ac1db6129e8",
+      "declaration": {
+        "book": "f3_bear_puts",
+        "concurrency_cap": 10,
+        "domain": "options",
+        "entry_rule": "Each trading day: score the optionable universe with valuation.intraday.bearish.bearish_technical(bars) -- the shipped per-name bearish score -- and take the top 3 by score among names not already held. Skip a name only if the scanner's own signal names a scheduled event; no silent event filtering (F-4 owns event-avoidance).",
+        "hypothesis_class": "edge",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "sells_premium": false,
+        "side": "long",
+        "sizing": "equal premium per position",
+        "structure": {
+          "dte": 60,
+          "exit": "hold to expiry, or exit if the scanner flips the name non-bearish for 3 consecutive sessions (frozen)",
+          "moneyness": 0.85,
+          "right": "put",
+          "strike_selection": "moneyness"
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "optionable names with >=50 sessions of bars",
+        "verdict_grammar": [
+          "PAYS",
+          "BLEEDS",
+          "CANNOT-TELL(horizon)"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "2.3 years at the projected 15.00 fills/month (420 fills). The draft said 30 fills; 30 is a round number and this is the derivation.",
+          "expected_fills_per_month": 15.0,
+          "fills_needed": 420,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED, not the draft's round 30.",
+          "min_effect": 15.0,
+          "power_gate_note": "Anytime-valid, so the 50%/80% power vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n, and `fills_needed` is where it first falls to the declared minimum effect. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*sigma/mei)^2 = 298, reported beside it so the two vocabularies are both on the face.",
+          "rho": 3.0,
+          "sigma": 92.51,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "MEASURED. O12 reports this project's own options book at mean 0.0327, sd 0.9251 per trade, so 92.51pp is the per-trade return SD of a long option book on this universe. Borrowed across books, not across perturbation sizes (MB8's rule).",
+          "years_to_horizon_at_projected_rate": 2.33
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f3_bear_puts.md"
+      ]
+    },
+    "f4_eventfree_premium": {
+      "commit": "daf210d627d0f3492b22675f923dc798c37b06d3",
+      "committed_alone": true,
+      "decl_sha": "8364aaa839aefa912adccf68ae1bb673be13cb43c94e0952d75fa7b44fd3f134",
+      "declaration": {
+        "assignment_model": "at expiry per moneyness, S3-I3 assignment_at_expiry",
+        "book": "f4_eventfree_premium",
+        "concurrency_cap": 10,
+        "domain": "options",
+        "early_assignment_flag": "S3-I3 early_assignment_flag, FLAGGED not simulated",
+        "entry_rule": "Every Monday: universe = optionable names that are (a) MA28 0-of-3 flags at the latest quarterly compute, (b) EVT-clean (E-4's tail flag, bottom 4 quintiles), (c) event-free -- next earnings date KNOWN via the I-4 spine AND outside [today, expiry+5 sessions]; names whose next event is UNKNOWN are SKIPPED AND COUNTED -- and (d) no S3-I2 catalyst inside the same window. Take the 3 largest by market cap not already held; alphabetical tie-break.",
+        "hypothesis_class": "edge",
+        "margin_method": "cash_secured_put",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "return_denominator": "secured_cash",
+        "sells_premium": true,
+        "side": "short",
+        "sizing": "equal secured cash per position",
+        "spot_basis": "as_traded",
+        "structure": {
+          "dte": 30,
+          "dte_rule": "nearest 30 and strictly < 40, ties -> shorter",
+          "exit": "hold to expiry; assignment per S3-I3",
+          "moneyness": 0.9,
+          "right": "put",
+          "strike_selection": "moneyness"
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "optionable, MA28-clean, EVT-clean, event-free",
+        "verdict_grammar": [
+          "PAYS",
+          "BLEEDS",
+          "CANNOT-TELL(horizon)"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "2.3 years at the projected 11.00 fills/month (306 fills). The draft said 30 fills; 30 is a round number and this is the derivation. A premium book's verdict needs its LOSS TAIL, so no read before 2 quarters regardless of fill count. The F-4-vs-F-10 contrast may not be quoted before BOTH books reach their horizons.",
+          "expected_fills_per_month": 11.0,
+          "fills_needed": 306,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED, not the draft's round 30.",
+          "min_effect": 0.75,
+          "power_gate_note": "Anytime-valid, so the 50%/80% power vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n, and `fills_needed` is where it first falls to the declared minimum effect. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*sigma/mei)^2 = 223, reported beside it so the two vocabularies are both on the face.",
+          "rho": 3.0,
+          "sigma": 4.0,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "PRIOR, not measured: assumed SD of a 0.90-moneyness 30-DTE CSP return on secured cash. Replace with the realised SD at first read; it may move this materially in either direction.",
+          "years_to_horizon_at_projected_rate": 2.32
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f4_eventfree_premium.md"
+      ]
+    },
+    "f5_ivcheap": {
+      "commit": "057009c0653b477b2e253ae8e8d5fa53dd76c1da",
+      "committed_alone": true,
+      "decl_sha": "59ffbe5ec61b8d3d33de3d64f14ec583265f27c421254c1f5549b46aaae4db55",
+      "declaration": {
+        "book": "f5_ivcheap",
+        "concurrency_cap": 10,
+        "domain": "options",
+        "entry_rule": "Monthly, first trading day: rank optionable names by the expanding own-history percentile (valuation.studies.name_percentile, its shipped burn-in) of their 60-DTE ATM implied vol from the live chain snapshot. Buy the 5 lowest-percentile names, skipping any entered in the prior 2 months.",
+        "hypothesis_class": "edge",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "sells_premium": false,
+        "side": "long",
+        "sizing": "equal premium",
+        "structure": {
+          "dte": 90,
+          "exit": "hold to expiry",
+          "moneyness": 1.0,
+          "right": "call or put per the live composite's sign for the name; no composite verdict -> call, stated now so it is not chosen later",
+          "strike_selection": "moneyness"
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "optionable universe",
+        "verdict_grammar": [
+          "PAYS",
+          "BLEEDS",
+          "CANNOT-TELL(horizon)"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "3.7 years at the projected 5.00 fills/month (224 fills). The draft said 30 fills; 30 is a round number and this is the derivation.",
+          "expected_fills_per_month": 5.0,
+          "fills_needed": 224,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED, not the draft's round 30.",
+          "min_effect": 20.0,
+          "power_gate_note": "Anytime-valid, so the 50%/80% power vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n, and `fills_needed` is where it first falls to the declared minimum effect. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*sigma/mei)^2 = 168, reported beside it so the two vocabularies are both on the face.",
+          "rho": 3.0,
+          "sigma": 92.51,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "MEASURED. O12 reports this project's own options book at mean 0.0327, sd 0.9251 per trade, so 92.51pp is the per-trade return SD of a long option book on this universe. Borrowed across books, not across perturbation sizes (MB8's rule).",
+          "years_to_horizon_at_projected_rate": 3.73
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f5_ivcheap.md"
+      ]
+    },
+    "f6_collar_ledger": {
+      "commit": "0a7c568947db99a056ad80e45907d8f2ed8f9537",
+      "committed_alone": true,
+      "decl_sha": "c7e5956ed289c5409aa2735cc9f565b82547f7c470b9bb05236e9daae473f232",
+      "declaration": {
+        "assignment_model": "at expiry per moneyness; covered assignment closes the position at strike, S3-I3 assignment_at_expiry",
+        "book": "f6_collar_ledger",
+        "concurrency_cap": 3,
+        "domain": "options",
+        "early_assignment_flag": "S3-I3 early_assignment_flag, FLAGGED not simulated",
+        "entry_rule": "At each monthly rebalance, for the paper index book's top-3 weights read from the published data_export/paper_track_holdings.csv: buy the put nearest 0.90x as-traded spot and sell the call whose premium most nearly finances it (nearest-to-zero net cost, NEVER a net credit), both ~90 DTE, sized to the paper position. Roll at expiry.",
+        "hypothesis_class": "utility",
+        "margin_method": "covered_call",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "return_denominator": "secured_cash",
+        "sells_premium": true,
+        "side": "short",
+        "sizing": "one collar per paper position",
+        "spot_basis": "as_traded",
+        "structure": {
+          "dte": 90,
+          "exit": "roll at expiry",
+          "moneyness": 0.9,
+          "right": "collar: long put + short covered call",
+          "strike_selection": "moneyness"
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "none"
+        },
+        "universe": "the paper index book's top-3 weights",
+        "verdict_grammar": [
+          "NO VERDICT - utility ledger, descriptive quarterly audit only"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "33.4 years at the projected 3.00 fills/month (1202 fills). The draft said 30 fills; 30 is a round number and this is the derivation. UTILITY: it reads QUARTERLY as a descriptive audit and carries NO verdict, so this horizon governs only a hypothesis nobody has declared.",
+          "expected_fills_per_month": 3.0,
+          "fills_needed": 1202,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED, not the draft's round 30.",
+          "min_effect": 0.3,
+          "power_gate_note": "Anytime-valid, so the 50%/80% power vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n, and `fills_needed` is where it first falls to the declared minimum effect. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*sigma/mei)^2 = 784, reported beside it so the two vocabularies are both on the face.",
+          "rho": 3.0,
+          "sigma": 3.0,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "PRIOR, not measured: assumed SD of quarterly collar net drag as a %% of position. Replace with the realised SD at first read.",
+          "years_to_horizon_at_projected_rate": 33.39
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f6_collar_ledger.md"
+      ]
+    },
+    "f8_csp_entry_financing": {
+      "commit": "86afd18f20c558b2624d22c77f53d0893443b4a4",
+      "committed_alone": true,
+      "decl_sha": "0ad29231c3e5292673e2cc3b4f026b227af251c88cb6d6f5df0b49bfae6fde72",
+      "declaration": {
+        "assignment_model": "at expiry per moneyness, S3-I3 assignment_at_expiry",
+        "book": "f8_csp_entry_financing",
+        "concurrency_cap": 5,
+        "domain": "options",
+        "early_assignment_flag": "S3-I3 early_assignment_flag, FLAGGED not simulated",
+        "entry_rule": "At each monthly rebalance: every name NEWLY ENTERING the paper index book, read from the PUBLISHED data_export/paper_track_holdings.csv as a row whose entry_date equals the rebalance date -- a published artifact, never the scoring path. Cap 5; tie-break highest composite score then alphabetical.",
+        "hypothesis_class": "edge",
+        "margin_method": "cash_secured_put",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "return_denominator": "secured_cash",
+        "sells_premium": true,
+        "side": "short",
+        "sizing": "equal secured cash",
+        "spot_basis": "as_traded",
+        "structure": {
+          "dte": 30,
+          "exit": "assigned -> that IS the book's entry; unassigned -> re-sell the same rule up to 3 cycles, then market-buy (frozen)",
+          "moneyness": 0.95,
+          "right": "put",
+          "strike_selection": "moneyness"
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "names newly entering the published paper index book",
+        "verdict_grammar": [
+          "FINANCING-PAYS",
+          "FINANCING-COSTS",
+          "CANNOT-TELL(horizon)"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "7.3 years at the projected 4.50 fills/month (395 fills). The draft said 30 fills; 30 is a round number and this is the derivation.",
+          "expected_fills_per_month": 4.5,
+          "fills_needed": 395,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED, not the draft's round 30.",
+          "min_effect": 0.5,
+          "power_gate_note": "Anytime-valid, so the 50%/80% power vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n, and `fills_needed` is where it first falls to the declared minimum effect. The fixed-n analogue at crit 1.96 is n = ((1.96+0.84)*sigma/mei)^2 = 282, reported beside it so the two vocabularies are both on the face.",
+          "rho": 3.0,
+          "sigma": 3.0,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "PRIOR, not measured: assumed SD of the paired CSP-route-minus-plain-route entry cost as a %% of position. Paired on the SAME name, so it is far tighter than an unpaired per-trade SD (MB8).",
+          "years_to_horizon_at_projected_rate": 7.31
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f8_csp_entry_financing.md"
+      ]
+    },
+    "testbook": {
+      "commit": "17b0bc8f9b265e8285f996a1dc2918b2097fe301",
+      "committed_alone": true,
+      "decl_sha": "df62d4d5290357f0afb8b72e969aba1e1dff754c4462c348b449032f3d122f90",
+      "declaration": {
+        "book": "testbook",
+        "concurrency_cap": 1,
+        "domain": "options",
+        "entry_rule": "THROWAWAY TEST-BOOK, not a research book. One order only: the nearest-ATM SPY call with 25-60 DTE carrying a two-sided quote at the moment the day-1 self-verification runs. It exists to prove the harness end to end against the real Tradier sandbox and is CLOSED in the same session.",
+        "hypothesis_class": "utility",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [],
+        "sells_premium": false,
+        "side": "long",
+        "sizing": "1 contract, once",
+        "structure": {
+          "dte": [
+            25,
+            60
+          ],
+          "moneyness": 1.0,
+          "right": "call",
+          "strike_selection": "moneyness"
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "none"
+        },
+        "universe": "SPY only",
+        "verdict_grammar": [
+          "NO VERDICT - test-book, closed on the day it is declared"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "NEVER - this book carries no verdict and no meter is read",
+          "expected_fills_per_month": 0,
+          "fills_needed": 1,
+          "min_effect": 999.0,
+          "rho": 3.0,
+          "sigma": 1.0
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_testbook.md"
+      ]
+    }
+  },
+  "evidence_note": "Computed where git exists and consumed where it does not. On a service built from an image with no .git, fleet.may_fill falls back to this manifest and reports evidence='manifest' rather than 'git'. That is a WEAKER chain and the record says so on every gate result.",
+  "generated_utc": "2026-08-25T01:35:27+00:00",
+  "head": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+  "n_books": 18,
+  "schema": "fleet_declarations/1",
+  "skipped": {
+    "DRAFT_f16_13f_surge": "does not parse: no fenced ```json declaration block",
+    "DRAFT_f7_band_exit_calls": "does not parse: no fenced ```json declaration block",
+    "DRAFT_f9_flag_transition_puts": "does not parse: no fenced ```json declaration block"
+  }
+}
