@@ -9575,3 +9575,25 @@ catches. An idempotent re-run still counts as STARTED: the clock IS running.
   rather than three.
 
 **ZERO TRIALS.** `by_domain` untouched by this lane; no fill, no meter read.
+
+### VERIFIED IN PRODUCTION — the re-dispatch, and the armed count is what it should be
+
+**Run `32801904568`, HTTP 200:**
+
+    books_declared                 : 18     (was 0)
+    entry_rules_implemented        : 3      (was 0)
+    assignment_provider_registered : true
+    not_breathing_reason           : "ALL_BOOKS_BLOCKED_AT_GATE:SELFCHECK_ABSENT"
+    fills_written                  : 0
+
+**The manifest works in the image**, the armed count is the expected three (F-1, F-3, F-8),
+and **the annotation's guessed cause is replaced by a measured one** — the fleet is not
+breathing because every book is gated on a day-1 self-check that has never run on the service,
+which is a different fix from the one the old string sent a reader toward.
+
+**ONE TRANSIENT FAILURE, RECORDED BECAUSE IT LOOKED LIKE MINE.** The first re-dispatch after
+landing returned **HTTP 502** — Render mid-redeploy. It was checked rather than assumed: the
+app was rebuilt locally (70 routes, `/admin/fleet-cycle` present) to rule out a startup break
+this branch had caused, then re-dispatched after the deploy settled and returned 200.
+**A 502 in the minutes after a land is the deploy, not the code — but the check costs seconds
+and the alternative is shipping a broken service on a hunch.**
