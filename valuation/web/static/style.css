@@ -217,6 +217,17 @@ code{background:#f0f3f9;padding:1px 6px;border-radius:5px;font-size:12.5px;color
 .lb-stats{display:flex;gap:22px;flex-wrap:wrap;margin-top:10px}
 .lb-stat .k{display:block;font-size:11.5px;color:var(--muted);font-weight:600}
 .lb-stat .v{display:block;font-size:19px;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums}
+/* PT-SPMO — the REPORTED benchmark's tiles. Subordinate on three independent axes, because
+   any one of them can be lost: SIZE (a smaller figure), WEIGHT (700 against the claim's 800)
+   and a SEPARATOR (a rule to the left, so the eye reads a break between claim and context).
+   None of the three is colour, so the hierarchy survives a greyscale print and a colourblind
+   reader — and the inline `reported` tag survives all of that because it is a WORD. */
+.lb-stat.rep{padding-left:16px;border-left:1px dashed var(--border);opacity:.86}
+.lb-stat.rep .v{font-size:15px;font-weight:700}
+.lb-stat.rep .k{color:var(--faint)}
+.rep-tag{display:inline-block;margin-left:5px;padding:0 5px;border:1px solid var(--border);
+  border-radius:8px;font-size:9.5px;font-weight:700;letter-spacing:.03em;
+  text-transform:uppercase;color:var(--faint);vertical-align:1px}
 .lb-foot{font-size:11.5px;color:var(--faint);margin-top:10px;line-height:1.6}
 .lb-foot a{font-weight:600;margin-left:6px}
 .lb-spark{width:260px;flex:none}
@@ -226,6 +237,10 @@ code{background:#f0f3f9;padding:1px 6px;border-radius:5px;font-size:12.5px;color
   .livebar{padding:12px 14px;gap:12px}
   .lb-stats{gap:14px}
   .lb-stat .v{font-size:16px}
+  /* On a phone the row wraps, so the left rule can land at the start of a line and read as a
+     divider between unrelated things. The size and weight difference still carries it. */
+  .lb-stat.rep{padding-left:0;border-left:0}
+  .lb-stat.rep .v{font-size:13.5px}
   /* The sparkline goes full-width under the numbers rather than squeezing them. */
   .lb-spark{width:100%}
 }

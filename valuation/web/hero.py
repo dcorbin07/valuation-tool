@@ -97,6 +97,63 @@ def _index_block(store) -> dict:
     }
 
 
+def _reported_block(idx: dict) -> dict:
+    """The REPORTED benchmark, for the band. ONE SOURCE OF TRUTH, and it is the point.
+
+    This calls `reported_benchmark.claim()` — the SAME function `/api/index-track` serves to
+    the Index tab's forward card. It does not read the sibling file, does not divide two
+    levels, and computes no excess of its own. A second implementation of one number is the
+    `B7` defect class this project has paid for repeatedly, and the module directly above this
+    one records the sharper version of it: the fallback removed in 2026-08-09 took *"its own
+    `(idx - bench) * 100` — a second definition of excess return, free to drift from the
+    recorder's"*. There is exactly one definition of the SPMO excess and both surfaces render
+    it.
+
+    THE WORDING TRAVELS WITH THE FIGURE RATHER THAN BEING WRITTEN HERE. `label`, `why` and
+    `posture` come out of `reported_benchmark` — `V3`'s precedent, one module owning the
+    calibrated wording — so the band and the tab cannot come to describe the same number
+    differently. The band renders NOTHING when the claim is unavailable: a surface with no
+    claim must print no claim.
+
+    AND THE AS-OF IS CHECKED, NOT ASSUMED. The bound series and the sibling are appended by
+    the same door on the same day, but they are different files and can legitimately end on
+    different dates — the sibling begins when its first comparison was recorded. When they
+    disagree the band says so beside the figure, because a reported excess measured to a
+    different date than the bound one, rendered flush against it, is two windows presented as
+    one.
+    """
+    try:
+        from ..screener import reported_benchmark as RB
+        c = RB.claim()
+    except Exception:                                    # noqa: BLE001
+        return {"available": False, "reason": "the reported benchmark could not be read"}
+
+    if not isinstance(c, dict) or not c.get("available"):
+        return {"available": False,
+                "reason": (c or {}).get("reason") or "no reported comparison recorded yet"}
+    if c.get("spmo_pct") is None or c.get("excess_pp") is None:
+        return {"available": False, "reason": "the reported comparison carries no figure"}
+
+    as_of = c.get("as_of")
+    bound_as_of = (idx or {}).get("as_of")
+    return {
+        "available": True,
+        "ticker": c.get("ticker"),
+        "mark_pct": c.get("spmo_pct"),
+        "excess_pp": c.get("excess_pp"),
+        "as_of": as_of,
+        "n_points": c.get("n_points"),
+        # False whenever the two series do not end on the same date. Rendered, not silently
+        # tolerated: the alternative is two windows presented as one row of figures.
+        "aligned": bool(as_of and bound_as_of and as_of == bound_as_of),
+        "bound_as_of": bound_as_of,
+        # OWNED BY `reported_benchmark`, never retyped here.
+        "label": c.get("label"),
+        "why": c.get("why"),
+        "posture": c.get("posture"),
+    }
+
+
 def _options_block(store) -> dict:
     """The paper options book. Expectancy comes from the scorecard or not at all."""
     try:
@@ -129,6 +186,13 @@ def live_hero(store) -> dict:
         opt = _options_block(store)
     except Exception:
         opt = {"available": False}
+    # PT-SPMO on the band. Additive, and it can never gate `show`: the reported benchmark is
+    # context, so a band that appeared because of it — or that vanished with it — would be
+    # treating it as the claim.
+    try:
+        rep = _reported_block(idx)
+    except Exception:
+        rep = {"available": False}
 
     show = bool(idx.get("available") or opt.get("available"))
     thin = bool(idx.get("thin", True) or opt.get("thin", True))
@@ -157,7 +221,7 @@ def live_hero(store) -> dict:
         # what the template keys the "evidence" wording off, never a return figure it liked.
         "may_lead": show and not thin,
         "thin": thin, "since": since, "label": label,
-        "index": idx, "options": opt, "spark": spark,
+        "index": idx, "options": opt, "spark": spark, "reported": rep,
         "caveat": ("Paper, not real money, and educational only. The backtest stays the "
                    "headline result until this track is long enough to carry a claim."),
     }

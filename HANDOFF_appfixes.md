@@ -5,6 +5,111 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 47 — 2026-08-24 — `PT-SPMO` reaches the hero band, and three chart lines stop looking alike
+
+**Two display changes, one pass, ZERO TRIALS.** No hypothesis, no bar, no verdict, no
+`RESEARCH_LOG.md` row, and no published claim moves. `.github/` untouched; nothing under
+`data/` written.
+
+## 1. SPMO ON THE BAND — one source of truth, and a distinction carried visually
+
+Session 46 put SPMO in the Index tab's forward card and deliberately left the band above the
+tabs alone. Don's call reverses that: the band is the first thing a visitor reads, so it now
+carries the SPMO mark and the excess against it beside the bound Valquo / SPY / Excess tiles.
+
+**IT READS `reported_benchmark.claim()` — THE SAME FUNCTION `/api/index-track` SERVES TO THE
+TAB.** It does not open the sibling file, does not divide two levels and computes no excess of
+its own; an AST test asserts `_reported_block` contains **no `BinOp` at all**, so arithmetic
+cannot creep back in. `hero.py`'s own docstring is why that test exists: the fallback removed
+on 2026-08-09 took *"its own `(idx - bench) * 100` — a second definition of excess return, free
+to drift from the recorder's"*.
+
+**THE DISTINCTION IS CARRIED ON THREE INDEPENDENT AXES, BECAUSE ANY ONE OF THEM CAN BE LOST.**
+A `rep` class that makes the tiles smaller (15px against 19px) and lighter (700 against 800); a
+non-colour separator (a dashed rule to the left); and the word **reported** inline in each
+tile's own key. Underneath, the module's own sentence: *"SPMO is a reported benchmark — not
+bound by the contract. The meter, the operational gate and the 2031 verdict attach to SPY only.
+This comparison is reported for context and settles nothing."*
+
+**NONE OF THE THREE IS COLOUR**, so the hierarchy survives a greyscale print and a colourblind
+reader — and the tag survives both because it is a **word**. The wording is asserted **verbatim
+against the RENDERED payload**, not the source (`V3`'s precedent), for the reason `hero.py`
+records against itself: the old fallback DID set `source: "paper-sandbox"`, honestly, and the
+template never rendered it — *"a label that a surface can decline to show is not a safeguard"*.
+
+**THE REPORTED BLOCK CAN NEVER GATE THE BAND**, pinned on the tree: context that decided
+whether the claim appears would be the claim.
+
+**AND THE AS-OF IS CHECKED RATHER THAN ASSUMED.** The bound series and the sibling are appended
+by the same door on the same day but are different files and can end on different dates. When
+they disagree the band prints *"Measured to <date>"* beside the figure; when they agree it says
+nothing. Two windows rendered flush against each other with no note are two windows presented
+as one.
+
+## 2. THREE LINES A READER CAN ORDER IN ONE SECOND
+
+SPY and SPMO were `#9aa4b8` dashed and `#b9c0cd` dotted — two light greys that read as the same
+series wherever they converge, which on two large-cap US equity benchmarks is most of the time.
+Three properties now vary **together** rather than one varying alone:
+
+| role | line | geometry | weight | tone |
+|---|---|---|---|---|
+| subject | Valquo Index | solid | 2.6 | darkest |
+| bound | SPY | long dash `[10, 4]` | 2.0 | mid |
+| reported | SPMO | fine dot `[1.5, 3.5]` | 1.4 | lightest |
+
+Geometry carries it in greyscale, weight carries it for a colourblind reader, tone carries it
+for everyone else — **any one of the three alone is enough to order them**, which is the test a
+chart has to pass to survive a screenshot. The legend names the roles rather than the tickers
+alone (`SPY — contract benchmark`, `SPMO — reported, not bound`) and the caption's existing
+distinction is unchanged.
+
+## 3. TWO CHARACTER-WINDOW GUARDS REPLACED, AND ONE TEST THAT PINNED THE WRONG THING
+
+* Session 46's chart test took `js[i:i + 2600]` from `STATE.charts.idx`. Adding a comment above
+  the datasets pushed the third line out of the window and the test reported that the chart
+  *"never reads the attached SPMO level"* when the chart was fine. **The same defect shape as
+  the 400-character `except Exception` window that a comment of mine broke the session before.**
+  Both extractions are now **bracket-balanced** — `_chart_datasets()` and `_chart_config()` —
+  so prose cannot move a guard out from under itself.
+* That test also asserted the literal geometries `[2, 3]` and `[5, 4]`. That is a check on the
+  NUMBERS rather than on the property they were chosen for, and it **failed against an
+  improvement**. It now asserts that the two benchmarks do not share a geometry and that the
+  reported one is the finer — the values are a design choice.
+* Its second-axis check was briefly widened to the whole file, which asks a different question:
+  `app.js` draws several charts and some legitimately use a second axis. Scoped to this chart's
+  own config.
+
+## 4. TWO HOLES IN MY OWN TESTS, FOUND BY THE TRIPWIRES
+
+Reported because they were real and because both were found by mutation rather than by reading:
+
+* the subordinate-class check asserted `'class="lb-stat rep"' in band` and **passed a mutation
+  that stripped the class from only the first of the two tiles**. It counts both now.
+* the non-colour-separator check searched for the substring `border-left` and was satisfied by
+  the **mobile override**, which sets `border-left:0` — so deleting the real separator left the
+  test green. It now examines every `.lb-stat.rep` block and requires a **non-zero** border.
+
+## 5. Verification
+
+**50 of 50 in the PT-SPMO suite; 11 of 11 tripwire mutations caught with every source restored
+byte-for-byte** — the hero deriving its own excess, the hero bypassing `claim()`, the reported
+block gating the band, the subordinate class dropped, the not-bound sentence dropped, the as-of
+mismatch absorbed, the tiles losing their size and weight difference, the separator removed,
+the two benchmarks sharing a geometry, every line returning to one weight, and the legend
+dropping which benchmark is bound.
+
+## 6. Not done, named so it is not mistaken for done
+
+* **The band's SPARKLINE still draws two lines.** It reads `index_track.summarize`'s series,
+  which the API's `attach_series` does not touch, so it has no SPMO to draw. Adding it is a
+  separate change to `showcase.sparkline` and its shared-axis contract.
+* **The figures cannot be verified locally.** `data/` is gitignored and this machine's bound
+  history is five rows old; the sibling exists only on the service. Every hero test therefore
+  runs against an injected claim, and the arithmetic it displays is the recorder's by
+  construction rather than by local measurement.
+* **No change to what is recorded, when, or by whom.** This is display only.
+
 # Session 46 — 2026-08-23 — three product items: `PT-SPMO` on the card, the declared-books shelf, and the record's own calibration
 
 **Three small items, one session, ZERO TRIALS.** No hypothesis, no threshold, no verdict

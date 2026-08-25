@@ -129,6 +129,34 @@
           <div class="lb-stat"><span class="k">Excess</span>
             <span class="v {{ 'pos' if (hero.index.excess_pp or 0) >= 0 else 'neg' }}">
               {{ "%+.2fpp"|format(hero.index.excess_pp) if hero.index.excess_pp is not none else "—" }}</span></div>
+          {# PT-SPMO ON THE BAND — REPORTED, NOT BOUND, AND THE DISTINCTION IS CARRIED
+             VISUALLY RATHER THAN IN A TOOLTIP.
+
+             This is the first thing a visitor reads, so the two kinds of number must not look
+             alike. The three tiles above are the CLAIM: the contract, the meter, the
+             operational gate and the 2031 verdict all attach to SPY alone. The two below are
+             CONTEXT. They are marked three ways at once, because any one of them can be lost:
+             a `rep` class that makes them smaller and muted, the word "reported" inline in the
+             tile's own key, and a sentence underneath in the module's own wording.
+
+             The module directly behind this records why a class alone is not enough: the old
+             fallback DID set `source: "paper-sandbox"`, honestly, and the template never
+             rendered it — *"a label that a surface can decline to show is not a safeguard"*.
+             So the label is not optional here; a test asserts the word survives in the
+             RENDERED payload, not in the source.
+
+             Every string comes from `reported_benchmark` via `hero.reported`. The template
+             words nothing, so the band and the Index tab cannot describe one number two ways. #}
+          {% if hero.reported.available %}
+            <div class="lb-stat rep"><span class="k">{{ hero.reported.ticker }}
+                <span class="rep-tag">reported</span></span>
+              <span class="v {{ 'pos' if (hero.reported.mark_pct or 0) >= 0 else 'neg' }}">
+                {{ "%+.2f%%"|format(hero.reported.mark_pct) }}</span></div>
+            <div class="lb-stat rep"><span class="k">vs {{ hero.reported.ticker }}
+                <span class="rep-tag">reported</span></span>
+              <span class="v {{ 'pos' if (hero.reported.excess_pp or 0) >= 0 else 'neg' }}">
+                {{ "%+.2fpp"|format(hero.reported.excess_pp) }}</span></div>
+          {% endif %}
           {# LA8 — "Days" used to render the ROW COUNT, so a track 7 days old with 2 rows read
              as 2 days old: a recording failure displayed as a short record. The age comes from
              index_track's calendar, and the rows sit beside it whenever they differ, so a gap
@@ -148,6 +176,16 @@
         {% if hero.index.available and hero.index.book %}
           <div class="lb-stat lb-prov" style="flex-basis:100%">
             <span class="muted" style="font-size:12.5px">{{ hero.index.book }} · {{ hero.index.window }}</span></div>
+        {% endif %}
+        {# The wording, in `reported_benchmark`'s own words. A reader who takes in only this
+           band must not leave thinking two benchmark claims are being made. #}
+        {% if hero.reported.available %}
+          <div class="lb-stat lb-prov" style="flex-basis:100%">
+            <span class="muted" style="font-size:12px">{{ hero.reported.ticker }} is a
+              <b>{{ hero.reported.label }}</b>. {{ hero.reported.posture }}
+              {%- if not hero.reported.aligned and hero.reported.as_of %}
+                Measured to {{ hero.reported.as_of }}.
+              {%- endif %}</span></div>
         {% endif %}
         {% if hero.options.available %}
           <div class="lb-stat"><span class="k">Options (paper)</span>

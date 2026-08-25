@@ -2413,11 +2413,28 @@ function indexChart(d) {
     type: "line",
     data: {
       labels: s.map(r => r.date),
+      // THREE LINES, THREE TREATMENTS, AND THE HIERARCHY DOES NOT DEPEND ON COLOUR.
+      //
+      // SPY and SPMO used to be two light greys (#9aa4b8 dashed, #b9c0cd dotted) and read as
+      // the same series at a glance — worst exactly where they converge, which is most of the
+      // time, because they are both large-cap US equity benchmarks. Three properties now vary
+      // TOGETHER rather than one varying alone:
+      //
+      //   subject   Valquo Index   SOLID      widest (2.6)   darkest
+      //   bound     SPY            LONG DASH  medium (2.0)   mid tone
+      //   reported  SPMO           FINE DOT   thinnest (1.4) lightest
+      //
+      // Dash GEOMETRY carries it in greyscale, WEIGHT carries it for a colourblind reader, and
+      // tone carries it for everyone else. Any one of the three alone is enough to order them,
+      // which is the test: a chart whose meaning survives only in colour is a chart that loses
+      // its meaning in a screenshot, a print, or to about one man in twelve.
       datasets: [
-        { label: "Valquo Index", data: s.map(r => r.valquo), borderColor: "#3454a4",
-          backgroundColor: "rgba(52,84,164,.10)", fill: true, tension: .2, pointRadius: 0, borderWidth: 2 },
-        { label: d.benchmark || "SPY", data: s.map(r => r.spy), borderColor: "#9aa4b8",
-          borderDash: [5, 4], fill: false, tension: .2, pointRadius: 0, borderWidth: 2 },
+        { label: "Valquo Index", data: s.map(r => r.valquo), borderColor: "#2c4a94",
+          backgroundColor: "rgba(52,84,164,.10)", fill: true, tension: .2, pointRadius: 0,
+          borderWidth: 2.6, order: 1 },
+        { label: (d.benchmark || "SPY") + " — contract benchmark", data: s.map(r => r.spy),
+          borderColor: "#6b7794", borderDash: [10, 4], fill: false, tension: .2,
+          pointRadius: 0, borderWidth: 2, order: 2 },
         // PT-SPMO — the REPORTED benchmark, on the SAME y-axis as the other two. A second
         // scale would let two different arithmetics share a picture and look comparable, and
         // the whole value of this line is that it IS comparable: same base date, same
@@ -2434,10 +2451,10 @@ function indexChart(d) {
         // across one would draw a flat stretch that reads as a day the benchmark did not
         // move, which is a claim nobody measured.
         ...(s.some(r => r.spmo != null)
-          ? [{ label: ((d.reported_benchmark || {}).ticker || "SPMO") + " (reported)",
-               data: s.map(r => (r.spmo == null ? null : r.spmo)), borderColor: "#b9c0cd",
-               borderDash: [2, 3], fill: false, tension: .2, pointRadius: 0, borderWidth: 2,
-               spanGaps: false }]
+          ? [{ label: ((d.reported_benchmark || {}).ticker || "SPMO") + " — reported, not bound",
+               data: s.map(r => (r.spmo == null ? null : r.spmo)), borderColor: "#aeb6c4",
+               borderDash: [1.5, 3.5], fill: false, tension: .2, pointRadius: 0,
+               borderWidth: 1.4, spanGaps: false, order: 3 }]
           : []),
       ],
     },

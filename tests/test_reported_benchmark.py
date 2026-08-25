@@ -683,20 +683,27 @@ def test_the_numbers_row_labels_the_spmo_tile_reported():
 
 
 def test_the_third_chart_line_is_distinct_and_shares_the_one_scale():
-    """SPY is already dashed, so a third dashed line is told apart only by colour.
+    """SPY is already broken, so a third broken line must not share its geometry.
 
     And it must share the y-axis: a second scale lets two different arithmetics share a
     picture and look comparable, when the whole value of this line is that it IS comparable.
+
+    IT USED TO PIN THE LITERAL GEOMETRIES (`[2, 3]` and `[5, 4]`), which is a check on the
+    NUMBERS rather than on the property they were chosen for. When the two lines were later
+    made more distinct — because in practice they still read alike where they converge — this
+    test failed against an improvement. The property is that the two benchmarks do not share a
+    dash geometry and that the reported one is the finer of the two; the exact values are a
+    design choice and belong to whoever is looking at the chart.
     """
-    js = _app_js()
-    i = js.find("STATE.charts.idx")
-    assert i > 0
-    chart = js[i:i + 2600]
+    chart = _chart_datasets()
     assert "r.spmo" in chart, "the chart never reads the attached SPMO level"
-    assert "borderDash: [2, 3]" in chart, "the SPMO line is not dotted"
-    assert "borderDash: [5, 4]" in chart, "the SPY line stopped being dashed"
-    assert "yAxisID" not in chart, "a second axis was introduced"
-    assert "(reported)" in chart, "the legend does not mark the line as reported"
+    dashes = re.findall(r"borderDash: \[([0-9.]+), ([0-9.]+)\]", chart)
+    assert len(dashes) == 2, "expected exactly two broken lines, got %r" % (dashes,)
+    assert dashes[0] != dashes[1], "the two benchmarks share a dash geometry: %r" % (dashes,)
+    assert float(dashes[1][0]) < float(dashes[0][0]), (
+        "the reported line's dashes are not finer than the bound one's: %r" % (dashes,))
+    assert "yAxisID" not in _chart_config(), "a second axis was introduced on THIS chart"
+    assert "reported" in chart, "the legend does not mark the line as reported"
 
 
 def test_the_chart_caption_says_the_reported_line_is_not_the_contract():
@@ -737,6 +744,309 @@ def test_the_rendered_payload_with_the_series_carries_no_banned_phrase():
         assert rb.violations(text) == [], rb.violations(text)
         # the negative control: the honest sentence must survive, and it is not a trivial one
         assert "contract" in c["label"] and "t 3.65" in c["why"], c
+
+
+# =======================================================================================
+# THE HERO BAND — one source of truth, and a distinction carried visually
+# =======================================================================================
+HERO = os.path.join(ROOT, "valuation", "web", "hero.py")
+INDEX_HTML = os.path.join(ROOT, "valuation", "web", "templates", "index.html")
+STYLE_CSS = os.path.join(ROOT, "valuation", "web", "static", "style.css")
+
+#: A claim with the module's OWN wording and figures that differ from each other, so a test
+#: cannot pass by rendering the wrong field.
+HERO_CLAIM = {
+    "available": True, "reason": "", "ticker": "SPMO",
+    "label": rb.LABEL, "why": rb.WHY, "posture": rb.POSTURE,
+    "as_of": "2026-08-24", "since": "2026-07-31", "n_points": 9,
+    "valquo_pct": 4.2107, "spmo_pct": 1.9043, "excess_pp": 2.3064,
+    "valquo_src": "recorded",
+}
+
+
+def _with_claim(claim):
+    """Swap `reported_benchmark.claim` for a fixed one. Returns a restorer."""
+    was = rb.claim
+    rb.claim = lambda **k: (dict(claim) if isinstance(claim, dict) else claim)
+
+    def restore():
+        rb.claim = was
+    return restore
+
+
+def _render_band(claim=None, index_over=None) -> str:
+    """The rendered band, as a visitor receives it."""
+    from valuation.saas.app_saas import create_saas_app
+    from valuation.web import hero as H
+    from flask import render_template
+
+    restore = _with_claim(HERO_CLAIM if claim is None else claim)
+    try:
+        idx = {"available": True, "benchmark": "SPY", "cum_pct": 4.2107, "bench_pct": 1.5,
+               "excess_pp": 2.7107, "days": 9, "book": "86 names",
+               "window": "since 2026-07-31", "as_of": "2026-08-24",
+               "age": {"age": 17, "recorded": 9, "complete": False, "short": "17d"}}
+        idx.update(index_over or {})
+        hero = {"show": True, "thin": True, "may_lead": False, "since": "2026-07-31",
+                "label": "paper, since 2026-07-31, thin", "index": idx,
+                "options": {"available": False}, "spark": None,
+                "reported": H._reported_block(idx), "caveat": "Paper, not real money."}
+        app = create_saas_app()
+        with app.test_request_context():
+            html = render_template("index.html", live_hero=lambda: hero,
+                                   may_see_owner=True, work_url="/work")
+    finally:
+        restore()
+    i = html.find('class="livebar')
+    j = html.find("<!-- SINGLE -->", i)
+    return html[i:j] if i >= 0 else ""
+
+
+def test_the_hero_and_the_index_tab_read_the_same_reported_function():
+    """ONE SOURCE OF TRUTH. Two implementations of one number is `B7`'s defect class, and
+    `hero.py`'s own docstring records the sharper version: the fallback removed in 2026-08-09
+    took *its own `(idx - bench) * 100`, a second definition of excess return, free to drift
+    from the recorder's*.
+
+    Asserted on the SYNTAX TREE of both call sites, because a runtime check only sees the
+    paths a test happens to exercise.
+    """
+    def _calls(path, fn_name):
+        tree = ast.parse(open(path, encoding="utf-8").read())
+        fn = next((n for n in ast.walk(tree)
+                   if isinstance(n, ast.FunctionDef) and n.name == fn_name), None)
+        assert fn is not None, "%s is gone from %s" % (fn_name, path)
+        return {n.func.attr for n in ast.walk(fn)
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+
+    hero_calls = _calls(HERO, "_reported_block")
+    api_calls = _calls(os.path.join(ROOT, "valuation", "web", "app.py"), "api_index_track")
+    assert "claim" in hero_calls, "the hero does not read reported_benchmark.claim"
+    assert "claim" in api_calls, "the index route does not read reported_benchmark.claim"
+
+
+def test_the_hero_never_recomputes_the_reported_excess():
+    """It COPIES `excess_pp`. A hero that divided two levels would be the second definition."""
+    src = open(HERO, encoding="utf-8").read()
+    tree = ast.parse(src)
+    fn = next(n for n in ast.walk(tree)
+              if isinstance(n, ast.FunctionDef) and n.name == "_reported_block")
+    for node in ast.walk(fn):
+        assert not isinstance(node, ast.BinOp), (
+            "the hero does arithmetic on the reported benchmark at line %d — it must copy the "
+            "recorder's figure, never derive one" % node.lineno)
+
+
+def test_the_reported_figures_reach_the_band_and_are_the_recorders():
+    band = _render_band()
+    assert "+1.90%" in band, "the SPMO mark is not on the band"
+    assert "+2.31pp" in band, "the SPMO excess is not on the band"
+    # ...and the BOUND excess is a different number, still present and unchanged.
+    assert "+2.71pp" in band, "the bound excess moved"
+
+
+def test_the_not_bound_wording_survives_into_the_rendered_band():
+    """V3's precedent: one module owns the calibrated wording, asserted VERBATIM against the
+    RENDERED payload rather than the source.
+
+    `hero.py`'s own lesson is why it is the rendered payload: the removed fallback DID set
+    `source: "paper-sandbox"`, honestly, and the template never rendered it — *a label that a
+    surface can decline to show is not a safeguard*.
+    """
+    band = _render_band()
+    import html as _h
+    plain = _h.unescape(band)
+    assert rb.LABEL in plain, "the reported-benchmark LABEL is not rendered on the band"
+    assert rb.POSTURE in plain, "the posture sentence is not rendered on the band"
+    assert "reported" in band, "the inline `reported` tag is missing"
+    for banned in rb.BANNED:
+        assert banned not in plain.lower(), "the band carries a banned phrase: %r" % banned
+
+
+def test_the_band_makes_no_reported_claim_when_none_is_recorded():
+    """The normal state on a service that has recorded no comparison yet."""
+    band = _render_band(claim={"available": False, "reason": "nothing recorded yet"})
+    assert "SPMO" not in band, "the band named a benchmark it has no figure for"
+    assert "rep-tag" not in band, "an empty reported block still rendered its tag"
+    # The bound claim is untouched by its absence.
+    assert "+2.71pp" in band, "the bound excess vanished with the reported one"
+
+
+def test_the_reported_block_can_never_gate_the_band():
+    """Context may not decide whether the claim is shown. `show` is computed from the index
+    and options blocks only, asserted on the tree."""
+    tree = ast.parse(open(HERO, encoding="utf-8").read())
+    fn = next(n for n in ast.walk(tree)
+              if isinstance(n, ast.FunctionDef) and n.name == "live_hero")
+    for node in ast.walk(fn):
+        if isinstance(node, ast.Assign) and any(
+                isinstance(t, ast.Name) and t.id in ("show", "thin") for t in node.targets):
+            names = {n.id for n in ast.walk(node.value) if isinstance(n, ast.Name)}
+            assert "rep" not in names, (
+                "the reported benchmark participates in `%s` at line %d"
+                % (node.targets[0].id, node.lineno))
+
+
+def test_the_day_and_recorded_counts_agree_across_both_surfaces():
+    """A hero card and a detail box disagreeing about how much evidence exists is worse than
+    either number being wrong. Both read `index_track.summarize`'s `live.age`, so this pins
+    that neither surface derives its own."""
+    hero_src = open(HERO, encoding="utf-8").read()
+    js = open(os.path.join(ROOT, "valuation", "web", "static", "app.js"),
+              encoding="utf-8").read()
+    assert '"age": live.get("age")' in hero_src, "the hero stopped taking age from the recorder"
+    assert "live.age" in js, "the Index tab stopped taking age from the recorder"
+    # Neither surface may count rows and call it an age — LA8's defect.
+    tree = ast.parse(hero_src)
+    fn = next(n for n in ast.walk(tree)
+              if isinstance(n, ast.FunctionDef) and n.name == "_index_block")
+    got = {n.args[0].value for n in ast.walk(fn)
+           if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+           and n.func.attr == "get" and n.args and isinstance(n.args[0], ast.Constant)}
+    assert "age" in got and "days" in got, got
+
+
+def test_an_as_of_mismatch_is_disclosed_rather_than_absorbed():
+    """The two series are different files and can end on different dates. Rendered flush
+    against each other with no note, that is two windows presented as one."""
+    from valuation.web import hero as H
+    restore = _with_claim(HERO_CLAIM)
+    try:
+        assert H._reported_block({"as_of": "2026-08-24"})["aligned"] is True
+        assert H._reported_block({"as_of": "2026-08-22"})["aligned"] is False
+    finally:
+        restore()
+    band = _render_band(index_over={"as_of": "2026-08-22"})
+    assert "Measured to 2026-08-24" in band, "a date mismatch was rendered silently"
+    assert "Measured to" not in _render_band(), "the note shows when the dates agree"
+
+
+def test_the_reported_tiles_are_subordinate_on_axes_that_are_not_colour():
+    """A hierarchy that lives only in colour is lost to a greyscale print and to a colourblind
+    reader. SIZE and WEIGHT are asserted numerically; the inline tag is a WORD."""
+    css = open(STYLE_CSS, encoding="utf-8").read()
+    claim = re.search(r"\.lb-stat \.v\{([^}]*)\}", css).group(1)
+    rep = re.search(r"\.lb-stat\.rep \.v\{([^}]*)\}", css)
+    assert rep, ".lb-stat.rep .v is not styled at all"
+    rep = rep.group(1)
+
+    def _num(block, prop):
+        m = re.search(prop + r":([0-9.]+)", block)
+        return float(m.group(1)) if m else None
+
+    assert _num(rep, "font-size") < _num(claim, "font-size"), (claim, rep)
+    assert _num(rep, "font-weight") < _num(claim, "font-weight"), (claim, rep)
+    # A NON-ZERO border, and every `.lb-stat.rep{...}` block is examined rather than the
+    # first match. The first version of this assertion searched for the SUBSTRING
+    # `border-left` and was satisfied by the mobile override, which sets `border-left:0` —
+    # so deleting the real separator left the test green. Found by mutation.
+    blocks = re.findall(r"\.lb-stat\.rep\{([^}]*)\}", css)
+    assert blocks, ".lb-stat.rep is not styled at all"
+    widths = [re.search(r"border-left:\s*([0-9.]+)", b) for b in blocks]
+    assert any(m and float(m.group(1)) > 0 for m in widths), (
+        "no non-colour separator between the claim and the context: %r" % blocks)
+    band = _render_band()
+    # BOTH tiles, counted. Asserting `in` passed a mutation that stripped the class from only
+    # the first of the two — found by the tripwire run, which is what tripwires are for.
+    assert band.count('class="lb-stat rep"') == 2, (
+        "expected both reported tiles to carry the subordinate class, found %d"
+        % band.count('class="lb-stat rep"'))
+    assert band.count("rep-tag") == 2, (
+        "expected both reported tiles to carry the inline tag, found %d"
+        % band.count("rep-tag"))
+
+
+# =======================================================================================
+# THE CHART — three lines a reader can order in one second, without colour
+# =======================================================================================
+def _chart_config() -> str:
+    """The index chart's whole `new Chart(el, {...})` config, brace-balanced.
+
+    Scoped rather than file-wide: `app.js` draws several charts and some of them legitimately
+    use a second axis, so asking whether `yAxisID` appears ANYWHERE answers a different
+    question from the one being asked.
+    """
+    js = _app_js()
+    i = js.find("STATE.charts.idx")
+    assert i > 0, "the index chart is gone"
+    j = js.index("{", js.index("new Chart(", i))
+    depth = 0
+    for k in range(j, len(js)):
+        if js[k] == "{":
+            depth += 1
+        elif js[k] == "}":
+            depth -= 1
+            if depth == 0:
+                return js[j:k + 1]
+    raise AssertionError("unbalanced chart config")
+
+
+def _chart_datasets() -> str:
+    """The chart's `datasets: [...]` array, extracted by BALANCING BRACKETS.
+
+    NOT a fixed character window. The first cut of these tests took `js[i:i + 2600]` from
+    `STATE.charts.idx`, and adding a comment above the datasets pushed the third line out of
+    the window — the test then reported that the chart *"never reads the attached SPMO level"*
+    when the chart was fine. That is the same defect shape as the 400-character
+    `except Exception` window in `test_the_api_payload_exposes_the_block_without_breaking_the_
+    bound_card`, which a comment of mine also broke: a guard whose reach is measured in
+    characters is a guard that prose can silently move out from under.
+    """
+    js = _app_js()
+    i = js.find("STATE.charts.idx")
+    assert i > 0, "the index chart is gone"
+    start = js.find("datasets: [", i)
+    assert start > 0, "the chart has no datasets array"
+    depth, j = 0, js.index("[", start)
+    for k in range(j, len(js)):
+        if js[k] == "[":
+            depth += 1
+        elif js[k] == "]":
+            depth -= 1
+            if depth == 0:
+                return js[j:k + 1]
+    raise AssertionError("unbalanced datasets array")
+
+
+def test_the_three_lines_differ_in_geometry_and_in_weight_not_only_in_hue():
+    """SPY and SPMO used to be two light greys, one dashed and one dotted, and read as the
+    same series wherever they converged — which on two large-cap US benchmarks is most of the
+    time. Geometry, weight and tone now vary together, so ANY ONE of the three is enough to
+    order them."""
+    ds = _chart_datasets()
+    dashes = re.findall(r"borderDash: \[([0-9.]+), ([0-9.]+)\]", ds)
+    widths = [float(w) for w in re.findall(r"borderWidth: ([0-9.]+)", ds)]
+    colours = re.findall(r'borderColor: "(#[0-9a-fA-F]{6})"', ds)
+
+    assert len(dashes) == 2, dashes                     # the subject line is SOLID
+    assert len(set(dashes)) == 2, "the two benchmarks share a dash geometry: %r" % dashes
+    assert len(widths) == 3 and len(set(widths)) == 3, "line weights are not distinct: %r" % widths
+    assert len(colours) == 3 and len(set(colours)) == 3, "line tones are not distinct: %r" % colours
+
+    # The ordering is the hierarchy: subject widest, reported thinnest.
+    assert widths[0] == max(widths), "the subject is not the widest line: %r" % widths
+    assert widths[-1] == min(widths), "the reported line is not the thinnest: %r" % widths
+
+
+def test_the_subject_line_is_the_only_solid_one():
+    ds = _chart_datasets()
+    first = ds[:ds.find("borderDash")]
+    assert "Valquo Index" in first, "the first dataset is not the subject"
+    assert "borderDash" not in first, "the subject line is broken rather than solid"
+
+
+def test_the_legend_says_which_benchmark_is_bound_and_which_is_reported():
+    ds = _chart_datasets()
+    assert "contract benchmark" in ds, "the legend does not mark SPY as the bound one"
+    assert "reported, not bound" in ds, "the legend does not mark SPMO as reported"
+
+
+def test_the_chart_caption_keeps_its_distinction():
+    js = _app_js()
+    i = js.find("Cumulative return of the MODEL portfolio")
+    assert i > 0
+    cap = js[i:i + 900]
+    assert "reported benchmark" in cap and "contract" in cap, cap[:300]
 
 
 def test_no_test_in_this_file_is_shadowed_by_a_duplicate_name():
