@@ -115,6 +115,96 @@ the project's memory and the old versions had been repeated for months.
     skipping loudly, the suite provably never touching the network.**
     `scripts/w14_census.py`, `W14_EXECUTOR_VERDICT.md`; `data/free_analysis/W14_CENSUS.json`,
     `W14_CENSUS_COLUMNS.json`, `W14_RETAIL_IDENTIFIER.json`; `HANDOFF_optionsbot.md` 78.
+- **THE POINT-IN-TIME SECTOR MAP EXISTS AT LAST, AND THE LOOK-AHEAD IT REPAIRS TOUCHES 4.60% OF
+  THE BANKED VALUATION PANEL — BUT ITS CROSSWALK COSTS 11.37% DISAGREEMENT, WHICH IS LARGER THAN
+  THE THING IT REPAIRS (2026-08-25, `S25`).** **THE FIRST PERMANENTLY-CLOSED LEDGER ROW WHOSE OWN
+  NAMED EXIT CRITERION HAS BEEN MET** — `S25` closed `UNOBTAINABLE-WITHOUT-NEW-DATA` on
+  2026-08-12 and wrote its route back down; `comp.co_hgic` is that route, dated.
+  `PREREG_s25_sector_crosswalk.md` committed **ALONE at `928e46c`**, markdown only, zero `.py`,
+  151 lines, a strict ancestor of every measurement commit, **BEFORE any crosswalk code existed**.
+  **ZERO TRIALS, `FIXED`-class** — `by_domain` bit-identical across the log append (equity **243**,
+  options **308**, infra **20**) while `rows_fixed_not_counted` rises **78 -> 79**. **ADOPTS
+  NOTHING, WIRES NOTHING, RUNS NO RANKING ARM.**
+  * **THE CROSSWALK IS A CHOICE AND ITS TARGET WAS FORCED RATHER THAN PREFERRED.** Eleven GICS
+    sectors and eleven panel sectors admit many mappings; the shipped one is declared cell by cell
+    with a reason per cell. The TARGET is not taste: `SECTOR_TARGET_MARGIN` and `SECTOR_MULTIPLES`
+    are keyed on exactly eleven strings, so a mapping onto anything else would be unusable by the
+    thing it exists to repair. `engine_sector_keys()` **IMPORTS** those keys rather than retyping
+    them (`MA5`), and **zero GICS codes came back UNMAPPED on the real pull.**
+  * **BOTH ENGINE DICTS FAIL OPEN, MEASURED NOT ASSUMED, AND THAT IS WHY `UNMAPPED` IS A NAMED
+    STATE.** `SECTOR_TARGET_MARGIN.get(cd.sector, 0.12)` and `SECTOR_MULTIPLES.get(cd.sector,
+    _DEFAULT)` — **so a crosswalk returning nothing is not neutral, it is a VOTE for 0.12 in the
+    middle of a 2.70x range.**
+  * **THE COST WAS DECLARED IN ADVANCE AND THEN MEASURED: 205 of 1,803 covered names disagree
+    with the panel's own sector TODAY — 11.37%**, largest pair Technology (panel) against
+    Communication Services (GICS). **The labels map 1:1; the MEMBERSHIP does not.** It is required
+    output rather than a defect, **because without it a repair that changes a name's sector cannot
+    be attributed** — the change is either look-ahead being fixed or the taxonomy switch.
+  * **COVERAGE: 2,314 of 2,441 panel tickers (94.8%) — measured on the S23 VALUATION panel, which is NOT the 2,531-name metrics panel the register quotes the census 94.9% against; two nearly-equal percentages on different objects**, 3,853 dated spans, 992 names (42.9%)
+    reclassified at least once** — which is what makes it a HISTORY rather than a snapshot wearing
+    a date. **ZERO ambiguous tickers.** **AND 638 NAMES ARE NOT COVERED *TODAY*, WHICH IS CORRECT
+    BEHAVIOUR RATHER THAN A HOLE:** their latest span carries an `indthru` in the past because they
+    delisted, and **a lapsed classification is not evidence about today**, so `current()` refuses
+    rather than carrying it forward. A date falling in a GAP between spans refuses the same way.
+  * **THE LOOK-AHEAD REFUSAL IS THE PROPERTY THE MODULE EXISTS FOR: a date PREDATING a name's
+    first classification returns `NOT_COVERED` and NEVER the first span.** Returning it would read
+    as coverage, produce a plausible sector, and be undetectable downstream — the exact defect
+    being removed, re-introduced by the thing removing it. Pinned with a **positive control** so
+    the guard cannot pass by refusing everything.
+  * **A REVISION IS NOT A CORPORATE EVENT, AND THE RULE NEEDS BOTH CONDITIONS.** 1,539
+    transitions — **1,403 `FIRM_RECLASSIFICATION`, 74 Real Estate 2016, 62 Communication Services
+    2018.** `classify_transition` requires the date window **AND** the destination code, because
+    **either alone over-claims**: a window alone relabels every ordinary reclassification in that
+    month, a code alone relabels every move into Real Estate for the next decade. Both one-sided
+    cases ship as negative controls. **THE FLAG IS DIAGNOSTIC, NOT A FILTER** — for a VALUATION
+    repair a revision really does change which margin a name is scored against, whatever caused
+    it. `I-4`'s codes-34/35 sunset in a new table.
+  * **A PREMISE CORRECTION THAT RUNS AGAINST THE BRIEF.** It cites 1,053 matched tickers mapping
+    to more than one permno; **on the COMPUSTAT side that figure does not transfer — 77,411
+    tickers map to exactly one gvkey and only FOUR map to two, none of them in our universe.**
+    The 1,053 is a CRSP-side *permno* count. The `AMBIGUOUS_TICKER` refusal is implemented, tested
+    and mutation-tested, and **never fires on the real data**; it ships anyway, because a refusal
+    that costs nothing today is the one you want present the day the universe moves.
+  * **THE HONEST LIMIT, IN THE ARTIFACT RATHER THAN IN A HANDOFF: `comp.security` CARRIES NO DATE
+    COLUMNS**, so the ticker->gvkey link is itself a SNAPSHOT. The four-ticker figure bounds
+    *simultaneous* ambiguity; **TEMPORAL reuse — a ticker that was company A in 2009 and is company
+    B today — is NOT observable on this route at all.**
+  * **THE REPAIR, ON 108,241 BANKED VALUATION ROWS: 104,097 (96.2%) resolve, and REPAIR-A moves an
+    engine input on 4,982 rows — 4.60%.** 6,235 rows carry a GICS reclassification and **1,253 of
+    them move NOTHING**, because GICS moved the name between two codes the crosswalk sends to the
+    same panel string — **reported rather than folded into either count, since quoting 6,235
+    overstates the repair by 25% and quoting 4,982 understates the reclassification count.**
+    **1,178 of the 6,235 (18.9%) are TAXONOMY-REVISION driven**, so about a fifth of what this
+    repair moves is an index provider's paperwork — moved *correctly*, because the margin really
+    does change.
+  * **THE NUMBER MOST LIKELY TO BE MISQUOTED IS THE MEAN.** Target-margin delta on changed rows:
+    **median +0.03, range -0.17 to +0.17, mean -0.0015, and 2,151 rows move by 0.05 or more.**
+    The near-zero mean means the reclassifications **point both ways**, NOT that the repair is
+    small. Sector PE delta median -2, range -17 to +17. Legs the changed rows actually used:
+    multiples 4,611, DCF 3,775, growth 3,741, **neither 371**.
+  * **REPAIR-B (FULL) IS 13,799 ROWS (12.75%) AND CARRIES NO VERDICT** — it fixes look-ahead
+    **and** switches taxonomy in one step, so it is confounded by construction and **may only be
+    quoted beside the 11.37% disagreement that explains most of it.** A void condition of the
+    register, not a preference.
+  * **THE FAIR-VALUE CONSEQUENCE IS NOT MEASURED AND IS NOT REPORTED AS ZERO — and the reason was
+    CHECKED rather than assumed.** I intended to price the comps leg from the banked panel;
+    **`ev_ebitda_used` and `ev_sales_used` are BOOLEAN METHOD FLAGS, not the multiples**, so the
+    multiple a row was scored against is unrecoverable and the leg cannot be recomputed without a
+    valuation re-run. What ships is INPUT movement plus the leg census that bounds it.
+  * **NOT DONE, named so it is not mistaken for done: `SECTOR-NEUTRAL-B6` IS NOT RE-OPENED.** It
+    was REJECTED TWICE on measurement in both held-out directions and `S25` was only one of its
+    two named routes back — **a dated map removes the DATA objection and does not touch the
+    REJECTION**; re-opening needs its own blind register and its own trials, and is not proposed.
+    **`calibration.py` IS DELIBERATELY UNCHANGED and the pin
+    `test_s25_the_pit_valuation_still_reads_a_non_point_in_time_sector` STAYS GREEN, WHICH IS
+    CORRECT** — the exposure is still live, and wiring the repair is a construction change with a
+    real blast radius and Don's call. Also not done: **no fair value recomputed; the pre-1999 rows
+    are NOT repairable at all** and no sector is invented for them (`S23`'s path reaches 1998);
+    **`ggroup`/`gind`/`gsubind` are pulled but not exposed**; and temporal ticker reuse is
+    unmeasured. **34 tests, zero skips; 8 of 8 mutations caught with sources restored
+    byte-for-byte.** `valuation/edge/sector_map.py`, `scripts/s25_sector_map.py`;
+    `data/free_analysis/S25_SECTOR_MAP.json`, `S25_REPAIR.json`; **raw GICS rows stay in
+    `D:\wrds` and never reach the repo**; `HANDOFF_edge_audit.md` S25.
 - **THE MARKET ALREADY PRICES ABOUT HALF OF `MA28`'s ACCOUNTING FLAG, AND THE FIRST LONG-PUT BOOK
   THIS PROJECT HAS EVER RUN IS UNDERPOWERED BY CONSTRUCTION — 74 FLAGGED TRADES AGAINST A
   POWER-DERIVED FLOOR OF 3,600 (2026-08-25, `O-1`).**
