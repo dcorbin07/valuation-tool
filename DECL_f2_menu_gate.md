@@ -96,3 +96,36 @@ refuses a declaration it cannot read. Converting is part of acceptance, not a re
   "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money."
 }
 ```
+
+
+---
+
+## SCOUT AMENDMENT ACCEPTED — applied at arming, 2026-08-25, options-live lane
+
+**A NEW DATED SECTION, NEVER AN EDIT** (`PT-AMEND1`). Everything above is untouched, so the
+ceremony's `--diff-filter=A` evidence that this declaration predates every line of fleet code
+is intact. **It lands before this book's first fill**, which is mechanical: `verify_chain`
+anchors on the declaration's CONTENT hash, so amending a book that already has records breaks
+its own chain at row 0. This book has zero records.
+
+**The scout's amendment is `AMEND_f2_menu_gate.md` (Frontier Scout lane, commit `6b6426f`), and it is
+ACCEPTED IN FULL.** Its text is the record; this section states the operational consequence
+for the harness, and nothing here reinterprets it.
+
+**F-2 IS REPAIRED AND STAYS DECLARED.** The false *"verbatim"* sentence is withdrawn by
+name and the gate now **restates no parameter at all** — it calls the engine's own menu builder
+and counts what comes back, so the engine's bands cannot drift from the gate's. That is a
+better answer than the one this lane recommended (re-stating the parenthetical as F-2's own
+spec), because a transcribed parameter is exactly the defect `MA5` measured.
+
+**IT IS DECLARED SWING-ONLY, WHICH RESOLVES THE OBJECTION THAT MATTERED MOST.** The engine's
+DTE band is fixed and not tenor-relative, so **only hosts inside that band may opt in** — and a
+host outside it is **INELIGIBLE TO HOST THE GATE rather than refused BY it**. Those are
+different states and the harness must not conflate them; F-11 (91 DTE) is excluded by
+construction, which is precisely the case that would have had the gate refusing every F-11
+order for a reason that was not about menu breadth.
+
+**OPERATIONAL CONSEQUENCE HERE: still zero opted-in hosts**, so F-2 remains inert. Its
+`< 4` threshold is deliberately UNSET pending a live census, and the amendment withdraws the
+book outright if no chain-shape adapter proves workable. **Nothing arms F-2 until a host adds
+`gates:[menu_breadth]` to its own declaration, before that host's first fill.**

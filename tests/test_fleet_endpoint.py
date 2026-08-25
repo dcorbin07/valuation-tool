@@ -72,11 +72,28 @@ class TheRunnersDoor(unittest.TestCase):
 
     def test_a_quiet_cycle_is_200_and_says_so_in_the_body_rather_than_in_the_status(self):
         """A refusal-as-5xx teaches a scheduler to retry something that is not broken; a
-        quiet-day-as-error teaches an operator to ignore the alert. Neither is wanted."""
+        quiet-day-as-error teaches an operator to ignore the alert. Neither is wanted.
+
+        **THIS ASSERTS THE INVARIANT, NOT A MOMENT.** Its first cut asserted
+        `breathing is False`, which was true only while the local fleet happened to be
+        uncertified — and it FAILED against a CORRECT tree the moment the day-1 gate ran here
+        and books legitimately became fillable. A test pinned to a fleet STATE re-fails every
+        time the fleet progresses, which trains a reader to edit the assertion rather than
+        read it. What must always hold is that the status stays 200 and the BODY carries the
+        state, with a MEASURED reason whenever it is not breathing.
+        """
         c, hdr = _client()
-        b = c.get("/admin/fleet-cycle", headers=hdr).get_json()
-        self.assertFalse(b["breathing"])
-        self.assertIn("DECLARED-BUT-NOT-BREATHING", b["note"])
+        r = c.get("/admin/fleet-cycle", headers=hdr)
+        self.assertEqual(r.status_code, 200)
+        b = r.get_json()
+        self.assertIsInstance(b["breathing"], bool)
+        if not b["breathing"]:
+            self.assertTrue(b["not_breathing_reason"],
+                            "a non-breathing cycle must name a MEASURED cause")
+            self.assertIn(b["not_breathing_reason"].split(":")[0], b["note"])
+        else:
+            self.assertEqual(b["not_breathing_reason"], "",
+                             "a breathing cycle has no not-breathing reason to give")
 
     def test_the_body_names_every_declared_book_and_the_sandbox_caveat_travels(self):
         c, hdr = _client()

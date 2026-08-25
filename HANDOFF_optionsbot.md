@@ -9597,3 +9597,101 @@ app was rebuilt locally (70 routes, `/admin/fleet-cycle` present) to rule out a 
 this branch had caused, then re-dispatched after the deploy settled and returned 200.
 **A 502 in the minutes after a land is the deploy, not the code — but the check costs seconds
 and the alternative is shipping a broken service on a hunch.**
+
+---
+
+## 75. THE GATE OPENS WHERE THE RECORDS LIVE — day-1 on the service, and three defects a terminal could not have found (2026-08-25)
+
+**Executor: options-live lane.** `HANDOFF 74` turned the blocker into a measurement:
+`ALL_BOOKS_BLOCKED_AT_GATE:SELFCHECK_ABSENT`. Eighteen books declared, three armed, the
+assignment provider registered — and nothing able to fill because **the day-1 verification had
+never run where the records live.**
+
+### WHY LOCAL GREEN WAS NEVER THE THING BEING ASKED FOR
+
+`selfcheck_state` reads **each book's own stream**. A self-check that passes in a worktree
+writes rows into a worktree, so it certifies nothing on the service — which is exactly why the
+local run was green for weeks while every book in production read `SELFCHECK_ABSENT`.
+`run_day1` makes the whole verification callable from a process that is not a terminal, and the
+runner's door invokes it **only when the gate needs it** (ABSENT or STALE, write path only).
+Once certified it is skipped; when the harness changes, every stamp goes STALE together and it
+runs again. **A self-check on every cycle would place a real sandbox order every cycle for no
+added evidence.**
+
+**THE ORDER IS NOT REARRANGEABLE:** synthetic checks → the book's own self-check row **before**
+the live leg (because `may_fill` gates on it and the live leg's purpose is to go THROUGH that
+gate rather than around it) → the live leg → certification of the other books **only if both
+passed** → the test-book closed with a ZERO-CHARGE row.
+
+**CERTIFYING THE OTHER BOOKS IS A CLAIM ABOUT THE HARNESS, NOT ABOUT THEM.**
+`selfcheck_state` compares each book's last row against `harness_fingerprint()`, a property of
+the CODE. One verification of that code is what the fingerprint denotes, so stamping it on
+every book records the fact that was established — not eighteen separate claims.
+
+### THREE DEFECTS, ALL FOUND BY RUNNING IT THE WAY THE SERVICE RUNS IT
+
+1. **THE SELF-CHECK WAS NOT HERMETIC AND WOULD HAVE FAILED ON THE SERVICE.** Check `8a` asserts
+   a SHORT book is refused *"before anything registers"* — by reading a MODULE-LEVEL global. So
+   it failed whenever the CALLER had already registered a provider, **which is precisely what
+   the door does one line earlier.** In production the suite would have reported 19/20,
+   certified nothing, and left the fleet blocked indefinitely behind a message blaming the
+   harness. **Fixed in the harness, never the check:** the seam is saved, cleared and RESTORED,
+   so a verification cannot change its caller's world. *A check whose result depends on what
+   its caller happened to do first is testing the caller.*
+2. **MY OWN ORCHESTRATION RETURNED `ok: True` WITH THE TEST-BOOK UNCERTIFIED.** The live leg
+   would then fail at its own gate (`L2`) while the report said the harness passed. **The book
+   the live leg runs on is the one book whose certification cannot be optional.** Now fatal,
+   with the reason on the face of the result.
+3. **THE APPEND-ONLY WRITER REFUSES TO WIDEN AN EXISTING HEADER**, correctly — rewriting line 1
+   breaks the byte-prefix guarantee it verifies on every write — so every stream written before
+   §73 added four columns was **frozen**. Its own refusal says to make the change *"deliberately,
+   in the repo"*, and `migrate_stream` is that door: **ONLY a pure widening** (the on-disk
+   header an exact PREFIX of the current columns), a reorder or removal REFUSED because the old
+   rows would then mean something different, and **nothing deleted or rewritten** — the file is
+   renamed to `<book>.<n>.superseded.csv` byte-for-byte. **THE HONEST COST: A MIGRATION SPLITS
+   THE HASH CHAIN.** The archive verifies on its own and the new stream re-anchors; there is no
+   single chain spanning the change. That is the price of an append-only guarantee meeting a
+   schema change, and it is paid visibly rather than by quietly rewriting the past.
+
+**MEASURED LOCALLY END TO END:** 20/20 synthetic, testbook migrated (8 rows archived, 4 columns
+added), **17 books certified**, testbook closed, cycle **18 books / 3 rules / 0 blocked** and no
+not-breathing reason.
+
+### THE SCOUT'S FIVE AMENDMENTS — ACCEPTED IN FULL
+
+Applied as dated sections; **no declaration is edited above its own line**, so every ceremony
+commit stays the tamper-evidence it was.
+
+* **F-2 REPAIRED, and better than this lane recommended.** It now **restates NO parameter** —
+  it calls the engine's own menu builder and counts what comes back, so the engine's bands
+  cannot drift from the gate's. And it declares itself **SWING-ONLY**, which resolves the
+  objection that mattered most: **a host outside the engine's fixed band is INELIGIBLE TO HOST
+  the gate rather than refused BY it**, and those are different states. F-11 (91 DTE) is
+  excluded by construction — the exact case that would have had the gate refusing every F-11
+  order for a reason that was not about menu breadth.
+* **F-13 WITHDRAWN.** Not refused, not failed: **no trial, no meter, no verdict in either
+  direction.**
+* **AND THREE THE CEREMONY MISSED. F-4 carries F-13's defect in a book that was ACCEPTED**, and
+  F-17/F-18 inherit it **by prose reference** — which mutates silently when the parent is
+  amended, so each now adopts F-4's repaired rule **by content hash** instead. **None of the
+  three is armed and none may be until F-4's route resolves.**
+
+### `RULE_ARMED_NEVER_FIRES` — IMPLEMENTED
+
+The harness already separated *"no rule built"* from *"the rule ran and nobody qualified"*. It
+did **not** separate that from **"the rule CANNOT qualify anybody, ever"** — and F-4 is the
+second: in the scout's own words it *"arms cleanly and reports skip_rate 1.0 forever,
+indistinguishable from a quiet market."* That is this system's recurring defect class, one
+level further out.
+
+**IT CANNOT CRY WOLF, which is what makes it shippable** rather than a warning switched off in
+week one (`MA21`'s standard, and why that one was declined): a rule that has selected nothing
+across many consecutive cycles is a **fact about the rule**, not a judgement about the market.
+**One fill clears it however many skips surround it** — a rule that fires RARELY must never be
+accused of being unable to fire. Self-checks and refusals are not counted as observations.
+
+### ZERO TRIALS
+
+No meter read, no verdict, `by_domain` untouched by this lane. **The test-book's real sandbox
+fill is machinery verification, not a measurement**, and it closes with a zero-charge row: the
+charge comes at FIRST VERDICT READ and there was none.

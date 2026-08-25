@@ -54,7 +54,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
       "refusals_at_export": [],
       "touched": [
         "DECL_f10_clean_csp.md"
@@ -109,7 +109,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
       "refusals_at_export": [],
       "touched": [
         "DECL_f11_dip_reject_puts.md"
@@ -164,7 +164,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
       "refusals_at_export": [],
       "touched": [
         "DECL_f12_postevent_reversal.md"
@@ -173,7 +173,7 @@
     "f13_second_event": {
       "commit": "bcf8af3b09be247f6dc50a520c44af94570f9ed4",
       "committed_alone": true,
-      "decl_sha": "1944d79fc769f0378359ea0af9ed984b07371c3a494465dfdf8d59a36aa9a72b",
+      "decl_sha": "61b7a795cd779640177aae0f7494e6913b5368ad9c14022f12e922746fab637c",
       "declaration": {
         "book": "f13_second_event",
         "concurrency_cap": 8,
@@ -218,7 +218,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
       "refusals_at_export": [],
       "touched": [
         "DECL_f13_second_event.md"
@@ -272,7 +272,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
       "refusals_at_export": [],
       "touched": [
         "DECL_f14_fda_nohump.md"
@@ -327,7 +327,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
       "refusals_at_export": [],
       "touched": [
         "DECL_f15_insider_cluster.md"
@@ -336,7 +336,7 @@
     "f17_vrp_percentile_sells": {
       "commit": "e1682ed68cc5ed6c1c8660183c5a4a0615f0bfcb",
       "committed_alone": true,
-      "decl_sha": "68815d26423bb04b477200120d9032ef555cc5d771ed9c6a4719dfea0ec385fd",
+      "decl_sha": "e2879f58fc90d2288e17d591a92b77f3a5a0ea40adc3ff80feb8548bdca185ec",
       "declaration": {
         "assignment_model": "at expiry per moneyness, S3-I3 assignment_at_expiry",
         "book": "f17_vrp_percentile_sells",
@@ -386,7 +386,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
       "refusals_at_export": [],
       "touched": [
         "DECL_f17_vrp_percentile_sells.md"
@@ -395,7 +395,7 @@
     "f18_boring_book": {
       "commit": "ad74e2c2db95206b85ebc05c3f61fee12a129ad5",
       "committed_alone": true,
-      "decl_sha": "ba1a1772e1e137d89585d14e898756d758d6e938b4b2ad156284dc607ec977a9",
+      "decl_sha": "b30571f66e8f6e89323192b7db2ad00fd46db4f7af797fda745f1a123028d940",
       "declaration": {
         "assignment_model": "at expiry per moneyness; covered assignment closes the position at strike, S3-I3 assignment_at_expiry",
         "book": "f18_boring_book",
@@ -445,7 +445,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
       "refusals_at_export": [],
       "touched": [
         "DECL_f18_boring_book.md"
@@ -498,7 +498,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
       "refusals_at_export": [],
       "touched": [
         "DECL_f19_density_gate.md"
@@ -550,7 +550,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
       "refusals_at_export": [],
       "touched": [
         "DECL_f1_fill_ab.md"
@@ -605,7 +605,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
       "refusals_at_export": [],
       "touched": [
         "DECL_f20_married_put_storm.md"
@@ -614,7 +614,7 @@
     "f2_menu_gate": {
       "commit": "2f8a1a4f5d51b6f53932a8a9ca7eb206403ba3b0",
       "committed_alone": true,
-      "decl_sha": "e6f7a1fc54f4cdf9bd073829cfed6a5115cf756a4663d48c80ba4ee2c7b0a735",
+      "decl_sha": "6aaddf09faaf4b6c54530db084b5ad1abbef21405cc80c65fa2ee3f18b8396ca",
       "declaration": {
         "book": "f2_menu_gate",
         "concurrency_cap": 1,
@@ -657,7 +657,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
       "refusals_at_export": [],
       "touched": [
         "DECL_f2_menu_gate.md"
@@ -711,7 +711,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
       "refusals_at_export": [],
       "touched": [
         "DECL_f3_bear_puts.md"
@@ -720,7 +720,7 @@
     "f4_eventfree_premium": {
       "commit": "daf210d627d0f3492b22675f923dc798c37b06d3",
       "committed_alone": true,
-      "decl_sha": "8364aaa839aefa912adccf68ae1bb673be13cb43c94e0952d75fa7b44fd3f134",
+      "decl_sha": "e47e2fcedd5fd1dec9c0556f86487c08f00a4da0e21b7a06a0964a146b4f19fe",
       "declaration": {
         "assignment_model": "at expiry per moneyness, S3-I3 assignment_at_expiry",
         "book": "f4_eventfree_premium",
@@ -771,7 +771,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
       "refusals_at_export": [],
       "touched": [
         "DECL_f4_eventfree_premium.md"
@@ -825,7 +825,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
       "refusals_at_export": [],
       "touched": [
         "DECL_f5_ivcheap.md"
@@ -882,7 +882,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
       "refusals_at_export": [],
       "touched": [
         "DECL_f6_collar_ledger.md"
@@ -941,7 +941,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
       "refusals_at_export": [],
       "touched": [
         "DECL_f8_csp_entry_financing.md"
@@ -990,7 +990,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
       "refusals_at_export": [],
       "touched": [
         "DECL_testbook.md"
@@ -998,8 +998,8 @@
     }
   },
   "evidence_note": "Computed where git exists and consumed where it does not. On a service built from an image with no .git, fleet.may_fill falls back to this manifest and reports evidence='manifest' rather than 'git'. That is a WEAKER chain and the record says so on every gate result.",
-  "generated_utc": "2026-08-25T01:35:27+00:00",
-  "head": "7e6c666b2d5e1f502d3c18bd2ea98411af0a37c0",
+  "generated_utc": "2026-08-25T03:59:10+00:00",
+  "head": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
   "n_books": 18,
   "schema": "fleet_declarations/1",
   "skipped": {

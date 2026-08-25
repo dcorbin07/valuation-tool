@@ -672,6 +672,72 @@ def declaration_manifest(root: str = None) -> dict:
             "head": payload.get("head", ""), "reason": ""}
 
 
+def migrate_stream(book: str, root: str = None) -> dict:
+    """Archive a stream whose header PREDATES a pure column ADDITION, so it can accept rows.
+
+    **THE REFUSAL THIS ANSWERS IS CORRECT AND IS NOT BEING WEAKENED.** `append_only` refuses to
+    widen the header of a stream that already has rows, because rewriting line 1 would break
+    the byte-prefix guarantee it verifies on every write. So after a schema change, any book
+    with existing rows is frozen -- which is right, and which its own message says to fix
+    *"deliberately, in the repo"*. This is that door.
+
+    **ONLY A PURE WIDENING IS MIGRATED.** The on-disk header must be an exact PREFIX of the
+    current columns: additions at the end, nothing reordered, nothing removed. A reordering or
+    a removal is not a widening and is REFUSED, because the old rows would then mean something
+    different under the new header and no archive can repair that.
+
+    **NOTHING IS DELETED AND NOTHING IS REWRITTEN.** The old file is RENAMED to
+    `<book>.<n>.superseded.csv`, byte-for-byte, and a fresh stream begins. `scream_log`'s
+    convention: nothing removed, everything dated.
+
+    **THE HONEST COST, AND IT IS REAL: A MIGRATION SPLITS THE HASH CHAIN.** The archived file
+    verifies on its own and the new one anchors at the declaration hash again, so there is no
+    single chain spanning the change. A reader wanting the whole history has to read both and
+    know they are consecutive. That is the price of an append-only guarantee meeting a schema
+    change, and it is paid visibly rather than by quietly rewriting the past.
+    """
+    path = records_path(book, root)
+    if not os.path.exists(path):
+        return {"ok": True, "migrated": False, "reason": "no stream yet; nothing to migrate"}
+    rows, on_disk, err = AO.read_rows(path)
+    if err:
+        return {"ok": False, "migrated": False, "reason": err}
+    if not rows or list(on_disk) == list(RECORD_COLUMNS):
+        return {"ok": True, "migrated": False, "reason": "header already current"}
+    want = list(RECORD_COLUMNS)
+    if list(on_disk) != want[:len(on_disk)]:
+        return {"ok": False, "migrated": False,
+                "reason": ("on-disk header is not a PREFIX of the current columns, so this is "
+                           "a reordering or a removal rather than an addition. Refusing: the "
+                           "old rows would mean something different under the new header. "
+                           "on disk %s against %s" % (",".join(on_disk), ",".join(want)))}
+    n = 1
+    while os.path.exists(path[:-4] + ".%d.superseded.csv" % n):
+        n += 1
+    dest = path[:-4] + ".%d.superseded.csv" % n
+    os.replace(path, dest)
+    return {"ok": True, "migrated": True, "archived_to": os.path.basename(dest),
+            "rows_archived": len(rows), "added_columns": want[len(on_disk):],
+            "reason": ("chain SPLIT: the archived file verifies on its own and the new stream "
+                       "anchors at the declaration hash again")}
+
+
+def decl_sha_for(book: str, root: str = None) -> Optional[str]:
+    """This book's declaration hash, from the FILE where there is one and the manifest where
+    there is not. `None` if neither knows the book.
+
+    Every writer needs this and each one resolving it for itself is how two copies of a fact
+    drift (`MA5`). The file wins when present, so a worktree is unaffected by the manifest
+    existing -- the same precedence `may_fill` uses, and for the same reason.
+    """
+    try:
+        with open(declaration_path(book, root), encoding="utf-8") as fh:
+            return declaration_sha(fh.read())
+    except OSError:
+        entry = (declaration_manifest(root).get("books") or {}).get(str(book))
+        return (entry or {}).get("decl_sha") or None
+
+
 def may_fill(book: str, root: str = None) -> dict:
     """Every precondition on recording a fill, checked together. Refusals are RECORDS.
 
@@ -1484,6 +1550,54 @@ def declared_books(root: str = None) -> list:
     return out
 
 
+#: How many consecutive cycles a rule may run and select NOTHING before the harness says so.
+#: NOT a bar on an outcome -- it is a fact about the RULE, which is why it cannot cry wolf: a
+#: rule that has fired zero times across many cycles is not a judgement about the market.
+NEVER_FIRES_AFTER = 10
+
+
+def never_fires(book: str, root: str = None, *, after: int = NEVER_FIRES_AFTER) -> dict:
+    """`RULE_ARMED_NEVER_FIRES` -- the third state, proposed by the Frontier Scout (session 9).
+
+    **THE DEFECT IT NAMES IS THE ONE THIS SYSTEM HAS NOW CAUGHT THREE TIMES, ONE LEVEL FURTHER
+    OUT.** `cycle()` already separates *"no rule is built"* from *"the rule ran and nobody
+    qualified"*. It does NOT separate **"the rule ran and nobody qualified"** from **"the rule
+    CANNOT qualify anybody, ever"** -- and F-4 is exactly the second: it arms cleanly, runs
+    every cycle, places nothing, and reports a skip rate of 1.0, **which is indistinguishable
+    from a quiet market in the records.** F-13's version refuses loudly at arming; F-4's is
+    satisfiable-looking and always false, which is worse because it is quiet.
+
+    **IT CANNOT CRY WOLF, and that is why it is safe to ship rather than a nuisance to switch
+    off in week one** (`MA21`'s standard, and the reason that warning was declined). A rule
+    that has selected nothing across many consecutive cycles is a **fact about the rule**, not
+    a verdict on the market: the alarm says *"this has never fired"*, which is true, and says
+    nothing about whether it should have.
+
+    `after` has no bar-shaped default hidden in a call site -- the module constant is the
+    declaration of the convention and a caller may raise it, never silently inherit a
+    different one.
+    """
+    rows = (read_records(book, root) or {}).get("rows") or []
+    cycles = [r for r in rows if (r.get("kind") or "") in ("fill", "skip")]
+    fills = [r for r in cycles if (r.get("kind") or "") == "fill"]
+    skips = [r for r in cycles if (r.get("kind") or "") == "skip"]
+    n_obs = len(cycles)
+    fired = len(fills)
+    state = "OK"
+    if fired == 0 and n_obs >= int(after):
+        state = "RULE_ARMED_NEVER_FIRES"
+    return {
+        "book": book, "state": state, "fired": fired, "skipped": len(skips),
+        "observations": n_obs, "after": int(after),
+        "skip_rate": (float(len(skips)) / n_obs) if n_obs else None,
+        "reason": ("" if state == "OK" else
+                   "%s has recorded %d observations and NEVER FILLED. A rule that cannot "
+                   "qualify anybody is indistinguishable in the records from a quiet market, "
+                   "and this is the difference. Check the rule before reading the emptiness "
+                   "as a finding." % (book, n_obs)),
+    }
+
+
 def _not_breathing_reason(books_only, implemented, blocked, ran) -> str:
     """The DOMINANT measured cause, in a short code. `""` when the fleet IS breathing.
 
@@ -1557,6 +1671,10 @@ def cycle(root: str = None, *, write: bool = False, books: list = None) -> dict:
             continue
         item["candidates"] = len(cands)
         item["places_orders"] = places_orders(book)
+        nf = never_fires(book, root)
+        item["never_fires"] = nf["state"]
+        if nf["state"] != "OK":
+            item["never_fires_reason"] = nf["reason"]
         item["state"] = "RAN" if item["places_orders"] else "RAN_RIDER"
         # A candidate may declare its KIND. `fill` is the legacy shape and stays the default
         # so every rule written before skips existed is untouched; `skip` is F-14's control
@@ -1600,6 +1718,10 @@ def cycle(root: str = None, *, write: bool = False, books: list = None) -> dict:
         "entry_rules_implemented": implemented,
         "books_with_no_entry_rule": unscheduled,
         "riders_ran": riders,
+        # The scout's third state, surfaced at the top so a reader does not have to walk the
+        # per-book rows to find a rule that has never been able to fire.
+        "never_fires": [r["book"] for r in books_only
+                        if r.get("never_fires", "OK") != "OK"],
         "breathing": bool(filled) or ran,
         # THE CAUSE IS MEASURED, NEVER GUESSED -- and this exists because a GUESSED one shipped
         # and was wrong in production. `fleet-cycle.yml`'s annotation prints "no entry rule

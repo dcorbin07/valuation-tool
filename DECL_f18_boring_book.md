@@ -104,3 +104,31 @@ refuses a declaration it cannot read. Converting is part of acceptance, not a re
   "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money."
 }
 ```
+
+
+---
+
+## SCOUT AMENDMENT ACCEPTED — applied at arming, 2026-08-25, options-live lane
+
+**A NEW DATED SECTION, NEVER AN EDIT** (`PT-AMEND1`). Everything above is untouched, so the
+ceremony's `--diff-filter=A` evidence that this declaration predates every line of fleet code
+is intact. **It lands before this book's first fill**, which is mechanical: `verify_chain`
+anchors on the declaration's CONTENT hash, so amending a book that already has records breaks
+its own chain at row 0. This book has zero records.
+
+**The scout's amendment is `AMEND_f18_boring_book.md` (Frontier Scout lane, commit `6b6426f`), and it is
+ACCEPTED IN FULL.** Its text is the record; this section states the operational consequence
+for the harness, and nothing here reinterprets it.
+
+**F-18 INHERITS F-4's DEFECT the same way** — its hard filters include *"event-free per
+F-4's window rule"*, so its eligible set is empty.
+
+**AND THE MISREADING IT WOULD PRODUCE IS THE SHARPEST OF THE THREE.** F-18 is a book whose whole
+premise is MEASURED DULLNESS, so an empty set reads as *"no dull names this month"* — a
+plausible, quiet, wrong sentence. **That is exactly what `RULE_ARMED_NEVER_FIRES` exists to
+prevent**, and it is implemented.
+
+**OPERATIONAL CONSEQUENCE HERE: F-18 IS NOT ARMED and adopts F-4's repaired rule by explicit
+reference to `AMEND_f4_eventfree_premium.md` and its content hash, not by prose.** Under the
+proxy route the dullness composite's event leg is re-declared as *"event-free at a measured
+miss rate of X%"*, and X travels with the verdict.
