@@ -1,3 +1,10 @@
+# ⛔ VOID — 2026-08-26. **THE PRODUCT IS NOT ON THIS WRDS GRANT.**
+> Cboe open-close returned **zero candidates across 221 libraries**. This sketch never becomes a
+> register: `D4`'s purchase question is **UNDISSOLVED** and costs what `D4` said it costs.
+> Left unedited below as the record of the design. **Note for whoever reads it next:** the kill
+> that would have caught this was never in this file — access is the census's gate, not a
+> register's. See `WRDS_UNLOCK_MAP.md` §7.1.
+
 # PREREG DRAFT (SKETCH) — W-14: CBOE OPEN-CLOSE — the options book's first exogenous signal
 ## Tags: [`D4` DON'T-BUY (dissolved by entitlement) · `MB15` VOID (venue axis) · `O14`/`MB16`
 ## (six flow features NULL) · `R2` (the alert entry) · `MB12` (orthogonality is not a motivation)]

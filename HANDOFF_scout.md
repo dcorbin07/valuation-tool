@@ -1,5 +1,61 @@
 # HANDOFF_scout.md — Frontier Scout
 
+## SESSION 10 — MAP CORRECTION (2026-08-26)
+
+**Small and owed. Four corrections into `WRDS_UNLOCK_MAP.md` §7 (new corrections log; §2–§4
+left unedited above it, `MA18`'s precedent).**
+
+1. **W-14 REJECTED.** Cboe open-close is not on the grant under any name — **zero candidates
+   across 221 libraries**. My claim that it "dissolves `D4`'s declined $500/mo purchase"
+   **measures FALSE**; `D4` is **UNDISSOLVED** and the retail-flow question costs what `D4` said
+   it costs. The options book still has no exogenous signal. **And I recorded which gate actually
+   fired, precisely rather than flatteringly:** my K3 identification kill was pointed at the right
+   family of risk but **could not have fired** — it tests a product you have, and no product was
+   obtained. **The CENSUS rejected it, upstream of every kill in the register.** Recorded so
+   nobody concludes that good kill conditions catch access failures. They do not; mine did not.
+2. **W-16 DEAD, not merely qualified** — Intraday Indicators requires TAQ and this grant has
+   none. What survives: `B13` and `S7`'s fourth interaction unpark via **W-7 (CRSP `dsf`, 89.7%
+   coverage)**, which is promoted from fallback to route. What dies: spreads, price impact, the
+   `O18` ρ anchor, and the `S14` cost-model refinement. **Constructive substitute recorded:
+   effective spreads are estimable from daily OHLC alone** (Ardia–Guidotti–Kroencke *JFE* 2024;
+   Corwin–Schultz; Holden 2009), so a cost model survives at lower resolution with its estimator
+   named. Also corrected my own W-4 row: I called the product "daily aggregates" and it ships
+   5/15/30-minute bars — the conclusion held for the wrong reason and now holds for two right ones.
+3. **The `O-1` lesson, and it is the most expensive item on the page.** The arm returned
+   UNDERPOWERED because **a chain-coverage figure measured on the ALERT BOOK was applied to the
+   PANEL — 5.89% actual against ~75% assumed, ~17×** — and that assumption came from my draft
+   (I imported `V6-OPT`'s window, a different population). **Adopted as a standing drafting rule:
+   coverage is measured on the population the arm will test, and stated before the arm.** It now
+   sits with two siblings as this lane's checklist: *name the field and its direction in time*
+   (`F-13`), and *price a margin for what is economically acceptable, not only what is
+   statistically resolvable* (`R-1`). **Three drafts, three different ways to be confidently
+   wrong about something checkable in advance.**
+4. **What the census could NOT have answered, recorded so the rejection is not over-read.**
+   `WRDS_CENSUS.md` probed the OptionMetrics-replacement shape and **never probed open-close** —
+   a denial of six `optprice`-shaped tables was never a measurement of this product. The decisive
+   evidence is the separate 221-library sweep. **New binding convention: every `CENSUS:` line
+   must name the exact `library.table`, not a product's marketing name** — a product name is a
+   thing to search for, a table name is a thing to test. §7.4 lists the seven entries whose census
+   lines are under that standard and must be sharpened before anyone acts on them; **until an
+   entry's tables are named, its "IF the census confirms" is a wish with a colon after it.**
+
+**Also updated:** `PREREG_DRAFT_w14_cboe_openclose.md` marked **⛔ VOID** at its head (body
+unedited); `DAYTRADE_SCOUT_BRIEF.md` §3/§5 — the Intraday-Indicators question I told the sibling
+project to ask first is now **answered**, so ideas B5/B6/G23–25 are marked NOT ANSWERABLE for
+them and the freed slot in my suggested ordering goes to Historical SPDJI index-add events; and
+the map's stale counter line (options 305 → **307**).
+
+**Map's honest score after contact with the census:** one **CONFIRMED** unlock (**W-1 — `S25`
+has re-opened**, the first permanently-closed row to meet its own exit criterion), one live but
+with unnamed tables (W-3/W-3b, IBES), **two dead on entitlement** (W-5 via `tfn`, W-16 via TAQ),
+and **one rejected outright** (W-14). Normal for a speculative map — and the conditionality only
+did its job where the condition named something testable, which is correction 4's whole point.
+
+**Zero trials.** For the next session: whether the five fleet amendments landed; the sharpened
+census lines; and whether more books came back from families B and C.
+
+---
+
 ## SESSION 9 — REFUSALS REPAIRED, A RULING ABSORBED, AND A BRIEF FOR THE SIBLING (2026-08-25)
 
 **PART 1 — two books came back and I found three more.** Both refusals accepted in full;

@@ -206,11 +206,12 @@ quotes, **intraday volatility, spread, price impact** and other liquidity measur
    ships **5/15/30-minute** indicators — so a 30-minute grid, which is the grid Gao et al.'s
    intraday-momentum result lives on (idea B5).
 2. **AND THE PAGE STATES: "A subscription to the TAQ dataset is required to access WRDS Intraday
-   Indicators."** This account has **no TAQ**. **So a product listed as subscribed may be gated
-   behind one that is not — a direct, checkable contradiction that must be resolved BEFORE any
-   idea is designed against it.** *This should be the first query their scoping run runs.*
-   If it is gated, ideas B5, B6, G23–25 collapse to **not answerable**, and §4's cost model must
-   fall back to the daily-data estimators below.
+   Indicators."** This account has **no TAQ**. **UPDATE 2026-08-26 — this is now SETTLED, not
+   open: treat Intraday Indicators as UNAVAILABLE on this grant.** A product listed as subscribed
+   was gated behind one that is not. **Consequences, so their scoping run does not spend a day
+   re-deriving them: ideas B5, B6 and G23–25 are NOT ANSWERABLE**, and §4's cost model falls back
+   to the daily-OHLC estimators below — which is a real substitute, at lower resolution, with its
+   estimator named.
 
 ### The reachability table
 
@@ -221,7 +222,7 @@ quotes, **intraday volatility, spread, price impact** and other liquidity measur
 | **SEC Order Execution (605/606)** | venue-level effective/quoted spread, price improvement, fill speed | **TESTABLE NOW** (ideas F20, and an external anchor for their own ρ) |
 | **Historical SPDJI** | point-in-time index membership → add/delete dates | **TESTABLE NOW** (idea D16) |
 | **IBES** | announcement dates **and times** (actuals) for event timing | **TESTABLE NOW** (D13, D14) |
-| **WRDS Intraday Indicators** | 5/15/30-min + daily microstructure indicators | **VERIFY FIRST — may be TAQ-gated (see above)** |
+| **WRDS Intraday Indicators** | 5/15/30-min + daily microstructure indicators | **NOT AVAILABLE — TAQ-gated on this grant (settled 2026-08-26)** |
 | **Free / broker intraday bars** (broker APIs, public vendors) | minute/5-minute OHLCV, typically **recent history only**, adjustment conventions vary and are often undocumented | **TESTABLE NOW for FORWARD collection; historical depth is the constraint.** Start the recorder today — history cannot be built backwards (Valquo learned this twice) |
 | **TAQ / full depth** | order-flow imbalance, TRF retail identification, quote life | **NOT ANSWERABLE on this account.** Priced separately if ever wanted; do not design against it |
 | **News/sentiment (RavenPack etc.)** | event classification for D10 | **NOT SUBSCRIBED** — free substitutes are materially weaker |
@@ -282,8 +283,9 @@ predicting a price.
 3. **The overnight/intraday decomposition** (A1–A3) — the deepest vein reachable with data they
    already have, on a well-replicated literature.
 4. **Execution A/B on their own orders** (F21) — Valquo's `F-1`, the cheapest real experiment.
-5. **Resolve the Intraday Indicators / TAQ-gating question** (§3) — it decides whether a third of
-   §2 is reachable at all.
+5. ~~Resolve the Intraday Indicators / TAQ-gating question~~ — **ANSWERED 2026-08-26: gated,
+   unavailable.** The slot goes instead to **Historical SPDJI index-add events (D16)** — testable
+   now, on a decayed-effect prior they should price before running.
 
 **And the two Valquo findings I would put on their wall:** *a real trade pays about two-thirds of
 the quoted half-spread*, and *the widest-spread quintile lost 7.41%*. Both are measured, both are
