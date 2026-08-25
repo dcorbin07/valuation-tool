@@ -102,3 +102,62 @@ refuses a declaration it cannot read. Converting is part of acceptance, not a re
   "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money."
 }
 ```
+
+---
+
+## AMENDMENTS — added at ARMING, 2026-08-24, options-live lane
+
+**A NEW SECTION, NEVER AN EDIT** (`PT-AMEND1`). Everything above is untouched. **They land
+before this book's first fill**, which is mechanical: `verify_chain` anchors on the
+declaration's CONTENT hash, so amending a book that already has records breaks its own chain
+at row 0. F-8 has zero records.
+
+### Amendment 1 — the declared tie-break is not in the declared source
+
+**The frozen rule ends *"Cap 5; tie-break highest composite score then alphabetical"*, and the
+artifact it names carries no composite score.** `data_export/paper_track_holdings.csv` is
+`ticker, weight, entry_date, entry_price, bench_entry_price, shares, order_id, note`. **And
+the rule forbids the obvious workaround in the same sentence** — *"a published artifact, never
+the scoring path"* — so reaching into the scorer to recover the missing column is exactly what
+it rules out.
+
+**Resolved: `weight` descending, then alphabetical.** The published Index is score-weighted, so
+weight is derived FROM the quantity the declaration asked for and is the closest thing the
+permitted source contains.
+
+**THE LIMIT IS STATED BECAUSE IT IS REAL: the weight cap compresses the top.** Where the cap
+binds, two names with different composite scores carry the SAME weight, and the alphabetical
+tie-break then decides between them — which is not what "highest composite score" would have
+done. **It can only bite when more than `cap` names enter the book on one date**, and the
+alternative readings are worse: the scoring path is forbidden, and an unstated tie-break is
+not reproducible.
+
+### Amendment 2 — "each monthly rebalance" needs no calendar, and does not get one
+
+The rule identifies names *"NEWLY ENTERING ... as a row whose entry_date equals the rebalance
+date"*. **A name is newly entering on date D exactly when its published `entry_date` IS D.**
+So the artifact's own dates are the definition and no rebalance calendar is consulted, kept or
+able to drift from it. On a day with no new entries the rule returns nothing — **a market
+observation, not a build gap**, and `cycle()` reports the two apart.
+
+Measured on the published file as it stands: entry dates are per-name (2026-08-11, 2026-08-12,
+…) rather than one shared rebalance stamp, so a single-calendar reading would have matched
+nothing on most days while looking correct.
+
+### Amendment 3 — "equal secured cash" has no denominator
+
+**No allocation figure appears anywhere in the declaration**, so the sizing rule cannot be
+executed as written — the same gap F-3 has, and the same resolution: **one contract per
+position** until an allocation is declared.
+
+**It is measurement-neutral here for a reason specific to this book, and that is checkable:**
+`return_denominator` is `secured_cash`, and secured cash scales with quantity exactly as the
+premium does, so **return on secured cash is invariant to quantity.** Sizing cannot move this
+book's verdict. It would matter to survivability, and `O11` already binds that.
+
+### What is NOT amended
+
+**This book is SHORT and stays refused unless `S3-I3`'s assignment provider is registered.**
+The runner's door registers it; the rule ALSO checks for itself and returns nothing if it is
+absent, rather than trusting the gate to have run. A rule that would place a short order is
+the last place that should assume somebody else checked.

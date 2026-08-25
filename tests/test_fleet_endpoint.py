@@ -93,21 +93,23 @@ class TheRunnersDoor(unittest.TestCase):
                   "breathing"):
             self.assertEqual(b[k], direct[k], k)
 
-    def test_the_web_app_does_NOT_import_the_assignment_model(self):
-        """`MA59`'s quarantine, and it caught this handler in the act.
+    def test_the_web_app_imports_the_assignment_model_and_never_the_STUDY(self):
+        """`MA59`'s quarantine caught this handler in the act, and the fix was not to silence it.
 
-        The route briefly registered S3-I3 itself, reasoning that the runner is the
-        composition root. **`valuation/edge/assignment.py` imports the ARCHIVED
-        `valuation/edge/dividends.py`**, so importing the model from the web app made a closed
-        study reachable from a production entry point — *"reaching one from the live app means
-        the product is running an experiment."* Checked on the SYNTAX TREE of the handler's own
-        module, so a lazy import inside the function is caught too: hiding the edge from a
-        static guard is silencing it, not satisfying it.
+        The route once registered S3-I3, and the guard fired: `assignment.py` imports
+        `dividends.py`, then ARCHIVED. **`dividends` was moved to MA59's LOAD_BEARING list on
+        2026-08-24** — its own criterion (*"only importer is a closed study's own script"*) had
+        stopped being true once S3-I3 delegated five primitives to it. So the model may be
+        imported now; **what may never be imported is a closed STUDY's runner.**
+
+        Checked on the SYNTAX TREE of the handler's own module, so a lazy import inside the
+        function is caught too: hiding the edge from a static guard is silencing it, not
+        satisfying it.
         """
         import ast
-        src = io.open(os.path.join(REPO, "valuation", "saas", "app_saas.py"),
-                      encoding="utf-8").read()
-        tree = ast.parse(src)
+        with io.open(os.path.join(REPO, "valuation", "saas", "app_saas.py"),
+                     encoding="utf-8") as fh:
+            tree = ast.parse(fh.read())
         names = set()
         for n in ast.walk(tree):
             if isinstance(n, ast.ImportFrom):
@@ -117,8 +119,18 @@ class TheRunnersDoor(unittest.TestCase):
             elif isinstance(n, ast.Import):
                 names.update(a.name.rsplit(".", 1)[-1] for a in n.names)
         self.assertIn("fleet", names, "the import scan saw nothing")
-        self.assertNotIn("assignment", names)
-        self.assertNotIn("dividends", names)
+        self.assertIn("assignment", names)
+        # The STUDY runner stays unreachable. `dividends` is a library and is now
+        # load-bearing; `o21_dividends` is the closed study and must never be imported here.
+        self.assertNotIn("o21_dividends", names)
+
+    def test_dividends_moved_between_two_CHECKED_lists_and_not_out_of_both(self):
+        """The move is not a loophole, and this is why: archived asserts UNREACHABLE and
+        load-bearing asserts REACHABLE. It swapped one hard assertion for its opposite."""
+        sys.path.insert(0, os.path.join(REPO, "tests"))
+        from test_ma59_quarantine import ARCHIVED, LOAD_BEARING
+        self.assertNotIn("valuation/edge/dividends.py", ARCHIVED)
+        self.assertIn("valuation/edge/dividends.py", LOAD_BEARING)
 
     def test_the_door_REGISTERS_the_entry_rules_or_the_arming_is_invisible(self):
         """Registration is an explicit call and never an import side effect (`S3-I3`'s
@@ -134,42 +146,48 @@ class TheRunnersDoor(unittest.TestCase):
         self.assertIn("f3_bear_puts", b["entry_rules_registered"])
         self.assertGreaterEqual(b["entry_rules_implemented"], 2)
 
-    def test_registering_the_rules_did_not_smuggle_in_a_quarantined_study(self):
-        """The contrast that makes the quarantine a TEST rather than a blanket ban.
+    def test_this_handler_imports_no_module_on_MA59s_ARCHIVED_LIST(self):
+        """Derived from the list rather than from a remembered name, and that is the point.
 
-        `fleet_books` is registered and `assignment` is not, and the difference is measured:
-        one closure is clean, the other reaches the archived `dividends`. If importing
-        `fleet_books` ever pulled an archived module in, `tests/test_ma59_quarantine.py`
-        fails -- this asserts the narrower thing the handler itself controls.
+        The first cut of this test hard-coded `assertNotIn("assignment", ...)`. When
+        `dividends` was de-archived and the model became importable, the test failed against a
+        CORRECT tree -- a guard pinned to yesterday's answer instead of to the rule. It now
+        reads MA59's own ARCHIVED list, so the two move together by construction and neither
+        can drift from the other.
         """
         import ast
-        src = io.open(os.path.join(REPO, "valuation", "saas", "app_saas.py"),
-                      encoding="utf-8").read()
-        names = set()
-        for n in ast.walk(ast.parse(src)):
-            if isinstance(n, ast.ImportFrom):
-                names.update(a.name for a in n.names)
-            elif isinstance(n, ast.Import):
-                names.update(a.name.rsplit(".", 1)[-1] for a in n.names)
-        self.assertIn("fleet_books", names)
-        self.assertNotIn("assignment", names)
-        self.assertNotIn("dividends", names)
+        sys.path.insert(0, os.path.join(REPO, "tests"))
+        from test_ma59_quarantine import ARCHIVED
+        with io.open(os.path.join(REPO, "valuation", "saas", "app_saas.py"),
+                     encoding="utf-8") as fh:
+            names = set()
+            for n in ast.walk(ast.parse(fh.read())):
+                if isinstance(n, ast.ImportFrom):
+                    names.update(a.name for a in n.names)
+                elif isinstance(n, ast.Import):
+                    names.update(a.name.rsplit(".", 1)[-1] for a in n.names)
+        self.assertIn("fleet_books", names, "the import scan saw nothing")
+        banned = {r.rsplit("/", 1)[-1][:-3] for r in ARCHIVED}
+        self.assertEqual(sorted(names & banned), [])
 
-    def test_the_short_books_refuse_and_the_body_SAYS_WHY(self):
-        """The cost of the quarantine, stated in the response rather than left to be inferred.
+    def test_the_short_books_no_longer_refuse_for_want_of_an_ASSIGNMENT_MODEL(self):
+        """The six short books were blocked on S3-I3 alone. Registering it clears exactly that.
 
-        A reader seeing six books at DECLARATION_INVALID must be able to tell *"the assignment
-        model is not registered in this process"* from *"these declarations are malformed"*.
+        THE ASSERTION IS NARROW ON PURPOSE. It does not claim the short books can fill -- they
+        are still gated on the day-1 self-check like every other book, and most are still
+        blocked on the licensed-export gap. It claims the ONE refusal code that registration
+        was supposed to clear is gone. A broader assertion would pass for the wrong reason the
+        first time something else blocked them.
         """
         c, hdr = _client()
         b = c.get("/admin/fleet-cycle", headers=hdr).get_json()
-        self.assertFalse(b["assignment_provider_registered"])
-        self.assertIn("MA59", b["assignment_note"])
-        self.assertIn("dividends", b["assignment_note"])
-        states = {r["book"]: r["state"] for r in b["books"] if r.get("is_book")}
+        self.assertTrue(b["assignment_provider_registered"])
+        rows = {r["book"]: r for r in b["books"] if r.get("is_book")}
         for short in ("f4_eventfree_premium", "f6_collar_ledger", "f8_csp_entry_financing",
                       "f10_clean_csp", "f17_vrp_percentile_sells", "f18_boring_book"):
-            self.assertEqual(states.get(short), "DECLARATION_INVALID", short)
+            self.assertIn(short, rows, short)
+            self.assertNotIn("SHORT_BOOK_WITHOUT_ASSIGNMENT",
+                             str(rows[short].get("reason") or ""), short)
 
 
 if __name__ == "__main__":

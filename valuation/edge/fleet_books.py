@@ -29,6 +29,8 @@ not. `cycle()` keeps those apart and so must this module.
 """
 from __future__ import annotations
 
+import os
+
 from . import fleet as F
 
 
@@ -246,6 +248,104 @@ def f3_bear_puts(decl: dict, root: str = None, *, store=None, provider=None,
 
 
 # ---------------------------------------------------------------------------------------
+# F-8 -- CSP ENTRY FINANCING  (SHORT: needs S3-I3 registered, which the runner's door does)
+# ---------------------------------------------------------------------------------------
+# Amendment 1: the declared tie-break is "highest composite score" and the PUBLISHED artifact
+# does not carry one -- `paper_track_holdings.csv` is ticker, weight, entry_date, entry_price,
+# bench_entry_price, shares, order_id, note. The declaration also forbids the obvious
+# workaround by name: *"a published artifact, never the scoring path"*. Resolved on `weight`
+# descending, which the Index derives FROM the score -- with the honest limit that the 8% cap
+# compresses the top, so where it binds two different scores can share a weight and the
+# alphabetical tie-break then decides. It only bites when more than `cap` names enter at once.
+F8_QTY = 1
+
+
+def f8_select(rows, today, held, *, cap: int) -> list:
+    """Names NEWLY ENTERING the published paper index book today. PURE.
+
+    A name is newly entering on date D exactly when its published `entry_date` IS D. That
+    needs no rebalance calendar and cannot drift from one: the artifact's own dates are the
+    definition, and on a day with no entries the rule returns `[]`, which is a market
+    observation rather than a build gap.
+
+    `cap` has NO DEFAULT -- `MA5`. Read it from the declaration.
+    """
+    room = max(0, int(cap) - len(held))
+    if room <= 0:
+        return []
+    out = []
+    for r in rows:
+        t = str(r.get("ticker") or "").upper().strip()
+        if not t or t in held:
+            continue
+        if str(r.get("entry_date") or "")[:10] != str(today)[:10]:
+            continue
+        out.append({"ticker": t, "weight": _num(r.get("weight")) or 0.0,
+                    "entry_price": _num(r.get("entry_price"))})
+    out.sort(key=lambda d: (-d["weight"], d["ticker"]))
+    return out[:room]
+
+
+def read_published_holdings(root: str = None) -> list:
+    """The PUBLISHED artifact, never the scoring path -- the declaration says so twice.
+
+    `data_export/` is tracked and is NOT excluded from the deployed image, which is the whole
+    reason this book can run on the service at all while six of its siblings cannot.
+    """
+    import csv
+    base = root or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    path = os.path.join(base, "data_export", "paper_track_holdings.csv")
+    try:
+        with open(path, encoding="utf-8", newline="") as fh:
+            return list(csv.DictReader(fh))
+    except OSError:
+        return []
+
+
+def f8_csp_entry_financing(decl: dict, root: str = None, *, provider=None, broker=None,
+                           today=None, holdings=None) -> list:
+    """F-8 live: sell a cash-secured put on each name newly entering the published book.
+
+    **IT REFUSES ITSELF IF S3-I3 IS NOT REGISTERED**, rather than trusting the cycle's gate to
+    have done it. The gate does check -- `validate_declaration` refuses every short book
+    without a provider -- but a rule that would place a short order is the last place that
+    should assume somebody else checked. Belt and braces, and the braces are one line.
+    """
+    import datetime as _dt
+    from ..intraday.providers import get_provider
+
+    if F.assignment_provider() is None:
+        return []
+
+    st = decl.get("structure") or {}
+    today = today or _dt.date.today()
+    rows = holdings if holdings is not None else read_published_holdings(root)
+    picks = f8_select(rows, today, held_symbols("f8_csp_entry_financing", root),
+                      cap=int(decl.get("concurrency_cap") or 0))
+    if not picks:
+        return []
+
+    provider = provider if provider is not None else get_provider()
+    if broker is None:
+        from .paper_broker import PaperBroker
+        broker = PaperBroker()
+
+    sha = F.declaration_sha(_read(F.declaration_path("f8_csp_entry_financing", root)))
+    out = []
+    for p in picks:
+        got = f3_pick_contract(provider.get_option_chain(p["ticker"], dte_range=(20, 45)),
+                               p["entry_price"], today,
+                               moneyness=float(st.get("moneyness")), dte=int(st.get("dte")))
+        if got is None:
+            continue
+        c = got["contract"]
+        out.append(F.submit("f8_csp_entry_financing", broker=broker, occ=str(c.get("symbol")),
+                            underlying=p["ticker"], side="sell_to_open", qty=F8_QTY,
+                            decl_sha=sha, symbol=p["ticker"], quote=c))
+    return out
+
+
+# ---------------------------------------------------------------------------------------
 # THE REGISTRY
 # ---------------------------------------------------------------------------------------
 # book -> (callable, places_orders). `places_orders=False` marks a RIDER: a book whose own
@@ -254,6 +354,7 @@ def f3_bear_puts(decl: dict, root: str = None, *, store=None, provider=None,
 RULES = {
     "f1_fill_ab": (f1_fill_ab, False),
     "f3_bear_puts": (f3_bear_puts, True),
+    "f8_csp_entry_financing": (f8_csp_entry_financing, True),
 }
 
 

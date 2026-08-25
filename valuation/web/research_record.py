@@ -585,10 +585,19 @@ def weekly(log_path: str = None, today=None, days: int = None) -> dict:
 
         live = (RL.detail(path=log_path) or {}).get("by_domain") or {}
         win = []
+        after = {}
         for r in RL.rows(path=log_path):
             d = _iso(r.get("date"))
-            if d is not None and start <= d <= end:
+            if d is None:
+                continue
+            if start <= d <= end:
                 win.append((d, r))
+            elif d > end:
+                # Trials charged on rows dated AFTER the window. `now` is the all-time live
+                # count, so without this they would be swept into `before` — see the comment
+                # on `before` below. Empty on the live page, where `end` is today.
+                dom = (r.get("domain") or "").strip().lower()
+                after[dom] = after.get(dom, 0) + int(r.get("n_trials") or 0)
         win.sort(key=lambda p: (p[0], p[1].get("id") or ""), reverse=True)
 
         charged = {}
@@ -604,7 +613,17 @@ def weekly(log_path: str = None, today=None, days: int = None) -> dict:
             if now <= 0:
                 continue
             moved = int(charged.get(key) or 0)
-            before = now - moved
+            # `now` is the ALL-TIME live count and `moved` is only what the window carries, so
+            # `now - moved` sweeps up rows on BOTH sides of the window. Rows dated after `end`
+            # are not "before" anything, and attributing them there overstates the prior book
+            # and hands `hlz_hurdle` a count that never existed at that moment.
+            #
+            # Inert on the live page, where `end` is today and nothing postdates it. It fires
+            # whenever `today` is back-dated - which this module supports as a parameter and its
+            # own tests use - or whenever a row is logged ahead of the render. Found when an
+            # options row dated one day past a fixture's `today` moved that book's `before` from
+            # 0 to 2 and silently made a floored bar look defined.
+            before = now - moved - int(after.get(key) or 0)
             # A "before" below where the correction is defined is stated as such rather than
             # floored silently — `hlz_hurdle` floors at 2, and a floored bar quoted as a real
             # one would be a number that never existed.

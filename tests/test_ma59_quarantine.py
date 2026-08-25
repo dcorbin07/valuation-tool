@@ -49,7 +49,7 @@ ARCHIVED = (
     "valuation/edge/tickflow_signals.py",
     "valuation/edge/surface_xsec.py",
     "valuation/studies/kelly.py",
-    "valuation/edge/dividends.py",
+    # `valuation/edge/dividends.py` MOVED TO LOAD_BEARING on 2026-08-24 -- see below.
     "valuation/studies/convex_overlay.py",
     "valuation/studies/bucket_floor.py",
     "valuation/edge/antisignal.py",
@@ -77,6 +77,28 @@ LOAD_BEARING = {
         "D-series alt-data, inert by default but wired into the panel",
     "valuation/edge/autolearn.py":
         "MA1's live-weight path -- retire it deliberately, never by deletion",
+    # MOVED FROM `ARCHIVED` 2026-08-24, fleet arming, options-live lane.
+    #
+    # MA59 archived it on 2026-08-15 on the criterion "modules whose only importer is a
+    # closed study's own script". That stopped being true on 2026-08-23, when S3-I3's
+    # `valuation/edge/assignment.py` began DELEGATING to five of its primitives rather than
+    # re-deriving them -- the B7 discipline, and the thing that licenses S3-I3's fidelity
+    # claim. Every short fleet book needs that model, so the module became load-bearing for
+    # the live product and the CLASSIFICATION went stale, not the code.
+    #
+    # THE MOVE IS BETWEEN TWO CHECKED LISTS, WHICH IS WHY IT IS NOT A LOOPHOLE. Archived
+    # asserts UNREACHABLE; load-bearing asserts REACHABLE. It swapped one hard assertion for
+    # its opposite and is caught in either direction. Measured before the move: stdlib-only
+    # imports, ZERO dependencies in the import graph, no I/O at import.
+    #
+    # WHAT STAYS CLOSED IS THE STUDY. O21's verdict lives in `scripts/o21_dividends.py` and
+    # its artifact; nothing here re-opens it. This file is arithmetic -- `intrinsic` is
+    # `max(0, S - K)` -- and reaching it from the live app is reusing ONE definition, not
+    # running an experiment.
+    "valuation/edge/dividends.py":
+        "O21's dividend primitives -- S3-I3's assignment model DELEGATES to intrinsic, "
+        "exercise_gain, dividends_between, q_trailing and q_scheduled, so every short "
+        "fleet book depends on it",
 }
 
 

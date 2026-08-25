@@ -9080,3 +9080,385 @@ implements it, so an entered position would be held to expiry by default rather 
 `held_symbols` is deliberately conservative (a name that has ever filled counts as held)
 precisely because there is no honest way to tell a closed position from an open one yet.
 **No meter has been read and no trial charged; every verdict remains at its declared horizon.**
+
+---
+
+## 73. UNBLOCKING THE FLEET BY FAMILY — four families cleared or started, and **THE BINDING CONSTRAINT HAS MOVED** (2026-08-24)
+
+**Executor: options-live lane.** HANDOFF 72 found the fleet was not blocked on seventeen
+unwritten rules but on five infrastructure families. This pass took them in order of
+cheapness. **The families are the deliverable; the two books armed along the way are evidence
+that they were the right diagnosis.**
+
+### THE COUNT
+
+**ARMED: 3** — F-1, F-3 (HANDOFF 72) and now **F-8** (`1ff0a71`), the fleet's first SHORT book.
+**REFUSED BACK: 2** — F-2 and F-13, unchanged.
+**STILL PROSE: 12.**
+**ZERO TRIALS** throughout — this lane booked none, and no meter was read.
+
+**RE-READ AFTER MERGING, AND IT MOVED: the live `by_domain` is equity 242, options 307, infra
+20.** This section first said **options 305**, measured mid-session and correct when written.
+The `EVOWN` lane landed while this work was in flight and booked **2 options trials (305 →
+307)**, so the figure was stale before the branch was pushed. **`MA37`'s rule, and it has now
+fired on this record more times than any other single instruction: never quote a session's own
+mid-run `by_domain`; re-measure after EVERY merge, including a clean one.**
+
+It also surfaced as a scare worth recording: `git diff origin/main..HEAD` showed this branch
+**DELETING** five EVOWN files, which would have tripped `MA11`'s land policy. **Nothing was
+deleted** — they were NEW on `origin/main` and absent from a branch that had not yet merged
+it, so the diff read the gap as a deletion. Merging cleared all five. **A deletion in a
+branch diff can mean "they added it", and the check is to merge and re-read rather than to
+start reverting.**
+
+---
+
+### (A) S3-I3 REGISTERED — **the quarantine objection is GONE, not overridden** (`6e90ed1`)
+
+Six short books refused with `SHORT_BOOK_WITHOUT_ASSIGNMENT` because registering the model
+from the web app made an ARCHIVED study reachable and `MA59` caught it. **The fix was not to
+silence the guard.**
+
+`MA59`'s ARCHIVED criterion is *"modules whose only importer is a closed study's own script"*.
+**Measured, that stopped being true of `valuation/edge/dividends.py` on 2026-08-23**, when
+S3-I3's `assignment.py` began DELEGATING five primitives to it rather than re-deriving them
+(`B7`, and the thing that licenses S3-I3's fidelity claim). **The classification went stale,
+not the code** — its own banner still named only a script and a test as importers.
+
+**IT MOVED BETWEEN TWO CHECKED LISTS, WHICH IS WHY IT IS NOT A LOOPHOLE:** ARCHIVED asserts
+UNREACHABLE, LOAD_BEARING asserts REACHABLE. One hard assertion swapped for its exact
+opposite, and MA59 reads 11/11 on both sides of the move. Measured first: `dividends` imports
+stdlib only, has ZERO graph dependencies and does no I/O at import.
+
+**MEASURED RESULT: all six short books go `ok=False ['SHORT_BOOK_WITHOUT_ASSIGNMENT']` →
+`ok=True []`.**
+
+### (B) THE DEPLOYED-IMAGE GAP — **a ticker and a bit leave the licensed store** (`6bee826`)
+
+`.dockerignore` excludes `data/` WHOLESALE and the cycle runs on Render, so six books' rules
+would pass here and **fail there**. Route taken is the paper track's: a DERIVED artifact under
+`data_export/`, which is tracked and shipped.
+
+**WHAT LEAVES `data/`: A TICKER SYMBOL AND A BOOLEAN. 3,229 of them across three gates** —
+`ma28_clean` (2,531 names, as of 2026-01-28), `evt_clean` (211, 2025-10-27), `optionable`
+(487, today). No price, no statement line, no Beneish M, no Altman Z, no tail mass, no
+per-name date.
+
+**THE GUARANTEE IS STRUCTURAL AND ENFORCED IN THREE PLACES.** A boolean cannot carry a vendor
+row and the reduction is thousands-of-rows-to-one-bit, not reversible. The EXPORTER refuses a
+non-bool at write time (a test can be skipped and this cannot rest on one being run); the
+shipped artifact is asserted bool-only and float-free; and a bytes-per-flag bound stops the
+file quietly growing into a dataset.
+
+**THE LICENSING JUDGEMENT IS ROUTED TO DON, NOT MADE.** This lane's position is that a
+per-name bit reduced from thousands of rows is not the vendor's dataset; the artifact carries
+that reasoning in its own `license_note`, and the safe direction was available and taken.
+
+**NOT TAKEN, DELIBERATELY: F-12 and F-15 need per-name DATES** — an earnings calendar, insider
+filing dates — and a date per name is far closer to the vendor's dataset than a bit is. **That
+export needs its own decision and this lane did not make it.**
+
+### (C) HARNESS EXPRESSIVENESS — one order per structure, skips that are records (`a6b5caf`)
+
+**F-6 IS A COLLAR AND `submit` PLACED ONE LEG.** Submitted as two orders the failure modes are
+not symmetric: put-only is F-20's married put, and **call-only is a NAKED SHORT CALL** — the
+one structure `S3-I3` refuses by name, because FINRA 4210 has its own maintenance floor and a
+cash-secured stand-in would UNDERSTATE it. Now ONE order carrying every leg, checked before
+the broker is touched, with five refusals and a proof that a refused structure places nothing.
+
+**THE NET IS PRICED MARKETABLE** — buys at the ask, sells at the bid, `DEFAULT_AGGRESSION =
+1.0`. That choice DECIDES COMPOSITION and is pinned on a structure where the conventions
+disagree IN SIGN: put 1.00/1.40 against call 1.30/1.34 is a **+0.10 debit marketable and a
+−0.12 credit at mids**, so F-6 accepts it under the shipped rule and would refuse it under the
+other. A mid-based net makes a collar look financeable at prices nobody can trade — the error
+F-1 exists to MEASURE, which must not be baked into what F-1 measures.
+
+**THE ARM IS ASSIGNED ONCE PER STRUCTURE.** F-1's unit is an ORDER; arming legs independently
+would put one collar in both arms and make its capture uninterpretable.
+
+**FIRST-CLASS SKIPS.** F-14 declares *"the skips ARE the control population"* and `cycle()`
+could record nothing but fills — so it would have published a treatment arm with no control
+and no way to say so. A skip REQUIRES a reason, carries the would-have-been quote pair, and
+**passes the same gate a fill does**: it is a row on a hash-chained stream a verdict will be
+read from, so the gate is about the RECORD, not the order. An unrecognised kind is REFUSED
+onto the stream, never dropped.
+
+### (D) THE RECORDERS — **the clocks are running as of today** (`18787ed`)
+
+**NO AMOUNT OF CODING PRODUCES A SERIES RETROACTIVELY.** Three series now accrue on every
+write cycle: `iv60_atm` (F-5), `dip_rejects` (F-11), `alert_count` (F-19). Append-only,
+idempotent per date, backward-refusing — and the refusal says what to do instead, because **a
+missed day is a GAP and stays one**: a value computed later from today's data is not evidence
+about that date.
+
+**A MISSING NAME IS MISSING** — never zero, never forward-filled. An expanding percentile over
+a forward-filled series counts one observation many times and reports a burn-in that was never
+served (`I-2`'s finding, in its most damaging form). An unsolvable IV is OMITTED rather than
+stored as 0.0, which would enter the percentile as the cheapest observation the name ever had.
+
+**F-20's RECORDER ALREADY EXISTS AND IS NOT REBUILT.** Its series is the BOUND paper index
+track, written by `PT-WRITER`'s door, standing at **eight** rows and needing about five hundred.
+**CORRECTED AFTER LANDING: this said FOUR rows, quoted from `CLAUDE.md` rather than measured.
+The bound series runs 2026-07-31 → 2026-08-21 and holds EIGHT rows — the second time in this
+session I took a figure from the record instead of the file, after the E-4 claim. Measure the
+artifact.** A
+second writer would be a second copy of a fact (`MA5`) and would put two series under one name
+— the split `PT-SPLIT` had to unpick. **F-20 is TIME-starved, not recorder-starved.**
+
+---
+
+### THE BINDING CONSTRAINT HAS MOVED, AND THAT IS THE FINDING
+
+Before this pass the fleet was blocked on infrastructure. After it, **the remaining blockers
+are two genuine waits and a pile of unwritten rules** — and only the first kind cannot be
+worked around by writing code:
+
+* **A DECISION (Don's):** whether per-name DATES may leave the licensed store. Blocks F-12 and
+  F-15 and nothing else.
+* **TIME:** F-5 needs ~20 observations of a series that started today; F-19 and F-20 need two
+  years. **Nothing accelerates these, which is exactly why (D) was worth doing now.**
+* **RULES NOT YET WRITTEN:** F-6, F-10, F-11, F-14, F-18, F-19 are each now unblocked on
+  infrastructure and simply need their rule implemented.
+* **STRUCTURAL, AND THEY ARE REFUSAL CANDIDATES ON F-13's EXACT GROUND: F-4 and F-17.** Both
+  require *"next earnings date KNOWN via the I-4 spine"* — a FORWARD date from a backward-only
+  filing record. F-4 fails CLOSED (it skips and counts, so it is safe), but **it can never
+  enter**, and F-17 inherits the same window rule. **Not refused here** because F-13's refusal
+  is already with the scout and these three want one decision, not three.
+
+---
+
+### THE END-TO-END CHECK, AND **THE ACTION STILL CANNOT BE DISPATCHED**
+
+**`fleet-cycle.yml` IS STILL NOT MERGED.** Measured against GitHub, not the local tree: two
+PRs exist, #1 and #2, both PT-WRITER, and the default branch carries four workflows. **So
+"Actions → FLEET CYCLE → Run workflow" has nothing to run**, and `FLEET_RUNNER_PR_REQUEST.md`
+stands unactioned for a second session.
+
+**The door itself was driven end to end through the real Flask app instead**, which catches the
+same defect the dispatch was meant to catch:
+
+    GET  200   entry_rules_registered ['f1_fill_ab', 'f3_bear_puts']   implemented 2
+               assignment_provider_registered TRUE
+               gates  ma28_clean 2531 @2026-01-28 · evt_clean 211 @2025-10-27 · optionable 487
+               short books read SELFCHECK_ABSENT — the ordinary gate, no longer DECLARATION_INVALID
+    GET ?run=1 405, writes nothing
+    POST ?run=1 200, history_recorded 3 series
+    POST again  recorded 0 — idempotent per date
+
+**The invisible-rules defect is what this catches**, and it is why the count is now on the
+face of the response rather than inferable.
+
+### REPORTED OUTSIDE THIS LANE
+
+* **E-4's ARTIFACTS WERE STRANDED IN `worktree-greeks`** — `E4_TAIL_PANEL.pkl`, `E4_ARM.json`,
+  `E4_CONTROLS.json`. **The THIRD sighting** of the pattern `CLAUDE.md` records twice already
+  (`I2_BURN_IN_CENSUS.json`, `MA28_CARD.json`). Copied to the primary root, as the record's own
+  precedent did; the EVT gate could not be built until then, and the exporter now names that
+  failure in its own refusal.
+* **A CORRECTION TO MY OWN HANDOFF 72:** it said E-4 was not run. **E-4 landed 2026-08-20**
+  (verdict UNDERPOWERED). `CLAUDE.md`'s *"E-4 and E-8 are NOT run"* was written by E-5 the same
+  day and predates it, and I repeated it without checking the ledger.
+* **TO THE SCOUT LANE:** F-2 and F-13's amendments are still owed, F-4 and F-17 join them as
+  refusal candidates on the same ground, and **the `S3-I1` zero-vs-one infra-trial pricing
+  departure still has no line in `IDEAS_LEDGER.md`** — relayed twice now.
+
+### NOT DONE, named so it is not mistaken for done
+
+**No fill has been placed by any book and no meter has been read.** Every book still reads
+`SELFCHECK_ABSENT` until its day-1 gate runs on the service. **No exit machinery exists for any
+armed book** — F-3 declares a scanner-reversal exit and F-8 declares a three-cycle re-sell,
+and neither is implemented, so an entered position would be held to expiry by default rather
+than by rule. `held_symbols` stays deliberately conservative for that reason.
+
+## 73. EVOWN — event ownership as its own strategy family: NOT-DEMONSTRATED, and the control already owns the event (2026-08-20)
+
+`PREREG_evown_event_ownership.md` committed **ALONE at `4661c03`**, markdown only, zero `.py`, a
+strict ancestor of every commit that scores an outcome. **2 options trials, `N` 305 -> 307**
+(re-read post-merge: `by_domain` reads **equity 242, options 307, infra 20**). **ADOPTS NOTHING.
+`O11` governs and nothing here licenses a trade.**
+
+**AN ORDERING CAVEAT, STATED BECAUSE THE HISTORY CANNOT SHOW IT.** The register's blindness is
+git-provable. The **booking** is not: the row and stamp were written into the working tree and
+verified at 305 -> 307 before the arms ran, but the commit landed afterwards. That is a weaker
+claim than the register's and it is recorded as one rather than implied away.
+
+### 73.1 A NEW DESIGN, and the census changed it before any bar was chosen
+
+`O17C4`'s verdict rests solely on a c3 bar the record already diagnoses as broken. Nothing from it
+is reused. The coverage census ran first, in its own pass, and **touched no return** — and it
+produced a finding rather than a coverage number.
+
+**ON THIS ENTRY RULE, "SPANNING" IS VACUOUS.** The count of contracts whose expiry spans the
+announcement equals the count the engine's own rule produced **at all**, exactly, at every
+candidate offset:
+
+| K (trading days) | events | chain on entry | engine contract | **spans** |
+|---|---|---|---|---|
+| 5 | 6,361 | 6,278 (98.7%) | 4,769 (75.0%) | **4,769 (75.0%)** |
+| 10 | 6,361 | 6,269 (98.6%) | 4,512 (70.9%) | **4,512 (70.9%)** |
+| 15 | 6,361 | 6,244 (98.2%) | 4,607 (72.4%) | **4,607 (72.4%)** |
+
+It is structural: the engine's band is **45–75 DTE** and K ≤ 15 trading days is ≤ ~21 calendar
+days, so the contract **cannot** expire before the announcement. **`O17C4`'s spanning /
+not-spanning partition existed only because ALERT dates fall where they fall relative to
+earnings.** Anchor entry to the announcement and it dissolves. So the arm is against a
+**DTE-matched random-entry control**, matched by design rather than checked afterwards.
+
+**K = 5 fixed on AVAILABILITY** (75.0%, the highest) before any return was computed.
+
+### 73.2 The universe, stated honestly
+
+| universe | names | zero-earnings **DROPPED** | scoreable | events (all history) |
+|---|---|---|---|---|
+| alert book | 186 | **29** | **157** | 13,484 |
+| pinned freeze ∩ bars | 502 | **67** | **435** | 33,735 |
+
+The 157 reproduces `O17C4`'s 157 exactly — the instrument check. **But 435 names are available on
+the pinned freeze**, so the cap is an artefact of the ALERT BOOK, not the strategy, and the
+binding constraint is the **bars cache at 502 names** (`MA25`) rather than options data. **The arm
+runs on the 157 for comparability; the 435 extension is NOT measured and is named as not-done.**
+
+**A premise correction:** the chain freeze is **not** alert-day conditioned — AAPL-2018 carries
+**251 dates, every session**. That conditioning belongs to the *tick* cache (`MB15`'s object).
+
+**Book: 4,754 trades over 157 names**, and the funnel closes exactly against the census —
+4,754 + 1,509 no-pick + 81 no-chain + 15 refused + 2 no-session = **6,361**.
+
+### 73.3 A1 FAILS — every window positive, none separable from zero
+
+| window | strategy | DTE-matched control | gap | CI95 |
+|---|---|---|---|---|
+| full | +9.7844pp | +9.1361pp | **+0.6483pp** | [−2.8567, +4.1366] |
+| early | +9.4602pp | +9.4163pp | +0.0439pp | [−4.9911, +5.0966] |
+| late | +10.1071pp | +8.8499pp | +1.2572pp | [−3.8572, +5.9454] |
+
+3,586 matched strategy trades against 12,726 control, over 1,875 cells; 1,168 strategy trades
+dropped for an empty control cell and counted.
+
+### 73.4 A2 PASSES at all four cells — and this is where the prior was wrong
+
+| cap | equity | taken | refused (concurrency) | final |
+|---|---|---|---|---|
+| 10 | $50,000 | 1,732 / 3,586 | **1,835** | **$517,076** |
+| 10 | $250,000 | 1,736 / 3,586 | 1,847 | **$845,460** |
+| 50 | $50,000 | 3,496 / 3,586 | 24 | $1,057,428 |
+| 50 | $250,000 | 3,554 / 3,586 | 30 | $1,373,781 |
+
+**THE REGISTERED PRIOR IS REFUTED, AND IN THE OPPOSITE DIRECTION TO THE ONE PREDICTED.** I put
+**55%** on REAL-BUT-UNSURVIVABLE — A1 passing, A2 failing on concurrency. **The concurrency
+mechanism was real and `E1` was right**: cap 10 refused **51.2%** of trades against `MB3`'s 32%,
+exactly as predicted. **But the surviving half was profitable enough that survivability was never
+the binding constraint. A2 was the easy leg and A1 was the hard one.**
+
+### 73.5 THE MEASURED REASON A1 FAILS, AND IT IS THE FINDING
+
+**The DTE-matched control is 61.9% spanning** — 16,943 of 27,350 control trades on these names
+own an earnings announcement, measured with the shipped `owns_the_event`, zero unknown.
+
+A 45–75 DTE contract entered on a **random** day already owns an announcement most of the time,
+because announcements arrive every ~63 trading days. **So the control was never a "no-event"
+comparison; it was mostly the same trade.** This is §73.1's vacuity finding extended to the
+control side, and it is the honest reading of the null:
+
+> **Event ownership is not distinguishable from ordinary random entry at the same tenor, because
+> ordinary random entry at that tenor already owns the event.**
+
+### 73.6 A DEFECT IN MY OWN REGISTER, AND THE POWER LINE IS WHAT EXPOSES IT
+
+Emitted before any arm was scored, as registered:
+
+> MDE at |t| > 3.3843 (N = 307): detection threshold **6.17628** (50% power); **7.70925** at 80%
+> power. **Power against the registered effect 4.79 is 22.4%.**
+
+**I set floors on `n` and the arm clears them easily** — 3,586 trades against a floor of 500, and
+1,789 / 1,797 halves against 200 — **so the register records NOT UNDERPOWERED. But `n` was never
+the binding constraint; DISPERSION was.** At a detection threshold of **6.18pp** this design could
+not have found `O17C4`'s own **+4.79pp** more than **22%** of the time, and the observed +0.65pp is
+a **tenth** of what it can see.
+
+**An n-floor is not a power floor.** `MB22`'s gate says so in one line, and I ran it before
+*scoring* when I should have run it before *writing the floors*. **So this NULL means "could not be
+separated at this resolution", and nothing stronger** — `V6`/`S19`'s rule, and it binds hard here.
+
+### 73.7 A DEFECT IN MY OWN INSTRUMENT, CAUGHT BY DISBELIEVING THE NUMBERS
+
+The first smoke test returned **six consecutive trades exiting at "target" at +105% to +457%**.
+The contract history handed to `simulate_trade` contained **both the call and the put** at that
+strike and expiry: `by_contract` was keyed on `(strike, expiration)` and dropped **`right`**. At
+AAPL 99.87 on 2016-07-19 the 105 call is bid **1.18** and the 105 **put** bid **6.70**, so a put
+quote read as a call's is an instant several-hundred-percent phantom gain.
+
+**Nothing raised.** It produced a clean, plausible, enormous number — `MA31`'s failure mode — and
+it would have made the strategy look spectacular. Keyed correctly the same eight trades read as
+this book actually reads: stops at −0.53 to −0.90, targets at +1.74 to +3.03, one time-stop.
+
+**REPORTED OUTSIDE THIS ITEM (`RUN_RULES` rule 3): `scripts/mb1_alternatives_menu.py`'s provider
+has the SAME key shape.** It is **NOT contaminated** — it filters to calls at *load* time, so its
+`_all` never holds puts, and **MB1's numbers stand**. But the safety lives in an upstream filter
+rather than in the key, and a future caller reusing that provider on an unfiltered store gets what
+I got. **A latent hazard, not a live defect.**
+
+**Three build passes for what should have been one, both re-runs my own omissions:** pass 1 stored
+returns but not the survivability inputs; pass 2 stored them under `simulate_trade`'s names
+(`entry_fill` / `net_pnl`) rather than the book vocabulary `long_leg_as_book_trade` consumes
+(`entry_premium` / `pnl_dollars`), leaving all 4,754 rows `None`. The mapping was then verified
+end-to-end on three real trades before paying the third pass, and the P&L identity
+`pnl_dollars = ret x entry_premium x 100` reproduces on my rows at **1.8e-12**, the same tolerance
+as the shipped book.
+
+**A fifth instance of the substring-ban family, in my own test:** the median guard banned the word
+and **failed against the correct tree** on `np.median(df["dte"])`. The ban is by measurement and it
+is about **RETURNS**; a tenor's median is an ordinary descriptive. It reads the median call's
+**ARGUMENT** now, with a positive control proving the narrowed rule still catches a median of a
+return.
+
+### 73.8 What is NOT done, named so it is not mistaken for done
+
+* **The 435-name universe is not measured.** Event-level fillability was censused on the 157 only.
+* **`O17C4` is not reopened** and its verdict stands as recorded.
+* **The uncovered quarter is not random**: 1,509 of 6,361 announcements produced no contract while
+  AAPL and JPM produced one on 41/41 and 35/35, so the covered set tilts **liquid**.
+* **No claim is made about the alert entry.** `R2` stands — the alert subtracts value inside this
+  very effect.
+* **This is not a licence to re-run at a different K.** K = 10 and 15 carry no verdict.
+
+**Expectations: 1 right (E1, the concurrency refusal), 1 wrong (the headline prior), 1 unscorable.**
+
+**Scripts:** `scripts/mb_evown_census.py`, `evown_build.py`, `evown_arms.py`. **Artifacts**
+(gitignored): `MB_EVOWN_CENSUS_A.json`, `MB_EVOWN_CENSUS_B.json`, `EVOWN_BOOK.pkl/.json`,
+`EVOWN_ARMS.json`. **Tests:** `tests/test_evown_event_ownership.py`, 23 tests, 5 of 5 mutations
+caught with sources restored byte-for-byte.
+
+---
+
+### POST-LANDING CORRECTION AND ONE LIVE FAULT (2026-08-24, same lane)
+
+**TWO ERRORS OF MINE, BOTH THE SAME SHAPE: I QUOTED THE RECORD INSTEAD OF MEASURING THE FILE.**
+(1) Section 73 said E-4 had not run; it landed 2026-08-20. (2) It said the bound index track
+stands at FOUR rows; measured, it holds **EIGHT**, spanning 2026-07-31 → 2026-08-21. Both
+figures came from `CLAUDE.md`, both were true when that file was written, and neither was
+checked against the artifact. **`CLAUDE.md`'s numbers are trustworthy about the day they were
+measured and not about today.**
+
+**AND A LIVE FAULT, REPORTED OUTSIDE THIS LANE: TODAY'S `PT-WRITER` RUN FAILED.** `origin/main`
+carries `cf0c340 PT-WRITER 2026-08-24: service refused or unreachable (HTTP 000)`. **HTTP 000
+is not a refusal, it is no connection at all** — so the Render service was unreachable when
+that Action ran.
+
+**THAT MATTERS TO THIS WORK IN TWO WAYS AND BOTH SHOULD BE READ BEFORE ANYONE TRUSTS A CYCLE:**
+
+* **F-20's CLOCK IS NOT MERELY SLOW, IT MISSED TODAY.** Section 73 called F-20 *"TIME-starved,
+  not recorder-starved"*. With the writer failing, **it is currently both** — and a missed day
+  on that series is a GAP that stays one, by the same rule this lane just built into its own
+  recorders.
+* **THE FLEET-CYCLE DOOR LIVES ON THAT SAME SERVICE.** Every recorder wired in family (D) runs
+  on the write path of `/admin/fleet-cycle`. **If the service is unreachable, the three new
+  series do not accrue either** — so "the clocks are running as of today" is true of the CODE
+  and cannot be asserted of the DEPLOYMENT until a cycle actually reaches it. The end-to-end
+  proof in section 73 was through the local Flask app, which is exactly the gap a manual
+  dispatch of the Action would have closed, and the Action is still not merged.
+
+**Neither is this lane's to fix** — `PT-WRITER`'s health is its own open row and the service
+itself is Don's. It is reported here because family (D)'s whole value is that a series starts
+accruing TODAY, and a silently unreachable service is the one failure that would make that
+false while every test still passes.
