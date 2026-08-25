@@ -1,5 +1,68 @@
 # HANDOFF_scout.md — Frontier Scout
 
+## SESSION 8 — THE REDRAW, AND THE RISK AXIS (2026-08-24)
+
+**Part 1 — `WRDS_UNLOCK_MAP.md` REDRAWN as v2** against the official subscription list. §1 is
+the **death ledger**: W-2/W-4/W-8/W-10/W-11/W-12 DEAD (IvyDB, TAQ, short interest, Markit),
+W-13 census-dependent, plus **Audit Analytics dead → `MA28` stays a three-flag card**. Two
+honest non-revivals recorded so nobody mistakes a substitute for the thing: **Intraday
+Indicators does NOT revive `MB41`** (daily per-name aggregates, not SPY half-hour bars), and
+**the B-G1 dispersion question returns to Don's desk as a real ~$150/mo purchase** — it did not
+become free. Redrawn Tier 1: **W-1** (the PIT sector map now has BOTH routes `S25` named —
+Compustat historical GICS *and* SEC Analytics' assigned-SIC — and their disagreement rate is a
+free quality check), **W-14 Cboe open-close** (`D4`'s declined $500/mo purchase, verified in the
+row, becomes free — and it is the **first exogenous, non-alert-conditioned signal the options
+book could ever have**), **W-3 IBES**. Tier 2 leads with **W-3b, the IBES-actuals earnings-spine
+repair — recommended FIRST in execution order against the ranking rule, because it has the
+largest blast radius in the map** (20 fleet books + every event-conditioned study). New:
+**W-16 Intraday Indicators** (dissolves `B13` *and* `S7` *and* refines `S14`'s cost model),
+W-21 Blockholders (repairs the 34/35 sunset `SC-2` found), W-19 TRACE, W-17 SPDJI, W-22
+Beta/Pastor–Stambaugh, W-25 SEC Order Execution (an external anchor for `O18`'s ρ), and
+**W-20 CCM as INSTRUMENT ZERO — price link coverage first, because every entry is a join**.
+Two demotions against the brief, on the record: **W-18 Insiders** (`MA57` already refuted the
+blocker on owned data — this is a cross-check, not an unlock) and **W-24 Patents** (walks into
+the five-body orthogonality wall; listed, ranked low, and held to `MB12`).
+
+**Part 2 — `RISK_PRIMARY_MAP.md`, and the family is half killed.** Three premise corrections
+first: the project is Sharpe-blind **at the register level only** (the **Deflated Sharpe** is a
+calibrated risk-adjusted bar that has gated the headline since `M1`); `MB22`'s ported gate is
+**already in IR units**; and `S13` is worse than mis-judged — its own row says the alpha gate it
+failed was **structurally unmovable by its design**.
+
+**The arithmetic, two independent routes agreeing:** (A) the project's own ported table needs
+**87 independent years at IR 0.30** (192 at the honest hurdle) against **≈14.7 effective**;
+(B) the *generous* paired framing (Jobson–Korkie/Memmel) puts the 80%-power MDE at **0.255
+Sharpe at ρ=0.97 against S13's observed +0.0395 — 6.5× short**, and solving for the correlation
+that would make it detectable gives **ρ ≥ 0.9993**. **The paradox is the kill: the pairing tight
+enough to see the effect is tight enough to abolish it.** **SHARPE-PRIMARY: KILLED,
+unpowered-by-construction. DRAWDOWN-PRIMARY: KILLED at n = 1** (`S10`'s single COVID quarter —
+a placebo floor there would measure March 2020, not a strategy); what can move drawdown is
+exposure/hedging/beta, all **preferences**, whose honest home is the utility class already built
+(`F-6`, `F-20`). **Crash-flag overlays on the equity book: KILLED and not arguable past** —
+`MB8` measured the flags nearly disjoint from the book, and you cannot lower risk with a flag
+that does not fire on your names.
+
+**And the constructive half.** `X7`'s placebo is **not** re-pointable at the difference question
+(the placebo destroys the signal, so both arms collapse to the same random book; and `MB21`
+measured it at zero persistence, which mis-states a persistent book's variance). What is sound:
+a **weight-scramble null**, and — for variance — **no placebo at all**, because Pitman–Morgan
+has an analytic null where alpha never did. Decomposing the question is what saves it:
+**Sharpe's noise is dominated by its numerator**, so measure the **variance leg** (powered: an
+**~11% vol reduction is detectable at 80% against the full hurdle**) with **alpha
+non-inferiority** as the veto, and report Sharpe with its CI as a quantity that decides nothing.
+**R-1 is the flagship draft and carries this lane's highest-ever prior, ~35%**, because the
+mechanism is arithmetic rather than behavioural.
+
+**Top-3 sketches shipped:** `PREREG_DRAFT_r1_variance_primary.md`,
+`PREREG_DRAFT_w14_cboe_openclose.md`, `PREREG_DRAFT_w3b_ibes_event_spine.md`. (v1's W-1 and
+W-3/W-2 sketches survive the correction intact and are pointed at rather than rewritten.)
+
+**For the next session:** (1) read `WRDS_CENSUS.md` when it lands and tick each entry
+CONFIRMED/DENIED — both maps are built to be ticked; (2) the three ceremony refusals (F-7's
+state source, F-9/F-16's horizons) are still owed; (3) verify this commit landed.
+
+---
+
 ## SESSION 7 — THE WRDS UNLOCK MAP (2026-08-24)
 
 **Commission:** the WRDS unlock map, census-conditional and blind. **Produced:
