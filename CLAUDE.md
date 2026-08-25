@@ -48,6 +48,65 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **ANALYST ESTIMATE REVISIONS CARRY NO INCREMENTAL INFORMATION THIS PANEL CAN SEE - AND THE RAW
+  COLUMN SORTS IN THE PUBLISHED DIRECTION, SO THE FINDING IS THE COLLAPSE RATHER THAN THE NULL
+  (2026-08-25, `D6`/`D7`).** `PREREG_d6_analyst_revisions.md` committed **ALONE at `d03ee67`**,
+  markdown only, zero `.py`, 327 lines, a strict ancestor of every measurement commit, with the
+  **equity trial booked at `a4b67b2` BEFORE any runner existed** (equity `N` 242 -> 243). The
+  verdict was edited **INTO the booked row's own cell** rather than appended, so `N` stays 243 -
+  `MB16`'s fix for the dedup defect that overstated options `N` by 4. **ADOPTS NOTHING.**
+  * **REJECTED ON BOTH CO-PRIMARY BASES, AND THE VERDICT TRAVELS WITH ITS MDE.** Incremental IC
+    *t*: basis six **+0.7199** full / +0.6426 early / +0.1041 late over **69 effective dates**;
+    basis seven **+0.7957** / +1.0015 / **-0.2345** over 49, **halves disagreeing in sign** - the
+    eighth instrument to show that pattern. **Observed effect 0.0867 SD against an 80%-power MDE
+    of 0.4274 (0.203x) and 0.1137 against 0.5071 (0.224x)**, so it sits four to five times below
+    its own detection threshold.
+  * **THE NULL IS INTERPRETABLE, AND THAT WAS ESTABLISHED RATHER THAN ASSUMED - WHICH IS THE
+    DIFFERENCE FROM `MA58`.** An executor-added power control (declared as a departure; a control
+    can only BLOCK, so `MB1-SEL` charges nothing) scores the panel's own anchors **on the arm's own
+    rows**: **`z_fcf_margin` clears the arm's OWN 2.71 bar on both bases at raw *t* 2.7243 and
+    3.4633**, `z_gp_on_capital` 2.9082 and 2.1951, while `z_ret_6_1` clears neither at 1.0985 and
+    1.9050. **`MA58` had both anchors fail and had to report UNINTERPRETABLE; this one earns
+    REJECTED.** The honest limit is `MB18`'s and ships with it: **there is NO valid INCREMENTAL
+    power control on this template**, because every known-real signal is already an input to an
+    incumbent, so the control establishes the RAW channel resolves and the MDE bounds the rest.
+  * **THE FINDING: THE RAW COLUMN SORTS IN THE DECLARED POSITIVE DIRECTION AND RESIDUALISING
+    REMOVES ESSENTIALLY ALL OF IT** - raw median IC **+0.014861** at *t* **+1.5975** (six) and
+    **+0.020649** at **+2.1625** (seven). **And the raw reading clears NEITHER governing bar,
+    which is what stops it being quoted as a near miss: 2.1625 passes the RETIRED 2.0 and fails
+    X7's calibrated 2.71**, and 2.0 was retired because X7 measured **39% of PURE-NOISE draws**
+    producing a theme at 2.0 or better. `E-3`'s shape on a second instrument.
+  * **A SECOND ASYMMETRY A READER WOULD OTHERWISE MISQUOTE: the incremental MEAN is POSITIVE while
+    the incremental MEDIAN is NEGATIVE on both bases** (-0.002327, -0.001000). Both sentences are
+    true and only the *t*, built on the mean, is the registered statistic.
+  * **ORTHOGONALITY CONFIRMED AND WORTH NOTHING, FOR THE FIFTH TIME - AND THE REGISTER SAID SO
+    FIRST.** Mean R2 on the incumbents **0.1580 / 0.1579**, so ~84% new information predicting
+    nothing. **`U2`, `MA31`/`MA32`, `MA58`, `MB18` and now `D6`: five items, all confirmed
+    orthogonal, not one clearing.** §2c pre-committed that a low R2 would be NO evidence for this
+    item, which is the only reason the sentence is worth anything after the fact.
+  * **COVERAGE WAS MEASURED ON THE POPULATION THE ARM TESTED, WHICH IS THE `O-1` LESSON.** `O-1`
+    returned 0.19% power by applying an ALERT-BOOK figure to the PANEL, ~17x wrong, and `W-3b`'s
+    "29 of 29" is likewise the 186-name OPTIONS universe. Re-measured on the 113,945-cell equity
+    panel: **69.09% of cells carry >= 3 revisions, all 69 dates, NO era hole**, and on the arm's
+    own residualised rows the **cross-sections run min 644 / median 950 / max 1,278 with ZERO
+    dates below the `MIN_NAMES` floor**. **C5: the covered set is 2.91x larger by median market
+    cap** ($7.09bn vs $2.44bn). **C6: 260 of 2,531 names carry no CRSP dated interval and are
+    unreachable by ANY cusip route** - counted, never read as zero.
+  * **TWO DEFECTS IN MY OWN WORK. (a) C1's Newey-West key was `long_short_tstat_hac` and the
+    shipped key is `long_short_tstat_nw`, so C1 FIRED AGAINST A CORRECT PANEL** with three of four
+    figures exact and the fourth `NaN` - the wrong-object family, and the good outcome, since the
+    gate refused to score an arm behind a control it could not satisfy. **(b) A CORRECTION AGAINST
+    MY OWN REGISTER: its "2,214 of 2,531 names ever covered" is the at-least-ONE-revision figure
+    while the declared floor is 3; at the floor it is 2,173 (85.85%).** The 69.09% cell count was
+    already at the floor, so **no power figure moves.**
+  * **WHAT IT DOES NOT SAY: it is not a finding that analyst revisions do not predict returns.**
+    On this panel, on top of seven incumbents including momentum, the registered construction
+    carries nothing the design could see - and the design sees **~0.43 SD**, about the largest raw
+    effect this panel has ever carried. **NOT DONE:** no second window, no magnitude version, no
+    quarterly horizon, no consensus-change construction, no unadjusted pair, and **`D7` is not
+    re-opened**. **18 tests, 10 of 10 mutations caught with sources restored byte-for-byte.**
+    `valuation/studies/revisions.py`, `scripts/d6_revisions.py`, `scripts/d6_power_control.py`;
+    `data/free_analysis/D6_ARM.json`; `HANDOFF_edge_audit.md` D6.
 - **THE CBOE OPEN-CLOSE PRODUCT IS NOT ON THIS WRDS GRANT UNDER ANY NAME IN ANY OF 221
   LIBRARIES, SO THE OPTIONS BOOK STILL HAS NO EXOGENOUS FLOW SIGNAL — AND THE RETAIL IDENTIFIER
   THAT DOES EXIST IS ON THE EQUITY TAPE AND IS DENIED (2026-08-25, `W-14`).** Executor's verdict
