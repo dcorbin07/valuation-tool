@@ -9975,3 +9975,100 @@ books now run every cycle and record what they select. **The next thing that hap
 is a fill**, whenever an armed rule's conditions are met.
 
 **ZERO TRIALS.** No meter read, no verdict, `by_domain` untouched by this lane.
+
+## 78. W-14 — CBOE OPEN-CLOSE: **REJECTED AT THE CENSUS GATE. The product is not on this grant,
+under any name, in any of 221 libraries** (2026-08-25)
+
+Executor's verdict on the Frontier Scout's `PREREG_DRAFT_w14_cboe_openclose.md` (2026-08-24).
+**NO REGISTER WAS COMMITTED, NO ARM RAN, ZERO TRIALS** — options stays **308**, equity 242, infra
+20, `by_domain` bit-identical across the log append while `rows_fixed_not_counted` rises **77 →
+78**, the proof the row was seen and correctly excluded. Full reasoning in
+`W14_EXECUTOR_VERDICT.md`. **The draft is REJECTED AS WRITTEN and its reasoning is largely
+ACCEPTED — those are different things and both are recorded.**
+
+* **THE DRAFT'S CENTRAL PREMISE IS FALSE ON THIS GRANT.** It reads *"`D4` priced this data at
+  $500/mo and declined it; WRDS makes it free."* **WRDS does not carry it at all.** Its own **K3,
+  the identification kill, fires** — and the scout called that in advance: *"This is the one most
+  likely to fire; it is written first for that reason."*
+* **WHY THE EXISTING CENSUS COULD NOT ANSWER IT, WHICH IS THAT CENSUS'S OWN LESSON ONE LEVEL
+  DOWN.** The draft is census-gated (*"nothing below runs until `WRDS_CENSUS.md` confirms the
+  product, fields and span"*), and `WRDS_CENSUS.md` neither confirms nor denies it: it probed the
+  OptionMetrics-**replacement** shape — `optprice_2010`, `optprice_2016`, `ivlisted_2010`,
+  `eqmaster`, `optcontract`, `wrds_eq_opt_merged` — and found every one denied. **It never probed
+  open-close.** A denial of six optprice-shaped tables is evidence about the `cboe` grant and is
+  **not a measurement of this product**: *"a census that probes the names in a brief measures the
+  brief."*
+* **MEASURED, READ-ONLY AND SCHEMA-ONLY, NO LICENSED ROW MATERIALISED. (a) The product does not
+  exist here** — account-wide search for `opencl`/`open_close`/`openclose` returns **0
+  candidates**, and enumerating all 90 tables of `cboe` shows what the library is: the
+  **IvyDB/OptionMetrics-lineage schema** (`optprice_1998…2026`, `ivlisted_1998…2026`,
+  `optcontract`, `optdeliv`, `eqmaster`, `ivborrowrate`). **(b) The only options volume available
+  carries no origin** — `cboe_sample.optprice` reads at 12 columns with `volume` and `openint` as
+  **totals**, which is K3's exact failure condition; `open_` there is the session's opening
+  **price**, a name that reads as a hit to a grep and is not one. **(c) No table anywhere splits
+  it** — a column search across all 221 libraries returns 4,863 columns over 2,719 tables, and the
+  **six** carrying both a customer-ish and a firm-ish column are all **Bureau van Dijk corporate
+  registries** (`main_customers` against `confirmation_dates`), false positives on the substring
+  `firm`; a separate search for columns naming opening volume returns **3, all in
+  `audit.feed59_bank_holding_company`**. **(d) And the `cboe` production tables are denied anyway**,
+  re-confirmed rather than quoted. **Two independent reasons, and the first is sufficient.**
+* **A CORRECTION TO `WRDS_CENSUS.md`, FOUND ON THE WAY AND REPORTED RATHER THAN EDITED.** It says
+  *"Searched all 221 visible library names: **Intraday Indicators by WRDS** … not present …
+  the honest state is ABSENT-ON-THIS-LOGIN rather than proven unavailable."* **It IS present —
+  as TABLES, not a library: `taqm_2003.wrds_iid_2003` … onward plus
+  `form_metadata.wrdsapps_all_iid_ms_orderflow`, 94 tables carrying a `retail` column, 13 each
+  (`buyvol_retail`, `bs_ratio_retail_vol`, `buynumtrades_retail` — the Boehmer–Jones–Zhang–Zhang
+  shape) — and it returns `permission denied`, which is the STRONGER evidence that census said it
+  lacked.** Its conclusion stands and its reason changes; the failure mode is its own, **searching
+  LIBRARY names for a product that lives in TABLE names**. `B13`/`S7` are untouched. **Not edited —
+  the data lane owns that file**, and a factual correction to a shared census other registers gate
+  on should be applied by its owner. **AND IT SHARPENS W-14's EPITAPH: a retail identifier does
+  exist on this account. It is on the EQUITY tape, not the options tape, and it is denied.**
+* **THE GRAVEYARD ARGUMENTS, AND THREE OF FOUR SURVIVE THE REJECTION.** **`MB15`:** its named
+  successor axis is **condition + size** (the OPRA single-leg-auction flag plus small size), a
+  **trade-level inference from our own tape about whether a print LOOKS retail**; open/close is a
+  **venue-published aggregate of position-opening INTENT**. One is an inference we make, the other
+  a fact the venue publishes — **a real distinction, and it does not save the item, because the
+  published fact is not on this grant.** **The comparison cuts both ways:** `MB15`'s successor
+  **is** buildable today and inherits the **alert-days-only** conditioning defect W-14 was invented
+  to escape, so neither route currently gives an unconditioned options retail identifier.
+  **`MB16`/`O14`:** the conditioning critique **survives intact** — all six null flow features were
+  computed on the alert-day cache, *"selected toward the retail-heavy tail… does not generalise to
+  ordinary days"*, so **a full-market unconditioned test of flow has never been run on this
+  project** and the six NULLs do not settle it. That is the draft's strongest sentence and it is
+  preserved for a successor. **`R2`:** accepted — a full-market flow signal would be a signal for a
+  book that does not yet exist. **`MB12`:** correctly declined as a motivation; the draft leans on
+  a mechanism rather than on novelty.
+* **POWER AT BOTH VOCABULARIES BEFORE ANY FLOOR — AND IT EXPOSES A DEFECT INDEPENDENT OF THE
+  CENSUS.** Options `N` **308** hurdle **3.3853**, equity `N` **242** hurdle **3.3133**; 80%-power
+  multipliers **4.2253** and **4.1533**, i.e. **1.2481×** and **1.2535×** the 50%-power figure.
+  **The draft's §4 fixes the number to beat as `MB16`'s SE 0.04817 → a 50%-power MDE of +9.64pp.
+  That is `2.0 × SE` — the RETIRED 2.0 convention.** At this project's own hurdle the same SE gives
+  **+16.31pp at 50% power and +20.35pp at 80%**, and **power against `MB16`'s own observed 8.35pp
+  is 4.93%**. So the reference design is **worse than the draft says by roughly a factor of two**,
+  and a successor inheriting it would set its floor at half the required size — `MB22`'s vocabulary
+  correction landing on a live draft, after `S19`, `V2G` and `V6`. **What a successor would need:**
+  on the draft's own premise that a full-market panel shrinks the per-month SE (against the alert
+  cache's **median of 2 names per date**), detecting a **3.00pp** long-short effect at **80%
+  power** takes **≈5,293 months** at `MB16`'s SE, **≈1,323** at SE/2, **≈588** at SE/3 and **≈212
+  months — 17.7 years — at SE/5**. **Even a 25-fold larger cross-section per month needs nearly two
+  decades of full-market data**, and that is knowable now, before anyone buys anything.
+* **RE-OPEN CONDITIONS, CHECKABLE RATHER THAN ASPIRATIONAL.** (1) **A grant that reads the
+  product** — the Cboe **Open-Close Volume Summary** is sold through DataShop/LiveVol and is not
+  the WRDS `cboe` library, so **`D4`'s $500/mo purchase question is UNDISSOLVED**, which is the one
+  thing the draft asserts that measures false. (2) **`taqm_YYYY.wrds_iid_YYYY` becoming readable**,
+  giving an unconditioned **equity** retail identifier — not this hypothesis but the nearest live
+  one, and a **subscription question for Don**, the same class as the `cboe` page-versus-grant
+  disagreement that census already routed to him. (3) **The `MB15` condition+size successor**,
+  buildable today and inheriting the conditioning defect, so it answers a **narrower** question and
+  must say so. **None is proposed here**; each needs its own blind register and its own trials.
+* **WHAT THIS DOES NOT SAY: it is NOT a finding that retail opening flow carries no information.**
+  No arm ran; the hypothesis is **untested, not rejected**, and the literature's mechanism claim is
+  untouched. Nor is it a finding about `MB16`'s six NULLs — that conditioning critique stands and
+  is strengthened by being written down. Nor is it a claim that WRDS lacks retail-flow data: **it
+  has it, for equities, and cannot read it.** **The counter question the draft flagged for the
+  executor — equity or options — is MOOT and deliberately LEFT UNDECIDED**, since deciding it would
+  imply an arm that will not run. **16 tests, exit 0; 12 of them run in CI and 4 skip loudly, and
+  the suite provably never touches the network.** `scripts/w14_census.py`,
+  `W14_EXECUTOR_VERDICT.md`; `data/free_analysis/W14_CENSUS.json`, `W14_CENSUS_COLUMNS.json`,
+  `W14_RETAIL_IDENTIFIER.json`.
