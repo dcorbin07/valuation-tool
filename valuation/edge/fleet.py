@@ -585,6 +585,11 @@ def record(book: str, kind: str, fields: dict, *, decl_sha: str, root: str = Non
 
     payload = {k: "" for k in cols}
     payload.update({k: v for k, v in (fields or {}).items() if k in cols})
+    # AUDIT #5 L1 -- WHAT WAS DROPPED IS REPORTED. `append_only`'s rule 3 promises a key in
+    # neither the file nor `columns` "comes back in `ignored_fields` rather than being dropped
+    # in silence" -- and filtering HERE meant the key never reached `append`, so that
+    # disclosure came back empty and the promise was defeated one layer up.
+    _ignored_here = sorted(k for k in (fields or {}) if k not in cols)
     payload["seq"] = _next_seq(rows)
     payload["ts"] = ts or _dt.datetime.now().isoformat(timespec="seconds")
     payload["kind"] = kind
@@ -594,27 +599,65 @@ def record(book: str, kind: str, fields: dict, *, decl_sha: str, root: str = Non
     payload["prev_hash"] = prev
     payload["row_hash"] = row_hash(prev, hashed)
 
-    return AO.append(payload, records_path(book, root), key="seq", columns=cols,
-                     append_only=True,
-                     backfill_hint=" A fleet record stream is append-only by construction; a "
-                                   "correction is a NEW dated row, never an edit "
-                                   "(PT-AMEND1's shape).")
+    res = AO.append(payload, records_path(book, root), key="seq", columns=cols,
+                    append_only=True,
+                    backfill_hint=" A fleet record stream is append-only by construction; a "
+                                  "correction is a NEW dated row, never an edit "
+                                  "(PT-AMEND1's shape).")
+    if _ignored_here:
+        res = dict(res)
+        res["ignored_fields"] = sorted(set(res.get("ignored_fields") or []) | set(_ignored_here))
+        res["ignored_reason"] = (
+            "these keys are in neither RECORD_COLUMNS nor this book's declared "
+            "records_schema, so they were NOT written. Declare them in records_schema, or "
+            "stop sending them -- a field a rule believes it is recording and is not is the "
+            "quietest way to lose evidence.")
+    return res
 
 
 # ---------------------------------------------------------------------------------------
 # The day-1 self-verification gate (register section E6, Don's ruling)
 # ---------------------------------------------------------------------------------------
+#: Every module the day-1 certificate attests to. **AUDIT #5 M4: this was `fleet.py` and
+#: `append_only.py` and nothing else — two of the eight the certificate covers.**
+#:
+#: The sharpest case is `paper_broker.py`. The self-check's load-bearing live check, `L9b`
+#: — *"the RECORD AGREES WITH THE BROKER, no fill price without an execution"* — exists
+#: because a prior cut of `fill_fields` reported a PENDING order as filled at its own limit
+#: price, and the repair delegates to `PaperBroker.fill_price`. With the narrow fingerprint a
+#: change to that function did not make one book's self-check go STALE, so the fabricated-fill
+#: defect could be reintroduced and every book would keep its passing certificate.
+#:
+#: THE COST IS REAL AND IS THE CORRECT DIRECTION: the endpoint re-runs `run_day1` (which
+#: places a real sandbox order) whenever a book is stale, so a wider fingerprint means more
+#: day-1 runs. A certificate should go stale when the thing it certifies moves.
+FINGERPRINTED_MODULES = ("fleet.py", "append_only.py", "assignment.py", "fleet_books.py",
+                         "fleet_gates.py", "fleet_history.py", "paper_broker.py",
+                         "track_meter.py")
+
+
 def harness_fingerprint() -> str:
-    """Hash of the harness's own sources, so a self-check goes STALE when the harness moves."""
+    """Hash of the harness's own sources, so a self-check goes STALE when the harness moves.
+
+    Covers `FINGERPRINTED_MODULES`, sorted so the digest does not depend on tuple order.
+    """
     h = hashlib.sha256()
-    for p in (os.path.abspath(__file__),
-              os.path.join(os.path.dirname(os.path.abspath(__file__)), "append_only.py")):
+    here = os.path.dirname(os.path.abspath(__file__))
+    for name in sorted(FINGERPRINTED_MODULES):
+        p = os.path.join(here, name)
         try:
             # `with`, not a bare open: this runs on every gate check, so on a long-lived
             # service the leaked handles accumulate. Surfaced as a ResourceWarning by the
             # endpoint test, which is the first caller to hit it in a loop.
             with open(p, "rb") as fh:
-                h.update(fh.read())
+                # AUDIT #5 L4 -- NORMALISE LINE ENDINGS BEFORE HASHING. This repo runs
+                # `core.autocrlf=true`, so the working copy is CRLF on Windows and LF in the
+                # Linux image: the SAME COMMIT yielded a different fingerprint on the two, and
+                # the value is documented as denoting "a property of the CODE" when it denoted
+                # a property of the code AS CHECKED OUT. It failed safe (cross-platform reads
+                # STALE, which refuses rather than permits) and it was still not the thing it
+                # said it was. The `.gitattributes` route stays ruled out, as that file says.
+                h.update(fh.read().replace(b"\r\n", b"\n"))
         except OSError:
             h.update(b"<missing>")
     return h.hexdigest()
@@ -916,6 +959,29 @@ def read_meter(book: str, values, *, decl_sha: str, root: str = None, why: str =
                decl_sha=decl_sha, root=root)
     m["recorded"] = bool(w.get("wrote"))
     m["record_reason"] = w.get("reason", "")
+
+    # AUDIT #5 M2 -- A READER WHO CANNOT BE RECORDED IS NOT SHOWN THE NUMBER.
+    #
+    # This used to set `ok = True` unconditionally and return the verdict either way, so a
+    # refused write -- a pre-(C) header `append_only` will not widen, a read-only disk, a
+    # ragged file -- produced a STATE, an `is_first_verdict_read` flag and a "CHARGE ONE
+    # TRIAL NOW" instruction with no dated record that the read ever happened. That is
+    # exactly the honour system this function's own docstring exists to abolish: "every
+    # meter read is itself a record -- otherwise the rule is an honour system and 'nobody
+    # peeked' is a memory rather than a dated fact."
+    #
+    # An ALREADY-PRESENT record is fine: the read IS on the stream, which is what the rule
+    # requires. Only a write that landed NOTHING withholds the verdict.
+    landed = bool(w.get("wrote")) or bool(w.get("already_present"))
+    if not landed:
+        return {"ok": False, "recorded": False, "book": book,
+                "record_reason": w.get("reason", ""),
+                "reason": ("THE READ WAS NOT RECORDED, so the verdict is WITHHELD. This "
+                           "function is the only door to a meter and it writes before it "
+                           "returns, because an unrecorded read makes the trial rule an "
+                           "honour system. Fix the stream and read again -- the verdict is "
+                           "unchanged by being withheld. Underlying refusal: "
+                           + str(w.get("reason", "") or "unknown"))}
     m["ok"] = True
     return m
 
@@ -1319,7 +1385,12 @@ def record_skip(book: str, fields: dict, root: str = None) -> dict:
             refuse(book, gate["code"], gate["reason"], decl_sha=sha, root=root)
         return {"ok": False, "wrote": False, "code": gate["code"], "reason": gate["reason"],
                 "refusal_recorded": bool(sha)}
-    out = record(book, "skip", fields, decl_sha=gate["decl_sha"], root=root)
+    # AUDIT #5 L1: the book's DECLARED records_schema reaches the writer, so a book that
+    # declares extra columns actually gets them. It never did before -- no caller passed
+    # columns= -- so the feature validate_declaration accepts was not implemented.
+    _extra = list(((gate.get("declaration") or {}).get("records_schema")) or [])
+    out = record(book, "skip", fields, decl_sha=gate["decl_sha"], root=root,
+                 columns=_extra)
     out["code"] = ""
     return out
 
@@ -1339,7 +1410,12 @@ def record_fill(book: str, fields: dict, root: str = None) -> dict:
             refuse(book, gate["code"], gate["reason"], decl_sha=sha, root=root)
         return {"ok": False, "wrote": False, "code": gate["code"], "reason": gate["reason"],
                 "refusal_recorded": bool(sha)}
-    out = record(book, "fill", fields, decl_sha=gate["decl_sha"], root=root)
+    # AUDIT #5 L1: the book's DECLARED records_schema reaches the writer, so a book that
+    # declares extra columns actually gets them. It never did before -- no caller passed
+    # columns= -- so the feature validate_declaration accepts was not implemented.
+    _extra = list(((gate.get("declaration") or {}).get("records_schema")) or [])
+    out = record(book, "fill", fields, decl_sha=gate["decl_sha"], root=root,
+                 columns=_extra)
     out["code"] = ""
     return out
 
@@ -1565,6 +1641,47 @@ def declared_books(root: str = None) -> list:
 NEVER_FIRES_AFTER = 10
 
 
+def _cycles_path(book: str, root: str = None) -> str:
+    base = root or repo_root()
+    return os.path.join(base, "data", "fleet", "cycles", str(book) + ".json")
+
+
+def note_cycle_ran(book: str, root: str = None) -> int:
+    """Count one cycle in which this book's entry rule RAN. Monotonic; returns the new total.
+
+    **AUDIT #5 M3.** `never_fires` counted ROWS of kind `fill`/`skip`, and a rule that selects
+    nobody writes NO row -- so for the two implemented order-placing rules, both of which
+    return `[]` on a quiet day, `n_obs` could never leave zero and the third state was
+    structurally unreachable. The alarm worked; its coverage did not reach the rules that
+    exist.
+
+    **THIS LIVES OUTSIDE THE BOOK'S DECLARED RECORD STREAM ON PURPOSE.** The audit's preferred
+    fix -- make every rule emit a `skip` per declined candidate -- is better evidence and is a
+    change to what the streams CONTAIN, which needs an amendment to each affected declaration.
+    A run counter changes no declared schema, so it is the repair available without one, and
+    the richer fix stays open.
+
+    It counts RUNS, not days: a cycle may legitimately run twice in a day, and each is another
+    occasion on which the rule selected nobody.
+    """
+    p = _cycles_path(book, root)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    n = cycles_ran(book, root) + 1
+    tmp = p + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump({"book": str(book), "cycles_ran": int(n)}, fh)
+    os.replace(tmp, p)
+    return n
+
+
+def cycles_ran(book: str, root: str = None) -> int:
+    try:
+        with open(_cycles_path(book, root), encoding="utf-8") as fh:
+            return int((json.load(fh) or {}).get("cycles_ran") or 0)
+    except (OSError, ValueError, TypeError):
+        return 0
+
+
 def never_fires(book: str, root: str = None, *, after: int = NEVER_FIRES_AFTER) -> dict:
     """`RULE_ARMED_NEVER_FIRES` -- the third state, proposed by the Frontier Scout (session 9).
 
@@ -1590,7 +1707,11 @@ def never_fires(book: str, root: str = None, *, after: int = NEVER_FIRES_AFTER) 
     cycles = [r for r in rows if (r.get("kind") or "") in ("fill", "skip")]
     fills = [r for r in cycles if (r.get("kind") or "") == "fill"]
     skips = [r for r in cycles if (r.get("kind") or "") == "skip"]
-    n_obs = len(cycles)
+    # AUDIT #5 M3: a rule that selects nobody writes NO row, so ROWS alone can never reach the
+    # bar for the rules that actually exist. Runs count as observations too, and the larger of
+    # the two is used -- a rule that records its skips (F-14's shape) is unaffected.
+    runs = cycles_ran(book, root)
+    n_obs = max(len(cycles), runs)
     fired = len(fills)
     state = "OK"
     if fired == 0 and n_obs >= int(after):
@@ -1598,6 +1719,7 @@ def never_fires(book: str, root: str = None, *, after: int = NEVER_FIRES_AFTER) 
     return {
         "book": book, "state": state, "fired": fired, "skipped": len(skips),
         "observations": n_obs, "after": int(after),
+        "rows_observed": len(cycles), "cycles_ran": runs,
         "skip_rate": (float(len(skips)) / n_obs) if n_obs else None,
         "reason": ("" if state == "OK" else
                    "%s has recorded %d observations and NEVER FILLED. A rule that cannot "
@@ -1680,6 +1802,11 @@ def cycle(root: str = None, *, write: bool = False, books: list = None) -> dict:
             continue
         item["candidates"] = len(cands)
         item["places_orders"] = places_orders(book)
+        # AUDIT #5 M3: count the RUN before reading the alarm, so a rule that selects nobody
+        # still accrues observations. Only on the WRITE path -- a dry-run GET must stay
+        # side-effect free, which is the split the verb already carries everywhere else.
+        if write:
+            note_cycle_ran(book, root)
         nf = never_fires(book, root)
         item["never_fires"] = nf["state"]
         if nf["state"] != "OK":

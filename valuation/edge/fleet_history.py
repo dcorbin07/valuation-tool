@@ -49,9 +49,35 @@ SERIES = {
                     "market-wide alert count for the day (F-19)"),
 }
 
+#: The invalidation stream is METADATA ABOUT the series above, not one of them, so it is
+#: deliberately NOT in `SERIES`. `SERIES` means "a daily observation a book reads", and putting
+#: a metadata stream in it made `coverage()` report it as a fourth series and forced
+#: `record_all` to special-case it out again -- two wrongs describing one thing.
+INVALIDATIONS = "invalidations"
+INVALIDATION_COLUMNS = ("date", "n_spans", "payload")
+
 BACKFILL_HINT = (" A missed day is a GAP and stays one: these series are evidence about what "
                  "was observable on a date, and a value computed later from today's data is "
                  "not that. Record the gap, never the guess.")
+
+#: The reason a recorder refuses when its source was never consulted.
+#:
+#: **A SOURCE THAT WAS NOT CONSULTED IS NOT AN OBSERVATION OF NOTHING** (audit #5, `H2`). The
+#: production caller passed nothing for months, so `dip_rejects` asserted "zero names were
+#: rejected today" from a screen that never ran and `iv60_atm` asserted "no name had a solvable
+#: 60-DTE IV" with no chain ever fetched. Both are positive claims of ABSENCE, and `F-11`'s
+#: hypothesis is a name's FIRST APPEARANCE, so every fabricated empty day is evidence against
+#: exactly the thing that book exists to detect.
+#:
+#: The distinction the recorders now enforce is between `None` (**NOT CONSULTED** -- refuse) and
+#: an empty collection (**CONSULTED AND EMPTY** -- a real observation, recorded). It is the same
+#: rule `record_iv60` already applied one level down, where a name with no solvable IV is
+#: OMITTED rather than recorded as zero, lifted to the source.
+NOT_CONSULTED = (
+    "SOURCE NOT CONSULTED: pass an empty collection to assert 'ran and found nothing', or "
+    "nothing at all to say 'did not run'. A content-free write is still a write, and a row "
+    "that says zero when no screen ran is evidence AGAINST a first appearance that may have "
+    "happened. Refusing leaves a GAP, which is recoverable; a fabricated zero is not.")
 
 
 def history_dir(root: str = None) -> str:
@@ -83,11 +109,20 @@ def record(name: str, date: str, payload, *, count=None, root: str = None) -> di
                      append_only=True, backfill_hint=BACKFILL_HINT)
 
 
-def read(name: str, root: str = None) -> dict:
+def read(name: str, root: str = None, *, honour_invalidations: bool = True) -> dict:
     """The whole series, oldest first, with its payloads decoded.
 
     An ABSENT series and an EMPTY one are reported apart (`O21-D2`'s `C5`): "no recorder has
     ever run" and "the recorder ran and observed nothing" need different fixes.
+
+    **EVERY ROW CARRIES `invalid`, and `n_valid` IS REPORTED BESIDE `n` (audit #5, `H2`).** The
+    rows are still returned -- they are kept, not erased -- but a consumer that reads `n` and
+    ignores `invalid` is counting fabricated days. `history_for` honours it for you, which is
+    the path every book actually uses.
+
+    `honour_invalidations=False` exists so `invalid_spans` can read its own series without
+    recursing, and for a caller that genuinely wants the raw stream. It is not a way to get a
+    clean-looking count.
     """
     path = series_path(name, root)
     rows, cols, err = AO.read_rows(path)
@@ -98,14 +133,19 @@ def read(name: str, root: str = None) -> dict:
         return {"ok": True, "absent": True, "vacuous": True, "rows": [], "n": 0,
                 "reason": "no %s series yet; it begins on the first cycle that records one"
                           % name}
+    spans = invalid_spans(root) if honour_invalidations else []
     out = []
     for r in rows:
         try:
             payload = json.loads(r.get("payload") or "null")
         except ValueError:
             payload = None
-        out.append({"date": (r.get("date") or "")[:10], "payload": payload, "raw": r})
+        d = (r.get("date") or "")[:10]
+        bad = is_invalid(name, d, spans=spans) if honour_invalidations else False
+        out.append({"date": d, "payload": payload, "raw": r, "invalid": bad})
+    n_invalid = sum(1 for r in out if r["invalid"])
     return {"ok": True, "absent": False, "vacuous": not out, "rows": out, "n": len(out),
+            "n_valid": len(out) - n_invalid, "n_invalid": n_invalid,
             "columns": cols, "reason": ""}
 
 
@@ -116,10 +156,16 @@ def history_for(name: str, ticker: str, root: str = None) -> list:
     expanding percentile over a forward-filled series would count one observation many times
     and report a burn-in that had not been served -- `I-2`'s finding, that an observation
     COUNT and an elapsed SPAN come apart, in its most damaging form.
+
+    **A ROW A FORWARD RECORD MARKS INVALID IS SKIPPED (audit #5, `H2`)**, for the same reason
+    an absent day is: it is not an observation. This is the path the books read, so honouring
+    it here is what actually protects a study.
     """
     t = str(ticker).upper()
     out = []
     for r in read(name, root)["rows"]:
+        if r.get("invalid"):
+            continue
         p = r["payload"]
         if isinstance(p, dict) and t in p:
             out.append((r["date"], p[t]))
@@ -137,10 +183,17 @@ def coverage(root: str = None) -> dict:
             out[name] = {"present": False, "n_days": 0, "reason": r.get("reason", "")}
             continue
         dates = [x["date"] for x in r["rows"]]
+        good = [x["date"] for x in r["rows"] if not x.get("invalid")]
         out[name] = {"present": True, "n_days": len(dates),
+                     # AUDIT #5 H2: `n_days` alone would still report the fabricated span as
+                     # coverage. A consumer must be able to see what is actually usable.
+                     "n_days_valid": len(good), "n_days_invalid": len(dates) - len(good),
                      "first": dates[0] if dates else None,
                      "last": dates[-1] if dates else None,
+                     "first_valid": good[0] if good else None,
+                     "last_valid": good[-1] if good else None,
                      "vacuous": not dates,
+                     "usable": bool(good),
                      "description": SERIES[name][1]}
     return out
 
@@ -163,11 +216,17 @@ def record_dip_rejects(date: str = None, *, rejects=None, root: str = None) -> d
 
     `rejects` is the caller's -- this module does not run the dip screen, because that screen
     drives the valuation engine per name and belongs to whatever process already pays for it.
-    Passing `None` records an EMPTY day, which is a real observation and is why the count is
-    stored beside the payload.
+
+    **`None` REFUSES (audit #5, `H2`).** It used to record an EMPTY day, and its docstring
+    called that "a real observation", which is exactly what it is not when the caller never ran
+    a screen. Pass `[]` to assert *ran and found nothing*; pass nothing to say *did not run*,
+    and the day is left as a GAP.
     """
     date = date or _dt.date.today().isoformat()
-    names = sorted({str(t).upper() for t in (rejects or [])})
+    if rejects is None:
+        return {"ok": False, "wrote": False, "already_present": False,
+                "not_consulted": True, "reason": NOT_CONSULTED}
+    names = sorted({str(t).upper() for t in rejects})
     return record("dip_rejects", date, names, count=len(names), root=root)
 
 
@@ -179,10 +238,17 @@ def record_iv60(date: str = None, *, quotes=None, root: str = None) -> dict:
     own it. **A name with no solvable IV is OMITTED, never recorded as zero** -- a zero IV
     would enter an expanding percentile as the cheapest observation the name ever had, which
     is precisely backwards.
+
+    **AND `None` NOW REFUSES (audit #5, `H2`), which is that same rule one level up.** Omitting
+    a name with no solvable IV was always right; recording `{}` because no chain was ever
+    fetched asserted that NO name had one. Pass `{}` to assert *ran and solved nothing*.
     """
     date = date or _dt.date.today().isoformat()
+    if quotes is None:
+        return {"ok": False, "wrote": False, "already_present": False,
+                "not_consulted": True, "reason": NOT_CONSULTED}
     clean = {}
-    for t, v in (quotes or {}).items():
+    for t, v in quotes.items():
         try:
             f = float(v)
         except (TypeError, ValueError):
@@ -190,6 +256,93 @@ def record_iv60(date: str = None, *, quotes=None, root: str = None) -> dict:
         if f == f and f > 0:
             clean[str(t).upper()] = round(f, 6)
     return record("iv60_atm", date, clean, count=len(clean), root=root)
+
+
+#: The two series whose every pre-fix row was written from a source that was never consulted.
+FABRICATED_SERIES = ("dip_rejects", "iv60_atm")
+
+FABRICATED_REASON = (
+    "AUDIT #5 H2: every row in this span was written by a production caller that passed NO "
+    "source. `dip_rejects` asserted 'zero names rejected' from a dip screen that does not "
+    "exist in this repository; `iv60_atm` asserted 'no name had a solvable 60-DTE IV' with no "
+    "chain ever fetched. These are positive assertions of ABSENCE and must not be read as "
+    "observations. F-11's hypothesis is a name's FIRST APPEARANCE, so treating these days as "
+    "real would date the first appearance to the day the screen was finally wired and read the "
+    "preceding span as genuine absence -- the finding would be manufactured by the recorder.")
+
+
+def invalidate_fabricated_span(root: str = None, *, date: str = None) -> dict:
+    """Mark every PRE-EXISTING row of the fabricated series invalid. Runs ONCE, ever.
+
+    **THE SPAN IS FROZEN AT FIRST APPLICATION, and that is the load-bearing detail.** Once the
+    caller is fixed these series start accruing REAL rows, so a span recomputed daily from
+    "everything on disk" would swallow the good days too. The idempotency key is therefore the
+    EXISTENCE of any invalidation for that series, not the span's endpoints.
+
+    Forward-only, by construction: it appends an `invalidations` record and never touches the
+    series it describes. The append-only rule is not weakened anywhere.
+    """
+    done = {s.get("series") for s in invalid_spans(root)}
+    out = {"applied": [], "already_done": sorted(done & set(FABRICATED_SERIES)),
+           "nothing_to_do": [], "ok": True, "reason": ""}
+    spans = []
+    for name in FABRICATED_SERIES:
+        if name in done:
+            continue
+        r = read(name, root, honour_invalidations=False)
+        dates = [x["date"] for x in (r.get("rows") or []) if x.get("date")]
+        if not dates:
+            out["nothing_to_do"].append(name)      # never ran here; nothing to invalidate
+            continue
+        spans.append({"series": name, "from": min(dates), "to": max(dates),
+                      "reason": FABRICATED_REASON})
+        out["applied"].append({"series": name, "from": min(dates), "to": max(dates),
+                               "n_days": len(dates)})
+    if not spans:
+        return out
+    # ONE call, so the date-keyed stream cannot drop the second span.
+    res = invalidate_many(spans, date=date, root=root)
+    out["ok"] = bool(res.get("ok"))
+    out["reason"] = res.get("reason", "")
+    if not out["ok"]:
+        out["applied"] = []                        # nothing landed; do not claim it did
+    return out
+
+
+def iv60_from_store(store=None) -> dict:
+    """`{ticker: iv}` from the intraday scan the cycle has ALREADY paid for.
+
+    **THIS IS THE SOURCE `record_iv60` WAS ALWAYS MEANT TO GET (audit #5, `H2`).** The module
+    declines to fetch a chain per name because that is expensive -- but the intraday options
+    scan already solved a 60-DTE ATM IV and carries it as `detail.atm_iv_60d`, in the same
+    store `record_alert_count` reads. So the real source cost nothing and simply was not wired.
+
+    Returns `{}` when the scan ran and solved nothing, which is a REAL observation and records.
+    Returns `None` only when the scan itself is unavailable, which is NOT CONSULTED and refuses.
+    A name whose IV is missing or unusable is OMITTED, never zero-filled.
+    """
+    if store is None:
+        from ..screener.store import Store
+        store = Store()
+    try:
+        rows = store.load_intraday()
+    except Exception:                                            # noqa: BLE001
+        return None                                              # scan unavailable -> refuse
+    if rows is None:
+        return None
+    out = {}
+    for r in rows:
+        t = str((r or {}).get("ticker") or "").upper().strip()
+        if not t:
+            continue
+        d = (r or {}).get("detail") or {}
+        try:
+            v = float(d.get("atm_iv_60d"))
+        except (TypeError, ValueError):
+            continue
+        if v == v and v > 0:
+            out[t] = v
+    return out
 
 
 def record_all(date: str = None, *, store=None, rejects=None, quotes=None,
@@ -219,13 +372,14 @@ def record_all(date: str = None, *, store=None, rejects=None, quotes=None,
             out["series"][name] = {"wrote": bool(r.get("wrote")),
                                    "already_present": bool(r.get("already_present")),
                                    "ok": bool(r.get("ok")),
+                                   "not_consulted": bool(r.get("not_consulted")),
                                    "reason": r.get("reason", "")}
         except Exception as e:                                   # noqa: BLE001
             out["series"][name] = {"wrote": False, "ok": False, "already_present": False,
-                                   "reason": str(e)}
+                                   "not_consulted": False, "reason": str(e)}
     out["recorded"] = sum(1 for v in out["series"].values() if v["wrote"])
 
-    failed = []
+    failed, not_consulted = [], []
     for name in SERIES:
         back = read(name, root)
         started = bool(back.get("ok")) and not back.get("absent") and back.get("n")
@@ -233,11 +387,130 @@ def record_all(date: str = None, *, store=None, rejects=None, quotes=None,
         out["series"][name]["series_started"] = bool(started)
         if not started:
             failed.append(name)
+        if out["series"][name].get("not_consulted"):
+            not_consulted.append(name)
+
     out["failed_to_start"] = failed
-    out["ok"] = not failed
-    out["loud"] = ("" if not failed else
-                   "SERIES FAILED TO START: %s. A recorder whose series is still ABSENT after "
-                   "an attempted write has recorded NOTHING, and a clock that has not started "
-                   "cannot be started retroactively. Check the filesystem is writable where "
-                   "the cycle runs." % ", ".join(failed))
+    out["not_consulted"] = not_consulted
+    # **BOTH STATES ARE LOUD, AND THE SECOND IS THE ONE AUDIT #5 FOUND.** A series with months
+    # of history passes `series_started` forever, so a source that silently stopped being
+    # consulted could never reach `failed_to_start`. TODAY's row is the thing being asserted,
+    # and a day on which no source was consulted is a day this cycle recorded nothing --
+    # whatever the series holds from before.
+    out["ok"] = not failed and not not_consulted
+    parts = []
+    if failed:
+        parts.append(
+            "SERIES FAILED TO START: %s. A recorder whose series is still ABSENT after "
+            "an attempted write has recorded NOTHING, and a clock that has not started "
+            "cannot be started retroactively. Check the filesystem is writable where "
+            "the cycle runs." % ", ".join(failed))
+    if not_consulted:
+        parts.append(
+            "SOURCE NOT CONSULTED, SO NO ROW WAS WRITTEN: %s. This is a GAP, deliberately, "
+            "and a gap is recoverable. The alternative -- a row saying zero when nothing ran "
+            "-- is a positive assertion of ABSENCE that a first-appearance study cannot tell "
+            "from a real one. Wire a source or accept the gap." % ", ".join(not_consulted))
+    out["loud"] = " ".join(parts)
     return out
+
+
+# ---------------------------------------------------------------------------------------
+# INVALIDATION. A forward record, because backward writes are REFUSED and stay refused.
+# ---------------------------------------------------------------------------------------
+def invalidate(series: str, first: str, last: str, reason: str, *, date: str = None,
+               root: str = None) -> dict:
+    """Mark `series` rows in `[first, last]` INVALID, by appending a record TODAY.
+
+    **THE APPEND-ONLY RULE IS NOT WEAKENED, and that is the whole design.** These streams
+    refuse a backward write because "a series whose past can be rewritten is not evidence",
+    and audit #5's fabricated rows do not earn an exception -- a recorder that could erase its
+    own bad days could erase its good ones. So the bad span is not edited, not deleted and not
+    corrected: a FORWARD record says it must not be read, and every consumer here honours it.
+
+    `PT-AMEND1`'s shape: dated, disclosed, kept, never edited away.
+    """
+    return invalidate_many([{"series": series, "from": first, "to": last, "reason": reason}],
+                           date=date, root=root)
+
+
+def invalidate_many(spans, *, date: str = None, root: str = None) -> dict:
+    """Mark several spans invalid in ONE forward record.
+
+    **IT TAKES A LIST BECAUSE THE UNDERLYING STREAM IS IDEMPOTENT PER DATE.** `record` is keyed
+    on `date`, so a second write on the same day is a NO-OP that returns the row already on
+    disk -- and a caller invalidating two series in one cycle would have had the second span
+    SILENTLY DROPPED, in the direction that reads as success. That is `S3-I1`'s defect
+    verbatim, where reusing a date-keyed writer for a many-per-day record dropped every entry
+    after the first. Found here by a test that invalidated two series at once and watched the
+    second vanish.
+
+    The written payload is CUMULATIVE, so one read answers the whole question, and the write
+    is verified by reading it back -- a same-date collision that dropped content is reported
+    as a failure rather than returning a cheerful `ok`.
+    """
+    date = date or _dt.date.today().isoformat()
+    prior = [s for s in invalid_spans(root) if s.get("series")]
+    fresh = []
+    for sp in spans or []:
+        name = str(sp.get("series"))
+        if name not in SERIES:
+            return {"ok": False, "wrote": False,
+                    "reason": "cannot invalidate %r; it is not a daily series" % name}
+        span = {"series": name, "from": str(sp.get("from"))[:10],
+                "to": str(sp.get("to"))[:10], "reason": str(sp.get("reason") or "")}
+        if any(p["series"] == span["series"] and p["from"] == span["from"]
+               and p["to"] == span["to"] for p in prior + fresh):
+            continue
+        fresh.append(span)
+    if not fresh:
+        return {"ok": True, "wrote": False, "already_present": True,
+                "reason": "every requested span is already marked invalid"}
+    payload = prior + fresh
+    os.makedirs(history_dir(root), exist_ok=True)
+    row = {"date": str(date)[:10], "n_spans": len(payload),
+           "payload": json.dumps(payload, sort_keys=True, separators=(",", ":"))}
+    res = AO.append(row, series_path(INVALIDATIONS, root), key="date",
+                    columns=INVALIDATION_COLUMNS, append_only=True,
+                    backfill_hint=BACKFILL_HINT)
+
+    # READ IT BACK. The write above can be a same-date no-op, which returns `ok` while
+    # storing nothing -- the exact failure this function exists to avoid.
+    stored = invalid_spans(root)
+    missing = [s for s in fresh
+               if not any(t["series"] == s["series"] and t["from"] == s["from"]
+                          and t["to"] == s["to"] for t in stored)]
+    if missing:
+        return {"ok": False, "wrote": False, "dropped": missing,
+                "reason": ("the invalidation was NOT stored: an `invalidations` record already "
+                           "exists for %s and the stream is idempotent per date, so this write "
+                           "was a no-op. Re-run on a later date, or pass every span in ONE "
+                           "call." % date)}
+    res["spans_added"] = fresh
+    return res
+
+
+def invalid_spans(root: str = None) -> list:
+    """Every span ever marked invalid, from the LATEST forward record.
+
+    The record is cumulative rather than incremental so one read answers the question. An
+    absent series means nothing has been invalidated, which is different from an empty one and
+    is why `read` reports the two apart.
+    """
+    rows, _cols, err = AO.read_rows(series_path(INVALIDATIONS, root))
+    if err or not rows:
+        return []
+    try:
+        payload = json.loads(rows[-1].get("payload") or "null")
+    except ValueError:
+        return []
+    return [s for s in (payload or []) if isinstance(s, dict)]
+
+
+def is_invalid(series: str, date: str, spans=None, root: str = None) -> bool:
+    """Does a forward record say this `(series, date)` row must not be read?"""
+    d = str(date)[:10]
+    for s in (invalid_spans(root) if spans is None else spans):
+        if s.get("series") == series and str(s.get("from")) <= d <= str(s.get("to")):
+            return True
+    return False

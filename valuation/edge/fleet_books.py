@@ -232,7 +232,16 @@ def f3_bear_puts(decl: dict, root: str = None, *, store=None, provider=None,
         from .paper_broker import PaperBroker
         broker = PaperBroker()
 
-    sha = F.declaration_sha(_read(F.declaration_path("f3_bear_puts", root)))
+    # AUDIT #5 H1 - ROUTED THROUGH THE ONE RESOLVER. Reading DECL_*.md directly
+    # RAISES in the image, where `.dockerignore` excludes `*.md`, and it raises
+    # only on a day this book actually has a pick -- so every quiet cycle looked
+    # healthy and the defect would have fired exactly once, on the first day that
+    # would have been evidence. `decl_sha_for` falls back to the shipped manifest.
+    sha = F.decl_sha_for("f3_bear_puts", root)
+    if not sha:
+        # No declaration by EITHER route: refuse the candidates rather than
+        # filling against an unidentified declaration.
+        return []
     out = []
     for p in picks:
         got = f3_pick_contract(provider.get_option_chain(p["ticker"], dte_range=(45, 75)),
@@ -330,7 +339,16 @@ def f8_csp_entry_financing(decl: dict, root: str = None, *, provider=None, broke
         from .paper_broker import PaperBroker
         broker = PaperBroker()
 
-    sha = F.declaration_sha(_read(F.declaration_path("f8_csp_entry_financing", root)))
+    # AUDIT #5 H1 - ROUTED THROUGH THE ONE RESOLVER. Reading DECL_*.md directly
+    # RAISES in the image, where `.dockerignore` excludes `*.md`, and it raises
+    # only on a day this book actually has a pick -- so every quiet cycle looked
+    # healthy and the defect would have fired exactly once, on the first day that
+    # would have been evidence. `decl_sha_for` falls back to the shipped manifest.
+    sha = F.decl_sha_for("f8_csp_entry_financing", root)
+    if not sha:
+        # No declaration by EITHER route: refuse the candidates rather than
+        # filling against an unidentified declaration.
+        return []
     out = []
     for p in picks:
         got = f3_pick_contract(provider.get_option_chain(p["ticker"], dte_range=(20, 45)),

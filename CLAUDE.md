@@ -6349,8 +6349,13 @@ the project's memory and the old versions had been repeated for months.
     adopt count of 20 exactly.
   * **AND IT COMES WITH A DATED TRIGGER, WHICH IS THE POINT OF DERIVING IT RATHER THAN TABULATING
     IT: the next draw to flip is seed 1003 at `margin/se` 3.319188, and it flips when
-    sqrt(2 ln N) exceeds that - i.e. at equity `N` = 247. THIRTEEN TRIALS OF HEADROOM FROM
-    TODAY.** Below 247 no permutation floor can move; at 247 a **bounded** re-derivation is owed
+    sqrt(2 ln N) exceeds that - i.e. at equity `N` = 247. THIRTEEN TRIALS OF HEADROOM AT THE
+    TIME OF WRITING** - **AND AS OF 2026-08-26 IT IS FOUR, equity `N` having reached 243
+    (audit #5, `L5`). THE TRIGGER IS THE `N`, NEVER THE HEADROOM: 247 is a fixed property of
+    seed 1003 and does not move, while "N trials of headroom" decays every time any lane books
+    a trial and is stale within days. Derive it - `python -m scripts.mb31_staleness_map` prints
+    it - and never quote a countdown from this file.** Below 247 no permutation floor can move;
+    at 247 a **bounded** re-derivation is owed
     (`MA19` re-scored three draws in ~400 seconds, not a 3.4-hour sweep - `RUN_RULES` rule 9 is
     why it is bounded), and whether any floor then actually moves depends on where seed 1003 sits
     in each statistic's ranking. **Still report the four as INSENSITIVE-SO-FAR and never as

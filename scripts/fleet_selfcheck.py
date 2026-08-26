@@ -181,8 +181,14 @@ def run(verbose=True) -> dict:
 
     def skip(name, why):
         """NOT-RUN, and never counted as a pass. `O21-D2`'s C5: a check that could not run
-        and one that ran and found nothing must not read the same."""
-        checks.append({"check": name, "pass": True, "skipped": True, "detail": why})
+        and one that ran and found nothing must not read the same.
+
+        **AUDIT #5 M1: `pass` IS NOW `False`, WHICH IS WHAT THIS DOCSTRING ALWAYS CLAIMED.** It
+        was `True`, and the summary counted it, so the image reported 20/20 with two checks
+        never executed. A skip is neither a pass nor a failure -- it is counted apart, and
+        `ok` is decided on the checks that RAN.
+        """
+        checks.append({"check": name, "pass": False, "skipped": True, "detail": why})
         if verbose:
             print("  SKIP  " + name + "  -- " + why)
 
@@ -386,11 +392,19 @@ def run(verbose=True) -> dict:
         for d in (root,):
             shutil.rmtree(d, ignore_errors=True)
 
-    n_pass = sum(1 for c in checks if c["pass"])
+    # AUDIT #5 M1 -- SKIPS COUNT APART, AND THE FLOOR COUNTS WHAT RAN.
+    # `ok` used to be `n_pass == len(checks)` with `pass` true on skips, so a run in which
+    # 10% of checks never executed reported a perfect score. The non-vacuity floor is kept
+    # and now applies to EXECUTED checks, which is what it was always for.
+    n_skipped = sum(1 for c in checks if c.get("skipped"))
+    n_run = len(checks) - n_skipped
+    n_pass = sum(1 for c in checks if c["pass"] and not c.get("skipped"))
     return {"instrument": "S3-I1 fleet harness day-1 self-verification",
             "harness_fingerprint": F.harness_fingerprint(),
             "checks": checks, "n_checks": len(checks), "n_pass": n_pass,
-            "ok": n_pass == len(checks) and len(checks) >= 15}
+            "n_run": n_run, "n_skipped": n_skipped,
+            "skipped": [c["check"] for c in checks if c.get("skipped")],
+            "ok": n_pass == n_run and n_run >= 15}
 
 
 # ===========================================================================================
@@ -643,8 +657,14 @@ def run_day1(book: str = "testbook", *, live: bool = True, close: bool = True,
         return res
 
     syn = run(verbose=verbose)
+    # AUDIT #5 M1: `skipped` and `n_run` are FORWARDED. The per-check list is dropped here,
+    # so before this the `skipped` flag reached neither the endpoint, nor the workflow log,
+    # nor any human -- the one place the number is actually read.
     out["synthetic"] = {"ok": syn["ok"], "n_pass": syn["n_pass"], "n_checks": syn["n_checks"],
-                        "failed": [c["check"] for c in syn["checks"] if not c["pass"]]}
+                        "n_run": syn.get("n_run"), "n_skipped": syn.get("n_skipped"),
+                        "skipped": syn.get("skipped") or [],
+                        "failed": [c["check"] for c in syn["checks"]
+                                   if not c["pass"] and not c.get("skipped")]}
     if not syn["ok"]:
         out["reason"] = ("synthetic checks failed; the live leg does not run and nothing is "
                          "certified. Fix the harness, never the check.")

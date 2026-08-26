@@ -10277,3 +10277,177 @@ is made anywhere** and none is reachable: this is a COST measurement, pinned by 
 adoption**; a cost curve licenses no trade and `O11` governs. **21 tests, exit 0 — 16 run in CI and
 5 skip loudly.** `scripts/sc3_coverage.py`, `scripts/sc3_arm.py`;
 `data/free_analysis/SC3_COVERAGE.json`, `SC3_ARM.json`, `SC3_PAIRS.pkl`, `SC3_LONG_PAIRS.pkl`.
+
+---
+
+# AUDIT #5 REMEDIATION (2026-08-26, options-live lane)
+
+**ZERO TRIALS, `FIXED`-class.** No hypothesis, no bar, no verdict against a threshold; `by_domain`
+bit-identical across the log append. **H1, H2 and every non-decision correctness item are taken.
+The three DECISION items are stated and NOT taken. One item is BLOCKED by the land policy.**
+
+## H2 — THE FABRICATED ZERO IS STOPPED, AND THE BLAST RADIUS IS ONE DAY
+
+`record_all`'s production caller passed **no sources**, so `dip_rejects` asserted *"zero names
+were rejected today"* from a dip screen that **does not exist anywhere in this repository**, and
+`iv60_atm` asserted *"no name had a solvable 60-DTE ATM IV"* with no chain ever fetched. Both are
+positive assertions of **ABSENCE**.
+
+**THE RULE NOW ENFORCED:** `None` means **NOT CONSULTED** and **REFUSES**; an empty collection
+means *ran and found nothing* and **records**. That is the same distinction `record_iv60` already
+drew one level down — *"a name with no solvable IV is OMITTED, never recorded as zero"* — lifted
+to the source.
+
+**THE ALARM'S REAL BLIND SPOT IS CLOSED, AND IT IS NOT THE ONE THE ITEM LEADS WITH.**
+`failed_to_start` re-reads each series and asks whether it has any rows, so **a series with
+history passes that check forever** — a source that silently stopped being consulted could never
+reach it. `not_consulted` is now a separate loud state and `ok` is false on it, so the alarm fires
+on TODAY's row rather than on the series' lifetime. Pinned by a test that writes a day of real
+history first and *then* drops the source; the old alarm read `ok: True` in exactly that state.
+
+**A REAL SOURCE EXISTED FOR ONE OF THEM AND WAS SIMPLY NOT WIRED.** The intraday options scan the
+cycle has already paid for carries `detail.atm_iv_60d`, in the same store `record_alert_count`
+reads. `iv60_from_store()` uses it: a name whose IV is missing or non-positive is **OMITTED**, an
+unavailable scan returns `None` (refuse), and a scan that solved nothing returns `{}` (a real
+observation). **`dip_rejects` gets `None` deliberately — there is no dip screen to consult — so it
+refuses and goes loud every cycle until one is built.** That is the honest state.
+
+**THE ROWS ALREADY WRITTEN: ONE DAY, MEASURED ON THE SERVICE.** The last cycle
+(2026-08-25T22:45Z) reports `dip_rejects` and `iv60_atm` each at **`n_days: 1`, `first` = `last` =
+2026-08-25**, and no cycle has run since. **So the fabricated span is a single day per series**,
+and it becomes two only if a cycle runs before this deploys — which the invalidation handles,
+because it freezes whatever is on disk at first application rather than a hard-coded date.
+
+**THE APPEND-ONLY RULE IS NOT WEAKENED.** These streams refuse a backward write because *"a series
+whose past can be rewritten is not evidence"*, and a recorder that could erase its own bad days
+could erase its good ones. The span is **marked INVALID by a FORWARD record** — `invalidate()` /
+`invalidate_fabricated_span()` — and every consumer here honours it: `read` stamps `invalid` per
+row and reports `n_valid`/`n_invalid` beside `n`, `coverage` reports `n_days_valid` and `usable`,
+and **`history_for` SKIPS invalid days**, which is the path the books actually read. The rows are
+**kept, not erased** (`PT-AMEND1`'s shape: dated, disclosed, kept, never edited away).
+
+**WHAT ANY FUTURE STUDY MUST EXCLUDE:** `dip_rejects` and `iv60_atm` for **2026-08-25** (plus any
+further pre-deploy day, which the invalidation record names exactly). `history_for` already
+excludes them; a study reading `read(...)["rows"]` directly must filter on `invalid`.
+
+**WHAT IT COSTS F-11, PLAINLY.** F-11's declared hypothesis is a name's **FIRST APPEARANCE** in
+the dip-reject population, so a fabricated empty day is evidence *against* the very thing the book
+exists to detect. The honest statement is stronger than "one day is lost": **no dip screen exists,
+so `dip_rejects` has never recorded a real observation and F-11's two-year clock HAS NOT STARTED.**
+The fabricated rows made it look as though it had. After this change the series accrues nothing
+and says so loudly every cycle, which is the true state and is recoverable; the alternative was a
+clock that appeared to be running against a series of manufactured absences. **F-5 is better off:
+`iv60_atm` now has a real source and its clock starts on the first cycle after deploy.**
+
+**A DEFECT IN MY OWN FIX, FOUND BY THE TEST WRITTEN FOR IT, AND IT IS `S3-I1`'s DEFECT AGAIN.**
+The first cut invalidated the two series with two separate `record()` calls **on one date** — and
+that stream is **idempotent per date**, so the second write was a NO-OP returning the row already
+on disk and the second span was **SILENTLY DROPPED**, in the direction that reads as success. The
+next day's run then recomputed a wider span and swallowed a good row. Repaired with
+`invalidate_many`, which writes every span in ONE record and **reads it back**, reporting a
+same-date collision as a failure rather than a cheerful `ok`.
+
+## H1 — THE FLEET CAN FILL, PROVEN IN AN IMAGE-SHAPED ROOT
+
+Both call sites now use **`F.decl_sha_for(book, root)`** and refuse the candidates when it returns
+nothing. **MEASURED IN A ROOT SHAPED LIKE THE IMAGE** (`data_export/` present, no `DECL_*.md`, no
+`.git`), with a **positive control** so the test cannot pass on a tree where the defect was never
+real:
+
+```
+DECL files in image root : NONE (as in production)
+OLD route, f3_bear_puts  : RAISES FileNotFoundError      <- control
+NEW route, f3_bear_puts  : c10a70e074ccbc31...           <- matches the audit's own figure
+OLD route, f8_csp_...    : RAISES FileNotFoundError
+NEW route, f8_csp_...    : 0ad29231c3e52926...
+picks on 2026-08-21      : 1 -> ['BIO']                  <- reproduces the audit's case
+f8 in the image root     : RETURNED, NO RAISE
+```
+
+**A VACUOUS PASS CAUGHT ON THE WAY.** The first run of that check registered no assignment
+provider, so F-8 self-refused at its own `assignment_provider() is None` line and returned `[]`
+**before reaching the repaired line** — a green result that proved nothing. `assignment.register()`
+is called first now, so the rule genuinely reaches the declaration lookup.
+
+The AST test forbids `declaration_sha(_read(declaration_path(...)))` anywhere in `fleet_books.py`,
+read from the **syntax tree** rather than grepped — the repair comment names the very call it
+forbids, which is `MA49`'s defect and has fired four times in this record.
+
+## THE CORRECTNESS ITEMS
+
+* **M1 — the day-1 certificate counted NOT-RUN checks as passes**, contradicting `skip`'s own
+  docstring. `skip` now records `pass: False`; `n_run`, `n_skipped` and the skipped check NAMES
+  are counted apart and forwarded through `run_day1`, and `ok` is `n_pass == n_run` with the
+  non-vacuity floor applied to **executed** checks. **Verified under the image's own condition**
+  (no git binary): **18 run / 2 skipped / 18 pass**, the two named, where it previously reported
+  **20/20 with two checks never executed**. `ok` stays true, which is correct — the audit's point
+  was the number, not the mitigation.
+* **M2 — `read_meter` returned a verdict with `ok: True` when the read was not recorded**, handing
+  back a state, a first-read flag and a "CHARGE ONE TRIAL NOW" instruction with no dated record.
+  It now **withholds the verdict** and returns `ok: False` with the underlying refusal. An
+  ALREADY-PRESENT record still counts as landed — the read is on the stream, which is what the
+  rule requires.
+* **M3 — `RULE_ARMED_NEVER_FIRES` was structurally unreachable** for both implemented
+  order-placing rules, because a rule that selects nobody writes no row and `n_obs` never left
+  zero. A per-book **run counter** (`note_cycle_ran` / `cycles_ran`) lives **outside the declared
+  record stream**, so no declaration needs amending, and `never_fires` takes `max(rows, runs)`.
+  Verified: 11 quiet runs, 0 rows, state `RULE_ARMED_NEVER_FIRES`. **The richer fix the audit
+  prefers — every rule emitting a `skip` per declined candidate — stays open; it changes what the
+  streams contain and wants an amendment to each affected declaration.**
+* **M4 — the fingerprint covered two of eight modules.** `FINGERPRINTED_MODULES` now names all
+  eight, **including `paper_broker.py`, which prices every fill** and whose `fill_price` the
+  self-check's `L9b` delegates to — so the fabricated-fill defect could previously have been
+  reintroduced with every book keeping its certificate. Proved to bite by perturbing
+  `paper_broker.py` and requiring the digest to move, source restored byte-for-byte.
+* **M5 — nothing kept the shipped manifest fresh**, and for a book with no records drift is
+  SILENT (the chain only anchors once a first row exists, and all eighteen books have none). One
+  test now builds the manifest and requires the committed artifact to match, book set and every
+  `decl_sha`. It passes today and fails the moment a declaration lands without a re-export.
+* **M6 — `write_pgpass`'s permission promise was unconditional and its verification unreachable
+  on the only platform that runs it.** The docstring now scopes the guarantee to POSIX and states
+  the Windows gap, and `LAST_PGPASS_PERMS_VERIFIED` carries the status so a caller can see which
+  it got. `MB42`'s family: a guard whose only real execution is skipped.
+* **M7 — `connect()`'s deadline bounded the caller and not the process.** `ThreadPoolExecutor`
+  workers are non-daemon and its atexit hook JOINS them, so a hung worker held the interpreter
+  open at exit — the same "looks blocked from outside" shape the deadline exists to abolish.
+  Replaced with a **daemon thread**. Verified: raises `TimeoutError` after 1.0s on a simulated
+  stdin prompt, hung worker is `daemon=True`, process exits cleanly.
+* **L1 — `record` dropped declared extra columns silently**, defeating `append_only`'s own rule 3
+  disclosure one layer up. The book's declared `records_schema` is now threaded into `record()` as
+  `columns=` from **both** `record_fill` and `record_skip`, and anything still unmatched comes back
+  in `ignored_fields` with a reason instead of vanishing.
+* **L4 — the fingerprint was line-ending dependent**, so the same commit yielded different
+  identities on Windows and in the Linux image. Normalised before hashing; the `.gitattributes`
+  route stays ruled out as that file says. Pinned by flipping a covered module's line endings and
+  requiring the digest not to move.
+* **L5 — CLAUDE.md's "THIRTEEN TRIALS OF HEADROOM" is now FOUR** (equity `N` 243, trigger 247).
+  Corrected in place with the durable point stated: **the trigger is the `N`, never the headroom** —
+  247 is a fixed property of seed 1003 and does not move, while a countdown decays every time any
+  lane books a trial. Derive it with `python -m scripts.mb31_staleness_map`.
+* **L6 — `wrds_client._env` hard-coded an absolute path to one machine's checkout.** Now DERIVED
+  by walking up for the `.env` beside a `.git`; fails closed exactly as before. Verified the
+  credentials still resolve from this worktree (booleans only, no value printed).
+
+**L2 IS BLOCKED, NOT SKIPPED.** The one-line fix — print `not_breathing_reason` from the body
+instead of the hard-coded cause — is in `.github/workflows/fleet-cycle.yml`, and **`MA11`'s land
+policy REFUSES any branch touching `.github/`**. It needs Don or the Cowork lane. The code already
+measures the reason; only the workflow's echo is stale.
+
+## THE THREE DECISION ITEMS — STATED, NOT TAKEN
+
+* **H3 — the export door.** The two datasets that cannot be rebuilt are not equally protected and
+  the fleet self-heals over its own data loss. Don's.
+* **L3 — the gates artifact is 210–303 days stale, has no consumer, and there is no default
+  staleness bar.** Choosing a bar is a decision, and an uncalibrated one is the error this record
+  warns about most. Don's.
+* **L7 — `DECL_testbook.md` ships in the production manifest as an eighteenth book.** Whether the
+  test book belongs in the declared set is a decision about what the fleet IS. Don's.
+
+**33 new tests, zero skips.** Full suite green apart from `test_checkout_drift.py`, which reports
+**18 passed, 0 failed** and exits non-zero on its own ALARM: the shared checkout is **9 commits
+behind origin**, so every `.bat` Windows runs from that folder is stale. Environmental,
+pre-existing, unrelated to this work, and the cure is `sync.bat` in the main folder.
+
+`valuation/edge/fleet_history.py`, `valuation/edge/fleet.py`, `valuation/edge/fleet_books.py`,
+`valuation/edge/wrds_client.py`, `valuation/saas/app_saas.py`, `scripts/fleet_selfcheck.py`,
+`tests/test_audit5_remediation.py`.

@@ -778,8 +778,29 @@ def create_saas_app(cfg=CONFIG):
             from ..edge import fleet_history
             res["history"] = fleet_history.coverage()
             if wants_run:
-                rec = fleet_history.record_all()
+                # AUDIT #5 H2 — THE SOURCES ARE PASSED EXPLICITLY NOW. This call used to pass
+                # NOTHING, so `dip_rejects` recorded "zero names rejected today" from a screen
+                # that never ran and `iv60_atm` recorded "no name had a solvable 60-DTE IV"
+                # with no chain ever fetched. Both are positive assertions of ABSENCE, and
+                # F-11's hypothesis is a FIRST APPEARANCE, so every fabricated empty day was
+                # evidence against the very thing it exists to detect.
+                #
+                # `iv60_from_store` reads the intraday scan the cycle has ALREADY paid for.
+                # `rejects` stays None ON PURPOSE: nothing in this repository runs a dip
+                # screen, so there is no source to pass, and the recorder now REFUSES and goes
+                # loud rather than writing a zero. A gap is recoverable; a fabricated zero is
+                # not.
+                # ONE-TIME, IDEMPOTENT, FORWARD-ONLY. The pre-fix rows cannot be corrected in
+                # place -- these streams REFUSE a backward write and that rule is not being
+                # weakened -- so the fabricated span is marked INVALID by a record appended
+                # today, which every consumer here honours. It runs BEFORE record_all so the
+                # span it freezes is exactly the pre-fix rows and never today's real one.
+                res["history_invalidated"] = fleet_history.invalidate_fabricated_span()
+                rec = fleet_history.record_all(
+                    quotes=fleet_history.iv60_from_store())
                 res["history_recorded"] = rec
+                if rec.get("not_consulted"):
+                    res["history_not_consulted"] = rec["not_consulted"]
                 # LOUD, not buried in a sub-object. A series that failed to START has
                 # recorded nothing, and a clock that has not started cannot be started
                 # retroactively -- so it is surfaced at the top of the body where a log
