@@ -23,8 +23,10 @@ audit that reports only problems cannot be distinguished from one that stopped l
 in-scope suites were run (`test_fleet_*` x11, plus `test_wrds_client`, `test_s25_sector_map`,
 `test_ibes_events`, `test_event_spine`, `test_mb31_staleness_map`, `test_record_this_week`,
 `test_research_log_integrity`) and **all eighteen pass**. **Not one finding in this document is
-visible to that suite.** Ten of the seventeen are deployment-shaped, four are vacuous-pass
-shaped, and both families are invisible to a green local run by construction. That is this
+visible to that suite.** They fall into two families — something present where the code is
+TESTED and absent or different where it RUNS, and a guard that reports success in a state it
+was written to catch — and several belong to both. Both families are invisible to a green
+local run by construction, which is not a comment on the suite. That is this
 project's most repeated lesson and it is the reason the audit was commissioned before the
 evidence accrues rather than after.
 
@@ -872,8 +874,9 @@ survives, and because two of them are the sort of thing a future reader will re-
   been certified on the service, and whether the (D) series have begun accruing fabricated
   rows there, is not established here and should be the first thing checked.**
 - **It proposes no research and unparks nothing.** No item below `DECISION` needs a register,
-  and the two that do (H3's export door, L3's staleness bar) are design questions rather than
-  hypotheses.
+  and the three that do (H3's export door, L3's staleness bar, L7's test-book in the declared
+  set) are design questions rather than hypotheses. Counted: thirteen `CORRECTNESS`, three
+  `DECISION`, and `L6` is housekeeping carrying neither.
 
 ---
 
