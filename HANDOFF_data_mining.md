@@ -1,5 +1,31 @@
 # HANDOFF — the data-miner lane. Chain harvest (closed) + the I-4 event spine.
 
+**LATEST: THE $ADV INSTRUMENT — BUILT 2026-08-26, ARMS REGISTERED AND NOT RUN. Zero trials.**
+`valuation/edge/adv.py`; record in `B13_ADV_INSTRUMENT_RECORD.md`, register (blind, committed
+alone) in `PREREG_b13_s7d_liquidity.md`. Four things a future reader needs:
+
+1. **`B13` and `S7`-4 are unblocked on DATA and still unrun.** CRSP `dsf` reaches 2,271 of 2,531
+   names against the incumbent 502. **Coverage on the arms' own population is 79.01% of CELLS**,
+   not the 89.7% name-level figure — a name can resolve to a permno and still have no usable ADV
+   on a date. 64 of 69 dates, halves **32/32**.
+2. **CRSP is cut at 2024-12-31**: 5 panel dates, 8.22% of rows. Nothing built on this instrument
+   may speak about 2025 or 2026, and it is useless to the forward paper track.
+3. **`capacity.py:adv_from_bars` IS WRONG BY THE CUMULATIVE SPLIT FACTOR** —
+   `data/bulk/prepared/bars` pairs an as-traded `raw_close` with a **split-adjusted `volume`**.
+   Measured against CRSP: volume ratio CMG **50.0000**, AAPL **27.9950**, WMT 3.0000, SIRI
+   0.1000 (reverse), while the price ratio is 1.0000 everywhere and JPM (no split) reads 1.0000.
+   It makes split names look **more** liquid, so any floor built on it **under-filters**.
+   Reported, **not fixed** — its only consumer is `capacity.py`'s own run and repairing it moves
+   a published capacity figure.
+4. **Two traps this instrument owns so nobody re-discovers them:** CRSP's `prc` is **negative**
+   when it substitutes a bid/ask midpoint (0.404% of rows, and a negative ADV sits below every
+   floor); and the ticker→permno join **must be date-scoped** — 1,053 of 2,271 matched tickers
+   map to more than one permno, `S3-I5`'s reuse problem in a third table.
+
+Raw CRSP daily rows stay on `D:\wrds\crsp_dsf_panel`.
+
+---
+
 **LATEST: O-1 COVERAGE PULL — SHIPPED 2026-08-25, STAGE 1 COMPLETE, STAGE 2 NOT RUN. Zero
 trials.** Full record in `O1_COVERAGE_PULL_RECORD.md`; four things a future reader needs:
 
