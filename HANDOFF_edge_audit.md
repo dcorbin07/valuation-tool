@@ -17263,3 +17263,161 @@ nearly free, and two of the three unscorables were declared so in §0 because th
 already measured.** **18 tests, 10 of 10 mutations caught with sources restored byte-for-byte.**
 `valuation/studies/revisions.py`, `scripts/d6_revisions.py`, `scripts/d6_power_control.py`;
 `data/free_analysis/D6_CONTROLS.json`, `D6_ARM.json`, `D6_POWER_CONTROL.json`.
+
+---
+
+# S25-REPAIR — THE LOOK-AHEAD REPAIR IS WIRED AND MEASURED (2026-08-26, options-live lane)
+
+**THE REPAIR IS FAR MORE MATERIAL THAN S25's OWN INPUT-MOVEMENT MEASUREMENT COULD SEE, AND THE
+REASON IS THAT THE SECTOR IS NOT A DIAL — IT IS A METHOD SWITCH.** S25 measured what the repair
+moves on the banked panel's *inputs* and reported a median target-margin delta of +0.03, because
+`ev_ebitda_used` turned out to be a boolean flag and the fair value could not be recomputed.
+Re-valued properly: **every single one of the 4,946 comparable changed rows moves its fair
+value**, the median move is **−13.2%** of the incumbent fair value (**−10.1pp of price**), and
+**2,832 rows — 57% of those that move — change VALUATION REGIME.**
+
+**ZERO TRIALS, `FIXED`-class.** No hypothesis, no bar, no verdict against a threshold.
+**ADOPTS NOTHING**: `CONFIG` untouched, live path untouched, the banked panel not overwritten,
+and `sector_map=None` leaves `build_valuation_panel` bit-identical.
+
+## THE CONTROL IS EXACT, AND IT IS WHAT LICENSES EVERY NUMBER BELOW
+
+The fresh build reproduces the **banked** `panel_s23_fairvalue.pkl` at **max absolute fair-value
+deviation 0.000e+00 across all 108,241 rows**, with regime identical on 108,241 and sector
+identical on 108,241. So the arms are measured against exactly the object the record describes,
+not a lookalike. The count is gated — `MB21`'s `C1` scored a perfect zero on an empty frame by
+comparing nothing — and a zero-row comparison would report **VACUOUS, never PASSING**.
+
+**ONE BUILD, THREE SCORINGS, A PROVABLY IDENTICAL ROW SET.** The base valuation and both repair
+arms are computed in one pass over the same `(date, ticker)` rows from the same `CompanyData`,
+differing in the **sector string alone**. Three separate builds would have let the row set drift
+and would have confounded the repair with whatever else moved.
+
+## THE MECHANISM, WHICH IS THE FINDING
+
+`SECTOR_TARGET_MARGIN` and `SECTOR_MULTIPLES` are the *visible* consequence of the sector, and
+they are not the big one. The sector also selects the **valuation REGIME**, and the `financial`
+regime is a different method entirely — justified P/B from ROE rather than DCF plus multiples.
+Top transitions under REPAIR-A: **`mature` → `financial` 1,064**, `cyclical` → `mature` 425,
+`growth` → `financial` 358, `mature` → `cyclical` 292. **2,893 rows change METHOD.**
+
+**A NAMED, CHECKABLE EXAMPLE: Visa on 2009-01-15.** The panel calls it Financial Services today;
+GICS classified it **Information Technology** until the 2023 payment-processor reclassification.
+Repaired, the regime goes `financial` → `mature` and the fair value goes **1.25 → 8.16**.
+Alphabet on the same date goes Communication Services (today) → Technology (2009), 20.85 → 25.49.
+These are real, well-documented GICS moves, not artefacts.
+
+## WHAT IT MOVES — REPAIR-A (CHANGE-ONLY), THE REGISTER'S PRIMARY
+
+| | |
+|---|---|
+| rows whose sector moves | **4,982 of 108,241 = 4.60%** |
+| rows whose fair value changes | **4,946 of 4,946 comparable — ALL of them** |
+| median relative move | **−13.2%** |
+| median move as a share of price | **−10.1pp** |
+| moving ≥10% relative | **4,250 (86%)** |
+| moving ≥10pp of price | **3,913 (79%)** |
+| regime changed | **2,832 (57%)** |
+| method changed | **2,893 (58%)** |
+| direction | **3,180 down, 1,766 up** |
+| rows the repair could not value | **22** |
+
+**THE DIRECTION MATTERS AS MUCH AS THE SIZE.** It skews **down about 1.8 to 1**, so this is a
+correction rather than a systematic upgrade — a repair that only ever raised fair value would
+deserve much more suspicion than one that mostly lowers it.
+
+**THE NUMBER MOST LIKELY TO BE MISQUOTED IS THE MEAN, AND BOTH MEANS ARE OUTLIER-DRIVEN IN
+OPPOSITE DIRECTIONS.** The relative delta's mean is **+32.7%** against a median of −13.2%,
+because its denominator is the base fair value and the `financial` regime can legitimately
+return **0.027** on a real name — switching out of it then reads as **+109x**, which is a
+property of the DENOMINATOR and not of the repair. The price-denominated mean is **−0.84**
+against a median of −0.10, dragged by a single −561 tail. **Quote the MEDIANS. They agree with
+each other (−13.2% and −10.1pp), which is what makes them trustworthy; the means do not.**
+
+## REPAIR-B (FULL) — SENSITIVITY ONLY, NO VERDICT
+
+13,799 rows (12.75%), 13,252 changing fair value, **6,167 changing regime**, median −3.6%
+relative and −3.1pp of price, direction 7,693 down against 5,559 up, 44 unvaluable.
+**It fixes look-ahead AND switches taxonomy in one step, so it is confounded by construction and
+may only be quoted beside the 11.37% taxonomy disagreement that explains most of it** — a void
+condition of the register, and the rate is carried in the artifact itself so a reader of that
+file alone cannot breach it.
+
+**ONE ASYMMETRY WORTH KEEPING: under A, ZERO rows moved sector without moving fair value; under
+B, 486 did.** A moves a name to a genuinely different classification, which always reaches the
+engine; B includes pure taxonomy relabelling that can land on the same margin and multiples.
+
+## A SCOPE CORRECTION THAT RUNS IN THE PROJECT'S FAVOUR — AND IT CHANGES WHAT "ADOPTION" MEANS
+
+**THE REPAIRED PATH IS RESEARCH-ONLY. MEASURED: `build_valuation_panel` and `pit_company` have
+ZERO importers under `valuation/web/`, `valuation/saas/` and `valuation/screener/`.** The live
+site values companies through `pipeline.value_from_company` with today's sector — **and for a
+valuation dated TODAY, today's sector IS the point-in-time sector.** The look-ahead exists only
+when a *historical* date is scored against a *present* classification.
+
+**SO, ON THE VINTAGE RULE'S OWN WORDING, THIS IS PROBABLY NOT A VINTAGE EVENT.** That rule reads
+*"any ADOPTED change to scoring, weights or construction closes the current vintage"* with
+**"adopted" defined as "ships in the live scoring path"** (`CLAUDE.md`; `PAPER_TRACK_CONTRACT.md`
+§362). Wiring a dated sector map into the point-in-time backtest does not ship in the live
+scoring path and does not change the hot list, the Index, or any number a user receives.
+**THE CLASSIFICATION IS DON'S AND IS NOT BEING MADE HERE** — it is flagged because the brief
+assumed a vintage event, and if that assumption were acted on it would reset a clock for nothing.
+
+**WHAT AN ADOPTION WOULD ACTUALLY COST IS RE-DERIVATION, NOT A CLOCK.** The banked valuation
+panel is read by **`scripts/exit_rule.py` (S23), `scripts/mb18_expectations_gap.py` (MB18) and
+`scripts/ma_final_batch_measure.py` (MA26-C)**, and `S10`'s band panel is a sibling build of the
+same function. Every landed figure resting on those would need re-deriving against a panel in
+which 4.6% of rows carry a different sector and 57% of those a different regime.
+
+**AND IF IT WERE A VINTAGE EVENT, HERE IS WHAT IT WOULD RESET, DERIVED RATHER THAN QUOTED:**
+the open vintage is **4**, opened **2026-08-13** on the S14 no-trade-band adoption, and it has
+accrued **13 calendar days**. Its verdict horizon is **2031-08-13**. Closing it now would spend
+those 13 days for no statistical gain — Rule 6's whole point.
+
+**THE FLEET DOES NOT ATTACH TO THE VINTAGE, AND THAT IS A CORRECTION TO THE BRIEF.** Measured:
+`fleet.py` and `fleet_books.py` contain the string "vintage" **zero times**, and a fleet book's
+clock is `horizon_reached = n >= fills_needed` — **a FILL COUNT declared per book**, not a
+calendar clock and not the paper track's vintage. The two mentions in `fleet_gates.py` are prose
+about per-book timestamps. **The FORWARD TRACK does attach to the current vintage** (verified in
+`track_meter.VINTAGES` and the contract's own *"the operational gate and meter attach to the
+current vintage"*). So an adoption would reset the forward track's clock and would **not** reset
+any fleet book's — though a book whose entry rule reads a changed score would be drawing fills
+from two different models, which is a contamination question rather than a clock question.
+
+## HOW IT IS WIRED, AND WHY IT IS INERT
+
+`build_valuation_panel(..., sector_map=None)` — **opt-in and additive**. With `None` the function
+is bit-identical, pinned by an AST test asserting exactly one `sector_map is not None` guard and
+that the repair rule has exactly one call site **inside** it (compared by node identity, so a
+second call site fails even if it looks the same).
+
+**THE MAP IS DUCK-TYPED IN, NOT IMPORTED.** It lives in `valuation/edge/`, and an engine module
+importing it would put a study-side dependency on the live valuation path. A test reads the
+syntax tree and fails on any such import, with a positive control proving the check can see one.
+
+**A NON-OK LOOKUP KEEPS THE PANEL'S OWN SECTOR AND NEVER BLANKS IT.** Both engine dicts fail open
+— `.get(sector, 0.12)` and `.get(sector, _DEFAULT)` — so blanking an unknown sector does not
+abstain, it hands the row the middle of a 2.70x range. **A refusal that blanks is a vote.** All
+four refusal states (`NOT_COVERED`, `UNMAPPED`, `AMBIGUOUS_TICKER`, `BEFORE_GICS`) keep the base
+sector in both arms, and the state travels back in `sector_state` so refusals are **counted**
+rather than inferred from a gap. On this panel: **104,097 `OK`, 4,144 `NOT_COVERED`, zero
+`UNMAPPED`.**
+
+## NOT DONE, NAMED SO IT IS NOT MISTAKEN FOR DONE
+
+**NOTHING IS ADOPTED.** `calibration.py`'s live call still passes `md.get("sector")`, the S25
+exposure pin stays green, and that is correct. **`SECTOR-NEUTRAL-B6` is NOT re-opened** — it was
+rejected twice on measurement, and a dated map removes the DATA objection without touching the
+REJECTION. **No landed figure is re-derived** — S23's exit rules, MB18 and MA26-C still rest on
+the banked panel, and re-deriving them is its own pass with its own decision. **`S10`'s band
+panel is not rebuilt** (it needs `with_scenarios=True`, a separate and slower build). **The
+pre-1999 rows remain unrepairable** and no sector is invented for them. **The 22 rows the repair
+could not value are counted and not imputed.**
+
+**14 tests, zero skips; 4 of 4 mutations caught with the source restored byte-for-byte** —
+including the two that matter most, REPAIR-A absorbing the taxonomy switch and a refusal blanking
+the sector.
+
+`valuation/engine/calibration.py` (`s25_repair_sectors`, `build_valuation_panel(sector_map=)`),
+`scripts/s25_repair_panel.py`, `tests/test_s25_repair_wiring.py`;
+`data/free_analysis/S25_REPAIR_VALUED.json`, `panel_s25_repair.pkl`.

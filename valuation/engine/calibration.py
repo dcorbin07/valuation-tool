@@ -410,15 +410,66 @@ def _beta_at(closes, benchv, i, window=120) -> Optional[float]:
     return float(((br - br.mean()) * (sr - sr.mean())).sum() / varb)
 
 
+def s25_repair_sectors(sector_map, ticker, as_of, base_sector):
+    """S25's repair decision, in ONE place. Returns `(sector_a, sector_b, state, pit)`.
+
+    `sector_a` is REPAIR-A (CHANGE-ONLY, the register's PRIMARY): the dated sector ONLY where
+    GICS records a reclassification between `as_of` and today. The crosswalk's own vendor
+    disagreement cancels by construction, so what moves is look-ahead and nothing else.
+
+    `sector_b` is REPAIR-B (FULL): the dated sector wherever it is known. It fixes look-ahead
+    AND switches taxonomy in one step, so it is CONFOUNDED by construction and carries no
+    verdict.
+
+    **A NON-OK LOOKUP RETURNS `base_sector` AND NEVER A BLANK, in both arms.** Both engine
+    dicts fail open — `SECTOR_TARGET_MARGIN.get(s, 0.12)` and `SECTOR_MULTIPLES.get(s,
+    _DEFAULT)` — so blanking an unknown sector silently hands the row the middle of a 2.70x
+    range. **A refusal that blanks is not an abstention; it is a vote.** The state travels
+    back separately so a caller can COUNT the refusals instead of inferring them from a gap.
+
+    Kept as one function rather than inlined so it can be tested without building a panel,
+    and so there is exactly one definition of the rule (`B7`).
+    """
+    at = sector_map.at(ticker, as_of)
+    now = sector_map.current(ticker)
+    state, pit = at.get("state"), at.get("sector")
+    ok_at = (state == "OK" and pit)
+    ok_now = (now.get("state") == "OK" and now.get("sector"))
+
+    sec_a = base_sector
+    if ok_at and ok_now and pit != now["sector"]:
+        sec_a = pit
+    sec_b = pit if ok_at else base_sector
+    return sec_a, sec_b, state, pit
+
+
 def build_valuation_panel(provider, tickers, benchmark="SPY", rebalance_days=63,
                           lookback_years=18, horizon=63, progress=True,
                           risk_free=None, offline=False,
-                          with_scenarios=False) -> pd.DataFrame:
+                          with_scenarios=False, sector_map=None) -> pd.DataFrame:
     """Point-in-time fair value + forward return per (date, ticker).
 
     Same calendar, same delisting mask and same forward-return convention as
     build_fundamental_panel, so the numbers this produces are directly comparable to
     the factor ICs rather than merely similar-looking.
+
+    **`sector_map` IS S25's LOOK-AHEAD REPAIR AND IT IS OPT-IN AND ADDITIVE.** The sector
+    reaching `pit_company` is TODAY's, from the TICKERS snapshot, and it selects
+    `SECTOR_TARGET_MARGIN` across a 2.70x range and `SECTOR_MULTIPLES` — so a 2009 valuation
+    is scored against a 2026 classification. Passing a dated map (anything exposing
+    `at(ticker, as_of)` and `current(ticker)`) adds `*_a` and `*_b` columns carrying the
+    repaired valuation BESIDE the incumbent one. **With `sector_map=None` this function is
+    bit-identical to what it was**, pinned by test, because adopting a repair is a VINTAGE
+    EVENT and is not this parameter's decision to make.
+
+    **IT IS DUCK-TYPED ON PURPOSE.** The map lives in `valuation/edge/`, and an engine module
+    importing it would put a study-side dependency on the live valuation path. Nothing is
+    imported here; the caller passes the object.
+
+    **A NON-OK LOOKUP KEEPS THE PANEL'S OWN SECTOR AND NEVER BLANKS IT.** Both engine dicts
+    FAIL OPEN — `.get(sector, 0.12)` and `.get(sector, _DEFAULT)` — so an empty sector is
+    silently handed the middle of the range. **A refusal that blanks the sector is not
+    neutral; it is a vote.** The state is recorded in `sector_state` so it can be counted.
     """
     import sys
     import time
@@ -560,6 +611,51 @@ def build_valuation_panel(provider, tickers, benchmark="SPY", rebalance_days=63,
                    "is_adr": ("ADR" in str(md.get("category") or "").upper())}
             row.update(v)
             row["realized_growth"] = _realized_growth(prep.get(t), as_of)
+
+            # ---- S25: the look-ahead repair, measured beside the incumbent, never instead
+            if sector_map is not None:
+                base_sector = cd.sector
+                sec_a, sec_b, _state, _pit = s25_repair_sectors(
+                    sector_map, t, as_of, base_sector)
+                row["sector_state"] = _state
+                row["sector_pit"] = _pit
+
+                for tag, sec in (("a", sec_a), ("b", sec_b)):
+                    if sec == base_sector:
+                        # Nothing moved; copy rather than re-value. Same numbers, less work.
+                        row["fair_value_" + tag] = v.get("fair_value")
+                        row["regime_" + tag] = v.get("regime")
+                        row["method_" + tag] = v.get("method")
+                        row["sector_" + tag] = base_sector
+                        row["revalued_" + tag] = False
+                        continue
+                    row["sector_" + tag] = sec
+                    row["revalued_" + tag] = True
+                    cd2 = pit_company(t, prep.get(t), as_of, float(p), mc,
+                                      sector=sec,
+                                      industry=md.get("industry") or "",
+                                      beta=_pit_beta, risk_free=risk_free)
+                    if cd2 is None:
+                        row["fair_value_" + tag] = None
+                        row["regime_" + tag] = None
+                        row["method_" + tag] = None
+                        continue
+                    try:
+                        v2 = lean_fair_value(
+                            cd2,
+                            beta_override=(offline_beta(_pit_beta) if offline else None),
+                            with_scenarios=with_scenarios)
+                    except Exception:
+                        # Counted the same way the base valuation is: a repaired row that
+                        # raises is a hole in the repair, not a silent pass-through.
+                        row["fair_value_" + tag] = None
+                        row["regime_" + tag] = None
+                        row["method_" + tag] = None
+                        continue
+                    row["fair_value_" + tag] = v2.get("fair_value")
+                    row["regime_" + tag] = v2.get("regime")
+                    row["method_" + tag] = v2.get("method")
+
             rows.append(row)
     prog(f"done: {len(rows):,} rows · {n_no_company:,} (date, ticker) pairs had no usable "
          f"point-in-time company (no TTM / no market cap) · {n_failed:,} valuations raised")
