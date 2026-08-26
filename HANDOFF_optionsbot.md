@@ -10347,6 +10347,46 @@ next day's run then recomputed a wider span and swallowed a good row. Repaired w
 `invalidate_many`, which writes every span in ONE record and **reads it back**, reporting a
 same-date collision as a failure rather than a cheerful `ok`.
 
+## H2 VERIFIED IN THE ACTUAL IMAGE, NOT ONLY LOCALLY
+
+Two fleet-cycle dispatches against the deployed service after this landed. **A local pass is not
+evidence, and the item above this one is the fourth deploy-only defect** — so the verification is
+the service's own response body.
+
+**FIRST CYCLE — the fabricated zero stops, the real source starts, and the span is marked:**
+
+```
+dip_rejects : wrote=false  ok=false  not_consulted=true
+              reason "SOURCE NOT CONSULTED: pass an empty collection to assert 'ran and found
+                      nothing', or nothing at all to say 'did not run' ..."
+iv60_atm    : wrote=true   ok=true   not_consulted=false      <- the newly wired source
+alert_count : wrote=true
+history_not_consulted : ["dip_rejects"]                       <- surfaced at the top of the body
+history_invalidated   : applied [ {dip_rejects 2026-08-25..2026-08-25 n_days 1},
+                                  {iv60_atm    2026-08-25..2026-08-25 n_days 1} ]  ok=true
+```
+
+**BOTH SPANS LANDED IN ONE RECORD**, which is exactly what the `S3-I1` date-key defect found
+during this work would have prevented — the second would have been dropped silently.
+
+**SECOND CYCLE — the freeze holds and the real row survives, which is the property I got wrong
+once locally:**
+
+```
+history_invalidated : already_done ["dip_rejects","iv60_atm"]   applied []   <- never re-applies
+
+iv60_atm    : n_days 2  n_days_invalid 1  n_days_valid 1
+              first 2026-08-25  first_valid 2026-08-26  usable true
+dip_rejects : n_days 1  n_days_invalid 1  n_days_valid 0
+              first 2026-08-25  first_valid null         usable FALSE
+```
+
+**Read those two rows together and they are the whole item.** `iv60_atm` keeps its fabricated day,
+marks it invalid, and its FIRST VALID observation is 2026-08-26 — F-5's clock starts there.
+`dip_rejects` reads `n_days_valid 0` and `usable false`: **it has never recorded a real
+observation and F-11's clock has not started**, which is the true state and was previously hidden
+behind a row that said zero.
+
 ## H1 — THE FLEET CAN FILL, PROVEN IN AN IMAGE-SHAPED ROOT
 
 Both call sites now use **`F.decl_sha_for(book, root)`** and refuse the candidates when it returns
