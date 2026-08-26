@@ -107,6 +107,73 @@ the project's memory and the old versions had been repeated for months.
     re-opened**. **18 tests, 10 of 10 mutations caught with sources restored byte-for-byte.**
     `valuation/studies/revisions.py`, `scripts/d6_revisions.py`, `scripts/d6_power_control.py`;
     `data/free_analysis/D6_ARM.json`; `HANDOFF_edge_audit.md` D6.
+- **THE LONG-TENOR FINANCING CASE IS `NO-FLIP`, AND "FINANCING IMPROVES WITH TENOR" IS REFUTED AT
+  THE LEVEL OF THE RATE ITSELF — THE ROLL LEG COLLAPSES EXACTLY AS PREDICTED AND THE FINANCING LEG
+  GETS WORSE (2026-08-25, `SC-3` / TIER-E-FIN).**
+  `PREREG_sc3_tier_e_financing.md` committed **ALONE and BLIND at `293a1e7`**, markdown only, zero
+  `.py`, 179 lines, a strict ancestor of every commit computing a cost verdict; **2 options trials
+  booked at `1fd7f3d` BEFORE any runner existed, `N` 308 -> 310**. **ADOPTS NOTHING; `O11` GOVERNS
+  and a cost curve licenses no trade.**
+  * **WHY IT IS NOT A RE-RUN.** `DEEPITM-FIN` closed the question at 60-90 DTE at **`rf + 701.87`
+    all-in**, and its **closing reading** is what was tested: the benefit *"REQUIRES rolling"*, so
+    the shortest tenor is the **worst case** — *"only clearly positive at a tenor we do not own."*
+    **`MB4` then closed the tenor question on OWNERSHIP rather than economics** (*"CLOSED as
+    unownable — the owned cache is hard-capped at 200 DTE and the Tier E pull reaches 858 DTE only
+    for 2016-2018"*), and **`S3-I5` removed exactly that ground.** `MB4` is obeyed: its re-open
+    condition is a **number** (`rf + 702`, *"nobody should spend a trial re-deriving this"*), and
+    the 60-90 DTE figure is **NOT re-derived**.
+  * **COVERAGE MEASURED FIRST, ON THE POPULATION THE ARM WAS SCORED ON — `O-1`'s lesson applied
+    rather than repeated.** On the **PINNED** Tier E harvest freeze, 2016-2018: **35,396,569 chain
+    rows** in the 200-858 DTE band, **16,183,817** two-sided matched pairs, **2,352,345 SCOREABLE
+    pairs over 411 names** and 754 dates, **408 clearing `DEEPITM-FIN`'s own `MIN_N` = 30** —
+    against that study's **12,904 pairs over 185 names**. **THE FLOOR WAS REACHABLE AND WAS
+    REACHED**: the register's floor is >= 100 names per stratum and the four strata carry
+    **408 / 358 / 348 / 340**, clearing it by 3.4x to 4.1x.
+  * **`NO-FLIP` IN ALL FOUR PRE-DECLARED STRATA, AND DECISIVE RATHER THAN A FAILURE TO DETECT.**
+    All-in bps/yr on the **EXECUTABLE** leg: **915.4** [872.4, 953.1] at 200-300, **798.0** [765.9,
+    860.7] at 300-450, **676.5** [641.8, 713.7] at 450-650, **757.9** [710.4, 794.6] at 650-858.
+    **Every interval sits far ABOVE Robinhood Gold's `rf + 420`** — the option route is **DEARER**,
+    not merely un-provably cheaper. Realised **MDE80 247.0 / 282.5 / 272.1 / 285.4 bps**.
+  * **THE FINDING: THE ROLL LEG COLLAPSES AND THE FINANCING LEG DOES NOT.** Roll runs **434.6 ->
+    326.4 -> 240.8 -> 250.4** bps as rolls/yr falls **1.62 -> 0.97 -> 0.67 -> 0.49**, so that half
+    of the mechanism is real and confirmed. **But the SPREAD-FREE MID financing excess RISES
+    monotonically — 112.8 -> 125.9 -> 143.7 -> 162.4 bps** — and the executable leg is flat-to-
+    rising at 472.9 -> 451.2 -> 426.4 -> 493.5. **So the claim is refuted at the level of the RATE
+    ITSELF, not merely offset by costs.** Mechanism measured rather than asserted: the absolute
+    half-spread on the call leg **more than doubles, $0.95 -> $2.05**, growing fast enough that the
+    1/T amortisation cannot outrun it. **CONSEQUENCE: the all-in is NOT monotone in tenor** — it
+    bottoms at 450-650 DTE and **rises again**.
+  * **AND IT REFUTES `DEEPITM-FIN`'s CLOSING CONJECTURE.** That item read *"60-90 DTE, the SHORTEST
+    tenor, is the worst case."* **Measured, 200-300 DTE is WORSE (915.4 against its 701.87), and
+    the best long tenor merely TIES it — the 450-650 interval [641.8, 713.7] CONTAINS 701.87.** At
+    its cheapest long tenor the option route costs **statistically the same** as at 60-90 DTE.
+    **The tenor we did not own was not hiding a better case, and `MB4`'s closure survives on new
+    evidence.**
+  * **THE PRIOR WAS WRONG AND THE REGISTER NAMED THE EXACT FAILURE MODE IN ADVANCE.** Registered
+    FLIPS-GOLD 45% / NO-FLIP 40% / FLIPS-BOTH 5% / UNDERPOWERED 10%. The §1 arithmetic — roll
+    collapse implies all-in near `rf + 407` — **assumed financing would hold near 342. It rose.**
+    §8 named that as the reason for the substantial NO-FLIP weight.
+  * **A CAUTION STATED BEFORE THE RUN AND QUANTIFIED BY THE RESULT.** The single-name smoke test on
+    **AAPL read 105.8 bps against a cross-name median of 676.5** in the same stratum — AAPL sits at
+    the **1.1st percentile of names**. A test on the most liquid name would have read ~6x too cheap
+    and produced a confident FLIPS-BOTH. **The per-name unit of independence exists for exactly
+    this**; 2.35M pairs are ~408 names on overlapping contracts and the pair is never the unit.
+  * **THE BINDING LIMITATION, DECLARED BEFORE THE RUN: Tier E reaches past 200 DTE for 2016-2018
+    ONLY, and that window is a near-zero-`rf` regime.** `DEEPITM-FIN` found the option leg's cost
+    stable across all five rate eras (616-754 bps) while the Gold spread swung 52-567 — **but that
+    is evidence from a DIFFERENT tenor, and era-stability at long tenor is UNMEASURED and remains
+    so.** A successor wanting era-robustness needs a Tier E pull outside 2016-18, which is a **data
+    purchase rather than an analysis.**
+  * **REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3): `HANDOFF_optionsbot.md` now carries TWO
+    `## 77.` sections** — this lane's `O-1` and another lane's — **on top of the two `## 73.`
+    sections already reported at `W-14`. Three duplicate section numbers from four lanes.** Mine
+    landed first in both cases and **neither is renumbered**, since renumbering another lane's
+    section breaks anyone citing it. **NOT DONE: no variant, no grid, no parameter the register
+    does not name; all four declared strata reported (quoting a subset is a void condition); the
+    60-90 DTE figure NOT re-derived; no return claim made anywhere and none reachable, pinned by
+    test. 21 tests, exit 0 — 16 in CI, 5 skipping loudly.** `scripts/sc3_coverage.py`,
+    `scripts/sc3_arm.py`; `data/free_analysis/SC3_COVERAGE.json`, `SC3_ARM.json`, `SC3_PAIRS.pkl`;
+    `HANDOFF_optionsbot.md` 79.
 - **THE CBOE OPEN-CLOSE PRODUCT IS NOT ON THIS WRDS GRANT UNDER ANY NAME IN ANY OF 221
   LIBRARIES, SO THE OPTIONS BOOK STILL HAS NO EXOGENOUS FLOW SIGNAL — AND THE RETAIL IDENTIFIER
   THAT DOES EXIST IS ON THE EQUITY TAPE AND IS DENIED (2026-08-25, `W-14`).** Executor's verdict
