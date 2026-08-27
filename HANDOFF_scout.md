@@ -1,5 +1,73 @@
 # HANDOFF_scout.md — Frontier Scout
 
+## SESSION 11 — THE DIP-CONFIRMATION REGISTER, DRAFTED (2026-08-26)
+
+**Produced: `PREREG_DRAFT_dc1_dip_confirmation.md`** — Don's mechanism (fundamentals intact,
+price falls on an AI-displacement narrative, the next report falsifies it, the price re-rates),
+drafted as an **event-timed** register. **Zero trials by the file; 1 equity trial if adopted**
+(242 → 243, hurdle 3.3133 → 3.3145).
+
+**§0 says the provenance out loud:** NOW and CRM are **selection on the outcome three times
+over** — chosen after recovering, held, and quoted at their recovery. Three consequences are
+pre-committed: neither name's episode may ever enter the test (by name, if the panel is
+extended), a positive result is the *first* evidence rather than a confirmation, and no
+parameter may be chosen to make either qualify (pinned by test).
+
+**The clock argument is quantified rather than asserted.** If the payoff is a point mass at the
+event, a W-session calendar window measures `J/(σ_d·√W)` where an event window measures `J/σ_e`,
+so re-clocking gains **√63 / k — about 2.6× at k = 3, 2–4× across plausible k.** That is the
+honest case. **And four things it does NOT excuse, stated as prominently:** (1) **`V6`'s 63-day
+window usually CONTAINED the event**, so its null is *diluted* evidence against this mechanism,
+not silence about it — `V6` measured the event plus ~62 sessions of noise, entered at the wrong
+point; (2) the entry change makes it a different trade with a PEAD-shaped prior; (3) the
+provenance stands whatever the clock; (4) `V6` is not overwritten.
+
+**That first point became the register's best feature — K1, a free feasibility kill.** From
+`V6`'s **banked** calendar statistics and the measured dispersion ratio, derive the **implied
+event-time t**. If even the re-clocked t falls short of the bar, the register **stops before
+scoring anything, zero trials.** It tests the premise of the whole register rather than its
+hypothesis, and it is the cheapest good outcome available to the draft.
+
+**Graveyard, row by row:** `V6` (above); **`V6-B` is fenced off — its 10.8pp is SURVIVAL, not
+return, and a text test forbids quoting it as return evidence**; `E-2` (Δcomposite null) gets a
+correlation kill; **PEAD is the nearest neighbour and the most likely costume**, so K2 tests both
+banked columns pre-outcome, on signed *and* absolute forms (`MB16`'s blindness lesson); **the
+value theme is near-structural — a name that falls 50% without deteriorating IS cheap** — so K4
+adds a mandatory value-quintile distribution report on top of the correlation bar; `MB18` keeps
+the expectations-gap leg demoted to secondary; `S10` becomes K5 (>40% of events in one episode →
+descriptive only, no verdict).
+
+**One place I differ from the brief, flagged for Don to overrule:** he specified entry at the
+confirmation, which is design **(B)** — and (B) owns only the drift *after* the market has
+re-rated, which is PEAD's shape on a panel where PEAD was rejected. I recommend **(A) dip-entry
+held THROUGH the report** as primary with (B) as a declared secondary under the same register:
+that decomposes the payoff into **the jump and the post-jump drift**, which is the informative
+split, at one trial rather than two.
+
+**The power section turns on clustering, not on the event count**, and the register measures
+which world it is in (C6) rather than assuming: pessimistically `n_eff` ≈ the episode count
+(single digits over 17.3 years → needs ~10pp, effectively dead); optimistically **earnings-day
+abnormal returns are idiosyncratic and staggered**, so `n_eff` approaches the event count. **That
+conversion — clustered calendar exposure into staggered idiosyncratic exposure — is the technical
+reason event-timing helps beyond dilution.**
+
+**Instruments named:** `I-4`'s spine as repaired by `W-3b` is **required** — and `W-3b`'s own
+finding binds the design, since **"code 22 turns out to be broader than earnings"**, so the spine
+must be filtered to earnings with IBES `anndats` as authority and the disagreement rate reported
+(C4). `MA28` (three flags now — the fourth died with Audit Analytics) is the deterioration
+screen. `S23` is optional and secondary only.
+
+**§5 is my new drafting rule applied to my own draft:** the coverage census runs on the arm's own
+population before the arm, with free floors — this is the rule adopted after `O-1` returned
+UNDERPOWERED on a coverage figure imported from the alert book (5.89% actual against ~75%
+assumed). **Prior: ~12%**, built down from a hostile record and back up only by the quantified
+clock argument and instruments that did not exist when `V6` ran.
+
+**For the next session:** whether the five fleet amendments landed; the sharpened census lines;
+whether DC-1 is taken up, refused, or re-scoped to Don's (B)-entry.
+
+---
+
 ## SESSION 10 — MAP CORRECTION (2026-08-26)
 
 **Small and owed. Four corrections into `WRDS_UNLOCK_MAP.md` §7 (new corrections log; §2–§4
