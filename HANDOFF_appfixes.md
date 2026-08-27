@@ -5,6 +5,159 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 48 — 2026-08-27 — a delayed cron that could only ever refuse, and Audit #5's three decisions
+
+**Four items, ZERO TRIALS.** No hypothesis, no bar, no verdict against one, so no
+`RESEARCH_LOG.md` row and no published claim moves. `.github/` untouched; nothing under `data/`
+written or committed. **14 of 14 tripwire mutations caught with every source restored
+byte-for-byte.**
+
+## 0. THE PT-WRITER DATE DEFECT — the refusal was right and the target was wrong
+
+Today's run returned **HTTP 422: "the session has not closed yet (00:58 ET; waiting for 16:15
+ET)"**. The intraday guard was doing exactly its job. The bug is one level up: the cron is
+scheduled for the evening ET, well after the close, GitHub's scheduler delayed it past
+midnight, and `contract_row` targets **"today"** — so once a run slips past midnight ET it asks
+to mark a day that *cannot* have closed instead of the one that just did. **It can then only
+ever refuse, and the bound track loses a row it should have had.**
+
+**THE FIX CHANGES THE QUESTION, NOT THE GUARD.** Not *"has today closed?"* but *"what is the
+last session that closed?"* — `market_session.last_closed_session()`, which walks back from the
+current ET moment and can only ever name a session whose close is in. The two questions differ
+only between midnight and the settle cutoff, which is precisely the window a delayed evening
+job lands in.
+
+| run | old target | new target |
+|---|---|---|
+| Thu 18:12 ET (on time) | 2026-08-27 | 2026-08-27 |
+| Fri 00:58 ET (**the real delayed run**) | 2026-08-28 → refuse forever | **2026-08-27** |
+| Sat 02:00 ET | 2026-08-29 → refuse | 2026-08-28 |
+| Mon 00:30 ET | 2026-08-31 → refuse | 2026-08-28 (the Friday) |
+
+**EVERY OTHER RULE IS INTACT AND THE INTRADAY GUARD IS STRICTLY UNWEAKENED.** Append-only,
+idempotent per day, backward writes refused — untouched. `last_closed_session` cannot name an
+unclosed day by construction, and the explicit-date guard still refuses `--date <today>` while
+today is open, because that guard is on the DATE rather than on how the date was chosen. There
+is still no parameter that switches it off.
+
+**IDEMPOTENCY PROVED END TO END, WHICH IS THE PROPERTY THE FIX HAD TO EARN.** The on-time
+18:12 run and the delayed 00:58 run resolve to the **same session date**, so the second
+`append_row` returns `already_present` and the file holds exactly one row — asserted on the
+file, not inferred from the code.
+
+**ONE TEST CHANGED MEANING, BY DESIGN AND NOT BY CONVENIENCE.**
+`test_it_refuses_before_the_close_rather_than_marking_an_intraday_quote` asserted a REFUSAL at
+10:00 ET. Refusing is right about the day and wrong about the job, so it now asserts the
+property directly — *the door never emits a row dated a session that has not closed* — which is
+what the refusal was standing in for, and is stronger than a refusal that also threw away
+legitimate work.
+
+**AND THE TRIPWIRES FOUND TWO GAPS IN MY OWN TESTS.** Every assertion was on `market_session`
+rather than on `contract_row`, so **reverting the door's default to the old behaviour left them
+all green** — at 18:12 the two agree, and the delayed run is the only case where they differ,
+which makes it the only case worth checking the door on. And I never walked a weekend, so
+removing the trading-day test from the walk let it name a Sunday. Both closed.
+
+## 1. `H3` — the backup, and the mark that makes loss visible
+
+**BACKUP ALONE DOES NOT CLOSE IT, and the reason is measured.** Audit #5 found that **whole-file
+loss is not a chain break**: delete a book's stream and it re-certifies, resumes at `seq 1`, and
+every row chains correctly from the declaration hash. Reproduced in the suite — after the
+deletion `verify_chain` returns **`ok: true, vacuous: true`** — because the chain is
+structurally blind here: every fact it checks itself with lived in the file that was lost.
+
+So the counter-fact lives outside the file. `valuation/edge/fleet_highwater.py` keeps the
+highest `seq` ever seen per book in `data/fleet/_highwater.json`, and `fleet.record` — the only
+write door — refuses to append to a stream that has gone backwards. Measured: `REGRESSED,
+observed 0, mark 3`, write refused, and it does not even create the file it declined to append
+to.
+
+* **It refuses EVERY kind, including a refusal row.** Letting one through appends an
+  official-looking record to the very stream whose integrity is in question.
+* **It is monotonic.** A mark that follows the stream down agrees with the loss.
+* **An unreadable mark is refused, never clobbered** — it may hold a HIGHER number than the
+  stream does, and overwriting it erases the only evidence.
+* **There is no `reset()`, on purpose.** Recovering from a real loss is a decision about
+  evidence; a one-call reset turns it into a reflex.
+* **The limit is pinned too**: a whole-DIRECTORY loss takes the mark with it. That is what the
+  backup covers, and the test says so rather than letting the reader assume otherwise.
+
+`GET|POST /admin/export-fleet` mirrors `/admin/export-track` — token-gated, a pure read — and
+`fleet_export` carries the renderer and the anti-regression guard the weekly workflow calls.
+The guard is relative; the workflow pairs it with an **absolute** presence check, because
+`LA2` measured a series that had never been backed up at all staying green for months: zero is
+never fewer than zero.
+
+**ROUTED TO DON: `FLEET_BACKUP_PR_REQUEST.md`.** `.github/` is refused by MA11's land policy,
+so the weekly cron is a request in `FLEET_RUNNER_PR_REQUEST.md`'s shape, honest limit first —
+**it will back up very little today**, because most books' entry rules are still frozen in
+prose. Land it anyway: the cost of landing early is a weekly no-op commit, and the cost of
+landing late is evidence that cannot be recreated.
+
+## 2. `L3` — the bar is declared, and an undeclared one is now loud
+
+`gate()` already refused to *default* `max_age_days` — correctly, since inventing one is how
+`MA5` measured the HLZ bar freezing at 3.0. **But omitting it silently SKIPPED the staleness
+test and returned the bit**, so the one caller most likely to be wrong — the one that never
+considered vintage — was the one that got an unqualified answer. Refusing to default and
+refusing to answer undeclared are the same rule; only the second is enforceable.
+
+An undeclared bar is now `BAR_NOT_DECLARED` with no value, and it outranks every other unknown.
+A caller that genuinely wants any vintage passes **`NO_BAR`**, deliberately not `None`:
+forgetting an argument and choosing to ignore vintage must not be the same keystroke.
+`coverage()` reports `stale` per gate against a caller-declared bar and says `bar_declared:
+false` otherwise — the honest report rather than a clean one.
+
+**Measured on the shipped artifact:** `evt_clean` **304 days**, `ma28_clean` **211**,
+`optionable` **3**. So the audit's "210–303 days stale" holds for two of the three and the
+third is current — worth saying, because "the gates artifact is stale" is not true of all of
+it. **No consumer was built**, per the decision; the status body reports vintage fitness and
+declares no bar of its own.
+
+Three pre-existing tests called `gate()` with no bar and encoded the old contract. Each is about
+something other than staleness, so each now opts out **explicitly** with `NO_BAR` — a
+declaration, visible at the call site — rather than by omission.
+
+## 3. `L7` — the test-book stays, and the reason is recorded where the filter would go
+
+Recorded in `scripts/fleet_export_declarations.py`, beside the exporter's existing exclusion
+rule, because that is where somebody would add the filter. **A manifest that omits things
+somebody decided were uninteresting cannot be trusted about the things it includes**: the moment
+a reader learns one book was left out on grounds of taste, every absence becomes ambiguous, and
+the whole value of the artifact is that an absence means exactly one thing — the commit check
+failed.
+
+The two exclusions differ in kind and only one is safe. Dropping an UNVERIFIABLE book preserves
+the invariant; dropping an UNINTERESTING one destroys it. So the rule is mechanical, never
+editorial.
+
+**And the test-book needs no filter because it declares itself**: first line *"THIS IS NOT A
+RESEARCH BOOK AND IT CARRIES NO VERDICT"*, `utility` class so it charges no trial in any domain,
+and closed in the session it was declared. Visible, labelled and closed is strictly more
+informative than absent. Pinned two ways, the second being the one that matters: **no book name
+may appear as a literal in the exporter's CODE** — read from the AST with docstrings stripped,
+because the prose names `DECL_testbook.md` on purpose and a grep would fire on the sentence
+documenting the rule.
+
+## 4. Verification, and what I could NOT verify
+
+* **The image was NOT built — Docker is not installed on this machine.** So the image claim is
+  verified by applying `.dockerignore`'s own rules: the new modules ship, `data/fleet/` correctly
+  does not (it is runtime state on the persistent disk, and baking a snapshot in would put a
+  stale copy of an append-only record where a reader could mistake it for the record), and
+  `data_export/` does. The probe has a non-vacuity control in both directions.
+* **From the service's own response body, BEFORE the land:** `/admin/export-track` → **HTTP 401
+  unauthorized** (deployed, token-gated) and `/admin/export-fleet` → **HTTP 404** (not there
+  yet). Taken without a token, which this session must never hold. The after-state is therefore
+  checkable: once deployed it must read 401.
+* **A Windows-only flake, reported not silenced.** `tests/test_fleet_highwater.py` hit
+  `WinError 32` on `os.replace` twice under gate contention — the class `CLAUDE.md` already
+  records twice, invisible in CI where a Linux runner has no contention. My new module's own
+  write takes a bounded retry, because it is the one adding the extra I/O; the shared
+  `append_only` writer is **not** touched, since it is another lane's safety-critical record
+  writer. I also cut gratuitous row counts in my suite — every assertion is on a RELATION
+  (`observed < mark`, monotonic) and not a magnitude, so nothing is lost.
+
 # Session 47 — 2026-08-24 — `PT-SPMO` reaches the hero band, and three chart lines stop looking alike
 
 **Two display changes, one pass, ZERO TRIALS.** No hypothesis, no bar, no verdict, no

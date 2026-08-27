@@ -160,6 +160,45 @@ def trading_days_between(start: _dt.date, end: _dt.date, *, inclusive_start: boo
     return n
 
 
+def last_closed_session(now: Optional[_dt.datetime] = None) -> Optional[_dt.date]:
+    """The most recent session whose close is IN. Never a day that has not closed.
+
+    THE DEFECT THIS EXISTS FOR, MEASURED ON THE SERVICE 2026-08-27. The track-row cron is
+    scheduled for the evening ET, comfortably after the close. GitHub's scheduler delayed it
+    past midnight and it ran at **00:58 ET** — at which point `session_state` reported the new
+    calendar day, that day had obviously not closed, and the door refused with a 422 that was
+    *correct on its own terms*: "the session has not closed yet (00:58 ET; waiting for 16:15
+    ET)". The guard was doing its job. **The TARGET was wrong.** The run had been asked to mark
+    TODAY, which cannot have closed, instead of YESTERDAY, which had — so it could only ever
+    refuse, and the bound track silently lost a row it should have had.
+
+    A delayed job must still record the session it was scheduled for. So the question a writer
+    asks is not *"has today closed?"* but *"what is the last session that closed?"*, and those
+    differ for exactly the eight hours between midnight and the close.
+
+    Walks backwards from the current ET date:
+
+        * a trading day AT OR AFTER the settle cutoff -> that day
+        * anything else (before the cutoff, a weekend, a holiday) -> the previous trading day
+
+    Returns `None` only if no trading day is found within a fortnight, which no real calendar
+    produces; it is a bound rather than a behaviour.
+    """
+    n = now or now_et()
+    d = n.date()
+    cutoff = _dt.time(CLOSE_HOUR, SETTLE_MINUTES)
+    # Today counts ONLY if it is a trading day whose close has actually passed. Every other
+    # case falls through to the walk, which is what makes this incapable of naming an unclosed
+    # session -- the property the intraday guard depends on.
+    if is_trading_day(d) and n.time() >= cutoff:
+        return d
+    for _ in range(14):
+        d -= _dt.timedelta(days=1)
+        if is_trading_day(d):
+            return d
+    return None
+
+
 def session_state(now: Optional[_dt.datetime] = None) -> dict:
     """Whether the current session has closed, and why not if it hasn't.
 

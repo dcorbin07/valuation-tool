@@ -52,6 +52,7 @@ import subprocess
 from typing import Optional
 
 from . import append_only as AO
+from . import fleet_highwater as HW
 # NOTE: `assignment.py` (S3-I3) is deliberately NOT imported -- see THE S3-I3 SEAM below.
 from . import track_meter as TM
 
@@ -581,6 +582,27 @@ def record(book: str, kind: str, fields: dict, *, decl_sha: str, root: str = Non
     if not rd["ok"]:
         return {"ok": False, "wrote": False, "reason": rd["reason"]}
     rows = rd["rows"]
+
+    # AUDIT #5 H3 -- THE HIGH-WATER MARK, CHECKED BEFORE ANY WRITE.
+    #
+    # The audit measured that WHOLE-FILE LOSS IS NOT A CHAIN BREAK: delete a book's CSV and it
+    # re-certifies, resumes at seq 1, and every row chains correctly from the declaration hash.
+    # `verify_chain` returns ok because the survivors really are consistent with each other. It
+    # cannot see the absence, and it never could -- every fact it checks itself with lived in
+    # the file that was lost.
+    #
+    # So the counter-fact lives OUTSIDE the file, and it is consulted HERE rather than in
+    # `may_fill`, because here is the only write door. A check in `may_fill` alone would leave
+    # every direct `record()` call able to heal a truncated stream silently.
+    #
+    # IT REFUSES EVERY KIND, INCLUDING A REFUSAL ROW. Letting one through would append it to
+    # the very stream whose integrity is in question and continue the false chain with an
+    # official-looking record.
+    _hw = HW.state(book, rows, fleet_dir(root))
+    if not _hw["ok"]:
+        return {"ok": False, "wrote": False, "reason": _hw["reason"],
+                "highwater": _hw}
+
     prev = (rows[-1].get("row_hash") if rows else None) or decl_sha
 
     payload = {k: "" for k in cols}
@@ -604,6 +626,13 @@ def record(book: str, kind: str, fields: dict, *, decl_sha: str, root: str = Non
                     backfill_hint=" A fleet record stream is append-only by construction; a "
                                   "correction is a NEW dated row, never an edit "
                                   "(PT-AMEND1's shape).")
+    # Advanced only AFTER a successful append, so a write that failed cannot move the mark
+    # past rows that are not on disk. `advance` is monotonic and never lowers a mark.
+    if res.get("wrote"):
+        _adv = HW.advance(book, payload["seq"], fleet_dir(root), ts=payload["ts"])
+        if not _adv.get("ok"):
+            res = dict(res)
+            res["highwater_warning"] = _adv.get("reason", "")
     if _ignored_here:
         res = dict(res)
         res["ignored_fields"] = sorted(set(res.get("ignored_fields") or []) | set(_ignored_here))

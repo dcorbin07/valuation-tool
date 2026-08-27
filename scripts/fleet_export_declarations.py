@@ -29,6 +29,28 @@ exists. Verified THERE, where it does not.**
 verified, so an unverifiable book must be absent from it rather than present-and-flagged --
 present-and-flagged is how a reader comes to treat the flag as advisory.
 
+**THAT IS THE ONLY EXCLUSION, AND `DECL_testbook.md` STAYS. DECIDED BY DON, AUDIT #5 `L7`,
+2026-08-24 -- RECORDED HERE BECAUSE HERE IS WHERE SOMEBODY WOULD ADD THE FILTER.**
+
+Audit #5 asked whether the day-1 self-verification test-book belongs in a production manifest.
+It does, and the reason generalises past this one file: **a manifest that omits things somebody
+decided were uninteresting cannot be trusted about the things it includes.** The moment a
+reader learns that one book was left out on grounds of taste, every absence becomes ambiguous
+-- and the whole value of this artifact is that an absence means exactly one thing, which the
+paragraph above defines: the commit check failed.
+
+The two exclusions are different in kind and only one of them is safe. Dropping an
+UNVERIFIABLE book preserves the invariant (everything here was verified). Dropping an
+UNINTERESTING book destroys it (some things that were verified are here). So the rule is
+mechanical -- verified or not -- and never editorial.
+
+**AND THE TEST-BOOK NEEDS NO FILTER, BECAUSE IT DECLARES ITSELF.** Its first line reads
+*"THIS IS NOT A RESEARCH BOOK AND IT CARRIES NO VERDICT"*; it is `utility` class, so it charges
+no trial in any domain and no meter is ever read on it; and it was CLOSED in the session it was
+declared. It is visible, labelled and closed, which is strictly more informative than absent.
+`tests/test_fleet_manifest.py` pins that it is still exported and that no name-based exclusion
+has appeared here.
+
 **THE HONEST LIMIT, AND IT IS A REAL WEAKENING: ON THE SERVICE THE TAMPER-EVIDENCE IS THIS
 MANIFEST'S, NOT GIT'S.** In a worktree `may_fill` re-derives the commit facts from git every
 time and this file is never consulted. In the image it cannot, so it trusts a manifest that

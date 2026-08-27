@@ -38,6 +38,26 @@ ARTIFACT_REL = os.path.join("data_export", "fleet_gates.json")
 UNKNOWN_GATE = "UNKNOWN_GATE"
 UNKNOWN_TICKER = "UNKNOWN_TICKER"
 STALE = "STALE"
+
+#: A FOURTH unknown, and it is `L3`'s. The caller did not declare a staleness bar, so this
+#: module does not know whether the vintage it is holding is fit for the question being asked.
+#:
+#: IT USED TO BE A SILENT SKIP. `max_age_days` had no default -- correctly, because inventing
+#: one is exactly how `MA5` measured the Harvey-Liu-Zhu bar freezing at 3.0 for months -- but
+#: omitting it simply BYPASSED the staleness test and returned the bit. So the one caller most
+#: likely to be wrong (the one that never thought about vintage at all) was the one caller that
+#: got an unqualified answer.
+#:
+#: Refusing to default and refusing to answer without a declaration are the same rule; only the
+#: second one is enforceable. A caller that genuinely wants no bar says so with `NO_BAR`, which
+#: is still a declaration and still leaves a trace in the code that asked for it.
+BAR_NOT_DECLARED = "BAR_NOT_DECLARED"
+
+#: The explicit opt-out. `gate(..., max_age_days=NO_BAR)` reads the bit at any vintage, and the
+#: sentinel is deliberately not `None`: forgetting an argument and choosing to ignore vintage
+#: must not be spelled the same way.
+NO_BAR = "NO_BAR"
+
 OK = "OK"
 
 
@@ -96,14 +116,27 @@ def gate(name: str, ticker: str, *, max_age_days: int = None, today=None,
          root: str = None) -> dict:
     """One gate for one name. Returns `{"value", "state", "as_of", "age_days", "reason"}`.
 
-    `value` is `True`, `False` or **`None`**, and `state` says which of the three unknowns
-    produced a `None` so a caller can count them apart. `max_age_days` is OPTIONAL and has no
-    default: a staleness bar is a decision, and inventing one here would freeze it exactly as
-    `MA5` measured the Harvey-Liu-Zhu bar freezing at 3.0.
+    `value` is `True`, `False` or **`None`**, and `state` says which of the FOUR unknowns
+    produced a `None` so a caller can count them apart.
+
+    **THE BAR IS REQUIRED, NOT MERELY UN-DEFAULTED.  [L3]**  `max_age_days` still has no
+    default -- inventing one is how `MA5` measured the HLZ bar freezing at 3.0 -- but omitting
+    it no longer BYPASSES the staleness test and returns the bit anyway. It returns
+    `BAR_NOT_DECLARED` and no value. Measured on the shipped artifact when this changed:
+    `evt_clean` was **304 days** old and `ma28_clean` **211**, with no consumer anywhere in the
+    tree, so the only reader this could break is one that had not thought about vintage.
+
+    A caller that genuinely wants the bit at any age passes `max_age_days=NO_BAR`. That is
+    still a declaration, and it leaves a trace at the call site where a reviewer will see it.
     """
     res = load(root)
     out = {"value": None, "state": UNKNOWN_GATE, "as_of": None, "age_days": None,
            "reason": res.get("reason", "")}
+    if max_age_days is None:
+        out["state"] = BAR_NOT_DECLARED
+        out["reason"] = ("no staleness bar was declared for gate %r. Pass max_age_days=<int>, "
+                         "or max_age_days=NO_BAR to read it at any vintage." % name)
+        return out
     if not res["ok"]:
         return out
     g = (res["gates"] or {}).get(str(name))
@@ -112,7 +145,7 @@ def gate(name: str, ticker: str, *, max_age_days: int = None, today=None,
         return out
     out["as_of"] = g.get("as_of")
     out["age_days"] = age_days(name, today=today, root=root)
-    if max_age_days is not None and out["age_days"] is not None \
+    if max_age_days != NO_BAR and out["age_days"] is not None \
             and out["age_days"] > int(max_age_days):
         out["state"] = STALE
         out["reason"] = ("gate %s is %d days old against a caller bar of %d"
@@ -201,21 +234,40 @@ def image_audit(root: str = None) -> dict:
     return out
 
 
-def coverage(root: str = None) -> dict:
+def coverage(root: str = None, *, max_age_days=None, today=None) -> dict:
     """What the artifact carries, for a cycle to report without opening it.
 
     `O21-D2`'s `C5` precedent: an ABSENT artifact and a PRESENT-but-empty one must not read
     the same, so an empty gate is reported VACUOUS rather than as coverage of zero names.
+
+    **AND IT SAYS WHETHER THE VINTAGES ARE FIT FOR ANYTHING.  [L3]**  `age_days` alone is a
+    number a reader has to judge; `stale` is the judgement, against a bar THE CALLER declares.
+    With no bar declared every `stale` is `None` and `bar_declared` is False -- which is the
+    honest report, not a clean one, and is what stops an old artifact being quoted as current
+    by a surface that never asked how old it was.
+
+    THE BAR IS NOT DEFAULTED HERE EITHER, for `MA5`'s reason, and this function is the place a
+    default would have been most tempting: it is the one a status page calls.
     """
     res = load(root)
     if not res["ok"]:
-        return {"ok": False, "reason": res.get("reason", ""), "gates": {}}
-    out = {}
+        return {"ok": False, "reason": res.get("reason", ""), "gates": {},
+                "bar_declared": max_age_days is not None, "max_age_days": max_age_days,
+                "n_stale": None}
+    out, n_stale = {}, 0
     for name, g in (res["gates"] or {}).items():
         if g.get("absent"):
-            out[name] = {"present": False, "reason": g.get("reason", "")}
+            out[name] = {"present": False, "reason": g.get("reason", ""), "stale": None}
             continue
         n = len(g.get("tickers") or {})
+        age = age_days(name, today=today, root=root)
+        stale = None
+        if max_age_days is not None and max_age_days != NO_BAR and age is not None:
+            stale = age > int(max_age_days)
+            n_stale += bool(stale)
         out[name] = {"present": True, "as_of": g.get("as_of"), "n_tickers": n,
-                     "vacuous": n == 0, "age_days": age_days(name, root=root)}
-    return {"ok": True, "reason": "", "gates": out}
+                     "vacuous": n == 0, "age_days": age, "stale": stale}
+    return {"ok": True, "reason": "", "gates": out,
+            "bar_declared": max_age_days is not None, "max_age_days": max_age_days,
+            "n_stale": (n_stale if max_age_days is not None and max_age_days != NO_BAR
+                        else None)}

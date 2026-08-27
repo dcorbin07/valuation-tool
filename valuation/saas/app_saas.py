@@ -546,6 +546,34 @@ def create_saas_app(cfg=CONFIG):
         except Exception as e:
             return jsonify({"ok": False, "error": safe_error(e)}), 500
 
+    @app.route("/admin/export-fleet", methods=["GET", "POST"])
+    def admin_export_fleet():
+        """The fleet's record streams, in full, for backup. Read-only.  [Audit #5 H3]
+
+        THE EXACT `/admin/export-track` PRECEDENT, and for the identical reason. This project
+        holds two datasets that cannot be re-derived, and until now only one of them was
+        protected -- the unprotected one being the one about to accrue five years of evidence.
+        Render cannot commit to git and a GitHub runner cannot read Render's disk, so the
+        backup crosses the gap here: a weekly workflow GETs this with the admin token and
+        commits what it renders.
+
+        IT CARRIES THE HIGH-WATER MARKS TOO, and that is what makes a restore honest rather
+        than merely possible. `fleet_highwater` catches a single lost CSV on the next write; a
+        lost DIRECTORY takes the marks with it, and then this export is the only remaining
+        evidence that the books ever held more rows than the disk now shows.
+
+        GET as well as POST because it is a pure read and `curl` a URL is the whole client. It
+        writes nothing and advances no mark -- a backup route that mutated what it backs up
+        would be `PT-WRITER`'s side-effecting-GET defect in a new place.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..edge.fleet_export import payload
+            return jsonify({"ok": True, "export": payload()})
+        except Exception as e:
+            return jsonify({"ok": False, "error": safe_error(e)}), 500
+
     @app.route("/admin/track-row", methods=["GET", "POST"])
     def admin_track_row():
         """Today's contract row for the bound Valquo Index track: the Index mark, the SPY
@@ -828,6 +856,14 @@ def create_saas_app(cfg=CONFIG):
             res["gates_ok"] = bool(_g.get("ok"))
             if not _g.get("ok"):
                 res["gates_reason"] = _g.get("reason", "")
+            # L3. This status body reports the artifact's VINTAGE FITNESS and declares no bar
+            # of its own -- a status page is not the place to decide how old is too old, and a
+            # bar invented here is exactly how `MA5` measured the HLZ hurdle freezing at 3.0.
+            # So it says plainly that no bar was declared rather than printing ages that read
+            # as current. Measured when this shipped: two of the three gates were 211 and 304
+            # days old, with no consumer anywhere in the tree.
+            res["gates_bar_declared"] = bool(_g.get("bar_declared"))
+            res["gates_n_stale"] = _g.get("n_stale")
 
             # THE IMAGE AUDIT, measured HERE because here is where the runner runs. Four
             # deploy-only defects were each invisible to a green local suite, so the claim

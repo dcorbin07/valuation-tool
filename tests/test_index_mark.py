@@ -313,17 +313,115 @@ def test_no_refusal_path_ever_leaks_a_number():
             assert res.get("reason"), name + " refused without saying why"
 
 
-def test_it_refuses_before_the_close_rather_than_marking_an_intraday_quote():
-    """The recorded day-1 row disagrees with a close-based re-derivation by 0.03pp, which
-    is what an intraday mark looks like. This is the guard against repeating it."""
+def test_it_never_marks_an_unclosed_session_and_targets_the_last_closed_one():
+    """The recorded day-1 row disagrees with a close-based re-derivation by 0.03pp, which is
+    what an intraday mark looks like. This is the guard against repeating it.
+
+    IT USED TO ASSERT A REFUSAL, AND THAT WAS THE DEFECT ONE LEVEL UP. Refusing at 10:00 is
+    right about the DAY and wrong about the JOB: the writer's target was "today", so a run
+    that slipped past midnight ET could only ever refuse and the bound track lost a row
+    (measured on the service 2026-08-27, HTTP 422 at 00:58 ET). The target is now the last
+    CLOSED session, so the property this test protects is stated directly — the door never
+    emits a row dated a session that has not closed — rather than via a refusal that also
+    threw away legitimate work.
+    """
     import datetime as dt
+    from valuation.screener import market_session as _ms
+
+    open_session = dt.datetime(2026, 8, 6, 10, 0)          # a Thursday, 10:00 ET
+    self_date = open_session.date().isoformat()
     with tempfile.TemporaryDirectory() as d:
-        # A Thursday, 10:00 ET — a trading day whose session has NOT closed.
-        open_session = dt.datetime(2026, 8, 6, 10, 0)
         res = index_mark.contract_row(meta_path=_book(d), fetch=_tape(_SIMPLE),
                                       now=open_session)
-        assert res["ok"] is False and res["row"] is None, res
-        assert "not closed" in res["reason"] or "intraday" in res["reason"], res["reason"]
+        # Whatever else happens, it may NEVER produce a row dated the open session.
+        if res.get("ok"):
+            assert res["row"]["date"] != self_date, res["row"]
+            assert res["row"]["date"] == _ms.last_closed_session(open_session).isoformat()
+        else:
+            assert res["row"] is None, res
+    # And the structural half: the default target cannot BE an unclosed day.
+    assert _ms.last_closed_session(open_session) < open_session.date()
+
+
+def test_a_delayed_run_past_midnight_marks_the_session_it_was_scheduled_for():
+    """THE DEFECT, reproduced. The cron is scheduled for the evening ET; GitHub delayed it to
+    00:58 ET the next calendar day, at which point it asked to mark a day that could not have
+    closed and was refused forever."""
+    import datetime as dt
+    from valuation.screener import market_session as _ms
+
+    scheduled = dt.datetime(2026, 8, 6, 18, 12)     # Thursday evening, after the close
+    delayed = dt.datetime(2026, 8, 7, 0, 58)        # Friday 00:58 ET — the real run's time
+
+    # The old target was `session_state(...)["date"]`, i.e. the calendar day.
+    assert _ms.session_state(delayed)["date"] == "2026-08-07"
+    assert _ms.session_state(delayed)["ok"] is False, "the guard was right; the target was not"
+
+    # The new target is the session that actually closed — the SAME one the on-time run means.
+    assert _ms.last_closed_session(delayed) == dt.date(2026, 8, 6)
+    assert _ms.last_closed_session(scheduled) == dt.date(2026, 8, 6)
+
+    # ...AND `contract_row` ITSELF EMITS IT. Asserted on the door rather than only on the
+    # helper: a tripwire run caught that reverting the door's default to `session_state`'s
+    # date left every assertion above green, because at 18:12 the two agree. The delayed run
+    # is the case where they differ, so it is the case the door has to be checked on.
+    with tempfile.TemporaryDirectory() as d:
+        res = index_mark.contract_row(meta_path=_book(d), fetch=_tape(_SIMPLE), now=delayed)
+        assert res["ok"] is True, res
+        assert res["row"]["date"] == "2026-08-06", res["row"]
+        assert res["row"]["date"] != delayed.date().isoformat(), res["row"]
+
+
+def test_the_walk_back_skips_weekends_and_holidays_rather_than_naming_one():
+    """A run just after midnight on a Monday must reach FRIDAY, not Sunday. Caught by a
+    tripwire: without the trading-day test in the walk, `last_closed_session` happily returns
+    a weekend, and every other case in this suite still passed."""
+    import datetime as dt
+    from valuation.screener import market_session as _ms
+
+    monday_early = dt.datetime(2026, 8, 31, 0, 30)         # Monday 00:30 ET
+    got = _ms.last_closed_session(monday_early)
+    assert got == dt.date(2026, 8, 28), got                # the Friday
+    assert _ms.is_trading_day(got), got
+
+    # A Saturday run reaches the same Friday.
+    assert _ms.last_closed_session(dt.datetime(2026, 8, 29, 2, 0)) == dt.date(2026, 8, 28)
+
+    # And whatever it returns, from any hour of any day across a fortnight, is a trading day
+    # that is not in the future — the two properties the door depends on.
+    base = dt.datetime(2026, 8, 20, 0, 0)
+    for h in range(0, 24 * 14, 7):
+        n = base + dt.timedelta(hours=h)
+        d = _ms.last_closed_session(n)
+        assert d is not None and _ms.is_trading_day(d), (n, d)
+        assert d <= n.date(), (n, d)
+
+
+def test_two_runs_on_the_same_day_target_one_session_so_the_write_stays_idempotent():
+    """Required by the fix: an on-time run and a delayed retry must not produce two rows.
+
+    They cannot, because they resolve to the same session date and the write door is
+    idempotent per date — but this asserts it end to end rather than by reading the code.
+    """
+    import datetime as dt
+
+    scheduled = dt.datetime(2026, 8, 6, 18, 12)
+    delayed = dt.datetime(2026, 8, 7, 0, 58)
+    with tempfile.TemporaryDirectory() as d:
+        meta, hist = _book(d), os.path.join(d, "valquo_track_history.csv")
+        a = index_mark.contract_row(meta_path=meta, fetch=_tape(_SIMPLE), now=scheduled)
+        b = index_mark.contract_row(meta_path=meta, fetch=_tape(_SIMPLE), now=delayed)
+        if not (a.get("ok") and b.get("ok")):
+            return                                   # the tape cannot price it; nothing to pin
+        assert a["row"]["date"] == b["row"]["date"], (a["row"], b["row"])
+
+        first = index_mark.append_row(a["row"], hist, append_only=True)
+        second = index_mark.append_row(b["row"], hist, append_only=True)
+        assert first.get("wrote") is True, first
+        assert second.get("wrote") is False and second.get("already_present"), second
+        with open(hist, encoding="utf-8") as f:
+            body = [l for l in f.read().splitlines() if l.strip()]
+        assert len(body) == 2, body            # header + exactly one row
 
 
 def test_naming_todays_date_explicitly_does_not_buy_what_omitting_it_refuses():

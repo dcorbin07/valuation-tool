@@ -302,11 +302,28 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
     On success:  `{"ok": True, "row": {...ROW_COLUMNS...}, "coverage": .., "unpriced": [..]}`
     On refusal:  `{"ok": False, "reason": "...", "row": None}`  — never a partial number.
 
-    `as_of` defaults to the session date `market_session` reports, which is the day whose
-    close has just been recorded. `refuse_before_close=False` is offered for backfilling a
-    past date, where the session-close question is about a day that has already ended; it
-    does NOT let a caller mark an unclosed *current* session, because the price lookup is by
-    date and an unclosed day has no close to find.
+    `as_of` defaults to the LAST CLOSED SESSION — the most recent day whose close is in —
+    rather than to "today". `refuse_before_close=False` is offered for backfilling a past
+    date, where the session-close question is about a day that has already ended; it does NOT
+    let a caller mark an unclosed *current* session, because the price lookup is by date and
+    an unclosed day has no close to find.
+
+    **THE DEFAULT USED TO BE TODAY, AND THAT LOST ROWS. Measured on the service 2026-08-27.**
+    The cron is scheduled for the evening ET, well after the close. GitHub's scheduler delayed
+    it past midnight; it ran at **00:58 ET**, asked to mark the new calendar day, and was
+    refused with a 422 that was correct on its own terms — that day had not closed. The guard
+    was right and **the target was wrong**: the run should have marked the session that ended
+    the previous afternoon, which it had been scheduled to mark all along. A job that slips
+    past midnight could then only ever refuse, and the bound track quietly lost a row.
+
+    Asking "what is the last session that closed?" instead of "has today closed?" fixes the
+    target without touching a single rule. The two questions differ only between midnight and
+    the settle cutoff, which is exactly the window a delayed evening job lands in.
+
+    **NOTHING ELSE MOVES, and the intraday guard is strictly unweakened.**
+    `last_closed_session` cannot name an unclosed day by construction, and the explicit-date
+    guard below still refuses `--date <today>` while today is open — that guard is on the
+    DATE rather than on how the date was chosen, which is what makes it survive this change.
     """
     from . import prices as _prices
     fetch = fetch or _prices.get_history_df
@@ -318,10 +335,14 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
     inception = book["inception_date"]
     state = _session.session_state(now)
     if as_of is None:
-        if refuse_before_close and not state.get("ok"):
-            return {"ok": False, "reason": state.get("reason") or "the session has not closed",
+        # THE LAST CLOSED SESSION, not today. See the docstring: a delayed run must still
+        # record the session it was scheduled for, and one that has slipped past midnight ET
+        # is being asked about a day that cannot have closed.
+        mark = _session.last_closed_session(now)
+        if mark is None:
+            return {"ok": False,
+                    "reason": "no closed trading session found in the last fortnight",
                     "row": None, "session": state}
-        mark = _date(state.get("date"))
     else:
         mark = _date(as_of)
     if mark is None:

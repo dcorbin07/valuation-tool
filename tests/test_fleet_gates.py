@@ -146,14 +146,15 @@ class ThreeStatesNeverTwo(unittest.TestCase):
         self.assertIn("fleet_export_gates", r["reason"])
 
     def test_an_absent_artifact_yields_UNKNOWN_and_not_False(self):
-        g = G.gate("ma28_clean", "AAPL", root=self.root)
+        g = G.gate("ma28_clean", "AAPL", root=self.root, max_age_days=G.NO_BAR)
         self.assertIsNone(g["value"], "an unknown must never read as a fail")
         self.assertEqual(g["state"], G.UNKNOWN_GATE)
 
     def test_a_name_outside_the_cross_section_is_UNKNOWN_TICKER(self):
         _write(self.root, _payload(ma28_clean={"as_of": "2026-01-28",
                                                "tickers": {"AAPL": True}}))
-        g = G.gate("ma28_clean", "NOSUCH", root=self.root, today=TODAY)
+        g = G.gate("ma28_clean", "NOSUCH", root=self.root, today=TODAY,
+                   max_age_days=G.NO_BAR)
         self.assertIsNone(g["value"])
         self.assertEqual(g["state"], G.UNKNOWN_TICKER)
         self.assertIn("cross-section", g["reason"])
@@ -161,12 +162,14 @@ class ThreeStatesNeverTwo(unittest.TestCase):
     def test_a_known_name_returns_its_bit_and_its_vintage(self):
         _write(self.root, _payload(ma28_clean={"as_of": "2026-01-28",
                                                "tickers": {"AAPL": True, "AA": False}}))
-        a = G.gate("ma28_clean", "aapl", root=self.root, today=TODAY)
+        a = G.gate("ma28_clean", "aapl", root=self.root, today=TODAY,
+                   max_age_days=G.NO_BAR)
         self.assertIs(a["value"], True)
         self.assertEqual(a["state"], G.OK)
         self.assertEqual(a["as_of"], "2026-01-28")
         self.assertEqual(a["age_days"], 208)
-        self.assertIs(G.gate("ma28_clean", "AA", root=self.root, today=TODAY)["value"], False)
+        self.assertIs(G.gate("ma28_clean", "AA", root=self.root, today=TODAY,
+                             max_age_days=G.NO_BAR)["value"], False)
 
     def test_a_stale_gate_is_its_OWN_state_and_returns_no_value(self):
         """Staleness is a caller's bar, so it has no default -- inventing one here is exactly
@@ -179,6 +182,61 @@ class ThreeStatesNeverTwo(unittest.TestCase):
         self.assertIsNone(stale["value"])
         self.assertEqual(stale["state"], G.STALE)
         self.assertIn("208 days old", stale["reason"])
+
+    def test_an_UNDECLARED_bar_is_its_own_state_and_returns_no_value(self):
+        """L3. `max_age_days` never had a default -- correctly -- but omitting it used to
+        BYPASS the staleness test and hand back the bit anyway, so the one caller most likely
+        to be wrong (the one that never considered vintage) was the one that got an
+        unqualified answer. Refusing to default and refusing to answer undeclared are the same
+        rule; only the second is enforceable."""
+        _write(self.root, _payload(ma28_clean={"as_of": "2026-01-28",
+                                               "tickers": {"AAPL": True}}))
+        r = G.gate("ma28_clean", "AAPL", root=self.root, today=TODAY)
+        self.assertIsNone(r["value"])
+        self.assertEqual(r["state"], G.BAR_NOT_DECLARED)
+        self.assertIn("max_age_days", r["reason"])
+
+    def test_the_opt_out_is_a_DECLARATION_and_is_not_spelled_like_forgetting(self):
+        """`NO_BAR` reads the bit at any vintage. It is deliberately not `None`: forgetting an
+        argument and choosing to ignore vintage must not be the same keystroke."""
+        _write(self.root, _payload(ma28_clean={"as_of": "2026-01-28",
+                                               "tickers": {"AAPL": True}}))
+        r = G.gate("ma28_clean", "AAPL", root=self.root, today=TODAY, max_age_days=G.NO_BAR)
+        self.assertIs(r["value"], True)
+        self.assertEqual(r["state"], G.OK)
+        self.assertIsNot(G.NO_BAR, None)
+
+    def test_an_undeclared_bar_outranks_every_other_unknown(self):
+        """A module that cannot say whether its vintage is fit has nothing to say about the
+        ticker either, so the refusal comes FIRST -- including when the artifact is missing."""
+        r = G.gate("ma28_clean", "AAPL", root=os.path.join(self.root, "nope"), today=TODAY)
+        self.assertEqual(r["state"], G.BAR_NOT_DECLARED)
+
+    def test_coverage_reports_STALENESS_against_a_declared_bar(self):
+        """`age_days` alone is a number a reader has to judge. `stale` is the judgement, and
+        the caller owns the bar."""
+        _write(self.root, _payload(ma28_clean={"as_of": "2026-01-28",
+                                               "tickers": {"AAPL": True}}))
+        tight = G.coverage(self.root, max_age_days=90, today=TODAY)
+        self.assertTrue(tight["bar_declared"])
+        self.assertIs(tight["gates"]["ma28_clean"]["stale"], True)
+        self.assertEqual(tight["n_stale"], 1)
+
+        loose = G.coverage(self.root, max_age_days=400, today=TODAY)
+        self.assertIs(loose["gates"]["ma28_clean"]["stale"], False)
+        self.assertEqual(loose["n_stale"], 0)
+
+    def test_coverage_without_a_bar_says_so_rather_than_reading_clean(self):
+        """The honest report, not a clean one: this is what stops an old artifact being quoted
+        as current by a surface that never asked how old it was."""
+        _write(self.root, _payload(ma28_clean={"as_of": "2026-01-28",
+                                               "tickers": {"AAPL": True}}))
+        cov = G.coverage(self.root, today=TODAY)
+        self.assertFalse(cov["bar_declared"])
+        self.assertIsNone(cov["gates"]["ma28_clean"]["stale"])
+        self.assertIsNone(cov["n_stale"])
+        # ...and the age is still reported, so the reader is not left with nothing.
+        self.assertIsInstance(cov["gates"]["ma28_clean"]["age_days"], int)
 
     def test_there_is_NO_default_parameter_anywhere_on_the_reader(self):
         """A `default=` would let a caller turn an unknown into a pass in one keyword, which

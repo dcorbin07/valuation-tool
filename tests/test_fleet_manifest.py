@@ -172,6 +172,53 @@ class TheManifestOnlyCarriesVerifiedBooks(unittest.TestCase):
             self.assertNotIn(b, self.payload["books"])
             self.assertTrue(self.payload["skipped"][b])
 
+    def test_the_TEST_BOOK_is_exported_like_every_other_verified_book(self):
+        """L7, decided by Don on 2026-08-24: leave it exactly as it is.
+
+        A manifest that omits things somebody decided were uninteresting cannot be trusted
+        about the things it includes. The moment one book is left out on grounds of taste,
+        every absence becomes ambiguous — and the whole value of this artifact is that an
+        absence means exactly one thing: the commit check failed.
+
+        The test-book needs no special case because it declares itself: `utility` class, so it
+        charges no trial in any domain and no meter is ever read on it, and CLOSED in the
+        session it was declared. Visible, labelled and closed is strictly more informative than
+        absent.
+        """
+        self.assertIn("testbook", self.payload["books"], sorted(self.payload["books"]))
+        b = self.payload["books"]["testbook"]
+        # Held to exactly the same bar as every other book, which is the point.
+        self.assertTrue(b["committed_alone"])
+        self.assertEqual(b["touched"], ["DECL_testbook.md"])
+        # ...and it is self-labelling rather than filtered.
+        decl = b.get("declaration") or {}
+        self.assertEqual(decl.get("hypothesis_class"), "utility", decl.get("hypothesis_class"))
+
+    def test_the_exporter_carries_no_book_name_it_could_filter_on(self):
+        """The exclusion rule is MECHANICAL (verified or not) and never EDITORIAL. A book name
+        appearing as a literal in the exporter's code is how an editorial filter starts.
+
+        Read from the SYNTAX TREE with docstrings stripped, because the module's prose names
+        `DECL_testbook.md` on purpose — recording the decision to keep it — and a grep would
+        fire on the very sentence that documents the rule. That is this repository's most
+        repeated test defect and it is not repeated here.
+        """
+        import ast
+
+        tree = ast.parse(io.open(EX.__file__, encoding="utf-8").read())
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef)):
+                if (node.body and isinstance(node.body[0], ast.Expr)
+                        and isinstance(node.body[0].value, ast.Constant)
+                        and isinstance(node.body[0].value.value, str)):
+                    node.body = node.body[1:]
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                low = node.value.lower()
+                self.assertNotIn("testbook", low,
+                                 "a book name is a literal in the exporter's CODE — an "
+                                 "editorial filter starts exactly here")
+
     def test_the_decl_sha_matches_the_real_file_byte_for_byte(self):
         """The manifest's hash is what the chain anchors on in the image, so it has to BE the
         file's hash and not a re-serialisation of the parsed block."""
