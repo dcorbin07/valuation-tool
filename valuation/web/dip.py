@@ -334,7 +334,12 @@ def screen(rows: List[dict],
     capped = max(0, n_eligible - shortlist) if shortlist and shortlist > 0 else 0
     measured_set = survivors[:shortlist] if (shortlist and shortlist > 0) else survivors
 
-    out, unmeasured, rejected_health = [], 0, 0
+    # F-11 (audit #5 H2's consequence). `rejected_health` was a COUNT, and the identities were
+    # discarded -- which is why `dip_rejects` had no source and recorded a fabricated zero. The
+    # classification is already computed here; only the aggregation threw it away. Collected,
+    # not recomputed: a second implementation of "which names fail the health floors" is
+    # exactly how a screen and a book come to disagree about what they screened.
+    out, unmeasured, rejected_health, health_rejects = [], 0, 0, []
     for r, checks in measured_set:
         m = measure(r) or {}
         dd = m.get("drawdown")
@@ -354,6 +359,25 @@ def screen(rows: List[dict],
             continue
         if not h["ok"]:
             rejected_health += 1
+            # The drawdown is already known here (`dd is None` was rejected above), so the
+            # F-11 conjunction -- deep enough AND failing health -- is decidable by the
+            # consumer without re-measuring anything. The threshold is NOT applied here: this
+            # is the raw reject population and `dip_rejects()` below is the one place the
+            # declared >= min_drawdown rule lives.
+            health_rejects.append({
+                "ticker": (r.get("ticker") or "").strip().upper(),
+                "drawdown": dd,
+                # AS-TRADED, from the same measurement as the drawdown -- never a panel
+                # price. A strike compared against a split-adjusted price picks a contract
+                # nowhere near the money and fails SILENTLY (this record measured raw_close
+                # 411.80 against an adjusted 8.236 on one real row).
+                "price": m.get("price", r.get("price")),
+                "high_52w": m.get("high_52w"),
+                "below": list(h.get("below") or []),
+                "missing": list(h.get("missing") or []),
+                "scores": dict(h.get("scores") or {}),
+                "days_since_high": m.get("days_since_high"),
+            })
             continue
         if dd < min_drawdown:
             continue
@@ -407,6 +431,8 @@ def screen(rows: List[dict],
         "capped": capped,
         "rejected_prefilter": rejected_prefilter,
         "rejected_health": rejected_health,
+        # ADDITIVE. Every existing consumer reads `rows`, and this changes none of them.
+        "health_rejects": health_rejects,
         "rejected_checks": rejected_checks,
         "health_floors": dict(HEALTH_FLOORS),
         "health_floor_note": HEALTH_FLOOR_NOTE,
@@ -559,6 +585,42 @@ def measurement_from(result) -> Optional[dict]:
             "terminal_share": _terminal_share_check(result),
         },
     }
+
+
+def dip_rejects(payload: dict, min_drawdown=None) -> List[dict]:
+    """F-11's REJECT population from a `screen()`/`screen_snapshot()` payload.
+
+    The declared entry rule, and the ONLY place its conjunction lives: *"names down >=20% from
+    the 252-session high AND failing the shipped health floors, classified by the screen's own
+    published functions `health_check` and `clamp_drawdown` on the same rows the live screen
+    uses."* Both halves are read from what `screen` already computed -- nothing is
+    re-classified here, because a second implementation of the same rule is how a screen and a
+    book come to disagree about what they screened.
+
+    **THE THRESHOLD GOES THROUGH `clamp_drawdown`**, so the book is held to the same clamped
+    value the live screen used and not to a raw literal.
+
+    **A COVERAGE LIMIT THAT MUST TRAVEL WITH THE LIST: `screen` measures only its SHORTLIST**
+    (the deepest `shortlist` names by drawdown proximity), so a name that never got measured
+    cannot appear here. The reject list is bounded by the measurement budget, and a name absent
+    from it is *"not measured"* rather than *"healthy"* -- `screen`'s own `n_unmeasured` is the
+    figure that says how many.
+    """
+    floor = clamp_drawdown(DEFAULT_MIN_DRAWDOWN if min_drawdown is None else min_drawdown)
+    out = []
+    for r in (payload or {}).get("health_rejects") or []:
+        dd = r.get("drawdown")
+        try:
+            dd = float(dd)
+        except (TypeError, ValueError):
+            continue                                   # unmeasured is not "shallow"
+        if dd != dd or dd < floor:
+            continue
+        row = dict(r)
+        row["min_drawdown_used"] = floor
+        out.append(row)
+    return sorted(out, key=lambda r: (-float(r.get("drawdown") or 0.0),
+                                      str(r.get("ticker") or "")))
 
 
 def engine_measure(get_result: Callable[[str], object], budget: int = DEFAULT_SHORTLIST):

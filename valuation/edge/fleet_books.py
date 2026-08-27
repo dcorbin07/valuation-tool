@@ -158,7 +158,8 @@ def f3_select(rows, held, *, n: int, cap: int) -> list:
     return out[:min(int(n), room)]
 
 
-def f3_pick_contract(chain, spot, today, *, moneyness: float, dte: int):
+def f3_pick_contract(chain, spot, today, *, moneyness: float, dte: int,
+                     expiry_rule: str = "nearest"):
     """The listed PUT nearest `moneyness` x as-traded spot, at the expiry nearest `dte`. PURE.
 
     **EXPIRY FIRST, THEN STRIKE** -- amendment 2. The frozen sentence names both targets and
@@ -189,8 +190,18 @@ def f3_pick_contract(chain, spot, today, *, moneyness: float, dte: int):
         puts.append((exp, k, c))
     if not puts:
         return None
-    best_exp = min({e for e, _, _ in puts},
-                   key=lambda e: (abs((e - today).days - int(dte)), e))
+    exps = {e for e, _, _ in puts}
+    if str(expiry_rule) == "nearest_above":
+        # F-11 declares "expiry nearest ABOVE 91 DTE", which is NOT the same contract as
+        # nearest-in-absolute-terms: an 85-DTE expiry is nearer to 91 than a 98-DTE one and is
+        # the wrong side of the declared tenor. The declaration is frozen, so the rule is
+        # implemented as written rather than approximated with the picker already here.
+        above = [e for e in exps if (e - today).days >= int(dte)]
+        if not above:
+            return None                                # no expiry at or beyond the tenor
+        best_exp = min(above, key=lambda e: ((e - today).days, e))
+    else:
+        best_exp = min(exps, key=lambda e: (abs((e - today).days - int(dte)), e))
     same = [(k, c) for e, k, c in puts if e == best_exp]
     k, c = min(same, key=lambda kc: (abs(kc[0] - target), kc[0]))
     return {"contract": c, "expiration": best_exp.isoformat(), "strike": k,
@@ -364,6 +375,192 @@ def f8_csp_entry_financing(decl: dict, root: str = None, *, provider=None, broke
 
 
 # ---------------------------------------------------------------------------------------
+# F-11 -- DIP-REJECT PUTS
+# ---------------------------------------------------------------------------------------
+F11_QTY = 1
+
+
+def f11_quarter(d) -> str:
+    """`"YYYYQn"`. The declaration's re-entry window is a QUARTER, so it needs a name."""
+    return "%04dQ%d" % (d.year, ((d.month - 1) // 3) + 1)
+
+
+def f11_first_appearances(history, today, *, sessions: int = 2) -> dict:
+    """`{ticker: first_date}` for names whose FIRST appearance THIS QUARTER is recent enough.
+
+    **THIS IS THE WHOLE REASON `dip_rejects` IS RECORDED.** F-11's hypothesis is a name's
+    FIRST appearance in the reject population, and first-ness is only decidable against a
+    dated history -- which is why audit #5's fabricated zeros were not a bookkeeping problem
+    but evidence AGAINST the thing this book exists to detect.
+
+    `history` is `fleet_history.read("dip_rejects")["rows"]`, oldest first. **Rows a forward
+    record marks INVALID are SKIPPED**, so the fabricated span cannot date a first appearance.
+
+    `sessions` counts RECORDED days, not calendar days: the series has a row per cycle that
+    consulted a source, and a weekend or an outage is not a session. Counting calendar days
+    would let a Friday appearance expire over a weekend on which nothing was observable.
+    """
+    q = f11_quarter(today)
+    dates, seen = [], {}
+    for r in history or []:
+        if r.get("invalid"):
+            continue                                   # audit #5 H2: not an observation
+        d = _date(r.get("date"))
+        if d is None or f11_quarter(d) != q:
+            continue
+        dates.append(r.get("date"))
+        payload = r.get("payload")
+        names = payload if isinstance(payload, list) else []
+        for t in names:
+            t = str(t).upper().strip()
+            if t and t not in seen:
+                seen[t] = r.get("date")
+    if not dates:
+        return {}
+    recent = set(sorted(set(dates))[-int(sessions):])
+    return {t: d for t, d in seen.items() if d in recent}
+
+
+def f11_select(rejects, history, today, held, *, cap: int, sessions: int = 2) -> list:
+    """The names F-11 may enter today. PURE.
+
+    Frozen rule: *"Enter within 2 sessions of a name's FIRST appearance on the list this
+    quarter; skip names already held or entered this quarter."*
+
+    **A NAME MUST BE ON TODAY'S LIST AND BE A RECENT FIRST APPEARANCE.** Both, because the
+    declaration says "enter within 2 sessions OF A FIRST APPEARANCE" -- a name whose first
+    appearance was two days ago and which has since recovered off the list is not a reject
+    today, and entering it would be trading a memory.
+
+    `held` carries every underlying this book has ever filled, so the quarter re-entry ban and
+    the never-double-up rule are the same check. Re-entry within a quarter is a VOID condition
+    of the declaration, so the conservative reading is the required one.
+    """
+    firsts = f11_first_appearances(history, today, sessions=sessions)
+    held = {str(h).upper() for h in (held or set())}
+    out = []
+    for r in rejects or []:
+        t = str((r or {}).get("ticker") or "").upper().strip()
+        if not t or t in held or t not in firsts:
+            continue
+        row = dict(r)
+        row["ticker"] = t
+        row["first_appearance"] = firsts[t]
+        out.append(row)
+    # Deepest drawdown first, then ticker -- deterministic, and the cap is applied to a
+    # defined order rather than to whatever the screen happened to emit.
+    out.sort(key=lambda r: (-float(r.get("drawdown") or 0.0), r["ticker"]))
+    return out[:max(0, int(cap))] if cap else out
+
+
+def f11_dip_reject_puts(decl: dict, root: str = None, *, provider=None, broker=None,
+                        today=None, rejects=None, history=None) -> list:
+    """F-11 live: buy a 91-DTE put on each name newly entering the dip-REJECT population.
+
+    Every parameter comes from `decl`. The screen is NOT re-implemented here: the reject
+    population arrives from `dip.dip_rejects`, which reads what `dip.screen` already
+    classified with its own published `health_check` and `clamp_drawdown`.
+
+    **NO EXIT MACHINERY EXISTS HERE AND THAT IS DECLARED, NOT MISSING.** The frozen structure
+    is *"hold to expiry, no exits"* and *"any exit rule"* is a VOID condition, so a stop or a
+    target added later voids the book rather than improving it.
+
+    **NO DELTA IS SOLVED OR TARGETED**, which is the other void condition: the strike is
+    moneyness-fixed against AS-TRADED spot, `V6-OPT`'s autopsy.
+    """
+    import datetime as _dt
+    from ..intraday.providers import get_provider
+
+    st = decl.get("structure") or {}
+    today = today or _dt.date.today()
+
+    if rejects is None:
+        rejects = f11_live_rejects()
+    if rejects is None:
+        # THE SOURCE WAS NOT CONSULTED. Audit #5 H2's rule, one level out: a book that cannot
+        # see its own screen selects nobody rather than selecting from an empty list, which
+        # would read in the records as "the market offered nothing today".
+        return []
+
+    if history is None:
+        from . import fleet_history as FH
+        history = (FH.read("dip_rejects", root) or {}).get("rows") or []
+
+    picks = f11_select(rejects, history, today,
+                       held_symbols("f11_dip_reject_puts", root),
+                       cap=int(decl.get("concurrency_cap") or 0))
+    if not picks:
+        return []
+
+    provider = provider if provider is not None else get_provider()
+    if broker is None:
+        from .paper_broker import PaperBroker
+        broker = PaperBroker()
+
+    sha = F.decl_sha_for("f11_dip_reject_puts", root)
+    if not sha:
+        return []
+
+    # READ FROM THE DECLARATION, NOT ASSUMED. The declaration carries `dte_rule` and `right`
+    # as fields, and hard-coding either here would make the code the authority instead of the
+    # frozen text. A declaration that ever says something this rule cannot execute must be
+    # REFUSED, not quietly reinterpreted.
+    rule = "nearest_above" if "above" in str(st.get("dte_rule") or "").lower() else "nearest"
+    if str(st.get("right") or "put").lower() != "put":
+        return []                                      # the contract picker is puts-only
+
+    out = []
+    for p in picks:
+        chain = provider.get_option_chain(p["ticker"], dte_range=(int(st.get("dte")), None))
+        got = f3_pick_contract(chain, p.get("price"), today,
+                               moneyness=float(st.get("moneyness")),
+                               dte=int(st.get("dte")),
+                               expiry_rule=rule)
+        if got is None:
+            continue
+        c = got["contract"]
+        out.append(F.submit("f11_dip_reject_puts", broker=broker, occ=str(c.get("symbol")),
+                            underlying=p["ticker"], side="buy_to_open", qty=F11_QTY,
+                            decl_sha=sha, symbol=p["ticker"], quote=c))
+    return out
+
+
+def f11_live_rejects():
+    """Today's reject population from the live screen, or `None` if it cannot be consulted.
+
+    **`None` AND `[]` ARE DIFFERENT AND THE DIFFERENCE IS THE POINT** (audit #5, `H2`): `[]`
+    means the screen ran and rejected nobody, `None` means no screen was consulted. Returning
+    `[]` on an unreachable store would put a fabricated zero back into the one series that was
+    just repaired for exactly that.
+    """
+    try:
+        from ..screener.store import Store
+        from ..web.app import _get_or_compute
+        from ..web import dip as _dip
+        payload = _dip.screen_snapshot(Store(), _get_or_compute)
+        if payload.get("empty"):
+            return None                                # no scan has landed; nothing observed
+        return _dip.dip_rejects(payload)
+    except Exception:                                  # noqa: BLE001
+        return None
+
+
+def f11_live_rejects_tickers():
+    """Just the tickers, for `fleet_history.record_dip_rejects`. `None` propagates.
+
+    The recorder stores a list of names; the full reject rows carry the drawdown and the
+    failing floors, which F-11's own rule reads. Keeping the `None` distinct from `[]` all the
+    way through is the entire point of audit #5's `H2` repair -- collapsing it here would put
+    the fabricated zero straight back.
+    """
+    rows = f11_live_rejects()
+    if rows is None:
+        return None
+    return sorted({str((r or {}).get("ticker") or "").upper().strip()
+                   for r in rows if (r or {}).get("ticker")})
+
+
+# ---------------------------------------------------------------------------------------
 # THE REGISTRY
 # ---------------------------------------------------------------------------------------
 # book -> (callable, places_orders). `places_orders=False` marks a RIDER: a book whose own
@@ -373,6 +570,7 @@ RULES = {
     "f1_fill_ab": (f1_fill_ab, False),
     "f3_bear_puts": (f3_bear_puts, True),
     "f8_csp_entry_financing": (f8_csp_entry_financing, True),
+    "f11_dip_reject_puts": (f11_dip_reject_puts, True),
 }
 
 

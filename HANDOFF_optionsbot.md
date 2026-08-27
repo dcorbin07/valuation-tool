@@ -10491,3 +10491,100 @@ pre-existing, unrelated to this work, and the cure is `sync.bat` in the main fol
 `valuation/edge/fleet_history.py`, `valuation/edge/fleet.py`, `valuation/edge/fleet_books.py`,
 `valuation/edge/wrds_client.py`, `valuation/saas/app_saas.py`, `scripts/fleet_selfcheck.py`,
 `tests/test_audit5_remediation.py`.
+
+---
+
+# F-11 — THE DIP SCREEN EXISTS, AND A CORRECTION TO MY OWN PREVIOUS ENTRY (2026-08-26)
+
+**F-11 IS BUILT, NOT WITHDRAWN — AND THE REASON IS A CORRECTION AGAINST WHAT I WROTE YESTERDAY.**
+The audit #5 `H2` write-up in this file says the production caller had no dip source and adds
+*"nothing in this repository runs a dip screen at all"*. **That is WRONG, and it was my inference
+rather than the audit's finding.** I grepped for `dip_reject`, found only `dip_posture.py` (V6's
+copy/status module), and concluded there was no screen.
+
+**`valuation/web/dip.py` runs the screen and publishes `health_check` and `clamp_drawdown` — the
+two functions F-11's frozen declaration names by dotted path.** What did not exist was any caller
+that KEPT the rejected names: `screen()` counted them as `rejected_health` and threw the
+identities away. The declaration anticipated exactly this — *"the classifier is published; only
+`screen()`'s aggregation discards the failures"* — so the book was always buildable and the
+withdrawal option never applied.
+
+**ZERO TRIALS.** No verdict is read; F-11's trial is charged at first verdict read, which is
+138 fills away.
+
+## WHAT WAS BUILT, AND WHERE THE DECLARATION FORCED A CHOICE
+
+* **`dip.screen()` now COLLECTS the rejects** it already classified — `health_rejects`, carrying
+  ticker, drawdown, the failing floors and the as-traded price. **Additive**: every existing
+  consumer reads `rows` and none of them changes. Nothing is re-classified, because a second
+  implementation of *"which names fail the health floors"* is how a screen and a book come to
+  disagree about what they screened.
+* **`dip.dip_rejects(payload, min_drawdown)`** is the ONE place F-11's declared conjunction lives
+  — *down ≥20% from the 252-session high **AND** failing the shipped health floors* — and the
+  threshold goes through **`clamp_drawdown`**, so the book is held to the same clamped value the
+  live screen used rather than to a literal.
+* **`f11_dip_reject_puts`** implements the frozen structure: buy put, strike nearest **0.80 ×
+  as-traded spot** (ties → lower), expiry **nearest above 91 DTE**, hold to expiry, cap 10,
+  one contract, entry through `fleet.submit` so the F-1 randomizer assigns the arm.
+
+**THE ONE PLACE THE DECLARATION AND THE EXISTING CODE DISAGREED, AND THE DECLARATION WON.**
+`f3_pick_contract` picks the expiry **nearest** the target; F-11 declares **"nearest above 91"**.
+Those are different contracts — an 85-DTE expiry is closer to 91 than a 98-DTE one and is the
+wrong side of the declared tenor. The single picker gained an `expiry_rule` parameter whose
+default leaves F-3 and F-8 **bit-identical**, rather than F-11 getting a second picker.
+
+**`dte_rule` AND `right` ARE READ FROM THE DECLARATION, NOT HARD-CODED.** The first cut hard-coded
+`expiry_rule="nearest_above"`, which makes the code the authority instead of the frozen text. A
+declaration stating a `right` this rule cannot execute is REFUSED, not reinterpreted.
+
+## THE FIRST-APPEARANCE MACHINERY IS WHY THE RECORDER EXISTS
+
+`f11_first_appearances` reads the `dip_rejects` series and returns names whose FIRST appearance
+**this quarter** falls in the last two RECORDED sessions. Three things it gets right on purpose:
+
+* **Rows a forward record marks INVALID are SKIPPED**, so audit #5's fabricated span cannot date
+  a first appearance — which is the whole reason that invalidation had to exist before this book
+  could be built.
+* **Sessions are RECORDED days, not calendar days.** A Friday appearance must not expire over a
+  weekend on which nothing was observable.
+* **A name must be on TODAY's list AND be a recent first appearance.** A name that first appeared
+  two days ago and has since recovered off the list is not a reject today, and entering it would
+  be trading a memory.
+
+## THE HONEST LIMITS, STATED BECAUSE THEY BOUND WHAT THIS BOOK CAN EVER SAY
+
+* **THE REJECT LIST IS BOUNDED BY THE MEASUREMENT BUDGET.** `screen` measures only its SHORTLIST
+  (12 by default, 25 max), so a name that was never measured cannot appear. **Absent means "not
+  measured", never "healthy"** — `screen`'s own `n_unmeasured` is the figure that says how many.
+* **THE SERIES HAS NO HISTORY BEFORE IT STARTED, so early "first appearances" are first
+  appearances IN THE RECORD, not in the world.** A name that has been a reject for months will
+  read as new on the first day the recorder runs. That is unavoidable — it is exactly the cost of
+  the days the fabricated rows did not buy — and it means F-11's early entries carry a weaker
+  first-appearance claim than its later ones. Anyone reading the verdict must know which entries
+  came from the first quarter of the series.
+* **F-11's clock starts NOW, not retroactively.** `fills_needed` is 138, derived, at a projected
+  4.0 fills/month — roughly 2.9 years. Starving is data, not failure.
+
+## VOID CONDITIONS, PINNED AS TESTS
+
+Entering HEALTHY dips (structurally impossible — `health_rejects` only ever holds failures);
+re-entry within a quarter (`held_symbols` is conservative: a name that has ever filled counts as
+held); any exit rule; delta-targeting.
+
+**AND MY OWN VOID-CONDITION TEST WAS THE SUBSTRING-BAN DEFECT, FOR THE SIXTH TIME IN THIS
+RECORD.** The delta test banned the substring and **FAILED AGAINST THE CORRECT TREE**, because
+both docstrings say *"no delta is solved or targeted"* — prose documenting the rule quotes the
+word the rule forbids. It reads the **syntax tree** now, carries a **positive control** proving it
+can still see a real `delta` reference, and is paired with a test of the POSITIVE property: the
+strike comes from `0.80 × as-traded spot`.
+
+## H3 IS NOT TAKEN, BECAUSE NO DECISION HAS BEEN GIVEN
+
+Checked rather than assumed: `origin/main` carries no commit from Don after the audit itself, and
+there is no decision document. **H3 — the export door and weekly backup for the fleet records —
+remains stated and untaken**, alongside L3 (the gates staleness bar) and L7 (the test book in the
+declared set). The fleet records still lack the export door and weekly backup the bound track
+has, and that remains the correct summary of the gap.
+
+**32 new tests, zero skips.** `valuation/web/dip.py`, `valuation/edge/fleet_books.py`,
+`valuation/saas/app_saas.py`, `tests/test_fleet_f11.py`.

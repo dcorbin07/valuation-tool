@@ -786,17 +786,25 @@ def create_saas_app(cfg=CONFIG):
                 # evidence against the very thing it exists to detect.
                 #
                 # `iv60_from_store` reads the intraday scan the cycle has ALREADY paid for.
-                # `rejects` stays None ON PURPOSE: nothing in this repository runs a dip
-                # screen, so there is no source to pass, and the recorder now REFUSES and goes
-                # loud rather than writing a zero. A gap is recoverable; a fabricated zero is
-                # not.
+                #
+                # `rejects` NOW HAS A REAL SOURCE, and an earlier note here was WRONG: it
+                # said no dip screen existed in this repository. `valuation/web/dip.py`
+                # runs the screen and publishes `health_check` and `clamp_drawdown`. What
+                # did not exist was any caller that KEPT the rejected names -- `screen()`
+                # counted them and discarded the identities.
+                #
+                # `f11_live_rejects_tickers()` returns None when the screen could not be
+                # consulted at all, and the recorder REFUSES on None -- so an unreachable
+                # store still cannot write a fabricated zero.
                 # ONE-TIME, IDEMPOTENT, FORWARD-ONLY. The pre-fix rows cannot be corrected in
                 # place -- these streams REFUSE a backward write and that rule is not being
                 # weakened -- so the fabricated span is marked INVALID by a record appended
                 # today, which every consumer here honours. It runs BEFORE record_all so the
                 # span it freezes is exactly the pre-fix rows and never today's real one.
                 res["history_invalidated"] = fleet_history.invalidate_fabricated_span()
+                from ..edge import fleet_books as _fb
                 rec = fleet_history.record_all(
+                    rejects=_fb.f11_live_rejects_tickers(),
                     quotes=fleet_history.iv60_from_store())
                 res["history_recorded"] = rec
                 if rec.get("not_consulted"):
