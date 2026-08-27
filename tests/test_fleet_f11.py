@@ -305,15 +305,64 @@ class TestTheSourceIsNeverFabricated(unittest.TestCase):
         finally:
             B.f11_live_rejects = orig
 
-    def test_the_rule_selects_NOBODY_when_the_screen_could_not_be_consulted(self):
-        orig = B.f11_live_rejects
+    def test_the_rule_selects_NOBODY_when_TODAY_HAS_NO_RECORDED_ROW(self):
+        """The rule READS the recorded series; it does not run the screen. An earlier cut of
+        this test patched `f11_live_rejects`, which the rule stopped calling — it passed for
+        the wrong reason, which is the failure mode this file exists to catch."""
+        orig = B.f11_recorded_rejects
         try:
-            B.f11_live_rejects = lambda: None
+            B.f11_recorded_rejects = lambda root=None, today=None: None
             decl = {"structure": {"right": "put", "moneyness": 0.8, "dte": 91},
                     "concurrency_cap": 10}
             self.assertEqual(B.f11_dip_reject_puts(decl, history=[], today=TODAY), [])
         finally:
-            B.f11_live_rejects = orig
+            B.f11_recorded_rejects = orig
+
+
+class TestTheRuleReadsRatherThanRecomputes(unittest.TestCase):
+    """**MEASURED ON THE SERVICE: running the screen inside the cycle took 188s, warm and
+    repeatable, against the runner's 120s budget.** The declaration's own prose says the live
+    classification is READ, never recomputed — which is also the only version that fits."""
+
+    def setUp(self):
+        import tempfile
+        from valuation.edge import fleet_history as FH
+        self.FH = FH
+        self.root = tempfile.mkdtemp()
+
+    def test_it_reads_todays_recorded_row(self):
+        self.FH.record_dip_rejects(date=TODAY.isoformat(), rejects=["SICK", "ILL"],
+                                   root=self.root)
+        got = B.f11_recorded_rejects(self.root, today=TODAY)
+        self.assertEqual(sorted(r["ticker"] for r in got), ["ILL", "SICK"])
+
+    def test_no_row_for_today_is_NOT_CONSULTED_not_an_empty_market(self):
+        self.FH.record_dip_rejects(date="2026-08-20", rejects=["OLD"], root=self.root)
+        self.assertIsNone(B.f11_recorded_rejects(self.root, today=TODAY))
+
+    def test_an_INVALID_row_is_not_an_observation(self):
+        self.FH.record_dip_rejects(date=TODAY.isoformat(), rejects=["X"], root=self.root)
+        self.FH.invalidate("dip_rejects", TODAY.isoformat(), TODAY.isoformat(),
+                           "fabricated", date="2026-09-01", root=self.root)
+        self.assertIsNone(B.f11_recorded_rejects(self.root, today=TODAY))
+
+    def test_an_empty_recorded_day_IS_an_observation(self):
+        """The screen ran and rejected nobody. That is a real day and must not read as
+        'not consulted' — the H2 distinction, all the way through."""
+        self.FH.record_dip_rejects(date=TODAY.isoformat(), rejects=[], root=self.root)
+        self.assertEqual(B.f11_recorded_rejects(self.root, today=TODAY), [])
+
+    def test_the_rule_does_not_call_the_expensive_screen(self):
+        """Pinned by name: `f11_live_rejects` is the expensive path and the rule must not
+        reach it. Read from the syntax tree, with a positive control."""
+        import ast
+        import inspect
+        import textwrap
+        tree = ast.parse(textwrap.dedent(inspect.getsource(B.f11_dip_reject_puts)))
+        called = {n.func.id for n in ast.walk(tree)
+                  if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+        self.assertNotIn("f11_live_rejects", called)
+        self.assertIn("f11_recorded_rejects", called, "the cheap read must be the one used")
 
 
 class TestItIsRegistered(unittest.TestCase):

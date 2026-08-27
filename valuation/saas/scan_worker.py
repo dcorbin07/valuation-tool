@@ -42,6 +42,20 @@ def run_weekly(cfg=CONFIG, scope="whole_market", limit=1500, dcf_top=12) -> dict
         from ..web import dip as _dip
         _screen = _dip.screen_snapshot(store, _get_or_compute)
         notify.post_dip_digest(cfg, store, res["scan_date"], _screen.get("rows") or [])
+        # F-11's series is recorded HERE, from the screen this process already paid for.
+        # The fleet cycle must not run a screen: it values up to a dozen names and MEASURED
+        # ~188s on the service against a 120s runner budget. This is also what F-11's own
+        # declaration says -- "the live classification READ, never recomputed".
+        #
+        # A SEPARATE `try` on purpose: a recorder that fails must not cost the digest, and a
+        # digest that fails must not cost the recorder. Sharing the outer handler would let
+        # either silently eat the other.
+        try:
+            from ..edge import fleet_history as _fh
+            _fh.record_dip_rejects(
+                rejects=[r["ticker"] for r in _dip.dip_rejects(_screen) if r.get("ticker")])
+        except Exception:
+            pass
     except Exception:
         pass
 

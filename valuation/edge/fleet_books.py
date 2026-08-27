@@ -475,7 +475,7 @@ def f11_dip_reject_puts(decl: dict, root: str = None, *, provider=None, broker=N
     today = today or _dt.date.today()
 
     if rejects is None:
-        rejects = f11_live_rejects()
+        rejects = f11_recorded_rejects(root)
     if rejects is None:
         # THE SOURCE WAS NOT CONSULTED. Audit #5 H2's rule, one level out: a book that cannot
         # see its own screen selects nobody rather than selecting from an empty list, which
@@ -525,8 +525,42 @@ def f11_dip_reject_puts(decl: dict, root: str = None, *, provider=None, broker=N
     return out
 
 
+def f11_recorded_rejects(root: str = None, today=None):
+    """Today's rejects READ from the recorded series, or `None` if today has no row.
+
+    **THE DECLARATION SAYS "READ, NEVER RECOMPUTED", AND THIS IS WHY THAT MATTERS
+    OPERATIONALLY.** An earlier cut had the rule call the live screen itself, and the screen
+    values up to a dozen names through the valuation engine: **MEASURED on the service, one
+    cycle went from ~9s to 188s, warm and repeatable, against the runner's 120s budget** — so
+    the scheduled fleet cycle would have timed out every day. Reading the row somebody else
+    already paid for is both the declaration's own wording and the only version that fits the
+    cycle's budget.
+
+    `None` when today has no recorded row — NOT CONSULTED, so the rule selects nobody rather
+    than treating an unwritten day as a day nobody qualified.
+    """
+    import datetime as _dt
+    from . import fleet_history as FH
+    d = (today or _dt.date.today()).isoformat()
+    for r in reversed((FH.read("dip_rejects", root) or {}).get("rows") or []):
+        if r.get("date") != d:
+            continue
+        if r.get("invalid"):
+            return None                        # a fabricated row is not an observation
+        payload = r.get("payload")
+        names = payload if isinstance(payload, list) else []
+        # The rule needs the drawdown to order and cap; the series stores names only, so the
+        # ordering falls back to the ticker. Stated rather than hidden: the CAP is applied to
+        # an alphabetical order on a day the series carries more than `cap` first appearances.
+        return [{"ticker": str(t).upper(), "drawdown": None} for t in names]
+    return None
+
+
 def f11_live_rejects():
     """Today's reject population from the live screen, or `None` if it cannot be consulted.
+
+    **EXPENSIVE — it values up to a dozen names.** Called by whatever process already pays for
+    a screen (the scan worker), never from the fleet cycle's request path.
 
     **`None` AND `[]` ARE DIFFERENT AND THE DIFFERENCE IS THE POINT** (audit #5, `H2`): `[]`
     means the screen ran and rejected nobody, `None` means no screen was consulted. Returning

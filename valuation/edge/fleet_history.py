@@ -364,6 +364,20 @@ def record_all(date: str = None, *, store=None, rejects=None, quotes=None,
     """
     date = date or _dt.date.today().isoformat()
     out = {"date": date, "series": {}}
+
+    # A SERIES WHOSE ROW FOR TODAY IS ALREADY ON DISK NEEDS NO SOURCE, and must not be
+    # reported as one that went unconsulted. The expensive sources belong to whichever
+    # process already pays for them -- the dip screen costs ~188s on the service, measured,
+    # against the runner's 120s budget -- so the scan worker records and the cycle finds the
+    # row already there. Crying wolf on a day that IS recorded is the fastest way to teach
+    # everyone to ignore this alarm (`MA21`).
+    already = set()
+    for name in SERIES:
+        for r in ((read(name, root) or {}).get("rows") or []):
+            if r.get("date") == date and not r.get("invalid"):
+                already.add(name)
+                break
+
     for name, fn, kw in (("alert_count", record_alert_count, {"store": store}),
                          ("dip_rejects", record_dip_rejects, {"rejects": rejects}),
                          ("iv60_atm", record_iv60, {"quotes": quotes})):
@@ -387,8 +401,10 @@ def record_all(date: str = None, *, store=None, rejects=None, quotes=None,
         out["series"][name]["series_started"] = bool(started)
         if not started:
             failed.append(name)
-        if out["series"][name].get("not_consulted"):
+        if out["series"][name].get("not_consulted") and name not in already:
             not_consulted.append(name)
+        if name in already:
+            out["series"][name]["already_recorded_today"] = True
 
     out["failed_to_start"] = failed
     out["not_consulted"] = not_consulted

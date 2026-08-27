@@ -802,9 +802,14 @@ def create_saas_app(cfg=CONFIG):
                 # today, which every consumer here honours. It runs BEFORE record_all so the
                 # span it freezes is exactly the pre-fix rows and never today's real one.
                 res["history_invalidated"] = fleet_history.invalidate_fabricated_span()
-                from ..edge import fleet_books as _fb
+                # THE DIP SCREEN IS NOT RUN FROM THIS REQUEST PATH. It values up to a
+                # dozen names and MEASURED at ~188s on the service, warm and repeatable,
+                # against the runner's 120s curl budget -- so calling it here made the
+                # scheduled cycle time out every day. The scan worker already runs a
+                # screen for the dip digest and records the series from it; this cycle
+                # finds the row already present. On a day nobody recorded one, dip_rejects
+                # goes LOUD rather than writing a zero, which is the whole H2 rule.
                 rec = fleet_history.record_all(
-                    rejects=_fb.f11_live_rejects_tickers(),
                     quotes=fleet_history.iv60_from_store())
                 res["history_recorded"] = rec
                 if rec.get("not_consulted"):
