@@ -10588,3 +10588,57 @@ has, and that remains the correct summary of the gap.
 
 **32 new tests, zero skips.** `valuation/web/dip.py`, `valuation/edge/fleet_books.py`,
 `valuation/saas/app_saas.py`, `tests/test_fleet_f11.py`.
+
+## F-11 VERIFIED FROM THE SERVICE'S OWN RESPONSE BODY — AND A REGRESSION I INTRODUCED AND FIXED
+
+**THE TRANSITION H2's REMEDIATION SET AS THE STANDARD HAS HAPPENED.** `dip_rejects` on the
+deployed service, before and after:
+
+```
+BEFORE (2026-08-26)   n_days 1  n_days_valid 0  first_valid null        usable FALSE
+AFTER  (2026-08-27)   n_days 2  n_days_valid 1  first_valid 2026-08-27  usable TRUE
+                      n_days_invalid 1  <- the fabricated 2026-08-25 day, still marked
+entry_rules_implemented: 4   (was 3; F-11 is armed on the service)
+```
+
+**F-11's CLOCK HAS STARTED.** The series carries a real observation for the first time, and the
+fabricated day remains invalid rather than being erased.
+
+### THE REGRESSION, WHICH VERIFYING IN THE IMAGE IS THE ONLY REASON I FOUND
+
+Having the rule call the live dip screen made **every** fleet cycle value up to a dozen names
+through the valuation engine. **MEASURED on the service: 189s, then 188s warm and repeatable,
+against the runner's 120s curl budget.** Two dispatches after the land returned nothing usable.
+No test could have caught it — the screen is stubbed in every suite, and the cost only exists
+where the valuation engine is real.
+
+**THE FIX IS WHAT THE DECLARATION ALREADY SAID.** Its frozen prose reads *"the live
+dip-detector REJECT list ... the live classification READ, never recomputed"*.
+`f11_recorded_rejects` reads today's row from the series; the **scan worker**, which already
+runs a screen for the dip digest and pays for it anyway, records that series. **The fleet cycle
+now runs no screen at all: 188s → 0.9s, measured on the service after the land.**
+
+**AND THE H2 RULE SURVIVES INTACT, which was the thing most at risk.** A series whose row for
+today is already on disk is `already_recorded_today` and is NOT reported as unconsulted — so the
+alarm stays quiet on a recorded day and still goes **LOUD** on a day nobody recorded one. An
+INVALID row is still not an observation; an EMPTY recorded day is still a real one. Both
+directions verified.
+
+**A TEST THAT STARTED PASSING FOR THE WRONG REASON.** After the change,
+`test_the_rule_selects_NOBODY_when_the_screen_could_not_be_consulted` patched
+`f11_live_rejects` — which the rule no longer calls — and passed anyway. Repointed, and an AST
+pin now asserts the rule reaches the cheap read and never the expensive one.
+
+### WHAT I COULD NOT VERIFY THROUGH THE RUNNER, AND WHY IT IS NOT THIS WORK
+
+**The `fleet-cycle` workflow cannot reach the service: it reports `SITE_BASE_URL or ADMIN_TOKEN
+is unset`.** That is NOT caused by this branch — **the scheduled run at 2026-08-27T03:19Z failed
+with the identical error, roughly nine hours BEFORE this landed**, and the last green cycles were
+2026-08-26T23:45Z and 23:47Z. `auto-scan.yml` uses the same two secrets and is still succeeding,
+so the fault is specific to that workflow's environment rather than to the secrets being absent
+outright. **I cannot fix it: setting a repository secret is Don's, and `MA11`'s land policy
+refuses any branch touching `.github/`.**
+
+The verification above is therefore a **direct authenticated GET against the service** — which is
+the service's own response body, the standard the brief set — rather than the runner's log.
+`/admin/fleet-cycle` without `run=1` is the dry-run path and writes nothing.
