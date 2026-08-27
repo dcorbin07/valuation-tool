@@ -1,0 +1,7 @@
+{
+  "books": {},
+  "ok": false,
+  "path": "/app/data/fleet/_highwater.json",
+  "reason": "no high-water mark on disk at /app/data/fleet/_highwater.json",
+  "state": "ABSENT"
+}
