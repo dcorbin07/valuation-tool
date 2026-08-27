@@ -307,11 +307,31 @@ def test_no_count_from_this_block_is_typed_into_the_source_or_the_template():
     # count that can go stale, which is the only thing this check exists to catch.
     live -= display_parameters | {"0", "1"}
     assert live, "every live count coincided with a display parameter; this check is vacuous"
+
+    # A TYPED COUNT IS A NUMERIC LITERAL IN CODE, NEVER TEXT INSIDE A STRING. Scanning the
+    # unparsed source with a regex fired on `\b\d{4}-\d{2}-\d{2}\b` — the DATE pattern — the
+    # first day a live count happened to be 4, which is the same clock-driven false positive
+    # the comment above records at 12, on a different number. Reading numeric literals from
+    # the syntax tree is strictly NARROWER: it cannot miss a typed count, and it cannot fire
+    # on a digit that is part of a regex.
+    #
+    # A ROUNDING PRECISION IS A DISPLAY PARAMETER, excluded BY ROLE rather than by value:
+    # `_fmt(x, 4)` says "four decimals", not "four trials", and it cannot go stale.
+    tree = ast.parse(_src(MODULE))
+    precision_nodes = {
+        id(n.args[1]) for n in ast.walk(tree)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "_fmt"
+        and len(n.args) >= 2 and isinstance(n.args[1], ast.Constant)
+    }
+    keep = {str(n.value) for n in ast.walk(tree)
+            if isinstance(n, ast.Constant) and isinstance(n.value, int)
+            and not isinstance(n.value, bool) and id(n) not in precision_nodes}
+
     for v in live:
-        # Standalone-number match, not substring — see `_typed` in test_research_page.py for
-        # why: a two-digit count is a substring of half the decimals in the tree.
+        assert v not in keep, f"{v} is typed into research_record.py"
+        # The TEMPLATE is text, so it keeps the standalone-number match — see `_typed` in
+        # test_research_page.py: a two-digit count is a substring of half the decimals.
         pat = r"(?<![\d.\-+])" + re.escape(v) + r"(?![\d.])"
-        assert not re.search(pat, code), f"{v} is typed into research_record.py"
         assert not re.search(pat, tmpl), f"{v} is typed into the template"
 
 
