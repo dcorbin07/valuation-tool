@@ -470,7 +470,17 @@ def declaration_commit(book: str, root: str = None) -> dict:
                 "reason": sha[:9] + " touched " + str(len(touched)) + " files ("
                           + ", ".join(touched[:6]) + "); a declaration lands ALONE or its "
                           "commit proves nothing about what predated what"}
-    return {"ok": True, "code": "", "commit": sha, "touched": touched, "reason": ""}
+    # THE DATE, NOT ONLY THE SHA. The public surface's whole claim is the ORDERING -- the
+    # entry rule was frozen in git before the book's first fill -- and a sha alone does not
+    # let a reader check that without a clone. The committer date is the one git records for
+    # when the commit landed, so it is the one that supports the claim.
+    #
+    # It travels in the MANIFEST too, because the deployed image has no `.git` (that is the
+    # whole reason `fleet_declarations.json` exists): computed here where git exists, read
+    # there where it does not.
+    when, _ = _git(["log", "-1", "--format=%cI", sha], root)
+    return {"ok": True, "code": "", "commit": sha, "touched": touched, "reason": "",
+            "commit_date": (when or "").strip() or None}
 
 
 # ---------------------------------------------------------------------------------------

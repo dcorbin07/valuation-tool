@@ -952,10 +952,47 @@ def declared_books(root: str = None, today=None) -> dict:
             "overdue": overdue,
         })
 
+    # ---- the OPERATIONAL half, from `fleet_public` so there is no second definition -----
+    #
+    # The shelf's own columns answer "was this committed before its data existed". A reader
+    # also needs to know where each book has GOT to — the commit's date, how long it has been
+    # accruing, how many fills it has written, and whether it is armed, unimplemented or
+    # blocked. Those come from `fleet_public.books()`, which composes them from the same
+    # `may_fill`/`entry_rule` primitives `fleet.cycle` uses, so "blocked" means here exactly
+    # what it means in the cycle. Merged by book id and additive: every existing field keeps
+    # its meaning, and a failure to read the operational half leaves the provenance half
+    # intact rather than emptying the shelf.
+    ops, ops_meta = {}, {}
+    try:
+        from . import fleet_public as FP
+        _fp = FP.books(root, today=today)
+        if _fp.get("available"):
+            ops = {b["book"]: b for b in _fp["books"]}
+            ops_meta = {"n_fills_total": _fp["n_fills_total"], "n_armed": _fp["n_armed"],
+                        "n_no_rule": _fp["n_no_rule"], "n_blocked": _fp["n_blocked"],
+                        "evidence": _fp["evidence"], "posture": _fp["posture"],
+                        "not_a_record": _fp["not_a_record"],
+                        "quiet_means": _fp["quiet_means"],
+                        "repo_note": _fp["repo_note"]}
+    except Exception:                                                  # noqa: BLE001
+        ops, ops_meta = {}, {}
+
+    for b in books:
+        o = ops.get(b["book"]) or {}
+        b["commit_date"] = o.get("commit_day")
+        b["days_accrued"] = o.get("days_accrued")
+        b["fills"] = o.get("fills")
+        b["state"] = o.get("state")
+        b["state_blurb"] = o.get("state_blurb")
+        b["state_reason"] = o.get("reason") or ""
+        b["evidence"] = o.get("evidence")
+        b["declaration_url"] = o.get("declaration_url")
+
     return {
         "available": True,
         "books": books,
         "n": len(books),
+        "ops": ops_meta,
         "empty": not books,
         "drafts_excluded": drafts,
         "harness_available": F is not None,

@@ -893,6 +893,43 @@ def create_saas_app(cfg=CONFIG):
             # placed no fill is not an error -- it is the ordinary case and, today, the only
             # case. The body's `breathing` flag and `note` carry that, so a scheduler can
             # alert on it without treating a quiet day as a failure.
+            # THE FLEET SPEAKS. Until now eighteen books accrued records and nothing
+            # announced anything, so the only way to learn what the fleet did was to open
+            # JSON — which in practice meant not learning it.
+            #
+            # FILLS ALWAYS, deduped by `seq` so a retry or a manual dispatch cannot
+            # re-announce yesterday's. REFUSALS ONLY WHEN THEY CHANGE: a book that becomes
+            # blocked, or blocked for a new reason, is same-day news, while the steady state
+            # is not — today every book is blocked on the same self-check, and a cycle that
+            # announced all of them would post the same lines every evening until nobody read
+            # them, which is the day it stops working. A quiet cycle sends nothing at all.
+            #
+            # ONLY ON A WRITING RUN. A GET computes and must not tell anyone something
+            # happened, because nothing did.
+            if wants_run:
+                try:
+                    from ..edge import fleet_notify as _fn
+                    rows_by_book, refusals = {}, {}
+                    for r in (res.get("books") or []):
+                        b = r.get("book")
+                        if not b or not r.get("is_book"):
+                            continue
+                        if not r.get("may_fill"):
+                            refusals[b] = r.get("state") or "BLOCKED"
+                        rr = fleet.read_records(b)
+                        if rr.get("ok"):
+                            rows_by_book[b] = rr.get("rows") or []
+                    res["notified"] = _fn.announce(rows_by_book, refusals,
+                                                   fleet.fleet_dir(), cfg=cfg)
+                except Exception as e:                       # noqa: BLE001
+                    # A notifier must never take the cycle down: recording the fill is what
+                    # matters and telling someone is strictly secondary.
+                    res["notified"] = {"sent": False, "reason": safe_error(e)}
+                try:
+                    from ..web import fleet_public as _fp
+                    _fp.reset_memo()      # the shelf must not serve a pre-cycle view
+                except Exception:                            # noqa: BLE001
+                    pass
             return jsonify(res), 200
         except Exception as e:
             return jsonify({"ok": False, "error": safe_error(e)}), 500

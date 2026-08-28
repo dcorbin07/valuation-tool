@@ -5,6 +5,133 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 49 — 2026-08-27 — the fleet speaks, and a CI census that refutes most of what it was told
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched — both proposed workflow changes are routed to Don in `CI_HEALTH_PR_REQUEST.md`.
+**10 of 10 tripwire mutations caught.**
+
+## 1. THE FLEET WAS INVISIBLE
+
+Eighteen books accrued records, nothing rendered them, nothing announced a fill. Measured
+before building: no template referenced fleet state and no notification path existed.
+
+**THE SHELF, EXTENDED IN PLACE RATHER THAN DUPLICATED.** `/research` already carried the
+`S3-I7` declared-books shelf, so a second surface would have been the `B7` split. It now shows
+the commit **and its date**, days accrued, fills to date, the state with its reason, and a link
+to the declaration **pinned at the introducing commit** — a link to `main` would show today's
+bytes under a sha promising yesterday's, which is the one thing the shelf exists to make
+checkable.
+
+**THE COMMIT DATE DID NOT EXIST ANYWHERE** — not in `declaration_commit`, not in the manifest.
+Added, and carried in the manifest because the deployed image has no `.git`; that is what the
+manifest is for.
+
+**ZERO FILLS IS TWO DIFFERENT FACTS AND THE PAGE NEVER CONFLATES THEM.** A book whose rule ran
+and found nothing is reporting the market; a book with no rule implemented has not looked. That
+is `fleet.cycle`'s own rule and it is carried in the state, the blurb and the sentence under the
+table.
+
+**IT RUNS NO ENTRY RULE AND CALLS NO CYCLE**, pinned on the syntax tree, so a page render cannot
+place an order or cost a runner budget. State is composed from the same `may_fill`/`entry_rule`
+primitives the cycle uses, so "blocked" means one thing.
+
+**A RENDER COST 18.3 SECONDS BEFORE IT COST 0.** Four git subprocesses per book. Preferring the
+manifest — which is the only source the service has — took it to 6.7s, and an **opt-in** memo
+(default off, so no test can be answered stale) takes the rendered path to nothing.
+
+**MY OWN BANNED TUPLE FIRED ON MY OWN DISCLAIMER.** It banned the bare token `track record`, and
+the posture sentence says *"it is NOT a track record"*. A denial and an assertion share the
+noun. Every entry is claim-shaped now (`our track record`, not `track record`), with a negative
+control asserting the module's own copy survives — the substring-ban family, for the sixth time.
+
+**THE NOTIFIER: FILLS ALWAYS, REFUSALS ON CHANGE.** Fills are deduped by `seq`, because the
+cycle door can legitimately run twice and the second run must not re-announce the first's fill.
+Refusals announce when a book **becomes** blocked or blocked for a **new** reason — and a book
+that stops being blocked announces too, the good half of the same fact. **The steady state does
+not announce**: eighteen books are blocked on the same self-check today, and a nightly post of
+the same eighteen lines is one Don would stop reading, so the day it changed nobody would
+notice. A quiet cycle sends nothing at all. The watermark advances **only on a successful
+send**, or a failed post loses the very fill it failed to announce.
+
+## 2. CI HEALTH — MEASURED FIRST, AND THE CENSUS CORRECTS THE BRIEF
+
+**120 runs over 7.8 days.** Land 5 failures / 57 runs (9%); Auto-scan 0 / 41; FLEET CYCLE 6 / 15
+(40%); PT-WRITER 2 / 6 (33%).
+
+**IS ANY FAILURE REAL? YES — MOST OF THEM, AND THE GATE IS NOT CRYING WOLF.**
+
+* **`test_o1_long_puts.py`, 4 errors** — a genuinely broken suite. The gate caught it and the
+  owning lane fixed it in `97531cc` *"make the suite honest on BOTH machines — the land gate
+  caught that mine was not"*. The gate working exactly as designed.
+* **A merge conflict** on `worktree-p24-shortinterest` — correct red, lane's to resolve.
+* **PT-WRITER HTTP 422**, *"the session has not closed yet (00:58 ET)"* — **a real lost row**
+  on the one record that cannot be rebuilt. Fixed this session as `PT-DATE` (`de96ee9`).
+* **PT-WRITER HTTP 502/502/000 and FLEET CYCLE HTTP 000/502** — the Render service unreachable.
+  No lane at fault, but for PT-WRITER **a 502 is still a missing row**: the workflow retried
+  three times and all three failed, so the retry does not span a cold start.
+
+**`test_sync_checkout`: THE PREMISE IS WRONG, AND DIAGNOSING IT FRESH IS WHY WE KNOW.** It exits
+**0** locally, and in CI it appears only as a `##[group]` header — it ran and passed. There is no
+trailing demo block: `__main__` is `sys.exit(run())`, returning 0 when nothing failed. The
+sentence *"Unknown is not the same as fine, so this exits non-zero"* lives in
+`scripts/sync_checkout.py:442` and `scripts/checkout_drift.py:175` and describes **the script
+under test**, printed while a test exercises its alarm path. Reading that line beside *"32
+passed, 0 failed"* is almost certainly how both earlier sightings got their explanation. **The
+actual `##[error]` in those runs was `tests/test_o1_long_puts.py`.** Nothing to fix here; the
+belief was the defect.
+
+**THE CRON HOLE IS REAL AND STILL OPEN.** `track-backup` commits refreshed data straight to
+`main` **without passing the land gate** — the only write to `main` that skips it — and on
+2026-08-24 that reddened five branches with no lane at fault. `09ea4cc` repaired the test
+honestly and it is still a real check, but it **still asserts a fact about that mutable data**,
+so the hole is structural rather than the test's. The fix belongs in the cron: run the suites
+the commit can break, before committing, and refuse rather than commit-and-warn — the data is
+not lost by refusing, it is still on the service. **Routed to Don**; `fleet-backup` has the same
+shape and has not bitten only because the fleet has written almost nothing.
+
+## 3. WORKFLOW BUDGET — two corrections to the prior, both measured
+
+| workflow | runs/day | share | projected /30d |
+|---|---|---|---|
+| Land agent branch | 12.5 | **72%** | ~2,821 |
+| Auto scans | 9.6 | 21% | ~835 |
+| PT-WRITER | 1.3 | 6% | ~222 |
+| FLEET CYCLE | 1.9 | 1% | ~54 |
+| Track + Fleet backup | 0.2 | 0% | ~2 |
+
+**~3,933 minutes per 30 days against a 2,000 allowance.**
+
+* **Auto-scan is not 48 runs/day.** Its intraday cron is `*/30 13-20 * * 1-5` — every 30 minutes
+  for eight hours, weekdays only. Sixteen a weekday, 9.6/day averaged.
+* **Land, not auto-scan, dominates**, at 72%.
+* **The four that cannot be missed cost 278 minutes — 14% of the allowance.** They would fit
+  inside the free tier seven times over, and nothing proposed touches them.
+* **`cancel-in-progress` was my own idea and the measurement refuted it**: 3 of 120 runs
+  superseded, 22 minutes, 3%. Not worth the risk of cancelling a run mid-land.
+* **The honest remaining lever is push volume, and it is partly mine.** 120 land runs over 30
+  branches. `worktree-ma5-ma6-inference-bars` ran **35 gates for 278 minutes — 14% of the
+  monthly allowance on one branch**; my own `worktree-hero-shelf` took 4 runs and 35 minutes.
+
+**THE STANDING RISK, ON THE RECORD SO IT IS NOT DISCOVERED LATER.** Today this is free:
+`valuation-tool` is public, the discount covers the overage, $24.31 gross is $0 billable, and a
+$0 budget with stop-usage at 100% does nothing on a public repo. **The day the repository goes
+private that discount disappears and every workflow stops at the budget — not degrades,
+stops.** That includes `track-row`, which means **the contract-bound forward track silently
+stops recording**, and a gap in it is the one loss this project cannot repair. Going private is
+therefore also a decision to fund the automations or lose the record, and it is far cheaper
+decided before the switch than after.
+
+## 4. AN INCIDENT OF MY OWN, REPORTED BECAUSE IT NEARLY SHIPPED
+
+My mutation harness restored sources in a `finally`. A `finally` does not survive the process
+being **killed**, and a 120-second tool timeout killed one mid-mutation — leaving `if False:` in
+`fleet_notify.py` in the working tree, where the suite it was meant to be proving was now green
+against a deliberate defect, already staged. Caught on the next read, reverted, verified clean.
+
+The harness now writes pristine bytes to **disk** before touching anything and **recovers on
+start-up** from a previous kill. A restore that only runs on the happy path is not a restore.
+
 # Session 48 — 2026-08-27 — a delayed cron that could only ever refuse, and Audit #5's three decisions
 
 **Four items, ZERO TRIALS.** No hypothesis, no bar, no verdict against one, so no
