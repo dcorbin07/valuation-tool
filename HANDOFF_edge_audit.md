@@ -17421,3 +17421,124 @@ the sector.
 `valuation/engine/calibration.py` (`s25_repair_sectors`, `build_valuation_panel(sector_map=)`),
 `scripts/s25_repair_panel.py`, `tests/test_s25_repair_wiring.py`;
 `data/free_analysis/S25_REPAIR_VALUED.json`, `panel_s25_repair.pkl`.
+
+---
+
+# DC-1 — THE DIP-CONFIRMATION REGISTER: K1 FIRES, THE ITEM STOPS BEFORE REGISTRATION (2026-08-26)
+
+**ZERO TRIALS. No register was committed, no runner was written for the arm, no arm ran, and no
+signal was ever related to a forward return.** `by_domain` is **bit-identical** across the log
+append (equity **243**, options **310**, infra **20**) while `rows_fixed_not_counted` rises
+**82 -> 83**, which is the proof the row was seen and correctly excluded rather than silently
+dropped. The `MB15` and `W-14` precedent: a pre-outcome kill firing before registration closes a
+question at zero cost. **ADOPTS NOTHING.**
+
+The Frontier Scout's `PREREG_DRAFT_dc1_dip_confirmation.md` §8 K1 is a **free feasibility kill**,
+and the draft's own §12 says what happens if it fires: *"it does not run at all, which is the
+cheapest good outcome available to it."* It fired.
+
+## What K1 asks, in the draft's own words
+
+> *"From `V6`'s BANKED calendar-window statistics and the measured dispersion ratio
+> `k = sigma_e/sigma_d`, derive the IMPLIED EVENT-TIME t. If even that implied t falls short of
+> the bar, the effect `V6` could not see does not clear when re-clocked either, and DC-1 STOPS."*
+
+**It is the strongest kill available because it tests the register's PREMISE rather than its
+hypothesis** — and it costs nothing, because every input is already banked.
+
+## THE CHOICE THAT DECIDES THE ANSWER: which `V6` arm is the matched one
+
+**DC-1 §6(a) declares a >= 30% drawdown.** `V6` banked FOUR arms: **A1/A2 at depth 0.20** and
+**A3/A4 at depth 0.30**. **A3 (depth 0.30, horizon 63) is the matched arm** — matched in depth to
+DC-1's own declaration and in horizon to §2's own `sqrt(63)` arithmetic.
+
+**Using A1's larger statistic to license a 30%-depth register would import a figure measured on a
+DIFFERENT population — the exact substitution that cost `O-1` its power (an alert-book coverage
+figure applied to the panel, ~17x wrong) and that killed `W-14`'s premise in the same week.** A1
+and A2 are reported below as a **labelled sensitivity** and carry no weight in the verdict.
+
+## `sigma_e` IS A WINDOW SD, NOT A DAY SD — a correction to my own first measurement
+
+§2 writes `t ~ J/(sigma_d*sqrt(W))` for a calendar window and `t ~ J/sigma_e` for the event
+window, so **`sigma_e` is the SD of the EVENT-WINDOW CUMULATIVE return** — DC-1's declared
+**[0,+1]**, i.e. TWO sessions. **A two-session cumulative return carries SD ~ `sqrt(2)*sigma_d`
+from its LENGTH ALONE, with no event effect at all.** My first pass measured the SD of daily
+returns that happen to fall on event days, which **understates k at a median of 2.0685 against the
+correct 2.9061** — and would have made the kill look marginal when it is not. **Caught and
+corrected before anything was reported.**
+
+**Measured on 407 names and 26,628 event windows over `V6`'s own panel window**, using the
+adjusted `close` series (the right basis for a return; `raw_close` is for anything touching a
+strike): **k median 2.9061, mean 3.0662, p05 1.6809, p95 4.8412**; `sigma_e` pooled **6.9702pp**
+against the draft's 8.0pp placeholder — so the measured dispersion is slightly SMALLER than the
+draft assumed, i.e. slightly **favourable** to DC-1.
+
+## ROUTE A — the implied event-time t
+
+| `V6` cell | depth | W | banked *t* | implied at measured k=2.9061 | at the draft's own best k=2 | needs k <= |
+|---|---|---|---|---|---|---|
+| **A3 L2** | **0.30** | **63** | **+0.7541** | **+2.0595 FAILS** | **+2.9926 FAILS** | **1.8058** |
+| **A3 L1** | **0.30** | **63** | **−0.2295** | **−0.6268 FAILS** | −0.9108 FAILS | 0.5496 |
+| A4 L2 | 0.30 | 126 | +0.4098 | +1.5829 FAILS | +2.3000 FAILS | 1.3878 |
+| A4 L1 | 0.30 | 126 | +0.0787 | +0.3039 FAILS | +0.4415 FAILS | 0.2664 |
+| *A1 L2* | *0.20* | *63* | *+1.0093* | *+2.7567 FAILS* | *+4.0056 clears* | *2.4170* |
+| *A1 L1* | *0.20* | *63* | *+0.4066* | *+1.1106 FAILS* | *+1.6138 FAILS* | *0.9738* |
+| *A2 L2* | *0.20* | *126* | *+0.5737* | *+2.2161 FAILS* | *+3.2201 FAILS* | *1.9430* |
+| *A2 L1* | *0.20* | *126* | *+0.5232* | *+2.0210 FAILS* | *+2.9366 FAILS* | *1.7720* |
+
+Bar **3.3145321**, re-derived at equity `N` = 243 rather than quoted (the draft writes 3.3145;
+they agree).
+
+* **The matched arm needs `k <= 1.8058`. The measured median is 1.61x that, and only 8.11% of
+  names lie below it.**
+* **Even at the draft's OWN most favourable tabulated value, k = 2, the matched arm reads +2.9926
+  and still fails.**
+* **AND THE CLEANEST FORM: at the measured k, NOT ONE of `V6`'s eight banked full-sample cells
+  clears — at either depth.** The single cell that clears anywhere is A1 L2 at the hypothetical
+  k=2, on a 20%-depth population DC-1 does not declare, **and at the measured k it fails too.**
+
+## ROUTE B — the effect size, independent of Route A and agreeing with it
+
+Take the **maximally favourable assumption the mechanism permits**: that the **entire** banked
+63-day excess sits inside the event window. On the matched arm that is **J = +0.5203pp**. At the
+**measured** `sigma_e` of 6.9702pp — substituted for the draft's placeholder, as its §7 instructs —
+the design needs **n_eff ~ 3,098 events at 80% power** and **1,972 at 50%**. **The draft's most
+optimistic tabulated row is n_eff = 400**, so it is short by about **7.7x**.
+
+**And on the vs-universe leg the banked effect is NEGATIVE (−0.1200pp): there the mechanism's own
+premise points the wrong way before any re-clocking is applied.**
+
+## The provenance commitments are CARRIED FORWARD, not discharged
+
+§0 records that the mechanism was generated from **two names Don holds, both of which recovered** —
+selection on the outcome three times over — and pre-commits three consequences. **None is softened
+here, and two of them bind any successor rather than expiring with this kill:**
+
+1. **If the panel is ever extended past 2026-01-28, NOW and CRM are excluded BY NAME and the
+   exclusion is reported.** Still binding.
+2. **A positive result would be the FIRST evidence for this mechanism, never a confirmation of
+   it**, and the examples may not be cited as corroboration. Still binding.
+3. **No parameter may be shaped to make the examples qualify.** K1 changed no parameter of any
+   kind, so this is honoured trivially — but it is recorded rather than dropped.
+
+## What this does NOT say
+
+**`V6` is not overwritten and not re-opened** — its four nulls stand as measured, on their own
+terms. **`V6-B` is NOT quoted as return evidence anywhere here**: it measured **SURVIVAL**, the
+probability of a further fall, and the draft's own graveyard row forbids the conflation.
+
+**It is not a finding that the dip-confirmation mechanism is false.** It is a finding that **the
+re-clocking cannot rescue an effect of the size `V6` actually banked** — that event-timing improves
+the signal-to-noise ratio and **not the effect size**, which is the draft's own §2 caveat #1 turned
+into a number. A materially different construction — a larger effect, a different population, or a
+genuinely larger event window — is a different question with its own register and its own trial,
+and **none is proposed.**
+
+**RELAYED, NOT EDITED:** `PREREG_DRAFT_dc1_dip_confirmation.md` is the scout lane's file and was
+not touched.
+
+**Expectations, scored against the draft's own list: (1) "K1 does NOT fire and the register
+proceeds", priced 55/45 — WRONG. (2)-(5) UNSCORABLE, the register never ran. (6) "at least one
+number contradicts this list" — RIGHT.** The draft's stated prior was **12% CONFIRMED**; the item
+never reached the point where that prior could be scored, which is itself the outcome its §12
+anticipated. `scripts/dc1_k1_feasibility.py`; `data/free_analysis/DC1_K1.json`.
