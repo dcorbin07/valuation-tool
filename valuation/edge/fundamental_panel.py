@@ -1002,7 +1002,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                             with_insider_raw=False, with_issuance_raw=False,
                             with_vol_raw=False, with_freshness=False,
                             bucket_relative_arms=None, sector_value_arm=False,
-                            metrics_sink=None) -> pd.DataFrame:
+                            metrics_sink=None, sector_at=None) -> pd.DataFrame:
     """Point-in-time panel of the theme columns per (date, ticker).
 
     keep_numbers=True additionally persists each individual standardized number (z_*), so
@@ -1289,6 +1289,22 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             m = _sf1_to_metrics(t, sf1, float(closes[i]), mc)
             _md = meta.get(t) or {}
             m["sector"] = _md.get("sector") or ""
+            # W-1 — `sector_at` IS S25'S LOOK-AHEAD REPAIR AND IT IS OPT-IN AND INERT BY DEFAULT.
+            # The sector above is TODAY's, from the TICKERS snapshot, so a 2009 cross-section is
+            # grouped by a 2026 classification -- the one non-point-in-time input in the panel,
+            # and the exact objection `SECTOR-NEUTRAL-B6` named as its route back. A caller may
+            # pass a callable `(ticker, as_of, base_sector) -> sector` to substitute a DATED one.
+            #
+            # IT IS A CALLABLE RATHER THAN A MAP, ON PURPOSE. `S25-REPAIR` duck-typed its map into
+            # `build_valuation_panel` so that an engine module would not acquire a study-side
+            # dependency; a callable goes one step further -- this function learns nothing about
+            # S25 at all, imports nothing, and cannot be coupled to the repair's shape.
+            #
+            # With `sector_at=None` this function is BIT-IDENTICAL to what it was, pinned by an
+            # AST test asserting the name is read nowhere outside this guard, because adopting a
+            # repair is a VINTAGE EVENT and is not this parameter's decision to make.
+            if sector_at is not None:
+                m["sector"] = sector_at(t, as_of, m["sector"])
             m["_country"] = _md.get("country") or ""
             m["_category"] = _md.get("category") or ""
             # AUDIT B13 — RUN THE LIVE INVESTABILITY SCREEN IN THE BACKTEST TOO. The only

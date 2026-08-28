@@ -17765,3 +17765,244 @@ independent of that choice.
 better coverage than CRSP `stocknames` can supply on this account, or a bar set — in advance, with
 this distribution in view — that a dated map can actually reach. `scripts/w28_kills.py`;
 `data/free_analysis/W28_KILLS.json`.
+
+---
+
+# W-1 — SECTOR-NEUTRAL RANKING RE-RUN ON A GENUINE POINT-IN-TIME SECTOR MAP
+
+**2026-08-28. The re-open `SECTOR-NEUTRAL-B6` named for itself. REJECTED under both weightings in
+both halves. ADOPTS NOTHING** — sector-neutral shipping is a vintage event and Don's call.
+
+`PREREG_w1_sector_neutral_pit.md` committed **ALONE at `9990c95`**, markdown only, zero `.py`, 241
+lines, a strict ancestor of every measurement commit; **2 equity trials booked at `812df14` BEFORE
+any arm runner existed**, equity `N` **245 -> 247**. Amended at `e3174e5` before any outcome existed.
+
+## 0. Why this is not simply a third rejection
+
+`SECTOR-NEUTRAL-B6` closed the family **permanently** on 2026-08-11 and named exactly two routes
+back: **`S25`** — a genuine point-in-time sector map — and **`S15`**, sector-relative on the value
+theme alone. `S25` landed on 2026-08-25 and `S25-REPAIR` valued it on 2026-08-26. **So the data
+objection that register raised against itself has been removed, and this is that register re-run on
+the map it said it needed. `S15` is NOT re-opened here and carries no verdict.**
+
+## 1. THE BOOKING MOVED ALL THREE PERMUTATION FLOORS — the first time in this project's history
+
+`MB31` predicted the trigger in advance: **seed 1003 flips the CPCV adopt gate at exactly equity
+`N` = 247**, and `W-1`'s two trials landed on it. Re-derived **BOUNDED** per `MA19` — ONE re-score,
+**71.7 seconds**, never a sweep — and **read before any verdict**.
+
+| floor | `N` = 245 | **`N` = 247** | seed-1003 rank |
+|---|---|---|---|
+| long-short *t* (naive) | 2.143721 | **2.070231** | 4 |
+| long-short *t* (HAC) | 2.283684 | **2.056680** | 4 |
+| top-decile alpha HAC *t* | 2.054039 | **1.826210** | **6** |
+
+* **THE RANK CHECK IS WHY IT COULD NOT BE SKIPPED.** A p95 over 100 draws is set by the
+  5th-and-6th largest values, and **seed 1003 IS the #6 draw on top-decile alpha HAC**. `MA19`'s
+  lesson exactly: *whether a floor moves depends not on HOW MANY draws flip but on WHERE THEY SAT.*
+* **THE INSTRUMENT IS CHECKED BEFORE IT IS BELIEVED: the `N` = 245 column reproduces the published
+  floors exactly.** Adopters **18 at 245 and 17 at 247**; the newly-OFF set is `[1003]` and nothing
+  else, which is what makes the re-derivation bounded rather than a sweep.
+* **ALL THREE MOVE DOWN, i.e. PERMISSIVE, AND NO SHIPPED CLAIM CHANGES SIDE.** The headline
+  2.8361 / 2.6199 / 4.3762 clears both the old and the new floors, so **nothing is retracted.**
+* **AND THE MECHANISM REPRODUCES `X7` INDEPENDENTLY.** Seed 1003 scores `ls_t` **1.404770** under
+  base weights and **2.550756** under the challenger it no longer adopts — **+1.146 of a *t* from
+  adoption alone**, against `X7`'s post-hoc *"CPCV adoption manufactures ~+1.4 out of nothing"*.
+  Session 12's warning that the floors' survival was *"luck, not design"* is now fully spent.
+
+`scripts/w1_floor_rederive.py`; `data/free_analysis/W1_FLOORS.json`.
+
+## 2. Coverage, measured on the arm's own population BEFORE any bar was set
+
+**Neither published figure could be inherited, and `S25`'s own write-up says why:** its **94.8%** is
+the **valuation** panel (2,441 tickers) and the census's **94.9%** is `ticker -> gvkey` — *"two
+nearly-equal percentages on different objects"*. The arm runs on the **metrics** panel, so the
+figure was re-measured there. **This is `O-1`'s lesson applied rather than repeated** — that item
+returned 0.19% power by carrying an alert-book coverage figure onto the panel, ~17x wrong.
+
+Measured on all **113,945 cells**: **94.23% of cells resolve, 91.07% of names, ZERO `UNMAPPED`**,
+per-date **min 0.9010 / median 0.9460 / max 0.9611**.
+
+**THE WORST DATE AT 0.9010 IS WHY THE BAR IS 85% AND NOT 90%.** A 90% bar would have cleared by
+**0.10pp** — the knife edge `W-28`'s `K1` died on one item ago. `W-28`'s closing lesson binds on
+this register's own bars: **set a bar the instrument can actually reach**, and set it with the
+distribution in view rather than from a round number.
+
+`scripts/w1_coverage.py`; `data/free_analysis/W1_COVERAGE.json`.
+
+## 3. AMENDMENT 1 — a defect in my own register, corrected before any outcome existed
+
+§2 as first committed specified **`REPAIR-B`** (the FULL arm) as the primary. **`S25-REPAIR`'s own
+source records `REPAIR-B` as CONFOUNDED BY CONSTRUCTION and carrying no verdict**, because it fixes
+the look-ahead **and** switches taxonomy in one step. The primary is **`REPAIR-A`** (change-only),
+where the map is compared **against ITSELF at two dates**, so the vendor disagreement cancels
+exactly and the only thing moving is the look-ahead.
+
+**THAT SAME REFERENCE ERROR HAD SET `K2`'s BAR AT 5%**, taken from the FULL arm's 13.21% —
+while **`REPAIR-A`'s own bite is 4.43%** on the census population and **4.44%** on the arm's own
+(5,079 of 114,337) — the same 392-cell difference as the two coverage figures, and both are
+quoted rather than one being chosen. A 5% bar was therefore one the instrument could not clear
+on either population, and **it would have killed a legitimate arm**. Amended to **1%**, on the OVERALL covered
+set, because a per-date minimum is 0.0000 by construction — some dates move no sector at all.
+
+**A PRECISION CORRECTION TO THE AMENDMENT'S OWN WORDING, made in the write-up rather than by
+editing a committed register.** Its 13.21% is the **per-cell taxonomy disagreement with today's
+sector**, and `REPAIR-B`'s own measured move is **12.49%** (14,277 of 114,337); the two are close
+because the full arm's move IS largely that relabelling, but they are not the same quantity.
+**The amendment's reasoning and its verdict are unaffected** — 4.44% could not clear 5% on any of
+these readings — and the register is left **UNEDITED**, which is this record's rule.
+
+**Both amendments were made at `e3174e5`, before any arm ran and before any outcome existed.**
+
+## 4. The kills — all five passed, in their own pass, read before the arm
+
+| kill | bar | measured | |
+|---|---|---|---|
+| `K1` coverage | >= 0.85 | **0.9420** | PASS |
+| `K2` `REPAIR-A` bite | >= 0.01 | **0.0444** | PASS |
+| `K3` degeneracy | fires below **2** names in a group or **5** sectors on a date | min group **21**, min sectors **11**, zero bad dates | PASS |
+| `K4` fidelity | reproduce the record | **exact** | PASS |
+| `K5` `BEFORE_GICS` leakage | zero | **0** | PASS |
+
+* **THE TWO COVERAGE FIGURES ARE TWO POPULATIONS AND NOT A DISCREPANCY, said because a reader
+  would otherwise reconcile them wrongly.** The §2 census reads **94.23% over 113,945 cells** —
+  the banked metrics panel — while `K1` reads **94.20% over 114,337**, the arm's own freshly built
+  frame, which carries **392 more cells** before the forward-return drop. `S25`'s own *"two
+  nearly-equal percentages on different objects"*, one level down, and both are reported rather
+  than one being quietly chosen.
+* **`K4` FIRED ON ITS FIRST RUN AGAINST A CORRECT PANEL, and the defect was mine.** I scored the
+  **NINE** bucket themes at 0.125 when the deployed composite is **SEVEN** — **`MA28`'s C1 defect
+  exactly**, which caught the same error by returning alpha 0.0499 against a published 0.0717. The
+  fix is `B7`'s: **IMPORT `SECTOR-NEUTRAL-B6`'s own `DEPLOYED` / `FLAT` / `BASE_WEIGHT` constants**
+  rather than retyping them.
+* Post-fix `K4` reproduces the published record **exactly** — `0.07174142332098163`,
+  `2.8360640685320595`, `2.6199121240414884`, `-0.8909090909090909` — which is also the proof that
+  the new opt-in `sector_at` hook is **inert on the incumbent arm**.
+* **GICS's taxonomy revisions are honoured as provider paperwork, not reclassification events.**
+  `S25`'s `classify_transition` requires **both** the date window **and** the destination code —
+  Real Estate 2016 (74 transitions) and Communication Services 2018 (62) — and `REPAIR-A` compares
+  the map against **itself**, so a pure relabelling landing on the same panel string moves nothing.
+
+## 5. The arm — the SHIPPED gate, verbatim
+
+`holdout_compare_panels`, both halves, both weightings, boundary embargoed at **2017-07-20**, and
+**the same margins `SECTOR-NEUTRAL-B6` committed: +0.25 long-short *t* AND +100bps top-decile
+alpha, in BOTH halves**. Nothing else — no grid, no parameter the register does not name.
+
+**VERDICT `REJECT` for deployed and for flat.**
+
+| weighting | half | delta *t* | delta alpha |
+|---|---|---|---|
+| **deployed** | early | **-0.2362** | **-0.1139pp** |
+| **deployed** | late | **-0.4986** | **-1.8884pp** |
+| flat | early | -0.3748 | +0.3606pp |
+| flat | late | -0.1871 | -1.2552pp |
+
+Full-sample levels, deployed: top-decile alpha **0.0717 -> 0.0616** (a paired **-1.0124pp/yr**),
+long-short Newey-West **2.6199 -> 2.0576**.
+
+## 6. THE FINDING — the look-ahead was not what was killing sector-neutral
+
+`SECTOR-NEUTRAL-B6` measured the **same arm** on **today's** sectors at **delta alpha -1.09pp** and
+HAC **2.6199 -> 2.1505**. The **point-in-time** map gives **-1.01pp** and **2.0576** — about
+**0.08pp better on alpha and 0.09 WORSE on the *t***.
+
+**Against a rejection margin of roughly 2pp that is essentially nothing.** The re-open condition
+that register named for itself **has been MET and the answer does not change**, which **CLOSES**
+the re-open rather than merely failing it a third time.
+
+## 7. THE VERDICT TRAVELS WITH ITS MDE — measured on THIS arm, never borrowed
+
+`MB8`'s rule binds: **an `se` may not be borrowed across perturbation sizes** — its own 0.1106pp
+and `V2G`'s 0.9354pp differ 8.5-fold for exactly that reason. So this arm measured its own.
+
+| deployed | paired mean | HAC *t* | paired HAC se | MDE80 @ crit 2.0 | observed / MDE80 |
+|---|---|---|---|---|---|
+| top-decile alpha | **-0.002531** | -1.5819 | **0.001600** | **0.004544** | **0.56x** |
+| long-short | **-0.007022** | -3.1691 | **0.002216** | **0.006293** | **1.12x** |
+
+* **THE ALPHA DAMAGE IS 0.56x ITS OWN DETECTION THRESHOLD AND IS NOT SEPARABLE FROM ZERO.** The
+  long-short damage **IS** detectable at the conventional bar (1.12x) and **is not** at the honest
+  hurdle (0.76x).
+* **SO THE HONEST TWO-PART STATEMENT IS: the arm damages the long-short spread detectably at the
+  conventional bar, its alpha cost cannot be resolved at this design's resolution, and neither
+  direction helps it.**
+* **EVERY CRITICAL VALUE IS LABELLED UNCALIBRATED.** `V2G` established and `R1-VAR` re-confirmed
+  that **no calibrated floor exists for a paired within-panel difference** — `X7` calibrates
+  **LEVELS**. Both vocabularies are reported at both critical values (`MB22`).
+
+`scripts/w1_mde.py`; `data/free_analysis/W1_MDE.json`.
+
+## 8. The one production change, and it is opt-in and inert by default
+
+`build_fundamental_panel` gains a **`sector_at=None`** keyword and a guarded hook that overrides the
+panel's sector string per `(ticker, date)` when one is supplied. **With `sector_at=None` the builder
+is bit-identical**, which `K4` proves on the real panel rather than by assertion. The map is
+**duck-typed in and never imported by the engine** — `S25-REPAIR`'s rule, since an engine module
+importing `valuation/edge/` would put a study-side dependency on the live valuation path.
+
+## 9. NOT DONE, named so it is not mistaken for done
+
+* **`S15` IS NOT RE-OPENED** — sector-relative on the value theme alone is a different construction
+  and needs its own register and its own trials.
+* **The `max_sector_w` concentration cap is untouched** — a risk control, not a re-ranking.
+* **Nothing is adopted**, `CONFIG.sector_neutral` stays `false`, and no product copy is licensed.
+* **A NULL here closes the re-open condition and nothing wider.** It does **not** establish that
+  point-in-time sectors are worthless — `S25-REPAIR` measured them moving the fair value on **every
+  row they touch**, and flipping the valuation regime on 57% of them. It establishes that
+  **repairing this look-ahead does not rescue this RANKING.**
+
+## 10. `MB31`'s OWN TRIPWIRE FIRED, CORRECTLY, AND IS REPOINTED IN THE SAME COMMIT
+
+The full gate came back **177 suites, ONE failure**, and it is
+`test_the_adopt_set_is_unchanged_so_no_permutation_floor_can_have_moved` — **`MB31`'s guard saying
+a bounded re-derivation is now owed.** It is not a stale expectation: `MB31` predicted seed 1003
+would flip at exactly `N` = 247 and wrote the guard to go red the moment it did. **The tripwire
+paid for itself on its first real event.**
+
+* **RE-ASSERTING IT WOULD HAVE BEEN SILENCING A CHECK**, since the claim it makes can only hold
+  BELOW the trigger. **Deleting it would have been worse.** It is repointed to the invariant it
+  was really guarding all along and which is **strictly stronger**: the adopt set may change, and
+  when it does **a bounded re-derivation at that same live `N` must exist, name the same seeds,
+  and have re-scored exactly those seeds and no others** — `MA19`'s method rather than a sweep.
+  **A future flip with nobody re-deriving now goes red.** Repointed in the SAME commit as the
+  event that fired it, so the move shows in the diff (`MA59`).
+* **A `flipped_on` set must still be empty and that assertion is untouched** — a draw flipping ON
+  would mean the hurdle FELL, which cannot happen as trials accumulate.
+* **AND THE FIRST CUT OF THE REPOINT SKIPPED SILENTLY.** It resolved `W1_FLOORS.json` from the
+  repo root, and **a worktree carries `data/` EMPTY while the banked draws live in the primary
+  root** — so it reported a loud skip rather than checking anything. Repaired by resolving the
+  artifact **beside the map's own inputs**, which is the only location guaranteed to be the one
+  the map actually read. `E-5` hit this exact shape: *a guard that resolves one location and then
+  reads a different one is the wrong-object family.* The suite now runs **16 tests with ZERO
+  skips**, and **4 of 4 mutations on the new guard are caught** — wrong `N`, wrong seed, a
+  re-score wider than the flip, and floors carrying no value at the live `N`.
+
+## 11. The suite, and two defects in my OWN instruments that only mutation could find
+
+**14 tests, 5 of 5 mutations caught, every source restored byte-for-byte** (plus `MB31`'s 4 above,
+so **9 of 9** across the item). The tripwires pin the hook's inertness, the engine/study boundary,
+the imported weight constants, and the log row.
+
+* **MY FIRST GUARD ON THE HOOK WAS A SUBSTRING GUARD AND A MUTATION WALKED THROUGH IT.** It asked
+  only that the `if` test contain `sector_at` and `is not None`; widening the guard to
+  **`if sector_at is not None or True:`** satisfies both and makes the override unconditional —
+  **MISSED**. This record's **"never ban a substring"** family in a new costume, and it landed on
+  a guard protecting a **production** default. Repaired by matching the AST node **shape** — an
+  `ast.Compare` with `Name('sector_at') IsNot Constant(None)` — so a `BoolOp` is structurally not
+  this guard. **Found by mutation, not by reading.**
+* **THE SOURCE COMMENT PROMISED AN AST PIN THAT DID NOT EXIST.** It claimed `sector_at` was
+  *"read nowhere outside this guard"*; nothing asserted it. **Written rather than softened**: the
+  name may appear exactly twice outside its declaration, and a mutation adding a fourth reference
+  is caught. A docstring claiming a pin it does not have is the wrong-object family.
+* **AND A DEFECT IN THE MUTATION HARNESS ITSELF, which is the portable one.** It read and wrote
+  **text** with `newline="\n"`, so restoring a **CRLF** source rewrote it to LF and the harness
+  failed its own byte-for-byte check — after the mutation had already run. The file was recovered
+  from git and the harness moved to **binary I/O throughout**. **A mutation harness that cannot
+  put a file back is worse than none**, because it leaves the tree silently altered in exactly the
+  files it was pointed at.
+
+`scripts/w1_sector_neutral_pit.py`, `w1_coverage.py`, `w1_floor_rederive.py`, `w1_mde.py`;
+`tests/test_w1_sector_neutral_pit.py`;
+`data/free_analysis/W1_ARM.json`, `W1_KILLS.json`, `W1_COVERAGE.json`, `W1_FLOORS.json`,
+`W1_MDE.json`.

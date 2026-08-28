@@ -48,6 +48,79 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE LOOK-AHEAD WAS NOT WHAT WAS KILLING SECTOR-NEUTRAL: REPAIRING IT ON A GENUINE
+  POINT-IN-TIME MAP MOVES THE ANSWER BY 0.08pp OF ALPHA AGAINST A REJECTION MARGIN OF ~2pp, AND
+  THE RE-OPEN `SECTOR-NEUTRAL-B6` NAMED FOR ITSELF IS NOW CLOSED (2026-08-28, `W-1`).**
+  `PREREG_w1_sector_neutral_pit.md` committed **ALONE at `9990c95`**, markdown only, 241 lines, a
+  strict ancestor of every measurement commit, with **2 equity trials booked at `812df14` BEFORE
+  any arm runner existed** (equity `N` 245 -> 247). **REJECTED under BOTH weightings in BOTH
+  halves. ADOPTS NOTHING** — sector-neutral shipping is a vintage event and Don's call.
+  * **THE COMPARISON THAT MAKES IT A FINDING RATHER THAN A THIRD REJECTION.**
+    `SECTOR-NEUTRAL-B6` measured the SAME arm on **today's** sectors at **Δalpha -1.09pp** and HAC
+    **2.6199 -> 2.1505**. The **point-in-time** map gives **-1.01pp** and **2.0576** — about
+    **0.08pp better on alpha and 0.09 WORSE on the *t***. **The re-open condition that register
+    named has now been MET and the answer does not change**, which closes it rather than merely
+    failing again. Deployed gate: early Δ*t* **-0.2362** / Δalpha **-0.1139pp**, late **-0.4986** /
+    **-1.8884pp**, against margins of +0.25 and +100bps.
+  * **THE VERDICT TRAVELS WITH ITS MDE, measured on THIS arm rather than borrowed (`MB8`'s rule).**
+    Deployed alpha: paired mean **-0.002531**/period at HAC *t* **-1.5819**, paired HAC se
+    **0.001600**, so the 80%-power MDE is **0.004544** at the conventional crit 2.0 — **the alpha
+    damage is 0.56x its own detection threshold and is NOT separable from zero.** Deployed
+    long-short: mean **-0.007022** at HAC *t* **-3.1691** against an MDE80 of 0.006293, so **the
+    long-short damage IS detectable at the conventional bar** (1.12x) and not at the honest hurdle
+    (0.76x). **Every critical value is LABELLED UNCALIBRATED** — `V2G` established and `R1-VAR`
+    re-confirmed that no calibrated floor exists for a paired within-panel difference.
+  * **TWO DEFECTS IN MY OWN WORK, BOTH CAUGHT BY THE MACHINERY. (a) AMENDMENT 1, made BEFORE any
+    outcome existed:** §2 had specified **`REPAIR-B`** as the primary, which `S25-REPAIR`'s own
+    source records as **CONFOUNDED by construction and carrying no verdict** (it fixes look-ahead
+    AND switches taxonomy at once). The primary is **`REPAIR-A`**, where the map is compared
+    against **ITSELF** at two dates so the vendor disagreement cancels. **That same reference error
+    set `K2`'s bar at 5% from the FULL arm's 13.21% when `REPAIR-A`'s own bite is 4.43% on the
+    census population and 4.44% on the arm's — a bar the instrument could not clear on either,
+    `W-28`'s closing lesson landing on this register's own kill, and it would have killed a
+    legitimate arm.** (A precision correction shipped beside the register rather than edited into
+    it: that 13.21% is the per-cell TAXONOMY DISAGREEMENT and `REPAIR-B`'s own move is 12.49% —
+    close, not the same quantity, and the amendment's verdict is unaffected.) **(b) `K4` FIRED ON ITS FIRST RUN AGAINST A CORRECT
+    PANEL** because I scored the **NINE** bucket themes at 0.125 when the deployed composite is
+    **SEVEN** — `MA28`'s C1 defect exactly — fixed by **importing** `SECTOR-NEUTRAL-B6`'s own
+    `DEPLOYED`/`FLAT` constants rather than retyping them.
+  * **COVERAGE WAS MEASURED ON THE ARM'S OWN POPULATION BEFORE ANY BAR WAS SET.** Neither
+    published figure could be inherited — `S25`'s 94.8% is the **valuation** panel and the census's
+    94.9% is `ticker -> gvkey` — *"two nearly-equal percentages on different objects"*. On the
+    113,945-cell metrics panel: **94.23% of cells, 91.07% of names, zero `UNMAPPED`, per-date min
+    0.9010 / median 0.9460**. **The worst date resolving 0.9010 is why the bar is 85% and not 90%**
+    — a 90% bar would have cleared by 0.10pp, the knife edge `W-28`'s `K1` died on.
+  * **ALL FIVE KILLS PASSED IN THEIR OWN PASS**, and `K4` reproduces the published record
+    **exactly** (0.07174142332098163 / 2.8360640685320595 / 2.6199121240414884 / -0.8909090909090909)
+    — which also proves the new opt-in `sector_at` hook is inert on the incumbent arm.
+  * **TWO DEFECTS IN MY OWN INSTRUMENTS, BOTH FOUND BY MUTATION RATHER THAN BY READING, AND BOTH
+    ARE FAMILIES THIS FILE ALREADY NAMES.** My first guard on the production hook asked only that
+    the `if` test CONTAIN `sector_at` and `is not None`, so widening it to **`or True`** — which
+    makes the override unconditional — **passed**; the **substring-ban family**, on a guard
+    protecting a shipped default, repaired by matching the AST node SHAPE so a `BoolOp` is
+    structurally not that guard. And **the mutation harness read and wrote TEXT with `newline`
+    forced to LF, so restoring a CRLF source rewrote it** and the harness failed its own
+    byte-for-byte check *after* the mutation had run; recovered from git and moved to binary I/O.
+    **A mutation harness that cannot put a file back is worse than none**, because it leaves the
+    tree altered in exactly the files it was aimed at. **14 tests, 5 of 5 mutations caught with
+    sources restored byte-for-byte.**
+  * **`MB31`'s OWN TRIPWIRE FIRED ON ITS FIRST REAL EVENT AND IS REPOINTED IN THE SAME COMMIT.**
+    The gate came back **177 suites, ONE failure** — `MB31`'s *"the adopt set is unchanged so no
+    permutation floor can have moved"*, which is exactly the guard it wrote to go red when seed
+    1003 flipped at 247. **Re-asserting it would have been silencing a check; deleting it would
+    have been worse.** It now asserts the stronger thing it was really guarding: **a changed adopt
+    set must be accompanied by a bounded re-derivation at that same live `N`, naming the same
+    seeds and re-scoring those and no others** — so a future flip with nobody re-deriving goes
+    red. **And the first cut of the repoint SKIPPED SILENTLY**, resolving `W1_FLOORS.json` from
+    the repo root when a worktree carries `data/` EMPTY and the draws live in the primary root —
+    `E-5`'s wrong-object family — fixed by resolving beside the map's own inputs. **16 tests, zero
+    skips, 4 of 4 mutations caught.**
+  * **NOT DONE:** `S15` is not re-opened, the `max_sector_w` concentration cap is untouched, no
+    product copy is licensed, and **a NULL here closes the re-open condition and nothing wider** —
+    it does not establish that point-in-time sectors are worthless, only that repairing this
+    look-ahead does not rescue this ranking. `scripts/w1_sector_neutral_pit.py`,
+    `scripts/w1_coverage.py`, `scripts/w1_floor_rederive.py`, `scripts/w1_mde.py`;
+    `data/free_analysis/W1_ARM.json`; `HANDOFF_edge_audit.md` W-1.
 - **REPLACING ONE INPUT OF A THEME IS NOT A PAIRED RE-MEASUREMENT WHEREVER THE NEW COLUMN IS
   MISSING - IT SILENTLY BECOMES THAT INPUT'S REMOVAL ARM, AND ON THIS COMPOSITE REMOVAL WAS
   ALREADY MEASURED AS HARMFUL (2026-08-28, `W-28`).** Executor pass on the Frontier Scout's
@@ -6437,15 +6510,29 @@ the project's memory and the old versions had been repeated for months.
   bullet immediately below, which proves those values are STILL CURRENT at the live
   `N` = 234 rather than asking you to assume it.**
 
-  | floor | X7 @ N=84 | session 10 @ N=129 | **derived at N = 224** | moved? |
-  |---|---|---|---|---|
-  | theme IC t | 2.7072 | 2.7072 | **2.7072** | never |
-  | long-short t (naive) | 2.1437 | 2.1437 | **2.1437** | never |
-  | **long-short t (HAC)** | 2.2837 | 2.2837 | **2.2837** | **never** |
-  | top-decile alpha margin | 1.9532pp | 1.8629pp | **1.8629pp** | at 84→129 |
-  | top-decile alpha HAC t | 2.2913 | 2.2913 | **2.0540** | **at 129→224** |
-  | PBO (p5) | 19.667% | 19.667% | **19.667%** | never |
-  | Deflated Sharpe | 0.7216 | 0.7076 | **0.6637** | **both steps** |
+  | floor | X7 @ N=84 | session 10 @ N=129 | derived at N = 224 | **MEASURED at N = 247 (`W-1`)** | moved? |
+  |---|---|---|---|---|---|
+  | theme IC t | 2.7072 | 2.7072 | 2.7072 | **2.7072** | never |
+  | long-short t (naive) | 2.1437 | 2.1437 | 2.1437 | **2.070231** | **at 245→247** |
+  | **long-short t (HAC)** | 2.2837 | 2.2837 | 2.2837 | **2.056680** | **at 245→247** |
+  | top-decile alpha margin | 1.9532pp | 1.8629pp | **1.8629pp** | 1.8629pp | at 84→129 |
+  | top-decile alpha HAC t | 2.2913 | 2.2913 | 2.0540 | **1.826210** | at 129→224 **and 245→247** |
+  | PBO (p5) | 19.667% | 19.667% | **19.667%** | 19.667% | never |
+  | Deflated Sharpe | 0.7216 | 0.7076 | **0.6637** | falls further | **every step** |
+
+  * **THE `N` = 247 COLUMN IS `W-1`'s AND IT IS THE FIRST TIME ALL THREE PERMUTATION FLOORS HAVE
+    MOVED AT ONCE.** `MB31` predicted the trigger — seed **1003** flipping the CPCV adopt gate at
+    exactly 247 — and `W-1`'s 2 trials landed on it. Re-derived **bounded** per `MA19` (ONE
+    re-score, not a sweep), and the rank check is why it could not be skipped: **seed 1003 sits at
+    rank 4 / 4 / 6 and IS the #6 draw on top-decile alpha HAC**, where a p95 over 100 draws is set
+    by the 5th-and-6th. **The instrument is checked before it is believed — the `N` = 245 column
+    reproduces the published floors exactly.** **ALL THREE MOVE DOWN, i.e. PERMISSIVE, and NO
+    SHIPPED CLAIM CHANGES SIDE** (headline 2.8361 / 2.6199 / 4.3762 clear both old and new), so
+    **nothing is retracted.** **And the mechanism reproduces `X7` independently:** seed 1003 scores
+    `ls_t` **1.404770** base against **2.550756** challenger — **+1.146 of *t* from adoption
+    alone**, against `X7`'s *"CPCV adoption manufactures ~+1.4 out of nothing"*. Session 12's
+    warning that the floors' survival was *"luck, not design"* is now fully spent.
+    `scripts/w1_floor_rederive.py`; `data/free_analysis/W1_FLOORS.json`.
 
   * **THE COLUMN IS ONE DENOMINATOR BEHIND THE LIVE COUNT AND EVERY PERMUTATION FLOOR IN IT IS
     NEVERTHELESS STILL CORRECT - PROVED ARITHMETICALLY, NOT ASSUMED (2026-08-19, `MB31`+`MB32`).**

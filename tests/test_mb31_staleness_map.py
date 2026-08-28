@@ -133,13 +133,51 @@ class TestTheMapItself(unittest.TestCase):
         self.assertGreater(hlz_hurdle(n_star), t, "at N* the draw must have flipped off")
         self.assertLessEqual(hlz_hurdle(n_star - 1), t, "at N*-1 it must still adopt")
 
-    def test_the_adopt_set_is_unchanged_so_no_permutation_floor_can_have_moved(self):
+    def test_a_changed_adopt_set_is_accompanied_by_a_published_re_derivation(self):
+        """REPOINTED 2026-08-28 by `W-1`, in the same commit as the event that fired it, so the
+        move shows in the diff (`MA59`).
+
+        AS WRITTEN THIS ASSERTED THE ADOPT SET WAS UNCHANGED, and it fired **correctly**: `MB31`
+        predicted seed **1003** would flip at exactly equity `N` = 247, and `W-1`'s two trials
+        landed on it. That is the tripwire doing its job, not a stale expectation — but the
+        assertion could only ever hold BELOW the trigger, so re-asserting it would be silencing
+        a check that had just paid for itself.
+
+        THE INVARIANT IT BECOMES IS STRICTLY STRONGER AND STILL BITES: the adopt set may change,
+        and when it does a **bounded re-derivation at that same live `N` must exist and name the
+        same seeds**. A future flip with nobody re-deriving now goes red, which is the state this
+        test was really guarding against all along.
+        """
         if self.m is None:
             return
         a = self.m["adopt_set"]
-        self.assertEqual(a["flipped_off"], [])
-        self.assertEqual(a["flipped_on"], [])
-        self.assertTrue(a["identical"])
+        self.assertEqual(a["flipped_on"], [],
+                         "a draw flipping ON would mean the hurdle FELL, which cannot happen")
+        if a["identical"]:
+            self.assertEqual(a["flipped_off"], [])
+            return
+
+        live = a["live_equity_N"]
+        # Resolve the artifact BESIDE the map's own inputs rather than from the repo root. A
+        # worktree carries `data/` EMPTY while the banked draws live in the primary root, and a
+        # guard that resolves one location and then reads another is the wrong-object family
+        # (`E-5` hit exactly this, and skipped silently on every worktree).
+        path = os.path.join(os.path.dirname(_map().X7RECON), "W1_FLOORS.json")
+        if not os.path.exists(path):
+            _skip("re-derivation", "W1_FLOORS.json absent (data/ is gitignored)")
+            return
+        import json
+        with io.open(path, encoding="utf-8") as fh:
+            f = json.load(fh)
+        self.assertEqual(f["N_after"], live,
+                         "the re-derivation is at a different N from the live one")
+        self.assertEqual(sorted(f["newly_off"]), sorted(a["flipped_off"]),
+                         "the re-derivation does not name the seeds that flipped")
+        self.assertEqual(sorted(f["rescored_here"]), sorted(a["flipped_off"]),
+                         "MA19's method: re-score exactly the flipped draws, never a sweep")
+        for key, blk in f["floors"].items():
+            self.assertIn("floor_at_%d" % live, blk,
+                          "%s carries no floor at the live N" % key)
 
     def test_the_deflated_sharpe_probability_is_not_fabricated(self):
         """STALE BY CONSTRUCTION must mean 'no value', not 'a plausible value'."""
