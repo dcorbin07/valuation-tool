@@ -53,8 +53,28 @@ the project's memory and the old versions had been repeated for months.
   ALREADY MEASURED AS HARMFUL (2026-08-28, `W-28`).** Executor pass on the Frontier Scout's
   `PREREG_DRAFT_w28_total_q.md`. **ZERO TRIALS** - no register committed, no arm, no composite
   gate read; `by_domain` bit-identical (equity **245**, options **310**, infra **20**),
-  `rows_fixed_not_counted` **83 -> 84**. **ACCEPTED WITH TWO AMENDMENTS AND BLOCKED ON A PULL, and
-  that is not a rejection.**
+  `rows_fixed_not_counted` **83 -> 84**. **STAGE 1 ACCEPTED IT WITH TWO AMENDMENTS AND BLOCKED IT ON A PULL;
+  STAGE 2 RAN THE KILLS ON 2026-08-28 AND `K1` FIRES, SO THE REGISTER STOPS AND THE ARM NEVER RUNS.**
+  * **THE PULL LANDED AND THE BLOCKER DISSOLVED WITHOUT THE CONSTRUCTION CHANGE I FEARED:** `totalq.total_q`
+    ships **485,746 rows with intangible capital PRE-COMPUTED**, so Peters-Taylor is never rebuilt and
+    §2's frozen delta/SG&A/burn-in parameters govern a construction that no longer happens.
+  * **`K1` FIRES DECISIVELY, AND THE SHAPE OF THE KILL IS THE FINDING.** On the correct **DATED** route
+    coverage is **81.54% of cells / 88.34% of names**, per-date **min 67.64, median 80.39, max 96.32** -
+    so **57 of 69 dates sit below the register's own 90% bar and the BEST date does not reach it**. The
+    **UNDATED** route **would** clear at 97.01% **and is the contaminated one**, assigning a `gvkey` CRSP
+    dates to a **DIFFERENT COMPANY on 54 names** (`ACH`, `ANGI`, `AD`...). **The instrument is validated
+    first: the naive leg reproduces the census's independently measured 94.9% at 95.14%**, so the
+    shortfall is real. **THE PORTABLE PART: a 90% DATED Compustat-linkage bar is NOT REACHABLE on this
+    account**, and a successor may not relax a pre-committed bar after watching it fail (§6's own rule).
+  * **TWO DEFECTS OF MY OWN.** (a) A per-date coverage of **exactly zero** exposed that I had not extended
+    CRSP's last interval past its **2024-12-31 cut**, so every 2025-26 cell read as NOT COVERED - the
+    vendor's cut-off masquerading as a coverage gap, `W-3b`'s lesson and one my own `revisions.py` already
+    guards. Fixed, 72.79% -> 81.54%; **the verdict is unchanged, K1 firing on both readings.** (b) **The
+    obvious column would have double-counted:** `k_int_offbs` **is exactly** `k_int_know + k_int_org`
+    while `k_int` **also carries on-balance-sheet intangibles**, so the register's `K_int - intan` **IS**
+    `k_int_offbs` and taking `k_int` would silently double-count the very intangibles the subtraction
+    clause removes. **And a correction in the register's favour: the briefed 70.7% is `q_tot`, a field the
+    arm never uses; `k_int` is 100% non-null.** **`K2`-`K5` NOT REACHED, no arm, nothing adopted.**
   * **THE PORTABLE FINDING, AND IT BINDS ANY SINGLE-INPUT REGISTER ON THIS COMPOSITE.** The value
     theme is `df[cols].mean(axis=1)` and **pandas skips NaN**, so a row where the replacement
     column is absent averages **three inputs instead of four** - **demonstrably IDENTICAL to the

@@ -17663,3 +17663,105 @@ were RELAYED, NOT EDITED** — and they sit **unpushed on a LOCAL branch**, `wor
 `datadate`, `fyear`) plus `comp.security` for a ticker route, **and both amendments written into
 the register before it is committed** — the incumbent fallback, and a dated crosswalk.
 `scripts/w28_spine_check.py`; `data/free_analysis/W28_SPINE_CHECK.json`.
+
+---
+
+# W-28 STAGE 2 — THE KILLS RUN, AND K1 FIRES. THE REGISTER STOPS (2026-08-28)
+
+**ZERO TRIALS. No register committed, no arm run, no composite gate read.** `by_domain` is
+**bit-identical** (equity **245**, options **310**, infra **20**); the Stage-1 row was edited **in
+place**, so `rows_fixed_not_counted` correctly stays at **84** rather than counting the item
+twice. **ADOPTS NOTHING.**
+
+**The Stage-1 blocker dissolved, and without the construction change I feared.** `totalq.total_q`
+is on disk — **485,746 rows**, exactly as briefed — and, decisively, **intangible capital is
+PRE-COMPUTED**. The Peters–Taylor perpetual inventory is never rebuilt, so §2's frozen
+`δ_R&D` / SG&A-share / `δ_org` / burn-in / `xrd`-null parameters govern a construction this pass
+does not perform. **That is stated rather than glossed: those parameters were not "honoured by
+being applied" — they were made moot, and the register inherits the vendor's conventions instead,
+which is what "the published convention" meant all along.**
+
+## K1 FIRES — and it is decisive rather than marginal
+
+The bar is the register's own: **name-date coverage < 90% on ANY rebalance date → STOP.**
+
+| route | cells | of 113,945 | names | of 2,531 |
+|---|---|---|---|---|
+| **DATED (Amendment 2, the correct one)** | **92,916** | **81.54%** | **2,236** | **88.34%** |
+| undated `comp.security.tic` | 110,535 | 97.01% | 2,408 | 95.14% |
+
+**Per-date on the dated route: min 67.64%, median 80.39%, max 96.32% — so 57 of 69 dates sit
+below the bar, and the BEST date in the panel does not reach it either.**
+
+**THE INSTRUMENT IS VALIDATED BEFORE THE VERDICT IS READ, which is what licenses the number.** The
+**naive leg of the same machinery** reaches **95.14%** of names, **independently reproducing the
+census's separately measured 94.9%**. So the shortfall on the dated route is a property of dated
+linkage, not a bug in my crosswalk.
+
+## AND THE SHAPE OF THE KILL IS THE FINDING
+
+**The UNDATED route WOULD clear the bar** at 97.01% of cells — **and it is the contaminated one.**
+It assigns a `gvkey` that CRSP's dated intervals attribute to a **DIFFERENT COMPANY** on **54 of
+our names**. Concretely:
+
+* **`ACH`** — undated map says `008213`; CRSP dates that ticker to `001671` (1962–1973).
+* **`ANGI`** — undated says `032502`; CRSP dates it to `188155` from 2011-11-17.
+* **`AD`** — undated says `014369`; CRSP dates `001623` (1962–1986), then `013025` (1993–).
+
+`W-3b`'s lease hazard on a third table, and `S3-I5`'s ticker reuse again.
+
+**So the register is caught between a bar it can only clear with a contaminated map and a correct
+map that fails the bar.** **THE PORTABLE PART: on this account a 90% DATED Compustat-linkage bar
+is NOT REACHABLE.** Any successor must set its bar with this measured distribution in view and say
+so — **and may not relax a pre-committed bar after watching it fail**, which is exactly what §6's
+own deviation rule forbids.
+
+## TWO DEFECTS OF MY OWN, BOTH CAUGHT BY THE NUMBERS RATHER THAN BY READING
+
+**(a) A per-date coverage of EXACTLY ZERO exposed an un-extended interval.** My first pass did not
+extend CRSP's last name interval to an open end — and **CRSP on this account is CUT AT 2024-12-31**
+while the panel runs to **2026-01-28**, so every 2025–26 cell fell outside every interval and read
+as NOT COVERED. **The vendor's cut-off masquerading as a coverage gap**, which is precisely what
+`W-3b` measured and what my own `revisions.crsp_intervals` already guards with `OPEN_END`. Fixed;
+coverage rose **72.79% → 81.54%** of cells. **THE VERDICT IS UNCHANGED — K1 fired on both readings,
+at 64 of 69 dates before the fix and 57 after** — which is why it is reported as a defect rather
+than as a result that moved.
+
+**(b) The obvious column would have double-counted.** Measured on the pull:
+**`k_int_offbs` == `k_int_know` + `k_int_org` EXACTLY** (median deviation 0.000000), while
+**`k_int` additionally carries on-balance-sheet intangibles** (median difference **+3.771**). The
+register declares `K_int` = knowledge + organization capital **and then subtracts `intan`** to avoid
+double-counting acquired intangibles — **and that is exactly `k_int_offbs`.** So nothing is
+subtracted, **no `intan` source is needed at all**, and **taking the headline `k_int` would have
+silently double-counted the very intangibles the subtraction clause exists to remove.**
+
+## A SCOPE CORRECTION THAT RUNS IN THE REGISTER'S FAVOUR
+
+The brief quotes **70.7%** coverage. That is **`q_tot`**, a field the arm never uses. **The field
+the arm needs is `k_int`, and it is non-null on 485,745 of 485,746 rows — 100%.**
+
+## A CORRECTION TO THE DRAFT'S OWN §6 HEADER
+
+It reads *"four of five FREE, all firing before a return is scored"*, while its own table marks
+**all five** FREE and its own `K3`/`K4` definitions require a **per-date IC**, which **is** a return
+relationship. Both cannot hold. **The coherent reading, taken here: all five cost ZERO TRIALS, and
+`K3`/`K4` do score a return — on the INPUT COLUMN rather than on the composite.** Stated so nobody
+infers the kills were run without touching `fwd_ret`.
+
+## NOT DONE, named so it is not mistaken for done
+
+**`K2` through `K5` are NOT REACHED and carry NO verdict** — the register's `K1` consequence is
+**STOP**, and running them would score returns the register no longer licenses. **The arm never
+ran; the composite gate was never read; `W-28c` is not run.** **Nothing is adopted** — a
+composite-input change is a vintage event and Don's call.
+
+**One executor-declared departure, and it did not touch the verdict:** a **120-day publication
+lag** on the annual-fundamental join, which the register does not specify. It is conservative
+against Compustat's ~90-day filing window and close to the panel's own measured ~111-day effective
+lag. **`K1` is computed from the crosswalk alone and does not read the lag at all**, so the kill is
+independent of that choice.
+
+**RE-OPEN NEEDS** a decision about the bar, not more data: either a dated route with materially
+better coverage than CRSP `stocknames` can supply on this account, or a bar set — in advance, with
+this distribution in view — that a dated map can actually reach. `scripts/w28_kills.py`;
+`data/free_analysis/W28_KILLS.json`.
