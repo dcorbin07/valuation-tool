@@ -17544,3 +17544,122 @@ proceeds", priced 55/45 — WRONG. (2)-(5) UNSCORABLE, the register never ran. (
 number contradicts this list" — RIGHT.** The draft's stated prior was **12% CONFIRMED**; the item
 never reached the point where that prior could be scored, which is itself the outcome its §12
 anticipated. `scripts/dc1_k1_feasibility.py`; `data/free_analysis/DC1_K1.json`.
+
+---
+
+# W-28 — TOTAL-Q RE-MEASUREMENT: ACCEPTED WITH TWO AMENDMENTS, BLOCKED ON A PULL (2026-08-28)
+
+Executor pass on the Frontier Scout's `PREREG_DRAFT_w28_total_q.md`. **ZERO TRIALS — no register
+committed, no arm run, no composite gate read, and no signal ever related to a forward return.**
+`by_domain` is **bit-identical** across the log append (equity **245**, options **310**, infra
+**20**) while `rows_fixed_not_counted` rises **83 -> 84**. **ADOPTS NOTHING** — a composite-input
+change is a vintage event and Don's call.
+
+**THE VERDICT IS NOT A REJECTION.** The design is sound and unusually well built; it is blocked on
+data it declares and does not have, and it needs two amendments written in before it is committed.
+
+## FIRST ACT — the counter, re-read rather than inherited, and the brief's premise is WRONG
+
+The instruction was that nothing books until the counter is verified, because the doctrine shipped
+with 245/310 read from commit messages while the ledger's last append was said to read 242/305.
+**Measured three ways, they agree, and the doctrine's figure is the right one:**
+
+| source | equity | options |
+|---|---|---|
+| `research_log.detail()` — the parser | **245** | **310** |
+| the committed `MA13` stamp in `tests/test_research_log_integrity.py` | **245** | **310** |
+| `tests/test_research_log_integrity.py` | **17 of 17 pass** | |
+
+**There is no live discrepancy.** `equity 242, options 305` occurs **three times** in the ledger as
+**historical prose** in EVOWN-era rows, and the ledger itself carries the whole progression:
+**242/305 -> 242/307 -> 242/308 -> 243/308 -> 245/310.** Those are the counters as they stood when
+each item landed, which is the record working correctly, not a competing claim about today.
+
+**Hurdle derived from what was measured: `sqrt(2 ln 245)` = 3.3170041, and on booking one trial
+`sqrt(2 ln 246)` = 3.3182319.** That is exactly the substitution the draft's own §7 anticipated
+(*"if the executing lane's re-read returns 245, substitute crit = 3.317004"*), and it is correct.
+
+## SPINE CLAIM 2 — VERIFIED EXACTLY
+
+Read from the shipped builder rather than the draft: `value_est` averages **four** inputs
+(`z_earnings_yield`, `z_fcf_yield`, `z_ebit_ev`, `z_book_to_price`) and `value_spec` **three**
+(`z_neg_ev_sales`, `z_neg_ps`, `z_book_to_price`). **`z_book_to_price` is the ONLY column present
+in both**, so `w` = **1/28** established and **1/21** speculative — exactly as drafted.
+
+## SPINE CLAIM 1 — TRUE ONLY WHERE THE ADJUSTED COLUMN IS PRESENT. **AMENDMENT 1.**
+
+The draft's power argument is `composite_new − composite_old = w·(z_adj − z_incumbent)`, so `w`
+cancels in the *t* and dilution costs no power. **Where the adjusted column exists this is exact**
+(verified to 2e-17).
+
+**Where it does not, it fails — and the failure is the finding.** The theme is
+`df[cols].mean(axis=1)`, and **pandas `.mean(axis=1)` SKIPS NaN**. So a row failing the declared
+**>= 10 fiscal-year burn-in** averages **three** inputs instead of four — and that is
+**demonstrably IDENTICAL** to the value theme with `book_to_price` **DROPPED**, which is **`S1`'s
+REMOVAL arm**, which `S1` measured as making the composite **WORSE** (−0.207 / −0.079 *t*).
+
+**So the arm as drafted is a MIXTURE of re-measurement and removal, the contamination runs TOWARD
+a negative result, and a negative verdict would have been uninterpretable** — you could not
+separate re-measurement failing from removal contaminating. And because a decade of prior
+`xrd`/`xsga` is required, this is not a corner case; it will bite hardest at the early panel dates.
+
+**THE AMENDMENT: fall back to the INCUMBENT column wherever the adjusted one is absent.** The
+paired difference on those rows becomes **exactly zero**, the population is unchanged, the arm is
+re-measurement **only** and never removal, and the identity holds **exactly** on every row rather
+than conditionally. Reproducible: `scripts/w28_spine_check.py`.
+
+## AMENDMENT 2 — THE CROSSWALK TABLE THE DRAFT NAMES IS DENIED, AND THE PROJECT ALREADY MEASURED IT
+
+§8 lists **`crsp.ccmxpf_lnkhist`** (`linktype`, `linkprim`, `linkdt`, `linkenddt`) among the tables
+to probe. **`WRDS_CENSUS.md` records `ccmxpf_lnkhist`, `ccmxpf_linktable`, `ccm_lookup` and
+`wrdsapps.id_ccm` as ALL DENIED on this account** — *"the standard CRSP-Compustat link ... is not"*
+available. The census found the substitute: **`comp.security.tic`, reaching 94.9% of panel names**.
+
+**But that substitute is an UNDATED ticker map**, which is the exact hazard `W-3b` measured when it
+found `oftic` is a **lease** — **17.7% of the rows it offers are a different company**. `K1`'s own
+text already forbids the naive check (*"may NOT be 'does this ticker map to two permatickers?'"*),
+so **the register must name a DATED route** — CRSP `stocknames` intervals, as `W-3b` built and this
+lane reused for `D6`.
+
+## WHY `K1` COULD NOT BE EVALUATED AT ALL — BLOCKED ON A PULL
+
+* **The declared annual `comp.funda` fields are NOT on disk.** What is on disk is **`comp_pit`**,
+  the **QUARTERLY** file: `xrdq`, `xsgaq`, `ceqq`, `intanq`, `atq`, `ppegtq`, `ppentq`, `gdwlq`.
+* **`comp_pit` carries NO security identifier at all** — no `tic`, no `cusip`, no `permno`, only
+  `gvkey` and `datadate` — **so it cannot be joined to the panel on owned data.**
+* **`totalq.total_q` is not pulled**, consistent with the draft's own note that it may not be
+  entitled.
+* **And the quarterly file is not a drop-in substitute.** Peters–Taylor perpetual inventory is
+  defined on **ANNUAL** flows with annual depreciation (`δ_R&D` from BEA, `δ_org` 20%/yr). Running
+  it on quarterly flows is a **construction change the draft does not name**, and §6's own
+  deviation rule — *"if the census cannot supply a frozen parameter, the register WITHDRAWS; it
+  does not substitute"* — would bite anyone who tried.
+
+**So `K1` has no subject yet.** That is a data blocker, not a verdict about the hypothesis.
+
+## WHAT THE DRAFT GETS RIGHT, said because an executor who reports only faults is not reporting
+
+* **`K4` is pre-committed WITH its sign.** The draft states the directional prediction of *harm*
+  from `S1`'s decorrelation reading and makes it a kill — so a result in the hostile direction is
+  **a finding about decorrelation, not a failed register**. That is the right shape and it is rare.
+* **It WITHDRAWS its own `W-28b` successor** after reading the shipped path and finding
+  `neg_asset_growth` had already been dropped as wrong-signed — catching in itself the same
+  premise-from-prose failure it names in `F-13` and `F-2`.
+* **It forbids gating on the value theme's own IC**, with a measured reason: a **0.73 spread**
+  across four published readings, and `P6`'s rule that a theme's IC and the composite it feeds move
+  opposite ways.
+* **It prices its own most likely failure as more informative than its success.** That, not its
+  prior, is the case for it — and it is why this pass amends rather than rejects.
+
+## NOT DONE, named so it is not mistaken for done
+
+**No arm. No composite gate. No `K1`–`K5` verdict** — the kills were never reached, because the
+data the first one needs is not on owned disk. **The successor `W-28c` is not run and charges
+nothing.** **Nothing is adopted.** **The scout's `PREREG_DRAFT_w28_total_q.md` and `WIDTH_AUDIT.md`
+were RELAYED, NOT EDITED** — and they sit **unpushed on a LOCAL branch**, `worktree-scout-wrds` at
+`e705ba0`, which is the scout lane's to push.
+
+**RE-OPEN NEEDS:** a WRDS pull of `comp.funda` (annual `xrd`, `xsga`, `ceq`, `intan`, `gvkey`,
+`datadate`, `fyear`) plus `comp.security` for a ticker route, **and both amendments written into
+the register before it is committed** — the incumbent fallback, and a dated crosswalk.
+`scripts/w28_spine_check.py`; `data/free_analysis/W28_SPINE_CHECK.json`.

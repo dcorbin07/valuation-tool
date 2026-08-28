@@ -48,6 +48,51 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **REPLACING ONE INPUT OF A THEME IS NOT A PAIRED RE-MEASUREMENT WHEREVER THE NEW COLUMN IS
+  MISSING - IT SILENTLY BECOMES THAT INPUT'S REMOVAL ARM, AND ON THIS COMPOSITE REMOVAL WAS
+  ALREADY MEASURED AS HARMFUL (2026-08-28, `W-28`).** Executor pass on the Frontier Scout's
+  `PREREG_DRAFT_w28_total_q.md`. **ZERO TRIALS** - no register committed, no arm, no composite
+  gate read; `by_domain` bit-identical (equity **245**, options **310**, infra **20**),
+  `rows_fixed_not_counted` **83 -> 84**. **ACCEPTED WITH TWO AMENDMENTS AND BLOCKED ON A PULL, and
+  that is not a rejection.**
+  * **THE PORTABLE FINDING, AND IT BINDS ANY SINGLE-INPUT REGISTER ON THIS COMPOSITE.** The value
+    theme is `df[cols].mean(axis=1)` and **pandas skips NaN**, so a row where the replacement
+    column is absent averages **three inputs instead of four** - **demonstrably IDENTICAL to the
+    theme with `book_to_price` DROPPED, which is `S1`'s REMOVAL arm, which `S1` measured as making
+    the composite WORSE (-0.207 / -0.079 *t*)**. So the arm would have been a **MIXTURE of
+    re-measurement and removal**, contaminating **toward a negative result** and making a negative
+    verdict uninterpretable. **The fix: fall back to the INCUMBENT column where the new one is
+    absent** - the paired difference is then exactly zero there, the population is unchanged, and
+    the identity `composite_new - composite_old = w*(z_adj - z_inc)` holds EXACTLY rather than
+    conditionally. `scripts/w28_spine_check.py`.
+  * **THE REST OF THE SPINE VERIFIES EXACTLY:** `value_est` averages **four** inputs and
+    `value_spec` **three**, `z_book_to_price` is the **ONLY** column in both, so `w` is **1/28**
+    established and **1/21** speculative - as drafted.
+  * **THE COUNTER WAS RE-READ BEFORE ANYTHING BOOKED AND THE BRIEF'S PREMISE OF A DISCREPANCY IS
+    WRONG.** `research_log.detail()` reads **equity 245 / options 310**, the committed `MA13` stamp
+    carries the identical literal, and the integrity suite passes **17 of 17**. The `242 / 305`
+    figures are **historical prose** in EVOWN-era ledger rows, and the ledger shows the whole
+    progression **242/305 -> 242/307 -> 242/308 -> 243/308 -> 245/310**. Hurdle **3.3170041**, and
+    **3.3182319** on booking one - the substitution the draft's own §7 anticipated.
+  * **AMENDMENT 2: THE CROSSWALK TABLE THE DRAFT NAMES IS DENIED, AND THIS PROJECT ALREADY
+    MEASURED IT.** §8 lists `crsp.ccmxpf_lnkhist`; `WRDS_CENSUS.md` records it and every CCM
+    variant as **DENIED**. The census's substitute is `comp.security.tic` at **94.9%** of panel
+    names - but **UNDATED**, which is `W-3b`'s **lease** hazard at **17.7% contamination**, so
+    `K1` must name a **DATED** route.
+  * **WHY `K1` HAS NO SUBJECT YET.** The declared annual `comp.funda` fields are **not on disk**;
+    what is on disk is the **QUARTERLY** `comp_pit`, which carries **no security identifier at
+    all** and so cannot be joined to the panel. `totalq.total_q` is not pulled. **And quarterly is
+    not a drop-in substitute** - Peters-Taylor perpetual inventory is an **ANNUAL** construction,
+    so using it would be an unnamed construction change and §6's own deviation rule would require
+    withdrawal.
+  * **WHAT THE DRAFT GETS RIGHT, recorded because an executor who reports only faults is not
+    reporting:** `K4` is pre-committed **with its sign**, so a hostile result is a finding about
+    decorrelation rather than a failed register; it **withdraws its own `W-28b` successor** after
+    reading the shipped path; it **forbids gating on the value theme's IC** with a measured reason
+    (a 0.73 spread across four published readings, and `P6`'s rule); and it prices its likeliest
+    failure as more informative than its success. **NOT DONE: no arm, no gate, no K1-K5 verdict,
+    `W-28c` not run, nothing adopted.** Scout files relayed not edited, and unpushed on local
+    `worktree-scout-wrds` at `e705ba0`. `HANDOFF_edge_audit.md` W-28.
 - **RE-CLOCKING A NULL TO EVENT TIME IMPROVES THE SIGNAL-TO-NOISE RATIO AND NOT THE EFFECT SIZE,
   SO `V6`'s DIP RESULT DOES NOT COME BACK - DC-1 KILLED AT ITS OWN FREE PRE-OUTCOME GATE
   (2026-08-26, `DC-1`).** **ZERO TRIALS** - no register committed, no arm run, no signal ever
