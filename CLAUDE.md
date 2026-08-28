@@ -48,6 +48,53 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **RE-CLOCKING A NULL TO EVENT TIME IMPROVES THE SIGNAL-TO-NOISE RATIO AND NOT THE EFFECT SIZE,
+  SO `V6`'s DIP RESULT DOES NOT COME BACK - DC-1 KILLED AT ITS OWN FREE PRE-OUTCOME GATE
+  (2026-08-26, `DC-1`).** **ZERO TRIALS** - no register committed, no arm run, no signal ever
+  related to a forward return; `by_domain` bit-identical (equity **243**, options **310**, infra
+  **20**) while `rows_fixed_not_counted` rises **82 -> 83**. The Frontier Scout's
+  `PREREG_DRAFT_dc1_dip_confirmation.md` §8 `K1` is a feasibility kill that **tests the register's
+  PREMISE rather than its hypothesis**, and the draft's own §12 names the outcome in advance:
+  *"if K1 fires it does not run at all, which is the cheapest good outcome available to it."*
+  * **THE CHOICE THAT DECIDES IT IS WHICH `V6` ARM IS MATCHED, AND IT IS THE `O-1` LESSON AGAIN.**
+    DC-1 declares a **30% drawdown**; `V6` banked A1/A2 at depth **0.20** and A3/A4 at **0.30**.
+    **A3 is the matched arm** - matched in depth to DC-1's declaration and in horizon to the
+    draft's own `sqrt(63)` arithmetic. Borrowing A1's larger statistic would import a figure from
+    a **different population**, which is exactly what cost `O-1` its power (~17x wrong) and killed
+    `W-14`'s premise the same week.
+  * **A CORRECTION TO MY OWN FIRST MEASUREMENT, MADE BEFORE ANYTHING WAS REPORTED, AND IT IS THE
+    PORTABLE PART.** The draft's `sigma_e` is the SD of the **[0,+1] CUMULATIVE window return**,
+    not of daily returns falling on event days - and **a two-session cumulative return carries SD
+    ~sqrt(2) x the daily SD from its LENGTH ALONE, with no event effect at all**. The day-only
+    reading returns **2.0685** against the correct **2.9061** and would have made the kill look
+    marginal when it is not.
+  * **MEASURED RATHER THAN ASSUMED: k median 2.9061** (mean 3.0662, p05 1.6809, p95 4.8412) over
+    **407 names and 26,628 event windows**, with `sigma_e` pooled **6.9702pp** against the draft's
+    8.0pp placeholder - so the measured dispersion is slightly **favourable** to DC-1.
+  * **ROUTE A: the matched arm's implied event-time *t* is +2.0595 against a bar of 3.3145**, and
+    it would need **k <= 1.8058** - the measured median is **1.61x** that and only **8.11%** of
+    names lie below it. **Even at the draft's OWN best tabulated k=2 it reads +2.9926 and fails.**
+    **AND THE CLEANEST FORM: at the measured k, NOT ONE of `V6`'s eight banked full-sample cells
+    clears, at either depth.**
+  * **ROUTE B, INDEPENDENT AND AGREEING.** Taking the maximally favourable assumption - the
+    **entire** banked 63-day excess of **+0.5203pp** concentrated at the event - the design needs
+    **~3,098 effective events at 80% power** (1,972 at 50%) against the draft's most optimistic
+    tabulated row of **400**, i.e. **7.7x short**. **And on the vs-universe leg the banked effect
+    is NEGATIVE at -0.1200pp**, so there the premise points the wrong way before re-clocking.
+  * **THE PROVENANCE COMMITMENTS ARE CARRIED FORWARD RATHER THAN DISCHARGED.** The mechanism was
+    generated from **two names Don holds, both of which recovered** - selection on the outcome
+    three times over - and two of the draft's three pre-commitments **bind any successor**: if the
+    panel is extended past 2026-01-28, **NOW and CRM are excluded BY NAME and the exclusion
+    reported**; and a positive result would be **FIRST evidence, never confirmation**.
+  * **WHAT IT DOES NOT SAY: `V6` is not overwritten or re-opened**, its four nulls standing as
+    measured; **`V6-B` is NOT quoted as return evidence** (it measured SURVIVAL, and the draft's
+    own graveyard row forbids the conflation); and **it is not a finding that the mechanism is
+    false** - it is a finding that re-clocking cannot rescue an effect of the size `V6` banked.
+    A materially different construction needs its own register and **none is proposed**.
+    **Expectations: the draft's (1), that K1 would NOT fire, was priced 55/45 and is WRONG;
+    (2)-(5) are UNSCORABLE because the register never ran; (6) is RIGHT. Its stated prior was
+    12%.** `scripts/dc1_k1_feasibility.py`; `data/free_analysis/DC1_K1.json`;
+    `HANDOFF_edge_audit.md` DC-1.
 - **ANALYST ESTIMATE REVISIONS CARRY NO INCREMENTAL INFORMATION THIS PANEL CAN SEE - AND THE RAW
   COLUMN SORTS IN THE PUBLISHED DIRECTION, SO THE FINDING IS THE COLLAPSE RATHER THAN THE NULL
   (2026-08-25, `D6`/`D7`).** `PREREG_d6_analyst_revisions.md` committed **ALONE at `d03ee67`**,
