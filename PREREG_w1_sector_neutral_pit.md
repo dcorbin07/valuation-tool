@@ -239,3 +239,69 @@ other use, and makes **no claim about the `max_sector_w` concentration cap**, wh
 risk control and a different object. **A NULL closes the re-open condition `SECTOR-NEUTRAL-B6`
 named and nothing wider** — and specifically does **not** establish that point-in-time sectors are
 worthless, only that repairing this look-ahead does not rescue this ranking.
+
+
+---
+
+## AMENDMENT 1 — 2026-08-28, BEFORE ANY OUTCOME STATISTIC EXISTS
+
+**Nothing above is rewritten.** This is appended so the original text and the correction are both
+on the record, and it is made while the register is still blind: **no composite has been scored,
+no arm computed, and no relationship between any sector column and `fwd_ret` exists.** Two defects
+in my own §2 and §7, both found by reading `S25-REPAIR`'s shipped decision function rather than my
+own summary of it.
+
+### (a) §2 SPECIFIED THE CONFOUNDED ARM AS THE PRIMARY
+
+§2 defines the sector column as *"`S25`'s `SectorMap.at(ticker, date)`, state `OK` only"*. **That is
+`REPAIR-B`, and `S25-REPAIR` records in its own source that `REPAIR-B` is "CONFOUNDED by
+construction and carries no verdict"** — it fixes look-ahead **and** switches taxonomy in one step.
+
+`valuation/engine/calibration.s25_repair_sectors` is the one definition of the rule (`B7`) and it
+returns both arms:
+
+* **`REPAIR-A` (CHANGE-ONLY) — the register's PRIMARY.** The dated sector **only where GICS records
+  a reclassification between the as-of date and today**, i.e. where `pit != current`. **The
+  crosswalk's own vendor disagreement CANCELS BY CONSTRUCTION, because the map is compared against
+  ITSELF at two dates — so what moves is look-ahead and nothing else.** That is precisely what
+  `SECTOR-NEUTRAL-B6`'s re-open condition asked for.
+* **`REPAIR-B` (FULL) — a DECLARED SENSITIVITY carrying NO VERDICT**, reported only beside the
+  taxonomy-disagreement figure, per `S25`'s own void condition.
+
+**W-1's primary arm is `REPAIR-A` from here on.** `s25_repair_sectors` is **called, never
+re-implemented**, and a non-`OK` lookup keeps the panel's own sector in both arms — blanking is a
+vote, not an abstention.
+
+### (b) §7's `K2` BAR WAS SET AGAINST THE WRONG QUANTITY AND WOULD HAVE FIRED ON A LEGITIMATE ARM
+
+§4 measured **13.21%** of covered cells disagreeing, and §7 set `K2` at **< 5%**. **But 13.21% is
+`REPAIR-B`'s quantity** — the map against the panel's TICKERS sector, which mixes look-ahead with
+the vendor taxonomy switch. **`REPAIR-A`'s own bite is smaller, and it is the number the primary
+pays.** Measured on the arm's own population:
+
+| quantity | measured |
+|---|---|
+| **`REPAIR-A` moves the sector (the PRIMARY's bite)** | **5,052 of 113,945 cells = 4.43%** |
+| `REPAIR-B` moves the sector (confounded) | 14,181 = 12.45% |
+| `REPAIR-A` per-date bite | **min 0.0000** · median 0.0455 · max 0.0838 |
+
+**A 5% bar against a 4.43% bite is a bar the instrument cannot clear — `W-28`'s closing lesson,
+landing on this register's own `K2`.** It would have killed a legitimate arm for a reason that is
+an artefact of comparing against the wrong reference.
+
+> **`K2` IS AMENDED: it fires if `REPAIR-A` moves the sector on fewer than 1% of covered cells,
+> measured on the OVERALL covered set and NOT per date.**
+
+**1% is chosen with the distribution above printed**: it sits comfortably below the measured 4.43%
+so a fired `K2` means genuine inertness, and it still catches the `S16` case the kill exists for.
+**It is measured on the overall set rather than per date because the per-date minimum is 0.0000 BY
+CONSTRUCTION** — the most recent rebalance date has almost no reclassifications between it and
+today, so a per-date bite bar would fire on the newest date of any panel, always, for a reason that
+has nothing to do with the map's quality.
+
+### What does NOT change
+
+The gate (§5), both weightings, both halves, `SECTOR-NEUTRAL-B6`'s margins, the coverage bar of
+85% (§4, which is about the map RESOLVING and is unaffected), the floors (§3), the power treatment
+(§6), the void conditions (§8) and the prior (§9) are all **unchanged**. **The amendment makes the
+primary arm cleaner and the bite bar reachable; it does not make either easier to clear.**
