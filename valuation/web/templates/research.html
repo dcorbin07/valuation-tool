@@ -385,21 +385,36 @@
     {% else %}
     <div class="tbl">
       <table class="mv">
-        <thead><tr><th>Book</th><th>Declared in commit</th><th>Verdict horizon</th>
-          <th>Status</th></tr></thead>
+        <thead><tr><th>Book</th><th>Declared in commit</th><th>Declared on</th>
+          <th>Days</th><th>Fills</th><th>Verdict horizon</th><th>State</th></tr></thead>
         <tbody>
         {% for b in declared.books %}
           <tr>
-            <td>{{ b.title }}<div class="src">{{ b.file }}</div></td>
+            <td>{{ b.title }}<div class="src">{% if b.declaration_url %}<a
+              href="{{ b.declaration_url }}" rel="noopener noreferrer nofollow"
+              target="_blank">{{ b.file }}</a>{% else %}{{ b.file }}{% endif %}</div></td>
             <td class="id">{% if b.commit_known %}{{ b.commit }}{% else %}<span class="same">not
               yet recorded</span>{% endif %}</td>
+            {# THE DATE IS THE POINT, NOT DECORATION. The claim this shelf makes is an
+               ORDERING — the rule was frozen in git before the book's first fill — and a sha
+               alone does not let a reader check that without a clone. #}
+            <td class="d">{% if b.commit_date %}{{ b.commit_date }}{% else %}<span
+              class="same">—</span>{% endif %}</td>
+            <td class="n">{% if b.days_accrued is not none %}{{ b.days_accrued }}{% else %}<span
+              class="same">—</span>{% endif %}</td>
+            {# `0` here is NOT self-explanatory and the state column is what disambiguates it:
+               a book with a working rule that wrote nothing is reporting the market, and a
+               book with no rule has not looked. The sentence under the table says so. #}
+            <td class="n">{% if b.fills is not none %}{{ b.fills }}{% else %}<span
+              class="same">—</span>{% endif %}</td>
             <td class="d">{% if b.horizon_labelled %}{{ b.horizon }}{% elif b.fills_needed
               %}{{ b.fills_needed }} fills{% else %}<span class="same">not stated</span>{% endif
               %}</td>
-            <td><span class="verdict">{{ b.status }}</span>
+            <td><span class="verdict">{{ b.state or b.status }}</span>
               {%- if b.overdue %} <span class="same">&mdash; window closed, verdict not yet
               read</span>{% endif %}
-              <div class="src">{{ b.status_blurb }}</div></td>
+              <div class="src">{{ b.state_blurb or b.status_blurb }}{% if b.state_reason %}
+                &mdash; {{ b.state_reason }}{% endif %}</div></td>
           </tr>
         {% endfor %}
         </tbody>
@@ -413,6 +428,17 @@
        does not carry a permanent caveat about a category that may never appear again. #}
     {% if declared.drafts_excluded %}<p class="src">{{ declared.drafts_note }}</p>{% endif %}
 
+    {# THE POSTURE AND THE TWO-MEANINGS-OF-ZERO SENTENCE, both owned by `fleet_public` and
+       rendered from the payload rather than worded here, so the page and the module cannot
+       come to describe the same books differently. #}
+    {% if declared.ops and declared.ops.posture %}
+      <p>{{ declared.ops.posture }}</p>
+      <p>{{ declared.ops.quiet_means }}</p>
+      <p class="src">{{ declared.ops.not_a_record }} {{ declared.ops.repo_note }}
+        {% if declared.ops.evidence == "manifest" %}The commit and date shown come from the
+        declaration manifest committed with the code, because the deployed image carries no
+        git history.{% endif %}</p>
+    {% endif %}
     <p class="src">{{ declared.no_figures }}</p>
   </section>
   {% endif %}

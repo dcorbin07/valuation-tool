@@ -2,6 +2,7 @@
   "books": {
     "f10_clean_csp": {
       "commit": "8964bafbb961b6c1cf9414f06fcd258b9d762611",
+      "commit_date": "2026-08-24T00:49:53-04:00",
       "committed_alone": true,
       "decl_sha": "72ccdec0dd60bb27002dc771578f447313bdd404fb2c7f806e05f94eb8da1fe0",
       "declaration": {
@@ -54,7 +55,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
       "refusals_at_export": [],
       "touched": [
         "DECL_f10_clean_csp.md"
@@ -62,6 +63,7 @@
     },
     "f11_dip_reject_puts": {
       "commit": "ab5471d1428e84204ba999194b55bced27596418",
+      "commit_date": "2026-08-24T00:49:53-04:00",
       "committed_alone": true,
       "decl_sha": "bf9672e661fb26cb075da58b722e749fc405b02077ba39e3b17cb3f1d18d95aa",
       "declaration": {
@@ -109,7 +111,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
       "refusals_at_export": [],
       "touched": [
         "DECL_f11_dip_reject_puts.md"
@@ -117,6 +119,7 @@
     },
     "f12_postevent_reversal": {
       "commit": "79cb9506dc9e197d9c6e0a95cb9f01cb8d8ba694",
+      "commit_date": "2026-08-24T00:49:54-04:00",
       "committed_alone": true,
       "decl_sha": "e799beef119783c3ca65d123035fcebb7a334909c63d3a5d16caad92206f0eaa",
       "declaration": {
@@ -164,7 +167,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
       "refusals_at_export": [],
       "touched": [
         "DECL_f12_postevent_reversal.md"
@@ -172,6 +175,7 @@
     },
     "f13_second_event": {
       "commit": "bcf8af3b09be247f6dc50a520c44af94570f9ed4",
+      "commit_date": "2026-08-24T00:49:54-04:00",
       "committed_alone": true,
       "decl_sha": "61b7a795cd779640177aae0f7494e6913b5368ad9c14022f12e922746fab637c",
       "declaration": {
@@ -218,7 +222,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
       "refusals_at_export": [],
       "touched": [
         "DECL_f13_second_event.md"
@@ -226,6 +230,7 @@
     },
     "f14_fda_nohump": {
       "commit": "996fa8e2fb2ba6d42af3929c6152ce283fb657a8",
+      "commit_date": "2026-08-24T00:49:54-04:00",
       "committed_alone": true,
       "decl_sha": "fb8fdd05e6ab87a717e1cb3123f538e6833391132a75c2ffb80c0c7cf249b6bf",
       "declaration": {
@@ -272,7 +277,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
       "refusals_at_export": [],
       "touched": [
         "DECL_f14_fda_nohump.md"
@@ -280,6 +285,7 @@
     },
     "f15_insider_cluster": {
       "commit": "83a4d6e93c960bb331750244d7db5dd2708f8e72",
+      "commit_date": "2026-08-24T00:49:54-04:00",
       "committed_alone": true,
       "decl_sha": "38dd1ab8451d86bda0166c7c9b40320516d063b0bbcd35be21fac50ef5ecde3d",
       "declaration": {
@@ -327,7 +333,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
       "refusals_at_export": [],
       "touched": [
         "DECL_f15_insider_cluster.md"
@@ -335,6 +341,7 @@
     },
     "f17_vrp_percentile_sells": {
       "commit": "e1682ed68cc5ed6c1c8660183c5a4a0615f0bfcb",
+      "commit_date": "2026-08-24T00:49:53-04:00",
       "committed_alone": true,
       "decl_sha": "e2879f58fc90d2288e17d591a92b77f3a5a0ea40adc3ff80feb8548bdca185ec",
       "declaration": {
@@ -386,7 +393,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
       "refusals_at_export": [],
       "touched": [
         "DECL_f17_vrp_percentile_sells.md"
@@ -394,6 +401,7 @@
     },
     "f18_boring_book": {
       "commit": "ad74e2c2db95206b85ebc05c3f61fee12a129ad5",
+      "commit_date": "2026-08-24T00:49:53-04:00",
       "committed_alone": true,
       "decl_sha": "b30571f66e8f6e89323192b7db2ad00fd46db4f7af797fda745f1a123028d940",
       "declaration": {
@@ -445,7 +453,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
       "refusals_at_export": [],
       "touched": [
         "DECL_f18_boring_book.md"
@@ -453,6 +461,7 @@
     },
     "f19_density_gate": {
       "commit": "89e8213002b0b50c0c7ffe26de2b3328b84096ec",
+      "commit_date": "2026-08-24T00:49:52-04:00",
       "committed_alone": true,
       "decl_sha": "4c478e2db677a049491906d1e4deb2a21141645190024441b5bd4314c48e6f0f",
       "declaration": {
@@ -498,7 +507,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
       "refusals_at_export": [],
       "touched": [
         "DECL_f19_density_gate.md"
@@ -506,6 +515,7 @@
     },
     "f1_fill_ab": {
       "commit": "0778663eb4663f3626586a4788a16862102e2fa8",
+      "commit_date": "2026-08-24T00:49:51-04:00",
       "committed_alone": true,
       "decl_sha": "48705fed6f160124940836bc8a79e6a6b6c81dafd517b12633e45b16ee6106b2",
       "declaration": {
@@ -550,7 +560,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
       "refusals_at_export": [],
       "touched": [
         "DECL_f1_fill_ab.md"
@@ -558,6 +568,7 @@
     },
     "f20_married_put_storm": {
       "commit": "ca6a6b8324dbfb27ab07e876c9753cf43bb875ea",
+      "commit_date": "2026-08-24T00:49:54-04:00",
       "committed_alone": true,
       "decl_sha": "91f7511ac10d9df398fd866706de9cd4f6544e06f9c0803d88ecb7e7ab961fe5",
       "declaration": {
@@ -605,7 +616,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
       "refusals_at_export": [],
       "touched": [
         "DECL_f20_married_put_storm.md"
@@ -613,6 +624,7 @@
     },
     "f2_menu_gate": {
       "commit": "2f8a1a4f5d51b6f53932a8a9ca7eb206403ba3b0",
+      "commit_date": "2026-08-24T00:49:52-04:00",
       "committed_alone": true,
       "decl_sha": "6aaddf09faaf4b6c54530db084b5ad1abbef21405cc80c65fa2ee3f18b8396ca",
       "declaration": {
@@ -657,7 +669,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
       "refusals_at_export": [],
       "touched": [
         "DECL_f2_menu_gate.md"
@@ -665,6 +677,7 @@
     },
     "f3_bear_puts": {
       "commit": "314adb5eb4a3590f5fe4dfe4570f5c4e92750153",
+      "commit_date": "2026-08-24T00:49:52-04:00",
       "committed_alone": true,
       "decl_sha": "c10a70e074ccbc31ad2b412fb08bf00e06cdc45a0987d726be674ac1db6129e8",
       "declaration": {
@@ -711,7 +724,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
       "refusals_at_export": [],
       "touched": [
         "DECL_f3_bear_puts.md"
@@ -719,6 +732,7 @@
     },
     "f4_eventfree_premium": {
       "commit": "daf210d627d0f3492b22675f923dc798c37b06d3",
+      "commit_date": "2026-08-24T00:49:52-04:00",
       "committed_alone": true,
       "decl_sha": "e47e2fcedd5fd1dec9c0556f86487c08f00a4da0e21b7a06a0964a146b4f19fe",
       "declaration": {
@@ -771,7 +785,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
       "refusals_at_export": [],
       "touched": [
         "DECL_f4_eventfree_premium.md"
@@ -779,6 +793,7 @@
     },
     "f5_ivcheap": {
       "commit": "057009c0653b477b2e253ae8e8d5fa53dd76c1da",
+      "commit_date": "2026-08-24T00:49:52-04:00",
       "committed_alone": true,
       "decl_sha": "59ffbe5ec61b8d3d33de3d64f14ec583265f27c421254c1f5549b46aaae4db55",
       "declaration": {
@@ -825,7 +840,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
       "refusals_at_export": [],
       "touched": [
         "DECL_f5_ivcheap.md"
@@ -833,6 +848,7 @@
     },
     "f6_collar_ledger": {
       "commit": "0a7c568947db99a056ad80e45907d8f2ed8f9537",
+      "commit_date": "2026-08-24T00:49:52-04:00",
       "committed_alone": true,
       "decl_sha": "c7e5956ed289c5409aa2735cc9f565b82547f7c470b9bb05236e9daae473f232",
       "declaration": {
@@ -882,7 +898,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
       "refusals_at_export": [],
       "touched": [
         "DECL_f6_collar_ledger.md"
@@ -890,6 +906,7 @@
     },
     "f8_csp_entry_financing": {
       "commit": "86afd18f20c558b2624d22c77f53d0893443b4a4",
+      "commit_date": "2026-08-24T00:49:53-04:00",
       "committed_alone": true,
       "decl_sha": "0ad29231c3e5292673e2cc3b4f026b227af251c88cb6d6f5df0b49bfae6fde72",
       "declaration": {
@@ -941,7 +958,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
       "refusals_at_export": [],
       "touched": [
         "DECL_f8_csp_entry_financing.md"
@@ -949,6 +966,7 @@
     },
     "testbook": {
       "commit": "17b0bc8f9b265e8285f996a1dc2918b2097fe301",
+      "commit_date": "2026-08-24T00:34:27-04:00",
       "committed_alone": true,
       "decl_sha": "df62d4d5290357f0afb8b72e969aba1e1dff754c4462c348b449032f3d122f90",
       "declaration": {
@@ -990,7 +1008,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
       "refusals_at_export": [],
       "touched": [
         "DECL_testbook.md"
@@ -998,8 +1016,8 @@
     }
   },
   "evidence_note": "Computed where git exists and consumed where it does not. On a service built from an image with no .git, fleet.may_fill falls back to this manifest and reports evidence='manifest' rather than 'git'. That is a WEAKER chain and the record says so on every gate result.",
-  "generated_utc": "2026-08-25T03:59:10+00:00",
-  "head": "1c612e59e65bd6b2ef004b03b394cf2c60459437",
+  "generated_utc": "2026-08-27T23:23:09+00:00",
+  "head": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
   "n_books": 18,
   "schema": "fleet_declarations/1",
   "skipped": {

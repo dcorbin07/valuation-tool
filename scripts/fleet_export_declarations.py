@@ -106,6 +106,9 @@ def build(root: str = None) -> dict:
         books[book] = {
             "decl_sha": F.declaration_sha(text),
             "commit": c["commit"],
+            # Computed HERE, where git exists; read THERE, where it does not. The public
+            # surface's ordering claim needs the date, and the image has no `.git`.
+            "commit_date": c.get("commit_date"),
             "touched": c["touched"],
             "committed_alone": True,
             "is_ancestor_of": (head or "").strip(),
