@@ -34,7 +34,7 @@ on:
     # endpoint is idempotent per day, so the backup is a no-op if the primary already landed.
     - cron: "23 22 * * 1-5"         # hot list — 22:23 UTC (~5:23pm ET after close), primary
     - cron: "41 23 * * 1-5"         # hot list — 23:41 UTC backup, if GitHub dropped the primary
-    - cron: "*/30 13-20 * * 1-5"    # intraday — every 30 min on free (fits Actions minutes);
+    - cron: "23 13-20 * * 1-5"    # intraday — every 30 min on free (fits Actions minutes);
                                     # the paid Render cron (render.yaml) runs this every 15 min
     # Paper track. TWO crons because a crontab cannot say "4pm Eastern": 20:47 UTC is 4:47pm ET
     # under EDT but 3:47pm ET under EST — i.e. BEFORE the close for the whole winter, which
@@ -145,7 +145,7 @@ jobs:
         run: python scripts/ci_scan.py
 
   intraday:
-    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '*/30 13-20 * * 1-5') || (github.event_name == 'workflow_dispatch' && (github.event.inputs.kind == 'intraday' || github.event.inputs.kind == 'both')) }}
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '23 13-20 * * 1-5') || (github.event_name == 'workflow_dispatch' && (github.event.inputs.kind == 'intraday' || github.event.inputs.kind == 'both')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

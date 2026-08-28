@@ -116,7 +116,18 @@ jobs:
                     "evidence that a stream ever held more rows than it now does.")
               sys.exit(1)
           PY
-
+      - name: The data this commit changes must not redden the shared gate
+        run: |
+          set -euo pipefail
+          pip install -q -r requirements.txt || pip install -q pandas requests
+          fail=0
+          for f in tests/test_paper_track.py tests/test_fleet_manifest.py; do
+            python "$f" || { echo "::error::$f FAILED against the refreshed data"; fail=1; }
+          done
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::REFUSING to commit refreshed data that reddens the shared gate. The data is not lost -- it is still on the service and this job can be re-run. Fix the test or the register first."
+            exit 1
+          fi
       - name: Commit if anything changed
         run: |
           set -euo pipefail
