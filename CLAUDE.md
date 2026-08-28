@@ -52,7 +52,7 @@ the project's memory and the old versions had been repeated for months.
   SO `V6`'s DIP RESULT DOES NOT COME BACK - DC-1 KILLED AT ITS OWN FREE PRE-OUTCOME GATE
   (2026-08-26, `DC-1`).** **ZERO TRIALS** - no register committed, no arm run, no signal ever
   related to a forward return; `by_domain` bit-identical (equity **243**, options **310**, infra
-  **20**) while `rows_fixed_not_counted` rises **82 -> 83**. The Frontier Scout's
+  **20**) while `rows_fixed_not_counted` rises **82 -> 83**. **RE-READ AFTER MERGING (`MA37`): the live equity `N` is 245, not 243** - two other lanes booked equity trials while this was landing, so 243 is DC-1's own measurement and 245 is the figure to quote today. The zero-trial claim is unaffected and was verified against DC-1's OWN commit rather than the current head, where `by_domain` is bit-identical. The Frontier Scout's
   `PREREG_DRAFT_dc1_dip_confirmation.md` §8 `K1` is a feasibility kill that **tests the register's
   PREMISE rather than its hypothesis**, and the draft's own §12 names the outcome in advance:
   *"if K1 fires it does not run at all, which is the cheapest good outcome available to it."*

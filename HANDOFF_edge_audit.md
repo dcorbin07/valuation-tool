@@ -17430,7 +17430,9 @@ the sector.
 signal was ever related to a forward return.** `by_domain` is **bit-identical** across the log
 append (equity **243**, options **310**, infra **20**) while `rows_fixed_not_counted` rises
 **82 -> 83**, which is the proof the row was seen and correctly excluded rather than silently
-dropped. The `MB15` and `W-14` precedent: a pre-outcome kill firing before registration closes a
+dropped.
+**RE-READ AFTER MERGING (`MA37`'s rule): the live equity `N` is 245, not 243.** Two other lanes booked equity trials while this was landing. **243 is the figure at DC-1's own measurement and 245 is the figure to quote today**, and the zero-trial claim is unaffected and was verified against DC-1's OWN commit rather than against the current head: across `c064be7` `by_domain` is bit-identical at equity 243 while `rows_fixed_not_counted` rises 82 -> 83. A session may not quote its own mid-run counter as the live one.
+ The `MB15` and `W-14` precedent: a pre-outcome kill firing before registration closes a
 question at zero cost. **ADOPTS NOTHING.**
 
 The Frontier Scout's `PREREG_DRAFT_dc1_dip_confirmation.md` §8 K1 is a **free feasibility kill**,
