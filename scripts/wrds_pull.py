@@ -67,6 +67,31 @@ PRODUCTS = {
     # that varies by name. `act_epsus` is the ADJUSTED actual and is the counterpart `det_epsus`
     # needs; `actu_epsus` is kept because it is the counterpart `detu_epsus` would need.
     # A register must still DECLARE which pair it uses.
+    # ---- W-28: Peters-Taylor Total Q, and the two tables its DATED join needs.
+    #
+    # `totalq.total_q` is ANNUAL by construction -- Peters-Taylor perpetual inventory on annual
+    # flows with annual depreciation -- so the quarterly `comp_pit` already on disk is NOT a
+    # substitute, and W-28's own deviation rule forbids substituting for a frozen parameter.
+    #
+    # The other two are pulled BECAUSE the join must be dated. `crsp.ccmxpf_lnkhist` and every
+    # CCM variant are DENIED on this account, and `comp.security.tic` is an UNDATED ticker map --
+    # the hazard `W-3b` measured when it found `oftic` is a lease and 17.7% of its rows are a
+    # different company. `crsp.stocknames` supplies the dated first hop; `comp.security` supplies
+    # the cusip -> gvkey second hop, which needs no dating because a cusip is stable.
+    "totalq_total_q": {
+        "lib": "totalq", "table": "total_q", "year_col": "datadate",
+        "why": "Peters-Taylor Total Q -- ANNUAL. q_tot plus the intangible-capital components.",
+    },
+    "crsp_stocknames": {
+        "lib": "crsp", "table": "stocknames", "year_col": "",
+        "why": "DATED ticker -> cusip/permno history. The first hop, and the only one a ticker "
+               "being a lease can corrupt.",
+    },
+    "comp_security": {
+        "lib": "comp", "table": "security", "year_col": "",
+        "why": "cusip -> gvkey. Undated by design: a cusip is a stable security identifier, so "
+               "only the ticker hop needs dating.",
+    },
     "ibes_act_epsus": {
         "lib": "ibes", "table": "act_epsus", "year_col": "anndats",
         "why": "IBES actuals (ADJUSTED) -- the counterpart det_epsus needs; see the note above.",

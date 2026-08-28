@@ -1,5 +1,31 @@
 # HANDOFF — the data-miner lane. Chain harvest (closed) + the I-4 event spine.
 
+**LATEST: W-28 TOTAL Q — CENSUS AND PULL COMPLETE 2026-08-28. Zero trials, arm NOT run.**
+Record in `W28_TOTALQ_PULL_RECORD.md`. Four things a future reader needs:
+
+1. **`K1`'s blocker dissolves, and not the way r1's executor pass expected.** It blocked on
+   Peters-Taylor needing annual flows while only quarterly `comp_pit` is on disk —
+   **`totalq.total_q` ships `q_tot` PRE-COMPUTED**, so there is no perpetual inventory to run.
+   485,746 rows, 32,894 gvkeys, 1950→2025; **343,587 (70.7%) carry `q_tot`**.
+2. **Dating the join costs 13.1 points and that is the point.** Dated route **71.31%** of panel
+   cells against the naive undated ticker map's **84.40%** — the naive route offers 14,912 more
+   cells and Amendment 2 says those are the hazard (`W-3b` measured 17.7% of such rows as a
+   different company). The lag barely discriminates: 71.31% at 120d, 71.26% at 180d.
+3. **The BURN-IN is the binding constraint, not entitlement — and its bite is era-dependent.**
+   ≥10 prior annual observations leaves **56.58%** of cells. Raw coverage rises monotonically
+   60.1% → 87.3%, but **burn-in coverage peaks near 62% in 2019-20 and DIPS to 52.5% in 2022**,
+   because post-2021 IPOs cannot have a decade of history. A both-halves gate sees a different
+   population in each half.
+4. **`comp_pit` now reads short by 780 and that is vendor growth, not a hole** — every delta
+   positive, 99% in 2025-26, no year down. Reported, **not silently refreshed**: the resume rule
+   skipping an already-`ok` chunk is what makes a pull reproducible.
+
+**The register is still NOT committed** — the scout's draft is unpushed on local
+`worktree-scout-wrds` at `e705ba0`, so this pull ran against r1's accepted spec in
+`HANDOFF_edge_audit.md`.
+
+---
+
 **LATEST: THE $ADV INSTRUMENT — BUILT 2026-08-26, ARMS REGISTERED AND NOT RUN. Zero trials.**
 `valuation/edge/adv.py`; record in `B13_ADV_INSTRUMENT_RECORD.md`, register (blind, committed
 alone) in `PREREG_b13_s7d_liquidity.md`. Four things a future reader needs:
