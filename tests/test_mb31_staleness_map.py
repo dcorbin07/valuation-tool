@@ -121,6 +121,24 @@ class TestTheMapItself(unittest.TestCase):
         self.assertGreater(nx["first_equity_N_at_which_the_adopt_set_changes"], live)
         self.assertGreater(nx["trials_of_headroom_from_live_N"], 0)
 
+    def test_the_next_change_seed_could_actually_adopt(self):
+        """A draw that fails an N-INDEPENDENT condition is not an adopter at any N, so its margin
+        crossing the hurdle changes the adopt set by nothing and cannot move a floor.
+
+        ADDED 2026-08-29 with the fix it pins: `next_change` derived over every draw with an
+        `se`, so it named seed 1036 -- one of exactly those two draws -- at N=504, where the true
+        next change is seed 1017 at N=688. The error was in the SAFE direction (it would have
+        forced an unnecessary re-derivation, never hidden a required one) and it understated the
+        headroom by 184 trials.
+        """
+        if self.m is None:
+            return
+        a, nx = self.m["adopt_set"], self.m["next_change"]
+        if nx["seed"] is None:
+            return
+        self.assertNotIn(nx["seed"], a["seeds_failing_an_N_independent_condition"],
+                         "next_change names a draw that can never adopt, so its flip is inert")
+
     def test_the_next_change_N_is_the_solution_of_the_hurdle_equation(self):
         """Derived, not eyeballed: sqrt(2 ln N) must cross the named draw's margin/se there."""
         if self.m is None:
