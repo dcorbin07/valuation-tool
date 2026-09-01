@@ -5,6 +5,103 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 50 — 2026-08-27 — multi-account alert routing, and a credential the path never holds
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched. **15 tests; 9 of 9 tripwire mutations caught.**
+
+## WHAT SHIPPED
+
+`TRADIER_ACCOUNT_{1..10}_{LABEL,TOKEN,ID}` are read from the env; an account exists **iff
+`LABEL` and `TOKEN` are both non-empty**. Each digest and alert card — hot, dip, and the
+screaming-buy card — is posted once per configured account and labelled, on the single shared
+`DISCORD_WEBHOOK_URL`. With one channel, the label is the only thing that tells them apart,
+which is why it is the deliverable rather than decoration.
+
+## THE HARD GUARD IS STRUCTURAL, NOT A SECOND CODE PATH
+
+`fanout()` returns **`[None]`** when nothing is configured, so every call site writes one loop
+and gets today's single unlabelled send for free; `tag()` and `dedup_key()` are then identity
+functions. **There is no "no accounts" branch for anybody to forget to maintain** — it is the
+same loop running once with an absent label.
+
+Pinned in the strong form rather than the comfortable one: the payload handed to
+`send_discord` is asserted **equal** to what the composer produced, and the dedup key equal to
+the literal `__HOTDIGEST__` it has always been. A routing layer that quietly re-worded every
+card on a deployment where nobody asked for routing would be a live-surface change wearing a
+no-op's clothes.
+
+## THE ORDER GUARD: THE PATH HOLDS NO TOKEN
+
+The standing rule is data/sandbox only, no order endpoint added or called. **It is deliberately
+NOT enforced by banning the word `orders`** — that fires against `valuation/edge/paper_broker.py`,
+which places sandbox orders legitimately for the forward paper track under its own register.
+That is the substring-ban family, and this project has now paid for it six times.
+
+So the guarantee is structural: **`TOKEN` is read as an existence predicate and discarded on the
+same line.** No function returns it, the module imports no HTTP client at all, and it does not
+import the order-placing broker. **You cannot call an endpoint you have no credential for.**
+Three tests pin those three properties, and a mutation that lets the token escape into the
+returned account is caught.
+
+## PORTFOLIO VISIBILITY IS NOT BUILT, AND THE BOUNDARY IS PINNED ANYWAY
+
+Nothing reads a position or a balance. That is exactly when the boundary is cheap: a test
+asserts no module under `screener/`, `edge/` or `engine/` imports the accounts layer, with a
+positive control proving the import shape is actually detected. **A screen that can see what
+you already hold is a screen that can be nudged by it**, and that failure would surface as a
+marginally better backtest rather than as an error — which is why the check exists before the
+feature does.
+
+## THE FINDING I DID NOT EXPECT: A LABEL IS OPERATOR TEXT ENTERING A COPY GATE
+
+The dip digest is gated on `dip_posture.violations` — 49 forbidden phrasings, because V6-B's
+risk claim is registered and its return claim is not. **An account label is operator-supplied
+text that lands in that card.** A label like `Recovery Fund` would put a recovery framing on a
+risk-registered message.
+
+The tag is therefore applied **before** the gate, so such a label is **refused rather than
+published**, and refused per account — the other accounts still get their card. My first
+version of that test asserted `tag` + `violations` directly and would have passed a mutation
+that moved the tagging after the gate; it now drives `post_dip_digest` end to end, and forces
+the eligible branch because the dip register is NULL and the real path returns before the gate
+is reached — which would have made the test pass while measuring nothing.
+
+## WHAT I DELIBERATELY DID NOT DO
+
+**No portfolio fetching**, which is not in the deliverable and is the half with the scoring
+hazard. **No per-account CONTENT**: the picks are market-wide and computed once — routing
+decides who is told, never what was found. **No `.github/` change.**
+
+**AND A CONSEQUENCE TO STATE PLAINLY: N accounts means N copies of a market-wide card.** That
+is what "each digest and alert card is labelled with the account LABEL" on one shared webhook
+asks for, and it is the shape that lets per-account content arrive later without re-doing the
+routing. But three identical top-tens a day is exactly the volume that trains a reader to skim
+— last session's fleet notifier exists because of that failure mode. **If Don would rather have
+one card carrying all the labels, that is a one-line change to `tag`/`fanout` and no call site
+moves.**
+
+## RELAYED
+
+**The `valquo-cloud` export wants re-archiving now that this has merged.**
+
+**REPORTED OUTSIDE THIS LANE, AND IT IS THE ONE THAT MATTERS: `MB31`'s FLOOR TRIGGER HAS
+FIRED.** Equity `N` reached **247** on `origin/main` while this session was running, and 247 is
+the exact figure `MB31` derived as the point at which seed 1003 crosses the CPCV adopt gate.
+Verified rather than assumed by re-running the derivation: **`adopt set identical at N=224 and
+N=247 : False`.** The record's standing sentence — *"below 247 no permutation floor can move; at
+247 a bounded re-derivation is owed"* — is now due. It is bounded, not a sweep: `MA19` re-scored
+three draws in ~400 seconds. Whether any floor actually moves depends on where seed 1003 sits in
+each statistic's ranking, and until that is run **the calibrated floors quoted throughout
+`CLAUDE.md` are labelled at `N` = 224 and are no longer known to be current.** The next change
+after this one is far away — equity `N` = 504, seed 1036. **Edge lane's, not touched here**; this
+lane found it by reading `by_domain` after a merge and had no business re-deriving it.
+
+**ALSO REPORTED:** `origin/main` **tracks `.scan-cache/screener.db-shm` and
+`.scan-cache/screener.db-wal`** — SQLite write-ahead and shared-memory sidecars, which are
+transient by definition and blocked a branch switch in this worktree. They should be gitignored
+and removed from the index. Not this lane's file and not touched.
+
 # Session 49 — 2026-08-27 — the fleet speaks, and a CI census that refutes most of what it was told
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
