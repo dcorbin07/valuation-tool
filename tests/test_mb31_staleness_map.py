@@ -121,6 +121,24 @@ class TestTheMapItself(unittest.TestCase):
         self.assertGreater(nx["first_equity_N_at_which_the_adopt_set_changes"], live)
         self.assertGreater(nx["trials_of_headroom_from_live_N"], 0)
 
+    def test_the_next_change_seed_could_actually_adopt(self):
+        """A draw that fails an N-INDEPENDENT condition is not an adopter at any N, so its margin
+        crossing the hurdle changes the adopt set by nothing and cannot move a floor.
+
+        ADDED 2026-08-29 with the fix it pins: `next_change` derived over every draw with an
+        `se`, so it named seed 1036 -- one of exactly those two draws -- at N=504, where the true
+        next change is seed 1017 at N=688. The error was in the SAFE direction (it would have
+        forced an unnecessary re-derivation, never hidden a required one) and it understated the
+        headroom by 184 trials.
+        """
+        if self.m is None:
+            return
+        a, nx = self.m["adopt_set"], self.m["next_change"]
+        if nx["seed"] is None:
+            return
+        self.assertNotIn(nx["seed"], a["seeds_failing_an_N_independent_condition"],
+                         "next_change names a draw that can never adopt, so its flip is inert")
+
     def test_the_next_change_N_is_the_solution_of_the_hurdle_equation(self):
         """Derived, not eyeballed: sqrt(2 ln N) must cross the named draw's margin/se there."""
         if self.m is None:
@@ -169,15 +187,37 @@ class TestTheMapItself(unittest.TestCase):
         import json
         with io.open(path, encoding="utf-8") as fh:
             f = json.load(fh)
-        self.assertEqual(f["N_after"], live,
-                         "the re-derivation is at a different N from the live one")
+        # THE RE-DERIVATION NEED NOT BE AT TODAY'S N -- IT MUST STILL BE CURRENT.
+        #
+        # CORRECTED 2026-08-29 by `PKG-MB20`, which fired this by booking one trial: the first
+        # form demanded `N_after == live`, so it went red the moment ANY later item moved N even
+        # though no draw had flipped in between. That is a guard keyed on the CLOCK rather than
+        # on the PROPERTY -- `MB18`'s shape, and it would have demanded a fresh ~400s re-score on
+        # every booking for the next 440 trials.
+        #
+        # The property is that the published floors are STILL the floors: the adopt set at the N
+        # the re-derivation was made at must equal the adopt set at the live N. If a further draw
+        # flips, that equality breaks and a new bounded re-derivation is owed -- which is exactly
+        # what this test exists to force.
+        M = _map()
+        _, at_rederived = M._margin_passers(M._read(M.X7RECON)["rows"], int(f["N_after"]))
+        _, at_live = M._margin_passers(M._read(M.X7RECON)["rows"], int(live))
+        self.assertLessEqual(int(f["N_after"]), int(live),
+                             "the re-derivation is at an N LATER than the live one")
+        self.assertEqual(at_rederived, at_live,
+                         "a draw has flipped since the published re-derivation at N=%s; a new "
+                         "bounded re-derivation is owed at the live N=%s (MA19's method)"
+                         % (f["N_after"], live))
         self.assertEqual(sorted(f["newly_off"]), sorted(a["flipped_off"]),
                          "the re-derivation does not name the seeds that flipped")
         self.assertEqual(sorted(f["rescored_here"]), sorted(a["flipped_off"]),
                          "MA19's method: re-score exactly the flipped draws, never a sweep")
         for key, blk in f["floors"].items():
-            self.assertIn("floor_at_%d" % live, blk,
-                          "%s carries no floor at the live N" % key)
+            # Keyed on the N the re-derivation was MADE at, for the same reason as the check
+            # above: the floors are current while no draw has flipped, and demanding a key named
+            # for today's N is the clock again rather than the property.
+            self.assertIn("floor_at_%d" % int(f["N_after"]), blk,
+                          "%s carries no floor at the N it was re-derived at" % key)
 
     def test_the_deflated_sharpe_probability_is_not_fabricated(self):
         """STALE BY CONSTRUCTION must mean 'no value', not 'a plausible value'."""

@@ -245,7 +245,13 @@ class WRDSProvider(HistoricalDataProvider):
     # Only the columns each aggregation actually needs — so the big insiders file doesn't
     # blow up memory when we index it.
     _KEEP = {
-        "insiders": ["ticker", "filingdate", "date", "transactionshares",
+        # PKG-MB20 — `ownername` and `transactiondate` are what a Cohen-Malloy-Pomorski
+        # ROUTINE/OPPORTUNISTIC classification needs, and MA57 measured both already present on
+        # the export (zero missing ownername across 5,636,964 rows), refuting the master audit's
+        # claim that they required a re-export. `transactioncode` is deliberately NOT added: the
+        # rule never reads it, and a column with no consumer is dead weight on a 580 MB load.
+        "insiders": ["ticker", "filingdate", "date", "transactiondate", "ownername",
+                     "transactionshares",
                      "transactionpricepershare", "transactionvalue"],
         # shrholders = how many institutions hold the shares (breadth), distinct from the
         # dollar total. It was missing here, which silently zeroed the breadth signal.

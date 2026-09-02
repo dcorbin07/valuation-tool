@@ -48,6 +48,83 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **REMOVING ROUTINE INSIDERS MOVES THE INSIDER SCORE ON 54.83% OF SCORED CELLS AND MOVES THE
+  COMPOSITE BY 0.04pp OF ANNUALISED ALPHA — A THEME AT 1/7 WEIGHT WITH AN IC OF -0.23 CAN BE
+  RE-RANKED WHOLESALE WITHOUT RE-RANKING THE BLEND (2026-08-29, `PKG-MB20`).**
+  `PREREG_mb20_insider_routine.md` committed **ALONE at `a543f2a`**, markdown only, 294 lines, a
+  strict ancestor of every measurement commit, with **1 equity trial booked at `d09c654` BEFORE
+  any arm runner existed** (equity `N` 247 -> 248). Executes `MA57`'s `DESIGN-RECORDED` design.
+  **REJECTED under BOTH weightings in BOTH halves. ADOPTS NOTHING.**
+  * **THE FINDING IS A DISSOCIATION, NOT A NULL, AND THE MECHANISM IS MEASURED.** The filter
+    removes routine insiders from **37.95%** of scoreable insider rows and moves the score on
+    **54.83%** of scored cells; the composite's per-date rank correlation between the two arms is
+    **0.9774** (min 0.9530) and the **top 25 overlap on 22.65 of 25**. `S3` rejected three
+    attempts to change this theme's FORMULA; this changed its ROW SET by half and the blend did
+    not care. **That binds any future attempt to improve `insider` by changing what it reads.**
+  * **THE GATE, verbatim:** deployed early Δ*t* **-0.0906** / Δalpha **-0.0442pp**, late
+    **+0.0691** / **+0.0932pp** against margins of +0.25 and +100bps; flat rejects too. **The
+    halves DISAGREE IN SIGN on both deployed metrics.** Full-sample deployed: alpha 0.071741 ->
+    0.072128, long-short NW 2.6199 -> 2.6153, naive *t* 2.8361 -> **2.8644**, monotonicity
+    -0.8909 -> **-0.9273** — **three of four move in the variant's favour and not one is
+    separable from zero.**
+  * **THE VERDICT TRAVELS WITH ITS MDE (`MB8`: never borrow an `se`).** Deployed alpha paired mean
+    **+0.000097** at HAC *t* +0.1820, paired HAC se **0.000530**, MDE80 **0.001507** at crit 2.0 —
+    **0.064x its own detection threshold**; long-short 0.059x; flat 0.004x and 0.409x. **A BOUNDED
+    null, not a demonstration of absence.** Every critical value **LABELLED UNCALIBRATED** —
+    `V2G` and `R1-VAR`: no calibrated floor exists for a paired within-panel difference.
+  * **THREE PREMISE CORRECTIONS, ALL BEFORE THE REGISTER WAS COMMITTED. (a) `MA57`'s published
+    48.72% ROUTINE SHARE IS A FOUR-YEAR FIGURE** — its test is `all((y-dd) in ys for dd in
+    (1,2,3))`, year `y` plus the three before it, one stricter than Cohen-Malloy-Pomorski —
+    **reproduced EXACTLY under its own rule at 42,537 of 87,318 = 0.48715** against its published
+    42,537 / 0.4872, with the three-year rule reading **60.47%** on the identical population.
+    **(b) THE BRIEFED COVERAGE KILL HAS A ZERO ANSWER**: the rule never reads `transactioncode`,
+    only `ownername` (missing on **0** of 5,636,964 rows) and `transactiondate`, so **every one of
+    the 3,454,363 rows the score can value is classifiable and the rest are exactly the rows it
+    already skips** — coverage **1.0000**, and the 27.4% is a fact about the export rather than
+    the arm. **(c)** `V6-B`'s **2,182,601** skipped rows and `S3`'s **94,660** scored cells both
+    reproduce from a fresh instrument.
+  * **A DEFECT IN MY OWN INSTRUMENT, CAUGHT BY `K1` FIRING AGAINST A CORRECT PANEL.** It read
+    0.7263 because the filter's counter tallied every row handed to it rather than the arm's own
+    scored rows the register declares — **`O-1`'s population lesson committed inside the register
+    that corrects it**, and `W-1`'s `K4` shape a second time. Repaired by measuring the declared
+    population; **the bar stayed at 0.95 and both denominators ship.** A second, provable
+    reconciliation: the pre-register census read 36.76% against the arm's 37.95% because the
+    census established each insider's pattern from a TRUNCATED history, and **adding rows can
+    only ADD routine labels** — the arm's full-history construction is the correct one.
+  * **`C-IDENT` IS EXACT WHERE `S3`'s `C3` COULD ONLY BOUND ITSELF, for a measured reason:**
+    `factors.py:344` makes `insider` a **fixed affine map** `(insider_score-50)/25`, **not** a
+    z-score, so there is no cross-sectional standardisation to reproduce. Max |Δ| **0.000e+00**
+    over 94,660 rows, non-vacuous by perturbation. `K4` reproduces the published record exactly,
+    proving the `_KEEP` extension and the opt-in `insider_filter` hook are inert.
+  * **THE HOOK GUARD FAILED MUTATION TWICE BEFORE IT HELD.** `W-1`'s form banned a SUBSTRING, so
+    `or True` walked through; this item's first cut asked for AT LEAST ONE correctly-shaped
+    guard, and the hook has TWO sites, so mutating either left the other to satisfy it. The
+    third form asserts the real property - **`insider_filter is not None` must be a required
+    CONJUNCT of every guard naming it** - which permits the legitimate `and isc is not None` and
+    forbids any `or`. **And one of my own mutations was INERT**: `range(0, ...)` adds the trade's
+    OWN year, always present, so it changes nothing and its "miss" was no evidence about the
+    guard. **17 tests, 5 of 5 mutations caught with sources restored byte-for-byte.**
+  * **TWO OF THE PROJECT'S OWN TRIPWIRES FIRED, BOTH CORRECTLY, BOTH REPOINTED IN THE SAME
+    COMMIT.** `MA57`'s allowlist guard went red on the `_KEEP` change - which is precisely what it
+    was written for, its own message naming the condition under which the ban lifts - and is
+    repointed to the invariant it was protecting: **a column may sit in the allowlist only if
+    something consumes it**, with a positive control that the hook exists and **`transactioncode`
+    STILL BANNED** because the rule never reads it. And **`MB31`'s re-derivation guard fired on my
+    own `W-1` wording**: I had asserted `N_after == live`, so booking ONE trial turned it red
+    though **no draw had flipped**, and it would have demanded a fresh ~400s re-score on every
+    booking for the next 440 trials. Repointed to the real property - **the adopt set at the
+    re-derivation's N must equal the adopt set at the live N**. **THE PATTERN, now costing two
+    repoints in two items: a guard asserting "these two numbers are equal today" fires on the
+    CLOCK; assert the property the equality stood in for.**
+  * **NOT DONE:** no rule sweep (a void condition; `MA57`'s four-year variant carries no verdict),
+    no purchases-only arm (routine share there is **2.72%**), the `None`-abstain sensitivity is
+    **not** the result (`W-28`'s fallback is pre-committed), `S3` is not re-opened, `MA57`'s
+    ledger row is not edited, and **this is not a finding that the classification is worthless** —
+    only that it cannot move a blend through a theme this weak. **NO FLOOR MOVES at `N` = 248**:
+    `MB31`'s next adopt-set change is seed **1017 at `N` = 688**. `scripts/mb20_arm.py`,
+    `mb20_census.py`, `mb20_bite.py`, `mb20_costume.py`, `mb20_mde.py`;
+    `valuation/studies/insider_routine.py`; `data/free_analysis/MB20_ARM.json`;
+    `HANDOFF_edge_audit.md` PKG-MB20.
 - **THE LOOK-AHEAD WAS NOT WHAT WAS KILLING SECTOR-NEUTRAL: REPAIRING IT ON A GENUINE
   POINT-IN-TIME MAP MOVES THE ANSWER BY 0.08pp OF ALPHA AGAINST A REJECTION MARGIN OF ~2pp, AND
   THE RE-OPEN `SECTOR-NEUTRAL-B6` NAMED FOR ITSELF IS NOW CLOSED (2026-08-28, `W-1`).**

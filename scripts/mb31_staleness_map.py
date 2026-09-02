@@ -113,8 +113,18 @@ def build():
                                     .get("adopt_as_run"))
     rule_ok = (len(at_as_run) - len(n_independent_failures)) == recorded
 
-    # When can the adopt set next change? The smallest margin/se above today's hurdle.
-    ratios = sorted((r["margin"] / r["se"], r["seed"]) for r in rows if r.get("se"))
+    # When can the adopt set next change? The smallest margin/se above today's hurdle -- BUT
+    # ONLY AMONG DRAWS THAT COULD ADOPT AT ALL.
+    #
+    # FIXED 2026-08-29. This took every draw with an `se`, so it named seed 1036 at N=504 -- and
+    # 1036 is one of the two draws that fail an N-INDEPENDENT condition, so it is not an adopter
+    # at ANY N and its margin crossing the hurdle changes the adopt set by nothing. The true next
+    # change is seed 1017 at N=688. The error ran in the SAFE direction (an unnecessary bounded
+    # re-derivation at 504, never a missed one) and it understated the headroom by 184 trials.
+    # It is `MB31`'s own subject one level down: a derived map is only as good as the population
+    # it derives over, and this one derived over a superset of the draws that can matter.
+    ratios = sorted((r["margin"] / r["se"], r["seed"]) for r in rows
+                    if r.get("se") and r["seed"] not in n_independent_failures)
     above = [(t, s) for t, s in ratios if t > h_live]
     if above:
         t_next, seed_next = above[0]

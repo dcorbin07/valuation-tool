@@ -218,17 +218,45 @@ def test_ma58_no_seasonality_signal_has_been_registered_without_a_register():
         "committed alone, with the lag structure fixed in writing first.")
 
 
-def test_ma57_the_keep_allowlist_still_lacks_the_cmp_columns():
-    """TRIPWIRE, and it encodes the memo's deliberate NON-change. `ownername` and
-    `transactioncode` are on disk; adding them to `_KEEP` is a one-line change that belongs in
-    MA57's own register, in the same commit as the classifier. If they appear here first, two
-    columns are being loaded on a 580MB file with no consumer."""
+def test_ma57_no_keep_column_is_loaded_without_a_consumer():
+    """REPOINTED 2026-08-29 by `PKG-MB20`, in the same commit as the change that fired it.
+
+    AS WRITTEN THIS BANNED `ownername` AND `transactioncode` OUTRIGHT, and it fired CORRECTLY:
+    `MA57` recorded the design and deliberately did not take the one-line change, because two
+    columns on a 580MB load with no consumer are dead weight. Its own message named the
+    condition under which the ban lifts -- *"if this is deliberate, land it with a register and
+    update this test in the same commit"* -- and `PKG-MB20` is that landing.
+
+    THE INVARIANT IT BECOMES IS THE ONE `MA57` WAS ACTUALLY PROTECTING, and it is stricter in the
+    place that matters: a column may sit in the allowlist ONLY if something consumes it.
+    `ownername` and `transactiondate` now have a consumer (the Cohen-Malloy-Pomorski classifier
+    reached through `build_fundamental_panel`'s `insider_filter` hook), and a committed register
+    justifies them. **`transactioncode` STILL DOES NOT AND IS STILL BANNED** -- the rule never
+    reads it, which `PKG-MB20` §2b measured -- so the dead-weight guard keeps biting on exactly
+    the column `MA57` was right about.
+    """
+    import os
     from valuation.edge.data_providers import WRDSProvider
     keep = WRDSProvider._KEEP["insiders"]
-    for c in ("ownername", "transactioncode"):
-        assert c not in keep, (
-            f"'{c}' was added to _KEEP['insiders'] without MA57's register. If this is "
-            "deliberate, land it with PREREG_ma57_*.md and update this test in the same commit.")
+
+    assert "transactioncode" not in keep, (
+        "'transactioncode' was added to _KEEP['insiders'] and NOTHING READS IT. The "
+        "routine/opportunistic rule needs ownername and transactiondate only (PKG-MB20 §2b), "
+        "so this is two hundred megabytes of dead weight on every panel build.")
+
+    reg = os.path.join(ROOT, "PREREG_mb20_insider_routine.md")
+    for c in ("ownername", "transactiondate"):
+        if c in keep:
+            assert os.path.exists(reg), (
+                f"'{c}' is in _KEEP['insiders'] but the register that justifies it "
+                f"({os.path.basename(reg)}) is not on disk")
+
+    # A POSITIVE CONTROL, so the test cannot pass by finding nothing: the consumer must exist.
+    from valuation.edge.fundamental_panel import build_fundamental_panel
+    import inspect
+    assert "insider_filter" in inspect.signature(build_fundamental_panel).parameters, (
+        "the hook that consumes ownername/transactiondate is gone, so those columns are back "
+        "to being dead weight and the original ban should be restored")
 
 
 def test_ma57_the_dead_date_entry_in_the_allowlist_is_a_known_fact():
