@@ -187,15 +187,37 @@ class TestTheMapItself(unittest.TestCase):
         import json
         with io.open(path, encoding="utf-8") as fh:
             f = json.load(fh)
-        self.assertEqual(f["N_after"], live,
-                         "the re-derivation is at a different N from the live one")
+        # THE RE-DERIVATION NEED NOT BE AT TODAY'S N -- IT MUST STILL BE CURRENT.
+        #
+        # CORRECTED 2026-08-29 by `PKG-MB20`, which fired this by booking one trial: the first
+        # form demanded `N_after == live`, so it went red the moment ANY later item moved N even
+        # though no draw had flipped in between. That is a guard keyed on the CLOCK rather than
+        # on the PROPERTY -- `MB18`'s shape, and it would have demanded a fresh ~400s re-score on
+        # every booking for the next 440 trials.
+        #
+        # The property is that the published floors are STILL the floors: the adopt set at the N
+        # the re-derivation was made at must equal the adopt set at the live N. If a further draw
+        # flips, that equality breaks and a new bounded re-derivation is owed -- which is exactly
+        # what this test exists to force.
+        M = _map()
+        _, at_rederived = M._margin_passers(M._read(M.X7RECON)["rows"], int(f["N_after"]))
+        _, at_live = M._margin_passers(M._read(M.X7RECON)["rows"], int(live))
+        self.assertLessEqual(int(f["N_after"]), int(live),
+                             "the re-derivation is at an N LATER than the live one")
+        self.assertEqual(at_rederived, at_live,
+                         "a draw has flipped since the published re-derivation at N=%s; a new "
+                         "bounded re-derivation is owed at the live N=%s (MA19's method)"
+                         % (f["N_after"], live))
         self.assertEqual(sorted(f["newly_off"]), sorted(a["flipped_off"]),
                          "the re-derivation does not name the seeds that flipped")
         self.assertEqual(sorted(f["rescored_here"]), sorted(a["flipped_off"]),
                          "MA19's method: re-score exactly the flipped draws, never a sweep")
         for key, blk in f["floors"].items():
-            self.assertIn("floor_at_%d" % live, blk,
-                          "%s carries no floor at the live N" % key)
+            # Keyed on the N the re-derivation was MADE at, for the same reason as the check
+            # above: the floors are current while no draw has flipped, and demanding a key named
+            # for today's N is the clock again rather than the property.
+            self.assertIn("floor_at_%d" % int(f["N_after"]), blk,
+                          "%s carries no floor at the N it was re-derived at" % key)
 
     def test_the_deflated_sharpe_probability_is_not_fabricated(self):
         """STALE BY CONSTRUCTION must mean 'no value', not 'a plausible value'."""

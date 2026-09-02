@@ -1002,7 +1002,8 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                             with_insider_raw=False, with_issuance_raw=False,
                             with_vol_raw=False, with_freshness=False,
                             bucket_relative_arms=None, sector_value_arm=False,
-                            metrics_sink=None, sector_at=None) -> pd.DataFrame:
+                            metrics_sink=None, sector_at=None,
+                            insider_filter=None) -> pd.DataFrame:
     """Point-in-time panel of the theme columns per (date, ticker).
 
     keep_numbers=True additionally persists each individual standardized number (z_*), so
@@ -1129,6 +1130,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     _prog(f"loading per-ticker history for {len(tickers)} tickers "
           f"(price + fundamentals + insider + 13F)")
     px, hist, insh, inst, grd, hold = {}, {}, {}, {}, {}, {}
+    insh_opp = {}                       # PKG-MB20, populated only when insider_filter is given
     dly, sf3 = {}, {}          # BULK: DAILY month-end ratios, SF3 per-manager 13F
     meta = {}                  # TICKERS: sector / country / exchange (NOT point-in-time)
     earn = {}                  # EVENTS: earnings announcement dates (code 22)
@@ -1145,7 +1147,23 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             px[t] = s
             hist[t] = sorted(provider.fundamentals_history(t) or [],
                              key=lambda r: (r.get("datekey") or r.get("date") or ""))
-            insh[t] = _prep_insider(provider.insider_history(t) or [])       # pre-indexed once
+            _irows = provider.insider_history(t) or []
+            insh[t] = _prep_insider(_irows)                                  # pre-indexed once
+            # PKG-MB20 — `insider_filter` IS OPT-IN AND INERT BY DEFAULT. It takes the ticker's
+            # raw Form-4 rows and returns the subset to score, so a study can remove ROUTINE
+            # insiders without this module learning anything about how they are classified.
+            #
+            # IT IS DUCK-TYPED IN BECAUSE IT HAS TO BE. `valuation/studies/` holds the
+            # classifier, and `tests/test_studies_boundary.py` forbids ANY module outside that
+            # package from importing it -- the one-way rule MA23 exists to protect. A callable
+            # crosses no boundary: this function imports nothing new and cannot be coupled to
+            # the classifier's shape. Same construction as S25-REPAIR's map and W-1's
+            # `sector_at`.
+            #
+            # ONE PASS, TWO PREPS, so the two scores are functions of the SAME rows from the
+            # SAME provider call and can differ in the row set alone.
+            if insider_filter is not None:
+                insh_opp[t] = _prep_insider(insider_filter(_irows))
             _ih = provider.institutional_history(t) or []
             inst[t] = _prep_inst(_ih)                                        # pre-indexed once
             hold[t] = _prep_holders(_ih)                                     # holder-count breadth
@@ -1334,6 +1352,16 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             isc = _insider_score_at(insh.get(t), as_of)
             if isc is not None:
                 m["insider_score"] = isc                          # → insider theme (now backtestable)
+            if insider_filter is not None and isc is not None:
+                # W-28's CLOSING LESSON, PRE-COMMITTED IN THE REGISTER. Where the filtered set
+                # cannot be scored -- every row in the window was routine -- this FALLS BACK to
+                # the incumbent score rather than going absent. Replacing an input wherever the
+                # new one is missing silently becomes that input's REMOVAL arm, and on this
+                # composite removal was already measured as harmful (S1). With the fallback the
+                # paired difference is EXACTLY zero on those rows and the population is
+                # unchanged, so a verdict is attributable to the hypothesis.
+                _iopp = _insider_score_at(insh_opp.get(t), as_of)
+                m["insider_score_opp"] = isc if _iopp is None else _iopp
             if with_insider_raw:
                 # S3 — the unreduced (net, buys) the score is built from, so the register's
                 # variants are functions of the SAME window rather than a re-mined one. Opt-in,
@@ -1499,7 +1527,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             # so the incumbent arm can be reproduced from the panel rather than trusted.
             if with_insider_raw:
                 _src3 = _by_ticker.get(t) or {}
-                for _k in ("ins_net", "ins_buys", "insider_score"):
+                for _k in ("ins_net", "ins_buys", "insider_score", "insider_score_opp"):
                     _v3 = _src3.get(_k)
                     row[_k] = None if (_v3 is None or pd.isna(_v3)) else float(_v3)
             # S16 — the RAW net share change `capital_discipline` reduces to a single z-score.
