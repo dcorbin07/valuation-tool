@@ -5,6 +5,119 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 51 — 2026-08-27 — the backtested card names its benchmarks
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched. **17 tests; 9 of 9 tripwire mutations caught.**
+
+## WHAT WAS WRONG, AND IT WAS WORSE THAN UNLABELLED
+
+The card printed one figure, **"Alpha / yr"**, with no benchmark named. On this project that
+word has meant two different things: `net_alpha` in `settings.BOOK_CONFIGS` is an excess over
+the **equal-weighted universe** — uninvestable, and charged **zero** trading cost while the
+strategy pays, a limitation the results file states about itself — and elsewhere it means
+excess over **SPY**. On this book those differ by **3.25pp/yr**. A visitor read one number,
+could not tell which comparison it was, and the obvious guess was the wrong one.
+
+## FOUR LINES, ONE SERIES, EVERY BENCHMARK NAMED
+
+| line | figure |
+|---|---|
+| Gross return / yr | **+32.13%** |
+| Net return / yr, after measured costs | **+28.87%** |
+| vs SPY / yr | **+16.80pp** gross · **+13.55pp** net |
+| vs SPMO / yr *(partial window, since SPMO inception)* | **+18.66pp** gross · **+15.62pp** net |
+
+Net charges the **measured** market-cap cost model (drag **0.0325**, realised 41.89 bps
+one-way) — **not** the `cost_drag_ann` of **0.0440** in settings, whose own comment records it
+as a pre-B6 figure that was never re-measured. Pinned by a test that fails if the card's drag
+ever equals the settings figure.
+
+## A CORRECTION TO THE BRIEF: "THE PORTFOLIO BLOCK (THE ROTH BOOK)" NAMES TWO DIFFERENT BOOKS
+
+Measured, not argued. `costs.top_25` has `annual_turnover` **3.1690792919718658**, equal to
+`book_configs.roth`'s to the last digit — **it is the roth book**. The `portfolio` block is
+`target_n` 25 with **`exit_rank` 50** and a realised median of **42 names**, while roth carries
+**no band at all** (`exit_frac` and `exit_mult` are both `None`). They are different books and
+their returns differ (34.16% against 32.13%).
+
+**The card is built on the roth book, and that was forced rather than preferred.** `portfolio`
+ships `charges_costs: false` and there is **no measured net for it anywhere**; `_backtest_hold`
+charges only a **flat** bps while the measured model is a market-cap table, so netting it would
+have meant importing a cost rate measured on a **different construction** — the borrowed-number
+defect `MB8` recorded. The roth book needs no invention: its gross and net are already measured
+by one model on one series, which is exactly the "ONE consistent basis" the task asked for.
+
+**B17's warning is carried, correctly scoped.** It describes the `portfolio` block, so it
+ships verbatim inside the card's own basis note explaining why that block is *not* the basis —
+rather than being pasted onto a book it does not describe, where it would be false in both
+halves (this book is 25 names and it *is* costed).
+
+## THE SPMO LINE IS RE-SCORED, NOT SLICED — AND ITS COMPANION FIGURE IS NOT OPTIONAL
+
+SPMO listed **2015-10-09**, so the book is re-scored on the panel restricted to that window
+(42 of 69 rebalance dates) rather than having its 17-year figure set against a 10-year ETF.
+
+**And the window-matched SPY excess ships beside it, because without it the card invites one
+specific misreading.** The book earned more in the recent window (gross **37.21%**) than over
+the full history (**32.13%**), so a reader comparing "vs SPY +16.80 (full)" with "vs SPMO
++18.66 (partial)" would conclude SPMO is the **easier** benchmark. On the same window it is the
+**harder** one: **vs SPY +22.56pp against vs SPMO +18.66pp**. A test asserts that ordering, so
+if it ever inverts the card fails rather than quietly publishing the note's opposite.
+
+## THE GATE THAT LICENSES ALL OF IT
+
+`scripts/backtest_card.py` **refuses to write anything** unless the book it re-scores reproduces
+the published `costs.top_25` block bit-for-bit. It does: `gross_ann`, `net_ann`,
+`cost_drag_ann`, `annual_turnover`, `realised_one_way_bps`, `n_periods` and `equal_weight_ann`
+all reproduce EXACTLY from the banked panel and the recorded weights. Nothing was built on a
+book that could not be identified.
+
+## A DEFECT THE PRICE PATH WAS HIDING, FOUND BY DISBELIEVING A DATE
+
+`prices._yf_history` capped `period` at **"10y"** for any `days`. Asking for 4,200 days
+therefore returned a **full-looking frame that silently started 2016-09-02** — eleven months
+after the book's window opened — so the first SPMO comparison ran a book from 2015-10 against
+an ETF from 2016-09 and looked entirely healthy. Caught only because the printed window did not
+match the requested one.
+
+A `"max"` tier now sits above 3,650 days. **It is additive and proved inert**: the largest
+`days` any shipped caller passes is **2700**, the two mappings differ only from 3,651 upward,
+and a test pins the threshold so it cannot be lowered into live callers. The builder also
+**refuses** any ETF series that starts more than 10 days after the book's window opens, so a
+future cap cannot reintroduce the same silent mismatch.
+
+## AND THE SAME DEFECT ON THE FORWARD CARD, FOUND BY MY OWN GUARD
+
+The renderer pin fired against a **second** bare `metric("Alpha / yr")` tile I had not touched —
+the FORWARD track's annualised alpha, which is `gv - gs`, i.e. an excess over **SPY**
+specifically. Narrowing the guard to the backtested card would have been silencing it, so the
+tile is named instead, from the server's own benchmark field so it cannot disagree with the
+level tile beside it.
+
+## A DEFECT OF MY OWN THAT NO PYTHON TEST COULD SEE
+
+While wiring the forward-card label I wrote `${/* comment */}` inside a template literal. An
+interpolation needs an EXPRESSION and a bare comment is not one, so **`app.js` stopped parsing
+— which takes down the whole page, not just this card.** Every test in the new suite still
+passed, including the renderer pin, because they all read the file as **TEXT**: a grep is
+perfectly happy with a file that will never execute.
+
+Caught by running `node --check` rather than by any assertion. The suite now hands `app.js` to
+a real parser and **skips LOUDLY** when node is absent, because a silent skip is the vacuous
+pass this repository keeps paying for. **It has already proved it can fire — it fired on this.**
+
+## FAIL CLOSED, AND WHAT IS DELIBERATELY NOT DONE
+
+A missing, unparseable, wrong-schema, incomplete or impossible card (net above gross) makes the
+whole section vanish — **a performance card that renders half its lines is worse than one that
+renders none, because the half that renders is the half that flatters.** A missing SPMO drops
+only its own line.
+
+**NOT DONE:** no `.github/` change; the `portfolio` block is not re-scored and no net is
+invented for it; `settings.BOOK_CONFIGS` is left exactly as it is, including the stale
+`cost_drag_ann` — it is another lane's file and the card no longer reads it.
+
 # Session 50 — 2026-08-27 — multi-account alert routing, and a credential the path never holds
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`

@@ -2276,13 +2276,42 @@ function _renderIndexTrack(d) {
       ${rows}
     </div>`;
 
-  const btRows = `<div class="metricline" style="margin-top:8px">
-      ${metric("Alpha / yr", btAlpha == null ? "—" : spct(btAlpha))}
+  /* FOUR LINES, EVERY ONE NAMING ITS BENCHMARK. This used to be a single "Alpha / yr" with
+     no benchmark named — and on this project "alpha" has meant both "versus the equal-weighted
+     universe" (uninvestable, charged no cost) and "versus SPY", which differ by several points
+     a year on the same book. The server owns every label and every number; nothing here
+     computes an excess, so the card cannot drift from what was measured.
+
+     It renders the OLD single figure only when the derived card is unavailable, and in that
+     case it says what the figure is measured against rather than calling it "Alpha". */
+  const bc = bt.card || null;
+  const lvl = (l) => metric(esc(l.label), spct(l.value));
+  const exc = (l) => metric(
+    esc(l.label) + (l.window === "partial"
+      ? ` <span class="muted" style="font-weight:400">· ${esc(l.window_label)}</span>` : ""),
+    `${spct(l.gross)} <span class="muted" style="font-weight:400">gross</span> · ` +
+    `${spct(l.net)} <span class="muted" style="font-weight:400">net</span>`);
+
+  const btRows = (bc && bc.available)
+    ? `<div class="metricline" style="margin-top:8px">
+      ${bc.lines.filter(l => l.kind === "level").map(lvl).join("")}
+      ${metric("Sharpe", btSharpe == null ? "—" : num(btSharpe, 2))}
+      ${metric("Turnover / yr", bt.annual_turnover == null ? "—" : num(bt.annual_turnover, 2) + "x")}
+    </div>
+    <div class="metricline" style="margin-top:6px">
+      ${bc.lines.filter(l => l.kind === "excess").map(exc).join("")}
+    </div>
+    ${bc.spmo_available ? `<div class="muted" style="font-size:11px;margin-top:6px">${esc(bc.partial_note)}</div>` : ""}
+    <div class="muted" style="font-size:11px;margin-top:6px">${esc(bc.caption)}</div>
+    <div class="muted" style="font-size:11px;margin-top:4px">${esc(bc.basis_note)}</div>`
+    : `<div class="metricline" style="margin-top:8px">
+      ${metric("Excess / yr vs the equal-weighted universe", btAlpha == null ? "—" : spct(btAlpha))}
       ${metric("Sharpe", btSharpe == null ? "—" : num(btSharpe, 2))}
       ${metric("Turnover / yr", bt.annual_turnover == null ? "—" : num(bt.annual_turnover, 2) + "x")}
     </div>
     <div class="muted" style="font-size:11px;margin-top:6px">${esc(bt.basis || "")}. Hypothetical —
-      the model was tuned on this same history.</div>`;
+      the model was tuned on this same history. That excess is measured against an
+      equal-weighted universe that pays no trading cost, not against an index you can buy.</div>`;
 
   // LA8 — supplied by the server (index_track.track_age) rather than derived here, so the card,
   // the hero band, the landing page and the server's own note cannot disagree about how old
@@ -2343,7 +2372,14 @@ function _renderIndexTrack(d) {
         ${rbTile}
       </div>
       <div class="metricline" style="margin-top:6px">
-        ${metric("Alpha / yr", live.ann_alpha == null ? "—" : spct(live.ann_alpha))}
+        ${/* NAMED, like every other excess on this page. `ann_alpha` is the annualised
+             Valquo level minus the annualised BENCHMARK level -- it has always been an
+             excess over SPY specifically, and printing it as bare "Alpha" left the one
+             figure on the forward card whose counterparty a reader had to guess. The
+             benchmark name comes from the server, so this tile and the level tile above
+             it cannot disagree about which index is bound. */
+          metric("vs " + esc(d.benchmark || "SPY") + " / yr",
+                 live.ann_alpha == null ? "—" : spct(live.ann_alpha))}
         ${metric("Sharpe", live.sharpe == null ? "—" : num(live.sharpe, 2))}
         ${/* LA8 — "Days" was live.days, the number of rows the recorder wrote, sitting beside
               two performance figures under a word that means age. A track 7 days old with 2

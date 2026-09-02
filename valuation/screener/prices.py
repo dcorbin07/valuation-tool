@@ -201,8 +201,14 @@ def _yf_history(ticker: str, days: int):
     import pandas as pd
     import yfinance as yf
 
-    period = ("10y" if days > 1825 else "5y" if days > 730 else "2y" if days > 365
-              else "1y" if days > 180 else "6mo" if days > 60 else "3mo")
+    # "max" ABOVE TEN YEARS, and it is additive: the largest `days` any shipped caller passes
+    # is 2700, which still maps to "10y", so every existing consumer is bit-identical. It
+    # exists because a benchmark measured since an ETF's own inception needs more than ten
+    # years -- SPMO listed 2015-10, and a 10y cap silently starts the comparison a year late
+    # while still returning a full-looking frame, which is the worst kind of wrong.
+    period = ("max" if days > 3650 else "10y" if days > 1825 else "5y" if days > 730
+              else "2y" if days > 365 else "1y" if days > 180 else "6mo" if days > 60
+              else "3mo")
     try:
         # auto_adjust is passed EXPLICITLY. yfinance defaults it to True today; inheriting a
         # vendor library's default is how a convention silently changes between releases.

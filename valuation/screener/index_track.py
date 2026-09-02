@@ -525,6 +525,14 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
         "basis": ("full 2,531-name / 69-date point-in-time panel, ~18 years, net of "
                   "modelled transaction costs"),
     }
+    # THE FOUR LABELLED LINES replace the card's unlabelled "Alpha / yr". They are NOT read
+    # from `measured` above: that block's `net_alpha` is an excess over the EQUAL-WEIGHTED
+    # universe -- uninvestable, and charged zero cost while the strategy pays -- and its
+    # `cost_drag_ann` is a pre-B6 figure its own comment records as never re-measured. The
+    # derived card carries gross, net, and excesses that each name their benchmark, and it
+    # fails closed: `available` false renders nothing rather than a partial performance card.
+    from . import backtest_card as _bc
+    backtested["card"] = _bc.card()
 
     gate = gate_state(contract)
     d = load(meta_path, history_path)

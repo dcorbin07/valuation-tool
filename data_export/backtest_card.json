@@ -1,0 +1,34 @@
+{
+  "basis": "costs.top_25 in BACKTEST_RESULTS.json - the roth book (25 names, no band)",
+  "full": {
+    "cost_drag_ann": 0.032543244672981864,
+    "first_date": "2009-01-15",
+    "gross_ann": 0.32128506517447053,
+    "last_date": "2026-01-28",
+    "n_periods": 69,
+    "net_ann": 0.28874182050148867,
+    "realised_one_way_bps": 41.89480864978,
+    "spy_ann": 0.15324824347901309,
+    "vs_spy_gross": 0.16803682169545744,
+    "vs_spy_net": 0.13549357702247558
+  },
+  "generated_at_utc": "2026-09-01T23:29:57Z",
+  "partial": {
+    "first_date": "2015-10-19",
+    "gross_ann": 0.3720559618523691,
+    "last_date": "2026-01-28",
+    "n_periods": 42,
+    "net_ann": 0.34165468980392943,
+    "since": "2015-10-09",
+    "spmo_ann": 0.18543116893465705,
+    "spmo_note": "2015-10-19..2026-05-01, 10.53 yrs, 2649 closes, yfinance",
+    "spy_ann": 0.14642018612629548,
+    "spy_note": "2015-10-19..2026-05-01, 10.53 yrs, 2649 closes, yfinance",
+    "vs_spmo_gross": 0.18662479291771206,
+    "vs_spmo_net": 0.15622352086927238,
+    "vs_spy_gross": 0.22563577572607363,
+    "vs_spy_net": 0.19523450367763395
+  },
+  "schema": "backtest_card/1",
+  "sha256": "b0e01243a045670871d77ad5a80da22ac342bd175b2f34cc25d94091ae44c426"
+}
