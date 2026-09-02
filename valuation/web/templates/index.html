@@ -614,6 +614,21 @@
     <div class="card">
       <h3 style="margin:0 0 6px">Holdings</h3>
       <div class="note" id="valquoIndexNote" style="margin-bottom:8px"></div>
+      <!-- ALLOCATION. Entirely client-side: the number is split across the weights already on
+           this page and remembered in this browser only. It is not sent anywhere, not stored
+           on our side, and places no order -- the input's own helper text says so, because a
+           dollar field on a page listing tickers is exactly where a user might assume
+           otherwise. Empty renders the table exactly as it did before this existed. -->
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <label for="allocTotal" style="font-size:13px;font-weight:600">Account total ($)</label>
+        <input id="allocTotal" type="text" inputmode="decimal" placeholder="e.g. 25,000"
+               style="width:150px;padding:6px 8px;border:1px solid var(--line);border-radius:6px"
+               oninput="onAllocationInput(this.value)">
+        <button type="button" class="btn-sm" onclick="clearAllocation()">Clear</button>
+        <span class="muted" style="font-size:11px">Splits the weights below into dollars in
+          your browser. Nothing is sent or saved anywhere else, and Valquo never places
+          trades.</span>
+      </div>
       <div id="valquoIndexBody" style="overflow-x:auto"></div>
     </div>
     <div class="note" id="indexDisclaimer" style="margin-bottom:22px"></div>
