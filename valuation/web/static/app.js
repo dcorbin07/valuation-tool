@@ -2167,7 +2167,93 @@ async function loadValquoIndex() {
   _renderValquoIndex(d, cfg);
 }
 
+/* ============================ ALLOCATION (client-side only) ============================
+   Turns the book's WEIGHTS into dollars against a total the user types. It is arithmetic on
+   numbers already on the page: no fetch, no server write, no order of any kind, and nothing
+   here is persisted anywhere but this browser's localStorage.
+
+   THE WEIGHTS ARE RENORMALISED FIRST, AND THE RESIDUAL IS REPORTED RATHER THAN ABSORBED.
+   The published weights are rounded to five places and the book can be capped and
+   redistributed, so they need not sum to exactly 1. Scaling them silently would make the
+   column sum to the input while quietly misstating each row; saying "the raw weights sum to
+   99.97%, so they were scaled by 1.0003" costs one line and makes the adjustment checkable.
+
+   ALLOCATIONS ARE COMPUTED UNROUNDED AND ROUNDED ONLY FOR DISPLAY, so the footer equals the
+   input exactly rather than equalling the sum of the rounded cells -- which is the ordinary
+   way a table like this ends up a few cents short of the number the user typed.
+
+   SHARES USE THE PRICE THE PAYLOAD ALREADY CARRIES (`positions[].price`) and are shown two
+   ways: the exact fractional count and the whole-share floor. Both, because they answer
+   different questions -- one is the allocation, the other is what a broker without
+   fractional shares will actually let you buy -- and printing only the exact one invites
+   rounding it up. A row with no usable price gets neither rather than a fabricated one. */
+function allocationRows(positions, total) {
+  const t = Number(total);
+  const list = (positions || []).filter(p => p && isFinite(Number(p.weight)));
+  const raw = list.reduce((a, p) => a + Number(p.weight), 0);
+  if (!isFinite(t) || t <= 0 || !list.length || raw <= 0) {
+    return { active: false, rows: [], sum: 0, total: t, rawWeightSum: raw, scale: 1,
+             residualPp: 0, anyPrice: false };
+  }
+  const scale = 1 / raw;
+  const rows = list.map(p => {
+    const w = Number(p.weight) * scale;
+    const alloc = w * t;
+    const price = Number(p.price);
+    const usable = isFinite(price) && price > 0;
+    return { ticker: p.ticker, weight: w, alloc: alloc,
+             shares: usable ? alloc / price : null,
+             wholeShares: usable ? Math.floor(alloc / price) : null,
+             price: usable ? price : null };
+  });
+  return { active: true, rows: rows,
+           sum: rows.reduce((a, r) => a + r.alloc, 0),
+           total: t, rawWeightSum: raw, scale: scale,
+           // Signed, in percentage points: positive means the raw weights summed to MORE
+           // than 100% before scaling.
+           residualPp: (raw - 1) * 100,
+           anyPrice: rows.some(r => r.price != null) };
+}
+
+const ALLOC_KEY = "valquo:allocationTotal";
+
+function allocationSaved() {
+  try {
+    const v = Number(localStorage.getItem(ALLOC_KEY));
+    return isFinite(v) && v > 0 ? v : null;
+  } catch (e) { return null; }
+}
+
+function allocationSave(v) {
+  try {
+    if (v == null || !isFinite(v) || v <= 0) localStorage.removeItem(ALLOC_KEY);
+    else localStorage.setItem(ALLOC_KEY, String(v));
+  } catch (e) { /* a browser with storage disabled simply does not remember it */ }
+}
+
+/* Re-render on input. Deliberately re-runs the whole holdings render rather than patching
+   cells, so there is ONE renderer and the with-allocation and without-allocation views
+   cannot drift apart. */
+function onAllocationInput(raw) {
+  const v = Number(String(raw == null ? "" : raw).replace(/[$,\s]/g, ""));
+  allocationSave(isFinite(v) && v > 0 ? v : null);
+  if (window._lastIndexPayload) _renderValquoIndex(window._lastIndexPayload,
+                                                   window._lastIndexCfg);
+}
+
+function clearAllocation() {
+  allocationSave(null);
+  const el = document.getElementById("allocTotal");
+  if (el) el.value = "";
+  if (window._lastIndexPayload) _renderValquoIndex(window._lastIndexPayload,
+                                                   window._lastIndexCfg);
+}
+
 function _renderValquoIndex(d, cfg) {
+  // Kept so the allocation input can re-render without re-fetching. It is the payload the
+  // user is already looking at, not a second copy of anything.
+  window._lastIndexPayload = d;
+  window._lastIndexCfg = cfg;
   setHtml("indexFreshness", freshnessBanner(d.freshness));
   setHtml("indexDisclaimer", d.disclaimer ? esc(d.disclaimer) : "");
   const note = document.getElementById("valquoIndexNote");
@@ -2179,26 +2265,85 @@ function _renderValquoIndex(d, cfg) {
   }
   const c = d.config || {};
   const m = c.measured || {};
+  /* NAMED, for the same reason the performance card's tiles are. `net_alpha` here is an
+     excess over the EQUAL-WEIGHTED UNIVERSE -- which pays no trading cost while the book does
+     -- and not over an index anyone can buy. Printed as bare "net alpha" two inches from a
+     card that now says "vs SPY", it was the last place on this surface where the reader had
+     to guess the counterparty. */
   const meas = (m.net_sharpe != null)
-    ? `backtested net Sharpe <b>${m.net_sharpe.toFixed(2)}</b>, net alpha <b>${(m.net_alpha * 100).toFixed(1)}%</b>`
+    ? `backtested net Sharpe <b>${m.net_sharpe.toFixed(2)}</b>, net excess over the `
+      + `equal-weighted universe <b>${(m.net_alpha * 100).toFixed(1)}%</b>`
     : (m.after_tax_sharpe != null
-        ? `backtested after-tax Sharpe <b>${m.after_tax_sharpe.toFixed(2)}</b>, after-tax alpha <b>${(m.after_tax_alpha * 100).toFixed(1)}%</b>`
+        ? `backtested after-tax Sharpe <b>${m.after_tax_sharpe.toFixed(2)}</b>, after-tax `
+          + `excess over the equal-weighted universe <b>${(m.after_tax_alpha * 100).toFixed(1)}%</b>`
         : "");
   note.innerHTML = `<b>${c.label || cfg}</b> — ${d.n_positions} of ${d.n_eligible} eligible `
     + `(${d.n_scored} scored). Rebalance every ~${c.rebalance_months} months`
     + (c.exit_frac ? `, hold until a name falls past the top ${(c.exit_frac * 100).toFixed(0)}%` : ", full rotation")
     + `. ${meas}<br><span class="muted">${d.source_note || ""}</span>`;
-  const rows = (d.positions || []).slice(0, 30);
+  // ALLOCATION. With no total entered this is inert and every line below renders exactly what
+  // it rendered before the feature existed -- the extra columns, the footer and the notes are
+  // all behind `alloc.active`.
+  const savedTotal = allocationSaved();
+  // Put the remembered total back in the box. Without this the columns would render on load
+  // from a value the field does not show, and a Clear button would appear to do nothing.
+  const allocEl = document.getElementById("allocTotal");
+  if (allocEl && !allocEl.value && savedTotal != null) allocEl.value = String(savedTotal);
+  const alloc = allocationRows(d.positions || [], savedTotal);
+  const byTicker = {};
+  alloc.rows.forEach(r => { byTicker[r.ticker] = r; });
+
+  // WHEN MONEY IS ON THE PAGE, EVERY ROW IS ON THE PAGE. The default view shows the first 30
+  // of a book that can run to 86, which is right for browsing and wrong for allocating: a
+  // footer claiming to equal the typed total while two thirds of the money sits in rows the
+  // user cannot see would be the most misleading thing on this surface.
+  const rows = alloc.active ? (d.positions || []) : (d.positions || []).slice(0, 30);
+  const showShares = alloc.active && alloc.anyPrice;
+
   body.innerHTML = _indexSectorBox(d)
     + '<table class="tbl"><thead><tr><th>#</th><th>Ticker</th><th>Company</th><th>Sector</th>'
-    + '<th class="num">Weight</th><th class="num">Hot score</th><th class="num">Market cap</th>'
+    + '<th class="num">Weight</th>'
+    + (alloc.active ? '<th class="num">Allocation</th>' : "")
+    + (showShares ? '<th class="num">Shares (exact)</th><th class="num">Shares (whole)</th>' : "")
+    + '<th class="num">Hot score</th><th class="num">Market cap</th>'
     + '</tr></thead><tbody>'
-    + rows.map((p, i) => `<tr><td>${i + 1}</td><td><b>${p.ticker}</b></td>`
-        + `<td>${esc((p.name || "").slice(0, 28))}</td><td>${esc((p.sector || "—").slice(0, 18))}</td>`
-        + `<td class="num">${pct(p.weight, 2)}</td>`
-        + `<td class="num">${p.hot_score == null ? "—" : p.hot_score.toFixed(1)}</td>`
-        + `<td class="num">${mcap(p.market_cap)}</td></tr>`).join("")
-    + "</tbody></table>"
+    + rows.map((p, i) => {
+        const a = byTicker[p.ticker];
+        return `<tr><td>${i + 1}</td><td><b>${p.ticker}</b></td>`
+          + `<td>${esc((p.name || "").slice(0, 28))}</td><td>${esc((p.sector || "—").slice(0, 18))}</td>`
+          + `<td class="num">${pct(p.weight, 2)}</td>`
+          + (alloc.active ? `<td class="num">${a ? money(a.alloc) : "—"}</td>` : "")
+          + (showShares
+              ? `<td class="num">${a && a.shares != null ? a.shares.toFixed(3) : "—"}</td>`
+                + `<td class="num">${a && a.wholeShares != null ? num(a.wholeShares) : "—"}</td>`
+              : "")
+          + `<td class="num">${p.hot_score == null ? "—" : p.hot_score.toFixed(1)}</td>`
+          + `<td class="num">${mcap(p.market_cap)}</td></tr>`;
+      }).join("")
+    + "</tbody>"
+    + (alloc.active
+        ? `<tfoot><tr><td colspan="4"><b>Total</b></td>`
+          + `<td class="num"><b>${pct(1, 2)}</b></td>`
+          + `<td class="num"><b>${money(alloc.sum)}</b></td>`
+          + (showShares ? '<td class="num">—</td><td class="num">—</td>' : "")
+          + `<td class="num">—</td><td class="num">—</td></tr></tfoot>`
+        : "")
+    + "</table>"
+    + (alloc.active
+        ? `<div class="note">Allocation is <b>${money(alloc.total)}</b> split by the weights
+             above. It is arithmetic in your browser — nothing is sent anywhere, nothing is
+             saved on our side, and Valquo never places trades.
+             ${Math.abs(alloc.residualPp) >= 0.005
+               ? `The published weights sum to <b>${(alloc.rawWeightSum * 100).toFixed(2)}%</b>
+                  rather than 100%, so they were scaled by
+                  <b>${alloc.scale.toFixed(4)}\u00d7</b> before splitting the total.` : ""}
+             ${showShares
+               ? `Share counts use the last price already in this payload — <b>not</b> a live
+                  quote — so they will drift from the market. The whole-share column is what a
+                  broker without fractional shares would let you buy.`
+               : `No usable price is in this payload, so share counts are not shown rather
+                  than estimated.`}</div>`
+        : "")
     + ((d.positions || []).length > rows.length
         ? `<div class="note">… and ${d.positions.length - rows.length} more</div>` : "");
 }

@@ -5,6 +5,79 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 52 — 2026-08-27 — allocation on Holdings, and the third bare alpha
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched. **13 tests; 9 of 9 tripwire mutations caught.** Item 1 of this package — the
+backtested card — **shipped last session as `e936dcd`** and was re-verified against the brief
+clause by clause before starting this one; it is not rebuilt.
+
+## WHAT SHIPPED
+
+One field above the Holdings table, **"Account total ($)"**. On entry every row shows its
+dollar allocation, a footer total that equals the input, and — because the payload **already
+carries `positions[].price`** — share counts two ways: exact to three decimals and the
+whole-share floor, side by side. No new price fetch, no server write, no order of any kind.
+The total is remembered in `localStorage` only, with a Clear button; an empty field renders the
+table exactly as it did before the feature existed.
+
+## THE FOOTER EQUALS THE INPUT, AND TWO CHOICES MAKE THAT TRUE RATHER THAN NEARLY TRUE
+
+**Allocations are computed unrounded and rounded only for display.** Summing rounded cells is
+the ordinary way a table like this ends up a few cents short of the number the user typed.
+
+**And when money is on the page, every row is on the page.** The default view shows the first
+30 of a book that runs to 86. A footer claiming to equal the typed total while two thirds of
+the money sat in rows the user cannot see would be the most misleading thing on this surface,
+so entering a total opens the table to the full book. With no total the 30-row slice is
+untouched, which is what keeps the default bit-identical.
+
+**The weights are renormalised first and the residual is REPORTED rather than absorbed.**
+Published weights are rounded to five places and the book is capped and redistributed, so they
+need not sum to 1. Scaling them silently would make the column sum to the input while quietly
+misstating every row; the card says "the raw weights sum to 99.97%, so they were scaled by
+1.0003x" instead.
+
+## THE TESTS RUN THE SHIPPED JAVASCRIPT
+
+`allocationRows` is extracted from `app.js` by **balancing braces** — not a character window,
+which is how a guard in this repo broke once when a comment pushed code past a fixed offset —
+and executed in **node** with real inputs. A Python restatement of the arithmetic would have
+been a second copy that agreed with itself while the browser did something else.
+
+**A GAP MUTATION FOUND AND READING WOULD NOT HAVE.** My missing-price test asserted
+`shares is None`, and `JSON.stringify(Infinity)` is **`null`** — so a row dividing an
+allocation by a **zero price** would have serialised identically to "no share count" and the
+test would have passed against a fabricated `Infinity`. It now compares `String(shares)`, so
+the two are distinguishable. That was the one mutation of nine that survived the first pass.
+
+## THE THIRD BARE ALPHA, FOUND BECAUSE I WAS ALREADY IN THE FILE
+
+The Holdings note rendered *"backtested net Sharpe 1.10, **net alpha 11.6%**"* — an excess over
+the **equal-weighted universe**, which pays no trading cost while the book does, printed with
+no benchmark named two inches from a card that now says "vs SPY". **Last session's pin did not
+catch it**: that guard greps for `metric("Alpha` and this is a template string. It now reads
+"net excess over the equal-weighted universe".
+
+Three instances of one defect on one surface — the backtested tile, the forward tile, and this
+note — and each was found a different way. **The lesson is about the guard's shape: banning one
+call form catches one call form.**
+
+## AND `node --check` EARNED ITS KEEP AGAIN, IMMEDIATELY
+
+The syntax check added last session fired on the **first** run of this one: I had defined a
+`money()` helper that `app.js` already ships at line 6, which is both a `SyntaxError` under
+`const` and the `B7` split in miniature — two formatters, one name. Removed; the shipped one is
+reused.
+
+## WHAT IS DELIBERATELY NOT DONE
+
+**No server write and no order path**, pinned by a test that reads the allocation functions and
+fails on `fetch`, `XMLHttpRequest`, `sendBeacon`, `/api/`, `order` or `submit`. **No new price
+fetch** — share counts use the price already in the payload and say so, and a row without a
+usable price gets **no** share count rather than an invented one. **No scoring change.** **No
+`.github/` change.**
+
 # Session 51 — 2026-08-27 — the backtested card names its benchmarks
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
