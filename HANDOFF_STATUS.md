@@ -8071,3 +8071,15 @@ Service response, verbatim (truncated at 4000 bytes):
 
     {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-02 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
     
+
+## PT-WRITER 2026-09-03: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-02 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
