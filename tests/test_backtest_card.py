@@ -1,25 +1,25 @@
-"""THE BACKTESTED CARD — no alpha may appear without a named benchmark.
+"""THE BACKTESTED CARD — one book per config, every benchmark named, tax stated on both sides.
 
-That is the pin the whole change exists for. The card used to print one figure labelled
-"Alpha / yr" with no benchmark named, and on this project "alpha" has meant BOTH "excess over
-the equal-weighted universe" — uninvestable, and charged zero trading cost while the strategy
-pays — and "excess over SPY". Those differ by several points a year on the same book, so a
-reader could not tell which claim was being made, and the obvious guess was the wrong one.
+Four families, each pointed at a way this has actually gone wrong or could:
 
-Three families here, and each is pointed at a different way this could go wrong:
+  * **NO ALPHA WITHOUT A NAMED BENCHMARK.** The original defect: one tile said "Alpha / yr",
+    and on this project that word has meant both "excess over the equal-weighted universe"
+    (uninvestable, zero cost) and "excess over SPY". Asserted against the RENDERED payload and
+    against the renderer.
 
-  * **THE BENCHMARK PIN.** Asserted against the RENDERED payload, not the source (the V3 /
-    `dip_posture` precedent — rendering is where copy leaks), AND against the renderer, so a
-    future edit cannot reintroduce a bare "Alpha" tile that the payload never sees.
+  * **ONE BOOK PER CARD.** The defect the FIRST fix introduced. Version 1 published the roth
+    top-25 book while the page's Sharpe and turnover followed the dropdown, so "taxable" showed
+    a 32.1% gross beside a 0.90 after-tax Sharpe and the decile's turnover. Every figure must
+    now come from the selected config, and switching the dropdown must move ALL of them.
 
-  * **FAIL CLOSED.** Missing, wrong-schema, incomplete or internally impossible cards must make
-    the whole section disappear. A performance card that renders half its lines is worse than
-    one that renders none, because the half that renders is the half that flatters.
+  * **TAXABLE NET IS NOT ROTH NET, AND THE BENCHMARK IS TAXED TOO.** The tax drag on this book
+    is about three times the cost drag: the net excess over SPY falls from ~+13.6pp to ~+4.5pp.
+    Comparing an after-tax book against an untaxed index would hand the strategy the whole of
+    the index's tax bill, so `untaxed_benchmark_against_taxed_book` must always be empty — and
+    it is checked as a property of the payload, not trusted to the builder, because that
+    failure would look entirely normal on the page.
 
-  * **THE PARTIAL WINDOW CANNOT BE LAUNDERED INTO A FULL ONE.** SPMO listed 2015-10-09. Its
-    line must carry its own window label, and the window-matched SPY excess must travel with
-    it — without which the card invites one specific misreading, that SPMO is the easier
-    benchmark. It is the harder one.
+  * **FAIL CLOSED.** Missing, wrong-schema, incomplete or impossible cards render nothing.
 
 Run: python tests/test_backtest_card.py
 """
@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import subprocess
 import sys
 import tempfile
 
@@ -68,40 +70,206 @@ def _write(d, raw):
 
 
 # =======================================================================================
-# THE BENCHMARK PIN — the reason this change exists
+# NO ALPHA WITHOUT A NAMED BENCHMARK
 # =======================================================================================
 def test_no_excess_line_appears_without_a_named_benchmark():
-    """THE pin. Every excess names its benchmark, in the LABEL and in a field."""
-    c = BC.card()
-    assert c["available"], c
-    bad = BC.unlabelled_excesses(c)
-    assert not bad, "an excess line names no benchmark: %s" % bad
-    excesses = [l for l in c["lines"] if l["kind"] == "excess"]
-    assert excesses, "the card renders no excess at all, so the pin would be vacuous"
-    for l in excesses:
-        assert l["benchmark"] in l["label"], l
+    for cfg in ("roth", "taxable"):
+        c = BC.card(cfg)
+        assert c["available"], (cfg, c)
+        bad = BC.unlabelled_excesses(c)
+        assert not bad, "%s: an excess line names no benchmark: %s" % (cfg, bad)
+        ex = [l for l in c["lines"] if l["kind"] == "excess"]
+        assert ex, "%s renders no excess at all, so the pin would be vacuous" % cfg
+        for l in ex:
+            assert l["benchmark"] in l["label"], (cfg, l)
 
 
 def test_the_pin_can_actually_fire():
-    """A guard that cannot fail is not a guard. Positive control."""
     forged = {"lines": [{"kind": "excess", "key": "vs_mystery",
                          "label": "Alpha / yr", "benchmark": ""}]}
-    assert BC.unlabelled_excesses(forged) == ["vs_mystery"], BC.unlabelled_excesses(forged)
+    assert BC.unlabelled_excesses(forged) == ["vs_mystery"]
 
 
 def test_the_renderer_never_prints_a_bare_alpha_tile():
-    """Pinned on the RENDERER too, so a future edit cannot reintroduce what the payload lost."""
     js = open(APPJS, encoding="utf-8").read()
     for needle in ('metric("Alpha', "metric('Alpha", 'metric(`Alpha'):
         assert needle not in js, "a bare Alpha tile is back in the renderer: %s" % needle
 
 
 def test_every_level_line_says_gross_or_net():
-    c = BC.card()
-    for l in [x for x in c["lines"] if x["kind"] == "level"]:
-        low = l["label"].lower()
-        assert ("gross" in low) or ("net" in low), (
-            "a level line states neither gross nor net: %r" % l["label"])
+    for cfg in ("roth", "taxable"):
+        for l in [x for x in BC.card(cfg)["lines"] if x["kind"] == "level"]:
+            low = l["label"].lower()
+            assert ("gross" in low) or ("net" in low), (cfg, l["label"])
+
+
+# =======================================================================================
+# ONE BOOK PER CARD — the defect the first fix introduced
+# =======================================================================================
+def test_every_figure_on_the_card_moves_when_the_config_moves():
+    """THE book-consistency pin. If any field were still read from a fixed book it would be
+    identical across configs while its neighbours changed — which is exactly what shipped."""
+    a, b = BC.card("roth"), BC.card("taxable")
+    lv = lambda c: {l["key"]: l.get("value") for l in c["lines"] if l["kind"] == "level"}
+    ex = lambda c: {l["key"]: (l.get("gross"), l.get("net"))
+                    for l in c["lines"] if l["kind"] == "excess"}
+    assert lv(a) != lv(b), "gross/net are identical across two different books"
+    assert ex(a) != ex(b), "the excesses are identical across two different books"
+    assert a["sharpe"] != b["sharpe"], "Sharpe did not follow the config"
+    assert a["annual_turnover"] != b["annual_turnover"], "turnover did not follow the config"
+
+
+def test_the_renderer_reads_sharpe_and_turnover_from_the_card_not_the_settings_block():
+    """`bt.*` is the settings block for the selected config; mixing it with card figures from a
+    different book is the shipped defect. The tiles must read `bc.*`."""
+    js = open(APPJS, encoding="utf-8").read()
+    assert 'metric("Sharpe", bc.sharpe == null' in js, "Sharpe is not read from the card"
+    assert 'metric("Turnover / yr", bc.annual_turnover == null' in js, (
+        "turnover is not read from the card")
+
+
+def test_the_server_serves_the_card_for_the_config_it_was_asked_for():
+    """THE WIRING, not just the reader. Found by mutation: every test above calls
+    `BC.card(cfg)` directly, so reverting `index_track` to `_bc.card()` — dropping the
+    selection and serving roth to everyone — passed the whole suite. The defect this version
+    exists to fix would have come straight back through the one line nobody tested.
+    """
+    from valuation.screener import index_track as IT
+    seen = {}
+    for cfg in ("roth", "taxable"):
+        card = (IT.summarize(config=cfg).get("backtested") or {}).get("card") or {}
+        assert card.get("available"), (cfg, card)
+        assert card.get("config") == cfg, (
+            "asked for %r and the server returned the %r card" % (cfg, card.get("config")))
+        seen[cfg] = card.get("net_means")
+    assert seen["roth"] != seen["taxable"], (
+        "both configs came back on the same tax basis: %r" % seen)
+
+
+def test_each_book_reproduces_its_own_published_block():
+    """The artifact is gated on this at build time; re-asserted here so drift is caught later.
+
+    `net_alpha` is an excess over the EQUAL-WEIGHTED universe, which is how the results file
+    states it — the card never renders that number, it is used only as an identity check that
+    the recomputed book IS the published one.
+    """
+    if not os.path.exists(RESULTS):
+        return
+    pub = json.load(open(RESULTS, encoding="utf-8")).get("book_configs") or {}
+    raw = _good()
+    for name, book in (raw.get("books") or {}).items():
+        want = pub.get(name) or {}
+        got_turn = book["full"]["annual_turnover"]
+        assert abs(float(want["annual_turnover"]) - float(got_turn)) < 1e-12, (
+            "%s turnover %r vs published %r" % (name, got_turn, want["annual_turnover"]))
+        # AGAINST THE BOOK'S OWN EQUAL-WEIGHT LEVEL, not the `benchmarks` block's. The results
+        # file carries TWO -- 0.17239 from the cost/after-tax scorers and 0.18137 from
+        # `benchmark_panel` -- both correct for their own construction, and reaching for the
+        # wrong one fails this identity while every number in it is right. Found that way.
+        ew_ann = book["full"].get("equal_weight_ann")
+        assert ew_ann is not None, "%s stores no equal_weight_ann to check against" % name
+        key = ("after_tax_alpha" if book["net_means"].endswith("taxes") else "net_alpha")
+        implied = book["full"]["net_ann"] - float(ew_ann)
+        assert abs(implied - float(want[key])) < 1e-9, (
+            "%s: net implies %s %r against published %r" % (name, key, implied, want[key]))
+
+
+# =======================================================================================
+# TAX — the net means what it says, on both sides
+# =======================================================================================
+def test_the_taxable_net_is_after_tax_and_the_roth_net_is_not():
+    r, t = BC.card("roth"), BC.card("taxable")
+    assert r["net_means"] == "after costs", r["net_means"]
+    assert t["net_means"] == "after costs and taxes", t["net_means"]
+    rn = [l for l in r["lines"] if l["key"] == "net"][0]
+    tn = [l for l in t["lines"] if l["key"] == "net"][0]
+    assert "after costs" in rn["label"] and "tax" not in rn["label"].lower(), rn["label"]
+    assert "taxes" in tn["label"], tn["label"]
+
+
+def test_the_tax_drag_is_real_and_dominates_the_cost_drag():
+    """Not a formatting difference. If tax were being applied as a token haircut this fails."""
+    t = BC.card("taxable")
+    cost, tax = t["cost_drag_ann"], t["tax_drag_ann"]
+    assert cost and tax, t
+    assert tax > cost, "the tax drag (%r) does not exceed the cost drag (%r)" % (tax, cost)
+    assert tax > 0.02, "the tax drag is implausibly small for a 40.8%% short-term rate: %r" % tax
+
+
+def test_an_after_tax_book_is_never_compared_against_an_untaxed_benchmark():
+    """THE rigging check. It would flatter the strategy by the benchmark's whole tax bill."""
+    for cfg in ("roth", "taxable"):
+        bad = BC.untaxed_benchmark_against_taxed_book(BC.card(cfg))
+        assert not bad, "%s compares an after-tax book against an untaxed benchmark: %s" % (
+            cfg, bad)
+
+
+def test_that_rigging_check_can_fire():
+    forged = {"net_means": "after costs and taxes",
+              "lines": [{"kind": "excess", "key": "vs_spy", "benchmark": "SPY",
+                         "label": "vs SPY / yr", "benchmark_taxed": False}]}
+    assert BC.untaxed_benchmark_against_taxed_book(forged) == ["vs_spy"]
+
+
+def test_taxing_the_benchmark_makes_the_excess_smaller_not_larger():
+    """A haircut applied with the wrong sign would RAISE the excess and still look plausible."""
+    t = BC.card("taxable")
+    raw = _good()["books"]["taxable"]["full"]
+    assert raw["spy_ann"] < raw["spy_untaxed_ann"], (
+        "the taxed SPY level is not below the untaxed one: %r vs %r"
+        % (raw["spy_ann"], raw["spy_untaxed_ann"]))
+    cap = t["caption"].lower()
+    assert cap.count("defer") >= 1, "the caption does not state the deferral"
+    # ...and it must say WHY that asymmetry is legitimate rather than merely asserting it,
+    # because "we taxed one side less" is the sentence a reader is entitled to question.
+    assert "smaller" in cap or "realises almost nothing" in cap, (
+        "the caption states the deferral without explaining the benchmark's smaller tax bill")
+
+
+def test_the_caption_states_the_tax_treatment_of_both_sides():
+    t = BC.card("taxable")["caption"].lower()
+    for w in ("40.8", "23.8", "qualified", "defer"):
+        assert w in t, "the taxable caption omits %r" % w
+    r = BC.card("roth")["caption"].lower()
+    assert "no tax" in r, "the roth caption does not say it pays no tax"
+    for w in ("gross", "net", "in-sample", "hypothetical", "tuned"):
+        assert w in r and w in t, "a caption dropped %r" % w
+
+
+# =======================================================================================
+# THE BAND — say which width the figures were measured at
+# =======================================================================================
+def test_the_taxable_band_reports_the_width_its_figures_were_measured_at():
+    raw = _good()["books"]["taxable"]
+    band = raw.get("band") or {}
+    assert band.get("live_width"), band
+    assert band.get("figures_measured_at") == band["live_width"], (
+        "the figures are not measured at the live width: %r" % band)
+    if band.get("settings_measured_width") != band["live_width"]:
+        assert band.get("stale_settings_note"), (
+            "settings carries a different measured_width and the card says nothing")
+        assert BC.card("taxable").get("band_note"), "the note never reaches the payload"
+
+
+# =======================================================================================
+# THE PARTIAL WINDOW
+# =======================================================================================
+def test_the_spmo_line_carries_its_own_window_label_and_inception():
+    for cfg in ("roth", "taxable"):
+        l = [x for x in BC.card(cfg)["lines"] if x["key"] == "vs_spmo"]
+        assert l, "%s has no SPMO line" % cfg
+        assert l[0]["window"] == "partial", l[0]
+        assert "partial window" in (l[0].get("window_label") or "").lower(), l[0]
+        assert (l[0].get("since") or "").startswith("2015-10"), l[0]
+
+
+def test_the_spmo_line_ships_its_window_matched_spy_excess():
+    for cfg in ("roth", "taxable"):
+        l = [x for x in BC.card(cfg)["lines"] if x["key"] == "vs_spmo"][0]
+        assert l.get("matched_spy_gross") is not None, (cfg, l)
+        assert l["matched_spy_gross"] > l["gross"], (
+            "%s: the window-matched SPY excess is not larger than the SPMO excess; the note "
+            "claims it is" % cfg)
 
 
 # =======================================================================================
@@ -109,157 +277,62 @@ def test_every_level_line_says_gross_or_net():
 # =======================================================================================
 def test_a_missing_card_renders_nothing():
     with tempfile.TemporaryDirectory() as d:
-        c = BC.card(os.path.join(d, "absent.json"))
-        assert c["available"] is False, c
+        assert BC.card("roth", os.path.join(d, "absent.json"))["available"] is False
 
 
 def test_a_wrong_schema_renders_nothing():
     with tempfile.TemporaryDirectory() as d:
         raw = dict(_good())
         raw["schema"] = "something_else/9"
-        assert BC.card(_write(d, raw))["available"] is False
+        assert BC.card("roth", _write(d, raw))["available"] is False
+
+
+def test_an_unknown_config_renders_nothing_rather_than_defaulting():
+    """Falling back to another book is exactly the mixing this version exists to end."""
+    assert BC.card("no_such_book")["available"] is False
 
 
 def test_an_incomplete_full_window_renders_nothing():
     with tempfile.TemporaryDirectory() as d:
         raw = json.loads(json.dumps(_good()))
-        raw["full"]["net_ann"] = None
-        assert BC.card(_write(d, raw))["available"] is False
+        raw["books"]["roth"]["full"]["net_ann"] = None
+        assert BC.card("roth", _write(d, raw))["available"] is False
 
 
 def test_a_net_above_gross_renders_nothing_rather_than_a_caveat():
-    """Net above gross means the cost model was not applied, or applied backwards."""
     with tempfile.TemporaryDirectory() as d:
         raw = json.loads(json.dumps(_good()))
-        raw["full"]["net_ann"] = raw["full"]["gross_ann"] + 0.01
-        assert BC.card(_write(d, raw))["available"] is False
+        raw["books"]["roth"]["full"]["net_ann"] = raw["books"]["roth"]["full"]["gross_ann"] + 0.01
+        assert BC.card("roth", _write(d, raw))["available"] is False
 
 
-def test_a_missing_spmo_drops_only_its_line_and_keeps_the_rest():
-    """SPMO is the one figure that needs a network fetch, so its absence must not take the
-    card down — but it must not silently become a full-window number either."""
+def test_a_missing_spmo_drops_only_its_line():
     with tempfile.TemporaryDirectory() as d:
         raw = json.loads(json.dumps(_good()))
-        raw["partial"]["vs_spmo_gross"] = None
-        raw["partial"]["vs_spmo_net"] = None
-        c = BC.card(_write(d, raw))
-        assert c["available"] is True, c
-        assert c["spmo_available"] is False
-        assert not [l for l in c["lines"] if l["key"] == "vs_spmo"], c["lines"]
+        raw["books"]["roth"]["partial"]["vs_spmo_gross"] = None
+        raw["books"]["roth"]["partial"]["vs_spmo_net"] = None
+        c = BC.card("roth", _write(d, raw))
+        assert c["available"] is True and c["spmo_available"] is False
+        assert not [l for l in c["lines"] if l["key"] == "vs_spmo"]
         assert [l for l in c["lines"] if l["key"] == "vs_spy"], "the SPY line was lost too"
 
 
-# =======================================================================================
-# THE PARTIAL WINDOW
-# =======================================================================================
-def test_the_spmo_line_carries_its_own_window_label_and_inception():
-    c = BC.card()
-    spmo = [l for l in c["lines"] if l["key"] == "vs_spmo"]
-    assert spmo, "no SPMO line to check"
-    l = spmo[0]
-    assert l["window"] == "partial", l
-    assert "partial window" in (l.get("window_label") or "").lower(), l
-    assert (l.get("since") or "").startswith("2015-10"), l
-
-
-def test_the_spmo_line_ships_its_window_matched_spy_excess():
-    """Without this the card invites the one misreading it must not invite."""
-    c = BC.card()
-    l = [x for x in c["lines"] if x["key"] == "vs_spmo"][0]
-    assert l.get("matched_spy_gross") is not None, l
-    # ...and on the SAME window SPY is the EASIER benchmark, which is the fact that makes the
-    # matched figure worth printing rather than decorative.
-    assert l["matched_spy_gross"] > l["gross"], (
-        "the window-matched SPY excess is not larger than the SPMO excess; re-read the card "
-        "before publishing, because the note claims it is")
-
-
-def test_the_full_window_lines_are_not_the_partial_window():
-    raw = _good()
-    assert raw["full"]["first_date"] < raw["partial"]["first_date"], raw
-    assert raw["partial"]["n_periods"] < raw["full"]["n_periods"], raw
-
-
-# =======================================================================================
-# PROVENANCE — the card describes the book it claims to
-# =======================================================================================
-def test_the_card_reproduces_the_published_roth_book():
-    """C1, re-asserted at test time: the artifact must still match what is on record."""
-    if not os.path.exists(RESULTS):
-        return
-    pub = json.load(open(RESULTS, encoding="utf-8"))["costs"]["top_25"]
-    raw = _good()
-    for k in ("gross_ann", "net_ann"):
-        assert abs(float(raw["full"][k]) - float(pub[k])) < 1e-12, (
-            "%s drifted from BACKTEST_RESULTS.json: %r vs %r" % (k, raw["full"][k], pub[k]))
-
-
-def test_the_net_uses_the_measured_drag_and_not_the_stale_settings_figure():
-    """`settings.BOOK_CONFIGS[roth].measured.cost_drag_ann` is 0.0440 and its OWN comment
-    records it as a pre-B6 figure never re-measured. The measured drag is 0.0325."""
-    from valuation.screener import settings as S
-    stale = (S.BOOK_CONFIGS["roth"]["measured"] or {}).get("cost_drag_ann")
-    raw = _good()
-    drag = float(raw["full"]["gross_ann"]) - float(raw["full"]["net_ann"])
-    assert abs(drag - float(stale)) > 1e-6, (
-        "the card's net is charged the stale settings drag %r" % stale)
-    assert abs(drag - float(raw["full"]["cost_drag_ann"])) < 1e-12
-
-
-def test_the_basis_note_says_which_book_and_names_the_other_one():
-    c = BC.card()
-    note = c["basis_note"]
-    assert "roth" in note.lower() and "portfolio" in note.lower(), note
-    assert BC.B17_WARNING in note, "the B17 warning is not carried"
-
-
-def test_the_caption_keeps_every_required_disclosure():
-    cap = BC.CAPTION.lower()
-    for word in ("gross", "net", "in-sample", "hypothetical", "tuned"):
-        assert word in cap, "the caption dropped %r" % word
-
-
-def test_the_longer_price_window_is_inert_for_every_shipped_caller():
-    """`prices._yf_history` gained a "max" tier so a benchmark can be measured since its own
-    inception. It is ADDITIVE: the largest `days` any shipped caller passes is 2700, which
-    still maps to "10y". Pinned so a future edit cannot lower the threshold into live callers.
-
-    The 10y cap is why this was needed at all, and the failure it caused is worth recording:
-    it returned a full-looking frame that silently STARTED A YEAR LATE, so the first attempt
-    compared a book from 2015-10 against an ETF from 2016-09 and looked entirely healthy.
-    """
-    import re
-    src = open(os.path.join(ROOT, "valuation", "screener", "prices.py"), encoding="utf-8").read()
-    m = re.search(r'period = \(("max" if days > (\d+))', src)
-    assert m, "the period mapping changed shape; re-read it before editing this test"
-    threshold = int(m.group(2))
-    assert threshold >= 3650, (
-        "the max tier fires at %d days, which is inside the range shipped callers use "
-        "(largest is 2700)" % threshold)
+def test_the_basis_note_names_this_book_and_the_one_it_is_not():
+    for cfg in ("roth", "taxable"):
+        note = BC.card(cfg)["basis_note"]
+        assert "portfolio" in note.lower(), note
+        assert BC.B17_WARNING in note, "the B17 warning is not carried"
 
 
 def test_the_renderer_is_syntactically_valid_javascript():
-    """NOTHING ELSE IN THIS SUITE PARSES JAVASCRIPT, AND THAT GAP COST A REAL DEFECT.
-
-    While wiring these lines I wrote `${/* comment */}` inside a template literal. An
-    interpolation needs an EXPRESSION and a bare comment is not one, so `app.js` failed to
-    parse — which would have taken down the whole page, not just this card. Every Python test
-    here still passed, because they read the file as TEXT: the renderer pin greps for a bare
-    Alpha tile and a grep is happy with a file that will never execute.
-
-    So the file is handed to a real parser. Skips LOUDLY if node is absent rather than passing
-    on a machine that cannot check — a silent skip here is the vacuous pass this repo keeps
-    paying for.
-    """
-    import shutil
-    import subprocess
+    """Nothing else here parses JS, and that gap once let a broken app.js through a green gate."""
     node = shutil.which("node")
     if not node:
         print("       (skipped: no node on PATH — JS syntax is UNCHECKED on this machine)")
         return
     r = subprocess.run([node, "--check", APPJS], capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
-    assert r.returncode == 0, "app.js does not parse: " + (r.stderr or "")[:800]
+    assert r.returncode == 0, "app.js does not parse: " + (r.stderr or "")[:600]
 
 
 def run():

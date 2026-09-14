@@ -2432,23 +2432,32 @@ function _renderIndexTrack(d) {
   const bc = bt.card || null;
   const lvl = (l) => metric(esc(l.label), spct(l.value));
   const exc = (l) => metric(
-    esc(l.label) + (l.window === "partial"
+    esc(l.label)
+      + (l.benchmark_taxed
+          ? ` <span class="muted" style="font-weight:400">· after tax on both sides</span>` : "")
+      + (l.window === "partial"
       ? ` <span class="muted" style="font-weight:400">· ${esc(l.window_label)}</span>` : ""),
     `${spct(l.gross)} <span class="muted" style="font-weight:400">gross</span> · ` +
     `${spct(l.net)} <span class="muted" style="font-weight:400">net</span>`);
 
+  /* SHARPE AND TURNOVER COME FROM THE CARD, NOT FROM `bt`. That is the whole point of this
+     version: `bt.*` is whatever `settings.BOOK_CONFIGS` carries for the selected config, and
+     reading it here beside card figures from a different book is exactly how "taxable" came to
+     show the top-25 book's gross return next to the decile's after-tax Sharpe. One source per
+     card, or the card is not about one book. */
   const btRows = (bc && bc.available)
     ? `<div class="metricline" style="margin-top:8px">
       ${bc.lines.filter(l => l.kind === "level").map(lvl).join("")}
-      ${metric("Sharpe", btSharpe == null ? "—" : num(btSharpe, 2))}
-      ${metric("Turnover / yr", bt.annual_turnover == null ? "—" : num(bt.annual_turnover, 2) + "x")}
+      ${metric("Sharpe", bc.sharpe == null ? "—" : num(bc.sharpe, 2))}
+      ${metric("Turnover / yr", bc.annual_turnover == null ? "—" : num(bc.annual_turnover, 2) + "x")}
     </div>
     <div class="metricline" style="margin-top:6px">
       ${bc.lines.filter(l => l.kind === "excess").map(exc).join("")}
     </div>
     ${bc.spmo_available ? `<div class="muted" style="font-size:11px;margin-top:6px">${esc(bc.partial_note)}</div>` : ""}
     <div class="muted" style="font-size:11px;margin-top:6px">${esc(bc.caption)}</div>
-    <div class="muted" style="font-size:11px;margin-top:4px">${esc(bc.basis_note)}</div>`
+    <div class="muted" style="font-size:11px;margin-top:4px">${esc(bc.basis_note)}</div>
+    ${bc.band_note ? `<div class="muted" style="font-size:11px;margin-top:4px">${esc(bc.band_note)}</div>` : ""}`
     : `<div class="metricline" style="margin-top:8px">
       ${metric("Excess / yr vs the equal-weighted universe", btAlpha == null ? "—" : spct(btAlpha))}
       ${metric("Sharpe", btSharpe == null ? "—" : num(btSharpe, 2))}

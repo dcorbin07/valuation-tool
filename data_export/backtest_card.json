@@ -1,34 +1,94 @@
 {
-  "basis": "costs.top_25 in BACKTEST_RESULTS.json - the roth book (25 names, no band)",
-  "full": {
-    "cost_drag_ann": 0.032543244672981864,
-    "first_date": "2009-01-15",
-    "gross_ann": 0.32128506517447053,
-    "last_date": "2026-01-28",
-    "n_periods": 69,
-    "net_ann": 0.28874182050148867,
-    "realised_one_way_bps": 41.89480864978,
-    "spy_ann": 0.15324824347901309,
-    "vs_spy_gross": 0.16803682169545744,
-    "vs_spy_net": 0.13549357702247558
+  "books": {
+    "roth": {
+      "basis": "recomputed from the banked panel with this config's own top_n/top_frac/exit_frac/exit_mult, gated on reproducing BACKTEST_RESULTS.json book_configs.roth",
+      "benchmark_basis": "SPY and SPMO at total return, untaxed - correct for a tax-advantaged account, which pays no tax either",
+      "full": {
+        "annual_turnover": 3.1690792919718658,
+        "cost_drag_ann": 0.032543244672981864,
+        "equal_weight_ann": 0.17239300820250336,
+        "first_date": "2009-01-15",
+        "gross_ann": 0.32128506517447053,
+        "last_date": "2026-01-28",
+        "n_periods": 69,
+        "net_ann": 0.28874182050148867,
+        "sharpe": 1.1017733621085182,
+        "spy_ann": 0.15324824347901309,
+        "spy_untaxed_ann": 0.15324824347901309,
+        "tax_drag_ann": null,
+        "vs_spy_gross": 0.16803682169545744,
+        "vs_spy_net": 0.13549357702247558
+      },
+      "label": "Tax-free (Roth/IRA): Sharpe-optimal, full rotation, ~2-month rebalance",
+      "mode": "tax_advantaged",
+      "net_means": "after costs",
+      "partial": {
+        "first_date": "2015-10-19",
+        "gross_ann": 0.3720559618523691,
+        "last_date": "2026-01-28",
+        "n_periods": 42,
+        "net_ann": 0.34165468980392943,
+        "since": "2015-10-09",
+        "spmo_ann": 0.18543114014734075,
+        "spmo_note": "2015-10-19..2026-05-03, 2649 closes, total and price-only from yfinance",
+        "spy_ann": 0.14642015689246834,
+        "spy_note": "2015-10-19..2026-05-03, 2649 closes, total and price-only from yfinance",
+        "vs_spmo_gross": 0.18662482170502837,
+        "vs_spmo_net": 0.1562235496565887,
+        "vs_spy_gross": 0.22563580495990077,
+        "vs_spy_net": 0.1952345329114611
+      }
+    },
+    "taxable": {
+      "band": {
+        "figures_measured_at": 0.3,
+        "live_width": 0.3,
+        "settings_measured_width": 0.2,
+        "stale_settings_note": "settings.BOOK_CONFIGS carries measured_width 0.2, from before the width moved to 0.3; the figures on this card are recomputed AT 0.3 and do not inherit it"
+      },
+      "basis": "recomputed from the banked panel with this config's own top_n/top_frac/exit_frac/exit_mult, gated on reproducing BACKTEST_RESULTS.json book_configs.taxable",
+      "benchmark_basis": "SPY and SPMO charged the 23.8% qualified-dividend rate on their dividends, capital gains treated as deferred",
+      "full": {
+        "annual_turnover": 1.374714037832626,
+        "cost_drag_ann": 0.011559369988523471,
+        "equal_weight_ann": 0.17239300820250336,
+        "first_date": "2009-01-15",
+        "gross_ann": 0.2614725683528105,
+        "last_date": "2026-01-28",
+        "n_periods": 69,
+        "net_ann": 0.1935258461619922,
+        "sharpe": 0.9767529353354262,
+        "spy_ann": 0.14831069527255433,
+        "spy_untaxed_ann": 0.15324824347901309,
+        "tax_drag_ann": 0.05638735220229485,
+        "vs_spy_gross": 0.11316187308025619,
+        "vs_spy_net": 0.045215150889437866
+      },
+      "label": "Taxable: after-tax-optimal, decile + 30% no-trade band",
+      "mode": "taxable",
+      "net_means": "after costs and taxes",
+      "partial": {
+        "first_date": "2015-10-19",
+        "gross_ann": 0.2643164181899387,
+        "last_date": "2026-01-28",
+        "n_periods": 42,
+        "net_ann": 0.19687297308519125,
+        "since": "2015-10-09",
+        "spmo_ann": 0.18215382573465472,
+        "spmo_note": "2015-10-19..2026-05-03, 2649 closes, total and price-only from yfinance",
+        "spy_ann": 0.1419476279141707,
+        "spy_note": "2015-10-19..2026-05-03, 2649 closes, total and price-only from yfinance",
+        "vs_spmo_gross": 0.08216259245528396,
+        "vs_spmo_net": 0.014719147350536532,
+        "vs_spy_gross": 0.12236879027576797,
+        "vs_spy_net": 0.054925345171020545
+      }
+    }
   },
-  "generated_at_utc": "2026-09-01T23:29:57Z",
-  "partial": {
-    "first_date": "2015-10-19",
-    "gross_ann": 0.3720559618523691,
-    "last_date": "2026-01-28",
-    "n_periods": 42,
-    "net_ann": 0.34165468980392943,
-    "since": "2015-10-09",
-    "spmo_ann": 0.18543116893465705,
-    "spmo_note": "2015-10-19..2026-05-01, 10.53 yrs, 2649 closes, yfinance",
-    "spy_ann": 0.14642018612629548,
-    "spy_note": "2015-10-19..2026-05-01, 10.53 yrs, 2649 closes, yfinance",
-    "vs_spmo_gross": 0.18662479291771206,
-    "vs_spmo_net": 0.15622352086927238,
-    "vs_spy_gross": 0.22563577572607363,
-    "vs_spy_net": 0.19523450367763395
-  },
-  "schema": "backtest_card/1",
-  "sha256": "b0e01243a045670871d77ad5a80da22ac342bd175b2f34cc25d94091ae44c426"
+  "generated_at_utc": "2026-09-03T04:50:11Z",
+  "qualified_dividend_rate": 0.238,
+  "schema": "backtest_card/2",
+  "sha256": "582dde259f91937b7453867ab08ced605809b7f47945defffe1977fffe625eee",
+  "spy_dividend_share_of_total_return": 0.13537512989709993,
+  "spy_full_note": "2009-01-15..2026-05-03, 4350 closes, total and price-only from yfinance"
 }
