@@ -5,6 +5,102 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 53 — 2026-09-03 — taxable net is not roth net, and the card was mixing books
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched. **25 tests; 9 of 9 tripwire mutations caught.**
+
+## THE MIXING WAS REAL, AND IT WAS MINE
+
+The brief said the card "appears to mix" books. It did, and session 51 introduced it. Version 1
+published ONE book — `costs.top_25`, the roth top-25 — while the page's Sharpe and turnover came
+from whichever config the dropdown had selected. **Selecting "taxable" showed the top-25 book's
+gross return of 32.1% beside the decile's Sharpe of 0.90 on an AFTER-TAX basis and the decile's
+turnover of 1.84: three different objects presented as one book.**
+
+Every figure now comes from ONE `turnover_and_costs` / `after_tax_backtest` pair per config,
+built with the **same keyword construction `run_backtests` itself uses**, and the builder
+**refuses to write** unless each book reproduces its own published `book_configs` block. Both
+do, on turnover and on the net-alpha identity, to 1e-12.
+
+## WHAT THE CARD NOW SAYS, AND THE DIFFERENCE IS NOT COSMETIC
+
+| | roth — after costs | taxable — after costs **and taxes** |
+|---|---:|---:|
+| Gross return / yr | +32.13% | +26.15% |
+| Net return / yr | **+28.87%** | **+19.35%** |
+| vs SPY / yr (net) | +13.55pp | **+4.52pp** |
+| vs SPMO / yr (net) | +15.62pp | **+1.47pp** |
+| Sharpe · turnover | 1.10 · 3.17x | 0.98 · 1.37x |
+
+**The tax drag is 6.97pp against a cost drag of 2.05pp — roughly three times larger.** One word,
+"net", printed over two quantities that differ by nine points a year is not a labelling nicety,
+and after tax the book beats a momentum ETF by about a point and a half rather than fifteen.
+
+## THE BENCHMARK IS TAXED TOO, OR THE COMPARISON IS RIGGED
+
+An after-tax strategy beside an untaxed index is flattered by the whole of the index's tax bill.
+In taxable mode SPY and SPMO are charged the **qualified-dividend rate on their dividends**, with
+**capital gains treated as DEFERRED** — a buy-and-hold index fund realises almost nothing, which
+is a real asymmetry rather than a modelling convenience, and the caption says so.
+
+**The dividend component is MEASURED, not remembered**: the same series is annualised twice,
+with and without dividend reinvestment, and the difference is the dividend contribution.
+`untaxed_benchmark_against_taxed_book()` is a property of the payload rather than a promise by
+the builder, because that failure would look entirely normal on the page — and a positive
+control proves it fires.
+
+## THE BAND CAVEAT IS RESOLVED, NOT JUST SURFACED
+
+`settings.BOOK_CONFIGS["taxable"]` carries `measured_width: 0.20` under a comment saying no run
+has measured the config at 0.30. **A run has.** The 0.30 adoption `fee2d62` is a **proven git
+ancestor** of the results run's own commit `57bc3f2` — checked by ancestry, not by comparing
+timestamps — so `BACKTEST_RESULTS.json` IS the 0.30 measurement. The card's figures are
+recomputed at the **live** width regardless, and it reports both widths and says they now agree.
+**`settings.py` is left untouched**: it is another lane's file, its stale comment is reported
+rather than edited, and the card no longer reads it.
+
+## TWO GAPS MUTATION FOUND AND READING WOULD NOT HAVE
+
+**The wiring was untested.** Every test called `BC.card(cfg)` directly, so reverting
+`index_track` to `_bc.card()` — dropping the selection and serving the roth card to everyone —
+**passed the entire suite**. The exact defect this session exists to fix would have come back
+through the one line nobody drove. There is now a test that goes through
+`index_track.summarize(config=…)` and asserts the served card names the config it was asked for.
+
+**And an identity check failed against correct numbers.** The results file carries **two**
+equal-weight annual returns — 0.17239 from the cost/after-tax scorers, 0.18137 from
+`benchmark_panel` — both right for their own construction. My check reached for the second and
+failed while every figure in it was correct. Each book now stores the equal-weight level *its
+own scorer used*, so the identity compares like with like.
+
+## A RED GATE THAT WAS NOT MINE, FIXED RATHER THAN REPORTED AND LEFT
+
+The full gate came back **182 suites, ONE failure** — `test_record_this_week.py`:
+*"3 is typed into the template"*. **Not this session's**: that test reads `RESEARCH_LOG.md`,
+`research_record.py` and `research.html`, and none of the eight files in this session's diff is
+one of them. A live row count had simply reached **3**.
+
+**And the only "3" in the section it scans is `<h3>`.** A heading LEVEL is markup structure — it
+cannot go stale and it counts nothing — so the guard was wrong, not the template. **This is the
+FOURTH instance of a family that function's own comments already record twice**: `margin:0 0
+18px` collided with an infrastructure count of 18, a date regex collided with 4, the row cap
+collided with 12, and now `<h3>` collides with 3.
+
+Fixed by neutralising HTML **tag names** before the scan, keeping attributes and visible text —
+stripping whole tags would be wrong in the other direction, because an attribute is a perfectly
+good place to type a stale number. **A positive control proves the narrowing did not blind it**:
+`<p>3 rows this week</p>`, `data-rows="3"` and `<span>charged 3</span>` are all still caught.
+Another lane's file, changed because leaving the shared gate red blocks every lane and
+`RUN_RULES` says to fix a wrong check and say why. 27/27.
+
+## NOT DONE
+
+`settings.BOOK_CONFIGS` is unchanged, including its stale taxable `measured` block — the card
+no longer reads it, and restating another lane's numbers is that lane's call. No scoring change.
+No `.github/` change. The `portfolio` block is still not the card's basis and no net is invented
+for it; B17's warning ships verbatim inside the note explaining why.
+
 # Session 52 — 2026-08-27 — allocation on Holdings, and the third bare alpha
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`

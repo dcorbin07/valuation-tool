@@ -532,7 +532,11 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
     # derived card carries gross, net, and excesses that each name their benchmark, and it
     # fails closed: `available` false renders nothing rather than a partial performance card.
     from . import backtest_card as _bc
-    backtested["card"] = _bc.card()
+    # PER CONFIG. Version 1 published one book while the page's Sharpe and turnover followed
+    # the dropdown, so selecting "taxable" showed the top-25 book's gross beside the decile's
+    # after-tax Sharpe -- three objects on one card. `cfg_name` is the selection, so every
+    # figure now comes from the book the user actually chose.
+    backtested["card"] = _bc.card(cfg_name)
 
     gate = gate_state(contract)
     d = load(meta_path, history_path)
