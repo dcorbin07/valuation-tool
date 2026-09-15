@@ -1121,14 +1121,23 @@ def create_saas_app(cfg=CONFIG):
         # Marketing landing for anonymous visitors at "/". Under open access the landing
         # page still shows (it explains what the tool is), but nothing behind it is
         # locked — /app renders for anonymous visitors too.
+        # CHANGED 2026-09-14 (Don): "/" goes STRAIGHT TO THE APP for everyone. The marketing
+        # landing used to render here for anonymous visitors and was an interstitial between
+        # the domain and the product. It is NOT deleted — the template, its showcase context
+        # builder and the route below all still exist — it simply is not what the root serves.
+        # Anything gated stays gated: /app runs the same owner-split and private-mode checks
+        # above, so this changes which page a visitor sees FIRST and nothing about what they
+        # are allowed to see.
         if path == "/":
-            if auth.current_user(store):
-                return redirect("/app")
+            return redirect("/app")
+
+        # The landing page kept at its own URL so the work is not lost and can still be linked
+        # (portfolio, recruiters, anyone who wants the explanation rather than the tool).
+        if path == "/landing":
             # Server-rendered proof: a real cached valuation, read straight from the screener
             # store. The live forward track is passed only to the owner — it is a paper-account
             # performance claim, and the landing page is the most public surface there is.
-            # Wrapped because this is the FIRST thing a visitor sees — a missing sample must
-            # cost us a section, never the page.
+            # Wrapped because a missing sample must cost us a section, never the page.
             try:
                 from ..screener.store import Store as _ScreenerStore
                 from ..web import showcase

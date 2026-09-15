@@ -33,7 +33,7 @@ of headroom, and the season budget below is sized to stay inside it.
   most one of five arms** (91/71/81/52 run to 2026-07-31); the gated successor **not
   licensed**. Closed as this lane hoped — a record correction, not a re-open.
 * **SC-3 (TIER-E-FIN)** — `SENT` (routed; carried in the season budget below).
-* **SC-4 (record-this-week surface)** — `EXECUTED 2026-08-19` (shipped on `/work/research`; kill condition run first and passed, the exemption widening it required was measured rather than argued. Ledger row `SC-4`; `HANDOFF_appfixes.md` session 44. Status carried across the expedition-2 merge — the branch predated the landing).
+* **SC-4 (record-this-week surface)** — `SENT` (routed; zero trials).
 * Batch-1 kills and parks are carried in the cumulative sections at the bottom.
 
 ---
@@ -297,6 +297,51 @@ orthogonality anything (`MB13`'s 34.2-years arithmetic; `MA58-SEAS`; the wall, n
   boundary hardened to one year, `placebo_panel` confirmed too easy by +0.1–0.25 t at long
   horizons (any close call against it is unsafe — noted for all future long-horizon
   registers).
+
+## AMENDED 2026-08-24 (bookkeeping pass, session 5 — append-and-amend)
+
+**Statuses moved for everything landed since the map:**
+
+* **EVOWN — NOT-DEMONSTRATED** (relayed by Don; row branch-side at this reading). The
+  event-ownership strategy family's first register did not clear. **The O-3 rubric
+  therefore CLOSES ITSELF, exactly as its §4 trigger table pre-committed** — nothing
+  re-opens, the bucket assignments stand as the record that the list predated the numbers,
+  and the file is append-only from here. Status: `CLOSED-SELF`.
+* **EVOWN's ambient-event finding, noted against every seed it reshapes:** F-12 and F-13
+  now carry the NOT-DEMONSTRATED family verdict as an explicit hostile prior (stated on
+  their declarations' faces); **B-15/O-5 multi-event LEAPS inherits the same hostile
+  prior** (its mechanism was the event effect compounding — the effect's measurements
+  (O17C4 +4.79pp, MB3's $5,000 arithmetic) stand as facts, but the family's first strategy
+  register failing moves its place in the queue DOWN, behind B-10/B-11); **B-14's re-scope
+  stands** (the spanning axis was already degenerate at 45–75 DTE — ambient made that
+  structural before the verdict did); **F-4 is structurally unaffected** (its premise is
+  event-*avoidance* at <40 DTE, which needed the ambient fact, not the strategy verdict).
+* **Season-2 equity arms, final:** E-1 `WITHDRAWN` (K2: the graveyard aggregate is a size
+  sort at rho 0.6114 — R6's autopsy, caught pre-outcome exactly as pinned); E-2 `NULL`
+  (both bases; largest |t| wrong-direction); E-3 `NULL` (raw 2.17–2.30 clears the retired
+  2.0 convention and fails the calibrated bar — the era gap in one sentence); E-4
+  `UNDERPOWERED` (full-sample clears all three MA28 legs at 3.19×; early half 1.69);
+  E-5 `UNRESOLVED` (hazard ratio decays monotonically, 9/9 steps, clears its null's max —
+  the shape is real, the pre-committed 60% conjecture wasn't resolvable); E-6 `NULL`
+  (temporal value; the burn-in contamination resolved pre-run by the observation-count
+  rule). **Two pre-outcome kills firing correctly in one season is the quality bar
+  earning its keep.**
+* **SC-1b — `EXECUTED-BY-LANE`, CALIBRATED-IN-THE-LARGE** (15 item-clusters, CI half-width
+  0.143 under the 0.15 ceiling, clearing by 0.0068). The record's stated priors are
+  officially calibrated; un-parked and closed.
+* **S3-I1 fleet harness — ACCEPTED from this lane's draft and MID-BUILD** (`b995940`
+  prereg ALONE; `7af3807` the append-only writer). **S3-I2 + S3-I5 — BUILT** (`63660c0`:
+  "the Tier C/E block is lifted, and the calendar starts today") — SC-3's Tier-E strata,
+  B-15, and MB17 are unblocked; F-14's calendar accrues from 2026-08-2x.
+* **Fleet readiness:** all 20 Track F declarations now exist as drafts (F-1/3/5/6 from the
+  map session; F-2, F-4, F-7–F-20 this session), per Don's ruling that the whole fleet
+  declares together the moment the harness passes self-verification. Cross-book dedup for
+  the three premium books frozen in-declaration (F-4 > F-17 > F-10); every short book
+  written to the harness §1.4 assignment/margin interface with its could-shift assumption
+  marked.
+* **Standing flag for Don:** the scout branch (`3b9bda7` + `ed58d7f`, now + this session's
+  commit) **has still not been pushed** — three sessions of scout output are on disk and
+  off origin/main. One `sync.bat` click clears the whole queue.
 
 ## AMENDED 2026-08-20, MID-SESSION (append-and-amend, never silently rewritten)
 

@@ -57,7 +57,11 @@ OWNER = sorted(CONFIG.owner_email_set)[0]
 
 #: The surfaces a visitor must be able to read in full. Each is the actual product, not a
 #: preview of it.
-PUBLIC_PAGES = ("/", "/app", "/methodology", "/terms", "/privacy",
+#: "/" is deliberately ABSENT since 2026-09-14: it is now a 302 to /app rather than a page of
+#: its own, so it has no body to carry a disclaimer and cannot be asserted as a rendered
+#: surface. The page it used to serve is still here, at /landing, and is listed instead — so
+#: the disclaimer and full-render guarantees still cover every surface that actually renders.
+PUBLIC_PAGES = ("/landing", "/app", "/methodology", "/terms", "/privacy",
                 CONFIG.resolved_portfolio_path)
 
 
@@ -382,6 +386,11 @@ def test_the_public_pages_render_in_full_for_a_visitor():
             assert len(r.data) > 1500, f"{p} rendered a stub ({len(r.data)} bytes)"
         for p in ("/api/health", "/api/hotstocks", "/api/tickers?q=AA"):
             assert c.get(p).status_code == 200, f"{p} must serve a visitor"
+        # And the root is a redirect STRAIGHT INTO the product for everyone — not a teaser,
+        # not a login wall, and not the marketing interstitial it used to be (2026-09-14).
+        r = c.get("/")
+        assert r.status_code == 302, f"/ -> {r.status_code}, expected a redirect"
+        assert r.headers.get("Location", "").endswith("/app"), r.headers.get("Location")
 
 
 def test_every_owner_only_api_refuses_a_visitor_outright():
@@ -482,7 +491,8 @@ def test_the_public_landing_carries_no_forward_track():
     """The landing is the most public surface there is, and the forward track is a sandbox
     paper account. It is not computed for a visitor at all, rather than computed and hidden."""
     with APP.test_client() as c:
-        html = c.get("/").get_data(as_text=True)
+        # "/" redirects to /app since 2026-09-14; the landing lives at /landing.
+        html = c.get("/landing").get_data(as_text=True)
     for claim in ("Valquo Index vs", "paper · live", "Difference", "cum_valquo"):
         assert claim not in html, f"the public landing shows {claim!r}"
     low = html.lower()
@@ -941,7 +951,8 @@ def test_no_public_response_ever_contains_the_demo_or_admin_token():
 def test_the_owner_login_exists_but_does_not_compete_with_the_product():
     """Unobtrusive by requirement: a small footer link, not a call to action in the nav."""
     with APP.test_client() as c:
-        landing = c.get("/").get_data(as_text=True)
+        # "/" redirects to /app since 2026-09-14; the landing lives at /landing.
+        landing = c.get("/landing").get_data(as_text=True)
     assert 'href="/login"' in landing, "the owner needs a way in"
     assert "Owner login" in landing
     assert 'href="/login" class="cta"' not in landing, "login must not be a nav CTA"

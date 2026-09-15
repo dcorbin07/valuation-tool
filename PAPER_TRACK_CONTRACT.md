@@ -1154,3 +1154,14 @@ Recorded so they are not mistaken for oversights, and so the operational gate ha
    an assumption fixed in advance, deliberately at the larger of the two readings the record
    supports. It cannot interact with the outcome (it is a constant), but it is not evidence
    about real trading costs and must not be quoted as if it were.
+
+## §8 REAL-MONEY LIVE PATH — SIGNED 2026-09-02
+Authorized by Don. Sizing is PERCENTAGE-OF-EQUITY per account, set only in the
+environment (TRADIER_ACCOUNT_<n>_LIVE_PCT); no dollar cap and no risk number
+hard-coded in any file. Every slot ships at 0 (alerts-only); as of signing only
+Don's own Tradier Roth is armed. Equity-only, limit orders only, per-account loss
+stops required (a slot refuses to arm without them), global kill switch, dry-run
+parity required before any real order, auditor design review required before a
+live token is entered. Family slots stay at 0 until each holder's own signed
+authorization (playbook Part B). Nothing here changes the forward track, the
+2027 gate or the 2031 verdict. This is a fills experiment, not a verdict.
