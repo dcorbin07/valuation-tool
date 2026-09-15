@@ -57,7 +57,10 @@ OWNER = sorted(CONFIG.owner_email_set)[0]
 
 #: The surfaces a visitor must be able to read in full. Each is the actual product, not a
 #: preview of it.
-PUBLIC_PAGES = ("/", "/app", "/methodology", "/terms", "/privacy",
+#: "/" IS DELIBERATELY ABSENT. It is an unconditional redirect to /app, so it is not a
+#: surface anyone reads in full — asserting disclaimer text against a 302 body would be
+#: asserting nothing. The landing page itself is still public and is listed at its new path.
+PUBLIC_PAGES = ("/landing", "/app", "/methodology", "/terms", "/privacy",
                 CONFIG.resolved_portfolio_path)
 
 
@@ -482,7 +485,9 @@ def test_the_public_landing_carries_no_forward_track():
     """The landing is the most public surface there is, and the forward track is a sandbox
     paper account. It is not computed for a visitor at all, rather than computed and hidden."""
     with APP.test_client() as c:
-        html = c.get("/").get_data(as_text=True)
+        # /landing, not "/" — see PUBLIC_PAGES. These are ABSENCE assertions, so against a
+        # 302's empty body every one of them would pass while measuring nothing.
+        html = c.get("/landing").get_data(as_text=True)
     for claim in ("Valquo Index vs", "paper · live", "Difference", "cum_valquo"):
         assert claim not in html, f"the public landing shows {claim!r}"
     low = html.lower()
@@ -941,11 +946,56 @@ def test_no_public_response_ever_contains_the_demo_or_admin_token():
 def test_the_owner_login_exists_but_does_not_compete_with_the_product():
     """Unobtrusive by requirement: a small footer link, not a call to action in the nav."""
     with APP.test_client() as c:
-        landing = c.get("/").get_data(as_text=True)
+        landing = c.get("/landing").get_data(as_text=True)
     assert 'href="/login"' in landing, "the owner needs a way in"
     assert "Owner login" in landing
     assert 'href="/login" class="cta"' not in landing, "login must not be a nav CTA"
     assert 'href="/register"' not in landing, "there is no public signup to advertise"
+
+
+def test_the_front_door_is_the_app_and_not_a_pitch():
+    """`/` -> 302 -> /app, for everyone, and the landing is still there at /landing.
+
+    UNCONDITIONAL is the property, not "redirects when signed in". The old branch served the
+    marketing landing to a stranger and redirected only a signed-in visitor, so the front page
+    meant two different things depending on who asked and the first thing a stranger met was a
+    pitch rather than the product. Both states are asserted, because a redirect that only
+    fires for one of them is the defect this replaced.
+    """
+    with APP.test_client() as c:
+        r = c.get("/")
+        assert r.status_code == 302, "anonymous / did not redirect (%s)" % r.status_code
+        assert (r.headers.get("Location") or "").endswith("/app"), r.headers.get("Location")
+
+    orig = _as_owner()
+    try:
+        with APP.test_client() as c:
+            r = c.get("/")
+            assert r.status_code == 302, "signed-in / did not redirect (%s)" % r.status_code
+            assert (r.headers.get("Location") or "").endswith("/app"), (
+                r.headers.get("Location"))
+    finally:
+        from valuation.saas import auth
+        auth.current_user = orig
+
+
+def test_the_landing_page_was_kept_and_is_served_at_its_new_path():
+    """Moved, not deleted. A redirect that quietly dropped the page would pass the test above
+    and lose the only thing explaining what the tool is."""
+    with APP.test_client() as c:
+        r = c.get("/landing")
+    assert r.status_code == 200, "/landing did not render (%s)" % r.status_code
+    html = r.get_data(as_text=True)
+    assert "Adaptive DCF" in html, "the landing copy is not on /landing"
+    assert len(html) > 2000, "the landing rendered but is suspiciously thin (%d bytes)" % len(html)
+
+
+def test_root_is_not_listed_as_a_readable_public_surface():
+    """A 302 has no body, so leaving "/" in PUBLIC_PAGES would assert disclaimer text against
+    nothing — the vacuous pass this repository keeps paying for."""
+    assert "/" not in PUBLIC_PAGES, PUBLIC_PAGES
+    assert "/landing" in PUBLIC_PAGES, (
+        "the landing page is still public and must stay covered somewhere")
 
 
 def _run_all():

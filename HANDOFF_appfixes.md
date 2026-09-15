@@ -5,6 +5,100 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 54 — 2026-09-14 — a worktree-local property standing in for a repo-wide rule
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched. **7 new tests; 7 of 7 tripwire mutations caught.** Steps 1–4 of the drift repair are
+Don's and were **not attempted** — this session could not reach the shared checkout anyway, and
+verified that rather than assuming it.
+
+## THE CAUSE OF 211 COMMITS OF DRIFT
+
+`scripts/sync_checkout.py` records `on_branch` from `git rev-parse --abbrev-ref HEAD`, which
+answers *"is the branch checked out **HERE**"*. When false it ran
+`git fetch origin main:main` to move the ref directly.
+
+**Git's refusal is repo-WIDE.** It declines a refspec fetch if the branch is checked out in
+**ANY** worktree — `fatal: refusing to fetch into branch 'refs/heads/main' checked out at
+'<path>'`. This repository has **twelve** worktrees. Run the sync from any of them and
+`on_branch` is false while `main` is still checked out in the main folder, so the tool took the
+one path git always refuses. It failed every time, the exit code scrolled past, and the branch
+never moved. **A worktree-local property was standing in for a repo-wide constraint — MA20's
+own shape, in the tool written to cure MA20.**
+
+## THE FIX, AND WHY IT REPORTS RATHER THAN ACTS
+
+`checked_out_at(repo, branch)` reads `git worktree list --porcelain` and answers the repo-wide
+question. When the branch is checked out elsewhere the phase is **REFUSED**, not attempted, and
+the refusal names the folder, says how many commits behind the branch was left, and gives the
+exact command to run there.
+
+**Performing the fast-forward in that other folder was the obvious alternative and is
+deliberately rejected.** That working tree has not been surveyed by this run, so its
+uncommitted state is unknown, and moving someone else's checkout on an unsurveyed guess is how
+a rescue becomes a loss. The refusal keeps `done: False`, so `alarm` is set and the run exits
+non-zero — **four green days with nothing pushed is the failure this repairs.**
+
+The legitimate case is untouched and pinned: a branch checked out nowhere is still moved by the
+refspec fetch, and a branch checked out HERE still fast-forwards by merge. A blanket refusal
+would have been a different bug.
+
+## THE DETECTION IS TESTED AGAINST REAL GIT
+
+`tests/test_sync_worktree_refusal.py` builds a genuine temporary repository with a genuine
+second worktree and asks `checked_out_at` **from the worktree** — the case that broke. Checking
+a git rule against a stub answers a question about the stub. The refusal itself is tested by
+**recording every git command** and asserting the refspec fetch is never among them: asserting
+"it did not fail" would pass if the phase were silently skipped.
+
+## A CORRECTION I MADE TO MY OWN DIAGNOSIS BEFORE REPORTING IT
+
+My first reading was that the on-disk helper was stale and locally edited — it is **22,803
+bytes on disk against 22,354 from `git show`**. Line-for-line the two are **identical**. The 449
+bytes are 449 CRLF pairs. **The comparison was the defect, not the file**, and the record
+already names this family.
+
+## THE `.gitattributes` QUESTION — RECOMMENDATION: DO NOT CHANGE IT
+
+Asked for, and the answer is no, on two grounds.
+
+**It would not have prevented the false diff.** With `core.autocrlf=true`, `git show` emits the
+**blob** (LF) while a Windows checkout holds **CRLF**; byte-comparing the two differs for every
+text file in the repository, whatever `.gitattributes` says. The only setting that would change
+it is `* text=auto eol=lf`, which forces LF *working copies* — a tree-wide renormalisation.
+
+**And `.gitattributes` already refuses exactly that, with a measured reason**: *"this repo has
+CRLF working copies and enabling it would renormalise line endings across the whole tree — a
+diff touching nearly every file, which would conflict with every branch currently open."* With
+a rescue in flight and twelve worktrees open, that is the worst possible week for it.
+
+**The real fix is the method, and it costs nothing:** never byte-compare working-tree content
+against `git show` output. Use `git diff`, which normalises — asked about this very file it
+reported only the real edit and said nothing about line endings — or normalise before
+comparing, which is what caught my own error.
+
+## THE RESCUE LANDED WHILE THIS WAS BEING WRITTEN, AND THE FIX IS NOW LIVE-RELEVANT
+
+Don ran steps 1–4 in the main folder during this session. Verified from shared refs rather
+than reported: **`main` = `origin/main` = `ba2bd7e`, 0 behind**, the rescue branch
+`rescue/drift-20260914` is on origin, and `refs/heads/main` is checked out at the main folder
+again. **The 211 — which had grown to 215 — is 0.**
+
+That restoration is exactly what makes this fix load-bearing rather than historical. Asked from
+this worktree right now:
+
+    checked_out_at('.', 'main')  ->  C:/Users/donni/Downloads/valuation-tool
+    this worktree's HEAD         ->  worktree-multi-account
+
+So `on_branch` is **False** here while `main` **is** held by the main folder — the precise
+condition that produced the drift. The old code would run `git fetch origin main:main` and be
+refused; the new code refuses first and names that folder.
+
+**PUSHED, because the precondition named for holding has been met.** The `/` → `/app` redirect
+was to wait on "the fast-forward landing", and the fast-forward has landed and is verified
+above, so both commits go out normally rather than sitting on one machine — which is this
+session's own lesson.
+
 # Session 53 — 2026-09-03 — taxable net is not roth net, and the card was mixing books
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`

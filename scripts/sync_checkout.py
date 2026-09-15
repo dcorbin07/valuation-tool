@@ -281,11 +281,30 @@ def fast_forward(repo: str, st: dict, dry: bool) -> dict:
         r.update(done=True, action="none", detail="already current")
         return r
     if not st["on_branch"]:
-        # Not checked out: update the ref directly. git refuses a non-fast-forward here,
-        # so this cannot rewrite history even if the survey were stale.
+        # ...but "not checked out HERE" is not "not checked out". Git refuses a refspec fetch
+        # if the branch is checked out in ANY worktree of this repository, so ask that
+        # question before taking a path it would decline. See `checked_out_at`.
+        elsewhere = checked_out_at(repo, st["branch"])
+        if elsewhere:
+            # REPORTED, NOT PERFORMED. Running the fast-forward in that folder from here is
+            # the obvious alternative and it is rejected deliberately: that working tree has
+            # not been surveyed by this run, so its uncommitted state is unknown, and moving
+            # someone else's checkout on the strength of an unsurveyed guess is how a rescue
+            # becomes a loss. The instruction is exact instead, and the phase stays NOT done
+            # so the run alarms and exits non-zero.
+            r.update(action="refused", reason="checked-out-elsewhere",
+                     checked_out_at=elsewhere,
+                     detail=(f"{st['branch']} is checked out at {elsewhere}, so git refuses "
+                             f"to move refs/heads/{st['branch']} from here — it is "
+                             f"{st['behind']} commit(s) behind and was NOT updated. Run this "
+                             f"in that folder:  git -C \"{elsewhere}\" merge --ff-only "
+                             f"{st['upstream']}"))
+            return r
+        # Genuinely checked out nowhere: update the ref directly. git refuses a
+        # non-fast-forward here, so this cannot rewrite history even if the survey were stale.
         if dry:
             r.update(action="would-fetch-ref",
-                     detail=f"{st['branch']} is not checked out ({st['head_branch']} is); "
+                     detail=f"{st['branch']} is checked out in no worktree; "
                             f"would move the ref by {st['behind']} commits")
             return r
         _git(repo, "fetch", st["remote"], f"{st['branch']}:{st['branch']}")
@@ -354,6 +373,31 @@ def adopt_remote(repo: str, st: dict, rescued: dict, snapped: dict, dry: bool) -
     _git(repo, "reset", "--hard", st["upstream"])
     r.update(done=True, action="reset", target=st["upstream"])
     return r
+
+
+def checked_out_at(repo: str, branch: str) -> str | None:
+    """The folder where `branch` is checked out, ANYWHERE in this repository, or None.
+
+    THE DISTINCTION THIS FUNCTION EXISTS FOR, and it cost 211 commits of drift. `survey`
+    records `on_branch` from `git rev-parse --abbrev-ref HEAD`, which answers "is the branch
+    checked out **HERE**". Git's refusal to fetch into a ref is repo-WIDE: it declines if the
+    branch is checked out in **ANY** worktree, and says so —
+
+        fatal: refusing to fetch into branch 'refs/heads/main' checked out at '<path>'
+
+    With twelve worktrees on this repository, running the sync from any of them made
+    `on_branch` false while `main` was still checked out in the main folder, so the tool took
+    the one path git always refuses. It failed every time, `SYNCRC=1` scrolled past, and the
+    branch never moved. A worktree-local property was standing in for a repo-wide constraint.
+    """
+    out = _out(repo, "worktree", "list", "--porcelain")
+    path = None
+    for line in (out or "").splitlines():
+        if line.startswith("worktree "):
+            path = line[len("worktree "):].strip()
+        elif line.strip() == f"branch refs/heads/{branch}":
+            return path
+    return None
 
 
 # ------------------------------------------------------------------------- driver

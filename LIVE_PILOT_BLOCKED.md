@@ -1,5 +1,94 @@
 # LIVE PATH, PERCENTAGE-OF-EQUITY — NOT BUILT. The §8 gate fired.
 
+> ## UPDATE 2026-09-15 — THE GATE FIRED AGAIN, AND THIS TIME §8 EXISTS
+>
+> **Still not built. No code, no order in any environment, no token read or requested.**
+>
+> The second attempt carried two refusal gates. **One passes and one fails.**
+>
+> **GATE 2 — PASSES.** `git rev-list --left-right --count main...origin/main` is **`0 0`**.
+> The 211-commit drift is repaired; `main` and `origin/main` are both `ba2bd7e`.
+>
+> **GATE 1 — FAILS, AND THE REASON IS NOT WHAT IT WAS ON 2026-09-02.** Then, §8 did not
+> exist. **Now it does** — `## §8 REAL-MONEY LIVE PATH — SIGNED 2026-09-02`, a real signed
+> section — **but it is not in `PAPER_TRACK_CONTRACT.md` on `main`.**
+>
+> Traced rather than assumed. The text appears in exactly two commits:
+>
+> | commit | contained in | on `main`? |
+> |---|---|---|
+> | `1e343a5` *"rescue: uncommitted local work stranded by a stale index.lock since 2026-08-27"* | `origin/rescue/drift-20260914` | **no** |
+> | `b160c65` *"sync_checkout: working-tree snapshot of main @ d371db1"* | `origin/rescue/wip-main-af67fa2` | **no** |
+>
+> `git merge-base --is-ancestor 1e343a5 origin/main` is false, and `origin/main`'s contract
+> contains **zero** matches for a section 8 in any form. **§8 has never been on main.**
+>
+> **WHAT THAT MEANS, STATED PLAINLY AND WITHOUT BLAME.** §8 was signed on 2026-09-02 and lived
+> only as uncommitted working-tree content in the main folder — by its own rescue commit
+> message, stranded there behind a stale `index.lock` since 2026-08-27. **Step 1 of the drift
+> repair preserved it, which is that step working exactly as designed.** Step 4 — re-applying
+> the genuinely-new hunks onto the fast-forwarded main — has not yet carried it across. It is
+> one of the real items on that list, and it is the one that authorises real money.
+>
+> **So the refusal is a one-line fix away, and it is not mine to make.** Re-applying §8 is
+> step 4, which is Don's; and restoring my own authorisation in order to build against it is
+> the wrong shape regardless of who is permitted to do it.
+>
+> **WHAT §8 ACTUALLY SAYS**, quoted because the auditor will want it and because it constrains
+> the design rather than merely permitting it: percentage-of-equity per account set only in the
+> environment, **no dollar cap and no risk number hard-coded in any file**; every slot ships at
+> **0** (alerts-only) with only Don's own Roth armed at signing; equity-only, limit orders only;
+> per-account loss stops required, **a slot refusing to arm without them**; a global kill
+> switch; **dry-run parity required before any real order**; **auditor design review required
+> before a live token is entered**; family slots at 0 until each holder's own signed
+> authorization. And: *"Nothing here changes the forward track, the 2027 gate or the 2031
+> verdict. This is a fills experiment, not a verdict."*
+>
+> **STEP 0 RE-VERIFIED AT SOURCE TODAY, AND THE ANSWER IS UNCHANGED.** Tradier's API reference
+> still states the equity order `quantity` is **"The number of shares to be ordered, in whole
+> numbers"**; fractional shares and notional/dollar orders are mentioned nowhere. The
+> book-shape table below therefore stands as measured, and it is the input the design needs
+> first: **at $5,000 of book, 51 of 68 Index names get zero shares and 27.8% of the money
+> deploys.** §8 arms one account at a percentage of equity, so whether that account clears the
+> roughly $100k–250k needed for the whole book — or knowingly trades a subset — is the first
+> question the review should settle.
+>
+> ## THE MINIMUM BOOK SIZE — DERIVED AND REPORTED, NOT CHOSEN
+>
+> Asked for as the refuse-to-arm default. It is not a judgement call: the binding constraint is
+> **per name**, and a name needs `price / weight` of equity before one share of it is
+> affordable *at its own weight*. The book needs the largest such figure.
+>
+> **`max(price / weight)` = $128,562**, driven by **MKL at $1,841.04 on a 0.0143 weight**.
+> **Below it the book is not the Index** — at least one name is missing entirely, whatever the
+> rest of the money does.
+>
+> | equity | names at zero shares | deployed | tracking error | guarantees |
+> |---:|---:|---:|---:|---|
+> | $25,000 | 14 | 72.6% | 27.4% | — |
+> | $50,000 | 6 | 85.3% | 14.7% | — |
+> | $100,000 | 2 | 92.0% | 8.0% | — |
+> | **$128,562** | **0** | 96.3% | 3.7% | **every name present** |
+> | $250,000 | 0 | 96.2% | 3.8% | — |
+> | $500,000 | 0 | 98.2% | 1.8% | — |
+>
+> **Two things a reader should not misread.** The function is **not monotone** — $128,562
+> deploys marginally *more* than $250,000 (96.3% against 96.2%) because integer rounding is
+> lumpy, so "bigger is always closer" is false in the small. And the constraint is a **tail**:
+> the fifth-worst name needs only $59,631, so dropping the four most expensive-per-weight names
+> would clear at roughly a third of the figure — **but that is a different book, nobody has
+> measured it, and it is not a smaller Index.**
+>
+> **IT MUST BE RECOMPUTED, NEVER COPIED.** This is derived from the recorded entry prices of
+> the 68 published holdings, not a live quote. Prices move and the book rebalances, so a
+> shipped guard has to recompute it each cycle from the same payload it sizes against; a
+> constant lifted from this run would be wrong within weeks — which is the same defect as the
+> stale `cost_drag_ann` the backtested card had to stop reading.
+>
+> **UNBLOCKS WHEN** §8 is re-applied to `PAPER_TRACK_CONTRACT.md` on `main` and both gates read
+> clean from the same tree the code would ship from.
+
+
 **2026-09-02, app-fixer lane. No code was written. No order path exists. Nothing is armed.**
 
 The instruction was *"per contract §8 (refuse to build if §8 is absent)"*. **§8 is absent.** So

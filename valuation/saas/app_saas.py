@@ -1210,6 +1210,29 @@ def create_saas_app(cfg=CONFIG):
     # /methodology is registered on the shared app object in web/app.py — the SaaS layer uses
     # the SAME Flask app (`app = tool_app` above), so declaring it again is a duplicate
     # endpoint and the process would refuse to start.
+    @app.route("/landing")
+    def landing():
+        """The marketing landing page, kept and moved off "/".
+
+        It explains what the tool is and carries the server-rendered proof, so it is still a
+        real public surface — it is simply no longer the front door. The context build is
+        byte-for-byte what "/" used to do, including the reason it is wrapped: this page's
+        only proof is a cached valuation, and a missing sample must cost a section rather
+        than the page.
+        """
+        try:
+            from ..screener.store import Store as _ScreenerStore
+            from ..web import showcase
+            ctx = showcase.landing_context(
+                _ScreenerStore(),
+                with_track=surfaces.may_see_owner_surfaces(auth.current_user(store), cfg))
+        except Exception:
+            # Swallowed so the page still renders, but never silently: a landing that quietly
+            # loses its only proof looks fine and is the whole problem.
+            app.logger.exception("landing showcase failed; falling back to static copy")
+            ctx = {}
+        return render_template("landing.html", **ctx)
+
     @app.route("/terms")
     def terms():
         return render_template("terms.html")
@@ -1403,29 +1426,17 @@ def create_saas_app(cfg=CONFIG):
                 return render_template("owner_only.html",
                                        **denial["payload"]), denial["status"]
 
-        # Marketing landing for anonymous visitors at "/". Under open access the landing
-        # page still shows (it explains what the tool is), but nothing behind it is
-        # locked — /app renders for anonymous visitors too.
+        # "/" IS THE APP, FOR EVERYONE. It used to serve the marketing landing to anonymous
+        # visitors and redirect only a signed-in one, so the first thing a stranger met was a
+        # pitch rather than the thing being pitched. The landing page is KEPT and still
+        # served — at "/landing" — so nothing is lost and it can still be linked; what
+        # changes is which of the two is the front door.
+        #
+        # UNCONDITIONAL, and that is the point: branching on `current_user` here is what made
+        # the front page mean two different things depending on who asked. Both the private
+        # branch above and this one now agree that "/" goes to the app.
         if path == "/":
-            if auth.current_user(store):
-                return redirect("/app")
-            # Server-rendered proof: a real cached valuation, read straight from the screener
-            # store. The live forward track is passed only to the owner — it is a paper-account
-            # performance claim, and the landing page is the most public surface there is.
-            # Wrapped because this is the FIRST thing a visitor sees — a missing sample must
-            # cost us a section, never the page.
-            try:
-                from ..screener.store import Store as _ScreenerStore
-                from ..web import showcase
-                ctx = showcase.landing_context(
-                    _ScreenerStore(),
-                    with_track=surfaces.may_see_owner_surfaces(auth.current_user(store), cfg))
-            except Exception:
-                # Swallowed so the page still renders, but never silently: a landing that
-                # quietly loses its only proof looks fine and is the whole problem.
-                app.logger.exception("landing showcase failed; falling back to static copy")
-                ctx = {}
-            return render_template("landing.html", **ctx)
+            return redirect("/app")
         # API gating.
         if path.startswith("/api/"):
             body = request.get_json(silent=True) or {}

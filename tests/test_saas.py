@@ -457,7 +457,7 @@ def test_landing_renders_the_sample_and_survives_having_none():
         "sample_age": 0, "track": None, "spark": None, "scan": None}
     try:
         c = create_saas_app(CONFIG).test_client()
-        html = c.get("/").data.decode()
+        html = c.get("/landing").data.decode()
         assert "TSTQ" in html and "Test Corp" in html
         assert "150.00" in html and "72" in html
         assert "4% a year" in html, "the reverse-DCF read is the most persuasive number"
@@ -468,7 +468,7 @@ def test_landing_renders_the_sample_and_survives_having_none():
     showcase.landing_context = lambda store: {}
     try:
         c = create_saas_app(CONFIG).test_client()
-        r = c.get("/")
+        r = c.get("/landing")
         assert r.status_code == 200
         html = r.data.decode()
         assert "Live sample" not in html
@@ -491,7 +491,7 @@ def test_landing_never_500s_when_the_showcase_blows_up():
         raise RuntimeError("store exploded")
     showcase.landing_context = _boom
     try:
-        r = create_saas_app(CONFIG).test_client().get("/")
+        r = create_saas_app(CONFIG).test_client().get("/landing")
         assert r.status_code == 200, r.status_code
         assert "Adaptive DCF" in r.data.decode(), "the static page must still be there"
     finally:
