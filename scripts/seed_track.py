@@ -55,6 +55,60 @@ import urllib.request
 from valuation.screener import index_track
 
 
+
+from valuation.screener.index_mark import ROW_COLUMNS  # noqa: E402
+
+def reconcile(local_text: str, service_rows: list) -> dict:
+    """Is the LOCAL series a superset of the SERVICE's — same rows, same order, cell for cell?
+
+    THE ONLY SAFE PRECONDITION FOR AN UPLOAD, and the reason it is computed here rather than
+    trusted to the door: the service enforces a BYTE PREFIX, which is the right rule and a
+    terrible diagnostic. A 409 tells you the upload was refused; it does not tell you WHICH row
+    disagreed, and "the local file is shorter" and "row 4 has a different excess_pp" are very
+    different problems with very different fixes.
+
+    **A SILENT MERGE OF TWO DIVERGENT RECORDS IS HOW A TRACK RECORD BECOMES FICTION**, so a
+    disagreement on any shared row is a REFUSAL that names the row, never a reconciliation.
+
+    Returns `{ok, reason, shared, local_extra, service_extra, disagreements}`.
+    """
+    from scripts.fetch_track import rows_of
+
+    local = rows_of(local_text)
+    svc = list(service_rows or [])
+    cols = list(ROW_COLUMNS)
+
+    def norm(r):
+        # Compared as STRINGS on the bound schema's own columns: the service returns JSON
+        # (day_n an int, excess_pp a float) while the local file is text, so a raw == would
+        # report every row as different for a reason that is purely transport.
+        return tuple("" if r.get(c) is None else str(r.get(c)).strip() for c in cols)
+
+    n = min(len(local), len(svc))
+    bad = []
+    for i in range(n):
+        a, b = norm(local[i]), norm(svc[i])
+        if a != b:
+            bad.append({"index": i, "local": dict(zip(cols, a)), "service": dict(zip(cols, b)),
+                        "columns": [c for c, x, y in zip(cols, a, b) if x != y]})
+
+    out = {"shared": n, "local_extra": max(0, len(local) - n),
+           "service_extra": max(0, len(svc) - n), "disagreements": bad, "ok": False,
+           "reason": ""}
+    if bad:
+        out["reason"] = ("%d shared row(s) disagree; refusing rather than merging two "
+                         "divergent records" % len(bad))
+    elif out["service_extra"]:
+        out["reason"] = ("the service holds %d row(s) the local file does not, so the local "
+                         "series is NOT a superset and an upload would truncate the record"
+                         % out["service_extra"])
+    else:
+        out["ok"] = True
+        out["reason"] = ("the local series matches the service on all %d shared row(s) and "
+                         "adds %d" % (n, out["local_extra"]))
+    return out
+
+
 def _base_url() -> str:
     for k in ("SITE_BASE_URL", "PUBLIC_BASE_URL"):
         v = (os.environ.get(k) or "").strip()
@@ -65,6 +119,9 @@ def _base_url() -> str:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
+    ap.add_argument("--pull", action="store_true",
+                    help="pull the service's recorded series first and refuse to upload "
+                         "unless the local one is a superset of it, cell for cell")
     ap.add_argument("--send", action="store_true",
                     help="actually POST. Without it this is a dry run that sends nothing.")
     ap.add_argument("--book-only", action="store_true",
@@ -123,6 +180,35 @@ def main(argv=None) -> int:
         print("no ADMIN_TOKEN in the environment or .env", file=sys.stderr)
         return 3
     print("target   " + base + "/admin/track-seed")
+
+    # RECONCILE BEFORE SENDING. Runs on a dry run too, because the whole value of the check
+    # is being able to see the answer WITHOUT committing to an upload.
+    if a.pull:
+        from scripts.fetch_track import fetch
+        try:
+            got = fetch(base, token)
+        except Exception as e:                                   # noqa: BLE001
+            print("could not pull the service's series: " + str(e), file=sys.stderr)
+            return 2
+        svc = got["series"]
+        print("pulled   " + str(len(svc)) + " recorded row(s) from the service")
+        if history is None:
+            print("         (--book-only: the series is not being sent, so nothing to check)")
+        else:
+            rec = reconcile(history, svc)
+            print("         local " + str(n_rows) + " row(s), service " + str(len(svc))
+                  + " - " + rec["reason"])
+            for d in rec["disagreements"][:10]:
+                print("         ROW " + str(d["index"]) + " differs on "
+                      + ", ".join(d["columns"]))
+                print("            local  : " + json.dumps(d["local"], sort_keys=True))
+                print("            service: " + json.dumps(d["service"], sort_keys=True))
+            if not rec["ok"]:
+                print("\nREFUSING to upload. " + rec["reason"], file=sys.stderr)
+                print("The service's copy is the record; pull it with "
+                      "`python -m scripts.fetch_track` and reconcile by hand before sending. "
+                      "Nothing here will merge two divergent records for you.", file=sys.stderr)
+                return 4
 
     if not a.send:
         print("\nDRY RUN - nothing was sent. Re-run with --send to install it.")

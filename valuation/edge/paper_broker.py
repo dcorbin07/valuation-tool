@@ -45,6 +45,32 @@ from ..intraday.providers import TRADIER_SANDBOX_BASE, TradierProvider
 SANDBOX_BASE = TRADIER_SANDBOX_BASE
 SANDBOX_HOST = "sandbox.tradier.com"
 
+
+def _whole_shares(quantity) -> str:
+    """Quantity as a whole number, REFUSING anything fractional rather than truncating it.
+
+    MEASURED AGAINST THE LIVE SANDBOX 2026-09-15: Tradier rejects a decimal quantity outright
+    -- `HTTP 400, "Invalid parameter, quantity: decimal places are not allowed."` at 0.5 and
+    at 1.5, while 1 previews cleanly. So the API is safe; the danger was HERE. This function
+    replaces `str(int(quantity))`, which turned 0.5 into "0" and 1.5 into "1" and handed the
+    result to an API that accepts whole numbers happily.
+
+    **A book that thinks it bought 0.5 and bought 1 is worse than one that was refused**, and a
+    book that thinks it bought 0.5 and bought NOTHING is worse still -- `int(0.5)` is 0, which
+    Tradier would have rejected only because zero is invalid, for the wrong reason. Neither
+    failure is visible in the order record afterwards, which is what makes truncation the
+    dangerous answer rather than merely the wrong one.
+    """
+    q = float(quantity)
+    if q != int(q):
+        raise ValueError(
+            "quantity %r is fractional; Tradier accepts whole shares only and this client "
+            "will not round it for you. Size in whole shares, or the book will record a "
+            "quantity it did not trade." % (quantity,))
+    return str(int(q))
+
+
+
 # Sandbox market data is delayed (~15 minutes). Every mark and fill this module produces
 # therefore approximates what a live account would have got, and the track must say so —
 # see `DATA_CAVEAT`, which is carried through into the API payload rather than left in a
@@ -256,7 +282,7 @@ class PaperBroker:
         """
         payload = {"class": "option", "symbol": str(underlying).upper(),
                    "option_symbol": str(occ_symbol).upper(), "side": side,
-                   "quantity": str(int(quantity)), "duration": duration}
+                   "quantity": _whole_shares(quantity), "duration": duration}
         px = _f(price)
         if px is not None and px > 0:
             payload["type"], payload["price"] = "limit", f"{px:.2f}"
@@ -290,7 +316,7 @@ class PaperBroker:
         for i, leg in enumerate(legs):
             payload["option_symbol[%d]" % i] = str(leg["occ"]).upper()
             payload["side[%d]" % i] = str(leg["side"])
-            payload["quantity[%d]" % i] = str(int(leg["qty"]))
+            payload["quantity[%d]" % i] = _whole_shares(leg["qty"])
         px = _f(price)
         if px is not None and str(order_type) != "market":
             payload["price"] = f"{abs(px):.2f}"
@@ -304,7 +330,7 @@ class PaperBroker:
                      price: Optional[float] = None, duration: str = "day") -> dict:
         """Equity order (buy / sell). Used only by the opt-in equity mirror of the Index."""
         payload = {"class": "equity", "symbol": str(ticker).upper(), "side": side,
-                   "quantity": str(int(quantity)), "duration": duration}
+                   "quantity": _whole_shares(quantity), "duration": duration}
         px = _f(price)
         if px is not None and px > 0:
             payload["type"], payload["price"] = "limit", f"{px:.2f}"

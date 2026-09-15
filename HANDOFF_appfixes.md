@@ -5,6 +5,100 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 55 — 2026-09-15 — fractional settled by test, and the track writer's real blocker
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched. **14 new tests; 8 of 8 tripwire mutations caught.**
+
+## FRACTIONAL SHARES — SETTLED EMPIRICALLY, AND THE ANSWER IS THE SAFE ONE
+
+The documentation said "in whole numbers"; Don reported the brokerage advertises fractional.
+Both readings were defensible, so it was settled by **`preview=true` validations against the
+SANDBOX** — Tradier's own full order validation, which places no order. A liquid name, a limit
+far below market, verbatim responses:
+
+    quantity 0.5  ->  HTTP 400  "Invalid parameter, quantity: decimal places are not allowed."
+    quantity 1.5  ->  HTTP 400  same
+    quantity 1    ->  HTTP 200  previewed cleanly, quantity 1
+
+**The API REJECTS fractional outright and does NOT silently truncate.** No order was placed in
+any environment; no live token was used; `preview=true` was hard-coded and asserted before
+every post, and the host was asserted to be the sandbox.
+
+**SO THE ZERO-SHARE TABLE STANDS, and the minimum-book refusal at $128,562 stands with it.**
+
+## BUT THE SILENT TRUNCATION WAS REAL — ON OUR SIDE OF THE WIRE
+
+`place_equity` and `place_option` built their payload with **`str(int(quantity))`**. A caller
+passing 0.5 sent `"0"`; 1.5 sent `"1"` — **and the API accepts a whole number happily.** A book
+that thinks it bought 0.5 and bought 1 is worse than one that was refused, and neither failure
+is visible in the order record afterwards. That is what makes truncation the dangerous answer
+rather than merely the wrong one.
+
+Replaced by `_whole_shares()`, which **refuses** a fractional quantity and says what the silent
+alternative would have cost. **And the guard I wrote to pin it found a THIRD site I had
+missed** — `place_multileg`, which truncated each leg — while also firing twice on my own
+docstring and on the converter's own validated internals. The substring-ban family again, in a
+guard written minutes earlier; it reads the **AST** now and exempts the converter by
+**identity** rather than by wording.
+
+## THE TRACK WRITER — THE 422 IS NOT THE HISTORY, IT IS THE BOOK
+
+`track-row.yml` has committed *"HTTP 422: service refused or unreachable"* daily for ~2 weeks.
+The service's own refusal names the cause: *"the book file /app/data/valquo_track.json is
+missing or unreadable"*. `data/` is gitignored, so **the book has never shipped with any
+deploy.** The recorded history is not the problem — the service has 17 rows of it.
+
+**THE 409 THAT BLOCKED THE SEED WAS CORRECT AND IS NOT WEAKENED.** No `--force`, no lowered
+check, no upload that can shrink the series. **It protected 11 real recorded rows** and the
+right response is to give it better information, not less authority.
+
+**WHAT WAS MISSING WAS THE OTHER DIRECTION — READING.** New `scripts/fetch_track.py` pulls the
+service's recorded series through the **existing** `/admin/export-track` door (read-only,
+computes nothing, no new admin surface) and writes it to a **dated, separately-named file**. It
+**refuses** to write over `data/valquo_track_history.csv`: that local copy is the only evidence
+of a disagreement, and overwriting it in place would erase the disagreement rather than resolve
+it.
+
+`seed_track --pull` then reconciles before sending: same rows, same order, **cell for cell**,
+plus any extras. A disagreement on a shared row is a **REFUSAL that names the row and the
+differing columns** — *a silent merge of two divergent records is how a track record becomes
+fiction.*
+
+**WHY A RECONCILER AT ALL, WHEN THE DOOR ALREADY REFUSES.** The service enforces a **byte
+prefix** — the right rule and a terrible diagnostic. A 409 says the upload was refused; it does
+not say *which* row disagreed, and *"the local file is shorter"* and *"row 4 has a different
+`excess_pp`"* are different problems with different fixes.
+
+**AND THE COMPARISON IS STRINGS ON THE BOUND SCHEMA'S OWN COLUMNS**, because the service
+returns JSON (`day_n` an int, `excess_pp` a float) while the local file is text. A raw `==`
+would report **every** row as divergent for a reason that is purely transport — which would
+look exactly like a corrupted record.
+
+## TWO TESTS OF MINE THAT PASSED FOR THE WRONG REASON
+
+**The filename guard reached the network**, returned 2 on a DNS failure, and `rc != 0` passed
+**without the guard ever running** — a test agreeing with itself about a check it never
+executed. The fetch is stubbed now, and the legitimate destination is exercised too so the
+refusal is named rather than blanket.
+
+**And one of my mutations was INERT**: "order stops mattering" sorted an already-sorted list,
+which changes nothing. Re-aimed at a genuine multiset comparison, the test catches it. A
+mutation that cannot change behaviour proves nothing about the test it was meant to probe.
+
+## WHAT DON RUNS, AND WHAT IS STILL UNVERIFIED
+
+Verification is his: this lane holds no admin token and never prints one.
+
+    python -m scripts.fetch_track                    # pull, writes a NEW dated file
+    python -m scripts.seed_track --pull --send --book-only   # install the BOOK, leave the series
+
+**`--book-only` is the expected fix**, because the service already holds more history than the
+local copy — so the series needs nothing and the book is the whole blocker. **The row count
+before is 17 on the service and 6 locally; after a book-only install the history should be
+unchanged at 17 and `track-row` should answer 201/200 rather than 422.** That last step is
+**NOT VERIFIED HERE** and must not be reported as done until a real run says so.
+
 # Session 54 — 2026-09-14 — a worktree-local property standing in for a repo-wide rule
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
