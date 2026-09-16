@@ -60,7 +60,7 @@ OWNER = sorted(CONFIG.owner_email_set)[0]
 #: "/" IS DELIBERATELY ABSENT. It is an unconditional redirect to /app, so it is not a
 #: surface anyone reads in full — asserting disclaimer text against a 302 body would be
 #: asserting nothing. The landing page itself is still public and is listed at its new path.
-PUBLIC_PAGES = ("/landing", "/app", "/methodology", "/terms", "/privacy",
+PUBLIC_PAGES = ("/landing", "/app", "/methodology", "/proof", "/terms", "/privacy",
                 CONFIG.resolved_portfolio_path)
 
 

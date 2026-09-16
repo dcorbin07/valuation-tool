@@ -150,6 +150,30 @@ def methodology():
                            payoff=_payoff.payoff_summary())
 
 
+@app.route("/proof")
+def proof():
+    """The evidence — every headline figure, the bar it was measured against, and the fails.
+
+    A SEPARATE PAGE FROM /methodology, deliberately, and the split is by object rather than by
+    length: /methodology explains the construction in prose and carries almost no figures;
+    this carries the figures and the thresholds and explains almost no construction. Merging
+    them would produce one page that is read by nobody, and — worse — two places on the site
+    quoting the same statistic, which is the drift this project has paid for repeatedly.
+
+    `payload()` reads both artifacts at request time and types nothing. It also REFUSES rather
+    than substituting: a missing artifact costs a section and is named on the page. A proof
+    surface that silently falls back to a hard-coded number is the one failure mode that would
+    make the whole page worse than not having it.
+
+    Public and ungated, like /methodology and /tidemark. Nothing here is vendor data — every
+    figure is a derived research statistic about this project's own model, and the one dataset
+    whose licence forbids republication (Global Factor Data, CC BY-NC) is excluded at the
+    module level rather than by remembering not to render it.
+    """
+    from . import proof as _proof
+    return render_template("proof.html", disclaimer=RISK_DISCLAIMER, p=_proof.payload())
+
+
 @app.route("/tidemark")
 def tidemark():
     """TIDEMARK — a SEPARATE project's Phase-1 result, reported as a linked page.

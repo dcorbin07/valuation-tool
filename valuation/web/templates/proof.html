@@ -1,0 +1,458 @@
+{% extends "_saas_base.html" %}
+{% block title %}Proof — Valquo{% endblock %}
+{% block og_title %}Valquo — the evidence, including what it fails{% endblock %}
+{% block og_description %}Every headline figure, the threshold it was measured against, and the bars it does not clear. A shuffled-signal placebo, three benchmarks, the trading costs, and the tests we ran and rejected.{% endblock %}
+
+{% block body %}
+<style>
+  .pf{max-width:940px;margin:auto;padding:0 22px 60px}
+  .pf h1{font-size:34px;line-height:1.2;margin:34px 0 10px;color:var(--navy);letter-spacing:-.4px}
+  .pf h2{font-size:21px;margin:0 0 6px;color:var(--navy);letter-spacing:-.2px}
+  .pf h3{font-size:15px;margin:22px 0 8px;color:var(--ink)}
+  .pf p{margin:10px 0}
+  .lede{font-size:17px;color:#41506b;max-width:720px}
+  .sec{margin-top:34px}
+  .sec>.card{padding:26px 28px}
+  .kicker{font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+  .sub{font-size:14px;color:var(--muted);margin:2px 0 18px;max-width:760px}
+  .stamp{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 4px}
+  .chip{background:#fff;border:1px solid var(--border);border-radius:999px;padding:5px 13px;font-size:12px;color:var(--muted);font-weight:600}
+  .chip b{color:var(--ink);font-weight:700}
+  .warn{background:#fff8ec;border:1px solid #f2dfbc;border-left:4px solid var(--amber);border-radius:10px;padding:14px 17px;font-size:14px;margin:16px 0}
+  .warn b{color:#8a5a08}
+
+  table.t{width:100%;border-collapse:collapse;font-size:14px;margin-top:4px}
+  table.t th{text-align:left;font-size:11px;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);padding:0 10px 8px 0;font-weight:700}
+  table.t td{padding:11px 10px 11px 0;border-bottom:1px solid #f1f4f9;vertical-align:top}
+  table.t tr:last-child td{border-bottom:none}
+  .num{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+  .pos{color:var(--green)} .neg{color:var(--red)}
+  .pill{display:inline-block;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;letter-spacing:.3px;white-space:nowrap}
+  .pill.ok{background:#e6f4ec;color:var(--green)}
+  .pill.no{background:#fbeae9;color:var(--red)}
+  .pill.mid{background:#fff3e0;color:#8a5a08}
+
+  .lad{display:grid;grid-template-columns:auto 1fr auto;gap:5px 12px;align-items:center;margin-top:6px}
+  .lad .lb{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}
+  .lad .tr{background:#f1f4f9;border-radius:5px;height:16px;overflow:hidden}
+  .lad .fl{height:100%;background:var(--blue);border-radius:5px}
+  .lad .top .fl{background:var(--navy)}
+  .lad .vv{font-size:13px;font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+
+  .pl{border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:12px;background:#fbfcfe}
+  .pl .pt{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .pl .pn{font-weight:700;font-size:14.5px}
+  .scale{position:relative;height:40px;margin:6px 2px 4px}
+  .scale .band{position:absolute;top:14px;height:12px;background:#dde5f2;border-radius:6px}
+  .scale .p95{position:absolute;top:8px;height:24px;width:2px;background:var(--muted)}
+  .scale .real{position:absolute;top:4px;height:32px;width:3px;background:var(--navy);border-radius:2px}
+  .scale .tag{position:absolute;font-size:10.5px;font-weight:700;color:var(--muted);white-space:nowrap;top:28px}
+  .scale .tag.r{color:var(--navy);top:-2px}
+  .legend{font-size:12.5px;color:var(--muted);margin-top:2px}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .box{border:1px solid var(--border);border-radius:11px;padding:15px 17px;background:#fbfcfe}
+  .box .bn{font-size:11px;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .box .bv{font-size:25px;font-weight:800;color:var(--navy);font-variant-numeric:tabular-nums;margin:3px 0 2px}
+  .box .bd{font-size:12.5px;color:var(--muted);line-height:1.45}
+  ul.tight{margin:8px 0;padding-left:20px} ul.tight li{margin:7px 0;font-size:14px}
+  .src{font-size:12px;color:#9aa4b5;margin-top:16px;border-top:1px dashed var(--border);padding-top:11px}
+  code{background:#f1f4f9;padding:1.5px 6px;border-radius:5px;font-size:12.5px;color:#3a4a66}
+  @media(max-width:700px){.grid2{grid-template-columns:1fr}.pf h1{font-size:27px}}
+</style>
+
+<div class="pf">
+
+  <h1>The evidence</h1>
+  <p class="lede">Every headline number on this site, the threshold it was judged against, and
+  the bars it does not clear. Nothing on this page is typed by hand &mdash; it is read from the
+  backtest artifact and the placebo study in the repository, so it cannot quietly go stale.</p>
+
+  {% if not p.available %}
+    <div class="sec"><div class="card">
+      <div class="kicker">Unavailable</div>
+      <h2>The evidence file is not readable in this deployment</h2>
+      <p class="sub">{{ p.reason }}. Rather than show you numbers from memory, this page shows
+      you nothing. Missing: {{ p.missing|join(', ') }}.</p>
+    </div></div>
+  {% else %}
+
+  <div class="stamp">
+    <span class="chip">Backtest run <b>{{ (p.generated_at or '')[:10] }}</b></span>
+    {% if p.commit %}<span class="chip">Commit <b>{{ p.commit }}</b></span>{% endif %}
+    <span class="chip"><b>{{ '{:,}'.format(p.panel.n_names) }}</b> companies</span>
+    <span class="chip"><b>{{ p.panel.n_dates }}</b> quarterly rebalances</span>
+    <span class="chip"><b>{{ p.panel.first }}</b> to <b>{{ p.panel.last }}</b></span>
+  </div>
+
+  <div class="warn">
+    <b>These are backtested results, not a track record.</b> They describe what the ranking
+    would have done on historical data that was reconstructed to contain only what was
+    publicly known on each date. They are not money that was made, they are hypothetical, and
+    a backtest is the weakest form of evidence there is. Everything below is arranged to help
+    you discount it correctly rather than to persuade you.
+  </div>
+
+  {% if p.missing %}
+    <div class="warn"><b>Incomplete.</b> One or more sources could not be read, so a section is
+    missing rather than filled in: {{ p.missing|join(', ') }}.</div>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ placebo #}
+  {% if p.placebo %}
+  <div class="sec"><div class="card">
+    <div class="kicker">The test that matters most</div>
+    <h2>We shuffled the signal {{ p.placebo.n_draws }} times and re-ran everything</h2>
+    <p class="sub">The obvious objection to any backtest is that the machinery itself
+    manufactures the result. So we destroyed the signal and kept the machinery: within each
+    rebalance date the scores were randomly reassigned between companies &mdash; preserving the
+    distribution, the missing data and the correlation between themes, destroying only the link
+    between a company and its own score &mdash; and the whole pipeline was run again, {{ p.placebo.n_draws }}
+    times, on seeds {{ p.placebo.seeds }}.</p>
+    <p class="sub">Grey is where those {{ p.placebo.n_draws }} deliberately worthless runs
+    landed. The dark line is the real result.</p>
+
+    {% for r in p.placebo.rows %}
+      {% set lo = [r.noise_min, r.real]|min %}
+      {% set hi = [r.noise_max, r.real]|max %}
+      {% set span = (hi - lo) if (hi - lo) != 0 else 1 %}
+      {% set pad = span * 0.08 %}
+      {% set l0 = lo - pad %}{% set l1 = hi + pad %}{% set sp = l1 - l0 %}
+      <div class="pl">
+        <div class="pt">
+          <span class="pn">{{ r.label }}</span>
+          {% if r.beats_every_draw %}
+            <span class="pill ok">beat all {{ r.n_draws }} noise runs</span>
+          {% elif r.n_beaten is not none and r.clears %}
+            <span class="pill mid">{{ r.n_beaten }} of {{ r.n_draws }} noise runs matched or beat it</span>
+          {% elif r.clears %}
+            <span class="pill mid">above the 95th percentile of noise</span>
+          {% else %}
+            <span class="pill no">inside the noise</span>
+          {% endif %}
+        </div>
+        <div class="scale">
+          <div class="band" style="left:{{ (100*(r.noise_min-l0)/sp)|round(1) }}%;width:{{ (100*(r.noise_max-r.noise_min)/sp)|round(1) }}%"></div>
+          <div class="p95" style="left:{{ (100*(r.noise_bar-l0)/sp)|round(1) }}%"></div>
+          <div class="real" style="left:{{ (100*(r.real-l0)/sp)|round(1) }}%"></div>
+          <div class="tag r" style="left:{{ (100*(r.real-l0)/sp)|round(1) }}%;transform:translateX(-50%)">real
+            {% if r.unit == 'pct' %}{{ (100*r.real)|round(2) }}%{% else %}{{ r.real|round(2) }}{% endif %}</div>
+          <div class="tag" style="left:{{ (100*(r.noise_bar-l0)/sp)|round(1) }}%;transform:translateX(-50%)">noise bar</div>
+        </div>
+        <div class="legend">
+          Typical noise run
+          {% if r.unit == 'pct' %}{{ (100*r.noise_median)|round(2) }}%{% else %}{{ r.noise_median|round(2) }}{% endif %}
+          &nbsp;·&nbsp; best of {{ r.n_draws }} noise runs
+          {% if r.unit == 'pct' %}{{ (100*(r.noise_min if r.direction=='low' else r.noise_max))|round(2) }}%{% else %}{{ (r.noise_min if r.direction=='low' else r.noise_max)|round(2) }}{% endif %}
+          &nbsp;·&nbsp; real
+          {% if r.unit == 'pct' %}{{ (100*r.real)|round(2) }}%{% else %}{{ r.real|round(2) }}{% endif %}
+          {% if r.key == 'monotonicity' %} &nbsp;·&nbsp; lower is better here: &minus;1.0 is a perfectly ordered ladder{% endif %}
+        </div>
+      </div>
+    {% endfor %}
+
+    {% if p.placebo.counted_from_draws %}
+      {% set clean = p.placebo.rows|selectattr('beats_every_draw')|list|length %}
+      {% set dirty = p.placebo.rows|rejectattr('beats_every_draw')|list %}
+      <p class="sub" style="margin-top:14px">{{ clean }} of these beat every single noise run
+      outright. The rest did not, and the counts are on the labels above rather than rounded
+      away:
+      {% for r in dirty %}<b>{{ r.label|lower }}</b> was matched or beaten by
+      {{ r.n_beaten }} of {{ r.n_draws }}{{ ', ' if not loop.last else '' }}{% endfor %}.
+      That is why the long-only ranking is the claim this site leads with and the long-short
+      spread is not.</p>
+    {% endif %}
+    <div class="src">Counts derived at page load from <code>{{ p.placebo.source }}</code>,
+    which retains all {{ p.placebo.n_draws }} draws
+    {% if p.placebo.register %}(pre-registered as <code>{{ p.placebo.register }}</code>){% endif %}.
+    The "noise bar" is the 95th percentile of those draws. A tie counts against us: a noise run
+    that merely equals the real result is counted as having matched it.</div>
+  </div></div>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ benchmarks #}
+  {% if p.benchmarks %}
+  <div class="sec"><div class="card">
+    <div class="kicker">Against what you could have bought instead</div>
+    <h2>Three benchmarks, including the one that flatters us least</h2>
+    <p class="sub">The top-tenth ranked by our score, rebalanced quarterly, held for one
+    quarter, equally weighted. Measured against three different comparisons rather than the
+    single most favourable one.</p>
+    <table class="t">
+      <tr><th>Benchmark</th><th>It returned</th><th>Top decile</th><th>Difference</th><th>t</th><th>Quarters ahead</th></tr>
+      {% for b in p.benchmarks %}
+      <tr>
+        <td><b>{{ b.label }}</b>{% if not b.investable %}<br><span style="font-size:12px;color:var(--amber);font-weight:700">uninvestable &mdash; you cannot buy this</span>{% endif %}
+          {% if b.note %}<br><span style="font-size:12px;color:var(--muted)">{{ b.note }}</span>{% endif %}</td>
+        <td class="num">{{ (100*b.benchmark_ann)|round(1) }}%</td>
+        <td class="num">{{ (100*b.top_decile_ann)|round(1) }}%</td>
+        <td class="num pos">+{{ (100*b.excess_ann)|round(2) }}%</td>
+        <td class="num">{{ b.t|round(2) }}</td>
+        <td class="num">{{ (100*b.hit_rate)|round(0)|int }}%</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <p class="sub" style="margin-top:14px">All figures annualised and gross of trading costs.
+    The equal-weight universe is listed first because every historical figure in this project
+    was measured against it &mdash; and it is the <em>hardest</em> of the three, because an
+    equally weighted basket of every company in the panel, charged nothing to trade, beat the
+    S&amp;P over this window. The SPY row is the one that answers "versus just buying the
+    index".</p>
+  </div></div>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ ladder #}
+  {% if p.deciles %}
+  <div class="sec"><div class="card">
+    <div class="kicker">Does the score actually sort?</div>
+    <h2>The full ladder, not just the top</h2>
+    <p class="sub">A top decile can look good by luck. The question is whether the whole
+    ranking orders returns. Annualised return by score decile, best-ranked first.</p>
+    <div class="lad">
+      {% for d in p.deciles %}
+        <div class="lb">{{ 'Top 10%' if d.rank == 1 else ('Bottom 10%' if d.rank == 10 else 'Decile ' ~ d.rank) }}</div>
+        <div class="tr {{ 'top' if d.is_top }}"><div class="fl" style="width:{{ d.bar_pct }}%"></div></div>
+        <div class="vv">{{ (100*d.ann)|round(1) }}%</div>
+      {% endfor %}
+    </div>
+    <p class="sub" style="margin-top:16px">It sorts, and imperfectly &mdash; deciles 4 through 7
+    are effectively tied and one is out of order. The ordering statistic is
+    <b>{{ p.monotonicity|round(3) }}</b>, where &minus;1.0 would be a perfect ladder. What
+    carries the result is the top decile and the bottom two; the middle is noise.</p>
+  </div></div>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ distribution #}
+  {% if p.distribution %}
+  <div class="sec"><div class="card">
+    <div class="kicker">What the average hides</div>
+    <h2>It lost to the market in {{ (100*p.distribution.negative_fraction)|round(0)|int }}% of quarters</h2>
+    <p class="sub">An annualised average is one number standing in for
+    {{ p.distribution.n }} quarters, and quoting it alone is how a strategy that is often
+    behind gets described as though it were always ahead.</p>
+    <div class="grid2">
+      <div class="box">
+        <div class="bn">Quarters behind the benchmark</div>
+        <div class="bv">{{ p.distribution.negative_periods }} of {{ p.distribution.n }}</div>
+        <div class="bd">Nearly three in ten. If you held this you would have spent a lot of
+        time wondering whether it had stopped working.</div>
+      </div>
+      <div class="box">
+        <div class="bn">Worst single quarter</div>
+        <div class="bv neg">{{ (100*p.distribution.worst.value)|round(2) }}%</div>
+        <div class="bd">Relative to the benchmark, in {{ p.distribution.worst.date }}. The best
+        was +{{ (100*p.distribution.best.value)|round(2) }}% in {{ p.distribution.best.date }}.</div>
+      </div>
+      <div class="box">
+        <div class="bn">Typical quarter (median)</div>
+        <div class="bv">+{{ (100*p.distribution.median)|round(2) }}%</div>
+        <div class="bd">Below the mean of +{{ (100*p.distribution.mean)|round(2) }}%, because
+        the distribution is skewed: a few strong quarters pull the average above the typical
+        one.</div>
+      </div>
+      {% if p.costs and p.costs.net_max_drawdown %}
+      <div class="box">
+        <div class="bn">Worst peak-to-trough, after costs</div>
+        <div class="bv neg">{{ (100*p.costs.net_max_drawdown)|round(1) }}%</div>
+        <div class="bd">Driven by one quarter &mdash; the Covid crash. A ranking of companies
+        cannot protect you from the market falling as a whole.</div>
+      </div>
+      {% endif %}
+    </div>
+  </div></div>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ costs #}
+  {% if p.costs %}
+  <div class="sec"><div class="card">
+    <div class="kicker">Trading costs</div>
+    <h2>How expensive would trading have to get before this stops working?</h2>
+    <p class="sub">"Net of costs" asks you to believe our cost estimate. The breakeven does
+    not: it is the cost at which the edge reaches exactly zero, so you can compare it to
+    whatever you think you would really pay.</p>
+    <div class="grid2">
+      <div class="box">
+        <div class="bn">Breakeven trading cost</div>
+        <div class="bv">{{ p.costs.breakeven_bps|round(0)|int }} bps</div>
+        <div class="bd">Per trade, each way. Above this the edge is gone.</div>
+      </div>
+      <div class="box">
+        <div class="bn">Estimated actual cost</div>
+        <div class="bv">{{ p.costs.realised_bps|round(0)|int }} bps</div>
+        <div class="bd">{% if p.costs.margin %}A margin of about
+          {{ p.costs.margin|round(1) }}&times;.{% endif %} The book turns over
+          {{ (100*p.costs.turnover)|round(0)|int }}% a year, so costs are not a rounding error.</div>
+      </div>
+    </div>
+    <p class="sub" style="margin-top:16px">After costs the top decile's edge over the
+    equal-weight universe falls from {{ (100*p.costs.gross_alpha)|round(2) }}% to
+    {{ (100*p.costs.net_alpha)|round(2) }}% a year.</p>
+    {% if p.costs.limitations %}
+    <h3>What the cost model does not capture</h3>
+    <ul class="tight">{% for l in p.costs.limitations %}<li>{{ l }}</li>{% endfor %}</ul>
+    {% endif %}
+  </div></div>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ fails #}
+  {% if p.bars %}
+  <div class="sec"><div class="card">
+    <div class="kicker">The part most sites leave out</div>
+    <h2>The bars it fails</h2>
+    <p class="sub">Four standard thresholds. It clears one and fails three. All four are here
+    because a page that showed only the passing one would be advertising, not evidence.</p>
+    <table class="t">
+      <tr><th>Threshold</th><th>Result</th><th>Bar</th><th></th></tr>
+      {% for b in p.bars %}
+      <tr>
+        <td><b>{{ b.name }}</b><br><span style="font-size:12.5px;color:var(--muted)">{{ b.what }}</span>
+          {% if b.tension %}<br><span style="font-size:12.5px;color:#8a5a08;margin-top:4px;display:inline-block">{{ b.tension }}</span>{% endif %}</td>
+        <td class="num">{{ b.value|round(3) }}</td>
+        <td class="num">{{ b.bar|round(3) }}{% if b.lower_is_better %} max{% endif %}</td>
+        <td>{% if b.passes %}<span class="pill ok">clears</span>{% else %}<span class="pill no">fails</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div></div>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ rejected #}
+  <div class="sec"><div class="card">
+    <div class="kicker">What we tested and threw away</div>
+    <h2>{% if p.trials %}{{ p.trials.get('equity', 0) + p.trials.get('options', 0) }} recorded
+    tests. The overwhelming majority failed.{% else %}Most of what we tried did not work.{% endif %}</h2>
+    <p class="sub">The reason a backtest is weak evidence is that you can keep trying until
+    something works. The defence is to write down every attempt, including the ones that
+    failed, so the successes can be discounted by how many shots were taken. Every test below
+    was registered in writing &mdash; hypothesis, threshold and direction &mdash; and committed
+    to version control <em>before</em> it was run.</p>
+
+    {% if p.trials %}
+    <div class="grid2" style="margin:18px 0">
+      <div class="box">
+        <div class="bn">Stock-ranking tests</div>
+        <div class="bv">{{ p.trials.get('equity', 0) }}</div>
+        <div class="bd">Each one raises the bar the headline has to clear. That is why the
+        multiple-testing hurdle above is failed: we counted honestly.</div>
+      </div>
+      <div class="box">
+        <div class="bn">Options tests</div>
+        <div class="bv">{{ p.trials.get('options', 0) }}</div>
+        <div class="bd">Which produced no usable signal at all. See below.</div>
+      </div>
+    </div>
+    {% endif %}
+
+    <h3>Ideas that sounded good and were rejected on measurement</h3>
+    <ul class="tight">
+      <li><b>Sector-neutral ranking.</b> Ranking companies against their own sector instead of
+      the whole market. Tested three times, on two different panels, rejected every time. Now
+      permanently closed.</li>
+      <li><b>A machine-learning model over the same inputs.</b> A gradient-boosted tree trained
+      on one half of the history. Out of sample its deciles ran <em>backwards</em> &mdash; its
+      top decile underperformed its bottom one. The plain equally-weighted sum beat it in both
+      directions of the split.</li>
+      <li><b>Tuning the weights.</b> Five separate schemes for weighting the themes &mdash;
+      shrinkage, inverse-volatility, recency-weighting and two others. All five rejected. The
+      shipped model weights every theme equally and has never been tuned, because tuning it
+      on this data made it worse.</li>
+      <li><b>The options entry signal.</b> Our own options alert was tested against simply
+      picking random days, and <em>lost</em>. It is not sold, not recommended, and the finding
+      is published rather than buried.</li>
+      <li><b>Using the stock score to pick options.</b> Rejected in both the versions we tried.
+      The score describes the underlying company, not the trade.</li>
+      <li><b>A dozen published academic anomalies.</b> Short-term reversal, idiosyncratic
+      volatility, maximum daily return, low volatility, analyst estimate revisions, return
+      seasonality and others. None replicated here at a threshold set in advance.</li>
+    </ul>
+
+    <h3>And corrections we found in our own work</h3>
+    <ul class="tight">
+      <li>An early version of the panel had an inverted universe in its first third. Fixing it
+      cut the headline alpha by roughly a third. The corrected figure is the one on this page.</li>
+      <li>Five factors were silently empty for the project's entire history &mdash; they
+      computed to nothing and raised no error. A coverage guard now fails the run instead.</li>
+      <li>Option strike prices were being compared against split-adjusted share prices, which
+      manufactured a fake +31,000% trade. Repaired at source; no published verdict changed.</li>
+    </ul>
+    <p class="sub" style="margin-top:14px">None of these were discovered by an outside auditor.
+    They were found, written down and published by the project itself, which is the only
+    reason you are reading about them.</p>
+  </div></div>
+
+  {# ------------------------------------------------------------------ verify #}
+  <div class="sec"><div class="card">
+    <div class="kicker">Don't take our word for it</div>
+    <h2>How to check this yourself</h2>
+    <p class="sub">Four things you can verify without any special access, in rough order of how
+    much effort they take.</p>
+
+    <h3>1. Check that the numbers on this page match the artifact</h3>
+    <p>Every figure above is read at request time from
+    <code>BACKTEST_RESULTS.json</code> and <code>MA19_RECALIBRATION.json</code>. Nothing is
+    typed into this page. The run is stamped
+    {% if p.commit %}<code>{{ p.commit }}</code>, {% endif %}dated
+    <b>{{ (p.generated_at or '')[:10] }}</b> &mdash; if that date is old, these numbers are old,
+    and this page will say so rather than quietly refresh the label.</p>
+
+    <h3>2. Check the arithmetic against a benchmark you can price yourself</h3>
+    <p>The SPY row above says the S&amp;P returned
+    {% if p.benchmarks %}{% for b in p.benchmarks %}{% if b.key == 'spy' %}<b>{{ (100*b.benchmark_ann)|round(1) }}% a year</b>{% endif %}{% endfor %}{% endif %}
+    over {{ p.panel.first }} to {{ p.panel.last }}. That is a public number you can look up in
+    thirty seconds. If our benchmark is wrong, everything measured against it is wrong, and
+    it is the easiest thing on this page to falsify.</p>
+
+    <h3>3. Ask the question that breaks most backtests</h3>
+    <p>The usual killer is look-ahead: scoring a company in 2012 using a number that was not
+    published until 2013. This panel is rebuilt as of each date from filings with their
+    real filing dates, prices with no future adjustment, and institutional holdings lagged by
+    their actual disclosure deadline &mdash; and companies that went bankrupt or were delisted
+    stay in, so the record is not a survey of survivors. The
+    <a href="/methodology">How it works</a> page explains the construction and the specific
+    places it is still imperfect.</p>
+
+    <h3>4. Read the tests that failed</h3>
+    <p>Each one was registered before it ran, with the threshold written down first, and the
+    verdict recorded whichever way it came out. That record is what makes the
+    {% if p.trials %}{{ p.trials.get('equity', 0) }}{% endif %} figure above meaningful rather
+    than decorative &mdash; a count of attempts is only honest if the failures were logged at
+    the time rather than reconstructed afterwards.</p>
+
+    <h3>The strongest evidence is not on this page</h3>
+    <p>The most convincing test this project has run is an out-of-sample replication on
+    international data: the same untuned model, mapped onto a different vendor's dataset,
+    different countries, a different construction and a different period. It works there, and
+    the United States is the <em>weakest</em> region tested. Those figures are derived from a
+    dataset licensed for non-commercial research only, so they cannot be published on a
+    product page. That is a licensing constraint, not a hedge &mdash; and a page claiming to
+    show proof should say what it is leaving out and why.</p>
+  </div></div>
+
+  {# ------------------------------------------------------------------ not #}
+  <div class="sec"><div class="card">
+    <div class="kicker">Read this before you use any of it</div>
+    <h2>What this is not</h2>
+    <ul class="tight">
+      <li><b>It is not a track record.</b> No money was managed. Backtested results are
+      hypothetical and benefit from knowing which companies still existed to be studied.</li>
+      <li><b>It is not evidence that it will keep working.</b> The result comes from one panel
+      over one period. Published factor premia routinely shrink after they are published, and
+      there is no reason to assume this one is exempt.</li>
+      <li><b>It is not advice, and it is not tailored to you.</b> A score is a model output
+      about a company, produced without any knowledge of your circumstances, your tax position
+      or your time horizon.</li>
+      <li><b>It is not a reason to concentrate.</b> The figures above describe a basket of
+      {% if p.panel.cross_section_median %}about
+      {{ ((p.panel.cross_section_median / 10)|round(0)|int) }}{% else %}many{% endif %}
+      companies &mdash; the top tenth of a typical cross-section &mdash; rebalanced quarterly
+      and equally weighted. Nothing here supports buying a handful of names, and a single name
+      can go to zero regardless of its score.</li>
+      <li><b>The middle of the ranking means very little.</b> Deciles four through seven are
+      indistinguishable from each other. Treating a score of 61 as better than a 57 reads
+      precision into the number that is not there.</li>
+    </ul>
+  </div></div>
+
+  {% endif %}
+</div>
+{% endblock %}
