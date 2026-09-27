@@ -652,6 +652,33 @@ def create_saas_app(cfg=CONFIG):
             # exists to prevent, so there is no query string that can switch it off. A caller
             # that genuinely needs to backfill a closed day uses the CLI, in the repo, on
             # purpose.
+            # ALREADY RECORDED IS ANSWERED BEFORE ANY VENDOR IS TOUCHED, and the pull
+            # exposed why that ordering matters rather than merely being tidy. The service
+            # holds rows for 2026-09-23, -24 and -25, and the Action committed a "SPY could
+            # not be priced" refusal for each of those same dates: two runs fire nightly
+            # (22:12 and 23:37 UTC), one succeeded, and the other priced the day AGAIN and
+            # failed on a date already on disk. `append_row` was always idempotent -- it
+            # returns `already_present` and the row on disk -- but it only got the chance
+            # after 86 names had been fetched, so the second run's vendor failure surfaced as
+            # a refusal for a day that was already recorded.
+            #
+            # A recorded day needs no price. Answering it from disk makes the second nightly
+            # run free, silent and incapable of manufacturing a false refusal.
+            if wants_append:
+                _seen = index_mark._read_history(None)
+                _have = {(r.get("date") or "")[:10] for r in (_seen.get("rows") or [])}
+                if date and str(date)[:10] in _have:
+                    _row = next((r for r in (_seen.get("rows") or [])
+                                 if (r.get("date") or "")[:10] == str(date)[:10]), None)
+                    return jsonify({
+                        "ok": True, "wrote": False, "already_present": True,
+                        "row": _row,
+                        "reason": ("%s is already recorded, so no vendor was contacted. The "
+                                   "row returned is the one ON DISK, never a recomputation: a "
+                                   "retry hours later can price a different close for the "
+                                   "same day." % str(date)[:10]),
+                    }), 200
+
             res = index_mark.contract_row(date)
 
             if not wants_append:

@@ -212,7 +212,24 @@ def _date(s) -> Optional[_dt.date]:
         return None
 
 
-def _closes(ticker: str, fetch: Callable, seen: Optional[dict] = None) -> dict:
+def _accepts_as_of(fetch) -> bool:
+    """Does this callable take an `as_of` keyword? Inspected, never assumed.
+
+    A fetcher that does not is a legacy two-argument one -- several suites inject those -- and
+    handing it an unexpected keyword raises TypeError, which `_closes` catches and turns into
+    an empty price map. That failure is invisible: the name simply reads unpriced.
+    """
+    try:
+        import inspect
+        p = inspect.signature(fetch).parameters
+        return ("as_of" in p
+                or any(q.kind is inspect.Parameter.VAR_KEYWORD for q in p.values()))
+    except (TypeError, ValueError):
+        return False
+
+
+def _closes(ticker: str, fetch: Callable, seen: Optional[dict] = None,
+            as_of: str = None) -> dict:
     """`{'YYYY-MM-DD': close}` for one ticker, or `{}`.
 
     The fetcher is injected so the tests can run the whole mechanism offline against fixed
@@ -230,7 +247,20 @@ def _closes(ticker: str, fetch: Callable, seen: Optional[dict] = None) -> dict:
     except Exception:
         return {}
     try:
-        df = fetch(ticker, days=HISTORY_DAYS)
+        # `as_of` NAMES THE DATE THIS CALL ACTUALLY NEEDS, which is what lets a vendor report
+        # a stale frame as a FAILURE instead of a success.
+        #
+        # PASSED ONLY TO A FETCHER THAT ACCEPTS IT, decided by INSPECTING THE SIGNATURE rather
+        # than by try/except TypeError. The first cut passed it whenever set, and every
+        # injected two-argument fetcher in the test suite raised TypeError -- which `_closes`
+        # swallows into an empty map, so the benchmark leg silently lost its inception price
+        # and thirty-one tests failed with "SPY could not be priced". A bare `except TypeError`
+        # would have hidden a genuine TypeError raised INSIDE a fetcher, which is the same
+        # swallowing one level down.
+        if as_of and _accepts_as_of(fetch):
+            df = fetch(ticker, days=HISTORY_DAYS, as_of=as_of)
+        else:
+            df = fetch(ticker, days=HISTORY_DAYS)
     except Exception:
         if seen is not None:
             seen[ticker] = "fetch_raised"
@@ -371,7 +401,7 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
     # --- benchmark ---
     bench = book["benchmark"]
     vendors: dict = {}
-    bc = _closes(bench, fetch, vendors)
+    bc = _closes(bench, fetch, vendors, as_of=mark_key)
     b_base, b_mark = bc.get(base_key), bc.get(mark_key)
     if not b_base or not b_mark:
         which = "inception " + base_key if not b_base else "mark date " + mark_key
@@ -389,7 +419,7 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
     num, wsum, unpriced = 0.0, 0.0, []
     total_w = sum(p["weight"] for p in book["positions"])
     for p in book["positions"]:
-        m = _closes(p["ticker"], fetch, vendors)
+        m = _closes(p["ticker"], fetch, vendors, as_of=mark_key)
         base, cur = m.get(base_key), m.get(mark_key)
         if not base or not cur:
             unpriced.append(p["ticker"])
@@ -447,10 +477,27 @@ def _vendor_census(seen: dict, benchmark: str) -> dict:
         "book_leg_by_vendor": by,
         "book_leg_single_vendor": (len(by) <= 1),
         "legs_agree": (bucket(seen.get(benchmark)) in by) if by else None,
+        # HOW MANY NAMES WERE REFUSED FOR STALENESS, which is information the freshness rule
+        # creates and nothing else reports. A run that priced the book off the fallback because
+        # the primary was stale looks identical to a clean run in every other field; this is
+        # the number that distinguishes them, and it lands in the note the Action commits
+        # rather than in a new CSV column the append-only prefix rule would have to absorb.
+        "stale_rejections": _stale_rejections(),
         "note": ("A vendor label of 'unlabelled' means the fetcher did not record one -- it "
                  "does NOT mean the primary served. yfinance's Close is AUTO-ADJUSTED and is a "
-                 "different quantity from an as-traded close."),
+                 "different quantity from an as-traded close. `stale_rejections` counts vendor "
+                 "answers that were well-formed but older than the mark date and were "
+                 "therefore refused rather than used."),
     }
+
+
+def _stale_rejections():
+    """Staleness refusals recorded by the price layer, or None when it cannot be read."""
+    try:
+        from . import prices as _p
+        return int((_p.source_census() or {}).get("stale_rejections") or 0)
+    except Exception:                                                    # noqa: BLE001
+        return None
 
 def _canonical_csv(rows: list, fields: list) -> bytes:
     """The rows serialised exactly as `append_row` writes them.

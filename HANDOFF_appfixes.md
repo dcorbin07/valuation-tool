@@ -5,6 +5,180 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 57 — 2026-09-27 — freshness is part of success, and two hypotheses died
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched. No backfill of any kind. Neither the SPY refusal nor the 95% floor was weakened —
+both did their job and the source was fixed instead.
+
+## THE DEFECT, AND THE SYMPTOM THAT IDENTIFIED IT
+
+`prices.get_history_df` tested Stooq's answer with `df.empty or "Close" not in df.columns`. **A
+valid but STALE CSV passes both**, so the frame was returned as SUCCESS and the yfinance
+fallback never ran. `index_mark._closes` then built a date→close map that did not contain the
+mark date and the name read **UNPRICED** — no exception, no warning, no fallback, and
+indistinguishable from a genuinely unpriceable symbol.
+
+**The symptom is what made the cause knowable rather than guessable.** Two PT-WRITER runs on
+different dates reported coverage identical to **fifteen decimal places**
+(`0.812767489300428`) and the **same sixteen** unpriced names, symmetric difference empty.
+Throttling is stochastic; that is deterministic, and deterministic is what a consistently-stale
+vendor file looks like. **The datacenter-IP throttling hypothesis is refuted by the service's
+own committed evidence.**
+
+## THE FIX
+
+1. **Freshness is part of success.** `get_history_df` grows optional `as_of`. A frame whose last
+   `Date` precedes it is **raised** on the Stooq leg — the same path as a 404, counted in the
+   census, falls through. yfinance gets the identical check, because a stale fallback is exactly
+   as unusable and checking only the primary would relocate the defect.
+2. **Order: Stooq (fresh) → yfinance (fresh) → FMP third, keyed, and GATED.** FMP requires a key
+   **and** `PRICES_ALLOW_FMP=1`. Without the opt-in it returns None and says why. Its seam
+   against the recorded series is unmeasured and no key is available here, so the code refuses
+   rather than trusting it: a missing price refuses a row, which is recoverable, while a row
+   priced from an unvalidated vendor is permanent in an append-only record.
+3. **`index_mark._closes` passes the mark date**, both legs.
+4. **The door answers already-recorded from disk BEFORE touching a vendor** — the second defect.
+   The service holds rows for 09-23/24/25 while the Action committed a "SPY could not be priced"
+   refusal for each: `append_row` was always idempotent, but only got the chance after 86 names
+   had been fetched, so a vendor failure surfaced as a refusal for a day already recorded.
+5. **`stale_rejections` joins the vendor census** in the note the Action already commits. No new
+   CSV column — the append-only prefix rule would have to absorb one.
+
+## THE SECOND HYPOTHESIS ALSO DIED: THE TIMING STORY IS NOT REAL
+
+*"22:12 fails, 23:37 succeeds"* would be the signature of an evening file refresh. Measured
+across **19 days with two runs: ZERO days where the first failed and a later one succeeded.**
+Slot A 11% success, slot B 20% — both bad, no meaningful difference. **And the runs do not fire
+at 22:12/23:37 at all**: those are the cron's schedule times, and GitHub delays them to ~00:2x
+and ~01:3x UTC, both already after the close. **Moving the cron would buy nothing.**
+
+## THE GAP AND THE GATE, AGAINST THE SERVICE RATHER THAN THE BACKUP
+
+The pulled series is the authority and it corrects two figures I reported from the stale local
+backup. **11 missing of 31 trading days since vintage 4's inception**, not 25. And **September
+is SAFE**: its last row is 09-25, exactly **3** trading days before month-end, and
+`track_meter` voids on `stale > 3`. My earlier "September voids unless a row lands by Monday"
+was wrong in the alarming direction.
+
+**The seam is better than I reported, too.** Against the SERVICE's values, **20 of 22 rows
+reproduce to under 0.0005pp**. The only real deviation is 07-31 at −0.0297pp (day 1,
+intraday-marked). My "−0.2569pp on 09-24" was a backup artifact: the backup says 3.4367, the
+service says 3.6936 — exactly the re-derived figure.
+
+**Not a vintage event**, per §5a's own wording: it binds "scoring, weights, or construction",
+and a price source is none of the three. Logged as a disclosure.
+
+## `day_n` — THE EMPTY COLUMN WAS MY OWN PULLER'S BUG
+
+`track_export._bound_rows` builds only `date`, `valquo_pct`, `spy_pct`, `excess_pp`,
+`n_priced` — **there is no `day_n` in the export** — so `fetch_track.to_csv` wrote it blank.
+**The local file's populated `day_n` is the correct one**; `contract_row` computes it as trading
+days from inception. It is now DERIVED the same way in the puller, so a pulled file is
+byte-comparable instead of failing the service's prefix check for a reason with nothing to do
+with the data — which is the exact trap that module's own docstring warns about.
+
+## A GAP IN MY OWN TEST, CAUGHT BY THE EXISTING SUITE
+
+`tests/test_index_mark.py` went **36/67**. `contract_row` always sets `as_of`, so every legacy
+two-argument fetcher the suites inject received an unexpected keyword, raised `TypeError`, and
+`_closes` swallowed it into an empty map — the benchmark leg lost its inception price and 31
+tests failed with *"SPY could not be priced"*. **My own test had called `_closes` WITHOUT
+`as_of` and passed**: it exercised the easy call rather than the shipped one.
+
+Fixed by **inspecting the signature** rather than `except TypeError`, which would have hidden a
+genuine TypeError raised inside a fetcher — the same swallowing one level down. **67/67**, and
+my test now drives the shipped path.
+
+## VERIFIED, AND THE ONE LIMIT
+
+**16 of 17 resolve for 2026-09-25, SPY included** — SPY plus the sixteen previously-unpriced
+names. **WBS is the exception and it demonstrates the fix working**: yfinance is genuinely stale
+for it (last 2026-08-19), so it was refused with a reason and FMP declined because it is not
+enabled. One name at ~1.2% weight cannot breach the 95% floor.
+
+**THE FULL 86-NAME LOCAL RUN COULD NOT COMPLETE, and the reason is itself a finding.** From this
+machine Stooq **connect-times-out** rather than 404ing, so every name burns 3 × 15s before
+falling back — a full pass is roughly an hour and the run died at nine names. On Render, where
+Stooq answers, that cost does not apply. **So the end-to-end confirmation is the targeted
+17-name check plus the unit tests, not a full local pass.** Stated rather than implied.
+
+# Session 56 — 2026-09-15 — the fleet-cycle timeout: diagnosis only, no change made
+
+**REPORT ONLY. Nothing was edited — `.github/` is Don-PR-only (`MA11`) and the fix is a
+workflow change.** Zero trials.
+
+## THE RUNS ARE TRIMODAL, WHICH SETTLES WHAT THE 120s CEILING IS ACTUALLY HITTING
+
+Fourteen `FLEET CYCLE` runs, measured:
+
+| cluster | n | seconds | what it is |
+|---|---:|---:|---|
+| fast failures | 5 | **6–8** | the service unreachable — the HTTP 000/502 class, **not a timeout** |
+| normal successes | 4 | **36–74** | a cycle that completes |
+| at or over the ceiling | 5 | **102–127** | one **SUCCEEDED at 102s**; the rest were cut at 120 |
+
+**Two different failures have been reading as one.** Five of the nine failures die in 6–8
+seconds — that is a cold or unreachable service, and a longer timeout does nothing for them.
+Only the ~125s group is the ceiling.
+
+**And the ceiling is already tight for the NORMAL case**: a successful cycle takes 36–74s, so
+even a quiet day spends 30–60% of the budget. One run needed 102s and made it; the truncated
+ones are ≥120s and their true duration is unknown.
+
+## WHERE THE TIME GOES — measured, not assumed
+
+`fleet.cycle(write=False)` locally over all 18 books: **4.50 seconds.** So the cycle itself is
+not the cost. The remainder is the door's other work plus the service's own cold start.
+
+The expensive, occasional part is **the day-1 self-check**, which the handler runs only on the
+WRITE path and only when a book's stamp is `ABSENT` or `STALE`. It does a **live sandbox fill,
+reads it back, tampers a copy, fires the refusals**, and then **certifies every other declared
+book** — `for d in F.declared_books()` — writing a row to each.
+
+**The stamp is keyed on `harness_fingerprint()`, a property of the CODE**, so *every deploy that
+changes the harness invalidates all eighteen stamps at once* and the next cycle pays the full
+day-1 cost. The committed backup shows **73 `selfcheck` rows across 18 books ≈ four full day-1
+runs**, which matches the five slow runs. **So this is a per-deploy spike, not a per-cycle
+cost** — which is why most runs are fast and a few are not.
+
+## IS IT BOUNDED? NO — AND BOTH GROWTH TERMS ARE REAL
+
+* **`cycle()` reads every book's records TWICE** — once directly, and again inside
+  `never_fires()`. That is O(books × rows), and rows only ever accumulate.
+* **Day-1 certification is O(books)** by construction: one write per declared book.
+
+Twenty-one books are declared and 18 have streams. Every book added lengthens both the daily
+cycle and the post-deploy spike. **A fixed ceiling will need raising again.**
+
+## RECOMMENDATION — (a) NOW, BUT (b) IS THE ONE THAT LASTS, AND IT IS NARROWER THAN "GO ASYNC"
+
+**(a) Immediate: raise `--max-time` from 120 to 300.** Why 300 and not 180: the longest
+COMPLETED run is 102s, the truncated ones are ≥120s with an unknown true duration, and the
+worst case is cold start (~30–60s) + day-1 (the unmeasured remainder) + cycle (~5s). 300 gives
+roughly 3× the longest observed completion. **One thing to confirm before relying on it: a
+longer CLIENT timeout only helps if the SERVICE does not cut the request off first** — Render's
+own request ceiling should be checked, or the Action will simply fail at a different number.
+
+**(b) Durable, and better than a general async/poll machine: give the self-check its own
+door and its own schedule.** The daily cycle is ~5s of real work; the unbounded, slow,
+occasionally-120s part is the day-1 certification, which only needs to run *after a deploy*.
+Splitting it — `POST /admin/fleet-selfcheck` on its own workflow with a generous timeout, and
+`/admin/fleet-cycle` doing only the cycle — **removes the spike rather than hiding it**, and
+keeps the daily door's answer synchronous and meaningful.
+
+**Why not fire-and-forget on the cycle door.** Returning 202 immediately would make the
+Action's success meaningless: it would confirm that a request was accepted, not that a cycle
+ran. Recovering that needs a status door, a poll loop and a run id — real machinery — and it
+would leave the daily green light saying less than it does today. **If (b) is taken, the
+confirmation should be the NEXT run's report of the previous cycle**, or a status door read at
+the start of the following day, so a silent failure still surfaces within one cycle.
+
+**Also worth fixing while the file is open: the 6–8s failures are a different bug.** `CODE=000`
+on curl failure conflates "the service is down" with "the cycle failed", and they need
+different responses. A retry with backoff would likely clear most of them — `PT-WRITER` has the
+same shape and its three retries do not span a Render cold start either.
+
 # Session 55 — 2026-09-15 — fractional settled by test, and the track writer's real blocker
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`

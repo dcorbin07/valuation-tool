@@ -76,17 +76,22 @@ ADJ_ATTR = "valquo_adjusted"
 
 SRC_STOOQ = "stooq"
 SRC_YFINANCE = "yfinance"
+#: Third resort, keyed and opt-in. See `_fmp_history` -- its seam is unmeasured.
+SRC_FMP = "fmp"
+FMP_HISTORY_URL = ("https://financialmodelingprep.com/api/v3/historical-price-full/{sym}")
 
 #: What each vendor's `Close` MEANS. `unverified` is a real state and is never rounded to a
 #: guess -- see the module docstring.
 VENDOR_ADJUSTMENT = {
     SRC_STOOQ: "unverified",
     SRC_YFINANCE: "auto_adjusted",
+    SRC_FMP: "unverified",
 }
 
 #: Counts by vendor plus the last vendor seen per ticker. The direct path's record; consumers
 #: holding an injected `fetch` should read `source_of(df)` instead.
 _CENSUS: dict = {"by_vendor": {}, "last_by_ticker": {}, "primary_failures": 0,
+                 "stale_rejections": 0,
                  "unlabelled": 0}
 
 
@@ -148,6 +153,43 @@ def adjustment_of(df) -> Optional[str]:
         return None
 
 
+def _last_date(df):
+    """The newest `Date` in a frame as an ISO string, or None when it cannot be read."""
+    try:
+        import pandas as pd
+        d = pd.to_datetime(df["Date"], utc=True, errors="coerce").dropna()
+        return None if d.empty else d.max().strftime("%Y-%m-%d")
+    except Exception:                                                    # noqa: BLE001
+        return None
+
+
+def _stale(df, as_of) -> bool:
+    """Is this frame's newest row EARLIER than the date the caller needs?
+
+    **THE DEFECT THIS CLOSES, AND IT COST THE BOUND TRACK ELEVEN TRADING DAYS.** Stooq's
+    success test was `df.empty or "Close" not in df.columns`. A CSV that is perfectly valid
+    and simply STALE passes both, so `get_history_df` returned it as SUCCESS and the yfinance
+    fallback never ran. The caller then built a date->close map that did not contain the mark
+    date and reported the name as UNPRICED -- no exception, no warning, no fallback.
+
+    The symptom was diagnostic: two PT-WRITER runs on different dates reported coverage
+    identical to fifteen decimal places (0.812767489300428) and the same sixteen unpriced
+    names. Throttling is stochastic; that is deterministic, and deterministic is what a
+    consistently-stale vendor file looks like.
+
+    `as_of` is OPTIONAL and omitting it preserves today's behaviour exactly -- a caller that
+    does not name the date it needs cannot be told its frame is too old for it.
+    """
+    if not as_of:
+        return False
+    last = _last_date(df)
+    if last is None:
+        # Cannot tell. NOT treated as stale: a frame whose dates are unreadable is a different
+        # failure, and the existing column check already rejects an unusable frame.
+        return False
+    return last < str(as_of)[:10]
+
+
 def source_census() -> dict:
     """A copy of the per-vendor record, for a health block or a handoff."""
     import copy
@@ -160,9 +202,10 @@ def reset_census() -> None:
     _CENSUS["last_by_ticker"] = {}
     _CENSUS["primary_failures"] = 0
     _CENSUS["unlabelled"] = 0
+    _CENSUS["stale_rejections"] = 0
 
 
-def get_history_df(ticker: str, days: int = 400):
+def get_history_df(ticker: str, days: int = 400, as_of=None):
     """Daily OHLCV DataFrame (oldest→newest) or None, LABELLED with the vendor that served it.
 
     The label is on `df.attrs["valquo_src"]`; read it with `source_of(df)`. A fallback is
@@ -182,6 +225,13 @@ def get_history_df(ticker: str, days: int = 400):
             df = pd.read_csv(io.StringIO(r.text))
             if df.empty or "Close" not in df.columns:
                 raise ValueError("stooq returned no usable Close column")
+            # FRESHNESS IS PART OF SUCCESS -- see `_stale`. Raised rather than returned, so it
+            # travels the SAME path as a 404: counted in the census, logged with a reason, and
+            # falls through to the next vendor. Returning it would be the original defect.
+            if _stale(df, as_of):
+                raise ValueError(
+                    "stooq's newest row is %s, older than the requested %s"
+                    % (_last_date(df), str(as_of)[:10]))
             return _label(df.tail(days).reset_index(drop=True), ticker, SRC_STOOQ)
         except _primary_errors() as e:
             last = e
@@ -194,10 +244,10 @@ def get_history_df(ticker: str, days: int = 400):
         "whose Close is AUTO-ADJUSTED and is therefore a different quantity from an as-traded "
         "close. The returned frame is labelled %r=%r.",
         ticker, type(last).__name__, last, SRC_ATTR, SRC_YFINANCE)
-    return _yf_history(ticker, days)
+    return _yf_history(ticker, days, as_of=as_of)
 
 
-def _yf_history(ticker: str, days: int):
+def _yf_history(ticker: str, days: int, as_of=None):
     import pandas as pd
     import yfinance as yf
 
@@ -226,7 +276,70 @@ def _yf_history(ticker: str, days: int):
     out = pd.DataFrame({"Date": h.index.astype(str), "Open": h["Open"].values,
                         "High": h["High"].values, "Low": h["Low"].values,
                         "Close": h["Close"].values, "Volume": h["Volume"].values})
-    return _label(out, ticker, SRC_YFINANCE)
+    out = _label(out, ticker, SRC_YFINANCE)
+    # THE SAME FRESHNESS RULE AS STOOQ. Applied to the fallback too, because a stale yfinance
+    # frame is exactly as unusable as a stale Stooq one -- and if the fallback could return
+    # stale data, moving the check onto the primary alone would just relocate the defect.
+    if _stale(out, as_of):
+        _CENSUS["stale_rejections"] = _CENSUS.get("stale_rejections", 0) + 1
+        _LOG.warning("prices: yfinance's newest row for %s is %s, older than the requested "
+                     "%s — no usable price for that date", ticker, _last_date(out),
+                     str(as_of)[:10])
+        return _fmp_history(ticker, days, as_of=as_of)
+    return out
+
+
+def _fmp_history(ticker: str, days: int, as_of=None):
+    """THIRD RESORT ONLY, keyed, and GATED ON AN UNMEASURED SEAM.
+
+    **FMP IS NOT THE PRIMARY AND MUST NOT BECOME ONE BY DEFAULT.** Its closes have never been
+    compared against the recorded series, so a row priced from it would carry an unmeasured
+    discontinuity into the one dataset this project cannot rebuild. Twenty of the service's
+    twenty-two recorded rows reproduce to under 0.0005pp from the yfinance-equivalent close;
+    no such statement exists for FMP.
+
+    So this tier requires TWO things, not one: a key, and `PRICES_ALLOW_FMP=1` set
+    deliberately. Without the opt-in it returns None and says why. That is the fail-closed
+    direction: a missing price refuses a row, and refusing a row is recoverable, while a row
+    priced from an unvalidated vendor is a permanent entry in an append-only record.
+
+    Measure the seam first: re-derive the 2026-08-27 and 2026-09-25 rows from FMP closes
+    against the SERVICE's recorded values, and log the result as a disclosure.
+    """
+    import os
+    key = (os.environ.get("FMP_API_KEY") or "").strip()
+    if not key:
+        return None
+    if (os.environ.get("PRICES_ALLOW_FMP") or "").strip() not in ("1", "true", "True"):
+        _LOG.warning("prices: FMP is configured but NOT enabled for %s. Its seam against the "
+                     "recorded series is unmeasured, so it may not price a row until "
+                     "PRICES_ALLOW_FMP=1 is set deliberately. No price returned.", ticker)
+        return None
+    import pandas as pd
+    import requests
+    try:
+        r = requests.get(FMP_HISTORY_URL.format(sym=str(ticker).upper()),
+                         params={"apikey": key, "serietype": "line"}, timeout=_TIMEOUT)
+        r.raise_for_status()
+        hist = ((r.json() or {}).get("historical") or [])
+        if not hist:
+            raise ValueError("FMP returned no historical rows")
+        out = pd.DataFrame({"Date": [h.get("date") for h in hist],
+                            "Close": [h.get("close") for h in hist]})
+        out = out.dropna().iloc[::-1].reset_index(drop=True).tail(days)
+        if out.empty:
+            raise ValueError("FMP returned no usable closes")
+        out = _label(out, ticker, SRC_FMP)
+        if _stale(out, as_of):
+            _CENSUS["stale_rejections"] = _CENSUS.get("stale_rejections", 0) + 1
+            _LOG.warning("prices: FMP's newest row for %s is %s, older than %s — no price",
+                         ticker, _last_date(out), str(as_of)[:10])
+            return None
+        return out
+    except Exception as e:                                              # noqa: BLE001
+        _LOG.warning("prices: FMP ALSO failed for %s (%s: %s) — no price data",
+                     ticker, type(e).__name__, e)
+        return None
 
 
 def get_quote(ticker: str) -> dict | None:

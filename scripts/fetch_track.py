@@ -74,7 +74,7 @@ def fetch(base: str, token: str, timeout: int = 120) -> dict:
     return {"meta": bound.get("meta") or {}, "series": list(series)}
 
 
-def to_csv(series) -> str:
+def to_csv(series, inception=None) -> str:
     """The service's rows in the bound file's own schema, byte-comparable with the local one.
 
     `\\r\\n` and `utf-8` because that is what `index_mark` writes and what the service's prefix
@@ -86,7 +86,26 @@ def to_csv(series) -> str:
                        extrasaction="ignore")
     w.writeheader()
     for row in series:
-        w.writerow({k: ("" if row.get(k) is None else row.get(k)) for k in ROW_COLUMNS})
+        out = {k: ("" if row.get(k) is None else row.get(k)) for k in ROW_COLUMNS}
+        # `day_n` IS DERIVED, because the export does not carry it and a blank column here was
+        # a trap of this script's own making. `track_export._bound_rows` builds only date,
+        # valquo_pct, spy_pct, excess_pp and n_priced -- so `row.get("day_n")` was always None
+        # and every pulled file rendered an empty column in a schema that declares six. That
+        # file would then fail the service's byte-prefix check for a reason with nothing to do
+        # with the data, which is the exact failure this module's docstring warns about.
+        #
+        # Derived the same way `index_mark.contract_row` derives it -- trading days from
+        # inception, exclusive of the start -- so the two agree by construction rather than by
+        # coincidence. Left blank only when the inception is unknown, because a guessed day_n
+        # is worse than an absent one.
+        if not str(out.get("day_n") or "").strip() and inception:
+            try:
+                from valuation.screener import market_session as _ms
+                d = _dt.date.fromisoformat(str(row.get("date"))[:10])
+                out["day_n"] = _ms.trading_days_between(inception, d, inclusive_start=False)
+            except Exception:                                            # noqa: BLE001
+                pass
+        w.writerow(out)
     return buf.getvalue()
 
 
