@@ -109,6 +109,16 @@ def main(argv=None) -> int:
     ap.add_argument("--out", default="")
     a = ap.parse_args(argv)
 
+    # `valuation.config` loads .env on import; importing it is what makes `.env` visible here.
+    # THIS LINE IS WHY seed_track FOUND THE SERVICE AND THIS SCRIPT DID NOT (2026-09-26): the
+    # docstring above promised ".env or the environment" and only the environment was ever
+    # read, because this script imports index_mark and index_mark loads nothing. Same pattern
+    # as seed_track, so the two scripts resolve one address the same way.
+    try:
+        from valuation.config import CONFIG                      # noqa: F401
+    except Exception:                                            # noqa: BLE001
+        pass
+
     base = (a.url or _base_url()).rstrip("/")
     token = (os.environ.get("ADMIN_TOKEN") or "").strip()
     if not base:
