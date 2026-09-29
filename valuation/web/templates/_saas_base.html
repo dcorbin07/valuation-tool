@@ -12,7 +12,10 @@
  # relative one, which is the single most common reason a card renders blank. request.url_root
  # gives the real host at request time, so this works on valquo.co and on a Render preview URL
  # without hard-coding either. #}
-{% set _base = (request.url_root.rstrip('/') if request else 'https://valquo.co') %}
+{# https on the real host: Render's proxy hands Flask http://, and a canonical that says
+ # http:// on an https-only site is the wrong address (audit 6, MC16). #}
+{% set _raw = (request.url_root.rstrip('/') if request else 'https://valquo.co') %}
+{% set _base = (_raw.replace('http://', 'https://', 1) if (_raw.startswith('http://') and 'localhost' not in _raw and '127.0.0.1' not in _raw) else _raw) %}
 {% set _og_url = _base ~ request.path if request else 'https://valquo.co/' %}
 {% set _og_image = _base ~ url_for('static', filename='og-image.png') %}
 {# Each block is DECLARED inside the first tag that needs it — declaring it on its own line

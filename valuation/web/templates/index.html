@@ -565,7 +565,12 @@
    # everyone and the panel it opened rendered for nobody. Caught by rendering the page and
    # grepping for the block rather than for the button. #}
   {% if may_see_owner %}
-  <!-- VALQUO INDEX — OWNER-ONLY, and deliberately so (decision recorded in
+  <!-- VALQUO INDEX — PUBLIC under the public-full-view posture (Don, 2026-08-13; confirmed
+       2026-09-29, audit 6 D4: "show"). `may_see_owner` is true for every visitor while that
+       switch is on and false under private mode, so this block follows the posture rather
+       than the older rule below. The paragraph that follows is the ORIGINAL reasoning,
+       kept so a reader knows the trade-off was made deliberately and not forgotten. -->
+  <!-- (superseded) VALQUO INDEX — OWNER-ONLY, and deliberately so (decision recorded in
        HANDOFF_appfixes.md, Session 13). Two independent reasons, either one sufficient:
        (1) it is a list of names WITH WEIGHTS as of today, which is an allocation rather than
            an analysis — the line the public/owner split is drawn on; and
