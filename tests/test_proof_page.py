@@ -15,11 +15,17 @@ import json
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import state_isolation   # noqa: E402,F401  — temp state only. Import BEFORE `valuation`.
 from valuation.web import proof                                    # noqa: E402
 from valuation.web.app import app as APP                           # noqa: E402
+# /app is a SaaS-layer route on the SAME Flask object; importing the layer registers it.
+from valuation.saas.app_saas import app as SAAS                    # noqa: E402,F401
 
+# The MARKUP lives in the partial: proof.html (the page) and index.html (the Proof tab) both
+# include it, so the guard reads the one place a typed number could hide.
 TEMPLATE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                        "valuation", "web", "templates", "proof.html")
+                        "valuation", "web", "templates", "_proof_body.html")
 
 # Numbers a reader would take for a research result. Deliberately NOT "any digit": the
 # template legitimately carries CSS lengths, list numbering, example years and the definition
@@ -252,6 +258,42 @@ def test_the_trial_count_is_read_live_and_not_from_the_stale_artifact():
             "the live trial count is BELOW the artifact's — the denominator moved backwards, "
             "which would overstate significance")
 
+
+
+def test_the_app_has_a_proof_tab_showing_the_same_evidence_as_the_page():
+    """Don, 2026-09-29: "instead of valquo.co/proof why not a proof tab?" Both now render ONE
+    partial, so the tab and the page cannot disagree. Pinned on the app page itself: the tab
+    button, the tab body, and the placebo heading with its derived count, byte-equal to the
+    page's."""
+    c = SAAS.test_client()
+    app_html = c.get("/app").get_data(as_text=True)
+    assert 'data-tab="proof"' in app_html, "no Proof tab button on /app"
+    assert 'id="tab-proof"' in app_html, "no Proof tab body on /app"
+    assert "We shuffled the signal" in app_html, "the tab does not carry the placebo section"
+    page_html = c.get("/proof").get_data(as_text=True)
+    # the same sentence, with the same derived numbers, on both surfaces
+    for m in re.finditer(r"beat all \d+ noise runs|matched or beaten by \d+ of \d+", page_html):
+        assert m.group(0) in app_html, f"tab and page disagree on: {m.group(0)}"
+    assert "beat all 100 noise runs" in app_html or "matched or beaten by" in app_html
+
+
+def test_the_tab_switcher_knows_the_proof_tab():
+    """switchTab keeps a literal list of tab names; a tab missing from it can be clicked and
+    never shown. Read from the shipped JS."""
+    js_path = os.path.join(os.path.dirname(TEMPLATE), "..", "static", "app.js")
+    js = open(os.path.abspath(js_path), encoding="utf-8").read()
+    m = re.search(r'\[("[a-z]+",?\s*)+\]\.forEach\(name =>', js)
+    assert m and '"proof"' in m.group(0), "switchTab's tab list does not include 'proof'"
+
+
+def test_a_surface_that_forgets_the_payload_renders_the_refusal_not_a_crash():
+    """The partial guards `p` being absent. Rendered directly with no context: the refusal
+    text, a 200, and none of the evidence sections."""
+    from flask import render_template
+    with APP.test_request_context("/"):
+        html = render_template("_proof_body.html")
+    assert "did not load the evidence" in html, html[:300]
+    assert "We shuffled the signal" not in html
 
 def _run():
     fns = [v for k, v in sorted(globals().items())

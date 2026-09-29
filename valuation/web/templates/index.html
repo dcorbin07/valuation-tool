@@ -69,6 +69,7 @@
        # posture that keeps that true is server-rendered from `dip_posture`, not written
        # here, so the copy cannot be edited on one surface and left stale on the other. #}
       <button class="tab" data-tab="dip" onclick="switchTab('dip')">📉 Dip Detector</button>
+      <button class="tab" data-tab="proof" onclick="switchTab('proof')">✔ Proof</button>
       {# OWNER-ONLY TABS (saas/surfaces.py). The Index is a live book of positions, Signals is
        # a live actionable alert, Track Record is a paper-account performance claim, and the
        # Edge Lab is the research bench. They are removed from the DOM rather than hidden with
@@ -564,6 +565,13 @@
    # which put a tab the split calls PUBLIC inside the owner gate: the button rendered for
    # everyone and the panel it opened rendered for nobody. Caught by rendering the page and
    # grepping for the block rather than for the button. #}
+  <!-- PROOF — the evidence, as a tab (Don, 2026-09-29). Same partial as /proof; the page
+       stays for linking and the sitemap, the tab is where people actually are. Public in
+       every posture the page is public in: it is derived statistics about our own model. -->
+  <div id="tab-proof" style="display:none">
+    {% include "_proof_body.html" %}
+  </div>
+
   {% if may_see_owner %}
   <!-- VALQUO INDEX — PUBLIC under the public-full-view posture (Don, 2026-08-13; confirmed
        2026-09-29, audit 6 D4: "show"). `may_see_owner` is true for every visitor while that
