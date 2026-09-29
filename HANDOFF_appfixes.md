@@ -5,6 +5,126 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 59 — 2026-09-29 — MC1, the production theme-cache builder (ADOPTS NOTHING)
+
+**AUDIT 6 / MC1. ZERO TRIALS** — no hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row.
+`by_domain` re-read at the start: **equity 248, options 310, unified 0, infra 20**, 0 malformed.
+`.github/` untouched — the weekly job is Don's PR. **16 tests, 7 of 7 mutations caught.**
+
+**ADOPTS NOTHING, AND THIS ONE MATTERS MORE THAN USUAL.** Writing this cache changes *every
+live score the next scan produces* — two themes go from contributing 0.0 to contributing. That
+is a **VINTAGE EVENT (vintage 5)** and **Don's call**. Nothing here schedules itself.
+
+## A PREMISE CORRECTION FIRST (RUN_RULES A8 — verify, do not obey)
+
+The brief's §1.1 says the audit's fixes are **UNCOMMITTED, UNPUSHED**. They are not: Don pushed
+them as **`ae978e1`** ("Update Tue 09/29/2026 18:10:50.46"), which is an ancestor of
+`origin/main`, and main has since moved to **`c3617f1`**. §1.1 was true when written and is
+stale now. Everything below is measured against `c3617f1` merged in.
+
+## THE DEFECT IS CONFIRMED, AND MORE COMPLETELY THAN THE BRIEF STATES
+
+`data/live_themes/` **does not exist on this machine at all**, and `data/live_cache/` contains
+only `issuance/`. So the cache is not merely absent from the production image — **the
+artifacts the FIDELITY-2 gate was measured on are gone locally too**: no
+`snapshot_2026-08-08.json`, no `13f_aggregate.json`, no `form4_live/`, no `theme_columns.json`.
+`D:` is not mounted. That has a direct consequence for item 2, below.
+
+## THE BUILDER — `scripts/theme_cache_build.py`
+
+Three inputs become live, and the row arithmetic is **not** reimplemented:
+
+* **The served universe** is the latest scan (`Store.latest_scan_date` / `load_snapshot`),
+  never the pinned file. **An empty store is a REFUSAL, not an empty cache** — a zero-row cache
+  reads to `live_themes.py` exactly like the absent file this item exists to replace.
+* **The periods are DERIVED** from the calendar on the panel's own lag rule
+  (`_inst_accum`, `lag_days=45`: a quarter counts only when `period_end + 45d <= as_of`).
+* **The output path comes from `LIVE_THEMES_CACHE`**, defaulting to
+  `data/live_cache/theme_columns.json`. The workflow overrides it to `.scan-cache/` — the one
+  directory `actions/cache` carries between runs, which is the whole reason a gitignored
+  artifact can survive at all.
+* **`build_live` was PARAMETERISED rather than copied** (`B7`). Every new keyword defaults to
+  what the function already did, so `build_live()` with no arguments is unchanged, and the
+  builder calls it with live arguments. A second copy is how the measured **+0.9190 / +0.8726**
+  fidelity silently stops describing what production runs.
+* **A period the 13F aggregate lacks is REFUSED**, not defaulted. Without that, a missing
+  period yields an empty dict, every `inst_accum` is omitted, and the cache looks like a clean
+  build of a universe with no institutional data — *which is exactly the 0.0 being fixed*.
+
+## THE DERIVATION'S CONTROL IS THE ONE RESULT THAT COULD HAVE GONE EITHER WAY
+
+"Derived" is only better than "pinned" if it reproduces the pinned convention **on the date the
+constants were written**. Measured:
+
+| as of | curr | prior | window_curr |
+|---|---|---|---|
+| **2026-08-13** | 31-MAR-2026 | 31-DEC-2025 | 01mar2026-31may2026 |
+| **2026-08-14** | 30-JUN-2026 | 31-MAR-2026 | **01jun2026-31aug2026** |
+| 2026-09-29 | 30-JUN-2026 | 31-MAR-2026 | 01jun2026-31aug2026 |
+
+The 2026-08-13 row is **identical to all four pinned constants**. The 2026-08-14 row produces
+`01jun2026-31aug2026` — the exact window `live_theme_sources`' own comment names as *"not
+published (Q2-2026 13Fs are due 2026-08-14)"*. **So the derivation reproduces the convention on
+the day it was written and rolls on the day the source itself predicts**, which is independent
+confirmation rather than assertion.
+
+**AND IT EXPOSES A LIVE STALENESS: the pinned constants are now ONE QUARTER OLD.** Q2-2026
+became complete on 2026-08-14, so the correct current pair is 30-JUN-2026 / 31-MAR-2026. A
+constant cannot notice that; it reports the old answer forever without erring. Pinned as a test.
+
+## ITEM 2 — THE FIDELITY CONTROL CANNOT RUN, AND THAT IS NOT A PASS
+
+The control is **built, wired and shipped**, and on this machine it reports
+**`runnable: False`**, naming all four missing inputs. **It exits NON-ZERO**, because a control
+that could not run must not report success to a shell, and **an absent control and a satisfied
+control must never read the same**.
+
+**THE DISTINCTION MATTERS AND I AM NOT BLURRING IT: the control did not FAIL — it could not be
+EXECUTED.** A failure would mean the parameterisation broke fidelity. This means the inputs the
+fidelity was measured on are not on this machine. **So the +0.9190 / +0.8726 is NOT carried
+forward to this builder**, and per the task's own instruction the honest outcome is to STOP
+short of claiming it and report.
+
+**WHAT WOULD DISCHARGE IT**, and it needs someone with the artifacts: restore
+`data/live_cache/snapshot_2026-08-08.json`, `data/live_themes/13f_aggregate.json` and
+`data/live_themes/form4_live/`, then `python scripts/theme_cache_build.py --fidelity`. It must
+report `max |delta| 0.0` over every row. **Until it does, the builder must not be scheduled** —
+which is convenient, because scheduling it is Don's PR anyway.
+
+## ITEM 4 — REQUESTS AND WALL TIME, AND MY ARITHMETIC DOES NOT RECONCILE WITH V2G
+
+**Requests: ~5,600** for an 800-name universe (~7 SEC calls per ticker across the CUSIP,
+XBRL and Form 4 legs, plus the two structured-data zips). That **equals V2G-SRC's measured
+~5,600 — but V2G ran 500 names**, so its per-ticker rate was nearer 11 and my 7 is probably
+low. **Quote ~5,600–8,800 and treat the count as bounded rather than known.**
+
+**Wall time: quote V2G's MEASURED ~48 min at 4 shards, not my arithmetic.** At the rate
+limiter's own floor (`SEC_MIN_INTERVAL_S` 0.13 + half the jitter) 5,600 requests is 3.6 min at
+4 shards — **13x faster than V2G measured**, so the rate limit is demonstrably NOT the binding
+constraint. `fetch_all`'s own docstring says why: *"The cost here is LATENCY, not the rate
+limit: SEC publishes a ~10 req/s ceiling and one serial process only reaches ~3 req/s."* At
+~3 req/s serial, 5,600–8,800 requests is **31–49 minutes**, plus streaming two ~360MB-
+uncompressed INFOTABLEs.
+
+**THE OPERATIONAL CONSEQUENCE FOR DON'S JOB: `timeout-minutes: 90` is tight, not comfortable,
+because the job as specified is a SINGLE serial run and V2G's 48 min was with FOUR shards.**
+The reassuring half is that **`fetch_all` is resumable and `.scan-cache` persists between runs**
+— *"done also accepts the payload is already on disk"* — so a timeout is a **slowdown, not a
+loss**: the next weekly run continues the crawl. **But the first cache would then be PARTIAL
+for a week or more, and a partial cache is exactly what a coverage figure must disclose rather
+than average over.** Either shard the job (a matrix over `slice_i/slice_n`) or accept a staged
+first build with its coverage reported.
+
+## ITEM 3 — THE JOB TEXT FOR DON, AND THE TEST THAT KEEPS THE GAP VISIBLE
+
+`.github/` is untouched. `tests/test_theme_cache_build.py` reads `auto-scan.yml` in the `MA12`
+idiom and **SKIPS LOUDLY** while the hot job lacks `LIVE_THEMES_CACHE`, naming the consequence
+— *"every live score still omits institutional and insider"* — and it becomes a hard failure
+the moment the PR lands. It skips rather than passing, so the gap cannot be mistaken for done.
+
+The job text is brief §5.3 verbatim, with one addition I recommend: either `timeout-minutes:
+180` for a serial run, or a shard matrix, for the reason above.
+
 # Session 58 — 2026-09-29 — rebalance chaining, so the book can turn over without moving inception
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
