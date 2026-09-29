@@ -119,6 +119,14 @@ def _base_url() -> str:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
+    ap.add_argument("--rebalance", default="",
+                    help=("append ONE rebalance event from a book JSON built by "
+                          "`python -m valuation.edge.valquo_index --full-universe`. "
+                          "Append-only: it never rewrites a recorded event and never moves "
+                          "inception."))
+    ap.add_argument("--rebalance-date", default="",
+                    help="the date the rebalance takes effect (must be a day the track "
+                         "actually recorded); defaults to the book's scan_date")
     ap.add_argument("--pull", action="store_true",
                     help="pull the service's recorded series first and refuse to upload "
                          "unless the local one is a superset of it, cell for cell")
@@ -170,6 +178,56 @@ def main(argv=None) -> int:
     print("history  " + ("(not sent - --book-only)" if history is None else str(hist_path)))
     if history is not None:
         print("         " + str(n_rows) + " recorded rows, " + str(len(history)) + " bytes")
+
+    # ---- the rebalance door, which is a different object from a seed ----------------
+    # A seed INSTALLS the record; a rebalance APPENDS one event to the book the record is
+    # measured against. They share a token and nothing else, so this returns early rather
+    # than threading a mode flag through the seed path.
+    if a.rebalance:
+        import json as _json
+        try:
+            with open(a.rebalance, encoding="utf-8") as fh:
+                bk = _json.load(fh) or {}
+        except (OSError, ValueError) as e:
+            print("could not read %s: %s" % (a.rebalance, e), file=sys.stderr)
+            return 3
+        ev = {"date": (a.rebalance_date or bk.get("scan_date") or ""),
+              "scan_date": bk.get("scan_date"),
+              "positions": bk.get("positions") or []}
+        if not ev["date"]:
+            print("no rebalance date: pass --rebalance-date, or give the book a scan_date",
+                  file=sys.stderr)
+            return 3
+        print("rebalance  %s over %d position(s)" % (ev["date"], len(ev["positions"])))
+        if not a.send:
+            print("DRY RUN - nothing was sent. Re-run with --send to record it.")
+            return 0
+        base2 = (a.url or _base_url()).rstrip("/")
+        token2 = (os.environ.get("ADMIN_TOKEN") or "").strip()
+        if not base2 or not token2:
+            print("need SITE_BASE_URL and ADMIN_TOKEN to send", file=sys.stderr)
+            return 3
+        # Posted inline in the same shape as the seed below -- and it deliberately does NOT
+        # print the request, which carries the token in a header.
+        _req = urllib.request.Request(
+            base2 + "/admin/track-rebalance",
+            data=json.dumps({"rebalance": ev}).encode("utf-8"),
+            headers={"Content-Type": "application/json", "X-Admin-Token": token2},
+            method="POST")
+        try:
+            with urllib.request.urlopen(_req, timeout=120) as _r:
+                _code, _raw = _r.status, _r.read().decode("utf-8", "replace")
+        except urllib.error.HTTPError as e:
+            _code, _raw = e.code, e.read().decode("utf-8", "replace")
+        except Exception as e:                                   # noqa: BLE001
+            print("could not reach %s: %s: %s" % (base2, type(e).__name__, e), file=sys.stderr)
+            return 2
+        try:
+            _why = (json.loads(_raw) or {}).get("reason") or ""
+        except ValueError:
+            _why = _raw[:200]
+        print("HTTP %s  %s" % (_code, _why))
+        return 0 if _code in (200, 201) else 4
 
     base = (a.url or _base_url()).rstrip("/")
     token = (os.environ.get("ADMIN_TOKEN") or "").strip()

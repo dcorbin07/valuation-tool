@@ -5,6 +5,100 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 58 — 2026-09-29 — rebalance chaining, so the book can turn over without moving inception
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched. No backfill. **INCEPTION IS NEVER MOVED**, pinned by test.
+
+## THE BIND, AND WHY NEITHER EXISTING OPTION WAS LEGAL
+
+`PAPER_TRACK_CONTRACT.md` §3 voids a window for *"a book that silently stopped rebalancing"*,
+and §5a rule 2 says a rebalance is **NOT** a vintage event — so the book must turn over **and**
+inception must not move. But `contract_row` priced every position from inception, so a name
+entering at a rebalance was credited with the market's move from **before it was held**. The
+Cowork task that used to rebalance resolved that by moving inception, which §5a forbids
+outright, and it was disabled on 2026-09-26.
+
+## THE FIX IS INDEX CHAINING, THE STANDARD ANSWER
+
+    level(M) = level(R) x (1 + SUM_i w_i (P_i(M)/P_i(R) - 1))
+
+* **Inception is EVENT ZERO**, synthesised rather than stored, so the arithmetic has one case
+  instead of two. A special "before any event" branch is where an off-by-one would live, and it
+  would only ever be wrong on the segment nobody looks at. **An absent `rebalances` list is
+  exactly event zero alone, so every book written before chaining is bit-identical under the
+  new code** — which is what makes this safe to ship.
+* **`event_in_force` uses `R <= M`**: on the day of a rebalance the NEW book is in force,
+  because the rebalance executes at that day's close and that row is the anchor the next
+  segment compounds onto.
+* **SPY stays cumulative from inception.** The benchmark never rebalances with us, and chaining
+  it would silently change what the excess is measured against.
+* **THE ANCHOR IS THE RECORDED ROW, NOT A RECOMPUTATION**, and a rebalance dated on a day the
+  track never marked is **REFUSED**. An anchor off by one session is an error that never
+  surfaces again — it just shifts every subsequent row by a constant nobody can find.
+
+## THE APPEND DOOR, WITH EVERY RULE IN THE LIBRARY
+
+`index_mark.append_rebalance` holds every refusal, and `POST /admin/track-rebalance` plus
+`seed_track --rebalance` both delegate to it — so the HTTP door and the CLI cannot drift into
+two different ideas of a legal event (`B7`). Refused: not the contract-bound Index
+(`conformance`), dated on or before the last event, a rewrite of an existing event, an
+unanchored date, or on/before inception. **Re-sending the identical event is a NO-OP rather
+than an error**, so a retried request cannot corrupt anything.
+
+## THE TESTS THAT CARRY IT
+
+**19 tests, and three are the ones that matter.** A no-op event whose positions equal the book
+in force moves every subsequent row by **EXACTLY 0.0** — not "close", because a wrong anchor
+shifts every later row by a *constant*, which looks entirely plausible in isolation. A swapped
+name reads **32.0%** chained against **120%** from-inception, which is the defect stated as a
+number. An event on an unmarked day is refused.
+
+**9 of 10 mutations caught, and the tenth is INERT rather than untested**: `d <= last` versus
+`d < last` can only differ when `d == last`, and that case is always intercepted by the
+rewrite check above it. The `=` is unreachable defensive redundancy. **A mutation that cannot
+change behaviour proves nothing about the test it was aimed at** — the same lesson as session
+57's sorted-list mutation, and worth stating rather than reporting 9/10 as a gap.
+
+## THE REBALANCE DATE — "AS MODELLED" IS 2026-10-22, NOT OCTOBER 1
+
+The backtest grid is **63 trading days** and the scan was **2026-07-24**; 63 trading days later
+is **Thursday 2026-10-22**. The disabled task's "Oct 1" is the first trading day of Q4 — a
+*calendar-quarter* convention, which is a different rule rather than a different arithmetic.
+**Three weeks apart, so it is a real choice and it is Don's.** The rebalance is LATE either
+way, which is exactly why it should be logged as a delay with its reason rather than left to
+read as a book that silently stopped.
+
+## `day_n` — THE LOCAL WRITER IS RIGHT, AND THE "EMPTY" COLUMN WAS MY OWN PULLER'S BUG
+
+`contract_row` computes `day_n` as `trading_days_between(inception, mark,
+inclusive_start=False)` and `_ROW_TYPES` declares it an `int`, so every row the shipped writer
+emits carries one. **`track_export._bound_rows` builds only five fields and omits `day_n`
+entirely**, so `fetch_track.to_csv` rendered it blank — nothing is wrong with the service's
+stored file. Fixed in session 57 by deriving it the same way. The export's omission is lossless
+(the value is derivable) but the `track_export` lane should know its export is lossy there.
+
+## TWO CI-ONLY FAILURES, NEITHER CAUGHT BY A LOCAL GATE, AND THEY ARE THE SAME FAMILY
+
+**`test_proof_page` blocked every lane's land and was not mine.** It arrived on main at
+`86924c9`, AFTER the last successful land — that gate never executed it (grep count 0). It
+hard-asserts a property requiring `data/free_analysis/PLACEBO_HAC.json`, which is **gitignored**
+(`.gitignore:33`), so it can never pass on a runner. It now **skips loudly** when the artifact
+is absent and the assertion is unchanged when present — proved by copying the real file in and
+watching the suite pass **without** taking the skip.
+
+**`test_index_book_publish` then failed on `tests/test_allocation.py`, and that one IS mine** —
+the guard working exactly as designed. Another lane had extended that file on main to open the
+real book and cross-check the allocation arithmetic against live weights. Reconciled rather
+than allow-listed: it never writes the path, never evaluates conformance, and reads
+`positions[].weight` as an INPUT to a question about a JavaScript function, so it cannot
+disagree with the writer the way PT-SPLIT's two mechanisms did. **And it skips loudly when the
+book is absent, which is why CI exercises the skip rather than the read.**
+
+**THE PORTABLE PART: a green local gate does not predict CI here, because two whole classes of
+suite depend on gitignored data or on a filesystem census, and both differ between a working
+root and a runner.**
+
 # Session 57 — 2026-09-27 — freshness is part of success, and two hypotheses died
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`

@@ -1003,6 +1003,55 @@ def create_saas_app(cfg=CONFIG):
                     "reason": "the reported-benchmark sibling was not written: "
                               + safe_error(e)}
 
+    @app.route("/admin/track-rebalance", methods=["POST"])
+    def admin_track_rebalance():
+        """Append ONE rebalance event to the bound book. POST-only, append-only.
+
+        WHY THIS EXISTS. `PAPER_TRACK_CONTRACT.md` §3 voids a window for a book that silently
+        stopped rebalancing, while §5a rule 2 says a rebalance is NOT a vintage event -- so the
+        book must turn over and inception must NOT move. Before chaining there was no way to do
+        both: pricing from inception credited a name that entered in October with the market's
+        August move, and the disabled Cowork task moved inception instead, which §5a forbids.
+
+        POST-ONLY, for the same reason the write door is: the book is the object every recorded
+        row is measured against, and a side-effecting GET on it is reachable by a retry, a
+        prefetch, a proxy or a pasted link -- none of which is a decision to rebalance.
+
+            201  the event was appended
+            200  nothing changed; this exact event was already recorded (a retry is safe)
+            409  REFUSED: it rewrites a recorded event, or is dated before the last one
+            422  REFUSED: not the contract-bound Index, no recorded row to anchor to, on or
+                 before inception, or malformed
+            400  no event in the body at all
+
+        EVERY RULE LIVES IN `index_mark.append_rebalance`, not here -- the CLI uses the same
+        function, so the two cannot drift into different ideas of a legal event.
+
+        THE BOOK ITSELF IS BUILT ON DON'S MACHINE (`python -m valuation.edge.valquo_index
+        --full-universe`), because it needs the licensed data. This door only RECORDS one.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..screener import index_mark
+            body = request.get_json(silent=True) or {}
+            event = body.get("rebalance") or body.get("event")
+            if not isinstance(event, dict) or not event:
+                return jsonify({"ok": False,
+                                "reason": "no rebalance event in the request body"}), 400
+
+            res = index_mark.append_rebalance(event)
+            if res.get("ok"):
+                return jsonify(res), (201 if res.get("wrote") else 200)
+            # 409 for "you disagree with the record", 422 for everything else. Both are 4xx:
+            # nothing happened, and re-sending the same bytes will not change that.
+            why = res.get("reason") or ""
+            code = 409 if ("append-only" in why or "ordered history" in why) else 422
+            return jsonify(res), code
+        except Exception as e:                                           # noqa: BLE001
+            app.logger.exception("track-rebalance failed")
+            return jsonify({"ok": False, "reason": "%s: %s" % (type(e).__name__, e)}), 500
+
     @app.route("/admin/track-seed", methods=["POST"])
     def admin_track_seed():
         """Install the bound book and its recorded history on a service that has neither.
