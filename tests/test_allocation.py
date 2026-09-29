@@ -292,6 +292,154 @@ def test_the_renderer_still_parses():
     assert r.returncode == 0, "app.js does not parse: " + (r.stderr or "")[:600]
 
 
+# =======================================================================================
+# WHAT WHOLE SHARES ACTUALLY INVEST
+#
+# The whole-share column answers "how many shares" per row. On a small account the question
+# that matters is what those whole shares add up to: on the 86-name book of 2026-07-24,
+# $1,000 invests about $23 in whole shares and 85 of 86 names round to zero. The column
+# showed that as 86 zeros for the reader to total by hand; `allocationRows` now totals it.
+# =======================================================================================
+def test_whole_shares_report_what_they_actually_invest():
+    """Hand-computed so the expected figures do not come from the code under test.
+
+    A: $500 at $190 -> 2 shares -> $380.   B: $500 at $30 -> 16 shares -> $480.
+    Invested $860 of $1,000, $140 left as cash, no name at zero.
+    """
+    if not _node_or_skip():
+        return
+    out = _run_js("""
+      const pos = [{ticker:"A",weight:0.5,price:190.0},{ticker:"B",weight:0.5,price:30.0}];
+      const a = allocationRows(pos, 1000);
+      console.log(JSON.stringify({inv:a.investedWhole, cash:a.cashLeftWhole,
+                                  zero:a.zeroWholeCount, priced:a.pricedCount,
+                                  allocPriced:a.allocPriced}));
+    """)
+    assert abs(out["inv"] - 860.0) < 1e-9, out
+    assert abs(out["cash"] - 140.0) < 1e-9, out
+    assert out["zero"] == 0 and out["priced"] == 2, out
+    assert abs(out["allocPriced"] - 1000.0) < 1e-9, out
+
+
+def test_a_name_too_expensive_for_its_slice_counts_as_zero_shares():
+    """THE SMALL-ACCOUNT CASE, and the reason this exists. A 10% slice of $1,000 is $100; a
+    $500 stock gets zero whole shares and its whole $100 stays as cash."""
+    if not _node_or_skip():
+        return
+    out = _run_js("""
+      const pos = [{ticker:"PRICEY",weight:0.1,price:500.0},
+                   {ticker:"CHEAP",weight:0.9,price:10.0}];
+      const a = allocationRows(pos, 1000);
+      console.log(JSON.stringify({inv:a.investedWhole, cash:a.cashLeftWhole,
+                                  zero:a.zeroWholeCount,
+                                  wholes:a.rows.map(r => r.wholeShares)}));
+    """)
+    assert out["wholes"] == [0, 90], out
+    assert out["zero"] == 1, "the $500 name at a $100 slice was not counted as zero shares"
+    assert abs(out["inv"] - 900.0) < 1e-9 and abs(out["cash"] - 100.0) < 1e-9, out
+
+
+def test_an_unpriced_row_is_neither_invested_nor_left_over():
+    """A row with no price cannot be costed. Counting its allocation as 'cash left' would
+    overstate the problem; counting it as 'invested' would hide it. It is reported apart."""
+    if not _node_or_skip():
+        return
+    out = _run_js("""
+      const pos = [{ticker:"A",weight:0.5,price:100.0},{ticker:"B",weight:0.5}];
+      const a = allocationRows(pos, 1000);
+      console.log(JSON.stringify({inv:a.investedWhole, cash:a.cashLeftWhole,
+                                  allocPriced:a.allocPriced, un:a.unpricedCount,
+                                  priced:a.pricedCount}));
+    """)
+    assert out["un"] == 1 and out["priced"] == 1, out
+    assert abs(out["allocPriced"] - 500.0) < 1e-9, "the unpriced row's $500 leaked into the base"
+    assert abs(out["inv"] + out["cash"] - 500.0) < 1e-9, (
+        "invested plus cash must equal the PRICED allocation, not the typed total")
+
+
+def test_the_real_book_obeys_the_invariants_at_every_account_size():
+    """On the actual book, if it is on this machine. Asserts PROPERTIES rather than today's
+    figures: a guard pinned to "$23 at $1,000" would fire at the next rebalance with nothing
+    wrong, which is the clock-keyed guard this repository has had to repoint twice.
+
+    The expected invested amount is recomputed INDEPENDENTLY here in Python, so the check is
+    two implementations agreeing rather than the code agreeing with itself.
+    """
+    book_path = os.path.join(os.path.dirname(APPJS), "..", "..", "..", "data", "valquo_index.json")
+    book_path = os.path.abspath(book_path)
+    if not os.path.exists(book_path):
+        global SKIPPED
+        SKIPPED += 1
+        print("       (SKIPPED LOUDLY: data/valquo_index.json is not on this machine — "
+              "gitignored, so CI never has it)")
+        return
+    if not _node_or_skip():
+        return
+    positions = json.load(open(book_path, encoding="utf-8")).get("positions") or []
+    assert positions, "the book file has no positions"
+    totals = [1000, 5000, 25000, 137421.77]
+    out = _run_js("const pos = %s; const T = %s;\n" % (json.dumps(positions), json.dumps(totals))
+                  + """console.log(JSON.stringify(T.map(t => {
+                         const a = allocationRows(pos, t);
+                         return {t:t, inv:a.investedWhole, cash:a.cashLeftWhole,
+                                 allocPriced:a.allocPriced, zero:a.zeroWholeCount,
+                                 priced:a.pricedCount, n:a.rows.length};
+                       })));""")
+    raw = sum(float(p["weight"]) for p in positions if p.get("weight") is not None)
+    for case in out:
+        t = case["t"]
+        # independent recomputation of what whole shares buy
+        want = 0.0
+        for p in positions:
+            price = p.get("price")
+            if not price or float(price) <= 0:
+                continue
+            alloc = float(p["weight"]) / raw * t
+            want += int(alloc // float(price)) * float(price)
+        assert abs(case["inv"] - want) < 1e-6, (
+            "at $%s the JS says $%.2f invested, an independent recount says $%.2f"
+            % (t, case["inv"], want))
+        assert case["inv"] <= case["allocPriced"] + 1e-9, "whole shares overspent the allocation"
+        assert case["cash"] >= -1e-9, "negative cash left over"
+        assert 0 <= case["zero"] <= case["priced"] <= case["n"], case
+    # Monotone in the account size: more money can only invest a larger SHARE in whole shares
+    # at the extremes. Checked end-to-end rather than step by step, because between two nearby
+    # totals a single name crossing a share boundary can move the share either way.
+    assert out[0]["inv"] / out[0]["t"] <= out[-1]["inv"] / out[-1]["t"], (
+        "a $137k account invests a SMALLER share in whole shares than a $1k one")
+
+
+def test_the_summary_line_is_wired_into_the_note_and_says_the_numbers():
+    """The figures are useless if they never reach the page. Runs the shipped formatter with
+    the shipped `money`/`pct` helpers rather than a restatement of them."""
+    src = open(APPJS, encoding="utf-8").read()
+    assert "_wholeShareSummary(alloc)" in src, "the summary is computed but never rendered"
+    if not _node_or_skip():
+        return
+    helpers = "\n".join(l for l in src.splitlines()
+                        if l.startswith("const money =") or l.startswith("const pct ="))
+    assert helpers.count("const ") == 2, "could not find the shipped money/pct helpers"
+    node = shutil.which("node")
+    prog = (helpers + "\n" + _extract(src, "function allocationRows(") + "\n"
+            + _extract(src, "function _wholeShareSummary(") + """
+      const pos = [{ticker:"PRICEY",weight:0.1,price:500.0},
+                   {ticker:"CHEAP",weight:0.9,price:10.0},
+                   {ticker:"NOPRICE",weight:0.0001}];
+      console.log(JSON.stringify({
+        line: _wholeShareSummary(allocationRows(pos, 1000)),
+        off: _wholeShareSummary(allocationRows(pos, 0))}));""")
+    r = subprocess.run([node, "-e", prog], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
+    assert r.returncode == 0, "node failed: %s" % (r.stderr or "")[:500]
+    out = json.loads(r.stdout)
+    line = out["line"]
+    assert "whole shares only" in line.lower(), line
+    assert "1 of 2" in line, "the zero-share count is not in the sentence: " + line
+    assert "fractional shares the full amount" in line.lower(), line
+    assert "1 name has no price" in line, "the unpriced row is not disclosed: " + line
+    assert out["off"] == "", "an inactive allocation still printed a summary"
+
+
 def run():
     global PASSED, FAILED
     print("ALLOCATION ON HOLDINGS")

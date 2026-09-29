@@ -2206,13 +2206,45 @@ function allocationRows(positions, total) {
              wholeShares: usable ? Math.floor(alloc / price) : null,
              price: usable ? price : null };
   });
+  // WHAT WHOLE SHARES ACTUALLY INVEST. The whole-share column answers "how many shares" row
+  // by row and used to leave the reader to add up what that costs -- and on a small account
+  // that sum is the whole story. Measured on the 86-name book of 2026-07-24: $1,000 invests
+  // about $23 in whole shares and 85 of 86 names round to zero; $5,000 invests about 26%.
+  // Computed over the rows that HAVE a price only. A row with no price cannot be costed, so
+  // it is counted as unpriced rather than silently as either invested or left over.
+  const priced = rows.filter(r => r.price != null);
+  const allocPriced = priced.reduce((a, r) => a + r.alloc, 0);
+  const investedWhole = priced.reduce((a, r) => a + r.wholeShares * r.price, 0);
   return { active: true, rows: rows,
            sum: rows.reduce((a, r) => a + r.alloc, 0),
            total: t, rawWeightSum: raw, scale: scale,
            // Signed, in percentage points: positive means the raw weights summed to MORE
            // than 100% before scaling.
            residualPp: (raw - 1) * 100,
-           anyPrice: rows.some(r => r.price != null) };
+           anyPrice: priced.length > 0,
+           pricedCount: priced.length,
+           unpricedCount: rows.length - priced.length,
+           allocPriced: allocPriced,
+           investedWhole: investedWhole,
+           cashLeftWhole: allocPriced - investedWhole,
+           zeroWholeCount: priced.filter(r => r.wholeShares === 0).length };
+}
+
+/* The one line that makes the whole-share column readable at a glance. It FORMATS and does
+   not compute: every figure comes from allocationRows, so the table, this line and the tests
+   all read one set of numbers. Returns "" when there is nothing honest to say. */
+function _wholeShareSummary(a) {
+  if (!a || !a.active || !a.pricedCount) return "";
+  const share = a.allocPriced > 0 ? a.investedWhole / a.allocPriced : 0;
+  const unpriced = a.unpricedCount
+    ? ` ${a.unpricedCount} name${a.unpricedCount === 1 ? " has" : "s have"} no price here and `
+      + `${a.unpricedCount === 1 ? "is" : "are"} left out of this line.`
+    : "";
+  return `<br><b>With whole shares only:</b> ${money(a.investedWhole)} of `
+    + `${money(a.allocPriced)} actually gets invested (${pct(share, 1)}), leaving `
+    + `<b>${money(a.cashLeftWhole)}</b> as cash, and <b>${a.zeroWholeCount} of `
+    + `${a.pricedCount}</b> names round to zero shares.${unpriced} `
+    + `With fractional shares the full amount is invested.`;
 }
 
 const ALLOC_KEY = "valquo:allocationTotal";
@@ -2340,7 +2372,7 @@ function _renderValquoIndex(d, cfg) {
              ${showShares
                ? `Share counts use the last price already in this payload — <b>not</b> a live
                   quote — so they will drift from the market. The whole-share column is what a
-                  broker without fractional shares would let you buy.`
+                  broker without fractional shares would let you buy.${_wholeShareSummary(alloc)}`
                : `No usable price is in this payload, so share counts are not shown rather
                   than estimated.`}</div>`
         : "")
