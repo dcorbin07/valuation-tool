@@ -377,10 +377,12 @@ def test_the_owner_still_sees_the_owner_notices():
                                   is_owner=False, ai_enabled=False, ai_provider="", hero=hero)
     assert "visitors see nothing here" in owner, "the owner lost his own not-started notice"
     assert "visitors see nothing here" not in visitor, "the visitor still sees the notice"
-    # The runners are the owner's; the read the preview came for is not.
-    assert "edgeBacktest()" in owner and "edgeBacktest()" not in visitor
-    assert "edgeLearning()" in visitor, (
-        "hiding the banner must not also hide the one thing a read-only session can do")
+    # Until 2026-09-29 this also asserted the Edge Lab runners rendered for the owner and
+    # not the visitor, and that `edgeLearning()` rendered for the visitor. Don deleted the
+    # Edge Lab tab that day (tests/test_public.py pins it gone for every session), so the
+    # buttons render for nobody; the READ it guarded, `/api/edge/learning`, is pinned by
+    # test_the_edge_lab_read_actually_answers_instead_of_painting_the_red_bar above.
+    assert "edgeBacktest()" not in owner and "edgeBacktest()" not in visitor
 
 
 def test_the_config_default_is_the_SAFE_one_so_a_fork_is_never_ungated_by_accident():

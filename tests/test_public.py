@@ -433,10 +433,42 @@ def test_the_owner_dashboard_keeps_them():
         with APP.test_client() as c:
             html = c.get("/app").get_data(as_text=True)
         for owner_ui in ('id="tab-index"', 'id="tab-track"', 'id="tab-signals"',
-                         'id="tab-edge"', "Portfolio builder"):
+                         "Portfolio builder"):
             assert owner_ui in html, f"the owner lost {owner_ui!r}"
+        # 2026-09-29: the Edge Lab and Watchlist tabs were DELETED for everyone, the owner
+        # included (their endpoints stay). `test_the_watchlist_and_edge_lab_tabs_are_gone_for_
+        # everyone` pins the deletion; this test pins that nothing ELSE the owner had went with it.
     finally:
         _restore(orig)
+
+
+def test_the_watchlist_and_edge_lab_tabs_are_gone_for_everyone():
+    """Don, 2026-09-29: "we delete watchlist and edge lab tabs." Deleted means the button AND
+    the body are absent from the rendered page in every posture — visitor, owner and demo —
+    not hidden with CSS. The endpoints behind them (`/api/rank`, `/api/edge/*`) are untouched
+    and keep their own gating tests; this pins only the page. The Proof tab, which Don moved
+    to the END of the bar in the same breath, is the last button in every posture."""
+    gone = ('id="tab-rank"', 'id="tab-edge"', 'data-tab="rank"', 'data-tab="edge"',
+            "Watchlist", "Edge Lab tab", "Self-learning log")
+    pages = {}
+    with APP.test_client() as c:
+        pages["visitor"] = c.get("/app").get_data(as_text=True)
+    with APP.test_client() as c:
+        _open_demo(c)
+        pages["demo"] = c.get("/app").get_data(as_text=True)
+    orig = _as_owner()
+    try:
+        with APP.test_client() as c:
+            pages["owner"] = c.get("/app").get_data(as_text=True)
+    finally:
+        _restore(orig)
+    for who, html in pages.items():
+        for needle in gone:
+            assert needle not in html, f"the {who} page still renders {needle!r}"
+        buttons = re.findall(r'data-tab="([a-z]+)"', html)
+        assert buttons, f"no tab bar rendered for the {who} page"
+        assert buttons[-1] == "proof", f"Proof is not the last tab for the {who} page: {buttons}"
+        assert "rank" not in buttons and "edge" not in buttons, buttons
 
 
 def test_the_index_stays_owner_only_and_says_why_on_its_own_face():
@@ -615,8 +647,12 @@ def test_the_demo_dashboard_shows_the_owner_tabs_and_none_of_the_triggers():
     with APP.test_client() as c:
         _open_demo(c)
         html = c.get("/app").get_data(as_text=True)
-    for owner_ui in ('id="tab-index"', 'id="tab-track"', 'id="tab-signals"', 'id="tab-edge"',
-                     "Portfolio builder", "Self-learning log"):
+    # 'id="tab-edge"' and "Self-learning log" were in this list until 2026-09-29, when the
+    # Edge Lab tab (which carried the log) was deleted for every session — see
+    # test_the_watchlist_and_edge_lab_tabs_are_gone_for_everyone. `/api/edge/learning`
+    # still serves the preview (test_public_full_view pins that); it has no tab to open from.
+    for owner_ui in ('id="tab-index"', 'id="tab-track"', 'id="tab-signals"',
+                     "Portfolio builder"):
         assert owner_ui in html, f"the preview lost {owner_ui!r}"
     for trigger in ("Run scan now", "Refresh signals now", "Backtest vs SPY",
                     "Walk-forward optimize", "Update track record"):

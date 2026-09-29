@@ -650,6 +650,14 @@ def test_post_recap_endpoint_is_gated_validated_and_quiet_without_a_webhook():
 _KNOWN_ORPHAN_IDS = {
     "btBench", "btCost", "btErr", "btHorizon", "btLoader", "btRebal", "btResults",
     "btSource", "btStats", "btTickers", "btVerdict", "eqChart", "qChart",
+    # 2026-09-29: Don deleted the Watchlist (rank) and Edge Lab (edge) TABS — button and
+    # body. runRank() and the edge*() functions stay in app.js on purpose: `/api/rank` and
+    # `/api/edge/*` are still served, tests/test_theme_status.py pins the self-learning
+    # log renderer (`_themeBars`, `window.THEME_STATUS`) as the legend's one consumer, and
+    # restoring a tab is then a template revert rather than a rebuild. Same class as the
+    # block above: dead, not broken. tests/test_public.py pins that the tabs stay gone.
+    "rankTickers", "rankLoader", "rankResults", "rankErr", "goRank", "rankTable",
+    "edgeLoader", "edgeErr", "edgeMsg", "edgeResults", "edgeStrategy", "edgeLimit",
 }
 
 

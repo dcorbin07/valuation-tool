@@ -5,45 +5,57 @@
    proof.payload(); a surface that forgot to pass it renders the refusal, never a guess. #}
 {% if p is not defined or p is none %}{% set p = {"available": False, "missing": ["proof payload"], "reason": "this surface did not load the evidence"} %}{% endif %}
 <style>
+  /* THEME. The app toggles data-theme="dark" on <html>; every surface colour below is a
+     variable so the boxes go dark with it (Don, 2026-09-29: "these light squares in proof go
+     dark when we switch to dark mode"). Light values are the defaults, so the standalone
+     /proof page — which has no theme switch — renders exactly as before. */
+  .pf{--pf-soft:#fbfcfe;--pf-track:#f1f4f9;--pf-band:#dde5f2;--pf-line:#f1f4f9;
+      --pf-warn-bg:#fff8ec;--pf-warn-bd:#f2dfbc;--pf-warn-ink:#8a5a08;
+      --pf-ok-bg:#e6f4ec;--pf-no-bg:#fbeae9;--pf-mid-bg:#fff3e0;
+      --pf-lede:#41506b;--pf-faint:#9aa4b5;--pf-code-ink:#3a4a66;--pf-chip:#fff}
+  :root[data-theme="dark"] .pf{--pf-soft:#1b2330;--pf-track:#242e3c;--pf-band:#2b3a52;--pf-line:#1f2937;
+      --pf-warn-bg:#2a2210;--pf-warn-bd:#4a3a14;--pf-warn-ink:#e0a24a;
+      --pf-ok-bg:#14301f;--pf-no-bg:#331b19;--pf-mid-bg:#33270f;
+      --pf-lede:#aab5c6;--pf-faint:#6d7a8c;--pf-code-ink:#c5d0e0;--pf-chip:#161d28}
   .pf{max-width:940px;margin:auto;padding:0 22px 60px}
   .pf h1{font-size:34px;line-height:1.2;margin:34px 0 10px;color:var(--navy);letter-spacing:-.4px}
   .pf h2{font-size:21px;margin:0 0 6px;color:var(--navy);letter-spacing:-.2px}
   .pf h3{font-size:15px;margin:22px 0 8px;color:var(--ink)}
   .pf p{margin:10px 0}
-  .lede{font-size:17px;color:#41506b;max-width:720px}
+  .lede{font-size:17px;color:var(--pf-lede);max-width:720px}
   .sec{margin-top:34px}
   .sec>.card{padding:26px 28px}
   .kicker{font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
   .sub{font-size:14px;color:var(--muted);margin:2px 0 18px;max-width:760px}
   .stamp{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 4px}
-  .chip{background:#fff;border:1px solid var(--border);border-radius:999px;padding:5px 13px;font-size:12px;color:var(--muted);font-weight:600}
+  .chip{background:var(--pf-chip);border:1px solid var(--border);border-radius:999px;padding:5px 13px;font-size:12px;color:var(--muted);font-weight:600}
   .chip b{color:var(--ink);font-weight:700}
-  .warn{background:#fff8ec;border:1px solid #f2dfbc;border-left:4px solid var(--amber);border-radius:10px;padding:14px 17px;font-size:14px;margin:16px 0}
-  .warn b{color:#8a5a08}
+  .warn{background:var(--pf-warn-bg);border:1px solid var(--pf-warn-bd);border-left:4px solid var(--amber);border-radius:10px;padding:14px 17px;font-size:14px;margin:16px 0}
+  .warn b{color:var(--pf-warn-ink)}
 
   table.t{width:100%;border-collapse:collapse;font-size:14px;margin-top:4px}
   table.t th{text-align:left;font-size:11px;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);padding:0 10px 8px 0;font-weight:700}
-  table.t td{padding:11px 10px 11px 0;border-bottom:1px solid #f1f4f9;vertical-align:top}
+  table.t td{padding:11px 10px 11px 0;border-bottom:1px solid var(--pf-line);vertical-align:top}
   table.t tr:last-child td{border-bottom:none}
   .num{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
   .pos{color:var(--green)} .neg{color:var(--red)}
   .pill{display:inline-block;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;letter-spacing:.3px;white-space:nowrap}
-  .pill.ok{background:#e6f4ec;color:var(--green)}
-  .pill.no{background:#fbeae9;color:var(--red)}
-  .pill.mid{background:#fff3e0;color:#8a5a08}
+  .pill.ok{background:var(--pf-ok-bg);color:var(--green)}
+  .pill.no{background:var(--pf-no-bg);color:var(--red)}
+  .pill.mid{background:var(--pf-mid-bg);color:var(--pf-warn-ink)}
 
   .lad{display:grid;grid-template-columns:auto 1fr auto;gap:5px 12px;align-items:center;margin-top:6px}
   .lad .lb{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}
-  .lad .tr{background:#f1f4f9;border-radius:5px;height:16px;overflow:hidden}
+  .lad .tr{background:var(--pf-track);border-radius:5px;height:16px;overflow:hidden}
   .lad .fl{height:100%;background:var(--blue);border-radius:5px}
   .lad .top .fl{background:var(--navy)}
   .lad .vv{font-size:13px;font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
 
-  .pl{border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:12px;background:#fbfcfe}
+  .pl{border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:12px;background:var(--pf-soft)}
   .pl .pt{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}
   .pl .pn{font-weight:700;font-size:14.5px}
   .scale{position:relative;height:40px;margin:6px 2px 4px}
-  .scale .band{position:absolute;top:14px;height:12px;background:#dde5f2;border-radius:6px}
+  .scale .band{position:absolute;top:14px;height:12px;background:var(--pf-band);border-radius:6px}
   .scale .p95{position:absolute;top:8px;height:24px;width:2px;background:var(--muted)}
   .scale .real{position:absolute;top:4px;height:32px;width:3px;background:var(--navy);border-radius:2px}
   .scale .tag{position:absolute;font-size:10.5px;font-weight:700;color:var(--muted);white-space:nowrap;top:28px}
@@ -51,13 +63,13 @@
   .legend{font-size:12.5px;color:var(--muted);margin-top:2px}
 
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  .box{border:1px solid var(--border);border-radius:11px;padding:15px 17px;background:#fbfcfe}
+  .box{border:1px solid var(--border);border-radius:11px;padding:15px 17px;background:var(--pf-soft)}
   .box .bn{font-size:11px;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);font-weight:700}
   .box .bv{font-size:25px;font-weight:800;color:var(--navy);font-variant-numeric:tabular-nums;margin:3px 0 2px}
   .box .bd{font-size:12.5px;color:var(--muted);line-height:1.45}
   ul.tight{margin:8px 0;padding-left:20px} ul.tight li{margin:7px 0;font-size:14px}
-  .src{font-size:12px;color:#9aa4b5;margin-top:16px;border-top:1px dashed var(--border);padding-top:11px}
-  code{background:#f1f4f9;padding:1.5px 6px;border-radius:5px;font-size:12.5px;color:#3a4a66}
+  .src{font-size:12px;color:var(--pf-faint);margin-top:16px;border-top:1px dashed var(--border);padding-top:11px}
+  code{background:var(--pf-track);padding:1.5px 6px;border-radius:5px;font-size:12.5px;color:var(--pf-code-ink)}
   @media(max-width:700px){.grid2{grid-template-columns:1fr}.pf h1{font-size:27px}}
 </style>
 
@@ -306,7 +318,7 @@
       {% for b in p.bars %}
       <tr>
         <td><b>{{ b.name }}</b><br><span style="font-size:12.5px;color:var(--muted)">{{ b.what }}</span>
-          {% if b.tension %}<br><span style="font-size:12.5px;color:#8a5a08;margin-top:4px;display:inline-block">{{ b.tension }}</span>{% endif %}</td>
+          {% if b.tension %}<br><span style="font-size:12.5px;color:var(--pf-warn-ink);margin-top:4px;display:inline-block">{{ b.tension }}</span>{% endif %}</td>
         <td class="num">{{ b.value|round(3) }}</td>
         <td class="num">{{ b.bar|round(3) }}{% if b.lower_is_better %} max{% endif %}</td>
         <td>{% if b.passes %}<span class="pill ok">clears</span>{% else %}<span class="pill no">fails</span>{% endif %}</td>
