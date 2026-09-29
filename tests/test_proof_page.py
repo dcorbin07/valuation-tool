@@ -286,6 +286,46 @@ def test_the_tab_switcher_knows_the_proof_tab():
     assert m and '"proof"' in m.group(0), "switchTab's tab list does not include 'proof'"
 
 
+def _proof_style_block():
+    src = open(TEMPLATE, encoding="utf-8").read()
+    assert src.count("<style>") == 1 and "</style>" in src
+    css = src.split("<style>", 1)[1].split("</style>", 1)[0]
+    return re.sub(r"/\*.*?\*/", "", css, flags=re.S)   # comments are prose, not rules
+
+
+def test_the_proof_boxes_follow_the_dark_theme():
+    """Don, 2026-09-29: "these light squares in proof go dark when we switch to dark mode."
+    The app flips `data-theme="dark"` on <html>; the partial's surfaces must be driven by
+    variables that a `:root[data-theme="dark"] .pf` rule overrides. Two properties, pinned
+    separately: (1) the dark override exists and re-sets every variable the light block
+    defines — a variable the dark rule forgets stays light; (2) no rule outside those two
+    variable blocks carries a hard-coded colour, because a literal `#fbfcfe` is exactly a
+    light square that ignores the theme."""
+    css = _proof_style_block()
+    rules = [r.strip() for r in css.split("}") if r.strip()]
+    light = [r for r in rules if r.startswith(".pf{--pf-")]
+    dark = [r for r in rules if r.startswith(':root[data-theme="dark"] .pf{')]
+    assert len(light) == 1 and len(dark) == 1, "expected one light and one dark variable block"
+    light_vars = set(re.findall(r"--pf-[a-z-]+(?=:)", light[0]))
+    dark_vars = set(re.findall(r"--pf-[a-z-]+(?=:)", dark[0]))
+    assert light_vars and light_vars == dark_vars, \
+        f"dark theme does not re-set every variable: missing {sorted(light_vars - dark_vars)}"
+    # the two blocks disagree on every value, or the "dark" rule is decorative
+    lv = dict(re.findall(r"(--pf-[a-z-]+):(#[0-9a-fA-F]{3,6})", light[0]))
+    dv = dict(re.findall(r"(--pf-[a-z-]+):(#[0-9a-fA-F]{3,6})", dark[0]))
+    same = sorted(k for k in lv if lv[k].lower() == dv.get(k, "").lower())
+    assert not same, f"dark theme repeats the light value for {same}"
+    for r in rules:
+        if r in light or r in dark:
+            continue
+        hexes = re.findall(r"#[0-9a-fA-F]{3,6}\b", r)
+        assert not hexes, f"hard-coded colour outside the theme variables: {hexes} in {r[:80]!r}"
+    # inline styles in the body are the other place a light square hides
+    body = open(TEMPLATE, encoding="utf-8").read().split("</style>", 1)[1]
+    inline = re.findall(r'style="[^"]*#[0-9a-fA-F]{3,6}[^"]*"', body)
+    assert not inline, f"inline hard-coded colour in the body: {inline}"
+
+
 def test_a_surface_that_forgets_the_payload_renders_the_refusal_not_a_crash():
     """The partial guards `p` being absent. Rendered directly with no context: the refusal
     text, a 200, and none of the evidence sections."""

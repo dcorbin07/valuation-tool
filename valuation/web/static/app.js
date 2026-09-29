@@ -30,7 +30,7 @@ const scoreClass = (s) => s >= 66 ? "g" : (s >= 46 ? "a" : "r");
 /* ---------- tabs ---------- */
 function switchTab(t) {
   document.querySelectorAll(".tab").forEach(el => el.classList.toggle("active", el.dataset.tab === t));
-  ["single", "hot", "dip", "index", "signals", "track", "proof", "rank", "edge"].forEach(name => {
+  ["single", "hot", "dip", "index", "signals", "track", "proof"].forEach(name => {
     const el = document.getElementById("tab-" + name);
     if (el) el.style.display = (name === t) ? "block" : "none";
   });
@@ -39,13 +39,9 @@ function switchTab(t) {
   if (t === "index" && !STATE.indexLoaded) { STATE.indexLoaded = true; loadValquoIndex(); loadIndexTrack(); }
   if (t === "signals" && !STATE.sigLoaded) { STATE.sigLoaded = true; loadSignals(); loadOptionsScorecard(); loadScreamTrack(); }
   if (t === "track" && !STATE.trackLoaded) { STATE.trackLoaded = true; loadTrack(); }
-  // The Edge Lab has no autoload for the owner — every button on it is expensive, so it
-  // waits to be asked. A READ-ONLY session has no such buttons, so the tab would open
-  // empty and read as broken; #edgeReadOnlyNote is rendered only in that case, and the
-  // one thing that session CAN do is the thing it came to see.
-  if (t === "edge" && !STATE.edgeLoaded && document.getElementById("edgeReadOnlyNote")) {
-    STATE.edgeLoaded = true; edgeLearning();
-  }
+  // The Watchlist (rank) and Edge Lab (edge) tabs were deleted from the page on 2026-09-29.
+  // runRank() and the edge*() functions below stay: `/api/rank` and `/api/edge/*` are
+  // still served, and restoring a tab is a revert of that commit, not a rebuild.
   if (t !== "signals") stopSigAuto();
 }
 

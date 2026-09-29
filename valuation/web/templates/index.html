@@ -51,6 +51,12 @@
          # screenshot of the hot list" is a decision rather than a reflex. #}
         {% if private_mode %}<div class="tagline" style="opacity:.75">Private research tool — personal use only. Vendor data under individual licences; not for redistribution.</div>
         {% else %}<div class="tagline" style="opacity:.75">Free for anyone, no account needed. Educational research only — <b>not investment advice</b>.</div>{% endif %}
+        {# The demo (recruiter) preview must say on its own face that it is read-only. Until
+         # 2026-09-29 the only place it did was the Edge Lab tab's "Read-only preview" note;
+         # that tab is deleted, so the statement lives in the header now, where no tab change
+         # can remove it. `is_demo` is injected by the SaaS context processor and is simply
+         # undefined (falsy) on the standalone app. #}
+        {% if is_demo %}<div class="tagline" style="opacity:.75"><b>Read-only preview</b> — the owner's view with every trigger removed. Nothing here can run a scan, write a record or place an order.</div>{% endif %}
       </div>
     </div>
     <div class="hdr-actions">
@@ -69,19 +75,21 @@
        # posture that keeps that true is server-rendered from `dip_posture`, not written
        # here, so the copy cannot be edited on one surface and left stale on the other. #}
       <button class="tab" data-tab="dip" onclick="switchTab('dip')">📉 Dip Detector</button>
-      <button class="tab" data-tab="proof" onclick="switchTab('proof')">✔ Proof</button>
       {# OWNER-ONLY TABS (saas/surfaces.py). The Index is a live book of positions, Signals is
-       # a live actionable alert, Track Record is a paper-account performance claim, and the
-       # Edge Lab is the research bench. They are removed from the DOM rather than hidden with
-       # CSS, which also means their loaders never fire and no owner-only endpoint is called
-       # for a visitor at all. #}
+       # a live actionable alert, and Track Record is a paper-account performance claim. They
+       # are removed from the DOM rather than hidden with CSS, which also means their loaders
+       # never fire and no owner-only endpoint is called for a visitor at all. #}
       {% if may_see_owner %}
       <button class="tab" data-tab="index" onclick="switchTab('index')">◆ Valquo Index</button>
       <button class="tab" data-tab="signals" onclick="switchTab('signals')">⚡ Signals</button>
       <button class="tab" data-tab="track" onclick="switchTab('track')">📊 Track Record</button>
-      <button class="tab" data-tab="edge" onclick="switchTab('edge')">🔬 Edge Lab</button>
       {% endif %}
-      <button class="tab" data-tab="rank" onclick="switchTab('rank')">Watchlist</button>
+      {# Watchlist and Edge Lab DELETED (Don, 2026-09-29) — button and body both, so each is
+         gone rather than hidden. Their endpoints (`/api/rank`, `/api/edge/*`) and the JS
+         behind them stay, gated exactly as before, so restoring either is a revert of that
+         commit and nothing else. Proof is last, and outside the owner gate above — it is
+         public in every posture the page is public in. #}
+      <button class="tab" data-tab="proof" onclick="switchTab('proof')">✔ Proof</button>
     </div>
   </div>
 </header>
@@ -396,24 +404,6 @@
     </div>
   </div>
 
-  <!-- RANK -->
-  <div id="tab-rank" style="display:none">
-    <div class="search-card">
-      <div class="search-row">
-        <input id="rankTickers" type="text" placeholder="Comma-separated tickers (e.g. AAPL, MSFT, NVDA, KO, DIS)"
-               onkeydown="if(event.key==='Enter')runRank()">
-        <button class="btn" id="goRank" onclick="runRank()">Rank</button>
-      </div>
-      <div class="note">Scores and ranks each ticker 1–100 so you can compare opportunities side by side.</div>
-    </div>
-    <div class="loader" id="rankLoader"><div class="spinner"></div><div>Scoring your watchlist…</div></div>
-    <div class="err" id="rankErr"></div>
-    <div class="card" id="rankResults" style="display:none">
-      <h3>Ranked opportunities</h3>
-      <div id="rankTable" style="overflow-x:auto"></div>
-    </div>
-  </div>
-
   <!-- HOT STOCKS -->
   <div id="tab-hot" style="display:none">
     <div class="search-card">
@@ -718,7 +708,7 @@
       </div>
       <div id="sigFreshness"></div>
       <div class="note">Educational scanner — technical signals are widely used but <b>not a proven edge</b>, and this is
-        <b>not an autotrader</b>.{% if is_owner %} Validate with the Edge Lab tab.{% endif %}
+        <b>not an autotrader</b>.
         <a href="/methodology">How this works →</a></div>
       <div class="note" id="sigDisclaimer"></div>
     </div>
@@ -730,41 +720,6 @@
     </div>
   </div>
 
-  <!-- EDGE LAB (owner-only: the research bench; reads Sharadar-derived output) -->
-  <div id="tab-edge" style="display:none">
-    <div class="search-card">
-      <div class="section-hint" style="margin-top:0">The research bench{% if not may_act %} — read-only here{% endif %}. Does following the picks actually beat the S&amp;P?
-        And can the rules be re-tuned <b>without overfitting</b>? Honest by design — it reports no edge when there isn't one.</div>
-      <div class="search-row" style="align-items:center;flex-wrap:wrap">
-        {# The three RUNNERS recompute, write, and download price history for the whole
-         # universe — owner only. The self-learning LOG is a read of results already
-         # computed (adopted weights, ICs, the backtest summary block: derived statistics,
-         # never a vendor row) and is what the recruiter preview is here to see. #}
-        {% if may_act %}
-        <select id="edgeStrategy" class="selin"><option value="momentum">Momentum strategy</option><option value="technical">Signals (technical) strategy</option></select>
-        <input id="edgeLimit" type="number" value="100" style="width:88px" title="universe size">
-        <button class="btn" onclick="edgeBacktest()">Backtest vs SPY</button>
-        <button class="btn secondary" onclick="edgeOptimize()">Walk-forward optimize</button>
-        <button class="btn ghost" onclick="edgeTrack()">Update track record</button>
-        {% endif %}
-        <button class="btn ghost" onclick="edgeLearning()">🧠 Self-learning log</button>
-      </div>
-      {% if may_act %}
-      <div class="note">Network-heavy (downloads price history for the universe). Survivorship caveat applies to the historical backtest;
-        the track record accrues survivorship-free going forward.</div>
-      {% else %}
-      <div class="note" id="edgeReadOnlyNote"><b>Read-only preview.</b> The runners that recompute a backtest are the
-        owner's — they download price history for the whole universe and rewrite the record.
-        The self-learning log below shows what they have already produced: the adopted
-        weights, their information coefficients and the fundamental backtest's summary.
-        Survivorship caveat applies to the historical backtest; the track record accrues
-        survivorship-free going forward.</div>
-      {% endif %}
-    </div>
-    <div class="loader" id="edgeLoader"><div class="spinner"></div><div id="edgeMsg">Working…</div></div>
-    <div class="err" id="edgeErr"></div>
-    <div id="edgeResults"></div>
-  </div>
   {% endif %}
 
 </div>
