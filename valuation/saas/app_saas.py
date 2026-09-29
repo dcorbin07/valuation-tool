@@ -21,6 +21,7 @@ from flask import request, render_template, redirect, jsonify, g, abort, make_re
 from ..config import CONFIG
 from ..safe_error import safe_error
 from ..web.app import app as tool_app
+from ..web.app import _proof_payload                      # the Proof tab's payload, one definition
 from ..web.query_params import clamp_int as _clamp_int   # MA50 — the one clamp
 from .models import UserStore
 from . import auth, billing, csrf, gating, index_book, private, ratelimit, surfaces
@@ -1265,7 +1266,8 @@ def create_saas_app(cfg=CONFIG):
                                ai_provider=cfg.resolved_ai_provider, is_owner=is_owner,
                                signed_in=bool(u), logout_url="/logout",
                                contact_email=cfg.contact_email,
-                               feedback_url=cfg.resolved_feedback_url)
+                               feedback_url=cfg.resolved_feedback_url,
+                               p=_proof_payload())
 
     @app.route("/pricing")
     def pricing():

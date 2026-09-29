@@ -125,6 +125,21 @@ def _site_context():
             "live_hero": _live_hero}
 
 
+def _proof_payload():
+    """The evidence for the Proof TAB on the app page — the same payload /proof renders.
+
+    Wrapped so a broken artifact can never take the whole app down: the tab is one surface of
+    nine, and a visitor who came for a valuation should get one. The partial renders the
+    refusal when `available` is False, so the failure is visible rather than silent."""
+    try:
+        from . import proof as _proof
+        return _proof.payload()
+    except Exception as e:                                              # noqa: BLE001
+        app.logger.exception("proof payload failed; the tab will say so")
+        return {"available": False, "missing": ["proof payload"],
+                "reason": f"the evidence could not be assembled ({type(e).__name__})"}
+
+
 @app.route("/")
 def index():
     # Standalone/local use = owner (no auth layer). The SaaS /app route overrides this.
@@ -134,7 +149,8 @@ def index():
                            ai_provider=CONFIG.resolved_ai_provider, is_owner=True,
                            signed_in=False, logout_url="/logout",
                            contact_email=CONFIG.contact_email,
-                           feedback_url=CONFIG.resolved_feedback_url)
+                           feedback_url=CONFIG.resolved_feedback_url,
+                           p=_proof_payload())
 
 
 @app.route("/methodology")
