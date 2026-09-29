@@ -665,19 +665,44 @@ def create_saas_app(cfg=CONFIG):
             # A recorded day needs no price. Answering it from disk makes the second nightly
             # run free, silent and incapable of manufacturing a false refusal.
             if wants_append:
-                _seen = index_mark._read_history(None)
+                # AUDIT 6 (2026-09-29): THE SCHEDULED WRITER NAMES NO DATE. `track-row.yml`
+                # POSTs `?append=1` and lets `contract_row` resolve the mark, so a check keyed
+                # on an EXPLICIT `date` never fired for the one caller it was written for --
+                # the second nightly run still priced 86 names and still surfaced a vendor
+                # failure as a refusal for a recorded day. Resolve the default the same way
+                # `contract_row` does (the last closed session) and ask the disk first.
+                from ..screener.market_session import last_closed_session as _lcs
+                if date:
+                    _mark = str(date)[:10]
+                else:
+                    _d = _lcs()
+                    _mark = _d.isoformat() if _d else None
+                # `_read_history(None)` opened `None`, caught its own TypeError and returned a
+                # rowless refusal -- so the disk was never consulted at all. The path is the
+                # one `index_track.default_paths()` spells, never a second spelling here.
+                from ..screener import index_track as _it
+                _seen = index_mark._read_history(_it.default_paths()[1])
                 _have = {(r.get("date") or "")[:10] for r in (_seen.get("rows") or [])}
-                if date and str(date)[:10] in _have:
+                if _mark and _mark in _have:
                     _row = next((r for r in (_seen.get("rows") or [])
-                                 if (r.get("date") or "")[:10] == str(date)[:10]), None)
-                    return jsonify({
-                        "ok": True, "wrote": False, "already_present": True,
-                        "row": _row,
-                        "reason": ("%s is already recorded, so no vendor was contacted. The "
-                                   "row returned is the one ON DISK, never a recomputation: a "
-                                   "retry hours later can price a different close for the "
-                                   "same day." % str(date)[:10]),
-                    }), 200
+                                 if (r.get("date") or "")[:10] == _mark), None)
+                    # THE SAME SHAPE AS THE NO-OP THE APPEND PATH RETURNS: a typed row (a CSV
+                    # row is all strings, and the 201 body is typed), an `append` block, and
+                    # the reported-benchmark sibling written from the row on disk. A caller
+                    # branching on `append.already_present` must see the same payload whether
+                    # the no-op was decided here or one vendor round-trip later.
+                    _row = index_mark.typed_row(_row or {})
+                    _res = {
+                        "ok": True, "wrote": False, "already_present": True, "row": _row,
+                        "append": {"ok": True, "wrote": False, "already_present": True,
+                                   "existing": _row},
+                        "reason": ("%s is already recorded, so no vendor was contacted for "
+                                   "the bound book. The row returned is the one ON DISK, "
+                                   "never a recomputation: a retry hours later can price a "
+                                   "different close for the same day." % _mark),
+                    }
+                    _res["reported_benchmark"] = _record_reported_benchmark(_row)
+                    return jsonify(_res), 200
 
             res = index_mark.contract_row(date)
 

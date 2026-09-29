@@ -1,0 +1,684 @@
+{
+ "_meta": {
+  "audit": "VALQUO_MASTER_AUDIT_6 - correctness, execution, data, and the honest path to more return (Cowork session, end to end)",
+  "auditor": "Cowork audit lane (Claude), with three read-only scoping subagents for Areas 2-4; every live number measured on valquo.co on 2026-09-29 from the page's own origin",
+  "date": "2026-09-29",
+  "tree": "origin/main @ 58f51a6 (fast-forwarded into Don's checkout at 0/0 before any edit); subagent scoping read the 2026-09-27 staged copies",
+  "method": "Live probes of /api/health, /api/hotstocks, /api/index-track, /api/track, /api/valquo-index, /proof, /methodology, /work/research, robots.txt; GitHub Actions run history via the public API; code read on origin/main; seven zero-trial fixes applied directly with mutation-tested guards (each guard broken, watched to fail, restored byte-for-byte); no backtest, no panel build, no placebo sweep; ZERO trials charged. Every item that would charge a trial names its bar, its MDE at today's N and its kill condition, or is not an item.",
+  "N_at_audit": {
+   "source": "VALQUO_LEDGER.md row PKG-MB20 (live equity 248); BACKTEST_RESULTS.json multiple_testing.by_domain is the 2026-08-14 artifact (equity 224, options 292, infra 14) and lags",
+   "equity": 248,
+   "equity_hurdle_sqrt_2_ln_N": 3.3207,
+   "note": "the shipped long-short HAC t 2.6199 (n=69) fails the hurdle at every N the project has had; it clears the calibrated LS-HAC placebo floor (2.0567 at N=247 per W-1; 2.2837 at N=224). RESEARCH_LOG.md was not in the production image, so /proof quoted N=224 live; MC6 ships it."
+  },
+  "live_state_measured_2026_09_29": {
+   "hot_list": {
+    "scan_date_served": "2026-09-29 at 08:26 ET (session not yet open) - the Sep 28 close, misdated by a GitHub-delayed run (00:27 UTC)",
+    "theme_contributing": {
+     "capital_discipline": 0.97,
+     "growth": 0.9,
+     "insider": 0.0,
+     "institutional": 0.0,
+     "low_risk": 0.98,
+     "momentum": 0.99,
+     "quality": 1.0,
+     "sentiment": 0.0,
+     "size": 1.0,
+     "value": 1.0
+    },
+    "scored": 795,
+    "universe": 800,
+    "provider": "Financial Modeling Prep (company-screener 402; 1,500-name fallback chain)"
+   },
+   "bound_track": {
+    "rows": 23,
+    "last": "2026-09-28",
+    "since_vintage_4_2026_08_13": "21 recorded of 32 trading days; missing Sep 2, 3, 8, 9, 10, 11, 16, 17, 18, 22",
+    "gate_block": "PAPER_TRACK_CONTRACT.md is not readable (image excludes *.md)",
+    "committed_backup": "data_export/valquo_index_track.csv: 8 rows ending 2026-08-21; track-backup.yml failed 2026-08-30, 09-06, 09-13, 09-20, 09-27"
+   },
+   "public_pages": {
+    "/proof": "Incomplete - placebo study section missing (data/free_analysis not in the image; the persistent disk shadows /app/data); trial count 224 from the stale artifact",
+    "/work/research": "'The tally 0 entries' - RESEARCH_LOG.md and PREREG_*.md absent from the image",
+    "/methodology": "says nine themes incl. institutional positioning and insider activity are scored each close",
+    "/api/valquo-index (anonymous)": "200, roth config: 25 positions, conforms:false ('below the contract floor of 50'), method text describes the decile book, measured block is the top-25 book",
+    "robots.txt": "User-agent: *  Disallow: /"
+   }
+  },
+  "schema": "id -> {title, mandate, severity, lane, ev_class, trial_cost, trial_counter, prior, hypothesis, data_needed, files, registers, evidence_needed, verification, kill_condition, note, modifies, creates, depends_on, readonly, source}. severity: HIGH = the record produced is or will be wrong / cannot be recovered; MEDIUM = a guard that does not guard or a claim the tree does not honour; LOW = latent or presentational. lane: app fixer | r1 | scout | surveyor | auditor | cowork | Don."
+ },
+ "MC1": {
+  "title": "The FIDELITY-2 restoration never reached production: institutional and insider are DEAD on the live product today (theme_contributing 0.0 / 0.0 on the 2026-09-29 scan) while vintage 4's pin, /methodology and the hot-list legend all say they are live",
+  "mandate": "1 - the live product scores a different book than the published numbers describe (claims integrity) / 2 - code",
+  "severity": "HIGH",
+  "lane": "app fixer (builder + health) / Don (vintage decision) / .github PR request (weekly cache job)",
+  "ev_class": "HIGH - already-validated return the product does not deliver (2 x 0.125 = 28.6% of deployed weight renormalised away), at ZERO trials; and a claims-integrity defect independent of return",
+  "trial_cost": "0",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "n/a - measured, not predicted",
+  "hypothesis": "none. Facts: live_themes.py reads data/live_cache/theme_columns.json; data/ is gitignored AND in .dockerignore; auto-scan.yml's hot job sets no LIVE_THEMES_CACHE and runs no build step; the file does not exist on the primary checkout; scripts/fidelity2_rebuild.py build-live is pinned to data/live_cache/snapshot_2026-08-08.json (500 served names of 2026-08-08) and to PERIOD_CURR='31-MAR-2026'/PERIOD_PRIOR='31-DEC-2025' as constants, so even run today it would build a two-quarter-stale cache for last month's universe. The scan computed live_themes.status() every run and discarded it (fixed here: health.theme_sources).",
+  "data_needed": "SEC 13F structured data sets (two latest complete quarters, ~100 MB each), Form 4 crawl for the trailing 90 days (~5,600 requests, ~48 min at 4 shards per V2G-SRC), the CUSIP ladder (SC 13D/G + mod-10 check digit, MIN_HOLDERS=2), SEC_USER_AGENT; the served universe from the LATEST scan snapshot, not the pinned one",
+  "files": [
+   "valuation/screener/live_themes.py:39-44 (CACHE path, MAX_AGE_DAYS=120)",
+   "valuation/screener/screen.py:323-330,395-420 (enrichment; health block - theme_sources added by this audit)",
+   "scripts/fidelity2_rebuild.py:349-400 (build_live: pinned snapshot + constant periods)",
+   "scripts/live_theme_sources.py:102-107 (SNAPSHOT, PERIOD_CURR, PERIOD_PRIOR)",
+   ".github/workflows/auto-scan.yml:88-145 (hot job env: ISSUANCE_CACHE_DIR set, LIVE_THEMES_CACHE absent)",
+   ".dockerignore (data/)",
+   "valuation/edge/shadow_vintage.py:209,234 (themes_scored_live declares seven)",
+   "valuation/web/theme_status.py:100-113 (legend: institutional/insider dormant='')",
+   "VALQUO_LEDGER.md rows THEME-RESTORE, FIDELITY-2 ('NOT DONE: there is NO automated refresh of the cache')"
+  ],
+  "registers": [
+   "PREREG_theme_restoration.md (fidelity gate, 0.60 bar)",
+   "PREREG_fidelity2_rebuild.md @ ef765fc (institutional +0.9190, insider +0.8726)"
+  ],
+  "evidence_needed": "(1) a production builder that derives the two latest complete 13F periods from the calendar (period end + the panel's own lag rule) and reads the served universe from the latest snapshot; (2) a FIDELITY CONTROL before anything ships: on the pinned inputs (snapshot_2026-08-08.json, 31-MAR-2026/31-DEC-2025) the new builder reproduces the FIDELITY-2 cache row-for-row at max |delta| 0.0 (THEME-RESTORE's drift-guard lesson: 'the shipped module must compute the SAME quantity or the +0.8421 does not transfer'); (3) the cache delivered where the CI scan reads it (LIVE_THEMES_CACHE=.scan-cache/theme_columns.json, persisted by actions/cache) by a weekly job; (4) health.theme_sources.live_themes.cache.available == true on a live scan and theme_contributing institutional/insider > 0.5",
+  "verification": "the live /api/hotstocks health block (now carrying theme_sources) shows available:true with a built date under 120 days; a test that fails when auto-scan.yml's hot job lacks LIVE_THEMES_CACHE (a workflow-reading census, the MA5/MA12 idiom)",
+  "kill_condition": "If the fidelity control does not reproduce the FIDELITY-2 cache exactly, nothing ships and the gate is re-run on the new builder's column (a new register, zero trials: a control can only block). Worthless if Don decides the seven-theme book is not worth a vintage reset - then the honest alternative is to relabel: vintage 4's pin, /methodology and theme_status.py must say FIVE themes, and V2G's finding stands that the restricted book fails the calibrated LS floor (1.8811 vs 2.2837 for the four-theme book; the five-theme book has never been measured).",
+  "note": "DECISION FOR DON, laid out: by the record's own precedent (THEME-RESTORE: 'the argument that this is a bug fix rather than a vintage event is recorded and loses; Amendment 1 defines adopted as ships in the live scoring path'), the day the cache reaches production opens vintage 5 and resets the clock. The cost is vintage 4's 32 accrued days, which cannot pass the operational gate anyway (10 gaps - see MC8), so the reset is cheap now and dearer every month. Until then vintage 4's declaration (themes_scored_live = seven) does not describe the book being recorded; the as-operated record should carry a dated disclosure either way. The prompt's '42.9% of weight' is the V2F-era figure; capital_discipline IS live (0.97), so the dead share is 28.6%.",
+  "modifies": [
+   "scripts/fidelity2_rebuild.py or a new scripts/theme_cache_build.py",
+   "auto-scan.yml (PR request)"
+  ],
+  "creates": [
+   "a weekly theme-cache job"
+  ],
+  "depends_on": [],
+  "readonly": false,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC2": {
+  "title": "The bound forward record has no current off-box copy: track-backup.yml has failed every week since 2026-08-30 because its shallow checkout makes tests/test_fleet_manifest.py fail, and the job refuses to commit when its gate is red - the committed backup is 8 rows ending 2026-08-21 against 23 on the service",
+  "mandate": "6 - the forward track / 7 - continuity",
+  "severity": "HIGH",
+  "lane": ".github PR request (Don) / app fixer",
+  "ev_class": "HIGH - the one dataset that cannot be re-derived (section 3: back-fill voids the run) survives only on Render's 1 GB disk",
+  "trial_cost": "0",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "",
+  "hypothesis": "none. Runs 2026-08-30, 09-06, 09-13, 09-20, 09-27 all failed at step 'The data this commit changes must not redden the shared gate'; the step runs tests/test_paper_track.py and tests/test_fleet_manifest.py; test_fleet_manifest needs git history for its committed-ALONE ancestry check; track-backup.yml (and fleet-backup.yml) use actions/checkout@v5 with the default depth 1, while land-agent-branch.yml uses fetch-depth: 0 and passes. The failure began the week test_fleet_manifest joined the gate (fc47a7e, 2026-08-27).",
+  "data_needed": "none",
+  "files": [
+   ".github/workflows/track-backup.yml:60-61,138-150",
+   ".github/workflows/fleet-backup.yml:124",
+   "tests/test_fleet_manifest.py",
+   "data_export/valquo_index_track.csv (8 rows)"
+  ],
+  "registers": [],
+  "evidence_needed": "a green backup run that commits data_export/valquo_index_track.csv with >= 23 rows",
+  "verification": "git log -- data_export/ shows a 'Track backup: forward paper record as of' commit dated after the fix; row count >= the service's",
+  "kill_condition": "worthless only if the diagnosis is wrong - the first re-run after fetch-depth: 0 settles it in one run; if it still fails, the log names the failing test",
+  "note": "PR request (Don applies): add `with: fetch-depth: 0` to the checkout step in track-backup.yml and fleet-backup.yml, and drop test_fleet_manifest.py from the backup's gate loop (it tests the fleet manifest's git evidence, not the data being committed). INTERIM, today: `python scripts/fetch_track.py` in the valuation-tool folder pulls the service's series to data/valquo_track_service_<date>.csv (gitignored, but on disk and in backup_to_D). A manual workflow_dispatch of the backup will NOT help until the checkout is fixed.",
+  "modifies": [
+   ".github/workflows/track-backup.yml",
+   ".github/workflows/fleet-backup.yml"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "readonly": false,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC3": {
+  "title": "The idempotency-first track-row door that landed this morning was inert twice over (read the history from None; keyed on an explicit ?date= the scheduled writer never sends), and the stale-frame retry could push a stale night past the 180 s request timeout - FIXED HERE with three mutation-tested guards",
+  "mandate": "6 - the forward track / 2 - code",
+  "severity": "HIGH",
+  "lane": "cowork (fixed; Don pushes)",
+  "ev_class": "HIGH - every night's second PT-WRITER run has produced a false 'SPY could not be priced' refusal, a red run, a HANDOFF_STATUS.md note commit and a Render redeploy since ~Sep 17; real gaps hid among the false alarms",
+  "trial_cost": "0",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "",
+  "hypothesis": "none - correctness",
+  "data_needed": "none",
+  "files": [
+   "valuation/saas/app_saas.py (admin_track_row: resolves last_closed_session when no date; reads index_track.default_paths()[1]; returns the append-path payload shape)",
+   "valuation/screener/prices.py (_StaleFrame; no backoff on staleness; census counts it)",
+   "tests/test_index_mark.py::test_a_recorded_day_is_answered_from_disk_WITHOUT_A_DATE_and_no_vendor_is_called",
+   "tests/test_price_freshness.py::test_a_stale_frame_is_NOT_retried_with_backoff"
+  ],
+  "registers": [],
+  "evidence_needed": "tonight: the 23:37 UTC backup run returns 200 already_present with no vendor round-trip; no PT-WRITER note commit unless the primary genuinely failed",
+  "verification": "mutations: keyed on `date` again -> test fails (422); `_read_history(None)` again -> test fails; backoff restored -> test fails (3 fetches). Sources restored byte-for-byte after each. 68/68 index-mark, 8/8 price-freshness, 428/428 test_edge.",
+  "kill_condition": "n/a - correctness",
+  "note": "Found by writing the test the landed fix did not have: `_read_history(None)` opens None, catches its own TypeError and returns a rowless refusal, so the disk was never consulted; and track-row.yml POSTs `?append=1` with no date. Two shipped tests (no-op payload shape; field types) would have failed the moment the short-circuit actually fired, which is how it could be proved it never had.",
+  "modifies": [
+   "valuation/saas/app_saas.py",
+   "valuation/screener/prices.py"
+  ],
+  "creates": [
+   "2 tests"
+  ],
+  "depends_on": [],
+  "readonly": false,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC4": {
+  "title": "index_mark.contract_row (landed 58f51a6 today): after a rebalance n_priced and n_positions counted the INCEPTION book while `unpriced` was counted over the book in force - a permanent wrong count in the append-only CSV at the first rebalance - FIXED HERE",
+  "mandate": "6 - the forward track / 2 - code",
+  "severity": "MEDIUM",
+  "lane": "cowork (fixed; Don pushes)",
+  "ev_class": "MEDIUM - bites only after the first rebalance (none recorded yet), then forever",
+  "trial_cost": "0",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "",
+  "hypothesis": "none",
+  "data_needed": "none",
+  "files": [
+   "valuation/screener/index_mark.py:680-687",
+   "tests/test_rebalance_chaining.py::test_n_priced_counts_the_book_IN_FORCE_not_the_inception_book"
+  ],
+  "registers": [],
+  "evidence_needed": "a 2-name inception book rebalanced to 1 name reports n_priced 1 (was 2)",
+  "verification": "mutation: revert to len(book['positions']) -> test fails with n_priced 2; restored byte-for-byte; 20/20 chaining tests",
+  "kill_condition": "n/a",
+  "note": "Reviewed with the rest of the chaining change: event_in_force (R <= M), the recorded-row anchor, the unanchored-date refusal and the no-op-by-exactly-0.0 pin are sound. Sequence that must hold in operations: write R's row (old book) BEFORE appending the rebalance event dated R; append_rebalance refuses otherwise, which is right.",
+  "modifies": [
+   "valuation/screener/index_mark.py"
+  ],
+  "creates": [
+   "1 test"
+  ],
+  "depends_on": [],
+  "readonly": false,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC5": {
+  "title": "screen.py stamped the scan with the runner's UTC calendar date: the Sep 28 close went live dated 2026-09-29 at 08:26 ET, labelled 'today' before the session opened, and the hot10 forward picks inherit the stamp - FIXED HERE (last closed session, the track writer's own primitive)",
+  "mandate": "5 - correctness / 6 - the forward track (hot10 pick dates)",
+  "severity": "MEDIUM",
+  "lane": "cowork (fixed; Don pushes)",
+  "ev_class": "MEDIUM - LA4 narrowed the window (stamp at start) but the 22:23/23:41 UTC crons ran at 00:27-02:43 UTC on 2026-09-29; a Friday run delayed past UTC midnight stamps a Saturday",
+  "trial_cost": "0",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "",
+  "hypothesis": "none",
+  "data_needed": "none",
+  "files": [
+   "valuation/screener/screen.py::_today (last_closed_session)",
+   "tests/test_la_screener_batch.py::TestAudit6TheStampIsTheLastClosedSession (5 tests)",
+   "valuation/screener/market_session.py:163 (last_closed_session)"
+  ],
+  "registers": [],
+  "evidence_needed": "a hot scan run at 00:30 UTC Tuesday is stamped Monday; a Saturday 00:58 ET backup is stamped Friday; a 07:00 ET run is stamped the previous close",
+  "verification": "mutation: date.today() restored -> 5 tests fail; LA4's own tests (stamp read once, at the start) still pass; test_screener 83/83",
+  "kill_condition": "n/a",
+  "note": "Consequence to know: the Render 11:00 UTC cron (if it runs) and an intraday manual 'rescan' are now stamped with the previous close, which is what their data is; freshness then reads 'last close' rather than 'today'. `hot_processed_{scan_date}` dedupes both crons on one key, which LA4 wanted.",
+  "modifies": [
+   "valuation/screener/screen.py"
+  ],
+  "creates": [
+   "5 tests"
+  ],
+  "depends_on": [],
+  "readonly": false,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC6": {
+  "title": ".dockerignore excluded every *.md and the deployed code opens four of them at request time: /work/research renders '0 entries', /proof quotes the stale artifact N (224 vs 248 live) with the HLZ bar at 3.29 instead of 3.32, /api/index-track reports the contract 'not readable' - FIXED HERE (four negations); the /proof placebo section is a separate, routed item",
+  "mandate": "2 - code / 5 - process (claims integrity)",
+  "severity": "HIGH",
+  "lane": "cowork (fixed; Don pushes) / app fixer (placebo artifacts)",
+  "ev_class": "HIGH - the résumé page and the proof page are wrong in production for a one-line reason",
+  "trial_cost": "0",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "",
+  "hypothesis": "none",
+  "data_needed": "none",
+  "files": [
+   ".dockerignore (!RESEARCH_LOG.md, !PAPER_TRACK_CONTRACT.md, !VALQUO_EXTENSIONS.md, !PREREG_*.md)",
+   "valuation/edge/research_log.py:54",
+   "valuation/screener/index_track.py:98-104",
+   "valuation/web/research_record.py:223-224",
+   "valuation/web/proof.py:70-71,425-437",
+   "tests/test_ignore_rules_audit6.py"
+  ],
+  "registers": [],
+  "evidence_needed": "after the next deploy: /work/research tallies the log; /proof says 'RESEARCH_LOG.md, read live' and N 248; /api/index-track gate.contract_present true (and 'pending', which is the truthful state)",
+  "verification": "mutation: remove !RESEARCH_LOG.md -> test fails; data/ still excluded (test_security L5 untouched); the negation idiom is the file's own (!README.md)",
+  "kill_condition": "n/a",
+  "note": "ROUTED, NOT FIXED: /proof's centrepiece (the 100 placebo draws) reads data/free_analysis/PLACEBO_HAC.json (154 KB) and MA19_RECALIBRATION.json (35 KB); data/ is neither tracked nor in the image, and Render's persistent disk mounts AT /app/data so an image copy there would be shadowed anyway. The only route is a tracked path outside data/ (e.g. artifacts/proof/) with proof.py falling back to it - derived statistics, not vendor rows, so RUN_RULES 0.2 does not forbid it, but committing derived artifacts is Don's call (MC-ART item in the note of MC13).",
+  "modifies": [
+   ".dockerignore"
+  ],
+  "creates": [
+   "1 test suite"
+  ],
+  "depends_on": [],
+  "readonly": false,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC7": {
+  "title": "git_push.bat's `git add -A` committed SQLite sidecars (.scan-cache/screener.db-shm, -wal) to the PUBLIC repo on 2026-09-28 because .gitignore covers *.db and not *.db-shm/-wal/-journal - FIXED HERE (ignored + untracked); .fuse_hidden* ghosts ignored too",
+  "mandate": "2 - code / hygiene",
+  "severity": "LOW",
+  "lane": "cowork (fixed; Don pushes)",
+  "ev_class": "LOW - the WAL was 0 bytes this time; a non-empty WAL carries un-checkpointed snapshot rows",
+  "trial_cost": "0",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "",
+  "hypothesis": "none",
+  "data_needed": "none",
+  "files": [
+   ".gitignore",
+   "tests/test_ignore_rules_audit6.py::TheRepoIgnoresSqliteSidecars"
+  ],
+  "registers": [],
+  "evidence_needed": "git ls-files .scan-cache is empty after the push",
+  "verification": "mutation: remove *.db-wal -> test fails",
+  "kill_condition": "n/a",
+  "note": "Also cleaned during the session: a stale .git/index.lock the mount could not delete (would have blocked git_push.bat) and two orphaned .fuse_hidden shm copies that add -A would have committed.",
+  "modifies": [
+   ".gitignore"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "readonly": false,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC8": {
+  "title": "The operational gate cannot pass on vintage 4 as recorded (10 missing rows Sep 2-22) and the contract's 'clock restarts from the repair' has no mechanical representation in track_meter - Don must log the restart, and MC1's deploy would be the natural vintage-5 restart; the contract's own vintage register (5a) still ends at vintage 3",
+  "mandate": "6 - the forward track",
+  "severity": "MEDIUM",
+  "lane": "Don (decision) / app fixer (track_meter repair-date field) / cowork (contract text)",
+  "ev_class": "MEDIUM - decides whether 2027-02-13 can mean anything",
+  "trial_cost": "0",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "",
+  "hypothesis": "none. gap_report demands every trading day between inception and as_of; recording_ok is False with any gap and the gate reads it. The monthly meter is intact (August and September both have a mark within 3 trading days of month-end), so the 60-month verdict series is not voided - only the gate's checklist fails.",
+  "data_needed": "none",
+  "files": [
+   "valuation/edge/track_meter.py:268-274 (INCEPTION derived from the open vintage; no repair date),357-408 (gap_report),750 (recording_ok)",
+   "PAPER_TRACK_CONTRACT.md section 3 ('If the gate fails, the clock restarts from the repair, and that restart is logged with its reason'), section 5a vintage register (rows 1-3 only; vintage 4 of 2026-08-13 and the FIDELITY-2 amendment are absent from the signed document)"
+  ],
+  "registers": [],
+  "evidence_needed": "a dated repair entry (the writer repairs landed 2026-09-29: c26880b/58f51a6 plus MC3) with the gate re-based to +6 months from it; or vintage 5 opening under MC1",
+  "verification": "track_meter reads the repair date and gap_report starts there; the contract's 5a table carries vintage 4 (and 5) rows with their reasons",
+  "kill_condition": "worthless if Don chooses to let vintage 4 run to 2027-02-13 and fail the gate on the record - also a legitimate, honest outcome, but it should be chosen, not defaulted into",
+  "note": "No backfill is proposed (section 3 voids the whole run). scripts/track_row.py exposes `--date YYYY-MM-DD` 'to backfill one past trading day' (contract text line 912); the contract permits only 'missing a single day's write that is filled the same week'. The CLI should refuse dates older than the current week (small guard, app fixer) so the tool cannot void the run by accident.",
+  "modifies": [
+   "valuation/edge/track_meter.py",
+   "PAPER_TRACK_CONTRACT.md 5a"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "readonly": false,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC9": {
+  "title": "B13's data blocker has been false since the 2026-08-02 freeze: data/backtest_freeze_2026-08/bulk/sep.csv (3.2 GB, verified on disk) carries `volume` and OHLC for every name and all 69 dates; only the derived data/backtest/prices/<T>.csv dropped the column - build the SEP $ADV/OHLC instrument (zero trials) and correct the record",
+  "mandate": "3 - execution / 1 - trade logic / 7 - continuity",
+  "severity": "MEDIUM",
+  "lane": "r1",
+  "ev_class": "MEDIUM - record correction + the instrument every liquidity question needs incl. the paper-track era CRSP cannot reach (cut 2024-12-31); no return content",
+  "trial_cost": "0 - instrument only, MB15 ordering; no arm in the same pass",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "",
+  "hypothesis": "none (feasibility + fidelity). SEP close x volume is split-consistent (both legs adjusted) - the pairing adv_from_bars gets wrong (CMG 50x, AAPL 28x); no permno join; carries OHLC for the AGK/Corwin-Schultz spread estimator the unlock map already named",
+  "data_needed": "the freeze's raw sep.csv (header verified: ticker,date,open,high,low,close,volume,closeadj,closeunadj,lastupdated); adv.py's CRSP series (90,025 cells) for fidelity",
+  "files": [
+   "data/backtest_freeze_2026-08/bulk/sep.csv",
+   "data/backtest/prices/<T>.csv (date,close only)",
+   "B13_ADV_INSTRUMENT_RECORD.md",
+   "VALQUO_LEDGER.md B13 row ('re-open condition: SEP volume in the panel loader')",
+   "HANDOFF_free_analysis.md:548-551 (P1's contrary 'SEP is not on disk in any form')",
+   "valuation/screener/prices.py:243 (the live ADV definition to reproduce)"
+  ],
+  "registers": [
+   "B13",
+   "MA25",
+   "P1",
+   "P2"
+  ],
+  "evidence_needed": "cell coverage on the 113,945 panel cells FIRST (per-date min/median/max, the five post-2024-12-31 dates, NULL-volume share); split control on CMG/AAPL/WMT/MSTR/SIRI with JPM; median ratio vs adv.py and vs adv_from_bars",
+  "verification": "default panel payloads bit-identical (C3); the 60-session prior-session window pinned to prices.py:243; mutation set as B13_ADV_INSTRUMENT_RECORD.md",
+  "kill_condition": "SEP volume NULL on a material share of panel cells (printed before anything else); or the derived files already carry volume (then the record, not the disk, is wrong)",
+  "note": "The ADV-aware COST model is CLOSED without a trial: cost is charged post-selection so membership cannot move (B13-S7D measured the prefilter route at 1.47% of cells, loss <= 0.28pp, below its own 50% MDE); the net alpha at any bps is banked in costs.top_decile.curve (6.57% @25, 5.04% @50, 2.02% @100, -0.94% @150; breakeven 134.1); which bps applies at which size is banked in P1/P2 (87 bps at $1M on the top-25 all-cap book; the served large-cap book's crowding point is a $5.1B cohort). Only V5 at >= 30 closed legs measures a real fill, and it is blocked on MC2's backup failure.",
+  "modifies": [],
+  "creates": [
+   "valuation/edge/adv_sep.py",
+   "B13_SEP_INSTRUMENT_RECORD.md"
+  ],
+  "depends_on": [],
+  "readonly": false,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC10": {
+  "title": "The served Index book has never been costed: score-weighted vs equal-weight decile, same names, paired NET difference - one gated register (1 equity trial) behind a free power pre-check; and the served /api/valquo-index payload carries three books under one name (label integrity, zero trials, first)",
+  "mandate": "3 - execution / 5 - claims integrity",
+  "severity": "MEDIUM",
+  "lane": "r1 (register) / app fixer (labels) / Don (if SW nets less: construction = vintage event)",
+  "ev_class": "MEDIUM - bounded prize: gross gap +0.83pp/yr (signal_weighted_top_decile_alpha 0.0800 vs 0.0717, n=69, both gross); can change the product in one direction only",
+  "trial_cost": "1 equity trial, booked only if STEP-0 passes (N 248 -> 249, hurdle 3.3207 -> 3.3219; no placebo floor moves - next flip at N=688 per PKG-MB20)",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "Delta-net between 0 and +0.6pp and NULL 55/45; SW turnover exceeds EW by 10-30% 60/40",
+  "hypothesis": "Delta_net = net_alpha(score-weighted decile) - net_alpha(equal-weight decile) >= 0 on the same names, same dates, the shipped market-cap cost table",
+  "data_needed": "full 2,531/69 panel; valquo_index.build_index's weighting IMPORTED (one code object); turnover_and_costs; weight-scramble null (200 draws, seeds fixed) - placebo_panel is unsound for a weighting contrast (RISK_PRIMARY_MAP 2.2)",
+  "files": [
+   "BACKTEST_RESULTS.json construction.signal_weighted_top_decile_alpha, costs.top_decile, book_configs",
+   "PAPER_TRACK_CONTRACT.md 5 (book), 5b (CONTRACT_MIN_POSITIONS=50)",
+   "RISK_PRIMARY_MAP.md 1-2",
+   "VALQUO_LEDGER.md rows S13, MB8, V2G, BT-CARD, BT-CARD-2, PT-SPLIT"
+  ],
+  "registers": [
+   "new blind PREREG committed ALONE after STEP 0",
+   "S13",
+   "MB8",
+   "V2G",
+   "B7",
+   "B17",
+   "PT-SPLIT",
+   "S14"
+  ],
+  "evidence_needed": "STEP 0 (zero trials): rho(EW,SW), each book's turnover, realised bps, drag, cap-binding, paired HAC SE, the RUN_RULES A11 MDE line at 50%/80% (crit 2.0 UNCALIBRATED - V2G: no calibrated floor for a paired within-panel difference; MB8 0.1106pp and V2G 0.9354pp bracket the class). STEP 1: paired HAC(1) t of the net difference, own weight-scramble p95, halves 34/35",
+  "verification": "C1 EW reproduces top_decile_alpha 0.071741423321 / LS HAC 2.6199 / costs.top_decile bit-for-bit; C2 SW gross reproduces 0.08001508891469325 (else the artifact's figure is a THIRD weighting - relabel); C3 membership identical 69/69; C4 weights sum to 1, cap <= 0.08; C5 SW turnover >= EW REPORTED",
+  "kill_condition": "Pre-outcome: MDE80 at crit 2.0 > 0.83pp -> UNPOWERED-BY-CONSTRUCTION, close as label-only, charge nothing. Post: NULL -> label sentence only; SW NETS LESS -> construction question to Don (vintage event); SW NETS MORE -> label only (flattering: re-check C2/C5). Worthless if Don says the weighting is not up for revision - ask before booking.",
+  "note": "MEASURED LIVE 2026-09-29: anonymous /api/valquo-index serves config 'roth' - 25 positions, score-weighted, 8% cap, contract_conformance.conforms:false ('25 positions, below the contract floor of 50 (eligible tier 666)'), the `method` text describing the DECILE book (+7.2%/+6.1%), the `measured` block carrying the TOP-25 book (net_alpha 0.1163, net_sharpe 1.10, turnover 3.17), and the label 'Sharpe-optimal' which its own artifact contradicts (roth 1.1018 < taxable 1.2096). The bound Index the contract records is a different object again (86 -> 68 names). Zero-trial label fix first; the register second.",
+  "modifies": [],
+  "creates": [
+   "PREREG_mc10_score_weighting.md",
+   "scripts/mc10_score_weighting.py"
+  ],
+  "depends_on": [
+   "MC-EXEC-3 labels"
+  ],
+  "readonly": false,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC11": {
+  "title": "Taxable configuration: the artifact already answers it (after-tax alpha +2.11pp vs an untaxed EW universe at the 0.30 band; 19.35% after tax, +4.52pp vs taxed SPY per BT-CARD-2) - a REPORTING item; settings.BOOK_CONFIGS['taxable']['measured'] still carries the 20%-band figures (after_tax 0.0081, net 0.0698, turnover 1.84)",
+  "mandate": "3 - execution / reporting",
+  "severity": "MEDIUM",
+  "lane": "app fixer",
+  "ev_class": "MEDIUM, zero trials",
+  "trial_cost": "0",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "",
+  "hypothesis": "none",
+  "data_needed": "BACKTEST_RESULTS.json book_configs.taxable (net_alpha 0.0775, net_sharpe 1.2096, turnover 1.3747, after_tax_alpha 0.0211, after_tax_sharpe 0.9768; FIFO 40.8%/23.8%; n=69), no_trade_band.widths, after_tax.top_decile (-0.0090; short-term share 85.6%; drag 9.02pp = 2.05 cost + 6.97 tax)",
+  "files": [
+   "valuation/screener/settings.py BOOK_CONFIGS['taxable']['measured']",
+   "HANDOFF_edge_audit.md:10539-10565",
+   "VALQUO_LEDGER.md BT-CARD-2, P2, U5"
+  ],
+  "registers": [],
+  "evidence_needed": "which surfaces read the stale dict (index_track.summarize() is named as reachable); the after-tax sentence with rates, FIFO and n=69 wherever the taxable config is offered, stating it measures the full-universe EQUAL-WEIGHT decile + band, not the large-cap score-weighted book the Index serves",
+  "verification": "a test that no rendered taxable figure differs from book_configs.taxable; the stale dict deleted or read-through to the artifact",
+  "kill_condition": "close with evidence if no surface reads the stale block and every taxable surface already carries the artifact numbers",
+  "note": "No register. 'Hold longer' on NET alpha is closed three ways (S14/S14-WIDTH knee at 0.30 and a third extension forbidden; S23 C-NEVER -10.89pp/yr; S22 section 7). The only un-run after-tax arm (a parameter-free >365-day tax-boundary hold on the taxable band book) has a hard ceiling of 2.14pp/yr and a realistic prize under 1pp against a measured staleness cost of 0.14-3.59pp: recommended NOT NOW; if ever, gate it on a free rho/SE pre-check (MDE80 > 1.0pp -> unpowered).",
+  "modifies": [
+   "valuation/screener/settings.py",
+   "the taxable surfaces"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "readonly": false,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC12": {
+  "title": "Panel extension before 2009: worth a ZERO-TRIAL census, not a trial - at n~110 (a 1999 Sharadar-native start the DESIGN memo never considered) the headline has a 49% chance at the HLZ hurdle even if the pre-2009 effect equals the post-2009 one, not one recorded NULL crosses its own 80%-power MDE at n~110, and every X7 floor becomes an extrapolation needing a full ~5-7 h placebo sweep",
+  "mandate": "2 - power",
+  "severity": "MEDIUM",
+  "lane": "scout (Stage 1 census) / Don (whether a FAIL would change the product's language - the only branch with value)",
+  "ev_class": "HIGH per cost for the census (free, either kills the question or supplies the one number nobody has); LOW-MEDIUM for the headline register",
+  "trial_cost": "0 for the census; 0 equity (<=1 infra) for a new-panel placebo sweep (MA19: N is the input to the floors); >= 1 equity for any headline verdict on the extended panel",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "the pre-2009 segment is a different object: five themes before 2008 (SF2 starts 2008-01-02; institutional first usable date 2014-01-17), six to 2014, seven after",
+  "hypothesis": "none for the census. Power arithmetic (BACKTEST_RESULTS.json construction.long_short_inference: HAC t 2.6199, n 69, n_eff 47.06, lag-1 0.189; se 4.213pp/yr): MDE50/MDE80 at the 3.3207 hurdle = 13.99/17.53pp at n=69, 11.08/13.88 at n=110, 9.82/12.31 at n=140; power against an unchanged 11.04pp: 24% / 49% / 66%; 80% power at the hurdle needs n~174 (~1983 start, CRSP/Compustat only). Against the placebo floors the panel is already past 80% power (71%/89%/95% at 2.057).",
+  "data_needed": "Route S: the Sharadar freeze on disk (SF1 1990-06 ->, SEP 1997-12-31 ->, DAILY market cap 1998-12-01 ->, raw bulk incl. 15,628 delisted SEP tickers); Route W: comp.co_ifndq (PIT, 1961 ->), crsp.stocknames dated intervals, dsedelist (38,872 rows, entitled) - CCM link DENIED (dated route reaches 81.54% of cells 2009-2026; W-28's K1 fired at a 90% bar; 43.39% ticker ambiguity 1976-2024)",
+  "files": [
+   "DESIGN_panel_extension.md",
+   "WRDS_CENSUS.md:89-94,259-294,390-400,417-439",
+   "HANDOFF_sharadar_freeze.md:48-60",
+   "HANDOFF_edge_audit.md:17684-17717 (W-28 K1)",
+   "RUN_RULES.md Part A rules 9-11",
+   "CLAUDE.md:6564-6689 (floors), :7406-7413 (the voided 110-date panel, B6)"
+  ],
+  "registers": [
+   "PREREG_panel_ext_census.md committed ALONE (markdown-only) before any script; kills K1 names-per-date, K2 per-theme 70% non-null on LINKED names, K3 later-delisting share within [0.5x, 2x] the 69-date panel's own (survivor-selected or inverted universe, B6), K4 Route-S datekey provenance vs a 2009-2013 control - bars set from the shipped panel's distribution and never relaxed after reading (W-28's lesson)"
+  ],
+  "evidence_needed": "per route, per year 1995-2008, per theme: scoreable names, per-date min/median/max coverage, later-delisting share, first year each theme clears 70% on LINKED names; the naive undated route reported beside the dated one on Route W as the contaminated control",
+  "verification": "Route W's naive leg reproduces 94.9%/95.14% on 2009-2026; Route S reproduces the shipped cross-sections (1,471-1,954) from the raw bulk before any pre-2009 count is read",
+  "kill_condition": "The census kills the question at zero cost if the extra dates carry a survivor-selected/inverted universe, < ~1,000 scoreable names per date, or a five-theme composite without fcf fields. The headline register (if ever) closes permanently if the extended panel's own re-derived MDE80 at the hurdle still exceeds the registered effect (MA33 precedent). Not a vintage event (5a: only an ADOPTED live change opens one). No 69-date claim is restated; BACKTEST_RESULTS.json is never overwritten - a second artifact.",
+  "note": "The crash/drawdown family (the one place the panel is structurally incapable, not underpowered: one COVID quarter) gains 2000-02 and the full 2007-09 decline on the Sharadar 1999 route with no link gate - the most defensible use of the extension, as its own instrument with its own floors. Record correction for DESIGN_panel_extension.md: it omits Route S; its 'MDE80 0.4274' is the incremental-IC design-class figure (SD, 69 dates, basis six; 0.5071 at 49 dates basis seven) un-labelled; co_ifndq row counts disagree between DESIGN (2,467,490) and WRDS_CENSUS (2,114,571).",
+  "modifies": [],
+  "creates": [
+   "PREREG_panel_ext_census.md",
+   "scripts/panel_ext_census.py",
+   "PANEL_EXT_CENSUS.md"
+  ],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC13": {
+  "title": "Data priced and never bought, re-ranked: nothing on the list is worth a dollar; two zero-dollar zero-trial uses of ENTITLED data survive (W-6 CRSP delisting cross-check of the survivorship mask; W-19 TRACE coverage census), one licence item is now verifiable (FMP display agreement), IBES is ANSWERED not parked (D6-REG: 0.0867 SD vs MDE80 0.4274 SD, 0.203x), and four recorded prices/terms moved",
+  "mandate": "4 - data",
+  "severity": "MEDIUM",
+  "lane": "scout (W-6, W-19) / Don (FMP licence; Sharadar commercial) / cowork (record corrections)",
+  "ev_class": "W-6 HIGH per cost (every headline stands on the B14 mask; zero dollars, zero trials, the only item where a flattering and an unflattering result are equally worth banking); everything else graveyard",
+  "trial_cost": "0 (W-6 is an instrument check; W-19's four kills run before any arm; 1 equity only if a W-19 crash-rate verdict is read)",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "W-6: V1 flag agreement >= 95% 60/40; the disagreement set non-empty 70/30",
+  "hypothesis": "none scored. Web refresh 2026-09-29 (URLs in the session record): Sharadar bundle is history-tiered - $29/mo buys 5 years, full history $69/mo, personal-use only unchanged (commercial 'or any derivation' forbidden); ThetaData commercial $1,600/mo billed annually ('startup as low as $500/mo'), not D2's $250; Cboe's free open-close sample is now FIXED at 1 Jul-31 Dec 2022 (effective Aug 2026) - useless for the both-halves standard; FMP's page now states 'Displaying or redistributing data sourced from FMP requires a specific Data Display and Licensing Agreement' and tiers are $19/$49/$99; WRDS Terms of Use are research-only for everything on the grant; OptionMetrics/TAQ/FactSet/LSEG are contact-sales institutional (NYSE Daily TAQ direct ~$3,800/mo + $500/data-month of history)",
+  "data_needed": "W-6: crsp_a_stock.dsedelist (38,872 rows, pulled), dsenames (117,859, dated), the B14 ACTIONS mask, panel_corrected_69d.pkl; CRSP ends 2024-12-31 (5 rebalance dates unverifiable, listed not scored)",
+  "files": [
+   "WRDS_UNLOCK_MAP.md:145-148 (W-6)",
+   "WRDS_CENSUS.md:89-92,259-294,477-478",
+   "W3B_EXECUTION_RECORD.md:128-148 (the V1 shape)",
+   "PREREG_DRAFT_w19_trace_distress.md:94-148",
+   "HANDOFF_data_spend.md, HANDOFF_data_spend_d4.md (D1-D8 prices)",
+   "VALQUO_LEDGER.md rows D6 (449), D6-REG (691), W-14 (690), W-28 (694)",
+   "CLAUDE.md:7546-7547 (stale 'STAY PARKED' for D6)"
+  ],
+  "registers": [
+   "PREREG_w6_crsp_delist_xcheck.md committed ALONE: V1 flag agreement >= 95%, V2 date agreement within +-3 calendar days >= 95%, V3 terminal-return agreement within a named tolerance >= 90%; K1 dated link < 80% of names with an ACTIONS delisting -> STOP; K2 late half < 16 effective event-dates -> no split"
+  ],
+  "evidence_needed": "per-event agreement table; disagreement set split coverage-gap vs real conflict; count of panel rows whose terminal return would change under CRSP dlret, by half",
+  "verification": "C1 fidelity before any join (alpha 0.071741, naive t 2.8360, HAC t 2.6199, monotonicity -0.8909); every rate count-gated; an undated ticker->permno dictionary is void (1,053 of 2,271 tickers map to > 1 permno)",
+  "kill_condition": "W-6 is worthless if the two vendors derive from the same exchange notices (say so in the register) or if an undated join manufactures disagreements; W-19 K1 < 30% coverage on MA28-flagged name-dates closes the external distress thread permanently and for free and removes the last reason to want IvyDB",
+  "note": "X8 has no product-licensable equivalent below institutional money; the free 'same idea, different data' route is Kenneth French's international 5-factor files - copyright notice 'illegal except by permission', factor-level not composite-level, maps the same 5 of 7 themes X8 mapped, so weaker corroboration than X8 and never a magnitude claim. RUN_RULES 0.2 (the JKP constraint travels with any derived number) governs over HANDOFF_free_analysis.md:722-723 ('may be described in product copy'): /proof stays silent on X8 numbers. DO NOT BUY: Cboe open-close ($28.2-37.6k per exchange + $5k/mo to ship derived data; power 4.93% at MB16's SE), OptionMetrics, TAQ, ThetaData commercial, Sharadar direct, EODHD/FMP/Finage as research inputs (not point-in-time), FactSet/LSEG, JKP commercial (no path), Total Q (W-28 closed at K1), WRDS 13F per-manager as a signal (basis-seven MDE 0.5071 SD; buys one date). Record corrections: CLAUDE.md D6 summary stale; OPTIONS_DATA_SOURCES.md still says 'lock in ThetaData Standard'; the freeze is 13.4 GB in one handoff and 18 GB in another; WRDS_CENSUS says Intraday Indicators ABSENT where W-14 found it present and DENIED.",
+  "modifies": [],
+  "creates": [
+   "PREREG_w6_crsp_delist_xcheck.md",
+   "scripts/w6_delist_xcheck.py"
+  ],
+  "depends_on": [],
+  "readonly": true,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC14": {
+  "title": "MA38's live half is still open: valuation/intraday/providers.py:192-193 sums missing open interest as 0 on the Tradier path (and :190-191 volume), so the live 'unusual call volume vs OI' bonus divides whole-chain volume by known-OI-only interest - the matched numerator MA38 shipped for the backtest is absent live by fallback, and a per-row matched sum is computable from the same chain rows",
+  "mandate": "2 - code",
+  "severity": "LOW",
+  "lane": "app fixer (with Don's OK: it changes which live alerts fire, in the conservative direction)",
+  "ev_class": "LOW - MA38 measured 0.04-0.065% of chain-days crossing the 0.5 bar for no reason but the mismatch, and only ever ADDS an alert",
+  "trial_cost": "0",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "",
+  "hypothesis": "none",
+  "data_needed": "none",
+  "files": [
+   "valuation/intraday/providers.py:190-193,209",
+   "valuation/intraday/options.py:60-63 ('call_volume_oi_known is absent on the LIVE path ... live behaviour is bit-identical to before this change')",
+   "VALQUO_LEDGER.md MA38 (fixed by a third repair on the backtest side)"
+  ],
+  "registers": [],
+  "evidence_needed": "call_volume_oi_known = sum of volume over call rows whose open_interest is not None; call_oi_known_frac = share of call rows with OI present; the live payload's oi_ratio_basis then reads 'matched'",
+  "verification": "a fixture chain with partial OI: the ratio equals the matched one; with full OI: bit-identical",
+  "kill_condition": "if Don rules that the options alert rule is frozen for the record epoch (MA37), record it as a known conservative-direction deviation instead",
+  "note": "Reported outside its lane by MA44/MA45/MA48 (CLAUDE.md:3493) and still live. Not fixed here because it alters a live alert rule.",
+  "modifies": [
+   "valuation/intraday/providers.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "readonly": false,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC15": {
+  "title": "Anonymous /api/valquo-index serves the full weighted book (25 names, weights) under PUBLIC_FULL_VIEW=true while the Index tab is hidden as owner-only for exactly that reason - Don's decision; the options",
+  "mandate": "5 - process / posture",
+  "severity": "MEDIUM",
+  "lane": "Don",
+  "ev_class": "posture, not return",
+  "trial_cost": "0",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "",
+  "hypothesis": "none. surfaces.py lists /api/valquo-index among the routes the DEMO tier reads; PUBLIC_FULL_VIEW lifts anonymous to DEMO ('Don's decision, 2026-08-13: /app must be 100% ungated ... when I hear back we regate'); render.yaml records that the regate is TWO changes (flag false + rotate DEMO_ACCESS_TOKEN)",
+  "data_needed": "none",
+  "files": [
+   "render.yaml (PUBLIC_FULL_VIEW block)",
+   "valuation/saas/surfaces.py:206-230 (DEMO_DENIED_PATHS - reads are not in it)",
+   "valuation/web/app.py:351 (/api/valquo-index)"
+  ],
+  "registers": [],
+  "evidence_needed": "one of: (A) regate now - PUBLIC_FULL_VIEW=false in the Render dashboard AND rotate DEMO_ACCESS_TOKEN (two dashboard edits, no code); (B) keep the page public but strip weights and names for non-owners (names-only or sector weights) - a code change in unified/index views plus a test; (C) leave it, on the record, with the résumé period as the reason and a date to revisit",
+  "verification": "curl -s https://valquo.co/api/valquo-index without a session returns 403 (A) or a stripped payload (B)",
+  "kill_condition": "n/a - a decision",
+  "note": "Whatever is chosen, the roth/top-25 payload should not carry the decile prose and the top-25 numbers under one name (MC10's label item).",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": false,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC16": {
+  "title": "robots.txt is `Disallow: /` to hide /work without naming it - but /work already sends X-Robots-Tag: noindex,nofollow,noarchive,nosnippet, and a Disallow prevents crawlers from SEEING that header, so /work can still be indexed as a bare URL while /proof and /methodology are kept out of every index - the rule is backwards for both goals; Don's decision",
+  "mandate": "5 - process / posture",
+  "severity": "LOW",
+  "lane": "Don (posture) / app fixer (one-line change)",
+  "ev_class": "LOW",
+  "trial_cost": "0",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "",
+  "hypothesis": "none",
+  "data_needed": "none",
+  "files": [
+   "valuation/saas/app_saas.py:1316-1326 (robots_txt)",
+   "valuation/saas/app_saas.py:1312 (the /work X-Robots-Tag)"
+  ],
+  "registers": [],
+  "evidence_needed": "if the site should be findable: serve `User-agent: *\\nDisallow:\\n` (allow all) and rely on the per-page noindex for /work (already there); optionally add a sitemap. If the site should stay unlisted during the job search: keep it, on the record, with a date",
+  "verification": "Google Search Console / a fetch of robots.txt; /work still carries the header",
+  "kill_condition": "n/a - a decision",
+  "note": "Also: /proof and /methodology emit canonical `http://valquo.co/...` (not https) - a one-line template fix for the app fixer.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": false,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC17": {
+  "title": "paper_track.seed_book floors sizing to whole shares (int((capital*w)//px), line 1013) - deliberate and SETTLED for Tradier (FRAC-Q: the API rejects fractional; the zero-share table and the $128,562 minimum-book refusal stand) - but the pilot venue is Alpaca, which fills fractional, so the floor must be venue-aware in the migration re-scope",
+  "mandate": "6 - the forward track / migration",
+  "severity": "LOW",
+  "lane": "app fixer (Alpaca migration re-scope, already with that lane)",
+  "ev_class": "LOW until the venue changes",
+  "trial_cost": "0",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "",
+  "hypothesis": "none",
+  "data_needed": "none",
+  "files": [
+   "valuation/edge/paper_track.py:1010-1016",
+   "VALQUO_LEDGER.md FRAC-Q (479), LIVE-PCT (481)",
+   "LIVE_PILOT_BLOCKED.md"
+  ],
+  "registers": [],
+  "evidence_needed": "a venue-declared `fractional_ok` on the broker; quote-marked rows unaffected (marking is by weight, not shares)",
+  "verification": "a test that the Alpaca broker sizes fractional and Tradier refuses",
+  "kill_condition": "n/a",
+  "note": "Verified, not re-raised: the zero-share rows are inserted quote-marked (shares 0) and do not distort the sandbox index track, which marks by weight.",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": false,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC18": {
+  "title": "REPORTED-OUTSIDE-THIS-LANE census (CLAUDE.md, 9 bullets) - what is still live: market_tail.tail_mass_row's hard-coded PRIMARY_THRESHOLD (E-4's instrument; KeyError for callers omitting 0.70); CONTRACT_MULTIPLIER defined twice (options_fill.py:70, options_sizing.py:108); options_fill.round_trip charges two commission legs on an intrinsic settlement; two `## 73.` and two `## 77.` sections in HANDOFF_optionsbot.md; MA38's live half (MC14). Closed: MB rows ingested (42 in the ledger); I2_BURN_IN_CENSUS.json and MA28_CARD.json restored to data/free_analysis; the /api/edge POST routes are guarded by the SaaS before_request (surfaces.DEMO_DENIED_PATHS + OWNER_ONLY_PREFIXES, pinned by test_public_full_view.py) so 'no auth decorator' is inert in the deployed image; test_paper_track's 69/70 is now 70/70",
+  "mandate": "5 - correctness census",
+  "severity": "LOW",
+  "lane": "owners named in each bullet (E-4 lane; options-bot; free-analysis)",
+  "ev_class": "LOW - each is a published-figure-moving repair its owner declined to make in passing",
+  "trial_cost": "0",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "",
+  "hypothesis": "none",
+  "data_needed": "none",
+  "files": [
+   "valuation/studies/market_tail.py:79,111-153",
+   "valuation/edge/options_fill.py:70,303",
+   "valuation/edge/options_sizing.py:108",
+   "HANDOFF_optionsbot.md (grep '^## 73\\.' -> 2, '^## 77\\.' -> 2)",
+   "CLAUDE.md:429,749,1045,1124,1268,1437,2432,3380,3493"
+  ],
+  "registers": [],
+  "evidence_needed": "each owner either repairs with the A/B on the banked figure or records the deviation as permanent",
+  "verification": "grep counts and the AST checks named in each bullet",
+  "kill_condition": "n/a",
+  "note": "Also still live from the handoffs: three malformed ledger rows (S23, M1-PARSE, V2G) with unescaped pipes refused by build_ledger.py's guard; the live book-size rule differs from the panel's on 32 of 69 dates (rounds/floors vs truncates - predates the band); adv_from_bars pairs an as-traded raw_close with split-adjusted volume (CMG 50x) - P1/P2's capacity figure rests on it for 32 of 918 names (moot if MC9's SEP instrument replaces the bars leg).",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "readonly": false,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC19": {
+  "title": "The PT-WRITER false-refusal loop had a second cost: every refusal appends a 12-line note to HANDOFF_STATUS.md (575 KB) and commits to main, and main autoDeploys - at least 20 bot commits in September, each a Render redeploy of the service holding the un-backed-up record; MC3 stops the false ones tonight, and the note should stop growing the shared file",
+  "mandate": "6 - the forward track / process",
+  "severity": "LOW",
+  "lane": ".github PR request (Don) - write the refusal note to a per-day file under a notes/ folder, or to the run summary, not to HANDOFF_STATUS.md",
+  "ev_class": "LOW",
+  "trial_cost": "0",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "",
+  "hypothesis": "none",
+  "data_needed": "none",
+  "files": [
+   ".github/workflows/track-row.yml:96-130",
+   "HANDOFF_STATUS.md (tail: ~30 PT-WRITER sections)"
+  ],
+  "registers": [],
+  "evidence_needed": "no bot commit on a night the row was written; genuine refusals still leave a dated note somewhere durable",
+  "verification": "git log --author=pt-writer after the change",
+  "kill_condition": "n/a",
+  "note": "`.gitattributes` gives HANDOFF_STATUS.md merge=union, which is why 20+ appends never conflicted - and why the file is 575 KB.",
+  "modifies": [
+   ".github/workflows/track-row.yml"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "readonly": false,
+  "source": "audit6 cowork, measured 2026-09-29"
+ },
+ "MC20": {
+  "title": "PAPER_TRACK_CONTRACT.md's signed vintage register (5a) ends at vintage 3 'OPEN - the live test' with institutional/insider 'deliberately still absent'; the code's registry (shadow_vintage.py, track_meter.VINTAGES) and the live site say vintage 4 since 2026-08-13 - the signed document and the machine disagree about which vintage is live",
+  "mandate": "6 - the forward track / record integrity",
+  "severity": "LOW",
+  "lane": "cowork / Don (a signed document is amended by its signer)",
+  "ev_class": "LOW - the code is authoritative for the meter (derived, pinned by test); the document is what a reader trusts",
+  "trial_cost": "0",
+  "trial_counter": "equity 248 unchanged",
+  "prior": "",
+  "hypothesis": "none",
+  "data_needed": "none",
+  "files": [
+   "PAPER_TRACK_CONTRACT.md:426-465 (register rows 1-3 and the vintage-3 clock table)",
+   "valuation/edge/track_meter.py:113-190 (four vintages)",
+   "valuation/edge/shadow_vintage.py:150-240"
+  ],
+  "registers": [],
+  "evidence_needed": "a row for vintage 4 (2026-08-13, S14 band 0.30, predecessor 3), the FIDELITY-2 amendment note under vintage 3, and the gate/verdict dates 2027-02-13 / 2031-08-13 (or the restart per MC8)",
+  "verification": "a test that every vintage in track_meter.VINTAGES has a row in the contract's 5a table (the weight_adoption signature-row idiom)",
+  "kill_condition": "n/a",
+  "note": "Ironically the stale text is true in production (MC1): institutional and insider ARE absent from the live book today.",
+  "modifies": [
+   "PAPER_TRACK_CONTRACT.md"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "readonly": false,
+  "source": "audit6 cowork, measured 2026-09-29"
+ }
+}

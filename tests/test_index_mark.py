@@ -1790,6 +1790,65 @@ def test_no_test_in_this_file_is_shadowed_by_a_duplicate_name():
         % (len(names), len(live), sorted(set(names) - set(live))))
 
 
+def test_a_recorded_day_is_answered_from_disk_WITHOUT_A_DATE_and_no_vendor_is_called():
+    """AUDIT 6 (2026-09-29). The scheduled writer POSTs `?append=1` with NO date.
+
+    The idempotency-first check landed keyed on an EXPLICIT `date`, so for the one caller it
+    was written for -- `track-row.yml`, which names none -- it never fired: the second nightly
+    run still priced every name and could still surface a vendor failure as a refusal for a
+    day already on disk. The door must resolve the default mark (the last closed session, as
+    `contract_row` does) and answer a recorded day from disk before any vendor is contacted.
+    """
+    import datetime as dt
+    from valuation.config import CONFIG
+    from valuation.saas.app_saas import create_saas_app
+    from valuation.screener import market_session as _ms
+    from valuation.screener import prices
+
+    CONFIG.admin_token = "test-token-index-mark-nodate"
+    app = create_saas_app(CONFIG)
+    app.config["TESTING"] = True
+
+    meta_path, hist_path = index_track.default_paths()
+    os.makedirs(os.path.dirname(os.path.abspath(meta_path)), exist_ok=True)
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump({"inception_date": INCEPTION, "benchmark": "SPY",
+                   "positions": [{"ticker": "AAA", "weight": 0.5},
+                                 {"ticker": "BBB", "weight": 0.5}]}, f)
+    # 2026-08-06 is a Thursday. Record its row, then ask the door on that evening.
+    recorded = {"date": "2026-08-06", "day_n": 5, "valquo_pct": 4.0, "spy_pct": 1.0,
+                "excess_pp": 3.0, "n_priced": 2}
+    ap = index_mark.append_row(recorded, history_path=hist_path, append_only=True)
+    assert ap.get("ok") and ap.get("wrote"), ap
+
+    calls = []
+
+    def counting_fetch(ticker, days=400, as_of=None):
+        calls.append(ticker)
+        raise AssertionError("a vendor was contacted for a day already on disk")
+
+    real_fetch, real_now = prices.get_history_df, _ms.now_et
+    prices.get_history_df = counting_fetch
+    try:
+        from zoneinfo import ZoneInfo
+        _ms.now_et = lambda: dt.datetime(2026, 8, 6, 20, 30, tzinfo=ZoneInfo(_ms.MARKET_TZ))
+        assert _ms.last_closed_session().isoformat() == "2026-08-06"
+        c = app.test_client()
+        r = c.post("/admin/track-row?append=1", headers={"X-Admin-Token": CONFIG.admin_token})
+        body = r.get_json()
+        assert r.status_code == 200, (r.status_code, body)
+        assert body.get("already_present") is True and body.get("wrote") is False, body
+        assert body.get("row", {}).get("date") == "2026-08-06", body
+        bound = [x for x in calls if str(x).upper() in ("AAA", "BBB", "SPY")]
+        assert bound == [], "the door priced the bound book for a recorded day: %r" % bound
+    finally:
+        prices.get_history_df, _ms.now_et = real_fetch, real_now
+        try:
+            os.remove(hist_path)
+        except OSError:
+            pass
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

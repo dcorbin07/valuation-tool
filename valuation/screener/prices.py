@@ -99,6 +99,12 @@ def _stooq_symbol(ticker: str) -> str:
     return f"{ticker.lower().replace('.', '-')}.us"
 
 
+class _StaleFrame(ValueError):
+    """A valid frame whose newest row precedes the date the caller needs. A `ValueError` so it
+    travels the primary path's existing except-clause; a distinct class so that path can tell
+    it from a transient failure and skip the backoff."""
+
+
 def _primary_errors():
     """Exactly what the primary path can legitimately raise. Built lazily so this module still
     imports on a machine without requests/pandas -- and so that a MISSING one of those raises
@@ -229,21 +235,33 @@ def get_history_df(ticker: str, days: int = 400, as_of=None):
             # travels the SAME path as a 404: counted in the census, logged with a reason, and
             # falls through to the next vendor. Returning it would be the original defect.
             if _stale(df, as_of):
-                raise ValueError(
+                raise _StaleFrame(
                     "stooq's newest row is %s, older than the requested %s"
                     % (_last_date(df), str(as_of)[:10]))
             return _label(df.tail(days).reset_index(drop=True), ticker, SRC_STOOQ)
         except _primary_errors() as e:
             last = e
+            # AUDIT 6 (2026-09-29): A STALE FRAME IS NOT A TRANSIENT BLIP. The retry/backoff
+            # exists for a dropped connection or an HTML refusal; a vendor file that is
+            # consistently one session behind comes back identical on every attempt, so
+            # retrying it three times with 1.2 s of sleep buys nothing -- and on the one
+            # night Stooq is stale for the whole book that is ~87 x (3 fetches + 1.2 s),
+            # which is longer than the service's 180 s request timeout. The writer would
+            # then fail on TIMEOUT instead of on staleness, and the workflow's three curl
+            # retries would re-price the book from scratch each time. Fall through to the
+            # next vendor at once; the census still counts it as a primary failure below.
+            if isinstance(e, _StaleFrame):
+                _CENSUS["stale_rejections"] = _CENSUS.get("stale_rejections", 0) + 1
+                break
             if attempt < 2:
                 time.sleep(0.4 * (attempt + 1))
 
     _CENSUS["primary_failures"] = _CENSUS.get("primary_failures", 0) + 1
     _LOG.warning(
-        "prices: STOOQ FAILED for %s after 3 attempts (%s: %s) — falling back to yfinance, "
+        "prices: STOOQ FAILED for %s after %d attempt(s) (%s: %s) — falling back to yfinance, "
         "whose Close is AUTO-ADJUSTED and is therefore a different quantity from an as-traded "
         "close. The returned frame is labelled %r=%r.",
-        ticker, type(last).__name__, last, SRC_ATTR, SRC_YFINANCE)
+        ticker, attempt + 1, type(last).__name__, last, SRC_ATTR, SRC_YFINANCE)
     return _yf_history(ticker, days, as_of=as_of)
 
 

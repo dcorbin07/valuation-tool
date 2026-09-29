@@ -118,6 +118,34 @@ def test_the_stale_rejection_is_counted_not_only_logged():
         "the stale Stooq answer was not counted as a primary failure: %r" % c)
 
 
+def test_a_stale_frame_is_NOT_retried_with_backoff():
+    """AUDIT 6 (2026-09-29). Staleness is deterministic; the backoff is for blips.
+
+    With the stale raise travelling the ordinary except-clause, a consistently one-session-old
+    vendor file was fetched THREE times per name with 1.2 s of sleep between -- ~87 x that on
+    a stale night is longer than the service's 180 s request timeout, so the writer would have
+    failed on timeout rather than on staleness. Exactly ONE Stooq request, no sleep, and the
+    census still counts the rejection.
+    """
+    import requests
+    import time as _time
+    calls, naps = [], []
+    real_get, real_yf, real_sleep = requests.get, PR._yf_history, _time.sleep
+    requests.get = lambda *a, **k: (calls.append(a), _Resp())[1]
+    PR._yf_history = lambda ticker, days, as_of=None: None
+    _time.sleep = lambda s: naps.append(s)
+    try:
+        PR.reset_census()
+        df = PR.get_history_df("SPY", days=400, as_of="2026-09-25")
+        assert df is None, df
+        assert len(calls) == 1, "a stale frame was fetched %d times" % len(calls)
+        assert naps == [], "the stale path slept: %r" % naps
+        c = PR.source_census()
+        assert c.get("stale_rejections", 0) == 1 and c.get("primary_failures", 0) == 1, c
+    finally:
+        requests.get, PR._yf_history, _time.sleep = real_get, real_yf, real_sleep
+
+
 def test_the_mark_date_reaches_the_fetcher_from_index_mark():
     """`_closes` must hand the date down, or the vendor can never judge freshness."""
     got = {}

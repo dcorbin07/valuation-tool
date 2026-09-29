@@ -345,6 +345,25 @@ def test_a_malformed_event_is_refused_rather_than_written():
             assert r["ok"] is False and r["wrote"] is False, (bad, r)
 
 
+def test_n_priced_counts_the_book_IN_FORCE_not_the_inception_book():
+    """AUDIT 6 (2026-09-29). The inception book has TWO names; the rebalance installs ONE.
+
+    `unpriced` is counted over the segment in force, so subtracting it from the INCEPTION count
+    reported a one-name book as `n_priced: 2` -- and `n_priced` is a column of the append-only
+    record, so the first post-rebalance row would have carried the wrong count forever. The
+    returned `n_positions` had the same defect.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        got = _row(tmp, [{"date": "2026-10-22",
+                          "positions": [{"ticker": "CCC", "weight": 1.0}]}])
+        assert got["ok"], got
+        assert got["row"]["n_priced"] == 1, got["row"]
+        assert got["n_positions"] == 1, got
+        # ...and before any rebalance the inception book still counts as itself.
+        base = _row(tmp, None)
+        assert base["ok"] and base["row"]["n_priced"] == 2 and base["n_positions"] == 2, base
+
+
 def run():
     global PASSED, FAILED
     print("REBALANCE CHAINING")

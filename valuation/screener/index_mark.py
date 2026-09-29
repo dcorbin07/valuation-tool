@@ -677,11 +677,14 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
         "valquo_pct": round(valquo_pct, 4),
         "spy_pct": round(spy_pct, 4),
         "excess_pp": round(valquo_pct - spy_pct, 4),
-        "n_priced": len(book["positions"]) - len(unpriced),
+        # THE BOOK IN FORCE, not the inception book. After a rebalance `unpriced` is counted
+        # over `seg_positions`, so subtracting it from the INCEPTION count would report a
+        # 68-name book as 86 priced -- and n_priced is a column of the append-only record.
+        "n_priced": len(seg_positions) - len(unpriced),
     }
     return {"ok": True, "reason": "", "row": row, "coverage": coverage, "unpriced": unpriced,
             "inception_date": inception.isoformat(), "benchmark": bench,
-            "n_positions": len(book["positions"]),
+            "n_positions": len(seg_positions),
             "source": "screener/prices.py (Stooq primary, yfinance fallback)",
             "vendors": _vendor_census(vendors, bench)}
 

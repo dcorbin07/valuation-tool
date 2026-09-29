@@ -32,6 +32,14 @@ __pycache__/
 # `*.zip` and `*.csv.gz` below remain path-independent guards.
 /data/
 *.db
+# AUDIT 6 (2026-09-29): SQLite's sidecars are the database too. `git_push.bat` does `git add -A`,
+# and on 2026-09-28 it committed `.scan-cache/screener.db-shm` and `screener.db-wal` to the PUBLIC
+# repo -- the WAL can carry un-checkpointed snapshot rows and the shm is a live lock map. `*.db`
+# never matched either. `.fuse_hidden*` are the mount's ghosts of files deleted while open.
+*.db-shm
+*.db-wal
+*.db-journal
+.fuse_hidden*
 # Raw vendor bulk downloads. data/ already covers data/raw/, but these are multi-hundred-MB
 # licensed archives, so this is a second, path-independent guard: a zip anywhere in the tree
 # is never committable, however it got there.
