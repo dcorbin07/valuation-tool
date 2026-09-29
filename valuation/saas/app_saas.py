@@ -1414,16 +1414,56 @@ def create_saas_app(cfg=CONFIG):
         resp.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive, nosnippet"
         return resp
 
+    # The public pages a crawler is invited to. NOT the portfolio page: it keeps itself out
+    # with its own `X-Robots-Tag: noindex` header, which a crawler can only honour if it is
+    # allowed to fetch the page — which is exactly why a blanket Disallow was backwards.
+    _SITEMAP_PATHS = ("/", "/app", "/landing", "/proof", "/methodology", "/tidemark",
+                      "/terms", "/privacy")
+
+    def _public_base() -> str:
+        """The site's own origin for absolute URLs, https on the real host. Render's proxy
+        hands Flask `http://`, and a canonical or sitemap URL that says http:// on an
+        https-only site is the wrong address."""
+        base = (request.url_root or "").rstrip("/")
+        if base.startswith("http://") and not any(h in base for h in ("localhost", "127.0.0.1")):
+            base = "https://" + base[len("http://"):]
+        return base
+
     @app.route("/robots.txt")
     def robots_txt():
-        """Blanket exclusion, naming nothing.
+        """Posture-dependent, naming nothing.
 
-        `Disallow: /` covers the portfolio page without listing it. Naming the path would be
-        self-defeating: robots.txt is world-readable, so a file that says `Disallow: /work` is
-        a public index of the URL it is trying to keep out of the public index.
+        PRIVATE mode: `Disallow: /` — a personal instance invites no audience.
+
+        PUBLIC (Don's decision, 2026-09-29, audit-6 D5): allow everything and point at the
+        sitemap. Until then this was a blanket `Disallow: /` in BOTH postures, which
+        de-listed /proof and /methodology — the two pages built to be found — while doing
+        nothing for the portfolio page, because a Disallow stops a crawler before it can see
+        that page's own `noindex` header. The path is still never named here: robots.txt is
+        world-readable, and a line that says `Disallow: /work` is a public index of the URL
+        it is trying to keep out of the public index.
         """
-        resp = make_response("User-agent: *\nDisallow: /\n")
+        if cfg.private_mode:
+            body = "User-agent: *\nDisallow: /\n"
+        else:
+            body = "User-agent: *\nAllow: /\nSitemap: " + _public_base() + "/sitemap.xml\n"
+        resp = make_response(body)
         resp.mimetype = "text/plain"
+        return resp
+
+    @app.route("/sitemap.xml")
+    def sitemap_xml():
+        """The public pages, absolute https URLs. 404 under private mode — a sitemap is an
+        invitation, and a locked instance is not offering one."""
+        if cfg.private_mode:
+            abort(404)
+        base = _public_base()
+        body = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+                + "".join(f"  <url><loc>{base}{p}</loc></url>\n" for p in _SITEMAP_PATHS)
+                + "</urlset>\n")
+        resp = make_response(body)
+        resp.mimetype = "application/xml"
         return resp
 
     @app.route("/account")

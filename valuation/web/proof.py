@@ -62,13 +62,36 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.abspath(os.path.join(_HERE, "..", ".."))
 
 BACKTEST_JSON = os.path.join(_ROOT, "BACKTEST_RESULTS.json")
+
+
+def _first_existing(*paths: str) -> str:
+    """The first path that exists, else the first path (so a refusal names a real location).
+
+    WHY TWO LOCATIONS (audit 6, D6 — Don, 2026-09-29). The placebo files were born under
+    `data/free_analysis/`, which is gitignored and never ships, and Render mounts its disk at
+    `/app/data`, shadowing anything an image might carry there — so in production this page
+    said "missing" for its own centrepiece. `artifacts/proof/` is a TRACKED copy of the two
+    files: derived statistics about this project's own model (100 shuffled draws and their
+    percentiles), not vendor rows, so committing them breaks no licence. The research copy
+    under `data/` is still honoured second, for a checkout that has the study but not the
+    artifact directory."""
+    for p in paths:
+        if os.path.exists(p):
+            return p
+    return paths[0]
+
+
+_ARTIFACTS = os.path.join(_ROOT, "artifacts", "proof")
+_STUDY = os.path.join(_ROOT, "data", "free_analysis")
 # The RAW draws, retained by session 10 for exactly this purpose. Preferred over MA19's
 # summary block because it carries all 100 values rather than their percentiles, which is what
 # lets the page say "N of 100 noise runs beat the real result" as a DERIVED count instead of a
 # remembered one. MA19 is the fallback: it summarises the same draws (98 bit-identical, 2
 # re-scored) and can still supply a median and a floor if the raw file is absent.
-PLACEBO_JSON = os.path.join(_ROOT, "data", "free_analysis", "PLACEBO_HAC.json")
-PLACEBO_FALLBACK_JSON = os.path.join(_ROOT, "data", "free_analysis", "MA19_RECALIBRATION.json")
+PLACEBO_JSON = _first_existing(os.path.join(_ARTIFACTS, "PLACEBO_HAC.json"),
+                               os.path.join(_STUDY, "PLACEBO_HAC.json"))
+PLACEBO_FALLBACK_JSON = _first_existing(os.path.join(_ARTIFACTS, "MA19_RECALIBRATION.json"),
+                                        os.path.join(_STUDY, "MA19_RECALIBRATION.json"))
 
 
 def _load(path):
