@@ -16,3 +16,15 @@ data/
 tests
 *.md
 !README.md
+# AUDIT 6 (2026-09-29): THE RECORD THE SERVICE READS AT REQUEST TIME MUST SHIP. Every `*.md` was
+# excluded, and these four are opened by deployed code, package-relative: `research_log.py`
+# (the live trial count and the HLZ hurdle on /proof; the whole /work/research page, which
+# rendered "0 entries" in production), `index_track.gate_state` (the operational gate on
+# /api/index-track, which reported the contract "not readable"), and `research_record.py`
+# (the pre-registration list). Measured on valquo.co 2026-09-29. The DECL_*.md case was solved
+# earlier by shipping a manifest (test_fleet_manifest.py); these are read as markdown and have
+# no manifest, so they ship as themselves. Handoffs, CLAUDE.md and the audits stay out.
+!RESEARCH_LOG.md
+!PAPER_TRACK_CONTRACT.md
+!VALQUO_EXTENSIONS.md
+!PREREG_*.md

@@ -125,6 +125,53 @@ class TestLA4TheClockIsReadAtTheStart(unittest.TestCase):
         self.assertFalse(MS.is_trading_day(dt.date(2026, 8, 8)))
 
 
+class TestAudit6TheStampIsTheLastClosedSession(unittest.TestCase):
+    """AUDIT 6 (2026-09-29) — LA4 stamped the runner's UTC calendar date at scan START, and
+    GitHub ran the 22:23/23:41 UTC crons at 00:27 UTC. The Sep 28 close went live dated Sep 29.
+
+    `_today()` is now the last CLOSED session, the same primitive the bound track's writer uses.
+    Three instants, one per way the calendar date was wrong:
+      * an evening run that slips past UTC midnight (20:30 ET = 00:30 UTC next day)
+      * a Friday backup delayed into Saturday ET
+      * a pre-market run on the following morning (the Render 11:00 UTC cron)
+    """
+
+    def setUp(self):
+        self._real_now = MS.now_et
+
+    def tearDown(self):
+        MS.now_et = self._real_now
+
+    def _at(self, *args):
+        from zoneinfo import ZoneInfo
+        MS.now_et = lambda: dt.datetime(*args, tzinfo=ZoneInfo(MS.MARKET_TZ))
+
+    def test_an_evening_run_that_crosses_utc_midnight_keeps_the_session_it_read(self):
+        self._at(2026, 9, 28, 20, 30)            # Monday 20:30 ET == 00:30 UTC Tuesday
+        self.assertEqual(SC._today(), "2026-09-28")
+
+    def test_a_friday_backup_delayed_into_saturday_stamps_friday(self):
+        self._at(2026, 8, 8, 0, 58)              # Saturday 00:58 ET
+        self.assertEqual(SC._today(), "2026-08-07")
+        self.assertFalse(MS.is_trading_day(dt.date(2026, 8, 8)))
+
+    def test_a_pre_market_run_is_stamped_with_the_previous_close(self):
+        self._at(2026, 9, 29, 7, 0)              # Tuesday 07:00 ET, before the open
+        self.assertEqual(SC._today(), "2026-09-28")
+
+    def test_a_post_close_run_on_a_trading_day_is_that_day(self):
+        self._at(2026, 9, 28, 18, 23)            # Monday 18:23 ET, the primary cron's slot
+        self.assertEqual(SC._today(), "2026-09-28")
+
+    def test_the_stamp_is_never_a_day_the_market_did_not_close(self):
+        """Never a weekend, never a holiday, never a session still open."""
+        for args in ((2026, 9, 5, 12, 0), (2026, 9, 7, 12, 0), (2026, 9, 8, 15, 59)):
+            self._at(*args)
+            d = dt.date.fromisoformat(SC._today())
+            self.assertTrue(MS.is_trading_day(d), d)
+            self.assertLess(d, dt.date(2026, 9, 8), d)      # Labor Day 2026-09-07
+
+
 # ==========================================================================================
 # LA5 — the scan's diagnostics must reach the record.
 # ==========================================================================================
