@@ -233,6 +233,54 @@ def spot_asof(w) -> Optional[float]:
 
 
 # ============================ option-chain summary (the live shape) ========================
+def oi_and_matched_volume(oi_values, volume_values):
+    """`(oi_sum, known_fraction, volume_over_the_same_rows)` — MA38's rule, one code object.
+
+    **WHAT IT FIXES, AND IT IS A DIVISION BY THE WRONG DENOMINATOR.** `intraday.options`
+    forms `call_volume / call_oi > 0.5` for its "unusual call volume vs OI" bonus. If OI is
+    summed over EVERY contract while missing values count as **zero**, the denominator is too
+    small and the bonus fires for no reason but the gap. MA38 measured the consequence on the
+    cached chains: **24.87% of front-expiry chain-days are PARTIALLY covered**, and on 27 of
+    41,321 (0.065%) the bar is crossed by the mismatch alone -- **and zero the other way**, so
+    the defect could only ever ADD an alert.
+
+    **BOTH SUMS TAKE THE SAME ROWS.** That is the whole content of the fix: not imputing an
+    average OI onto rows that carry below-average volume (MA38 measured that scaling by
+    `1/known_frac` kills 501 legitimate fires, 18.6x the defect), and not suppressing below a
+    coverage floor (1,005 killed, 37.2x) -- just dividing like by like.
+
+    **UNKNOWN IS None, NaN OR NEGATIVE.** `-1` is what the cache writes when the OI call
+    failed (`B4`), and reading it as a count would be worse than reading it as zero.
+
+    Accepts a pandas Series or any iterable, because the live Tradier and yfinance paths hold
+    lists of dicts while the backtest holds DataFrame columns -- and a second implementation
+    for the second shape is exactly how the live and banked numerators came to disagree.
+    """
+    def _clean(x):
+        try:
+            if x is None:
+                return None
+            v = float(x)
+        except (TypeError, ValueError):
+            return None
+        return None if (v != v) else v                       # NaN is unknown
+
+    ois = [_clean(x) for x in (list(oi_values) if oi_values is not None else [])]
+    vols = [_clean(x) for x in (list(volume_values) if volume_values is not None else [])]
+    if len(vols) < len(ois):
+        vols += [None] * (len(ois) - len(vols))
+
+    oi_sum, vol_sum, known = 0.0, 0.0, 0
+    for oi, vol in zip(ois, vols):
+        if oi is None or oi < 0:                             # UNKNOWN, never a count
+            continue
+        known += 1
+        oi_sum += oi
+        vol_sum += (vol or 0.0)
+    frac = (known / len(ois)) if ois else 0.0
+    return float(oi_sum), float(frac), float(vol_sum)
+
+
 def chain_summary(chain, underlying: float, as_of, include_expiring: bool = False) -> Optional[dict]:
     """The dict `intraday.options.options_signals` expects, rebuilt from a historical chain.
 
@@ -294,16 +342,10 @@ def chain_summary(chain, underlying: float, as_of, include_expiring: bool = Fals
     # whole-chain numerator by a partial denominator and is inflated by roughly 1/coverage. The
     # matched sum below is the same quantity taken over the SAME rows, so the ratio the consumer
     # forms is like-for-like without imputing anything.
-    def _oi_sum(part):
-        v = pd.to_numeric(part.get("open_interest"), errors="coerce")
-        v = v.where(v >= 0)                       # -1 is UNKNOWN, never a count
-        vol = pd.to_numeric(part.get("volume"), errors="coerce").fillna(0)
-        known = v.notna()
-        return (float(v.sum()),
-                float(known.mean()) if len(v) else 0.0,
-                float(vol[known].sum()))
-    coi, coi_known, cv_oi = _oi_sum(calls)
-    poi, poi_known, pv_oi = _oi_sum(puts)
+    coi, coi_known, cv_oi = oi_and_matched_volume(
+        calls.get("open_interest"), calls.get("volume"))
+    poi, poi_known, pv_oi = oi_and_matched_volume(
+        puts.get("open_interest"), puts.get("volume"))
     # ATM IV only. Enriching the WHOLE front chain solved IV on ~100 contracts to return one
     # number - the dominant cost of the whole backtest. Solve the nearest strike, walking out
     # a few if the closest quote is unusable.

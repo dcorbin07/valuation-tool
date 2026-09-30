@@ -264,8 +264,12 @@ def test_the_cli_can_be_pointed_at_a_book_outside_its_own_checkout():
         # A Saturday, so it refuses on the DATE — no network, fast, and it still proves the
         # book was found and parsed rather than missed.
         book = _book(d)
+        # `--allow-stale-date` because 2026-08-08 is a DELIBERATE backfill, which is exactly
+        # what MC8's staleness guard exists to make explicit. Without the flag the guard
+        # refuses first and this test would assert its own message instead of "not a trading
+        # day" -- the guard working, not a regression.
         out = subprocess.run([sys.executable, "-m", "scripts.track_row",
-                              "--date", "2026-08-08", "--book", book],
+                              "--date", "2026-08-08", "--allow-stale-date", "--book", book],
                              cwd=root, capture_output=True, text=True, timeout=180)
         assert out.returncode == 2, (out.returncode, out.stderr[-400:])
         assert "not a trading day" in (out.stderr + out.stdout), out.stderr[-400:]

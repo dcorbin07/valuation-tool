@@ -276,6 +276,58 @@ def test_the_hot_job_sets_LIVE_THEMES_CACHE():
         "LIVE_THEMES_CACHE is set but does not name theme_columns.json")
 
 
+# =======================================================================================
+# MC1 FOLLOW-UPS — the path hazard and the half-applied override
+# =======================================================================================
+def test_the_fidelity_reference_is_NOT_the_live_readers_path():
+    """THE HAZARD, and it is a silent vintage change rather than a wrong number.
+
+    `fidelity2_rebuild.LIVE_CACHE` and `live_themes.CACHE` are the same file. Restoring the
+    banked reference there to run `--fidelity` turns on the seven-theme book for every local
+    scan and keeps it on for up to `MAX_AGE_DAYS` = 120 days — an unannounced vintage 5,
+    arrived at by putting a file somewhere. The Oct 22 rebalance book is built locally, so it
+    is not hypothetical.
+    """
+    from valuation.screener import live_themes as LT
+    ref = os.path.abspath(B.FIDELITY_REFERENCE)
+    assert ref != os.path.abspath(LT.CACHE), (
+        "the fidelity reference IS the live cache path: restoring it would silently enable the "
+        "seven-theme book for %d days" % LT.MAX_AGE_DAYS)
+    assert ref != os.path.abspath(F2.LIVE_CACHE), (ref, F2.LIVE_CACHE)
+    # ...and it is the control's DEFAULT, not merely available.
+    r = B.fidelity_control(root=os.path.join(ROOT, "no", "such", "root"))
+    assert any("FIDELITY_REFERENCE" in m or "theme_columns.FIDELITY_REFERENCE" in m
+               for m in r["missing_inputs"]), r["missing_inputs"]
+
+
+def test_the_root_override_is_forwarded_to_the_build_and_not_half_applied():
+    """A half-applied override reports that it checked one tree and then measures another.
+
+    The first cut used `root` for the existence checks and the probe path and called
+    `build_live` with no `root`, so it verified the override's inputs and then built from
+    `F2.ROOT`. The wrong-object family.
+    """
+    import inspect
+    src = inspect.getsource(B.fidelity_control)
+    assert "F2.build_live(root=root" in src, (
+        "root is not forwarded to build_live, so the override is half-applied")
+    assert "f4_dir=" in src, "the Form 4 directory is not derived from root either"
+
+
+def test_a_tiny_residue_is_LABELLED_rather_than_tolerated():
+    """The bar stays 0.0; a Linux run must not read as a fidelity failure.
+
+    Measured 2026-09-29: 440 rows, max abs delta 1.42e-14 on 44 insider_score rows, and the
+    PRE-parameterisation code gives the identical figure while new-vs-old on one machine is
+    exactly 0.0 — so it is platform `math.tanh`, not the refactor.
+    """
+    src = open(B.__file__, encoding="utf-8").read()
+    assert "platform_note" in src, "a sub-1e-12 residue is not labelled at all"
+    assert "THE BAR REMAINS 0.0" in src, "the note does not say the bar is unchanged"
+    # AND THE BAR IS STILL 0.0 IN CODE, not widened to a tolerance.
+    assert "ok=(worst == 0.0" in src, "the fidelity bar was loosened to a tolerance"
+
+
 def run():
     global PASSED, FAILED
     print("THEME CACHE BUILD")

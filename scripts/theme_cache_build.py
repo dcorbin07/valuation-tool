@@ -61,6 +61,20 @@ INST_LAG_DAYS = 45
 #: a build and a scan. The default matches what `live_themes.py` reads locally.
 DEFAULT_CACHE = os.path.join("data", "live_cache", "theme_columns.json")
 
+#: THE FIDELITY REFERENCE, AND IT MAY NEVER BE THE LIVE PATH.
+#:
+#: `fidelity2_rebuild.LIVE_CACHE` and `live_themes.CACHE` are the SAME file,
+#: `data/live_cache/theme_columns.json`. So restoring Don's banked copy there in order to run
+#: `--fidelity` SILENTLY TURNS ON THE SEVEN-THEME BOOK for every local scan, and keeps it on for
+#: up to `live_themes.MAX_AGE_DAYS` = 120 days — an unannounced **vintage 5**, arrived at by
+#: putting a file somewhere rather than by a decision. The Oct 22 rebalance book is built
+#: locally, so that is not hypothetical.
+#:
+#: The reference therefore lives under its own name. `--banked` overrides it; a test asserts it
+#: is not `live_themes.CACHE`.
+FIDELITY_REFERENCE = os.path.join(
+    "data", "live_cache", "theme_columns.FIDELITY_REFERENCE_2026-08-11.json")
+
 
 def cache_path() -> str:
     return (os.environ.get("LIVE_THEMES_CACHE") or "").strip() or DEFAULT_CACHE
@@ -178,7 +192,8 @@ def fidelity_control(banked: str = None, root: str = None) -> dict:
     satisfied control must never read the same.
     """
     root = root or F2.ROOT
-    banked = banked or F2.LIVE_CACHE
+    # NOT `F2.LIVE_CACHE`, which IS the live reader's path — see `FIDELITY_REFERENCE`.
+    banked = banked or FIDELITY_REFERENCE
     out = {"runnable": False, "ok": False, "reason": "", "n_compared": 0,
            "max_abs_delta": None, "missing_inputs": []}
 
@@ -196,7 +211,13 @@ def fidelity_control(banked: str = None, root: str = None) -> dict:
 
     with open(banked, encoding="utf-8") as fh:
         want = (json.load(fh) or {}).get("rows") or {}
-    got = F2.build_live(cache_path=os.path.join(root, "_fidelity_probe.json"),
+    # `root` IS FORWARDED, and until now it was not. The first cut used it to decide WHERE to
+    # look for the inputs and where to drop the probe file, and then called `build_live` with no
+    # `root` at all — so the existence checks ran against the override while the build read
+    # `F2.ROOT`. A half-applied override is worse than none: it reports that it checked one tree
+    # and then measures another, which is the wrong-object family.
+    got = F2.build_live(root=root, f4_dir=os.path.join(root, "form4_live"),
+                        cache_path=os.path.join(root, "_fidelity_probe.json"),
                         periods_source="pinned constants (fidelity control)")["rows"]
 
     out["runnable"] = True
@@ -221,8 +242,26 @@ def fidelity_control(banked: str = None, root: str = None) -> dict:
                 worst, worst_at = d, "%s.%s" % (t, col)
     out.update(n_compared=len(keys), max_abs_delta=worst,
                ok=(worst == 0.0 and set(want) == set(got)))
-    out["reason"] = ("reproduced %d rows at max |delta| %.3e%s" %
+    out["reason"] = ("reproduced %d rows at max abs delta %.3e%s" %
                      (len(keys), worst, "" if out["ok"] else " -- worst at %s" % worst_at))
+
+    # THE BAR STAYS AT 0.0 AND IS NOT LOOSENED TO A TOLERANCE, but a Linux run must not be
+    # misread as a fidelity failure. MEASURED by the manager on 2026-09-29: 440 rows,
+    # max abs delta 1.42e-14 on 44 `insider_score` rows — and the PRE-PARAMETERISATION code at
+    # f266c19^ gives the IDENTICAL 1.42e-14, while new-vs-old on the SAME machine is exactly
+    # 0.0. So the residue is platform `math.tanh` in its last digit, not the refactor.
+    #
+    # The reference was built on Windows, so a Windows run is the one that can reach 0.0. This
+    # is stated rather than absorbed: quietly widening the bar would make the control unable to
+    # see a real regression of the same size.
+    if not out["ok"] and worst and worst < 1e-12:
+        out["platform_note"] = (
+            "max abs delta %.3e is at the scale of platform `math.tanh` in its last digit. The "
+            "reference was built on Windows; the same comparison on Linux measured 1.42e-14 on "
+            "insider_score rows, and the PRE-parameterisation code gives the identical figure, "
+            "so a residue this size is NOT evidence about the refactor. THE BAR REMAINS 0.0 -- "
+            "re-run on the platform that built the reference rather than loosening it."
+            % worst)
     return out
 
 
@@ -233,15 +272,21 @@ def main(argv=None) -> int:
     ap.add_argument("--fidelity", action="store_true",
                     help="run the pinned-input fidelity control and exit")
     ap.add_argument("--as-of", default="", help="override today (testing only)")
+    ap.add_argument("--banked", default="",
+                    help="the fidelity reference to compare against (default: "
+                         "FIDELITY_REFERENCE, which is deliberately NOT the live cache path)")
+    ap.add_argument("--root", default="", help="the live_themes root holding the inputs")
     a = ap.parse_args(argv)
 
     if a.fidelity:
-        r = fidelity_control()
+        r = fidelity_control(banked=a.banked or None, root=a.root or None)
         print("FIDELITY CONTROL")
         print("  runnable : %s" % r["runnable"])
         print("  ok       : %s" % r["ok"])
         print("  compared : %s   max |delta| %s" % (r["n_compared"], r["max_abs_delta"]))
         print("  %s" % r["reason"])
+        if r.get("platform_note"):
+            print("  NOTE: %s" % r["platform_note"])
         # A control that could not run exits NON-ZERO. It is not a pass.
         return 0 if r["ok"] else 1
 

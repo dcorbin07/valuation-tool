@@ -187,10 +187,21 @@ class TradierProvider(IntradayProvider):
                 return None
             if isinstance(opts, dict):
                 opts = [opts]
-            cv = sum((o.get("volume") or 0) for o in opts if o.get("option_type") == "call")
-            pv = sum((o.get("volume") or 0) for o in opts if o.get("option_type") == "put")
-            coi = sum((o.get("open_interest") or 0) for o in opts if o.get("option_type") == "call")
-            poi = sum((o.get("open_interest") or 0) for o in opts if o.get("option_type") == "put")
+            # MC14 / D8 — MISSING OPEN INTEREST IS UNKNOWN, NOT ZERO, and the ratio's two
+            # sums take the SAME ROWS. This used to read `(o.get("open_interest") or 0)`, so a
+            # contract whose OI the venue did not return shrank the denominator of
+            # `options_signals`' volume-vs-OI bonus and could only ever ADD an alert. The rule
+            # is DELEGATED to the backtest's own `oi_and_matched_volume` (B7), so the live
+            # numerator and the banked one cannot drift.
+            _calls = [o for o in opts if o.get("option_type") == "call"]
+            _puts = [o for o in opts if o.get("option_type") == "put"]
+            cv = sum((o.get("volume") or 0) for o in _calls)
+            pv = sum((o.get("volume") or 0) for o in _puts)
+            from ..edge.options_backtest import oi_and_matched_volume as _oimv
+            coi, coi_known, cv_oi = _oimv([o.get("open_interest") for o in _calls],
+                                          [o.get("volume") for o in _calls])
+            poi, poi_known, pv_oi = _oimv([o.get("open_interest") for o in _puts],
+                                          [o.get("volume") for o in _puts])
             atm_iv = atm_iv_from_chain(opts)
             # ATM IV of a ~60-DTE expiry, the second leg term_slope needs. Best-effort: a
             # failure here leaves atm_iv_60d absent, which the filter reads as UNKNOWN and does
@@ -206,7 +217,15 @@ class TradierProvider(IntradayProvider):
                     atm_iv_60d = atm_iv_from_chain(o2)
                 except Exception:                                    # noqa: BLE001
                     atm_iv_60d = None
+            # MC14 -- THE COVERAGE TRAVELS WITH THE NUMBERS. Without it a partially
+            # covered chain is indistinguishable from a fully covered one, which is how
+            # MA38's defect survived: `known_frac` had ONE producer and ZERO readers.
+            # `*_volume_oi_known` is the MATCHED numerator -- volume over the same rows
+            # the OI sum used -- so a consumer forming a volume-vs-OI ratio divides
+            # like by like instead of a whole-chain numerator by a partial denominator.
             return {"call_volume": cv, "put_volume": pv, "call_oi": coi, "put_oi": poi,
+                    "call_oi_known_frac": coi_known, "put_oi_known_frac": poi_known,
+                    "call_volume_oi_known": cv_oi, "put_volume_oi_known": pv_oi,
                     "atm_iv": atm_iv, "atm_iv_60d": atm_iv_60d,
                     # AUDIT MA44 — WHICH expiry these figures describe. `dl[0]` applies no date
                     # filter, so on an expiry day this can be TODAY, while the reconstruction in
@@ -289,10 +308,14 @@ class FreeProvider(IntradayProvider):
                 return None
             chain = t.option_chain(exps[0])
             calls, puts = chain.calls, chain.puts
+            # MC14 / D8 — the SECOND site, named in CLAUDE.md's MA38 bullet: `.fillna(0)` on
+            # `openInterest` turns "the venue did not say" into "there is none". Same delegated
+            # rule as the Tradier leg above.
+            from ..edge.options_backtest import oi_and_matched_volume as _oimv
             cv = float(calls["volume"].fillna(0).sum())
             pv = float(puts["volume"].fillna(0).sum())
-            coi = float(calls["openInterest"].fillna(0).sum())
-            poi = float(puts["openInterest"].fillna(0).sum())
+            coi, coi_known, cv_oi = _oimv(calls.get("openInterest"), calls.get("volume"))
+            poi, poi_known, pv_oi = _oimv(puts.get("openInterest"), puts.get("volume"))
             iv = None
             try:
                 iv = float(calls["impliedVolatility"].median())
@@ -300,7 +323,15 @@ class FreeProvider(IntradayProvider):
                 pass
             # AUDIT MA44: `exps[0]` applies no date filter either — the same rule as the Tradier
             # path and the opposite of both strictly-after sites. Reported, not changed.
+            # MC14 -- THE COVERAGE TRAVELS WITH THE NUMBERS. Without it a partially
+            # covered chain is indistinguishable from a fully covered one, which is how
+            # MA38's defect survived: `known_frac` had ONE producer and ZERO readers.
+            # `*_volume_oi_known` is the MATCHED numerator -- volume over the same rows
+            # the OI sum used -- so a consumer forming a volume-vs-OI ratio divides
+            # like by like instead of a whole-chain numerator by a partial denominator.
             return {"call_volume": cv, "put_volume": pv, "call_oi": coi, "put_oi": poi,
+                    "call_oi_known_frac": coi_known, "put_oi_known_frac": poi_known,
+                    "call_volume_oi_known": cv_oi, "put_volume_oi_known": pv_oi,
                     "atm_iv": iv, "front_expiry": str(exps[0])[:10]}
         except Exception:
             return None

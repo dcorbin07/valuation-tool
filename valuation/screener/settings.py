@@ -124,7 +124,7 @@ WEIGHTS_SPECULATIVE = {"value": 0.125, "growth": 0.125, "momentum": 0.125, "insi
 #   than made the global default.)
 BOOK_CONFIGS = {
     "roth": {
-        "label": "Tax-free (Roth/IRA): Sharpe-optimal, full rotation, ~2-month rebalance",
+        "label": "Tax-free (Roth/IRA): highest net alpha, full rotation, ~2-month rebalance",
         # 42 TRADING days ~= 2 calendar months. Best Sharpe of the cadences tested.
         "top_n": 25, "top_frac": None, "rebalance_days": 42, "horizon": 42,
         # STAYS BAND-LESS AFTER THE S14 ADOPTION (2026-08-13), and this is a fidelity decision
@@ -142,8 +142,11 @@ BOOK_CONFIGS = {
         # book_configs.roth (same construction — identical `label`, rebalance_days 42).
         # `cost_drag_ann` is NOT re-measured here (the results file does not emit it for a
         # book config) and is not read by the export; it remains a pre-B6 figure.
-        "measured": {"net_alpha": 0.1163, "net_sharpe": 1.10, "annual_turnover": 3.17,
-                     "cost_drag_ann": 0.0440},
+        # READ THROUGH — see `measured()`. The literals that used to sit here are gone
+        # because a second copy of a measured figure is a copy that goes stale, and this one
+        # did. `cost_drag_ann` is the one field the artifact does not emit per book, so it is
+        # NOT re-introduced here either: `backtest_card` measures its own.
+        "measured_from": "BACKTEST_RESULTS.json book_configs.roth",
     },
     "taxable": {
         "label": "Taxable: after-tax-optimal, decile + 30% no-trade band",
@@ -152,20 +155,87 @@ BOOK_CONFIGS = {
         # double-clear: sweeping the shipped grid -- which CONTAINS 0.20 -- on a decide half and
         # measuring the argmax on the held-out half picked 0.30 in both directions, and
         # S14-WIDTH then confirmed the optimum is interior rather than a grid-edge artefact.
-        # The `measured` figures below are still the 20%-band numbers and are NOT restated,
-        # because no run has measured this config at 0.30; S14's own held-out figures are
-        # differences, not levels, so they cannot be substituted here. Flagged rather than
-        # silently re-labelled -- see `measured_width` below.
+        # THAT COMMENT'S PREMISE HAS EXPIRED, corrected 2026-09-30 (MC11). It read "no run
+        # has measured this config at 0.30", which was true when written. The current
+        # `BACKTEST_RESULTS.json` book_configs.taxable carries `annual_turnover` 1.3747 --
+        # which IS the 0.30-band figure -- under the label "decile + 30% no-trade band". So a
+        # run HAS measured it, the figures are in the artifact, and the fix is to read them
+        # rather than to keep flagging a substitute. `measured_width` stays, because it is
+        # still the honest answer to "at what width were these measured".
         "exit_frac": 0.30, "exit_mult": None,
         "measured_width": 0.20,
         # RE-MEASURED 2026-08-08, same sweep and same source (book_configs.taxable).
         # Was: after_tax_alpha 0.0486, after_tax_sharpe 0.89, net_alpha 0.1169,
         # turnover 1.72. The after-tax alpha moved most — 4.86% -> 0.81%, a sixfold
         # overstatement — because the pre-B6 panel's inverted early universe carried it.
-        "measured": {"after_tax_alpha": 0.0081, "after_tax_sharpe": 0.90,
-                     "net_alpha": 0.0698, "annual_turnover": 1.84},
+        # READ THROUGH — see `measured()`. THESE LITERALS WERE THE 20%-BAND FIGURES UNDER A
+        # LABEL THAT SAYS 30%, and the gap was not rounding: `after_tax_alpha` read 0.0081
+        # against the artifact's 0.021133 (2.6x understated) and turnover 1.84 against 1.3747.
+        "measured_from": "BACKTEST_RESULTS.json book_configs.taxable",
     },
 }
+#: THE BASIS EVERY BACKTESTED FIGURE ON AN INDEX SURFACE MUST CARRY (MC10).
+#:
+#: Every number `measured()` returns is a property of the SAME object, and naming it is the
+#: difference between a figure and a claim: the full-universe 2,531-name point-in-time panel,
+#: 69 quarterly dates, ~18 years, the EQUAL-WEIGHTED decile book, gross of nothing and net of
+#: the modelled cost table. It is NOT the served score-weighted large-cap book a user sees on
+#: the site, and it is NOT the concentrated top-25 book.
+MEASURED_BASIS = ("full-universe 2,531-name point-in-time panel, 69 quarterly dates (~18 "
+                  "years), EQUAL-WEIGHTED decile book, net of the modelled cost table -- not "
+                  "the served score-weighted large-cap book")
+
+#: The after-tax sentence, which must travel wherever a TAXABLE book is offered.
+AFTER_TAX_SENTENCE = (
+    "After-tax figures charge the shipped FIFO lot-level engine at 40.8% short-term and 23.8% "
+    "long-term, on the same " + MEASURED_BASIS.split(" -- ")[0] + ". They are NOT a projection "
+    "for any individual: your own rates, lot history and state tax are not modelled.")
+
+
+def measured(cfg_name: str = None, path: str = None) -> dict:
+    """The measured figures for a book config, READ FROM THE ARTIFACT rather than copied.
+
+    **WHY THE LITERALS WENT (MC11).** `BOOK_CONFIGS["taxable"]["measured"]` carried the
+    20%-band figures under a label reading "30% no-trade band", and the gap was not rounding:
+    `after_tax_alpha` read **0.0081** against the artifact's **0.021133** -- a 2.6x
+    understatement -- and `annual_turnover` **1.84** against **1.3747**. A second copy of a
+    measured number is a copy that goes stale, and the only durable fix is not to keep one.
+
+    **AN ABSENT ARTIFACT RETURNS NOTHING, NOT THE OLD LITERALS.** A surface with no figure
+    says so; a surface showing a stale figure cannot be told from one showing a current one.
+    """
+    import json
+    import os
+    name = (cfg_name or DEFAULT_BOOK_CONFIG or "roth").lower()
+    path = path or os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "BACKTEST_RESULTS.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            blob = json.load(fh) or {}
+    except (OSError, ValueError):
+        return {"basis": MEASURED_BASIS, "source": None,
+                "unavailable": "BACKTEST_RESULTS.json is not readable, so no measured figure "
+                               "is offered rather than a stale one"}
+    got = ((blob.get("book_configs") or {}).get(name) or {})
+    if not got:
+        return {"basis": MEASURED_BASIS, "source": None,
+                "unavailable": "the artifact carries no book_configs.%s" % name}
+    out = {k: got.get(k) for k in ("net_alpha", "net_sharpe", "after_tax_alpha",
+                                  "after_tax_sharpe", "annual_turnover", "net_max_drawdown",
+                                  "rebalance_days", "scored_at_horizon")}
+    out["basis"] = MEASURED_BASIS
+    out["source"] = "BACKTEST_RESULTS.json book_configs.%s" % name
+    out["n_dates"] = 69
+    out["n_names"] = 2531
+    out["weighting"] = "equal-weighted decile"
+    out["no_trade_band"] = (BOOK_CONFIGS.get(name) or {}).get("exit_frac")
+    out["measured_width"] = (BOOK_CONFIGS.get(name) or {}).get("measured_width")
+    if out.get("after_tax_alpha") is not None:
+        out["after_tax_sentence"] = AFTER_TAX_SENTENCE
+    return out
+
+
 # ADOPTED 2026-07-31 (Don's call): `roth`. Don trades in a Roth, where there is no tax drag,
 # so the book optimizes net-of-cost Sharpe (1.17) with free rotation rather than after-tax
 # Sharpe. `taxable` remains fully supported for the product's taxable users and is the right
