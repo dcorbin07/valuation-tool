@@ -5,6 +5,140 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 63 — 2026-09-30 — the two sub-scores that still used industrial measures
+
+**ZERO TRIALS** — no hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `by_domain`
+unchanged: **equity 248, options 310, unified 0, infra 20**, 0 malformed. **17 new tests; 8 of 8
+mutations caught**, from a suite confirmed green first. Full gate green. **`.github/` untouched.**
+
+## THE RULE, APPLIED WHERE IT HAD NOT BEEN
+
+`879cda6` set it — *an input that does not apply to the regime does not contribute* — and applied
+it to the **valuation** sub-score. Two more were still running FCFF-model concepts on banks and
+insurers, and together they are **45% of a financial's score**: quality (0.25) led with **ROIC vs
+WACC** plus **gross** and **EBIT margin**; health (0.20) read **net debt / EBITDA**, **interest
+coverage** and a **free-cash-flow check**.
+
+## HEALTH IS WITHHELD, AND THE CENSUS IS THE FINDING
+
+KNSL read health **100 of 100** because its net debt / EBITDA is **−3.8x**, which the curve
+reads as deep net cash — for an insurer that is largely **policyholder float and reserves**, the
+same fact that made `879cda6` stop the narrative claiming net cash. That is not one odd name:
+
+| health BEFORE, 23 financial-regime names | |
+|---|---:|
+| median | **100.0** |
+| mean | 98.1 |
+| **exactly 100.0** | **17 of 23** |
+| 90 or above | 21 of 23 |
+| minimum | 79.9 |
+
+**The industrial health measure was handing nearly every bank and insurer a perfect
+balance-sheet score.** That is why withdrawing it moves all 23 the same way, and it is a much
+stronger statement than "23 names changed".
+
+**THE ALTERNATIVE WAS CHECKED AND IS NOT BUILDABLE.** The obvious financial measure is
+assets / equity — and **`CompanyData` has no `total_assets` field**. `assets` exists only in the
+edge lane's Sharadar panel, a different object on a different path, so the live scorer cannot see
+it; a proxy from `total_debt` would re-introduce exactly the confusion being removed, since a
+bank's large liability is deposits and an insurer's is reserves. So the sub-score is **withheld,
+its 0.20 redistributed by the existing renormalisation, and a driver says why** — a withheld
+sub-score that is silent looks identical to one that scored in the middle. A test pins that
+nobody adds a proxy without adding the field.
+
+**NOT APPLICABLE IS NOT MISSING.** `compute_score` degrades `confidence` on missing sub-scores;
+counting a deliberate design choice there would downgrade **every** financial's confidence label
+and report a data gap that does not exist. Excluded explicitly, pinned.
+
+## QUALITY: ROE AGAINST THE COST OF EQUITY THE FAIR VALUE ALREADY USES
+
+Invested capital and a WACC describe a firm that raises debt to fund operating assets; for a
+financial, debt (and float, and reserves) is the **raw material** — `classify.py`'s own stated
+reason for refusing the unlevered model. The applicable question is **ROE vs the cost of
+equity**, and it is not a new number: it is the same `ke` the P/B-ROE model already uses for the
+published fair value, **passed from the same `wacc` object** so the sub-score and the headline
+cannot disagree about the hurdle.
+
+**Gross margin is dropped** — a bank has no cost of goods sold. **EBIT margin is replaced by net
+margin** — interest is operating *revenue* for a lender, so EBIT is not a measure of operating
+profitability, while net income over total revenue is well defined (premiums plus investment
+income for an insurer, net interest plus fee income for a bank). Weights 0.7 / 0.3, the same
+order as the industrial form.
+
+## MEASURED: PAIRED, ONE FETCH PER NAME
+
+Each name is fetched **once** and scored **twice** — the old scorer **restored from git**, not
+re-implemented — so no difference can be the market moving between two readings, and no
+"baseline" is my own paraphrase of the thing under test.
+
+| | |
+|---|---:|
+| exposed rows valued (scan 2026-09-29) | **99** of 100 |
+| errors / contaminated-empty | 1 / 1 (ORKA, unavailable — counted, not skipped) |
+| **financial-regime names** | **23** |
+| score moved | **23 of 23** |
+| **recommendation changed** | **12 of 23** |
+| direction | **23 down, 0 up** |
+| composite move | min **−20**, median **−8.0**, mean −8.35, max −1 |
+| **non-financials byte-identical** | **76 of 76 — INERTNESS HOLDS** |
+
+Recommendation changes: SYF, HIG, TRV **Strong Buy → Buy**; PRU, FHN, MKL, MTB, EWBC **Buy →
+Hold**; STT, PFG, NTRS, CFG **Hold → Reduce**.
+
+**KNSL: 67 Buy → 59 Hold** — measured separately and **stated as separate**, because KNSL is
+**not in the exposed top 100**; the public payload carries 100 rows while the scan scored **793**,
+so the census is over the top 100 and not the whole scan.
+
+**AND KNSL'S WHOLE MOVE IS THE HEALTH WITHDRAWAL.** Its quality went **91.9523 → 92.0346** —
+**0.08 of a point**. Reproduced offline from its measured inputs: ROIC 23.4% vs WACC 9.55% is a
++13.9% spread, ROE 25.7% vs Ke 9.70% is +16.0%, and it reports **no gross margin at all**, so
+the two branches happen to land together. **That is a coincidence of one name, not a general
+result** — across the 23, quality's median moves **71.30 → 64.30**. Both sentences are needed:
+the quality substitution is nearly inert on the name the brief names, and materially live on the
+population.
+
+## NO VINTAGE OPENS, AND IT IS PINNED RATHER THAN ASSERTED
+
+This is the 1–100 **opportunity score** (`engine.scoring.compute_score`). The hot-list composite
+is `composite.rank(pct=True) * 99 + 1` off the **theme z-scores**; the Valquo Index ranks on
+`hot_score`; the forward track scores picks from **prices**. None reads this score — and a test
+walks the whole `valuation/` tree and asserts `compute_score` has **exactly one caller**,
+`engine/pipeline.py`, so a second caller in a surface the vintage rule *does* bind cannot land
+quietly.
+
+## THREE DEFECTS IN MY OWN TESTS, ALL FOUND BY MUTATION
+
+1. **The net-margin test moved `net_income`** — which drives ROE as well, so the score moved
+   through the *other* term and the test passed with net margin's weight set to **zero**. It
+   varies **revenue** now, which moves net margin and leaves ROE untouched, with an assertion
+   that ROE really is unchanged.
+2. **The confidence test left a second sub-score `None`** (no price → no margin of safety, and
+   no `ma_200` → no momentum), which pins both arms at the same degraded label whatever the rule
+   does. It now asserts `health` is the **only** `None`. *A test whose subject is masked by a
+   second defect in its own fixture measures nothing.*
+3. **No test touched the call site**, so replacing the pipeline's `ke=wacc.cost_of_equity` with
+   `ke=None` left every test green while every financial silently lost its hurdle. **The third
+   time this session** a helper was tested and its caller was not.
+
+A fourth, caught on the suite's first run rather than by mutation: the fixture omitted `da` and
+`interest_expense`, so `net_debt_to_ebitda` and `interest_coverage` were both `None` and the
+fixture **could not reach either input the change exists to withdraw**. And one assertion banned
+the substring `WACC` — which the new driver names **in a negation** (*"ROIC vs WACC does not
+apply to a bank or insurer"*), so the ban would have outlawed the explanation. It asserts the
+property instead: the score does not move when the WACC does.
+
+## NOT DONE
+
+* **The census is the exposed top 100, not all 793 scored names.** The rest are not public and I
+  did not use the admin token to reach them.
+* **No weight was re-tuned.** Health's 0.20 is redistributed by the existing renormalisation; the
+  `_WEIGHTS` table is untouched, so a financial's remaining weights keep their relative shape.
+* **REITs are not addressed.** `reit—` is a financial industry hint, so a REIT lands in this
+  regime and now loses its health score too. Whether FFO-based measures belong there is a
+  separate question and is not decided here.
+* **Nothing was re-measured on the service**, because the change had not deployed when the
+  before/after ran; the figures above are from the live data path in this worktree.
+
 # Session 62 — 2026-09-30 — price routing, a resumable track refresh, and the fleet door
 
 **ZERO TRIALS** — no hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `by_domain`
