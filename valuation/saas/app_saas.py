@@ -826,10 +826,55 @@ def create_saas_app(cfg=CONFIG):
         if not _admin_ok():
             return jsonify({"error": "unauthorized"}), 401
         try:
+            import time as _time
             from ..edge import fleet
             body = request.get_json(silent=True) or {}
             wants_run = bool(request.args.get("run") or body.get("run"))
             only = request.args.get("book") or body.get("book")
+
+            # THE DOOR TIMES ITSELF, BECAUSE NOBODY ELSE CAN.
+            #
+            # Runs #39, #40 and the post-fix #36700697816 all died on `curl: (28) ... with 0
+            # bytes received` at `--max-time 120`. A request that sends nothing tells you only
+            # that something was slow, and Flask buffers the whole JSON body, so one slow step
+            # loses the entire diagnosis including the timings of every step that was fine.
+            #
+            # Measured in a worktree the whole door is 6.6s and every step is instant, so the
+            # cost is a property of the SERVICE's store, not of code a local run can see. The
+            # only process that can time the real path is the one holding the token -- the
+            # Action -- which is why this is instrumentation rather than a third guess at the
+            # culprit. `_step` is unconditional: a timing that only appears when someone
+            # remembers to ask for it is not there on the day it is needed.
+            _t_req = _time.time()
+            _timings = {}
+
+            def _step(name, fn):
+                t0 = _time.time()
+                try:
+                    return fn()
+                finally:
+                    _timings[name] = round((_time.time() - t0) * 1000.0)
+
+            # The budget is UNDER the caller's 120s so a body arrives instead of nothing. It
+            # bounds only the SECONDARY reporting after the recorders; the recorders themselves
+            # are never skipped, because a missing history day is the failure `fleet_history`
+            # exists to prevent and deferring it silently would be worse than being slow. They
+            # are TIMED, so if they are the cost the next run says so in one number.
+            # CLAMPED THROUGH THE SHARED HELPER, and the repo's own sweep is what caught
+            # this. An unclamped `float()` on a caller value lets `?budget=1e9` switch the
+            # bound off entirely -- the exact failure the bound exists to prevent, requested
+            # politely -- and a hand-rolled clamp here would have been a second definition of
+            # a rule `clamp_float` already owns, including the NaN ordering that makes a bare
+            # `min(max(...))` wrong. `lo=0` because forcing the deadline is how the deferral
+            # branch is reachable in a test; `hi` sits under the caller's 120s, as the default
+            # does.
+            from ..web.query_params import clamp_float as _clamp_float
+            _budget_s = _clamp_float(
+                request.args.get("budget") or body.get("budget"),
+                default=75.0, lo=0.0, hi=110.0)
+
+            def _over_budget():
+                return (_time.time() - _t_req) > _budget_s
 
             if wants_run and request.method != "POST":
                 return jsonify({
@@ -859,7 +904,7 @@ def create_saas_app(cfg=CONFIG):
             # and the same one `fleet_books` follows below), so nothing is unblocked by a stray
             # import — this door is the composition root and says so.
             from ..edge import assignment as _s3i3
-            _s3i3.register(fleet)
+            _step("s3i3_register", lambda: _s3i3.register(fleet))
             # THE ENTRY RULES *ARE* REGISTERED HERE, AND THE CONTRAST WITH S3-I3 ABOVE IS THE
             # WHOLE POINT: THE QUARANTINE IS THE TEST, NOT A BLANKET BAN ON REGISTERING.
             #
@@ -876,7 +921,7 @@ def create_saas_app(cfg=CONFIG):
             # is a worse failure than not building them -- it looks like the work was not done.
             from ..edge import fleet_books
             from ..edge import fleet_gates
-            res_reg = fleet_books.register_all()
+            res_reg = _step("register_entry_rules", fleet_books.register_all)
 
             # THE DAY-1 SELF-CHECK, RUN WHERE THE RECORDS LIVE.
             #
@@ -916,8 +961,9 @@ def create_saas_app(cfg=CONFIG):
             # so in its response instead of timing out silently. Certification is one
             # deliberate call: POST /admin/fleet-cycle?run=1&selfcheck=1.
             day1 = {"ran": False}
-            stale = [d["book"] for d in fleet.declared_books()
-                     if d.get("parses") and not fleet.selfcheck_state(d["book"])["ok"]]
+            stale = _step("selfcheck_state_scan", lambda: [
+                d["book"] for d in fleet.declared_books()
+                if d.get("parses") and not fleet.selfcheck_state(d["book"])["ok"]])
             wants_selfcheck = bool(request.args.get("selfcheck") or body.get("selfcheck"))
             if wants_run and stale and wants_selfcheck:
                 from scripts import fleet_selfcheck as _sc
@@ -927,7 +973,8 @@ def create_saas_app(cfg=CONFIG):
             # The cycle runs AFTER the self-check, so a freshly certified book is gated on
             # this run rather than on the next one -- otherwise the first dispatch after
             # certification would still report every book blocked and look unchanged.
-            res = fleet.cycle(write=wants_run, books=[only] if only else None)
+            res = _step("cycle", lambda: fleet.cycle(
+                write=wants_run, books=[only] if only else None))
             res["selfcheck_ran"] = day1["ran"]
             if day1["ran"]:
                 res["selfcheck"] = day1["result"]
@@ -949,7 +996,7 @@ def create_saas_app(cfg=CONFIG):
             # should be banking day 1 TODAY. They run on the WRITE path only: a dry-run GET
             # must stay side-effect free, which is the same split the verb already carries.
             from ..edge import fleet_history
-            res["history"] = fleet_history.coverage()
+            res["history"] = _step("history_coverage", fleet_history.coverage)
             if wants_run:
                 # AUDIT #5 H2 — THE SOURCES ARE PASSED EXPLICITLY NOW. This call used to pass
                 # NOTHING, so `dip_rejects` recorded "zero names rejected today" from a screen
@@ -974,7 +1021,8 @@ def create_saas_app(cfg=CONFIG):
                 # weakened -- so the fabricated span is marked INVALID by a record appended
                 # today, which every consumer here honours. It runs BEFORE record_all so the
                 # span it freezes is exactly the pre-fix rows and never today's real one.
-                res["history_invalidated"] = fleet_history.invalidate_fabricated_span()
+                res["history_invalidated"] = _step(
+                    "invalidate_fabricated_span", fleet_history.invalidate_fabricated_span)
                 # THE DIP SCREEN IS NOT RUN FROM THIS REQUEST PATH. It values up to a
                 # dozen names and MEASURED at ~188s on the service, warm and repeatable,
                 # against the runner's 120s curl budget -- so calling it here made the
@@ -982,8 +1030,8 @@ def create_saas_app(cfg=CONFIG):
                 # screen for the dip digest and records the series from it; this cycle
                 # finds the row already present. On a day nobody recorded one, dip_rejects
                 # goes LOUD rather than writing a zero, which is the whole H2 rule.
-                rec = fleet_history.record_all(
-                    quotes=fleet_history.iv60_from_store())
+                _q = _step("iv60_from_store", fleet_history.iv60_from_store)
+                rec = _step("record_all", lambda: fleet_history.record_all(quotes=_q))
                 res["history_recorded"] = rec
                 if rec.get("not_consulted"):
                     res["history_not_consulted"] = rec["not_consulted"]
@@ -996,7 +1044,22 @@ def create_saas_app(cfg=CONFIG):
                     res["history_alarm"] = rec["loud"]
             # Flat, to match `history`. A consumer reading two coverage blocks in one body
             # should not have to remember that one of them nests and the other does not.
-            _g = fleet_gates.coverage()
+            res["deferred"] = []
+            if _over_budget():
+                # NAMED, NEVER SILENT. Everything from here is reporting: gate vintages, the
+                # image audit, the harness census and the announcement. A body that arrives
+                # missing those and SAYS so is strictly more useful than 120s of nothing, and
+                # it is the only way the runner learns which step above spent the budget.
+                res["partial"] = True
+                res["deferred"] = ["gates", "image_audit", "harness", "notify"]
+                res["partial_reason"] = (
+                    "the steps above spent the %.0fs budget; secondary reporting was skipped "
+                    "so a body arrives inside the caller's timeout. `timings_ms` names the "
+                    "step that cost it. Nothing recorded was skipped." % _budget_s)
+                res["timings_ms"] = _timings
+                res["elapsed_ms"] = round((_time.time() - _t_req) * 1000.0)
+                return jsonify(res), 200
+            _g = _step("gates_coverage", fleet_gates.coverage)
             res["gates"] = _g.get("gates") or {}
             res["gates_ok"] = bool(_g.get("ok"))
             if not _g.get("ok"):
@@ -1014,7 +1077,7 @@ def create_saas_app(cfg=CONFIG):
             # deploy-only defects were each invisible to a green local suite, so the claim
             # "only a bit leaves the licensed store" travels as a measurement taken by the
             # deployed process rather than as an assertion made in a worktree.
-            res["image_audit"] = fleet_gates.image_audit()
+            res["image_audit"] = _step("image_audit", fleet_gates.image_audit)
             # Also state what the HARNESS can express here, so a reader does not have to infer
             # from a version number whether the multi-leg and skip machinery actually shipped.
             res["harness"] = {
@@ -1051,7 +1114,7 @@ def create_saas_app(cfg=CONFIG):
             #
             # ONLY ON A WRITING RUN. A GET computes and must not tell anyone something
             # happened, because nothing did.
-            if wants_run:
+            if wants_run and not _over_budget():
                 try:
                     from ..edge import fleet_notify as _fn
                     rows_by_book, refusals = {}, {}
@@ -1075,6 +1138,12 @@ def create_saas_app(cfg=CONFIG):
                     _fp.reset_memo()      # the shelf must not serve a pre-cycle view
                 except Exception:                            # noqa: BLE001
                     pass
+            elif wants_run:
+                res["deferred"] = list(res.get("deferred") or []) + ["notify"]
+                res["notified"] = {"sent": False, "reason": "deferred: over budget"}
+            res["partial"] = bool(res.get("deferred"))
+            res["timings_ms"] = _timings
+            res["elapsed_ms"] = round((_time.time() - _t_req) * 1000.0)
             return jsonify(res), 200
         except Exception as e:
             return jsonify({"ok": False, "error": safe_error(e)}), 500

@@ -11,9 +11,9 @@ ThetaData miner, or `fairvalue.py`.
 re-read at the start and unchanged after: **equity 248, options 310, unified 0, infra 20**,
 0 malformed. **`.github/` untouched** — the two lines Don needs are written out below, not
 committed. **19 new tests** (15 routing, 4 added while repointing the vendor-label suite,
-which now runs 26); **23 of 23 mutations caught** — 14 on the routing change and 9 on the
-narrowing below, every one with sources restored byte-for-byte. **Full gate: 202 suites, 0
-failures**, re-run AFTER merging `origin/main` rather than before it.
+which now runs 26, and 3 on the fleet door); **29 of 29 mutations caught** — 14 on the routing
+change, 9 on the narrowing below and 6 on the door — every one with sources restored
+byte-for-byte. **Full gate: 202 suites, 0 failures**, re-run AFTER merging `origin/main`.
 
 ## THE LANDING, AND THE TWO ALARMS
 
@@ -196,12 +196,73 @@ received***. Nothing at all was sent in 120 s.
 re-adopted). The cause is **`run_day1`**, which runs the synthetic harness *and places a real
 sandbox fill*, for eighteen books, on every write cycle where anything is uncertified.
 
-**THE SHAPE IS A LIVELOCK, NOT A SLOW JOB.** Certification is what clears `SELFCHECK_ABSENT`;
-if certifying cannot finish inside the caller's timeout then nothing is ever certified, so the
-next cycle attempts it again — twelve consecutive scheduled runs is the evidence. Certification
-is now **opt-in** (`?run=1&selfcheck=1`); the daily cron returns promptly and reports
-`selfcheck_pending` with the book count and the exact call. **No gate is weakened**: an
-uncertified book is still refused every fill, which is the existing safe state.
+**THE SHAPE LOOKED LIKE A LIVELOCK.** Certification is what clears `SELFCHECK_ABSENT`; if
+certifying cannot finish inside the caller's timeout then nothing is ever certified, so the next
+cycle attempts it again. Certification is now **opt-in** (`?run=1&selfcheck=1`) and the cron
+reports `selfcheck_pending` with the exact call. **No gate is weakened**: an uncertified book is
+still refused every fill.
+
+### AND THAT FIX IS REFUTED. I TRIGGERED A RUN AND IT STILL FAILED THE SAME WAY.
+
+**Run 36700697816, `workflow_dispatch` on the deployed change, returned `fleet-cycle returned
+000` at the same 120 s.** So gating `run_day1` was necessary and **not sufficient**, and the
+livelock reading above is at best incomplete. It is left in place because the gating is right on
+its own terms — a real sandbox fill for eighteen books on every cycle is not something a daily
+cron should do — but it is **not the cause**, and reporting it as the cause would have been the
+third wrong answer in a row.
+
+**WHY I STOPPED GUESSING, WITH THE MEASUREMENTS.** Timed in a worktree, the *entire* door is
+**6.6 s**, and every step I can reach locally is instant: `s3i3.register` 0.00, `register_all`
+0.00, `fleet_history.coverage` 0.00, `iv60_from_store` 0.03, `fleet_gates.coverage` 0.00,
+`image_audit` 0.00, 21 × `read_records` 0.01. `fleet.cycle` is the whole 6.6 s and it is 21
+books × ~0.36 s of `selfcheck_state`. Two candidates were checked and **cleared**:
+`send_discord` carries `timeout=10`, and a quiet cycle sends nothing at all; and every book is
+`SELFCHECK_ABSENT`, so `cycle` returns at the gate and **never calls an entry rule** — which
+also means my own `test_the_fleet_path_does_not_price_names` was passing for a weaker reason
+than I claimed, since the rules are unreachable rather than merely price-free.
+
+**The cost is therefore a property of the SERVICE's store, which an empty local store cannot
+show.** An unauthenticated `GET /admin/fleet-cycle` returns **401 in 0.165 s**, so the route and
+the service are healthy and the expense is entirely behind the token — and the only process
+holding the token is the Action.
+
+### SO THE DOOR NOW TIMES ITSELF, AND ALWAYS RETURNS A BODY
+
+`curl: (28) … 0 bytes received` is the reason three attempts produced no measurement: Flask
+buffers the whole JSON, so one slow step destroys the timings of every step that was fine.
+
+* **`timings_ms` is unconditional** — a diagnostic that has to be asked for is not there on the
+  day it is needed. `elapsed_ms` travels with it.
+* **A budget (default 75 s, under the caller's 120 s) bounds the SECONDARY reporting only.**
+  When it blows, the door returns **200 with `partial: true`, `deferred: [...]` and
+  `partial_reason`** instead of nothing. A body naming what it skipped is strictly more useful
+  than two minutes of silence.
+* **A recorder is never deferrable**, asserted by name against the literal: a missing history
+  day is exactly the failure `fleet_history` exists to prevent, and deferring one silently
+  would be worse than being slow. The recorders are *timed*, so if they are the cost the next
+  run says so in one number.
+
+**A SECOND DEFECT OF MINE, AND IT WOULD HAVE MADE ANOTHER SUITE FLAKY.** The new door tests
+build the SaaS app and call the live door, and I wrote them without
+`tests/state_isolation.py` — so they read and registered against the repository's own
+`data/fleet`. The gate runs suites in parallel, and `tests/test_fleet_manifest.py` (a 50-second
+suite that manipulates fleet state) came back red in the same run and **passed twice standalone**.
+Isolated, imported above every `valuation` import because the redirection has to be in place
+before the modules bind their paths. **A test that makes a different suite fail is worse than no
+test**, and the symptom points at the innocent suite.
+
+**AND THE REPO'S OWN SWEEP CAUGHT A DEFECT IN THE BOUND ITSELF.**
+`test_no_raw_numeric_parse_of_a_request_param_survives_anywhere` went red on my
+`float(request.args.get("budget"))`: unclamped, `?budget=1e9` switches the bound off entirely —
+the exact failure the bound exists to prevent, requested politely. My first repair hand-rolled a
+clamp, which would have been a second definition of a rule `valuation/web/query_params.clamp_float`
+already owns, **including the NaN ordering that makes a bare `min(max(...))` wrong** (that
+module's own test spells it out). It delegates.
+
+**WHAT THIS DOES NOT CLAIM.** It does not fix the slow step, because the slow step is still
+unidentified. It converts an unobservable failure into a self-reporting one, so the **next
+scheduled run names the culprit** rather than a fourth person guessing. 3 tests, 6 of 6
+mutations caught.
 
 ## FOR DON — `.github/` LINES, NOT COMMITTED
 
@@ -261,7 +322,9 @@ server-side; the export drops it. Not fixed here.
 * **`/admin/price-vendors` has not run on the service yet** — it ships in this change and can
   only be exercised after deploy. The service-side per-vendor split is therefore still
   *unmeasured*; what is measured is that the pricing door 502s at 163.8 s.
-* **The fleet door's post-fix latency is unmeasured on the service** for the same reason.
+* **The fleet door is NOT fixed.** The selfcheck gating did not resolve the timeout (run
+  36700697816), the slow step is unidentified, and what ships is instrumentation plus a bounded
+  response. Read `timings_ms` on the next scheduled run.
 * **No other caller of `except Exception` around a vendor was audited.** The narrowing above is
   scoped to the path I moved; whether the same shape exists elsewhere is unmeasured.
 

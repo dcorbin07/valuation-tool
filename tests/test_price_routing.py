@@ -15,13 +15,26 @@ The price cause is one ratio: `Ticker.history` returned MSFT in **0.4s** while o
 request took **30.1s** to time out on the same machine on the same day. Stooq was the PRIMARY,
 so every name paid the failing vendor before reaching the working one.
 
-The fleet cause is NOT pricing -- traced and refuted here -- it is `run_day1`, which places a
-real sandbox fill and could never finish inside 120s, so nothing ever certified and every cycle
-retried it. A livelock, not a slow job.
+The fleet cause is NOT pricing -- traced and refuted here, since every book is
+SELFCHECK_ABSENT so `cycle` returns at the gate and never calls an entry rule at all.
+`run_day1` was the next suspect and is now GATED, and **that fix was then REFUTED on the
+service**: run 36700697816, on the deployed change, still returned `000` at 120s. The slow step
+is UNIDENTIFIED -- timed in a worktree the whole door is 6.6s and every step is instant, so the
+cost is a property of the service's store. What ships is instrumentation: the door reports
+`timings_ms` unconditionally and returns a labelled partial body rather than 0 bytes, so the
+next scheduled run names the culprit instead of a fourth person guessing.
 
 Run:  python -m pytest tests/test_price_routing.py
       python tests/test_price_routing.py
 """
+# REAL STATE IS OFF LIMITS (audit LA15). This suite builds the SaaS app and calls the live
+# fleet door, so without this it would read and register against the repository's own
+# `data/fleet` -- and the gate runs suites in parallel, which is how a 50-second fleet suite in
+# another process comes back red for reasons that have nothing to do with it. Imported ABOVE
+# every `valuation` import, because the redirection has to be in place before the modules bind
+# their paths.
+import state_isolation  # noqa: F401  (import order is the point)
+
 import os
 import sys
 
@@ -316,6 +329,100 @@ def test_the_refresh_status_survives_the_process_that_produced_it():
 
 
 # --------------------------------------------------------------------------- (c) fleet door
+_TOKEN = "test-token-not-a-secret"
+
+
+def _fleet_client():
+    """An app whose admin token is set ON THE LIVE CONFIG, not via the environment.
+
+    `create_saas_app` is IDEMPOTENT: a test that sets an env var and then builds "a fresh app"
+    gets the app an earlier test already built, so the variable never takes effect and the door
+    answers 401 -- a test that passes for the wrong reason, or here fails for one. The token is
+    written onto the config object the handler actually reads, and restored by the caller.
+    """
+    from valuation.saas.app_saas import create_saas_app
+    app = create_saas_app()
+    app.config["TESTING"] = True
+    return app
+
+
+def _with_token(fn):
+    # `create_saas_app(cfg=CONFIG)` binds the DEFAULT argument once, so the object the handler
+    # closes over is this module-level singleton -- not a copy, and not anything an env var set
+    # after import can reach.
+    from valuation.config import CONFIG as cfg
+    app = _fleet_client()
+    assert hasattr(cfg, "admin_token"), "cannot reach the config the handler reads"
+    was = cfg.admin_token
+    try:
+        cfg.admin_token = _TOKEN
+        return fn(app.test_client())
+    finally:
+        cfg.admin_token = was
+
+
+def test_the_fleet_door_ALWAYS_reports_its_own_timings():
+    """Runs #39, #40 and the post-fix #36700697816 all returned 0 BYTES at 120s.
+
+    A request that sends nothing says only that something was slow. Flask buffers the whole
+    JSON, so one slow step destroys the timings of every step that was fine -- which is why
+    three attempts at this produced no measurement of the real path. The timings are
+    UNCONDITIONAL: a diagnostic that has to be asked for is not there on the day it is needed.
+    """
+    r = _with_token(lambda c: c.get("/admin/fleet-cycle",
+                                    headers={"X-Admin-Token": _TOKEN}))
+    assert r.status_code == 200, r.status_code
+    d = r.get_json()
+    assert isinstance(d.get("timings_ms"), dict), "the door does not time itself"
+    assert "cycle" in d["timings_ms"], sorted(d["timings_ms"])
+    assert isinstance(d.get("elapsed_ms"), int), d.get("elapsed_ms")
+    # Every recorded value is a real measurement, not a placeholder.
+    for k, v in d["timings_ms"].items():
+        assert isinstance(v, int) and v >= 0, (k, v)
+
+
+def test_a_BLOWN_BUDGET_returns_a_LABELLED_BODY_and_never_zero_bytes():
+    """The whole point. `budget=0` forces the deadline so the branch is REACHABLE in a test.
+
+    A body naming what it skipped is strictly more useful than 120s of silence, and it is the
+    only way the runner learns which step spent the budget.
+    """
+    r = _with_token(lambda c: c.get("/admin/fleet-cycle?budget=0",
+                                    headers={"X-Admin-Token": _TOKEN}))
+    assert r.status_code == 200, r.status_code
+    d = r.get_json()
+    assert d.get("partial") is True, d.get("partial")
+    assert d.get("deferred"), "it skipped work without naming it"
+    assert "gates" in d["deferred"], d["deferred"]
+    assert "budget" in (d.get("partial_reason") or ""), d.get("partial_reason")
+    assert isinstance(d.get("timings_ms"), dict) and d["timings_ms"], "no timings on the way out"
+
+
+def test_the_deadline_NEVER_defers_a_RECORDER():
+    """A missing history day is the failure `fleet_history` exists to prevent.
+
+    Deferring the reporting is a convenience; deferring a recorder would silently lose a day of
+    a series that cannot be reconstructed, so the deferrable set is asserted by NAME rather than
+    left to whatever happens to sit after the deadline check.
+    """
+    import ast
+    import io as _io
+    src = _io.open("valuation/saas/app_saas.py", encoding="utf-8").read()
+    tree = ast.parse(src)
+    fn = next(n for n in ast.walk(tree)
+              if isinstance(n, ast.FunctionDef) and n.name == "admin_fleet_cycle")
+    named = set()
+    for node in ast.walk(fn):
+        if isinstance(node, ast.List):
+            vals = [e.value for e in node.elts
+                    if isinstance(e, ast.Constant) and isinstance(e.value, str)]
+            if "gates" in vals:
+                named |= set(vals)
+    assert named, "the deferred list is no longer a literal this guard can read"
+    forbidden = {"record_all", "invalidate_fabricated_span", "history", "cycle"}
+    assert not (named & forbidden), "a recorder is in the deferrable set: %s" % (named & forbidden)
+
+
 def test_the_fleet_door_no_longer_certifies_on_every_cycle():
     """The livelock: certifying could not finish inside 120s, so nothing ever certified.
 
