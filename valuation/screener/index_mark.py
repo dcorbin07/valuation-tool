@@ -606,7 +606,13 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
                 "reason": ("the benchmark " + bench + " could not be priced on the " + which
                            + " (a benchmark gap makes the excess unmeasurable, so no row is "
                              "emitted rather than a Valquo-only one)"),
-                "row": None}
+                "row": None,
+                # WHICH VENDOR ANSWERED, AND WHAT THE BENCHMARK'S FRAME ACTUALLY HELD. Added
+                # 2026-09-30: the refusal note for the 09-29 row said "SPY could not be priced
+                # on the inception" and nothing else, which cannot tell a stale primary from a
+                # dead fallback from a frame that simply started too late. These travel into the
+                # refusal note the workflow commits, so the next failure diagnoses itself.
+                "diagnostics": _refusal_diagnostics(bench, bc, vendors)}
     spy_pct = (b_mark / b_base - 1.0) * 100.0
 
     # --- the book ---
@@ -726,6 +732,23 @@ def _vendor_census(seen: dict, benchmark: str) -> dict:
                  "answers that were well-formed but older than the mark date and were "
                  "therefore refused rather than used."),
     }
+
+
+def _refusal_diagnostics(ticker: str, closes: dict, vendors: dict) -> dict:
+    """Small, secret-free facts about one failed price lookup, for a refusal body."""
+    keys = sorted(closes or {})
+    out = {"ticker": ticker, "vendor": (vendors or {}).get(ticker),
+           "n_closes": len(keys), "first_close": keys[0] if keys else None,
+           "last_close": keys[-1] if keys else None}
+    try:
+        from . import prices as _p
+        c = _p.source_census() or {}
+        out["census"] = {"by_vendor": c.get("by_vendor"),
+                         "primary_failures": c.get("primary_failures"),
+                         "stale_rejections": c.get("stale_rejections")}
+    except Exception:                                                   # noqa: BLE001
+        out["census"] = None
+    return out
 
 
 def _stale_rejections():

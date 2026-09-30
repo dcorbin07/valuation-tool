@@ -448,7 +448,10 @@
     <div id="hotResults" style="display:none">
       <div class="card">
         <h3>🔥 Hot stocks that screen as buys <span class="ai-src" id="hotMeta"></span></h3>
-        <div class="section-hint">Ranked 1–100 by a cross-sectional value · quality · growth · momentum composite (two buckets, self-calibrating z-scores).</div>
+        <div class="section-hint">Ranked 1–100 by a cross-sectional composite of the model's weighted themes —
+          value, quality (growth for younger companies), momentum, size, capital discipline, and institutional and
+          insider positioning — each standardised against the rest of this scan, in two buckets (established and
+          speculative). A theme with no live data today is flagged below, and its weight is shared among the rest.</div>
         {# THE CALIBRATED LEGEND — extension V3, `HANDOFF_extensions_v3.md`.
          # The score was measured against a permutation null and the PER-NAME result FAILED its
          # pre-registered bar (rank 10: real 1.0909 vs noise p95 1.1117, empirical p 0.116).
@@ -637,21 +640,23 @@
     <div class="note" id="indexDisclaimer" style="margin-bottom:22px"></div>
   </div>
 
-  <!-- TRACK RECORD (owner-only: a paper-account performance claim) -->
+  <!-- TRACK RECORD (inside the may_see_owner gate: public under the public-full-view posture, hidden in private mode) -->
   <div id="tab-track" style="display:none">
     <div class="search-card">
       <div class="section-hint" style="margin-top:0">A live, <b>forward</b> track record — how the tool's daily
         <b>top-10 hot stocks</b> and <b>screaming-buy options signals</b> have actually performed since we started
         logging them, versus the S&amp;P 500. It's <b>survivorship-free by construction</b> (real, dated picks, measured
         forward). Educational only — past performance doesn't predict future results.</div>
-      <div class="note" id="trackNote">Returns mature over time — 1-month picks need ~1 month before they count.</div>
+      <div class="note" id="trackNote">Each pick is measured from the day it was logged and counts 21 trading days
+        later, whether or not it is still on the list — so the newest rows always read “—”. These are model records:
+        no money is invested in any of them.</div>
     </div>
     <div class="loader" id="trackLoader"><div class="spinner"></div><div>Loading track record…</div></div>
     <div class="err" id="trackErr"></div>
     <div id="trackResults"></div>
   </div>
 
-  <!-- SIGNALS (owner-only: live actionable alerts with a specific contract) -->
+  <!-- SIGNALS (inside the may_see_owner gate: public under the public-full-view posture, hidden in private mode) -->
   <div id="tab-signals" style="display:none">
     <div class="search-card">
       <div class="section-hint" style="margin-top:0">Intraday buy-setup scanner over liquid S&amp;P-500 names — blends reputable

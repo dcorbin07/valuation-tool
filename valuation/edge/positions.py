@@ -32,7 +32,7 @@ def _days(a: str, b: str) -> int:
 
 def update_positions(store, source, scan_date, ranked_rows, top_n=10, min_hold_days=30,
                      max_hold_days=0, exit_score=55, target_key="fair_value",
-                     coverage_gap_days=21, exit_band=0) -> dict:
+                     coverage_gap_days=21, exit_band=0, price_fn=None) -> dict:
     rows = [r for r in ranked_rows if r.get("ticker")]
     price_map = {r["ticker"]: r.get("price") for r in rows if r.get("price")}
     score_map = {r["ticker"]: r.get("hot_score") for r in rows}
@@ -58,6 +58,22 @@ def update_positions(store, source, scan_date, ranked_rows, top_n=10, min_hold_d
             # gone too long it likely delisted/was acquired — close it at its last
             # known price (reason logged) so a dropped loser can't live forever and
             # quietly inflate the record (survivorship bias).
+            #
+            # 2026-09-30: "LAST KNOWN PRICE" WAS USUALLY THE ENTRY PRICE. The live scan covers
+            # the ~800 most liquid names and its membership churns at the edge, so a name can
+            # enter the top 10 and never be scanned again. It was then closed at its entry
+            # price, booking a return of exactly minus costs -- 19 of the first 23 closes were
+            # "left coverage", several at exit == entry. `price_fn` re-prices a skipped name
+            # from the price vendor so the mark (and the eventual close) is a real close. It
+            # does NOT count as being seen: the grace clock still runs off the scan.
+            if price_fn is not None:
+                try:
+                    vp = price_fn(p["ticker"])
+                except Exception:                                       # noqa: BLE001
+                    vp = None
+                if vp and vp > 0:
+                    store.mark_position(source, p["ticker"], p["entry_date"], float(vp))
+                    p["last_price"] = float(vp)
             last_seen = p.get("last_seen_date") or p.get("entry_date")
             if _days(last_seen, scan_date) > coverage_gap_days:
                 mark = p.get("last_price") or p.get("entry_price")
@@ -123,8 +139,33 @@ def paper_summary(store, source, latest_price_map=None, latest_score_map=None,
     def avg(a):
         return (sum(a) / len(a)) if a else None
 
-    closed_rets = [r for r in (ret(p) for p in closed) if r is not None]
-    open_rets = [r for r in (ret(p, latest_price_map.get(p["ticker"])) for p in openp) if r is not None]
+    # AN EXIT THAT WAS NEVER RE-PRICED IS UNKNOWN, NOT ZERO. A "left coverage" close whose exit
+    # price equals its entry price means the name was never observed again after the day it
+    # was bought, so its return is not measured -- booking it at minus costs pulled the realised
+    # average toward zero. Counted and shown, never averaged in.
+    def _unpriced_exit(p):
+        return ((p.get("exit_reason") or "").startswith("left coverage")
+                and p.get("exit_price") is not None and p.get("entry_price") is not None
+                and float(p["exit_price"]) == float(p["entry_price"]))
+
+    unpriced_exits = [p for p in closed if _unpriced_exit(p)]
+    priced_closed = [p for p in closed if not _unpriced_exit(p)]
+
+    # AN OPEN NAME THE LATEST SCAN SKIPPED is marked at its last real price (a scan price, or a
+    # vendor close written by `update_positions(price_fn=...)`) rather than silently dropped
+    # from the average -- dropping it averaged only the names that happened to be scanned today.
+    # A last price equal to the entry price is no mark at all, so that name stays unmarked.
+    def _mark(p):
+        m = latest_price_map.get(p["ticker"])
+        if m:
+            return m, "scan"
+        lp = p.get("last_price")
+        if lp and p.get("entry_price") and float(lp) != float(p["entry_price"]):
+            return lp, "last price"
+        return None, None
+
+    closed_rets = [r for r in (ret(p) for p in priced_closed) if r is not None]
+    open_rets = [r for r in (ret(p, _mark(p)[0]) for p in openp) if r is not None]
 
     by_reason = {}
     for p in closed:
@@ -138,6 +179,8 @@ def paper_summary(store, source, latest_price_map=None, latest_score_map=None,
         "win_rate": avg([1.0 if r > 0 else 0.0 for r in closed_rets]) if closed_rets else None,
         "avg_hold_days": avg([_days(p["entry_date"], p["exit_date"]) for p in closed]) if closed else None,
         "by_reason": by_reason,
+        "n_unpriced_exits": len(unpriced_exits),
+        "n_open_marked": len(open_rets),
     }
 
     today = _dt.date.today().isoformat()
@@ -148,14 +191,17 @@ def paper_summary(store, source, latest_price_map=None, latest_score_map=None,
         watching.append({"ticker": p["ticker"], "entry_date": p["entry_date"],
                          "entry_price": p.get("entry_price"),
                          "score": latest_score_map.get(p["ticker"]),
-                         "ret": ret(p, latest_price_map.get(p["ticker"])),
+                         "ret": ret(p, _mark(p)[0]),
+                         "marked_from": _mark(p)[1],
                          "hold_days": _days(p["entry_date"], today)})
     _size_weights(watching, latest_score_map, max_weight, vol_map)
     watching.sort(key=lambda r: (r.get("weight") or 0), reverse=True)
 
     closed_rows = [{"ticker": p["ticker"], "entry_date": p["entry_date"], "entry_price": p.get("entry_price"),
                     "exit_date": p.get("exit_date"), "exit_price": p.get("exit_price"),
-                    "reason": p.get("exit_reason"), "ret": ret(p),
+                    "reason": p.get("exit_reason"),
+                    "ret": (None if _unpriced_exit(p) else ret(p)),
+                    "unpriced": _unpriced_exit(p),
                     "hold_days": _days(p["entry_date"], p.get("exit_date") or today)}
                    for p in closed[:recent]]
     return {"summary": summary, "watching": watching, "closed": closed_rows}

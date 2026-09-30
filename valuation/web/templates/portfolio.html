@@ -219,13 +219,14 @@
    # defect this project shipped to Discord on 2026-08-05. Authority: research_log.detail().
    # Dated in the prose because it will keep moving and this page is static by construction. #}
   <p>
-    As of <b>2026-08-09</b> the log holds <span class="num">83</span> entries, of which
-    <span class="num">62</span> are genuine searches over the data and the rest are defects
-    found in the machinery. <b><span class="num">43</span> of those searches came back
-    rejected, null or unanswerable; <span class="num">15</span> were adopted</b> — and the
-    adoptions cluster in bug fixes rather than new signals. That ratio is the single most
-    honest number on this page: it is what a real search over a finite dataset looks like when
-    the nulls are not quietly dropped.
+    As of <b>2026-09-30</b> the log holds <span class="num">247</span> entries, of which
+    <span class="num">163</span> are genuine searches over the data and the other
+    <span class="num">84</span> are defects found in the machinery.
+    <b><span class="num">80</span> of those searches came back rejected, null or unanswerable;
+    <span class="num">16</span> were adopted</b>, and the rest record a registration, a
+    superseded run or a measurement with no pass/fail bar, in their own words. That ratio is
+    the single most honest number on this page: it is what a real search over a finite dataset
+    looks like when the nulls are not quietly dropped.
   </p>
   <p>
     <b><a href="{{ research_url }}">Read the whole record →</a></b> Every row, newest first,
@@ -233,10 +234,10 @@
     performance figures at all, by design.
   </p>
   <p>
-    The append-only log that formalises this is recent and its retrospective backfill is not
-    finished — which is recorded <em>in the log</em>, together with the reason a partial count
-    has not been wired into the multiple-testing correction: a denominator of 30 carries the
-    same false precision as a denominator of 8 while looking like it was measured.
+    The count is not decoration: it is wired into the multiple-testing correction. The
+    Deflated Sharpe and the Harvey–Liu–Zhu hurdle are charged the equity trials in the log
+    (<span class="num">248</span> on 2026-09-30) rather than the eight weightings they once
+    counted — and at that count the headline long-short spread does not clear the hurdle.
   </p>
   <p class="src">Protocol and schema: <code>RESEARCH_LOG.md</code> (append-only, one row per
     pre-registered test). Universe rule: <code>CLAUDE.md</code> methodology section.</p>
@@ -276,12 +277,14 @@
         <td class="k">Sector-neutral<br>ranking</td>
         <td data-label="How it was tested">Full universe, held-out both split directions — run twice, months apart, on a panel
           that had gained signals in between.</td>
-        <td data-label="What killed it"><span class="verdict kill">Rejected twice.</span> It buys long-short
+        <td data-label="What killed it"><span class="verdict kill">Rejected, three times.</span> It buys long-short
           <span class="num">t</span> and sells the thing the book actually earns — the
           top-decile edge falls — while overfitting probability nearly doubles. The wrong
-          trade for a long-only book. <em>Both runs predate the 2026-08-04 panel corrections
-          and the levels have not been re-measured, so no numbers are quoted here; the
-          direction is what the verdict rests on.</em></td>
+          trade for a long-only book. Re-run on the corrected panel it was worse on
+          <em>both</em> counts — top-decile edge down about 1.1pp a year and the long-short
+          <span class="num">t</span> down too — so no trade-off was left to argue about. A last
+          run on a genuine point-in-time sector map moved the answer by under a tenth of a point.
+          Closed.</td>
       </tr>
       <tr>
         <td class="k">Put-credit spreads<br>(variance risk premium)</td>
@@ -301,9 +304,10 @@
         <td class="k">Cross-section of<br>option returns</td>
         <td data-label="How it was tested">Six published characteristics, every predicted sign declared in a committed module
           before the panel was built, with a mechanical control included on purpose.</td>
-        <td data-label="What killed it"><span class="verdict kill">Rejected.</span> Nothing clears the gate, and one
-          characteristic sorts <em>backwards</em> from the paper it came from. No follow-on run
-          recommended on this data.</td>
+        <td data-label="What killed it"><span class="verdict kill">Rejected.</span> Nothing clears the gate. Three
+          were later re-run on a delta-hedged instrument and were null too — and the one that had
+          sorted <em>backwards</em> from its paper reversed sign, so that reading was an artefact of
+          the straddle it was first measured on.</td>
       </tr>
       <tr>
         <td class="k">Beating the ETFs<br>you could just buy</td>
@@ -332,35 +336,36 @@
     year, using identical contract selection, fill and exit rules.
   </p>
   <div class="tbl"><table>
-    <thead><tr><th>Entry</th><th>Trades</th><th>Expectancy per trade</th>
-      <th>Profit factor</th></tr></thead>
+    <thead><tr><th>Entry</th><th>Trades</th><th>Expectancy per trade</th></tr></thead>
     <tbody>
-      <tr><td class="k">Alert day (the signal)</td><td class="num">3,042</td>
-        <td class="num">+5.14%</td><td class="num">1.162</td></tr>
-      <tr><td class="k">Random day (control)</td><td class="num">5,919</td>
-        <td class="num"><b>+11.07%</b></td><td class="num">1.373</td></tr>
+      <tr><td class="k">Alert day (the signal)</td><td class="num">3,870</td>
+        <td class="num">+3.27%</td></tr>
+      <tr><td class="k">Random day (control, five seeds)</td><td class="num">29,654</td>
+        <td class="num"><b>+8.33%</b></td></tr>
     </tbody>
   </table></div>
   <p>
-    Paired within name and year the alert loses by <span class="num">3.72pp</span> and wins
-    only 44.5% of cells (sign-test <span class="num">z = −3.48</span>), and it loses in
-    <em>both</em> held-out halves by almost exactly the same margin
-    (<span class="num">−5.88pp</span> early, <span class="num">−5.96pp</span> late). Nine
-    corrected entry rules and six same-day filters were tested; all fifteen fail. Delaying the
-    entry makes it monotonically worse, and fading it loses money outright, so it is not a
-    timing offset and the tilt does not invert.
+    Paired within name and year the alert loses by <span class="num">5.06pp</span> per trade
+    (sign test across 1,332 name-year cells, <span class="num">z = −4.96</span>; the
+    date-block 95% interval, <span class="num">−8.6pp to −1.5pp</span>, excludes zero). These
+    are the figures after two defects were repaired — an adjusted price fed into option maths,
+    and stock splits the option chains do not reflect — and the verdict survived both. Before
+    the first repair, nine alternative entry rules and six same-day filters were tested and all
+    fifteen failed; the one filter re-run afterwards failed again.
   </p>
   <div class="callout">
     <span class="h">The caveat that has to travel with it</span>
     <p>
       The control is a <b>yardstick, not a tradable alternative</b> — it buys weakness inside
       name-years that only exist because the alert fired there. So this says the alert picks a
-      below-average day within the years it selects. It does not say the book loses to the
-      market; that is a different question, and it is open.
+      below-average day within the years it selects. Whether the book loses outright is a
+      different question, measured separately: at realistic account sizes and position limits
+      it ended below its starting value despite a positive average trade, because its best
+      weeks are exactly the crowded ones a position limit refuses.
     </p>
   </div>
-  <p class="src"><code>HANDOFF_entry_fix.md</code> — full run, 187 names, 2016–2025, gate
-    committed results-free before the run.</p>
+  <p class="src"><code>HANDOFF_optionsbot.md</code> (R2, U1-SPLIT, O11) — 187 names,
+    2016–2025, gates committed results-free before each run.</p>
 </section>
 
 <section>
@@ -372,7 +377,8 @@
       <b>A price-basis defect underneath every options result.</b> A dividend-and-split
       adjusted close was being fed into option maths that requires the as-traded price, in
       five call sites across four modules. Every options conclusion in the project was held
-      pending the re-run rather than quoted in the meantime.
+      pending the re-run rather than quoted in the meantime; when it landed, the negative
+      verdict survived.
     </li>
     <li>
       <b>Five wired factors were silently empty — for the project's entire history.</b>
@@ -441,15 +447,16 @@
     the memory file rather than dropped:
   </p>
   <ul>
-    <li>The "deflated Sharpe ratio" is an <b>undeflated</b> one. Its benchmark scales with the
-      variance of Sharpes across trials; the eight trials were eight near-identical weightings,
-      so the variance was ~0 and the statistic saturated because it was deflating nothing. It
-      now labels itself as undeflated in the output when that happens.</li>
-    <li>The one "out-of-sample confirmation" the model rests on is a <b>both-halves stability
-      check</b>. The function computed its own pre-specified flag and then never read it — a
-      demanding test, but not the test its docstring described.</li>
+    <li>The "deflated Sharpe ratio" was an <b>undeflated</b> one: charged only the eight
+      near-identical weightings, it saturated because it was deflating nothing. It is now
+      charged the real trial count — and at that count it <b>fails</b> the conventional 0.95
+      bar, at about 0.79.</li>
+    <li>The one "out-of-sample confirmation" the model rested on was a <b>both-halves stability
+      check</b>: the function computed its own pre-specified flag and then never read it. The
+      documented rule is now enforced beside it, and the decision it backed holds out of sample
+      in one of the two split directions, not both.</li>
     <li>The overfitting statistic scores only the <b>weight-selection step</b>, not the
-      <span class="num">116</span> logged equity trials that preceded it.</li>
+      equity trials logged before it (<span class="num">248</span> by 2026-09-30).</li>
     <li>The headline number <b>had never been tested as alpha</b>. That one is now closed: the
       regression was pre-registered, run, and it cleared its threshold — see below.</li>
   </ul>
@@ -463,8 +470,9 @@
   <p class="lede">Three results, each stated at the strength the evidence actually supports.</p>
   <p>
     <b>The composite's long-short spread has a t-statistic of 2.84</b> on the full 2,531-name,
-    69-date panel — <b>below</b> the 3.0 hurdle Harvey, Liu and Zhu propose for a literature
-    with a multiple-testing problem. Three things travel with that number, and they point in
+    69-date panel — <b>below</b> the multiple-testing hurdle Harvey, Liu and Zhu's method sets
+    at this project's own trial count, about <span class="num">3.3</span> at 248 equity trials
+    (the familiar 3.0 is the same formula at roughly 90). Three things travel with that number, and they point in
     both directions. An autocorrelation test rejects independence, so the figure this project
     quotes is the Newey–West one, <span class="num">t 2.62</span> — lower still. The rebalance
     grid is arbitrary, and re-run on seven equally valid ones the t ranges
@@ -484,8 +492,10 @@
   </p>
   <p>
     <b>And it replicates abroad, on another vendor's data, untuned.</b> Five themes were mapped
-    one-to-one onto public global factor data with no re-fitting of any kind, the country list
-    fixed in writing first, and the bar set at Newey–West t &gt; 2 in both target regions:
+    one-to-one onto public global factor data — Jensen, Kelly and Pedersen's Global Factor Data
+    (jkpfactors.com), used under its CC BY-NC 4.0 licence on this non-commercial page — with no
+    re-fitting of any kind, the country list fixed in writing first, and the bar set at
+    Newey–West t &gt; 2 in both target regions:
   </p>
   <div class="tbl"><table>
     <thead><tr><th>Region</th><th>Annualised</th><th>Newey–West t</th></tr></thead>
@@ -536,8 +546,8 @@
       The caveats travel with it, in the project's own words. It is still <b>one panel</b> — a
       factor regression is a control, not new data, and the international replication above is
       the out-of-sample evidence, not this. The t-statistic is <b>not multiplicity-corrected</b>
-      against the <span class="num">130</span> logged equity trials behind it
-      (<span class="num">326</span> across the whole project, as of 2026-08-09 — the live
+      against the <span class="num">248</span> logged equity trials behind it
+      (<span class="num">578</span> across the whole project, as of 2026-09-30 — the live
       count is on the <a href="{{ research_url }}">research record</a>), though the deployed
       weights are
       flat one-seventh and were never tuned. The panel's contaminated early period is no
@@ -605,8 +615,9 @@
     <span class="h">Label, unmissably</span>
     <p>
       It runs in a <b>broker sandbox on a paper account. There is no real money in it, and
-      never has been.</b> It is days old, which is far too short to constitute evidence of
-      anything, so <b>no number from it appears on this page.</b> It is listed here because
+      never has been.</b> It is about two months old, which is far too short to constitute
+      evidence of anything, so <b>no number from it appears on this page</b> — the app shows it,
+      labelled thin. It is listed here because
       starting the clock honestly — and admitting that the clock has barely started — is part
       of the method.
     </p>
@@ -624,10 +635,10 @@
   <p class="lede">Python, and a lot of tests whose job is to make silent failure loud.</p>
   <ul>
     <li><b>The backtest engine</b> builds nine themes point-in-time from licensed fundamentals,
-      re-using the live app's own frame builder. That reuse is <em>not</em> complete, and the
-      project says so: an open audit item records that the live path inherits two ranking
-      options the backtest forces off, so no shipped code path reproduces the backtested
-      composite exactly. It is logged as a known defect rather than left as an assumption.
+      re-using the live app's own frame builder — and a replay of real historical dates through
+      both paths agrees exactly. What still differs is the <em>data</em>: two of the seven
+      weighted themes (institutional and insider) have no live source yet, so the live ranking
+      runs on five, and the ranking says so on every scan.
       Weight selection is Combinatorial Purged Cross-Validation with a
       probability-of-backtest-overfitting readout, and if it rejects, the defaults stay — the
       selector is not allowed to talk itself into a weighting.</li>
@@ -639,7 +650,7 @@
       score-attribution panel that decomposes each name's rank into the themes that produced
       it (the explanation is computed from the same call as the score, and a test asserts the
       pieces sum to it), and email/Discord recaps.</li>
-    <li><b>628 tests across 19 suites</b>, run before anything merges. A representative
+    <li><b>About 190 test suites</b>, run before anything merges. A representative
       test asserts that a sign convention is read the right way round, because it had been read
       backwards in the notes for months.</li>
     <li><b>Written for the next reader.</b> The project keeps an append-only research log, a
@@ -669,7 +680,7 @@
   </p>
   <p>
     <b>Unlisted.</b> This page is not indexed, not linked from anywhere, and is not a product
-    surface. The rest of this application is private to its owner.
+    surface. {% if private_mode %}The rest of this application is private to its owner.{% else %}The rest of the application is open to anyone, read-only, from the link at the top of this page.{% endif %}
   </p>
 </footer>
 

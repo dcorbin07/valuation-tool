@@ -14,7 +14,15 @@ import datetime as _dt
 from ..edge import track
 
 
-def log_hot(store, scan_date, rows, cfg=None, top=10):
+def _vendor_close(ticker):
+    """The latest close from the price vendor, for a held name today's scan skipped. None if
+    unpriced. Only ever called for open positions absent from the scan (a handful a day)."""
+    from ..screener.prices import close_series
+    d, c = close_series(ticker, days=10)
+    return float(c[-1]) if c else None
+
+
+def log_hot(store, scan_date, rows, cfg=None, top=10, price_fn=_vendor_close):
     from ..config import CONFIG
     cfg = cfg or CONFIG
     try:
@@ -30,7 +38,8 @@ def log_hot(store, scan_date, rows, cfg=None, top=10):
         positions.update_positions(store, "hot10", scan_date, rows,
                                    top_n=cfg.paper_top_n, min_hold_days=cfg.paper_min_hold_days,
                                    max_hold_days=cfg.paper_max_hold_days, exit_score=cfg.paper_exit_score,
-                                   coverage_gap_days=cfg.paper_coverage_gap_days, exit_band=cfg.paper_exit_band)
+                                   coverage_gap_days=cfg.paper_coverage_gap_days, exit_band=cfg.paper_exit_band,
+                                   price_fn=price_fn)
     except Exception:
         pass
 

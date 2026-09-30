@@ -417,8 +417,18 @@ def test_methodology_page_is_public_and_states_the_weaknesses():
     # Deflated Sharpe at all, and the page now discloses the mislabelling rather than the
     # symptom. Both are asserted so a future edit cannot drop the correction and keep the
     # softer word.
-    for weakness in ("one 18-year", "saturates", "undeflated", "dormant"):
+    # UPDATED 2026-09-30. "saturates" described the statistic BEFORE audit M1 wired the real
+    # trial count in; since then it is a genuine Deflated Sharpe (~0.79) that FAILS the 0.95
+    # convention, and that failure is the weakness the page must carry. "undeflated" stays
+    # asserted because the page keeps the record of the earlier mislabelling. The live/backtest
+    # theme gap (institutional and insider have no live source) replaces the retired B7 claim
+    # that the two paths score differently -- they score identically (M4's replay harness).
+    for weakness in ("one 18-year", "undeflated", "dormant", "fails its conventional bar",
+                     "five of the backtest's seven themes"):
         assert weakness in body, f"methodology must keep the weakness: {weakness!r}"
+    for retired in ("kept private precisely", "not yet the same function",
+                    "market-data subscription is degraded", "-6.65", "−6.65"):
+        assert retired not in body, f"methodology still carries a retired claim: {retired!r}"
     # The alpha figure is permitted (audit R1 cleared its pre-registered threshold) but only
     # wearing its labels. A page that prints the intercept without them is the exact failure
     # this whole posture exists to prevent.
