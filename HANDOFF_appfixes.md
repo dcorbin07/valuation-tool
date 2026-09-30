@@ -69,6 +69,79 @@ pass nor fail informatively.
 * **D9 was not re-run** — it is unreachable until an export exists, and it is listed as a
   precondition rather than as something done.
 
+# Session 68 — 2026-09-30 — reconstructed chart days, and nowhere near the record
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched. **17 new tests; 10 of 10 mutations caught** from a suite confirmed green first.
+**NOTHING IS WRITTEN TO THE BOUND SERIES** and nothing has been reconstructed yet — the machinery
+ships, the store is empty.
+
+## THE CONSTRAINT IS THE DESIGN
+
+`PAPER_TRACK_CONTRACT.md` §3, verbatim: ***"VOIDS THE WHOLE RUN**: any back-fill of prices or
+positions after the fact"*. **Not the affected window — the whole run.** So the load-bearing test
+here is not that the reconstruction computes anything; it is that **every gate and meter input is
+byte-identical with the feature on and off**, asserted by hashing the record's view with the
+store absent and then present, with a companion assertion that the fixture really did turn the
+feature on (or the byte-identity would be proving nothing).
+
+**WHAT MAKES IT LEGITIMATE RATHER THAN A BACK-FILL IN DISGUISE.** A back-fill answers *"what does
+the record say"* with a number nobody recorded at the time. This answers a **different question**
+— *"what would the book in force have done on the days the writer missed"* — and answers it in a
+place that is not the record. The bound series still reads **24 of 43 days recorded**.
+
+## THE SHAPE, AND THE FOUR PLACES IT COULD HAVE GONE WRONG
+
+* **A SEPARATE STORE**, `data/valquo_track_reconstructed.json`, named so nobody mistakes it for
+  the record while reading a directory listing. A test pins that `DEFAULT_PATH` is not the bound
+  file, and a second one reads the module's **code with comments and docstrings stripped** and
+  bans the bound filenames there.
+* **A SEPARATE ARRAY on the payload**, never merged into `series`. `series` **is** the record —
+  `days`, `available`, the meter and the gate all read it — so a reconstructed point appearing
+  there would be counted as a recorded one. Two arrays force the consumer to decide visibly how
+  to draw each; **one merged array is how the distinction is lost three refactors later**.
+* **NO FIELD THAT LOOKS LIKE A RECORDED DAY COUNT.** The block reports `n_reconstructed` under
+  its own name, and a test bans `days`, `recorded`, `recorded_days`, `n_days` and `sessions` from
+  its keys — so adding the two together has to be done on purpose.
+* **IT NAMES WHAT IT IS EXCLUDED FROM** (`recorded_days`, `evidence_meter`, `operational_gate`,
+  `verdict`), so a reader does not take the exclusion on trust.
+
+**EVERY POINT CARRIES THE DATE IT WAS COMPUTED**, which the record needs and does not have: a
+reconstructed number is a function of whatever the price vendor said when it was asked, so two
+versions of this file are not comparable without it. **An existing `computed_at` is never
+restamped** — that would erase the only provenance these points have.
+
+**THE ONE PLACE IN THE TRACK PATH THAT FAILS OPEN, DELIBERATELY.** A missing or corrupt store is
+an empty overlay, not an error. Everything else here fails closed; this block is a chart overlay
+rather than evidence, so its absence may cost a visual and must never cost the page.
+
+## TWO DEFECTS OF MY OWN, AND ONE IS A FAMILY THIS PROJECT KEEPS PAYING FOR
+
+1. **A guard banned a substring and fired against the CORRECT tree.** The module's docstring says
+   the bound files *may never be written*; prose documenting a rule quotes what the rule forbids.
+   Replaced with the documented remedy — `tokenize`, comments and strings stripped — **and the
+   stripper is checked both ways**, because one returning `""` would make the ban pass by seeing
+   nothing.
+2. **The label was applied twice and only the read side was tested**, so deleting the write-side
+   label was **inert** (mutation t2, MISSED): *"every point is labelled"* was true of a function
+   that labels everything regardless of what is on disk. **Both are kept and that is deliberate**
+   — the read-side default is the safe direction for an old or hand-written file — but the stored
+   bytes are now pinned separately, **against the FILE rather than against the accessor**, because
+   a file read by a human or a script that is not `chart_points` must still say what it holds.
+
+## NOT DONE
+
+* **No day has been reconstructed.** `missing_dates` identifies them from the record's own
+  subtraction (so it cannot disagree with the meter about *which* days), and the price/book
+  computation is deliberately left to a caller that runs with the writer's routing. **The store
+  is empty**, so `n_reconstructed` is 0 on every surface today.
+* **The chart is not drawn.** The payload carries a labelled array; rendering it as visibly
+  distinct is a front-end change and belongs with whoever next touches the chart. The label
+  constant (`POINT_LABEL = "reconstructed"`) is fixed in the module rather than a template,
+  because the one thing that must not drift is the word that distinguishes these points.
+* **SPMO is carried as a field and is not computed here** — the reconstruction's own arithmetic
+  is for whoever runs it with the writer's price routing.
+
 # Session 67 — 2026-09-30 — the free route's quality gap, the index build's weights, and the vintage answer
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
