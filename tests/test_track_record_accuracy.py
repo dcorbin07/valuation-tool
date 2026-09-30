@@ -240,6 +240,9 @@ def test_public_pages_no_longer_say_the_public_parts_are_private():
                                          "3,042", "+5.14%", "the 3.0 hurdle",
                                          "backfill is not\n    finished"),
         "/landing": ("self-calibrating", "Honest backtest", "Prove the edge"),
+        # The Index tab: the band is 0.30 since S14 (2026-08-13), and "rebuilt after each close"
+        # described the daily holdings as if they were the fixed, quarterly forward book.
+        "/app": ("20% no-trade band", "name, rebuilt after each close"),
     }
     for page, phrases in retired.items():
         body = c.get(page).get_data(as_text=True)
