@@ -495,7 +495,7 @@ def main(argv=None):
     ap.add_argument("--limit", type=int, default=3000, help="universe size for --full-universe")
     ap.add_argument("--config", default=None,
                     help="named book config: 'roth' (top-25, 6-week, no band) or 'taxable' "
-                         "(decile, quarterly, 20%% band). Sets width and emits the cadence.")
+                         "(decile, quarterly, 30%% band). Sets width and emits the cadence.")
     a = ap.parse_args(argv)
     try:
         p = export(path=a.out, large_cap_min=a.large_cap_min, top_decile=a.top_decile,

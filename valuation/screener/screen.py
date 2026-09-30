@@ -109,7 +109,12 @@ def _rows_from(scored: pd.DataFrame) -> list:
                            "op_margin", "roic", "revenue_growth", "ret_12_1", "net_debt_to_ebitda",
                            # net_debt + revenue let fairvalue.py bridge EV multiples to a
                            # per-share equity value and run the growth (revenue) lens.
-                           "net_debt", "revenue", "gross_margin"]
+                           "net_debt", "revenue", "gross_margin",
+                           # book_to_price + roe are what `fairvalue._financial_value` needs
+                           # to reach the P/B-ROE lens: BVPS = book_to_price * price, and the
+                           # justified multiple is a function of ROE, ke and g. Without them a
+                           # bank's row can only be valued by the industrial lenses.
+                           "book_to_price", "roe"]
                  if k in scored.columns}
         # Persist EVERY theme column (not just the legacy five) so the monthly
         # learner can tune the newer themes too. Legacy z_* columns stay for the UI.

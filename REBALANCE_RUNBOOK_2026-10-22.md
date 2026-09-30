@@ -52,9 +52,29 @@ to 120 days — an unannounced vintage change arrived at by putting a file somew
 reference has its own name now and a test pins it, but the *deliberate* version of that switch
 is still a vintage event.)
 
-**RULE 6 IS THE PRICE.** A vintage change resets the whole accrued clock and buys nothing
-statistically. Vintage 4 opened 2026-08-13; at Oct 22 it holds ~10 weeks of record. Path A
-spends all of it. Path B spends none.
+**RULE 6 IS THE PRICE — AND A CORRECTION TO THIS FILE'S OWN FIRST VERSION, MEASURED
+2026-09-30.** It said *"Path A spends all of it, Path B spends none."* That is right about the
+**60-month statistical clock** and wrong about the **6-month operational gate**, and the
+difference decides how the two paths really compare.
+
+**THE OPERATIONAL GATE IS ALREADY OWED A RESTART, UNDER EITHER PATH.** Measured on
+`/api/index-track`: vintage 4 is **43 trading days old with 24 recorded — 19 missing, 44%**, and
+the contract's own gate row reads `passed: false` with the reason *"it cannot [pass], until the
+bound series has a verified automated daily writer (§7.2)"*. §3's gate is a test of **recording,
+not returns** — *"daily rows with no gaps"* — and §3 says **"if the gate fails, the clock
+restarts from the repair"**. So that clock restarts from the day the writer is fixed, for reasons
+that have nothing to do with the rebalance and that neither path changes.
+
+**SO THE LIKE-FOR-LIKE COMPARISON IS NARROWER THAN IT LOOKS:**
+
+| | 60-month statistical clock | 6-month operational gate | money |
+|---|---|---|---|
+| **Path B** | **preserved** (vintage 4, inception 2026-08-13) | restarts from the writer repair | one month of Sharadar |
+| **Path A** | **restarts** (vintage 5) | restarts from the writer repair | none |
+
+**The thing Path B actually buys is the 60-month clock**, which is the expensive one — not "ten
+weeks of record", because those ten weeks are 44% unrecorded and the gate that reads them cannot
+pass as things stand.
 
 ---
 

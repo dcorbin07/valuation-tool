@@ -216,7 +216,17 @@ def tidemark():
 
 @app.route("/api/health")
 def health():
+    # THE SECTOR CHAIN'S OWN HEALTH, on a surface that already exists and needs no token.
+    # A service quietly living on the SEC rung looks identical to one whose primary is healthy,
+    # and after an INTERMITTENT failure that difference is the entire question. Counts only --
+    # no tickers, nothing a log would not already carry.
+    try:
+        from ..data.sector_resolve import source_census as _sector_census
+        _sec_health = _sector_census()
+    except Exception:                                                   # noqa: BLE001
+        _sec_health = None
     return jsonify({"ok": True, "ai_enabled": CONFIG.ai_enabled,
+                    "sector_sources": _sec_health,
                     "ai_provider": CONFIG.resolved_ai_provider,
                     "mc_trials": CONFIG.montecarlo_trials})
 
