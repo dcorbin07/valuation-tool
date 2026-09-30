@@ -256,8 +256,8 @@ function render(d) {
     rangebar(scen.bear, scen.base, scen.bull, c.price);
     scenarioCards(scen, c.price, fvb);
     fcfChart(sc.base.rows);
-    mcChart(d.montecarlo);
-    reverseBox(d.reverse);
+    mcChart(d.montecarlo, d.financial_surfaces);
+    reverseBox(d.reverse, d.financial_surfaces);
     sensBox(d.sensitivity, c.price);
   }
   scoreBars(score, notValuable, d.withheld);
@@ -464,8 +464,29 @@ function fcfChart(rows) {
       scales: { y: { position: "left", title: { display: true, text: "FCFF" } }, y1: { position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "Revenue" } } } }
   });
 }
-function mcChart(mc) {
+function mcChart(mc, fin) {
   killChart("mc");
+  // A NULL DISTRIBUTION IS A STATE, NOT A CRASH. For a financial the payload's `montecarlo` is
+  // null because the FCFF model carries no weight, and dereferencing it here threw a TypeError
+  // that took the WHOLE valuation page down -- a page-level failure caused by a correctness fix
+  // two layers away. The financial's own P/B-ROE distribution is shown instead, named, and the
+  // canvas is hidden because that model produces percentiles rather than a histogram.
+  if (!mc) {
+    _canvasCard("mcChart", false);
+    const f = (fin || {}).montecarlo;
+    document.getElementById("mcNote").innerHTML = f
+      ? `<div style="font-size:14px">Distribution from the <strong>${f.model}</strong> model —
+           the lens this company type is valued on. The unlevered cash-flow Monte Carlo is not
+           applied here.</div>
+         <div class="metricline" style="margin-top:12px">
+           ${metric("P10", money(f.p10, 2))}
+           ${metric("Median", money(f.p50, 2))}
+           ${metric("P90", money(f.p90, 2))}
+           ${metric("Above price", f.prob_undervalued != null ? pct(f.prob_undervalued) : "—")}
+         </div>`
+      : `<div class="muted">Not applied for this company type.</div>`;
+    return;
+  }
   _canvasCard("mcChart", true);
   const ctx = document.getElementById("mcChart");
   const bins = mc.hist_bins || [], counts = mc.hist_counts || [];
@@ -589,7 +610,26 @@ function renderWhatDo(d) {
 }
 
 /* ---------- reverse & comps ---------- */
-function reverseBox(rv) {
+function reverseBox(rv, fin) {
+  // Same null state, and the financial's reverse question is a DIFFERENT question: not what
+  // growth the price implies, but what return on equity it requires.
+  if (!rv) {
+    const f = (fin || {}).reverse;
+    document.getElementById("reverseBox").innerHTML = f
+      ? `<div style="font-size:14px">Today's price requires a sustained return on equity of
+           <strong>${f.implied_roe != null ? pct(f.implied_roe) : "—"}</strong> under the same
+           justified price-to-book formula used for the fair value.</div>` +
+        (f.implied_roe != null && f.current_roe != null
+          ? `<div class="metricline" style="margin-top:14px">
+               ${metric("Required ROE", pct(f.implied_roe))}
+               ${metric("Current ROE", pct(f.current_roe))}
+               ${metric("Gap", (f.gap_pp >= 0 ? "+" : "") + f.gap_pp.toFixed(1) + " pp")}</div>`
+          : "") +
+        (f.out_of_range ? `<div class="muted" style="margin-top:12px">${f.out_of_range}</div>` : "")
+      : `<div class="muted">Not applied for this company type — this valuation is not built on
+           discounted free cash flow.</div>`;
+    return;
+  }
   document.getElementById("reverseBox").innerHTML =
     `<div style="font-size:14px">${rv.growth_verdict || "—"}</div>` +
     (rv.margin_verdict ? `<div style="font-size:14px;margin-top:8px" class="muted">${rv.margin_verdict}</div>` : "") +

@@ -44,6 +44,63 @@ def publication_guard(cd: CompanyData, blend, growth_led: bool = False) -> Optio
                               growth_led=growth_led).reason or None
 
 
+def lens_applicability(blend) -> dict:
+    """Which lenses carry weight, and therefore which derived surfaces may be used.
+
+    **THE ONE PREDICATE EVERY SURFACE IS GATED ON (item 1).** `fair_value_blend.lenses` already
+    records the weight each lens received, so applicability is not a new judgement -- it is a
+    read of the decision the blend already made. Anything derived from a lens at weight 0 is
+    REFERENCE-ONLY: it may be shown, it must be labelled, and it may never enter a score, a
+    verdict or a recommendation.
+
+    Returns `{used: [...], zero_weight: [...], fcff_applies: bool, note: str}`. `fcff_applies`
+    is the one the Monte Carlo, the sensitivity grid and the reverse DCF hang on, because all
+    three are computed from the unlevered cash-flow model.
+    """
+    lenses = dict(getattr(blend, "lenses", None) or {})
+    used, zero = [], []
+    for name, meta in lenses.items():
+        w = (meta or {}).get("weight")
+        (used if (w or 0) > 1e-9 else zero).append(name)
+    # `dcf` is the FCFF lens's name in the blend. A financial's blend carries `pb_roe` alone, so
+    # `dcf` is absent -- and ABSENT MUST READ AS NOT-APPLICABLE, not as unknown, or the gate
+    # fails open on exactly the case it exists for.
+    fcff = ("dcf" in used)
+    return {"used": sorted(used), "zero_weight": sorted(zero), "fcff_applies": bool(fcff),
+            "note": ("surfaces derived from the unlevered FCFF model (Monte Carlo, sensitivity, "
+                     "reverse DCF) %s for this company type"
+                     % ("apply" if fcff else "DO NOT apply"))}
+
+
+class _PBRoeMC:
+    """A `MonteCarloResult`-shaped view of the P/B-ROE distribution.
+
+    It exists so the SCORER reads one interface. The alternative -- a second scoring branch for
+    financials -- is how two paths come to disagree about what a probability means, and the
+    whole point of this change is that there is one source of truth.
+
+    `model` is carried so the payload and the drivers can say WHICH distribution this is; a
+    probability with no model attached is exactly what made the KNSL driver misleading.
+    """
+
+    def __init__(self, d: dict):
+        self.model = d.get("model") or "justified P/B from ROE"
+        self.trials = d.get("trials")
+        self.mean = d.get("mean")
+        self.median = d.get("p50")
+        self.std = None
+        self.p5 = self.p10 = d.get("p10")
+        self.p25 = self.p75 = None
+        self.p90 = self.p95 = d.get("p90")
+        self.prob_undervalued = d.get("prob_undervalued")
+        self.price = (d.get("inputs") or {}).get("price")
+        self.hist_bins, self.hist_counts = [], []
+        self.inputs = d.get("inputs") or {}
+
+    def to_dict(self) -> dict:
+        return {k: v for k, v in self.__dict__.items()}
+
+
 @dataclass
 class ValuationResult:
     company: CompanyData
@@ -59,6 +116,13 @@ class ValuationResult:
     fair_value_blend: Optional[object] = None      # FairValueBlend (archetype-adaptive)
     growth_lens: Optional[object] = None           # GrowthValue (revenue-multiple lens)
     fair_value_scenarios: dict = field(default_factory=dict)  # bear/base/bull, SAME method
+    #: Surfaces computed from a lens the blend gave ZERO weight. Shown, labelled, and barred
+    #: from every score, verdict and recommendation (item 1). See `lens_applicability`.
+    reference_only: dict = field(default_factory=dict)
+    #: For a financial: the Monte Carlo, sensitivity and reverse question on the P/B-ROE model.
+    financial_surfaces: dict = field(default_factory=dict)
+    #: Comps beside the headline as an independent read (item 3). Never blended here.
+    comps_cross_check: dict = field(default_factory=dict)
     ai: Optional[dict] = None
     warnings: list = field(default_factory=list)
 
@@ -92,8 +156,12 @@ class ValuationResult:
             "wacc": self.wacc.to_dict(),
             "assumptions": self.assumptions.to_dict(),
             "scenarios": self.scenarios.to_dict(),
-            "montecarlo": self.montecarlo.to_dict(),
-            "reverse": self.reverse.to_dict(),
+            # NULL RATHER THAN A FIGURE FROM A LENS THAT CARRIES NO WEIGHT. For a financial the
+            # reverse DCF is not computed at all and the Monte Carlo is the P/B-ROE one, so these
+            # two keys are `None` exactly when the FCFF model does not apply. A consumer reading
+            # `null` has to handle it; a consumer handed an inapplicable number cannot tell.
+            "montecarlo": (self.montecarlo.to_dict() if self.montecarlo is not None else None),
+            "reverse": (self.reverse.to_dict() if self.reverse is not None else None),
             "comps": self.comps.to_dict(),
             "sensitivity": self.sensitivity.to_dict(),
             "score": self.score.to_dict(),
@@ -103,6 +171,13 @@ class ValuationResult:
             "growth_lens": (self.growth_lens.to_dict()
                             if self.growth_lens is not None else None),
             "fair_value_scenarios": self.fair_value_scenarios,
+            # ITEM 1 — WHAT MAY NOT BE USED, said on the payload rather than left implicit.
+            # A consumer that cannot tell an applicable surface from an inapplicable one will
+            # use both, which is exactly what happened to KNSL's score.
+            "reference_only": self.reference_only,
+            "financial_surfaces": self.financial_surfaces,
+            "comps_cross_check": self.comps_cross_check,
+            "lens_applicability": lens_applicability(self.fair_value_blend),
             "base_fair_value": self.base_fair_value,
             "dcf_per_share": self.dcf_per_share,
             "upside": self.upside,
@@ -201,6 +276,45 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
     trials = mc_trials if mc_trials is not None else cfg.montecarlo_trials
     mc = run_monte_carlo(cd, cls, base, wacc_value, trials=trials)
     rev = reverse_dcf(cd, base, wacc_value)
+
+    # ONE SOURCE OF TRUTH: THE DERIVED SURFACES MUST COME FROM THE LENS THAT PRODUCED THE
+    # HEADLINE, AND FOR A FINANCIAL THAT IS NOT THE FCFF DCF.
+    #
+    # Measured on KNSL 2026-09-30: the headline was `pb_roe` $291.03 against a $323.25 price
+    # (-10%), and the score's drivers said "Monte Carlo: 100% of trials value it above the
+    # price" -- a statement about the unlevered FCFF model, which `blend.py`'s own comment says
+    # never applies to a financial and which carried weight ZERO in that fair value. That term
+    # is worth 0.30 of the valuation subscore, so it lifted it from ~37 to 55.8 and the name
+    # read 73 "Buy" while trading ABOVE its own fair value.
+    #
+    # This is the KSPI lesson one step over. That one was a WITHHELD valuation coming back
+    # through the side door; this is an INAPPLICABLE lens doing the same thing. The remedy is
+    # the same: the term does not get to contribute.
+    #
+    # The FCFF objects are KEPT and carried as reference-only so a reader can still see them,
+    # labelled -- deleting them would hide that the model was run at all.
+    fcff_mc, fcff_rev = mc, rev
+    fin_surfaces = {}
+    if cls.regime == "financial":
+        from .financials import implied_roe, pb_roe_monte_carlo, pb_roe_sensitivity
+        _ke = wacc.cost_of_equity
+        _g = base.terminal_growth
+        fin_surfaces = {
+            "montecarlo": pb_roe_monte_carlo(cd, _ke, _g, trials=trials),
+            "sensitivity": pb_roe_sensitivity(cd, _ke, _g),
+            "reverse": implied_roe(cd, _ke, _g),
+        }
+        # The scorer reads `prob_undervalued` off whatever `mc` it is handed, so it is handed
+        # the P/B-ROE distribution -- not a flag saying to ignore the FCFF one. A shim rather
+        # than a second scoring path, because a parallel path is how the two drift.
+        _fmc = fin_surfaces.get("montecarlo") or {}
+        if _fmc.get("prob_undervalued") is not None:
+            mc = _PBRoeMC(_fmc)
+        else:
+            # NO APPLICABLE DISTRIBUTION: the term is DROPPED rather than inherited from a
+            # model that does not apply. `_valuation_score` already handles `mc=None`.
+            mc = None
+        rev = None
     comps = compute_comps(cd, peers=peers,
                           fetch_fn=(lambda p: fetcher.get_company(p, cfg)) if peers else None)
     sens = build_sensitivity(cd, base, wacc_value)
@@ -267,7 +381,46 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
         montecarlo=mc, reverse=rev, comps=comps, sensitivity=sens, score=score,
         fair_value_blend=blend, growth_lens=growth_lens, fair_value_scenarios=fv_scen,
         warnings=list(cd.quality_notes),
+        financial_surfaces=fin_surfaces,
     )
+
+    # ITEM 1 — THE INAPPLICABLE SURFACES ARE CARRIED, LABELLED, AND SEPARATED FROM THE ONES
+    # THAT COUNT. Keeping them matters: deleting them would hide that the FCFF model was run,
+    # and a reader comparing two company types needs to see why one has no Monte Carlo of its
+    # own. What must never happen again is a consumer unable to tell which is which.
+    _app = lens_applicability(blend)
+    if not _app["fcff_applies"]:
+        result.reference_only = {
+            "note": ("NOT USED FOR THIS COMPANY TYPE. These are computed from the unlevered "
+                     "FCFF discounted-cash-flow model, which carries zero weight in this "
+                     "company's fair value, so they may be read as background and must not "
+                     "enter a score, a verdict or a recommendation."),
+            "lens": "dcf (FCFF)",
+            "montecarlo": fcff_mc.to_dict() if fcff_mc is not None else None,
+            "reverse": fcff_rev.to_dict() if fcff_rev is not None else None,
+            "sensitivity": sens.to_dict() if sens is not None else None,
+        }
+
+    # ITEM 3 — COMPS BESIDE THE HEADLINE AS A CROSS-CHECK, WITH ITS GAP, AND NOT BLENDED.
+    # For a financial the comps figure is computed and then discarded ($267 on KNSL against a
+    # $291 headline). Whether it SHOULD be blended is a measurement question and is r1's, so
+    # nothing here touches the weights -- it is published as an independent read, which is the
+    # one thing a cross-check has to be to be worth anything.
+    _cf = getattr(comps, "comps_fair_value", None)
+    if _cf and result.base_fair_value:
+        result.comps_cross_check = {
+            "comps_fair_value": _cf,
+            "headline_fair_value": result.base_fair_value,
+            "gap_vs_headline_pct": (_cf / result.base_fair_value - 1.0) * 100.0,
+            "gap_vs_price_pct": ((_cf / cd.price - 1.0) * 100.0
+                                 if cd.price and cd.price > 0 else None),
+            "blended": ("comps" in _app["used"]),
+            "note": ("a cross-check, not a component of this fair value -- whether comps should "
+                     "be blended for this company type is a measurement question and is not "
+                     "settled here"
+                     if "comps" not in _app["used"] else
+                     "already blended into the headline at its stated weight"),
+        }
     if not blend.valuable and blend.reason:
         result.warnings.insert(0, blend.reason)
 
