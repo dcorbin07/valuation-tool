@@ -268,6 +268,77 @@ def test_a_legal_event_is_appended_and_inception_is_untouched():
         assert len(after["rebalances"]) == 1, after["rebalances"]
 
 
+def test_a_STALE_book_is_REFUSED_by_the_door_itself():
+    """THE RUNBOOK'S MANUAL STEP IS NOT A GATE, and mutation proved this had no test.
+
+    Disabling the freshness check left the whole suite green, because the fixture is two
+    trading days fresh and only ever exercised the ALLOW side. A gate nothing tests firing is
+    a gate that will be removed by the first person who finds it inconvenient.
+
+    WHAT IT PREVENTS IS UNRECOVERABLE ONCE WRITTEN: the event carries only a date and
+    positions, so a book chosen from a days-old cross-section, appended as the event for a
+    later date, records a selection that was never made on that date -- and nothing downstream
+    can ever tell.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        bp, hp = _fresh(tmp)
+        ev = _event()                       # event 2026-11-20
+        ev["scan_date"] = "2026-11-10"      # ~7 trading days stale, well past the limit of 2
+        r = IM.append_rebalance(ev, meta_path=bp, history_path=hp,
+                                conformance=_ok_conformance)
+        assert r["ok"] is False and r["wrote"] is False, r
+        assert "trading days before the event date" in r["reason"], r["reason"]
+        assert "2026-11-10" in r["reason"] and "2026-11-20" in r["reason"], r["reason"]
+
+
+def test_the_freshness_limit_is_a_BOUNDARY_not_a_vibe():
+    """Exactly at the limit passes; one trading day past it refuses. Without both sides, a
+    gate set to zero and a gate set to a year are indistinguishable."""
+    import datetime as _dt
+    with tempfile.TemporaryDirectory() as tmp:
+        for offset, want_ok in ((IM.REBALANCE_MAX_STALE_DAYS, True),
+                                (IM.REBALANCE_MAX_STALE_DAYS + 1, False)):
+            bp, hp = _fresh(tmp)
+            ev = _event()
+            d = _dt.date.fromisoformat("2026-11-20")
+            back, n = d, 0
+            while n < offset:                       # walk back `offset` TRADING days
+                back -= _dt.timedelta(days=1)
+                if back.weekday() < 5:
+                    n += 1
+            ev["scan_date"] = back.isoformat()
+            r = IM.append_rebalance(ev, meta_path=bp, history_path=hp,
+                                    conformance=_ok_conformance)
+            assert r["ok"] is want_ok, (offset, want_ok, r)
+
+
+def test_a_book_with_NO_as_of_date_is_REFUSED_rather_than_assumed_current():
+    """A book whose vintage is unknown is exactly the one most likely to be stale."""
+    with tempfile.TemporaryDirectory() as tmp:
+        bp, hp = _fresh(tmp)
+        ev = _event()
+        ev.pop("scan_date", None)
+        r = IM.append_rebalance(ev, meta_path=bp, history_path=hp,
+                                conformance=_ok_conformance)
+        assert r["ok"] is False and r["wrote"] is False, r
+        assert "no readable as-of date" in r["reason"], r["reason"]
+
+
+def test_the_gate_reads_the_BOOKS_OWN_date_and_not_the_FILE_mtime():
+    """A copied file has a fresh mtime and a stale cross-section -- precisely the case that
+    would slip past a mtime check. The event dict carries the vintage; the filesystem does
+    not know it."""
+    import ast
+    import io as _io
+    src = _io.open("valuation/screener/index_mark.py", encoding="utf-8").read()
+    fn = next(n for n in ast.walk(ast.parse(src))
+              if isinstance(n, ast.FunctionDef) and n.name == "append_rebalance")
+    body = ast.unparse(fn)
+    assert "scan_date" in body, "the gate no longer reads the book's own as-of date"
+    assert "getmtime" not in body and "st_mtime" not in body, \
+        "the freshness gate reads a file timestamp"
+
+
 def test_re_sending_the_identical_event_is_a_no_op_not_an_error():
     """A retried request must not corrupt anything, and must not read as a failure."""
     with tempfile.TemporaryDirectory() as tmp:

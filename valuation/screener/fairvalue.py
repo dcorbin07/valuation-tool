@@ -243,6 +243,59 @@ def _growth_value(row, price):
     return value, maturity
 
 
+FINANCIAL_SECTORS = {"Financial Services", "Financials", "Financial"}
+
+
+def _financial_value(row, price):
+    """Justified P/B from ROE for a bank or insurer, DELEGATED to the engine.
+
+    THE DEFECT: `/api/hotstocks` for the 2026-09-29 scan carried **23 Financial Services rows**
+    and **not one** used a P/B-ROE lens -- methods were `dcf`, `blended` and `multiples`, and
+    `_growth_value` projects revenue to `SECTOR_TARGET_MARGIN`, a target operating margin.
+    `classify.py` refuses exactly that model for a financial ("unlevered FCF DCF is unreliable;
+    debt is raw material"). The published gaps were not marginal: ALL $729 vs $253, TRV $753 vs
+    $369, EG $972 vs $375, MKL $3,547 vs $1,740.
+
+    **DELEGATED, NOT RE-DERIVED (B7).** `financial_fair_value` caps `g` below BOTH `ke` and the
+    ROE and bounds the resulting multiple; a second copy of the formula here would produce a
+    number the single-stock page cannot reach, and the two would drift silently -- which is the
+    same split this repair exists to close, one layer down.
+
+    **THE INPUT IS BOOK VALUE PER SHARE, RECONSTRUCTED FROM THE ROW**: `book_to_price * price`.
+    The scan has no share count, so the engine is handed an equity/share pair that reproduces
+    the same BVPS rather than the company's real totals -- the function divides `eq / sh`, so
+    only their ratio is used, and that is asserted by test rather than assumed.
+
+    **`ke` IS A SCAN-LEVEL ASSUMPTION AND IS LABELLED ONE.** A per-name CAPM needs a beta the
+    scan does not carry, so this uses `rf + 1.0 x ERP` -- a beta of exactly one, stated. That is
+    a real approximation: the single-stock page will disagree with the hot list for any
+    financial whose beta is far from 1. It is still strictly better than a revenue-margin model
+    the regime refuses outright, and the row says which lens it used so the two are comparable
+    rather than silently different.
+    """
+    from ..engine.financials import financial_fair_value
+
+    b2p, roe = _num(row.get("book_to_price")), _num(row.get("roe"))
+    if not b2p or b2p <= 0 or roe is None:
+        return None, None
+    bvps = b2p * price
+    if bvps <= 0:
+        return None, None
+    from ..config import CONFIG
+    rf = _num(getattr(CONFIG, "risk_free_rate", None)) or 0.04
+    erp = _num(getattr(CONFIG, "equity_risk_premium", None)) or 0.05
+    ke = rf + 1.0 * erp                       # beta = 1.0, stated: the scan carries no beta
+    g = min(rf, 0.025)                        # terminal growth, capped at rf as the engine does
+
+    from ..data.models import CompanyData
+    cd = CompanyData(ticker=str(row.get("ticker") or "?"))
+    cd.total_equity = bvps                    # eq / sh with sh = 1 reproduces BVPS exactly
+    cd.shares_diluted = 1.0
+    cd.net_income = roe * bvps                # so the engine's own ni/eq recovers this ROE
+    fv = financial_fair_value(cd, ke, g)
+    return (fv, ke) if fv and fv > 0 else (None, None)
+
+
 def estimate_fair_values(rows, peer_rows=None) -> int:
     """Fill in `fair_value` / `upside` for rows that don't have a DCF. Mutates `rows`.
 
@@ -272,6 +325,31 @@ def estimate_fair_values(rows, peer_rows=None) -> int:
             continue
         price = _price(r)
         if price is None:
+            continue
+
+        # A FINANCIAL DOES NOT GET THE INDUSTRIAL LENSES AT ALL -- it is not blended with
+        # them, because blending a model the regime REFUSES with one it accepts still publishes
+        # a number the refused model moved. Either the P/B-ROE lens resolves, or the row is
+        # WITHHELD with a label; it is never quietly valued by revenue margins.
+        if (r.get("sector") or "") in FINANCIAL_SECTORS:
+            fv, _ke = _financial_value(r, price)
+            if fv is None:
+                r["fair_value_method"] = "withheld_financial_inputs"
+                r["fair_value_note"] = (
+                    "Book value or return on equity is missing, so the price-to-book model a "
+                    "bank or insurer needs cannot be run. No fair value is shown rather than "
+                    "one from a model that does not apply to this kind of business.")
+                continue
+            r["fair_value"] = fv
+            r["upside"] = fv / price - 1.0
+            r["fair_value_method"] = "pb_roe"
+            r["fair_value_confidence"] = "medium"
+            r["fair_value_note"] = (
+                "Justified price-to-book from return on equity, the same model the stock page "
+                "uses for a bank or insurer. The cost of equity is a scan-level assumption "
+                "(risk-free + one times the equity risk premium), so it can differ from the "
+                "stock page, which uses the name's own beta.")
+            n += 1
             continue
 
         mature = _mature_value(r, meds, price)

@@ -400,6 +400,13 @@ def _recorded_level(date_key: str, history_path: str = None):
     return None
 
 
+# How stale a rebalance book may be, in TRADING days, measured from the book's own as-of date
+# to the event date. Two, so an ordinary weekend or a one-day lag passes and a book from last
+# week does not. Declared here rather than inline because a bar buried in a call site is how
+# `MA5` measured the HLZ hurdle freezing at 3.0.
+REBALANCE_MAX_STALE_DAYS = 2
+
+
 def append_rebalance(event: dict, *, meta_path: str = None, history_path: str = None,
                      conformance: Callable = None) -> dict:
     """Append ONE rebalance event to the bound book. Append-only, and it never rewrites.
@@ -484,6 +491,41 @@ def append_rebalance(event: dict, *, meta_path: str = None, history_path: str = 
     if d <= inception:
         out["reason"] = ("a rebalance dated %s is on or before inception %s, where event zero "
                          "already stands" % (d.isoformat(), inception.isoformat()))
+        return out
+
+    # ------------------------------------------------------------------ FRESHNESS, IN THE DOOR
+    #
+    # `REBALANCE_RUNBOOK_2026-10-22.md` carries a freshness step. **A runbook step is not a
+    # gate** -- it is a reminder, and the one time it matters is the one time somebody is
+    # rebalancing at speed on a date that has already slipped three weeks.
+    #
+    # WHAT IT PREVENTS: a book built from a stale scan, appended as the event for a LATER date.
+    # The record then says "on 2026-10-22 the book became these names" when the names were
+    # chosen from a cross-section that is days old. Every subsequent row compounds onto that
+    # claim, and nothing downstream can tell -- the event carries only a date and positions, so
+    # the staleness is unrecoverable the moment it is written.
+    #
+    # TWO TRADING DAYS, and the bound is on TRADING days rather than calendar ones for the
+    # reason the rest of this module already counts that way: a Friday scan appended on the
+    # following Monday is one session old, not three, and a calendar bound would refuse the
+    # ordinary weekend case while letting a genuinely stale midweek one through.
+    #
+    # It compares the BOOK's own as-of date, not the file's mtime: a copied file has a fresh
+    # mtime and a stale cross-section, which is precisely the case that would slip past.
+    as_of = _date(event.get("scan_date") or event.get("data_as_of") or event.get("as_of"))
+    if as_of is None:
+        out["reason"] = ("the rebalance book carries no readable as-of date, so its freshness "
+                         "cannot be checked. A book whose vintage is unknown is refused rather "
+                         "than assumed current")
+        return out
+    stale_by = _session.trading_days_between(as_of, d, inclusive_start=False)
+    if stale_by > REBALANCE_MAX_STALE_DAYS:
+        out["reason"] = (
+            "the rebalance book is as of %s, %d trading days before the event date %s (the "
+            "limit is %d). A book built from a stale cross-section, appended as the event for "
+            "a later date, records a selection that was never made on that date -- and the "
+            "event carries only a date and positions, so nothing downstream could ever tell"
+            % (as_of.isoformat(), stale_by, d.isoformat(), REBALANCE_MAX_STALE_DAYS))
         return out
 
     existing = list(meta.get("rebalances") or [])

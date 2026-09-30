@@ -13,9 +13,32 @@ from typing import Optional
 
 from ..data.models import CompanyData
 
+# THE REGIME FOR "WE DO NOT KNOW WHAT THIS IS". Every other regime is a claim about the
+# business; this one is a claim about our own knowledge, and it exists because the alternative
+# -- letting an unknown sector fall through to the growth branch -- valued four of four
+# financials with the unlevered FCFF model on the public site on 2026-09-30.
+UNKNOWN = "unknown"
+
 CYCLICAL_SECTORS = {"Energy", "Basic Materials", "Industrials"}
 FINANCIAL_SECTORS = {"Financial Services", "Financials", "Financial"}
 FINANCIAL_INDUSTRY_HINTS = ("bank", "insurance", "capital markets", "mortgage", "reit—")
+
+
+def _note_sector_source(c, cd) -> None:
+    """Say WHERE the sector came from, in the same object as the decision it drove.
+
+    The live defect disclosed itself in `quality_notes` -- *"Yahoo `info` unavailable"* -- while
+    `classification.reasons` gave a confident, coherent *"High revenue growth (~26%)"* and said
+    nothing about the industry being unknown. **A disclosure in a different object from the
+    decision it qualifies is one a reader of the decision never sees.** So when the sector came
+    from anywhere other than the ordinary primary fetch, the classification says so itself.
+    """
+    src = getattr(cd, "sector_source", "") or ""
+    if src and src != "primary":
+        c.reasons.append("Sector resolved from %s (the market-data profile did not return one)."
+                         % {"scan": "the latest scan snapshot",
+                            "sec_sic": "the SEC's filed SIC code",
+                            "fmp_profile": "the profile API"}.get(src, src))
 
 
 @dataclass
@@ -88,12 +111,35 @@ def classify(cd: CompanyData) -> Classification:
     sector = (cd.sector or "")
     industry = (cd.industry or "").lower()
 
+    # --- THE SECTOR IS UNKNOWN: refuse a regime rather than infer one ------------------------
+    #
+    # An empty sector used to match neither `FINANCIAL_SECTORS` nor any industry hint, so the
+    # name fell through to the growth branch below and got a model chosen by its revenue growth
+    # alone. Measured on valquo.co 2026-09-30 ~13:45 ET, four of four financials: KNSL ->
+    # hypergrowth at ~$625, TRV -> mature at ~$702, PGR and JPM -> growth. The same service had
+    # read KNSL as `financial` ten hours earlier, so the fault is intermittent and a single run
+    # cannot see it.
+    #
+    # THE TEST IS THE SOURCE, NOT THE EMPTINESS. `sector_source == "unresolved"` means the
+    # fallback chain ran and every rung failed. A blank `sector_source` means nobody asked --
+    # the offline and batch paths that build a `CompanyData` by hand -- and those keep the old
+    # behaviour exactly, so this cannot change a single existing test's answer by accident.
+    if getattr(cd, "sector_source", "") == "unresolved" and not sector and not industry:
+        c.regime = UNKNOWN
+        c.dcf_reliability = "low"
+        c.reasons.append(
+            "Industry could not be determined from any source (the market-data profile, the "
+            "latest scan, the SEC's filed SIC code, or the profile API). No valuation model is "
+            "published, because choosing one requires knowing what kind of business this is.")
+        return c
+
     # --- Financials: FCFF/DCF is not appropriate (debt is raw material) ---
     if sector in FINANCIAL_SECTORS or any(h in industry for h in FINANCIAL_INDUSTRY_HINTS):
         c.regime = "financial"
         c.dcf_reliability = "low"
         c.reasons.append("Bank/insurer/financial: unlevered FCF DCF is unreliable; "
                          "lean on multiples and dividend/earnings power instead.")
+        _note_sector_source(c, cd)
         return c
 
     gg = g if g is not None else 0.05
