@@ -232,7 +232,8 @@ def build_pdf(result, path: str, computed_at=None) -> str:
         ["Op margin → target", f"{_pct(a.current_margin,0)} → {_pct(a.target_margin,0)}"],
         ["Terminal growth", _pct(a.terminal_growth)], ["ROIC", _pct(cd.roic)],
         ["Net debt/EBITDA", (f"{cd.net_debt_to_ebitda:.1f}x" if cd.net_debt_to_ebitda is not None else "n/a")],
-        ["Monte Carlo P(undervalued)", _pct(result.montecarlo.prob_undervalued, 0)],
+        ["Monte Carlo P(undervalued)",
+         _pct(result.montecarlo.prob_undervalued, 0) if result.montecarlo is not None else "n/a"],
         ["Comps fair value", _money(result.comps.comps_fair_value)],
     ]
     met_t = Table(metrics, colWidths=[1.7 * inch, 1.1 * inch])
@@ -266,9 +267,15 @@ def build_pdf(result, path: str, computed_at=None) -> str:
 
     # ---- Reverse DCF ----
     E.append(Paragraph("What the Market Is Pricing In (Reverse DCF)", h2))
-    E.append(Paragraph(result.reverse.growth_verdict or "n/a", body))
-    if result.reverse.margin_verdict:
-        E.append(Paragraph(result.reverse.margin_verdict, body))
+    # NOT APPLIED rather than "n/a": for a financial the reverse DCF is not computed, and a
+    # blank cell reads as a data gap when it is a modelling decision.
+    if result.reverse is None:
+        E.append(Paragraph("Not applied for this company type — this valuation is not built "
+                           "on discounted free cash flow.", body))
+    else:
+        E.append(Paragraph(result.reverse.growth_verdict or "n/a", body))
+        if result.reverse.margin_verdict:
+            E.append(Paragraph(result.reverse.margin_verdict, body))
 
     # ---- AI / analysis ----
     ai = result.ai

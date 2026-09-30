@@ -84,7 +84,16 @@ def _valuation_score(cd, base_fv, mc, comps) -> tuple[Optional[float], list]:
                        f"{mos:+.0%} margin of safety.")
     if mc and mc.prob_undervalued is not None:
         parts.append((mc.prob_undervalued * 100, 0.30))
-        drivers.append(f"Monte Carlo: {mc.prob_undervalued:.0%} of trials value it above the price.")
+        # THE DRIVER NAMES THE MODEL. This term is worth 0.30 of the valuation subscore, and on
+        # KNSL (2026-09-30) it read "Monte Carlo: 100% of trials value it above the price" while
+        # the headline came from `pb_roe` and the FCFF model it was quoting carried weight ZERO.
+        # An unattributed probability is exactly what let an inapplicable distribution lift a
+        # score; `pipeline` now hands over the distribution belonging to the lens that produced
+        # the headline, and saying which one it is makes that checkable from the payload alone.
+        _model = getattr(mc, "model", None)
+        drivers.append(
+            "Monte Carlo%s: %.0f%% of trials value it above the price."
+            % ((" (%s)" % _model) if _model else "", mc.prob_undervalued * 100))
     if comps and comps.comps_fair_value and price and price > 0:
         cmos = comps.comps_fair_value / price - 1.0
         s = _lerp(cmos, [(-0.4, 10), (0.0, 50), (0.4, 85), (0.8, 100)])
