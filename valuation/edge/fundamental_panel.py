@@ -1682,7 +1682,8 @@ STALE_PRICE_MAX_DAYS = 10          # trading days a name may be quiet before it'
 
 
 def score_universe_now(provider, tickers, benchmark="SPY", lookback_years=3,
-                       as_of=None, stale_days=STALE_PRICE_MAX_DAYS):
+                       as_of=None, stale_days=STALE_PRICE_MAX_DAYS,
+                       with_themes=False):
     """Score the WHOLE universe as of the latest available date -> live scan-style rows.
 
     build_fundamental_panel deliberately drops the final `horizon` days, because every row it
@@ -1865,6 +1866,20 @@ def score_universe_now(provider, tickers, benchmark="SPY", lookback_years=3,
                      "price": src.get("price"), "market_cap": src.get("market_cap"),
                      "hot_score": float(r["hot_score"]), "composite": float(r["composite"]),
                      "rank": int(r["rank"])})
+        # D9 (MC-era) -- OPT-IN THEME EMISSION, INERT BY DEFAULT.
+        #
+        # `fr` already carries every theme column: `build_frame` computed them and
+        # `_composites` consumed them one line above. They were simply not emitted, so a
+        # caller wanting a PER-THEME comparison had to rebuild the frame -- which is the `B7`
+        # defect (a second construction of a quantity that must agree with this one).
+        #
+        # With `with_themes=False` this loop is bit-identical and every existing caller's row
+        # shape is unchanged, which is what `C3` requires; pinned by test.
+        if with_themes:
+            for _th in S.FACTORS_ALL:
+                if _th in fr.columns:
+                    _v = r.get(_th)
+                    rows[-1][_th] = (None if _v is None or _v != _v else float(_v))
     rows.sort(key=lambda x: x["rank"])
     if dropped_mc:
         _prog(f"dropped {len(dropped_mc)} name(s) on market-cap divergence: "

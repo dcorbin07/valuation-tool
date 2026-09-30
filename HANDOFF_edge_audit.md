@@ -18462,3 +18462,139 @@ that consumes it, so `MB15` separation cannot be undone by an edit that forgets 
 `scripts/mc10_feasibility.py`, `tests/test_mc10_feasibility.py`;
 `data/free_analysis/MC10_FEASIBILITY.json`, `MC10_FEASIBILITY_PERDATE.pkl` (per-date rows,
 `RUN_RULES` A9).
+
+---
+
+# D9 — FREE-DATA ROUTE FIDELITY FOR THE OCT 22 REBALANCE: **NO-GO**
+
+**2026-09-30. ZERO TRIALS** (`MB1-SEL`: a fidelity control can only BLOCK). Equity `N` stays
+**248** (`sqrt(2 ln 248)` = 3.3206712412296953), options **310**, infra **20**. **ADOPTS
+NOTHING**; the bound track, the contract and the service are untouched.
+`PREREG_d9_free_route_fidelity.md` committed **ALONE at `b50a698`**, markdown only, before any
+cross-vendor number existed.
+
+## VERDICT: NO-GO on all three bars, and the second reading agrees with the first
+
+Primary = Sharadar freeze **as of 2026-07-31** vs the live snapshot **2026-08-08** (FMP, 594
+scored of an 800 universe), **431 overlapping large-cap names**, a **6-trading-day** gap.
+
+| bar | required | measured | |
+|---|---|---|---|
+| **B1** like-for-like composite Spearman | >= 0.80 | **0.4321** (repaired 0.6610) | **FAIL** |
+| **B2** top-decile overlap | >= 0.60 | **0.2326** (repaired 0.3721) | **FAIL** |
+| **B3** `value` | >= 0.70 | 0.7869 | pass |
+| **B3** `quality` | >= 0.70 | **0.6256** | **FAIL** |
+| **B3** `momentum` | >= 0.70 | 0.9651 | pass |
+| **B3** `size` | >= 0.70 | 0.9840 | pass |
+| **B4** institutional / insider | cited | +0.9190 / +0.8726 (`FIDELITY-2`) | not re-derived |
+
+**The second reading agrees almost exactly** (`data/backtest` as of 2026-07-24): B1 **0.4301**,
+B2 **0.2326**, `quality` 0.6549. So the result is not an artifact of which Sharadar store was
+used.
+
+## WHAT IT COSTS, IN UNITS THE RECORD ALREADY HAS
+
+The ceiling was measured before the bars: Sharadar against **itself** reads Spearman **0.4971**
+at 63 trading days (top-decile overlap **0.2705**); the live path against itself reads **0.6859**
+at 36 days. Interpolated to the 6-day gap, both vendors give **~0.95** -- independent
+corroboration of the ceiling.
+
+Against that, **the vendor switch is worth about 42.5 trading days of ordinary drift**
+(interpolation on the same linear map, labelled). **Changing vendor disrupts the large-cap
+ranking roughly as much as letting the panel go two months stale.**
+
+## THE DEFECT IN MY OWN CONSTRUCTION, FOUND AFTER THE OUTCOME AND REPORTED BESIDE IT
+
+The register's §1c built the primary over *"exactly the themes both sides expose"*. `insider` is
+exposed on both sides and is **DEGENERATE on one**: the live theme is **constant at exactly 0.0**
+across all 431 names (`nunique` = 1), which is `V2G`'s documented signature -- `factors.py:344`
+makes it `(insider_score - 50) / 25`, so an absent score is exactly 0.0. **Exposure is not
+information**, which is this record's "coverage is not fidelity" one level down.
+
+So the as-registered primary compared a FIVE-theme Sharadar composite against a
+FOUR-informative-theme live one. **Repaired (insider dropped) it reads 0.6610 / 0.3721 and STILL
+FAILS BOTH BARS, so the verdict does not hinge on a correction made after the outcome was seen.**
+Both numbers ship. Had the repair PASSED, `RUN_RULES` A6 would still have made it a NO-GO: a bar
+cleared only after a post-hoc construction change is not cleared.
+
+## THE CAVEAT THAT RUNS IN THE FREE ROUTE'S FAVOUR, AND IT IS THE REASON THE FALLBACK IS CHEAP
+
+**The 2026-08-08 snapshot PREDATES the MC1 theme cache**, which was built **2026-09-30**. On that
+date the live path had no 13F / Form 4 source at all, which is exactly why `insider` was
+constant. **So this measures a WEAKER free path than the one Oct 22 will use**, and `FIDELITY-2`
+measured the MC1 route's institutional and insider at **+0.9190** and **+0.8726**.
+
+**It does not rescue the verdict**, because the failure is in the non-insider part: with insider
+removed entirely the four remaining themes still compose to **0.6610** against a 0.80 bar, and
+`quality` alone reads **0.6256** against 0.70. But it does mean the honest statement is narrower
+than "the free route does not reproduce the panel": **the free route reproduces `momentum`
+(0.9651) and `size` (0.9840) almost exactly, `value` acceptably (0.7869), and `quality` not
+(0.6256) -- and their COMPOSITE is much worse than any single theme**, which is the part a
+successor should not gloss.
+
+## COVERAGE CENSUS (§5), required output whatever the verdict
+
+Of the **86** names in the Sharadar large-cap decile, **47 (54.65%)** are absent from the live
+universe -- the 800-name liquidity cut against the panel's 2,531. **The absent names are
+SMALLER**: median market cap **$12.65bn** against the tier median **$28.76bn**, as the register
+predicted. They are heavily mid-cap financials: `RGA`, `EG`, `JEF`, `MEDP`, `ALLY`, `GEN`, `RPM`,
+`ZION`, `RNR`, `UMBF`, `PNFP`, `WTFC` and 35 more; the full list with market caps is in the
+artifact.
+
+## THE FALLBACK, ROUTED TO DON AND NOT TAKEN
+
+**A one-month Sharadar renewal.** It is the right fallback for two measurable reasons rather than
+one: it is the only thing that puts both sides **on the same date** -- removing the 6-day drift
+and the ~0.95 ceiling from the comparison entirely -- **and** it would compare against the
+**post-MC1** live build, which is the route Oct 22 actually uses and which this measurement could
+not reach. Nothing here is adopted, and no rebalance is blocked by this lane.
+
+## BUGS FOUND
+
+* **`score_universe_now` RETURNS TWO DIFFERENT TYPES.** A dict `{as_of, rows,
+  dropped_mc_divergence}` on success and a bare `[]` on either early exit (`if not kept`,
+  `if fr.empty`). `len(res)` is 3 on success and `res["rows"]` raises on failure, so one idiom
+  cannot serve both -- and a caller who writes `len(rows)` gets **3** and may believe it. That is
+  exactly how this item first read "3 rows" from a 2,531-name universe. Handled explicitly here;
+  **reported, not fixed**, because changing a shipped return type is a change with callers.
+* **`data/screener.db` and `data/archive/scans/` contain NO live scans.** One fixture row dated
+  **2099-01-01** with an empty `universe` table, and three archive files every one self-labelled
+  `provider: "synthetic (offline test)"` with `SYN`-prefixed tickers. The brief's premise that
+  the store holds laptop-era live scans through 2026-08-15 is false. **The real snapshot is
+  `data/live_cache/snapshot_2026-08-08.json`** and the census found it; probing only the store a
+  brief names would have closed a runnable item as unrunnable (`W-14`'s own lesson).
+* **The freeze mirrors the layout one level down.** Per-ticker prices are in
+  `data/backtest_freeze_2026-08/backtest/prices/`, not at the freeze root. A provider pointed at
+  the root indexes nothing and the scorer returns empty **silently**, because an empty universe
+  is a legitimate state.
+
+## THE ONE PRODUCTION CHANGE, opt-in and inert by default
+
+`score_universe_now` gains **`with_themes=False`**, which emits the theme columns already present
+on the frame `_composites` consumed one line earlier. Without it a caller wanting a per-theme
+comparison must rebuild the frame, which is the `B7` defect. Off by default, so every existing
+caller's row shape is unchanged (`C3`), pinned by test.
+
+## Expectations, scored
+
+**2 right, 2 wrong.** (1) B1 clears at 65% -- **WRONG**, it fails on both readings and both
+constructions. (2) B2 is the binding bar at 60% -- **WRONG**, all three bars failed, and B1 fails
+by the wider margin relative to its bar. (3) at least one theme misses B3 at 55% -- **RIGHT**,
+`quality` at 0.6256. (4) the absent names are concentrated in the smaller half at 70% --
+**RIGHT**, median $12.65bn against a tier median of $28.76bn.
+
+## Tests
+
+**12 tests, 5 of 5 mutations caught with sources restored byte-for-byte.** The verdict is a
+NO-GO, so what the tripwires guard is that nothing quietly turns it into a GO: relaxing B1 or
+B3 is caught, flipping the opt-in emission on by default is caught (`C3`), retyping the theme
+list instead of importing `S.FACTORS_ALL` is caught (`MA5`), and widening the emission guard to
+`or True` is caught. Plus pins that the live `insider` constant is never scored as a
+correlation, that both the as-registered and repaired readings stay banked, and that the
+interpolated ceiling stays labelled an interpolation.
+
+`scripts/d9_store_census.py`, `d9_noise_ceiling.py`, `d9_fidelity.py`, `d9_addendum.py`;
+`tests/test_d9_fidelity.py`; `data/free_analysis/D9_STORE_CENSUS.json`, `D9_NOISE_CEILING.json`,
+`D9_FIDELITY.json`, `D9_SHARADAR_SCORES.pkl`, and per-name rows in
+`D9_FIDELITY_ROWS_freeze_2026-07-31.pkl` / `D9_FIDELITY_ROWS_backtest_2026-07-24.pkl`
+(`RUN_RULES` A9).
