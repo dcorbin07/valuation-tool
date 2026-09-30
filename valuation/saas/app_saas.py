@@ -128,6 +128,10 @@ def create_saas_app(cfg=CONFIG):
                 # rather than a read-only one, so every button that writes tests this
                 # instead of `may_see_owner`.
                 "may_act": surfaces.may_act(u, cfg),
+                # The OWNER, strictly -- not a demo session and not a visitor under the
+                # public-full-view posture. For notes addressed to Don himself (/terms, /privacy),
+                # which `may_see_owner` had been showing to every visitor since 2026-08-13.
+                "viewer_is_owner": surfaces.is_owner(u, cfg),
                 "owner_split": cfg.owner_split,
                 # Shared chrome (footer, terms) needs these on every page, not just the two
                 # routes that used to pass them by hand.

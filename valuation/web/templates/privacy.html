@@ -8,54 +8,57 @@
     collects nothing from anybody else, and offers no service — so there is no processing for this policy to describe.
     Retained for the public product.
   </div>
-  {% else %}
+  {% elif viewer_is_owner %}
   <div class="err" style="background:#fbf1e0;color:#8a5a12;border-color:#f0dcb8">
-    ⚠ <b>DRAFT — attorney review before publishing.</b> Confirm it matches what your deployment actually collects and your
-    obligations (state privacy laws; GDPR if you serve EU users). Replace every <code>[bracketed]</code> item.
+    ⚠ <b>Owner-only note (not shown to visitors):</b> rewritten 2026-09-30 to describe what this
+    deployment actually does — no visitor accounts, no payments, no analytics — replacing a draft
+    written for a paid product that does not exist. Worth an attorney's eye if Valquo ever takes
+    accounts, charges, or adds analytics; each of those changes what this page must say.
   </div>
   {% endif %}
+  {# 2026-09-30. The public branch used to render a DRAFT written for a subscription product —
+   # sign-up, Stripe, plan limits, "[bracketed]" placeholders and an attorney note — to every
+   # visitor, while /terms tells the same visitor there are no accounts and nothing is collected.
+   # This describes the site as it runs. If any of it stops being true, this page is wrong. #}
   <h1 style="color:var(--navy)">Privacy Policy</h1>
-  <p class="muted"><b>Effective date:</b> [DATE PUBLISHED]</p>
+  <p class="muted"><b>Last updated:</b> 30 September 2026</p>
 
-  <h3>1. What we collect</h3>
+  <p>Valquo is a free, personal, educational project published by Donovan Corbin. It is built to
+  need nothing from you: there are no visitor accounts, nothing to buy and no mailing list.</p>
+
+  <h3>1. What is collected</h3>
   <ul>
-    <li><b>From you:</b> your email and a hashed password when you sign up; payment details when you subscribe (handled by
-      <b>Stripe</b> — card numbers never touch our systems); your saved watchlist; and support emails you send.</li>
-    <li><b>Automatically:</b> a session cookie to keep you logged in, and basic security/usage logs (IP, feature usage,
-      valuation counts to enforce plan limits). Analytics: [NONE yet / specify before adding one — prefer a cookieless
-      option like Plausible].</li>
+    <li><b>Nothing you type into a form.</b> There is no sign-up. The only login is the owner's.</li>
+    <li><b>Server logs.</b> Like any website, the hosting provider records standard request logs —
+      IP address, the page requested, the time and your browser's user-agent — which are used only
+      to keep the site running and secure.</li>
+    <li><b>One cookie.</b> A session cookie is set to protect the site's forms against cross-site
+      request forgery (and, for the owner, to keep the login). It carries no identity and is not
+      used to track you.</li>
+    <li><b>Things kept only in your own browser.</b> Your light/dark choice, a short-lived copy of
+      recently loaded results so pages paint faster, and any account total you type into the
+      Index calculator are stored in your browser's local storage. They are never sent to the
+      site.</li>
+    <li><b>Feedback you choose to send.</b> If you use the feedback link, what you send (and, for
+      an email, your address) is used only to read and answer it.</li>
   </ul>
 
-  <h3>2. How we use it</h3>
-  <p>To run the service, authenticate you, enforce plan limits, process subscriptions, respond to support, and (if you opt
-  in) send the weekly digest. That's the list. We do <b>not</b> sell or rent your information, and we run no third-party
-  advertising.</p>
+  <h3>2. What is not done</h3>
+  <p>No analytics, no advertising, no third-party trackers, and no selling or renting of
+  anything. Nothing is profiled.</p>
 
-  <h3>3. Who else touches it</h3>
-  <p>Service providers only, each for its function: Stripe (payments), [email provider], and our hosting provider. Each has
-  its own privacy policy. We disclose information only if legally compelled (subpoena, court order).</p>
+  <h3>3. Who else is involved</h3>
+  <p>The hosting provider, which serves the site and keeps the logs above; a public content
+  network that serves the charting library, which therefore sees the request for it; and, only if
+  you click <b>Run AI analysis</b>, an AI provider that receives the company's figures — not
+  anything about you — to write the summary. Information is disclosed otherwise only if legally
+  required.</p>
 
-  <h3>4. Retention</h3>
-  <p>Subscriber records: while your account is active, plus [7] years for payment/tax records. Marketing emails: until you
-  unsubscribe. Every non-transactional email includes an unsubscribe link.</p>
+  <h3>4. Children</h3>
+  <p>The site is meant for adults and is not directed at anyone under 18.</p>
 
-  <h3>5. Your choices</h3>
-  <p>Email [hello@yourdomain] to access, correct, or delete your information. Unsubscribing stops all non-transactional
-  email. Deleting your account removes your contact info from active systems within [30] days (payment records retained as
-  required by law). Depending on your state or country you may have additional rights to access, correct, or delete data.</p>
-
-  <h3>6. Security</h3>
-  <p>Passwords are hashed and traffic is served over HTTPS; access to subscriber data is limited to the operator with
-  unique credentials and 2FA where available. No system is perfectly secure; we will notify affected users of a breach as
-  required by law (including Va. Code § 18.2-186.6).</p>
-
-  <h3>7. Children</h3>
-  <p>The service is for adults (18+). We do not knowingly collect information from anyone under 18.</p>
-
-  <h3>8. Changes</h3>
-  <p>We'll post changes here and update the effective date; material changes get an email notice.</p>
-
-  <h3>9. Contact</h3>
-  <p>[COMPANY LLC / Donovan Isaiah Corbin], Glen Allen, VA area, [hello@yourdomain].</p>
+  <h3>5. Changes and contact</h3>
+  <p>If what the site collects changes, this page changes first, with a new date. Questions:
+  <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.</p>
 </div>
 {% endblock %}

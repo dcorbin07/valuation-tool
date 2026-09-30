@@ -248,6 +248,7 @@ RECORD_FIELDS = (
     "dte_at_alert",             # DTE when the alert fired  (stored)
     "dte_remaining",            # DTE as of now             (derived, never stored)
     "status", "exit_reason", "exit_premium", "exit_ts", "pnl_pct",
+    "pnl_pct_net",              # net of commission — MA46's column, derived where unstored
     "record_epoch", "underlying_price", "score", "horizon", "contract_source",
 )
 
@@ -266,6 +267,13 @@ _RECORD_ALLOW = {
     "target_delta": "contract-selection detail, not part of the track-record table",
     "flow_read": "fingerprint detail, not part of the track-record table",
     "pnl_dollars": "the table reports pnl_pct; dollars depend on a sizing the record does not fix",
+    # 2026-09-30. MA46 added `pnl_pct_net` and `commission` to `option_alerts` in its own lazy
+    # migration (options_tracker.ensure_pnl_schema), and this guard -- which reads the columns
+    # the DATABASE returns, exactly as designed -- then refused every row. The Signals tab's
+    # scream-buy record has read "could not be read just now" in production since that column
+    # landed. The guard was right to fire; nobody had decided whether the tab carries the new
+    # columns. Decided here: the net figure is carried (`pnl_pct_net`), the input is not.
+    "commission": "a cost INPUT; its effect is carried as `pnl_pct_net`",
 }
 
 
@@ -303,6 +311,10 @@ def alert_record(row: dict, today=None) -> dict:
         "exit_premium": _f(row.get("exit_premium")),
         "exit_ts": row.get("exit_ts"),
         "pnl_pct": _f(row.get("pnl_pct")),
+        # Net of commission: STORED if MA46 wrote it, else reconstructed exactly from the stored
+        # premiums (`net_pnl_pct_of_row`). None for a row that has not closed.
+        "pnl_pct_net": (OT.net_pnl_pct_of_row(row)[0] if row.get("exit_premium") is not None
+                        else None),
         "record_epoch": epoch_of(row),
         "underlying_price": _f(row.get("underlying_price")),
         "score": _f(row.get("score")),

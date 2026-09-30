@@ -408,6 +408,18 @@ class Store:
                          WHERE source=? AND ticker=? AND entry_date=? AND exit_date IS NULL""",
                       (seen_date, price, source, ticker.upper(), entry_date))
 
+    def mark_position(self, source, ticker, entry_date, price):
+        """Re-price an open position WITHOUT recording it as seen in the scan.
+
+        `touch_position` means "still in scan coverage", and the coverage-gap close keys on it,
+        so a vendor quote for a name the scan skipped must not reset that clock. This keeps the
+        mark current so the eventual close is at a real price rather than the entry price.
+        """
+        with self._conn() as c:
+            c.execute("""UPDATE positions SET last_price=?
+                         WHERE source=? AND ticker=? AND entry_date=? AND exit_date IS NULL""",
+                      (price, source, ticker.upper(), entry_date))
+
     def close_position(self, source, ticker, entry_date, exit_date, exit_price, reason):
         with self._conn() as c:
             c.execute("""UPDATE positions SET exit_date=?, exit_price=?, exit_reason=?

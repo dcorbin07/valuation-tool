@@ -846,6 +846,11 @@ def api_tickers():
 
 _LAST_TRACK_REFRESH = [0.0]
 _PAPER_BENCH = {}
+#: What the last background refresh actually did, per source. Published on /api/track so a
+#: refresh that fails is visible on the page instead of reading as "accruing" forever -- which is
+#: exactly what happened for seven weeks while a tz-aware vendor date crashed every run inside a
+#: bare `except: pass`. Per process, like `_PAPER_BENCH`; the store is the durable record.
+_TRACK_REFRESH_STATUS = {}
 _REGIME = {"data": None, "ts": 0.0}
 
 
@@ -903,11 +908,17 @@ def _compute_paper_bench(st, source="hot10"):
             return
         d, c = close_series("SPY", 1500)
         if not (d and c):
+            _TRACK_REFRESH_STATUS["paper_bench"] = {"ok": False, "reason": "SPY could not be priced"}
             return
-        spy = pd.Series(c, index=pd.to_datetime(d))
+        # Calendar dates, naive -- see `track._calendar_index`. A yfinance-served SPY parsed
+        # tz-aware and every `searchsorted` below raised, so this block never produced a number.
+        from ..edge.track import _calendar_index
+        spy = pd.Series(c, index=_calendar_index(d))
+        spy = spy[~spy.index.isna()]
+        spy = spy[~spy.index.duplicated(keep="last")].sort_index()
 
         def at(date):
-            i = spy.index.searchsorted(pd.to_datetime(date))
+            i = spy.index.searchsorted(pd.to_datetime(str(date)[:10]))
             return spy.iloc[min(i, len(spy) - 1)] if len(spy) else None
 
         rt = 2.0 * CONFIG.paper_cost_bps / 1e4          # charge the strategy leg realistic cost
@@ -915,8 +926,13 @@ def _compute_paper_bench(st, source="hot10"):
         for p in allp:
             if not p.get("exit_date"):
                 continue
-            b0, b1 = at(p["entry_date"]), at(p["exit_date"])
             e, x = p.get("entry_price"), p.get("exit_price")
+            # Same rule as positions.paper_summary: a "left coverage" close at exactly the entry
+            # price was never re-priced, so its return is unknown -- not flat, and not an alpha.
+            if ((p.get("exit_reason") or "").startswith("left coverage") and e is not None
+                    and x is not None and float(e) == float(x)):
+                continue
+            b0, b1 = at(p["entry_date"]), at(p["exit_date"])
             if b0 and b1 and b0 > 0 and e and x and e > 0:
                 alphas.append((x / e - 1 - rt) - (b1 / b0 - 1))
         first = min(p["entry_date"] for p in allp)
@@ -930,12 +946,32 @@ def _compute_paper_bench(st, source="hot10"):
             sd = _stats.stdev(alphas)
             if sd > 0:
                 t_stat = m / (sd / (len(alphas) ** 0.5))
+        # NO "significant" FLAG. It read `abs(t) > 2.0` -- the convention this project retired
+        # (X7: noise clears 2.0 far more often than 5% of the time) -- on a handful of
+        # overlapping, selected trades. The t-stat still ships, as a rough gauge, labelled so.
         _PAPER_BENCH[source] = {"avg_alpha": (sum(alphas) / len(alphas)) if alphas else None,
                                 "n_alpha": len(alphas), "spy_all_time": spy_all, "since": first,
-                                "t_stat": t_stat, "significant": (abs(t_stat) > 2.0) if t_stat is not None else None,
+                                "t_stat": t_stat, "t_stat_note": (
+                                    "naive t on closed picks; holds overlap and were selected, so "
+                                    "this is a rough gauge, not a significance test"),
                                 "net_of_costs": True}
-    except Exception:
-        pass
+        _TRACK_REFRESH_STATUS["paper_bench"] = {"ok": True, "n_alpha": len(alphas)}
+    except Exception as e:                                              # noqa: BLE001
+        _TRACK_REFRESH_STATUS["paper_bench"] = {"ok": False, "reason": type(e).__name__}
+
+
+def _track_counts(st, source) -> dict:
+    """How much has been LOGGED, and how much has MATURED -- the two numbers the card needs.
+
+    The card used to print the length of the 15-row "recent" list as "N logged so far", so a
+    log running back to early August read as fifteen picks.
+    """
+    picks = st.all_track_picks(source) or []
+    dates = sorted({str(p.get("run_date") or "")[:10] for p in picks if p.get("run_date")})
+    return {"n_logged": len(picks), "n_days": len(dates),
+            "first_logged": dates[0] if dates else None,
+            "last_logged": dates[-1] if dates else None,
+            "n_matured_21": len(st.track_returns(source, 21) or [])}
 
 
 def _recent_track_picks(st, source, n=15):
@@ -960,13 +996,21 @@ def _maybe_refresh_track():
     _LAST_TRACK_REFRESH[0] = now
 
     def _work():
+        import datetime as _d
         from ..edge import track
         st = _store()
         for src in ("hot10", "options"):
             try:
-                track.update_returns(st, src)
-            except Exception:
-                pass
+                r = track.update_returns(st, src)
+                _TRACK_REFRESH_STATUS[src] = {"ok": bool(r.get("benchmark_priced", True)),
+                                              "at": _d.datetime.utcnow().isoformat(timespec="seconds") + "Z",
+                                              "computed": r.get("computed"),
+                                              "unpriced": len(r.get("unpriced") or []),
+                                              "failed": r.get("n_failed", 0)}
+            except Exception as e:                                      # noqa: BLE001
+                log_exception()
+                _TRACK_REFRESH_STATUS[src] = {"ok": False, "reason": type(e).__name__,
+                                              "at": _d.datetime.utcnow().isoformat(timespec="seconds") + "Z"}
         _compute_paper_bench(st, "hot10")
     threading.Thread(target=_work, daemon=True).start()
 
@@ -981,7 +1025,9 @@ def api_track():
     out = {}
     for source in ("hot10", "options"):
         out[source] = {"summary": track.summary(st, source),
-                       "recent": _recent_track_picks(st, source)}
+                       "recent": _recent_track_picks(st, source),
+                       "counts": _track_counts(st, source),
+                       "refresh": _TRACK_REFRESH_STATUS.get(source)}
     try:
         snap = st.load_snapshot() or []
         pmap = {r.get("ticker"): r.get("price") for r in snap if r.get("price")}
@@ -1004,9 +1050,10 @@ def api_track():
     return jsonify({"sources": out, "paper": paper, "paper_sandbox": sandbox,
                     "note": "Forward, survivorship-free record of real dated picks vs the S&P 500. Options "
                             "are tracked by the underlying's forward return (signal accuracy, not option "
-                            "P&L). `paper_sandbox` is the separate Tradier PAPER account track — real "
-                            "simulated orders and fills on ~15-min-delayed data, thin until it says "
-                            "otherwise. Educational only; past results don't predict future performance."})
+                            "P&L). These are model records with no money in them; the separate broker "
+                            "sandbox paper account (simulated orders and fills on delayed data) is the "
+                            "\u201cOptions (paper)\u201d figure in the live-track bar at the top of the "
+                            "app. Educational only; past results don't predict future performance."})
 
 
 @app.route("/api/edge/learning")

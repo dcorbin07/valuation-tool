@@ -1442,10 +1442,21 @@ async function loadTrack() {
 }
 function _trackCard(title, sub, s) {
   const sm = (s && s.summary) || {}, rec = (s && s.recent) || [];
+  const ct = (s && s.counts) || {}, rf = (s && s.refresh) || null;
   const H = [["21", "1-month"], ["63", "3-month"], ["126", "6-month"], ["252", "1-year"], ["all", "All-time"]];
+  // THE COUNT IS THE LOG, NOT THE TABLE. This used to print rec.length -- the 15 rows shown
+  // below -- as "N logged so far", which made a log running back to August read as fifteen picks.
+  const logged = ct.n_logged != null
+    ? `${ct.n_logged.toLocaleString()} picks logged over ${ct.n_days} scan days since ${ct.first_logged}`
+    : `${rec.length} recent picks shown`;
+  // A refresh that ran and FAILED must not read as "still accruing" -- that is how seven weeks of
+  // silent failure looked like patience.
+  const rfLine = (rf && rf.ok === false)
+    ? `<div class="note" style="margin-top:6px">The last attempt to price matured picks failed (${rf.reason || 'no benchmark price'}); the table fills in on the next successful run.</div>`
+    : '';
   let inner;
   if (!H.some(([k]) => sm[k])) {
-    inner = `<div class="muted">Accruing — picks need ~1 month to mature before they count (${rec.length} logged so far). Check back as the record builds.</div>`;
+    inner = `<div class="muted">${logged}. Each pick is measured from the day it was picked, so it counts once it is 21 trading days old — whether or not it is still in the top 10. None has been scored yet.</div>${rfLine}`;
   } else {
     inner = '<table><tr><th>Horizon</th><th class="num">Picks</th><th class="num">Avg return</th><th class="num">S&amp;P</th><th class="num">Alpha</th><th class="num">Beat S&amp;P</th><th class="num">Win rate</th></tr>';
     H.forEach(([k, lab]) => {
@@ -1457,9 +1468,10 @@ function _trackCard(title, sub, s) {
         <td class="num">${pct(x.hit_rate_vs_bench, 0)}</td><td class="num">${pct(x.win_rate, 0)}</td></tr>`;
     });
     inner += '</table>';
+    inner += `<div class="note" style="margin-top:6px">${logged}. A name that stays in the top 10 is logged again every day it is there, so the picks overlap heavily and the count overstates how many independent bets this is — read the averages as a description, not a significance test.</div>${rfLine}`;
   }
   if (rec.length) {
-    inner += '<div class="note" style="margin-top:10px">Most recent picks (1-month return vs S&amp;P as they mature):</div>' +
+    inner += '<div class="note" style="margin-top:10px">Most recent picks (each fills in 21 trading days after its date):</div>' +
       '<table><tr><th>Date</th><th>Ticker</th><th class="num">1-mo</th><th class="num">S&amp;P</th></tr>';
     rec.forEach(p => {
       const r = p.ret_1m;
@@ -1475,8 +1487,9 @@ function _paperCard(paper) {
   const s = (paper && paper.summary) || {}, watch = (paper && paper.watching) || [], closed = (paper && paper.closed) || [];
   const sub = 'Buys when a name enters the top-10; holds ≥1 month (no churn) and keeps holding while it stays hot — ' +
     'it is <b>not</b> sold just because another name got hotter. Sells only when it is genuinely no longer hot ' +
-    '(score below the floor) or reaches its DCF fair value. No time cap by default, so a gem can compound for years. ' +
-    'Suggested sizing is score-weighted (hotter = bigger), capped.';
+    '(score below the floor) or reaches its DCF fair value; there is no time limit on a hold. A name the daily ' +
+    'scan stops covering for three weeks is closed (“left coverage”), because without a score the sell rule ' +
+    'cannot be applied. Suggested sizing is score-weighted (hotter = bigger), capped. A model account — no money is in it.';
   if (!s.n_total) {
     return `<div class="card"><h3>💼 Paper account — top-10 hot stocks (sell logic)</h3>
       <div class="section-hint">${sub}</div>
@@ -1516,15 +1529,20 @@ function _paperCard(paper) {
     exitTbl += '</table>';
   }
   const b = (paper && paper.bench) || {};
+  // No "significant" badge: it was |t| > 2 on a handful of overlapping, selected trades -- the
+  // retired convention. The t is shown as what it is.
   const sig = b.t_stat == null ? '' :
-    ` · t-stat ${b.t_stat.toFixed(1)} <b class="${b.significant ? 'pos' : ''}">(${b.significant ? 'significant' : 'not significant yet'})</b>`;
+    ` · t ${b.t_stat.toFixed(1)} <span class="muted">(rough gauge on ${b.n_alpha} closed picks, not a significance test)</span>`;
   const benchLine = (b.avg_alpha != null || b.spy_all_time != null)
     ? `<div class="note" style="margin:2px 0 8px">vs <b>S&amp;P 500</b> (net of costs): ` +
       (b.avg_alpha != null ? `avg <b class="${b.avg_alpha >= 0 ? 'pos' : 'neg'}">${b.avg_alpha >= 0 ? '+' : ''}${pct(b.avg_alpha, 1)}</b> alpha per closed pick` : '') +
       (b.spy_all_time != null ? ` · S&amp;P returned ${pct(b.spy_all_time, 1)} over the same span` : '') + sig + `</div>`
     : '';
+  const unpriced = s.n_unpriced_exits
+    ? `<div class="note" style="margin:2px 0 8px">${s.n_unpriced_exits} of the ${s.n_closed} exits were names the scan never covered again after the day they were bought, so their exit price is unknown. They are left out of the realised return and win rate rather than counted as flat, and show “—” below.</div>`
+    : '';
   return `<div class="card"><h3>💼 Paper account — top-10 hot stocks (sell logic)</h3>
-    <div class="section-hint">${sub}${reasons ? ' Exits so far: ' + reasons + '.' : ''}</div>${head}${benchLine}${watchTbl}${exitTbl}</div>`;
+    <div class="section-hint">${sub}${reasons ? ' Exits so far: ' + reasons + '.' : ''}</div>${head}${unpriced}${benchLine}${watchTbl}${exitTbl}</div>`;
 }
 function renderTrack(d) {
   const src = (d && d.sources) || {};

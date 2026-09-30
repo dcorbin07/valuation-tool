@@ -24,7 +24,10 @@
     <b>Not in force.</b> Valquo is currently a private research tool for its owner's personal use — there is no
     service and no user for these terms to govern. They apply again whenever it is public.
   </div>
-  {% elif may_see_owner %}
+  {# `viewer_is_owner`, NOT `may_see_owner`: the latter is true for every visitor under the
+   # public-full-view posture, so this note -- which says it is not shown to visitors -- was
+   # being shown to all of them (found 2026-09-30). #}
+  {% elif viewer_is_owner %}
   <div class="err" style="background:#fbf1e0;color:#8a5a12;border-color:#f0dcb8">
     ⚠ <b>Owner-only note (not shown to visitors):</b> plain-English terms written for a free, no-account,
     no-revenue site. §3 and §6 are the two clauses that matter. Worth an attorney's eye if Valquo ever

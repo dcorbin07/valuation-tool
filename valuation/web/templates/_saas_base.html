@@ -29,12 +29,12 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="description" content="Private research tool. Not a public service.">
 {% else %}
-<meta name="description" content="{% block og_description %}A live-data DCF for any ticker with bull/base/bear cases and a 1-100 score, a whole-market screener that ranks every name, and an honest point-in-time backtest that checks whether the ranking actually beats the market. Educational tool, not investment advice.{% endblock %}">
+<meta name="description" content="{% block og_description %}A live-data DCF for any ticker with bull/base/bear cases and a 1-100 score, a daily screener that ranks the ~800 most liquid US names, and a point-in-time backtest that shows where the ranking beat the market and where it failed. Educational tool, not investment advice.{% endblock %}">
 <link rel="canonical" href="{{ _og_url }}">
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Valquo">
-<meta property="og:title" content="{% block og_title %}Valquo — Value any stock. Find the hot ones. Prove the edge.{% endblock %}">
+<meta property="og:title" content="{% block og_title %}Valquo — Value any stock. Find the hot ones. Check the evidence.{% endblock %}">
 <meta property="og:description" content="{{ self.og_description() }}">
 <meta property="og:url" content="{{ _og_url }}">
 <meta property="og:image" content="{{ _og_image }}">
@@ -42,7 +42,7 @@
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Valquo — value any stock, find the hot ones, prove the edge">
+<meta property="og:image:alt" content="Valquo — the market's top-scoring stocks, backtested, not hyped">
 
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{{ self.og_title() }}">

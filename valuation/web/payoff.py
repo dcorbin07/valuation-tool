@@ -366,6 +366,9 @@ def payoff_summary(n_trades_reference: int = 20) -> dict:
         },
         "clustering": CLUSTERING,
         "not_a_claim": NOT_A_CLAIM,
+        # The one R2 constant, so /methodology quotes the corrected gap instead of a literal it
+        # carried after U1-SPLIT had moved it (-6.65 -> -5.06, found 2026-09-30).
+        "r2_gap_pp": R2_GAP_PP, "r2_sign_z": R2_SIGN_Z,
         "basis": ("historical simulation on a licensed options panel, not an account and not a "
                   "return anyone earned"),
     }
