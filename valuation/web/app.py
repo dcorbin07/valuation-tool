@@ -985,34 +985,69 @@ def _recent_track_picks(st, source, n=15):
     return out
 
 
+#: Seconds between refresh STEPS. Short because a step is now bounded work, not a whole cycle.
+_TRACK_STEP_GATE_S = 30
+
+
 def _maybe_refresh_track():
-    """Refresh matured forward returns in the background, at most every 12h, so the
-    page load stays instant while the record accrues."""
-    import time
+    """Advance the forward-return refresh by one BOUNDED, RESUMABLE step.
+
+    **WHAT THIS REPLACED, AND WHY IT NEVER FINISHED.** The old version held a 12-hour gate and
+    the status in module globals, then spawned a daemon thread that scored all ~410 picks in one
+    pass with a per-name price fetch. Three separate properties made that unfinishable and all
+    three were needed: the gate and cursor died with the process, so every deploy started again
+    from nothing; the work was unbounded, so it could not complete between deploys; and the
+    per-name fetch paid the dead primary's timeout on every name. Measured on the service
+    2026-09-30: **3 of 410 picks scored by 06:51Z across seven deploys**, with `refresh` null on
+    every response because the status global was empty in each fresh process.
+
+    Now: the cursor lives in the store (`track.refresh_step`), each call does at most
+    `REFRESH_BUDGET` picks, and the prices come from the batch fetcher. A deploy costs at most
+    the current slice instead of the whole cycle.
+
+    The short gate is deliberate. It is no longer protecting an expensive job from being
+    re-entered -- it is only stopping two near-simultaneous requests doing the same slice twice,
+    which is wasteful rather than wrong (`_score_pick` skips horizons already stored).
+    """
     import threading
+    import time
     now = time.time()
-    if now - _LAST_TRACK_REFRESH[0] < 12 * 3600:
+    if now - _LAST_TRACK_REFRESH[0] < _TRACK_STEP_GATE_S:
         return
     _LAST_TRACK_REFRESH[0] = now
 
     def _work():
-        import datetime as _d
         from ..edge import track
         st = _store()
         for src in ("hot10", "options"):
             try:
-                r = track.update_returns(st, src)
-                _TRACK_REFRESH_STATUS[src] = {"ok": bool(r.get("benchmark_priced", True)),
-                                              "at": _d.datetime.utcnow().isoformat(timespec="seconds") + "Z",
-                                              "computed": r.get("computed"),
-                                              "unpriced": len(r.get("unpriced") or []),
-                                              "failed": r.get("n_failed", 0)}
-            except Exception as e:                                      # noqa: BLE001
+                track.refresh_step(st, src)
+            except Exception:                                           # noqa: BLE001
                 log_exception()
-                _TRACK_REFRESH_STATUS[src] = {"ok": False, "reason": type(e).__name__,
-                                              "at": _d.datetime.utcnow().isoformat(timespec="seconds") + "Z"}
         _compute_paper_bench(st, "hot10")
     threading.Thread(target=_work, daemon=True).start()
+
+
+def _track_refresh_view(store, source: str) -> dict:
+    """The refresh status, READ FROM THE STORE so it survives the process that produced it.
+
+    `refresh` used to be a module global and was therefore `null` on every response from a
+    freshly-deployed process -- which is exactly when a reader most wants to know the refresh is
+    behind. Reporting `remaining` rather than only `done` is the same point: a cycle that is
+    part-way through must not be indistinguishable from one that has not started.
+    """
+    from ..edge import track
+    try:
+        pr = track.refresh_progress(store, source)
+    except Exception:                                                   # noqa: BLE001
+        return None
+    n, cur = pr.get("picks"), int(pr.get("cursor") or 0)
+    return {"at": pr.get("last_at"), "cycle_started": pr.get("cycle_started"),
+            "done_at": pr.get("done_at"), "computed": pr.get("computed"),
+            "picks": n, "scored_so_far": cur,
+            "remaining": (None if n is None else max(0, int(n) - cur)),
+            "unpriced": len(pr.get("unpriced") or []), "failed": pr.get("failed", 0),
+            "complete": bool(n is not None and cur >= int(n))}
 
 
 @app.route("/api/track")
@@ -1027,7 +1062,7 @@ def api_track():
         out[source] = {"summary": track.summary(st, source),
                        "recent": _recent_track_picks(st, source),
                        "counts": _track_counts(st, source),
-                       "refresh": _TRACK_REFRESH_STATUS.get(source)}
+                       "refresh": _track_refresh_view(st, source)}
     try:
         snap = st.load_snapshot() or []
         pmap = {r.get("ticker"): r.get("price") for r in snap if r.get("price")}

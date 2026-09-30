@@ -94,6 +94,107 @@ def update_returns(store, source: str, benchmark="SPY", horizons=HORIZONS,
             "failed": failed[:20], "n_failed": len(failed), "benchmark_priced": True}
 
 
+#: Where a partly-finished refresh remembers how far it got. In the STORE, not in a module
+#: global -- the whole defect is that the old gate and status lived in the process.
+REFRESH_KEY = "track_refresh:%s"
+
+#: Picks scored per invocation. Small enough that one call is a fraction of a request and a
+#: deploy loses at most this many names' work, large enough that a cycle converges in a handful
+#: of calls at the batch fetcher's measured ~7.7 names/s.
+REFRESH_BUDGET = 60
+
+
+def refresh_progress(store, source: str) -> dict:
+    """What the last refresh got through. Safe to call on a cold store."""
+    return store.get_meta(REFRESH_KEY % source, None) or {
+        "cursor": 0, "picks": None, "computed": 0, "unpriced": [], "failed": 0,
+        "cycle_started": None, "last_at": None, "done_at": None}
+
+
+def refresh_step(store, source: str, benchmark: str = "SPY", horizons=HORIZONS,
+                 budget: int = None, price_batch=None) -> dict:
+    """Score the NEXT slice of logged picks and persist how far we got.
+
+    **WHY THIS EXISTS.** The refresh was a per-process daemon thread behind a 12-hour gate held
+    in a module global, doing all 410 picks in one pass with a per-name price fetch. Every
+    deploy killed it and reset the gate, so it started from nothing each time and never
+    finished -- measured 2026-09-30, 3 of 410 picks scored by 06:51Z across seven deploys.
+    Three separate things had to change and all three are here: the work is BATCHED (one
+    `yf.download` per chunk rather than one request per name), it is BOUNDED (`budget` picks per
+    call), and the cursor is in the STORE so the next process CONTINUES instead of restarting.
+
+    **THE CURSOR ADVANCES ONLY OVER WORK ACTUALLY DONE.** If the benchmark cannot be priced
+    nothing can be scored, so the step returns without moving the cursor -- recording progress
+    through names that were never scored is how a record silently skips them. A name no vendor
+    could price is counted UNPRICED and the cursor does move past it: it was attempted, the
+    answer is "no price today", and the next cycle asks again.
+    """
+    if price_batch is None:
+        from ..screener.prices import get_history_batch
+
+        def price_batch(ts):
+            return get_history_batch(ts, days=1500)
+
+    import datetime as _dt
+
+    picks = store.all_track_picks(source)
+    st = refresh_progress(store, source)
+    n = len(picks)
+    budget = int(budget or REFRESH_BUDGET)
+
+    # A cycle that has finished, or one whose pick list changed under it, starts again.
+    if st.get("cursor", 0) >= n or st.get("picks") not in (None, n):
+        st = {"cursor": 0, "picks": n, "computed": 0, "unpriced": [], "failed": 0,
+              "cycle_started": _dt.datetime.utcnow().isoformat(timespec="seconds") + "Z",
+              "last_at": None, "done_at": None}
+    st["picks"] = n
+    if not n:
+        st["done_at"] = _dt.datetime.utcnow().isoformat(timespec="seconds") + "Z"
+        store.set_meta(REFRESH_KEY % source, st)
+        return dict(st, stepped=0, benchmark_priced=None)
+
+    lo = int(st.get("cursor", 0))
+    slice_ = picks[lo:lo + budget]
+    want = sorted({benchmark} | {p["ticker"] for p in slice_})
+    frames = price_batch(want)
+
+    def series(t):
+        df = frames.get(t)
+        if df is None or not len(df):
+            return None
+        sr = pd.Series(list(df["Close"]), index=_calendar_index(list(df["Date"])))
+        sr = sr[~sr.index.isna()]
+        sr = sr[~sr.index.duplicated(keep="last")].sort_index()
+        return sr if len(sr) else None
+
+    bench = series(benchmark)
+    if bench is None:
+        # FAIL CLOSED: no benchmark, nothing scoreable, cursor UNMOVED so the slice is retried.
+        st["last_at"] = _dt.datetime.utcnow().isoformat(timespec="seconds") + "Z"
+        store.set_meta(REFRESH_KEY % source, st)
+        return dict(st, stepped=0, benchmark_priced=False)
+
+    unpriced = set(st.get("unpriced") or [])
+    for pk in slice_:
+        sr = series(pk["ticker"])
+        if sr is None:
+            unpriced.add(pk["ticker"])
+            continue
+        try:
+            st["computed"] = int(st.get("computed", 0)) + _score_pick(
+                store, source, pk, sr, bench, horizons)
+        except Exception:                                               # noqa: BLE001
+            st["failed"] = int(st.get("failed", 0)) + 1
+
+    st["cursor"] = lo + len(slice_)
+    st["unpriced"] = sorted(unpriced)
+    st["last_at"] = _dt.datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    if st["cursor"] >= n:
+        st["done_at"] = st["last_at"]
+    store.set_meta(REFRESH_KEY % source, st)
+    return dict(st, stepped=len(slice_), benchmark_priced=True)
+
+
 def _score_pick(store, source, p, s, bench, horizons) -> int:
     """Write every matured horizon (and the all-time mark) for one logged pick."""
     computed = 0

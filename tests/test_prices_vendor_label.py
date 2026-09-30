@@ -75,8 +75,13 @@ def _fake_yf(rows=40):
         def __init__(self, *a, **k):
             pass
 
-        def history(self, period=None, auto_adjust=None):
+        def history(self, period=None, auto_adjust=None, **kw):
+            # **kw MATTERS. The real call now passes `timeout=`; a stub with a narrower
+            # signature raises TypeError, which the fetcher catches as a vendor failure -- so
+            # the stub silently became "yfinance is down" for the whole suite. A stand-in that
+            # is stricter than the thing it stands in for tests the stub, not the code.
             _T.last_auto_adjust = auto_adjust
+            _T.last_kwargs = dict(kw)
             return pd.DataFrame({"Open": [9.0] * rows, "High": [9.0] * rows,
                                  "Low": [9.0] * rows, "Close": [9.0] * rows,
                                  "Volume": [1] * rows}, index=idx)
@@ -115,16 +120,52 @@ class _Patch:
 
 class TestFallbackIsLabelled(unittest.TestCase):
 
-    def test_the_primary_succeeding_is_labelled_stooq(self):
-        with _Patch(get=lambda *a, **k: _Resp(CSV)):
+    def test_the_primary_succeeding_is_labelled_yfinance(self):
+        """REPOINTED 2026-09-30 when the order was reversed.
+
+        This suite was written while Stooq was the primary and asserted exactly that. The
+        property it protects is unchanged -- WHICHEVER vendor serves, the frame says so -- but
+        which vendor is first is now the opposite, so the expected label moves with it. The
+        reversal is measured in `prices.get_history_df`'s own docstring; repeating the old
+        expectation here would have pinned the defect.
+        """
+        yf, _ = _fake_yf()
+        with _Patch(get=_raiser(AssertionError("stooq must not be consulted first")), yf=yf):
             df = P.get_history_df("AAPL", days=10)
+        self.assertIsNotNone(df)
+        self.assertEqual(P.source_of(df), P.SRC_YFINANCE)
+
+    def test_the_fallback_serving_is_labelled_stooq(self):
+        """The other half: the primary declines, Stooq serves, and the label says Stooq."""
+        real = P._yf_history
+        P._yf_history = lambda t, d, as_of=None: None
+        try:
+            with _Patch(get=lambda *a, **k: _Resp(CSV)):
+                df = P.get_history_df("AAPL", days=10)
+        finally:
+            P._yf_history = real
         self.assertIsNotNone(df)
         self.assertEqual(P.source_of(df), P.SRC_STOOQ)
 
     def test_A_PRIMARY_FAILURE_PRODUCES_A_LABELLED_FALLBACK_NEVER_A_SILENT_ONE(self):
-        """THE test this bug report asks for. Every way the primary can fail must produce a
-        frame that SAYS it came from yfinance."""
-        yf, _T = _fake_yf()
+        """THE test this bug report asks for, REPOINTED to the reversed order.
+
+        The property is unchanged and is the whole reason the suite exists: whichever vendor
+        ends up serving, the frame SAYS which. What moved is which vendor is the primary, so the
+        expected label on a fallback is now `stooq` rather than `yfinance`.
+        """
+        with _YFDown():
+            with _Patch(get=lambda *a, **k: _Resp(CSV)):
+                P.reset_census()
+                df = P.get_history_df("AAPL", days=10)
+                self.assertIsNotNone(df, "the fallback fell through to nothing")
+                self.assertEqual(P.source_of(df), P.SRC_STOOQ,
+                                 "the fallback served but was NOT labelled")
+                self.assertEqual(P.adjustment_of(df), P.VENDOR_ADJUSTMENT[P.SRC_STOOQ])
+
+    def test_BOTH_VENDORS_FAILING_IS_UNPRICED_AND_NEVER_A_SILENT_FRAME(self):
+        """FAIL CLOSED. Every way the FALLBACK can fail, with the primary already declining,
+        must end as an explicit unpriced name -- never a frame, never a stale one."""
         failures = {
             "http_404": lambda *a, **k: _Resp("<html>not found</html>", 404),
             "connection": _raiser(requests.ConnectionError("no route")),
@@ -135,38 +176,78 @@ class TestFallbackIsLabelled(unittest.TestCase):
         }
         for name, get in failures.items():
             with self.subTest(failure=name):
-                with _Patch(get=get, yf=yf):
-                    df = P.get_history_df("AAPL", days=10)
-                    self.assertIsNotNone(df, "%s: fell through to nothing" % name)
-                    self.assertEqual(P.source_of(df), P.SRC_YFINANCE,
-                                     "%s: fallback served but was NOT labelled" % name)
-                    self.assertEqual(P.adjustment_of(df), "auto_adjusted")
-                    self.assertEqual(P.source_census()["primary_failures"], 1)
+                with _YFDown():
+                    with _Patch(get=get):
+                        P.reset_census()
+                        df = P.get_history_df("AAPL", days=10)
+                        self.assertIsNone(df, "%s: produced a frame from nothing" % name)
+                        self.assertEqual(P.source_census()["unpriced"], 1,
+                                         "%s: exhaustion was not counted" % name)
 
     def test_the_fallback_is_LOUD_and_names_the_primary_exception(self):
         """A label a reader has to go looking for is better than nothing and worse than a log
-        line. The warning must name the ticker, the vendor and the actual failure."""
-        yf, _ = _fake_yf()
-        with _Patch(get=_raiser(requests.ConnectionError("no route")), yf=yf):
+        line. The warning must name the ticker, the vendor that failed and the actual failure.
+
+        REPOINTED with the order: the event that must be loud is the PRIMARY declining and the
+        fallback picking the name up, so the vendor named is now yfinance and the transition to
+        stooq is asserted as well -- a line saying only that something failed does not tell a
+        reader whether the name was still served.
+        """
+        yf, T = _fake_yf()
+        T.history = lambda self, *a, **k: (_ for _ in ()).throw(
+            requests.ConnectionError("no route"))
+        with _Patch(get=lambda *a, **k: _Resp(CSV), yf=yf):
             with self.assertLogs("valuation.screener.prices", level=logging.WARNING) as cm:
-                P.get_history_df("AAPL", days=10)
+                df = P.get_history_df("AAPL", days=10)
         blob = "\n".join(cm.output)
+        self.assertIsNotNone(df, "the fallback did not pick the name up")
+        self.assertEqual(P.source_of(df), P.SRC_STOOQ)
         self.assertIn("AAPL", blob)
         self.assertIn("yfinance", blob)
         self.assertIn("ConnectionError", blob)
-        self.assertIn("AUTO-ADJUSTED", blob)
+        self.assertIn("stooq", blob)
+
+    def test_EXHAUSTION_is_LOUD_and_says_UNPRICED_not_merely_failed(self):
+        """FAIL CLOSED is only trustworthy if a reader can SEE it happen. A run whose names all
+        silently returned nothing reads exactly like a run with nothing to do."""
+        with _YFDown(), _Patch(get=_raiser(requests.ConnectionError("no route"))):
+            with self.assertLogs("valuation.screener.prices", level=logging.WARNING) as cm:
+                df = P.get_history_df("AAPL", days=10)
+        blob = "\n".join(cm.output)
+        self.assertIsNone(df)
+        self.assertIn("AAPL", blob)
+        self.assertIn("UNPRICED", blob)
 
     def test_the_census_records_the_vendor_per_ticker(self):
         yf, _ = _fake_yf()
+        P.reset_census()
         with _Patch(get=lambda *a, **k: _Resp(CSV), yf=yf):
-            P.get_history_df("AAA", days=10)
-            with _PatchGet(_raiser(requests.ConnectionError("x"))):
-                P.get_history_df("BBB", days=10)
+            P.get_history_df("AAA", days=10)          # primary serves -> yfinance
+            with _YFDown():
+                P.get_history_df("BBB", days=10)      # primary declines -> stooq
             c = P.source_census()
-        self.assertEqual(c["last_by_ticker"]["AAA"], P.SRC_STOOQ)
-        self.assertEqual(c["last_by_ticker"]["BBB"], P.SRC_YFINANCE)
-        self.assertEqual(c["by_vendor"][P.SRC_STOOQ], 1)
+        self.assertEqual(c["last_by_ticker"]["AAA"], P.SRC_YFINANCE)
+        self.assertEqual(c["last_by_ticker"]["BBB"], P.SRC_STOOQ)
         self.assertEqual(c["by_vendor"][P.SRC_YFINANCE], 1)
+        self.assertEqual(c["by_vendor"][P.SRC_STOOQ], 1)
+
+
+class _YFDown:
+    """Make the PRIMARY decline for a block, so the fallback path is reachable at all.
+
+    With yfinance first, patching `requests.get` no longer expresses "the primary failed" -- it
+    expresses "the FALLBACK failed", and a working primary means the patch is never reached.
+    Every test below that wants the fallback has to say so explicitly now.
+    """
+
+    def __enter__(self):
+        self._real = P._yf_history
+        P._yf_history = lambda t, d, as_of=None: None
+        return self
+
+    def __exit__(self, *a):
+        P._yf_history = self._real
+        return False
 
 
 def _raiser(exc):
@@ -199,27 +280,50 @@ class TestNarrowExcept(unittest.TestCase):
         """The sharpest case: `import pandas` and `import requests` sit inside the old try, so a
         BROKEN INSTALL looked exactly like a bad afternoon at Stooq — and produced yfinance
         numbers under a healthy-looking run."""
-        real = P._primary_errors
+        real = P._yf_errors
 
         def boom():
             raise ImportError("pandas is not installed")
+        yf, T = _fake_yf()
+        # The except-clause tuple is built LAZILY, so it is evaluated only when the primary
+        # actually raises. Without a raising primary this test would pass against a healthy
+        # module while proving nothing -- a vacuous guard, which is worse than none.
+        T.history = lambda self, *a, **k: (_ for _ in ()).throw(ValueError("vendor blip"))
         try:
-            P._primary_errors = boom
-            with self.assertRaises(ImportError):
-                P.get_history_df("AAPL", days=10)
+            P._yf_errors = boom
+            with _Patch(yf=yf):
+                with self.assertRaises(ImportError):
+                    P.get_history_df("AAPL", days=10)
         finally:
-            P._primary_errors = real
+            P._yf_errors = real
 
     def test_a_programming_error_in_the_primary_path_PROPAGATES(self):
-        """An AttributeError from a typo must not silently become a yfinance figure."""
-        yf, _ = _fake_yf()
-        with _Patch(get=_raiser(AttributeError("typo")), yf=yf):
+        """An AttributeError from a typo must not silently become a fallback figure.
+
+        Injected into the PRIMARY, which is now yfinance -- injecting into `requests.get` would
+        test the fallback and, with a working primary, would not be reached at all.
+        """
+        yf, T = _fake_yf()
+        T.history = lambda self, *a, **k: (_ for _ in ()).throw(AttributeError("typo"))
+        with _Patch(yf=yf):
             with self.assertRaises(AttributeError):
                 P.get_history_df("AAPL", days=10)
 
+    def test_a_TypeError_from_a_CHANGED_VENDOR_SIGNATURE_propagates(self):
+        """The call passes `timeout=`. A yfinance release that drops it raises TypeError, and
+        swallowing that would silently unprice EVERY name on upgrade day -- the worst available
+        failure, and invisible because it fails closed. It must be loud."""
+        yf, T = _fake_yf()
+        T.history = lambda self, *a, **k: (_ for _ in ()).throw(
+            TypeError("history() got an unexpected keyword argument 'timeout'"))
+        with _Patch(yf=yf):
+            with self.assertRaises(TypeError):
+                P.get_history_df("AAPL", days=10)
+
     def test_KeyboardInterrupt_is_not_swallowed(self):
-        yf, _ = _fake_yf()
-        with _Patch(get=_raiser(KeyboardInterrupt()), yf=yf):
+        yf, T = _fake_yf()
+        T.history = lambda self, *a, **k: (_ for _ in ()).throw(KeyboardInterrupt())
+        with _Patch(yf=yf):
             with self.assertRaises(KeyboardInterrupt):
                 P.get_history_df("AAPL", days=10)
 
@@ -227,12 +331,15 @@ class TestNarrowExcept(unittest.TestCase):
         """Read from the AST, not grepped — this module's docstring discusses
         `except Exception` at length and a substring guard would fire on the prose."""
         tree = ast.parse(_read(SRC))
-        fn = next(n for n in ast.walk(tree)
-                  if isinstance(n, ast.FunctionDef) and n.name == "get_history_df")
-        for h in [n for n in ast.walk(fn) if isinstance(n, ast.ExceptHandler)]:
-            self.assertIsNotNone(h.type, "a bare `except:` is back in get_history_df")
-            self.assertNotEqual(getattr(h.type, "id", None), "Exception",
-                                "`except Exception` is back in get_history_df")
+        # BOTH vendor paths, because the primary moved. Checking only `get_history_df` would
+        # now check a function that catches nothing.
+        for name in ("get_history_df", "_yf_history", "_stooq_history"):
+            fn = next(n for n in ast.walk(tree)
+                      if isinstance(n, ast.FunctionDef) and n.name == name)
+            for h in [n for n in ast.walk(fn) if isinstance(n, ast.ExceptHandler)]:
+                self.assertIsNotNone(h.type, "a bare `except:` is back in %s" % name)
+                self.assertNotEqual(getattr(h.type, "id", None), "Exception",
+                                    "`except Exception` is back in %s" % name)
 
 
 # ==================================================== the adjustment convention is DECLARED
@@ -277,7 +384,7 @@ class TestConsumersSeeTheLabel(unittest.TestCase):
     def test_get_quote_carries_the_source_and_the_adjustment(self):
         long_csv = "Date,Open,High,Low,Close,Volume\n" + "".join(
             "2026-01-%02d,1,2,0.5,%f,100\n" % ((i % 28) + 1, 1.0 + i * 0.01) for i in range(60))
-        with _Patch(get=lambda *a, **k: _Resp(long_csv)):
+        with _YFDown(), _Patch(get=lambda *a, **k: _Resp(long_csv)):
             q = P.get_quote("AAPL")
         self.assertIsNotNone(q)
         self.assertEqual(q["source"], P.SRC_STOOQ)
@@ -286,7 +393,7 @@ class TestConsumersSeeTheLabel(unittest.TestCase):
     def test_close_series_with_source_carries_it_and_plain_close_series_still_returns_a_pair(self):
         """`close_series` is what ~20 call sites use and its shape is deliberately unchanged —
         a third element would break every one of them. The labelled form is additive."""
-        with _Patch(get=lambda *a, **k: _Resp(CSV)):
+        with _YFDown(), _Patch(get=lambda *a, **k: _Resp(CSV)):
             pair = P.close_series("AAPL", days=10)
             trip = P.close_series_with_source("AAPL", days=10)
         self.assertEqual(len(pair), 2)
@@ -418,11 +525,13 @@ class TestStrikeRuleDoesNotBiteOnThisPath(unittest.TestCase):
 def _label_works():
     """The property every mutation must break."""
     yf, _ = _fake_yf()
+    # primary serves -> labelled yfinance
     with _Patch(get=_raiser(requests.ConnectionError("x")), yf=yf):
         df = P.get_history_df("AAPL", days=10)
         if P.source_of(df) != P.SRC_YFINANCE:
             return False
-    with _Patch(get=lambda *a, **k: _Resp(CSV)):
+    # primary declines -> the fallback serves -> labelled stooq
+    with _YFDown(), _Patch(get=lambda *a, **k: _Resp(CSV)):
         df2 = P.get_history_df("AAPL", days=10)
         if P.source_of(df2) != P.SRC_STOOQ:
             return False
@@ -447,12 +556,12 @@ class TestMutations(unittest.TestCase):
     def test_m1_a_label_that_does_not_stamp_is_caught(self):
         self._mutate("_label", lambda df, ticker, src: df)
 
-    def test_m2_a_label_that_always_says_stooq_is_caught(self):
+    def test_m2_a_label_that_always_says_one_vendor_is_caught(self):
         real = P._label
-        self._mutate("_label", lambda df, t, src: real(df, t, P.SRC_STOOQ))
+        self._mutate("_label", lambda df, t, src: real(df, t, P.SRC_YFINANCE))
 
     def test_m3_source_of_defaulting_to_the_primary_is_caught(self):
-        self._mutate("source_of", lambda df: P.SRC_STOOQ)
+        self._mutate("source_of", lambda df: P.SRC_YFINANCE)
 
 
 if __name__ == "__main__":

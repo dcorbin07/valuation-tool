@@ -102,12 +102,61 @@ def _valuation_score(cd, base_fv, mc, comps) -> tuple[Optional[float], list]:
     return _blend(parts), drivers
 
 
-def _quality_score(cd, wacc) -> tuple[Optional[float], list]:
+def _quality_score(cd, wacc, *, regime: str = None,
+                   ke: Optional[float] = None) -> tuple[Optional[float], list]:
+    """Quality, with the FCFF-model measures withdrawn where the regime does not support them.
+
+    879cda6 set the rule -- an input that does not apply to the regime does not contribute --
+    and applied it to the VALUATION sub-score. The same three measures were still running here
+    for a bank or insurer:
+
+      * **ROIC vs WACC.** Invested capital and a weighted-average cost of capital describe a
+        firm that raises debt to fund operating assets. For a financial, debt (and for an
+        insurer, float and reserves) is the RAW MATERIAL, which is `classify.py`'s own stated
+        reason for refusing the FCFF model on these names. The value-creation question that
+        does apply is **ROE against the cost of EQUITY**, and that is not a new number: it is
+        the same `ke` the P/B-ROE model already uses to produce the published fair value, so
+        the sub-score and the headline rest on one input rather than two.
+      * **Gross margin.** A bank has no cost of goods sold; the field is either absent or an
+        artefact of how the vendor mapped interest expense. Dropped.
+      * **EBIT margin.** Interest is OPERATING revenue for a lender, so EBIT is not a measure
+        of operating profitability here. Replaced with **net margin**, which is well defined
+        for a financial (net income over total revenue, where revenue is premiums plus
+        investment income for an insurer and net interest plus fee income for a bank).
+
+    The weights are re-expressed rather than renormalised from the industrial ones, because
+    two of the four terms are gone: return-on-capital carries 0.7 and net margin 0.3, the same
+    ORDER as the industrial form (return first, profitability second) without pretending a
+    dropped term left a hole.
+    """
     drivers = []
     parts = []
     roe = None
     if cd.net_income is not None and cd.total_equity not in (None, 0) and cd.total_equity > 0:
         roe = cd.net_income / cd.total_equity
+
+    if regime == "financial":
+        if roe is not None and ke is not None:
+            spread = roe - ke
+            s = _lerp(spread, [(-0.05, 5), (0.0, 45), (0.05, 65), (0.10, 82), (0.20, 100)])
+            parts.append((s, 0.7))
+            drivers.append(f"ROE {roe:.0%} vs cost of equity {ke:.0%} "
+                           f"→ {spread:+.0%} spread (ROIC vs WACC does not apply to a "
+                           f"bank or insurer).")
+        elif roe is not None:
+            s = _lerp(roe, [(-0.05, 5), (0.0, 40), (0.10, 60), (0.20, 82), (0.35, 100)])
+            parts.append((s, 0.7))
+            drivers.append(f"Return on equity {roe:.0%} (no cost of equity available, so the "
+                           f"spread is not computed).")
+        if cd.net_margin is not None:
+            s = _lerp(cd.net_margin, [(-0.10, 5), (0.0, 35), (0.10, 60),
+                                      (0.20, 82), (0.35, 100)])
+            parts.append((s, 0.3))
+            drivers.append(f"Net margin {cd.net_margin:.0%}. Gross and EBIT margin are not "
+                           f"used: a financial has no cost of goods sold, and interest is "
+                           f"operating revenue rather than a financing cost.")
+        return _blend(parts), drivers
+
     # Return on capital: prefer ROIC vs WACC; fall back to ROE (works for banks /
     # names where invested capital or EBIT isn't reported) so quality isn't n/a.
     if cd.roic is not None and wacc is not None:
@@ -150,7 +199,45 @@ def _growth_score(cd, cls) -> tuple[Optional[float], list]:
 
 
 def _health_score(cd, cls) -> tuple[Optional[float], list]:
+    """Balance-sheet health -- NOT COMPUTED for a financial, and the reason is a measurement.
+
+    KNSL read health **100 of 100** because `net_debt_to_ebitda` came out at **-3.8x**, which
+    the curve reads as deep net cash. For an insurer the cash is largely **policyholder float
+    and reserves** -- money owed to policyholders, not distributable -- which is the same fact
+    that made 879cda6 stop the narrative claiming net cash and buyback capacity. All three
+    inputs fail on a financial for that one reason:
+
+      * **net debt / EBITDA** treats deposits, float and reserves as if they were surplus cash
+        or debt-funded operating leverage. They are neither.
+      * **interest coverage** asks whether operating profit covers interest; for a lender
+        interest is a cost of REVENUE, so the ratio is not a solvency test.
+      * **positive FCF** is an unlevered-cash-flow idea, and `classify.py` already refuses the
+        unlevered model on these names.
+
+    **THE ALTERNATIVE WAS CHECKED AND IS NOT BUILDABLE HERE.** The obvious financial measure is
+    balance-sheet leverage, assets / equity -- and `CompanyData` HAS NO `total_assets` FIELD.
+    `assets` exists only in the edge lane's Sharadar panel, a different object on a different
+    path, so the live scorer cannot see it. Inventing a proxy from `total_debt` would
+    re-introduce exactly the confusion above, since for a bank the large liability is deposits
+    and for an insurer it is reserves, and neither is `total_debt`.
+
+    So the sub-score is **withheld**, its 0.20 is redistributed by `compute_score`'s existing
+    renormalisation over the available sub-scores, and a driver SAYS SO. A withheld sub-score
+    that is silent looks identical to one that scored in the middle.
+
+    It is withheld as NOT APPLICABLE rather than MISSING, which matters for one reason worth
+    naming: `compute_score` downgrades `confidence` on missing sub-scores, and degrading every
+    financial's confidence label for a deliberate design choice would be reporting a data gap
+    that does not exist.
+    """
     drivers = []
+    if getattr(cls, "regime", None) == "financial":
+        return None, ["Balance-sheet health is not scored for a bank or insurer: net "
+                      "debt/EBITDA reads policyholder float and reserves as net cash, "
+                      "interest coverage is not a solvency test when interest is a cost of "
+                      "revenue, and the free-cash-flow check belongs to the unlevered model "
+                      "this regime already refuses. Its weight is redistributed over the "
+                      "sub-scores that do apply."]
     lev = _lerp(cd.net_debt_to_ebitda, [(-1.0, 100), (0.0, 92), (1.0, 82),
                                         (2.0, 68), (3.0, 50), (4.0, 30), (6.0, 8)]) \
         if cd.net_debt_to_ebitda is not None else None
@@ -201,7 +288,8 @@ def _recommendation(score: int) -> str:
 
 
 def compute_score(cd: CompanyData, cls: Classification, wacc: float,
-                  base_fv: Optional[float], mc, comps, blend=None) -> ScoreResult:
+                  base_fv: Optional[float], mc, comps, blend=None,
+                  ke: Optional[float] = None) -> ScoreResult:
     # A valuation the model REFUSED to publish must not come back in through the side
     # door. Passing `base_fv=None` only dropped the margin-of-safety term (weight 0.55);
     # `mc.prob_undervalued` (0.30) is the share of Monte Carlo trials OF THAT SAME
@@ -217,7 +305,7 @@ def compute_score(cd: CompanyData, cls: Classification, wacc: float,
                             "health and momentum only."]
     else:
         val, d_val = _valuation_score(cd, base_fv, mc, comps)
-    qual, d_qual = _quality_score(cd, wacc)
+    qual, d_qual = _quality_score(cd, wacc, regime=cls.regime, ke=ke)
     grow, d_grow = _growth_score(cd, cls)
     health, d_health = _health_score(cd, cls)
     mom, d_mom = _momentum_score(cd)
@@ -232,7 +320,13 @@ def compute_score(cd: CompanyData, cls: Classification, wacc: float,
     composite = int(round(max(1, min(100, composite))))
 
     # Confidence from DCF reliability + data completeness.
-    missing = sum(1 for v in subs.values() if v is None)
+    #
+    # NOT APPLICABLE IS NOT MISSING. A sub-score withheld because the regime does not support
+    # its inputs is a deliberate design choice, not a data gap -- counting it here would
+    # downgrade EVERY financial's confidence label and report a hole in the data that is not
+    # there. Only sub-scores absent because the numbers were unavailable count.
+    _not_applicable = {"health"} if cls.regime == "financial" else set()
+    missing = sum(1 for k, v in subs.items() if v is None and k not in _not_applicable)
     if cls.dcf_reliability == "low" or missing >= 2:
         confidence = "low"
     elif cls.dcf_reliability == "medium" or missing == 1:

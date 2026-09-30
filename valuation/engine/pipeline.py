@@ -357,8 +357,12 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
 
     # Score against the SAME number the user is shown, so the valuation sub-score and the
     # headline can't disagree. compute_score already tolerates None (it renormalizes).
+    # `ke` is the SAME cost of equity the P/B-ROE fair value is built on, passed rather than
+    # re-derived, so a financial's quality sub-score and its headline cannot disagree about the
+    # hurdle -- the B7 rule that two copies of one number drift.
     score = compute_score(cd, cls, wacc_value,
-                          blend.value if blend.valuable else None, mc, comps, blend=blend)
+                          blend.value if blend.valuable else None, mc, comps, blend=blend,
+                          ke=wacc.cost_of_equity)
 
     # Terminal-share honesty (HANDOFF_live_data_bugs.md Part 9). Deliberately LAST: every value,
     # scenario and sub-score above is already final, so this can only rewrite two label strings.

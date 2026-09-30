@@ -114,8 +114,13 @@ def test_the_stale_rejection_is_counted_not_only_logged():
     PR.reset_census()
     _with_stale_stooq(lambda: PR.get_history_df("SPY", days=400, as_of="2026-09-25"))
     c = PR.source_census()
-    assert c.get("primary_failures", 0) >= 1, (
-        "the stale Stooq answer was not counted as a primary failure: %r" % c)
+    # REPOINTED when yfinance became the primary (2026-09-30). This test was written while
+    # Stooq was primary and asserted `primary_failures`, which is a fact about WHICH VENDOR IS
+    # FIRST -- not about the property it exists to protect. The property is that a stale answer
+    # is COUNTED rather than silently swallowed, and `stale_rejections` is the counter that
+    # says so whichever vendor produced it.
+    assert c.get("stale_rejections", 0) >= 1, (
+        "the stale Stooq answer was not counted at all: %r" % c)
 
 
 def test_a_stale_frame_is_NOT_retried_with_backoff():
@@ -141,7 +146,9 @@ def test_a_stale_frame_is_NOT_retried_with_backoff():
         assert len(calls) == 1, "a stale frame was fetched %d times" % len(calls)
         assert naps == [], "the stale path slept: %r" % naps
         c = PR.source_census()
-        assert c.get("stale_rejections", 0) == 1 and c.get("primary_failures", 0) == 1, c
+        # `primary_failures` deliberately NOT asserted here: Stooq is the fallback now, so a
+        # stale Stooq frame is not a primary failure. The count that matters is the rejection.
+        assert c.get("stale_rejections", 0) == 1, c
     finally:
         requests.get, PR._yf_history, _time.sleep = real_get, real_yf, real_sleep
 

@@ -5,6 +5,561 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 64 — 2026-09-30 — the Oct 22 runbook carries both paths
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `by_domain`
+unchanged: equity 248, options 310, infra 20. **NEITHER BOOK IS BUILT**, as instructed — nothing
+was run, no book written, the bound record untouched, no money spent. `.github/` untouched.
+
+`REBALANCE_RUNBOOK_2026-10-22.md`, new and tracked. `D9` came back **NO-GO on all three bars**
+(`bb4b4fc`), so the runbook carries **A** (free live, only if a same-date D9 re-check reads GO)
+and **B** (Sharadar renewal, the fallback D9 routed), with the exact commands and one freshness
+gate for both.
+
+## THE VINTAGE CALL, AND PATH A DOES NOT TURN ON THE VENDOR
+
+`PAPER_TRACK_CONTRACT.md` §5a, quoted verbatim from Don's own signed decision: *"any ADOPTED
+change to scoring, weights, or construction closes the current vintage and opens the next …
+**Rebalancing under unchanged rules is NOT a vintage event.**"*
+
+* **Path B — NOT a vintage event.** Same vendor the book in force was built on, same
+  construction, same flat weights. It is the case §5a names explicitly.
+* **Path A — VINTAGE EVENT, opens vintage 5**, and **not on a judgement call**: it hits two of
+  §5a's three named triggers outright. **Weights** — the live composite uses bucket-specific
+  weights against the panel's flat 1/7 (D9's own premise correction, made before any
+  cross-vendor number was read). **Scoring** — the live path serves **five** of the seven
+  weighted themes; `institutional` and `insider` reach no live score.
+
+**THE POINT MOST LIKELY TO BE MISREAD: A GO FROM D9 WOULD NOT MAKE PATH A RULE-NEUTRAL.** D9
+asks whether the live path *ranks* the large-cap tier closely enough — a question about the
+resulting ranking, not about whether the rules are the same. **Path A opens vintage 5 whether
+D9 reads GO or NO-GO**, and if MC1's theme cache is in force by then it opens a *different*
+vintage 5 (a seven-theme book), which is why the theme set in force has to be recorded with it.
+
+**Rule 6 is the price:** vintage 4 opened 2026-08-13 and holds ~10 weeks at Oct 22. Path A
+spends all of it; Path B spends none.
+
+## THE GATE HAS A CATCH, AND IT CHANGES THE ORDER OF OPERATIONS
+
+**The same-date D9 re-check needs a renewed Sharadar export to run at all** — there is no
+Sharadar side to compare against without one. So the sequence is **renew first, then decide**,
+and once renewed **Path B is available at no vintage cost**. The re-check must be *same-date*
+for a measured reason: D9 read the Sharadar panel against **itself** at 63 trading days at
+**0.4971**, below its own B1 bar of 0.80, so a cross-vendor comparison across a gap can neither
+pass nor fail informatively.
+
+## THREE THINGS THAT WOULD SILENTLY PRODUCE THE WRONG BOOK
+
+1. **The 30% band applies only if the previous book is at `--out`.** `export()` supplies `held`
+   from `_previous_book(path)`, and `build_index` needs **both** `held` and `exit_frac`.
+   Measured on the live endpoint right now: `no_trade_band {"applied": false, "note": "no
+   previous book supplied"}`. A silently band-less rebalance turns the book over harder than the
+   adopted rule does and looks like an ordinary rebalance everywhere.
+2. **The CLI help understates the band.** `--config`'s help says *"taxable (decile, quarterly,
+   **20%** band)"*; the shipped `BOOK_CONFIGS["taxable"]["exit_frac"]` is **0.3**, matching
+   `no_trade_band.BAND_WIDTH = 0.30` and S14's adopted width. **The code is right and the help
+   is wrong** — reported, not edited, since it belongs with whoever next touches that file.
+3. **`roth` is not the contract book.** `/api/valquo-index` serves the 25-position roth preview,
+   which is why `contract_conformance.conforms` reads **false** today against the floor of 50.
+   That is the gate working, not a fault. Build with `--config taxable`.
+
+## NOT DONE
+
+* **Neither book built**, no Sharadar renewed, no money spent, no date decided, no path chosen.
+* **D9 was not re-run** — it is unreachable until an export exists, and it is listed as a
+  precondition rather than as something done.
+
+# Session 63 — 2026-09-30 — the two sub-scores that still used industrial measures
+
+**ZERO TRIALS** — no hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `by_domain`
+unchanged: **equity 248, options 310, unified 0, infra 20**, 0 malformed. **17 new tests; 8 of 8
+mutations caught**, from a suite confirmed green first. Full gate green. **`.github/` untouched.**
+
+## THE RULE, APPLIED WHERE IT HAD NOT BEEN
+
+`879cda6` set it — *an input that does not apply to the regime does not contribute* — and applied
+it to the **valuation** sub-score. Two more were still running FCFF-model concepts on banks and
+insurers, and together they are **45% of a financial's score**: quality (0.25) led with **ROIC vs
+WACC** plus **gross** and **EBIT margin**; health (0.20) read **net debt / EBITDA**, **interest
+coverage** and a **free-cash-flow check**.
+
+## HEALTH IS WITHHELD, AND THE CENSUS IS THE FINDING
+
+KNSL read health **100 of 100** because its net debt / EBITDA is **−3.8x**, which the curve
+reads as deep net cash — for an insurer that is largely **policyholder float and reserves**, the
+same fact that made `879cda6` stop the narrative claiming net cash. That is not one odd name:
+
+| health BEFORE, 23 financial-regime names | |
+|---|---:|
+| median | **100.0** |
+| mean | 98.1 |
+| **exactly 100.0** | **17 of 23** |
+| 90 or above | 21 of 23 |
+| minimum | 79.9 |
+
+**The industrial health measure was handing nearly every bank and insurer a perfect
+balance-sheet score.** That is why withdrawing it moves all 23 the same way, and it is a much
+stronger statement than "23 names changed".
+
+**THE ALTERNATIVE WAS CHECKED AND IS NOT BUILDABLE.** The obvious financial measure is
+assets / equity — and **`CompanyData` has no `total_assets` field**. `assets` exists only in the
+edge lane's Sharadar panel, a different object on a different path, so the live scorer cannot see
+it; a proxy from `total_debt` would re-introduce exactly the confusion being removed, since a
+bank's large liability is deposits and an insurer's is reserves. So the sub-score is **withheld,
+its 0.20 redistributed by the existing renormalisation, and a driver says why** — a withheld
+sub-score that is silent looks identical to one that scored in the middle. A test pins that
+nobody adds a proxy without adding the field.
+
+**NOT APPLICABLE IS NOT MISSING.** `compute_score` degrades `confidence` on missing sub-scores;
+counting a deliberate design choice there would downgrade **every** financial's confidence label
+and report a data gap that does not exist. Excluded explicitly, pinned.
+
+## QUALITY: ROE AGAINST THE COST OF EQUITY THE FAIR VALUE ALREADY USES
+
+Invested capital and a WACC describe a firm that raises debt to fund operating assets; for a
+financial, debt (and float, and reserves) is the **raw material** — `classify.py`'s own stated
+reason for refusing the unlevered model. The applicable question is **ROE vs the cost of
+equity**, and it is not a new number: it is the same `ke` the P/B-ROE model already uses for the
+published fair value, **passed from the same `wacc` object** so the sub-score and the headline
+cannot disagree about the hurdle.
+
+**Gross margin is dropped** — a bank has no cost of goods sold. **EBIT margin is replaced by net
+margin** — interest is operating *revenue* for a lender, so EBIT is not a measure of operating
+profitability, while net income over total revenue is well defined (premiums plus investment
+income for an insurer, net interest plus fee income for a bank). Weights 0.7 / 0.3, the same
+order as the industrial form.
+
+## MEASURED: PAIRED, ONE FETCH PER NAME
+
+Each name is fetched **once** and scored **twice** — the old scorer **restored from git**, not
+re-implemented — so no difference can be the market moving between two readings, and no
+"baseline" is my own paraphrase of the thing under test.
+
+| | |
+|---|---:|
+| exposed rows valued (scan 2026-09-29) | **99** of 100 |
+| errors / contaminated-empty | 1 / 1 (ORKA, unavailable — counted, not skipped) |
+| **financial-regime names** | **23** |
+| score moved | **23 of 23** |
+| **recommendation changed** | **12 of 23** |
+| direction | **23 down, 0 up** |
+| composite move | min **−20**, median **−8.0**, mean −8.35, max −1 |
+| **non-financials byte-identical** | **76 of 76 — INERTNESS HOLDS** |
+
+Recommendation changes: SYF, HIG, TRV **Strong Buy → Buy**; PRU, FHN, MKL, MTB, EWBC **Buy →
+Hold**; STT, PFG, NTRS, CFG **Hold → Reduce**.
+
+**KNSL: 67 Buy → 59 Hold** — measured separately and **stated as separate**, because KNSL is
+**not in the exposed top 100**; the public payload carries 100 rows while the scan scored **793**,
+so the census is over the top 100 and not the whole scan.
+
+**AND KNSL'S WHOLE MOVE IS THE HEALTH WITHDRAWAL.** Its quality went **91.9523 → 92.0346** —
+**0.08 of a point**. Reproduced offline from its measured inputs: ROIC 23.4% vs WACC 9.55% is a
++13.9% spread, ROE 25.7% vs Ke 9.70% is +16.0%, and it reports **no gross margin at all**, so
+the two branches happen to land together. **That is a coincidence of one name, not a general
+result** — across the 23, quality's median moves **71.30 → 64.30**. Both sentences are needed:
+the quality substitution is nearly inert on the name the brief names, and materially live on the
+population.
+
+## NO VINTAGE OPENS, AND IT IS PINNED RATHER THAN ASSERTED
+
+This is the 1–100 **opportunity score** (`engine.scoring.compute_score`). The hot-list composite
+is `composite.rank(pct=True) * 99 + 1` off the **theme z-scores**; the Valquo Index ranks on
+`hot_score`; the forward track scores picks from **prices**. None reads this score — and a test
+walks the whole `valuation/` tree and asserts `compute_score` has **exactly one caller**,
+`engine/pipeline.py`, so a second caller in a surface the vintage rule *does* bind cannot land
+quietly.
+
+## THREE DEFECTS IN MY OWN TESTS, ALL FOUND BY MUTATION
+
+1. **The net-margin test moved `net_income`** — which drives ROE as well, so the score moved
+   through the *other* term and the test passed with net margin's weight set to **zero**. It
+   varies **revenue** now, which moves net margin and leaves ROE untouched, with an assertion
+   that ROE really is unchanged.
+2. **The confidence test left a second sub-score `None`** (no price → no margin of safety, and
+   no `ma_200` → no momentum), which pins both arms at the same degraded label whatever the rule
+   does. It now asserts `health` is the **only** `None`. *A test whose subject is masked by a
+   second defect in its own fixture measures nothing.*
+3. **No test touched the call site**, so replacing the pipeline's `ke=wacc.cost_of_equity` with
+   `ke=None` left every test green while every financial silently lost its hurdle. **The third
+   time this session** a helper was tested and its caller was not.
+
+A fourth, caught on the suite's first run rather than by mutation: the fixture omitted `da` and
+`interest_expense`, so `net_debt_to_ebitda` and `interest_coverage` were both `None` and the
+fixture **could not reach either input the change exists to withdraw**. And one assertion banned
+the substring `WACC` — which the new driver names **in a negation** (*"ROIC vs WACC does not
+apply to a bank or insurer"*), so the ban would have outlawed the explanation. It asserts the
+property instead: the score does not move when the WACC does.
+
+## NOT DONE
+
+* **The census is the exposed top 100, not all 793 scored names.** The rest are not public and I
+  did not use the admin token to reach them.
+* **No weight was re-tuned.** Health's 0.20 is redistributed by the existing renormalisation; the
+  `_WEIGHTS` table is untouched, so a financial's remaining weights keep their relative shape.
+* **REITs are not addressed.** `reit—` is a financial industry hint, so a REIT lands in this
+  regime and now loses its health score too. Whether FFO-based measures belong there is a
+  separate question and is not decided here.
+* **Nothing was re-measured on the service**, because the change had not deployed when the
+  before/after ran; the figures above are from the live data path in this worktree.
+
+# Session 62 — 2026-09-30 — price routing, a resumable track refresh, and the fleet door
+
+**ZERO TRIALS** — no hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `by_domain`
+re-read at the start and unchanged after: **equity 248, options 310, unified 0, infra 20**,
+0 malformed. **`.github/` untouched** — the two lines Don needs are written out below, not
+committed. **19 new tests** (15 routing, 4 added while repointing the vendor-label suite,
+which now runs 26, and 3 on the fleet door); **29 of 29 mutations caught** — 14 on the routing
+change, 9 on the narrowing below and 6 on the door — every one with sources restored
+byte-for-byte. **Full gate: 202 suites, 0 failures**, re-run AFTER merging `origin/main`.
+
+## THE LANDING, AND THE TWO ALARMS
+
+`879cda6` reached main as `a071d88`; `git merge-base --is-ancestor 879cda6 origin/main` passes.
+Land run #560 had failed on *"main moved with code on every attempt"* — other lanes and Don's
+own `auto-scan.yml` edit landing inside its 20-minute gate — not a test failure.
+
+**BOTH ALARMS IN THAT RUN ARE TEST FIXTURES, NOT A REAL ONE.** `hwbook 3 -> 1` is
+`tests/test_fleet_highwater.py:42`'s `BOOK = "hwbook"`, created in a `tempfile.mkdtemp` and torn
+down; the suite deliberately truncates a stream and asserts the guard fires. `no book passed the
+commit check; refusing to write an empty manifest` comes from `tests/test_fleet_manifest.py` /
+`test_audit5_remediation.py`. Each message appears **exactly once** when its suite runs, and
+every one of those suites **passes** (25, then 49). The guards are working; nothing on the
+service lost rows.
+
+## THE MEASUREMENT THAT CAME FIRST
+
+**One ratio explains two of the three symptoms.** On the same machine on the same day:
+
+| | measured |
+|---|---|
+| `yf.Ticker(t).history(period=…, timeout=8)` for MSFT | **0.4 s** |
+| one Stooq request (local) | **30.1 s** — `ConnectTimeout` |
+| `get_metrics` for one cold name, Stooq primary | **94 s** (the price leg *is* 100% of it) |
+| the same, with Stooq failing fast | **10.65 s/name/worker** |
+| 48 names via the new batch fetcher | **6.2 s — 7.69 names/s** |
+
+**AND THE FAILURE MODE MATTERS MORE THAN THE VENDOR.** Locally Stooq connect-times-out; on a
+GitHub runner the identical request returns **HTTP 404 in milliseconds** (82 such lines in the
+2026-09-30 hot-scan log, matching `served_by_free_fallback: 82` one-for-one). Same code, same
+day, 94 s vs 0.4 s per name. Nothing measured off the service settles what the service pays —
+which is why `GET /admin/price-vendors` now exists (read-only, bounded, reports per-name
+seconds, the vendor that served, and the unpriced list).
+
+**ON THE SERVICE.** `GET /admin/track-row` — the read-only pricing door — returned **HTTP 502
+after 163.8 s**: Render's proxy gives up before the book finishes. That is the same wall the
+fleet cron hits at `--max-time 120`, so it is not a fleet-specific problem. (A caveat worth
+recording: everything 502'd in <1 s immediately afterwards, and the cause was benign — `a071d88`
+had just landed and **Render auto-deploys main**. The service recovered on its own.)
+
+## (a) ROUTING — yfinance first, Stooq the fallback
+
+`get_history_df` is now **yfinance → Stooq → FMP (gated)**. `_stooq_history` is extracted and
+keeps its retry/backoff, which is now cheap because it rarely runs.
+
+* **An empty yfinance frame means "not found here, try Stooq", never "no price".** Returning
+  `None` from the primary means *try the next vendor*; only `get_history_df` decides a name is
+  unpriced, and only after every vendor declines.
+* **No retry loop on a clear failure**, and an 8-second timeout, so a broken Yahoo reaches Stooq
+  quickly instead of paying three attempts per name.
+* **FAIL CLOSED (i):** exhaustion returns `None`, increments `census["unpriced"]` and logs
+  loudly. Never a stale frame, never a last-known close. The freshness rule applies to *both*
+  vendors, as before.
+* **429 (iv):** classified as **throttled**, not a vendor failure — "unpriced this run, retry
+  next run". A 404 is deliberately *not* laundered into a throttle, or a dead vendor would look
+  like a busy one forever.
+* **`get_history_batch`** does one `yf.download` per 24-name chunk with a 0.5 s pause; a
+  throttled chunk leaves its names to the per-name pass rather than aborting the batch, and
+  anything the batch cannot serve goes down the full single-name chain so every guarantee above
+  still holds for it.
+* **FMP stays gated (iii)** — key *and* `PRICES_ALLOW_FMP=1`, unchanged.
+
+**Per-run counts** are on `source_census()` (`by_vendor`, `primary_failures`, `throttled`,
+`stale_rejections`, `unpriced`) and on `/admin/price-vendors`.
+
+## A DEFECT I INTRODUCED, FOUND BY THE SUITE I BROKE
+
+**Reversing the order quietly dropped a rule the old primary had.** The Stooq path has always
+caught a *named tuple* of vendor errors (`_primary_errors()`); my first cut of `_yf_history`
+caught **`except Exception`**. On the primary — the path every name takes — that turns one
+`AttributeError` or `ImportError` into an entire book with no prices and a census that blames
+Yahoo. **Failing closed makes it worse, not better: the symptom is a quiet, plausible run.**
+
+It surfaced sideways. `tests/test_prices_vendor_label.py` went red with 14 failures, and the
+first cause was **the test double, not the code**: the fake yfinance stub declared
+`history(self, period=None, auto_adjust=None)` while the real call now passes `timeout=`. The
+stub raised `TypeError`, the broad `except` swallowed it, and **the whole suite silently ran
+against "yfinance is down"**. A stand-in stricter than the thing it stands in for tests the
+stub. Fixed with `**kw`; that immediately exposed the real defect underneath.
+
+`_yf_errors()` now names what the vendor may legitimately raise. **`TypeError` is deliberately
+absent**: the call passes `timeout=`, so a yfinance release that changes that signature raises
+`TypeError`, and catching it would unprice every name on upgrade day — invisibly, because it
+fails closed. It propagates, and a test pins that it does.
+
+**THE NARROWING THEN EXPOSED THREE MORE THINGS, AND THE FIRST IS THE SAME LESSON INVERTED.**
+
+1. **A throttle test raised `RuntimeError`, which yfinance never raises.** Harmless under a
+   broad catch; once the catch named real classes, it asserted the classifier worked on a type
+   that cannot occur. Both realistic shapes now run — `YFRateLimitError` and
+   `requests.HTTPError`. The stub-versus-reality problem in both directions in one change:
+   earlier the double was *stricter* than the vendor, here *looser*.
+2. **`YFRateLimitError()` takes no message argument** — it carries its own. Constructing it with
+   one is a `TypeError`, which is how it surfaced. That matters beyond the fixture, because
+   `_is_throttle` was matching on **message text alone**: `yfratelimiterror` contains neither
+   "429" nor "rate limit" (no space), so the rule was working purely off the string this release
+   happens to carry, and a vendor reword would have silently reclassified every throttle as a
+   vendor failure — wrong bucket, wrong logged cause, nothing raising. It now checks the **type
+   first**, pinned with a reworded subclass.
+3. **`YFNotImplementedError` does not derive from `YFException`** — its MRO is
+   `NotImplementedError` → `RuntimeError` — so naming only the base would have let it escape the
+   primary's catch and surface as a **500 on a request that should simply have fallen through to
+   Stooq**. Named explicitly rather than widening to `RuntimeError`, which would put programming
+   errors back in the vendor bucket. **Found by mutation, not by reading**: dropping it from the
+   tuple left every test green, because widening a catch is invisible to a suite that never
+   exercises the widened case. Now pinned.
+
+## THE VENDOR-LABEL SUITE, REPOINTED NOT RELAXED
+
+That suite was written end-to-end around "Stooq is the primary" — patching `requests.get` *was*
+how you said "the primary failed". With the order reversed that patch expresses the opposite,
+and against a working primary it is never reached at all. Repointed rather than loosened: a
+`_YFDown` helper makes "the primary declines" expressible, and every expectation moved to the
+vendor now doing the job. **The properties are unchanged** — whichever vendor serves, the frame
+says which; exhaustion is counted and loud; code errors propagate. Four tests were added while
+repointing (both vendors failing is `unpriced`; exhaustion is loud and says UNPRICED; a fallback
+that serves is labelled; a changed vendor signature propagates). **26 pass, 6 subtests.**
+
+One repointed guard was nearly vacuous and is worth naming: the `ImportError` test patches
+`_yf_errors`, but that tuple is built **lazily**, so it is evaluated only when the primary
+actually raises. Without a raising primary it passes against a healthy module and proves
+nothing. It now injects a failure first.
+
+## (ii) THE BASIS EVIDENCE — CASE A, SO THE FLIP IS EVERYWHERE
+
+The recorded rows carry no vendor column, so I re-derived the **benchmark leg of all 24 recorded
+rows** on both bases against inception 2026-07-30:
+
+| match | rows |
+|---|---:|
+| **adjusted only** | **6** |
+| **plain only** | **0** |
+| both (indistinguishable) | 17 |
+| neither | 1 |
+
+The 17 predate SPY's ex-dividend, where the two bases are **identical** — they carry no
+information either way, and saying so matters more than the headline count. The 6 that *can*
+discriminate (bases diverge ~0.256 pp) match **adjusted exactly**, `|d| = 0.0000`. The single
+"neither" is **2026-07-31**, the day-1 row `CLAUDE.md` already records as intraday-marked: my
+re-derivation misses by **0.0297 pp**, reproducing the figure that bullet names.
+
+**Zero rows match the plain basis, so this is the brief's case A: flip the order everywhere.**
+It also removes a latent hazard rather than only buying speed — Stooq serves an **as-traded**
+close and yfinance an **adjusted** one, so Stooq-first meant the recorded basis was whichever
+vendor happened to answer. yfinance-first makes the recorded basis the default. Corroborated
+independently by `prices.py`'s own note: *"twenty of the service's twenty-two recorded rows
+reproduce to under 0.0005 pp from the yfinance-equivalent close."*
+
+## (b) THE TRACK REFRESH — bounded, batched, resumable
+
+`track.refresh_step` + `refresh_progress`. **Three properties had to change together**, and the
+old code failed all three: the 12-hour gate and the status lived in **module globals** (so a
+deploy reset them), the work was **unbounded** (all 410 picks in one pass), and the fetch was
+**per name**. Now the cursor lives in the store, each call does at most `REFRESH_BUDGET = 60`
+picks, and prices come from the batch fetcher. `_score_pick` is reused — no second scoring path.
+
+**The cursor advances only over work actually done.** No benchmark → the step returns with the
+cursor **unmoved** so the slice is retried; recording progress through names that were never
+scored is how a record silently skips them. A name no vendor could price is counted **unpriced**
+and the cursor *does* move past it — it was attempted, and the next cycle asks again.
+
+`/api/track`'s `refresh` now reads from the **store**, so it is no longer `null` on every
+response from a freshly deployed process — which is exactly when a reader most wants to know the
+refresh is behind. It reports `remaining` as well as `complete`.
+
+At the measured 7.69 names/s, 410 picks is **~53 s** of work spread over a few bounded steps.
+
+## (c) THE FLEET DOOR — and a hypothesis I had to refute
+
+**Run #38 is a different cause and is now named:** plain **HTTP 502 at 16 s**, Render's error
+page — the service was restarting. The door never ran.
+
+**Runs #39/#40:** `curl: (28) Operation timed out after 120000 milliseconds with **0 bytes
+received***. Nothing at all was sent in 120 s.
+
+**MY OWN LEADING HYPOTHESIS WAS WRONG AND IS PINNED AS WRONG.** The brief's common suspect —
+`get_history_df` on the request thread — is the cause for the writer and the refresh and is
+**not** the cause here: the fleet entry-rule path reaches no price fetcher at all (asserted in
+`test_the_fleet_path_does_not_price_names`, so the refuted hypothesis cannot be quietly
+re-adopted). The cause is **`run_day1`**, which runs the synthetic harness *and places a real
+sandbox fill*, for eighteen books, on every write cycle where anything is uncertified.
+
+**THE SHAPE LOOKED LIKE A LIVELOCK.** Certification is what clears `SELFCHECK_ABSENT`; if
+certifying cannot finish inside the caller's timeout then nothing is ever certified, so the next
+cycle attempts it again. Certification is now **opt-in** (`?run=1&selfcheck=1`) and the cron
+reports `selfcheck_pending` with the exact call. **No gate is weakened**: an uncertified book is
+still refused every fill.
+
+### AND THAT FIX IS REFUTED. I TRIGGERED A RUN AND IT STILL FAILED THE SAME WAY.
+
+**Run 36700697816, `workflow_dispatch` on the deployed change, returned `fleet-cycle returned
+000` at the same 120 s.** So gating `run_day1` was necessary and **not sufficient**, and the
+livelock reading above is at best incomplete. It is left in place because the gating is right on
+its own terms — a real sandbox fill for eighteen books on every cycle is not something a daily
+cron should do — but it is **not the cause**, and reporting it as the cause would have been the
+third wrong answer in a row.
+
+**WHY I STOPPED GUESSING, WITH THE MEASUREMENTS.** Timed in a worktree, the *entire* door is
+**6.6 s**, and every step I can reach locally is instant: `s3i3.register` 0.00, `register_all`
+0.00, `fleet_history.coverage` 0.00, `iv60_from_store` 0.03, `fleet_gates.coverage` 0.00,
+`image_audit` 0.00, 21 × `read_records` 0.01. `fleet.cycle` is the whole 6.6 s and it is 21
+books × ~0.36 s of `selfcheck_state`. Two candidates were checked and **cleared**:
+`send_discord` carries `timeout=10`, and a quiet cycle sends nothing at all; and every book is
+`SELFCHECK_ABSENT`, so `cycle` returns at the gate and **never calls an entry rule** — which
+also means my own `test_the_fleet_path_does_not_price_names` was passing for a weaker reason
+than I claimed, since the rules are unreachable rather than merely price-free.
+
+**The cost is therefore a property of the SERVICE's store, which an empty local store cannot
+show.** An unauthenticated `GET /admin/fleet-cycle` returns **401 in 0.165 s**, so the route and
+the service are healthy and the expense is entirely behind the token — and the only process
+holding the token is the Action.
+
+### SO THE DOOR NOW TIMES ITSELF, AND ALWAYS RETURNS A BODY
+
+`curl: (28) … 0 bytes received` is the reason three attempts produced no measurement: Flask
+buffers the whole JSON, so one slow step destroys the timings of every step that was fine.
+
+* **`timings_ms` is unconditional** — a diagnostic that has to be asked for is not there on the
+  day it is needed. `elapsed_ms` travels with it.
+* **A budget (default 75 s, under the caller's 120 s, clamped) is checked BETWEEN EVERY
+  STEP.** When it blows, the door returns **200 with `partial: true`, `deferred: [...]` and
+  `partial_reason`** instead of nothing.
+* **Every step the door did not reach is NAMED**, recorders included.
+
+**AND THE FIRST CUT OF THAT INSTRUMENTATION WAS ITSELF REFUTED, ON THE SERVICE, THE SAME WAY.**
+I checked the budget **once**, after the recorders, and asserted "a recorder is never
+deferrable". **Run 36710874853, on the deployed instrumentation, returned `000` with NO BODY
+again** — because a deadline tested at one point bounds nothing upstream of it, and the cost
+sits upstream. So the exercise produced no measurement for a second time, for a reason I had
+built in.
+
+**That failure is itself a narrowing, and it is the only new fact about the cause:** the slow
+step is in the *first* half — `register_entry_rules`, `selfcheck_state_scan`, `cycle`,
+`history_coverage`, `invalidate_fabricated_span`, `iv60_from_store` or `record_all` — and not
+in the reporting tail.
+
+**THE INVARIANT MOVED AND THE MOVE IS STATED RATHER THAN QUIETLY MADE.** Recorders are now
+deferrable. That is not a weakening: today the request dies and they do not run *either*, so a
+**named** deferral is strictly more than the caller gets now. The rule that survives is the one
+that actually protects the series — *a deferral is never silent* — and `_ALL_STEPS` must list
+the recorders so they can be named, asserted by test.
+
+**A BEHAVIOURAL TEST CANNOT SEE THE SINGLE-CHECK DEFECT, WHICH IS WHY THERE IS A STRUCTURAL
+ONE** — and it took three forms to get right, each wrong in a different and instructive way.
+`budget=0` bails at the *first* check, so deleting any later one leaves every behavioural
+assertion green (measured: **MISSED**). A **count** (`guards >= steps - 1`) carries exactly one
+guard of slack, so removing one still satisfied it (**MISSED** again). *"The very next statement
+is a guard"* **fired against a correct tree**, because a guard may legitimately sit a few
+statements later or outside the enclosing block — and its first cut also mis-identified compound
+statements as steps, since `ast.walk` descends into nested blocks. What holds is the property
+itself: **in source order, a deadline check runs between every two consecutive timed steps**, so
+no step can run unbounded.
+
+**AND ONE MUTATION RUN IN THIS SEQUENCE WAS VACUOUS — REPORTED BECAUSE I ALMOST BANKED IT.** A
+`7 of 7 caught` came back while the suite was **already red** (my own new structural guard was
+failing against the tree it was written for). A mutation harness that only asks *"does the suite
+fail with this applied?"* reads every case as CAUGHT when the suite fails anyway. Every mutation
+figure quoted here was taken from a run whose suite was **confirmed green first**.
+
+**A SECOND DEFECT OF MINE, AND IT WOULD HAVE MADE ANOTHER SUITE FLAKY.** The new door tests
+build the SaaS app and call the live door, and I wrote them without
+`tests/state_isolation.py` — so they read and registered against the repository's own
+`data/fleet`. The gate runs suites in parallel, and `tests/test_fleet_manifest.py` (a 50-second
+suite that manipulates fleet state) came back red in the same run and **passed twice standalone**.
+Isolated, imported above every `valuation` import because the redirection has to be in place
+before the modules bind their paths. **A test that makes a different suite fail is worse than no
+test**, and the symptom points at the innocent suite.
+
+**AND THE REPO'S OWN SWEEP CAUGHT A DEFECT IN THE BOUND ITSELF.**
+`test_no_raw_numeric_parse_of_a_request_param_survives_anywhere` went red on my
+`float(request.args.get("budget"))`: unclamped, `?budget=1e9` switches the bound off entirely —
+the exact failure the bound exists to prevent, requested politely. My first repair hand-rolled a
+clamp, which would have been a second definition of a rule `valuation/web/query_params.clamp_float`
+already owns, **including the NaN ordering that makes a bare `min(max(...))` wrong** (that
+module's own test spells it out). It delegates.
+
+**WHAT THIS DOES NOT CLAIM.** It does not fix the slow step, because the slow step is still
+unidentified — two attempts at a fix have now been refuted on the service, and the second was
+refuted by a defect in my own instrumentation. It converts an unobservable failure into a
+self-reporting one, so the **next run names the culprit** rather than a fifth person guessing.
+4 tests, 7 of 7 mutations caught.
+
+## FOR DON — `.github/` LINES, NOT COMMITTED
+
+**The schedule advice is *not* what the brief expected, and the reason is measured.** A cron
+offset cannot order two workflows on GitHub's free scheduler: observed firing delays are **3–5
+hours** and differ per workflow and per day. `track-row.yml`'s 22:12 cron fired at **01:17,
+02:19 and 04:51**; `fleet-cycle.yml`'s 22:19 fired at **01:17:51** — so on 2026-09-30 the two
+fired **25 seconds apart** despite a nominal 7-minute gap. Moving the offset would not fix it.
+So: **no schedule change is recommended.** Instead, one timeout line, because the door is fast
+now but the sandbox fill on the certification path is not:
+
+```yaml
+# .github/workflows/fleet-cycle.yml — line 51
+                   --max-time 280 \
+```
+
+And one genuine bug, unrelated to this work but on the same file set — `track-row.yml` allows
+3 × 280 s + 2 × 20 s sleeps = **880 s** under `timeout-minutes: 10` (600 s), which is why runs
+#64, #65, #66 and #68 read **cancelled**:
+
+```yaml
+# .github/workflows/track-row.yml — line 47
+    timeout-minutes: 20
+```
+
+Certification is a **one-off** call once, by hand or a `workflow_dispatch`:
+`POST /admin/fleet-cycle?run=1&selfcheck=1`.
+
+## TONIGHT'S WRITER RUN — NOT YET CONFIRMABLE, AND WHY
+
+**The 2026-09-30 row has not been written and could not have been, and the run that *can* be
+confirmed wrote 2026-09-29 cleanly.** Re-read at the end of this session, the recorded series
+ends **2026-09-29 — valquo 4.3591, spy 3.2908, excess +1.0683 pp, 85 names priced**, which is in
+line with every row this month (`n_priced` 84–85 throughout, so nothing regressed). At 03:07 Z on
+09-30 the 09-30 session had not closed; the only row that window could write was 09-29, and it
+is there. The 09-30 row lands on the run that fires after the 09-30 close, which on the observed
+3–5 h scheduler delay is **early on 10-01 UTC**. Re-check with
+`python -m scripts.fetch_track --url <base> --print` and look for a `2026-09-30` row.
+
+**AND THE CONFIRMATION IS ABOUT THE OLD CODE, WHICH IS THE PART WORTH SAYING.** Nothing in this
+change had reached the service when that run fired, so the clean 09-29 row is evidence about the
+*previous* routing, not this one. The first writer run on yfinance-first is the first one after
+this lands and Render redeploys — **that** is the run to read for the routing change, and it has
+not happened yet. Saying "the writer is confirmed" off a pre-deploy run would be confirming the
+thing that was already working.
+
+**A side finding while checking:** the stored row carries `day_n: 42`, but
+`/admin/export-track` strips it — every exported row shows an empty `day_n`. The value exists
+server-side; the export drops it. Not fixed here.
+
+## NOT DONE
+
+* **No `.github/` edit** — the two lines above are Don's.
+* **No re-derivation of the book leg** on both bases; the benchmark leg was decisive (6–0) and
+  the book leg needs each date's weights. If it is wanted, it is a separate pass.
+* **No backfill** of the eleven missing Q4 days, and none attempted.
+* **`/admin/price-vendors` has not run on the service yet** — it ships in this change and can
+  only be exercised after deploy. The service-side per-vendor split is therefore still
+  *unmeasured*; what is measured is that the pricing door 502s at 163.8 s.
+* **The fleet door is NOT fixed.** The selfcheck gating did not resolve the timeout (run
+  36700697816), the slow step is unidentified, and what ships is instrumentation plus a bounded
+  response. Read `timings_ms` on the next scheduled run.
+* **No other caller of `except Exception` around a vendor was audited.** The narrowing above is
+  scoped to the path I moved; whether the same shape exists elsewhere is unmeasured.
+
+---
+
 # Session 61 — 2026-09-30 — valuation consistency + the AI failure (audit 6 follow-on)
 
 **AUDIT 6. ZERO TRIALS** — no hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row.

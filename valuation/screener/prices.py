@@ -67,6 +67,17 @@ from typing import Optional
 STOOQ_URL = "https://stooq.com/q/d/l/?s={sym}&i=d"
 _TIMEOUT = 15
 
+#: yfinance is the PRIMARY and is held to a short timeout on purpose. The point of the order
+#: below is that a broken Yahoo reaches Stooq QUICKLY; a generous timeout on the primary would
+#: reintroduce the very stall the flip exists to remove, one vendor along.
+_YF_TIMEOUT = 8
+
+#: Batch size and pause for `get_history_batch`. Small enough that one throttled chunk costs a
+#: chunk rather than a run, with a pause between chunks so a long book does not look like a
+#: scrape. Both overridable for tests.
+_BATCH = 24
+_BATCH_PAUSE_S = 0.5
+
 _LOG = logging.getLogger(__name__)
 
 #: the key the vendor label is written under, on `DataFrame.attrs`
@@ -116,6 +127,38 @@ def _primary_errors():
             pd.errors.EmptyDataError,
             UnicodeDecodeError,
             ValueError)                       # this module's own "empty" signal
+
+
+def _yf_errors():
+    """Exactly what the yfinance path can LEGITIMATELY raise, now that it is the primary.
+
+    **A BROAD `except Exception` HERE IS NOT A SMALL SIN.** The primary runs for every name, and
+    swallowing an `AttributeError` or an `ImportError` as "the vendor is down" turns one code
+    error into an entire book with no prices and a census that blames Yahoo. The old primary
+    path had `_primary_errors()` for exactly this reason; reversing the order without carrying
+    the rule across would have quietly dropped it.
+
+    `TypeError` is DELIBERATELY ABSENT. The call passes `timeout=`, so a yfinance release that
+    changes that signature raises TypeError -- and catching it would silently unprice every name
+    on the day of a library upgrade, which is the worst available failure. It propagates.
+    """
+    import pandas as pd
+    import requests
+    errs = [requests.RequestException,        # transport, timeout, HTTP status
+            pd.errors.ParserError, pd.errors.EmptyDataError,
+            UnicodeDecodeError,
+            ValueError]                       # includes this module's own signals
+    try:
+        from yfinance import exceptions as _yfe
+        # YFRateLimitError (the 429) and the missing-data classes derive from YFException.
+        # YFNotImplementedError does NOT -- it derives from NotImplementedError/RuntimeError --
+        # so listing only the base would let it propagate as a 500. Named explicitly rather than
+        # widened to RuntimeError, which would catch genuine programming errors again.
+        errs.append(_yfe.YFException)
+        errs.append(_yfe.YFNotImplementedError)
+    except Exception:                                                   # noqa: BLE001
+        pass                                   # older yfinance: the list above still covers it
+    return tuple(errs)
 
 
 def _label(df, ticker: str, src: str):
@@ -209,14 +252,52 @@ def reset_census() -> None:
     _CENSUS["primary_failures"] = 0
     _CENSUS["unlabelled"] = 0
     _CENSUS["stale_rejections"] = 0
+    _CENSUS["throttled"] = 0
+    _CENSUS["unpriced"] = 0
 
 
 def get_history_df(ticker: str, days: int = 400, as_of=None):
-    """Daily OHLCV DataFrame (oldest→newest) or None, LABELLED with the vendor that served it.
+    """Daily OHLCV DataFrame (oldest->newest) or None, LABELLED with the vendor that served it.
 
-    The label is on `df.attrs["valquo_src"]`; read it with `source_of(df)`. A fallback is
-    logged at WARNING with the primary's actual exception, so a run that switched vendors says
-    so in its output instead of only in its numbers.
+    **ORDER: yfinance FIRST, Stooq as the fallback, FMP third and gated.** This is a reversal,
+    and it was made on measurement rather than preference:
+
+    * **SPEED.** Stooq as primary costs every name a failing round trip before the working
+      vendor is reached, and its failure MODE decides how much: a 404 is milliseconds, a
+      connect timeout is `_TIMEOUT` x 3 attempts plus backoff. Measured 2026-09-30 --
+      `Ticker.history` returned MSFT in **0.4s** while one Stooq request took **30.1s** to time
+      out. That single ratio is the whole of the ~10-minute book price, the `/api/track` refresh
+      that never finished, and the fleet door that could not answer inside 120s.
+    * **BASIS.** The recorded track is ADJUSTED. Re-deriving the benchmark leg of all 24
+      recorded rows on both bases: of the 6 rows that can discriminate (after SPY's ex-dividend,
+      where the bases diverge ~0.256pp) **6 match adjusted exactly and 0 match plain**; the
+      other 17 predate the divergence and carry no information either way. Stooq serves an
+      AS-TRADED close and yfinance an adjusted one, so Stooq-first meant the recorded basis was
+      whichever vendor happened to answer. yfinance-first makes the recorded basis the default.
+
+    **AN EMPTY yfinance FRAME MEANS "NOT FOUND HERE", NOT "NO PRICE".** It falls through to
+    Stooq. Only the exhaustion of every vendor is a missing price, and that returns None so the
+    caller counts the name UNPRICED -- never a stale frame, never a last-known close.
+    """
+    out = _yf_history(ticker, days, as_of=as_of)
+    if out is not None:
+        return out
+    out = _stooq_history(ticker, days, as_of=as_of)
+    if out is not None:
+        return out
+    out = _fmp_history(ticker, days, as_of=as_of)
+    if out is None:
+        _CENSUS["unpriced"] = _CENSUS.get("unpriced", 0) + 1
+        _LOG.warning("prices: NO VENDOR could price %s for %s - counted UNPRICED",
+                     ticker, str(as_of)[:10] if as_of else "latest")
+    return out
+
+
+def _stooq_history(ticker: str, days: int = 400, as_of=None):
+    """The FALLBACK. Keeps its retry/backoff, which is now cheap because it rarely runs.
+
+    Returns None rather than raising: at this position a failure means "the next vendor", and
+    the caller decides what exhaustion means.
     """
     import time
 
@@ -231,9 +312,7 @@ def get_history_df(ticker: str, days: int = 400, as_of=None):
             df = pd.read_csv(io.StringIO(r.text))
             if df.empty or "Close" not in df.columns:
                 raise ValueError("stooq returned no usable Close column")
-            # FRESHNESS IS PART OF SUCCESS -- see `_stale`. Raised rather than returned, so it
-            # travels the SAME path as a 404: counted in the census, logged with a reason, and
-            # falls through to the next vendor. Returning it would be the original defect.
+            # FRESHNESS IS PART OF SUCCESS -- see `_stale`.
             if _stale(df, as_of):
                 raise _StaleFrame(
                     "stooq's newest row is %s, older than the requested %s"
@@ -241,69 +320,166 @@ def get_history_df(ticker: str, days: int = 400, as_of=None):
             return _label(df.tail(days).reset_index(drop=True), ticker, SRC_STOOQ)
         except _primary_errors() as e:
             last = e
-            # AUDIT 6 (2026-09-29): A STALE FRAME IS NOT A TRANSIENT BLIP. The retry/backoff
-            # exists for a dropped connection or an HTML refusal; a vendor file that is
-            # consistently one session behind comes back identical on every attempt, so
-            # retrying it three times with 1.2 s of sleep buys nothing -- and on the one
-            # night Stooq is stale for the whole book that is ~87 x (3 fetches + 1.2 s),
-            # which is longer than the service's 180 s request timeout. The writer would
-            # then fail on TIMEOUT instead of on staleness, and the workflow's three curl
-            # retries would re-price the book from scratch each time. Fall through to the
-            # next vendor at once; the census still counts it as a primary failure below.
+            # A STALE FRAME IS NOT A TRANSIENT BLIP: it comes back identical on every attempt,
+            # so retrying buys nothing and costs the sleeps.
             if isinstance(e, _StaleFrame):
                 _CENSUS["stale_rejections"] = _CENSUS.get("stale_rejections", 0) + 1
                 break
             if attempt < 2:
                 time.sleep(0.4 * (attempt + 1))
+    _LOG.warning("prices: stooq (fallback) failed for %s after %d attempt(s) (%s: %s)",
+                 ticker, attempt + 1, type(last).__name__, last)
+    return None
 
-    _CENSUS["primary_failures"] = _CENSUS.get("primary_failures", 0) + 1
-    _LOG.warning(
-        "prices: STOOQ FAILED for %s after %d attempt(s) (%s: %s) — falling back to yfinance, "
-        "whose Close is AUTO-ADJUSTED and is therefore a different quantity from an as-traded "
-        "close. The returned frame is labelled %r=%r.",
-        ticker, attempt + 1, type(last).__name__, last, SRC_ATTR, SRC_YFINANCE)
-    return _yf_history(ticker, days, as_of=as_of)
+
+def _is_throttle(e) -> bool:
+    """HTTP 429 -- 'unpriced this run, retry next run', never an error that aborts a batch.
+
+    The TYPE check comes first and is not decoration. yfinance's own rate-limit class is
+    `YFRateLimitError`, and matching it only by message means a vendor rewording its string
+    silently reclassifies every throttle as a vendor failure -- which counts the name against
+    the wrong bucket and logs the wrong cause, with nothing raising. The class name alone does
+    not save it either: `yfratelimiterror` contains neither "429" nor "rate limit" (no space),
+    so the text rule matches today purely via the message this release happens to carry.
+    """
+    try:
+        from yfinance.exceptions import YFRateLimitError
+        if isinstance(e, YFRateLimitError):
+            return True
+    except Exception:                                                   # noqa: BLE001
+        pass                                    # older yfinance: the text rule below still runs
+    txt = ("%s %s" % (type(e).__name__, e)).lower()
+    return "429" in txt or "too many requests" in txt or "rate limit" in txt
+
+
+def get_history_batch(tickers, days: int = 400, as_of=None, chunk: int = None,
+                      pause: float = None) -> dict:
+    """{ticker: frame-or-None} for many names, batched on the primary with a small pause.
+
+    One `yf.download` per chunk instead of one request per name, because the per-name path is
+    what made a 410-pick refresh unfinishable. A chunk that throttles does NOT abort the batch:
+    its names are left for the per-name pass, and if that throttles too they come back None and
+    the caller counts them unpriced THIS RUN -- the next run retries them.
+
+    Names the batch could not serve fall through to `get_history_df`, so every guarantee of the
+    single-name path (Stooq fallback, freshness, fail-closed) still holds for them.
+    """
+    import time
+
+    import pandas as pd
+
+    ts = [str(t).upper() for t in tickers if t]
+    if not ts:
+        return {}
+    chunk = int(chunk or _BATCH)
+    pause = _BATCH_PAUSE_S if pause is None else pause
+    period = _yf_period(days)
+    out: dict = {}
+
+    for i in range(0, len(ts), chunk):
+        part = ts[i:i + chunk]
+        try:
+            import yfinance as yf
+            df = yf.download(part, period=period, auto_adjust=True, progress=False,
+                             threads=False, timeout=_YF_TIMEOUT, group_by="ticker")
+        except Exception as e:                                          # noqa: BLE001
+            if _is_throttle(e):
+                _CENSUS["throttled"] = _CENSUS.get("throttled", 0) + len(part)
+                _LOG.warning("prices: batch THROTTLED for %d name(s) - unpriced this run, "
+                             "retrying next run", len(part))
+            else:
+                _LOG.warning("prices: batch failed (%s: %s) - falling back per name",
+                             type(e).__name__, e)
+            df = None
+
+        for t in part:
+            frame = None
+            if df is not None:
+                try:
+                    sub = df[t] if hasattr(df, "columns") and t in getattr(
+                        df.columns, "levels", [[]])[0] else (df if len(part) == 1 else None)
+                    if sub is not None and not sub.empty and "Close" in sub.columns:
+                        f = pd.DataFrame({"Date": sub.index.astype(str),
+                                          "Open": sub["Open"].values, "High": sub["High"].values,
+                                          "Low": sub["Low"].values, "Close": sub["Close"].values,
+                                          "Volume": sub["Volume"].values}).dropna(subset=["Close"])
+                        if not f.empty and not _stale(f, as_of):
+                            frame = _label(f.tail(days).reset_index(drop=True), t, SRC_YFINANCE)
+                except Exception:                                       # noqa: BLE001
+                    frame = None
+            out[t] = frame
+        if pause and i + chunk < len(ts):
+            time.sleep(pause)
+
+    # Anything the batch could not serve goes down the full single-name chain, so the fallback
+    # and the fail-closed rule apply to it exactly as they would have without batching.
+    for t in ts:
+        if out.get(t) is None:
+            out[t] = get_history_df(t, days=days, as_of=as_of)
+    return out
+
+
+def _yf_period(days: int) -> str:
+    # "max" ABOVE TEN YEARS, and it is additive: the largest `days` any shipped caller passes
+    # is 2700, which still maps to "10y", so every existing consumer is bit-identical.
+    return ("max" if days > 3650 else "10y" if days > 1825 else "5y" if days > 730
+            else "2y" if days > 365 else "1y" if days > 180 else "6mo" if days > 60
+            else "3mo")
 
 
 def _yf_history(ticker: str, days: int, as_of=None):
+    """THE PRIMARY. Fast, adjusted, and it fails fast so the fallback is reached quickly.
+
+    **RETURNING None HERE MEANS "TRY THE NEXT VENDOR", NOT "NO PRICE".** That distinction is the
+    whole contract with `get_history_df`: an empty frame from Yahoo is a name Yahoo does not
+    carry, not a name without a price, and treating the two alike is how a working Stooq would
+    never be consulted. Only `get_history_df` decides a name is unpriced, and only after every
+    vendor has declined.
+
+    **NO RETRY LOOP ON A CLEAR FAILURE.** The old primary spent three attempts and two sleeps
+    before conceding. A 404, an empty frame or a refusal is deterministic -- retrying it buys
+    nothing and costs the very seconds this reordering exists to save, and when Yahoo is broken
+    for everyone that cost is paid by every name in the book.
+    """
     import pandas as pd
     import yfinance as yf
 
-    # "max" ABOVE TEN YEARS, and it is additive: the largest `days` any shipped caller passes
-    # is 2700, which still maps to "10y", so every existing consumer is bit-identical. It
-    # exists because a benchmark measured since an ETF's own inception needs more than ten
-    # years -- SPMO listed 2015-10, and a 10y cap silently starts the comparison a year late
-    # while still returning a full-looking frame, which is the worst kind of wrong.
-    period = ("max" if days > 3650 else "10y" if days > 1825 else "5y" if days > 730
-              else "2y" if days > 365 else "1y" if days > 180 else "6mo" if days > 60
-              else "3mo")
+    period = _yf_period(days)
     try:
         # auto_adjust is passed EXPLICITLY. yfinance defaults it to True today; inheriting a
-        # vendor library's default is how a convention silently changes between releases.
-        h = yf.Ticker(ticker).history(period=period, auto_adjust=True)
-    except Exception as e:                                              # noqa: BLE001
-        # The LAST resort genuinely has no successor, so this one stays broad -- but it is
-        # loud, and it returns None rather than a frame that would read as priced.
-        _LOG.warning("prices: yfinance ALSO failed for %s (%s: %s) — no price data",
+        # vendor library's default is how a convention silently changes between releases -- and
+        # this one now decides the basis of the recorded series, so it is named here.
+        h = yf.Ticker(ticker).history(period=period, auto_adjust=True, timeout=_YF_TIMEOUT)
+    except _yf_errors() as e:
+        if _is_throttle(e):
+            # 429 is NOT a vendor failure and must not be counted as one: the name is unpriced
+            # THIS RUN and the next run retries it. Counting it as a failure would make a
+            # throttled afternoon look like a dead vendor.
+            _CENSUS["throttled"] = _CENSUS.get("throttled", 0) + 1
+            _LOG.warning("prices: yfinance THROTTLED for %s - unpriced this run, retrying "
+                         "next run", ticker)
+            return None
+        _CENSUS["primary_failures"] = _CENSUS.get("primary_failures", 0) + 1
+        _LOG.warning("prices: yfinance (primary) failed for %s (%s: %s) - trying stooq",
                      ticker, type(e).__name__, e)
         return None
     if h is None or h.empty:
-        _LOG.warning("prices: yfinance returned no rows for %s — no price data", ticker)
+        _CENSUS["primary_failures"] = _CENSUS.get("primary_failures", 0) + 1
+        _LOG.warning("prices: yfinance returned no rows for %s - NOT FOUND HERE, trying stooq",
+                     ticker)
         return None
     h = h.tail(days)
     out = pd.DataFrame({"Date": h.index.astype(str), "Open": h["Open"].values,
                         "High": h["High"].values, "Low": h["Low"].values,
                         "Close": h["Close"].values, "Volume": h["Volume"].values})
     out = _label(out, ticker, SRC_YFINANCE)
-    # THE SAME FRESHNESS RULE AS STOOQ. Applied to the fallback too, because a stale yfinance
-    # frame is exactly as unusable as a stale Stooq one -- and if the fallback could return
-    # stale data, moving the check onto the primary alone would just relocate the defect.
+    # THE SAME FRESHNESS RULE AS THE FALLBACK. A stale primary frame is exactly as unusable as
+    # a stale fallback one, and if only one side were checked the defect would just move.
     if _stale(out, as_of):
         _CENSUS["stale_rejections"] = _CENSUS.get("stale_rejections", 0) + 1
-        _LOG.warning("prices: yfinance's newest row for %s is %s, older than the requested "
-                     "%s — no usable price for that date", ticker, _last_date(out),
-                     str(as_of)[:10])
-        return _fmp_history(ticker, days, as_of=as_of)
+        _LOG.warning("prices: yfinance's newest row for %s is %s, older than the requested %s "
+                     "- trying stooq", ticker, _last_date(out), str(as_of)[:10])
+        return None
     return out
 
 
