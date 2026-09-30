@@ -48,7 +48,7 @@ jobs:
           fi
           BODY=$(mktemp)
           CODE=$(curl -sS -o "$BODY" -w '%{http_code}' -X POST \
-                   --max-time 120 \
+                   --max-time 280 \
                    -H "X-Admin-Token: ${ADMIN_TOKEN}" \
                    "${SITE_BASE_URL%/}/admin/fleet-cycle?run=1") || CODE="000"
           echo "HTTP ${CODE}"
