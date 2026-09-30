@@ -69,6 +69,69 @@ pass nor fail informatively.
 * **D9 was not re-run** — it is unreachable until an export exists, and it is listed as a
   precondition rather than as something done.
 
+# Session 65 — 2026-09-30 — REPORTED, NOT FIXED: the live service loses the sector, so an insurer is valued as hypergrowth
+
+**ZERO TRIALS. NOTHING CHANGED** — this is a measurement and a report. Found while confirming
+session 63 end-to-end on the deployed service, which is the only reason it surfaced at all.
+
+## THE MEASUREMENT
+
+`POST /api/value {"ticker":"KNSL"}` on valquo.co, **three consecutive requests, identical**:
+
+| | local (this worktree) | **live service** |
+|---|---|---|
+| `company.sector` | `Financial Services` | **`""`** |
+| `classification.regime` | `financial` | **`hypergrowth`** |
+| fair value | $291 (P/B-ROE) | **$627**, blended from a **$907 unlevered DCF** |
+| score | **59 Hold** | **88 Strong Buy** |
+
+**The same code, on the same day, against a $322 price.** So the cause is not the scorer — it is
+that the service cannot read the name's sector.
+
+## THE CAUSE, AND IT IS A FAIL-OPEN INTO A REGIME
+
+`valuation/data/yahoo.py:183` is `cd.sector = info.get("sector") or ""`, and eleven lines above,
+a failing `t.info` is caught, noted, and left as `{}`. `classify` then tests
+`sector in FINANCIAL_SECTORS or any(hint in industry)`; an empty sector matches neither, so the
+name **falls through to the growth branch** rather than being refused.
+
+**The service says so — and the classification does not.** `quality_notes` carries *"Yahoo
+`info` unavailable; used fast_info + statements only."* while `classification.reasons` reads
+*"High revenue growth (~26%): modeled with a long runway and margin convergence to maturity."*
+**A reader of the classification is given a confident, coherent reason and nothing saying the
+industry could not be determined.** The disclosure exists in a different object from the
+decision it should qualify.
+
+**This is the exact model `classify.py` refuses for a financial** — its own comment is *"Bank/
+insurer/financial: unlevered FCF DCF is unreliable; lean on multiples and dividend/earnings power
+instead."* The refusal is intact; what fails is reaching it.
+
+## WHAT IT MEANS FOR SESSION 63
+
+**Session 63's change is correct and, for KNSL on the service today, inert** — everything it does
+is gated on `regime == "financial"`, and that gate never fires when the sector is empty. The
+before/after census in session 63 was measured **locally**, where the sector resolves, so those
+23 names and their 12 recommendation changes stand as measured; what is not established is how
+many of them the *service* currently regimes correctly.
+
+**Stating it the other way, because it is the sharper form: a name whose sector the service
+cannot read is not merely mis-scored on two sub-scores — it is valued by the wrong model.** That
+is a larger defect than the one session 63 fixed, and it was invisible from a local run.
+
+## NOT FIXED, AND WHY
+
+The repair is a real decision, not a typo. Refusing or abstaining when the sector is unknown
+would change classifications across every name the profile call fails for, and "fail closed"
+here means either withholding the valuation or carrying an explicit UNKNOWN regime — both are
+product changes with their own blast radius, and one of them is arguably a **vintage** question
+if it reaches the scoring path. It also may be an entitlement or throttling state on the service
+rather than a code fault (a datacenter IP against Yahoo's `info` endpoint is the standing
+suspect, and the audit brief already records FMP's company-screener returning **402**).
+
+**So it is reported with its measurement rather than patched at the end of a session.** The one
+thing that should not happen is for it to be re-derived from scratch next time somebody notices
+an insurer with a $907 DCF.
+
 # Session 63 — 2026-09-30 — the two sub-scores that still used industrial measures
 
 **ZERO TRIALS** — no hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `by_domain`
