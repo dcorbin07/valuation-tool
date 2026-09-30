@@ -18248,3 +18248,91 @@ than escape it. Same fix here.
 `valuation/studies/insider_routine.py`; `tests/test_mb20_insider_routine.py`;
 `data/free_analysis/MB20_CENSUS.json`, `MB20_BITE.json`, `MB20_COSTUME.json`, `MB20_KILLS.json`,
 `MB20_ARM.json`, `MB20_MDE.json`, `MB20_DIAG.json`.
+
+---
+
+# MC9 (AUDIT 6) — THE SEP $ADV / OHLC INSTRUMENT
+
+**2026-09-29. ZERO TRIALS** — equity `N` stays **248** (hurdle **3.3206712412296953**), options
+**310** (**3.3872030637324335**), infra **20**. No hypothesis, no bar, no verdict against a
+threshold, and **no arm ran in this pass** (`MB15` ordering, enforced by AST test). **ADOPTS
+NOTHING**: `prefilter_adv_wired` stays `False`, `MIN_AVG_DOLLAR_VOLUME` is not wired, and **no
+tracked file under `valuation/` was modified** — the OHLCV lands BESIDE the shipped price files,
+so default panel payloads are bit-identical (`C3`).
+
+Full detail in **`B13_SEP_INSTRUMENT_RECORD.md`**. Committed threshold: none — this is an
+instrument, and the brief commits it to zero trials.
+
+## The record correction, which is the finding
+
+`B13`'s ledger row names its re-open condition as *"SEP volume reaches the loader"* — i.e. SEP
+volume EXISTS and is unplumbed. `HANDOFF_free_analysis.md:548-551` (`P1`) says *"**SEP is not on
+disk in any form**"* and on that basis filled **45.3% of capacity positions** with a market-cap
+proxy. **`B13` is true and `P1` is false, and `P1` was already false when it was written**:
+`sep.csv` is **3,223,156,161 bytes** dated **2026-08-02 17:14** and `P1` landed **2026-08-04**.
+
+**The mechanism is exact.** `data/bulk/` holds precisely `actions.csv`, `daily.csv`,
+`events.csv`, `sf3.csv` — the four `P1` enumerated — and the freeze holds those **plus**
+`sep.csv`, `sf1`, `sf2`, `sf3a`. **`P1` enumerated ONE directory correctly and generalised to
+"in any form."**
+
+## What it measures
+
+| | SEP | CRSP (`B13`) | bars (`MA25`) |
+|---|---|---|---|
+| panel cells with a PIT ADV | **113,583 / 113,945 = 99.68%** | 90,025 = 79.01% | — |
+| universe names reached | **2,531 = 100%** | 2,271 = 89.7% | 502 = 19.8% |
+| dates with >= 20 covered | **69 of 69** | 64 of 69 | — |
+
+Per-date min **0.9723** / median **0.9981** / max **1.0000**; halves at 2017-01-19 read
+**0.9983** early and **0.9958** late. **All five post-CRSP dates are covered at 99.8-100%**,
+where CRSP (cut 2024-12-31) has none — so the instrument reaches the paper-track era.
+
+## `B7` fidelity — the two comparisons go opposite ways, which is what makes them a test
+
+**vs CRSP**, both pairings internally consistent, so they must agree: 90,005 of 90,025 cells
+overlap, **median ratio 0.99886**, 2.15% more than 25% apart, and the median is flat across size
+deciles (**0.9967 -> 0.9994**) with dispersion largest in the smallest decile, as expected.
+
+**vs `adv_from_bars`**, expected to resolve AGAINST bars, and it does exactly: on **1,696,861**
+rows with no split intervening the median ratio is **1.0000** with **0.001%** more than 25%
+apart; on the 313,705 split-affected rows **the correlation between the ratio and the
+accumulated split factor is 1.0** — CMG 50.0, AAPL 27.998, WMT 3.0, MSTR 10.0, SIRI 0.1 against
+factors 50.0, 27.998, 3.0, 10.0, 0.1, with JPM the unsplit control at exactly 1.0. **The
+disagreement IS the split factor.**
+
+## BUGS FOUND
+
+* **`scripts/capacity.py:69` `adv_from_bars` is WRONG BY THE SPLIT FACTOR on every pre-split
+  row.** It multiplies an AS-TRADED `raw_close` by a SPLIT-ADJUSTED `volume`. Independently
+  confirms `B13_ADV_BARS_DEFECT.json` from the other side. **REPORTED, NOT FIXED** — `P1`'s
+  capacity figure rests on it and repairing it moves a published number. Owner: the free-analysis
+  lane.
+* **`tests/test_adv.py:124` pins the live ADV window by SUBSTRING** (`assertIn("min(60, n)",
+  src)`), which would also pass if the only occurrence were inside a comment or docstring. Not
+  edited — it is `B13`'s test — but `tests/test_mc9_adv_sep.py` adds an AST reading of the actual
+  `min(60, n)` call beside it, with a positive control.
+* **`HANDOFF_free_analysis.md:548-551`'s "SEP is not on disk in any form" is false** and has been
+  since before it was written. Routed to the free-analysis lane; not edited here.
+
+## Two defects of my own
+
+* **The `abs()` ban was a SUBSTRING ban and fired on the docstring explaining why `abs()` is not
+  used** — written minutes after that same family was recorded twice in `PKG-MB20`. Reads call
+  nodes now, with a positive control against `adv.dollar_volume`, which does call `abs`.
+* **The split-affected cut was one-sided (`factor > 1.01`), so SIRI's 1:10 REVERSE split — factor
+  0.0995 — was misfiled as UNSPLIT** and contaminated the control bucket with the very
+  disagreement it exists to exclude. Found because the control name behaved oddly. Corrected to a
+  distance-from-1 cut, which moved the unsplit bucket's ">25% apart" share from **2.51% to
+  0.001%**.
+
+## NOT DONE
+
+The B13 arm did not run; `MIN_AVG_DOLLAR_VOLUME` is not wired; `P1`'s ~$23M capacity figure is
+not re-derived; `adv_from_bars` is not repaired; and **no claim is made that a liquidity filter
+would help** — that is `B13`'s arm and it needs its own register and its own trials.
+
+**15 tests, 5 of 5 mutations caught with sources restored byte-for-byte.**
+`valuation/edge/adv_sep.py`, `scripts/mc9_adv_sep.py`, `scripts/mc9_fidelity.py`,
+`tests/test_mc9_adv_sep.py`; `data/free_analysis/MC9_SEP_INSTRUMENT.json`, `MC9_FIDELITY.json`;
+2,531 per-ticker files in `data/backtest/ohlcv/`.
