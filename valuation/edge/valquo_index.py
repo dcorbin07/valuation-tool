@@ -70,6 +70,18 @@ def _sector_block(positions) -> tuple:
     return ordered, any((p.get("sector") or "").strip() for p in positions)
 
 
+def _measured_for(cfg_meta: dict) -> dict:
+    """The config's measured figures, from the artifact. Delegated, never copied (`B7`)."""
+    try:
+        from ..screener import settings as _S
+        for name, cfg in (_S.BOOK_CONFIGS or {}).items():
+            if cfg is cfg_meta or cfg == cfg_meta:
+                return _S.measured(name)
+        return _S.measured()
+    except Exception:                                                    # noqa: BLE001
+        return {}
+
+
 def conformance(n_positions: int, effective_max_weight: float,
                 n_eligible: Optional[int] = None) -> dict:
     """Is this book THE Valquo Index, or merely a book this function built?
@@ -342,12 +354,18 @@ def config_block(name: str | None, cfg_meta: dict | None) -> dict:
                       "no no-trade band on this configuration"),
         # The `measured` figures were measured at `measured_width`, which is NOT necessarily the
         # width now shipped. Published together so the two can never be silently conflated.
-        "measured": cfg_meta.get("measured"),
+        # READ THROUGH TO THE ARTIFACT (MC11) rather than from the config literals.
+        "measured": _measured_for(cfg_meta),
         "measured_width": cfg_meta.get("measured_width"),
         "measured_width_note": (
-            "the `measured` figures were measured at a band width of "
-            f"{cfg_meta.get('measured_width')}, not the {xf} now shipped; no run has measured "
-            "this configuration at the adopted width"
+            # CORRECTED 2026-09-30 (MC11). This used to end "no run has measured this
+            # configuration at the adopted width", which was true when written and is not now:
+            # the artifact's book_configs.taxable carries annual_turnover 1.3747, the 0.30-band
+            # figure, under the 30%-band label. The figures are now READ from there, so the
+            # note reports the provenance instead of asserting an absence.
+            "the `measured` figures come from BACKTEST_RESULTS.json book_configs, whose own "
+            f"label names the band it was measured at; `measured_width` records {cfg_meta.get('measured_width')} "
+            f"and the shipped width is {xf}"
             if cfg_meta.get("measured_width") not in (None, xf) else ""),
     }
 

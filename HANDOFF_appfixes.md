@@ -5,6 +5,161 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 60 — 2026-09-30 — MC8 + MC10 + MC11 + MC14 + MC1 follow-ups (reporting repairs)
+
+**AUDIT 6. ZERO TRIALS** — no hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row.
+`by_domain` re-read at the start and unchanged after: **equity 248, options 310, unified 0,
+infra 20**, 0 malformed. `.github/` untouched. **42 new tests; 7 of 7 mutations caught.**
+
+## MC11 — THE FIGURES WERE A SECOND COPY, AND THE COPY WAS WRONG BY 2.6x
+
+`settings.BOOK_CONFIGS["taxable"]["measured"]` carried the **20%-band** numbers under a label
+reading *"decile + 30% no-trade band"*, and the gap was not rounding:
+
+| field | settings carried | artifact carries |
+|---|---:|---:|
+| `after_tax_alpha` | 0.0081 | **0.021133** — 2.6x understated |
+| `annual_turnover` | 1.84 | **1.3747** — the 0.30-band figure |
+| `net_alpha` | 0.0698 | 0.07752 |
+| `after_tax_sharpe` | 0.90 | 0.97675 |
+
+**AND THE COMMENT DEFENDING IT HAD EXPIRED.** It read *"no run has measured this config at
+0.30"*, which was true when written — but the current artifact's `book_configs.taxable` carries
+`annual_turnover` **1.3747**, which IS the 0.30-band figure, under the 30%-band label. A run
+has measured it. Corrected where it is written rather than argued around.
+
+**FIXED BY READING THROUGH.** `settings.measured(name)` reads
+`BACKTEST_RESULTS.json book_configs.<name>`; the literals are gone. **An absent artifact yields
+NO figure rather than a stale one**, because a surface showing a stale number cannot be told
+from one showing a current number. Both live readers (`index_track`, `valquo_index`) delegate.
+`cost_drag_ann` is deliberately NOT re-introduced — the artifact does not emit it per book and
+`backtest_card` measures its own.
+
+The stale literals are banned **by value**, read from the **NUMBER token stream** so the ban
+cannot fire on the prose that documents it.
+
+## MC10 — "SHARPE-OPTIMAL" WAS FALSE OF THE BOOK IT LABELLED
+
+roth's net Sharpe is **1.1018**; taxable's is **1.2096**. The *taxable* book is the
+Sharpe-optimal one. roth is the highest **net alpha** book (0.1163 vs 0.0775), which is what
+the label now says. Taxable keeps *"after-tax-optimal"* because that one is true (0.021133 vs
+0.020443) and the test asserts the comparison rather than the wording.
+
+Every measured block now carries **construction, universe, weighting, band and n** —
+`MEASURED_BASIS` is one string, imported rather than retyped, and it says in terms what the
+figure is **not**: *"not the served score-weighted large-cap book"*. That is the misreading the
+label exists to prevent, since a full-universe equal-weighted decile number sits on a page
+showing a served, score-weighted, large-cap book.
+
+**The after-tax sentence travels with any after-tax figure** — 40.8% short / 23.8% long,
+lot-level FIFO, on the same panel, and *"NOT a projection for any individual"*.
+
+## MC8 — A `--date` OLDER THAN THE CURRENT TRADING WEEK IS REFUSED
+
+The failure it prevents is silent: an unattended caller with a wrong date (a stuck clock, a
+docstring example copied, a `$(date)` resolved in the wrong timezone) re-marks a recorded day
+or adds one whose prices have since been adjusted. **Both produce a plausible row, and a
+plausible wrong row in an append-only record is the one failure this track cannot recover
+from.**
+
+**THE WINDOW IS THE TRADING WEEK, NOT A DAY COUNT**, because the honest case that must stay
+permitted is *"Friday's row is written on Monday after a weekend outage"* — which a "within 1
+day" rule would refuse. `--allow-stale-date` keeps the deliberate act available.
+
+**IT FIRED ON AN EXISTING TEST IMMEDIATELY**, which is the guard working:
+`test_the_cli_can_be_pointed_at_a_book_outside_its_own_checkout` backfills 2026-08-08, so it
+now declares its intent with the flag.
+
+## MC14 / D8 — MISSING OPEN INTEREST IS UNKNOWN ON THE LIVE PATH TOO
+
+Both sites re-resolved rather than taken from the cite: `providers.py:192-193` summed
+`(o.get("open_interest") or 0)` on the **Tradier** leg and `:294-295` used
+`["openInterest"].fillna(0)` on the **yfinance** leg — the one CLAUDE.md's MA38 bullet names.
+A contract whose OI the venue did not return counted as **zero**, shrinking the denominator of
+`options_signals`' `call_volume / call_oi > 0.5` bonus.
+
+**THE DEFECT COULD ONLY EVER ADD AN ALERT**, which is why it survived: a too-small denominator
+makes the ratio too big. MA38's measurement on the cached chains is the scale — **27 of 41,321
+front-expiry chain-days (0.065%) crossed by the mismatch alone, and ZERO the other way.**
+
+**ONE CODE OBJECT (`B7`).** `chain_summary`'s nested `_oi_sum` is now module-level
+`oi_and_matched_volume`, and both live legs call it. **The extraction is proved INERT** against
+a restatement of the pre-extraction body over six shapes at max abs delta **0.0** — not
+assumed. It accepts a pandas Series and a plain list identically, because the backtest holds
+DataFrame columns while the live paths hold lists of dicts, and a second implementation for the
+second shape is exactly how the live and banked numerators came to disagree.
+
+**IT IS THE MATCHED NUMERATOR, NOT AN IMPUTATION**, and MA38 measured why: scaling by
+`1/known_frac` kills **501** legitimate fires (18.6x the defect) and a 0.9 coverage floor kills
+**1,005** (37.2x), because volume is CONCENTRATED in the known-OI rows. Dividing like by like
+costs nothing.
+
+**THE COVERAGE NOW TRAVELS ON BOTH LIVE PAYLOADS** (`*_oi_known_frac`, `*_volume_oi_known`).
+When MA38 found this, `known_frac` had **one producer and zero readers** — a figure nothing can
+read is how the defect survived.
+
+## MC1 FOLLOW-UPS
+
+**1. THE PATH HAZARD, and it is a silent vintage change rather than a wrong number.**
+`fidelity2_rebuild.LIVE_CACHE` and `live_themes.CACHE` are the same file, so restoring the
+banked reference to run `--fidelity` turns on the seven-theme book for every local scan and
+keeps it on for up to `MAX_AGE_DAYS` = **120 days** — an unannounced **vintage 5**, arrived at
+by putting a file somewhere. The Oct 22 rebalance book is built locally, so it is not
+hypothetical. The reference is now `FIDELITY_REFERENCE` under its own name, `--banked`
+overrides it, and a test asserts it is **not** `live_themes.CACHE`.
+
+**2. `root` WAS HALF-APPLIED** — used for the existence checks and the probe path and then not
+passed to `build_live`, so it verified one tree's inputs and measured another. The wrong-object
+family. Forwarded, with `f4_dir` derived from it, and tested.
+
+**3. THE RESULT, and the bar does NOT move.** On Linux: runnable True, 440 rows, max abs delta
+**1.42e-14** on 44 `insider_score` rows. The **pre-parameterisation** code at `f266c19^` gives
+the **identical** 1.42e-14, and new-vs-old on the same machine is exactly **0.0** — so the
+residue is platform `math.tanh` in its last digit, **not the refactor**. The bar stays 0.0 and
+a sub-1e-12 residue is **LABELLED** with that explanation rather than tolerated: widening it
+would make the control unable to see a real regression of the same size. The reference was
+built on Windows, so a Windows run is the one that can reach 0.0.
+
+## (h) REPORT ONLY — `track-row.yml` IS CANCELLED BY ARITHMETIC, AND THERE ARE SEVEN
+
+Verified rather than repeated, **and the brief undercounts**: `timeout-minutes: 10` (600s)
+against **3 attempts x `--max-time 280` + 2 x `sleep 20` = 880s**. The cap bites at
+280+20+280+20 = **exactly 600s**, during attempt 3 — so **two timed-out attempts are enough to
+kill the job**, and the loud refusal / Discord path after the loop never runs while the service
+still finishes the row.
+
+**MEASURED: SEVEN cancelled runs, every one at 616-619s** — 2026-09-22, 09-24, 09-25, 09-26,
+09-29 (twice) and **09-30**. The brief names four; there are seven, including one today. The
+duration is deterministic, which is the signature of an arithmetic cap rather than a flaky
+service.
+
+**THE YAML CHANGE FOR DON'S PR:** `timeout-minutes: 10` -> **`20`** in `track-row.yml`. Not 15:
+880s is 14.7 minutes and a cap with 18 seconds of headroom is the same defect one size up.
+
+**THE SERVER-SIDE FIX, and half of it already shipped.** The 280s is the door pricing 86 names
+synchronously. `c26880b` already made *already-recorded* answer from disk without touching a
+vendor, so **the second nightly run is now fast and the remaining exposure is the first run of
+the night only.** For that one the honest options are (i) a fast **202 + a status door** the
+Action polls — which costs a run id and a poll loop, and makes the Action's green light confirm
+acceptance rather than completion; or (ii) leave it synchronous and give it the timeout its own
+arithmetic needs. **Recommendation: (ii) plus the 20-minute cap**, because the row is written
+either way and a 202 would make the daily green light say less than it does today.
+
+## ALSO REPORTED — A DEFECT OF MY OWN FROM SESSION 57
+
+`main`'s head this morning is a PT-WRITER 422 whose reason reads *"the benchmark SPY could not
+be priced on the **inception** 2026-07-30"*. It used to say the **mark date**. Measured locally:
+SPY returns 400 rows covering 2026-07-30 and reaching 2026-09-29, so the data is there.
+
+**THE CAUSE IS MY OWN FRESHNESS FIX CHANGING WHICH CHECK FAILS FIRST.** Before it, a
+stale-but-valid frame still carried the old inception price, so the refusal named the mark date.
+Now that frame is correctly rejected, no frame arrives, and `b_base` is the first thing missing
+— so the message blames inception. **The row was not writable either way and the fix is not
+wrong**, but the refusal now misattributes the cause, which on a nightly unattended job is the
+difference between a diagnosis and a red herring. **NOT FIXED HERE** (out of scope, and it
+wants a one-line split between "no frame at all" and "the frame lacks this date") — reported so
+nobody spends a session chasing inception.
+
 # Session 59 — 2026-09-29 — MC1, the production theme-cache builder (ADOPTS NOTHING)
 
 **AUDIT 6 / MC1. ZERO TRIALS** — no hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row.

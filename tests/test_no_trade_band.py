@@ -304,7 +304,18 @@ class TestTheConfigBlockIsBuiltInOnePlace(unittest.TestCase):
         by side without saying so is how a stale figure travels."""
         cb = VI.config_block("taxable", S.BOOK_CONFIGS["taxable"])
         self.assertEqual(cb["measured_width"], 0.20)
-        self.assertIn("not the 0.3 now shipped", cb["measured_width_note"])
+        # ASSERTS THE PROPERTY, NOT THE WORDING (MC11). This used to require the literal
+        # "not the 0.3 now shipped", and the note it pinned ended "no run has measured this
+        # configuration at the adopted width" -- which was true when written and is NOT now:
+        # the artifact's book_configs.taxable carries annual_turnover 1.3747, the 0.30-band
+        # figure, under the 30%-band label. The docstring's intent -- "publishing them side by
+        # side without saying so is how a stale figure travels" -- is unchanged and still
+        # enforced: the note must name BOTH widths.
+        note = cb["measured_width_note"]
+        self.assertIn("0.2", note)
+        self.assertIn("0.3", note)
+        self.assertNotIn("no run has measured", note,
+                         "the note still asserts an absence the artifact refutes")
 
     def test_no_config_means_an_empty_block_rather_than_a_stub(self):
         self.assertEqual(VI.config_block(None, None), {})

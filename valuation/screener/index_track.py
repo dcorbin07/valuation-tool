@@ -513,7 +513,9 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
     from . import settings as S
 
     cfg_name = (config or S.DEFAULT_BOOK_CONFIG or "roth").lower()
-    measured = ((S.BOOK_CONFIGS or {}).get(cfg_name) or {}).get("measured") or {}
+    # READ THROUGH TO THE ARTIFACT (MC11). The literals this used to read were the
+    # 20%-band figures under a 30%-band label.
+    measured = S.measured(cfg_name) or {}
     backtested = {
         "net_alpha": measured.get("net_alpha"),
         "net_sharpe": measured.get("net_sharpe"),
@@ -522,8 +524,17 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
         "annual_turnover": measured.get("annual_turnover"),
         # Panel descriptor refreshed 2026-08-08 (P2 crowding memo): this said
         # "2,710-name / 110-date", the pre-B6 panel, and it ships on the track export.
-        "basis": ("full 2,531-name / 69-date point-in-time panel, ~18 years, net of "
-                  "modelled transaction costs"),
+        # ONE SPELLING OF THE BASIS (MC10), imported rather than retyped -- two prose
+        # descriptions of one object is how they come to disagree.
+        "basis": S.MEASURED_BASIS,
+        "weighting": measured.get("weighting"),
+        "n_dates": measured.get("n_dates"),
+        "n_names": measured.get("n_names"),
+        "no_trade_band": measured.get("no_trade_band"),
+        "measured_width": measured.get("measured_width"),
+        "source": measured.get("source"),
+        "after_tax_sentence": measured.get("after_tax_sentence"),
+        "unavailable": measured.get("unavailable"),
     }
     # THE FOUR LABELLED LINES replace the card's unlabelled "Alpha / yr". They are NOT read
     # from `measured` above: that block's `net_alpha` is an excess over the EQUAL-WEIGHTED
