@@ -32,7 +32,26 @@ import unittest
 import state_isolation  # noqa: F401  (must precede any `valuation` import)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FA = os.path.join(r"C:\Users\donni\Downloads\valuation-tool", "data", "free_analysis")
+
+
+def _fa_candidates():
+    """Where `data/free_analysis` might be, DERIVED rather than typed.
+
+    Same shape as `optionable_universe._data_root`: an env override, then this repo's own
+    `data/`, then the primary checkout last -- because a git worktree carries `data/` EMPTY
+    (`E-5`, `S3-I3`), which is the whole reason a literal was here to begin with. A literal is
+    also why land run #571 went red on a runner that has no such drive.
+    """
+    out = []
+    env = os.environ.get("VALQUO_DATA_ROOT")
+    if env:
+        out.append(os.path.join(env, "free_analysis"))
+    out.append(os.path.join(ROOT, "data", "free_analysis"))
+    # `<primary>/.claude/worktrees/<name>` -> `<primary>`
+    parts = ROOT.replace("\\", "/").split("/.claude/worktrees/")
+    if len(parts) == 2:
+        out.append(os.path.join(parts[0].replace("/", os.sep), "data", "free_analysis"))
+    return out
 
 
 def _read(*parts):
@@ -41,11 +60,23 @@ def _read(*parts):
 
 
 def _art(name):
-    p = os.path.join(FA, name)
-    if not os.path.exists(p):
-        return None
-    with io.open(p, encoding="utf-8") as fh:
-        return json.load(fh)
+    """The first candidate that actually CARRIES the file -- existence of the directory is not
+    population of it (`DEEPITM-FIN`). Returns None when no candidate has it, so every caller
+    skips LOUDLY rather than failing on a machine that legitimately holds no artifacts."""
+    for d in _fa_candidates():
+        p = os.path.join(d, name)
+        if os.path.exists(p):
+            with io.open(p, encoding="utf-8") as fh:
+                return json.load(fh)
+    return None
+
+
+def _art_path(name):
+    for d in _fa_candidates():
+        p = os.path.join(d, name)
+        if os.path.exists(p):
+            return p
+    return None
 
 
 class TestTheOptInEmissionIsInert(unittest.TestCase):
@@ -126,9 +157,9 @@ class TestTheInputsAreReadFromTheFrame(unittest.TestCase):
     def test_the_derived_inputs_are_actually_present_in_the_banked_scores(self):
         """The measurement, not the source shape: all four must be non-empty on disk."""
         import pandas as pd
-        p = os.path.join(FA, "D9_SHARADAR_SCORES.pkl")
-        if not os.path.exists(p):
-            self.skipTest("D9_SHARADAR_SCORES.pkl absent")
+        p = _art_path("D9_SHARADAR_SCORES.pkl")
+        if p is None:
+            self.skipTest("D9_SHARADAR_SCORES.pkl absent (no populated data root here)")
         cache = pd.read_pickle(p)
         rows = cache["freeze_2026-07-31"]["rows"]
         for nm in self.DERIVED:
@@ -233,15 +264,28 @@ class TestTheFindingsAreOnTheRecord(unittest.TestCase):
         survives BOTH stores. Asserting the B2 miss would pin a knife-edge result as though it
         were robust, which is exactly the correction this item had to make to its own handoff.
         """
+        seen = 0
         for name in ("D9_DIAG.json", "D9_DIAG_SECOND.json"):
             d = _art(name)
             if d is None:
                 continue
+            seen += 1
             q = d["Q1f_leave_one_theme_out"]["without"]["quality"]
             self.assertGreaterEqual(q["spearman_without_it"], 0.80, name)
+        # would otherwise pass having checked NOTHING on a runner with no licensed data --
+        # a vacuous pass reads exactly like a real one, which is this project's oldest defect
+        if not seen:
+            self.skipTest("no D9_DIAG artifact on any candidate data root")
 
     def test_neither_reading_clears_b2_at_identical_assembly(self):
-        """The form the judgement actually rests on, and it holds on both stores."""
+        """The form the judgement actually rests on, and it holds on both stores.
+
+        ABSENT EVIDENCE IS A LOUD SKIP, NOT A RED TEST. A first cut asserted it had seen at
+        least one artifact, which is the right vacuity guard on a machine holding them and the
+        wrong failure on a runner that carries no licensed `data/` at all -- it took land run
+        #571 red for a reason that says nothing about the tree. The vacuity guard is kept for
+        the case that actually matters: an artifact PRESENT and its figure missing.
+        """
         seen = 0
         for name in ("D9_DIAG.json", "D9_DIAG_SECOND.json"):
             d = _art(name)
@@ -249,8 +293,10 @@ class TestTheFindingsAreOnTheRecord(unittest.TestCase):
                 continue
             seen += 1
             ov = d["Q1e_identical_assembly"]["4_plus_complete_case"]["decile_overlap"]
+            self.assertIsNotNone(ov, "%s carries no decile overlap to check" % name)
             self.assertLess(ov, 0.60, name)
-        self.assertGreater(seen, 0, "no D9_DIAG artifact present -- this check saw nothing")
+        if not seen:
+            self.skipTest("no D9_DIAG artifact on any candidate data root")
 
     def test_the_ladder_reproduces_on_the_second_reading(self):
         """If it reproduces on only one store it is a property of that store, not the route."""
@@ -319,10 +365,11 @@ class TestTheRenewalRecheckDoesNotClobber(unittest.TestCase):
         with io.open(tmp, "w", encoding="utf-8") as fh:
             json.dump({"scan_date": "2026-08-08", "stocks": []}, fh)
         try:
+            # The root is deliberately one that need not exist: the date refusal is now the
+            # FIRST thing `same_date` does, so this exercises the refusal it names on any
+            # machine rather than dying on a missing export.
             with self.assertRaises(SystemExit) as cm:
-                mod.same_date(os.path.join(r"C:\Users\donni\Downloads\valuation-tool",
-                                           "data", "backtest"),
-                              "2026-07-31", tmp)
+                mod.same_date(os.path.join(ROOT, "data", "backtest"), "2026-07-31", tmp)
             self.assertIn("REFUSING", str(cm.exception))
             self.assertIn("SAME date", str(cm.exception))
         finally:

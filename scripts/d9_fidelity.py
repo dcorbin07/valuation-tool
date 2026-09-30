@@ -306,18 +306,12 @@ def same_date(root, as_of, live_path=None) -> int:
     returns is CHECKED against `as_of` and a mismatch REFUSES rather than silently comparing
     across a gap, which is the whole defect this mode exists to remove.
     """
-    from valuation.edge.fundamental_panel import score_universe_now
-    from valuation.edge.data_providers import WRDSProvider
-
-    class _C:
-        wrds_data_dir = root
-
-    prov = WRDSProvider(_C())
-    ok, msg = prov.ready()
-    if not ok:
-        raise SystemExit("provider not ready at %s: %s" % (root, msg))
-
-    # ---- the live side, and its date is verified rather than assumed
+    # ---- THE LIVE SIDE AND ITS DATE COME FIRST, BEFORE THE PROVIDER IS TOUCHED.
+    # The date check is the cheap refusal and the provider load is the expensive one, so
+    # ordering them the other way round means a caller on the wrong date pays for an export
+    # index before being told the comparison is invalid -- and on a machine with no export at
+    # all it dies with "provider not ready" and never reaches the refusal, which is exactly how
+    # `test_same_date_refuses_a_date_mismatch` passed here and failed in CI.
     if live_path:
         with open(live_path, encoding="utf-8") as fh:
             lj = json.load(fh)
@@ -337,6 +331,18 @@ def same_date(root, as_of, live_path=None) -> int:
             "~0.95 ceiling makes uninterpretable. Re-run when the live scan reaches %s, or "
             "pass --as-of %s to score Sharadar on the live date instead."
             % (live_date, str(as_of)[:10], str(as_of)[:10], live_date))
+
+    # ---- only now the expensive side
+    from valuation.edge.fundamental_panel import score_universe_now
+    from valuation.edge.data_providers import WRDSProvider
+
+    class _C:
+        wrds_data_dir = root
+
+    prov = WRDSProvider(_C())
+    ok, msg = prov.ready()
+    if not ok:
+        raise SystemExit("provider not ready at %s: %s" % (root, msg))
 
     print("  same-date re-check: Sharadar %s at %s  vs  live %s" % (root, as_of, live_date),
           flush=True)
