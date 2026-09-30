@@ -202,6 +202,21 @@ def _f(x) -> Optional[float]:
     return v if v == v else None
 
 
+def _reconstructed_block() -> dict:
+    """The reconstruction block, or an empty one. NEVER raises into the track payload.
+
+    The bound record must render whether or not a reconstruction exists, so every failure here
+    degrades to "no reconstructed points" rather than taking the page down. That is the opposite
+    of the fail-closed rule elsewhere in this file, and deliberately: this block is a chart
+    overlay, not evidence, so its absence costs a visual and its presence must never be required.
+    """
+    try:
+        from . import track_reconstruct
+        return track_reconstruct.payload()
+    except Exception:                                                   # noqa: BLE001
+        return {"label": "reconstructed", "n_reconstructed": 0, "points": []}
+
+
 def load(meta_path: str = None, history_path: str = None) -> dict:
     """Read the tracker files. Missing files are a normal state, not an error."""
     mp, hp = default_paths()
@@ -562,6 +577,14 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
         "gate": gate,
         "backtested": backtested,
         "series": series,
+        # A SEPARATE ARRAY, NEVER MERGED INTO `series`. `series` IS the record: `days`,
+        # `available`, the meter and the gate all read it, so a reconstructed point appearing
+        # there would be counted as a recorded one -- which §3 treats as a back-fill and a
+        # back-fill VOIDS THE WHOLE RUN, not merely the window. Two arrays force the consumer to
+        # decide visibly how to draw each; one merged array is how the distinction is lost three
+        # refactors later. Reads a file and fails to an empty block, so a missing store costs a
+        # chart overlay and nothing else.
+        "reconstructed": _reconstructed_block(),
         "available": bool(series),
         "days": len(series),
         "thin": True,
