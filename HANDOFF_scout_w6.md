@@ -1,7 +1,7 @@
 # HANDOFF — scout / W-6 CRSP delisting cross-check
 
 **2026-09-30. Zero trials, zero dollars, CONTROL class. Register
-`PREREG_w6_crsp_delist_xcheck.md`, committed ALONE at `921c810` (markdown only, zero `.py`), a
+`PREREG_w6_crsp_delist_xcheck.md`, committed ALONE at `bcd03ac` (markdown only, zero `.py`), a
 strict git ancestor of every commit that computes an agreement rate.**
 
 `W-6` had no ledger row and had never run. Under `MB1-SEL` a control can only **BLOCK** a
