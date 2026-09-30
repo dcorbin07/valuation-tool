@@ -12,7 +12,8 @@ re-read at the start and unchanged after: **equity 248, options 310, unified 0, 
 0 malformed. **`.github/` untouched** — the two lines Don needs are written out below, not
 committed. **19 new tests** (15 routing, 4 added while repointing the vendor-label suite,
 which now runs 26); **23 of 23 mutations caught** — 14 on the routing change and 9 on the
-narrowing below, every one with sources restored byte-for-byte. Full gate green.
+narrowing below, every one with sources restored byte-for-byte. **Full gate: 202 suites, 0
+failures**, re-run AFTER merging `origin/main` rather than before it.
 
 ## THE LANDING, AND THE TWO ALARMS
 
@@ -231,12 +232,21 @@ Certification is a **one-off** call once, by hand or a `workflow_dispatch`:
 
 ## TONIGHT'S WRITER RUN — NOT YET CONFIRMABLE, AND WHY
 
-**The 2026-09-30 row has not been written and could not have been.** The last recorded row is
-2026-09-29. The most recent writer run (04:51 Z) correctly returned `already_present: true` for
-2026-09-29 in ~94 s — at 04:51 Z the 2026-09-30 session had not closed, so the only row it could
-write was one already on disk. The 09-30 row lands on the run that fires after the 09-30 close,
-which on the observed 3–5 h delay is **early on 10-01 UTC**. Re-check with
+**The 2026-09-30 row has not been written and could not have been, and the run that *can* be
+confirmed wrote 2026-09-29 cleanly.** Re-read at the end of this session, the recorded series
+ends **2026-09-29 — valquo 4.3591, spy 3.2908, excess +1.0683 pp, 85 names priced**, which is in
+line with every row this month (`n_priced` 84–85 throughout, so nothing regressed). At 03:07 Z on
+09-30 the 09-30 session had not closed; the only row that window could write was 09-29, and it
+is there. The 09-30 row lands on the run that fires after the 09-30 close, which on the observed
+3–5 h scheduler delay is **early on 10-01 UTC**. Re-check with
 `python -m scripts.fetch_track --url <base> --print` and look for a `2026-09-30` row.
+
+**AND THE CONFIRMATION IS ABOUT THE OLD CODE, WHICH IS THE PART WORTH SAYING.** Nothing in this
+change had reached the service when that run fired, so the clean 09-29 row is evidence about the
+*previous* routing, not this one. The first writer run on yfinance-first is the first one after
+this lands and Render redeploys — **that** is the run to read for the routing change, and it has
+not happened yet. Saying "the writer is confirmed" off a pre-deploy run would be confirming the
+thing that was already working.
 
 **A side finding while checking:** the stored row carries `day_n: 42`, but
 `/admin/export-track` strips it — every exported row shows an empty `day_n`. The value exists
