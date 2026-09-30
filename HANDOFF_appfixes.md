@@ -233,14 +233,45 @@ buffers the whole JSON, so one slow step destroys the timings of every step that
 
 * **`timings_ms` is unconditional** — a diagnostic that has to be asked for is not there on the
   day it is needed. `elapsed_ms` travels with it.
-* **A budget (default 75 s, under the caller's 120 s) bounds the SECONDARY reporting only.**
-  When it blows, the door returns **200 with `partial: true`, `deferred: [...]` and
-  `partial_reason`** instead of nothing. A body naming what it skipped is strictly more useful
-  than two minutes of silence.
-* **A recorder is never deferrable**, asserted by name against the literal: a missing history
-  day is exactly the failure `fleet_history` exists to prevent, and deferring one silently
-  would be worse than being slow. The recorders are *timed*, so if they are the cost the next
-  run says so in one number.
+* **A budget (default 75 s, under the caller's 120 s, clamped) is checked BETWEEN EVERY
+  STEP.** When it blows, the door returns **200 with `partial: true`, `deferred: [...]` and
+  `partial_reason`** instead of nothing.
+* **Every step the door did not reach is NAMED**, recorders included.
+
+**AND THE FIRST CUT OF THAT INSTRUMENTATION WAS ITSELF REFUTED, ON THE SERVICE, THE SAME WAY.**
+I checked the budget **once**, after the recorders, and asserted "a recorder is never
+deferrable". **Run 36710874853, on the deployed instrumentation, returned `000` with NO BODY
+again** — because a deadline tested at one point bounds nothing upstream of it, and the cost
+sits upstream. So the exercise produced no measurement for a second time, for a reason I had
+built in.
+
+**That failure is itself a narrowing, and it is the only new fact about the cause:** the slow
+step is in the *first* half — `register_entry_rules`, `selfcheck_state_scan`, `cycle`,
+`history_coverage`, `invalidate_fabricated_span`, `iv60_from_store` or `record_all` — and not
+in the reporting tail.
+
+**THE INVARIANT MOVED AND THE MOVE IS STATED RATHER THAN QUIETLY MADE.** Recorders are now
+deferrable. That is not a weakening: today the request dies and they do not run *either*, so a
+**named** deferral is strictly more than the caller gets now. The rule that survives is the one
+that actually protects the series — *a deferral is never silent* — and `_ALL_STEPS` must list
+the recorders so they can be named, asserted by test.
+
+**A BEHAVIOURAL TEST CANNOT SEE THE SINGLE-CHECK DEFECT, WHICH IS WHY THERE IS A STRUCTURAL
+ONE** — and it took three forms to get right, each wrong in a different and instructive way.
+`budget=0` bails at the *first* check, so deleting any later one leaves every behavioural
+assertion green (measured: **MISSED**). A **count** (`guards >= steps - 1`) carries exactly one
+guard of slack, so removing one still satisfied it (**MISSED** again). *"The very next statement
+is a guard"* **fired against a correct tree**, because a guard may legitimately sit a few
+statements later or outside the enclosing block — and its first cut also mis-identified compound
+statements as steps, since `ast.walk` descends into nested blocks. What holds is the property
+itself: **in source order, a deadline check runs between every two consecutive timed steps**, so
+no step can run unbounded.
+
+**AND ONE MUTATION RUN IN THIS SEQUENCE WAS VACUOUS — REPORTED BECAUSE I ALMOST BANKED IT.** A
+`7 of 7 caught` came back while the suite was **already red** (my own new structural guard was
+failing against the tree it was written for). A mutation harness that only asks *"does the suite
+fail with this applied?"* reads every case as CAUGHT when the suite fails anyway. Every mutation
+figure quoted here was taken from a run whose suite was **confirmed green first**.
 
 **A SECOND DEFECT OF MINE, AND IT WOULD HAVE MADE ANOTHER SUITE FLAKY.** The new door tests
 build the SaaS app and call the live door, and I wrote them without
@@ -260,9 +291,10 @@ already owns, **including the NaN ordering that makes a bare `min(max(...))` wro
 module's own test spells it out). It delegates.
 
 **WHAT THIS DOES NOT CLAIM.** It does not fix the slow step, because the slow step is still
-unidentified. It converts an unobservable failure into a self-reporting one, so the **next
-scheduled run names the culprit** rather than a fourth person guessing. 3 tests, 6 of 6
-mutations caught.
+unidentified — two attempts at a fix have now been refuted on the service, and the second was
+refuted by a defect in my own instrumentation. It converts an unobservable failure into a
+self-reporting one, so the **next run names the culprit** rather than a fifth person guessing.
+4 tests, 7 of 7 mutations caught.
 
 ## FOR DON — `.github/` LINES, NOT COMMITTED
 

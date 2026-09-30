@@ -876,6 +876,32 @@ def create_saas_app(cfg=CONFIG):
             def _over_budget():
                 return (_time.time() - _t_req) > _budget_s
 
+            _ALL_STEPS = ("s3i3_register", "register_entry_rules", "selfcheck_state_scan",
+                          "cycle",
+                          "history_coverage", "invalidate_fabricated_span", "iv60_from_store",
+                          "record_all", "gates", "image_audit", "harness", "notify")
+
+            def _bail(res, done_through):
+                """Return what we have, naming what we did not reach.
+
+                CHECKED BETWEEN EVERY STEP, because the first cut checked once near the end and
+                the run still came back with ZERO BYTES -- a budget tested at one point bounds
+                nothing upstream of it. A body that says "cycle took 90s and the recorders did
+                not run" is worth more than two minutes of silence, and it is the only way the
+                step is ever named.
+                """
+                i = _ALL_STEPS.index(done_through) + 1 if done_through in _ALL_STEPS else 0
+                res["partial"] = True
+                res["deferred"] = list(_ALL_STEPS[i:])
+                res["partial_reason"] = (
+                    "the %.0fs budget was spent before these steps ran. `timings_ms` names what "
+                    "consumed it. NOTHING WAS RECORDED that is not listed as done -- a deferred "
+                    "recorder is a missing day and is reported here rather than silently "
+                    "skipped." % _budget_s)
+                res["timings_ms"] = _timings
+                res["elapsed_ms"] = round((_time.time() - _t_req) * 1000.0)
+                return jsonify(res), 200
+
             if wants_run and request.method != "POST":
                 return jsonify({
                     "ok": False, "wrote": False, "error": "run is POST-only",
@@ -905,6 +931,8 @@ def create_saas_app(cfg=CONFIG):
             # import — this door is the composition root and says so.
             from ..edge import assignment as _s3i3
             _step("s3i3_register", lambda: _s3i3.register(fleet))
+            if _over_budget():
+                return _bail({"ok": True, "wrote": False}, "s3i3_register")
             # THE ENTRY RULES *ARE* REGISTERED HERE, AND THE CONTRAST WITH S3-I3 ABOVE IS THE
             # WHOLE POINT: THE QUARANTINE IS THE TEST, NOT A BLANKET BAN ON REGISTERING.
             #
@@ -922,6 +950,8 @@ def create_saas_app(cfg=CONFIG):
             from ..edge import fleet_books
             from ..edge import fleet_gates
             res_reg = _step("register_entry_rules", fleet_books.register_all)
+            if _over_budget():
+                return _bail({"ok": True, "wrote": False}, "register_entry_rules")
 
             # THE DAY-1 SELF-CHECK, RUN WHERE THE RECORDS LIVE.
             #
@@ -973,8 +1003,12 @@ def create_saas_app(cfg=CONFIG):
             # The cycle runs AFTER the self-check, so a freshly certified book is gated on
             # this run rather than on the next one -- otherwise the first dispatch after
             # certification would still report every book blocked and look unchanged.
+            if _over_budget():
+                return _bail({"ok": True, "wrote": False}, "selfcheck_state_scan")
             res = _step("cycle", lambda: fleet.cycle(
                 write=wants_run, books=[only] if only else None))
+            if _over_budget():
+                return _bail(res, "cycle")
             res["selfcheck_ran"] = day1["ran"]
             if day1["ran"]:
                 res["selfcheck"] = day1["result"]
@@ -997,6 +1031,8 @@ def create_saas_app(cfg=CONFIG):
             # must stay side-effect free, which is the same split the verb already carries.
             from ..edge import fleet_history
             res["history"] = _step("history_coverage", fleet_history.coverage)
+            if _over_budget():
+                return _bail(res, "history_coverage")
             if wants_run:
                 # AUDIT #5 H2 — THE SOURCES ARE PASSED EXPLICITLY NOW. This call used to pass
                 # NOTHING, so `dip_rejects` recorded "zero names rejected today" from a screen
@@ -1023,6 +1059,8 @@ def create_saas_app(cfg=CONFIG):
                 # span it freezes is exactly the pre-fix rows and never today's real one.
                 res["history_invalidated"] = _step(
                     "invalidate_fabricated_span", fleet_history.invalidate_fabricated_span)
+                if _over_budget():
+                    return _bail(res, "invalidate_fabricated_span")
                 # THE DIP SCREEN IS NOT RUN FROM THIS REQUEST PATH. It values up to a
                 # dozen names and MEASURED at ~188s on the service, warm and repeatable,
                 # against the runner's 120s curl budget -- so calling it here made the
@@ -1031,6 +1069,8 @@ def create_saas_app(cfg=CONFIG):
                 # finds the row already present. On a day nobody recorded one, dip_rejects
                 # goes LOUD rather than writing a zero, which is the whole H2 rule.
                 _q = _step("iv60_from_store", fleet_history.iv60_from_store)
+                if _over_budget():
+                    return _bail(res, "iv60_from_store")
                 rec = _step("record_all", lambda: fleet_history.record_all(quotes=_q))
                 res["history_recorded"] = rec
                 if rec.get("not_consulted"):
@@ -1046,20 +1086,10 @@ def create_saas_app(cfg=CONFIG):
             # should not have to remember that one of them nests and the other does not.
             res["deferred"] = []
             if _over_budget():
-                # NAMED, NEVER SILENT. Everything from here is reporting: gate vintages, the
-                # image audit, the harness census and the announcement. A body that arrives
-                # missing those and SAYS so is strictly more useful than 120s of nothing, and
-                # it is the only way the runner learns which step above spent the budget.
-                res["partial"] = True
-                res["deferred"] = ["gates", "image_audit", "harness", "notify"]
-                res["partial_reason"] = (
-                    "the steps above spent the %.0fs budget; secondary reporting was skipped "
-                    "so a body arrives inside the caller's timeout. `timings_ms` names the "
-                    "step that cost it. Nothing recorded was skipped." % _budget_s)
-                res["timings_ms"] = _timings
-                res["elapsed_ms"] = round((_time.time() - _t_req) * 1000.0)
-                return jsonify(res), 200
+                return _bail(res, "record_all")
             _g = _step("gates_coverage", fleet_gates.coverage)
+            if _over_budget():
+                return _bail(res, "gates")
             res["gates"] = _g.get("gates") or {}
             res["gates_ok"] = bool(_g.get("ok"))
             if not _g.get("ok"):

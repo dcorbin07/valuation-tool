@@ -398,12 +398,19 @@ def test_a_BLOWN_BUDGET_returns_a_LABELLED_BODY_and_never_zero_bytes():
     assert isinstance(d.get("timings_ms"), dict) and d["timings_ms"], "no timings on the way out"
 
 
-def test_the_deadline_NEVER_defers_a_RECORDER():
-    """A missing history day is the failure `fleet_history` exists to prevent.
+def test_a_DEFERRED_RECORDER_IS_NAMED_and_never_silently_skipped():
+    """THE INVARIANT MOVED, AND SAYING SO IS THE POINT.
 
-    Deferring the reporting is a convenience; deferring a recorder would silently lose a day of
-    a series that cannot be reconstructed, so the deferrable set is asserted by NAME rather than
-    left to whatever happens to sit after the deadline check.
+    The first cut asserted that a recorder is never deferrable. That was right while the
+    deadline was checked once near the end -- and it turned out the cost sits UPSTREAM of that
+    check, so run 36710874853 came back with zero bytes again and the recorders did not run
+    either. They are now deferrable, because a NAMED deferral is strictly more than the caller
+    gets from a request that dies: today `record_all` is skipped silently, by timeout.
+
+    So the rule that survives is the one that actually protects the series: every step the door
+    did not reach appears in `deferred`, and `_ALL_STEPS` must list the recorders so they CAN be
+    named. A recorder missing from that tuple would be skipped invisibly, which is the failure
+    `fleet_history` exists to prevent.
     """
     import ast
     import io as _io
@@ -411,16 +418,74 @@ def test_the_deadline_NEVER_defers_a_RECORDER():
     tree = ast.parse(src)
     fn = next(n for n in ast.walk(tree)
               if isinstance(n, ast.FunctionDef) and n.name == "admin_fleet_cycle")
-    named = set()
+    steps = set()
     for node in ast.walk(fn):
-        if isinstance(node, ast.List):
+        if isinstance(node, ast.Tuple):
             vals = [e.value for e in node.elts
                     if isinstance(e, ast.Constant) and isinstance(e.value, str)]
-            if "gates" in vals:
-                named |= set(vals)
-    assert named, "the deferred list is no longer a literal this guard can read"
-    forbidden = {"record_all", "invalidate_fabricated_span", "history", "cycle"}
-    assert not (named & forbidden), "a recorder is in the deferrable set: %s" % (named & forbidden)
+            if "cycle" in vals and "record_all" in vals:
+                steps |= set(vals)
+    assert steps, "the step tuple is no longer a literal this guard can read"
+    for must in ("record_all", "invalidate_fabricated_span", "iv60_from_store", "cycle"):
+        assert must in steps, "%s cannot be NAMED when deferred" % must
+
+    # And the naming is not merely possible -- it happens. budget=0 forces the earliest bail.
+    r = _with_token(lambda c: c.get("/admin/fleet-cycle?budget=0",
+                                    headers={"X-Admin-Token": _TOKEN}))
+    d = r.get_json()
+    assert d.get("partial") is True, d
+    assert "record_all" in (d.get("deferred") or []), d.get("deferred")
+
+
+def test_the_DEADLINE_IS_CHECKED_BETWEEN_EVERY_STEP_not_once_near_the_end():
+    """THE DEFECT THIS EXISTS FOR WAS MEASURED, NOT IMAGINED.
+
+    My first instrumentation checked the budget once, after the recorders. Run 36710874853 came
+    back with ZERO BYTES anyway, because the cost sits UPSTREAM of that check -- a deadline
+    tested at one point bounds nothing before it, so the door was no more able to answer than
+    before and the whole exercise produced no measurement.
+
+    A behavioural test cannot see this: `budget=0` bails at the FIRST check, so deleting any
+    LATER one leaves every behavioural assertion green (verified -- that mutation was MISSED).
+    The property has to be read off the structure: every `_step` but the last is followed by a
+    guard, so no step can run unbounded.
+    """
+    import ast
+    import io as _io
+    src = _io.open("valuation/saas/app_saas.py", encoding="utf-8").read()
+    tree = ast.parse(src)
+    fn = next(n for n in ast.walk(tree)
+              if isinstance(n, ast.FunctionDef) and n.name == "admin_fleet_cycle")
+    # POSITIONAL, NOT A COUNT. A first cut asserted `guards >= steps - 1`, which carries
+    # exactly one guard of slack -- so deleting any single one still satisfied it and the
+    # mutation was MISSED. Each timed step is checked against the statement that FOLLOWS it.
+    # BETWEEN CONSECUTIVE STEPS, IN SOURCE ORDER. Two weaker forms were tried and both were
+    # wrong: a COUNT (`guards >= steps - 1`) carries one guard of slack, so deleting any single
+    # one still satisfied it and the mutation was MISSED; and "the very next statement is a
+    # guard" fired against a CORRECT tree, because a guard may legitimately sit a few
+    # statements later or outside the enclosing block. What has to hold is that no two timed
+    # steps run with nothing between them.
+    calls = []
+    for n in ast.walk(fn):
+        if isinstance(n, ast.Call):
+            nm = getattr(n.func, "id", None)
+            if nm == "_step":
+                label = (n.args[0].value if n.args and isinstance(n.args[0], ast.Constant)
+                         else "?")
+                calls.append((n.lineno, "step", label))
+            elif nm == "_over_budget":
+                calls.append((n.lineno, "guard", ""))
+    calls.sort()
+    steps = [c for c in calls if c[1] == "step"]
+    assert len(steps) >= 8, "the door stopped timing its steps (%d)" % len(steps)
+
+    unguarded = []
+    for a, b in zip(steps, steps[1:]):
+        if not any(c[1] == "guard" and a[0] < c[0] < b[0] for c in calls):
+            unguarded.append("%s -> %s" % (a[2], b[2]))
+    assert not unguarded, (
+        "no deadline check runs between these consecutive steps, so the first can run "
+        "UNBOUNDED: %s. That is exactly how run 36710874853 returned 0 bytes." % unguarded)
 
 
 def test_the_fleet_door_no_longer_certifies_on_every_cycle():
