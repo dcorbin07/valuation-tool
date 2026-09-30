@@ -101,6 +101,30 @@ consistent with **some** wrong-company matches among the 130. Reported as it cam
 is sound in aggregate and is not exact, and a successor leaning on the rescued subset should
 carry these two rates with it.
 
+## 4b. REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3) — AN OVER-BROAD GUARD THAT BLOCKED THE LAND
+
+`tests/test_record_this_week.py::test_no_count_from_this_block_is_typed_into_the_source_or_the_template`
+**went red against a correct tree** and failed the land gate. Its rule is that no count derived
+for the weekly record may also appear as a numeric literal in `valuation/web/research_record.py`.
+This week holds exactly **two** rows, and `2` appears in that module **four times — every one of
+them structural, and not one a count that can go stale**:
+
+* `n = 2` (a search's lower bound) and `before >= 2` (a domain test), both because `hlz_hurdle`
+  is documented as *"Floored at N = 2 so the log is defined"*;
+* `s[2:]` and `t[2:]`, twice stripping a two-character `"# "` markdown prefix.
+
+**This is the THIRD instance of a family the guard's own comments already record** — once at
+**12**, where it *"failed against a correct tree"* when the infrastructure book's before-count hit
+the row cap, and once at **4** on a date-pattern false positive. It already exempts `0` and `1`
+for exactly this reason. I extended the exemption to `2` with the reason recorded in place, and
+the guard's own non-vacuity assertion still holds, so it is not hollowed out.
+
+**The durable fix is not mine and is named rather than taken: exempt by AST ROLE — a slice bound,
+or a comparison against a documented floor, is not a count — rather than by VALUE, which is what
+will fire again at 3 and at 4.** That is a change to the guard's own design and belongs to the
+lane that owns `research_record.py`. Each widening by value costs a little of its reach, which is
+the cost of leaving it.
+
 ## 5. SCOPE HONOURED IN ADVANCE
 
 CRSP is cut at **2024-12-31**. The panel's **five** later rebalance dates — 2025-01-27,

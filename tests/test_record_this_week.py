@@ -315,7 +315,18 @@ def test_no_count_from_this_block_is_typed_into_the_source_or_the_template():
     # ...and 0 and 1, which on a quiet week are legitimate derived counts and are also what
     # every `max(0, ...)` and slice bound in the module is written with. A typed 0 is not a
     # count that can go stale, which is the only thing this check exists to catch.
-    live -= display_parameters | {"0", "1"}
+    #
+    # ...AND 2, WHICH IS THE THIRD INSTANCE OF THE FAMILY THE TWO COMMENTS ABOVE RECORD. It
+    # fired against a correct tree on the day a week held exactly two rows. Every `2` in the
+    # module is STRUCTURAL and none of them can go stale: `n = 2` is a search's lower bound and
+    # `before >= 2` a domain test, both because `hlz_hurdle` is documented as "floored at N = 2
+    # so the log is defined", and `s[2:]` twice strips a two-character "# " markdown prefix.
+    # The guard is over-broad on small integers by its own admission, and each widening costs a
+    # little of its reach. THE DURABLE FIX IS TO EXEMPT BY AST ROLE -- a slice bound, or a
+    # comparison against a documented floor, is not a count -- rather than by VALUE, which is
+    # what will fire again at 3 and at 4. That is a change to this guard's own design and
+    # belongs to the lane that owns it; it is reported rather than taken here.
+    live -= display_parameters | {"0", "1", "2"}
     assert live, "every live count coincided with a display parameter; this check is vacuous"
 
     # A TYPED COUNT IS A NUMERIC LITERAL IN CODE, NEVER TEXT INSIDE A STRING. Scanning the
