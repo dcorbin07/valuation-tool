@@ -69,6 +69,138 @@ pass nor fail informatively.
 * **D9 was not re-run** — it is unreachable until an export exists, and it is listed as a
   precondition rather than as something done.
 
+# Session 67 — 2026-09-30 — the free route's quality gap, the index build's weights, and the vintage answer
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched. **18 new tests; 12 of 12 mutations caught** from a suite confirmed green first.
+Target is live by **2026-10-12**; this closes two of `D9-DIAG`'s five gaps and **scopes the other
+three rather than half-building them**.
+
+## (d) FIRST, BECAUSE IT CORRECTS D9's OWN PREMISE
+
+`D9` names the weight difference as one of the two reasons Path A is a vintage event: *"the live
+composite uses bucket-specific weights against the panel's flat 1/7"*. **Measured, that framing
+is wrong in a way that matters.**
+
+`attribution._branch` returns `z * w / sum(present * w)` — **every contribution is divided by the
+present-weight mass**, so multiplying all weights by a constant cancels exactly. **`1/7` and the
+live `0.125` are the same object**, and a rescaling cannot move a ranking. Pinned by a test that
+decomposes the same frame under both and requires equality to twelve places, with the note that
+if it ever stops holding, (d) needs re-deciding rather than re-running.
+
+**WHAT ACTUALLY DIFFERS, read off `settings.WEIGHTS_ESTABLISHED` and `WEIGHTS_SPECULATIVE`:**
+
+1. **MEMBERSHIP.** Established blends **`quality`**; speculative blends **`growth`** — same
+   weight, different theme. Every other entry is identical. So a speculative-bucket name is
+   currently scored with `growth` *instead of* `quality`: a different composite, not a
+   differently-weighted one.
+2. **SOFT BUCKETING.** A borderline name is scored under **both** rulebooks and blended by
+   `p_established`, so its composite is a mixture of two weight sets.
+
+`valquo_index.rescore_flat_seven` ranks the **index build only** on one flat set over the
+deployed seven, hard, `soft=False` — delegating to the same `attribution.decompose` the screener
+calls. On a fixture it does real work: a name ranked **90** on `growth` 3.0 falls to **34**,
+because `growth` carries zero weight in the deployed composite. **The public hot list keeps its
+own score**, pinned by a test — changing what the site shows is a product decision, not a
+fidelity one.
+
+## (d) THE VINTAGE ANSWER — YES, IT CHANGES, AND CONDITIONALLY
+
+With (a)–(d) genuinely done, **both of §5a's triggers that Path A currently hits are closed**:
+
+* **weights** — the index build would use the panel's own set, and since the scale is provably
+  irrelevant, "1/7" *is* the panel's weighting. Closed by (d).
+* **scoring** — all seven themes would reach a live score, each built to the panel's own
+  definition. Closed by (a)+(b)+(c).
+
+§5a's list is *scoring, weights, construction*. **It does not name the data vendor.** So on the
+rule's own wording, with (a)–(d) done, **Path A would no longer be a vintage event** — the
+construction is unchanged in both paths, and only the inputs' provenance differs.
+
+**AND THAT IS PRECISELY WHY D9's BARS BECOME THE WHOLE DECISION.** The vintage question collapses
+into the fidelity question: if B1/B2/B3 pass same-date, the free route computes *the same
+composite from different data*, which is rebalancing under unchanged rules. If they fail, the
+honest reading is that it computes something materially different — and shipping that is a
+scoring change in substance even though §5a's list does not mention vendors.
+
+**THE BARS WERE CHOSEN FOR EXACTLY THIS.** 0.80 / 0.60 / 0.70 were set so that clearing them
+means *"the same ranking"*, which is the substance the vintage rule protects. **The residual
+judgement — whether a vendor switch that clears the bars is nonetheless a scoring change — is
+Don's**, and it is a narrower question than the one the runbook currently answers.
+
+**THE RUNBOOK IS NOT AMENDED.** Its Path A verdict is correct **today**, because (a)–(c) are not
+done. It should be re-read the moment they are, and this section is the input to that re-read.
+
+## (a) THE PIOTROSKI F-SCORE — THE LIVE SIDE DID NOT COMPUTE IT AT ALL
+
+The panel's `quality` averages it with nine other inputs, so a live `quality` without it is a
+mean over a **different set of columns** — one reason B3 read `quality` **0.6256** against 0.70
+while `value`, `momentum` and `size` cleared at 0.79, 0.97, 0.98.
+
+`valuation/data/fscore_live.py` **delegates to `fundamental_panel._f_score`** and its only job is
+translating SEC XBRL facts into the field names that function already reads. **The delegation is
+load-bearing in an unusual way and the test says so: the F-score is the number the two sides are
+COMPARED on**, so a second implementation would make any fidelity measurement a comparison
+between two of my own functions rather than between two vendors.
+
+**WHY SEC AND NOT THE BROKER FEED, measured rather than assumed.** Seven of the nine tests need a
+*prior fiscal year* value, and the live `CompanyData` carries history for revenue, EBIT, FCF and
+net income **only** — assets, operating cash flow, non-current debt, the current ratio and the
+share count have **no history at all** on that object. So the F-score was not merely unwired; it
+was **not computable** from what the live fetch returns. SEC companyfacts is free, keyless and
+already reachable.
+
+**Measured against the real SEC endpoint: AAPL 8/9, JPM 2/9** — and JPM scoring low on an
+*industrial* accounting screen is itself consistent with session 66's point that a bank does not
+belong in these measures.
+
+Refusals rather than guesses, each with a reason: no CIK, no **consecutive** annual pair (seven
+tests read *"improved since last year"*, so 2025-against-2022 answers a different question), or
+fewer than six evaluable tests. **`currentratio` and `grossmargin` are derived the same way for
+both years**, because tests 6 and 8 compare them to each other and a definition that drifted
+between the years would fabricate a pass.
+
+## THREE OF MY OWN TEST GAPS, ALL FOUND BY MUTATION, TWO OF THEM ONE CLASS
+
+* **The failure test was one call short of the code it protects.** It asserted on `_f_score`
+  directly, which never touches `f_score`'s return path — so making that path hand back **0**
+  instead of `None` left it green. It now drives the whole function with a stubbed fetch.
+* **Two fixtures could not REACH the branch they were aimed at.** Leaving the bucket switch on
+  and leaving soft bucketing on were both **inert** against a three-row fixture: `decompose`'s
+  hard split only standardises *within* a bucket at five or more names in it, and the soft branch
+  only engages when `value_est` and `value_spec` are present. A ten-name five/five fixture
+  carrying both reaches the first; the second is asserted **structurally**, with its limit stated
+  — `p_established` reads `op_margin`, which a `factors` dict does not carry, so a behavioural
+  test built from factors alone *raises* rather than blending, and a passing version of it would
+  have been passing for the wrong reason.
+* **A correction to my own assertion**: I claimed a degenerate cross-section keeps its old score.
+  It does not — three identical rows all score 67.0, because the z-scores tie. That is the right
+  behaviour and the wrong test; what matters is that **no fabricated ordering appears**, which is
+  what is now pinned.
+
+## NOT DONE — (b), (c), (e), AND WHY EACH IS SCOPED RATHER THAN STARTED
+
+* **(b) capital_discipline from real share counts.** `data/live_cache/issuance/` is **154 of 154
+  SYN test files**, so today's live `capital_discipline` rests on synthetic data. The route is
+  the same one (a) just proved out — SEC XBRL, `dei:EntityCommonStockSharesOutstanding` and
+  `WeightedAverageNumberOfDilutedSharesOutstanding` over time — and `fscore_live._annual_map` is
+  already the primitive for it. **What stopped me shipping it in this pass is that it needs a
+  cache written and committed for ~1,500 names**, which is a production run rather than a code
+  change, and the same constraint that holds (11b).
+* **(c) institutional and insider live.** Gated on **11b**, the MC1 theme-cache production run.
+  Unchanged from session 66's statement of it.
+* **(e) per-input coverage and Spearman against the freeze.** **Not possible yet, twice over.**
+  The 1,500-name scan was scheduled for **22:23Z** and it is not yet readable; and the Sharadar
+  side needs the **renewed export**, which is the Oct-12 purchase. Reporting a Spearman against
+  the lapsed 2026-07-31 freeze would be the six-trading-day-gap comparison D9 already measured
+  to be uninformative — its own panel-against-itself reading at 63 days is **0.4971**, below its
+  B1 bar. **No figure is produced rather than an indicative one that would be quoted as a
+  reading.**
+
+**THE HOT LIST MAY CHANGE AS THESE LAND; THE BOUND TRACK DOES NOT UNTIL A REBALANCE.** Nothing
+here writes to the bound series, and `rescore_flat_seven` has **no caller yet** — it is available
+to the Oct 22 build and is not wired into any scan.
+
 # Session 66 — 2026-09-30 — the sector chain, the hot list's financial lens, and three runbook gaps
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
