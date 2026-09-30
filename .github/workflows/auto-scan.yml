@@ -79,7 +79,7 @@ jobs:
     # 30 was sized for the 191-name bundled fallback. The real universe is ~800 names and
     # most of them are served by the free stack at ~1.8s each on a cold cache (much faster
     # once actions/cache has warmed the fundamentals), so it needs real headroom.
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -140,7 +140,7 @@ jobs:
           # listed names, kept to the most liquid SCAN_LIMIT). 800 is the large-cap tier and
           # fits the job's wall clock on a cold cache; raise it once the cache is warm.
           SCAN_SCOPE: whole_market
-          SCAN_LIMIT: "800"
+          SCAN_LIMIT: "1500"
           SCAN_DCF_TOP: "12"
         run: python scripts/ci_scan.py
 

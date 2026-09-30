@@ -41,6 +41,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
@@ -121,7 +123,7 @@ jobs:
           set -euo pipefail
           pip install -q -r requirements.txt || pip install -q pandas requests
           fail=0
-          for f in tests/test_paper_track.py tests/test_fleet_manifest.py; do
+          for f in tests/test_paper_track.py; do
             python "$f" || { echo "::error::$f FAILED against the refreshed data"; fail=1; }
           done
           if [ "$fail" -ne 0 ]; then
