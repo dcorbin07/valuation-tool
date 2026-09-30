@@ -18336,3 +18336,129 @@ would help** — that is `B13`'s arm and it needs its own register and its own t
 `valuation/edge/adv_sep.py`, `scripts/mc9_adv_sep.py`, `scripts/mc9_fidelity.py`,
 `tests/test_mc9_adv_sep.py`; `data/free_analysis/MC9_SEP_INSTRUMENT.json`, `MC9_FIDELITY.json`;
 2,531 per-ticker files in `data/backtest/ohlcv/`.
+
+---
+
+# MC10 (AUDIT 6), ledger id `MC10-REG` — SCORE-WEIGHTED vs EQUAL-WEIGHT NET: **UNPOWERED BY CONSTRUCTION**
+
+**THE LEDGER ID IS `MC10-REG`, NOT `MC10`, AND THAT IS DELIBERATE.** `MC10` was already taken by the app fixer's LABEL-REPAIR half of the same audit item, landed 2026-09-30 and reading *"r1's MC10 register is unblocked"*. One audit id, two deliverables, two lanes — `R1-VAR`'s precedent for this ledger's own documented collision hazard. Their row is not edited; its *unblocked* is now spent, because the register it unblocked ran its feasibility gate and closed at it.
+
+**2026-09-30. THE STEP 0 GATE FIRED. ZERO TRIALS, NO REGISTER COMMITTED, NO ARM RAN.** Equity
+`N` stays **248** (hurdle **3.3206712412296953**), options **310**, infra **20**. The item closes
+**"label only"** on the brief's own pre-committed rule, and **the mean difference was never
+computed** — `MB15` separation, enforced by deleting it in the expression that consumes it.
+
+## The gate, and it is decisive rather than marginal
+
+The brief's rule: *UNPOWERED-BY-CONSTRUCTION iff the 80%-power MDE at crit 2.0 exceeds 0.0083*,
+where **0.0083 is the artifact's own gross gap** (`0.0800 - 0.0717`) and therefore the **CEILING**
+of any NET gap, because costs subtract from both books and the SW book trades more (C5, measured
+below).
+
+| | |
+|---|---|
+| paired HAC(1) SE of the annualised difference | **0.0051537** (per-period 0.0012884, n = 69) |
+| MDE50 at crit 2.0 **UNCALIBRATED** | 0.0103074 |
+| **MDE80 at crit 2.0 UNCALIBRATED** | **0.0146365** |
+| gate threshold | 0.0083 |
+| **verdict** | **FIRES — 1.76x too large** |
+
+`RUN_RULES` A11, printed from `power_gate.state` so the arithmetic is not retyped:
+
+> MDE at |t| > 2.0000 (explicit): detection threshold 0.0103074 (50% power); **0.0146365 at 80%
+> power. Power against the registered effect 0.0083 is 34.9%.**
+> MDE at |t| > 3.3207 (N = 248): 0.0171138 (50%); 0.0214429 (80%). **Power 4.4%.**
+
+**Even against the CEILING the design is a coin flip at the conventional bar and nothing at the
+honest one.** Every critical value is **LABELLED UNCALIBRATED**: `V2G` established and `R1-VAR`
+re-confirmed that no calibrated floor exists for a paired within-panel difference, and `MB8`'s
+0.1106pp against `V2G`'s 0.9354pp brackets the class by 8.5x.
+
+## WHY it is unpowered, and this is the substantive finding
+
+**THE SERVED WEIGHTING IS NEARLY EQUAL WEIGHT.** Measured on the 69 dates:
+
+| | |
+|---|---|
+| rho(EW, SW) of per-date NET returns | **0.996773** |
+| largest SW weight ever assigned | **0.01238** |
+| equal weight on the mean 165.6-name decile | 0.00604 |
+| dates on which the 8% cap binds | **0 of 69** |
+
+So the most concentrated name the live rule ever holds is **~2x equal weight**, and **the 8% cap
+is decorative on a book this wide** — it cannot bind while the decile runs ~166 names. Two books
+correlated at 0.9968 cannot be told apart at this panel's resolution, and that is a property of
+the RULE, not of the sample: no number of additional dates changes how similar the two weightings
+are.
+
+Costs behave as C5 predicts and the direction is REPORTED rather than assumed: SW turnover
+**2.6966** against EW **2.6066**, realised one-way **35.19 bps** against **33.35**, cost drag
+**1.898%** against **1.739%**. The served book trades more and pays more.
+
+## `C2` — THE ARTIFACT'S "SIGNAL WEIGHTED" FIGURE IS NOT THE BOOK THE PRODUCT SERVES
+
+The brief anticipated this and asked for the relabel. **Three distinct weightings exist and two
+of them are being conflated:**
+
+1. **EW** — equal weight. Every published headline (`top_decile_alpha` 0.0717) is measured here.
+2. **THE ARTIFACT'S** `construction.signal_weighted_top_decile_alpha` = **0.08001508891469325**.
+   `fundamental_panel.py:2693` weights by `np.clip(comp[top], 0.0, None)` — proportional to the
+   **LEVEL** of the standardised composite, **uncapped**, and a name with a non-positive
+   composite gets **zero weight**. **Reproduced here to all sixteen digits**, so this is exactly
+   what that field is.
+3. **WHAT THE PRODUCT SERVES** — `valquo_index.build_index`: `max(0.01, hot_score - cohort_min
+   + 1)`, normalised, then an 8% cap. And `screen.py:339` defines
+   `hot_score = composite.rank(pct=True) * 99 + 1`, so the served weight is a function of the
+   composite's **RANK**, not its level.
+
+**A rank transform destroys exactly the information the artifact's rule weights by.** (2) and (3)
+are different objects, and the measurements above show how differently they behave: the served
+rule never exceeds 1.24% on any name while the artifact's is unbounded and zeroes part of the
+decile outright.
+
+**THE RELABEL: `construction.signal_weighted_top_decile_alpha` describes a LEVEL-PROPORTIONAL,
+UNCAPPED weighting that the product does not serve.** It should not be read as "what the Index
+earns". The served book's own net figure is NOT computed here — the gate fired first, and
+computing it is the arm.
+
+## `C1` — reproduces, and the two small gaps have ONE cause, isolated
+
+`top_decile_alpha` reproduces at **0.07174142332098168** against the published
+0.071741423321. Turnover read **2.6066** against 2.6069688 and realised bps **33.3507** against
+33.3599 — and calling `turnover_and_costs` directly reproduces **all three targets bit-for-bit**
+(2.6069687969064415 · 33.35986774800825 · 0.06069654078141906).
+
+**THE CAUSE IS A REAL DISAGREEMENT BETWEEN TWO SHIPPED PATHS, not an error in either.**
+`quantile_backtest` takes the decile as `np.array_split(argsort(-comp), 10)[0]`; `turnover_and_
+costs` takes it as `k = int(len(sub) * 0.1)`. On a 1,655-name cross-section those are **166 and
+165 names**. So `construction.top_decile_alpha` and `costs.top_decile.*` in the same results file
+are measured on books that differ by one name on most dates. Immaterial to every published
+figure, and worth knowing before someone compares the two blocks and finds they do not tie.
+
+## BUGS FOUND
+
+* **`construction.signal_weighted_top_decile_alpha` is mislabelled relative to the product.** See
+  `C2` above. Reported, not renamed — renaming a shipped payload field is a results change and
+  belongs to a register that has a reason to touch it.
+* **The two shipped decile definitions differ by one name** (`array_split` vs `int(n*0.1)`).
+  Reported, not reconciled — reconciling them moves either `construction.*` or `costs.*`.
+
+## NOT DONE
+
+`PREREG_mc10_score_weighting.md` was **NOT** committed. No trial was booked. No arm ran. The
+weight-scramble null was not built. **The mean NET difference SW-EW was never computed** — the
+one number the register would have existed to produce. Nothing is adopted; a weighting change is
+a vintage event and Don's call, and on this evidence there is nothing to put to him.
+
+## Tests
+
+**15 tests, 4 of 4 mutations caught with sources restored byte-for-byte.** The load-bearing pins
+are ABSENCES, because an item closed at its own gate is easy to "finish" later by quietly
+running the arm: no `PREREG_mc10_*.md` (mutation-tested by creating one), no research-log row
+(tested by inserting one), the equity stamp still 248, and no second `mc10_*` script. Plus an
+AST pin that the local holding the mean of the paired difference is `del`-ed in the expression
+that consumes it, so `MB15` separation cannot be undone by an edit that forgets why.
+
+`scripts/mc10_feasibility.py`, `tests/test_mc10_feasibility.py`;
+`data/free_analysis/MC10_FEASIBILITY.json`, `MC10_FEASIBILITY_PERDATE.pkl` (per-date rows,
+`RUN_RULES` A9).
