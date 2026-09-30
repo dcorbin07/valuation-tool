@@ -5,6 +5,70 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 64 — 2026-09-30 — the Oct 22 runbook carries both paths
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `by_domain`
+unchanged: equity 248, options 310, infra 20. **NEITHER BOOK IS BUILT**, as instructed — nothing
+was run, no book written, the bound record untouched, no money spent. `.github/` untouched.
+
+`REBALANCE_RUNBOOK_2026-10-22.md`, new and tracked. `D9` came back **NO-GO on all three bars**
+(`bb4b4fc`), so the runbook carries **A** (free live, only if a same-date D9 re-check reads GO)
+and **B** (Sharadar renewal, the fallback D9 routed), with the exact commands and one freshness
+gate for both.
+
+## THE VINTAGE CALL, AND PATH A DOES NOT TURN ON THE VENDOR
+
+`PAPER_TRACK_CONTRACT.md` §5a, quoted verbatim from Don's own signed decision: *"any ADOPTED
+change to scoring, weights, or construction closes the current vintage and opens the next …
+**Rebalancing under unchanged rules is NOT a vintage event.**"*
+
+* **Path B — NOT a vintage event.** Same vendor the book in force was built on, same
+  construction, same flat weights. It is the case §5a names explicitly.
+* **Path A — VINTAGE EVENT, opens vintage 5**, and **not on a judgement call**: it hits two of
+  §5a's three named triggers outright. **Weights** — the live composite uses bucket-specific
+  weights against the panel's flat 1/7 (D9's own premise correction, made before any
+  cross-vendor number was read). **Scoring** — the live path serves **five** of the seven
+  weighted themes; `institutional` and `insider` reach no live score.
+
+**THE POINT MOST LIKELY TO BE MISREAD: A GO FROM D9 WOULD NOT MAKE PATH A RULE-NEUTRAL.** D9
+asks whether the live path *ranks* the large-cap tier closely enough — a question about the
+resulting ranking, not about whether the rules are the same. **Path A opens vintage 5 whether
+D9 reads GO or NO-GO**, and if MC1's theme cache is in force by then it opens a *different*
+vintage 5 (a seven-theme book), which is why the theme set in force has to be recorded with it.
+
+**Rule 6 is the price:** vintage 4 opened 2026-08-13 and holds ~10 weeks at Oct 22. Path A
+spends all of it; Path B spends none.
+
+## THE GATE HAS A CATCH, AND IT CHANGES THE ORDER OF OPERATIONS
+
+**The same-date D9 re-check needs a renewed Sharadar export to run at all** — there is no
+Sharadar side to compare against without one. So the sequence is **renew first, then decide**,
+and once renewed **Path B is available at no vintage cost**. The re-check must be *same-date*
+for a measured reason: D9 read the Sharadar panel against **itself** at 63 trading days at
+**0.4971**, below its own B1 bar of 0.80, so a cross-vendor comparison across a gap can neither
+pass nor fail informatively.
+
+## THREE THINGS THAT WOULD SILENTLY PRODUCE THE WRONG BOOK
+
+1. **The 30% band applies only if the previous book is at `--out`.** `export()` supplies `held`
+   from `_previous_book(path)`, and `build_index` needs **both** `held` and `exit_frac`.
+   Measured on the live endpoint right now: `no_trade_band {"applied": false, "note": "no
+   previous book supplied"}`. A silently band-less rebalance turns the book over harder than the
+   adopted rule does and looks like an ordinary rebalance everywhere.
+2. **The CLI help understates the band.** `--config`'s help says *"taxable (decile, quarterly,
+   **20%** band)"*; the shipped `BOOK_CONFIGS["taxable"]["exit_frac"]` is **0.3**, matching
+   `no_trade_band.BAND_WIDTH = 0.30` and S14's adopted width. **The code is right and the help
+   is wrong** — reported, not edited, since it belongs with whoever next touches that file.
+3. **`roth` is not the contract book.** `/api/valquo-index` serves the 25-position roth preview,
+   which is why `contract_conformance.conforms` reads **false** today against the floor of 50.
+   That is the gate working, not a fault. Build with `--config taxable`.
+
+## NOT DONE
+
+* **Neither book built**, no Sharadar renewed, no money spent, no date decided, no path chosen.
+* **D9 was not re-run** — it is unreachable until an export exists, and it is listed as a
+  precondition rather than as something done.
+
 # Session 63 — 2026-09-30 — the two sub-scores that still used industrial measures
 
 **ZERO TRIALS** — no hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `by_domain`
