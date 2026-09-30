@@ -31,8 +31,8 @@ on:
     # the year, so no DST cron pair is needed. Backup at 23:37 because GitHub's
     # free scheduler routinely drops runs; the endpoint is idempotent per day, so
     # the backup is a no-op if the primary landed. Odd minutes on purpose.
-    - cron: "12 22 * * 1-5"
-    - cron: "37 23 * * 1-5"
+    - cron: "7 3 * * 2-6"
+    - cron: "37 4 * * 2-6"
 
 concurrency:
   group: pt-writer
@@ -44,7 +44,7 @@ permissions:
 jobs:
   write-row:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Ask the live service to append today's row
         id: post

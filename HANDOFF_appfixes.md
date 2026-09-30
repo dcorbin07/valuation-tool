@@ -5,6 +5,213 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 61 — 2026-09-30 — valuation consistency + the AI failure (audit 6 follow-on)
+
+**AUDIT 6. ZERO TRIALS** — no hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row.
+`by_domain` re-read at the start and unchanged after: **equity 248, options 310, unified 0,
+infra 20**, 0 malformed. `.github/` untouched. **22 new tests; 21 of 21 mutations caught, 0 missed. Full gate: 198 suites, 0 failures.**
+
+**ADOPTS NOTHING in the backtest and it is NOT a vintage event** — fair value is not in the
+composite, so no hot-score input moves. **BUT IT CHANGES THE PAPER ACCOUNT'S EXITS**, and that
+is the one consequence a reader must not miss: see the last section.
+
+## THE DEFECT, AS MEASURED ON THE LIVE SERVICE
+
+`POST /api/value {"ticker":"KNSL"}` on valquo.co, 2026-09-30. Regime `financial`,
+`dcf_reliability` `low`, `fair_value_blend` using **ONE** lens — `pb_roe` $291.03 at weight 1.0
+— against a $323.25 price, i.e. the name was trading **10% ABOVE its own fair value**. And
+`score.drivers` carried *"Monte Carlo: 100% of trials value it above the price"*, which is a
+statement about the unlevered FCFF discounted-cash-flow model: the lens `blend.py`'s own comment
+says never applies to a financial, and which carried weight **ZERO** in that fair value. That
+term is worth **0.30** of the valuation subscore, so it lifted it from ~37 to 55.8 and the name
+read **73 → Buy**.
+
+**THIS IS THE KSPI LESSON ONE DOOR OVER.** That one was a WITHHELD valuation reaching the score
+through a side door; this is an INAPPLICABLE lens doing the same thing. Same remedy: the term
+does not get to contribute.
+
+## ITEM 1 — ONE SOURCE OF TRUTH, AND IT IS A READ OF A DECISION ALREADY MADE
+
+`pipeline.lens_applicability(blend)` is the single predicate. It is not a new judgement —
+`fair_value_blend.lenses` already records the weight each lens received, so applicability is
+read off the blend rather than re-derived. Returns `{used, zero_weight, fcff_applies, note}`
+and ships on every payload beside `reference_only`, `financial_surfaces` and
+`comps_cross_check`.
+
+**AN ABSENT LENS READS AS NOT-APPLICABLE, WHICH IS THE ONLY SAFE DIRECTION.** A financial's
+blend does not carry a zero-weight `dcf` entry — it carries **no `dcf` entry at all** — so
+`fcff_applies = ("dcf" in used)` rather than anything keyed on finding a zero. A gate that
+treated "no entry" as "cannot tell" would fail open on precisely the case it exists for.
+
+**THE FCFF SURFACES ARE KEPT, NOT DELETED.** They move to `reference_only` under a label
+reading *"NOT USED FOR THIS COMPANY TYPE … must not enter a score, a verdict or a
+recommendation"*. Deleting them would hide that the model was run at all, and a reader comparing
+two company types needs to see why one has no Monte Carlo of its own.
+
+**THE DRIVER NAMES ITS MODEL.** An unattributed probability is what let the inapplicable
+distribution lift the score. The arithmetic is untouched, so a non-financial's driver string is
+byte-identical — pinned as the inertness half of the change.
+
+## ITEM 2 — THE FINANCIAL'S OWN SURFACES, DELEGATING RATHER THAN RE-DERIVING
+
+`valuation/engine/financials.py` gains `pb_roe_monte_carlo`, `pb_roe_sensitivity` and
+`implied_roe`. **EVERY ONE CALLS `financial_fair_value` (B7)** rather than re-computing
+`pb × bvps`: that function caps `g` below both Ke and ROE and bounds the multiple to
+[0.2, 6.0], and a second copy would drop the capping and produce a distribution whose centre
+the headline cannot reach — the same class of defect being fixed.
+
+**THE REVERSE QUESTION IS SOLVED, NOT ALGEBRAICALLY INVERTED.** Inverting
+`P/B = (ROE − g)/(Ke − g)` gives `ROE = P/B × (Ke − g) + g`, but a closed-form inverse ignores
+the `g`-capping and the bounds and would report an ROE the forward model can never turn back
+into today's price. A bisection on the real function cannot disagree with it, and the test
+requires the answer to reproduce the price to within a cent. A price outside the bounded model's
+reachable range is **REPORTED**, not extrapolated.
+
+**THE NARRATIVE SPEAKS THE MODEL'S LANGUAGE.** The FCFF prose argued from start growth, target
+operating margin and the terminal-value share of enterprise value — every one an input to a
+model carrying zero weight. A financial's narrative now cites book value per share, ROE, the
+cost of equity, and the implied-ROE gap.
+
+**AND IT NO LONGER CLAIMS NET CASH OR BUYBACK CAPACITY.** Deposits, policy reserves and float
+are OPERATING liabilities, so a financial's computed `net_debt` can come back negative while the
+firm holds no distributable cash whatsoever — and buybacks at a regulated financial are gated on
+regulatory capital this model does not read. Suppressed **by regime**, with a positive control
+proving the sentence is still made for a non-financial that genuinely holds net cash.
+
+## ITEM 3 — COMPS BESIDE THE HEADLINE, WITH ITS GAP, AND NOT BLENDED
+
+For KNSL the comps figure is computed (~$267 live) and then discarded. It now ships as
+`comps_cross_check` with `gap_vs_headline_pct`, `gap_vs_price_pct` and `blended: false`.
+**NO WEIGHT CHANGED** — whether comps *should* be blended for a financial is a measurement
+question and is routed to r1. A cross-check folded into the thing it checks is not a
+cross-check.
+
+## ITEM 4 — THE AI CALL, AND THE CAUSE WAS UPSTREAM OF THE PARSER
+
+Live source string: `rule-based (no AI key configured) (AI call failed: Expecting value: line 1
+column 1 (char 0))` — two mutually exclusive claims in one string, on an account where a key IS
+configured. A reader trusting the first clause would have hunted an environment variable that
+was never missing.
+
+**THE MODEL ID IS FINE AND THAT WAS CHECKED FIRST.** `AI_MODEL_ANTHROPIC` defaults to
+`claude-sonnet-5`, which is a current live model. Not the cause; pinned against a committed
+literal set so a retired id fails in CI rather than at the provider.
+
+**THE CAUSE IS `max_tokens=1600`.** That parameter caps thinking **and** response text
+together, and on `claude-sonnet-5` **adaptive thinking is ON whenever the `thinking` parameter
+is omitted** — a change from Sonnet 4.6, which ran thinking-off by default. The schema asks for
+eight fields including four multi-sentence theses, so the budget could be spent entirely on
+reasoning, returning `stop_reason: "max_tokens"` with a thinking block and no text block; and
+since `thinking.display` also defaults to `"omitted"` on this model, that block's own text is
+empty too. `"".join(getattr(b, "text", ""))` then yields `""`, and `json.loads("")` raises
+**exactly** the observed message. A refusal (HTTP 200, empty `content`) produces the same
+string. **Budget raised to 8000. Thinking is deliberately NOT disabled to buy it back** — on
+this model a thinking-disabled turn can leak `<thinking>` tags into the visible text, which is
+strictly worse for something whose next step is `json.loads`.
+
+**FIXING THE PARSER ALONE WOULD HAVE RELABELLED A STILL-BROKEN CALL**, which is why the cause
+is fixed too.
+
+**THE STOP REASON IS READ BEFORE THE CONTENT.** A refusal and a consumed budget each raise
+`AIReplyError` naming the condition; reading `content` first collapses both into a decode error
+that explains nothing. Three conditions produced one indistinguishable string and they want
+three different fixes.
+
+**ONE HONEST NARROWING:** the fence handling was **not** what broke live — the old parser
+already coped with ```` ```json ```` fences. What was missing was the empty-reply reason and the
+label. The new extraction (first `{` to last `}`) is nonetheless stricter: it survives an
+unterminated fence and a value that legitimately ends in a backtick.
+
+**THE LABEL IS SEPARATED FROM THE NO-KEY STATE.** `_rule_based(result, source=...)`; the
+default `_NO_KEY` is used **only** where the resolved provider has no key, which is the one
+state in which it is true. A failure yields `rule-based (Anthropic claude-sonnet-5 call failed:
+AIReplyError: …)` — provider, model, **exception class** and redacted reason. The class matters:
+`AIReplyError` means the provider answered and we could not use it, while an authentication or
+connection error means the call never landed.
+
+**A DEFECT IN MY OWN PATCH, CAUGHT BEFORE IT SHIPPED.** `_financial_narrative` is a second
+return path and my first cut hard-coded `_NO_KEY` in it — so a financial whose AI call failed
+would have printed "no AI key configured" again, reintroducing the exact defect item 4 exists to
+remove, one branch over. The label is threaded through and both paths are mutation-tested.
+
+**THE KEY IS NEVER PRINTED.** `_safe()` redacts anything `sk-`-shaped before a reason is logged
+or rendered. The reasons never interpolate the key — this is the belt to that braces, because a
+provider's own exception text is not ours to vouch for. Non-key text passes through unchanged,
+so the redaction is not simply blanking the reason.
+
+## ITEM 5 — WHAT MOVES, AND THE HONEST LIMIT ON THE NUMBER
+
+Measured on a KNSL-shaped offline fixture (price 323.25, headline fair value 256.60, **20.6%
+above fair value**):
+
+| Monte Carlo fed to the scorer | P(undervalued) | composite | recommendation |
+|---|---:|---:|---|
+| FCFF, at the **live** reading | 1.0000 | **50** | **Hold** |
+| P/B-ROE, as shipped | 0.2396 | **42** | **Reduce** |
+| term dropped entirely | — | 42 | Reduce |
+
+**−8 composite points and a recommendation boundary crossed.** The as-shipped score equals the
+term-dropped score to the point, which is the check that the substitution is not smuggling
+anything back in.
+
+**A CORRECTION AGAINST MY OWN EXPECTATION, AND THE LIMIT IT EXPOSES.** My first measurement used
+the fixture's own FCFF Monte Carlo, which reads **0.58%** rather than the live 100% — giving a
++2-point move and no recommendation change. **The fixture does not reproduce the live shape**,
+so the table above substitutes the live input deliberately, and the composite it produces (50)
+is not the live 73 either, because the other subscores differ. **What is established is the
+mechanism and its direction; the number of live names whose recommendation changes is a property
+of the live data and is NOT measured here.** Anyone wanting it should re-scan and diff — the
+affected population is names whose regime is `financial`.
+
+**BOUND ON THE SIZE, WHICH DOES NOT NEED THE LIVE DATA:** the term is `prob_undervalued × 100`
+at weight 0.30, so swapping the distribution can move the valuation subscore by up to 30 points,
+scaled by that subscore's own weight in the composite.
+
+## THE ONE I NEARLY SHIPPED: A PAGE-LEVEL CRASH TWO LAYERS FROM THE FIX
+
+Making `montecarlo` and `reverse` **null** for a financial is the correct payload — absent means
+not-applicable — and the live front end dereferenced both on the first line of their renderers:
+`mcChart(mc)` read `mc.hist_bins`, `reverseBox(rv)` read `rv.growth_verdict`. Either would have
+thrown a `TypeError` and taken **the whole valuation page down for every bank and insurer**.
+
+**A correctness fix in the engine, surfacing as a total outage on one company type.** It was
+found by grepping the consumers of the two keys rather than by anything raising — the Python
+suites are all green with the page broken, because no test renders the JS.
+
+Both now guard first and render a **labelled** state, and they show the financial's own surfaces
+rather than a blank: the P/B-ROE percentiles plus P(above price) where the histogram was, and the
+required-ROE read where the implied-growth read was. **The test checks the guard comes BEFORE the
+dereference**, not merely that it exists somewhere — asserting existence would pass with the
+guard placed after it. Four consumers of the two keys were repaired in total (payload, AI facts,
+a risk bullet, the PDF) plus these two renderers; `mcChart` is defined in exactly one file, so
+there is no second copy to drift.
+
+## THE PAPER ACCOUNT'S EXITS DO CHANGE — SAY SO
+
+Fair value is not in the composite, so the hot score is untouched and this is **not** a vintage
+event. But the paper account has a *"hit fair value"* exit, and for a financial the fair value
+feeding it is now the P/B-ROE figure with the FCFF-derived surfaces barred from the verdict.
+**So a financial position's exit trigger can move.** No position is closed or opened by this
+change and nothing was traded; it changes what the rule will read on the next cycle. Flagged
+rather than decided.
+
+## NOT DONE, NAMED SO IT IS NOT MISTAKEN FOR DONE
+
+* **No blend weight changed** — comps stays a cross-check, and whether it belongs in a
+  financial's blend is r1's measurement question.
+* **The live population is not re-scanned**, so the count of recommendations that change is
+  unmeasured (above).
+* **No prompt change for the AI layer** — the budget and the parsing are fixed, the schema and
+  the wording are not.
+* **`output_config.format`** (structured outputs) is the documented replacement for
+  *"return ONLY valid JSON"* prompting and is **not adopted here**; it is the right next step and
+  needs its own pass.
+* **The `isinstance` guard in `_parse_json` is unreachable** from the first-`{`-to-last-`}`
+  extraction and says so in place. It stays as defence in depth; a test claiming to exercise it
+  was really exercising the no-object branch, which mutation exposed.
+
+---
+
 # Session 60 — 2026-09-30 — MC8 + MC10 + MC11 + MC14 + MC1 follow-ups (reporting repairs)
 
 **AUDIT 6. ZERO TRIALS** — no hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row.
