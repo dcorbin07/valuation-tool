@@ -734,6 +734,65 @@ def create_saas_app(cfg=CONFIG):
         except Exception as e:
             return jsonify({"ok": False, "error": safe_error(e)}), 500
 
+    @app.route("/admin/price-vendors", methods=["GET"])
+    def admin_price_vendors():
+        """Per-vendor latency and failure rate, measured WHERE THE WRITER RUNS.
+
+        **WHY A DOOR AND NOT A LOCAL SCRIPT.** Vendor behaviour is a property of the network the
+        request leaves from, and the three vantage points disagree in the way that decides the
+        wall clock. Measured 2026-09-30: from this developer machine one Stooq request
+        CONNECT-TIMES-OUT in 30.1s, while on a GitHub runner the same request returns a 404 in
+        milliseconds. A per-name cost of 94s and a per-name cost of 0.4s are the same code on
+        the same day. Nothing measured off the service can settle what the service pays, and
+        the service is what prices the bound track.
+
+        READ-ONLY and bounded: it prices a handful of names and reports what each vendor did.
+        It records nothing, and `n` is capped so this can never become the slow door it exists
+        to diagnose.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        import time as _t
+        from ..screener import prices as _P
+
+        n = _clamp_int(request.args.get("n"), default=6, cap=25)
+        syms = [t.strip().upper() for t in (request.args.get("tickers") or "").split(",")
+                if t.strip()] or ["SPY", "AAPL", "MSFT", "NVDA", "JPM", "XOM"][:n]
+        as_of = request.args.get("as_of") or None
+
+        per, vendors, unpriced = [], {}, []
+        for t in syms[:n]:
+            t0 = _t.time()
+            try:
+                df = _P.get_history_df(t, days=400, as_of=as_of)
+            except Exception as e:                                      # noqa: BLE001
+                df = None
+                per.append({"ticker": t, "seconds": round(_t.time() - t0, 3),
+                            "vendor": None, "error": type(e).__name__})
+                unpriced.append(t)
+                continue
+            src = _P.source_of(df) if df is not None else None
+            per.append({"ticker": t, "seconds": round(_t.time() - t0, 3), "vendor": src,
+                        "rows": (0 if df is None else int(len(df)))})
+            if src:
+                vendors[src] = vendors.get(src, 0) + 1
+            else:
+                unpriced.append(t)
+
+        secs = [r["seconds"] for r in per]
+        return jsonify({
+            "ok": True, "n": len(per), "as_of": as_of,
+            "per_name": per,
+            "by_vendor": vendors,
+            "unpriced": unpriced,
+            "unpriced_count": len(unpriced),
+            "seconds": {"total": round(sum(secs), 2),
+                        "mean": round(sum(secs) / len(secs), 3) if secs else None,
+                        "max": round(max(secs), 3) if secs else None},
+            "census": {k: v for k, v in _P.source_census().items() if k != "last_by_ticker"},
+            "order": "yfinance (primary) -> stooq (fallback) -> fmp (gated off)",
+        })
+
     @app.route("/admin/fleet-cycle", methods=["GET", "POST"])
     def admin_fleet_cycle():
         """The daily cycle for the S3-I1 declared fleet. THE RUNNER'S DOOR.
@@ -836,15 +895,34 @@ def create_saas_app(cfg=CONFIG):
             # A FAILURE CERTIFIES NOTHING AND BLOCKS EVERYTHING, which is the existing
             # behaviour rather than a new one: `run_day1` refuses to certify unless the
             # synthetic AND live legs both pass, and an uncertified book stays gated.
+            #
+            # IT IS NOW OPT-IN, AND THAT IS WHAT MAKES THE DOOR ANSWER AT ALL.
+            #
+            # MEASURED: fleet-cycle runs #39 and #40 both died on `curl: (28) Operation timed
+            # out after 120000 milliseconds with 0 BYTES RECEIVED` -- the server produced
+            # nothing at all inside the workflow's `--max-time 120`. `run_day1` is why: it runs
+            # the synthetic harness AND places a real sandbox fill, reads it back, tampers a
+            # copy and fires the refusals, for a book set of eighteen.
+            #
+            # THE SHAPE OF THE FAILURE IS A LIVELOCK, NOT A SLOW JOB. Certification is what
+            # clears `SELFCHECK_ABSENT`; if certifying cannot finish inside the caller's
+            # timeout then nothing is ever certified, so the next cycle attempts it again, and
+            # every cycle spends two minutes to achieve nothing. Twelve consecutive scheduled
+            # runs is the evidence.
+            #
+            # NO GATE IS WEAKENED BY THIS. An uncertified book is still REFUSED every fill --
+            # that is the existing behaviour and the safe direction. What changes is that the
+            # daily cron stops attempting a multi-minute job it can never complete, and says
+            # so in its response instead of timing out silently. Certification is one
+            # deliberate call: POST /admin/fleet-cycle?run=1&selfcheck=1.
             day1 = {"ran": False}
-            if wants_run:
-                stale = [d["book"] for d in fleet.declared_books()
-                         if d.get("parses")
-                         and not fleet.selfcheck_state(d["book"])["ok"]]
-                if stale:
-                    from scripts import fleet_selfcheck as _sc
-                    day1 = {"ran": True, "needed_by": len(stale),
-                            "result": _sc.run_day1(verbose=False)}
+            stale = [d["book"] for d in fleet.declared_books()
+                     if d.get("parses") and not fleet.selfcheck_state(d["book"])["ok"]]
+            wants_selfcheck = bool(request.args.get("selfcheck") or body.get("selfcheck"))
+            if wants_run and stale and wants_selfcheck:
+                from scripts import fleet_selfcheck as _sc
+                day1 = {"ran": True, "needed_by": len(stale),
+                        "result": _sc.run_day1(verbose=False)}
 
             # The cycle runs AFTER the self-check, so a freshly certified book is gated on
             # this run rather than on the next one -- otherwise the first dispatch after
@@ -854,6 +932,16 @@ def create_saas_app(cfg=CONFIG):
             if day1["ran"]:
                 res["selfcheck"] = day1["result"]
                 res["selfcheck_needed_by"] = day1["needed_by"]
+            elif stale:
+                # SAID, NOT SILENT. A cycle that placed nothing because nothing is certified
+                # must not look like a cycle that found no candidates -- the same distinction
+                # `ARMED_NO_ENTRY_RULE` exists for, one level up.
+                res["selfcheck_pending"] = {
+                    "books": len(stale), "sample": sorted(stale)[:8],
+                    "how": ("certification is deliberate because it places a real sandbox fill "
+                            "and cannot finish inside a 120s cron: POST "
+                            "/admin/fleet-cycle?run=1&selfcheck=1 once"),
+                }
             res["entry_rules_registered"] = res_reg["registered"]
 
             # (D) THE RECORDERS. Four books gate on a series nothing wrote, and no amount of
