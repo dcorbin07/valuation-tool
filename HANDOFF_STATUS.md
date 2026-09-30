@@ -8448,3 +8448,15 @@ MEASURED LIVE 2026-09-29 (the two findings that matter most):
 ## BUGS FOUND (outside this lane, RUN_RULES rule 3): see MC14 (MA38 live half), MC18 (census), MC20
 (contract 5a register ends at vintage 3), and the `--date` backfill flag on `scripts/track_row.py`
 which the contract's section 3 would void the run for if used beyond the same week (MC8 note).
+
+## PT-WRITER 2026-09-30: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the inception 2026-07-30 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
