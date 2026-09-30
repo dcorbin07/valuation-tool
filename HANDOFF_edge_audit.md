@@ -18820,6 +18820,21 @@ output is a defect even when both are "just" intermediates** — `RUN_RULES` A9 
 surviving. Repaired: `compare()` takes its paths as arguments and the re-check banks
 `D9_SHARADAR_SCORES_SAMEDATE.pkl`; both readings were re-scored and restored.
 
+## REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3), NOT EDITED
+
+**`REBALANCE_RUNBOOK_2026-10-22.md` — landed by another lane while this item was running, and
+it gates Path A on exactly this re-check — ARGUES AT LENGTH THAT THE RE-CHECK MUST BE SAME-DATE
+AND THEN LISTS A COMMAND SEQUENCE THAT CANNOT BE.** Its §1 is explicit and correct: *"Comparing
+a fresh live scan against a stale Sharadar freeze re-introduces exactly the drift the bars exist
+to exclude … A cross-vendor comparison across a gap cannot pass and cannot fail informatively."*
+Two paragraphs later it prescribes `--sharadar` then `--compare` — and **`--sharadar` scores at
+the hard-coded freeze dates while `--compare` reads the hard-coded 2026-08-08 snapshot**, so
+following it literally reproduces the very comparison it has just argued against. **`--same-date`
+is that gap closed, and it REFUSES rather than silently comparing across one.** Not edited: the
+runbook is the other lane's and it is Don's operating document. **The substance of its decision
+is unaffected and if anything strengthened** — this item's judgement is that the free route will
+not clear `D9`, which is its Path B.
+
 ## NOT DONE, named so it is not mistaken for done
 
 **No bar is re-read and `D9` is NOT re-opened** — its NO-GO is the verdict and this is a
