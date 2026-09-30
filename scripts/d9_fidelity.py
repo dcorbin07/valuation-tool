@@ -104,7 +104,8 @@ def score_sharadar() -> dict:
         t0 = time.time()
         print("  %-22s scoring %d names as_of=%s ..." % (label, len(tickers), as_of),
               flush=True)
-        res = score_universe_now(prov, tickers, as_of=as_of, with_themes=True)
+        res = score_universe_now(prov, tickers, as_of=as_of,
+                                 with_themes=True, with_numbers=True)
         # `score_universe_now` RETURNS TWO DIFFERENT TYPES: a dict on success and a bare `[]`
         # on either early exit (`if not kept` / `if fr.empty`). So `len(res)` is 3 on success
         # and `res["rows"]` raises on failure -- one idiom cannot serve both. Handled explicitly
@@ -166,9 +167,13 @@ def _sp(a, b):
     return float(a[m].corr(b[m], method="spearman")), int(m.sum())
 
 
-def compare() -> int:
-    sh = pd.read_pickle(SHAR_CACHE)
-    live, lj = _live_frame(LIVE_0808)
+def compare(cache=None, live_path=None) -> int:
+    # Paths are PARAMETERS, not module globals. `--same-date` used to overwrite the two-reading
+    # cache `--sharadar` builds, so running the renewal re-check destroyed the artifact the
+    # original comparison rests on. A mode that clobbers another mode's output is a defect even
+    # when both are "just" intermediates.
+    sh = pd.read_pickle(cache or SHAR_CACHE)
+    live, lj = _live_frame(live_path or LIVE_0808)
     out = {"item": "D9", "step": "1 compare", "trials": 0,
            "live": {"scan_date": lj.get("scan_date"), "provider": lj.get("provider"),
                     "scored": lj.get("scored"), "universe_size": lj.get("universe_size"),
@@ -287,17 +292,100 @@ def compare() -> int:
     return 0
 
 
+def same_date(root, as_of, live_path=None) -> int:
+    """THE RENEWAL RE-CHECK, in one command.
+
+        python scripts/d9_fidelity.py --same-date --sharadar-root <dir> --as-of YYYY-MM-DD
+
+    Scores the fresh Sharadar export at `as_of`, takes the live scan for the SAME date, and runs
+    the comparison. Same-date is the whole point: it removes the 6-trading-day drift and the
+    ~0.95 within-vendor ceiling from the comparison entirely, so what is left is vendor
+    disagreement and nothing else.
+
+    `--live` defaults to the live service, which serves `latest_scan_date()`; the date it
+    returns is CHECKED against `as_of` and a mismatch REFUSES rather than silently comparing
+    across a gap, which is the whole defect this mode exists to remove.
+    """
+    from valuation.edge.fundamental_panel import score_universe_now
+    from valuation.edge.data_providers import WRDSProvider
+
+    class _C:
+        wrds_data_dir = root
+
+    prov = WRDSProvider(_C())
+    ok, msg = prov.ready()
+    if not ok:
+        raise SystemExit("provider not ready at %s: %s" % (root, msg))
+
+    # ---- the live side, and its date is verified rather than assumed
+    if live_path:
+        with open(live_path, encoding="utf-8") as fh:
+            lj = json.load(fh)
+    else:
+        import urllib.request
+        with urllib.request.urlopen(
+                "https://valquo.co/api/hotstocks?top=500", timeout=120) as r:
+            lj = json.loads(r.read().decode("utf-8"))
+        live_path = os.path.join(FA, "D9_LIVE_%s.json" % str(lj.get("scan_date"))[:10])
+        with open(live_path, "w", encoding="utf-8") as fh:
+            json.dump(lj, fh)
+    live_date = str(lj.get("scan_date"))[:10]
+    if live_date != str(as_of)[:10]:
+        raise SystemExit(
+            "REFUSING: the live scan is %s and --as-of is %s. This mode exists to compare the "
+            "SAME date; comparing across a gap is what D9 already measured and what the "
+            "~0.95 ceiling makes uninterpretable. Re-run when the live scan reaches %s, or "
+            "pass --as-of %s to score Sharadar on the live date instead."
+            % (live_date, str(as_of)[:10], str(as_of)[:10], live_date))
+
+    print("  same-date re-check: Sharadar %s at %s  vs  live %s" % (root, as_of, live_date),
+          flush=True)
+    tickers = prov.universe(None)
+    res = score_universe_now(prov, tickers, as_of=as_of,
+                             with_themes=True, with_numbers=True)
+    rows = res.get("rows") if isinstance(res, dict) else list(res)
+    # AND THE EXPORT MUST ACTUALLY REACH `as_of`. `score_universe_now` resolves `as_of` with
+    # `searchsorted(cal, as_of, "right") - 1`, i.e. the last session AT OR BEFORE it -- so a
+    # stale export scores an OLD cross-section under a FRESH label, silently. A renewal
+    # re-check is exactly the situation where that matters, so the returned `as_of` is compared
+    # with the requested one and a mismatch REFUSES.
+    used = str((res.get("as_of") if isinstance(res, dict) else None) or "")[:10]
+    if used and used != str(as_of)[:10]:
+        raise SystemExit(
+            "REFUSING: --as-of %s was requested but the export's latest session at or before "
+            "it is %s, so this would score a stale cross-section under a fresh date. The "
+            "export does not reach %s." % (str(as_of)[:10], used, str(as_of)[:10]))
+    print("     -> %d Sharadar rows (export reached %s)" % (len(rows), used or as_of),
+          flush=True)
+    sd_cache = os.path.join(FA, "D9_SHARADAR_SCORES_SAMEDATE.pkl")
+    pd.to_pickle({"freeze_2026-07-31": {"as_of": as_of, "root": root, "rows": rows,
+                                        "return_was_dict": isinstance(res, dict),
+                                        "dropped_mc_divergence": None}}, sd_cache)
+    return compare(cache=sd_cache, live_path=live_path)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--sharadar", action="store_true")
     ap.add_argument("--compare", action="store_true")
+    ap.add_argument("--same-date", action="store_true",
+                    help="one-command renewal re-check: score a fresh export at --as-of and "
+                         "compare against the live scan for the SAME date")
+    ap.add_argument("--sharadar-root", default=os.path.join(DATA, "backtest"))
+    ap.add_argument("--as-of", default=None)
+    ap.add_argument("--live", default=None,
+                    help="a saved live snapshot json; omit to read the live service")
     a = ap.parse_args(argv)
+    if getattr(a, "same_date"):
+        if not a.as_of:
+            raise SystemExit("--same-date needs --as-of YYYY-MM-DD")
+        return same_date(a.sharadar_root, a.as_of, a.live)
     if a.sharadar:
         score_sharadar()
     if a.compare:
         return compare()
     if not (a.sharadar or a.compare):
-        print("pass --sharadar first, then --compare")
+        print("pass --sharadar then --compare, or --same-date --as-of YYYY-MM-DD")
     return 0
 
 
