@@ -585,16 +585,18 @@
   <div id="tab-index" style="display:none">
     <div class="search-card">
       <div class="section-hint" style="margin-top:0"><b>A model portfolio — not a traded
-        account, and not advice.</b> The same ranking Hot Stocks shows, cut to a validated
-        construction: the top decile of the large-cap tier, score-weighted, capped at 8% per
-        name, rebuilt after each close. <b>No money is invested in it.</b> Positions are
+        account, and not advice.</b> The same ranking Hot Stocks shows, cut to one of two
+        backtested constructions — choose the account type below. The holdings are rebuilt from
+        each day's scan. The <b>forward record</b> further down is a separate, fixed book (the top
+        decile of the large-cap tier, score-weighted, capped at 8% per name) that changes only on
+        its quarterly rebalance. <b>No money is invested in either.</b> Positions are
         marked at closing prices, so there are no fills, no slippage beyond the modelled cost
         and no tax — which is exactly why it is not a return anyone earned.</div>
       <div class="search-row" style="align-items:center;margin-top:10px;flex-wrap:wrap">
         <label class="opt" style="margin:0">Account type
           <select id="bookConfig" class="selin" onchange="loadValquoIndex();loadIndexTrack()">
             <option value="roth" selected>Roth / IRA — top 25, ~2-month rebalance</option>
-            <option value="taxable">Taxable — decile, quarterly, 20% no-trade band</option>
+            <option value="taxable">Taxable — decile, quarterly, 30% no-trade band</option>
           </select>
         </label>
         <span class="note" id="bookConfigNote" style="margin:0"></span>
