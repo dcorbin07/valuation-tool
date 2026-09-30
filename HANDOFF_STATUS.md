@@ -8047,3 +8047,416 @@ Service response, verbatim (truncated at 4000 bytes):
 
     {"ok":false,"reason":"the session has not closed yet (00:58 ET; waiting for 16:15 ET) \u2014 marking now would use intraday prices, not the close","row":null,"session":{"date":"2026-08-27","local_time":"00:58","ok":false,"reason":"the session has not closed yet (00:58 ET; waiting for 16:15 ET) \u2014 marking now would use intraday prices, not the close"}}
     
+
+## PT-WRITER 2026-08-29: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-08-28 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-03: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-02 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-03: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-02 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-04: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-03 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-04: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-03 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-05: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-04 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-05: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-04 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-09: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-08 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-09: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-08 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-10: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-09 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-10: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-09 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-11: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-10 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-11: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-10 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-12: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-11 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-12: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-11 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-15: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-14 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-16: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-15 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-16: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-15 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-17: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-16 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-17: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"coverage":0.812767489300428,"ok":false,"reason":"only 81.28% of the book's weight could be priced on 2026-09-16, below the 95% floor; 16 names unpriced","row":null,"unpriced":["DOW","HPE","MRNA","ALLY","SNDK","EXE","KHC","VRT","MEDP","ZTO","WBS","PR","AR","ONTO","KEYS","DOCN"]}
+    
+
+## PT-WRITER 2026-09-18: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-17 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-18: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-17 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-19: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-18 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-19: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"coverage":0.812767489300428,"ok":false,"reason":"only 81.28% of the book's weight could be priced on 2026-09-18, below the 95% floor; 16 names unpriced","row":null,"unpriced":["DOW","HPE","MRNA","ALLY","SNDK","EXE","KHC","VRT","MEDP","ZTO","WBS","PR","AR","ONTO","KEYS","DOCN"]}
+    
+
+## PT-WRITER 2026-09-22: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-21 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-23: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-22 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-23: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-22 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-24: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-23 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-25: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-24 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## PT-WRITER 2026-09-26: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the mark date 2026-09-25 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    
+
+## AUDIT 6 (Cowork lane), 2026-09-29 — seven zero-trial fixes landed in the checkout; the rest routed
+
+Items: `valquo_master_audit_6_items.json` (MC1..MC20, established shape, for `build_ledger.py`).
+Findings were delivered in chat; this section is the pointer other lanes need. ZERO trials charged;
+no backtest, no sweep; `.github/` untouched (PR requests are in the items: MC2, MC19, MC1's cache job).
+
+FIXED HERE, each guard mutation-tested (broken, watched to fail, restored byte-for-byte):
+1. `index_mark.contract_row`: `n_priced`/`n_positions` count the book IN FORCE after a rebalance
+   (58f51a6 counted the inception book). `tests/test_rebalance_chaining.py` (+1, 20/20).
+2. `/admin/track-row` idempotency-first: the landed check read the history from `None` (silently no
+   rows) and fired only for an explicit `?date=`, which `track-row.yml` never sends. Now resolves the
+   last closed session, reads `index_track.default_paths()[1]`, returns the append-path payload shape.
+   `tests/test_index_mark.py` (+1, 68/68).
+3. `prices.get_history_df`: a stale frame is not retried with backoff (`_StaleFrame`; one fetch, no
+   sleep, counted) — 87 names x (3 fetches + 1.2 s) exceeded the 180 s request timeout on a stale
+   night. `tests/test_price_freshness.py` (+1, 8/8).
+4. `screen._today()`: the scan is stamped with the LAST CLOSED SESSION (`market_session.
+   last_closed_session`), not the runner's UTC date — the Sep 28 close went live dated 2026-09-29.
+   `tests/test_la_screener_batch.py` (+5, 40 OK).
+5. `run_scan` health block gains `theme_sources` (issuance stats + `live_themes.status()`, which was
+   computed and discarded). `tests/test_theme_sources_health.py` (new, 3/3).
+6. `.dockerignore` re-includes `RESEARCH_LOG.md`, `PAPER_TRACK_CONTRACT.md`, `VALQUO_EXTENSIONS.md`,
+   `PREREG_*.md` — deployed code opens all four (live: /work/research "0 entries", /proof N=224,
+   /api/index-track "contract not readable"). `data/` stays out. `tests/test_ignore_rules_audit6.py`.
+7. `.gitignore` gains `*.db-shm`, `*.db-wal`, `*.db-journal`, `.fuse_hidden*`; the two SQLite
+   sidecars committed on 2026-09-28 are untracked. Same suite.
+Gate: `tests/test_edge.py` 428/428; all 189 other suites run, no new failures (env-only ones need
+git history / `data/`). Line endings preserved (CRLF working copies).
+
+MEASURED LIVE 2026-09-29 (the two findings that matter most):
+* MC1 — institutional and insider reach NO live score (`theme_contributing` 0.0/0.0) although
+  FIDELITY-2 is DONE: `data/live_cache/theme_columns.json` never ships and the CI hot job never builds
+  it; `fidelity2_rebuild.py build-live` is pinned to the 2026-08-08 snapshot and constant 13F periods.
+  Vintage 4's pin declares seven themes. Production builder = app fixer; deploy = vintage 5 (Don).
+* MC2 — `track-backup.yml` has failed 5 weeks running (shallow checkout -> `test_fleet_manifest`
+  fails -> commit refused); committed backup = 8 rows to 2026-08-21 vs 23 on the service.
+
+## BUGS FOUND (outside this lane, RUN_RULES rule 3): see MC14 (MA38 live half), MC18 (census), MC20
+(contract 5a register ends at vintage 3), and the `--date` backfill flag on `scripts/track_row.py`
+which the contract's section 3 would void the run for if used beyond the same week (MC8 note).
+
+## PT-WRITER 2026-09-30: the service did not write today's row
+
+POST /admin/track-row?append=1 returned HTTP 422 from the GitHub
+Actions runner. No row was written by this job and no prior row was
+modified (the append rules live in index_mark.append_row, service-side).
+A gap stays a logged gap.
+
+Service response, verbatim (truncated at 4000 bytes):
+
+    {"ok":false,"reason":"the benchmark SPY could not be priced on the inception 2026-07-30 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
+    

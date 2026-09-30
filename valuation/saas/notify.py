@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from itsdangerous import URLSafeSerializer, URLSafeTimedSerializer, BadSignature
 
+from . import accounts as ACCT
 from .emailer import send_email
 
 _UNSUB_SALT = "alerts-unsub"
@@ -183,13 +184,24 @@ def hot_digest_text(scan_date, rows, sectors=None) -> str:
 
 
 def post_hot_digest(cfg, store, scan_date, rows, sectors=None) -> bool:
-    """Post the daily top-10 to Discord, at most once per day."""
-    if not getattr(cfg, "discord_webhook_url", "") or store.alerted_today("__HOTDIGEST__"):
+    """Post the daily top-10 to Discord, at most once per day PER ACCOUNT.
+
+    With no `TRADIER_ACCOUNT_n_*` pair configured, `fanout()` yields `[None]`, so this loop
+    runs exactly once, `tag` and `dedup_key` are identity, and the behaviour is what it was
+    before routing existed. That is the multi-account guarantee, and it is structural: there is
+    no second code path to keep in step.
+    """
+    if not getattr(cfg, "discord_webhook_url", ""):
         return False
-    if send_discord(cfg, hot_digest_text(scan_date, rows, sectors)):
-        store.mark_alerted("__HOTDIGEST__", scan_date)
-        return True
-    return False
+    sent = False
+    for account in ACCT.fanout():
+        key = ACCT.dedup_key("__HOTDIGEST__", account)
+        if store.alerted_today(key):
+            continue
+        if send_discord(cfg, ACCT.tag(hot_digest_text(scan_date, rows, sectors), account)):
+            store.mark_alerted(key, scan_date)
+            sent = True
+    return sent
 
 
 def dip_digest_text(scan_date, rows, posture) -> str:
@@ -247,19 +259,28 @@ def post_dip_digest(cfg, store, scan_date, rows) -> bool:
     p = _posture()
     if not p.get("digest_eligible"):
         return False
-    if not getattr(cfg, "discord_webhook_url", "") or store.alerted_today("__DIPDIGEST__"):
+    if not getattr(cfg, "discord_webhook_url", "") or not rows:
         return False
-    if not rows:
-        return False
-    text = dip_digest_text(scan_date, rows, p)
-    if _violations(text):
-        # Refuse rather than send. Reaching here means the copy drifted out from under the
-        # posture module, which is a defect to fix, not a message to push.
-        return False
-    if send_discord(cfg, text):
-        store.mark_alerted("__DIPDIGEST__", scan_date)
-        return True
-    return False
+    sent = False
+    for account in ACCT.fanout():
+        key = ACCT.dedup_key("__DIPDIGEST__", account)
+        if store.alerted_today(key):
+            continue
+        # THE LABEL IS INSIDE THE GATE, DELIBERATELY. An account label is operator-supplied
+        # text landing in a message this project refuses to let drift, so a label like
+        # "Recovery Fund" would put a banned framing on a risk-registered card. Tagging before
+        # the check means such a label is REFUSED rather than published -- and refused loudly
+        # per account, so the remaining accounts still get their card.
+        text = ACCT.tag(dip_digest_text(scan_date, rows, p), account)
+        if _violations(text):
+            # Reaching here means the copy drifted out from under the posture module, or an
+            # account label introduced a framing the register forbids. Either is a defect to
+            # fix, not a message to push.
+            continue
+        if send_discord(cfg, text):
+            store.mark_alerted(key, scan_date)
+            sent = True
+    return sent
 
 
 def run_alerts(cfg, store, users) -> dict:
@@ -301,7 +322,12 @@ def run_alerts(cfg, store, users) -> dict:
     if not picks:
         return {"new": 0, "emails": 0, "tickers": [], "term_filter": term_stats,
                 "term_gate": gate_stats}
-    send_discord(cfg, alert_discord_text(run_time, picks, live_alerts=live))
+    # One card per configured account, each labelled; exactly one unlabelled card when none
+    # is configured. The picks themselves are market-wide and are computed once -- routing
+    # decides who is told, never what was found.
+    for account in ACCT.fanout():
+        send_discord(cfg, ACCT.tag(alert_discord_text(run_time, picks, live_alerts=live),
+                                   account))
     sent = 0
     for u in users.alert_subscribers():
         unsub = f"{cfg.public_base_url}/alerts/unsubscribe/{unsub_token(cfg, u['id'])}"

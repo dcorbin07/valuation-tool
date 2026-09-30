@@ -18339,7 +18339,9 @@ would help** — that is `B13`'s arm and it needs its own register and its own t
 
 ---
 
-# MC10 (AUDIT 6) — SCORE-WEIGHTED vs EQUAL-WEIGHT NET: **UNPOWERED BY CONSTRUCTION**
+# MC10 (AUDIT 6), ledger id `MC10-REG` — SCORE-WEIGHTED vs EQUAL-WEIGHT NET: **UNPOWERED BY CONSTRUCTION**
+
+**THE LEDGER ID IS `MC10-REG`, NOT `MC10`, AND THAT IS DELIBERATE.** `MC10` was already taken by the app fixer's LABEL-REPAIR half of the same audit item, landed 2026-09-30 and reading *"r1's MC10 register is unblocked"*. One audit id, two deliverables, two lanes — `R1-VAR`'s precedent for this ledger's own documented collision hazard. Their row is not edited; its *unblocked* is now spent, because the register it unblocked ran its feasibility gate and closed at it.
 
 **2026-09-30. THE STEP 0 GATE FIRED. ZERO TRIALS, NO REGISTER COMMITTED, NO ARM RAN.** Equity
 `N` stays **248** (hurdle **3.3206712412296953**), options **310**, infra **20**. The item closes

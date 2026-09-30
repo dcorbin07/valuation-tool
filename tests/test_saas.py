@@ -417,8 +417,18 @@ def test_methodology_page_is_public_and_states_the_weaknesses():
     # Deflated Sharpe at all, and the page now discloses the mislabelling rather than the
     # symptom. Both are asserted so a future edit cannot drop the correction and keep the
     # softer word.
-    for weakness in ("one 18-year", "saturates", "undeflated", "dormant"):
+    # UPDATED 2026-09-30. "saturates" described the statistic BEFORE audit M1 wired the real
+    # trial count in; since then it is a genuine Deflated Sharpe (~0.79) that FAILS the 0.95
+    # convention, and that failure is the weakness the page must carry. "undeflated" stays
+    # asserted because the page keeps the record of the earlier mislabelling. The live/backtest
+    # theme gap (institutional and insider have no live source) replaces the retired B7 claim
+    # that the two paths score differently -- they score identically (M4's replay harness).
+    for weakness in ("one 18-year", "undeflated", "dormant", "fails its conventional bar",
+                     "five of the backtest's seven themes"):
         assert weakness in body, f"methodology must keep the weakness: {weakness!r}"
+    for retired in ("kept private precisely", "not yet the same function",
+                    "market-data subscription is degraded", "-6.65", "−6.65"):
+        assert retired not in body, f"methodology still carries a retired claim: {retired!r}"
     # The alpha figure is permitted (audit R1 cleared its pre-registered threshold) but only
     # wearing its labels. A page that prints the intercept without them is the exact failure
     # this whole posture exists to prevent.
@@ -457,7 +467,7 @@ def test_landing_renders_the_sample_and_survives_having_none():
         "sample_age": 0, "track": None, "spark": None, "scan": None}
     try:
         c = create_saas_app(CONFIG).test_client()
-        html = c.get("/").data.decode()
+        html = c.get("/landing").data.decode()
         assert "TSTQ" in html and "Test Corp" in html
         assert "150.00" in html and "72" in html
         assert "4% a year" in html, "the reverse-DCF read is the most persuasive number"
@@ -468,7 +478,7 @@ def test_landing_renders_the_sample_and_survives_having_none():
     showcase.landing_context = lambda store: {}
     try:
         c = create_saas_app(CONFIG).test_client()
-        r = c.get("/")
+        r = c.get("/landing")
         assert r.status_code == 200
         html = r.data.decode()
         assert "Live sample" not in html
@@ -491,7 +501,7 @@ def test_landing_never_500s_when_the_showcase_blows_up():
         raise RuntimeError("store exploded")
     showcase.landing_context = _boom
     try:
-        r = create_saas_app(CONFIG).test_client().get("/")
+        r = create_saas_app(CONFIG).test_client().get("/landing")
         assert r.status_code == 200, r.status_code
         assert "Adaptive DCF" in r.data.decode(), "the static page must still be there"
     finally:
@@ -650,6 +660,14 @@ def test_post_recap_endpoint_is_gated_validated_and_quiet_without_a_webhook():
 _KNOWN_ORPHAN_IDS = {
     "btBench", "btCost", "btErr", "btHorizon", "btLoader", "btRebal", "btResults",
     "btSource", "btStats", "btTickers", "btVerdict", "eqChart", "qChart",
+    # 2026-09-29: Don deleted the Watchlist (rank) and Edge Lab (edge) TABS — button and
+    # body. runRank() and the edge*() functions stay in app.js on purpose: `/api/rank` and
+    # `/api/edge/*` are still served, tests/test_theme_status.py pins the self-learning
+    # log renderer (`_themeBars`, `window.THEME_STATUS`) as the legend's one consumer, and
+    # restoring a tab is then a template revert rather than a rebuild. Same class as the
+    # block above: dead, not broken. tests/test_public.py pins that the tabs stay gone.
+    "rankTickers", "rankLoader", "rankResults", "rankErr", "goRank", "rankTable",
+    "edgeLoader", "edgeErr", "edgeMsg", "edgeResults", "edgeStrategy", "edgeLimit",
 }
 
 

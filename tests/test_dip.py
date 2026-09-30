@@ -654,6 +654,40 @@ def test_the_banned_list_covers_advice_and_prediction_and_actually_matches():
     assert dip_posture.violations("a screen, not a prediction") == []
 
 
+def _dip_panel(page: str) -> str:
+    """The rendered `#tab-dip` panel, cut out by BALANCING `<div>`s.
+
+    WHY THE SCOPE NARROWED, 2026-09-29. This guard ran `violations()` over the WHOLE rendered
+    page and went red on a correct tree the moment `_proof_body.html` was extracted and
+    included into `index.html`: it reported `['bankrupt', 'go to zero']`, both from the proof
+    page's own HONEST RISK DISCLOSURE — "companies that went bankrupt or were delisted"
+    (survivorship handling) and "can go to zero regardless of its score" (a warning).
+
+    THE DISTRESS FAMILY IS BANNED BECAUSE V6-B M2 IS VOID, i.e. to stop the dip tab claiming
+    healthy dips do NOT fail. The proof page says the OPPOSITE, which is the conservative
+    direction — so the ban was firing on text that argues *for* the caveat it protects. The
+    substring-ban family, which this repository has paid for repeatedly.
+
+    Deleting those sentences to make the guard green would have been the worst available fix:
+    it would weaken a disclosure to satisfy a check aimed at something else. Scoping to the
+    panel keeps the intent ("rendering is where copy leaks") and drops the false positive.
+    """
+    i = page.find('id="tab-dip"')
+    if i < 0:
+        return ""
+    i = page.rfind("<div", 0, i)
+    depth, k = 0, i
+    while k < len(page):
+        if page.startswith("<div", k):
+            depth += 1
+        elif page.startswith("</div>", k):
+            depth -= 1
+            if depth == 0:
+                return page[i:k + 6]
+        k += 1
+    return page[i:]
+
+
 def test_the_rendered_dip_tab_carries_no_banned_phrasing():
     # AGAINST THE HTML, not against the module — rendering is where copy leaks. Both the
     # public and the owner render, because they are different code paths through the same
@@ -665,7 +699,19 @@ def test_the_rendered_dip_tab_carries_no_banned_phrasing():
         own = render_template("index.html", may_see_owner=True, may_act=True,
                               is_owner=True, ai_enabled=False, ai_provider="")
     for label, page in (("public", pub), ("owner", own)):
-        bad = dip_posture.violations(page)
+        panel = _dip_panel(page)
+        # NOT VACUOUS: an empty cut would pass trivially, which is how a scoping change
+        # quietly turns a real guard off. The panel must be found and must carry its own copy.
+        assert panel, f"{label}: the #tab-dip panel was not found in the rendered page"
+        # The anchor is `posture()`'s OWN headline, read at runtime rather than retyped, so
+        # the cut is proved to be the dip region and not some other div that happens to
+        # balance. An empty or wrong cut would otherwise pass trivially, which is how a
+        # scoping change quietly turns a real guard off.
+        _head = (dip_posture.posture() or {}).get("headline") or ""
+        assert _head and _head[:24].lower() in panel.lower(), (
+            f"{label}: the cut does not contain the dip headline {_head[:24]!r}, "
+            f"so it is the wrong region")
+        bad = dip_posture.violations(panel)
         assert bad == [], f"{label}: {bad}"
 
 

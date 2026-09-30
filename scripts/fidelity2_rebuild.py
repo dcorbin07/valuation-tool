@@ -352,7 +352,9 @@ def score() -> dict:
 LIVE_CACHE = os.path.join("data", "live_cache", "theme_columns.json")
 
 
-def build_live() -> dict:
+def build_live(*, served=None, period_curr: str = None, period_prior: str = None,
+               cache_path: str = None, f4_dir: str = None, root: str = None,
+               periods_source: str = "pinned constants") -> dict:
     """Write today's `inst_accum`, `sm_breadth` and `insider_score` for the served universe.
 
     THE GATE PROVED THE ESTIMATOR, NOT THE WINDOW. Fidelity was measured on the panel's own
@@ -365,14 +367,33 @@ def build_live() -> dict:
     `(score - 50)/25`. Names with no transaction in the window are OMITTED, not written as 50:
     that fabricated neutral is what put 179 names in one tie block and cost the first gate.
     """
-    served = M.load_served()
+    # EVERY ARGUMENT DEFAULTS TO WHAT THIS FUNCTION ALREADY DID, so `build_live()` with no
+    # arguments is bit-identical to the pre-parameterisation version. That is the whole point:
+    # the production builder (`scripts/theme_cache_build.py`) supplies a LIVE universe and
+    # DERIVED periods, and it must not do so by owning a second copy of the arithmetic below.
+    # One code object computes these rows (B7) -- and the fidelity control is then simply this
+    # same function called with the PINNED arguments.
+    _root = root or ROOT
+    _f4 = f4_dir or F4_DIR_LIVE
+    _cache = cache_path or LIVE_CACHE
+    _pc = period_curr or M.PERIOD_CURR
+    _pp = period_prior or M.PERIOD_PRIOR
+    served = served if served is not None else M.load_served()
     # institutional: the CURRENT quarters, on dollars.
-    agg = M._read_json(os.path.join(ROOT, "13f_aggregate.json"))
+    agg = M._read_json(os.path.join(_root, "13f_aggregate.json"))
     if not agg:
         raise SystemExit("V2G's 13f_aggregate.json is missing; run live_theme_sources fetch")
-    joined = M.join_13f(ROOT, served, agg)
-    curr = agg["by_period"][M.PERIOD_CURR]
-    prior = agg["by_period"][M.PERIOD_PRIOR]
+    joined = M.join_13f(_root, served, agg)
+    missing = [q for q in (_pc, _pp) if q not in (agg.get("by_period") or {})]
+    if missing:
+        # REFUSED rather than defaulted. A period the aggregate does not carry would otherwise
+        # come back as an empty dict, every `inst_accum` would be omitted, and the cache would
+        # look like a clean build of a universe with no institutional data -- which is exactly
+        # the 0.0 theme_contributing this whole item exists to fix.
+        raise SystemExit("the 13F aggregate carries no data for %s; it has %s"
+                         % (", ".join(missing), sorted((agg.get("by_period") or {}))))
+    curr = agg["by_period"][_pc]
+    prior = agg["by_period"][_pp]
 
     rows, cov = {}, {"inst_accum": 0, "sm_breadth": 0, "insider_score": 0}
     for row in served:
@@ -387,7 +408,7 @@ def build_live() -> dict:
         if d.get("sm_breadth") is not None:
             rec["sm_breadth"] = d["sm_breadth"]
 
-        f4 = M._read_json(os.path.join(F4_DIR_LIVE, f"{t}.json"))
+        f4 = M._read_json(os.path.join(_f4, f"{t}.json"))
         if f4:
             vals = [x["raw"] for x in f4.get("txns", []) if x.get("raw") is not None]
             if vals:
@@ -402,13 +423,17 @@ def build_live() -> dict:
             rows[t.upper()] = rec
 
     out = {"built": _dt.date.today().isoformat(), "n_served": len(served),
-           "periods": [M.PERIOD_PRIOR, M.PERIOD_CURR],
+           "periods": [_pp, _pc],
+           # WHERE THE PERIODS CAME FROM, recorded on the artifact. A cache built from the
+           # pinned constants and one built from the calendar are different objects, and the
+           # only way a reader can tell them apart later is if the file says so.
+           "periods_source": periods_source,
            "insider_window_days": INSIDER_LOOKBACK_D,
            "coverage": {k: round(v / len(served), 4) for k, v in cov.items()},
            "gate": "PREREG_fidelity2_rebuild.md @ ef765fc", "rows": rows}
-    os.makedirs(os.path.dirname(LIVE_CACHE), exist_ok=True)
-    M._atomic_write_json(LIVE_CACHE, out)
-    print(f"wrote {LIVE_CACHE}: {len(rows)} rows, coverage {out['coverage']}")
+    os.makedirs(os.path.dirname(os.path.abspath(_cache)), exist_ok=True)
+    M._atomic_write_json(_cache, out)
+    print(f"wrote {_cache}: {len(rows)} rows, coverage {out['coverage']}")
     return out
 
 

@@ -51,6 +51,12 @@
          # screenshot of the hot list" is a decision rather than a reflex. #}
         {% if private_mode %}<div class="tagline" style="opacity:.75">Private research tool — personal use only. Vendor data under individual licences; not for redistribution.</div>
         {% else %}<div class="tagline" style="opacity:.75">Free for anyone, no account needed. Educational research only — <b>not investment advice</b>.</div>{% endif %}
+        {# The demo (recruiter) preview must say on its own face that it is read-only. Until
+         # 2026-09-29 the only place it did was the Edge Lab tab's "Read-only preview" note;
+         # that tab is deleted, so the statement lives in the header now, where no tab change
+         # can remove it. `is_demo` is injected by the SaaS context processor and is simply
+         # undefined (falsy) on the standalone app. #}
+        {% if is_demo %}<div class="tagline" style="opacity:.75"><b>Read-only preview</b> — the owner's view with every trigger removed. Nothing here can run a scan, write a record or place an order.</div>{% endif %}
       </div>
     </div>
     <div class="hdr-actions">
@@ -70,17 +76,20 @@
        # here, so the copy cannot be edited on one surface and left stale on the other. #}
       <button class="tab" data-tab="dip" onclick="switchTab('dip')">📉 Dip Detector</button>
       {# OWNER-ONLY TABS (saas/surfaces.py). The Index is a live book of positions, Signals is
-       # a live actionable alert, Track Record is a paper-account performance claim, and the
-       # Edge Lab is the research bench. They are removed from the DOM rather than hidden with
-       # CSS, which also means their loaders never fire and no owner-only endpoint is called
-       # for a visitor at all. #}
+       # a live actionable alert, and Track Record is a paper-account performance claim. They
+       # are removed from the DOM rather than hidden with CSS, which also means their loaders
+       # never fire and no owner-only endpoint is called for a visitor at all. #}
       {% if may_see_owner %}
       <button class="tab" data-tab="index" onclick="switchTab('index')">◆ Valquo Index</button>
       <button class="tab" data-tab="signals" onclick="switchTab('signals')">⚡ Signals</button>
       <button class="tab" data-tab="track" onclick="switchTab('track')">📊 Track Record</button>
-      <button class="tab" data-tab="edge" onclick="switchTab('edge')">🔬 Edge Lab</button>
       {% endif %}
-      <button class="tab" data-tab="rank" onclick="switchTab('rank')">Watchlist</button>
+      {# Watchlist and Edge Lab DELETED (Don, 2026-09-29) — button and body both, so each is
+         gone rather than hidden. Their endpoints (`/api/rank`, `/api/edge/*`) and the JS
+         behind them stay, gated exactly as before, so restoring either is a revert of that
+         commit and nothing else. Proof is last, and outside the owner gate above — it is
+         public in every posture the page is public in. #}
+      <button class="tab" data-tab="proof" onclick="switchTab('proof')">✔ Proof</button>
     </div>
   </div>
 </header>
@@ -95,7 +104,7 @@
     not tailored to you. No advisory relationship is created by using it, nothing is warranted to
     be accurate or current, and there is no duty to maintain or update it. Markets involve risk of
     loss — do your own research and consider a licensed professional.
-    <a href="/terms">Terms &amp; liability</a> · <a href="/methodology">How it works</a>
+    <a href="/terms">Terms &amp; liability</a> · <a href="/methodology">How it works</a> · <a href="/proof">Proof</a>
   </div>
 
   {# ================= LIVE FORWARD TRACK — the hero =================
@@ -395,24 +404,6 @@
     </div>
   </div>
 
-  <!-- RANK -->
-  <div id="tab-rank" style="display:none">
-    <div class="search-card">
-      <div class="search-row">
-        <input id="rankTickers" type="text" placeholder="Comma-separated tickers (e.g. AAPL, MSFT, NVDA, KO, DIS)"
-               onkeydown="if(event.key==='Enter')runRank()">
-        <button class="btn" id="goRank" onclick="runRank()">Rank</button>
-      </div>
-      <div class="note">Scores and ranks each ticker 1–100 so you can compare opportunities side by side.</div>
-    </div>
-    <div class="loader" id="rankLoader"><div class="spinner"></div><div>Scoring your watchlist…</div></div>
-    <div class="err" id="rankErr"></div>
-    <div class="card" id="rankResults" style="display:none">
-      <h3>Ranked opportunities</h3>
-      <div id="rankTable" style="overflow-x:auto"></div>
-    </div>
-  </div>
-
   <!-- HOT STOCKS -->
   <div id="tab-hot" style="display:none">
     <div class="search-card">
@@ -457,7 +448,10 @@
     <div id="hotResults" style="display:none">
       <div class="card">
         <h3>🔥 Hot stocks that screen as buys <span class="ai-src" id="hotMeta"></span></h3>
-        <div class="section-hint">Ranked 1–100 by a cross-sectional value · quality · growth · momentum composite (two buckets, self-calibrating z-scores).</div>
+        <div class="section-hint">Ranked 1–100 by a cross-sectional composite of the model's weighted themes —
+          value, quality (growth for younger companies), momentum, size, capital discipline, and institutional and
+          insider positioning — each standardised against the rest of this scan, in two buckets (established and
+          speculative). A theme with no live data today is flagged below, and its weight is shared among the rest.</div>
         {# THE CALIBRATED LEGEND — extension V3, `HANDOFF_extensions_v3.md`.
          # The score was measured against a permutation null and the PER-NAME result FAILED its
          # pre-registered bar (rank 10: real 1.0909 vs noise p95 1.1117, empirical p 0.116).
@@ -564,8 +558,20 @@
    # which put a tab the split calls PUBLIC inside the owner gate: the button rendered for
    # everyone and the panel it opened rendered for nobody. Caught by rendering the page and
    # grepping for the block rather than for the button. #}
+  <!-- PROOF — the evidence, as a tab (Don, 2026-09-29). Same partial as /proof; the page
+       stays for linking and the sitemap, the tab is where people actually are. Public in
+       every posture the page is public in: it is derived statistics about our own model. -->
+  <div id="tab-proof" style="display:none">
+    {% include "_proof_body.html" %}
+  </div>
+
   {% if may_see_owner %}
-  <!-- VALQUO INDEX — OWNER-ONLY, and deliberately so (decision recorded in
+  <!-- VALQUO INDEX — PUBLIC under the public-full-view posture (Don, 2026-08-13; confirmed
+       2026-09-29, audit 6 D4: "show"). `may_see_owner` is true for every visitor while that
+       switch is on and false under private mode, so this block follows the posture rather
+       than the older rule below. The paragraph that follows is the ORIGINAL reasoning,
+       kept so a reader knows the trade-off was made deliberately and not forgotten. -->
+  <!-- (superseded) VALQUO INDEX — OWNER-ONLY, and deliberately so (decision recorded in
        HANDOFF_appfixes.md, Session 13). Two independent reasons, either one sufficient:
        (1) it is a list of names WITH WEIGHTS as of today, which is an allocation rather than
            an analysis — the line the public/owner split is drawn on; and
@@ -614,26 +620,43 @@
     <div class="card">
       <h3 style="margin:0 0 6px">Holdings</h3>
       <div class="note" id="valquoIndexNote" style="margin-bottom:8px"></div>
+      <!-- ALLOCATION. Entirely client-side: the number is split across the weights already on
+           this page and remembered in this browser only. It is not sent anywhere, not stored
+           on our side, and places no order -- the input's own helper text says so, because a
+           dollar field on a page listing tickers is exactly where a user might assume
+           otherwise. Empty renders the table exactly as it did before this existed. -->
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <label for="allocTotal" style="font-size:13px;font-weight:600">Account total ($)</label>
+        <input id="allocTotal" type="text" inputmode="decimal" placeholder="e.g. 25,000"
+               style="width:150px;padding:6px 8px;border:1px solid var(--line);border-radius:6px"
+               oninput="onAllocationInput(this.value)">
+        <button type="button" class="btn-sm" onclick="clearAllocation()">Clear</button>
+        <span class="muted" style="font-size:11px">Splits the weights below into dollars in
+          your browser. Nothing is sent or saved anywhere else, and Valquo never places
+          trades.</span>
+      </div>
       <div id="valquoIndexBody" style="overflow-x:auto"></div>
     </div>
     <div class="note" id="indexDisclaimer" style="margin-bottom:22px"></div>
   </div>
 
-  <!-- TRACK RECORD (owner-only: a paper-account performance claim) -->
+  <!-- TRACK RECORD (inside the may_see_owner gate: public under the public-full-view posture, hidden in private mode) -->
   <div id="tab-track" style="display:none">
     <div class="search-card">
       <div class="section-hint" style="margin-top:0">A live, <b>forward</b> track record — how the tool's daily
         <b>top-10 hot stocks</b> and <b>screaming-buy options signals</b> have actually performed since we started
         logging them, versus the S&amp;P 500. It's <b>survivorship-free by construction</b> (real, dated picks, measured
         forward). Educational only — past performance doesn't predict future results.</div>
-      <div class="note" id="trackNote">Returns mature over time — 1-month picks need ~1 month before they count.</div>
+      <div class="note" id="trackNote">Each pick is measured from the day it was logged and counts 21 trading days
+        later, whether or not it is still on the list — so the newest rows always read “—”. These are model records:
+        no money is invested in any of them.</div>
     </div>
     <div class="loader" id="trackLoader"><div class="spinner"></div><div>Loading track record…</div></div>
     <div class="err" id="trackErr"></div>
     <div id="trackResults"></div>
   </div>
 
-  <!-- SIGNALS (owner-only: live actionable alerts with a specific contract) -->
+  <!-- SIGNALS (inside the may_see_owner gate: public under the public-full-view posture, hidden in private mode) -->
   <div id="tab-signals" style="display:none">
     <div class="search-card">
       <div class="section-hint" style="margin-top:0">Intraday buy-setup scanner over liquid S&amp;P-500 names — blends reputable
@@ -690,7 +713,7 @@
       </div>
       <div id="sigFreshness"></div>
       <div class="note">Educational scanner — technical signals are widely used but <b>not a proven edge</b>, and this is
-        <b>not an autotrader</b>.{% if is_owner %} Validate with the Edge Lab tab.{% endif %}
+        <b>not an autotrader</b>.
         <a href="/methodology">How this works →</a></div>
       <div class="note" id="sigDisclaimer"></div>
     </div>
@@ -702,41 +725,6 @@
     </div>
   </div>
 
-  <!-- EDGE LAB (owner-only: the research bench; reads Sharadar-derived output) -->
-  <div id="tab-edge" style="display:none">
-    <div class="search-card">
-      <div class="section-hint" style="margin-top:0">The research bench{% if not may_act %} — read-only here{% endif %}. Does following the picks actually beat the S&amp;P?
-        And can the rules be re-tuned <b>without overfitting</b>? Honest by design — it reports no edge when there isn't one.</div>
-      <div class="search-row" style="align-items:center;flex-wrap:wrap">
-        {# The three RUNNERS recompute, write, and download price history for the whole
-         # universe — owner only. The self-learning LOG is a read of results already
-         # computed (adopted weights, ICs, the backtest summary block: derived statistics,
-         # never a vendor row) and is what the recruiter preview is here to see. #}
-        {% if may_act %}
-        <select id="edgeStrategy" class="selin"><option value="momentum">Momentum strategy</option><option value="technical">Signals (technical) strategy</option></select>
-        <input id="edgeLimit" type="number" value="100" style="width:88px" title="universe size">
-        <button class="btn" onclick="edgeBacktest()">Backtest vs SPY</button>
-        <button class="btn secondary" onclick="edgeOptimize()">Walk-forward optimize</button>
-        <button class="btn ghost" onclick="edgeTrack()">Update track record</button>
-        {% endif %}
-        <button class="btn ghost" onclick="edgeLearning()">🧠 Self-learning log</button>
-      </div>
-      {% if may_act %}
-      <div class="note">Network-heavy (downloads price history for the universe). Survivorship caveat applies to the historical backtest;
-        the track record accrues survivorship-free going forward.</div>
-      {% else %}
-      <div class="note" id="edgeReadOnlyNote"><b>Read-only preview.</b> The runners that recompute a backtest are the
-        owner's — they download price history for the whole universe and rewrite the record.
-        The self-learning log below shows what they have already produced: the adopted
-        weights, their information coefficients and the fundamental backtest's summary.
-        Survivorship caveat applies to the historical backtest; the track record accrues
-        survivorship-free going forward.</div>
-      {% endif %}
-    </div>
-    <div class="loader" id="edgeLoader"><div class="spinner"></div><div id="edgeMsg">Working…</div></div>
-    <div class="err" id="edgeErr"></div>
-    <div id="edgeResults"></div>
-  </div>
   {% endif %}
 
 </div>
@@ -749,7 +737,7 @@
     </div>
     <div class="sp"></div>
     <div><a href="{{ feedback_url }}">Send feedback</a></div>
-    <div><a href="/methodology">How it works</a> · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></div>
+    <div><a href="/methodology">How it works</a> · <a href="/proof">Proof</a> · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></div>
     <div class="muted" style="width:100%">Free and educational, <b>not investment advice</b> and not a
       solicitation. Fair value is a model output, not a price target — verify against primary filings
       before making decisions. Provided as is, without warranty of any kind; no advisory relationship,

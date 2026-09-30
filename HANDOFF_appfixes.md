@@ -5,6 +5,1116 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 60 — 2026-09-30 — MC8 + MC10 + MC11 + MC14 + MC1 follow-ups (reporting repairs)
+
+**AUDIT 6. ZERO TRIALS** — no hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row.
+`by_domain` re-read at the start and unchanged after: **equity 248, options 310, unified 0,
+infra 20**, 0 malformed. `.github/` untouched. **42 new tests; 7 of 7 mutations caught.**
+
+## MC11 — THE FIGURES WERE A SECOND COPY, AND THE COPY WAS WRONG BY 2.6x
+
+`settings.BOOK_CONFIGS["taxable"]["measured"]` carried the **20%-band** numbers under a label
+reading *"decile + 30% no-trade band"*, and the gap was not rounding:
+
+| field | settings carried | artifact carries |
+|---|---:|---:|
+| `after_tax_alpha` | 0.0081 | **0.021133** — 2.6x understated |
+| `annual_turnover` | 1.84 | **1.3747** — the 0.30-band figure |
+| `net_alpha` | 0.0698 | 0.07752 |
+| `after_tax_sharpe` | 0.90 | 0.97675 |
+
+**AND THE COMMENT DEFENDING IT HAD EXPIRED.** It read *"no run has measured this config at
+0.30"*, which was true when written — but the current artifact's `book_configs.taxable` carries
+`annual_turnover` **1.3747**, which IS the 0.30-band figure, under the 30%-band label. A run
+has measured it. Corrected where it is written rather than argued around.
+
+**FIXED BY READING THROUGH.** `settings.measured(name)` reads
+`BACKTEST_RESULTS.json book_configs.<name>`; the literals are gone. **An absent artifact yields
+NO figure rather than a stale one**, because a surface showing a stale number cannot be told
+from one showing a current number. Both live readers (`index_track`, `valquo_index`) delegate.
+`cost_drag_ann` is deliberately NOT re-introduced — the artifact does not emit it per book and
+`backtest_card` measures its own.
+
+The stale literals are banned **by value**, read from the **NUMBER token stream** so the ban
+cannot fire on the prose that documents it.
+
+## MC10 — "SHARPE-OPTIMAL" WAS FALSE OF THE BOOK IT LABELLED
+
+roth's net Sharpe is **1.1018**; taxable's is **1.2096**. The *taxable* book is the
+Sharpe-optimal one. roth is the highest **net alpha** book (0.1163 vs 0.0775), which is what
+the label now says. Taxable keeps *"after-tax-optimal"* because that one is true (0.021133 vs
+0.020443) and the test asserts the comparison rather than the wording.
+
+Every measured block now carries **construction, universe, weighting, band and n** —
+`MEASURED_BASIS` is one string, imported rather than retyped, and it says in terms what the
+figure is **not**: *"not the served score-weighted large-cap book"*. That is the misreading the
+label exists to prevent, since a full-universe equal-weighted decile number sits on a page
+showing a served, score-weighted, large-cap book.
+
+**The after-tax sentence travels with any after-tax figure** — 40.8% short / 23.8% long,
+lot-level FIFO, on the same panel, and *"NOT a projection for any individual"*.
+
+## MC8 — A `--date` OLDER THAN THE CURRENT TRADING WEEK IS REFUSED
+
+The failure it prevents is silent: an unattended caller with a wrong date (a stuck clock, a
+docstring example copied, a `$(date)` resolved in the wrong timezone) re-marks a recorded day
+or adds one whose prices have since been adjusted. **Both produce a plausible row, and a
+plausible wrong row in an append-only record is the one failure this track cannot recover
+from.**
+
+**THE WINDOW IS THE TRADING WEEK, NOT A DAY COUNT**, because the honest case that must stay
+permitted is *"Friday's row is written on Monday after a weekend outage"* — which a "within 1
+day" rule would refuse. `--allow-stale-date` keeps the deliberate act available.
+
+**IT FIRED ON AN EXISTING TEST IMMEDIATELY**, which is the guard working:
+`test_the_cli_can_be_pointed_at_a_book_outside_its_own_checkout` backfills 2026-08-08, so it
+now declares its intent with the flag.
+
+## MC14 / D8 — MISSING OPEN INTEREST IS UNKNOWN ON THE LIVE PATH TOO
+
+Both sites re-resolved rather than taken from the cite: `providers.py:192-193` summed
+`(o.get("open_interest") or 0)` on the **Tradier** leg and `:294-295` used
+`["openInterest"].fillna(0)` on the **yfinance** leg — the one CLAUDE.md's MA38 bullet names.
+A contract whose OI the venue did not return counted as **zero**, shrinking the denominator of
+`options_signals`' `call_volume / call_oi > 0.5` bonus.
+
+**THE DEFECT COULD ONLY EVER ADD AN ALERT**, which is why it survived: a too-small denominator
+makes the ratio too big. MA38's measurement on the cached chains is the scale — **27 of 41,321
+front-expiry chain-days (0.065%) crossed by the mismatch alone, and ZERO the other way.**
+
+**ONE CODE OBJECT (`B7`).** `chain_summary`'s nested `_oi_sum` is now module-level
+`oi_and_matched_volume`, and both live legs call it. **The extraction is proved INERT** against
+a restatement of the pre-extraction body over six shapes at max abs delta **0.0** — not
+assumed. It accepts a pandas Series and a plain list identically, because the backtest holds
+DataFrame columns while the live paths hold lists of dicts, and a second implementation for the
+second shape is exactly how the live and banked numerators came to disagree.
+
+**IT IS THE MATCHED NUMERATOR, NOT AN IMPUTATION**, and MA38 measured why: scaling by
+`1/known_frac` kills **501** legitimate fires (18.6x the defect) and a 0.9 coverage floor kills
+**1,005** (37.2x), because volume is CONCENTRATED in the known-OI rows. Dividing like by like
+costs nothing.
+
+**THE COVERAGE NOW TRAVELS ON BOTH LIVE PAYLOADS** (`*_oi_known_frac`, `*_volume_oi_known`).
+When MA38 found this, `known_frac` had **one producer and zero readers** — a figure nothing can
+read is how the defect survived.
+
+## MC1 FOLLOW-UPS
+
+**1. THE PATH HAZARD, and it is a silent vintage change rather than a wrong number.**
+`fidelity2_rebuild.LIVE_CACHE` and `live_themes.CACHE` are the same file, so restoring the
+banked reference to run `--fidelity` turns on the seven-theme book for every local scan and
+keeps it on for up to `MAX_AGE_DAYS` = **120 days** — an unannounced **vintage 5**, arrived at
+by putting a file somewhere. The Oct 22 rebalance book is built locally, so it is not
+hypothetical. The reference is now `FIDELITY_REFERENCE` under its own name, `--banked`
+overrides it, and a test asserts it is **not** `live_themes.CACHE`.
+
+**2. `root` WAS HALF-APPLIED** — used for the existence checks and the probe path and then not
+passed to `build_live`, so it verified one tree's inputs and measured another. The wrong-object
+family. Forwarded, with `f4_dir` derived from it, and tested.
+
+**3. THE RESULT, and the bar does NOT move.** On Linux: runnable True, 440 rows, max abs delta
+**1.42e-14** on 44 `insider_score` rows. The **pre-parameterisation** code at `f266c19^` gives
+the **identical** 1.42e-14, and new-vs-old on the same machine is exactly **0.0** — so the
+residue is platform `math.tanh` in its last digit, **not the refactor**. The bar stays 0.0 and
+a sub-1e-12 residue is **LABELLED** with that explanation rather than tolerated: widening it
+would make the control unable to see a real regression of the same size. The reference was
+built on Windows, so a Windows run is the one that can reach 0.0.
+
+## (h) REPORT ONLY — `track-row.yml` IS CANCELLED BY ARITHMETIC, AND THERE ARE SEVEN
+
+Verified rather than repeated, **and the brief undercounts**: `timeout-minutes: 10` (600s)
+against **3 attempts x `--max-time 280` + 2 x `sleep 20` = 880s**. The cap bites at
+280+20+280+20 = **exactly 600s**, during attempt 3 — so **two timed-out attempts are enough to
+kill the job**, and the loud refusal / Discord path after the loop never runs while the service
+still finishes the row.
+
+**MEASURED: SEVEN cancelled runs, every one at 616-619s** — 2026-09-22, 09-24, 09-25, 09-26,
+09-29 (twice) and **09-30**. The brief names four; there are seven, including one today. The
+duration is deterministic, which is the signature of an arithmetic cap rather than a flaky
+service.
+
+**THE YAML CHANGE FOR DON'S PR:** `timeout-minutes: 10` -> **`20`** in `track-row.yml`. Not 15:
+880s is 14.7 minutes and a cap with 18 seconds of headroom is the same defect one size up.
+
+**THE SERVER-SIDE FIX, and half of it already shipped.** The 280s is the door pricing 86 names
+synchronously. `c26880b` already made *already-recorded* answer from disk without touching a
+vendor, so **the second nightly run is now fast and the remaining exposure is the first run of
+the night only.** For that one the honest options are (i) a fast **202 + a status door** the
+Action polls — which costs a run id and a poll loop, and makes the Action's green light confirm
+acceptance rather than completion; or (ii) leave it synchronous and give it the timeout its own
+arithmetic needs. **Recommendation: (ii) plus the 20-minute cap**, because the row is written
+either way and a 202 would make the daily green light say less than it does today.
+
+## ALSO REPORTED — A DEFECT OF MY OWN FROM SESSION 57
+
+`main`'s head this morning is a PT-WRITER 422 whose reason reads *"the benchmark SPY could not
+be priced on the **inception** 2026-07-30"*. It used to say the **mark date**. Measured locally:
+SPY returns 400 rows covering 2026-07-30 and reaching 2026-09-29, so the data is there.
+
+**THE CAUSE IS MY OWN FRESHNESS FIX CHANGING WHICH CHECK FAILS FIRST.** Before it, a
+stale-but-valid frame still carried the old inception price, so the refusal named the mark date.
+Now that frame is correctly rejected, no frame arrives, and `b_base` is the first thing missing
+— so the message blames inception. **The row was not writable either way and the fix is not
+wrong**, but the refusal now misattributes the cause, which on a nightly unattended job is the
+difference between a diagnosis and a red herring. **NOT FIXED HERE** (out of scope, and it
+wants a one-line split between "no frame at all" and "the frame lacks this date") — reported so
+nobody spends a session chasing inception.
+
+# Session 59 — 2026-09-29 — MC1, the production theme-cache builder (ADOPTS NOTHING)
+
+**AUDIT 6 / MC1. ZERO TRIALS** — no hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row.
+`by_domain` re-read at the start: **equity 248, options 310, unified 0, infra 20**, 0 malformed.
+`.github/` untouched — the weekly job is Don's PR. **16 tests, 7 of 7 mutations caught.**
+
+**ADOPTS NOTHING, AND THIS ONE MATTERS MORE THAN USUAL.** Writing this cache changes *every
+live score the next scan produces* — two themes go from contributing 0.0 to contributing. That
+is a **VINTAGE EVENT (vintage 5)** and **Don's call**. Nothing here schedules itself.
+
+## A PREMISE CORRECTION FIRST (RUN_RULES A8 — verify, do not obey)
+
+The brief's §1.1 says the audit's fixes are **UNCOMMITTED, UNPUSHED**. They are not: Don pushed
+them as **`ae978e1`** ("Update Tue 09/29/2026 18:10:50.46"), which is an ancestor of
+`origin/main`, and main has since moved to **`c3617f1`**. §1.1 was true when written and is
+stale now. Everything below is measured against `c3617f1` merged in.
+
+## THE DEFECT IS CONFIRMED, AND MORE COMPLETELY THAN THE BRIEF STATES
+
+`data/live_themes/` **does not exist on this machine at all**, and `data/live_cache/` contains
+only `issuance/`. So the cache is not merely absent from the production image — **the
+artifacts the FIDELITY-2 gate was measured on are gone locally too**: no
+`snapshot_2026-08-08.json`, no `13f_aggregate.json`, no `form4_live/`, no `theme_columns.json`.
+`D:` is not mounted. That has a direct consequence for item 2, below.
+
+## THE BUILDER — `scripts/theme_cache_build.py`
+
+Three inputs become live, and the row arithmetic is **not** reimplemented:
+
+* **The served universe** is the latest scan (`Store.latest_scan_date` / `load_snapshot`),
+  never the pinned file. **An empty store is a REFUSAL, not an empty cache** — a zero-row cache
+  reads to `live_themes.py` exactly like the absent file this item exists to replace.
+* **The periods are DERIVED** from the calendar on the panel's own lag rule
+  (`_inst_accum`, `lag_days=45`: a quarter counts only when `period_end + 45d <= as_of`).
+* **The output path comes from `LIVE_THEMES_CACHE`**, defaulting to
+  `data/live_cache/theme_columns.json`. The workflow overrides it to `.scan-cache/` — the one
+  directory `actions/cache` carries between runs, which is the whole reason a gitignored
+  artifact can survive at all.
+* **`build_live` was PARAMETERISED rather than copied** (`B7`). Every new keyword defaults to
+  what the function already did, so `build_live()` with no arguments is unchanged, and the
+  builder calls it with live arguments. A second copy is how the measured **+0.9190 / +0.8726**
+  fidelity silently stops describing what production runs.
+* **A period the 13F aggregate lacks is REFUSED**, not defaulted. Without that, a missing
+  period yields an empty dict, every `inst_accum` is omitted, and the cache looks like a clean
+  build of a universe with no institutional data — *which is exactly the 0.0 being fixed*.
+
+## THE DERIVATION'S CONTROL IS THE ONE RESULT THAT COULD HAVE GONE EITHER WAY
+
+"Derived" is only better than "pinned" if it reproduces the pinned convention **on the date the
+constants were written**. Measured:
+
+| as of | curr | prior | window_curr |
+|---|---|---|---|
+| **2026-08-13** | 31-MAR-2026 | 31-DEC-2025 | 01mar2026-31may2026 |
+| **2026-08-14** | 30-JUN-2026 | 31-MAR-2026 | **01jun2026-31aug2026** |
+| 2026-09-29 | 30-JUN-2026 | 31-MAR-2026 | 01jun2026-31aug2026 |
+
+The 2026-08-13 row is **identical to all four pinned constants**. The 2026-08-14 row produces
+`01jun2026-31aug2026` — the exact window `live_theme_sources`' own comment names as *"not
+published (Q2-2026 13Fs are due 2026-08-14)"*. **So the derivation reproduces the convention on
+the day it was written and rolls on the day the source itself predicts**, which is independent
+confirmation rather than assertion.
+
+**AND IT EXPOSES A LIVE STALENESS: the pinned constants are now ONE QUARTER OLD.** Q2-2026
+became complete on 2026-08-14, so the correct current pair is 30-JUN-2026 / 31-MAR-2026. A
+constant cannot notice that; it reports the old answer forever without erring. Pinned as a test.
+
+## ITEM 2 — THE FIDELITY CONTROL CANNOT RUN, AND THAT IS NOT A PASS
+
+The control is **built, wired and shipped**, and on this machine it reports
+**`runnable: False`**, naming all four missing inputs. **It exits NON-ZERO**, because a control
+that could not run must not report success to a shell, and **an absent control and a satisfied
+control must never read the same**.
+
+**THE DISTINCTION MATTERS AND I AM NOT BLURRING IT: the control did not FAIL — it could not be
+EXECUTED.** A failure would mean the parameterisation broke fidelity. This means the inputs the
+fidelity was measured on are not on this machine. **So the +0.9190 / +0.8726 is NOT carried
+forward to this builder**, and per the task's own instruction the honest outcome is to STOP
+short of claiming it and report.
+
+**WHAT WOULD DISCHARGE IT**, and it needs someone with the artifacts: restore
+`data/live_cache/snapshot_2026-08-08.json`, `data/live_themes/13f_aggregate.json` and
+`data/live_themes/form4_live/`, then `python scripts/theme_cache_build.py --fidelity`. It must
+report `max |delta| 0.0` over every row. **Until it does, the builder must not be scheduled** —
+which is convenient, because scheduling it is Don's PR anyway.
+
+## ITEM 4 — REQUESTS AND WALL TIME, AND MY ARITHMETIC DOES NOT RECONCILE WITH V2G
+
+**Requests: ~5,600** for an 800-name universe (~7 SEC calls per ticker across the CUSIP,
+XBRL and Form 4 legs, plus the two structured-data zips). That **equals V2G-SRC's measured
+~5,600 — but V2G ran 500 names**, so its per-ticker rate was nearer 11 and my 7 is probably
+low. **Quote ~5,600–8,800 and treat the count as bounded rather than known.**
+
+**Wall time: quote V2G's MEASURED ~48 min at 4 shards, not my arithmetic.** At the rate
+limiter's own floor (`SEC_MIN_INTERVAL_S` 0.13 + half the jitter) 5,600 requests is 3.6 min at
+4 shards — **13x faster than V2G measured**, so the rate limit is demonstrably NOT the binding
+constraint. `fetch_all`'s own docstring says why: *"The cost here is LATENCY, not the rate
+limit: SEC publishes a ~10 req/s ceiling and one serial process only reaches ~3 req/s."* At
+~3 req/s serial, 5,600–8,800 requests is **31–49 minutes**, plus streaming two ~360MB-
+uncompressed INFOTABLEs.
+
+**THE OPERATIONAL CONSEQUENCE FOR DON'S JOB: `timeout-minutes: 90` is tight, not comfortable,
+because the job as specified is a SINGLE serial run and V2G's 48 min was with FOUR shards.**
+The reassuring half is that **`fetch_all` is resumable and `.scan-cache` persists between runs**
+— *"done also accepts the payload is already on disk"* — so a timeout is a **slowdown, not a
+loss**: the next weekly run continues the crawl. **But the first cache would then be PARTIAL
+for a week or more, and a partial cache is exactly what a coverage figure must disclose rather
+than average over.** Either shard the job (a matrix over `slice_i/slice_n`) or accept a staged
+first build with its coverage reported.
+
+## ITEM 3 — THE JOB TEXT FOR DON, AND THE TEST THAT KEEPS THE GAP VISIBLE
+
+`.github/` is untouched. `tests/test_theme_cache_build.py` reads `auto-scan.yml` in the `MA12`
+idiom and **SKIPS LOUDLY** while the hot job lacks `LIVE_THEMES_CACHE`, naming the consequence
+— *"every live score still omits institutional and insider"* — and it becomes a hard failure
+the moment the PR lands. It skips rather than passing, so the gap cannot be mistaken for done.
+
+The job text is brief §5.3 verbatim, with one addition I recommend: either `timeout-minutes:
+180` for a serial run, or a shard matrix, for the reason above.
+
+# Session 58 — 2026-09-29 — rebalance chaining, so the book can turn over without moving inception
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched. No backfill. **INCEPTION IS NEVER MOVED**, pinned by test.
+
+## THE BIND, AND WHY NEITHER EXISTING OPTION WAS LEGAL
+
+`PAPER_TRACK_CONTRACT.md` §3 voids a window for *"a book that silently stopped rebalancing"*,
+and §5a rule 2 says a rebalance is **NOT** a vintage event — so the book must turn over **and**
+inception must not move. But `contract_row` priced every position from inception, so a name
+entering at a rebalance was credited with the market's move from **before it was held**. The
+Cowork task that used to rebalance resolved that by moving inception, which §5a forbids
+outright, and it was disabled on 2026-09-26.
+
+## THE FIX IS INDEX CHAINING, THE STANDARD ANSWER
+
+    level(M) = level(R) x (1 + SUM_i w_i (P_i(M)/P_i(R) - 1))
+
+* **Inception is EVENT ZERO**, synthesised rather than stored, so the arithmetic has one case
+  instead of two. A special "before any event" branch is where an off-by-one would live, and it
+  would only ever be wrong on the segment nobody looks at. **An absent `rebalances` list is
+  exactly event zero alone, so every book written before chaining is bit-identical under the
+  new code** — which is what makes this safe to ship.
+* **`event_in_force` uses `R <= M`**: on the day of a rebalance the NEW book is in force,
+  because the rebalance executes at that day's close and that row is the anchor the next
+  segment compounds onto.
+* **SPY stays cumulative from inception.** The benchmark never rebalances with us, and chaining
+  it would silently change what the excess is measured against.
+* **THE ANCHOR IS THE RECORDED ROW, NOT A RECOMPUTATION**, and a rebalance dated on a day the
+  track never marked is **REFUSED**. An anchor off by one session is an error that never
+  surfaces again — it just shifts every subsequent row by a constant nobody can find.
+
+## THE APPEND DOOR, WITH EVERY RULE IN THE LIBRARY
+
+`index_mark.append_rebalance` holds every refusal, and `POST /admin/track-rebalance` plus
+`seed_track --rebalance` both delegate to it — so the HTTP door and the CLI cannot drift into
+two different ideas of a legal event (`B7`). Refused: not the contract-bound Index
+(`conformance`), dated on or before the last event, a rewrite of an existing event, an
+unanchored date, or on/before inception. **Re-sending the identical event is a NO-OP rather
+than an error**, so a retried request cannot corrupt anything.
+
+## THE TESTS THAT CARRY IT
+
+**19 tests, and three are the ones that matter.** A no-op event whose positions equal the book
+in force moves every subsequent row by **EXACTLY 0.0** — not "close", because a wrong anchor
+shifts every later row by a *constant*, which looks entirely plausible in isolation. A swapped
+name reads **32.0%** chained against **120%** from-inception, which is the defect stated as a
+number. An event on an unmarked day is refused.
+
+**9 of 10 mutations caught, and the tenth is INERT rather than untested**: `d <= last` versus
+`d < last` can only differ when `d == last`, and that case is always intercepted by the
+rewrite check above it. The `=` is unreachable defensive redundancy. **A mutation that cannot
+change behaviour proves nothing about the test it was aimed at** — the same lesson as session
+57's sorted-list mutation, and worth stating rather than reporting 9/10 as a gap.
+
+## THE REBALANCE DATE — "AS MODELLED" IS 2026-10-22, NOT OCTOBER 1
+
+The backtest grid is **63 trading days** and the scan was **2026-07-24**; 63 trading days later
+is **Thursday 2026-10-22**. The disabled task's "Oct 1" is the first trading day of Q4 — a
+*calendar-quarter* convention, which is a different rule rather than a different arithmetic.
+**Three weeks apart, so it is a real choice and it is Don's.** The rebalance is LATE either
+way, which is exactly why it should be logged as a delay with its reason rather than left to
+read as a book that silently stopped.
+
+## `day_n` — THE LOCAL WRITER IS RIGHT, AND THE "EMPTY" COLUMN WAS MY OWN PULLER'S BUG
+
+`contract_row` computes `day_n` as `trading_days_between(inception, mark,
+inclusive_start=False)` and `_ROW_TYPES` declares it an `int`, so every row the shipped writer
+emits carries one. **`track_export._bound_rows` builds only five fields and omits `day_n`
+entirely**, so `fetch_track.to_csv` rendered it blank — nothing is wrong with the service's
+stored file. Fixed in session 57 by deriving it the same way. The export's omission is lossless
+(the value is derivable) but the `track_export` lane should know its export is lossy there.
+
+## TWO CI-ONLY FAILURES, NEITHER CAUGHT BY A LOCAL GATE, AND THEY ARE THE SAME FAMILY
+
+**`test_proof_page` blocked every lane's land and was not mine.** It arrived on main at
+`86924c9`, AFTER the last successful land — that gate never executed it (grep count 0). It
+hard-asserts a property requiring `data/free_analysis/PLACEBO_HAC.json`, which is **gitignored**
+(`.gitignore:33`), so it can never pass on a runner. It now **skips loudly** when the artifact
+is absent and the assertion is unchanged when present — proved by copying the real file in and
+watching the suite pass **without** taking the skip.
+
+**`test_index_book_publish` then failed on `tests/test_allocation.py`, and that one IS mine** —
+the guard working exactly as designed. Another lane had extended that file on main to open the
+real book and cross-check the allocation arithmetic against live weights. Reconciled rather
+than allow-listed: it never writes the path, never evaluates conformance, and reads
+`positions[].weight` as an INPUT to a question about a JavaScript function, so it cannot
+disagree with the writer the way PT-SPLIT's two mechanisms did. **And it skips loudly when the
+book is absent, which is why CI exercises the skip rather than the read.**
+
+**THE PORTABLE PART: a green local gate does not predict CI here, because two whole classes of
+suite depend on gitignored data or on a filesystem census, and both differ between a working
+root and a runner.**
+
+# Session 57 — 2026-09-27 — freshness is part of success, and two hypotheses died
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched. No backfill of any kind. Neither the SPY refusal nor the 95% floor was weakened —
+both did their job and the source was fixed instead.
+
+## THE DEFECT, AND THE SYMPTOM THAT IDENTIFIED IT
+
+`prices.get_history_df` tested Stooq's answer with `df.empty or "Close" not in df.columns`. **A
+valid but STALE CSV passes both**, so the frame was returned as SUCCESS and the yfinance
+fallback never ran. `index_mark._closes` then built a date→close map that did not contain the
+mark date and the name read **UNPRICED** — no exception, no warning, no fallback, and
+indistinguishable from a genuinely unpriceable symbol.
+
+**The symptom is what made the cause knowable rather than guessable.** Two PT-WRITER runs on
+different dates reported coverage identical to **fifteen decimal places**
+(`0.812767489300428`) and the **same sixteen** unpriced names, symmetric difference empty.
+Throttling is stochastic; that is deterministic, and deterministic is what a consistently-stale
+vendor file looks like. **The datacenter-IP throttling hypothesis is refuted by the service's
+own committed evidence.**
+
+## THE FIX
+
+1. **Freshness is part of success.** `get_history_df` grows optional `as_of`. A frame whose last
+   `Date` precedes it is **raised** on the Stooq leg — the same path as a 404, counted in the
+   census, falls through. yfinance gets the identical check, because a stale fallback is exactly
+   as unusable and checking only the primary would relocate the defect.
+2. **Order: Stooq (fresh) → yfinance (fresh) → FMP third, keyed, and GATED.** FMP requires a key
+   **and** `PRICES_ALLOW_FMP=1`. Without the opt-in it returns None and says why. Its seam
+   against the recorded series is unmeasured and no key is available here, so the code refuses
+   rather than trusting it: a missing price refuses a row, which is recoverable, while a row
+   priced from an unvalidated vendor is permanent in an append-only record.
+3. **`index_mark._closes` passes the mark date**, both legs.
+4. **The door answers already-recorded from disk BEFORE touching a vendor** — the second defect.
+   The service holds rows for 09-23/24/25 while the Action committed a "SPY could not be priced"
+   refusal for each: `append_row` was always idempotent, but only got the chance after 86 names
+   had been fetched, so a vendor failure surfaced as a refusal for a day already recorded.
+5. **`stale_rejections` joins the vendor census** in the note the Action already commits. No new
+   CSV column — the append-only prefix rule would have to absorb one.
+
+## THE SECOND HYPOTHESIS ALSO DIED: THE TIMING STORY IS NOT REAL
+
+*"22:12 fails, 23:37 succeeds"* would be the signature of an evening file refresh. Measured
+across **19 days with two runs: ZERO days where the first failed and a later one succeeded.**
+Slot A 11% success, slot B 20% — both bad, no meaningful difference. **And the runs do not fire
+at 22:12/23:37 at all**: those are the cron's schedule times, and GitHub delays them to ~00:2x
+and ~01:3x UTC, both already after the close. **Moving the cron would buy nothing.**
+
+## THE GAP AND THE GATE, AGAINST THE SERVICE RATHER THAN THE BACKUP
+
+The pulled series is the authority and it corrects two figures I reported from the stale local
+backup. **11 missing of 31 trading days since vintage 4's inception**, not 25. And **September
+is SAFE**: its last row is 09-25, exactly **3** trading days before month-end, and
+`track_meter` voids on `stale > 3`. My earlier "September voids unless a row lands by Monday"
+was wrong in the alarming direction.
+
+**The seam is better than I reported, too.** Against the SERVICE's values, **20 of 22 rows
+reproduce to under 0.0005pp**. The only real deviation is 07-31 at −0.0297pp (day 1,
+intraday-marked). My "−0.2569pp on 09-24" was a backup artifact: the backup says 3.4367, the
+service says 3.6936 — exactly the re-derived figure.
+
+**Not a vintage event**, per §5a's own wording: it binds "scoring, weights, or construction",
+and a price source is none of the three. Logged as a disclosure.
+
+## `day_n` — THE EMPTY COLUMN WAS MY OWN PULLER'S BUG
+
+`track_export._bound_rows` builds only `date`, `valquo_pct`, `spy_pct`, `excess_pp`,
+`n_priced` — **there is no `day_n` in the export** — so `fetch_track.to_csv` wrote it blank.
+**The local file's populated `day_n` is the correct one**; `contract_row` computes it as trading
+days from inception. It is now DERIVED the same way in the puller, so a pulled file is
+byte-comparable instead of failing the service's prefix check for a reason with nothing to do
+with the data — which is the exact trap that module's own docstring warns about.
+
+## A GAP IN MY OWN TEST, CAUGHT BY THE EXISTING SUITE
+
+`tests/test_index_mark.py` went **36/67**. `contract_row` always sets `as_of`, so every legacy
+two-argument fetcher the suites inject received an unexpected keyword, raised `TypeError`, and
+`_closes` swallowed it into an empty map — the benchmark leg lost its inception price and 31
+tests failed with *"SPY could not be priced"*. **My own test had called `_closes` WITHOUT
+`as_of` and passed**: it exercised the easy call rather than the shipped one.
+
+Fixed by **inspecting the signature** rather than `except TypeError`, which would have hidden a
+genuine TypeError raised inside a fetcher — the same swallowing one level down. **67/67**, and
+my test now drives the shipped path.
+
+## VERIFIED, AND THE ONE LIMIT
+
+**16 of 17 resolve for 2026-09-25, SPY included** — SPY plus the sixteen previously-unpriced
+names. **WBS is the exception and it demonstrates the fix working**: yfinance is genuinely stale
+for it (last 2026-08-19), so it was refused with a reason and FMP declined because it is not
+enabled. One name at ~1.2% weight cannot breach the 95% floor.
+
+**THE FULL 86-NAME LOCAL RUN COULD NOT COMPLETE, and the reason is itself a finding.** From this
+machine Stooq **connect-times-out** rather than 404ing, so every name burns 3 × 15s before
+falling back — a full pass is roughly an hour and the run died at nine names. On Render, where
+Stooq answers, that cost does not apply. **So the end-to-end confirmation is the targeted
+17-name check plus the unit tests, not a full local pass.** Stated rather than implied.
+
+# Session 56 — 2026-09-15 — the fleet-cycle timeout: diagnosis only, no change made
+
+**REPORT ONLY. Nothing was edited — `.github/` is Don-PR-only (`MA11`) and the fix is a
+workflow change.** Zero trials.
+
+## THE RUNS ARE TRIMODAL, WHICH SETTLES WHAT THE 120s CEILING IS ACTUALLY HITTING
+
+Fourteen `FLEET CYCLE` runs, measured:
+
+| cluster | n | seconds | what it is |
+|---|---:|---:|---|
+| fast failures | 5 | **6–8** | the service unreachable — the HTTP 000/502 class, **not a timeout** |
+| normal successes | 4 | **36–74** | a cycle that completes |
+| at or over the ceiling | 5 | **102–127** | one **SUCCEEDED at 102s**; the rest were cut at 120 |
+
+**Two different failures have been reading as one.** Five of the nine failures die in 6–8
+seconds — that is a cold or unreachable service, and a longer timeout does nothing for them.
+Only the ~125s group is the ceiling.
+
+**And the ceiling is already tight for the NORMAL case**: a successful cycle takes 36–74s, so
+even a quiet day spends 30–60% of the budget. One run needed 102s and made it; the truncated
+ones are ≥120s and their true duration is unknown.
+
+## WHERE THE TIME GOES — measured, not assumed
+
+`fleet.cycle(write=False)` locally over all 18 books: **4.50 seconds.** So the cycle itself is
+not the cost. The remainder is the door's other work plus the service's own cold start.
+
+The expensive, occasional part is **the day-1 self-check**, which the handler runs only on the
+WRITE path and only when a book's stamp is `ABSENT` or `STALE`. It does a **live sandbox fill,
+reads it back, tampers a copy, fires the refusals**, and then **certifies every other declared
+book** — `for d in F.declared_books()` — writing a row to each.
+
+**The stamp is keyed on `harness_fingerprint()`, a property of the CODE**, so *every deploy that
+changes the harness invalidates all eighteen stamps at once* and the next cycle pays the full
+day-1 cost. The committed backup shows **73 `selfcheck` rows across 18 books ≈ four full day-1
+runs**, which matches the five slow runs. **So this is a per-deploy spike, not a per-cycle
+cost** — which is why most runs are fast and a few are not.
+
+## IS IT BOUNDED? NO — AND BOTH GROWTH TERMS ARE REAL
+
+* **`cycle()` reads every book's records TWICE** — once directly, and again inside
+  `never_fires()`. That is O(books × rows), and rows only ever accumulate.
+* **Day-1 certification is O(books)** by construction: one write per declared book.
+
+Twenty-one books are declared and 18 have streams. Every book added lengthens both the daily
+cycle and the post-deploy spike. **A fixed ceiling will need raising again.**
+
+## RECOMMENDATION — (a) NOW, BUT (b) IS THE ONE THAT LASTS, AND IT IS NARROWER THAN "GO ASYNC"
+
+**(a) Immediate: raise `--max-time` from 120 to 300.** Why 300 and not 180: the longest
+COMPLETED run is 102s, the truncated ones are ≥120s with an unknown true duration, and the
+worst case is cold start (~30–60s) + day-1 (the unmeasured remainder) + cycle (~5s). 300 gives
+roughly 3× the longest observed completion. **One thing to confirm before relying on it: a
+longer CLIENT timeout only helps if the SERVICE does not cut the request off first** — Render's
+own request ceiling should be checked, or the Action will simply fail at a different number.
+
+**(b) Durable, and better than a general async/poll machine: give the self-check its own
+door and its own schedule.** The daily cycle is ~5s of real work; the unbounded, slow,
+occasionally-120s part is the day-1 certification, which only needs to run *after a deploy*.
+Splitting it — `POST /admin/fleet-selfcheck` on its own workflow with a generous timeout, and
+`/admin/fleet-cycle` doing only the cycle — **removes the spike rather than hiding it**, and
+keeps the daily door's answer synchronous and meaningful.
+
+**Why not fire-and-forget on the cycle door.** Returning 202 immediately would make the
+Action's success meaningless: it would confirm that a request was accepted, not that a cycle
+ran. Recovering that needs a status door, a poll loop and a run id — real machinery — and it
+would leave the daily green light saying less than it does today. **If (b) is taken, the
+confirmation should be the NEXT run's report of the previous cycle**, or a status door read at
+the start of the following day, so a silent failure still surfaces within one cycle.
+
+**Also worth fixing while the file is open: the 6–8s failures are a different bug.** `CODE=000`
+on curl failure conflates "the service is down" with "the cycle failed", and they need
+different responses. A retry with backoff would likely clear most of them — `PT-WRITER` has the
+same shape and its three retries do not span a Render cold start either.
+
+# Session 55 — 2026-09-15 — fractional settled by test, and the track writer's real blocker
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched. **14 new tests; 8 of 8 tripwire mutations caught.**
+
+## FRACTIONAL SHARES — SETTLED EMPIRICALLY, AND THE ANSWER IS THE SAFE ONE
+
+The documentation said "in whole numbers"; Don reported the brokerage advertises fractional.
+Both readings were defensible, so it was settled by **`preview=true` validations against the
+SANDBOX** — Tradier's own full order validation, which places no order. A liquid name, a limit
+far below market, verbatim responses:
+
+    quantity 0.5  ->  HTTP 400  "Invalid parameter, quantity: decimal places are not allowed."
+    quantity 1.5  ->  HTTP 400  same
+    quantity 1    ->  HTTP 200  previewed cleanly, quantity 1
+
+**The API REJECTS fractional outright and does NOT silently truncate.** No order was placed in
+any environment; no live token was used; `preview=true` was hard-coded and asserted before
+every post, and the host was asserted to be the sandbox.
+
+**SO THE ZERO-SHARE TABLE STANDS, and the minimum-book refusal at $128,562 stands with it.**
+
+## BUT THE SILENT TRUNCATION WAS REAL — ON OUR SIDE OF THE WIRE
+
+`place_equity` and `place_option` built their payload with **`str(int(quantity))`**. A caller
+passing 0.5 sent `"0"`; 1.5 sent `"1"` — **and the API accepts a whole number happily.** A book
+that thinks it bought 0.5 and bought 1 is worse than one that was refused, and neither failure
+is visible in the order record afterwards. That is what makes truncation the dangerous answer
+rather than merely the wrong one.
+
+Replaced by `_whole_shares()`, which **refuses** a fractional quantity and says what the silent
+alternative would have cost. **And the guard I wrote to pin it found a THIRD site I had
+missed** — `place_multileg`, which truncated each leg — while also firing twice on my own
+docstring and on the converter's own validated internals. The substring-ban family again, in a
+guard written minutes earlier; it reads the **AST** now and exempts the converter by
+**identity** rather than by wording.
+
+## THE TRACK WRITER — THE 422 IS NOT THE HISTORY, IT IS THE BOOK
+
+`track-row.yml` has committed *"HTTP 422: service refused or unreachable"* daily for ~2 weeks.
+The service's own refusal names the cause: *"the book file /app/data/valquo_track.json is
+missing or unreadable"*. `data/` is gitignored, so **the book has never shipped with any
+deploy.** The recorded history is not the problem — the service has 17 rows of it.
+
+**THE 409 THAT BLOCKED THE SEED WAS CORRECT AND IS NOT WEAKENED.** No `--force`, no lowered
+check, no upload that can shrink the series. **It protected 11 real recorded rows** and the
+right response is to give it better information, not less authority.
+
+**WHAT WAS MISSING WAS THE OTHER DIRECTION — READING.** New `scripts/fetch_track.py` pulls the
+service's recorded series through the **existing** `/admin/export-track` door (read-only,
+computes nothing, no new admin surface) and writes it to a **dated, separately-named file**. It
+**refuses** to write over `data/valquo_track_history.csv`: that local copy is the only evidence
+of a disagreement, and overwriting it in place would erase the disagreement rather than resolve
+it.
+
+`seed_track --pull` then reconciles before sending: same rows, same order, **cell for cell**,
+plus any extras. A disagreement on a shared row is a **REFUSAL that names the row and the
+differing columns** — *a silent merge of two divergent records is how a track record becomes
+fiction.*
+
+**WHY A RECONCILER AT ALL, WHEN THE DOOR ALREADY REFUSES.** The service enforces a **byte
+prefix** — the right rule and a terrible diagnostic. A 409 says the upload was refused; it does
+not say *which* row disagreed, and *"the local file is shorter"* and *"row 4 has a different
+`excess_pp`"* are different problems with different fixes.
+
+**AND THE COMPARISON IS STRINGS ON THE BOUND SCHEMA'S OWN COLUMNS**, because the service
+returns JSON (`day_n` an int, `excess_pp` a float) while the local file is text. A raw `==`
+would report **every** row as divergent for a reason that is purely transport — which would
+look exactly like a corrupted record.
+
+## TWO TESTS OF MINE THAT PASSED FOR THE WRONG REASON
+
+**The filename guard reached the network**, returned 2 on a DNS failure, and `rc != 0` passed
+**without the guard ever running** — a test agreeing with itself about a check it never
+executed. The fetch is stubbed now, and the legitimate destination is exercised too so the
+refusal is named rather than blanket.
+
+**And one of my mutations was INERT**: "order stops mattering" sorted an already-sorted list,
+which changes nothing. Re-aimed at a genuine multiset comparison, the test catches it. A
+mutation that cannot change behaviour proves nothing about the test it was meant to probe.
+
+## WHAT DON RUNS, AND WHAT IS STILL UNVERIFIED
+
+Verification is his: this lane holds no admin token and never prints one.
+
+    python -m scripts.fetch_track                    # pull, writes a NEW dated file
+    python -m scripts.seed_track --pull --send --book-only   # install the BOOK, leave the series
+
+**`--book-only` is the expected fix**, because the service already holds more history than the
+local copy — so the series needs nothing and the book is the whole blocker. **The row count
+before is 17 on the service and 6 locally; after a book-only install the history should be
+unchanged at 17 and `track-row` should answer 201/200 rather than 422.** That last step is
+**NOT VERIFIED HERE** and must not be reported as done until a real run says so.
+
+# Session 54 — 2026-09-14 — a worktree-local property standing in for a repo-wide rule
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched. **7 new tests; 7 of 7 tripwire mutations caught.** Steps 1–4 of the drift repair are
+Don's and were **not attempted** — this session could not reach the shared checkout anyway, and
+verified that rather than assuming it.
+
+## THE CAUSE OF 211 COMMITS OF DRIFT
+
+`scripts/sync_checkout.py` records `on_branch` from `git rev-parse --abbrev-ref HEAD`, which
+answers *"is the branch checked out **HERE**"*. When false it ran
+`git fetch origin main:main` to move the ref directly.
+
+**Git's refusal is repo-WIDE.** It declines a refspec fetch if the branch is checked out in
+**ANY** worktree — `fatal: refusing to fetch into branch 'refs/heads/main' checked out at
+'<path>'`. This repository has **twelve** worktrees. Run the sync from any of them and
+`on_branch` is false while `main` is still checked out in the main folder, so the tool took the
+one path git always refuses. It failed every time, the exit code scrolled past, and the branch
+never moved. **A worktree-local property was standing in for a repo-wide constraint — MA20's
+own shape, in the tool written to cure MA20.**
+
+## THE FIX, AND WHY IT REPORTS RATHER THAN ACTS
+
+`checked_out_at(repo, branch)` reads `git worktree list --porcelain` and answers the repo-wide
+question. When the branch is checked out elsewhere the phase is **REFUSED**, not attempted, and
+the refusal names the folder, says how many commits behind the branch was left, and gives the
+exact command to run there.
+
+**Performing the fast-forward in that other folder was the obvious alternative and is
+deliberately rejected.** That working tree has not been surveyed by this run, so its
+uncommitted state is unknown, and moving someone else's checkout on an unsurveyed guess is how
+a rescue becomes a loss. The refusal keeps `done: False`, so `alarm` is set and the run exits
+non-zero — **four green days with nothing pushed is the failure this repairs.**
+
+The legitimate case is untouched and pinned: a branch checked out nowhere is still moved by the
+refspec fetch, and a branch checked out HERE still fast-forwards by merge. A blanket refusal
+would have been a different bug.
+
+## THE DETECTION IS TESTED AGAINST REAL GIT
+
+`tests/test_sync_worktree_refusal.py` builds a genuine temporary repository with a genuine
+second worktree and asks `checked_out_at` **from the worktree** — the case that broke. Checking
+a git rule against a stub answers a question about the stub. The refusal itself is tested by
+**recording every git command** and asserting the refspec fetch is never among them: asserting
+"it did not fail" would pass if the phase were silently skipped.
+
+## A CORRECTION I MADE TO MY OWN DIAGNOSIS BEFORE REPORTING IT
+
+My first reading was that the on-disk helper was stale and locally edited — it is **22,803
+bytes on disk against 22,354 from `git show`**. Line-for-line the two are **identical**. The 449
+bytes are 449 CRLF pairs. **The comparison was the defect, not the file**, and the record
+already names this family.
+
+## THE `.gitattributes` QUESTION — RECOMMENDATION: DO NOT CHANGE IT
+
+Asked for, and the answer is no, on two grounds.
+
+**It would not have prevented the false diff.** With `core.autocrlf=true`, `git show` emits the
+**blob** (LF) while a Windows checkout holds **CRLF**; byte-comparing the two differs for every
+text file in the repository, whatever `.gitattributes` says. The only setting that would change
+it is `* text=auto eol=lf`, which forces LF *working copies* — a tree-wide renormalisation.
+
+**And `.gitattributes` already refuses exactly that, with a measured reason**: *"this repo has
+CRLF working copies and enabling it would renormalise line endings across the whole tree — a
+diff touching nearly every file, which would conflict with every branch currently open."* With
+a rescue in flight and twelve worktrees open, that is the worst possible week for it.
+
+**The real fix is the method, and it costs nothing:** never byte-compare working-tree content
+against `git show` output. Use `git diff`, which normalises — asked about this very file it
+reported only the real edit and said nothing about line endings — or normalise before
+comparing, which is what caught my own error.
+
+## THE RESCUE LANDED WHILE THIS WAS BEING WRITTEN, AND THE FIX IS NOW LIVE-RELEVANT
+
+Don ran steps 1–4 in the main folder during this session. Verified from shared refs rather
+than reported: **`main` = `origin/main` = `ba2bd7e`, 0 behind**, the rescue branch
+`rescue/drift-20260914` is on origin, and `refs/heads/main` is checked out at the main folder
+again. **The 211 — which had grown to 215 — is 0.**
+
+That restoration is exactly what makes this fix load-bearing rather than historical. Asked from
+this worktree right now:
+
+    checked_out_at('.', 'main')  ->  C:/Users/donni/Downloads/valuation-tool
+    this worktree's HEAD         ->  worktree-multi-account
+
+So `on_branch` is **False** here while `main` **is** held by the main folder — the precise
+condition that produced the drift. The old code would run `git fetch origin main:main` and be
+refused; the new code refuses first and names that folder.
+
+**PUSHED, because the precondition named for holding has been met.** The `/` → `/app` redirect
+was to wait on "the fast-forward landing", and the fast-forward has landed and is verified
+above, so both commits go out normally rather than sitting on one machine — which is this
+session's own lesson.
+
+# Session 53 — 2026-09-03 — taxable net is not roth net, and the card was mixing books
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched. **25 tests; 9 of 9 tripwire mutations caught.**
+
+## THE MIXING WAS REAL, AND IT WAS MINE
+
+The brief said the card "appears to mix" books. It did, and session 51 introduced it. Version 1
+published ONE book — `costs.top_25`, the roth top-25 — while the page's Sharpe and turnover came
+from whichever config the dropdown had selected. **Selecting "taxable" showed the top-25 book's
+gross return of 32.1% beside the decile's Sharpe of 0.90 on an AFTER-TAX basis and the decile's
+turnover of 1.84: three different objects presented as one book.**
+
+Every figure now comes from ONE `turnover_and_costs` / `after_tax_backtest` pair per config,
+built with the **same keyword construction `run_backtests` itself uses**, and the builder
+**refuses to write** unless each book reproduces its own published `book_configs` block. Both
+do, on turnover and on the net-alpha identity, to 1e-12.
+
+## WHAT THE CARD NOW SAYS, AND THE DIFFERENCE IS NOT COSMETIC
+
+| | roth — after costs | taxable — after costs **and taxes** |
+|---|---:|---:|
+| Gross return / yr | +32.13% | +26.15% |
+| Net return / yr | **+28.87%** | **+19.35%** |
+| vs SPY / yr (net) | +13.55pp | **+4.52pp** |
+| vs SPMO / yr (net) | +15.62pp | **+1.47pp** |
+| Sharpe · turnover | 1.10 · 3.17x | 0.98 · 1.37x |
+
+**The tax drag is 6.97pp against a cost drag of 2.05pp — roughly three times larger.** One word,
+"net", printed over two quantities that differ by nine points a year is not a labelling nicety,
+and after tax the book beats a momentum ETF by about a point and a half rather than fifteen.
+
+## THE BENCHMARK IS TAXED TOO, OR THE COMPARISON IS RIGGED
+
+An after-tax strategy beside an untaxed index is flattered by the whole of the index's tax bill.
+In taxable mode SPY and SPMO are charged the **qualified-dividend rate on their dividends**, with
+**capital gains treated as DEFERRED** — a buy-and-hold index fund realises almost nothing, which
+is a real asymmetry rather than a modelling convenience, and the caption says so.
+
+**The dividend component is MEASURED, not remembered**: the same series is annualised twice,
+with and without dividend reinvestment, and the difference is the dividend contribution.
+`untaxed_benchmark_against_taxed_book()` is a property of the payload rather than a promise by
+the builder, because that failure would look entirely normal on the page — and a positive
+control proves it fires.
+
+## THE BAND CAVEAT IS RESOLVED, NOT JUST SURFACED
+
+`settings.BOOK_CONFIGS["taxable"]` carries `measured_width: 0.20` under a comment saying no run
+has measured the config at 0.30. **A run has.** The 0.30 adoption `fee2d62` is a **proven git
+ancestor** of the results run's own commit `57bc3f2` — checked by ancestry, not by comparing
+timestamps — so `BACKTEST_RESULTS.json` IS the 0.30 measurement. The card's figures are
+recomputed at the **live** width regardless, and it reports both widths and says they now agree.
+**`settings.py` is left untouched**: it is another lane's file, its stale comment is reported
+rather than edited, and the card no longer reads it.
+
+## TWO GAPS MUTATION FOUND AND READING WOULD NOT HAVE
+
+**The wiring was untested.** Every test called `BC.card(cfg)` directly, so reverting
+`index_track` to `_bc.card()` — dropping the selection and serving the roth card to everyone —
+**passed the entire suite**. The exact defect this session exists to fix would have come back
+through the one line nobody drove. There is now a test that goes through
+`index_track.summarize(config=…)` and asserts the served card names the config it was asked for.
+
+**And an identity check failed against correct numbers.** The results file carries **two**
+equal-weight annual returns — 0.17239 from the cost/after-tax scorers, 0.18137 from
+`benchmark_panel` — both right for their own construction. My check reached for the second and
+failed while every figure in it was correct. Each book now stores the equal-weight level *its
+own scorer used*, so the identity compares like with like.
+
+## A RED GATE THAT WAS NOT MINE, FIXED RATHER THAN REPORTED AND LEFT
+
+The full gate came back **182 suites, ONE failure** — `test_record_this_week.py`:
+*"3 is typed into the template"*. **Not this session's**: that test reads `RESEARCH_LOG.md`,
+`research_record.py` and `research.html`, and none of the eight files in this session's diff is
+one of them. A live row count had simply reached **3**.
+
+**And the only "3" in the section it scans is `<h3>`.** A heading LEVEL is markup structure — it
+cannot go stale and it counts nothing — so the guard was wrong, not the template. **This is the
+FOURTH instance of a family that function's own comments already record twice**: `margin:0 0
+18px` collided with an infrastructure count of 18, a date regex collided with 4, the row cap
+collided with 12, and now `<h3>` collides with 3.
+
+Fixed by neutralising HTML **tag names** before the scan, keeping attributes and visible text —
+stripping whole tags would be wrong in the other direction, because an attribute is a perfectly
+good place to type a stale number. **A positive control proves the narrowing did not blind it**:
+`<p>3 rows this week</p>`, `data-rows="3"` and `<span>charged 3</span>` are all still caught.
+Another lane's file, changed because leaving the shared gate red blocks every lane and
+`RUN_RULES` says to fix a wrong check and say why. 27/27.
+
+## NOT DONE
+
+`settings.BOOK_CONFIGS` is unchanged, including its stale taxable `measured` block — the card
+no longer reads it, and restating another lane's numbers is that lane's call. No scoring change.
+No `.github/` change. The `portfolio` block is still not the card's basis and no net is invented
+for it; B17's warning ships verbatim inside the note explaining why.
+
+# Session 52 — 2026-08-27 — allocation on Holdings, and the third bare alpha
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched. **13 tests; 9 of 9 tripwire mutations caught.** Item 1 of this package — the
+backtested card — **shipped last session as `e936dcd`** and was re-verified against the brief
+clause by clause before starting this one; it is not rebuilt.
+
+## WHAT SHIPPED
+
+One field above the Holdings table, **"Account total ($)"**. On entry every row shows its
+dollar allocation, a footer total that equals the input, and — because the payload **already
+carries `positions[].price`** — share counts two ways: exact to three decimals and the
+whole-share floor, side by side. No new price fetch, no server write, no order of any kind.
+The total is remembered in `localStorage` only, with a Clear button; an empty field renders the
+table exactly as it did before the feature existed.
+
+## THE FOOTER EQUALS THE INPUT, AND TWO CHOICES MAKE THAT TRUE RATHER THAN NEARLY TRUE
+
+**Allocations are computed unrounded and rounded only for display.** Summing rounded cells is
+the ordinary way a table like this ends up a few cents short of the number the user typed.
+
+**And when money is on the page, every row is on the page.** The default view shows the first
+30 of a book that runs to 86. A footer claiming to equal the typed total while two thirds of
+the money sat in rows the user cannot see would be the most misleading thing on this surface,
+so entering a total opens the table to the full book. With no total the 30-row slice is
+untouched, which is what keeps the default bit-identical.
+
+**The weights are renormalised first and the residual is REPORTED rather than absorbed.**
+Published weights are rounded to five places and the book is capped and redistributed, so they
+need not sum to 1. Scaling them silently would make the column sum to the input while quietly
+misstating every row; the card says "the raw weights sum to 99.97%, so they were scaled by
+1.0003x" instead.
+
+## THE TESTS RUN THE SHIPPED JAVASCRIPT
+
+`allocationRows` is extracted from `app.js` by **balancing braces** — not a character window,
+which is how a guard in this repo broke once when a comment pushed code past a fixed offset —
+and executed in **node** with real inputs. A Python restatement of the arithmetic would have
+been a second copy that agreed with itself while the browser did something else.
+
+**A GAP MUTATION FOUND AND READING WOULD NOT HAVE.** My missing-price test asserted
+`shares is None`, and `JSON.stringify(Infinity)` is **`null`** — so a row dividing an
+allocation by a **zero price** would have serialised identically to "no share count" and the
+test would have passed against a fabricated `Infinity`. It now compares `String(shares)`, so
+the two are distinguishable. That was the one mutation of nine that survived the first pass.
+
+## THE THIRD BARE ALPHA, FOUND BECAUSE I WAS ALREADY IN THE FILE
+
+The Holdings note rendered *"backtested net Sharpe 1.10, **net alpha 11.6%**"* — an excess over
+the **equal-weighted universe**, which pays no trading cost while the book does, printed with
+no benchmark named two inches from a card that now says "vs SPY". **Last session's pin did not
+catch it**: that guard greps for `metric("Alpha` and this is a template string. It now reads
+"net excess over the equal-weighted universe".
+
+Three instances of one defect on one surface — the backtested tile, the forward tile, and this
+note — and each was found a different way. **The lesson is about the guard's shape: banning one
+call form catches one call form.**
+
+## AND `node --check` EARNED ITS KEEP AGAIN, IMMEDIATELY
+
+The syntax check added last session fired on the **first** run of this one: I had defined a
+`money()` helper that `app.js` already ships at line 6, which is both a `SyntaxError` under
+`const` and the `B7` split in miniature — two formatters, one name. Removed; the shipped one is
+reused.
+
+## WHAT IS DELIBERATELY NOT DONE
+
+**No server write and no order path**, pinned by a test that reads the allocation functions and
+fails on `fetch`, `XMLHttpRequest`, `sendBeacon`, `/api/`, `order` or `submit`. **No new price
+fetch** — share counts use the price already in the payload and say so, and a row without a
+usable price gets **no** share count rather than an invented one. **No scoring change.** **No
+`.github/` change.**
+
+# Session 51 — 2026-08-27 — the backtested card names its benchmarks
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched. **17 tests; 9 of 9 tripwire mutations caught.**
+
+## WHAT WAS WRONG, AND IT WAS WORSE THAN UNLABELLED
+
+The card printed one figure, **"Alpha / yr"**, with no benchmark named. On this project that
+word has meant two different things: `net_alpha` in `settings.BOOK_CONFIGS` is an excess over
+the **equal-weighted universe** — uninvestable, and charged **zero** trading cost while the
+strategy pays, a limitation the results file states about itself — and elsewhere it means
+excess over **SPY**. On this book those differ by **3.25pp/yr**. A visitor read one number,
+could not tell which comparison it was, and the obvious guess was the wrong one.
+
+## FOUR LINES, ONE SERIES, EVERY BENCHMARK NAMED
+
+| line | figure |
+|---|---|
+| Gross return / yr | **+32.13%** |
+| Net return / yr, after measured costs | **+28.87%** |
+| vs SPY / yr | **+16.80pp** gross · **+13.55pp** net |
+| vs SPMO / yr *(partial window, since SPMO inception)* | **+18.66pp** gross · **+15.62pp** net |
+
+Net charges the **measured** market-cap cost model (drag **0.0325**, realised 41.89 bps
+one-way) — **not** the `cost_drag_ann` of **0.0440** in settings, whose own comment records it
+as a pre-B6 figure that was never re-measured. Pinned by a test that fails if the card's drag
+ever equals the settings figure.
+
+## A CORRECTION TO THE BRIEF: "THE PORTFOLIO BLOCK (THE ROTH BOOK)" NAMES TWO DIFFERENT BOOKS
+
+Measured, not argued. `costs.top_25` has `annual_turnover` **3.1690792919718658**, equal to
+`book_configs.roth`'s to the last digit — **it is the roth book**. The `portfolio` block is
+`target_n` 25 with **`exit_rank` 50** and a realised median of **42 names**, while roth carries
+**no band at all** (`exit_frac` and `exit_mult` are both `None`). They are different books and
+their returns differ (34.16% against 32.13%).
+
+**The card is built on the roth book, and that was forced rather than preferred.** `portfolio`
+ships `charges_costs: false` and there is **no measured net for it anywhere**; `_backtest_hold`
+charges only a **flat** bps while the measured model is a market-cap table, so netting it would
+have meant importing a cost rate measured on a **different construction** — the borrowed-number
+defect `MB8` recorded. The roth book needs no invention: its gross and net are already measured
+by one model on one series, which is exactly the "ONE consistent basis" the task asked for.
+
+**B17's warning is carried, correctly scoped.** It describes the `portfolio` block, so it
+ships verbatim inside the card's own basis note explaining why that block is *not* the basis —
+rather than being pasted onto a book it does not describe, where it would be false in both
+halves (this book is 25 names and it *is* costed).
+
+## THE SPMO LINE IS RE-SCORED, NOT SLICED — AND ITS COMPANION FIGURE IS NOT OPTIONAL
+
+SPMO listed **2015-10-09**, so the book is re-scored on the panel restricted to that window
+(42 of 69 rebalance dates) rather than having its 17-year figure set against a 10-year ETF.
+
+**And the window-matched SPY excess ships beside it, because without it the card invites one
+specific misreading.** The book earned more in the recent window (gross **37.21%**) than over
+the full history (**32.13%**), so a reader comparing "vs SPY +16.80 (full)" with "vs SPMO
++18.66 (partial)" would conclude SPMO is the **easier** benchmark. On the same window it is the
+**harder** one: **vs SPY +22.56pp against vs SPMO +18.66pp**. A test asserts that ordering, so
+if it ever inverts the card fails rather than quietly publishing the note's opposite.
+
+## THE GATE THAT LICENSES ALL OF IT
+
+`scripts/backtest_card.py` **refuses to write anything** unless the book it re-scores reproduces
+the published `costs.top_25` block bit-for-bit. It does: `gross_ann`, `net_ann`,
+`cost_drag_ann`, `annual_turnover`, `realised_one_way_bps`, `n_periods` and `equal_weight_ann`
+all reproduce EXACTLY from the banked panel and the recorded weights. Nothing was built on a
+book that could not be identified.
+
+## A DEFECT THE PRICE PATH WAS HIDING, FOUND BY DISBELIEVING A DATE
+
+`prices._yf_history` capped `period` at **"10y"** for any `days`. Asking for 4,200 days
+therefore returned a **full-looking frame that silently started 2016-09-02** — eleven months
+after the book's window opened — so the first SPMO comparison ran a book from 2015-10 against
+an ETF from 2016-09 and looked entirely healthy. Caught only because the printed window did not
+match the requested one.
+
+A `"max"` tier now sits above 3,650 days. **It is additive and proved inert**: the largest
+`days` any shipped caller passes is **2700**, the two mappings differ only from 3,651 upward,
+and a test pins the threshold so it cannot be lowered into live callers. The builder also
+**refuses** any ETF series that starts more than 10 days after the book's window opens, so a
+future cap cannot reintroduce the same silent mismatch.
+
+## AND THE SAME DEFECT ON THE FORWARD CARD, FOUND BY MY OWN GUARD
+
+The renderer pin fired against a **second** bare `metric("Alpha / yr")` tile I had not touched —
+the FORWARD track's annualised alpha, which is `gv - gs`, i.e. an excess over **SPY**
+specifically. Narrowing the guard to the backtested card would have been silencing it, so the
+tile is named instead, from the server's own benchmark field so it cannot disagree with the
+level tile beside it.
+
+## A DEFECT OF MY OWN THAT NO PYTHON TEST COULD SEE
+
+While wiring the forward-card label I wrote `${/* comment */}` inside a template literal. An
+interpolation needs an EXPRESSION and a bare comment is not one, so **`app.js` stopped parsing
+— which takes down the whole page, not just this card.** Every test in the new suite still
+passed, including the renderer pin, because they all read the file as **TEXT**: a grep is
+perfectly happy with a file that will never execute.
+
+Caught by running `node --check` rather than by any assertion. The suite now hands `app.js` to
+a real parser and **skips LOUDLY** when node is absent, because a silent skip is the vacuous
+pass this repository keeps paying for. **It has already proved it can fire — it fired on this.**
+
+## FAIL CLOSED, AND WHAT IS DELIBERATELY NOT DONE
+
+A missing, unparseable, wrong-schema, incomplete or impossible card (net above gross) makes the
+whole section vanish — **a performance card that renders half its lines is worse than one that
+renders none, because the half that renders is the half that flatters.** A missing SPMO drops
+only its own line.
+
+**NOT DONE:** no `.github/` change; the `portfolio` block is not re-scored and no net is
+invented for it; `settings.BOOK_CONFIGS` is left exactly as it is, including the stale
+`cost_drag_ann` — it is another lane's file and the card no longer reads it.
+
+# Session 50 — 2026-08-27 — multi-account alert routing, and a credential the path never holds
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`
+untouched. **15 tests; 9 of 9 tripwire mutations caught.**
+
+## WHAT SHIPPED
+
+`TRADIER_ACCOUNT_{1..10}_{LABEL,TOKEN,ID}` are read from the env; an account exists **iff
+`LABEL` and `TOKEN` are both non-empty**. Each digest and alert card — hot, dip, and the
+screaming-buy card — is posted once per configured account and labelled, on the single shared
+`DISCORD_WEBHOOK_URL`. With one channel, the label is the only thing that tells them apart,
+which is why it is the deliverable rather than decoration.
+
+## THE HARD GUARD IS STRUCTURAL, NOT A SECOND CODE PATH
+
+`fanout()` returns **`[None]`** when nothing is configured, so every call site writes one loop
+and gets today's single unlabelled send for free; `tag()` and `dedup_key()` are then identity
+functions. **There is no "no accounts" branch for anybody to forget to maintain** — it is the
+same loop running once with an absent label.
+
+Pinned in the strong form rather than the comfortable one: the payload handed to
+`send_discord` is asserted **equal** to what the composer produced, and the dedup key equal to
+the literal `__HOTDIGEST__` it has always been. A routing layer that quietly re-worded every
+card on a deployment where nobody asked for routing would be a live-surface change wearing a
+no-op's clothes.
+
+## THE ORDER GUARD: THE PATH HOLDS NO TOKEN
+
+The standing rule is data/sandbox only, no order endpoint added or called. **It is deliberately
+NOT enforced by banning the word `orders`** — that fires against `valuation/edge/paper_broker.py`,
+which places sandbox orders legitimately for the forward paper track under its own register.
+That is the substring-ban family, and this project has now paid for it six times.
+
+So the guarantee is structural: **`TOKEN` is read as an existence predicate and discarded on the
+same line.** No function returns it, the module imports no HTTP client at all, and it does not
+import the order-placing broker. **You cannot call an endpoint you have no credential for.**
+Three tests pin those three properties, and a mutation that lets the token escape into the
+returned account is caught.
+
+## PORTFOLIO VISIBILITY IS NOT BUILT, AND THE BOUNDARY IS PINNED ANYWAY
+
+Nothing reads a position or a balance. That is exactly when the boundary is cheap: a test
+asserts no module under `screener/`, `edge/` or `engine/` imports the accounts layer, with a
+positive control proving the import shape is actually detected. **A screen that can see what
+you already hold is a screen that can be nudged by it**, and that failure would surface as a
+marginally better backtest rather than as an error — which is why the check exists before the
+feature does.
+
+## THE FINDING I DID NOT EXPECT: A LABEL IS OPERATOR TEXT ENTERING A COPY GATE
+
+The dip digest is gated on `dip_posture.violations` — 49 forbidden phrasings, because V6-B's
+risk claim is registered and its return claim is not. **An account label is operator-supplied
+text that lands in that card.** A label like `Recovery Fund` would put a recovery framing on a
+risk-registered message.
+
+The tag is therefore applied **before** the gate, so such a label is **refused rather than
+published**, and refused per account — the other accounts still get their card. My first
+version of that test asserted `tag` + `violations` directly and would have passed a mutation
+that moved the tagging after the gate; it now drives `post_dip_digest` end to end, and forces
+the eligible branch because the dip register is NULL and the real path returns before the gate
+is reached — which would have made the test pass while measuring nothing.
+
+## WHAT I DELIBERATELY DID NOT DO
+
+**No portfolio fetching**, which is not in the deliverable and is the half with the scoring
+hazard. **No per-account CONTENT**: the picks are market-wide and computed once — routing
+decides who is told, never what was found. **No `.github/` change.**
+
+**AND A CONSEQUENCE TO STATE PLAINLY: N accounts means N copies of a market-wide card.** That
+is what "each digest and alert card is labelled with the account LABEL" on one shared webhook
+asks for, and it is the shape that lets per-account content arrive later without re-doing the
+routing. But three identical top-tens a day is exactly the volume that trains a reader to skim
+— last session's fleet notifier exists because of that failure mode. **If Don would rather have
+one card carrying all the labels, that is a one-line change to `tag`/`fanout` and no call site
+moves.**
+
+## RELAYED
+
+**The `valquo-cloud` export wants re-archiving now that this has merged.**
+
+**REPORTED OUTSIDE THIS LANE, AND IT IS THE ONE THAT MATTERS: `MB31`'s FLOOR TRIGGER HAS
+FIRED.** Equity `N` reached **247** on `origin/main` while this session was running, and 247 is
+the exact figure `MB31` derived as the point at which seed 1003 crosses the CPCV adopt gate.
+Verified rather than assumed by re-running the derivation: **`adopt set identical at N=224 and
+N=247 : False`.** The record's standing sentence — *"below 247 no permutation floor can move; at
+247 a bounded re-derivation is owed"* — is now due. It is bounded, not a sweep: `MA19` re-scored
+three draws in ~400 seconds. Whether any floor actually moves depends on where seed 1003 sits in
+each statistic's ranking, and until that is run **the calibrated floors quoted throughout
+`CLAUDE.md` are labelled at `N` = 224 and are no longer known to be current.** The next change
+after this one is far away — equity `N` = 504, seed 1036. **Edge lane's, not touched here**; this
+lane found it by reading `by_domain` after a merge and had no business re-deriving it.
+
+**ALSO REPORTED:** `origin/main` **tracks `.scan-cache/screener.db-shm` and
+`.scan-cache/screener.db-wal`** — SQLite write-ahead and shared-memory sidecars, which are
+transient by definition and blocked a branch switch in this worktree. They should be gitignored
+and removed from the index. Not this lane's file and not touched.
+
 # Session 49 — 2026-08-27 — the fleet speaks, and a CI census that refutes most of what it was told
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `.github/`

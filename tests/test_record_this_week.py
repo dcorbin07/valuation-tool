@@ -275,6 +275,16 @@ def _sc4_section_of_template():
     return t[i:t.index("{% endif %}", t.index("{% if weekly.available %}", i))]
 
 
+def _without_tag_names(html: str) -> str:
+    """Blank the NAME of every HTML tag, keeping attributes and text.
+
+    `<h3>` is a heading level, not a count. Stripping whole tags would be wrong in the other
+    direction — an attribute is a perfectly good place to type a stale number — so only the
+    element name is neutralised.
+    """
+    return re.sub(r"</?[a-zA-Z][a-zA-Z0-9]*", "<tag", html)
+
+
 def _module_code_without_docstrings():
     tree = ast.parse(_src(MODULE))
     for node in ast.walk(tree):
@@ -331,8 +341,27 @@ def test_no_count_from_this_block_is_typed_into_the_source_or_the_template():
         assert v not in keep, f"{v} is typed into research_record.py"
         # The TEMPLATE is text, so it keeps the standalone-number match — see `_typed` in
         # test_research_page.py: a two-digit count is a substring of half the decimals.
+        #
+        # HTML TAG NAMES ARE STRIPPED FIRST, and this is the FOURTH instance of the family
+        # this function's own comments already record twice. `margin:0 0 18px` collided with
+        # an infrastructure count of 18; a date regex collided with 4; the row cap collided
+        # with 12; and on 2026-09-03 a live row count of 3 collided with **`<h3>`**. A heading
+        # LEVEL is markup structure — it cannot go stale and it is not a count of anything —
+        # so the tag name is neutralised while attributes and visible text are left alone,
+        # which is where a typed count would actually live.
         pat = r"(?<![\d.\-+])" + re.escape(v) + r"(?![\d.])"
-        assert not re.search(pat, tmpl), f"{v} is typed into the template"
+        assert not re.search(pat, _without_tag_names(tmpl)), f"{v} is typed into the template"
+
+
+def test_the_template_scan_still_catches_a_real_typed_count():
+    """The narrowing above must not have made the check blind. Positive control, both ways."""
+    assert "3" not in _without_tag_names("<h3>x</h3>"), "a heading level still reads as a count"
+    for hay in ('<p>3 rows this week</p>', '<div data-rows="3">x</div>',
+                '<span>charged 3</span>'):
+        stripped = _without_tag_names(hay)
+        pat = r"(?<![\d.\-+])3(?![\d.])"
+        assert re.search(pat, stripped), (
+            "a genuinely typed count is no longer detected in %r" % hay)
 
 
 # --------------------------------------------------------------------- behaviour

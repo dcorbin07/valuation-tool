@@ -55,6 +55,60 @@ import urllib.request
 from valuation.screener import index_track
 
 
+
+from valuation.screener.index_mark import ROW_COLUMNS  # noqa: E402
+
+def reconcile(local_text: str, service_rows: list) -> dict:
+    """Is the LOCAL series a superset of the SERVICE's — same rows, same order, cell for cell?
+
+    THE ONLY SAFE PRECONDITION FOR AN UPLOAD, and the reason it is computed here rather than
+    trusted to the door: the service enforces a BYTE PREFIX, which is the right rule and a
+    terrible diagnostic. A 409 tells you the upload was refused; it does not tell you WHICH row
+    disagreed, and "the local file is shorter" and "row 4 has a different excess_pp" are very
+    different problems with very different fixes.
+
+    **A SILENT MERGE OF TWO DIVERGENT RECORDS IS HOW A TRACK RECORD BECOMES FICTION**, so a
+    disagreement on any shared row is a REFUSAL that names the row, never a reconciliation.
+
+    Returns `{ok, reason, shared, local_extra, service_extra, disagreements}`.
+    """
+    from scripts.fetch_track import rows_of
+
+    local = rows_of(local_text)
+    svc = list(service_rows or [])
+    cols = list(ROW_COLUMNS)
+
+    def norm(r):
+        # Compared as STRINGS on the bound schema's own columns: the service returns JSON
+        # (day_n an int, excess_pp a float) while the local file is text, so a raw == would
+        # report every row as different for a reason that is purely transport.
+        return tuple("" if r.get(c) is None else str(r.get(c)).strip() for c in cols)
+
+    n = min(len(local), len(svc))
+    bad = []
+    for i in range(n):
+        a, b = norm(local[i]), norm(svc[i])
+        if a != b:
+            bad.append({"index": i, "local": dict(zip(cols, a)), "service": dict(zip(cols, b)),
+                        "columns": [c for c, x, y in zip(cols, a, b) if x != y]})
+
+    out = {"shared": n, "local_extra": max(0, len(local) - n),
+           "service_extra": max(0, len(svc) - n), "disagreements": bad, "ok": False,
+           "reason": ""}
+    if bad:
+        out["reason"] = ("%d shared row(s) disagree; refusing rather than merging two "
+                         "divergent records" % len(bad))
+    elif out["service_extra"]:
+        out["reason"] = ("the service holds %d row(s) the local file does not, so the local "
+                         "series is NOT a superset and an upload would truncate the record"
+                         % out["service_extra"])
+    else:
+        out["ok"] = True
+        out["reason"] = ("the local series matches the service on all %d shared row(s) and "
+                         "adds %d" % (n, out["local_extra"]))
+    return out
+
+
 def _base_url() -> str:
     for k in ("SITE_BASE_URL", "PUBLIC_BASE_URL"):
         v = (os.environ.get(k) or "").strip()
@@ -65,6 +119,17 @@ def _base_url() -> str:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
+    ap.add_argument("--rebalance", default="",
+                    help=("append ONE rebalance event from a book JSON built by "
+                          "`python -m valuation.edge.valquo_index --full-universe`. "
+                          "Append-only: it never rewrites a recorded event and never moves "
+                          "inception."))
+    ap.add_argument("--rebalance-date", default="",
+                    help="the date the rebalance takes effect (must be a day the track "
+                         "actually recorded); defaults to the book's scan_date")
+    ap.add_argument("--pull", action="store_true",
+                    help="pull the service's recorded series first and refuse to upload "
+                         "unless the local one is a superset of it, cell for cell")
     ap.add_argument("--send", action="store_true",
                     help="actually POST. Without it this is a dry run that sends nothing.")
     ap.add_argument("--book-only", action="store_true",
@@ -114,6 +179,56 @@ def main(argv=None) -> int:
     if history is not None:
         print("         " + str(n_rows) + " recorded rows, " + str(len(history)) + " bytes")
 
+    # ---- the rebalance door, which is a different object from a seed ----------------
+    # A seed INSTALLS the record; a rebalance APPENDS one event to the book the record is
+    # measured against. They share a token and nothing else, so this returns early rather
+    # than threading a mode flag through the seed path.
+    if a.rebalance:
+        import json as _json
+        try:
+            with open(a.rebalance, encoding="utf-8") as fh:
+                bk = _json.load(fh) or {}
+        except (OSError, ValueError) as e:
+            print("could not read %s: %s" % (a.rebalance, e), file=sys.stderr)
+            return 3
+        ev = {"date": (a.rebalance_date or bk.get("scan_date") or ""),
+              "scan_date": bk.get("scan_date"),
+              "positions": bk.get("positions") or []}
+        if not ev["date"]:
+            print("no rebalance date: pass --rebalance-date, or give the book a scan_date",
+                  file=sys.stderr)
+            return 3
+        print("rebalance  %s over %d position(s)" % (ev["date"], len(ev["positions"])))
+        if not a.send:
+            print("DRY RUN - nothing was sent. Re-run with --send to record it.")
+            return 0
+        base2 = (a.url or _base_url()).rstrip("/")
+        token2 = (os.environ.get("ADMIN_TOKEN") or "").strip()
+        if not base2 or not token2:
+            print("need SITE_BASE_URL and ADMIN_TOKEN to send", file=sys.stderr)
+            return 3
+        # Posted inline in the same shape as the seed below -- and it deliberately does NOT
+        # print the request, which carries the token in a header.
+        _req = urllib.request.Request(
+            base2 + "/admin/track-rebalance",
+            data=json.dumps({"rebalance": ev}).encode("utf-8"),
+            headers={"Content-Type": "application/json", "X-Admin-Token": token2},
+            method="POST")
+        try:
+            with urllib.request.urlopen(_req, timeout=120) as _r:
+                _code, _raw = _r.status, _r.read().decode("utf-8", "replace")
+        except urllib.error.HTTPError as e:
+            _code, _raw = e.code, e.read().decode("utf-8", "replace")
+        except Exception as e:                                   # noqa: BLE001
+            print("could not reach %s: %s: %s" % (base2, type(e).__name__, e), file=sys.stderr)
+            return 2
+        try:
+            _why = (json.loads(_raw) or {}).get("reason") or ""
+        except ValueError:
+            _why = _raw[:200]
+        print("HTTP %s  %s" % (_code, _why))
+        return 0 if _code in (200, 201) else 4
+
     base = (a.url or _base_url()).rstrip("/")
     token = (os.environ.get("ADMIN_TOKEN") or "").strip()
     if not base:
@@ -123,6 +238,35 @@ def main(argv=None) -> int:
         print("no ADMIN_TOKEN in the environment or .env", file=sys.stderr)
         return 3
     print("target   " + base + "/admin/track-seed")
+
+    # RECONCILE BEFORE SENDING. Runs on a dry run too, because the whole value of the check
+    # is being able to see the answer WITHOUT committing to an upload.
+    if a.pull:
+        from scripts.fetch_track import fetch
+        try:
+            got = fetch(base, token)
+        except Exception as e:                                   # noqa: BLE001
+            print("could not pull the service's series: " + str(e), file=sys.stderr)
+            return 2
+        svc = got["series"]
+        print("pulled   " + str(len(svc)) + " recorded row(s) from the service")
+        if history is None:
+            print("         (--book-only: the series is not being sent, so nothing to check)")
+        else:
+            rec = reconcile(history, svc)
+            print("         local " + str(n_rows) + " row(s), service " + str(len(svc))
+                  + " - " + rec["reason"])
+            for d in rec["disagreements"][:10]:
+                print("         ROW " + str(d["index"]) + " differs on "
+                      + ", ".join(d["columns"]))
+                print("            local  : " + json.dumps(d["local"], sort_keys=True))
+                print("            service: " + json.dumps(d["service"], sort_keys=True))
+            if not rec["ok"]:
+                print("\nREFUSING to upload. " + rec["reason"], file=sys.stderr)
+                print("The service's copy is the record; pull it with "
+                      "`python -m scripts.fetch_track` and reconcile by hand before sending. "
+                      "Nothing here will merge two divergent records for you.", file=sys.stderr)
+                return 4
 
     if not a.send:
         print("\nDRY RUN - nothing was sent. Re-run with --send to install it.")

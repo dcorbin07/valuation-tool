@@ -621,7 +621,10 @@ def test_live_track_never_annualizes_a_stub_or_leads_with_it():
     # the claim, stops it rotting on every legitimate re-measurement, and the not-None check
     # stops an empty dict from satisfying it vacuously.
     from valuation.screener import settings as _S
-    _want = _S.BOOK_CONFIGS["roth"]["measured"]["net_sharpe"]
+    # MC11 — READ THROUGH. The `measured` literals were a second copy of a measured
+    # figure and the copy had gone stale (taxable's after_tax_alpha was 2.6x out), so
+    # they are gone and `settings.measured()` reads the artifact.
+    _want = _S.measured("roth")["net_sharpe"]
     assert _want is not None
     assert thin["backtested"]["net_sharpe"] == _want
     assert "live" not in (thin["backtested"].get("basis") or "")

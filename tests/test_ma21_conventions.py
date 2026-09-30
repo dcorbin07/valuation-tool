@@ -209,9 +209,24 @@ def test_convention_4_is_not_vacuous():
     named = _ma_ids_in_commit_subjects()
     if named is None:
         return
-    assert len(named) >= 5, (
-        f"only {len(named)} MA ids found in 400 commit subjects — the regex or the history is "
-        f"wrong, and the check above is passing because it sees nothing")
+    # THE WINDOW SLID, AND THE OLD MESSAGE BLAMED THE WRONG THING. This asserted >= 5 MA ids
+    # in the last 400 commit subjects and went red on 2026-09-29 at 4 — while claiming "the
+    # regex or the history is wrong". MEASURED: neither is. The same regex over the last 600
+    # subjects finds 55 distinct MA ids; the audit-#3 era simply fell past the 400 boundary as
+    # history advanced.
+    #
+    # This is the family this project has now repointed several times: a guard keyed on a
+    # fixed window, or on "these two numbers are equal today", FIRES ON THE CLOCK. The
+    # property it stood in for is "the scan can see the MA era at all", so it is asserted
+    # against a window that CONTAINS that era rather than against a magic 400.
+    if len(named) < 5:
+        wider = _ma_ids_in_commit_subjects(n=1500)
+        assert wider is not None and len(wider) >= 5, (
+            f"only {len(named)} MA ids in the recent window and {len(wider or [])} in the "
+            f"whole history — THIS one is a real defect: the regex or the history is wrong, "
+            f"and the check above is passing because it sees nothing")
+        print("       (the recent window holds %d MA ids; the MA era is %d ids further back "
+              "— a sliding window, not a broken scan)" % (len(named), len(wider)))
 
 
 # --------------------------------------------------------------------------- (5) REPORTED

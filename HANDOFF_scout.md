@@ -1,5 +1,157 @@
 # HANDOFF_scout.md — Frontier Scout
 
+## SESSION 13 — THE WIDTH AUDIT (2026-08-28)
+
+**Produced: `WIDTH_AUDIT.md` (789 lines) + three PREREG drafts** — `w28_total_q`,
+`w19_trace_distress`, `w17_spdji_index_events`. **Zero trials.** `SEARCH_DOCTRINE.md` **amended**:
+the sibling has landed, so its folded-in material is superseded and three corrections are recorded
+on its face (see below).
+
+**THE HEADLINE IS NOT A FINDING — IT IS FOUR ERRORS, THREE OF THEM MINE.** An independent
+verification pass over every quoted figure caught them before the file shipped:
+
+1. **§0.4 · THE TRIAL COUNTER IN MY OWN DOCTRINE IS UNVERIFIED.** `SEARCH_DOCTRINE` shipped
+   yesterday with **equity 245 / options 310**, read from **commit messages**. The ledger's last
+   append says **equity 242** (hurdle **3.313287710464241**), **options 305**, infra 20 — and
+   neither 245 nor 310 appears anywhere in `VALQUO_LEDGER.md`, `CLAUDE.md` or `RESEARCH_LOG.md`.
+   I even quoted `MA37`'s lagging-read rule **in defence of the higher number**. Every hurdle and
+   MDE in both files is now stated on the ledger base **and as a Δ**, so the arithmetic survives
+   either answer — but **no trial may be booked until the lane re-reads the counter.**
+2. **§1.5 · `MB18`'s 0.4274 SD is published at `crit` 2.71, not at the HLZ hurdle.** The doctrine
+   inverted at the hurdle and **understated `se`**. Corrected basis-six `se` = **0.120394 SD**
+   (basis seven 0.142845). **The paired GAIN ratios survive untouched — they are ratios and cancel
+   `se`** — and **the doctrine's headline gets STRONGER**: the unpaired 80%-power MDE is
+   **0.5002 SD against `z_fcf_margin`'s 0.4346 SD — 115%.** The cross-section cannot reliably
+   detect **even the best signal it already contains.**
+3. **§0.5 · I ACCUSED THE RECORD OF A CONTRADICTION IT DOES NOT HAVE.** I read "flat 1/7" in one
+   handoff and "insider still carries 12.5%" in two others and proposed a correction. `settings.py`
+   stores **0.125 across seven non-zero themes summing to 0.875**, and `_base_weights` divides by
+   that sum: **0.125 / 0.875 = 1/7 exactly.** Same vintage. **Withdrawn, and recorded as a standing
+   rule: a contradiction between two PROSE sources is not a finding until the SHIPPED PATH is read.**
+   Third of its kind after `F-2` and `O-1`.
+4. Smaller: `MB12` is **four** items in the R² 0.027–0.145 band with a **fifth at 0.2926/0.2936**,
+   not "five bodies"; `R3`'s deff is **2.2121** (2.1837 split-clean), not 2.19; `E-4`'s pooled ratio
+   is **3.1914**; and `MB1`'s timing/selection split **must not** be quoted — the record withdrew
+   that reading (confound −2.5454pp against a −1.2762pp residual).
+
+**PART 0 — TWO CORRECTIONS OWED TO THE MAP.** **W-25 (SEC Order Execution) is DEAD** — zero
+libraries match `605|order|exec|dash|nbbo`, the **third** product death after W-14 and W-16, and
+**all three were microstructure products listed as entitled in a brief before anyone queried them.**
+**W-18 (Insiders by WRDS) demoted again**: `MA57`'s blocker was already refuted on owned data
+(5,636,964 rows, `ownername` and `transactioncode` present, zero missing on 124,181 purchase rows,
+a **six-column `_KEEP` allowlist** as the only obstacle). **Width did not buy `MB20`.**
+
+**PART 1 — W-28 · PETERS–TAYLOR TOTAL Q, and the shipped path changed the argument twice.**
+
+* **The value theme is BUCKET-SPLIT, not a flat mean of six.** Established names get four inputs,
+  loss-makers three — and **`book_to_price` is the ONLY input present in BOTH buckets.** Every name
+  in the universe is scored on it. Its weight is **1/28 or 1/21**, not 1/42. **The register's
+  footprint doubled** once the code was read.
+* **A channel I claimed does not exist.** I argued Total Q also repairs `capital_discipline` via
+  asset growth. `factors.py`: *"Capital discipline is now share issuance **ALONE**.
+  `neg_asset_growth` was **DROPPED** … median IC −0.0141 with t −0.70 — the wrong sign."* **The
+  successor `W-28b` is withdrawn before it ever reached an executor.** `W-28c` (quality's
+  `gp_on_capital`) survives.
+* **The original argument that justifies the design:** for a composite linear in its z-columns,
+  `composite_new − composite_old = w·(z_adj − z_incumbent)` — **the weight `w` scales the numerator
+  AND the standard error, so it cancels in the paired t. DILUTION DOES NOT COST POWER IN A PAIRED
+  TEST.** The standing objection ("1/28 of the composite, you'll never see it") is true unpaired and
+  **false** paired. At ρ = 0.95 the register sees **0.158 SD against 0.500 SD unpaired — 3.16×.**
+* **`S1` is the hostile row and the commission did not name it:** dropping `book_to_price` **RAISES**
+  the value theme IC t 0.84 → 1.57 and makes the composite **WORSE** (−0.207 / −0.079 t). **The
+  column hurts its own theme and helps the composite** — which fits **decorrelation**, and if that
+  is the mechanism, **de-attenuating it makes things WORSE.** That is `K4`, pre-committed with its
+  sign, and **its firing would be the register's most valuable outcome**: it would establish that
+  `book_to_price` is carried for decorrelation rather than accuracy, reshaping `S24`, `LOO` and the
+  whole combination axis.
+* **Four of five kills are FREE** (crosswalk, bite, premise-ρ, direction) and all fire before a
+  return is scored. **§0.3 forbids gating on the value theme's own IC** — the record quotes it at
+  **0.84 / 1.34 / 1.46 / 1.57**, a spread of 0.73 across four readings.
+
+**PART 2 — the sweep, ranked reopens > repairs > new column**, twelve entries, exact tables named
+for each. Top of the repairs: **W-19 TRACE**, which re-measures `MA28`'s distress construct on
+**crash rate — the one verdict object this project has already validated for it** (`MA28-CARD`
+3.0422×). **Its coverage kill is the whole register**: bond issuance skews large-cap, `MA28` flags
+skew distressed, and the census question is the fraction of **flagged name-dates** with a TRACE
+trade in the prior 63 sessions. **Under 30% and it dies free.** Then **W-17 SPDJI** (event time,
+declared a **closure purchase**, with `K4` warning that batched reconstitutions may collapse n_eff
+to the reconstitution-date count) and **W-26 Bank Regulatory**, routed through a **free owned-data
+diagnostic** first because `S10` already measured the footprint (48.88% Financial Services, 40.32%
+Real Estate against 15.79% Industrials).
+
+**Whole programme: +0.0146 of a t. The binding cost is `MB31`'s floor re-derivation at N = 247 —
+and the two counter bases disagree about WHETHER that is the season's second trial or its fifth.**
+
+**§1.8 overrides the commission's own ranking rule** (arithmetic over base rate) and says so.
+**§4 says run W-31 + W-20 first — the contributed-data census and the Sharadar → gvkey crosswalk —
+zero trials, and W-28's `K1` is that audit's output.** Five questions batched.
+
+## SESSION 12 — THE SEARCH DOCTRINE (2026-08-27)
+
+**Produced: `SEARCH_DOCTRINE.md`** — one level up from an idea list: what 245 equity and 310
+options trials have taught this project about **searching**, written down as doctrine, then the
+search derived from it. **Zero trials by the file.**
+
+**State verified before writing:** equity **245** (hurdle 3.3170), options **310** (3.3872),
+infra 20. `DC-1` landed (`c188c45` an ancestor of `origin/main`). **The fleet is LIVE** — `fc47a7e`
+shows 18 books accruing records and the shelf now rendering commit, date, days accrued, fills and
+state. **The width-audit sibling commission has NOT run** (no commit, no file), so its Part 2
+(the correction-class argument) is folded into §1.2 and §3 and **should be deleted from this file
+the moment the sibling lands** rather than maintained twice (`B7`).
+
+**PART 1 — the four findings, all arithmetic on published numbers:**
+
+1. **ZERO RETURN DISCOVERIES IN THE REGISTER ERA.** Every survivor is **method, risk, cost or
+   construction** — `S14` (cost), `MA28-CARD` (risk), `V6-B` M1 (survival), `THEME-RESTORE`
+   (fidelity), the `R`/`X`/`MB` series (method). **The composite, the only return edge the project
+   owns, predates the register era.** Nobody had written that sentence down.
+2. **Don's "corrections have never been tried" is FALSE — and the true version is sharper.**
+   Additions are **0-for-9** distinct registers (not six). Corrections were tried **seven times**:
+   `S1`, `S3`×3, `S16`, `S20`/`S21`, `S27`, `LOO` — **all failed on the alpha gate** — and
+   `THEME-RESTORE`/`FIDELITY-2` **passed, gated on FIDELITY rather than alpha**. Read together:
+   *every correction that was a RE-ARRANGEMENT of data already held failed; the one that passed was
+   judged on a different object.* The genuinely untried class is **RE-MEASUREMENT** — a better
+   external instrument for a construct the composite already bets on — which carries a **2–5×
+   paired-power advantage** (ρ=0.90 → 0.19 SD, 2.2×; ρ=0.95 → 0.14 SD, 3.2×; ρ=0.98 → 0.085 SD,
+   5.0×) over any addition test.
+3. **POWER IS DESTINY, quantified:** on the 69-date cross-section the **80%-power MDE (0.4274 SD)
+   ≈ the largest anchor the panel has ever held (0.4346 SD)**. That space can essentially only
+   detect signals as strong as the best one already in it — **a merely good new signal is invisible
+   there BY CONSTRUCTION.** 245 trials were spent in the project's weakest space.
+4. **The scarce resource is CALENDAR TIME, not trials.** Forward books cost nothing until a verdict
+   is read; the hurdle cost of the entire ranked ten is **+0.0132 of a t**.
+
+Two patterns the commission did not name: **(a)** pre-outcome kills are the highest-yield
+instrument ever built here — roughly a third of recent registers died free; **(b)** this project is
+measurably better at finding its own errors than at finding inefficiencies, which is a comparative
+advantage — **the most defensible product may be the METHOD, not the edge.**
+
+**PART 2 — the doctrine, one page.** Six search-here lines (re-measurement before addition;
+verdict objects matched to mechanisms; high-power spaces first; cost and execution; kills before
+arms and free; method as product) and seven deliberate stops (new orthogonal columns; weighting and
+combination; regime conditioning; Sharpe/drawdown-primary gates; alert-conditioned flow features;
+any register that has not computed its 80% MDE before the arm; the options ENTRY question). A
+stop-rules table gives each direction its **CLOSES when / REOPENS only on** pair, above the standing
+rule: **a direction is closed by ARITHMETIC or by a MECHANISM, never by a run of nulls alone.**
+
+**PART 3 — the derived search.** Ranked ten backtest trials with the cumulative cost curve
+(3.3170 → 3.3302; **entry #2 crosses N=247, where `MB31`'s next floor flip is owed**): Total-Q
+re-measurement, `W-1`/`S25` sector re-run, `MB20`, `DC-1`, drawdown contribution, `B13`+`S7`
+liquidity, `MB14` closure purchase, `MB19`, tail-hazard re-spec, conjunctive composite.
+**Options trials are deliberately absent** — entry is closed, flow is structurally blind, and the
+two live options questions are already forward books. Plus **six new G-books** (cost ledger,
+assignment frequency, turnover, flag transitions, index membership, capacity), **four of which hold
+no position at all** — measurement instruments wearing a book's clothes.
+
+**§3c, said plainly: run the sibling width audit BEFORE spending trial #1.** Entry #1's rank rests
+on a class argument from a commission that has not run; if the audit finds no external instrument
+for any incumbent construct, entry #1 evaporates and the ranking changes. That dependency resolves
+for free.
+
+**Four questions batched for Don at the file's end:** standing allocation policy; keep or drop the
+conjunctive thread; whether buying a permanent closure (#7) is a use of a trial he wants; and
+confirmation that measurement-only books are welcome in the fleet.
+
 ## SESSION 11 — THE DIP-CONFIRMATION REGISTER, DRAFTED (2026-08-26)
 
 **Produced: `PREREG_DRAFT_dc1_dip_confirmation.md`** — Don's mechanism (fundamentals intact,

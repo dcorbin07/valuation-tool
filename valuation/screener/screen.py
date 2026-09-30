@@ -320,14 +320,14 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
     # ONLY `capital_discipline` IS RESTORED. `institutional` and `insider` FAILED the fidelity
     # gate in `PREREG_theme_restoration.md` and are deliberately still absent — wiring them
     # would put a different theme under a validated theme's name.
-    _enrich_with_issuance(metrics, cfg)
+    issuance_stats = _enrich_with_issuance(metrics, cfg)
 
     # FIDELITY-2 — `institutional` and `insider`, from a pre-built cache. Both FAILED the
     # fidelity gate once and ship only after being rebuilt to the panel's own definitions and
     # re-scored against the same bar: institutional +0.1706 -> +0.9190, insider +0.3596 ->
     # +0.8726. Reads a file, makes no network calls, and fails to None so a missing or stale
     # cache costs coverage rather than correctness.
-    _enrich_with_live_themes(metrics)
+    live_theme_stats = _enrich_with_live_themes(metrics)
 
     df = build_frame(metrics)
     est_w, spec_w = _effective_weights(store)
@@ -406,6 +406,16 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
         # renormalizes it away, and its 12.5% weight does nothing. This measures the theme
         # AFTER standardization, i.e. what actually reaches the score.
         "theme_contributing": _theme_contribution(scored),
+        # AUDIT 6 (2026-09-29) -- WHERE THE RESTORED THEMES' INPUTS CAME FROM TODAY, AND WHY
+        # TWO OF THEM MAY HAVE COME FROM NOWHERE. `live_themes.status()` was computed on every
+        # scan and thrown away: `_enrich_with_live_themes` returned it and nothing read the
+        # return value, so the docstring's promise that "a cache nobody refreshed is visible
+        # rather than quietly ageing" was false in exactly the way it warned about. Measured
+        # on the live service on 2026-09-29: `theme_contributing` institutional 0.0, insider
+        # 0.0, and no surface could say whether the cache was stale, missing or unreadable.
+        # It was missing -- `data/` never ships and the CI job never builds it -- and this
+        # block is what makes that a sentence on the health panel instead of a discovery.
+        "theme_sources": {"issuance": issuance_stats, "live_themes": live_theme_stats},
         # AUDIT MA14 — COVERAGE SAYS PRESENT, THIS SAYS PLAUSIBLE, AND THE LIVE PATH HAD ONLY
         # THE FIRST. `fundamental_panel.sanity_check` has guarded the backtest since P8, where
         # the input is a static licensed export that does not drift; the live path reads vendor
@@ -821,4 +831,29 @@ def _enrich_with_live_themes(metrics: list) -> dict:
 
 
 def _today() -> str:
-    return _dt.date.today().isoformat()
+    """The session the scan's data describes: the LAST CLOSED US session, never the runner's
+    calendar date.
+
+    AUDIT 6 (2026-09-29). LA4 moved this read to the START of the scan so the 22:23 and 23:41
+    UTC crons would agree -- and they do, on the days GitHub runs them when scheduled. It does
+    not run them then: the hot job's runs on 2026-09-28 fired at 00:27 and 00:36 UTC on the
+    29th, and `date.today()` on the runner is the UTC date, so the ranking built from the
+    Sep 28 close went live stamped `2026-09-29` and `freshness` called it "today" at 08:00 ET
+    before that session had opened. A Friday run delayed past UTC midnight stamps a Saturday
+    -- the exact LA4 symptom, one door later. The hot10 forward picks inherit the stamp, so
+    the record's entry date drifted by a day whenever the scheduler was slow.
+
+    `last_closed_session` is what the bound track's writer already uses for the same question
+    (`index_mark.contract_row`): a trading day at or after the 16:15 ET settle cutoff is
+    itself; anything else -- before the cutoff, a weekend, a holiday -- is the previous
+    trading day. So an evening run, a run that slips past midnight in either zone, and a
+    weekend backup all agree on the one session whose close the scan actually read. A scan
+    started INTRADAY is stamped with the previous close too, which is the honest label for
+    a snapshot that carries no closing print for the current day.
+
+    Falls back to the calendar date only if no trading day is found in a fortnight, which no
+    real calendar produces.
+    """
+    from .market_session import last_closed_session
+    d = last_closed_session()
+    return (d or _dt.date.today()).isoformat()

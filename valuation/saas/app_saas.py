@@ -21,6 +21,7 @@ from flask import request, render_template, redirect, jsonify, g, abort, make_re
 from ..config import CONFIG
 from ..safe_error import safe_error
 from ..web.app import app as tool_app
+from ..web.app import _proof_payload                      # the Proof tab's payload, one definition
 from ..web.query_params import clamp_int as _clamp_int   # MA50 — the one clamp
 from .models import UserStore
 from . import auth, billing, csrf, gating, index_book, private, ratelimit, surfaces
@@ -127,6 +128,10 @@ def create_saas_app(cfg=CONFIG):
                 # rather than a read-only one, so every button that writes tests this
                 # instead of `may_see_owner`.
                 "may_act": surfaces.may_act(u, cfg),
+                # The OWNER, strictly -- not a demo session and not a visitor under the
+                # public-full-view posture. For notes addressed to Don himself (/terms, /privacy),
+                # which `may_see_owner` had been showing to every visitor since 2026-08-13.
+                "viewer_is_owner": surfaces.is_owner(u, cfg),
                 "owner_split": cfg.owner_split,
                 # Shared chrome (footer, terms) needs these on every page, not just the two
                 # routes that used to pass them by hand.
@@ -652,6 +657,58 @@ def create_saas_app(cfg=CONFIG):
             # exists to prevent, so there is no query string that can switch it off. A caller
             # that genuinely needs to backfill a closed day uses the CLI, in the repo, on
             # purpose.
+            # ALREADY RECORDED IS ANSWERED BEFORE ANY VENDOR IS TOUCHED, and the pull
+            # exposed why that ordering matters rather than merely being tidy. The service
+            # holds rows for 2026-09-23, -24 and -25, and the Action committed a "SPY could
+            # not be priced" refusal for each of those same dates: two runs fire nightly
+            # (22:12 and 23:37 UTC), one succeeded, and the other priced the day AGAIN and
+            # failed on a date already on disk. `append_row` was always idempotent -- it
+            # returns `already_present` and the row on disk -- but it only got the chance
+            # after 86 names had been fetched, so the second run's vendor failure surfaced as
+            # a refusal for a day that was already recorded.
+            #
+            # A recorded day needs no price. Answering it from disk makes the second nightly
+            # run free, silent and incapable of manufacturing a false refusal.
+            if wants_append:
+                # AUDIT 6 (2026-09-29): THE SCHEDULED WRITER NAMES NO DATE. `track-row.yml`
+                # POSTs `?append=1` and lets `contract_row` resolve the mark, so a check keyed
+                # on an EXPLICIT `date` never fired for the one caller it was written for --
+                # the second nightly run still priced 86 names and still surfaced a vendor
+                # failure as a refusal for a recorded day. Resolve the default the same way
+                # `contract_row` does (the last closed session) and ask the disk first.
+                from ..screener.market_session import last_closed_session as _lcs
+                if date:
+                    _mark = str(date)[:10]
+                else:
+                    _d = _lcs()
+                    _mark = _d.isoformat() if _d else None
+                # `_read_history(None)` opened `None`, caught its own TypeError and returned a
+                # rowless refusal -- so the disk was never consulted at all. The path is the
+                # one `index_track.default_paths()` spells, never a second spelling here.
+                from ..screener import index_track as _it
+                _seen = index_mark._read_history(_it.default_paths()[1])
+                _have = {(r.get("date") or "")[:10] for r in (_seen.get("rows") or [])}
+                if _mark and _mark in _have:
+                    _row = next((r for r in (_seen.get("rows") or [])
+                                 if (r.get("date") or "")[:10] == _mark), None)
+                    # THE SAME SHAPE AS THE NO-OP THE APPEND PATH RETURNS: a typed row (a CSV
+                    # row is all strings, and the 201 body is typed), an `append` block, and
+                    # the reported-benchmark sibling written from the row on disk. A caller
+                    # branching on `append.already_present` must see the same payload whether
+                    # the no-op was decided here or one vendor round-trip later.
+                    _row = index_mark.typed_row(_row or {})
+                    _res = {
+                        "ok": True, "wrote": False, "already_present": True, "row": _row,
+                        "append": {"ok": True, "wrote": False, "already_present": True,
+                                   "existing": _row},
+                        "reason": ("%s is already recorded, so no vendor was contacted for "
+                                   "the bound book. The row returned is the one ON DISK, "
+                                   "never a recomputation: a retry hours later can price a "
+                                   "different close for the same day." % _mark),
+                    }
+                    _res["reported_benchmark"] = _record_reported_benchmark(_row)
+                    return jsonify(_res), 200
+
             res = index_mark.contract_row(date)
 
             if not wants_append:
@@ -976,6 +1033,55 @@ def create_saas_app(cfg=CONFIG):
                     "reason": "the reported-benchmark sibling was not written: "
                               + safe_error(e)}
 
+    @app.route("/admin/track-rebalance", methods=["POST"])
+    def admin_track_rebalance():
+        """Append ONE rebalance event to the bound book. POST-only, append-only.
+
+        WHY THIS EXISTS. `PAPER_TRACK_CONTRACT.md` §3 voids a window for a book that silently
+        stopped rebalancing, while §5a rule 2 says a rebalance is NOT a vintage event -- so the
+        book must turn over and inception must NOT move. Before chaining there was no way to do
+        both: pricing from inception credited a name that entered in October with the market's
+        August move, and the disabled Cowork task moved inception instead, which §5a forbids.
+
+        POST-ONLY, for the same reason the write door is: the book is the object every recorded
+        row is measured against, and a side-effecting GET on it is reachable by a retry, a
+        prefetch, a proxy or a pasted link -- none of which is a decision to rebalance.
+
+            201  the event was appended
+            200  nothing changed; this exact event was already recorded (a retry is safe)
+            409  REFUSED: it rewrites a recorded event, or is dated before the last one
+            422  REFUSED: not the contract-bound Index, no recorded row to anchor to, on or
+                 before inception, or malformed
+            400  no event in the body at all
+
+        EVERY RULE LIVES IN `index_mark.append_rebalance`, not here -- the CLI uses the same
+        function, so the two cannot drift into different ideas of a legal event.
+
+        THE BOOK ITSELF IS BUILT ON DON'S MACHINE (`python -m valuation.edge.valquo_index
+        --full-universe`), because it needs the licensed data. This door only RECORDS one.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..screener import index_mark
+            body = request.get_json(silent=True) or {}
+            event = body.get("rebalance") or body.get("event")
+            if not isinstance(event, dict) or not event:
+                return jsonify({"ok": False,
+                                "reason": "no rebalance event in the request body"}), 400
+
+            res = index_mark.append_rebalance(event)
+            if res.get("ok"):
+                return jsonify(res), (201 if res.get("wrote") else 200)
+            # 409 for "you disagree with the record", 422 for everything else. Both are 4xx:
+            # nothing happened, and re-sending the same bytes will not change that.
+            why = res.get("reason") or ""
+            code = 409 if ("append-only" in why or "ordered history" in why) else 422
+            return jsonify(res), code
+        except Exception as e:                                           # noqa: BLE001
+            app.logger.exception("track-rebalance failed")
+            return jsonify({"ok": False, "reason": "%s: %s" % (type(e).__name__, e)}), 500
+
     @app.route("/admin/track-seed", methods=["POST"])
     def admin_track_seed():
         """Install the bound book and its recorded history on a service that has neither.
@@ -1164,7 +1270,8 @@ def create_saas_app(cfg=CONFIG):
                                ai_provider=cfg.resolved_ai_provider, is_owner=is_owner,
                                signed_in=bool(u), logout_url="/logout",
                                contact_email=cfg.contact_email,
-                               feedback_url=cfg.resolved_feedback_url)
+                               feedback_url=cfg.resolved_feedback_url,
+                               p=_proof_payload())
 
     @app.route("/pricing")
     def pricing():
@@ -1210,6 +1317,29 @@ def create_saas_app(cfg=CONFIG):
     # /methodology is registered on the shared app object in web/app.py — the SaaS layer uses
     # the SAME Flask app (`app = tool_app` above), so declaring it again is a duplicate
     # endpoint and the process would refuse to start.
+    @app.route("/landing")
+    def landing():
+        """The marketing landing page, kept and moved off "/".
+
+        It explains what the tool is and carries the server-rendered proof, so it is still a
+        real public surface — it is simply no longer the front door. The context build is
+        byte-for-byte what "/" used to do, including the reason it is wrapped: this page's
+        only proof is a cached valuation, and a missing sample must cost a section rather
+        than the page.
+        """
+        try:
+            from ..screener.store import Store as _ScreenerStore
+            from ..web import showcase
+            ctx = showcase.landing_context(
+                _ScreenerStore(),
+                with_track=surfaces.may_see_owner_surfaces(auth.current_user(store), cfg))
+        except Exception:
+            # Swallowed so the page still renders, but never silently: a landing that quietly
+            # loses its only proof looks fine and is the whole problem.
+            app.logger.exception("landing showcase failed; falling back to static copy")
+            ctx = {}
+        return render_template("landing.html", **ctx)
+
     @app.route("/terms")
     def terms():
         return render_template("terms.html")
@@ -1290,16 +1420,56 @@ def create_saas_app(cfg=CONFIG):
         resp.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive, nosnippet"
         return resp
 
+    # The public pages a crawler is invited to. NOT the portfolio page: it keeps itself out
+    # with its own `X-Robots-Tag: noindex` header, which a crawler can only honour if it is
+    # allowed to fetch the page — which is exactly why a blanket Disallow was backwards.
+    _SITEMAP_PATHS = ("/", "/app", "/landing", "/proof", "/methodology", "/tidemark",
+                      "/terms", "/privacy")
+
+    def _public_base() -> str:
+        """The site's own origin for absolute URLs, https on the real host. Render's proxy
+        hands Flask `http://`, and a canonical or sitemap URL that says http:// on an
+        https-only site is the wrong address."""
+        base = (request.url_root or "").rstrip("/")
+        if base.startswith("http://") and not any(h in base for h in ("localhost", "127.0.0.1")):
+            base = "https://" + base[len("http://"):]
+        return base
+
     @app.route("/robots.txt")
     def robots_txt():
-        """Blanket exclusion, naming nothing.
+        """Posture-dependent, naming nothing.
 
-        `Disallow: /` covers the portfolio page without listing it. Naming the path would be
-        self-defeating: robots.txt is world-readable, so a file that says `Disallow: /work` is
-        a public index of the URL it is trying to keep out of the public index.
+        PRIVATE mode: `Disallow: /` — a personal instance invites no audience.
+
+        PUBLIC (Don's decision, 2026-09-29, audit-6 D5): allow everything and point at the
+        sitemap. Until then this was a blanket `Disallow: /` in BOTH postures, which
+        de-listed /proof and /methodology — the two pages built to be found — while doing
+        nothing for the portfolio page, because a Disallow stops a crawler before it can see
+        that page's own `noindex` header. The path is still never named here: robots.txt is
+        world-readable, and a line that says `Disallow: /work` is a public index of the URL
+        it is trying to keep out of the public index.
         """
-        resp = make_response("User-agent: *\nDisallow: /\n")
+        if cfg.private_mode:
+            body = "User-agent: *\nDisallow: /\n"
+        else:
+            body = "User-agent: *\nAllow: /\nSitemap: " + _public_base() + "/sitemap.xml\n"
+        resp = make_response(body)
         resp.mimetype = "text/plain"
+        return resp
+
+    @app.route("/sitemap.xml")
+    def sitemap_xml():
+        """The public pages, absolute https URLs. 404 under private mode — a sitemap is an
+        invitation, and a locked instance is not offering one."""
+        if cfg.private_mode:
+            abort(404)
+        base = _public_base()
+        body = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+                + "".join(f"  <url><loc>{base}{p}</loc></url>\n" for p in _SITEMAP_PATHS)
+                + "</urlset>\n")
+        resp = make_response(body)
+        resp.mimetype = "application/xml"
         return resp
 
     @app.route("/account")
@@ -1403,29 +1573,17 @@ def create_saas_app(cfg=CONFIG):
                 return render_template("owner_only.html",
                                        **denial["payload"]), denial["status"]
 
-        # Marketing landing for anonymous visitors at "/". Under open access the landing
-        # page still shows (it explains what the tool is), but nothing behind it is
-        # locked — /app renders for anonymous visitors too.
+        # "/" IS THE APP, FOR EVERYONE. It used to serve the marketing landing to anonymous
+        # visitors and redirect only a signed-in one, so the first thing a stranger met was a
+        # pitch rather than the thing being pitched. The landing page is KEPT and still
+        # served — at "/landing" — so nothing is lost and it can still be linked; what
+        # changes is which of the two is the front door.
+        #
+        # UNCONDITIONAL, and that is the point: branching on `current_user` here is what made
+        # the front page mean two different things depending on who asked. Both the private
+        # branch above and this one now agree that "/" goes to the app.
         if path == "/":
-            if auth.current_user(store):
-                return redirect("/app")
-            # Server-rendered proof: a real cached valuation, read straight from the screener
-            # store. The live forward track is passed only to the owner — it is a paper-account
-            # performance claim, and the landing page is the most public surface there is.
-            # Wrapped because this is the FIRST thing a visitor sees — a missing sample must
-            # cost us a section, never the page.
-            try:
-                from ..screener.store import Store as _ScreenerStore
-                from ..web import showcase
-                ctx = showcase.landing_context(
-                    _ScreenerStore(),
-                    with_track=surfaces.may_see_owner_surfaces(auth.current_user(store), cfg))
-            except Exception:
-                # Swallowed so the page still renders, but never silently: a landing that
-                # quietly loses its only proof looks fine and is the whole problem.
-                app.logger.exception("landing showcase failed; falling back to static copy")
-                ctx = {}
-            return render_template("landing.html", **ctx)
+            return redirect("/app")
         # API gating.
         if path.startswith("/api/"):
             body = request.get_json(silent=True) or {}

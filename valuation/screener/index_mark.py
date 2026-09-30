@@ -212,7 +212,24 @@ def _date(s) -> Optional[_dt.date]:
         return None
 
 
-def _closes(ticker: str, fetch: Callable, seen: Optional[dict] = None) -> dict:
+def _accepts_as_of(fetch) -> bool:
+    """Does this callable take an `as_of` keyword? Inspected, never assumed.
+
+    A fetcher that does not is a legacy two-argument one -- several suites inject those -- and
+    handing it an unexpected keyword raises TypeError, which `_closes` catches and turns into
+    an empty price map. That failure is invisible: the name simply reads unpriced.
+    """
+    try:
+        import inspect
+        p = inspect.signature(fetch).parameters
+        return ("as_of" in p
+                or any(q.kind is inspect.Parameter.VAR_KEYWORD for q in p.values()))
+    except (TypeError, ValueError):
+        return False
+
+
+def _closes(ticker: str, fetch: Callable, seen: Optional[dict] = None,
+            as_of: str = None) -> dict:
     """`{'YYYY-MM-DD': close}` for one ticker, or `{}`.
 
     The fetcher is injected so the tests can run the whole mechanism offline against fixed
@@ -230,7 +247,20 @@ def _closes(ticker: str, fetch: Callable, seen: Optional[dict] = None) -> dict:
     except Exception:
         return {}
     try:
-        df = fetch(ticker, days=HISTORY_DAYS)
+        # `as_of` NAMES THE DATE THIS CALL ACTUALLY NEEDS, which is what lets a vendor report
+        # a stale frame as a FAILURE instead of a success.
+        #
+        # PASSED ONLY TO A FETCHER THAT ACCEPTS IT, decided by INSPECTING THE SIGNATURE rather
+        # than by try/except TypeError. The first cut passed it whenever set, and every
+        # injected two-argument fetcher in the test suite raised TypeError -- which `_closes`
+        # swallows into an empty map, so the benchmark leg silently lost its inception price
+        # and thirty-one tests failed with "SPY could not be priced". A bare `except TypeError`
+        # would have hidden a genuine TypeError raised INSIDE a fetcher, which is the same
+        # swallowing one level down.
+        if as_of and _accepts_as_of(fetch):
+            df = fetch(ticker, days=HISTORY_DAYS, as_of=as_of)
+        else:
+            df = fetch(ticker, days=HISTORY_DAYS)
     except Exception:
         if seen is not None:
             seen[ticker] = "fetch_raised"
@@ -292,11 +322,208 @@ def load_book(meta_path: str = None) -> dict:
                 "positions": positions, "inception_date": None, "benchmark": benchmark}
     return {"ok": True, "reason": "", "positions": positions,
             "inception_date": inception, "benchmark": benchmark,
-            "scan_date": meta.get("scan_date")}
+            "scan_date": meta.get("scan_date"),
+            # APPEND-ONLY REBALANCE EVENTS. Absent on every book written before chaining
+            # existed, and an absent list is exactly event zero alone -- so an old book is
+            # bit-identical under the new code, which is what makes this safe to ship.
+            "rebalances": rebalance_events(meta, inception, positions)}
+
+
+def rebalance_events(meta: dict, inception, positions: list) -> list:
+    """The book's rebalance events, oldest first, with INCEPTION AS EVENT ZERO.
+
+    **WHY EVENT ZERO IS SYNTHESISED RATHER THAN STORED.** The original positions already are a
+    rebalance -- the one that opened the book -- and treating them as such means the chaining
+    arithmetic has exactly one case instead of two. A special "before any event" branch is
+    where an off-by-one would live, and it would be invisible: it would only ever be wrong on
+    the segment nobody looks at.
+
+    Each event is `{"date": date, "scan_date": str|None, "positions": [{ticker, weight}]}`.
+    Malformed entries are DROPPED rather than guessed at, because a rebalance with an
+    unreadable date cannot be placed in the order that decides which one is in force.
+    """
+    out = [{"date": inception, "scan_date": meta.get("scan_date"), "positions": positions,
+            "is_inception": True}]
+    for ev in (meta.get("rebalances") or []):
+        if not isinstance(ev, dict):
+            continue
+        d = _date(ev.get("date"))
+        if d is None or inception is None or d <= inception:
+            # An event on or before inception cannot be "in force after" anything, and would
+            # shadow event zero. Refused at the door too; dropped here so a hand-edited file
+            # cannot quietly reorder the record.
+            continue
+        pos = []
+        for q in (ev.get("positions") or []):
+            t = str((q or {}).get("ticker") or "").strip().upper()
+            w = _f((q or {}).get("weight"))
+            if t and w and w > 0:
+                pos.append({"ticker": t, "weight": w})
+        if not pos:
+            continue
+        out.append({"date": d, "scan_date": ev.get("scan_date"), "positions": pos,
+                    "is_inception": False})
+    out.sort(key=lambda e: e["date"])
+    return out
+
+
+def event_in_force(events: list, mark) -> dict:
+    """The event governing `mark`: the LATEST one dated on or before it.
+
+    On the day of a rebalance the NEW book is in force -- `R <= M`, not `R < M` -- because a
+    rebalance is executed at that day's close and the row for that day is the anchor the next
+    segment compounds onto. Using `<` would price the rebalance day on the old book and then
+    anchor the next segment to it, which double-counts nothing and mis-prices one day.
+    """
+    got = None
+    for e in events or []:
+        if e["date"] <= mark:
+            got = e
+    return got
+
+
+def _recorded_level(date_key: str, history_path: str = None):
+    """The multiplicative level the bound series had reached on `date_key`, or None.
+
+    `1 + valquo_pct/100`, read from the RECORDED row rather than recomputed. Recomputing it
+    would defeat the purpose: the anchor has to be the number the record actually carries, or
+    the chained series and the published one drift apart silently from that day forward.
+    """
+    try:
+        rows = (_read_history(history_path) or {}).get("rows") or []
+    except Exception:                                                    # noqa: BLE001
+        return None
+    for r in rows:
+        if str(r.get("date") or "")[:10] == str(date_key)[:10]:
+            v = _f(r.get("valquo_pct"))
+            return None if v is None else (1.0 + v / 100.0)
+    return None
+
+
+def append_rebalance(event: dict, *, meta_path: str = None, history_path: str = None,
+                     conformance: Callable = None) -> dict:
+    """Append ONE rebalance event to the bound book. Append-only, and it never rewrites.
+
+    **EVERY REFUSAL LIVES HERE RATHER THAN IN THE HTTP DOOR**, so the CLI and the endpoint
+    cannot drift into two different ideas of what a legal event is — the `B7` split this
+    repository has paid for repeatedly.
+
+    THE REFUSALS, and each exists because of a way the record could be quietly falsified:
+
+      * **not the contract-bound Index** (`valquo_index.conformance`): >=50 names and the 8%
+        cap actually binding. A truncated scan installed under the Index's name is exactly the
+        failure the seed door was built to prevent, and a rebalance is the same door one step
+        later.
+      * **dated on or before the last event** — events are an ordered history, and one landing
+        out of order silently changes which book was in force for every day after it.
+      * **an event already exists on that date** — a rewrite, which append-only forbids
+        outright. Re-sending the identical event is a NO-OP rather than an error, so a retried
+        request cannot corrupt anything.
+      * **the date has no recorded row** — the anchor must be a day the track actually marked,
+        or the level the next segment compounds onto is a guess.
+      * **dated on or before inception** — it would shadow event zero.
+
+    `inception_date` IS NEVER TOUCHED, by construction: this function writes only the
+    `rebalances` list. Pinned by test.
+    """
+    import json
+    if meta_path is None:
+        from . import index_track
+        meta_path, _h = index_track.default_paths()
+    out = {"ok": False, "wrote": False, "reason": "", "n_events": None}
+
+    if not isinstance(event, dict):
+        out["reason"] = "the rebalance event must be an object"
+        return out
+    d = _date(event.get("date"))
+    if d is None:
+        out["reason"] = "the rebalance carries no readable date"
+        return out
+
+    positions = []
+    for q in (event.get("positions") or []):
+        t = str((q or {}).get("ticker") or "").strip().upper()
+        w = _f((q or {}).get("weight"))
+        if t and w and w > 0:
+            positions.append({"ticker": t, "weight": w})
+    if not positions:
+        out["reason"] = "the rebalance carries no priceable positions"
+        return out
+
+    # IS IT THE INDEX? Delegated to the same conformance rule the seed door uses; a caller may
+    # inject it for testing but there is no flag that switches it off.
+    if conformance is None:
+        try:
+            from ..edge import valquo_index as _vi
+            conformance = _vi.conformance
+        except Exception:                                                # noqa: BLE001
+            conformance = None
+    if conformance is not None:
+        # `conformance` takes NUMBERS, not a book -- n_positions and the EFFECTIVE max weight,
+        # which is the largest weight once the book is normalised. Reconstructed here rather
+        # than assumed, because a book whose weights do not sum to 1 would otherwise report a
+        # cap that binds when it does not.
+        _tw = sum(q["weight"] for q in positions) or 1.0
+        c = conformance(len(positions), max(q["weight"] for q in positions) / _tw)
+        if not (c or {}).get("ok"):
+            out["reason"] = ("the rebalance is not the contract-bound Index: %s"
+                             % ((c or {}).get("reason") or "conformance refused"))
+            return out
+
+    try:
+        with open(meta_path, encoding="utf-8") as fh:
+            meta = json.load(fh) or {}
+    except (OSError, ValueError):
+        out["reason"] = "the book file %s is missing or unreadable" % meta_path
+        return out
+
+    inception = _date(meta.get("inception_date"))
+    if inception is None:
+        out["reason"] = "the book carries no readable inception_date"
+        return out
+    if d <= inception:
+        out["reason"] = ("a rebalance dated %s is on or before inception %s, where event zero "
+                         "already stands" % (d.isoformat(), inception.isoformat()))
+        return out
+
+    existing = list(meta.get("rebalances") or [])
+    for ev in existing:
+        if _date((ev or {}).get("date")) == d:
+            same = [{"ticker": str(q.get("ticker", "")).upper(), "weight": _f(q.get("weight"))}
+                    for q in (ev.get("positions") or [])]
+            if same == positions:
+                out.update(ok=True, wrote=False, n_events=len(existing),
+                           reason="this exact event is already recorded on %s" % d.isoformat())
+                return out
+            out["reason"] = ("a different rebalance is already recorded on %s; events are "
+                             "append-only and may never be rewritten" % d.isoformat())
+            return out
+
+    last = max([x for x in (_date((ev or {}).get("date")) for ev in existing) if x],
+               default=None)
+    if last is not None and d <= last:
+        out["reason"] = ("a rebalance dated %s is not after the last recorded event %s; "
+                         "events are an ordered history" % (d.isoformat(), last.isoformat()))
+        return out
+
+    if _recorded_level(d.isoformat(), history_path) is None:
+        out["reason"] = ("%s has no recorded row, so a rebalance anchored there has no level "
+                         "to compound onto" % d.isoformat())
+        return out
+
+    meta["rebalances"] = existing + [{"date": d.isoformat(),
+                                      "scan_date": event.get("scan_date"),
+                                      "positions": positions}]
+    _write_atomic(meta_path, json.dumps(meta, indent=2).encode("utf-8"))
+    out.update(ok=True, wrote=True, n_events=len(meta["rebalances"]),
+               reason="recorded a rebalance dated %s over %d positions"
+                      % (d.isoformat(), len(positions)))
+    return out
 
 
 def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
-                 now: _dt.datetime = None, refuse_before_close: bool = True) -> dict:
+                 now: _dt.datetime = None, refuse_before_close: bool = True,
+                 history_path: str = None) -> dict:
     """Today's contract row, or a refusal that says why.
 
     On success:  `{"ok": True, "row": {...ROW_COLUMNS...}, "coverage": .., "unpriced": [..]}`
@@ -371,7 +598,7 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
     # --- benchmark ---
     bench = book["benchmark"]
     vendors: dict = {}
-    bc = _closes(bench, fetch, vendors)
+    bc = _closes(bench, fetch, vendors, as_of=mark_key)
     b_base, b_mark = bc.get(base_key), bc.get(mark_key)
     if not b_base or not b_mark:
         which = "inception " + base_key if not b_base else "mark date " + mark_key
@@ -379,18 +606,57 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
                 "reason": ("the benchmark " + bench + " could not be priced on the " + which
                            + " (a benchmark gap makes the excess unmeasurable, so no row is "
                              "emitted rather than a Valquo-only one)"),
-                "row": None}
+                "row": None,
+                # WHICH VENDOR ANSWERED, AND WHAT THE BENCHMARK'S FRAME ACTUALLY HELD. Added
+                # 2026-09-30: the refusal note for the 09-29 row said "SPY could not be priced
+                # on the inception" and nothing else, which cannot tell a stale primary from a
+                # dead fallback from a frame that simply started too late. These travel into the
+                # refusal note the workflow commits, so the next failure diagnoses itself.
+                "diagnostics": _refusal_diagnostics(bench, bc, vendors)}
     spy_pct = (b_mark / b_base - 1.0) * 100.0
 
     # --- the book ---
     # Renormalised over the names that priced, so an unpriced name is treated as "not
     # measured" rather than silently as "held at a zero return" — the latter would drag the
     # mark toward zero in exactly the weeks a data outage is most likely.
+    # WHICH BOOK IS IN FORCE, AND WHAT IT COMPOUNDS ONTO.
+    #
+    # THE PROBLEM CHAINING SOLVES. Pricing every position from inception is correct only while
+    # the book has never changed. After a rebalance it credits a name that ENTERED in October
+    # with the market's August move, which it was never held for -- and the alternative the
+    # disabled Cowork task took, moving inception, is forbidden outright by the contract's
+    # section 5a rule 2 (a rebalance is NOT a vintage event) and would reset the five-year
+    # clock for nothing.
+    #
+    # THE STANDARD ANSWER IS INDEX CHAINING: each segment is priced from the rebalance that
+    # opened it, and its growth compounds onto the level the index had reached on that day.
+    #   level(M) = level(R) x (1 + SUM_i w_i (P_i(M)/P_i(R) - 1))
+    # SPY stays cumulative from inception, because the benchmark never rebalances with us and
+    # chaining it would silently change what the excess is measured against.
+    ev = event_in_force(book.get("rebalances") or [], mark)
+    seg_base_key = (ev["date"].isoformat() if ev else base_key)
+    seg_positions = (ev["positions"] if ev else book["positions"])
+
+    # THE ANCHOR MUST BE A DAY THAT WAS ACTUALLY MARKED, or the level it compounds onto is a
+    # guess. A rebalance dated on a day the track did not record is REFUSED rather than
+    # approximated from a neighbouring row: an anchor off by one session is an error that
+    # never shows up again, it just shifts every subsequent row by a constant nobody can find.
+    anchor_level = 1.0
+    if ev is not None and not ev.get("is_inception"):
+        rec = _recorded_level(seg_base_key, history_path)
+        if rec is None:
+            return {"ok": False,
+                    "reason": ("the rebalance dated " + seg_base_key + " has no recorded row, "
+                               "so the level it compounds onto is unknown; a rebalance must be "
+                               "anchored to a day that was actually marked"),
+                    "row": None}
+        anchor_level = rec
+
     num, wsum, unpriced = 0.0, 0.0, []
-    total_w = sum(p["weight"] for p in book["positions"])
-    for p in book["positions"]:
-        m = _closes(p["ticker"], fetch, vendors)
-        base, cur = m.get(base_key), m.get(mark_key)
+    total_w = sum(p["weight"] for p in seg_positions)
+    for p in seg_positions:
+        m = _closes(p["ticker"], fetch, vendors, as_of=mark_key)
+        base, cur = m.get(seg_base_key), m.get(mark_key)
         if not base or not cur:
             unpriced.append(p["ticker"])
             continue
@@ -405,7 +671,11 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
                            + format(MIN_COVERAGE * 100.0, ".0f") + "% floor; "
                            + str(len(unpriced)) + " names unpriced"),
                 "row": None, "coverage": coverage, "unpriced": unpriced}
-    valquo_pct = (num / wsum) * 100.0
+    # COMPOUND THE SEGMENT ONTO THE ANCHOR. On the inception segment `anchor_level` is 1.0,
+    # so this reduces EXACTLY to the pre-chaining `(num / wsum) * 100` -- which is what keeps
+    # every already-recorded row reproducible bit for bit.
+    seg_return = num / wsum
+    valquo_pct = (anchor_level * (1.0 + seg_return) - 1.0) * 100.0
 
     row = {
         "date": mark_key,
@@ -413,11 +683,14 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
         "valquo_pct": round(valquo_pct, 4),
         "spy_pct": round(spy_pct, 4),
         "excess_pp": round(valquo_pct - spy_pct, 4),
-        "n_priced": len(book["positions"]) - len(unpriced),
+        # THE BOOK IN FORCE, not the inception book. After a rebalance `unpriced` is counted
+        # over `seg_positions`, so subtracting it from the INCEPTION count would report a
+        # 68-name book as 86 priced -- and n_priced is a column of the append-only record.
+        "n_priced": len(seg_positions) - len(unpriced),
     }
     return {"ok": True, "reason": "", "row": row, "coverage": coverage, "unpriced": unpriced,
             "inception_date": inception.isoformat(), "benchmark": bench,
-            "n_positions": len(book["positions"]),
+            "n_positions": len(seg_positions),
             "source": "screener/prices.py (Stooq primary, yfinance fallback)",
             "vendors": _vendor_census(vendors, bench)}
 
@@ -447,10 +720,44 @@ def _vendor_census(seen: dict, benchmark: str) -> dict:
         "book_leg_by_vendor": by,
         "book_leg_single_vendor": (len(by) <= 1),
         "legs_agree": (bucket(seen.get(benchmark)) in by) if by else None,
+        # HOW MANY NAMES WERE REFUSED FOR STALENESS, which is information the freshness rule
+        # creates and nothing else reports. A run that priced the book off the fallback because
+        # the primary was stale looks identical to a clean run in every other field; this is
+        # the number that distinguishes them, and it lands in the note the Action commits
+        # rather than in a new CSV column the append-only prefix rule would have to absorb.
+        "stale_rejections": _stale_rejections(),
         "note": ("A vendor label of 'unlabelled' means the fetcher did not record one -- it "
                  "does NOT mean the primary served. yfinance's Close is AUTO-ADJUSTED and is a "
-                 "different quantity from an as-traded close."),
+                 "different quantity from an as-traded close. `stale_rejections` counts vendor "
+                 "answers that were well-formed but older than the mark date and were "
+                 "therefore refused rather than used."),
     }
+
+
+def _refusal_diagnostics(ticker: str, closes: dict, vendors: dict) -> dict:
+    """Small, secret-free facts about one failed price lookup, for a refusal body."""
+    keys = sorted(closes or {})
+    out = {"ticker": ticker, "vendor": (vendors or {}).get(ticker),
+           "n_closes": len(keys), "first_close": keys[0] if keys else None,
+           "last_close": keys[-1] if keys else None}
+    try:
+        from . import prices as _p
+        c = _p.source_census() or {}
+        out["census"] = {"by_vendor": c.get("by_vendor"),
+                         "primary_failures": c.get("primary_failures"),
+                         "stale_rejections": c.get("stale_rejections")}
+    except Exception:                                                   # noqa: BLE001
+        out["census"] = None
+    return out
+
+
+def _stale_rejections():
+    """Staleness refusals recorded by the price layer, or None when it cannot be read."""
+    try:
+        from . import prices as _p
+        return int((_p.source_census() or {}).get("stale_rejections") or 0)
+    except Exception:                                                    # noqa: BLE001
+        return None
 
 def _canonical_csv(rows: list, fields: list) -> bytes:
     """The rows serialised exactly as `append_row` writes them.

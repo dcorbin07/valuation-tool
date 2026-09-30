@@ -314,6 +314,16 @@ def test_the_set_of_things_that_consume_the_book_path_is_what_we_think_it_is():
         # the path as `--index`, so it reads whatever it is pointed at rather than resolving a
         # second opinion about where the book lives.
         "scripts/options_coverage_census.py",
+        # READER, added 2026-09-29 and reconciled rather than allow-listed. `test_allocation`
+        # opens the book to cross-check the Holdings allocation arithmetic against the REAL
+        # weights -- two implementations agreeing rather than the code agreeing with itself.
+        # It cannot disagree with the writer the way PT-SPLIT's two mechanisms did: it never
+        # writes the path, never evaluates conformance, and makes no claim about the book's
+        # contents. It reads `positions[].weight` as an INPUT to a question about a different
+        # object entirely (a JavaScript function), and it SKIPS LOUDLY when the file is absent,
+        # which is why CI -- where `data/` is gitignored and the book never exists -- exercises
+        # the skip rather than the read.
+        "tests/test_allocation.py",
         # Added 2026-08-17 (DEEPITM-FIN), reconciled rather than allow-listed. It reads
         # positions[].ticker as a MEMBERSHIP LIST -- to report how many Index names the options
         # freeze covers (11 of 86) and to ship a no-verdict cell for them. It never writes the

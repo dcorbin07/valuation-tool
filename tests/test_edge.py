@@ -1457,7 +1457,12 @@ def test_book_configs_are_defined_and_coherent():
     assert roth["rebalance_days"] < tax["rebalance_days"]
     for name, c in S.BOOK_CONFIGS.items():
         assert (c["top_n"] is None) != (c["top_frac"] is None), f"{name}: exactly one width"
-        assert c["label"] and c["measured"], name
+        # MC11 — the figures moved OUT of the config literal and are read from the
+        # artifact, so the config carries a label and a provenance string and the
+        # NUMBERS are asserted against `settings.measured()` instead.
+        assert c["label"] and c["measured_from"], name
+        from valuation.screener import settings as _S2
+        assert (_S2.measured(name) or {}).get("net_alpha") is not None, name
 
 
 def test_no_trade_band_reduces_turnover_and_reduces_to_top_n():

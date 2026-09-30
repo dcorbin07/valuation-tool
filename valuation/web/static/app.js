@@ -30,7 +30,7 @@ const scoreClass = (s) => s >= 66 ? "g" : (s >= 46 ? "a" : "r");
 /* ---------- tabs ---------- */
 function switchTab(t) {
   document.querySelectorAll(".tab").forEach(el => el.classList.toggle("active", el.dataset.tab === t));
-  ["single", "hot", "dip", "index", "signals", "track", "rank", "edge"].forEach(name => {
+  ["single", "hot", "dip", "index", "signals", "track", "proof"].forEach(name => {
     const el = document.getElementById("tab-" + name);
     if (el) el.style.display = (name === t) ? "block" : "none";
   });
@@ -39,13 +39,9 @@ function switchTab(t) {
   if (t === "index" && !STATE.indexLoaded) { STATE.indexLoaded = true; loadValquoIndex(); loadIndexTrack(); }
   if (t === "signals" && !STATE.sigLoaded) { STATE.sigLoaded = true; loadSignals(); loadOptionsScorecard(); loadScreamTrack(); }
   if (t === "track" && !STATE.trackLoaded) { STATE.trackLoaded = true; loadTrack(); }
-  // The Edge Lab has no autoload for the owner — every button on it is expensive, so it
-  // waits to be asked. A READ-ONLY session has no such buttons, so the tab would open
-  // empty and read as broken; #edgeReadOnlyNote is rendered only in that case, and the
-  // one thing that session CAN do is the thing it came to see.
-  if (t === "edge" && !STATE.edgeLoaded && document.getElementById("edgeReadOnlyNote")) {
-    STATE.edgeLoaded = true; edgeLearning();
-  }
+  // The Watchlist (rank) and Edge Lab (edge) tabs were deleted from the page on 2026-09-29.
+  // runRank() and the edge*() functions below stay: `/api/rank` and `/api/edge/*` are
+  // still served, and restoring a tab is a revert of that commit, not a rebuild.
   if (t !== "signals") stopSigAuto();
 }
 
@@ -1446,10 +1442,21 @@ async function loadTrack() {
 }
 function _trackCard(title, sub, s) {
   const sm = (s && s.summary) || {}, rec = (s && s.recent) || [];
+  const ct = (s && s.counts) || {}, rf = (s && s.refresh) || null;
   const H = [["21", "1-month"], ["63", "3-month"], ["126", "6-month"], ["252", "1-year"], ["all", "All-time"]];
+  // THE COUNT IS THE LOG, NOT THE TABLE. This used to print rec.length -- the 15 rows shown
+  // below -- as "N logged so far", which made a log running back to August read as fifteen picks.
+  const logged = ct.n_logged != null
+    ? `${ct.n_logged.toLocaleString()} picks logged over ${ct.n_days} scan days since ${ct.first_logged}`
+    : `${rec.length} recent picks shown`;
+  // A refresh that ran and FAILED must not read as "still accruing" -- that is how seven weeks of
+  // silent failure looked like patience.
+  const rfLine = (rf && rf.ok === false)
+    ? `<div class="note" style="margin-top:6px">The last attempt to price matured picks failed (${rf.reason || 'no benchmark price'}); the table fills in on the next successful run.</div>`
+    : '';
   let inner;
   if (!H.some(([k]) => sm[k])) {
-    inner = `<div class="muted">Accruing — picks need ~1 month to mature before they count (${rec.length} logged so far). Check back as the record builds.</div>`;
+    inner = `<div class="muted">${logged}. Each pick is measured from the day it was picked, so it counts once it is 21 trading days old — whether or not it is still in the top 10. None has been scored yet.</div>${rfLine}`;
   } else {
     inner = '<table><tr><th>Horizon</th><th class="num">Picks</th><th class="num">Avg return</th><th class="num">S&amp;P</th><th class="num">Alpha</th><th class="num">Beat S&amp;P</th><th class="num">Win rate</th></tr>';
     H.forEach(([k, lab]) => {
@@ -1461,9 +1468,10 @@ function _trackCard(title, sub, s) {
         <td class="num">${pct(x.hit_rate_vs_bench, 0)}</td><td class="num">${pct(x.win_rate, 0)}</td></tr>`;
     });
     inner += '</table>';
+    inner += `<div class="note" style="margin-top:6px">${logged}. A name that stays in the top 10 is logged again every day it is there, so the picks overlap heavily and the count overstates how many independent bets this is — read the averages as a description, not a significance test.</div>${rfLine}`;
   }
   if (rec.length) {
-    inner += '<div class="note" style="margin-top:10px">Most recent picks (1-month return vs S&amp;P as they mature):</div>' +
+    inner += '<div class="note" style="margin-top:10px">Most recent picks (each fills in 21 trading days after its date):</div>' +
       '<table><tr><th>Date</th><th>Ticker</th><th class="num">1-mo</th><th class="num">S&amp;P</th></tr>';
     rec.forEach(p => {
       const r = p.ret_1m;
@@ -1479,8 +1487,9 @@ function _paperCard(paper) {
   const s = (paper && paper.summary) || {}, watch = (paper && paper.watching) || [], closed = (paper && paper.closed) || [];
   const sub = 'Buys when a name enters the top-10; holds ≥1 month (no churn) and keeps holding while it stays hot — ' +
     'it is <b>not</b> sold just because another name got hotter. Sells only when it is genuinely no longer hot ' +
-    '(score below the floor) or reaches its DCF fair value. No time cap by default, so a gem can compound for years. ' +
-    'Suggested sizing is score-weighted (hotter = bigger), capped.';
+    '(score below the floor) or reaches its DCF fair value; there is no time limit on a hold. A name the daily ' +
+    'scan stops covering for three weeks is closed (“left coverage”), because without a score the sell rule ' +
+    'cannot be applied. Suggested sizing is score-weighted (hotter = bigger), capped. A model account — no money is in it.';
   if (!s.n_total) {
     return `<div class="card"><h3>💼 Paper account — top-10 hot stocks (sell logic)</h3>
       <div class="section-hint">${sub}</div>
@@ -1520,15 +1529,20 @@ function _paperCard(paper) {
     exitTbl += '</table>';
   }
   const b = (paper && paper.bench) || {};
+  // No "significant" badge: it was |t| > 2 on a handful of overlapping, selected trades -- the
+  // retired convention. The t is shown as what it is.
   const sig = b.t_stat == null ? '' :
-    ` · t-stat ${b.t_stat.toFixed(1)} <b class="${b.significant ? 'pos' : ''}">(${b.significant ? 'significant' : 'not significant yet'})</b>`;
+    ` · t ${b.t_stat.toFixed(1)} <span class="muted">(rough gauge on ${b.n_alpha} closed picks, not a significance test)</span>`;
   const benchLine = (b.avg_alpha != null || b.spy_all_time != null)
     ? `<div class="note" style="margin:2px 0 8px">vs <b>S&amp;P 500</b> (net of costs): ` +
       (b.avg_alpha != null ? `avg <b class="${b.avg_alpha >= 0 ? 'pos' : 'neg'}">${b.avg_alpha >= 0 ? '+' : ''}${pct(b.avg_alpha, 1)}</b> alpha per closed pick` : '') +
       (b.spy_all_time != null ? ` · S&amp;P returned ${pct(b.spy_all_time, 1)} over the same span` : '') + sig + `</div>`
     : '';
+  const unpriced = s.n_unpriced_exits
+    ? `<div class="note" style="margin:2px 0 8px">${s.n_unpriced_exits} of the ${s.n_closed} exits were names the scan never covered again after the day they were bought, so their exit price is unknown. They are left out of the realised return and win rate rather than counted as flat, and show “—” below.</div>`
+    : '';
   return `<div class="card"><h3>💼 Paper account — top-10 hot stocks (sell logic)</h3>
-    <div class="section-hint">${sub}${reasons ? ' Exits so far: ' + reasons + '.' : ''}</div>${head}${benchLine}${watchTbl}${exitTbl}</div>`;
+    <div class="section-hint">${sub}${reasons ? ' Exits so far: ' + reasons + '.' : ''}</div>${head}${unpriced}${benchLine}${watchTbl}${exitTbl}</div>`;
 }
 function renderTrack(d) {
   const src = (d && d.sources) || {};
@@ -2167,7 +2181,125 @@ async function loadValquoIndex() {
   _renderValquoIndex(d, cfg);
 }
 
+/* ============================ ALLOCATION (client-side only) ============================
+   Turns the book's WEIGHTS into dollars against a total the user types. It is arithmetic on
+   numbers already on the page: no fetch, no server write, no order of any kind, and nothing
+   here is persisted anywhere but this browser's localStorage.
+
+   THE WEIGHTS ARE RENORMALISED FIRST, AND THE RESIDUAL IS REPORTED RATHER THAN ABSORBED.
+   The published weights are rounded to five places and the book can be capped and
+   redistributed, so they need not sum to exactly 1. Scaling them silently would make the
+   column sum to the input while quietly misstating each row; saying "the raw weights sum to
+   99.97%, so they were scaled by 1.0003" costs one line and makes the adjustment checkable.
+
+   ALLOCATIONS ARE COMPUTED UNROUNDED AND ROUNDED ONLY FOR DISPLAY, so the footer equals the
+   input exactly rather than equalling the sum of the rounded cells -- which is the ordinary
+   way a table like this ends up a few cents short of the number the user typed.
+
+   SHARES USE THE PRICE THE PAYLOAD ALREADY CARRIES (`positions[].price`) and are shown two
+   ways: the exact fractional count and the whole-share floor. Both, because they answer
+   different questions -- one is the allocation, the other is what a broker without
+   fractional shares will actually let you buy -- and printing only the exact one invites
+   rounding it up. A row with no usable price gets neither rather than a fabricated one. */
+function allocationRows(positions, total) {
+  const t = Number(total);
+  const list = (positions || []).filter(p => p && isFinite(Number(p.weight)));
+  const raw = list.reduce((a, p) => a + Number(p.weight), 0);
+  if (!isFinite(t) || t <= 0 || !list.length || raw <= 0) {
+    return { active: false, rows: [], sum: 0, total: t, rawWeightSum: raw, scale: 1,
+             residualPp: 0, anyPrice: false };
+  }
+  const scale = 1 / raw;
+  const rows = list.map(p => {
+    const w = Number(p.weight) * scale;
+    const alloc = w * t;
+    const price = Number(p.price);
+    const usable = isFinite(price) && price > 0;
+    return { ticker: p.ticker, weight: w, alloc: alloc,
+             shares: usable ? alloc / price : null,
+             wholeShares: usable ? Math.floor(alloc / price) : null,
+             price: usable ? price : null };
+  });
+  // WHAT WHOLE SHARES ACTUALLY INVEST. The whole-share column answers "how many shares" row
+  // by row and used to leave the reader to add up what that costs -- and on a small account
+  // that sum is the whole story. Measured on the 86-name book of 2026-07-24: $1,000 invests
+  // about $23 in whole shares and 85 of 86 names round to zero; $5,000 invests about 26%.
+  // Computed over the rows that HAVE a price only. A row with no price cannot be costed, so
+  // it is counted as unpriced rather than silently as either invested or left over.
+  const priced = rows.filter(r => r.price != null);
+  const allocPriced = priced.reduce((a, r) => a + r.alloc, 0);
+  const investedWhole = priced.reduce((a, r) => a + r.wholeShares * r.price, 0);
+  return { active: true, rows: rows,
+           sum: rows.reduce((a, r) => a + r.alloc, 0),
+           total: t, rawWeightSum: raw, scale: scale,
+           // Signed, in percentage points: positive means the raw weights summed to MORE
+           // than 100% before scaling.
+           residualPp: (raw - 1) * 100,
+           anyPrice: priced.length > 0,
+           pricedCount: priced.length,
+           unpricedCount: rows.length - priced.length,
+           allocPriced: allocPriced,
+           investedWhole: investedWhole,
+           cashLeftWhole: allocPriced - investedWhole,
+           zeroWholeCount: priced.filter(r => r.wholeShares === 0).length };
+}
+
+/* The one line that makes the whole-share column readable at a glance. It FORMATS and does
+   not compute: every figure comes from allocationRows, so the table, this line and the tests
+   all read one set of numbers. Returns "" when there is nothing honest to say. */
+function _wholeShareSummary(a) {
+  if (!a || !a.active || !a.pricedCount) return "";
+  const share = a.allocPriced > 0 ? a.investedWhole / a.allocPriced : 0;
+  const unpriced = a.unpricedCount
+    ? ` ${a.unpricedCount} name${a.unpricedCount === 1 ? " has" : "s have"} no price here and `
+      + `${a.unpricedCount === 1 ? "is" : "are"} left out of this line.`
+    : "";
+  return `<br><b>With whole shares only:</b> ${money(a.investedWhole)} of `
+    + `${money(a.allocPriced)} actually gets invested (${pct(share, 1)}), leaving `
+    + `<b>${money(a.cashLeftWhole)}</b> as cash, and <b>${a.zeroWholeCount} of `
+    + `${a.pricedCount}</b> names round to zero shares.${unpriced} `
+    + `With fractional shares the full amount is invested.`;
+}
+
+const ALLOC_KEY = "valquo:allocationTotal";
+
+function allocationSaved() {
+  try {
+    const v = Number(localStorage.getItem(ALLOC_KEY));
+    return isFinite(v) && v > 0 ? v : null;
+  } catch (e) { return null; }
+}
+
+function allocationSave(v) {
+  try {
+    if (v == null || !isFinite(v) || v <= 0) localStorage.removeItem(ALLOC_KEY);
+    else localStorage.setItem(ALLOC_KEY, String(v));
+  } catch (e) { /* a browser with storage disabled simply does not remember it */ }
+}
+
+/* Re-render on input. Deliberately re-runs the whole holdings render rather than patching
+   cells, so there is ONE renderer and the with-allocation and without-allocation views
+   cannot drift apart. */
+function onAllocationInput(raw) {
+  const v = Number(String(raw == null ? "" : raw).replace(/[$,\s]/g, ""));
+  allocationSave(isFinite(v) && v > 0 ? v : null);
+  if (window._lastIndexPayload) _renderValquoIndex(window._lastIndexPayload,
+                                                   window._lastIndexCfg);
+}
+
+function clearAllocation() {
+  allocationSave(null);
+  const el = document.getElementById("allocTotal");
+  if (el) el.value = "";
+  if (window._lastIndexPayload) _renderValquoIndex(window._lastIndexPayload,
+                                                   window._lastIndexCfg);
+}
+
 function _renderValquoIndex(d, cfg) {
+  // Kept so the allocation input can re-render without re-fetching. It is the payload the
+  // user is already looking at, not a second copy of anything.
+  window._lastIndexPayload = d;
+  window._lastIndexCfg = cfg;
   setHtml("indexFreshness", freshnessBanner(d.freshness));
   setHtml("indexDisclaimer", d.disclaimer ? esc(d.disclaimer) : "");
   const note = document.getElementById("valquoIndexNote");
@@ -2179,26 +2311,85 @@ function _renderValquoIndex(d, cfg) {
   }
   const c = d.config || {};
   const m = c.measured || {};
+  /* NAMED, for the same reason the performance card's tiles are. `net_alpha` here is an
+     excess over the EQUAL-WEIGHTED UNIVERSE -- which pays no trading cost while the book does
+     -- and not over an index anyone can buy. Printed as bare "net alpha" two inches from a
+     card that now says "vs SPY", it was the last place on this surface where the reader had
+     to guess the counterparty. */
   const meas = (m.net_sharpe != null)
-    ? `backtested net Sharpe <b>${m.net_sharpe.toFixed(2)}</b>, net alpha <b>${(m.net_alpha * 100).toFixed(1)}%</b>`
+    ? `backtested net Sharpe <b>${m.net_sharpe.toFixed(2)}</b>, net excess over the `
+      + `equal-weighted universe <b>${(m.net_alpha * 100).toFixed(1)}%</b>`
     : (m.after_tax_sharpe != null
-        ? `backtested after-tax Sharpe <b>${m.after_tax_sharpe.toFixed(2)}</b>, after-tax alpha <b>${(m.after_tax_alpha * 100).toFixed(1)}%</b>`
+        ? `backtested after-tax Sharpe <b>${m.after_tax_sharpe.toFixed(2)}</b>, after-tax `
+          + `excess over the equal-weighted universe <b>${(m.after_tax_alpha * 100).toFixed(1)}%</b>`
         : "");
   note.innerHTML = `<b>${c.label || cfg}</b> — ${d.n_positions} of ${d.n_eligible} eligible `
     + `(${d.n_scored} scored). Rebalance every ~${c.rebalance_months} months`
     + (c.exit_frac ? `, hold until a name falls past the top ${(c.exit_frac * 100).toFixed(0)}%` : ", full rotation")
     + `. ${meas}<br><span class="muted">${d.source_note || ""}</span>`;
-  const rows = (d.positions || []).slice(0, 30);
+  // ALLOCATION. With no total entered this is inert and every line below renders exactly what
+  // it rendered before the feature existed -- the extra columns, the footer and the notes are
+  // all behind `alloc.active`.
+  const savedTotal = allocationSaved();
+  // Put the remembered total back in the box. Without this the columns would render on load
+  // from a value the field does not show, and a Clear button would appear to do nothing.
+  const allocEl = document.getElementById("allocTotal");
+  if (allocEl && !allocEl.value && savedTotal != null) allocEl.value = String(savedTotal);
+  const alloc = allocationRows(d.positions || [], savedTotal);
+  const byTicker = {};
+  alloc.rows.forEach(r => { byTicker[r.ticker] = r; });
+
+  // WHEN MONEY IS ON THE PAGE, EVERY ROW IS ON THE PAGE. The default view shows the first 30
+  // of a book that can run to 86, which is right for browsing and wrong for allocating: a
+  // footer claiming to equal the typed total while two thirds of the money sits in rows the
+  // user cannot see would be the most misleading thing on this surface.
+  const rows = alloc.active ? (d.positions || []) : (d.positions || []).slice(0, 30);
+  const showShares = alloc.active && alloc.anyPrice;
+
   body.innerHTML = _indexSectorBox(d)
     + '<table class="tbl"><thead><tr><th>#</th><th>Ticker</th><th>Company</th><th>Sector</th>'
-    + '<th class="num">Weight</th><th class="num">Hot score</th><th class="num">Market cap</th>'
+    + '<th class="num">Weight</th>'
+    + (alloc.active ? '<th class="num">Allocation</th>' : "")
+    + (showShares ? '<th class="num">Shares (exact)</th><th class="num">Shares (whole)</th>' : "")
+    + '<th class="num">Hot score</th><th class="num">Market cap</th>'
     + '</tr></thead><tbody>'
-    + rows.map((p, i) => `<tr><td>${i + 1}</td><td><b>${p.ticker}</b></td>`
-        + `<td>${esc((p.name || "").slice(0, 28))}</td><td>${esc((p.sector || "—").slice(0, 18))}</td>`
-        + `<td class="num">${pct(p.weight, 2)}</td>`
-        + `<td class="num">${p.hot_score == null ? "—" : p.hot_score.toFixed(1)}</td>`
-        + `<td class="num">${mcap(p.market_cap)}</td></tr>`).join("")
-    + "</tbody></table>"
+    + rows.map((p, i) => {
+        const a = byTicker[p.ticker];
+        return `<tr><td>${i + 1}</td><td><b>${p.ticker}</b></td>`
+          + `<td>${esc((p.name || "").slice(0, 28))}</td><td>${esc((p.sector || "—").slice(0, 18))}</td>`
+          + `<td class="num">${pct(p.weight, 2)}</td>`
+          + (alloc.active ? `<td class="num">${a ? money(a.alloc) : "—"}</td>` : "")
+          + (showShares
+              ? `<td class="num">${a && a.shares != null ? a.shares.toFixed(3) : "—"}</td>`
+                + `<td class="num">${a && a.wholeShares != null ? num(a.wholeShares) : "—"}</td>`
+              : "")
+          + `<td class="num">${p.hot_score == null ? "—" : p.hot_score.toFixed(1)}</td>`
+          + `<td class="num">${mcap(p.market_cap)}</td></tr>`;
+      }).join("")
+    + "</tbody>"
+    + (alloc.active
+        ? `<tfoot><tr><td colspan="4"><b>Total</b></td>`
+          + `<td class="num"><b>${pct(1, 2)}</b></td>`
+          + `<td class="num"><b>${money(alloc.sum)}</b></td>`
+          + (showShares ? '<td class="num">—</td><td class="num">—</td>' : "")
+          + `<td class="num">—</td><td class="num">—</td></tr></tfoot>`
+        : "")
+    + "</table>"
+    + (alloc.active
+        ? `<div class="note">Allocation is <b>${money(alloc.total)}</b> split by the weights
+             above. It is arithmetic in your browser — nothing is sent anywhere, nothing is
+             saved on our side, and Valquo never places trades.
+             ${Math.abs(alloc.residualPp) >= 0.005
+               ? `The published weights sum to <b>${(alloc.rawWeightSum * 100).toFixed(2)}%</b>
+                  rather than 100%, so they were scaled by
+                  <b>${alloc.scale.toFixed(4)}\u00d7</b> before splitting the total.` : ""}
+             ${showShares
+               ? `Share counts use the last price already in this payload — <b>not</b> a live
+                  quote — so they will drift from the market. The whole-share column is what a
+                  broker without fractional shares would let you buy.${_wholeShareSummary(alloc)}`
+               : `No usable price is in this payload, so share counts are not shown rather
+                  than estimated.`}</div>`
+        : "")
     + ((d.positions || []).length > rows.length
         ? `<div class="note">… and ${d.positions.length - rows.length} more</div>` : "");
 }
@@ -2276,13 +2467,51 @@ function _renderIndexTrack(d) {
       ${rows}
     </div>`;
 
-  const btRows = `<div class="metricline" style="margin-top:8px">
-      ${metric("Alpha / yr", btAlpha == null ? "—" : spct(btAlpha))}
+  /* FOUR LINES, EVERY ONE NAMING ITS BENCHMARK. This used to be a single "Alpha / yr" with
+     no benchmark named — and on this project "alpha" has meant both "versus the equal-weighted
+     universe" (uninvestable, charged no cost) and "versus SPY", which differ by several points
+     a year on the same book. The server owns every label and every number; nothing here
+     computes an excess, so the card cannot drift from what was measured.
+
+     It renders the OLD single figure only when the derived card is unavailable, and in that
+     case it says what the figure is measured against rather than calling it "Alpha". */
+  const bc = bt.card || null;
+  const lvl = (l) => metric(esc(l.label), spct(l.value));
+  const exc = (l) => metric(
+    esc(l.label)
+      + (l.benchmark_taxed
+          ? ` <span class="muted" style="font-weight:400">· after tax on both sides</span>` : "")
+      + (l.window === "partial"
+      ? ` <span class="muted" style="font-weight:400">· ${esc(l.window_label)}</span>` : ""),
+    `${spct(l.gross)} <span class="muted" style="font-weight:400">gross</span> · ` +
+    `${spct(l.net)} <span class="muted" style="font-weight:400">net</span>`);
+
+  /* SHARPE AND TURNOVER COME FROM THE CARD, NOT FROM `bt`. That is the whole point of this
+     version: `bt.*` is whatever `settings.BOOK_CONFIGS` carries for the selected config, and
+     reading it here beside card figures from a different book is exactly how "taxable" came to
+     show the top-25 book's gross return next to the decile's after-tax Sharpe. One source per
+     card, or the card is not about one book. */
+  const btRows = (bc && bc.available)
+    ? `<div class="metricline" style="margin-top:8px">
+      ${bc.lines.filter(l => l.kind === "level").map(lvl).join("")}
+      ${metric("Sharpe", bc.sharpe == null ? "—" : num(bc.sharpe, 2))}
+      ${metric("Turnover / yr", bc.annual_turnover == null ? "—" : num(bc.annual_turnover, 2) + "x")}
+    </div>
+    <div class="metricline" style="margin-top:6px">
+      ${bc.lines.filter(l => l.kind === "excess").map(exc).join("")}
+    </div>
+    ${bc.spmo_available ? `<div class="muted" style="font-size:11px;margin-top:6px">${esc(bc.partial_note)}</div>` : ""}
+    <div class="muted" style="font-size:11px;margin-top:6px">${esc(bc.caption)}</div>
+    <div class="muted" style="font-size:11px;margin-top:4px">${esc(bc.basis_note)}</div>
+    ${bc.band_note ? `<div class="muted" style="font-size:11px;margin-top:4px">${esc(bc.band_note)}</div>` : ""}`
+    : `<div class="metricline" style="margin-top:8px">
+      ${metric("Excess / yr vs the equal-weighted universe", btAlpha == null ? "—" : spct(btAlpha))}
       ${metric("Sharpe", btSharpe == null ? "—" : num(btSharpe, 2))}
       ${metric("Turnover / yr", bt.annual_turnover == null ? "—" : num(bt.annual_turnover, 2) + "x")}
     </div>
     <div class="muted" style="font-size:11px;margin-top:6px">${esc(bt.basis || "")}. Hypothetical —
-      the model was tuned on this same history.</div>`;
+      the model was tuned on this same history. That excess is measured against an
+      equal-weighted universe that pays no trading cost, not against an index you can buy.</div>`;
 
   // LA8 — supplied by the server (index_track.track_age) rather than derived here, so the card,
   // the hero band, the landing page and the server's own note cannot disagree about how old
@@ -2343,7 +2572,14 @@ function _renderIndexTrack(d) {
         ${rbTile}
       </div>
       <div class="metricline" style="margin-top:6px">
-        ${metric("Alpha / yr", live.ann_alpha == null ? "—" : spct(live.ann_alpha))}
+        ${/* NAMED, like every other excess on this page. `ann_alpha` is the annualised
+             Valquo level minus the annualised BENCHMARK level -- it has always been an
+             excess over SPY specifically, and printing it as bare "Alpha" left the one
+             figure on the forward card whose counterparty a reader had to guess. The
+             benchmark name comes from the server, so this tile and the level tile above
+             it cannot disagree about which index is bound. */
+          metric("vs " + esc(d.benchmark || "SPY") + " / yr",
+                 live.ann_alpha == null ? "—" : spct(live.ann_alpha))}
         ${metric("Sharpe", live.sharpe == null ? "—" : num(live.sharpe, 2))}
         ${/* LA8 — "Days" was live.days, the number of rows the recorder wrote, sitting beside
               two performance figures under a word that means age. A track 7 days old with 2
