@@ -18598,3 +18598,273 @@ interpolated ceiling stays labelled an interpolation.
 `D9_FIDELITY.json`, `D9_SHARADAR_SCORES.pkl`, and per-name rows in
 `D9_FIDELITY_ROWS_freeze_2026-07-31.pkl` / `D9_FIDELITY_ROWS_backtest_2026-07-24.pkl`
 (`RUN_RULES` A9).
+
+
+---
+
+# D9-DIAG — WHY THE FREE ROUTE FAILS: **THREE QUARTERS OF THE COMPOSITE'S GAP IS ASSEMBLY AND ONE QUARTER IS DATA, AND NEITHER STORE CLEARS THE BINDING BAR WITHOUT DELETING A WHOLE THEME**
+
+**ZERO TRIALS.** A diagnostic of a fidelity control: `MB1-SEL` — a control can only BLOCK, never
+produce — so it charges nothing, and nothing here is compared to a threshold, pinned on the AST.
+`by_domain` re-read after merging and **bit-identical: equity 248, options 310, infra 20,
+unified 0**, while `rows_fixed_not_counted` rises **86 -> 87**, which is the proof the row was
+seen and correctly excluded. **`D9-FIDELITY`'s NO-GO STANDS WHATEVER THIS FINDS** and is not
+re-opened; no bar is re-read, no verdict is restated, nothing is adopted, and **no live scoring
+path changed** — the one production edit is opt-in and inert by default.
+
+## The puzzle, and why it needed answering before Don pays
+
+`D9` read composite Spearman **0.4321** (0.6610 repaired) while its own themes read `value`
+0.79, `momentum` 0.97, `size` 0.98. **A weighted mean of well-correlated series cannot be less
+correlated than any of its parts**, so either the parts are not what the blends are built from,
+or the two blends are assembled differently. Don is deciding on a one-month Sharadar renewal —
+the routed fallback — and *"the vendors disagree"* and *"we assemble the blend differently"*
+imply opposite decisions.
+
+## Q1 — IT IS ASSEMBLY FIRST, AND THE WHOLE RECOVERY IS ONE STEP
+
+The decisive test is a ladder: four cumulative steps, each removing exactly one assembly
+difference, so what each is worth is **read rather than inferred**.
+
+| step | composite rho | top-decile overlap |
+|---|---|---|
+| 0. as served | **0.3372** | — |
+| 1. flat weights, deployed 7 | 0.3414 | 0.1628 |
+| 2. **informative themes only** | **0.6608** | 0.3721 |
+| 3. + re-standardised on the overlap | 0.6763 | 0.4419 |
+| 4. + complete case | **0.6860** | 0.4500 |
+
+**ASSEMBLY IS WORTH +0.3489 OF THE 0.4628 TOTAL GAP TO B1 — 75.4% OF IT — AND STEP 2 ALONE IS
+93% OF THE ASSEMBLY HALF.** Everything else is
+rounding by comparison: re-standardisation +0.0154 and complete-case +0.0098.
+
+**AND THE RESIDUAL IS DATA, WHICH IS THE HALF THAT MATTERS FOR THE DECISION: identical assembly
+still reads 0.6860 against `D9`'s B1 of 0.80** — 0.1140 short — **and 0.4500 against a B2 of
+0.60.** So a renewal does not merely buy a cleaner comparison of the same disagreement; there is
+a real vendor gap underneath, and it is bigger on the bar that binds.
+
+### Why step 2 carries all of it: three of the deployed seven are dead on the live side
+
+| theme | Sharadar present | live present | live distinct |
+|---|---|---|---|
+| value | 431/431 | 431/431 | 431 |
+| quality | 419/431 | 431/431 | 431 |
+| momentum | 431/431 | 411/431 | 411 |
+| size | 431/431 | 431/431 | 421 |
+| **insider** | 368/431 | 431/431 | **1 — CONSTANT** |
+| **institutional** | 431/431 | **0/431** | — |
+| **capital_discipline** | 431/431 | **0/431** | — |
+
+`insider` is present on every row and carries **one distinct value**, so it is exposure without
+information — the defect `D9`'s own addendum exists to report — and `institutional` and
+`capital_discipline` are **absent outright**. So Sharadar averages **6.826** themes per name
+against the live side's **4.954**, and **431 of 431 names (100.0%) have a DIFFERENT
+present-theme set**. The renormalisation is by present-weight mass, so **not one name on the
+overlap is the same functional of its themes on the two sides.** That is not a vendor
+disagreement; it is two different composites wearing one name.
+
+### The two smaller assembly differences, measured rather than asserted
+
+**THE STANDARDISATION CROSS-SECTION.** Each theme is a z-score over its own scored population —
+**2032 names on the Sharadar side against 594 live, a factor of 3.42** — and a composite is a
+weighted SUM of levels, so a theme with more spread carries more effective weight. Measured SD
+ratios (live / Sharadar) on the overlap: value **1.7105**, quality **1.4775**, momentum
+**1.0973**, size **1.9029**. `S20`/`S21`'s lesson exactly: rank-IC is invariant to a monotone
+rescale and the composite is not.
+
+**THE BUCKET SPLIT.** The live composite weights by bucket, and the two sides disagree on
+**49 of 431 names (11.4%)** — Sharadar 396 established / 35 speculative against the live
+391 / 40 — so those names are weighted differently before any vendor difference is reached.
+
+### Which theme the blend loses its agreement to, on the identical-assembly composite
+
+| dropped | rho without it | delta | decile overlap without it |
+|---|---|---|---|
+| value | 0.7903 | +0.1043 | 0.6000 |
+| **quality** | **0.8582** | **+0.1721** | 0.5854 |
+| momentum | 0.7014 | +0.0154 | 0.4524 |
+| size | 0.6661 | -0.0200 | 0.4750 |
+
+**`quality` IS THE SINGLE LARGEST DRAG AND `size` IS THE ONLY THEME ACTIVELY HELPING** (its
+removal *costs* 0.0200).
+
+**AND THE WHOLE LADDER REPRODUCES ON `D9`'s SECOND READING, WHICH IS WHAT MAKES IT A PROPERTY
+OF THE FREE ROUTE RATHER THAN OF ONE STORE.** Re-run on `data/backtest` as of 2026-07-24 (430
+overlapping names against 431): as served 0.3256, flat weights 0.3302, informative themes only
+0.6526, re-standardised 0.6770, **identical assembly 0.6867 against the freeze's 0.6860 —
+agreeing to 0.0007**. The leave-one-out ordering is the same, `quality` largest at +0.1623 and
+`size` still the only negative.
+
+**A CORRECTION AGAINST MY OWN SHARPEST SENTENCE, AND IT IS WHY THE SECOND READING WAS WORTH
+RUNNING.** A first draft of this section read *"deleting `quality` outright clears B1 and STILL
+MISSES B2 at 0.5854"*. **On the second reading the same deletion gives B2 = 0.6341, which
+CLEARS.** So that sentence is true on the freeze and false on `data/backtest`, and stating it as
+a fact dresses a knife-edge result as a robust one — a top-decile overlap is an order statistic
+on ~43 names, and 0.5854 against 0.6341 is a handful of names either way.
+
+**WHAT SURVIVES BOTH READINGS, and it is the form the judgement rests on: identical assembly
+reads 0.4500 and 0.4250 on B2 against a 0.60 bar, and NEITHER reading clears B2 without
+deleting an entire theme.** That is the robust statement. Whether deleting `quality` is enough
+to clear B2 specifically is **UNRESOLVED between the two stores** and is reported as unresolved
+rather than quoted from whichever store answers it conveniently.
+
+## Q2 — WHICH QUALITY INPUTS DISAGREE, AND THE DEFINITIONAL/VENDOR SPLIT IS THE ACTIONABLE PART
+
+| input | Spearman | n | verdict |
+|---|---|---|---|
+| gp_on_capital | 0.8820 | 352 | agrees |
+| gross_margin | 0.8692 | 370 | agrees |
+| neg_leverage | 0.8182 | 366 | agrees |
+| op_margin | 0.8005 | 392 | agrees |
+| interest_cov | 0.7354 | 315 | marginal |
+| **roe** | 0.7128 | 380 | **DEFINITIONAL — fixable** |
+| **roic** | 0.5637 | 386 | **DEFINITIONAL — fixable** |
+| **fcf_margin** | 0.5999 | 393 | **vendor data** |
+| **accruals_q** | **0.1097** | 369 | **vendor data — essentially uncorrelated** |
+| **f_score** | — | 0 | **ABSENT on the live side** (417 on Sharadar) |
+
+**THE DEFINITIONAL FINDING, AND IT IS THE CHEAPEST FIX AVAILABLE: the live path serves TTM
+QUANTITIES UNDER QUARTERLY NAMES.** Pairing each side's like-named column against the other's
+TTM column:
+
+* Sharadar **`roe_ttm`** vs live `roe` = **0.9324** (n 378), against the like-named
+  0.7128 — **+0.2196**
+* Sharadar **`roic_ttm`** vs live `roic` = **0.7125** (n 384), against the like-named
+  0.5637 — **+0.1487**
+
+Both cross-pairings beat their like-named pair decisively, and the reverse pairings (Sharadar
+quarterly vs live TTM) are **empty — the live side ships no `roe_ttm`/`roic_ttm` column at
+all**, which is itself the evidence that its `roe` IS the TTM quantity. **So two of the ten
+quality inputs are not a data problem; they are a naming problem, and the free path can fix them
+for nothing.** `P6` is worth re-reading before anyone does: it measured **TTM ROE/ROIC as WORSE
+than quarterly** on this panel (roe *t* +2.84 against +2.01), so aligning the definitions means
+deciding WHICH definition the composite should use, not merely making the two agree.
+
+**WHAT IS NOT FIXABLE ON THE FREE PATH:** `accruals_q` at **0.1097** is essentially
+uncorrelated — two vendors computing the same-named quantity and agreeing about nothing —
+`fcf_margin` at 0.5999 is weak, and **`f_score` is absent from the live side entirely**
+(417 of 431 on Sharadar, 0 live), so the live quality theme averages **nine inputs where
+the panel averages ten**. `W-28`'s lesson in a new costume: a theme missing one input is not a
+noisier version of that theme, it is a different theme, and pandas' skip-NaN mean makes the
+substitution silent.
+
+## DOES A SAME-DATE RE-CHECK OF THE CURRENT FREE ROUTE PLAUSIBLY CLEAR THE D9 BARS?
+
+**B1 (composite rho >= 0.80): PLAUSIBLE. B2 (top-decile overlap >= 0.60): NOT PLAUSIBLE ON THIS
+EVIDENCE. Under `RUN_RULES` A6 a design that clears one of two pre-committed bars is a NO-GO, so
+the honest answer to Don is that the free route as it stands will not clear `D9`.**
+
+**WHAT RUNS IN THE FREE ROUTE'S FAVOUR, and all four are measured rather than hoped for.**
+(a) Assembly is worth +0.3489 and most of it is recoverable: **`institutional` and `insider` have
+a real free source that simply post-dates the snapshot** — `theme_columns.FIDELITY_REFERENCE_2026-08-11.json`
+carries **440 names** at coverage insider **0.726** / inst_accum **0.822** / sm_breadth
+**0.822**, built from real 13F periods (31-DEC-2025, 31-MAR-2026), three days after the
+2026-08-08 snapshot this comparison had to use. (b) `FIDELITY-2` measured those two at
+**+0.9190 / +0.8726**, which is **higher than `value` (0.79) and far higher than `quality`
+(0.63)** — restoring them adds the two best-agreeing themes the free path has. (c) Same-date
+removes the 6-trading-day drift and the ~0.95 within-vendor ceiling from the comparison
+entirely. (d) The 1,500-name scan moves the live standardisation cross-section toward the
+panel's, shrinking the SD mismatch above.
+
+**WHAT RUNS AGAINST IT, and this is why B2 is the answer.** (a) **Identical assembly on the four
+shared themes reads only 0.6860 (0.6867 on the second reading)** — the 0.1140 shortfall is
+vendor data and no amount of assembly repair touches it. (b) **B2 at identical assembly is
+0.4500, and 0.4250 on the second reading, against a 0.60 bar — and NEITHER reading clears B2
+without deleting an entire theme.** A top-decile overlap is an order statistic on ~43 names, so
+it is far more sensitive than a rank correlation and correspondingly less stable: deleting
+`quality` reaches 0.5854 on the freeze and 0.6341 on `data/backtest`, which is **UNRESOLVED
+between the stores** and is why the judgement rests on the identical-assembly figure that agrees
+on both rather than on the one that does not. (c) `quality`'s irreducible parts are `accruals_q` and the absent `f_score`, which are
+input gaps rather than assembly. (d) **`capital_discipline` stays unserved**: the only candidate
+cache on disk is `data/live_cache/issuance/`, and it is **154 of 154 files SYN-prefixed —
+100% synthetic test output, zero real names**. So the best available free composite is **six of
+seven themes**, not seven. (The local scan archive's own all-synthetic finding, for the third
+time in this project; a directory existing is not a directory populated.)
+
+**THE HIGHEST-LEVERAGE PROPOSAL FOR DON, AND IT IS A PROPOSAL, NOT A CHANGE: FIX `quality`.**
+Deleting it entirely already lifts the identical-assembly composite to **0.8582**. Ranked by
+measured value: align the `roe`/`roic` definitions (worth **+0.2196** and **+0.1487** at the
+input level, and free), source an `f_score` on the free path (recovers the tenth input), and
+serve `neg_issuance` for `capital_discipline` from a real source rather than the synthetic cache.
+**None of that is done here and none of it should be done inside a diagnostic.**
+
+**THE ONE MEASUREMENT THAT WOULD SETTLE IT** is a same-date re-check once a renewal lands, and
+it now costs one command rather than a rebuild:
+
+```
+python scripts/d9_fidelity.py --same-date --sharadar-root <fresh export> --as-of YYYY-MM-DD
+```
+
+It scores the fresh export at `as_of`, takes the live scan for the **same** date, and runs the
+comparison. **Two refusals, both smoke-tested and both firing:** a live-scan date that differs
+from `--as-of` is REFUSED rather than silently compared across a gap, and an export whose latest
+session falls short of `as_of` is REFUSED rather than scoring a stale cross-section under a
+fresh date — the `W-3b` vendor-cut-off-masquerading-as-coverage family, caught here before it
+could produce a number.
+
+## Defects of my own, both caught by disbelieving a figure rather than by anything raising
+
+**(a) THE RAW-INPUT EMISSION READ THE PRE-DERIVATION METRICS DICT, AND ITS ERROR POINTED THE
+WRONG WAY.** `build_frame` DERIVES `neg_leverage`, `gp_on_capital`, `fcf_margin` and
+`interest_cov` from the metrics, so reading `src` returned **four of ten quality inputs absent
+on both sides** while the quality theme built from them scored perfectly well. It would have
+read as *"the free path lacks these inputs"* — a false finding rather than a missing one, and in
+the direction that makes the free route look worse than it is. Caught because a theme cannot
+score from inputs that are not there. Repaired to read the frame first and re-scored; the fix is
+pinned on the AST with a vacuity control.
+
+**(b) `--same-date` CLOBBERED `--sharadar`'s TWO-READING CACHE.** The re-check wrote
+`D9_SHARADAR_SCORES.pkl`, destroying the artifact the original comparison rests on, and it did
+so through a module global rather than a parameter. **A mode that overwrites another mode's
+output is a defect even when both are "just" intermediates** — `RUN_RULES` A9 is about the draws
+surviving. Repaired: `compare()` takes its paths as arguments and the re-check banks
+`D9_SHARADAR_SCORES_SAMEDATE.pkl`; both readings were re-scored and restored.
+
+## REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3), NOT EDITED
+
+**`REBALANCE_RUNBOOK_2026-10-22.md` — landed by another lane while this item was running, and
+it gates Path A on exactly this re-check — ARGUES AT LENGTH THAT THE RE-CHECK MUST BE SAME-DATE
+AND THEN LISTS A COMMAND SEQUENCE THAT CANNOT BE.** Its §1 is explicit and correct: *"Comparing
+a fresh live scan against a stale Sharadar freeze re-introduces exactly the drift the bars exist
+to exclude … A cross-vendor comparison across a gap cannot pass and cannot fail informatively."*
+Two paragraphs later it prescribes `--sharadar` then `--compare` — and **`--sharadar` scores at
+the hard-coded freeze dates while `--compare` reads the hard-coded 2026-08-08 snapshot**, so
+following it literally reproduces the very comparison it has just argued against. **`--same-date`
+is that gap closed, and it REFUSES rather than silently comparing across one.** Not edited: the
+runbook is the other lane's and it is Don's operating document. **The substance of its decision
+is unaffected and if anything strengthened** — this item's judgement is that the free route will
+not clear `D9`, which is its Path B.
+
+## NOT DONE, named so it is not mistaken for done
+
+**No bar is re-read and `D9` is NOT re-opened** — its NO-GO is the verdict and this is a
+diagnosis of it. **No live scoring path changed**; the `roe`/`roic` alignment, the `f_score`
+source and the `neg_issuance` source are **proposals for Don**, none of them taken. **The
+composite Spearman a restored six-theme free route would read is UNMEASURED** — the direction is
+favourable and the magnitude is not measured, because the two restored columns do not exist in
+the 2026-08-08 snapshot and constructing them would be fabrication. **No same-date comparison is
+run** (no export reaches a live-scan date; both refusals fire, correctly). **`FIDELITY-2`'s
++0.9190 / +0.8726 are QUOTED, never re-derived** (`D9`'s own rule). **`P6`'s TTM-is-worse result
+is NOT re-opened** and is flagged only because aligning the definitions runs into it.
+
+## Tests
+
+**18 tests, 7 of 7 source mutations caught with sources restored byte-for-byte, plus one DATA tamper because two of the guards are tripwires on the artifacts rather than on source and a source mutation cannot reach them** — moving the second reading's identical-assembly value to 0.40 fails the suite, and it names the reason (*"the diagnosis is store-specific and the handoff is stale"*) rather than merely raising, with the artifact restored byte-for-byte. What they guard is
+narrower than a register's, because a diagnostic cannot be wrong about a verdict it does not
+issue — what it can do is quietly become one. So: no D9 bar literal may appear as a comparison
+operand anywhere in the diagnostic (**read off the AST**, because the docstring legitimately
+quotes 0.80 and 0.60 while explaining what it is not doing — the substring-ban family this
+project has now paid for six times); the opt-in emission stays off by default and its guard is
+matched by **AST node shape** so `or True` is structurally not that guard, with a vacuity
+control that no `num_` key is written outside it; the emission must test `in fr.columns`, which
+is defect (a) pinned; the decile overlap has **one definition** with at least two callers
+(`B7`); `--same-date` must not write `SHAR_CACHE` and its refusal is asserted on the **message**
+rather than on something merely raising; and the two cross-reading guards pin only what reproduces on BOTH stores — B1 after deleting `quality` is asserted on both, B2 after deleting it is asserted on neither, because that is the claim this item had to withdraw from its own handoff.
+
+`scripts/d9_diagnose.py`, `scripts/d9_fidelity.py` (`--same-date`);
+`valuation/edge/fundamental_panel.py` (`with_numbers`, opt-in and inert);
+`tests/test_d9_diagnose.py`; `data/free_analysis/D9_DIAG.json` + `D9_DIAG_ROWS.pkl` and the
+second reading in `D9_DIAG_SECOND.json` + `D9_DIAG_SECOND_ROWS.pkl` (`RUN_RULES` A9). Either
+reading is runnable — `python scripts/d9_diagnose.py --reading backtest_2026-07-24 --out <path>`
+— and `--out` moves the json AND the rows pickle together, because a half-overwritten pair is
+worse than either.

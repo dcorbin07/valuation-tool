@@ -1683,7 +1683,7 @@ STALE_PRICE_MAX_DAYS = 10          # trading days a name may be quiet before it'
 
 def score_universe_now(provider, tickers, benchmark="SPY", lookback_years=3,
                        as_of=None, stale_days=STALE_PRICE_MAX_DAYS,
-                       with_themes=False):
+                       with_themes=False, with_numbers=False):
     """Score the WHOLE universe as of the latest available date -> live scan-style rows.
 
     build_fundamental_panel deliberately drops the final `horizon` days, because every row it
@@ -1880,6 +1880,24 @@ def score_universe_now(provider, tickers, benchmark="SPY", lookback_years=3,
                 if _th in fr.columns:
                     _v = r.get(_th)
                     rows[-1][_th] = (None if _v is None or _v != _v else float(_v))
+        # D9-DIAG -- the RAW inputs, opt-in and inert by default.
+        #
+        # PRE-STANDARDISATION VALUES, never the `z_*` columns beside them: a z-score is
+        # relative to whichever cross-section produced it, so comparing two z-scores drawn
+        # from two different universes measures the universes as much as the inputs. `fr`
+        # carries both, under names that differ only by the `z_` prefix.
+        #
+        # AND THE FRAME IS READ FIRST, the metrics dict only as a fallback, because
+        # `build_frame` DERIVES several of these from the metrics -- `neg_leverage` from
+        # `leverage`, and likewise the other sign-flipped and ratio columns -- so `src` does
+        # not carry them under these names at all. A first cut read `src` alone and returned
+        # ZERO present for `neg_leverage`, `gp_on_capital`, `fcf_margin` and `interest_cov`
+        # while the quality theme built from them scored perfectly well: the wrong-object
+        # family, and its error read as "this input does not exist" rather than as a bug.
+        if with_numbers:
+            for _nm in S.NUMBERS_ALL:
+                _v = r.get(_nm) if _nm in fr.columns else src.get(_nm)
+                rows[-1]["num_" + _nm] = (None if _v is None or _v != _v else float(_v))
     rows.sort(key=lambda x: x["rank"])
     if dropped_mc:
         _prog(f"dropped {len(dropped_mc)} name(s) on market-cap divergence: "
