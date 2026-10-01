@@ -371,5 +371,138 @@ class TestThePairedDifferenceIsNotDoubleBenchmarked(unittest.TestCase):
         self.assertEqual(rc.common_dates(arms), ["2", "3"])
 
 
+class TestTheArmRunnerRefusesWithoutItsControl(unittest.TestCase):
+    """`O10`'s process defect: the kills must be read in their OWN pass, not alongside the arms."""
+
+    def test_the_runner_refuses_when_the_control_artifact_is_absent(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "rc_arms_probe", os.path.join(ROOT, "scripts", "rebal_cadence_arms.py"))
+        mod = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(mod)
+        except FileNotFoundError:
+            self.skipTest("no populated data root here")
+        mod.CONTROL = os.path.join(ROOT, "_no_such_control_.json")
+        with self.assertRaises(SystemExit) as cm:
+            mod.main()
+        self.assertIn("REFUSING", str(cm.exception))
+        self.assertIn("control artifact", str(cm.exception))
+
+    def test_the_runner_refuses_a_failing_control(self):
+        """A failing K1 means the incumbent is a lookalike; scoring against it is meaningless."""
+        import importlib.util
+        import json as _json
+        import tempfile
+        spec = importlib.util.spec_from_file_location(
+            "rc_arms_probe2", os.path.join(ROOT, "scripts", "rebal_cadence_arms.py"))
+        mod = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(mod)
+        except FileNotFoundError:
+            self.skipTest("no populated data root here")
+        fd, tmp = tempfile.mkstemp(suffix=".json")
+        os.close(fd)
+        try:
+            with io.open(tmp, "w", encoding="utf-8") as fh:
+                _json.dump({"C1_incumbent_reproduces_published_contract_book": {"pass": False},
+                            "C2_cadence_1_is_bit_identical_to_the_shipped_default":
+                                {"pass": True}}, fh)
+            mod.CONTROL = tmp
+            with self.assertRaises(SystemExit) as cm:
+                mod.main()
+            self.assertIn("REFUSING", str(cm.exception))
+            self.assertIn("lookalike", str(cm.exception))
+        finally:
+            os.remove(tmp)
+
+    def test_the_margins_are_the_registered_ones_and_are_not_relaxed(self):
+        """`W-28`: a successor may not relax a pre-committed bar after watching it fail."""
+        tree = ast.parse(_read("scripts", "rebal_cadence_arms.py"))
+        got = {}
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Assign) and len(n.targets) == 1                     and isinstance(n.targets[0], ast.Name):
+                nm = n.targets[0].id
+                if nm in ("MARGIN_ALPHA_PP", "MARGIN_TSTAT", "K3_TURNOVER_RATIO_MAX",
+                          "K4_DROPPED_SHARE_MAX", "K5_LEGS_REQUIRED")                         and isinstance(n.value, ast.Constant):
+                    got[nm] = n.value.value
+        self.assertEqual(got, {"MARGIN_ALPHA_PP": 1.00, "MARGIN_TSTAT": 0.25,
+                               "K3_TURNOVER_RATIO_MAX": 0.70,
+                               "K4_DROPPED_SHARE_MAX": 0.05,
+                               "K5_LEGS_REQUIRED": 4},
+                         "a registered bar moved -- W-28 forbids relaxing one after the fact")
+
+
+class TestTheResultIsOnTheRecord(unittest.TestCase):
+    """The claims a reader would act on, asserted against the banked artifact."""
+
+    def _art(self):
+        p = _data_file("free_analysis", "REBAL_CADENCE_ARMS.json")
+        if p is None:
+            return None
+        with io.open(p, encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def test_all_three_arms_are_rejected(self):
+        a = self._art()
+        if a is None:
+            self.skipTest("REBAL_CADENCE_ARMS.json absent")
+        for name in ("semiannual", "annual", "staggered"):
+            self.assertEqual(a["primary"][name]["verdict"], "REJECTED", name)
+
+    def test_nothing_was_adopted(self):
+        """ADOPTS NOTHING -- the shipped config must still be the quarterly contract book."""
+        import valuation.screener.settings as S
+        self.assertEqual(S.BOOK_CONFIGS["taxable"]["rebalance_days"], 63,
+                         "the live cadence changed -- that is a vintage event and Don's call")
+        self.assertEqual(S.BOOK_CONFIGS["taxable"]["exit_frac"], 0.3)
+
+    def test_slowing_down_costs_alpha_monotonically(self):
+        a = self._art()
+        if a is None:
+            self.skipTest("REBAL_CADENCE_ARMS.json absent")
+        L = a["levels"]
+        q, s, an = (L["quarterly"]["net_alpha_ann"], L["semiannual"]["net_alpha_ann"],
+                    L["annual"]["net_alpha_ann"])
+        self.assertGreater(q, s, "the monotone ordering in the handoff is stale")
+        self.assertGreater(s, an, "the monotone ordering in the handoff is stale")
+
+    def test_the_timing_luck_spread_exceeds_the_cadence_effect(self):
+        """The item's actual finding, pinned so a successor cannot quote one without the other."""
+        a = self._art()
+        if a is None:
+            self.skipTest("REBAL_CADENCE_ARMS.json absent")
+        sp = a["diagnostic_offset_sweep_NO_VERDICT"]["spread"]
+        sp4 = sp["cadence4"]["window_matched_to_the_primary"]["spread_pp"]
+        eff = abs(a["primary"]["annual"]["cells"]["full"]["delta_net_alpha_pp"])
+        self.assertGreater(sp4, eff,
+                           "the offset spread no longer exceeds the cadence effect; the "
+                           "handoff's central finding is stale")
+
+    def test_the_offset_sweep_carries_no_verdict(self):
+        a = self._art()
+        if a is None:
+            self.skipTest("REBAL_CADENCE_ARMS.json absent")
+        sw = a["diagnostic_offset_sweep_NO_VERDICT"]
+        self.assertIn("NO VERDICT", sw["why"])
+        blob = json.dumps(sw).lower()
+        for banned in ("eligible", "adopt", "\"verdict\""):
+            self.assertNotIn(banned, blob,
+                             "the offset sweep acquired a verdict -- a void condition")
+
+    def test_every_verdict_ships_its_mde(self):
+        """`RUN_RULES` A11 / the register's void condition 6."""
+        a = self._art()
+        if a is None:
+            self.skipTest("REBAL_CADENCE_ARMS.json absent")
+        for name in ("semiannual", "annual", "staggered"):
+            p = a["primary"][name]
+            for k in ("mde_50_ann_pp", "mde_80_ann_pp", "observed_over_mde80", "bound"):
+                self.assertIn(k, p, "%s ships no %s" % (name, k))
+            self.assertLess(p["observed_over_mde80"], 1.0,
+                            "%s now exceeds its own 80%%-power threshold; the 'bounded null' "
+                            "reading in the handoff is stale" % name)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

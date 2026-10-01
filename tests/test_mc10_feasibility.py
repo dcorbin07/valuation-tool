@@ -50,10 +50,34 @@ class TestNothingDownstreamOfTheGateExists(unittest.TestCase):
         self.assertNotIn("| MC10 |", log,
                          "MC10 booked a trial, but the gate closes it at zero")
 
-    def test_the_equity_count_is_unchanged_at_248(self):
-        """The stamp is the tamper-evidence; MC10 must not have moved it."""
+    def test_mc10_contributed_nothing_to_the_equity_count(self):
+        """REPOINTED 2026-09-30 by REBAL-CADENCE, which is the first register to make it fire.
+
+        The original form asserted the global stamp still read `"equity": 248` -- correct for
+        MC10 and WRONG AS A GUARD, because `N` is SUPPOSED to rise and every landed register
+        raises it. It fired on the CLOCK rather than on MC10: REBAL-CADENCE booked three trials
+        and took the stamp to 251, which is the counter working exactly as intended.
+
+        This project has now paid for that shape three times -- `MA57`'s allowlist guard, and
+        `MB31`'s own re-derivation guard, which asserted `N_after == live` and went red the
+        moment anyone booked a trial. Its lesson, verbatim: **a guard asserting "these two
+        numbers are equal today" fires on the CLOCK; assert the property the equality stood in
+        for.** MC10's property is that MC10 ITSELF booked nothing, which is checkable without
+        naming any number: it has no research-log row at all, so it contributes zero to the
+        count whatever that count happens to be. The sibling test above already asserts the
+        absence of the row; this one asserts the CONSEQUENCE, so the pair cannot drift apart.
+        """
+        import valuation.edge.research_log as RL
+        rows = [r for r in RL.detail().get("rows", [])
+                if str(r.get("id", "")).strip().upper() == "MC10"]
+        self.assertEqual(rows, [],
+                         "MC10 now has a research-log row, so it is charging trials the gate "
+                         "closed at zero: %r" % (rows,))
+        # and the stamp must still be a committed LITERAL, which is the tamper-evidence MC10
+        # was really leaning on -- its VALUE is nobody else's business.
         src = _read("tests", "test_research_log_integrity.py")
-        self.assertIn('"equity": 248', src)
+        self.assertRegex(src, r'EXPECTED_BY_DOMAIN = \{"equity": \d+',
+                         "the MA13 committed-literal stamp is gone, so N can move invisibly")
 
     def test_no_arm_runner_exists(self):
         for f in os.listdir(os.path.join(ROOT, "scripts")):

@@ -3872,7 +3872,7 @@ LONG_TERM_DAYS = 366        # a US holding period must EXCEED one year
 def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=63,
                        short_rate=TAX_SHORT_TERM, long_rate=TAX_LONG_TERM,
                        flat_bps=None, lot_method="fifo", exit_frac=None,
-                       exit_mult=None, max_sector_w=None) -> dict:
+                       exit_mult=None, max_sector_w=None, cadence=1, offset=0) -> dict:
     """Net-of-COST and net-of-TAX performance of the long book, with real lot accounting.
 
     The book turns over ~250%/yr on a ~quarterly rebalance, so in a TAXABLE account almost
@@ -3903,6 +3903,12 @@ def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
         return {"status": "not enough dates"}
     dts = {d: pd.to_datetime(d) for d in dates}
 
+    # REBAL-CADENCE: form the book every `cadence`-th date and HOLD it in between. A hold
+    # period sells nothing, buys nothing and realises nothing, so no tax is due and the lots
+    # AGE -- which is the only way a holding period reaches `LONG_TERM_DAYS`. Opt-in: cadence=1
+    # is the shipped behaviour and leaves every payload untouched.
+    cadence = max(1, int(cadence))
+    _at_held, _at_formed = 0, 0
     lots = {}                       # ticker -> [[entry_date, basis, value], ...] FIFO order
     # Last-known cost for every ticker ever held. An EXIT is by definition not in the new
     # book, so looking its cost up in this period's table alone would miss and fall back to
@@ -3918,6 +3924,32 @@ def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
         sub = panel[panel["date"] == d]
         if len(sub) < 20:
             continue
+        _forming = (cadence == 1) or (di % cadence == (int(offset) % cadence))
+        if not _forming and not lots:
+            # no book yet: an arm whose first formation is at `offset` simply holds nothing
+            continue
+        if not _forming:
+            # ---- HOLD: age the lots through the period and charge nothing.
+            _at_held += 1
+            _r_all = dict(zip(sub["ticker"].values, sub["fwd_ret"].values))
+            start = sum(l[2] for ls in lots.values() for l in ls)
+            if start <= 0:
+                continue
+            for _t in list(lots):
+                _r = _r_all.get(_t)
+                if _r is None or _r != _r:
+                    continue
+                for lot in lots[_t]:
+                    lot[2] *= (1.0 + _r)
+            end = sum(l[2] for ls in lots.values() for l in ls)
+            gross_r.append((end - start) / start)
+            net_r.append((end - value) / value if value > 0 else 0.0)
+            tax_r.append(0.0)
+            value = end
+            _allr = sub["fwd_ret"].values
+            ew.append(float(np.nanmean(_allr)) if np.isfinite(_allr).any() else np.nan)
+            continue
+        _at_formed += 1
         comp = composite_from_frame(sub, cols, weights, zscore)   # AUDIT B7
         k = int(top_n) if top_n else max(1, int(len(sub) * top_frac))
         _all_t = sub["ticker"].values
@@ -4070,6 +4102,9 @@ def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
         "short_term_share_of_gains": (gain_short / (gain_short + gain_long)
                                       if (gain_short + gain_long) > 0 else None),
         "unrealized_gain_end": value_end - basis_end,
+        **({} if cadence == 1 and int(offset) == 0 else {
+            "cadence": cadence, "cadence_offset": int(offset) % cadence,
+            "formation_dates": _at_formed, "held_only_periods": _at_held}),
         "note": ("after_tax_alpha is for a TAXABLE account; a tax-advantaged account (IRA/401k) "
                  "pays no drag and earns the net-of-cost figure instead"),
     }
