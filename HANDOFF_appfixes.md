@@ -276,6 +276,46 @@ until the scan stores those two inputs.** That is the remaining task-10 item, an
 one-line requirement rather than a mystery.
 
 
+### THE REMAINING TASK-10 ITEM IS THREE FIELDS, NOT TWO — MEASURED, NOT ARGUED
+
+"Persist `book_to_price` and `roe` so the hot list can compute P/B-ROE" is the obvious closure and
+**it is not sufficient.** Sized on the four financials whose pipeline value is already known, by
+handing `financial_fair_value` the live BVPS and ROE through the same equity/share shim
+`_financial_value` uses:
+
+| | model delta at the pipeline's OWN ke | cost of the scan's beta-1 ke |
+|---|---|---|
+| XRPN | **0.000e+00** | 0.00% |
+| JXN | **0.000e+00** | 0.00% |
+| OZK | 1.188 on 73.22 (1.6%) | **+8.34%** |
+| BFH | 2.987 on 137.04 (2.2%) | **+27.06%**  ($137.04 → $174.12) |
+
+**TWO SEPARATE APPROXIMATIONS, AND ONLY ONE OF THEM IS SMALL.**
+
+* **The shim is faithful.** Handed the pipeline's own `ke`, reconstructing BVPS from
+  `book_to_price x price` and faking `shares_diluted = 1.0` reproduces the pipeline **EXACTLY on
+  two of four**, which is what `_financial_value`'s docstring claims and is now measured rather
+  than asserted. The 1.6–2.2% on the other two is **my own `g`**: I hard-coded
+  `g = min(rf, 0.025)` and the pipeline's `terminal_growth` is **0.03** — visible in XRPN's own
+  payload. XRPN and JXN come out exact because their ROE is so low (XRPN 0.0079) that the engine's
+  cap pulls `g` below ROE and both choices clamp to the same place; where ROE is healthy, the
+  0.025-vs-0.03 difference shows. **Fixable, and only meaningful once the inputs exist.**
+* **The `ke` is NOT small.** `rf + 1.0 x ERP = 0.09000` against the pipeline's per-name cost of
+  equity, and on **BFH that is +27.06%** — the hot list would publish $174 where the single-stock
+  page says $137, for the same bank on the same day, with a user one click away from both.
+
+**SO THE REQUIREMENT IS `book_to_price`, `roe` AND THE PER-NAME COST OF EQUITY (or the beta it
+comes from) — three fields.** With two, task 10's compute half would close by publishing a
+double-digit disagreement with the detail page; the withhold-with-a-label behaviour shipping today
+is strictly better than that. **My own docstring predicted this** — *"the single-stock page will
+disagree with the hot list for any financial whose beta is far from 1"* — **and it was a caveat
+without a number until now. 27% is the number.**
+
+**NOT CHANGED TONIGHT**, deliberately: the cheap path currently produces no values at all (every
+financial withholds), so neither the `g` nor the `ke` correction changes anything published, and
+both belong with the field-persistence change they exist to serve rather than ahead of it.
+
+
 ### THE LABEL DEFECT I FIXED THIS MORNING SHIPPED ANYWAY, BECAUSE I TESTED THE COMPUTATION AND NOT THE DELIVERY
 
 **Ranks 1–12 of the served 09-30 list are exactly the `run_dcf_top` window, and EVERY ONE was
