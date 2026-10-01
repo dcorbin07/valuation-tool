@@ -3649,7 +3649,7 @@ from .no_trade_band import exit_rank_for as _exit_rank_for    # noqa: E402
 
 def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=63,
                        flat_bps=None, exit_frac=None, exit_mult=None,
-                       max_sector_w=None) -> dict:
+                       max_sector_w=None, cadence=1, offset=0, return_series=False) -> dict:
     """Turnover and NET-of-cost performance of the long book, vs the equal-weight universe.
 
     Weights drift with returns between rebalances, so the trade at each date is the full
@@ -3662,6 +3662,15 @@ def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
 
     Only the strategy is charged; the equal-weight benchmark is left gross. That is
     deliberately unfavourable to the strategy rather than the reverse.
+
+    REBAL-CADENCE: `cadence` forms the book every `cadence`-th panel date (1 = the shipped
+    behaviour, every date) at cycle position `offset`, and HOLDS it in between -- no
+    re-selection, no trade, no cost. A return is still recorded for EVERY period, so the
+    series stays quarterly and arms at different cadences remain paired period by period.
+    `offset` exists because `X2` measured the rebalance-date grid alone moving the long-short
+    *t* from 2.70 to 3.52, so a single-offset long-hold arm carries timing luck that the
+    staggered construction removes. `return_series` emits the per-period draws (`RUN_RULES`
+    A9). All three default to the shipped behaviour and leave the payload bit-identical.
 
     NOTE ON ANNUALIZATION — these figures will not tie exactly to `construction.*`.
     quantile_backtest annualizes ARITHMETICALLY (mean x periods-per-year); this function
@@ -3677,9 +3686,21 @@ def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
     # AUDIT B11 — turnover-weighted realised cost, in one-element lists so the inner loop can
     # accumulate without a nonlocal declaration.
     _bps_num, _bps_den = [0.0], [0.0]
-    for d in dates:
+    cadence = max(1, int(cadence))
+    _held_periods, _dropped_held, _form_dates, _dropped_w = 0, 0, [], 0.0
+    _ser_gross, _ser_net, _ser_ew, _ser_turn, _ser_dates, _ser_formed = [], [], [], [], [], []
+    for _di, d in enumerate(dates):
         sub = panel[panel["date"] == d]
         if len(sub) < 20:
+            continue
+        # REBAL-CADENCE. The gate is on the date INDEX, so it is independent of how many names
+        # a date happens to carry -- keying it on anything data-dependent would make the
+        # cadence itself a function of the panel.
+        _forming = (cadence == 1) or (_di % cadence == (int(offset) % cadence))
+        if not _forming and not prev_w:
+            # Nothing held yet: an arm whose first formation date is `offset` simply has no
+            # book before then, and reporting a zero return for those periods would invent
+            # performance. They are omitted and the count is reported.
             continue
         comp = composite_from_frame(sub, cols, weights, zscore)   # AUDIT B7
         k = int(top_n) if top_n else max(1, int(len(sub) * top_frac))
@@ -3712,14 +3733,41 @@ def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
         if not ok.any():
             continue
         tick, rets, mcap = tick[ok], rets[ok], mcap[ok]
-        w = 1.0 / len(tick)
-        cur_w = {t: w for t in tick}
-        cur_cost = {t: (flat_bps if flat_bps is not None else one_way_cost_bps(m))
-                    for t, m in zip(tick, mcap)}
+        if _forming:
+            w = 1.0 / len(tick)
+            cur_w = {t: w for t in tick}
+            cur_cost = {t: (flat_bps if flat_bps is not None else one_way_cost_bps(m))
+                        for t, m in zip(tick, mcap)}
+            _form_dates.append(str(d))
+        else:
+            # HOLD. The target IS the drifted book, so the trade below is identically zero.
+            # Returns come from the whole cross-section rather than from the selected names,
+            # because a held name need not still be in the top decile -- that is the point.
+            _held_periods += 1
+            _r_all = dict(zip(sub["ticker"].values, sub["fwd_ret"].values))
+            _m_all = (dict(zip(sub["ticker"].values, sub["market_cap"].values))
+                      if "market_cap" in sub.columns else {})
+            _live = {h: v for h, v in prev_w.items()
+                     if _r_all.get(h) is not None and _r_all.get(h) == _r_all.get(h)}
+            _dropped_held += len(prev_w) - len(_live)
+            if not _live:
+                continue
+            _tot = sum(_live.values()) or 1.0
+            _dropped_w += (1.0 - _tot) if _tot <= 1.0 else 0.0
+            cur_w = {h: v / _tot for h, v in _live.items()}
+            tick = np.array(list(cur_w), dtype=object)
+            rets = np.array([float(_r_all[h]) for h in tick], dtype=float)
+            mcap = np.array([float(_m_all.get(h, np.nan)) for h in tick], dtype=float)
+            cur_cost = {h: prev_cost.get(h, COST_BPS_MICRO) for h in tick}
 
         # Trade = |target - drifted-from-last-period|, over the union of both books.
         turn = cost = 0.0
-        for t in set(prev_w) | set(cur_w):
+        # A HELD PERIOD TRADES NOTHING. The target IS the drifted book, so the only thing the
+        # difference could pick up is the renormalisation after a held name leaves the panel --
+        # and that is a DATA GAP, not a purchase. Pricing it charged 0.066 of two-way turnover
+        # per cadence-4 held period, biasing every long-hold arm against its own hypothesis.
+        # The dropped weight is counted instead (`K4` reads it); it is not laundered into a cost.
+        for t in (() if not _forming else set(prev_w) | set(cur_w)):
             dw = abs(cur_w.get(t, 0.0) - prev_w.get(t, 0.0))
             if dw <= 0:
                 continue
@@ -3734,15 +3782,31 @@ def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
             # now under test.
             _bps_num[0] += dw * bps
             _bps_den[0] += dw
-        g = float(np.mean(rets))
+        # THE BOOK RETURN IS WEIGHT-WEIGHTED. Equal to `np.mean(rets)` to floating point when
+        # the weights are equal, which is every period at the shipped cadence=1 -- and on this
+        # panel the result is bit-identical, MEASURED against the published record rather than
+        # assumed from the algebra (`np.mean` sums pairwise, `np.dot` does not). It is the only
+        # correct reading of a DRIFTED book: an unweighted mean would report the return of a
+        # book that had been rebalanced.
+        _wv = np.array([cur_w[t] for t in tick], dtype=float)
+        _wsum = float(_wv.sum()) or 1.0
+        g = float(np.dot(_wv, rets) / _wsum)
         gross.append(g)
         net.append(g - cost)
         traded_hist.append(turn)
         allr = sub["fwd_ret"].values
-        ew.append(float(np.nanmean(allr)) if np.isfinite(allr).any() else np.nan)
+        _ewv = float(np.nanmean(allr)) if np.isfinite(allr).any() else np.nan
+        ew.append(_ewv)
+        if return_series:
+            _ser_dates.append(str(d))
+            _ser_gross.append(g)
+            _ser_net.append(g - cost)
+            _ser_ew.append(_ewv)
+            _ser_turn.append(turn)
+            _ser_formed.append(bool(_forming))
 
         # Carry DRIFTED weights into the next rebalance.
-        grown = {t: w * (1.0 + r) for t, r in zip(tick, rets)}
+        grown = {t: cur_w[t] * (1.0 + r) for t, r in zip(tick, rets)}
         tot = sum(grown.values()) or 1.0
         prev_w = {t: v / tot for t, v in grown.items()}
         prev_cost = cur_cost
@@ -3784,7 +3848,15 @@ def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
                 "every 'alpha versus equal-weight' figure compares a book that trades against "
                 "one that does not",
             ],
-            "flat_bps": flat_bps}
+            "flat_bps": flat_bps,
+            **({} if cadence == 1 and int(offset) == 0 else {
+                "cadence": cadence, "cadence_offset": int(offset) % cadence,
+                "formation_dates": len(_form_dates), "held_only_periods": _held_periods,
+                "dropped_held_name_periods": _dropped_held,
+                "dropped_held_weight_total": _dropped_w}),
+            **({"series": {"dates": _ser_dates, "gross": _ser_gross, "net": _ser_net,
+                           "equal_weight": _ser_ew, "turnover_two_way": _ser_turn,
+                           "formed": _ser_formed}} if return_series else {})}
 
 
 # Top-bracket US taxable account, federal only. Short-term gains are ordinary income
