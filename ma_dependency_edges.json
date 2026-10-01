@@ -1724,14 +1724,6 @@
   },
   {
    "a": "MA1",
-   "b": "MA55",
-   "kind": "soft-import",
-   "files": [
-    "valuation/config.py <-> valuation/screener/fairvalue.py"
-   ]
-  },
-  {
-   "a": "MA1",
    "b": "MA57",
    "kind": "soft-import",
    "files": [
@@ -4960,14 +4952,6 @@
    "kind": "hard-file",
    "files": [
     "RESEARCH_LOG.md"
-   ]
-  },
-  {
-   "a": "MA55",
-   "b": "MA59",
-   "kind": "soft-import",
-   "files": [
-    "valuation/screener/fairvalue.py <-> valuation/config.py"
    ]
   },
   {

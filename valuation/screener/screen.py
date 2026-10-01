@@ -114,6 +114,11 @@ def _rows_from(scored: pd.DataFrame) -> list:
                            # to reach the P/B-ROE lens: BVPS = book_to_price * price, and the
                            # justified multiple is a function of ROE, ke and g. Without them a
                            # bank's row can only be valued by the industrial lenses.
+                           # NOT `pb_roe_ke`/`pb_roe_g`: this list is filtered by
+                           # `if k in scored.columns` and those two are not frame columns at
+                           # all -- they are produced LATER, per name, by `_enrich_with_dcf`,
+                           # which writes them into `extra` itself. Listing them here was inert,
+                           # and an inert line that looks like wiring is worse than none.
                            "book_to_price", "roe"]
                  if k in scored.columns}
         # Persist EVERY theme column (not just the legacy five) so the monthly
@@ -607,6 +612,31 @@ def _enrich_with_dcf(rows, cfg, refusal_only: bool = False):
                         _used = lens_applicability(res.fair_value_blend).get("used") or []
                         if _used:
                             r["fair_value_method"] = "pipeline_" + "_".join(_used)
+                        # THE PIPELINE'S OWN ke AND g, SO THE HOT LIST CAN REPRODUCE IT RATHER
+                        # THAN APPROXIMATE IT. `financial_fair_value` is a function of exactly
+                        # (book value per share, ROE, ke, g), and the first two are already
+                        # persisted; these are the two that were missing. Session 69 measured
+                        # what substituting a beta-of-one ke costs -- +27.06% on BFH against the
+                        # single-stock page -- so capturing the real one is what lets the two
+                        # surfaces agree instead of disagreeing by double digits.
+                        # INTO `extra`, NOT ONLY THE TOP LEVEL. `save_snapshot` writes a FIXED
+                        # column list and `extra` is the one free-form field in it, so a
+                        # top-level key is dropped on the way to the record -- which is exactly
+                        # how the lens label came to be computed every scan and never served.
+                        # Written to both: the top level for the in-process consumer that runs
+                        # before any store round-trip, `extra` for everything after it.
+                        _ex = r.setdefault("extra", {})
+                        for _k, _v in (("pb_roe_ke", getattr(res.wacc, "cost_of_equity", None)),
+                                       ("pb_roe_g", getattr(
+                                           getattr(res.scenarios, "base", None),
+                                           "terminal_growth", None))):
+                            try:
+                                _f2 = float(_v)
+                            except (TypeError, ValueError):
+                                continue
+                            r[_k] = _f2
+                            if isinstance(_ex, dict):
+                                _ex[_k] = _f2
                 last = None
                 break
             except Exception as e:

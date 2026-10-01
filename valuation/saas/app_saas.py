@@ -579,6 +579,79 @@ def create_saas_app(cfg=CONFIG):
         except Exception as e:
             return jsonify({"ok": False, "error": safe_error(e)}), 500
 
+    @app.route("/admin/track-reconstruct", methods=["GET", "POST"])
+    def admin_track_reconstruct():
+        """The days the automated writer missed, computed on the SERVICE and stored BESIDE the
+        record -- never in it.
+
+        **WHY IT HAS TO RUN HERE.** The reconstruction needs three things in one place: the book
+        in force, the recorded series to subtract, and a price vendor. The service has all three;
+        a developer machine has the book and a STALE copy of the record -- measured, the local
+        history diverges from the service on 3 of its 8 rows and carries a row (2026-09-17) the
+        record never had. Subtracting the local copy would draw "reconstructed" points on dates
+        that ARE recorded, which is precisely the confusion the separate store exists to prevent.
+        So `/api/index-track` served `n_reconstructed: 0` not because the computation failed but
+        because it ran somewhere the record is not.
+
+        **GET COMPUTES AND RETURNS. POST?write=1 STORES.** Same split as `/admin/track-row`, for
+        the same reason: a side-effecting GET is reachable by a retry, a prefetch or a pasted
+        link, and none of those is a decision to store anything. `?write=1` on a GET is refused
+        with 405.
+
+        **NOTHING REACHES THE BOUND SERIES, AND THAT IS STRUCTURAL RATHER THAN PROMISED.** This
+        writes one file -- the reconstruction store -- through `track_reconstruct.save`, a module
+        whose own test suite pins that it names no bound file in CODE and that every gate and
+        meter input is byte-identical with the feature present and absent. The response carries
+        the validation against the record so a reader can judge the points rather than trust
+        them, and `excluded_from` travels with the payload.
+        """
+        if request.method == "GET" and request.args.get("write"):
+            return jsonify({"error": "write is POST-only; a GET never stores",
+                            "hint": "POST /admin/track-reconstruct?write=1"}), 405
+        # DELEGATED to `_admin_ok` (M5): a plain `!=` short-circuits on the first differing
+        # byte and leaks the token's prefix through timing, and a second copy of the auth rule is
+        # how one of nine admin doors comes to be the weak one. It also carries the
+        # `bool(cfg.admin_token)` fail-closed guard the others rely on, and it accepts the token
+        # ONLY in the header -- my first cut also read `?token=`, which puts a secret in every
+        # proxy log and referrer.
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..screener import index_track as _it
+            from ..screener import track_reconstruct as _tr
+
+            summary = _it.summarize("valquo", store=_store())
+            series = [r for r in (summary.get("series") or []) if r.get("date")]
+            if not series:
+                return jsonify({"ok": False,
+                                "reason": ("the service holds no recorded series, so there is "
+                                           "nothing to subtract and every session would look "
+                                           "missing")}), 422
+            dates = sorted(str(r["date"])[:10] for r in series)
+            missing = _tr.missing_dates(series, dates[0], through=dates[-1])
+            out = _tr.reconstruct(missing)
+            val = _tr.validate_against_record(series)
+            body = {"ok": True, "record_rows": len(series),
+                    "record_span": [dates[0], dates[-1]],
+                    "n_missing": len(missing), "missing": missing,
+                    "n_computed": out.get("n_computed"), "refused": out.get("refused"),
+                    "validation": val, "written": False,
+                    "excluded_from": list(_tr.payload().get("excluded_from") or []),
+                    "note": _tr.NOTE}
+            if request.method == "POST" and request.args.get("write"):
+                if not out.get("points"):
+                    return jsonify(dict(body, ok=False,
+                                        reason=("nothing was computed, so there is nothing to "
+                                                "store; a run that priced no day must not "
+                                                "overwrite a store that has points in it"))), 422
+                saved = _tr.save(out["points"])
+                body["written"] = True
+                body["store"] = {"path": saved.get("path"), "n": saved.get("n"),
+                                 "computed_at": saved.get("computed_at")}
+            return jsonify(body)
+        except Exception as e:                                           # noqa: BLE001
+            return jsonify({"error": safe_error(e)}), 500
+
     @app.route("/admin/track-row", methods=["GET", "POST"])
     def admin_track_row():
         """Today's contract row for the bound Valquo Index track: the Index mark, the SPY

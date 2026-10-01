@@ -346,6 +346,253 @@ def write_served_file(su: dict, path: str) -> str:
     return path
 
 
+def _period_end(per: dict) -> str:
+    """The ISO date the CURRENT 13F period ends on, from the period label the builder derived.
+
+    The labels are Sharadar-style (`31-MAR-2026`), so this parses that form rather than inventing
+    a second place where the quarter end is decided -- if the label and the date disagreed, the
+    market cap would be dated to a quarter the 13F values do not come from, which is the exact
+    mismatch this change removes.
+    """
+    import datetime as _dt
+    lab = str(per.get("curr") or "")
+    for fmt in ("%d-%b-%Y", "%Y-%m-%d"):
+        try:
+            return _dt.datetime.strptime(lab, fmt).date().isoformat()
+        except (TypeError, ValueError):
+            continue
+    raise SystemExit("cannot read a period end from the 13F period label %r -- refusing rather "
+                     "than dating the market cap to a guess" % lab)
+
+
+def period_market_caps(served, period_end: str, root: str = None, batch=None) -> dict:
+    """`{ticker: detail}` -- shares outstanding AT the 13F period end times the close ON it.
+
+    **WHY THIS EXISTS, AND IT IS A CORRECTNESS FIX RATHER THAN AN ENRICHMENT.** `join_13f`'s
+    anchor is `institutional dollars held / market cap`, bounded in `(0, ANCHOR_MAX]`, and it is
+    what stops a fuzzy name match being accepted as the right issuer. Session 69 measured that
+    the shipped path divides a 13F value as of the PERIOD END by a market cap as of TODAY -- with
+    the period 183 days behind, market drift moves every anchor at once, loosening the guard on
+    every name after a rally and manufacturing `anchor_failed` after a selloff. Both halves are
+    now dated to the same day.
+
+    **FAIL CLOSED, DELIBERATELY.** A name with no shares level, or no close on or before the
+    period end, gets `market_cap: None` -- which makes the anchor REFUSE that name rather than
+    score it against a guessed denominator. The whole point of the anchor is that it declines
+    what it cannot verify, so filling a gap here would defeat the thing being repaired.
+
+    **IT NEEDS NO SCAN STORE**, which is what lets the assemble job run on a fresh runner: the
+    shares come from SEC companyfacts via the xbrl leg's own cache and the close from the price
+    vendors. Nothing here reads a saved scan.
+
+    `batch` is injectable for tests; production passes `prices.get_history_batch`.
+    """
+    from valuation.screener import prices as _prices
+    import scripts.live_theme_sources as M
+
+    root = root or M.DEFAULT_ROOT
+    want = str(period_end)[:10]
+    tickers = [r["ticker"] for r in served]
+
+    # The PRICE leg, batched. `days` is generous on purpose: the frame has to reach back PAST the
+    # period end, and a window that merely touches it would leave a name unpriced whenever the
+    # period end is a holiday or the vendor is missing that single session.
+    try:
+        span = (_dt.date.today() - _dt.date.fromisoformat(want)).days + 120
+    except (TypeError, ValueError):
+        span = 500
+    fetch = batch or _prices.get_history_batch
+    frames = fetch(tickers, days=max(span, 120)) or {}
+
+    out = {}
+    for r in served:
+        t = r["ticker"]
+        x = M._read_json(M.leg_path(root, "xbrl", t)) or {}
+        sh = x.get("shares_level")
+        d = {"shares": sh, "shares_end": x.get("shares_level_end"),
+             "shares_days_stale": x.get("shares_level_days_stale"),
+             "shares_form": x.get("shares_level_form"),
+             "close": None, "close_date": None, "market_cap": None, "reason": ""}
+        if sh is None:
+            d["reason"] = "no shares-outstanding level at or before %s" % want
+            out[t] = d
+            continue
+        px, pxd = _close_on_or_before(frames.get(t), want)
+        if px is None:
+            d["reason"] = "no close at or before %s" % want
+            out[t] = d
+            continue
+        d["close"], d["close_date"] = px, pxd
+        # THE SPLIT CHECK, AND IT REFUSES RATHER THAN CORRECTS. The close is back-adjusted to
+        # today while the share count is in the terms of its own filing, so a split in between
+        # makes the product wrong by exactly the split factor -- and a 2-for-1 would HALVE the
+        # cap and DOUBLE the anchor, moving a name across the bar for a reason that has nothing
+        # to do with whether the CUSIP match is right. Correcting it would mean trusting the
+        # tape's ratio to rescale a guard's denominator; refusing costs one name and cannot be
+        # wrong in a direction nobody sees.
+        f = split_between(t, want, _dt.date.today().isoformat())
+        d["split_factor"] = f
+        # WHETHER THE TAPE COULD SPEAK FOR THIS NAME AT ALL, counted rather than assumed.
+        #
+        # `_split_table` reads `data/bulk/actions.csv`, which is Sharadar-licensed, gitignored
+        # and UNTRACKED -- so on a GitHub runner it does not exist, the table is empty, and
+        # `split_between` returns 1.0 for every name. That is a guard failing OPEN, and silently:
+        # the build would look identical while checking nothing. Measured locally, 12 of 1,500
+        # names split in the window at ratios up to 25x, so the thing being skipped is real.
+        #
+        # Not a refusal: gating the whole free route on a licensed file would defeat its purpose.
+        # It is COUNTED, and the count is printed and stored, so "no splits found" and "no tape
+        # to look in" can never read the same.
+        d["split_checked"] = bool(_split_table())
+        if f != 1.0:
+            d["reason"] = ("split %.4gx between %s and today, so the adjusted close and the "
+                           "as-filed share count are not comparable" % (f, want))
+            out[t] = d
+            continue
+        d["market_cap"] = float(sh) * float(px)
+        out[t] = d
+    return out
+
+
+def _close_on_or_before(frame, want: str):
+    """`(close, date)` for the last session at or before `want`, or `(None, None)`.
+
+    NEVER a later session: a close from after the period end is look-ahead for a period-end
+    market cap, and it would make the anchor's denominator newer than its numerator -- the exact
+    mismatch this whole change removes.
+
+    **THE FRAME'S SHAPE IS A DATE COLUMN AND AN INTEGER INDEX, NOT A DATE INDEX.** A first cut
+    read `frame.index` for dates and looked for a lowercase `close`/`raw_close`; both price paths
+    actually return `['Date', 'Open', 'High', 'Low', 'Close', 'Volume']` with a positional index,
+    so it found no date it could compare and reported "no close at or before 2026-03-31" for
+    **1,457 of 1,500 names** -- a total failure that looked exactly like a coverage problem.
+    Reading the wrong object, again, and the symptom imitated a data gap.
+    """
+    if frame is None or getattr(frame, "empty", True):
+        return None, None
+    # NO `or []` ON AN INDEX: pandas raises `The truth value of a Index is ambiguous` on a
+    # truthiness test, so the usual empty-default idiom is a crash here rather than a
+    # fallback. Converted first, defaulted second.
+    cols = list(frame.columns) if hasattr(frame, "columns") else []
+    lower = {str(c).lower(): c for c in cols}
+    col = next((lower[k] for k in ("raw_close", "close") if k in lower), None)
+    dcol = next((lower[k] for k in ("date",) if k in lower), None)
+    if col is None:
+        return None, None
+    try:
+        if dcol is not None:
+            dates = [str(x)[:10] for x in frame[dcol]]
+        else:
+            dates = [str(i)[:10] for i in frame.index]
+    except Exception:                                                    # noqa: BLE001
+        return None, None
+    best = None
+    for i, dt in enumerate(dates):
+        if dt <= want and (best is None or dt > best[1]):
+            v = frame[col].iloc[i]
+            if v is not None and v == v and float(v) > 0:
+                best = (float(v), dt)
+    return best if best else (None, None)
+
+
+def split_between(ticker: str, lo: str, hi: str, actions=None) -> float:
+    """Cumulative split factor for `ticker` strictly after `lo` and up to `hi`. 1.0 if none.
+
+    **THIS EXISTS BECAUSE A BACK-ADJUSTED CLOSE AND AN AS-OF-DATE SHARE COUNT DO NOT MULTIPLY.**
+    The price vendors return a split-adjusted series, so a close at the period end is expressed
+    in TODAY's share terms, while the shares-outstanding level is in the terms of ITS filing. A
+    split in between makes `shares x close` wrong by exactly the split factor -- a 2-for-1 would
+    halve the market cap and so DOUBLE the anchor, pushing a good name over the bar or a bad one
+    under it. This project has paid for that confusion once already (`raw_close` for anything
+    touching a share count, adjusted only for a return).
+
+    Read from the ACTIONS tape, which is a local file and needs no network. A name the tape does
+    not cover returns 1.0 and the caller treats that as "no KNOWN split" -- which is why the
+    census reports how many names the tape could speak for.
+    """
+    if actions is None:
+        actions = _split_table()
+    f = 1.0
+    for d, ratio in actions.get(str(ticker).upper(), ()):
+        if str(lo)[:10] < d <= str(hi)[:10] and ratio and ratio > 0:
+            f *= float(ratio)
+    return f
+
+
+_SPLITS = None
+
+
+def _split_table() -> dict:
+    """`{TICKER: [(date, ratio), ...]}` from the ACTIONS tape, loaded once."""
+    global _SPLITS
+    if _SPLITS is not None:
+        return _SPLITS
+    import csv
+    out = {}
+    for cand in (os.path.join("data", "bulk", "actions.csv"),
+                 os.path.join("data", "backtest", "actions.csv")):
+        pth = _primary(cand)
+        if not pth or not os.path.exists(pth):
+            continue
+        try:
+            with io.open(pth, encoding="utf-8", errors="replace") as fh:
+                for row in csv.DictReader(fh):
+                    if str(row.get("action") or "") != "split":
+                        continue
+                    t = str(row.get("ticker") or "").upper()
+                    try:
+                        r = float(row.get("value") or 0) or 0.0
+                    except (TypeError, ValueError):
+                        continue
+                    if t and r > 0:
+                        out.setdefault(t, []).append((str(row.get("date") or "")[:10], r))
+        except OSError:
+            continue
+        break
+    _SPLITS = out
+    return out
+
+
+def _primary(rel: str):
+    """`rel` under the PRIMARY repo root, because a worktree's `data/` is empty.
+
+    The same resolution the reconstruction needed: `data/` is gitignored, so a path relative to
+    the worktree finds nothing and a bare `os.path.exists` reports a populated file as absent.
+    """
+    here = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+    for base in (here, os.path.abspath(os.path.join(here, "..", "..", ".."))):
+        c = os.path.join(base, rel)
+        if os.path.exists(c):
+            return c
+    return os.path.join(here, rel)
+
+
+def attach_period_caps(served, caps: dict) -> dict:
+    """Overwrite each served row's `market_cap` with the period-end one. Census returned.
+
+    OVERWRITE, not fill: the broker universe supplies no cap at all and the scan store supplies a
+    CURRENT one, and a current cap is the defect. A row whose period cap could not be computed
+    gets `None` so the anchor refuses it -- it is never left holding a live cap that would pass
+    the guard for the wrong reason.
+    """
+    n_set = n_none = n_split_checked = 0
+    for r in served:
+        d = caps.get(r["ticker"]) or {}
+        c = d.get("market_cap")
+        r["market_cap"] = c
+        r["market_cap_basis"] = "period_end"
+        if d.get("split_checked"):
+            n_split_checked += 1
+        if c is None:
+            n_none += 1
+        else:
+            n_set += 1
+    return {"n_set": n_set, "n_none": n_none, "n": len(served),
+            "n_split_checked": n_split_checked,
+            "split_tape": ("present" if n_split_checked else
+                           "ABSENT -- the split guard checked NOTHING on this run")}
+
+
 def _as_served_rows(rows) -> list:
     """`served_from_store`'s row shape, from anything carrying a `ticker`.
 
@@ -520,7 +767,11 @@ def main(argv=None) -> int:
         print("  served file  %s" % _served_path)
     else:
         _served_path = None
-    M.fetch_all(snapshot=_served_path, slice_i=_si, slice_n=_sn)
+    # `shares_asof` makes the xbrl leg keep the shares-outstanding LEVEL at the period end,
+    # which is GAP 1's missing denominator. `_period_end` is the ONE place the quarter end
+    # is derived, so the level and the 13F values cannot end up dated to different quarters.
+    M.fetch_all(snapshot=_served_path, slice_i=_si, slice_n=_sn,
+                shares_asof=_period_end(per))
     if a.slice:
         # A SHARD MUST NOT ASSEMBLE. It has fetched a third of the universe, so a cache built
         # here would cover a third and carry no sign of it -- the worst available outcome, since
@@ -528,6 +779,27 @@ def main(argv=None) -> int:
         print("SHARD %d/%d DONE - crawl only. Re-run with no --slice to assemble."
               % (_si, _sn))
         return 0
+
+    # THE PERIOD-END MARKET CAP, BETWEEN THE CRAWL AND THE ASSEMBLY (GAP 1).
+    #
+    # `join_13f`'s anchor divides a 13F dollar value by a market cap, and until now the two came
+    # from different dates -- the 13F from the period end, the cap from today. With the period
+    # 183 days behind, market drift moved every anchor at once. Both halves are now dated to the
+    # period end, and a name whose cap cannot be computed is left at None so the anchor REFUSES
+    # it rather than scoring it against a guess.
+    _pend = _period_end(per)
+    _caps = period_market_caps(su["served"], _pend)
+    _cen = attach_period_caps(su["served"], _caps)
+    print("  period cap   %s: %d of %d priced, %d left None (anchor will refuse those)"
+          % (_pend, _cen["n_set"], _cen["n"], _cen["n_none"]))
+    print("  split guard  %s (%d of %d names checkable against the ACTIONS tape)"
+          % (_cen["split_tape"], _cen["n_split_checked"], _cen["n"]))
+    _stale = [d["shares_days_stale"] for d in _caps.values()
+              if d.get("shares_days_stale") is not None]
+    if _stale:
+        _stale.sort()
+        print("  shares lag   median %d days, p95 %d, max %d (level at or before %s, never after)"
+              % (_stale[len(_stale) // 2], _stale[int(len(_stale) * 0.95)], _stale[-1], _pend))
 
     out = F2.build_live(served=su["served"], period_curr=per["curr"],
                         period_prior=per["prior"], cache_path=cache_path(),
