@@ -1008,20 +1008,69 @@ def _chart_datasets() -> str:
     raise AssertionError("unbalanced datasets array")
 
 
+def _split_datasets(ds: str) -> list:
+    """Split the `datasets: [...]` text into one string per dataset object.
+
+    Brace-balanced rather than split on a delimiter, because a dataset body contains both braces
+    and commas and a naive split would cut one object in half -- which would then read as two
+    datasets with missing properties, i.e. a guard passing on nonsense.
+    """
+    out, depth, start = [], 0, None
+    for i, ch in enumerate(ds):
+        if ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0 and start is not None:
+                out.append(ds[start:i + 1])
+                start = None
+    return out
+
+
 def test_the_three_lines_differ_in_geometry_and_in_weight_not_only_in_hue():
     """SPY and SPMO used to be two light greys, one dashed and one dotted, and read as the
     same series wherever they converged — which on two large-cap US benchmarks is most of the
     time. Geometry, weight and tone now vary together, so ANY ONE of the three is enough to
     order them."""
     ds = _chart_datasets()
-    dashes = re.findall(r"borderDash: \[([0-9.]+), ([0-9.]+)\]", ds)
-    widths = [float(w) for w in re.findall(r"borderWidth: ([0-9.]+)", ds)]
-    colours = re.findall(r'borderColor: "(#[0-9a-fA-F]{6})"', ds)
+    # LINE DATASETS ONLY. The chart gained a fourth dataset that draws no line -- the
+    # reconstructed days, `showLine: false`, rendered as ringed points -- and this guard counted
+    # its ring colour as a line tone and went red against a correct chart. The property in the
+    # title is about the THREE LINES; a scatter overlay has no line geometry to confuse.
+    #
+    # It is narrowed by BEHAVIOUR (does the dataset draw a line) rather than by dropping the
+    # check, and the positive control below proves the narrowed rule still bites.
+    lines = [d for d in _split_datasets(ds) if "showLine: false" not in d]
+    joined = "\n".join(lines)
+    dashes = re.findall(r"borderDash: \[([0-9.]+), ([0-9.]+)\]", joined)
+    widths = [float(w) for w in re.findall(r"borderWidth: ([0-9.]+)", joined)]
+    colours = re.findall(r'borderColor: "(#[0-9a-fA-F]{6})"', joined)
 
+    assert len(lines) == 3, "expected three line datasets, got %d" % len(lines)
     assert len(dashes) == 2, dashes                     # the subject line is SOLID
     assert len(set(dashes)) == 2, "the two benchmarks share a dash geometry: %r" % dashes
     assert len(widths) == 3 and len(set(widths)) == 3, "line weights are not distinct: %r" % widths
     assert len(colours) == 3 and len(set(colours)) == 3, "line tones are not distinct: %r" % colours
+
+    # POSITIVE CONTROL: two LINE datasets sharing a tone must still fail. Without this the
+    # narrowing above could have been a way to make the check stop looking at anything.
+    probe = ['{ label: "a", borderColor: "#111111", borderWidth: 3 }',
+             '{ label: "b", borderColor: "#111111", borderWidth: 2, borderDash: [4, 4] }',
+             '{ label: "c", borderColor: "#222222", borderWidth: 1, borderDash: [2, 2] }']
+    pc = re.findall(r'borderColor: "(#[0-9a-fA-F]{6})"', "\n".join(probe))
+    assert len(set(pc)) != len(pc), "the narrowed guard can no longer see two lines sharing a tone"
+
+    # AND THE POINT OVERLAY MUST BE DISTINGUISHABLE FROM THE LINE IT SHARES A HUE WITH.
+    # Sharing the subject's tone is deliberate -- it IS the subject series, reconstructed -- so
+    # the thing that separates them is geometry, and that has to be asserted or the shared hue
+    # becomes an accident nobody notices.
+    pts = [d for d in _split_datasets(ds) if "showLine: false" in d]
+    if pts:
+        for d in pts:
+            assert "pointRadius" in d, "the overlay has no distinct point size: %s" % d[:120]
+            assert "reconstructed" in d.lower(), "the overlay is not labelled: %s" % d[:120]
 
     # The ordering is the hierarchy: subject widest, reported thinnest.
     assert widths[0] == max(widths), "the subject is not the widest line: %r" % widths

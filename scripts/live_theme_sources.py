@@ -738,7 +738,8 @@ def leg_path(root: str, leg: str, ticker: str) -> str:
 
 
 def fetch_all(root: str = DEFAULT_ROOT, legs=_LEGS, limit: int | None = None,
-              guard: Guard | None = None, slice_i: int = 0, slice_n: int = 1) -> dict:
+              guard: Guard | None = None, slice_i: int = 0, slice_n: int = 1,
+              snapshot: str | None = None) -> dict:
     """Fetch every leg for every served name, resumably.
 
     `slice_i/slice_n` splits the universe into disjoint interleaved shards so several
@@ -749,7 +750,11 @@ def fetch_all(root: str = DEFAULT_ROOT, legs=_LEGS, limit: int | None = None,
     written atomically — so `done` also accepts "the payload is already on disk", which makes
     a lost or racing manifest a slowdown rather than a correctness problem.
     """
-    served = load_served()
+    # PASSED, not read from the module constant. `load_served`'s default is bound at
+    # definition time, so a caller reassigning `SNAPSHOT` after import does not reach it -- the
+    # theme-cache build did exactly that and failed on the pinned path while reporting that it
+    # had set a new one.
+    served = load_served(snapshot or SNAPSHOT)
     if limit:
         served = served[:limit]
     if slice_n > 1:

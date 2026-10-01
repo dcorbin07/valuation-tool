@@ -636,9 +636,21 @@
   <ul>
     <li><b>The backtest engine</b> builds nine themes point-in-time from licensed fundamentals,
       re-using the live app's own frame builder — and a replay of real historical dates through
-      both paths agrees exactly. What still differs is the <em>data</em>: two of the seven
-      weighted themes (institutional and insider) have no live source yet, so the live ranking
-      runs on five, and the ranking says so on every scan.
+      both paths agrees exactly. What still differs is the <em>data</em>:
+      {%- if theme_counts and theme_counts.n_contributing_now is not none %}
+      {%- if theme_counts.n_not_contributing_now %}
+      {{ theme_counts.n_not_contributing_now }} of the {{ theme_counts.n_weighted }} weighted
+      themes ({{ theme_counts.not_contributing_now|join(' and ') }}) have no live source today, so
+      the live ranking runs on {{ theme_counts.n_contributing_now }}, and the ranking says so on
+      every scan.
+      {%- else %}
+      nothing today — all {{ theme_counts.n_weighted }} weighted themes reach a live score, and
+      the ranking says so on every scan.
+      {%- endif %}
+      {%- else %}
+      whether every weighted theme reaches a live score today could not be read, and the ranking
+      reports it on every scan.
+      {%- endif %}
       Weight selection is Combinatorial Purged Cross-Validation with a
       probability-of-backtest-overfitting readout, and if it rejects, the defaults stay — the
       selector is not allowed to talk itself into a weighting.</li>

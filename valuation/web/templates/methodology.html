@@ -14,9 +14,21 @@
   discipline, institutional positioning and insider activity, each carrying an equal share.
   Each theme is built from individual numbers, each number is standardised across the names
   scored that day, and the themes are combined into one composite. The <b>Hot Stocks</b> tab is
-  that ranking. Two of the seven — institutional and insider — have no live data source yet, so
-  today's live ranking runs on the other five while the backtest used all seven; the Hot Stocks
-  tab flags this on every scan.</p>
+  that ranking.
+  {%- if theme_counts and theme_counts.n_contributing_now is not none %}
+  {%- if theme_counts.n_not_contributing_now %}
+  {{ theme_counts.n_not_contributing_now }} of the {{ theme_counts.n_weighted }}
+  — {{ theme_counts.not_contributing_now|join(' and ') }} — have no live data source today, so
+  today's live ranking runs on the other {{ theme_counts.n_contributing_now }} while the backtest
+  used all {{ theme_counts.n_weighted }}; the Hot Stocks tab flags this on every scan.
+  {%- else %}
+  All {{ theme_counts.n_weighted }} weighted themes reach a live score today, the same set the
+  backtest used; the Hot Stocks tab reports this on every scan.
+  {%- endif %}
+  {%- else %}
+  Whether every weighted theme reaches a live score today could not be read; the Hot Stocks tab
+  reports it on every scan.
+  {%- endif %}</p>
   <p>The research also constructs a book from that ranking — the top decile of the large-cap
   tier, score-weighted, capped at 8% per name — and tracks it forward against the S&amp;P 500.
   Both are shown in the app: the <b>Valquo Index</b> tab lists the book and the <b>Track
@@ -173,12 +185,13 @@
     <li><b>Some themes are dormant.</b> Sentiment (estimate revisions) has no point-in-time
       source we trust and carries no weight. Low-risk carries none either: with both of its inputs
       populated it measured indistinguishable from zero and was switched off.</li>
-    <li><b>The live ranking runs on five of the backtest's seven themes.</b> The scoring code is
+    <li><b>{{ theme_sentence or "Whether every weighted theme reaches a live score today could not be read." }}</b> The scoring code is
       the same function in both places — a replay of real historical dates through the live and
       the backtest paths agrees to the last decimal — but institutional and insider positioning
-      have no live data source yet, so they contribute nothing to today's scores and their weight
-      is shared among the other five. The five-theme ranking has not been backtested on its own,
-      so its record is not the seven-theme one described here.</li>
+      may have no live data source on a given day, so a theme can be wired and carry weight and
+      still contribute nothing to today's scores. A ranking running on fewer than seven themes
+      has not been backtested on its own, so its record is not the seven-theme one described
+      here.</li>
     <li><b>Concentrated books are noisy.</b> The 25-name construction scores higher in the
       backtest than the decile, but it is the least reliable number in the study — which is
       why breadth is the default.</li>

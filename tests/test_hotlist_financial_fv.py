@@ -169,5 +169,80 @@ class TestNoVintageOpens(unittest.TestCase):
         self.assertNotIn("fair_value", names | consts)
 
 
+class TheLabelNamesTheLensThatProducedTheValue(unittest.TestCase):
+    """The served 2026-09-29 scan carries three financial rows labelled `dcf` -- SYF, STT and
+    AMG. They predate the sector fix, so the VALUES were produced by a growth/DCF lens that
+    `classify.py` now refuses for a financial. But the LABEL was wrong independently of that
+    bug: `estimate_fair_values` tags any pre-existing fair value `dcf` with a `setdefault`, so
+    even after the sector fix a correctly-computed P/B-ROE blend coming back from the pipeline
+    would still have been reported as a discounted cash flow.
+
+    That is the wrong-object family with a reader-facing consequence: the number is right and
+    the sentence describing it is false.
+    """
+
+    def test_the_pipeline_branch_reads_the_blends_OWN_lens_set(self):
+        src = io.open(os.path.join(REPO, "valuation/screener/screen.py"),
+                      encoding="utf-8").read()
+        fn = next(n for n in ast.walk(ast.parse(src))
+                  if isinstance(n, ast.FunctionDef) and n.name == "_enrich_with_dcf")
+        calls = [c for c in ast.walk(fn)
+                 if isinstance(c, ast.Call)
+                 and getattr(c.func, "id", None) == "lens_applicability"]
+        self.assertEqual(len(calls), 1,
+                         "the label is inferred rather than read off the blend")
+        # DELEGATION, not a second copy of the weight filter (B7). `lens_applicability` already
+        # defines which lenses carry weight and is what every other surface is gated on, so a
+        # local `blend.lenses` walk here is how the label comes to disagree with the gate.
+        self.assertNotIn("lenses", ast.unparse(fn),
+                         "a second copy of the weight filter, which will drift from the gate")
+
+    def test_a_financial_blend_is_labelled_pb_roe_and_NOT_dcf(self):
+        """Read through the real `lens_applicability` on the real blend shape."""
+        from valuation.engine.pipeline import lens_applicability
+        from valuation.engine.blend import FairValueBlend
+        b = FairValueBlend()
+        b.lenses = {"pb_roe": {"value": 291.0, "weight": 1.0}}
+        used = lens_applicability(b)["used"]
+        self.assertEqual(used, ["pb_roe"])
+        self.assertEqual("pipeline_" + "_".join(used), "pipeline_pb_roe")
+        self.assertNotIn("dcf", "pipeline_" + "_".join(used),
+                         "a bank reported as valued by a discounted cash flow")
+
+    def test_a_ZERO_WEIGHT_lens_does_not_reach_the_label(self):
+        """The one case where a naive `list(blend.lenses)` and the gate disagree.
+
+        A lens can be PRESENT at weight 0 -- `lens_applicability`'s whole purpose is that such a
+        lens is reference-only. If the label listed it, a row would be described as valued by a
+        model that contributed nothing to it.
+        """
+        from valuation.engine.pipeline import lens_applicability
+        from valuation.engine.blend import FairValueBlend
+        b = FairValueBlend()
+        b.lenses = {"pb_roe": {"value": 291.0, "weight": 1.0},
+                    "dcf": {"value": 625.0, "weight": 0.0}}
+        a = lens_applicability(b)
+        self.assertEqual(a["used"], ["pb_roe"])
+        self.assertEqual(a["zero_weight"], ["dcf"])
+        self.assertFalse(a["fcff_applies"])
+        self.assertNotIn("dcf", "pipeline_" + "_".join(a["used"]))
+
+    def test_an_absent_blend_leaves_the_label_ALONE_rather_than_guessing(self):
+        """Fail closed: no blend means no claim about which model was used.
+
+        It must not fall through to `pipeline_` with nothing after it either -- an empty label
+        is a sentence that reads as a method name and names nothing.
+        """
+        from valuation.engine.pipeline import lens_applicability
+        self.assertEqual(lens_applicability(None)["used"], [])
+        src = io.open(os.path.join(REPO, "valuation/screener/screen.py"),
+                      encoding="utf-8").read()
+        fn = next(n for n in ast.walk(ast.parse(src))
+                  if isinstance(n, ast.FunctionDef) and n.name == "_enrich_with_dcf")
+        body = ast.unparse(fn)
+        self.assertIn("if _used:", body,
+                      "an absent blend writes the bare prefix `pipeline_` as a method")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

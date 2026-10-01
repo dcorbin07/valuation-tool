@@ -217,9 +217,26 @@ def test_the_served_universe_comes_from_the_latest_scan_not_the_pinned_file():
     got = B.served_from_store(Fake())
     assert got["scan_date"] == "2026-09-29"
     assert [r["ticker"] for r in got["served"]] == ["AAPL"], got["served"]
+    # READ THE TREE, NOT THE TEXT. This banned the substring `load_served()` and then fired
+    # against a CORRECT builder, because a comment was added explaining why the no-argument form
+    # must not be used -- prose documenting a rule quotes what the rule forbids. Fourth instance
+    # of that family in this repo's record. The property is that no CALL to `load_served` takes
+    # zero arguments anywhere in the builder.
+    import ast as _ast
     src = open(B.__file__, encoding="utf-8").read()
-    assert "load_served()" not in src, (
+    bare = [n for n in _ast.walk(_ast.parse(src))
+            if isinstance(n, _ast.Call)
+            and (getattr(n.func, "id", None) == "load_served"
+                 or getattr(n.func, "attr", None) == "load_served")
+            and not n.args and not n.keywords]
+    assert not bare, (
         "the builder falls back to the pinned snapshot, which is the defect")
+    # POSITIVE CONTROL: the narrowed rule must still bite on the thing it exists to catch.
+    _probe = _ast.parse("served = load_served()")
+    _hit = [n for n in _ast.walk(_probe)
+            if isinstance(n, _ast.Call) and getattr(n.func, "id", None) == "load_served"
+            and not n.args and not n.keywords]
+    assert _hit, "the narrowed guard can no longer see a bare load_served() call"
 
 
 # =======================================================================================

@@ -26,6 +26,30 @@ from . import resultcache, withhold
 from .query_params import clamp_int, clamp_float   # MA50/MA53 — one clamp per caller number
 from . import score_confidence as _score_confidence
 from . import theme_status as _theme_status
+
+
+def _theme_contributing():
+    """`health.theme_contributing` from the latest scan, or None.
+
+    Returns None rather than `{}` when it cannot be read: an empty dict would make every theme
+    read as contributing nothing, so the copy would claim the ranking runs on ZERO themes on a
+    day the store was merely unreachable. `sentence` has a distinct branch for None and says the
+    figure is unavailable.
+    """
+    try:
+        from ..screener.store import Store
+        st = Store()
+        date = st.latest_scan_date()
+        if not date:
+            return None
+        h = st.get_meta("scan_health_%s" % date)
+        if isinstance(h, str):
+            import json as _json
+            h = _json.loads(h)
+        tc = (h or {}).get("theme_contributing")
+        return tc if isinstance(tc, dict) and tc else None
+    except Exception:                                                   # noqa: BLE001
+        return None
 from . import hold_horizon as _hold_horizon
 from . import dip_posture as _dip_posture
 
@@ -116,6 +140,15 @@ def _site_context():
             # in app.js described `capital_discipline` as dormant on the very day it was
             # restored, and listed an input the theme had stopped using.
             "theme_status": _theme_status.payload(),
+            # HOW MANY THEMES THE RANKING RUNS ON, DERIVED. The literal had already been wrong
+            # twice in OPPOSITE directions -- "nine themes" while five were live, then "five of
+            # seven" which goes wrong the day the theme cache lands -- and it disagreed with
+            # `theme_status` itself, which reported insider and institutional as not dormant
+            # (they are WIRED) while the scan reported them contributing 0.0 (they did not MOVE).
+            # `counts`/`sentence` name those two facts separately and the copy reads the DAY,
+            # which is what it claims.
+            "theme_counts": _theme_status.counts(_theme_contributing()),
+            "theme_sentence": _theme_status.sentence(_theme_contributing()),
             # What the Dip Detector is allowed to claim, gated on the V6 register. Site-wide
             # for the same reason as the three above — index.html has two renderers — and
             # because this one has a deadline: the copy is written to be REPLACED when V6

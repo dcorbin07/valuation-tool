@@ -5,6 +5,510 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 69 — 2026-09-30 — the free route's last wiring, and a positive assertion satisfied by prose
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `by_domain`
+unchanged: equity 248, options 310, infra 20. **Nothing written to the bound series**, no trade,
+no `.github/` edit. FMP stays gated off.
+
+Task 14 (a)-(e). Three of the five items are **wiring that was half-applied rather than missing**,
+which is this lane's recurring shape: the sharding, the snapshot override and the lens label all
+existed and were simply unreachable from the entry point that needed them.
+
+## THE DEFECT WORTH READING: A POSITIVE ASSERTION SATISFIED BY THE DOCSTRING
+
+`track_reconstruct.reconstruct` must pass `refuse_before_close=False`, or it either refuses every
+past day or marks a session that has not closed. The test asserted exactly that:
+
+```python
+self.assertIn("refuse_before_close=False", ast.unparse(fn))
+```
+
+**`ast.unparse` includes the docstring, and the docstring explains why that argument is False.**
+So flipping the real argument to `True` left the assertion **satisfied by the prose** — mutation
+`r2`, MISSED. It now reads the keyword off the `Call` node:
+
+```python
+kw = {k.arg: k.value for k in calls[0].keywords}
+self.assertIs(kw["refuse_before_close"].value, False)
+```
+
+**This is the substring family INVERTED, and the inversion is the part I had not seen.** This
+record already warns, repeatedly, that a guard which BANS a token fires against the correct tree
+because prose documenting a rule quotes what the rule forbids. **A positive assertion has exactly
+the same failure mode and reads as the safe direction** — the ban goes red and gets investigated,
+while this one goes green and is never looked at again. Both are cured by the same rule: assert on
+the AST node, not on text that contains the explanation next to the code.
+
+Two siblings in the same pass, both found by mutation rather than by reading:
+
+* **`p5`** — the shard's "do not assemble" return was pinned by searching for `return 0` within
+  **400 characters** of the word `SHARD`, and it found an **unrelated** `return 0`. Deleting the
+  shard's own return left it green. Now: the `If` node containing `SHARD` must itself contain a
+  `Return`. **The character-window family this record already names, and a window that catches
+  the wrong object is indistinguishable from one that catches the right one.**
+* **`p7`** — `fetch_all(snapshot=...)` was pinned by `inspect.signature` plus "the builder passes
+  it". Dropping the **use** inside `fetch_all` satisfied both, and the crawl would have gone back
+  to the pinned path in silence. Now asserted behaviourally: a bogus snapshot path must produce
+  the refusal **naming that path**. **A parameter accepted and ignored is worse than none, because
+  it reads as configured.**
+
+**15 of 15 mutations caught after the repairs, sources restored byte-for-byte.**
+
+## (a) THE THEME CACHE BUILD — RUNNING, AND THE EXACT YAML FOR DON
+
+Three interleaved shards are crawling SEC for the 1,500-name served universe: **cusip 203, xbrl
+192, insider 189 payloads, three separate manifests (`manifest_0_3.json` … `manifest_2_3.json`),
+ZERO throttles** at last read. `--slice i/n` was added because the crawl is **LATENCY-bound, not
+rate-limited** — `fetch_all`'s own docstring records SEC's ~10 req/s ceiling against one serial
+process reaching ~3 req/s, so a single run measured **25 of 1,500 names in ~3 minutes**, i.e.
+~3 hours. Three shards sit under the ceiling.
+
+**A SHARD REFUSES TO ASSEMBLE, and that is the one guard that matters here.** A shard has fetched
+a third of the universe, so a cache written from one would cover a third **and carry no sign of
+it** — and a thin cache is indistinguishable from a complete one once written. Run once more with
+no `--slice` to assemble.
+
+Two defects of my own in the builder, both found by running it:
+
+* **The window derivation ran AHEAD of publication.** It derived `01jun2026-31aug2026`, SEC has
+  not published it, and the 404 landed **after the first window had already downloaded and
+  aggregated** — so a long crawl died on its second step. `newest_published_periods` now HEAD-probes
+  and steps back. **Measured: SEC has not published the 30-JUN-2026 13F window at all**, so the
+  builder's `<-- STALE` warning was pointing at the wrong side of the comparison.
+* **Argument validation was unreachable behind another refusal.** A malformed `--slice` was
+  checked after the universe resolution, so a bad universe short-circuited it and returned the
+  universe's exit code — and the expensive work would already have run before anyone learned the
+  shard was nonsense. Moved to immediately after `parse_args`. **Found by my own test**, which
+  passed both a bad universe and a bad slice and got the wrong code.
+
+### THE `auto-scan.yml` TEXT — DON COMMITS `.github` HIMSELF
+
+The wiring is **one environment variable on both sides**: `LIVE_THEMES_CACHE` is read by the
+writer (`theme_cache_build.py`) and by the reader (`live_themes.CACHE`). Nothing else to thread.
+
+**A SEPARATE cache key, deliberately, not `scan-cache-`.** The `hot` job saves
+`scan-cache-${{ github.run_id }}` at the end of its run; if the theme cache lived under that same
+prefix, whichever job finished last would publish its own view of `.scan-cache` and silently drop
+the other's contents. Two caches that never fight.
+
+**1. NEW JOB — append after the `hot` job.** Weekly, because every input it reads changes
+quarterly at most (13F windows, XBRL share counts) except Form 4, and a weekly cache is fresher
+than the quarterly data in it.
+
+```yaml
+  themes:
+    # THE FREE ROUTE'S INSTITUTIONAL + INSIDER + CAPITAL-DISCIPLINE INPUTS.
+    # Builds data/live_cache/theme_columns.json from SEC alone (13F aggregates, XBRL share
+    # counts, Form 4) so the live ranking stops running on five of the backtest's seven weighted
+    # themes. No vendor, no key, no licence — SEC's own bulk files and companyfacts.
+    #
+    # WEEKLY, not daily: 13F windows and XBRL share counts change quarterly at most, and the
+    # crawl is ~1,500 names against SEC's rate ceiling. Sunday leaves the whole week warm.
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '17 7 * * 0') || (github.event_name == 'workflow_dispatch' && github.event.inputs.kind == 'themes') }}
+    runs-on: ubuntu-latest
+    # The crawl is LATENCY-bound, not rate-limited: SEC publishes a ~10 req/s ceiling and one
+    # serial process reaches ~3 req/s, so 1,500 names is ~3 hours. Three shards fit under the
+    # ceiling; the matrix below runs them in parallel and the assemble step follows.
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install --require-hashes -r requirements.lock.txt   # MA12
+      - name: Restore the theme crawl
+        uses: actions/cache@v4
+        with:
+          path: data/live_themes
+          key: live-themes-crawl-${{ github.run_id }}-${{ matrix.shard }}
+          restore-keys: live-themes-crawl-
+      - name: Crawl shard ${{ matrix.shard }}
+        env:
+          SEC_USER_AGENT: "Donovan Corbin donniecorbin6@gmail.com"
+        # A shard crawls and REFUSES to assemble — a cache built from one third of the universe
+        # would carry no sign that it covers a third, and a thin cache is indistinguishable from
+        # a complete one once written.
+        run: python scripts/theme_cache_build.py --universe broker --slice ${{ matrix.shard }}/3
+
+  themes-assemble:
+    needs: themes
+    if: ${{ always() && (github.event_name == 'schedule' || github.event.inputs.kind == 'themes') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install --require-hashes -r requirements.lock.txt   # MA12
+      - name: Restore the theme crawl
+        uses: actions/cache@v4
+        with:
+          path: data/live_themes
+          key: live-themes-crawl-assemble-${{ github.run_id }}
+          restore-keys: live-themes-crawl-
+      - name: Assemble the theme cache
+        env:
+          SEC_USER_AGENT: "Donovan Corbin donniecorbin6@gmail.com"
+          LIVE_THEMES_CACHE: data/live_cache/theme_columns.json
+        # No --slice: this run assembles from what the shards fetched. It re-derives nothing it
+        # already has on disk, so it is minutes rather than hours.
+        run: python scripts/theme_cache_build.py --universe broker
+      - name: Publish the theme cache for the hot scan
+        uses: actions/cache/save@v4
+        with:
+          path: data/live_cache/theme_columns.json
+          key: live-themes-cache-${{ github.run_id }}
+```
+
+**2. TWO ADDITIONS TO THE EXISTING `hot` JOB.** One restore step and one env line.
+
+Insert the restore step immediately after the existing `Restore the scan cache` step:
+
+```yaml
+      # THE FREE ROUTE'S THREE MISSING THEMES. Read-only here: the `themes-assemble` job above
+      # is the only writer, so a hot scan can never publish a partial cache under this key.
+      # If the restore misses, `live_themes` finds no cache and the scan runs on the five
+      # themes it runs on today — the same behaviour as before this job existed, which is why
+      # the miss is a degradation and not a failure.
+      - name: Restore the live theme cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/live_cache/theme_columns.json
+          key: live-themes-cache-never-matches-force-restore-keys
+          restore-keys: live-themes-cache-
+```
+
+Add to the `hot` job's existing `env:` block, beside `ISSUANCE_CACHE_DIR`:
+
+```yaml
+          # Read by valuation/screener/live_themes.py:39. Same variable the writer above uses,
+          # so there is one path and it cannot drift.
+          LIVE_THEMES_CACHE: data/live_cache/theme_columns.json
+```
+
+**3. ADD `themes` TO THE DISPATCH CHOICES** so Don can run it by hand before trusting the cron:
+
+```yaml
+        options: [hot, intraday, both, watchdog, paper, recap-daily, recap-weekly, themes]
+```
+
+**4. ADD THE WEEKLY CRON** to the `schedule:` block:
+
+```yaml
+    - cron: "17 7 * * 0"            # theme cache — Sunday 07:17 UTC, ahead of Monday's scan
+```
+
+**NOT DONE and named so it is not mistaken for done:** the cache is **not assembled yet**, so
+**12c is not closed** — those two themes are not live in the scan until the assemble run finishes
+and the `hot` job reads it. Coverage is reported below only for what the shards have fetched.
+
+## (b) THE theme_status / SCAN CONTRADICTION — ONE SOURCE, AND IT WAS A DESIGN-VS-DAY CONFLATION
+
+`theme_status` reported insider and institutional **live** while the scan reported **0.0** for
+both. Neither was lying; they were answering different questions under one word.
+
+* **DESIGN** — does this theme carry weight in the composite? Both do.
+* **DAY** — is this theme contributing to today's ranking? Neither is, because the cache is not
+  built.
+
+`counts()` now reports the two separately — `weighted` / `dormant` against `contributing_now` /
+`not_contributing_now` — and `sentence()` derives the copy from the DAY figure, which is the one a
+reader of the methodology page is asking about. `methodology.html`'s hard-coded "five of seven"
+literal is gone.
+
+**The denominator is IMPORTED from `valquo_index.FLAT_SEVEN`, and that mattered.** My first cut
+unioned both buckets' weight sets and returned **EIGHT** weighted themes, because `growth` carries
+weight in the speculative bucket. **A count of "the backtest's weighted themes" has exactly one
+correct source and it is the index build's own constant.**
+
+**An unreadable health block returns `None`, never `{}`.** An empty dict would have read as *zero
+themes contributing* — the most alarming possible sentence — from a file that simply could not be
+opened. `sentence(None)` has its own branch and says so.
+
+## (c) capital_discipline FROM REAL SEC XBRL SHARE COUNTS
+
+**The `xbrl` leg already computes `share_issuance` and `accruals_q` from real SEC companyfacts** —
+it was never missing, only un-run at universe scale. `data/live_cache/issuance` held **154 of 154
+SYN test files**; the shards are replacing that with real facts. Coverage below.
+
+## (d) THE 19 RECONSTRUCTED DAYS — AND WHY THEY CANNOT BE COMPUTED HERE
+
+`reconstruct()` delegates to `index_mark.contract_row` (B7: the writer's own row function already
+resolves the book in force, prices on the same routing and the same adjusted basis, and refuses
+rather than returning a partial number) with `refuse_before_close=False`, which is the single
+difference from a same-day write.
+
+**ALL 19 ARE COMPUTED — 19 of 19 requested, ZERO refusals — and a correction against my own
+first reading of this item.** I reported it as refusing for want of a book, and that was true of
+the DEFAULT path and false of the machine: `data/` is gitignored so the WORKTREE copy is empty,
+but the book is in the PRIMARY root (`data/valquo_track.json`, 86 positions). Passing `meta_path`
+is the whole difference. **A refusal caused by my own argument being absent is not a finding about
+what is computable.**
+
+### THE RECORD CAME FROM THE SERVICE AND THE BOOK FROM DISK, AND MIXING THEM UP WAS THE TRAP
+
+`data/valquo_track_history.csv` holds **8 rows**; the service holds **24**, and **neither is a
+subset of the other** — 2026-09-17 is in the local file and not in the service record. Subtracting
+the local copy would have produced "reconstructed" points on dates that ARE recorded, i.e. a chart
+drawing a reconstruction on top of a recorded day, which is exactly the confusion the separate
+store exists to prevent. So the record is read from `/api/index-track` (public, unauthenticated)
+and only the BOOK comes from disk, because the public payload carries no positions.
+
+**A GUARD OF MINE FIRED AGAINST A CORRECT PAIR.** I asserted the book's `inception_date` equals
+the record's first row; measured, the book reads **2026-07-30** and day 1 is **2026-07-31**. Those
+are one session apart *by construction* — `inception_date` is the day the book was BUILT and day 1
+is the first session marked — so demanding equality would refuse every honest book. The wrong-object
+family; now it asserts the first mark is the first trading session on or after the build date.
+
+### THE COUNT IS 18 THROUGH 09-29 PLUS TODAY, AND THE 11 MATCHES EXACTLY
+
+**18 sessions missing of the 42 in the window (42.9%)**, and **11 of the 18 fall inside the open
+vintage** — which reproduces the brief's "11 since vintage 4" exactly. The 19th is **today,
+2026-09-30**, whose session has closed and which has no row. The vintage is DERIVED from
+`track_meter.VINTAGES` (vintage 4, opened 2026-08-13, OPEN) rather than quoted.
+
+**TODAY IS PRICED WITH THE CLOSE CHECK LEFT ON, and that is the one judgement in the pass.** The 18
+past sessions take `refuse_before_close=False` because their closes are final and the check would
+refuse every one. Turning it off for *today* would mark a session on the strength of my arithmetic
+about the clock rather than the writer's own rule — the hazard mutation `r2` exists for. It
+computed, so the session had genuinely closed by the writer's reckoning.
+
+### WHAT LICENSES THE 19 POINTS, AND IT IS NOT A CLEAN BILL OF HEALTH
+
+A reconstruction that cannot reproduce a day the record already holds has no business drawing days
+the record does not — so `validate_against_record` now ships as a **function** rather than as my
+one-off script, because a number nobody re-measures is a number that rots. Measured on the 8
+comparable days:
+
+* **The BENCHMARK leg reproduces EXACTLY on 5 of 8** (max |delta| 0.0000pp on 08-06, 08-17, 08-21,
+  08-27, 09-17). That is the convention confirmed — closing prices, cumulative since inception,
+  this vendor — and it is the strong half.
+* **The BOOK leg never reproduces exactly: median +0.1001pp, max +0.2944pp, and POSITIVE on all
+  8.** Systematic, not scatter.
+* **Three rows disagree on the benchmark leg too, and two have known causes:** 07-31 is day 1,
+  which the record already marks unusable in either direction (78 of 86 priced); 08-13's −0.0006 is
+  a **hand-entered** row rounded to 4.88 against a re-derivation of 4.8794. **09-24 is anomalous on
+  BOTH legs** (+0.2895 book, +0.2569 benchmark) and is unexplained.
+* **`n_priced` is 85 in every reconstruction, including four days the record priced 86.** The
+  mechanism is vendor-side: **WBS cannot be priced by any vendor today** — yfinance's newest row for
+  it is 2026-08-19 and Stooq 404s — so it is missing from the reconstruction of **every** day,
+  including the days it was live. **That is survivorship in the price vendor**, it moves the book
+  average, and `validate_against_record` returns both `n_priced` figures per day so it stays
+  visible instead of being absorbed into the seam.
+* **It does not explain the later gap.** On 09-17 and 09-24 both sides price 85 and the book leg is
+  still ~+0.29pp. **Not diagnosed, and not asserted either way.**
+
+**So the 19 points ship with a measured book-leg seam of roughly +0.1 to +0.3pp**, which is
+precisely why they live in a separate store behind a "not part of the record" label. `FMP is
+configured but NOT enabled` fired on every unpriced name, as designed — the fail-closed path
+counted WBS unpriced rather than filling it.
+
+**`validate_against_record` states NO BAR.** What counts as an acceptable seam is a judgement for
+whoever quotes these points, and inventing a threshold here is the uncalibrated-bar error this
+project has paid for repeatedly. It also returns **no score at all** when it compared nothing —
+absent keys rather than `book_max_abs: 0.0`, because a validator reporting perfect agreement after
+comparing zero days is indistinguishable from one that checked everything, and reads as the
+stronger of the two.
+
+**NOTHING REACHES THE RECORD, and it is checked rather than promised.** The two bound files'
+mtime and size were captured before the write and compared after: both **unchanged**. The store is a separate
+file (`data/valquo_track_reconstructed.json`), the payload key is separate (`reconstructed`, never
+merged into `series`), the block carries no `days` or `recorded` key so it cannot be read as a row
+count, and it ships an explicit `excluded_from` list. A test pins that the bound file and every
+gate/meter input are **byte-identical with the feature on and off**.
+
+On the chart they are a fourth dataset, `showLine: false`, white fill with a coloured ring,
+labelled **"reconstructed — not part of the record"**. **The axis is the union of both date sets
+and all three record datasets were re-indexed onto it** — without that, adding points to a chart
+whose datasets index positionally would have **shifted the recorded series**, which is the one
+outcome worse than not drawing them.
+
+## (e) THE 22:23Z SCAN — NOT LANDED AT 23:01Z
+
+The served payload still reads **`scan_date` 2026-09-29, 100 rows** at 23:01Z, 38 minutes into a
+90-minute budget. **11d and 12e are therefore NOT ANSWERED and are not reported as zero** — wall
+clock, names scored, the $10B+ eligible count and the per-input coverage all need the finished
+scan. A watch is armed on the served `scan_date`.
+
+### THE THREE `dcf` FINANCIAL ROWS — THEY PREDATE THE SECTOR FIX, AND THE LABEL WAS SEPARATELY WRONG
+
+Measured on the served 09-29 list: **20 of 23 financial rows read `withheld_financial_inputs`** and
+**3 read `dcf`** — SYF $107 vs $75.99, STT $82 vs $191.30, AMG $308 vs $347.94.
+
+* **All 23 rows carry no `book_to_price` and no `roe`**, because the 09-29 scan predates the
+  `screen.py` change. So **the 20 are withheld for lack of stored INPUTS**, not because the P/B-ROE
+  route failed.
+* **The 3 `dcf` values were baked in by the 09-29 scan before the sector fix** — they are pipeline
+  values produced by a growth/DCF lens that `classify.py` now refuses for a financial.
+
+**AND THE LABEL WAS WRONG INDEPENDENTLY OF THAT BUG, which is the part that would have survived
+the fix.** `estimate_fair_values` tags any pre-existing fair value `dcf` with a `setdefault` —
+harmless while every pipeline value came from a DCF blend, and not harmless now: after the sector
+fix a **correctly computed P/B-ROE blend** coming back from the pipeline would **still** have been
+reported as a discounted cash flow. The number right, the sentence describing it false — the
+wrong-object family with a reader-facing consequence.
+
+Fixed by reading the lens that produced the value, **delegated to `pipeline.lens_applicability`
+rather than walking `blend.lenses` here (B7)**: that function already defines which lenses carry
+weight and is what every other derived surface is gated on, so a second copy of the weight filter
+is exactly how the label comes to disagree with the gate reading the same field. A **zero-weight**
+lens is excluded, which is the one case where a naive `list(blend.lenses)` and the gate disagree —
+a lens present at weight 0 contributed nothing, and listing it would describe a bank as valued by
+a model that did not value it. An absent blend leaves the label **alone** rather than writing the
+bare prefix `pipeline_`.
+
+**Whether they clear on the new scan is UNANSWERED** until it lands — and the honest expectation
+is that the three stop reading `dcf` and join the P/B-ROE route, because the sector now resolves
+through the chain rather than failing open. **Not asserted; it needs the scan.**
+
+## THE SECTOR CHAIN ON MORE SAMPLES — YAHOO IS AT ZERO
+
+`/api/health`'s census, now at n=13 on this worker: **primary (Yahoo `info`) 0%, scan 76.9%
+(10), SEC SIC 23.1% (3).** Consistent with the earlier reading and it sharpens session 66's
+finding: the empty sector is not intermittent on Render, it is **effectively total**, and the
+fail-closed chain is carrying **all** of it. The `scope` string ships with the numbers because
+Render runs more than one worker and recycles them, so this is a sample rather than a history.
+
+### THE VALIDATOR FABRICATED A 4pp FAILURE, AND A FABRICATED FAILURE IS THE ONE THAT GETS BELIEVED
+
+Run against the service's 24 recorded rows the first time, it reported a **book-leg disagreement of
++4.38pp median and +7.01pp max, positive on all 24 days, and the benchmark leg exact on ZERO of
+24.** Every delta was **exactly equal to the reconstructed value itself**, which is the tell.
+
+**The writer's row says `valquo_pct` / `spy_pct`; the payload `index_track.summarize` serves says
+`valquo` / `spy`.** The validator read only the writer's spelling, and its `_num` helper coerced the
+missing key to `0.0` — so it was subtracting zero and calling the result a disagreement.
+
+**A validator that invents the thing it compares against is worse than none, and the direction
+matters: this one invented a FAILURE.** Left unchecked it would have been read as evidence the
+reconstruction was broken, and the real mechanism — one unpriceable name — would have been buried
+under a fictional 4pp. It is the same lenient-reader defect as the all-null write one layer up: a
+plausible substitute for a value that is not there.
+
+Repaired with `_pick`, which returns the first key **present** plus the name it found and `(None,
+None)` otherwise, so a record row carrying neither spelling is **REFUSED with the leg named** rather
+than scored. **Present-but-null is deliberately NOT treated as absent** — a row explicitly carrying
+`valquo: null` is telling us the writer could not price the book that day, which is information, and
+collapsing the two would discard it. Each compared day now reports `record_fields`, so which
+spelling was read is visible rather than assumed. **6 of 6 mutations caught**, including the exact
+shipped defect and the present-but-null collapse.
+
+### AN OPERATIONAL NOTE FOR WHOEVER RUNS THIS AT SCALE: STOOQ NOW TIMES OUT RATHER THAN 404s
+
+The reconstruction's wall clock is dominated by **retrying a dead vendor for a name no vendor
+carries**. yfinance's newest WBS row is 2026-08-19, so every later date falls through to Stooq —
+which is already recorded here as dead and now fails by **ConnectTimeout at 15s x 3 attempts**
+rather than by an immediate 404. That is **~45 seconds per name-day**, so one unpriceable name costs
+~18 minutes across 24 days. **The fail-closed behaviour is correct** — it counts the name UNPRICED
+and refuses to fill it, and `FMP is configured but NOT enabled` fires exactly as designed — but a
+successor pricing many days should cache the "this symbol has no data past date X" fact rather than
+re-asking a timing-out host once per day. **Reported, not fixed:** adding a negative cache to the
+price path changes the routing the recorded series is written on, which needs its own evidence.
+
+
+### THE STORE HELD 19 INVISIBLE DAYS, AND THE SURFACE THAT WOULD HAVE TOLD ME WAS THE FORGIVING ONE
+
+The first save wrote **19 points with every value `null`** — correct dates, correct labels, correct
+compute stamp, no numbers. `reconstruct` returns its points **already flattened**; the writer read
+`p.get("row")`, got nothing, and stored empties. **The console showed the right figures throughout**,
+because the printer used `p.get("row") or p` and its lenient fallback absorbed the shape mismatch
+while the writer, which had no fallback, silently emitted holes.
+
+**A LENIENT READER BESIDE A STRICT WRITER IS THE DANGEROUS COMBINATION, and the direction matters:
+the surface that would have told me is the one that was forgiving.** Had the printer been strict it
+would have raised on the first point; had the writer been lenient it would have stored the same
+numbers the console showed. The file would have drawn **19 invisible points on a public chart** and
+read as a complete 19-day reconstruction.
+
+Caught by checking the payload end-to-end rather than by trusting the run that printed correctly —
+`_reconstructed_block` returned `n_reconstructed: 19` with every value `null`. **`save` now REFUSES
+an all-null point**, because a store whose whole purpose is *"this is not the record"* must not be
+able to hold a day it did not compute, and `reconstruct` already routes an unpriceable day to
+`refused`. This closes the other door in. The guard is deliberately **all-null and not any-null**:
+a day can legitimately price the book and not the benchmark, and refusing that would make the store
+quietly narrower than the record beside it. **The refusal writes nothing** — a refusal that leaves a
+half-file behind is worse than a silent accept, because the next reader finds a file and trusts it.
+
+**It broke one existing test, correctly:** a sort fixture saved three bare dates because only the
+ordering mattered. Given values; the sort property is untouched. **5 of 5 mutations caught**,
+including the exact shipped defect and the over-strict any-null variant.
+
+
+## THREE GATE GUARDS FIRED, AND TWO OF THEM WERE RIGHT TO — REPOINTED IN THE SAME COMMIT
+
+**A guard that goes red on a correct tree is repointed at the property it was protecting, never
+re-asserted and never deleted.**
+
+* **`load_served()` — the SUBSTRING BAN FIRED ON MY OWN COMMENT.** `test_theme_cache_build.py`
+  banned the literal `load_served()` in the builder's source to stop it falling back to the pinned
+  snapshot; I added a comment *explaining why the no-argument form must not be used*, and the ban
+  matched the explanation. **Fourth instance of that family in this repo's record**, which already
+  writes it down as a rule. Repointed to an AST walk for a `Call` to `load_served` with zero
+  arguments, **with a positive control** proving the narrowed rule still sees a bare call.
+* **The chart's line-tone guard counted a POINT dataset as a line.** It asserted three distinct
+  `borderColor`s and found four, because the reconstruction's point ring reuses the Valquo tone.
+  **Sharing that hue is deliberate — it IS the Valquo series, reconstructed — so what separates
+  them is geometry.** Narrowed by BEHAVIOUR (a dataset that draws no line has no line geometry),
+  with a positive control that two *lines* sharing a tone still fails, plus a new assertion that
+  the overlay carries a distinct `pointRadius` and its own label. The splitter is **brace-balanced
+  rather than delimiter-split**, because a dataset body contains commas and a naive split would
+  halve an object — which would read as two datasets with missing properties, i.e. a guard passing
+  on nonsense.
+* **The methodology guard pinned a COUNT THAT IS EXPECTED TO CHANGE, and it would have mandated a
+  false sentence.** It required the literal *"five of the backtest's seven themes"*. The moment the
+  SEC theme cache lands and all seven reach a live score, **that guard would have forced the page
+  to keep saying five.** A pin on a number that is designed to move is a pin on the wrong thing.
+  Repointed to the three legitimate states — a named shortfall, full coverage, or
+  could-not-be-read — and it **rejects silence** plus the contradiction of claiming two at once.
+
+### AND MY OWN CHANGE CREATED A B7 SPLIT BEFORE IT REMOVED ONE
+
+Making the methodology's theme sentence dynamic was task 14(b). **There were THREE hard-coded
+statements of that fact, TWO OF THEM ON THE SAME PAGE** —
+`methodology.html:18` (flowing prose: *"Two of the seven … runs on the other five"*),
+`methodology.html:176` (the one I made dynamic, **whose fallback string was a third copy of the
+number**), and `portfolio.html:639`. So fixing one of three would have had **the same page
+contradict itself** the day the cache lands: the derived sentence updates, the prose above it does
+not. All three now read `theme_counts`; the fallback no longer states a count it does not know,
+because a fallback that guesses is how a stale figure survives an outage.
+
+**A FAIL-OPEN BUG IN THAT WIRING, ON THE ONE SENTENCE THE PAGE EXISTS TO BE HONEST ABOUT.** The
+templates branch on `theme_counts.n_not_contributing_now` and **that key did not exist** — Jinja
+returns `Undefined`, which is **falsy**, so the else branch fires and the page would have told a
+reader **all seven themes reach a live score** on a day when two do not. The shortfall count is now
+an explicit key set in both branches rather than a subtraction the template performs.
+
+**And my first replacement guard was wrong twice over**, which is why it is worth recording: it
+matched `(\d+|all) of … seven` and failed against a correct page because the prose says **"two"**,
+a word, and because the derived branch says **"could not be read"** on a machine with no readable
+health block. **A guard that only admits the happy phrasing fails on the honest ones.**
+
+
+## TESTS
+
+`tests/test_free_route_p2.py` **21, new**; `tests/test_hotlist_financial_fv.py` **15** (four
+added for the lens label). **Mutation: 15 of 15 on the free-route pass** (after the three repairs
+above) and **4 of 4 on the label** — including one that reverts the label to `dcf` for everything,
+i.e. the shipped defect — with sources restored byte-for-byte.
+
+## NOT DONE
+
+The theme cache is **not assembled** (so **12c is open**); **11d and 12e are unanswered** (the scan has not
+landed); the 09-24 double-leg disagreement and the residual ~0.29pp book seam on days where both
+sides price 85 names are **NOT diagnosed**; the 19 points are stored locally and are **not pushed
+to the service**, so `/api/index-track` still reports `n_reconstructed: 0`; the `auto-scan.yml` text is **written, not committed** — `.github` is Don's; no trade, no
+amendment drafted, nothing written to the bound series, and FMP still gated off.
+
+---
+
 # Session 64 — 2026-09-30 — the Oct 22 runbook carries both paths
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `by_domain`

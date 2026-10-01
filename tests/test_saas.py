@@ -3,6 +3,7 @@ SaaS + optimizer tests (offline, deterministic — temp DB, no network).
     python tests/test_saas.py
 """
 import os
+import re
 import sys
 import tempfile
 
@@ -423,9 +424,37 @@ def test_methodology_page_is_public_and_states_the_weaknesses():
     # asserted because the page keeps the record of the earlier mislabelling. The live/backtest
     # theme gap (institutional and insider have no live source) replaces the retired B7 claim
     # that the two paths score differently -- they score identically (M4's replay harness).
-    for weakness in ("one 18-year", "undeflated", "dormant", "fails its conventional bar",
-                     "five of the backtest's seven themes"):
+    for weakness in ("one 18-year", "undeflated", "dormant", "fails its conventional bar"):
         assert weakness in body, f"methodology must keep the weakness: {weakness!r}"
+    # THE THEME-GAP DISCLOSURE IS A PROPERTY, NOT A LITERAL. This asserted the exact string
+    # "five of the backtest's seven themes", and the sentence is now derived from the live health
+    # block -- so the moment the SEC theme cache lands and all seven reach a live score, THE OLD
+    # GUARD WOULD HAVE MANDATED A FALSE SENTENCE. A pin on a count that is expected to change is
+    # a pin on the wrong thing; what must survive is that the page states how many of the seven
+    # weighted themes are live and, when any are dormant, which.
+    # THREE LEGITIMATE STATES, and the fourth -- saying nothing -- is the failure.
+    #
+    # A first cut of this guard matched `(\d+|all) of ... seven` and FAILED against a correct
+    # page twice over: the prose said "two", a WORD, and the derived branch says "could not be
+    # read" when the live health block is unreadable, which it is on a machine with no scan. A
+    # guard that only admits the happy phrasing fails on the honest ones.
+    shortfall = ("have no live data source" in body or "have no live source" in body)
+    complete = ("all 7 weighted themes reach a live score" in body
+                or "all seven weighted themes reach a live score" in body)
+    unknown = "could not be read" in body
+    assert shortfall or complete or unknown, (
+        "methodology no longer states whether every weighted theme reaches a live score; "
+        "that is the live/backtest gap and it may not be dropped")
+    if shortfall:
+        # A page reporting a SHORTFALL must name what is missing, or the count is unactionable.
+        assert ("institutional" in body or "insider" in body), (
+            "the page reports a theme shortfall without naming a dormant theme")
+    # AND THE PAGE MAY NOT SAY TWO OF THESE AT ONCE. Three copies of this sentence existed --
+    # two on THIS page, one in portfolio.html -- so making one dynamic would have had the page
+    # contradict itself the day the theme cache lands. They now read one source; this is what
+    # keeps them reading it.
+    assert not (shortfall and complete), (
+        "the page claims a theme shortfall and full coverage at the same time")
     for retired in ("kept private precisely", "not yet the same function",
                     "market-data subscription is degraded", "-6.65", "−6.65"):
         assert retired not in body, f"methodology still carries a retired claim: {retired!r}"

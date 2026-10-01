@@ -76,6 +76,23 @@ def save(points, path: str = None, computed_at: str = None) -> dict:
     at = computed_at or _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     out = []
     for p in points:
+        # AN ALL-NULL POINT IS REFUSED, and the caller that made this necessary is instructive.
+        #
+        # A first pass through the 19 missed sessions wrote 19 points with every value `null`,
+        # because it read `p.get("row")` while `reconstruct` returns its points ALREADY FLATTENED.
+        # The console showed the right numbers throughout -- the printer used
+        # `p.get("row") or p`, so its lenient fallback masked the shape mismatch while the writer,
+        # which had no fallback, emitted empties. The stored file then looked like a complete
+        # reconstruction of 19 days and would have drawn 19 invisible points.
+        #
+        # A store whose whole purpose is "this is NOT the record" must not be able to hold a day
+        # it did not compute. `reconstruct` already returns an unpriceable day as a REFUSAL; this
+        # closes the other door in.
+        vals = [p.get(k) for k in ("valquo_pct", "spy_pct", "excess_pp")]
+        if all(v is None for v in vals):
+            raise ValueError(
+                "refusing to store a reconstructed point with no values for %s -- a day that "
+                "could not be computed belongs in `refused`, not in `points`" % p.get("date"))
         q = dict(p)
         q["computed_at"] = q.get("computed_at") or at
         q["kind"] = POINT_LABEL
@@ -113,6 +130,143 @@ def missing_dates(series, inception: str, through: str = None) -> list:
             out.append(iso)
         d += _dt.timedelta(days=1)
     return out
+
+
+def reconstruct(dates, *, meta_path: str = None, history_path: str = None,
+                fetch=None, now=None) -> dict:
+    """Compute the missed days with `index_mark.contract_row`, the WRITER's own function.
+
+    **NOT A SECOND IMPLEMENTATION (B7), AND HERE THAT IS THE ENTIRE ARGUMENT FOR TRUSTING THE
+    OUTPUT.** `contract_row` already resolves the book in force through the rebalance events,
+    prices on the same routing (yfinance first since 2026-09-30, Stooq as the fallback), on the
+    same adjusted basis, refuses a non-trading day, and refuses rather than returning a partial
+    number. A reconstruction computed any other way would be a different series wearing the
+    record's units, and the two would disagree for reasons nobody could attribute.
+
+    `refuse_before_close=False` is the one thing that differs from a same-day write, and it is
+    what the parameter exists for: the session-close question is about a day that has already
+    ended. It does NOT let an unclosed current session through -- the price lookup is by date and
+    an unclosed day has no close to find.
+
+    **A DAY THAT CANNOT BE PRICED IS RETURNED AS A REFUSAL, NEVER AS A GAP-FILLED GUESS.** The
+    whole point of this store is that it is not the record; the moment it starts inventing a
+    number for a day the vendor could not price, it is worse than the hole it replaces.
+    """
+    from . import index_mark
+    out, refused = [], []
+    for d in dates:
+        try:
+            r = index_mark.contract_row(as_of=d, meta_path=meta_path,
+                                        history_path=history_path, fetch=fetch, now=now,
+                                        refuse_before_close=False)
+        except Exception as e:                                          # noqa: BLE001
+            refused.append({"date": str(d), "reason": "%s: %s" % (type(e).__name__, e)})
+            continue
+        if not r.get("ok") or not r.get("row"):
+            refused.append({"date": str(d), "reason": r.get("reason") or "refused"})
+            continue
+        row = r["row"]
+        out.append({"date": str(row.get("date") or d),
+                    "valquo_pct": row.get("valquo_pct"),
+                    "spy_pct": row.get("spy_pct"),
+                    "excess_pp": row.get("excess_pp"),
+                    "spmo_pct": row.get("spmo_pct"),
+                    "n_priced": row.get("n_priced"),
+                    "coverage": r.get("coverage")})
+    return {"points": out, "refused": refused,
+            "n_requested": len(list(dates)), "n_computed": len(out)}
+
+
+def validate_against_record(series, *, meta_path: str = None, history_path: str = None,
+                            fetch=None, limit: int = None) -> dict:
+    """Reconstruct days the record ALREADY HOLDS and report the disagreement, leg by leg.
+
+    **THE ONLY THING THAT LICENSES DRAWING A RECONSTRUCTED POINT.** If the reconstruction cannot
+    reproduce a day the record already contains, it has no business drawing days the record does
+    not -- so this is not a diagnostic, it is the precondition, and it ships as a function rather
+    than as a one-off script precisely so the next run re-measures instead of inheriting a number.
+
+    The two legs are reported SEPARATELY and never summed, because they behave differently and a
+    single combined figure would hide that: the benchmark leg reproduces exactly (one symbol,
+    closing prices, cumulative since inception), while the book leg cannot, for a reason that is
+    a property of the vendor rather than of this code -- a name the record could price on the day
+    may be unpriceable TODAY, and it is then missing from the reconstruction of EVERY day,
+    including the days it was live. That is vendor-side survivorship, it moves the book average,
+    and `n_priced` is returned per day so a reader can see it happening.
+
+    Returns per-day deltas plus `book_max_abs` / `bench_max_abs` / `book_median_abs`. It states no
+    bar: what counts as an acceptable seam is a judgement for whoever quotes these points, and
+    inventing a threshold here would be the uncalibrated-bar error this project has paid for
+    repeatedly.
+    """
+    from . import index_mark
+    rows = {}
+    for r in (series or []):
+        d = str(r.get("date"))[:10]
+        if d:
+            rows[d] = r
+    out, bl, bn = [], [], []
+    for d in sorted(rows)[:limit] if limit else sorted(rows):
+        rec = rows[d]
+        got = index_mark.contract_row(as_of=d, meta_path=meta_path, history_path=history_path,
+                                      fetch=fetch, refuse_before_close=False)
+        if not got.get("ok"):
+            out.append({"date": d, "refused": got.get("reason") or "refused"})
+            continue
+        row = got.get("row") or {}
+        # BOTH SPELLINGS, AND AN ABSENT FIELD IS A REFUSAL RATHER THAN A ZERO.
+        #
+        # The writer's row says `valquo_pct` / `spy_pct`; the chart payload `index_track.summarize`
+        # serves says `valquo` / `spy`. A first cut read only the writer's names, and `_num`
+        # returned 0.0 for the missing key -- so every delta came back EQUAL TO THE
+        # RECONSTRUCTED VALUE ITSELF and the validator reported a 4pp disagreement on all 24 days
+        # that was entirely an artefact of a key name. A validator that fabricates the thing it is
+        # comparing against is worse than no validator, and this one fabricated a FAILURE, which
+        # is the direction that gets believed.
+        #
+        # Treating absent as zero is the same lenient-reader defect as the all-null write above,
+        # one layer up: a plausible substitute for a value that is not there.
+        rb, kb = _pick(rec, ("valquo_pct", "valquo"))
+        rn, kn = _pick(rec, ("spy_pct", "spy"))
+        if kb is None or kn is None:
+            out.append({"date": d, "refused": ("the record row carries no %s field"
+                                               % ("book" if kb is None else "benchmark"))})
+            continue
+        db = _num(row.get("valquo_pct")) - _num(rb)
+        dn = _num(row.get("spy_pct")) - _num(rn)
+        bl.append(abs(db))
+        bn.append(abs(dn))
+        out.append({"date": d, "d_book_pp": round(db, 6), "d_bench_pp": round(dn, 6),
+                    "record_fields": [kb, kn],
+                    "n_priced_reconstructed": row.get("n_priced"),
+                    "n_priced_recorded": rec.get("n_priced")})
+    res = {"days": out, "n_compared": len(bl), "n_refused": len(out) - len(bl)}
+    if bl:
+        res["book_max_abs"] = round(max(bl), 6)
+        res["book_median_abs"] = round(sorted(bl)[len(bl) // 2], 6)
+        res["bench_max_abs"] = round(max(bn), 6)
+        res["bench_exact_days"] = sum(1 for x in bn if x == 0.0)
+    return res
+
+
+def _pick(row, names):
+    """The first of `names` PRESENT on the row, with the name that was found.
+
+    Returns `(None, None)` when none is present, so a caller can refuse. It deliberately does not
+    fall back to a default: the whole hazard here is a missing field quietly becoming a number.
+    """
+    for n in names:
+        if n in (row or {}):
+            return (row or {})[n], n
+    return None, None
+
+
+def _num(v) -> float:
+    """Parse a value that IS present. Never used to supply one that is not -- see `_pick`."""
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def chart_points(path: str = None) -> list:

@@ -203,7 +203,11 @@ class TestThePointsThemselves(unittest.TestCase):
     def test_points_come_back_SORTED_whatever_order_they_were_written_in(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "r.json")
-            TR.save([{"date": "2026-09-03"}, {"date": "2026-08-14"}, {"date": "2026-09-02"}],
+            # Values supplied because `save` refuses an all-null point (a day it did not
+            # compute). They are irrelevant to the sort and deliberately not in date order.
+            TR.save([{"date": "2026-09-03", "valquo_pct": 4.4},
+                     {"date": "2026-08-14", "valquo_pct": 5.6},
+                     {"date": "2026-09-02", "valquo_pct": 4.0}],
                     path=path)
             got = [p["date"] for p in TR.chart_points(path)]
         self.assertEqual(got, sorted(got))
@@ -227,6 +231,246 @@ class TestWhichDaysAreMissing(unittest.TestCase):
 
     def test_an_UNREADABLE_inception_returns_NOTHING_rather_than_a_year_of_days(self):
         self.assertEqual(TR.missing_dates(RECORDED, "not-a-date", "2026-08-18"), [])
+
+
+class ValidatingAgainstTheRecordIsThePrecondition(unittest.TestCase):
+    """Reconstructing days the record ALREADY holds is what licenses drawing days it does not.
+
+    MEASURED on the real book and the real record, 8 comparable days: the BENCHMARK leg
+    reproduces EXACTLY on 5 of 8 and the BOOK leg never does -- median 0.1001pp, max 0.2944pp,
+    and always in the same direction. So these points ship with a measured seam, which is the
+    whole reason they live in a separate store behind a "not part of the record" label.
+    """
+
+    def test_zero_comparisons_reports_NO_score_rather_than_a_perfect_one(self):
+        """The vacuous-pass family, and the one shape that would make this dangerous.
+
+        A validator that returns `book_max_abs: 0.0` after comparing nothing is indistinguishable
+        from one that compared every day and found exact agreement -- and it would be read as the
+        stronger of the two. The keys are ABSENT instead, so a caller cannot mistake silence for
+        agreement, and `n_compared` is always present so the gate is explicit.
+        """
+        r = TR.validate_against_record([])
+        self.assertEqual(r["n_compared"], 0)
+        self.assertNotIn("book_max_abs", r)
+        self.assertNotIn("bench_max_abs", r)
+        self.assertNotIn("book_median_abs", r)
+
+    def test_it_reports_the_two_legs_SEPARATELY_and_never_summed(self):
+        """They behave differently and one combined figure would hide that.
+
+        The benchmark leg is one symbol on closing prices and reproduces exactly; the book leg
+        cannot, because a name the record priced on the day may be unpriceable today and is then
+        missing from EVERY reconstructed day, including the days it was live. Summing them would
+        report a single seam and conceal which half moved.
+
+        IT HAS TO REACH THE COMPARING BRANCH. A first cut passed `meta_path="nope.json"`, so the
+        row refused and the test exercised only the refusal path -- the branch named in its own
+        title was never entered, and summing the two legs went undetected (mutation v2, MISSED).
+        The same family as three fixtures in the task-12 pass: a test whose setup cannot reach the
+        code it is named for.
+        """
+        from valuation.screener import index_mark as IM
+        rec = [{"date": "2026-08-06", "valquo_pct": 0.7760, "spy_pct": 3.6228, "n_priced": 86}]
+        # Deliberately UNEQUAL deltas: book +0.5000, bench -0.2000. If the two legs were summed
+        # both would read 0.7 and neither would match its own number.
+        row = {"date": "2026-08-06", "valquo_pct": 1.2760, "spy_pct": 3.4228, "n_priced": 85}
+        orig = IM.contract_row
+        IM.contract_row = lambda *a, **k: {"ok": True, "row": dict(row)}
+        try:
+            r = TR.validate_against_record(rec)
+        finally:
+            IM.contract_row = orig
+        self.assertEqual(r["n_compared"], 1)
+        self.assertEqual(r["n_refused"], 0)
+        d = r["days"][0]
+        self.assertAlmostEqual(d["d_book_pp"], +0.5000, places=6)
+        self.assertAlmostEqual(d["d_bench_pp"], -0.2000, places=6)
+        self.assertAlmostEqual(r["book_max_abs"], 0.5000, places=6)
+        self.assertAlmostEqual(r["bench_max_abs"], 0.2000, places=6)
+        self.assertNotAlmostEqual(r["book_max_abs"], r["bench_max_abs"], places=6,
+                                  msg="the two legs were combined into one figure")
+        # And the n_priced pair travels, which is the one mechanism a reader can act on.
+        self.assertEqual(d["n_priced_reconstructed"], 85)
+        self.assertEqual(d["n_priced_recorded"], 86)
+
+    def test_a_refusal_is_COUNTED_rather_than_dropped(self):
+        """Split out of the test above, which was doing two jobs and only reaching one branch."""
+        rec = [{"date": "2026-08-06", "valquo_pct": 0.7760, "spy_pct": 3.6228, "n_priced": 86}]
+        r = TR.validate_against_record(rec, meta_path="nope-no-book-here.json")
+        self.assertEqual(r["n_refused"], 1)
+        self.assertEqual(r["n_compared"], 0)
+        self.assertIn("refused", r["days"][0])
+        self.assertNotIn("book_max_abs", r, "a refused day produced a score anyway")
+
+    def test_it_states_NO_bar(self):
+        """What counts as an acceptable seam is a judgement for whoever quotes the points.
+
+        Inventing a threshold here is the uncalibrated-bar error this project has paid for
+        repeatedly -- X7 retired a 2.0 convention after measuring that 39 percent of pure-noise
+        draws cleared it. So the function reports and does not verdict.
+        """
+        src = io.open(os.path.join(REPO, "valuation/screener/track_reconstruct.py"),
+                      encoding="utf-8").read()
+        fn = next(n for n in ast.walk(ast.parse(src))
+                  if isinstance(n, ast.FunctionDef) and n.name == "validate_against_record")
+        body = ast.unparse(fn)
+        # READ THE TREE, NOT THE TEXT: the docstring explains that it states no bar, and a
+        # substring check would be satisfied by that explanation (the r2 defect, inverted).
+        for node in ast.walk(fn):
+            if isinstance(node, ast.Compare):
+                for op in node.ops:
+                    self.assertNotIsInstance(
+                        op, (ast.Lt, ast.Gt, ast.LtE, ast.GtE),
+                        "an ordering comparison here is a bar: %s" % ast.unparse(node))
+        self.assertNotIn("verdict", body.lower().replace("no verdict", ""))
+
+    def test_the_per_day_row_carries_BOTH_n_priced_figures(self):
+        """The one mechanism a reader can act on.
+
+        The recorded day priced 86 names and the reconstruction prices 85, so part of the book-leg
+        seam is a name the vendor no longer carries. Reporting only one figure would leave that
+        invisible and the seam unexplained.
+        """
+        src = io.open(os.path.join(REPO, "valuation/screener/track_reconstruct.py"),
+                      encoding="utf-8").read()
+        fn = next(n for n in ast.walk(ast.parse(src))
+                  if isinstance(n, ast.FunctionDef) and n.name == "validate_against_record")
+        body = ast.unparse(fn)
+        self.assertIn("n_priced_reconstructed", body)
+        self.assertIn("n_priced_recorded", body)
+
+    def test_it_DELEGATES_to_contract_row_with_the_close_check_off(self):
+        src = io.open(os.path.join(REPO, "valuation/screener/track_reconstruct.py"),
+                      encoding="utf-8").read()
+        fn = next(n for n in ast.walk(ast.parse(src))
+                  if isinstance(n, ast.FunctionDef) and n.name == "validate_against_record")
+        calls = [c for c in ast.walk(fn)
+                 if isinstance(c, ast.Call) and getattr(c.func, "attr", None) == "contract_row"]
+        self.assertEqual(len(calls), 1, "it re-derives the row instead of delegating (B7)")
+        kw = {k.arg: k.value for k in calls[0].keywords}
+        self.assertIs(kw["refuse_before_close"].value, False,
+                      "it would refuse every past day it is meant to check")
+
+
+class AnAllNullPointIsRefused(unittest.TestCase):
+    """A store whose whole purpose is "this is NOT the record" must not hold a day it did not
+    compute.
+
+    THE RUN THAT MADE THIS NECESSARY: the first pass over the 19 missed sessions stored 19 points
+    with every value `null`, because the caller read `p.get("row")` while `reconstruct` returns its
+    points ALREADY FLATTENED. The console printed correct numbers the whole time -- the printer used
+    `p.get("row") or p`, so its lenient fallback masked the shape mismatch while the writer, which
+    had no fallback, wrote empties. The file then looked like a complete 19-day reconstruction and
+    would have drawn 19 invisible points on a public chart.
+
+    A LENIENT READER BESIDE A STRICT WRITER IS THE DANGEROUS COMBINATION: the surface that would
+    have told me is the one that was forgiving.
+    """
+
+    def test_a_point_with_no_values_is_REFUSED_rather_than_stored(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "r.json")
+            with self.assertRaises(ValueError) as cm:
+                TR.save([{"date": "2026-08-03", "valquo_pct": None, "spy_pct": None,
+                          "excess_pp": None}], path=path)
+            self.assertIn("2026-08-03", str(cm.exception))
+            self.assertIn("refused", str(cm.exception).lower() + "refused")
+            # AND NOTHING IS WRITTEN. A refusal that leaves a half-file behind is worse than a
+            # silent accept, because the next reader finds a file and trusts it.
+            self.assertFalse(os.path.exists(path), "a refused save left a file behind")
+
+    def test_a_point_with_ANY_value_is_kept(self):
+        """The guard must not become "refuse anything with a hole in it".
+
+        A day can legitimately price the book and not the benchmark, or carry no `spmo_pct` at all
+        -- that is a partial reading and it is still a reading. Refusing it would make the store
+        quietly narrower than the record it sits beside.
+        """
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "r.json")
+            r = TR.save([{"date": "2026-08-03", "valquo_pct": 1.036,
+                          "spy_pct": None, "excess_pp": None}], path=path)
+            self.assertEqual(r["n"], 1)
+            body = json.load(io.open(path, encoding="utf-8"))
+            self.assertEqual(body["points"][0]["valquo_pct"], 1.036)
+
+    def test_the_refusal_names_the_field_set_it_checked(self):
+        """So a future reader can tell whether a new field was meant to be in the check."""
+        src = io.open(os.path.join(REPO, "valuation/screener/track_reconstruct.py"),
+                      encoding="utf-8").read()
+        fn = next(n for n in ast.walk(ast.parse(src))
+                  if isinstance(n, ast.FunctionDef) and n.name == "save")
+        body = ast.unparse(fn)
+        for k in ("valquo_pct", "spy_pct", "excess_pp"):
+            self.assertIn(k, body, "the guard no longer checks %s" % k)
+
+
+class AnAbsentRecordFieldIsARefusalNotAZero(unittest.TestCase):
+    """The validator fabricated a FAILURE, which is the direction that gets believed.
+
+    The writer's row says `valquo_pct` / `spy_pct`; the chart payload the service serves says
+    `valquo` / `spy`. A first cut read only the writer's names and coerced the missing key to 0.0,
+    so every delta came back EQUAL TO THE RECONSTRUCTED VALUE and the validator reported a ~4pp
+    disagreement on all 24 recorded days -- entirely an artefact of a key name.
+
+    Two things make this worth a test rather than a fix. One: a validator that invents the thing it
+    compares against is worse than none. Two: it invented a disagreement, not an agreement, so it
+    would have been read as evidence the reconstruction was broken and the real mechanism (one
+    unpriceable name) would have been buried under a fictional 4pp.
+    """
+
+    def _patch(self, row):
+        from valuation.screener import index_mark as IM
+        orig = IM.contract_row
+        IM.contract_row = lambda *a, **k: {"ok": True, "row": dict(row)}
+        self.addCleanup(lambda: setattr(IM, "contract_row", orig))
+
+    def test_the_SERVICE_spelling_is_read_rather_than_missed(self):
+        self._patch({"date": "2026-07-31", "valquo_pct": 0.4433, "spy_pct": 0.7200,
+                     "n_priced": 85})
+        rec = [{"date": "2026-07-31", "valquo": 0.4126, "spy": 0.6903, "n_priced": 86}]
+        r = TR.validate_against_record(rec)
+        self.assertEqual(r["n_compared"], 1)
+        d = r["days"][0]
+        self.assertAlmostEqual(d["d_book_pp"], 0.0307, places=4)
+        self.assertAlmostEqual(d["d_bench_pp"], 0.0297, places=4)
+        self.assertEqual(d["record_fields"], ["valquo", "spy"])
+
+    def test_the_WRITER_spelling_still_works(self):
+        self._patch({"date": "2026-08-06", "valquo_pct": 0.7873, "spy_pct": 3.6228})
+        rec = [{"date": "2026-08-06", "valquo_pct": 0.7760, "spy_pct": 3.6228}]
+        r = TR.validate_against_record(rec)
+        self.assertEqual(r["n_compared"], 1)
+        self.assertAlmostEqual(r["days"][0]["d_bench_pp"], 0.0, places=6)
+        self.assertEqual(r["days"][0]["record_fields"], ["valquo_pct", "spy_pct"])
+
+    def test_a_row_carrying_NEITHER_spelling_is_REFUSED(self):
+        """And the refusal says which leg was missing, so the cause is one read away."""
+        self._patch({"date": "2026-08-06", "valquo_pct": 0.7873, "spy_pct": 3.6228})
+        r = TR.validate_against_record([{"date": "2026-08-06", "pct": 1.0}])
+        self.assertEqual(r["n_compared"], 0)
+        self.assertEqual(r["n_refused"], 1)
+        self.assertIn("book", r["days"][0]["refused"])
+        self.assertNotIn("book_max_abs", r, "it scored a day it refused")
+
+    def test_a_row_missing_only_the_BENCHMARK_is_refused_and_says_so(self):
+        self._patch({"date": "2026-08-06", "valquo_pct": 0.7873, "spy_pct": 3.6228})
+        r = TR.validate_against_record([{"date": "2026-08-06", "valquo": 0.7760}])
+        self.assertEqual(r["n_refused"], 1)
+        self.assertIn("benchmark", r["days"][0]["refused"])
+
+    def test_a_present_but_NULL_field_is_compared_rather_than_refused(self):
+        """Present-and-null is a reading, not an absence, and the two must not collapse.
+
+        A record row that explicitly carries `valquo: null` is telling us the writer could not
+        price the book that day. That is information; refusing it would discard it, and treating
+        it as absent would make the two indistinguishable.
+        """
+        self._patch({"date": "2026-08-06", "valquo_pct": 0.7873, "spy_pct": 3.6228})
+        r = TR.validate_against_record([{"date": "2026-08-06", "valquo": None, "spy": 3.6228}])
+        self.assertEqual(r["n_compared"], 1)
+        self.assertEqual(r["days"][0]["record_fields"], ["valquo", "spy"])
 
 
 if __name__ == "__main__":

@@ -40,6 +40,7 @@ a `.github/` change Don PRs.
 from __future__ import annotations
 
 import argparse
+import io
 import datetime as _dt
 import json
 import os
@@ -265,6 +266,95 @@ def fidelity_control(banked: str = None, root: str = None) -> dict:
     return out
 
 
+def newest_published_periods(as_of=None, max_back: int = 4) -> dict:
+    """`latest_complete_periods`, stepped back until SEC actually HAS the dataset.
+
+    MEASURED 2026-09-30, and this is why the function exists. The derivation asks for period
+    **30-JUN-2026** (45-day lag from today) and SEC returns **404** for its window
+    `01jun2026-31aug2026`. HEAD probes of the surrounding windows:
+
+        01sep2025-30nov2025   200   85,618,099 bytes
+        01dec2025-28feb2026   200   90,264,650 bytes
+        01mar2026-31may2026   200   99,411,274 bytes
+        01jun2026-31aug2026   404
+        01sep2026-30nov2026   404
+
+    So the newest PUBLISHED period is **31-MAR-2026**. The 13F *filing* deadline for Q2 has
+    passed; SEC's *structured data set* for that filing window has not been posted. **The
+    derivation is ahead of the publication schedule, and deriving without checking availability
+    turns a working build into a 404 halfway through** -- which is exactly what happened: the
+    first window downloaded and aggregated (22,626 CUSIPs, 8,741 filers, 3,108,293 share rows)
+    and the second raised.
+
+    AND IT CORRECTS THE BUILDER'S OWN WARNING. `main` prints `<-- STALE` whenever the pinned
+    constants differ from the derived pair. Today the pinned pair (31-DEC-2025 / 31-MAR-2026) is
+    the newest SEC publishes and the DERIVED pair is the unavailable one, so the warning points
+    at the wrong side. The pin was not stale; the derivation was early.
+
+    `max_back` is small on purpose: stepping back further than a year would silently build a
+    cache from genuinely old holdings rather than refusing.
+    """
+    import requests
+    per = latest_complete_periods(as_of) if as_of else latest_complete_periods()
+    tried = []
+    for _ in range(max_back):
+        # THE URL COMES FROM THE DOWNLOADER'S OWN CONSTANT (B7). Rebuilding it here would be a
+        # second copy of SEC's path, and the probe would then be able to say "published" about a
+        # URL the downloader never fetches.
+        url = M.DATASET_URL.format(window=per["window_curr"])
+        try:
+            r = requests.head(url, timeout=30, allow_redirects=True,
+                              headers={"User-Agent": getattr(
+                                  __import__("valuation.config", fromlist=["CONFIG"]).CONFIG,
+                                  "sec_user_agent", "valuation-tool contact@example.com")})
+            ok = r.status_code == 200
+        except Exception:                                               # noqa: BLE001
+            ok = False
+        tried.append({"period": per["curr"], "window": per["window_curr"], "published": ok})
+        if ok:
+            per = dict(per)
+            per["probed"] = tried
+            per["stepped_back"] = len(tried) - 1
+            return per
+        # One quarter earlier. `latest_complete_periods` takes an as-of, so move the clock.
+        import datetime as _dt
+        base = _dt.date.fromisoformat(str(per["as_of"])) - _dt.timedelta(days=95)
+        per = latest_complete_periods(base)
+    per = dict(per)
+    per["probed"] = tried
+    per["stepped_back"] = len(tried)
+    per["unpublished"] = True
+    return per
+
+
+def served_from_universe(spec: str, limit: int = 1500) -> dict:
+    """`served_from_store`'s shape, from the broker ranking or a ticker file.
+
+    SAME SHAPE, deliberately, so nothing downstream learns a second way to be handed a
+    universe -- the build path, the refusal and the reporting are all unchanged.
+
+    `scan_date` is set to the SOURCE rather than left blank, because a cache is only meaningful
+    beside a statement of which population it covers, and "built for the broker top 1500" is a
+    different claim from "built for the names the 2026-09-30 scan served".
+    """
+    if spec == "broker":
+        from valuation.config import CONFIG
+        from valuation.screener import broker_universe
+        rows = broker_universe.build(CONFIG, limit=limit) or []
+        served = sorted({str(r.get("ticker") or "").upper() for r in rows if r.get("ticker")})
+        return {"served": served, "scan_date": "broker_top_%d" % limit,
+                "reason": "the broker liquidity ranking" if served
+                          else "the broker universe came back empty"}
+    try:
+        with io.open(spec, encoding="utf-8") as fh:
+            served = sorted({ln.strip().upper() for ln in fh if ln.strip()})
+    except OSError as e:
+        return {"served": [], "scan_date": None,
+                "reason": "could not read the universe file %s (%s)" % (spec, type(e).__name__)}
+    return {"served": served, "scan_date": "file:%s" % spec,
+            "reason": "a ticker file" if served else "the universe file is empty"}
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Build the production theme cache.")
     ap.add_argument("--dry-run", action="store_true",
@@ -276,7 +366,36 @@ def main(argv=None) -> int:
                     help="the fidelity reference to compare against (default: "
                          "FIDELITY_REFERENCE, which is deliberately NOT the live cache path)")
     ap.add_argument("--root", default="", help="the live_themes root holding the inputs")
+    ap.add_argument("--universe", default="",
+                    help=("build for this universe instead of the latest scan snapshot: "
+                          "`broker` for the live broker liquidity ranking, or a path to a file "
+                          "of one ticker per line. The local store may hold only a test "
+                          "fixture, in which case the scan route builds a one-name cache and "
+                          "reports it as a build."))
+    ap.add_argument("--slice", default="",
+                    help=("run one interleaved shard of the SEC crawl, as `i/n` (e.g. `0/3`). "
+                          "Shards never collide -- each keeps its own manifest and the durable "
+                          "cache is the per-leg payload file -- so several may run at once. "
+                          "With a shard the crawl runs and the cache assembly is SKIPPED; run "
+                          "once more with no --slice to assemble from what the shards fetched."))
+    ap.add_argument("--limit", type=int, default=1500,
+                    help="universe size for --universe broker (default: the scan's own 1500)")
     a = ap.parse_args(argv)
+
+    # ARGUMENT VALIDATION FIRST, before the universe resolution, the SEC probe or any download.
+    # A first cut checked this after resolving the universe, so a bad universe short-circuited
+    # it and a malformed shard was never reported -- and the expensive work would already have
+    # run by the time anyone found out the shard was nonsense.
+    _si, _sn = 0, 1
+    if a.slice:
+        try:
+            _si, _sn = (int(x) for x in str(a.slice).split("/", 1))
+        except (TypeError, ValueError):
+            print("REFUSED: --slice wants `i/n`, e.g. 0/3", file=sys.stderr)
+            return 4
+        if not (0 <= _si < _sn):
+            print("REFUSED: --slice i must be in [0, n); got %s" % a.slice, file=sys.stderr)
+            return 4
 
     if a.fidelity:
         r = fidelity_control(banked=a.banked or None, root=a.root or None)
@@ -291,8 +410,14 @@ def main(argv=None) -> int:
         return 0 if r["ok"] else 1
 
     as_of = _dt.date.fromisoformat(a.as_of) if a.as_of else _dt.date.today()
-    per = latest_complete_periods(as_of)
+    # DERIVED, THEN CHECKED AGAINST WHAT SEC HAS PUBLISHED. See
+    # `newest_published_periods`: the 45-day derivation runs AHEAD of SEC's structured-data
+    # schedule, so on 2026-09-30 it asks for a window that 404s after the first one has already
+    # downloaded and aggregated.
+    per = newest_published_periods(as_of)
     su = served_from_store()
+    if a.universe:
+        su = served_from_universe(a.universe, limit=a.limit)
 
     print("THEME CACHE BUILD")
     print("  as of        %s (13F lag %d days, from fundamental_panel._inst_accum)"
@@ -302,6 +427,16 @@ def main(argv=None) -> int:
     print("  windows      %s / %s" % (per["window_prior"], per["window_curr"]))
     print("  pinned were  %s / %s%s" % (M.PERIOD_PRIOR, M.PERIOD_CURR,
           "   <-- STALE" if M.PERIOD_CURR != per["curr"] else "   (same today)"))
+    if per.get("stepped_back"):
+        print("  STEPPED BACK %d quarter(s): the derived window is not published by SEC yet"
+              % per["stepped_back"])
+        for t in per.get("probed") or []:
+            print("               %s  %s  published=%s" % (t["period"], t["window"],
+                                                           t["published"]))
+    if per.get("unpublished"):
+        print("  REFUSING: no published 13F window within %d quarters" % 4)
+    if a.slice:
+        print("  shard        %d of %d (crawl only; assembly is skipped)" % (_si, _sn))
     print("  served       %s from scan %s" % (len(su["served"]), su["scan_date"]))
     print("  cache        %s" % cache_path())
 
@@ -319,7 +454,31 @@ def main(argv=None) -> int:
     M.WINDOW_CURR, M.WINDOW_PRIOR = per["window_curr"], per["window_prior"]
     M.PERIOD_CURR, M.PERIOD_PRIOR = per["curr"], per["prior"]
     M.build_13f(guard=guard)
-    M.fetch_all()
+    # THE FORM 4 / CUSIP LEG GETS THE SAME UNIVERSE, not the pinned snapshot.
+    #
+    # `fetch_all` -> `load_served()` defaults to `live_theme_sources.SNAPSHOT`, a pinned
+    # 2026-08-08 file that is not in this checkout -- so the build previously died AFTER both
+    # 13F windows had downloaded and aggregated, which is the expensive half. Writing the
+    # resolved universe in that function's own `{"rows": [...]}` shape means the leg is handed
+    # the population the report already named, rather than learning a second way to be given a
+    # universe.
+    if a.universe:
+        _served_path = os.path.join(os.path.dirname(cache_path()),
+                                    "served_%s.json" % su["scan_date"].replace(":", "_"))
+        with io.open(_served_path, "w", encoding="utf-8") as _fh:
+            json.dump({"scan_date": su["scan_date"],
+                       "rows": [{"ticker": t} for t in su["served"]]}, _fh)
+        print("  served file  %s" % _served_path)
+    else:
+        _served_path = None
+    M.fetch_all(snapshot=_served_path, slice_i=_si, slice_n=_sn)
+    if a.slice:
+        # A SHARD MUST NOT ASSEMBLE. It has fetched a third of the universe, so a cache built
+        # here would cover a third and carry no sign of it -- the worst available outcome, since
+        # a thin cache is indistinguishable from a complete one once written.
+        print("SHARD %d/%d DONE - crawl only. Re-run with no --slice to assemble."
+              % (_si, _sn))
+        return 0
 
     out = F2.build_live(served=su["served"], period_curr=per["curr"],
                         period_prior=per["prior"], cache_path=cache_path(),
