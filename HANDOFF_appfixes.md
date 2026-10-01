@@ -210,6 +210,129 @@ Add to the `hot` job's existing `env:` block, beside `ISSUANCE_CACHE_DIR`:
 **12c is not closed** — those two themes are not live in the scan until the assemble run finishes
 and the `hot` job reads it. Coverage is reported below only for what the shards have fetched.
 
+## THE CRAWL IS DONE AND BANKED; ASSEMBLY IS BLOCKED ON TWO WIRING GAPS, BOTH LOCATED
+
+**CRAWL COMPLETE: 1,500 names, 12,406 SEC calls, 12 throttles (all retried, none fatal), ~2 hours
+across three parallel shards** against roughly six serial. Each shard printed its
+refuse-to-assemble marker; the assembly pass then read all 1,500 from cache at **0 new calls**,
+which is the proof the shards' work is intact and reusable.
+
+### COVERAGE, PER LEG, OVER THE 1,500 SERVED NAMES
+
+| leg | payloads | field | covered |
+|---|---|---|---|
+| `cusip` | 1500 / 1500 | `cusip` resolved | **1319 = 87.93%** |
+| `xbrl` | 1500 / 1500 | `share_issuance` | **1438 = 95.87%** |
+| | | `accruals_q` | **1333 = 88.87%** |
+| | | `shares_points` | 1496 = 99.73% |
+| `insider` | 1500 / 1500 | `insider_score` | 1496 = 99.73% |
+
+**TASK 14(c) IS DELIVERED: `capital_discipline` now rests on REAL SEC XBRL share counts for 1,438
+of 1,500 names (95.87%)**, against `data/live_cache/issuance`'s 154 synthetic test files. Accruals
+land at 88.87% from the same companyfacts pull.
+
+**AND THE INSIDER FIGURE IN THAT TABLE IS NOT THE ONE THAT MATTERS — my own measurement read the
+wrong directory.** The crawl writes `data/live_themes/insider/`; `build_live` reads
+`data/live_themes/form4_live/`, which **does not exist**. So 99.73% describes the crawl's leg and
+the builder's insider column is at **zero**. Reported as the wrong-object slip it was rather than
+quoted as coverage.
+
+### GAP 1 — THE ANCHOR NEEDS MARKET CAPS THE BROKER UNIVERSE DOES NOT CARRY, AND IT IS RIGHT TO
+
+The assembly ran clean and wrote **0 rows at 0.0 coverage on all three themes**. The join itself
+is fine: **1,500 of 1,500 names joined**, with real CUSIPs, holder counts and dollar values (A:
+1,065 holders, $27.0bn). **Every row then failed at `rung: anchor_failed`** — 1,329
+`anchor_failed`, 100 `ambiguous`, 71 `unmatched`.
+
+`live_theme_sources.py:878` is `anchor = rec["value"] / mc`, institutional dollars held over
+**market cap**, required in `(0, ANCHOR_MAX]`. **`broker_universe.build` returns `market_cap: None`
+on every row**, so the anchor cannot be computed and every match is refused.
+
+**THAT IS THE GUARD WORKING, NOT A BUG.** Its whole purpose is that a fuzzy name match cannot fake
+a company, and handed no market cap it refuses rather than accepting an unvalidated CUSIP. The
+scan-store path (`served_from_store`) carries `market_cap` and is why the original path works —
+**the local scan store is EMPTY on this machine (`latest_scan_date()` is `None`), because the scans
+live on the service**, which is the whole reason `--universe broker` exists.
+
+**So `--universe broker` is CRAWL-capable and NOT assemble-capable for the institutional leg**, and
+that is now a documented property rather than a surprise. The market cap is not recoverable from
+what was crawled either: the `xbrl` payload keeps `share_issuance` and `shares_points` and
+**discards the shares-outstanding LEVEL**, so price times shares is not available without a
+re-fetch.
+
+### GAP 2 — THE SCORE FORMULA EXISTS TWICE AND THE TWO HALVES DO NOT MEET
+
+The crawl's `insider` leg stores a **pre-computed `insider_score`**; `build_live` wants
+`form4_live/{ticker}.json` carrying **raw `txns`** so it can compute the score itself from
+`INSIDER_TANH_SCALE` and `INSIDER_BUY_BONUS`. **B7, in a new place:** one formula, two
+implementations, and a complete crawl of one of them produces nothing for the other.
+
+**NOT BRIDGED, deliberately.** Both repairs are construction decisions in a shipped builder behind
+a fidelity control, and either could be made to look like it worked:
+
+* **Gap 1** needs a market-cap source feeding a VALIDATION GUARD. Inventing one at the end of a
+  two-hour crawl is how a guard comes to pass on a number nobody chose carefully.
+* **Gap 2** needs a decision on whether the cache's insider column is the crawl's score or
+  `build_live`'s re-derivation. Reading the crawl's score would bypass the builder's own formula,
+  so the two could diverge silently — precisely what the fidelity control exists to catch, and it
+  would have to be re-run to validate the bridge.
+
+**The expensive part is banked.** 1,500 names of CUSIP, XBRL and Form 4 data sit in
+`data/live_themes/` and survive both decisions; what remains is wiring, not crawling.
+
+**CONSEQUENCE FOR THE YAML ABOVE, stated because it would otherwise be wrong:** the `themes-assemble`
+job as written will produce a zero-row cache on a fresh runner, for exactly Gap 1 — a CI checkout
+has no scan store either. **Don should not paste the assemble job until Gap 1 is closed**; the three
+crawl shards are correct as written and bank the data.
+
+
+### GAP 3, FOUND BY WRITING IT: A ZERO-ROW CACHE READS AS A HEALTHY ONE, AND NOTHING REFUSED IT
+
+The assembly wrote `theme_columns.json` with **0 rows**, and the reader's verdict on it is the
+problem:
+
+```
+available: true    rows: 0    reason: ""        columns_for("AAPL") -> {}
+```
+
+**A healthy cache that happens to know nothing about anybody** — and it would have REPLACED A LOUD
+ABSENT-FILE STATE WITH A QUIET PRESENT-BUT-EMPTY ONE, which is strictly worse, because the absent
+file is the condition this whole item exists to fix and it is at least visible.
+
+**THE REASONING WAS ALREADY WRITTEN DOWN TWICE AND APPLIED TO NEITHER PLACE THAT NEEDED IT.**
+`build_live`'s missing-period guard says such a cache *"would look like a clean build of a universe
+with no institutional data — which is exactly the 0.0 theme_contributing this whole item exists to
+fix"*, and `served_from_store` refuses an empty **INPUT** for the identical reason. **Nothing
+refused an empty OUTPUT.** `build_live` now raises, writes nothing, and the message names the
+likely cause — an `anchor_failed` sweep means the served rows carry no `market_cap` — because a
+refusal saying only *"zero rows"* sends the next reader back to the crawl, which is the expensive
+and correct part. The bad cache file was deleted.
+
+### FIVE MUTATION GAPS IN THIS PASS, AND THEY ARE ALL ONE SHAPE
+
+Every one was a guard or a test reading **the wrong object**, which is the same family as the three
+repaired earlier in the session:
+
+* **A TEST THAT ASSERTED THE BROKEN SHAPE.** `test_a_TICKER_FILE_is_accepted...` asserted
+  `served == ["AAPL", "JPM", "MSFT"]` — bare strings — so it **PROTECTED** the defect instead of
+  finding it. Corrected to the dict shape, plus a test that the two universe sources return the
+  SAME shape, asserted against `served_from_store`'s own output rather than a literal key list so
+  the two cannot drift.
+* **A ROUND-TRIP TEST THAT WROTE ITS OWN FIXTURE.** It built the served file with its own
+  `json.dump` and so tested the test; a mutation that re-wrapped every row went undetected.
+  `write_served_file` is now **extracted** and the test calls it. **B7, inside a test that existed
+  to pin the shape.**
+* **THE BROKER BRANCH WAS UNTESTED** — the one the Action uses — now covered with
+  `broker_universe.build` stubbed, so it needs no network and no token.
+* **`market_cap` pass-through was unpinned**, and it is load-bearing: `None` is what makes the
+  anchor REFUSE, and a filled-in `0.0` would hand a validation guard a denominator nobody chose.
+* **A WHOLE-FILE ASSERTION.** The refusal-message test checked `"anchor_failed" in src`, and that
+  string appears in two unrelated rung checks, so stripping it from the MESSAGE left the test
+  green. Scoped to the `Raise` node.
+
+**8 of 8 mutations caught after the repairs**, 34 tests in the suite.
+
+
 ## (b) THE theme_status / SCAN CONTRADICTION — ONE SOURCE, AND IT WAS A DESIGN-VS-DAY CONFLATION
 
 `theme_status` reported insider and institutional **live** while the scan reported **0.0** for
@@ -350,12 +473,34 @@ and all three record datasets were re-indexed onto it** — without that, adding
 whose datasets index positionally would have **shifted the recorded series**, which is the one
 outcome worse than not drawing them.
 
-## (e) THE 22:23Z SCAN — NOT LANDED AT 23:01Z
+## (e) THE 22:23Z SCAN HAD NOT FIRED BY 01:13Z — AND IT IS NOT DROPPED, IT IS LATE BY DESIGN
 
-The served payload still reads **`scan_date` 2026-09-29, 100 rows** at 23:01Z, 38 minutes into a
-90-minute budget. **11d and 12e are therefore NOT ANSWERED and are not reported as zero** — wall
-clock, names scored, the $10B+ eligible count and the per-input coverage all need the finished
-scan. A watch is armed on the served `scan_date`.
+The served payload still reads **`scan_date` 2026-09-29, 100 rows** at 01:13Z. **11d and 12e are
+therefore NOT ANSWERED and are not reported as zero.**
+
+**AND A CORRECTION AGAINST MY OWN FIRST READING, made before reporting it.** Seeing no run at
+22:23Z and none at the 23:41Z backup, I had this as *"GitHub's free scheduler dropped BOTH hot
+attempts"* — which is a real documented hazard on this workflow and would have been an alarming
+and false claim. Checked across the last 40 runs, **the `hot` job consistently fires one to three
+hours after its nominal cron**: 2026-09-30 at **01:19Z** and **02:21Z**, 2026-09-29 at 02:01Z and
+02:43Z, 2026-09-26 at 00:39Z and 01:56Z, 2026-09-25 at 00:34Z and 01:52Z. **So tonight's is due
+around 01:20–02:30Z and had simply not started.** Nothing is broken, and the served list showing
+the last completed session is the design rather than staleness.
+
+**A LABELLED BASELINE FOR 11d, SINCE THE MEASUREMENT IS STILL OWED.** `SCAN_LIMIT: "1500"` landed
+at **`f95a4f6`, 2026-09-30 06:49Z — AFTER** both of that night's hot runs, so those ran at **800
+names in 15m20s and 17m34s**, which is what makes tonight's genuinely the first at 1,500. Scaling
+the per-name work gives **roughly 30 minutes against the 90-minute limit**, comfortable — but it is
+an **EXTRAPOLATION, not a measurement**, and it is not even a clean one: `SCAN_DCF_TOP` is fixed at
+12 and does not grow with the universe, while the per-name fundamentals fetch does, so the two
+halves of the run scale differently. **The real number needs the run.**
+
+### THE THREE `dcf` FINANCIAL ROWS ARE UNCHANGED, FOR THE SAME REASON
+
+With no new scan, the served list is still 09-29, so **SYF $107, STT $82 and AMG $308 still read
+`dcf`** and are still the pre-sector-fix pipeline values described below. **Whether they clear is
+UNANSWERED** and the honest expectation — that they stop reading `dcf` and join the P/B-ROE route
+now the sector resolves through the chain and the lens label reads the blend — is **not asserted.**
 
 ### THE THREE `dcf` FINANCIAL ROWS — THEY PREDATE THE SECTOR FIX, AND THE LABEL WAS SEPARATELY WRONG
 
@@ -395,6 +540,43 @@ through the chain rather than failing open. **Not asserted; it needs the scan.**
 finding: the empty sector is not intermittent on Render, it is **effectively total**, and the
 fail-closed chain is carrying **all** of it. The `scope` string ships with the numbers because
 Render runs more than one worker and recycles them, so this is a sample rather than a history.
+
+### MY OWN STEP-BACK FIX TURNED A LOUD FAILURE INTO A QUIET STALENESS, AND THE NUMBER NOW TRAVELS
+
+`live_themes.status()` measures **when the cache was BUILT** and never **which period it
+DESCRIBES**. `MAX_AGE_DAYS = 120` even carries a comment saying a cache not rebuilt in a quarter
+*"is describing a period that has rolled"* — which assumes the two track each other.
+
+**They do not, and the thing that makes it reachable is the step-back I added this session.**
+Before it, an unpublished window 404ed and the build wrote nothing: a loud failure. After it the
+build succeeds against an older period. Demonstrated on a representative cache:
+
+```
+age_days         0        available  true
+period_curr      31-MAR-2026
+period_age_days  183
+```
+
+**A cache built today, reading `available: true` and `age_days: 0`, describing a 13F period that
+ended six months ago.** Measured 2026-09-30: **SEC had not published the 30-JUN-2026 window**, about
+six weeks past the filing deadline, so 31-MAR-2026 is the freshest buildable period — the cache is
+as fresh as the data allows and the staleness is the vendor's.
+
+**REPORTED, NOT REFUSED, and that is a deliberate call rather than the easy one.** Gating
+availability on the period age would switch institutional and insider off for a reason outside
+anyone's control, on the very day the free route is trying to turn them on. So `status()` now
+returns `period_curr`, `period_age_days` and `periods_source` **beside** the build age, the two
+ages are separate fields, and **the build age still decides availability** — pinned by a mutation
+that makes the period a second refusal. An undated period reports **`None`, never 0**, because zero
+reads as *"the period ended today"*, the most flattering available answer.
+
+**A trap in my own fixture, worth recording because it is the bound-default shape again:**
+`_load` memoises on a separate `_loaded` flag, so clearing `_cache` **looks** like a reset and is
+not. Four of five tests failed reporting *"no readable cache"* — which reads as the feature being
+broken rather than the test — and the first passed only because `_loaded` starts `False`. **The
+knob that looks like the state isn't.** (Plus an unflushed fixture handle, same symptom, different
+cause.) **6 of 6 mutations caught.**
+
 
 ### THE VALIDATOR FABRICATED A 4pp FAILURE, AND A FABRICATED FAILURE IS THE ONE THAT GETS BELIEVED
 
@@ -513,18 +695,35 @@ health block. **A guard that only admits the happy phrasing fails on the honest 
 
 ## TESTS
 
-`tests/test_free_route_p2.py` **21, new**; `tests/test_hotlist_financial_fv.py` **15** (four
-added for the lens label). **Mutation: 15 of 15 on the free-route pass** (after the three repairs
-above) and **4 of 4 on the label** — including one that reverts the label to `dcf` for everything,
-i.e. the shipped defect — with sources restored byte-for-byte.
+`tests/test_free_route_p2.py` **34, new**; `tests/test_track_reconstructed.py` **31** (nine added
+for the validator, the all-null guard and the key-absence refusal);
+`tests/test_hotlist_financial_fv.py` **15** (four for the lens label). Three existing guards
+repointed (`test_theme_cache_build`, `test_saas`, `test_reported_benchmark`), each with a positive
+control; two existing fixtures corrected — a sort fixture that saved valueless points, and a shape
+assertion that encoded the bug.
+
+**Mutation, all with sources restored byte-for-byte: 15 of 15** on the free-route pass, **4 of 4**
+on the lens label (including one that reverts it to `dcf` for everything, i.e. the shipped
+defect), **7 of 7** on the validator, **5 of 5** on the all-null guard, **6 of 6** on the
+key-absence refusal, **6 of 6** on the period-age reporting, **8 of 8** on the served shape and the
+zero-row refusal. **51 of 51.**
 
 ## NOT DONE
 
-The theme cache is **not assembled** (so **12c is open**); **11d and 12e are unanswered** (the scan has not
-landed); the 09-24 double-leg disagreement and the residual ~0.29pp book seam on days where both
-sides price 85 names are **NOT diagnosed**; the 19 points are stored locally and are **not pushed
-to the service**, so `/api/index-track` still reports `n_reconstructed: 0`; the `auto-scan.yml` text is **written, not committed** — `.github` is Don's; no trade, no
-amendment drafted, nothing written to the bound series, and FMP still gated off.
+**ASSEMBLY IS BLOCKED ON THREE WIRING GAPS, all located and none bridged** — the anchor's missing
+market cap, the insider formula's two unmet halves, and the zero-row refusal that now stops a bad
+build reaching disk. **So 11b and 12c are OPEN**: those two themes are not live in the scan.
+**12b IS DELIVERED** at 95.87% `share_issuance` coverage over 1,500 names.
+
+**11d and 12e are unanswered** — the 22:23Z scan had not landed by 21:00Z, so the wall clock, names
+scored, the $10B+ eligible count and the per-input Spearman all need the finished run, and none is
+reported as zero.
+
+The 19 reconstructed points are stored **locally and not pushed**, so `/api/index-track` still
+reports `n_reconstructed: 0`. The `auto-scan.yml` text is **written for Don, not committed** —
+`.github` is his — and **the `themes-assemble` job must not be pasted until Gap 1 is closed**,
+because a CI runner has no scan store either and would produce the same zero-row refusal. No trade,
+no amendment drafted, nothing written to the bound series, FMP still gated off.
 
 ---
 

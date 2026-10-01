@@ -327,11 +327,61 @@ def newest_published_periods(as_of=None, max_back: int = 4) -> dict:
     return per
 
 
+def write_served_file(su: dict, path: str) -> str:
+    """Write the served universe where `load_served` can read it back.
+
+    EXTRACTED so a test can call THIS rather than re-implement it. The round-trip test that was
+    supposed to pin the shape built its own file instead, so it tested the test and the writer
+    stayed uncovered -- a mutation that re-broke the writer went undetected. B7, in a test.
+
+    `su["served"]` IS ALREADY `load_served`'s row shape, so it is written straight through. A
+    first cut wrapped each element as `{"ticker": t}` on the assumption it was a bare string --
+    correct while `served_from_universe` wrongly returned strings, and wrong the moment that was
+    fixed, at which point it produced `{"ticker": {...dict...}}` and `fetch_all` died on
+    `tkr.upper()`. TWO consumers read this file and they do NOT disagree about the shape: both
+    want dicts, and the two crashes were ONE defect surfacing at two depths.
+    """
+    with io.open(path, "w", encoding="utf-8") as fh:
+        json.dump({"scan_date": su["scan_date"], "rows": su["served"]}, fh)
+    return path
+
+
+def _as_served_rows(rows) -> list:
+    """`served_from_store`'s row shape, from anything carrying a `ticker`.
+
+    ONE converter, so the two universe sources cannot drift into two shapes -- which is exactly
+    what happened when this function did not exist. De-duplicated and sorted by ticker so a
+    source returning the same name twice cannot inflate the crawl.
+    """
+    out, seen = [], set()
+    for r in rows or []:
+        t = str((r or {}).get("ticker") or "").strip().upper()
+        if not t or t in seen:
+            continue
+        seen.add(t)
+        out.append({"ticker": t, "name": (r or {}).get("name") or "",
+                    "market_cap": (r or {}).get("market_cap"),
+                    "sector": (r or {}).get("sector") or ""})
+    out.sort(key=lambda r: r["ticker"])
+    return out
+
+
 def served_from_universe(spec: str, limit: int = 1500) -> dict:
     """`served_from_store`'s shape, from the broker ranking or a ticker file.
 
     SAME SHAPE, deliberately, so nothing downstream learns a second way to be handed a
     universe -- the build path, the refusal and the reporting are all unchanged.
+
+    AND THE FIRST CUT VIOLATED THAT SENTENCE WHILE ASSERTING IT. It returned a list of plain
+    TICKER STRINGS against `served_from_store`'s list of dicts, so the crawl ran happily for two
+    hours over 1,500 names and then `join_13f` died on `row["ticker"]` with
+    `TypeError: string indices must be integers`. The docstring made it HARDER to spot, not
+    easier: it stated the invariant confidently enough that nobody checked it, which is the
+    failure mode of a comment that documents an intention rather than a measurement.
+
+    `market_cap` and `sector` are carried through as whatever the source gives -- the broker
+    ranking returns `market_cap: None` and `sector: ""` -- and are NOT filled in. A fabricated
+    market cap here would be indistinguishable from a real one downstream.
 
     `scan_date` is set to the SOURCE rather than left blank, because a cache is only meaningful
     beside a statement of which population it covers, and "built for the broker top 1500" is a
@@ -341,13 +391,14 @@ def served_from_universe(spec: str, limit: int = 1500) -> dict:
         from valuation.config import CONFIG
         from valuation.screener import broker_universe
         rows = broker_universe.build(CONFIG, limit=limit) or []
-        served = sorted({str(r.get("ticker") or "").upper() for r in rows if r.get("ticker")})
+        served = _as_served_rows(rows)
         return {"served": served, "scan_date": "broker_top_%d" % limit,
                 "reason": "the broker liquidity ranking" if served
                           else "the broker universe came back empty"}
     try:
         with io.open(spec, encoding="utf-8") as fh:
-            served = sorted({ln.strip().upper() for ln in fh if ln.strip()})
+            served = _as_served_rows(
+                [{"ticker": ln.strip()} for ln in fh if ln.strip()])
     except OSError as e:
         return {"served": [], "scan_date": None,
                 "reason": "could not read the universe file %s (%s)" % (spec, type(e).__name__)}
@@ -465,9 +516,7 @@ def main(argv=None) -> int:
     if a.universe:
         _served_path = os.path.join(os.path.dirname(cache_path()),
                                     "served_%s.json" % su["scan_date"].replace(":", "_"))
-        with io.open(_served_path, "w", encoding="utf-8") as _fh:
-            json.dump({"scan_date": su["scan_date"],
-                       "rows": [{"ticker": t} for t in su["served"]]}, _fh)
+        write_served_file(su, _served_path)
         print("  served file  %s" % _served_path)
     else:
         _served_path = None

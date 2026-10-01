@@ -79,8 +79,31 @@ def status() -> dict:
     except (TypeError, ValueError):
         pass
     stale = age is None or age > MAX_AGE_DAYS
+    # WHICH PERIOD IT DESCRIBES IS A DIFFERENT QUESTION FROM WHEN IT WAS BUILT, and the
+    # comment on MAX_AGE_DAYS above assumes the two track each other. THEY DO NOT when SEC has
+    # not published the latest window: the builder correctly steps back a quarter, so a cache
+    # built TODAY can describe a period that ended six months ago and still read `age_days: 0`.
+    #
+    # Measured 2026-09-30: SEC had not published the 30-JUN-2026 13F window, about six weeks
+    # past the filing deadline, so the freshest buildable cache describes 31-MAR-2026 -- 183 days
+    # behind. REPORTED, NOT REFUSED: refusing would switch two themes off for a reason outside
+    # anyone's control, and the cache is as fresh as the data allows. A surface that wants to say
+    # which quarter the institutional theme rests on now has the number.
+    periods = list(blob.get("periods") or [])
+    period_curr = str(periods[-1]) if periods else None
+    period_age = None
+    if period_curr:
+        for fmt in ("%d-%b-%Y", "%Y-%m-%d"):
+            try:
+                period_age = (_dt.date.today()
+                              - _dt.datetime.strptime(period_curr, fmt).date()).days
+                break
+            except (TypeError, ValueError):
+                continue
     return {"available": not stale, "built": built, "age_days": age,
             "rows": len(blob.get("rows") or {}), "max_age_days": MAX_AGE_DAYS,
+            "period_curr": period_curr, "period_age_days": period_age,
+            "periods_source": blob.get("periods_source"),
             "reason": ("stale or undated — not used" if stale else "")}
 
 

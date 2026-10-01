@@ -28,6 +28,7 @@ import ast
 import io
 import os
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -112,7 +113,14 @@ class TestTheUniverseOverride(unittest.TestCase):
             p = os.path.join(tmp, "u.txt")
             io.open(p, "w", encoding="utf-8").write("aapl\nMSFT\n\njpm\n")
             su = TCB.served_from_universe(p)
-        self.assertEqual(su["served"], ["AAPL", "JPM", "MSFT"])
+        # DICTS, not bare tickers. THIS ASSERTION USED TO READ `["AAPL", "JPM", "MSFT"]` and
+        # that is why it never caught the shape bug: the test encoded the broken shape, so it
+        # PROTECTED the defect instead of finding it. `served_from_universe`'s own docstring
+        # claimed "SAME SHAPE" as `served_from_store` while returning strings, the crawl ran two
+        # hours over 1,500 names, and `join_13f` then died on `row["ticker"]`.
+        self.assertEqual([r["ticker"] for r in su["served"]], ["AAPL", "JPM", "MSFT"])
+        self.assertEqual(sorted(su["served"][0].keys()),
+                         ["market_cap", "name", "sector", "ticker"])
         self.assertIn("file:", su["scan_date"])
 
     def test_an_UNREADABLE_file_is_a_refusal_with_a_reason_not_an_empty_build(self):
@@ -130,6 +138,109 @@ class TestTheUniverseOverride(unittest.TestCase):
             a = set(TCB.served_from_universe(p))
         b = set(TCB.served_from_store())
         self.assertEqual(a, b, "the two universe routes return different shapes")
+
+    def test_BOTH_universe_sources_return_the_SAME_shape(self):
+        """The property `served_from_universe`'s docstring asserts, which nothing checked.
+
+        Two sources hand the builder a universe and two consumers read it -- `fetch_all` through
+        `load_served`, and `join_13f` directly. All four have to agree, and a docstring saying so
+        is not a check. It is asserted against `served_from_store`'s own output rather than
+        against a literal key list, so the two cannot drift apart without this failing.
+        """
+        class Fake:
+            def latest_scan_date(self):
+                return "2026-09-29"
+
+            def load_snapshot(self, d=None, top=None):
+                return [{"ticker": "aapl", "name": "Apple", "market_cap": 1.0,
+                         "sector": "Tech"}]
+
+        from scripts import theme_cache_build as TCB
+        from_store = TCB.served_from_store(Fake())["served"]
+        with tempfile.TemporaryDirectory() as d:
+            fp = os.path.join(d, "u.txt")
+            with io.open(fp, "w", encoding="utf-8") as fh:
+                fh.write("AAPL\n")
+            from_file = TCB.served_from_universe(fp)["served"]
+        self.assertEqual(sorted(from_store[0].keys()), sorted(from_file[0].keys()),
+                         "the two universe sources disagree about the row shape")
+        self.assertTrue(all(isinstance(r["ticker"], str) for r in from_file))
+
+    def test_the_served_file_ROUND_TRIPS_through_load_served(self):
+        """Both consumers read it through `load_served`, so that is the contract to pin.
+
+        The second crash came from the WRITER: it wrapped each element as `{"ticker": t}` on the
+        assumption it was a bare string, so once the shape was fixed it produced
+        `{"ticker": {...dict...}}` and `fetch_all` died on `tkr.upper()`. The two crashes were one
+        defect surfacing at two depths.
+        """
+        from scripts import theme_cache_build as TCB
+        from scripts import live_theme_sources as M
+        with tempfile.TemporaryDirectory() as d:
+            fp = os.path.join(d, "u.txt")
+            with io.open(fp, "w", encoding="utf-8") as fh:
+                fh.write("AAPL\nJPM\n")
+            su = TCB.served_from_universe(fp)
+            # THE PRODUCTION WRITER, not a hand-rolled copy. A first cut of this test built the
+            # file itself with its own `json.dump`, so it tested the TEST and the writer stayed
+            # uncovered -- a mutation that re-wrapped every row as `{"ticker": t}` went
+            # undetected. B7, inside a test that existed to pin the shape.
+            sp = TCB.write_served_file(su, os.path.join(d, "served.json"))
+            got = M.load_served(sp)
+        self.assertEqual([r["ticker"] for r in got], ["AAPL", "JPM"])
+        self.assertTrue(all(isinstance(r["ticker"], str) for r in got),
+                        "a ticker came back as something other than a string")
+
+    def test_the_BROKER_path_returns_the_same_rows_as_the_file_path(self):
+        """s1: the broker branch was untested, and it is the one the Action uses.
+
+        `broker_universe.build` is stubbed so this needs no network and no broker token -- the
+        property under test is the SHAPE the branch produces, not the ranking it produces.
+        """
+        from scripts import theme_cache_build as TCB
+        from valuation.screener import broker_universe
+        orig = broker_universe.build
+        broker_universe.build = lambda cfg, limit=None: [
+            {"ticker": "aapl", "name": "Apple Inc", "market_cap": None, "sector": "",
+             "price": 1.0},
+            {"ticker": "JPM", "name": "JPMorgan", "market_cap": 2.0, "sector": "Financials"}]
+        self.addCleanup(lambda: setattr(broker_universe, "build", orig))
+        su = TCB.served_from_universe("broker", limit=2)
+        self.assertEqual([r["ticker"] for r in su["served"]], ["AAPL", "JPM"])
+        self.assertEqual(sorted(su["served"][0].keys()),
+                         ["market_cap", "name", "sector", "ticker"])
+        self.assertTrue(all(isinstance(r["ticker"], str) for r in su["served"]))
+        self.assertEqual(su["scan_date"], "broker_top_2")
+
+    def test_a_REPEATED_name_is_not_crawled_twice(self):
+        """s4: the crawl is ~5 seconds per name, so a duplicate is real wasted wall clock."""
+        from scripts import theme_cache_build as TCB
+        with tempfile.TemporaryDirectory() as d:
+            fp = os.path.join(d, "u.txt")
+            with io.open(fp, "w", encoding="utf-8") as fh:
+                fh.write("AAPL\naapl\n  AAPL  \nJPM\n")
+            su = TCB.served_from_universe(fp)
+        self.assertEqual([r["ticker"] for r in su["served"]], ["AAPL", "JPM"])
+
+    def test_an_ABSENT_market_cap_stays_absent_rather_than_becoming_zero(self):
+        """s5: and this one is load-bearing, because market_cap feeds a VALIDATION GUARD.
+
+        `join_13f`'s anchor is institutional dollars over market cap, required in
+        `(0, ANCHOR_MAX]`. A market cap of 0.0 is not "unknown" -- it makes the division either
+        blow up or produce a number, and a guard that exists so a fuzzy name match cannot fake a
+        company must not be handed a filled-in denominator. `None` makes the anchor refuse, which
+        is the correct and measured behaviour (1,329 of 1,500 `anchor_failed` on the broker
+        universe).
+        """
+        from scripts import theme_cache_build as TCB
+        from valuation.screener import broker_universe
+        orig = broker_universe.build
+        broker_universe.build = lambda cfg, limit=None: [
+            {"ticker": "AAPL", "name": "Apple", "market_cap": None, "sector": ""}]
+        self.addCleanup(lambda: setattr(broker_universe, "build", orig))
+        su = TCB.served_from_universe("broker", limit=1)
+        self.assertIsNone(su["served"][0]["market_cap"],
+                          "an unknown market cap was filled in, and it feeds the anchor guard")
 
 
 class TestTheShardRefusesToAssemble(unittest.TestCase):
@@ -334,6 +445,173 @@ class TestTheReconstructionComputation(unittest.TestCase):
         self.assertIn("showLine: false", block)
         self.assertIn("pointRadius: 4", block)
         self.assertIn('pointBackgroundColor: "#ffffff"', block)
+
+
+class BuildDateIsNotPeriodDate(unittest.TestCase):
+    """`status()` measured when the cache was BUILT and never which period it DESCRIBES.
+
+    `MAX_AGE_DAYS = 120` carries a comment saying a cache not rebuilt in a quarter "is describing
+    a period that has rolled" -- which assumes the two track each other. THEY DO NOT when SEC has
+    not published the latest window: the builder correctly steps back a quarter, so a cache built
+    TODAY can describe a period that ended six months ago and still read `age_days: 0`.
+
+    AND THIS IS A CONSEQUENCE OF THIS SESSION'S OWN STEP-BACK FIX. Before it the builder 404ed
+    and wrote nothing -- a loud failure. After it the build succeeds with an older period, which
+    is a QUIET staleness, and that is the direction this project warns about hardest. So the
+    number has to travel.
+
+    REPORTED, NOT REFUSED: measured 2026-09-30, SEC had not published the 30-JUN-2026 window about
+    six weeks past the filing deadline, so the freshest buildable cache is 183 days behind.
+    Refusing would switch two themes off for a reason outside anyone's control.
+    """
+
+    def _cache(self, built, periods):
+        import json as _json
+        d = tempfile.mkdtemp()
+        path = os.path.join(d, "tc.json")
+        # `with`, because an unclosed handle leaves the fixture UNFLUSHED and `status()` then
+        # reports "no readable cache" -- which reads as the feature being broken rather than the
+        # test being broken. Four of these five tests failed that way first.
+        with io.open(path, "w", encoding="utf-8") as fh:
+            fh.write(_json.dumps(
+                {"built": built, "periods": periods, "periods_source": "derived",
+                 "rows": {"AAPL": {"inst_accum": 0.5}}}))
+        from valuation.screener import live_themes as LT
+        self._prev = getattr(LT, "CACHE")
+        LT.CACHE = path
+        # `_loaded` IS THE MEMO, NOT `_cache`. Clearing `_cache` alone LOOKS like a reset and is
+        # not -- `_load` returns early on `_loaded`, so the second fixture in a process reads the
+        # first one's miss and `status()` reports "no readable cache". Four of these five tests
+        # failed that way, and the first passed only because `_loaded` starts False. The same
+        # shape as a default bound at definition time: the knob that looks like the state isn't.
+        LT._cache = None
+        LT._loaded = False
+        self.addCleanup(lambda: (setattr(LT, "CACHE", self._prev),
+                                 setattr(LT, "_cache", None),
+                                 setattr(LT, "_loaded", False)))
+        return LT
+
+    def test_a_cache_built_TODAY_can_be_half_a_year_behind_and_says_so(self):
+        import datetime as dt
+        LT = self._cache(dt.date.today().isoformat(), ["31-DEC-2025", "31-MAR-2026"])
+        st = LT.status()
+        self.assertEqual(st["age_days"], 0, "the fixture is not a fresh build")
+        self.assertTrue(st["available"], "build-age behaviour changed; that was not the fix")
+        self.assertEqual(st["period_curr"], "31-MAR-2026")
+        self.assertGreater(st["period_age_days"], 150,
+                           "the period age is not reported, so a fresh-looking cache can "
+                           "silently describe a rolled quarter")
+
+    def test_the_two_ages_are_SEPARATE_fields_and_neither_stands_in_for_the_other(self):
+        """One combined "age" is how the conflation came about in the first place."""
+        import datetime as dt
+        LT = self._cache(dt.date.today().isoformat(), ["31-DEC-2025", "31-MAR-2026"])
+        st = LT.status()
+        self.assertIn("age_days", st)
+        self.assertIn("period_age_days", st)
+        self.assertNotEqual(st["age_days"], st["period_age_days"])
+
+    def test_an_UNDATED_period_reports_None_rather_than_zero(self):
+        """Zero would read as "the period ended today", the most flattering possible answer."""
+        import datetime as dt
+        LT = self._cache(dt.date.today().isoformat(), ["", "not-a-date"])
+        st = LT.status()
+        self.assertIsNone(st["period_age_days"])
+
+    def test_a_cache_with_NO_periods_key_still_reports_rather_than_raising(self):
+        """Old caches predate the field; a missing one must not take the health block down."""
+        import datetime as dt
+        LT = self._cache(dt.date.today().isoformat(), [])
+        st = LT.status()
+        self.assertIsNone(st["period_curr"])
+        self.assertIsNone(st["period_age_days"])
+        self.assertTrue(st["available"])
+
+    def test_the_build_age_still_decides_availability(self):
+        """The period age REPORTS; it must not have quietly become a second gate."""
+        LT = self._cache("2020-01-01", ["31-DEC-2025", "31-MAR-2026"])
+        st = LT.status()
+        self.assertFalse(st["available"], "the build-age gate stopped working")
+        LT2 = self._cache("2026-09-30", ["31-DEC-1999", "31-MAR-2000"])
+        st2 = LT2.status()
+        self.assertTrue(st2["available"],
+                        "the period age became a refusal, which was explicitly not the fix")
+        self.assertGreater(st2["period_age_days"], 9000)
+
+
+class AZeroRowCacheIsRefused(unittest.TestCase):
+    """A zero-row cache reads as a HEALTHY cache that happens to know nothing about anybody.
+
+    MEASURED on a real one written 2026-09-30: `live_themes.status()` returns
+    `available: true, rows: 0, reason: ""` and `columns_for()` returns `{}` for every ticker. So
+    it would have REPLACED A LOUD ABSENT-FILE STATE WITH A QUIET PRESENT-BUT-EMPTY ONE, which is
+    strictly worse — the absent file is the condition the whole item exists to fix, and it is at
+    least visible.
+
+    The reasoning was already written down twice in this codebase and applied to neither place
+    that needed it: the missing-period guard says such a cache "would look like a clean build of a
+    universe with no institutional data", and `served_from_store` refuses an empty INPUT for the
+    same reason. Nothing refused an empty OUTPUT.
+    """
+
+    def test_build_live_REFUSES_rather_than_writing_an_empty_cache(self):
+        import ast as _ast
+        src = io.open(os.path.join(REPO, "scripts/fidelity2_rebuild.py"),
+                      encoding="utf-8").read()
+        fn = next(n for n in _ast.walk(_ast.parse(src))
+                  if isinstance(n, _ast.FunctionDef) and n.name == "build_live")
+        # The refusal must be a RAISE, not a warning, and it must sit BEFORE the payload is
+        # assembled -- a refusal after the write is not a refusal.
+        raises = [n for n in _ast.walk(fn)
+                  if isinstance(n, _ast.Raise)
+                  and "zero-row" in _ast.unparse(n)]
+        self.assertEqual(len(raises), 1, "the zero-row refusal is gone or duplicated")
+        body = _ast.unparse(fn)
+        i_guard = body.index("zero-row")
+        i_write = body.index("json.dump") if "json.dump" in body else len(body)
+        self.assertLess(i_guard, i_write, "it writes the file and then refuses")
+
+    def test_the_refusal_NAMES_the_likely_cause(self):
+        """An empty result has one dominant cause here and the message should say it.
+
+        Measured: 1,329 of 1,500 rows came back `anchor_failed` because the broker universe
+        carries `market_cap: None`, so the anchor (institutional dollars over market cap) could
+        not be computed. A refusal that says only "zero rows" sends the next reader to the crawl,
+        which is the expensive and correct part.
+        """
+        # SCOPED TO THE RAISE NODE. A first cut asserted these strings were somewhere in the
+        # FILE -- and `anchor_failed` appears in two unrelated rung checks, so stripping them out
+        # of the MESSAGE left it green. The same wrong-object slip as every other guard repaired
+        # in this session: assert on the object, not on the file that contains it.
+        import ast as _ast
+        src = io.open(os.path.join(REPO, "scripts/fidelity2_rebuild.py"),
+                      encoding="utf-8").read()
+        fn = next(n for n in _ast.walk(_ast.parse(src))
+                  if isinstance(n, _ast.FunctionDef) and n.name == "build_live")
+        raises = [_ast.unparse(n) for n in _ast.walk(fn)
+                  if isinstance(n, _ast.Raise) and "zero-row" in _ast.unparse(n)]
+        self.assertEqual(len(raises), 1)
+        msg = raises[0]
+        self.assertIn("anchor_failed", msg,
+                      "the refusal no longer names the rung that explains an empty build")
+        self.assertIn("market_cap", msg,
+                      "the refusal no longer names the missing field")
+
+    def test_a_cache_with_rows_still_writes(self):
+        """The refusal must not have become "refuse any build"."""
+        import ast as _ast
+        src = io.open(os.path.join(REPO, "scripts/fidelity2_rebuild.py"),
+                      encoding="utf-8").read()
+        fn = next(n for n in _ast.walk(_ast.parse(src))
+                  if isinstance(n, _ast.FunctionDef) and n.name == "build_live")
+        # Guarded on emptiness, not on a constant: `if not rows:` and nothing stronger.
+        tests_on_rows = [n for n in _ast.walk(fn)
+                         if isinstance(n, _ast.If)
+                         and "zero-row" in _ast.unparse(n)]
+        self.assertEqual(len(tests_on_rows), 1)
+        cond = _ast.unparse(tests_on_rows[0].test)
+        self.assertEqual(cond, "not rows",
+                         "the refusal condition is no longer simply an empty result: %s" % cond)
 
 
 if __name__ == "__main__":
