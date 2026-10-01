@@ -210,6 +210,112 @@ Add to the `hot` job's existing `env:` block, beside `ISSUANCE_CACHE_DIR`:
 **12c is not closed** — those two themes are not live in the scan until the assemble run finishes
 and the `hot` job reads it. Coverage is reported below only for what the shards have fetched.
 
+## THE SCAN LANDED — 11d AND 12e ANSWERED, AND IT EXPOSED A LIVE LABEL DEFECT ON FOUR ROWS
+
+The first 1,500-name hot scan ran **01:18:43 → 01:39:32 UTC = 20.8 minutes against the 90-minute
+limit (23% of it)**. The Action checked out **`ee19583`**, confirmed from its own `headSha`, so
+everything in this session's first two commits was live for it.
+
+### 11d
+
+| | |
+|---|---|
+| wall clock | **20.8 min** of 90 (previous 800-name runs: 15.3 and 17.6 min) |
+| names scored | **1,485 of a universe of 1,500** |
+| eligible large-cap tier | **861 of 1,485 scored** |
+| index book | **86 positions published**, `conforms: true` |
+| refusal screen | asked 488, **6 refused, 1 error** |
+| display coverage | name 0.999, sector 1.000, market_cap 1.000 |
+
+**MY OWN EXTRAPOLATION WAS WRONG BY 44% AND IN THE OPTIMISTIC DIRECTION FOR THE WRONG REASON.** I
+predicted ~30 minutes by scaling 800 names linearly; it came in at 20.8. The per-name cost did
+**not** scale linearly, because `actions/cache` had the fundamentals warm and `SCAN_DCF_TOP` is
+fixed at 12 and does not grow with the universe. **Recorded because the error ran toward caution
+and could just as easily have run the other way on a cold cache** — a cold 1,500-name run is the
+case still unmeasured, and the audit's own note puts an uncached name at 3 FMP requests.
+
+### 12e — PER-INPUT COVERAGE DELIVERED, AND THE SPEARMAN LEG IS NOT A MEANINGFUL MEASUREMENT HERE
+
+On the served rows: **`z_value` 1.000, `z_quality` 1.000, `z_momentum` 0.960, `z_growth` 0.900**
+non-null. **`z_insider` is non-null on 100 of 100 and NON-ZERO on ZERO of them** — constant at 0.0,
+which is the dead-theme signature and is Gap 2 showing up in the product: the theme is wired,
+served, and carrying no information because the `form4_live` half never meets the crawl's half.
+**`z_size`, `z_institutional`, `z_capital_discipline` and `z_low_risk` are ABSENT from the payload
+entirely**, so their coverage is not measurable from served data at all.
+
+**THE SPEARMAN AGAINST THE 2026-07-31 FREEZE IS DECLINED, WITH A MEASURED REASON RATHER THAN FOR
+WANT OF DATA.** The freeze, `panel_corrected_69d.pkl` and the 08-08 snapshot are all present in the
+primary root — **checked, after nearly repeating this session's own mistake of calling the bound
+book absent when it was one directory up.** Two things make the number uninterpretable:
+
+* **The gap is 43 trading days (61 calendar).** `D9-FIDELITY` measured the ceiling on exactly this
+  comparison: **Sharadar against ITSELF reads 0.4971 at 63 trading days** and the live path against
+  itself 0.6859 at 36. So a 43-day cross-vendor reading sits inside the band where **ORDINARY DRIFT
+  dominates the vendor difference**, and D9's whole finding was that the vendor switch is worth
+  about 42.5 trading days of drift — i.e. at this gap the two effects are the same size and not
+  separable.
+* **The served payload is the TOP 100 BY HOT SCORE, not a cross-section.** A Spearman on a
+  selected-at-the-top set is range-restricted and biased low by construction; D9 used **431
+  overlapping large-cap names**, which needs the full 1,485-row scan and is not served.
+
+**So the honest answer is that 12e's coverage half is delivered and its Spearman half needs what
+D9 already routed: a one-month Sharadar renewal putting both sides on the SAME date.** Producing a
+number here would be producing one that cannot be read.
+
+### THE FINANCIAL ROWS — THE THREE DCF VALUES CLEARED, AND FOUR NEW ROWS EXPOSED A LABEL DEFECT
+
+**SYF, STT and AMG all now read `withheld_financial_inputs` with no fair value**, so **YES: those
+values predated the sector fix, and YES they cleared on the new scan.** The served 09-30 list has
+**28 Financial Services rows — 22 `withheld_financial_inputs`, 4 `dcf`, 2 `withheld`.**
+
+**ZERO get a P/B-ROE value, and the reason is concrete: no financial row carries `book_to_price` or
+`roe` — 0 of 28 for each.** The served row schema is `z_*` theme scores plus price/cap/sector; the
+raw ratios the P/B-ROE lens needs are never persisted. **So task 10's routing is working — it
+withholds with a label rather than reaching for an industrial lens — and it cannot ever compute,
+until the scan stores those two inputs.** That is the remaining task-10 item, and it is now a named
+one-line requirement rather than a mystery.
+
+
+### THE LABEL DEFECT I FIXED THIS MORNING SHIPPED ANYWAY, BECAUSE I TESTED THE COMPUTATION AND NOT THE DELIVERY
+
+**Ranks 1–12 of the served 09-30 list are exactly the `run_dcf_top` window, and EVERY ONE was
+served labelled `dcf`** — including four financials, **XRPN, BFH, JXN and OZK**. That is the
+defect I wrote up this morning as `HOTFV-LENS-LABEL` and believed fixed.
+
+**THE NUMBERS ARE RIGHT AND ONLY THE SENTENCE IS FALSE — verified rather than assumed.** Put
+through the live single-stock path, all four come back **regime `financial`, lenses `['pb_roe']`,
+and a fair value IDENTICAL TO THE HOT LIST'S TO THE LAST DIGIT** (XRPN 1.8935773681990722,
+BFH 137.0376753538593, JXN 29.390770925856824, OZK 73.22377654151241). So the sector chain and the
+P/B-ROE route are both working; what was published was a correct bank valuation **described as a
+discounted cash flow**. **I had raised this as a possible wrong-number defect — XRPN reads $1.89
+against a $16.40 price — and checking first is what stopped it going out that way.**
+
+**THE MECHANISM IS THE M6 FAMILY, AND THIS RECORD ALREADY NAMES IT.** `save_snapshot` had **no
+`fair_value_method` column**. The scan computed `pipeline_pb_roe`, the store dropped it, and
+`estimate_fair_values` — which `screen.py:733` notes runs at **SERVE time, not in the scan** — then
+saw a value with no method and `setdefault`ed `dcf`. The same shape as `_backtest_hold` computing
+B17's entire disclosure while `build_payload` carried none of it: **a field computed and discarded
+on the way to the record.**
+
+**AND IT IS WHY THIS MORNING'S 4-OF-4 MUTATION RUN PASSED WHILE THE DEFECT SHIPPED.** Every one of
+those mutations asked whether the label is **SET** in `_enrich_with_dcf`. It is. **Not one asked
+whether it SURVIVES to the served payload.** A test of the computation is not a test of the
+delivery, and the gap is invisible from inside the function.
+
+Fixed by carrying `fair_value_method` and `fair_value_note` through the store, following the
+existing `ALTER TABLE` migration pattern. **The subtlety that made the column alone insufficient:**
+`SELECT *` returns a NULL as a key **present and set to None**, and the serve-time label uses
+`setdefault`, which **keeps** a present-but-None value — so a legacy row would have frozen at
+`None` forever instead of falling back. The load path pops both keys when NULL, which restores the
+pre-column behaviour exactly for history. **The file already documents this identical hazard for
+`fair_value_withheld_reason`**, which is what made the fix obvious once the first half was in.
+
+**No published number changes** — this is purely label fidelity. It takes effect on the next scan,
+and the current four rows keep their correct values and their false label until then. **5 of 5
+mutations caught**, including one that re-drops the field and one that makes the pop fire on a real
+label.
+
+
 ## THE CRAWL IS DONE AND BANKED; ASSEMBLY IS BLOCKED ON TWO WIRING GAPS, BOTH LOCATED
 
 **CRAWL COMPLETE: 1,500 names, 12,406 SEC calls, 12 throttles (all retried, none fatal), ~2 hours

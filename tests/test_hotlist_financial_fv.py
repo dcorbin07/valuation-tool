@@ -244,5 +244,99 @@ class TheLabelNamesTheLensThatProducedTheValue(unittest.TestCase):
                       "an absent blend writes the bare prefix `pipeline_` as a method")
 
 
+class TheLabelMustSURVIVE_TO_THE_SERVED_PAYLOAD(unittest.TestCase):
+    """Computing the label was never the hard part; DELIVERING it was.
+
+    MEASURED on the served 2026-09-30 list, with the lens-label code provably in the checked-out
+    SHA (`ee19583`, confirmed via the Action's `headSha`): ranks 1-12 are exactly the
+    `run_dcf_top` window, every one carried a correct pipeline value, and **every one was served
+    labelled `dcf`** -- including four financials (XRPN, BFH, JXN, OZK) whose numbers are the
+    P/B-ROE blend TO THE LAST DIGIT, confirmed against `/api/value` (regime `financial`, lenses
+    `['pb_roe']`). So the NUMBERS were right and the sentence describing them was false.
+
+    `save_snapshot` had no `fair_value_method` column. The scan set it, the store dropped it, and
+    `estimate_fair_values` at SERVE time then saw a value with no method and `setdefault`ed
+    `dcf`. **The M6 family this record already names: a field computed and discarded on the way
+    to the record** -- there, `_backtest_hold` computed B17's entire disclosure and
+    `build_payload` carried none of it.
+
+    AND IT IS WHY THE EARLIER 4-OF-4 MUTATION RUN PASSED WHILE THE DEFECT SHIPPED: those
+    mutations all asked whether the label is SET in `_enrich_with_dcf`. It is. Nothing asked
+    whether it SURVIVES. A test of the computation is not a test of the delivery.
+    """
+
+    def _store(self):
+        import tempfile
+        from valuation.screener.store import Store
+        d = tempfile.mkdtemp()
+        return Store(os.path.join(d, "t.db"))
+
+    def test_the_method_ROUND_TRIPS_through_the_store(self):
+        st = self._store()
+        st.save_snapshot("2026-09-30", [
+            {"ticker": "XRPN", "price": 16.4, "fair_value": 1.8936, "rank": 1,
+             "fair_value_method": "pipeline_pb_roe", "fair_value_note": "P/B-ROE"}])
+        got = st.load_snapshot("2026-09-30")
+        self.assertEqual(got[0]["fair_value_method"], "pipeline_pb_roe")
+        self.assertEqual(got[0]["fair_value_note"], "P/B-ROE")
+
+    def test_an_UNLABELLED_row_comes_back_with_the_key_ABSENT(self):
+        """Present-but-None would make `setdefault` INERT and freeze the method at None.
+
+        `SELECT *` brings a NULL back as a key present and set to None, and
+        `estimate_fair_values` labels with `setdefault`, which KEEPS a present-but-None value. So
+        a row written before the column existed would read `fair_value_method: None` forever
+        rather than falling back. The file already documents this exact hazard for
+        `fair_value_withheld_reason`; it applies identically here.
+        """
+        st = self._store()
+        st.save_snapshot("2026-09-30",
+                         [{"ticker": "ZZZ", "price": 5.0, "fair_value": 7.0, "rank": 1}])
+        got = st.load_snapshot("2026-09-30")
+        self.assertNotIn("fair_value_method", got[0],
+                         "a NULL method came back present, so setdefault is now inert")
+        self.assertNotIn("fair_value_note", got[0])
+
+    def test_setdefault_STILL_LABELS_an_unlabelled_row(self):
+        """The fallback must keep working -- the change is additive, not a replacement."""
+        st = self._store()
+        st.save_snapshot("2026-09-30",
+                         [{"ticker": "ZZZ", "price": 5.0, "fair_value": 7.0, "rank": 1}])
+        rows = st.load_snapshot("2026-09-30")
+        rows[0].setdefault("fair_value_method", "dcf")
+        self.assertEqual(rows[0]["fair_value_method"], "dcf")
+
+    def test_setdefault_DOES_NOT_overwrite_a_carried_label(self):
+        """The whole point: a pipeline label must survive the serve-time pass."""
+        st = self._store()
+        st.save_snapshot("2026-09-30", [
+            {"ticker": "XRPN", "price": 16.4, "fair_value": 1.8936, "rank": 1,
+             "fair_value_method": "pipeline_pb_roe"}])
+        rows = st.load_snapshot("2026-09-30")
+        rows[0].setdefault("fair_value_method", "dcf")
+        self.assertEqual(rows[0]["fair_value_method"], "pipeline_pb_roe",
+                         "the serve-time default overwrote a real label")
+
+    def test_the_INSERT_and_the_column_list_cannot_drift(self):
+        """A column added to one and not the other is a silent drop or a crash.
+
+        Counted structurally rather than eyeballed, because that is precisely how
+        `fair_value_method` came to be set and never stored.
+        """
+        src = io.open(os.path.join(REPO, "valuation/screener/store.py"),
+                      encoding="utf-8").read()
+        i = src.index("INSERT OR REPLACE INTO snapshot_rows")
+        block = src[i:i + 1400]
+        cols = block[block.index("(scan_date"):block.index("VALUES")]
+        n_cols = cols.count(",") + 1
+        vals = block[block.index("VALUES"):]
+        n_q = vals[:vals.index('"""')].count("?")
+        self.assertEqual(n_cols, n_q,
+                         "the column list and the placeholder count disagree: %d vs %d"
+                         % (n_cols, n_q))
+        for need in ("fair_value_method", "fair_value_note"):
+            self.assertIn(need, cols, "%s is not stored" % need)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
