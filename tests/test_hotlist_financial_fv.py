@@ -35,8 +35,18 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _fin(**kw):
+    """A financial row as the scan now produces one.
+
+    `pb_roe_ke` and `pb_roe_g` ARE PART OF THE ROW NOW, not optional extras. `_financial_value`
+    used to approximate the cost of equity as `rf + 1.0 x ERP` -- a beta of exactly one -- and
+    that was measured against the single-stock page at **+27.06% on BFH** ($174 against $137,
+    one click apart). So the approximation was removed and a row without the pipeline's own ke is
+    WITHHELD instead. These fixtures carried no ke, which is why four of them went red when the
+    fallback went away: they described the old contract, correctly, and the contract changed.
+    """
     row = {"ticker": "ALL", "sector": "Financial Services", "price": 253.0,
-           "book_to_price": 0.45, "roe": 0.18}
+           "book_to_price": 0.45, "roe": 0.18,
+           "pb_roe_ke": 0.102, "pb_roe_g": 0.03}
     row.update(kw)
     return row
 
@@ -81,9 +91,13 @@ class TestTheFinancialLens(unittest.TestCase):
     def test_a_NON_financial_row_is_UNTOUCHED_by_this_change(self):
         """The inertness control. Without it, 'financials use P/B-ROE' would be satisfied by a
         function that routed everything there."""
+        # `pb_roe_ke`/`pb_roe_g` supplied DELIBERATELY on a non-financial: without them the row
+        # would avoid `pb_roe` because the ke is missing rather than because the sector routes it
+        # elsewhere, and the control would pass for the wrong reason.
         rows = [{"ticker": "AAPL", "sector": "Technology", "price": 200.0,
                  "book_to_price": 0.05, "roe": 1.5, "pe": 30.0, "revenue": 400000.0,
-                 "ev_ebitda": 22.0, "op_margin": 0.30, "revenue_growth": 0.06}]
+                 "ev_ebitda": 22.0, "op_margin": 0.30, "revenue_growth": 0.06,
+                 "pb_roe_ke": 0.102, "pb_roe_g": 0.03}]
         FV.estimate_fair_values(rows, peer_rows=rows)
         self.assertNotEqual(rows[0].get("fair_value_method"), "pb_roe")
 
@@ -116,15 +130,20 @@ class TestItDelegatesRatherThanReDerives(unittest.TestCase):
         """Delegation proved by SUBSTITUTION rather than by reading the import."""
         from valuation.engine.financials import financial_fair_value
         from valuation.data.models import CompanyData
-        from valuation.config import CONFIG
-        rf = float(getattr(CONFIG, "risk_free_rate", None) or 0.04)
-        erp = float(getattr(CONFIG, "equity_risk_premium", None) or 0.05)
-        bvps = 0.45 * 253.0
+        # THE ROW'S OWN ke AND g, not CONFIG's. This used to build its expectation from
+        # `rf + erp` and `min(rf, 0.025)` -- the beta-of-one approximation that was measured at
+        # +27.06% against the single-stock page and removed. Reading them off the fixture makes
+        # the test stronger as well as correct: it now proves the row's ke and g are the ones
+        # that reach the engine, which is the property that makes the two surfaces agree.
+        row = _fin()
+        bvps = row["book_to_price"] * 253.0
         cd = CompanyData(ticker="ALL")
-        cd.total_equity, cd.shares_diluted, cd.net_income = bvps, 1.0, 0.18 * bvps
-        want = financial_fair_value(cd, rf + erp, min(rf, 0.025))
-        got, _ke = FV._financial_value(_fin(), 253.0)
+        cd.total_equity, cd.shares_diluted, cd.net_income = bvps, 1.0, row["roe"] * bvps
+        want = financial_fair_value(cd, row["pb_roe_ke"], row["pb_roe_g"])
+        got, used_ke = FV._financial_value(row, 253.0)
         self.assertAlmostEqual(got, want, places=9)
+        self.assertAlmostEqual(used_ke, row["pb_roe_ke"], places=12,
+                               msg="the row's own ke is not what was used")
 
     def test_only_the_RATIO_of_equity_to_shares_is_used_so_the_stub_is_legitimate(self):
         """The scan has no share count, so the engine is handed an equity/share pair that

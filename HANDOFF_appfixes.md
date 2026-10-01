@@ -5,6 +5,372 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 70 — 2026-10-01 — the free route's three wiring gaps are closed, and the cache is built
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `by_domain`
+unchanged: equity 248, options 310, infra 20. **Nothing written to the bound series**, no trade,
+no `.github/` edit, FMP still gated off. Task 15 (a)-(f).
+
+**THE CACHE IS BUILT: 1,403 rows for 1,500 served names**, against **0 rows and 0.0 coverage** at
+the end of session 69. All three themes contribute.
+
+| theme input | coverage | distribution over the names it covers |
+|---|---|---|
+| `inst_accum` | **84.07%** | 1,261 non-null, **all non-zero**, median −0.0106 |
+| `sm_breadth` | **84.07%** | 1,261 non-null, 1,241 non-zero, median +0.0295 |
+| `insider_score` | **77.60%** | 1,164 non-null, **all non-zero**, median 35.07 |
+
+**The insider median of 35.07 — below the neutral 50 — is a sanity signal rather than a defect:**
+insiders sell for liquidity and diversification far more often than they buy, so a universe-wide
+tilt to net selling is what a correct scorer should report.
+
+## (a) GAP 1 — THE ANCHOR NOW DIVIDES BY A CAP DATED TO THE SAME DAY AS ITS NUMERATOR
+
+| rung | before | after |
+|---|---|---|
+| `cusip_13g` | 0 | **1,221** |
+| `name_exact` | 0 | **44** |
+| `anchor_failed` | **1,336** | **49** |
+| `ambiguous` / `unmatched` | 98 / 66 | 98 / 66 |
+| `too_few_holders` | 0 | 22 |
+
+**1,265 names pass the anchor against 0 before, with `ANCHOR_MAX` untouched at 1.50.** Caps:
+**1,436 of 1,500 priced, every one on the exact period end (2026-03-31)**; shares lag **median 0
+days**, p95 90.
+
+**THE ANCHOR DISTRIBUTION IS THE EVIDENCE THE DENOMINATOR IS RIGHT, and it is better than a pass
+rate.** Median **0.8379**, p05 0.0526, p95 1.0683, **98.77% inside (0, 1.50]**. Institutions
+reporting about 84% of the median name's market cap is exactly the band US large caps sit in — and
+that is not a number a live cap against a 183-day-stale numerator would produce. The 16 names above
+the bar are what the guard is for; the maximum is 7888, which is a mismatch being caught.
+
+### TWO CORRECTIONS TO THE PROPOSAL, BOTH MEASURED
+
+* **THE SHARES SOURCE HAD TO CHANGE, NOT JUST BE KEPT.** `_annual` filters to `10-K`/`FY`, which is
+  right for a year-on-year issuance RATIO and wrong for a point-in-time LEVEL.
+  `EntityCommonStockSharesOutstanding` is a dei **cover-page** fact filed on every report, so an
+  unfiltered read moves the reading from "the last annual report" to "the last report of any kind".
+  Measured against real SEC facts: **BFH and JPM both land ON 2026-03-31, 0 days stale, from
+  10-Qs**, where the annual read was 90 days stale and **10.2% and 3.8% too high**. AAPL lands 3
+  days out against 185. A cap built on the annual figure would have carried that straight into the
+  guard.
+* **A SPLIT GUARD THE PROPOSAL DID NOT ASK FOR, AND IT FIRED ON 12 NAMES.** The vendor close is
+  back-adjusted to today while the share count is in the terms of its own filing, so a split in
+  between makes `shares x close` wrong by exactly the split factor. Real ratios in the window:
+  **25x, 10x, 5x, 4x, 3x, 2x, 0.5x, 0.3333x, 0.05x, 0.02x, 0.9846x**. A 25x split would have made
+  the cap 25x too small and the anchor **25x too large**, failing a name whose CUSIP match was
+  fine. **It REFUSES rather than corrects**: rescaling a guard's own denominator from a tape ratio
+  is not a thing to do silently, and refusing costs one name while a wrong rescale is invisible.
+
+### AND THE SPLIT GUARD FAILS OPEN ON A RUNNER, WHICH IS NOW COUNTED RATHER THAN DISCOVERED
+
+`_split_table` reads `data/bulk/actions.csv` — Sharadar-licensed, gitignored, and **untracked**
+(`git ls-files` returns nothing). **On a fresh GitHub runner it does not exist, the table is empty,
+and `split_between` returns 1.0 for every name** — the build looks identical while checking
+nothing. Gating the free route on a licensed file would defeat its purpose, so the reach is
+**counted and printed**: locally `split guard present (1448 of 1500 names checkable)`, and on a
+runner it will read `ABSENT -- the split guard checked NOTHING on this run`. **"No splits found"
+and "no tape to look in" can never read the same.**
+
+### IT NEEDS NO SCAN STORE
+
+Shares from SEC companyfacts through the xbrl leg's own cache, close from the price vendors,
+universe from the broker ranking. **Nothing on this path reads a saved scan**, which is what lets
+the assemble job run on a fresh runner — the exact blocker that made session 69's `--universe
+broker` crawl-capable and not assemble-capable.
+
+## (b) GAP 2 — IT WAS THREE IMPLEMENTATIONS, AND THE BLOCKER WAS A PRODUCER THAT NEVER RAN
+
+* `valuation/screener/insider.py:175` — the **shipped live single-stock** scorer, keyed on
+  `pressure` rather than a raw net.
+* `scripts/fidelity2_rebuild.py:292` — the copy the **FIDELITY-2 control measured at +0.8726**.
+* `scripts/fidelity2_rebuild.py:417` — the copy that writes the **production** cache.
+
+**The last two were textually identical IN THE SAME FILE, which is exactly how a control comes to
+certify a formula production has stopped using.**
+
+**`build_live` OWNS IT, because that file is what the control scores.** Both sites now delegate to
+one `insider_score_from_txns`; proved **bit-identical over 3,301 scored cases against the
+pre-refactor source restored from git** (non-vacuity gated — a refactor checked against a
+reimplementation of itself proves only that the same bug can be written twice). The shipped live
+scorer is **deliberately not folded in**: different input, own callers, own blast radius, and
+nothing here needs it.
+
+**AND `form4_live` WAS EMPTY BECAUSE THE PRODUCER READ A PINNED FILE.** `fetch4` called
+`M.load_served()` **bare**, which resolves `live_theme_sources.SNAPSHOT` — so it could only ever
+crawl the universe that file names, never the 1,500-name broker ranking the cache is built for.
+`build_live` then found no payload for any served name and the insider column came out empty,
+**which read as "no insider data" rather than "this producer was never pointed at this universe"**.
+The same bound-default shape as `fetch_all`'s own snapshot argument, one layer along. Now takes
+`--snapshot`; **1,500 of 1,500 Form 4 payloads cached.**
+
+## (c) THE FINAL `auto-scan.yml` TEXT — AND YES, THE ASSEMBLE JOB IS NOW SAFE TO PASTE
+
+**IT IS SAFE.** Session 69's warning was *"do not paste the assemble job until Gap 1 is closed,
+because a CI runner has no scan store either and would produce the same zero-row refusal."* Gap 1
+is closed and the reason it is safe is specific: **nothing on the assemble path reads a saved
+scan.** The universe comes from the broker ranking, the shares from SEC companyfacts, the close
+from the price vendors. The run below was performed end to end on exactly that path and wrote
+**1,403 rows**.
+
+**ONE DEGRADATION TO EXPECT ON A RUNNER, AND IT IS REPORTED RATHER THAN SILENT.** The split guard
+reads `data/bulk/actions.csv`, which is licensed and untracked, so CI will print
+`split guard ABSENT -- the split guard checked NOTHING on this run`. The cache still builds; about
+12 names in 1,500 may carry a market cap wrong by a split factor, and those names fail the anchor
+rather than entering the cache with a bad value in most cases. **Watch that line.** If it matters
+later, the fix is a free split source, not a licensed one.
+
+**THE ZERO-ROW REFUSAL FROM SESSION 69 IS STILL IN PLACE** and is now the backstop rather than the
+expected outcome: if the crawl is incomplete the build RAISES and writes nothing, so a thin cache
+cannot reach `live_themes` wearing a complete one's clothes.
+
+### 1. ADD TO THE `schedule:` BLOCK
+
+```yaml
+    - cron: "17 7 * * 0"            # theme cache — Sunday 07:17 UTC, ahead of Monday's scan
+```
+
+### 2. ADD `themes` TO THE DISPATCH CHOICES
+
+```yaml
+        options: [hot, intraday, both, watchdog, paper, recap-daily, recap-weekly, themes]
+```
+
+### 3. NEW JOBS — append after the `hot` job
+
+```yaml
+  themes:
+    # THE FREE ROUTE'S INSTITUTIONAL + INSIDER + CAPITAL-DISCIPLINE INPUTS, from SEC alone:
+    # 13F aggregates, XBRL company facts, Form 4. No vendor, no key, no licence.
+    #
+    # WEEKLY, not daily: the 13F period and the XBRL share counts change quarterly at most, and
+    # the crawl is ~1,500 names against SEC's rate ceiling. Measured: ~12,400 calls and about two
+    # hours across three shards, 12 throttles, all retried.
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '17 7 * * 0') || (github.event_name == 'workflow_dispatch' && github.event.inputs.kind == 'themes') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install --require-hashes -r requirements.lock.txt   # MA12
+      - name: Restore the theme crawl
+        uses: actions/cache@v4
+        with:
+          path: data/live_themes
+          key: live-themes-crawl-${{ github.run_id }}-${{ matrix.shard }}
+          restore-keys: live-themes-crawl-
+      - name: Crawl shard ${{ matrix.shard }}
+        env:
+          SEC_USER_AGENT: "Donovan Corbin donniecorbin6@gmail.com"
+          # The universe is the broker liquidity ranking, so this needs the market-data token
+          # for the same reason the hot job does — and `live` because the sandbox host serves a
+          # different universe (config.py:53 defaults to sandbox).
+          TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
+          TRADIER_ENV: live
+        # A shard crawls and REFUSES to assemble: a cache built from one third of the universe
+        # would carry no sign that it covers a third, and a thin cache is indistinguishable from
+        # a complete one once written.
+        run: python scripts/theme_cache_build.py --universe broker --slice ${{ matrix.shard }}/3
+
+  themes-assemble:
+    needs: themes
+    if: ${{ always() && (github.event_name == 'schedule' || github.event.inputs.kind == 'themes') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install --require-hashes -r requirements.lock.txt   # MA12
+      - name: Restore the theme crawl
+        uses: actions/cache@v4
+        with:
+          path: data/live_themes
+          key: live-themes-crawl-assemble-${{ github.run_id }}
+          restore-keys: live-themes-crawl-
+      # THE FORM 4 LEG, and it is a SEPARATE producer rather than part of the crawl above.
+      # `build_live` reads raw transactions from `form4_live/` and computes the score itself
+      # from the constants the FIDELITY-2 control validated; the crawl's own `insider` leg
+      # stores a pre-computed score instead and is not what the builder reads. `--snapshot` is
+      # not optional: without it `fetch4` reads a PINNED served file and crawls the wrong
+      # universe, which is why `form4_live` was empty.
+      - name: Crawl Form 4 for the served universe
+        env:
+          SEC_USER_AGENT: "Donovan Corbin donniecorbin6@gmail.com"
+          TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
+          TRADIER_ENV: live
+        run: |
+          python scripts/theme_cache_build.py --universe broker --slice 0/1 || true
+          python -m scripts.fidelity2_rebuild fetch4 --current \
+            --snapshot data/live_cache/served_broker_top_1500.json
+      - name: Assemble the theme cache
+        env:
+          SEC_USER_AGENT: "Donovan Corbin donniecorbin6@gmail.com"
+          TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
+          TRADIER_ENV: live
+          LIVE_THEMES_CACHE: data/live_cache/theme_columns.json
+        # No --slice: this assembles from what the shards fetched. It re-derives nothing already
+        # on disk, and it RAISES rather than writing a zero-row cache.
+        run: python scripts/theme_cache_build.py --universe broker
+      - name: Publish the theme cache for the hot scan
+        uses: actions/cache/save@v4
+        with:
+          path: data/live_cache/theme_columns.json
+          key: live-themes-cache-${{ github.run_id }}
+```
+
+### 4. TWO ADDITIONS TO THE EXISTING `hot` JOB
+
+Insert immediately after the existing `Restore the scan cache` step:
+
+```yaml
+      # THE FREE ROUTE'S THREE MISSING THEMES. Read-only here: `themes-assemble` is the only
+      # writer, so a hot scan can never publish a partial cache under this key. If the restore
+      # misses, `live_themes` finds no cache and the scan runs on the themes it runs on today —
+      # the same behaviour as before this job existed, which is why a miss is a degradation and
+      # not a failure.
+      - name: Restore the live theme cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/live_cache/theme_columns.json
+          key: live-themes-cache-never-matches-force-restore-keys
+          restore-keys: live-themes-cache-
+```
+
+And add to the `hot` job's existing `env:` block:
+
+```yaml
+          # Read by valuation/screener/live_themes.py:38. The same variable the writer uses, so
+          # there is one path and it cannot drift.
+          LIVE_THEMES_CACHE: data/live_cache/theme_columns.json
+```
+
+### THE ONE THING TO CHECK AFTER THE FIRST RUN
+
+`live_themes.status()` reports `period_age_days` beside `age_days`, and they answer different
+questions. **A cache built today can describe a 13F period six months old** — measured, 184 days —
+because SEC has not published the 30-JUN-2026 window and the builder correctly steps back a
+quarter. `available` is keyed on the BUILD age, deliberately: gating on the period would switch
+two themes off for a reason outside anyone's control. **So read both numbers, and do not read a
+fresh `age_days` as a fresh period.**
+
+
+## (d) TASK 10 — THE INPUTS WERE THERE ALL ALONG, AND THE TWO SURFACES NOW AGREE EXACTLY
+
+**A CORRECTION TO MY OWN SESSION-69 CONCLUSION.** I reported that the scan must start persisting
+`book_to_price` and `roe`. **It already did** — `_rows_from` writes both into `extra`, with a
+comment naming `_financial_value` as the reason — and all 29 financial rows on the served scan
+carry them. `_financial_value` read the **top level** and got `None`, so every financial withheld.
+I measured the top level, concluded the data was absent, and specified work that was already done.
+**The wrong-object family, costing a whole feature rather than a label.**
+
+**THE EQUALITY (d) ASKS FOR, MEASURED:**
+
+| | single-stock page | hot-list path | delta |
+|---|---|---|---|
+| XRPN | 1.8935773681990722 | 1.8935773681990722 | **0.000e+00** |
+| BFH | 138.0106868562231 | 138.0106868562231 | **0.000e+00** |
+| JXN | 29.390770925856824 | 29.390770925856824 | **0.000e+00** |
+| OZK | 73.84488355943903 | 73.84488355943903 | **0.000e+00** |
+
+**Equal to the last bit on all four**, because the two surfaces now share all four inputs (BVPS,
+ROE, ke, g) and the same delegated model. **And it confirms session 69's diagnosis of the 1.6–2.2%
+residual: it WAS the hard-coded `g`** — `min(rf, 0.025)` against the pipeline's `terminal_growth`
+of 0.03, which is why XRPN and JXN were already exact (their ROE is low enough that the engine's
+cap clamps both choices to the same place) and BFH and OZK were not.
+
+**A ROW WITHOUT THE PIPELINE'S OWN ke IS WITHHELD, NOT APPROXIMATED.** The beta-of-one fallback is
+gone, pinned by an AST check rather than a comment. Two distinct refusals ship, because collapsing
+them hides which one is fixable: **`withheld_financial_ke`** means the fundamentals are present and
+only the cost of equity is missing — a name that WOULD value if the DCF window reached it — and
+**`withheld_financial_inputs`** means the fundamentals are not there at all.
+
+**ke AND g GO INTO `extra`, NOT ONLY THE TOP LEVEL, and I nearly repeated last session's defect
+getting there.** My first cut added them to `_rows_from`'s column list, which is filtered by
+`if k in scored.columns` — and they are not frame columns at all, they are produced later per name
+by `_enrich_with_dcf`. **An inert line that looks like wiring is worse than none.** `save_snapshot`
+writes a FIXED column list and `extra` is its one free-form field, so a top-level key is dropped on
+the way to the record — which is exactly how the lens label came to be computed every scan and
+never served.
+
+## (e) THE RECONSTRUCTED DAYS — A DOOR WHERE THE RECORD LIVES
+
+`/api/index-track` served `n_reconstructed: 0` **not because the computation failed** — it ran on
+this machine and produced 19 points — **but because it ran somewhere the record is not**, and
+`data/` is not deployed.
+
+`POST /admin/track-reconstruct` computes on the service, which is the only place that holds the
+book in force, the recorded series to subtract, AND a price vendor together. **A developer machine
+holds the book and a STALE record**: the local history is 8 rows against the service's 24, it
+disagrees on 3 of those 8, and it carries a row (2026-09-17) the record never had — so subtracting
+it would draw "reconstructed" points on dates that ARE recorded, the exact confusion the separate
+store exists to prevent.
+
+* **GET computes and returns; POST?write=1 stores.** `?write=1` on a GET is **405 before the auth
+  check**, so the refusal cannot be mistaken for a credentials problem.
+* **An empty record REFUSES** — with nothing to subtract, every session looks missing and the door
+  would "reconstruct" the entire history, which is a back-fill of the record wearing another name.
+* **A run that priced nothing may not overwrite a populated store**, or one throttled attempt
+  replaces 19 good points with an empty file.
+* **The response carries `validate_against_record` and `excluded_from`**, so a reader judges the
+  points rather than trusting them.
+* **TWO DEFECTS OF MINE IN THE DOOR, both caught before it ran.** It compared the token with a
+  plain `!=` — which short-circuits on the first differing byte and leaks the prefix through
+  timing, and is a second copy of an auth rule nine doors share — and it accepted `?token=`, which
+  puts a secret in every proxy log and referrer. Both replaced by the shared `_admin_ok()`.
+
+`scripts/reconstruct_track.py` is the client. **It refuses to take the token as an argument** (it
+would land in shell history and the process list) and never prints it. **It needs Don's token; I
+cannot authenticate, so the points are still not on the service.**
+
+## (f) WBS WAS ACQUIRED — ESTABLISHED FROM PRIMARY FILINGS, AND THE TAPE'S SILENCE WAS A COVERAGE FACT
+
+| filing | date |
+|---|---|
+| **DEFM14A** (definitive merger proxy) | 2026-04-23 |
+| Rule **425** merger communications | 2026-04-29 → 05-21 |
+| **8-K** + **25-NSE** (exchange delisting notice) | **2026-08-20** |
+| last traded close | 2026-08-19 |
+| final Form 4s | 2026-08-21 |
+| **15-12G** (termination of registration) | 08-31, 09-30 |
+
+SEC now lists **no ticker and no exchange** for CIK 801337.
+
+**AND I NEARLY REPORTED THE OPPOSITE.** Sharadar's ACTIONS tape has no acquisition row for it, and
+every acquisition row naming Webster has it as the **ACQUIRER** (Sterling 2022, NewMil 2006,
+FirstFed 2004, Mech 2000). **The tape's acquisition coverage ends 2026-07-24, four weeks before the
+close** — so "no acquisition row" was a fact about the export, not about the company. The one 2026
+row, a `relation` dated 2026-07-29, is Webster's own **preferred series** (`contraticker: WBS-PG`,
+`WBS-PF`), not a corporate event at all.
+
+### WHAT THE CONTRACT SAYS: NOTHING
+
+`PAPER_TRACK_CONTRACT.md` contains **no rule** for a held name that stops trading. Searched for
+acquisition, merger, delisting and deregistration: **one hit, and it is the word "acquires" in an
+unrelated sentence about a measurement seam.** A real gap, reported rather than filled.
+
+### AND YES, THE WEIGHT IS RENORMALISED AWAY
+
+`index_mark` computes `seg_return = num / wsum` where **both sums run over PRICED names only**, so
+the 85 survivors are rescaled to 100% and **WBS's 0.779% is redistributed pro-rata**. Coverage is
+**99.22%**, far above the `MIN_COVERAGE = 0.95` floor, so the row still writes.
+
+**THE CONSEQUENCE WORTH DECIDING ON: the acquisition consideration never enters the series.** The
+position is effectively reallocated at its last close rather than realised at the deal price. For a
+cash deal that closed near the last traded price that is a close approximation — deals trade at
+roughly the consideration before closing — **but it is an approximation the contract does not
+describe, and it is Don's call, not mine.** Nothing changed.
+
+
 # Session 69 — 2026-09-30 — the free route's last wiring, and a positive assertion satisfied by prose
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `by_domain`

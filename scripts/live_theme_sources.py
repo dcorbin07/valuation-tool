@@ -83,6 +83,7 @@ from __future__ import annotations
 import argparse
 import collections
 import io
+import datetime as _dt
 import json
 import math
 import os
@@ -675,10 +676,84 @@ def _annual(facts: dict, concepts, unit_hint=None) -> list:
     return []
 
 
-def extract_xbrl(facts: dict) -> dict:
-    """PREREG §4.5 — issuance (capital_discipline) and accruals (quality, not this theme)."""
+def xbrl_needs_shares(root: str, ticker: str, asof: str) -> bool:
+    """True when the cached xbrl payload carries no shares level for `asof`.
+
+    A CACHE WRITTEN BEFORE THIS EXISTED IS NOT WRONG, IT IS INCOMPLETE -- and the two must not
+    read the same. Without this the re-run would either refetch all 1,500 names (throwing away a
+    two-hour crawl) or skip them all (leaving every level absent and the anchor exactly as broken
+    as before). Keyed on the DATE as well as the key's presence, so moving to a new 13F period
+    refetches rather than silently reusing the prior quarter's level.
+    """
+    d = _read_json(leg_path(root, "xbrl", ticker)) or {}
+    if d.get("shares_level") is None:
+        return True
+    end = str(d.get("shares_level_end") or "")
+    return bool(asof) and (not end or end > str(asof)[:10])
+
+
+def shares_level_asof(facts: dict, on_or_before: str = None) -> dict:
+    """The shares-outstanding LEVEL at or before a date, with the date and form it came from.
+
+    **DELIBERATELY NOT `_annual`.** That helper restricts to `form.startswith("10-K")` and
+    `fp == "FY"`, which is right for a year-on-year issuance RATIO and wrong for a point-in-time
+    level: `EntityCommonStockSharesOutstanding` is a dei cover-page fact filed on EVERY report,
+    so dropping the restriction moves the reading from "the last annual report" to "the last
+    report of any kind", which for a 31-MAR period end is typically the Q1 10-Q rather than a
+    10-K up to a year earlier.
+
+    **THE STALENESS IS RETURNED, NOT HIDDEN.** `days_stale` is how far before the target the
+    chosen fact's period end sits, so a caller can report the distribution rather than assume it
+    is small. Nothing here falls back to a later filing: a level dated AFTER the target is
+    look-ahead for a period-end market cap and is skipped, which is why the reading can be stale
+    but can never be from the future.
+    """
+    want = str(on_or_before)[:10] if on_or_before else None
+    best = None
+    for ns in ("dei", "us-gaap"):
+        block = facts.get("facts", {}).get(ns, {})
+        for c in _XBRL_SHARES:
+            if c not in block:
+                continue
+            for uk, rows in (block[c].get("units") or {}).items():
+                if uk != "shares":
+                    continue
+                for x in rows or []:
+                    end, val = x.get("end"), x.get("val")
+                    if not end or val is None:
+                        continue
+                    if want and str(end)[:10] > want:
+                        continue                      # never a level from after the target
+                    cand = (str(end)[:10], float(val), c, str(x.get("form") or ""))
+                    if best is None or cand[0] > best[0]:
+                        best = cand
+    if best is None:
+        return {"shares_level": None, "shares_level_end": None,
+                "shares_level_concept": None, "shares_level_form": None,
+                "shares_level_days_stale": None}
+    out = {"shares_level": best[1], "shares_level_end": best[0],
+           "shares_level_concept": best[2], "shares_level_form": best[3],
+           "shares_level_days_stale": None}
+    if want:
+        try:
+            out["shares_level_days_stale"] = (
+                _dt.date.fromisoformat(want) - _dt.date.fromisoformat(best[0])).days
+        except (TypeError, ValueError):
+            pass
+    return out
+
+
+def extract_xbrl(facts: dict, shares_asof: str = None) -> dict:
+    """PREREG §4.5 — issuance (capital_discipline) and accruals (quality, not this theme).
+
+    `shares_asof` additionally emits the shares-outstanding LEVEL at or before that date, which
+    is GAP 1's missing denominator: the anchor needs a market cap dated to the 13F period end and
+    this is its share count. Omitting it leaves the output byte-identical to before.
+    """
     out = {"share_issuance": None, "accruals_q": None, "shares_points": 0,
            "issuance_end": None, "accruals_end": None}
+    if shares_asof:
+        out.update(shares_level_asof(facts, shares_asof))
     shares = _annual(facts, _XBRL_SHARES, "shares")
     out["shares_points"] = len(shares)
     if len(shares) >= 2 and shares[1][1]:
@@ -698,12 +773,13 @@ def extract_xbrl(facts: dict) -> dict:
     return out
 
 
-def fetch_xbrl(root: str, ticker: str, cik: int, guard: Guard) -> dict:
+def fetch_xbrl(root: str, ticker: str, cik: int, guard: Guard,
+               shares_asof: str = None) -> dict:
     facts = _get(FACTS_URL.format(cik=cik), guard, as_json=True)
     if facts is None:
         return {"share_issuance": None, "accruals_q": None, "shares_points": 0,
                 "issuance_end": None, "accruals_end": None, "no_facts": True}
-    return extract_xbrl(facts)
+    return extract_xbrl(facts, shares_asof=shares_asof)
 
 
 def fetch_insider(root: str, ticker: str, guard: Guard, detail=None) -> dict:
@@ -739,7 +815,8 @@ def leg_path(root: str, leg: str, ticker: str) -> str:
 
 def fetch_all(root: str = DEFAULT_ROOT, legs=_LEGS, limit: int | None = None,
               guard: Guard | None = None, slice_i: int = 0, slice_n: int = 1,
-              snapshot: str | None = None) -> dict:
+              snapshot: str | None = None,
+              shares_asof: str = None) -> dict:
     """Fetch every leg for every served name, resumably.
 
     `slice_i/slice_n` splits the universe into disjoint interleaved shards so several
@@ -770,7 +847,16 @@ def fetch_all(root: str = DEFAULT_ROOT, legs=_LEGS, limit: int | None = None,
         info = ciks.get(tkr.upper())
         for leg in legs:
             key = f"{leg}:{tkr}"
-            if manifest.done(key) or os.path.exists(leg_path(root, leg, tkr)):
+            # A CACHED PAYLOAD THAT PREDATES A NEW FIELD IS INCOMPLETE, NOT COMPLETE, and the
+            # two must not read the same. Without this the shares-level re-run had only two
+            # outcomes, both bad: refetch all 1,500 and throw away a two-hour crawl, or skip all
+            # 1,500 and leave every level absent with the anchor exactly as broken as before.
+            # Narrow on purpose -- it asks only about the one leg and the one field, so no other
+            # leg's cache is disturbed.
+            _incomplete = (leg == "xbrl" and shares_asof
+                           and xbrl_needs_shares(root, tkr, shares_asof))
+            if not _incomplete and (manifest.done(key)
+                                    or os.path.exists(leg_path(root, leg, tkr))):
                 stats[leg]["done"] += 1
                 continue
             if leg in ("cusip", "xbrl") and not info:
@@ -784,7 +870,8 @@ def fetch_all(root: str = DEFAULT_ROOT, legs=_LEGS, limit: int | None = None,
                 if leg == "cusip":
                     payload = fetch_cusip(root, tkr, info["cik"], guard)
                 elif leg == "xbrl":
-                    payload = fetch_xbrl(root, tkr, info["cik"], guard)
+                    payload = fetch_xbrl(root, tkr, info["cik"], guard,
+                                         shares_asof=shares_asof)
                 else:
                     payload = fetch_insider(root, tkr, guard)
             except Throttled as e:

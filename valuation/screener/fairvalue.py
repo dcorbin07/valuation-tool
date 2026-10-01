@@ -246,6 +246,23 @@ def _growth_value(row, price):
 FINANCIAL_SECTORS = {"Financial Services", "Financials", "Financial"}
 
 
+def _from_row(row, key):
+    """A scan row's value for `key`, from the top level or from `extra`.
+
+    BOTH, because the two shapes are both real: `_enrich_with_dcf` writes at the top level while
+    `_rows_from` persists the fundamentals into `extra`, and `load_snapshot` hands back the
+    latter as a parsed dict. A reader that knows only one of them silently sees nothing -- which
+    is exactly what kept every financial row withheld.
+    """
+    if row is None:
+        return None
+    v = row.get(key)
+    if v is not None:
+        return v
+    ex = row.get("extra")
+    return (ex or {}).get(key) if isinstance(ex, dict) else None
+
+
 def _financial_value(row, price):
     """Justified P/B from ROE for a bank or insurer, DELEGATED to the engine.
 
@@ -275,17 +292,30 @@ def _financial_value(row, price):
     """
     from ..engine.financials import financial_fair_value
 
-    b2p, roe = _num(row.get("book_to_price")), _num(row.get("roe"))
+    # THE INPUTS WERE ALWAYS THERE AND THIS READ THE WRONG LEVEL. `_rows_from` persists
+    # `book_to_price` and `roe` into `extra` -- with a comment naming THIS function as the
+    # reason -- and a served row carries them at `row["extra"]["book_to_price"]`. Reading the
+    # top level returned None for all 29 financial rows on the 2026-09-30 scan, so every one
+    # withheld and the previous session concluded the scan had to start storing them. It
+    # already did. The wrong-object family, costing a whole feature rather than a label.
+    b2p, roe = _num(_from_row(row, "book_to_price")), _num(_from_row(row, "roe"))
     if not b2p or b2p <= 0 or roe is None:
         return None, None
     bvps = b2p * price
     if bvps <= 0:
         return None, None
-    from ..config import CONFIG
-    rf = _num(getattr(CONFIG, "risk_free_rate", None)) or 0.04
-    erp = _num(getattr(CONFIG, "equity_risk_premium", None)) or 0.05
-    ke = rf + 1.0 * erp                       # beta = 1.0, stated: the scan carries no beta
-    g = min(rf, 0.025)                        # terminal growth, capped at rf as the engine does
+
+    # THE COST OF EQUITY IS THE PIPELINE'S OWN OR THE ROW IS WITHHELD -- it is NOT approximated.
+    #
+    # Session 69 measured what `rf + 1.0 x ERP` costs against the per-name figure: **+27.06% on
+    # BFH** ($174 here against $137 on the single-stock page) and +8.34% on OZK. A hot list that
+    # publishes a bank's fair value 27% above the detail page's, one click apart, is worse than
+    # one that declines to publish it -- so where the pipeline's `ke` was not captured the row is
+    # withheld with its own label rather than valued on a beta of one.
+    ke = _num(_from_row(row, "pb_roe_ke"))
+    g = _num(_from_row(row, "pb_roe_g"))
+    if ke is None or ke <= 0 or g is None:
+        return None, "no_ke"
 
     from ..data.models import CompanyData
     cd = CompanyData(ticker=str(row.get("ticker") or "?"))
@@ -334,7 +364,13 @@ def estimate_fair_values(rows, peer_rows=None) -> int:
         if (r.get("sector") or "") in FINANCIAL_SECTORS:
             fv, _ke = _financial_value(r, price)
             if fv is None:
-                r["fair_value_method"] = "withheld_financial_inputs"
+                # TWO DIFFERENT REFUSALS, and collapsing them would hide which one is fixable.
+                # `withheld_financial_ke` means the book value and ROE are present and only the
+                # pipeline's cost of equity is missing -- a name that WOULD value if the DCF
+                # window reached it. `withheld_financial_inputs` means the fundamentals are not
+                # there at all.
+                r["fair_value_method"] = ("withheld_financial_ke" if _ke == "no_ke"
+                                          else "withheld_financial_inputs")
                 r["fair_value_note"] = (
                     "Book value or return on equity is missing, so the price-to-book model a "
                     "bank or insurer needs cannot be run. No fair value is shown rather than "
