@@ -260,6 +260,37 @@ what was crawled either: the `xbrl` payload keeps `share_issuance` and `shares_p
 **discards the shares-outstanding LEVEL**, so price times shares is not available without a
 re-fetch.
 
+### AND THE ANCHOR'S TWO HALVES COME FROM DIFFERENT DATES — WHICH IS THE PERIOD-AGE FINDING AGAIN
+
+Reported because it changes how Gap 1 should be closed, and because it applies to the **SHIPPED**
+path and not only to mine.
+
+`anchor = rec["value"] / mc` divides a 13F dollar value **as of the 13F period** by a market cap
+taken from the served row — and in the production path that row is the scan's own, i.e. a
+**CURRENT** cap. With the period now **183 days** behind (SEC has not published 30-JUN-2026), the
+numerator and denominator are half a year apart. Market drift therefore moves every anchor: a rally
+since the period end shrinks the ratio and makes the guard **looser** on every name at once; a
+selloff makes it tighter and manufactures `anchor_failed`.
+
+**`ANCHOR_MAX = 1.50` is coarse enough that it probably absorbs this** — institutional ownership of
+a large cap runs ~60–90%, so 150% leaves roughly a factor-of-two cushion, and the guard's real job
+is catching gross mismatches (a wrong issuer gives 50x or 0.001x, not 1.6x). **But "probably" is
+the honest word: nobody has measured it, and the design's implied gap is the 45-day filing lag
+rather than 183 days.**
+
+**THIS IS WHY GAP 1 SHOULD NOT BE CLOSED WITH A LIVE-PRICE MARKET CAP.** The obvious cheap fix —
+shares outstanding from SEC XBRL times the broker row's `price` — would add a **SECOND** date
+mismatch on top of an unmeasured one, because that `price` is a live quote. The defensible
+denominator is a cap as of the 13F period end, which means a dated price for 1,500 names through
+the throttled path, not a free derivation. **Checked rather than assumed: the raw companyfacts are
+NOT cached** (`submissions/` holds filing metadata only — accession, cik, filingDate, form — and
+the `xbrl` payload keeps `shares_points: 19` as a COUNT while discarding the levels), so even the
+shares half needs a re-fetch.
+
+**So the cheap fix is not available and the available fix is a decision.** Recorded rather than
+taken.
+
+
 ### GAP 2 — THE SCORE FORMULA EXISTS TWICE AND THE TWO HALVES DO NOT MEET
 
 The crawl's `insider` leg stores a **pre-computed `insider_score`**; `build_live` wants
