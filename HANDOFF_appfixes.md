@@ -285,31 +285,50 @@ computed, so the session had genuinely closed by the writer's reckoning.
 
 A reconstruction that cannot reproduce a day the record already holds has no business drawing days
 the record does not — so `validate_against_record` now ships as a **function** rather than as my
-one-off script, because a number nobody re-measures is a number that rots. Measured on the 8
-comparable days:
+one-off script, because a number nobody re-measures is a number that rots.
 
-* **The BENCHMARK leg reproduces EXACTLY on 5 of 8** (max |delta| 0.0000pp on 08-06, 08-17, 08-21,
-  08-27, 09-17). That is the convention confirmed — closing prices, cumulative since inception,
-  this vendor — and it is the strong half.
-* **The BOOK leg never reproduces exactly: median +0.1001pp, max +0.2944pp, and POSITIVE on all
-  8.** Systematic, not scatter.
-* **Three rows disagree on the benchmark leg too, and two have known causes:** 07-31 is day 1,
-  which the record already marks unusable in either direction (78 of 86 priced); 08-13's −0.0006 is
-  a **hand-entered** row rounded to 4.88 against a re-derivation of 4.8794. **09-24 is anomalous on
-  BOTH legs** (+0.2895 book, +0.2569 benchmark) and is unexplained.
-* **`n_priced` is 85 in every reconstruction, including four days the record priced 86.** The
-  mechanism is vendor-side: **WBS cannot be priced by any vendor today** — yfinance's newest row for
-  it is 2026-08-19 and Stooq 404s — so it is missing from the reconstruction of **every** day,
-  including the days it was live. **That is survivorship in the price vendor**, it moves the book
-  average, and `validate_against_record` returns both `n_priced` figures per day so it stays
-  visible instead of being absorbed into the seam.
-* **It does not explain the later gap.** On 09-17 and 09-24 both sides price 85 and the book leg is
-  still ~+0.29pp. **Not diagnosed, and not asserted either way.**
+**MEASURED ON THE SERVICE'S 24 RECORDED ROWS, THE RECONSTRUCTION IS NEAR-EXACT:**
 
-**So the 19 points ship with a measured book-leg seam of roughly +0.1 to +0.3pp**, which is
-precisely why they live in a separate store behind a "not part of the record" label. `FMP is
-configured but NOT enabled` fired on every unpriced name, as designed — the fail-closed path
-counted WBS unpriced rather than filling it.
+* **BENCHMARK leg EXACT on 22 of 24 days**, max |delta| **0.0297pp** — and both non-zero rows have
+  known causes. 07-31 is day 1, which the record already marks unusable in either direction (78 of
+  86 priced); 08-13's **−0.0006** is a **hand-entered** row rounded to 4.88 against a re-derivation
+  of 4.8794.
+* **BOOK leg EXACT on 11 of 24, median 0.0005pp, max 0.1404pp** — 12 positive, **1 negative**,
+  11 exactly zero.
+* **AND THE RESIDUAL IS FULLY ATTRIBUTABLE.** Every non-zero book delta sits on a day where the
+  name count differs, and **the sign follows the direction of the mismatch**: on the six days the
+  record priced 86 and the reconstruction 85 the delta is small and POSITIVE (+0.0113 to +0.0856);
+  on **2026-09-14**, the one day the record priced **84** and the reconstruction **85**, it is the
+  only NEGATIVE reading (**−0.1404**). **From 2026-08-20 onward, wherever both sides price the same
+  85 names, the book leg is exactly 0.0000 on 11 of 14 days.**
+* **The missing name is `WBS` and no vendor carries it today** — yfinance's newest row is
+  2026-08-19, Stooq times out — so it is absent from the reconstruction of **every** day including
+  the ones it was live. **Survivorship in the price vendor.** `validate_against_record` returns both
+  `n_priced` figures per day so this stays visible rather than absorbed into a seam. `FMP is
+  configured but NOT enabled` fired on every attempt, as designed; the fail-closed path counted it
+  UNPRICED rather than filling it.
+
+### THE EARLIER "+0.1 TO +0.3pp SEAM" WAS MEASURED AGAINST THE WRONG RECORD — MINE, AND CORRECTED HERE
+
+My first validation ran against `data/valquo_track_history.csv` and reported the book leg *"never
+exact, median +0.1001pp, max +0.2944pp, positive on all 8"*. **That was measuring the LOCAL
+BACKUP'S DRIFT and attributing it to the reconstruction.** Checked row by row, the backup disagrees
+with the record on **3 of its 8 rows** — 08-21 (5.8701 against 5.9702), 08-27 (4.8491 against
+4.9500) and **09-24 on BOTH legs** (4.2252/3.4367 against 4.5147/3.6936) — and it carries a row,
+**2026-09-17, that is NOT IN THE RECORD AT ALL.** The reconstruction matches the **service** exactly
+on all three of those days, both legs.
+
+**So the 09-24 "anomaly on both legs" was the backup, not the reconstruction, and it is now
+explained rather than open.** The operational point generalises: **`data/valquo_track_history.csv`
+is a stale backup that has diverged from the record, and anyone validating against it will conclude
+the reconstruction is broken when it is exact.** This record already notes that after a seed the
+service copy IS the record and nothing syncs back; this puts numbers on it and adds that the backup
+also holds content the record never had.
+
+**So the 19 points ship with a seam that is near-zero wherever the name set matches and otherwise
+attributable to one unpriceable name** — which is a far stronger licence than I had an hour ago, and
+they still live in a separate store behind a "not part of the record" label, because being accurate
+is not the same as being the record.
 
 **`validate_against_record` states NO BAR.** What counts as an acceptable seam is a judgement for
 whoever quotes these points, and inventing a threshold here is the uncalibrated-bar error this
