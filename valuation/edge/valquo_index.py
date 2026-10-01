@@ -119,6 +119,69 @@ def conformance(n_positions: int, effective_max_weight: float,
             "why_not": why}
 
 
+#: The deployed seven, at ONE weight each. `1/7` and the live `0.125` are the SAME OBJECT here
+#: and that is measured, not assumed: `attribution._branch` divides every contribution by
+#: `sum(present * w)`, so multiplying all weights by a constant leaves the contributions exactly
+#: unchanged. A rescaling cannot move a ranking, and D9's "flat 1/7 against bucket-specific
+#: weights" is therefore NOT a scaling difference.
+#:
+#: WHAT ACTUALLY DIFFERS, measured on `settings.WEIGHTS_ESTABLISHED` and `WEIGHTS_SPECULATIVE`:
+#:   * **MEMBERSHIP** -- established blends `quality`, speculative blends `growth`, at the same
+#:     weight. Every other entry is identical. So a speculative-bucket name is currently scored
+#:     with `growth` INSTEAD OF `quality`, which is a different composite rather than a
+#:     differently-weighted one.
+#:   * **SOFT BUCKETING** -- the live path scores a borderline name under BOTH rulebooks and
+#:     blends by `p_established`, so its composite is a mixture of two weight sets.
+#:
+#: The index build uses one set, hard, over the panel's seven. `growth` is absent because it
+#: carries zero weight in the deployed composite the record was built on.
+FLAT_SEVEN = {"value": 1.0 / 7, "quality": 1.0 / 7, "momentum": 1.0 / 7,
+              "insider": 1.0 / 7, "capital_discipline": 1.0 / 7, "size": 1.0 / 7,
+              "institutional": 1.0 / 7}
+
+
+def rescore_flat_seven(rows) -> dict:
+    """Overwrite `hot_score` on a copy of `rows` with the FLAT-SEVEN ranking. Returns a report.
+
+    FOR THE INDEX BUILD ONLY. The hot list keeps its own bucket-specific score, because that is
+    what the site has always shown and changing it is a product decision rather than a fidelity
+    one. This changes which names the BOOK selects, and nothing else.
+
+    IT DELEGATES TO `attribution.decompose` (B7) -- the same function `screen._decompose` calls,
+    with `soft=False` and one weight set for both buckets, so there is no second composite
+    implementation to drift. `hot_score` is rebuilt as the same percentile rank of the same
+    composite that `screen.py` builds it from, so `build_index` needs no knowledge of this.
+    """
+    import pandas as pd
+    from ..screener.attribution import decompose
+
+    have = [r for r in rows if isinstance(r.get("factors"), dict)]
+    if not have:
+        return {"rescored": False, "reason": "no row carries theme factors", "n": 0}
+    df = pd.DataFrame([r["factors"] for r in have],
+                      index=[r.get("ticker") for r in have])
+    for c in FLAT_SEVEN:
+        if c not in df.columns:
+            df[c] = float("nan")
+    df["bucket"] = "established"          # ONE rulebook: the bucket switch is what is removed
+    comp, _ = decompose(df, FLAT_SEVEN, FLAT_SEVEN, soft=False)
+    ranked = comp.rank(pct=True) * 99 + 1
+    moved = 0
+    for r in have:
+        t = r.get("ticker")
+        if t in ranked.index and ranked[t] == ranked[t]:            # not NaN
+            before = r.get("hot_score")
+            r["hot_score"] = float(ranked[t])
+            r["hot_score_basis"] = "flat_seven"
+            if before is not None and abs(float(before) - float(ranked[t])) > 1e-9:
+                moved += 1
+    return {"rescored": True, "n": len(have), "moved": moved,
+            "weights": dict(FLAT_SEVEN),
+            "note": ("the index book is ranked on ONE flat weight set over the deployed seven, "
+                     "with the live path's bucket switch (quality vs growth) and its soft "
+                     "blending both off. The hot list keeps its own score.")}
+
+
 def build_index(rows, large_cap_min: float = LARGE_CAP_MIN,
                 top_decile: float = TOP_DECILE, weighting: str = "score",
                 top_n: int | None = None, held=None,
@@ -495,7 +558,7 @@ def main(argv=None):
     ap.add_argument("--limit", type=int, default=3000, help="universe size for --full-universe")
     ap.add_argument("--config", default=None,
                     help="named book config: 'roth' (top-25, 6-week, no band) or 'taxable' "
-                         "(decile, quarterly, 20%% band). Sets width and emits the cadence.")
+                         "(decile, quarterly, 30%% band). Sets width and emits the cadence.")
     a = ap.parse_args(argv)
     try:
         p = export(path=a.out, large_cap_min=a.large_cap_min, top_decile=a.top_decile,

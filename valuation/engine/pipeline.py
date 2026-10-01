@@ -233,11 +233,38 @@ def _blend_scenarios(cd, cls, scenarios, comps, rev, growth_scn, maturity, matur
     return out
 
 
+UNKNOWN_REGIME_REFUSAL = (
+    "Industry could not be determined, so no valuation is published. Choosing between a "
+    "discounted-cash-flow model, a growth model and a price-to-book model requires knowing "
+    "what kind of business this is \u2014 an unlevered cash-flow model is wrong for a bank or "
+    "insurer, and this page will not guess."
+)
+
+
+def _unknown_regime_refusal(cls) -> Optional[str]:
+    """Refuse to headline any model when the regime is UNKNOWN.
+
+    The measured failure this closes: on 2026-09-30 the live service returned an empty sector
+    for four of four financials, `classify` fell through to the growth branch, and KNSL was
+    published at ~$625 off a $907 unlevered DCF against a $322 price. Nothing downstream was
+    wrong -- the DCF was a correct DCF -- and that is exactly why it survived. **The error was
+    upstream of every number, so the only place it can be caught is upstream of every number.**
+    """
+    return UNKNOWN_REGIME_REFUSAL if getattr(cls, "regime", "") == "unknown" else None
+
+
 def value_ticker(ticker: str, cfg=CONFIG, overrides: Optional[dict] = None,
                  peers: Optional[list] = None, run_ai: bool = False,
                  mc_trials: Optional[int] = None) -> ValuationResult:
     """Fetch a ticker's live data, then value it."""
     cd = fetcher.get_company(ticker, cfg)
+    # THE FALLBACK CHAIN RUNS HERE, not inside the fetcher, because it needs the TICKER and the
+    # config and it is allowed to touch the network -- the fetcher's job is one source. It is a
+    # NO-OP when the primary already returned a sector, so the ordinary path is untouched.
+    from ..data.sector_resolve import resolve_sector
+    _sector, _src = resolve_sector(ticker, cfg, current=cd.sector)
+    cd.sector = _sector or ""
+    cd.sector_source = _src
     return value_from_company(cd, cfg, overrides=overrides, peers=peers,
                               run_ai=run_ai, mc_trials=mc_trials)
 
@@ -346,7 +373,16 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
 
     # Refuse to publish before anything downstream consumes the number — the score must
     # not be computed against a fair value the reader is never shown.
-    refusal = publication_guard(cd, blend, growth_led=getattr(blend, "growth_led", False))
+    #
+    # AN UNKNOWN REGIME REFUSES BEFORE ANY GUARD THAT ASKS "IS THIS NUMBER PLAUSIBLE".
+    # `publication_guard` asks whether a fair value is credible; it cannot ask whether the
+    # MODEL was the right one to run, because by the time it sees a number the model has
+    # already been chosen. When the industry could not be determined, every lens above was
+    # computed on an assumption nobody could check -- so the refusal is about provenance, not
+    # plausibility, and it has to come first or a plausible number from the wrong model sails
+    # through. `or` rather than a separate branch: one refusal path, one set of fields written.
+    refusal = _unknown_regime_refusal(cls) or publication_guard(
+        cd, blend, growth_led=getattr(blend, "growth_led", False))
     if refusal:
         blend.valuable = False
         blend.withheld_value = blend.value   # kept for guards only — never published

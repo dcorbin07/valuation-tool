@@ -38,6 +38,10 @@ class CompanyData:
     ticker: str
     name: str = ""
     sector: str = ""
+    # WHERE THE SECTOR CAME FROM. "" until something resolves it; "unresolved" when every
+    # source failed, which is NOT the same as "not a financial" and is exactly the distinction
+    # whose absence let a bank be valued with an unlevered DCF on the public site.
+    sector_source: str = ""
     industry: str = ""
     currency: str = "USD"                # currency the PRICE / market cap trade in
     financial_currency: str = ""         # currency the STATEMENTS are reported in

@@ -2660,8 +2660,14 @@ function indexChart(d) {
   if (!el) return;
   killChart("idx");
   const s = (d && d.series) || [];
-  // One point is not a line. Say why the chart is empty rather than drawing a dot and
-  // letting it read as a flat year.
+  // RECONSTRUCTED DAYS, KEPT SEPARATE FROM `series` ALL THE WAY TO THE CANVAS.
+  //
+  // `series` IS the record; `days`, the evidence meter and the operational gate all read it,
+  // and the contract's section 3 treats a back-fill of the record as voiding the WHOLE RUN,
+  // not merely the affected window. So these arrive as their own array and are drawn as their
+  // own dataset. Merging them into the labels/points of the Valquo line — which is the obvious
+  // way to make the line continuous — would put them inside the thing the gate counts.
+  const recon = ((d && d.reconstructed) || {}).points || [];
   if (s.length < 2) {
     el.style.display = "none";
     if (note) {
@@ -2685,10 +2691,28 @@ function indexChart(d) {
     + `closing-price marks, not fills, and not a return anyone received.`
     + (hasRb ? ` The dotted ${rbT} line is a reported benchmark shown for context on the same `
              + `scale; the record's contract is against ${d.benchmark || "SPY"} alone.` : "");
+  // THE LABEL AXIS IS THE UNION, so a reconstructed day has an x position at all — but the
+  // RECORD's datasets are re-indexed onto it with nulls, so `series` itself is untouched and a
+  // recorded point is never invented for a day the record does not hold.
+  const reconByDate = {};
+  recon.forEach(r => { if (r && r.date) reconByDate[r.date] = r; });
+  const allDates = Array.from(new Set(s.map(r => r.date).concat(Object.keys(reconByDate))))
+    .sort();
+  const onAxis = (rows, key) => {
+    const by = {};
+    rows.forEach(r => { if (r && r.date) by[r.date] = r; });
+    return allDates.map(dt => (by[dt] && by[dt][key] != null ? by[dt][key] : null));
+  };
+  if (recon.length && note) {
+    note.textContent += ` The ${recon.length} hollow point${recon.length === 1 ? "" : "s"} `
+      + `marked "reconstructed" are days the automated writer missed, computed afterwards from `
+      + `closing prices and the book in force. They are NOT part of the recorded track: they `
+      + `are excluded from the recorded-day count, the evidence meter and every verdict.`;
+  }
   STATE.charts.idx = new Chart(el, {
     type: "line",
     data: {
-      labels: s.map(r => r.date),
+      labels: allDates,
       // THREE LINES, THREE TREATMENTS, AND THE HIERARCHY DOES NOT DEPEND ON COLOUR.
       //
       // SPY and SPMO used to be two light greys (#9aa4b8 dashed, #b9c0cd dotted) and read as
@@ -2705,12 +2729,33 @@ function indexChart(d) {
       // which is the test: a chart whose meaning survives only in colour is a chart that loses
       // its meaning in a screenshot, a print, or to about one man in twelve.
       datasets: [
-        { label: "Valquo Index", data: s.map(r => r.valquo), borderColor: "#2c4a94",
+        // RE-INDEXED ONTO THE UNION AXIS WITH NULLS, never merged. `onAxis` reads the
+        // RECORD's own rows, so a day the record does not hold is a null — a hole — and not a
+        // value borrowed from the reconstruction sitting at the same x.
+        { label: "Valquo Index", data: onAxis(s, "valquo"), borderColor: "#2c4a94",
           backgroundColor: "rgba(52,84,164,.10)", fill: true, tension: .2, pointRadius: 0,
-          borderWidth: 2.6, order: 1 },
-        { label: (d.benchmark || "SPY") + " — contract benchmark", data: s.map(r => r.spy),
+          borderWidth: 2.6, order: 1, spanGaps: true },
+        { label: (d.benchmark || "SPY") + " — contract benchmark", data: onAxis(s, "spy"),
           borderColor: "#6b7794", borderDash: [10, 4], fill: false, tension: .2,
-          pointRadius: 0, borderWidth: 2, order: 2 },
+          pointRadius: 0, borderWidth: 2, order: 2, spanGaps: true },
+        // THE RECONSTRUCTION — POINTS ONLY, NO LINE, AND HOLLOW.
+        //
+        // Three properties vary together rather than one varying alone, the same rule the
+        // other three lines follow: it is the ONLY dataset drawn as markers with no connecting
+        // line (`showLine: false`), the ONLY hollow one (white fill, coloured ring), and its
+        // legend entry says the word. A reader who cannot tell a dashed line from a dotted one
+        // can still tell a line from a scatter of rings.
+        //
+        // WHY NOT A LINE: a line asserts continuity between its ends. These days are exactly
+        // the ones the record does NOT hold, so joining them would draw the claim the label
+        // exists to deny.
+        { label: "reconstructed — not part of the record",
+          data: allDates.map(dt => (reconByDate[dt] &&
+                                    reconByDate[dt].valquo_pct != null
+                                    ? reconByDate[dt].valquo_pct : null)),
+          borderColor: "#2c4a94", backgroundColor: "#ffffff", pointBackgroundColor: "#ffffff",
+          pointBorderColor: "#2c4a94", pointBorderWidth: 2, pointRadius: 4,
+          pointStyle: "circle", showLine: false, fill: false, order: 0, spanGaps: false },
         // PT-SPMO — the REPORTED benchmark, on the SAME y-axis as the other two. A second
         // scale would let two different arithmetics share a picture and look comparable, and
         // the whole value of this line is that it IS comparable: same base date, same
@@ -2728,7 +2773,7 @@ function indexChart(d) {
         // move, which is a claim nobody measured.
         ...(s.some(r => r.spmo != null)
           ? [{ label: ((d.reported_benchmark || {}).ticker || "SPMO") + " — reported, not bound",
-               data: s.map(r => (r.spmo == null ? null : r.spmo)), borderColor: "#aeb6c4",
+               data: onAxis(s, "spmo"), borderColor: "#aeb6c4",
                borderDash: [1.5, 3.5], fill: false, tension: .2, pointRadius: 0,
                borderWidth: 1.4, spanGaps: false, order: 3 }]
           : []),

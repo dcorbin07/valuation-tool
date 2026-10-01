@@ -113,9 +113,26 @@ class Store:
             # from "the data could not be fetched this scan". They are different claims and
             # an existing database has neither, so a missing column reads as an unspecified
             # kind — the row is still withheld, it just cannot say which sort until rewritten.
+            # `fair_value_method` is the LENS THAT PRODUCED THE VALUE, and it was computed in
+            # the scan and thrown away here. Measured on the served 2026-09-30 list: ranks 1-12
+            # are the `run_dcf_top` window, every one of them carried a correct pipeline value,
+            # and every one was served labelled `dcf` -- including four financials (XRPN, BFH,
+            # JXN, OZK) whose numbers are the P/B-ROE blend to the last digit, confirmed against
+            # `/api/value`. The NUMBERS were right and the sentence describing them was false.
+            #
+            # The mechanism is the M6 family this record already names -- a field computed and
+            # discarded on the way to the record: the scan sets `fair_value_method`, this INSERT
+            # had no column for it, and `estimate_fair_values` at SERVE time then sees a value
+            # with no method and `setdefault`s `dcf`.
+            #
+            # An existing row has neither column, so a missing one reads as an unspecified method
+            # rather than as `dcf` -- the row keeps its value and simply cannot say which lens
+            # produced it until the next scan rewrites its date.
             for _col, _decl in (("fair_value_withheld", "INTEGER"),
                                 ("fair_value_withheld_reason", "TEXT"),
-                                ("fair_value_withheld_kind", "TEXT")):
+                                ("fair_value_withheld_kind", "TEXT"),
+                                ("fair_value_method", "TEXT"),
+                                ("fair_value_note", "TEXT")):
                 if _col not in _scols:
                     c.execute(f"ALTER TABLE snapshot_rows ADD COLUMN {_col} {_decl}")
             # Self-learning audit log + adopted factor weights.
@@ -246,15 +263,17 @@ class Store:
                 c.execute("""INSERT OR REPLACE INTO snapshot_rows
                     (scan_date,ticker,name,sector,bucket,price,market_cap,hot_score,composite,rank,
                      z_value,z_quality,z_growth,z_momentum,z_insider,fair_value,upside,extra,
-                     fair_value_withheld,fair_value_withheld_reason,fair_value_withheld_kind)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                     fair_value_withheld,fair_value_withheld_reason,fair_value_withheld_kind,
+                     fair_value_method,fair_value_note)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (scan_date, r["ticker"], r.get("name"), r.get("sector"), r.get("bucket"),
                      r.get("price"), r.get("market_cap"), r.get("hot_score"), r.get("composite"),
                      r.get("rank"), r.get("z_value"), r.get("z_quality"), r.get("z_growth"),
                      r.get("z_momentum"), r.get("z_insider"), r.get("fair_value"), r.get("upside"),
                      json.dumps(r.get("extra", {})),
                      1 if r.get(ROW_WITHHELD) else None, r.get(ROW_WITHHELD_REASON),
-                     r.get(ROW_WITHHELD_KIND)))
+                     r.get(ROW_WITHHELD_KIND),
+                     r.get("fair_value_method"), r.get("fair_value_note")))
             c.execute("INSERT OR REPLACE INTO scans VALUES (?,?,?,?,?,?)",
                       (scan_date, (params or {}).get("universe_size"), len(rows), provider,
                        json.dumps(params or {}), _dt.datetime.utcnow().isoformat()))
@@ -286,6 +305,18 @@ class Store:
             # rows bit-identical. Dropping the reason key (rather than leaving it None) also
             # matters: `withhold_implausible_fair_values` uses `setdefault`, which would keep
             # a present-but-None reason and blank a cell without saying why.
+            # SAME REASONING AS THE REASON KEY BELOW, and it is why the column alone was not
+            # enough. `SELECT *` brings a NULL back as a key PRESENT and set to None, and
+            # `estimate_fair_values` labels with `setdefault` -- which KEEPS a present-but-None
+            # value. So a row written before these columns existed, or one the scan could not
+            # label, would come back with `fair_value_method: None` and `setdefault` would be
+            # INERT: the method would stay None forever rather than falling back.
+            #
+            # Popping the key restores the pre-column behaviour exactly for those rows, so the
+            # change is additive for history and only new scans carry a label.
+            for _k in ("fair_value_method", "fair_value_note"):
+                if r.get(_k) is None:
+                    r.pop(_k, None)
             if r.get(ROW_WITHHELD):
                 r[ROW_WITHHELD] = True
                 if not r.get(ROW_WITHHELD_REASON):

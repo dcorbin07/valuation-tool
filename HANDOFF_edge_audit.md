@@ -19073,6 +19073,41 @@ was really leaning on, that the stamp is still a committed LITERAL, whose VALUE 
 business. The replacement is checked both ways: it matches the current stamp and fails if the
 literal is removed.
 
+## WHAT THIS CONSTRAINS IN ANOTHER LANE: `IC4` SPLIT CADENCE, which landed while this was running
+
+The Frontier Scout's `PREREG_DRAFT_ic4_split_cadence.md` (ranked 4 of 6, zero trials, no
+measurement) arrived on `origin/main` mid-item. **It is NOT the same hypothesis and this register
+does not answer it** — `IC4` proposes per-THEME clocks, holding `value`, `quality`, `size` and
+`capital_discipline` at an annual reading while `momentum`, `institutional` and `insider` refresh
+quarterly, where this register tested one uniform clock for the whole book. The distinction is
+real and runs in `IC4`'s favour: it slows the four MOST persistent themes and leaves the three
+least persistent ones fast, so it could plausibly keep most of the signal while cutting turnover,
+which a uniform annual clock cannot.
+
+**But three measurements here constrain it, and a successor should read them before running it.**
+
+1. **Slowing the whole book to annual costs −2.0142 pp at paired *t* −1.7956**, and `IC4`'s arm
+   slows FOUR of the seven themes to exactly that clock. So its arm sits between this register's
+   quarterly and annual arms by construction, and the interval it sits in is one this item
+   measures as **negative throughout**.
+2. **THE OFFSET EXPOSURE IS THE PART MOST LIKELY TO BE MISSED, AND IT IS LARGER THAN THE EFFECT.**
+   An annual refresh of four themes has a formation offset, and the measured spread from that
+   offset alone is **2.2551 pp** — bigger than the cadence effect itself. **`IC4` as drafted
+   specifies one annual assignment and no offset treatment, so a single-offset version of it
+   would be measuring a quarter as much as a clock.** The fix is free and is this register's arm
+   4: refresh the slow themes on four overlapping annual sub-books rather than on one date.
+3. **And that fix does not rescue the direction here**: the staggered arm, which exists precisely
+   to average the offset away, still reads **−1.7596 pp** with the largest |paired *t*| of the
+   three at −2.3468.
+
+**The draft's own monthly arithmetic independently reproduces this item's**, which is worth
+recording because the two were derived separately: it prices the fast-side variant at ~3x the
+build on every build plus a 5-7 hour placebo sweep, and names `S8`'s 31-day staleness as a third
+of a monthly rebalance interval. **Two lanes reaching the same costs by different routes is the
+best available evidence the estimate is right**, and it is why this register's monthly
+recommendation and the draft's declining of the fast side agree. Relayed, **not edited** — the
+draft is the scout lane's file and carries no trials.
+
 ## REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3): a FOURTH sighting of the `%TEMP%` family
 
 The full gate read **205 suites, 2 failures**, and only one was this register's (the `MC10` pin

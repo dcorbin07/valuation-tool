@@ -111,6 +111,100 @@ THEMES: Dict[str, Dict[str, str]] = {
 }
 
 
+def counts(contributing: Dict[str, float] = None, floor: float = 0.05) -> dict:
+    """The one place that answers "how many themes does the live ranking run on".
+
+    THE CONTRADICTION THIS RESOLVES, and both sides of it were TRUE. `THEMES` reported `insider`
+    and `institutional` as NOT dormant -- correct, they are **wired**, which is what FIDELITY-2
+    delivered -- while the live scan reported `theme_contributing` **0.0** for both, because the
+    theme cache never reached a production scan. And the `/methodology` copy said *"five of the
+    backtest's seven themes"*, which is a third statement: a claim about what the ranking
+    **runs on today**, which is neither "wired" nor "carries weight".
+
+    So this does NOT collapse the two into one flag. It names them:
+
+      * `weighted`  -- carries non-zero weight in the deployed composite. A property of the
+        DESIGN, and the denominator the copy's "of seven" refers to.
+      * `dormant`   -- declared dormant here. Also the DESIGN, and deliberately NOT derived from
+        a scan: this module's own docstring gives the reason, that a theme absent from one
+        cross-section for an ordinary reason (a bad day at SEC's endpoint) is not retired.
+      * `contributing_now` -- actually moved the latest scan, from `health.theme_contributing`.
+        A property of the DAY.
+
+    **The copy reads `contributing_now`, because that is what it claims.** A legend saying
+    "runs on five" while the scan contributes seven would be wrong in the other direction the
+    moment the cache lands, which is exactly why it must not be a literal.
+
+    `contributing` is PASSED IN rather than fetched, so this module stays pure and the caller --
+    which already holds the scan health -- cannot end up reading a different scan from the one
+    it is rendering beside.
+    """
+    # THE DEPLOYED SEVEN, IMPORTED (B7) -- never the union of the two bucket weight sets.
+    #
+    # A first cut unioned `WEIGHTS_ESTABLISHED` and `WEIGHTS_SPECULATIVE` and got **EIGHT**,
+    # because `growth` carries weight in the speculative bucket only. That is the same
+    # MEMBERSHIP difference session 67 measured -- established blends `quality`, speculative
+    # blends `growth` -- and it means the union is not the set the record was built on. The
+    # copy's "of seven" refers to the DEPLOYED composite, which is `FLAT_SEVEN`, and importing
+    # it keeps one definition rather than two that drift the day a weight changes.
+    from ..edge.valquo_index import FLAT_SEVEN
+    weighted = sorted(k for k in FLAT_SEVEN if k in THEMES)
+    dormant = sorted(k for k, v in THEMES.items() if v.get("dormant"))
+    out = {
+        "weighted": weighted,
+        "n_weighted": len(weighted),
+        "dormant": dormant,
+        "n_dormant": len(dormant),
+        "contributing_now": None,
+        "n_contributing_now": None,
+        "not_contributing_now": None,
+        # THE SHORTFALL COUNT IS AN EXPLICIT KEY, NOT A TEMPLATE SUBTRACTION. A template reading
+        # an absent attribute gets Jinja's Undefined, which is FALSY -- so
+        # `{% if theme_counts.n_not_contributing_now %}` would have quietly taken the else branch
+        # and told a reader ALL SEVEN themes reach a live score on a day when two do not. Fail
+        # open, on the one sentence the page exists to be honest about.
+        "n_not_contributing_now": None,
+        "basis": ("`weighted` and `dormant` are the DESIGN; `contributing_now` is the DAY, from "
+                  "the latest scan's own health block. They are reported separately because a "
+                  "theme can be wired and carry weight and still not have moved today."),
+    }
+    if contributing is None:
+        return out
+    live = sorted(k for k in weighted
+                  if float(contributing.get(k) or 0.0) >= floor)
+    out["contributing_now"] = live
+    out["n_contributing_now"] = len(live)
+    out["not_contributing_now"] = sorted(set(weighted) - set(live))
+    out["n_not_contributing_now"] = len(out["not_contributing_now"])
+    return out
+
+
+def sentence(contributing: Dict[str, float] = None) -> str:
+    """The `/methodology` sentence, DERIVED. Never a literal.
+
+    It has already been wrong twice in opposite directions -- "nine themes" while five were
+    live, then "five of seven" which will be wrong the day the theme cache lands. A number in
+    prose about a system that changes is a number that will be wrong.
+    """
+    c = counts(contributing)
+    n7 = c["n_weighted"]
+    if c["n_contributing_now"] is None:
+        return ("The live ranking runs on the backtest's %d weighted themes; today's "
+                "contribution is not available on this page." % n7)
+    n = c["n_contributing_now"]
+    if n >= n7:
+        return ("The live ranking runs on all %d of the backtest's weighted themes." % n7)
+    missing = c["not_contributing_now"]
+    pretty = [m.replace("_", " ") for m in missing]
+    listed = (pretty[0] if len(pretty) == 1
+              else " and ".join(pretty) if len(pretty) == 2
+              else ", ".join(pretty[:-1]) + " and " + pretty[-1])
+    verb = "contributed" if len(pretty) > 1 else "contributed"
+    return ("The live ranking runs on %d of the backtest's %d weighted themes: %s %s nothing "
+            "to the latest scan, so that weight is shared among the rest."
+            % (n, n7, listed, verb))
+
+
 def payload() -> Dict[str, Dict[str, str]]:
     """The dict injected as `window.THEME_STATUS`. Plain data, safe to serialise."""
     return {k: dict(v) for k, v in THEMES.items()}

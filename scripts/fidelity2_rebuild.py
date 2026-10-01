@@ -422,6 +422,27 @@ def build_live(*, served=None, period_curr: str = None, period_prior: str = None
         if rec:
             rows[t.upper()] = rec
 
+    # A ZERO-ROW CACHE IS REFUSED, and the reasoning is already written down 25 lines above.
+    #
+    # The missing-period guard says a cache built on an absent period "would look like a clean
+    # build of a universe with no institutional data -- which is exactly the 0.0
+    # theme_contributing this whole item exists to fix." THAT APPLIES TO ANY EMPTY RESULT, not
+    # only that cause, and it was not checked. `served_from_store` refuses an empty INPUT for the
+    # identical reason ("a zero-row cache would read to live_themes.py exactly like the absent
+    # file this item exists to replace"); nothing refused an empty OUTPUT.
+    #
+    # MEASURED, on a real zero-row cache written 2026-09-30: `live_themes.status()` returns
+    # `available: true, rows: 0, reason: ""` -- a healthy cache that happens to know nothing about
+    # anybody -- and `columns_for()` returns `{}` for every ticker. Silent, and it would have
+    # replaced a LOUD absent-file state with a quiet present-but-empty one.
+    if not rows:
+        raise SystemExit(
+            "refusing to write a zero-row cache for %d served names: `live_themes.status()` "
+            "would report it AVAILABLE with rows 0, which is indistinguishable from a universe "
+            "with no institutional data. Check the join rungs -- an `anchor_failed` sweep means "
+            "the served rows carry no `market_cap`, so the anchor could not be computed."
+            % len(served))
+
     out = {"built": _dt.date.today().isoformat(), "n_served": len(served),
            "periods": [_pp, _pc],
            # WHERE THE PERIODS CAME FROM, recorded on the artifact. A cache built from the

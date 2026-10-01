@@ -109,7 +109,12 @@ def _rows_from(scored: pd.DataFrame) -> list:
                            "op_margin", "roic", "revenue_growth", "ret_12_1", "net_debt_to_ebitda",
                            # net_debt + revenue let fairvalue.py bridge EV multiples to a
                            # per-share equity value and run the growth (revenue) lens.
-                           "net_debt", "revenue", "gross_margin"]
+                           "net_debt", "revenue", "gross_margin",
+                           # book_to_price + roe are what `fairvalue._financial_value` needs
+                           # to reach the P/B-ROE lens: BVPS = book_to_price * price, and the
+                           # justified multiple is a function of ROE, ke and g. Without them a
+                           # bank's row can only be valued by the industrial lenses.
+                           "book_to_price", "roe"]
                  if k in scored.columns}
         # Persist EVERY theme column (not just the legacy five) so the monthly
         # learner can tune the newer themes too. Legacy z_* columns stay for the UI.
@@ -511,7 +516,7 @@ def _enrich_with_dcf(rows, cfg, refusal_only: bool = False):
     """
     errors: dict = {}
     try:
-        from ..engine.pipeline import value_ticker
+        from ..engine.pipeline import value_ticker, lens_applicability
         from ..engine.publication import (record_refusal, record_unavailable,
                                           decide as decide_publication, ROW_WITHHELD)
     except Exception as e:
@@ -585,6 +590,23 @@ def _enrich_with_dcf(rows, cfg, refusal_only: bool = False):
                         r["fair_value"] = res.base_fair_value
                         r["upside"] = res.upside
                         r.pop(ROW_WITHHELD, None)
+                        # THE LENS THAT PRODUCED IT, NOT `dcf` BY DEFAULT.
+                        #
+                        # `estimate_fair_values` tags any pre-existing fair value `dcf` with a
+                        # `setdefault`, which was harmless while every pipeline value came from
+                        # a DCF blend. It is not harmless now: for a financial the pipeline
+                        # returns the **P/B-ROE** blend, and labelling that `dcf` tells a reader
+                        # an unlevered discounted-cash-flow model valued a bank -- the exact
+                        # claim `classify.py` refuses, and the one this week's work removed from
+                        # the hot list. The served 2026-09-29 scan carries three such rows.
+                        #
+                        # DELEGATED to `lens_applicability` rather than reading `blend.lenses`
+                        # here (B7): that function already defines which lenses carry weight,
+                        # and a second copy of the weight filter is how the label comes to
+                        # disagree with the gate that reads the same field.
+                        _used = lens_applicability(res.fair_value_blend).get("used") or []
+                        if _used:
+                            r["fair_value_method"] = "pipeline_" + "_".join(_used)
                 last = None
                 break
             except Exception as e:
