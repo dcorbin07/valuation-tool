@@ -19407,6 +19407,30 @@ from measurements already on the record rather than from forecasting.
 4. Per-date rank correlation above 0.97 (70/30) — **RIGHT**, 0.997498.
 5. The LATE half shows the larger effect (60/40) — **RIGHT**, -0.6231 pp against +0.1603 pp.
 
+## Tests, and the gate
+
+**19 tests across both items, 6 of 6 mutations caught with sources restored byte-for-byte**,
+plus a separate 2-of-2 mutation check on the repointed `X2` guard. `test_edge` **428/428**.
+
+**`X2`'s OWN GRID GUARD FIRED AGAINST A CORRECT TREE AND IS REPOINTED IN THE SAME COMMIT**
+(`MA59`, so the move shows in the diff). It asserted the literal
+`range(_GRID_START, len(cal) - horizon, rebalance_days)` appeared **exactly twice** — one copy
+for the date count and one for the scoring loop — which is how it said *"both walk the same
+grid"*. **So it REQUIRED the duplication and forbade the better code**: `IC1`'s `grid_dates`
+needs the grid computed once, and both now consume a single binding, which makes the property
+**structurally true** rather than true because two copies happen to match. Repointed to the
+property on the AST — the count must be `len(X)` and the scoring loop `enumerate(X)` for the
+**same** `X`. **A first cut of the repoint was itself too weak**: it compared name SETS and a
+mutation walked straight through because both sets contained the incidental `len`. Tightened to
+the same NAME, and both mutations are now caught, each with its own accurate message.
+
+**THE GATE READ 211 SUITES, 1 FAILURE, AND IT IS NOT THIS WORK.** `tests/test_checkout_drift.py`
+errored in `setUpClass` on **`Permission denied` writing `.git/objects/...` under `%TEMP%`** —
+which is `MB16`'s documented sighting, **in the exact suite `MB16` named**. It passes **3 of 3**
+standalone. So this is a **re-sighting of a family member already on the record rather than a
+new one**: the distinct suites remain `MB21` (`GzipFile`), `MB16`/`test_checkout_drift`, and
+`test_sync_checkout`. Reported, not silenced; none is this lane's.
+
 ## NOT DONE
 
 **ADOPTS NOTHING** — the arm was not eligible; `CONFIG` and `settings.BOOK_CONFIGS` untouched,
