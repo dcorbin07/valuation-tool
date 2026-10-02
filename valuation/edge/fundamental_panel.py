@@ -3894,7 +3894,8 @@ LONG_TERM_DAYS = 366        # a US holding period must EXCEED one year
 def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=63,
                        short_rate=TAX_SHORT_TERM, long_rate=TAX_LONG_TERM,
                        flat_bps=None, lot_method="fifo", exit_frac=None,
-                       exit_mult=None, max_sector_w=None, cadence=1, offset=0) -> dict:
+                       exit_mult=None, max_sector_w=None, cadence=1, offset=0,
+                       book_fn=None) -> dict:
     """Net-of-COST and net-of-TAX performance of the long book, with real lot accounting.
 
     The book turns over ~250%/yr on a ~quarterly rebalance, so in a TAXABLE account almost
@@ -3973,26 +3974,48 @@ def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
             continue
         _at_formed += 1
         comp = composite_from_frame(sub, cols, weights, zscore)   # AUDIT B7
-        k = int(top_n) if top_n else max(1, int(len(sub) * top_frac))
         _all_t = sub["ticker"].values
-        # Band as a universe FRACTION (exit_frac) or as a multiple of the book size
-        # (exit_mult) — the latter is the only one meaningful for a fixed-N book.
-        _xr = k
-        if exit_mult is not None:
-            _xr = max(k, int(round(k * exit_mult)))
-        elif exit_frac is not None:
-            # S14 ADOPTION 2026-08-13: the FRACTION derivation now lives in one place and the
-            # live path imports the same function. Exactly equivalent to the inline
-            # `max(k, int(len(sub) * exit_frac))` this replaces -- the truncation is preserved
-            # deliberately, and a test pins the equivalence over a grid rather than asserting it.
-            _xr = _exit_rank_for(len(sub), k, exit_frac)
-        _sel = _band_select(comp, _all_t, set(lots), k, _xr)
-        if max_sector_w:
-            _secmap = dict(zip(_all_t, sub["sector"].values)) if "sector" in sub.columns else {}
-            _byname = {t: j for j, t in enumerate(_all_t)}
-            _ord = [_byname[t] for t in _sel] + [j for j in np.argsort(-comp)
-                                                 if _all_t[j] not in set(_sel)]
-            _sel = [_all_t[j] for j in _sector_capped(_ord, _all_t, _secmap, k, max_sector_w)]
+        # INDEX-BOOK: OPT-IN BOOK HOOK, replacing SELECTION and WEIGHTING and NOTHING ELSE.
+        # The FIFO lot accounting, the real-calendar holding-period clock, the loss netting, the
+        # tax and the after-tax compounding below are all untouched -- which is the entire point
+        # of a hook rather than a second function: a second FIFO tax implementation is exactly
+        # the `B7` defect, and it would be the worst instance of it, because the quantity at
+        # stake (short-term vs long-term treatment) depends on bookkeeping no eyeball can check.
+        # `book_fn(sub, comp, held) -> {ticker: weight}`. Default None is the shipped path,
+        # bit-identical, and a test pins that against the published `book_configs` payload.
+        _bw = book_fn(sub, comp, set(lots)) if book_fn is not None else None
+        # `book_fn is not None` is a required CONJUNCT of all three guards, including this one
+        # where `_bw` can only be non-None if the hook ran. Relying on that reachability
+        # argument is precisely what `MB20` warns against: a guard that is safe only because of
+        # a fact elsewhere in the function is a guard the next edit breaks silently. Uniform
+        # shape, nothing to reason about, and a test asserts the conjunct on every one.
+        if _bw is not None and book_fn is not None:
+            _known = set(_all_t)
+            _sel = [t for t in _bw if t in _known]
+            k = len(_sel) or 1
+        else:
+            k = int(top_n) if top_n else max(1, int(len(sub) * top_frac))
+            # Band as a universe FRACTION (exit_frac) or as a multiple of the book size
+            # (exit_mult) — the latter is the only one meaningful for a fixed-N book.
+            _xr = k
+            if exit_mult is not None:
+                _xr = max(k, int(round(k * exit_mult)))
+            elif exit_frac is not None:
+                # S14 ADOPTION 2026-08-13: the FRACTION derivation now lives in one place and
+                # the live path imports the same function. Exactly equivalent to the inline
+                # `max(k, int(len(sub) * exit_frac))` this replaces -- the truncation is
+                # preserved deliberately, and a test pins the equivalence over a grid rather
+                # than asserting it.
+                _xr = _exit_rank_for(len(sub), k, exit_frac)
+            _sel = _band_select(comp, _all_t, set(lots), k, _xr)
+            if max_sector_w:
+                _secmap = (dict(zip(_all_t, sub["sector"].values))
+                           if "sector" in sub.columns else {})
+                _byname = {t: j for j, t in enumerate(_all_t)}
+                _ord = [_byname[t] for t in _sel] + [j for j in np.argsort(-comp)
+                                                     if _all_t[j] not in set(_sel)]
+                _sel = [_all_t[j] for j in _sector_capped(_ord, _all_t, _secmap, k,
+                                                          max_sector_w)]
         _pos = {t: i for i, t in enumerate(_all_t)}
         order = np.array([_pos[t] for t in _sel], dtype=int)
         tick = sub["ticker"].values[order]
@@ -4008,7 +4031,15 @@ def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
         cost_hist.update(cost_of)
 
         total = sum(l[2] for ls in lots.values() for l in ls) or value
-        target = {t: total / len(tick) for t in tick}
+        if _bw is not None and book_fn is not None:
+            # Renormalised over the names with a usable forward return, so a dropped name does
+            # not silently shrink the invested fraction -- the same convention the equal-weight
+            # path uses, where `len(tick)` is already post-filter.
+            _tw = {t: float(_bw[t]) for t in tick}
+            _ts = sum(_tw.values()) or 1.0
+            target = {t: total * w / _ts for t, w in _tw.items()}
+        else:
+            target = {t: total / len(tick) for t in tick}
         traded_cost, realized_s, realized_l = 0.0, 0.0, 0.0
 
         # ---- SELL: trim anything above target (and exit anything not in the new book) ----
@@ -4088,7 +4119,14 @@ def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
                 lot[2] *= (1.0 + r)
         end = sum(l[2] for ls in lots.values() for l in ls)
 
-        g = float(np.mean(rets))
+        if _bw is not None and book_fn is not None:
+            # The gross leg must use the SAME weights as the book, or a score-weighted book's
+            # gross figure would describe an equal-weighted one and `total_drag_ann` would be
+            # the difference between two different books.
+            _gw = np.array([float(_bw[t]) for t in tick], dtype=float)
+            g = float(np.dot(_gw, rets) / (_gw.sum() or 1.0))
+        else:
+            g = float(np.mean(rets))
         gross_v *= (1.0 + g)
         gross_r.append(g)
         net_r.append((end - value) / value if value > 0 else 0.0)

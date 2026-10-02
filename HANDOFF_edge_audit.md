@@ -19443,3 +19443,256 @@ rule was tried** — zero, last-observation and cross-sectional mean are all for
 condition 1, since choosing one after seeing this result is design-on-outcome. Nothing is said
 about the LIVE path's coverage holes, which `FIDELITY-2` changed and which are a separate
 question this arm informs but does not answer.
+
+---
+
+# INDEX-BOOK — the book the Valquo Index ACTUALLY serves, backtested (2026-10-02)
+
+**ZERO TRIALS, `FIXED` class.** `by_domain` is **bit-identical** before and after the log append —
+equity **252**, options **310**, unified 0, infra **20** — while `rows_fixed_not_counted` rises
+**87 → 88**, which is the proof the row was seen and correctly excluded rather than silently
+dropped. **ADOPTS NOTHING**: nothing under `valuation/web/`, `valuation/saas/`,
+`valuation/screener/` or `valuation/engine/` changed, `CONFIG` is untouched, the live Index
+constants are untouched and the contract meter's constants are untouched — all pinned by test.
+
+**WHY ZERO TRIALS, AND THE COUNTER-ARGUMENT IS STATED RATHER THAN SKIPPED.** This is ONE
+construction, fully determined by `valquo_index.build_index` and the constants beside it: no
+hypothesis, no threshold, no verdict, and no second arm that could have come back the other way.
+That is the `S25` / `MB3` / `X7RECON` / `MC10` class, and `MB1-SEL`'s general rule — a measurement
+that can only describe or block a finding adds no degree of freedom to any published claim. **The
+objection is real: the output feeds the contract's own power arithmetic, so it is load-bearing.**
+The distinction taken is that re-measuring a KNOWN construction on a KNOWN panel *selects*
+nothing. If a later reader disagrees the row is there to amend, and **the direction of that error
+is the safe one** (`MA6`): booking a trial raises every bar.
+
+## The headline, and it is a dissociation rather than a null
+
+| | published decile (B) | **SERVED book (A)** |
+|---|---|---|
+| construction | all-cap tier, EQUAL weight, no band | **$10B tier, SCORE weight, 8% cap, band 0.30** |
+| net return /yr | +23.2893% | **+17.1817%** |
+| alpha vs all-cap equal weight | **+6.0500pp** | **−0.0576pp** |
+| alpha vs ITS OWN tier's equal weight | +6.0500pp | **+4.1209pp** |
+| alpha vs SPY (net) | +8.0564pp | **+1.9488pp** |
+| net Sharpe | 1.0997 | **1.0318** |
+| net max drawdown | −28.48% | **−23.06%** |
+| annual turnover | 2.6066 | **2.4372** |
+| realised cost | 33.35 bps one-way | **9.58 bps one-way** |
+| book size min/median/max | 147 / 156 / 195 | **23 / 54 / 82** |
+
+**THE SERVED BOOK HAS ESSENTIALLY NO ALPHA AGAINST THE BENCHMARK THE SITE QUOTES IT AGAINST
+(−0.06pp), AND +4.12pp AGAINST ITS OWN UNIVERSE. BOTH SENTENCES ARE TRUE AND NEITHER MAY TRAVEL
+ALONE.** Quoting only the first says the Index does not work; quoting only the second hides that
+it is measured against a universe the published figure is not.
+
+## The −6.11pp gap decomposes one knob at a time, and the tier step is mostly NOT the signal
+
+All four arms **CALL `build_index`** — the tier filter, the `MIN_NAMES` fallback, the band, the
+score weighting and the 8% cap with its redistribution loop are the live code, not a lookalike
+(`B7`). That is what licenses reading each step as one knob:
+
+* **$10B tier: −5.9871pp**
+* **score weighting + 8% cap: +0.6804pp**
+* **no-trade band: −0.8009pp**
+
+**AND THE TIER STEP SPLITS, WHICH IS THE FINDING.** The all-cap decile earns **+6.0500pp** within
+its own universe; the served book earns **+4.1209pp** within its own. So the step is
+**signal −1.9291pp** and **universe −4.1785pp** — **about 70% of the tier's apparent cost is the
+small-cap premium the tier declines to hold, a fact about the UNIVERSE rather than about the
+composite.** Without that split the headline reads as "the served book has no edge", which is
+`U7`'s and `S10`'s conflation and is wrong. The within-tier benchmark is **GATED**: its membership
+test mirrors `build_index`'s filter, so the mirror's count is required to equal the live function's
+own `n_eligible` or the row records a refusal (`NaN`) instead of a number. **Verified on 69 of 69
+dates in all four arms**, and at threshold zero the mirror degenerates to the universe exactly,
+which is a free internal control.
+
+## The within-tier edge is FAR more stable across halves than the published headline
+
+| | early half | late half | swing |
+|---|---|---|---|
+| published decile vs all-cap EW | **+1.1762pp** | **+10.6577pp** | **9.1×** |
+| served book vs its own tier | **+4.0615pp** | **+4.1746pp** | **1.03×** |
+| served book vs SPY | +3.7202pp | **+0.2702pp** | — |
+
+Boundary 2017-04-20 / 2017-07-20. **The published +6.05pp is carried overwhelmingly by the late
+half; the served book's within-tier +4.12pp is almost identical in both.** For a forward test —
+which is what the contract is — stability is the property worth projecting, and on that axis the
+served construction looks *better* than the figure the site shows, not worse. **The vs-SPY leg
+runs the other way and must be said: the served book's late half is +0.27pp, essentially nothing.**
+
+## $10B is applied NOMINALLY, exactly as live, and the tier therefore WIDENS over time
+
+`build_index`'s test is `market_cap >= large_cap_min` with `LARGE_CAP_MIN = 10e9` and **there is
+no inflation adjustment anywhere on that path.** On a panel starting 2009 the eligible tier runs
+**227 / 542 / 822** (min / median / max) and the book **23 / 54 / 82** — so the construction is
+mechanically broader at the end of the panel than at the start, and that is a property of the
+shipped rule rather than of this measurement. **Reconciliation: the panel's most recent
+cross-section gives an 82-name book from an 822-name tier against the live book's 86 positions** —
+close, and not an identity, because the live scan's universe is not the panel's.
+
+**THE `MIN_NAMES` FALLBACK NEVER FIRES: 0 of 69 dates**, every date labelled `large-cap only`, with
+zero unlabelled dates (the census reads `criteria.tilt`, not a top-level key — reading the wrong
+key would have reported zero fallbacks *vacuously*, which is the one number here that cannot afford
+to be wrong). **The 8% cap is nearly inert — it binds on 1 of 69 dates for the served book** (4 of
+69 without the band), because the score weighting is on PERCENTILE RANKS and is therefore nearly
+flat, which is `MC10`'s measured ρ 0.9968 to equal weight seen from the other side. The effective
+cap is 0.08 on every date, so neither the `MIN_NAMES` floor nor the cap-collapse branch is reached.
+
+**AND A CONFORMANCE FACT THE LIVE PATH WOULD HAVE FLAGGED: the backtested served book falls below
+`CONTRACT_MIN_POSITIONS = 50` on 25 of 69 dates (36.2%)**, all early, because the nominal tier is
+thin before ~2015. It is a census, not a claim about the live book — the panel's universe is not
+the live scan's — but a backtest column drawn from those dates is drawn from a book the contract's
+own conformance rule would not have accepted.
+
+## Both tax treatments, from ONE lot path (INDEX-BOOK-AMEND)
+
+| served book | after tax /yr | Sharpe | max drawdown |
+|---|---|---|---|
+| **Roth / IRA** (net of cost, no tax) | **+17.1619%** | **1.0318** | −23.03% |
+| **Taxable** (FIFO, 40.8% short / 23.8% long) | **+12.2033%** | **0.7595** | −24.76% |
+| **tax cost** | **−4.9586pp/yr** | −0.272 | — |
+
+**THE TAXABLE BOOK LANDS BELOW SPY (+15.23%/yr) BY 3.03pp.** The driver is measured rather than
+asserted: **84.08% of realised gains are SHORT-TERM**, because a quarterly book with 2.44× turnover
+realises almost everything inside a year.
+
+**The Roth figure is the IDENTICAL run with both rates set to ZERO — not a second code path** — so
+the tax cost is a clean difference on an identical book, identical lots and identical trades. A
+separate no-tax implementation would make it the gap between two constructions, which is `B7`'s
+defect and invisible to inspection. **Gated against the shape that passes vacuously:** a control
+asserts the taxable arm actually paid tax (it did) and the zero-rate arm paid none, so a tax cost
+of zero cannot be reported for the wrong reason.
+
+**THE CAVEAT RUNS AGAINST THE TAXABLE ARM AND TRAVELS WITH IT: the panel's forward returns carry NO
+dividends**, so dividend income is absent from the gross figure and dividend TAX is absent from
+this one. Consistent, and it **understates** a real taxable investor's drag — most of all for a
+large-cap book, which is the higher-yielding end of the universe. FIFO is also the conservative
+end; a specific-lot election would realise less gain.
+
+## What this does to the contract's power arithmetic, matched rather than borrowed
+
+The meter's σ is the **full-universe decile's** tracking error (11.40 pp/yr, inflated by `R9`'s
+autocorrelation design effect). Pairing it with the SERVED book's edge would be a numerator from
+one book against a denominator from another — `MA19`'s recurring defect and `MB8`'s rule that an
+`se` may not be borrowed across constructions. So each arm is scored at **its own** measured
+tracking error, with `track_meter.boundary` IMPORTED and the live constants untouched (`V1`: one
+boundary function in the project; its own docstring licenses the `sigma` argument for probing and
+explicitly not for retuning).
+
+| | net edge vs SPY | own TE vs SPY | months to detect | years |
+|---|---|---|---|---|
+| in use today | **+9.9864pp** (GROSS, all-cap decile) | 11.40 (hard-coded) | 242 | 20.2 |
+| all-cap decile, NET | +8.0564pp | **11.3878** | 385 | **32.1** |
+| **SERVED book, NET** | **+1.9488pp** | **8.4381** | **4,383** | **365** |
+
+**THE FIGURE IN USE TODAY IS WRONG TWICE OVER: it is the WRONG BOOK and it is GROSS.** The served
+book's tracking error is materially lower (8.44 vs 11.39 — a large-cap book tracks SPY more
+closely), which helps, and nowhere near enough: **the meter cannot resolve the served book's edge
+on any human timescale.** A free corroboration that these series are the right objects: the
+all-cap arm's measured TE comes back **11.3878 pp/yr** against the contract's hard-coded **11.40**,
+reproducing the meter's own σ constant from scratch.
+
+**This is NOT a recommendation to change the meter.** σ may never be revised downward (the
+contract's own rule — at 1.5× the assumed volatility the false-crossing rate is 20%), and the
+numbers above are an input for Don, not an edit.
+
+## Controls
+
+* **`C1` GATED AND EXACT.** The shipped `quantile_backtest` reproduces
+  `construction.top_decile_alpha` at **0.07174142332098163, max |Δ| 0.000e+00, 69 periods**, and
+  the runner **aborts before any arm** otherwise. The period count is gated too, because `MB21`'s
+  `C1` once scored a perfect zero on an empty frame by comparing nothing.
+* **The published decile reproduces on this machinery, and the residual is ATTRIBUTED rather than
+  waved at.** `equal_weight_ann` matches `costs.top_decile` at **exactly 0.000e+00** — so the
+  compounding here IS the shipped compounding — and `net_ann` and `net_alpha` deviate by the
+  **identical 1.963e-04**, which places the whole residual on the selection (`array_split` vs
+  `round(n × 0.10)`) and none of it on arithmetic. Sharpe 2.2e-04, drawdown 4.5e-06, turnover
+  3.3e-04, realised bps 7.0e-03. **Reported, not gated** — requiring two different constructions
+  to agree exactly would be requiring the wrong thing; `C1` is the gate.
+* **The hook is inert at its default, pinned against a committed literal.** With `book_fn=None`,
+  `after_tax_backtest` reproduces `book_configs.taxable`'s `after_tax_alpha`
+  **0.021132837959488837** and `after_tax_sharpe` **0.9767529353354262** to the last bit — and a
+  companion test proves the hook is **not** inert when supplied, so the inertness result is not
+  vacuous.
+* **An independent cross-check nobody designed:** the Roth arm (`after_tax_backtest`, costs paid
+  out of the book each rebalance) returns **+17.1619%** at Sharpe **1.031816** against this study's
+  own cost path (cost subtracted from the period return) at **+17.1817%** and Sharpe **1.0318** —
+  two different implementations of the same net-of-cost book agreeing to 2e-4.
+* **The tier mirror gate, the contract-floor census and the fallback census** are each pinned from
+  both sides, including a deliberately lying `index_fn` that must produce a refusal.
+
+## Five defects in my own work, all caught by running the thing rather than by reading it
+
+* **A NAME COLLISION WITH A SHIPPED MODULE.** My study was first called `index_book`, and
+  **`valuation/saas/index_book.py` already exists and `app_saas.py` imports it.** My own `MA23`
+  boundary test caught it — correctly, though not for the reason it was written. Renamed to
+  `served_index_book`; two modules of the same name in one codebase is the id-collision hazard the
+  ledger already documents.
+* **THE ZERO-VARIANCE GUARD, FOR THE FOURTH TIME IN THIS RECORD.** `_sharpe` tested
+  `std(ddof=1) == 0`, and that is **value-dependent**: `[0.1, 0.1, 0.1]` has a standard deviation
+  of ~1.5e-17 rather than exactly zero, so the guard missed and returned a confident, enormous
+  **1.18e16**. The same defect as `SECTOR-NEUTRAL-B6`'s `zscore`, `U2`'s `theme_ic` and `MA58`'s
+  `_tstat`. Repaired with a relative floor and **proved inert on the real figures by leaf-diff**.
+* **THE ARTIFACT WAS NOT REPRODUCIBLE RUN TO RUN, AND IT WAS FOUND BY DIFFING A CHANGE THAT COULD
+  NOT HAVE CAUSED IT.** The leaf-diff after the `_sharpe` repair moved **482 leaves** — including
+  `cost` and `turnover`, which a Sharpe fix cannot touch. Cause: the trade loop iterated
+  `set(prev_w) | set(cur_w)`, and **set iteration order for ticker strings depends on the
+  per-process hash salt**, so the float summation order changed every run. Fixed with a sorted
+  union; **two consecutive runs are now BIT-IDENTICAL by SHA-256.** This record already warns that
+  a project whose memory is its results files needs those files to be deterministic.
+* **MY OWN REPRODUCIBILITY GUARD FIRED AGAINST A CORRECT TREE** — the wrong-object family. It
+  identified the trade loop by its BODY containing `turn +=`, and `ast.walk` on the enclosing
+  per-date loop also sees that nested statement, so it checked the outer loop (`for d in dates`)
+  and failed. Repointed to identify the loop by its ITERABLE naming `prev_w`, and it now asserts
+  **exactly one** such loop so it cannot pass vacuously.
+* **AND THE LEDGER ROW ITSELF, which is `read_ledger`'s hazard in its UNFLAGGED direction.** My
+  first row carried **5 cells against a 10-column header**, and a SHORT row is **silently
+  skipped** — the parser reads it as a row of one of the document's narrower tables, deliberately,
+  because flagging those would make the guard fire constantly and get ignored. So the row looked
+  correct in the file, answered *"is INDEX-BOOK done?"* with nothing, and **the next `--write`
+  would have deleted it** — precisely the silent data loss that function's own docstring records
+  for the LA7 pipe split, one direction over. Caught by grepping the parser's own id list for the
+  row I had just appended rather than by trusting the append. **Only too MANY cells is flagged;
+  too FEW is just as invisible and is not.** Reported rather than repaired: narrowing that guard
+  is the ledger lane's call, and the measurement that would justify it is how many legitimate
+  short rows the document really carries.
+
+## A reporting gap found in the shipped payload, reported and NOT edited
+
+`build_index`'s own `headline_scope` block discloses that the published figures were measured
+**without** the no-trade band — carefully and in terms. **It does not disclose the UNIVERSE
+difference**, which is the larger of the two: `method` quotes *"+7.2%/yr over equal-weight gross,
++6.1% net"* for a book that is the **all-cap equal-weighted decile**, while the payload it ships
+inside is the **large-cap score-weighted** one. `settings.MEASURED_BASIS` does say so — *"not the
+served score-weighted large-cap book"* — so the project knows; the payload a user receives is where
+it is missing. **Not edited: that is a product-copy change and the app lane's, and it is Don's call
+what the site should show now that both numbers exist.**
+
+## NOT DONE, named so it is not mistaken for done
+
+* **NOTHING IS ADOPTED, and no eligible arm exists to route** — there is no bar and no verdict
+  here, so there is nothing to adopt. `settings.MEASURED_BASIS` is **unchanged**; whether the site
+  should now show the served column beside the published one is a product decision.
+* **No inflation-adjusted tier was tested.** $10B nominal is what ships; a real-terms floor is a
+  different construction, would change the live book, and needs its own register.
+* **The `MIN_NAMES = 10` floor and the cap-collapse branch are never exercised on this panel**, so
+  neither carries any evidence here.
+* **No statistical claim is made about any difference.** There is no `t`, no interval and no bar
+  anywhere in this item — `V2G` and `R1-VAR` established that no calibrated floor exists for a
+  paired within-panel difference, and inventing one is the error this record warns about most.
+* **The halves are a plain split at the median period with the boundary NOT embargoed**, which is
+  acceptable only because nothing is gated on them; a register would have to embargo it.
+* **The live book is not re-measured**, the forward track is not touched, and the contract's σ is
+  not revised.
+
+## Tests, and the gate
+
+**26 tests, zero skips locally; 6 of 6 mutations caught with sources restored byte-for-byte** —
+the hook guard widened to `or`, the hook guard made unconditional, the gross leg reverted to the
+simple mean, the tier mirror ungated, the trade loop reverted to a bare set, and the zero-variance
+guard reverted to equality. The guard-shape rule carries a **positive control** proving it still
+rejects an `or`.
+
+`valuation/studies/served_index_book.py`, `scripts/served_index_book.py`,
+`valuation/edge/fundamental_panel.py` (`after_tax_backtest`'s opt-in `book_fn`),
+`tests/test_served_index_book.py`; `data/free_analysis/INDEX_BOOK.json`.
