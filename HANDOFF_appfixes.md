@@ -5,6 +5,153 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 71 — 2026-10-02 — the reconstruct door answered 401 and 405 correctly and could not serve one authorised caller; then it could not finish
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. **Nothing written
+to the bound series**, no trade, no `.github/` edit. `index_mark.py` is **NOT EDITED** and the
+daily writer's route is byte-identical.
+
+**TWO DEFECTS, ONE BEHIND THE OTHER, AND THE SECOND WAS INVISIBLE UNTIL THE FIRST WAS FIXED.**
+
+## 1. The 500: `_store()` does not exist in `app_saas.py`
+
+`/admin/track-reconstruct` called `_store()`, a helper defined in `valuation/web/app.py` and
+**not** in `valuation/saas/app_saas.py`. Every caller who got PAST the gate therefore hit
+`NameError: name '_store' is not defined`, which the handler's own `except Exception` turned
+into a 500. Don hit it on 2026-10-01 with his real token. Repaired to `Store()` from
+`..screener.store`, which is what the other admin doors in that file already do.
+
+**WHY IT SHIPPED, AND IT IS THE REUSABLE PART.** The door had **nine** tests and **not one
+executed the handler body**: three check the route map and the 401/405 refusals, and six assert
+against `ast.unparse` of the source. `_store()` parses, unparses and reads exactly like a
+correct call, so **no source-text assertion could ever have seen it** — a test of the TEXT is
+not a test of the DELIVERY. Closed with two tests: one AUTHORISES and asserts 200 (patching
+`index_track.summarize` and the `track_reconstruct` helpers, no network, and deliberately NOT
+patching `Store()`, since constructing that argument is the line under test), and one walks the
+AST for bare calls that resolve to nothing the module binds. Both mutation-caught, sources
+restored byte-for-byte. **Swept before scoping it: the same walk over all 49 functions in
+`app_saas.py` returns NONE**, so `_store()` was the only instance.
+
+## 2. THE RUNTIME FINDING: the door could not finish, and the cost was per-DATE pricing
+
+With the 500 gone the door **executes and then never answers**. Measured 2026-10-02:
+
+* one `index_mark.contract_row` takes **102.4s** — it prices the ~86 Index names plus the
+  benchmark for ONE date;
+* the door makes **42** of them -- measured against the 24-row live record: **18 missing
+  sessions in the span plus every one of the 24 recorded rows**, because
+  `validate_against_record(series)` is called with **no `limit`**;
+* derived **≈67 min**, against the **600s** timeout in `scripts/reconstruct_track.py`.
+  Confirmed empirically: **no response in 600s** (`http=000`, curl exit 28), on three separate
+  attempts at 120s, 600s and 900s.
+
+**OF THAT 102.4s, 45s — 44% — IS ONE NAME.** WBS's yfinance frame is stale (newest row
+2026-08-19), so it falls through to a Stooq that is dead and costs **3 attempts x a 15s connect
+timeout**. Per date that 45s is paid AGAIN: the same name failing the same way on every date.
+And the cost is concentrated LATE — unmemoised, 2026-08-06 took **10.8s** while 2026-09-04 and
+2026-09-29 took **97.7s** and **101.1s**, because a frame goes stale relative to a later date.
+
+## The repair: a per-run price memo, and the scope is the whole point
+
+`prices.get_history_df` is wrapped in a per-run memo **keyed on ticker** inside
+`track_reconstruct` and handed to every `contract_row` call through its **existing `fetch=`
+hook** — the parameter its own docstring provides so "the tests can run the whole mechanism
+offline". One vendor call per ticker for the whole run; the dates come out of the frame, because
+`_closes` already turns a whole frame into a `{date: close}` map.
+
+**`index_mark` IS NOT EDITED AND THE WRITER'S DAILY PATH IS BYTE-IDENTICAL.** `contract_row`'s
+`fetch` still defaults to `None`, which resolves to `prices.get_history_df` per date exactly as
+before, so nothing here can reach the recorded track. Pinned three ways: `_PriceMemo` must not
+appear in `index_mark.py` or `prices.py`, and `fetch`'s default must stay `None`.
+
+**THE VALIDATION IS NOT CAPPED AND NO DAYS LIMIT IS ADDED.** The memo makes the FULL validation
+affordable rather than smaller — which matters because its own docstring makes it **the
+precondition that licenses drawing any reconstructed point**, so narrowing it would weaken that
+licence while looking like a speed fix. A test reads the syntax tree and fails if `limit` is
+ever wired into a call here, and separately asserts the parameter still EXISTS, so this is
+"available and unused" rather than "removed".
+
+**THE ANCHOR IS THE EARLIEST DATE IN THE RUN, AND THE CHOICE IS FORCED RATHER THAN PREFERRED.**
+`as_of` does **not** truncate a frame — `_yf_history` fetches a period relative to TODAY and
+`as_of` feeds only `_stale`, which is `last < as_of`. So the anchor decides whether a frame is
+ACCEPTED, never what is in it:
+
+* anchored on the **LATEST** date, WBS's frame is judged stale, falls to the dead fallback, and
+  the memo caches `None` — so WBS would read UNPRICED on **every** date, including the early
+  ones a per-date call PRICES. That silently moves the book leg, and it is the vendor-side
+  survivorship `validate_against_record` already warns about.
+* anchored on the **EARLIEST**, the frame is accepted, its map covers dates up to its last row
+  and simply has no entry after it. Early dates price, late dates read unpriced — which is
+  exactly what the per-date calls produce.
+
+A frame older than even the earliest date is rejected by both routes, so the fallback is still
+reached wherever a per-date call would reach it.
+
+**A DEFECT CAUGHT BEFORE IT SHIPPED, AND IT IS THIS PROJECT'S OWN LESSON ONE LEVEL UP.** The
+first cut called the base fetcher as `base(ticker, days, as_of=...)` unconditionally. Several
+suites inject a two-argument `fetch(ticker, days=400)`; handing one an unexpected keyword raises
+TypeError, which the memo's `except` would have cached as `None` — and **every name in the book
+would have read UNPRICED**. That is precisely the failure `index_mark._accepts_as_of` was written
+for after it cost thirty-one tests. Fixed by **IMPORTING** `_accepts_as_of` rather than writing a
+second copy of the rule (B7), with a test pinning the narrow path.
+
+## Proof
+
+1. **THE VALIDATION STILL REPRODUCES THE RECORD.** Full, uncapped, against the 24-row live
+   record (`data_export/valquo_index_track.csv`): **24 compared, 0 refused, `bench_exact_days`
+   22 of 24**, `bench_max_abs` 0.0297pp (the two non-exact are the known day-1 mark),
+   `book_median_abs` **0.0005pp**, max 0.1404pp. **87 vendor calls, 87 tickers,
+   `max_calls_per_ticker` 1** — against 24 x 87 = 2,088 — in **26.5s**, where the same work
+   derived to ~41 min before.
+   **STATED AS A LIMIT: the book leg is exact on 11 of the 17 days where `n_priced` matches**,
+   the other six differing by <=0.027pp. That is the pre-existing seam the validator's own
+   docstring predicts (a name priceable then and not today), and **there is no pre-memo baseline
+   for those six figures on this record**, so they are reported and NOT claimed unchanged. The
+   claim that rests on evidence is `bench_exact_days` = 22 plus the equality tests below.
+2. **AT MOST ONE VENDOR CALL PER TICKER ACROSS A FULL 42-DATE RUN**, with the stale name and a
+   raising vendor each fetched **once rather than 42 times**, and the full validation likewise
+   one-per-ticker while still comparing all 39.
+3. **MEMOISED CLOSES == UNMEMOISED CLOSES.** On a synthetic tape, every date and every field,
+   including the case where staleness bites (asserted non-vacuous: `n_priced` must actually fall
+   mid-run, or the comparison proves nothing). **And on the LIVE vendor: 3 dates — one early, one
+   mid, one late — IDENTICAL on `valquo_pct`, `spy_pct`, `excess_pp` and `n_priced`, 209.7s ->
+   8.8s (23.8x).** Bounded to 3 dates on purpose: the unmemoised arm costs 87 calls per date and
+   all 24 would be 2,088, which risks the Yahoo throttling that would make the comparison
+   meaningless rather than merely slow.
+
+**13 new tests in `tests/test_track_reconstruct_memo.py`; 4 of 4 memo mutations caught** —
+including anchoring on the latest date, which is the one that silently drops a stale name's
+early days — with sources restored byte-for-byte.
+
+## Two fixtures of my own that were wrong, and both would have hidden the thing they tested
+
+`contract_row` enforces `MIN_COVERAGE = 0.95` of the book's **WEIGHT**, so a 20%-weight stale
+name made every post-staleness row REFUSE and `n_computed` collapsed — the comparison the test
+is named for was never reached. It is 2% now, under the floor's tolerance, so the row still
+prices while `n_priced` falls. And a weekday-only date fixture included **2026-09-07 (Labor
+Day)**, which `contract_row` refuses as a non-trading day, so `n_compared` read 38 of 39 for a
+reason that had nothing to do with prices; the run is built from `market_session.is_trading_day`
+now, the same authority `missing_dates` uses.
+
+## Not done, named so it is not mistaken for done
+
+* **`reconstruct` and `validate_against_record` build ONE MEMO EACH**, so a single door call
+  makes **2 x 87 = 174** vendor calls rather than 87. They are independently callable and
+  sharing one would mean plumbing a memo through the public signature; left as-is pending the
+  service-side wall-time measurement, since 174 calls is ~53s on local evidence.
+* **No day has been reconstructed and nothing has been stored.** `?write=1` is still POST-only
+  and still 405s on a GET, confirmed on the deployed build.
+* **The 95% weight floor and the price routing are untouched.** The dead Stooq fallback still
+  costs 45s the first time a stale name is seen — the memo makes it once per run instead of once
+  per date, and does not make it cheap. Removing that cost is `prices.py`'s and would move a
+  recorded basis.
+* **`data/` is empty in a worktree**, so a local run must pass `meta_path`/`history_path` at the
+  primary root explicitly — the default resolution refuses every row with "the book file ... is
+  missing or unreadable", which is the same refusal the service gave before it was seeded, and
+  is correct behaviour rather than a bug.
+
+---
+
 # Session 70 — 2026-10-01 — the free route's three wiring gaps are closed, and the cache is built
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. `by_domain`
