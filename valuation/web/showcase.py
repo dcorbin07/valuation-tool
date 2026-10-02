@@ -176,7 +176,16 @@ def landing_context(store, with_track: bool = True) -> dict:
     `surfaces.may_see_owner_surfaces(...)`, so this follows the same split as everything else.
     """
     ctx = {"sample": None, "sample_age": None, "sample_stale": False, "bar": None,
-           "track": None, "spark": None, "scan": None}
+           "track": None, "spark": None, "scan": None, "universe": None}
+
+    # THE UNIVERSE SIZE, READ LIVE (E9). The landing page said "~800 names" in two places
+    # while the scan ranks 1,500. Defensive like every other block here: unavailable means the
+    # copy drops the number rather than the page dropping the sentence.
+    try:
+        from . import live_facts as _facts
+        ctx["universe"] = _facts.universe_size(store)
+    except Exception:                                                   # noqa: BLE001
+        ctx["universe"] = None
 
     sample = load(store)
     if sample:
@@ -197,7 +206,11 @@ def landing_context(store, with_track: bool = True) -> dict:
     if with_track:
         try:
             from ..screener.index_track import summarize
-            t = summarize("roth", store=store)
+            # THE TRACKED CONSTRUCTION. This passed "roth" explicitly, so the landing
+            # page's backtested figures described a top-25 book beside the decile book's
+            # forward curve. Left as a no-argument call so there is ONE place that decides
+            # which construction the record is of.
+            t = summarize(store=store)
             if t:
                 ctx["track"] = t
                 if t.get("available"):

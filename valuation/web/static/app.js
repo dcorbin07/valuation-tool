@@ -1508,7 +1508,7 @@ function _trackCard(title, sub, s) {
         <td class="num">${pct(x.hit_rate_vs_bench, 0)}</td><td class="num">${pct(x.win_rate, 0)}</td></tr>`;
     });
     inner += '</table>';
-    inner += `<div class="note" style="margin-top:6px">${logged}. A name that stays in the top 10 is logged again every day it is there, so the picks overlap heavily and the count overstates how many independent bets this is — read the averages as a description, not a significance test.</div>${rfLine}`;
+    inner += `<div class="note" style="margin-top:6px">${logged}. An options pick is logged once per alert, and a name can alert on consecutive sessions, so the picks overlap and the count overstates how many independent bets this is — read the averages as a description, not a significance test. (The hot-list rule is different: a name that stays in the top 10 is logged every day it is there.)</div>${rfLine}`;
   }
   if (rec.length) {
     inner += '<div class="note" style="margin-top:10px">Most recent picks (each fills in 21 trading days after its date):</div>' +
@@ -1527,7 +1527,10 @@ function _paperCard(paper) {
   const s = (paper && paper.summary) || {}, watch = (paper && paper.watching) || [], closed = (paper && paper.closed) || [];
   const sub = 'Buys when a name enters the top-10; holds ≥1 month (no churn) and keeps holding while it stays hot — ' +
     'it is <b>not</b> sold just because another name got hotter. Sells only when it is genuinely no longer hot ' +
-    '(score below the floor) or reaches its DCF fair value; there is no time limit on a hold. A name the daily ' +
+    '(score below the floor) or reaches its fair value — which is a DCF for most names, ' +
+    'P/B-ROE for banks and insurers, and WITHHELD when neither can be computed, in which case ' +
+    'the fair-value exit cannot fire and only the score floor can close the position; there is ' +
+    'no time limit on a hold. A name the daily ' +
     'scan stops covering for three weeks is closed (“left coverage”), because without a score the sell rule ' +
     'cannot be applied. Suggested sizing is score-weighted (hotter = bigger), capped. A model account — no money is in it.';
   if (!s.n_total) {
@@ -2191,16 +2194,27 @@ function freshnessBanner(f) {
 }
 
 // ---------------------------------------------------------------------------------------- //
-// Valquo Index — the constructed top-slice of the SAME ranking Hot Stocks shows. One ranking,
-// two views: Hot Stocks is discovery, the Index is the book you would hold. The account-type
-// toggle switches which validated construction is applied (roth vs taxable).
+// Valquo Index — ONE FIXED BOOK, formed at the last quarterly rebalance and held unchanged
+// until the next one. Hot Stocks is discovery and re-ranks every close; the Index does not
+// move with it, and the holdings shown come from the service's bound record rather than from
+// today's scan. The account-type toggle is GONE (Don's ruling, 2026-10-02): the Index is one
+// book, so offering a construction implied a choice that does not exist, and it defaulted to
+// the 25-name "roth" construction, which is not the tracked book.
 // ---------------------------------------------------------------------------------------- //
 async function loadValquoIndex() {
   const body0 = document.getElementById("valquoIndexBody");
   if (!body0) return;
-  const cfg = (document.getElementById("bookConfig") || {}).value || "roth";
+  // NO CONFIG IS SENT. The Index is ONE fixed book and the route serves the book in force.
+  // This used to read the account-type dropdown and fall back to "roth" -- and that fallback
+  // is why deleting the <select> alone would NOT have been enough: the tab would have gone on
+  // asking for the 25-name construction with nothing on screen to say so.
+  const cfg = "inforce";          // cache key only; not sent to the server
   // The Index is the tab people open on a phone, on a cold connection. Cached holdings paint
   // first; the skeleton only shows on a genuinely first visit.
+  //
+  // THE CACHE KEY CHANGED ON PURPOSE. A reader who had the old "index:roth" entry would
+  // otherwise be shown yesterday's 25-name rebuild out of localStorage, from a key the page
+  // can no longer refresh.
   const cached = cacheGet("index:" + cfg);
   if (cached) {
     try { _renderValquoIndex(cached.d, cfg); } catch (e) { }
@@ -2209,7 +2223,7 @@ async function loadValquoIndex() {
   } else { setHtml("valquoIndexBody", skeletonTable(8, 7)); setHtml("indexCache", ""); }
   let d;
   try {
-    d = await (await fetch("/api/valquo-index?config=" + encodeURIComponent(cfg))).json();
+    d = await (await fetch("/api/valquo-index")).json();
   } catch (e) {
     if (!cached) setHtml("valquoIndexBody", "");
     setHtml("indexCache", cached
@@ -2475,13 +2489,17 @@ function _indexSectorBox(d) {
 async function loadIndexTrack() {
   const body = document.getElementById("indexPerfBody");
   if (!body) return;
-  const cfg = (document.getElementById("bookConfig") || {}).value || "roth";
+  // NO CONFIG, for the same reason and with a sharper consequence: this card puts a
+  // BACKTEST beside the RECORD, and sending "roth" is what made it the backtest of a
+  // different book -- 11.63%/yr on 3.169x turnover against the tracked decile's 7.75%/yr on
+  // 1.375x. The route now defaults to the tracked construction.
+  const cfg = "tracked";          // cache key only; not sent to the server
   const cached = cacheGet("indextrack:" + cfg);
   if (cached) { try { _renderIndexTrack(cached.d); } catch (e) { } }
   else { body.innerHTML = skeleton(4, { head: true }); }
   let d;
   try {
-    d = await (await fetch("/api/index-track?config=" + encodeURIComponent(cfg))).json();
+    d = await (await fetch("/api/index-track")).json();
   } catch (e) {
     if (!cached) body.innerHTML = `<div class="muted">Performance unavailable.</div>`;
     return;
@@ -2687,7 +2705,9 @@ function indexChart(d) {
   const rbT = (d.reported_benchmark || {}).ticker || "SPMO";
   const hasRb = s.some(r => r.spmo != null);
   if (note) note.textContent = `Cumulative return of the MODEL portfolio since inception vs `
-    + `${d.benchmark || "SPY"}, net of modelled costs. No capital is invested — these are `
+    + `${d.benchmark || "SPY"}, GROSS of costs — the recorded series subtracts none `
+    + `(contract §7 item 6); the evidence meter subtracts 0.14529 pp per month when it `
+    + `forms a verdict. No capital is invested — these are `
     + `closing-price marks, not fills, and not a return anyone received.`
     + (hasRb ? ` The dotted ${rbT} line is a reported benchmark shown for context on the same `
              + `scale; the record's contract is against ${d.benchmark || "SPY"} alone.` : "");

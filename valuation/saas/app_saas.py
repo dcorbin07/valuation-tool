@@ -1656,9 +1656,16 @@ def create_saas_app(cfg=CONFIG):
         # at module scope for the same reason the other web helpers are — this blueprint is
         # built once and the import graph stays flat.
         from ..web import optionable_partition as _optionable
+        # LIVE TRIAL COUNTS (E12), and they do NOT break this page's byte-identical contract.
+        # That contract is "no store, no vendor data, no `/api/` call, identical across two
+        # requests". `RESEARCH_LOG.md` is a TRACKED FILE rather than a clock or a store: its
+        # bytes change when the repo changes, not between requests. The literals it replaces
+        # read 248 and 578 "as of 2026-09-30" against a log that had moved on.
+        from ..web import live_facts as _facts
         resp = make_response(render_template("portfolio.html",
                                              contact_email=cfg.contact_email,
                                              demo_available=demo_available,
+                                             trials=_facts.trial_counts(),
                                              optionable=_optionable.payload(),
                                              research_url=cfg.resolved_portfolio_path
                                              + "/research"))

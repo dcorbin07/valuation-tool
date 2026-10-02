@@ -5,6 +5,322 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 74 — 2026-10-02 — ONE Valquo Index, everywhere, and the contract's own premise was false
+
+**DON'S RULING + 17-AMEND, 2026-10-02.** Hot stocks and options are daily; the Index is ONE fixed
+book, formed at a quarterly rebalance and held unchanged until the next, and that same book is
+what the forward record measures. `PAPER_TRACK_CONTRACT.md` §5 defines the tracked book as *"the
+Valquo Index exactly as the site shows it"* — **so while the tab showed a different book, the
+contract's own premise was false.** That is what makes this a correctness item rather than copy.
+
+**NOT A VINTAGE EVENT.** No scoring, no weight, no construction and no recorded figure changes.
+`valquo_index.build_index` is untouched and still the only thing that BUILDS a rebalance book, so
+`REBALANCE_RUNBOOK_2026-10-22.md`'s `--config taxable` path is unaffected, and nothing the writer
+reads is modified. **`PRODUCT_SPEC.md` names the build path as explicitly out of scope.**
+ZERO TRIALS.
+
+## F — `PRODUCT_SPEC.md`, AND IT IS THE DELIVERABLE THAT STOPS THE REPEAT
+
+One page naming each surface, which object it shows, and how often it changes.
+`tests/test_product_spec.py` (28 tests) parses it and fails if the Index tab's holdings differ
+from the bound book, if the backtest block's construction differs from the tracked one, or if a
+public page states a contradicting cadence. **It also checks the spec against the CODE** — the
+tracked config must really be `top_frac` 0.1, `rebalance_days` 63, `exit_frac` 0.3 — so the spec
+cannot drift into describing a book nobody builds.
+
+## A — THE TAB SHOWED A DIFFERENT BOOK
+
+Default `/api/valquo-index` served `BOOK_CONFIGS["roth"]` (top 25, 42-day, band-less) rebuilt from
+each day's scan; the tracked book is the 86-name decile, quarterly, 30% band. Now the **book in
+force** from the bound record, through `screener/index_in_force` (built last session): holdings,
+weight at formation, return since formation, sector mix, formation date, and the next rebalance
+**derived** as 63 trading days from the record's own scan date — **2026-10-22**, matching the
+runbook. WBS shows as acquired 2026-08-20, sold at its last close, weight spread pro-rata.
+
+**THE DROPDOWN IS GONE, AND REMOVING THE ELEMENT ALONE WOULD NOT HAVE BEEN ENOUGH.** Two JS sites
+read it and both fell back to `|| "roth"`, so the page would have gone on requesting the 25-name
+book with nothing on screen to say so. Both are fixed, the cache keys changed (a reader with an
+`index:roth` entry would otherwise be served yesterday's rebuild from localStorage under a key
+the page can no longer refresh), and the leftover `bookConfigNote` span — written by nothing —
+is removed. `roth` stays in `BOOK_CONFIGS` for the owner preview and research, reachable from no
+public page, pending Don's answer on keeping it.
+
+## B — THE BACKTEST BESIDE THE TRACK WAS A DIFFERENT BOOK, ON THREE SURFACES
+
+`summarize` defaulted to `DEFAULT_BOOK_CONFIG`, so the backtested block was roth's. **Measured:
+roth net_alpha 11.63%/yr on 3.169x turnover against the tracked decile's 7.75%/yr on 1.375x** — a
+~3.9pp overstatement of backtested alpha and 2.3x of turnover, beside a live curve of the other
+book. **AND IT WAS WORSE THAN THE ITEM SAYS:** `hero.py` called `summarize(store=store)` with no
+config and took the same default, and `showcase.py` passed `"roth"` EXPLICITLY — so the hero and
+the landing page carried it too. One new constant `index_track.TRACKED_CONFIG = "taxable"` is now
+the single authority; the "The forward column is the same model book" sentence is gone, replaced
+by the true statement (same CONSTRUCTION, not the same measured object) with `MEASURED_BASIS`'s
+caveat still visible.
+
+## 17-AMEND — ONE BOOK, TWO TAX TREATMENTS
+
+The roth config is retired from every surface, and "Roth/IRA" becomes a **tax wrapper on the one
+book** rather than a construction — which is precisely what had put a 25-name backtest beside a
+decile record. Beside the track: **in a Roth/IRA, net of costs and no tax, +7.752%/yr (Sharpe
+1.2096); in a taxable account, after tax through the shipped FIFO engine, +2.113%/yr (Sharpe
+0.9768)** — so **the cost of taxes is a number on the page: 5.6387 pp/yr**, where before a reader
+had to difference two fields in a flat block. Both legs come from the SAME `measured("taxable")`
+call, so they cannot drift from the figures printed beside them, and a missing leg reports
+`tax_cost_pp: None` rather than 0.0 — a zero would read as "tax is free". **Labelled PROVISIONAL
+on r1's INDEX-BOOK measurement**, which replaces both when it lands.
+
+## C — the single-stock page. Done last session; `unified.py::_index_membership` answers from the
+book in force, and an **exited** name reports `exited` rather than "NOT in the Valquo Index".
+
+## D — THE CENSUS, derived from call sites
+
+| reader | read | action |
+|---|---|---|
+| `web/app.py` `/api/valquo-index` | the daily pick | **fixed** — book in force; rebuild is `?preview=1` |
+| `web/app.py` `/api/index-track` | roth's backtest | **fixed** — `TRACKED_CONFIG` |
+| `web/hero.py` | roth's backtest (no-arg default) | **fixed** by the new default |
+| `web/showcase.py` (landing) | roth, pinned explicitly | **fixed** |
+| `web/unified.py` | the daily pick | **fixed** |
+| `saas/index_book.py` | a scan, to probe conformance then publish | correct — the rebalance PUBLISHER, out of scope |
+| `screener/reported_benchmark.py` | the bound record | already correct |
+| `scripts/mc10_feasibility`, `s14_construction_fidelity`, `theme_health`, `backtest/run.py`, `s10_downside_exclusion` | scans / configs for research | correct, not display |
+
+**THE SANDBOX EQUITY ENGINE IS NOT CHURNING A DAILY BOOK, CONFIRMED IN CODE.**
+`paper_track.seed_book` has PT-SPLIT's alignment gate: a book that is not the contract-bound Index
+is **REFUSED** with `seed_refused` and a reason, and `experiment=True` is the only other path and
+stamps every row. The refusal is loud and non-destructive by design — it never liquidates.
+
+## E — THE WRONG SENTENCES
+
+**Fixed:** E1 (cadence — see below), E2, E3a (the Index's forward record is on the Index tab and
+the hero; the Track Record tab is the options book), E3b (names the tracked decile instead of
+claiming a default), E4 (the Index record is in **no** broker account; only the options book is in
+a sandbox — and the same conflation was on `/methodology`, not just `/work`), E5 (the chart says
+**GROSS** and names the **0.14529 pp/month** the verdict subtracts), E6 (**one** threshold:
+`MIN_SHARPE_DAYS` now defers to `MIN_LIVE_DAYS`, so a Sharpe cannot appear beside a sentence
+withholding annualised figures), E9 and E12 (read live via `web/live_facts.py`).
+
+**E1 WAS DONE SO THE RESEARCH QUOTE SURVIVED.** My first cut rewrote `NOT_A_HOLD_RULE`, and
+`tests/test_hold_horizon.py` failed it — correctly: it pins that the sentence OPENS with §7's
+registered words "so the product's version cannot soften the research one", with a non-vacuity
+companion. **Rewriting a research sentence to fix a product one is not the repair.** The quote is
+restored verbatim and the cadence is SCOPED after it: that quarterly cadence is the BACKTEST's,
+the live list re-ranks every close, and the Index changes only at a rebalance. Three clocks, named.
+
+**E9/E12 — the literal-figure class.** `~800 names` was on three public surfaces against a scan
+that ranks 1,500; `248 by 2026-09-29` and `578 as of 2026-09-30` were on two against a log reading
+248/578 here and 252/582 on main — **which is the point: the same literal cannot be right on two
+branches.** `live_facts.py` reads both live, degrades to **no number rather than a wrong one**,
+and carries a stated floor (`MIN_PLAUSIBLE_UNIVERSE = 100`) because a dev store holds a one-name
+fixture and "the 1 most liquid US names" would be worse than the stale figure. **This does not
+break `/work`'s byte-identical contract:** `RESEARCH_LOG.md` is a tracked file, not a clock or a
+store, so the page cannot vary between two requests.
+
+## DEFECTS OF MY OWN — six, and five were found by mutation or by a guard rather than by reading
+
+1. **The previous commit's land FAILED and the diagnosis is the reusable part.**
+   `tests/test_ma60_conventions.py` refused my `git diff --name-only origin/main` "unchanged"
+   test. Its reasoning is right: that compares origin/main against WHATEVER IS CHECKED OUT, so it
+   measures nothing about the lane that wrote it, becomes a permanent tripwire on whole files
+   owned by a landed item, and fires on the next unrelated lane — as it already had once. **Two
+   suites had shipped that construction before mine; this was the third.** Removed in favour of
+   the property assertions (never imports the builder, never reaches a writer); the diff claim
+   belongs in a commit message, which is where it now lives.
+2. **`test_screener` broke for a real reason.** It asserted the name view's index block is always
+   `available`, which held only because the old code rebuilt from the test's own scan rows. With
+   the bound record, a store without one must report **unavailable with a reason** rather than
+   fall back — so both states are now checked.
+3. **My order assertion measured a hoisted IMPORT, not a call**, and then **matched my own
+   docstring**, which quotes `build_index(st.load_snapshot(...))` to explain the defect. Prose
+   documenting a rule contains what the rule forbids — third time this session. Fixed by stripping
+   the docstring node and comparing CALL positions, with the stripper proved non-vacuous.
+4. **`assertNotIn("bookConfig", ...)` fired on `bookConfigNote`** — my own substring ban again.
+   The element was dead (nothing wrote to it) and is deleted.
+5. **A structural guard that mutation defeated.** Disabling the route's branch with `if False:`
+   left both calls in the source in the same order, so the order check still passed while every
+   request fell through to the preview. Replaced with a **behavioural** assertion that the default
+   request really returns `is_preview: False` with a formation date.
+6. **My template fallback rendered "the most liquid most liquid US names"**, and `landing.html`
+   needed `universe` threading into its context.
+
+**VERIFICATION: 28 spec tests + 33 index-in-force tests; 11 of 11 spec mutations caught and 10 of
+10 book mutations caught**, sources restored byte-for-byte. Suites re-run green: `test_saas`,
+`test_public`, `test_private`, `test_screener` (83/83), `test_track_record_accuracy`,
+`test_la1_la3`, `test_track_age`, `test_backtest_card`, `test_mc10_mc11_labels`,
+`test_no_trade_band`, `test_hold_horizon` (19/19), `test_edge`, `test_ma60_conventions`,
+`test_docs_entry_points`.
+
+## NOT DONE — named so it is not mistaken for done
+
+* **E7 (the hero's wording and the vintage label), E8 (the hot-list source label reading
+  FINANCIAL MODELING PREP against a census showing `served_by_fmp` 0 and a 402), and E10's SECOND
+  half (skipping non-trading days in the options logger and counting existing holiday rows)** are
+  **NOT FIXED**. E10's first half — the options note reusing the hot-list rule — is. These three
+  need their own pass; each touches a surface this commit does not.
+* **The tab's JS still does not RENDER the new columns.** The payload carries
+  `weight_at_formation`, `return_pct`, `status`, `exit`, `formed_on`, `next_rebalance`,
+  `sector_mix` and `tax_treatments`; `ticker`/`weight`/`price` were preserved so the existing
+  table and allocation tool keep working. **The tab shows the right BOOK; those values are in the
+  payload and not yet on the page.**
+* **Nothing schedules `compute_returns`**, which needs a `.github/` edit this lane cannot make.
+* **The `PAPER_TRACK_CONTRACT` amendment codifying the WBS treatment is outstanding**, and §5's
+  "exactly as the site shows it" premise is now TRUE rather than repaired in the contract text.
+
+---
+
+# Session 73 — 2026-10-02 — the Valquo Index tab shows the BOOK IN FORCE, not a daily pick
+
+**DON'S RULING, 2026-10-02.** Hot stocks and options are daily; the Index is not. It is the book
+formed at the last quarterly rebalance, held unchanged until the next one, and it is the same
+book the forward record measures against SPY and SPMO.
+
+**NOT A VINTAGE EVENT, and this is the checkable form of that claim.** No scoring changes, no
+weight changes, no construction changes, no recorded figure moves. `valquo_index.build_index` is
+untouched and is still the only thing that BUILDS a rebalance book — the Oct 22 runbook's
+`--config taxable` path is unaffected — and nothing the writer reads is modified.
+**`git diff origin/main -- valuation/screener/index_mark.py valuation/edge/valquo_index.py`
+returns EMPTY, asserted by a test rather than by inspection.** ZERO TRIALS.
+
+## THE DEFECT, MEASURED
+
+`/api/valquo-index` called `build_index(st.load_snapshot(st.latest_scan_date()))` on every
+request, so the holdings were rebuilt from each day's scan and changed daily — while the forward
+record beneath them tracked a fixed book. **The bound record carries 86 positions formed
+2026-07-30 from scan 2026-07-24; the default `roth` config served 25 names off today's scan.**
+The tab's own intro said so out loud: *"The holdings are rebuilt from each day's scan. The
+forward record further down is a **separate**, fixed book."* Two books under one name, which Don
+read as the Index having rebalanced.
+
+## (a) WHAT THE PAYLOAD NOW IS
+
+`valuation/screener/index_in_force.py`, reading the bound record: holdings, **weight at
+formation** and current weight, return since formation, sector mix, the date the book was formed,
+and the next scheduled rebalance. On the real record: **85 held + 1 exited, formed 2026-07-30,
+next rebalance 2026-10-22, pro-rata scale 1.007811, held weights summing to exactly 1.0.**
+
+**THE NEXT REBALANCE IS DERIVED, NOT PINNED.** `REBALANCE_RUNBOOK_2026-10-22.md` fixes it by its
+own arithmetic — "63 trading days from the 2026-07-24 scan is Thursday 2026-10-22" — and that
+reproduces exactly from the record's own `scan_date` through `market_session`'s calendar. **It is
+the SCAN date and not inception**: 63 trading days after 2026-07-30 is 2026-10-28, six days
+adrift, and a test pins both so the wrong anchor cannot be reintroduced as a plausible fix. A
+hard-coded date would be right for one quarter and silently wrong for every quarter after — the
+clock-shaped guard this project has repointed three times.
+
+**NOT A SECOND IMPLEMENTATION (B7).** The events, inception-as-event-zero and the
+which-event-governs rule all come from `index_mark` (`load_book`, `rebalance_events`,
+`event_in_force`), imported. A second copy of "which book is in force" is precisely how the tab
+and the record came to disagree.
+
+**WBS (Don's decision): acquired 2026-08-20, counted as sold at its last close, weight spread
+pro-rata.** Implemented, and the one thing I could NOT deliver is stated rather than faked:
+**its return since formation is not computable from a free source.** Measured — WBS's yfinance
+frame now carries **exactly ONE row, 2026-08-19**: the vendor keeps an acquired name's final
+close and drops the history. So the exit price is shown (77.57) and `return_pct` is explicitly
+`None` with a reason attached. Imputing a formation price would put a fabricated return on the
+single holding whose treatment is a standing ruling.
+
+**AN EXIT IS A DECLARED FACT, NEVER INFERRED.** The tempting rule is "a name no vendor can price
+has left the book", and it is wrong the way `E-5` already paid for: an acquisition is a TERMINAL
+value, a gap in a vendor's file is CENSORING, and from here they look identical — WBS's frame
+stopping on 2026-08-19 is **corroboration** of the acquisition, not evidence of it. So `EXITS`
+carries the ticker, date, reason, treatment and **provenance** (Don's ruling plus the outstanding
+`PAPER_TRACK_CONTRACT` amendment), and an AST test bans `book_in_force` from touching price data
+at all.
+
+**NO BOOK-LEVEL TOTAL IS OFFERED, DELIBERATELY.** A weighted average of these per-holding returns
+would exclude any name the vendor cannot price — WBS today — and would then disagree with the
+RECORDED series, which is the contract's own number and the only thing quotable as the Index's
+return. Two totals under one name is the defect being fixed. Pinned by test.
+
+**RETURNS ARE OFF THE REQUEST PATH.** They need a close at formation and today for ~86 names;
+through `track_reconstruct._PriceMemo` (imported, one call per ticker) that measured **12.4s for
+86 tickers, max 1 call each** — fine for a writer, not for a page load. So `compute_returns`
+writes a cache, the payload serves it with its age, and a missing cache costs the return column
+and not the page. A cache computed for a **different formation date is REFUSED**, because stale
+against another book is not stale, it is wrong.
+
+## (b) THE DAILY REBUILD IS NOW A LABELLED PREVIEW
+
+`?preview=1` still returns the construction applied to today's scan, under `is_preview: true` and
+a `not_the_index` note. **The route was already owner-only** (`surfaces.is_owner_only`, and
+`auth.py` gates it on "names AND weights"), so the preview is not a public surface; the label
+exists so a future reader of the payload cannot mistake one for the other. **An unreadable record
+REFUSES and never falls back to the preview** — serving the rebuild under the Index's name is
+exactly the substitution this change exists to end.
+
+## (d) THE WORDING
+
+The Index tab now says **ONE FIXED BOOK, HELD FOR THE QUARTER** — holdings formed at the last
+rebalance and held unchanged, not a daily pick, and **the same book the forward record tracks**.
+The Hot Stocks pointer and the comment above the tab were reworded too, and `/methodology` now
+says the book is "fixed at each quarterly rebalance and held unchanged between them ... the same
+book in both". Pinned forward and the old wording BANNED, because prose in a template does not
+stop — someone has to remember. **`landing.html` and the og text were checked and need no
+change**: their Index references describe the forward-record chart, which was always correct, and
+a grep for any remaining "index ... daily/each day/rebuilt" claim across the templates returns
+nothing.
+
+## (e) CONSUMER CENSUS — derived from the call sites, not recalled
+
+| consumer | reads today | verdict |
+|---|---|---|
+| `web/app.py` `/api/valquo-index` | **the daily pick** | **FIXED** — default is the book in force, rebuild is `?preview=1` |
+| `web/unified.py` `_index_membership` | **the daily pick** | **FIXED** — see below |
+| `saas/index_book.py` | a scan, to PROBE conformance then publish | correct; this is the rebalance publisher, and (c) forbids touching it |
+| `screener/reported_benchmark.py` | `load_book` — the bound record | already correct |
+| `scripts/mc10_feasibility.py`, `s14_construction_fidelity.py`, `theme_health.py` | a scan, to build books | correct; research, not display |
+| `edge/paper_track.py` | delegates to `valquo_index.conformance` | correct; shape check, not a book |
+
+**`unified.py` WAS THE WORSE ONE AND IT IS MOVED.** It fed the stock page's "In the book" metric
+and the sentence *"HELD in the Valquo Index at X% of the book"* — a definite claim about a named
+holding — from today's rebuild. Its own docstring already said it answers about "the book the
+Index tab shows", so pointing it at the book in force honours the docstring rather than changing
+its meaning. The keys the renderers read (`in_book`, `weight`, `available`, `config`,
+`n_positions`) are unchanged, and an **exited** name now reports `exited` rather than being
+called "NOT in the Valquo Index", which would be false twice over.
+
+## TWO EXISTING ASSERTIONS PINNED THE DEFECT AND ARE MOVED, NOT WORKED AROUND
+
+`test_saas.py` required `"same scan snapshot" in source_note` on the DEFAULT payload and
+`"backtested top-slice"` in the template. Both encode the old contract that Don's ruling
+replaces. The snapshot wording is now asserted on `?preview=1`, where it belongs, and the
+template assertion matches the phrase that replaced it — so both blurbs are still pinned. **This
+is the opposite judgement from `MA46`**, where four red suites were right and the change was
+wrong; here the ruling changes the contract, so the assertion has to follow it. The reasoning is
+in the test beside the change.
+
+## DEFECTS OF MY OWN
+
+**A real one, caught by my own test**: an exited name's `priced_through` reported its EXIT date
+while the price came from the last close — a day earlier for WBS (exit 08-20, close 08-19). A
+price captioned with a day it did not come from. Fixed in **both** branches; my first fix only
+corrected the one I had just written. And two test defects: a non-vacuity anchor looking for a
+`FunctionDef` name in a blob that collected only `Name`/`Attribute` nodes, and wording checks
+written as literals against line-wrapped template copy — a test that fails against correct prose
+is not a check of the prose. Both repaired.
+
+**Verification: 31 new tests, 10 of 10 mutations caught** (exits ignoring the segment window, no
+pro-rata, the exited name keeping its weight, calendar instead of trading days, the formation
+weight dropped, pricing an exited name at today, accepting another book's returns, overwriting
+the store with an empty run, the route falling back to the daily pick, and the tab reverting to
+the daily-rebuild wording) with sources restored byte-for-byte.
+
+## NOT DONE
+
+* **The tab's JS does not yet RENDER the new columns.** The payload carries `weight_at_formation`,
+  `return_pct`, `status`, `exit`, `formed_on`, `next_rebalance` and `sector_mix`; `app.js` still
+  renders the holdings table and the allocation tool off `ticker`/`weight`/`price`, which is why
+  those keys were deliberately preserved. **The table works and shows the right book today; the
+  return-since-formation column, the formed-on date and the next-rebalance date are in the
+  payload and not on the page.**
+* **Nothing schedules `compute_returns`**, so the returns cache is whatever last wrote it. The
+  payload reports its age and refuses another book's. Wiring it to the hot job is a `.github/`
+  edit, which this lane cannot make.
+* **The `PAPER_TRACK_CONTRACT` amendment codifying the WBS treatment is outstanding** and is
+  named in the exit's own provenance so it cannot be forgotten.
+
+---
+
 # Session 72 — 2026-10-02 — the theme-cache workflow text is corrected before Don pastes it, and the third defect was the dangerous one
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. **No `.github/`

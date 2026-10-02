@@ -46,9 +46,17 @@ from . import track_age as _track_age
 # long enough that one good or bad week cannot dominate, short enough to be reachable.
 MIN_LIVE_DAYS = 60
 
-# Below this there is not enough of a daily series to estimate a standard deviation that
-# means anything, so Sharpe stays None rather than being a ratio of two noise terms.
-MIN_SHARPE_DAYS = 20
+# ONE THRESHOLD, STATED ONCE (Don's ruling, 2026-10-02). This was 20 while `MIN_LIVE_DAYS`
+# was 60, so on 26 recorded days the card published "Sharpe 0.62" directly beside its own
+# sentence saying annualised figures are withheld until there is enough history -- two gates on
+# one card, and a reader cannot tell which one governs the number they are looking at.
+#
+# Below 20 days there genuinely is not enough of a daily series to estimate a standard
+# deviation, which is why this existed; the error was having a SECOND, lower bar rather than
+# having one at all. It now defers to `MIN_LIVE_DAYS`, so the Sharpe appears exactly when the
+# rest of the annualised figures do. Withholding a figure is the safe direction, and the name
+# is kept because the call site reads it.
+MIN_SHARPE_DAYS = MIN_LIVE_DAYS
 
 # LA3. Below this fraction of the ELAPSED trading days actually recorded, the Sharpe is
 # withheld rather than corrected. The chained series holds cumulative-since-inception levels,
@@ -414,6 +422,21 @@ BOOK = ("Valquo Index — broad top decile of the large-cap tier by hot score, s
         "capped at 8%")
 BOOK_SHORT = "Valquo Index (top decile, large-cap tier, score-weighted, 8% cap)"
 
+#: THE CONSTRUCTION THE TRACKED BOOK IS, as a book-config name.
+#:
+#: **WHY THIS EXISTS.** `summarize` defaulted to `settings.DEFAULT_BOOK_CONFIG`, which is
+#: "roth" -- top 25, 42-day rebalance, no band -- while the book this series records is the
+#: decile/quarterly/30%-band one. So the BACKTESTED block sat beside the forward curve of a
+#: DIFFERENT book, and the Index tab said in so many words that the forward column was "the same
+#: model book". Measured: roth backtests at net_alpha 11.63%/yr on 3.169x turnover against
+#: taxable's 7.75%/yr on 1.375x, so the overstatement was ~3.9pp of alpha and 2.3x of turnover,
+#: on the hero and the landing page as well as the tab.
+#:
+#: CHECKED AGAINST THE CONFIG RATHER THAN ASSERTED: `taxable` is `top_frac` 0.1 (decile),
+#: `rebalance_days` 63 (quarterly) and `exit_frac` 0.3 (the 30% band) -- which is `BOOK` above,
+#: and a test pins all three so renaming or re-tuning the config cannot silently re-point this.
+TRACKED_CONFIG = "taxable"
+
 # The bound source. Named in the claim so a reader can check it against the contract.
 RECORDER = "data/valquo_track.json + valquo_track_history.csv"
 
@@ -527,7 +550,10 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
     """
     from . import settings as S
 
-    cfg_name = (config or S.DEFAULT_BOOK_CONFIG or "roth").lower()
+    # THE TRACKED CONSTRUCTION, not the site's default account type. `DEFAULT_BOOK_CONFIG`
+    # is a UI preference ("which account type do we show first"); this function reports the
+    # backtest of the book the RECORD is of, and the two are different books.
+    cfg_name = (config or TRACKED_CONFIG).lower()
     # READ THROUGH TO THE ARTIFACT (MC11). The literals this used to read were the
     # 20%-band figures under a 30%-band label.
     measured = S.measured(cfg_name) or {}
@@ -550,6 +576,38 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
         "source": measured.get("source"),
         "after_tax_sentence": measured.get("after_tax_sentence"),
         "unavailable": measured.get("unavailable"),
+    }
+    # ONE BOOK, TWO TAX TREATMENTS (17-AMEND, Don 2026-10-02). The same construction held in
+    # two kinds of account, so the cost of taxes is a number on the page rather than something
+    # a reader has to infer by differencing two fields in a flat block.
+    #
+    # NOT A SECOND MEASUREMENT: both legs come from the SAME `measured(cfg_name)` above, and
+    # the delta is their difference. `roth` the CONFIG is retired from every surface; "Roth/IRA"
+    # here is a TAX WRAPPER on the tracked book, which is the whole point of the amendment --
+    # the word used to name a different CONSTRUCTION, and that is what put a 25-name backtest
+    # beside a decile record.
+    _net_a, _tax_a = measured.get("net_alpha"), measured.get("after_tax_alpha")
+    backtested["tax_treatments"] = {
+        "construction": cfg_name,
+        "same_book": True,
+        "note": ("the SAME book in two kinds of account — the construction is identical and "
+                 "only the tax treatment differs"),
+        "roth": {"label": "in a Roth/IRA", "basis": "net of modelled costs, no tax",
+                 "alpha": _net_a, "sharpe": measured.get("net_sharpe")},
+        "taxable": {"label": "in a taxable account",
+                    "basis": "after tax, through the shipped FIFO lot-level engine",
+                    "alpha": _tax_a, "sharpe": measured.get("after_tax_sharpe"),
+                    "sentence": measured.get("after_tax_sentence")},
+        # THE COST OF TAXES, which is the figure the amendment exists to surface. Reported as
+        # None rather than 0.0 when either leg is missing: a missing leg is not a zero tax bill.
+        "tax_cost_pp": (None if (_net_a is None or _tax_a is None)
+                        else round((_net_a - _tax_a) * 100.0, 4)),
+        # PROVISIONAL, AND SAID SO. Both legs are the full-universe equal-weighted decile, not
+        # the served score-weighted large-cap-tier book. r1's INDEX-BOOK measurement of the
+        # exact construction replaces BOTH when it lands; until then this is the nearest
+        # measured construction and `basis` above says how it differs.
+        "pending": ("r1's INDEX-BOOK measurement of the exact large-cap-tier construction; "
+                    "until it lands both treatments use book_configs.%s" % cfg_name),
     }
     # THE FOUR LABELLED LINES replace the card's unlabelled "Alpha / yr". They are NOT read
     # from `measured` above: that block's `net_alpha` is an excess over the EQUAL-WEIGHTED

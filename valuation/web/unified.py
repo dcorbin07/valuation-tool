@@ -71,38 +71,53 @@ def _scan_row(rows, ticker):
 
 
 def _index_membership(rows, ticker, config_name=None):
-    """Is this name in the book the Index tab shows, and at what weight?"""
-    from ..edge.valquo_index import build_index
+    """Is this name in the book the Index tab shows, and at what weight?
+
+    **THE BOOK IN FORCE, NOT TODAY'S REBUILD (Don's ruling, 2026-10-02).** This used to call
+    `build_index` on the latest scan, so it answered "HELD in the Valquo Index at X% of the
+    book" about a name that was merely in today's rebuilt pick -- while the Index is the book
+    formed at the last rebalance and held since. The claim is per-NAME and definite, which makes
+    it a worse place for that error than the tab: a reader is told a specific holding is in a
+    specific book.
+
+    Its own docstring already said it answers about "the book the Index tab shows". That is now
+    the book in force, so this is the docstring being honoured rather than a change of meaning.
+
+    `rows` is still taken (the signature and the one caller are unchanged) and is deliberately
+    UNUSED for membership: a held book does not depend on today's scan. It is what the rank
+    sentence beside this one is built from, which is why that sentence still names the scan date
+    and this one does not.
+    """
+    from ..screener import index_in_force as IF
     from ..screener import settings as S
 
     name = (config_name or S.DEFAULT_BOOK_CONFIG or "roth").lower()
     cfg = (S.BOOK_CONFIGS or {}).get(name) or {}
-    kw = {}
-    if cfg.get("top_n"):
-        kw["top_n"] = cfg["top_n"]
-    if cfg.get("top_frac"):
-        kw["top_decile"] = cfg["top_frac"]
-    # S14 ADOPTION (2026-08-13): apply the same band the exported Index and the API apply, or
-    # this view answers "is this name in the book?" about a DIFFERENT book. A fixed-N config
-    # (roth) stays band-less -- a universe-fraction band is not the arm S14 measured for it.
-    from ..edge.valquo_index import _previous_book, DEFAULT_PATH
-    if cfg.get("exit_frac") and not cfg.get("top_n"):
-        kw["exit_frac"] = cfg["exit_frac"]
-        kw["held"] = _previous_book(DEFAULT_PATH)
     try:
-        book = build_index(rows, **kw)
-    except Exception:
+        book = IF.book_in_force()
+    except Exception:                                                   # noqa: BLE001
         return {"config": name, "available": False}
+    if not book.get("ok"):
+        # NOT a fallback to the daily pick. "We could not read the book" and "this name is not
+        # in the book" are different answers and the caller renders them differently.
+        return {"config": name, "available": False, "reason": book.get("reason")}
     positions = book.get("positions") or []
     mine = next((p for p in positions if str(p.get("ticker", "")).upper() == ticker), None)
-    return {"config": name, "label": cfg.get("label"), "available": True,
-            "in_book": bool(mine), "weight": (mine or {}).get("weight"),
-            # DISPLAY HONESTY: a name the band RETAINED is in the book despite a higher-ranked
-            # challenger being passed over. Without this the owner view would show it as an
-            # ordinary pick and the ranking on the same page would not explain its presence.
-            "band_retained": bool((mine or {}).get("band_retained")),
-            "why_band": (mine or {}).get("why_band") or "",
-            "n_positions": len(positions), "n_eligible": book.get("n_eligible")}
+    held = bool(mine) and mine.get("status") == "held"
+    out = {"config": name, "label": cfg.get("label"), "available": True,
+           "in_book": held,
+           # The CURRENT weight, which is what "at X% of the book" means to a reader.
+           "weight": (mine or {}).get("weight") if held else None,
+           "weight_at_formation": (mine or {}).get("weight_at_formation"),
+           "n_positions": book.get("n_positions"),
+           "formed_on": book.get("formed_on"),
+           "next_rebalance": book.get("next_rebalance"),
+           "basis": "the book in force, formed %s and held since" % book.get("formed_on")}
+    # AN EXITED NAME IS NEITHER HELD NOR ABSENT, and saying "not in the Index" about a name the
+    # book held until it was acquired would be false twice over.
+    if mine and mine.get("status") == "exited":
+        out["exited"] = dict(mine.get("exit") or {})
+    return out
 
 
 def _paper_stock_position(store, ticker):

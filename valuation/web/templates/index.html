@@ -408,7 +408,10 @@
   <div id="tab-hot" style="display:none">
     <div class="search-card">
       <!-- One ranking, two views. Hot Stocks IS the ranking; the Valquo Index is its
-           disciplined top-slice. Deliberately not a second competing screen. -->
+           disciplined top-slice, FIXED AT EACH REBALANCE AND HELD BETWEEN THEM.
+           Deliberately not a second competing screen, and deliberately not a daily
+           pick: the holdings shown are the book in force from the bound record, which
+           is the same book the forward record measures. -->
       <div class="note" style="margin-top:0"><b>Hot Stocks is the full ranked screen — this is
         discovery.</b> Every name the model scores, in order. The list is rebuilt automatically
         after each market close and stays the same through the trading day, so it's always the
@@ -421,8 +424,9 @@
        # exist only where the tab does — a "see the Index" link that lands on a 403 is worse
        # than no link. #}
       {% if may_see_owner %}
-      <div class="note" style="margin-top:10px">The <b>Valquo Index</b> — the disciplined,
-        backtested top-slice of this same ranking — has its own tab: holdings, sector mix and
+      <div class="note" style="margin-top:10px">The <b>Valquo Index</b> — one fixed book cut from
+        this ranking at each quarterly rebalance and held between them — has its own tab:
+        holdings, sector mix and
         its live record versus the S&amp;P are all there.
         <a href="#" onclick="switchTab('index');return false"><b>Open the Index →</b></a></div>
       {% endif %}
@@ -585,22 +589,26 @@
   <div id="tab-index" style="display:none">
     <div class="search-card">
       <div class="section-hint" style="margin-top:0"><b>A model portfolio — not a traded
-        account, and not advice.</b> The same ranking Hot Stocks shows, cut to one of two
-        backtested constructions — choose the account type below. The holdings are rebuilt from
-        each day's scan. The <b>forward record</b> further down is a separate, fixed book (the top
-        decile of the large-cap tier, score-weighted, capped at 8% per name) that changes only on
-        its quarterly rebalance. <b>No money is invested in either.</b> Positions are
-        marked at closing prices, so there are no fills, no slippage beyond the modelled cost
-        and no tax — which is exactly why it is not a return anyone earned.</div>
-      <div class="search-row" style="align-items:center;margin-top:10px;flex-wrap:wrap">
-        <label class="opt" style="margin:0">Account type
-          <select id="bookConfig" class="selin" onchange="loadValquoIndex();loadIndexTrack()">
-            <option value="roth" selected>Roth / IRA — top 25, ~2-month rebalance</option>
-            <option value="taxable">Taxable — decile, quarterly, 30% no-trade band</option>
-          </select>
-        </label>
-        <span class="note" id="bookConfigNote" style="margin:0"></span>
-      </div>
+        account, and not advice.</b> <b>ONE FIXED BOOK, HELD FOR THE QUARTER.</b> The holdings
+        below are the book formed at the last quarterly rebalance and held unchanged since — not
+        a daily pick, and they do not change when the ranking does. <b>That book is the one the
+        forward record tracks</b>, so the holdings and the curve beneath them are the same
+        object. Hot Stocks and the options signals are daily; the Index is not. <b>No money is
+        invested.</b> Positions are marked at closing prices, so there are no fills, no slippage
+        beyond the modelled cost and no tax — which is exactly why it is not a return anyone
+        earned.</div>
+      <!-- THE ACCOUNT-TYPE DROPDOWN IS GONE (Don's ruling, 2026-10-02), and it was not a
+           harmless control. The Index is ONE fixed book, so letting a reader pick a
+           CONSTRUCTION implied a choice that does not exist: the holdings in force do not
+           change because you select a different account type. Worse, it DEFAULTED to "roth"
+           -- the 25-name, 42-day, band-less construction, which is not the tracked book and
+           is not published -- so the tab opened on a book nobody records.
+
+           The construction is now stated rather than chosen, from the payload, and the
+           "if the rebalance were today" preview is owner-only. `roth` is still in
+           `settings.BOOK_CONFIGS` for the owner preview and the research scripts; it is
+           simply unreachable from here, pending Don's answer on keeping it at all. -->
+
       <div id="indexCache"></div>
       <div id="indexFreshness"></div>
     </div>
@@ -610,7 +618,12 @@
       <h3 style="margin:0 0 6px">Model-portfolio performance — backtested vs forward</h3>
       <div class="section-hint" style="margin-top:0">Two different kinds of evidence, kept
         apart on purpose. The backtest is 18 years of point-in-time history the model was also
-        tuned on. The forward column is the same model book priced daily since inception —
+        tuned on. <b>The backtested column and the forward column are the same
+        CONSTRUCTION — decile, quarterly, 30% no-trade band — but not the same measured
+        object</b>: the backtest is a full-universe equal-weighted decile on the point-in-time
+        panel, while the forward record is the served score-weighted large-cap-tier book. The
+        caveat beside the backtested figures says so. A backtest of the exact served
+        construction is not available yet, so no sentence here claims one —
         <b>no capital, no broker, no fills</b> — and is the only figure nobody could have
         fitted. Neither is a return anyone received.
         <a href="/methodology">How this was tested →</a></div>
