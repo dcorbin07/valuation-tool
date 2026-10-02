@@ -642,6 +642,11 @@ def create_saas_app(cfg=CONFIG):
                     "record_span": [dates[0], dates[-1]],
                     "n_missing": len(missing), "missing": missing,
                     "n_computed": out.get("n_computed"), "refused": out.get("refused"),
+                    # The reconstruct half's vendor-call census. `validation` already
+                    # carries its own, so without this the one-call-per-ticker property
+                    # is OBSERVABLE for one half of the work and merely INFERRED from the
+                    # wall time for the other.
+                    "prices": out.get("prices"),
                     "validation": val, "written": False,
                     "excluded_from": list(_tr.payload().get("excluded_from") or []),
                     "note": _tr.NOTE}
