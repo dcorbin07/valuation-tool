@@ -19193,3 +19193,229 @@ module imports the study (`MA23`), and that the arm runner **refuses** without a
 `tests/test_rebal_cadence.py`; `data/free_analysis/REBAL_CADENCE_CONTROL.json`,
 `REBAL_CADENCE_SERIES.pkl`, `REBAL_CADENCE_ARMS.json`, `REBAL_CADENCE_ARM_ROWS.pkl`
 (per-period draws, `RUN_RULES` A9).
+
+
+---
+
+# IC1 — THE DATA-ARRIVAL GRID: **CLOSED AT `K2`, ZERO TRIALS — AND THE BAR THAT CLOSED IT IS MIS-SPECIFIED, WHICH IS A FINDING FOR A SUCCESSOR AND NOT A LICENCE TO OVERRIDE IT NOW**
+
+**ZERO TRIALS. NO REGISTER WAS COMMITTED.** Executor pass on the Frontier Scout's
+`PREREG_DRAFT_ic1_data_arrival_grid.md` (ranked 1 of 6, `origin/main` at `9c36d2a`). The
+draft's own §5 makes `K1`-`K3` free and read first; `K2` fired, so the item stops before a
+register exists and `by_domain` is **bit-identical** — equity 251, options 310, unified 0,
+infra 20 at the time, and the three trials visible since are `REBAL-CADENCE`'s, not this.
+
+## The boundary question, resolved: IC1 is NOT subsumed by `REBAL-CADENCE` and the draft is NOT withdrawn
+
+The brief asks whether `REBAL-CADENCE` already varied the rebalance PHASE, in which case IC1
+belongs to that item. **It did not, and could not have.** `REBAL-CADENCE`'s offset parameter
+chose WHICH of the existing 69 panel dates to form on within a 2- or 4-quarter cycle; at
+cadence 1 — the quarterly incumbent — there is exactly **one** phase on a fixed panel, so that
+item never varied the quarterly grid's phase and had no way to. **IC1 moves the GRID ITSELF**,
+generating a different set of 69 dates. Different objects.
+
+**But `REBAL-CADENCE`'s measurement is the strongest evidence for IC1's premise and should
+travel with it:** the within-cycle phase spread it measured was **2.2551 pp** of net alpha,
+LARGER than the cadence effect it was built to test. Phase is load-bearing on this panel, which
+is `X2`'s finding on a second statistic.
+
+## THREE PREMISE CORRECTIONS, all made before the kills were read
+
+**(1) THE DRAFT'S CENTRAL FEASIBILITY CLAIM IS WRONG.** §7 says the arm needs *"no rebuild"*
+because *"`build_fundamental_panel` already takes the date grid"*. **It does not** — it takes a
+SCALAR `grid_offset` from `TD = 252` and steps `rebalance_days`, so every grid it can express
+is a fixed trading-day shift of the shipped one. **A deadline-anchored grid is not one of
+those**: 63 trading days is ~91.5 calendar days against a 90-92 day quarter, so the two drift,
+measured here at **+12 to +24 trading days** across the 69 dates. The arm was unbuildable as
+drafted and needed an opt-in `grid_dates=` extension, which this item built and which is inert
+by default.
+
+**(2) `K1` IS A KNIFE EDGE DECIDED BY A FREE PARAMETER, AND WAS SETTLED BY MEASURING THE GRIDS
+INSTEAD.** The 13F deadline sits 45 calendar days after quarter end while the shipped grid sits
+~15 days after, so the implied offset is **+20 at settling lag 0, +21 at lag 1, +22 at lag 2** —
+and **`X2`'s offset 20 is its BEST grid at long-short *t* 3.517** against the shipped 2.836. A
+modal comparison therefore fires or passes according to a lag no part of the filing calendar
+fixes, and **choosing the lag that clears the kill would be choosing the design to clear its own
+kill.** Settled by comparing the GRIDS: at lag 1 only **10.1% of dates are IDENTICAL** to
+`X2`'s offset-20 grid, median gap **1 trading day**, max **7**. It is a genuinely different
+varying-offset grid that `X2` never ran, so **`K1` PASSES on a measured basis.**
+
+**(3) `K3`'s BAR WAS MINE AND IT WAS THE WRONG READING — CORRECTED BEFORE IT DECIDED ANYTHING.**
+A first cut imposed a 91-day arithmetic bar on the draft's phrase *"a full quarter's worth of
+the measured decay"* and it FIRED at 66 days. **That bar was mine, not the draft's.** The draft
+indexes the decay in QUARTERS — *"13F peaks at Q−1, is alive at Q−2, dead by Q−3"* — and its §2
+names the mechanism as *"a phase shift that moves the book from a Q−2 to a Q−1 read"*. On the
+quarter index the answer is unambiguous and as clean as a measurement gets: **the shipped grid
+reads a Q−2 13F on ALL 69 dates and the aligned grid a Q−1 on ALL 69 — exactly one step, zero
+exceptions** (13F age falls from a mean of **111.5 days to 45.5**). **`K3` PASSES**, and IC1's
+premise is confirmed rather than assumed.
+
+## `K2` FIRES — and by how little is the whole point
+
+| | shipped panel | deadline-aligned panel |
+|---|---|---|
+| cross-section min | **1471** | **1459** |
+| median | 1557 | 1562 |
+| max | **1954** | **1955** |
+
+The bar, from the draft's §5 verbatim, is that per-date cross-sections stay inside the shipped
+panel's own **1,471–1,954**. **Exactly 2 of 69 dates breach it**: 2009-02-18 at **1459**, which
+is **12 names — 0.82% — below the floor**, and 2021-11-16 at **1955**, which is **1 name —
+0.051% — above the cap**.
+
+**THE KILL IS HONOURED AND THE ITEM CLOSES AT ZERO TRIALS.** `W-28`'s rule is absolute: a
+successor may not relax a pre-committed bar after watching it fail, and `RUN_RULES` A6 makes an
+ambiguous result against a pre-committed threshold a stop. No register was committed and no
+trial was booked.
+
+**AND THE BAR IS MIS-SPECIFIED, WHICH A SUCCESSOR NEEDS AND WHICH CHANGES NOTHING TODAY.** Its
+stated purpose is *"a phase that lands on a thin cross-section is measuring coverage"* — and a
+cross-section 0.82% below the incumbent's own minimum is manifestly not thin. The defect is the
+bar's FORM: **1,471 and 1,954 are the EXTREMES of 69 draws, and requiring a different 69-date
+sample to lie entirely inside another sample's observed range is near-certain to fail for ANY
+legitimately different grid.** It is a containment test against order statistics, which is the
+same family as the guard that *"asserts these two numbers are equal today"* — `MA57`, `MB31`,
+and the `MC10` stamp repointed in this same session. A successor should specify a RELATIVE
+tolerance or a floor derived from what the gate needs; specifying it **now**, having watched
+this one fail, is exactly what `W-28` forbids.
+
+**THE EXPENSIVE WORK IS BANKED.** `panel_ic1_aligned.pkl` is built (69 dates, 114,083 rows, 7.6
+minutes) and `grid_dates=` ships inert, so a successor with a correctly-specified `K2` can score
+the arm immediately without rebuilding.
+
+## NOT DONE, named so it is not mistaken for done
+
+**No arm ran, no bar was read, nothing is adopted, and IC1 is UNTESTED rather than rejected.**
+The draft's primary gate, its `X2`-percentile secondary, its `K4` `size` control and its MDE
+were never reached. The amendment this executor would have made had the item proceeded is
+recorded for the successor: **the arm sits ~20 trading days out, in the immediate neighbourhood
+of `X2`'s BEST grid, so a strong result would be confounded between "data arrival carries
+information" and "this panel likes grids about 20 days out" — which `X2` found and explicitly
+declined to explain.** The fix is a DISTANCE-MATCHED control — `X2`'s banked offsets 10/20/30 at
+*t* 2.926 / 3.517 / 3.410 are exactly that neighbourhood and are free — turning the question
+into *"does ALIGNMENT matter, holding distance fixed?"*. **The draft's secondary bar, the 75th
+percentile of `X2`'s seven, is nearly automatic for a grid adjacent to the best of them and
+should not be used as drafted.**
+
+---
+
+# IC7 — COVERAGE RENORMALISATION: **REJECTED ON BOTH WEIGHTINGS, AND THE HALVES DISAGREE IN SIGN ON THE DEPLOYED COMPOSITE**
+
+**1 EQUITY TRIAL**, booked at **`1a0acbb`** before the scoring runner existed.
+`PREREG_ic7_coverage_renormalisation.md` committed **ALONE at `df619d8`**, markdown only, 179
+lines, a strict ancestor of the scoring commit. Equity **N 251 → 252**, hurdle
+**3.3242902818892888 → 3.32548615619173**, both derived, with the `MA13` stamp and both pinned
+literals moved in the booking commit. **ADOPTS NOTHING.** Executor pass on the Scout's draft
+(ranked 2 of 6): **ACCEPTED WITH THREE AMENDMENTS**.
+
+## The verdict
+
+| weighting | half | Δ top-decile alpha | Δ long-short *t* | |
+|---|---|---|---|---|
+| **deployed (7 themes)** | early (n 34) | **+0.1603 pp** | -0.0519 | fail |
+| | late (n 34) | **-0.6231 pp** | -0.1514 | fail |
+| **flat (9 themes)** | early (n 34) | -0.1723 pp | -0.0346 | fail |
+| | late (n 34) | -0.7436 pp | -0.0032 | fail |
+
+**REJECTED under both weightings, both halves, both legs**, against the gate
+`SECTOR-NEUTRAL-B6` set and `W-1`, `MB20` and `REBAL-CADENCE` reused verbatim (+100 bps alpha
+AND +0.25 *t*), boundary **2017-07-20** embargoed.
+
+**ON THE DEPLOYED COMPOSITE THE HALVES DISAGREE IN SIGN** — **+0.1603 pp** early against
+**-0.6231 pp** late — which is this record's most repeated pattern and which §3 of the
+register predicted for a measured reason rather than as a hedge: the two halves test **different
+interventions**.
+
+**THE VERDICT TRAVELS WITH ITS MDE.** Paired per-period difference **-0.4835 pp/yr** at HAC
+*t* **-1.4661**, paired HAC se **0.3298 pp** annualised, so the 80%-power MDE is
+**0.9366 pp** at the conventional crit and **1.3738 pp** at the hurdle. The observed effect
+is **0.516x** its own 80%-power threshold, so this is a **BOUNDED null** — no coverage
+effect as large as about 0.9 pp/yr — and not a demonstration that the exposure is immaterial.
+Every critical value **LABELLED UNCALIBRATED** (`V2G`, `R1-VAR`: no calibrated floor exists for
+a paired within-panel difference; `X7` calibrates LEVELS).
+
+## The mechanism: a large exposure that moves the ranking very little
+
+**41.69% of rows miss at least one weighted theme** — but only **7.45% of weighted
+CELLS are imputed**, because a row with a hole is usually missing ONE theme of seven. The
+ranking barely moves: per-date Spearman against the incumbent **0.997498** median
+(min 0.986285), top-decile overlap **0.9412**. So the two-composites-in-one-ranking
+exposure is **wide but shallow**, and that is the answer to the question the draft asked.
+
+## THREE AMENDMENTS, with reasons
+
+**AMENDMENT 1 — THE DRAFT'S EXPOSURE ESTIMATE IS LOW BY HALF, in the arm's favour.** It predicts
+*"roughly 28% of panel rows"* from `institutional`'s 71.7% coverage alone. Measured
+**41.69%**, because the exposure is the UNION of five holes: `institutional` 28.28%,
+**`insider` 16.92%**, `capital_discipline` 3.18%, `quality` 2.09%, `momentum` 1.70%, with
+`value` and `size` at exactly **0.00%**. The draft reasoned from one theme.
+
+**AMENDMENT 2 — THE ERA STRUCTURE IS SHARPER THAN THE DRAFT STATES, AND A HYPOTHESIS OF MINE
+ABOUT IT IS REFUTED.** `institutional`'s first value is **2014-01-17**, not the draft's
+2013-06-30 — independently reproducing `RUN_RULES` rule 10's own figure. On `V2G`'s reasoning
+that a UNIFORM absence cannot re-rank, I expected the **20 dates before it**, where
+`institutional` is wholly absent, to be **provably inert** — which would have made the
+both-halves gate unclearable by construction and killed the item free. **Measured: 0 of 69 dates
+are uniform-only**, because `insider` and three smaller holes vary name by name even there, so
+the arm re-ranks everywhere and the kill does not exist. **What survives is `K2`'s real point,
+now quantified:**
+
+| | dates | WHOLLY absent | PARTIALLY absent |
+|---|---|---|---|
+| before 2014-01-17 | 20 | **`institutional` (all 20)** | `quality`, `momentum`, `insider`, `capital_discipline` |
+| on/after | 49 | none | `institutional` (48), `insider`, `quality`, `capital_discipline`, `momentum` |
+
+Early, the largest hole contributes a uniform non-re-ranking component, so the bite is
+essentially **`insider`**; late, `institutional` is the main driver. **The two halves are not
+one intervention measured twice, and the sign disagreement above is what that looks like.**
+
+**AMENDMENT 3 — THE DRAFT'S MDE PRIOR IS STATED AS A PRIOR AND NOT INHERITED, AND IT WAS 3x
+TOO SMALL.** It reasons each row moves at most a 1/6-to-1/7 step so the se should sit near
+`MB8`'s 0.1106 pp, giving ~0.31 pp at crit 2.0. The register declined to inherit that and
+committed to measuring; **measured MDE80 is 0.9366 pp, 3.0x the draft's figure**, for the two
+reasons the amendment gave in advance — 41.7% of rows are touched rather than 28%, and a
+row missing TWO themes moves from 1/5 to 1/7 of the mass.
+
+## A DEFECT IN MY OWN SCORER, CAUGHT BY TWO NUMBERS THAT SHOULD HAVE DIFFERED AND DID NOT
+
+`holdout_compare_panels`'s fourth positional parameter is **`label_a`, not weights** — it builds
+the composite from `cols` at a uniform `base_weight`. My first cut passed a weights dict there,
+so it landed in the LABEL slot (visible in the artifact as `"label_a": {"value": 0.125, ...}`)
+and **both scorings used the same `cols`** — every `FACTORS_ALL` column present in the panel,
+which includes `growth` and `low_risk`. **So both runs scored a NINE-theme composite when the
+deployed one is SEVEN, and returned IDENTICAL numbers for what were supposed to be two different
+weightings.** That is `W-1`'s `K4` defect and `MA28`'s `C1` before it, in a third costume, and
+**the identical numbers are what exposed it** — a second check that cannot differ is not a second
+check. Repaired by importing `SECTOR-NEUTRAL-B6`'s own `DEPLOYED`/`FLAT` column sets rather than
+retyping them (`B7`, `MA5`, and `W-1`'s own fix applied one item later), with the vacuity
+asserted in both directions. **The deployed figures moved materially** — the early half goes
+-0.1723 pp to +0.1603 pp, i.e. it changes SIGN — **and the paired figures did not move at
+all**, which confirms the defect was confined to the gate call: the paired path gave `growth`
+and `low_risk` zero weight, so it was always scoring seven.
+
+## Expectations, scored
+
+**5 right, 0 wrong** — and discounted rather than celebrated, because three of the five follow
+from measurements already on the record rather than from forecasting.
+
+1. **REJECTED on the primary** (75/25) — **RIGHT**. Five weighting-family arms were already
+   rejected and CPCV's best challenger missed by 79x.
+2. The paired se lands **above** the draft's ~0.1106 pp prior (70/30) — **RIGHT**, 0.3298 pp,
+   3.0x.
+3. The halves **disagree** in sign or by more than 2x (65/35) — **RIGHT**, and in the strongest
+   form: they disagree in SIGN on the deployed composite.
+4. Per-date rank correlation above 0.97 (70/30) — **RIGHT**, 0.997498.
+5. The LATE half shows the larger effect (60/40) — **RIGHT**, -0.6231 pp against +0.1603 pp.
+
+## NOT DONE
+
+**ADOPTS NOTHING** — the arm was not eligible; `CONFIG` and `settings.BOOK_CONFIGS` untouched,
+the banked panel not overwritten, pinned by test. Had it cleared, changing how every live score
+is assembled is a **vintage event** under `PAPER_TRACK_CONTRACT.md` §5a and would have been
+recorded **ELIGIBLE — ROUTED TO DON**. **`V2G` is NOT re-opened** — its IMMATERIAL verdict
+stands and it measured a different object, a uniform three-theme absence that cannot re-rank.
+The weighting family (`S5`, `S6`, `S13`, `S24`, `S27`) is not re-opened. **No second imputation
+rule was tried** — zero, last-observation and cross-sectional mean are all forbidden by void
+condition 1, since choosing one after seeing this result is design-on-outcome. Nothing is said
+about the LIVE path's coverage holes, which `FIDELITY-2` changed and which are a separate
+question this arm informs but does not answer.
