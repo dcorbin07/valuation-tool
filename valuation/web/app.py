@@ -195,8 +195,14 @@ def methodology():
     number typed into a template is a number that drifts.
     """
     from . import payoff as _payoff
+    # LIVE, NOT TYPED (E9, E12). This page carried "248 by 2026-09-29" and "~800 most liquid"
+    # while the log read 578 total and the scan ranks 1,500. One parse, the same one `/proof`
+    # and the Deflated Sharpe's own denominator use.
+    from . import live_facts as _facts
     return render_template("methodology.html", disclaimer=RISK_DISCLAIMER,
-                           payoff=_payoff.payoff_summary())
+                           payoff=_payoff.payoff_summary(),
+                           trials=_facts.trial_counts(),
+                           universe=_facts.universe_size(_store()))
 
 
 @app.route("/proof")
@@ -530,8 +536,11 @@ def api_index_track():
     has enough history to mean anything.
     """
     from ..screener import index_track
-    from ..screener import settings as S
-    name = (request.args.get("config") or S.DEFAULT_BOOK_CONFIG or "roth").lower()
+    # THE TRACKED CONSTRUCTION BY DEFAULT, not the site's default account type: this card puts
+    # a backtest beside the RECORD, so the backtest has to be of the book the record is of.
+    # An explicit `?config=` is still honoured for the owner-only preview of another account
+    # type, and the payload names which construction it used.
+    name = (request.args.get("config") or index_track.TRACKED_CONFIG).lower()
     try:
         out = index_track.summarize(name, store=_store())
     except Exception as e:

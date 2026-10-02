@@ -9,7 +9,8 @@
   <div class="note" style="margin:18px 0">{{ disclaimer }}</div>
 
   <h3>The short version</h3>
-  <p>After each market close the ~800 most liquid US common stocks are scored on the model's
+  <p>After each market close the{% if universe and universe.available %} {{
+  "{:,}".format(universe.n) }}{% endif %} most liquid US common stocks are scored on the model's
   weighted themes — value, quality (growth, for younger companies), momentum, size, capital
   discipline, institutional positioning and insider activity, each carrying an equal share.
   Each theme is built from individual numbers, each number is standardised across the names
@@ -34,7 +35,7 @@
   <b>That book is fixed at each quarterly rebalance and held unchanged between them</b>: the
   ranking moves daily, the Index does not, and the holdings shown are the book in force rather
   than a fresh cut of today's scan. Both are shown in the app: the <b>Valquo Index</b> tab lists
-  that book and the <b>Track Record</b> tab its forward record — the same book in both. They are a <b>model portfolio with no money in it</b>,
+  that book <b>and carries its forward record</b>, which also appears on the home hero; the <b>Track Record</b> tab is the options paper book, a different object. The Index's holdings and its curve are the same book. They are a <b>model portfolio with no money in it</b>,
   published so the method can be checked, not as a recommendation to hold any of it.</p>
 
   <h3>Point-in-time, and why it matters more than the score</h3>
@@ -88,7 +89,8 @@
   <div class="note" style="margin:12px 0"><b>Read that as a research finding and nothing else.</b>
   It is measured on a <b>historical simulation</b>, not an account. It is <b>not an expected
   return, not an achievable return, and not a return anyone earned.</b> It is one panel; the
-  t-statistic is not corrected for the equity trials logged behind it (248 by 2026-09-29, and
+  t-statistic is not corrected for the equity trials logged behind it ({% if trials and
+  trials.available %}{{ trials.equity }} today{% else %}the count is unavailable{% endif %}, and
   the count keeps rising — the live figure is on the <a href="/proof">Proof</a> page); the panel's
   known-contaminated early period has been removed from the sample outright rather than
   discounted, and the conservative single figure is the first half's <b>+5.19%</b> if you
@@ -195,8 +197,9 @@
       has not been backtested on its own, so its record is not the seven-theme one described
       here.</li>
     <li><b>Concentrated books are noisy.</b> The 25-name construction scores higher in the
-      backtest than the decile, but it is the least reliable number in the study — which is
-      why breadth is the default.</li>
+      backtest than the decile, but it is the least reliable number in the study — which is why
+      <b>the tracked Valquo Index is the decile book</b>, and why the backtested figures shown
+      beside its record are the decile's. The 25-name construction is not published.</li>
     <li><b>Live data has gaps.</b> Live fundamentals come from a broker feed plus free public
       sources rather than the licensed point-in-time export the backtest used, and a few fields
       are missing for some names; the Hot Stocks tab says which source each scan used. Every page
@@ -209,8 +212,10 @@
   its failures written down. If a page here ever shows you a number without telling you
   whether it is backtested or live, that is a bug — please report it.</p>
   <p><b>It is also not a signal service.</b> The app does show a model portfolio, options
-  alerts and forward records — but every one of them is a <b>paper</b> record: a model book
-  priced at closing marks, and a <b>broker sandbox account with no real money</b>. They are
+  alerts and forward records — but every one of them is a <b>paper</b> record, and they are
+  not the same KIND of paper: the <b>Valquo Index</b> is a model book priced at closing marks
+  with <b>no broker account of any kind</b>, while the <b>options</b> book runs in a
+  <b>broker sandbox containing no real money</b>. They are
   published so the method can be checked against what actually happened next, and they are
   labelled thin until they are long enough to mean anything. None of it is a return anyone
   received, and the options alerts in particular were tested and found to lose to random entry

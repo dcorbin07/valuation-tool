@@ -407,7 +407,12 @@ def _valquo_index_config_toggle(c):
                          "valuation", "web", "templates", "index.html")
     with open(_tpl, encoding="utf-8") as _fh:
         h = _fh.read()
-    assert 'id="bookConfig"' in h, "account-type toggle missing"
+    # THE ACCOUNT-TYPE TOGGLE IS GONE BY DON'S RULING (2026-10-02) and this assertion
+    # pinned it. The Index is ONE fixed book, so offering a construction implied a choice that
+    # does not exist, and the control defaulted to the 25-name "roth" book that is not tracked
+    # and not published. Asserting its ABSENCE instead, so it cannot come back unnoticed.
+    assert 'id="bookConfig"' not in h, (
+        "the account-type toggle is back; the Index is one fixed book")
     # The second blurb moved inside the owner-only block when the Index tab did, and was
     # re-worded there; matched on the phrase that survives the line break.
     # "backtested top-slice" was the OLD pointer wording and it is gone by Don's ruling: the

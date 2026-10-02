@@ -70,7 +70,9 @@
     <h1>Value any stock. Find the hot ones.<br>Check the evidence.</h1>
     <ul class="props">
       <li><b>A real DCF, not a ratio.</b> Live filings → bull/base/bear, Monte Carlo, and the growth the price already assumes.</li>
-      <li><b>The liquid US market, ranked.</b> ~800 names scored on value, quality, momentum, size and capital discipline every weekday.</li>
+      <li><b>The liquid US market, ranked.</b> {% if universe and universe.available %}{{
+      "{:,}".format(universe.n) }} names{% else %}The most liquid US names{% endif %} scored on
+      value, quality, momentum, size and capital discipline every weekday.</li>
       <li><b>An edge that had to survive a real test.</b> 18 years point-in-time, survivorship-free, net of costs — and it says so when it fails.</li>
     </ul>
     {% if signup_enabled %}
@@ -255,7 +257,9 @@
       <p class="muted">Live financials → fair value with bull/base/bear, Monte Carlo, reverse DCF, comps, and a
       transparent 1–100 score. It adapts to mature, growth, and cash-burning companies.</p></div>
     <div class="card"><h3 style="margin-top:0;color:var(--navy)">🔥 Hot-stocks screener</h3>
-      <p class="muted">Scores the ~800 most liquid US names after every close on a composite of value, quality,
+      <p class="muted">Scores the{% if universe and universe.available %} {{
+      "{:,}".format(universe.n) }}{% endif %} most liquid US names after
+      every close on a composite of value, quality,
       momentum, size and capital discipline, with sector heat. A ranking, not a recommendation — and a <b>coarse</b> one:
       it says roughly where names stand against each other, not what belongs in your account.
       {# "roughly" is load-bearing, not hedging. V3's calibration (HANDOFF_extensions_v3.md) found an

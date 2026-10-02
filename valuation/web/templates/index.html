@@ -597,15 +597,18 @@
         invested.</b> Positions are marked at closing prices, so there are no fills, no slippage
         beyond the modelled cost and no tax — which is exactly why it is not a return anyone
         earned.</div>
-      <div class="search-row" style="align-items:center;margin-top:10px;flex-wrap:wrap">
-        <label class="opt" style="margin:0">Account type
-          <select id="bookConfig" class="selin" onchange="loadValquoIndex();loadIndexTrack()">
-            <option value="roth" selected>Roth / IRA — top 25, ~2-month rebalance</option>
-            <option value="taxable">Taxable — decile, quarterly, 30% no-trade band</option>
-          </select>
-        </label>
-        <span class="note" id="bookConfigNote" style="margin:0"></span>
-      </div>
+      <!-- THE ACCOUNT-TYPE DROPDOWN IS GONE (Don's ruling, 2026-10-02), and it was not a
+           harmless control. The Index is ONE fixed book, so letting a reader pick a
+           CONSTRUCTION implied a choice that does not exist: the holdings in force do not
+           change because you select a different account type. Worse, it DEFAULTED to "roth"
+           -- the 25-name, 42-day, band-less construction, which is not the tracked book and
+           is not published -- so the tab opened on a book nobody records.
+
+           The construction is now stated rather than chosen, from the payload, and the
+           "if the rebalance were today" preview is owner-only. `roth` is still in
+           `settings.BOOK_CONFIGS` for the owner preview and the research scripts; it is
+           simply unreachable from here, pending Don's answer on keeping it at all. -->
+
       <div id="indexCache"></div>
       <div id="indexFreshness"></div>
     </div>
@@ -615,7 +618,12 @@
       <h3 style="margin:0 0 6px">Model-portfolio performance — backtested vs forward</h3>
       <div class="section-hint" style="margin-top:0">Two different kinds of evidence, kept
         apart on purpose. The backtest is 18 years of point-in-time history the model was also
-        tuned on. The forward column is the same model book priced daily since inception —
+        tuned on. <b>The backtested column and the forward column are the same
+        CONSTRUCTION — decile, quarterly, 30% no-trade band — but not the same measured
+        object</b>: the backtest is a full-universe equal-weighted decile on the point-in-time
+        panel, while the forward record is the served score-weighted large-cap-tier book. The
+        caveat beside the backtested figures says so. A backtest of the exact served
+        construction is not available yet, so no sentence here claims one —
         <b>no capital, no broker, no fills</b> — and is the only figure nobody could have
         fitted. Neither is a return anyone received.
         <a href="/methodology">How this was tested →</a></div>

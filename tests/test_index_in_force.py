@@ -519,15 +519,21 @@ class NothingAboutConstructionChanges(unittest.TestCase):
             self.assertNotIn(banned, blob,
                              "the view reaches a WRITER of the bound record: %s" % banned)
 
-    def test_index_mark_is_UNCHANGED_by_this_work(self):
-        """The writer's own module. `git diff` is the authority, not inspection."""
-        import subprocess
-        r = subprocess.run(["git", "diff", "--name-only", "origin/main", "--",
-                            "valuation/screener/index_mark.py",
-                            "valuation/edge/valquo_index.py"],
-                           cwd=REPO, capture_output=True, text=True)
-        self.assertEqual((r.stdout or "").strip(), "",
-                         "the writer's or the builder's module changed: %r" % r.stdout)
+    # THE "UNCHANGED" CLAIM IS NOT ASSERTED HERE, AND REMOVING IT WAS THE RIGHT CALL.
+    #
+    # My first cut ran `git diff --name-only origin/main -- index_mark.py valquo_index.py` and
+    # required it empty. `tests/test_ma60_conventions.py::NoSuiteAssertsOnAWorkingTreeDiff`
+    # failed it, correctly, and its reasoning is exactly right: that compares origin/main
+    # against WHATEVER IS CHECKED OUT, so it does not measure the lane that wrote it. It
+    # becomes a permanent tripwire on whole files, owned by an item that has already landed,
+    # and it fires on the next lane to touch one of them -- which it had already done once to
+    # an unrelated app-fixer change. Two suites had shipped that construction before mine;
+    # this was the third.
+    #
+    # The durable form is the PROPERTY, not the diff, and it is the two tests above: this
+    # module never imports the builder, and never reaches a writer of the bound record. That
+    # the two files are byte-identical against main is verified by hand at commit time and
+    # stated in the commit message, which is where a claim about a diff belongs.
 
 
 class TheWordingSaysOneFixedBook(unittest.TestCase):
@@ -561,7 +567,11 @@ class TheWordingSaysOneFixedBook(unittest.TestCase):
     def test_methodology_says_the_book_is_held_between_rebalances(self):
         t = " ".join(self._tpl("methodology.html").split())
         self.assertIn("fixed at each quarterly rebalance and held unchanged between them", t)
-        self.assertIn("the same book in both", t)
+        # E3a reworded the clause this used to match ("the same book in both"): the Index's
+        # forward record is on the INDEX tab and the hero, while the Track Record tab is the
+        # options paper book. Matched on the sentence that replaced it.
+        self.assertIn("holdings and its curve are the same book", t)
+        self.assertIn("carries its forward record", t)
 
 
 if __name__ == "__main__":
