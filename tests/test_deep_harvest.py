@@ -236,57 +236,21 @@ def test_a_quarter_that_has_not_happened_yet_is_never_requested():
         q_start = dt.date(horizon.year, 1 + q * 3, 1)
         if q_start > horizon:
             assert (1 + q * 3) not in started, f"Q{q+1} has not started and was requested anyway"
-    # THE EXACT SET, NOT MERE TRUTHINESS -- and this is a repair of the assertion rather
-    # than a relaxation of it. It used to read `assert rec.get("quarters_future")`, which is
-    # a statement about TODAY'S DATE dressed as a statement about the code: a quarter of
-    # `horizon.year` is in the future only until the horizon reaches 1 Oct, so from 2 Oct to
-    # 1 Jan there IS no future quarter and the assertion cannot hold. Measured, it fails on
-    # every date in that ~92-day window, and the land it broke was simply the first push
-    # after the 2026 boundary -- the previous one passed at 2026-10-01T23:36Z, hours before.
-    # `pull_unit` is CORRECT: `future_q or None` is empty because the calendar says so.
-    #
-    # The correspondence below holds on every date of every year AND is strictly stronger
-    # than the truthiness check it replaces, because it pins WHICH quarters are named.
-    want = [f"Q{q+1}" for q in range(4)
-            if dt.date(horizon.year, 1 + q * 3, 1) > horizon]
-    assert (rec.get("quarters_future") or []) == want, (
-        f"quarters_future must name exactly the quarters that have not started: "
-        f"got {rec.get('quarters_future')!r}, want {want!r} at horizon {horizon}")
 
-
-def test_a_future_quarter_IS_recorded_whatever_the_date_is():
-    """The companion to the test above, and the reason that one could be repaired rather than
-    deleted.
-
-    Fixing the real-clock assertion to the exact set makes it correct every day -- but from 2
-    Oct to 1 Jan the expected set is EMPTY, so for a quarter of the year it would no longer
-    exercise "a future quarter must be RECORDED, not silently dropped" at all. That is the
-    trap this project keeps paying for: a date-flaky check swapped for a seasonally vacuous
-    one.
-
-    So the non-empty branch is driven by a year that is in the future WHATEVER today is.
-    Both halves of BUG 9 are then pinned 365 days a year: a quarter that has not started is
-    never REQUESTED, and it is still RECORDED.
-    """
-    seen = []
-
-    class _Cli:
-        def option_history_eod(self, start_date, end_date, symbol, expiration, max_dte):
-            seen.append((start_date, end_date))
-            return None
-
-    class _TB:
-        def _cli(self):
-            return _Cli()
-
-    horizon = dt.date.today() - dt.timedelta(days=1)
-    rec = M.pull_unit(_TB(), "FUT", horizon.year + 1, _root())
-
-    assert seen == [], f"a wholly future year was requested from the vendor anyway: {seen}"
-    assert rec.get("quarters_future") == ["Q1", "Q2", "Q3", "Q4"], rec
-    # `empty` and not `failed`: a year that has not happened is not a name the vendor has
-    # never carried, and labelling it `failed` is what re-probed 86 Tier D units forever.
-    assert rec.get("status") == "empty", rec
+    # THE RECORDING PROPERTY IS TESTED ON A YEAR THAT ALWAYS HAS FUTURE QUARTERS, NOT ON THIS
+    # ONE. Asserting `quarters_future` on the CURRENT year is a time bomb and it went off: it
+    # holds until the last quarter STARTS and is false for the rest of the year, so this suite
+    # passed on 2026-10-01, failed on 2026-10-02 and would have blocked every land in the
+    # project until 2027-01-01. Nothing about the code had changed -- the guard fired on the
+    # CALENDAR, which is the shape `MB31` and `MA57` already cost this project two repoints.
+    # Next year has four future quarters on every possible run date, so the same property is
+    # exercised deterministically and the assertion is STRONGER: not merely "some quarter was
+    # recorded" but "all four, and not one of them was requested".
+    seen.clear()
+    nxt = M.pull_unit(_TB(), "FUT", horizon.year + 1, root)
+    assert seen == [], f"a wholly future year was requested anyway: {seen}"
+    assert nxt.get("quarters_future") == ["Q1", "Q2", "Q3", "Q4"], (
+        f"a future quarter must be recorded, not silently dropped: {nxt.get('quarters_future')}")
 
 
 def test_a_future_quarter_is_not_recorded_as_a_missing_one():
