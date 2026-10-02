@@ -1003,7 +1003,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                             with_vol_raw=False, with_freshness=False,
                             bucket_relative_arms=None, sector_value_arm=False,
                             metrics_sink=None, sector_at=None,
-                            insider_filter=None) -> pd.DataFrame:
+                            insider_filter=None, grid_dates=None) -> pd.DataFrame:
     """Point-in-time panel of the theme columns per (date, ticker).
 
     keep_numbers=True additionally persists each individual standardized number (z_*), so
@@ -1060,6 +1060,13 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     grid_offset = int(grid_offset)
     if grid_offset < 0:
         raise ValueError(f"grid_offset must be >= 0, got {grid_offset}")
+    # IC1 -- an EXPLICIT grid. `grid_offset` can only express a fixed trading-day shift of the
+    # shipped grid, and a CALENDAR-anchored grid is not one of those: 63 trading days is ~91.5
+    # calendar days against a 90-92 day quarter, so a deadline-aligned grid drifts +12..+24
+    # trading days across this panel. Opt-in; None is the shipped behaviour exactly.
+    if grid_dates is not None and grid_offset:
+        raise ValueError("pass grid_dates OR grid_offset, not both -- an explicit grid is "
+                         "already absolute and shifting it would silently re-phase it")
     # S22 — the additional forward windows, deduplicated and ordered. The BASE horizon is
     # allowed here and is the study's C0 control: `fwd_ret_h63` must equal `fwd_ret` exactly.
     _extra_h = sorted({int(h) for h in (extra_horizons or [])})
@@ -1266,12 +1273,27 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     benchf = bench.reindex(cal).ffill()
     benchv = benchf.values.tolist()        # for the idiosyncratic-vol regression, computed once
 
-    _n_dates = len(range(_GRID_START, len(cal) - horizon, rebalance_days))
+    # IC1 -- the explicit grid is intersected with the shared calendar and the SHORTFALL IS
+    # REPORTED. A requested date the panel cannot score is a fact about coverage; dropping it
+    # quietly would make a re-phased grid look like a complete one.
+    if grid_dates is not None:
+        _want = [str(pd.Timestamp(d).date()) for d in grid_dates]
+        _have = {str(c.date()): j for j, c in enumerate(cal)}
+        _idx = [_have[w] for w in _want if w in _have and _have[w] < len(cal) - horizon]
+        _missing = [w for w in _want if w not in _have]
+        _past_end = [w for w in _want
+                     if w in _have and _have[w] >= len(cal) - horizon]
+        _prog(f"explicit grid: {len(_idx)} of {len(_want)} requested dates scoreable "
+              f"({len(_missing)} not trading days, {len(_past_end)} inside the final horizon)")
+        _grid_iter = _idx
+    else:
+        _grid_iter = list(range(_GRID_START, len(cal) - horizon, rebalance_days))
+    _n_dates = len(_grid_iter)
     _prog(f"history loaded: {len(px)} usable tickers, {len(cal)} calendar days "
           f"-> scoring {_n_dates} rebalance dates")
 
     rows = []
-    for _di, i in enumerate(range(_GRID_START, len(cal) - horizon, rebalance_days)):
+    for _di, i in enumerate(_grid_iter):
         as_of = str(cal[i].date())
         _asof_ts = cal[i]
         _cut1 = str((_asof_ts - pd.Timedelta(days=365)).date())
