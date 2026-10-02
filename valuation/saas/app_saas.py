@@ -619,8 +619,15 @@ def create_saas_app(cfg=CONFIG):
         try:
             from ..screener import index_track as _it
             from ..screener import track_reconstruct as _tr
+            # `Store()` and NOT `_store()`: that helper is `web/app.py`'s and does not exist in
+            # this module, so the authorised path raised `NameError: name '_store' is not
+            # defined` and the handler's own `except` turned it into a 500 -- a door that
+            # answers 401 and 405 correctly and cannot serve a single caller who gets past
+            # them. Every other admin door here imports `Store` locally and calls it; this one
+            # now does too.
+            from ..screener.store import Store
 
-            summary = _it.summarize("valquo", store=_store())
+            summary = _it.summarize("valquo", store=Store())
             series = [r for r in (summary.get("series") or []) if r.get("date")]
             if not series:
                 return jsonify({"ok": False,

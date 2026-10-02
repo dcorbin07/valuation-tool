@@ -573,6 +573,117 @@ class TheReconstructDoorRunsWhereTheRecordIs(unittest.TestCase):
         self.assertIn("validate_against_record", body)
         self.assertIn("excluded_from", body)
 
+    # ===================================================================================
+    # 16-PRE -- THE AUTHORISED PATH. Every test above this line is a route-map check, a
+    # 401/405 check, or an assertion about the SOURCE TEXT, and all nine of them passed
+    # against a handler body that could not execute: `summary = _it.summarize("valquo",
+    # store=_store())` called a helper that lives in `web/app.py` and does not exist in
+    # `saas/app_saas.py`, so the first caller to get past the gate got
+    # `NameError: name '_store' is not defined`, which the handler's own `except Exception`
+    # turned into a 500. Don hit it on 2026-10-01 with his real token.
+    #
+    # An `ast.unparse` assertion cannot see this -- `_store()` parses, unparses and reads
+    # exactly like a correct call. Only RUNNING the body does, which is why the first test
+    # below authorises rather than probing a refusal.
+    # ===================================================================================
+    def _authorised(self, fake_summary, patches):
+        """Run the door with a token that passes, and nothing that touches a network.
+
+        `cfg` defaults to the live `CONFIG` singleton and `_admin_ok` reads `cfg.admin_token`
+        at REQUEST time, so setting it on CONFIG opens the gate even though `create_saas_app`
+        is idempotent and the app may already have been built by an earlier test.
+
+        `index_track.summarize` is patched and `Store()` is NOT -- constructing that argument
+        is the line under test, so stubbing it away would restore the blindness this exists
+        to remove.
+        """
+        from valuation.config import CONFIG
+        from valuation.screener import index_track as _it
+
+        prior = CONFIG.admin_token
+        saved = {}
+        try:
+            CONFIG.admin_token = "test-admin-token-16pre"
+            for mod, name, repl in list(patches) + [(_it, "summarize",
+                                                     lambda *a, **k: fake_summary)]:
+                saved[(mod, name)] = getattr(mod, name)
+                setattr(mod, name, repl)
+            c = self._app().test_client()
+            return c.get("/admin/track-reconstruct",
+                         headers={"X-Admin-Token": "test-admin-token-16pre"})
+        finally:
+            for (mod, name), orig in saved.items():
+                setattr(mod, name, orig)
+            CONFIG.admin_token = prior
+
+    def test_an_AUTHORISED_GET_returns_200_and_not_a_500(self):
+        """THE TEST THAT WAS MISSING. With a valid token and a recorded series present, the
+        door must compute and answer -- the path no prior test reached."""
+        from valuation.screener import track_reconstruct as _tr
+        series = [{"date": "2026-09-01", "valquo": 1.0, "spy": 0.5},
+                  {"date": "2026-09-03", "valquo": 1.2, "spy": 0.6}]
+        r = self._authorised(
+            {"series": series},
+            [(_tr, "missing_dates", lambda *a, **k: ["2026-09-02"]),
+             (_tr, "reconstruct", lambda *a, **k: {"n_computed": 0, "refused": [],
+                                                   "points": []}),
+             (_tr, "validate_against_record", lambda *a, **k: {"checked": 2, "max_abs": 0.0}),
+             (_tr, "payload", lambda *a, **k: {"excluded_from": ["gate", "meter"]})])
+        text = r.get_data(as_text=True)
+        self.assertNotIn("_store", text,
+                         "the authorised path raised NameError and was served as a 500: %s"
+                         % text[:300])
+        self.assertEqual(r.status_code, 200, text[:300])
+        body = r.get_json()
+        self.assertTrue(body.get("ok"), body)
+        self.assertEqual(body.get("record_rows"), 2, body)
+        self.assertEqual(body.get("record_span"), ["2026-09-01", "2026-09-03"], body)
+        self.assertEqual(body.get("missing"), ["2026-09-02"], body)
+        self.assertFalse(body.get("written"), "a GET stored something")
+        self.assertIn("validation", body)
+        self.assertEqual(body.get("excluded_from"), ["gate", "meter"], body)
+
+    def test_the_handler_names_NO_undefined_helper(self):
+        """The companion, and the one that would have caught this with no request at all:
+        every bare function the body CALLS must resolve to something -- a name `app_saas`
+        binds somewhere, or a Python builtin.
+
+        A positive control is required or the check is vacuous: reintroducing `_store` must
+        make it fail, which is how `_store()` is told apart from `Store()`.
+
+        SWEPT BEFORE SCOPING IT: the same walk over all 49 functions in `app_saas.py` returns
+        NONE, so `_store()` was the only instance and this is a door-level guard rather than
+        the first report of a family. It stays scoped to this handler because a file-wide
+        version would fire on any future legitimate dynamic call in another lane's door.
+        """
+        import builtins
+        path = os.path.join(REPO, "valuation/saas/app_saas.py")
+        src = io.open(path, encoding="utf-8").read()
+        tree = ast.parse(src)
+        fn = next(n for n in ast.walk(tree)
+                  if isinstance(n, ast.FunctionDef) and n.name == "admin_track_reconstruct")
+
+        # Names the module binds at ANY nesting depth -- `create_saas_app` is a closure, so
+        # `_admin_ok` and friends are nested defs rather than module-level ones and a
+        # module-level-only sweep would flag every legitimate call in the file.
+        defined = set(dir(builtins))
+        for n in ast.walk(tree):
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                defined.add(n.name)
+            elif isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store):
+                defined.add(n.id)
+            elif isinstance(n, ast.alias):
+                defined.add((n.asname or n.name).split(".")[0])
+            elif isinstance(n, ast.arg):
+                defined.add(n.arg)
+
+        called = {c.func.id for c in ast.walk(fn)
+                  if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)}
+        self.assertTrue(called, "the walk found no bare calls, so it checks nothing")
+        missing = sorted(called - defined)
+        self.assertEqual(missing, [],
+                         "the reconstruct door calls names nothing defines: %s" % missing)
+
 
 class TheSplitGuardSaysWhenItCheckedNothing(unittest.TestCase):
     """On a GitHub runner the ACTIONS tape does not exist, so the guard fails OPEN.
