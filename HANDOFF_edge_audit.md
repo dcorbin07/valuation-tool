@@ -19108,20 +19108,37 @@ best available evidence the estimate is right**, and it is why this register's m
 recommendation and the draft's declining of the fast side agree. Relayed, **not edited** — the
 draft is the scout lane's file and carries no trials.
 
-## REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3): a FOURTH sighting of the `%TEMP%` family
+## A GATE FAILURE I CAUSED MYSELF, AND THE CORRECTION IS AGAINST MY OWN FIRST READING
 
-The full gate read **205 suites, 2 failures**, and only one was this register's (the `MC10` pin
-above). The other, `tests/test_fleet_highwater.py`, died on **`WinError 32: The process cannot
-access the file because it is being used by another process`** on an `os.replace` of a
-`%TEMP%` file — and it passes standalone, on this tree and on clean `HEAD`.
+**FINAL GATE: 210 suites, 0 failures on the merged tree.** Getting there took one correction
+worth recording, because the first version of this section misattributed my own mistake to a
+project defect.
 
-That is the fourth distinct suite in this family: `MB21` hit `PermissionError` inside `GzipFile`,
-`MB16` hit `Permission denied` on git objects, `test_sync_checkout.py` hit the same on git
-objects earlier today, and now this one on an atomic rename. `MB16` measured the cause as
-sustained concurrent temp-volume I/O, and all four are **invisible in CI, where a Linux runner
-has no contention**. Reported, not silenced; none of these suites is this lane's. Four sightings
-is enough that **wrapping the `%TEMP%` writes in a retry is now worth someone's item** rather
-than a note.
+An intermediate gate read `tests/test_fleet_highwater.py` FAILED — once on **`WinError 32: the
+process cannot access the file because it is being used by another process`** during an
+`os.replace` of a `%TEMP%` file, and once on a different test in the same suite with a bare
+assertion. I wrote that up as a **fourth independent sighting** of the `%TEMP%` contention family
+(`MB21`'s `GzipFile`, `MB16`'s git objects, `test_sync_checkout.py` earlier the same day).
+
+**IT WAS NOT. I HAD TWO FULL GATES RUNNING CONCURRENTLY** — one started with a backgrounded shell
+redirect and one through the task runner, the same 210-suite script twice, ~420 suite processes
+competing for the same temp volume. The proof is clean rather than circumstantial: **the other
+concurrent run read 210 suites and 0 failures on the identical tree**, and the suite passes **8
+of 8** standalone. So the proximate cause was mine, and `test_fleet_highwater.py` is **not**
+evidence of anything.
+
+**WHAT SURVIVES THE CORRECTION, AND IT IS NARROWER THAN WHAT I FIRST CLAIMED.** The family is
+real and documented — `MB21` and `MB16` measured it independently, and
+`test_sync_checkout.py`'s failure earlier today DID occur under a single gate, so that one stands
+as a genuine sighting. **Three sightings, not four**, and the case for wrapping those `%TEMP%`
+writes in a retry is correspondingly weaker than I stated. Reported, not silenced; none of these
+suites is this lane's.
+
+**THE PORTABLE PART IS THE METHOD, NOT THE COUNT: a suite that fails under a gate and passes
+standalone is not yet diagnosed.** The thing that settled it was noticing a SECOND gate's log,
+not the eight standalone passes — eight green runs are consistent with both explanations, and
+"it passes standalone" is exactly how a real concurrency defect gets dismissed. The distinguishing
+evidence was a concurrent run that came back clean on the same tree.
 
 ## Expectations, scored
 
