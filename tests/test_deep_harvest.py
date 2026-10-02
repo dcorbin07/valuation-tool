@@ -236,7 +236,21 @@ def test_a_quarter_that_has_not_happened_yet_is_never_requested():
         q_start = dt.date(horizon.year, 1 + q * 3, 1)
         if q_start > horizon:
             assert (1 + q * 3) not in started, f"Q{q+1} has not started and was requested anyway"
-    assert rec.get("quarters_future"), "a future quarter must be recorded, not silently dropped"
+
+    # THE RECORDING PROPERTY IS TESTED ON A YEAR THAT ALWAYS HAS FUTURE QUARTERS, NOT ON THIS
+    # ONE. Asserting `quarters_future` on the CURRENT year is a time bomb and it went off: it
+    # holds until the last quarter STARTS and is false for the rest of the year, so this suite
+    # passed on 2026-10-01, failed on 2026-10-02 and would have blocked every land in the
+    # project until 2027-01-01. Nothing about the code had changed -- the guard fired on the
+    # CALENDAR, which is the shape `MB31` and `MA57` already cost this project two repoints.
+    # Next year has four future quarters on every possible run date, so the same property is
+    # exercised deterministically and the assertion is STRONGER: not merely "some quarter was
+    # recorded" but "all four, and not one of them was requested".
+    seen.clear()
+    nxt = M.pull_unit(_TB(), "FUT", horizon.year + 1, root)
+    assert seen == [], f"a wholly future year was requested anyway: {seen}"
+    assert nxt.get("quarters_future") == ["Q1", "Q2", "Q3", "Q4"], (
+        f"a future quarter must be recorded, not silently dropped: {nxt.get('quarters_future')}")
 
 
 def test_a_future_quarter_is_not_recorded_as_a_missing_one():
