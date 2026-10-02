@@ -133,12 +133,37 @@ Day)**, which `contract_row` refuses as a non-trading day, so `n_compared` read 
 reason that had nothing to do with prices; the run is built from `market_session.is_trading_day`
 now, the same authority `missing_dates` uses.
 
+## MEASURED ON THE SERVICE: 51.5s, HTTP 200 — so the door is NOT backgrounded
+
+After deploy, a read-only authorised GET returns **`http=200` in 51.5s** (`curl` exit 0),
+against the ~67 min it derived to before and the 600s it had already failed at three times.
+That is comfortably inside the ~150s threshold at which the work would have had to move to a
+background job (POST starts, GET reads status), **so that change was NOT made** — a status
+endpoint and a job record are real machinery and adding them unnecessarily is a worse outcome
+than a 51.5s request.
+
+**AND IT ACTUALLY DID THE WORK, which is the part a wall time alone does not show:**
+`n_missing` **18**, `n_computed` **18**, `refused` **[]** — every missing day priced, none
+refused — and the full validation `n_compared` **25**, `n_refused` **0**,
+`bench_exact_days` **23 of 25** (the service has gained a row since the 24-row export; still
+exactly TWO non-exact days), `bench_max_abs` **0.0297** — identical to the local figure —
+`book_median_abs` **0.0001**. `written` **false**, so the GET stored nothing, and
+`?write=1` on a GET still 405s on the deployed build.
+
+**ONE CALL PER TICKER, CONFIRMED IN PRODUCTION RATHER THAN INFERRED:**
+`validation.prices` reads `{'vendor_calls': 87, 'tickers': 87, 'max_calls_per_ticker': 1,
+'anchor': '2026-07-31', 'window_days': 400}`. The reconstruct half's census was NOT in the
+response — the handler forwards selected keys and dropped it — so that half's call count was
+only inferable from the wall time. `prices` is now carried on the body too, so both halves are
+observable.
+
 ## Not done, named so it is not mistaken for done
 
 * **`reconstruct` and `validate_against_record` build ONE MEMO EACH**, so a single door call
   makes **2 x 87 = 174** vendor calls rather than 87. They are independently callable and
-  sharing one would mean plumbing a memo through the public signature; left as-is pending the
-  service-side wall-time measurement, since 174 calls is ~53s on local evidence.
+  sharing one would mean plumbing a memo through the public signature. **Left as-is on the
+  measurement**: 51.5s is inside the threshold, so halving the calls buys nothing that matters
+  today. The lever exists if a longer record ever pushes it.
 * **No day has been reconstructed and nothing has been stored.** `?write=1` is still POST-only
   and still 405s on a GET, confirmed on the deployed build.
 * **The 95% weight floor and the price routing are untouched.** The dead Stooq fallback still
