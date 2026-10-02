@@ -5,6 +5,143 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 72 — 2026-10-02 — the theme-cache workflow text is corrected before Don pastes it, and the third defect was the dangerous one
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. **No `.github/`
+edit** — the auto-land policy refuses any branch touching it, which is exactly why the text is a
+tracked, tested proposal instead. Nothing written to the bound series, no trade.
+
+**`PROPOSAL_auto_scan_themes.md` carries the corrected full text and is SAFE TO PASTE.**
+Session 70's version is not, and had not been pasted. **Target: live before 2026-10-12.**
+
+## THREE DEFECTS, AND THE THIRD FALLS OUT OF THE SECOND
+
+**(1) `themes-assemble` fired on EVERY scheduled event — 76 times a week instead of once.**
+`always() && (github.event_name == 'schedule' || ...)` has two faults in one line: `always()`
+runs the job even when `themes` is **skipped**, and `event_name == 'schedule'` is true for every
+cron in the file. Counted from the committed `schedule:` block: 5 + 5 + **40 (intraday)** + 10 +
+8 + 2 + 5 existing, plus the new themes cron = **76 scheduled events/week, 75 of them unwanted**,
+each re-crawling SEC for 1,500 names. **Every other job already names its own schedule, 5 of 5** —
+`hot`, `intraday`, `watchdog`, `paper`, `recap`. The fix is the house rule.
+
+**(2) The assemble job could not see the shards' work.** Each shard saved
+`live-themes-crawl-<run_id>-<shard>`; the assemble restored on prefix `live-themes-crawl-`, and
+**a restore-key prefix returns the single most recent match** — one shard of three.
+
+**MEASURED on session 70's real crawl (1,534 payloads per leg on disk), through the real
+`fetch_all`, with the three per-leg fetchers counted and the network never touched:**
+
+| what the assemble step sees | new SEC fetches |
+|---|---|
+| all three shards merged | **39** — `cusip` 0/1500, `insider` 0/1500, `xbrl` 39 |
+| one shard (what `restore-keys` gives) | **3,010** — `cusip` 999, `xbrl` 1,011, `insider` 1,000 |
+
+3,010 is exactly the 1,000 names the other shards hold x 3 legs. At the rate session 70 actually
+achieved (4,135 calls in ~111 min ≈ 0.62 calls/s) that is **~3h40m against a 90-minute timeout**,
+so it does not run slowly — it **times out**, and `actions/cache` does not save on failure, so it
+would arrive at the same wall every week.
+
+**THE 39 ARE NOT THE MECHANISM FAILING.** They are names whose cached `xbrl` has
+`shares_level: None` — `AEG`, `AZN`, `BP`, `ERIC`, `FMX`, `GFL`: 20-F filers with no dei
+cover-page share count, which `xbrl_needs_shares` correctly calls incomplete, so they are
+re-attempted every run regardless of the restore. **Session 70's own live log corroborates the
+figure exactly** — `PROGRESS.txt` ends `DONE 1500 names, calls=39`, with `cusip 0+1500,
+xbrl 39+1460, insider 0+1500`, and `calls` is the REAL `Guard` counter. Three earlier
+whole-universe passes over a complete crawl read **`calls=0`** outright.
+
+**(3) THE SERIOUS ONE — defect 2 would have silently zeroed the insider theme for two-thirds of
+the universe, PERMANENTLY.** This is why the merge is a correctness fix, not an optimisation.
+
+`fetch4` builds its document list from the cached **submissions index**, and `submissions/` is
+populated **by the cusip leg** — so each shard fills it for its own 500 names. It then writes a
+payload **durably** when a name has no picks (`if rec["n_filings"] == 0 or rec["parsed"] > 0`)
+and **skips any name whose payload exists**. So with one shard restored, the other **1,000 names
+get `forms = []` → `n_filings: 0` → a durable `txns: []` → never retried**. Measured: 1,499 of
+1,500 served names have a submissions index locally and **1,277 genuinely have Form 4 filings
+(13,308 documents)**; the defect would report 223 such names as the whole truth and look exactly
+like a universe with no insider activity. **The zero-row refusal cannot catch it** — the cache
+would still have its ~1,400 rows with one column hollowed out, which is session 70's own
+sentence ("read as 'no insider data' rather than 'this producer was never pointed at this
+universe'") one layer along.
+
+## ACTIONS MINUTES
+
+**The repo is PUBLIC today and GitHub bills no minutes for standard runners.** Stated because Don
+may make it private, where Free includes 2,000 min/month and Linux overage is $0.008/min.
+
+| | job-min/week | /month | vs a 2,000-min private allowance |
+|---|---|---|---|
+| session 70's text | **~6,750** (75 timed-out runs x 90 min) | ~29,000 | **14.5x over**, ~**$216/mo** |
+| corrected, steady state | **~52** | ~225 | 11% |
+| corrected, first run / quarterly 13F roll | ~385 that week | — | — |
+
+Steady state is 3 shards x ~4 min warm plus ~40 min assemble, **dominated by the 13,308 Form 4
+documents** at `SEC_MIN_INTERVAL_S` 0.13s on a shared guard (~29 min floor). Matrix jobs bill
+separately and each job rounds up to the minute.
+
+## WHAT THE FIX IS
+
+`upload-artifact` per shard + `download-artifact` with `merge-multiple: true`, so all three
+reach the assemble job. Plus: the warm-start `restore-keys` now carries the **shard number** (the
+same prefix bug in the restore direction); `cache/save` with **`if: always()`** so a timed-out
+shard keeps the names it did fetch; `if-no-files-found: error`; and the per-leg file counts are
+**printed** before the crawl, because "the merge worked" and "one shard arrived" look identical in
+a log that does not count.
+
+**WHAT TRAVELS IS AN ALLOWLIST, NOT AN EXCLUSION LIST, AND `form4_live` IS THE REASON.** Its
+window is `today - 90d .. today` and **moves every day** (the cached payloads read
+`['2026-07-03','2026-10-01']` against today's `['2026-07-04','2026-10-02']`), while `fetch4`
+skips on file existence alone — so a carried-over payload **freezes the insider window and serves
+a stale score with nothing looking wrong**. The two 13F zips are excluded for size: 190MB for the
+pair against a 4.6MB aggregate that `build_13f` short-circuits on whenever the periods match.
+
+## VERIFICATION
+
+* **`tests/test_proposal_auto_scan_themes.py` — 24 tests, and it enforces the rule on BOTH the
+  proposal and the committed `auto-scan.yml`** (5 jobs of 5 pass today, which is what makes it a
+  house rule rather than a new invention). **8 of 8 mutations caught**, including session 70's
+  exact `if:` line, with the proposal restored byte-for-byte.
+* **Run as a fresh runner would**, `git archive HEAD` into a clean directory (`data/` is
+  gitignored, so this is what `actions/checkout` produces): the three modules import, `--slice
+  9/3` and `--slice bogus` are REFUSED before any download, and `--universe broker` fails with
+  "the broker universe came back empty" — the missing `TRADIER_TOKEN`, which the job supplies.
+  With the token the same command resolves **1,500 names from scan `broker_top_1500`**, which
+  also confirms the `--snapshot` filename the Form 4 step passes. `tests/test_theme_cache_build.py`
+  reads **18 passed / 1 skipped on the fresh tree, identical to here**.
+
+**TWO DEFECTS OF MY OWN, BOTH FOUND BY MUTATION RATHER THAN BY READING.** My harness first proved
+"zero fetches" by making the stub RAISE — and `fetch_all` wraps every fetcher in
+`except Exception: log(); continue`, so the raise was **swallowed** and `fetched` stayed 0 while
+the call was really attempted. **The giveaway was arithmetic: `xbrl` done 1460 + no_cik 1 != 1500
+names.** Counting attempts instead gives the honest 39. And my own test for `if: always()` banned
+a **substring** that the comment explaining the rule necessarily quotes, so deleting the key from
+the YAML was MISSED — repaired with a YAML comment stripper pinned in **both** directions (it must
+keep a real key and drop the same words from a comment), the `tokenize` idiom this repo already
+uses for Python.
+
+## RESIDUALS — reported, not fixed
+
+* **`xbrl_needs_shares` does not refetch a STALE level, only a look-ahead one.** It returns
+  `end > asof`, which refetches when the cached level is NEWER than needed and skips when it is
+  OLDER — while its docstring says it exists so "moving to a new 13F period refetches rather than
+  silently reusing the prior quarter's level". **It does not.** Not live today (`curr` is still
+  `31-MAR-2026`; `30-JUN-2026` is unpublished and the build STEPS BACK a quarter), and it bites
+  the first week the period rolls — the anchor would divide by the previous quarter's share count.
+  `live_theme_sources.py` is not this lane's file.
+* **`test_the_hot_job_sets_LIVE_THEMES_CACHE` will NOT become the hard failure it says it will.**
+  It greps the whole workflow for `LIVE_THEMES_CACHE`, and the **assemble** job sets that
+  variable — so after the paste it flips to PASSING even if item 4 (the hot job's restore) were
+  omitted, which is the one omission that leaves every live score without the three themes. Its
+  name says `hot job`; its body reads `txt`. Covered in my suite instead
+  (`TheHotJobCanActuallySeeTheCache`); the owning lane should tighten theirs.
+* **Nothing was run under Python 3.11.** Only 3.13 is installed here and the job pins 3.11; the
+  repo's own `test_the_repo_parses_on_the_ci_python` covers the parse, which is the failure that
+  cost three land attempts, but a 3.11 runtime difference would not be caught locally.
+* **The split guard will print `ABSENT` on a runner** (`data/bulk/actions.csv` is licensed and
+  untracked), as session 70 documented. Unchanged.
+
+---
+
 # Session 71 — 2026-10-02 — the reconstruct door answered 401 and 405 correctly and could not serve one authorised caller; then it could not finish
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict; no `RESEARCH_LOG.md` row. **Nothing written
