@@ -255,29 +255,49 @@ def _health_score(cd, cls) -> tuple[Optional[float], list]:
     # utility's capex is rate-base investment the regulator allows a return on; a REIT's is the
     # property it exists to own. Neither is money leaking out of a failing business.
     #
-    # NARROWER THAN THE `financial` BRANCH ABOVE, DELIBERATELY. That one withholds the whole
-    # sub-score, because all three of its inputs fail for one reason. Here LEVERAGE AND COVERAGE
-    # GENUINELY APPLY -- a REIT is debt-financed property and a regulator watches a utility's
-    # gearing, so net debt/EBITDA and interest coverage are real solvency measures for both.
-    # Only the FREE-CASH-FLOW term and the RUNWAY inference are inapplicable, so only those are
-    # dropped and their weight goes to the two that work. Withholding the sub-score entirely
-    # would have thrown away two valid measurements to remove one invalid one.
+    # ITEM 26(a) -- WITHHELD, AND ITEM 25's REWEIGHTING WAS THE WRONG FIX. MEASURED.
     #
-    # `is_cash_burning` IS LEFT ALONE and still reports the measured fact. The fact (FCF < 0) is
-    # true; the INFERENCE (a runway, a burn) is what does not follow, and the distinction has to
-    # survive or the classification starts lying about the financials.
+    # Item 25 dropped only the free-cash-flow term and the runway inference and reweighted to
+    # leverage 0.6 / coverage 0.4, on the reasoning that *"withholding the sub-score entirely
+    # would throw away two valid measurements to remove one invalid one"*. That reasoning was
+    # checked against the live service afterwards and it is wrong in the direction that
+    # matters. Health sub-score, live before -> after the reweighting: **O 35.7 -> 20.4, NEE
+    # 36.6 -> 21.5**, DUK 15.7 -> 28.5. **Two of three went DOWN**, and the surviving drivers
+    # read **net debt/EBITDA 6.0x, 5.8x and 5.3x** -- which is ORDINARY for a property trust or
+    # a rate-regulated utility and ALARMING for an industrial.
+    #
+    # SO THE TWO SURVIVING INPUTS ARE NOT "VALID MEASUREMENTS" ON THESE NAMES AT THE FLOORS
+    # THIS CURVE USES. `_lerp`'s ladder scores 6.0x at single digits, because it was calibrated
+    # for companies whose capex is discretionary. A REIT is levered BY CONSTRUCTION -- leverage
+    # is the business model, not a warning about it -- and concentrating 0.6 of the sub-score on
+    # the metric these regimes structurally score worst on AMPLIFIED a mis-calibration while
+    # removing a different one. DUK improved only because the 0.1-year runway penalty it lost
+    # was larger than the amplification.
+    #
+    # REGIME-AWARE FLOORS ARE THE OTHER REPAIR AND ARE DELIBERATELY NOT INVENTED HERE: picking
+    # a number with nothing behind it is the error this record warns about most often, and
+    # picking it immediately after seeing which way the scores moved would be choosing the bar
+    # on the outcome. Withholding asserts nothing numeric at all, which is the honest option
+    # while the floors are uncalibrated for these regimes.
+    #
+    # IDENTICAL IN FORM TO THE `financial` BRANCH ABOVE: `None` plus a reason line, so
+    # `compute_score`'s existing renormalisation redistributes the 0.20 over the sub-scores
+    # that do apply, and NOT APPLICABLE rather than MISSING so `confidence` is not degraded for
+    # a deliberate design choice. A withheld sub-score that is silent looks identical to one
+    # that scored in the middle, which is why the driver is not optional.
+    #
+    # `is_cash_burning` IS STILL LEFT ALONE and still reports the measured fact. The fact
+    # (FCF < 0) is true; the INFERENCE (a runway, a burn) is what does not follow.
     if getattr(cls, "regime", None) in ("reit", "regulated"):
         _w = "REIT" if cls.regime == "reit" else "regulated utility"
-        parts = [(lev, 0.6), (cov, 0.4)]
-        drivers.append(
-            "The free-cash-flow check and the cash-runway warning do not apply to a %s: its "
-            "capex IS the business -- property for a trust, rate base for a utility -- so free "
-            "cash flow after capex is negative for a healthy company and reading it as a burn "
-            "would put a solvency warning on a regulatory asset. Leverage and interest cover "
-            "do apply and carry the whole sub-score." % _w)
-        if cd.net_debt_to_ebitda is not None:
-            drivers.append("Net debt/EBITDA %.1fx." % cd.net_debt_to_ebitda)
-        return _blend(parts), drivers
+        return None, [
+            "Balance-sheet health is not scored for a %s: its capex IS the business -- property "
+            "for a trust, rate base for a utility -- so free cash flow after capex is negative "
+            "for a healthy company and the cash-runway check would put a solvency warning on a "
+            "regulatory asset. Leverage and interest cover are real measures here but this "
+            "curve's floors are calibrated for companies whose capex is discretionary, and a "
+            "trust that is levered by construction scores badly on them for being what it is. "
+            "Its weight is redistributed over the sub-scores that do apply." % _w]
 
     if cls.is_cash_burning:
         runway = cd.cash_runway_years

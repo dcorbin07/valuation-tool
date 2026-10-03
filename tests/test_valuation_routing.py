@@ -358,16 +358,52 @@ class NegativeFreeCashFlowIsNotARunwayHere(unittest.TestCase):
         _, drivers = self._health("DUK", "Utilities", "Utilities - Regulated Electric", 0.0469)
         joined = " ".join(drivers)
         self.assertIn("capex IS the business", joined)
-        self.assertIn("Leverage and interest cover do apply", joined)
+        self.assertIn("is not scored for a", joined)
+        self.assertIn("redistributed", joined)
 
-    def test_leverage_and_coverage_still_carry_the_sub_score(self):
-        """NARROWER THAN THE `financial` BRANCH, deliberately: a regulator watches a utility's
-        gearing and a REIT is debt-financed property, so those two measures are real here.
-        Withholding the whole sub-score would throw away two valid measurements to remove one
-        invalid one."""
-        score, _ = self._health("DUK", "Utilities", "Utilities - Regulated Electric", 0.0469)
-        self.assertIsNotNone(score)
-        self.assertGreater(score, 0.0)
+    def test_the_sub_score_is_WITHHELD_exactly_as_the_financial_regime_does(self):
+        """ITEM 26(a) REVERSED ITEM 25's CHOICE HERE, AND THE REVERSAL WAS MEASURED.
+
+        This test used to assert the opposite -- that leverage and coverage still carried the
+        sub-score -- on item 25's reasoning that *"withholding the whole sub-score would throw
+        away two valid measurements to remove one invalid one"*. Checked against the live
+        service after the land, that reasoning is wrong in the direction that matters: health
+        went **O 35.7 -> 20.4** and **NEE 36.6 -> 21.5**, DOWN, because the surviving drivers
+        read net debt/EBITDA 6.0x and 5.8x -- ordinary for a property trust or a rate-regulated
+        utility, alarming for an industrial. The reweighting concentrated the sub-score on the
+        metric these regimes structurally score worst on.
+
+        So the assertion is inverted because the BEHAVIOUR was changed by instruction, not
+        because it was inconvenient: the sub-score is now withheld as NOT APPLICABLE, and the
+        0.20 is redistributed by `compute_score`'s existing renormalisation -- the same
+        mechanism, in the same shape, as the `financial` branch.
+        """
+        score, drivers = self._health("DUK", "Utilities",
+                                      "Utilities - Regulated Electric", 0.0469)
+        self.assertIsNone(score, "health must be WITHHELD, not scored, for a regulated utility")
+        self.assertTrue(drivers, "a withheld sub-score that is silent looks identical to one "
+                                 "that scored in the middle")
+
+    def test_it_is_withheld_in_the_SAME_FORM_as_the_financial_regime(self):
+        """`B7` in spirit: one withholding mechanism, not two that can drift apart.
+
+        Both branches return `(None, [one reason line])`, so the redistribution and the
+        NOT-APPLICABLE-rather-than-MISSING confidence treatment are the existing ones rather
+        than a parallel arrangement for these two regimes.
+        """
+        from valuation.engine.scoring import _health_score
+        fin = cd(ticker="JPM", sector="Financial Services", industry="Banks - Diversified",
+                 analyst_rev_growth_next=0.04, fcf=1.0e9, total_debt=1.0e11,
+                 ebit=5.0e10, da=1.0e9, interest_expense=1.0e10)
+        fin_score, fin_drivers = _health_score(fin, CL.classify(fin))
+        reit_score, reit_drivers = self._health("O", "Real Estate", "REIT - Retail", 0.1116)
+        self.assertIsNone(fin_score)
+        self.assertIsNone(reit_score)
+        self.assertEqual(len(fin_drivers), 1)
+        self.assertEqual(len(reit_drivers), 1)
+        for d in (fin_drivers[0], reit_drivers[0]):
+            self.assertIn("is not scored for a", d)
+            self.assertIn("redistributed", d)
 
     def test_a_reit_is_treated_the_same_way(self):
         _, drivers = self._health("O", "Real Estate", "REIT - Retail", 0.1116)

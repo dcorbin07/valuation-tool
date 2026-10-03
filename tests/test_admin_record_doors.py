@@ -114,11 +114,20 @@ class APreviewWritesNothing(unittest.TestCase):
         self.assertEqual(len(FH.invalid_spans() or []), before)
 
     def test_the_preview_carries_the_reason_it_would_record(self):
+        """ITEM 27(a) MOVED THIS FIELD, AND THE CHECK IS KEPT RATHER THAN RETIRED.
+
+        The preview used to be hand-built in the route and put the invalidation reason in
+        `reason`. It now calls `invalidate_unmeasured_dip_span(dry_run=True)`, whose `reason`
+        already means *why this failed* and is empty on success -- so the reason it WOULD
+        record moved to `would_record_reason` instead of overwriting a refusal field. The
+        property this test exists for is unchanged: a preview must say what it would write.
+        """
         c, hdr = _client()
         b = c.get("/admin/invalidate-dip-span?through=2026-10-03",
                   headers=hdr).get_json()
-        self.assertEqual(b["reason"], FH.UNMEASURED_DIP_REASON)
-        self.assertIn("ITEM 19", b["reason"])
+        self.assertEqual(b["would_record_reason"], FH.UNMEASURED_DIP_REASON)
+        self.assertIn("ITEM 19", b["would_record_reason"])
+        self.assertEqual(b["reason"], "", "`reason` is the failure field, empty on success")
 
 
 class TheFunctionAppendsAndNeverDeletes(unittest.TestCase):

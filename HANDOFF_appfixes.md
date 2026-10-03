@@ -13847,3 +13847,211 @@ either a calibration against how levered these regimes actually are, or the hone
 withholding the health sub-score for them as the `financial` regime already does. **Both are
 construction changes with their own justification and neither is taken.** The scores for the four
 names are therefore lower than they should be, and that direction is the conservative one.
+
+
+# SESSION 82 - ITEM 27: A DOOR THAT ANSWERED EVERY REFUSAL AND SERVED NO CALLER
+
+**DON FOUND THIS BY USING IT: `/admin/score-alerts` returned HTTP 500 on the live service, with
+his token, on a plain GET preview.** Reproduced through the Flask test client on a clean
+`134a18a`. Two undefined names, one on top of the other:
+
+* `app_saas.py` called **`_store()`**, which is `web/app.py`'s helper and does not exist in the
+  SaaS module -> `NameError`.
+* The `except` handler then called **`log_exception`**, which was CALLED by three handlers in
+  that file and **IMPORTED BY NONE** -> a second `NameError` while handling the first, so Flask
+  returned a **bare HTML 500** rather than the JSON body the handler writes.
+
+Measured with `pyflakes` over the whole package: **exactly four undefined names, all four in
+this one file.** `/admin/index-returns` and `/admin/invalidate-dip-span` carry the same
+`log_exception` call and looked healthy only because their happy path does not raise.
+
+## THE PART THAT IS NOT A TYPO
+
+**THE LESSON WAS ALREADY WRITTEN DOWN, IN THIS FILE, AND I TESTED AROUND IT.** The reconstruct
+door's own comment records this exact defect from `e4a2bda` and names its generalisation in as
+many words: *"a door that answers 401 and 405 correctly and cannot serve a single caller who
+gets past them."* I then shipped `/admin/score-alerts` calling `_store()`, and wrote
+`test_admin_record_doors.py` asserting **401, 405 and 422** - precisely the three paths that
+sentence says prove nothing, because every one returns BEFORE the body runs.
+
+**THE TWO NUMBERS THAT SAY IT PLAINLY.** Against `origin/main`, where the door 500s:
+**the new suite fails 16 of 21. The old suite passed 10 of 10.** Ten green tests on a door that
+could not serve one authorised caller. A refusal test is not a door test.
+
+## 27(a) - THE PREVIEW HELD A SECOND DEFINITION OF "ALREADY DONE", AND IT DISAGREED
+
+Don's GET reported `already_done: ["dip_rejects", "iv60_atm"]`; his POST then correctly applied
+`dip_rejects` 2026-08-25..2026-08-27. **The route matched any span whose reason CONTAINED
+"dip"; the function skips spans whose reason `startswith("ITEM 19")` INTERSECTED with
+`UNMEASURED_DIP_SERIES`.** Two conditions, both wrong, and the second explains the stranger
+half of his output: **`UNMEASURED_DIP_SERIES` is `("dip_rejects",)`, so `iv60_atm` is not in
+scope at all** and the function would never touch it. A missing intersection, reported as
+completed work.
+
+**I HAD REJECTED THE CORRECT FIX FOR A STATED REASON AND THE REASON WAS WRONG.** The route's own
+comment said a dry-run flag *"would mean two code paths for one write"*. It is ONE path with one
+branch before the final `invalidate_many`; what I shipped instead was a second DEFINITION, which
+is the thing `B7` is actually about. `invalidate_unmeasured_dip_span` now takes `dry_run` and the
+preview calls it. Two reporting fields - the span bounds and the reason - are echoed back from a
+CONSTANT and this request's own argument, which invents no rule.
+
+## 27(b) - THE DIP SERIES HAS EFFECTIVELY NEVER RUN, AND THE CHAIN IS FOUR LINKS OF NOTHING
+
+`record_dip_rejects` has exactly ONE non-test caller, `scan_worker.run_weekly`; `run_weekly` is
+reachable only from `POST /admin/run-scan`; the only thing that POSTs it is a `render.yaml` cron
+named `weekly-scan-trigger` **that was never created on Render**, with no workflow hitting it
+either. **A declared cron in a config file is not a cron.** Two rows in two months.
+
+**AND THE SNAPSHOT IS FRESH ANYWAY, WHICH IS WHAT MAKES A LIGHT DOOR POSSIBLE.** `auto-scan.yml`
+runs `python scripts/ci_scan.py` **in the GitHub runner** at 22:23 UTC, and that script calls
+`run_scan` DIRECTLY - so the snapshot publishes daily while `log_hot`, the Discord digest, this
+recorder and the subscriber email, all of which live in `run_weekly`, never happen.
+
+`POST /admin/record-dip-rejects` does the recorder and nothing else. **It does not scan**: it
+reads the snapshot already on disk. Affordable, measured rather than inherited - `run_weekly`'s
+comment prices the screen at *"~188s against a 120s runner budget"*, which predates item 23, and
+`/api/dip` **measured 16.2s on the live service** against gunicorn's `--timeout 180`.
+
+**IT DATES THE ROW BY THE SNAPSHOT'S OWN `scan_date`, NOT THE CLOCK - ITEM 20 IN A THIRD
+PLACE.** My first cut used `last_closed_session()`, better than `date.today()` and still the
+wrong object. A dropped scan leaves yesterday's snapshot served, and a clock-dated row would
+file yesterday's population under today's session; dating by the snapshot makes staleness
+harmless and self-limiting instead, because `record()` reports `already_present`. Both dates and
+a `snapshot_is_current` flag travel in the response.
+
+**AND IT REFUSES TO RECORD A SCREEN THAT MEASURED NOTHING.** Item 19's defect was a screen that
+RAN, reached every eligible name and valued ZERO, whose days were then written down as real
+observations - the span this batch invalidated one commit earlier. `record_dip_rejects` already
+separates *ran and found nothing* (`[]`) from *did not run* (`None`, audit #5 `H2`); this door
+decides which, and leaves the day a GAP.
+
+## DEFECTS OF MY OWN, AND THE WORST ONE IS THE TEST SUITE
+
+**MY SUITE WROTE INTO THE REPOSITORY'S FLEET RECORD, AND ONE OF THE ROWS WAS THE EXACT KIND THIS
+BATCH JUST INVALIDATED.** `fleet_history.history_dir()` derives its base from the MODULE'S OWN
+FILE LOCATION, so it **ignores `state_isolation` entirely** - a fifth escape, and the module
+appears nowhere in `tests/state_isolation.py`. A first run created `invalidations.csv` AND
+`dip_rejects.csv` under the worktree's `data/`, the latter holding **`2026-09-29,0,[]`**: a false
+*"ran and found nothing"*. Harmless only because a worktree's `data/` is gitignored and
+disposable and the primary checkout has no `data/fleet/history` at all - **run from the primary
+checkout against a populated record, the suite would have corrupted the series it was written to
+protect.** The class now points the module at a temp dir and **asserts the isolation took**.
+
+**MUTATION CAUGHT THREE GUARDS I HAD NOT TESTED - 3 MISSED OF 9 - ON A SUITE I HAD JUST WRITTEN
+TO FIX A TESTING GAP.** The item-19 guard, the missing-`scan_date` refusal, and the already-done
+predicate, which is **Don's actual bug**: a clean store has no spans, so both predicates return
+`[]` and no route-level test can tell them apart. All three now have direct tests; **9 of 9
+caught, 0 missed, 0 skipped.**
+
+**FOUR FIXTURE ATTEMPTS FAILED BEFORE I READ THE FUNCTION I WAS CALLING.** `invalidate_many` is
+idempotent per DATE and forward-only, and its docstring says why: *"IT TAKES A LIST BECAUSE THE
+UNDERLYING STREAM IS IDEMPOTENT PER DATE."* Seeding per test silently dropped every span after
+the first - `S3-I1`'s defect re-enacted by the test meant to be careful about it - and distinct
+PAST dates were refused. One list, one write. **And two tests failed by asserting test ORDER**:
+`state_isolation` shares one store per PROCESS, so "an empty store" is a statement about
+ordering, not about state. Both now assert an invariant that holds in either state.
+
+**A POSITIVE CONTROL THAT FAILED AGAINST CORRECT CODE TAUGHT ME THE SECOND HALF OF THE BUG.** I
+used `iv60_atm` to prove the predicate can say yes; it cannot, because that series is not in
+`UNMEASURED_DIP_SERIES` - which is how the missing intersection was identified rather than
+guessed.
+
+**NOT DONE:** nothing is scheduled by this commit - `.github/` is refused to this lane, and the
+one line for Don's `daily-doors.yml` is relayed rather than added. The weekly subscriber email
+is **not** scheduled and should not be, for reasons given separately. `state_isolation` is NOT
+extended to cover `fleet_history`: that would change what every existing fleet test writes to,
+and it is reported rather than taken.
+
+
+# SESSION 83 - ITEM 26: THE HEALTH SUB-SCORE IS WITHHELD, AND ITEM 25's FIX WAS THE WRONG ONE
+
+## 26(a) - WITHHELD, EXACTLY AS THE `financial` REGIME DOES
+
+Item 25 dropped only the free-cash-flow term and the runway inference for `reit` and
+`regulated` and reweighted to **leverage 0.6 / coverage 0.4**, on the reasoning that
+*"withholding the sub-score entirely would throw away two valid measurements to remove one
+invalid one."* **Checked against the live service after that landed, the reasoning is wrong in
+the direction that matters.** Health sub-score, live before -> after the reweighting:
+**O 35.7 -> 20.4**, **NEE 36.6 -> 21.5**, DUK 15.7 -> 28.5. **Two of three went DOWN**, and the
+surviving drivers read **net debt/EBITDA 6.0x, 5.8x and 5.3x** - ordinary for a property trust
+or a rate-regulated utility, alarming for an industrial.
+
+**SO THE TWO SURVIVING INPUTS ARE NOT "VALID MEASUREMENTS" ON THESE NAMES AT THE FLOORS THIS
+CURVE USES.** `_lerp`'s ladder scores 6.0x in single digits because it was calibrated for
+companies whose capex is discretionary. A REIT is levered BY CONSTRUCTION - leverage is the
+business model, not a warning about it - so concentrating 0.6 of the sub-score on the metric
+these regimes structurally score worst on **amplified one mis-calibration while removing
+another**. DUK improved only because the 0.1-year runway penalty it lost was larger than the
+amplification.
+
+**IDENTICAL IN FORM TO THE `financial` BRANCH, not a parallel arrangement.** `return None,
+[one reason line]`, so `compute_score`'s existing renormalisation redistributes the 0.20, and
+withheld as **NOT APPLICABLE rather than MISSING** so `confidence` is not degraded for a
+deliberate design choice. A test asserts both branches return the same SHAPE, because two
+withholding mechanisms can drift apart and one cannot.
+
+**REGIME-AWARE FLOORS ARE THE OTHER REPAIR AND ARE STILL NOT INVENTED.** Picking a number with
+nothing behind it is the error this record warns about most often, and picking it right after
+seeing which way the scores moved would be choosing the bar on the outcome. Withholding asserts
+nothing numeric at all, which is the honest option while the floors are uncalibrated here.
+
+**VERIFIED ON REAL DATA, AND THE DIRECTION IS NOT UNIFORMLY FAVOURABLE - WHICH IS THE POINT.**
+`health=None` on all four with the reason line rendering. Composite score: **O 27 -> 29,
+NEE 26 -> 27, DUK 32 -> 33, and PLD 30 -> 28.** PLD falls because its health (41.7) sat ABOVE
+its other sub-scores, so removing it removes a relatively good one. **A withholding that only
+ever raised the score would be a boost wearing a refusal's clothes**; this one is
+near-neutral in aggregate because it stops asserting a number rather than asserting a better
+one.
+
+**`is_cash_burning` IS STILL LEFT ALONE** and still reports the measured fact. The fact
+(FCF < 0) is true; the INFERENCE (a runway, a burn) is what does not follow.
+
+**ONE ASSERTION WAS INVERTED, AND IT IS RECORDED AS AN INSTRUCTED BEHAVIOUR CHANGE RATHER THAN
+A CONVENIENCE.** `test_leverage_and_coverage_still_carry_the_sub_score` asserted item 25's
+choice; the property it pinned is now false by design, so it is replaced by
+`test_the_sub_score_is_WITHHELD_exactly_as_the_financial_regime_does` plus a shape-equality
+test against the `financial` branch. The companion assertion that the driver SAYS why survives
+unchanged in substance and only its wording moved.
+
+## 26(b) - DON'S WBS RULE, ADDED TO THE AMENDMENT DRAFT AS PART (c)
+
+`PREREG_DRAFT_contract_amendment_2.md` §3 gains **(c)**: *a held name that is acquired or stops
+trading counts as sold at its last traded close, its weight redistributed pro-rata across the
+rest of the book.* Markdown only, in its own commit.
+
+**IT BELONGS IN THE CONTRACT BECAUSE THE ENGINE ALREADY DOES IT AND THE CONTRACT DID NOT SAY
+SO.** The served card reports *"1 left the book since (WBS), with the weight spread across the
+survivors"* - so the behaviour is live and visible on the Index tab while the document that
+defines the series was silent. **A rule the engine follows and the contract omits is a rule
+nobody can check the engine against.** It is the one part of this amendment that changes a
+RECORDED NUMBER rather than a power calculation, which is why it cannot live only in code.
+
+The three rejected alternatives are named in the draft so the choice is legible, and one limit
+ships with it: **"last traded close" is vendor-dependent on a delisted name**, and this
+project's own price path already disagrees with the recorded series by ~0.02pp on an ordinary
+day. A successor wanting the series reproducible to the digit needs the delisting close STORED
+on the row at the time, not re-fetched later.
+
+**§3's preamble said "Two changes" and now says three**, corrected rather than left stale.
+
+## 26(c) - TSLA, IN TWO SENTENCES
+
+**Which inputs put it in `mature`:** blended revenue growth of about 1% - a **5.19%
+three-year CAGR** blended with a **MINUS 2.93% latest TTM** - against `analyst_rev_growth_next`
+of 13.7%, with the company profitable (net income 3,794, EBIT 5,616), **FCF-positive at
+6,220**, and in **net cash** (net debt/EBITDA MINUS 2.49, interest coverage 16.6x), so it
+clears no growth branch (hypergrowth wants >= 10%), trips no distress branch, and falls through
+to `mature`, the default.
+
+**Whether the $23 follows from them: yes, arithmetically.** 59% of the blend is a five-year
+FCFF DCF at **3% terminal growth** on that 6,220 of free cash flow, which returns **$20.20 a
+share** - and no discount rate built from the real **5.28%** ten-year can turn 6.2bn of FCF
+into $370.59 at 1% growth. **So the gap is not a model defect but the model declining to
+extrapolate the growth the price embeds**, which is what item 25 said in advance and why TSLA
+was deliberately not re-routed: its fair value is bit-identical across that change
+($23.416587672776433 before and after), and moving a profitable, FCF-positive,
+single-digit-growth manufacturer out of `mature` to make its number look better would be
+choosing the regime on the output.
+
+**NOT DONE:** no regime-aware leverage or coverage floor is invented; the amendment is a DRAFT
+and is not signed; nothing about TSLA is changed.

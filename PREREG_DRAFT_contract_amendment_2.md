@@ -50,7 +50,7 @@ That sentence is already live on the Index tab, sourced from
 
 ## 3. PROPOSED TEXT
 
-Two changes, both additive. Nothing is deleted and nothing above §5a moves.
+Three changes, all additive. Nothing is deleted and nothing above §5a moves. **(c) was added 2026-10-03** on Don's ruling of 2026-10-02; the count is corrected here rather than left reading "two", because a section that miscounts its own parts is the first thing a signer notices and the last thing they should have to check.
 
 **(a) A new row in §5a's amendment table**, in Amendment 1's own form:
 
@@ -69,6 +69,42 @@ Two changes, both additive. Nothing is deleted and nothing above §5a moves.
 > rule above, and the arm-specific figure is reported beside it rather than substituted for it.
 > **Consequence:** the 60-month verdict can settle whether the Index is recorded honestly and
 > whether its costs behave; it cannot settle whether the Index beats SPY.
+
+**(c) A paragraph appended to §5a**, stating the corporate-action rule. Don's ruling of
+2026-10-02, recorded here because until now the contract was silent on it and the engine was
+not:
+
+> **CORPORATE ACTIONS (Don's ruling, 2026-10-02).** A held name that is acquired or stops
+> trading counts as **sold at its last traded close**, its weight **redistributed pro-rata
+> across the rest of the book**.
+
+**WHY THIS BELONGS IN THE CONTRACT AND NOT ONLY IN THE CODE.** It is the one rule in this
+amendment that changes a RECORDED NUMBER rather than a power calculation, so it has to be
+written where the record is defined. The live book has already exercised it: **WBS left the
+book after the 2026-07-30 inception and the served card reports `1 left the book since (WBS),
+with the weight spread across the survivors`** — so the behaviour is live, it is visible on
+the Index tab, and the contract that governs the series did not mention it. A rule the engine
+follows and the contract omits is a rule nobody can check the engine against.
+
+**IT IS NOT A THRESHOLD, A CLOCK OR A σ CHANGE**, which is what keeps it inside this
+amendment's additive scope: §3's own framing is that nothing above §5a moves and no statistic
+is revised. This fixes an OMISSION — what happens to a position that ceases to exist — and the
+answer it records is the one the engine already implements.
+
+**THE ALTERNATIVES ARE WORSE AND ARE NAMED SO THE CHOICE IS LEGIBLE.** Holding a delisted name
+at its last price forever would let a dead position carry the book's return indefinitely.
+Dropping it and renormalising the DENOMINATOR silently would change the book's size mid-vintage
+and make the series discontinuous. Treating an acquisition as a 100% loss would be false, and
+treating it as cash held to the end would require a reinvestment assumption this contract does
+not make. **Sold at the last traded close, redistributed pro-rata** keeps the book fully
+invested, keeps its size fixed, and makes no claim about what the proceeds did next.
+
+**ONE LIMIT, STATED: "last traded close" is a VENDOR-DEPENDENT figure on a delisted name**, and
+the project's own price path has already been measured to disagree with the recorded series by
+~0.02pp on an ordinary day. For a name that stops trading the disagreement can be larger,
+because the last close is exactly where vendors diverge most. The rule is still the right one;
+a successor wanting the series reproducible to the digit needs the delisting close STORED on
+the row at the time, not re-fetched later.
 
 ## 4. WHAT A SIGNER SHOULD KNOW BEFORE AGREEING
 
