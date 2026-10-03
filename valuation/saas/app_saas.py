@@ -706,6 +706,72 @@ def create_saas_app(cfg=CONFIG):
             log_exception("admin_score_alerts")
             return jsonify({"error": safe_error(e)}), 500
 
+    @app.route("/admin/invalidate-dip-span", methods=["GET", "POST"])
+    def admin_invalidate_dip_span():
+        """Label F-11's dip rows over item 19's broken span INVALID. Item 23's second half.
+
+        **THIS DOOR EXISTS BECAUSE THE FUNCTION DID NOT HAVE ONE, AND THAT IS THE DEFECT.**
+        `fleet_history.invalidate_unmeasured_dip_span` shipped written, tested and callable by
+        NOBODY -- zero callers, no route, no script. Its own docstring says *"run this on the
+        service"*, and nothing on the service could. **A repair with no door is not a repair**,
+        which is the lesson the contract-bound track writer already paid for: it needed four
+        doors before a single row could be written, and the gap there was invisible for exactly
+        as long as nobody tried.
+
+        **WHY `through` IS REQUIRED AND HAS NO DEFAULT.** It is the last day the broken screen
+        wrote -- the deploy date of the item-19 repair -- and the function takes it as a
+        parameter precisely so a slipped deploy cannot silently mislabel real rows. By the time
+        anyone runs this, genuine rows are already accruing after that date, so an inferred span
+        would swallow them. A constant here would be the `MA5` defect with a one-way cost.
+
+        **IT APPENDS AND NEVER DELETES**, per item 23's own instruction: the rows stay on disk
+        and stay readable, and what changes is that `read()` honours the invalidation. Idempotent
+        -- a second call reports `already_done` and writes nothing.
+
+        **GET REPORTS, POST?write=1 APPLIES.** Same split as the doors above and for the same
+        reason: a side-effecting GET on an append-only record is reachable by a retry, a prefetch
+        or a pasted link.
+        """
+        if request.method == "GET" and request.args.get("write"):
+            return jsonify({"error": "write is POST-only; a GET never stores",
+                            "hint": "POST /admin/invalidate-dip-span?write=1&through=YYYY-MM-DD"}), 405
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..edge import fleet_history as _fh
+            through = (request.args.get("through") or "").strip()
+            if not through:
+                return jsonify({
+                    "error": "`through` is required and has no default",
+                    "why": ("it is the last day the broken screen wrote -- the deploy date of "
+                            "the item-19 repair. A default would silently mislabel real rows "
+                            "if the deploy slipped, and real rows are already accruing after "
+                            "that date."),
+                    "span_starts": _fh.UNMEASURED_DIP_FROM,
+                    "hint": "POST /admin/invalidate-dip-span?write=1&through=YYYY-MM-DD",
+                }), 422
+            apply = bool(request.method == "POST" and request.args.get("write"))
+            if not apply:
+                # REPORT WITHOUT WRITING. `invalidate_unmeasured_dip_span` has no dry-run mode
+                # and adding one would mean two code paths for one write, so the preview is
+                # built from what is already readable rather than by half-running the writer.
+                spans = _fh.invalid_spans() or []
+                done = [sp.get("series") for sp in spans
+                        if str(sp.get("reason", "")).find("dip") >= 0]
+                return jsonify({
+                    "ok": True, "applied": [], "already_done": done,
+                    "would_label": {"from": _fh.UNMEASURED_DIP_FROM, "through": through},
+                    "reason": _fh.UNMEASURED_DIP_REASON,
+                    "hint": ("POST /admin/invalidate-dip-span?write=1&through=%s to apply - "
+                             "this APPENDS an invalidation and deletes nothing" % through),
+                }), 200
+            res = _fh.invalidate_unmeasured_dip_span(through=through)
+            res["hint"] = None
+            return jsonify(res), (200 if res.get("ok") else 422)
+        except Exception as e:                                       # noqa: BLE001
+            log_exception("admin_invalidate_dip_span")
+            return jsonify({"error": safe_error(e)}), 500
+
     @app.route("/admin/track-reconstruct", methods=["GET", "POST"])
     def admin_track_reconstruct():
         """The days the automated writer missed, computed on the SERVICE and stored BESIDE the

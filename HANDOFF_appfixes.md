@@ -13735,3 +13735,115 @@ holds ZERO scream-buy rows, the real record being on Render's disk. The reset is
 `python -m valuation.edge.scream_log --reset --out-dir data_export` on the service. It archives
 first and moves the epoch only if that succeeded, and it DELETES NOTHING - the prior record stays
 queryable at its old `record_epoch`. Until it runs the tab correctly shows the original epoch.
+
+
+# SESSION 81 — THE DOOR ITEM 23's REPAIR DID NOT HAVE
+
+**A REPAIR WITH NO DOOR IS NOT A REPAIR, AND THIS ONE HAD NONE.** Session 79 shipped
+`fleet_history.invalidate_unmeasured_dip_span` to label F-11's dip rows over item 19's broken
+span -- written, tested, idempotent, append-only -- with **ZERO callers, no route and no script**.
+Its own docstring said *"RUN THIS ON THE SERVICE"* and nothing on the service could, and the
+ledger row went further and said *"it is Don's to apply"*, naming an action nobody could take.
+Measured rather than assumed: `grep` for the function across the tree outside its own test
+returns **exactly one line, the `def` itself**.
+
+**THIS IS THE TRACK WRITER'S LESSON AT ONE REMOVE.** `PT-WRITER` sat BLOCKED for days while its
+blocker was described as a missing price mechanism; the mechanism arrived, and the row stayed
+blocked, and it took **four separate doors** before a single row of the bound Index could be
+written. The gap was invisible for exactly as long as nobody tried to write a row. Same shape
+here: the function is correct, tested and unreachable, and nothing would have surfaced that until
+someone sat down to label the span and found there was no way in.
+
+## THE DOOR
+
+`POST /admin/invalidate-dip-span`, matching the three write-doors already in `app_saas.py`
+rather than inventing a shape:
+
+- **`GET ?write=1` is refused 405 BEFORE the auth check.** The ordering is the point and it is
+  pinned separately: a refusal that needs a token first is one an unauthenticated prefetch never
+  reaches, so the write-shaped GET would 401 and *look handled*. `/admin/track-row` shipped a GET
+  that wrote, and the recorded cure was this split -- a side-effecting GET on an append-only
+  record is reachable by a retry, a prefetch, a proxy or a pasted link, and none of those is a
+  decision to restate a record.
+- **`through` is REQUIRED and has no default.** It is the last day the broken screen wrote, i.e.
+  the deploy date of the item-19 repair. A constant would be `MA5`'s defect with a one-way cost:
+  by the time anyone runs this, genuine rows are already accruing after that date, and an
+  inferred span would swallow them. The 422 names the span start and says why rather than just
+  refusing.
+- **GET previews, POST applies.** The preview is built from what is already readable rather than
+  by half-running the writer, because a dry-run mode would mean two code paths for one write.
+- **It appends and never deletes**, which is item 23's own instruction. Pinned by reading the
+  function's AST for `os.remove`, `os.unlink` and `shutil.rmtree`.
+
+## WHAT WRITING IT FOUND IN MY OWN EARLIER WORK
+
+**ITEM 24's DOOR HAD NO TEST EITHER.** `/admin/score-alerts` shipped with **41 tests behind the
+SCORER and not one behind the DOOR** -- so the auth, the GET/POST split and the status codes
+were asserted nowhere. `grep -n "score-alerts" tests/*.py` returned nothing. The new suite
+covers **both** doors on the shared properties, which is why it is named for the pair rather
+than for this item.
+
+**THE PREVIEW IS ASSERTED AGAINST THE RECORD, NOT THE RESPONSE.** A door that answered
+`applied: []` while appending would pass a response-only check, so the test counts
+`invalid_spans()` before and after and requires it unchanged.
+
+**10 tests, 7 of 10 failing against `origin/main`** with sources restored byte-for-byte. The
+three that pass there are the three that exercise the FUNCTION, which already exists on main --
+which is itself the evidence for the finding: the function was there and only the way in was
+missing.
+
+**NOT DONE, AND IT IS THE SAME SENTENCE AS BEFORE WITH ONE WORD CHANGED: THE SPAN IS STILL NOT
+LABELLED.** The rows live under gitignored `data/` on Render and exist nowhere in this
+repository, so this lane can ship the door and cannot walk through it. What changed is that the
+action is now *possible*: `POST /admin/invalidate-dip-span?write=1&through=YYYY-MM-DD` with the
+admin token, `through` set to the deploy date of the item-19 repair. Run the GET first -- it
+reports what it would label and writes nothing.
+
+
+## ITEM 25, VERIFIED LIVE AFTER THE LAND — AND THE HEALTH HALF IS NOT FINISHED
+
+Eight cases through `POST /api/value` on the deployed service, 2026-10-03, with the SAME eight
+captured BEFORE the land so the comparison is on one service rather than against my laptop:
+
+| ticker | live before | live after |
+|---|---|---|
+| `O` | `growth`, **$9.42** vs $54.13, 75% DCF at $0.68/sh, conf **high**, `fcff_applies: True` | `reit`, **$35.62**, peer multiples, conf low, `fcff_applies: False` |
+| `PLD` | `mature`, **$20.39** | `reit`, **$73.04**, peer multiples |
+| `NEE` | `growth`, **$15.89**, conf high | `regulated`, **$42.67**, peer multiples |
+| `DUK` | `mature`, **$43.50**, *"0.1 yrs of runway"* | `regulated`, **$84.44**, runway sentence replaced |
+| `TSLA` | `mature`, **$23.416587672776433** | `mature`, **$23.416587672776433** — BIT-IDENTICAL |
+| `MRNA` | `mature`, *"stable profile"* at -16% revenue | `declining`, reliability low |
+| `BRK.B` | **score 40, "Reduce"**, price `None` | `BRK-B`, `financial`, **$609.8975455183308**, score 63 |
+| `ZZZZQ` | **HTTP 200, score 40, "Reduce"** | **HTTP 404 `ticker not found`, no score** |
+
+**THREE CONTROLS HELD.** `TSLA` is bit-identical to seventeen significant figures, which is the
+deliberate non-change item 25 asked for and the one a careless fix would have swept up. `BRK.B`
+returns **exactly** the number the hyphen form returned before the land, so it is normalisation
+and not a second code path. And `MRNA` still carries *"~2.8 yrs of runway"* -- correct, because
+it is `declining` rather than reit/regulated, so the runway check legitimately applies to a
+cash-burning biotech. **The suppression is scoped to the two regimes and nowhere else**, which a
+blanket removal would have destroyed.
+
+**AND THE HEALTH HALF IS NOT FINISHED, WHICH I ONLY FOUND BY COMPARING THE SCORES RATHER THAN
+THE FAIR VALUES.** Health sub-score, live before -> after: **`O` 35.7 -> 20.4**, **`NEE`
+36.6 -> 21.5**, `DUK` 15.7 -> 28.5. **Two of three went DOWN**, and the mechanism is measured:
+the surviving drivers read **net debt/EBITDA 6.0x, 5.8x and 5.3x**, which is ordinary for a
+property trust or a rate-regulated utility and alarming for an industrial. **The floors are
+general-purpose, and by reweighting to leverage 0.6 / coverage 0.4 I CONCENTRATED the sub-score
+on the two drivers these regimes structurally score worst on.** So the fix removed an invalid
+inference and simultaneously amplified a mis-calibration, and DUK improved only because the
+0.1-year runway penalty it removed was larger than the amplification.
+
+**THE STATED DEFECT IS FIXED AND A SECOND ONE IS NOW NAMED.** What item 25 identified was a
+SOLVENCY CLAIM about a regulatory asset, and that claim is gone -- `O`, `PLD`, `NEE` and `DUK` no
+longer assert a burn. What is NOT fixed is that **the leverage and coverage floors are not
+regime-aware**, and a REIT is penalised for being levered when leverage is the business.
+
+**NOT DONE, AND DELIBERATELY NOT GUESSED: no regime-aware leverage floor is invented here.**
+Picking one would mean choosing a number with nothing behind it, which is the error this record
+warns about most often and the reason `X7` exists -- and I would be choosing it immediately after
+seeing which direction the scores moved, which is choosing the bar on the outcome. It wants
+either a calibration against how levered these regimes actually are, or the honest alternative of
+withholding the health sub-score for them as the `financial` regime already does. **Both are
+construction changes with their own justification and neither is taken.** The scores for the four
+names are therefore lower than they should be, and that direction is the conservative one.
