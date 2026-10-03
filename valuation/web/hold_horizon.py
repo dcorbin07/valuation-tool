@@ -112,9 +112,18 @@ CAVEAT_CLAUSES = (
 #: §7's warning, shipped rather than left in the research file. Opens with the handoff's own
 #: sentence verbatim; the clause after the dash is the plain-language reason.
 NOT_A_HOLD_RULE = (
+    # THE FIRST CLAUSE IS §7's, VERBATIM, and `tests/test_hold_horizon.py` pins that it is --
+    # "so the product's version cannot soften the research one". The cadence correction is
+    # therefore APPENDED rather than spliced into the quote: rewriting "the list is re-ranked
+    # every quarter" would have silently restated a research sentence to fix a product one.
     "It is not a finding that the book should rebalance less often — the list is re-ranked "
     "every quarter, and what was measured is how one quarter's selection went on to do, not a "
-    "comparison of holding policies."
+    "comparison of holding policies. "
+    # THE SCOPE, which is what was missing and what made the sentence wrong in a product
+    # context: that quarterly cadence is the BACKTEST's. The live list re-ranks every close.
+    "That quarterly cadence is the BACKTEST's: the live Hot Stocks list is re-ranked after "
+    "every market close, while the Valquo Index changes only at a quarterly rebalance. Three "
+    "different clocks, and this measurement belongs to the quarterly one."
 )
 
 # --- the valuation band (NOT an S22 object — see the module docstring) --------------------

@@ -1216,7 +1216,20 @@ def test_name_view_joins_the_ranking_the_book_and_the_options_record():
     assert s["n_scored"] == res["scored"]
     # The attribution shown here is the SAME one the Hot tab shows — not a re-derivation.
     assert s["why"] == (res["rows"][0]["extra"] or {}).get("why")
-    assert s["index"]["available"] and isinstance(s["index"]["in_book"], bool)
+    # THE BOOK IN FORCE, NOT THE DAILY PICK (Don's ruling, 2026-10-02). This asserted
+    # `available` unconditionally, which held only because the old code rebuilt the book from
+    # the test's own scan rows. The answer now comes from the bound record, and a store with no
+    # record must report UNAVAILABLE WITH A REASON rather than falling back to a daily rebuild
+    # -- so both states are checked here, and the `in_book` type only where there is a book to
+    # be in.
+    if s["index"]["available"]:
+        assert isinstance(s["index"]["in_book"], bool)
+        assert s["index"].get("formed_on"), "an available book must say when it was formed"
+    else:
+        assert s["index"].get("reason"), (
+            "the index block is unavailable without saying why, which is how a missing book "
+            "comes to look like a name that is simply not held")
+        assert "in_book" not in s["index"] or s["index"]["in_book"] is False
     assert v["options"]["n_logged"] == 0
     assert any(a["kind"] == "caveat" for a in v["action"])
 

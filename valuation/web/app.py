@@ -195,8 +195,14 @@ def methodology():
     number typed into a template is a number that drifts.
     """
     from . import payoff as _payoff
+    # LIVE, NOT TYPED (E9, E12). This page carried "248 by 2026-09-29" and "~800 most liquid"
+    # while the log read 578 total and the scan ranks 1,500. One parse, the same one `/proof`
+    # and the Deflated Sharpe's own denominator use.
+    from . import live_facts as _facts
     return render_template("methodology.html", disclaimer=RISK_DISCLAIMER,
-                           payoff=_payoff.payoff_summary())
+                           payoff=_payoff.payoff_summary(),
+                           trials=_facts.trial_counts(),
+                           universe=_facts.universe_size(_store()))
 
 
 @app.route("/proof")
@@ -409,14 +415,30 @@ def _store():
 
 @app.route("/api/valquo-index")
 def api_valquo_index():
-    """The Valquo Index — the CONSTRUCTED TOP-SLICE of the same ranking Hot Stocks shows.
+    """The Valquo Index — THE BOOK IN FORCE, held since the last rebalance.
 
-    Deliberately built from the SAME snapshot the Hot Stocks tab reads, so there is exactly one
-    ranking in the product and the Index is a disciplined selection from it, not a second
-    competing screen. `config` picks the validated construction:
+    **DON'S RULING, 2026-10-02.** Hot stocks and options are daily; the Index is not. It is the
+    book formed at the last quarterly rebalance, held unchanged until the next one, and it is
+    the same book the forward record measures against SPY and SPMO.
 
-        roth     top-25, ~2-month rebalance, no no-trade band   (tax-free: Sharpe-optimal)
-        taxable  decile, quarterly, 20% band                    (after-tax-optimal)
+    **WHAT THIS ROUTE USED TO DO, AND WHY IT WAS WRONG.** It called
+    `build_index(st.load_snapshot(st.latest_scan_date()))` on every request, so the holdings
+    were rebuilt from each day's scan and changed daily — while the forward record beneath them
+    tracked a fixed 86-name book formed 2026-07-30. Two different books under one name, which
+    Don read as the Index having rebalanced. Measured: the bound record carries 86 positions
+    formed 2026-07-30 from scan 2026-07-24, against a default `roth` config serving 25 names off
+    today's scan.
+
+    **THE DEFAULT IS NOW THE RECORD AND THE REBUILD IS A LABELLED PREVIEW.** `?preview=1` still
+    returns the daily-rebuilt construction for planning, under `is_preview: true` and a
+    `not_the_index` note. The route is already owner-only (`surfaces.is_owner_only`), so the
+    preview is not a public surface; the label exists so a future reader of the payload cannot
+    mistake one for the other.
+
+    **NOTHING ABOUT CONSTRUCTION CHANGES.** `build_index` is untouched and is still the only
+    thing that BUILDS a rebalance book — the Oct 22 runbook's `--config taxable` path is
+    unaffected — and nothing the writer reads is modified. No scoring, no weight, no
+    construction and no recorded figure moves, so this is NOT a vintage event.
     """
     from ..edge.valquo_index import build_index
     from ..screener import settings as S
@@ -426,6 +448,42 @@ def api_valquo_index():
         return jsonify({"error": f"unknown config {name!r}",
                         "known": sorted(S.BOOK_CONFIGS or {})}), 400
     st = _store()
+
+    # ---------------------------------------------------------------- THE BOOK IN FORCE
+    if not request.args.get("preview"):
+        from ..screener import index_in_force as IF
+        book = IF.attach_returns(IF.book_in_force())
+        if not book.get("ok"):
+            # A REFUSAL, NEVER A FALLBACK TO THE DAILY PICK. Serving the rebuild when the
+            # record cannot be read is exactly the substitution this change exists to end:
+            # it would look like the Index and be a different book.
+            return jsonify({"empty": True, "config": name, "is_preview": False,
+                            "message": ("The Index is the book in force from the bound "
+                                        "record, and that record could not be read: %s"
+                                        % book.get("reason")),
+                            "disclaimer": RISK_DISCLAIMER})
+        book["sector_mix"] = IF.sector_mix(book, st)
+        # THE FULL `config_block`, not a hand-rolled subset. Consumers already read
+        # `config.rebalance_months` and friends off this payload, and replacing it with three
+        # keys would break them for no gain -- the account type still describes how the NEXT
+        # rebalance is built, which is exactly what the added note says.
+        from ..edge.valquo_index import config_block as _cfg_block
+        book["config"] = dict(_cfg_block(name, cfg))
+        book["config"]["note"] = ("the account-type construction describes how the NEXT "
+                                  "rebalance would be built; the book in force is whatever the "
+                                  "last rebalance set, and is what these holdings are")
+        book["available_configs"] = sorted(S.BOOK_CONFIGS or {})
+        book["is_preview"] = False
+        book["source_note"] = ("the book formed at the last rebalance and held unchanged "
+                               "since — the same book the forward record tracks, not today's "
+                               "scan")
+        # DATED AGAINST THE BOOK'S OWN FORMATION, not against a scan. The scan-freshness
+        # banner answers "is the ranking current", which is not a question about a held book —
+        # pointing it at this payload would make a correctly-held book look stale every day.
+        book["disclaimer"] = RISK_DISCLAIMER
+        return jsonify(book)
+
+    # ---------------------------------------------------------------- THE PREVIEW
     scan_date = st.latest_scan_date()
     if not scan_date:
         return jsonify({"empty": True, "config": name,
@@ -453,8 +511,13 @@ def api_valquo_index():
     payload["config"] = config_block(name, cfg)
     payload["scan_date"] = scan_date
     payload["available_configs"] = sorted(S.BOOK_CONFIGS or {})
+    payload["is_preview"] = True
+    payload["not_the_index"] = ("IF THE REBALANCE WERE TODAY. This is the construction applied "
+                                "to today's scan for planning. It is NOT the Valquo Index: the "
+                                "Index is the book in force from the bound record, which this "
+                                "route returns by default.")
     payload["source_note"] = ("built from the same scan snapshot as the Hot Stocks ranking — "
-                              "the Index is its disciplined top-slice, not a separate screen")
+                              "a preview of the next rebalance, not the book in force")
     # The scan silently stopped running for four days in July and the site kept serving the
     # last snapshot as if it were today's. Every scan-derived surface now dates itself.
     from ..screener.freshness import status as _freshness
@@ -473,8 +536,11 @@ def api_index_track():
     has enough history to mean anything.
     """
     from ..screener import index_track
-    from ..screener import settings as S
-    name = (request.args.get("config") or S.DEFAULT_BOOK_CONFIG or "roth").lower()
+    # THE TRACKED CONSTRUCTION BY DEFAULT, not the site's default account type: this card puts
+    # a backtest beside the RECORD, so the backtest has to be of the book the record is of.
+    # An explicit `?config=` is still honoured for the owner-only preview of another account
+    # type, and the payload names which construction it used.
+    name = (request.args.get("config") or index_track.TRACKED_CONFIG).lower()
     try:
         out = index_track.summarize(name, store=_store())
     except Exception as e:

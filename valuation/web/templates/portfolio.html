@@ -236,7 +236,8 @@
   <p>
     The count is not decoration: it is wired into the multiple-testing correction. The
     Deflated Sharpe and the Harvey–Liu–Zhu hurdle are charged the equity trials in the log
-    (<span class="num">248</span> on 2026-09-30) rather than the eight weightings they once
+    (<span class="num">{% if trials and trials.available %}{{ trials.equity }}{% else %}—{%
+    endif %}</span> today) rather than the eight weightings they once
     counted — and at that count the headline long-short spread does not clear the hurdle.
   </p>
   <p class="src">Protocol and schema: <code>RESEARCH_LOG.md</code> (append-only, one row per
@@ -456,7 +457,8 @@
       documented rule is now enforced beside it, and the decision it backed holds out of sample
       in one of the two split directions, not both.</li>
     <li>The overfitting statistic scores only the <b>weight-selection step</b>, not the
-      equity trials logged before it (<span class="num">248</span> by 2026-09-30).</li>
+      equity trials logged before it (<span class="num">{% if trials and trials.available
+      %}{{ trials.equity }}{% else %}—{% endif %}</span> today).</li>
     <li>The headline number <b>had never been tested as alpha</b>. That one is now closed: the
       regression was pre-registered, run, and it cleared its threshold — see below.</li>
   </ul>
@@ -471,7 +473,8 @@
   <p>
     <b>The composite's long-short spread has a t-statistic of 2.84</b> on the full 2,531-name,
     69-date panel — <b>below</b> the multiple-testing hurdle Harvey, Liu and Zhu's method sets
-    at this project's own trial count, about <span class="num">3.3</span> at 248 equity trials
+    at this project's own trial count, about <span class="num">3.3</span> at {% if trials
+    and trials.available %}{{ trials.equity }}{% else %}today's{% endif %} equity trials
     (the familiar 3.0 is the same formula at roughly 90). Three things travel with that number, and they point in
     both directions. An autocorrelation test rejects independence, so the figure this project
     quotes is the Newey–West one, <span class="num">t 2.62</span> — lower still. The rebalance
@@ -546,8 +549,10 @@
       The caveats travel with it, in the project's own words. It is still <b>one panel</b> — a
       factor regression is a control, not new data, and the international replication above is
       the out-of-sample evidence, not this. The t-statistic is <b>not multiplicity-corrected</b>
-      against the <span class="num">248</span> logged equity trials behind it
-      (<span class="num">578</span> across the whole project, as of 2026-09-30 — the live
+      against the <span class="num">{% if trials and trials.available %}{{ trials.equity
+      }}{% else %}—{% endif %}</span> logged equity trials behind it
+      (<span class="num">{% if trials and trials.available %}{{ trials.total }}{% else %}—{%
+      endif %}</span> across the whole project, read live from the log — the live
       count is on the <a href="{{ research_url }}">research record</a>), though the deployed
       weights are
       flat one-seventh and were never tuned. The panel's contaminated early period is no
@@ -614,7 +619,9 @@
   <div class="callout">
     <span class="h">Label, unmissably</span>
     <p>
-      It runs in a <b>broker sandbox on a paper account. There is no real money in it, and
+      The <b>options</b> paper book runs in a <b>broker sandbox on a paper account</b>;
+      the <b>Valquo Index</b> forward record is not in any broker account at all — it is a
+      quarterly book marked from closing prices. <b>There is no real money in either, and
       never has been.</b> It is about two months old, which is far too short to constitute
       evidence of anything, so <b>no number from it appears on this page</b> — the app shows it,
       labelled thin. It is listed here because

@@ -386,7 +386,19 @@ def _valquo_index_config_toggle(c):
         if not j.get("empty"):
             assert j["config"]["name"] == name
             assert j["config"]["rebalance_months"]
-            assert "same scan snapshot" in j.get("source_note", "")
+            # UPDATED BY DON'S RULING, 2026-10-02. This used to require "same scan snapshot"
+            # in the DEFAULT payload's note -- which is the defect written into an assertion:
+            # the default is now the BOOK IN FORCE and is not built from a snapshot at all.
+            # The snapshot wording belongs to `?preview=1`, and is asserted there instead.
+            assert "held unchanged" in j.get("source_note", ""), j.get("source_note")
+            assert j.get("is_preview") is False
+    prev = c.get("/api/valquo-index?preview=1")
+    assert prev.status_code == 200
+    pj = prev.get_json()
+    if not pj.get("empty"):
+        assert pj.get("is_preview") is True
+        assert "same scan snapshot" in pj.get("source_note", "")
+        assert "NOT the Valquo Index" in pj.get("not_the_index", "")
     # The Hot Stocks page carries both blurbs and the toggle. Asserted on the TEMPLATE rather
     # than a rendered /app, because whether /app renders depends on CONFIG.open_access, which
     # sibling tests in this module flip — that is auth state, not what this test is about.
@@ -395,10 +407,19 @@ def _valquo_index_config_toggle(c):
                          "valuation", "web", "templates", "index.html")
     with open(_tpl, encoding="utf-8") as _fh:
         h = _fh.read()
-    assert 'id="bookConfig"' in h, "account-type toggle missing"
+    # THE ACCOUNT-TYPE TOGGLE IS GONE BY DON'S RULING (2026-10-02) and this assertion
+    # pinned it. The Index is ONE fixed book, so offering a construction implied a choice that
+    # does not exist, and the control defaulted to the 25-name "roth" book that is not tracked
+    # and not published. Asserting its ABSENCE instead, so it cannot come back unnoticed.
+    assert 'id="bookConfig"' not in h, (
+        "the account-type toggle is back; the Index is one fixed book")
     # The second blurb moved inside the owner-only block when the Index tab did, and was
     # re-worded there; matched on the phrase that survives the line break.
-    assert "discovery" in h and "backtested top-slice" in h, "blurbs missing"
+    # "backtested top-slice" was the OLD pointer wording and it is gone by Don's ruling: the
+    # tab now says one fixed book, held for the quarter. Matched on the phrase that replaced
+    # it, so this still pins that BOTH blurbs are present.
+    assert "discovery" in h, "the discovery blurb is missing"
+    assert "one fixed book cut from" in " ".join(h.split()), "the Index blurb is missing"
 
 
 def test_methodology_page_is_public_and_states_the_weaknesses():

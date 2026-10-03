@@ -132,6 +132,119 @@ def missing_dates(series, inception: str, through: str = None) -> list:
     return out
 
 
+class _PriceMemo:
+    """ONE vendor call per ticker for a WHOLE RUN, instead of one per ticker PER DATE.
+
+    **THE COST THIS REMOVES, MEASURED.** `contract_row` prices the ~86 Index names plus the
+    benchmark for ONE date, and both callers below invoke it once per date. Measured against
+    the 24-row live record on 2026-10-02: **18 missing sessions plus 24 recorded rows = 42
+    rows x 87 names**, and the door that does it died without answering inside 600s. One
+    `contract_row` takes **102.4s**, of which **45s (44%)** is a single name (WBS) whose
+    yfinance frame is stale, falling through to a Stooq that is dead and costs 3 attempts x a
+    15s connect timeout. Per date that 45s is paid AGAIN -- the same name failing the same way
+    42 times. (An earlier draft of this note said 31 missing / 55 rows; that counted missing
+    sessions against the STALE 8-row local history rather than the record.)
+
+    A frame is the SAME OBJECT for every date in the run, so the fetch is per TICKER and the
+    dates come out of the frame. `index_mark._closes` already turns a whole frame into a
+    `{date: close}` map and `contract_row` then picks the date it needs, so nothing downstream
+    changes shape: this narrows how often the frame is fetched and not what it contains.
+
+    **THE WRITER'S ROUTE IS UNTOUCHED, AND THAT IS STRUCTURAL RATHER THAN PROMISED.** This
+    lives in the reconstruction module and is handed in through `contract_row`'s existing
+    `fetch=` parameter -- the hook its own docstring provides so "the tests can run the whole
+    mechanism offline". `index_mark` is not edited, and the daily writer still calls
+    `contract_row` with `fetch=None`, which resolves to `prices.get_history_df` per date
+    exactly as before. Nothing here can reach the recorded track.
+
+    **THE ANCHOR IS THE EARLIEST DATE IN THE RUN, AND THE CHOICE IS FORCED RATHER THAN
+    PREFERRED.** `as_of` does NOT truncate a frame -- `_yf_history` fetches a period relative
+    to TODAY and `as_of` feeds only `_stale`, which is `last < as_of`. So the anchor decides
+    whether a frame is ACCEPTED, never what is in it:
+
+      * anchored on the LATEST date, WBS's frame (newest row 2026-08-19) is judged stale,
+        falls through to the dead fallback, and the memo caches `None` -- so WBS would read
+        UNPRICED on EVERY date, including the early ones where a per-date call PRICES it.
+        That silently moves the book leg, and it is the vendor-side survivorship
+        `validate_against_record` already warns about.
+      * anchored on the EARLIEST date, that frame is accepted; the map it yields covers dates
+        up to 2026-08-19 and simply has no entry after it. Early dates price, late dates read
+        unpriced -- which is what the per-date calls produce, one call instead of 55.
+
+    A frame older than even the earliest date is rejected by both routes, so the fallback is
+    still reached exactly where a per-date call would reach it.
+
+    **`as_of` IS DELIBERATELY ABSENT FROM THE SIGNATURE.** `index_mark._accepts_as_of`
+    INSPECTS the fetcher and passes `as_of` only to one that takes it, so leaving it off is
+    how this object declares that the staleness question was decided once for the run rather
+    than per date. Adding it and ignoring it would read like per-date freshness that is not
+    happening.
+
+    **A FAILURE IS CACHED TOO.** `None` is a result: a dead vendor must cost its timeout ONCE
+    per ticker, not once per ticker per date, which is the 44% above. And the memo is built
+    PER RUN and never at module level -- a cache that outlived a run would serve tomorrow's
+    reconstruction a frame fetched today, which is the staleness defect one level up.
+    """
+
+    def __init__(self, dates, *, base=None, days: int = None):
+        from . import index_mark as _im
+        self._base = base or _prices_get_history_df()
+        iso = sorted({str(d)[:10] for d in (dates or []) if d})
+        self.anchor = iso[0] if iso else None
+        self.last = iso[-1] if iso else None
+        # The window must provably reach the earliest date in the run. 400 (index_mark's
+        # HISTORY_DAYS, a 2y yfinance period) already spans a run of this size, but it is
+        # DERIVED rather than trusted so a longer run cannot silently lose its early end.
+        need = 0
+        if self.anchor:
+            try:
+                need = (_dt.date.today() - _dt.date.fromisoformat(self.anchor)).days + 10
+            except (TypeError, ValueError):
+                need = 0
+        self.days = max(int(days or _im.HISTORY_DAYS), need)
+        self._base_takes_as_of = _im._accepts_as_of(self._base)
+        self._frames = {}
+        self.calls = 0                 # vendor calls actually made, for the gate below
+        self.calls_by_ticker = {}
+
+    def __call__(self, ticker, days: int = None):
+        if ticker in self._frames:
+            return self._frames[ticker]
+        self.calls += 1
+        self.calls_by_ticker[ticker] = self.calls_by_ticker.get(ticker, 0) + 1
+        try:
+            # `as_of` ONLY TO A BASE THAT TAKES IT, decided by `index_mark._accepts_as_of` --
+            # IMPORTED, never a second copy of the rule (B7). Several suites inject a
+            # two-argument `fetch(ticker, days=400)`; handing one an unexpected keyword
+            # raises TypeError, which the `except` below would cache as `None` and every
+            # name in the book would read UNPRICED. That is the exact failure `_accepts_as_of`
+            # was written for after it cost thirty-one tests, reproduced one level up.
+            if self.anchor and self._base_takes_as_of:
+                df = self._base(ticker, self.days, as_of=self.anchor)
+            else:
+                df = self._base(ticker, self.days)
+        except Exception:                                               # noqa: BLE001
+            # Cached as a failure for the same reason `None` is: re-raising per date would
+            # pay the cost once per date. `_closes` turns a raiser into `fetch_raised`.
+            df = None
+        self._frames[ticker] = df
+        return df
+
+    def stats(self) -> dict:
+        return {"vendor_calls": self.calls,
+                "tickers": len(self.calls_by_ticker),
+                "anchor": self.anchor,
+                "window_days": self.days,
+                "max_calls_per_ticker": (max(self.calls_by_ticker.values())
+                                         if self.calls_by_ticker else 0)}
+
+
+def _prices_get_history_df():
+    """The default base fetcher, resolved late so importing this module pulls in no vendor."""
+    from . import prices
+    return prices.get_history_df
+
+
 def reconstruct(dates, *, meta_path: str = None, history_path: str = None,
                 fetch=None, now=None) -> dict:
     """Compute the missed days with `index_mark.contract_row`, the WRITER's own function.
@@ -153,11 +266,16 @@ def reconstruct(dates, *, meta_path: str = None, history_path: str = None,
     number for a day the vendor could not price, it is worse than the hole it replaces.
     """
     from . import index_mark
+    # Materialised once: the memo needs the whole date list to pick its anchor, and
+    # `n_requested` below used to call `len(list(dates))` AFTER the loop had consumed it,
+    # which would read 0 for any generator caller.
+    dates = [str(d)[:10] for d in (dates or []) if d]
+    memo = _PriceMemo(dates, base=fetch)
     out, refused = [], []
     for d in dates:
         try:
             r = index_mark.contract_row(as_of=d, meta_path=meta_path,
-                                        history_path=history_path, fetch=fetch, now=now,
+                                        history_path=history_path, fetch=memo, now=now,
                                         refuse_before_close=False)
         except Exception as e:                                          # noqa: BLE001
             refused.append({"date": str(d), "reason": "%s: %s" % (type(e).__name__, e)})
@@ -174,7 +292,8 @@ def reconstruct(dates, *, meta_path: str = None, history_path: str = None,
                     "n_priced": row.get("n_priced"),
                     "coverage": r.get("coverage")})
     return {"points": out, "refused": refused,
-            "n_requested": len(list(dates)), "n_computed": len(out)}
+            "n_requested": len(dates), "n_computed": len(out),
+            "prices": memo.stats()}
 
 
 def validate_against_record(series, *, meta_path: str = None, history_path: str = None,
@@ -206,10 +325,17 @@ def validate_against_record(series, *, meta_path: str = None, history_path: str 
         if d:
             rows[d] = r
     out, bl, bn = [], [], []
-    for d in sorted(rows)[:limit] if limit else sorted(rows):
+    # ONE vendor call per ticker for the whole validation, through `contract_row`'s own
+    # `fetch=` hook. `limit` is left exactly as it was and is NOT set by any caller here:
+    # this makes the full validation affordable rather than smaller, which matters because
+    # the docstring above makes it the PRECONDITION for drawing any point -- capping it
+    # would weaken that licence while looking like a speed fix.
+    days = sorted(rows)[:limit] if limit else sorted(rows)
+    memo = _PriceMemo(days, base=fetch)
+    for d in days:
         rec = rows[d]
         got = index_mark.contract_row(as_of=d, meta_path=meta_path, history_path=history_path,
-                                      fetch=fetch, refuse_before_close=False)
+                                      fetch=memo, refuse_before_close=False)
         if not got.get("ok"):
             out.append({"date": d, "refused": got.get("reason") or "refused"})
             continue
@@ -240,7 +366,8 @@ def validate_against_record(series, *, meta_path: str = None, history_path: str 
                     "record_fields": [kb, kn],
                     "n_priced_reconstructed": row.get("n_priced"),
                     "n_priced_recorded": rec.get("n_priced")})
-    res = {"days": out, "n_compared": len(bl), "n_refused": len(out) - len(bl)}
+    res = {"days": out, "n_compared": len(bl), "n_refused": len(out) - len(bl),
+           "prices": memo.stats()}
     if bl:
         res["book_max_abs"] = round(max(bl), 6)
         res["book_median_abs"] = round(sorted(bl)[len(bl) // 2], 6)

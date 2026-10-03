@@ -188,12 +188,52 @@ def _window(asof: str):
     return (hi - _dt.timedelta(days=INSIDER_LOOKBACK_D)).isoformat(), hi.isoformat()
 
 
-def fetch4(limit: int | None = None, current: bool = False) -> dict:
+def insider_score_from_txns(txns) -> float | None:
+    """The insider score on a Form 4 transaction list, or `None` for an empty window.
+
+    **ONE IMPLEMENTATION, AND THE OWNER IS THIS FILE BECAUSE THIS FILE IS WHAT THE CONTROL
+    SCORES.** There were THREE copies of this formula and two of them lived here:
+
+      * `valuation/screener/insider.py:175` -- the SHIPPED live single-stock scorer, keyed on
+        `pressure` rather than a raw net. Deliberately NOT merged: it is a different object with a
+        different input and its own callers, so folding it in would be a fourth change with its
+        own blast radius, and nothing here needs it.
+      * this file's FIDELITY-2 control -- the copy that measured insider at **+0.8726** against
+        the panel's own theme, which is the number that licensed the live rebuild.
+      * this file's `build_live` -- the copy that writes the PRODUCTION cache.
+
+    The last two were textually identical, which is exactly how two copies come to drift: the
+    control would go on reporting +0.8726 about a formula production had stopped using. Both now
+    delegate here, so the control validates the code production runs rather than a twin of it.
+
+    **AN EMPTY WINDOW IS `None`, NOT 50.** That is the panel's semantics and it is load-bearing:
+    the control's own comment records that returning a neutral 50 for "no transactions" created a
+    179-name tie block. No opinion is not a neutral opinion.
+    """
+    vals = [x["raw"] for x in (txns or []) if isinstance(x, dict) and x.get("raw") is not None]
+    if not vals:
+        return None
+    net = float(sum(vals))
+    buys = int(sum(1 for v in vals if v > 0))
+    return max(0.0, min(100.0, 50 + 40 * math.tanh(net / INSIDER_TANH_SCALE)
+                        + min(INSIDER_BUY_CAP, INSIDER_BUY_BONUS * buys)))
+
+
+def fetch4(limit: int | None = None, current: bool = False,
+           snapshot: str | None = None) -> dict:
     """Crawl the Form 4 documents the panel's window would have contained.
 
     Uses the submission indexes already cached by V2G, so this is documents only. Terminal
     outcomes only are recorded (the miner's manifest rule), so a throttled document is retried
     rather than banked as "this name had no filings".
+
+    **`snapshot` EXISTS BECAUSE THE DEFAULT IS A PIN, AND THAT IS WHY `form4_live` WAS EMPTY.**
+    `M.load_served()` with no argument resolves `live_theme_sources.SNAPSHOT`, a pinned file --
+    so this could only ever crawl the universe that file names, never the 1,500-name broker
+    ranking the theme cache is built for. `build_live` then found no `form4_live/<ticker>.json`
+    for any served name and the insider column came out empty, which read as "no insider data"
+    rather than "this producer was never pointed at this universe". Same bound-default shape as
+    `fetch_all`'s own snapshot argument, one layer along.
     """
     from concurrent.futures import ThreadPoolExecutor
     import datetime as _d
@@ -206,7 +246,9 @@ def fetch4(limit: int | None = None, current: bool = False) -> dict:
         out_dir = F4_DIR
         print(f"aligned Form 4 window: {lo} .. {hi} (exclusive of {hi}, mirroring audit B26)")
     M._ensure(out_dir)
-    served = M.load_served()
+    # ONE call with an explicit default, rather than a ternary whose else-branch is another
+    # bare call -- the bare form is the thing being fixed and it should appear once, here.
+    served = M.load_served(snapshot or M.SNAPSHOT)
     guard = M.Guard(min_interval=M.SEC_MIN_INTERVAL_S)
     ciks = M._read_json(os.path.join(ROOT, "cik_map.json")) or {}
 
@@ -281,16 +323,14 @@ def insider_column() -> dict:
         if rec is None:
             shape["unreadable"] += 1
             continue
-        vals = [x["raw"] for x in rec.get("txns", []) if x.get("raw") is not None]
-        if not vals:
+        score = insider_score_from_txns(rec.get("txns"))
+        if score is None:
             # THE PANEL'S SEMANTICS: no transaction in the window is NO OPINION, not a neutral
-            # 50. This is the single change that removes a 179-name tie block.
+            # 50. This is the single change that removes a 179-name tie block. The rule now lives
+            # in `insider_score_from_txns`, which production shares, so the control cannot pass
+            # on a formula production has stopped using.
             shape["empty_window_none"] += 1
             continue
-        net = float(sum(vals))
-        buys = int(sum(1 for v in vals if v > 0))
-        score = max(0.0, min(100.0, 50 + 40 * math.tanh(net / INSIDER_TANH_SCALE)
-                             + min(INSIDER_BUY_CAP, INSIDER_BUY_BONUS * buys)))
         out[t] = (score - 50.0) / 25.0          # factors.py:271, as V2G mapped it
         shape["scored"] += 1
     return {"insider": out, "shape": shape}
@@ -410,12 +450,10 @@ def build_live(*, served=None, period_curr: str = None, period_prior: str = None
 
         f4 = M._read_json(os.path.join(_f4, f"{t}.json"))
         if f4:
-            vals = [x["raw"] for x in f4.get("txns", []) if x.get("raw") is not None]
-            if vals:
-                net = float(sum(vals))
-                buys = int(sum(1 for v in vals if v > 0))
-                rec["insider_score"] = max(0.0, min(100.0, 50 + 40 * math.tanh(
-                    net / INSIDER_TANH_SCALE) + min(INSIDER_BUY_CAP, INSIDER_BUY_BONUS * buys)))
+            # DELEGATED to the one implementation the FIDELITY-2 control also calls (B7).
+            _sc = insider_score_from_txns(f4.get("txns"))
+            if _sc is not None:
+                rec["insider_score"] = _sc
         for k in cov:
             if k in rec:
                 cov[k] += 1
@@ -496,6 +534,10 @@ def main(argv=None) -> int:
     ap.add_argument("--current", action="store_true",
                     help="crawl TODAY's window to build the production cache")
     ap.add_argument("--json", default=OUT)
+    ap.add_argument("--snapshot", default="",
+                    help=("served-universe file for `fetch4`. Without it the crawl reads the "
+                          "PINNED snapshot, which is why `form4_live` was empty for the broker "
+                          "universe the theme cache is built for."))
     a = ap.parse_args(argv)
     if a.cmd == "fetch13f":
         fetch13f()
@@ -504,7 +546,7 @@ def main(argv=None) -> int:
         build_live()
         return 0
     if a.cmd == "fetch4":
-        fetch4(a.limit, current=a.current)
+        fetch4(a.limit, current=a.current, snapshot=a.snapshot or None)
         return 0
     p = score()
     os.makedirs(os.path.dirname(a.json), exist_ok=True)
