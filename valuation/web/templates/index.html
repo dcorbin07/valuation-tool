@@ -135,9 +135,31 @@
           <div class="lb-stat"><span class="k">{{ hero.index.benchmark }}</span>
             <span class="v {{ 'pos' if (hero.index.bench_pct or 0) >= 0 else 'neg' }}">
               {{ "%+.2f%%"|format(hero.index.bench_pct) if hero.index.bench_pct is not none else "—" }}</span></div>
-          <div class="lb-stat"><span class="k">Excess</span>
+          <div class="lb-stat"><span class="k">Excess
+              <span class="win-tag">as operated</span></span>
             <span class="v {{ 'pos' if (hero.index.excess_pp or 0) >= 0 else 'neg' }}">
               {{ "%+.2fpp"|format(hero.index.excess_pp) if hero.index.excess_pp is not none else "—" }}</span></div>
+          {# E7 — BOTH OBJECTS ON THE BAND, BECAUSE RULE 5 SAYS NEITHER MAY STAND IN FOR THE
+             OTHER, AND THE ONE THAT WAS MISSING IS THE ONE A VERDICT ATTACHES TO.
+
+             The Excess tile above chains every vintage end to end, INCLUDING the voided one
+             whose window the contract itself discloses at -2.85pp. That is the "system as
+             operated" object: rule 5 says it "is explicitly not the contract's test: it mixes
+             models, so no §5 verdict may be read from it". The contract's test is the CURRENT
+             vintage (rule 4), and that figure was on no surface at all — so the band was
+             showing the context number under no label and withholding the claim number.
+
+             The tile renders only when the open vintage HAS rows. An empty vintage is the
+             normal state on the day one opens, and `vintage_claim` returns None rather than
+             the chaining identity's 0.0 for exactly that case: a rendered "+0.00pp" would read
+             as a flat vintage rather than an unrecorded one. Every string is the module's own. #}
+          {% if hero.index.vintage and hero.index.vintage.available
+                and hero.index.vintage.current and hero.index.vintage.current.excess_pp is not none %}
+            <div class="lb-stat"><span class="k">Excess
+                <span class="win-tag">vintage {{ hero.index.vintage.current.vintage }}</span></span>
+              <span class="v {{ 'pos' if (hero.index.vintage.current.excess_pp or 0) >= 0 else 'neg' }}">
+                {{ "%+.2fpp"|format(hero.index.vintage.current.excess_pp) }}</span></div>
+          {% endif %}
           {# PT-SPMO ON THE BAND — REPORTED, NOT BOUND, AND THE DISTINCTION IS CARRIED
              VISUALLY RATHER THAN IN A TOOLTIP.
 
@@ -185,6 +207,22 @@
         {% if hero.index.available and hero.index.book %}
           <div class="lb-stat lb-prov" style="flex-basis:100%">
             <span class="muted" style="font-size:12.5px">{{ hero.index.book }} · {{ hero.index.window }}</span></div>
+        {% endif %}
+        {# Which vintage, and what the two Excess figures are. Worded by `vintage_claim` and
+           `track_meter`, so the band and the Index tab cannot describe one number two ways. #}
+        {% if hero.index.vintage and hero.index.vintage.available %}
+          <div class="lb-stat lb-prov" style="flex-basis:100%">
+            <span class="muted" style="font-size:12px">Book vintage
+              {{ hero.index.vintage.vintage.vintage }} since {{ hero.index.vintage.vintage.since }}
+              ({{ hero.index.vintage.vintage.label }}).
+              {% if hero.index.vintage.current and hero.index.vintage.current.excess_pp is not none %}
+                The <b>as operated</b> figure {{ hero.index.vintage.as_operated.not_a_verdict }}.
+                {{ hero.index.vintage.rule }}.
+              {% else %}
+                The vintage figure is withheld because
+                {{ hero.index.vintage.current.reason }}, so only the as-operated figure is shown —
+                and it {{ hero.index.vintage.as_operated.not_a_verdict }}.
+              {% endif %}</span></div>
         {% endif %}
         {# The wording, in `reported_benchmark`'s own words. A reader who takes in only this
            band must not leave thinking two benchmark claims are being made. #}

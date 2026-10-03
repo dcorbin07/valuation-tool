@@ -1004,7 +1004,20 @@ function _srcMark(r) {
 
 function renderHot(d) {
   const f = d.filtered;
-  let meta = `scan ${d.scan_date}${_ageStr(d.scan_date)} · ${d.scored}/${d.universe_size || "?"} scored · ${d.provider || ""}`;
+  /* E8 — NAME WHAT SERVED THE SCAN, NOT WHAT WAS CONFIGURED TO.
+     This line read `d.provider`, the configured vendor, while `d.health.api_budget` in the
+     same response recorded `served_by_fmp: 0`, `fmp_disabled_mid_scan: true` and a 402 in
+     its error sample. So the header credited a vendor that served nothing, with the evidence
+     sitting one key away. `d.source` is the derived label (`providers.served_by`), and when
+     it DISAGREES with the configured name the configured one is shown too — a reader asking
+     "what was this meant to use" is asking a real question, and the two differing is the
+     part worth seeing. Falls back to `d.provider` for a response with no census. */
+  const src = d.source;
+  let srcTxt = (src && src.label) ? src.label : (d.provider || "");
+  if (src && src.measured && src.degraded && src.label !== src.configured) {
+    srcTxt += ` (configured: ${src.configured})`;
+  }
+  let meta = `scan ${d.scan_date}${_ageStr(d.scan_date)} · ${d.scored}/${d.universe_size || "?"} scored · ${srcTxt}`;
   if (f && f.total_removed) meta += ` · ${f.total_removed} junk filtered`;
   document.getElementById("hotMeta").textContent = meta;
   setHtml("hotFreshness", freshnessBanner(d.freshness));
@@ -1489,6 +1502,21 @@ function _trackCard(title, sub, s) {
   const logged = ct.n_logged != null
     ? `${ct.n_logged.toLocaleString()} picks logged over ${ct.n_days} scan days since ${ct.first_logged}`
     : `${rec.length} recent picks shown`;
+  /* E10 — ROWS ON DAYS THE MARKET WAS SHUT, DISCLOSED RATHER THAN DELETED.
+     The logger used to date a row `today()` with no calendar check, so a scan on Labor Day
+     2026-09-07 logged picks for a session that never happened. `track.log_picks` refuses that
+     now; the rows already written are KEPT and counted here, because a record that quietly
+     drops what it recorded is worse than one that explains it. Rendered only when the count
+     is non-zero — a zero needs no sentence. */
+  const nShut = ct.n_rows_on_non_trading_days || 0;
+  const shutLine = nShut
+    ? `<div class="note" style="margin-top:6px">${nShut.toLocaleString()} of these picks are
+       dated on ${ct.n_non_trading_days} day(s) the market was closed${
+         (ct.non_trading_days && ct.non_trading_days.length)
+           ? ` (${ct.non_trading_days.map(esc).join(", ")})` : ""}, logged before that was
+       checked. They are kept rather than deleted, and no pick could have been acted on those
+       days, so they carry no return.</div>`
+    : '';
   // A refresh that ran and FAILED must not read as "still accruing" -- that is how seven weeks of
   // silent failure looked like patience.
   const rfLine = (rf && rf.ok === false)
@@ -1496,7 +1524,7 @@ function _trackCard(title, sub, s) {
     : '';
   let inner;
   if (!H.some(([k]) => sm[k])) {
-    inner = `<div class="muted">${logged}. Each pick is measured from the day it was picked, so it counts once it is 21 trading days old — whether or not it is still in the top 10. None has been scored yet.</div>${rfLine}`;
+    inner = `<div class="muted">${logged}. Each pick is measured from the day it was picked, so it counts once it is 21 trading days old — whether or not it is still in the top 10. None has been scored yet.</div>${shutLine}${rfLine}`;
   } else {
     inner = '<table><tr><th>Horizon</th><th class="num">Picks</th><th class="num">Avg return</th><th class="num">S&amp;P</th><th class="num">Alpha</th><th class="num">Beat S&amp;P</th><th class="num">Win rate</th></tr>';
     H.forEach(([k, lab]) => {
@@ -1508,7 +1536,7 @@ function _trackCard(title, sub, s) {
         <td class="num">${pct(x.hit_rate_vs_bench, 0)}</td><td class="num">${pct(x.win_rate, 0)}</td></tr>`;
     });
     inner += '</table>';
-    inner += `<div class="note" style="margin-top:6px">${logged}. An options pick is logged once per alert, and a name can alert on consecutive sessions, so the picks overlap and the count overstates how many independent bets this is — read the averages as a description, not a significance test. (The hot-list rule is different: a name that stays in the top 10 is logged every day it is there.)</div>${rfLine}`;
+    inner += `<div class="note" style="margin-top:6px">${logged}. An options pick is logged once per alert, and a name can alert on consecutive sessions, so the picks overlap and the count overstates how many independent bets this is — read the averages as a description, not a significance test. (The hot-list rule is different: a name that stays in the top 10 is logged every day it is there.)</div>${shutLine}${rfLine}`;
   }
   if (rec.length) {
     inner += '<div class="note" style="margin-top:10px">Most recent picks (each fills in 21 trading days after its date):</div>' +

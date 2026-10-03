@@ -45,11 +45,21 @@ def log_hot(store, scan_date, rows, cfg=None, top=10, price_fn=_vendor_close):
 
 
 def log_options(store, rows, min_score, day=None):
+    """E10 -- the refusal is RETURNED rather than dropped.
+
+    This used to date a row `today()` with no calendar check, so a scan on Labor Day
+    2026-09-07 logged picks for a session that never happened. `track.log_picks` refuses that
+    now and returns the reason; returning it here means a caller that wants to know can tell
+    a skip from a write. The bare `except` stays -- logging a pick must never break a scan --
+    but it no longer hides the one outcome that is not an error.
+    """
     try:
         from .notify import screaming_buys
         picks = screaming_buys(rows, min_score)
         if picks:
-            track.log_picks(store, "options", day or _dt.date.today().isoformat(),
-                            [r["ticker"] for r in picks])
+            return track.log_picks(store, "options",
+                                   day or _dt.date.today().isoformat(),
+                                   [r["ticker"] for r in picks])
+        return {"written": False, "n": 0, "reason": "no screaming buys in this scan"}
     except Exception:
-        pass
+        return None

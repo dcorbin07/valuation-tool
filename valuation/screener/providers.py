@@ -504,6 +504,81 @@ class FMPProvider(ScreenerProvider):
         return m
 
 
+def served_by(health: dict, configured: str) -> dict:
+    """What actually served this scan's fundamentals, derived from the census.
+
+    E8 -- THE HEADER NAMED THE CONFIGURED VENDOR AND THE CENSUS SAID IT SERVED NOTHING,
+    AND BOTH WERE IN THE SAME PAYLOAD, ONE KEY APART. `screen.run` returned
+    `provider: provider.name` -- a fact about CONFIGURATION -- while the `health` dict beside
+    it recorded `api_budget.served_by_fmp: 0`, `fmp_disabled_mid_scan: true` and a 402 Payment
+    Required in `fmp_error_sample`. So the hot list's meta line read "Financial Modeling Prep"
+    for a scan in which Financial Modeling Prep served zero names, and the evidence for that
+    was already on the page's own API response.
+
+    This is the family this project keeps meeting: a label a surface can state without
+    consulting the measurement beside it. `hero.py` records the sharpest version -- a payload
+    that honestly set `source: "paper-sandbox"` while the template never rendered it, and the
+    lesson drawn there was that "a label that a surface can decline to show is not a
+    safeguard". The inverse is this one: a label that is never asked to agree with the census
+    is not a measurement, however honest the census is.
+
+    SO THE LABEL IS DERIVED AND THE CONFIGURED NAME TRAVELS BESIDE IT RATHER THAN BEING
+    REPLACED. A reader who wants to know what was MEANT to serve the scan is asking a real
+    question, and the two answers differing is exactly the thing worth seeing.
+
+    DEGRADES TO THE CONFIGURED NAME, LABELLED AS SUCH. With no census -- an old snapshot, a
+    provider that keeps no counters -- this cannot know what served, and saying so is better
+    than either inventing a source or showing nothing. `measured` is False in that state, so a
+    surface can tell a measurement from a default.
+    """
+    out = {"label": configured, "configured": configured, "measured": False,
+           "degraded": False, "counts": {}, "reason": None}
+    # `isinstance` on BOTH levels, not just the outer one. A snapshot's `params` blob is
+    # whatever was written months ago, so `api_budget` can legitimately be absent, None, or --
+    # as a malformed-input test found -- a string. A label must not take down the hot list.
+    b = (health or {}).get("api_budget") if isinstance(health, dict) else None
+    if not isinstance(b, dict) or not b:
+        out["reason"] = "this scan kept no source census, so the configured provider is named"
+        return out
+
+    fmp = int(b.get("served_by_fmp") or 0)
+    free = int(b.get("served_by_free_fallback") or 0)
+    off = bool(b.get("fmp_disabled_mid_scan"))
+    fund = (health or {}).get("fundamentals")
+    broker = fund.get("broker") if isinstance(fund, dict) else None
+    bro = int((broker or {}).get("names_with_broker_data") or 0) \
+        if isinstance(broker, dict) else 0
+
+    out["measured"] = True
+    out["counts"] = {"fmp": fmp, "free_fallback": free, "names_with_broker_data": bro,
+                     "fmp_disabled_mid_scan": off, "fmp_errors": int(b.get("fmp_errors") or 0)}
+
+    # A cache hit is served by NEITHER counter, so the counts need not sum to the scan size and
+    # this must not try to make them: `get_metrics` returns a cached row before it touches
+    # either path. What the counts do establish is which LIVE routes ran.
+    if fmp and free:
+        out["label"] = "%s + %s" % (configured, FreeProvider.name)
+        out["degraded"] = True
+        out["reason"] = ("%d name(s) served by %s and %d by the free stack"
+                         % (fmp, configured, free))
+    elif fmp:
+        out["label"] = configured
+        out["reason"] = "%d name(s) served by %s" % (fmp, configured)
+    elif free or bro:
+        # The case that was on the live site. Naming the configured vendor here is the defect.
+        out["label"] = FreeProvider.name
+        out["degraded"] = True
+        why = "served no names"
+        if off:
+            why = "was disabled mid-scan"
+        out["reason"] = ("%s %s, so every live name came from the free stack" % (configured, why))
+    else:
+        out["label"] = "cache"
+        out["reason"] = ("no live fundamentals call was served this scan; every name came "
+                         "from cache")
+    return out
+
+
 def _fmp_to_metrics(ticker, km, ratios, profile) -> dict:
     """Map FMP TTM key-metrics/ratios/profile to our metrics dict (best-effort;
     verify field names against your FMP plan's live payload on first run)."""

@@ -5,6 +5,225 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 75 — 2026-10-02 — E7, E8 and E10: three labels that each disagreed with a measurement sitting in the same payload
+
+**The three items session 74 reported as NOT DONE.** No new scope: E7 (the hero's wording and
+the vintage label), E8 (the hot-list source label), E10's second half (the pick logger on market
+holidays). **ZERO TRIALS** — no hypothesis, no bar, no verdict, and nothing under
+`valuation/edge/fundamental_panel.py` or the writer's path changed. **NOT A VINTAGE EVENT:** no
+scoring, weight, construction or recorded figure moves.
+
+**THE COMMON SHAPE, AND IT IS WHY THESE THREE BELONGED IN ONE PASS.** Each surface stated
+something a measurement already in the same response contradicted:
+
+| item | the label said | the payload also said |
+|---|---|---|
+| E7 | "since 2026-07-31" | `window`: "since inception **2026-07-30**" |
+| E7 | one Excess figure, unlabelled | it is the **four-vintage chain**, one of them VOID |
+| E8 | "Financial Modeling Prep" | `api_budget.served_by_fmp`: **0**, `fmp_disabled_mid_scan`: true |
+| E10 | 2026-09-07 is a logged session | `market_session.is_trading_day`: **Labor Day** |
+
+None of these is a wrong *number*. Every figure verified. What was missing in each case was a
+label required to AGREE with the census beside it — and `hero.py` already records the sharpest
+version of the inverse: a payload that honestly set `source: "paper-sandbox"` while the template
+never rendered it, where the lesson drawn was *"a label that a surface can decline to show is not
+a safeguard"*. **The inverse is worse, because nothing looks broken.**
+
+## E7 — the hero reported ONE number and it was the wrong one to report alone
+
+**(a) TWO START DATES FOR ONE WINDOW, IN ONE BOX.** `summarize` sets `live["since"] =
+series[0]["date"]`, the first RECORDED ROW, while `vs_spy_claim`'s window text starts at
+INCEPTION. On the bound record those differ (inception 2026-07-30, first row 2026-07-31) and
+`hero.py` took `live["since"] or t["inception"]` — the precedence backwards. **Two neighbouring
+surfaces had it right already:** `app.js` renders `d.inception || live.since` and `landing.html`
+renders `track.inception`, so this was the hero disagreeing with the rest of the product about one
+window, not a judgement call. **LA8's family, named in that module's own docstring**: a COVERAGE
+fact rendered under a WINDOW's name. The row date is KEPT as `first_row` — the gap between the two
+IS the recording story.
+
+**(b) THE CONTEXT FIGURE WAS SHOWN AND THE CLAIM FIGURE WAS NOT.** Contract §5a rule 5 ends
+*"Both are reported; neither is substituted for the other."* The band's Excess tile is the
+as-operated chain: **four vintages, one VOID at a disclosed -2.85pp**. Rule 5 says that object
+*"is explicitly not the contract's test: it mixes models, so no §5 verdict may be read from it"*.
+The test is the OPEN vintage (rule 4) — **and that figure was on no surface at all.** Measured on
+the bound record: **as operated +1.0683pp, vintage 4 +1.6199pp over 21 rows since 2026-08-13.**
+
+**THE NUMBER WAS NEVER WRONG, WHICH IS WHY EVERY CHECK PASSED.** Chaining contiguous legs of a
+cumulative series reproduces the cumulative, so the as-operated total EQUALS the recorded
+since-inception excess *by construction* — `track_meter._reconcile` checks it and reads True. The
+defect was a missing label and a missing companion, which is the harder kind to find.
+
+**ONE AUTHORITY: `track_meter.vintage_claim()`**, which calls `track_meter.detail()` rather than
+re-deriving anything, returns both objects each marked `is_the_verdict_window`, and carries rule
+5's words and `not_a_verdict` so a surface cannot render the figure and drop the sentence. The
+template words nothing.
+
+**IT WAS WRITTEN IN `index_track` FIRST AND MOVED, AND THE REASON IS WORTH CARRYING.** That module
+owns the window and claim wording the band renders beside this, so it looked like the natural home
+— **but `edge` already imports `screener`** (module-level at the top of `track_meter.py`, and
+function-locally inside `detail`), so a `screener -> edge` import would have **CLOSED A MUTUAL LAZY
+CYCLE**: both directions work only while neither is hoisted, and the first person to hoist either
+breaks it. Moved to `track_meter.py`, where the siblings are already in scope (`VINTAGES`,
+`as_operated`, `_reconcile`, `vintage_label`) and **nothing new is imported at all** —
+`index_track.py` now contains no `..edge` import of any kind. All 9 E7 mutations are still caught
+after the move, and `test_shadow_vintage.py`'s fence (26 tests) stays green.
+
+**A DEFECT FOUND BY RUNNING IT, AND IT WILL FIRE ON EVERY FUTURE VINTAGE EVENT.** `as_operated`
+gives an empty leg `rv = rs = 1.0`, so its excess is exactly **0.0** — right as a chaining factor
+and ruinous as a displayed number, because "+0.00pp" reads as *this vintage is flat* when the
+truth is *this vintage has recorded nothing*. **This is not hypothetical: the day any vintage
+opens, its leg is empty by definition**, so the band would have shown a measured-looking zero for
+the one window a verdict is read on. The local dev store is already in that state, which is how it
+surfaced. Guarded in `vintage_claim` and **not** in `as_operated`, which feeds the meter and whose
+1.0 is correct there.
+
+**THE SHADOW STAYS FENCED.** `as_operated` carries a per-vintage leg list and one leg IS the
+shadow; `/api/track`'s own comment records that it adds the vintage LABEL and "carries no
+measurement" for that reason. `vintage_claim` returns the OPEN leg and the TOTAL and **drops the
+list**: the current vintage's own excess is not the shadow's, so publishing it breaches nothing —
+publishing the breakdown would. Pinned by a test that locates the shadow's leg independently and
+requires its figure to be absent from the payload.
+
+## E8 — the hot list credited a vendor that served nothing, and said so one key away
+
+`screen.run_scan` returned `provider: provider.name` — a fact about CONFIGURATION — and
+`app.js` rendered it, while the `health` dict in the SAME response recorded **`served_by_fmp: 0`,
+`fmp_disabled_mid_scan: true`, a 402 Payment Required in `fmp_error_sample`, 698 names on the free
+fallback and 1,415 carrying broker data.**
+
+**`providers.served_by(health, configured)`** derives the label from the census and is checked in
+five states, because a label that only ever says one thing is not reading anything: FMP-only names
+FMP; mixed names both with counts; **the live state names the free stack and marks itself
+`degraded`**; an all-cache scan says `cache` rather than crediting a vendor for names it never saw
+(neither counter fires on a cache hit, so the counts need not sum to the scan size); and with no
+census it falls back to the configured name with **`measured: False`**, so a surface can tell a
+reading from a default.
+
+**TWO THINGS IT DELIBERATELY DOES NOT DO.** It does not redefine `provider`: `save_snapshot` and
+`archive_scan` persist that string, so changing its meaning would quietly change what every
+archived row says. And it is derived at **READ** time in `/api/hotstocks` rather than persisted at
+scan time, **so snapshots already on disk get the honest label** — the census was always stored, it
+was simply never consulted by the thing that named the source. Additive, PT-SPMO's judgement; the
+configured name travels beside the derived one, because "what was this meant to use" is a real
+question and the two differing is the part worth seeing.
+
+## E10 — the pick logger wrote rows for sessions that never happened
+
+`saas/tracker.log_options` dated a row `day or date.today().isoformat()` with no calendar check,
+so a scan on **Labor Day 2026-09-07** logged picks for a closed session (DELL was the observed
+one). `log_hot` had the same hole. **The track's claim is "if you had followed these picks on this
+date, here is what happened" — on a closed day nobody could have followed anything**, and
+`update_returns` prices such a row against an index with no entry for that day, which is
+`track._calendar_index`'s neighbouring hazard in a new place.
+
+**ONE GUARD, IN THE SINGLE WRITER** (`track.log_picks`), covering both sources and any future
+caller. The calendar was verified before being trusted: `market_session.market_holidays(2026)`
+returns ten dates and flags 2026-09-07 closed, 2026-09-08 open.
+
+**IT RETURNS THE REFUSAL RATHER THAN RAISING, AND THAT IS THE LOAD-BEARING HALF.** Both call sites
+in `saas/tracker.py` wrap the logger in a bare `except Exception: pass`, so **an exception would
+be swallowed and a skip would be indistinguishable from a write** — the same shape as the
+`TypeError` that left every horizon on the Track Record tab reading "accruing" for seven weeks.
+`log_options` now returns the result.
+
+**IT FAILS OPEN ON A DATE IT CANNOT CHECK.** Losing a day's picks is irreversible on an
+append-only record and an odd date string is not evidence the market was shut, so an unparseable
+date still writes and says so in `reason`.
+
+**EXISTING ROWS ARE LABELLED, NOT DELETED.** `web/app._track_counts` counts them on READ — so it
+covers rows written long before the guard existed — and the card shows the count, the day count
+and the dates, with the sentence *"kept rather than deleted"*. It is a DISCLOSURE: a test asserts
+it changes neither `n_logged` nor `n_days`, and a mutation that filters the rows out is caught.
+**The real count could not be measured here** — the local store holds 2099-01-01 fixtures — so it
+is surfaced BY the service rather than quoted from this lane.
+
+## SIX DEFECTS OF MY OWN, FIVE FOUND BY MUTATION, BY RUNNING, OR BY ANOTHER ITEM'S GUARD
+
+0. **THE BAND'S NEW TAGS BORROWED PT-SPMO's VOCABULARY, AND ITS LANDED GUARD CAUGHT ME.** The
+   first cut marked both Excess tiles `rep-tag`, and **two of `test_reported_benchmark.py`'s
+   tests went red** — one counts exactly two of them, the other requires none when no comparison
+   is recorded. **They were right for a reason beyond the count:** `rep-tag` is that item's
+   vocabulary for a benchmark that is REPORTED and **not** the bound claim, while these two tiles
+   are both bound-SPY figures over different WINDOWS — and the vintage one **IS** the contract's
+   claim, so tagging it "reported" says the opposite of the truth. New `win-tag` class, identical
+   geometry on purpose because the two tags do the same visual job, separate name so the two
+   meanings cannot be conflated again. **Pinned in THIS item's suite rather than that one's**,
+   since the lesson is this item's, and a ninth mutation (reverting the class) is caught.
+
+1. **Two E7 tests passed via the CAPTION rather than the tile.** They asserted `"vintage 4" in
+   rendered_text` and `"as operated" in rendered_text`, and **both strings also occur in the
+   provenance line underneath**, so deleting the tile outright left them green. **A test that
+   cannot tell a figure from a sentence about the figure is not testing the figure.** Repaired by
+   parsing `.lb-stat` minus `.lb-prov` into (label, value) pairs — exactly the visual distinction
+   the band itself makes — and asserting on those.
+2. **An E8 test passed via the `if` CONDITION.** It asserted `src.configured` appears in the
+   renderer; that name also appears in `src.label !== src.configured`, so removing the append left
+   it passing while nothing reached the page. **Referencing a field is not rendering it.**
+3. **My own comment stripper destroyed the thing it was looking for.** `_strip_py_comments`
+   blanked every STRING token — which is what makes a docstring-satisfied positive assertion
+   impossible — and the assertions were on string LITERALS (`"source"` as a dict key), so they
+   could never match. Replaced with AST reads: returned-dict keys and called names, which see the
+   key and cannot see prose about it. The handler is located by the **route it serves**, not by a
+   function name nobody promised to keep.
+4. **`served_by` raised on a malformed `health`.** `isinstance` was checked on the outer dict only,
+   and a snapshot's `params` blob is whatever was written months ago — a malformed-input test
+   found `api_budget` as a string. Both levels are checked now, and the `fundamentals.broker`
+   lookup with them.
+5. **Two mutation anchors came back "count=0" and read as a missing guard rather than a harness
+   bug**, because `providers.py` is CRLF and `app.js` is LF. The harness now translates an
+   LF-written anchor to the file's own convention. **A skip that reads as a pass is the failure
+   mode worth avoiding in a mutation harness.**
+
+## TESTS
+
+**66 new tests across three suites** — `test_vintage_claim.py` 28, `test_source_label.py` 20,
+`test_holiday_picks.py` 18 — and **27 of 27 mutations caught** (9 + 9 + 9), every source restored
+byte-for-byte with sha256 verified. Every guard reading a template or a script reads the RENDERED
+output or the AST, never the source text, and every stripper is pinned non-vacuous in both
+directions.
+
+## THE LOCAL GATE'S SINGLE FAILURE IS ENVIRONMENTAL, AND THE DIAGNOSIS IS THE POINT
+
+**217 suites, ONE failure on each of two clean runs -- and A DIFFERENT SUITE EACH TIME.** Run 1
+failed `test_fleet_highwater.py`; run 2 passed it and failed `test_sync_checkout.py`. Both pass
+**standalone at exit 0**, and `test_fleet_highwater` also passes after running the **entire
+alphabetical prefix** of suites in separate processes exactly as the gate does -- so it is not
+reading state an earlier suite leaves on disk.
+
+**Ownership was proved rather than argued**, with this project's own one-line test:
+`git diff --stat origin/main HEAD` over `data_export/fleet_highwater.json`, `fleet_highwater.py`,
+`fleet_history.py`, `fleet_books.py`, `fleet.py`, `scripts/sync_checkout.py` and `scripts/sync.bat`
+is **empty**. Neither suite's subject is in this branch.
+
+**Both are members of a family `CLAUDE.md` already names.** `MB21` and `MB16` recorded
+`test_options_freeze.py` and `test_checkout_drift.py` failing the same way on the same day and
+measured the cause as **sustained concurrent temp-volume I/O**: suites that build real artifacts
+under `%TEMP%` wrap no I/O in a retry, and the failures are **invisible in CI, where a Linux
+runner has no contention**. `test_sync_checkout.py` builds temporary git repositories, which is
+exactly that shape. **Two more members, reported not fixed** -- neither suite is this lane's, and
+adding retries to another lane's harness on the strength of a flake would be the wrong repair.
+
+**AND MY OWN EARLIER READING WAS NOT SAFE, WHICH IS WHY IT WAS RE-RUN.** The first sighting came
+from a pass in which I had **two gate runs overlapping**, so a standalone pass was consistent with
+both a real defect and my own contention; this project's note on that shape says in terms that
+*the deciding evidence is a second gate's log, not eight green runs*. The second log is what
+settles it -- a different suite failing is a property of the machine, not of the branch.
+
+**The authority is the land Action**, which runs every suite on a clean runner.
+
+## NOT DONE
+
+* **The Index tab's JS still does not RENDER** `weight_at_formation`, `return_pct`, `status`,
+  `exit`, `formed_on`, `next_rebalance`, `sector_mix` or `tax_treatments` — the table shows the
+  right BOOK and those fields sit in the payload. Carried from session 74, untouched here.
+* **Nothing schedules `compute_returns`** — it needs a `.github/` edit this lane is refused.
+* **The `PAPER_TRACK_CONTRACT.md` amendment codifying the WBS treatment** is still outstanding.
+* **The holiday-row COUNT is not quoted**, only surfaced: the local store is synthetic, so the
+  number appears on the Track Record tab when the service renders it.
+* `ADMIN_TOKEN` **still wants rotating** — it was printed into a session transcript.
+
+---
+
 # Session 74 — 2026-10-02 — ONE Valquo Index, everywhere, and the contract's own premise was false
 
 **DON'S RULING + 17-AMEND, 2026-10-02.** Hot stocks and options are daily; the Index is ONE fixed
