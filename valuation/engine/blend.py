@@ -170,6 +170,60 @@ def blended_fair_value(cd, cls, dcf_per_share, comps_fair_value,
                           "value and ROE, and at least one is missing.")
         return out
 
+    # --- REITs and regulated utilities: the FCFF lens is REFUSED, not down-weighted --------
+    #
+    # ITEM 25. Both regimes share one property: CAPEX IS THE BUSINESS, so unlevered free cash
+    # flow after capex is small or negative for a healthy company and an FCFF DCF reads that
+    # investment as value destruction. Measured on the live service 2026-10-03, before this
+    # branch existed:
+    #
+    #   O    DCF/share $0.7455 at 75% weight -> blend $9.46  against a $54.13 price
+    #   PLD                                  -> blend $20.39 against $128.91
+    #   NEE                                  -> blend $15.89 against $76.83  (confidence HIGH)
+    #   DUK                                  -> blend $43.50 against $114.13
+    #
+    # REFUSED RATHER THAN DOWN-WEIGHTED, and that is the load-bearing choice. A low weight still
+    # lets a $0.75 figure drag a $35 multiples estimate down, and `DCF_QUALITY` at
+    # `dcf_reliability: "low"` is 0.35 -- which would have left the DCF a THIRD of the blend on
+    # a lens that cannot apply at all. "Unreliable" and "inapplicable" are different states and
+    # the weight vector can only express the first.
+    #
+    # THE CONSEQUENCE IS DELIBERATE AND IS A REFUSAL WHERE MULTIPLES ARE ABSENT. If no comps
+    # figure exists the name is NOT VALUABLE rather than valued by the lens that does not
+    # apply -- `UNKNOWN`'s principle one layer along: publishing nothing is a claim about our
+    # own knowledge, and publishing $9.46 is a claim about Realty Income.
+    #
+    # `lens_applicability` then reports `fcff_applies: False` with no further change, because it
+    # READS the weights this function assigns -- so the Monte Carlo, the sensitivity grid and
+    # the reverse DCF become reference-only automatically. That is the gate working as designed;
+    # it was answering `True` for a REIT only because the blend had given the DCF 75%.
+    if getattr(cls, "regime", "") in ("reit", "regulated"):
+        _what = ("REIT" if getattr(cls, "regime", "") == "reit" else "regulated utility")
+        if mult is not None:
+            out.value, out.valuable = mult, True
+            out.method = "peer multiples"
+            out.lenses = {"multiples": {"value": round(mult, 4), "weight": 1.0}}
+            # NEVER "high". The right lenses for these two regimes are FFO/AFFO and P/NAV for a
+            # REIT and a regulated-return model for a utility, and neither is built -- so a
+            # multiples-only figure is the best available rather than a good one, and saying
+            # otherwise is how NEE came to be published at `confidence: high`.
+            out.confidence = "low"
+            if not quiet:
+                out.notes.append(
+                    "Valued on peer multiples alone: for a %s, capex is the business, so an "
+                    "unlevered cash-flow DCF reads its investment as value destruction and is "
+                    "not used. FFO/AFFO (a REIT) and an allowed-return model (a utility) are "
+                    "the right lenses and are not built here, so treat this as a peer "
+                    "comparison rather than an intrinsic value." % _what)
+        else:
+            out.reason = (
+                "Not valuable from the available data \u2014 a %s cannot be valued by the "
+                "unlevered cash-flow model (its capex is the business, so free cash flow after "
+                "capex is near zero for a healthy company), and no usable peer multiple was "
+                "available either. Publishing the cash-flow figure anyway would be a number "
+                "about the model rather than about the company." % _what)
+        return out
+
     # --- Everything else: DCF, mature multiples and the revenue lens, by maturity.
     quality = DCF_QUALITY.get(getattr(cls, "dcf_reliability", "medium"), 0.55)
     live = {}

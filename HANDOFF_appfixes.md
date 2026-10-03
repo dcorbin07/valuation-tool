@@ -5,7 +5,263 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
-# Session 79 — 2026-10-03 — ITEMS 21, 22, 23: the card that described another book, the research figures still sold as the product, and a screen that checked 5% of what it reported on
+# Session 80 — 2026-10-03 — ITEM 25: a cash-flow model applied to companies whose cash flow it cannot describe
+
+**ZERO TRIALS. NOT A VINTAGE EVENT, AND THAT IS MEASURED RATHER THAN ASSERTED.** `hot_score` is
+computed at `screen.py:365` from the composite alone; `_enrich_with_dcf` runs at `:388`, AFTER
+it; and `factors.py` never reads `fair_value` or `upside`. So this moves the DISPLAYED fair
+value on at most the top-12 scan rows and the single-stock tool, and **cannot move a ranking,
+the composite or the Index**. Same conclusion `S25-REPAIR` reached for the sector repair, by the
+same kind of check.
+
+Every figure below was read off the live service on 2026-10-03 before any edit.
+
+## 1. THE REIT HINT WAS AN EM DASH, SO IT HAD NEVER MATCHED ANYTHING
+
+`FINANCIAL_INDUSTRY_HINTS` carried `"reit—"` — U+2014 — against live industry strings reading
+`"REIT - Retail"` and `"REIT - Industrial"` with a hyphen-minus and spaces. So
+`"reit—" in "reit - retail"` is False and every REIT fell straight through to the
+growth/mature branches.
+
+**A TYPOGRAPHIC CHARACTER IN A PREDICATE MATCHED AGAINST VENDOR DATA IS NOT A TYPO, IT IS A TEST
+THAT CANNOT FIRE** — and it fails SILENTLY, because the fall-through produces a confident number
+rather than an error. Measured:
+
+| | regime | fair value | price | the DCF leg |
+|---|---|---|---|---|
+| O (Realty Income) | `growth`, reliability **high** | **$9.46** | $54.13 | **$0.7455/share at 75% weight** |
+| PLD (Prologis) | `mature`, reliability **high** | **$20.39** | $128.91 | — |
+
+A REIT's capex IS its business — acquiring and developing property — so unlevered free cash
+flow AFTER capex is small or negative for a HEALTHY company, every year. The model was answering
+a question the business does not pose. The hint is removed from the financial tuple entirely
+rather than fixed: **a REIT is not a financial**, and routing it there would hand it
+justified-P/B-from-ROE, which is a bank's model.
+
+## 2. REGULATED UTILITIES, AND ONE CAUSE PRODUCED TWO DIFFERENT WRONG ANSWERS
+
+NEE cleared the 0.10 growth bar (0.1045) and DUK did not (0.0469), so one got `growth` — at
+**`confidence: high` with no implausibility warning at all**, $15.89 against $76.83 — and the
+other `mature`, $43.50 against $114.13. **That is why the sector is now tested BEFORE the growth
+branches rather than after, as `CYCLICAL_SECTORS` is**: ordering it after is how one defect
+produced four different-looking outputs across the two pairs.
+
+DUK additionally carried *"Cash-burning: ~0.1 yrs of runway at the current burn."* **A REGULATED
+UTILITY READING AS FIVE WEEKS FROM INSOLVENCY IS A CATEGORY ERROR**, and it is the sharper half:
+the fair value was merely wrong, while the runway sentence is a SOLVENCY CLAIM about a company
+whose negative free cash flow is a regulatory asset — capex is rate-base investment the regulator
+allows a return on.
+
+**AND IT IS NOT MERELY A SENTENCE, WHICH I UNDERSTATED FIRST TIME: IT DRIVES THE SCORE.** Read off
+the live service on 2026-10-03, DUK's **health sub-score is 15.7 out of 100**, and health carries
+0.20 of the composite. So a ~$88bn regulated utility was not just described as five weeks from
+insolvency, it was *marked down for it* -- the runway inference reaching the number a user sees
+rather than stopping at the prose beside it. That is why the fix drops the free-cash-flow term and
+the runway driver from the health sub-score for these two regimes and reweights to the two that
+genuinely apply, rather than only editing the wording.
+
+## THE FCFF LENS IS REFUSED, NOT DOWN-WEIGHTED
+
+`DCF_QUALITY` at `dcf_reliability: "low"` is **0.35**, so down-weighting would still have left a
+$0.75-a-share figure about a THIRD of the blend. **"Unreliable" and "inapplicable" are different
+states and a weight vector can only express the first.**
+
+| | before | after |
+|---|---|---|
+| O | $9.46 | **$35.62** |
+| PLD | $20.39 | **$73.04** |
+| NEE | $15.89 | **$42.67** |
+| DUK | $43.50 | **$84.44** |
+
+All on peer multiples at **confidence LOW** — never high, because FFO/AFFO (a REIT) and an
+allowed-return model (a utility) are the right lenses and are **not built here**, so a
+multiples-only figure is the best available rather than a good one. That is the sentence NEE's
+`confidence: high` was missing.
+
+**A NAME WITH NO USABLE MULTIPLE IS NOT VALUABLE RATHER THAN VALUED BY THE LENS THAT DOES NOT
+APPLY.** `UNKNOWN`'s principle one layer along: publishing nothing is a claim about our own
+knowledge, and publishing $9.46 is a claim about Realty Income.
+
+**`lens_applicability` NEEDED NO CHANGE** and now reports `fcff_applies: False`, so the Monte
+Carlo, the sensitivity grid and the reverse DCF become reference-only automatically. It READS
+the blend's weights — it was answering `True` for a REIT only because the blend had given the
+DCF 75%. The gate was working; it was being fed the wrong weights.
+
+**THE HEALTH TREATMENT IS NARROWER THAN THE `financial` BRANCH, DELIBERATELY.** That one
+withholds the whole sub-score because all three inputs fail for one reason. Here **leverage and
+interest cover genuinely apply** — a REIT is debt-financed property and a regulator watches a
+utility's gearing — so only the free-cash-flow term and the runway inference are dropped, and
+their weight goes to the two that work. Withholding the whole sub-score would have thrown away
+two valid measurements to remove one invalid one. **`is_cash_burning` is left alone** and still
+reports the measured fact: the fact (FCF < 0) is true, the INFERENCE (a burn, a runway) is what
+does not follow, and that distinction has to survive or the classification starts lying about
+the financials.
+
+## 3. `mature` IS THE DEFAULT BRANCH, SO IT ASSERTS STABILITY ABOUT EVERYTHING ELSE
+
+Item 25 asked me to check the regime classifier's inputs for TSLA and MRNA. **The inputs are
+right and the default branch is what is wrong** — and the two names come apart.
+
+MRNA: blended growth **−0.1605**, cash-burning, labelled *"Mature, stable profile: standard
+5-year FCFF DCF."* Being un-matched by four tests is not evidence of stability, and "mature,
+stable profile" is a positive assertion. That is the same defect `UNKNOWN` exists for — its own
+comment records that letting an unresolved sector fall through to the growth branch valued four
+of four financials with the unlevered model — one layer down, in the regime layer instead of the
+sector layer. A `declining` regime now says what it is and lowers reliability, and **changes no
+model**: a 5-year FCFF DCF on a shrinking profitable business is structurally coherent in a way
+it is not for a REIT, so inventing a decline model would be a construction change smuggled in
+behind a labelling fix.
+
+**TSLA IS DELIBERATELY NOT RE-ROUTED, AND THIS IS THE HALF OF ITEM 25 THAT IS NOT A DEFECT.**
+Its inputs are correct — **+7.84%** growth, FCF-positive, profitable — and its $23.42 against
+$370.59 comes from ROIC 5% against a **WACC of 14%**: a high beta discounted at the real 5.28%
+10-year yield, which item 25 states plainly is the model working as written. **Routing a
+profitable, FCF-positive, single-digit-growth manufacturer out of `mature` to make its number
+look better would be choosing the regime on the output.**
+
+The −5% threshold is **labelled a convenience rather than a calibrated bar**, because nothing in
+this project has measured where mature stops and shrinking starts. It is −5 rather than 0 for a
+measured reason: `_blended_growth` mixes a 3-year CAGR with the latest year-on-year, so a flat
+business with one soft year lands slightly negative and a 0% bar would relabel it on sampling.
+
+## 4. `BRK.B` AND `BRK-B` ARE THE SAME COMPANY AND ONLY ONE WORKED
+
+The dot form returned sector `""`, industry `""`, `regime: unknown`, price `None` — **and then a
+score of 40 and a recommendation of "Reduce"**. The hyphen form returned `financial`, price
+502.65, score 63, "Hold".
+
+Normalised **before the first fetch**, not as a retry on failure: a retry makes the hyphen form
+a FALLBACK, so the two spellings take different code paths and only one of them is exercised by
+anything. **Narrow by design** — one to five letters, a dot, a SINGLE letter — because widening
+it to "any dot" would start rewriting symbols nobody asked about, and the failure direction
+there is a silent lookup of the WRONG company rather than a clean miss. The rewrite leaves a
+note: a reader who typed `BRK.B` and gets a page headed `BRK-B` is owed the reason.
+
+**AND THE NARROWNESS HAS A FALSE POSITIVE, NAMED RATHER THAN DISCOVERED LATER: A SINGLE-LETTER
+EXCHANGE SUFFIX IS SYNTACTICALLY IDENTICAL TO A SHARE CLASS.** `VOD.L` (Vodafone, London) matches
+the pattern and becomes `VOD-L`, which is not a symbol anywhere. **THE FAMILY IS WIDER THAN I
+FIRST WROTE, AND THE TEST IS WHAT WIDENED IT:** my first cut asserted six real foreign spellings
+were untouched and FAILED against correct code on `BABA.N`, because `.N` is the Reuters venue code
+for NYSE and `.O` for Nasdaq -- so it is not only the European `.L`/`.F`/`.V` I had named. An
+over-claim about my own predicate, caught by driving it rather than by reading it, and the
+corrected list ships in the test. **No regex can separate them**, because the information that
+distinguishes a class letter from a venue letter is not in the string. Two things bound it.
+**Measured: the served universe carries ZERO dotted tickers**, so it is unreachable from the scan,
+the Index or the panel and can only arise from a user typing a foreign listing into the
+single-stock tool. And **the failure direction is the safe one**: `VOD-L` fetches nothing, trips
+`looks_not_found` and returns the 404 from cause 5, where BEFORE this change `VOD.L` returned the
+same fabricated `score 40, "Reduce"` that `BRK.B` and `ZZZZQ` did. **A foreign listing goes from a
+confident wrong answer to an honest refusal** -- still not Vodafone, and a strict improvement.
+Resolving it properly needs a symbology table (which venue suffixes exist), which is a data
+dependency rather than a predicate, and is NOT taken here.
+
+**A THIRD SITE NOW SPELLS TICKERS, AND IT IS REPORTED RATHER THAN CONSOLIDATED.**
+`broker_universe.py:62` does `/`->`-` (a DIFFERENT character, Tradier's own spelling) and
+`universe.py:83` does `.`->`-` **unconditionally** on the Wikipedia S&P 500 symbol column.
+**They are not interchangeable in both directions**: this item's narrow rule is safe at any
+boundary, while the unconditional one is safe only on its own closed table -- every dot in the
+S&P 500 list really is a share class (`BRK.B`, `BF.B`). So the near-duplicate is real and the
+consolidation is **declined on blast radius**, which is `MA38`'s shape: pointing the universe
+ingest at the stricter rule would change what a symbol like `BRK.BB` normalises to and therefore
+what the UNIVERSE contains, feeding the panel and the scan -- a membership change smuggled in
+behind a tidy-up. Named here so a future reader finds three sites and the reason, rather than
+three sites.
+
+## 5. A NONEXISTENT TICKER RETURNED HTTP 200 WITH A SCORE AND A RECOMMENDATION
+
+`ZZZZQ` answered **score 40, "Reduce"** — identical to `BRK.B`. The 40 is `health: 40.0`
+standing alone after the valuation was withheld and the weights renormalised, so it is
+**literally one sub-score of a company nobody identified, rendered as a verdict**.
+
+**EVERY HONEST CAVEAT DOWNSTREAM IS ABOUT THE VALUATION AND NONE OF THEM CAN SAY THE COMPANY WAS
+NOT FOUND.** `partial_note` explains at length that the valuation contributes nothing; it cannot
+explain that there is no company. Now a **404 with no score**, from an explicit `fetch_failed`
+flag set at the one place that knows every source was asked and every source came back empty — a
+boolean rather than an inference at the call site, because *price is None* is a different
+question and a real company can be mid-halt or thinly quoted.
+
+**REFUSED AT THE SURFACE RATHER THAN IN THE ENGINE**, because `value_from_company` is also the
+batch and offline entry point and those callers build a `CompanyData` by hand with no such flag
+on it — raising there would change what the backtest does on a shape it has always accepted.
+**Not cached**, or the refusal would depend on cache state.
+
+## AND THE IMPLAUSIBILITY WARNING NAMED THE WRONG CAUSE
+
+It read *"almost certainly a data problem (currency or share count), not a real opportunity.
+Verify the figures."* **The data was fine. The model was wrong.** A mis-attributed warning is
+worse than none, in two directions: it sends the reader to verify figures that are correct, and
+it sends the next person to read the code hunting a currency bug. A third branch names what is
+actually true — a peer comparison disagreeing with the market, on a company whose right lenses
+are not built here — and **the original message survives for an ordinary company**, because a
+0.2x ratio on an industrial really is usually a currency or share-count problem.
+
+## DEFECTS OF MY OWN IN THIS ITEM, AND THE SUBSTRING-BAN FAMILY THREE TIMES
+
+**ONE IN THE CODE, FOUND BY DRIVING IT.** I set the `fetch_failed` flag inside the `cd is None`
+branch, on the reasonable-looking assumption that a symbol nobody can find produces no object.
+It does not: `yahoo.fetch` RETURNS a `CompanyData` for `ZZZZQ` with ticker and name populated
+from the argument and everything else `None`, so **the branch I put the flag in cannot be
+reached by the case it was written for**, and the route went on answering 200 with a valuation
+built from `base_revenue: 0.0` and an assumed 10% margin.
+
+**ONE IN A CONTROL THAT COULD NOT DISTINGUISH THE TWO VERSIONS.** The not-found rule was inline,
+and a mutation changing its `and` to an `or` -- which would refuse any real company missing any
+ONE of the three fields -- **was caught by nothing**, because the positive control used AAPL,
+which has all three, so the disjunction is INERT for it. A control that cannot tell the two
+versions apart is not a control. The rule now has a name, `fetcher.looks_not_found`, and is
+driven with the cases that separate them: a price alone, a revenue alone, a share count alone.
+Each is a real company shape -- a pre-revenue biotech, a name mid-halt, a thin ADR -- which is
+why the direction matters: an `or` would turn a data gap into a claim that the company does not
+exist, the one direction this refusal must never fail in.
+
+**AND THE SUBSTRING-BAN FAMILY THREE TIMES IN ONE ITEM, twice in my own tests and once against
+correct code.** (a) A ban on the word `"stable"` fired on my own reason text DENYING it -- *"this
+is not a mature, stable profile"*. (b) A ban on `"runway"` fired on the driver that SAYS the
+runway check does not apply. (c) A ban on `"cd.shares_diluted is None"` anywhere in
+`get_company` **failed against the correct tree**, because the pre-existing EDGAR gap-fill
+condition legitimately tests the same field for an unrelated reason. Each is repaired the same
+way and it is the same way every previous instance was repaired: **assert the property, not the
+word** -- the `mature` branch's exact sentence, the two phrases that only a runway warning
+contains, and the `if` that actually guards the assignment, read from the AST.
+
+**AND A DEFECT IN THE MUTATION HARNESS ITSELF, WHICH IS THE MOST PORTABLE THING IN THIS ITEM.**
+After naming the predicate I repointed two of its anchors with a `str.replace` and **did not
+assert the replacement landed**. It did not. So both mutations ran against a string that no
+longer exists in the source, printed `SKIP (anchor 0)`, and the harness summarised the run as
+**"15 caught, 0 missed"** -- which is literally true and thoroughly misleading, because the two
+dead anchors were *the two mutations that mattered most*: the flag never being set, and the
+conjunction becoming a disjunction.
+
+**A SKIPPED MUTATION IS NO EVIDENCE ABOUT THE GUARD IT WAS AIMED AT**, and a harness that
+reports it alongside "0 missed" invites exactly the reading I nearly gave it. This is the same
+family as every vacuous-pass defect in this record -- a check that cannot fire reporting success
+-- committed inside the instrument built to catch that family. The harness now **counts skips,
+lists them, and exits non-zero on one**, so a dead anchor is a failure rather than a footnote.
+
+**FIVE FIXTURE ERRORS, each failing a test for a reason unrelated to its subject.**
+`rev_cagr_3y`, `rev_growth_ttm`, `net_debt_to_ebitda`, `interest_coverage` and
+`cash_runway_years` are read-only PROPERTIES, not fields, and passing them to the constructor
+raises. The second temptation was a stand-in object carrying only the attributes
+`_health_score` touches; that is the wrong-object family, because the suite would then be
+testing the fixture's idea of how leverage is computed rather than the model's. So the
+UNDERLYING fields are set and the real properties left to do their own arithmetic -- and the
+fixture asserts the three figures it means to drive, or a later model change could silently
+leave these tests measuring `None`.
+
+## NOT DONE
+
+* **FFO/AFFO and P/NAV are NOT built**, and neither is an allowed-return utility model. The
+  refusal is honest and the right lenses remain absent; a multiples-only figure is explicitly
+  labelled a peer comparison rather than an intrinsic value.
+* **No fair value is pinned by the new suite.** The point of causes 1 and 2 is that the engine
+  should stop publishing an intrinsic value it cannot compute, so pinning a NEW number would
+  re-create the thing being fixed one step along. What is pinned is WHICH LENS CARRIES WEIGHT.
+* **The 5.28% risk-free rate is untouched**, on item 25's own instruction, and the low mega-cap
+  DCFs that follow from it are the model working as written.
+
+---
+
+# Session 79 — 2026-10-03 — ITEMS 21, 22, 23, 24: the card that described another book, the research figures still sold as the product, a screen that checked 5% of what it reported on, and a record that dropped its losers
 
 **ZERO TRIALS. NOT A VINTAGE EVENT:** no scoring, weight, construction or recorded figure
 changes, and `build_index` builds exactly what it built before.
@@ -326,8 +582,19 @@ is the same for both: one tree, one question at a time.
 ## NOT DONE
 
 * **The live verification of items 21, 22 and 23 is owed AFTER this deploys**, and item 23's
-  effect needs **a scan to run after it** (hourly, "Auto scans (free-tier bridge)") before the
-  snapshot carries the ratio.
+  effect needs **a hot-list scan to run after it** before the snapshot carries the ratio.
+  **A CORRECTION TO MY OWN FIRST WORDING: THAT IS NOT HOURLY.** I wrote "hourly" from the
+  three runs visible on the day, and reading `auto-scan.yml` the hot list is
+  `23 22 * * 1-5` -- **22:23 UTC, weekdays only**, with a 23:41 UTC backup. The intraday cron
+  (`23 13-20 * * 1-5`) is a different job and writes a different thing. 2026-10-03 is a
+  Saturday, so **the next hot-list scan is Monday 2026-10-05 at 22:23 UTC**, and the dip
+  screen's preselector is inert until then -- which the payload states for itself rather than
+  leaving a reader to infer.
+
+  Worth noting because it is item 20's own subject: the three runs I misread as hourly landed
+  at 00:45, 01:13 and 02:18 UTC on a SATURDAY, when no cron in that file fires on day 6. They
+  are Friday's crons delivered three to five hours late, which is exactly the GitHub delay item
+  20 exists for.
 * **Item 25 is not in this commit.** Its five causes are all confirmed from the live service
   and the scoping question is answered: `hot_score` is computed at `screen.py:365` from the
   composite alone and `_enrich_with_dcf` runs at `:388`, AFTER it, so an engine regime fix

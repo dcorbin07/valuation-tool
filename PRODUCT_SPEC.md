@@ -360,6 +360,105 @@ the question that matters is whether the alert adds anything, and the measured a
 that retired them and the reason. Deleted, a reader who saw +12.88% could not find out what
 happened to it; kept unlabelled, it gets quoted again.
 
+## A LENS THAT CANNOT APPLY IS REFUSED, NOT DOWN-WEIGHTED (ITEM 25, 2026-10-03)
+
+Measured on the live service before any edit:
+
+| ticker | industry | regime it got | fair value | price |
+|---|---|---|---|---|
+| O | `REIT - Retail` | `growth`, reliability **high** | **$9.46** | $54.13 |
+| PLD | `REIT - Industrial` | `mature`, reliability **high** | **$20.39** | $128.91 |
+| NEE | `Utilities - Regulated Electric` | `growth`, **confidence high** | **$15.89** | $76.83 |
+| DUK | `Utilities - Regulated Electric` | `mature`, *"~0.1 yrs of runway"* | **$43.50** | $114.13 |
+
+**THE RULE.** Where capex IS the business — a property trust's acquisitions, a utility's rate
+base — unlevered free cash flow after capex is near zero or negative for a HEALTHY company, so
+the FCFF lens is **refused**, not given a low weight. `DCF_QUALITY` at `dcf_reliability: "low"`
+is 0.35, which would still leave a $0.75-a-share figure about a third of the blend.
+**"Unreliable" and "inapplicable" are different states and a weight vector can only express the
+first.** Pinned by `tests/test_valuation_routing.py`.
+
+Four properties:
+
+1. **THE SECTOR IS TESTED BEFORE THE GROWTH BRANCHES.** A REIT growing at 11% is still a REIT.
+   Testing it after is exactly how O got `growth` and PLD got `mature` — one cause, two
+   wrong answers, decided by which side of an unrelated threshold each fell.
+2. **NO MULTIPLE MEANS NOT VALUABLE**, not valued by the lens that does not apply. `UNKNOWN`'s
+   principle one layer along: publishing nothing is a claim about our own knowledge, and
+   publishing $9.46 is a claim about Realty Income.
+3. **CONFIDENCE IS NEVER HIGH** on these regimes. FFO/AFFO and an allowed-return model are the
+   right lenses and are not built here, so a multiples-only figure is the best available rather
+   than a good one. That is the sentence NEE's `confidence: high` was missing.
+4. **`lens_applicability` NEEDED NO CHANGE** and now reports `fcff_applies: False`, because it
+   READS the blend's weights. It was answering `True` for a REIT only because the blend had
+   given the DCF 75%. The gate was working; it was being fed the wrong weights.
+
+**A MATCHER MAY NOT CONTAIN A TYPOGRAPHIC CHARACTER.** The REIT hint was `"reit—"` with a
+U+2014 EM DASH, against live data reading `"REIT - Retail"` with a hyphen-minus, so it had
+**never matched anything**. A typographic character in a predicate matched against vendor data
+is not a typo, it is a test that cannot fire — and it fails SILENTLY, because the fall-through
+produces a confident number rather than an error. The suite bans em dash, en dash and minus sign
+from every industry matcher, with a positive control that an ordinary industry is not caught.
+
+**NEGATIVE FREE CASH FLOW IS NOT A BURN HERE.** DUK's *"~0.1 yrs of runway"* is a SOLVENCY CLAIM
+about a company whose negative free cash flow is a regulatory asset. The fix is **narrower than
+the `financial` branch**, deliberately: leverage and interest cover genuinely apply to both
+regimes, so only the free-cash-flow term and the runway inference are dropped and their weight
+goes to the two that work. Withholding the whole sub-score would throw away two valid
+measurements to remove one invalid one. `is_cash_burning` still reports the measured fact: the
+fact is true, only the INFERENCE does not follow.
+
+**A WARNING MUST NAME THE RIGHT CAUSE.** The old text read *"almost certainly a data problem
+(currency or share count), not a real opportunity. Verify the figures."* **The data was fine and
+the model was wrong**, so the warning sent the reader to verify correct figures and the next
+developer hunting a currency bug. A mis-attributed warning is worse than none. The original
+message **survives for an ordinary company**, because a 0.2x ratio on an industrial really is
+usually a currency or share-count problem.
+
+### `mature` IS A DEFAULT, SO IT MAY NOT ASSERT STABILITY
+
+MRNA at **−16.05%** revenue growth while burning cash was labelled *"Mature, stable profile:
+standard 5-year FCFF DCF."* Being un-matched by four tests is not evidence of stability. Same
+defect `UNKNOWN` exists for, one layer down — in the regime layer rather than the sector layer.
+A `declining` regime now says what it is, and **changes no model**: a 5-year FCFF DCF on a
+shrinking profitable business is structurally coherent in a way it is not for a REIT, so
+inventing a decline model would be a construction change smuggled in behind a labelling fix.
+
+**TSLA IS DELIBERATELY NOT RE-ROUTED, and this is the half of item 25 that is NOT a defect.**
+Its inputs are right (**+7.84%** growth, FCF-positive, profitable) and its $23.42 against
+$370.59 comes from ROIC 5% against a **WACC of 14%** — a high beta discounted at the real 5.28%
+10-year yield, which is the model working as written. **Routing it out of `mature` to make its
+number look better would be choosing the regime on the output.**
+
+### A SYMBOL NOBODY COULD FIND GETS NO SCORE
+
+`ZZZZQ` (nonexistent) and `BRK.B` (real, spelled with a dot) both answered **HTTP 200, score 40,
+recommendation "Reduce"**. The 40 is `health: 40.0` standing alone after the valuation was
+withheld and the weights renormalised — **one sub-score of a company nobody identified, rendered
+as a verdict**. Every honest caveat downstream is about the VALUATION, and `partial_note` cannot
+say there is no company.
+
+Now a **404 with no score**, from an explicit `fetch_failed` flag. Three details that are the
+rule rather than the implementation:
+
+* **THE DETECTOR IS A CONJUNCTION** — price, revenue AND share count all absent, after every
+  source has been asked. Any ONE present means something was found: a real company mid-halt
+  still has revenue and shares, a fresh listing still has a price. A disjunction would refuse
+  live companies.
+* **IT IS NOT `cd is None`.** That was this change's own first cut, and it cannot be reached by
+  the case it was written for: `yahoo.fetch` RETURNS a `CompanyData` for a nonexistent symbol,
+  with ticker and name populated from the argument and everything else `None`.
+* **REFUSED AT THE SURFACE, NOT IN THE ENGINE.** `value_from_company` is also the batch and
+  offline entry point, and those callers build a `CompanyData` by hand with no such flag;
+  raising there would change what the backtest does on a shape it has always accepted. And the
+  result is **not cached**, or the refusal would depend on cache state.
+
+**A SHARE CLASS WRITTEN WITH A DOT IS THE SAME COMPANY.** Normalised **before the first fetch**,
+not as a retry on failure: a retry makes the hyphen form a FALLBACK, so the two spellings take
+different code paths and only one is ever exercised. Narrow by design — one to five letters, a
+dot, a SINGLE letter — because widening it to "any dot" would silently look up the WRONG company
+rather than miss cleanly. The rewrite leaves a note on the row.
+
 ## WHAT THIS FILE DOES NOT GOVERN
 
 **The rebalance BUILD path.** `python -m valuation.edge.valquo_index --config taxable`, used by

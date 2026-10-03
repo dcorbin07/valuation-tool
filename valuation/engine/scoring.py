@@ -245,6 +245,40 @@ def _health_score(cd, cls) -> tuple[Optional[float], list]:
                                        (6.0, 80), (12.0, 100)]) \
         if cd.interest_coverage is not None else None
 
+    # ITEM 25 -- CAPEX IS THE BUSINESS, SO NEGATIVE FREE CASH FLOW IS NOT A BURN.
+    #
+    # Measured on the live service 2026-10-03, DUK came back with `is_cash_burning` True and the
+    # driver *"Cash-burning: ~0.1 yrs of runway at the current burn."* **A regulated utility
+    # reading as about five weeks from insolvency is a category error**, and it is the sharper
+    # half of this item: the fair value was merely wrong, while the runway sentence is a
+    # SOLVENCY CLAIM about a company whose negative free cash flow is a regulatory asset. A
+    # utility's capex is rate-base investment the regulator allows a return on; a REIT's is the
+    # property it exists to own. Neither is money leaking out of a failing business.
+    #
+    # NARROWER THAN THE `financial` BRANCH ABOVE, DELIBERATELY. That one withholds the whole
+    # sub-score, because all three of its inputs fail for one reason. Here LEVERAGE AND COVERAGE
+    # GENUINELY APPLY -- a REIT is debt-financed property and a regulator watches a utility's
+    # gearing, so net debt/EBITDA and interest coverage are real solvency measures for both.
+    # Only the FREE-CASH-FLOW term and the RUNWAY inference are inapplicable, so only those are
+    # dropped and their weight goes to the two that work. Withholding the sub-score entirely
+    # would have thrown away two valid measurements to remove one invalid one.
+    #
+    # `is_cash_burning` IS LEFT ALONE and still reports the measured fact. The fact (FCF < 0) is
+    # true; the INFERENCE (a runway, a burn) is what does not follow, and the distinction has to
+    # survive or the classification starts lying about the financials.
+    if getattr(cls, "regime", None) in ("reit", "regulated"):
+        _w = "REIT" if cls.regime == "reit" else "regulated utility"
+        parts = [(lev, 0.6), (cov, 0.4)]
+        drivers.append(
+            "The free-cash-flow check and the cash-runway warning do not apply to a %s: its "
+            "capex IS the business -- property for a trust, rate base for a utility -- so free "
+            "cash flow after capex is negative for a healthy company and reading it as a burn "
+            "would put a solvency warning on a regulatory asset. Leverage and interest cover "
+            "do apply and carry the whole sub-score." % _w)
+        if cd.net_debt_to_ebitda is not None:
+            drivers.append("Net debt/EBITDA %.1fx." % cd.net_debt_to_ebitda)
+        return _blend(parts), drivers
+
     if cls.is_cash_burning:
         runway = cd.cash_runway_years
         rs = _lerp(runway, [(0.5, 3), (1.0, 12), (2.0, 32), (3.0, 52),

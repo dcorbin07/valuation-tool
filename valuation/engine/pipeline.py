@@ -472,7 +472,30 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
     fv, px = result.base_fair_value, cd.price
     if fv and px and px > 0:
         ratio = fv / px
-        if ratio > FV_BAND_HIGH or (ratio < FV_BAND_LOW and not blend.growth_led):
+        # ITEM 25 -- A THIRD BRANCH, BECAUSE THE WARNING WAS NAMING THE WRONG CAUSE.
+        #
+        # Measured on the live service 2026-10-03, Realty Income carried: *"Fair value $9.46 is
+        # 0.2x the $54.13 price - almost certainly a data problem (currency or share count),
+        # not a real opportunity. Verify the figures."* **The data was fine. The MODEL was
+        # wrong** - a REIT's unlevered free cash flow after capex is near zero by construction,
+        # so the DCF produced $0.7455 a share and carried 75% of the blend.
+        #
+        # **A MIS-ATTRIBUTED WARNING IS WORSE THAN NONE**, and in two directions: it sends the
+        # reader to verify figures that are correct, and it sends the next person to read this
+        # code looking for a currency bug. The regimes where the cash-flow lens is refused now
+        # get a branch that names what is actually true - a peer comparison disagreeing with the
+        # market, on a company whose right lenses are not built here.
+        _refused_fcff = getattr(cls, "regime", "") in ("reit", "regulated")
+        if _refused_fcff and (ratio > FV_BAND_HIGH or ratio < FV_BAND_LOW):
+            _w = "REIT" if cls.regime == "reit" else "regulated utility"
+            result.warnings.insert(0, f"Our ${fv:,.2f} estimate is {ratio:.1f}× the ${px:,.2f} "
+                                      f"price. This is a {_w}, valued on peer multiples because "
+                                      f"an unlevered cash-flow DCF does not apply to it - the "
+                                      f"right lenses (FFO/AFFO, or an allowed-return model) are "
+                                      f"not built here. So this is a peer comparison that "
+                                      f"disagrees with the market, NOT a data problem and NOT an "
+                                      f"intrinsic value.")
+        elif ratio > FV_BAND_HIGH or (ratio < FV_BAND_LOW and not blend.growth_led):
             result.warnings.insert(0, f"Fair value ${fv:,.2f} is {ratio:.1f}× the ${px:,.2f} price — almost "
                                       f"certainly a data problem (currency or share count), not a real "
                                       f"opportunity. Verify the figures before trusting this valuation.")

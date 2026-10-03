@@ -281,6 +281,35 @@ def api_value():
     run_ai = bool(data.get("run_ai", False))
     try:
         result = value_ticker(ticker, CONFIG, overrides=overrides, peers=peers, run_ai=run_ai)
+        # ITEM 25 -- NOT FOUND IS A 404 WITH NO SCORE, not a 200 with a partial one.
+        #
+        # Live 2026-10-03: `ZZZZQ` (which does not exist) and `BRK.B` (which does, spelled with
+        # a dot) both answered HTTP 200 with `score 40, recommendation "Reduce"`. The 40 is one
+        # orphaned sub-score after the valuation was withheld and the weights renormalised.
+        #
+        # REFUSED AT THE SURFACE RATHER THAN IN THE ENGINE, deliberately: `value_from_company`
+        # is also the batch and offline entry point, and those callers hand it a `CompanyData`
+        # they built themselves with no `fetch_failed` on it at all. Raising there would change
+        # what the backtest does on a shape it has always accepted. The surface is where a
+        # user-facing recommendation is decided, so it is where the refusal belongs.
+        #
+        # IT IS NOT CACHED. `_RESULTS.put` is skipped, because a cache entry for a symbol that
+        # does not exist would answer the next request from memory and the refusal would depend
+        # on cache state.
+        _cd = getattr(result, "company", None)
+        if getattr(_cd, "fetch_failed", False):
+            return jsonify({
+                "error": "ticker not found",
+                "ticker": ticker,
+                "detail": ("No data source returned anything for this symbol. No score, "
+                           "valuation or recommendation is produced for a company that could "
+                           "not be found - a partial score here would be one sub-score of "
+                           "nothing, rendered as a verdict."),
+                "hint": ("Check the spelling. A US share class is written with a hyphen by the "
+                         "market-data source (BRK-B, not BRK.B), and that form is now accepted "
+                         "either way."),
+                "notes": list(getattr(_cd, "quality_notes", None) or [])[:4],
+            }), 404
         entry = _RESULTS.put(ticker, result, overrides=overrides, peers=peers)
         payload = result.to_dict()
         # When these numbers were produced. The page prints it and so do the exports, so a
