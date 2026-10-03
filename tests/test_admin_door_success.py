@@ -130,15 +130,36 @@ class ScoreAlertsCountsTheNoContractRow(unittest.TestCase):
         self.store = Store()
         self.good, self.bare = _seed_two_alerts(self.store)
         from valuation.edge import paper_broker as PB
-        self._orig = PB.PaperBroker.quotes
-        # A stub rather than the network. It returns a usable two-sided quote for anything
-        # asked about, so the scoreable row marks and the no-contract row is never asked.
-        PB.PaperBroker.quotes = lambda self, syms: {
-            s: {"bid": 9.0, "ask": 9.4} for s in (syms or [])}
+        self._orig = PB.PaperBroker
+        # THE WHOLE CLASS IS REPLACED, NOT JUST `quotes`, AND THE FIRST CUT GOT THIS WRONG IN
+        # THE ONE WAY THAT ONLY CI COULD SEE. Stubbing `PaperBroker.quotes` passed on this
+        # machine and FAILED THE LAND with `errors: ["quotes: NotSandboxError"]`, because
+        # `_alert_quotes` CONSTRUCTS `PaperBroker()` and construction calls `assert_sandbox`,
+        # which refuses a non-sandbox endpoint -- so on a runner with no Tradier endpoint the
+        # constructor raises before any stubbed method is reached. The test passed locally only
+        # because this machine has a token configured.
+        #
+        # That is the "fails open in CI" family INVERTED: a test that passes only where a
+        # credential exists. A door test must not depend on a broker being reachable, so the
+        # class is replaced outright and neither the constructor nor the endpoint check runs.
+        class _StubBroker(object):
+            def __init__(self, *a, **k):
+                pass
+
+            def quotes(self, syms):
+                return {s: {"bid": 9.0, "ask": 9.4} for s in (syms or [])}
+
+        PB.PaperBroker = _StubBroker
         self._PB = PB
 
     def tearDown(self):
-        self._PB.PaperBroker.quotes = self._orig
+        self._PB.PaperBroker = self._orig
+
+    def test_the_stub_is_in_force_and_the_real_broker_is_not_reachable(self):
+        """Or this class is testing whether a token happens to be configured."""
+        from valuation.edge import paper_broker as PB
+        self.assertNotEqual(PB.PaperBroker, self._orig)
+        self.assertEqual(PB.PaperBroker().quotes(["X"]), {"X": {"bid": 9.0, "ask": 9.4}})
 
     def test_both_rows_are_in_the_record(self):
         """Or every assertion below passes against an empty table (`MB21`'s C1)."""
@@ -478,11 +499,66 @@ class NoUndefinedNamesInTheSaasApp(unittest.TestCase):
     package.
     """
 
-    def test_pyflakes_reports_no_undefined_name_in_the_saas_app(self):
+    def test_no_undefined_global_is_referenced_anywhere_in_the_saas_app(self):
+        """STDLIB ONLY, BECAUSE THE PYFLAKES VERSION SKIPPED IN CI AND THAT IS THIS DEFECT.
+
+        My first cut shelled out to `pyflakes` and skipped when it was absent -- which is the
+        case on the runner, so the check that found this entire item **did not run in CI**. A
+        guard whose only real execution is skipped is the defect, not a limitation of it, and
+        this record already carries that lesson under its own name.
+
+        `symtable` answers the same question with no dependency: for every function in the
+        module it reports the names used but not bound locally, and anything that is neither
+        bound at module scope nor a builtin is an undefined global -- which is exactly
+        `log_exception` and `_store`. `pyflakes` is still run below WHEN PRESENT, as a second
+        opinion rather than as the only one.
+        """
+        import builtins
+        import symtable
+        with open(os.path.join(REPO, "valuation", "saas", "app_saas.py"),
+                  encoding="utf-8") as fh:
+            src = fh.read()
+        top = symtable.symtable(src, "app_saas.py", "exec")
+        module_names = {n for n in top.get_identifiers()}
+        known = module_names | set(dir(builtins))
+
+        bad = []
+
+        def walk(tbl):
+            for sym in tbl.get_symbols():
+                if sym.is_global() and not sym.is_assigned():
+                    if sym.get_name() not in known:
+                        bad.append("%s (in %s)" % (sym.get_name(), tbl.get_name()))
+            for child in tbl.get_children():
+                walk(child)
+
+        for child in top.get_children():
+            walk(child)
+        self.assertEqual(sorted(set(bad)), [],
+                         "undefined globals referenced in app_saas.py: %s"
+                         % sorted(set(bad)))
+
+    def test_the_symtable_check_is_not_vacuous(self):
+        """It must find a planted undefined name, or it is proving nothing about the module."""
+        import builtins
+        import symtable
+        src = "def f():\n    return a_name_that_is_not_defined_anywhere()\n"
+        top = symtable.symtable(src, "x.py", "exec")
+        known = set(top.get_identifiers()) | set(dir(builtins))
+        found = []
+        for child in top.get_children():
+            for sym in child.get_symbols():
+                if sym.is_global() and not sym.is_assigned() \
+                        and sym.get_name() not in known:
+                    found.append(sym.get_name())
+        self.assertIn("a_name_that_is_not_defined_anywhere", found)
+
+    def test_pyflakes_agrees_when_it_is_installed(self):
+        """A second opinion, and ONLY a second one -- the check above is the gate."""
         try:
             import pyflakes  # noqa: F401
         except ImportError:
-            self.skipTest("pyflakes not installed — UNDEFINED NAMES ARE UNCHECKED HERE")
+            self.skipTest("pyflakes absent; the symtable check above is the gate")
         r = subprocess.run([sys.executable, "-m", "pyflakes",
                             os.path.join("valuation", "saas", "app_saas.py")],
                            cwd=REPO, capture_output=True, text=True, errors="replace")

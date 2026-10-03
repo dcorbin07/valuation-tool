@@ -13961,3 +13961,97 @@ one line for Don's `daily-doors.yml` is relayed rather than added. The weekly su
 is **not** scheduled and should not be, for reasons given separately. `state_isolation` is NOT
 extended to cover `fleet_history`: that would change what every existing fleet test writes to,
 and it is reported rather than taken.
+
+
+# SESSION 83 - ITEM 26: THE HEALTH SUB-SCORE IS WITHHELD, AND ITEM 25's FIX WAS THE WRONG ONE
+
+## 26(a) - WITHHELD, EXACTLY AS THE `financial` REGIME DOES
+
+Item 25 dropped only the free-cash-flow term and the runway inference for `reit` and
+`regulated` and reweighted to **leverage 0.6 / coverage 0.4**, on the reasoning that
+*"withholding the sub-score entirely would throw away two valid measurements to remove one
+invalid one."* **Checked against the live service after that landed, the reasoning is wrong in
+the direction that matters.** Health sub-score, live before -> after the reweighting:
+**O 35.7 -> 20.4**, **NEE 36.6 -> 21.5**, DUK 15.7 -> 28.5. **Two of three went DOWN**, and the
+surviving drivers read **net debt/EBITDA 6.0x, 5.8x and 5.3x** - ordinary for a property trust
+or a rate-regulated utility, alarming for an industrial.
+
+**SO THE TWO SURVIVING INPUTS ARE NOT "VALID MEASUREMENTS" ON THESE NAMES AT THE FLOORS THIS
+CURVE USES.** `_lerp`'s ladder scores 6.0x in single digits because it was calibrated for
+companies whose capex is discretionary. A REIT is levered BY CONSTRUCTION - leverage is the
+business model, not a warning about it - so concentrating 0.6 of the sub-score on the metric
+these regimes structurally score worst on **amplified one mis-calibration while removing
+another**. DUK improved only because the 0.1-year runway penalty it lost was larger than the
+amplification.
+
+**IDENTICAL IN FORM TO THE `financial` BRANCH, not a parallel arrangement.** `return None,
+[one reason line]`, so `compute_score`'s existing renormalisation redistributes the 0.20, and
+withheld as **NOT APPLICABLE rather than MISSING** so `confidence` is not degraded for a
+deliberate design choice. A test asserts both branches return the same SHAPE, because two
+withholding mechanisms can drift apart and one cannot.
+
+**REGIME-AWARE FLOORS ARE THE OTHER REPAIR AND ARE STILL NOT INVENTED.** Picking a number with
+nothing behind it is the error this record warns about most often, and picking it right after
+seeing which way the scores moved would be choosing the bar on the outcome. Withholding asserts
+nothing numeric at all, which is the honest option while the floors are uncalibrated here.
+
+**VERIFIED ON REAL DATA, AND THE DIRECTION IS NOT UNIFORMLY FAVOURABLE - WHICH IS THE POINT.**
+`health=None` on all four with the reason line rendering. Composite score: **O 27 -> 29,
+NEE 26 -> 27, DUK 32 -> 33, and PLD 30 -> 28.** PLD falls because its health (41.7) sat ABOVE
+its other sub-scores, so removing it removes a relatively good one. **A withholding that only
+ever raised the score would be a boost wearing a refusal's clothes**; this one is
+near-neutral in aggregate because it stops asserting a number rather than asserting a better
+one.
+
+**`is_cash_burning` IS STILL LEFT ALONE** and still reports the measured fact. The fact
+(FCF < 0) is true; the INFERENCE (a runway, a burn) is what does not follow.
+
+**ONE ASSERTION WAS INVERTED, AND IT IS RECORDED AS AN INSTRUCTED BEHAVIOUR CHANGE RATHER THAN
+A CONVENIENCE.** `test_leverage_and_coverage_still_carry_the_sub_score` asserted item 25's
+choice; the property it pinned is now false by design, so it is replaced by
+`test_the_sub_score_is_WITHHELD_exactly_as_the_financial_regime_does` plus a shape-equality
+test against the `financial` branch. The companion assertion that the driver SAYS why survives
+unchanged in substance and only its wording moved.
+
+## 26(b) - DON'S WBS RULE, ADDED TO THE AMENDMENT DRAFT AS PART (c)
+
+`PREREG_DRAFT_contract_amendment_2.md` §3 gains **(c)**: *a held name that is acquired or stops
+trading counts as sold at its last traded close, its weight redistributed pro-rata across the
+rest of the book.* Markdown only, in its own commit.
+
+**IT BELONGS IN THE CONTRACT BECAUSE THE ENGINE ALREADY DOES IT AND THE CONTRACT DID NOT SAY
+SO.** The served card reports *"1 left the book since (WBS), with the weight spread across the
+survivors"* - so the behaviour is live and visible on the Index tab while the document that
+defines the series was silent. **A rule the engine follows and the contract omits is a rule
+nobody can check the engine against.** It is the one part of this amendment that changes a
+RECORDED NUMBER rather than a power calculation, which is why it cannot live only in code.
+
+The three rejected alternatives are named in the draft so the choice is legible, and one limit
+ships with it: **"last traded close" is vendor-dependent on a delisted name**, and this
+project's own price path already disagrees with the recorded series by ~0.02pp on an ordinary
+day. A successor wanting the series reproducible to the digit needs the delisting close STORED
+on the row at the time, not re-fetched later.
+
+**§3's preamble said "Two changes" and now says three**, corrected rather than left stale.
+
+## 26(c) - TSLA, IN TWO SENTENCES
+
+**Which inputs put it in `mature`:** blended revenue growth of about 1% - a **5.19%
+three-year CAGR** blended with a **MINUS 2.93% latest TTM** - against `analyst_rev_growth_next`
+of 13.7%, with the company profitable (net income 3,794, EBIT 5,616), **FCF-positive at
+6,220**, and in **net cash** (net debt/EBITDA MINUS 2.49, interest coverage 16.6x), so it
+clears no growth branch (hypergrowth wants >= 10%), trips no distress branch, and falls through
+to `mature`, the default.
+
+**Whether the $23 follows from them: yes, arithmetically.** 59% of the blend is a five-year
+FCFF DCF at **3% terminal growth** on that 6,220 of free cash flow, which returns **$20.20 a
+share** - and no discount rate built from the real **5.28%** ten-year can turn 6.2bn of FCF
+into $370.59 at 1% growth. **So the gap is not a model defect but the model declining to
+extrapolate the growth the price embeds**, which is what item 25 said in advance and why TSLA
+was deliberately not re-routed: its fair value is bit-identical across that change
+($23.416587672776433 before and after), and moving a profitable, FCF-positive,
+single-digit-growth manufacturer out of `mature` to make its number look better would be
+choosing the regime on the output.
+
+**NOT DONE:** no regime-aware leverage or coverage floor is invented; the amendment is a DRAFT
+and is not signed; nothing about TSLA is changed.
