@@ -42,6 +42,49 @@ DEFAULT_TARGET_PCT = 1.00      # +100% on the premium — take the double
 DEFAULT_STOP_PCT = -0.50       # -50% on the premium
 DEFAULT_TIME_STOP_FRAC = 0.50  # or close at half the original DTE, whichever comes first
 
+# How close to expiry a live contract is closed rather than held. Lives here beside the other
+# three policy constants rather than in `paper_track`, because item 24 gave the rule a SECOND
+# caller and a constant that governs two callers from inside one of them is the shape `MA5`
+# measured: the Harvey-Liu-Zhu bar froze at 3.0 because its definition sat in one of its
+# consumers. `paper_track` re-exports it, so every existing importer is untouched.
+CLOSE_BEFORE_EXPIRY_DAYS = 2
+
+
+def exit_decision(mark, target, stop, expiry, time_stop_date, today,
+                  close_before_expiry_days: int = None):
+    """Which exit rule fires for a long option, or None. PURE: no store, no quotes, no clock.
+
+    **ONE RULE, TWO CALLERS, AND THAT IS WHY IT IS HERE.** `paper_track._exit_decision` was the
+    only copy and it operated on a `paper_option_orders` row, so the ALERT record -- the thing
+    the scorecard reports -- could only be closed by the paper broker buying the contract
+    first. Item 24 measured the consequence: of 26 open alerts, 18 had a contract and only the
+    ones the broker bought were ever scored, while ELV alert 14 sat at -75% and HCA alert 7 at
+    -62%, both past their own -50% stop, neither held. A second implementation of this rule for
+    the alert path is exactly the `B7` split this project keeps paying for, so the rule moved
+    and both callers delegate.
+
+    ORDER MATTERS AND IS PRESERVED EXACTLY: a hard stop beats a target beats expiry beats a
+    soft time stop. `paper_track`'s own comment said so and the order is the behaviour, not a
+    detail -- a mark that is simultaneously below the stop and past the time stop must read
+    "stop", because that is what a real account would have done first.
+    """
+    from .paper_track import _f as _num, _d as _date       # the shipped coercions, not new ones
+    cbed = (CLOSE_BEFORE_EXPIRY_DAYS if close_before_expiry_days is None
+            else int(close_before_expiry_days))
+    m, t, s = _num(mark), _num(target), _num(stop)
+    if m is not None:
+        if s is not None and m <= s:
+            return "stop"
+        if t is not None and m >= t:
+            return "target"
+    exp = _date(expiry)
+    if exp is not None and today is not None and (exp - today).days <= cbed:
+        return "expiry"
+    tsd = _date(time_stop_date)
+    if tsd is not None and today is not None and today >= tsd:
+        return "time_stop"
+    return None
+
 _FIELDS = ("alert_ts", "ticker", "opt_right", "strike", "expiry", "occ_symbol",
            "entry_premium", "underlying_price", "score", "momentum_score", "technical_score",
            "iv", "iv_rank", "horizon", "target_delta", "dte", "flow_read", "labels",
@@ -385,9 +428,30 @@ def scorecard(store, dims=BUCKET_DIMS, epoch=None) -> dict:
         cur = c.execute("SELECT * FROM option_alerts WHERE status='closed'" + clause, args)
         keys = [d[0] for d in cur.description]
         closed = [dict(zip(keys, r)) for r in cur.fetchall()]
+        # ITEM 24 -- `no_contract` ROWS ARE COUNTED SEPARATELY AND ARE NOT "OPEN".
+        #
+        # Eight of the live service's 26 "open" alerts were logged from a descriptor with no
+        # chain: no strike, no expiry, nothing to mark and no date on which they could mature.
+        # They are not trades awaiting an outcome, they are rows that were never scoreable, and
+        # leaving them in `n_open` made the book look like 26 live positions when 18 were.
+        #
+        # NOT folded into `closed` either: `_stats` would then put them in the denominator of a
+        # hit rate they cannot belong to. A third count is the honest shape, and it ships beside
+        # the other two so the three partition the record.
+        n_no_contract = c.execute(
+            "SELECT COUNT(*) FROM option_alerts WHERE status='no_contract'" + clause,
+            args).fetchone()[0]
         n_open = c.execute("SELECT COUNT(*) FROM option_alerts WHERE status='open'" + clause,
                            args).fetchone()[0]
-    out = {"overall": _stats(closed), "n_open": int(n_open), "buckets": {},
+    out = {"overall": _stats(closed), "n_open": int(n_open),
+           "n_no_contract": int(n_no_contract),
+           "no_contract_note": (
+               "alerts logged from a descriptor with no option chain: no strike or expiry, so "
+               "nothing to mark and no date on which they could mature. Counted apart from "
+               "`n_open` because they are not positions awaiting an outcome, and apart from "
+               "the closed set because they have no return to put in a hit rate."
+               if int(n_no_contract) else ""),
+           "buckets": {},
            "record_epoch": ep, "epochs": epoch_census(store),
            "min_closed_per_bucket": MIN_CLOSED_PER_BUCKET}
     for dim in dims:

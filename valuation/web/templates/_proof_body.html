@@ -110,6 +110,27 @@
     missing rather than filled in: {{ p.missing|join(', ') }}.</div>
   {% endif %}
 
+  {# ITEM 22 — WHICH BOOK THIS WHOLE PAGE IS ABOUT, SAID ONCE, AT THE TOP.
+     Every figure below — the decile ladder, the three benchmarks, the quarterly distribution,
+     the cost breakeven — is a measurement of the RESEARCH DECILE: the ranking across all
+     ~2,500 companies, equally weighted, top 10%. The Valquo Index is a different book and
+     INDEX-BOOK measured how differently it earns.
+
+     ONE BANNER RATHER THAN FOUR. The benchmarks table keeps its own copy because it is the
+     single most misquotable object on the site (a reader lifting "+8.1% over SPMO" as the
+     Index's figure would be out by most of it), but repeating the sentence inside the ladder,
+     the distribution and the cost sections would be four hand-maintained copies of one fact —
+     the B7 disease, which this project has paid for more than once. A page-level statement is
+     also the honest structure: the scope is the page's, not any one card's. #}
+  <div class="warn" style="border-left:3px solid var(--amber)">
+    <b>Every figure on this page is the RESEARCH DECILE, not the Valquo Index.</b>
+    That is the ranking across all&nbsp;~{{ '{:,}'.format(p.panel.n_names) }} companies,
+    equally weighted, top&nbsp;10% — the object the research measures. The
+    <b>Valquo&nbsp;Index</b> is a different book: a $10&nbsp;billion large-cap tier,
+    score-weighted, with an 8% position cap and a no-trade band. They do not earn the same
+    thing, and the Index's own measured figures are on the Index tab, where they are lower.
+  </div>
+
   {# ------------------------------------------------------------------ placebo #}
   {% if p.placebo %}
   <div class="sec"><div class="card">

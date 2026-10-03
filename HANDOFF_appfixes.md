@@ -5,6 +5,343 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 79 — 2026-10-03 — ITEMS 21, 22, 23: the card that described another book, the research figures still sold as the product, and a screen that checked 5% of what it reported on
+
+**ZERO TRIALS. NOT A VINTAGE EVENT:** no scoring, weight, construction or recorded figure
+changes, and `build_index` builds exactly what it built before.
+
+## THE MOST IMPORTANT THING IN THIS SESSION IS A DEFECT OF MY OWN, AND ONLY THE LIVE CHECK FOUND IT
+
+Item 18 pointed the Index's performance card at `index_book_measured.card()` and gated the old
+derived card behind `is_preview = config is not None`, so that a named account type still got
+its own labelled preview. **The gate was wrong by one step, and the step is in the CALLER.**
+`/api/index-track` resolves its default before calling —
+`request.args.get("config") or index_track.TRACKED_CONFIG` — so `config` is NEVER `None`
+inside `summarize`, `is_preview` was True on every request, and **`_M.card()` was
+unreachable**. The live tab went on serving the research decile's **+26.15% gross / +19.35%
+net** from a card stamped `generated_at_utc: 2026-09-03` — the exact figure item 18 exists to
+retire — while 42 tests across two suites passed.
+
+**WHY NO TEST CAUGHT IT.** Every one called `summarize()` directly, where the default really is
+`None`. So the single path the public uses was the single path never exercised. **A default
+resolved in the caller is invisible to a test that calls the callee**, and the only cure is to
+drive the route. `tests/test_index_track_route.py` does, through the Flask test client with no
+query string — the shape a browser produces — and asserts by VALUE that the retired figures are
+not on the card, whatever key they might arrive under.
+
+The fixed predicate is `bool(config) and str(config).lower() != TRACKED_CONFIG`: not "was a
+name given" but "is the name the TRACKED one". A request for `taxable` IS the tracked
+construction, so the served measurement is its measurement; `roth` is a genuine preview.
+
+**AND IT REQUIRED REPOINTING A GUARD RATHER THAN SILENCING ONE.**
+`test_backtest_card.py::test_the_server_serves_the_card_for_the_config_it_was_asked_for`
+asserted `card.config == cfg` for every config, which was right until the tracked config
+acquired its own measurement. Re-asserting it would have meant serving +26.15% to the Index tab
+forever. It now asserts the property it was protecting — the selection reaches the card, and no
+single card is served to everyone — which still catches both directions of the original defect.
+**Repointed in the same commit as the change that moved it**, and mutation-tested 4 of 4 on
+both directions.
+
+## ITEM 21 — THE HOLDINGS CARD DESCRIBED A DIFFERENT BOOK, IN FOUR WAYS
+
+Live on 2026-10-03, verbatim, above a correct list of 86 holdings:
+
+> Tax-free (Roth/IRA): highest net alpha, full rotation, ~2-month rebalance — 85 of undefined
+> eligible (undefined scored). Rebalance every ~2 months, full rotation. backtested net Sharpe
+> 1.10, net excess over the equal-weighted universe 11.6%
+
+with Company, Sector, Hot score and Market cap an em dash on every row. `/api/valquo-index`
+confirmed each cause: `config: roth`, that label verbatim, `n_eligible: None`, positions
+carrying only `ticker` / `weight` / `weight_at_formation` / `status`, and `WBS` as the one
+exited name.
+
+* **THE ROUTE DEFAULTED TO `DEFAULT_BOOK_CONFIG`.** The holdings were right — they come from the
+  bound record — and the CONFIG BLOCK bolted to them was roth's. Session 74 made
+  `index_track.summarize` stop reading the preference for exactly this reason; this route was
+  missed. It reads `TRACKED_CONFIG` now.
+* **THE TWO `undefined`s** were `d.n_eligible` and `d.n_scored`, facts about a SCAN that a held
+  book has never had. The header is rebuilt from what the record does know: how many it holds,
+  how many left and which, when it formed, when it next changes.
+* **THE CADENCE IS DERIVED, NOT TYPED.** My first cut hard-coded *"quarterly, with a 0.30
+  no-trade band"* into the API, which is the same defect one layer along — a hand-maintained
+  sentence beside the construction it describes. `cadence_sentence(cfg)` reads
+  `rebalance_days` and `exit_frac`.
+* **THE FOUR COLUMNS** are filled from the latest scan snapshot as DISPLAY LABELS, and the page
+  says so. **Today's score arrives under `hot_score_today`, not `hot_score`**, because the
+  record does not keep the score each name was selected on and printing it under a bare "Hot
+  score" beside "Weight at formation" is the most misleading thing this table could do. A name
+  the scan no longer carries keeps its em dash rather than being filled or dropped.
+* **THE BACKTEST SENTENCE IS GONE FROM THIS CARD** and the dead `meas` block is deleted rather
+  than commented out. It read `config.measured` — the research decile's figure for an account
+  type — one inch above an 86-name large-cap book, which is how two surfaces on one tab come to
+  disagree. The performance card owns backtest numbers.
+
+**A CORRECTION TO THIS ITEM'S OWN FIRST CUT, found by driving a payload through the repaired
+renderer rather than by reading it.** It read `const bk = d.card || null; if (bk)`, so a
+book-in-force payload arriving WITHOUT the `card` convenience block fell into the PREVIEW
+branch and rendered the account-type label and both `undefined`s — **the entire live defect,
+back, from one missing field.** It keys on `is_preview` now, which the route has always set
+explicitly on both paths, and every figure falls back to the book's own field. The wrong-object
+family: a branch on the presence of a DISPLAY field is a branch on the renderer's convenience,
+not on the data's identity. Pinned from both directions, including that an older response with
+no `is_preview` renders as the record — the safe direction.
+
+**48 tests; 22 of 48 fail against the pre-fix tree; 10 of 10 mutations caught.** The suite
+RENDERS the real `app.js` in node against a stub DOM rather than grepping the source, because
+three guards in this lane's recent lineage were defeated by asserting a string was PRESENT.
+
+## ITEM 22 — THE RESEARCH DECILE WAS STILL BEING SOLD AS THE PRODUCT IN THREE MORE PLACES
+
+Item 18 corrected the Index tab. The live survey found the same figures elsewhere, each correct
+about its arithmetic and silent about its object: the landing page and `/methodology` on S22's
+*"beat the equal-weighted universe by about 6.6% annualized"*, `/methodology` and the portfolio
+page on R1's *"+6.99%/yr (t = 3.98)"*, and `/proof` on the decile ladder and the quarterly
+distribution where only the benchmarks table was labelled.
+
+**THE LABEL IS APPENDED, NEVER SPLICED.** `hold_horizon.DEFENSIBLE` is quoted verbatim from the
+handoff and pinned by `tests/test_hold_horizon.py`; rewriting it to fix a PRODUCT problem would
+silently restate a RESEARCH claim. The mandatory `caveat()` now LEADS with the object —
+*"This is the ranking across all ~2,500 companies, equal-weighted top 10% — not the Valquo
+Index…"* — because an identity disclaimer that trails is read after the reader has decided what
+they are looking at. `NOT_A_HOLD_RULE` set that precedent and this follows it.
+
+**`/proof` GETS ONE PAGE-LEVEL BANNER, NOT FOUR COPIES.** Pasting the clause into the ladder,
+the distribution and the cost sections would be four hand-maintained copies of one fact, which
+is the `B7` disease. A page-level statement is also the honest scope.
+
+**AND THE DROPDOWN SENTENCE IS GONE.** `backtest_card`'s `basis_note` explained which book a
+reader was looking at by pointing at *"the one this dropdown selected"* — a control session 74
+removed, as `index_track`'s own comment three files over says. It names the account-type
+construction now.
+
+**TWO DEFECTS IN MY OWN SWEEP, AND THE FIRST IS THE ONE TO REMEMBER.** It searched the RAW
+file, and this change had added a comment to each template EXPLAINING the rule — which quotes
+the label. So deleting the user-visible label left the comment behind and the guard passed:
+**three of seven mutations walked through.** That is this project's most repeated test defect
+INVERTED — not a ban tripped by prose, but a POSITIVE assertion satisfied by prose. It reads
+comment-stripped text now. Second: my next cut asserted the `/proof` label was outside every
+`{% if %}` and **failed against the correct tree**, because the whole page legitimately sits in
+the `{% else %}` of `{% if not p.available %}` (when the evidence file cannot be read the page
+shows nothing rather than numbers from memory). The property is RELATIVE — the label must be no
+more deeply nested than the figure sections — and the old label was one level deeper, inside
+the benchmarks block, which is exactly how a payload missing that one section would have
+printed a ladder with nothing naming the book.
+
+**DON'S TWO STANDING RULES ARE PINNED BY NAME:** no `+32%` and no *"the Index beats SPY"*, on
+every public template and `app.js`. The permitted form ships beside the ban —
+`index_book_measured.card()["halves_note"]` — because a refused claim with no available
+qualified version is how the refused one gets written anyway.
+
+**54 tests in the spec suite; 7 of 7 mutations caught.**
+
+## ITEM 23 — THE SCREEN VALUED TWELVE NAMES OUT OF 242 AND REPORTED THE RESULT AS COVERAGE
+
+Item 19 fixed the wiring; the live payload then read `n_eligible 242 | n_measured 12 |
+capped 230 | rows 1`. **THE DIAGNOSTIC THAT DECIDED THE DESIGN**, taken on the service: of the
+12 measured, six were 51-66% down (PODD 61.98, TME 66.48, LIF 61.13, BSX 59.42, MBLY 52.25,
+NKE 51.36) and **five of those six were rejected on HEALTH**. The 12 were the DEEPEST 12 — the
+sort is exact — **so the cap was not hiding anything deeper. It was hiding everything BETWEEN
+the threshold and ~51%**, which at a 20% threshold is most of the interesting range.
+
+**THE CAUSE IS A NUMBER COMPUTED EVERY SCAN AND THROWN AWAY.** `prices.py` and
+`broker_universe.py` both compute `high_prox = price / 52-week high` for every name;
+`screen.py` persisted only its WITHIN-DATE Z-SCORE, and a z-score can ORDER names by drawdown
+and cannot state one. So the screen could rank 242 names for free and had to buy a full
+valuation to learn any one depth. **`1 - high_prox` IS the drawdown.** One allowlist entry
+makes it reachable.
+
+* **THRESHOLD FOR FREE, THEN PAY FOR THE QUALIFIERS.** The cap stays — a valuation is a real
+  cost on a 512 MB instance — but it now applies to the names that qualify.
+* **THE PRESELECTOR IS DELIBERATELY LOOSE AND THAT IS WHY IT IS SAFE.** The free drawdown is
+  the SNAPSHOT's and the rendered one is the valuation's own as-traded price, so they differ by
+  however much the name moved since the scan. `PRESELECT_SLACK = 0.05` is wider than a day's
+  move and far narrower than any row this screen has ever rendered, so it is a NECESSARY
+  condition that costs nothing while **the measured drawdown stays the authority** for what is
+  shown.
+* **UNKNOWN IS NOT SHALLOW.** A row with no ratio is KEPT, which matters mid-migration: a
+  strict rule would delete exactly the names nobody can rank.
+* **THE DEGRADED CASE SAYS SO.** Until a scan runs after this change the live snapshot has no
+  ratio, the screen behaves exactly as before, and the page states it.
+* **THE PAGE NOW STATES QUALIFIED AGAINST CHECKED**, which the meta line could not say before.
+
+**F-11'S ROWS ARE LABELLED, NOT DELETED.** `fleet_history.invalidate_unmeasured_dip_span`
+appends an invalidation over 2026-08-06 (`42597e2`, the Entry wrapper) through a `through` date
+the caller supplies. **It is a SEPARATE function from audit #5's
+`invalidate_fabricated_span`, and deliberately:** that reason describes *a screen that does not
+exist in this repository* and freezes its span at first application, because its series start
+accruing real rows the moment its caller is fixed. This span has an explicit END, so inferring
+it from "everything on disk" would swallow the good rows that will already be sitting after it.
+Same shape, opposite inference. **It must be RUN ON THE SERVICE** — the rows live under
+gitignored `data/` and exist nowhere here — so it is Don's to apply, with `through` set to the
+deploy date.
+
+**25 tests. Three fixture errors of my own, each of which failed a test for a reason unrelated
+to its subject:** health subs of 60 against real floors of 66 (and no `health` key at all — this
+project's own recorded trap), and a 0.55 threshold that `clamp_drawdown` silently clamps to the
+0.40 ceiling, so the test was asserting against a threshold the screen cannot be given. Both
+are now read from the module rather than typed.
+
+## ITEM 24 — THE OPTIONS RECORD COULD ONLY CLOSE A TRADE THE PAPER BROKER HAD BOUGHT
+
+Live 2026-10-03: **26 open, 7 closed**, and the open ones could not close for two reasons.
+
+**EIGHT HAVE NO CONTRACT.** Alert ids 9, 10, 12, 13, 16, 18, 24, 25 (JNJ, MET, JNJ, DELL, ELV,
+ELV, ETN, KMI) carry `contract_source: "descriptor (no chain)"` and no expiry: nothing to mark,
+no exit to apply, no date on which they could mature. They inflated "open" with rows that are
+not trades. They now get their own `no_contract` status, counted apart from BOTH `open` and the
+closed set — **not folded into `closed`**, because `_stats` would then put them in the
+denominator of a hit rate they have no return to belong to.
+
+**AND OF THE 18 WITH A CONTRACT, ONLY THE ONES THE BROKER BOUGHT WERE SCORED.**
+`options_tracker`'s own docstring says where outcomes come from: *"an external scheduled process
+(Cowork) writes `exit_*` back via `record_outcome`"*. **That process no longer exists**, and the
+only in-repo caller of `record_outcome` is `paper_track`, which closes a position the PAPER
+BROKER holds. So an alert the broker declined could never be scored at all.
+
+    ELV alert 14 — 420C 2026-11-20, entry 27.80, last 7.00, −75%
+    HCA alert  7 — 430C 2026-10-16, entry 22.40, last  8.60, −62%
+
+both past their own **−50% stop**, neither held. One contract cost **$2,780** and **$2,240**
+against a **$1,000** budget — so the exclusion is the sizing veto, a fact about this account's
+SIZE and not about the alert. **The censoring is therefore one-sided and correlates with
+PREMIUM**: `MA36`'s defect one layer up, with affordability in place of expiry.
+
+**A FINDING BEYOND THE BRIEF: HCA ALERT 7 WAS ALSO NINE DAYS PAST ITS OWN TIME STOP.** Alerted
+2026-09-02 at 44 DTE, half the tenor puts the time stop at **2026-09-24**. So it was overdue for
+closure on its own policy *even if the trade had been fine*, and the record showed neither fact.
+
+**ONE EXIT RULE, TWO CALLERS.** `paper_track._exit_decision` was the only copy and spoke the
+ORDER-ROW vocabulary, so a second implementation for the alert path was the obvious move and
+would have been the `B7` split this project keeps paying for. The rule moved to
+`options_tracker.exit_decision` (beside the three policy constants it uses, and
+`CLOSE_BEFORE_EXPIRY_DAYS` with it — `MA5`'s lesson, since a constant governing two callers from
+inside one of them is how the HLZ bar froze at 3.0). `paper_track` delegates and is **proved
+bit-identical over 113,400 cases** varying all five inputs independently plus key-absent shapes
+and three `today` values, **with the signature contract compared too** — `S3-I1` proved a
+200-case branch sweep can miss a dropped keyword argument, because a branch sweep perturbs the
+DATA and that defect lived in the SIGNATURE.
+
+**WHAT IS REUSED RATHER THAN REBUILT:** `PT._exit_policy` for the alert's OWN logged levels (the
+fresh path, which session 16 found correct while the resume path silently collapsed to the
+defaults); `OT.record_outcome` for all P&L, so `MA46`'s gross-and-net decision and `MA36`'s
+exactly-−100% convention are not re-derived. A missing bid **DEFERS** on a live contract
+(`B5`-lesser) and **SETTLES AT ZERO** past expiry (`MA36`), the distinction being strictly
+`day > expiry`; the settlement price is never reconstructed from today's underlying, which is
+`V6-OPT`'s trap with its error running in the flattering direction.
+
+**`/admin/score-alerts`, GET scores and POST?write=1 applies.** The split matters more here than
+on the other doors: applying RESTATES a published expectancy, so the GET answer carries
+`expectancy_before` and `expectancy_after` and the restatement can be read before it is made.
+**The paper book is not touched** — it answers what a $1,000-budget account actually got, fills
+and sizing included, and that is the only measurement this project has of real execution.
+
+**`/api/options-paper` HEADLINED A FIGURE `R7` REJECTED.** `primary_reference` was **+12.88%**,
+described as *"the only reference that matches how the live book trades"* — the term-structure
+filter's late-half expectancy. `R7` rejected that filter on corrected data: its +8.89pp
+out-of-sample replication was a `B1` price-basis artefact, and split-clean the filter makes its
+own out-of-sample book **WORSE at −1.12pp against a +5.00pp bar**. So it is the expectancy of a
+book nobody runs. The reference is now the corrected alert book itself, **+3.2702%/trade**
+(`U1-SPLIT`, n 3,870), **with R2's control beside it**: five-seed random entry earns **+8.3342%**,
+so the alert's day-selection subtracts **5.0640pp** at a paired name-year sign test of z −4.9612.
+**The honest reference carries a negative result, which is why it is the right one.** The
+rejected figures are **kept in `retired_references` with their verdicts attached**, not deleted —
+`scream_log`'s principle applied to a reference. And the caveat no longer credits the dead job:
+*"open alerts outnumbering closed ones early on is expected, not a fault"* was wrong in both
+halves by 2026-10-03.
+
+**A GUARD REPOINTED, IN THE SAME COMMIT AS THE MOVE.** `test_scream_log`'s exit-reason coverage
+enumerates the exit tokens from `paper_track._exit_decision`'s SOURCE, and after the extraction
+it found none and went red against a correct tree — the `MA4` shape. It now searches BOTH
+modules and pools the tokens, which is strictly stronger than pointing it at the new location:
+wherever the rule lives it is found, and a SECOND implementation's tokens would be pooled in too
+and must also be mapped. It additionally asserts **exactly one** owner, which is the `B7`
+property the delegation exists to hold.
+
+**41 tests; 12 of 13 mutations caught and the 13th sharpened** — my first form of it only ADDED
+a dict key, so nothing about the dating changed and its "miss" was no evidence about the guard,
+the same class as the recorded inert `range(0, ...)`. **Three fixture errors of my own**, each
+failing a test for a reason unrelated to its subject: a hand-rolled store stand-in when the
+`option_alerts` DDL lives in `screener/store.py` (so the suite would have tested the fixture's
+idea of the schema), the live service's alert ids used as temp-store ids when `log_alert`
+assigns its own, and an expectation that a 20.0 mark closes nothing — which is how HCA's
+overdue time stop was found.
+
+## INDEX-BEST LANDED MID-SESSION, AND 18-AMEND'S TRIGGER IS ONLY HALF MET
+
+`df01a90` landed on main while this session was running, which matters because 18-AMEND named
+it: *"when r1's INDEX-BEST lands and Don adopts a construction, the Index's numbers switch to
+it."* **It landed. Don has not adopted.** Its own commit message is explicit — *"ADOPTS
+NOTHING; routed to Don for 2026-10-22 as a vintage event"* — so **the Index's figures correctly
+stay as item 18 set them**, and nothing here switches.
+
+**ITS INCUMBENT FIGURE AND MINE RECONCILE, AND THE RESIDUAL IS STATED RATHER THAN ROUNDED
+AWAY.** It reports the $10B incumbent at **Roth 17.16%/yr against SPY 15.23%**;
+`index_book_measured` carries `SERVED_ROTH_PCT = 17.1619` and `ALPHA_VS_SPY_PP = 1.9488`, which
+implies **SPY 15.2131** against their 15.23 — a gap of **0.017pp**, consistent with their
+message rounding the incumbent to 17.16. The Roth figure itself agrees to four decimals. So
+item 18 is pointing at the same object INDEX-BEST measured against and there is no second
+authority for the Index's figures; the two are not bit-identical on the benchmark leg, and
+saying "agree exactly" would have been one rounding wider than the evidence.
+
+**WHAT A FUTURE READER NEEDS FROM IT, because it bears on machinery in this lane.** Its winner
+is a **25-name** liquid top-25 book against `CONTRACT_MIN_POSITIONS = 50`, *"conformant on 0 of
+69 dates, so it cannot be seeded without Don changing that constant"*. That constant is
+`paper_track.seed_book`'s refusal, built in session 16 after `PT-SPLIT` — the engine had been
+recording a 10-name equal-weighted book under the Index's name. So if Don adopts arm 3, the
+seed door REFUSES it by design and the refusal is correct until the constant is a decision
+rather than an oversight. The highest conformant arm is the liquid decile at 22.95%.
+
+**EQUITY `N` IS 255 AFTER THE MERGE, NOT 252.** INDEX-BEST booked 3 trials. Every item in this
+commit charges ZERO, so no figure here moves — but the count is re-read from `by_domain` rather
+than quoted from before the merge, which is `MA37`'s rule and the sixth time this record has
+needed it.
+
+## A NEAR-MISS OF MY OWN: I COMMITTED WHILE A MUTATION HARNESS WAS RUNNING
+
+Worth recording because it would have landed a deliberately-broken guard. A `git add -A
+valuation/` ran while `mut24` was mid-flight, so the commit captured
+`options_selfscore.py` with a MUTATION applied -- `if False:` where the source reads
+`if pre is not None:`, which disables `MA36`'s before-and-after dating of a restated
+expectancy. The harness then restored the file correctly and verified it byte-for-byte, so the
+WORKING TREE was right and the COMMIT was wrong, which is the direction that is hardest to
+notice: `git status` showed the file as *modified*, and the modification was the REPAIR.
+
+**IT WOULD HAVE BEEN CAUGHT, AND THAT IS NOT THE POINT.** `test_options_selfscore` asserts the
+dating and the land gate runs every suite, so it could not have reached main. What it cost was
+the confusion of a gate failing for a reason unrelated to anything I had decided -- and the
+same mistake made against a guard with no test is a silent one.
+
+**THE RULE: do not commit, and do not edit a tracked source, while a harness or a gate is
+running.** A mutation harness rewrites tracked files in place by design and `git add` cannot
+tell an edit from a mutation; `sha256`-verified restoration protects the TREE and cannot protect
+a commit taken mid-run.
+
+**AND I MADE THE SECOND HALF OF THAT MISTAKE TOO, MINUTES AFTER WRITING THE FIRST HALF DOWN.**
+With a full 225-suite gate in flight for items 21-24, I restored item 25's two files into the
+tree to keep working on them -- which makes the gate's verdict a statement about a tree nobody
+intends to land. Caught before reading the result and reverted. **The habit the two share is
+treating the working tree as a scratchpad while something else is measuring it**, and the cure
+is the same for both: one tree, one question at a time.
+
+## NOT DONE
+
+* **The live verification of items 21, 22 and 23 is owed AFTER this deploys**, and item 23's
+  effect needs **a scan to run after it** (hourly, "Auto scans (free-tier bridge)") before the
+  snapshot carries the ratio.
+* **Item 25 is not in this commit.** Its five causes are all confirmed from the live service
+  and the scoping question is answered: `hot_score` is computed at `screen.py:365` from the
+  composite alone and `_enrich_with_dcf` runs at `:388`, AFTER it, so an engine regime fix
+  moves the DISPLAYED fair value and the single-stock tool and **cannot move the ranking or the
+  Index** — not a vintage event on the vintage rule's own wording. Measured, not assumed.
+* **Item 24's door has no schedule.** `/admin/score-alerts` is runnable and nothing calls it;
+  the cron line needs `.github/`, which the land policy refuses this lane. Applying it is Don's,
+  and it restates a published expectancy, so the GET form should be read first.
+* Nothing schedules `compute_returns` — the cron line needs `.github/`, which the land policy
+  refuses this lane.
+* The F-11 span invalidation is Don's to run on the service.
+
+---
+
 # Session 78 — 2026-10-03 — ITEM 20: my own E10 fix would have lost every Friday-evening options pick
 
 **THE LAND GATE WAS RIGHT AND MY REPAIR WAS WRONG.** `62eb951` failed run `37087592471` at

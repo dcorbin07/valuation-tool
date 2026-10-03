@@ -329,6 +329,325 @@ class TheResearchDecileIsNeverTheIndex(unittest.TestCase):
         self.assertNotIn("roth", M.research_block())
 
 
+class NoPublicSurfaceQuotesAResearchFigureUnlabelled(unittest.TestCase):
+    """ITEM 22, BROADENING ITEM 18 FROM ONE CARD TO EVERY SURFACE.
+
+    Item 18 corrected the Index tab. The survey item 22 asked for found the same figures still
+    presented as the product in three more places, each of which had been correct about its
+    arithmetic and silent about its object:
+
+      * the landing page and `/methodology` on S22's registered sentence -- "the top decile of
+        the hot list beat the equal-weighted universe by about 6.6% annualized";
+      * `/methodology` and the portfolio page on R1's factor intercept, "+6.99%/yr (t = 3.98)";
+      * `/proof` on the decile ladder and the quarterly distribution, where only the
+        benchmarks table carried a label.
+
+    None of those is a wrong number. Every one is the RESEARCH DECILE -- the ranking across all
+    ~2,500 companies, equally weighted, top 10% -- and INDEX-BOOK measured how differently the
+    served book earns: +4.1209pp against an equal-weighted basket of its own large-cap tier and
+    MINUS 0.0576pp against the all-cap equal-weighted universe those figures are measured
+    against. A reader lifting one of them as the Index's is out by most of it.
+
+    THE RULE THIS PINS: if a public surface quotes a research-decile figure, that surface must
+    also say which book it is. The guard is at PAGE level, not sentence level, and deliberately:
+    a sentence-level rule would require the clause to be pasted beside every figure, which is
+    four hand-maintained copies of one fact. A page-level rule is also the honest scope -- the
+    object is a property of the page, not of any one card.
+    """
+
+    #: (relative path, the figures that make it a research-decile surface). Figures as the
+    #: STRINGS the page prints, because that is what a reader sees.
+    SURFACES = (
+        (os.path.join("valuation", "web", "hold_horizon.py"), ("6.6", "5.1")),
+        (os.path.join("valuation", "web", "templates", "methodology.html"), ("6.99",)),
+        (os.path.join("valuation", "web", "templates", "portfolio.html"), ("6.99",)),
+        (os.path.join("valuation", "web", "templates", "_proof_body.html"), ()),
+    )
+
+    #: Any ONE of these, present on the page, discharges the obligation. Several spellings
+    #: because the four surfaces are prose, template and Python, and forcing one wording on
+    #: all three would be a style rule masquerading as a safety rule.
+    LABELS = ("not the Valquo Index", "NOT the Valquo Index",
+              "not the Valquo\u00a0Index", "RESEARCH DECILE", "research decile")
+
+    @staticmethod
+    def _rendered(path):
+        """The text a READER sees: comments stripped.
+
+        A DEFECT IN THIS SWEEP'S OWN FIRST CUT, found by driving it rather than reading it.
+        It searched the raw file, and the item-22 change had added a Jinja comment to each
+        template EXPLAINING the rule -- which quotes the label. So deleting the user-visible
+        label left the comment behind and the guard passed. Three of seven mutations walked
+        through.
+
+        That is this project's most repeated test defect in its inverted form: not a ban
+        tripped by prose, but a POSITIVE assertion satisfied by prose. A guard that cannot
+        tell code from comments about code is not measuring the page.
+        """
+        txt = io.open(path, encoding="utf-8").read()
+        if path.endswith(".py"):
+            out = []
+            for line in txt.split("\n"):
+                i = line.find("#")
+                # Crude but sound in the only direction that matters: a `#` inside a string
+                # loses text from the RENDERED side, so the guard can only get STRICTER.
+                out.append(line if i < 0 else line[:i])
+            return "\n".join(out)
+        # Jinja and HTML comments.
+        txt = re.sub(r"\{#.*?#\}", " ", txt, flags=re.S)
+        txt = re.sub(r"<!--.*?-->", " ", txt, flags=re.S)
+        return txt
+
+    @staticmethod
+    def _depths(txt):
+        """`{% if %}` nesting depth at every character position, as a list of (pos, depth).
+
+        WHY DEPTH AND NOT "IS IT CONDITIONAL AT ALL" -- a correction to this test's own first
+        cut, which asserted the label was outside every `{% if %}` and FAILED against the
+        correct tree. The whole of `_proof_body.html` sits in the `{% else %}` branch of
+        `{% if not p.available %}`, and that is right: when the evidence file cannot be read
+        the page shows nothing rather than numbers from memory. So "unconditional" is
+        unreachable and was the wrong property.
+
+        The property that matters is RELATIVE. Each figure-bearing section is its own
+        `{% if p.deciles %}` / `{% if p.benchmarks %}` / `{% if p.distribution %}`, all at the
+        same depth. A label must sit at that depth or shallower, so that it renders whenever
+        any one of them does. The label that used to be inside the benchmarks block was one
+        level DEEPER than the sections, which is exactly how a deploy missing that one block
+        would have printed a decile ladder with nothing naming the book.
+        """
+        marks, depth, pos = [], 0, 0
+        for m in re.finditer(r"\{%-?\s*(if|else|endif)\b", txt):
+            marks.append((pos, m.start(), depth))
+            kind = m.group(1)
+            if kind == "if":
+                depth += 1
+            elif kind == "endif":
+                depth = max(0, depth - 1)
+            pos = m.end()
+        marks.append((pos, len(txt), depth))
+        return marks
+
+    @classmethod
+    def _min_depth_of(cls, txt, needles):
+        """The shallowest `{% if %}` depth at which any of `needles` appears, or None."""
+        best = None
+        for a, b, depth in cls._depths(txt):
+            chunk = txt[a:b]
+            if any(n in chunk for n in needles):
+                best = depth if best is None else min(best, depth)
+        return best
+
+    @staticmethod
+    def _opener_depth(txt, conds):
+        """The shallowest depth at which any `{% if <cond> %}` TAG itself sits.
+
+        A SEPARATE FUNCTION, and the reason is a defect in this test's second cut: `_depths`
+        slices the template AT the tags, so a tag's own text is never inside any slice and
+        `_min_depth_of(txt, ("{% if p.deciles %}",))` returned `None` for a section that is
+        plainly there. A section's depth is a property of its OPENER, not of its contents --
+        its contents are one level deeper, which is the off-by-one that makes the comparison
+        wrong rather than merely unanswerable.
+        """
+        best, depth = None, 0
+        for m in re.finditer(r"\{%-?\s*(if|endif)\b([^%]*)%\}", txt):
+            kind, rest = m.group(1), m.group(2)
+            if kind == "if":
+                if any(c in rest for c in conds):
+                    best = depth if best is None else min(best, depth)
+                depth += 1
+            else:
+                depth = max(0, depth - 1)
+        return best
+
+    def test_every_surface_quoting_a_research_figure_names_the_book(self):
+        for rel, figures in self.SURFACES:
+            path = os.path.join(REPO, rel)
+            with self.subTest(rel):
+                self.assertTrue(os.path.exists(path), rel)
+                raw = io.open(path, encoding="utf-8").read()
+                for f in figures:
+                    self.assertIn(f, raw,
+                                  "%s no longer carries the figure %s. If it was removed this "
+                                  "entry should go; if it moved, point this at the new "
+                                  "surface." % (rel, f))
+                vis = self._rendered(path)
+                self.assertTrue(any(l in vis for l in self.LABELS),
+                                "%s quotes a research-decile figure and never says which book "
+                                "it is, outside of comments. One of %r must appear in text the "
+                                "reader sees." % (rel, self.LABELS))
+
+    def test_proofs_label_is_no_deeper_than_the_sections_it_must_cover(self):
+        """THE STRONGER FORM, and the mutation that exposed the need for it.
+
+        `/proof` prints research figures from four independent `{% if %}` blocks -- the
+        placebo, the benchmarks table, the decile ladder and the quarterly distribution. Its
+        only label used to live inside the BENCHMARKS block, one level deeper than the
+        sections, so a payload missing that one section would have rendered the ladder and the
+        distribution with nothing saying which book they describe. A sweep that only asks
+        "does the label appear in this file" cannot see that, and the mutation walked through.
+        """
+        vis = self._rendered(os.path.join(TPL, "_proof_body.html"))
+        sections = ("p.deciles", "p.benchmarks", "p.distribution")
+        sec_depth = self._opener_depth(vis, sections)
+        self.assertIsNotNone(sec_depth,
+                             "no figure-bearing section found; has /proof been rewritten?")
+        lab_depth = self._min_depth_of(vis, self.LABELS)
+        self.assertIsNotNone(lab_depth, "/proof carries no visible research-decile label")
+        self.assertLessEqual(
+            lab_depth, sec_depth,
+            "/proof's label sits at {%% if %%} depth %r while its figure sections sit at %r, "
+            "so a deploy missing one section would print research figures with the label gone."
+            % (lab_depth, sec_depth))
+
+    def test_the_comment_stripper_is_not_vacuous(self):
+        """A stripper that returned "" would make every assertion above pass by seeing
+        nothing, so prove it keeps the text and drops the comments."""
+        path = os.path.join(TPL, "_proof_body.html")
+        vis = self._rendered(path)
+        self.assertIn("RESEARCH DECILE", vis, "the stripper removed the visible label too")
+        self.assertNotIn("the B7 disease", vis,
+                         "the stripper left a Jinja comment in the visible text")
+        # And on the Python surface.
+        hh = self._rendered(os.path.join(REPO, "valuation", "web", "hold_horizon.py"))
+        self.assertIn("not the Valquo Index", hh)
+        self.assertNotIn("IT IS NOT SPLICED INTO", hh,
+                         "the stripper left a Python comment in the visible text")
+
+    def test_the_depth_measure_is_not_vacuous(self):
+        """Driven on a synthetic template, including the shape the real defect had."""
+        t = "TOP {% if a %}ONE {% if b %}TWO{% endif %}{% endif %} ALSO-TOP"
+        self.assertEqual(self._min_depth_of(t, ("TOP",)), 0)
+        self.assertEqual(self._min_depth_of(t, ("ALSO-TOP",)), 0)
+        self.assertEqual(self._min_depth_of(t, ("ONE",)), 1)
+        self.assertEqual(self._min_depth_of(t, ("TWO",)), 2)
+        self.assertIsNone(self._min_depth_of(t, ("ABSENT",)))
+        # An `{% else %}` branch is at its `{% if %}`'s own inner depth, not shallower --
+        # otherwise the whole of /proof would read as depth 0 and the measure would be inert.
+        e = "{% if x %}A{% else %}B{% endif %}"
+        self.assertEqual(self._min_depth_of(e, ("A",)), 1)
+        self.assertEqual(self._min_depth_of(e, ("B",)), 1)
+        # THE REAL DEFECT'S SHAPE: a label one level deeper than the sections must be refused.
+        bad = ("{% if avail %}{% if p.deciles %}LADDER{% endif %}"
+               "{% if p.benchmarks %}not the Valquo Index{% endif %}{% endif %}")
+        self.assertEqual(self._opener_depth(bad, ("p.deciles",)), 1)
+        self.assertEqual(self._min_depth_of(bad, self.LABELS), 2)
+        self.assertGreater(self._min_depth_of(bad, self.LABELS),
+                           self._opener_depth(bad, ("p.deciles",)),
+                           "the depth measure cannot see the defect it exists for")
+        # AND THE FIXED SHAPE MUST PASS, or the guard is unsatisfiable.
+        good = ("{% if avail %}not the Valquo Index{% if p.deciles %}LADDER{% endif %}"
+                "{% endif %}")
+        self.assertLessEqual(self._min_depth_of(good, self.LABELS),
+                             self._opener_depth(good, ("p.deciles",)))
+
+    def test_the_label_is_in_the_rendered_caveat_and_not_only_in_a_comment(self):
+        """A comment explaining the rule is not the rule. `hold_horizon` is Python, so the
+        figure's own page reaches the reader through `caveat()` -- assert the returned string.
+        """
+        from valuation.web import hold_horizon as H
+        cav = H.caveat()
+        self.assertIn("not the Valquo Index", cav,
+                      "the mandatory caveat does not name the book: " + cav[:200])
+        self.assertIn("~2,500", cav)
+        self.assertIn("top 10%", cav)
+
+    def test_the_registered_research_sentence_is_NOT_rewritten(self):
+        """THE OTHER HALF, and it is why the label is appended rather than spliced.
+
+        `DEFENSIBLE` is quoted verbatim from the handoff and `tests/test_hold_horizon.py` pins
+        it. Editing it to fix a PRODUCT problem would silently restate a RESEARCH claim, which
+        is the thing this project treats as most serious. So the research sentence is untouched
+        and the label travels beside it.
+        """
+        from valuation.web import hold_horizon as H
+        self.assertNotIn("Valquo Index", H.DEFENSIBLE)
+        self.assertNotIn("~2,500", H.DEFENSIBLE)
+        self.assertIn("the top decile of the hot list beat the equal-weighted universe",
+                      H.DEFENSIBLE)
+
+    def test_the_label_travels_with_the_sentence_in_one_payload(self):
+        """A label in a different template from the figure is a label nobody reads."""
+        from valuation.web import hold_horizon as H
+        t = H.for_template()
+        self.assertIn("defensible", t)
+        self.assertIn("caveat", t)
+        self.assertIn("research_object", t)
+        self.assertIn("not the Valquo Index", t["research_object"])
+
+    def test_the_vacuity_control_the_label_sweep_can_fail(self):
+        """A sweep whose obligation nothing could violate measures nothing.
+
+        Driven rather than asserted: a surface quoting a figure with no label must be refused.
+        """
+        raw = "the top decile returned 6.99%/yr and nothing else is said"
+        self.assertFalse(any(l in raw for l in self.LABELS),
+                         "the label set matches text that names no book, so the sweep would "
+                         "pass on an unlabelled page")
+
+
+class DonsStandingRulesOnWhatMayBeClaimed(unittest.TestCase):
+    """Two claims Don has ruled out by name, pinned so they cannot drift back in.
+
+    Both are about the INDEX, which is the product, and both were reachable from figures that
+    are individually true -- which is exactly why a rule rather than a judgement is wanted.
+    """
+
+    #: Every public surface. The portfolio page is mounted at a configurable path and the
+    #: others are fixed, but all four are rendered to people who are not Don.
+    PUBLIC = ("index.html", "landing.html", "methodology.html", "portfolio.html",
+              "_proof_body.html")
+
+    def _public_text(self):
+        out = {}
+        for name in self.PUBLIC:
+            p = os.path.join(TPL, name)
+            if os.path.exists(p):
+                out[name] = io.open(p, encoding="utf-8").read()
+        p = os.path.join(REPO, "valuation", "web", "static", "app.js")
+        out["app.js"] = io.open(p, encoding="utf-8").read()
+        return out
+
+    def test_no_surface_claims_32_percent(self):
+        """Don's rule, by name. The figure is reachable -- it is roughly the research decile's
+        gross top-decile return in some windows -- and it is not the Index's and not net."""
+        for name, txt in self._public_text().items():
+            with self.subTest(name):
+                for banned in ("+32%", "32%/yr", "32% a year", "32% per year"):
+                    self.assertNotIn(banned, txt,
+                                     "%s claims %r, which Don has ruled out" % (name, banned))
+
+    def test_no_surface_claims_the_index_beats_spy(self):
+        """The honest line is "about 2 points a year ahead of SPY in a Roth over 2009-2026,
+        almost all of it in the first half" -- a dated, halved, account-type-qualified
+        statement. "The Index beats SPY" is the unqualified version of it."""
+        banned = ("Index beats SPY", "Index beats the S&P", "beats SPY",
+                  "outperforms SPY", "beat SPY")
+        for name, txt in self._public_text().items():
+            with self.subTest(name):
+                for b in banned:
+                    self.assertNotIn(b, txt,
+                                     "%s claims %r. The qualified form is required: ahead by "
+                                     "about 2 points a year in a Roth over 2009-2026, with "
+                                     "almost all of it in the first half." % (name, b))
+
+    def test_the_vacuity_control_these_bans_can_fire(self):
+        """The ban strings must actually match the sentences they forbid."""
+        self.assertIn("+32%", "the book returned +32% a year")
+        self.assertIn("beats SPY", "the Valquo Index beats SPY over the sample")
+
+    def test_the_sentence_that_IS_allowed_is_available_to_a_surface(self):
+        """Refusing a claim is only half of it: the qualified version has to exist somewhere a
+        page can render, or a writer reaches for the banned one."""
+        from valuation.screener import index_book_measured as M
+        card = M.card()
+        halves = (card.get("halves_note") or "")
+        self.assertTrue(halves, "the card carries no halves note, so the 'almost all of it in "
+                                "the first half' qualification has no source")
+        self.assertIn("3.7", halves)
+        self.assertIn("0.2", halves)
+
+
 class BothAlphaSentencesTravelTogether(unittest.TestCase):
     """`INDEX-BOOK`'s ledger row states it as a void condition: "BOTH ALPHA SENTENCES ARE TRUE
     AND NEITHER MAY TRAVEL ALONE." Against its own large-cap tier the served book earns

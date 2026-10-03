@@ -119,7 +119,23 @@ def _rows_from(scored: pd.DataFrame) -> list:
                            # all -- they are produced LATER, per name, by `_enrich_with_dcf`,
                            # which writes them into `extra` itself. Listing them here was inert,
                            # and an inert line that looks like wiring is worse than none.
-                           "book_to_price", "roe"]
+                           "book_to_price", "roe",
+                           # ITEM 23 -- THE EXACT DRAWDOWN, COMPUTED EVERY SCAN AND DISCARDED.
+                           # `prices.py` and `broker_universe.py` both compute
+                           # `high_prox = price / 52-week high`, and only its WITHIN-DATE
+                           # Z-SCORE survived into the snapshot (`extra["numbers"]`, three
+                           # lines down, is keyed on `z_<name>`). A z-score orders names by
+                           # drawdown and cannot state one, so the Dip Detector could rank 242
+                           # eligible names for free and then had to spend a full valuation on
+                           # each to learn its depth -- which is why it valued 12 and
+                           # thresholded 12. `1 - high_prox` IS the drawdown, so keeping the
+                           # raw ratio lets the screen threshold all 242 at no cost and spend
+                           # valuations only on the names that qualify.
+                           #
+                           # ADDITIVE, and the one-line cost is the COVERAGE RULE's shape: a
+                           # number with no consumer is dead weight, and this one has a caller
+                           # in the same commit.
+                           "high_prox"]
                  if k in scored.columns}
         # Persist EVERY theme column (not just the legacy five) so the monthly
         # learner can tune the newer themes too. Legacy z_* columns stay for the UI.

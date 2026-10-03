@@ -3061,7 +3061,12 @@ def test_paper_book_keeps_the_backtested_headline_until_the_live_sample_is_thick
         empty = PB.paper_report(st)
         assert empty["n_logged"] == 0 and empty["thin"] is True
         assert empty["headline_source"].startswith("backtest")
-        assert empty["headline_expectancy"] == PB.GATED_LATE_HALF_EXPECTANCY
+        # ITEM 24 -- the PROPERTY is that a thin book shows a BACKTEST figure, not WHICH one.
+        # This asserted `GATED_LATE_HALF_EXPECTANCY`, the term-filter figure `R7` rejected; the
+        # headline is now the corrected alert book's own measured expectancy. Asserting the
+        # literal again would have pinned the headline to a rejected study.
+        assert empty["headline_expectancy"] == PB.CORRECTED_ALERT_BOOK_EXPECTANCY
+        assert empty["headline_expectancy"] != PB.GATED_LATE_HALF_EXPECTANCY
 
         for i in range(3):
             log_alert(st, {"alert_ts": f"2026-08-0{i + 1} 10:00", "ticker": f"T{i}",
@@ -3074,15 +3079,35 @@ def test_paper_book_keeps_the_backtested_headline_until_the_live_sample_is_thick
         assert r["live"]["expectancy_pct"] == 1.0            # every trade doubled
         # A 100% live expectancy must NOT become the headline on three trades.
         assert r["headline_source"].startswith("backtest")
-        assert r["headline_expectancy"] == PB.GATED_LATE_HALF_EXPECTANCY
+        # ITEM 24 -- the second occurrence of the same assertion, and I missed it on the first
+        # pass because the two differ only in which variable holds the report. The property is
+        # that a thin book shows a BACKTEST figure, not which one; `GATED_LATE_HALF_EXPECTANCY`
+        # is the term-filter figure `R7` rejected.
+        assert r["headline_expectancy"] == PB.CORRECTED_ALERT_BOOK_EXPECTANCY
+        assert r["headline_expectancy"] != PB.GATED_LATE_HALF_EXPECTANCY
         assert r["expectancy_gap_vs_reference"] is None
         assert "thin" in r["label"] and "live since 2026-08-01" in r["label"]
 
 
-def test_paper_book_compares_against_the_gated_reference_not_the_full_sample_headline():
-    """The live book runs BEHIND the term gate, so the fair reference is the gated late-half
-    (+12.88%), not the +10.4% full-sample headline dominated by 2016-2020. Quoting the wrong
-    one would flatter or damn the live book for a reason that has nothing to do with it."""
+def test_paper_book_compares_against_a_reference_no_study_has_rejected():
+    """REPOINTED 2026-10-03 (item 24), in the same commit as the change that moved it.
+
+    It used to read: *"the live book runs BEHIND the term gate, so the fair reference is the
+    gated late-half (+12.88%), not the +10.4% full-sample headline dominated by 2016-2020"*,
+    and asserted `primary_reference == GATED_LATE_HALF_EXPECTANCY == 0.1288`.
+
+    **`R7` REJECTED THE FILTER THAT FIGURE DESCRIBES.** Its +8.89pp out-of-sample replication
+    was an artefact of the `B1` price basis; re-run split-clean the filter makes its own
+    out-of-sample book WORSE, a gain of -1.12pp against a +5.00pp bar. So the live book does not
+    run behind a gate the project kept, and +12.88% is the expectancy of a book nobody runs.
+    Re-asserting the literal would have pinned the surface to a rejected study's figure; the
+    honest move is to assert the PROPERTY the test was protecting.
+
+    THE PROPERTY, in three parts: the primary reference is not the full-sample figure (which is
+    the defect the original test existed for, and it still holds); it is not a figure any study
+    has rejected; and the rejected ones are KEPT with their verdicts rather than deleted, so a
+    reader who saw +12.88% can find out what happened to it.
+    """
     import tempfile
 
     from valuation.edge import options_confidence as C
@@ -3091,11 +3116,22 @@ def test_paper_book_compares_against_the_gated_reference_not_the_full_sample_hea
 
     with tempfile.TemporaryDirectory() as d:
         r = PB.paper_report(Store(os.path.join(d, "t.db")))
-    assert r["primary_reference"]["value"] == PB.GATED_LATE_HALF_EXPECTANCY == 0.1288
+
+    prim = r["primary_reference"]["value"]
+    # THE ORIGINAL PROPERTY: never the full-sample figure.
+    assert prim != C.FULL_SAMPLE_EXPECTANCY, "the primary is the full-sample figure again"
+    # AND NEVER A REJECTED ONE.
+    retired = {x["value"] for x in r["retired_references"]}
+    assert PB.GATED_LATE_HALF_EXPECTANCY in retired, (
+        "the +12.88%% term-gate figure must be listed as retired, with its verdict: %r"
+        % (sorted(retired),))
+    assert prim not in retired, "the primary reference is one a study has rejected"
+    # The retired entries carry WHY and WHO, or "retired" is just a quieter way to delete.
+    for x in r["retired_references"]:
+        assert x.get("retired_by"), x
+        assert x.get("why"), x
     others = {o["value"] for o in r["other_references"]}
-    assert C.FULL_SAMPLE_EXPECTANCY in others and C.LATE_HALF_EXPECTANCY in others
-    assert r["primary_reference"]["value"] not in others, "the primary must not be duplicated"
-    assert "gate" in r["primary_reference"]["what"]
+    assert prim not in others, "the primary must not be duplicated"
     assert r["hit_rate_reference"] == C.HIT_RATE
 
 

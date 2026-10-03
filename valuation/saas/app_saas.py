@@ -633,6 +633,79 @@ def create_saas_app(cfg=CONFIG):
             log_exception("admin_index_returns")
             return jsonify({"error": safe_error(e)}), 500
 
+    def _alert_quotes(occ_symbols):
+        """OCC symbol -> quote, for item 24's self-scorer. DELEGATES, never reimplements.
+
+        `PaperBroker.quotes` already accepts OCC option symbols, already returns
+        `{symbol: {bid, ask, ...}}`, and already CHUNKS at 100 so a wide book cannot silently
+        truncate -- which is the one failure mode that would make a self-scorer under-report
+        exits rather than over-report them. A second quote path would be the `B7` split with a
+        silent failure direction.
+
+        **IT IS THE SANDBOX, AND THAT IS STAMPED RATHER THAN REMEMBERED.** `V5`'s caveat
+        applies: a sandbox fill measured BELOW the model is the direction the measurement error
+        already points. But this is a MARK and not a fill -- the bid is being read to decide
+        whether a rule fired, which is exactly what the backtest's bid-side convention assumes
+        -- so the exposure is delay, not optimism. The door reports the source so a reader of
+        the payload does not have to infer it.
+        """
+        syms = [x for x in (occ_symbols or []) if x]
+        if not syms:
+            return {}
+        from ..edge.paper_broker import PaperBroker
+        return PaperBroker().quotes(syms) or {}
+
+    @app.route("/admin/score-alerts", methods=["GET", "POST"])
+    def admin_score_alerts():
+        """Score every open options alert against ITS OWN exit rules. Item 24.
+
+        **WHY THE RECORD COULD NOT SCORE ITSELF.** `options_tracker`'s module docstring says
+        where outcomes come from: *"an external scheduled process (Cowork) writes `exit_*` back
+        via `record_outcome`"*. That process no longer exists, and the only in-repo caller of
+        `record_outcome` is `paper_track`, which closes a position the PAPER BROKER bought. So
+        an alert the broker declined -- usually on the $1,000 sizing veto, which is a fact about
+        this account's size and not about the alert -- could never be scored at all.
+
+        Measured on the live service 2026-10-03: 26 open, 7 closed. **ELV alert 14** (420C,
+        entry 27.80, last 7.00, **-75%**) and **HCA alert 7** (430C, entry 22.40, last 8.60,
+        **-62%**) were both well past their own pre-registered -50% stop, neither held, neither
+        scored. One contract cost $2,780 and $2,240 against a $1,000 budget. **So the censoring
+        is one-sided and correlates with PREMIUM** -- MA36's defect one layer up, with
+        affordability in place of expiry.
+
+        **GET SCORES AND REPORTS. POST?write=1 APPLIES.** Same split as the three doors above,
+        and it matters more here: applying RESTATES a published expectancy, and a side-effecting
+        GET is reachable by a retry, a prefetch or a pasted link. The GET answer carries the
+        before-and-after figures so the restatement can be read before it is made.
+
+        **THE PAPER BOOK IS NOT TOUCHED.** It answers a different question -- what a
+        $1,000-budget account actually got, fills and sizing included -- and that is the only
+        measurement this project has of real execution. Two books, two questions; this writes
+        only to `option_alerts`.
+        """
+        if request.method == "GET" and request.args.get("write"):
+            return jsonify({"error": "write is POST-only; a GET never stores",
+                            "hint": "POST /admin/score-alerts?write=1"}), 405
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..edge import options_selfscore as _ss
+            apply = bool(request.method == "POST" and request.args.get("write"))
+            res = _ss.score_open_alerts(_store(), _alert_quotes, apply=apply)
+            res["mark_source"] = ("Tradier quotes via PaperBroker - a MARK, not a fill. The "
+                                  "bid is read to decide whether a rule fired, which is the "
+                                  "convention every validated options figure here is net of; "
+                                  "the exposure is quote delay rather than optimism.")
+            code = 200 if res.get("ok") else 422
+            res["hint"] = (None if apply else
+                           "POST /admin/score-alerts?write=1 to apply - this RESTATES the "
+                           "published expectancy, and `expectancy_before` above is what it "
+                           "replaces")
+            return jsonify(res), code
+        except Exception as e:                                       # noqa: BLE001
+            log_exception("admin_score_alerts")
+            return jsonify({"error": safe_error(e)}), 500
+
     @app.route("/admin/track-reconstruct", methods=["GET", "POST"])
     def admin_track_reconstruct():
         """The days the automated writer missed, computed on the SERVICE and stored BESIDE the

@@ -128,22 +128,58 @@ def test_the_renderer_reads_sharpe_and_turnover_from_the_card_not_the_settings_b
         "turnover is not read from the card")
 
 
-def test_the_server_serves_the_card_for_the_config_it_was_asked_for():
-    """THE WIRING, not just the reader. Found by mutation: every test above calls
-    `BC.card(cfg)` directly, so reverting `index_track` to `_bc.card()` — dropping the
-    selection and serving roth to everyone — passed the whole suite. The defect this version
-    exists to fix would have come straight back through the one line nobody tested.
+def test_the_server_honours_the_selection_and_never_serves_one_card_to_everyone():
+    """THE WIRING, not just the reader.
+
+    Found by mutation: every test above calls `BC.card(cfg)` directly, so reverting
+    `index_track` to `_bc.card()` — dropping the selection and serving roth to everyone —
+    passed the whole suite. The defect this version exists to fix would have come straight back
+    through the one line nobody tested.
+
+    REPOINTED 2026-10-03 (item 18), in the same commit as the change that moved it, so the move
+    shows in the diff. It used to assert `card.config == cfg` for every config. That equality
+    was the right test until the TRACKED config acquired its own measurement: INDEX-BOOK
+    measured the served book directly, so for `taxable` the correct card is the served
+    measurement rather than a card recomputed from the banked panel under taxable's settings.
+    Re-asserting the old equality would have meant serving the research decile's +26.15% /
+    +19.35% to the Index tab forever — silencing a check by keeping it.
+
+    THE PROPERTY IT WAS PROTECTING IS UNCHANGED AND IS WHAT IS ASSERTED NOW: a request's
+    selection reaches the card, and no single card is served to every request. That still
+    catches both directions of the defect — "serve roth to everyone" (taxable would come back
+    with roth's card) and "serve the served card to everyone" (roth would come back stamped
+    `served-index-book`).
     """
     from valuation.screener import index_track as IT
-    seen = {}
+    from valuation.screener import index_book_measured as M
+    served = M.card().get("config")
+    tracked = IT.TRACKED_CONFIG
+    other = [n for n in ("roth", "taxable") if n != tracked]
+    assert other, "both names are the tracked config; this test has lost its contrast"
+
+    cards = {}
     for cfg in ("roth", "taxable"):
         card = (IT.summarize(config=cfg).get("backtested") or {}).get("card") or {}
         assert card.get("available"), (cfg, card)
-        assert card.get("config") == cfg, (
-            "asked for %r and the server returned the %r card" % (cfg, card.get("config")))
-        seen[cfg] = card.get("net_means")
-    assert seen["roth"] != seen["taxable"], (
-        "both configs came back on the same tax basis: %r" % seen)
+        cards[cfg] = card
+
+    # The tracked construction gets the book's OWN measurement.
+    assert cards[tracked].get("config") == served, (
+        "asked for the tracked config %r and the server returned the %r card, not the served "
+        "book's measurement" % (tracked, cards[tracked].get("config")))
+    assert cards[tracked].get("mode") == "served", cards[tracked].get("mode")
+
+    # Any other account type gets ITS OWN derived card, stamped with its own name.
+    for cfg in other:
+        assert cards[cfg].get("config") == cfg, (
+            "asked for %r and the server returned the %r card" % (cfg, cards[cfg].get("config")))
+        assert cards[cfg].get("config") != served, (
+            "%r came back as the served book's card; the selection was dropped" % cfg)
+
+    # AND NOT ONE CARD FOR EVERYBODY, which is the mutation this test was written for.
+    stamps = {cfg: cards[cfg].get("config") for cfg in cards}
+    assert len(set(stamps.values())) == len(stamps), (
+        "every config came back on the same card: %r" % stamps)
 
 
 def test_each_book_reproduces_its_own_published_block():

@@ -177,6 +177,99 @@ def book_in_force(*, meta_path: str = None, as_of=None) -> dict:
                       "events) -- NOT today's scan"}
 
 
+def attach_labels(book: dict, store=None) -> dict:
+    """Company name, sector and market cap for each holding, from the latest scan snapshot.
+
+    **ITEM 21 -- THESE FOUR COLUMNS RENDERED AN EM DASH ON ALL 86 ROWS.** `book_in_force`
+    returns `ticker`, `weight_at_formation`, `weight` and `status` and nothing else -- which is
+    right, because those are the only things the RECORD knows -- while the table has always had
+    Company, Sector, Hot score and Market cap columns inherited from the preview payload, which
+    is built from a scan and carries all four. So the held book rendered four empty columns.
+
+    They are DISPLAY LABELS and nothing else. They are not what the book was formed on, they
+    are not inputs to anything, and the book's identity is the ticker. A name the latest scan
+    no longer carries keeps its em dash rather than being dropped -- the holding is real
+    whether or not today's universe ranks it.
+
+    **THE HOT SCORE IS DELIBERATELY KEYED `hot_score_today` AND NOT `hot_score`.** The score in
+    the snapshot is TODAY's, computed on today's fundamentals; the score that selected this name
+    was computed at the last rebalance and is not recoverable from the record. Serving it as
+    `hot_score` next to `weight_at_formation` would read as the formation score, which is the
+    single most misleading thing this table could do -- so the key says which it is, and the
+    column label says it too. `sector_mix` reads the same snapshot for the same reason and this
+    deliberately does not share its loader: that function needs sector alone and tolerates
+    `unknown`, where this one must distinguish "the scan has no row for this ticker" from "the
+    row has no label", and merging them would make one function answer two questions.
+    """
+    rows = []
+    if store is not None:
+        try:
+            rows = store.load_snapshot(store.latest_scan_date()) or []
+        except Exception:                                               # noqa: BLE001
+            rows = []
+    by = {}
+    for r in rows:
+        t = str(r.get("ticker") or "").upper()
+        if t:
+            by[t] = r
+    n_lab = 0
+    for pos in book.get("positions") or []:
+        r = by.get(pos.get("ticker"))
+        if not r:
+            continue
+        n_lab += 1
+        # Only set what the snapshot actually carries. A present-but-null column must leave the
+        # em dash rather than write `None` under a name that reads as measured.
+        if r.get("name"):
+            pos["name"] = r["name"]
+        if r.get("sector"):
+            pos["sector"] = r["sector"]
+        if r.get("market_cap") is not None:
+            pos["market_cap"] = r["market_cap"]
+        if r.get("hot_score") is not None:
+            pos["hot_score_today"] = r["hot_score"]
+    book["labels"] = {
+        "n_labelled": n_lab,
+        "n_positions": len(book.get("positions") or []),
+        "basis": ("company name, sector and market cap are display labels from the latest scan "
+                  "snapshot; the hot score shown is TODAY's, not the score this name was "
+                  "selected on"),
+        "available": bool(n_lab),
+        "reason": ("" if n_lab else
+                   "no holding appears in the latest scan snapshot, so no label could be "
+                   "resolved"),
+    }
+    return book
+
+
+def cadence_sentence(cfg: dict) -> str:
+    """How often the book is rebuilt, DERIVED from the config rather than typed.
+
+    Item 21's first cut hard-coded "quarterly, with a 0.30 no-trade band" into the API, which
+    is the same defect one layer along: a sentence about a construction, maintained by hand,
+    beside the construction it describes. `rebalance_days` is in TRADING days, so 63 is a
+    quarter and the words come from the number.
+    """
+    d = int(cfg.get("rebalance_days") or 0)
+    if d >= 230:
+        every = "about once a year"
+    elif d >= 115:
+        every = "about twice a year"
+    elif d >= 52:
+        every = "quarterly"
+    elif d >= 32:
+        every = "about every two months"
+    elif d > 0:
+        every = "every %d trading days" % d
+    else:
+        every = "on no fixed schedule"
+    band = cfg.get("exit_frac")
+    if band:
+        return ("%s, holding a name until it falls out of the top %d%% of the ranking (a %.2f "
+                "no-trade band)" % (every, round(float(band) * 100), float(band)))
+    return "%s, with no no-trade band" % every
+
+
 def sector_mix(book: dict, store=None) -> dict:
     """Sector weights for the book in force, from the scan snapshot's own sector labels.
 

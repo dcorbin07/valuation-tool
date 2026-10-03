@@ -105,19 +105,44 @@ def test_every_exit_reason_the_close_path_emits_is_mapped():
     the day somebody adds a fifth exit rule.
     """
     print("\n[exit-reason coverage, enumerated from source]")
-    src = open(PT.__file__, encoding="utf-8").read()
-    tree = ast.parse(src)
-    fn = next((n for n in ast.walk(tree)
-               if isinstance(n, ast.FunctionDef) and n.name == "_exit_decision"), None)
-    check("_exit_decision was found in paper_track source", fn is not None)
-    if fn is None:
-        return
-    tokens = sorted({n.value.value for n in ast.walk(fn)
+    # REPOINTED 2026-10-03 (item 24), in the same commit as the change that moved the rule, so
+    # the move shows in the diff.
+    #
+    # This read `paper_track._exit_decision` alone. Item 24 gave the rule a SECOND caller -- the
+    # ALERT record, which the paper broker never touches -- so the rule moved to
+    # `options_tracker.exit_decision` and `_exit_decision` became a delegating wrapper. The
+    # tokens went with it, the enumeration found none, and the non-vacuity guard went red
+    # against a CORRECT tree. That is the `MA4` shape: a check keyed on the LAYOUT fires when
+    # the layout legitimately moves, and it is the right direction to fail in.
+    #
+    # It now searches BOTH modules and pools the tokens, which is strictly stronger than
+    # pointing it at the new location: wherever the rule lives the enumeration finds it, and if
+    # a SECOND implementation ever appears its tokens are pooled in too, so the mapping must
+    # cover both. Re-asserting the old location would have been silencing the check; naming only
+    # the new one would leave it as brittle as it was.
+    tokens, found_in = set(), []
+    for _mod in (OT, PT):
+        _tree = ast.parse(open(_mod.__file__, encoding="utf-8").read())
+        for _fn in ast.walk(_tree):
+            if not (isinstance(_fn, ast.FunctionDef)
+                    and _fn.name in ("exit_decision", "_exit_decision")):
+                continue
+            _toks = {n.value.value for n in ast.walk(_fn)
                      if isinstance(n, ast.Return) and isinstance(n.value, ast.Constant)
-                     and isinstance(n.value.value, str)})
+                     and isinstance(n.value.value, str)}
+            if _toks:
+                found_in.append("%s.%s" % (_mod.__name__.rsplit(".", 1)[-1], _fn.name))
+                tokens |= _toks
+    tokens = sorted(tokens)
+    check("the exit rule was found in some module's source", bool(found_in),
+          f"searched options_tracker and paper_track, found {found_in}")
     # Non-vacuity: if the parse found nothing, the test would pass by seeing nothing.
     check("the enumeration is non-vacuous (found >= 4 exit tokens)", len(tokens) >= 4,
-          f"found {tokens}")
+          f"found {tokens} in {found_in}")
+    # And ONE owner, which is the B7 property the delegation exists to hold.
+    check("exactly one function owns the rule (B7)", len(found_in) == 1,
+          f"the exit tokens are emitted from {found_in}; two implementations of this rule is "
+          f"how a scorer and a broker come to disagree about the same trade")
     unmapped = [t for t in tokens if t not in SL.EXIT_REASON_TO_STATUS]
     check("every exit reason the close path emits has a display status", not unmapped,
           f"unmapped: {unmapped}")

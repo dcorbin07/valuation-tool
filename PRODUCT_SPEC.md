@@ -195,6 +195,171 @@ rows — so marking the span neutralises it without destroying a record.
 
 ---
 
+## A RESEARCH FIGURE MAY NOT APPEAR PUBLICLY WITHOUT NAMING ITS BOOK (ITEM 22, 2026-10-03)
+
+Item 18 corrected the Index tab. Item 22's survey of the live site found the same figures still
+presented as the product in three more places, each **correct about its arithmetic and silent
+about its object**:
+
+| surface | figure | what it is |
+|---|---|---|
+| landing page, `/methodology` | "beat the equal-weighted universe by about **6.6%** annualized" | S22's registered sentence about the research decile |
+| `/methodology`, the portfolio page | factor intercept **+6.99%/yr (t = 3.98)** | R1's regression of the research decile's spread |
+| `/proof` | the decile ladder, the quarterly distribution | research decile; only the benchmarks table was labelled |
+
+None of them is a wrong number. All of them are the **research decile** — the ranking across
+all ~2,500 companies, equally weighted, top 10% — and `INDEX-BOOK` measured how differently the
+served book earns: **+4.1209pp** against an equal-weighted basket of its own large-cap tier and
+**MINUS 0.0576pp** against the all-cap equal-weighted universe those figures are measured
+against. A reader lifting one of them as the Index's is out by most of it.
+
+**THE RULE.** If a public surface quotes a research-decile figure, that surface must also say
+which book it is. Pinned by
+`tests/test_product_spec.py::NoPublicSurfaceQuotesAResearchFigureUnlabelled`.
+
+Four properties, each of which a mutation walked through before it was added:
+
+1. **PAGE LEVEL, NOT SENTENCE LEVEL.** A sentence-level rule would require the clause beside
+   every figure — four hand-maintained copies of one fact, which is the `B7` disease this
+   project has paid for more than once. The scope is also genuinely the page's.
+2. **RENDERED TEXT, NOT SOURCE TEXT.** The first cut searched the raw file, and the change had
+   added a comment to each template *explaining* the rule — which quotes the label. Deleting
+   the visible label left the comment and the guard passed; three of seven mutations walked
+   through. This is the project's most repeated test defect **inverted**: not a ban tripped by
+   prose, but a positive assertion satisfied by prose.
+3. **NO DEEPER THAN THE SECTIONS IT COVERS.** `/proof`'s only label used to sit inside
+   `{% if p.benchmarks %}`, one level deeper than the decile ladder and the distribution, so a
+   payload missing that one section would have printed research figures with the label gone.
+   The guard compares `{% if %}` nesting depth. It is a RELATIVE property, not
+   unconditionality: the whole page legitimately sits in the `{% else %}` of
+   `{% if not p.available %}`, because when the evidence file cannot be read the page shows
+   nothing rather than numbers from memory.
+4. **THE REGISTERED RESEARCH SENTENCE IS NOT REWRITTEN.** `hold_horizon.DEFENSIBLE` is quoted
+   verbatim from the handoff and pinned by `tests/test_hold_horizon.py`. The label is
+   **appended** through the mandatory `caveat()`, never spliced in — editing it to fix a
+   product problem would silently restate a research claim. `NOT_A_HOLD_RULE` set that
+   precedent and this follows it.
+
+**THE DROPDOWN SENTENCE IS GONE.** `backtest_card`'s `basis_note` explained which book a reader
+was looking at by pointing at "the one this dropdown selected" — a control session 74 removed.
+It names the account-type construction now, which is what actually selects the book and travels
+in the payload beside it.
+
+### TWO CLAIMS DON HAS RULED OUT BY NAME
+
+Pinned by `tests/test_product_spec.py::DonsStandingRulesOnWhatMayBeClaimed` across every public
+template and `app.js`. Both were reachable from figures that are individually true, which is
+why they are a rule rather than a judgement.
+
+- **No "+32%".** Not on any surface, in any spelling.
+- **No "the Index beats SPY"**, nor "outperforms SPY", nor "beats the S&P".
+
+**The honest line, which is what a surface may say:** about **2 points a year ahead of SPY in a
+Roth over 2009-2026, almost all of it in the first half**. Dated, halved and qualified by
+account type. `index_book_measured.card()["halves_note"]` is its source, so a writer reaching
+for the qualification does not have to reconstruct it — a refused claim with no permitted
+version available is how the refused one gets written anyway.
+
+## A SCREEN SAYS HOW MANY IT CHECKED, NOT JUST HOW MANY IT FOUND (ITEM 23, 2026-10-03)
+
+Item 19 made the Dip Detector measure something. Item 23 found it was measuring **12 of 242
+eligible names** and reporting the result as coverage of a market.
+
+**THE CAUSE IS A NUMBER COMPUTED IN EVERY SCAN AND THROWN AWAY.** `prices.py` and
+`broker_universe.py` both compute `high_prox = price / 52-week high`; `screen.py` persisted only
+its WITHIN-DATE Z-SCORE. **A z-score can ORDER names by drawdown and cannot state one**, so the
+screen could rank 242 names for free and had to buy a full valuation to learn any single depth.
+`1 - high_prox` IS the drawdown.
+
+**THE RULE:** where a screen's expensive test is gated by a cheap one, the cheap one runs on
+EVERY eligible name and the budget is spent on the names that pass it — and the page states
+**qualified against checked**. Pinned by `tests/test_dip_preselect.py`.
+
+Three properties, each of which a mutation walked through before it was added:
+
+1. **THE PRESELECTOR IS LOOSE, AND THAT IS WHY IT IS SAFE.** The free drawdown is the
+   SNAPSHOT's and the rendered one is the valuation's own as-traded price, so they differ by
+   however much the name moved since the scan. `PRESELECT_SLACK = 0.05` is wider than a day's
+   move and far narrower than any row this screen has rendered (the shallowest ever shown is
+   51% down), so it is a NECESSARY condition that costs nothing while **the measured drawdown
+   stays the authority** for what is displayed.
+2. **UNKNOWN IS NOT SHALLOW.** A row with no ratio is KEPT. Mid-migration a strict rule would
+   delete exactly the names nobody can rank, which is the failure the coverage rule exists for.
+3. **THE DEGRADED CASE SAYS SO.** An older snapshot carries no ratio; the screen then behaves
+   exactly as before and the page states that depth could not be read without a valuation.
+
+**THE DIAGNOSTIC THAT DECIDED THE DESIGN, taken on the service rather than assumed:** of the 12
+names valued, six were 51-66% down and **five of those six were rejected on HEALTH**. The 12
+were the DEEPEST 12 — the sort is exact — **so the cap was not hiding anything deeper. It was
+hiding everything between the threshold and ~51%.**
+
+### F-11'S FABRICATED ROWS ARE LABELLED, NOT DELETED
+
+`fleet_history.invalidate_unmeasured_dip_span` appends an invalidation over 2026-08-06
+(`42597e2`, the cache-wrapper commit, a week BEFORE the screen was built) through a `through`
+date the caller supplies. **It is a SEPARATE function from audit #5's
+`invalidate_fabricated_span`, deliberately:** that reason describes *a screen that does not
+exist in this repository* and freezes its span at first application, because its series start
+accruing real rows the moment its caller is fixed. This span has an explicit END, so inferring
+it from everything on disk would swallow the good rows already sitting after it. Same shape,
+opposite inference — sharing the implementation would give one function two meanings and let
+the record claim `H2` had covered this.
+
+**IT MUST BE RUN ON THE SERVICE.** The rows live under gitignored `data/` and exist nowhere in
+this repository, so it can be written, tested and shipped here and applied only there.
+
+---
+
+## AN OUTCOME RECORD SCORES ITSELF (ITEM 24, 2026-10-03)
+
+`option_alerts` could only be closed by `paper_track`, which closes a position the PAPER BROKER
+bought. `options_tracker`'s own docstring named the source — *"an external scheduled process
+(Cowork) writes `exit_*` back"* — and **that process no longer exists**. So an alert the broker
+declined, usually on the $1,000 sizing veto, could never be scored.
+
+| | live, 2026-10-03 |
+|---|---|
+| open | 26 |
+| closed | 7 |
+| of the open, with no contract at all | 8 |
+| ELV alert 14, past its own −50% stop | **−75%**, unscored |
+| HCA alert 7, past its own −50% stop AND nine days past its time stop | **−62%**, unscored |
+
+**THE RULE:** a record that reports an expectancy must be able to close its own trades, against
+its own logged policy, without depending on anything outside this repository. And a row that was
+never scoreable gets its own status — neither `open` (it is not a position awaiting an outcome)
+nor `closed` (it has no return to put in a hit rate).
+
+**WHY IT MATTERS MORE THAN A MISSING NUMBER: THE CENSORING IS ONE-SIDED AND CORRELATES WITH
+PREMIUM.** Affordability excludes the EXPENSIVE contracts, so the dropped trades are
+systematically a particular kind. `MA36` found the same shape one layer down with expiry as the
+filter: *"winners and quoted losers are scored and the −100% tail is dropped, which is the
+opposite of the backtest this book exists to validate."*
+
+**THE PAPER BOOK STAYS A SEPARATE OBJECT.** It answers what a $1,000-budget account actually
+got, fills and sizing included, and is the only measurement this project has of real execution.
+Two books, two questions; the self-scorer writes only to `option_alerts`.
+
+### A REFERENCE A STUDY HAS REJECTED MAY NOT BE A SURFACE'S PRIMARY ONE
+
+`/api/options-paper` headlined **+12.88%** as *"the only reference that matches how the live book
+trades"*. That is the term-structure filter's late-half expectancy, and **`R7` rejected the
+filter on corrected data** — its +8.89pp out-of-sample replication was a `B1` price-basis
+artefact, and split-clean it makes its own out-of-sample book WORSE at **−1.12pp against a
++5.00pp bar**. So the surface was comparing the live book against a book nobody runs.
+
+The reference is now the corrected alert book itself, **+3.2702%/trade** (`U1-SPLIT`, n 3,870),
+**with `R2`'s control beside it**: five-seed random entry earns **+8.3342%**, so the alert's
+day-selection subtracts **5.0640pp** at a paired name-year sign test of z −4.9612.
+
+**THE HONEST REFERENCE CARRIES A NEGATIVE RESULT, WHICH IS WHY IT IS THE RIGHT ONE.** Comparing
+the live book against a rejected filter asks whether it keeps up with something we do not run;
+the question that matters is whether the alert adds anything, and the measured answer is no.
+
+**RETIRED, NOT DELETED.** Both superseded figures ship in `retired_references` with the study
+that retired them and the reason. Deleted, a reader who saw +12.88% could not find out what
+happened to it; kept unlabelled, it gets quoted again.
+
 ## WHAT THIS FILE DOES NOT GOVERN
 
 **The rebalance BUILD path.** `python -m valuation.edge.valquo_index --config taxable`, used by

@@ -442,7 +442,20 @@ def api_valquo_index():
     """
     from ..edge.valquo_index import build_index
     from ..screener import settings as S
-    name = (request.args.get("config") or S.DEFAULT_BOOK_CONFIG or "roth").lower()
+    from ..screener.index_track import TRACKED_CONFIG
+    # ITEM 21 -- THE DEFAULT WAS `DEFAULT_BOOK_CONFIG`, WHICH IS "roth", AND THAT IS WHAT THE
+    # CARD RENDERED ABOVE THE CORRECT HOLDINGS.
+    #
+    # The book in force was right; the CONFIG BLOCK bolted to it was roth's, so the live header
+    # read verbatim: "Tax-free (Roth/IRA): highest net alpha, full rotation, ~2-month rebalance
+    # -- 85 of undefined eligible (undefined scored) ... backtested net Sharpe 1.10, net excess
+    # over the equal-weighted universe 11.6%". Every clause was wrong about the Index: it is
+    # QUARTERLY with a 30% no-trade band, and those are the research decile's figures.
+    #
+    # `DEFAULT_BOOK_CONFIG` is a UI preference for which account type to show FIRST. The book
+    # the record is of is `TRACKED_CONFIG`. Session 74 made `summarize` stop reading the
+    # preference for exactly this reason and this route was missed.
+    name = (request.args.get("config") or TRACKED_CONFIG).lower()
     cfg = (S.BOOK_CONFIGS or {}).get(name)
     if not cfg:
         return jsonify({"error": f"unknown config {name!r}",
@@ -463,6 +476,9 @@ def api_valquo_index():
                                         % book.get("reason")),
                             "disclaimer": RISK_DISCLAIMER})
         book["sector_mix"] = IF.sector_mix(book, st)
+        # ITEM 21 -- the four display columns. See `IF.attach_labels` for why the hot
+        # score arrives under a different key than the preview payload uses.
+        IF.attach_labels(book, st)
         # THE FULL `config_block`, not a hand-rolled subset. Consumers already read
         # `config.rebalance_months` and friends off this payload, and replacing it with three
         # keys would break them for no gain -- the account type still describes how the NEXT
@@ -474,6 +490,29 @@ def api_valquo_index():
                                   "last rebalance set, and is what these holdings are")
         book["available_configs"] = sorted(S.BOOK_CONFIGS or {})
         book["is_preview"] = False
+        # ITEM 21 -- THE CARD'S OWN FACTS, SERVED RATHER THAN INFERRED. The JS was reading
+        # `n_eligible` and `n_scored`, which belong to a SCAN and are absent from a held book,
+        # so both rendered as the string "undefined". A held book's facts are how many it
+        # holds, how many left, when it formed and when it next changes -- all of which
+        # `book_in_force` already computed and nothing displayed.
+        book["card"] = {
+            "n_held": book.get("n_positions"),
+            "n_exited": book.get("n_exited"),
+            "exited": [p.get("ticker") for p in (book.get("positions") or [])
+                       if p.get("status") == "exited"] or None,
+            "formed_on": book.get("formed_on"),
+            "next_rebalance": book.get("next_rebalance"),
+            "next_rebalance_basis": book.get("next_rebalance_basis"),
+            "held_since_days": book.get("held_since_days"),
+            "cadence": IF.cadence_sentence(cfg),
+            # NAMED SO A READER CANNOT TAKE IT FOR THE ACCOUNT TYPE. The construction below
+            # describes how the NEXT rebalance is built; these holdings are what the LAST one
+            # set, and the Index is one book rather than an account-type choice.
+            "construction": name,
+            "is_tracked_construction": name == TRACKED_CONFIG,
+            "not_an_account_type": ("the Valquo Index is one book; the account types describe "
+                                    "how a future rebalance would be built, not what is held"),
+        }
         book["source_note"] = ("the book formed at the last rebalance and held unchanged "
                                "since — the same book the forward record tracks, not today's "
                                "scan")

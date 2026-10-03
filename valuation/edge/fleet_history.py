@@ -271,6 +271,90 @@ FABRICATED_REASON = (
     "preceding span as genuine absence -- the finding would be manufactured by the recorder.")
 
 
+#: ITEM 19/23's span: the day the cache wrapper landed, through the day the screen was repaired.
+#:
+#: 2026-08-06 is `42597e2`, which made `web/app._get_or_compute` return a `resultcache.Entry`
+#: rather than the result inside it -- A WEEK BEFORE the Dip Detector was built. So the screen
+#: was wired to the wrapper for its whole life, `measurement_from` read `getattr(entry,
+#: "company")` and got `None`, no drawdown was ever computed, and every name counted unmeasured.
+#: The end date is passed in rather than fixed here, because a constant would be wrong the
+#: moment the repair's deploy slipped by a day and nobody would notice.
+UNMEASURED_DIP_FROM = "2026-08-06"
+
+UNMEASURED_DIP_SERIES = ("dip_rejects",)
+
+UNMEASURED_DIP_REASON = (
+    "ITEM 19: every row in this span was written by a dip screen that RAN, reached every "
+    "eligible name, and measured NONE of them. `dip.engine_measure` was wired to "
+    "`web/app._get_or_compute`, which returns a `resultcache.Entry` wrapper (since `42597e2`, "
+    "2026-08-06 -- a week before the screen was built), so `measurement_from` read no company, "
+    "computed no drawdown, and `engine_measure`'s `except Exception` swallowed the same wiring "
+    "error once per name. On the service: 242 eligible, 12 measured, 12 unmeasured. "
+    "`f11_live_rejects` then published 'zero names rejected' from that, which is a positive "
+    "assertion of ABSENCE derived from a measurement that did not happen. "
+    "THIS IS A DIFFERENT CAUSE FROM AUDIT #5's `H2` AND IS RECORDED SEPARATELY: H2's reason "
+    "describes a screen that does not exist in this repository, and guarding the UNREACHABLE "
+    "STORE is what it did. This screen existed, ran on every cycle and was reachable; it simply "
+    "could not see anything. A guard against a recorder that never starts cannot see a recorder "
+    "that starts and measures nothing, and conflating the two reasons would make the record "
+    "claim H2 had covered this.")
+
+
+def invalidate_unmeasured_dip_span(root: str = None, *, through: str,
+                                   date: str = None) -> dict:
+    """Mark F-11's dip-reject rows over item 19's span INVALID. Idempotent, append-only.
+
+    **RUN THIS ON THE SERVICE, ONCE, AFTER THE ITEM-19 REPAIR IS DEPLOYED.** The rows live
+    under gitignored `data/` on Render and exist nowhere in this repository, so this function
+    can be written, tested and shipped here and can only be APPLIED there. `through` is the
+    last day the broken screen wrote -- the deploy date of the repair -- and is a parameter
+    rather than a constant because a constant would silently be wrong if the deploy slipped.
+
+    **IT APPENDS AND NEVER EDITS.** The rows stay on disk and stay readable; what changes is
+    that `read()` honours the invalidation and `f11_first_appearances` skips the span. The
+    append-only rule is not weakened: a recorder that could erase its own bad days could erase
+    its good ones, which is the reason the rule exists.
+
+    **WHY A SEPARATE FUNCTION FROM `invalidate_fabricated_span`.** That one freezes its span at
+    first application, because its series start accruing real rows the moment its caller is
+    fixed. This span has an explicit end date, so it must not be inferred from "everything on
+    disk" -- by the time anyone runs this, real rows will already be sitting after `through`
+    and an inferred span would swallow them. Same shape, opposite inference, so sharing the
+    implementation would mean one function with two meanings.
+    """
+    through = str(through or "").strip()
+    if len(through) != 10 or through < UNMEASURED_DIP_FROM:
+        return {"ok": False, "applied": [], "already_done": [], "nothing_to_do": [],
+                "reason": ("`through` must be a YYYY-MM-DD date on or after %s; got %r"
+                           % (UNMEASURED_DIP_FROM, through))}
+    done = {s.get("series") for s in invalid_spans(root)
+            if (s.get("reason") or "").startswith("ITEM 19")}
+    out = {"applied": [], "already_done": sorted(done & set(UNMEASURED_DIP_SERIES)),
+           "nothing_to_do": [], "ok": True, "reason": ""}
+    spans = []
+    for name in UNMEASURED_DIP_SERIES:
+        if name in done:
+            continue
+        r = read(name, root, honour_invalidations=False)
+        dates = [x["date"] for x in (r.get("rows") or []) if x.get("date")]
+        inspan = [d for d in dates if UNMEASURED_DIP_FROM <= d <= through]
+        if not inspan:
+            out["nothing_to_do"].append(name)
+            continue
+        spans.append({"series": name, "from": min(inspan), "to": max(inspan),
+                      "reason": UNMEASURED_DIP_REASON})
+        out["applied"].append({"series": name, "from": min(inspan), "to": max(inspan),
+                               "n_days": len(inspan)})
+    if not spans:
+        return out
+    res = invalidate_many(spans, date=date, root=root)
+    out["ok"] = bool(res.get("ok"))
+    out["reason"] = res.get("reason") or ""
+    if not out["ok"]:
+        out["applied"] = []
+    return out
+
+
 def invalidate_fabricated_span(root: str = None, *, date: str = None) -> dict:
     """Mark every PRE-EXISTING row of the fabricated series invalid. Runs ONCE, ever.
 

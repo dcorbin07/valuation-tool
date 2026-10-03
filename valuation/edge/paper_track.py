@@ -64,7 +64,11 @@ MAX_ALERT_AGE_DAYS = 3
 # Close this many calendar days before expiry rather than letting a long call expire. A
 # position taken to expiry is decided by one day's move rather than by the strategy, and the
 # backtest's time stop already closes well before then.
-CLOSE_BEFORE_EXPIRY_DAYS = 2
+# ITEM 24 -- RE-EXPORTED, not redefined. The constant moved to `options_tracker` beside the
+# other three exit-policy constants once the rule it governs acquired a second caller; this
+# name stays so every existing importer and every test that reads it is unaffected, and a test
+# pins that there is exactly one definition in the tree.
+CLOSE_BEFORE_EXPIRY_DAYS = OT.CLOSE_BEFORE_EXPIRY_DAYS
 
 # Evidence floors. Below these the track is reported as an anecdote, not a result.
 MIN_CLOSED_FOR_MEANING = OT.MIN_CLOSED_PER_BUCKET      # 30 — same floor the scorecard tunes on
@@ -575,21 +579,19 @@ def mark_open(store, broker: PaperBroker) -> dict:
 
 # ============================== options: close =============================================
 def _exit_decision(row: dict, today: _dt.date) -> Optional[str]:
-    """Which exit rule (if any) fires. Order matters: a hard stop beats a soft time stop."""
-    mark = _f(row.get("last_mark"))
-    target, stop = _f(row.get("target_premium")), _f(row.get("stop_premium"))
-    if mark is not None:
-        if stop is not None and mark <= stop:
-            return "stop"
-        if target is not None and mark >= target:
-            return "target"
-    exp = _d(row.get("expiry"))
-    if exp is not None and (exp - today).days <= CLOSE_BEFORE_EXPIRY_DAYS:
-        return "expiry"
-    tsd = _d(row.get("time_stop_date"))
-    if tsd is not None and today >= tsd:
-        return "time_stop"
-    return None
+    """Which exit rule (if any) fires for an ORDER row. DELEGATES to `OT.exit_decision`.
+
+    ITEM 24 -- the rule itself moved to `options_tracker` when it acquired a second caller (the
+    ALERT record, which the paper broker never touches). This wrapper keeps the order-row
+    vocabulary -- `last_mark`, `target_premium`, `stop_premium`, `time_stop_date` -- so every
+    call site here is unchanged, and the behaviour is pinned bit-identical against the
+    pre-delegation source over a sweep that varies every PARAMETER and not merely every branch:
+    `S3-I1` proved 200 cases over nine branches can miss a dropped keyword argument, because a
+    branch sweep perturbs the DATA and that defect lived in the SIGNATURE.
+    """
+    return OT.exit_decision(row.get("last_mark"), row.get("target_premium"),
+                            row.get("stop_premium"), row.get("expiry"),
+                            row.get("time_stop_date"), today)
 
 
 def _settle_expired(store, broker: PaperBroker, row: dict, reason: str,

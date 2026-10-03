@@ -474,8 +474,26 @@ class TheDisclosureIsInertOnTheBook(unittest.TestCase):
             self.skipTest("origin/main copy of valquo_index.py unavailable")
         with io.open(VI, "rb") as _f:
             cur = _f.read()
-        if base.stdout == cur:
-            self.skipTest("the file is unchanged from origin/main; nothing to prove")
+        # NORMALISE BEFORE COMPARING, AND THAT IS A DEFECT IN THIS TEST'S FIRST CUT.
+        #
+        # `git show` emits LF; the working tree on this machine is CRLF. So `base.stdout ==
+        # cur` was NEVER equal, the "nothing to prove" skip could not fire, and the moment the
+        # change landed on origin/main the two sources became content-identical and the final
+        # "the disclosure DID move" assertion failed -- a red suite reporting that a landed,
+        # correct change had done nothing.
+        #
+        # The recorded version of this trap is about DECODING a git baseline as cp1252; this is
+        # the same family one step along: comparing a git baseline's BYTES against a working
+        # tree whose line endings the checkout chose. Compare content, not bytes.
+        def _norm(b):
+            return b.decode("utf-8", "replace").replace("\r\n", "\n")
+        if _norm(base.stdout) == _norm(cur):
+            # LOUD, not silent. Once this change is on main this test can only ever skip, and
+            # a quiet skip reads as a pass.
+            print("       (ALREADY LANDED: valquo_index.py matches origin/main, so the "
+                  "one-time inertness demonstration has nothing to compare. The BOOK-identity "
+                  "assertions below are what keep standing.)")
+            self.skipTest("the file is content-identical to origin/main; nothing to prove")
 
         a_first, a_band = self._build()
         with io.open(VI, "wb") as _f:

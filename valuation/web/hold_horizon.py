@@ -100,6 +100,30 @@ PER_NAME = (
     "a given name typically stays in the top decile for only one quarterly rebalance"
 )
 
+#: ITEM 22 -- WHICH BOOK THE 6.6% IS ABOUT, NAMED BEFORE ANY OTHER CAVEAT.
+#:
+#: `DEFENSIBLE` says "the top decile of the hot list ... versus the equal-weighted universe",
+#: which is accurate and is not enough: a reader on a page that also sells the Valquo Index
+#: takes "the top decile of the hot list" for the product. They are different books and
+#: INDEX-BOOK measured the difference -- the served book earns +4.1209pp against an
+#: equal-weighted basket of its own large-cap tier and MINUS 0.0576pp against the all-cap
+#: equal-weighted universe this figure is measured against, with roughly 70% of the gap being
+#: the small-cap premium a large-cap tier declines to hold.
+#:
+#: IT IS NOT SPLICED INTO `DEFENSIBLE`. That string is a registered research sentence quoted
+#: verbatim from the handoff and pinned by `tests/test_hold_horizon.py`; rewriting it to fix a
+#: product problem would silently restate a research claim. `NOT_A_HOLD_RULE` already
+#: establishes the pattern -- append, never splice -- and this follows it.
+#:
+#: It LEADS the caveat rather than trailing it, because it is a statement about WHICH OBJECT
+#: the figure describes. A trailing identity disclaimer is read after the reader has already
+#: decided what they are looking at.
+RESEARCH_OBJECT = (
+    "the ranking across all ~2,500 companies, equal-weighted top 10% - not the Valquo Index, "
+    "which holds a $10 billion large-cap tier, score-weighted, with an 8% position cap and a "
+    "no-trade band"
+)
+
 #: The caveats §6 says the sentence may not be displayed without. Held as separate clauses
 #: because each one is independently quoted verbatim from the handoff — a single joined string
 #: would straddle the handoff's bold markers and could only be pinned loosely.
@@ -147,9 +171,10 @@ def caveat() -> str:
     Rendered as one sentence so a surface cannot ship three of four clauses: the string is
     built here, and the test asserts every clause survives into the page.
     """
-    return ("Measured on the corrected {n:,}-name / {d}-date panel: {c0}; {c1}; and it is the "
-            "{c2}.").format(n=PANEL_NAMES, d=PANEL_DATES, c0=CAVEAT_CLAUSES[0],
-                            c1=CAVEAT_CLAUSES[1], c2=CAVEAT_CLAUSES[2])
+    return ("This is {obj}. Measured on the corrected {n:,}-name / {d}-date panel: {c0}; "
+            "{c1}; and it is the {c2}.").format(
+                obj=RESEARCH_OBJECT, n=PANEL_NAMES, d=PANEL_DATES, c0=CAVEAT_CLAUSES[0],
+                c1=CAVEAT_CLAUSES[1], c2=CAVEAT_CLAUSES[2])
 
 
 def per_name_note() -> str:
@@ -171,6 +196,7 @@ def for_template() -> dict:
         "per_name": PER_NAME,
         "per_name_note": per_name_note(),
         "caveat": caveat(),
+        "research_object": RESEARCH_OBJECT,
         "not_a_hold_rule": NOT_A_HOLD_RULE,
         "band": BAND,
         "band_scope": BAND_SCOPE,

@@ -141,8 +141,19 @@ def card(config: str = "roth", path: str = None) -> dict:
            "basis": book.get("basis"), "benchmark_basis": book.get("benchmark_basis"),
            "basis_note": (
                "Every figure here - gross, net, Sharpe, turnover and both excesses - is the "
-               "SAME book, the one this dropdown selected, recomputed from the banked panel "
-               "with that config's own settings. It is NOT the `portfolio` block, which holds "
+               # ITEM 22 -- "the one this dropdown selected" described a control session 74
+               # REMOVED. `index_track`'s own comment three files over says so: "session 74
+               # removed the dropdown and both JS callers". So the sentence pointed a reader at
+               # a widget that is not on the page, to explain which book they were looking at
+               # -- the one question it existed to answer.
+               #
+               # It now names the CONFIG, which is what actually selects the book and travels
+               # in the payload beside it. This card is reached only as a labelled PREVIEW of
+               # another account type now (item 18 pointed the Index's own card at
+               # `index_book_measured`), so saying which account type it is, is the whole job.
+               "SAME book - the %s account-type construction - recomputed from the banked "
+               "panel with that config's own settings. It is NOT the `portfolio` block, "
+               "which holds " % ((config or 'roth').lower()) +
                "~42 names through a hysteresis band and is gross of costs and taxes: that "
                "block's own warning reads “" + B17_WARNING + "”."),
            "b17_label_warning": B17_WARNING,

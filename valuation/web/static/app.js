@@ -1280,12 +1280,28 @@ function renderDip(d) {
   const bits = [];
   bits.push(`${num(d.n_universe)} names scanned`);
   bits.push(`${num(d.n_eligible)} passed the pre-filter`);
+  /* ITEM 23 — QUALIFIED AGAINST CHECKED, which the meta line could not say before.
+     The screen used to value the first 12 eligible names and threshold those 12, so "242
+     passed the pre-filter · 12 examined in detail" was the whole story and it read as
+     coverage of a market. Depth is now read from the scan at no cost for every eligible name,
+     so the page can say how many were deep enough to be worth a valuation — and the
+     valuation budget is spent on those rather than on the first twelve. */
+  if (d.preselect_available && d.n_qualified_on_depth != null) {
+    bits.push(`${num(d.n_qualified_on_depth)} of ${num(d.n_checked_for_depth)} deep enough `
+      + `to value`);
+  }
   /* `n_measured` counts measurement ATTEMPTS, not successes — the ones that failed are in
      `n_unmeasured` below. "fully measured" would overstate it whenever a valuation fell over. */
   bits.push(`${num(d.n_measured)} examined in detail`);
   if (d.capped) bits.push(`<b>${num(d.capped)} more not measured (per-request limit)</b>`);
   if (d.n_unmeasured) bits.push(`${num(d.n_unmeasured)} could not be measured`);
-  setHtml("dipMeta", bits.join(" · "));
+  setHtml("dipMeta", bits.join(" · ")
+    /* The degraded case says so rather than looking like the healthy one. A snapshot taken
+       before item 23 carries no 52-week-high ratio, so depth cannot be read without a
+       valuation and the screen falls back to checking the deepest-ranked names only. */
+    + (d.preselect_note
+        ? `<br><span class="muted" style="font-size:11px">${esc(d.preselect_note)}</span>`
+        : ""));
 
   if (!rows.length) {
     /* ITEM 19 — AN EMPTY SCREEN MUST NOT CLAIM NOTHING QUALIFIED WHEN NOTHING WAS CHECKED.
@@ -2433,23 +2449,86 @@ function _renderValquoIndex(d, cfg) {
     return;
   }
   const c = d.config || {};
-  const m = c.measured || {};
-  /* NAMED, for the same reason the performance card's tiles are. `net_alpha` here is an
-     excess over the EQUAL-WEIGHTED UNIVERSE -- which pays no trading cost while the book does
-     -- and not over an index anyone can buy. Printed as bare "net alpha" two inches from a
-     card that now says "vs SPY", it was the last place on this surface where the reader had
-     to guess the counterparty. */
-  const meas = (m.net_sharpe != null)
-    ? `backtested net Sharpe <b>${m.net_sharpe.toFixed(2)}</b>, net excess over the `
-      + `equal-weighted universe <b>${(m.net_alpha * 100).toFixed(1)}%</b>`
-    : (m.after_tax_sharpe != null
-        ? `backtested after-tax Sharpe <b>${m.after_tax_sharpe.toFixed(2)}</b>, after-tax `
-          + `excess over the equal-weighted universe <b>${(m.after_tax_alpha * 100).toFixed(1)}%</b>`
-        : "");
-  note.innerHTML = `<b>${c.label || cfg}</b> — ${d.n_positions} of ${d.n_eligible} eligible `
-    + `(${d.n_scored} scored). Rebalance every ~${c.rebalance_months} months`
-    + (c.exit_frac ? `, hold until a name falls past the top ${(c.exit_frac * 100).toFixed(0)}%` : ", full rotation")
-    + `. ${meas}<br><span class="muted">${d.source_note || ""}</span>`;
+  /* ITEM 21/22 — THE BACKTEST SENTENCE IS GONE FROM THIS CARD, AND ITS ABSENCE IS THE POINT.
+     It read "backtested net Sharpe 1.10, net excess over the equal-weighted universe 11.6%"
+     off `config.measured`, which is the RESEARCH DECILE's figure for an account type — an
+     all-cap equal-weighted top 10%, not the 86-name large-cap book listed below it. Item 18
+     pointed the performance card at the Index's own measurement; a second, different,
+     unlabelled backtest figure one inch above the holdings is how two surfaces on one tab come
+     to disagree. The performance card owns backtest numbers. This card describes the book.
+     Deleted rather than commented out: dead code that renders a banned figure is a loaded gun
+     for the next reader. */
+  /* ITEM 21 — THE HEADER DESCRIBED A DIFFERENT BOOK, IN FOUR SEPARATE WAYS.
+     Live on 2026-10-03 it read, verbatim: "Tax-free (Roth/IRA): highest net alpha, full
+     rotation, ~2-month rebalance — 85 of undefined eligible (undefined scored). Rebalance
+     every ~2 months, full rotation. backtested net Sharpe 1.10, net excess over the
+     equal-weighted universe 11.6%".
+
+       * the LABEL was roth's, because the route defaulted to `DEFAULT_BOOK_CONFIG`;
+       * "full rotation, ~2-month" is roth's construction — the Index is QUARTERLY with a
+         0.30 no-trade band;
+       * the two "undefined"s were `n_eligible` and `n_scored`, which belong to a SCAN and are
+         absent from a held book;
+       * the Sharpe and excess were the research decile's.
+
+     A held book's facts are how many it holds, how many left, when it formed and when it next
+     changes. The server computes all of those in `book_in_force` and now serves them as
+     `d.card`; this renders them and words none of them itself. The backtest figures are NOT
+     here — they belong to the performance card, which item 18 pointed at the Index's own
+     measurement, and repeating them above the holdings is how two surfaces come to disagree. */
+  /* THE BRANCH IS KEYED ON THE DECLARED IDENTITY, NOT ON A DISPLAY FIELD, and that is a
+     correction to this change's own first cut. It read `const bk = d.card || null; if (bk)`,
+     so a book-in-force payload that arrived WITHOUT the `card` convenience block fell into the
+     preview branch and rendered the account-type label and both `undefined`s -- the entire live
+     defect, back, from one missing field. Caught by driving exactly that payload through the
+     repaired renderer (`TheExactLiveState` in tests/test_index_card.py).
+
+     `is_preview` is the right key because the route has always set it EXPLICITLY on both paths
+     -- `False` for the record, `True` for the rebuild -- so it is a declaration of which
+     object this is rather than a side effect of which fields happen to be populated. The
+     wrong-object family: a branch on the presence of a display field is a branch on the
+     renderer's convenience, not on the data's identity.
+
+     An older cached response predating `is_preview` has it `undefined`, which is not `true`,
+     so it renders as the record -- the safe direction, since the record is what this route
+     serves by default and a preview is owner-only. */
+  const isPreview = d.is_preview === true;
+  const bk = d.card || null;
+  if (!isPreview) {
+    /* Every figure falls back to the book's OWN field, so a payload with no `card` still
+       describes the right object. `card` is a convenience, not the source of truth. */
+    const nHeld = bk && bk.n_held != null ? bk.n_held : d.n_positions;
+    const nOut = bk && bk.n_exited != null ? bk.n_exited : d.n_exited;
+    const formed = (bk && bk.formed_on) || d.formed_on;
+    const next = (bk && bk.next_rebalance) || d.next_rebalance;
+    const basis = (bk && bk.next_rebalance_basis) || d.next_rebalance_basis;
+    const gone = (bk && bk.exited) || (d.positions || [])
+      .filter(p => p.status === "exited").map(p => p.ticker);
+    const exits = (nOut && gone && gone.length)
+      ? ` ${nOut} left the book since (${gone.map(esc).join(", ")}), with the`
+        + ` weight spread across the survivors.`
+      : (nOut ? ` ${nOut} left the book since.` : "");
+    note.innerHTML = `<b>The Valquo Index — the book in force.</b> `
+      + `${num(nHeld)} holdings, formed ${esc(formed || "—")} and held unchanged `
+      + `since.${exits} Next rebalance <b>${esc(next || "—")}</b>`
+      + ((bk && bk.cadence) ? ` (${esc(bk.cadence)})` : "") + `.`
+      + `<br><span class="muted">${esc((bk && bk.not_an_account_type)
+          || "the Valquo Index is one book; the account types describe how a future rebalance "
+             + "would be built, not what is held")}`
+      + (basis ? ` ${esc(basis)}.` : "")
+      + `</span>`
+      + `<br><span class="muted">${esc(d.source_note || "")}</span>`;
+  } else {
+    /* The owner PREVIEW of a future rebalance, which legitimately IS an account-type
+       construction built from today's scan — so it keeps the construction wording, and says
+       what it is. */
+    note.innerHTML = `<b>PREVIEW — not the Index.</b> How a rebalance would be built today `
+      + `under <b>${esc(c.label || cfg)}</b>: ${num(d.n_positions)} of ${num(d.n_eligible)} `
+      + `eligible (${num(d.n_scored)} scored). `
+      + (c.exit_frac ? `Hold until a name falls past the top ${(c.exit_frac * 100).toFixed(0)}%.`
+                     : "Full rotation.")
+      + `<br><span class="muted">${esc(d.not_the_index || d.source_note || "")}</span>`;
+  }
   // ALLOCATION. With no total entered this is inert and every line below renders exactly what
   // it rendered before the feature existed -- the extra columns, the footer and the notes are
   // all behind `alloc.active`.
@@ -2474,6 +2553,7 @@ function _renderValquoIndex(d, cfg) {
      is unpriced should still show the column, with an em dash on that row. */
   const hasForm = rows.some(p => p.weight_at_formation != null);
   const hasRet = rows.some(p => p.return_pct != null);
+  const hasToday = rows.some(p => p.hot_score_today != null);
   body.innerHTML = _indexSectorBox(d)
     + '<table class="tbl"><thead><tr><th>#</th><th>Ticker</th><th>Company</th><th>Sector</th>'
     + '<th class="num">Weight</th>'
@@ -2488,7 +2568,15 @@ function _renderValquoIndex(d, cfg) {
     + (hasRet ? '<th class="num">Since formation</th>' : "")
     + (alloc.active ? '<th class="num">Allocation</th>' : "")
     + (showShares ? '<th class="num">Shares (exact)</th><th class="num">Shares (whole)</th>' : "")
-    + '<th class="num">Hot score</th><th class="num">Market cap</th>'
+    /* ITEM 21 — "Today's". The held book carries no record of the score that selected each
+       name; `hot_score_today` is recomputed on today's fundamentals and arrives under its own
+       key for that reason (see `index_in_force.attach_labels`). Printed as bare "Hot score"
+       beside "Weight at formation" it reads as the formation score, which is the most
+       misleading thing this table could say. A preview payload has no `hot_score_today` and
+       keeps the plain column, because there "today" and "at formation" are the same scan. */
+    + (hasToday ? '<th class="num">Today\'s hot score</th>'
+                : '<th class="num">Hot score</th>')
+    + '<th class="num">Market cap</th>'
     + '</tr></thead><tbody>'
     + rows.map((p, i) => {
         const a = byTicker[p.ticker];
@@ -2508,7 +2596,8 @@ function _renderValquoIndex(d, cfg) {
               ? `<td class="num">${a && a.shares != null ? a.shares.toFixed(3) : "—"}</td>`
                 + `<td class="num">${a && a.wholeShares != null ? num(a.wholeShares) : "—"}</td>`
               : "")
-          + `<td class="num">${p.hot_score == null ? "—" : p.hot_score.toFixed(1)}</td>`
+          + `<td class="num">${(hasToday ? p.hot_score_today : p.hot_score) == null ? "—"
+               : (hasToday ? p.hot_score_today : p.hot_score).toFixed(1)}</td>`
           + `<td class="num">${mcap(p.market_cap)}</td></tr>`;
       }).join("")
     + "</tbody>"
@@ -2539,7 +2628,20 @@ function _renderValquoIndex(d, cfg) {
                   than estimated.`}</div>`
         : "")
     + ((d.positions || []).length > rows.length
-        ? `<div class="note">… and ${d.positions.length - rows.length} more</div>` : "");
+        ? `<div class="note">… and ${d.positions.length - rows.length} more</div>` : "")
+    /* ITEM 21 — the labels are from a DIFFERENT object than the holdings, so the page says so.
+       The weights are the record's; the company name, sector, market cap and today's hot score
+       come from the latest scan. When no holding appears in that scan nothing is labelled, and
+       four empty columns with no explanation is what this card looked like before. */
+    + (d.labels && d.labels.n_positions
+        ? `<div class="note">${d.labels.available
+             ? `Company, sector and market cap are labels from the latest scan, resolved for
+                ${num(d.labels.n_labelled)} of ${num(d.labels.n_positions)} holdings. The hot
+                score shown is <b>today's</b> — not the score the name was selected on, which
+                the record does not keep.`
+             : `Company, sector and market cap could not be labelled: ${esc(d.labels.reason)}.
+                The tickers and weights are the record's and are unaffected.`}</div>`
+        : "");
 }
 
 /* Sector breakdown of the book — the one view that makes its diversification visible.

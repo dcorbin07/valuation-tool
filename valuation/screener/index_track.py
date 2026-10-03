@@ -587,7 +587,24 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
     # was written after mutation found that reverting `index_track` to a single card "dropping
     # the selection and serving roth to everyone" passed the entire suite. Serving the SERVED
     # card to everyone is the same defect pointed the other way.
-    is_preview = config is not None
+    # A DEFECT OF ITEM 18's OWN, FOUND BY EXERCISING THE LIVE SERVICE AND NOT BY A TEST.
+    #
+    # This read `config is not None`, on the reasoning that "a named config is a labelled
+    # PREVIEW". That is wrong by one step, and the step is in the CALLER: `/api/index-track`
+    # resolves its default BEFORE calling -- `request.args.get("config") or TRACKED_CONFIG` --
+    # so `config` is never `None` here, `is_preview` was True on every request, and
+    # `_M.card()` was UNREACHABLE. The live tab went on serving the +26.15% / +19.35% research
+    # decile for a month, which is the exact figure item 18 exists to retire.
+    #
+    # The honest predicate is not "was a name given" but "is the name the TRACKED one". A
+    # request for `taxable` IS the tracked construction, so the served book's measurement is
+    # its measurement; a request for `roth` is a genuine preview of a different account type.
+    #
+    # WHY NO TEST CAUGHT IT: every test drove `summarize` directly, where the default really
+    # is `None`, so the one path the public uses was the one path never exercised. A default
+    # resolved in the caller is invisible to a test that calls the callee. The regression
+    # guard added with this fix drives the ROUTE.
+    is_preview = bool(config) and str(config).lower() != TRACKED_CONFIG
     # READ THROUGH TO THE ARTIFACT (MC11). The literals this used to read were the
     # 20%-band figures under a 30%-band label.
     measured = S.measured(cfg_name) or {}

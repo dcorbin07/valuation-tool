@@ -250,6 +250,50 @@ def _z_high_prox(row: dict):
         return None
 
 
+#: How far BELOW the threshold a free drawdown may sit and still buy a valuation.
+#:
+#: THE PRESELECTOR IS DELIBERATELY LOOSE, AND THIS IS THE WHOLE REASON IT IS SAFE. The free
+#: drawdown comes from the SNAPSHOT -- yesterday's close against a 52-week high computed then --
+#: while the rendered drawdown comes from the valuation's own as-traded price. They disagree by
+#: however much the name has moved since the scan. A tight preselector would therefore DROP a
+#: name that qualifies today because it did not qualify yesterday, and it would do so silently.
+#:
+#: Five points of slack is wider than a day's move on any name this screen would report (the
+#: shallowest row it has ever rendered is 51%), so the preselector is a NECESSARY condition
+#: that costs nothing and the measured drawdown stays the AUTHORITY for what is shown. A name
+#: admitted on slack and then measured below the threshold is dropped by the existing rule.
+PRESELECT_SLACK = 0.05
+
+
+def cheap_drawdown(row: dict):
+    """This row's drawdown from the snapshot alone, or None. NO VALUATION, NO NETWORK.
+
+    `1 - high_prox`, where `high_prox = price / 52-week high` is computed by `prices.py` and
+    `broker_universe.py` for every name in every scan. Until item 23 only its within-date
+    Z-SCORE reached the snapshot, so the screen could ORDER 242 eligible names for free and
+    could not say how far down any of them was -- which is why it valued twelve and then
+    thresholded those twelve.
+
+    RETURNS None RATHER THAN A GUESS on an older snapshot that has no raw ratio, and the caller
+    degrades to measuring the shortlist exactly as before and SAYS SO in the payload. A
+    preselector that silently treated "unknown" as "shallow" would hide the deepest names on
+    the page it exists to fill -- `_z_high_prox`'s own note, one layer along.
+    """
+    v = row.get("high_prox")
+    if v is None:
+        v = (row.get("extra") or {}).get("high_prox")
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return None
+    if v != v or v <= 0:                                    # NaN, or a ratio that cannot be one
+        return None
+    dd = 1.0 - v
+    # A name ABOVE its own 52-week high reads as a small negative; that is zero drawdown, not a
+    # negative one, and clamping is what `clamp_drawdown` already does for the threshold.
+    return max(0.0, dd)
+
+
 class Row(dict):
     """One screened name. A dict so it serialises straight to JSON with no adapter."""
 
@@ -331,8 +375,34 @@ def screen(rows: List[dict],
     survivors.sort(key=_key)
 
     n_eligible = len(survivors)
-    capped = max(0, n_eligible - shortlist) if shortlist and shortlist > 0 else 0
-    measured_set = survivors[:shortlist] if (shortlist and shortlist > 0) else survivors
+
+    # ITEM 23 -- THRESHOLD FOR FREE, THEN PAY FOR THE QUALIFIERS.
+    #
+    # This used to take the first `shortlist` names and measure them, which on the live service
+    # meant 12 valuations against 242 eligible names: the screen checked 5% of what it was
+    # eligible to check and then reported the result as though it had looked at the market. The
+    # 12 were the DEEPEST 12 (the sort above is exact), so the cap was not hiding anything
+    # deeper -- it was hiding everything BETWEEN the threshold and the 12th name's depth, which
+    # at a 20% threshold is most of the interesting range. Measured on the service: of the 12,
+    # six were 51-66% down and five of those six were rejected on health, so one row survived.
+    #
+    # With the raw ratio on the row the threshold is decidable for every eligible name at zero
+    # cost, so the budget buys DEPTH OF COVERAGE instead of being spent on names that were never
+    # going to qualify. The cap stays -- a valuation is a real cost and an unbounded request is
+    # not an option on a 512 MB instance -- but it now applies to the QUALIFIERS.
+    cheap = [(r, c, cheap_drawdown(r)) for r, c in survivors]
+    n_with_cheap = sum(1 for _, _, dd in cheap if dd is not None)
+    preselect_available = n_with_cheap > 0
+    if preselect_available:
+        floor = max(0.0, min_drawdown - PRESELECT_SLACK)
+        # A name with NO free drawdown is kept, not dropped: on a part-populated snapshot the
+        # unknown names are exactly the ones a strict rule would silently delete.
+        qualified = [(r, c) for r, c, dd in cheap if dd is None or dd >= floor]
+    else:
+        qualified = [(r, c) for r, c, _ in cheap]
+    n_qualified = len(qualified)
+    capped = max(0, n_qualified - shortlist) if shortlist and shortlist > 0 else 0
+    measured_set = qualified[:shortlist] if (shortlist and shortlist > 0) else qualified
 
     # F-11 (audit #5 H2's consequence). `rejected_health` was a COUNT, and the identities were
     # discarded -- which is why `dip_rejects` had no source and recorded a fabricated zero. The
@@ -429,6 +499,22 @@ def screen(rows: List[dict],
         "n_measured": len(measured_set),
         "n_unmeasured": unmeasured,
         "capped": capped,
+        # ITEM 23 -- HOW MANY QUALIFIED AGAINST HOW MANY WERE CHECKED, which the page is now
+        # required to state. Before this the only honest reading of the payload was "12 names
+        # were valued out of 242 eligible", and the page reported the result as though it had
+        # looked at the market.
+        "n_checked_for_depth": n_with_cheap if preselect_available else 0,
+        "n_qualified_on_depth": n_qualified if preselect_available else None,
+        "preselect_available": preselect_available,
+        "preselect_slack": PRESELECT_SLACK,
+        "preselect_note": (
+            ("the %d-of-%d eligible names deep enough to be worth valuing were valued, up to "
+             "the per-request limit; depth is read from the scan at no cost and the valuation "
+             "is spent only on names that pass it"
+             % (n_qualified, n_with_cheap)) if preselect_available else
+            ("this scan snapshot carries no 52-week-high ratio, so depth could not be read "
+             "without a valuation and only the deepest-ranked names were checked. A scan run "
+             "after this change will carry it.")),
         "rejected_prefilter": rejected_prefilter,
         "rejected_health": rejected_health,
         # ADDITIVE. Every existing consumer reads `rows`, and this changes none of them.
