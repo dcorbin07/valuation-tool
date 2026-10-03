@@ -19,7 +19,13 @@ import os
 from flask import request, render_template, redirect, jsonify, g, abort, make_response
 
 from ..config import CONFIG
-from ..safe_error import safe_error
+from ..safe_error import log_exception, safe_error   # ITEM 27: `log_exception` was
+# CALLED by three admin handlers and IMPORTED BY NONE, so every one of them raised a
+# SECOND `NameError` while handling the first and Flask returned a bare HTML 500 --
+# not even the JSON body the handler writes. Two of the three only ever looked fine
+# because their happy path does not raise. It is imported rather than defined here
+# because it is `safe_error`'s sibling in `valuation/safe_error.py` and redacting
+# credentials out of a traceback is not a thing to have two copies of (`B7`).
 from ..web.app import app as tool_app
 from ..web.app import _proof_payload                      # the Proof tab's payload, one definition
 from ..web.query_params import clamp_int as _clamp_int   # MA50 — the one clamp
@@ -691,7 +697,15 @@ def create_saas_app(cfg=CONFIG):
         try:
             from ..edge import options_selfscore as _ss
             apply = bool(request.method == "POST" and request.args.get("write"))
-            res = _ss.score_open_alerts(_store(), _alert_quotes, apply=apply)
+            # `Store()` and NOT `_store()`, FOR THE SECOND TIME IN THIS FILE. The
+            # reconstruct door's own comment below already records this exact defect and names
+            # its generalisation -- *"a door that answers 401 and 405 correctly and cannot
+            # serve a single caller who gets past them"* -- and I then shipped a test suite for
+            # THIS door asserting only 401, 405 and 422, which are precisely the three paths
+            # that comment says prove nothing. The lesson was written down, in this file, and
+            # the suite I wrote next asserted around it.
+            from ..screener.store import Store
+            res = _ss.score_open_alerts(Store(), _alert_quotes, apply=apply)
             res["mark_source"] = ("Tradier quotes via PaperBroker - a MARK, not a fill. The "
                                   "bid is read to decide whether a rule fired, which is the "
                                   "convention every validated options figure here is net of; "
@@ -704,6 +718,122 @@ def create_saas_app(cfg=CONFIG):
             return jsonify(res), code
         except Exception as e:                                       # noqa: BLE001
             log_exception("admin_score_alerts")
+            return jsonify({"error": safe_error(e)}), 500
+
+    @app.route("/admin/record-dip-rejects", methods=["GET", "POST"])
+    def admin_record_dip_rejects():
+        """Record F-11's dip-reject population for the last closed session. Item 27(b).
+
+        **THE SERIES HAS EFFECTIVELY NEVER RUN, AND THE CHAIN IS FOUR LINKS OF NOTHING.**
+        `fleet_history.record_dip_rejects` has exactly ONE non-test caller,
+        `scan_worker.run_weekly`; `run_weekly` is reachable only from `POST /admin/run-scan`;
+        and the only thing that POSTs that door is a `render.yaml` cron -- `weekly-scan-trigger`
+        -- **that was never created on Render**, with no GitHub workflow hitting it either. So
+        F-11's dip series holds two rows in two months, and the dip digest and the weekly
+        subscriber email have never gone out. A declared cron in a config file is not a cron.
+
+        **WHY THIS IS NOT "SCHEDULE `run_weekly`".** That function does FIVE things: a full
+        1,500-name `whole_market` scan with 12 DCFs, the hot-list tracker, the Discord digest,
+        this recorder, and **an email to every opted-in subscriber**. Scheduling it to get the
+        recorder would run a full scan on a 512 MB web instance and mail the subscriber list
+        daily as a side effect. This door does the recorder and nothing else: it reads the
+        snapshot ALREADY on disk and never scans.
+
+        **IT IS AFFORDABLE, MEASURED RATHER THAN INHERITED.** `run_weekly`'s own comment prices
+        the screen at *"~188s on the service against a 120s runner budget"*. That figure
+        predates item 23, which made depth free for every eligible name and spends the
+        valuation only on qualifiers; `/api/dip` -- the same `screen_snapshot` -- **measured
+        16.2s on the live service** on 2026-10-03, against gunicorn's `--timeout 180`.
+
+        **IT DATES BY THE TRADING SESSION, WHICH IS ITEM 20 IN A THIRD PLACE.**
+        `record_dip_rejects` defaults to `date.today()`, and the schedule this door is written
+        for runs at **22:37 UTC -- 83 minutes before midnight**. A slipped run, which is exactly
+        what the observed Friday crons did when they landed at 00:45, 01:13 and 02:18 on a
+        Saturday, would stamp a session that does not exist. `last_closed_session()` is passed
+        explicitly so a late run still records the day whose data it read.
+
+        **AND IT REFUSES TO RECORD A SCREEN THAT MEASURED NOTHING, WHICH IS THE WHOLE POINT OF
+        THE SPAN THIS BATCH JUST INVALIDATED.** Item 19's defect was a screen that RAN, reached
+        every eligible name, and valued ZERO of them -- and the recorder wrote those days down
+        as real observations. `record_dip_rejects` already separates *ran and found nothing*
+        (`[]`) from *did not run* (`None`, a GAP, audit #5 `H2`), and this door is what decides
+        which. If the screen reaches eligible names and measures none of them, it passes
+        **nothing** and the day stays a GAP. A door that recreated that span while sitting one
+        commit after the invalidation would be the whole batch for nothing.
+
+        **GET PREVIEWS, POST?write=1 RECORDS.** Idempotent per session day: `record()` reports
+        `already_present` and writes nothing on a second call.
+        """
+        if request.method == "GET" and request.args.get("write"):
+            return jsonify({"error": "write is POST-only; a GET never stores",
+                            "hint": "POST /admin/record-dip-rejects?write=1"}), 405
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..screener.store import Store
+            from ..screener import market_session as _ms
+            from ..web.app import _get_or_compute
+            from ..web import dip as _dip
+            from ..edge import fleet_history as _fh
+
+            apply = bool(request.method == "POST" and request.args.get("write"))
+            screen = _dip.screen_snapshot(Store(), _get_or_compute)
+            n_elig = int(screen.get("n_eligible") or 0)
+            n_meas = int(screen.get("n_measured") or 0)
+            rejects = sorted({r["ticker"] for r in _dip.dip_rejects(screen)
+                              if r.get("ticker")})
+
+            # THE ROW IS DATED BY THE SNAPSHOT'S OWN `scan_date`, NOT BY THE CLOCK, and my
+            # first cut used `last_closed_session()` -- better than `date.today()` and still
+            # the wrong object. Item 20's rule is to date a record by the session its DATA
+            # belongs to, and this screen describes a snapshot that carries its own date.
+            # `ci_scan.py` publishes that snapshot from the GitHub runner at 22:23 UTC; if a
+            # run is dropped or late the service still serves YESTERDAY's snapshot, and a
+            # clock-dated row would file yesterday's dip population under today's session.
+            # Dating by the snapshot makes that harmless and self-limiting instead: the row
+            # lands on the day it describes, and a second run against the same stale snapshot
+            # is a no-op because `record()` reports `already_present`.
+            day = str(screen.get("scan_date") or "").strip()
+            session = _ms.last_closed_session()
+            session = (session.isoformat() if hasattr(session, "isoformat")
+                       else str(session))
+            if len(day) != 10:
+                return jsonify({
+                    "ok": False, "wrote": False, "session": session,
+                    "reason": ("the snapshot carries no usable `scan_date`, so there is no "
+                               "session to file this population under. Refused rather than "
+                               "dated from the clock."),
+                }), 422
+
+            # THE ITEM-19 GUARD. Reaching names and valuing none is not an observation.
+            if n_elig > 0 and n_meas == 0:
+                return jsonify({
+                    "ok": False, "wrote": False, "session": day or session,
+                    "n_eligible": n_elig, "n_measured": 0,
+                    "reason": ("the screen reached %d eligible names and measured NONE of "
+                               "them, which is item 19's defect exactly. The day is left a "
+                               "GAP rather than recorded as `ran and found nothing`."
+                               % n_elig),
+                }), 422
+
+            out = {"ok": True, "wrote": False, "session": day, "n_eligible": n_elig,
+                   "n_measured": n_meas, "n_rejects": len(rejects), "rejects": rejects,
+                   "scan_date": day, "last_closed_session": session,
+                   # BOTH TRAVEL so a stale snapshot is visible rather than inferred. They
+                   # agree on an ordinary day; a disagreement means the scan that feeds this
+                   # door did not run, which is worth seeing in the response.
+                   "snapshot_is_current": bool(day == session)}
+            if not apply:
+                out["hint"] = ("POST /admin/record-dip-rejects?write=1 to record - appends one "
+                               "row for session %s and is a no-op if that row exists" % day)
+                return jsonify(out), 200
+            res = _fh.record_dip_rejects(date=day, rejects=rejects)
+            out.update({"wrote": bool(res.get("wrote")),
+                        "already_present": bool(res.get("already_present")),
+                        "ok": bool(res.get("ok")), "hint": None})
+            return jsonify(out), (200 if out["ok"] else 422)
+        except Exception as e:                                       # noqa: BLE001
+            log_exception("admin_record_dip_rejects")
             return jsonify({"error": safe_error(e)}), 500
 
     @app.route("/admin/invalidate-dip-span", methods=["GET", "POST"])
@@ -751,22 +881,31 @@ def create_saas_app(cfg=CONFIG):
                     "hint": "POST /admin/invalidate-dip-span?write=1&through=YYYY-MM-DD",
                 }), 422
             apply = bool(request.method == "POST" and request.args.get("write"))
-            if not apply:
-                # REPORT WITHOUT WRITING. `invalidate_unmeasured_dip_span` has no dry-run mode
-                # and adding one would mean two code paths for one write, so the preview is
-                # built from what is already readable rather than by half-running the writer.
-                spans = _fh.invalid_spans() or []
-                done = [sp.get("series") for sp in spans
-                        if str(sp.get("reason", "")).find("dip") >= 0]
-                return jsonify({
-                    "ok": True, "applied": [], "already_done": done,
-                    "would_label": {"from": _fh.UNMEASURED_DIP_FROM, "through": through},
-                    "reason": _fh.UNMEASURED_DIP_REASON,
-                    "hint": ("POST /admin/invalidate-dip-span?write=1&through=%s to apply - "
-                             "this APPENDS an invalidation and deletes nothing" % through),
-                }), 200
-            res = _fh.invalidate_unmeasured_dip_span(through=through)
-            res["hint"] = None
+            # ITEM 27: THE PREVIEW CALLS THE FUNCTION. My first cut re-implemented the
+            # idempotency test here -- "any span whose reason contains 'dip'" -- against a
+            # function that actually skips spans whose reason STARTS WITH "ITEM 19" and then
+            # intersects with `UNMEASURED_DIP_SERIES`. Two conditions, both wrong, so the
+            # preview told Don `dip_rejects` and `iv60_atm` were already done when NEITHER
+            # was, and the POST then correctly applied `dip_rejects` 2026-08-25..2026-08-27.
+            # I had justified the copy by saying a dry-run flag "would mean two code paths for
+            # one write"; it is one path with one branch, and the copy was a second DEFINITION.
+            res = _fh.invalidate_unmeasured_dip_span(through=through, dry_run=not apply)
+            # TWO REPORTING FIELDS, AND NEITHER IS A SECOND DEFINITION OF ANYTHING. The span
+            # bounds are the module CONSTANT and this request's own argument, and the reason is
+            # the module CONSTANT -- echoed back so a reader of the preview can see what it
+            # would record. That is categorically different from the thing just removed, which
+            # re-implemented the *idempotency predicate* and promptly disagreed with the
+            # function about which series were already done. `B7` is about one definition of a
+            # RULE; handing back an input and a constant invents no rule.
+            #
+            # `would_record_reason` and not `reason`: the function already uses `reason` for
+            # *why this failed*, empty on success, and overwriting that would hide a refusal
+            # behind an explanation of what a success would have meant.
+            res["would_label"] = {"from": _fh.UNMEASURED_DIP_FROM, "through": through}
+            res["would_record_reason"] = _fh.UNMEASURED_DIP_REASON
+            res["hint"] = (None if apply else
+                           "POST /admin/invalidate-dip-span?write=1&through=%s to apply - "
+                           "this APPENDS an invalidation and deletes nothing" % through)
             return jsonify(res), (200 if res.get("ok") else 422)
         except Exception as e:                                       # noqa: BLE001
             log_exception("admin_invalidate_dip_span")

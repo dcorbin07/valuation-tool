@@ -13847,3 +13847,117 @@ either a calibration against how levered these regimes actually are, or the hone
 withholding the health sub-score for them as the `financial` regime already does. **Both are
 construction changes with their own justification and neither is taken.** The scores for the four
 names are therefore lower than they should be, and that direction is the conservative one.
+
+
+# SESSION 82 - ITEM 27: A DOOR THAT ANSWERED EVERY REFUSAL AND SERVED NO CALLER
+
+**DON FOUND THIS BY USING IT: `/admin/score-alerts` returned HTTP 500 on the live service, with
+his token, on a plain GET preview.** Reproduced through the Flask test client on a clean
+`134a18a`. Two undefined names, one on top of the other:
+
+* `app_saas.py` called **`_store()`**, which is `web/app.py`'s helper and does not exist in the
+  SaaS module -> `NameError`.
+* The `except` handler then called **`log_exception`**, which was CALLED by three handlers in
+  that file and **IMPORTED BY NONE** -> a second `NameError` while handling the first, so Flask
+  returned a **bare HTML 500** rather than the JSON body the handler writes.
+
+Measured with `pyflakes` over the whole package: **exactly four undefined names, all four in
+this one file.** `/admin/index-returns` and `/admin/invalidate-dip-span` carry the same
+`log_exception` call and looked healthy only because their happy path does not raise.
+
+## THE PART THAT IS NOT A TYPO
+
+**THE LESSON WAS ALREADY WRITTEN DOWN, IN THIS FILE, AND I TESTED AROUND IT.** The reconstruct
+door's own comment records this exact defect from `e4a2bda` and names its generalisation in as
+many words: *"a door that answers 401 and 405 correctly and cannot serve a single caller who
+gets past them."* I then shipped `/admin/score-alerts` calling `_store()`, and wrote
+`test_admin_record_doors.py` asserting **401, 405 and 422** - precisely the three paths that
+sentence says prove nothing, because every one returns BEFORE the body runs.
+
+**THE TWO NUMBERS THAT SAY IT PLAINLY.** Against `origin/main`, where the door 500s:
+**the new suite fails 16 of 21. The old suite passed 10 of 10.** Ten green tests on a door that
+could not serve one authorised caller. A refusal test is not a door test.
+
+## 27(a) - THE PREVIEW HELD A SECOND DEFINITION OF "ALREADY DONE", AND IT DISAGREED
+
+Don's GET reported `already_done: ["dip_rejects", "iv60_atm"]`; his POST then correctly applied
+`dip_rejects` 2026-08-25..2026-08-27. **The route matched any span whose reason CONTAINED
+"dip"; the function skips spans whose reason `startswith("ITEM 19")` INTERSECTED with
+`UNMEASURED_DIP_SERIES`.** Two conditions, both wrong, and the second explains the stranger
+half of his output: **`UNMEASURED_DIP_SERIES` is `("dip_rejects",)`, so `iv60_atm` is not in
+scope at all** and the function would never touch it. A missing intersection, reported as
+completed work.
+
+**I HAD REJECTED THE CORRECT FIX FOR A STATED REASON AND THE REASON WAS WRONG.** The route's own
+comment said a dry-run flag *"would mean two code paths for one write"*. It is ONE path with one
+branch before the final `invalidate_many`; what I shipped instead was a second DEFINITION, which
+is the thing `B7` is actually about. `invalidate_unmeasured_dip_span` now takes `dry_run` and the
+preview calls it. Two reporting fields - the span bounds and the reason - are echoed back from a
+CONSTANT and this request's own argument, which invents no rule.
+
+## 27(b) - THE DIP SERIES HAS EFFECTIVELY NEVER RUN, AND THE CHAIN IS FOUR LINKS OF NOTHING
+
+`record_dip_rejects` has exactly ONE non-test caller, `scan_worker.run_weekly`; `run_weekly` is
+reachable only from `POST /admin/run-scan`; the only thing that POSTs it is a `render.yaml` cron
+named `weekly-scan-trigger` **that was never created on Render**, with no workflow hitting it
+either. **A declared cron in a config file is not a cron.** Two rows in two months.
+
+**AND THE SNAPSHOT IS FRESH ANYWAY, WHICH IS WHAT MAKES A LIGHT DOOR POSSIBLE.** `auto-scan.yml`
+runs `python scripts/ci_scan.py` **in the GitHub runner** at 22:23 UTC, and that script calls
+`run_scan` DIRECTLY - so the snapshot publishes daily while `log_hot`, the Discord digest, this
+recorder and the subscriber email, all of which live in `run_weekly`, never happen.
+
+`POST /admin/record-dip-rejects` does the recorder and nothing else. **It does not scan**: it
+reads the snapshot already on disk. Affordable, measured rather than inherited - `run_weekly`'s
+comment prices the screen at *"~188s against a 120s runner budget"*, which predates item 23, and
+`/api/dip` **measured 16.2s on the live service** against gunicorn's `--timeout 180`.
+
+**IT DATES THE ROW BY THE SNAPSHOT'S OWN `scan_date`, NOT THE CLOCK - ITEM 20 IN A THIRD
+PLACE.** My first cut used `last_closed_session()`, better than `date.today()` and still the
+wrong object. A dropped scan leaves yesterday's snapshot served, and a clock-dated row would
+file yesterday's population under today's session; dating by the snapshot makes staleness
+harmless and self-limiting instead, because `record()` reports `already_present`. Both dates and
+a `snapshot_is_current` flag travel in the response.
+
+**AND IT REFUSES TO RECORD A SCREEN THAT MEASURED NOTHING.** Item 19's defect was a screen that
+RAN, reached every eligible name and valued ZERO, whose days were then written down as real
+observations - the span this batch invalidated one commit earlier. `record_dip_rejects` already
+separates *ran and found nothing* (`[]`) from *did not run* (`None`, audit #5 `H2`); this door
+decides which, and leaves the day a GAP.
+
+## DEFECTS OF MY OWN, AND THE WORST ONE IS THE TEST SUITE
+
+**MY SUITE WROTE INTO THE REPOSITORY'S FLEET RECORD, AND ONE OF THE ROWS WAS THE EXACT KIND THIS
+BATCH JUST INVALIDATED.** `fleet_history.history_dir()` derives its base from the MODULE'S OWN
+FILE LOCATION, so it **ignores `state_isolation` entirely** - a fifth escape, and the module
+appears nowhere in `tests/state_isolation.py`. A first run created `invalidations.csv` AND
+`dip_rejects.csv` under the worktree's `data/`, the latter holding **`2026-09-29,0,[]`**: a false
+*"ran and found nothing"*. Harmless only because a worktree's `data/` is gitignored and
+disposable and the primary checkout has no `data/fleet/history` at all - **run from the primary
+checkout against a populated record, the suite would have corrupted the series it was written to
+protect.** The class now points the module at a temp dir and **asserts the isolation took**.
+
+**MUTATION CAUGHT THREE GUARDS I HAD NOT TESTED - 3 MISSED OF 9 - ON A SUITE I HAD JUST WRITTEN
+TO FIX A TESTING GAP.** The item-19 guard, the missing-`scan_date` refusal, and the already-done
+predicate, which is **Don's actual bug**: a clean store has no spans, so both predicates return
+`[]` and no route-level test can tell them apart. All three now have direct tests; **9 of 9
+caught, 0 missed, 0 skipped.**
+
+**FOUR FIXTURE ATTEMPTS FAILED BEFORE I READ THE FUNCTION I WAS CALLING.** `invalidate_many` is
+idempotent per DATE and forward-only, and its docstring says why: *"IT TAKES A LIST BECAUSE THE
+UNDERLYING STREAM IS IDEMPOTENT PER DATE."* Seeding per test silently dropped every span after
+the first - `S3-I1`'s defect re-enacted by the test meant to be careful about it - and distinct
+PAST dates were refused. One list, one write. **And two tests failed by asserting test ORDER**:
+`state_isolation` shares one store per PROCESS, so "an empty store" is a statement about
+ordering, not about state. Both now assert an invariant that holds in either state.
+
+**A POSITIVE CONTROL THAT FAILED AGAINST CORRECT CODE TAUGHT ME THE SECOND HALF OF THE BUG.** I
+used `iv60_atm` to prove the predicate can say yes; it cannot, because that series is not in
+`UNMEASURED_DIP_SERIES` - which is how the missing intersection was identified rather than
+guessed.
+
+**NOT DONE:** nothing is scheduled by this commit - `.github/` is refused to this lane, and the
+one line for Don's `daily-doors.yml` is relayed rather than added. The weekly subscriber email
+is **not** scheduled and should not be, for reasons given separately. `state_isolation` is NOT
+extended to cover `fleet_history`: that would change what every existing fleet test writes to,
+and it is reported rather than taken.

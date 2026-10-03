@@ -301,7 +301,7 @@ UNMEASURED_DIP_REASON = (
 
 
 def invalidate_unmeasured_dip_span(root: str = None, *, through: str,
-                                   date: str = None) -> dict:
+                                   date: str = None, dry_run: bool = False) -> dict:
     """Mark F-11's dip-reject rows over item 19's span INVALID. Idempotent, append-only.
 
     **RUN THIS ON THE SERVICE, ONCE, AFTER THE ITEM-19 REPAIR IS DEPLOYED.** The rows live
@@ -329,8 +329,12 @@ def invalidate_unmeasured_dip_span(root: str = None, *, through: str,
                            % (UNMEASURED_DIP_FROM, through))}
     done = {s.get("series") for s in invalid_spans(root)
             if (s.get("reason") or "").startswith("ITEM 19")}
+    # `dry_run` IS STAMPED ON EVERY RETURN PATH, and my first cut set it on only one. There
+    # are two early returns -- nothing to label, and the refusal above -- so a preview that
+    # found no rows came back indistinguishable from a write. Found by the suite's own
+    # assertion that a preview must SAY it did not write.
     out = {"applied": [], "already_done": sorted(done & set(UNMEASURED_DIP_SERIES)),
-           "nothing_to_do": [], "ok": True, "reason": ""}
+           "nothing_to_do": [], "ok": True, "reason": "", "dry_run": bool(dry_run)}
     spans = []
     for name in UNMEASURED_DIP_SERIES:
         if name in done:
@@ -346,6 +350,18 @@ def invalidate_unmeasured_dip_span(root: str = None, *, through: str,
         out["applied"].append({"series": name, "from": min(inspan), "to": max(inspan),
                                "n_days": len(inspan)})
     if not spans:
+        return out
+    if dry_run:
+        # ITEM 27: `dry_run` RETURNS THE REAL ANSWER WITHOUT THE WRITE, and it exists because
+        # the alternative I chose first was worse. The admin door's GET preview re-implemented
+        # the idempotency test in the route -- matching any span whose reason merely CONTAINS
+        # "dip" -- and I justified that by saying a dry-run flag "would mean two code paths for
+        # one write". It is ONE path with one branch at the end; what I shipped instead was a
+        # SECOND DEFINITION of "already done", and it promptly disagreed with this one, telling
+        # Don that `dip_rejects` and `iv60_atm` were already invalidated when neither was. The
+        # real test is `startswith("ITEM 19")` intersected with `UNMEASURED_DIP_SERIES`, two
+        # conditions the copy got wrong. `B7`: one definition, and the preview calls it.
+        out["dry_run"] = True
         return out
     res = invalidate_many(spans, date=date, root=root)
     out["ok"] = bool(res.get("ok"))
