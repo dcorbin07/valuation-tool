@@ -5159,8 +5159,51 @@ def test_audit_x2_the_rebalance_grid_is_a_choice_and_is_now_recorded():
     assert "_GRID_START = TD + grid_offset" in src
     # BOTH the count and the loop must use the offset grid, or the progress line lies about
     # how many dates are coming and the loop silently runs a different grid.
-    assert src.count("range(_GRID_START, len(cal) - horizon, rebalance_days)") == 2, \
-        "the date count and the scoring loop must walk the SAME grid"
+    #
+    # REPOINTED 2026-10-02 by IC1, which needed an explicit `grid_dates=` and whose refactor
+    # made this guard fire against a CORRECT tree. The old form asserted the literal
+    # `range(_GRID_START, ...)` appeared exactly TWICE -- so it REQUIRED the duplication and
+    # forbade the better code. Both the count and the loop now consume ONE binding, which
+    # makes "they walk the same grid" STRUCTURALLY TRUE rather than true because two copies
+    # happen to match. Asserted on the AST, which is the property the string count stood in
+    # for -- `MB31`'s lesson.
+    import ast as _ast
+    import textwrap as _tw
+    _fn = [n for n in _ast.walk(_ast.parse(_tw.dedent(src)))
+           if isinstance(n, _ast.FunctionDef) and n.name == "build_fundamental_panel"][0]
+    _cnt = [n for n in _ast.walk(_fn)
+            if isinstance(n, _ast.Assign) and len(n.targets) == 1
+            and isinstance(n.targets[0], _ast.Name) and n.targets[0].id == "_n_dates"]
+    assert len(_cnt) == 1, "the date count is not assigned exactly once"
+    _cnames = {c.id for c in _ast.walk(_cnt[0].value) if isinstance(c, _ast.Name)}
+    # the SCORING loop specifically -- the function has several `enumerate` loops, and the one
+    # that matters is the one whose body sets `as_of`, i.e. the one walking rebalance dates.
+    _loops = []
+    for n in _ast.walk(_fn):
+        if not (isinstance(n, _ast.For) and isinstance(n.iter, _ast.Call)
+                and isinstance(n.iter.func, _ast.Name) and n.iter.func.id == "enumerate"):
+            continue
+        sets_as_of = any(isinstance(c, _ast.Name) and c.id == "as_of"
+                         and isinstance(getattr(c, "ctx", None), _ast.Store)
+                         for c in _ast.walk(n))
+        if sets_as_of:
+            _loops.append(n)
+    assert len(_loops) == 1, "expected one scoring loop, found %d" % len(_loops)
+    # EXACTLY the same name, not merely an overlapping one. A first cut asserted the two name
+    # SETS intersected and a mutation walked straight through it, because both contained the
+    # incidental `len`. The property is that the count is `len(X)` and the loop `enumerate(X)`
+    # for the SAME X.
+    assert (isinstance(_cnt[0].value, _ast.Call)
+            and isinstance(_cnt[0].value.func, _ast.Name)
+            and _cnt[0].value.func.id == "len"
+            and len(_cnt[0].value.args) == 1
+            and isinstance(_cnt[0].value.args[0], _ast.Name)),         "the date count is not `len(<name>)`, so it cannot be compared with the loop"
+    _cname = _cnt[0].value.args[0].id
+    _largs = _loops[0].iter.args
+    assert len(_largs) == 1 and isinstance(_largs[0], _ast.Name),         "the scoring loop does not enumerate a single named grid"
+    assert _largs[0].id == _cname, (
+        "the date count and the scoring loop must walk the SAME grid: count measures %r, "
+        "loop walks %r" % (_cname, _largs[0].id))
     assert "range(TD, len(cal) - horizon, rebalance_days)" not in src, \
         "no caller may be left on the hard-coded grid"
     assert '"grid_offset": int(grid_offset)' in src, \

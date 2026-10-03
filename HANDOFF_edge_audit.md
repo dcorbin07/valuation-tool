@@ -18868,3 +18868,831 @@ second reading in `D9_DIAG_SECOND.json` + `D9_DIAG_SECOND_ROWS.pkl` (`RUN_RULES`
 reading is runnable — `python scripts/d9_diagnose.py --reading backtest_2026-07-24 --out <path>`
 — and `--out` moves the json AND the rows pickle together, because a half-overwritten pair is
 worse than either.
+
+
+---
+
+# REBAL-CADENCE — **SLOWING THE REBALANCE COSTS ALPHA MONOTONICALLY, ALL THREE ARMS REJECTED — AND WHICH QUARTER YOU FORM IN MATTERS MORE THAN WHETHER YOU FORM ANNUALLY**
+
+**3 EQUITY TRIALS**, booked at **`b34bfc8`** before the scoring runner existed.
+`PREREG_rebal_cadence.md` committed **ALONE at `727652c`**, markdown only, zero `.py`, a strict
+git ancestor of every commit that computes an outcome. `by_domain` re-read rather than quoted:
+**equity 248 -> 251**, options 310, unified 0, infra 20, so `sqrt(2 ln N)` moves
+**3.3206712412296953 -> 3.3242902818892888** — both derived, and the `MA13` stamp plus BOTH
+pinned hurdle literals moved in the booking commit. **ADOPTS NOTHING.**
+
+## The verdict
+
+| arm | net alpha /yr | turnover | Δ alpha vs incumbent | Δ HAC *t* | verdict |
+|---|---|---|---|---|---|
+| **quarterly** (incumbent) | **+8.3783%** | 1.3747 | — | — | reproduction, 0 trials |
+| semi-annual | +6.9014% | 0.8064 | **-1.4769 pp** | +0.1442 | **REJECTED** |
+| annual | +6.3641% | 0.4475 | **-2.0142 pp** | -0.0955 | **REJECTED** |
+| staggered | +6.6187% | 0.4591 | **-1.7596 pp** | -0.0211 | **REJECTED** |
+
+**ALL THREE ARMS FAIL BOTH LEGS OF THE GATE IN BOTH HALVES, AND THEY FAIL IN THE OPPOSITE
+DIRECTION TO THE HYPOTHESIS** — every Δ is NEGATIVE against a bar of **+100 bps**, so these are
+not near misses, they are rejections pointing the other way. The gate is
+`SECTOR-NEUTRAL-B6`'s reused verbatim (+100 bps alpha AND +0.25 HAC *t*, both halves), as `W-1`
+and `PKG-MB20` did, so the bar has precedent and was not chosen on this data.
+
+**AND THE ORDERING IS MONOTONE IN THE CADENCE: 8.3783% quarterly -> 6.9014% semi-annual ->
+6.3641% annual.** Every step toward a slower clock costs alpha. The staggered arm sits at
+6.6187%, between annual and semi-annual.
+
+**THE VERDICT TRAVELS WITH ITS MDE, WHICH THE REGISTER STATED BEFORE THE RUN.** Measured paired
+HAC(1) se on 66 periods, annualised: semi-annual 0.8665 pp, annual 1.0586 pp, staggered
+0.6991 pp — so the 80%-power MDE is **2.4607 / 3.0063 / 1.9854 pp** and the +100 bps
+margin sits **2.0x to 3.0x BELOW** it. Observed effects are **0.580x / 0.632x /
+0.826x** of their own 80%-power thresholds. **So these are BOUNDED nulls — "no cadence effect
+as large as roughly 2 to 3 pp/yr" — and NOT a demonstration that cadence is irrelevant.** Every
+critical value is **LABELLED UNCALIBRATED**: `V2G` established and `R1-VAR` re-confirmed that no
+calibrated floor exists for a paired within-panel difference, and `X7` calibrates LEVELS, so no
+X7 floor is quoted anywhere in this item.
+
+**WHAT IS STRONGER THAN ANY SINGLE CELL IS THE CONSISTENCY OF THE SIGN — and the count is
+stated exactly because a first draft of this sentence said "nine of nine" and that is wrong.
+SEVEN of the nine arm-by-window cells are NEGATIVE, and both positives are EARLY halves**
+(semi-annual +0.3718 pp, annual +0.9482 pp); every full-sample cell and every late half is
+negative. The staggered
+arm is the only one sign-stable across halves (-1.2389 pp early, -2.2242 pp late) and
+carries the largest |paired *t*| at **-2.3468**. Two of three arms' halves **DISAGREE IN
+SIGN** — semi-annual +0.3718 pp early against -3.2167 pp late, annual +0.9482 against
+-5.0442 — which is this record's single most repeated pattern and was registered as
+expectation 7.
+
+## THE FINDING, AND IT IS THE DIAGNOSTIC RATHER THAN THE VERDICT: TIMING LUCK IS BIGGER THAN THE EFFECT
+
+Window-matched on the **identical 66 periods** the primary uses, net alpha per year by which
+quarter the book is formed in:
+
+| | offset 0 | offset 1 | offset 2 | offset 3 | **spread** |
+|---|---|---|---|---|---|
+| **semi-annual (cadence 2)** | **+6.9014%** | **+8.9168%** | — | — | **2.0155 pp** |
+| **annual (cadence 4)** | **+6.3641%** | +6.5849% | +5.5642% | +7.8193% | **2.2551 pp** |
+
+**THE SPREAD FROM THE OFFSET ALONE (2.0155 pp and 2.2551 pp) IS LARGER THAN THE CADENCE
+EFFECT THE REGISTER WAS BUILT TO MEASURE (1.4769 pp to 2.0142 pp), AND 2.0x TO 2.3x
+THE +100 bps MARGIN.** On this panel, **which quarter you form an annual book in matters more
+than whether you form it annually.** That is `X2`'s finding — the rebalance grid alone moving the
+long-short *t* from 2.70 to 3.52 — reproduced on the contract book's net alpha rather than on a
+long-short *t*.
+
+**AND IT IS WHY THE REGISTER'S PRE-COMMITMENT TO OFFSET 0 AND ITS VOID CONDITION AGAINST QUOTING
+THE BEST OFFSET EARNED THEIR KEEP ON THIS VERY ITEM.** Semi-annual at **offset 1 reads
++8.9168%, ABOVE the quarterly incumbent's +8.3783% by +0.5385 pp**, while offset 0 —
+the arm that was registered — reads +6.9014%, **below** it by 1.4769 pp. Same
+construction, same window, same data, same cost model; the only difference is the quarter it
+forms in. **A register free to choose the offset after looking would have reported semi-annual
+BEATING the incumbent.** It carries **NO VERDICT**, and quoting it as one is a void condition.
+
+**THE STAGGERED ARM IS EXACTLY WHAT IT CLAIMS TO BE, CHECKED RATHER THAN ASSERTED.** The mean of
+the four cadence-4 offsets is **+6.5831%** against the staggered arm's **+6.6187%** — a
+difference of **0.0356 pp**. Averaging four overlapping sub-books really does average away
+the offset, which is the Jegadeesh-Titman property the arm was included for, and it is the
+reason arm 4 is the only one of the three whose reading is not a statement about a quarter.
+
+## Kills — all five pass, and two were gating and read in their own pass
+
+| | bar | measured | |
+|---|---|---|---|
+| **K1** incumbent reproduces the published contract book | max dev <= 1e-12 on all four fields | worst **1.110e-16** ( `net_alpha`, `net_sharpe`, `annual_turnover` all **0.000e+00**; `net_max_drawdown` 1.110e-16 ) | **PASS** |
+| **K2** `cadence=1` bit-identical to the shipped default | exact | exact | **PASS** |
+| **K3** the cadence is not inert | annual turnover <= 0.70x quarterly | **0.3255x** | **PASS** |
+| **K4** holding is not measuring attrition | dropped held name-periods < 5% | max **0.0104** | **PASS** |
+| **K5** staggered has 4 live sub-books every period | 4 of 4 | 4 | **PASS** |
+
+`K1` and `K2` ran in **pass 0** and `scripts/rebal_cadence_arms.py` **REFUSES** to run without
+that artifact — `O10`'s process defect, not repeated. The refusal is exercised by test rather
+than asserted.
+
+## Secondary — NO VERDICT, and the after-tax leg splits its own prediction
+
+| arm | vs SPY /yr | max drawdown | after-tax alpha | short-term share of gains | total drag |
+|---|---|---|---|---|---|
+| quarterly | +9.23 pp | -0.2755 | **+2.1133%** | 0.4934 | 0.0679 |
+| semi-annual | +7.76 pp | -0.2737 | +1.5849% | 0.3300 | 0.0546 |
+| annual | +7.22 pp | -0.2824 | +1.7042% | 0.2420 | 0.0469 |
+| staggered | +7.47 pp | **-0.2631** | **+2.2709%** | 0.2910 | **0.0431** |
+
+**THE REGISTERED MECHANISM IS CONFIRMED AND THE CONCLUSION IT WAS SUPPOSED TO SUPPORT IS NOT.**
+The short-term share of realised gains falls monotonically **0.4934 -> 0.3300 ->
+0.2420** and the total drag falls **0.0679 -> 0.0431**, so an annual hold really does
+cross the long-term capital-gains line (`LONG_TERM_DAYS` = 366, and the lot clock runs on the
+real calendar). **But the tax saving does not pay for the alpha loss except in one arm:**
+semi-annual (+1.5849%) and annual (+1.7042%) are **WORSE** after tax than quarterly
+(+2.1133%), and only **staggered (+2.2709%) comes out ahead, by +0.1576 pp**.
+
+**`R1-VAR` BINDS THIS AND IT IS WHY NOTHING HERE RESCUES AN ARM.** Don's standing ruling: a
+volatility or Sharpe gain bought with alpha does not count, and the book's Sharpe is 0.5866 at an
+IR of ~0.88/yr vs SPY so the exception does not fire. The staggered arm's after-tax edge of
++0.1576 pp and its best-in-class drawdown (-0.2631) therefore **do not convert a failing
+primary into an eligible arm**, `X7` calibrates no floor for any of these four columns, and each
+is a measurement carrying no verdict. **It is also a TAXABLE-account statement only** — a
+Roth/IRA pays no such drag and earns the net-of-cost figure instead.
+
+**TURNOVER FALLS LESS THAN PROPORTIONALLY, which is a small finding in its own right:** the
+ratios to quarterly are **0.5866** (semi-annual, against 0.50 if proportional) and
+**0.3255** (annual, against 0.25). The `S14` 30% band already suppresses the quarterly book's
+turnover to 1.3747 from the ~2.6 an unbanded book runs, so **there is less left for a slower
+clock to save** — the band and the cadence are partly substitutes, and the band is already
+adopted.
+
+## MONTHLY — out of scope, not tested, and the recommendation this register owed
+
+**No monthly figure is reported.** The register fixed that in §7 and named the three costs: the
+rebuild itself (~3x the 69-date build's ~20 minutes, **on every build thereafter**, though
+monthly is the *native* granularity of `prepare_daily`'s point-in-time market-cap path, so it is
+feasible on owned data); **its own placebo calibration**, because every X7 bar is calibrated for
+this panel at 69 dates and would become an **EXTRAPOLATION**, and that sweep is the dominant
+cost the audit's estimate omits; and `S8`/`S9`'s **up-to-31-day market-cap staleness**, a
+precision defect on a quarterly panel and **a third of the rebalance interval** on a monthly one,
+landing on `size` — the theme `X3` measured as carrying the composite's entire statistical
+significance.
+
+**THE RECOMMENDATION, WHICH THE REGISTER DEFERRED TO HERE BECAUSE IT DEPENDS ON ARMS 1-4: DO NOT
+BUILD IT FOR THIS QUESTION.** Three reasons from what the arms returned, and the honest
+counter-argument stated with them.
+
+1. **The gradient points toward FASTER, so monthly is not dominated a priori — that is the
+   counter-argument and it is real.** Alpha rises monotonically as the clock shortens
+   (6.3641% -> 6.9014% -> 8.3783%), so extrapolating would predict monthly earns MORE
+   gross. Anyone arguing for the build should argue from this line.
+2. **But the quantity to be resolved is smaller than this panel's resolution, and a monthly
+   panel does not obviously fix that.** The per-step cadence effect is **1.4769 to
+   2.0142 pp** against an MDE80 of **1.9854 to 3.0063 pp**. A monthly panel buys ~3x
+   the periods, which shrinks a se by about `sqrt(3)` — roughly a 1.1 to 1.7 pp MDE — so it would
+   be **marginal at best against an effect of this size**, and that is before its own placebo
+   sweep exists to make any verdict quotable.
+3. **The decisive argument is the new one: timing luck (2.2551 pp) is LARGER than the effect.**
+   On a monthly panel the formation grid has 12 offsets rather than 4, so a single-offset monthly
+   arm carries the same class of exposure this item just measured, and the honest construction is
+   the staggered one — which on this panel is the arm whose reading is **-1.7596 pp**, i.e.
+   still negative. **A monthly staggered book is the design worth having, and nothing here
+   suggests it clears.**
+
+**If monthly is ever built, build it for a different reason** — the audit's *"unlocks the whole
+text class at once"* argument — and note that `MA24` already closed `S19` **permanently** on its
+own pre-committed kill, which was the strongest stated argument for paying for it.
+
+## Defects of my own, both caught by the tests written to pin them, and the first ran against the hypothesis
+
+**(a) A HELD PERIOD WAS CHARGING TURNOVER.** The first cut derived a held period's trade from
+`|target - drifted|`, which read the renormalisation after a held name leaves the panel as
+**BUYING more of each survivor** — measured at **0.0661 of two-way turnover per cadence-4 held
+period**. So every long-hold arm was paying a cost to hold, **which is exactly the direction that
+makes slowing down look worse than it is**, and the verdict would have been right for a partly
+wrong reason. No trade happens on a hold period: the panel simply stops covering that name. A
+hold period now charges nothing and the dropped **weight** is reported so `K4` reads the hole
+rather than the cost model swallowing it.
+
+**(b) AN OVERSTATEMENT IN MY OWN REGISTER, CORRECTED BEFORE IT WAS COMMITTED.** §2 claimed
+`sum(w_i r_i)` *"reduces to `np.mean` exactly"*, and the test written to pin it **FAILED,
+correctly** — `np.mean` sums pairwise and `np.dot` does not, so they agree to floating point and
+not to the bit. The claim is weakened to floating-point equality in general plus **bit-identity
+on THIS panel, which is measured** (`K1` reads 0.000e+00 on three of four fields) rather than
+inferred from the algebra.
+
+## A GUARD OF MINE FROM ANOTHER ITEM FIRED, CORRECTLY, AND IS REPOINTED IN THE SAME COMMIT
+
+`tests/test_mc10_feasibility.py::test_the_equity_count_is_unchanged_at_248` went red on this
+register's booking — **and it was right to, because it was the wrong guard.** `MC10` charged zero
+trials, so it pinned that the `MA13` stamp still read `"equity": 248`. That is correct about
+`MC10` and **wrong as a guard: `N` is SUPPOSED to rise, and every landed register raises it.**
+This is the first register since `MC10` to book an equity trial, so it is the first thing to make
+it fire.
+
+**THIS PROJECT HAS NOW PAID FOR THAT SHAPE THREE TIMES** — `MA57`'s allowlist guard, `MB31`'s own
+re-derivation guard (which asserted `N_after == live` and would have demanded a fresh ~400s
+re-score on every booking for the next 440 trials), and now this. `MB31`'s lesson, verbatim: **a
+guard asserting "these two numbers are equal today" fires on the CLOCK; assert the property the
+equality stood in for.** Repointed in the same commit so the move shows in the diff (`MA59`) to
+the property `MC10` actually has — **`MC10` itself contributed nothing to the count**, checkable
+without naming any number because it has no research-log row at all — plus the weaker thing it
+was really leaning on, that the stamp is still a committed LITERAL, whose VALUE is nobody else's
+business. The replacement is checked both ways: it matches the current stamp and fails if the
+literal is removed.
+
+## WHAT THIS CONSTRAINS IN ANOTHER LANE: `IC4` SPLIT CADENCE, which landed while this was running
+
+The Frontier Scout's `PREREG_DRAFT_ic4_split_cadence.md` (ranked 4 of 6, zero trials, no
+measurement) arrived on `origin/main` mid-item. **It is NOT the same hypothesis and this register
+does not answer it** — `IC4` proposes per-THEME clocks, holding `value`, `quality`, `size` and
+`capital_discipline` at an annual reading while `momentum`, `institutional` and `insider` refresh
+quarterly, where this register tested one uniform clock for the whole book. The distinction is
+real and runs in `IC4`'s favour: it slows the four MOST persistent themes and leaves the three
+least persistent ones fast, so it could plausibly keep most of the signal while cutting turnover,
+which a uniform annual clock cannot.
+
+**But three measurements here constrain it, and a successor should read them before running it.**
+
+1. **Slowing the whole book to annual costs −2.0142 pp at paired *t* −1.7956**, and `IC4`'s arm
+   slows FOUR of the seven themes to exactly that clock. So its arm sits between this register's
+   quarterly and annual arms by construction, and the interval it sits in is one this item
+   measures as **negative throughout**.
+2. **THE OFFSET EXPOSURE IS THE PART MOST LIKELY TO BE MISSED, AND IT IS LARGER THAN THE EFFECT.**
+   An annual refresh of four themes has a formation offset, and the measured spread from that
+   offset alone is **2.2551 pp** — bigger than the cadence effect itself. **`IC4` as drafted
+   specifies one annual assignment and no offset treatment, so a single-offset version of it
+   would be measuring a quarter as much as a clock.** The fix is free and is this register's arm
+   4: refresh the slow themes on four overlapping annual sub-books rather than on one date.
+3. **And that fix does not rescue the direction here**: the staggered arm, which exists precisely
+   to average the offset away, still reads **−1.7596 pp** with the largest |paired *t*| of the
+   three at −2.3468.
+
+**The draft's own monthly arithmetic independently reproduces this item's**, which is worth
+recording because the two were derived separately: it prices the fast-side variant at ~3x the
+build on every build plus a 5-7 hour placebo sweep, and names `S8`'s 31-day staleness as a third
+of a monthly rebalance interval. **Two lanes reaching the same costs by different routes is the
+best available evidence the estimate is right**, and it is why this register's monthly
+recommendation and the draft's declining of the fast side agree. Relayed, **not edited** — the
+draft is the scout lane's file and carries no trials.
+
+## A GATE FAILURE I CAUSED MYSELF, AND THE CORRECTION IS AGAINST MY OWN FIRST READING
+
+**FINAL GATE: 210 suites, 0 failures on the merged tree.** Getting there took one correction
+worth recording, because the first version of this section misattributed my own mistake to a
+project defect.
+
+An intermediate gate read `tests/test_fleet_highwater.py` FAILED — once on **`WinError 32: the
+process cannot access the file because it is being used by another process`** during an
+`os.replace` of a `%TEMP%` file, and once on a different test in the same suite with a bare
+assertion. I wrote that up as a **fourth independent sighting** of the `%TEMP%` contention family
+(`MB21`'s `GzipFile`, `MB16`'s git objects, `test_sync_checkout.py` earlier the same day).
+
+**IT WAS NOT. I HAD TWO FULL GATES RUNNING CONCURRENTLY** — one started with a backgrounded shell
+redirect and one through the task runner, the same 210-suite script twice, ~420 suite processes
+competing for the same temp volume. The proof is clean rather than circumstantial: **the other
+concurrent run read 210 suites and 0 failures on the identical tree**, and the suite passes **8
+of 8** standalone. So the proximate cause was mine, and `test_fleet_highwater.py` is **not**
+evidence of anything.
+
+**WHAT SURVIVES THE CORRECTION, AND IT IS NARROWER THAN WHAT I FIRST CLAIMED.** The family is
+real and documented — `MB21` and `MB16` measured it independently, and
+`test_sync_checkout.py`'s failure earlier today DID occur under a single gate, so that one stands
+as a genuine sighting. **Three sightings, not four**, and the case for wrapping those `%TEMP%`
+writes in a retry is correspondingly weaker than I stated. Reported, not silenced; none of these
+suites is this lane's.
+
+**THE PORTABLE PART IS THE METHOD, NOT THE COUNT: a suite that fails under a gate and passes
+standalone is not yet diagnosed.** The thing that settled it was noticing a SECOND gate's log,
+not the eight standalone passes — eight green runs are consistent with both explanations, and
+"it passes standalone" is exactly how a real concurrency defect gets dismissed. The distinguishing
+evidence was a concurrent run that came back clean on the same tree.
+
+## Expectations, scored
+
+**4 right, 1 wrong, 2 split.**
+
+1. All three arms null/rejected on the primary (70/30) — **RIGHT**.
+2. The annual arm is the worst of the three on net alpha (60/40) — **RIGHT**, 6.3641%.
+3. The staggered arm is the best of the three (65/35) — **WRONG**. Semi-annual 6.9014% beats
+   staggered 6.6187%, which beats annual. **And the miss is instructive rather than
+   embarrassing:** semi-annual's reading is at offset 0 and its offset spread is 2.0155 pp, so
+   "semi-annual is better than staggered" is within the timing luck this item measured. The
+   staggered arm is the best of the three on **after-tax alpha and on drawdown**.
+4. Turnover falls roughly in proportion to cadence (75/25) — **SPLIT**. The direction and
+   ordering are right; the magnitude is consistently **higher** than proportional (0.5866 vs
+   0.50, 0.3255 vs 0.25) because the adopted band already did most of the saving.
+5. The after-tax leg favours the slow arms even if the pre-tax leg does not (80/20) — **SPLIT**.
+   The mechanism is confirmed monotonically (short-term share 0.4934 -> 0.2420), and the
+   after-tax **alpha** favours only the staggered arm; semi-annual and annual are worse.
+6. `K3`, `K4`, `K5` all pass (85/15) — **RIGHT**.
+7. At least one arm's halves disagree in sign (70/30) — **RIGHT**, two of three.
+
+## NOT DONE, named so it is not mistaken for done
+
+**ADOPTS NOTHING, and nothing was eligible to adopt.** `CONFIG` untouched,
+`settings.BOOK_CONFIGS` untouched, no live path changed, the banked panel not overwritten —
+pinned by test. Had an arm cleared, a cadence change ships in the live scoring path and is a
+**vintage event** under `PAPER_TRACK_CONTRACT.md` §5a, resetting the accrued five-year clock for
+zero statistical gain, so it would have been recorded `ELIGIBLE — ROUTED TO DON` and not taken.
+
+**No grid, no fifth cadence, and no offset selected.** **`S22` is NOT re-opened** — its
+term-structure result stands, and this is not evidence against persistence but evidence that a
+**re-selecting** book cannot harvest it by slowing down, which is the distinction `S22` itself
+drew and declined to test. **`S23`, `S14` and `S14-WIDTH` are not re-opened.** Nothing is said
+about the `roth` 42-day config, about `enter_frac`, or about a **monthly** cadence beyond the
+recommendation above. **No trade is licensed and no product copy changes.**
+
+## Tests
+
+**27 tests, 8 of 9 source mutations caught with sources restored byte-for-byte, plus 2 of 2 DATA tampers.** The ninth source mutation came back MISSED and the reason is structural rather than a gap: it renames a key in the control SCRIPT while the guard it targets reads the ARTIFACT, which only changes on a re-run — so a source mutation is the wrong instrument for an artifact-level tripwire. Tampering the artifact instead, both an outcome key at the top level and one nested inside the dispersion block, turns the suite red AND makes it name the reason, with the artifact restored byte-for-byte. The
+load-bearing pins are the inertness of two opt-in extensions on shipped functions every book
+figure depends on (`turnover_and_costs` and `after_tax_backtest`, both proved by reproducing the
+published contract book rather than asserted), that a held period trades nothing (the defect
+above, pinned after it fired for real), that the control artifact carries **no outcome-shaped
+key** so the register's blindness is checkable, that the study **delegates** rather than
+re-implementing the band or the cost table (`B7`, proved with an injected fake), that no product
+module imports the study (`MA23`), and that the arm runner **refuses** without a passing control.
+
+`PREREG_rebal_cadence.md`; `valuation/studies/rebal_cadence.py`;
+`valuation/edge/fundamental_panel.py` (`cadence`/`offset`/`return_series` on
+`turnover_and_costs`, `cadence`/`offset` on `after_tax_backtest`, all opt-in and inert);
+`scripts/rebal_cadence_control.py`, `scripts/rebal_cadence_arms.py`;
+`tests/test_rebal_cadence.py`; `data/free_analysis/REBAL_CADENCE_CONTROL.json`,
+`REBAL_CADENCE_SERIES.pkl`, `REBAL_CADENCE_ARMS.json`, `REBAL_CADENCE_ARM_ROWS.pkl`
+(per-period draws, `RUN_RULES` A9).
+
+
+---
+
+# IC1 — THE DATA-ARRIVAL GRID: **CLOSED AT `K2`, ZERO TRIALS — AND THE BAR THAT CLOSED IT IS MIS-SPECIFIED, WHICH IS A FINDING FOR A SUCCESSOR AND NOT A LICENCE TO OVERRIDE IT NOW**
+
+**ZERO TRIALS. NO REGISTER WAS COMMITTED.** Executor pass on the Frontier Scout's
+`PREREG_DRAFT_ic1_data_arrival_grid.md` (ranked 1 of 6, `origin/main` at `9c36d2a`). The
+draft's own §5 makes `K1`-`K3` free and read first; `K2` fired, so the item stops before a
+register exists and `by_domain` is **bit-identical** — equity 251, options 310, unified 0,
+infra 20 at the time, and the three trials visible since are `REBAL-CADENCE`'s, not this.
+
+## The boundary question, resolved: IC1 is NOT subsumed by `REBAL-CADENCE` and the draft is NOT withdrawn
+
+The brief asks whether `REBAL-CADENCE` already varied the rebalance PHASE, in which case IC1
+belongs to that item. **It did not, and could not have.** `REBAL-CADENCE`'s offset parameter
+chose WHICH of the existing 69 panel dates to form on within a 2- or 4-quarter cycle; at
+cadence 1 — the quarterly incumbent — there is exactly **one** phase on a fixed panel, so that
+item never varied the quarterly grid's phase and had no way to. **IC1 moves the GRID ITSELF**,
+generating a different set of 69 dates. Different objects.
+
+**But `REBAL-CADENCE`'s measurement is the strongest evidence for IC1's premise and should
+travel with it:** the within-cycle phase spread it measured was **2.2551 pp** of net alpha,
+LARGER than the cadence effect it was built to test. Phase is load-bearing on this panel, which
+is `X2`'s finding on a second statistic.
+
+## THREE PREMISE CORRECTIONS, all made before the kills were read
+
+**(1) THE DRAFT'S CENTRAL FEASIBILITY CLAIM IS WRONG.** §7 says the arm needs *"no rebuild"*
+because *"`build_fundamental_panel` already takes the date grid"*. **It does not** — it takes a
+SCALAR `grid_offset` from `TD = 252` and steps `rebalance_days`, so every grid it can express
+is a fixed trading-day shift of the shipped one. **A deadline-anchored grid is not one of
+those**: 63 trading days is ~91.5 calendar days against a 90-92 day quarter, so the two drift,
+measured here at **+12 to +24 trading days** across the 69 dates. The arm was unbuildable as
+drafted and needed an opt-in `grid_dates=` extension, which this item built and which is inert
+by default.
+
+**(2) `K1` IS A KNIFE EDGE DECIDED BY A FREE PARAMETER, AND WAS SETTLED BY MEASURING THE GRIDS
+INSTEAD.** The 13F deadline sits 45 calendar days after quarter end while the shipped grid sits
+~15 days after, so the implied offset is **+20 at settling lag 0, +21 at lag 1, +22 at lag 2** —
+and **`X2`'s offset 20 is its BEST grid at long-short *t* 3.517** against the shipped 2.836. A
+modal comparison therefore fires or passes according to a lag no part of the filing calendar
+fixes, and **choosing the lag that clears the kill would be choosing the design to clear its own
+kill.** Settled by comparing the GRIDS: at lag 1 only **10.1% of dates are IDENTICAL** to
+`X2`'s offset-20 grid, median gap **1 trading day**, max **7**. It is a genuinely different
+varying-offset grid that `X2` never ran, so **`K1` PASSES on a measured basis.**
+
+**(3) `K3`'s BAR WAS MINE AND IT WAS THE WRONG READING — CORRECTED BEFORE IT DECIDED ANYTHING.**
+A first cut imposed a 91-day arithmetic bar on the draft's phrase *"a full quarter's worth of
+the measured decay"* and it FIRED at 66 days. **That bar was mine, not the draft's.** The draft
+indexes the decay in QUARTERS — *"13F peaks at Q−1, is alive at Q−2, dead by Q−3"* — and its §2
+names the mechanism as *"a phase shift that moves the book from a Q−2 to a Q−1 read"*. On the
+quarter index the answer is unambiguous and as clean as a measurement gets: **the shipped grid
+reads a Q−2 13F on ALL 69 dates and the aligned grid a Q−1 on ALL 69 — exactly one step, zero
+exceptions** (13F age falls from a mean of **111.5 days to 45.5**). **`K3` PASSES**, and IC1's
+premise is confirmed rather than assumed.
+
+## `K2` FIRES — and by how little is the whole point
+
+| | shipped panel | deadline-aligned panel |
+|---|---|---|
+| cross-section min | **1471** | **1459** |
+| median | 1557 | 1562 |
+| max | **1954** | **1955** |
+
+The bar, from the draft's §5 verbatim, is that per-date cross-sections stay inside the shipped
+panel's own **1,471–1,954**. **Exactly 2 of 69 dates breach it**: 2009-02-18 at **1459**, which
+is **12 names — 0.82% — below the floor**, and 2021-11-16 at **1955**, which is **1 name —
+0.051% — above the cap**.
+
+**THE KILL IS HONOURED AND THE ITEM CLOSES AT ZERO TRIALS.** `W-28`'s rule is absolute: a
+successor may not relax a pre-committed bar after watching it fail, and `RUN_RULES` A6 makes an
+ambiguous result against a pre-committed threshold a stop. No register was committed and no
+trial was booked.
+
+**AND THE BAR IS MIS-SPECIFIED, WHICH A SUCCESSOR NEEDS AND WHICH CHANGES NOTHING TODAY.** Its
+stated purpose is *"a phase that lands on a thin cross-section is measuring coverage"* — and a
+cross-section 0.82% below the incumbent's own minimum is manifestly not thin. The defect is the
+bar's FORM: **1,471 and 1,954 are the EXTREMES of 69 draws, and requiring a different 69-date
+sample to lie entirely inside another sample's observed range is near-certain to fail for ANY
+legitimately different grid.** It is a containment test against order statistics, which is the
+same family as the guard that *"asserts these two numbers are equal today"* — `MA57`, `MB31`,
+and the `MC10` stamp repointed in this same session. A successor should specify a RELATIVE
+tolerance or a floor derived from what the gate needs; specifying it **now**, having watched
+this one fail, is exactly what `W-28` forbids.
+
+**THE EXPENSIVE WORK IS BANKED.** `panel_ic1_aligned.pkl` is built (69 dates, 114,083 rows, 7.6
+minutes) and `grid_dates=` ships inert, so a successor with a correctly-specified `K2` can score
+the arm immediately without rebuilding.
+
+## NOT DONE, named so it is not mistaken for done
+
+**No arm ran, no bar was read, nothing is adopted, and IC1 is UNTESTED rather than rejected.**
+The draft's primary gate, its `X2`-percentile secondary, its `K4` `size` control and its MDE
+were never reached. The amendment this executor would have made had the item proceeded is
+recorded for the successor: **the arm sits ~20 trading days out, in the immediate neighbourhood
+of `X2`'s BEST grid, so a strong result would be confounded between "data arrival carries
+information" and "this panel likes grids about 20 days out" — which `X2` found and explicitly
+declined to explain.** The fix is a DISTANCE-MATCHED control — `X2`'s banked offsets 10/20/30 at
+*t* 2.926 / 3.517 / 3.410 are exactly that neighbourhood and are free — turning the question
+into *"does ALIGNMENT matter, holding distance fixed?"*. **The draft's secondary bar, the 75th
+percentile of `X2`'s seven, is nearly automatic for a grid adjacent to the best of them and
+should not be used as drafted.**
+
+---
+
+# IC7 — COVERAGE RENORMALISATION: **REJECTED ON BOTH WEIGHTINGS, AND THE HALVES DISAGREE IN SIGN ON THE DEPLOYED COMPOSITE**
+
+**1 EQUITY TRIAL**, booked at **`1a0acbb`** before the scoring runner existed.
+`PREREG_ic7_coverage_renormalisation.md` committed **ALONE at `df619d8`**, markdown only, 179
+lines, a strict ancestor of the scoring commit. Equity **N 251 → 252**, hurdle
+**3.3242902818892888 → 3.32548615619173**, both derived, with the `MA13` stamp and both pinned
+literals moved in the booking commit. **ADOPTS NOTHING.** Executor pass on the Scout's draft
+(ranked 2 of 6): **ACCEPTED WITH THREE AMENDMENTS**.
+
+## The verdict
+
+| weighting | half | Δ top-decile alpha | Δ long-short *t* | |
+|---|---|---|---|---|
+| **deployed (7 themes)** | early (n 34) | **+0.1603 pp** | -0.0519 | fail |
+| | late (n 34) | **-0.6231 pp** | -0.1514 | fail |
+| **flat (9 themes)** | early (n 34) | -0.1723 pp | -0.0346 | fail |
+| | late (n 34) | -0.7436 pp | -0.0032 | fail |
+
+**REJECTED under both weightings, both halves, both legs**, against the gate
+`SECTOR-NEUTRAL-B6` set and `W-1`, `MB20` and `REBAL-CADENCE` reused verbatim (+100 bps alpha
+AND +0.25 *t*), boundary **2017-07-20** embargoed.
+
+**ON THE DEPLOYED COMPOSITE THE HALVES DISAGREE IN SIGN** — **+0.1603 pp** early against
+**-0.6231 pp** late — which is this record's most repeated pattern and which §3 of the
+register predicted for a measured reason rather than as a hedge: the two halves test **different
+interventions**.
+
+**THE VERDICT TRAVELS WITH ITS MDE.** Paired per-period difference **-0.4835 pp/yr** at HAC
+*t* **-1.4661**, paired HAC se **0.3298 pp** annualised, so the 80%-power MDE is
+**0.9366 pp** at the conventional crit and **1.3738 pp** at the hurdle. The observed effect
+is **0.516x** its own 80%-power threshold, so this is a **BOUNDED null** — no coverage
+effect as large as about 0.9 pp/yr — and not a demonstration that the exposure is immaterial.
+Every critical value **LABELLED UNCALIBRATED** (`V2G`, `R1-VAR`: no calibrated floor exists for
+a paired within-panel difference; `X7` calibrates LEVELS).
+
+## The mechanism: a large exposure that moves the ranking very little
+
+**41.69% of rows miss at least one weighted theme** — but only **7.45% of weighted
+CELLS are imputed**, because a row with a hole is usually missing ONE theme of seven. The
+ranking barely moves: per-date Spearman against the incumbent **0.997498** median
+(min 0.986285), top-decile overlap **0.9412**. So the two-composites-in-one-ranking
+exposure is **wide but shallow**, and that is the answer to the question the draft asked.
+
+## THREE AMENDMENTS, with reasons
+
+**AMENDMENT 1 — THE DRAFT'S EXPOSURE ESTIMATE IS LOW BY HALF, in the arm's favour.** It predicts
+*"roughly 28% of panel rows"* from `institutional`'s 71.7% coverage alone. Measured
+**41.69%**, because the exposure is the UNION of five holes: `institutional` 28.28%,
+**`insider` 16.92%**, `capital_discipline` 3.18%, `quality` 2.09%, `momentum` 1.70%, with
+`value` and `size` at exactly **0.00%**. The draft reasoned from one theme.
+
+**AMENDMENT 2 — THE ERA STRUCTURE IS SHARPER THAN THE DRAFT STATES, AND A HYPOTHESIS OF MINE
+ABOUT IT IS REFUTED.** `institutional`'s first value is **2014-01-17**, not the draft's
+2013-06-30 — independently reproducing `RUN_RULES` rule 10's own figure. On `V2G`'s reasoning
+that a UNIFORM absence cannot re-rank, I expected the **20 dates before it**, where
+`institutional` is wholly absent, to be **provably inert** — which would have made the
+both-halves gate unclearable by construction and killed the item free. **Measured: 0 of 69 dates
+are uniform-only**, because `insider` and three smaller holes vary name by name even there, so
+the arm re-ranks everywhere and the kill does not exist. **What survives is `K2`'s real point,
+now quantified:**
+
+| | dates | WHOLLY absent | PARTIALLY absent |
+|---|---|---|---|
+| before 2014-01-17 | 20 | **`institutional` (all 20)** | `quality`, `momentum`, `insider`, `capital_discipline` |
+| on/after | 49 | none | `institutional` (48), `insider`, `quality`, `capital_discipline`, `momentum` |
+
+Early, the largest hole contributes a uniform non-re-ranking component, so the bite is
+essentially **`insider`**; late, `institutional` is the main driver. **The two halves are not
+one intervention measured twice, and the sign disagreement above is what that looks like.**
+
+**AMENDMENT 3 — THE DRAFT'S MDE PRIOR IS STATED AS A PRIOR AND NOT INHERITED, AND IT WAS 3x
+TOO SMALL.** It reasons each row moves at most a 1/6-to-1/7 step so the se should sit near
+`MB8`'s 0.1106 pp, giving ~0.31 pp at crit 2.0. The register declined to inherit that and
+committed to measuring; **measured MDE80 is 0.9366 pp, 3.0x the draft's figure**, for the two
+reasons the amendment gave in advance — 41.7% of rows are touched rather than 28%, and a
+row missing TWO themes moves from 1/5 to 1/7 of the mass.
+
+## A DEFECT IN MY OWN SCORER, CAUGHT BY TWO NUMBERS THAT SHOULD HAVE DIFFERED AND DID NOT
+
+`holdout_compare_panels`'s fourth positional parameter is **`label_a`, not weights** — it builds
+the composite from `cols` at a uniform `base_weight`. My first cut passed a weights dict there,
+so it landed in the LABEL slot (visible in the artifact as `"label_a": {"value": 0.125, ...}`)
+and **both scorings used the same `cols`** — every `FACTORS_ALL` column present in the panel,
+which includes `growth` and `low_risk`. **So both runs scored a NINE-theme composite when the
+deployed one is SEVEN, and returned IDENTICAL numbers for what were supposed to be two different
+weightings.** That is `W-1`'s `K4` defect and `MA28`'s `C1` before it, in a third costume, and
+**the identical numbers are what exposed it** — a second check that cannot differ is not a second
+check. Repaired by importing `SECTOR-NEUTRAL-B6`'s own `DEPLOYED`/`FLAT` column sets rather than
+retyping them (`B7`, `MA5`, and `W-1`'s own fix applied one item later), with the vacuity
+asserted in both directions. **The deployed figures moved materially** — the early half goes
+-0.1723 pp to +0.1603 pp, i.e. it changes SIGN — **and the paired figures did not move at
+all**, which confirms the defect was confined to the gate call: the paired path gave `growth`
+and `low_risk` zero weight, so it was always scoring seven.
+
+## Expectations, scored
+
+**5 right, 0 wrong** — and discounted rather than celebrated, because three of the five follow
+from measurements already on the record rather than from forecasting.
+
+1. **REJECTED on the primary** (75/25) — **RIGHT**. Five weighting-family arms were already
+   rejected and CPCV's best challenger missed by 79x.
+2. The paired se lands **above** the draft's ~0.1106 pp prior (70/30) — **RIGHT**, 0.3298 pp,
+   3.0x.
+3. The halves **disagree** in sign or by more than 2x (65/35) — **RIGHT**, and in the strongest
+   form: they disagree in SIGN on the deployed composite.
+4. Per-date rank correlation above 0.97 (70/30) — **RIGHT**, 0.997498.
+5. The LATE half shows the larger effect (60/40) — **RIGHT**, -0.6231 pp against +0.1603 pp.
+
+## Tests, and the gate
+
+**19 tests across both items, 6 of 6 mutations caught with sources restored byte-for-byte**,
+plus a separate 2-of-2 mutation check on the repointed `X2` guard. `test_edge` **428/428**.
+
+**`X2`'s OWN GRID GUARD FIRED AGAINST A CORRECT TREE AND IS REPOINTED IN THE SAME COMMIT**
+(`MA59`, so the move shows in the diff). It asserted the literal
+`range(_GRID_START, len(cal) - horizon, rebalance_days)` appeared **exactly twice** — one copy
+for the date count and one for the scoring loop — which is how it said *"both walk the same
+grid"*. **So it REQUIRED the duplication and forbade the better code**: `IC1`'s `grid_dates`
+needs the grid computed once, and both now consume a single binding, which makes the property
+**structurally true** rather than true because two copies happen to match. Repointed to the
+property on the AST — the count must be `len(X)` and the scoring loop `enumerate(X)` for the
+**same** `X`. **A first cut of the repoint was itself too weak**: it compared name SETS and a
+mutation walked straight through because both sets contained the incidental `len`. Tightened to
+the same NAME, and both mutations are now caught, each with its own accurate message.
+
+**THE GATE READ 211 SUITES, 1 FAILURE, AND IT IS NOT THIS WORK.** `tests/test_checkout_drift.py`
+errored in `setUpClass` on **`Permission denied` writing `.git/objects/...` under `%TEMP%`** —
+which is `MB16`'s documented sighting, **in the exact suite `MB16` named**. It passes **3 of 3**
+standalone. So this is a **re-sighting of a family member already on the record rather than a
+new one**: the distinct suites remain `MB21` (`GzipFile`), `MB16`/`test_checkout_drift`, and
+`test_sync_checkout`. Reported, not silenced; none is this lane's.
+
+## NOT DONE
+
+**ADOPTS NOTHING** — the arm was not eligible; `CONFIG` and `settings.BOOK_CONFIGS` untouched,
+the banked panel not overwritten, pinned by test. Had it cleared, changing how every live score
+is assembled is a **vintage event** under `PAPER_TRACK_CONTRACT.md` §5a and would have been
+recorded **ELIGIBLE — ROUTED TO DON**. **`V2G` is NOT re-opened** — its IMMATERIAL verdict
+stands and it measured a different object, a uniform three-theme absence that cannot re-rank.
+The weighting family (`S5`, `S6`, `S13`, `S24`, `S27`) is not re-opened. **No second imputation
+rule was tried** — zero, last-observation and cross-sectional mean are all forbidden by void
+condition 1, since choosing one after seeing this result is design-on-outcome. Nothing is said
+about the LIVE path's coverage holes, which `FIDELITY-2` changed and which are a separate
+question this arm informs but does not answer.
+
+---
+
+# INDEX-BOOK — the book the Valquo Index ACTUALLY serves, backtested (2026-10-02)
+
+**ZERO TRIALS, `FIXED` class.** `by_domain` is **bit-identical** before and after the log append —
+equity **252**, options **310**, unified 0, infra **20** — while `rows_fixed_not_counted` rises
+**87 → 88**, which is the proof the row was seen and correctly excluded rather than silently
+dropped. **ADOPTS NOTHING**: nothing under `valuation/web/`, `valuation/saas/`,
+`valuation/screener/` or `valuation/engine/` changed, `CONFIG` is untouched, the live Index
+constants are untouched and the contract meter's constants are untouched — all pinned by test.
+
+**WHY ZERO TRIALS, AND THE COUNTER-ARGUMENT IS STATED RATHER THAN SKIPPED.** This is ONE
+construction, fully determined by `valquo_index.build_index` and the constants beside it: no
+hypothesis, no threshold, no verdict, and no second arm that could have come back the other way.
+That is the `S25` / `MB3` / `X7RECON` / `MC10` class, and `MB1-SEL`'s general rule — a measurement
+that can only describe or block a finding adds no degree of freedom to any published claim. **The
+objection is real: the output feeds the contract's own power arithmetic, so it is load-bearing.**
+The distinction taken is that re-measuring a KNOWN construction on a KNOWN panel *selects*
+nothing. If a later reader disagrees the row is there to amend, and **the direction of that error
+is the safe one** (`MA6`): booking a trial raises every bar.
+
+## The headline, and it is a dissociation rather than a null
+
+| | published decile (B) | **SERVED book (A)** |
+|---|---|---|
+| construction | all-cap tier, EQUAL weight, no band | **$10B tier, SCORE weight, 8% cap, band 0.30** |
+| net return /yr | +23.2893% | **+17.1817%** |
+| alpha vs all-cap equal weight | **+6.0500pp** | **−0.0576pp** |
+| alpha vs ITS OWN tier's equal weight | +6.0500pp | **+4.1209pp** |
+| alpha vs SPY (net) | +8.0564pp | **+1.9488pp** |
+| net Sharpe | 1.0997 | **1.0318** |
+| net max drawdown | −28.48% | **−23.06%** |
+| annual turnover | 2.6066 | **2.4372** |
+| realised cost | 33.35 bps one-way | **9.58 bps one-way** |
+| book size min/median/max | 147 / 156 / 195 | **23 / 54 / 82** |
+
+**THE SERVED BOOK HAS ESSENTIALLY NO ALPHA AGAINST THE BENCHMARK THE SITE QUOTES IT AGAINST
+(−0.06pp), AND +4.12pp AGAINST ITS OWN UNIVERSE. BOTH SENTENCES ARE TRUE AND NEITHER MAY TRAVEL
+ALONE.** Quoting only the first says the Index does not work; quoting only the second hides that
+it is measured against a universe the published figure is not.
+
+## The −6.11pp gap decomposes one knob at a time, and the tier step is mostly NOT the signal
+
+All four arms **CALL `build_index`** — the tier filter, the `MIN_NAMES` fallback, the band, the
+score weighting and the 8% cap with its redistribution loop are the live code, not a lookalike
+(`B7`). That is what licenses reading each step as one knob:
+
+* **$10B tier: −5.9871pp**
+* **score weighting + 8% cap: +0.6804pp**
+* **no-trade band: −0.8009pp**
+
+**AND THE TIER STEP SPLITS, WHICH IS THE FINDING.** The all-cap decile earns **+6.0500pp** within
+its own universe; the served book earns **+4.1209pp** within its own. So the step is
+**signal −1.9291pp** and **universe −4.1785pp** — **about 70% of the tier's apparent cost is the
+small-cap premium the tier declines to hold, a fact about the UNIVERSE rather than about the
+composite.** Without that split the headline reads as "the served book has no edge", which is
+`U7`'s and `S10`'s conflation and is wrong. The within-tier benchmark is **GATED**: its membership
+test mirrors `build_index`'s filter, so the mirror's count is required to equal the live function's
+own `n_eligible` or the row records a refusal (`NaN`) instead of a number. **Verified on 69 of 69
+dates in all four arms**, and at threshold zero the mirror degenerates to the universe exactly,
+which is a free internal control.
+
+## The within-tier edge is FAR more stable across halves than the published headline
+
+| | early half | late half | swing |
+|---|---|---|---|
+| published decile vs all-cap EW | **+1.1762pp** | **+10.6577pp** | **9.1×** |
+| served book vs its own tier | **+4.0615pp** | **+4.1746pp** | **1.03×** |
+| served book vs SPY | +3.7202pp | **+0.2702pp** | — |
+
+Boundary 2017-04-20 / 2017-07-20. **The published +6.05pp is carried overwhelmingly by the late
+half; the served book's within-tier +4.12pp is almost identical in both.** For a forward test —
+which is what the contract is — stability is the property worth projecting, and on that axis the
+served construction looks *better* than the figure the site shows, not worse. **The vs-SPY leg
+runs the other way and must be said: the served book's late half is +0.27pp, essentially nothing.**
+
+## $10B is applied NOMINALLY, exactly as live, and the tier therefore WIDENS over time
+
+`build_index`'s test is `market_cap >= large_cap_min` with `LARGE_CAP_MIN = 10e9` and **there is
+no inflation adjustment anywhere on that path.** On a panel starting 2009 the eligible tier runs
+**227 / 542 / 822** (min / median / max) and the book **23 / 54 / 82** — so the construction is
+mechanically broader at the end of the panel than at the start, and that is a property of the
+shipped rule rather than of this measurement. **Reconciliation: the panel's most recent
+cross-section gives an 82-name book from an 822-name tier against the live book's 86 positions** —
+close, and not an identity, because the live scan's universe is not the panel's.
+
+**THE `MIN_NAMES` FALLBACK NEVER FIRES: 0 of 69 dates**, every date labelled `large-cap only`, with
+zero unlabelled dates (the census reads `criteria.tilt`, not a top-level key — reading the wrong
+key would have reported zero fallbacks *vacuously*, which is the one number here that cannot afford
+to be wrong). **The 8% cap is nearly inert — it binds on 1 of 69 dates for the served book** (4 of
+69 without the band), because the score weighting is on PERCENTILE RANKS and is therefore nearly
+flat, which is `MC10`'s measured ρ 0.9968 to equal weight seen from the other side. The effective
+cap is 0.08 on every date, so neither the `MIN_NAMES` floor nor the cap-collapse branch is reached.
+
+**AND A CONFORMANCE FACT THE LIVE PATH WOULD HAVE FLAGGED: the backtested served book falls below
+`CONTRACT_MIN_POSITIONS = 50` on 25 of 69 dates (36.2%)**, all early, because the nominal tier is
+thin before ~2015. It is a census, not a claim about the live book — the panel's universe is not
+the live scan's — but a backtest column drawn from those dates is drawn from a book the contract's
+own conformance rule would not have accepted.
+
+## Both tax treatments, from ONE lot path (INDEX-BOOK-AMEND)
+
+| served book | after tax /yr | Sharpe | max drawdown |
+|---|---|---|---|
+| **Roth / IRA** (net of cost, no tax) | **+17.1619%** | **1.0318** | −23.03% |
+| **Taxable** (FIFO, 40.8% short / 23.8% long) | **+12.2033%** | **0.7595** | −24.76% |
+| **tax cost** | **−4.9586pp/yr** | −0.272 | — |
+
+**THE TAXABLE BOOK LANDS BELOW SPY (+15.23%/yr) BY 3.03pp.** The driver is measured rather than
+asserted: **84.08% of realised gains are SHORT-TERM**, because a quarterly book with 2.44× turnover
+realises almost everything inside a year.
+
+**The Roth figure is the IDENTICAL run with both rates set to ZERO — not a second code path** — so
+the tax cost is a clean difference on an identical book, identical lots and identical trades. A
+separate no-tax implementation would make it the gap between two constructions, which is `B7`'s
+defect and invisible to inspection. **Gated against the shape that passes vacuously:** a control
+asserts the taxable arm actually paid tax (it did) and the zero-rate arm paid none, so a tax cost
+of zero cannot be reported for the wrong reason.
+
+**THE CAVEAT RUNS AGAINST THE TAXABLE ARM AND TRAVELS WITH IT: the panel's forward returns carry NO
+dividends**, so dividend income is absent from the gross figure and dividend TAX is absent from
+this one. Consistent, and it **understates** a real taxable investor's drag — most of all for a
+large-cap book, which is the higher-yielding end of the universe. FIFO is also the conservative
+end; a specific-lot election would realise less gain.
+
+## What this does to the contract's power arithmetic, matched rather than borrowed
+
+The meter's σ is the **full-universe decile's** tracking error (11.40 pp/yr, inflated by `R9`'s
+autocorrelation design effect). Pairing it with the SERVED book's edge would be a numerator from
+one book against a denominator from another — `MA19`'s recurring defect and `MB8`'s rule that an
+`se` may not be borrowed across constructions. So each arm is scored at **its own** measured
+tracking error, with `track_meter.boundary` IMPORTED and the live constants untouched (`V1`: one
+boundary function in the project; its own docstring licenses the `sigma` argument for probing and
+explicitly not for retuning).
+
+| | net edge vs SPY | own TE vs SPY | months to detect | years |
+|---|---|---|---|---|
+| in use today | **+9.9864pp** (GROSS, all-cap decile) | 11.40 (hard-coded) | 242 | 20.2 |
+| all-cap decile, NET | +8.0564pp | **11.3878** | 385 | **32.1** |
+| **SERVED book, NET** | **+1.9488pp** | **8.4381** | **4,383** | **365** |
+
+**THE FIGURE IN USE TODAY IS WRONG TWICE OVER: it is the WRONG BOOK and it is GROSS.** The served
+book's tracking error is materially lower (8.44 vs 11.39 — a large-cap book tracks SPY more
+closely), which helps, and nowhere near enough: **the meter cannot resolve the served book's edge
+on any human timescale.** A free corroboration that these series are the right objects: the
+all-cap arm's measured TE comes back **11.3878 pp/yr** against the contract's hard-coded **11.40**,
+reproducing the meter's own σ constant from scratch.
+
+**This is NOT a recommendation to change the meter.** σ may never be revised downward (the
+contract's own rule — at 1.5× the assumed volatility the false-crossing rate is 20%), and the
+numbers above are an input for Don, not an edit.
+
+## Controls
+
+* **`C1` GATED AND EXACT.** The shipped `quantile_backtest` reproduces
+  `construction.top_decile_alpha` at **0.07174142332098163, max |Δ| 0.000e+00, 69 periods**, and
+  the runner **aborts before any arm** otherwise. The period count is gated too, because `MB21`'s
+  `C1` once scored a perfect zero on an empty frame by comparing nothing.
+* **The published decile reproduces on this machinery, and the residual is ATTRIBUTED rather than
+  waved at.** `equal_weight_ann` matches `costs.top_decile` at **exactly 0.000e+00** — so the
+  compounding here IS the shipped compounding — and `net_ann` and `net_alpha` deviate by the
+  **identical 1.963e-04**, which places the whole residual on the selection (`array_split` vs
+  `round(n × 0.10)`) and none of it on arithmetic. Sharpe 2.2e-04, drawdown 4.5e-06, turnover
+  3.3e-04, realised bps 7.0e-03. **Reported, not gated** — requiring two different constructions
+  to agree exactly would be requiring the wrong thing; `C1` is the gate.
+* **The hook is inert at its default, pinned against a committed literal.** With `book_fn=None`,
+  `after_tax_backtest` reproduces `book_configs.taxable`'s `after_tax_alpha`
+  **0.021132837959488837** and `after_tax_sharpe` **0.9767529353354262** to the last bit — and a
+  companion test proves the hook is **not** inert when supplied, so the inertness result is not
+  vacuous.
+* **An independent cross-check nobody designed:** the Roth arm (`after_tax_backtest`, costs paid
+  out of the book each rebalance) returns **+17.1619%** at Sharpe **1.031816** against this study's
+  own cost path (cost subtracted from the period return) at **+17.1817%** and Sharpe **1.0318** —
+  two different implementations of the same net-of-cost book agreeing to 2e-4.
+* **The tier mirror gate, the contract-floor census and the fallback census** are each pinned from
+  both sides, including a deliberately lying `index_fn` that must produce a refusal.
+
+## Five defects in my own work, all caught by running the thing rather than by reading it
+
+* **A NAME COLLISION WITH A SHIPPED MODULE.** My study was first called `index_book`, and
+  **`valuation/saas/index_book.py` already exists and `app_saas.py` imports it.** My own `MA23`
+  boundary test caught it — correctly, though not for the reason it was written. Renamed to
+  `served_index_book`; two modules of the same name in one codebase is the id-collision hazard the
+  ledger already documents.
+* **THE ZERO-VARIANCE GUARD, FOR THE FOURTH TIME IN THIS RECORD.** `_sharpe` tested
+  `std(ddof=1) == 0`, and that is **value-dependent**: `[0.1, 0.1, 0.1]` has a standard deviation
+  of ~1.5e-17 rather than exactly zero, so the guard missed and returned a confident, enormous
+  **1.18e16**. The same defect as `SECTOR-NEUTRAL-B6`'s `zscore`, `U2`'s `theme_ic` and `MA58`'s
+  `_tstat`. Repaired with a relative floor and **proved inert on the real figures by leaf-diff**.
+* **THE ARTIFACT WAS NOT REPRODUCIBLE RUN TO RUN, AND IT WAS FOUND BY DIFFING A CHANGE THAT COULD
+  NOT HAVE CAUSED IT.** The leaf-diff after the `_sharpe` repair moved **482 leaves** — including
+  `cost` and `turnover`, which a Sharpe fix cannot touch. Cause: the trade loop iterated
+  `set(prev_w) | set(cur_w)`, and **set iteration order for ticker strings depends on the
+  per-process hash salt**, so the float summation order changed every run. Fixed with a sorted
+  union; **two consecutive runs are now BIT-IDENTICAL by SHA-256.** This record already warns that
+  a project whose memory is its results files needs those files to be deterministic.
+* **MY OWN REPRODUCIBILITY GUARD FIRED AGAINST A CORRECT TREE** — the wrong-object family. It
+  identified the trade loop by its BODY containing `turn +=`, and `ast.walk` on the enclosing
+  per-date loop also sees that nested statement, so it checked the outer loop (`for d in dates`)
+  and failed. Repointed to identify the loop by its ITERABLE naming `prev_w`, and it now asserts
+  **exactly one** such loop so it cannot pass vacuously.
+* **AND THE LEDGER ROW ITSELF, which is `read_ledger`'s hazard in its UNFLAGGED direction.** My
+  first row carried **5 cells against a 10-column header**, and a SHORT row is **silently
+  skipped** — the parser reads it as a row of one of the document's narrower tables, deliberately,
+  because flagging those would make the guard fire constantly and get ignored. So the row looked
+  correct in the file, answered *"is INDEX-BOOK done?"* with nothing, and **the next `--write`
+  would have deleted it** — precisely the silent data loss that function's own docstring records
+  for the LA7 pipe split, one direction over. Caught by grepping the parser's own id list for the
+  row I had just appended rather than by trusting the append. **Only too MANY cells is flagged;
+  too FEW is just as invisible and is not.** Reported rather than repaired: narrowing that guard
+  is the ledger lane's call, and the measurement that would justify it is how many legitimate
+  short rows the document really carries.
+
+## A reporting gap found in the shipped payload, reported and NOT edited
+
+`build_index`'s own `headline_scope` block discloses that the published figures were measured
+**without** the no-trade band — carefully and in terms. **It does not disclose the UNIVERSE
+difference**, which is the larger of the two: `method` quotes *"+7.2%/yr over equal-weight gross,
++6.1% net"* for a book that is the **all-cap equal-weighted decile**, while the payload it ships
+inside is the **large-cap score-weighted** one. `settings.MEASURED_BASIS` does say so — *"not the
+served score-weighted large-cap book"* — so the project knows; the payload a user receives is where
+it is missing. **Not edited: that is a product-copy change and the app lane's, and it is Don's call
+what the site should show now that both numbers exist.**
+
+## NOT DONE, named so it is not mistaken for done
+
+* **NOTHING IS ADOPTED, and no eligible arm exists to route** — there is no bar and no verdict
+  here, so there is nothing to adopt. `settings.MEASURED_BASIS` is **unchanged**; whether the site
+  should now show the served column beside the published one is a product decision.
+* **No inflation-adjusted tier was tested.** $10B nominal is what ships; a real-terms floor is a
+  different construction, would change the live book, and needs its own register.
+* **The `MIN_NAMES = 10` floor and the cap-collapse branch are never exercised on this panel**, so
+  neither carries any evidence here.
+* **No statistical claim is made about any difference.** There is no `t`, no interval and no bar
+  anywhere in this item — `V2G` and `R1-VAR` established that no calibrated floor exists for a
+  paired within-panel difference, and inventing one is the error this record warns about most.
+* **The halves are a plain split at the median period with the boundary NOT embargoed**, which is
+  acceptable only because nothing is gated on them; a register would have to embargo it.
+* **The live book is not re-measured**, the forward track is not touched, and the contract's σ is
+  not revised.
+
+## Tests, and the gate
+
+**26 tests, zero skips locally; 6 of 6 mutations caught with sources restored byte-for-byte** —
+the hook guard widened to `or`, the hook guard made unconditional, the gross leg reverted to the
+simple mean, the tier mirror ungated, the trade loop reverted to a bare set, and the zero-variance
+guard reverted to equality. The guard-shape rule carries a **positive control** proving it still
+rejects an `or`.
+
+`valuation/studies/served_index_book.py`, `scripts/served_index_book.py`,
+`valuation/edge/fundamental_panel.py` (`after_tax_backtest`'s opt-in `book_fn`),
+`tests/test_served_index_book.py`; `data/free_analysis/INDEX_BOOK.json`.
