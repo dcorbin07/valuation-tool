@@ -19696,3 +19696,259 @@ rejects an `or`.
 `valuation/studies/served_index_book.py`, `scripts/served_index_book.py`,
 `valuation/edge/fundamental_panel.py` (`after_tax_backtest`'s opt-in `book_fn`),
 `tests/test_served_index_book.py`; `data/free_analysis/INDEX_BOOK.json`.
+
+---
+
+# INDEX-BEST — which construction should the Valquo Index be? (2026-10-03)
+
+**Executes Don's ruling of 2026-10-03:** *"the Valquo Index is whatever construction gives the
+best NET-OF-TRADING-COST return in a Roth (no tax); taxable after-tax figures are reported for
+transparency only. Smaller companies are allowed if they win."* Supersedes `INDEX-UNIVERSE` and
+the scout's `IC6`, neither of which had a ledger row.
+
+`PREREG_index_best.md` committed **ALONE at `0dc46a5`**, markdown only, zero `.py`, 259 lines, a
+strict ancestor of every commit that scores an arm; **3 equity trials booked at `b86e0f9` BEFORE
+any runner existed** (equity **252 → 255**), one per CHALLENGER, arm 1 charging zero as a
+reproduction. **ADOPTS NOTHING** — the winner is routed to Don for the 2026-10-22 rebalance,
+which is a vintage event.
+
+## The answer, by the rule as registered
+
+**ALL THREE CHALLENGERS BEAT THE INCUMBENT IN BOTH HALVES, AND THE PRE-COMMITTED RULE PICKS
+ARM 3 — the top 25 of the 1,500 most liquid names.**
+
+| arm | **net Roth /yr** | vs SPY | Sharpe | max DD | turnover | cost | median cap | conformant |
+|---|---|---|---|---|---|---|---|---|
+| 1 — incumbent $10B | **+17.16%** | +1.93pp | 1.032 | −23.03% | 2.44 | 9.6 bps | $18.10bn | 44/69 |
+| 2 — liquid decile | **+22.95%** | +7.71pp | 1.144 | −27.60% | 1.93 | 30.4 bps | $2.47bn | **69/69** |
+| **3 — liquid top 25** | **+28.84%** | **+13.61pp** | **1.224** | **−19.85%** | 1.71 | 33.1 bps | $2.13bn | **0/69** |
+| 4 — all-cap *(ceiling)* | +24.95% | +9.72pp | 1.184 | −27.81% | 1.86 | 36.9 bps | $2.02bn | 69/69 |
+
+SPY over the same window: **+15.23%/yr**. Arm 4 is the second-highest and **may not be picked** —
+it was declared NOT buildable from the live scan in the register, before any outcome, and the
+rule refuses it. That refusal is pinned by test and by mutation.
+
+## It is NOT just the size premium — and that is the finding
+
+The obvious reading is that the challengers simply hold smaller companies in a period when small
+beat large, which Don's ruling already permits. **Measured, that is only a third of it.** Each arm
+scored against **its own universe's** equal weight:
+
+| arm | own universe EW | **alpha vs its OWN universe** |
+|---|---|---|
+| 1 — incumbent | +13.06% | **+4.10pp** |
+| 2 — liquid decile | +16.62% | **+6.33pp** |
+| **3 — liquid top 25** | +16.62% | **+12.22pp** |
+| 4 — all-cap | +17.24% | +7.71pp |
+
+**Arm 3's +11.68pp over the incumbent splits three ways, and they sum to the total by
+construction: universe +3.56pp, the composite SELECTING BETTER in a wider universe +2.23pp, and
+CONCENTRATION +5.90pp** (top 25 against top 150 of the *same* 1,500 names).
+
+**So the composite sorts a wide universe roughly three times better than it sorts the megacap
+tier — +12.22pp against +4.10pp.** That is `U7`'s mechanism confirmed on a new instrument: inside
+a narrow megacap tier the cross-section is compressed and `size` dominates, leaving the composite
+little to rank. **It also resolves the conflict `IC6` ranked itself last for and could not settle
+in advance** — `regime_split`'s *"edge strongest in large caps"* does **not** survive as a
+construction argument here, and `U7` does.
+
+## The two things that must travel with the winner
+
+### 1. NOT ONE ARM CLEARS |t| = 2.0 IN THE EARLY HALF, which the register predicted
+
+| arm | early | late | full HAC *t* | paired ρ | 80%-power MDE | observed/MDE80 |
+|---|---|---|---|---|---|---|
+| 2 | +4.08pp (*t* **+1.47**) | +7.32pp (*t* +2.14) | +2.63 | 0.915 | +6.04pp | **0.96×** |
+| 3 | +4.53pp (*t* **+1.30**) | +18.57pp (*t* +2.87) | +3.07 | 0.823 | +10.26pp | **1.14×** |
+| 4 | +3.77pp (*t* **+1.27**) | +11.68pp (*t* +2.68) | +2.89 | 0.889 | +7.29pp | **1.07×** |
+
+Every arm's advantage is **carried by the late half**, and every arm sits within ~15% of its own
+detection threshold. **Expectation 7 was registered at 70/30 and is RIGHT.** The register's §5
+said this in advance and is why the pick rule carries **no threshold at all** — it is a ranking
+plus a sign condition. **Every critical value here is UNCALIBRATED** (`V2G`, `R1-VAR`: no
+calibrated floor exists for a paired within-panel difference), and the realised paired HAC se is
+measured per arm rather than borrowed (`MB8`).
+
+The same pattern governs the incumbent: `INDEX-BOOK` measured the published decile at +1.18pp
+early against +10.66pp late. **This panel's late half is where almost everything lives.**
+
+### 2. THE WINNER CANNOT BE SEEDED AS THE INDEX WITHOUT DON CHANGING A CONSTANT
+
+`valquo_index.CONTRACT_MIN_POSITIONS = 50`, and `conformance()` requires at least that many
+names — a gate enforced in `paper_track.seed_book`, *"where a wrong book would start being
+recorded."* **Arm 3 is 25 names on every date and is conformant on 0 of 69.** It is *buildable*
+by the live scan — which is what the registered rule asks — and it is **not seedable** under the
+contract as written. That constraint was **not** in the pick rule and is **not** retrofitted into
+it (void condition 2); it is reported, and the decision is Don's.
+
+**Arm 2 is the highest-returning arm that IS contract-conformant on all 69 dates: +22.95%/yr net
+Roth, +7.71pp over SPY, Sharpe 1.144, 150 names.** If Don wants the ruling honoured *and* the
+contract untouched, that is the book. **The incumbent itself is conformant on only 44 of 69
+dates**, all the shortfalls early, so the floor already bites on what is served today.
+
+## For Don — the number, and the exact sentence
+
+**The winner by your rule is the top 25 of the 1,500 most liquid names, at +28.84%/yr.** The
+sentence that must go with it, fixed in the register before the result was known:
+
+> *"On an 18-year point-in-time backtest of 69 quarterly rebalances, this construction returned
+> **28.84%/yr net of modelled trading costs in a tax-free account**, against **15.23%/yr** for
+> SPY over the same window. This is an IN-SAMPLE backtest on a single panel, not a forward test;
+> it is net of trading costs and assumes no tax; and the difference between this construction and
+> the one we serve today is **NOT statistically separable** on this sample."*
+
+**If you prefer the contract-conformant book, the same sentence with +22.95% and 150 names.**
+
+**What may NOT be said:** that it is proven better than what we serve; that it is a forward
+result; that it survives tax (it does not — see below); or that it is achievable at size.
+
+## Tax, and capacity — both run against the winner
+
+**Taxable after-tax, FIFO, 40.8% short / 23.8% long (transparency only, cannot pick):** arm 1
+**+12.20%**, arm 2 **+17.06%**, arm 3 **+21.80%**, arm 4 **+18.61%**. The tax cost RISES with the
+winner — **4.96pp for the incumbent against 7.05pp for arm 3** — because a more concentrated,
+higher-returning book realises more short-term gain. **Arm 3 still leads after tax**, and the
+ordering is unchanged. **The no-dividend limit travels with every taxable figure and understates
+the real drag**: the panel's forward returns are price-only, so dividend income and dividend tax
+are both absent.
+
+**CAPACITY IS THE REAL CONSTRAINT AND IT BINDS HARD.** Median book name by dollar ADV:
+**$142.7m/day for the incumbent against $14.9m for arm 3** — roughly ten times less liquid. At a
+1% participation cap a full one-day rebalance of arm 3's whole book is about **$3.7m**, against
+~$24m for arm 2 and ~$77m for the incumbent. `P1` measured **87 bps at $1M** on exactly arm 3's
+shape. **Every capacity figure is an UPPER BOUND** (`P1`: the ADV sources are survivor-biased).
+For a personal Roth that is likely irrelevant; for a managed product it is disqualifying, and the
+ruling is about a personal Roth.
+
+## Three premise corrections, two of them against the register itself
+
+* **§1a OF MY OWN REGISTER IS WRONG: a point-in-time liquidity measure DOES exist.** I wrote that
+  none could be built, citing `B13`. **`valuation/edge/adv.py` + the banked `B13_ADV_PANEL.pkl`
+  are a proper PIT dollar-ADV panel on CRSP** — 90,025 cells, **86.08% of the arms population
+  before the CRSP cut**, 64 of 69 dates, defined to match the live screen's own 60-session
+  window, with the negative-price and dated-permno traps both handled. **The registered arms are
+  still run on the market-cap proxy, and the reason is stated rather than pretended:** real ADV
+  is missing on 5 of 69 dates entirely and on a further 14% of cells whose hole is a **join
+  artifact** concentrated in small and delisted names — so selecting on it would condition the
+  universe on *matchability*, which is the data-availability screen `S10` and `D6` warn about.
+  A cap proxy is PIT-clean, complete, and conditions on nothing.
+* **MY FIDELITY CONTROL WAS DEFECTIVE AND THE CORRECTION RUNS IN THE REGISTER'S FAVOUR.** It
+  paired `raw_close × volume` from the bars cache — which `B13_ADV_BARS_DEFECT.json` records as
+  **split-corrupted**, volume being split-back-adjusted while `raw_close` is as-traded — and
+  returned a within-date Spearman of **0.7119**. Re-measured against the clean CRSP panel it is
+  **0.8445** (p05 0.8244, p95 0.8696). **So the market-cap proxy tracks real liquidity BETTER
+  than the register claims**, and the registered 0.7119 should be read as the corrupted figure.
+* **§1b MISCHARACTERISED THE LIVE SCAN, AND THE TRUTH MAKES DON'S WORDING EXACTLY RIGHT.** I
+  wrote that the scan ranks 1,809 names, read off `n_scored` in the live payload. Measured in the
+  code, `broker_universe.build` enumerates ~7,100 NYSE+Nasdaq commons, filters on price ≥ $1 and
+  ADV ≥ $500k, **sorts by average dollar volume descending and truncates to `DEFAULT_LIMIT =
+  1500`.** So the live scan really does rank *the 1,500 most liquid names* — Don's phrase was
+  literal and correct, and my "the scan is not the binding constraint" framing was wrong. **The
+  substance of the arm is unaffected**: the screen still keeps 96.34% of the median cross-section
+  and is inert on 3 of 69 dates.
+* **AND THE ARM IS STILL WORTH ITS TRIAL, measured before the register was written: the screen
+  removes a median 7.69% of the all-cap BOOK against 3.66% of the universe — 2.1× harder, and
+  42% on the worst date — because the composite tilts small.**
+
+## Defects in my own work
+
+* **I FABRICATED THE GATE'S COMMITTED LITERALS AND THE GATE CAUGHT IT.** The first cut of arm 1's
+  comparison constants were plausible-looking digits typed from memory rather than copied from
+  `INDEX_BOOK.json`; the run **refused at 1.795e-07** instead of proceeding. That is `MA13`'s
+  committed-literal idiom working on its author, and it is exactly why the gate demands
+  **0.000e+00** and not a tolerance — a 1e-6 tolerance would have swallowed invented numbers and
+  scored four arms against a comparator nobody had checked. Mutation-tested: loosening the gate
+  to a tolerance goes red.
+* **THE VALUE-DEPENDENT ZERO-VARIANCE GUARD, FOR THE FIFTH TIME IN THIS RECORD AND THE SECOND
+  TIME IN TWO CONSECUTIVE ITEMS BY ME.** `_hac_t` tested `s <= 0`; a constant difference series
+  gives `s ≈ 1e-34`, so it returned a confident **1.85e16** — on the very statistic the pick
+  rule's halves are read against. Repaired with a relative floor and **proved inert on the real
+  data** (the verdict and every figure are unchanged). The others are `SECTOR-NEUTRAL-B6`'s
+  `zscore`, `U2`'s `theme_ic`, `MA58`'s `_tstat` and `INDEX-BOOK`'s `_sharpe`.
+* **An arithmetic slip in the register, corrected here and NOT edited away:** §0 says the hurdle
+  at `N` = 255 is 3.3314; it is **3.3290429691304455**. Immaterial — this item uses no HLZ bar —
+  and the register is left as committed.
+* **I DATED THE REGISTER ROWS BY THE RULING AND NOT BY THE CLOCK, AND IT BROKE A PUBLIC PAGE'S
+  ARITHMETIC.** Don's ruling is dated 2026-10-03, so I dated the research-log and ledger rows
+  2026-10-03 — and the repo's clock reads 2026-10-02, so the rows fell **outside** the weekly
+  window `valuation/web/research_record.weekly()` renders on the public research page. Its
+  invariant is `before == now - charged`, and it went red reporting equity moved 7 while the
+  window's own rows charged only 4: **my three trials were invisible to the page that reports
+  them.** Rows are now dated **2026-10-02**, the only clock the repo can check, with the
+  ruling's own date kept as prose. **The portable part: a register row's date is when the work
+  LANDED, not when the instruction was written — a future-dated row silently leaves the window
+  that accounts for it.**
+
+## Controls
+
+* **The gate is exact: arm 1 reproduces `INDEX-BOOK`'s `A_served` at max |Δ| 0.000e+00** on
+  `net_ann`, `net_sharpe` and `annual_turnover`, with the period count gated at 69, and the
+  runner **aborts before reading any challenger** otherwise.
+* **Both tax treatments and the paired series come from ONE `after_tax_backtest` lot path**, the
+  rates being the only knob, so a book's reported level and its pairing can never describe two
+  slightly different objects. The new `return_series` is opt-in and **inert at its default**,
+  pinned against `book_configs.taxable`'s committed literals.
+* **All four arms CALL `build_index`** (`B7`) — tier, fallback, band, score weighting and the 8%
+  cap are the live code. The universe trim is an INPUT, applied before the function sees the rows,
+  and is **deterministic** (ties broken on ticker) so the boundary cannot drift between runs.
+* **The `MIN_NAMES` fallback never fires on any arm on any of 69 dates**, and every date is
+  labelled `large-cap only`.
+
+## Stability and stickiness, reported because `B17` requires it
+
+Period-to-period book overlap: incumbent **0.585**, arm 2 **0.687**, **arm 3 0.760**, arm 4 0.709.
+**Arm 3 is the stickiest, as the register predicted** — the 30% band is ~18× its 25-name book
+against ~3× the incumbent's — **but it is not frozen**, at 171% annual turnover. **Expectation 6
+registered that at 60/40 and is RIGHT.** `B17`'s warning stands: arm 3 has by far the widest
+half-to-half spread (**+4.53pp → +18.57pp**, against arm 2's +4.08 → +7.32), which is the price of
+the concentration that earns it +5.90pp.
+
+## Expectations, scored: 4 right, 3 wrong
+
+**RIGHT:** (4) arm 2 lands between arms 1 and 4 and nearer arm 4; (5) arm 3 has the widest
+half-to-half spread; (6) arm 3's turnover is lower than arm 2's; (7) no arm clears |t| = 2.0 in
+both halves.
+
+**WRONG, and all three in the same direction — the challengers are stronger than I predicted:**
+(1) I put 50/50 on arm 1 standing and **all three challengers beat it in both halves**; (2) I put
+75/25 on arm 4 posting the highest gross and **arm 3 does** (+30.34% against +26.62%); (3) I put
+70/30 that arm 4's net advantage would be at least a third smaller than its gross one and it is
+**12.6% smaller** — the size-aware cost model bites less than I expected even on a $2bn-median
+book.
+
+## NOT DONE
+
+* **NOTHING IS ADOPTED.** No `CONFIG`, no live constant, no `MEASURED_BASIS`, no contract
+  constant changed — pinned by test.
+* **No real-ADV arm was run.** The sensitivity the premise correction makes possible (arms 2 and 3
+  on the CRSP ADV universe over the 64 covered dates) is **named and not run** — it needs its own
+  register and its own trial, and it inherits the availability-conditioning problem above.
+* **No cadence arm** — `REBAL-CADENCE` settled that and all four arms are quarterly.
+* **No second universe size, no second book size, no band sweep** — void condition 1.
+* **The shipped `roth` book config is a DIFFERENT object** (42-day rebalance) and is not
+  compared here.
+* **No forward-track claim.** The contract's own power arithmetic is informed by `INDEX-BOOK`,
+  not revised here.
+
+**22 tests, zero skips; 6 of 6 mutations caught with sources restored byte-for-byte** — the pick
+rule ORed, the buildability test dropped, the pick reading the taxable figure, the halves
+un-embargoed, the gate loosened to a tolerance, and the zero-variance guard reverted.
+
+**REPORTED, NOT DIAGNOSED, AND NOT THIS ITEM'S: two suites gave a GATE-ONLY failure on the
+second of two full runs, and the two runs disagree about WHICH.** Run 1: 218 suites, the only
+failure `test_record_this_week` (mine, the row-date defect above, now fixed). Run 2 on code
+**identical but for two markdown date strings neither suite reads**: `test_record_this_week`
+green, and `test_rebalance_chaining` and `test_fleet_highwater` red. **Both pass standalone, and
+that is NOT a diagnosis** — this record already warns that a standalone pass is consistent with
+both a real defect and an artifact of the run. What can be said: the failures cannot be caused
+by this item (the code was unchanged between the two runs), and `test_rebalance_chaining` builds
+real artifacts under `%TEMP%`, which is the documented contention family — `MB21`'s `GzipFile`,
+`MB16`/`test_checkout_drift`, `test_sync_checkout` — invisible on a Linux runner with no temp
+contention. `test_fleet_highwater` is a **new** sighting for that family; the only previous one
+was withdrawn when it turned out two gates were running concurrently, and here only one was.
+**The land Action's own full gate is the arbiter and is not being pre-empted by this note.**
+
+`PREREG_index_best.md`, `scripts/index_best.py`, `scripts/index_best_diag.py`,
+`valuation/studies/served_index_book.py`, `valuation/edge/fundamental_panel.py`
+(`after_tax_backtest`'s opt-in `return_series`), `tests/test_index_best.py`;
+`data/free_analysis/INDEX_BEST.json`, `INDEX_BEST_DIAG.json`, `INDEX_BEST_LIQ_FIDELITY.json`.
