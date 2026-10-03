@@ -34,16 +34,20 @@ from valuation.edge.fundamental_panel import (composite_from_frame,      # noqa:
                                               one_way_cost_bps)
 from valuation.screener.cross_sectional import zscore                    # noqa: E402
 from scripts.sector_neutral_rerun import DEPLOYED, BASE_WEIGHT           # noqa: E402
-from scripts.index_best import ARMS, LIQUID_N, _data_root                # noqa: E402
+from scripts.index_best import (ARMS, LIQUID_N, _data_root,  # noqa: E402
+                                data_candidates)
 
-DATA = _data_root()
-FA = os.path.join(DATA, "free_analysis")
-OUT = os.path.join(FA, "INDEX_BEST_DIAG.json")
+# Import must never raise on a runner with no licensed data -- see index_best._data_root.
+DATA = _data_root(required=False)
+FA = os.path.join(DATA, "free_analysis") if DATA else None
+OUT = os.path.join(FA, "INDEX_BEST_DIAG.json") if FA else None
 # P1's measured figure for the shape arm 3 is, quoted rather than re-derived.
 P1_TOP25_BPS_AT_1M = 87.0
 
 
 def main() -> int:
+    if not FA:
+        raise SystemExit("the licensed panel is absent; tried %r" % (data_candidates(),))
     panel = pd.read_pickle(os.path.join(FA, "panel_corrected_69d.pkl"))
     cols, weights = list(DEPLOYED), {c: BASE_WEIGHT for c in DEPLOYED}
     dates = sorted(panel["date"].unique())

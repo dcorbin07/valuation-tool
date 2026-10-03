@@ -46,7 +46,9 @@ GATE = {"net_ann": 0.17181671234700224, "net_sharpe": 1.0318455238307307,
         "annual_turnover": 2.4372450827338139}
 
 
-def _data_root():
+def data_candidates():
+    """Every place the licensed panel could live, DERIVED. A literal path is what made
+    `D9-DIAG` fail CI once already."""
     out = []
     env = os.environ.get("VALQUO_DATA_ROOT")
     if env:
@@ -55,15 +57,29 @@ def _data_root():
     parts = _HERE.replace("\\", "/").split("/.claude/worktrees/")
     if len(parts) == 2:
         out.append(os.path.join(parts[0].replace("/", os.sep), "data"))
-    for c in out:
+    return out
+
+
+def _data_root(required=True):
+    """IMPORTING THIS MODULE MUST NEVER RAISE.
+
+    The panel is licensed and gitignored, so it is absent on a CI runner. A module-level
+    resolution that raises makes `import scripts.index_best` fail there, and every test that
+    merely reads `ARMS` or `_halves` ERRORS instead of skipping -- which is `D9-DIAG`'s CI-only
+    failure, repeated. The error is deferred to `main()`, where it is a real problem; a reader
+    or a test gets `None` and can skip loudly.
+    """
+    for c in data_candidates():
         if os.path.exists(os.path.join(c, "free_analysis", "panel_corrected_69d.pkl")):
             return c
-    raise FileNotFoundError("no data root; tried %r" % (out,))
+    if required:
+        raise FileNotFoundError("no data root; tried %r" % (data_candidates(),))
+    return None
 
 
-DATA = _data_root()
-FA = os.path.join(DATA, "free_analysis")
-OUT = os.path.join(FA, "INDEX_BEST.json")
+DATA = _data_root(required=False)
+FA = os.path.join(DATA, "free_analysis") if DATA else None
+OUT = os.path.join(FA, "INDEX_BEST.json") if FA else None
 
 ARMS = [
     ("1_incumbent_10bn", dict(large_cap_min=LARGE_CAP_MIN, universe_rank=None, top_n=None),
@@ -117,6 +133,8 @@ def _halves(n):
 
 
 def main() -> int:
+    if not FA:
+        raise SystemExit("the licensed panel is absent; tried %r" % (data_candidates(),))
     panel = pd.read_pickle(os.path.join(FA, "panel_corrected_69d.pkl"))
     cols, weights = list(DEPLOYED), {c: BASE_WEIGHT for c in DEPLOYED}
     print("panel %s | %d dates | %d themes at %.4f"

@@ -264,6 +264,55 @@ class TheGateIsExactAndTheRegisterIsHonoured(unittest.TestCase):
                          "the pick must not read a taxable figure")
 
 
+class ImportingTheRunnerDoesNotRequireLicensedData(unittest.TestCase):
+    """THE CI-ONLY FAILURE THIS ITEM ACTUALLY SHIPPED ONCE, now pinned.
+
+    The panel is licensed and gitignored, so it is ABSENT on a runner. The first cut resolved
+    the data root at MODULE level and raised, so `import scripts.index_best` failed on CI and
+    five tests ERRORED instead of skipping -- `D9-DIAG`'s defect repeated in a new file. These
+    pin the property rather than the symptom: resolution must return None, not raise, and the
+    error must land in `main()` where it is a real problem.
+    """
+
+    def test_resolution_returns_none_instead_of_raising_when_nothing_is_found(self):
+        import scripts.index_best as M
+        real = M.data_candidates
+        try:
+            M.data_candidates = lambda: [os.path.join(REPO, "no_such_data_root_xyz")]
+            self.assertIsNone(M._data_root(required=False),
+                              "a missing panel must resolve to None, not raise")
+            with self.assertRaises(FileNotFoundError):
+                M._data_root(required=True)
+        finally:
+            M.data_candidates = real
+
+    def test_main_refuses_loudly_when_the_panel_is_absent(self):
+        """A refusal, not a traceback -- and it must NAME where it looked."""
+        src = _src(RUNNER)
+        self.assertIn("if not FA:", src)
+        self.assertIn("the licensed panel is absent", src)
+        self.assertIn("data_candidates()", src)
+
+    def test_the_module_level_resolution_is_the_non_raising_one(self):
+        """Pinned by SHAPE: `DATA = _data_root(required=False)`. A bare call re-introduces the
+        CI failure, and the diag script must carry the same form."""
+        for p in (RUNNER, os.path.join(REPO, "scripts", "index_best_diag.py")):
+            tree = ast.parse(_src(p))
+            found = False
+            for n in tree.body:
+                if not isinstance(n, ast.Assign):
+                    continue
+                if not any(isinstance(t, ast.Name) and t.id == "DATA" for t in n.targets):
+                    continue
+                found = True
+                self.assertIsInstance(n.value, ast.Call)
+                kw = {k.arg: getattr(k.value, "value", None) for k in n.value.keywords}
+                self.assertIs(kw.get("required"), False,
+                              "%s resolves the data root in the RAISING form at import time"
+                              % os.path.basename(p))
+            self.assertTrue(found, "no module-level DATA assignment found in %s" % p)
+
+
 class ItAdoptsNothing(unittest.TestCase):
     def test_no_product_package_references_this_item(self):
         for pkg in ("web", "saas", "screener", "engine"):
