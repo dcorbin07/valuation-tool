@@ -255,8 +255,24 @@ def test_tracker_logs_and_summary():
              "labels": ["Uptrend (>50 & >200 DMA)"] if i < 3 else []} for i in range(15)]
     tracker.log_hot(st, "2026-07-01", rows)
     assert len(st.all_track_picks("hot10")) == 10                 # top-10 only
-    tracker.log_options(st, rows, 80)                             # screaming = score≥80 + bullish tag
+    # E10 — AN EXPLICIT TRADING DAY, because the logger now refuses a closed one. This line
+    # took `date.today()` while `log_hot` one line above passes a date, so the test was
+    # inheriting the clock for no reason and asserting a write that is only legitimate on a
+    # session. It went red on a land gate that ran 01:56 UTC — a Saturday in UTC — and that is
+    # what surfaced the real defect: the production default was the SERVER's date, so a
+    # Friday-evening ET scan dated its picks Saturday. 2026-07-01 is a Wednesday.
+    tracker.log_options(st, rows, 80, day="2026-07-01")           # screaming = score≥80 + bullish tag
     assert len(st.all_track_picks("options")) == 3
+    # ITEM 20 — THE CASE THAT FAILED THE LAND GATE, now pinned. A Friday-evening ET ingest
+    # arrives after 00:00 UTC Saturday, and the session it belongs to is FRIDAY. This line
+    # used to take the server's UTC date, so on a UTC weekend the picks were refused and the
+    # assertion above failed — a calendar-dependent test, which is how the clock bug announced
+    # itself. Run "at" Sat 00:30 UTC; the row must be Friday 2026-10-02.
+    tracker.log_options(st, rows, 80, run_time="2026-10-03 00:30")
+    dates = {str(p["run_date"])[:10] for p in st.all_track_picks("options")}
+    assert "2026-10-02" in dates, (
+        "a Friday-evening ingest was not filed under Friday: %r" % (sorted(dates),))
+    assert "2026-10-03" not in dates, "a pick was filed under a Saturday session"
     # a matured forward return flows into the horizon summary
     st.save_track_return("hot10", "2026-07-01", "T0", 21, 0.05, 0.02)
     s = track.summary(st, "hot10")

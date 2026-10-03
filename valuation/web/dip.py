@@ -507,12 +507,70 @@ def _terminal_share_check(result) -> str:
         return NOT_RUN
 
 
+class DipWiringError(TypeError):
+    """`get_result` handed back something that is neither a result nor a cache entry.
+
+    A DISTINCT TYPE ON PURPOSE. `engine_measure` swallows per-name failures by design -- one
+    name that will not value is not the screen failing -- and that is exactly how this defect
+    stayed invisible for seven weeks: every one of 229 names raised the same wiring error and
+    each was counted as "unmeasured", which reads as a data gap. A wiring error is not a data
+    gap, so it gets its own type and is NOT swallowed.
+    """
+
+
+def unwrap_result(obj):
+    """The `ValuationResult`, whether handed one or the cache entry that holds one.
+
+    **THE DEFECT THIS CLOSES (found 2026-10-03; live since the Dip Detector shipped
+    2026-08-13).** Every caller passes `web/app._get_or_compute`, which returns a
+    `resultcache.Entry` -- its own docstring says *"Returns the cache entry rather than the
+    result, because the caller has to stamp the document with when the numbers were made"* --
+    and it has done since `42597e2` on 2026-08-06, **a week before this screen was built**. So
+    `measurement_from` did `getattr(result, "company")` on an `Entry`, got `None`, computed no
+    drawdown, and counted every name unmeasured. Measured on the service: `n_eligible` 241,
+    `n_measured` 12, `n_unmeasured` 12 -- **every examined name unmeasured** -- while the page
+    said "No name cleared a 20% fall". `POST /api/value` shows NKE at 33.87 against a 52-week
+    high of 69.63, so the data was there the whole time.
+
+    **WHY A STUB HID IT, which is the transferable part.** `measurement_from`'s docstring says
+    it is *"Pure -- no network, no cache -- so the mapping from a valuation to a screened row is
+    testable against a stub result, where the interesting mistakes live."* The stub was a
+    result-shaped object, so the mapping was tested and the WIRING never was. A pure function
+    tested only against a hand-built input cannot catch a caller passing the wrong type.
+
+    Order matters: `.company` is checked FIRST, so a result that happens to carry a `.result`
+    attribute is still treated as a result.
+    """
+    if obj is None:
+        return None
+    if hasattr(obj, "company"):
+        return obj
+    inner = getattr(obj, "result", None)
+    if inner is not None:
+        # One level only. A cache entry holding a cache entry is itself a wiring defect and
+        # must not be papered over by recursing until something sticks.
+        if not hasattr(inner, "company"):
+            raise DipWiringError(
+                "get_result returned a %s whose .result is a %s, and that carries no "
+                ".company" % (type(obj).__name__, type(inner).__name__))
+        return inner
+    raise DipWiringError(
+        "get_result returned a %s, which carries neither .company (a result) nor .result "
+        "(a cache entry)" % (type(obj).__name__,))
+
+
 def measurement_from(result) -> Optional[dict]:
     """Turn one `ValuationResult` into the `measure(row)` payload `screen` consumes.
 
     Pure — no network, no cache — so the mapping from a valuation to a screened row is
     testable against a stub result, which is where the interesting mistakes live.
     """
+    if result is None:
+        return None
+    # UNWRAPPED IN ONE PLACE. Every caller passes a cache ENTRY, not a result; see
+    # `unwrap_result` for the seven weeks that cost. A wrong type raises rather than
+    # returning None, because None here is indistinguishable from "this name has no data".
+    result = unwrap_result(result)
     if result is None:
         return None
     cd = getattr(result, "company", None)
@@ -641,6 +699,12 @@ def engine_measure(get_result: Callable[[str], object], budget: int = DEFAULT_SH
         state["spent"] += 1
         try:
             return measurement_from(get_result(ticker))
+        except DipWiringError:
+            # NOT SWALLOWED. This `except` is why the defect was invisible: every one of 229
+            # names raised the same wiring error and each was counted as "unmeasured", which
+            # reads as a data gap rather than as a screen that is wired to the wrong object.
+            # A per-name failure is tolerable; a wiring failure is a bug and must be loud.
+            raise
         except Exception:                                            # noqa: BLE001
             # One name failing to value is not the screen failing. It becomes unmeasured and
             # is counted, which is the honest reading: nobody checked it.

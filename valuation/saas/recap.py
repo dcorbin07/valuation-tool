@@ -109,6 +109,19 @@ _CONVEXITY = (f"Options here are CONVEX, not high-probability: the backtest hits
 
 
 # ------------------------------------------------------------------ formatting
+def _session_today():
+    """The trading SESSION, for the dedup key. See `post`. An explicit `day=` still wins."""
+    import datetime as _d2
+    try:
+        from ..screener.market_session import session_date
+        d = session_date()
+        if d is not None:
+            return d
+    except Exception:                                        # noqa: BLE001
+        pass
+    return _d2.date.today()
+
+
 def _f(x) -> Optional[float]:
     try:
         v = float(x)
@@ -508,7 +521,11 @@ def post(cfg, store, kind: str = "daily", day=None, force: bool = False) -> dict
     """
     if kind not in KINDS:
         raise ValueError(f"unknown recap kind {kind!r}")
-    day_iso = (_d(day) or _dt.date.today()).isoformat()
+    # ITEM 20 -- THE DEDUP KEY IS A WRITE, AND THE SERVER'S DATE MADE IT MISFIRE BOTH WAYS.
+    # `day_iso` is `_DEDUPE_KEY`'s day, so on UTC a recap scheduled for the evening ET runs
+    # after 00:00 UTC, posts under TOMORROW's date, and then the real next day's run finds it
+    # "already posted" and SKIPS. One duplicate and one missing post from one wrong date.
+    day_iso = (_d(day) or _session_today()).isoformat()
     key = _DEDUPE_KEY[kind]
 
     if not getattr(cfg, "discord_webhook_url", ""):

@@ -145,6 +145,118 @@ class TheCallerSeesTheRefusal(unittest.TestCase):
         self.assertTrue(r["written"])
 
 
+class TheDefaultDateIsTheSESSIONNotTheServers(unittest.TestCase):
+    """ITEM 20 SUPERSEDED THIS CLASS'S FIRST VERSION, AND THE REASON IS WORTH KEEPING.
+
+    The defect it was written for is real: `log_options` defaulted to `date.today()`, and both
+    production call sites run in a container on **UTC**, so a scan firing after 20:00 ET was
+    already the next calendar day and a Friday-evening run dated its picks Saturday.
+
+    MY REMEDY WAS WRONG. I used `now_et().date()` and let `track.log_picks` REFUSE a
+    non-trading day, and asserted here that a Saturday run *stays* refused and is *not* filed
+    under Friday. But GitHub delivers these ingests **3-5 hours late**, so Friday's ET evening
+    routinely arrives on Saturday UTC -- and refusing it **loses Friday's picks for good**,
+    because Monday logs Monday's. The old assertions were pinning a data-loss bug.
+
+    The shipped rule is `market_session.session_date`: the most recent trading day on or before
+    the run's ET date. A Friday-evening run reads Friday; a genuine Saturday run also reads
+    Friday, which is the session the data belongs to. `save_track_picks` is `INSERT OR IGNORE`,
+    so re-filing a Friday already present is a no-op rather than a second row -- which answers
+    the "invent a second Friday" objection the old version rested on.
+
+    **`log_picks`'s REFUSAL IS UNCHANGED AND STILL TESTED** (see `TheLoggerRefuses`): a caller
+    that explicitly hands it a closed day is still refused. What changed is that the default no
+    longer hands it one.
+    """
+
+    def test_the_default_reads_the_ET_calendar_and_not_the_servers(self):
+        from valuation.saas import tracker
+        import valuation.screener.market_session as MS
+        real = MS.now_et
+        # 2026-10-03 00:30 UTC is 2026-10-02 20:30 ET: Saturday on the server, Friday on the
+        # exchange. The session must be the exchange's.
+        MS.now_et = lambda: dt.datetime(2026, 10, 2, 20, 30)
+        try:
+            self.assertEqual(tracker._session_date(), "2026-10-02")
+        finally:
+            MS.now_et = real
+
+    def test_a_friday_evening_run_still_logs(self):
+        from valuation.saas import tracker
+        import valuation.screener.market_session as MS
+        import valuation.saas.notify as N
+        real_now, real_sb = MS.now_et, N.screaming_buys
+        MS.now_et = lambda: dt.datetime(2026, 10, 2, 20, 30)
+        N.screaming_buys = lambda r, m: [{"ticker": "DELL"}]
+        st = _Store()
+        try:
+            r = tracker.log_options(st, [{"ticker": "DELL"}], 0)
+        finally:
+            MS.now_et, N.screaming_buys = real_now, real_sb
+        self.assertEqual(st.writes, [("options", "2026-10-02", 1)])
+        self.assertTrue(r["written"])
+
+    def test_a_SATURDAY_run_files_under_FRIDAY_rather_than_being_refused(self):
+        """THE ASSERTION THAT REVERSED. The old version required a refusal here, which loses
+        the row: GitHub's delay puts Friday's ingest on Saturday routinely."""
+        from valuation.saas import tracker
+        import valuation.screener.market_session as MS
+        import valuation.saas.notify as N
+        real_now, real_sb = MS.now_et, N.screaming_buys
+        MS.now_et = lambda: dt.datetime(2026, 10, 3, 11, 0)       # a genuine Saturday in ET
+        N.screaming_buys = lambda r, m: [{"ticker": "DELL"}]
+        st = _Store()
+        try:
+            r = tracker.log_options(st, [{"ticker": "DELL"}], 0)
+        finally:
+            MS.now_et, N.screaming_buys = real_now, real_sb
+        self.assertEqual(st.writes, [("options", "2026-10-02", 1)],
+                         "a Saturday run did not file under Friday's session")
+        self.assertTrue(r["written"])
+
+    def test_a_HOLIDAY_run_files_under_the_previous_session(self):
+        """Labor Day 2026-09-07: the session the data belongs to is Friday 2026-09-04."""
+        from valuation.saas import tracker
+        import valuation.screener.market_session as MS
+        import valuation.saas.notify as N
+        real_now, real_sb = MS.now_et, N.screaming_buys
+        MS.now_et = lambda: dt.datetime(2026, 9, 7, 19, 0)
+        N.screaming_buys = lambda r, m: [{"ticker": "DELL"}]
+        st = _Store()
+        try:
+            tracker.log_options(st, [{"ticker": "DELL"}], 0)
+        finally:
+            MS.now_et, N.screaming_buys = real_now, real_sb
+        self.assertEqual(st.writes, [("options", "2026-09-04", 1)])
+
+    def test_an_INTRADAY_run_belongs_to_the_day_it_scanned(self):
+        """Two real runs landed at 14:24 and 14:33 ET. `last_closed_session()` would date
+        those to the PREVIOUS day because the close has not passed -- wrong by a whole session
+        for an intraday signal, which is why `session_date` has no time-of-day cutoff."""
+        from valuation.screener.market_session import session_date, last_closed_session
+        when = dt.datetime(2026, 10, 5, 14, 24)                   # a Monday, during hours
+        self.assertEqual(str(session_date(when, assume_utc=False)), "2026-10-05")
+        self.assertNotEqual(str(last_closed_session(when)), "2026-10-05",
+                            "the two functions have stopped differing; one of them is wrong")
+
+    def test_a_run_time_string_is_read_as_UTC(self):
+        """Both producers emit UTC (`datetime.now()` on the service, and a GitHub runner).
+        Reading it as ET would be wrong by four or five hours -- exactly the window that
+        moves the date."""
+        from valuation.screener.market_session import session_date
+        self.assertEqual(str(session_date("2026-10-03 00:30")), "2026-10-02")
+
+    def test_an_unparseable_run_time_falls_back_to_the_clock_rather_than_guessing(self):
+        from valuation.screener.market_session import session_date
+        import valuation.screener.market_session as MS
+        real = MS.now_et
+        MS.now_et = lambda: dt.datetime(2026, 10, 2, 20, 30)
+        try:
+            self.assertEqual(str(session_date("not-a-time")), "2026-10-02")
+        finally:
+            MS.now_et = real
+
+
 class ExistingRowsAreLabelledNotDeleted(unittest.TestCase):
     """The backwards half. Written through `save_track_picks` DIRECTLY, which is how the real
     rows got there -- before the guard existed."""

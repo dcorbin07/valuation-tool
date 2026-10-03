@@ -82,6 +82,29 @@ EXPERIMENT_STAMP = ("REGISTERED EXPERIMENT - not the contract-bound Valquo Index
                     "be quoted as it (PAPER_TRACK_CONTRACT.md 5b)")
 
 
+def _session_today():
+    """The trading SESSION, for the writers below. ITEM 20's census.
+
+    Every `day = ... or _dt.date.today()` fallback in this module dates a RECORD, and the
+    service runs **UTC**: a job delivered after 20:00 ET is already the next calendar day in
+    UTC, so an evening write landed under a date that is either the wrong session or no
+    session at all. `market_session.session_date` returns the most recent trading day on or
+    before the run's AMERICA/NEW_YORK date, so the fallback can only ever move a date ONTO a
+    session, never off one.
+
+    An explicit `today=` from a caller still wins everywhere; this only replaces the fallback.
+    """
+    import datetime as _d2
+    try:
+        from ..screener.market_session import session_date
+        d = session_date()
+        if d is not None:
+            return d
+    except Exception:                                        # noqa: BLE001
+        pass
+    return _d2.date.today()
+
+
 def _f(x) -> Optional[float]:
     try:
         v = float(x)
@@ -325,7 +348,7 @@ def submit_new_alerts(store, broker: PaperBroker, cfg=CONFIG, limit: int = 25,
     to do with the signal.
     """
     ensure_schema(store)
-    day = _d(today) or _dt.date.today()
+    day = _d(today) or _session_today()          # ITEM 20: the session, not UTC
     n_contracts = max(1, int(getattr(cfg, "paper_contracts_per_trade", 1) or 1))
     out = {"considered": 0, "submitted": 0, "skipped": 0, "rejected": 0, "adopted": 0,
            "errors": [], "skips": []}
@@ -665,7 +688,7 @@ def close_matured(store, broker: PaperBroker, today=None) -> dict:
     the bid is the fill convention the validated numbers assume.
     """
     ensure_schema(store)
-    day = _d(today) or _dt.date.today()
+    day = _d(today) or _session_today()          # ITEM 20: the session, not UTC
     out = {"closed": 0, "closing": 0, "recorded": 0, "errors": [], "exits": []}
 
     # 1) Positions whose exit order is already working — finish them if they filled.
@@ -947,7 +970,7 @@ def seed_book(store, broker: PaperBroker, book: dict, place_equity: bool = False
     tracking error that tests nothing about the signal.
     """
     ensure_schema(store)
-    day = (_d(today) or _dt.date.today()).isoformat()
+    day = (_d(today) or _session_today()).isoformat()   # ITEM 20: session, not UTC
     positions = (book or {}).get("positions") or []
     conf = book_conformance(book)
     out = {"held": 0, "added": 0, "unpriced": [], "orders": 0, "place_equity": place_equity,
@@ -1037,7 +1060,7 @@ def index_point(store, broker: PaperBroker, today=None) -> dict:
     `edge/track.py` uses for the hot-list track, so the two records are directly comparable.
     """
     ensure_schema(store)
-    day = (_d(today) or _dt.date.today()).isoformat()
+    day = (_d(today) or _session_today()).isoformat()   # ITEM 20: session, not UTC
     with store._conn() as c:
         cur = c.execute("SELECT * FROM paper_index_holdings")
         keys = [d[0] for d in cur.description]

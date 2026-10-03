@@ -5,6 +5,303 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 78 — 2026-10-03 — ITEM 20: my own E10 fix would have lost every Friday-evening options pick
+
+**THE LAND GATE WAS RIGHT AND MY REPAIR WAS WRONG.** `62eb951` failed run `37087592471` at
+01:50 UTC on `test_saas.py::test_tracker_logs_and_summary`, and the test failure was the
+symptom of a worse production defect **in my own change**. ZERO TRIALS; not a vintage event.
+
+## WHAT I GOT WRONG, STATED FIRST
+
+E10 made `track.log_picks` refuse a non-trading day and had `log_options` date the row from
+`now_et().date()`. I argued in that handoff that `last_closed_session()` *"would file a weekend
+run under Friday, which is a different and wrong thing — it would invent a second Friday row."*
+
+**Both halves of that were wrong.** GitHub runs the ingest jobs **3-5 hours late**, so Friday's
+ET evening routinely arrives after 00:00 UTC Saturday. Under my change every one of those
+Friday picks would have been **REFUSED and lost for good** — Monday logs Monday's picks, never
+Friday's. And the "second Friday row" objection is answered by `save_track_picks` being
+`INSERT OR IGNORE`, which I had read and not connected.
+
+**THE DEFECT WAS REAL EITHER WAY**, which is the only thing my pass got right: without E10 the
+row is written under a **Saturday** date, and that is the Labor Day / DELL row the dip audit
+found. The choice was never "refuse or accept"; it was **which session the data belongs to**.
+
+## THE SHIPPED RULE, AND IT IS NEITHER OF THE TWO I WEIGHED
+
+`market_session.session_date(when, assume_utc=True)` — the most recent trading day **on or
+before** the run's **America/New_York** date. Verified on the seven cases that actually occur:
+
+| run | session |
+|---|---|
+| Fri 20:30 ET, arriving Sat 00:30 UTC | **Fri 2026-10-02** |
+| genuine Sat 11:00 UTC | **Fri 2026-10-02** |
+| Sun 11:00 UTC | **Fri 2026-10-02** |
+| Mon 14:24 ET, DURING hours | **Mon 2026-10-05** |
+| Labor Day 2026-09-07 | **Fri 2026-09-04** |
+
+**IT IS NOT `last_closed_session()`, AND THE DIFFERENCE IS A WHOLE SESSION.** That function
+requires the close to have PASSED, because its caller marks a settled session. Two real
+intraday runs landed at **14:24 and 14:33 ET**; dating those to the previous day would be wrong
+for an intraday signal, which belongs to the session it scanned in. So `session_date` has no
+time-of-day cutoff and the two functions stay separate — pinned by a test that fails if they
+ever stop differing.
+
+**`assume_utc` IS THE LOAD-BEARING DEFAULT.** A naive `run_time` reaches the logger from
+`datetime.now().strftime(...)` on the service — **UTC** — or from a GitHub runner, also UTC.
+Reading it as ET would be wrong by four or five hours, which is exactly the window that moves
+the date. The session now comes from **the run's own stamp**, passed explicitly from both call
+sites (`app_saas.py` ~421 via `res["run_time"]`, ~1572 via the ingest's `run_time`), rather
+than from whatever clock the container happens to run on.
+
+## THE TEST IS NO LONGER CALENDAR-DEPENDENT, AND THAT IS PROVED AT THE FAILING MOMENT
+
+`test_tracker_logs_and_summary` now passes an explicit day **and** carries the case that broke
+the gate: a run at `2026-10-03 00:30` must file under **2026-10-02** and must not file under
+2026-10-03. Re-run with the clock frozen to **Sat 01:50 UTC / Fri 21:50 ET** — the exact moment
+the gate failed — and again on a **genuine Saturday in ET**: passes both. Same class as
+`f88f24e`, and a clock-dependent test is the cheapest possible place to find a clock bug.
+
+## THE CENSUS ITEM 20 ASKED FOR: WHICH RECORDERS DATE BY SERVER UTC
+
+**FIXED, because they WRITE a record:**
+
+* `saas/tracker.log_options` — the item's subject.
+* `edge/paper_track`: **`submit_new_alerts`, `close_matured`, `seed_book`, `index_point`** — all
+  four fell back to `date.today()`. The fallback is now the session, so it can only ever move a
+  date **onto** a session, never off one; an explicit `today=` from a caller still wins.
+* `saas/recap.post` — **and this one misfires BOTH ways, which is why it counts as a write.**
+  `day_iso` is `_DEDUPE_KEY`'s day, so an evening-ET recap running after 00:00 UTC posts under
+  **tomorrow's** date and then the real next day's run finds it *"already posted"* and **SKIPS**.
+  One duplicate and one missing post from one wrong date.
+
+**REPORTED, NOT FIXED, because they write nothing:**
+
+* `edge/positions.py:186` — `today` feeds `hold_days` in the *watching* list. Display only; a
+  UTC-evening request can read one day high. No record.
+* `saas/recap.collect` and `recap.health_note` — both take `day` from `post` in the normal path,
+  so the fix above covers them; their own fallbacks remain only for direct calls, and that
+  module's own docstring records that it *"re-derives NONE"* of the figures it posts.
+
+## MY OWN SUPERSEDED REASONING IS CORRECTED IN THE TREE RATHER THAN LEFT STANDING
+
+`tracker._old_session_date`'s docstring argued *against* the shipped behaviour — it was my
+case for the ET calendar date plus a refusal. It now records the FINDING (the UTC defect, which
+stands) and **retracts the CONCLUSION**, because a docstring arguing against the code beside it
+is worse than no docstring. Two tests in `test_holiday_picks.py` asserted the old design
+(*"a genuine Saturday run is still refused"*, *"does not file a weekend run under the previous
+session"*) and are **reversed**, with the reason on the class: those assertions were pinning a
+data-loss bug.
+
+**`log_picks`'s REFUSAL IS UNCHANGED AND STILL TESTED.** A caller that explicitly hands it a
+closed day is still refused, with the positive control intact. What changed is that the default
+no longer hands it one.
+
+---
+
+# Session 77 — 2026-10-03 — the Dip Detector measured ZERO names for seven weeks, and 46 of its own tests passed
+
+**ITEM 19. A LIVE, USER-FACING SCREEN RETURNED NOTHING FROM THE DAY IT SHIPPED (2026-08-13) UNTIL
+TODAY.** Found by Cowork after Don doubted an empty screen. **ZERO TRIALS; NOT A VINTAGE EVENT.**
+
+**THE DEFECT, IN ONE LINE.** `dip.engine_measure` calls `measurement_from(get_result(ticker))`,
+and every caller passes `web/app._get_or_compute`, which returns a **`resultcache.Entry`** — its
+own docstring says *"Returns the cache entry rather than the result"* — and has done since
+`42597e2` on 2026-08-06, **a week before this screen was built**. So `getattr(result, "company")`
+returned `None`, no drawdown was ever computed, and every name was counted unmeasured. Measured on
+the service: `n_universe` 1489, `n_eligible` **241**, `n_measured` **12**, `n_unmeasured` **12**
+— every examined name unmeasured — while the page said *"No name cleared a 20% fall"*.
+`POST /api/value` returns NKE at 33.87 against a 52-week high of 69.63, so **the data was there
+the whole time**: the fix computes that name's drawdown at **51.36%**.
+
+**WHY 46 TESTS PASSED, AND IT IS THE PART THAT GENERALISES.** `measurement_from`'s docstring
+states the design: *"Pure — no network, no cache — so the mapping from a valuation to a screened
+row is testable against a stub result, which is where the interesting mistakes live."* The stub
+was result-SHAPED, so the MAPPING was tested exhaustively and the WIRING was never tested at all.
+**A pure function tested only against a hand-built input cannot catch a caller passing the wrong
+type** — and injecting `get_result` to make the path testable with a dict is precisely what left
+the real path untested. `tests/test_dip_wiring.py` drives `screen_snapshot` through the **REAL**
+`_get_or_compute` with only `value_ticker` stubbed.
+
+## FOUR DEFECTS, NOT ONE — AND THE SECOND IS WHY IT WAS SILENT FOR SEVEN WEEKS
+
+1. **The wrapper.** Fixed by `dip.unwrap_result`, in ONE place, as asked. `.company` is checked
+   before `.result` so a result carrying a `.result` attribute is still a result; a wrong type
+   **raises** `DipWiringError` rather than returning `None`, because `None` here is
+   indistinguishable from *"this name has no data"*; and an entry holding a non-result is refused
+   rather than unwrapped twice.
+2. **`engine_measure` SWALLOWED IT, 229 TIMES.** Its `except Exception` is correct for one name
+   failing to value — and it is exactly how 229 identical wiring errors read as a data gap.
+   `DipWiringError` is a distinct type and is re-raised. **A per-name failure is tolerable; a
+   wiring failure is a bug and must be loud.** The positive control pins that an ordinary
+   per-name error still becomes an unmeasured row.
+3. **THE WITHHOLDING WAS ALSO BYPASSED, by the same wrapper.**
+   `withhold.is_withheld_result(Entry)` reads `getattr(entry, "fair_value_blend", None)` → `None`
+   → returns **False**, so every name was treated as NOT withheld. **It had no observable effect
+   ONLY because nothing was ever measured** — the two defects masked each other, and fixing the
+   first alone would have made the second live. Both are fixed by the one unwrap, and the
+   bypass is pinned with a positive control so the class cannot pass for an unrelated reason.
+4. **THE PAGE MADE A CLAIM ABOUT THE MARKET ON THE STRENGTH OF A CLAIM ABOUT THE WIRING.** *"No
+   name cleared a 20% fall"* and *"nothing was measured"* are opposites a reader cannot tell
+   apart. The branch now splits on `n_measured === 0 || n_unmeasured >= n_measured` — **both**
+   shapes, because the live state was the SECOND (12/12) and a guard on zero alone would have
+   missed the exact payload that prompted this — and the surviving sentence is scoped to *"the
+   N that could be measured"*.
+
+## THE DAMAGE, STATED PLAINLY
+
+**THE DISCORD DIP DIGEST HAS POSTED NOTHING SINCE 2026-08-13, AND POSTED NOTHING WRONG.**
+`notify.post_dip_digest` returns False on `not rows`, so with zero rows every cycle it sent
+nothing. It was otherwise ELIGIBLE — `dip_posture.posture()["digest_eligible"]` reads **True**,
+gated on V6-B's risk result, which did arrive — so the only thing stopping it was the defect. The
+loss is a feature Don believes is running that has never run; no false content went out.
+
+**F-11's `dip_rejects` HISTORY CONTAINS A FABRICATED ZERO ON EVERY CYCLE, AND THIS IS AUDIT #5's
+OWN DEFECT BY A ROUTE IT DID NOT COVER.** `H2` established that `[]` means *the screen ran and
+rejected nobody* and `None` means *no screen was consulted*, and `f11_live_rejects`'s own
+docstring warns that returning `[]` wrongly *"would put a fabricated zero back into the one series
+that was just repaired for exactly that"*. **H2 guarded the UNREACHABLE STORE. It did not guard a
+screen that runs, reaches every name and measures none of them.** So `[]` was recorded as an
+observation into the one series F-11's hypothesis reads for FIRST appearances — and
+`f11_first_appearances` cannot tell a day nobody was rejected from a day nobody was looked at.
+
+**F-11 HAS THEREFORE ENTERED NOTHING**, because an empty reject population yields no first
+appearances and `f11_select` returns no entries. Its clock and its recorded rows describe a book
+that never opened a position.
+
+**WHAT THE RULES SAY TO DO, AND IT IS ALREADY BUILT.** `fleet_history.invalidate` appends an
+invalidation record and **never touches the series**, and `f11_first_appearances` SKIPS rows marked
+`invalid` — so marking the span neutralises its effect on first-ness **without deleting a
+record**, which is exactly what item 19 asks for and what audit #5 did for the previous instance.
+**THIS LANE CANNOT APPLY IT:** the affected rows live under gitignored `data/` **on the service**,
+so the invalidation has to be appended there. The guard that stops it recurring IS applied:
+`f11_live_rejects` now returns **`None`** when the screen measured nothing, in the series' own
+vocabulary, with a positive control pinning that a GENUINE empty reject population still records
+`[]`.
+
+## THE CONSUMER CENSUS
+
+Five call sites. **Two are CORRECT** — `web/app.py:370` and `:389` both name the variable `entry`
+and do `entry.result`. **Three were broken and all three route through `measurement_from`**, so
+the single unwrap fixes them together: `/api/dip` (`app.py:854`), the Discord digest
+(`saas/scan_worker.py:43`) and F-11 (`edge/fleet_books.py:574`).
+
+## FIVE DEFECTS OF MY OWN, ALL FOUND BY RUNNING OR BY MUTATION
+
+1. **My own guard was defeated by `if (false)`** — the THIRD time this session. The branch tests
+   asserted the strings were PRESENT, which they are in a dead branch, so disabling it passed.
+   Repaired by asserting the `if`'s own CONDITION.
+2. **And that repair's first regex matched the WRONG BRANCH** (`d.empty`, which also writes
+   `dipResults`) and failed against a correct tree. Anchored on the branch's own copy and
+   searched backwards instead.
+3. My end-to-end fixture had no subscores, so every measured row was filtered by
+   `HEALTH_FLOORS` and `rows` came back empty — a test that would have reported the fix as not
+   working. The floors are now read FROM the module rather than typed.
+4. `f11_first_appearances` takes a `date`; passing a string raises in `f11_quarter`.
+5. The window my renderer test extracts was 1,600 chars and cut off the sentence it asserts on.
+
+**29 item-19 tests; 11 of 11 mutations caught** (including the original defect reinstated), every
+source restored byte-for-byte with sha256 verified.
+
+**NOT DONE:** the three service readings at 10%, 20% and 30% are owed **after the deploy** — they
+cannot be taken against the old code. The invalidation of F-11's span is Don's to run on the
+service. And `PRODUCT_SPEC.md` now carries the class as a standing rule: **every screen must show
+it measured something on real data whenever its eligible count is non-zero.**
+
+---
+
+# Session 76 — 2026-10-03 — the Index's real numbers, and the provisional column retired
+
+**ITEM 18 + 18-AMEND.** `INDEX-BOOK` (r1, `ceffd04`) measured the book the Index actually serves,
+so the provisional column — **+26.15% gross, +19.35% net**, an ALL-CAP EQUAL-WEIGHTED decile — is
+replaced by the served book's own figures. **ZERO TRIALS. NOT A VINTAGE EVENT:** no scoring,
+weight, construction or recorded figure changes, and `build_index` still builds exactly what it
+built before (proved, not promised — see below).
+
+**18-AMEND: THE INDEX IS A ROTH PRODUCT**, so every figure leads with the Roth/IRA treatment.
+
+| | | |
+|---|---|---|
+| **in a Roth/IRA** (the headline) | net of modelled costs, no tax | **+17.1619%/yr**, Sharpe 1.0318 |
+| for a regular brokerage account, shown for transparency | after tax, FIFO 40.8/23.8 | **+12.2033%/yr**, Sharpe 0.7595 |
+| the cost of taxes | one lot path, rates the only knob | **−4.9586 pp/yr** |
+
+**AND TRANSPARENCY HAS A PRICE THAT NOW SHIPS WITH THE FIGURE: after tax the book lands 3.03 pp a
+year BELOW SPY (+15.23%).** The driver is measured — **84.08% of realised gains are short-term**,
+because a quarterly book turning over 2.44× realises almost everything inside a year — and the
+no-dividend caveat runs AGAINST the taxable arm and travels with it.
+
+## BOTH ALPHA SENTENCES ARE TRUE AND NEITHER MAY TRAVEL ALONE
+
+`INDEX-BOOK`'s own void condition, and it is now structural rather than remembered: one sentence
+carries **both** figures, and a mutation that quotes only the favourable leg is caught.
+
+| benchmark | alpha /yr | early | late |
+|---|---|---|---|
+| an equal-weighted basket of **the same large-cap tier** | **+4.1209 pp** | +4.0615 | +4.1746 |
+| **the all-cap equal-weighted universe** (what older figures used) | **−0.0576 pp** | — | — |
+| **SPY** | **+1.9488 pp** | **+3.7202** | **+0.2702** |
+
+Roughly **70%** of the gap between the first two rows is the small-cap premium a large-cap tier
+declines to hold — not the ranking failing in large caps. **The vs-SPY halves are shown, not
+averaged:** +3.72 early against +0.27 late, and the average describes neither.
+
+## WHAT THE FIVE-YEAR TEST CAN AND CANNOT SHOW
+
+Each arm at **its own** tracking error (`MB8`: an `se` may not be borrowed across constructions).
+The served book needs **4,383 months — about 365 years**. So the forward test **can** show whether
+the Index is recorded honestly and whether its costs behave; it **cannot** show whether the Index
+beats SPY. **The contract's arithmetic uses +9.9864pp at TE 11.40 — the WRONG BOOK and GROSS.**
+
+**THE SIGNED CONTRACT IS NOT EDITED** (verified: byte-identical to `origin/main`). The correction
+is drafted as **`PREREG_DRAFT_contract_amendment_2.md`**, which states plainly that it makes the
+contract's stated power WORSE, proposes no change to σ, and records what to do if declined.
+
+## WHAT ELSE MOVED
+
+* **A NAMED CONFIG IS NOW A PREVIEW AND SAYS SO.** `test_backtest_card` caught the first cut:
+  serving the SERVED card to everyone is the same defect as serving roth's to everyone, pointed
+  the other way — and that suite exists because mutation found exactly that once before.
+* **`build_index`'s `headline_scope` disclosed the SMALLEST of three differences.** It named the
+  no-trade band and was silent on the UNIVERSE and the WEIGHTING. `INDEX-BOOK`'s one-knob
+  decomposition: tier **−5.9871pp**, weighting **+0.6804pp**, band **−0.8009pp** — so the one
+  thing disclosed was worth about an eighth of the one that was not. Reported against this lane
+  by name; now all three, with the decomposition in the payload.
+* **PROVED INERT ON THE BOOK, WITH REACH.** The first proof built from the local store's
+  ONE-NAME fixture, where "nothing moved" means almost nothing. Re-run on a synthetic 400-name
+  cross-section: **393 eligible, 39 positions, band applied, 11 fields × 2 arms, NONE moved**,
+  while `headline_scope` did.
+* **`/proof` keeps the research decile and now says it is NOT the Index.** It already said
+  "equally weighted"; what it never said is that the Index is a different book, so a reader
+  taking its +8.1pp vs SPY as the Index's would be out by most of it.
+* **The garbled tab sentence is rewritten.** Two sentences had been spliced — the
+  "no capital, no broker, no fills" clause belongs to the FORWARD record, not to a missing
+  backtest — and the premise is now false anyway, because both columns are the same book.
+* **E11 CONFIRMED, with one implication corrected.** All three claims check out against
+  `positions.py:92`; what was NOT accurate was the implication that withholding is symmetric.
+  It fires only on `ratio > FV_BAND_HIGH` (5.0); an implausibly LOW fair value is warned at
+  `FV_BAND_LOW` (0.2) and **not** withheld. The exit RULE is untouched — changing it would
+  change the account's recorded history.
+* Holdings columns rendered (weight at formation, return since formation); `compute_returns` has
+  a door (`POST /admin/index-returns`) and one command (`python -m scripts.index_returns --send`).
+
+## DEFECTS OF MY OWN
+
+**My own helper swallowed a `NameError` and every preview silently served `card: None`** — an edit
+three lines away removed the import its body needed, and the bare `except` ate it. That is the
+same shape as the 500 this session opened with and the swallowed `TypeError` that left the Track
+Record tab reading "accruing" for seven weeks. It now returns a REASON. Also: a spec test compared
+a number against prose and failed on `−0.0576` because the record writes a typographic minus; the
+ledger spells negatives as the WORD "MINUS"; and `ceffd04` is in neither record, so provenance is
+verified against **git**, which is the authority on whether a commit exists.
+
+**42 + 42 tests; 19 of 19 mutations caught** — the miss was my own null-gross branch, which had no guard until mutation said so.
+
+**NOT DONE:** nothing schedules `compute_returns` yet (the cron line needs `.github/`, which the
+land policy refuses this lane); the spec's own `INDEX-BEST` switch is named, not built.
+
+---
+
 # Session 75 — 2026-10-02 — E7, E8 and E10: three labels that each disagreed with a measurement sitting in the same payload
 
 **The three items session 74 reported as NOT DONE.** No new scope: E7 (the hero's wording and

@@ -418,7 +418,13 @@ def create_saas_app(cfg=CONFIG):
                 st.update_intraday_ai(res["run_time"], tkr, txt)
             alerts = _fire_alerts(st)
             from . import tracker
-            tracker.log_options(st, res["rows"], cfg.alert_min_score)
+            # ITEM 20 -- THE SESSION IS PASSED EXPLICITLY, from the run's own stamp.
+            # This took `tracker`'s default, which was the SERVER's UTC date: GitHub
+            # delivers this job 3-5 hours late, so a Friday-evening ET run arrives after
+            # 00:00 UTC Saturday and the pick was filed under a session that does not
+            # exist. `res["run_time"]` is the run's own stamp and is the right input.
+            tracker.log_options(st, res["rows"], cfg.alert_min_score,
+                                run_time=res.get("run_time"))
             return jsonify({"ok": True, "run_time": res["run_time"], "scored": res["scored"], "alerts": alerts})
         except Exception as e:
             return jsonify({"error": safe_error(e)}), 500
@@ -578,6 +584,54 @@ def create_saas_app(cfg=CONFIG):
             return jsonify({"ok": True, "export": payload()})
         except Exception as e:
             return jsonify({"ok": False, "error": safe_error(e)}), 500
+
+    @app.route("/admin/index-returns", methods=["GET", "POST"])
+    def admin_index_returns():
+        """Each Index holding's return since formation, computed on the SERVICE and cached.
+
+        **WHY A DOOR AND NOT A PAGE LOAD.** `index_in_force.compute_returns`'s own docstring
+        settles it: it needs a close at the formation date and a close today for ~86 names,
+        measured at ~26s through the per-run memo. That is fine for a caller with time and far
+        too slow for a public tab, so the function writes a cache and `/api/valquo-index`
+        serves the cache through `attach_returns`. Before this door existed **nothing called
+        it at all** -- the writer was the missing half, so the column could never fill.
+
+        **WHY HERE AND NOT IN A WORKFLOW.** The land policy refuses any branch touching
+        `.github/`, so this lane cannot add the cron line. It can supply the door and say
+        exactly what to call, which is the shape `PT-WRITER` ended up with: four doors, and
+        the schedule is Don's. `python -m scripts.index_returns --send` is the one command.
+
+        **GET COMPUTES AND RETURNS. POST?write=1 STORES.** The same split as the two doors
+        below, for the same reason: a side-effecting GET is reachable by a retry, a prefetch or
+        a pasted link, and none of those is a decision to store anything.
+
+        **IT TOUCHES NO RECORD.** The cache it writes is a sibling file; the bound series, the
+        book and the meter are not read for writing and not written at all. An unpriced name is
+        stored as `None` rather than 0.0 -- a holding nobody could price is not a flat one, and
+        a zero there would read as a measured result.
+        """
+        if request.method == "GET" and request.args.get("write"):
+            return jsonify({"error": "write is POST-only; a GET never stores",
+                            "hint": "POST /admin/index-returns?write=1"}), 405
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..screener import index_in_force as _if
+            book = _if.book_in_force()
+            if not book.get("ok"):
+                return jsonify({"ok": False, "reason": book.get("reason")}), 422
+            res = _if.compute_returns(book)
+            if not res.get("ok"):
+                return jsonify({"ok": False, "reason": res.get("reason")}), 422
+            wrote = None
+            if request.method == "POST" and request.args.get("write"):
+                wrote = _if.save_returns(res)
+            return jsonify({"ok": True, "computed": res, "stored": wrote,
+                            "hint": ("POST /admin/index-returns?write=1 to store"
+                                     if wrote is None else None)})
+        except Exception as e:                                       # noqa: BLE001
+            log_exception("admin_index_returns")
+            return jsonify({"error": safe_error(e)}), 500
 
     @app.route("/admin/track-reconstruct", methods=["GET", "POST"])
     def admin_track_reconstruct():
@@ -1521,7 +1575,9 @@ def create_saas_app(cfg=CONFIG):
             st.save_intraday(run_time, rows, data.get("provider", "ci"))
             alerts = _fire_alerts(st)
             from . import tracker
-            tracker.log_options(st, rows, cfg.alert_min_score)   # log screaming buys into the tracker
+            # ITEM 20 -- the ingest CARRIES its run_time, so the session comes from the
+            # data rather than from whatever clock this container happens to run on.
+            tracker.log_options(st, rows, cfg.alert_min_score, run_time=run_time)
             return jsonify({"ok": True, "run_time": run_time, "rows": len(rows), "alerts": alerts})
         except Exception as e:
             return jsonify({"error": safe_error(e)}), 500

@@ -654,18 +654,38 @@
     <!-- Backtested vs live, side by side. Never blended; see /methodology. -->
     <div class="card" id="indexPerfCard">
       <h3 style="margin:0 0 6px">Model-portfolio performance — backtested vs forward</h3>
+      {# ITEM 18 — THE SENTENCE WAS GARBLED AND THE FACT BEHIND IT HAS CHANGED.
+         It read: "A backtest of the exact served construction is not available yet, so no
+         sentence here claims one — no capital, no broker, no fills — and is the only
+         figure nobody could have fitted." Two sentences had been spliced: the capital/broker/
+         fills clause and "the only figure nobody could have fitted" are both about the FORWARD
+         record, not about a missing backtest, so the em-dash aside attached them to the wrong
+         subject and the result parsed as nonsense.
+
+         And the premise is now false. `INDEX-BOOK` (r1, 2026-10-02) measured the exact served
+         construction, so the backtested column IS that book: same universe, same weighting,
+         same cap, same band. The two columns are now the same BOOK measured two ways, which
+         is a stronger and simpler thing to say than what was here. #}
       <div class="section-hint" style="margin-top:0">Two different kinds of evidence, kept
-        apart on purpose. The backtest is 18 years of point-in-time history the model was also
-        tuned on. <b>The backtested column and the forward column are the same
-        CONSTRUCTION — decile, quarterly, 30% no-trade band — but not the same measured
-        object</b>: the backtest is a full-universe equal-weighted decile on the point-in-time
-        panel, while the forward record is the served score-weighted large-cap-tier book. The
-        caveat beside the backtested figures says so. A backtest of the exact served
-        construction is not available yet, so no sentence here claims one —
-        <b>no capital, no broker, no fills</b> — and is the only figure nobody could have
-        fitted. Neither is a return anyone received.
+        apart on purpose. <b>Both columns are now the same book</b>: the $10&nbsp;billion
+        large-cap tier, score-weighted with an 8% cap and a 0.30 no-trade band. The backtest is
+        18 years of point-in-time history <b>the model was also tuned on</b>, measured on that
+        exact construction. The forward record is the same book marked forward from closing
+        prices — <b>no capital, no broker, no fills</b> — and it is the only figure here
+        nobody could have fitted. Neither is a return anyone received.
         <a href="/methodology">How this was tested →</a></div>
       <div id="indexPerfBody"></div>
+      {# ITEM 18 — WHAT THE FORWARD TEST CAN AND CANNOT SHOW, ON THE BOOK IT ACTUALLY
+         MEASURES. The contract's own power arithmetic uses +9.9864pp at a tracking error of
+         11.40 — the ALL-CAP decile's edge, GROSS. `INDEX-BOOK` scored each arm at ITS OWN
+         measured tracking error (`MB8`: an `se` may not be borrowed across constructions) and
+         the served book needs about 4,383 months. So a reader must not take a five-year null
+         as evidence against the Index, and must not take a five-year win as evidence for it.
+
+         Worded by `index_book_measured.power_sentence()` and only escaped here, so this
+         paragraph and the payload cannot say different things. The SIGNED CONTRACT IS NOT
+         EDITED: the correction is drafted for the next amendment. #}
+      <div class="note" id="indexPowerNote" style="margin-top:10px"></div>
       <div style="margin-top:14px"><canvas id="indexChart" height="190"></canvas></div>
       <div class="note" id="indexChartNote"></div>
     </div>
