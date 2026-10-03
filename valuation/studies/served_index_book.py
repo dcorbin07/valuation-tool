@@ -68,7 +68,8 @@ def scan_rows(g, comp):
 
 
 def book_fn(*, large_cap_min=LARGE_CAP_MIN, weighting="score", top_decile=TOP_DECILE,
-            exit_frac=BAND_WIDTH, index_fn=None):
+            exit_frac=BAND_WIDTH, index_fn=None, top_n=None, universe_rank=None,
+            rank_key=None):
     """A `(sub, comp, held) -> {ticker: weight}` hook for `after_tax_backtest`.
 
     ONE definition of the construction, shared by the cost arms and the tax arms -- so the
@@ -82,7 +83,15 @@ def book_fn(*, large_cap_min=LARGE_CAP_MIN, weighting="score", top_decile=TOP_DE
         rows = scan_rows(sub, comp)
         if not rows:
             return {}
-        bk = _ix(rows, large_cap_min=large_cap_min, top_decile=top_decile,
+        if universe_rank:
+            # INDEX-BEST arms 2 and 3: the UNIVERSE is the top `universe_rank` names by
+            # `rank_key`, trimmed BEFORE `build_index` sees them. The universe is an INPUT; the
+            # construction stays the live function's (`B7`). Ties are broken by ticker so the
+            # trim is deterministic -- an unstable universe boundary would make the arm
+            # irreproducible run to run for the same reason the trade loop's set iteration did.
+            key = rank_key or (lambda r: r.get("market_cap") or 0.0)
+            rows = sorted(rows, key=lambda r: (-(key(r) or 0.0), r["ticker"]))[:universe_rank]
+        bk = _ix(rows, large_cap_min=large_cap_min, top_decile=top_decile, top_n=top_n,
                  weighting=weighting, exit_frac=exit_frac, held=sorted(held) or None)
         raw = {p["ticker"]: float(p["weight"]) for p in (bk.get("positions") or [])}
         tot = sum(raw.values()) or 1.0
@@ -130,7 +139,8 @@ def _sharpe(xs):
 
 def run(panel, cols, weights, *, cost_fn=None, composite_fn=None, zscore_fn=None,
         index_fn=None, exit_frac=BAND_WIDTH, large_cap_min=LARGE_CAP_MIN,
-        weighting="score", top_decile=TOP_DECILE) -> dict:
+        weighting="score", top_decile=TOP_DECILE, top_n=None, universe_rank=None,
+        rank_key=None) -> dict:
     """Walk the panel's dates, forming the SERVED book at each and holding it one period.
 
     The cost model is the shipped `one_way_cost_bps` applied to `|target - drifted|` over the
@@ -157,8 +167,13 @@ def run(panel, cols, weights, *, cost_fn=None, composite_fn=None, zscore_fn=None
         rows = scan_rows(g, comp)
         if not rows:
             continue
+        if universe_rank:
+            # Same trim as `book_fn`'s, so the census describes the SAME universe the scored
+            # book was drawn from. Deterministic tie-break on ticker.
+            _k = rank_key or (lambda r: r.get("market_cap") or 0.0)
+            rows = sorted(rows, key=lambda r: (-(_k(r) or 0.0), r["ticker"]))[:universe_rank]
         # THE LIVE FUNCTION, CALLED. Tier, fallback, band, score weighting and cap all inside.
-        bk = index_fn(rows, large_cap_min=large_cap_min, top_decile=top_decile,
+        bk = index_fn(rows, large_cap_min=large_cap_min, top_decile=top_decile, top_n=top_n,
                       weighting=weighting, exit_frac=exit_frac,
                       held=sorted(prev_w) or None)
         pos = bk.get("positions") or []

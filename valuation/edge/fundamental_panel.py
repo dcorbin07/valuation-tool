@@ -3895,7 +3895,7 @@ def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
                        short_rate=TAX_SHORT_TERM, long_rate=TAX_LONG_TERM,
                        flat_bps=None, lot_method="fifo", exit_frac=None,
                        exit_mult=None, max_sector_w=None, cadence=1, offset=0,
-                       book_fn=None) -> dict:
+                       book_fn=None, return_series=False) -> dict:
     """Net-of-COST and net-of-TAX performance of the long book, with real lot accounting.
 
     The book turns over ~250%/yr on a ~quarterly rebalance, so in a TAXABLE account almost
@@ -4165,6 +4165,13 @@ def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
         **({} if cadence == 1 and int(offset) == 0 else {
             "cadence": cadence, "cadence_offset": int(offset) % cadence,
             "formation_dates": _at_formed, "held_only_periods": _at_held}),
+        # INDEX-BEST: the per-period series, opt-in and absent by default so every existing
+        # payload is byte-identical. It exists so a PAIRED test between two books can be taken
+        # on the SAME computation that produced their reported levels -- reading the level from
+        # here and the pairing from a second implementation is how a difference comes to be
+        # measured between two slightly different objects.
+        **({"series": {"net": list(net_r), "gross": list(gross_r), "tax": list(tax_r),
+                       "equal_weight": list(ew)}} if return_series else {}),
         "note": ("after_tax_alpha is for a TAXABLE account; a tax-advantaged account (IRA/401k) "
                  "pays no drag and earns the net-of-cost figure instead"),
     }
