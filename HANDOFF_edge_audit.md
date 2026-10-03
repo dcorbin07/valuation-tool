@@ -19952,3 +19952,215 @@ was withdrawn when it turned out two gates were running concurrently, and here o
 `valuation/studies/served_index_book.py`, `valuation/edge/fundamental_panel.py`
 (`after_tax_backtest`'s opt-in `return_series`), `tests/test_index_best.py`;
 `data/free_analysis/INDEX_BEST.json`, `INDEX_BEST_DIAG.json`, `INDEX_BEST_LIQ_FIDELITY.json`.
+
+---
+
+# INDEX-CHOICE — the evidence for Don's 2026-10-22 rebalance decision (2026-10-03)
+
+`PREREG_index_choice.md` committed **ALONE at `fa788c3`**, markdown only, zero `.py`, 213 lines,
+a strict ancestor of every commit that computes a number for items 1 or 3; **3 equity trials
+booked at `2d2b7a6` BEFORE any runner existed** (equity **255 → 258**). **`INDEX-BEST`'s
+registered rule STANDS — no re-pick, no new arm. ADOPTS NOTHING.** The deliverable is
+`DECISION_index_choice.md`, a memo for Don.
+
+**THE TRIAL SPLIT IS ARGUED FROM THE RECORD'S OWN PRECEDENT RATHER THAN TASTE.** `X1` charged
+**2** for this exact name-split machinery and charged **per STATISTIC** (top-decile alpha,
+long-short *t*) across 200 half-books, so item 1's two statistics — vs SPY and vs the incumbent —
+charge 2. `R1` charged **exactly 1** for a full FF5+MOM decomposition across the long-only book,
+the long-short series and several subperiods, so item 3 charges 1. Item 2 is a `MB1-SEL` control
+able only to BLOCK, and its decile leg reproduces a published `D9` figure, so it charges 0.
+
+---
+
+## 1. The name split — and it is the strongest robustness result the challengers could get
+
+Every held-out gate this project owns splits by **DATE**, and `INDEX-BEST` found **all** of every
+arm's advantage in the late half, so a date split cannot separate a real construction difference
+from a late-period one. **A universe split has no time-period confound at all.** `X1`'s keys, seed
+(`20260813`) and split count (100) are **IMPORTED, never retyped** — and because all three were
+fixed in August, before arms 2 and 3 existed, **no split here could have been chosen to flatter
+one of them.**
+
+**200 half-books from 100 seeded splits, plus `X1`'s stable sha1 split at 1266/1265:**
+
+| | incumbent | **arm 2** | **arm 3** |
+|---|---|---|---|
+| net Roth, median half-book | 17.10% | 24.76% | 27.53% |
+| half-book range | 13.6–21.4% | **21.3–28.0%** | 19.6–35.9% |
+| **positive vs SPY** | **91.0%** | **100.0%** | **100.0%** |
+| vs SPY, p05 | **−0.56pp** | +7.44pp | +7.70pp |
+| **beats the incumbent** | — | **200 of 200** | **200 of 200** |
+| vs incumbent, median | — | +7.79pp | +10.24pp |
+| vs incumbent, p05 | — | +4.78pp | +5.15pp |
+| **vs incumbent, WORST half-book** | — | **+1.83pp** | **+1.42pp** |
+| stable split (2 halves) | — | 2 of 2 | 2 of 2 |
+
+**NOT "mostly" — ALWAYS, and the worst of 200 half-books still beats the incumbent.** By `X1`'s
+own reading standard (*"if the 5th percentile of that distribution is positive, the result is
+strong"*) both challengers clear comfortably. **And the incumbent is the only one of the three
+whose own edge over SPY is not robust to which names are in the panel** — positive on 91% of
+half-books with a 5th percentile of −0.56pp and a worst case of −1.68pp.
+
+**WHAT IT SETTLES AND WHAT IT DOES NOT, stated because the distinction is the whole value of the
+test: it settles that the advantage is not an artifact of WHICH NAMES. It says nothing about
+WHICH PERIOD** — all 200 half-books use the same 69 dates, and `INDEX-BEST`'s late-half
+concentration survives untouched. **The strongest available statement is "not a name artifact,
+possibly still a period artifact."**
+
+**`X1`'s SCOPE LIMIT CARRIES OVER VERBATIM:** layers 1-2 of the panel are computed once over the
+full universe and are **not** rebuilt per half, so every figure is a **LOWER BOUND** on total
+name-selection uncertainty. Layer 3 — the universe trim and the cross-sectional standardisation —
+**is** rebuilt within each half, because each is a property of the population; pinned by test.
+
+**ARM 3's SPREAD IS 2.4× ARM 2's** (16.2pp wide against 6.7pp), and the register predicted it for
+a structural reason fixed in advance: **a 25-name book does not shrink when the universe halves,
+while a decile does**, so arm 3's half-books are mechanically noisier. `B17`'s warning again.
+
+**CONTROL:** the incumbent paired against itself is identically **0.0** on every half, which is
+what proves the pairing is per-half rather than against a full-universe incumbent.
+
+## 2. Live buildability — NEITHER challenger can be built by the free route
+
+**THE CONTROL REPRODUCES `D9` AT 0.000e+00 ON BOTH ITS PUBLISHED FIGURES** — decile overlap
+**0.232558** against `D9`'s 0.232558, like-for-like Spearman **0.432115** against 0.432115 — so
+this is `D9`'s measurement extended rather than a lookalike.
+
+**THE NEW NUMBER: the top-25 overlap is 0.1200. Three names of twenty-five agree** between the
+Sharadar-built and the live-route book. And it **degrades monotonically as the cut tightens**:
+
+| cut | share of the shared population | overlap | vs `D9`'s 0.60 bar |
+|---|---|---|---|
+| top 10 | 2.3% | **0.1000** | FAILS |
+| **top 25 (arm 3's book)** | 5.8% | **0.1200** | **FAILS** |
+| top 43 (a decile) | 10.0% | 0.2326 | FAILS |
+| top 50 | 11.6% | 0.2600 | FAILS |
+
+That is exactly what a 25-name book should fear: a tighter cut amplifies the same per-name error.
+**So on this evidence 2026-10-22 requires Path B — Don's renewed Sharadar, planned ~2026-10-12 —
+for either challenger, and if Path B slips the only thing buildable on the 22nd is the
+incumbent.** `D9`'s 60% bar is **reused verbatim**, never re-chosen after seeing the number
+(`W-28`), and relaxing it is caught by mutation.
+
+**A HARD LIMIT STATED BEFORE MEASURING: the live snapshot persists only 500 rows, so arm 2's
+1,500-name universe cannot be reconstructed from the `D9` artifacts at all.** These are TOP-N
+overlaps on `D9`'s 431-name shared population; a top-25 of 431 is the top 5.8%, close in
+selectivity to arm 3's 1.7% of 1,500 and **not identical**, and every figure is labelled so.
+**The theme job's first run is 2026-10-04**, so `institutional` and `insider` may stop
+contributing zero before the 22nd — a FORWARD fact this control cannot measure, recorded as a
+condition and not assumed either way.
+
+## 3. What the extra return is made of — and the two arms differ completely
+
+`R1`'s own `ols_nw`, `regress`, `factor_windows` and `FF_MODEL` are **CALLED, not reimplemented**
+(`B7`), Newey-West at lag 1, 68 windows. **`R1`'s own alignment control reproduces `R1` exactly:
+SPY's excess on MKT gives beta 0.9327 and R² 0.9878 against `R1`'s 0.933 and 0.988** — so the
+factor windows line up with this panel's grid.
+
+| in excess of RF | intercept /yr | *t* | R² | MKT | SMB | HML | UMD |
+|---|---|---|---|---|---|---|---|
+| incumbent | +1.73% | **+0.91** | 0.855 | +1.060 | +0.076 | **+0.266** | **+0.254** |
+| arm 2 | +7.83% | +5.35 | 0.926 | +1.029 | **+0.635** | **+0.312** | +0.112 |
+| arm 3 | +9.55% | +3.00 | 0.754 | +1.249 | +0.422 | +0.185 | +0.141 |
+
+| the MOVE from the incumbent | intercept /yr | *t* | **R²** | SMB | UMD |
+|---|---|---|---|---|---|
+| arm 2 − incumbent | +6.10% | +3.95 | **0.546** | **+0.559 (*t* +5.59)** | **−0.142 (*t* −2.91)** |
+| arm 3 − incumbent | +7.82% | +2.58 | **0.196** | +0.346 (*t* +1.42) | −0.113 (*t* −1.07) |
+
+**THE INCUMBENT HAS ESSENTIALLY NOTHING OF ITS OWN LEFT** — intercept *t* **+0.91**, with 86% of
+its variance explained by market, value and momentum.
+
+**ARM 2's MOVE IS A LARGE, HIGHLY SIGNIFICANT SIZE EXPOSURE THAT DID NOT PAY AS A FACTOR PREMIUM
+OVER THIS WINDOW, and the two halves of that sentence must travel together.** SMB **+0.559 at
+*t* +5.59** and 55% of the move's variance is factor-explained — but the loadings net to
+**−0.53pp**, so **−9.5%** of the move's return is accounted for by factors and the rest is
+intercept. **So it is not "small caps happened to win", even though it carries a big small-cap
+exposure.** It also *reduces* momentum exposure (UMD −0.142, *t* −2.91).
+
+**ARM 3's MOVE IS BARELY FACTOR-EXPLAINED AT ALL: R² 0.196, and NOTHING is significant.** ~80% of
+what the move does is name-specific. **That cuts both ways and both are reported:** it is not a
+repackaged factor premium, and for a 25-name book an 80% idiosyncratic share is concentration
+risk by another name.
+
+**NO ALPHA CLAIM IS MADE, and the refusal was pre-committed rather than discovered.** `R1` earned
+that word on the full panel with its own registered threshold; this item does not inherit the
+licence, because these are new constructions `INDEX-BEST` already measured as not separable from
+the incumbent, because every arm's advantage is carried by the late half (which a full-sample
+intercept cannot see), and because `R1`'s own fragility work found a ~10-year window at *t* 1.39.
+
+## 4. The memo, and which case the recommendation is
+
+`DECISION_index_choice.md`. Per the register's §5.5 it had to give **no recommendation unless the
+evidence made one obvious, and to say which case it is.** It is both, on different questions:
+
+* **CLEAR: arm 2 over arm 3.** Arm 3's extra +5.9pp/yr is real in this sample and buying it
+  costs a change to `CONTRACT_MIN_POSITIONS`, **2.4× the half-book dispersion**, roughly a sixth
+  of the capacity (~$3.7m against ~$24m), the worst live-route reproducibility of the three
+  (**12%** overlap), and a book whose advantage is ~80% name-specific. Arm 2 takes +7.71pp over
+  SPY with none of that, is conformant on **69 of 69** dates, and has the tightest half-book
+  distribution of the three.
+* **NOT DECIDED: whether to move at all.** For: 200 of 200 on the name split, and the incumbent's
+  own SPY edge is the only one that is not name-robust. Against: every bit of the advantage is
+  late-half, no arm separates at |*t*| = 2 in the early half, and adoption closes **vintage 4**
+  (open since 2026-08-13, **derived from `track_meter.VINTAGES`, never quoted**) and opens
+  vintage 5, discarding ~70 days of clock and restarting a 60-month horizon for no statistical
+  gain. **Nothing available before the 22nd can resolve that**, and saying so is the deliverable.
+
+## Defects in my own work, and one reported outside this lane
+
+* **REPORTED, NOT FIXED — `X1`'s OWN SPLIT CONTROL IS TOO STRICT FOR THE SPLIT IT POLICES, AND IT
+  PASSES ON THIS UNIVERSE BY LUCK.** `_assert_split` asserts `abs(len(A) − len(B)) <= 1`. That is
+  **guaranteed for a random permutation split** and is **not guaranteed for a sha1 % 2 split**,
+  which is only approximately balanced. On the real 2,531-name universe the hash lands at
+  **1266/1265** and passes; on synthetic universes of 500/1000/2000/5000 it differs by
+  **36/22/22/16** and `X1`'s own control would FAIL a correct split. **So if the panel's universe
+  changes, `X1`'s stable split can fail its own assertion for no substantive reason.** This
+  item's run asserted it and PASSED, so nothing here rests on it. `X1`'s lane (`RUN_RULES` rule
+  3); pinned by a test that would go red if a hash split were ever exactly balanced.
+* **Two of my own guards fired against a correct tree, both the wrong-object family.** The
+  `B7` check for `R1`'s machinery read only `ImportFrom.module`, and `from scripts import
+  factor_alpha as FAC` puts the module in `names` — so it failed on a tree that imports exactly
+  what it demands. And the memo check searched for a raw substring in a **hard-wrapped**
+  document, where *"not statistically separable"* straddles a newline; it now compares on
+  normalised whitespace. **A guard that cannot see the form the file actually takes is not
+  checking the file.**
+* **A placeholder sha reached a register row and was corrected before the commit landed.** The
+  log row cited `9f5d8a6` for the register, which is not its sha (`fa788c3`) — the same
+  fabricated-literal defect `INDEX-BEST`'s gate caught a day earlier, here caught by reading the
+  real sha back rather than by a gate.
+
+## Expectations, scored: 5 right, 3 wrong
+
+**RIGHT:** (1) all three arms positive vs SPY on a large majority of half-books (91/100/100);
+(3) arm 3's half-book distribution is the widest (16.2pp against 6.7pp); (6) the top-25 overlap
+is below `D9`'s decile overlap (0.1200 against 0.2326); (7) Path A cannot build either book;
+(8) the memo gives no recommendation on whether to move — **scored RIGHT on the question it was
+about, and the memo does recommend arm 2 over arm 3, which expectation 8 did not cover.**
+
+**WRONG:** (2) I put 60/40 that arm 2 would beat the incumbent on MORE half-books than arm 3 —
+**both saturate at 200 of 200**, so neither beats the other on that count; (4) I put 75/25 that
+**both** arms would load on SMB at *t* > 2 — arm 2 does (+5.59) and **arm 3 does not** (+1.42),
+which is the single most informative miss, because it is why arm 3's move is not a size story;
+(5) I put 55/45 that the loadings would explain more of the move than the intercept — **the
+intercept dominates in both** (factors explain −9.5% and +26.9%).
+
+## NOT DONE
+
+* **No re-pick, no new arm, nothing adopted.** `INDEX-BEST`'s rule stands; arm 4 (the ceiling) is
+  not carried into this item, pinned by test and by mutation.
+* **No forward test.** A name split is not out-of-sample in time and does not become one.
+* **`X1` is not re-run** and its published figures are not re-derived; **`D9` is not re-opened**
+  and only the top-25 leg is new.
+* **No q-factor model.** `R1` ran Hou-Xue-Zhang as a secondary; Don asked for FF5+MOM, so no
+  claim is made about robustness to a different factor model.
+* **No alpha claim**, in either direction.
+* **The live route's post-2026-10-04 state is unmeasured** and is a condition, not a finding.
+
+**26 tests, zero skips; 7 of 7 mutations caught with sources restored byte-for-byte** — a local
+`SEED`, a local `K_SPLITS`, the half scored on the full panel, `D9`'s bar relaxed, the top-25 cut
+moved off `INDEX-BEST`'s 25, a local `ols_nw`, and arm 4 carried in.
+
+`PREREG_index_choice.md`, `DECISION_index_choice.md`, `scripts/index_choice_split.py`,
+`scripts/index_choice_buildable.py`, `scripts/index_choice_factors.py`,
+`tests/test_index_choice.py`; `data/free_analysis/INDEX_CHOICE_SPLIT.json`,
+`INDEX_CHOICE_BUILDABLE.json`, `INDEX_CHOICE_FACTORS.json`, `INDEX_BEST_LIQ_FIDELITY.json`.
