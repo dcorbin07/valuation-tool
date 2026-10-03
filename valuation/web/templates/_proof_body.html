@@ -190,6 +190,19 @@
     <p class="sub">The top-tenth ranked by our score, rebalanced quarterly, held for one
     quarter, equally weighted. Measured against three different comparisons rather than the
     single most favourable one.</p>
+    {# ITEM 18 — THIS IS THE RESEARCH DECILE, AND IT IS NOT THE VALQUO INDEX.
+       The figures in this table are a real, published measurement of an ALL-CAP,
+       EQUALLY-WEIGHTED decile, and the page already said "equally weighted". What it never
+       said is that the Index is a different book: a $10B large-cap tier, score-weighted with
+       an 8% cap and a no-trade band. `INDEX-BOOK` measured that one directly and it earns
+       +4.1209pp against its own tier and -0.0576pp against the all-cap equal-weighted
+       universe — so a reader taking this table's +8.1pp as the Index's would be
+       out by most of it. The distinction is stated here rather than left to the reader. #}
+    <p class="sub" style="border-left:3px solid var(--amber);padding-left:10px">
+      <b>This is the RESEARCH DECILE (all caps, equal-weighted), not the Valquo Index.</b>
+      The Index holds a $10&nbsp;billion large-cap tier, score-weighted with an 8% position cap
+      and a no-trade band. Those are different books and they do not earn the same thing:
+      the Index's own measured figures are on the Index tab, and they are lower.</p>
     <table class="t">
       <tr><th>Benchmark</th><th>It returned</th><th>Top decile</th><th>Difference</th><th>t</th><th>Quarters ahead</th></tr>
       {% for b in p.benchmarks %}

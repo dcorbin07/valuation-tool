@@ -801,3 +801,114 @@ def frozen_parameters() -> Dict:
         "detectable_edge_pp_per_year": {n: detectable_edge_pp_per_year(n)
                                         for n in (6, 12, 24, 36, 60, 120)},
     }
+
+
+def vintage_claim(meta_path: str = None, history_path: str = None, store=None,
+                  today: _dt.date = None) -> dict:
+    """The CURRENT vintage's figure and the as-operated total, both labelled (§5a rule 5).
+
+    WHY IT LIVES HERE RATHER THAN IN `index_track`
+    ----------------------------------------------
+    It was written there first, because that module owns the window and claim wording the band
+    renders beside this. But `edge` already imports `screener` -- module-level at the top of
+    this file, and function-locally in `detail` -- so a `screener -> edge` import would CLOSE A
+    MUTUAL LAZY CYCLE: both directions work only while neither is hoisted, and the first person
+    to hoist either breaks it. Here the siblings are already in scope (`VINTAGES`,
+    `as_operated`, `_reconcile`, `vintage_label`) and nothing new is imported at all.
+
+    WHY A SURFACE NEEDS BOTH, AND WHAT SHOWING ONE COSTS
+    ----------------------------------------------------
+    Rule 5 ends *"Both are reported; neither is substituted for the other."* The hero band
+    reported exactly one number -- the since-inception excess -- with no vintage attached, and
+    that figure IS the as-operated chain: measured on the bound record it runs across FOUR
+    vintages, one of them VOID, whose own window the contract discloses at -2.85pp. So the band
+    was showing the cross-vintage object, which rule 5 says *"is explicitly not the contract's
+    test: it mixes models, so no 5 verdict may be read from it"*, while the thing a verdict
+    does attach to -- the open vintage, rule 4 -- was absent.
+
+    THE NUMBER WAS NOT WRONG, WHICH IS WHY NOBODY CAUGHT IT. Chaining contiguous legs of a
+    cumulative series reproduces the cumulative, so the as-operated total EQUALS the recorded
+    since-inception excess by construction (`track_meter._reconcile` checks it, and it reads
+    True on the bound record). The defect was a missing label and a missing companion, not a
+    miscalculation -- and it is the harder kind to find, because every check on the figure
+    passes.
+
+    WHAT IS DELIBERATELY NOT RETURNED
+    ---------------------------------
+    `as_operated` carries a per-vintage LEG LIST, and one of those legs is the SHADOW.
+    PT-OUTBOUND fences the shadow's numbers off every outbound surface, and `/api/track`'s own
+    comment records that it adds the vintage LABEL and "carries no measurement" for that
+    reason. So this returns the OPEN leg and the as-operated TOTAL and drops the list: the
+    current vintage's own excess is not the shadow's, and publishing it breaches nothing, but
+    publishing the breakdown would.
+
+    Never raises. `current_vintage()` raises when the register does not hold exactly one open
+    vintage -- correct for the register and wrong for a band, so an unreadable vintage degrades
+    to `available: False` with a reason rather than taking down a page that has a figure to
+    show.
+    """
+    out = {"available": False, "reason": None, "vintage": None,
+           "current": None, "as_operated": None,
+           "rule": ("Both are reported; neither is substituted for the other "
+                    "(contract §5a rule 5)")}
+    try:
+        d = detail(meta_path=meta_path, history_path=history_path) or {}
+    except Exception:                                        # noqa: BLE001
+        out["reason"] = "the vintage register could not be read"
+        return out
+
+    label = d.get("vintage_label") or {}
+    ao = d.get("as_operated") or {}
+    legs = ao.get("legs") or []
+    if not label.get("vintage") or not legs:
+        out["reason"] = "the vintage register has nothing to report for this track yet"
+        return out
+
+    # The OPEN leg, found by STATUS rather than by taking the last entry: the register is the
+    # authority on which vintage is live, and "the last row" would silently become the answer
+    # the day a vintage is appended ahead of time.
+    cur = next((L for L in legs if L.get("status") == "OPEN"), None)
+    if cur is None:
+        out["reason"] = "the vintage register holds no open vintage"
+        return out
+
+    out.update(
+        available=True,
+        # `phrase` NAMES the shadow vintage and carries no figure for it, which is the same
+        # line `/api/track` already publishes. Nothing renders it today; a surface that starts
+        # to should know it is naming a predecessor, and that naming it is allowed while
+        # quoting its RETURN is not.
+        vintage={"vintage": label.get("vintage"), "since": label.get("since"),
+                 "label": label.get("label"), "phrase": label.get("phrase")},
+        # The verdict object (rule 4). Its window is the vintage's, not the record's.
+        #
+        # A VINTAGE WITH NO ROWS REPORTS NO FIGURE, NOT ZERO. `as_operated` gives an empty leg
+        # `rv = rs = 1.0`, so its excess is exactly 0.0 -- correct as a chaining factor and
+        # ruinous as a displayed number, because "+0.00pp" reads as *this vintage is flat* when
+        # the truth is *this vintage has recorded nothing*. This is not a hypothetical: the day
+        # any future vintage opens, its leg is empty by definition, so the band would have shown
+        # a measured-looking zero for the one window the contract reads a verdict on. Fixed here
+        # rather than in `as_operated`, which feeds the meter and whose 1.0 is right for that.
+        current=({"vintage": cur.get("vintage"), "since": cur.get("opened"), "n_rows": 0,
+                  "valquo_pct": None, "spy_pct": None, "excess_pp": None,
+                  "is_the_verdict_window": True,
+                  "reason": "this vintage has no recorded rows yet"}
+                 if not cur.get("n_rows") else
+                 {"vintage": cur.get("vintage"), "since": cur.get("opened"),
+                  "n_rows": cur.get("n_rows"),
+                  "valquo_pct": cur.get("valquo_ret_pp"), "spy_pct": cur.get("spy_ret_pp"),
+                  "excess_pp": cur.get("excess_pp"),
+                  "is_the_verdict_window": True, "reason": None}),
+        # The context object (rule 5). Carries its own disclaimer in the module's own words so
+        # a surface cannot render the figure and drop the sentence.
+        as_operated={"label": ao.get("label"), "n_vintages": ao.get("n_vintages"),
+                     "valquo_pct": ao.get("cumulative_valquo_pp"),
+                     "spy_pct": ao.get("cumulative_spy_pp"),
+                     "excess_pp": ao.get("cumulative_excess_pp"),
+                     "not_a_verdict": ao.get("not_a_verdict"),
+                     "is_the_verdict_window": False,
+                     # True means the chain and the recorded since-inception figure agree; a
+                     # False is not cosmetic, it means two derivations of one object disagree.
+                     "agrees_with_recorded": d.get("as_operated_agrees_with_authority")},
+    )
+    return out

@@ -486,8 +486,23 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
             archive_scan(rows, scan_date, provider.name)
         except Exception:
             pass
+    # E8 -- WHAT ACTUALLY SERVED THE SCAN, BESIDE WHAT WAS CONFIGURED TO.
+    #
+    # `provider` is the CONFIGURED vendor's name and stays exactly that: `save_snapshot` and
+    # `archive_scan` persist it, so redefining it in place would quietly change what every
+    # archived row means. `source` is the DERIVED label, computed from the census already in
+    # `health` -- which is where the defect lived, because the two disagreed inside ONE payload
+    # (`api_budget.served_by_fmp: 0` under a header reading "Financial Modeling Prep").
+    # Additive, the same judgement PT-SPMO took: a second reading is reported beside the first,
+    # never instead of it.
+    try:
+        from .providers import served_by
+        source = served_by(health, provider.name)
+    except Exception:                                        # noqa: BLE001
+        source = None
     return {"scan_date": scan_date, "rows": rows, "universe_size": total,
-            "scored": len(rows), "provider": provider.name, "filtered": audit, "health": health}
+            "scored": len(rows), "provider": provider.name, "source": source,
+            "filtered": audit, "health": health}
 
 
 def _enrich_with_dcf(rows, cfg, refusal_only: bool = False):

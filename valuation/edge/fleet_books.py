@@ -574,6 +574,29 @@ def f11_live_rejects():
         payload = _dip.screen_snapshot(Store(), _get_or_compute)
         if payload.get("empty"):
             return None                                # no scan has landed; nothing observed
+        # ITEM 19 -- A SCREEN THAT MEASURED NOTHING OBSERVED NOTHING, SO IT RETURNS `None`.
+        #
+        # This is audit #5 `H2`'s own distinction extended to the route it did not cover. H2
+        # established that `[]` means *the screen ran and rejected nobody* while `None` means
+        # *no screen was consulted*, and this function's docstring warns that returning `[]`
+        # wrongly "would put a fabricated zero back into the one series that was just repaired
+        # for exactly that". H2 guarded the UNREACHABLE STORE; it did not guard a screen that
+        # runs, reaches every name, and measures none of them.
+        #
+        # That is what happened. From 2026-08-13 the screen was wired to a cache ENTRY rather
+        # than the result inside it (see `dip.unwrap_result`), so every name came back
+        # unmeasured, `dip_rejects` was empty, and this returned `[]` -- a fabricated zero
+        # recorded as an observation, every cycle, into the series F-11's whole hypothesis
+        # reads for FIRST appearances. `f11_first_appearances` cannot tell a day on which
+        # nobody was rejected from a day on which nobody was looked at.
+        #
+        # Both shapes of "measured nothing" are covered: none examined at all, and every
+        # examined name failing. The service's state was the SECOND (n_measured 12,
+        # n_unmeasured 12), so a guard on zero alone would have missed the live case.
+        n_meas = int(payload.get("n_measured") or 0)
+        n_un = int(payload.get("n_unmeasured") or 0)
+        if n_meas == 0 or n_un >= n_meas:
+            return None
         return _dip.dip_rejects(payload)
     except Exception:                                  # noqa: BLE001
         return None

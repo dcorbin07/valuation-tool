@@ -65,7 +65,31 @@ class TheSpecExistsAndNamesTheObjects(unittest.TestCase):
         from valuation.screener import index_track as IT
         from valuation.screener import settings as S
         t = _flat(SPEC)
-        self.assertIn('BOOK_CONFIGS["taxable"]', t)
+        # ITEM 18 -- THE SPEC NOW NAMES THE SERVED BOOK, AND EVERY FIGURE IN IT IS CHECKED
+        # AGAINST `index_book_measured` RATHER THAN AGAINST PROSE. This used to assert the spec
+        # named `BOOK_CONFIGS["taxable"]`, which was right while that was the nearest measured
+        # construction and is now the research decile. The check is strictly STRONGER: a
+        # re-run of INDEX-BOOK that moved any figure would leave the spec red.
+        from valuation.screener import index_book_measured as M
+        self.assertIn("index_book_measured", t, "the spec does not name its authority")
+        self.assertIn("INDEX-BOOK", t)
+        self.assertIn(M.STUDY_COMMIT, t, "the spec does not cite the measuring commit")
+        # TYPOGRAPHY NORMALISED BEFORE COMPARING, because the spec writes a negative with a
+        # real minus sign (U+2212) and `%.4f` emits an ASCII hyphen. The first cut of this
+        # test failed on -0.0576 for that reason alone -- a test asserting a NUMBER in prose
+        # must compare the number, not the glyph, or it reports a missing figure that is
+        # present and correct.
+        flat = t.replace("−", "-").replace("–", "-")
+        for num in ("%.4f" % M.SERVED_ROTH_PCT, "%.4f" % M.SERVED_TAXABLE_PCT,
+                    "%.4f" % M.TAX_COST_PP, "%.4f" % M.ALPHA_VS_OWN_TIER_PP,
+                    "%.4f" % M.ALPHA_VS_ALL_CAP_EW_PP, "%.4f" % M.ALPHA_VS_SPY_PP,
+                    "%.4f" % M.ALPHA_VS_SPY_EARLY_PP, "%.4f" % M.ALPHA_VS_SPY_LATE_PP,
+                    "%.4f" % M.SERVED_TE_VS_SPY, "{:,}".format(M.SERVED_MONTHS_TO_DETECT)):
+            self.assertIn(num, flat,
+                          "the spec is missing the measured figure %s" % num)
+        # The tracked CONFIG is still what the next rebalance is BUILT with, and the spec
+        # still has to describe that correctly -- it is just no longer what the Index's
+        # backtest block reports.
         self.assertEqual(IT.TRACKED_CONFIG, "taxable",
                          "the code's tracked construction is not the spec's")
         cfg = (S.BOOK_CONFIGS or {})[IT.TRACKED_CONFIG]
@@ -164,34 +188,67 @@ class TheIndexTabShowsTheBoundBook(unittest.TestCase):
             self.assertNotIn("Roth / IRA", t, "%s names the roth book" % name)
 
 
-class TheBacktestBesideTheRecordIsTheSameConstruction(unittest.TestCase):
-    """(2) The defect: roth's backtest (11.63%/yr, 3.169x turnover) beside the decile's curve
-    (7.75%/yr, 1.375x) -- on the Index tab, the hero AND the landing page."""
+class TheBacktestBesideTheRecordIsTheServedBook(unittest.TestCase):
+    """ITEM 18. These assertions are the INVERSE of the ones they replace, and that is the
+    point rather than a loosening.
 
-    def test_summarize_defaults_to_the_tracked_construction(self):
+    Session 74 made the block the TRACKED CONFIG's -- `book_configs.taxable` -- which was the
+    nearest measured construction at the time and was labelled PROVISIONAL on r1's measurement
+    of the exact served book. That measurement landed (`INDEX-BOOK`, `ceffd04`, 2026-10-02) and
+    it is materially lower: the config path publishes +26.15% gross and +19.35% net for an
+    all-cap EQUAL-WEIGHTED decile, where the served $10B score-weighted tier earns +17.1619%
+    in a Roth and +12.2033% after tax.
+
+    So the old tests asserted the block equals `S.measured(TRACKED_CONFIG)`. These assert it
+    does NOT, and comes from `index_book_measured` instead.
+    """
+
+    def test_the_default_block_is_the_SERVED_book(self):
+        from valuation.screener import index_track as IT
+        got = IT.summarize().get("backtested") or {}
+        self.assertIs(got.get("is_the_served_book"), True)
+        self.assertIsNotNone(got.get("served"), "the served measurement is absent")
+
+    def test_it_is_NOT_the_config_derived_measurement_any_more(self):
+        """The strict inverse of what this class used to assert."""
         from valuation.screener import index_track as IT
         from valuation.screener import settings as S
-        got = IT.summarize()
-        self.assertEqual(got.get("config"), IT.TRACKED_CONFIG,
-                         "summarize defaults to something other than the tracked book")
-        want = S.measured(IT.TRACKED_CONFIG) or {}
-        self.assertEqual((got.get("backtested") or {}).get("annual_turnover"),
-                         want.get("annual_turnover"),
-                         "the backtested block is not the tracked construction's")
+        got = IT.summarize().get("backtested") or {}
+        cfg = S.measured(IT.TRACKED_CONFIG) or {}
+        self.assertIsNotNone(cfg.get("annual_turnover"), "fixture: the config has a turnover")
+        self.assertNotEqual(got.get("annual_turnover"), cfg.get("annual_turnover"),
+                            "the block is still the config's book, not the served one")
+
+    def test_every_served_figure_comes_from_the_one_authority(self):
+        """Not retyped here and not recomputed there -- `index_book_measured` is the only
+        place these numbers are written down."""
+        from valuation.screener import index_track as IT
+        from valuation.screener import index_book_measured as M
+        got = IT.summarize().get("backtested") or {}
+        self.assertEqual(got.get("net_sharpe"), M.SERVED_ROTH_SHARPE)
+        self.assertEqual(got.get("annual_turnover"), M.SERVED_TURNOVER)
+        self.assertAlmostEqual(got.get("net_alpha"), M.ALPHA_VS_ALL_CAP_EW_PP / 100.0, places=12)
+        self.assertEqual((got.get("served") or {}).get("study"), M.STUDY)
+
+    def test_the_card_the_tab_renders_is_the_served_one(self):
+        from valuation.screener import index_track as IT
+        card = (IT.summarize().get("backtested") or {}).get("card") or {}
+        self.assertTrue(card.get("available"))
+        self.assertEqual(card.get("mode"), "served")
+
+    def test_a_NAMED_config_is_a_PREVIEW_and_says_so(self):
+        """The owner preview must keep getting the book it asked for.
+        `test_backtest_card` guards this from the other side and it caught the first cut of
+        this change: serving the SERVED card to everyone is the same defect as serving roth's
+        to everyone, pointed the other way."""
+        from valuation.screener import index_track as IT
+        got = IT.summarize(config="roth").get("backtested") or {}
+        self.assertIs(got.get("is_the_served_book"), False)
+        self.assertEqual(got.get("preview_of"), "roth")
+        self.assertIn("not the Valquo Index", got.get("preview_note") or "")
+        self.assertEqual((got.get("card") or {}).get("config"), "roth")
 
     def test_it_does_NOT_default_to_the_sites_account_type_preference(self):
-        """`DEFAULT_BOOK_CONFIG` is a UI preference; this card reports the backtest of the book
-        the RECORD is of. They are different books and the figures differ materially."""
-        from valuation.screener import index_track as IT
-        from valuation.screener import settings as S
-        if S.DEFAULT_BOOK_CONFIG == IT.TRACKED_CONFIG:
-            print("       (DEFAULT_BOOK_CONFIG now equals the tracked config, so this cannot "
-                  "discriminate; the source check below still binds)")
-        else:
-            a = (S.measured(S.DEFAULT_BOOK_CONFIG) or {}).get("annual_turnover")
-            b = (S.measured(IT.TRACKED_CONFIG) or {}).get("annual_turnover")
-            self.assertNotEqual(a, b, "fixture assumption: the two configs differ")
-            self.assertEqual((IT.summarize().get("backtested") or {}).get("annual_turnover"), b)
         import ast
         src = _read(os.path.join(REPO, "valuation", "screener", "index_track.py"))
         fn = next(n for n in ast.walk(ast.parse(src))
@@ -206,16 +263,22 @@ class TheBacktestBesideTheRecordIsTheSameConstruction(unittest.TestCase):
             src = _read(os.path.join(REPO, "valuation", "web", mod))
             self.assertNotIn('summarize("roth"', src, "%s pins roth" % mod)
 
-    def test_the_MEASURED_BASIS_caveat_is_still_carried(self):
-        """It says the backtest is a full-universe EQUAL-WEIGHTED decile, not the served
-        score-weighted large-cap book -- so the two are the same CONSTRUCTION and not the same
-        measured object. Dropping it would make the block look like a backtest of the record."""
+    def test_the_MEASURED_BASIS_caveat_MOVES_rather_than_vanishing(self):
+        """It says the config book is "not the served score-weighted large-cap book", which is
+        still TRUE of the research decile and is now FALSE of the Index's own block. So it must
+        no longer be the Index's `basis` -- and it must still be carried where it applies, or
+        the research decile loses the sentence that distinguishes it."""
         from valuation.screener import index_track as IT
         from valuation.screener import settings as S
-        got = (IT.summarize().get("backtested") or {}).get("basis")
-        self.assertTrue(got, "the basis caveat is gone from the payload")
-        self.assertEqual(got, S.MEASURED_BASIS, "the caveat is a second spelling of itself")
-        self.assertIn("not the served", got)
+        got = IT.summarize().get("backtested") or {}
+        self.assertNotEqual(got.get("basis"), S.MEASURED_BASIS,
+                            "the Index's block still carries the config book's caveat")
+        self.assertIn("large-cap tier", got.get("basis") or "",
+                      "the Index's basis does not name the served construction")
+        rd = got.get("research_decile") or {}
+        self.assertEqual(rd.get("config_basis"), S.MEASURED_BASIS,
+                         "the caveat vanished instead of moving")
+        self.assertIn("not the served", S.MEASURED_BASIS)
 
     def test_the_tab_no_longer_claims_the_forward_column_is_the_same_BOOK(self):
         t = _flat(os.path.join(TPL, "index.html"))
@@ -224,76 +287,158 @@ class TheBacktestBesideTheRecordIsTheSameConstruction(unittest.TestCase):
         self.assertIn("same", t)
 
 
-class OneBookShownInTwoTaxTreatments(unittest.TestCase):
-    """17-AMEND. The roth CONFIG is retired; "Roth/IRA" becomes a tax wrapper on the one book,
-    so the cost of taxes is visible instead of being left to a reader to difference out."""
+class TheResearchDecileIsNeverTheIndex(unittest.TestCase):
+    """ITEM 18. The all-cap equal-weighted decile is a real published measurement and `/proof`
+    reports it legitimately -- as the RESEARCH decile. It may not appear as the Index's."""
 
-    def _tt(self):
+    def test_the_research_decile_is_kept_and_labelled(self):
         from valuation.screener import index_track as IT
-        return ((IT.summarize().get("backtested") or {}).get("tax_treatments") or {})
+        rd = ((IT.summarize().get("backtested") or {}).get("research_decile") or {})
+        self.assertIn("RESEARCH DECILE", rd.get("label") or "")
+        self.assertIs(rd.get("is_the_served_book"), False)
+        self.assertIn("NOT the Valquo Index", rd.get("not_the_index") or "")
 
-    def test_both_treatments_describe_the_SAME_construction(self):
+    def test_its_figures_differ_from_the_served_books(self):
+        """If these ever coincided the separation would be pointless, so the test says so."""
+        from valuation.screener import index_book_measured as M
+        self.assertNotAlmostEqual(M.RESEARCH_NET_PCT, M.SERVED_ROTH_PCT, places=2)
+        self.assertNotAlmostEqual(M.RESEARCH_ALPHA_VS_SPY_PP, M.ALPHA_VS_SPY_PP, places=2)
+
+    def test_proof_says_the_decile_is_NOT_the_index(self):
+        """`/proof` legitimately reports the research decile, and already said "equally
+        weighted". What it never said is that the Index is a DIFFERENT BOOK -- so a reader
+        taking that table's +8.1pp vs SPY as the Index's would be out by most of it."""
+        t = _flat(os.path.join(TPL, "_proof_body.html"))
+        self.assertIn("RESEARCH DECILE", t)
+        self.assertIn("not the Valquo Index", t)
+        self.assertIn("large-cap tier", t)
+
+    def test_proof_still_reports_the_decile_rather_than_hiding_it(self):
+        """The label is the fix, not deletion: it is a real published measurement."""
+        t = _flat(os.path.join(TPL, "_proof_body.html"))
+        self.assertIn("Top decile", t)
+        self.assertIn("equally weighted", t)
+
+    def test_the_two_blocks_are_separate_calls(self):
+        """`block()` and `research_block()` are distinct, so a surface cannot reach both
+        through one call and render them interchangeably -- which is how the research decile
+        came to be published as the Index."""
+        from valuation.screener import index_book_measured as M
+        self.assertIsNot(M.block, M.research_block)
+        self.assertNotIn("net_pct", M.block())
+        self.assertNotIn("roth", M.research_block())
+
+
+class BothAlphaSentencesTravelTogether(unittest.TestCase):
+    """`INDEX-BOOK`'s ledger row states it as a void condition: "BOTH ALPHA SENTENCES ARE TRUE
+    AND NEITHER MAY TRAVEL ALONE." Against its own large-cap tier the served book earns
+    +4.1209pp, stable across halves; against the all-cap equal-weighted universe -- the
+    benchmark every older published figure used -- it earns -0.0576pp, i.e. nothing. Roughly
+    70% of the gap is the small-cap premium a large-cap tier declines to hold."""
+
+    def _alpha(self):
         from valuation.screener import index_track as IT
-        t = self._tt()
-        self.assertTrue(t, "the two-treatment block is missing")
-        self.assertIs(t.get("same_book"), True)
-        self.assertEqual(t.get("construction"), IT.TRACKED_CONFIG,
-                         "the treatments are not of the tracked construction")
-        self.assertIn("only the tax treatment differs", t.get("note", ""))
+        return (((IT.summarize().get("backtested") or {}).get("served") or {}).get("alpha") or {})
 
-    def test_the_two_legs_come_from_the_tracked_configs_own_measurement(self):
-        """Not a second computation -- the same `measured()` block, so they cannot drift from
-        the backtested figures printed beside them."""
+    def test_both_legs_are_present(self):
+        a = self._alpha()
+        self.assertIsNotNone(a.get("vs_own_tier_pp"))
+        self.assertIsNotNone(a.get("vs_all_cap_ew_pp"))
+
+    def test_one_sentence_carries_BOTH_figures(self):
+        """So a surface cannot render the favourable leg and drop the other."""
+        s = self._alpha().get("both_sentence") or ""
+        self.assertIn("+4.1209", s)
+        self.assertIn("-0.0576", s)
+        self.assertIn("small-cap premium", s)
+
+    def test_the_vs_SPY_halves_are_shown_and_not_averaged(self):
+        a = self._alpha()
+        self.assertAlmostEqual(a.get("vs_spy_early_pp"), 3.7202, places=4)
+        self.assertAlmostEqual(a.get("vs_spy_late_pp"), 0.2702, places=4)
+        s = a.get("vs_spy_sentence") or ""
+        self.assertIn("+3.7202", s)
+        self.assertIn("+0.2702", s)
+        self.assertIn("rather than averaged", s)
+
+    def test_the_own_tier_halves_are_shown_as_stable(self):
+        a = self._alpha()
+        self.assertAlmostEqual(a.get("vs_own_tier_early_pp"), 4.0615, places=4)
+        self.assertAlmostEqual(a.get("vs_own_tier_late_pp"), 4.1746, places=4)
+        self.assertIn("stable", a.get("both_sentence") or "")
+
+
+class TheIndexIsARothProduct(unittest.TestCase):
+    """18-AMEND, Don 2026-10-03. Every backtest figure leads with the Roth/IRA treatment; the
+    taxable figure sits beside it for a regular brokerage account, shown for transparency --
+    and transparency has a cost that must be stated, not left to be derived."""
+
+    def _served(self):
         from valuation.screener import index_track as IT
-        from valuation.screener import settings as S
-        m = S.measured(IT.TRACKED_CONFIG) or {}
-        t = self._tt()
-        self.assertEqual(t["roth"]["alpha"], m.get("net_alpha"))
-        self.assertEqual(t["roth"]["sharpe"], m.get("net_sharpe"))
-        self.assertEqual(t["taxable"]["alpha"], m.get("after_tax_alpha"))
-        self.assertEqual(t["taxable"]["sharpe"], m.get("after_tax_sharpe"))
+        return ((IT.summarize().get("backtested") or {}).get("served") or {})
 
-    def test_the_bases_are_named_and_are_not_the_same_words(self):
-        """"Net of costs, no tax" and "after tax" are the whole distinction; two legs under one
-        description is how the tax cost disappeared in the first place."""
-        t = self._tt()
-        self.assertIn("no tax", t["roth"]["basis"])
-        self.assertIn("after tax", t["taxable"]["basis"])
-        self.assertNotEqual(t["roth"]["basis"], t["taxable"]["basis"])
-        self.assertIn("Roth", t["roth"]["label"])
-        self.assertIn("taxable", t["taxable"]["label"])
+    def test_roth_LEADS(self):
+        sv = self._served()
+        self.assertEqual(sv.get("lead"), "roth")
+        self.assertIn("Roth", sv["roth"]["label"])
 
-    def test_the_cost_of_taxes_is_REPORTED_and_is_the_difference(self):
-        t = self._tt()
-        want = round((t["roth"]["alpha"] - t["taxable"]["alpha"]) * 100.0, 4)
-        self.assertEqual(t["tax_cost_pp"], want)
-        self.assertGreater(t["tax_cost_pp"], 0,
-                           "fixture assumption: tax costs something on this book")
-
-    def test_a_missing_leg_reports_None_rather_than_a_zero_tax_bill(self):
-        """A zero would read as "tax is free", which is the one wrong answer available here."""
+    def test_the_card_puts_roth_FIRST(self):
+        """The order on the page, not only in the payload."""
         from valuation.screener import index_track as IT
-        from valuation.screener import settings as S
-        real = S.measured
-        S.measured = lambda *a, **k: dict(real(IT.TRACKED_CONFIG) or {},
-                                          after_tax_alpha=None)
-        try:
-            t = ((IT.summarize().get("backtested") or {}).get("tax_treatments") or {})
-        finally:
-            S.measured = real
-        self.assertIsNone(t.get("tax_cost_pp"))
+        lines = ((IT.summarize().get("backtested") or {}).get("card") or {}).get("lines") or []
+        levels = [l for l in lines if l.get("kind") == "level"]
+        self.assertGreaterEqual(len(levels), 2)
+        self.assertEqual(levels[0].get("key"), "roth")
+        self.assertEqual(levels[1].get("key"), "taxable")
 
-    def test_it_says_it_is_PROVISIONAL_on_r1s_measurement(self):
-        t = self._tt()
-        self.assertIn("INDEX-BOOK", t.get("pending", ""))
+    def test_the_taxable_leg_carries_Dons_wording(self):
+        lbl = self._served()["taxable"]["label"]
+        self.assertIn("regular brokerage account", lbl)
+        self.assertIn("transparency", lbl)
 
-    def test_the_spec_describes_the_two_treatments(self):
-        s = _flat(SPEC)
-        self.assertIn("ONE BOOK, TWO TAX TREATMENTS", s)
-        self.assertIn("in a Roth/IRA", s)
-        self.assertIn("in a taxable account", s)
-        self.assertIn("TAX WRAPPER, not a", s)
-        self.assertIn("retired from every surface", s)
+    def test_the_taxable_leg_says_it_lands_BELOW_spy(self):
+        """The cost of transparency. A reader must not have to difference two fields to find
+        that the after-tax book underperforms the benchmark the site quotes."""
+        t = self._served()["taxable"]
+        self.assertAlmostEqual(t.get("vs_spy_pp"), -3.03, places=2)
+        s = t.get("below_spy_sentence") or ""
+        self.assertIn("BELOW SPY", s)
+        self.assertIn("3.03", s)
+        self.assertIn("short-term", s)
+
+    def test_the_tax_cost_is_a_clean_difference_on_ONE_lot_path(self):
+        from valuation.screener import index_book_measured as M
+        sv = self._served()
+        self.assertAlmostEqual(sv.get("tax_cost_pp"), M.TAX_COST_PP, places=4)
+        self.assertAlmostEqual(
+            sv["roth"]["return_pct"] - sv["taxable"]["return_pct"], M.TAX_COST_PP, places=3,
+            msg="the stated tax cost is not the difference between the two legs")
+        self.assertIn("only knob", sv.get("tax_cost_sentence") or "")
+
+    def test_the_dividend_caveat_runs_against_the_taxable_arm_and_travels(self):
+        sv = self._served()
+        c = sv.get("dividend_caveat") or ""
+        self.assertIn("no dividends", c)
+        self.assertIn("understates", c)
+
+    def test_PROVISIONAL_is_gone_and_the_study_is_named_instead(self):
+        """The label existed only until r1's measurement landed. It has, so the block must now
+        cite it rather than promise it."""
+        from valuation.screener import index_track as IT
+        bt = IT.summarize().get("backtested") or {}
+        sv = bt.get("served") or {}
+        self.assertEqual(sv.get("study"), "INDEX-BOOK")
+        self.assertTrue(sv.get("study_commit"))
+        self.assertNotIn("PROVISIONAL", str(bt.get("served")))
+        # And what WOULD replace these is named, so the next change is not a surprise.
+        self.assertIn("INDEX-BEST", sv.get("pending") or "")
+
+    def test_the_spec_describes_the_served_measurement(self):
+        spec = _read(os.path.join(REPO, "PRODUCT_SPEC.md"))
+        self.assertIn("INDEX-BOOK", spec)
+        self.assertIn("17.1619", spec)
+        self.assertIn("12.2033", spec)
+        self.assertIn("Roth", spec)
 
 
 class NoPublicPageStatesAContradictoryCadence(unittest.TestCase):

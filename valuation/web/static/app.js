@@ -1004,7 +1004,20 @@ function _srcMark(r) {
 
 function renderHot(d) {
   const f = d.filtered;
-  let meta = `scan ${d.scan_date}${_ageStr(d.scan_date)} · ${d.scored}/${d.universe_size || "?"} scored · ${d.provider || ""}`;
+  /* E8 — NAME WHAT SERVED THE SCAN, NOT WHAT WAS CONFIGURED TO.
+     This line read `d.provider`, the configured vendor, while `d.health.api_budget` in the
+     same response recorded `served_by_fmp: 0`, `fmp_disabled_mid_scan: true` and a 402 in
+     its error sample. So the header credited a vendor that served nothing, with the evidence
+     sitting one key away. `d.source` is the derived label (`providers.served_by`), and when
+     it DISAGREES with the configured name the configured one is shown too — a reader asking
+     "what was this meant to use" is asking a real question, and the two differing is the
+     part worth seeing. Falls back to `d.provider` for a response with no census. */
+  const src = d.source;
+  let srcTxt = (src && src.label) ? src.label : (d.provider || "");
+  if (src && src.measured && src.degraded && src.label !== src.configured) {
+    srcTxt += ` (configured: ${src.configured})`;
+  }
+  let meta = `scan ${d.scan_date}${_ageStr(d.scan_date)} · ${d.scored}/${d.universe_size || "?"} scored · ${srcTxt}`;
   if (f && f.total_removed) meta += ` · ${f.total_removed} junk filtered`;
   document.getElementById("hotMeta").textContent = meta;
   setHtml("hotFreshness", freshnessBanner(d.freshness));
@@ -1275,8 +1288,35 @@ function renderDip(d) {
   setHtml("dipMeta", bits.join(" · "));
 
   if (!rows.length) {
+    /* ITEM 19 — AN EMPTY SCREEN MUST NOT CLAIM NOTHING QUALIFIED WHEN NOTHING WAS CHECKED.
+       For seven weeks this said "No name cleared a 20% fall" while `n_measured` was 12 and
+       `n_unmeasured` was 12 — every examined name had failed to measure, because the screen
+       was wired to a cache ENTRY rather than to the result inside it, so no drawdown was ever
+       computed. The sentence was a claim about the market; the truth was a claim about the
+       wiring, and the two are opposites a reader cannot distinguish.
+
+       So the branch splits. If NOTHING was measured, say that and say nothing about whether
+       any name qualified. If SOME were measured, the "no name cleared" sentence is legitimate
+       and is scoped to what was actually examined. */
+    const nMeas = d.n_measured || 0, nUn = d.n_unmeasured || 0;
+    const allFailed = nMeas > 0 && nUn >= nMeas;
+    if (nMeas === 0 || allFailed) {
+      setHtml("dipResults", `<div class="card"><div class="muted">
+        <b>This screen could not measure anything, so it is not saying no name qualified.</b>
+        ${nMeas === 0
+          ? `No name was examined in detail.`
+          : `All ${num(nUn)} of the ${num(nMeas)} names examined failed to measure.`}
+        A name needs a current price and a 52-week high to compute a fall from its high; when
+        those are missing the name is counted as unmeasured rather than as "not in a
+        drawdown". Nothing here should be read as evidence about the market.
+        ${d.capped ? `A further ${num(d.capped)} were not examined at all (per-request limit).` : ""}
+        </div></div>`);
+      return;
+    }
     setHtml("dipResults", `<div class="card"><div class="muted">No name cleared a
-      ${pct(d.min_drawdown, 0)} fall from its 52-week high while also scoring healthy today.
+      ${pct(d.min_drawdown, 0)} fall from its 52-week high while also scoring healthy today,
+      <b>of the ${num(nMeas - nUn)} that could be measured</b>.
+      ${nUn ? `${num(nUn)} could not be measured and are not counted either way.` : ""}
       ${d.capped ? "Note the per-request measurement limit above — this is not a statement about every name in the universe." : ""}</div></div>`);
     return;
   }
@@ -1489,6 +1529,21 @@ function _trackCard(title, sub, s) {
   const logged = ct.n_logged != null
     ? `${ct.n_logged.toLocaleString()} picks logged over ${ct.n_days} scan days since ${ct.first_logged}`
     : `${rec.length} recent picks shown`;
+  /* E10 — ROWS ON DAYS THE MARKET WAS SHUT, DISCLOSED RATHER THAN DELETED.
+     The logger used to date a row `today()` with no calendar check, so a scan on Labor Day
+     2026-09-07 logged picks for a session that never happened. `track.log_picks` refuses that
+     now; the rows already written are KEPT and counted here, because a record that quietly
+     drops what it recorded is worse than one that explains it. Rendered only when the count
+     is non-zero — a zero needs no sentence. */
+  const nShut = ct.n_rows_on_non_trading_days || 0;
+  const shutLine = nShut
+    ? `<div class="note" style="margin-top:6px">${nShut.toLocaleString()} of these picks are
+       dated on ${ct.n_non_trading_days} day(s) the market was closed${
+         (ct.non_trading_days && ct.non_trading_days.length)
+           ? ` (${ct.non_trading_days.map(esc).join(", ")})` : ""}, logged before that was
+       checked. They are kept rather than deleted, and no pick could have been acted on those
+       days, so they carry no return.</div>`
+    : '';
   // A refresh that ran and FAILED must not read as "still accruing" -- that is how seven weeks of
   // silent failure looked like patience.
   const rfLine = (rf && rf.ok === false)
@@ -1496,7 +1551,7 @@ function _trackCard(title, sub, s) {
     : '';
   let inner;
   if (!H.some(([k]) => sm[k])) {
-    inner = `<div class="muted">${logged}. Each pick is measured from the day it was picked, so it counts once it is 21 trading days old — whether or not it is still in the top 10. None has been scored yet.</div>${rfLine}`;
+    inner = `<div class="muted">${logged}. Each pick is measured from the day it was picked, so it counts once it is 21 trading days old — whether or not it is still in the top 10. None has been scored yet.</div>${shutLine}${rfLine}`;
   } else {
     inner = '<table><tr><th>Horizon</th><th class="num">Picks</th><th class="num">Avg return</th><th class="num">S&amp;P</th><th class="num">Alpha</th><th class="num">Beat S&amp;P</th><th class="num">Win rate</th></tr>';
     H.forEach(([k, lab]) => {
@@ -1508,7 +1563,7 @@ function _trackCard(title, sub, s) {
         <td class="num">${pct(x.hit_rate_vs_bench, 0)}</td><td class="num">${pct(x.win_rate, 0)}</td></tr>`;
     });
     inner += '</table>';
-    inner += `<div class="note" style="margin-top:6px">${logged}. An options pick is logged once per alert, and a name can alert on consecutive sessions, so the picks overlap and the count overstates how many independent bets this is — read the averages as a description, not a significance test. (The hot-list rule is different: a name that stays in the top 10 is logged every day it is there.)</div>${rfLine}`;
+    inner += `<div class="note" style="margin-top:6px">${logged}. An options pick is logged once per alert, and a name can alert on consecutive sessions, so the picks overlap and the count overstates how many independent bets this is — read the averages as a description, not a significance test. (The hot-list rule is different: a name that stays in the top 10 is logged every day it is there.)</div>${shutLine}${rfLine}`;
   }
   if (rec.length) {
     inner += '<div class="note" style="margin-top:10px">Most recent picks (each fills in 21 trading days after its date):</div>' +
@@ -1527,9 +1582,23 @@ function _paperCard(paper) {
   const s = (paper && paper.summary) || {}, watch = (paper && paper.watching) || [], closed = (paper && paper.closed) || [];
   const sub = 'Buys when a name enters the top-10; holds ≥1 month (no churn) and keeps holding while it stays hot — ' +
     'it is <b>not</b> sold just because another name got hotter. Sells only when it is genuinely no longer hot ' +
+    /* E11 — CONFIRMED AGAINST THE CODE, AND ONE IMPLICATION CORRECTED.
+       All three of the original claims check out in `edge/positions.py:92`:
+       `fair_map.get(t) and price >= fair_map[t]` means an ABSENT fair value is falsy and the
+       exit cannot fire, the score floor is a separate branch, and the time stop is disabled
+       because `paper_max_hold_days` is 0 and the branch reads `if max_hold_days and ...`.
+
+       What was NOT accurate was the implication that withholding covers the bad cases.
+       `withhold.withhold_implausible_fair_values` fires only on `ratio > FV_BAND_HIGH` (5.0) —
+       the HIGH side. A fair value that is implausibly LOW gets a WARNING at `FV_BAND_LOW`
+       (0.2) and is NOT withheld, so it stays truthy and `price >= fair_value` is true at any
+       real price. The sentence no longer claims the guard is symmetric. The exit RULE is
+       untouched: changing it would change the account's recorded history, and the band is the
+       engine lane's — reported in the handoff rather than altered here. */
     '(score below the floor) or reaches its fair value — which is a DCF for most names, ' +
-    'P/B-ROE for banks and insurers, and WITHHELD when neither can be computed, in which case ' +
-    'the fair-value exit cannot fire and only the score floor can close the position; there is ' +
+    'P/B-ROE for banks and insurers, and withheld when it comes out implausibly <b>high</b> ' +
+    'relative to the price, in which case the fair-value exit cannot fire and only the score ' +
+    'floor can close the position; there is ' +
     'no time limit on a hold. A name the daily ' +
     'scan stops covering for three weeks is closed (“left coverage”), because without a score the sell rule ' +
     'cannot be applied. Suggested sizing is score-weighted (hotter = bigger), capped. A model account — no money is in it.';
@@ -2400,9 +2469,23 @@ function _renderValquoIndex(d, cfg) {
   const rows = alloc.active ? (d.positions || []) : (d.positions || []).slice(0, 30);
   const showShares = alloc.active && alloc.anyPrice;
 
+  /* Present only when the payload carries them, so an older cached response renders exactly
+     as it did before these columns existed. `some` rather than `every`: a book where one name
+     is unpriced should still show the column, with an em dash on that row. */
+  const hasForm = rows.some(p => p.weight_at_formation != null);
+  const hasRet = rows.some(p => p.return_pct != null);
   body.innerHTML = _indexSectorBox(d)
     + '<table class="tbl"><thead><tr><th>#</th><th>Ticker</th><th>Company</th><th>Sector</th>'
     + '<th class="num">Weight</th>'
+    /* ITEM 18 -- THE BOOK IS FIXED, SO THESE TWO COLUMNS ARE WHAT MAKES THAT VISIBLE.
+       `weight` is TODAY's weight and `weight_at_formation` is the weight the book was formed
+       with; they differ when a corporate exit has been spread pro-rata across survivors, and
+       showing only one hides that the book has not been re-picked. `return_pct` is the return
+       since formation and is present only once `index_in_force.compute_returns` has run, so a
+       null renders an em dash rather than a zero -- an unpriced holding is not a flat one.
+       Rendered only when the payload carries them, so an older response is unaffected. */
+    + (hasForm ? '<th class="num">Weight at formation</th>' : "")
+    + (hasRet ? '<th class="num">Since formation</th>' : "")
     + (alloc.active ? '<th class="num">Allocation</th>' : "")
     + (showShares ? '<th class="num">Shares (exact)</th><th class="num">Shares (whole)</th>' : "")
     + '<th class="num">Hot score</th><th class="num">Market cap</th>'
@@ -2412,6 +2495,14 @@ function _renderValquoIndex(d, cfg) {
         return `<tr><td>${i + 1}</td><td><b>${p.ticker}</b></td>`
           + `<td>${esc((p.name || "").slice(0, 28))}</td><td>${esc((p.sector || "—").slice(0, 18))}</td>`
           + `<td class="num">${pct(p.weight, 2)}</td>`
+          + (hasForm
+              ? `<td class="num">${p.weight_at_formation == null ? "—"
+                   : pct(p.weight_at_formation, 2)}</td>`
+              : "")
+          + (hasRet
+              ? `<td class="num ${p.return_pct == null ? "" : (p.return_pct >= 0 ? "pos" : "neg")}">`
+                + `${p.return_pct == null ? "—" : spct(p.return_pct / 100)}</td>`
+              : "")
           + (alloc.active ? `<td class="num">${a ? money(a.alloc) : "—"}</td>` : "")
           + (showShares
               ? `<td class="num">${a && a.shares != null ? a.shares.toFixed(3) : "—"}</td>`
@@ -2424,6 +2515,9 @@ function _renderValquoIndex(d, cfg) {
     + (alloc.active
         ? `<tfoot><tr><td colspan="4"><b>Total</b></td>`
           + `<td class="num"><b>${pct(1, 2)}</b></td>`
+          /* The footer must grow with the header or every total shifts one cell left. */
+          + (hasForm ? `<td class="num">—</td>` : "")
+          + (hasRet ? `<td class="num">—</td>` : "")
           + `<td class="num"><b>${money(alloc.sum)}</b></td>`
           + (showShares ? '<td class="num">—</td><td class="num">—</td>' : "")
           + `<td class="num">—</td><td class="num">—</td></tr></tfoot>`
@@ -2535,14 +2629,21 @@ function _renderIndexTrack(d) {
      case it says what the figure is measured against rather than calling it "Alpha". */
   const bc = bt.card || null;
   const lvl = (l) => metric(esc(l.label), spct(l.value));
+  /* ITEM 18 — A CARD WITH ONLY NET FIGURES PRINTS ONLY NET.
+     The served book's alpha legs were measured NET; there is no gross figure for them, and
+     inventing one by adding back a cost estimate would be a number nobody measured. So a null
+     gross renders nothing rather than "— gross · +4.12% net", where the em dash reads as a
+     missing measurement rather than an absent concept. */
   const exc = (l) => metric(
     esc(l.label)
       + (l.benchmark_taxed
           ? ` <span class="muted" style="font-weight:400">· after tax on both sides</span>` : "")
       + (l.window === "partial"
       ? ` <span class="muted" style="font-weight:400">· ${esc(l.window_label)}</span>` : ""),
-    `${spct(l.gross)} <span class="muted" style="font-weight:400">gross</span> · ` +
-    `${spct(l.net)} <span class="muted" style="font-weight:400">net</span>`);
+    (l.gross == null)
+      ? `${spct(l.net)} <span class="muted" style="font-weight:400">net</span>`
+      : `${spct(l.gross)} <span class="muted" style="font-weight:400">gross</span> · ` +
+        `${spct(l.net)} <span class="muted" style="font-weight:400">net</span>`);
 
   /* SHARPE AND TURNOVER COME FROM THE CARD, NOT FROM `bt`. That is the whole point of this
      version: `bt.*` is whatever `settings.BOOK_CONFIGS` carries for the selected config, and
@@ -2559,6 +2660,8 @@ function _renderIndexTrack(d) {
       ${bc.lines.filter(l => l.kind === "excess").map(exc).join("")}
     </div>
     ${bc.spmo_available ? `<div class="muted" style="font-size:11px;margin-top:6px">${esc(bc.partial_note)}</div>` : ""}
+    ${bc.tax_note ? `<div class="muted" style="font-size:11px;margin-top:6px">${esc(bc.tax_note)}</div>` : ""}
+    ${bc.halves_note ? `<div class="muted" style="font-size:11px;margin-top:4px">${esc(bc.halves_note)}</div>` : ""}
     <div class="muted" style="font-size:11px;margin-top:6px">${esc(bc.caption)}</div>
     <div class="muted" style="font-size:11px;margin-top:4px">${esc(bc.basis_note)}</div>
     ${bc.band_note ? `<div class="muted" style="font-size:11px;margin-top:4px">${esc(bc.band_note)}</div>` : ""}`
@@ -2668,6 +2771,19 @@ function _renderIndexTrack(d) {
            d.thin || !d.available ? "spec" : "est", liveRows, liveLeads)
     + `</div>`
     + (d.note ? `<div class="note" style="margin-top:10px">${esc(d.note)}</div>` : "");
+
+  /* ITEM 18 — WHAT THE FORWARD TEST CAN AND CANNOT SHOW, on the book it actually measures.
+     The sentence is the server's (`index_book_measured.power_sentence`) and is only escaped
+     here, so this paragraph and the payload cannot disagree. It renders beside the forward
+     column rather than inside it: it is a statement about the TEST, not about the figures.
+     Absent payload renders nothing — a surface with no statement makes none. */
+  const pn = document.getElementById("indexPowerNote");
+  if (pn) {
+    const pw = ((bt.served || {}).power || {});
+    pn.innerHTML = pw.sentence
+      ? `<b>What five years can and cannot settle.</b> ${esc(pw.sentence)}`
+      : "";
+  }
 
   indexChart(d);
 }

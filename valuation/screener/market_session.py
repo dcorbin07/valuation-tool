@@ -199,6 +199,91 @@ def last_closed_session(now: Optional[_dt.datetime] = None) -> Optional[_dt.date
     return None
 
 
+def session_date(when=None, *, assume_utc: bool = True) -> Optional[_dt.date]:
+    """The trading SESSION a run's data belongs to: the most recent trading day on or before
+    the run's **America/New_York** date.
+
+    ITEM 20. THREE WAYS OF GETTING THIS WRONG, AND ALL THREE WERE LIVE.
+
+    **(1) THE SERVER'S UTC DATE.** `saas/tracker.log_options` dated an options pick
+    `date.today()`, and the service runs UTC. GitHub delivers these ingests 3-5 hours late, so
+    Friday evening ET arrives after 00:00 UTC Saturday and the pick was filed under **Saturday**
+    -- a session that does not exist. That is the Labor Day row the dip audit found.
+
+    **(2) REFUSING IT INSTEAD.** My own first repair used `now_et().date()` and let
+    `track.log_picks` refuse a non-trading day. Correct for a holiday scan and wrong here: a
+    Friday-evening ingest arriving Saturday UTC has FRIDAY's data, and refusing it loses the
+    row entirely -- Monday logs Monday's picks, never Friday's. It also made
+    `test_tracker_logs_and_summary` calendar-dependent, which is what failed the land gate at
+    01:50 UTC on Saturday 2026-10-03.
+
+    **(3) `last_closed_session()`, WHICH IS A DIFFERENT QUESTION.** That one requires the close
+    to have PASSED, because its caller marks a settled session. An intraday signal belongs to
+    the session it was scanned IN, closed or not -- and two of them really did land at 14:24 and
+    14:33 ET. Dating those to the previous day would be wrong by a whole session. So this is a
+    pure DATE question with no time-of-day cutoff, and the two functions stay separate.
+
+    **`assume_utc` IS THE LOAD-BEARING DEFAULT.** A naive `run_time` string reaches here from
+    `_dt.datetime.now().strftime(...)` on the service -- i.e. **UTC** -- or from a GitHub runner,
+    also UTC. Reading it as if it were ET would be wrong by four or five hours, which is exactly
+    the window that moves the date. A tz-AWARE value is converted properly and `assume_utc` is
+    ignored for it.
+    """
+    try:
+        from zoneinfo import ZoneInfo
+        et = ZoneInfo(MARKET_TZ)
+    except Exception:                                        # pragma: no cover - no tzdata
+        et = None
+
+    if when is None:
+        d = now_et().date()
+    else:
+        if isinstance(when, str):
+            when = _parse_run_time(when)
+            if when is None:
+                d = now_et().date()
+                when = None
+        if isinstance(when, _dt.datetime):
+            if when.tzinfo is not None and et is not None:
+                d = when.astimezone(et).date()
+            elif assume_utc and et is not None:
+                d = when.replace(tzinfo=_dt.timezone.utc).astimezone(et).date()
+            else:
+                d = when.date()
+        elif isinstance(when, _dt.date):
+            # A bare DATE carries no clock, so there is nothing to convert; it is taken as the
+            # ET calendar date it claims to be.
+            d = when
+        elif when is not None:
+            d = now_et().date()
+
+    for _ in range(14):
+        if is_trading_day(d):
+            return d
+        d -= _dt.timedelta(days=1)
+    return None
+
+
+def _parse_run_time(s: str) -> Optional[_dt.datetime]:
+    """`"2026-10-02 19:08"` and the handful of neighbouring shapes the ingests actually send.
+
+    Returns `None` rather than guessing, so an unparseable stamp falls back to the clock
+    instead of being silently read as some other moment.
+    """
+    t = (s or "").strip().replace("T", " ")
+    if t.endswith("Z"):
+        t = t[:-1].strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return _dt.datetime.strptime(t[:len(_dt.datetime.now().strftime(fmt))], fmt)
+        except Exception:                                    # noqa: BLE001
+            continue
+    try:
+        return _dt.datetime.fromisoformat(t)
+    except Exception:                                        # noqa: BLE001
+        return None
+
+
 def session_state(now: Optional[_dt.datetime] = None) -> dict:
     """Whether the current session has closed, and why not if it hasn't.
 

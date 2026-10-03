@@ -41,6 +41,16 @@ def _f(x) -> Optional[float]:
     return v if v == v else None
 
 
+def _vintage() -> dict:
+    """The vintage framing for the band. One authority, never worded here."""
+    try:
+        from ..edge.track_meter import vintage_claim
+        return vintage_claim() or {"available": False}
+    except Exception:                                        # noqa: BLE001
+        # A band with a figure to show must not go dark because the register is unreadable.
+        return {"available": False, "reason": "the vintage register could not be read"}
+
+
 def _index_block(store) -> dict:
     """The Index vs its benchmark since inception, from the contract-bound recorder ONLY.
 
@@ -78,7 +88,17 @@ def _index_block(store) -> dict:
     series = t.get("series") or []
     return {
         "available": True, "source": "index-track",
-        "since": live.get("since") or t.get("inception"), "as_of": live.get("as_of"),
+        # E7 — INCEPTION FIRST, AND THE ORDER WAS THE DEFECT. `live["since"]` is
+        # `series[0]["date"]`, the first RECORDED ROW; the window these percentages are
+        # cumulative over starts at the INCEPTION date. On the bound record those differ
+        # (inception 2026-07-30, first row 2026-07-31), so the band's label read "since
+        # 2026-07-31" two lines above its own window line reading "since inception
+        # 2026-07-30" -- one box, one figure, two start dates. It is LA8's family, named in
+        # this module already: a coverage fact rendered under a window's name. The row date
+        # is kept beside it as `first_row` rather than dropped, because the gap between the
+        # two IS the recording story.
+        "since": t.get("inception") or live.get("since"),
+        "first_row": live.get("since"), "as_of": live.get("as_of"),
         "days": live.get("days"), "benchmark": t.get("benchmark") or "SPY",
         # LA8 — `days` is the ROW COUNT and stays one, because the gate reads it. `age` is the
         # display vocabulary: how old the track is, and how many of those days were recorded.
@@ -94,6 +114,12 @@ def _index_block(store) -> dict:
         "thin": bool(t.get("thin")), "min_days": t.get("min_live_days"),
         "series": series[-SPARK_POINTS:],
         "note": t.get("note"),
+        # E7 — BOTH OBJECTS, BECAUSE RULE 5 SAYS NEITHER MAY STAND IN FOR THE OTHER. The
+        # three tiles above are the as-operated chain: measured on the bound record it spans
+        # FOUR vintages including a VOID one. The contract's verdict attaches to the OPEN
+        # vintage alone (rule 4), and that figure was on no surface at all. Derived in
+        # `index_track.vintage_claim` from the register, never worded here.
+        "vintage": _vintage(),
     }
 
 
@@ -211,7 +237,19 @@ def live_hero(store) -> dict:
 
     label = "the forward paper track has not started"
     if show:
-        label = "paper" + (f", since {since}" if since else "")
+        # E7 — THE LABEL NAMES THE VINTAGE, NOT A SECOND START DATE. It used to read
+        # "paper, since <first recorded row>" while the band's own provenance line three
+        # tiles down read "since inception <inception>": two dates for one window, and the
+        # one in the larger type was the wrong one. The window line already states the
+        # dates, so repeating a date here could only ever add a contradiction. What was
+        # genuinely missing is the vintage (§5a rule 4: a verdict must name its vintage),
+        # so that is what the label carries now.
+        v = (idx.get("vintage") or {}).get("vintage") or {}
+        label = "paper"
+        if v.get("vintage"):
+            label += f", book vintage {v['vintage']}"
+        elif since:
+            label += f", since {since}"
         if thin:
             label += ", thin"
 

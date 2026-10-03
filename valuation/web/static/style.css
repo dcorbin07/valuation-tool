@@ -228,6 +228,17 @@ code{background:#f0f3f9;padding:1px 6px;border-radius:5px;font-size:12.5px;color
 .rep-tag{display:inline-block;margin-left:5px;padding:0 5px;border:1px solid var(--border);
   border-radius:8px;font-size:9.5px;font-weight:700;letter-spacing:.03em;
   text-transform:uppercase;color:var(--faint);vertical-align:1px}
+/* E7 — A WINDOW TAG IS NOT A `rep-tag`, AND THE DIFFERENCE IS SEMANTIC RATHER THAN VISUAL.
+   `rep-tag` is PT-SPMO's vocabulary for a benchmark that is REPORTED and not the bound claim;
+   two of its own tests enforce that, counting exactly two of them and requiring none when no
+   comparison is recorded. The first cut of the two Excess tiles reused it and BOTH tests went
+   red -- correctly, and not merely on the count: the band's Excess tiles are both bound-SPY
+   figures over different WINDOWS, and the vintage one IS the contract's claim, so marking it
+   "reported" says the opposite of the truth. Same geometry on purpose, because the two tags do
+   the same visual job; a separate name so the two meanings cannot be conflated again. */
+.win-tag{display:inline-block;margin-left:5px;padding:0 5px;border:1px solid var(--border);
+  border-radius:8px;font-size:9.5px;font-weight:700;letter-spacing:.03em;
+  text-transform:uppercase;color:var(--faint);vertical-align:1px}
 .lb-foot{font-size:11.5px;color:var(--faint);margin-top:10px;line-height:1.6}
 .lb-foot a{font-weight:600;margin-left:6px}
 .lb-spark{width:260px;flex:none}

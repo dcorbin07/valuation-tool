@@ -761,6 +761,15 @@ def api_hotstocks():
     except Exception:
         params = {}
     from ..screener.freshness import status as _freshness
+
+    def _source_label(health, configured):
+        """The derived source label. Never raises: a label must not break the hot list."""
+        try:
+            from ..screener.providers import served_by
+            return served_by(health, configured)
+        except Exception:                                    # noqa: BLE001
+            return None
+
     # MA30 — churn disclosure. Additive: it annotates `rows` with `tenure_scans` and never
     # reorders or drops one. Sorting or filtering on this field converts a disclosure into a
     # screen and needs its own register (see web/tenure.py); `tests/test_tenure.py` fails if
@@ -792,6 +801,13 @@ def api_hotstocks():
                     "sectors": sector_attractiveness(all_rows),
                     "universe_size": meta.get("universe_size"), "scored": meta.get("scored"),
                     "provider": meta.get("provider"), "filtered": params.get("filtered"),
+                    # E8 -- the DERIVED source label, beside the configured one. Computed here
+                    # rather than persisted at scan time so that snapshots already on disk get
+                    # the honest label too: the census was always stored, it was simply never
+                    # consulted by the thing that named the source. `measured: False` on a
+                    # snapshot that kept no census, so a surface can tell a reading from a
+                    # default.
+                    "source": _source_label(params.get("health"), meta.get("provider")),
                     "health": params.get("health"),
                     "freshness": _freshness(scan_date, label="ranking"),
                     "disclaimer": RISK_DISCLAIMER,
@@ -1077,9 +1093,32 @@ def _track_counts(st, source) -> dict:
     """
     picks = st.all_track_picks(source) or []
     dates = sorted({str(p.get("run_date") or "")[:10] for p in picks if p.get("run_date")})
+    # E10 -- HOW MANY ROWS SIT ON DAYS THE MARKET WAS SHUT. The logger used to write on a
+    # holiday (`track.log_picks` now refuses), and the rows it already wrote are LABELLED
+    # rather than deleted: the record keeps what it recorded and says what it is. The count is
+    # computed on READ, so it covers rows written before the guard existed -- and it is a
+    # DISCLOSURE, so it never drops a pick or changes a return.
+    closed, n_closed_rows = [], 0
+    try:
+        import datetime as _d
+        from ..screener.market_session import is_trading_day
+        for ds in dates:
+            try:
+                if not is_trading_day(_d.date.fromisoformat(ds)):
+                    closed.append(ds)
+            except Exception:                                # noqa: BLE001
+                continue
+        shut = set(closed)
+        n_closed_rows = sum(1 for p in picks
+                            if str(p.get("run_date") or "")[:10] in shut)
+    except Exception:                                        # noqa: BLE001
+        closed, n_closed_rows = [], 0
     return {"n_logged": len(picks), "n_days": len(dates),
             "first_logged": dates[0] if dates else None,
             "last_logged": dates[-1] if dates else None,
+            "n_non_trading_days": len(closed),
+            "n_rows_on_non_trading_days": n_closed_rows,
+            "non_trading_days": closed[:12],
             "n_matured_21": len(st.track_returns(source, 21) or [])}
 
 

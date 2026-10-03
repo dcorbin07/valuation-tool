@@ -321,30 +321,115 @@ def build_index(rows, large_cap_min: float = LARGE_CAP_MIN,
                      ("no previous book supplied, so the band could not apply" if not _held
                       else "no held name sits inside the band on this cross-section")),
         },
-        # WHERE THE PUBLISHED HEADLINE AND THE LIVE BOOK NOW DIFFER (S14 adoption, 2026-08-13).
-        # `method` above is UNCHANGED and still describes the validated composite -- the plain
-        # top-decile book every published figure was measured on. From this vintage the live
-        # book also applies a no-trade band, which those figures do NOT include. Saying so here
-        # is the alternative to the two tempting errors: quietly re-pointing the headline at a
-        # construction nobody measured, or letting a reader assume the +7.2%/yr describes the
-        # book in front of them.
-        "headline_scope": {
-            "headline_describes": "plain top-decile book, no no-trade band",
-            "live_book_applies_band": bool(exit_frac),
-            "differs": bool(exit_frac),
-            "note": ("the published backtest figures in `method` were measured WITHOUT a "
-                     "no-trade band. The live book applies one from vintage 4 (2026-08-13). "
-                     "S14's own evidence is a held-out DIFFERENCE (+1.78pp and +1.77pp net "
-                     "alpha in the two split directions), not a re-measured level, so the "
-                     "headline is deliberately not restated." if exit_frac else
-                     "no band applied; the live book matches the construction the headline "
-                     "describes"),
-        },
+        # WHERE THE PUBLISHED HEADLINE AND THE LIVE BOOK DIFFER.
+        #
+        # ITEM 18 -- THIS DISCLOSED THE SMALLEST OF THREE DIFFERENCES AND WAS SILENT ON THE TWO
+        # LARGER ONES. `INDEX-BOOK` (r1, 2026-10-02, `ceffd04`) reported it against this lane
+        # by name: the field named the no-trade BAND and not the UNIVERSE, so the payload a user
+        # receives quoted all-cap EQUAL-WEIGHTED figures for a large-cap SCORE-WEIGHTED book.
+        #
+        # That study decomposed the gap one knob at a time, all four arms calling this same
+        # `build_index`, and the band is the least of it:
+        #     tier (all-cap -> $10B)      -5.9871 pp/yr
+        #     weighting (equal -> score)  +0.6804 pp/yr
+        #     no-trade band (0 -> 0.30)   -0.8009 pp/yr
+        # So the one thing disclosed was worth about an eighth of the one that was not.
+        #
+        # NOTHING ABOUT THE BOOK CHANGES HERE. This is a disclosure field: no position, weight,
+        # eligibility or ordering reads it, so `--config taxable` builds exactly what it built
+        # before and the 2026-10-22 runbook is unaffected. A test asserts the positions and
+        # weights are identical across this change.
+        "headline_scope": _headline_scope(exit_frac, weighting, large_cap_min),
         "contract_conformance": conformance(len(positions), cap, len(large)),
         "n_scored": len(scored), "n_eligible": len(large), "n_positions": len(positions),
         "sector_data_available": sector_data,
         "sector_weights": sectors,
         "positions": positions,
+    }
+
+
+def _headline_scope(exit_frac, weighting: str = "score", large_cap_min=None) -> dict:
+    """What the published figures describe, against what the live book is.
+
+    THREE DIFFERENCES, NOT ONE -- AND `differs` KEEPS ITS ORIGINAL MEANING.
+    `INDEX-BOOK` reported that this field named the no-trade BAND and was silent on the
+    UNIVERSE and the WEIGHTING, so the payload quoted all-cap equal-weighted figures for a
+    large-cap score-weighted book. Its one-knob decomposition, all four arms calling this same
+    `build_index`, shows the band is the least of it:
+
+        tier (all-cap -> $10B)      -5.9871 pp/yr
+        weighting (equal -> score)  +0.6804 pp/yr
+        no-trade band (0 -> 0.30)   -0.8009 pp/yr
+
+    **THE NEW FACTS ARE ADDED, NOT FOLDED INTO `differs`.** My first cut made `differs` mean
+    "differs at all", which is a redefinition in place -- the `provider` trap -- and
+    `test_no_trade_band` caught it: that field is the BAND question, two of its tests read it
+    as such, and an unbanded book must still report `differs: False`. So `differs` is unchanged
+    and `universe_differs` / `weighting_differs` / `differs_on` are new.
+
+    **`weighting` IS READ RATHER THAN ASSUMED.** The first cut hard-coded "score-weighted",
+    which is wrong for any caller passing `weighting="equal"` -- including that suite's own
+    fixtures. A disclosure that misdescribes the book it is disclosing about is worse than none.
+
+    Nothing about the book changes here: no position, weight, eligibility or ordering reads
+    this, so `--config taxable` builds exactly what it built before and the 2026-10-22 runbook
+    is unaffected. `tests/test_index_book_measured.py` proves it on a 400-name cross-section.
+    """
+    banded = bool(exit_frac)
+    score_weighted = str(weighting or "").lower().startswith("score")
+    tiered = bool(large_cap_min)
+    try:
+        from ..screener import index_book_measured as _M
+        served = {"roth_pct": _M.SERVED_ROTH_PCT,
+                  "taxable_pct": _M.SERVED_TAXABLE_PCT,
+                  "alpha_vs_own_tier_pp": _M.ALPHA_VS_OWN_TIER_PP,
+                  "alpha_vs_all_cap_ew_pp": _M.ALPHA_VS_ALL_CAP_EW_PP,
+                  "alpha_vs_spy_pp": _M.ALPHA_VS_SPY_PP,
+                  "study": _M.STUDY, "study_commit": _M.STUDY_COMMIT}
+    except Exception:                                        # noqa: BLE001
+        served = None
+
+    extra = []
+    if tiered:
+        extra.append("universe (all-cap vs a large-cap tier)")
+    if score_weighted:
+        extra.append("weighting (equal vs score)")
+
+    note = ("the published backtest figures in `method` were measured WITHOUT a "
+            "no-trade band. The live book applies one from vintage 4 (2026-08-13). "
+            "S14's own evidence is a held-out DIFFERENCE (+1.78pp and +1.77pp net "
+            "alpha in the two split directions), not a re-measured level, so the "
+            "headline is deliberately not restated." if banded else
+            "no band applied; the live book matches the construction the headline "
+            "describes on the band.")
+    if extra:
+        note += (" AND THE BAND IS NOT THE LARGEST DIFFERENCE: the published figures are an "
+                 "ALL-CAP, EQUAL-WEIGHTED decile, and this book differs on " +
+                 " and ".join(extra) + ".")
+        if served:
+            note += (" INDEX-BOOK measured the live construction directly: "
+                     "+%.4f%%/yr in a Roth, +%.4f%% after tax, +%.4fpp against an "
+                     "equal-weighted basket of its own tier and %+.4fpp against the all-cap "
+                     "equal-weighted universe. Quote those for the live book."
+                     % (served["roth_pct"], served["taxable_pct"],
+                        served["alpha_vs_own_tier_pp"], served["alpha_vs_all_cap_ew_pp"]))
+
+    return {
+        "headline_describes": "all-cap, EQUAL-WEIGHTED top-decile book, no no-trade band",
+        "live_book_applies_band": banded,
+        # UNCHANGED MEANING: the BAND question. Two tests read it as such.
+        "differs": banded,
+        # The two larger differences INDEX-BOOK found this field silent on.
+        "universe_differs": tiered,
+        "weighting_differs": score_weighted,
+        "differs_on": (["no-trade band"] if banded else []) + extra,
+        "one_knob_decomposition_pp_per_yr": {
+            "tier_all_cap_to_10bn": -5.9871,
+            "weighting_equal_to_score": 0.6804,
+            "no_trade_band_0_to_030": -0.8009,
+        },
+        "served_book_measured": served,
+        "note": note,
     }
 
 

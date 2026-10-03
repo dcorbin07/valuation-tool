@@ -19,9 +19,54 @@ import pandas as pd
 HORIZONS = (21, 63, 126, 252)   # ~1m, 3m, 6m, 1y (trading days)
 
 
-def log_picks(store, source: str, run_date: str, tickers: list):
+def log_picks(store, source: str, run_date: str, tickers: list) -> dict:
+    """Log a day's picks. REFUSES a date the market was closed on.
+
+    E10 -- THE LOGGER WROTE ON MARKET HOLIDAYS. `saas/tracker.log_options` dates a row
+    `day or date.today().isoformat()` with no calendar check, so a scan that ran on Labor Day
+    2026-09-07 logged picks for a session that never happened (DELL was the observed one). The
+    same hole is open on `log_hot`, whose `scan_date` is whatever the scan called itself.
+
+    WHY A HOLIDAY ROW IS NOT MERELY UNTIDY. The track's claim is *"if you had followed these
+    picks on this date, here is what happened"*. On a day the market was shut nobody could have
+    followed anything, so the row has no counterfactual behind it -- and `update_returns`
+    measures it from a price index that has no entry for that day, which is `_calendar_index`'s
+    neighbouring hazard in a new place.
+
+    NOTHING IS LOST BY REFUSING. The picks were computed from the previous session's data, and
+    the next real session logs them under that session's date; `save_track_picks` is
+    `INSERT OR IGNORE`, so the normal path is unaffected.
+
+    IT RETURNS THE REFUSAL RATHER THAN RAISING, and that is the load-bearing half. BOTH call
+    sites in `saas/tracker.py` wrap this in a bare `except Exception: pass`, so an exception
+    here would be swallowed and the skip would be indistinguishable from a successful write --
+    the same shape as the `TypeError` that left every horizon reading "accruing" for seven
+    weeks. A caller that wants to know can read `written`; one that does not is no worse off.
+
+    EXISTING HOLIDAY ROWS ARE LABELLED, NOT DELETED. `web/app._track_counts` counts them and
+    the card shows the count, so the record keeps what it recorded and says what it is. This
+    only changes what the NEXT write does.
+    """
+    iso = str(run_date or "")[:10]
+    try:
+        import datetime as _dt
+        from ..screener.market_session import is_trading_day
+        d = _dt.date.fromisoformat(iso)
+    except Exception:                                        # noqa: BLE001
+        # An unparseable date or an unavailable calendar must not stop a legitimate write:
+        # failing OPEN here keeps the record accruing, and the census still reports the row.
+        store.save_track_picks(source, run_date,
+                               [{"ticker": t, "rank": i + 1} for i, t in enumerate(tickers)])
+        return {"written": True, "run_date": iso, "n": len(tickers or []),
+                "reason": "date not checkable against the market calendar"}
+
+    if not is_trading_day(d):
+        return {"written": False, "run_date": iso, "n": 0, "skipped": len(tickers or []),
+                "reason": "%s was not a trading day, so no pick could have been acted on" % iso}
+
     store.save_track_picks(source, run_date,
                            [{"ticker": t, "rank": i + 1} for i, t in enumerate(tickers)])
+    return {"written": True, "run_date": iso, "n": len(tickers or []), "reason": None}
 
 
 def _calendar_index(dates) -> pd.DatetimeIndex:

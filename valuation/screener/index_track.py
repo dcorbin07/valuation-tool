@@ -541,6 +541,28 @@ def vs_spy_claim(window: str = "inception", points: int = 1, meta_path: str = No
     return out
 
 
+def _bc_card(cfg_name):
+    """The config-derived card: the owner preview's, and the research decile's.
+
+    Isolated so a failure here cannot take down the Index's own block, which is the figure a
+    reader actually needs.
+
+    AND IT REPORTS THE FAILURE RATHER THAN RETURNING A BARE `None`. The first cut did return
+    `None`, and an edit three lines away removed the very import this body needs -- so it
+    raised `NameError`, the bare `except` ate it, and every preview silently served
+    `card: None` while looking fine. That is the same shape as the 500 this session opened
+    with (`_store()` undefined behind a handler's own `except`) and the swallowed `TypeError`
+    that left the Track Record tab reading "accruing" for seven weeks. A refusal that cannot
+    be told apart from an absence is not a refusal.
+    """
+    try:
+        from . import backtest_card as _bc
+        return _bc.card(cfg_name)
+    except Exception as e:                                   # noqa: BLE001
+        return {"available": False, "config": cfg_name,
+                "unavailable": "the derived card could not be built: %s" % type(e).__name__}
+
+
 def summarize(config: str = None, meta_path: str = None, history_path: str = None,
               store=None, contract: str = None, today: _dt.date = None) -> dict:
     """Live track + the backtested figures for the same book, side by side.
@@ -554,19 +576,40 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
     # is a UI preference ("which account type do we show first"); this function reports the
     # backtest of the book the RECORD is of, and the two are different books.
     cfg_name = (config or TRACKED_CONFIG).lower()
+    # ITEM 18 -- A NAMED CONFIG IS A PREVIEW, AN UNNAMED ONE IS THE INDEX.
+    #
+    # The public tab sends no `config` (session 74 removed the dropdown and both JS
+    # fallbacks), so the default path is the Index and gets the SERVED measurement. The owner
+    # preview names a config explicitly and must keep getting THAT book's figures -- otherwise
+    # previewing `roth` would silently show the Index's.
+    #
+    # `test_backtest_card` already guards this, and it caught the first cut of this change: it
+    # was written after mutation found that reverting `index_track` to a single card "dropping
+    # the selection and serving roth to everyone" passed the entire suite. Serving the SERVED
+    # card to everyone is the same defect pointed the other way.
+    is_preview = config is not None
     # READ THROUGH TO THE ARTIFACT (MC11). The literals this used to read were the
     # 20%-band figures under a 30%-band label.
     measured = S.measured(cfg_name) or {}
-    backtested = {
+    # ITEM 18 -- EVERY FIGURE AT THIS LEVEL IS THE SERVED BOOK'S.
+    #
+    # These keys used to carry `measured(cfg_name)`, which is the ALL-CAP EQUAL-WEIGHTED decile,
+    # under names a reader takes for the Index's. The renderer's fallback path reads
+    # `net_alpha`, `net_sharpe`, `annual_turnover` and `basis` directly, so leaving the research
+    # decile here would keep one route to the wrong book open even with the card corrected --
+    # and a route that only opens when something else fails is the worst kind to leave.
+    #
+    # `net_alpha` keeps its name and changes its SUBJECT, which is the one case where that is
+    # right rather than the `provider` trap: the renderer's own label for it is "Excess / yr vs
+    # the equal-weighted universe", and for the served book that quantity is measured --
+    # -0.0576pp. The label was always specific; only the book was wrong.
+    from . import index_book_measured as _M
+    backtested = ({
         "net_alpha": measured.get("net_alpha"),
         "net_sharpe": measured.get("net_sharpe"),
         "after_tax_alpha": measured.get("after_tax_alpha"),
         "after_tax_sharpe": measured.get("after_tax_sharpe"),
         "annual_turnover": measured.get("annual_turnover"),
-        # Panel descriptor refreshed 2026-08-08 (P2 crowding memo): this said
-        # "2,710-name / 110-date", the pre-B6 panel, and it ships on the track export.
-        # ONE SPELLING OF THE BASIS (MC10), imported rather than retyped -- two prose
-        # descriptions of one object is how they come to disagree.
         "basis": S.MEASURED_BASIS,
         "weighting": measured.get("weighting"),
         "n_dates": measured.get("n_dates"),
@@ -576,39 +619,67 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
         "source": measured.get("source"),
         "after_tax_sentence": measured.get("after_tax_sentence"),
         "unavailable": measured.get("unavailable"),
-    }
-    # ONE BOOK, TWO TAX TREATMENTS (17-AMEND, Don 2026-10-02). The same construction held in
-    # two kinds of account, so the cost of taxes is a number on the page rather than something
-    # a reader has to infer by differencing two fields in a flat block.
+        # SAYS WHAT IT IS. A preview is not the Index, and a payload that did not distinguish
+        # them is how the Index tab came to publish another book's backtest in the first place.
+        "is_the_served_book": False,
+        "preview_of": cfg_name,
+        "preview_note": ("A PREVIEW of book_configs.%s, not the Valquo Index. The Index serves "
+                         "%s; see `served` for its measured figures."
+                         % (cfg_name, _M.SERVED_CONSTRUCTION)),
+    } if is_preview else {
+        "net_alpha": _M.ALPHA_VS_ALL_CAP_EW_PP / 100.0,
+        "net_sharpe": _M.SERVED_ROTH_SHARPE,
+        "after_tax_alpha": None,
+        "after_tax_sharpe": _M.SERVED_TAXABLE_SHARPE,
+        "annual_turnover": _M.SERVED_TURNOVER,
+        "basis": ("the %s, measured on the %s by %s (%s)"
+                  % (_M.SERVED_CONSTRUCTION, _M.PANEL, _M.STUDY, _M.STUDY_COMMIT)),
+        "weighting": "score-weighted large-cap-tier decile",
+        "n_dates": measured.get("n_dates"),
+        "n_names": measured.get("n_names"),
+        "no_trade_band": measured.get("no_trade_band"),
+        "measured_width": measured.get("measured_width"),
+        "source": "%s (%s)" % (_M.STUDY, _M.STUDY_COMMIT),
+        # `after_tax_alpha` is None ON PURPOSE. `INDEX-BOOK` measured the taxable book's
+        # RETURN and its gap to SPY, not an after-tax excess over the equal-weighted universe,
+        # and filling this with a figure from the research decile is exactly what item 18
+        # exists to stop. None renders as an em dash; a borrowed number renders as a fact.
+        "after_tax_alpha_absent_reason": (
+            "INDEX-BOOK measured the taxable book's return and its gap to SPY, not an "
+            "after-tax excess over the equal-weighted universe"),
+        "after_tax_sentence": _M.block()["taxable"]["below_spy_sentence"],
+        "unavailable": None,
+        "is_the_served_book": True,
+    })
+    # ITEM 18 -- THE BACKTEST BESIDE THE TRACK IS NOW THE SERVED BOOK'S, MEASURED.
     #
-    # NOT A SECOND MEASUREMENT: both legs come from the SAME `measured(cfg_name)` above, and
-    # the delta is their difference. `roth` the CONFIG is retired from every surface; "Roth/IRA"
-    # here is a TAX WRAPPER on the tracked book, which is the whole point of the amendment --
-    # the word used to name a different CONSTRUCTION, and that is what put a 25-name backtest
-    # beside a decile record.
-    _net_a, _tax_a = measured.get("net_alpha"), measured.get("after_tax_alpha")
-    backtested["tax_treatments"] = {
-        "construction": cfg_name,
-        "same_book": True,
-        "note": ("the SAME book in two kinds of account — the construction is identical and "
-                 "only the tax treatment differs"),
-        "roth": {"label": "in a Roth/IRA", "basis": "net of modelled costs, no tax",
-                 "alpha": _net_a, "sharpe": measured.get("net_sharpe")},
-        "taxable": {"label": "in a taxable account",
-                    "basis": "after tax, through the shipped FIFO lot-level engine",
-                    "alpha": _tax_a, "sharpe": measured.get("after_tax_sharpe"),
-                    "sentence": measured.get("after_tax_sentence")},
-        # THE COST OF TAXES, which is the figure the amendment exists to surface. Reported as
-        # None rather than 0.0 when either leg is missing: a missing leg is not a zero tax bill.
-        "tax_cost_pp": (None if (_net_a is None or _tax_a is None)
-                        else round((_net_a - _tax_a) * 100.0, 4)),
-        # PROVISIONAL, AND SAID SO. Both legs are the full-universe equal-weighted decile, not
-        # the served score-weighted large-cap-tier book. r1's INDEX-BOOK measurement of the
-        # exact construction replaces BOTH when it lands; until then this is the nearest
-        # measured construction and `basis` above says how it differs.
-        "pending": ("r1's INDEX-BOOK measurement of the exact large-cap-tier construction; "
-                    "until it lands both treatments use book_configs.%s" % cfg_name),
-    }
+    # Everything above comes from `BOOK_CONFIGS` recomputed off the banked panel, and that
+    # object is the ALL-CAP, EQUAL-WEIGHTED decile -- its own `basis` string says so. The Index
+    # serves the $10B large-cap tier, score-weighted, 8% cap, 0.30 band. So the tab published
+    # +26.15% gross and +19.35% net for a book nobody holds, beside a live curve of the book
+    # they do, and `17-AMEND`'s two tax treatments inherited the same wrong construction.
+    #
+    # `INDEX-BOOK` (r1, 2026-10-02, `ceffd04`) measured the served construction on the same
+    # machinery. `index_book_measured` is the single authority for those figures and carries
+    # the provenance; this function no longer words any of them.
+    #
+    # THE RESEARCH DECILE IS KEPT AND MOVED, NOT DELETED. It is a real, published measurement
+    # and `/proof` legitimately reports it -- as the research decile, labelled, never as the
+    # Index. Keeping it under its own key is what stops the next reader picking whichever
+    # number is nearer to hand.
+    backtested["served"] = _M.block()
+    backtested["research_decile"] = dict(
+        _M.research_block(),
+        # The config-derived figures this function used to publish AS the Index's, kept here
+        # with their own labels so a reader can see they describe a different book.
+        config_net_alpha=measured.get("net_alpha"),
+        config_net_sharpe=measured.get("net_sharpe"),
+        config_after_tax_alpha=measured.get("after_tax_alpha"),
+        config_after_tax_sharpe=measured.get("after_tax_sharpe"),
+        config_basis=S.MEASURED_BASIS,
+        config_source=measured.get("source"),
+        config_card=_bc_card(cfg_name),
+    )
     # THE FOUR LABELLED LINES replace the card's unlabelled "Alpha / yr". They are NOT read
     # from `measured` above: that block's `net_alpha` is an excess over the EQUAL-WEIGHTED
     # universe -- uninvestable, and charged zero cost while the strategy pays -- and its
@@ -620,7 +691,9 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
     # the dropdown, so selecting "taxable" showed the top-25 book's gross beside the decile's
     # after-tax Sharpe -- three objects on one card. `cfg_name` is the selection, so every
     # figure now comes from the book the user actually chose.
-    backtested["card"] = _bc.card(cfg_name)
+    # THE CARD THE INDEX TAB RENDERS IS THE SERVED BOOK'S. `_bc.card(cfg_name)` is the
+    # research decile's and now lives under `research_decile.config_card`.
+    backtested["card"] = _bc_card(cfg_name) if is_preview else _M.card()
 
     gate = gate_state(contract)
     d = load(meta_path, history_path)
