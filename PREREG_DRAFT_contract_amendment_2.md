@@ -1,8 +1,23 @@
 # PREREG_DRAFT_contract_amendment_2.md — proposed Amendment 2 to `PAPER_TRACK_CONTRACT.md`
 
-**STATUS: DRAFT. NOTHING HERE IS IN FORCE.** The signed contract is **not edited** by the change
-that produced this file. This is the correction written down for Don to accept or decline, in the
-form §5a's Amendment 1 established: recorded openly, nothing above it deleted.
+**STATUS: ACCEPTED BY DON 2026-10-04 — IN FORCE AS AMENDMENT 2. See
+`PAPER_TRACK_CONTRACT.md` §5a-2.** All three parts below were moved into the contract unchanged:
+(a) two rows in §5's register, (b) the corrected power paragraph appended to §2, and (c) the
+corporate-action rule appended to §5a. **This file is KEPT, not deleted**, as the record of what
+was proposed and when — which is the point of drafting an amendment rather than editing a signed
+document.
+
+> **ITS ORIGINAL STATUS LINE, PRESERVED because the acceptance is only legible beside what was
+> offered:** *"STATUS: DRAFT. NOTHING HERE IS IN FORCE. The signed contract is not edited by the
+> change that produced this file. This is the correction written down for Don to accept or
+> decline, in the form §5a's Amendment 1 established: recorded openly, nothing above it
+> deleted."*
+
+**ONE THING THE ACCEPTANCE DID NOT CHANGE: §3's PROPOSED TEXT IS NOW THE CONTRACT'S TEXT, so read
+the contract rather than this file for what is in force.** Where the two could ever disagree the
+contract governs; this file is history. The draft's own `<date>` placeholder in (a) resolved to
+**2026-10-04**, and its (b) paragraph is dated by the ACCEPTANCE (2026-10-04) rather than by the
+drafting (2026-10-03) — the measurement it rests on is still `INDEX-BOOK`, 2026-10-02.
 
 **WHAT IT IS ABOUT.** §2's power arithmetic — the sentence that says 60 months runs at 49% power —
 rests on an edge figure that is **the wrong book and gross**. `INDEX-BOOK` (r1, 2026-10-02,
@@ -120,8 +135,11 @@ the row at the time, not re-fetched later.
   demonstrably about a different book, and leaving it there means the contract overstates what
   its own verdict will be able to say.
 
-## 5. IF DECLINED
+## 5. IF DECLINED — NOT TAKEN; Don accepted on 2026-10-04
 
-Then §2 keeps its figure and **this file stays as the record that the discrepancy was measured,
-dated and surfaced** rather than discovered at the verdict. The Index tab's power sentence is
-sourced from the measurement either way, so a reader is not misled in the meantime.
+**This branch did not fire.** Kept verbatim because a recorded alternative is what makes the
+accepted path a choice rather than a default:
+
+> Then §2 keeps its figure and **this file stays as the record that the discrepancy was measured,
+> dated and surfaced** rather than discovered at the verdict. The Index tab's power sentence is
+> sourced from the measurement either way, so a reader is not misled in the meantime.
