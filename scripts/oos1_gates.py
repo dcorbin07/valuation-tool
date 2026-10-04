@@ -148,6 +148,17 @@ def gate_a(root: str, lo: int, hi: int) -> dict:
     }).reset_index()
     monthly = monthly.sort_values(["permno", "ym"])
     monthly["w"] = monthly.groupby("permno")["cap_last"].shift(1)
+    # THE WEIGHT MUST COME FROM THE IMMEDIATELY PRECEDING CALENDAR MONTH, NOT MERELY THE PREVIOUS
+    # ROW. `shift(1)` assumes adjacency, and the banked years are not always contiguous: a stray
+    # 1995 sizing chunk sitting beside 1971-1979 made `shift(1)` hand January 1995 a market cap
+    # from December 1979 -- a 15-year-old weight, silently, on a run that otherwise looked fine.
+    # The full pull is contiguous, so this would have been invisible there and would have fired
+    # on the next partial run instead.
+    mo = pd.PeriodIndex(monthly["ym"], freq="M")
+    prev_mo = monthly.groupby("permno")["ym"].shift(1)
+    gap_ok = (mo - pd.PeriodIndex(prev_mo.fillna(monthly["ym"]), freq="M")).map(
+        lambda x: getattr(x, "n", 0)) == 1
+    monthly["w"] = monthly["w"].where(gap_ok)
     m = monthly.dropna(subset=["ret_m", "w"])
     m = m[m["w"] > 0]
 
