@@ -521,9 +521,36 @@ class TheDisclosureIsInertOnTheBook(unittest.TestCase):
         self.assertEqual(moved, [], "the build changed: %r" % (moved,))
 
         # And the disclosure DID move, or the change did nothing.
-        self.assertNotEqual(
-            json.dumps(b_first.get("headline_scope"), sort_keys=True, default=str),
-            json.dumps(a_first.get("headline_scope"), sort_keys=True, default=str))
+        #
+        # REPOINTED 2026-10-04 (`INDEX-CANDIDATE`), and the guard fired on the first unrelated
+        # edit to this file -- which is what forced the repoint rather than any judgement about
+        # whether it is worth having.
+        #
+        # THE DEFECT: the skip above is keyed on "this file is content-identical to
+        # origin/main", used as a proxy for "the disclosure change is still pending". Once that
+        # change landed, the proxy inverted: ANY subsequent edit to `valquo_index.py` re-arms
+        # the test, and it then demands that the edit move `headline_scope`. A universe-trim
+        # helper and a candidate registry do not touch the disclosure, so a correct, inert
+        # change came back red with a message saying it "did nothing". That is the family this
+        # record names twice -- `MA4`'s guard keyed on a property of the LAYOUT, and `MB31`'s
+        # tripwire asserting "these two numbers are equal today", which fires on the CLOCK.
+        #
+        # THE REPOINT KEEPS EVERY ASSERTION AND MOVES ONLY WHAT DECIDES WHETHER THEY APPLY. The
+        # book-inertness check above has ALREADY RUN against origin/main's own source by the
+        # time we get here, which is the valuable half and now runs on every edit rather than
+        # only on a disclosure edit. What is conditional is the DISCLOSURE half, and it is
+        # conditional on the thing it is about: if `headline_scope` did not move, this edit is
+        # not a disclosure edit and the one-time demonstration has nothing to demonstrate. It
+        # skips LOUDLY with that reason, because a silent skip reads as a pass.
+        _a = json.dumps(a_first.get("headline_scope"), sort_keys=True, default=str)
+        _b = json.dumps(b_first.get("headline_scope"), sort_keys=True, default=str)
+        if _a == _b:
+            print("       (this edit does not touch `headline_scope`, so the one-time "
+                  "disclosure demonstration has nothing to show. The BOOK-INERTNESS assertion "
+                  "above DID run against origin/main's own source and passed.)")
+            self.skipTest("the edit under test is not a disclosure change; book inertness "
+                          "was asserted above")
+        self.assertNotEqual(_b, _a)
 
 
 if __name__ == "__main__":

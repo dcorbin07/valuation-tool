@@ -159,6 +159,63 @@ python -m valuation.edge.valquo_index --full-universe data/backtest \
 
 ---
 
+## 3b. PATH B, ARM 2 — READY BUT OFF (`INDEX-CANDIDATE`)
+
+**Nothing here is adopted, default or published.** This section exists so the decision
+`DECISION_index_choice.md` left open can be taken on **2026-10-20** instead of being designed on
+the 22nd. If Don does nothing, §3 runs and arm 2 is never built.
+
+`DECISION_index_choice.md` settled one of its two questions and left the other open: **"if you
+move, move to arm 2"** is decided on the evidence; **"move at all?"** is Don's call on period
+risk, and nothing available before the 22nd can resolve it.
+
+```
+# Same renewed Sharadar export as §3 -- arm 2 is NOT buildable by the free route (below).
+python -m valuation.edge.valquo_index --candidate liquid-decile \
+       --full-universe data/backtest --out data/valquo_index.json
+
+#    `--candidate liquid-decile` sets: universe = the top 1500 by point-in-time market cap,
+#    then the top decile OF THAT (large-cap floor 0.0, because the trim IS the tier),
+#    score-weighted, 8% cap, exit_frac 0.30.
+#    Verify the printed lines say "CANDIDATE: liquid-decile", "universe 1500 of <N> supplied"
+#    and "NOT ADOPTED, NOT DEFAULT, NOT PUBLISHED".
+
+# Then §5 freshness and §4's append, EXACTLY as for the incumbent -- neither step changes.
+```
+
+**IT REFUSES RATHER THAN APPROXIMATES, AND THAT IS THE ONE THING TO KNOW.** Omit
+`--full-universe` and it raises, naming the measurement: the live-route decile overlaps the
+Sharadar-built decile by **0.2326** against `D9`'s pre-committed **0.60** bar. Pass a `--limit`
+below 1500 and it raises too, rather than building a smaller "top 1500" — a 300-name version of
+this book would carry arm 2's measured return and be a different construction, with a payload
+that looks entirely correct.
+
+**THE FIRST BUILD IS BAND-LESS BY DESIGN.** `--carry-held` is OFF by default for a candidate,
+because the book on disk is the **incumbent's** — a different construction over a different
+universe — so banding a new book against it would hold names arm 2's universe may not contain.
+`INDEX-BEST`'s own first date was band-less for the same reason (`build_index`: *"with no
+previous book there is nothing to hold ... the band's effect begins at the SECOND one"*).
+
+### What changes in the contract
+
+| | |
+|---|---|
+| **vintage** | **EVENT — closes vintage 4, opens vintage 5.** Unlike §3, this *is* a construction change, which `PAPER_TRACK_CONTRACT.md` §5a names outright. Vintage 4 has been open since 2026-08-13; adopting discards the accrued 60-month clock and restarts the horizon **for no statistical gain**. That is the price of moving, and §0's table applies: Path B for the *incumbent* preserves that clock, Path B for *arm 2* does not. |
+| **conformance** | **HOLDS, unchanged.** `CONTRACT_MIN_POSITIONS` is **50** and arm 2's smallest book is **147**, conformant on **69 of 69** dates, so `seed_book` accepts it with no change to the floor. This is the one clear advantage over arm 3, whose 25-name book is refused on every date. |
+| **the gate** | Unchanged and still owed a restart under either path — the operational gate reads *recording*, not returns, and vintage 4 is 44% unrecorded (§0). |
+| **what to record** | The vintage note must name the **construction** and the **theme set in force**, not just "vintage 5". A vintage with no statement of either is unreadable later. |
+
+**WHAT IS PROVED ABOUT THE BUILDER, measured rather than asserted:**
+`python -m scripts.index_candidate_fidelity` replays arm 2's whole 69-date chain through the
+measured driver and (a) reproduces `INDEX_BEST.json`'s banked `roth_net_ann`,
+`annual_turnover` and `realised_one_way_bps` at **max |delta| 0.000e+00** — the gate that the
+shared universe trim moving out of `served_index_book` was inert — and (b) requires the book
+`--candidate` writes for the panel's last date to be **name-for-name** the book the backtest
+formed there. (b) is near-tautological by delegation and that IS the claim; it is proved
+non-vacuous by a perturbed universe (1400 instead of 1500) that must fail to reproduce it.
+
+---
+
 ## 4. THE APPEND — THE SAME FOR BOTH PATHS, AND THE ORDER MATTERS
 
 **Write R's row first, then append the event dated R.** `index_mark.append_rebalance` **refuses

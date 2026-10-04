@@ -40,7 +40,7 @@ import pandas as pd
 
 # Everything imported, nothing retyped (`B7`, `MA5`).
 from ..edge.valquo_index import (build_index, CONTRACT_MIN_POSITIONS, LARGE_CAP_MIN,
-                                 MAX_WEIGHT, MIN_NAMES, TOP_DECILE)
+                                 MAX_WEIGHT, MIN_NAMES, TOP_DECILE, trim_universe)
 from ..edge.no_trade_band import BAND_WIDTH
 
 PER_YEAR = 4.0          # the panel is quarterly; a period is one 63-day forward window
@@ -86,11 +86,15 @@ def book_fn(*, large_cap_min=LARGE_CAP_MIN, weighting="score", top_decile=TOP_DE
         if universe_rank:
             # INDEX-BEST arms 2 and 3: the UNIVERSE is the top `universe_rank` names by
             # `rank_key`, trimmed BEFORE `build_index` sees them. The universe is an INPUT; the
-            # construction stays the live function's (`B7`). Ties are broken by ticker so the
-            # trim is deterministic -- an unstable universe boundary would make the arm
-            # irreproducible run to run for the same reason the trade loop's set iteration did.
-            key = rank_key or (lambda r: r.get("market_cap") or 0.0)
-            rows = sorted(rows, key=lambda r: (-(key(r) or 0.0), r["ticker"]))[:universe_rank]
+            # construction stays the live function's (`B7`).
+            #
+            # THE TRIM ITSELF MOVED TO `valquo_index.trim_universe` (INDEX-CANDIDATE), and it
+            # was moved rather than copied. Arm 2's only difference from the book in force IS
+            # this boundary, so a second copy of it would let the arm be MEASURED here on one
+            # population and BUILT there on another, with both halves correct in isolation and
+            # nothing to compare. The tie-break and the missing-value handling are documented
+            # on the shared function.
+            rows = trim_universe(rows, universe_rank, rank_key=rank_key)
         bk = _ix(rows, large_cap_min=large_cap_min, top_decile=top_decile, top_n=top_n,
                  weighting=weighting, exit_frac=exit_frac, held=sorted(held) or None)
         raw = {p["ticker"]: float(p["weight"]) for p in (bk.get("positions") or [])}
