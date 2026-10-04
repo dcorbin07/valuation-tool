@@ -161,13 +161,25 @@ def gate_a(root: str, lo: int, hi: int) -> dict:
     fr = _french(root)
     j = vw.merge(fr[["ym", "Mkt-RF", "RF", "SMB"]], on="ym", how="inner")
     j["mkt_french"] = j["Mkt-RF"] + j["RF"]
+    sd = float(j["mkt_french"].std())
+    mad = float((j["mkt_ours"] - j["mkt_french"]).abs().mean())
     a1 = {
         "months_compared": int(len(j)),
         "correlation": round(float(j["mkt_ours"].corr(j["mkt_french"])), 6),
         "mean_ours": round(float(j["mkt_ours"].mean()), 6),
         "mean_french": round(float(j["mkt_french"].mean()), 6),
-        "mean_abs_diff": round(float((j["mkt_ours"] - j["mkt_french"]).abs().mean()), 6),
+        "mean_abs_diff": round(mad, 6),
         "p95_abs_diff": round(float((j["mkt_ours"] - j["mkt_french"]).abs().quantile(0.95)), 6),
+        "french_monthly_sd": round(sd, 6),
+        # THE SCALE-FREE NUMBER, and it exists because NO GATE A BAR WAS PRE-COMMITTED.
+        # Declaring one now, having seen the result, would be choosing the bar on the outcome --
+        # which `W-28`'s §6 forbids in the other direction and is no better in this one. So this
+        # reports the disagreement as a FRACTION of the benchmark series' own monthly dispersion
+        # and leaves the threshold to the reader. A ratio near zero means the two series are the
+        # same object; a ratio near one means the comparison carries no information.
+        "mean_abs_diff_over_sd": round(mad / sd, 6) if sd else None,
+        "bar_status": ("NO PRE-COMMITTED BAR. Quote `mean_abs_diff_over_sd` and judge it; do not "
+                       "read a pass/fail verdict into this gate that nobody registered."),
     }
 
     # A2: a crude size spread -- small-cap VW return minus large-cap VW return, median split.
