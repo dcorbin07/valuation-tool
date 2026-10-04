@@ -379,6 +379,28 @@ def gate_b(root: str, lo: int, hi: int, limit: int = 0) -> dict:
 
     r = _per_date_spearman(a, b[["date", "ticker", "comp"]])
     mean_rho = r["mean"]
+
+    # PER-THEME DIAGNOSTIC, NO VERDICT. It localises a disagreement to a theme, which is the only
+    # legitimate next move if the composite gate fails: `W-28`'s §6 forbids relaxing a
+    # pre-committed bar after watching it fail, so the response to a FAIL is to find out WHICH
+    # mapping is wrong, not to widen the bar until it passes. Reported on a PASS too, because a
+    # composite can clear while one theme is badly translated and the others carry it.
+    theme_rho = {}
+    shk = sh.copy(); shk["date"] = shk["date"].astype(str)
+    cpk = cp.copy(); cpk["date"] = cpk["date"].astype(str)
+    cpk = cpk.rename(columns={"ticker": "permno_s"})
+    cpk["permno_s"] = cpk["permno_s"].astype(str)
+    cpk = cpk.merge(tmap[["date", "ticker", "permno_s"]], on=["date", "permno_s"], how="inner")
+    for th in FIVE:
+        if th not in shk.columns or th not in cpk.columns:
+            theme_rho[th] = {"spearman": None, "note": "column absent on one side"}
+            continue
+        aa = shk[["date", "ticker", th]].rename(columns={th: "comp"})
+        bb = cpk[["date", "ticker", th]].rename(columns={th: "comp"})
+        t = _per_date_spearman(aa, bb)
+        theme_rho[th] = {"mean_spearman": t["mean"], "min": t["min"],
+                         "dates_scored": t["dates_scored"],
+                         "rows_compared": t["rows_compared"]}
     return {
         "bar": GATE_B_BAR,
         "mean_per_date_spearman": mean_rho,
@@ -397,6 +419,7 @@ def gate_b(root: str, lo: int, hi: int, limit: int = 0) -> dict:
         "cells_in_sharadar_panel": cells_total,
         "ambiguous_date_ticker_cells_dropped": ambiguous,
         "rows_compared": r["rows_compared"],
+        "per_theme_spearman_DIAGNOSTIC_NO_VERDICT": theme_rho,
         "per_date": r["per_date"],
         "compustat_panel_rows": int(len(cp)),
         "provider_notes": prov.notes,
