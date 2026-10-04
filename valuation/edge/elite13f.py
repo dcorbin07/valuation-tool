@@ -85,6 +85,8 @@ from typing import Optional
 
 import numpy as np
 
+from .bulk import SF3_MANAGER_COLS, SF3_QUARTER_COLS, _first_index
+
 # Pre-committed gate.
 MIN_IC_TSTAT = 2.0
 MIN_COVERAGE = 0.30
@@ -115,8 +117,12 @@ def manager_quality(csv_path: str, fwd_by_ticker_quarter: dict,
         h = next(r, None)
         if not h:
             return {}
-        iT, iM, iS, iD, iV = (h.index("ticker"), h.index("investorname"),
-                              h.index("securitytype"), h.index("calendardate"), h.index("value"))
+        # SF3's manager and quarter columns were RENAMED by the vendor between the 2026-08 and
+        # 2026-10 exports. The tolerance is IMPORTED from `bulk` rather than restated, so the
+        # two readers of this file cannot disagree about what its columns are called (`B7`).
+        iM = _first_index(h, SF3_MANAGER_COLS, "manager")
+        iD = _first_index(h, SF3_QUARTER_COLS, "quarter")
+        iT, iS, iV = h.index("ticker"), h.index("securitytype"), h.index("value")
         for n, row in enumerate(r, 1):
             if row[iS] != security_type:
                 continue
@@ -175,8 +181,12 @@ def elite_conviction(csv_path: str, skill: dict, aum: dict,
         h = next(r, None)
         if not h:
             return {}
-        iT, iM, iS, iD, iV = (h.index("ticker"), h.index("investorname"),
-                              h.index("securitytype"), h.index("calendardate"), h.index("value"))
+        # SF3's manager and quarter columns were RENAMED by the vendor between the 2026-08 and
+        # 2026-10 exports. The tolerance is IMPORTED from `bulk` rather than restated, so the
+        # two readers of this file cannot disagree about what its columns are called (`B7`).
+        iM = _first_index(h, SF3_MANAGER_COLS, "manager")
+        iD = _first_index(h, SF3_QUARTER_COLS, "quarter")
+        iT, iS, iV = h.index("ticker"), h.index("securitytype"), h.index("value")
         for n, row in enumerate(r, 1):
             if row[iS] != security_type:
                 continue
@@ -211,8 +221,12 @@ def manager_aum(csv_path: str, security_type: str = SECURITY_TYPE) -> dict:
         h = next(r, None)
         if not h:
             return {}
-        iM, iS, iD, iV = (h.index("investorname"), h.index("securitytype"),
-                          h.index("calendardate"), h.index("value"))
+        # THE THIRD READER IN THIS FILE, and my first repair missed it because its shape
+        # differs from the other two (no leading `ticker` index). Found by the AST guard, not by
+        # reading -- which is the argument for checking the syntax tree rather than grepping.
+        iM = _first_index(h, SF3_MANAGER_COLS, "manager")
+        iD = _first_index(h, SF3_QUARTER_COLS, "quarter")
+        iS, iV = h.index("securitytype"), h.index("value")
         for row in r:
             if row[iS] != security_type:
                 continue

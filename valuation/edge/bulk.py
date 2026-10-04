@@ -93,6 +93,32 @@ def _f(x):
 # --------------------------------------------------------------------------- #
 #  SF3 — per-manager 13F detail
 # --------------------------------------------------------------------------- #
+#: SF3's SCHEMA CHANGED BETWEEN THE 2026-08 AND 2026-10 EXPORTS, measured on the two freezes:
+#:     2026-08  ticker,investorname,securitytype,calendardate,value,units,price
+#:     2026-10  ticker,investorid,  securitytype,date,        value,units
+#: The manager column was RENAMED (its contents were already 6-char codes in both), the quarter
+#: column was RENAMED, and `price` was dropped. A hard-coded `h.index("investorname")` therefore
+#: raises `ValueError` on the new export -- which is the SAFE direction and is how this was
+#: found -- but it means every 13F-derived signal (`sm_conviction`, `sm_holders`, `sm_breadth`)
+#: stops at the vendor's whim. Both spellings are accepted so the OLD freeze keeps working;
+#: neither is preferred, and a file carrying neither still raises rather than reading as empty.
+SF3_MANAGER_COLS = ("investorname", "investorid")
+SF3_QUARTER_COLS = ("calendardate", "date")
+
+
+def _first_index(header, names, what):
+    """Index of the first of `names` present in `header`, or a NAMED failure.
+
+    A rename must not degrade to "the column is absent, so the signal has no data" -- that is
+    the COVERAGE-RULE family, where an empty column contributes nothing to a theme mean and
+    raises nothing. It raises here, and the message says which spellings were tried.
+    """
+    for n in names:
+        if n in header:
+            return header.index(n)
+    raise ValueError("sf3: no %s column; tried %r, header is %r" % (what, list(names), header))
+
+
 def prepare_sf3(csv_path: str, cache_dir: str = DEFAULT_CACHE_DIR,
                 rebuild: bool = False, security_type: str = "SHR") -> dict:
     """{ticker: {quarter: {"holders": n, "value": v, "conviction": c}}}
@@ -119,7 +145,9 @@ def prepare_sf3(csv_path: str, cache_dir: str = DEFAULT_CACHE_DIR,
         h = _header(r)
         if h is None:
             return {}
-        iM, iS, iD, iV = h.index("investorname"), h.index("securitytype"), h.index("calendardate"), h.index("value")
+        iM = _first_index(h, SF3_MANAGER_COLS, "manager")
+        iD = _first_index(h, SF3_QUARTER_COLS, "quarter")
+        iS, iV = h.index("securitytype"), h.index("value")
         n = 0
         for row in r:
             n += 1
@@ -142,8 +170,9 @@ def prepare_sf3(csv_path: str, cache_dir: str = DEFAULT_CACHE_DIR,
         h = _header(r)
         if h is None:
             return {}
-        iT, iM, iS, iD, iV = (h.index("ticker"), h.index("investorname"), h.index("securitytype"),
-                              h.index("calendardate"), h.index("value"))
+        iM = _first_index(h, SF3_MANAGER_COLS, "manager")
+        iD = _first_index(h, SF3_QUARTER_COLS, "quarter")
+        iT, iS, iV = h.index("ticker"), h.index("securitytype"), h.index("value")
         n = 0
         for row in r:
             n += 1

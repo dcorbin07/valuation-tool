@@ -70,7 +70,13 @@ TABLES = [
 # date the panel is allowed to know something on; `datekey` for SF1 for the same reason.
 DATE_COL = {
     "sf1.csv": "datekey", "sep.csv": "date", "sfp.csv": "date", "sf2.csv": "filingdate",
-    "sf3a.csv": "calendardate", "sf3.csv": "calendardate", "daily.csv": "date",
+    # SF3/SF3A's quarter column was RENAMED `calendardate` -> `date` between the 2026-08 and
+    # 2026-10 exports. A single hard-coded name makes `_scan_csv` report `date_col: None` and
+    # NO DATE RANGE AT ALL for these tables -- which is exactly what the 2026-10 freeze's first
+    # manifest did for SF3, SF3A and the derived institutional.csv. The integrity report going
+    # SILENT on three tables is worse than it failing, so both spellings are tried in order.
+    "sf3a.csv": ("calendardate", "date"), "sf3.csv": ("calendardate", "date"),
+    "daily.csv": "date",
     "actions.csv": "date", "events.csv": "date", "tickers.csv": "lastupdated",
 }
 
@@ -458,8 +464,13 @@ def _sha256(path: str, chunk: int = 8 * _MB) -> str:
     return h.hexdigest()
 
 
-def _scan_csv(path: str, date_col: str) -> dict:
-    """Row count, distinct tickers, and min/max of the date column — one streaming pass."""
+def _scan_csv(path: str, date_col) -> dict:
+    """Row count, distinct tickers, and min/max of the date column — one streaming pass.
+
+    `date_col` may be a single name or a tuple of ALTERNATIVE names tried in order, because the
+    vendor renames columns between exports and a manifest that silently reports no dates is a
+    worse outcome than one that fails.
+    """
     if not os.path.exists(path):
         return {"present": False}
     rows, tick = 0, set()
@@ -471,7 +482,12 @@ def _scan_csv(path: str, date_col: str) -> dict:
         if h is None:
             return {"present": True, "rows": 0, "note": "empty/headerless"}
         it = h.index("ticker") if "ticker" in h else None
-        idt = h.index(date_col) if date_col in h else None
+        _cands = (date_col,) if isinstance(date_col, str) else tuple(date_col)
+        idt, _used = None, None
+        for _c in _cands:
+            if _c in h:
+                idt, _used = h.index(_c), _c
+                break
         for row in r:
             rows += 1
             if it is not None and len(row) > it:
@@ -484,7 +500,8 @@ def _scan_csv(path: str, date_col: str) -> dict:
                     if dmax is None or d > dmax:
                         dmax = d
     return {"present": True, "rows": rows, "tickers": len(tick),
-            "date_col": date_col if idt is not None else None,
+            "date_col": _used,
+            "date_col_tried": list(_cands) if idt is None else None,
             "date_min": dmin, "date_max": dmax, "scan_seconds": round(time.time() - t0, 1)}
 
 
@@ -607,7 +624,7 @@ def stage_manifest(root: str, live_dir: str, derived: dict, reuse_hashes: bool =
         _log(f"  {table}: {rec.get('rows', 0):,} rows  {rec.get('date_min')} .. {rec.get('date_max')}")
 
     for name, date_col in (("fundamentals.csv", "datekey"), ("insiders.csv", "filingdate"),
-                           ("institutional.csv", "calendardate")):
+                           ("institutional.csv", ("calendardate", "date"))):
         p = os.path.join(root, "backtest", name)
         rec = _scan_csv(p, date_col)
         if rec.get("present"):
