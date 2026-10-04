@@ -14244,3 +14244,104 @@ byte-for-byte. `test_paper_track.py` 70/70, `test_scream_log.py` and `test_screa
 **NOT DONE:** the cause of the FDX and JNJ rejections is not recoverable and is not invented;
 no closed row is re-scored or re-opened; and the two rows keep their recorded P&L, which was
 always correct - only the label and the counts were wrong.
+
+
+# SESSION 86 - ITEM 30: A DAILY LIVE CHECK, AND IT FOUND THREE THINGS STILL DEAD
+
+`scripts/live_check.py` exercises every user-facing feature on the live site and exits non-zero
+on any FAIL. **Run once against https://valquo.co on 2026-10-04: 25 passed, 3 failed, 1 skipped.**
+All three failures are real, already diagnosed, and still live - which is the checker doing
+exactly the job it exists for.
+
+## THE THREE FAILURES
+
+| check | number |
+|---|---|
+| `theme contributes: institutional` | **0.00** (want > 0.50) |
+| `theme contributes: insider` | **0.00** (want > 0.50) |
+| `dip measures every eligible name` | **12 of 242**, capped 230 |
+
+The two themes are item 28's subject: the weekly theme-cache job had never once started, so
+`institutional` and `insider` have contributed nothing to the live score for the life of the job.
+`capital_discipline` reads **0.96** and passes, which is worth noting because it shows the
+free-route issuance cache IS working - the hole is specifically the 13F and Form 4 legs the
+theme cache feeds.
+
+The dip shortfall is item 23's two-stage path not yet active: `preselect_available` is `false`
+because the served snapshot predates the `high_prox` column, so depth cannot be read for free and
+the valuation cap bites at 12. **Both failures clear when the jobs run** - the themes workflow
+once, and the next ordinary scan for the dip - and until they do, the checker says so every day.
+
+## WHY THIS EXISTS, AS A MEASUREMENT RATHER THAN A WORRY
+
+Three features were dead on the live service for weeks with a green suite throughout: the Dip
+Detector measured ZERO names for two months while the page said *"no name cleared"*;
+`/admin/score-alerts` answered a bare 500 to its only authorised caller while its suite was 10 of
+10 green because every assertion tested a REFUSAL path; and the theme-cache job had never run.
+**Every one was found by a person using the site.** A suite proves the code does what the code
+says; only the live service can prove the product does anything at all.
+
+## WHAT "FAILS ON BEHAVIOUR, NOT WORDING" MEANT IN PRACTICE
+
+* **An export is judged by its MAGIC BYTES** - `PK` for xlsx, `%PDF-` for pdf, plus a size floor.
+  This app answers `200` with a JSON error body when an export fails, and a JSON error is
+  "non-empty", so a length check would pass a broken export. Driven in the suite with exactly
+  that payload.
+* **A not-found ticker is judged by its STATUS**, because the defect was a `200` carrying score
+  40 and "Reduce" for a company nobody identified - a checker looking only for an error key
+  would have passed it.
+* **The two alert surfaces are compared to EACH OTHER**, never to a number typed into the
+  checker. They disagreed by exactly the 8 rows one was mis-classifying, and a hard-coded 15
+  would go stale the first time a real alert closes.
+* **Freshness is `scan_date == last_closed_session()`** from the project's own market calendar,
+  which knows the holidays - so it does not fail on Thanksgiving the way a weekday test would.
+* **The Index card is RENDERED** through the real `app.js` against a stub DOM, because
+  `undefined` reaching the page is a rendering failure the payload alone cannot show. Node absent
+  means that line reads **SKIP**, not PASS.
+
+## THREE RULES THE FILE OBEYS
+
+**PUBLIC ENDPOINTS ONLY, NO TOKEN** - so the job needs no secret and cannot mutate what it
+checks. **A SKIP IS NOT A PASS** - counted separately, never added to the pass total, with its
+reason on the line; `/api/signals` cannot be checked against market hours on a weekend and says
+so. **STDLIB ONLY** - `urllib`, not `requests`, and the one repo module it imports
+(`market_session`) is stdlib-only too, so the workflow is a checkout and a python run with no
+`pip install` that could fail and be mistaken for the site being down.
+
+## THE SUITE MUST NOT TOUCH THE NETWORK, AND THAT IS NOT A STYLE PREFERENCE
+
+The gate runs every suite on every land. A suite that called valquo.co would make the land depend
+on the site being up - so a deploy outage would read as a code failure and a code failure could be
+dismissed as an outage. Worse, the checker's value is that it is the ONLY thing talking to
+production; if its tests did too, green would stop meaning the logic is right. So `fetch` is
+replaced by a table and `urllib` is blocked underneath, with tests that the block bites and is
+restored. **31 tests**, including one that drives every check against a dead host and requires
+FAIL lines rather than a traceback - a crashed checker and a broken site look the same to a
+scheduler and only one is actionable.
+
+## TWO DEFECTS OF MY OWN IN THE WORKFLOW, BOTH BEFORE IT SHIPPED
+
+**(a) IT RAN THE CHECKER TWICE.** My first cut ran it once for the verdict and again to produce
+the artifact - double load on the live site, and a saved report that could disagree with the run
+that decided pass or fail. Now one run tee'd to a file, with `set -o pipefail` so the exit code
+survives the pipe; without that, `tee` succeeding would land a FAIL as green.
+
+**(b) A REPO VARIABLE COULD HAVE POINTED THE DAILY CHECK AWAY FROM PRODUCTION.** I had the base
+URL default from `vars.SITE_BASE_URL`. Set once to a staging host, the scheduled check would have
+stopped looking at the live site forever and kept passing while it did. The base is now the
+script's own default, overridable **only** by a manual dispatch input.
+
+And one cosmetic defect in the script: a label read `10%%` because that string is an ARGUMENT to
+the reporter rather than a format string, so the doubled percent rendered literally.
+
+## WHERE THE WORKFLOW IS
+
+`data/pending_workflows/live-check.yml`, for `install_workflows.bat` - weekdays **13:45 UTC**
+(fifteen minutes into the session in EDT, after the intraday feed's :23 run) and **23:05 UTC**
+(after the 22:23 scan and the 22:37 doors, still inside the same UTC day, which matters because a
+run after midnight would compare `scan_date` against the next session). The report is uploaded as
+an artifact on success as well as failure, because the numbers on a passing day are what make a
+degradation visible before it crosses a threshold.
+
+**NOT DONE:** nothing here fixes the three failures - they are items 28 and 23 and need the jobs
+to run. The checker is read-only and schedules nothing itself.
