@@ -266,3 +266,199 @@ assumption).
 **NOT written, deliberately:** a draft for S&P 500 additions/deletions —
 `PREREG_DRAFT_w17_spdji_index_events.md` already covers it in event time and has never been
 adjudicated. Rewriting it would be duplication.
+
+---
+
+# OOS1 PREPARATION — WRDS RESTORED, DATA PULLED, THE TWO GATES BUILT (2026-10-04)
+
+**ZERO TRIALS. No register committed, no arm run, no construction scored, and the 1972-1998
+holdout is UNOPENED.** `by_domain` untouched. Don's instruction was the preparation steps that
+cost no holdout look, plus the two gates, and nothing beyond that was taken.
+
+## 0. ONE CONNECTION ATTEMPT, AS INSTRUCTED — IT SUCCEEDED
+
+Connected as `dcorbin` in **5 seconds**, and that single session was used for every sizing query
+rather than opening a second. The account is healthy: the PAM rejection `MC12` recorded is
+resolved by Don's reset and MFA login of 2026-10-04.
+
+**Server-side counts, measured rather than estimated:**
+
+| object | rows |
+|---|---|
+| `comp.fundq`, all | 2,145,041 |
+| `comp.fundq`, 1972-2008 | 1,234,665 |
+| `comp.fundq`, 1972-2008 with non-null `rdq` | 835,478 (**67.67%**) |
+| `crsp_a_stock.dsf`, 1972-2008 | 62,672,078 |
+| `crsp_a_indexes.dsp500list` | 2,064 |
+
+## 1. `dsf` RATHER THAN `msf`, AND THE REASON IS THAT THE FROZEN MODEL STOPS BEING FROZEN
+
+Sized from a REAL pre-2009 year-chunk rather than extrapolated, as instructed: **1995 is
+2,113,712 rows at 18.272 bytes/row compressed**, so 1972-2008 is **~1.07 GB** — affordable.
+
+`msf` was the sanctioned fallback and is **declined on a construction argument, not on size**:
+`high_prox` is proximity to a **252-day DAILY high**. On monthly data it degrades to a 12-month
+approximation, which makes that column a different column — and a frozen model whose columns are
+redefined for the holdout is not frozen. The fallback is recorded as available and unused.
+
+## 2. `dsp500list` CONFIRMS W-17's K1 AT SOURCE
+
+Banked: **2,064 rows carrying exactly `start`, `ending`, `permno`.** Effective dates and **no
+announcement date**. That is precisely `W-17`'s K1 firing condition, now confirmed at the source
+rather than inferred — an index-event study in announcement time is **not buildable from this
+table**, and a successor needs an announcement-date source this account does not have.
+
+## 3. A PROVIDER, NOT A SECOND BUILDER — AND THAT CHOICE IS WHAT MAKES GATE B MEAN ANYTHING
+
+`valuation/edge/compustat_provider.py` implements the provider interface and maps `comp.fundq` +
+`crsp.dsf` onto the field names the **shipped** `build_fundamental_panel` already reads, so the
+22 z-columns are computed by the shipped formulas.
+
+Re-implementing those formulas against Compustat names would have been a second definition of
+the composite — **`B7`'s defect** — and it would have made the gate **uninterpretable**: a low
+rank correlation could then be a vendor difference OR my arithmetic, with no way to separate
+them. **The only surface that can be wrong is the field mapping, and Gate B measures exactly
+that.**
+
+`roe`, `roic`, `assetturnover` and `beta` are deliberately left **ABSENT** so the builder derives
+them, because supplying a vendor value would mean the holdout arm and the training arm used two
+different definitions of one signal — a `B7` split inside the very comparison meant to detect one.
+
+## 4. THE AVAILABILITY RULE IS DECLARED IN ADVANCE, AND THE HOLDOUT-ERA NUMBER IS WORSE THAN THE DRAFT ASSUMED
+
+`rdq` is the announcement date — the thing `co_ifndq` has none of and the reason `fundq` had to be
+pulled at all. **Measured on the banked file, USD + INDL/STD/C/D, per era:**
+
+| era | rows | `rdq` non-null | clears the 70% rule? |
+|---|---|---|---|
+| **holdout 1972-1998** | 741,543 | **0.5899** | **NO** |
+| r1's Sharadar window 1999-2008 | 401,411 | 0.8321 | yes |
+| overlap 2009-2026 | 693,029 | 0.6568 | no |
+
+**The 1972-2008 figure of 67.67% understated the problem for the era that matters: inside the
+holdout it is 58.99%**, so the fallback governs more than 40% of rows. It is declared **before
+any outcome exists**: a null `rdq` becomes usable at `datadate + 90 days`, and every row carries
+`datekey_source`, so the two populations can never be mixed silently. An `rdq` **preceding its own
+period end** is treated as a vendor error rather than an early filing (536 such rows in the
+holdout era) — taking it would be a look-ahead of up to a quarter on exactly those rows.
+
+### 4a. THE SHAPE OF THE SHORTFALL IS THE FINDING, AND IT IS A CONFOUND TO DECLARE
+
+| block | rows | `rdq` |
+|---|---|---|
+| 1970-74 | 34,660 | 0.7718 |
+| 1975-79 | 58,373 | **0.8942** |
+| 1980-84 | 116,960 | **0.5271** |
+| 1985-89 | 166,488 | 0.5076 |
+| 1990-94 | 185,093 | 0.5392 |
+| 1995-99 | 179,969 | 0.6253 |
+
+**Coverage is BEST in the 1970s and collapses in 1980-84 as the row count doubles.** That is not
+a vendor improving over time — it is the opposite, and it coincides with Compustat's coverage
+expanding to many more small firms. **So the hypothesis — and it is a hypothesis, not a
+measurement — is that the `rdq`-versus-fallback split is correlated with FIRM SIZE.** That
+matters because `X3` measured `size` as carrying the composite's entire statistical significance,
+so a size-correlated availability split is a confound OOS1 must report, not a nuisance. **It is
+not measured here and must not be quoted as if it were.**
+
+## 5. A PREMISE CORRECTION AGAINST MY OWN FIRST READING OF THE CENSUS
+
+Five fields sit below the 70% rule in the holdout era: `xrdq` **0.1726**, `oancfy` 0.4017,
+`prstkcy` 0.5350, `capxy` 0.5464, `sstky` 0.5471.
+
+My first reading was that `sstky`/`prstkcy` at ~0.54 might cost `capital_discipline` — **a whole
+theme at 0.2 weight.** **Refuted by reading the source rather than inferring:** `share_issuance`
+is derived in `_yoy()` from **`sharesbas` year-over-year**, which maps to `cshoq` at **0.8709** in
+the holdout era, the second-best-covered field. `sstky`/`prstkcy` feed nothing in the five-theme
+model. **`capital_discipline` is buildable pre-1999.**
+
+What the shortfall does touch: `oancfy`/`capxy` → `fcf`, `fcf_margin`, `accruals_q`, three of
+`quality`'s ten inputs; and `xrdq` → `rnd`, which enters operating profit as
+`op = rev - cor - sgna - rnd` **with an `or 0.0` default that OVERSTATES operating profit when R&D
+is missing.** At 17% coverage that default governs 83% of holdout rows. The z-scoring is
+within-date, so a bias common to every name on a date cancels; it bites only to the extent
+R&D-reporting differs across names within a date, which it does. **Gate B is the instrument that
+detects it, because Compustat `xrdq` is only 0.3085 in the overlap era too.**
+
+### 5a. AND THESE ROW-LEVEL FIGURES ARE NOT PANEL-CELL COVERAGE — THE TELL IS THAT THEY RUN BACKWARDS
+
+For most fields the **2009-2026** era reads LOWER coverage than **1972-1998** (`atq` 0.6641 vs
+0.8150). Coverage cannot plausibly have got worse, so these row-level shares are **diluted by
+rows the panel never scores** — the panel takes one row per firm per rebalance date.
+
+That is `O-1`'s measured lesson, which applied a 75% alert-book figure to the panel and was
+**~17x wrong**, and `W-1`'s rule that coverage must be measured on the population the arm is
+scored on. **So no figure in §4 or §5 may be quoted as the model's coverage.** The real figure
+comes from the built panel and is reported with the gates.
+
+## 6. GATE A — VALIDATED ON THE REAL ERA, AND THE UNIVERSE FILTER IS PART OF IT
+
+Scope declared rather than implied: **A1** the value-weighted market return against French's
+`Mkt-RF + RF`; **A2** a size-sorted spread against `SMB`. **HML/RMW/CMA are NOT replicated**,
+because a disagreement there would be ambiguous between our build and our replication of French's
+method, whereas A1 and A2 are not: if the market return or the size sort disagrees, the prices,
+returns, market cap or universe are wrong and nothing built on them is worth running.
+
+**The universe filter is part of the gate, not a refinement.** French's market factor is ordinary
+common shares (`shrcd` 10/11) on NYSE/AMEX/Nasdaq (`exchcd` 1/2/3), dated through the CRSP name
+history. Raw `dsf` carries ADRs, REITs and closed-end funds, and A1 would then disagree **for a
+reason that is not a defect in the build** — reading as a failure of the data when it was a
+failure of the comparison. Routed through the provider so the gate and the holdout build share
+ONE universe definition (`B7`).
+
+**Measured on the banked early chunks:**
+
+| window | months | A1 correlation | A1 mean abs diff | A2 corr vs SMB |
+|---|---|---|---|---|
+| 1971-1972 | 23 | **0.999998** | **0.000045** (4.5 bp/month) | **0.974455** |
+| 1995 | 11 | 0.999998 | 0.000035 (3.5 bp/month) | 0.826454 |
+
+**The CRSP market return reproduces French's to within a few basis points a month in the holdout
+era.** A2's median split is not French's 2x3 NYSE-breakpoint construction, so its level is not
+expected to match and the correlation is the check; it is stronger on 23 months than on 11, as a
+noisier short window should be.
+
+One month per window is lost by construction: the market weight is the **prior** month's cap,
+because weighting by the same month's cap is a look-ahead that mechanically overweights whatever
+rose. The full run recovers it from the preceding year.
+
+## 7. A DEFECT OF MY OWN, AND ITS DIRECTION IS THE REASON IT MATTERS
+
+The French loader divided by 100, because French's website publishes percent. But
+`scripts/fetch_factors.py` **had already converted** — the parsed CSV stores `-0.0039` — so the
+second division made the **1995 market return 0.03%/yr against a true ~37%.**
+
+Gate A then read **correlation 0.999998 beside a 2.86pp mean absolute difference**, and the
+honest reading of that pair is not "it nearly passes": **it would have reported a level failure of
+a CRSP build that is correct, blaming the data for my arithmetic.** Caught by disbelieving a
+number — a 0.03% market return in a year the index rose 37% — rather than by anything raising.
+
+**The conversion is replaced by a REFUSAL.** Guessing the units is what went wrong, and both
+guesses produce a clean, plausible, confidently wrong number; a loader that cannot tell percent
+from decimal should stop. Pinned **non-vacuously in both directions**: the real decimal file must
+be ACCEPTED and a percent-scaled copy of it must be REFUSED.
+
+## 8. WHAT IS READY, AND WHAT REMAINS
+
+**READY:** WRDS access; `comp_fundq` banked (**56 chunks, 0.27 GB, 2,085,986 rows, 16 min**),
+including `piq` and `xrdq`, which a first pass omitted and which feed `roic`'s effective tax rate
+and operating profit — a missing input would have made Gate B uninterpretable, so the pull was
+re-run rather than patched; `crsp_dsp500list` banked; `crsp_stocknames` already banked (83,280
+rows, 38,872 permnos, 1925-2024, dated `ncusip` 93.46%); the provider, both gates, **54 tests, 4
+of 4 mutations caught with sources restored byte-for-byte**; Gate A validated on the real era.
+
+**RUNNING:** `crsp_dsf` 1971-2024. **Gate A's full run and Gate B both wait on it** — Gate B
+needs the 2009-2024 years to build the overlap panel. Resume with
+`python -m scripts.oos1_gates --gate both`.
+
+**THE ONE FURTHER PULL OOS1 NEEDS, named so it is not discovered later:**
+**`crsp_a_stock.dsi`**, which carries `vwretd` and `sprtrn` — the charter's **S&P 500 total
+return** benchmark for the pre-SPY era. It is a small table and is **NOT banked.** The
+value-weighted index the provider builds from `dsf` is a **build-internal stand-in that no gate
+statistic reads**, present only so the builder can run; **using it as the holdout benchmark would
+be a deviation**, and that is stated in its own docstring and pinned by test.
+
+**NOT DONE, named so it is not mistaken for done:** no register committed; no arm; **no
+construction scored on 1972-1998**; the $10B threshold question OOS1 §1a calls its hardest
+problem is untouched; the panel-cell coverage figures of §5a are not yet measured; and the
+size-correlation hypothesis of §4a is a hypothesis.
