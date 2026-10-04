@@ -15,10 +15,31 @@ import sys
 
 import pandas as pd
 
-sys.path.insert(0, r"C:\Users\donni\Downloads\valuation-tool\.claude\worktrees\scout-research-reset")
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(HERE)
+sys.path.insert(0, REPO)
 
 RAW = r"D:\wrds"
-OUT = r"C:\Users\donni\.claude\jobs\80d5c569\tmp\fundq_census.json"
+
+
+def _data_root():
+    """The PRIMARY populated data root, never the worktree's empty one.
+
+    `E-5` recorded this failure twice: an artifact written by a worktree-run script does not
+    survive the worktree, and every register reading a prior item's artifact inherits that.
+    """
+    d = REPO
+    for _ in range(6):
+        if os.path.isdir(os.path.join(d, "data", "free_analysis")):
+            return os.path.join(d, "data", "free_analysis")
+        nxt = os.path.dirname(d)
+        if nxt == d:
+            break
+        d = nxt
+    raise SystemExit("REFUSING: no populated data root found")
+
+
+OUT = os.path.join(_data_root(), "OOS1_FUNDQ_CENSUS.json")
 ERAS = {"holdout_1972_1998": (1972, 1998),
         "r1_sharadar_1999_2008": (1999, 2008),
         "overlap_2009_2026": (2009, 2026)}
