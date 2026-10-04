@@ -14635,3 +14635,129 @@ dependency.
 suites that import the changed modules, and 6 of 6 doc/policy suites.** `scripts/live_theme_sources.py` (`head_published`,
 `download_dataset`), `scripts/theme_cache_build.py` (`newest_published_periods`, `main`),
 `tests/test_theme_cache_throttle.py`.
+
+
+# SESSION 89 - ITEM 32: REFUSING WAS RIGHT AND STILL WROTE NOTHING
+
+Run **37237240057** got further than any theme run ever has: all three shards plus the Form 4
+crawl - **1,500 names, 14,504 documents, ~11 minutes** - SUCCEEDED, and then the assemble step
+hit a 429 on the 13F data set and exited 4 with *"CANNOT DETERMINE: SEC refused the publication
+probe (rate-limited)"*. **The refusal is correct and it is not enough**: on GitHub's shared
+runner IPs it means the job may never complete, which trades a wrong cache for NO cache - and
+with no cache `institutional` and `insider` contribute **nothing at all**, which is the 0.00 the
+live check has been reporting.
+
+## A PREMISE CORRECTION ON (1), MEASURED BEFORE ANY CODE WAS WRITTEN
+
+The item asks for the 13F set to be probed and downloaded **first, before the Form 4 crawl spends
+the SEC rate budget**. **IT ALREADY IS.** `main()` calls `build_13f` at line 999 and `fetch_all`
+at 1018 - about twenty lines apart, in the shard step too.
+
+**And the ordering is not where the budget goes.** The three shards crawl 14,504 documents over
+~11 minutes and the **assemble job starts afterwards**, so its 13F probe is first *within its own
+job* and still arrives after eleven minutes of three-way hammering. **Re-ordering inside one job
+cannot fix a budget spent across jobs**, and a cosmetic re-order would have looked like a fix.
+
+**WHAT ACTUALLY FIXES IT IS NOT ASKING.** `13f_aggregate.json` **travels** from the shards to the
+assemble job in the artifact - only the zips are excluded, for size - so when the shards have
+already built the window assemble needs, **the answer is on disk**. An aggregate exists only
+because an earlier step downloaded and aggregated that window, which means SEC served it. So
+`aggregate_covers()` now skips the probe entirely in that case: `build_13f` would skip the
+*download* anyway, and this skips the *confirmation* too. **Zero SEC requests on the common warm
+path.**
+
+## (4) THE TWO "as of" VALUES WERE BOTH CORRECT AND THE LABEL WAS WRONG
+
+The shard printed `as of 2026-07-01` and assemble printed `as of 2026-10-04`. **Neither is a bug
+in a date source.** Stepping back a quarter is implemented by **moving the clock** - `as_of - 95
+days` - and re-deriving, so after one step back on 2026-10-04 the field reads **2026-10-04 minus
+95 days = 2026-07-01 exactly**. The shard stepped back once (and confirmed `31-MAR-2026`); the
+assemble step's probe was throttled before it stepped anywhere, so its field still read today.
+
+**The field means "the clock these periods were DERIVED from" and was being read as "today".**
+Both now travel: `as_of` keeps its meaning and `run_as_of` carries the job's own clock, printed
+side by side whenever they differ.
+
+## (2) PATIENT, AND ONLY WHERE IT CAN BE AFFORDED
+
+SEC throttles for roughly **ten minutes**. The module default spends `5s + 10s` and gives up after
+about **fifteen seconds**, which is the whole reason the run quit. The dataset now gets its own
+policy - **6 attempts, 30s doubling to a 300s cap, up to ~12.5 minutes** - which covers the
+observed cool-off with margin.
+
+**IT IS NOT RAISED GLOBALLY, and that is deliberate rather than cautious.** `MAX_ATTEMPTS` governs
+every per-ticker fetch in the crawl - 1,500 names across three legs - so a patient policy there
+would turn one throttled run into a job that never finishes inside its timeout. The data set is
+**two requests** and is the one thing the build cannot proceed without, so it is the only place
+worth waiting out a cool-off. The probe and the download share **one** policy function, because a
+run that waits out a cool-off on the HEAD and then gives up after fifteen seconds on the GET has
+spent the wait and thrown away the answer. A patient caller still spends the same circuit-breaker
+budget: being patient must not also mean being exempt from the thing that stops a run banking a
+partial census.
+
+## (3) A LABELLED FALLBACK BEATS WRITING NOTHING
+
+If the derived window cannot be confirmed, the run now falls back to **the most recent window
+that WAS confirmed published** and labels the cache **`13F one quarter stale`**.
+
+**THE FALLBACK IS A CONFIRMED WINDOW, NEVER A GUESSED ONE** - which is the difference between
+this and relaxing the refusal. Two sources, newest first: a window this run's own probe confirmed,
+and the window of the aggregate already on disk. The second is the one that fires, and it is not a
+guess either: **the aggregate exists because SEC served that window**, and on the sharded workflow
+it is precisely the window the crawl shards confirmed. **So the fallback costs no SEC request at
+all** - which is why it beats "probe one quarter older": a probe can be throttled and a file
+cannot.
+
+**THE STALENESS TRAVELS IN THE CACHE, not only in the log.** It is appended to `periods_source`,
+which is what `live_themes.py` reads, so a consumer cannot see the columns without seeing that
+they are a quarter behind. A staleness recorded only in a log line is one nobody downstream can
+act on.
+
+**AND WITH NOTHING CONFIRMED IT STILL REFUSES** (exit 4), because inventing a window would be the
+conflation item 28 removed one level up. Four genuine 404s still report `unpublished`.
+
+## `--dry-run` NOW SAYS WHAT A REAL RUN WOULD DO
+
+`WOULD REFUSE` / `WOULD BUILD, LABELLED: 13F one quarter stale` / `WOULD BUILD from the derived
+window`. That is the thing a dry run is for and it did not say it - and it is also the seam the
+suite asserts on, because once the fallback makes the run **proceed** it goes on to fetch prices
+from a live vendor, which a test must not do. The decision is fully determined before that point.
+
+## FOUR DEFECTS OF MY OWN, AND MUTATION FOUND THREE OF THEM
+
+**(a) THE FALLBACK SILENCED THE DIAGNOSIS.** My first cut fell back correctly and **stopped saying
+why**, because the `CANNOT DETERMINE` line keys on a flag the fallback dict does not carry. Falling
+back quietly is the same shape of defect as reading a 429 as "not published". The flags are now
+captured before the fallback replaces them.
+
+**(b) MY TESTS DEPENDED ON THE AMBIENT TREE.** The fallback reads `13f_aggregate.json` from
+`M.DEFAULT_ROOT`, so two tests turned into ERRORS on a machine with a populated cache and would
+have stayed green on a bare runner. **A test whose verdict depends on the ambient tree is measuring
+the tree.** The root is redirected to a temp dir and the on-disk window is now an explicit
+parameter.
+
+**(c) THE MOST IMPORTANT TEST DID NOT EXIST, AND MUTATION PROVED IT.** Making the refusal fire
+**unconditionally** left the suite green - because every fallback test used `--dry-run`, which
+returns *before* the refusal. So nothing checked the one thing the item is about. It is now driven
+as a **real run with the three heavy legs stubbed**: the stubs are the work, the decision is
+untouched, and it asserts both that the run does not refuse and that `13F one quarter stale`
+reached `periods_source`.
+
+**(d) Two further gaps mutation found:** nothing asserted `download_dataset` is patient *by
+default* (the default is what the failing run took), and the probe-confirmed fallback branch was
+untested. That branch is **unreachable through `main()`** - a confirm ends the walk - which its own
+docstring says, so the mutation's survival was **no evidence** about the guard; it is tested
+directly rather than left as dead code.
+
+**10 of 10 mutations caught with sources restored byte-for-byte; 40 tests, zero skips; 12 of 12
+suites that import the changed modules** - selected by import rather than by filename keyword,
+which is the lesson from the last land.
+
+## WHAT IS NOT VERIFIED, AND IT IS THE HONEST LIMIT
+
+**Whether the 2026 windows are genuinely published is STILL UNKNOWN.** Every reading of them has
+come back throttled, which is the point. What changes is that a throttled run now **waits ~12
+minutes, then builds from the last confirmed window and says so**, instead of writing nothing.
+**Don needs to re-run the themes job**, and after the next hot scan the live check should report
+`institutional` and `insider` above 0.50. `scripts/live_theme_sources.py`,
+`scripts/theme_cache_build.py`, `tests/test_theme_cache_throttle.py`.
