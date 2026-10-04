@@ -20164,3 +20164,258 @@ moved off `INDEX-BEST`'s 25, a local `ols_nw`, and arm 4 carried in.
 `scripts/index_choice_buildable.py`, `scripts/index_choice_factors.py`,
 `tests/test_index_choice.py`; `data/free_analysis/INDEX_CHOICE_SPLIT.json`,
 `INDEX_CHOICE_BUILDABLE.json`, `INDEX_CHOICE_FACTORS.json`, `INDEX_BEST_LIQ_FIDELITY.json`.
+
+---
+
+# N1 — the small/mid-cap band book, as a DESCRIPTION (2026-10-03)
+
+**ZERO TRIALS, `INDEX-BOOK`-class DESCRIPTION, exactly as `FREE_KILLS_RESULTS.md` specifies:**
+*"Not a register — an `INDEX-BOOK`-class DESCRIPTION of N1's band book, at ZERO trials, first."*
+One construction, every knob **already frozen by the census** (cap < $5B, ADV > $5M,
+score-weighted, 8% cap, 0.30 band, quarterly), run as a description with **NO VERDICT**.
+`by_domain` is **bit-identical** — equity **258**, options 310, infra 20 — while
+`rows_fixed_not_counted` rises **88 → 89**. **ADOPTS NOTHING.**
+
+**WHY ZERO TRIALS:** `INDEX-BOOK`'s own reasoning — *"re-measuring a KNOWN construction on a KNOWN
+panel selects nothing"*. No hypothesis, no bar, no second arm. **Both knobs were fixed by
+`FREE_KILLS_CENSUS.json` before any return existed**, which is what keeps this one construction
+rather than a 9-cell grid: that census swept the grid for **buildability only** and never touched
+a return.
+
+## The answer to Don's question: the premium is reachable, and it is mostly a size bet
+
+`INDEX-BOOK` measured **−4.1785pp/yr** sitting in the part of the universe the served $10B book
+declines to hold, for a capacity reason a Roth does not have.
+
+| | N1 band book |
+|---|---|
+| **net return, Roth (net of cost, no tax)** | **+25.75%/yr** |
+| SPY, same 69 dates | +15.23%/yr |
+| **over SPY** | **+10.52pp** |
+| early half vs SPY / late half vs SPY | **+5.99pp / +15.44pp** |
+| Sharpe | 1.038 |
+| max drawdown | **−29.66%** |
+| annual turnover | 2.2515 |
+| realised cost | **32.80 bps one-way** (drag 1.77pp/yr) |
+| book size min / median / max | **50 / 62 / 79** |
+| **contract-conformant** | **69 of 69 dates** |
+| taxable after-tax | +18.66% (tax cost **7.09pp**, 78.6% short-term) |
+| eligible names per date | 505 / 620 / 791 |
+
+**IT IS THE ONLY ONE OF THE FOUR BOOKS THAT IS CONTRACT-CONFORMANT ON EVERY DATE *AND* CLEARS SPY
+BY DOUBLE DIGITS** — the incumbent is conformant on 44 of 69, arm 3 on 0 of 69.
+
+## Three things that keep it from being an answer, and the third is the real one
+
+1. **The most volatile of the four**: max drawdown **−29.66%** against the incumbent's −23.03%,
+   and a tracking error against SPY of **16.78 pp/yr**.
+2. **Its own +10.52pp sits BELOW its 80%-power detection threshold of +12.14pp** (HAC *t* +2.62,
+   paired se 0.01069/period). **N1's own draft printed that expectation before any run** — at this
+   tracking error a 2pp edge needs ~30 years and the panel is 17 — and it is confirmed. Every
+   critical value here is **UNCALIBRATED**: this changes the row set, so it is not a paired
+   within-panel difference and `V2G`/`R1-VAR`'s warning is replaced by the harder problem of
+   comparing two books on two universes. No bar is invented.
+3. **IT IS OVERWHELMINGLY A SIZE BET: SMB +1.133 at *t* +3.09**, the largest loading of any book
+   measured in this sequence and nearly twice arm 2's +0.635. FF5+MOM intercept +11.06%/yr at
+   *t* +2.733, R² 0.8417, MKT +1.030, HML +0.335 (*t* +1.96), UMD +0.066 (ns). **`R1`'s re-run on
+   the corrected panel found SMB NOT significant for the long-short spread (+0.208, *t* +1.39)**,
+   so this book leans hardest on a factor premium this project has not itself demonstrated. The
+   +10.52pp reads as *mostly a small-cap exposure that paid over this window*, not as selection.
+   **The draft demanded exactly this disclosure and it is honoured rather than buried.**
+   **No alpha claim is made** — this is a description with no bar, so the intercept is reported as
+   a decomposition and is not called alpha.
+
+**And it inherits the same 2026-10-22 blocker as arms 2 and 3**: it is built from the same
+composite, so `D9`'s 23% / 12% live-route overlap applies to it too.
+
+## Placed beside the three options
+
+`DECISION_index_choice.md` now carries a **fourth column in italics**, with every un-measured cell
+reading *"not measured"* rather than blank, plus an appendix. **It is explicitly NOT one of the
+three options** — it was not name-split, it has no verdict, and the memo says so in terms.
+
+## Controls
+
+* **THE CONTROL REPRODUCES THE CENSUS EXACTLY: eligible 437 / 506.5 / 625 over 64 dates**, against
+  the census's published 437 / 506.5 / 625. That is what makes this universe builder the census's
+  rather than a lookalike, and it took all three of the census's choices to get there (below).
+* **The band is READ from `FREE_KILLS_CENSUS.json`, never retyped**, and `frozen_band()` ASSERTS
+  the census's own `band_used` key — so if the census's chosen band ever changes this fails rather
+  than silently scoring a different universe. Mutation-tested.
+* **Two populations are reported under separate keys and never conflated.** The census counted
+  **RAW** panel rows; the book can only hold names it can RANK, so its universe is the **SCORED**
+  rows. On this band they happen to coincide (505/620/791 both ways on SEP), and reporting one
+  figure for both would have hidden that they are different questions.
+* **`adv_sep.adv_series`, `by_cell` and `factor_alpha`'s `ols_nw`/`regress`/`factor_windows` are
+  CALLED, not reimplemented** (`B7`), and the window is `adv.ADV_WINDOW_SESSIONS` — one definition
+  of the live screen's 60 sessions. `R1`'s alignment control reproduces `R1` exactly: SPY on MKT
+  beta **0.9327**, R² **0.9878**.
+* **A name with no observable ADV is EXCLUDED, never admitted** — 636 row-exclusions in total,
+  median 3 per date, counted rather than absorbed. Admitting them would make the floor a
+  data-availability screen that fails OPEN, which is `S10`'s and `D6`'s warning.
+
+## THE DEFECT THAT MATTERED, and the control caught it
+
+**The first run did not reproduce the census — median 501 against 506.5, min 405 against 437, max
+645 against 625 — and the cause was mine, in three parts.**
+
+**`adv_sep.pit_adv_at` walks back to the last session strictly before the date WITH NO BOUND.**
+CRSP's ADV ends **2024-10-23**, so on the panel's five 2025-26 rebalance dates the walk-back
+cheerfully returned an ADV **up to fifteen months stale** — and because the walk-back always found
+*something*, those dates read as covered. That is the vendor-cut-masquerading-as-coverage family:
+`W-3b`'s lesson, and `W-28`'s defect (a) in a new instrument. **It is also why the census excluded
+those five dates rather than walking into them.**
+
+Reproducing the census needed **all three** of its choices, and I had none of them:
+
+| | census | my first run |
+|---|---|---|
+| ADV lookup | **exact cell** | unbounded walk-back |
+| population | **raw panel rows** | the scored subset |
+| dates | **64** (5 post-cut excluded) | all 69, 68 of them "covered" |
+
+Fixed by adopting all three: an **exact-cell** lookup (which also needs no staleness parameter a
+successor could quietly widen), the raw-row population for the census leg, and the five excluded
+dates **read from the census artifact** rather than retyped. **The control then passes exactly.**
+
+**THE INSTRUMENT CHOICE IS A CONSEQUENCE OF THAT, AND BOTH READINGS SHIP.** The census's own note
+names MC9's SEP ADV as *"the natural substitute"* because it runs to 2026. A figure that must sit
+beside the three 2026-10-22 options has to span the same 69 dates they do, so **SEP is the primary
+and CRSP is the 64-date cross-check**: CRSP gives **+27.99%/yr, +12.82pp over SPY**, a **smaller
+book (44/51/62) and 26 dates below the contract minimum**. So the instrument changes the book size
+and hence conformance — which is itself worth knowing and is why both are reported.
+
+## A second defect of my own, and a gap in my own fixture
+
+* **A double-count in the eligible census.** One `counts` list was shared by the Roth and taxable
+  passes, so it reported **138 dates on a 69-date panel**. Median, min and max were unaffected
+  (the same values twice), but the date count was wrong; the census now takes its own pass.
+* **A MUTATION ESCAPED AND THE FIXTURE WAS THE REASON.** Truncating the census population to
+  `.head(10)` per date was **not caught**, because my fixture had three rows per date — a
+  truncation smaller than nothing. Widened to 30 rows per date with the eligible names at the
+  **end**, so a truncation reads zero. **A fixture smaller than the defect it is meant to catch is
+  not a fixture**, and it was found by mutation rather than by reading.
+* **Two of my own guards fired against a correct tree, for the third time in this sequence** —
+  both searched a raw substring in a **hard-wrapped** source where the phrase straddles a line
+  break. Both now normalise whitespace.
+
+## NOT DONE
+
+* **No verdict, no bar, nothing adopted.** A test asserts that no return is compared against
+  anything anywhere in the script.
+* **No name split, no capacity figure, no paired comparison against the three options** — the
+  memo's cells say *"not measured"* rather than being left blank.
+* **No grid.** The census swept nine bands for buildability; exactly one is scored here, and its
+  two knobs are read from the artifact.
+* **`N2`, `N4`, `N5`, `N6`, `N7` are not run**, and this says nothing about them beyond the one
+  thing `FREE_KILLS_RESULTS.md` said it would: the band book does beat SPY net of cost, so the
+  small-cap thesis is not refuted at the first hurdle.
+* **The `statsumu` (unadjusted) IBES question is untouched** — not this item's.
+
+**19 tests, zero skips; 6 of 6 mutations caught with sources restored byte-for-byte** — the ADV
+lookup reverted to the walk-back, a missing ADV admitted, the floor flipped to `>=`, the ceiling
+flipped to `<=`, the census band assertion dropped, and the census population truncated.
+
+`scripts/n1_band_book.py`, `valuation/studies/served_index_book.py` (`universe_filter` hook, opt-in
+and inert), `tests/test_n1_band_book.py`, `DECISION_index_choice.md`;
+`data/free_analysis/N1_BAND_BOOK.json`, `N1_SEP_ADV_CELLS.pkl`.
+
+---
+
+# SHARADAR RENEWED, FREEZE TAKEN — AND THE VENDOR CHANGED SF3's SCHEMA (2026-10-04, `SHARADAR-2026-10`)
+
+**ZERO TRIALS, `FIXED`-class** — two correctness repairs and a data pull, no hypothesis, no bar,
+no verdict. `by_domain` bit-identical at equity **258**, options 310, infra 20.
+
+## The freeze
+
+`python -m valuation.edge.sharadar_freeze --stage all`, all ten tables, full SF1 all dimensions,
+into `data/backtest_freeze_2026-10/`. **All ten pulled 2026-10-04. Newest date per table:**
+
+| table | rows | tickers | date column | range |
+|---|---|---|---|---|
+| ACTIONS | 715,916 | 31,206 | date | 1997-12-31 .. **2026-10-06** |
+| TICKERS | 74,326 | 44,240 | lastupdated | 2008-01-02 .. **2026-10-03** |
+| SEP | 45,394,106 | 20,997 | date | **1997-12-31** .. 2026-10-02 |
+| DAILY | 39,854,661 | 17,480 | date | 1998-12-01 .. 2026-10-02 |
+| SF1 | 3,218,057 | 17,858 | datekey | **1990-06-06** .. 2026-10-02 |
+| SF2 | 11,570,121 | 12,252 | filingdate | 2008-01-02 .. 2026-10-02 |
+| SFP | 15,698,452 | 9,959 | date | 1997-12-31 .. 2026-10-02 |
+| EVENTS | 2,533,258 | 17,845 | date | 1993-11-08 .. 2026-10-02 |
+| SF3 | 81,221,241 | 31,205 | date | **2013-06-30** .. 2026-09-30 |
+| SF3A | 674,259 | 31,205 | date | **2013-06-30** .. 2026-09-30 |
+| *fundamentals.csv* | 232,469 | 3,520 | datekey | 1993-12-22 .. 2026-10-02 |
+| *insiders.csv* | 6,688,777 | 3,093 | filingdate | 2008-01-02 .. 2026-10-02 |
+| *institutional.csv* | 133,491 | 3,470 | date | 2013-06-30 .. 2026-09-30 |
+
+**All six substantive checkpoints PASS**, including AAPL 2015Q2 point-in-time market cap at
+**$722.6B** against the expected ~722.6, fundamentals 232,469 rows over 3,520 tickers, and 3,747
+price files with the SPY benchmark present.
+
+**SF1 REACHING 1990-06-06 AND SEP 1997-12-31 IS WHAT MAKES THE 1999-2008 OUT-OF-SAMPLE PANEL
+BUILDABLE FROM SHARADAR ALONE**, and **SF3/SF3A starting 2013-06-30 is the measured confirmation
+that `institutional` cannot be built before 2013** — both load-bearing for that test.
+
+## DEFECT 1 — THE VENDOR RENAMED SF3's COLUMNS, AND IT CRASHED THE FREEZE
+
+Measured on the two freezes side by side:
+
+```
+2026-08   ticker,investorname,securitytype,calendardate,value,units,price
+2026-10   ticker,investorid,  securitytype,date,        value,units
+```
+
+The manager column renamed — **its contents were already 6-char codes in BOTH, so nothing about
+the data changed** — the quarter column renamed, and `price` dropped. `prepare_sf3`'s
+`h.index("investorname")` raised `ValueError` and the freeze stopped in the prepare stage.
+
+**THAT IS THE SAFE DIRECTION AND IS HOW IT WAS FOUND.** The dangerous version of the same event
+is a rename that makes a column read as ABSENT — then a 13F signal contributes nothing to a theme
+mean and nothing raises, which is the COVERAGE-RULE family this record has been bitten by four
+times. Both spellings are now accepted, **the old one first** so the 2026-08 freeze keeps working
+(a freeze on disk is the only copy of data that cannot be re-pulled), and **a header carrying
+neither still RAISES with a message naming what it tried**.
+
+**IT WAS FOUR READERS, NOT ONE, AND MY OWN GUARD FOUND THE LAST TWO.** `prepare_sf3` has two
+passes, and `elite13f.py` has **three** — I repaired two of those by pattern and **missed the
+third because its shape differs** (no leading `ticker` index). The AST guard caught it. The
+tolerance is declared **once**, in `bulk`, and `elite13f` imports it (`B7`), so two readers of one
+file cannot disagree about what its columns are called.
+
+**ALSO MEASURED: `daily.csv` and `events.csv` have IDENTICAL headers** and are 7.5 MB and 0.2 MB
+smaller than the live copies, so those two are vendor restatement rather than a schema change.
+**`sf3.csv` is 13.7 MB smaller BECAUSE `price` was dropped** — 81.2M rows each shedding a field,
+against more rows than before. The freeze tool's three `SHORT vs live` flags are therefore
+attributed rather than waved at, and no checkpoint failed.
+
+## DEFECT 2 — AND IT IS THE WORSE ONE: THE FREEZE'S OWN INTEGRITY REPORT WENT SILENT
+
+`sharadar_freeze.DATE_COL` hard-coded `calendardate` for SF3 and SF3A, so the first 2026-10
+manifest reported **`date_col: None` and NO DATE RANGE AT ALL for SF3, SF3A and the derived
+institutional.csv** — three of thirteen objects, with no error. **A report that goes quiet on
+three tables is strictly worse than one that crashes**, because the crash is self-announcing and
+the silence reads as "nothing to say".
+
+Repaired to try alternatives, and `_scan_csv` now records **`date_col_tried`** when it finds
+nothing, so a future rename leaves evidence instead of a `None`. **Re-run: zero objects report a
+missing date column**, and SF3A went from `None .. None` to **2013-06-30 .. 2026-09-30**.
+
+## A defect in my own guard, for the Nth time in this record
+
+The first cut of the one-definition guard **grepped the raw source** and failed against a correct
+tree, because `bulk.py`'s new comment **quotes `h.index("investorname")` while explaining why not
+to write it**. The comment-versus-code family, after `MA49` and `MB15`. It reads the **AST** now —
+every string literal passed to a `.index(...)` call — and carries a **non-vacuity check** that the
+scan must still see `securitytype`, so it cannot pass by finding nothing.
+
+## And one confound resolved rather than reported
+
+`test_fleet_highwater` failed a gate run **while the freeze's multi-GB download, extract and
+SHA-256 hashing were running concurrently**, and passed standalone. Re-run with nothing else
+running: **235 suites, 0 failures.** So the earlier failure was the `%TEMP%`/disk-contention
+confound, measured rather than assumed — and the sighting I reported under `INDEX-BEST` should be
+read with that in mind, since the same confound is the likeliest explanation there too.
+
+**13 tests for the schema change, zero skips.**
+`valuation/edge/bulk.py`, `valuation/edge/elite13f.py`, `valuation/edge/sharadar_freeze.py`,
+`tests/test_sf3_schema_change.py`; `data/backtest_freeze_2026-10/` (gitignored, not committed).

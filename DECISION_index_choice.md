@@ -10,24 +10,32 @@ obvious. It makes one obvious on ONE of the two questions, and I say which below
 
 ## The three options, side by side
 
-| | **keep the incumbent** | **arm 2 — liquid top 10%** | **arm 3 — liquid top 25** |
-|---|---|---|---|
-| names in the book | 23 / 54 / 82 | 147 / 150 / 150 | 25 every date |
-| **net return, Roth** | **+17.16%/yr** | **+22.95%/yr** | **+28.84%/yr** |
-| over SPY (+15.23%) | +1.93pp | +7.71pp | +13.61pp |
-| early half vs incumbent | — | +4.08pp | +4.53pp |
-| late half vs incumbent | — | +7.32pp | +18.57pp |
-| **beats incumbent on name splits** | — | **200 of 200** | **200 of 200** |
-| worst half-book vs incumbent | — | **+1.83pp** | **+1.42pp** |
-| half-book range | 13.6–21.4% | **21.3–28.0%** | 19.6–35.9% |
-| Sharpe | 1.032 | 1.144 | **1.224** |
-| max drawdown | −23.03% | −27.60% | **−19.85%** |
-| turnover | 2.44 | 1.93 | **1.71** |
-| trading cost paid | 9.6 bps | 30.4 bps | 33.1 bps |
-| after tax, taxable account | +12.20% | +17.06% | +21.80% |
-| capacity (1% participation) | ~$77m | ~$24m | **~$3.7m** |
-| contract-conformant | 44 of 69 dates | **69 of 69** | **0 of 69** |
-| buildable free route, Oct 22 | yes (it is live) | **no** | **no** |
+| | **keep the incumbent** | **arm 2 — liquid top 10%** | **arm 3 — liquid top 25** | *N1 band book †* |
+|---|---|---|---|---|
+| names in the book | 23 / 54 / 82 | 147 / 150 / 150 | 25 every date | 50 / 62 / 79 |
+| **net return, Roth** | **+17.16%/yr** | **+22.95%/yr** | **+28.84%/yr** | *+25.75%/yr* |
+| over SPY (+15.23%) | +1.93pp | +7.71pp | +13.61pp | *+10.52pp* |
+| early half vs incumbent | — | +4.08pp | +4.53pp | *—* |
+| late half vs incumbent | — | +7.32pp | +18.57pp | *—* |
+| early / late **vs SPY** | +3.72 / +0.27pp | — | — | *+5.99 / +15.44pp* |
+| **beats incumbent on name splits** | — | **200 of 200** | **200 of 200** | *not measured* |
+| worst half-book vs incumbent | — | **+1.83pp** | **+1.42pp** | *not measured* |
+| half-book range | 13.6–21.4% | **21.3–28.0%** | 19.6–35.9% | *not measured* |
+| Sharpe | 1.032 | 1.144 | **1.224** | *1.038* |
+| max drawdown | −23.03% | −27.60% | **−19.85%** | *−29.66%* |
+| turnover | 2.44 | 1.93 | **1.71** | *2.25* |
+| trading cost paid | 9.6 bps | 30.4 bps | 33.1 bps | *32.8 bps* |
+| after tax, taxable account | +12.20% | +17.06% | +21.80% | *+18.66%* |
+| capacity (1% participation) | ~$77m | ~$24m | **~$3.7m** | *not measured* |
+| contract-conformant | 44 of 69 dates | **69 of 69** | **0 of 69** | ***69 of 69*** |
+| buildable free route, Oct 22 | yes (it is live) | **no** | **no** | *no* |
+| **SMB loading** | +0.08 (*t* 0.6) | +0.64 (*t* 5.0) | +0.42 (*t* 1.6) | ***+1.13 (t 3.1)*** |
+
+**† N1 is NOT one of the three options.** It is a **DESCRIPTION at zero trials** of a different
+construction — the small/mid-cap band (cap < $5B, ADV > $5M) with the same weighting, cap, band
+and cadence — run because `FREE_KILLS_RESULTS.md` asked for it and because it tests whether the
+−4.18pp the served tier forgoes is reachable. **It has no verdict, it was not name-split, and it
+is shown here only so the four sit in one place.** Its figures are in italics for that reason.
 
 Every return figure means this and only this: *an in-sample backtest over 69 quarterly
 rebalances of an 18-year point-in-time panel, net of modelled trading costs, assuming no tax,
@@ -121,3 +129,30 @@ can.
 
 **If you move, move to arm 2. Whether to move is your call on the period risk, and it is a
 genuine call rather than a gap in the work.**
+
+---
+
+## Appendix — what the N1 band book adds, and what it does not
+
+`INDEX-BOOK` measured **−4.18pp/yr** sitting in the part of the universe the served $10B book
+declines to hold, for a capacity reason a Roth does not have. The band book is the direct test of
+whether that is reachable. **It is: +25.75%/yr net of cost, +10.52pp over SPY**, on a book of
+**50–79 names that is contract-conformant on all 69 dates** — the only one of the four that is
+conformant *and* clears SPY by double digits.
+
+**Three things keep it from being the obvious answer, and the third is the one that matters.**
+
+1. **It is the most volatile of the four**: max drawdown **−29.66%** against the incumbent's
+   −23.03%, and a tracking error against SPY of **16.78 pp/yr**.
+2. **Its own +10.52pp sits BELOW its 80%-power detection threshold of +12.14pp**, so it does not
+   separate from SPY on 69 quarters. N1's own draft printed that expectation before the run — at
+   this tracking error a 2pp edge needs ~30 years and the panel is 17.
+3. **It is overwhelmingly a size bet: SMB +1.13 at *t* +3.09.** That is nearly twice arm 2's
+   loading and the largest of the four. `R1`'s re-run on the corrected panel found **SMB NOT
+   significant** for the long-short spread, so this book is leaning hardest on a factor premium
+   this project has not itself demonstrated. The +10.52pp should be read as *mostly a small-cap
+   exposure that paid over this window*, not as selection skill.
+
+**It also inherits the same Oct 22 blocker**: it is built from the same composite, so D9's 23% /
+12% live-route overlap applies to it too. **No recommendation is made about it** — it is a
+description, it has no bar, and it was not put through the name split the three options were.
