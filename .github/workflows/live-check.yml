@@ -1,0 +1,96 @@
+name: LIVE CHECK (exercise every feature on the live site)
+
+# ITEM 30 — A DAILY LIVE CHECK, SO A DEAD FEATURE IS CAUGHT IN A DAY RATHER THAN IN TWO MONTHS.
+#
+# Three features were dead on the live service for weeks and the test suite was green throughout:
+#   * the Dip Detector measured ZERO names for two months while the page said "no name cleared";
+#   * /admin/score-alerts answered a bare HTTP 500 to its only authorised caller, with a suite
+#     that was 10 of 10 green because every assertion tested a REFUSAL path;
+#   * the weekly theme-cache job had never once started, so `institutional` and `insider` have
+#     contributed nothing to the live score for the life of the job.
+# Every one was found by a person using the site. This job is the thing that should have.
+#
+# WHAT IT RUNS: `python scripts/live_check.py`, which exercises the hot list, the Dip Detector,
+# the Index tab and its track, both alert surfaces, four real valuations plus a not-found ticker,
+# both exports, the intraday feed and two rendered pages. One line per check, PASS/FAIL with the
+# NUMBER, and a non-zero exit on any FAIL.
+#
+# PUBLIC ENDPOINTS ONLY AND NO SECRET. The checker cannot write and needs no token — so this job
+# needs no secrets at all, and nothing it does can mutate the thing it is checking. That is also
+# why it is safe to run on a schedule without a concurrency fight against the writers.
+#
+# NO `pip install`. The checker is stdlib-only (`urllib`, not `requests`) and imports exactly one
+# repo module, `valuation/screener/market_session.py`, which is itself stdlib-only. So this job is
+# a checkout and a python run: no lockfile, no dependency that can fail on a runner and be
+# mistaken for the site being down.
+
+on:
+  # THE SCHEDULED RUN CANNOT BE POINTED AWAY FROM PRODUCTION. The base URL is the script's own
+  # default and is overridable ONLY by a manual dispatch input — not by a repo variable, because
+  # a variable set once to a staging host would silently stop the daily check from ever looking
+  # at the live site again, and it would keep passing while it did.
+  workflow_dispatch:
+    inputs:
+      base:
+        description: "Base URL to check (blank = https://valquo.co)"
+        required: false
+        default: ""
+  schedule:
+    # 13:45 UTC on weekdays: 9:45am ET in summer, 8:45am ET in winter — fifteen minutes into the
+    # session in EDT, so the intraday feed has had a run (its cron is :23 past each hour from
+    # 13:00 UTC) and the overnight scan is many hours old. A failure here is the state a visitor
+    # would meet at the start of the US day.
+    - cron: "45 13 * * 1-5"
+    # And once after the evening scan. The hot list publishes at 22:23 UTC and the daily doors
+    # run at 22:37, so 23:05 is after both and still inside the same UTC day — which matters,
+    # because the freshness check compares `scan_date` against the last CLOSED session and a run
+    # after midnight UTC would be comparing against the next day.
+    - cron: "5 23 * * 1-5"
+
+concurrency:
+  group: live-check
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      # NODE IS DELIBERATELY SET UP, and it is the one thing this job installs. Without it the
+      # rendered-Index-card check SKIPS, and a skip is not a pass — the defect that check exists
+      # for (the card rendering the literal string "undefined" twice, and naming an account type
+      # the Index is not) is a RENDERING failure the payload alone cannot show.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # ONE RUN, TEE'D. My first cut ran the checker a second time to produce the artifact, which
+      # is wrong twice over: it doubles the load on the live site, and the saved report could
+      # disagree with the run that decided pass or fail — two runs, two answers, and the evidence
+      # not being the evidence. `set -o pipefail` is what keeps the exit code through `tee`;
+      # without it the pipeline reports tee's success and a FAIL would land green.
+      - name: Exercise the live site
+        env:
+          LIVE_CHECK_BASE: ${{ github.event.inputs.base }}
+        run: |
+          set -o pipefail
+          python scripts/live_check.py 2>&1 | tee live-check.txt
+
+      # THE REPORT IS KEPT ON SUCCESS TOO, not only on failure: the numbers on a passing day are
+      # what make a degradation visible before it crosses a threshold. A failing run whose output
+      # only exists in a log that ages out is one nobody can compare against last week.
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-check-${{ github.run_id }}
+          path: live-check.txt
+          retention-days: 14
+          if-no-files-found: warn
