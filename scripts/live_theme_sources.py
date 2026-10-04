@@ -263,6 +263,47 @@ def _headers():
     return {"User-Agent": ua, "Accept-Encoding": "gzip, deflate"}
 
 
+def head_published(url: str, guard: Guard) -> bool:
+    """Is `url` there? True / False -- and `Throttled` when SEC will not say.
+
+    THE THREE-STATE ANSWER IS THE WHOLE POINT, and a two-state one caused the defect this
+    exists to close. `theme_cache_build.newest_published_periods` asked `status_code == 200`,
+    so a **429 read as "not published"**: the 2026-10-04 run stepped back four quarters, called
+    every one of them unpublished -- including `30-SEP-2025`, whose 13Fs were due in November
+    2025 and have been on SEC's site for most of a year -- printed *"the derived window is not
+    published by SEC yet"*, and then took a 429 on the GET that followed. **A rate-limit is not
+    evidence about publication**, and reporting it as one sent a reader looking for a filing
+    deadline that had passed eleven months earlier.
+
+    Same status vocabulary as `_get` and the same `Guard`, because a second opinion about what
+    429 means is exactly how the two came apart: 429 / 403 / 503 retry on the guard's backoff
+    and then raise `Throttled`; 404 is a genuine absence and returns False; anything else
+    raises. `Throttled` is deliberately an EXCEPTION rather than a third return value -- a
+    caller that forgets to check a tri-state falls back to its own default, which here would
+    mean "unpublished" again.
+    """
+    import requests
+    for attempt in range(MAX_ATTEMPTS):
+        guard.wait()
+        try:
+            r = requests.head(url, headers=_headers(), timeout=30, allow_redirects=True)
+        except Exception:                                               # noqa: BLE001
+            if attempt == MAX_ATTEMPTS - 1:
+                raise
+            guard.throttled(attempt)
+            continue
+        if r.status_code in (429, 403, 503):
+            if attempt == MAX_ATTEMPTS - 1:
+                raise Throttled(f"{r.status_code} on {url}")
+            guard.throttled(attempt)
+            continue
+        if r.status_code == 404:
+            return False
+        r.raise_for_status()
+        return True
+    raise Throttled(f"attempts exhausted on {url}")
+
+
 def _get(url: str, guard: Guard, as_json: bool = False):
     """One paced SEC GET with retry. Raises Throttled only after the attempts are spent."""
     import requests
@@ -393,21 +434,53 @@ def dataset_path(root: str, window: str) -> str:
 
 
 def download_dataset(root: str, window: str, guard: Guard | None = None) -> str:
-    """Fetch a quarterly zip once. Skip-existing, like the miner."""
+    """Fetch a quarterly zip once, PACED AND RETRIED. Skip-existing, like the miner.
+
+    IT TOOK A `guard` AND IGNORED IT. The parameter has been in this signature since the
+    function was written and the body's only mention of it was the signature itself -- so every
+    caller that threaded a guard through got no pacing, no backoff and no circuit breaker, and
+    `raise_for_status()` turned SEC's 429 into a traceback that killed the assemble step. That
+    is the shape `O-1` reported one lane over: a parameter honoured everywhere except the one
+    place named for it.
+
+    THE STREAMING IS KEPT, which is why this is not simply `_get`. The quarterly INFOTABLE zip
+    is hundreds of megabytes, so it cannot be read into memory the way `_get` reads a JSON
+    body; what is shared is the pacing, the status vocabulary and the retry, which is the part
+    that was missing.
+
+    A GUARD IS BUILT WHEN ONE IS NOT PASSED rather than skipping the pacing. `None` used to
+    mean "no pacing at all", which made the unpaced path the DEFAULT -- and the default is what
+    the failing run took.
+    """
     import requests
     path = dataset_path(root, window)
     if os.path.exists(path) and os.path.getsize(path) > 1_000_000:
         return path
     _ensure(root)
     url = DATASET_URL.format(window=window)
-    r = requests.get(url, headers=_headers(), timeout=900, stream=True)
-    r.raise_for_status()
-    tmp = path + ".tmp"
-    with open(tmp, "wb") as fh:
-        for chunk in r.iter_content(1 << 20):
-            fh.write(chunk)
-    os.replace(tmp, path)
-    return path
+    g = guard or Guard()
+    for attempt in range(MAX_ATTEMPTS):
+        g.wait()
+        try:
+            r = requests.get(url, headers=_headers(), timeout=900, stream=True)
+        except Exception:                                               # noqa: BLE001
+            if attempt == MAX_ATTEMPTS - 1:
+                raise
+            g.throttled(attempt)
+            continue
+        if r.status_code in (429, 403, 503):
+            if attempt == MAX_ATTEMPTS - 1:
+                raise Throttled(f"{r.status_code} on {url}")
+            g.throttled(attempt)
+            continue
+        r.raise_for_status()
+        tmp = path + ".tmp"
+        with open(tmp, "wb") as fh:
+            for chunk in r.iter_content(1 << 20):
+                fh.write(chunk)
+        os.replace(tmp, path)
+        return path
+    raise Throttled(f"attempts exhausted on {url}")
 
 
 def _resolve_member(zf: zipfile.ZipFile, member: str) -> str:

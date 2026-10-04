@@ -266,7 +266,7 @@ def fidelity_control(banked: str = None, root: str = None) -> dict:
     return out
 
 
-def newest_published_periods(as_of=None, max_back: int = 4) -> dict:
+def newest_published_periods(as_of=None, max_back: int = 4, guard=None) -> dict:
     """`latest_complete_periods`, stepped back until SEC actually HAS the dataset.
 
     MEASURED 2026-09-30, and this is why the function exists. The derivation asks for period
@@ -294,20 +294,49 @@ def newest_published_periods(as_of=None, max_back: int = 4) -> dict:
     `max_back` is small on purpose: stepping back further than a year would silently build a
     cache from genuinely old holdings rather than refusing.
     """
-    import requests
     per = latest_complete_periods(as_of) if as_of else latest_complete_periods()
     tried = []
+    g = guard or (M.Guard() if hasattr(M, "Guard") else None)
     for _ in range(max_back):
         # THE URL COMES FROM THE DOWNLOADER'S OWN CONSTANT (B7). Rebuilding it here would be a
         # second copy of SEC's path, and the probe would then be able to say "published" about a
         # URL the downloader never fetches.
         url = M.DATASET_URL.format(window=per["window_curr"])
+        # A REFUSAL IS NOT AN ABSENCE, AND READING IT AS ONE IS THE DEFECT THIS CLOSES.
+        #
+        # This used to be a raw `requests.head` with `ok = r.status_code == 200`, which collapses
+        # three answers into two: a 429 became "not published". On 2026-10-04 that walked back
+        # four quarters, declared every one unpublished -- `30-SEP-2025` among them, whose 13Fs
+        # were due in November 2025 -- printed "not published by SEC yet", and then took a 429
+        # on the GET. Three crawl shards had just finished hammering SEC and this probe went out
+        # unpaced, because `main()` did not build its `Guard` until thirty lines later.
+        #
+        # `head_published` is the module that OWNS the SEC status vocabulary (`B7`), on the same
+        # `Guard`. `Throttled` STOPS THE WALK rather than counting as a miss: stepping back on a
+        # rate-limit asks four more questions of a server that has just refused one, and records
+        # four more false absences on the way.
+        # NO GUARD IS ALSO "UNKNOWN". My own first cut of this fell back to `ok = False`, which
+        # is the SAME conflation one level up: unable to ASK becomes "not published". If the
+        # pacing machinery is not importable the honest answer is that nothing was determined.
+        if g is None:
+            tried.append({"period": per["curr"], "window": per["window_curr"],
+                          "published": None,
+                          "throttled": "no Guard available; the probe was not made"})
+            per = dict(per)
+            per["probed"] = tried
+            per["stepped_back"] = len(tried) - 1
+            per["undetermined"] = True
+            return per
         try:
-            r = requests.head(url, timeout=30, allow_redirects=True,
-                              headers={"User-Agent": getattr(
-                                  __import__("valuation.config", fromlist=["CONFIG"]).CONFIG,
-                                  "sec_user_agent", "valuation-tool contact@example.com")})
-            ok = r.status_code == 200
+            ok = M.head_published(url, g)
+        except getattr(M, "Throttled", ()) as exc:                      # noqa: B014
+            tried.append({"period": per["curr"], "window": per["window_curr"],
+                          "published": None, "throttled": str(exc)})
+            per = dict(per)
+            per["probed"] = tried
+            per["stepped_back"] = len(tried) - 1
+            per["undetermined"] = True
+            return per
         except Exception:                                               # noqa: BLE001
             ok = False
         tried.append({"period": per["curr"], "window": per["window_curr"], "published": ok})
@@ -733,7 +762,13 @@ def main(argv=None) -> int:
     # `newest_published_periods`: the 45-day derivation runs AHEAD of SEC's structured-data
     # schedule, so on 2026-09-30 it asks for a window that 404s after the first one has already
     # downloaded and aggregated.
-    per = newest_published_periods(as_of)
+    # ONE GUARD FOR THE WHOLE RUN, BUILT BEFORE THE FIRST SEC CALL. It used to be created
+    # thirty lines below this, AFTER the publication probe had already gone out unpaced -- which
+    # is how the probe came to be rate-limited by the crawl shards that ran minutes earlier. A
+    # shared guard also means the probe's refusals count against the same circuit breaker as
+    # the download's, which is the point of having a budget at all.
+    guard = M.Guard() if hasattr(M, "Guard") else None
+    per = newest_published_periods(as_of, guard=guard)
     su = served_from_store()
     if a.universe:
         su = served_from_universe(a.universe, limit=a.limit)
@@ -752,6 +787,16 @@ def main(argv=None) -> int:
         for t in per.get("probed") or []:
             print("               %s  %s  published=%s" % (t["period"], t["window"],
                                                            t["published"]))
+    # TWO DIFFERENT SENTENCES, BECAUSE THEY ARE TWO DIFFERENT FACTS AND ONLY ONE IS ABOUT SEC'S
+    # SCHEDULE. "No published window" is a statement about publication; "SEC would not say" is a
+    # statement about this run. Printing the first when the second is true is what sent a reader
+    # looking for a filing deadline that had passed eleven months earlier.
+    if per.get("undetermined"):
+        print("  CANNOT DETERMINE: SEC refused the publication probe (rate-limited), so "
+              "whether the window is published is UNKNOWN -- not 'unpublished'.")
+        for t in per.get("probed") or []:
+            if t.get("throttled"):
+                print("               %s  %s  %s" % (t["period"], t["window"], t["throttled"]))
     if per.get("unpublished"):
         print("  REFUSING: no published 13F window within %d quarters" % 4)
     if a.slice:
@@ -763,13 +808,31 @@ def main(argv=None) -> int:
         print("REFUSED: %s" % su["reason"], file=sys.stderr)
         return 3
     if a.dry_run:
-        print("DRY RUN - nothing was written and no SEC request was made.")
+        # CORRECTED 2026-10-04: this said "no SEC request was made" and that was FALSE, and
+        # measurably so -- `newest_published_periods` probes SEC's dataset URL above, before
+        # this branch is reached, and with the pacing repair it may now make up to
+        # `MAX_ATTEMPTS` of them. A dry run that claims to touch nothing while touching the
+        # vendor is the kind of sentence someone reaches for precisely when they want to check
+        # something safely.
+        print("DRY RUN - nothing was written. ONE SEC request class was made: the publication "
+              "probe above (paced, retried, HEAD only). No dataset was downloaded.")
         return 0
+
+    # AND THE RUN STOPS, WHICH IT DID NOT BEFORE. The old code printed "REFUSING" and then
+    # downloaded the window anyway -- a refusal that does not refuse. It sits AFTER the dry-run
+    # report on purpose (my own first cut put it before, which silenced the diagnosis in the one
+    # mode whose whole job is to print it): `--dry-run` should SAY what it found and exit 0.
+    # Exit 4 is distinct from the served-universe refusal above (3) so a scheduler can tell
+    # "SEC is rate-limiting, try later" from "this build has no universe" -- different problems,
+    # different fixes. `undetermined` is RETRYABLE and `unpublished` is not; both stop here.
+    if per.get("undetermined") or per.get("unpublished"):
+        print("REFUSED: the 13F window could not be confirmed published; refusing to download "
+              "and aggregate a window this run could not verify.", file=sys.stderr)
+        return 4
 
     # THE SEC LEGS RUN FIRST, through the IMPORTED machinery. `build_13f` downloads and
     # aggregates the structured zips; `fetch_all` walks the CUSIP ladder and the signed Form 4
     # crawl. Neither is reimplemented here.
-    guard = M.Guard() if hasattr(M, "Guard") else None
     M.WINDOW_CURR, M.WINDOW_PRIOR = per["window_curr"], per["window_prior"]
     M.PERIOD_CURR, M.PERIOD_PRIOR = per["curr"], per["prior"]
     M.build_13f(guard=guard)

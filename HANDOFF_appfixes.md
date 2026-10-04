@@ -14505,3 +14505,110 @@ index/rebalance/docs suites 13 of 13.** `valuation/edge/valquo_index.py`
 `--candidate`), `valuation/studies/served_index_book.py` (delegates the trim),
 `scripts/index_candidate_fidelity.py`, `tests/test_index_candidate.py`,
 `REBALANCE_RUNBOOK_2026-10-22.md` §3b, `data/free_analysis/INDEX_CANDIDATE_FIDELITY.json`.
+
+
+# SESSION 88 - ITEM 28 FOLLOW-UP: A SEC REFUSAL IS NOT AN ABSENCE
+
+**Item 28's fix is confirmed working on the live runner, and it exposed a different defect one
+step later.** Don re-ran Actions -> "Auto scans (free-tier bridge)" -> themes on 2026-10-04
+(run 37226135982). **All three crawl shards SUCCEEDED** - they used to die 3 seconds in on
+`FileNotFoundError`, which is exactly what item 28 repaired. `themes-assemble` then failed, and
+its log is the whole finding:
+
+```
+STEPPED BACK 4 quarter(s): the derived window is not published by SEC yet
+             30-JUN-2026  01jun2026-31aug2026  published=False
+             31-MAR-2026  01mar2026-31may2026  published=False
+             31-DEC-2025  01dec2025-28feb2026  published=False
+             30-SEP-2025  01sep2025-30nov2025  published=False
+  REFUSING: no published 13F window within 4 quarters
+13f: downloading 01mar2025-31may2025
+requests.exceptions.HTTPError: 429 Client Error: Too Many Requests
+```
+
+## THREE DEFECTS IN THOSE SEVEN LINES
+
+**(1) A 429 READ AS "NOT PUBLISHED", AND THAT IS WHAT MAKES IT MISLEADING RATHER THAN MERELY
+BROKEN.** The probe was `ok = r.status_code == 200`, which collapses three answers into two.
+**`30-SEP-2025` is the tell**: those 13Fs were due in November 2025 and have been on SEC's site
+for most of a year, so `published=False` there cannot mean what it says. The run then printed
+*"the derived window is not published by SEC yet"* - **sending a reader to look for a filing
+deadline that had passed eleven months earlier.** The decisive corroboration is in the same log:
+the GET that followed returned an explicit **429**.
+
+**(2) THE REFUSAL DID NOT REFUSE.** It printed `REFUSING: no published 13F window` and then
+downloaded the window anyway. A refusal that does not refuse is worse than none, because the log
+says the right thing.
+
+**(3) NOTHING WAS PACED, AND ONE PARAMETER WAS DECORATIVE.** Three shards had just finished
+hammering SEC. The probe went out unpaced because `main()` did not build its `Guard` until
+**thirty lines after** calling it - and **`download_dataset` took a `guard` argument whose only
+appearance in the body was the signature itself**, so every caller that threaded one through got
+no pacing, no backoff and no circuit breaker. `O-1` reported that exact shape one lane over: a
+parameter honoured everywhere except the place named for it.
+
+## THE FIX IS DELEGATION, NOT NEW LOGIC
+
+**The correct machinery was already in the same module.** `_get` distinguishes a refusal (429 /
+403 / 503 - retry on the guard's backoff, then raise `Throttled`) from an absence (404 -> None)
+from a real error (`raise_for_status`), and `Guard` paces with a circuit breaker. Two SEC call
+sites simply did not use any of it - `B7`, with the one definition sitting twenty lines up.
+
+* **`head_published(url, guard)`** sits beside `_get` with the same status vocabulary and the
+  same guard. `Throttled` is an **exception rather than a third return value** on purpose: a
+  caller who forgets to check a tri-state falls back to its own default, which here would mean
+  "unpublished" again.
+* **`download_dataset` honours its guard**, retrying and pacing while keeping the streaming
+  (the quarterly INFOTABLE zip is hundreds of MB, so `_get` is not reusable for the body). **A
+  guard is BUILT when none is passed** - `None` used to mean "no pacing at all", which made the
+  unpaced path the DEFAULT, and the default is what the failing run took.
+* **A throttle STOPS the step-back walk.** Stepping back on a rate-limit asks four more
+  questions of a server that has just refused one, and records four more false absences on the
+  way.
+* **Two different sentences, because they are two different facts.** `CANNOT DETERMINE: SEC
+  refused the publication probe ... UNKNOWN -- not 'unpublished'` is about this run;
+  `REFUSING: no published 13F window` is about SEC's schedule. Only one of them was ever true.
+* **The run now exits 4**, distinct from the served-universe refusal's 3, so a scheduler can
+  tell *"SEC is rate-limiting, try later"* from *"this build has no universe"* - different
+  problems with different fixes. `undetermined` is RETRYABLE and `unpublished` is not.
+* **One guard for the whole run, built before the first SEC call**, so the probe's refusals count
+  against the same budget as the download's - which is the point of having a budget.
+
+## TWO DEFECTS IN MY OWN FIX, BOTH CAUGHT BEFORE IT SHIPPED
+
+**(a) A MISSING GUARD STILL READ AS "UNPUBLISHED".** My first cut fell back to `ok = False` when
+`Guard` was unavailable - **the same conflation one level up**: unable to ASK became "not
+published". It reports UNDETERMINED now, and the branch is exercised by deleting `M.Guard`.
+
+**(b) I PUT THE STOP BEFORE THE DRY-RUN REPORT**, which silenced the diagnosis in the one mode
+whose whole job is to print it. `--dry-run` now says what it found and exits 0; the refusal sits
+after it.
+
+**AND A PRE-EXISTING CLAIM THAT WAS FALSE, corrected because this change made it provably so:**
+`--dry-run` printed *"nothing was written and no SEC request was made"* while the publication
+probe above it had already made one - and with the pacing repair it may now make up to
+`MAX_ATTEMPTS`. A dry run that claims to touch nothing while touching the vendor is the sentence
+someone reaches for precisely when they want to check something safely.
+
+## WHAT IS AND IS NOT PROVED
+
+**THE SUITE NEVER TOUCHES THE NETWORK, and that is enforced rather than intended**: `requests` is
+replaced by a table of canned statuses and a test asserts the substitution bites and is restored.
+The gate runs every suite on every land, so a suite calling SEC would make the land depend on a
+vendor - and would get itself rate-limited, which is the condition under test.
+
+**THE BEHAVIOURAL HALF IS THE ONE THAT MATTERS**: driving `main()` under a sustained 429 returns
+**4**, prints `CANNOT DETERMINE`, does **not** print `no published 13F window`, and makes **ZERO
+GET calls** - it downloads nothing it could not verify. Four genuine 404s still report
+`unpublished`, so the repair did not make the real state unreachable.
+
+**NOT VERIFIED LIVE YET, AND THIS IS THE HONEST LIMIT.** Whether the 2026 windows are genuinely
+published is still **unknown** - the only readings we have of them came back throttled, which is
+precisely the point. The next themes run will either find a published window and build, or report
+`CANNOT DETERMINE` and exit 4 instead of a traceback. **Don needs to re-run the themes workflow
+once more**, and a 429 is transient, so a later run is the test.
+
+**18 tests, zero skips; 9 of 9 mutations caught with sources restored byte-for-byte; 9 of 9 theme
+suites and 6 of 6 doc/policy suites.** `scripts/live_theme_sources.py` (`head_published`,
+`download_dataset`), `scripts/theme_cache_build.py` (`newest_published_periods`, `main`),
+`tests/test_theme_cache_throttle.py`.
