@@ -149,6 +149,64 @@ def test_every_exit_reason_the_close_path_emits_is_mapped():
     check("mapped statuses are all in ALL_STATUSES",
           all(v in SL.ALL_STATUSES for v in SL.EXIT_REASON_TO_STATUS.values()))
 
+    # ====================================================================================
+    # ITEM 29(b) — AND THE ENUMERATION ABOVE COULD NOT SEE THE REASON THE RECORD ACTUALLY
+    # STORES, WHICH IS HOW TWO REAL STOP-OUTS CAME TO READ "CLOSED (unscoreable)".
+    #
+    # Everything above reads the string constants RETURNED by `exit_decision`, and all four of
+    # them are mapped. But `paper_track` does not store the decision token: when the broker
+    # will not work an exit it COMPOSES a reason with an f-string at the record site --
+    # `f"{reason} (marked; exit order {status})"` and `f"{reason} (marked; exit rejected)"` --
+    # so the stored value is `"stop (marked; exit order rejected) [pnl vs fill]"`. An f-string
+    # is not a `Return` of a constant, so the AST walk never had it in view.
+    #
+    # **IT ENUMERATED WHAT THE DECIDER EMITS WHILE THE RECORD STORES WHAT THE CLOSER
+    # COMPOSES.** Measured on the live service 2026-10-04: FDX (id 5) and JNJ (id 8), both
+    # genuine stops with a real `pnl_pct` (-55.2% and -52.4%), both labelled unscoreable, and
+    # the tab reading STOPPED 6 where it should read 8 -- understating the stop rate, which is
+    # the direction that flatters.
+    #
+    # So this half enumerates the COMPOSED reasons out of `paper_track`'s source -- every
+    # f-string in the close path that is built from a reason -- and requires each to survive
+    # `_reason_token` into a mapped status. Vacuity-proof the same way: if the parse finds no
+    # composed reasons the check fails rather than passing by seeing nothing.
+    composed = set()
+    _pt_tree = ast.parse(open(PT.__file__, encoding="utf-8").read())
+    for _node in ast.walk(_pt_tree):
+        if not isinstance(_node, ast.JoinedStr):
+            continue
+        # Rebuild the literal shape with a placeholder for each interpolation, then keep the
+        # ones that look like a stored exit reason rather than a note or a log line.
+        parts = []
+        for v in _node.values:
+            if isinstance(v, ast.Constant) and isinstance(v.value, str):
+                parts.append(v.value)
+            else:
+                parts.append("{}")
+        shape = "".join(parts)
+        if "(marked;" in shape:
+            composed.add(shape)
+    check("the composed exit reasons were found in paper_track's source", bool(composed),
+          f"found {sorted(composed)}")
+    # Every composed reason, with the interpolation filled by each DECISION token, must still
+    # resolve to a mapped status. That is the property the display depends on.
+    bad = []
+    for shape in sorted(composed):
+        for tok in tokens:
+            reason = shape.replace("{}", tok, 1).replace("{}", "rejected")
+            got = SL.EXIT_REASON_TO_STATUS.get(SL._reason_token(reason))
+            if got is None:
+                bad.append((reason, SL._reason_token(reason)))
+    check("every COMPOSED exit reason still resolves to a mapped status", not bad,
+          f"unresolved: {bad[:4]}")
+    # And the suffixes `scream_log` documents must be the ones `paper_track` actually writes,
+    # or the documentation drifts from the code it describes.
+    _documented = {t.strip() for t in SL.CLOSER_REASON_SUFFIXES}
+    check("scream_log documents a non-empty suffix list", bool(_documented))
+    check("every documented suffix is parenthesised the way the code writes it",
+          all(t.startswith("(marked;") and t.endswith(")") for t in _documented),
+          f"{sorted(_documented)}")
+
 
 # =============================== exit levels ===============================================
 def test_levels_are_derived_in_one_place():

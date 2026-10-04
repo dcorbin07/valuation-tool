@@ -1392,13 +1392,20 @@ function renderDip(d) {
    register note below renders with the table every time. Entry / target / stop / current are
    READ from the stored columns — see web/scream_track.py for why re-deriving them would look
    right and be wrong. */
-/* Six statuses, not five. `CLOSED (unscoreable)` is the logger's own sixth: a closed row whose
+/* Seven statuses, not six. `CLOSED (unscoreable)` is the logger's own sixth: a closed row whose
    exit reason maps to none of Don's five must not be forced into one that misdescribes it. It
-   is deliberately muted rather than red — unscoreable is not a loss. */
+   is deliberately muted rather than red — unscoreable is not a loss.
+
+   ITEM 29(a) ADDED THE SEVENTH, `NO CONTRACT - not scoreable`, and it is named here rather than
+   left to the fall-through. The fall-through would already have muted it, which is the right
+   colour — but then the colour would be an ACCIDENT of the default, and the next status added
+   would get the same treatment without anyone deciding. Muted is the decision: a row with no
+   contract has no outcome and never will, so it is neither a win, a loss, nor open. */
 function _screamStatusColor(s) {
   if (s === "HIT TARGET") return "var(--green)";
   if (s === "STOPPED") return "var(--red)";
   if (s === "LIVE") return "var(--navy)";
+  if (s === "NO CONTRACT - not scoreable") return "var(--muted)";
   return "var(--muted)";
 }
 

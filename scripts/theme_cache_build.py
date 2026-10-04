@@ -341,6 +341,27 @@ def write_served_file(su: dict, path: str) -> str:
     `tkr.upper()`. TWO consumers read this file and they do NOT disagree about the shape: both
     want dicts, and the two crashes were ONE defect surfacing at two depths.
     """
+    # ITEM 28 -- THE PARENT DIRECTORY IS CREATED, BECAUSE A FRESH RUNNER HAS NO `data/`.
+    #
+    # This is where the themes job died: manual run #541 (2026-10-04), all three shards, three
+    # seconds into "Crawl shard N", with `FileNotFoundError: [Errno 2] No such file or
+    # directory: 'data/live_cache/served_broker_top_1500.json'`. **THE JOB HAD NEVER ONCE BEEN
+    # ABLE TO RUN**, and the reason is a conjunction of three ordinary facts: `data/` is
+    # gitignored so the checkout brings no directories; the workflow's cache restore lists only
+    # `data/live_themes/*`, so `data/live_cache/` is created by nobody; and this was the FIRST
+    # write of the run, so it failed before anything else could.
+    #
+    # It never showed up locally because every machine that has ever run this already had a
+    # `data/live_cache/` from some earlier scan -- the directory is a side effect of history,
+    # not of the code, so the code's dependence on it was invisible.
+    #
+    # `exist_ok=True` and `or "."` for the same reason `_atomic_write_json` in
+    # `live_theme_sources.py` has them: a bare filename has no dirname, and `makedirs("")`
+    # raises. That function is the pattern here rather than the import, because this script
+    # deliberately keeps its plumbing local -- its own comment says *"kept local so this script
+    # has no dependency on that one's internals"* -- and reaching into it for one line would
+    # trade a one-line duplication for a coupling that comment exists to prevent.
+    os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
     with io.open(path, "w", encoding="utf-8") as fh:
         json.dump({"scan_date": su["scan_date"], "rows": su["served"]}, fh)
     return path
