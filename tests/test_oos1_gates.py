@@ -133,12 +133,21 @@ def test_no_gate_reads_the_holdout():
     tree = ast.parse(src)
     fn = {n.name: n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
     ck("gate_b exists", "gate_b" in fn)
-    # Gate B is called with lo=2008, so no pre-1999 chunk is ever loaded by it.
+    # Gate B's floor must sit ABOVE the holdout ceiling, so no holdout year can be loaded by it,
+    # and BELOW the 2009 grid start by enough to give the momentum columns their 252 trading
+    # days -- otherwise momentum is computed on a truncated window and the Spearman falls for a
+    # reason that is NOT vendor translation.
+    import scripts.oos1_gates as G
+    ck("Gate B's burn-in floor is strictly above the holdout ceiling",
+       G.GATE_B_BURNIN_YEAR > G.HOLDOUT[1],
+       "floor %d vs holdout ceiling %d" % (G.GATE_B_BURNIN_YEAR, G.HOLDOUT[1]))
+    ck("Gate B's burn-in floor leaves at least a year before the 2009 grid start",
+       G.GATE_B_BURNIN_YEAR <= 2008, "floor %d" % G.GATE_B_BURNIN_YEAR)
     calls = [n for n in ast.walk(tree)
              if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "gate_b"]
-    ck("gate_b is invoked with an explicit era floor of 2008",
-       any(any(isinstance(a, ast.Constant) and a.value == 2008 for a in c.args) for c in calls),
-       "calls: %d" % len(calls))
+    ck("gate_b is invoked with the declared burn-in constant, not a literal",
+       any(any(isinstance(a, ast.Name) and a.id == "GATE_B_BURNIN_YEAR" for a in c.args)
+           for c in calls), "calls: %d" % len(calls))
     # And no gate computes a forward return at all: the holdout cannot be scored by accident.
     bodies = "\n".join(ast.dump(fn[k]) for k in fn if k.startswith("gate_"))
     for banned in ("fwd_ret", "alpha", "long_short", "top_decile"):

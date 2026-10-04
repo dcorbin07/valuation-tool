@@ -57,6 +57,12 @@ RAW = r"D:\wrds"
 GATE_B_BAR = 0.90
 HOLDOUT = (1972, 1998)          # r1 took 1999-2008; this is what remains, and it stays UNOPENED
 
+#: Gate B's price-history floor. The grid starts 2009-01-15 and the momentum columns need 252
+#: TRADING days before it, so the floor must sit well below the grid's own first year -- and it
+#: must sit far above `HOLDOUT[1]`, so no holdout year is ever loaded by this gate. Both
+#: properties are pinned by test.
+GATE_B_BURNIN_YEAR = 2007
+
 
 def _data_root() -> str:
     d = REPO
@@ -223,6 +229,88 @@ def _ticker_to_permno(prov, dates) -> pd.DataFrame:
     return uniq, amb
 
 
+def _per_date_spearman(a: pd.DataFrame, b: pd.DataFrame, min_names: int = 30) -> dict:
+    """Mean per-date Spearman between two (date, ticker, comp) frames, with the count GATED.
+
+    THE COUNT IS GATED BECAUSE A PERFECT SCORE ON NOTHING IS THE FAILURE MODE. `MB21`'s `C1`
+    scored a max absolute deviation of 0.000e+00 on an EMPTY frame by comparing nothing, and
+    `E-6` found a silent zero-row merge on exactly these string-dated panels. So this returns
+    `rows_compared` and `dates_scored` and the caller must read them: a mean Spearman with no
+    rows behind it is VACUOUS, never PASSING.
+    """
+    a = a.copy(); b = b.copy()
+    a["date"] = a["date"].astype(str)
+    b["date"] = b["date"].astype(str)
+    j = a.merge(b, on=["date", "ticker"], how="inner", suffixes=("_sh", "_cp"))
+    per, sc = [], []
+    for d, sub in j.groupby("date", sort=True):
+        s = sub.dropna(subset=["comp_sh", "comp_cp"])
+        if len(s) < min_names:
+            per.append({"date": d, "n": int(len(s)), "spearman": None,
+                        "note": "below the %d-name floor -- not scored" % min_names})
+            continue
+        rho = float(s["comp_sh"].corr(s["comp_cp"], method="spearman"))
+        per.append({"date": d, "n": int(len(s)), "spearman": round(rho, 6)})
+        sc.append(rho)
+    return {"mean": round(float(np.mean(sc)), 6) if sc else None,
+            "median": round(float(np.median(sc)), 6) if sc else None,
+            "min": round(float(np.min(sc)), 6) if sc else None,
+            "dates_scored": len(sc),
+            "dates_below_name_floor": int(len(per) - len(sc)),
+            "rows_compared": int(len(j)),
+            "per_date": per}
+
+
+def gate_b_selftest(root: str) -> dict:
+    """NON-VACUITY: feed the comparison the Sharadar panel TWICE and require exactly 1.0.
+
+    A comparison that cannot return 1.0 on identical inputs cannot be trusted to return 0.9 on
+    near-identical ones, and `MB21` proved the dangerous direction is a control that passes by
+    looking at nothing. This costs no WRDS data, so it runs before `dsf` has finished and
+    validates the instrument BEFORE the hypothesis -- `MB15`'s rule.
+
+    It also runs the PERTURBED direction: shuffling one arm within each date must DESTROY the
+    agreement. Without that leg a comparison hard-wired to return 1.0 would pass.
+    """
+    from valuation.edge.fundamental_panel import composite_from_frame
+    from valuation.screener.cross_sectional import zscore
+
+    sh = pd.read_pickle(os.path.join(root, "free_analysis", "panel_corrected_69d.pkl"))
+    sh = sh[["date", "ticker"] + list(FIVE)].copy()
+    a = _composite(sh, composite_from_frame, zscore)
+    ident = _per_date_spearman(a, a.rename(columns={"comp": "comp"}))
+
+    rng = np.random.default_rng(1000)
+    b = a.copy()
+    b["comp"] = b.groupby("date", sort=False)["comp"].transform(
+        lambda s: rng.permutation(s.values))
+    shuf = _per_date_spearman(a, b)
+
+    return {
+        "identical_mean_spearman": ident["mean"],
+        "identical_is_exactly_one": (ident["mean"] is not None
+                                     and abs(ident["mean"] - 1.0) < 1e-12),
+        "identical_rows_compared": ident["rows_compared"],
+        "identical_dates_scored": ident["dates_scored"],
+        "shuffled_mean_spearman": shuf["mean"],
+        "shuffled_is_near_zero": (shuf["mean"] is not None and abs(shuf["mean"]) < 0.05),
+        "non_vacuous": (ident["rows_compared"] > 0 and ident["dates_scored"] > 0),
+        "verdict": ("the comparison returns exactly 1.0 on identical input, collapses to ~0 on a "
+                    "within-date shuffle, and did so on a NON-EMPTY frame -- so a Gate B result "
+                    "is a statement about the two panels rather than about the machinery"),
+    }
+
+
+def _composite(df, composite_from_frame, zscore):
+    """Per-date composite over the five frozen themes, via the SHIPPED function (`B7`)."""
+    out = []
+    for _d, sub in df.groupby("date", sort=True):
+        s = sub.copy()
+        s["comp"] = composite_from_frame(s, list(FIVE), FIVE_W, zscore)
+        out.append(s[["date", "ticker", "comp"]])
+    return pd.concat(out, ignore_index=True)
+
+
 def gate_b(root: str, lo: int, hi: int, limit: int = 0) -> dict:
     """The vendor-translation control. Runs ENTIRELY on 2009-2026 -- training data, not holdout."""
     from valuation.edge.compustat_provider import CompustatCrspProvider
@@ -247,56 +335,35 @@ def gate_b(root: str, lo: int, hi: int, limit: int = 0) -> dict:
     cp = build_fundamental_panel(prov, tickers, grid_dates=dates, horizon=63,
                                  lookback_years=18, keep_numbers=False)
 
-    # Compute BOTH composites with the SAME shipped function on the SAME five columns, so a
-    # disagreement cannot be my arithmetic (`B7`).
-    def _comp(df):
-        out = []
-        for d, sub in df.groupby("date", sort=True):
-            s = sub.copy()
-            s["comp"] = composite_from_frame(s, list(FIVE), FIVE_W, zscore)
-            out.append(s[["date", "ticker", "comp"]])
-        return pd.concat(out, ignore_index=True)
-
-    a = _comp(sh)
-    b = _comp(cp)
-    b["permno_s"] = b["ticker"].astype(str)
+    # Both composites come from the SAME shipped function on the SAME five columns, through the
+    # SAME helper the self-test validated -- so a disagreement cannot be my arithmetic (`B7`),
+    # and the comparison is the one already proved non-vacuous.
+    a = _composite(sh, composite_from_frame, zscore)
+    b = _composite(cp, composite_from_frame, zscore)
     back = dict(zip(tmap["permno_s"], tmap["ticker"]))
-    b["ticker"] = b["permno_s"].map(back)
+    b["ticker"] = b["ticker"].astype(str).map(back)
     b = b.dropna(subset=["ticker"])
-    a["date"] = a["date"].astype(str)
-    b["date"] = b["date"].astype(str)
 
-    j = a.merge(b[["date", "ticker", "comp"]], on=["date", "ticker"],
-                how="inner", suffixes=("_sh", "_cp"))
-    per = []
-    for d, sub in j.groupby("date", sort=True):
-        s = sub.dropna(subset=["comp_sh", "comp_cp"])
-        if len(s) < 30:
-            per.append({"date": d, "n": int(len(s)), "spearman": None,
-                        "note": "below the 30-name floor -- not scored"})
-            continue
-        per.append({"date": d, "n": int(len(s)),
-                    "spearman": round(float(s["comp_sh"].corr(s["comp_cp"],
-                                                              method="spearman")), 6)})
-    sc = [p["spearman"] for p in per if p["spearman"] is not None]
-    mean_rho = round(float(np.mean(sc)), 6) if sc else None
+    r = _per_date_spearman(a, b)
+    mean_rho = r["mean"]
     return {
         "bar": GATE_B_BAR,
         "mean_per_date_spearman": mean_rho,
-        "passes": (mean_rho is not None and mean_rho >= GATE_B_BAR),
-        "dates_scored": len(sc),
+        "passes": (mean_rho is not None and mean_rho >= GATE_B_BAR
+                   and r["rows_compared"] > 0),
+        "dates_scored": r["dates_scored"],
         "dates_requested": len(dates),
-        "dates_below_name_floor": int(len(per) - len(sc)),
-        "min_spearman": round(float(np.min(sc)), 6) if sc else None,
-        "median_spearman": round(float(np.median(sc)), 6) if sc else None,
+        "dates_below_name_floor": r["dates_below_name_floor"],
+        "min_spearman": r["min"],
+        "median_spearman": r["median"],
         "ticker_link_rate": link_rate,
         "tickers_linked": int(len(tmap)),
         "tickers_in_sharadar_panel": int(len(want)),
         "tickers_ambiguous_dropped": ambiguous,
-        "rows_compared": int(len(j)),
+        "rows_compared": r["rows_compared"],
+        "per_date": r["per_date"],
         "compustat_panel_rows": int(len(cp)),
         "provider_notes": prov.notes,
-        "per_date": per,
         "era": "2009-2026 overlap ONLY -- training data. The 1972-1998 holdout is NOT read.",
         "note": ("below the bar the holdout is NOT opened, because a pre-1999 result would then "
                  "measure the vendor translation rather than the model"),
@@ -305,7 +372,7 @@ def gate_b(root: str, lo: int, hi: int, limit: int = 0) -> dict:
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--gate", choices=["a", "b", "both"], default="both")
+    ap.add_argument("--gate", choices=["a", "b", "both", "selftest"], default="both")
     ap.add_argument("--lo", type=int, default=1972)
     ap.add_argument("--hi", type=int, default=2024)
     ap.add_argument("--limit", type=int, default=0,
@@ -331,9 +398,30 @@ def main(argv=None):
         print("   A2 size spread vs SMB: corr %.6f over %d months"
               % (a2["correlation_with_SMB"], a2["months_compared"]), flush=True)
 
+    if args.gate in ("b", "both", "selftest"):
+        print("[oos1] GATE B SELF-TEST -- is the comparison non-vacuous? ...", flush=True)
+        art["gate_b_selftest"] = gate_b_selftest(root)
+        st = art["gate_b_selftest"]
+        print("   identical input -> mean Spearman %s on %s rows / %d dates (exactly 1.0: %s)"
+              % (st["identical_mean_spearman"],
+                 "{:,}".format(st["identical_rows_compared"]),
+                 st["identical_dates_scored"], st["identical_is_exactly_one"]), flush=True)
+        print("   within-date shuffle -> mean Spearman %s (near zero: %s)"
+              % (st["shuffled_mean_spearman"], st["shuffled_is_near_zero"]), flush=True)
+        if not (st["identical_is_exactly_one"] and st["shuffled_is_near_zero"]
+                and st["non_vacuous"]):
+            raise SystemExit("REFUSING: the Gate B comparison failed its own self-test, so no "
+                             "Gate B number would be a statement about the panels")
+
     if args.gate in ("b", "both"):
         print("[oos1] GATE B -- vendor translation on the 2009-2026 overlap ...", flush=True)
-        art["gate_b"] = gate_b(root, 2008, min(args.hi, 2026), limit=args.limit)
+        # 2007, NOT 2009. The grid starts 2009-01-15 and `ret_12_1`/`high_prox` need 252 TRADING
+        # days before it, so a floor at the grid's own first year leaves momentum computed on a
+        # truncated window -- which would lower Gate B's Spearman for a reason that is NOT
+        # vendor translation and would read as a translation failure. Two years of burn-in.
+        # It is still far above the 1998 holdout ceiling, so no holdout year is loaded.
+        art["gate_b"] = gate_b(root, GATE_B_BURNIN_YEAR, min(args.hi, 2026),
+                               limit=args.limit)
         g = art["gate_b"]
         print("   mean per-date Spearman %s over %d dates (bar %.2f) -> %s"
               % (g["mean_per_date_spearman"], g["dates_scored"], GATE_B_BAR,
