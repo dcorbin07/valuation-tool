@@ -59,8 +59,23 @@ STATUS_TIME_STOPPED = "TIME-STOPPED"
 STATUS_EXPIRED = "EXPIRED"
 STATUS_CLOSED_OTHER = "CLOSED (unscoreable)"
 
+#: ITEM 29(a) -- A ROW THAT NAMES NO CONTRACT IS NOT LIVE, AND IT READ AS LIVE FOR AS LONG AS
+#: THIS STATUS DID NOT EXIST. `display_status` tested `closed`, then expiry, then fell through
+#: to LIVE -- and an alert logged from a descriptor with no chain has status `no_contract` AND
+#: no expiry, so it took the fall-through. Measured on the live service 2026-10-04 after Don
+#: applied `/admin/score-alerts`: `/api/scream-track` read **LIVE 23** while
+#: `/api/options-scorecard` read **n_open 15, n_no_contract 8**, and 23 - 8 = 15. The eight
+#: were alert ids 9, 10, 12, 13, 16, 18, 24, 25.
+#:
+#: IT IS A THIRD KIND, not a closed one and not an open one. The row is a real alert with a real
+#: fingerprint -- which is why `log_alert` is deliberately permissive about missing contract
+#: detail, since the fingerprint is what the tuning loop learns from -- and it has no strike, no
+#: expiry, nothing to mark and no date on which it could mature. Calling it LIVE overstates the
+#: open book; calling it CLOSED would imply an outcome it can never have.
+STATUS_NO_CONTRACT = "NO CONTRACT - not scoreable"
+
 ALL_STATUSES = (STATUS_LIVE, STATUS_HIT, STATUS_STOPPED, STATUS_TIME_STOPPED,
-                STATUS_EXPIRED, STATUS_CLOSED_OTHER)
+                STATUS_EXPIRED, STATUS_CLOSED_OTHER, STATUS_NO_CONTRACT)
 
 # `paper_track._exit_decision` returns exactly these four tokens; `record_outcome` may append a
 # provenance suffix (audit B5d writes "... [pnl vs fill]"), so the reason is matched on its
@@ -77,6 +92,31 @@ EXIT_REASON_TO_STATUS = {
     "time_stop": STATUS_TIME_STOPPED,
     "expiry": STATUS_EXPIRED,
 }
+
+#: ITEM 29(b) -- WHAT THE CLOSER COMPOSES, WHICH IS NOT WHAT THE DECIDER RETURNS.
+#:
+#: `paper_track` does not store the decision token. On an exit the broker would not work it
+#: appends a parenthetical -- `f"{reason} (marked; exit order {status})"` and
+#: `f"{reason} (marked; exit rejected)"` -- so the STORED reason is
+#: `"stop (marked; exit order rejected) [pnl vs fill]"`. `_reason_token` stripped the bracketed
+#: suffix and not the parenthetical, returned the whole head, found no mapping, and fell to
+#: `STATUS_CLOSED_OTHER`.
+#:
+#: SO TWO REAL STOP-OUTS READ "CLOSED (unscoreable)" AND WERE MISSING FROM THE STOPPED COUNT.
+#: Measured live 2026-10-04: FDX (id 5) stopped at 4.05 against a 4.975 stop, **-55.2%**, and
+#: JNJ (id 8) at 2.14 against 2.40, **-52.4%**. Both carry a `pnl_pct`, so "unscoreable" was
+#: false of both, and the tab read STOPPED 6 where it should read 8 -- which UNDERSTATES the
+#: stop rate, the direction that flatters.
+#:
+#: AND THE GUARD THAT WAS MEANT TO CATCH AN UNMAPPED REASON COULD NOT SEE IT.
+#: `tests/test_scream_log.py` enumerates the string constants RETURNED by `exit_decision`; all
+#: four are mapped. The composed reason is built by an f-string at the RECORD site, so it is not
+#: a return and the enumeration never had it in view. **It enumerates what the DECIDER emits
+#: while the record stores what the CLOSER composes** -- the wrong-producer family. The
+#: enumeration now covers both, and these suffixes are listed here so the mapping is a
+#: statement rather than an inference.
+CLOSER_REASON_SUFFIXES = ("(marked; exit order canceled)", "(marked; exit order rejected)",
+                          "(marked; exit order expired)", "(marked; exit rejected)")
 
 # Meta keys on the store. The manifest is kept in the database as well as in the archive file so
 # the tab footer can render "record reset <date>, N rows archived at <path>" without reading — or
@@ -208,7 +248,33 @@ def _reason_token(exit_reason) -> Optional[str]:
     raw = str(exit_reason).strip().lower()
     # `record_outcome` appends " [pnl vs fill]" (audit B5d); the reason itself is the head.
     head = raw.split("[")[0].strip()
+    # ITEM 29(b) -- AND `paper_track` APPENDS A PARENTHETICAL THAT THIS DID NOT STRIP, so the
+    # function did not return "the leading token" its own docstring promises. On a rejected
+    # exit the stored reason is `"stop (marked; exit order rejected) [pnl vs fill]"`; the
+    # bracket came off and the parenthetical did not, so the head was
+    # `"stop (marked; exit order rejected)"`, matched nothing, and two real stop-outs read
+    # CLOSED (unscoreable).
+    #
+    # SPLIT ON "(" RATHER THAN MATCHING THE KNOWN SUFFIXES. A list of suffixes to remove is a
+    # second definition of what `paper_track` composes, and it would go stale the next time a
+    # parenthetical is added -- which is exactly how this defect arrived. Taking the head is a
+    # statement about the SHAPE: the reason is a token, optionally followed by parentheses and
+    # brackets that qualify it. `CLOSER_REASON_SUFFIXES` is kept as documentation and as the
+    # test's fixture, NOT as the matcher.
+    head = head.split("(")[0].strip()
     return head or None
+
+
+def _no_contract_token() -> str:
+    """`options_selfscore.NO_CONTRACT`, the module that WRITES this status.
+
+    Imported inside the function rather than at module scope: `options_selfscore` imports
+    `paper_track`, which imports this module, so a top-level import would close a cycle. The
+    value is still read from its owner rather than retyped, which is the point -- a literal
+    `"no_contract"` here would be a second spelling of a status this module does not define.
+    """
+    from . import options_selfscore as _SS
+    return str(_SS.NO_CONTRACT).strip().lower()
 
 
 def display_status(row: dict, today=None) -> str:
@@ -224,6 +290,12 @@ def display_status(row: dict, today=None) -> str:
     if status == "closed":
         tok = _reason_token(row.get("exit_reason"))
         return EXIT_REASON_TO_STATUS.get(tok, STATUS_CLOSED_OTHER)
+    # ITEM 29(a) -- BEFORE THE EXPIRY TEST, because these rows have no expiry and would other-
+    # wise take the LIVE fall-through, which is exactly what they did. The token is read from
+    # `options_selfscore` rather than retyped: it is the writer of this value, and two spellings
+    # of one status is how a tab and a scorer come to disagree about the same row (`B7`).
+    if status == _no_contract_token():
+        return STATUS_NO_CONTRACT
     exp = _d(row.get("expiry"))
     day = _d(today) or _dt.date.today()
     if exp is not None and exp < day:

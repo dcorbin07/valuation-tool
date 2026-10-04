@@ -80,6 +80,7 @@ def summary(store, limit: int = DEFAULT_LIMIT, quotes: Optional[dict] = None) ->
         "rows": [],
         "n_rows": 0,
         "n_live": 0,
+        "n_no_contract": 0,
         "n_closed": 0,
         "limit": int(limit),
         "statuses": list(SL.ALL_STATUSES),
@@ -101,11 +102,21 @@ def summary(store, limit: int = DEFAULT_LIMIT, quotes: Optional[dict] = None) ->
         out["error"] = type(e).__name__
         return out
 
+    # ITEM 29(a) -- THREE KINDS, NOT TWO, AND THE COMPLEMENT IS WHY THIS NEEDED TOUCHING.
+    #
+    # `n_live` keys on the DISPLAY status, so giving `no_contract` its own status fixes the live
+    # count on its own: 23 -> 15, which is what `/api/options-scorecard` already read. But
+    # `n_closed` was `len(recs) - len(live)`, i.e. "everything that is not live", and that
+    # definition breaks the moment a third kind exists -- it would have reported the 8
+    # no-contract rows as CLOSED, so the tab would read 18 closed trades where only 10 closed.
+    # Fixing LIVE without fixing its complement moves the error rather than removing it.
     live = [r for r in recs if (r.get("status") or "") == SL.STATUS_LIVE]
+    nocon = [r for r in recs if (r.get("status") or "") == SL.STATUS_NO_CONTRACT]
     out["rows"] = recs
     out["n_rows"] = len(recs)
     out["n_live"] = len(live)
-    out["n_closed"] = len(recs) - len(live)
+    out["n_no_contract"] = len(nocon)
+    out["n_closed"] = len(recs) - len(live) - len(nocon)
     out["summary"] = foot
     # Lifted out of the footer because these are what make a reset VISIBLE rather than merely
     # honest: a table of three rows reads very differently when the footer says 41 alerts sit

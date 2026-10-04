@@ -124,8 +124,14 @@ def test_that_scan_would_actually_catch_a_write():
 def test_the_payload_publishes_the_loggers_status_vocabulary_not_a_copy():
     out = ST.summary(_Store())
     assert out["statuses"] == list(SL.ALL_STATUSES), out["statuses"]
-    assert len(SL.ALL_STATUSES) == 6, SL.ALL_STATUSES
+    # 6 -> 7 at item 29(a). The literal is the point of the test -- a vocabulary that grows
+    # without anyone deciding is how a status comes to mean nothing -- so it is BUMPED in the
+    # commit that adds the member, and the member is named below so the count alone cannot
+    # satisfy it. The tripwire fired on my change, which is the tripwire working.
+    assert len(SL.ALL_STATUSES) == 7, SL.ALL_STATUSES
     assert "CLOSED (unscoreable)" in out["statuses"]
+    assert "NO CONTRACT - not scoreable" in out["statuses"]
+    assert SL.STATUS_NO_CONTRACT in out["statuses"]
 
 
 def test_the_payload_publishes_the_loggers_live_field_names():

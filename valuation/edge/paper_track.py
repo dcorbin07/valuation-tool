@@ -709,13 +709,18 @@ def close_matured(store, broker: PaperBroker, today=None) -> dict:
             # The exit could not be worked. Fall back to the last mark so the trade is scored
             # rather than left open forever — recorded with a reason that says which happened.
             mark = _f(r.get("last_mark"))
+            _why = _refusal_detail(order=o)
             if mark is not None and _record(store, r, mark,
                                             f"{r.get('exit_reason') or 'exit'} (marked; exit "
-                                            f"order {status})", out):
+                                            f"order {status})", out, note=_why):
                 out["closed"] += 1
+                out.setdefault("exit_refusals", []).append(
+                    {"ticker": r.get("ticker"), "alert_id": r.get("alert_id"),
+                     "where": "order status", "detail": _why})
             else:
                 _update(store, r["alert_id"], state="open",
-                        note=f"exit order {status}; will retry")
+                        note=f"exit order {status}; will retry"
+                             + (" | %s" % _why if _why else ""))
         else:
             out["closing"] += 1
 
@@ -764,9 +769,16 @@ def close_matured(store, broker: PaperBroker, today=None) -> dict:
             # A rejected exit still has to produce a number, or a losing trade could sit open
             # forever and quietly flatter the closed-trade statistics.
             mark = _f(r.get("last_mark"))
+            _why = _refusal_detail(res=res)
             if mark is not None and _record(store, r, mark, f"{reason} (marked; exit rejected)",
-                                            out):
+                                            out, note=_why):
                 out["closed"] += 1
+                # REPORTED IN THE CYCLE'S OWN RESULT TOO, not only on the row. The cycle result
+                # is what the admin door returns and what a reader sees without opening the
+                # database, and a refusal that is only on disk is one nobody reads.
+                out.setdefault("exit_refusals", []).append(
+                    {"ticker": r.get("ticker"), "alert_id": r.get("alert_id"),
+                     "where": "placement", "detail": _why})
             else:
                 _update(store, r["alert_id"],
                         note=f"exit rejected and no mark available: "
@@ -827,19 +839,66 @@ def _record_restatement(store, day, out: dict, pre) -> None:
         out.setdefault("errors", []).append("could not record the MA36 restatement note")
 
 
-def _record(store, row: dict, exit_premium: float, reason: str, out: dict) -> bool:
-    """Close the paper row AND write the outcome through the existing tracker."""
+def _refusal_detail(*, order: dict = None, res: dict = None) -> Optional[str]:
+    """What the broker said when it would not work the exit. ITEM 29(b).
+
+    **THE REASON WAS COMPUTED AND THROWN AWAY, WHICH IS WHY TWO REJECTIONS ARE UNDIAGNOSABLE.**
+    FDX (2026-08-21) and JNJ (2026-09-01) both closed as `stop (marked; exit ... rejected)` and
+    neither carries a cause anywhere in the record: `res` holds `{"ok": False, "http_status":
+    ..., "error": body}` and the branch that records at the mark used NONE of it -- the error
+    reached a note only in the `else` branch, where there is no mark to record. Both rows took
+    the recording branch. `MA39`'s shape: a finding discarded on the way to the record.
+
+    Rendered SHORT and into the `note`, never into `exit_reason`: the reason field feeds
+    `scream_log.display_status`, and putting a vendor string in it would make the display
+    depend on what Tradier happened to say.
+    """
+    bits = []
+    if order:
+        st = str(order.get("status") or "").strip().lower()
+        if st:
+            bits.append("order %s" % st)
+        # Tradier puts the refusal here when it has one. Read defensively: a sandbox reject
+        # sometimes carries no description at all, and "no reason given" is itself the finding.
+        for k in ("reason_description", "description", "reason"):
+            v = order.get(k)
+            if v:
+                bits.append("%s=%s" % (k, str(v)[:160]))
+                break
+    if res:
+        hs = res.get("http_status")
+        if hs:
+            bits.append("http %s" % hs)
+        err = res.get("error")
+        if err:
+            bits.append("error=%s" % json.dumps(err)[:240])
+    return "; ".join(bits) or None
+
+
+def _record(store, row: dict, exit_premium: float, reason: str, out: dict,
+            note: str = None) -> bool:
+    """Close the paper row AND write the outcome through the existing tracker.
+
+    `note` carries forward anything the caller learned and would otherwise lose -- item 29(b)'s
+    rejection detail. It defaults to `None`, which is exactly the previous behaviour.
+    """
     # AUDIT B5d — hand over the price actually PAID at the broker. Without it `record_outcome`
     # computes the return against the ALERT-TIME ASK and the paper fill is decorative.
     ok = OT.record_outcome(store, alert_id=row["alert_id"], exit_premium=exit_premium,
                            exit_ts=now_iso(), exit_reason=reason,
                            contracts=int(row.get("contracts") or 1),
                            entry_premium=_f(row.get("entry_premium")))
+    # ITEM 29(b) -- THIS USED TO WRITE `note=None` ON SUCCESS, so a rejection reason written by
+    # an earlier cycle was ERASED by the close. Both facts now survive: a DESYNC still leads,
+    # because a closed row the scorecard has no outcome for is the more urgent of the two, and
+    # the caller's detail is appended rather than dropped.
+    _desync = ("DESYNC: record_outcome did not match an open alert — this paper row is closed "
+               "but the scorecard has no outcome for it (audit B5)")
+    _note = note or None
+    if not ok:
+        _note = _desync if not _note else (_desync + " | " + _note)
     _update(store, row["alert_id"], state="closed", exit_premium=exit_premium,
-            exit_ts=now_iso(), exit_reason=reason,
-            note=None if ok else "DESYNC: record_outcome did not match an open alert — this "
-                                 "paper row is closed but the scorecard has no outcome for it "
-                                 "(audit B5)")
+            exit_ts=now_iso(), exit_reason=reason, note=_note)
     if ok:
         out["recorded"] += 1
     else:

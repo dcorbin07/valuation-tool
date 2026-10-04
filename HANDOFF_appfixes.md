@@ -14130,3 +14130,117 @@ workflow -> themes**, then reads the run's annotations and, after the next hot s
 `health.theme_contributing`: `institutional` and `insider` should rise above 0. Until that scan
 runs, the theme cache is absent and those two themes contribute nothing, which is the state
 `FIDELITY-2` describes.
+
+
+# SESSION 85 - ITEM 29: A ROW WITH NO CONTRACT IS NOT LIVE, AND A REJECTED EXIT IS STILL A STOP
+
+Both halves measured on the live service on 2026-10-04 BEFORE any change.
+
+## 29(a) - EIGHT NO-CONTRACT ALERTS WERE COUNTED AS LIVE
+
+`/api/scream-track` read **LIVE 23** while `/api/options-scorecard` read **n_open 15,
+n_no_contract 8**, and 23 - 8 = 15. The eight were alert ids **9, 10, 12, 13, 16, 18, 24, 25**,
+confirmed by pulling the payload and filtering for LIVE rows with no expiry.
+
+`display_status` tested `closed`, then expiry, then **fell through to LIVE** - and an alert
+logged from a descriptor with no chain has status `no_contract` AND no expiry, so it took the
+fall-through. It is a THIRD KIND: a real alert with a real fingerprint (which is why `log_alert`
+is deliberately permissive about missing contract detail) and no strike, no expiry, nothing to
+mark and no date on which it could mature. LIVE overstates the open book; CLOSED would imply an
+outcome it can never have.
+
+`STATUS_NO_CONTRACT` is tested **before** the expiry branch, because these rows have no expiry
+and would otherwise take the fall-through again. The token is **read from
+`options_selfscore.NO_CONTRACT`**, the module that writes it, rather than retyped - imported
+inside the function because `options_selfscore` imports `paper_track` which imports
+`scream_log`, so a top-level import would close a cycle.
+
+**AND THE COMPLEMENT BROKE, WHICH IS WHY `n_live` ALONE WAS NOT THE FIX.** `n_live` keys on the
+display status, so it corrects itself. But `n_closed` was `len(recs) - len(live)` - *everything
+that is not live* - so it would have reported the eight as CLOSED and the tab would read **18
+closed trades where only 10 closed**. Fixing LIVE without its complement moves the error rather
+than removing it. There are now three counts and they partition the rows.
+
+The colour is **named rather than left to the fall-through**. The default already muted it,
+which is the right colour, but then it would be an accident of the default and the next status
+added would get the same treatment without anyone deciding.
+
+## 29(b) - TWO REAL STOP-OUTS READ "CLOSED (unscoreable)"
+
+`paper_track` does not store the decision token. On an exit the broker would not work it
+COMPOSES one: `f"{reason} (marked; exit order {status})"`, so the stored value is
+`"stop (marked; exit order rejected) [pnl vs fill]"`. `_reason_token` stripped the bracketed
+suffix and **not** the parenthetical, so it returned the whole head, matched nothing, and fell
+to `STATUS_CLOSED_OTHER` - against its own docstring, which promises *"the leading token"*.
+
+**BOTH TRADES WERE IN FACT SCORED.** FDX (id 5) stopped at 4.05 against a 4.975 stop,
+**-55.2%**; JNJ (id 8) at 2.14 against 2.40, **-52.4%**. Both carry a `pnl_pct`, so
+"unscoreable" was false of both - and the tab read **STOPPED 6 where it should read 8**, which
+UNDERSTATES the stop rate, the direction that flatters.
+
+The fix splits on `"("` rather than matching the known suffixes: a suffix list in the matcher
+would be a second definition of what `paper_track` composes and would go stale the next time
+one is added, which is exactly how this arrived. `CLOSER_REASON_SUFFIXES` ships as
+documentation and as the test's fixture, **not** as the matcher.
+
+**THE GUARD MEANT TO CATCH AN UNMAPPED REASON COULD NOT SEE IT.** `test_scream_log.py`
+enumerates the string constants RETURNED by `exit_decision`; all four are mapped. The composed
+reason is an f-string at the RECORD site, so it is not a `Return` of a constant and the AST walk
+never had it in view. **It enumerated what the DECIDER emits while the record stores what the
+CLOSER composes** - the wrong-producer family. The enumeration now walks `JoinedStr` nodes too
+and requires every composed reason to survive `_reason_token` into a mapped status, vacuity-
+proofed the same way as the original half.
+
+## WHY THE REJECTION ITSELF CANNOT BE DIAGNOSED, AND IT IS OURS
+
+**The cause was computed and thrown away.** `res` carries `{"ok": False, "http_status": ...,
+"error": body}` and the branch that records at the mark used NONE of it - the error reached a
+note only in the `else` branch, where there is no mark. Both rows took the recording branch.
+And `_record` then wrote `note=None` on success, so a reason written by an EARLIER cycle was
+erased by the close. `MA39`'s shape twice over: a finding discarded on the way to the record.
+
+**The two came from DIFFERENT paths**, which is why they read differently: FDX from the branch
+where the ORDER came back `status == "rejected"` (hence *"exit order rejected"*), JNJ from the
+branch where `place_option` itself returned not-ok (*"exit rejected"*). **It can recur** -
+nothing prevents either, and the sandbox refusing a `sell_to_close` is not a condition this
+code can remove.
+
+**SO THE CAUSE OF THESE TWO IS NOT RECOVERABLE AND IS NOT GUESSED AT HERE.** The candidates -
+the sandbox not holding the position the entry fill claimed, an invalid price, a contract not
+tradeable in sandbox - are hypotheses, and naming one as the cause would be inventing a finding.
+What is fixed is that the NEXT one is diagnosable: `_refusal_detail` renders the status, any
+`reason_description`, the HTTP status and the error body; it lands on the row's `note` and in
+the cycle's own `exit_refusals` list, so a reader sees it without opening the database. A
+refusal with no description at all still records *"order rejected"*, because "no reason given"
+is itself the finding.
+
+It goes in the **note** and never in `exit_reason`: the reason field feeds `display_status`, and
+a vendor string there would make the display depend on what Tradier happened to say.
+
+## DEFECTS OF MY OWN
+
+**MUTATION CAUGHT TWO GUARDS, AND ONE OF MY MUTATIONS WAS INERT.** 7 of 9 on the first pass.
+The miss on the ordering mutation was **no evidence about the guard**: it moved the `exp = ...`
+ASSIGNMENT past the branch and left the `return STATUS_EXPIRED` where it was, so the ordering
+under test never changed - the whole expiry BLOCK has to move. The other miss was real and is
+the better lesson: I asserted that `_note` APPEARED in `_record`'s body and that "DESYNC" did
+too, both of which stay true when the line is changed back to `_note = None`. **The guard named
+the variable and never checked what it carried.** Replaced by a behavioural test that drives
+`_record` against a temp store and reads the note back off the row. **9 of 9 after.**
+
+**A TRIPWIRE OF THE PROJECT'S OWN FIRED, CORRECTLY, AND IS BUMPED IN THE SAME COMMIT.**
+`test_scream_track.py` pins `len(ALL_STATUSES) == 6`; it is now 7. That literal is the point of
+the test - a vocabulary that grows without anyone deciding is how a status comes to mean nothing
+- so it is bumped where the member is added, and the member is named beside it so the count
+alone cannot satisfy it.
+
+**AND MY TEST FIRST HAND-ROLLED THE SCHEMA**, which would have been a second definition of the
+paper row shape; it calls `paper_track.ensure_schema` instead.
+
+**22 tests in the new suite; 9 of 9 mutations caught with zero skipped**, sources restored
+byte-for-byte. `test_paper_track.py` 70/70, `test_scream_log.py` and `test_scream_track.py`
+19/19 unchanged in substance.
+
+**NOT DONE:** the cause of the FDX and JNJ rejections is not recoverable and is not invented;
+no closed row is re-scored or re-opened; and the two rows keep their recorded P&L, which was
+always correct - only the label and the counts were wrong.
