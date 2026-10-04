@@ -1,0 +1,52 @@
+name: DAILY DOORS (score options alerts + Index returns)
+
+# Three service-side jobs that the app fixer built as admin doors and that NOTHING calls:
+#   * POST /admin/score-alerts?write=1  -- scores every open options alert against its OWN
+#     exit rules on daily bid-side marks, whether or not the paper broker bought it (item 24).
+#     Without it, alerts the $1,000 budget declined are never scored and drop out unscored.
+#   * POST /admin/index-returns?write=1 -- each Index holding's return since formation, cached
+#     for the Index tab's "return since formation" column.
+#   * POST /admin/record-dip-rejects?write=1 -- records the day's Dip Detector reject list for
+#     fleet book F-11, from the snapshot already on disk (no scan). Item 27.
+# Same shape as fleet-cycle.yml: a scheduler plus a messenger. No checkout, no pip install,
+# no push permission. Secrets SITE_BASE_URL and ADMIN_TOKEN already exist.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # 22:37 UTC = 6:37pm EDT / 5:37pm EST: after the US close in both halves of the year,
+    # and after fleet-cycle's 22:19. Odd minute on purpose.
+    - cron: "37 22 * * 1-5"
+
+concurrency:
+  group: daily-doors
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  doors:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST the three doors
+        env:
+          SITE_BASE_URL: ${{ secrets.SITE_BASE_URL }}
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          set -uo pipefail
+          if [ -z "${SITE_BASE_URL:-}" ] || [ -z "${ADMIN_TOKEN:-}" ]; then
+            echo "::error::SITE_BASE_URL or ADMIN_TOKEN is unset"; exit 1
+          fi
+          fail=0
+          for door in "score-alerts?write=1" "index-returns?write=1" "record-dip-rejects?write=1"; do
+            BODY=$(mktemp)
+            CODE=$(curl -sS -o "$BODY" -w '%{http_code}' -X POST \
+                     --max-time 280 \
+                     -H "X-Admin-Token: ${ADMIN_TOKEN}" \
+                     "${SITE_BASE_URL%/}/admin/${door}") || CODE="000"
+            echo "== /admin/${door} -> HTTP ${CODE}"
+            head -c 4000 "$BODY"; echo
+            [ "$CODE" = "200" ] || { echo "::error::/admin/${door} returned ${CODE}"; fail=1; }
+          done
+          exit $fail
