@@ -1,7 +1,80 @@
 {
-  "books": {},
-  "ok": false,
+  "books": {
+    "f10_clean_csp": {
+      "last_seen": "2026-09-15T23:26:01",
+      "max_seq": 6
+    },
+    "f11_dip_reject_puts": {
+      "last_seen": "2026-09-15T23:26:01",
+      "max_seq": 6
+    },
+    "f12_postevent_reversal": {
+      "last_seen": "2026-09-15T23:26:01",
+      "max_seq": 6
+    },
+    "f13_second_event": {
+      "last_seen": "2026-09-15T23:26:01",
+      "max_seq": 6
+    },
+    "f14_fda_nohump": {
+      "last_seen": "2026-09-15T23:26:01",
+      "max_seq": 6
+    },
+    "f15_insider_cluster": {
+      "last_seen": "2026-09-15T23:26:01",
+      "max_seq": 6
+    },
+    "f17_vrp_percentile_sells": {
+      "last_seen": "2026-09-15T23:26:01",
+      "max_seq": 6
+    },
+    "f18_boring_book": {
+      "last_seen": "2026-09-15T23:26:01",
+      "max_seq": 6
+    },
+    "f19_density_gate": {
+      "last_seen": "2026-09-15T23:26:01",
+      "max_seq": 6
+    },
+    "f1_fill_ab": {
+      "last_seen": "2026-09-15T23:26:01",
+      "max_seq": 6
+    },
+    "f20_married_put_storm": {
+      "last_seen": "2026-09-15T23:26:01",
+      "max_seq": 6
+    },
+    "f2_menu_gate": {
+      "last_seen": "2026-09-15T23:26:01",
+      "max_seq": 6
+    },
+    "f3_bear_puts": {
+      "last_seen": "2026-10-03T01:12:16",
+      "max_seq": 78
+    },
+    "f4_eventfree_premium": {
+      "last_seen": "2026-09-15T23:26:01",
+      "max_seq": 6
+    },
+    "f5_ivcheap": {
+      "last_seen": "2026-09-15T23:26:01",
+      "max_seq": 6
+    },
+    "f6_collar_ledger": {
+      "last_seen": "2026-09-15T23:26:01",
+      "max_seq": 6
+    },
+    "f8_csp_entry_financing": {
+      "last_seen": "2026-09-15T23:26:01",
+      "max_seq": 6
+    },
+    "testbook": {
+      "last_seen": "2026-09-15T23:26:01",
+      "max_seq": 20
+    }
+  },
+  "ok": true,
   "path": "/app/data/fleet/_highwater.json",
-  "reason": "no high-water mark on disk at /app/data/fleet/_highwater.json",
-  "state": "ABSENT"
+  "reason": "",
+  "state": "OK"
 }
