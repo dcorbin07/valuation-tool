@@ -20536,3 +20536,128 @@ points at, and nothing needs re-pulling for research.
 **23 tests, zero skips.** `scripts/refresh_backtest_from_freeze.py`, `refresh_sharadar.bat`,
 `REBALANCE_RUNBOOK_2026-10-22.md` §3 step 0, `tests/test_refresh_sharadar.py`.
 
+---
+
+# PANEL-EXT-RECHECK — the 1999-2008 out-of-sample test cannot be run, and it was already proved
+
+**2026-10-04. ZERO TRIALS, `FACTS` class.** `by_domain` **BIT-IDENTICAL** at equity **258**,
+options **310**, unified **0**, infra **20**, re-read from `research_log.detail()` rather than
+quoted, while `rows_fixed_not_counted` rises **91 → 92**. **No panel is built, no outcome
+statistic is computed, no holdout is spent, and the census is not re-opened.**
+
+## Why there is no register, and writing one would have been the error
+
+Don ruled on 2026-10-04 that there is no switch from the incumbent until the wider pool is proven
+out of sample, and asked for a 1999-2008 test with a **zero-trial census first, as a free kill**.
+
+**That census exists.** `PANEL-EXT-CENSUS`, register `PREREG_panel_ext_census.md` committed
+**ALONE at `5cff93a`** on **2026-09-30** — markdown only, kills fixed before any number existed —
+and it **failed all three candidate start years, 1995, 1999 and 2000.** So the free kill the
+ruling asks for has already fired.
+
+**Re-registering it would be choosing a design on the outcome**, which is the thing this record
+warns against hardest, and `W-28`'s rule forbids relaxing a pre-committed bar after watching it
+fail. **The only live question is whether NEW DATA moves the answer**, and the 2026-10 renewal is
+new data pulled four days after the census ran. That is the one question this item asks.
+
+## The answer: it does not move, and it costs nothing to establish
+
+**The freeze's own integrity pass is a full streaming scan over every row**, so a `date_min` in
+`MANIFEST.json` is the same standard the census had to scan 2.9 GB by hand to reach — read off
+the new export instead.
+
+| table | rows | `date_min` | consequence for 1999-2008 |
+|---|---|---|---|
+| **SF3 / SF3A** (13F) | 81,221,241 | **2013-06-30** | **`institutional` has ZERO pre-2009 source — 0.000 every year** |
+| **SF2** (insider) | 11,570,121 | **2008-01-02** (`filingdate`) | **`insider` cannot reach the 70% rule before 2008** (census: 0.307 by 2008) |
+| SEP | 45,394,106 | 1997-12-31 | unchanged by the renewal |
+| SF1 | 3,218,057 | 1990-06-06 | unchanged by the renewal |
+| DAILY | 39,854,661 | 1998-12-01 | point-in-time market cap available from Dec 1998 |
+| TICKERS | 74,326 | 2008-01-02 | the universe snapshot itself starts in 2008 |
+
+**The renewal extended the RECENT end, not the far end.** Both structural kills survive.
+
+**SO THE ANSWER TO DON'S QUESTION IS THAT IT CANNOT BE ANSWERED ON THIS DATA.** A 1999-2008 panel
+built from this freeze scores a **FIVE-theme composite against a SEVEN-theme published figure** —
+in the census's own words, *"not an extension of the published figure"* but *"a different
+composite wearing the same name."* **It cannot prove the shipped construction out of sample
+whatever it returns**, so running it would spend a holdout era to produce a number that does not
+answer the ruling.
+
+## One finding of my own, which the census does not cover
+
+The census tested **Route S, the RAW bulk layer**. This is about the **DERIVED** one, and it is a
+hazard for anyone who reaches for the obvious path first.
+
+**`data/backtest` CANNOT be used for a pre-2009 panel, and the mechanism is selection on a
+PRESENT-DAY property.** `sharadar_freeze._fresh_universe` ranks the **TICKERS snapshot** by
+`scalemarketcap` — **today's size** — keeps `scale >= 2`, takes the **top 3,000**, and the freeze
+then unions the live set. So the derived prices directory is *the names that are biggest in 2026*.
+
+Measured on it: **3,747 price files, of which only 1,697 span 1999-01-15, and just 400 — 10.68% —
+have a price history ending before 2009.** For the 2009-2026 panel the record already accounts
+for this; for a 1999-2008 panel it is **`B6`'s defect in a new costume** and it would flatter any
+wider-pool result.
+
+## Relayed from the census, because it closes the other two doors
+
+* **`K3` universe survivorship passes 1995 at 0.0964 and FAILS 1996-2008 at 0.2388 → 0.3876**
+  against a shipped matched-window reference of **0.1162** — above the pre-committed **2.0×**
+  upper tail. **The census's own stated limitation is that this tail cannot separate an inverted
+  universe from genuine dot-com-era attrition** (US listings roughly halved over the window), and
+  it is **honoured as written rather than resolved**. A successor wanting to separate the two
+  needs to say how, in advance.
+* **`K1` fails 1995 alone** (965 names against 1,030); 1996 onward passes at 2,718 → 5,555.
+* **`K4` PASSES all fourteen years** at a timely-`datekey` share of 0.985-0.995 against a
+  2009-2013 reference of 0.9914 — refuting the register's own expectation of vendor backfill.
+* **Route W does not rescue it.** WRDS `co_ifndq` carries **no column recording when a row became
+  available** — no `rdq`, no `srcdate`, no vintage, only `datadate` — so **no publication lag is
+  verifiable**, `K4` cannot be run on that route at all, and a panel built on it would score
+  historical dates against **RESTATED** fundamentals.
+
+## What this costs the holdout: nothing
+
+**No era is opened.** `RESEARCH_CHARTER` §4(a) names the eras as **1972-1989** and **1990-2008**,
+read **once each** — and a premise correction worth having: **the boundary is 1990, not 1998**, so
+a 1999-2008 test would have spent the *late portion* of the second era and left **1990-1998 as a
+stub of an era meant to be read whole**, out of the charter's own era order. It would also have
+been the cheaper half to give up only by accident. **None of that is spent, because nothing ran.**
+
+One fact that runs in a successor's favour and is worth recording before anyone needs it: **SPY
+began trading in 1993**, so a 1999-2008 era could legitimately use SPY rather than the S&P 500
+total-return stand-in §4(a) requires for pre-1993 eras.
+
+## Two defects in my own instrument, both found by mutation rather than by reading
+
+**(a) MY NO-OUTCOME GUARD BLANKED EVERY STRING CONSTANT to strip docstrings, and was wrong in
+both directions at once.** It **failed against a correct tree**, because the dict keys the module
+legitimately reads — `date_min` among them — vanished along with the prose; **and it made its own
+ban list VACUOUS**, since with every string removed a banned word could no longer appear inside a
+subscript even if the code were reading it. **A stripper that removes the evidence is worse than
+no stripper** — the same shape as `MB15`'s, which had to be pinned non-vacuous in both directions
+for exactly this reason. Fixed to strip **only** docstrings.
+
+**(b) THE SCRIPT WROTE ITS ARTIFACT TO THE FIRST ROOT WITH A `free_analysis` DIRECTORY**, so a
+test pointing `VALQUO_DATA_ROOT` at a temp freeze **fell through to the PRIMARY root and
+overwrote the real research artifact with synthetic numbers** — including a fabricated `MOVED`
+verdict from a flipped fixture. **Tests must not touch real state.** Fixed by resolving the
+output **beside its own inputs** (`E-5`'s rule), and pinned by the test the mutation demanded.
+
+**AND A HARNESS LESSON WORTH CARRYING: a byte-for-byte restore is NOT enough when a mutation is
+size-preserving.** The `0.70 → 0.50` edit kept the file length identical, CPython's
+(mtime, size) cache key collided, **a stale `.pyc` survived the restore — the SHA-256 check
+passed and the suite still failed.** A mutation harness must invalidate bytecode as well as bytes.
+
+**12 tests, 7 of 7 mutations caught with the source restored byte-for-byte.**
+
+## NOT DONE, named so it is not mistaken for done
+
+* **No register is written, no panel is built, no arm is run.** The census is not re-opened and
+  **none of its kills is relaxed.**
+* **It is NOT a finding that the wider pool fails out of sample.** It is a finding that the test
+  cannot be constructed on Sharadar. The hypothesis is **untested, not rejected**.
+* **The WRDS 1972-1998 route is the scout's and is unaffected** — except that the census's own
+  Route W measurement says its point-in-time premise does not survive, which that lane owns.
+
+`scripts/panel_ext_recheck.py`, `tests/test_panel_ext_recheck.py`;
+`data/free_analysis/PANEL_EXT_RECHECK.json` (gitignored).
