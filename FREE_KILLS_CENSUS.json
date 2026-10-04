@@ -1,0 +1,281 @@
+{
+  "MC9": {
+    "banked_MC9_FIDELITY_vs_crsp": {
+      "crsp_cells": 90025,
+      "median_ratio": 0.9988627151204739,
+      "n": 90005,
+      "overlapping_cells": 90005,
+      "p05": 0.9578310952063916,
+      "p95": 1.0269171896986058,
+      "sep_covers_crsp_cells": 0.9997778394890309,
+      "share_more_than_25pct_apart": 0.021521026609632798
+    },
+    "crsp_cells": 90025,
+    "median_ratio": 0.9998036365,
+    "note": "MC9 was ALREADY validated -- MC9_FIDELITY.json is a B7 fidelity record. This is an INDEPENDENT reproduction of that comparison, not a first one.",
+    "overlapping_cells": 89998,
+    "p05": 0.964638804,
+    "p95": 1.0073040971,
+    "sep_covers_crsp_cells": 0.9997000833,
+    "share_more_than_25pct_apart": 0.0204226761
+  },
+  "N1": {
+    "adv_coverage_of_effective_cells": 0.860841,
+    "band_used": "cap<5B_adv>5M",
+    "bar": "median eligible >= 50",
+    "effective_dates": 64,
+    "excluded_dates_zero_adv_coverage": [
+      "2025-01-27",
+      "2025-04-28",
+      "2025-07-29",
+      "2025-10-27",
+      "2026-01-28"
+    ],
+    "exclusion_reason": "B13_ADV_PANEL is CRSP-built and ends 2024-10-23; these are the panel's rebalance dates past the vendor cut. LISTED, NOT SCORED (W-28's defect; PREREG_DRAFT_oos1 named the same five dates). MC9's SEP-based ADV runs to 2026 and is the natural substitute, which is a measured reason that instrument is worth having.",
+    "fired": false,
+    "grid": {
+      "cap<10B_adv>1M": {
+        "dates_below_min_book": 0,
+        "max_eligible": 1078,
+        "median_eligible": 844.5,
+        "min_eligible": 765,
+        "n_dates": 64
+      },
+      "cap<10B_adv>20M": {
+        "dates_below_min_book": 0,
+        "max_eligible": 610,
+        "median_eligible": 451.0,
+        "min_eligible": 372,
+        "n_dates": 64
+      },
+      "cap<10B_adv>5M": {
+        "dates_below_min_book": 0,
+        "max_eligible": 917,
+        "median_eligible": 713.5,
+        "min_eligible": 674,
+        "n_dates": 64
+      },
+      "cap<2B_adv>1M": {
+        "dates_below_min_book": 0,
+        "max_eligible": 536,
+        "median_eligible": 323.0,
+        "min_eligible": 182,
+        "n_dates": 64
+      },
+      "cap<2B_adv>20M": {
+        "dates_below_min_book": 40,
+        "max_eligible": 135,
+        "median_eligible": 45.0,
+        "min_eligible": 22,
+        "n_dates": 64
+      },
+      "cap<2B_adv>5M": {
+        "dates_below_min_book": 0,
+        "max_eligible": 367,
+        "median_eligible": 207.5,
+        "min_eligible": 137,
+        "n_dates": 64
+      },
+      "cap<5B_adv>1M": {
+        "dates_below_min_book": 0,
+        "max_eligible": 780,
+        "median_eligible": 635.0,
+        "min_eligible": 504,
+        "n_dates": 64
+      },
+      "cap<5B_adv>20M": {
+        "dates_below_min_book": 0,
+        "max_eligible": 371,
+        "median_eligible": 239.0,
+        "min_eligible": 187,
+        "n_dates": 64
+      },
+      "cap<5B_adv>5M": {
+        "dates_below_min_book": 0,
+        "max_eligible": 625,
+        "median_eligible": 506.5,
+        "min_eligible": 437,
+        "n_dates": 64
+      }
+    },
+    "note": "the cost leg of K1 needs Don's actual Roth size, which is not in the repo; the buildability leg is reported here and the cost leg is NOT RUN"
+  },
+  "N2": {
+    "bar": "median non-null share >= 0.70",
+    "fired": false,
+    "nonnull_share_per_date": {
+      "median": 0.982109,
+      "min": 0.82906
+    },
+    "top5pct_share_of_absolute_mass": 0.317444
+  },
+  "N3": {
+    "announcements_per_ticker_year_band": 4.121456036913612,
+    "announcements_per_ticker_year_panel": 4.118247210804463,
+    "band_covered_share": 1.0,
+    "band_fail_closed": 0,
+    "band_fail_closed_share": 0.0,
+    "band_names": 1678,
+    "band_states": {},
+    "bar": "covered share of band names >= 0.70",
+    "fired": false,
+    "panel_fail_closed": 0,
+    "panel_names": 2531,
+    "panel_states": {},
+    "reference_expected": 4.0,
+    "reference_w3b_options_universe": 2.83
+  },
+  "N4": {
+    "bar": "median names with >= 2 distinct opportunistic buyers >= 50",
+    "fired": true,
+    "fired_hard": false,
+    "names_with_TWO_OR_MORE_per_date": {
+      "max": 137,
+      "median": 30.0,
+      "min": 18
+    },
+    "names_with_any_opportunistic_buyer_per_date": {
+      "max": 243,
+      "median": 92.0,
+      "min": 55
+    },
+    "open_market_purchase_rows": 163766,
+    "opportunistic_rows": 150592,
+    "reference_v6b_allcap_no_cluster_no_floor": 106,
+    "routine_share_of_classifiable": 0.08044404821513623,
+    "window_days": 90
+  },
+  "N5": {
+    "bar": "numest present AND the ibes_id link carries dates",
+    "fired": false,
+    "ibes_id_chunks": 1,
+    "ibes_id_columns": [
+      "ccopcf",
+      "cname",
+      "cusip",
+      "dilfac",
+      "mscip",
+      "oftic",
+      "pdi",
+      "sdates",
+      "ticker",
+      "uai",
+      "usfirm"
+    ],
+    "ibes_id_date_columns": [
+      "sdates"
+    ],
+    "link_is_dated": true,
+    "statsum_chunks": 51,
+    "statsum_columns": [
+      "actdats_act",
+      "acttims_act",
+      "actual",
+      "anndats_act",
+      "anntims_act",
+      "cname",
+      "curcode",
+      "curr_act",
+      "cusip",
+      "estflag",
+      "fiscalp",
+      "fpedats",
+      "fpi",
+      "highest",
+      "lowest",
+      "meanest",
+      "measure",
+      "medest",
+      "numdown",
+      "numest",
+      "numup",
+      "oftic",
+      "statpers",
+      "stdev",
+      "ticker",
+      "usfirm"
+    ],
+    "statsum_has_numest": true
+  },
+  "N6": {
+    "classification_caveat": "the panel's `sector` is TODAY's classification, not point-in-time -- S25 measured 11.37% disagreement. This census measures GROUP SIZES and the costume, NOT a point-in-time map",
+    "costume_bar": 0.6,
+    "fired": false,
+    "min_industry_group_size_per_date": {
+      "median": 11.0,
+      "min": 9.0
+    },
+    "momentum_costume": {
+      "max_abs_rho": 0.441942,
+      "mean_abs_rho": 0.260372,
+      "n_dates": 64
+    },
+    "sectors_per_date_median": 11.0
+  },
+  "N7": {
+    "fired": false,
+    "identity_check_rho_is_1": false,
+    "note": "K1 is a DISCLOSURE, not a kill: a high correlation with `momentum` is expected and is not disqualifying. K2 is the non-identity check.",
+    "vs_composite": {
+      "max_abs_rho": 0.73314,
+      "mean_abs_rho": 0.393274,
+      "n_dates": 64
+    },
+    "vs_momentum_theme": {
+      "max_abs_rho": 0.950175,
+      "mean_abs_rho": 0.759611,
+      "n_dates": 64
+    }
+  },
+  "N8": {
+    "bar_close": 100,
+    "bar_underpowered": 400,
+    "fired": false,
+    "spinoff": {
+      "all_history": 565,
+      "in_panel_window": 386,
+      "on_band_names": 114,
+      "on_panel_names": 236
+    },
+    "spinoffdividend": {
+      "all_history": 521,
+      "in_panel_window": 361,
+      "on_band_names": 108,
+      "on_panel_names": 222
+    },
+    "spunofffrom": {
+      "all_history": 565,
+      "in_panel_window": 386,
+      "on_band_names": 51,
+      "on_panel_names": 105
+    },
+    "underpowered": true,
+    "usable_child_or_parent_events_in_band": 165,
+    "window": [
+      "2009-01-15",
+      "2026-01-28"
+    ]
+  },
+  "W17": {
+    "banked": false,
+    "census_describes_membership_spells": true,
+    "census_records_it": true,
+    "fired": true,
+    "k1_condition": "the census returns EFFECTIVE dates only, with no announcement date",
+    "k2_k4_status": "BLOCKED on the pull -- the event-count and clustering kills need the table itself, which is ENTITLED and NOT banked, and WRDS is down",
+    "source": "crsp_a_indexes.dsp500list",
+    "span": "1925-12-31 -> 2024-12-31",
+    "spells": 2064
+  },
+  "band": {
+    "ceiling_usd": 5000000000.0,
+    "floor_adv_usd": 5000000.0,
+    "names": 1678,
+    "rows": 33177
+  },
+  "class": "FACTS",
+  "data_root": "C:\\Users\\donni\\Downloads\\valuation-tool\\data",
+  "item": "FREE KILLS (N1-N8 + W-17) and MC9 validation",
+  "trials": 0,
+  "utc": "2026-10-03T17:16:03+00:00"
+}

@@ -521,25 +521,46 @@
         "n_priced": 85.0,
         "spy_pct": 3.2908,
         "valquo_pct": 4.3591
+      },
+      {
+        "date": "2026-09-30",
+        "excess_pp": 0.516,
+        "n_priced": 85.0,
+        "spy_pct": 3.0786,
+        "valquo_pct": 3.5946
+      },
+      {
+        "date": "2026-10-01",
+        "excess_pp": 1.6158,
+        "n_priced": 85.0,
+        "spy_pct": 3.2624,
+        "valquo_pct": 4.8782
+      },
+      {
+        "date": "2026-10-02",
+        "excess_pp": 2.1372,
+        "n_priced": 85.0,
+        "spy_pct": 4.0261,
+        "valquo_pct": 6.1633
       }
     ],
     "sources": {
       "committed_backup": 0,
       "ingested_store": 0,
-      "tracker_files": 24
+      "tracker_files": 27
     }
   },
   "counts": {
-    "bound_index_days": 24,
-    "index_days": 39,
-    "index_holdings": 68,
+    "bound_index_days": 27,
+    "index_days": 42,
+    "index_holdings": 87,
     "ingested_index_days": 0,
-    "option_alerts": 31,
+    "option_alerts": 33,
     "option_alerts_closed": 7,
-    "paper_orders": 31,
+    "paper_orders": 33,
     "paper_orders_closed": 7
   },
-  "generated_at": "2026-09-30T06:26:29",
+  "generated_at": "2026-10-04T12:19:04",
   "index_holdings": [
     {
       "bench_entry_price": 770.56,
@@ -560,6 +581,26 @@
       "shares": null,
       "ticker": "ADBE",
       "weight": 0.01535
+    },
+    {
+      "bench_entry_price": 763.99,
+      "entry_date": "2026-10-02",
+      "entry_price": 8.49,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "AEG",
+      "weight": 0.01768
+    },
+    {
+      "bench_entry_price": 769.64,
+      "entry_date": "2026-10-03",
+      "entry_price": 139.1,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "AFG",
+      "weight": 0.01282
     },
     {
       "bench_entry_price": 772.49,
@@ -622,6 +663,26 @@
       "weight": 0.01941
     },
     {
+      "bench_entry_price": 763.99,
+      "entry_date": "2026-10-02",
+      "entry_price": 19.92,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "BCE",
+      "weight": 0.01249
+    },
+    {
+      "bench_entry_price": 763.99,
+      "entry_date": "2026-10-02",
+      "entry_price": 23.64,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "BCS",
+      "weight": 0.0147
+    },
+    {
       "bench_entry_price": 772.49,
       "entry_date": "2026-08-12",
       "entry_price": 48.45,
@@ -682,6 +743,16 @@
       "weight": 0.0112
     },
     {
+      "bench_entry_price": 763.99,
+      "entry_date": "2026-10-02",
+      "entry_price": 114.025,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "CORT",
+      "weight": 0.01135
+    },
+    {
       "bench_entry_price": 777.88,
       "entry_date": "2026-08-13",
       "entry_price": 34.3,
@@ -702,6 +773,16 @@
       "weight": 0.01628
     },
     {
+      "bench_entry_price": 763.99,
+      "entry_date": "2026-10-02",
+      "entry_price": 35.13,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "DB",
+      "weight": 0.01878
+    },
+    {
       "bench_entry_price": 761.78,
       "entry_date": "2026-09-01",
       "entry_price": 103.97,
@@ -720,6 +801,16 @@
       "shares": null,
       "ticker": "DOCN",
       "weight": 0.00737
+    },
+    {
+      "bench_entry_price": 763.99,
+      "entry_date": "2026-10-02",
+      "entry_price": 69.74,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "DOCU",
+      "weight": 0.0165
     },
     {
       "bench_entry_price": 772.49,
@@ -822,6 +913,26 @@
       "weight": 0.00621
     },
     {
+      "bench_entry_price": 763.99,
+      "entry_date": "2026-10-02",
+      "entry_price": 22.25,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "GEN",
+      "weight": 0.01155
+    },
+    {
+      "bench_entry_price": 763.99,
+      "entry_date": "2026-10-02",
+      "entry_price": 165.83,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "GL",
+      "weight": 0.00052
+    },
+    {
       "bench_entry_price": 772.49,
       "entry_date": "2026-08-12",
       "entry_price": 88.53,
@@ -892,6 +1003,16 @@
       "weight": 0.00381
     },
     {
+      "bench_entry_price": 763.99,
+      "entry_date": "2026-10-02",
+      "entry_price": 92.02,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "KSPI",
+      "weight": 0.01792
+    },
+    {
       "bench_entry_price": 757.83,
       "entry_date": "2026-09-10",
       "entry_price": 935.7,
@@ -910,6 +1031,16 @@
       "shares": null,
       "ticker": "LULU",
       "weight": 0.0164
+    },
+    {
+      "bench_entry_price": 763.99,
+      "entry_date": "2026-10-02",
+      "entry_price": 499.71,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "MDGL",
+      "weight": 0.01899
     },
     {
       "bench_entry_price": 772.67,
@@ -972,6 +1103,16 @@
       "weight": 0.01804
     },
     {
+      "bench_entry_price": 769.64,
+      "entry_date": "2026-10-03",
+      "entry_price": 17.67,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "NWG",
+      "weight": 0.01613
+    },
+    {
       "bench_entry_price": 770.56,
       "entry_date": "2026-08-11",
       "entry_price": 63.45,
@@ -1032,6 +1173,16 @@
       "weight": 0.01394
     },
     {
+      "bench_entry_price": 763.99,
+      "entry_date": "2026-10-02",
+      "entry_price": 30.72,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "RCI",
+      "weight": 0.01145
+    },
+    {
       "bench_entry_price": 772.49,
       "entry_date": "2026-08-12",
       "entry_price": 31.6,
@@ -1042,6 +1193,26 @@
       "weight": 0.01216
     },
     {
+      "bench_entry_price": 763.99,
+      "entry_date": "2026-10-02",
+      "entry_price": 244.62,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "RGA",
+      "weight": 0.01795
+    },
+    {
+      "bench_entry_price": 763.99,
+      "entry_date": "2026-10-02",
+      "entry_price": 322.99,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "RNR",
+      "weight": 0.01958
+    },
+    {
       "bench_entry_price": 777.88,
       "entry_date": "2026-08-13",
       "entry_price": 154.08,
@@ -1050,6 +1221,26 @@
       "shares": null,
       "ticker": "ROKU",
       "weight": 0.00226
+    },
+    {
+      "bench_entry_price": 763.99,
+      "entry_date": "2026-10-02",
+      "entry_price": 103.87,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "SEIC",
+      "weight": 0.01719
+    },
+    {
+      "bench_entry_price": 763.99,
+      "entry_date": "2026-10-02",
+      "entry_price": 35.59,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "SKM",
+      "weight": 0.01148
     },
     {
       "bench_entry_price": 765.96,
@@ -1140,6 +1331,26 @@
       "shares": null,
       "ticker": "TWLO",
       "weight": 0.00409
+    },
+    {
+      "bench_entry_price": 763.99,
+      "entry_date": "2026-10-02",
+      "entry_price": 88.76,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "TXG",
+      "weight": 0.00495
+    },
+    {
+      "bench_entry_price": 763.99,
+      "entry_date": "2026-10-02",
+      "entry_price": 175.07,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "UHS",
+      "weight": 0.01588
     },
     {
       "bench_entry_price": 772.49,
@@ -1612,6 +1823,36 @@
       "index_ret": -0.0246481947,
       "n_positions": 68,
       "n_priced": 67
+    },
+    {
+      "active_ret": -0.018548601,
+      "as_of": "2026-10-01",
+      "bench_ret": -0.0098491527,
+      "detail": "{\"weight_priced\": 0.9403, \"n_holdings\": 68, \"bench\": \"SPY\", \"data_caveat\": \"Tradier sandbox quotes are delayed ~15 minutes, so paper fills and marks are approximate - close to, but not, what a live account would have received.\", \"scope\": \"open holdings only; closed stints in index_summary.realized\"}",
+      "inception": "2026-08-03",
+      "index_ret": -0.0283977537,
+      "n_positions": 68,
+      "n_priced": 67
+    },
+    {
+      "active_ret": -0.0073257,
+      "as_of": "2026-10-02",
+      "bench_ret": -0.006282386,
+      "detail": "{\"weight_priced\": 1.2099, \"n_holdings\": 87, \"bench\": \"SPY\", \"data_caveat\": \"Tradier sandbox quotes are delayed ~15 minutes, so paper fills and marks are approximate - close to, but not, what a live account would have received.\", \"scope\": \"open holdings only; closed stints in index_summary.realized\"}",
+      "inception": "2026-08-03",
+      "index_ret": -0.013608086,
+      "n_positions": 87,
+      "n_priced": 86
+    },
+    {
+      "active_ret": -0.0137482255,
+      "as_of": "2026-10-03",
+      "bench_ret": 0.0008806444,
+      "detail": "{\"weight_priced\": 1.2082, \"n_holdings\": 87, \"bench\": \"SPY\", \"data_caveat\": \"Tradier sandbox quotes are delayed ~15 minutes, so paper fills and marks are approximate - close to, but not, what a live account would have received.\", \"scope\": \"open holdings only; closed stints in index_summary.realized\"}",
+      "inception": "2026-08-03",
+      "index_ret": -0.012867581,
+      "n_positions": 87,
+      "n_priced": 86
     }
   ],
   "ingested_index_track": null,
@@ -2576,6 +2817,68 @@
       "technical_score": null,
       "ticker": "ABBV",
       "underlying_price": 266.28
+    },
+    {
+      "alert_ts": "2026-10-01 18:59",
+      "commission": null,
+      "dte": 50,
+      "entry_premium": 5.95,
+      "exit_premium": null,
+      "exit_reason": null,
+      "exit_ts": null,
+      "expiry": "2026-11-20",
+      "features": "{\"confidence\": {\"expectancy_estimate\": 0.0649, \"level\": \"moderate\", \"min_bucket_n\": 307}, \"contract_source\": \"live chain\", \"exit_policy\": {\"stop_pct\": -0.5, \"target_pct\": 1.0, \"time_stop_frac\": 0.5}, \"sizing\": {\"contracts\": 1, \"dollar_risk\": 595.0, \"reason\": null, \"skip\": false}, \"term\": {\"source\": \"chain (BS-from-mid, as fitted)\", \"term_ok\": true, \"term_slope\": 0.014514698982238672}}",
+      "flow_read": "Call-heavy flow (P/C 0.60)",
+      "horizon": "swing",
+      "id": 32,
+      "iv": 0.3499801445,
+      "iv_rank": null,
+      "labels": "[\"Uptrend (>50 & >200 DMA)\", \"Near 52-wk high\", \"Call-heavy flow (P/C 0.60)\", \"Unusual call volume vs OI\"]",
+      "momentum_score": null,
+      "occ_symbol": "NVDA261120C00250000",
+      "opt_right": "call",
+      "pnl_dollars": null,
+      "pnl_pct": null,
+      "pnl_pct_net": null,
+      "record_epoch": "original",
+      "score": 81.2,
+      "status": "open",
+      "strike": 250.0,
+      "target_delta": 0.3222092365,
+      "technical_score": null,
+      "ticker": "NVDA",
+      "underlying_price": 232.185
+    },
+    {
+      "alert_ts": "2026-10-02 18:35",
+      "commission": null,
+      "dte": 49,
+      "entry_premium": 6.15,
+      "exit_premium": null,
+      "exit_reason": null,
+      "exit_ts": null,
+      "expiry": "2026-11-20",
+      "features": "{\"confidence\": {\"expectancy_estimate\": 0.0649, \"level\": \"moderate\", \"min_bucket_n\": 307}, \"contract_source\": \"live chain\", \"exit_policy\": {\"stop_pct\": -0.5, \"target_pct\": 1.0, \"time_stop_frac\": 0.5}, \"sizing\": {\"contracts\": 1, \"dollar_risk\": 615.0, \"reason\": null, \"skip\": false}, \"term\": {\"source\": \"chain (BS-from-mid, as fitted)\", \"term_ok\": true, \"term_slope\": 0.16106218814849857}}",
+      "flow_read": "Call-heavy flow (P/C 0.55)",
+      "horizon": "swing",
+      "id": 33,
+      "iv": 0.3367659092,
+      "iv_rank": null,
+      "labels": "[\"Uptrend (>50 & >200 DMA)\", \"Near 52-wk high\", \"Call-heavy flow (P/C 0.55)\", \"Unusual call volume vs OI\"]",
+      "momentum_score": null,
+      "occ_symbol": "NVDA261120C00250000",
+      "opt_right": "call",
+      "pnl_dollars": null,
+      "pnl_pct": null,
+      "pnl_pct_net": null,
+      "record_epoch": "original",
+      "score": 81.2,
+      "status": "open",
+      "strike": 250.0,
+      "target_delta": 0.3399072716,
+      "technical_score": null,
+      "ticker": "NVDA",
+      "underlying_price": 234.46
     }
   ],
   "paper_orders": [
@@ -2975,9 +3278,9 @@
       "exit_reason": null,
       "exit_ts": null,
       "expiry": "2026-11-20",
-      "last_mark": 4.2,
-      "last_mark_ts": "2026-09-30T00:46:51",
-      "last_mid": 4.275,
+      "last_mark": 4.45,
+      "last_mark_ts": "2026-10-03T00:45:06",
+      "last_mid": 4.575,
       "note": null,
       "occ_symbol": "AAPL261120C00355000",
       "state": "open",
@@ -2985,7 +3288,7 @@
       "target_premium": 15.2,
       "ticker": "AAPL",
       "time_stop_date": "2026-10-16",
-      "updated_at": "2026-09-30T00:46:51"
+      "updated_at": "2026-10-03T00:45:06"
     },
     {
       "alert_id": 18,
@@ -3119,9 +3422,9 @@
       "exit_reason": null,
       "exit_ts": null,
       "expiry": "2026-11-20",
-      "last_mark": 4.85,
-      "last_mark_ts": "2026-09-30T00:46:50",
-      "last_mid": 5.025,
+      "last_mark": 4.4,
+      "last_mark_ts": "2026-10-03T00:45:06",
+      "last_mid": 4.575,
       "note": null,
       "occ_symbol": "ABBV261120C00280000",
       "state": "open",
@@ -3129,7 +3432,7 @@
       "target_premium": 12.8,
       "ticker": "ABBV",
       "time_stop_date": "2026-10-20",
-      "updated_at": "2026-09-30T00:46:50"
+      "updated_at": "2026-10-03T00:45:06"
     },
     {
       "alert_id": 22,
@@ -3143,9 +3446,9 @@
       "exit_reason": null,
       "exit_ts": null,
       "expiry": "2026-11-20",
-      "last_mark": 4.2,
-      "last_mark_ts": "2026-09-30T00:46:50",
-      "last_mid": 4.275,
+      "last_mark": 4.45,
+      "last_mark_ts": "2026-10-03T00:45:06",
+      "last_mid": 4.575,
       "note": null,
       "occ_symbol": "AAPL261120C00355000",
       "state": "open",
@@ -3153,7 +3456,7 @@
       "target_premium": 13.6,
       "ticker": "AAPL",
       "time_stop_date": "2026-10-20",
-      "updated_at": "2026-09-30T00:46:50"
+      "updated_at": "2026-10-03T00:45:06"
     },
     {
       "alert_id": 23,
@@ -3167,9 +3470,9 @@
       "exit_reason": null,
       "exit_ts": null,
       "expiry": "2026-11-20",
-      "last_mark": 6.95,
-      "last_mark_ts": "2026-09-30T00:46:50",
-      "last_mid": 7.425,
+      "last_mark": 7.45,
+      "last_mark_ts": "2026-10-03T00:45:06",
+      "last_mid": 7.825,
       "note": null,
       "occ_symbol": "ANET261120C00230000",
       "state": "open",
@@ -3177,7 +3480,7 @@
       "target_premium": 17.0,
       "ticker": "ANET",
       "time_stop_date": "2026-10-20",
-      "updated_at": "2026-09-30T00:46:50"
+      "updated_at": "2026-10-03T00:45:06"
     },
     {
       "alert_id": 27,
@@ -3215,9 +3518,9 @@
       "exit_reason": null,
       "exit_ts": null,
       "expiry": "2026-11-20",
-      "last_mark": 4.85,
-      "last_mark_ts": "2026-09-30T00:46:50",
-      "last_mid": 5.025,
+      "last_mark": 4.4,
+      "last_mark_ts": "2026-10-03T00:45:06",
+      "last_mid": 4.575,
       "note": null,
       "occ_symbol": "ABBV261120C00280000",
       "state": "open",
@@ -3225,7 +3528,7 @@
       "target_premium": 12.5,
       "ticker": "ABBV",
       "time_stop_date": "2026-10-21",
-      "updated_at": "2026-09-30T00:46:50"
+      "updated_at": "2026-10-03T00:45:06"
     },
     {
       "alert_id": 28,
@@ -3263,9 +3566,9 @@
       "exit_reason": null,
       "exit_ts": null,
       "expiry": "2026-11-20",
-      "last_mark": 6.95,
-      "last_mark_ts": "2026-09-30T00:46:50",
-      "last_mid": 7.425,
+      "last_mark": 7.45,
+      "last_mark_ts": "2026-10-03T00:45:06",
+      "last_mid": 7.825,
       "note": null,
       "occ_symbol": "ANET261120C00230000",
       "state": "open",
@@ -3273,7 +3576,7 @@
       "target_premium": 17.5,
       "ticker": "ANET",
       "time_stop_date": "2026-10-23",
-      "updated_at": "2026-09-30T00:46:50"
+      "updated_at": "2026-10-03T00:45:06"
     },
     {
       "alert_id": 31,
@@ -3287,9 +3590,9 @@
       "exit_reason": null,
       "exit_ts": null,
       "expiry": "2026-11-20",
-      "last_mark": 4.85,
-      "last_mark_ts": "2026-09-30T00:46:50",
-      "last_mid": 5.025,
+      "last_mark": 4.4,
+      "last_mark_ts": "2026-10-03T00:45:06",
+      "last_mid": 4.575,
       "note": null,
       "occ_symbol": "ABBV261120C00280000",
       "state": "open",
@@ -3297,7 +3600,7 @@
       "target_premium": 12.6,
       "ticker": "ABBV",
       "time_stop_date": "2026-10-25",
-      "updated_at": "2026-09-30T00:46:50"
+      "updated_at": "2026-10-03T00:45:06"
     },
     {
       "alert_id": 30,
@@ -3311,9 +3614,9 @@
       "exit_reason": null,
       "exit_ts": null,
       "expiry": "2026-11-20",
-      "last_mark": 4.85,
-      "last_mark_ts": "2026-09-30T00:46:50",
-      "last_mid": 5.025,
+      "last_mark": 4.4,
+      "last_mark_ts": "2026-10-03T00:45:06",
+      "last_mid": 4.575,
       "note": null,
       "occ_symbol": "ABBV261120C00280000",
       "state": "open",
@@ -3321,7 +3624,55 @@
       "target_premium": 12.6,
       "ticker": "ABBV",
       "time_stop_date": "2026-10-25",
-      "updated_at": "2026-09-30T00:46:50"
+      "updated_at": "2026-10-03T00:45:06"
+    },
+    {
+      "alert_id": 32,
+      "contracts": 1,
+      "created_at": "2026-10-02T00:15:47",
+      "entry_order_id": "39518541",
+      "entry_premium": null,
+      "entry_ts": "2026-10-02T00:15:48",
+      "exit_order_id": null,
+      "exit_premium": null,
+      "exit_reason": null,
+      "exit_ts": null,
+      "expiry": "2026-11-20",
+      "last_mark": null,
+      "last_mark_ts": null,
+      "last_mid": null,
+      "note": "entry order ended expired without a fill",
+      "occ_symbol": "NVDA261120C00250000",
+      "state": "rejected",
+      "stop_premium": 2.725,
+      "target_premium": 10.9,
+      "ticker": "NVDA",
+      "time_stop_date": "2026-10-27",
+      "updated_at": "2026-10-03T00:00:41"
+    },
+    {
+      "alert_id": 33,
+      "contracts": 1,
+      "created_at": "2026-10-03T00:00:40",
+      "entry_order_id": "39679530",
+      "entry_premium": null,
+      "entry_ts": "2026-10-03T00:00:40",
+      "exit_order_id": null,
+      "exit_premium": null,
+      "exit_reason": null,
+      "exit_ts": null,
+      "expiry": "2026-11-20",
+      "last_mark": null,
+      "last_mark_ts": null,
+      "last_mid": null,
+      "note": null,
+      "occ_symbol": "NVDA261120C00250000",
+      "state": "submitted",
+      "stop_premium": 2.975,
+      "target_premium": 11.9,
+      "ticker": "NVDA",
+      "time_stop_date": "2026-10-27",
+      "updated_at": "2026-10-03T00:00:40"
     }
   ],
   "schema_version": 1,
