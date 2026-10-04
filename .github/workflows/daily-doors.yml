@@ -10,12 +10,48 @@ name: DAILY DOORS (score options alerts + Index returns)
 #     fleet book F-11, from the snapshot already on disk (no scan). Item 27.
 # Same shape as fleet-cycle.yml: a scheduler plus a messenger. No checkout, no pip install,
 # no push permission. Secrets SITE_BASE_URL and ADMIN_TOKEN already exist.
+#
+# ------------------------------------------------------------------------------------------
+# AMENDED 2026-10-04: 422 IS A REPORTED REFUSAL, NOT A FAILURE.
+#
+# The installed version failed the run on anything other than 200. All three doors have a
+# DOCUMENTED 422 meaning "I read everything and decline to write, here is why":
+#
+#   * /admin/index-returns      -- 422 when the book file is missing or unreadable. That is
+#     exactly what it returned on 2026-08-18, when the Render disk had never held the book.
+#   * /admin/record-dip-rejects -- 422 when the screen measured NOTHING (item 19's defect, so
+#     the day is correctly left a GAP) or when the snapshot carries no `scan_date` (so the row
+#     would otherwise be dated from the clock). Both are the door working as designed.
+#   * /admin/score-alerts       -- 422 when its own `ok` is false.
+#
+# So the previous rule turned the workflow red on correct behaviour, on a schedule, which is
+# how a red light stops being read. This project has twice refused a check for exactly that
+# reason: MA19 declined a blank-verdict warning that would have fired on 41 legitimate rows,
+# and MA21 declined an unknown-verdict warning on the same grounds.
+#
+# THREE OUTCOMES RATHER THAN TWO:
+#   200           -> wrote.
+#   422           -> refused and said why. Printed in full, raised as a NOTICE, does NOT fail.
+#   anything else -> a real failure: 000 (curl could not connect), 401 (token), 405 (a
+#                    write-shaped GET, which should be impossible here since these are POSTs),
+#                    or any 5xx. These DO fail the run.
+#
+# A 422 stays VISIBLE -- the body is printed, it appears in the run's annotations, and the tail
+# counts it -- because invisible and non-failing are not the same thing, and that is the
+# distinction the old rule collapsed. A door refusing every day for a month should be legible.
+# ------------------------------------------------------------------------------------------
 
 on:
   workflow_dispatch: {}
   schedule:
     # 22:37 UTC = 6:37pm EDT / 5:37pm EST: after the US close in both halves of the year,
     # and after fleet-cycle's 22:19. Odd minute on purpose.
+    #
+    # ORDERING THAT MATTERS FOR THE DIP DOOR: auto-scan.yml publishes the snapshot at 22:23
+    # UTC by running ci_scan.py in the runner, so this reads THAT day's snapshot 14 minutes
+    # later. If the scan is dropped, the dip door dates its row by the SNAPSHOT'S OWN
+    # scan_date rather than by the clock, so a stale read lands on the day it describes and a
+    # repeat run is a no-op -- staleness is self-limiting instead of mis-dated.
     - cron: "37 22 * * 1-5"
 
 concurrency:
@@ -39,6 +75,8 @@ jobs:
             echo "::error::SITE_BASE_URL or ADMIN_TOKEN is unset"; exit 1
           fi
           fail=0
+          wrote=0
+          refused=0
           for door in "score-alerts?write=1" "index-returns?write=1" "record-dip-rejects?write=1"; do
             BODY=$(mktemp)
             CODE=$(curl -sS -o "$BODY" -w '%{http_code}' -X POST \
@@ -47,6 +85,25 @@ jobs:
                      "${SITE_BASE_URL%/}/admin/${door}") || CODE="000"
             echo "== /admin/${door} -> HTTP ${CODE}"
             head -c 4000 "$BODY"; echo
-            [ "$CODE" = "200" ] || { echo "::error::/admin/${door} returned ${CODE}"; fail=1; }
+            case "$CODE" in
+              200)
+                wrote=$((wrote + 1))
+                ;;
+              422)
+                refused=$((refused + 1))
+                echo "::notice::/admin/${door} declined and said why (HTTP 422) - body above"
+                ;;
+              *)
+                echo "::error::/admin/${door} returned ${CODE}"
+                fail=1
+                ;;
+            esac
           done
+          echo "---"
+          echo "wrote ${wrote}, refused ${refused}, failing ${fail}"
+          # A day on which EVERY door refused is worth seeing at a glance and is still not a
+          # failure: three legitimate refusals is what a day with no scan looks like.
+          if [ "$wrote" = "0" ] && [ "$fail" = "0" ]; then
+            echo "::warning::no door wrote today - all ${refused} refused. Not a failure, but read the bodies above."
+          fi
           exit $fail
