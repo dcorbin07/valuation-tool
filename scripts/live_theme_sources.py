@@ -146,6 +146,25 @@ BACKOFF_BASE_S = 5.0
 BACKOFF_MAX_S = 120.0
 THROTTLE_BUDGET = 40
 
+# --- THE 13F DATA SET GETS A PATIENT POLICY OF ITS OWN, AND THE SPLIT IS THE POINT -----------
+#
+# SEC throttles for roughly TEN MINUTES. The constants above spend 5s + 10s and give up after
+# about fifteen seconds, which is why run 37237240057 refused: all three shards and the Form 4
+# crawl succeeded, and then the assemble step met a 429 on the 13F zip and quit while SEC was
+# still in its cool-off.
+#
+# THEY ARE NOT RAISED GLOBALLY, and that is deliberate rather than cautious. `MAX_ATTEMPTS`
+# governs every per-ticker fetch in the crawl -- 1,500 names across three legs -- so a patient
+# policy there would turn one throttled run into a job that never finishes inside its timeout.
+# The dataset is TWO requests per run and is the one thing the build cannot proceed without, so
+# it is the only place worth waiting out a cool-off.
+#
+# 30s doubling to a 300s cap over 6 attempts spends up to ~12.5 minutes, which covers the
+# observed ten-minute throttle with margin and still terminates well inside the job's budget.
+DATASET_MAX_ATTEMPTS = 6
+DATASET_BACKOFF_BASE_S = 30.0
+DATASET_BACKOFF_MAX_S = 300.0
+
 # Only positive outcomes are durable (mine_options_cache.py:332-336). A unit that failed or was
 # throttled is simply absent, so the next run retries it and coverage cannot inflate.
 TERMINAL_STATUSES = ("complete", "no_data")
@@ -249,12 +268,21 @@ class Guard:
         self._last = time.monotonic()
         self.calls += 1
 
-    def throttled(self, attempt: int) -> None:
+    def throttled(self, attempt: int, base: float = None, cap: float = None) -> None:
+        """Count the refusal and back off. `base`/`cap` let ONE caller be patient.
+
+        The 13F data set overrides these because SEC's cool-off is ~10 minutes and the module
+        default spends ~15 seconds; see `DATASET_BACKOFF_BASE_S`. The counter is shared either
+        way, so a patient caller still consumes the same circuit-breaker budget -- being patient
+        must not also mean being exempt from the thing that stops a run banking a partial census.
+        """
         self.throttles += 1
         if self.throttles > self.budget:
             raise SystemExit(f"throttle budget exhausted after {self.throttles} refusals — "
                              f"stopping rather than banking a partial census")
-        self._sleep(min(BACKOFF_MAX_S, BACKOFF_BASE_S * (2 ** attempt)))
+        _b = BACKOFF_BASE_S if base is None else base
+        _c = BACKOFF_MAX_S if cap is None else cap
+        self._sleep(min(_c, _b * (2 ** attempt)))
 
 
 def _headers():
@@ -263,7 +291,20 @@ def _headers():
     return {"User-Agent": ua, "Accept-Encoding": "gzip, deflate"}
 
 
-def head_published(url: str, guard: Guard) -> bool:
+def _policy(patient: bool):
+    """`(attempts, backoff_base, backoff_cap)` — the module default, or the patient dataset one.
+
+    ONE definition, so the probe and the download cannot be patient to different degrees: they
+    are two halves of the same question ("can this run have the 13F data set?") and a run that
+    waits out a cool-off on the HEAD and then gives up after 15 seconds on the GET has spent the
+    wait and thrown away the answer.
+    """
+    if patient:
+        return DATASET_MAX_ATTEMPTS, DATASET_BACKOFF_BASE_S, DATASET_BACKOFF_MAX_S
+    return MAX_ATTEMPTS, BACKOFF_BASE_S, BACKOFF_MAX_S
+
+
+def head_published(url: str, guard: Guard, patient: bool = False) -> bool:
     """Is `url` there? True / False -- and `Throttled` when SEC will not say.
 
     THE THREE-STATE ANSWER IS THE WHOLE POINT, and a two-state one caused the defect this
@@ -283,19 +324,20 @@ def head_published(url: str, guard: Guard) -> bool:
     mean "unpublished" again.
     """
     import requests
-    for attempt in range(MAX_ATTEMPTS):
+    n, _b, _c = _policy(patient)
+    for attempt in range(n):
         guard.wait()
         try:
             r = requests.head(url, headers=_headers(), timeout=30, allow_redirects=True)
         except Exception:                                               # noqa: BLE001
-            if attempt == MAX_ATTEMPTS - 1:
+            if attempt == n - 1:
                 raise
-            guard.throttled(attempt)
+            guard.throttled(attempt, _b, _c)
             continue
         if r.status_code in (429, 403, 503):
-            if attempt == MAX_ATTEMPTS - 1:
+            if attempt == n - 1:
                 raise Throttled(f"{r.status_code} on {url}")
-            guard.throttled(attempt)
+            guard.throttled(attempt, _b, _c)
             continue
         if r.status_code == 404:
             return False
@@ -433,7 +475,8 @@ def dataset_path(root: str, window: str) -> str:
     return os.path.join(root, f"13f_{window}.zip")
 
 
-def download_dataset(root: str, window: str, guard: Guard | None = None) -> str:
+def download_dataset(root: str, window: str, guard: Guard | None = None,
+                     patient: bool = True) -> str:
     """Fetch a quarterly zip once, PACED AND RETRIED. Skip-existing, like the miner.
 
     IT TOOK A `guard` AND IGNORED IT. The parameter has been in this signature since the
@@ -459,19 +502,23 @@ def download_dataset(root: str, window: str, guard: Guard | None = None) -> str:
     _ensure(root)
     url = DATASET_URL.format(window=window)
     g = guard or Guard()
-    for attempt in range(MAX_ATTEMPTS):
+    # PATIENT BY DEFAULT HERE, and that is the opposite of the per-ticker legs on purpose: this
+    # is two requests the build cannot proceed without, against a server whose cool-off is ten
+    # minutes. A caller that wants the module default passes `patient=False`.
+    n, _b, _c = _policy(patient)
+    for attempt in range(n):
         g.wait()
         try:
             r = requests.get(url, headers=_headers(), timeout=900, stream=True)
         except Exception:                                               # noqa: BLE001
-            if attempt == MAX_ATTEMPTS - 1:
+            if attempt == n - 1:
                 raise
-            g.throttled(attempt)
+            g.throttled(attempt, _b, _c)
             continue
         if r.status_code in (429, 403, 503):
-            if attempt == MAX_ATTEMPTS - 1:
+            if attempt == n - 1:
                 raise Throttled(f"{r.status_code} on {url}")
-            g.throttled(attempt)
+            g.throttled(attempt, _b, _c)
             continue
         r.raise_for_status()
         tmp = path + ".tmp"
