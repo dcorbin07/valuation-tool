@@ -440,10 +440,10 @@ def _is_retryable(err: str) -> bool:
     return any(s in low for s in _DEAD_CONN) or any(s in low for s in _TRANSIENT_FS)
 
 
-def run(product: str, root: str = "", limit: int = 0) -> dict:
+def run(product: str, root: str = "", limit: int = 0, years=None) -> dict:
     lock = _acquire_lock(product, root)
     try:
-        return _run_locked(product, root, limit)
+        return _run_locked(product, root, limit, years)
     finally:
         try:
             os.remove(lock)
@@ -451,7 +451,7 @@ def run(product: str, root: str = "", limit: int = 0) -> dict:
             pass
 
 
-def _run_locked(product: str, root: str = "", limit: int = 0) -> dict:
+def _run_locked(product: str, root: str = "", limit: int = 0, years=None) -> dict:
     # ONE connection reused across every chunk was a real defect, measured 2026-08-24: WRDS
     # closed the connection during `comp_pit`'s 2002 chunk and the SAME dead handle was then used
     # for every remaining chunk, so 25 of 66 failed in a row with
@@ -465,6 +465,16 @@ def _run_locked(product: str, root: str = "", limit: int = 0) -> dict:
     db = W.connect()
     man = load_manifest(root)
     keys = chunks_for(db, product)
+    # `--years` NARROWS an already-derived chunk list; it never widens it, so it cannot reach a
+    # year the spec's own window excludes. It exists to REORDER a long pull: `crsp_dsf` runs in
+    # year order, which puts Gate B's 2007-2024 years LAST and blocks the gate that decides
+    # whether the holdout may be opened. Narrowing lets those years be pulled first and the
+    # remainder resumed afterwards -- `needs_pull` skips what is already banked, so nothing is
+    # re-fetched. A FLAG rather than a temporary edit to the spec: the ordering choice is then
+    # visible in the command that made it, and there is no diff to forget to revert.
+    if years:
+        lo, hi = int(years[0]), int(years[1])
+        keys = [k for k in keys if (not k.isdigit()) or (lo <= int(k) <= hi)]
     # ONCE PER PRODUCT, not once per chunk. See `resolve_projection` and `pull_chunk` for why:
     # probing inside `pull_chunk` cost 54 wasted round trips on `crsp_dsf` and broke the guard
     # that pins the chunk predicate.
@@ -612,6 +622,10 @@ def main(argv=None):
                     help="compare pulled row counts against the server's own count(*)")
     ap.add_argument("--full-hash", action="store_true")
     ap.add_argument("--summary", action="store_true")
+    ap.add_argument("--years", nargs=2, type=int, metavar=("LO", "HI"), default=None,
+                    help="NARROW the derived chunk list to [LO, HI] inclusive. Never widens it, "
+                         "so it cannot reach a year the product's own window excludes. For "
+                         "REORDERING a long pull; resume the remainder with no flag.")
     a = ap.parse_args(argv)
 
     if a.reconcile:
@@ -628,7 +642,7 @@ def main(argv=None):
     if a.summary or not a.product:
         print(json.dumps(summarise(a.root), indent=1))
         return
-    run(a.product, a.root, a.limit)
+    run(a.product, a.root, a.limit, a.years)
     print(json.dumps(summarise(a.root), indent=1))
 
 

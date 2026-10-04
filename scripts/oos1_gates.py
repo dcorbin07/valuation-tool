@@ -161,13 +161,25 @@ def gate_a(root: str, lo: int, hi: int) -> dict:
     fr = _french(root)
     j = vw.merge(fr[["ym", "Mkt-RF", "RF", "SMB"]], on="ym", how="inner")
     j["mkt_french"] = j["Mkt-RF"] + j["RF"]
+    sd = float(j["mkt_french"].std())
+    mad = float((j["mkt_ours"] - j["mkt_french"]).abs().mean())
     a1 = {
         "months_compared": int(len(j)),
         "correlation": round(float(j["mkt_ours"].corr(j["mkt_french"])), 6),
         "mean_ours": round(float(j["mkt_ours"].mean()), 6),
         "mean_french": round(float(j["mkt_french"].mean()), 6),
-        "mean_abs_diff": round(float((j["mkt_ours"] - j["mkt_french"]).abs().mean()), 6),
+        "mean_abs_diff": round(mad, 6),
         "p95_abs_diff": round(float((j["mkt_ours"] - j["mkt_french"]).abs().quantile(0.95)), 6),
+        "french_monthly_sd": round(sd, 6),
+        # THE SCALE-FREE NUMBER, and it exists because NO GATE A BAR WAS PRE-COMMITTED.
+        # Declaring one now, having seen the result, would be choosing the bar on the outcome --
+        # which `W-28`'s §6 forbids in the other direction and is no better in this one. So this
+        # reports the disagreement as a FRACTION of the benchmark series' own monthly dispersion
+        # and leaves the threshold to the reader. A ratio near zero means the two series are the
+        # same object; a ratio near one means the comparison carries no information.
+        "mean_abs_diff_over_sd": round(mad / sd, 6) if sd else None,
+        "bar_status": ("NO PRE-COMMITTED BAR. Quote `mean_abs_diff_over_sd` and judge it; do not "
+                       "read a pass/fail verdict into this gate that nobody registered."),
     }
 
     # A2: a crude size spread -- small-cap VW return minus large-cap VW return, median split.
@@ -207,26 +219,39 @@ FIVE = ("value", "quality", "momentum", "capital_discipline", "size")
 FIVE_W = {c: 0.2 for c in FIVE}
 
 
-def _ticker_to_permno(prov, dates) -> pd.DataFrame:
-    """(ticker, permno) pairs valid across the panel's window, from the DATED name history.
+def _ticker_to_permno(prov, dates):
+    """(date, ticker) -> permno, resolved PER DATE through the dated CRSP name history.
 
-    A ticker is reused across companies, so the map is built per name-interval and then required
-    to be UNAMBIGUOUS over the window: a ticker resolving to more than one permno is DROPPED and
-    COUNTED rather than guessed at. `S25` implemented exactly this refusal and recorded that it
-    costs nothing today and is the one you want present the day the universe moves.
+    WHY PER DATE AND NOT ONCE OVER THE WINDOW, and it is `W-28`'s lesson applied rather than
+    repeated. Requiring a ticker to be unambiguous across the whole 2009-2026 window drops
+    **459 tickers and 33% of the panel** -- including `AA`, because Alcoa Inc and Alcoa Corp
+    share that ticker on either side of the 2016 separation. Those are not ambiguous on any
+    GIVEN date; they are ambiguous only to a question that ignores dates. `W-28` measured the
+    cost of the undated route directly: it assigned one `gvkey` another company's dates on 54
+    names, and the honest route was the dated one even though it scored lower.
+
+    The refusal survives where it is real: a ticker resolving to more than one permno ON THE SAME
+    DATE is DROPPED and COUNTED, never guessed at -- `S25`'s `AMBIGUOUS_TICKER` state, which it
+    recorded as costing nothing today and being the one you want present the day the universe
+    moves.
     """
-    lo, hi = pd.Timestamp(min(dates)), pd.Timestamp(max(dates))
-    lk = prov.link()
-    w = lk[(lk["nameenddt"] >= lo) & (lk["namedt"] <= hi)].copy()
-    w = w[w["shrcd"].isin((10, 11)) & w["exchcd"].isin((1, 2, 3))]
-    w["ticker"] = w["ticker"].astype(str).str.upper().str.strip()
-    w = w[w["ticker"].str.len() > 0]
-    g = w.groupby("ticker")["permno"].nunique()
-    ok = set(g[g == 1].index)
-    amb = int((g > 1).sum())
-    uniq = w[w["ticker"].isin(ok)].drop_duplicates("ticker")[["ticker", "permno"]]
-    uniq["permno_s"] = uniq["permno"].astype(int).astype(str)
-    return uniq, amb
+    lk = prov.link().copy()
+    lk = lk[lk["shrcd"].isin((10, 11)) & lk["exchcd"].isin((1, 2, 3))]
+    lk["ticker"] = lk["ticker"].astype(str).str.upper().str.strip()
+    lk = lk[lk["ticker"].str.len() > 0]
+
+    rows, amb_cells = [], 0
+    for d in dates:
+        ts = pd.Timestamp(str(d))
+        w = lk[(lk["namedt"] <= ts) & (lk["nameenddt"] >= ts)]
+        g = w.groupby("ticker")["permno"].nunique()
+        amb_cells += int((g > 1).sum())
+        ok = w[w["ticker"].isin(set(g[g == 1].index))].drop_duplicates("ticker")
+        rows.append(pd.DataFrame({"date": str(d), "ticker": ok["ticker"].values,
+                                  "permno": ok["permno"].values}))
+    m = pd.concat(rows, ignore_index=True)
+    m["permno_s"] = m["permno"].astype(int).astype(str)
+    return m, amb_cells
 
 
 def _per_date_spearman(a: pd.DataFrame, b: pd.DataFrame, min_names: int = 30) -> dict:
@@ -325,7 +350,12 @@ def gate_b(root: str, lo: int, hi: int, limit: int = 0) -> dict:
     tmap, ambiguous = _ticker_to_permno(prov, dates)
     want = set(sh["ticker"].astype(str).str.upper().str.strip())
     tmap = tmap[tmap["ticker"].isin(want)]
-    link_rate = round(len(tmap) / max(1, len(want)), 6)
+    # Two coverage figures, because they answer different questions and conflating them is how a
+    # census comes to flatter itself: how many distinct panel NAMES ever resolve, and how many
+    # (date, name) CELLS resolve. `W-1` had to measure both for the same reason.
+    link_rate = round(tmap["ticker"].nunique() / max(1, len(want)), 6)
+    cells_total = int(len(sh))
+    cell_rate = round(len(tmap) / max(1, cells_total), 6)
 
     prov.permnos = set(tmap["permno"].astype(int))
     tickers = prov.universe(limit=limit or None)
@@ -340,11 +370,14 @@ def gate_b(root: str, lo: int, hi: int, limit: int = 0) -> dict:
     # and the comparison is the one already proved non-vacuous.
     a = _composite(sh, composite_from_frame, zscore)
     b = _composite(cp, composite_from_frame, zscore)
-    back = dict(zip(tmap["permno_s"], tmap["ticker"]))
-    b["ticker"] = b["ticker"].astype(str).map(back)
-    b = b.dropna(subset=["ticker"])
+    # The map is PER DATE, so the permno -> ticker translation joins on (date, permno) too.
+    # A global dict would silently pick one side of every ticker that changed company.
+    b["date"] = b["date"].astype(str)
+    b = b.rename(columns={"ticker": "permno_s"})
+    b["permno_s"] = b["permno_s"].astype(str)
+    b = b.merge(tmap[["date", "ticker", "permno_s"]], on=["date", "permno_s"], how="inner")
 
-    r = _per_date_spearman(a, b)
+    r = _per_date_spearman(a, b[["date", "ticker", "comp"]])
     mean_rho = r["mean"]
     return {
         "bar": GATE_B_BAR,
@@ -357,9 +390,12 @@ def gate_b(root: str, lo: int, hi: int, limit: int = 0) -> dict:
         "min_spearman": r["min"],
         "median_spearman": r["median"],
         "ticker_link_rate": link_rate,
-        "tickers_linked": int(len(tmap)),
+        "tickers_linked": int(tmap["ticker"].nunique()),
         "tickers_in_sharadar_panel": int(len(want)),
-        "tickers_ambiguous_dropped": ambiguous,
+        "cell_link_rate": cell_rate,
+        "cells_linked": int(len(tmap)),
+        "cells_in_sharadar_panel": cells_total,
+        "ambiguous_date_ticker_cells_dropped": ambiguous,
         "rows_compared": r["rows_compared"],
         "per_date": r["per_date"],
         "compustat_panel_rows": int(len(cp)),
@@ -426,9 +462,12 @@ def main(argv=None):
         print("   mean per-date Spearman %s over %d dates (bar %.2f) -> %s"
               % (g["mean_per_date_spearman"], g["dates_scored"], GATE_B_BAR,
                  "PASS" if g["passes"] else "FAIL"), flush=True)
-        print("   ticker link rate %.4f (%d of %d), %d ambiguous dropped"
-              % (g["ticker_link_rate"], g["tickers_linked"],
-                 g["tickers_in_sharadar_panel"], g["tickers_ambiguous_dropped"]), flush=True)
+        print("   name link rate %.4f (%d of %d) | cell link rate %.4f (%s of %s) | "
+              "%d ambiguous (date,ticker) cells dropped"
+              % (g["ticker_link_rate"], g["tickers_linked"], g["tickers_in_sharadar_panel"],
+                 g["cell_link_rate"], "{:,}".format(g["cells_linked"]),
+                 "{:,}".format(g["cells_in_sharadar_panel"]),
+                 g["ambiguous_date_ticker_cells_dropped"]), flush=True)
 
     with io.open(args.out_json, "w", encoding="utf-8") as fh:
         json.dump(art, fh, indent=2, sort_keys=True, default=str)

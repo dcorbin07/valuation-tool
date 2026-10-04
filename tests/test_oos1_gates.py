@@ -214,6 +214,49 @@ def test_french_units_are_checked_not_converted():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_the_link_map_is_dated():
+    """A ticker must be allowed to mean two companies on two dates, and one on any one date.
+
+    Requiring global uniqueness over 2009-2026 dropped 459 tickers and a third of the panel,
+    including `AA` -- Alcoa Inc and Alcoa Corp either side of the 2016 separation, which are not
+    ambiguous on any given date. `W-28` measured the cost of ignoring dates directly: the undated
+    route assigned one `gvkey` another company's dates on 54 names.
+    """
+    import scripts.oos1_gates as G
+    src = open(os.path.join(REPO, "scripts", "oos1_gates.py"), encoding="utf-8").read()
+    tree = ast.parse(src)
+    fn = [n for n in ast.walk(tree)
+          if isinstance(n, ast.FunctionDef) and n.name == "_ticker_to_permno"]
+    ck("_ticker_to_permno exists", len(fn) == 1)
+    doc = ast.get_docstring(fn[0]) or ""
+    ck("the map documents that it resolves PER DATE", "PER DATE" in doc)
+
+    # The ambiguity refusal must still be present -- same date, two permnos -> dropped.
+    class _P:
+        def link(self):
+            return pd.DataFrame({
+                "permno": [1, 2, 3, 4],
+                "ticker": ["AA", "AA", "ZZ", "ZZ"],
+                # AA: two NON-overlapping spells -> both usable, on their own dates.
+                # ZZ: two OVERLAPPING spells -> genuinely ambiguous, dropped on both dates.
+                "namedt": [pd.Timestamp("2009-01-01"), pd.Timestamp("2017-01-01"),
+                           pd.Timestamp("2009-01-01"), pd.Timestamp("2009-01-01")],
+                "nameenddt": [pd.Timestamp("2016-01-01"), pd.Timestamp("2026-01-01"),
+                              pd.Timestamp("2026-01-01"), pd.Timestamp("2026-01-01")],
+                "shrcd": [10, 10, 10, 10], "exchcd": [1, 1, 1, 1],
+                "cusip8": ["X"] * 4})
+
+    m, amb = G._ticker_to_permno(_P(), ["2010-06-30", "2020-06-30"])
+    ck("the map carries a date column", "date" in m.columns)
+    aa = m[m["ticker"] == "AA"].sort_values("date")
+    ck("AA resolves on BOTH dates", len(aa) == 2, repr(aa.to_dict("records")))
+    ck("AA resolves to DIFFERENT permnos on the two dates",
+       len(set(aa["permno_s"])) == 2, repr(sorted(set(aa["permno_s"]))))
+    ck("a same-date ambiguous ticker is DROPPED, not guessed at",
+       "ZZ" not in set(m["ticker"]))
+    ck("the dropped ambiguous cells are COUNTED", amb == 2, "got %r" % amb)
+
+
 def test_benchmark_is_labelled_not_load_bearing():
     src = open(os.path.join(REPO, "valuation", "edge", "compustat_provider.py"),
                encoding="utf-8").read()
@@ -254,7 +297,7 @@ def test_universe_subset_is_by_size_not_alphabetical():
 if __name__ == "__main__":
     for t in (test_ytd, test_units, test_num_treats_nan_as_absent, test_frozen_model,
               test_dead_themes_are_empty_not_fabricated, test_no_gate_reads_the_holdout,
-              test_french_units_are_checked_not_converted,
+              test_french_units_are_checked_not_converted, test_the_link_map_is_dated,
               test_benchmark_is_labelled_not_load_bearing,
               test_price_history_uses_absolute_price_and_adjusts,
               test_universe_subset_is_by_size_not_alphabetical):
