@@ -50,8 +50,20 @@ class TestThePublishedWindowProbe(unittest.TestCase):
         import requests
 
         class _R:
+            # `raise_for_status` ADDED 2026-10-04 (THEME-429), and the omission was not
+            # cosmetic. The probe used to read `status_code` and nothing else; it now delegates
+            # to `live_theme_sources.head_published`, which mirrors `_get`'s status vocabulary
+            # and therefore CALLS `raise_for_status()` on anything that is not a 404 or a
+            # throttle -- so an unexpected status is raised rather than silently read as "not
+            # published". A stub without it raised AttributeError, the probe's own
+            # `except Exception` caught it, and this test's 200 came back as published=False:
+            # THE EXACT CONFLATION THE REPAIR EXISTS TO REMOVE, re-entering through a double.
             def __init__(self, code):
                 self.status_code = code
+
+            def raise_for_status(self):
+                if self.status_code >= 400:
+                    raise RuntimeError("HTTP %d" % self.status_code)
 
         seen = []
 
@@ -80,6 +92,9 @@ class TestThePublishedWindowProbe(unittest.TestCase):
 
         class _R:
             status_code = 404
+
+            def raise_for_status(self):      # see the note on the stub above
+                raise RuntimeError("HTTP 404")
 
         real = requests.head
         try:

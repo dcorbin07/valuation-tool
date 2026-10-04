@@ -14608,7 +14608,30 @@ precisely the point. The next themes run will either find a published window and
 `CANNOT DETERMINE` and exit 4 instead of a traceback. **Don needs to re-run the themes workflow
 once more**, and a 429 is transient, so a later run is the test.
 
-**18 tests, zero skips; 9 of 9 mutations caught with sources restored byte-for-byte; 9 of 9 theme
-suites and 6 of 6 doc/policy suites.** `scripts/live_theme_sources.py` (`head_published`,
+## THE CONFLATION RE-ENTERED THROUGH A TEST DOUBLE, AND CI IS WHAT CAUGHT IT
+
+`tests/test_free_route_p2.py` -- a PRE-EXISTING suite for this same probe -- went red on the
+land, and the reason is worth more than the fix. Its response stub carried `status_code` and
+nothing else, which was sufficient while the probe only read that attribute. The repaired probe
+delegates to `head_published`, which mirrors `_get`'s vocabulary and therefore **calls
+`raise_for_status()`** on anything that is not a 404 or a throttle -- so an unexpected status is
+raised rather than read as "not published". Against the thin stub that call raised
+`AttributeError`, the probe's own `except Exception` caught it, and **a stubbed 200 came back as
+`published=False`: the exact conflation this change exists to remove, re-entering through a
+double.**
+
+**The contract was NOT loosened to match the stub.** Dropping `raise_for_status()` and returning
+`status_code == 200` would make a 500 read as "not published" -- the same two-state collapse one
+status along. The stubs gained the method instead, with the reason on them.
+
+**AND MY LOCAL SELECTION WAS TOO NARROW, WHICH IS WHY CI FOUND IT AND I DID NOT.** I picked the
+affected suites by the filename keyword "theme"; this one is named for the FEATURE
+(`free_route`) rather than the module, so it was never in the list. Selecting by **what imports
+the changed modules** -- `grep -rln "theme_cache_build\|live_theme_sources" tests/` -- returns
+ten suites including both `free_route` ones, and all ten pass. A filename keyword is not a
+dependency.
+
+**19 tests, zero skips; 9 of 9 mutations caught with sources restored byte-for-byte; 10 of 10
+suites that import the changed modules, and 6 of 6 doc/policy suites.** `scripts/live_theme_sources.py` (`head_published`,
 `download_dataset`), `scripts/theme_cache_build.py` (`newest_published_periods`, `main`),
 `tests/test_theme_cache_throttle.py`.
