@@ -14055,3 +14055,78 @@ choosing the regime on the output.
 
 **NOT DONE:** no regime-aware leverage or coverage floor is invented; the amendment is a DRAFT
 and is not signed; nothing about TSLA is changed.
+
+
+# SESSION 84 - ITEM 28: THE THEME-CACHE JOB HAD NEVER ONCE BEEN ABLE TO RUN
+
+Manual run #541 (2026-10-04), all three shards, died **three seconds** into "Crawl shard N":
+
+    FileNotFoundError: [Errno 2] No such file or directory:
+        'data/live_cache/served_broker_top_1500.json'
+
+at `theme_cache_build.write_served_file`. **A conjunction of three ordinary facts, none of them
+a bug on its own:** `data/` is gitignored so the checkout brings no directories; the workflow's
+cache restore lists only `data/live_themes/*`, so `data/live_cache/` is created by nobody; and
+that write is the FIRST of the run, so it failed before anything else could.
+
+**THE FILENAME IS DERIVED, WHICH IS WHY A GREP FOR IT FINDS ONLY THE WORKFLOW.**
+`served_from_universe("broker")` sets `scan_date` to `"broker_top_%d" % limit`, and
+`main` builds `served_<scan_date>.json` beside `cache_path()` -- so
+`data/live_cache/served_broker_top_1500.json` exists nowhere in the source as a literal, only
+as a `--snapshot` argument in `auto-scan.yml`.
+
+**ONE UNPROTECTED WRITE, AND THE OTHER TWO MODULES WERE ALREADY RIGHT.** Measured across the
+chain: `live_theme_sources._atomic_write_json` does `_ensure(os.path.dirname(path) or ".")`,
+its binary download is preceded by `_ensure(root)`, its logger calls `_ensure(root)`, and
+`fidelity2_rebuild.build_live` does `os.makedirs(...)` before the cache write. **So the fix is
+one line, not a sweep** -- and `_atomic_write_json` is the pattern it follows, including the
+`or "."`, because `os.makedirs("")` raises.
+
+It is a local one-liner rather than an import: this script's own plumbing comment says it is
+*"kept local so this script has no dependency on that one's internals"*, and reaching in for
+one line would trade a one-line duplication for the coupling that comment exists to prevent.
+
+## WHY NO EXISTING TEST SAW IT, WHICH IS THE PART WORTH KEEPING
+
+**Every machine that has ever run this already had a `data/live_cache/` from an earlier scan.**
+The directory was a side effect of HISTORY rather than of the code, so the code's dependence on
+it was invisible to every test that ran where that history exists. `state_isolation` does not
+help either: these paths are RELATIVE, so they resolve against the working directory, and the
+suites run from the repo root where `data/` is populated.
+
+So the new suite does not use a temp data root -- it `chdir`s into an **empty directory with no
+`data/` whatever**, which is what a fresh runner is, and asserts that premise first so the rest
+cannot pass for the wrong reason. It drives `write_served_file` directly AND both entry points
+run #541 used: `--universe broker --slice 0/3` and `--universe broker`.
+
+## THREE DEFECTS IN MY OWN TEST, AND THE FIRST IS THE USEFUL ONE
+
+**(a) MY GREP EXCLUDED DIGITS, SO THE SUITE WENT TO THE INTERNET.** I enumerated the calls to
+stub with `grep -nE "M\.[a-z_]+\("` -- a character class with no `0-9` -- which silently
+missed **`M.build_13f`**, and the test downloaded from SEC and came back with a real
+`404 ... 2026q1_form13f.zip`. **Enumerating stubs is the method that just failed**, so the
+transport is now BLOCKED: `requests.get` and `requests.Session.request` raise inside the
+harness, so the next unstubbed call fails loudly here instead of quietly fetching 190MB on
+someone's runner. Two tests pin that the block bites and that it is restored afterwards -- a
+harness that left `requests` broken would poison every later suite in the process.
+
+**(b) A FIXTURE THE CODE CORRECTLY REFUSED.** My `PERIODS` stub used `"2026Q2"`; the real labels
+are Sharadar-style (`30-JUN-2026`), and `_period_end` raises rather than guessing a quarter end
+*"than dating the market cap to a guess"*. The guard caught my fixture, which is the guard
+working.
+
+**(c) AND THE NON-VACUITY CHECK IS IN THE SUITE RATHER THAN ASSUMED:** one test reproduces the
+raw `FileNotFoundError` from an unprotected write, so if the platform ever created the directory
+for us every other assertion would be exposed as passing for an unrelated reason.
+
+**13 tests; 8 of 13 fail against `origin/main`** (1 failure, 7 errors), including all four
+entry-point tests reproducing run #541, with sources restored byte-for-byte.
+
+## WHAT IS STILL OWED, AND IT IS NOT CODE
+
+Nothing here schedules anything and nothing here proves the crawl works -- only that it can now
+START on a fresh runner. **Don re-runs Actions -> "Auto scans (free-tier bridge)" -> Run
+workflow -> themes**, then reads the run's annotations and, after the next hot scan,
+`health.theme_contributing`: `institutional` and `insider` should rise above 0. Until that scan
+runs, the theme cache is absent and those two themes contribute nothing, which is the state
+`FIDELITY-2` describes.
