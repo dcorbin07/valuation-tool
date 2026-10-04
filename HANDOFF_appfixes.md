@@ -14345,3 +14345,163 @@ degradation visible before it crosses a threshold.
 
 **NOT DONE:** nothing here fixes the three failures - they are items 28 and 23 and need the jobs
 to run. The checker is read-only and schedules nothing itself.
+
+
+# SESSION 87 - ITEM 31: ARM 2 IS BUILDABLE AND SWITCHED OFF, AND IT REPRODUCES EXACTLY
+
+`INDEX-CHOICE` settled one of its two questions and left the other open: **"if you move, move to
+arm 2"** is decided on the evidence; **"move at all?"** is Don's call on period risk, and nothing
+available before the 22nd can resolve it. So arm 2 now exists as something an operator can build
+on command, and **nothing about it is default, adopted or published**.
+
+```
+python -m valuation.edge.valquo_index --candidate liquid-decile \
+       --full-universe data/backtest --out data/valquo_index.json
+```
+
+## THE FIDELITY NUMBER, AND THE GATE THAT LICENSES IT
+
+`python -m scripts.index_candidate_fidelity` replays arm 2's whole 69-date chain through the
+driver that measured it:
+
+| | |
+|---|---|
+| **the inertness gate** | `roth_net_ann`, `annual_turnover`, `realised_one_way_bps` all reproduce `INDEX_BEST.json`'s banked literals at **max abs deviation 0.000e+00** |
+| **the last date, built both ways** | measured **150** names, built **150**, **overlap 1.0000**, **max abs weight deviation 0.000e+00** |
+| artifact cross-check | book 150 inside the banked [147, 150]; eligible tier 1500 inside [1471, 1500] |
+| non-vacuity | universe_rank 1500 -> 1400 drops the overlap to **0.8471** |
+| free route | refused by name, with the measurement in the message |
+
+**THE GATE IS THE LOAD-BEARING HALF, not the overlap.** The universe trim moved out of
+`served_index_book.book_fn` into `valquo_index.trim_universe` so that one definition serves both
+the backtest and the build - arm 2's only difference from the book in force IS that boundary, so
+a second copy would let it be MEASURED on one population and BUILT on another with both halves
+correct in isolation. If the move had changed anything, every figure above would describe a
+different book while looking fine.
+
+**AND THE EXACT OVERLAP IS NEAR-TAUTOLOGICAL BY DELEGATION, WHICH IS THE POINT.** Both paths call
+the same trim and the same `build_index`, so 1.0000 is what *should* happen - that is the claim
+being made: the shipped builder is the measured construction and not a lookalike. A number that
+cannot fail proves nothing, so it is checked for vacuity two ways: the book must be non-empty and
+of the banked size, and a perturbed universe must FAIL to reproduce it.
+
+**A SECOND, INDEPENDENT INERTNESS PROOF ARRIVED FOR FREE** - see the tripwires below:
+`test_index_book_measured.py` builds the book from this source and from `origin/main`'s own
+source and found every book field identical.
+
+## THREE PREMISE CORRECTIONS, ALL MADE BEFORE ANY CODE WAS WRITTEN
+
+**(a) ARM 2 IS NOT BUILDABLE BY THE FREE ROUTE, AND THE ARTIFACT'S OWN FIELD SAYS OTHERWISE
+BECAUSE IT ANSWERS A DIFFERENT QUESTION.** `INDEX_BEST.json` carries
+`buildable_from_live_scan: true`, which means *can a 1,500-name universe be FORMED from a live
+scan* - it can, the scan scores ~1,800 names. `DECISION_index_choice.md` says **no**, which means
+*does the resulting BOOK match the one that was measured* - it does not: the live-route decile
+overlaps the Sharadar-built decile by **0.2326** against `D9`'s pre-committed **0.60** bar. Both
+statements are true and only the second decides anything. So the builder **refuses** the live
+route rather than approximating it, and the refusal prints the measurement.
+
+**(b) THE UNIVERSE IS RANKED BY MARKET CAP AND THE ARM IS NAMED "LIQUID".** That is a correction
+`PREREG_index_best.md` §1a makes about its own arm names: *"there is NO point-in-time liquidity
+measure, so 'most liquid' CANNOT be built as stated"* (`B13` is `PARTIAL - BLOCKED ON DATA` for
+exactly this; the price export is `date,close`). The proxy's within-date Spearman against 63-day
+dollar ADV is **0.7119**, so it explains about half the variance of a true liquidity screen and
+**is a materially different screen**. **The name is kept anyway** - it is the name Don will be
+reading in the decision memo on the 20th, and a builder whose name does not match the memo is the
+worse hazard - so the correction travels in the payload *and* in the CLI output, where someone who
+only runs the command cannot miss it.
+
+**(c) IT DOES NOT BELONG IN `settings.BOOK_CONFIGS`, AND THAT IS NOT TIDINESS.** Four consumers
+**iterate** that dict - `scripts/backtest_card.py`, `fundamental_panel.py`'s `book_configs` block,
+`valquo_index.config_block` and `results_file.py` - and a `?config=` endpoint lists its keys back
+to any caller inside a 400. A third entry would therefore be measured by the backtest card, banked
+into `BACKTEST_RESULTS.json` and echoed publicly, which is **published** on the plainest reading
+and is the one thing the item forbids. It lives in a separate `INDEX_CANDIDATES` namespace, with
+a test pinning `BOOK_CONFIGS` at exactly the two shipped books **in both directions** - a one-way
+containment test passes if the dicts are ever merged.
+
+## IT REFUSES RATHER THAN APPROXIMATES, AND ONE ASYMMETRY IS REPORTED RATHER THAN SMOOTHED
+
+Fewer rows than the declared universe **raises**. A 300-name "top 1500" is not a smaller version
+of this book, it is a different construction wearing its name, and it would be undetectable
+downstream - the payload would carry the right label, the right cap and a plausible count.
+
+**That is stricter than the backtest was.** In `served_index_book` the universe is "the top 1,500
+or all of them where fewer exist": the artifact's `eligible_tier.min` is **1471**, and the
+fidelity run counts **3 of 69 dates** whose cross-section is smaller than 1,500. For a one-shot
+operator build a short universe means an incomplete export, which is worth refusing; for a 69-date
+backtest it is just the panel's early width. The count is printed rather than left to be
+discovered.
+
+**THE FIRST BUILD IS BAND-LESS BY DESIGN.** `--carry-held` is OFF by default for a candidate,
+because the book on disk is the **incumbent's** - a different construction over a different
+universe - so banding a new book against it would hold names arm 2's universe may not contain.
+`INDEX-BEST`'s own first date was band-less for the same reason.
+
+## WHAT CHANGES IN THE CONTRACT
+
+**ADOPTING IT IS A VINTAGE EVENT: it closes vintage 4 and opens vintage 5.** Unlike Path B for the
+*incumbent* - which is rebalancing under unchanged rules and preserves the clock - this is a
+construction change, which `PAPER_TRACK_CONTRACT.md` §5a names outright. Vintage 4 has been open
+since 2026-08-13; adopting discards the accrued 60-month clock and restarts the horizon **for no
+statistical gain**. That is the price of moving.
+
+**CONFORMANCE HOLDS, UNCHANGED, AND IT IS THE ONE CLEAR ADVANTAGE OVER ARM 3.**
+`CONTRACT_MIN_POSITIONS` is **50** and arm 2's smallest book is **147**, conformant on **69 of
+69** dates, so `seed_book` accepts it with no change to the floor. Arm 3's 25-name book is refused
+on every date and would have required moving it.
+
+## TWO OF THE PROJECT'S OWN TRIPWIRES FIRED, BOTH CORRECTLY, BOTH HANDLED IN THE SAME COMMIT
+
+**(1) THE BOOK-PATH CONSUMER GUARD, and it is the substring-ban family.**
+`test_index_book_publish.py` enumerates everything that names `data/valquo_index.json`, and my
+fidelity script's docstring says *"no book is written to data/valquo_index.json"* - a sentence
+about what it does **not** do, which a raw-text grep cannot distinguish from doing it. Followed
+the guard's own convention (its list already carries prose-only mentions, `paper_track.py` among
+them) and added the file **with a reconciliation note saying it is a NON-consumer and why**,
+rather than restructuring another lane's guard mid-item. The weakness is recorded, not repaired
+here.
+
+**(2) A GUARD KEYED ON THE CLOCK, AND IT FIRED ON THE FIRST UNRELATED EDIT.**
+`test_index_book_measured.py` had a one-time demonstration that an earlier disclosure change was
+inert on the book, gated on *"this file is content-identical to `origin/main`"* as a proxy for
+*"that change is still pending"*. Once it landed the proxy inverted: **any** later edit to
+`valquo_index.py` re-arms the test, which then demands the edit move `headline_scope`. A universe
+trim and a candidate registry do not touch the disclosure, so a correct, inert change came back
+red with a message saying it *"did nothing"*. That is `MA4`'s shape and `MB31`'s - a guard
+asserting a property of the LAYOUT, or that two things are equal today. **Repointed in the same
+commit so the move shows in the diff, keeping every assertion and changing only what decides
+whether they apply**: the book-inertness check now runs on **every** edit (and did, and passed -
+which is the second inertness proof above), while the disclosure half skips LOUDLY when
+`headline_scope` did not move, with that as its stated reason.
+
+## A DEFECT OF MY OWN, AND MUTATION IS WHAT FOUND IT
+
+**THE EXIT CODE WAS NOT THE ASSERTION.** `--candidate` plus a hand-passed `--top-decile` must be
+refused by name; my test asserted `rc == 1`. With the refusal deleted the command **still returns
+1** - the knob is silently dropped, the run reaches the free-route refusal, and that exits 1 for
+an entirely different reason. The test passed against the mutant. It reads the MESSAGE now, which
+is the only thing separating the two refusals - and the mutant's behaviour is itself the argument
+for the guard: without it, `--top-decile 0.2` is accepted and ignored. Same family as item 29's
+`_note` miss: **the guard named the variable and never checked what it carried.**
+
+A second one, caught by a failing fixture rather than by reading: my contrast for *"the large-cap
+floor is zero so the trim IS the tier"* built rows whose caps all sat **below** $10B, so
+`build_index` took its `MIN_NAMES` "largest half" fallback and the contrast measured the fallback
+instead of the filter - reading **750 of 1500**. Fixture caps now sit well above the floor.
+
+## WHAT IS NOT DONE
+
+**Nothing is adopted, nothing is default, nothing is published, `TRACKED_CONFIG` is untouched.**
+No book is written to `data/valquo_index.json` by any of this. The open question - whether to move
+at all - is untouched and is Don's; the evidence for it is `DECISION_index_choice.md` and this
+commit adds none. Arm 3 is not made buildable (it would need `CONTRACT_MIN_POSITIONS` moved). The
+free-route overlap is **not** re-measured - `D9`'s figure is quoted, not re-derived. And the
+builder is useless without the renewed Sharadar export; if Path B slips, the only thing buildable
+on the 22nd is the incumbent.
+
+**29 tests, zero skips; 10 of 10 mutations caught with sources restored byte-for-byte; the 13
+index/rebalance/docs suites 13 of 13.** `valuation/edge/valquo_index.py`
+(`trim_universe`, `INDEX_CANDIDATES`, `candidate`, `build_candidate`, `_export_candidate`,
+`--candidate`), `valuation/studies/served_index_book.py` (delegates the trim),
+`scripts/index_candidate_fidelity.py`, `tests/test_index_candidate.py`,
+`REBALANCE_RUNBOOK_2026-10-22.md` §3b, `data/free_analysis/INDEX_CANDIDATE_FIDELITY.json`.

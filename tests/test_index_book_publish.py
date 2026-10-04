@@ -351,6 +351,19 @@ def test_the_set_of_things_that_consume_the_book_path_is_what_we_think_it_is():
         "tests/test_edge.py",
         "tests/test_paper_track.py",
         "tests/test_index_book_publish.py",
+        # NOT A CONSUMER. Added 2026-10-04 (`INDEX-CANDIDATE`), reconciled before adding, and
+        # it lands here for the same reason `paper_track.py` does: it NAMES the path in prose
+        # and never opens it. Its docstring says "no book is written to data/valquo_index.json"
+        # -- a sentence about what it does NOT do -- and this guard reads raw text, so a
+        # promise not to touch the file reads identically to touching it. That is the
+        # substring-ban shape this record has hit repeatedly; it is tolerated HERE because the
+        # guard's value is that it forces a reconciliation on every hit, and the entries above
+        # show the convention is to list prose mentions rather than to narrow the search. The
+        # script builds arm 2's book IN MEMORY, compares it to the one the backtest formed, and
+        # writes only `data/free_analysis/INDEX_CANDIDATE_FIDELITY.json`. It cannot be a
+        # PT-SPLIT risk: it never writes the path, never resolves it, and forms no opinion
+        # about what the Index IS -- the construction it builds is explicitly NOT the Index.
+        "scripts/index_candidate_fidelity.py",
     }
     unexpected = set(hits) - expected
     assert not unexpected, (

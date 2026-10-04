@@ -182,6 +182,204 @@ def rescore_flat_seven(rows) -> dict:
                      "blending both off. The hot list keeps its own score.")}
 
 
+def trim_universe(rows, universe_rank: int, rank_key=None):
+    """The top `universe_rank` rows by `rank_key` (default: point-in-time market cap).
+
+    THE UNIVERSE IS AN INPUT AND THE CONSTRUCTION IS `build_index`'s. `INDEX-BEST`'s arms 2 and
+    3 differ from the incumbent in exactly this trim -- the names `build_index` is allowed to
+    see -- and in nothing else, which is why they could be measured by calling the live
+    function rather than a lookalike (`B7`).
+
+    THIS LIVED INSIDE `served_index_book.book_fn` UNTIL `INDEX-CANDIDATE` NEEDED IT OUTSIDE A
+    BACKTEST, and it moved here rather than being copied. A second copy of a universe boundary
+    is how a construction comes to be MEASURED on one population and SHIPPED on another, with
+    both halves looking correct in isolation -- and the boundary is the only thing separating
+    arm 2 from the book in force, so a drift here would be invisible and total.
+
+    TIES ARE BROKEN BY TICKER so the boundary is deterministic. An unstable boundary would make
+    the same inputs produce different books run to run, which is the defect the trade loop's set
+    iteration had: a 1,500th and 1,501st name on the same market cap must not be decided by
+    dict ordering.
+
+    A ROW WITH NO RANK VALUE SORTS LAST rather than being dropped. Dropping would silently
+    shrink the universe, so a vendor gap would read as a smaller market; sorting last keeps the
+    count honest and lets it be trimmed off by the rank it actually has.
+    """
+    if not universe_rank or universe_rank <= 0:
+        raise ValueError("universe_rank must be a positive integer, got %r" % (universe_rank,))
+    key = rank_key or (lambda r: r.get("market_cap") or 0.0)
+    return sorted(rows, key=lambda r: (-(key(r) or 0.0), r["ticker"]))[:universe_rank]
+
+
+# -------------------------------------------------------------------------------------------
+# CANDIDATE CONSTRUCTIONS -- NAMED, NOT DEFAULT, NOT ADOPTED, NOT PUBLISHED.
+#
+# `INDEX-CHOICE` settled one of its two questions and left the other open: "IF you move, move to
+# arm 2" is decided on the evidence, "whether to move at all" is Don's call on period risk. This
+# registry exists so that call can be taken on 2026-10-20 instead of being designed on the 22nd
+# -- the construction is ready and switched off, which is the whole deliverable.
+#
+# WHY THIS IS NOT AN ENTRY IN `settings.BOOK_CONFIGS`, AND IT IS NOT TIDINESS. Four consumers
+# ITERATE that dict -- `scripts/backtest_card.py`, `fundamental_panel.py`'s `book_configs`
+# block, this module's own `config_block` helper and `results_file.py` -- so a third entry would
+# be measured by the backtest card, carried into `BACKTEST_RESULTS.json`, and listed back to any
+# caller of a `?config=` endpoint inside a 400's `known` array. On the plainest reading that is
+# PUBLISHED, which the item forbids. A separate namespace cannot leak into a surface that does
+# not know it exists, and a test pins that `BOOK_CONFIGS` still holds exactly the two shipped
+# books -- in both directions, because a one-way containment test passes if the dicts are merged.
+#
+# EVERY MEASURED FIGURE BELOW IS A COMMITTED LITERAL READ OUT OF `INDEX_BEST.json` (`MA13`), so
+# a re-run that moves one shows up as a diff here rather than as two documents disagreeing.
+# `scripts/index_best.py`'s own gate literals were FABRICATED on their first cut and its run
+# refused them at 1.795e-07; these were copied from the artifact, and the test re-reads them
+# from it rather than trusting this comment.
+INDEX_CANDIDATES = {
+    "liquid-decile": {
+        "arm": "2_liquid_decile",
+        "label": "top 1500 by point-in-time MARKET CAP, top decile, score-weighted",
+        "register": "PREREG_index_best.md (arm 2); DECISION_index_choice.md",
+        "artifact": "data/free_analysis/INDEX_BEST.json arms.2_liquid_decile",
+        # --- the construction, one knob at a time ------------------------------------------
+        "universe_rank": 1500,
+        "rank_key": "market_cap",
+        # THE NAME SAYS "LIQUID" AND THE CONSTRUCTION IS MARKET CAP, and that is a correction
+        # `PREREG_index_best.md` §1a makes about its OWN arm names rather than a slip here:
+        # "there is NO point-in-time liquidity measure, so 'most liquid' CANNOT be built as
+        # stated" -- `B13` is PARTIAL-BLOCKED-ON-DATA for exactly this, the price export being
+        # `date,close`. Measured, the within-date Spearman between market cap and 63-day dollar
+        # ADV is 0.7119, so the proxy explains about half the variance of a true liquidity
+        # screen and IS a materially different screen; that register's own words are "every
+        # arm's universe is a MARKET-CAP universe wearing a liquidity label".
+        #
+        # THE NAME IS KEPT ANYWAY, deliberately: it is the name Don will be reading in
+        # `DECISION_index_choice.md` on the 20th, and a builder whose name does not match the
+        # memo is the worse hazard. So the correction travels in the payload and in the CLI
+        # output instead, where it cannot be missed by someone who only runs the command.
+        "rank_key_is_market_cap_not_liquidity": {
+            "spearman_vs_63d_dollar_adv": 0.7119,
+            "source": "PREREG_index_best.md 1a (B13)",
+        },
+        # 0.0, NOT the $10B default: the 1,500-name trim IS the tier, so a second large-cap
+        # filter on top of it would cut the universe twice and make the arm a different object.
+        # Measured consequence, from the artifact: `tilt_values` is still ["large-cap only"] on
+        # every date and `dates_on_the_fallback` is 0, because every row passes `>= 0.0` and the
+        # `MIN_NAMES` fallback therefore never fires.
+        "large_cap_min": 0.0,
+        "top_decile": 0.10,
+        "top_n": None,
+        "weighting": "score",
+        "exit_frac": 0.30,
+        "rebalance_days": 63,
+        "horizon": 63,
+        # --- what it measured (literals, from the artifact) -------------------------------
+        "measured": {
+            "roth_net_ann": 0.2294646167705674,
+            "roth_sharpe": 1.1442622403420502,
+            "roth_max_drawdown": -0.27600090292443336,
+            "annual_turnover": 1.9268114715770899,
+            "realised_one_way_bps": 29.344051612262923,
+            "book_size": {"min": 147, "median": 150.0, "max": 150},
+            "eligible_tier": {"min": 1471, "median": 1500.0, "max": 1500},
+            "dates_below_contract_min_positions": 0,
+            "cap_binds_on_dates": 0,
+        },
+        # --- the three things an operator has to know BEFORE building it -------------------
+        #
+        # (1) IT IS NOT BUILDABLE BY THE FREE ROUTE, and the artifact's own field says the
+        # opposite because it answers a different question. `INDEX_BEST.json` carries
+        # `buildable_from_live_scan: true`, which means "can a 1,500-name universe be FORMED
+        # from a live scan" -- it can, the scan scores ~1,800 names. `DECISION_index_choice.md`
+        # says NO, which means "does the resulting BOOK match the one that was measured" -- it
+        # does not: on `D9`'s own shared population the live-route decile overlaps the
+        # Sharadar-built decile by 0.2326 against `D9`'s pre-committed 0.60 bar. Both
+        # statements are true and only the second one decides anything.
+        "free_route": {
+            "buildable": False,
+            "decile_overlap": 0.2326,
+            "bar": 0.60,
+            "source": "DECISION_index_choice.md; PREREG_index_choice.md B2",
+            "note": "INDEX_BEST.json's buildable_from_live_scan answers whether a 1500-name "
+                    "universe can be FORMED, not whether the resulting book MATCHES. It does "
+                    "not. Path B (Sharadar) only.",
+        },
+        # (2) ADOPTING IT IS A VINTAGE EVENT. Book vintage 4 has been open since 2026-08-13;
+        # this changes the construction, which `PAPER_TRACK_CONTRACT.md` §5a names outright, so
+        # it closes vintage 4 and opens vintage 5 -- discarding the accrued clock and restarting
+        # the 60-month horizon for no statistical gain. That is the price, and it is Don's to
+        # pay or not. The vintage NUMBER is derived from the register at build time and is not
+        # read from here; 5 is the expectation, not the source of truth.
+        "vintage_event": True,
+        # (3) THE CONTRACT'S POSITION FLOOR HOLDS, and it is the one thing arm 2 has over arm 3.
+        # `CONTRACT_MIN_POSITIONS` is 50 and arm 2's smallest book is 147, conformant on 69 of
+        # 69 dates, so `seed_book` accepts it unchanged. Arm 3's 25-name book is refused on
+        # every date and would have required changing the floor.
+        "contract_min_positions_holds": True,
+        "adopted": False,
+        "default": False,
+    },
+}
+
+
+def candidate(name: str) -> dict:
+    """Resolve a candidate by name, or refuse naming the ones that exist."""
+    cfg = INDEX_CANDIDATES.get(name)
+    if not cfg:
+        raise RuntimeError("unknown index candidate %r; known: %s"
+                           % (name, sorted(INDEX_CANDIDATES)))
+    return cfg
+
+
+def build_candidate(rows, name: str, *, held=None, index_fn=None) -> dict:
+    """Build a NAMED, NON-DEFAULT candidate construction from scan rows.
+
+    IT REFUSES RATHER THAN APPROXIMATES. If `rows` cannot form the declared universe -- fewer
+    rows than `universe_rank` -- this raises instead of trimming to whatever is there. A
+    30-name "top 1500" is not a smaller version of this book, it is a different construction
+    wearing its name, and it would be undetectable downstream: the payload would carry the
+    right label, the right cap and a plausible count.
+
+    THAT IS STRICTER THAN THE BACKTEST WAS, and the difference is reported rather than smoothed.
+    In `served_index_book` the universe is "the top 1,500 or all of them where fewer exist" --
+    the artifact's `eligible_tier.min` is 1471, so the early cross-sections genuinely are
+    smaller. For a one-shot operator build a short universe means an incomplete export, which
+    is worth refusing; for a 69-date backtest it is just the panel's early width.
+
+    `held` IS NOT DEFAULTED FROM DISK, and that is deliberate. The book on disk is the
+    INCUMBENT's -- a different construction over a different universe -- so banding against it
+    would hold names this universe may not even contain. The first build under a new
+    construction is necessarily band-less, exactly as `INDEX-BEST`'s own first date was
+    (`build_index`: "with no previous book there is nothing to hold ... the band's effect
+    begins at the SECOND one"). A caller that genuinely has a prior book OF THIS CONSTRUCTION
+    passes it explicitly.
+    """
+    cfg = candidate(name)
+    n = int(cfg["universe_rank"])
+    if len(rows) < n:
+        raise RuntimeError(
+            "candidate %r declares a %d-name universe and only %d rows were supplied; "
+            "refusing to build a different construction under this name. Use the Sharadar "
+            "export (--full-universe) rather than a live scan snapshot." % (name, n, len(rows)))
+    _rk = None if cfg["rank_key"] == "market_cap" else (lambda r: r.get(cfg["rank_key"]))
+    trimmed = trim_universe(rows, n, rank_key=_rk)
+    ix = index_fn or build_index
+    bk = ix(trimmed, large_cap_min=cfg["large_cap_min"], top_decile=cfg["top_decile"],
+            top_n=cfg["top_n"], weighting=cfg["weighting"], exit_frac=cfg["exit_frac"],
+            held=held)
+    bk["candidate"] = {
+        "name": name, "arm": cfg["arm"], "label": cfg["label"],
+        "register": cfg["register"], "artifact": cfg["artifact"],
+        "universe_rank": n, "universe_supplied": len(rows), "eligible_tier": len(trimmed),
+        "rank_key": cfg["rank_key"],
+        "rank_key_is_market_cap_not_liquidity": cfg["rank_key_is_market_cap_not_liquidity"],
+        "adopted": False, "default": False,
+        "vintage_event": cfg["vintage_event"],
+        "contract_min_positions_holds": cfg["contract_min_positions_holds"],
+        "free_route": cfg["free_route"],
+        "band_applied": bool(held) and cfg["exit_frac"] is not None,
+    }
+    return bk
+
+
 def build_index(rows, large_cap_min: float = LARGE_CAP_MIN,
                 top_decile: float = TOP_DECILE, weighting: str = "score",
                 top_n: int | None = None, held=None,
@@ -541,8 +739,69 @@ def _previous_book(path: str) -> list:
             if isinstance(p, dict) and p.get("ticker")]
 
 
+def _export_candidate(*, store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
+                      limit: int = 3000, candidate_name: str, carry_held: bool = False,
+                      allow_free_route: bool = False) -> dict:
+    """Write a NAMED CANDIDATE book. Nothing here is adopted, default or published.
+
+    THE FREE ROUTE IS REFUSED BY NAME AND THE REFUSAL IS A MEASUREMENT, NOT A PREFERENCE.
+    `DECISION_index_choice.md` put the live-route decile's overlap with the Sharadar-built
+    decile at **0.2326** against `D9`'s pre-committed **0.60** bar, on `D9`'s own shared
+    population. A book built the free way would carry this candidate's label and be a
+    three-quarters-different book. So a live-scan source raises unless a caller explicitly
+    takes that on, and the explicit flag is not wired to the CLI -- there is no keystroke that
+    produces a mislabelled book by accident.
+
+    THE `--limit` DEFAULT IS RAISED FOR A CANDIDATE, and it has to be. `_full_universe_rows`
+    defaults to 3000 rows, which is enough for a 1,500-name trim -- but a caller who passed
+    `--limit 1000` to save time would get a REFUSAL rather than a quietly smaller universe,
+    which is the direction that matters.
+    """
+    cfg = candidate(candidate_name)
+    if not data_dir and not allow_free_route:
+        raise RuntimeError(
+            "candidate %r is NOT buildable by the free live route: its live-route decile "
+            "overlaps the Sharadar-built decile by %.4f against a %.2f bar (%s). Pass "
+            "--full-universe DATA_DIR to build it from the Sharadar export (Path B)."
+            % (candidate_name, cfg["free_route"]["decile_overlap"], cfg["free_route"]["bar"],
+               cfg["free_route"]["source"]))
+    dropped, scan_date = [], None
+    if data_dir:
+        rows, scan_date, dropped = _full_universe_rows(data_dir, limit=limit)
+        source = ("Sharadar SF1+SEP export via WRDSProvider (point-in-time), "
+                  "shipped settings.py weights")
+    else:
+        if store is None:
+            from ..screener.store import Store
+            store = Store()
+        scan_date = store.latest_scan_date()
+        rows = store.load_snapshot(scan_date) if scan_date else []
+        source = "latest saved live scan snapshot (FREE ROUTE -- NOT the measured construction)"
+    # `held` is OFF by default for a candidate. The book on disk belongs to a different
+    # construction over a different universe, so banding a new book against it would hold
+    # names this universe may not contain. See `build_candidate`.
+    held = _previous_book(path) if carry_held else None
+    payload = build_candidate(rows, candidate_name, held=held)
+    payload["profile_enrichment"] = _enrich_profiles(payload, store)
+    payload["scan_date"] = scan_date
+    payload["data_as_of"] = scan_date
+    payload["source"] = source
+    payload["excluded_market_cap_divergence"] = [
+        {"ticker": d["ticker"], "daily_mc": d["daily_mc"], "derived_mc": d["derived_mc"],
+         "ratio": round(d["ratio"], 2)} for d in dropped]
+    payload["generated_at"] = _dt.datetime.now().replace(microsecond=0).isoformat()
+    d = os.path.dirname(path)
+    if d:
+        os.makedirs(d, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+    payload["path"] = path
+    return payload
+
+
 def export(store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
-           limit: int = 3000, config: str | None = None, **kw) -> dict:
+           limit: int = 3000, config: str | None = None,
+           candidate_name: str | None = None, carry_held: bool = False, **kw) -> dict:
     """Build the book and write the JSON. Returns the payload.
 
     `data_dir` -> score the full Sharadar universe point-in-time (the headless path, and the
@@ -550,6 +809,15 @@ def export(store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
     """
     # A named book config (settings.BOOK_CONFIGS) fixes width, cadence and band together, so
     # the emitted book cannot drift from the construction that was actually validated.
+    # A NAMED CANDIDATE IS A DIFFERENT NAMESPACE AND IS HANDLED FIRST, because the two cannot
+    # be combined: a candidate fixes the same knobs a book config does, so honouring both would
+    # silently pick a winner. Refused rather than ordered.
+    if candidate_name:
+        if config:
+            raise RuntimeError("--candidate and --config set the same knobs; pass one. "
+                               "A candidate already fixes the decile, weighting, cap and band.")
+        return _export_candidate(store=store, path=path, data_dir=data_dir, limit=limit,
+                                 candidate_name=candidate_name, carry_held=carry_held, **kw)
     cfg_meta = None
     if config:
         from ..screener import settings as S
@@ -632,9 +900,13 @@ def main(argv=None):
     import argparse
     ap = argparse.ArgumentParser(description="Export the Valquo Index (top-decile large caps).")
     ap.add_argument("--out", default=DEFAULT_PATH)
-    ap.add_argument("--large-cap-min", type=float, default=LARGE_CAP_MIN)
-    ap.add_argument("--top-decile", type=float, default=TOP_DECILE)
-    ap.add_argument("--weighting", choices=("score", "equal"), default="score")
+    # DEFAULT None SO AN EXPLICIT KNOB IS DISTINGUISHABLE FROM AN ABSENT ONE. Resolved to the
+    # module defaults below, so every existing invocation is bit-identical -- the only thing
+    # this buys is that `--candidate` can REFUSE a hand-passed knob by name instead of handing
+    # the operator a TypeError about an argument they never typed.
+    ap.add_argument("--large-cap-min", type=float, default=None)
+    ap.add_argument("--top-decile", type=float, default=None)
+    ap.add_argument("--weighting", choices=("score", "equal"), default=None)
     ap.add_argument("--full-universe", nargs="?", const="data/backtest", default=None,
                     metavar="DATA_DIR",
                     help="score the whole Sharadar universe point-in-time instead of the last "
@@ -644,11 +916,34 @@ def main(argv=None):
     ap.add_argument("--config", default=None,
                     help="named book config: 'roth' (top-25, 6-week, no band) or 'taxable' "
                          "(decile, quarterly, 30%% band). Sets width and emits the cadence.")
+    ap.add_argument("--candidate", default=None, choices=sorted(INDEX_CANDIDATES),
+                    help="a NAMED, NON-DEFAULT candidate construction (INDEX_CANDIDATES). "
+                         "Nothing here is adopted or published; requires --full-universe.")
+    ap.add_argument("--carry-held", action="store_true",
+                    help="apply the no-trade band against the book already on disk. OFF by "
+                         "default for a candidate: the book on disk is a DIFFERENT "
+                         "construction, so the first build is band-less by design.")
     a = ap.parse_args(argv)
+    if a.config and a.config in INDEX_CANDIDATES:
+        print("%r is a candidate construction, not a book config -- pass --candidate %s."
+              % (a.config, a.config))
+        return 1
+    _knobs = {"--large-cap-min": a.large_cap_min, "--top-decile": a.top_decile,
+              "--weighting": a.weighting}
+    _given = sorted(k for k, v in _knobs.items() if v is not None)
+    if a.candidate and _given:
+        print("--candidate %s already fixes %s; pass one or the other, not both."
+              % (a.candidate, ", ".join(_given)))
+        return 1
+    _kw = {} if a.candidate else {
+        "large_cap_min": LARGE_CAP_MIN if a.large_cap_min is None else a.large_cap_min,
+        "top_decile": TOP_DECILE if a.top_decile is None else a.top_decile,
+        "weighting": "score" if a.weighting is None else a.weighting,
+    }
     try:
-        p = export(path=a.out, large_cap_min=a.large_cap_min, top_decile=a.top_decile,
-                   weighting=a.weighting, data_dir=a.full_universe, limit=a.limit,
-                   config=a.config)
+        p = export(path=a.out, data_dir=a.full_universe, limit=a.limit,
+                   config=a.config, candidate_name=a.candidate, carry_held=a.carry_held,
+                   **_kw)
     except RuntimeError as e:
         print(f"Could not build the book: {e}")
         return 1
@@ -658,6 +953,22 @@ def main(argv=None):
     print(f"Valquo Index -> {p['path']}   as of {p.get('data_as_of')}   "
           f"{p['n_positions']} of {p['n_eligible']} eligible ({p['n_scored']} scored)")
     print(f"  source: {p.get('source')}")
+    if p.get("candidate"):
+        _k = p["candidate"]
+        print("  CANDIDATE: %s -- %s" % (_k["name"], _k["label"]))
+        print("  NOT ADOPTED, NOT DEFAULT, NOT PUBLISHED. register: %s" % _k["register"])
+        print("  universe %d of %d supplied; eligible tier %d; band %s"
+              % (_k["universe_rank"], _k["universe_supplied"], _k["eligible_tier"],
+                 "applied" if _k["band_applied"] else "NOT applied (first build is band-less)"))
+        print("  adopting this is a VINTAGE EVENT; contract position floor holds: %s"
+              % _k["contract_min_positions_holds"])
+        # THE NAME SAYS "LIQUID" AND THE RANK IS MARKET CAP. Printed rather than left in the
+        # payload, because an operator who only reads the console is exactly the person who
+        # would otherwise carry the label into a note about the book.
+        _mc = _k["rank_key_is_market_cap_not_liquidity"]
+        print("  ranked by %s -- NOT a liquidity screen (no point-in-time liquidity measure "
+              "exists; Spearman vs 63d dollar ADV %.4f, %s)"
+              % (_k["rank_key"], _mc["spearman_vs_63d_dollar_adv"], _mc["source"]))
     if p.get("config"):
         _c = p["config"]
         print(f"  config: {_c['name']} — {_c.get('label')}")
