@@ -676,15 +676,21 @@
         <a href="/methodology">How this was tested →</a></div>
       <div id="indexPerfBody"></div>
       {# ITEM 18 — WHAT THE FORWARD TEST CAN AND CANNOT SHOW, ON THE BOOK IT ACTUALLY
-         MEASURES. The contract's own power arithmetic uses +9.9864pp at a tracking error of
-         11.40 — the ALL-CAP decile's edge, GROSS. `INDEX-BOOK` scored each arm at ITS OWN
-         measured tracking error (`MB8`: an `se` may not be borrowed across constructions) and
-         the served book needs about 4,383 months. So a reader must not take a five-year null
-         as evidence against the Index, and must not take a five-year win as evidence for it.
+         MEASURES. `INDEX-BOOK` scored each arm at ITS OWN measured tracking error (`MB8`: an
+         `se` may not be borrowed across constructions) and the served book needs about 4,383
+         months. So a reader must not take a five-year null as evidence against the Index, and
+         must not take a five-year win as evidence for it.
 
          Worded by `index_book_measured.power_sentence()` and only escaped here, so this
-         paragraph and the payload cannot say different things. The SIGNED CONTRACT IS NOT
-         EDITED: the correction is drafted for the next amendment. #}
+         paragraph and the payload cannot say different things.
+
+         AND THE SIGNED CONTRACT NOW AGREES — updated 2026-10-04. This comment used to end "The
+         SIGNED CONTRACT IS NOT EDITED: the correction is drafted for the next amendment", which
+         was true while §2's arithmetic still used the ALL-CAP decile's GROSS +9.9864pp at a
+         tracking error of 11.40. Don accepted Amendment 2 on 2026-10-04, so
+         `PAPER_TRACK_CONTRACT.md` §2 carries the served figures itself (§5a-2) and the sentence
+         below is the contract's own rather than a correction to it. σ is unchanged at 11.40 —
+         §6.5 forbids lowering it and the amendment did not ask to. #}
       <div class="note" id="indexPowerNote" style="margin-top:10px"></div>
       <div style="margin-top:14px"><canvas id="indexChart" height="190"></canvas></div>
       <div class="note" id="indexChartNote"></div>

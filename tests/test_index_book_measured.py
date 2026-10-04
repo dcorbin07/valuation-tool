@@ -235,41 +235,96 @@ class ThePowerStatementReachesThePageAndTheContractIsUntouched(unittest.TestCase
         self.assertNotIn("4,383", src, "the renderer types a measured figure")
         self.assertNotIn("365 years", src)
 
-    def test_the_SIGNED_contract_does_NOT_carry_the_correction(self):
-        """σ may never be revised downward and the thresholds are Don's, so the correction is a
-        DRAFT and the signed text must not contain it.
+    def test_the_SIGNED_contract_NOW_CARRIES_the_correction(self):
+        """REPOINTED 2026-10-04: Don ACCEPTED the amendment, so this guard's premise inverted.
 
-        ASSERTED ON THE FILE'S CONTENT, NOT ON A DIFF. My first cut ran
-        `git diff origin/main -- PAPER_TRACK_CONTRACT.md`, and
-        `test_ma60_conventions::NoSuiteAssertsOnAWorkingTreeDiff` refused it -- for the THIRD
-        time in this lane's lineage, and rightly: that compares main against whatever is
-        checked out, measures nothing about the lane that wrote it, and becomes a tripwire on a
-        whole file that fires on the next unrelated lane. The content property is the real one
-        and is strictly better: the served figures must appear in the DRAFT and nowhere in the
-        contract."""
+        It used to assert the opposite -- that the served figures appear in the DRAFT and
+        NOWHERE in the contract -- and that was right while the correction was a proposal. The
+        decision changed the fact, not the rule: the rule is that the contract and the
+        measurement must agree, and before acceptance agreement meant the contract was silent.
+        Now it means the contract states the figures.
+
+        INVERTED RATHER THAN DELETED, because the direction is what carries the information: a
+        test that merely checked "the figures are somewhere" would pass whether or not Don had
+        ever decided anything.
+
+        ASSERTED ON THE FILE'S CONTENT, NOT ON A DIFF -- kept from the original, and the reason
+        is still good. My first cut ran `git diff origin/main -- PAPER_TRACK_CONTRACT.md`, and
+        `test_ma60_conventions::NoSuiteAssertsOnAWorkingTreeDiff` refused it, rightly: that
+        compares main against whatever is checked out, measures nothing about the lane that
+        wrote it, and becomes a tripwire on a whole file that fires on the next unrelated lane.
+        """
         contract = _norm(_read(os.path.join(REPO, "PAPER_TRACK_CONTRACT.md")))
         draft = _norm(_read(os.path.join(REPO, "PREREG_DRAFT_contract_amendment_2.md")))
+        # SCOPED TO 2, AND MUTATION IS WHY. Asserting the figures appear ANYWHERE in the
+        # contract passed against a mutant that changed 2's +1.9488 to +1.9000 -- because the
+        # 5a-2 record quotes the same figure when it describes what part (b) did, so the guard
+        # was satisfied by a sentence ABOUT the correction rather than by the correction. The
+        # property is that 2's OWN arithmetic carries them.
+        i = contract.index("## 2.")
+        sec2 = contract[i:contract.index("## 3.", i)]
+        self.assertIn("AMENDMENT 2", sec2, "2 does not reference the amendment at all")
         for text in ("%.4f" % M.ALPHA_VS_SPY_PP, "%.4f" % M.SERVED_TE_VS_SPY,
                      "{:,}".format(M.SERVED_MONTHS_TO_DETECT)):
             self.assertIn(text, draft, "the draft is missing %s" % text)
-            self.assertNotIn(text, contract,
-                             "the signed contract carries %s, so the correction was applied "
-                             "to it rather than drafted" % text)
+            self.assertIn(text, sec2,
+                          "Amendment 2 was accepted on 2026-10-04, so PAPER_TRACK_CONTRACT.md "
+                          "2 itself must carry %s -- see 5a-2 part (b)" % text)
+
+    def test_the_amendment_is_recorded_as_ACCEPTED_and_in_the_amendment_form(self):
+        """The acceptance has to be checkable from the contract alone, not from a commit
+        message. 5a established the form: dated, attributed, nothing above it deleted."""
+        contract = _norm(_read(os.path.join(REPO, "PAPER_TRACK_CONTRACT.md")))
+        self.assertIn("5a-2. AMENDMENT 2", contract)
+        self.assertIn("ACCEPTED BY DON on 2026-10-04", contract)
+        self.assertIn("AMENDMENT 1", contract, "5a must not have been overwritten")
+
+    def test_the_corporate_action_rule_is_in_the_contract_and_not_only_in_the_code(self):
+        """Part (c), and it is the one part of Amendment 2 that governs a RECORDED NUMBER rather
+        than a power calculation -- the engine has redistributed WBS's weight since 2026-07-30
+        while the contract was silent. A rule the engine follows and the contract omits is a
+        rule nobody can check the engine against."""
+        contract = _norm(_read(os.path.join(REPO, "PAPER_TRACK_CONTRACT.md")))
+        self.assertIn("SOLD AT ITS LAST TRADED CLOSE", contract)
+        self.assertIn("REDISTRIBUTED PRO-RATA", contract)
+
+    def test_sigma_is_still_11_40_and_was_not_lowered_by_the_amendment(self):
+        """The one thing 6.5 forbids outright, and the thing an amendment about power is most
+        likely to have quietly done."""
+        from valuation.edge import track_meter as TM
+        # The ANNUAL tracking error is what 2 and 6.5 fix at 11.40; sigma is DERIVED from it, so
+        # the constant to pin is the input rather than the product.
+        self.assertEqual(TM._TRACKING_ERROR_ANNUAL_PP, 11.40)
+        self.assertAlmostEqual(TM.SIGMA_MONTHLY_PP, 3.9847, places=4)
+        contract = _norm(_read(os.path.join(REPO, "PAPER_TRACK_CONTRACT.md")))
+        self.assertIn("may never be revised downward", contract)
+        self.assertIn("IS NOT REVISED", contract)
 
     def test_the_contract_still_states_the_rule_that_forbids_lowering_sigma(self):
         """The thing an edit would most plausibly have removed."""
         t = _read(os.path.join(REPO, "PAPER_TRACK_CONTRACT.md"))
         self.assertIn("may never be revised downward", t)
 
-    def test_the_amendment_is_drafted_and_says_it_is_not_in_force(self):
+    def test_the_draft_is_KEPT_and_marked_ACCEPTED(self):
+        """REPOINTED 2026-10-04. This asserted `NOTHING HERE IS IN FORCE`, which is now false of
+        the file -- and it would have PASSED ANYWAY, because the amendment preserved that
+        sentence inside a quotation of the original status line. That is the substring trap this
+        record keeps paying for: a guard satisfied by prose ABOUT a rule rather than by the rule.
+        So it asserts the status LINE's content positively, where a quotation cannot satisfy it.
+
+        The draft is kept rather than deleted: an acceptance is only legible beside what was
+        offered, and the figures must still be in it so the amendment's provenance is checkable
+        from the proposal as well as from the contract."""
         p = os.path.join(REPO, "PREREG_DRAFT_contract_amendment_2.md")
-        self.assertTrue(os.path.exists(p), "the amendment draft is missing")
+        self.assertTrue(os.path.exists(p), "the amendment draft was deleted, not kept")
         t = _norm(_read(p))
-        self.assertIn("NOTHING HERE IS IN FORCE", t)
-        self.assertIn("9.9864", t)
-        self.assertIn("1.9488", t)
-        self.assertIn("8.4381", t)
-        self.assertIn("4,383", t)
+        head = t[:t.index("---")] if "---" in t else t
+        self.assertIn("ACCEPTED BY DON 2026-10-04", head)
+        self.assertIn("IN FORCE AS AMENDMENT 2", head)
+        self.assertNotIn("STATUS: DRAFT. NOTHING HERE IS IN FORCE.", head.split(">")[0],
+                         "the live status line still declares the draft not in force")
+        for n in ("9.9864", "1.9488", "8.4381", "4,383"):
+            self.assertIn(n, t, "the draft lost %s" % n)
 
     def test_the_draft_does_not_propose_lowering_sigma(self):
         """The one thing the contract forbids outright."""

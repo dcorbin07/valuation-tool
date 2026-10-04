@@ -50,7 +50,19 @@ WHAT IT ACTUALLY DELIVERS, STATED PLAINLY BECAUSE IT IS NOT FLATTERING. Measured
     mean excess needed to cross:  6m 63.7  12m 42.5  24m 29.6  36m 24.3  60m 19.0  120m 13.8 pp/yr
 
 **So the meter will most likely never cross, even if the strategy is exactly as good as the
-backtest says.** At 60 months it needs ~19 pp/yr against a claimed +9.99. That is the correct
+backtest says.** At 60 months it needs ~19 pp/yr against a claimed +9.99.
+
+**AND THE +9.99 IS WORSE THAN THAT SINCE AMENDMENT 2 (accepted 2026-10-04).** It is the ALL-CAP
+equal-weighted decile's edge measured GROSS, which is not the book this contract tracks;
+`INDEX-BOOK` measured the SERVED construction at **+1.9488pp net** with its own tracking error of
+**8.4381 pp/yr**. §2 now says so (`PAPER_TRACK_CONTRACT.md` §5a-2). **The figures below are NOT
+re-derived and σ is NOT revised** — the meter's parameters are frozen by §6 and §6.5 forbids
+lowering σ, so the +9.99 stays as the reference the power table was computed against, and the
+served figure is reported beside it by `screener/index_book_measured.power_sentence()`. The
+practical consequence is only that the first sentence of this paragraph understates the case: the
+meter is even less likely to cross than "most likely never" suggests.
+
+That is the correct
 and intended behaviour of an honest anytime-valid bound, and it is the reason the meter does
 NOT replace the 60-month fixed-horizon verdict: the meter can only ever end the run EARLY, and
 only for an effect far larger than the one claimed. Anyone who reads a non-crossing meter as
