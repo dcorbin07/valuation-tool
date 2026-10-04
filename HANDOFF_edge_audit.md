@@ -20419,3 +20419,120 @@ read with that in mind, since the same confound is the likeliest explanation the
 **13 tests for the schema change, zero skips.**
 `valuation/edge/bulk.py`, `valuation/edge/elite13f.py`, `valuation/edge/sharadar_freeze.py`,
 `tests/test_sf3_schema_change.py`; `data/backtest_freeze_2026-10/` (gitignored, not committed).
+
+---
+
+# SHARADAR-REFRESH — the panel can see the 2026-10-22 close, and the refresh is a double-click
+
+**2026-10-04. `FIXED`-class, ZERO TRIALS** — operational tooling plus one guard repair, with no
+hypothesis, no bar, no universe and no verdict against any threshold. `by_domain` is
+**BIT-IDENTICAL** before and after at equity **258**, options **310**, unified **0**, infra
+**20**, while `rows_fixed_not_counted` rises **90 → 91**, which is the proof the row was seen and
+correctly excluded rather than silently dropped. **Adopts nothing, builds no book, writes nothing
+to the bound record, and spends no part of any holdout.** The Sharadar key is never printed,
+never committed and never edited.
+
+## What was stale, and by how much
+
+`data/backtest` carried closes through **2026-07-24** while the 2026-10 freeze carries
+**2026-10-02**. Don rebalances on **2026-10-22**, so the panel could not have seen the close it
+is being rebalanced on.
+
+Synced: **3,747 price files** plus the three derived tables (`fundamentals.csv` 184.5 MB,
+`insiders.csv` 691.4 MB, `institutional.csv` 18.6 MB), and **5 names the new export no longer
+carries were pruned and NAMED** — `AXIA`, `CSAN`, `EQR`, `HLX`, `SVAC`.
+
+**THE PRUNE IS THE PART THAT IS NOT OBVIOUS.** The live `prices/` directory is made to **MATCH**
+the freeze rather than become a **UNION** of both vintages. A price file for a name the export
+dropped would otherwise sit there forever looking point-in-time and being stale, and removing it
+*silently* would be nearly as bad — the run has to say which names went.
+
+## `refresh_sharadar.bat` — one double-click, one line at the end
+
+Three steps: take a dated full freeze → locate it → sync it into `data/backtest`. Four distinct
+failure branches (`:PULLFAIL`, `:NOFREEZE`, `:NOTNEWER`, `:SYNCFAIL`), one `SUCCESS:` line, and a
+`pause` so a double-clicked window does not vanish before Don reads it.
+
+**THE FAILURE THAT MATTERS IS NOT A CRASH.** It is **a copy that succeeds while the newest close
+does not move** — because the script would print SUCCESS, Don would follow Path B, and the book
+would be rebalanced on July prices with nothing anywhere saying so. So
+`scripts/refresh_backtest_from_freeze.py` **reports the newest close BEFORE and AFTER and its
+exit code carries the answer**:
+
+| rc | meaning | what the `.bat` says |
+|---|---|---|
+| 0 | the close moved | `SUCCESS: data\backtest now holds the latest close. Follow Path B.` |
+| **1** | the copy worked and the close did **NOT** move | the vendor published nothing newer |
+| **2** | the sync broke | `data\backtest` was NOT updated |
+
+**1 and 2 are DISTINCT on purpose.** One exit code for both would make the message a guess, and
+the two sentences Don needs are different ones. It also **REFUSES to go backwards** — a freeze
+older than the live data aborts **untouched**, with `--allow-older` for a deliberate rollback.
+
+**It is the ONE definition of the sync (`B7`), and the `.bat` orchestrates rather than
+reimplementing it.** A batch file carrying its own `xcopy` is a second implementation of the sync
+that no test covers, in a file nobody would think to look in. Pinned by a guard that **strips
+`rem` lines first**, because a guard that reads prose about code is the family this record has
+been bitten by repeatedly.
+
+## Three things verified by RUNNING them rather than by reading
+
+1. **The freeze locator picks `2026-10` ahead of `2026-08`.** Ordered by **NAME** descending, not
+   by mtime: `backtest_freeze_YYYY-MM` sorts lexicographically into chronological order, and
+   unlike an mtime order **nothing can promote an older freeze by merely touching a file in it.**
+2. **The errorlevel branching routes rc 0, 1 and 2 to three different messages.** That requires
+   testing `if errorlevel 2` **BEFORE** `if errorlevel 1`, because batch's `if errorlevel N` means
+   **`>= N`** and the reverse order sends every failure to the first branch, collapsing both
+   messages into one. Run at all three codes against a real `cmd.exe`.
+3. **An LF-only `.bat` runs correctly under `cmd.exe`** — labels, `goto` and a `for /f` included.
+   That is what retired my own CRLF assertion; see below.
+
+## Two defects in my own guards, both caught by machinery rather than by reading
+
+**(a) MY FIRST `.bat` GUARD ASSERTED CRLF LINE ENDINGS AND WAS WRONG TWICE OVER.** Wrong as a
+test: `.gitattributes` **deliberately refuses `* text=auto`** (renormalising the tree would
+conflict with every open branch), so line endings here are a property of the **CHECKOUT**, not of
+the file — the assertion would have **passed on Windows and failed on a Linux runner**, the
+guards-fail-in-CI family with the sign flipped. Wrong as a requirement: both throwaway `.bat`
+files used to verify the locator and the errorlevel ordering were **LF-only** and `cmd.exe` ran
+them fine, so the belief was folklore. Replaced by a property that really is about the file —
+**every `goto` must resolve to a real label**, because `cmd.exe` reports an unresolved one and
+**keeps going**, skipping straight past the verdict line Don is supposed to read.
+
+**(b) AND THAT REPLACEMENT MISSED ITS OWN MUTATION.** It collected `goto` only where it **STARTS**
+a line, and **three of this file's gotos are the tail of an `if`** — `if not defined FREEZE goto
+NOFREEZE` and both errorlevel branches — so it was checking the bare `goto END` lines and was
+**blind to every conditional one, which is the half more likely to be wrong.** The family this
+record keeps hitting, twice already in this sequence: **a guard that reads one syntactic form
+while the code uses another** (the `ImportFrom.module` miss under `INDEX-CHOICE`, the
+dotted-string-vs-`from X import Y` miss under `MA23`). Found by mutation, not by reading.
+
+**23 tests, 9 of 9 mutations caught with sources restored byte-for-byte** (verified by SHA-256,
+with binary I/O throughout — `W-1`'s lesson that a harness which cannot put a file back is worse
+than none).
+
+## Where it lands for Don, and the one thing he must do first
+
+The script sits at the **repo root**, so after landing it is
+`C:\Users\donni\Downloads\valuation-tool\refresh_sharadar.bat`. **It arrives in that folder only
+when the shared checkout is synced** — the known staleness of that checkout is why a script on
+`main` is not a script on the machine. **Don runs `sync.bat` first**, then double-clicks this.
+
+Wired into **`REBALANCE_RUNBOOK_2026-10-22.md` Path B as step 0**, replacing the line that said
+*"the normal bulk pull"* with the script, the two outcomes that matter, and the plain statement
+that **after Sharadar lapses (~2026-11-03) a step-1 authorisation failure is CORRECT behaviour**
+rather than a bug — the freezes already under `data/backtest_freeze_*` are what a later session
+points at, and nothing needs re-pulling for research.
+
+## NOT DONE, named so it is not mistaken for done
+
+* **The 2026-10 freeze is NOT locked.** `--stage lock` never ran, because the original
+  `--stage all` died in `prepare` on the SF3 rename (`SHARADAR-2026-10`). The data is complete and
+  verified; the write-protect step is outstanding.
+* **No book is built and no rebalance is appended.** Nothing in the bound record is touched.
+* **The 1999-2008 out-of-sample census is not started**, and it is the next item.
+* **The same-date `D9` re-check, arm 4's checks and the canonical backtest re-run are not run.**
+
+**23 tests, zero skips.** `scripts/refresh_backtest_from_freeze.py`, `refresh_sharadar.bat`,
+`REBALANCE_RUNBOOK_2026-10-22.md` §3 step 0, `tests/test_refresh_sharadar.py`.
+

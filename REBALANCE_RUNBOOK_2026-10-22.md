@@ -139,13 +139,50 @@ python -m valuation.edge.valquo_index --config taxable --out data/valquo_index.j
 
 **Not a vintage event.** Same vendor, same rules, same construction as the book in force.
 
-**Requires a one-month Sharadar renewal** — the entitlement lapsed in August. That is the whole
-cost, and it is the only thing that puts both sides on the same date *and* compares against the
-post-MC1 build.
+**THE RENEWAL HAS HAPPENED — this no longer costs a decision.** Sharadar was renewed on
+**2026-10-04** for one month, to roughly **2026-11-03**, so Path B is available and the sentence
+this file used to carry (*"requires a one-month Sharadar renewal — the entitlement lapsed in
+August"*) is spent. **A full freeze was already taken on 2026-10-04** and `data/backtest` already
+holds closes through **2026-10-02**; step 0 below re-runs the same refresh on the 23rd so the
+panel sees the 10-22 close.
+
+**THE DEADLINE IS REAL, THOUGH, AND IT IS TIGHT AGAINST THIS RUNBOOK.** Access ends around
+**2026-11-03**, so Path B must be executed before then. After that date the pull in step 0 fails
+with an authorisation error — which is correct behaviour, not a bug — and what remains is the
+frozen snapshot under `data/backtest_freeze_*`.
+
+### Step 0 — the refresh, and it is a double-click
+
+**Run `refresh_sharadar.bat` on the evening of 2026-10-23** (after the 10-22 close has
+published), from the `valuation-tool` folder. Double-click it; nothing to type.
+
+It takes roughly 20–30 minutes and ends with **one line**. Only two outcomes matter:
+
+* `SUCCESS: data\backtest now holds the latest close. Follow Path B.` → carry on to step 1.
+* anything starting `FAILURE:` → **stop**. The line says which of four things happened, and
+  none of them should be worked around by hand on the night of a rebalance.
+
+**WHY IT IS NOT JUST A BULK PULL.** It does three things in order: takes a dated full freeze
+(`data\backtest_freeze_YYYY-MM`, which is the permanent copy and survives the entitlement
+lapsing), then syncs that freeze into `data\backtest` so the panel can see the new close, then
+**proves the newest close actually moved**. That last step is the one worth having: a copy that
+succeeds while the close does not move would otherwise print success, and the book would be
+rebalanced on July prices with nothing anywhere saying so. The script calls that a FAILURE and
+says the vendor published nothing newer.
+
+It also **refuses to go backwards** — if the export's newest close is older than what is already
+on disk it aborts without touching anything, rather than quietly downgrading the panel.
+
+**It never prints the API key**; the key is read from `.env` by the Python tool. If `.env` is
+missing it says so immediately instead of failing twenty minutes into a download.
+
+**After Sharadar lapses (~2026-11-03) this script failing at step 1 with an authorisation error
+is correct behaviour, not a bug** — the freezes already under `data\backtest_freeze_*` are what a
+later session points at, and nothing needs re-pulling for research.
 
 ```
-# 1. Refresh the export with the renewed entitlement (the normal bulk pull), then build
-#    DIRECTLY from it -- --full-universe reads the export rather than a live scan snapshot.
+# 1. The refresh above has already updated data/backtest. Now build DIRECTLY from it --
+#    --full-universe reads the export rather than a live scan snapshot.
 python -m valuation.edge.valquo_index --full-universe data/backtest \
        --config taxable --out data/valquo_index.json
 
