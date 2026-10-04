@@ -57,6 +57,12 @@ RAW = r"D:\wrds"
 GATE_B_BAR = 0.90
 HOLDOUT = (1972, 1998)          # r1 took 1999-2008; this is what remains, and it stays UNOPENED
 
+#: Gate B's price-history floor. The grid starts 2009-01-15 and the momentum columns need 252
+#: TRADING days before it, so the floor must sit well below the grid's own first year -- and it
+#: must sit far above `HOLDOUT[1]`, so no holdout year is ever loaded by this gate. Both
+#: properties are pinned by test.
+GATE_B_BURNIN_YEAR = 2007
+
 
 def _data_root() -> str:
     d = REPO
@@ -333,7 +339,13 @@ def main(argv=None):
 
     if args.gate in ("b", "both"):
         print("[oos1] GATE B -- vendor translation on the 2009-2026 overlap ...", flush=True)
-        art["gate_b"] = gate_b(root, 2008, min(args.hi, 2026), limit=args.limit)
+        # 2007, NOT 2009. The grid starts 2009-01-15 and `ret_12_1`/`high_prox` need 252 TRADING
+        # days before it, so a floor at the grid's own first year leaves momentum computed on a
+        # truncated window -- which would lower Gate B's Spearman for a reason that is NOT
+        # vendor translation and would read as a translation failure. Two years of burn-in.
+        # It is still far above the 1998 holdout ceiling, so no holdout year is loaded.
+        art["gate_b"] = gate_b(root, GATE_B_BURNIN_YEAR, min(args.hi, 2026),
+                               limit=args.limit)
         g = art["gate_b"]
         print("   mean per-date Spearman %s over %d dates (bar %.2f) -> %s"
               % (g["mean_per_date_spearman"], g["dates_scored"], GATE_B_BAR,
