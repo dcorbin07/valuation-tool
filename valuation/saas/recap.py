@@ -296,6 +296,11 @@ def collect(store, day=None, window_days: int = WEEK_DAYS) -> dict:
             "started": bool(sessions),
             "first": sessions[0] if sessions else None,
             "sessions_in_window": [d for d in sessions if d >= since],
+            # ADDITIVE, and it exists so `health_note` can bound `expected` by the SAME window
+            # `sessions_in_window` was filtered on. Without it the reader's session clock and
+            # this function's calendar clock can disagree by up to three days and put a trading
+            # day in `expected` that the window could never have contained.
+            "window_since": since,
         },
     }
 
@@ -318,14 +323,37 @@ def health_note(data: dict, day=None) -> str:
         return ("Health: the sandbox cycle has not recorded a session yet, so there is nothing "
                 "to check for gaps.")
 
-    today = _d(day) or _dt.date.today()
+    # THE READER MUST ANCHOR ON THE SAME CLOCK THE WRITER STAMPS WITH. `index_point` dates its
+    # row with `_session_today()` -- `ITEM 20`, which exists because "the service runs UTC: a job
+    # delivered after 20:00 ET is already the next calendar day in UTC" -- while this line used
+    # `_dt.date.today()`, the raw UTC date. ONE CONCEPT, TWO DEFINITIONS, IN TWO MODULES: `B7`'s
+    # defect, and `ITEM 20` fixed only the writer.
+    #
+    # What it cost, measured: from about 23:54 UTC on 2026-10-04 the landing gate went red for
+    # EVERY lane at once -- `worktree-crowding-p2`, `worktree-scout-research-reset` and r1's
+    # `D9-SAMEDATE` and `INDEX-CHOICE-ARM4` -- all on this one assertion, because `born` was the
+    # Friday session while `today` had rolled to Monday, so `expected` held two sessions against
+    # one recorded and the note truthfully said "hole in it" about a track with no hole.
+    #
+    # THE ALARM IS NOT WEAKENED BY THIS, which is the property that matters: `session_date()`
+    # reads the MARKET CALENDAR, not the recorded data, so a session the market held and the
+    # cron missed is still in `expected` and is still reported. Anchoring on the last RECORDED
+    # session would have made the check vacuous; anchoring on the last REAL session does not.
+    today = _d(day) or PT._session_today()
+    # And the window must be the one `got` was actually filtered on. `collect` bounds
+    # `sessions_in_window` with its own calendar date, and the two clocks can differ by up to
+    # three days -- Friday's session against Tuesday's date after a Monday holiday -- which puts
+    # a trading day inside `expected` but outside the window `got` could ever contain, i.e. a
+    # second spurious hole from the same mismatch. `collect` now publishes the bound it used.
+    since = _d(cyc.get("window_since"))
     expected = [today - _dt.timedelta(days=i) for i in range(WEEK_DAYS)]
     # Only sessions on or after the cycle's first point count. Without this a track that
     # started yesterday reports "1/5 sessions" and cries about a hole every day of its first
     # week — a watchdog that is wrong at exactly the moment you are watching it teaches you to
     # ignore it.
     born = _d(cyc.get("first"))
-    expected = [d for d in expected if is_trading_day(d) and (born is None or d >= born)]
+    expected = [d for d in expected if is_trading_day(d) and (born is None or d >= born)
+                and (since is None or d >= since)]
     got = set(cyc.get("sessions_in_window") or [])
     ran = sum(1 for d in expected if d.isoformat() in got)
 
