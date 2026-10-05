@@ -697,3 +697,75 @@ window), `tests/test_oos1_gates.py`. **70 tests, 4 of 4 mutations caught with so
 byte-for-byte.**
 
 **ZERO TRIALS throughout. `by_domain` untouched. Nothing scored on 1972-1998.**
+
+---
+
+## 9. REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3) — A CLOCK-DEPENDENT TEST IS BLOCKING EVERY LANE'S LAND
+
+**`tests/test_paper_track.py::test_recap_health_note_does_not_report_a_hole_before_inception`
+began failing in CI at about 23:54 UTC on 2026-10-04 and is blocking the landing gate for every
+lane, not only this one.** It is not this lane's and it is **reported rather than edited**: it
+is another lane's check, and changing what a safety check asserts so that my own work can land
+is the one action here that should not be taken by the lane that benefits.
+
+### The evidence that it is neither lane's code
+
+* **Both lanes fail on the IDENTICAL test with the IDENTICAL message**: `worktree-crowding-p2`
+  (run 37245460035) and `worktree-scout-research-reset` (run 37245812830) both report
+  `FAIL test_recap_health_note_does_not_report_a_hole_before_inception: Health: cycle recorded
+  1/2 sessions since inception`.
+* **The failure starts at a TIME, not at a commit.** Every run through **23:52 UTC** succeeded —
+  including this lane's own at 23:16:45, which is why `eabc4d1` and everything before it DID
+  land. Every run from **23:54 UTC** onward failed, across both lanes.
+* **This lane's branch touches five files and none of them is reachable from that test:**
+  `HANDOFF_scout_research_reset.md`, `scripts/oos1_gates.py`, `scripts/wrds_pull.py`,
+  `tests/test_oos1_gates.py`, `valuation/edge/compustat_provider.py`. Nothing in
+  `valuation/edge/paper_track.py`, `valuation/saas/recap.py`, `valuation/screener/index_track.py`
+  or `PAPER_TRACK_CONTRACT.md`.
+* It passes **70/70 locally**. That alone is not a diagnosis — this record's own lesson is that a
+  suite passing standalone is not diagnosed — which is why the three points above carry it
+  instead.
+
+### The mechanism, read from the source rather than guessed
+
+`valuation/saas/recap.py:320-340` builds the denominator from the clock:
+
+```
+today    = dt.date.today()
+expected = [today - timedelta(days=i) for i in range(WEEK_DAYS)]
+expected = [d for d in expected if is_trading_day(d) and (born is None or d >= born)]
+ran      = sum(1 for d in expected if d.isoformat() in got)
+...
+if ran < len(expected): bits.append("**a missed session means the track has a hole in it ...**")
+```
+
+The fixture records **one** session. While "today" is a **non-trading day** whose last session is
+already recorded, `expected` holds exactly that one session and the test passes — which is the
+whole of 2026-10-03 evening through 2026-10-04 (Saturday and Sunday). **The moment a NEW trading
+day enters the window without the fixture having recorded it, `expected` becomes 2 against
+`ran` of 1, the note correctly says "hole in it", and the assertion `"hole in it" not in note`
+fails.** CI confirms the arithmetic: `1/2`.
+
+**So it will fail on every weekday, not intermittently**, and re-pushing will not clear it.
+
+### Why this is the pattern this record already named
+
+`CLAUDE.md` states it in one line: *"a guard asserting 'these two numbers are equal today' fires
+on the CLOCK; assert the property the equality stood in for."* It has already cost two repoints
+in two items (`MB31`'s re-derivation guard and `MA57`'s allowlist guard). **This is a third
+instance, and the test's own docstring names the property it meant to protect** — *"A track that
+started yesterday must not claim it missed the four days before it existed"* — which is about days
+**BEFORE inception**. The assertion it actually makes is that the note reports **no hole at all**,
+and a genuinely missed session after inception is something the note is supposed to say. The two
+coincided until the calendar moved.
+
+**The owning lane's call, and the fix is theirs to choose.** The property as stated is testable
+without the clock: that `expected` contains no date earlier than `born`. **This lane proposes
+nothing further and edits nothing.**
+
+### What it costs this item
+
+`eabc4d1` and earlier landed. **The commits carrying the actual gate verdicts — the per-theme
+diagnostic, the adjacency guard, the monthly aggregation, Gate B's FAIL, Gate A over 1971-1998,
+and the reconcile window fix — are pushed to `worktree-scout-research-reset` and are NOT on
+`main`**, through no property of their own. They land unchanged the moment that test is green.
