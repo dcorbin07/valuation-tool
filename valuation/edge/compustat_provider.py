@@ -223,6 +223,58 @@ class CompustatCrspProvider:
         self._px = d.sort_values(["permno", "date"])
         return self._px
 
+    def monthly_universe(self) -> pd.DataFrame:
+        """(permno, ym, ret_m, cap_last) aggregated ONE YEAR-CHUNK AT A TIME.
+
+        WHY NOT JUST LOAD THE DAILY FRAME. Gate A over the full holdout era is 28 year-chunks of
+        `crsp_dsf` -- on the order of 42 million daily rows -- and unlike Gate B there is no
+        permno filter to shrink it, because the market return is over the WHOLE universe. Loading
+        it to aggregate it afterwards would need several gigabytes to produce a monthly frame of a
+        few hundred thousand rows.
+
+        AND THE AGGREGATION IS EXACT RATHER THAN APPROXIMATE, which is the only reason this is a
+        refactor and not a compromise: a calendar month never spans a year boundary, so monthly
+        compounding within a chunk equals monthly compounding over the concatenation. The ONE
+        thing that does cross chunks is the prior-month weight, and that is taken on the monthly
+        frame AFTER concatenation, where it costs nothing -- and it carries its own adjacency
+        guard, because a non-contiguous set of banked years would otherwise hand a month a weight
+        from years earlier.
+        """
+        lk = self.link()[["permno", "namedt", "nameenddt", "shrcd", "exchcd"]]
+        parts, rows_all, rows_uni = [], 0, 0
+        for p in sorted(glob.glob(os.path.join(self.raw, "crsp_dsf", "crsp_dsf_*.pkl"))):
+            y = os.path.basename(p)[-8:-4]
+            if not y.isdigit() or not (self.year_lo <= int(y) <= self.year_hi):
+                continue
+            d = pd.read_pickle(p, compression="gzip")
+            d["date"] = pd.to_datetime(d["date"], errors="coerce")
+            d = d.dropna(subset=["date", "permno"])
+            d["px"] = pd.to_numeric(d["prc"], errors="coerce").abs()
+            d["ret"] = pd.to_numeric(d["ret"], errors="coerce")
+            d["mktcap"] = d["px"] * pd.to_numeric(d["shrout"], errors="coerce") * SHROUT
+            rows_all += len(d)
+            d = d.merge(lk, on="permno", how="left")
+            d = d[(d["date"] >= d["namedt"]) & (d["date"] <= d["nameenddt"])]
+            d = d[d["shrcd"].isin(SHRCD_OK) & d["exchcd"].isin(EXCHCD_OK)]
+            rows_uni += len(d)
+            d["ym"] = d["date"].dt.strftime("%Y-%m")
+            g = d.sort_values(["permno", "date"]).groupby(["permno", "ym"], sort=False)
+            parts.append(pd.DataFrame({
+                "ret_m": g["ret"].apply(lambda s: float((1.0 + s.dropna()).prod() - 1.0)),
+                "cap_last": g["mktcap"].last(),
+            }).reset_index())
+            del d, g
+        if not parts:
+            raise SystemExit("REFUSING: no crsp_dsf chunks in %s for %d-%d -- pull unfinished?"
+                             % (self.raw, self.year_lo, self.year_hi))
+        out = pd.concat(parts, ignore_index=True)
+        self.notes["dsf_rows_all"] = int(rows_all)
+        self.notes["dsf_rows_universe"] = int(rows_uni)
+        self.notes["monthly_rows"] = int(len(out))
+        self.notes["monthly_permnos"] = int(out["permno"].nunique())
+        self.notes["monthly_span"] = [str(out["ym"].min()), str(out["ym"].max())]
+        return out.sort_values(["permno", "ym"])
+
     def _sf1_row(self, r: dict) -> dict:
         """One Compustat quarter mapped onto the Sharadar field names the builder reads.
 

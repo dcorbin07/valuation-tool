@@ -127,26 +127,20 @@ def _load_dsf(lo: int, hi: int) -> pd.DataFrame:
     """
     from valuation.edge.compustat_provider import CompustatCrspProvider
     prov = CompustatCrspProvider(year_lo=lo, year_hi=hi)
-    d = prov.prices()
-    return d, prov.notes
+    return prov.monthly_universe(), prov.notes
 
 
 def gate_a(root: str, lo: int, hi: int) -> dict:
     """A1 market return, A2 size spread -- both against French, monthly."""
-    d, notes = _load_dsf(lo, hi)
-    d = d.copy()
-    d["ym"] = d["date"].dt.strftime("%Y-%m")
-
-    # Monthly compounded return per permno, and the month's opening market cap as the weight.
-    # The weight must be the PRIOR month's cap: weighting by the same month's cap is a
-    # look-ahead that mechanically tilts toward whatever rose.
-    d = d.sort_values(["permno", "date"])
-    g = d.groupby(["permno", "ym"])
-    monthly = pd.DataFrame({
-        "ret_m": g["ret"].apply(lambda s: float((1.0 + s.dropna()).prod() - 1.0)),
-        "cap_last": g["mktcap"].last(),
-    }).reset_index()
+    # Aggregated ONE YEAR-CHUNK AT A TIME by the provider: the full holdout era is ~42M daily
+    # rows with no permno filter (the market return is over the WHOLE universe), and the monthly
+    # frame it reduces to is a few hundred thousand. Exact, because a calendar month never spans
+    # a year boundary.
+    monthly, notes = _load_dsf(lo, hi)
     monthly = monthly.sort_values(["permno", "ym"])
+
+    # The weight must be the PRIOR month's cap: weighting by the same month's cap is a look-ahead
+    # that mechanically tilts toward whatever rose.
     monthly["w"] = monthly.groupby("permno")["cap_last"].shift(1)
     # THE WEIGHT MUST COME FROM THE IMMEDIATELY PRECEDING CALENDAR MONTH, NOT MERELY THE PREVIOUS
     # ROW. `shift(1)` assumes adjacency, and the banked years are not always contiguous: a stray
