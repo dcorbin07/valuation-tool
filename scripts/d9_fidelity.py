@@ -167,7 +167,7 @@ def _sp(a, b):
     return float(a[m].corr(b[m], method="spearman")), int(m.sum())
 
 
-def compare(cache=None, live_path=None) -> int:
+def compare(cache=None, live_path=None, labels=None, out_path=None) -> int:
     # Paths are PARAMETERS, not module globals. `--same-date` used to overwrite the two-reading
     # cache `--sharadar` builds, so running the renewal re-check destroyed the artifact the
     # original comparison rests on. A mode that clobbers another mode's output is a defect even
@@ -188,7 +188,7 @@ def compare(cache=None, live_path=None) -> int:
     live_tier["ll_composite"] = _flat_composite(live_tier, LIKE_FOR_LIKE)
     out["live"]["large_cap_tier_rows"] = int(len(live_tier))
 
-    for label in ("freeze_2026-07-31", "backtest_2026-07-24"):
+    for label in (labels or ("freeze_2026-07-31", "backtest_2026-07-24")):
         blk = sh.get(label) or {}
         if "rows" not in blk:
             out["readings"][label] = {"error": blk.get("error", "absent")}
@@ -281,7 +281,7 @@ def compare(cache=None, live_path=None) -> int:
     prim = out["readings"].get("freeze_2026-07-31") or {}
     out["VERDICT"] = prim.get("VERDICT", "NO-GO")
     out["verdict_basis"] = "freeze_2026-07-31 is the register's PRIMARY reading"
-    json.dump(out, open(OUT, "w"), indent=1, default=str)
+    json.dump(out, open(out_path or OUT, "w"), indent=1, default=str)
     printable = {k: v for k, v in out.items()}
     for lab in printable.get("readings", {}):
         cc = printable["readings"][lab].get("coverage_census")
@@ -364,10 +364,20 @@ def same_date(root, as_of, live_path=None) -> int:
     print("     -> %d Sharadar rows (export reached %s)" % (len(rows), used or as_of),
           flush=True)
     sd_cache = os.path.join(FA, "D9_SHARADAR_SCORES_SAMEDATE.pkl")
-    pd.to_pickle({"freeze_2026-07-31": {"as_of": as_of, "root": root, "rows": rows,
-                                        "return_was_dict": isinstance(res, dict),
-                                        "dropped_mc_divergence": None}}, sd_cache)
-    return compare(cache=sd_cache, live_path=live_path)
+    # THE READING IS KEYED BY WHAT IT IS, NOT BY THE READING IT RESEMBLES. This used to write
+    # under `freeze_2026-07-31`, so `compare` emitted the same-date result UNDER THE PUBLISHED
+    # READING'S NAME and overwrote both `D9_FIDELITY.json` and
+    # `D9_FIDELITY_ROWS_freeze_2026-07-31.pkl` -- the landed B1 0.4321 / B2 0.2326 destroyed by
+    # a mode whose only job is to re-check them. The comment above `compare` already names this
+    # defect for the SCORES CACHE and fixed it there; the OUTPUT was left keyed the old way, so
+    # the fix was HALF APPLIED. Recovered by re-running `--compare`, which reproduced both
+    # published figures at 0.000e+00 against the constants `index_choice_buildable` preserves.
+    label = "same_date_%s" % str(as_of)[:10]
+    pd.to_pickle({label: {"as_of": as_of, "root": root, "rows": rows,
+                          "return_was_dict": isinstance(res, dict),
+                          "dropped_mc_divergence": None}}, sd_cache)
+    return compare(cache=sd_cache, live_path=live_path, labels=(label,),
+                   out_path=os.path.join(FA, "D9_FIDELITY_SAMEDATE.json"))
 
 
 def main(argv=None) -> int:

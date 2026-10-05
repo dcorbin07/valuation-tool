@@ -344,11 +344,35 @@ class TestTheRenewalRecheckDoesNotClobber(unittest.TestCase):
                         "same_date writes the two-reading cache, destroying --sharadar's output")
 
     def test_compare_takes_its_paths_as_parameters(self):
+        """REPOINTED 2026-10-04 (`D9-SAMEDATE`), in the same commit as the change that fired it.
+
+        This asserted the parameter list was EXACTLY `["cache", "live_path"]`, so it went red
+        when `labels` and `out_path` were added — an addition that serves the very property it
+        protects MORE fully, since the clobber it was written against turned out to survive in
+        the OUTPUT path even after the SCORES CACHE was fixed. `--same-date` was still writing
+        its reading under the published reading's name and destroying `D9_FIDELITY.json`.
+
+        An exact-list assertion fires on any extension, including a correct one. The property
+        is that these paths are **parameters rather than module globals**, so that is what is
+        asserted now: the required ones must be present and defaulted, and the function must
+        still honour them. `MA59`'s pattern — repoint to the invariant, in the same commit, so
+        the move shows in the diff.
+        """
         tree = ast.parse(_read("scripts", "d9_fidelity.py"))
         fn = [n for n in ast.walk(tree)
               if isinstance(n, ast.FunctionDef) and n.name == "compare"]
         self.assertEqual(len(fn), 1)
-        self.assertEqual([a.arg for a in fn[0].args.args], ["cache", "live_path"])
+        args = [a.arg for a in fn[0].args.args]
+        for required in ("cache", "live_path"):
+            self.assertIn(required, args,
+                          "%s must be a PARAMETER, not a module global" % required)
+        # every one of them must be OPTIONAL, or existing callers break
+        self.assertEqual(len(fn[0].args.defaults), len(args),
+                         "every path parameter must carry a default")
+        # and the function must actually USE them rather than shadowing a global
+        src = ast.unparse(fn[0])
+        self.assertIn("cache or SHAR_CACHE", src)
+        self.assertIn("live_path or LIVE_0808", src)
 
     def test_same_date_refuses_a_date_mismatch(self):
         """The refusal is the point of the mode: comparing across a gap is what D9 already did.

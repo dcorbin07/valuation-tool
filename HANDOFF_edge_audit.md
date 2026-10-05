@@ -20787,3 +20787,89 @@ is worth more than the three that scored.
 `scripts/index_choice_arm4.py`, `scripts/index_choice_arm4_factors.py`,
 `tests/test_index_choice_arm4.py`; `data/free_analysis/INDEX_CHOICE_ARM4.json`,
 `INDEX_CHOICE_ARM4_FACTORS.json` (gitignored).
+
+---
+
+# D9-SAMEDATE — the free route on a same-date reading, and it is WORSE
+
+**2026-10-04. ZERO TRIALS, `CONTROL` class under `MB1-SEL`** — a fidelity control can only ever
+BLOCK the free route from being used on 2026-10-22 and can never produce a finding, which is
+`D9-DIAG`'s own precedent. `by_domain` **BIT-IDENTICAL** at equity **259**, options **310**,
+unified **0**, infra **20**, while `rows_fixed_not_counted` rises **92 → 93**. **No bar is
+relaxed** — `W-28`'s rule — and all three fail again.
+
+## Why it was worth running at all
+
+`D9`'s NO-GO was measured **across a six-trading-day gap**: a 2026-08-08 live snapshot against a
+2026-07-31 Sharadar freeze. `REBALANCE_RUNBOOK_2026-10-22.md` names that as **the one caveat
+running in the free route's favour**, because the snapshot also predates the MC1 theme cache. The
+renewal finally makes both sides readable on one date.
+
+## The answer: NO-GO, and in the wrong direction
+
+Both sides **2026-10-02**; 3,421 Sharadar names scored against the live scan of the same date.
+
+| bar | required | `D9` across the gap | **same-date** |
+|---|---|---|---|
+| **B1** like-for-like composite Spearman | ≥ 0.80 | 0.4321 | **0.2410** |
+| **B2** decile overlap | ≥ 0.60 | 0.2326 | **0.0625** |
+| **B3** quality | ≥ 0.70 | 0.6256 | **0.5343** |
+| B3 value / momentum / size | ≥ 0.70 | — | 0.8219 ✓ / 0.8984 ✓ / 0.9876 ✓ |
+
+`capital_discipline` is **NOT MEASURED** because `z_neg_issuance` is not served — recorded as
+not-measured, never as agreeing.
+
+**CONSEQUENCE FOR 2026-10-22: Path A stays shut and the rebalance is Path B** — which is what the
+runbook already said, now on same-date evidence rather than on a reading the runbook itself
+flagged as favourable to the free route.
+
+**THE LIMIT TRAVELS WITH IT AND IT IS NOT SMALL.** The shared population is **158 names against
+`D9`'s 431**, the live large-cap tier carries only **177 rows**, and **B2's deciles are SIXTEEN
+names each — so 0.0625 is literally ONE name in common.** That is a thin statistic. Its direction
+is unambiguous and its precision is not.
+
+## I DAMAGED A LANDED ARTIFACT AND REPAIRED IT, AND THE SEQUENCE IS THE POINT
+
+**`--same-date` wrote its cache entry under the hard-coded key `freeze_2026-07-31`**, so `compare`
+emitted the same-date result **under the published reading's name** and overwrote both
+`D9_FIDELITY.json` and `D9_FIDELITY_ROWS_freeze_2026-07-31.pkl`. **The landed B1 0.4321 and B2
+0.2326 were destroyed by the one mode whose entire purpose is to re-check them.**
+
+**RECOVERED, AND VERIFIABLY SO.** Re-running `--compare` rebuilt the reading from the intact
+`D9_SHARADAR_SCORES.pkl` and the 2026-08-08 snapshot, reproducing **0.43211493611995416** and
+**0.23255813953488372** at **0.000e+00** against the constants
+`scripts/index_choice_buildable.py` keeps in **TRACKED** code. **That is the only reason the
+recovery is checkable rather than merely plausible** — `data/` is gitignored, so there was no git
+copy to fall back on. A landed figure mirrored into tracked source is worth more than it looks.
+
+**THE RESTORE WAS INCOMPLETE AND ONLY THE LANE'S OWN SUITE SAW IT.** `--compare` does not emit
+`addendum_insider_degeneracy`, so `tests/test_d9_fidelity.py` read **10 of 12** until
+`scripts/d9_addendum.py` was re-run. **A restore verified against the figures you remembered is
+not a verified restore** — I checked the two numbers I knew and would have declared success.
+
+## The fix, and why the defect survived a previous fix
+
+The reading is now keyed **`same_date_<as_of>`** and writes its own
+**`D9_FIDELITY_SAMEDATE.json`**; `compare` gained `labels` and `out_path` parameters whose
+defaults are the original pair and the original path, so **every existing caller is unchanged**.
+
+**IT WAS ALREADY HALF-FIXED, WHICH IS WHY IT WAS INVISIBLE.** `d9_fidelity`'s own comment above
+`compare` names this exact failure — *"`--same-date` used to overwrite the two-reading cache
+`--sharadar` builds, so running the renewal re-check destroyed the artifact the original
+comparison rests on. A mode that clobbers another mode's output is a defect even when both are
+'just' intermediates"* — and repaired it **for the SCORES CACHE**. The **OUTPUT** was left keyed
+the old way. **A half-applied fix reads as a fixed one, and a comment describing the defect in the
+past tense is the most convincing form of that.**
+
+**5 new tests; `D9`'s own 12 pass unchanged**, which is the check that matters because it is not
+mine.
+
+## NOT DONE
+
+* **`D9`'s verdict is not re-opened and no bar is relaxed.** It was NO-GO and it is NO-GO.
+* **Nothing is adopted**, no book is built, nothing is written to the bound record.
+* **The thin-population limit is not repaired** — a 158-name shared set with 16-name deciles is
+  what the live snapshot's 500-row persistence allows, and widening it is the app lane's.
+
+`scripts/d9_fidelity.py`, `tests/test_d9_samedate_keying.py`;
+`data/free_analysis/D9_FIDELITY_SAMEDATE.json` (gitignored).
