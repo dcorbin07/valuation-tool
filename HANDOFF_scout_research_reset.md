@@ -462,3 +462,355 @@ be a deviation**, and that is stated in its own docstring and pinned by test.
 construction scored on 1972-1998**; the $10B threshold question OOS1 §1a calls its hardest
 problem is untouched; the panel-cell coverage figures of §5a are not yet measured; and the
 size-correlation hypothesis of §4a is a hypothesis.
+
+---
+
+# OOS1 — THE TWO GATES ARE RUN. GATE B FAILS, AND THE 1972-1998 HOLDOUT STAYS CLOSED (2026-10-04)
+
+**ZERO TRIALS. No register committed, no arm run, no construction scored on the holdout, and the
+holdout era is UNOPENED.** `by_domain` untouched.
+
+## 1. THE VERDICT, AND THE BAR IS NOT MOVING
+
+**Gate B: mean per-date Spearman 0.837303 over 63 dates against a pre-committed bar of 0.90.
+FAIL.** The pre-committed consequence is that the holdout is **not opened**, because a pre-1999
+result would then be measuring the vendor translation rather than the model, and that consequence
+is honoured as written.
+
+**THE BAR IS NOT RELAXED AND WILL NOT BE.** `W-28`'s §6 forbids relaxing a pre-committed bar
+after watching it fail, and `W-28`'s own `K1` is the precedent: *"a successor may not relax a
+pre-committed bar after watching it fail."* 0.837 is close to 0.90, which is exactly the
+circumstance in which the temptation is strongest and the rule most load-bearing.
+
+Nor is the FIVE-THEME construction changed to rescue it. The model is frozen at five themes, and
+re-running without `value` — the theme that fails worst — would be choosing the construction on
+the outcome. It is not done and must not be.
+
+**The gate failing is the gate working.** Had the holdout been opened on a 0.837 translation, a
+pre-1999 verdict would have been partly a statement about Compustat-versus-Sharadar.
+
+## 2. THE FAILURE HAS A CLEAN STRUCTURE, AND IT FALLS OUT ALONG THE ARCHITECTURE
+
+Per-theme Spearman — **a DIAGNOSTIC carrying NO verdict**, because a per-theme bar invented after
+a composite failure would be the same error one level down, and that prohibition is pinned by a
+test asserting the gate compares against its bar exactly once:
+
+| theme | mean Spearman | min | built from |
+|---|---|---|---|
+| `momentum` | **0.984470** | 0.969831 | prices only |
+| `size` | 0.955837 | 0.923463 | price x shares |
+| `capital_discipline` | 0.917603 | 0.845007 | one field (`cshoq`) year-over-year |
+| `quality` | 0.864533 | 0.762786 | ten fundamental inputs |
+| **`value`** | **0.782988** | **0.536713** | EV ratios — the most vendor-dependent |
+
+**The ordering is monotone in how many vendor fields a theme requires.** The price-derived themes
+translate almost perfectly, which is the strongest available evidence that the CRSP price mapping,
+the split adjustment and the market-cap construction are right — and it corroborates Gate A from
+a second direction. The fundamentals-derived themes degrade with their field count, and `value`
+is worst because six of its seven inputs run through enterprise value, so a single disagreement
+in the debt or cash mapping propagates to four columns at once.
+
+**So the diagnosis is specific and actionable: the translation defect is concentrated in the
+value theme's EV construction, not spread across the model.**
+
+### 2a. THERE IS A TIME TREND, AND MEASURING IT REFUTES THE CONCLUSION IT INVITES
+
+Per-date agreement improves across the overlap. The six worst dates are **2012-01-17 (0.770),
+2014-04-21 (0.772), 2013-04-19 (0.773), 2011-10-14 (0.777), 2009-04-17 (0.782), 2014-07-21
+(0.783)**; the three best are **2024-01-24 (0.912), 2023-10-23 (0.909), 2024-07-25 (0.906)**.
+Cross-sections grow from 818 names in 2009 to 1,320 in 2024.
+
+**Measured by era rather than left as a hypothesis:**
+
+| era | dates | mean Spearman | mean names |
+|---|---|---|---|
+| 2009-2012 | 16 | 0.806545 | 871 |
+| 2013-2016 | 16 | 0.805783 | 962 |
+| 2017-2020 | 16 | 0.850686 | 1,006 |
+| 2021-2024 | 15 | **0.889457** | 1,261 |
+
+First half (<= 2016) **0.806164**, second half (>= 2017) **0.869446**, gap **+0.063282**.
+
+**AND THIS REFUTES THE READING IT INVITES, WHICH IS A CORRECTION AGAINST MY OWN FIRST FRAMING.**
+I wrote the trend up as "early Compustat coverage is thinner, so the early years drag the mean
+down" — directionally true, and the implied conclusion *"repair the early years and the gate
+passes"* is **FALSE: the BEST era, 2021-2024, reads 0.889457 and still does not clear 0.90.**
+Not one four-year block clears it.
+
+**So the translation gap is SYSTEMATIC, not an artefact of early coverage.** That matters for
+what a successor does next: there is no era-restriction, coverage filter or burn-in that rescues
+this gate, and attempting one would be choosing the population on the outcome. The work is in the
+mapping itself.
+
+## 3. THE LIMITATION THE DRAFT SHOULD HAVE STATED AND DID NOT
+
+**Gate B measures the translation where BOTH vendors exist, which is 2009-2026 — and that is not
+the era the holdout is in.** Compustat's coverage in 1972-1998 differs again: `rdq` runs at
+**0.5899** there against 0.6568 in the overlap, and the field census shows a different shortfall
+profile. So Gate B answers *"can Compustat reproduce Sharadar where both exist"*, which is the
+only measurable form of the question, and **it is not the same as "is the Compustat panel
+faithful in 1972-1998", which is not measurable at all** — there is no second vendor there to
+check against.
+
+That cuts both ways and both halves should be said: it means a Gate B PASS would have been weaker
+evidence than it looked, and it means this FAIL is not evidence that the pre-1999 panel is
+specifically bad — only that the translation is not demonstrated.
+
+## 4. GATE A PASSES ON ITS OWN TERMS, AND ONE RUN OF IT IS VOID
+
+**1971-1978, 95 months, contiguous:** market-return correlation **0.999999**, mean absolute
+difference **0.000053** — **0.001108 of the benchmark series' own monthly standard deviation**,
+i.e. about a tenth of one percent of the dispersion being compared. A2 against `SMB` reads
+**0.956719**.
+
+**NO GATE A BAR WAS PRE-COMMITTED, AND ONE IS NOT DECLARED NOW.** Setting a threshold having seen
+0.999999 would be choosing the bar on the outcome, which is the same error as relaxing one. The
+scale-free ratio ships instead and the judgement is left to the reader. A1 is the decisive leg;
+A2's median split is not French's 2x3 NYSE-breakpoint construction, so its level is not expected
+to match and only its correlation is read.
+
+**ONE GATE A RUN IS VOID AND IS NOT QUOTED: the 1971-1995 run.** A stray 1995 sizing chunk sat
+beside 1971-1983 with a gap, and the monthly market weight was a `shift(1)` — which assumes
+adjacency and so handed January 1995 a market cap from **December 1979**, fifteen years stale.
+Fixed with an adjacency guard, pinned non-vacuously (the fixture first proves the naive shift
+really does reach across the gap, then that the guard drops it and keeps an adjacent month).
+**The full pull is contiguous, so this defect would have been invisible there and would have
+fired on the next partial run instead.**
+
+## 5. WHAT THIS MEANS FOR OOS1, CONCRETELY
+
+**OOS1 cannot proceed to open 1972-1998.** The register's own gate says so. What would change
+that, in order of expected value:
+
+1. **Repair the value theme's EV construction.** It is the single worst theme at 0.783 and the
+   composite is an equal blend of five, so it is the highest-leverage target by a wide margin.
+   The suspects are named rather than guessed: the debt leg (`dlttq + dlcq`), the cash leg
+   (`cheq`), and the point-in-time EV re-pricing that holds debt at last filed value.
+2. **Do NOT chase the era trend.** §2a measured it: the best four-year block reads 0.889 and
+   still fails, so no era restriction rescues the gate and trying one would be choosing the
+   population on the outcome.
+3. **Only then re-run Gate B.** Against the SAME 0.90 bar.
+
+**A successor must not:** drop `value` and report a four-theme pass; restrict to the recent era
+and report a pass; re-run with a lower bar; or open the holdout on the grounds that 0.837 is
+"close". The first three all look like analysis and are all the same move.
+
+## 6. WHAT IS READY
+
+WRDS healthy (one connection attempt, 5 seconds). `comp_fundq` 56 chunks / 0.27 GB /
+2,085,986 rows. `crsp_dsf` 2007-2024 complete (18 chunks, 0.85 GB, 37 min) and the holdout years
+filling. `crsp_dsp500list` 2,064 rows. `crsp_stocknames` already banked. The provider, both
+gates, the self-test, the per-theme diagnostic.
+
+**The link, measured both ways because they answer different questions:** **1,808 of 2,531
+distinct panel names resolve (0.7143)** and **75,184 of 113,945 (date, name) cells (0.6598)**,
+with **1,221 ambiguous (date, ticker) cells dropped** rather than guessed at. Per-date
+cross-sections run **818 / 1,115 / 1,421** (min / median / max), so a per-date Spearman is well
+resolved and the FAIL is not a thin-sample artefact.
+
+**70 tests, 4 of 4 mutations caught with sources restored byte-for-byte.**
+
+**STILL THE ONE FURTHER PULL OOS1 NEEDS: `crsp_a_stock.dsi`** (`vwretd`, `sprtrn`) for the
+charter's pre-SPY S&P 500 total-return benchmark. Small table, **not banked.** The index the
+provider builds from `dsf` is a build-internal stand-in **no gate statistic reads**, and using it
+as the holdout benchmark would be a deviation.
+
+**NOT DONE:** no register; no arm; **nothing scored on 1972-1998**; OOS1 §1a's $10B threshold
+question untouched; the panel-cell coverage figures and the size-correlation hypothesis of the
+census are unmeasured; and the definitive contiguous Gate A over the full holdout era awaits the
+pull finishing.
+
+---
+
+## 7. GATE A ON THE FULL HOLDOUT ERA, AND BOTH PULLS RECONCILE EXACTLY
+
+The `crsp_dsf` pull is complete: **54 chunks, 1971-2024 contiguous, 1.9 GB.**
+
+**Gate A over the whole holdout era, 1971-1998, 335 months, contiguous:**
+
+| | |
+|---|---|
+| A1 market-return correlation | **0.999996** |
+| A1 mean absolute difference | **0.000081** (8.1 bp/month) |
+| A1 **as a fraction of the benchmark's own monthly SD** | **0.00177** — 0.18% |
+| A1 mean monthly return, ours vs French | **0.011600** vs **0.011616** |
+| A1 p95 absolute difference | 0.000218 |
+| A2 correlation with `SMB` | 0.872154 |
+| universe | 38,773,239 rows after the share-code/exchange filter, 18,770 permnos, 1,854,828 monthly observations |
+
+**The CRSP market return reproduces Ken French's published market factor over the entire holdout
+era to within a fifth of one percent of that series' own dispersion.** Still no pre-committed
+Gate A bar and still none invented; the scale-free ratio is the number to judge.
+
+Broader validation on the full banked span **1971-2024, 647 months: A1 correlation 0.999994,
+mean absolute difference 0.000102.**
+
+### 7a. A2 DECLINES WITH SPAN, AND THAT IS THE CONSTRUCTION DIFFERENCE RATHER THAN A DEFECT
+
+A2 reads **0.956693** on 1971-1978, **0.872154** on 1971-1998 and **0.829417** on 1971-2024. The
+direction is expected and is why A2 was declared the weaker leg in advance: a **median split** is
+not French's **2x3 NYSE-breakpoint** `SMB`, and the two diverge more as the universe expands with
+small Nasdaq names that sit below a median but above an NYSE breakpoint. **A1, the decisive leg,
+is 0.999994 or better on every window tried**, so this is a property of my deliberately crude
+size proxy and not of the price or market-cap mapping — which the per-theme Gate B diagnostic
+independently confirms, `momentum` at 0.984 and `size` at 0.956 being the two best-translated
+themes.
+
+### 7b. BOTH PULLS RECONCILE AGAINST THE SERVER EXACTLY -- AFTER A DEFECT OF MINE IN THE CHECKER
+
+| product | source rows | pulled rows | difference |
+|---|---|---|---|
+| `crsp_dsf` (1971-2024 plus null-dated) | 94,119,177 | **94,119,177** | **0** |
+| `comp_fundq` (1971-2026 plus null-dated) | 2,085,986 | **2,085,986** | **0** |
+
+**It first reported `crsp_dsf` SHORT BY 13,544,293 and `comp_fundq` SHORT BY 59,055, and both
+were my own checker rather than a hole.** `reconcile` asks the server for `count(*)` over the
+WHOLE table, and I had added the `years` spec key without updating it — so it compared a windowed
+pull against an unwindowed count and the differences were exactly the pre-window years that were
+deliberately never requested.
+
+**That is the failure mode `reconcile`'s own docstring warns about in its last paragraph** — *"a
+checker that cries wolf on ordinary staleness gets ignored"* — and it is worse than cosmetic,
+because `reconcile` is the one check that caught the 102,213-row null-date hole, and file-level
+integrity cannot see what was never fetched. A completeness check that reports a false shortfall
+on every windowed product is one whose real finding will be read as more of the same.
+
+Fixed by taking the source count over the same window, **with `or {year_col} is null` included**,
+because a null-dated row belongs to no year and IS pulled by the `nulldate` chunk — excluding it
+here would have re-opened that hole from the other side. **Verified rather than argued: both
+products now reconcile at difference 0.**
+
+## 8. FINAL STATE
+
+**Both gates are run. Gate A passes on its own terms; Gate B FAILS at 0.837303 against its
+pre-committed 0.90, so the 1972-1998 holdout is NOT opened and the bar is not moved.**
+
+Banked and reconciled: `comp_fundq` (56 chunks, 2,085,986 rows), `crsp_dsf` (54 chunks,
+94,119,177 rows, 1.9 GB), `crsp_dsp500list` (2,064 rows), `crsp_stocknames` (pre-existing).
+
+Artifacts: `data/free_analysis/OOS1_GATE_B.json`, `OOS1_GATE_A_1971_1978.json`,
+`OOS1_FUNDQ_CENSUS.json` — all in the **primary** data root, not the worktree (`E-5`).
+
+Code: `valuation/edge/compustat_provider.py`, `scripts/oos1_gates.py`,
+`scripts/oos1_fundq_census.py`, `scripts/wrds_pull.py` (+3 products, `--years`, the reconcile
+window), `tests/test_oos1_gates.py`. **70 tests, 4 of 4 mutations caught with sources restored
+byte-for-byte.**
+
+**ZERO TRIALS throughout. `by_domain` untouched. Nothing scored on 1972-1998.**
+
+---
+
+## 9. REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3) — A CLOCK-DEPENDENT TEST IS BLOCKING EVERY LANE'S LAND
+
+**`tests/test_paper_track.py::test_recap_health_note_does_not_report_a_hole_before_inception`
+began failing in CI at about 23:54 UTC on 2026-10-04 and is blocking the landing gate for every
+lane, not only this one.** It is not this lane's and it is **reported rather than edited**: it
+is another lane's check, and changing what a safety check asserts so that my own work can land
+is the one action here that should not be taken by the lane that benefits.
+
+### The evidence that it is neither lane's code
+
+* **Both lanes fail on the IDENTICAL test with the IDENTICAL message**: `worktree-crowding-p2`
+  (run 37245460035) and `worktree-scout-research-reset` (run 37245812830) both report
+  `FAIL test_recap_health_note_does_not_report_a_hole_before_inception: Health: cycle recorded
+  1/2 sessions since inception`.
+* **The failure starts at a TIME, not at a commit.** Every run through **23:52 UTC** succeeded —
+  including this lane's own at 23:16:45, which is why `eabc4d1` and everything before it DID
+  land. Every run from **23:54 UTC** onward failed, across both lanes.
+* **This lane's branch touches five files and none of them is reachable from that test:**
+  `HANDOFF_scout_research_reset.md`, `scripts/oos1_gates.py`, `scripts/wrds_pull.py`,
+  `tests/test_oos1_gates.py`, `valuation/edge/compustat_provider.py`. Nothing in
+  `valuation/edge/paper_track.py`, `valuation/saas/recap.py`, `valuation/screener/index_track.py`
+  or `PAPER_TRACK_CONTRACT.md`.
+* It passes **70/70 locally**. That alone is not a diagnosis — this record's own lesson is that a
+  suite passing standalone is not diagnosed — which is why the three points above carry it
+  instead.
+
+### The mechanism, read from the source rather than guessed
+
+`valuation/saas/recap.py:320-340` builds the denominator from the clock:
+
+```
+today    = dt.date.today()
+expected = [today - timedelta(days=i) for i in range(WEEK_DAYS)]
+expected = [d for d in expected if is_trading_day(d) and (born is None or d >= born)]
+ran      = sum(1 for d in expected if d.isoformat() in got)
+...
+if ran < len(expected): bits.append("**a missed session means the track has a hole in it ...**")
+```
+
+The fixture records **one** session. While "today" is a **non-trading day** whose last session is
+already recorded, `expected` holds exactly that one session and the test passes — which is the
+whole of 2026-10-03 evening through 2026-10-04 (Saturday and Sunday). **The moment a NEW trading
+day enters the window without the fixture having recorded it, `expected` becomes 2 against
+`ran` of 1, the note correctly says "hole in it", and the assertion `"hole in it" not in note`
+fails.** CI confirms the arithmetic: `1/2`.
+
+**So it will fail on every weekday, not intermittently**, and re-pushing will not clear it.
+
+### 9a. THE ROOT CAUSE, AND IT IS `B7`'s FAMILY — TWO DEFINITIONS OF "TODAY"
+
+The paragraph above describes the symptom correctly and does not name the cause. Measured, the
+cause is that **the writer and the reader use two different clocks**:
+
+* `paper_track.index_point` stamps `as_of = (_d(today) or _session_today())`, carrying the comment
+  **`# ITEM 20: session, not UTC`** — so it records the last **trading session**, which at
+  00:04 UTC on Monday 2026-10-05 is **Friday 2026-10-02**.
+* `recap.health_note` builds its denominator from **`dt.date.today()`**, the runner's **UTC
+  calendar date**, which is **Monday 2026-10-05**.
+
+So `born` is Friday and `today` is Monday, `expected` becomes `[Oct 2, Oct 5]`, `got` is
+`{Oct 2}`, and the note reports `1/2`. **The two clocks agreed for as long as the UTC date was a
+non-trading day — the whole weekend — and diverged the moment it was not.**
+
+That is `B7`'s defect in a new costume: one concept, two definitions, in two modules. **`ITEM 20`
+already fixed it on the writer and the reader never received the same fix**, which is also why
+the obvious repair is the narrow one — have `health_note` ask for the session date rather than
+the UTC date — and why it is the owning lane's to make, since it changes what their check means.
+
+### 9b. PROVEN RATHER THAN ASSERTED, AND REPRODUCIBLE IN ONE COMMAND
+
+`python -m scripts.diagnose_paper_track_clock` moves **only the reader's date** and reproduces
+CI's failure, including its exact string, on this machine where the suite otherwise passes
+70/70. It **edits nothing.**
+
+```
+what the WRITER recorded (paper_track.index_point, _session_today):  ['2026-10-02']
+real calendar today on this machine:                                  2026-10-04 (Sunday)
+
+reader on Sunday  -> "cycle recorded 1/1 sessions since inception."                    passes
+reader on Monday  -> "cycle recorded 1/2 sessions ...; **a missed session means the
+                      track has a hole in it, not a flat day**."                        FAILS
+```
+
+`first` and `sessions_in_window` are **identical** in both readings — `['2026-10-02']` — so
+nothing about the recorded data differs. The denominator moved because the reader's calendar did.
+
+**A note on the probe itself, because the first version of it did NOT reproduce the failure and
+that was my error rather than evidence against the diagnosis:** `collect` and `health_note` each
+carry their **own** `day` parameter, so passing the date to `collect` alone leaves the reader on
+the real clock and the test still passes. Both have to be moved. A probe that exercises one of
+two clocks is measuring the wrong thing, and a "could not reproduce" from it would have been a
+vacuous pass — the same shape as a control that scores perfectly by comparing nothing.
+
+### Why this is the pattern this record already named
+
+`CLAUDE.md` states it in one line: *"a guard asserting 'these two numbers are equal today' fires
+on the CLOCK; assert the property the equality stood in for."* It has already cost two repoints
+in two items (`MB31`'s re-derivation guard and `MA57`'s allowlist guard). **This is a third
+instance, and the test's own docstring names the property it meant to protect** — *"A track that
+started yesterday must not claim it missed the four days before it existed"* — which is about days
+**BEFORE inception**. The assertion it actually makes is that the note reports **no hole at all**,
+and a genuinely missed session after inception is something the note is supposed to say. The two
+coincided until the calendar moved.
+
+**The owning lane's call, and the fix is theirs to choose.** The property as stated is testable
+without the clock: that `expected` contains no date earlier than `born`. **This lane proposes
+nothing further and edits nothing.**
+
+### What it costs this item
+
+`eabc4d1` and earlier landed. **The commits carrying the actual gate verdicts — the per-theme
+diagnostic, the adjacency guard, the monthly aggregation, Gate B's FAIL, Gate A over 1971-1998,
+and the reconcile window fix — are pushed to `worktree-scout-research-reset` and are NOT on
+`main`**, through no property of their own. They land unchanged the moment that test is green.

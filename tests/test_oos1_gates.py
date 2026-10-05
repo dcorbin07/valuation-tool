@@ -257,6 +257,68 @@ def test_the_link_map_is_dated():
     ck("the dropped ambiguous cells are COUNTED", amb == 2, "got %r" % amb)
 
 
+def test_gate_a_weight_requires_an_ADJACENT_month():
+    """A market weight must come from the immediately PRECEDING month, not the previous row.
+
+    `shift(1)` assumes adjacency, and the banked years are not always contiguous: a stray 1995
+    sizing chunk sitting beside 1971-1979 made `shift(1)` hand January 1995 a market cap from
+    **December 1979** -- a 15-year-old weight, silently, on a run that otherwise looked fine. The
+    full pull is contiguous, so this would have been invisible there and would have fired on the
+    next partial run instead.
+    """
+    monthly = pd.DataFrame({
+        "permno": [1, 1, 1, 1],
+        "ym": ["1979-11", "1979-12", "1995-01", "1995-02"],
+        "cap_last": [100.0, 110.0, 500.0, 520.0],
+        "ret_m": [0.01, 0.02, 0.03, 0.04]}).sort_values(["permno", "ym"])
+    naive = monthly.groupby("permno")["cap_last"].shift(1)
+    mo = pd.PeriodIndex(monthly["ym"], freq="M")
+    prev = monthly.groupby("permno")["ym"].shift(1)
+    gap_ok = (mo - pd.PeriodIndex(prev.fillna(monthly["ym"]), freq="M")).map(
+        lambda x: getattr(x, "n", 0)) == 1
+    guarded = naive.where(gap_ok)
+    i95 = list(monthly["ym"]).index("1995-01")
+    ck("the NAIVE shift really does reach across the gap (so the test is non-vacuous)",
+       abs(float(naive.iloc[i95]) - 110.0) < 1e-9, "got %r" % naive.iloc[i95])
+    ck("the guard DROPS a weight whose prior month is not adjacent",
+       pd.isna(guarded.iloc[i95]))
+    j = list(monthly["ym"]).index("1995-02")
+    ck("the guard KEEPS a weight whose prior month IS adjacent",
+       abs(float(guarded.iloc[j]) - 500.0) < 1e-9, "got %r" % guarded.iloc[j])
+
+    src = open(os.path.join(REPO, "scripts", "oos1_gates.py"), encoding="utf-8").read()
+    ck("gate_a applies the adjacency guard rather than a bare shift",
+       "gap_ok" in src and 'monthly["w"].where(gap_ok)' in src)
+
+
+def test_per_theme_diagnostic_carries_no_verdict():
+    """The per-theme figure must not acquire a bar. W-28's §6 forbids relaxing a pre-committed
+    bar after watching it fail, and a per-theme bar invented after a composite FAIL would be the
+    same error one level down."""
+    src = open(os.path.join(REPO, "scripts", "oos1_gates.py"), encoding="utf-8").read()
+    ck("the per-theme key names itself a diagnostic with no verdict",
+       "per_theme_spearman_DIAGNOSTIC_NO_VERDICT" in src)
+    tree = ast.parse(src)
+    fn = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "gate_b"]
+    # EXACTLY ONE *COMPARISON* against the bar -- the registered composite one.
+    #
+    # MY OWN FIRST CUT OF THIS TEST WAS WRONG AND FIRED AGAINST CORRECT CODE. It counted
+    # occurrences of the IDENTIFIER and found two, because the second is `"bar": GATE_B_BAR`
+    # reporting the bar in the artifact -- which is not a comparison and is exactly what a reader
+    # needs. That is the substring-ban family this record names repeatedly: ban a token and the
+    # guard fires on legitimate prose or legitimate reporting. The property is about COMPARISON
+    # nodes, so it is checked on them.
+    comps = [n for n in ast.walk(fn[0]) if isinstance(n, ast.Compare)]
+    bar_comps = [c for c in comps
+                 if any(isinstance(x, ast.Name) and x.id == "GATE_B_BAR"
+                        for x in ast.walk(c))]
+    ck("gate_b COMPARES against the bar exactly once",
+       len(bar_comps) == 1, "found %d bar comparisons" % len(bar_comps))
+    # Non-vacuity: there must be comparisons in the function at all, or the above passes by
+    # finding nothing.
+    ck("the comparison scan is non-vacuous", len(comps) > 1, "comparisons: %d" % len(comps))
+
+
 def test_benchmark_is_labelled_not_load_bearing():
     src = open(os.path.join(REPO, "valuation", "edge", "compustat_provider.py"),
                encoding="utf-8").read()
@@ -298,6 +360,8 @@ if __name__ == "__main__":
     for t in (test_ytd, test_units, test_num_treats_nan_as_absent, test_frozen_model,
               test_dead_themes_are_empty_not_fabricated, test_no_gate_reads_the_holdout,
               test_french_units_are_checked_not_converted, test_the_link_map_is_dated,
+              test_gate_a_weight_requires_an_ADJACENT_month,
+              test_per_theme_diagnostic_carries_no_verdict,
               test_benchmark_is_labelled_not_load_bearing,
               test_price_history_uses_absolute_price_and_adjusts,
               test_universe_subset_is_by_size_not_alphabetical):

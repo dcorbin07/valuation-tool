@@ -127,27 +127,32 @@ def _load_dsf(lo: int, hi: int) -> pd.DataFrame:
     """
     from valuation.edge.compustat_provider import CompustatCrspProvider
     prov = CompustatCrspProvider(year_lo=lo, year_hi=hi)
-    d = prov.prices()
-    return d, prov.notes
+    return prov.monthly_universe(), prov.notes
 
 
 def gate_a(root: str, lo: int, hi: int) -> dict:
     """A1 market return, A2 size spread -- both against French, monthly."""
-    d, notes = _load_dsf(lo, hi)
-    d = d.copy()
-    d["ym"] = d["date"].dt.strftime("%Y-%m")
-
-    # Monthly compounded return per permno, and the month's opening market cap as the weight.
-    # The weight must be the PRIOR month's cap: weighting by the same month's cap is a
-    # look-ahead that mechanically tilts toward whatever rose.
-    d = d.sort_values(["permno", "date"])
-    g = d.groupby(["permno", "ym"])
-    monthly = pd.DataFrame({
-        "ret_m": g["ret"].apply(lambda s: float((1.0 + s.dropna()).prod() - 1.0)),
-        "cap_last": g["mktcap"].last(),
-    }).reset_index()
+    # Aggregated ONE YEAR-CHUNK AT A TIME by the provider: the full holdout era is ~42M daily
+    # rows with no permno filter (the market return is over the WHOLE universe), and the monthly
+    # frame it reduces to is a few hundred thousand. Exact, because a calendar month never spans
+    # a year boundary.
+    monthly, notes = _load_dsf(lo, hi)
     monthly = monthly.sort_values(["permno", "ym"])
+
+    # The weight must be the PRIOR month's cap: weighting by the same month's cap is a look-ahead
+    # that mechanically tilts toward whatever rose.
     monthly["w"] = monthly.groupby("permno")["cap_last"].shift(1)
+    # THE WEIGHT MUST COME FROM THE IMMEDIATELY PRECEDING CALENDAR MONTH, NOT MERELY THE PREVIOUS
+    # ROW. `shift(1)` assumes adjacency, and the banked years are not always contiguous: a stray
+    # 1995 sizing chunk sitting beside 1971-1979 made `shift(1)` hand January 1995 a market cap
+    # from December 1979 -- a 15-year-old weight, silently, on a run that otherwise looked fine.
+    # The full pull is contiguous, so this would have been invisible there and would have fired
+    # on the next partial run instead.
+    mo = pd.PeriodIndex(monthly["ym"], freq="M")
+    prev_mo = monthly.groupby("permno")["ym"].shift(1)
+    gap_ok = (mo - pd.PeriodIndex(prev_mo.fillna(monthly["ym"]), freq="M")).map(
+        lambda x: getattr(x, "n", 0)) == 1
+    monthly["w"] = monthly["w"].where(gap_ok)
     m = monthly.dropna(subset=["ret_m", "w"])
     m = m[m["w"] > 0]
 
@@ -379,6 +384,28 @@ def gate_b(root: str, lo: int, hi: int, limit: int = 0) -> dict:
 
     r = _per_date_spearman(a, b[["date", "ticker", "comp"]])
     mean_rho = r["mean"]
+
+    # PER-THEME DIAGNOSTIC, NO VERDICT. It localises a disagreement to a theme, which is the only
+    # legitimate next move if the composite gate fails: `W-28`'s §6 forbids relaxing a
+    # pre-committed bar after watching it fail, so the response to a FAIL is to find out WHICH
+    # mapping is wrong, not to widen the bar until it passes. Reported on a PASS too, because a
+    # composite can clear while one theme is badly translated and the others carry it.
+    theme_rho = {}
+    shk = sh.copy(); shk["date"] = shk["date"].astype(str)
+    cpk = cp.copy(); cpk["date"] = cpk["date"].astype(str)
+    cpk = cpk.rename(columns={"ticker": "permno_s"})
+    cpk["permno_s"] = cpk["permno_s"].astype(str)
+    cpk = cpk.merge(tmap[["date", "ticker", "permno_s"]], on=["date", "permno_s"], how="inner")
+    for th in FIVE:
+        if th not in shk.columns or th not in cpk.columns:
+            theme_rho[th] = {"spearman": None, "note": "column absent on one side"}
+            continue
+        aa = shk[["date", "ticker", th]].rename(columns={th: "comp"})
+        bb = cpk[["date", "ticker", th]].rename(columns={th: "comp"})
+        t = _per_date_spearman(aa, bb)
+        theme_rho[th] = {"mean_spearman": t["mean"], "min": t["min"],
+                         "dates_scored": t["dates_scored"],
+                         "rows_compared": t["rows_compared"]}
     return {
         "bar": GATE_B_BAR,
         "mean_per_date_spearman": mean_rho,
@@ -397,6 +424,7 @@ def gate_b(root: str, lo: int, hi: int, limit: int = 0) -> dict:
         "cells_in_sharadar_panel": cells_total,
         "ambiguous_date_ticker_cells_dropped": ambiguous,
         "rows_compared": r["rows_compared"],
+        "per_theme_spearman_DIAGNOSTIC_NO_VERDICT": theme_rho,
         "per_date": r["per_date"],
         "compustat_panel_rows": int(len(cp)),
         "provider_notes": prov.notes,
