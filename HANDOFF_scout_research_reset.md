@@ -793,6 +793,45 @@ the real clock and the test still passes. Both have to be moved. A probe that ex
 two clocks is measuring the wrong thing, and a "could not reproduce" from it would have been a
 vacuous pass — the same shape as a control that scores perfectly by comparing nothing.
 
+### 9c. FIXED, WITH DON'S AUTHORISATION — AND THE ALARM IS INTACT
+
+Don authorised the cross-lane fix after r1's `D9-SAMEDATE` and `INDEX-CHOICE-ARM4` failed on the
+same assertion, making it **four branches**. `recap.health_note` now anchors on
+`PT._session_today()` — the writer's own clock — instead of `_dt.date.today()`.
+
+**THE PROPERTY THAT HAD TO SURVIVE, AND DID: `session_date()` reads the MARKET CALENDAR, not the
+recorded data.** A session the market held and the cron missed is still in `expected` and is
+still reported. Anchoring on the last **recorded** session would have made the check vacuous;
+anchoring on the last **real** session does not. Pinned by
+`test_health_note_STILL_FIRES_on_a_genuinely_missed_session` — **if that test ever goes quiet,
+the repair has become a silencing.**
+
+**A SECOND SPURIOUS HOLE FROM THE SAME MISMATCH, found while fixing the first.** `collect`
+filters `sessions_in_window` with its own calendar date while `health_note` anchors `expected` on
+the session clock, and the two differ by up to three days — Friday's session against Tuesday's
+date after a Monday holiday — which puts a trading day inside `expected` that the window could
+never have contained. Unbounded it reads **4/5 on a track that recorded every session it should
+have.** `collect` now publishes the bound it used (**additive**, so no existing recap content
+changes) and `health_note` honours it.
+
+**`collect`'s own `today` is deliberately LEFT on the calendar clock**: it also answers "what
+opened and closed today" from order timestamps, and moving it would change what the daily post
+reports. Only the quantity compared against session-stamped rows moved.
+
+**Six tests, 76/76, 3 of 3 mutations caught with sources restored byte-for-byte.** The weekend
+and holiday cases are **regression** guards — they are when the two clocks happened to agree and
+must keep agreeing; the rolled-date case is the **bug** guard.
+
+**AND A DEFECT IN MY OWN FIRST TEST, found by mutation rather than by reading:** it asserted only
+that `collect` **published** the window bound, so dropping the bound from `health_note` slipped
+straight through — a test of the plumbing rather than of the property. Replaced by the real
+far-edge scenario, which needs a track **older than the window** (because `born` otherwise bounds
+`expected` tightly enough that the bound never bites) and which asserts its own non-vacuity: the
+window must genuinely exclude Monday, or the test cannot see the defect.
+
+Verify in one command: **`python -m scripts.diagnose_paper_track_clock`** — five legs, all as
+expected, and it edits nothing.
+
 ### Why this is the pattern this record already named
 
 `CLAUDE.md` states it in one line: *"a guard asserting 'these two numbers are equal today' fires
