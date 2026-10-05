@@ -70,17 +70,25 @@ def _spy_ann(panel):
     return _ann(xs)
 
 
-def _score_half(panel, names, cols, weights):
+def _score_half(panel, names, cols, weights, choice=CHOICE):
     """All three arms on one half universe. The universe trim and the cross-sectional
     standardisation are both REBUILT WITHIN THE HALF, because each is a property of the
-    population -- scoring a half against full-universe z-scores would measure neither."""
+    population -- scoring a half against full-universe z-scores would measure neither.
+
+    `choice` DEFAULTS TO THIS ITEM'S OWN THREE ARMS, so every existing caller is bit-identical
+    and `INDEX-CHOICE`'s void condition 2 ("arm 4 is not carried into this item") is untouched.
+    It is a parameter rather than a constant so that `INDEX-CHOICE-ARM4` can run THE SAME method
+    on a different arm set without a second copy of it (`B7`) -- the pattern `S3-I1` used when it
+    made the append-only writer's key a parameter instead of letting the fleet grow its own.
+    ADDING ARM 4 TO THE TUPLE ITSELF WOULD HAVE BREACHED THAT VOID CONDITION and silently
+    changed a landed artifact; it was the obvious route and it is the wrong one."""
     sub = panel[panel["ticker"].isin(names)]
     if sub["ticker"].nunique() < MIN_NAMES_PER_HALF:
         return None
     out = {"n_names": int(sub["ticker"].nunique()), "n_rows": int(len(sub)),
            "spy_ann": _spy_ann(sub), "arms": {}}
     for name, kw, _label, _b in ARMS:
-        if name not in CHOICE:
+        if name not in choice:
             continue
         r = _roth(sub, cols, weights, kw)
         if r is None:
@@ -89,11 +97,13 @@ def _score_half(panel, names, cols, weights):
     return out
 
 
-def _shares(halves):
+def _shares(halves, choice=CHOICE):
     """The reported statistics, both of them: positive vs SPY, and positive vs the INCUMBENT on
-    the SAME half. Two statistics, which is why this item charges two trials (`X1`'s rule)."""
+    the SAME half. Two statistics, which is why this item charges two trials (`X1`'s rule).
+
+    `choice` defaults to this item's own arms -- see `_score_half` for why it is a parameter."""
     res = {}
-    for name in CHOICE:
+    for name in choice:
         vs_spy = [h["arms"][name]["roth_ann"] - h["spy_ann"] for h in halves]
         vs_inc = [h["arms"][name]["roth_ann"] - h["arms"]["1_incumbent_10bn"]["roth_ann"]
                   for h in halves]

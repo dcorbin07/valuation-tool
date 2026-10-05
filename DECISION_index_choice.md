@@ -67,6 +67,35 @@ Using `X1`'s own keys, seed and split count (fixed in August, before these arms 
 same 69 dates, and the late-half concentration survives untouched. **So the strongest statement
 available is: not a name artifact, possibly still a period artifact.**
 
+### CORRECTION, 2026-10-04 (`INDEX-CHOICE-ARM4`) — what the arm-2 row of this split really measures
+
+**The 200-of-200 result above is real, and it is NOT specifically about arm 2's construction.**
+Arm 2 is defined by trimming the universe to the **1,500 most liquid names** and taking the top
+decile of that. Measured: on the full panel that trim binds on **66 of 69 dates** (median 1,557
+names per date) — but **a half universe holds only ~785 names per date, so it binds on 0 of 69**,
+and on every half-book arm 2 collapses into the plain all-cap decile.
+
+This is not an inference. Running the *ceiling* arm (no liquidity screen at all) through the
+identical machinery returned **bit-identical** half-book statistics — all 14 shared leaves equal,
+and the two stable-split levels agreeing to sixteen significant figures.
+
+**THE PORTABLE RULE: a universe filter expressed as an ABSOLUTE RANK is not invariant to
+subsampling the universe, so `X1`'s name-split method cannot evaluate one.** A *relative* filter
+(a top decile) scales with the population; an absolute one (top 1,500) does not.
+
+**WHAT SURVIVES, AND IT IS MOST OF IT.** The split still shows that **a wider-pool decile beats
+the incumbent on 200 of 200 half-books with a worst case of +1.83pp**, and that the incumbent is
+the only one of the three whose own edge over SPY is not name-robust. Arm 2's **conformance (69
+of 69 dates)**, its **capacity (~$24m)** and its **live buildability** are all full-universe
+facts and are untouched.
+
+**WHAT DOES NOT SURVIVE: the split cannot tell arm 2 apart from a pool with no liquidity screen
+at all**, so "arm 2's half-book distribution is the tightest of the three" is a property of the
+wider-pool decile rather than of the liquidity trim. **The recommendation below is unaffected** —
+it rests on conformance, capacity and buildability, none of which this touches — but the name
+split should be quoted as evidence for *moving to a wider pool*, not as evidence for *this
+particular trim*.
+
 ---
 
 ## What the extra return is made of

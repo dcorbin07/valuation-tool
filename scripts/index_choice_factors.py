@@ -58,7 +58,13 @@ def _net_series(panel, cols, weights, kw):
     return list(r["series"]["net"])
 
 
-def main() -> int:
+def main(choice=CHOICE, out=None, item="INDEX-CHOICE", part="3 factor loadings",
+         register="PREREG_index_choice.md section 3") -> int:
+    """`choice`/`out`/`item` DEFAULT TO THIS ITEM'S OWN, so every existing caller is
+    bit-identical and `INDEX-CHOICE`'s void condition 2 is untouched. They are
+    parameters so `INDEX-CHOICE-ARM4` can run THE SAME decomposition on a different arm
+    set, writing its OWN artifact -- reusing the path would CLOBBER a landed one."""
+    out = out or OUT
     if not FA:
         raise SystemExit("the licensed panel is absent; tried %r" % (data_candidates(),))
     FAC.set_factor_dir(FACTOR_DIR)       # a worktree carries no data/; R1 built this hook
@@ -71,13 +77,13 @@ def main() -> int:
           % (len(F), len(grid), [c for c in F.columns][:9]), flush=True)
 
     series = {k: _net_series(panel, cols, weights, kw)
-              for k, kw, _l, _b in ARMS if k in CHOICE}
+              for k, kw, _l, _b in ARMS if k in choice}
     m = min(len(F), min(len(v) for v in series.values()))
     F = F.iloc[:m].reset_index(drop=True)
     print("aligned on %d windows (the last rebalance date closes no window)" % m, flush=True)
 
-    res = {"item": "INDEX-CHOICE", "part": "3 factor loadings", "trials": 1,
-           "register": "PREREG_index_choice.md section 3",
+    res = {"item": item, "part": part, "trials": 1,
+           "register": register,
            "model": list(FAC.FF_MODEL), "lag": LAG, "n_windows": int(m),
            "machinery": "scripts/factor_alpha.py -- ols_nw, regress, factor_windows, FF_MODEL "
                         "IMPORTED and called (B7)",
@@ -98,7 +104,7 @@ def main() -> int:
           % (b["beta"][1], b["r2"], b["n"]), flush=True)
 
     inc = np.asarray(series["1_incumbent_10bn"][:m], dtype=float)
-    for name in CHOICE:
+    for name in choice:
         y = np.asarray(series[name][:m], dtype=float)
         a = {}
         # (a) the book itself, in excess of RF -- R1's long-only object
@@ -126,7 +132,7 @@ def main() -> int:
 
     # How much of each arm's RAW excess the factors explain, which is Don's question in one
     # number. Reported for the spread, because that is the object a MOVE would buy.
-    for name in CHOICE:
+    for name in choice:
         if "minus_incumbent" not in res["arms"][name]:
             continue
         q = res["arms"][name]["minus_incumbent"]
@@ -138,9 +144,9 @@ def main() -> int:
             "note": "raw minus intercept is what the FACTOR LOADINGS account for; the "
                     "intercept is what is left. NOT an alpha claim (register section 3).",
         }
-    with open(OUT, "w", encoding="utf-8") as fh:
+    with open(out, "w", encoding="utf-8") as fh:
         json.dump(res, fh, indent=1, default=str)
-    print("\nwrote", OUT)
+    print("\nwrote", out)
     return 0
 
 

@@ -20661,3 +20661,129 @@ passed and the suite still failed.** A mutation harness must invalidate bytecode
 
 `scripts/panel_ext_recheck.py`, `tests/test_panel_ext_recheck.py`;
 `data/free_analysis/PANEL_EXT_RECHECK.json` (gitignored).
+
+---
+
+# INDEX-CHOICE-ARM4 — the ceiling arm's checks, and what they found was a defect in the checks
+
+**2026-10-04. ONE equity trial, 258 → 259.** Register `PREREG_index_choice_arm4.md` committed
+**ALONE at `25001ca`** (markdown only, zero `.py`, 137 lines), a strict ancestor of every
+measurement commit; the trial booked at **`5b2b746` BEFORE any arm-4 runner existed**, which is
+checkable rather than asserted. **Adopts nothing.**
+
+## The headline: arm 4's numbers came back BIT-IDENTICAL to arm 2's
+
+Not close — **identical**. All 14 shared leaves of the 200-half-book statistics equal, and the
+two stable-split levels agreeing to **sixteen significant figures**
+(0.2876609639184584 and 0.20907919240539607 on both arms).
+
+Two different constructions cannot do that by chance, so the result is not a fact about arm 4.
+**It is a defect in what `INDEX-CHOICE`'s arm-2 name split was measuring.**
+
+## The mechanism, measured rather than inferred
+
+Arm 2 and arm 4 differ by **exactly one keyword**: `universe_rank=1500` against `None`.
+
+| | names per date | dates where the 1,500 trim BINDS |
+|---|---|---|
+| FULL panel | min 1,471 / median 1,557 / max 1,954 | **66 of 69** |
+| HALF universe | min 737 / median 785 / max 983 | **0 of 69** |
+
+**A half universe does not contain 1,500 names, so arm 2's defining liquidity trim is
+inoperative on every half-book and arm 2 collapses into the plain all-cap decile.**
+
+**THE PORTABLE RULE, and it binds any future arm: a universe filter expressed as an ABSOLUTE
+RANK is not invariant to subsampling the universe, so `X1`'s name-split method cannot evaluate
+one.** A *relative* filter — a top decile — scales with the population and can be. An absolute
+one cannot. This was invisible until a second arm differing *only* in that keyword was pushed
+through the identical machinery, which is the one thing a "ceiling" run was good for.
+
+## What survives, which is most of it, and what does not
+
+**SURVIVES.** The split still shows a **wider-pool decile beating the incumbent on 200 of 200
+half-books with a worst case of +1.83pp**, and that the incumbent is the only one of the three
+whose own edge over SPY is not name-robust (91% positive, p05 −0.56pp). Arm 2's **conformance
+(69 of 69 dates)**, its **capacity (~$24m)** and its **live buildability** are full-universe
+facts and are untouched.
+
+**DOES NOT SURVIVE.** The split **cannot tell arm 2 apart from a pool with no liquidity screen at
+all**, so *"arm 2 has the tightest half-book distribution of the three"* is a property of the
+wider-pool decile, not of the trim. **`DECISION_index_choice.md`'s recommendation does not move**
+— it rests on conformance, capacity and buildability — but the correction is written **into that
+memo**, because Don reads it on 2026-10-22 and a finding that changes how one of its rows should
+be read has to be in it rather than only here. A test pins that the memo carries it.
+
+## The factor leg, where arm 4 IS genuinely distinct
+
+The full universe is not subsampled here, so this half of the item measures arm 4 and nothing
+else. `R1`'s own alignment control reproduces **exactly**: SPY excess on MKT beta **0.9327**,
+R² **0.9878**, against `R1`'s 0.933 / 0.988.
+
+| | intercept /yr | *t* | R² | SMB | *t* |
+|---|---|---|---|---|---|
+| incumbent, excess of RF | +1.73% | +0.914 | 0.855 | +0.076 | +0.55 |
+| **arm 4, excess of RF** | **+10.15%** | **+4.534** | 0.903 | **+0.785** | **+3.93** |
+| **arm 4 minus incumbent** | **+8.42%** | **+3.676** | 0.541 | **+0.709** | **+3.92** |
+
+**Arm 4 carries the largest SMB loading of the four arms** — +0.785 against arm 2's +0.559, arm
+3's +0.42 and the incumbent's +0.076 — which was registered as expectation 4 and is the one
+expectation that was both right and non-vacuous. About **half the move off the incumbent is
+factor-explained (R² 0.541) and the explained half is overwhelmingly SIZE**; momentum goes the
+other way (UMD −0.163, *t* −2.54).
+
+**NO ALPHA CLAIM IS MADE.** `INDEX-CHOICE` forbade one in advance — the arms are not separable
+from each other and the whole effect is late-half — and this register inherits that prohibition
+verbatim rather than re-arguing it on a *t* of +4.5.
+
+## Buildability is NOT separately measured, and the reason is INDEX-CHOICE's own
+
+Its buildability script records the binding limit: *"the live snapshot persists only 500 rows, so
+arm 2's 1,500-name universe cannot be reconstructed from the D9 artifacts AT ALL; these are TOP-N
+overlaps on the 431-name shared population."* **Arm 4's ~253-name whole-panel book hits the same
+wall.** `D9`'s published decile overlap of **0.2326** bounds it from above on a *more* favourable
+universe, and arm 4 has **no liquidity screen whatever**, so it is structurally the worst of the
+four. Recorded as a labelled non-measurement rather than invented.
+
+## Two controls, and a near miss
+
+**`C1` GATED EVERYTHING AND PASSED NON-VACUOUSLY.** The banked `INDEX_BEST.json` arm-4 figures
+reproduce at **max absolute deviation 0.000e+00 with `compared` = 3** — the count is gated
+because `MB21`'s `C1` once scored a perfect zero on an empty frame by comparing nothing.
+
+**THE ENABLING REFACTOR IS PROVED INERT BEHAVIOURALLY, NOT ARGUED.** Making the arm set a
+parameter could have changed `INDEX-CHOICE`'s own output, so its split was re-run in full and
+compared leaf by leaf: **112 shared leaves, 0 moved, 0 added, 0 removed, max absolute deviation
+0.000e+00.**
+
+**THE NEAR MISS.** The obvious way to give arm 4 these checks is to add it to
+`index_choice_split.CHOICE`. That would have **breached `INDEX-CHOICE`'s own void condition 2** —
+*"arm 4 (the ceiling) is not carried into this item"* — **and silently changed a landed
+artifact.** The tuple carries a comment saying so, which is the only reason I looked. The arm set
+became a parameter whose default is the original tuple instead.
+
+## Expectations, scored honestly
+
+1. **`C1` reproduces at 0.000e+00** (90/10) — **RIGHT**.
+2. **Arm 4 beats the incumbent on 200 of 200** (75/25) — **RIGHT, and VACUOUSLY**: those are arm
+   2's own numbers, so the prediction was never at risk.
+3. **Arm 4's spread sits between arm 2's and arm 3's** (60/40) — **WRONG**. It does not sit
+   between them; it **IS** arm 2's, to the digit.
+4. **Arm 4 carries the largest SMB of the four** (65/35) — **RIGHT**, +0.785.
+5. **Buildability fails its 0.60 bar** (85/15) — right in substance, **not separately measured**.
+
+**Two of the five were unscorable-as-intended because of the very defect the item found**, which
+is worth more than the three that scored.
+
+## NOT DONE
+
+* **Arm 4 is NOT promoted.** It remains a ceiling, pre-committed before any figure was read, and
+  `DECISION_index_choice.md` still offers three options — pinned by test.
+* **`INDEX-BEST`'s pick is not revisited** and nothing is adopted.
+* **The arm-2 name split is NOT re-run on a construction that would make the trim bind.** Doing
+  that needs its own register: the obvious fix — scaling the trim with the half — is a different
+  construction from the one Don would deploy, so it would answer a third question.
+* **No holdout is spent.** Everything is 2009-2026.
+
+`scripts/index_choice_arm4.py`, `scripts/index_choice_arm4_factors.py`,
+`tests/test_index_choice_arm4.py`; `data/free_analysis/INDEX_CHOICE_ARM4.json`,
+`INDEX_CHOICE_ARM4_FACTORS.json` (gitignored).
