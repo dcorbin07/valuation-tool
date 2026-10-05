@@ -748,6 +748,26 @@ fails.** CI confirms the arithmetic: `1/2`.
 
 **So it will fail on every weekday, not intermittently**, and re-pushing will not clear it.
 
+### 9a. THE ROOT CAUSE, AND IT IS `B7`'s FAMILY — TWO DEFINITIONS OF "TODAY"
+
+The paragraph above describes the symptom correctly and does not name the cause. Measured, the
+cause is that **the writer and the reader use two different clocks**:
+
+* `paper_track.index_point` stamps `as_of = (_d(today) or _session_today())`, carrying the comment
+  **`# ITEM 20: session, not UTC`** — so it records the last **trading session**, which at
+  00:04 UTC on Monday 2026-10-05 is **Friday 2026-10-02**.
+* `recap.health_note` builds its denominator from **`dt.date.today()`**, the runner's **UTC
+  calendar date**, which is **Monday 2026-10-05**.
+
+So `born` is Friday and `today` is Monday, `expected` becomes `[Oct 2, Oct 5]`, `got` is
+`{Oct 2}`, and the note reports `1/2`. **The two clocks agreed for as long as the UTC date was a
+non-trading day — the whole weekend — and diverged the moment it was not.**
+
+That is `B7`'s defect in a new costume: one concept, two definitions, in two modules. **`ITEM 20`
+already fixed it on the writer and the reader never received the same fix**, which is also why
+the obvious repair is the narrow one — have `health_note` ask for the session date rather than
+the UTC date — and why it is the owning lane's to make, since it changes what their check means.
+
 ### Why this is the pattern this record already named
 
 `CLAUDE.md` states it in one line: *"a guard asserting 'these two numbers are equal today' fires
