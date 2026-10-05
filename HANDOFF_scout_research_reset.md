@@ -768,6 +768,31 @@ already fixed it on the writer and the reader never received the same fix**, whi
 the obvious repair is the narrow one — have `health_note` ask for the session date rather than
 the UTC date — and why it is the owning lane's to make, since it changes what their check means.
 
+### 9b. PROVEN RATHER THAN ASSERTED, AND REPRODUCIBLE IN ONE COMMAND
+
+`python -m scripts.diagnose_paper_track_clock` moves **only the reader's date** and reproduces
+CI's failure, including its exact string, on this machine where the suite otherwise passes
+70/70. It **edits nothing.**
+
+```
+what the WRITER recorded (paper_track.index_point, _session_today):  ['2026-10-02']
+real calendar today on this machine:                                  2026-10-04 (Sunday)
+
+reader on Sunday  -> "cycle recorded 1/1 sessions since inception."                    passes
+reader on Monday  -> "cycle recorded 1/2 sessions ...; **a missed session means the
+                      track has a hole in it, not a flat day**."                        FAILS
+```
+
+`first` and `sessions_in_window` are **identical** in both readings — `['2026-10-02']` — so
+nothing about the recorded data differs. The denominator moved because the reader's calendar did.
+
+**A note on the probe itself, because the first version of it did NOT reproduce the failure and
+that was my error rather than evidence against the diagnosis:** `collect` and `health_note` each
+carry their **own** `day` parameter, so passing the date to `collect` alone leaves the reader on
+the real clock and the test still passes. Both have to be moved. A probe that exercises one of
+two clocks is measuring the wrong thing, and a "could not reproduce" from it would have been a
+vacuous pass — the same shape as a control that scores perfectly by comparing nothing.
+
 ### Why this is the pattern this record already named
 
 `CLAUDE.md` states it in one line: *"a guard asserting 'these two numbers are equal today' fires
