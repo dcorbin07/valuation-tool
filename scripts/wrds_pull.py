@@ -556,11 +556,29 @@ def reconcile(db, product: str, root: str = "") -> dict:
     """
     spec = PRODUCTS[product]
     lib, tbl = spec["lib"], spec["table"]
-    n = int(db.raw_sql(f"select count(*) as n from {lib}.{tbl}")["n"].iloc[0])
+    # THE SOURCE COUNT MUST BE TAKEN OVER THE SAME WINDOW THAT WAS PULLED, or this check reports
+    # a false shortfall for every windowed product -- which is the failure mode the last
+    # paragraph above warns about, caused by the `years` key being added without updating it.
+    # Measured when it happened: `crsp_dsf` read "SHORT BY 13,544,293" and `comp_fundq` "SHORT BY
+    # 59,055", and both differences were exactly the pre-window years that were deliberately
+    # never requested. A completeness check that cries wolf on a deliberate scope is worse than
+    # none, because the one real hole it exists to catch then looks like more of the same.
+    span = spec.get("years")
+    where, scope = "", "all"
+    if span and spec.get("year_col"):
+        yc = spec["year_col"]
+        lo, hi = int(span[0]), int(span[1])
+        # `or {yc} is null` because a NULL-date row belongs to no year and IS pulled, by the
+        # `nulldate` chunk -- so excluding it here would re-open the hole from the other side.
+        where = (f" where ({yc} >= '{lo}-01-01' and {yc} < '{hi + 1}-01-01') "
+                 f"or {yc} is null")
+        scope = "%d-%d plus null-dated" % (lo, hi)
+    n = int(db.raw_sql(f"select count(*) as n from {lib}.{tbl}{where}")["n"].iloc[0])
     man = load_manifest(root)
     got = sum(r.get("rows", 0) for k, r in man.items()
               if r.get("product") == product and r.get("status") in ("ok", "empty"))
     res = {"product": product, "source_rows": n, "pulled_rows": got,
+           "source_scope": scope,
            "difference": n - got,
            "reconciles": n == got}
     print(f"[wrds] {product}: source {n:,} vs pulled {got:,} "
