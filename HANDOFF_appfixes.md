@@ -182,6 +182,56 @@ within-date **z-score**, where `cheap_drawdown` reads `extra.high_prox`, the raw
 one it names. And its health subs listed `value` where `HEALTH_FLOORS` is quality/health/
 **growth**, so every row was rejected on health before reaching the subject.
 
+## LIVE VERIFICATION — THE DIP SCREEN, AND WHAT THE REMAINING THINNESS ACTUALLY IS
+
+`GET https://valquo.co/api/dip?min_drawdown=<t>`, after the land:
+
+| threshold | eligible | qualified on depth | valued | **rows** | health-rejected | shallow | withheld |
+|---|---|---|---|---|---|---|---|
+| 0.10 | 227 | 204 | 12 | **2** | 8 | 2 | 2 |
+| 0.20 | 227 | 152 | 12 | **2** | 9 | 1 | 5 |
+| 0.30 | 227 | 122 | 12 | **3** | 8 | 1 | 4 |
+| 0.40 | 227 | 95 | 12 | **2** | 10 | 0 | 5 |
+
+**It was 0 at every one of those thresholds before.** `rejected_checks` is now **4** at all four
+— the row-level site alone, which is what it was always supposed to mean — and the twelve
+valuations are fully accounted for: at 0.10, 8 fail health, 2 are shallower than asked, 2 are
+rows. The names span the range they were asked for (0.10 returns PEGA at −47.8% and FSM at
+−18.2%).
+
+**THE REMAINING THINNESS IS THE HEALTH GATE, AND IT IS THE SCREEN'S OWN PREMISE WORKING.**
+I suspected a third instance of the refusal-as-answer defect here — item 26 WITHHOLDS the
+health sub-score for the `reit` and `regulated` regimes, and `health_check` counts a missing
+sub-score as a failure. Measured on the live rejects: **1 of 8** (SBS, a regulated water
+utility — so the mechanism is real) and the other **7 are genuinely BELOW the floors**
+(quality 5, growth 2, health 1). So the gate is doing real work and this is not that defect at
+any material scale.
+
+**THE BUDGET WAS MEASURED RATHER THAN RAISED, AND THE FIRST MEASUREMENT MISLED ME.**
+`?shortlist=` already accepts up to `MAX_SHORTLIST` = 25 on the live service, so the ceiling is
+measurable without deploying anything:
+
+| threshold | rows at 12 | rows at 25 | cold latency at 25 |
+|---|---|---|---|
+| 0.10 | 2 | **4** | 27.2 s |
+| 0.20 | 2 | **2** | 20.7 s |
+| 0.30 | 3 | **5** | 10.1 s |
+
+I read the 0.20 row first — 13 more valuations, zero more rows — and concluded that a bigger
+budget buys nothing. **On three thresholds it buys +2 at two of them**, a marginal survival
+rate near 15%. One cell is not a curve, and that is the second time in this item a partial
+reading pointed the wrong way.
+
+**THE DEFAULT STAYS AT 12 AND THIS IS DON'S CALL, NOT MINE.** Doubling it roughly doubles the
+rows and costs **10–27 seconds on the first request of each cache window** on a 512 MB
+instance (warm is 0.5 s either way, because the valuations share the single-name page's TTL
+cache). That is a product trade-off between a fuller list and a page people wait for, and
+`?shortlist=25` works today for anyone who wants the fuller one. **What is NOT a trade-off:
+healthy companies trading far below their own high are genuinely rare, so a short list here is
+the market rather than the wiring** — which is exactly the sentence the page was previously
+unable to earn, because it was returning nothing for a reason that had nothing to do with the
+market.
+
 ## THREE DEFECTS THE FULL GATE CAUGHT THAT MY OWN VERIFICATION DID NOT, AND THE FIRST IS THE HARNESS
 
 **MY AFFECTED-SUITES RUNNER REPORTED 19 OF 19 PASSING AND COULD NOT HAVE REPORTED OTHERWISE.**
