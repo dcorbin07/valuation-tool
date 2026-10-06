@@ -1057,6 +1057,41 @@ def main(argv=None) -> int:
     # is derived, so the level and the 13F values cannot end up dated to different quarters.
     M.fetch_all(snapshot=_served_path, slice_i=_si, slice_n=_sn,
                 shares_asof=_period_end(per))
+    # THE FORM 4 LEG THE CACHE ACTUALLY READS, and until now nothing ran it.
+    #
+    # THE DEFECT, measured on the 2026-10-05 build: `theme_columns.json` came out with
+    # `insider_score` coverage **0.012** against `inst_accum` 0.8547, and the live hot list
+    # showed `theme_contributing.insider` 0.01 against `institutional` 0.83. There were TWO
+    # insider producers and the cache writer read the one nothing filled:
+    #
+    #   * `M.fetch_all`'s `insider` leg writes `live_themes/insider/<t>.json` -- it ran for all
+    #     1,500 names, and it TRAVELS to the assemble job in the artifact;
+    #   * `F2.build_live` reads `live_themes/form4_live/<t>.json` (`_f4 = f4_dir or
+    #     F4_DIR_LIVE`), written ONLY by `F2.fetch4(current=True)` -- which `main()` never
+    #     called. The workflow also deliberately keeps `form4_live` out of both the cache and
+    #     the artifact, so it starts empty in this job every time.
+    #
+    # THE FIX IS TO RUN THE MISSING PRODUCER, NOT TO REPOINT THE READER, and the panel settles
+    # which is right. `insider_detail` (the crawl leg) returns **50.0** for a quiet window;
+    # `insider_score_from_txns` (what `build_live` uses) returns **None**. The panel's own
+    # `_insider_score` returns `None` when `net == 0 and buys == 0` -- so the gated formula
+    # matches the panel and the 50.0 is the deviation. Repointing the reader at the crawl leg
+    # would have lifted coverage to ~85% of names ALL SITTING AT EXACTLY 50, which is the
+    # 179-name tie block `FIDELITY-2` rejected: it would have looked fixed and measured nothing.
+    #
+    # WHY COVERAGE SHOULD CLEAR THE BAR ONCE THIS RUNS: the panel scores insider over the SAME
+    # 90-day lookback and reaches 83.1% coverage, so a correctly-populated window is expected to
+    # land near there rather than near zero.
+    #
+    # IT RUNS IN THE ASSEMBLE JOB ONLY. A shard crawls a third of the universe, and `fetch4`
+    # SKIPS any name whose payload already exists -- so a shard's partial `form4_live` would be
+    # indistinguishable from a complete one to the next step. The shards return below without
+    # reaching this.
+    if not a.slice:
+        print("  form 4       crawling the CURRENT window into form4_live (the directory "
+              "build_live reads)", flush=True)
+        F2.fetch4(current=True, snapshot=_served_path)
+
     if a.slice:
         # A SHARD MUST NOT ASSEMBLE. It has fetched a third of the universe, so a cache built
         # here would cover a third and carry no sign of it -- the worst available outcome, since
@@ -1100,6 +1135,13 @@ def main(argv=None) -> int:
                         period_prior=per["prior"], cache_path=cache_path(),
                         periods_source=_src)
     print("built %s rows for %s served names" % (len(out["rows"]), out["n_served"]))
+    # THE INSIDER COLUMN GETS ITS OWN LINE, because it is the one that was silently empty and a
+    # coverage dict buried in a `wrote ...` line is what let 0.012 go unnoticed for a build.
+    _cov = (out.get("coverage") or {})
+    if "insider_score" in _cov:
+        _ic = _cov["insider_score"]
+        print("  insider      coverage %.4f%s" % (_ic, "" if _ic >= 0.5 else
+              "   <-- BELOW 0.5: form4_live was not populated, or the window is genuinely quiet"))
     return 0
 
 

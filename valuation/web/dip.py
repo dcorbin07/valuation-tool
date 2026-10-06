@@ -265,6 +265,46 @@ def _z_high_prox(row: dict):
 PRESELECT_SLACK = 0.05
 
 
+def spread_across(seq, k: int):
+    """`k` items taken EVENLY ACROSS `seq` by rank, both ends included.
+
+    WHY THE SCREEN NEEDS THIS. `seq` is the qualifying names ordered DEEPEST FIRST, and the
+    budget used to be `seq[:k]` -- so at `min_drawdown=0.10` the live service qualified 204
+    names, valued the 12 deepest, and showed two: APP and PODD, both about 60% down. A user
+    asking for "down 10%" saw only the most extreme crashes in the market, and the page gave no
+    sign that the other 192 qualifiers had never been looked at.
+
+    RAISING THE CAP IS NOT THE FIX AND WAS MEASURED, NOT ASSUMED: `_get_or_compute` falls
+    through to a full `value_ticker` on a cache miss, so 204 valuations is 204 computations
+    inside one request on a 512 MB instance. The budget stays; what changes is that it buys a
+    SAMPLE OF THE WHOLE RANGE instead of the tail of it.
+
+    DETERMINISTIC AND ENDPOINT-INCLUSIVE. The deepest name is always kept -- it is the one the
+    page is most likely to be asked about -- and so is the shallowest qualifier, which is what
+    makes the result span the request. Rounding collisions are topped up in rank order so the
+    budget is always fully spent rather than quietly under-used.
+    """
+    n = len(seq)
+    if k is None or k <= 0 or n == 0:
+        return []
+    if n <= k:
+        return list(seq)
+    if k == 1:
+        return [seq[0]]
+    step = (n - 1) / float(k - 1)
+    idx = []
+    for i in range(k):
+        j = int(round(i * step))
+        if j not in idx:
+            idx.append(j)
+    for j in range(n):                       # top up after rounding collisions
+        if len(idx) >= k:
+            break
+        if j not in idx:
+            idx.append(j)
+    return [seq[j] for j in sorted(idx)[:k]]
+
+
 def cheap_drawdown(row: dict):
     """This row's drawdown from the snapshot alone, or None. NO VALUATION, NO NETWORK.
 
@@ -397,12 +437,57 @@ def screen(rows: List[dict],
         floor = max(0.0, min_drawdown - PRESELECT_SLACK)
         # A name with NO free drawdown is kept, not dropped: on a part-populated snapshot the
         # unknown names are exactly the ones a strict rule would silently delete.
-        qualified = [(r, c) for r, c, dd in cheap if dd is None or dd >= floor]
+        # SPLIT, BECAUSE THE TWO HALVES DESERVE THE BUDGET DIFFERENTLY. `known` passed the depth
+        # floor on a reading from the scan; `unknown` is kept only because the snapshot carries
+        # no depth for it and a strict rule would silently delete exactly the names it cannot
+        # see. Both are QUALIFIED for counting; only `known` is known to be worth a valuation.
+        known = [(r, c) for r, c, dd in cheap if dd is not None and dd >= floor]
+        unknown = [(r, c) for r, c, dd in cheap if dd is None]
+        qualified = known + unknown
+        # THE TWO POPULATIONS ARE NOT NESTED, WHICH IS WHY THE NOTE READ "204-of-163".
+        # `n_qualified` counts names kept on depth PLUS names kept because their depth is
+        # unknown; `n_with_cheap` counts only the ones a depth could be read for. So the first
+        # can exceed the second, and the live page said "the 204-of-163 eligible names" -- a
+        # ratio of two different denominators, which is impossible on its face and is the kind
+        # of number a reader stops trusting the rest of the payload over. They are now counted
+        # and reported separately.
+        n_depth_pass = sum(1 for _, _, dd in cheap if dd is not None and dd >= floor)
+        n_depth_unknown = sum(1 for _, _, dd in cheap if dd is None)
     else:
         qualified = [(r, c) for r, c, _ in cheap]
+        n_depth_pass, n_depth_unknown = 0, len(qualified)
     n_qualified = len(qualified)
     capped = max(0, n_qualified - shortlist) if shortlist and shortlist > 0 else 0
-    measured_set = qualified[:shortlist] if (shortlist and shortlist > 0) else qualified
+    # SPREAD ACROSS THE QUALIFIERS RATHER THAN THE DEEPEST N -- see `spread_across`. Identical
+    # cost, and the rows returned now span the range the caller asked for instead of being the
+    # extreme tail of it.
+    #
+    # ONLY WHEN THE PRESELECTOR IS AVAILABLE, and that distinction is load-bearing rather than
+    # defensive. Spreading requires knowing WHICH names qualify; without a free depth reading
+    # `qualified` is just every eligible name ordered by `z_high_prox`, so a spread would value
+    # names that are barely down at all -- precisely what item 23 stopped doing. With no free
+    # depth the exact z-ordering is the best available information and the deepest-N prefix is
+    # the right spend. Two of this module's own tests pin that fallback and caught the first cut
+    # of this change doing it wrong.
+    if not (shortlist and shortlist > 0):
+        measured_set = qualified
+    elif preselect_available:
+        # SPREAD ACROSS THE *KNOWN* QUALIFIERS, AND THE FIRST CUT OF THIS GOT IT WRONG ON THE
+        # LIVE SERVICE. Spreading across `qualified` sampled the 64 depth-UNKNOWN names too --
+        # about a third of the budget -- and those are precisely the names least likely to clear
+        # the threshold once measured. Measured at `min_drawdown=0.10`: 12 valued,
+        # `rejected_health` 0, `n_unmeasured` 0, and **0 rows returned**, where the old
+        # deepest-first behaviour returned 2. That is item 23's defect reintroduced by the fix
+        # for a different one: a valuation spent on a name that was never going to qualify.
+        #
+        # The unknowns stay REACHABLE -- they take whatever budget the known set does not use --
+        # so a snapshot with little depth coverage still measures them rather than dropping
+        # them silently.
+        measured_set = spread_across(known, shortlist)
+        if len(measured_set) < shortlist:
+            measured_set = measured_set + unknown[:shortlist - len(measured_set)]
+    else:
+        measured_set = qualified[:shortlist]
 
     # F-11 (audit #5 H2's consequence). `rejected_health` was a COUNT, and the identities were
     # discarded -- which is why `dip_rejects` had no source and recorded a fabricated zero. The
@@ -410,6 +495,7 @@ def screen(rows: List[dict],
     # not recomputed: a second implementation of "which names fail the health floors" is
     # exactly how a screen and a book come to disagree about what they screened.
     out, unmeasured, rejected_health, health_rejects = [], 0, 0, []
+    rejected_shallow = 0
     for r, checks in measured_set:
         m = measure(r) or {}
         dd = m.get("drawdown")
@@ -450,6 +536,14 @@ def screen(rows: List[dict],
             })
             continue
         if dd < min_drawdown:
+            # COUNTED, because "valued and then found too shallow" was invisible. With
+            # `rejected_health` 0 and `n_unmeasured` 0 and no rows, the only way to tell where
+            # twelve valuations went was to reason about it -- which is how the first cut of the
+            # spread shipped. The free depth is a RATIO from the snapshot and the measured
+            # drawdown is a real price path, so some disagreement near the floor is expected and
+            # `PRESELECT_SLACK` exists for it; a large count here means the budget is being
+            # spent on names that do not qualify.
+            rejected_shallow += 1
             continue
         out.append(Row({
             "ticker": r.get("ticker"),
@@ -505,18 +599,33 @@ def screen(rows: List[dict],
         # looked at the market.
         "n_checked_for_depth": n_with_cheap if preselect_available else 0,
         "n_qualified_on_depth": n_qualified if preselect_available else None,
+        # THE THREE COUNTS THAT ACTUALLY NEST, so a reader can add them up. `n_qualified_on_depth`
+        # is the sum of the two below, and `n_checked_for_depth` is how many of the eligible
+        # names a depth could be read for at all.
+        "n_depth_pass": n_depth_pass if preselect_available else None,
+        "n_depth_unknown_kept": n_depth_unknown if preselect_available else None,
+        "selection": ("spread across the qualifying range" if (
+            preselect_available and shortlist and shortlist > 0 and n_qualified > shortlist)
+            else ("deepest first (no free depth reading)" if (
+                shortlist and shortlist > 0 and n_qualified > shortlist)
+                else "all qualifiers")),
         "preselect_available": preselect_available,
         "preselect_slack": PRESELECT_SLACK,
         "preselect_note": (
-            ("the %d-of-%d eligible names deep enough to be worth valuing were valued, up to "
-             "the per-request limit; depth is read from the scan at no cost and the valuation "
-             "is spent only on names that pass it"
-             % (n_qualified, n_with_cheap)) if preselect_available else
+            ("%d of the %d eligible names qualified on depth (%d read from the scan, %d kept "
+             "because the scan carries no depth for them); %d were valued, SPREAD ACROSS the "
+             "qualifying range rather than taken from the deepest end, so the rows span the "
+             "depth you asked for. Depth is read from the scan at no cost; a valuation is not, "
+             "which is why it is capped."
+             % (n_qualified, n_eligible, n_depth_pass, n_depth_unknown,
+                len(measured_set))) if preselect_available else
             ("this scan snapshot carries no 52-week-high ratio, so depth could not be read "
              "without a valuation and only the deepest-ranked names were checked. A scan run "
              "after this change will carry it.")),
         "rejected_prefilter": rejected_prefilter,
         "rejected_health": rejected_health,
+        # Measured, and then shallower than the threshold the caller asked for.
+        "rejected_shallow": rejected_shallow,
         # ADDITIVE. Every existing consumer reads `rows`, and this changes none of them.
         "health_rejects": health_rejects,
         "rejected_checks": rejected_checks,
