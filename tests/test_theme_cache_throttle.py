@@ -638,6 +638,14 @@ class TheGapsMutationFound(unittest.TestCase):
         TC.period_market_caps = lambda *a, **k: {}
         _f2 = TC.F2
         class _Stub:
+            # `fetch4` ADDED by item 33(a): `main()` now runs the Form 4 producer that fills
+            # `form4_live`, the directory `build_live` reads. Stubbed here because this test is
+            # about the 13F fallback decision and must not crawl SEC.
+            @staticmethod
+            def fetch4(**kw):
+                _Stub.f4 = kw
+                return {}
+
             @staticmethod
             def build_live(**kw):
                 _Stub.seen = kw

@@ -14761,3 +14761,121 @@ minutes, then builds from the last confirmed window and says so**, instead of wr
 **Don needs to re-run the themes job**, and after the next hot scan the live check should report
 `institutional` and `insider` above 0.50. `scripts/live_theme_sources.py`,
 `scripts/theme_cache_build.py`, `tests/test_theme_cache_throttle.py`.
+
+
+# SESSION 90 - ITEM 33: THE INSIDER LEG, THE DIP SCREEN'S TAIL, AND WHY THE FREE ROUTE DISAGREES
+
+## (a) INSIDER WAS DEAD BECAUSE THE CACHE WRITER READS A DIRECTORY NOTHING FILLS
+
+`themes-assemble` succeeded on 2026-10-05 and wrote `coverage {'inst_accum': 0.8547,
+'sm_breadth': 0.8547, **'insider_score': 0.012**}`. So the 13F leg worked and the Form 4 leg
+contributed nothing. **IT IS A `B7` SPLIT: two producers, and the writer reads the empty one.**
+
+* `M.fetch_all`'s `insider` leg writes `live_themes/**insider**/<t>.json` -- it ran for all 1,500
+  names (`insider 0+1500` in the log) and it **travels** to the assemble job in the artifact.
+* `F2.build_live` reads `live_themes/**form4_live**/<t>.json`, written ONLY by
+  `F2.fetch4(current=True)` -- which **`main()` never called**. The workflow also deliberately
+  keeps `form4_live` out of both the cache and the artifact, so it starts empty every time.
+
+**THE FIX RUNS THE MISSING PRODUCER RATHER THAN REPOINTING THE READER, AND THE PANEL DECIDES
+WHICH IS RIGHT.** `insider_detail` (the crawl leg) returns **50.0** for a quiet window;
+`insider_score_from_txns` (what `build_live` uses) returns **None**; and
+`fundamental_panel._insider_score` returns **None** when `net == 0 and buys == 0`. So the gated
+formula matches the panel and the 50.0 is the deviation. **Repointing the reader would have
+lifted coverage to ~85% of names all sitting at exactly 50** -- the 179-name tie block
+`FIDELITY-2` rejected. It would have looked fixed and measured nothing, which is why "coverage
+went up" is not the property under test.
+
+**WHY IT SHOULD CLEAR THE BAR:** the panel scores insider over the SAME 90-day lookback and
+reaches **83.1%** coverage, so a correctly-populated window is expected near there, not near
+zero. It runs in the **assemble job only** -- a shard holds a third of the universe and `fetch4`
+SKIPS names whose payload exists, so a shard's partial `form4_live` would be indistinguishable
+from a complete one.
+
+## (b) THE DIP SCREEN SPENT ITS WHOLE BUDGET ON THE DEEPEST TAIL, AND MISCOUNTED
+
+At `min_drawdown=0.10` the live service qualified **204** names, valued **12**, showed **2** --
+APP and PODD, both about 60% down. A user asking for "down 10%" saw only the most extreme crashes.
+
+**THE IMPOSSIBLE COUNT.** The note read *"the 204-of-163 eligible names"*. `n_qualified` (204)
+counts names kept on depth **plus** names kept because their depth is UNKNOWN; `n_with_cheap`
+(163) counts only names a depth could be read for. The two are **not nested**, so the ratio was
+two different denominators. There are now three counts that add up -- `n_depth_pass`,
+`n_depth_unknown_kept`, and their sum -- and the note reads *"N of the M eligible names
+qualified on depth (X read from the scan, Y kept because the scan carries no depth for them);
+Z were valued"*.
+
+**THE BUDGET NOW BUYS A SAMPLE OF THE RANGE.** `spread_across` takes the shortlist evenly across
+the qualifying order, both ends included, spending the budget fully. 204 qualifiers at a budget
+of 12 now sample ranks 0, 18, 37 ... 185, 203 instead of 0-11.
+
+**RAISING THE CAP IS NOT THE FIX, MEASURED NOT ASSUMED:** `_get_or_compute` falls through to a
+full `value_ticker` on a cache miss, so 204 qualifiers is 204 valuations inside one request on a
+512 MB instance.
+
+**AND THE OTHER OPTION -- "use the scan's own fair values and health" -- IS ONLY HALF AVAILABLE.**
+Measured on the live snapshot: rows carry `fair_value` (**77 of 100**) and `extra.high_prox`
+(**82 of 100**) but **NO sub-scores**. `health_check` scores `HEALTH_FLOORS` against a
+valuation's `subs`, so health **cannot** be decided from the snapshot. Skipping the valuation
+would mean dropping the health gate, which is the thing this screen exists to apply.
+
+**THE SPREAD APPLIES ONLY WHERE DEPTH IS READABLE, and that distinction is load-bearing.** Without
+a free depth reading `qualified` is just every eligible name ordered by `z_high_prox`, so a spread
+would value names barely down at all -- exactly what item 23 stopped doing. **Two of this module's
+own tests caught the first cut of this change doing it wrong**, and one item-23 test whose
+docstring had predicted its own repoint (*"what changed is WHICH names compete for it"*) is
+repointed rather than deleted.
+
+## (c) WHY THE FREE ROUTE DISAGREES, AND THE HEADLINE NUMBER IS STALE
+
+`D9-SAMEDATE` (2026-10-02 both sides) read composite Spearman **0.2410** against a 0.80 bar and
+decile overlap **0.0625** against 0.60, while **value 0.8219, momentum 0.8984 and size 0.9876 all
+CLEAR** and quality reads **0.5343**. Three themes agreeing above 0.82 cannot produce a composite
+at 0.24 -- so the composite gap is not made of disagreement. **It is made of ABSENCE**, and the
+artifact says so directly.
+
+**MEASURED ON `D9_LIVE_2026-10-02.json`, 500 rows:**
+
+| theme | live column | state |
+|---|---|---|
+| value, quality, momentum | present | **served and discriminating** |
+| size | no `z_size`; derived from `market_cap` (500/500) | agrees **0.9876** |
+| **insider** | `z_insider` 500/500 non-null | **1 DISTINCT VALUE, 0.0 -- constant, discriminates nothing** |
+| **institutional** | `z_institutional` | **0/500 -- absent** |
+| **capital_discipline** | `z_capital_discipline` | **0/500 -- absent** (`z_neg_issuance` not served) |
+
+That is `V2G`'s finding exactly: **~42.9% of the weight mass contributing nothing**. The
+comparison was a seven-theme Sharadar composite against a live composite with three of seven
+themes inert or missing.
+
+**WHICH ARE FIXABLE, AND TWO ALREADY ARE:**
+
+* **`institutional` -- FIXED SINCE THE READING.** The theme cache built on 2026-10-05 and the
+  live hot list now reports `theme_contributing.institutional` **0.83**, up from 0.00. **The 0.24
+  predates this.**
+* **`insider` -- fixable, and (a) above is the fix.**
+* **`capital_discipline` -- the theme already contributes 0.96 live**; what `D9` could not read is
+  the `z_neg_issuance` COLUMN, and the issuance leg is reachable free from EDGAR XBRL.
+* **`quality` 0.5343 -- THE ONLY GENUINE SCORING DISAGREEMENT**, and the hard one: it is ten
+  fundamental inputs, so this is a data-quality divergence rather than a missing feed.
+
+**THE BINDING CONSTRAINT IS NOT SCORING AT ALL, AND IT IS THE ANSWER TO DON'S QUESTION.** The same
+artifact's coverage census: of the Sharadar top decile's **84** names, **48 are absent from the
+live universe entirely -- 57.1%** -- at a median market cap of **$21.5bn** against a tier median
+of **$29.0bn**. The live large-cap tier carries **177** rows against Sharadar's **835**, because
+the live snapshot persists 500 rows. **No amount of scoring fidelity fixes a universe that does
+not contain the names**, and the 158-name overlap makes B2's 16-name deciles a statistic where
+0.0625 is literally one name.
+
+**SO: DON CANNOT STOP RENTING SHARADAR ON THIS EVIDENCE, AND THE EVIDENCE IS ALSO NOT YET THE
+RIGHT TEST.** The 0.24 was measured with 43% of the weight mass dead, two thirds of which is now
+fixed or fixed in this commit. **The re-run after insider lands is the number that should decide
+it** -- and even a good score there leaves the universe-coverage gap, which is an app-lane
+persistence limit rather than a data-vendor one.
+
+**NOT DONE:** `D9`'s verdict is not re-opened and no bar is relaxed -- it was NO-GO and it is
+NO-GO; nothing here re-runs the comparison; and the quality divergence is NAMED, not diagnosed.
+
+**25 tests across two new suites, zero skips; the dip and theme suites green.**
+`scripts/theme_cache_build.py`, `valuation/web/dip.py`,
+`tests/test_item33_insider_leg.py`, `tests/test_item33_dip_spread.py`.
