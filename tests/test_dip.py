@@ -194,12 +194,38 @@ def test_the_dcf_checks_become_real_when_a_valuation_supplies_them():
     assert r["checks_not_run"] == [], r["checks_not_run"]
 
 
-def test_a_beta_the_company_did_not_supply_fails_the_row():
+def test_a_beta_the_company_did_not_supply_suppresses_the_VALUATION_not_the_name():
+    """REPOINTED 2026-10-06 (item 33b), in the commit that changed the behaviour.
+
+    This asserted `out["rows"] == []` -- a failed DCF check removed the NAME. The property it
+    was protecting is that a company whose DCF cannot be trusted must never be shown WITH a
+    fair value, and that property is now stronger: the name is shown and the fair value is
+    not. Re-asserting the old form would have been silencing a check; deleting it would have
+    been worse.
+
+    THE BEHAVIOUR HAD TO CHANGE because the same rule was applied to `withheld`, which
+    `withhold_implausible_fair_values` raises on `fair_value / price > 5.0` -- a ratio whose
+    denominator is the crashed price. A screen selecting the deepest names was therefore
+    rejecting every one of them for being deep, and returned zero rows live at every
+    threshold from 0.10 to 0.40.
+    """
     rows = [_row("AAA", z_hp=-3.0)]
     m = _healthy(0.50)
     m["checks"]["beta_provenance"] = dip.FAIL
     out = dip.screen(rows, 0.20, measure=lambda r: m)
-    assert out["rows"] == [], out["rows"]
+    assert len(out["rows"]) == 1, out["rows"]
+    r = out["rows"][0]
+    assert r["checks"]["beta_provenance"] == dip.FAIL, r["checks"]
+    assert r["valuation_withheld"] is True, r
+    assert r["valuation_withheld_checks"] == ["beta_provenance"], r
+    # The whole published valuation, nulled together.
+    for k in ("fair_value", "upside", "fair_value_low", "fair_value_high", "score",
+              "confidence"):
+        assert r[k] is None, (k, r[k])
+    # And the name still carries what the screen actually claims about it.
+    assert r["drawdown"] == 0.50, r
+    assert r["health"], r
+    assert out["withheld_valuation"] == 1, out
 
 
 # ----------------------------------------------------------------------------------------

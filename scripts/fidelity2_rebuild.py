@@ -51,6 +51,25 @@ INSIDER_LOOKBACK_D = 90
 INSIDER_TANH_SCALE = 5e6
 INSIDER_BUY_BONUS = 2.0
 INSIDER_BUY_CAP = 10.0
+# The Form 4 elements the panel's row set contains. See `parse_form4_signed`.
+PARSED_TRANSACTION_TAGS = ("nonDerivativeTransaction", "derivativeTransaction")
+# A document fetch retries on a rate limit rather than banking "this name had no filings".
+FORM4_MAX_ATTEMPTS = 5
+#: Throttle budget for the document crawl, which is NOT the module default and the difference
+#: is deliberate.
+#:
+#: `Guard`'s own budget of 40 exists to stop a run BANKING A PARTIAL CENSUS -- the V2F failure,
+#: where two full-universe runs died on a vendor quota and nothing counted the refusals. This
+#: crawl does not bank a census: a name it could not read is left UNWRITTEN so the next run
+#: retries it, and `theme_cache_build` reports the coverage shortfall on its own line. So
+#: exhausting 40 across ~11,000 documents would kill the whole themes job -- losing the 13F
+#: legs that already downloaded, which is the expensive half -- to recover from a transient
+#: hiccup the next run would have picked up for free.
+#:
+#: 400 is ~3.5% of a full crawl. Past that SEC is refusing systematically rather than
+#: hiccupping, and stopping is the right answer: at that rate the coverage figure would be a
+#: statement about SEC's mood rather than about the quarter.
+FORM4_THROTTLE_BUDGET = 400
 
 ROOT = M.DEFAULT_ROOT
 F4_DIR = os.path.join(ROOT, "form4_aligned")
@@ -69,7 +88,8 @@ def _panel_asof() -> str:
 # ------------------------------------------------------------------------------------------
 
 def fetch13f() -> dict:
-    guard = M.Guard(min_interval=M.SEC_MIN_INTERVAL_S)
+    guard = M.Guard(min_interval=M.SEC_MIN_INTERVAL_S,
+                    budget=FORM4_THROTTLE_BUDGET)
     agg = {"by_period": {}, "shape": {}}
     for window, period in ((WINDOW_CURR_A, PERIOD_CURR_A), (WINDOW_PRIOR_A, PERIOD_PRIOR_A)):
         path = M.download_dataset(ROOT, window, guard)
@@ -161,12 +181,28 @@ def parse_form4_signed(xml: str) -> list:
     and signs the value with it. Summing the live parser's unsigned values would make `net` a
     gross turnover figure, which is a different quantity again — the exact error this whole task
     exists to stop.
+
+    **IT READS DERIVATIVE TRANSACTIONS TOO, AND KEEPS ZEROS, BECAUSE THE PANEL DOES.** The first
+    cut read `nonDerivativeTransaction` only and dropped any row valuing to zero. Measured
+    against the panel's own source on its own 90-day window (SF2, filing dates 2026-04-02 ..
+    2026-07-01): the panel scores **1,928** names and that rule reaches **1,761** -- **167
+    names, 8.7%, lost**, of which **54** have derivative rows only and **113** value entirely to
+    zero. SF2 is 22.3% derivative-shaped and 532,710 of its valuable rows are derivative, so
+    this is the panel's row set rather than a widening chosen for its effect.
+
+    NOT taken: SF2's `transactionvalue` fallback for a row with shares but no price. Form 4 XML
+    carries no such field, so there is nothing to fall back TO -- and it is worth **0.06%** of
+    rows, which is why the absence costs nothing.
     """
     import xml.etree.ElementTree as ET
     root = ET.fromstring(xml)
     out = []
     for tx in root.iter():
-        if not tx.tag.endswith("nonDerivativeTransaction"):
+        # MATCH THE LOCAL NAME EXACTLY. `endswith("derivativeTransaction")` would be a trap --
+        # the element is `nonDerivativeTransaction` with a CAPITAL D, so the lowercase suffix
+        # happens not to match today and the next reader cannot see that it is deliberate.
+        local = tx.tag.rsplit("}", 1)[-1]
+        if local not in PARSED_TRANSACTION_TAGS:
             continue
         code = (tx.findtext(".//transactionCoding/transactionCode") or "").strip()
         sh = tx.findtext(".//transactionAmounts/transactionShares/value")
@@ -177,7 +213,13 @@ def parse_form4_signed(xml: str) -> list:
             val = float(sh) * float(px)
         except (TypeError, ValueError):
             continue
-        if not val:
+        # A ZERO IS A TRANSACTION, AND DROPPING IT IS NOT THE SAME AS NOT HAVING ONE.
+        # `_prep_insider` keeps every row where `val is not None`, zeros included, and
+        # `_insider_score_at` then returns `_insider_formula(0, 0)` = **50** for a window of
+        # zeros while returning `None` only when the window is EMPTY (`b <= a`). The two cases
+        # are different in the panel and `if not val: continue` collapsed them, so a name whose
+        # quarter was all $0 grants read as "no opinion" here and "neutral" there.
+        if val is None:
             continue
         out.append((code, val if ad == "A" else -val))
     return out
@@ -273,20 +315,51 @@ def fetch4(limit: int | None = None, current: bool = False,
     def _one(job):
         t, cik, picks, out_p = job
         rec = {"ticker": t, "window": [lo, hi], "n_filings": len(picks),
-               "txns": [], "parsed": 0, "parse_failures": 0, "fetch_failures": 0}
+               "txns": [], "parsed": 0, "parse_failures": 0, "fetch_failures": 0,
+               "throttled": 0, "refused": 0}
         if cik is None:
             rec["no_cik"] = True
             M._atomic_write_json(out_p, rec)
-            return t, 0
+            # THE SAME SHAPE AS THE OTHER RETURN. Widening this function's return from a count
+            # to the record and leaving the early exit at `0` made the caller's tally read
+            # `rec["throttled"]` off an int -- caught by `test_theme_cache_fresh_runner`, which
+            # is the only suite that drives `main()` end to end with a name whose CIK is
+            # unknown. Two returns from one function must agree about what they return.
+            return t, rec
         from valuation.screener.insider import form4_xml_url
         import requests
         for acc, doc, _d in picks:
-            try:
-                guard.wait()
-                url = form4_xml_url(int(cik), acc, doc)
-                xml = requests.get(url, headers=M._headers(), timeout=25).text
-            except Exception:                                    # noqa: BLE001
-                rec["fetch_failures"] += 1
+            # A RATE LIMIT IS NOT AN ANSWER, AND THIS LOOP USED TO RECORD IT AS ONE. The fetch
+            # was `requests.get(...).text` with no status check, so SEC's 403 body -- plain
+            # prose about undeclared automated tools -- went to `parse_form4_signed`, raised in
+            # `ET.fromstring`, and landed as a parse failure. A name whose every document took
+            # one is then left unwritten, so the next step reads "no insider data" rather than
+            # "SEC refused us". Measured on the 2026-10-06 run: 1,116 names crawled, **153**
+            # written. Same distinction `theme_cache_build` already had to make for the 13F
+            # probe; this is it one leg along.
+            xml = None
+            for attempt in range(FORM4_MAX_ATTEMPTS):
+                try:
+                    guard.wait()
+                    url = form4_xml_url(int(cik), acc, doc)
+                    r = requests.get(url, headers=M._headers(), timeout=25)
+                except Exception:                                # noqa: BLE001
+                    rec["fetch_failures"] += 1
+                    break
+                if r.status_code in M.THROTTLE_STATUS:
+                    rec["throttled"] += 1
+                    guard.throttled(attempt)
+                    continue
+                if r.status_code != 200:
+                    rec["fetch_failures"] += 1
+                    break
+                xml = r.text
+                break
+            if xml is None:
+                # Exhausting the retries is a REFUSAL, not an empty filing. Counted separately
+                # so a thin crawl says which it was.
+                if rec["throttled"]:
+                    rec["refused"] += 1
                 continue
             try:
                 txns = parse_form4_signed(xml)
@@ -300,26 +373,59 @@ def fetch4(limit: int | None = None, current: bool = False,
         # left absent so the next run retries it -- otherwise coverage inflates by hitting a wall.
         if rec["n_filings"] == 0 or rec["parsed"] > 0:
             M._atomic_write_json(out_p, rec)
-        return t, rec["parsed"]
+        return t, rec
 
     done = 0
+    tally = {"written": 0, "with_txns": 0, "no_filings": 0, "all_documents_failed": 0,
+             "throttled_documents": 0, "refused_documents": 0, "fetch_failures": 0,
+             "parse_failures": 0}
     with ThreadPoolExecutor(max_workers=4) as ex:
-        for t, n in ex.map(_one, jobs):
+        for t, rec in ex.map(_one, jobs):
             done += 1
+            tally["throttled_documents"] += rec["throttled"]
+            tally["refused_documents"] += rec["refused"]
+            tally["fetch_failures"] += rec["fetch_failures"]
+            tally["parse_failures"] += rec["parse_failures"]
+            if rec["n_filings"] == 0:
+                tally["no_filings"] += 1
+                tally["written"] += 1
+            elif rec["parsed"] > 0:
+                tally["written"] += 1
+                if rec["txns"]:
+                    tally["with_txns"] += 1
+            else:
+                tally["all_documents_failed"] += 1
             if done % 50 == 0:
                 print(f"  ...{done}/{len(jobs)}", flush=True)
-    print(f"crawled {done} names; cached {len(os.listdir(out_dir))}")
-    return {"names": done}
+    # THE REASON SHIPS WITH THE COUNT. `cached <n>` alone was the only visible number and it
+    # could not tell a quiet quarter from a refused crawl -- the 2026-10-06 run read
+    # "cached 538" and the 963 lost names had to be inferred from a subtraction two steps away.
+    print(f"crawled {done} names; cached {len(os.listdir(out_dir))}", flush=True)
+    print("  written %d (with transactions %d, no filings in window %d)"
+          % (tally["written"], tally["with_txns"], tally["no_filings"]), flush=True)
+    print("  LOST: every document failed for %d names  (throttled %d, refused %d, "
+          "fetch failures %d, parse failures %d)"
+          % (tally["all_documents_failed"], tally["throttled_documents"],
+             tally["refused_documents"], tally["fetch_failures"],
+             tally["parse_failures"]), flush=True)
+    return {"names": done, **tally}
 
 
-def insider_column() -> dict:
-    """The PANEL's score, verbatim, on the aligned window. None when the window is empty."""
+def insider_column(f4_dir: str = None) -> dict:
+    """The PANEL's score, verbatim, on the aligned window. None when the window is empty.
+
+    `f4_dir` DEFAULTS TO WHAT THIS FUNCTION ALREADY READ, so `insider_column()` is unchanged.
+    It exists because the cached payloads hold already-PARSED transactions: re-measuring the
+    gate under a changed `parse_form4_signed` needs a fresh crawl, and that crawl must not
+    overwrite the banked control input it is being compared against.
+    """
     served = M.load_served()
+    _dir = f4_dir or F4_DIR
     out, shape = {}, {"scored": 0, "empty_window_none": 0, "unreadable": 0}
     for row in served:
         t = row["ticker"]
         out[t] = None
-        rec = M._read_json(os.path.join(F4_DIR, f"{t}.json"))
+        rec = M._read_json(os.path.join(_dir, f"{t}.json"))
         if rec is None:
             shape["unreadable"] += 1
             continue
