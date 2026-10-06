@@ -20873,3 +20873,148 @@ mine.
 
 `scripts/d9_fidelity.py`, `tests/test_d9_samedate_keying.py`;
 `data/free_analysis/D9_FIDELITY_SAMEDATE.json` (gitignored).
+
+---
+
+# POOL-SIZE — wider kept helping to the full pool on both periods, and the gain is a size bet
+
+**2026-10-05. THREE equity trials, 259 → 262.** Register `PREREG_pool_size.md` committed **ALONE
+at `2ba5adc`** (232 lines, markdown only), a strict ancestor of every measurement commit; the
+trials booked at **`18ee2f3` BEFORE any runner existed**. Diagnostics charged **zero** as
+censuses. **ADOPTS NOTHING** — the pool choice is a vintage event and Don's.
+
+## The ladder, 2009-2026
+
+`C1` reproduced **three** already-banked `INDEX-BEST` rungs at **max absolute deviation
+0.000e+00, `compared` = 12**, the count gated non-zero (`MB21`).
+
+| pool | net Roth | max DD | turnover | cost | under-$300M | SMB |
+|---|---|---|---|---|---|---|
+| incumbent $10B | 17.16% | −23.03% | 2.44 | 9.6bps | 0.0% | +0.08 |
+| 500 | 17.19% | **−20.24%** | 2.43 | 10.8bps | 0.0% | +0.05 |
+| 1,000 | 19.02% | −25.74% | 2.22 | 17.3bps | 0.0% | +0.15 |
+| 1,500 | 22.95% | −27.60% | 1.93 | 29.3bps | 3.6% | **+0.64** |
+| 2,000 † | 24.95% | −27.81% | 1.86 | 35.6bps | 8.6% | **+0.79** |
+| full | 24.95% | −27.81% | 1.86 | 35.6bps | 8.6% | **+0.79** |
+
+**Don's rule: only the 1,000 step fails** — drawdown −5.50pp against the 3pp allowance — and it
+is **the only failing step in the whole item, on either period.**
+
+**THE TWO PRE-COMMITTED READINGS DISAGREE, which is exactly the case §1 existed for.** Literal
+(primary) → **full panel**. Cumulative (sensitivity) → **top 500**, because the ladder is blocked
+at 1,000. The literal one is the answer; the other is reported as the sensitivity it was
+pre-committed to be, not as a fallback chosen afterwards.
+
+**† THE 2,000 RUNG IS VACUOUS BY CONSTRUCTION.** The panel carries a **median 1,557 names per
+date**, so a 2,000 trim never binds and that rung is **bit-identical** to the full panel. This is
+`INDEX-CHOICE-ARM4`'s absolute-rank lesson again — *a universe filter expressed as an absolute
+rank is not invariant to the population it is applied to* — now on the **full panel** rather than
+on a half. The ladder really tops out between 1,500 and full.
+
+## The mechanism: a size bet, not selection skill
+
+SMB switches on exactly where the return jumps — **+0.15 → +0.64 → +0.79** across 1,000 → 1,500
+→ 2,000 — and `R1`'s own alignment control reproduces **exactly** (SPY-on-MKT beta **0.9327**, R²
+**0.9878**), so the loadings are not a windowing artefact. **NO ALPHA CLAIM**: `INDEX-CHOICE`
+forbade one in advance and this register inherits the prohibition rather than re-arguing it.
+
+## Data quality at the small end, measured because Don asked for it to be
+
+| market cap | worst-theme missing rate | names |
+|---|---|---|
+| under $300M | **0.4728** | 553 |
+| $300M–$1B | 0.4384 | 1,166 |
+| $1B–$10B | 0.2985 | 2,216 |
+| over $10B | **0.1956** | 1,335 |
+
+**2.4× worse at the small end**, and the full panel holds a **mean 8.59% / maximum 28.16%** of
+weight there — which **refutes my own registered expectation of under 5%**. Every rung to 1,000
+holds **0.0%** under $300M, so the whole micro-cap exposure arrives between 1,000 and 1,500 —
+**the same step as the SMB switch and the drawdown break.** Three facts, one step.
+
+## Arm 7: a near-null BY CONSTRUCTION, and the reason is the finding
+
+Removing the penny/nano floor changed the universe by **two names** (3,037 → 3,039): +0.32pp
+return, −0.08pp drawdown. **It does not measure a floor; it measures two names.**
+`sharadar_freeze._fresh_universe` already **cap-ranks the universe upstream**, so by the time
+`factors.prefilter` runs there is almost nothing left for it to drop. Testing the floor needs a
+universe that actually contains nano-caps — which is part (b)'s raw-table route.
+
+Reported as a **paired delta on one pinned vintage** (`backtest_freeze_2026-08`), never as a rung
+level — §2b forbade that before any number, because its two legs sit on a different export from
+rungs 1-6 (its prefilter-ON leg reads 26.08% against the banked full panel's 24.95%, which is the
+level gap §2b existed to keep off the ladder).
+
+## Part (b): 1999-2008, out of sample, and it agrees more cleanly than part (a)
+
+**A LABELLED FIVE-THEME PROXY FOR POOL WIDTH, NEVER A TEST OF THE SHIPPED COMPOSITE. READ ONCE.**
+11,052 names, 39 dates, 1998-12-31 → 2008-07-10, built from the freeze's **full raw** SEP/SF1/SFP
+through the **shipped** builder.
+
+| pool | net Roth | max DD | turnover | cost |
+|---|---|---|---|---|
+| 500 | 9.77% | −40.83% | 2.01 | 17.0bps |
+| 1,000 | 11.12% | −39.25% | 1.94 | 24.7bps |
+| 1,500 | 12.01% | −39.93% | 1.92 | 33.3bps |
+| 2,000 | 14.10% | −39.09% | 1.87 | 41.0bps |
+| **full** | **18.50%** | **−36.10%** | **1.52** | 102.9bps |
+
+**EVERY step clears and both readings agree on the full pool.** The full pool has the **best
+drawdown** and the **lowest turnover**, while paying **102.9bps against 17.0** — width wins *net
+of a cost model charging six times more for it*.
+
+**MY EXPECTATION THAT PART (b) WOULD BE FLATTER IS WRONG**: it rises **8.73pp** across the ladder
+against part (a)'s **7.79pp**. It is steeper.
+
+**THREE CAVEATS THAT TRAVEL WITH IT.** (1) **Levels are not comparable** to part (a) — five
+themes, 39 dates, drawdowns near −40%, and a decade in which SPY was roughly flat, so every
+vs-SPY figure is inflated by the era rather than by skill. (2) **The universe carries 50.68%
+in-window delisting** against the derived path's 10.68% — a **4.7×** difference that is precisely
+why the register forbade `data/backtest`, and `PANEL-EXT-CENSUS`'s pre-committed `K3` would have
+**failed** that profile as carrying too many later-delisters. **So the SHAPE is the claim and the
+levels are not** — the delisting profile is common to every rung, so it largely differences out
+of a pool-to-pool comparison while making the levels incomparable to 2009-2026. (3) It spends the
+**late portion** of `RESEARCH_CHARTER` §4a's **1990-2008** era — the boundary is 1990, not 1998 —
+leaving 1990-1998 a stub of an era meant to be read whole, out of the charter's own era order.
+Disclosed in the register before the run.
+
+## Two defects, and the first was caught by a refusal
+
+**(a) A FULL-UNIVERSE EXPORT BUILT FROM SEP ALONE HAS NO BENCHMARK, and the builder refused
+rather than running.** SEP is equities and SPY is a **fund** — measured, **SEP carries 0 SPY rows
+and SFP carries 7,233 from 1997-12-31**. The build stopped with *"benchmark 'SPY' unavailable (0
+days) … cannot build the panel"*. **That refusal is the whole value**: a panel with no benchmark
+would have produced excess returns against nothing and nothing would have raised. The SFP step is
+**folded into the repo's prep script**, not left as the one-off that unblocked me.
+
+**(b) MUTATION FOUND `C1`'s LEAF-COUNT GATE UNCOVERED.** Removing `compared > 0` did not fail any
+test, because the absent-artifact case already refuses by another route. **The dangerous case is a
+comparison that RUNS and compares nothing** — `worst` stays 0.0 and a gate without the count reads
+that as a pass, which is `MB21`'s defect exactly. Now pinned by emptying the banked set.
+
+## What was NOT rebuilt, deliberately
+
+The shared `daily.pkl` (**17,421 tickers from 1998-12-01**) and `actions.pkl` (**31,937**) are
+already full-universe and already reach into the window, so part (b) points `_bulk_dir` at them.
+Rebuilding would be a second copy of data that exists; **overwriting them would have broken every
+2009-2026 panel build in the repo** — pinned by a test that the prep writes no pickle cache at
+all.
+
+## NOT DONE
+
+* **Nothing is adopted.** The pool choice is a vintage event and is routed to Don.
+* **No true ADV-ranked ladder.** `B13_ADV_PANEL` reaches 64 of 69 dates and a **maximum of 1,832
+  names**, so a 2,000-name liquidity rung cannot be formed on any date. The ladder is
+  **cap-ranked**, which is what the shipped `trim_universe` does and what arm 2 already is.
+* **`INDEX-BEST`'s pick and `INDEX-CHOICE`'s memo are not re-opened.**
+* **No rung is called significant.** The rule is a preference rule; adjacent rungs are almost
+  certainly not separable and every MDE ships beside its margin, with each critical value
+  **LABELLED UNCALIBRATED** (`V2G`, `R1-VAR`).
+
+**Expectations: 3 right, 2 wrong, 1 partly.** The two misses are the under-$300M share (predicted
+below 5%, measured 8.6% mean and 28.2% max) and part (b)'s steepness (predicted flatter, measured
+steeper). **28 tests, 8 of 8 mutations caught with sources restored byte-for-byte.**
+
+`scripts/pool_size.py`, `pool_size_diag.py`, `pool_size_factors.py`, `pool_size_arm7.py`,
+`pool_size_oos_census.py`, `pool_size_oos_prep.py`, `pool_size_oos.py`;
+`tests/test_pool_size.py`; `DECISION_pool_size.md`.
