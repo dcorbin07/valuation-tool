@@ -3,7 +3,73 @@
 **For Don. Prepared under `PREREG_pool_size.md`, whose decision rule was fixed before any number
 was read. Nothing here is adopted.**
 
+---
+
+> # CORRECTION, 2026-10-06 (`UNIVERSE-BIAS`) — READ THIS BEFORE THE REST OF THE MEMO
+>
+> **The answer below is overturned. The wider-pool advantage was an artefact of which names
+> `data/backtest` contains, and on a corrected universe it REVERSES SIGN. Your rule, applied
+> unchanged, now picks the INCUMBENT $10B TIER on both of its pre-committed readings.**
+>
+> **Your Index backtest is fine.** The $10B incumbent reads **18.94%** on the corrected universe
+> against **18.42%** on `data/backtest` at the same vintage — it goes slightly *up*. The published
+> 17.16% is a third object (the banked panel at 2026-07-24) and that gap is the data vintage, not
+> the universe. Nothing about the shipped Index needs restating.
+>
+> **What went wrong.** `data/backtest` is built by ranking today's tickers by **today's** market
+> cap and keeping the top 3,000. A company that was a micro-cap in 2009 and delisted in 2013 has
+> no 2026 market cap at all, so that ranking cannot see it. Measured: of 3,327 names that were
+> under $300M in 2009 **and later died, 80.61% are missing** from `data/backtest`, against
+> **42.10%** of the small names that survived. The omission is 1.9× worse for the dead ones — which
+> is exactly the direction that flatters a wide pool, because a wide-pool book is never charged for
+> having held the losers.
+>
+> **The ladder, rebuilt from the raw data through the same builder, same dates, same seven themes
+> — only the universe changes:**
+>
+> | pool | `data/backtest` | corrected | change |
+> |---|---|---|---|
+> | **incumbent $10B** | 18.42% | **18.94%** | **+0.52pp** |
+> | 500 | 18.18% | 18.77% | +0.60pp |
+> | 1,000 | 19.54% | 17.93% | −1.61pp |
+> | 1,500 | 19.55% | 16.62% | −2.93pp |
+> | **full pool** | 25.65% | **14.80%** | **−10.85pp** |
+>
+> The wider-pool gain goes from **+7.24pp to −4.14pp**. On the corrected universe the widest pool
+> **loses to SPY by 1.02pp**, its drawdown is −37.54% against the incumbent's −27.94%, and its
+> second half earns 11.17% against 27.06% before.
+>
+> **Why, in one number.** On `data/backtest` the full-pool book holds a mean **10.9%** of its
+> weight in names under $300M. On the corrected universe it holds **61.9%**, peaking at 79.6%. The
+> widest pool was never really a wide mid-cap book; it was a micro-cap book wearing one.
+>
+> **It is not a data-quality problem, and that cuts against the obvious story.** The extra names
+> are *better* documented at the small end, not worse (worst-theme missing rate 0.3482 corrected
+> against 0.4453 restricted). And trading costs explain only about a ninth of the reversal
+> (1.18pp of 10.85pp). The remaining 89% is simply the names.
+>
+> **One thing below survives intact and one does not.** The *size bet* is real: SMB loadings are
+> essentially unchanged by the correction (+0.185 → +0.749 before, +0.176 → +0.769 after). What
+> collapses is the part the size factor cannot explain — **+8.30%/yr down to +1.67%/yr** on the
+> full rung. That is precisely the quantity `POOL-SIZE` declined to call alpha. It was right to
+> decline, and the number it declined to claim is the one that was not real.
+>
+> **Recommendation: keep the $10B tier for 2026-10-22.** It is the only pool whose case does not
+> depend on the universe defect, it is the one your own rule now selects on both readings, it has
+> the best drawdown of the five, and it is already what the Index runs. If you later want a wider
+> pool, the thing to ask for is not a bigger number — it is a universe that contains the companies
+> that failed.
+>
+> *Everything below is left exactly as written on 2026-10-05, because the reasoning that produced
+> a wrong answer is worth keeping next to the correction. Read its figures as describing
+> `data/backtest`'s universe, not the market.* Full record: `HANDOFF_edge_audit.md`
+> `UNIVERSE-BIAS`.
+
+---
+
 ## The short answer
+
+**SUPERSEDED 2026-10-06 — see the correction above.**
 
 **Wider kept helping all the way to the full pool, on both periods. The rule you set picks the
 FULL POOL.** The one place more names hurt is a **drawdown step at 1,000 names**, and the extra

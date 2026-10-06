@@ -21018,3 +21018,167 @@ steeper). **28 tests, 8 of 8 mutations caught with sources restored byte-for-byt
 `scripts/pool_size.py`, `pool_size_diag.py`, `pool_size_factors.py`, `pool_size_arm7.py`,
 `pool_size_oos_census.py`, `pool_size_oos_prep.py`, `pool_size_oos.py`;
 `tests/test_pool_size.py`; `DECISION_pool_size.md`.
+
+## UNIVERSE-BIAS — 2026-10-06
+
+**THE PUBLISHED INDEX BACKTEST SURVIVES AND THE WIDER-POOL ADVANTAGE DOES NOT: IT REVERSES SIGN,
++7.24pp TO −4.14pp, AND ON THE CORRECTED UNIVERSE BOTH PRE-COMMITTED READINGS OF DON'S OWN RULE
+AGREE ON THE INCUMBENT $10B TIER.**
+
+**ZERO TRIALS.** `by_domain` **bit-identical** at equity 262, options 310, unified 0, infra 20
+while `rows_fixed_not_counted` rises **93 → 94**. **RE-MEASUREMENT class** — the `S25` /
+`X7RECON` / `PANEL-EXT-RECHECK` precedent. Every arm is already registered: the incumbent is
+`INDEX-BEST`'s `1_incumbent_10bn`, and the rungs *and the decision rule* are
+`PREREG_pool_size.md`'s, committed ALONE at `2ba5adc` with the rule fixed in Don's own words
+before any number was read. **No register is written here and writing one would have been the
+error** — re-registering a ladder after seeing where it lands is choosing a design on the
+outcome, and `W-28` forbids relaxing a pre-committed bar after watching it fail. The censuses and
+the factor decomposition charge nothing under `MB1-SEL`: each can only ever BLOCK an
+interpretation of the ladder. **A correction that MOVES a published figure is still a correction
+rather than a search. ADOPTS NOTHING** — the pool choice is a vintage event and Don's.
+
+### The design is the claim
+
+One thing varies. Both panels come from the **2026-10 freeze**, cut at `data/backtest`'s own
+newest close (**2026-10-02**), built by the **shipped** `build_fundamental_panel` at `CONFIG`'s
+own rebalance and lookback, **69 dates 2009-03-27 → 2026-04-09 on both sides**, **all seven
+themes**, SPY **15.82%** on both.
+
+* **restricted** — `data/backtest`, **3,049** names / 133,459 rows.
+* **full** — `data/full2009/backtest`, built from the freeze's raw SEP/SF1/SFP, **9,645** names /
+  289,659 rows.
+
+Comparing the full panel against the **banked** `panel_corrected_69d.pkl` instead would have
+conflated the universe with a rolled window — `SHARADAR-REFRESH` measured that roll at 2,531
+names / 2026-07-24 against 3,049 / 2026-10-02 — and that confound is what this item exists to
+remove rather than add. The export readers are **reused** from `pool_size_oos_prep` (`B7`), and
+`pool_size_diag` / `pool_size_factors` were **parameterised** with defaults equal to the original
+rather than copied.
+
+### Part 1 — the bias, measured
+
+Against the freeze's **raw** tables under the **same filter the provider applies** (a name counts
+if it has SF1 ARQ coverage, which is what `WRDSProvider.universe` derives its universe from):
+
+* full in-window **and** SF1-covered universe **11,321** names; `data/backtest` holds **3,162**,
+  so **8,159 are MISSING — 72.07%**;
+* **names per date** run 5,296 full against 1,812 restricted in 2009 and 5,311 against 2,184 in
+  2025 — a restricted share of **34.2% to 41.1%** throughout;
+* **in-window delisting 48.94%** of the full universe against **29.35%** of the restricted one,
+  **1.67×**.
+
+**AND THE SHARP ONE, WHICH IS WHAT MAKES IT A BIAS RATHER THAN A GAP.** Of **3,327** names that
+were under $300M in 2009 **and later died**, **2,682 are missing — 80.61%** — against **42.10%**
+of the **2,057** that were small in 2009 and are still alive. The missing rate among dead small
+names is **1.91×** the rate among surviving small names, so the omission is **non-random in
+exactly the direction that flatters a wide pool**: a micro-cap that delisted in 2013 has no 2026
+market cap at all, `_fresh_universe`'s top-3,000 ranking cannot see it, and a wider-pool arm is
+never charged for having held it.
+
+### Part 2 — the ladder, side by side
+
+| pool | restricted | full | Δ | rest. drawdown | full drawdown | Δ |
+|---|---|---|---|---|---|---|
+| incumbent $10B | 18.42% | **18.94%** | **+0.52pp** | −27.29% | −27.94% | −0.65pp |
+| top 500 | 18.18% | 18.77% | +0.60pp | −27.47% | −27.63% | −0.17pp |
+| top 1,000 | 19.54% | 17.93% | −1.61pp | −28.75% | −30.64% | −1.89pp |
+| top 1,500 | 19.55% | 16.62% | −2.93pp | −34.60% | −37.09% | −2.49pp |
+| **full pool** | 25.65% | **14.80%** | **−10.85pp** | −33.83% | −37.54% | −3.71pp |
+
+**The wider-pool advantage (full rung minus incumbent) goes +7.24pp → −4.14pp — the sign flips.**
+The widest corrected pool **loses to SPY by 1.02pp**, its Sharpe falls 1.041 → 0.745, and its
+late half collapses **27.06% → 11.17%**. **Don's rule, applied unchanged to both sides:** on
+`data/backtest` the two pre-committed readings **disagree** (literal → full pool, cumulative →
+top 500); on the corrected universe they **AGREE on the incumbent $10B tier**.
+
+### Question 1 — does the published 17.16% survive? **YES, and it improves slightly**
+
+The incumbent reads **18.94%** on the corrected universe against **18.42%** on the restricted one
+**at the same vintage**, so the universe correction moves it **+0.52pp** and worsens its drawdown
+0.65pp. The gap from the published **17.16%** to 18.42% is the **VINTAGE and not the universe** —
+that figure was measured on the banked panel at `available_end` 2026-07-24 with 2,531 names, a
+**third object**, and `SHARADAR-REFRESH` already measured that roll. **So the Index as shipped is
+not the thing the bias was flattering.**
+
+### Question 2 — does the wider-pool advantage survive? **NO**
+
+Panel rows under $300M: **6,591 over 789 names (4.94% of the panel)** on `data/backtest` against
+**80,995 over 6,221 names (27.96%)** on the corrected universe — **12.3× the rows, 7.9× the
+names**. The full-pool **book** goes from 167–226 names holding a mean **10.92%** (max 31.37%)
+under $300M, to 334–554 names holding a **mean 61.93%** and a **maximum 79.60%**. On
+`data/backtest` the widest pool is a mid-cap book with a micro-cap tail; on the corrected universe
+it is substantially a micro-cap book.
+
+**THE CENSUS REFUTES THE OBVIOUS EXPLANATION, AND IT RUNS AGAINST MY OWN PRIOR: the extra names
+are NOT worse-documented.** Worst-theme missing rate under $300M is **0.4453** restricted and
+**0.3482** corrected — *better* at the corrected small end — while both stay monotone in size
+(corrected 0.3482 / 0.3056 / 0.2478 / 0.1786). So the reversal is **not a data-quality artefact**;
+it is that the restricted universe's small end was **pre-selected for survival**.
+
+**And costs explain only a ninth of it.** Realised one-way cost on the full rung rises 38.8 →
+83.4 bps, which at turnover 1.860 and 1.572 is a drag of **1.44pp against 2.62pp** — **1.18pp of
+the 10.85pp gap, about 11%.** The other **89% is the names themselves.**
+
+### The mechanism, and it corrects `POOL-SIZE`'s own reading
+
+| | restricted | corrected |
+|---|---|---|
+| SMB across the ladder | +0.185 / +0.241 / +0.272 / +0.526 / **+0.749** | +0.176 / +0.231 / +0.211 / +0.450 / **+0.769** |
+| intercept, full rung | **+8.30%/yr** (t +4.578) | **+1.67%/yr** (t +1.044) |
+| intercept, incumbent | +2.17%/yr (t +1.332) | +0.11%/yr (t +0.061) |
+
+**SMB is essentially UNCHANGED by the correction**, so the **size bet `POOL-SIZE` identified is
+real, is the same size, and survives.** What collapses is the **intercept** — the part SMB cannot
+explain — and **that is precisely the quantity `POOL-SIZE`'s own inherited no-alpha prohibition
+forbade claiming. The prohibition was the right call, and the number it declined to claim is the
+one that evaporates.** **NO ALPHA CLAIM** is made here either; an intercept is a
+**decomposition**, inherited from `INDEX-CHOICE`. `R1`'s own alignment control reproduces at
+SPY-on-MKT beta **0.9494**, R² **0.9921**, n 68, on both sides.
+
+### A defect of my own — and it was the RECOVERY that caused the damage
+
+I read a stale print line — *wrote POOL_SIZE_DIAG.json* — as evidence that the census had
+clobbered `POOL-SIZE`'s landed artifact, and copied that file over the correct new one to salvage
+it. **Nothing had been clobbered**: the write destination had already been routed through the
+`out` parameter and only the print lagged, so the genuine loss was **the correct full-universe
+census I destroyed while fixing a problem that did not exist.** The record's own rule — look at
+the target before overwriting — **applies to a recovery as much as to an edit**, and **A PRINT
+NAMING A PATH IS NOT EVIDENCE ABOUT WHERE A FILE WAS WRITTEN.** Recovered by re-running; both
+writers now report the destination they actually use, pinned by test. **This is the second
+artifact damage in this lane in two days** after `D9-SAMEDATE`, and both came from a *mode added
+to an existing script* rather than from the analysis.
+
+**One of my own mutations was INERT and is recorded as such:** renaming the census's
+small-and-alive local **raises `NameError`**, so it tests a crash rather than a silent failure —
+`MB20`'s `range(0, ...)` lesson. Re-aimed at the form that is actually dangerous (dropping the
+comparator from the **artifact**), and the substring guard it was aimed at was repointed to read
+the artifact's own dict literal through the **AST** with a non-vacuity control.
+
+**Both parameterisations are proved inert BEHAVIOURALLY, not argued:** `pool_size_diag` and
+`pool_size_factors` take `panel_path`/`out` defaulting to `POOL-SIZE`'s own objects,
+**`POOL-SIZE`'s 28 tests pass UNCHANGED**, and a re-score of the whole ladder off the cached
+panels **reproduced all ten figures exactly** — a free determinism check.
+
+### Recommendation for Don
+
+**Keep the $10B tier for 2026-10-22.** It is the only pool whose case does not depend on the
+universe defect; it is the one Don's own rule now selects **on both pre-committed readings**; it
+carries the **best drawdown of the five** on the corrected universe; and it is already what the
+Index runs, so choosing it is not a vintage event. The wider pools' advantage was **manufactured
+by a universe that cannot see the companies that failed** — and the part of it that was a genuine
+size exposure is still there and **no longer pays**. If a wider pool is wanted later, the thing to
+ask for is not a bigger number but **a universe containing the names that died**; this item's
+`data/full2009/backtest` export is that universe and is on disk.
+
+**NOT DONE, named so it is not mistaken for done:** no register is written, **no bar is relaxed**,
+`POOL-SIZE`'s artifacts are **not edited**, the banked panel is **not rebuilt**, the shared
+`daily.pkl` / `actions.pkl` caches are **NOT overwritten** (pinned by test), the published figure
+is **NOT restated**, no 1999-2008 panel is touched, and **nothing is adopted**. The
+corrected-universe ladder is a **measurement for Don**, not a recommendation to switch
+construction. **26 tests, 8 of 8 mutations caught with sources restored byte-for-byte.**
+
+`scripts/universe_bias.py`, `universe_bias_prep.py`, `universe_bias_arms.py`,
+`universe_bias_diag.py`, `universe_bias_factors.py`;
+`data/free_analysis/UNIVERSE_BIAS_CENSUS.json`, `UNIVERSE_BIAS_PREP.json`,
+`UNIVERSE_BIAS_ARMS.json`, `UNIVERSE_BIAS_DIAG_{restricted,full}.json`,
+`UNIVERSE_BIAS_FACTORS_{restricted,full}.json`; `DECISION_pool_size.md` correction 2026-10-06.

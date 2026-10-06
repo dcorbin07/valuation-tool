@@ -72,10 +72,15 @@ def books_per_date(panel, cols, weights, kw):
     return out
 
 
-def main(argv=None) -> int:
+def main(argv=None, panel_path=None, out=None, item="POOL-SIZE",
+         part="diagnostics (census)") -> int:
+    """`panel_path`/`out` default to the banked panel and this item's own artifact, so every
+    existing caller is bit-identical. `UNIVERSE-BIAS` passes a corrected-universe panel rather
+    than copying this census (`B7` -- a second copy is how two censuses come to apply quietly
+    different bucket lines)."""
     if not FA:
         raise SystemExit("the licensed panel is absent; tried %r" % (data_candidates(),))
-    panel = pd.read_pickle(os.path.join(FA, "panel_corrected_69d.pkl"))
+    panel = pd.read_pickle(panel_path or os.path.join(FA, "panel_corrected_69d.pkl"))
     cols, weights = list(DEPLOYED), {c: BASE_WEIGHT for c in DEPLOYED}
     panel = panel.copy()
     panel["_mc"] = pd.to_numeric(panel["market_cap"], errors="coerce")
@@ -147,7 +152,8 @@ def main(argv=None) -> int:
                  rungs[name]["weight_under_300M"]["max"]), flush=True)
 
     res = {
-        "item": "POOL-SIZE", "part": "diagnostics (census)", "trials": 0,
+        "item": item, "part": part, "trials": 0,
+        "panel": os.path.basename(panel_path or "panel_corrected_69d.pkl"),
         "register": "PREREG_pool_size.md section 0 -- censuses charge nothing (MB1-SEL class)",
         "buckets_usd": [[b, lo, (None if hi == float("inf") else hi)] for b, lo, hi in BUCKETS],
         "micro_cap_line_usd": MICRO_CAP,
@@ -156,8 +162,9 @@ def main(argv=None) -> int:
         "note": "a census: no hypothesis, no bar, no verdict. It can only BLOCK an "
                 "interpretation of the ladder, never produce one.",
     }
-    json.dump(res, io.open(OUT, "w", encoding="utf-8"), indent=2, default=str)
-    print("\nwrote %s" % OUT)
+    dest = out or OUT
+    json.dump(res, io.open(dest, "w", encoding="utf-8"), indent=2, default=str)
+    print("\nwrote %s" % dest)
     return 0
 
 

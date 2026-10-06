@@ -40,31 +40,41 @@ FACTOR_DIR = os.path.join(DATA, "factors", "parsed") if DATA else None
 LAG = 1                                  # R1's own choice
 
 
-def main(argv=None) -> int:
+def main(argv=None, rungs=None, panel_path=None, out=None, order=None,
+         item="POOL-SIZE", part="FF5+MOM loadings", trials=1, require_c1=True) -> int:
+    """Every parameter defaults to this item's own object, so existing callers are unchanged.
+
+    `UNIVERSE-BIAS` passes its own `{rung: {"net_series": [...]}}` and its own panel instead of
+    copying this regression (`B7`). `require_c1=False` is for a caller whose gate lives in its
+    own artifact rather than in the ladder's `c1` block -- it still has to supply the series.
+    """
     if not FA:
         raise SystemExit("the licensed panel is absent; tried %r" % (data_candidates(),))
-    if not os.path.exists(LADDER):
-        print("REFUSING: no ladder artifact at %s. Run scripts.pool_size first." % LADDER)
-        return 2
-    lad = json.load(io.open(LADDER, encoding="utf-8"))
-    if not (lad.get("c1") or {}).get("ok"):
-        print("REFUSING: the ladder artifact does not record a passing C1.")
-        return 2
+    if rungs is None:
+        if not os.path.exists(LADDER):
+            print("REFUSING: no ladder artifact at %s. Run scripts.pool_size first." % LADDER)
+            return 2
+        lad = json.load(io.open(LADDER, encoding="utf-8"))
+        if require_c1 and not (lad.get("c1") or {}).get("ok"):
+            print("REFUSING: the ladder artifact does not record a passing C1.")
+            return 2
+        rungs = lad["rungs"]
 
     FAC.set_factor_dir(FACTOR_DIR)
-    panel = pd.read_pickle(os.path.join(FA, "panel_corrected_69d.pkl"))
+    panel = pd.read_pickle(panel_path or os.path.join(FA, "panel_corrected_69d.pkl"))
     grid = sorted(panel["date"].unique())
     F = FAC.factor_windows(grid)
 
-    rungs = lad["rungs"]
-    order = [k for k, _ in __import__("scripts.pool_size", fromlist=["RUNGS"]).RUNGS
+    order = [k for k in (order or [n for n, _ in
+                                   __import__("scripts.pool_size",
+                                              fromlist=["RUNGS"]).RUNGS])
              if k in rungs]
     m = min(len(F), min(len(rungs[k]["net_series"]) for k in order))
     F = F.iloc[:m].reset_index(drop=True)
     print("factor windows %d, aligned on %d (the last rebalance closes no window)"
           % (len(F), m), flush=True)
 
-    res = {"item": "POOL-SIZE", "part": "FF5+MOM loadings", "trials": 1,
+    res = {"item": item, "part": part, "trials": trials,
            "register": "PREREG_pool_size.md section 3",
            "model": list(FAC.FF_MODEL), "lag": LAG, "n_windows": int(m),
            "machinery": "scripts/factor_alpha.py -- ols_nw, regress, factor_windows, FF_MODEL "
@@ -103,8 +113,9 @@ def main(argv=None) -> int:
                                                      r["loadings"][c]["t"])
                                for c in FAC.FF_MODEL), flush=True)
 
-    json.dump(res, io.open(OUT, "w", encoding="utf-8"), indent=1, default=str)
-    print("\nwrote %s" % OUT)
+    dest = out or OUT
+    json.dump(res, io.open(dest, "w", encoding="utf-8"), indent=1, default=str)
+    print("\nwrote %s" % dest)
     return 0
 
 
