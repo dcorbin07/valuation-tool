@@ -197,12 +197,29 @@ def check_dip(base, rep):
     capped = d.get("capped")
     rep.ok("dip detector reachable", "HTTP 200, %d eligible" % elig)
 
-    # THE DEFECT THIS GUARDS measured 12 of 242 and reported the result as coverage of a market.
-    if elig and meas >= elig:
-        rep.ok("dip measures every eligible name", "%d of %d" % (meas, elig))
+    # REPOINTED 2026-10-06. This asked that `n_measured >= n_eligible` -- that the screen value
+    # EVERY eligible name -- and the design forbids it: `dip.MAX_SHORTLIST` is 25 and a
+    # valuation is a real cost on a 512 MB instance. So it could never pass, and a check that
+    # cannot pass is one a reader learns to scroll past. It went red on 2026-10-06 beside two
+    # genuine failures and added nothing to either.
+    #
+    # The defect it was written for is still real -- the screen measured 12 of 242 and the page
+    # reported the result as coverage of a market -- but the property that catches it is that
+    # the budget is spent on names that QUALIFY and the shortfall is REPORTED, not that the
+    # budget is unbounded. `n_qualified_on_depth` is the figure item 23 added for exactly this.
+    qual = d.get("n_qualified_on_depth")
+    if qual is None:
+        rep.bad("dip spends its budget on qualifying names",
+                "the payload carries no n_qualified_on_depth, so the two-stage path is off")
+    elif meas <= 0:
+        rep.bad("dip spends its budget on qualifying names",
+                "%d qualified on depth and NOTHING was valued" % qual)
+    elif capped is None:
+        rep.bad("dip spends its budget on qualifying names",
+                "%d of %d qualifiers valued and the shortfall is not reported" % (meas, qual))
     else:
-        rep.bad("dip measures every eligible name",
-                "%d of %d measured, capped %s" % (meas, elig, capped))
+        rep.ok("dip spends its budget on qualifying names",
+               "%d of %d qualifiers valued, %s reported as capped" % (meas, qual, capped))
 
     if rows:
         rep.ok("dip returns rows at 10% depth", "%d rows" % rows)

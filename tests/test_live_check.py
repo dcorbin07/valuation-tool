@@ -178,23 +178,55 @@ class TheHotListChecks(unittest.TestCase):
 
 
 class TheDipChecks(unittest.TestCase):
-    def test_measuring_every_eligible_name_passes(self):
+    def test_a_capped_budget_spent_on_qualifiers_passes(self):
+        """REPOINTED 2026-10-06 with the check itself.
+
+        This demanded `n_measured >= n_eligible` and the design forbids it: `MAX_SHORTLIST`
+        is 25 and a valuation costs real money on a 512 MB instance. The check could never
+        pass, so it went red every day beside whatever was genuinely wrong and taught the
+        reader to scroll past it. The property that actually catches the original defect --
+        the screen valued 12 of 242 and the page reported it as coverage of a market -- is
+        that the budget is spent on names that QUALIFY and the shortfall is REPORTED.
+        """
         rep = LC.Report()
-        with _Net({("GET", "/api/dip"): _j({"n_eligible": 242, "n_measured": 242,
+        with _Net({("GET", "/api/dip"): _j({"n_eligible": 242, "n_qualified_on_depth": 204,
+                                            "n_measured": 12, "capped": 192,
                                             "n_unmeasured": 0, "rows": [{"t": 1}]})}):
             LC.check_dip("https://x", rep)
         self.assertEqual(rep.failed, 0, rep.lines)
 
-    def test_the_live_shortfall_fails_and_prints_both_numbers(self):
-        """THE LIVE STATE: 12 of 242 measured, 230 capped."""
+    def test_a_budget_spent_without_the_two_stage_path_fails(self):
+        """No `n_qualified_on_depth` means the preselector is off and the budget is being
+        spent on the deepest-ranked names rather than on qualifiers -- the original defect."""
         rep = LC.Report()
         with _Net({("GET", "/api/dip"): _j({"n_eligible": 242, "n_measured": 12,
                                             "n_unmeasured": 0, "capped": 230,
                                             "rows": [{"t": 1}]})}):
             LC.check_dip("https://x", rep)
-        line = [ln for ln in rep.lines if "every eligible" in ln][0]
+        line = [ln for ln in rep.lines if "qualifying names" in ln][0]
         self.assertIn("FAIL", line)
-        self.assertIn("12 of 242", line)
+        self.assertIn("n_qualified_on_depth", line)
+
+    def test_an_unreported_shortfall_fails(self):
+        """Silent truncation reads as coverage. `capped` absent is the thing to catch."""
+        rep = LC.Report()
+        with _Net({("GET", "/api/dip"): _j({"n_eligible": 242, "n_qualified_on_depth": 204,
+                                            "n_measured": 12, "n_unmeasured": 0,
+                                            "rows": [{"t": 1}]})}):
+            LC.check_dip("https://x", rep)
+        line = [ln for ln in rep.lines if "qualifying names" in ln][0]
+        self.assertIn("FAIL", line)
+        self.assertIn("not reported", line)
+
+    def test_valuing_nothing_fails_even_with_qualifiers(self):
+        rep = LC.Report()
+        with _Net({("GET", "/api/dip"): _j({"n_eligible": 242, "n_qualified_on_depth": 204,
+                                            "n_measured": 0, "capped": 204,
+                                            "n_unmeasured": 0, "rows": [{"t": 1}]})}):
+            LC.check_dip("https://x", rep)
+        line = [ln for ln in rep.lines if "qualifying names" in ln][0]
+        self.assertIn("FAIL", line)
+        self.assertIn("NOTHING was valued", line)
 
     def test_zero_rows_fails_even_when_coverage_is_complete(self):
         """Full coverage and no rows is a different failure from partial coverage, and both
