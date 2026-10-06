@@ -138,14 +138,32 @@ class TheValuationBudgetGoesToQualifiers(unittest.TestCase):
             self.rows.append(row(t, high_prox=0.99))
             self.depths[t] = 0.01
 
-    def test_with_a_budget_of_five_the_OLD_behaviour_sees_only_the_deepest(self):
-        """The shape of the defect, demonstrated rather than asserted: a budget smaller than
-        the qualifying set spends itself on the deepest names and the page reports the rest as
-        'not measured'. That is still true -- what changed is WHICH names compete for it."""
+    def test_a_budget_smaller_than_the_qualifying_set_SPANS_it(self):
+        """REPOINTED BY ITEM 33(b), and this test's own docstring predicted the repoint: it read
+        "that is still true -- what changed is WHICH names compete for it", and item 33 changed
+        it again.
+
+        It used to assert `all(t.startswith("DEEP"))` -- the budget spent entirely on the
+        deepest names. That was the honest description of the behaviour and it was the DEFECT
+        measured on the live service: at `min_drawdown=0.10`, 204 names qualified, the 12
+        deepest were valued, and the page showed two names about 60% down. A user asking for
+        "down 10%" saw only the most extreme crashes.
+
+        The budget is unchanged -- a valuation is a real cost -- so what it buys changed: a
+        sample ACROSS the qualifying range. The deepest name is still always valued; so is the
+        shallowest qualifier. And the thing item 23 won is untouched: a FLAT name still never
+        buys a valuation."""
         m = measurer(self.depths)
         out = dip.screen(self.rows, min_drawdown=0.25, measure=m, shortlist=5)
         self.assertEqual(len(m.calls), 5)
-        self.assertTrue(all(t.startswith("DEEP") for t in m.calls), m.calls)
+        self.assertFalse([t for t in m.calls if t.startswith("FLAT")],
+                         "item 23's win was lost: a flat name bought a valuation")
+        self.assertTrue(m.calls[0].startswith("DEEP"), m.calls)
+        # The property is simply that the budget is NOT the deepest-N prefix. My first cut of
+        # this wrote a self-referential assertNotEqual that could not fail the way it read;
+        # one clear assertion is better than two clever ones.
+        self.assertTrue(any(not t.startswith("DEEP") for t in m.calls),
+                        "every valued name came from the deep end: %r" % (m.calls,))
 
     def test_the_flat_names_never_buy_a_valuation(self):
         """THE REPAIR. Fifteen names qualify at 25%; five do not. With a budget of 20 the old
@@ -163,7 +181,17 @@ class TheValuationBudgetGoesToQualifiers(unittest.TestCase):
         self.assertEqual(out["n_checked_for_depth"], 20)
         self.assertEqual(out["n_qualified_on_depth"], 15)
         self.assertIs(out["preselect_available"], True)
-        self.assertIn("deep enough", out["preselect_note"])
+        # REPOINTED BY ITEM 33(b). This asserted the phrase "deep enough", which belonged to a
+        # note that also reported "the %d-of-%d eligible names" using two DIFFERENT
+        # denominators -- `n_qualified` (which counts names kept because their depth is unknown)
+        # over `n_with_cheap` (which counts only names a depth could be read for). On the live
+        # service that rendered as "the 204-of-163 eligible names", which is impossible on its
+        # face. The wording is replaced; what is asserted now is the PROPERTY the wording got
+        # wrong -- that the counts nest and the ratio is possible.
+        self.assertEqual(out["n_qualified_on_depth"],
+                         out["n_depth_pass"] + out["n_depth_unknown_kept"])
+        self.assertLessEqual(out["n_qualified_on_depth"], out["n_eligible"])
+        self.assertIn("of the %d eligible" % out["n_eligible"], out["preselect_note"])
 
     def test_the_cap_now_applies_to_the_qualifiers(self):
         out = dip.screen(self.rows, min_drawdown=0.25,
