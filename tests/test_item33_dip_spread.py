@@ -185,5 +185,75 @@ class TheScanCannotSupplyHealth(unittest.TestCase):
         self.assertFalse(dip.health_check(subs)["ok"])
 
 
+class TheBudgetGoesToNamesKnownToQualify(unittest.TestCase):
+    """THE DEFECT MY OWN FIRST CUT SHIPPED, measured on the live service and pinned here.
+
+    Spreading across ALL qualifiers sampled the depth-UNKNOWN names too -- 64 of 204, about a
+    third of the budget -- and those are precisely the names least likely to clear the threshold
+    once measured. Live at `min_drawdown=0.10`: 12 valued, `rejected_health` 0, `n_unmeasured`
+    0, and **0 rows returned**, where the old deepest-first behaviour returned 2. That is item
+    23's defect reintroduced by the fix for a different one.
+
+    The unknowns stay REACHABLE -- they take whatever budget the known set does not use -- so a
+    snapshot with little depth coverage still measures them rather than dropping them silently.
+    """
+
+    def _rows(self, n_known=40, n_unknown=40):
+        rows = []
+        for i in range(n_known):
+            dd = 0.60 - (0.45 * i / float(n_known - 1))     # 0.60 .. 0.15, all qualifying
+            rows.append(_row("K%03d" % i, high_prox=1.0 - dd))
+        rows += [_row("U%03d" % i) for i in range(n_unknown)]
+        return rows
+
+    def test_the_budget_is_not_spent_on_depth_unknown_names_when_known_ones_exist(self):
+        seen = []
+
+        def _m(r):
+            seen.append(r["ticker"])
+            hp = (r.get("extra") or {}).get("high_prox")
+            return _healthy(1.0 - hp if hp else 0.02)
+
+        dip.screen(self._rows(), 0.10, measure=_m, shortlist=12)
+        self.assertEqual(len(seen), 12)
+        self.assertFalse([t for t in seen if t.startswith("U")],
+                         "budget spent on names with no known depth: %r" % (seen,))
+
+    def test_the_unknowns_are_still_reachable_when_budget_remains(self):
+        """They must not become unmeasurable -- a snapshot with little depth coverage is exactly
+        when they matter."""
+        seen = []
+
+        def _m(r):
+            seen.append(r["ticker"])
+            hp = (r.get("extra") or {}).get("high_prox")
+            return _healthy(1.0 - hp if hp else 0.50)
+
+        dip.screen(self._rows(n_known=3, n_unknown=20), 0.10, measure=_m, shortlist=12)
+        self.assertEqual(len([t for t in seen if t.startswith("K")]), 3)
+        self.assertTrue([t for t in seen if t.startswith("U")],
+                        "spare budget did not reach the unknowns: %r" % (seen,))
+
+    def test_a_shallow_measurement_is_COUNTED_rather_than_vanishing(self):
+        """With `rejected_health` 0 and `n_unmeasured` 0 and no rows, there was no way to tell
+        where twelve valuations had gone without reasoning about it."""
+        # All twelve clear the FREE depth floor (0.50 against a 0.30 request) and all twelve
+        # measure shallow, so the count is unambiguous. A fixture whose names did not all
+        # qualify would make this assert the qualifier count instead.
+        rows = [_row("K%02d" % i, high_prox=0.50) for i in range(12)]
+        out = dip.screen(rows, 0.30, measure=lambda r: _healthy(0.05), shortlist=12)
+        self.assertEqual(out["n_measured"], 12)
+        self.assertEqual(out["rejected_shallow"], 12)
+        self.assertEqual(out["rows"], [])
+
+    def test_the_counts_still_include_the_unknowns_as_qualified(self):
+        """The split changes which names BUY a valuation, not what `qualified` means."""
+        out = dip.screen(self._rows(n_known=40, n_unknown=40), 0.10,
+                         measure=lambda r: _healthy(0.50), shortlist=12)
+        self.assertEqual(out["n_qualified_on_depth"],
+                         out["n_depth_pass"] + out["n_depth_unknown_kept"])
+        self.assertEqual(out["n_depth_unknown_kept"], 40)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

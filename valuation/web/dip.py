@@ -437,7 +437,13 @@ def screen(rows: List[dict],
         floor = max(0.0, min_drawdown - PRESELECT_SLACK)
         # A name with NO free drawdown is kept, not dropped: on a part-populated snapshot the
         # unknown names are exactly the ones a strict rule would silently delete.
-        qualified = [(r, c) for r, c, dd in cheap if dd is None or dd >= floor]
+        # SPLIT, BECAUSE THE TWO HALVES DESERVE THE BUDGET DIFFERENTLY. `known` passed the depth
+        # floor on a reading from the scan; `unknown` is kept only because the snapshot carries
+        # no depth for it and a strict rule would silently delete exactly the names it cannot
+        # see. Both are QUALIFIED for counting; only `known` is known to be worth a valuation.
+        known = [(r, c) for r, c, dd in cheap if dd is not None and dd >= floor]
+        unknown = [(r, c) for r, c, dd in cheap if dd is None]
+        qualified = known + unknown
         # THE TWO POPULATIONS ARE NOT NESTED, WHICH IS WHY THE NOTE READ "204-of-163".
         # `n_qualified` counts names kept on depth PLUS names kept because their depth is
         # unknown; `n_with_cheap` counts only the ones a depth could be read for. So the first
@@ -466,7 +472,20 @@ def screen(rows: List[dict],
     if not (shortlist and shortlist > 0):
         measured_set = qualified
     elif preselect_available:
-        measured_set = spread_across(qualified, shortlist)
+        # SPREAD ACROSS THE *KNOWN* QUALIFIERS, AND THE FIRST CUT OF THIS GOT IT WRONG ON THE
+        # LIVE SERVICE. Spreading across `qualified` sampled the 64 depth-UNKNOWN names too --
+        # about a third of the budget -- and those are precisely the names least likely to clear
+        # the threshold once measured. Measured at `min_drawdown=0.10`: 12 valued,
+        # `rejected_health` 0, `n_unmeasured` 0, and **0 rows returned**, where the old
+        # deepest-first behaviour returned 2. That is item 23's defect reintroduced by the fix
+        # for a different one: a valuation spent on a name that was never going to qualify.
+        #
+        # The unknowns stay REACHABLE -- they take whatever budget the known set does not use --
+        # so a snapshot with little depth coverage still measures them rather than dropping
+        # them silently.
+        measured_set = spread_across(known, shortlist)
+        if len(measured_set) < shortlist:
+            measured_set = measured_set + unknown[:shortlist - len(measured_set)]
     else:
         measured_set = qualified[:shortlist]
 
@@ -476,6 +495,7 @@ def screen(rows: List[dict],
     # not recomputed: a second implementation of "which names fail the health floors" is
     # exactly how a screen and a book come to disagree about what they screened.
     out, unmeasured, rejected_health, health_rejects = [], 0, 0, []
+    rejected_shallow = 0
     for r, checks in measured_set:
         m = measure(r) or {}
         dd = m.get("drawdown")
@@ -516,6 +536,14 @@ def screen(rows: List[dict],
             })
             continue
         if dd < min_drawdown:
+            # COUNTED, because "valued and then found too shallow" was invisible. With
+            # `rejected_health` 0 and `n_unmeasured` 0 and no rows, the only way to tell where
+            # twelve valuations went was to reason about it -- which is how the first cut of the
+            # spread shipped. The free depth is a RATIO from the snapshot and the measured
+            # drawdown is a real price path, so some disagreement near the floor is expected and
+            # `PRESELECT_SLACK` exists for it; a large count here means the budget is being
+            # spent on names that do not qualify.
+            rejected_shallow += 1
             continue
         out.append(Row({
             "ticker": r.get("ticker"),
@@ -596,6 +624,8 @@ def screen(rows: List[dict],
              "after this change will carry it.")),
         "rejected_prefilter": rejected_prefilter,
         "rejected_health": rejected_health,
+        # Measured, and then shallower than the threshold the caller asked for.
+        "rejected_shallow": rejected_shallow,
         # ADDITIVE. Every existing consumer reads `rows`, and this changes none of them.
         "health_rejects": health_rejects,
         "rejected_checks": rejected_checks,
