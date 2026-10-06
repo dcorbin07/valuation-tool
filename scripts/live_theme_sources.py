@@ -91,6 +91,7 @@ import random
 import re
 import statistics
 import sys
+import threading
 import time
 import zipfile
 
@@ -145,6 +146,10 @@ MAX_ATTEMPTS = 3
 BACKOFF_BASE_S = 5.0
 BACKOFF_MAX_S = 120.0
 THROTTLE_BUDGET = 40
+# ONE definition of "this is a rate limit, not an answer". It was written out four times,
+# which is the B7 shape, and `fetch4` was about to make it five while being the one caller
+# that did not check a status code at all.
+THROTTLE_STATUS = (429, 403, 503)
 
 # --- THE 13F DATA SET GETS A PATIENT POLICY OF ITS OWN, AND THE SPLIT IS THE POINT -----------
 #
@@ -259,8 +264,28 @@ class Guard:
         self.calls = 0
         self._last = 0.0
         self._sleep = sleeper or time.sleep
+        self._lock = threading.Lock()
 
     def wait(self) -> None:
+        """Pace one request. **HOLDS A LOCK ACROSS THE SLEEP, and that is the point.**
+
+        `wait` is a read-modify-write on `self._last`, and `fidelity2_rebuild.fetch4` calls it
+        from a four-worker pool. Unsynchronised, four threads read the same `_last`, each
+        computes the same `need`, each sleeps it, and all four then fire together -- so the
+        guard paced nothing and the crawl ran at up to four times the interval it advertises.
+        Measured on the 2026-10-06 themes run: 11,031 documents in 891s is **12.4 req/s**
+        against an advertised 1/0.13 = 7.7, and SEC answered the excess with 403s that
+        `fetch4` parsed as XML and banked as parse failures -- 963 of 1,116 names lost.
+
+        Holding the lock across the sleep serialises the pacing, which is correct rather than
+        wasteful: the limit is on the ACCOUNT, not on bandwidth, so four workers waiting their
+        turn is the same throughput as one and keeps the parallelism for parse and I/O.
+        Single-threaded behaviour is bit-identical -- an uncontended lock changes nothing.
+        """
+        with self._lock:
+            return self._wait_locked()
+
+    def _wait_locked(self) -> None:
         gap = time.monotonic() - self._last
         need = self.min_interval + random.random() * SEC_JITTER_S - gap
         if need > 0:
@@ -334,7 +359,7 @@ def head_published(url: str, guard: Guard, patient: bool = False) -> bool:
                 raise
             guard.throttled(attempt, _b, _c)
             continue
-        if r.status_code in (429, 403, 503):
+        if r.status_code in THROTTLE_STATUS:
             if attempt == n - 1:
                 raise Throttled(f"{r.status_code} on {url}")
             guard.throttled(attempt, _b, _c)
@@ -358,7 +383,7 @@ def _get(url: str, guard: Guard, as_json: bool = False):
                 raise
             guard.throttled(attempt)
             continue
-        if r.status_code in (429, 403, 503):
+        if r.status_code in THROTTLE_STATUS:
             if attempt == MAX_ATTEMPTS - 1:
                 raise Throttled(f"{r.status_code} on {url}")
             guard.throttled(attempt)
@@ -515,7 +540,7 @@ def download_dataset(root: str, window: str, guard: Guard | None = None,
                 raise
             g.throttled(attempt, _b, _c)
             continue
-        if r.status_code in (429, 403, 503):
+        if r.status_code in THROTTLE_STATUS:
             if attempt == n - 1:
                 raise Throttled(f"{r.status_code} on {url}")
             g.throttled(attempt, _b, _c)

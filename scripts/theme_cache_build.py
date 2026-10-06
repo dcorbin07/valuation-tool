@@ -1140,8 +1140,16 @@ def main(argv=None) -> int:
     _cov = (out.get("coverage") or {})
     if "insider_score" in _cov:
         _ic = _cov["insider_score"]
+        # THE THIRD CAUSE WAS MISSING AND IT WAS THE ACTUAL ONE. This line named two
+        # possibilities -- an unpopulated directory and a quiet quarter -- and the 2026-10-06
+        # build was neither: SEC refused 963 of 1,116 names' documents and `fetch4` banked the
+        # refusals as parse failures. A reader checking the two causes offered would have found
+        # `form4_live` populated and the quarter busy, and had nowhere left to look. The crawl
+        # now prints its own LOST line directly above this one.
         print("  insider      coverage %.4f%s" % (_ic, "" if _ic >= 0.5 else
-              "   <-- BELOW 0.5: form4_live was not populated, or the window is genuinely quiet"))
+              "   <-- BELOW 0.5: read the crawl's LOST line above. Either SEC refused the "
+              "documents, form4_live was not populated, or the window is genuinely quiet -- "
+              "they are different failures and the crawl says which."))
     return 0
 
 

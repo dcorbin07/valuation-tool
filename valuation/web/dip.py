@@ -496,6 +496,11 @@ def screen(rows: List[dict],
     # exactly how a screen and a book come to disagree about what they screened.
     out, unmeasured, rejected_health, health_rejects = [], 0, 0, []
     rejected_shallow = 0
+    # SEPARATE FROM `rejected_checks`, which now counts ONLY the row-level site above. One
+    # counter served two different events -- a snapshot row refused before measurement, and a
+    # valuation refused after it -- so "16" could not be read without subtracting `n_measured`
+    # from it in your head, and the twelve lost valuations were invisible.
+    withheld_valuation = 0
     for r, checks in measured_set:
         m = measure(r) or {}
         dd = m.get("drawdown")
@@ -507,9 +512,27 @@ def screen(rows: List[dict],
         for k, v in (m.get("checks") or {}).items():
             if k in merged and merged[k] != FAIL and v in (PASS, FAIL, NOT_RUN):
                 merged[k] = v
-        if any(v == FAIL for v in merged.values()):
-            rejected_checks += 1
-            continue
+        # A FAILED CHECK SUPPRESSES THE VALUATION, NOT THE NAME -- and the old `continue` here
+        # is why the screen returned nothing.
+        #
+        # THE MECHANISM IS STRUCTURAL, not a tuning problem. `measure`'s own checks include
+        # `"withheld": FAIL if withheld else PASS`, and `withhold_implausible_fair_values`
+        # fires when `fair_value / price > FV_BAND_HIGH` (5.0) -- a ratio whose DENOMINATOR is
+        # the crashed price. So the deeper the drawdown the likelier the withhold, and a screen
+        # that valued its twelve deepest names then dropped every one of them was rejecting
+        # names FOR BEING DEEP. Measured live on 2026-10-06: `rejected_checks` 16 at every
+        # threshold from 0.10 to 0.40, `rejected_health` 0, `n_unmeasured` 0, rows 0.
+        #
+        # The row survives because the screen's entry rule is DEPTH AND HEALTH -- both measured
+        # from the price path and the published health floors, neither of which needs a fair
+        # value. `V6` returned NULL on this tab's hypothesis and licensed it as *"a filter, not
+        # a forecast"*, so leaning on a fair value here was never permitted anyway. What the
+        # refusal governs is PUBLICATION of the valuation, which is what `withhold.py` is for:
+        # the fair value, its band, the upside and the score all go to None and the reason
+        # travels in `fair_value_withheld_reason`.
+        valuation_blocked = sorted(k for k, v in merged.items() if v == FAIL)
+        if valuation_blocked:
+            withheld_valuation += 1
         if dd is None:
             unmeasured += 1
             continue
@@ -556,14 +579,20 @@ def screen(rows: List[dict],
             "drawdown": dd,
             "high_52w": m.get("high_52w"),
             "health": h["scores"],
-            "score": m.get("score"),
-            "confidence": m.get("confidence"),
+            "score": None if valuation_blocked else m.get("score"),
+            "confidence": None if valuation_blocked else m.get("confidence"),
             "checks": merged,
             "checks_not_run": sorted(k for k, v in merged.items() if v == NOT_RUN),
-            "fair_value": m.get("fair_value"),
-            "upside": m.get("upside"),
-            "fair_value_low": m.get("fair_value_low"),
-            "fair_value_high": m.get("fair_value_high"),
+            # EVERY published valuation field is nulled together, through ONE flag. Nulling
+            # them one by one is how a band outlives the number it brackets -- `withhold.py`'s
+            # own finding is that a scenario is the same valuation re-run, so publishing the
+            # band past a refusal republishes the refused number.
+            "valuation_withheld": bool(valuation_blocked),
+            "valuation_withheld_checks": valuation_blocked,
+            "fair_value": None if valuation_blocked else m.get("fair_value"),
+            "upside": None if valuation_blocked else m.get("upside"),
+            "fair_value_low": None if valuation_blocked else m.get("fair_value_low"),
+            "fair_value_high": None if valuation_blocked else m.get("fair_value_high"),
             "fair_value_withheld_reason": m.get("fair_value_withheld_reason") or _reason(r),
             # V6-B's M1 statistic for THIS name's measured class. Built here and nowhere else
             # because this is the only point where all three inputs coexist for one company at
@@ -618,7 +647,17 @@ def screen(rows: List[dict],
              "depth you asked for. Depth is read from the scan at no cost; a valuation is not, "
              "which is why it is capped."
              % (n_qualified, n_eligible, n_depth_pass, n_depth_unknown,
-                len(measured_set))) if preselect_available else
+                len(measured_set)))
+            # THE WITHHELD COUNT TRAVELS WITH THE ROWS OR THE PAGE LIES BY OMISSION. A row
+            # whose fair value is withheld renders with blanks where every other row has a
+            # number, and a reader with no sentence for it reads a missing number as a bug.
+            + ((" %d of those had the fair value WITHHELD -- the model refused to publish one, "
+                "so the name is shown for its drawdown and health with no fair value, upside or "
+                "score. That is expected on a deep drawdown: the implausible-value guard "
+                "compares fair value against the crashed price, so the deeper the fall the more "
+                "often it fires."
+                % withheld_valuation) if withheld_valuation else "")
+            if preselect_available else
             ("this scan snapshot carries no 52-week-high ratio, so depth could not be read "
              "without a valuation and only the deepest-ranked names were checked. A scan run "
              "after this change will carry it.")),
@@ -629,6 +668,7 @@ def screen(rows: List[dict],
         # ADDITIVE. Every existing consumer reads `rows`, and this changes none of them.
         "health_rejects": health_rejects,
         "rejected_checks": rejected_checks,
+        "withheld_valuation": withheld_valuation,
         "health_floors": dict(HEALTH_FLOORS),
         "health_floor_note": HEALTH_FLOOR_NOTE,
         "checks": dict(CHECKS),

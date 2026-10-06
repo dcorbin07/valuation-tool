@@ -5,6 +5,223 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 81 — 2026-10-06 — ITEM 33 continued: a refusal recorded as an answer, twice
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict against a threshold — two correctness
+repairs and one estimator change gated on an existing control. `by_domain` is untouched.
+
+**THE SHAPE IS ONE SHAPE AND IT APPEARS IN BOTH DEFECTS: something refused us, and the code
+wrote the refusal down as a fact about the world.** SEC refused a document and the crawl
+recorded "this name has no insider filings". The valuation model refused to publish a fair
+value and the dip screen recorded "this name is not in a drawdown". Both are the
+vacuous-pass family one step along — not a check that could not fail, but an answer that was
+never given being stored as an answer.
+
+## (a) THE FORM 4 CRAWL — 963 OF 1,116 NAMES LOST TO A STATUS CODE NOBODY READ
+
+Item 33's first cut ran the missing producer (`F2.fetch4(current=True)`) and insider coverage
+went **0.012 → 0.1547**. That is a sixfold improvement and it is still nowhere near the 0.5
+bar, and the run log says why once you know where to look:
+
+```
+1116 names to crawl, 11031 documents
+crawled 1116 names; cached 538
+insider      coverage 0.1547
+```
+
+**153 names were written on that pass** (538 − 385 from the shard's own earlier call). The
+other 963 had `n_filings > 0` and `parsed == 0` — every single document failed — and
+`fetch4`'s write rule leaves such a name absent so the next run retries it. Correct rule;
+nothing retried, because the next run met the same wall.
+
+**TWO DEFECTS, AND THE FIRST CAUSED THE SECOND.**
+
+**`Guard.wait()` had no lock and `fetch4` calls it from a four-worker pool.** It is a
+read-modify-write on `self._last`: four threads read the same value, each computes the same
+`need`, each sleeps it, and all four then fire together. Measured on that run — **11,031
+documents in 891 s is 12.4 requests/second against an advertised 1/0.13 = 7.7.** The guard
+counted calls and paced nothing. It now holds the lock across the sleep, which serialises the
+pacing: the limit is on the ACCOUNT, not on bandwidth, so four workers waiting their turn is
+the same throughput as one. Single-threaded behaviour is bit-identical and a test pins that.
+
+**`requests.get(...).text` never read a status code.** SEC answers an over-rate caller with a
+403 whose body is plain prose, so that prose went to `ET.fromstring`, raised, and was banked
+as a **parse failure**. The crawl now treats `THROTTLE_STATUS` (429/403/503) as a refusal and
+retries patiently on the guard's own backoff — the distinction `theme_cache_build` already had
+to make for the 13F probe, one leg along.
+
+**AND THE COUNT NOW SHIPS WITH ITS REASON.** `cached 538` was the only visible number and it
+cannot tell a quiet quarter from a refused crawl; the 963 had to be recovered by subtraction
+two steps away. The crawl prints `written` / `with transactions` / `no filings in window` and
+a `LOST:` line carrying throttled, refused, fetch and parse counts. `theme_cache_build`'s
+below-0.5 warning named two possible causes — an unpopulated directory, a quiet window — and
+**the actual cause was a third**, so a reader checking the two offered would have found the
+directory populated, the quarter busy, and nowhere left to look.
+
+## (a) THE PARSER — IT READ A NARROWER ROW SET THAN THE PANEL, AND THE GAP IS 8.7%
+
+Measured against the panel's own source on the panel's own 90-day window (SF2 filing dates
+2026-04-02 .. 2026-07-01), scoring each rule's name coverage:
+
+| rule | names scored |
+|---|---|
+| the panel (`_prep_insider`: every row where `val is not None`) | **1,928** |
+| the free parser (`nonDerivativeTransaction` only, `if not val: continue`) | **1,761** |
+| **lost** | **167 — 8.7%** |
+
+Of the 167: **54** have derivative rows only, **113** value entirely to zero. SF2 is **22.3%
+derivative-shaped** and **532,710** of its valuable rows are derivative, so this is the panel's
+row set rather than a widening chosen for its effect.
+
+**A ZERO IS A TRANSACTION AND DROPPING IT IS NOT THE SAME AS NOT HAVING ONE.** `_prep_insider`
+keeps `val is not None`; `_insider_score_at` then returns `_insider_formula(0, 0)` = **50** for
+a window of zeros and `None` only when the window is EMPTY (`b <= a`). `if not val: continue`
+collapsed the two, so a name whose quarter was all $0 grants read as "no opinion" here and
+"neutral" there.
+
+**THE OBVIOUS OBJECTION IS FIDELITY-2's OWN, AND IT IS ANSWERED BY MEASUREMENT.** That gate
+rejected a first cut for putting **179 of 500 served names — 35.80%** in one tie block at 50,
+and the rule it adopted is that an empty window is `None`. **That rule is untouched.** What
+changed is which windows are empty. On the panel's own window **128 of 1,928 names — 6.64% —
+score exactly 50**, so mirroring the panel reproduces a sixth of the rejected block, and it
+reproduces it because the panel has it.
+
+**NOT TAKEN:** SF2's `transactionvalue` fallback for a row with shares but no price. Form 4 XML
+carries no such field, so there is nothing to fall back TO — and it is worth **0.06%** of rows.
+
+**THE GATE WAS RE-MEASURED RATHER THAN ASSUMED TO SURVIVE.** `form4_aligned`'s payloads hold
+already-PARSED transactions, so a changed parser cannot be scored by re-reading them. The
+aligned window was re-crawled into `form4_aligned_wide` — a separate directory, because the
+banked one is the control input the published figure was measured on and overwriting it would
+destroy the comparison. `insider_column` gained an `f4_dir` argument defaulting to what it
+already read.
+
+**THE INSTRUMENT CHECK FIRST: the OLD leg re-scores at rho 0.8726 on 328 pairs — the published
+figure exactly.**
+
+| leg | rho | pairs | names scored | empty window |
+|---|---|---|---|---|
+| OLD parser (the published control) | **0.8726** | 328 | 341 | 159 |
+| WIDENED | **0.8667** | 339 | **356** | 144 |
+
+**BOTH PASS**, against a bar of 0.60 — so the widening clears by 0.27 and the gate is not
+close. **IT BUYS 15 NAMES AND COSTS 0.0059 OF RHO**, and the cost is real rather than
+presentational: the widening does not only add names, it adds transactions to names that
+already scored, so their scores move too.
+
+**A CORRECTION AGAINST MY OWN FIRST READING, made before anything was reported.** On a
+29%-complete crawl the widened leg read **0.9322** and I recorded that as an early signal that
+the widening improves fidelity by +0.0596. It does not — on the full 500 names it costs
+0.0059. The partial figure rested on 90 pairs against a 100-pair floor, which is exactly the
+floor's purpose, and quoting it as a direction would have been quoting noise.
+
+**THE COVERAGE GAIN IS ALSO SMALLER THAN THE SF2 MEASUREMENT PREDICTED, AND THE REASON IS
+POPULATION.** The 8.7% was measured across all 1,928 SF2 names; the served universe is 500
+large caps, which file more often, so fewer of them are rescued by a derivative row or a
+window of zeros. Measured here: **+4.4%** (341 → 356). `O-1`'s lesson — a rate measured on one
+population is not a rate on another, and that item got it ~17x wrong in the same direction.
+
+## (b) THE DIP SCREEN REJECTED ITS DEEPEST NAMES FOR BEING DEEP
+
+The two-stage preselector from item 33's first cut works — at `min_drawdown` 0.10 the live
+screen read 204 qualifying names and valued 12 spread across the qualifying range. It then
+returned **zero rows**, and the counters said where they went only if you did arithmetic:
+`rejected_checks` **16** with `rejected_health` 0, `rejected_shallow` 0 and `n_unmeasured` 0 —
+4 row-level rejections plus all 12 valuations.
+
+**TWO HYPOTHESES WERE REFUTED BY LIVE MEASUREMENT BEFORE THE RIGHT ONE WAS FOUND**, which is
+recorded because the first was confident and wrong. `_beta_check` FAILs on a substituted beta
+and the project's primary price vendor is dead, so a substituted beta looked certain. Probed
+through `POST /api/value`: `wacc.beta_provenance.substituted` is **False** for MSFT, PODD, APP
+and NEE. The same probe surfaced `tv_share` 0.6053 (high), 0.7063 (medium), 0.3491 (medium) —
+all below `TV_SHARE_MEDIUM` = 0.90, so `_terminal_share_check` passes too.
+
+**THE CAUSE IS `measure`'s OWN `"withheld": FAIL if withheld else PASS`, AND THE MECHANISM IS
+STRUCTURAL RATHER THAN A TUNING PROBLEM.** `withhold_implausible_fair_values` fires when
+`fair_value / price > FV_BAND_HIGH` (5.0) — **a ratio whose DENOMINATOR is the crashed price.**
+So the deeper the drawdown the likelier the refusal, and a screen whose entry rule selects the
+deepest names was valuing exactly the names most certain to be refused and then dropping every
+one of them. `rejected_checks` read **16 at every threshold from 0.10 to 0.40**, which is the
+signature: the rejection does not care where the bar is.
+
+**THE FIX IS THAT A FAILED CHECK SUPPRESSES THE VALUATION, NOT THE NAME.** The screen's entry
+rule is DEPTH AND HEALTH — both measured from the price path and the published health floors,
+neither of which needs a fair value. `V6` returned NULL on this tab's hypothesis and licensed
+it as *"a filter, not a forecast"*, so leaning on a fair value here was never permitted. What
+the refusal governs is PUBLICATION of the valuation, which is what `withhold.py` is for: the
+fair value, its band, the upside and the score all go to `None` **together, through one flag**
+— nulling them one by one is how a band outlives the number it brackets — and the reason
+travels in `fair_value_withheld_reason`, which the page already renders as "withheld" with the
+reason as a tooltip. No client change was needed; the surface was already built for this and
+nothing ever reached it.
+
+**AND THE COUNTER WAS TWO EVENTS UNDER ONE NAME.** `rejected_checks` incremented at the
+row-level site and at the measured site, so "16" could not be read without subtracting
+`n_measured` in your head. It now counts the row-level site only and `withheld_valuation`
+counts the other. The note states the withheld count in words, because a row whose fair value
+is blank where every other row has a number reads as a bug to anyone with no sentence for it.
+
+**NOT CHANGED, deliberately:** a row the SNAPSHOT refused is still rejected before measurement.
+That site is a row-level fact with no valuation to suppress, and it is pinned by a test so the
+asymmetry is a decision rather than an oversight.
+
+**A DEFECT IN THE PAGE THAT THIS FIX MOSTLY HIDES, REPORTED BECAUSE IT WILL OUTLIVE IT.**
+`renderDip`'s empty branch splits on measured-vs-unmeasured, so with 12 measured and 0
+unmeasured it printed *"No name cleared a 20% fall from its 52-week high while also scoring
+healthy today, of the 12 that could be measured."* **Every one of those names had cleared the
+fall.** That is Item 19's defect — a claim about the market where the truth was a claim about
+the wiring — in a third costume, and the branch cannot see it because the names were measured
+successfully and then discarded downstream.
+
+**THREE DEFECTS IN MY OWN TEST FIXTURES, ALL CAUGHT BY RUNNING THEM.** The Form 4 fixture
+carried a default namespace that real SEC documents do not, so the parser correctly read
+nothing from it — the shipped `findtext(".//transactionCoding/transactionCode")` has no
+namespace handling, which is the proof. The dip fixture wrote `extra.numbers.high_prox`, the
+within-date **z-score**, where `cheap_drawdown` reads `extra.high_prox`, the raw **ratio** — so
+`preselect_available` came back False and the test measured the fallback path instead of the
+one it names. And its health subs listed `value` where `HEALTH_FLOORS` is quality/health/
+**growth**, so every row was rejected on health before reaching the subject.
+
+## THREE DEFECTS THE FULL GATE CAUGHT THAT MY OWN VERIFICATION DID NOT, AND THE FIRST IS THE HARNESS
+
+**MY AFFECTED-SUITES RUNNER REPORTED 19 OF 19 PASSING AND COULD NOT HAVE REPORTED OTHERWISE.**
+It ran `out=$(python "tests/$t.py" 2>&1 | tail -3); rc=$?` — and `$?` after a pipeline is the
+exit status of **`tail`**, which is always 0. So the gate I wrote to select the affected
+suites by import was structurally incapable of failing. `RUN_RULES` says *"judge a suite by
+its EXIT CODE, never by grepping for `OK`"*; I did judge by exit code and captured the wrong
+one, which is the same defect wearing the rule's own clothes. The full 247-suite gate then
+found two real failures in the files that runner had just cleared.
+
+**(1) `fetch4` HAD TWO RETURNS AND I WIDENED ONE.** Changing `return t, rec["parsed"]` to
+`return t, rec` left the early `return t, 0` on the no-CIK path untouched, so the caller's
+tally did `rec["throttled"]` against an int. `test_theme_cache_fresh_runner` is the only suite
+that drives `main()` end to end with a name whose CIK is unknown, and it is the only thing
+that would ever have found this. **Two returns from one function must agree about what they
+return.**
+
+**(2) `test_dip.py`'s `test_a_beta_the_company_did_not_supply_fails_the_row` WENT RED AGAINST A
+CORRECT TREE, and it was a deliberate pin rather than a stale expectation.** It asserted
+`out["rows"] == []`. **Re-asserting it would have been silencing a check and deleting it would
+have been worse**, so it is REPOINTED IN THE SAME COMMIT, which is what makes the move show in
+the diff: the property it protected is *"a company whose DCF cannot be trusted is never shown
+WITH a fair value"*, and that property is now stronger — the name is shown and the fair value
+is not. Its sibling `test_a_withheld_name_never_reaches_the_screen` is untouched and still
+passes, because that is the ROW-LEVEL site, which this change deliberately leaves alone.
+
+**`MA46`'s warning was in view the whole time**: four red suites were right once and the
+change was wrong. The thing that decided it here was not preference but the live measurement —
+`rejected_checks` 16 at every threshold from 0.10 to 0.40, which is the signature of a
+rejection that does not care where the bar is.
+
+**23 new tests; 15 of 23 fail against the pre-fix sources with all three files restored
+byte-for-byte.** The 8 that pass on both sides are the unchanged-behaviour controls — health
+still rejects, a shallow name is still rejected, a snapshot-refused row is still rejected
+before measurement, the single-threaded guard is bit-identical — and they are supposed to.
+All 19 suites that import `dip`, `live_theme_sources`, `fidelity2_rebuild` or
+`theme_cache_build` pass, selected by `grep -rln` on the module names rather than by filename.
+
+---
+
 # Session 80 — 2026-10-03 — ITEM 25: a cash-flow model applied to companies whose cash flow it cannot describe
 
 **ZERO TRIALS. NOT A VINTAGE EVENT, AND THAT IS MEASURED RATHER THAN ASSERTED.** `hot_score` is
