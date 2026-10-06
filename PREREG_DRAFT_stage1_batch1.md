@@ -1,9 +1,16 @@
 # PREREG DRAFT — STAGE-1 BATCH 1 — twelve arms on the build quadrant
 
 **THIS IS A DRAFT AND NOT A REGISTER. ZERO TRIALS. Nothing here is committed as a
-pre-registration, nothing is measured, no arm is run, and no trial is booked.** A register is a
-separate file committed **ALONE** (markdown only, zero `.py`, a strict git ancestor of every
-measurement commit). Drafting is design; the register is the commitment. `RESEARCH_CHARTER.md` §3.
+pre-registration, no arm is run, no outcome statistic is computed, and no trial is booked.** A
+register is a separate file committed **ALONE** (markdown only, zero `.py`, a strict git ancestor
+of every measurement commit). Drafting is design; the register is the commitment.
+`RESEARCH_CHARTER.md` §3.
+
+**One thing here IS measured, and the wording above is precise rather than loose: §0a is a
+read-only SHAPE census of the panel** — rows, dates, names — **which touches no outcome column
+and scores nothing.** A census is a fact about what data exists (`S25`/`MB15`/`MB3`, all logged at
+zero trials), and under `MB1-SEL` a pre-outcome control can only ever BLOCK a design, never
+produce a finding, so it adds no degree of freedom.
 
 **The protocol is `RESEARCH_CHARTER.md` §5 as amended by Don's ruling of 2026-10-06
 (`DECISIONS.md`): no cap on tests.** This is the first Stage-1 batch under it.
@@ -23,7 +30,29 @@ measurement commit). Drafting is design; the register is the commitment. `RESEAR
 * **BOTH HALVES INSIDE THE BUILD QUADRANT**: 2009–2014 / 2015–2019, boundary embargoed. An arm
   clearing one half is `NOT_REPLICATED` and does not reach Stage 2.
 
-### 0a. THE BATCH IS TWELVE ARMS AND ITS MEMBERSHIP IS FIXED HERE
+### 0a. THE QUADRANT IS MEASURED, NOT ASSUMED — and it is a much wider universe than the record's figures describe
+
+Read-only shape census of `UNIVERSE_BIAS_PANEL_full.pkl`. **No outcome column is touched, no arm
+is scored, no trial is booked** — a census is a fact about what data exists, the
+`S25`/`MB15`/`MB3` zero-trial class.
+
+| | rows | dates | names | names per date (min / median / max) |
+|---|---|---|---|---|
+| whole corrected panel | 289,659 | 69 | **9,645** | — |
+| **BUILD** 2009–2019 × half 0 | **87,436** | **44** | **3,545** | **1,679 / 2,009 / 2,132** |
+| CHECK 2020–2026 × half 1 — **NOT read** | 57,792 | 25 | 3,498 | — |
+
+Span **2009-03-27 → 2026-04-09**.
+
+**Two things a Stage-1 executor needs from this.** First, **the corrected universe is 9,645 names
+against the 2,531 every published figure in `CLAUDE.md` is measured on** — so no bar, floor or
+MDE from the old panel transfers without being re-derived, and §6 forbids borrowing one. Second,
+**the both-halves split inside the build quadrant is 24 dates / 20 dates**, and both clear the
+shipped `min_dates = 16` floor — but **20 is only four above the thinnest split the gate
+accepts**, which is `S18`'s situation, so a thin-half null here means *"could not be separated at
+this resolution"* and nothing stronger.
+
+### 0b. THE BATCH IS TWELVE ARMS AND ITS MEMBERSHIP IS FIXED HERE
 
 **Benjamini-Hochberg at q = 0.10 across `k` = 12.** The *i*-th smallest *p* is compared against
 *i* · 0.10 / 12:
@@ -37,7 +66,7 @@ afterwards which arms "were in the batch" is how BH is gamed.** An arm that cann
 reported as **NOT RUN** and `k` **stays 12** — shrinking `k` after a build failure makes every
 surviving threshold easier, which is the same gaming in a different direction.
 
-### 0b. AND BH DOES NOT APPLY TO EVERY ARM, WHICH THE CHARTER REQUIRES BE DECLARED
+### 0c. AND BH DOES NOT APPLY TO EVERY ARM, WHICH THE CHARTER REQUIRES BE DECLARED
 
 **This project's bars are mostly MARGINS, not *p*-values.** §6 forbids inventing a *p* so a
 method applies, and `R1-VAR` is the precedent: X7's calibrated figure is a **detection**
@@ -264,5 +293,5 @@ and anyone drafting it must clear `R1-VAR` first.**
   pre-committed **0.90**.
 * **Nothing is adopted.** Adoption is Don's, is a vintage event, and quotes the expected return at
   **half** the backtested size (McLean-Pontiff).
-* **A5 is reported NOT RUN rather than dropped**, and `k` stays 12 — see §0a.
+* **A5 is reported NOT RUN rather than dropped**, and `k` stays 12 — see §0b.
 * **A4 is withdrawn if r1's tiered-pool register already names a junk filter.**
