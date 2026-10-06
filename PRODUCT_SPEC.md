@@ -76,16 +76,23 @@ across constructions).
 |---|---|---|---|
 | **the served book (the Index)** | **+1.9488 pp** | **8.4381** | **4,383** (~365 years) |
 | the research decile | +8.0564 pp | 11.3878 | 385 (~32 years) |
-| what the contract's arithmetic uses today | +9.9864 pp — **wrong book AND gross** | 11.40 | 242 |
+| what §2 used BEFORE Amendment 2 | +9.9864 pp — **wrong book AND gross** | 11.40 | 242 |
 
 So the forward test **can** show whether the Index is being recorded honestly and whether its
 costs and turnover behave as modelled. It **cannot** show whether the Index beats SPY: no
 five-year result, in either direction, would settle that.
 
-**THE SIGNED CONTRACT IS NOT EDITED.** `PAPER_TRACK_CONTRACT.md` §2's arithmetic rests on the
-figure in the last row, and σ may never be revised downward (the contract's own rule — at 1.5×
-the assumed volatility the false-crossing rate is 20%). The correction is drafted as a proposed
-amendment in **`PREREG_DRAFT_contract_amendment_2.md`** for Don, not applied here.
+**THE SIGNED CONTRACT NOW CARRIES THIS CORRECTION — Don accepted it on 2026-10-04 as
+AMENDMENT 2** (`PAPER_TRACK_CONTRACT.md` §5a-2, with the paragraph appended to §2). The last row
+is therefore what §2 used **before** the amendment, kept because the correction is only legible
+beside the figure it replaced.
+
+**σ IS UNCHANGED AT 11.40.** §6.5 forbids revising it downward — at 1.5× the assumed volatility
+the false-crossing rate is 20% — and the amendment does not ask to: the arm-specific tracking
+error is reported **beside** σ, never substituted for it. **The amendment makes the contract's
+stated power WORSE, not better**; nobody gains from it, and no threshold, clock or meter parameter
+moved. `PREREG_DRAFT_contract_amendment_2.md` is kept as the record of what was proposed and
+when.
 
 ### WHEN THESE NUMBERS CHANGE
 

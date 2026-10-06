@@ -140,7 +140,15 @@ RESEARCH_TE_VS_SPY = 11.3878
 RESEARCH_MONTHS_TO_DETECT = 385
 RESEARCH_YEARS_TO_DETECT = 32.1
 
-#: What the contract's power arithmetic uses TODAY, and why it is wrong twice over.
+#: What the contract's power arithmetic used BEFORE Amendment 2, and why it was wrong twice
+#: over: the ALL-CAP equal-weighted decile's edge, measured GROSS.
+#:
+#: SUPERSEDED 2026-10-04. Don accepted `PREREG_DRAFT_contract_amendment_2.md` and
+#: `PAPER_TRACK_CONTRACT.md` §2 now carries the served figures (§5a-2). THE NAMES AND VALUES ARE
+#: KEPT rather than renamed or deleted: the correction is only legible beside the figure it
+#: replaced, `/proof` and the Index tab both render the comparison, and a reader who finds 9.9864
+#: in an older write-up needs to be able to find out what it was. `_IN_USE` now means "in use in
+#: §2 until 2026-10-04".
 CONTRACT_EDGE_IN_USE_PP = 9.9864
 CONTRACT_TE_IN_USE = 11.40
 CONTRACT_MONTHS_IN_USE = 242
@@ -149,17 +157,26 @@ CONTRACT_MONTHS_IN_USE = 242
 def power_sentence() -> str:
     """What the five-year forward test can and cannot show, for the served book.
 
-    Stated plainly because the alternative is a reader assuming a null is evidence. The
-    contract's own §2 already says 60 months runs at 49% power against the figure it uses; that
-    figure is the ALL-CAP decile's and it is GROSS. On the book actually served, at its own
-    measured tracking error, the requirement is 4,383 months.
+    Stated plainly because the alternative is a reader assuming a null is evidence.
+
+    THE CONTRACT NOW AGREES WITH THIS SENTENCE RATHER THAN BEING CORRECTED BY IT. Until
+    2026-10-04, §2's power arithmetic used the ALL-CAP decile's GROSS +9.9864pp and this function
+    existed to say so on the page while the signed text went uncorrected. Don accepted
+    Amendment 2 on 2026-10-04, so §2 carries the served figures itself (`PAPER_TRACK_CONTRACT.md`
+    §5a-2) and the page and the contract now state one thing.
+
+    THE SENTENCE ITSELF DID NOT CHANGE, which is the point worth noticing: it was measured from
+    the served book and was true before the amendment and after it. What changed is that the
+    contract stopped disagreeing with it. The clause naming the amendment is added so a reader
+    on the page can tell which it is.
     """
     return ("On the book the Index actually serves, detecting its edge over SPY would take "
             "about {m:,} months — roughly {y:.0f} years — at the book's own measured tracking "
             "error of {te:.2f} pp/yr. So the five-year forward test can show whether the Index "
             "is being recorded honestly and whether its costs and turnover behave as modelled. "
             "It cannot show whether the Index beats SPY: no five-year result, in either "
-            "direction, would settle that.").format(
+            "direction, would settle that. This is the paper-track contract's own figure since "
+            "Amendment 2 (accepted 2026-10-04).").format(
         m=SERVED_MONTHS_TO_DETECT, y=SERVED_YEARS_TO_DETECT, te=SERVED_TE_VS_SPY)
 
 

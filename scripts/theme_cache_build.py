@@ -266,7 +266,8 @@ def fidelity_control(banked: str = None, root: str = None) -> dict:
     return out
 
 
-def newest_published_periods(as_of=None, max_back: int = 4) -> dict:
+def newest_published_periods(as_of=None, max_back: int = 4, guard=None,
+                            patient: bool = True) -> dict:
     """`latest_complete_periods`, stepped back until SEC actually HAS the dataset.
 
     MEASURED 2026-09-30, and this is why the function exists. The derivation asks for period
@@ -294,20 +295,61 @@ def newest_published_periods(as_of=None, max_back: int = 4) -> dict:
     `max_back` is small on purpose: stepping back further than a year would silently build a
     cache from genuinely old holdings rather than refusing.
     """
-    import requests
     per = latest_complete_periods(as_of) if as_of else latest_complete_periods()
+    # THE RUN'S REAL CLOCK, KEPT SEPARATE FROM THE DERIVATION'S -- and the two coming apart is
+    # the "as of" discrepancy item 32 asks about. Stepping back a quarter is implemented by
+    # MOVING THE CLOCK (`as_of - 95 days`) and re-deriving, so `per["as_of"]` is a SYNTHETIC
+    # PAST DATE after any step-back, not the day the job ran. On 2026-10-04 one step back makes
+    # it 2026-10-04 - 95d = 2026-07-01 exactly, which is why the shard step printed "as of
+    # 2026-07-01" (it stepped back once and confirmed 31-MAR-2026) while the assemble step
+    # printed "as of 2026-10-04" (its probe was throttled before it stepped anywhere). Neither
+    # was wrong about the date; the field was being read as "today" when it means "the clock
+    # these periods were derived from". Both now travel.
+    _real_as_of = per["as_of"]
     tried = []
+    g = guard or (M.Guard() if hasattr(M, "Guard") else None)
     for _ in range(max_back):
         # THE URL COMES FROM THE DOWNLOADER'S OWN CONSTANT (B7). Rebuilding it here would be a
         # second copy of SEC's path, and the probe would then be able to say "published" about a
         # URL the downloader never fetches.
         url = M.DATASET_URL.format(window=per["window_curr"])
+        # A REFUSAL IS NOT AN ABSENCE, AND READING IT AS ONE IS THE DEFECT THIS CLOSES.
+        #
+        # This used to be a raw `requests.head` with `ok = r.status_code == 200`, which collapses
+        # three answers into two: a 429 became "not published". On 2026-10-04 that walked back
+        # four quarters, declared every one unpublished -- `30-SEP-2025` among them, whose 13Fs
+        # were due in November 2025 -- printed "not published by SEC yet", and then took a 429
+        # on the GET. Three crawl shards had just finished hammering SEC and this probe went out
+        # unpaced, because `main()` did not build its `Guard` until thirty lines later.
+        #
+        # `head_published` is the module that OWNS the SEC status vocabulary (`B7`), on the same
+        # `Guard`. `Throttled` STOPS THE WALK rather than counting as a miss: stepping back on a
+        # rate-limit asks four more questions of a server that has just refused one, and records
+        # four more false absences on the way.
+        # NO GUARD IS ALSO "UNKNOWN". My own first cut of this fell back to `ok = False`, which
+        # is the SAME conflation one level up: unable to ASK becomes "not published". If the
+        # pacing machinery is not importable the honest answer is that nothing was determined.
+        if g is None:
+            tried.append({"period": per["curr"], "window": per["window_curr"],
+                          "published": None,
+                          "throttled": "no Guard available; the probe was not made"})
+            per = dict(per)
+            per["probed"] = tried
+            per["stepped_back"] = len(tried) - 1
+            per["undetermined"] = True
+            per["run_as_of"] = _real_as_of
+            return per
         try:
-            r = requests.head(url, timeout=30, allow_redirects=True,
-                              headers={"User-Agent": getattr(
-                                  __import__("valuation.config", fromlist=["CONFIG"]).CONFIG,
-                                  "sec_user_agent", "valuation-tool contact@example.com")})
-            ok = r.status_code == 200
+            ok = M.head_published(url, g, patient=patient)
+        except getattr(M, "Throttled", ()) as exc:                      # noqa: B014
+            tried.append({"period": per["curr"], "window": per["window_curr"],
+                          "published": None, "throttled": str(exc)})
+            per = dict(per)
+            per["probed"] = tried
+            per["stepped_back"] = len(tried) - 1
+            per["undetermined"] = True
+            per["run_as_of"] = _real_as_of
+            return per
         except Exception:                                               # noqa: BLE001
             ok = False
         tried.append({"period": per["curr"], "window": per["window_curr"], "published": ok})
@@ -315,6 +357,7 @@ def newest_published_periods(as_of=None, max_back: int = 4) -> dict:
             per = dict(per)
             per["probed"] = tried
             per["stepped_back"] = len(tried) - 1
+            per["run_as_of"] = _real_as_of
             return per
         # One quarter earlier. `latest_complete_periods` takes an as-of, so move the clock.
         import datetime as _dt
@@ -324,7 +367,106 @@ def newest_published_periods(as_of=None, max_back: int = 4) -> dict:
     per["probed"] = tried
     per["stepped_back"] = len(tried)
     per["unpublished"] = True
+    per["run_as_of"] = _real_as_of
     return per
+
+
+def aggregate_covers(per: dict, root: str = None) -> bool:
+    """Is the 13F aggregate on disk already the two periods `per` derives?
+
+    WHY THIS IS WORTH A FUNCTION: if it is, there is NOTHING TO CONFIRM. An aggregate exists only
+    because some earlier step downloaded and aggregated that window, which means SEC served it --
+    so probing is spending a request on a question already answered, and on GitHub's shared
+    runner IPs that request is the scarce thing.
+
+    IT IS THE SAME TEST `build_13f` ALREADY MAKES before deciding to skip the download
+    (`cached["periods"] == [PERIOD_PRIOR, PERIOD_CURR]`), read here so the probe and the
+    download agree about what "already have it" means. Two different answers to that would mean
+    skipping the probe and then downloading anyway, which is the worst of both.
+    """
+    root = root or M.DEFAULT_ROOT
+    agg = M._read_json(os.path.join(root, "13f_aggregate.json")) or {}
+    return (agg.get("periods") or []) == [per.get("prior"), per.get("curr")]
+
+
+def _stale_label(n: int) -> str:
+    """`13F one quarter stale` — the exact wording item 32 asks for, pluralised honestly.
+
+    It goes into the cache's own `periods_source`, which is what `live_themes.py` reads, so a
+    consumer cannot see the data without seeing the label. A staleness recorded only in a log
+    line is a staleness nobody downstream can act on.
+    """
+    if n <= 0:
+        return "13F current"
+    words = {1: "one", 2: "two", 3: "three", 4: "four"}
+    return "13F %s quarter%s stale" % (words.get(n, str(n)), "" if n == 1 else "s")
+
+
+def periods_from_labels(curr_label: str, prior_label: str, run_as_of: str) -> dict:
+    """`latest_complete_periods`'s shape, rebuilt from two period LABELS.
+
+    The windows are DERIVED with `filing_window` rather than stored, so a fallback cannot name a
+    window the downloader would not fetch -- the same `B7` reason the probe takes its URL from
+    the downloader's own constant.
+    """
+    c = _dt.datetime.strptime(curr_label, "%d-%b-%Y").date()
+    p = _dt.datetime.strptime(prior_label, "%d-%b-%Y").date()
+    return {"as_of": run_as_of, "lag_days": INST_LAG_DAYS,
+            "curr": period_label(c), "prior": period_label(p),
+            "window_curr": filing_window(c), "window_prior": filing_window(p),
+            "curr_date": c.isoformat(), "prior_date": p.isoformat(),
+            "run_as_of": run_as_of}
+
+
+def confirmed_fallback(per: dict, root: str = None) -> dict | None:
+    """The newest 13F window this run can actually HAVE, when the derived one is unconfirmable.
+
+    TWO SOURCES, NEWEST FIRST, and both are things that were CONFIRMED PUBLISHED rather than
+    guessed at:
+
+      1. **a window this run's own probe confirmed** before it was throttled or ran out of
+         step-backs. (With the probe walking newest-first a confirm ENDS the walk, so this can
+         only be non-empty when the walk ended for a different reason -- it is here because the
+         walk's contract permits it, not because it fires today.)
+      2. **the window of the 13F aggregate already ON DISK.** This is the one that fires, and it
+         is not a guess either: an aggregate exists only because some earlier step downloaded
+         and aggregated that window, which means SEC served it. On the sharded workflow it is
+         the window the CRAWL SHARDS confirmed -- `13f_aggregate.json` travels to the assemble
+         job in the artifact (only the zips are excluded, for size), so the fallback needs NO
+         SEC REQUEST AT ALL. That is the whole reason this is the right fallback rather than
+         "probe one quarter older": a probe can be throttled, and a file cannot.
+
+    Returns None when there is nothing confirmed to fall back to, because inventing a window
+    here would be exactly the conflation item 28 removed one level up.
+    """
+    run_as_of = per.get("run_as_of") or per.get("as_of")
+    for t in reversed(per.get("probed") or []):
+        if t.get("published") is True:
+            # The label is the CURRENT period; its prior is the quarter before it.
+            c = _dt.datetime.strptime(t["period"], "%d-%b-%Y").date()
+            pr = quarter_end_on_or_before(c - _dt.timedelta(days=1))
+            out = periods_from_labels(t["period"], period_label(pr), run_as_of)
+            out["fallback_source"] = "a window this run's probe confirmed"
+            return out
+    root = root or M.DEFAULT_ROOT
+    agg = M._read_json(os.path.join(root, "13f_aggregate.json")) or {}
+    periods = agg.get("periods") or []
+    if len(periods) == 2:
+        try:
+            out = periods_from_labels(periods[1], periods[0], run_as_of)
+        except ValueError:
+            return None
+        out["fallback_source"] = ("the 13F aggregate already on disk (downloaded and aggregated "
+                                  "by an earlier step, so SEC served that window)")
+        return out
+    return None
+
+
+def quarters_between(newer_iso: str, older_iso: str) -> int:
+    """How many quarters a fallback is behind the derived window. 0 if it is not behind."""
+    a = _dt.date.fromisoformat(newer_iso)
+    b = _dt.date.fromisoformat(older_iso)
+    return max(0, (a.year - b.year) * 4 + (a.month - b.month) // 3)
 
 
 def write_served_file(su: dict, path: str) -> str:
@@ -733,14 +875,83 @@ def main(argv=None) -> int:
     # `newest_published_periods`: the 45-day derivation runs AHEAD of SEC's structured-data
     # schedule, so on 2026-09-30 it asks for a window that 404s after the first one has already
     # downloaded and aggregated.
-    per = newest_published_periods(as_of)
+    # ONE GUARD FOR THE WHOLE RUN, BUILT BEFORE THE FIRST SEC CALL. It used to be created
+    # thirty lines below this, AFTER the publication probe had already gone out unpaced -- which
+    # is how the probe came to be rate-limited by the crawl shards that ran minutes earlier. A
+    # shared guard also means the probe's refusals count against the same circuit breaker as
+    # the download's, which is the point of having a budget at all.
+    guard = M.Guard() if hasattr(M, "Guard") else None
+    # SPEND NO SEC REQUEST ON A QUESTION ALREADY ANSWERED (item 32(1)).
+    #
+    # The ordering the item asks for -- 13F before the Form 4 crawl -- IS ALREADY HOW main()
+    # runs: `build_13f` is called ~20 lines before `fetch_all`, in the shard step too. Measured
+    # on run 37237240057, that is not where the budget goes: the three shards crawl 14,504
+    # documents over ~11 minutes and the ASSEMBLE JOB starts afterwards, so its 13F probe is
+    # first within its own job and still arrives after eleven minutes of three-way hammering.
+    # Re-ordering inside one job cannot fix a budget spent across jobs.
+    #
+    # WHAT DOES FIX IT is not asking. `13f_aggregate.json` TRAVELS from the shards to the
+    # assemble job in the artifact (only the zips are excluded, for size), so when the shards
+    # have already built the window the assemble step needs, the answer is on disk and the probe
+    # is pure cost. `build_13f` would skip the download anyway; this skips the CONFIRMATION too.
+    _derived = latest_complete_periods(as_of)
+    if aggregate_covers(_derived):
+        per = dict(_derived)
+        per["run_as_of"] = _derived["as_of"]
+        per["probe_skipped"] = ("the 13F aggregate on disk already covers this window, so SEC "
+                                "has served it and there is nothing to confirm")
+    else:
+        per = newest_published_periods(as_of, guard=guard)
+    # FALL BACK TO A CONFIRMED WINDOW RATHER THAN WRITING NOTHING (item 32).
+    #
+    # Refusing was the right fix for reading a 429 as "not published" -- but on GitHub's SHARED
+    # RUNNER IPs it can mean the job never completes, which trades a wrong cache for no cache.
+    # A cache one quarter behind, LABELLED, is better than no cache: `institutional` and
+    # `insider` contribute nothing at all without one, which is the state the live check has
+    # been reporting as 0.00.
+    #
+    # THE FALLBACK IS A CONFIRMED WINDOW, NEVER A GUESSED ONE -- see `confirmed_fallback`. In
+    # the sharded workflow it is the window the CRAWL SHARDS confirmed, read off the aggregate
+    # they handed over, so it costs NO SEC REQUEST. If nothing is confirmed there is nothing to
+    # fall back to and the run still refuses.
+    _fallback_note = None
+    # CAPTURED BEFORE THE FALLBACK REPLACES `per`, because otherwise the fallback SILENCES THE
+    # DIAGNOSIS: the "CANNOT DETERMINE" line below keys on `per["undetermined"]`, and the
+    # fallback dict does not carry it. My first cut did exactly that -- it fell back correctly
+    # and stopped saying why, which is the shape of defect this whole item is about.
+    _probe_undetermined = bool(per.get("undetermined"))
+    _probe_unpublished = bool(per.get("unpublished"))
+    if per.get("undetermined") or per.get("unpublished"):
+        _fb = confirmed_fallback(per)
+        if _fb:
+            _stale = quarters_between(per["curr_date"], _fb["curr_date"])
+            _fb["stale_quarters"] = _stale
+            _fb["stale_label"] = _stale_label(_stale)
+            _fb["derived_curr"] = per["curr"]
+            _fb["derived_window_curr"] = per["window_curr"]
+            _fb["fallback_reason"] = ("the derived window could not be confirmed published"
+                                      + (" (SEC refused the probe)"
+                                         if per.get("undetermined") else ""))
+            _fb["probed"] = per.get("probed")
+            _fallback_note = _fb
+            per = _fb
     su = served_from_store()
     if a.universe:
         su = served_from_universe(a.universe, limit=a.limit)
 
     print("THEME CACHE BUILD")
+    # BOTH CLOCKS, because they come apart and item 32 asked why. `as_of` is the clock the
+    # PERIODS were derived from, and a step-back moves it into the past (`- 95 days` per
+    # quarter) -- which is why one step back on 2026-10-04 prints 2026-07-01. `run_as_of` is the
+    # day the job ran. Two steps printing different "as of" values were both correct and the
+    # label was wrong.
     print("  as of        %s (13F lag %d days, from fundamental_panel._inst_accum)"
           % (per["as_of"], per["lag_days"]))
+    if per.get("probe_skipped"):
+        print("  probe        SKIPPED -- %s" % per["probe_skipped"])
+    if per.get("run_as_of") and per["run_as_of"] != per["as_of"]:
+        print("  run date     %s   <-- the job's own clock; 'as of' above is the clock the "
+              "periods were DERIVED from, moved back by the step-back" % per["run_as_of"])
     print("  periods      %s (prior) -> %s (curr)   DERIVED, not pinned"
           % (per["prior"], per["curr"]))
     print("  windows      %s / %s" % (per["window_prior"], per["window_curr"]))
@@ -752,8 +963,26 @@ def main(argv=None) -> int:
         for t in per.get("probed") or []:
             print("               %s  %s  published=%s" % (t["period"], t["window"],
                                                            t["published"]))
-    if per.get("unpublished"):
+    # TWO DIFFERENT SENTENCES, BECAUSE THEY ARE TWO DIFFERENT FACTS AND ONLY ONE IS ABOUT SEC'S
+    # SCHEDULE. "No published window" is a statement about publication; "SEC would not say" is a
+    # statement about this run. Printing the first when the second is true is what sent a reader
+    # looking for a filing deadline that had passed eleven months earlier.
+    if _probe_undetermined:
+        print("  CANNOT DETERMINE: SEC refused the publication probe (rate-limited), so "
+              "whether the window is published is UNKNOWN -- not 'unpublished'.")
+        for t in per.get("probed") or []:
+            if t.get("throttled"):
+                print("               %s  %s  %s" % (t["period"], t["window"], t["throttled"]))
+    if _probe_unpublished:
         print("  REFUSING: no published 13F window within %d quarters" % 4)
+    if _fallback_note:
+        print("  FELL BACK:   %s -> %s (%s)"
+              % (_fallback_note["derived_window_curr"], _fallback_note["window_curr"],
+                 _fallback_note["stale_label"]))
+        print("               %s" % _fallback_note["fallback_reason"])
+        print("               source: %s" % _fallback_note["fallback_source"])
+        print("               the cache is LABELLED with this, so a consumer cannot read the "
+              "data without the staleness")
     if a.slice:
         print("  shard        %d of %d (crawl only; assembly is skipped)" % (_si, _sn))
     print("  served       %s from scan %s" % (len(su["served"]), su["scan_date"]))
@@ -763,13 +992,48 @@ def main(argv=None) -> int:
         print("REFUSED: %s" % su["reason"], file=sys.stderr)
         return 3
     if a.dry_run:
-        print("DRY RUN - nothing was written and no SEC request was made.")
+        # CORRECTED 2026-10-04: this said "no SEC request was made" and that was FALSE, and
+        # measurably so -- `newest_published_periods` probes SEC's dataset URL above, before
+        # this branch is reached, and with the pacing repair it may now make up to
+        # `MAX_ATTEMPTS` of them. A dry run that claims to touch nothing while touching the
+        # vendor is the kind of sentence someone reaches for precisely when they want to check
+        # something safely.
+        # AND IT SAYS WHAT A REAL RUN WOULD DO, which is the thing a dry run is actually for
+        # and the thing it did not say. Added 2026-10-04 with the fallback: the decision -- build
+        # from the derived window, build from a stale confirmed one, or refuse -- is made from
+        # the probe's answer and the aggregate on disk, both of which are known HERE, before any
+        # price fetch or crawl. Printing it is what lets the decision be checked without doing
+        # the work, and it is what the suite asserts on rather than letting the run proceed into
+        # a live vendor.
+        if (_probe_undetermined or _probe_unpublished) and not _fallback_note:
+            print("WOULD REFUSE: the 13F window cannot be confirmed published and there is no "
+                  "confirmed window to fall back to.")
+        elif _fallback_note:
+            print("WOULD BUILD, LABELLED: %s (from %s)"
+                  % (_fallback_note["stale_label"], _fallback_note["window_curr"]))
+        else:
+            print("WOULD BUILD from the derived window %s (13F current)." % per["window_curr"])
+        print("DRY RUN - nothing was written. ONE SEC request class was made: the publication "
+              "probe above (paced, retried, HEAD only). No dataset was downloaded.")
         return 0
+
+    # AND THE RUN STOPS, WHICH IT DID NOT BEFORE. The old code printed "REFUSING" and then
+    # downloaded the window anyway -- a refusal that does not refuse. It sits AFTER the dry-run
+    # report on purpose (my own first cut put it before, which silenced the diagnosis in the one
+    # mode whose whole job is to print it): `--dry-run` should SAY what it found and exit 0.
+    # Exit 4 is distinct from the served-universe refusal above (3) so a scheduler can tell
+    # "SEC is rate-limiting, try later" from "this build has no universe" -- different problems,
+    # different fixes. `undetermined` is RETRYABLE and `unpublished` is not; both stop here.
+    if (_probe_undetermined or _probe_unpublished) and not _fallback_note:
+        print("REFUSED: the 13F window could not be confirmed published AND there is no "
+              "confirmed window to fall back to (no aggregate on disk and nothing confirmed by "
+              "this run's probe); refusing to download and aggregate a window this run could "
+              "not verify.", file=sys.stderr)
+        return 4
 
     # THE SEC LEGS RUN FIRST, through the IMPORTED machinery. `build_13f` downloads and
     # aggregates the structured zips; `fetch_all` walks the CUSIP ladder and the signed Form 4
     # crawl. Neither is reimplemented here.
-    guard = M.Guard() if hasattr(M, "Guard") else None
     M.WINDOW_CURR, M.WINDOW_PRIOR = per["window_curr"], per["window_prior"]
     M.PERIOD_CURR, M.PERIOD_PRIOR = per["curr"], per["prior"]
     M.build_13f(guard=guard)
@@ -822,10 +1086,19 @@ def main(argv=None) -> int:
         print("  shares lag   median %d days, p95 %d, max %d (level at or before %s, never after)"
               % (_stale[len(_stale) // 2], _stale[int(len(_stale) * 0.95)], _stale[-1], _pend))
 
+    # THE STALENESS TRAVELS IN THE CACHE, not only in this log. `periods_source` is what
+    # `live_themes.py` reads, so a consumer cannot see the columns without seeing that they are
+    # a quarter behind -- which is the difference between a labelled fallback and a quiet one.
+    _src = "derived from the calendar at %s (lag %d days)" % (per["as_of"], per["lag_days"])
+    if _fallback_note:
+        _src = ("%s -- %s: fell back from the derived %s because %s; %s"
+                % (_src, _fallback_note["stale_label"],
+                   _fallback_note["derived_window_curr"],
+                   _fallback_note["fallback_reason"],
+                   _fallback_note["fallback_source"]))
     out = F2.build_live(served=su["served"], period_curr=per["curr"],
                         period_prior=per["prior"], cache_path=cache_path(),
-                        periods_source="derived from the calendar at %s (lag %d days)"
-                                       % (per["as_of"], per["lag_days"]))
+                        periods_source=_src)
     print("built %s rows for %s served names" % (len(out["rows"]), out["n_served"]))
     return 0
 

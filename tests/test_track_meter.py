@@ -15,6 +15,7 @@ and there is a test showing the naive (uninflated) sigma BREAKS the guarantee --
 justifies the inflation being there at all.
 """
 import datetime as dt
+import io
 import math
 import os
 import random
@@ -550,6 +551,55 @@ def test_detail_says_which_row_is_awaited_and_when_it_becomes_assessable():
     assert d["row_awaited"] == day1.isoformat(), d.get("row_awaited")
     assert d["assessable_from"] == day2.isoformat(), d.get("assessable_from")
     assert any(h["vintage"] == 2 for h in d["per_vintage_recording"])
+
+
+def test_every_vintage_in_this_module_has_a_row_in_the_contract():
+    """THIS MODULE IS THE AUTHORITY AND THE CONTRACT'S TABLE IS THE RECORD, so a vintage here
+    with no row there is a register nobody can check the machinery against.
+
+    ADDED 2026-10-04 BY AMENDMENT 2, AND IT WAS ADDED BECAUSE THE DRIFT HAD ALREADY HAPPENED.
+    `INCEPTION` is DERIVED from the open vintage rather than typed, so this module moved to
+    vintage 4 on 2026-08-13 while 5a's markdown table still stopped at 3 -- for seven weeks, with
+    nothing to catch it. Writing the amendment surfaced it; this is what stops the next one.
+
+    IT CHECKS THE NUMBER AND THE OPENING DATE, not the prose. The reason cell is a paragraph and
+    pinning it would make every wording change a test failure -- a guard that cries wolf is one
+    people learn to edit rather than read.
+    """
+    import re
+    p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     "PAPER_TRACK_CONTRACT.md")
+    with io.open(p, encoding="utf-8") as fh:
+        text = fh.read()
+    # The register's rows, as markdown: | **N** | #run | **opened** | ...
+    rows = {}
+    for m in re.finditer(r"^\|\s*\*\*(\d+)\*\*\s*\|\s*#\d+\s*\|\s*\**\s*"
+                         r"(\d{4}-\d{2}-\d{2})\s*\**\s*\|", text, re.M):
+        rows[int(m.group(1))] = m.group(2)
+    assert rows, "no vintage rows found in the contract -- the table shape changed"
+    for v in TM.VINTAGES:
+        n = v["vintage"]
+        assert n in rows, (
+            "vintage %d is in track_meter.VINTAGES and has NO row in PAPER_TRACK_CONTRACT.md's "
+            "register. That module is the authority (INCEPTION is derived from the open "
+            "vintage), so the contract must record it -- see 5a-2." % n)
+        assert rows[n] == v["opened"].isoformat(), (
+            "vintage %d opened %s in track_meter and %s in the contract"
+            % (n, v["opened"].isoformat(), rows[n]))
+
+
+def test_that_vintage_check_can_fail():
+    """Non-vacuity: the regex must actually be finding rows, or the loop above asserts nothing.
+    A row count below the vintage count would mean the table shape moved under it."""
+    import re
+    p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     "PAPER_TRACK_CONTRACT.md")
+    with io.open(p, encoding="utf-8") as fh:
+        text = fh.read()
+    found = re.findall(r"^\|\s*\*\*(\d+)\*\*\s*\|\s*#\d+\s*\|", text, re.M)
+    assert len(found) >= len(TM.VINTAGES), (
+        "the parser found %d rows for %d vintages -- it is not reading the table"
+        % (len(found), len(TM.VINTAGES)))
 
 
 def _run_all():

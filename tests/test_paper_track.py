@@ -1323,6 +1323,153 @@ def test_ptsplit_the_engine_book_matches_what_the_register_records():
     assert len(holds) >= VI.CONTRACT_MIN_POSITIONS, len(holds)
 
 
+# ---------------------------------------------------------------------------------------------
+# The health note's clock. `index_point` stamps `_session_today()` (ITEM 20, because the service
+# runs UTC and an evening write lands under the next calendar day) while `health_note` used the
+# raw UTC date -- one concept, two definitions, in two modules. On 2026-10-04 that took the
+# landing gate red for FOUR branches at once, all on
+# `test_recap_health_note_does_not_report_a_hole_before_inception`, because `born` was Friday's
+# session while `today` had rolled to Monday: two expected sessions, one recorded, and a truthful
+# "hole in it" about a track with no hole.
+#
+# These pin the repair from both sides. The weekend and holiday cases are REGRESSION guards --
+# they are when the two clocks happened to agree, and they must keep agreeing. The rolled-date
+# case is the bug guard. And `..._still_fires_...` is the one that matters: the alarm must stay
+# live, or the repair is a silencing.
+
+_CLK_FRI = dt.date(2026, 10, 2)     # a session
+_CLK_MON = dt.date(2026, 10, 5)     # a session, and the UTC date CI had rolled to
+_CLK_XMAS_EVE = dt.date(2026, 12, 24)
+
+
+def _clock_fixture(session):
+    """A store whose writer stamped exactly `session`, with the session clock pinned there."""
+    real = PT._session_today
+    PT._session_today = lambda: session
+    try:
+        st = _store()
+        b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
+                               "SPY": {"last": 500.0}})
+        _seed(st, b, _BOOK)
+        PT.index_point(st, b)
+        return st
+    finally:
+        PT._session_today = real
+
+
+def _clock_note(store, reader_session, day=None):
+    """`health_note` with the session clock pinned to `reader_session`."""
+    real = PT._session_today
+    PT._session_today = lambda: reader_session
+    try:
+        return RC.health_note(RC.collect(store), day=day)
+    finally:
+        PT._session_today = real
+
+
+def test_health_note_reports_no_hole_when_the_reader_runs_on_a_WEEKEND():
+    """Saturday and Sunday are not sessions, so the last session is Friday's and it is recorded."""
+    st = _clock_fixture(_CLK_FRI)
+    note = _clock_note(st, _CLK_FRI)
+    assert "hole in it" not in note, note
+    assert "1/1" in note, note
+
+
+def test_health_note_reports_no_hole_when_the_reader_runs_on_a_MARKET_HOLIDAY():
+    """A holiday is not a session either, and `is_trading_day` knows the holiday calendar."""
+    from valuation.screener.market_session import is_trading_day
+    assert not is_trading_day(dt.date(2026, 12, 25)), "25 Dec must be a market holiday"
+    st = _clock_fixture(_CLK_XMAS_EVE)
+    note = _clock_note(st, _CLK_XMAS_EVE)
+    assert "hole in it" not in note, note
+    assert "1/1" in note, note
+
+
+def test_health_note_anchors_on_the_SESSION_and_not_the_rolled_UTC_DATE():
+    """The defect itself: at 00:04 UTC on Monday the session is still Friday.
+
+    `day=` reproduces the old anchor exactly, because the old line was
+    `_d(day) or _dt.date.today()`. So this is a differential test -- it fails if the fix is
+    reverted AND it cannot pass vacuously, because it asserts the two paths DISAGREE.
+    """
+    st = _clock_fixture(_CLK_FRI)
+    old = _clock_note(st, _CLK_FRI, day=_CLK_MON)      # the raw UTC date, rolled ahead
+    new = _clock_note(st, _CLK_FRI)                    # the session clock
+    assert "hole in it" in old, ("the old anchor no longer invents a hole, so this test is not "
+                                 "measuring the defect: %s" % old)
+    assert "hole in it" not in new, new
+
+
+def test_health_note_STILL_FIRES_on_a_genuinely_missed_session():
+    """THE PROPERTY THE REPAIR MUST NOT COST. A fix that quiets this is a silencing.
+
+    The market held Monday's session and the cron recorded only Friday's. `session_date()` reads
+    the MARKET CALENDAR rather than the recorded data, so the missed session is still expected
+    and is still reported. Anchoring on the last RECORDED session would have made the check
+    vacuous; anchoring on the last REAL session does not.
+    """
+    st = _clock_fixture(_CLK_FRI)
+    note = _clock_note(st, _CLK_MON)
+    assert "hole in it" in note, ("a real missed session went unreported -- the clock fix has "
+                                  "silenced the alarm: %s" % note)
+    assert "1/2" in note, note
+
+
+def test_health_note_bounds_expected_by_the_window_collect_actually_used():
+    """The second spurious hole from the same mismatch, at the window's far edge.
+
+    `collect` filters `sessions_in_window` with its OWN calendar date while `health_note`
+    anchors `expected` on the session clock, and the two can differ by three days -- Friday's
+    session against Tuesday's date after a Monday holiday. That puts a trading day inside
+    `expected` that the window could never have contained. `collect` now publishes the bound it
+    used and `health_note` honours it.
+    """
+    st = _clock_fixture(_CLK_FRI)
+    cyc = RC.collect(st)["sandbox_cycle"]
+    assert "window_since" in cyc, "collect must publish the window bound it filtered on"
+    assert cyc["window_since"] is not None, cyc
+    assert cyc["window_since"] <= _CLK_FRI.isoformat(), cyc["window_since"]
+
+
+def test_health_note_does_not_invent_a_hole_at_the_WINDOWS_FAR_EDGE():
+    """The far-edge case, and the one the key alone does not prove.
+
+    It needs a track OLDER than the window, because `born` otherwise bounds `expected` tightly
+    enough that the window bound never bites. Sessions Mon-Fri are all recorded; the reader's
+    session clock is Friday while `collect` is asked for the following TUESDAY -- the gap a
+    Monday holiday produces. `collect`'s window then starts on the Tuesday BEFORE, excluding
+    Monday's session from `got`, while `expected` reaches back far enough to include it.
+
+    Unbounded that reads 4/5 and reports a hole in a track that recorded every session it should
+    have. An earlier version of this test asserted only that `collect` published the bound, and
+    mutation testing showed that dropping the bound from `health_note` slipped straight through
+    it -- a test of the plumbing rather than of the property.
+    """
+    week = [dt.date(2026, 9, 28), dt.date(2026, 9, 29), dt.date(2026, 9, 30),
+            dt.date(2026, 10, 1), dt.date(2026, 10, 2)]
+    real = PT._session_today
+    try:
+        st = _store()
+        b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
+                               "SPY": {"last": 500.0}})
+        PT._session_today = lambda: week[0]
+        _seed(st, b, _BOOK)
+        for d in week:                      # every session recorded -- there is NO hole
+            PT._session_today = lambda d=d: d
+            PT.index_point(st, b)
+        PT._session_today = lambda: week[-1]            # reader anchors on Friday
+        cyc = RC.collect(st, day=dt.date(2026, 10, 6))  # calendar has run on to Tuesday
+        sand = cyc["sandbox_cycle"]
+        # Non-vacuity: the window must genuinely exclude Monday, or there is nothing to bound.
+        assert week[0].isoformat() not in sand["sessions_in_window"], (
+            "the window does not exclude Monday, so this test cannot see the defect: %s"
+            % sand["sessions_in_window"])
+        note = RC.health_note(cyc)
+        assert "hole in it" not in note, note
+    finally:
+        PT._session_today = real
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

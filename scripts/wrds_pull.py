@@ -121,6 +121,49 @@ PRODUCTS = {
         "why": "Compustat point-in-time quarterly (unrestated, with _dc data codes) -- "
                "preliminary vs final filings.",
     },
+    # ---- OOS1: the pre-2009 holdout's three tables. Two new optional spec keys below.
+    #
+    # `cols` and `years` are ADDITIVE and default to the historical behaviour, so every product
+    # above is bit-identical. They exist because these three tables cannot be pulled with
+    # `select *` over every year:
+    #
+    #   * `comp.fundq` carries **648 columns**. `select *` would bank a multiple of what the
+    #     five-theme model reads, and the point of `fundq` over the already-banked `co_ifndq` is
+    #     ONE column -- `rdq`, the earnings announcement date, which is the availability date
+    #     `MC12` measured `co_ifndq` to lack entirely.
+    #   * `crsp_a_stock.dsf` is **62,672,078 rows for 1972-2008 alone** (measured, not estimated).
+    #     Unscoped that is every column of every US daily price since 1925.
+    #
+    # `cols` is INTERSECTED with the table's real column list rather than trusted, so a renamed
+    # or absent field is reported instead of raising mid-pull -- and the intersection is recorded
+    # in the manifest so a reader can see what was actually banked.
+    "comp_fundq": {
+        "lib": "comp", "table": "fundq", "year_col": "datadate",
+        "years": (1971, 2026),
+        "cols": ["gvkey", "datadate", "rdq", "fyearq", "fqtr", "datacqtr", "datafqtr",
+                 "indfmt", "datafmt", "popsrc", "consol", "cusip", "tic", "conm", "curcdq",
+                 "atq", "ceqq", "seqq", "ibq", "ibcomq", "niq", "piq", "xrdq", "revtq", "saleq", "cogsq",
+                 "xsgaq", "xintq", "xoprq", "oiadpq", "oibdpq", "dpq", "txtq", "dlttq", "dlcq",
+                 "ppentq", "ppegtq", "invtq", "rectq", "cheq", "actq", "lctq", "ltq", "pstkq",
+                 "mibq", "icaptq", "gpq", "cshoq", "cshprq", "prccq", "ajexq", "epspxq",
+                 "oancfy", "capxy", "dvy", "sstky", "prstkcy", "ivncfy", "fincfy"],
+        "why": "OOS1: quarterly fundamentals WITH `rdq`, the availability date `co_ifndq` has "
+               "none of. 1,234,665 rows in 1972-2008, of which 835,478 carry a non-null `rdq`.",
+    },
+    "crsp_dsf": {
+        "lib": "crsp_a_stock", "table": "dsf", "year_col": "date",
+        "years": (1971, 2024),
+        "cols": ["permno", "date", "prc", "ret", "retx", "vol", "shrout", "cfacpr", "cfacshr"],
+        "why": "OOS1: daily prices. DAILY rather than `msf` because `high_prox` is proximity to "
+               "a 252-day DAILY high -- on monthly data it becomes a 12-month approximation and "
+               "the frozen model is no longer frozen for that column.",
+    },
+    "crsp_dsp500list": {
+        "lib": "crsp_a_indexes", "table": "dsp500list", "year_col": None,
+        "why": "OOS1: S&P 500 membership spells, for the pre-SPY benchmark. 2,064 rows carrying "
+               "EXACTLY `start`, `ending`, `permno` -- effective dates and NO announcement date, "
+               "which is W-17's K1 firing condition confirmed at source.",
+    },
 }
 
 
@@ -248,23 +291,65 @@ def chunks_for(db, product: str) -> list:
     df = db.raw_sql(f"select distinct extract(year from {yc})::int as y "
                     f"from {lib}.{tbl} where {yc} is not null order by 1")
     keys = [str(int(y)) for y in df["y"].tolist()]
+    # OPTIONAL `years` window, additive: a product without it behaves exactly as before. These
+    # tables run to 1925 and the holdout needs a slice, so pulling every year would spend hours
+    # on data no register reads.
+    span = spec.get("years")
+    if span:
+        lo, hi = int(span[0]), int(span[1])
+        keys = [k for k in keys if lo <= int(k) <= hi]
     n = db.raw_sql(f"select count(*) as n from {lib}.{tbl} where {yc} is null")
     if int(n["n"].iloc[0]):
         keys.append(NULLDATE)
     return keys
 
 
-def pull_chunk(db, product: str, chunk: str, root: str = "") -> dict:
+def resolve_projection(db, product: str):
+    """The SELECT projection for a product, resolved ONCE against the table's real columns.
+
+    Returns `(projection, missing)`. A product with no `cols` spec gets `("*", [])`, i.e. the
+    historical behaviour. The declared list is INTERSECTED with what the table actually carries
+    rather than trusted, so a renamed or absent field is REPORTED in the manifest instead of
+    raising halfway through a 54-chunk pull.
+    """
+    spec = PRODUCTS[product]
+    want = spec.get("cols")
+    if not want:
+        return "*", []
+    lib, tbl = spec["lib"], spec["table"]
+    have = set(db.raw_sql(f"select * from {lib}.{tbl} limit 1").columns)
+    sel = [c for c in want if c in have]
+    missing = [c for c in want if c not in have]
+    if not sel:
+        raise RuntimeError("none of the %d declared columns exist on %s.%s"
+                           % (len(want), lib, tbl))
+    return ", ".join(sel), missing
+
+
+def pull_chunk(db, product: str, chunk: str, root: str = "",
+               projection: str = "", missing_cols=None) -> dict:
     spec = PRODUCTS[product]
     lib, tbl, yc = spec["lib"], spec["table"], spec["year_col"]
     t0 = time.time()
+    # OPTIONAL projection, resolved ONCE PER PRODUCT by the caller and passed in -- see
+    # `resolve_projection`. Absent -> `select *`, exactly the historical behaviour, so every
+    # product without a `cols` spec is bit-identical and a direct `pull_chunk` call still works.
+    #
+    # IT IS THE CALLER'S JOB BECAUSE OF A DEFECT AN EXISTING GUARD CAUGHT. The first cut probed
+    # the column list INSIDE `pull_chunk`, which (a) issued a `select * limit 1` on EVERY chunk --
+    # 54 wasted round trips for `crsp_dsf` alone -- and (b) broke
+    # `test_the_nulldate_chunk_selects_exactly_the_rows_no_year_chunk_can`, whose contract is that
+    # `pull_chunk` issues ONE query whose predicate is the chunk's. Resolving once upstream fixes
+    # both, and the guard now passes for the right reason rather than being adjusted to suit.
+    proj = projection or "*"
+    missing = list(missing_cols or [])
     if chunk == "all":
-        sql = f"select * from {lib}.{tbl}"
+        sql = f"select {proj} from {lib}.{tbl}"
     elif chunk == NULLDATE:
-        sql = f"select * from {lib}.{tbl} where {yc} is null"
+        sql = f"select {proj} from {lib}.{tbl} where {yc} is null"
     else:
         y = int(chunk)
-        sql = (f"select * from {lib}.{tbl} where {yc} >= '{y}-01-01' "
+        sql = (f"select {proj} from {lib}.{tbl} where {yc} >= '{y}-01-01' "
                f"and {yc} < '{y + 1}-01-01'")
     df = db.raw_sql(sql)
     fetch_s = time.time() - t0
@@ -280,6 +365,10 @@ def pull_chunk(db, product: str, chunk: str, root: str = "") -> dict:
            "total_seconds": round(time.time() - t0, 1),
            "status": "ok" if len(df) else "empty",
            "utc": W.stamp()}
+    declared = spec.get("cols")
+    if declared:
+        rec["columns_requested"] = len(declared)
+        rec["columns_absent"] = missing
     return rec
 
 
@@ -351,10 +440,10 @@ def _is_retryable(err: str) -> bool:
     return any(s in low for s in _DEAD_CONN) or any(s in low for s in _TRANSIENT_FS)
 
 
-def run(product: str, root: str = "", limit: int = 0) -> dict:
+def run(product: str, root: str = "", limit: int = 0, years=None) -> dict:
     lock = _acquire_lock(product, root)
     try:
-        return _run_locked(product, root, limit)
+        return _run_locked(product, root, limit, years)
     finally:
         try:
             os.remove(lock)
@@ -362,7 +451,7 @@ def run(product: str, root: str = "", limit: int = 0) -> dict:
             pass
 
 
-def _run_locked(product: str, root: str = "", limit: int = 0) -> dict:
+def _run_locked(product: str, root: str = "", limit: int = 0, years=None) -> dict:
     # ONE connection reused across every chunk was a real defect, measured 2026-08-24: WRDS
     # closed the connection during `comp_pit`'s 2002 chunk and the SAME dead handle was then used
     # for every remaining chunk, so 25 of 66 failed in a row with
@@ -376,6 +465,23 @@ def _run_locked(product: str, root: str = "", limit: int = 0) -> dict:
     db = W.connect()
     man = load_manifest(root)
     keys = chunks_for(db, product)
+    # `--years` NARROWS an already-derived chunk list; it never widens it, so it cannot reach a
+    # year the spec's own window excludes. It exists to REORDER a long pull: `crsp_dsf` runs in
+    # year order, which puts Gate B's 2007-2024 years LAST and blocks the gate that decides
+    # whether the holdout may be opened. Narrowing lets those years be pulled first and the
+    # remainder resumed afterwards -- `needs_pull` skips what is already banked, so nothing is
+    # re-fetched. A FLAG rather than a temporary edit to the spec: the ordering choice is then
+    # visible in the command that made it, and there is no diff to forget to revert.
+    if years:
+        lo, hi = int(years[0]), int(years[1])
+        keys = [k for k in keys if (not k.isdigit()) or (lo <= int(k) <= hi)]
+    # ONCE PER PRODUCT, not once per chunk. See `resolve_projection` and `pull_chunk` for why:
+    # probing inside `pull_chunk` cost 54 wasted round trips on `crsp_dsf` and broke the guard
+    # that pins the chunk predicate.
+    proj, missing = resolve_projection(db, product)
+    if missing:
+        print("[wrds] %s: %d declared columns ABSENT from the table: %s"
+              % (product, len(missing), ", ".join(missing)), flush=True)
     todo = [c for c in keys if needs_pull(product, c, man, root)]
     if limit:
         todo = todo[:limit]
@@ -388,7 +494,8 @@ def _run_locked(product: str, root: str = "", limit: int = 0) -> dict:
         rec = None
         for attempt in range(MAX_RECONNECTS + 1):
             try:
-                rec = pull_chunk(db, product, c, root)
+                rec = pull_chunk(db, product, c, root,
+                                 projection=proj, missing_cols=missing)
                 if attempt:
                     rec["reconnects"] = attempt
                 break
@@ -449,11 +556,29 @@ def reconcile(db, product: str, root: str = "") -> dict:
     """
     spec = PRODUCTS[product]
     lib, tbl = spec["lib"], spec["table"]
-    n = int(db.raw_sql(f"select count(*) as n from {lib}.{tbl}")["n"].iloc[0])
+    # THE SOURCE COUNT MUST BE TAKEN OVER THE SAME WINDOW THAT WAS PULLED, or this check reports
+    # a false shortfall for every windowed product -- which is the failure mode the last
+    # paragraph above warns about, caused by the `years` key being added without updating it.
+    # Measured when it happened: `crsp_dsf` read "SHORT BY 13,544,293" and `comp_fundq` "SHORT BY
+    # 59,055", and both differences were exactly the pre-window years that were deliberately
+    # never requested. A completeness check that cries wolf on a deliberate scope is worse than
+    # none, because the one real hole it exists to catch then looks like more of the same.
+    span = spec.get("years")
+    where, scope = "", "all"
+    if span and spec.get("year_col"):
+        yc = spec["year_col"]
+        lo, hi = int(span[0]), int(span[1])
+        # `or {yc} is null` because a NULL-date row belongs to no year and IS pulled, by the
+        # `nulldate` chunk -- so excluding it here would re-open the hole from the other side.
+        where = (f" where ({yc} >= '{lo}-01-01' and {yc} < '{hi + 1}-01-01') "
+                 f"or {yc} is null")
+        scope = "%d-%d plus null-dated" % (lo, hi)
+    n = int(db.raw_sql(f"select count(*) as n from {lib}.{tbl}{where}")["n"].iloc[0])
     man = load_manifest(root)
     got = sum(r.get("rows", 0) for k, r in man.items()
               if r.get("product") == product and r.get("status") in ("ok", "empty"))
     res = {"product": product, "source_rows": n, "pulled_rows": got,
+           "source_scope": scope,
            "difference": n - got,
            "reconciles": n == got}
     print(f"[wrds] {product}: source {n:,} vs pulled {got:,} "
@@ -515,6 +640,10 @@ def main(argv=None):
                     help="compare pulled row counts against the server's own count(*)")
     ap.add_argument("--full-hash", action="store_true")
     ap.add_argument("--summary", action="store_true")
+    ap.add_argument("--years", nargs=2, type=int, metavar=("LO", "HI"), default=None,
+                    help="NARROW the derived chunk list to [LO, HI] inclusive. Never widens it, "
+                         "so it cannot reach a year the product's own window excludes. For "
+                         "REORDERING a long pull; resume the remainder with no flag.")
     a = ap.parse_args(argv)
 
     if a.reconcile:
@@ -531,7 +660,7 @@ def main(argv=None):
     if a.summary or not a.product:
         print(json.dumps(summarise(a.root), indent=1))
         return
-    run(a.product, a.root, a.limit)
+    run(a.product, a.root, a.limit, a.years)
     print(json.dumps(summarise(a.root), indent=1))
 
 

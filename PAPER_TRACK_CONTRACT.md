@@ -174,6 +174,27 @@ it cannot. Its job is to (a) accumulate a genuinely out-of-sample record, honest
 start, and (b) **stop anyone, including us, from reading three good months as proof.** The
 prohibition is the deliverable. The verdict comes later.
 
+> **CORRECTED 2026-10-04 (AMENDMENT 2, accepted by Don — see §5a-2).** The **+9.9864pp** used
+> above is the **full-universe equal-weighted decile's** edge, measured **GROSS**. That is not
+> the book this contract tracks. `INDEX-BOOK` (2026-10-02, `ceffd04`) measured the **served**
+> construction — the $10B large-cap tier, score-weighted, 8% cap, 0.30 no-trade band — at
+> **+1.9488pp NET vs SPY** with its **own** tracking error of **8.4381 pp/yr**, which requires
+> about **4,383 months**. Each arm is scored at its own measured tracking error because `MB8`'s
+> rule is that an `se` may not be borrowed across constructions: pairing one book's edge with
+> another's denominator is the recurring defect this project has already paid for.
+>
+> **σ IS NOT REVISED.** It stays at **11.40** by §6.5's rule, and the arm-specific figure is
+> reported **beside** it rather than substituted for it. A free corroboration that these are the
+> right objects: the all-cap arm's measured tracking error comes back **11.3878 pp/yr** against
+> this contract's hard-coded **11.40**, reproducing σ from scratch by a different route.
+>
+> **CONSEQUENCE, and it is the whole point of the amendment.** The 60-month verdict **can**
+> settle whether the Index is being recorded honestly and whether its costs and turnover behave
+> as modelled. It **cannot** settle whether the Index beats SPY — no five-year result, in either
+> direction, would settle that. The three consequences listed above are unchanged and are now
+> understated rather than overstated: **this amendment makes the contract's own stated power
+> WORSE, not better.**
+
 ---
 
 ## 3. The three options
@@ -303,6 +324,8 @@ recorded**, and the register is live from that commit.
 | **Signed by** | Don (donniecorbin6@gmail.com) |
 | **Date signed** | **2026-08-09** |
 | **Amended** | **Amendment 1, 2026-08-09 — see §5a.** Run #1 VOIDED; the live test is **run #2 / vintage 2** |
+| **Amended (2)** | **Amendment 2, 2026-10-04 — see §5a-2.** §2's power input corrected to the served book |
+| **What changed (Amendment 2)** | the edge and tracking error §2's arithmetic uses; **no threshold, no clock, no σ** — plus the corporate-action rule now stated in §5a |
 | **Run / vintage now live** | **run #2, vintage 2** |
 | **Inception (run #2)** | **2026-08-10** — the first trading day on or after the amendment, with **ZERO accrued days** |
 | **Bound source** | the **published Valquo Index** — `data/valquo_track.json` + `data/valquo_track_history.csv`, as read by `valuation/screener/index_track.py`. **NOT** the Tradier sandbox engine (§0a.2) |
@@ -429,7 +452,8 @@ that distinction mechanical rather than a matter of judgement.
 |---|---|---|---|---|---|
 | **1** | #1 | 2026-07-30 | 2026-08-09 | **VOID** | growth-input fix, score fix, universe rebuild — the measured model no longer exists |
 | **2** | #2 | **2026-08-10** | 2026-08-11 | **CLOSED** | opened by Amendment 1; closed by the theme restoration after **ONE accrued day** |
-| **3** | #2 | **2026-08-11** | — | **OPEN — the live test** | opened by the theme restoration: `capital_discipline` reaches a live score after clearing a pre-registered fidelity gate (Spearman +0.8421 vs the panel's own theme). `institutional` (+0.1706) and `insider` (+0.3596) FAILED that gate and are deliberately still absent. No weight or construction parameter changed |
+| **3** | #2 | **2026-08-11** | 2026-08-13 | **CLOSED** | opened by the theme restoration: `capital_discipline` reaches a live score after clearing a pre-registered fidelity gate (Spearman +0.8421 vs the panel's own theme). `institutional` (+0.1706) and `insider` (+0.3596) FAILED that gate and are deliberately still absent. No weight or construction parameter changed |
+| **4** | #2 | **2026-08-13** | — | **OPEN — the live test** | opened by the **S14 no-trade band, width 0.30**, adopted on its double-clear (session 35 plus `S14-WIDTH`, which discharged the grid-boundary caveat: given 0.40/0.50/0.75 as well, both halves still picked 0.30, so the optimum is interior). A held name is kept until it falls out of the top 30% of the ranked tier instead of being sold the moment it leaves the top 10%. **ADDED 2026-10-04 BY AMENDMENT 2 — the row was missing, and the drift is the reason §5a-2 pins this table against `track_meter.VINTAGES`**: that module is the authority (`INCEPTION` is *derived* from the open vintage), it has carried vintage 4 since 2026-08-13, and this table still said 3. A register that disagrees with the machinery it governs is a register nobody can check the machinery against |
 
 > **THE CLOCK RESET, AND WHAT IT COST — recorded because Rule 6 says it buys nothing
 > statistically.** The gate and the meter attach to the CURRENT vintage, and
@@ -461,6 +485,103 @@ that distinction mechanical rather than a matter of judgement.
 researcher degree of freedom — each vintage is another chance for the same hypothesis, and the
 probability that *some* vintage crosses rises with the number of vintages. Rule 6 above is the
 brake; the trial charge is the accounting.
+
+### CORPORATE ACTIONS — Don's ruling of 2026-10-02, in force by Amendment 2 (2026-10-04)
+
+> **A held name that is acquired or stops trading counts as SOLD AT ITS LAST TRADED CLOSE, its
+> weight REDISTRIBUTED PRO-RATA ACROSS THE REST OF THE BOOK.**
+
+**WHY THIS BELONGS IN THE CONTRACT AND NOT ONLY IN THE CODE.** It is the one rule in Amendment 2
+that changes a **RECORDED NUMBER** rather than a power calculation, so it has to be written where
+the record is defined. **The live book has already exercised it:** WBS left the book after the
+2026-07-30 inception and the served card reports *"1 left the book since (WBS), with the weight
+spread across the survivors"* — so the behaviour is live, it is visible on the Index tab, and the
+contract governing the series did not mention it. **A rule the engine follows and the contract
+omits is a rule nobody can check the engine against.**
+
+**IT IS NOT A THRESHOLD, A CLOCK OR A σ CHANGE**, which is what keeps it inside this amendment's
+additive scope. It fixes an **OMISSION** — what happens to a position that ceases to exist — and
+the answer it records is the one the engine already implements. No window is voided and no clock
+moves.
+
+**THE ALTERNATIVES ARE WORSE AND ARE NAMED SO THE CHOICE IS LEGIBLE.** Holding a delisted name at
+its last price forever would let a dead position carry the book's return indefinitely. Dropping it
+and renormalising the **denominator** silently would change the book's size mid-vintage and make
+the series discontinuous. Treating an acquisition as a 100% loss would be false, and treating it
+as cash held to the end would require a reinvestment assumption this contract does not make.
+**Sold at the last traded close, redistributed pro-rata** keeps the book fully invested, keeps its
+size fixed, and makes no claim about what the proceeds did next.
+
+**ONE LIMIT, STATED: "last traded close" is a VENDOR-DEPENDENT figure on a delisted name.** The
+project's own price path has already been measured to disagree with the recorded series by
+~0.02pp on an ordinary day; for a name that stops trading the disagreement can be larger, because
+the last close is exactly where vendors diverge most. The rule is still the right one — **a
+successor wanting the series reproducible to the digit needs the delisting close STORED on the row
+at the time, not re-fetched later.**
+
+---
+
+## 5a-2. AMENDMENT 2 — §2's power input corrected to the served book, and the corporate-action rule
+
+**Dated 2026-10-04. ACCEPTED BY DON on 2026-10-04.** Recorded here in full, in the form §5a's
+Amendment 1 established: openly, with its disclosure, and **nothing above this section deleted.**
+Drafted as `PREREG_DRAFT_contract_amendment_2.md` (2026-10-03) and accepted unchanged; that file
+stays in the repository as the record of what was proposed and when.
+
+### What it changes, in three parts
+
+| part | where | what |
+|---|---|---|
+| **(a)** | §5's register | two rows recording this amendment, in Amendment 1's own form |
+| **(b)** | §2, after its arithmetic | the power input corrected from the all-cap decile's **gross** +9.9864pp to the **served** book's **net** +1.9488pp at its own 8.4381 pp/yr |
+| **(c)** | §5a | the **corporate-action rule** — Don's ruling of 2026-10-02, which until now the contract was silent on while the engine was not |
+
+### What it does NOT change
+
+**Every threshold, the 6-month operational gate, the 60-month verdict horizon and every §6 meter
+parameter are unchanged.** §3's *whole-run* void clause triggers on a change to the statistics or
+the thresholds; this changes **neither** — (b) corrects a described **INPUT** and (c) fixes an
+**OMISSION**. **No window is voided and the current vintage's clock is untouched.**
+
+**σ is NOT revised.** §6.5 forbids revising it downward and nothing here asks to: it stays at
+11.40, with the arm-specific tracking error reported beside it.
+
+### THE DISCLOSURE THAT MUST TRAVEL WITH THIS AMENDMENT
+
+**IT MAKES THE CONTRACT'S OWN STATED POWER WORSE, NOT BETTER — nobody gains from it.** Amendment 1
+carried a disclosure because a voided window was known to be negative, i.e. the flattering
+direction. This one carries the opposite: it removes an **overstatement**. §2 previously stated a
+power figure demonstrably about a different book, and leaving it there would have meant the
+contract overstated what its own verdict could say.
+
+Three things a reader should check rather than take on trust:
+
+1. **It cannot be read as a reason to stop recording.** A test that cannot resolve a return claim
+   can still resolve a **RECORDING** claim, which is exactly what the 6-month operational gate is
+   for — and that gate is unaffected.
+2. **The figure was corroborated before it was adopted.** The all-cap arm's own measured tracking
+   error returns **11.3878 pp/yr** against this contract's hard-coded **11.40**, reproducing σ by
+   a different route — which is what licenses treating the served figure as the same kind of
+   object rather than a number from elsewhere.
+3. **(c) was already live before it was written down.** The engine has redistributed WBS's weight
+   since 2026-07-30. The amendment records what is already happening; it does not change a
+   recorded number retroactively.
+
+### What reads this, and what now agrees with it
+
+| reader | what it says |
+|---|---|
+| `screener/index_book_measured.power_sentence()` | the sentence on the Index tab, sourced from the measurement so the page and this section cannot drift |
+| `web/templates/index.html` | renders that sentence; its comment now records the correction as **IN FORCE** rather than drafted |
+| `edge/track_meter.py` | the meter's note now names this amendment beside the "+9.99" it quotes |
+| `PRODUCT_SPEC.md` | its power table's last row is now labelled as what §2 used **before** this amendment |
+| `tests/test_index_book_measured.py` | its guards asserted the contract did **NOT** carry the correction; Don's acceptance inverts that, so they are **repointed in the same commit** to assert it **does** — and that the draft is marked accepted |
+
+**THE VINTAGE REGISTER IS NOW PINNED AGAINST THE MACHINERY.** Adding Amendment 2 surfaced that
+§5a's table stopped at vintage **3** while `track_meter.VINTAGES` has carried vintage **4** since
+2026-08-13. The row is added above, and a test now requires every vintage in that module to have a
+row here — because `track_meter.INCEPTION` is *derived* from the open vintage, so the module is the
+authority and a table that disagrees with it is one nobody can check the engine against.
 
 ---
 
