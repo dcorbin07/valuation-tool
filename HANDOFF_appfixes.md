@@ -5,6 +5,158 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 84 — 2026-10-07 (evening) — ITEM 37: the intraday scheduler is throughput-limited, not unlucky
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict. `by_domain` untouched. **No serving code
+changed** — this item is a measurement, one test, and a file for Don to install.
+
+## (a) MEASURED OVER 30 DAYS: 72.2% OF INTRADAY CRON SLOTS PRODUCE NO RUN
+
+30 days to 2026-10-07, **22 trading sessions** from the project's own market calendar (so a
+holiday is not scored as a miss). A run counts as an intraday cron when its **`intraday` JOB
+EXECUTED** rather than skipped — the job is the attribution and it is exact, because every job
+here is gated on `github.event.schedule`. Attributing by the clock would assume the scheduler is
+punctual, which is the thing being measured.
+
+| | |
+|---|---|
+| cron slots expected (22 sessions × 8 crons) | **176** |
+| runs delivered | **49** |
+| **dropped** | **127 — 72.2%** |
+| sessions with **no intraday run before 17:00 UTC** | **21 of 22 — 95.5%** |
+| sessions with no intraday run **at all** | **0 of 22** |
+
+**SO IT IS LATE, NOT DEAD** — which matches what you saw: `/api/signals` read 19:28 today after
+I had found nothing created between 03:43 and 17:03.
+
+## AND THE SHAPE OF THE LATENESS SAYS A BACKUP CRON WILL NOT FIX IT
+
+**TWO OF 205 SCHEDULED RUNS IN 30 DAYS ARRIVED BETWEEN 13:00 AND 16:59 UTC** — the window the
+first four intraday crons target. The arrival histogram across the whole workflow is bimodal with
+a dead zone:
+
+```
+  00  42  ##########################################
+  01  30  ##############################
+  02   9  #########
+  03   1  #
+  04-12   0        (nothing)
+  13   1  #   <-- the four crons at 13:23-16:23 target this band
+  14   0
+  15   0
+  16   1  #
+  17  23  #######################
+  18  16  ################
+  19   7  #######
+  20   2  ##
+  21  10  ##########
+  22  15  ###############
+  23  48  ################################################
+```
+
+**AND DELIVERY RUNS ON A CADENCE RATHER THAN PER CRON.** Within a session, consecutive intraday
+deliveries sit a **median 3.74 hours apart** (p25 2.81, min 2.66), and they land at almost the
+same three times every day — 2026-09-08 at 17:18 / 19:58 / 22:47, the 9th at 17:11 / 19:53 /
+22:38, the 10th at 17:02 / 19:52 / 22:40, the 11th at 17:03 / 19:52 / 22:40. The minute within
+the hour is **uniform** (only 4 of 49 land in the `:20-29` band the crons fire in), so these are
+queue drains, not on-time runs.
+
+**THE CONTROL THAT SETTLES IT: THE HOT LIST'S TWO CRONS LAND 22 OF 22 DAYS — BOTH OF THEM, EVERY
+DAY — WHILE THESE EIGHT LAND TWO OR THREE.** Hot arrives 00:00–03:00 UTC, i.e. 1.5–4.5 hours
+after its 22:23 and 23:41 crons, so it is just as late; it simply is not competing for a slot in
+GitHub's busy window. **A queue already discarding 72% of its slots is not short of slots.**
+
+So the backup-cron trick that works for the hot list is expected to buy **little** here, and
+adding offsets at 13:00–16:59 would be dead weight. **The first ~3.5 hours of every US session
+cannot be covered by a scheduled workflow on this account**, and covering them needs an external
+trigger — Don's PC calling `workflow_dispatch`, or the service doing it — not another cron.
+
+## WHAT WAS WRITTEN, AND WHY IT IS STILL WORTH INSTALLING
+
+`data/pending_workflows/auto-scan.yml` — the **complete** 497-line file, copied and patched
+programmatically rather than retyped, because Don installs it verbatim over the live one and a
+transcription slip in any other job would be invisible until that job next ran. Verified: parses
+as YAML, all **7 jobs** preserved, and the diff against the committed workflow **removes exactly
+the two comment lines it replaces**.
+
+The change is one cron — `53 17-19 * * 1-5` — **placed only where delivery is actually observed**,
+giving the live half of the session two chances an hour instead of one. The measurement is in the
+file's own comments so the decision is made with the evidence rather than on the analogy to the
+hot list.
+
+**IT CANNOT BE ON `origin/main` AND THAT IS BY DESIGN**: `data/` is gitignored, which is exactly
+why the standing rule routes `.github/` proposals through that directory plus
+`install_workflows.bat`. What landed is the test and this record.
+
+**TWO CORRECTIONS TO THE COMMENT IT REPLACES**, both of which would have misled the next reader:
+`23 13-20` is **hourly**, not *"every 30 min"*; and it cites *"the paid Render cron (render.yaml)
+runs this every 15 min"* — Render runs only the web service and **none of `render.yaml`'s cron
+jobs exist**.
+
+## THE DEFECT I ALMOST SHIPPED, AND THE GUARD THAT NOW CATCHES IT
+
+Every job in this workflow is gated on the **exact** cron string
+(`github.event.schedule == '23 13-20 * * 1-5'`). **Adding `53 17-19 * * 1-5` without extending
+that condition would have fired real runs in which every job SKIPPED** — consuming a scheduled
+slot, appearing in the run list as a success, and doing nothing. On a workflow whose scheduler
+already drops 72% of intraday slots, a silent no-op would have been **indistinguishable from
+another drop**. Caught by checking, not by reading; the pending file now carries the pairing.
+
+`tests/test_proposal_auto_scan_themes.py` gains the invariant, as the **complement** of the class
+already there: that one pins *no job may fire on a bare `schedule` event without naming a cron*,
+and this pins *no cron may exist that no job matches* — plus the mirror, *no job may be gated on a
+cron the schedule lacks*. **Mutation-tested on the live workflow, 2 of 2 caught**, restored
+byte-for-byte and `git status` confirmed clean — a transient local edit, never staged, because
+the land policy refuses a committed `.github/` change and this never became one.
+
+**A DEFECT IN THE FIRST CUT OF MY OWN AUDIT, AND IT IS THE FAMILY I SPENT THE LAST TWO ITEMS
+REMOVING FROM OTHER PEOPLE'S GUARDS.** It grepped `- cron: "..."` and matched the **comment**
+documenting the cron the master audit removed — `# REMOVED by the master audit (MA1): - cron: "0
+12 1 * *"` — so it reported a dead cron that does not exist. Comment-versus-code, in a check
+written during a session spent fixing exactly that. It parses with `yaml.safe_load` now, which
+sees the schedule and not the prose. (It also has to handle PyYAML reading the key `on` as the
+boolean `True` — a YAML 1.1 quirk, and the sort of thing that makes a hand-rolled reader
+tempting.)
+
+**THE PENDING-FILE CHECK CAN ONLY SKIP IN CI, SO ITS VALUE IS DEMONSTRATED RATHER THAN ASSUMED.**
+It resolves its repo root from its own location, and `data/` is gitignored, so it skips in a
+worktree and on a runner. By this project's own rule — *a guard whose only real execution is
+skipped is the defect* — that is not good enough on its own, so it was exercised directly:
+**SKIPPED with no file, PASSED with the real one, FAILED with an unpaired cron**, with nothing
+left under `data/` afterwards. The committed-workflow tests are the ones that bite in CI and
+those are the mutation-proven pair.
+
+## (b) BOTH HOLDS — AND DECISIONS.md HAS SINCE RULED ON ONE OF THEM
+
+**THE PUBLIC PAGES STAY UNTOUCHED, AND NOW FOR A STATED REASON RATHER THAN A WAIT.** DECISIONS.md
+(2026-10-07) rules that the canonical backtest moves to the corrected universe and the public
+pages are *"restated once from it"* after r1's full panel rebuild — **"No interim patch."** So the
+hold is not merely in force, it is the ruling. Verified as a fact about the diff: this session
+changes no file under `valuation/web/templates/` or `static/`.
+
+**THE DIP DETECTOR'S HANDLING OF BANKS, INSURERS, REITs AND REGULATED UTILITIES NOW HAS DON'S
+RULING, AND I HAVE NOT ACTED ON IT.** DECISIONS.md, 2026-10-07:
+
+> **DIP DETECTOR: show banks, insurers, REITs and regulated utilities in their own group,
+> labelled "health not scored for this kind of company".** Never counted as healthy, never
+> silently excluded.
+
+That is a direct answer to what item 36 reported (31 of 110 health rejections are a withheld
+health sub-score) and to what this item's own brief lists as held. **The two instructions
+conflict**: DECISIONS.md's header says *"a ruling here overrides any older prose in a handoff or
+prompt"*, and this prompt's hold is conditional — *"HOLD until DECISIONS.md records Don's
+ruling"* — so on the file's own precedence the condition is met. But the prompt is dated the same
+evening and names this exact item as held, and the work is a **grouping change to a public
+surface**.
+
+**I DID NOT GUESS.** Shipping an unwanted change to a live page costs a revert; waiting costs one
+message. **This is ready to be the next item** and the ruling specifies it completely: a third
+group, labelled with that sentence, never counted healthy and never dropped. The counters it
+needs already ship — `rejected_health_missing` (31) and `rejected_health_below` (73) landed in
+item 36 — so the work is a surface change rather than a measurement.
+
+---
+
 # Session 83 — 2026-10-07 — ITEM 36: the engine's 52-week high had no fallback, and the comment-length guards are gone
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict. `by_domain` untouched. **(c) IS OBEYED AND
