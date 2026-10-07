@@ -35,12 +35,24 @@ _HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
+# NOT CALLED AT IMPORT TIME. `_data_root` RAISES without the banked panel, and `data/` is
+# gitignored -- so a module-level call takes every suite that imports this file down on a CI
+# runner. This file's own test suite says so in its docstring and I wrote it this way anyway;
+# the guard that would have caught it now exists ("guards that fail open in CI", one level up).
 from scripts.index_best import _data_root                                   # noqa: E402
 
-DATA = _data_root()
-FA = os.path.join(DATA, "free_analysis")
-SWEEP = os.path.join(FA, "PLACEBO_CORRECTED.json")
-OUT = os.path.join(FA, "CORRECTED_FLOORS.json")
+
+def fa():
+    """`data/free_analysis`, resolved on CALL."""
+    return os.path.join(_data_root(), "free_analysis")
+
+
+def sweep_path():
+    return os.path.join(fa(), "PLACEBO_CORRECTED.json")
+
+
+def out_path():
+    return os.path.join(fa(), "CORRECTED_FLOORS.json")
 
 #: The seven floors, each named by the sweep key it is read off and the percentile that defines
 #: it. These are `X7`'s own definitions -- the key and the tail, not a re-derivation of either.
@@ -82,7 +94,8 @@ def current_floors():
     }
 
 
-def read_sweep(path=SWEEP):
+def read_sweep(path=None):
+    path = path or sweep_path()
     if not os.path.exists(path):
         raise SystemExit("REFUSING: no sweep at %s. Run scripts/placebo_corrected.bat first -- "
                          "this module tabulates a sweep and measures nothing itself." % path)

@@ -37,7 +37,7 @@ LANDED_KEYS = {
 
 def landed_corrected():
     """Read part 2's `corrected` column off its own artifact, by `payload_path`."""
-    p = os.path.join(CF.FA, "UNIVERSE_BIAS_PUBLIC.json")
+    p = os.path.join(CF.fa(), "UNIVERSE_BIAS_PUBLIC.json")
     with io.open(p, encoding="utf-8") as fh:
         figs = json.load(fh)["figures"]
     by_path = {r["payload_path"].rsplit(".", 1)[-1]: r for r in figs}
@@ -59,7 +59,7 @@ def main(argv=None):
     n = int(sweep.get("n_draws") or 0)
     req = int(sweep.get("n_requested") or 0)
     partial = n < CF.MIN_DRAWS_FOR_A_FLOOR
-    print("sweep %s" % os.path.basename(CF.SWEEP), flush=True)
+    print("sweep %s" % os.path.basename(CF.sweep_path()), flush=True)
     print("  panel   %s" % sweep.get("panel"), flush=True)
     print("  draws   %d of %d requested, seeds %s%s"
           % (n, req, sweep.get("seeds"), "   *** PARTIAL ***" if partial else ""), flush=True)
@@ -202,9 +202,10 @@ def main(argv=None):
                           "part-way read can never be quoted as a calibration."
                           % CF.MIN_DRAWS_FOR_A_FLOOR)
 
-    with io.open(CF.OUT, "w", encoding="utf-8") as fh:
+    out_path = CF.out_path()
+    with io.open(out_path, "w", encoding="utf-8") as fh:
         json.dump(res, fh, indent=2)
-    print("\nwrote %s" % CF.OUT, flush=True)
+    print("\nwrote %s" % out_path, flush=True)
     if partial:
         print("*** PARTIAL -- %d of %d draws; NOT a calibration yet ***" % (n, req), flush=True)
         return 3
