@@ -997,6 +997,7 @@ def _forward_return(closes, i, h, n_cal):
 def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=63,
                             lookback_years=6, horizon=63, inst_lag_days=45,
                             keep_numbers=False, sector_neutral=False,
+                            residual_momentum=False,
                             grid_offset=None, extra_horizons=None,
                             sector_neutral_pair=False, standardizer_arms=None,
                             with_insider_raw=False, with_issuance_raw=False,
@@ -1493,7 +1494,14 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
         # quantity that must agree. Off by default; when off this line does nothing.
         if metrics_sink is not None:
             metrics_sink[str(as_of)[:10]] = [dict(m) for m in metrics]
-        fr = build_frame(metrics, sector_neutral=sector_neutral, residual_momentum=False)
+        # STAGE1-BATCH1 A2a: the shipped `residual_momentum` toggle has never been scored, and
+        # it was UNREACHABLE from here -- hard-coded False. Now a parameter DEFAULTING to False,
+        # so every existing caller is bit-identical and the arm and its base can differ in this
+        # toggle and nothing else. The OTHER frames below stay False deliberately: they are
+        # other arms' frames (the standardiser arms, the sector-neutral pair), and toggling
+        # them too would make one build vary two things.
+        fr = build_frame(metrics, sector_neutral=sector_neutral,
+                         residual_momentum=residual_momentum)
         # S12 — one extra scoring per bucket-relative arm, from the SAME `metrics` list in the
         # SAME pass, so the arms are provably scored on one identical row set and the known
         # `insider` nondeterminism is common-mode and cancels out of every difference.

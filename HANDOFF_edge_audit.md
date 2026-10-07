@@ -21524,3 +21524,164 @@ which stays blind.
 `tiered_pool_addendum.py`; `DECISION_tiered_pool.md`;
 `data/free_analysis/TIERED_POOL.json`, `TIERED_POOL_KILL.json`, `TIERED_POOL_ADDENDUM.json`,
 `TIERED_POOL_FACTORS_{2009_2026,1999_2008}.json`.
+
+## STAGE1-BATCH1 — the scout's Stage-1 batch 1, build quadrant only — 2026-10-07
+
+**NO ARM SURVIVES STAGE 1.** `PREREG_stage1_batch1.md` committed **ALONE at `7d991d7`**, markdown
+only, zero `.py`, 222 lines, a strict git ancestor of every commit that computes a figure it
+declares, with **ten equity trials booked at `fcb73f5` BEFORE any Stage-1 runner existed** (equity
+264 -> 274). Verdict edited **IN PLACE** (`MB16`, numstat `1 1`) so the ten are not charged twice;
+`by_domain` re-read after the edit at **equity 274, options 310, infra 20**, zero malformed rows.
+**ADOPTS NOTHING.**
+
+### 0. The quadrant, and what was deliberately not opened
+
+**BUILD QUADRANT ONLY:** 2009-2019 crossed with `stable_key_half(ticker) == 0` — X1's own fixed
+ticker half, **CALLED and never re-implemented** (`B7`) — on the **corrected full raw universe**
+UNIVERSE-BIAS built from the 2026-10 freeze, never `data/backtest`. **87,436 rows over 44 dates
+and 3,545 names**, 2009-03-27 to 2019-12-31, cross-sections 1,679 / 2,009.5 / 2,132, halves 24
+early / 20 late at a 2014-12-31 boundary.
+
+**THE CHECK QUADRANT (2020-2026 x the other half) IS NOT OPENED ANYWHERE IN THIS ITEM, pinned by
+test, and the 1999-2008 proxy is not read.** Looking at either to choose among these arms would
+spend it with no replacement — which is the whole point of a two-quadrant design.
+
+### 1. The kills, in their own pass, and five of ten FIRE
+
+`O10`'s process defect was computing a gating control and the outcomes in **one** pass. Here the
+kills ran first, in their own pass, and **the scoring runner REFUSES without a passing artifact**
+— proved by mutation, including one that turns the refusal's `if` into `if False`, which a
+string-grep survives and an AST read does not. **No forward return is touched in the kill pass**,
+so under `MB1-SEL` the kills can only ever BLOCK and add no degree of freedom.
+
+| arm | the signal | kill | reading | verdict |
+|---|---|---|---|---|
+| A1 | intangible-adjusted value (Eisfeldt-Kim-Papanikolaou; Peters-Taylor) | three-way coverage at 0.70 | **0.6087** usable at the 10-fiscal-year burn-in | **FIRES** |
+| A2a | the shipped `residual_momentum` toggle, never scored | inertness at rank corr 0.995 | **0.9956** | **FIRES — INERT** |
+| A2b | Blitz-Huij-Martens residual momentum | needs the SIGNAL first | a costume bar cannot be evaluated before the signal exists | NOT RUN |
+| A3 | information discreteness (Da-Gurun-Warachka) | year-relative daily-obs coverage | 0.9577 | PASSES |
+| A4 | Campbell-Hilscher-Szilagyi distress as a junk filter | — | — | WITHDRAWN by the draft |
+| A5 | net payout yield (Boudoukh-Michaely-Richardson-Roberts) | loader-allowlist scoping kill | blocked before the register | NOT RUN |
+| A6 | N1 small/mid core | NEW ADV coverage at 0.70 | **0.3905** of names (944 of 3,545) | **FIRES** |
+| A7 | N2 net issuance | coverage, clip declared in advance | 0.9521 | PASSES |
+| A8 | N3 earnings-surprise drift | spine coverage + announcements/ticker-year in [3.0, 5.0] | spine **0.8669** PASSES; **2.6945** per ticker-year | **FIRES** |
+| A9 | N5 analyst neglect | costume vs `size` FIRST | **blocked on the dated IBES link** (51 chunks on disk; `ibes_id` carries `sdates`) | NOT RUN |
+| A10 | N6 industry momentum | dated-GICS coverage at 0.70 | **0.3713** | **FIRES** |
+| A11 | N7 52-week-high proximity | momentum costume at 0.60 | 0.9475 coverage; rho **0.7596** pre-committed as a near duplicate | PASSES |
+
+**A6's kill firing is a prediction kept rather than a surprise** — UNIVERSE-BIAS part 3 had already
+measured the ADV name share at 0.2617 and the register said in advance it would fire. **A8's band
+was NOT widened after it fired** (`W-28`), and the mutation harness pins that widening it to
+[2.0, 5.0] goes red.
+
+### 2. The three survivors are scored and not one clears
+
+Residualised on the seven deployed themes per date, per-date Spearman against `fwd_ret`, HAC *t*
+at lag 1 (`R9`'s own choice on this cadence), two-sided *p*, **Benjamini-Hochberg at q = 0.10
+across k = 12**.
+
+| arm | dates | median IC | HAC *t* | *p* | BH rank / threshold | survives BH |
+|---|---|---|---|---|---|---|
+| **A11** `z_high_prox` | 25 | +0.045201 | **+3.2022** | **0.00136** | 1 / 0.00833 | **YES** |
+| A3 `a3_id` | 25 | +0.021010 | +1.5338 | 0.12508 | 2 / 0.01667 | no |
+| A7 `z_neg_issuance` | 25 | +0.005657 | +0.4496 | 0.65298 | 3 / 0.02500 | no |
+| A11_momentum_only | **44** | +0.054963 | **+3.3356** | 0.00085 | — | — |
+
+**`k` STAYS 12 THOUGH ONLY THREE ARMS WERE SCORED.** Shrinking it after a build failure makes
+every surviving threshold easier, which is the same gaming in a different direction; the register
+fixed that in §0b and a mutation to `k = 3` is caught.
+
+**A11 DIES ON THE READING THE REGISTER FIXED IN ADVANCE.** Because rho against momentum was an
+**already-measured 0.7596**, §0 pre-committed that a pass is read as momentum measured differently
+unless the incremental IC survives residualising on **momentum alone**. That reading runs the full
+44 dates and is the **only one of the four with two genuinely assessable halves** — and it reads
+**early +1.596 against late +3.912**, so it does not replicate inside the build quadrant. The
+register's own prediction about this arm is the one that held.
+
+### 3. THE BINDING RESULT IS METHODOLOGICAL, AND IT IS `MA58` ON A NEW UNIVERSE
+
+**Complete-case residualisation on the seven deployed themes leaves 25 of the 44 quadrant dates
+usable, with the first at 2013-12-27, binding on `institutional` at 0.5685 non-null — so the EARLY
+half of this quadrant is FIVE dates against the shipped `min_dates` floor of 16.**
+
+`MA58` recorded exactly this shape on the 2,531-name panel (*"the 'early half' it reports is not
+the early half it thinks it is"*) and it reproduces here, worse, because `institutional` is thinner
+on a 9,645-name universe than on a megacap-tilted one. The three scored arms are therefore reported
+**`BOTH-HALVES NOT ASSESSABLE`** rather than scored on a five-date cell, and **no Stage-1 pass could
+have been read from that reading in either direction** — which is why the only arm with a defensible
+both-halves reading is the momentum-only one, and it fails.
+
+**THE CONSEQUENCE FOR ANY SUCCESSOR, and it is bigger than this batch: Stage 1 as designed cannot
+carry a both-halves verdict on this universe.** A successor must either residualise on a subset
+that does not import `institutional`'s start date, or move the both-halves requirement to a
+boundary the restricted window can actually support, and must **declare which before running**.
+
+### 4. Four amendments as executor, all before any outcome existed
+
+The draft was **ACCEPTED with four amendments**, every one argued from a fact that predates this
+register. The one that mattered:
+
+**A1's BURN-IN WAS UNDER-SPECIFIED IN MY OWN REGISTER, AND THE VERDICT WAS NOT INVARIANT TO IT.**
+Coverage reads **0.8452 / 0.7620 / 0.6638** at 3 / 5 / 8 fiscal years, so the kill would have been
+decided by a parameter chosen **after** the register. Resolved on `PREREG_DRAFT_w28_total_q.md`'s
+already-frozen *"at least 10 fiscal years"* — an external anchor predating this register **on this
+exact construction** (`E-6`'s discipline) — with the counterfactual recorded: **at 3 or 5 years the
+kill would NOT have fired.** At 10 it reads 0.6087 and fires. A mutation to `A1_VERDICT_BURN_IN = 3`
+is caught.
+
+### 5. Three defects of my own, and two of them are families this record already names
+
+**(a) A8's SPINE COVERAGE READ EXACTLY 0.0000 against an EVENTS cache holding 17,779 names** —
+because the cache stores codes as a **LIST** and I did `str(codes).split(",")`, which turns
+`['22','71','91']` into `"['22'"`, `" '71'"`, `" '91']"`, none of which can ever equal `"22"`.
+**Caught by disbelieving a zero**, not by anything raising: `O6` and `O7` had independently measured
+about four code-22 dates per ticker-year, which is what made a flat zero impossible. Repaired, spine
+coverage **0.8669** — and the band kill fires on the repaired reading, so the verdict is unchanged
+and the instrument is now correct.
+
+**(b) `hac_t`'s DEGENERACY GUARD WAS `U2`'s VALUE-DEPENDENT FORM.** `s <= 0` let `[0.01]*10` return
+***t* = 1.32e16**, because a constant series' floating-point variance is only *sometimes* exactly
+zero. Caught by the test written to pin it; repaired with a **relative** floor and **proved inert at
+211 shared leaves, 0 moved**.
+
+**(c) TWO MUTATION MISSES, AND THE FIRST FIX WAS TO THE CODE RATHER THAN THE TEST.** The
+both-halves verdict rule was **INLINED IN A LOOP**, so prefixing its message with `CLEARS` survived
+*both* a source grep *and* an artifact check — the artifact on disk does not change when the source
+does. **A verdict rule buried in a loop cannot be unit-tested.** Extracted to
+`stage1_score.stage1_verdict` with its floor as **ONE definition** (`B7`) and exercised directly in
+all three states; **proved inert by leaf diff at 211 shared leaves, 0 moved, 0 removed**, the only
+changes being five expected new keys and the message now naming **both** halves instead of only the
+early one. The second miss: the `O10` refusal test only grepped the refusal **string**, which
+survives turning its `if` into `if False` — **a guard that cannot fire still contains its own
+message** — so it now reads the guarding condition off the AST.
+
+A2a also required the SHIPPED builder's `residual_momentum` toggle to be REACHABLE at all -- `build_fundamental_panel` hard-coded it `False` at the one `build_frame` call the composite comes from, which is why the toggle had never been scored. It is now a parameter **defaulting to `False`**, so every existing caller is bit-identical, and the OTHER frames in the same build (the standardiser arms, the sector-neutral pair) stay pinned `False` deliberately -- one build must not vary two things. Both halves are pinned by AST tests with their own mutations: flipping the default to `True`, and stopping the parameter reaching the composite's frame, are both caught.
+
+**37 tests, 17 of 17 mutations caught with sources restored byte-for-byte.**
+
+### 6. What a Stage-2 register would test, and it is one arm at most
+
+Stage 2 is **ONE read of 2020-2026 x the other ticker half, with the bar fixed in advance**, and on
+this batch's evidence **there is no survivor to take there.** A11 is the only arm that got as far as
+BH and it fails its own pre-committed momentum-only reading, so promoting it would be choosing the
+reading after seeing which one passed. **A Stage-2 register is therefore NOT proposed for any arm in
+batch 1.** What a successor should register instead is the §3 restriction: the template's own
+boundary, declared before running, on a residualisation set that does not inherit `institutional`'s
+2013 start.
+
+### 7. NOT DONE, named so it is not mistaken for done
+
+**The check quadrant is not opened and the 1999-2008 proxy is not read.** **A2b, A9, A4 and A5
+carry NO VERDICT and are UNTESTED rather than rejected, each on its own blocker** — A2b's costume
+bar cannot be evaluated before the signal exists, and **A9 is blocked on the DATED IBES LINK**, which
+is already on this record's owed list and under `MB15` must be validated as shared infrastructure
+before any hypothesis reads it. **That is the one concrete thing this batch hands forward.** **The five kills are statements about
+THIS universe's coverage, not about the published signals** — A1's intangible adjustment, A6's
+liquidity core and A10's industry momentum are all perfectly good constructions that this
+universe's coverage cannot support at the inherited 0.70 floor. **No X7 floor is quoted anywhere**
+and every critical value is **LABELLED UNCALIBRATED** (`V2G`, `R1-VAR`): UNIVERSE-BIAS part 2
+measured this universe's own headline alpha at **2.83pc at HAC *t* 1.08**, so no bar calibrated on
+the 2,531-name panel transfers. **Nothing is adopted and no public page changes.**
+`scripts/stage1_kills.py`, `stage1_kills_run.py`, `stage1_score.py`, `stage1_score_run.py`;
+`data/free_analysis/STAGE1_KILLS_A.json`, `STAGE1_KILLS_B.json`, `STAGE1_SCORE.json`;
+`DECISION_stage1_batch1.md`.
