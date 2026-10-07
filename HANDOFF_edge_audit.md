@@ -21685,3 +21685,472 @@ the 2,531-name panel transfers. **Nothing is adopted and no public page changes.
 `scripts/stage1_kills.py`, `stage1_kills_run.py`, `stage1_score.py`, `stage1_score_run.py`;
 `data/free_analysis/STAGE1_KILLS_A.json`, `STAGE1_KILLS_B.json`, `STAGE1_SCORE.json`;
 `DECISION_stage1_batch1.md`.
+
+## CORRECTED-FLOORS part 1 — the X7 placebo sweep on the corrected universe — 2026-10-07
+
+> **CORRECTED THE SAME DAY BY PART 1b BELOW, AND THE CORRECTION IS SUBSTANTIVE. READ IT FIRST.**
+> Every "corrected headline" figure in §3 and §4 is the **CPCV-ADOPTED** book, not the deployed
+> one, because `placebo.py` mirrors `run_backtests` and **on this universe CPCV ADOPTS for the
+> first time in the project's history.** The floors below are unaffected and the harness control
+> was sound; what was missing is the **label on the numerator**. Held **deployed to deployed**,
+> the corrected universe moves top-decile alpha **-1.11pp** and its HAC *t* **+0.036**, and the
+> long-only alpha **CLEARS** its matched floor rather than failing it. §4's "the asymmetry
+> reverses" is **true of the adopted book and FALSE of the deployed one.**
+
+**THE CORRECTED UNIVERSE NOW HAS ITS OWN SEVEN FLOORS, AND THE ASYMMETRY REVERSES.** **ZERO
+TRIALS, `FIXED`-class** — `by_domain` bit-identical at **equity 274, options 310, infra 20** while
+`rows_fixed_not_counted` rises **95 -> 96**, which is the proof the row was seen and correctly
+excluded. **ADOPTS NOTHING, CHANGES NO PUBLIC PAGE** (pinned by test; the disclosure is **PENDING
+DON**, `DECISIONS.md` 2026-10-07) and the canonical panel is **UNTOUCHED**.
+
+### 0. Why it charges nothing, and why that reason is stronger here than usual
+
+A placebo sweep measures what the pipeline reports when the signal is **definitionally
+worthless**, so it can only ever raise or lower a **BAR** and can never produce a finding — no
+hypothesis, no bar of its own, no second arm. `X7`, session 10 and `MA19` all charged zero.
+**`MA19`'s reason is sharper and it applies verbatim: `N` is the INPUT to the floors being
+computed, so charging a trial would move `N` and invalidate the numbers as they were written.**
+
+### 1. X7's own setup with exactly one thing changed
+
+`scripts/placebo.py` **unchanged**, seeds **1000..1099**, **n = 100**, **costs MEASURED**, same
+instrument — `X7`'s and session 10's own configuration — and **only the universe differs.** Panel
+**289,659 rows over 69 dates and 9,645 names**, all seven weighted themes alive, stamped at the
+trial count it ran at (**274**, per `MA19`) with **all 100 draws retained** (rule 9). It writes its
+own artifact and has no code path to `BACKTEST_RESULTS.json`, `PLACEBO_HAC.json`,
+`MA19_RECALIBRATION.json` or `X7_RECONCILE.json`.
+
+**THE PANEL WAS VERIFIED BEFORE THE HOURS WERE SPENT, AND IT MATTERED.** `UNIVERSE-BIAS` left a
+**SIX-THEME CONFOUNDED** panel on disk beside the good one at the **same byte size** (31,684,182)
+with a different `sha256`. Confirmed by hash and by theme liveness that the sweep is aimed at the
+one where `insider` carries **198,381 distinct values** rather than 1 at 100% non-null. Pinned by
+test; a mutation aiming the launcher at the confounded file is caught. **A four-hour sweep of a
+composite nobody runs is the expensive version of coverage-is-not-fidelity.**
+
+### 2. The harness control is GATED and it is exact
+
+`placebo.py` runs the real, unpermuted panel through the **identical** code path as every draw, so
+a gap between the two is a harness bug rather than a finding — `X7`'s own reasoning, and `MA28`'s
+`C1` is why it is **gated and not merely printed**. It reproduces `UNIVERSE-BIAS` part 2's landed
+corrected record at **max absolute deviation 0.000e+00** on all six comparable figures:
+
+| figure | landed (part 2) | reproduced | dev |
+|---|---|---|---|
+| top-decile alpha | 0.02825480485561374 | 0.02825480485561374 | 0.000e+00 |
+| top-decile alpha HAC *t* | 1.078002290641106 | 1.078002290641106 | 0.000e+00 |
+| long-short naive *t* | 2.1301372802675886 | 2.1301372802675886 | 0.000e+00 |
+| long-short HAC *t* | 2.1238477244829443 | 2.1238477244829443 | 0.000e+00 |
+| monotonicity | -0.8545454545454545 | -0.8545454545454545 | 0.000e+00 |
+| PBO | 0.0 | 0.0 | 0.000e+00 |
+
+**THE DEFLATED SHARPE DIFFERS AND THE GAP IS THE `N` CHANNEL ALONE, PROVED RATHER THAN ASSERTED.**
+`sr0` is a direct function of the trial count, so every DSR moves at every `N` (`MB31`). Holding
+the sweep's **own banked** sharpe (0.13255379037698675) and variance (0.03143523861375983) fixed
+and changing `N` alone **274 -> 262** reproduces part 2's 0.0017589335382260374 to **1.8e-12**. So
+it is **excluded from the gate** and reconciled arithmetically instead: demanding it match would
+fail a correct sweep, and ignoring the gap would hide a real disagreement.
+
+### 3. THE SEVEN FLOORS
+
+The **current** column is **DERIVED** by calling `MB31`'s staleness map, never typed, and **no
+floor value is a literal anywhere in this item** — pinned by test, because the record carried a
+superseded 1.95pp alpha margin for nine days for exactly that reason.
+
+| floor | tail | CURRENT (`N`=247, still current at 274) | CORRECTED | delta | harder? | corrected headline | |
+|---|---|---|---|---|---|---|---|
+| theme IC *t* | p95 | 2.707234 | **2.885180** | +0.177946 | **HARDER** | 6.624560 | CLEARS |
+| long-short naive *t* | p95 | 2.070231 | **1.510224** | -0.560006 | easier | 2.130137 | CLEARS |
+| long-short HAC *t* | p95 | 2.056680 | **1.485155** | -0.571525 | easier | 2.123848 | CLEARS |
+| top-decile alpha margin | p95 | 0.018629 | **0.009738** | -0.008892 | easier | 0.028255 | CLEARS |
+| **top-decile alpha HAC *t*** | p95 | 1.826210 | **1.642480** | -0.183730 | easier | 1.078002 | **FAILS** |
+| PBO | p05 | 0.196667 | **0.133333** | -0.063333 | **HARDER** | 0.000000 | CLEARS |
+| **Deflated Sharpe** | p95 | 0.663664 | **0.591244** | -0.072419 | easier | 0.001651 | **FAILS** |
+
+**FIVE OF SEVEN GOT EASIER AND TWO GOT HARDER.** A candidate mechanism for the five, consistent
+with the direction but **UNMEASURED**: **3.8x more names per cross-section** estimates each date's
+permuted IC more precisely and so pulls it toward zero, which makes a noise draw's *t* over dates
+smaller. Why the theme-IC and PBO floors moved the other way is **not measured** and is named as
+such rather than given a story.
+
+### 4. THE FINDING: THE ASYMMETRY REVERSES
+
+**Five of seven clear, and the two that fail are the ones the product rests on** — top-decile
+alpha HAC *t* **1.078002 against 1.642480**, and Deflated Sharpe **0.001651 against 0.591244**.
+
+So `UNIVERSE-BIAS` part 2's reading — that the research headline is not demonstrable on the
+corrected universe — **now holds against that universe's OWN calibrated bar rather than against a
+borrowed one**, which is the stronger statement and the one this item existed to produce.
+
+**AND IT IS THE OPPOSITE ASYMMETRY FROM THE CANONICAL PANEL.** There `R9` measured the **long-ONLY**
+object as far better determined than the long-short (alpha HAC *t* **4.3762** against **2.6199**),
+and this file's own standing note says *"the long-ONLY object is far better measured than the
+long-short the project leads with."* **On the corrected universe it is the other way round: the
+long-short statistics clear their floors and the long-only alpha does not.**
+
+### 5. THE DISSOCIATION, AND IT IS THE PART THAT OUTLIVES THE CALIBRATION
+
+On the corrected universe the themes are **individually better determined than this project has
+ever measured them**, while the blend of them fails its own long-only bar.
+
+| theme | IC *t* | clears 2.885180 (abs)? |
+|---|---|---|
+| `quality` | **+6.6246** | yes |
+| `size` | **-6.2118** | yes |
+| `capital_discipline` | **+5.9137** | yes |
+| `value` | **+4.0704** | yes |
+| `insider` | **-3.0720** | yes |
+| `low_risk` | +2.6823 | no |
+| `momentum` | +2.6586 | no |
+| `institutional` | +1.7689 | no |
+| `growth` | +1.5442 | no |
+
+**FIVE of nine, against TWO on the canonical panel** (`quality` and `capital_discipline`). **And
+that reading is CONSERVATIVE**, because `X7` calibrated this floor on the **MAX across themes**
+precisely because the bar gets applied to whichever looks best — so using it per-theme is a
+harder test than a per-theme bar would be.
+
+**A LEAD AND NOT A MEASUREMENT, because no ablation was run: `size` sorts at *t* -6.2118 against
+-0.30 on the canonical panel while carrying a seventh of the composite's weight, which would drag
+the blend.** `X3` already measured that `size` has the worst theme IC and carries the composite's
+entire significance, and `UNIVERSE-BIAS` measured the wider pool to be a size bet; this is a third
+reading pointing the same way. **Testing it is a register, not a note.**
+
+### 6. The caveat that must travel with the long-short floors
+
+**CPCV ADOPTS on the real corrected run (`ic-proportional`) where the published run did not, and
+on 16% of noise draws.** `X7` measured that adoption **manufactures about +1.4 of long-short *t*
+out of nothing**, because `placebo.py` mirrors `run_backtests` and an adopting draw is scored on
+weights it chose on the same panel it is then measured on. **Both sides of the corrected comparison
+carry it, which is exactly what makes the floor the right comparator — but a reader quoting
+2.123848 as an effect size rather than against this floor inherits the inflation unopposed.**
+
+**PBO STAYS UNINFORMATIVE, as `X7` found.** The noise median is **0.5187** and **41%** of noise
+draws clear the retired under-50% convention, so only the calibrated **13.33%** bar means
+anything. The corrected run's 0.0000 clears it.
+
+Other rates on the null: theme IC *t* >= 2.0 on **29%** of draws, long-short *t* >= 2.0 on **2%**,
+alpha >= 1pp on **5%**, held-out gate confirming something on **4%**.
+
+### 7. A real defect in the project's own instrument, found and fixed
+
+**`MB31`'s staleness map — the authority on what the floors are today — was ONE RE-DERIVATION
+BEHIND.** It took its derived-at `N` from `MA19` alone (the **first** re-derivation, at 224) while
+`W-1` had already performed the bounded re-derivation the map itself demands, at **`N`=247** where
+seed 1003 flipped. So it compared 224 against the live 274, saw the 247 flip, and reported **every
+covered floor `DUE`** for a re-derivation already done — the cry-wolf failure `MA21` refused once
+already. Repointed at the latest re-derivation with the **source named** in the artifact, and the
+three floors `W-1` re-derived now carry their 247 values (2.070231 / 2.056680 / 1.826210), which is
+what the record's own floor table says.
+
+**AND ITS OWN SUITE WAS GREEN THROUGHOUT, which is the part worth keeping.** One test computed the
+adopt set at `W1_FLOORS.N_after` **directly** and nothing ever compared that to what the **MAP**
+said it used. **Two objects disagreeing, with nothing checking them against each other.** That
+check now exists.
+
+**A PRE-EXISTING ASSERTION WAS FALSE ABOUT THE WORLD AND IS REPOINTED, NOT DELETED.**
+`test_has_ever_moved` asserted `long_short_tstat_nw` had never moved — and `W-1` measured it
+moving **2.2837 -> 2.0567** at `N`=247. It held only while the map read a **stale** value, so
+keeping it would have forced the map to stay wrong to stay green: **a test enforcing the defect**,
+and the CLOCK-keyed family this record already names twice. Its purpose is kept and its negative
+control re-aimed at the two floors that genuinely never moved in any regime (`max_abs_theme_ic_t`,
+`pbo`), measured rather than assumed.
+
+**VERIFIED ARITHMETICALLY, because this item reports the corrected floors BESIDE the current ones
+and therefore has to be right about which the current ones are: ZERO draws flip between `N`=247
+and today's `N`=274**, margin-passers identical at **19**, and seed 1003's `margin/se` reproduces
+`W-1`'s published 3.319188 at **3.3191884951841053**. The next adopt-set change is seed **1017 at
+`N`=688**.
+
+### 8. Two mutation misses closed, and the first fix was to the CODE
+
+**Making `DUE` unreachable (`elif False:`) survived every test**, because the only check asserted
+that no covered floor **READS** `DUE` while the adopt set is unchanged — which a map that can
+**never** say `DUE` satisfies trivially. **A guard that cannot tell a correct silence from an
+impossible one**, which is `STAGE1-BATCH1`'s inlined-verdict lesson one item later. Extracted to
+`floor_status()` as **ONE definition** (`B7`) and exercised in all four states, including the one
+the live data cannot produce today.
+
+The second — hard-coding the adopt-set argument at the call site — is **INERT on today's data**
+(the set really is unchanged), so under `MB20`'s rule no artifact check could be evidence about
+it; it would bite the day a draw flips, which is the one day this map has to be right. The **call
+shape** is read off the AST instead, with a non-vacuity control.
+
+**A DEFECT IN MY OWN TEST, the substring-ban family again:** two guards fired against a **correct**
+launcher because its own `REM` comments document the rules they enforce (*"Costs are MEASURED (no
+--no-costs)"*, *"placebo.py has no code path to BACKTEST_RESULTS.json"*). Fixed with a comment
+stripper pinned **non-vacuous in both directions** — it must keep the command line and drop the
+prose, and the test fails if the launcher ever stops documenting the rule it is exercising.
+
+**A PARTIAL SWEEP IS NOT A CALIBRATION.** The 95th percentile of twenty draws is set by its single
+largest value, so the runner **refuses below 100 draws**, reports `PARTIAL` and exits non-zero
+rather than letting a part-way read be quoted as a floor (`W-28`: a pre-committed bar may not be
+relaxed after watching it fail).
+
+**20 new tests, 11 of 11 mutations caught; `MB31` 17 -> 21 tests, 6 of 6 caught.**
+
+### 9. NOT DONE, named so it is not mistaken for done
+
+**The canonical panel is NOT moved and no public page changes** — that is **Don's, and pending**.
+**No claim is re-stated on any surface.** **The eight claims `UNIVERSE-BIAS` part 2 listed as
+UNMEASURED are still unmeasured** — R1's factor alpha, S22's term structure, `score_confidence`,
+`hold_horizon`, the options payoff, `V6-B`, the Index tab's backtested column and the live Track
+Record — and that is **part 2 of this item**. **No ablation was run**, so the `size` reading is a
+lead and not a result. **The DSR floor is labelled at the `N` it was computed at (274)** and moves
+at every `N` by construction; the other six are covered by the adopt-set argument and cannot move
+below equity `N`=688. `scripts/placebo_corrected.bat`, `scripts/corrected_floors.py`,
+`corrected_floors_run.py`; `data/free_analysis/PLACEBO_CORRECTED.json`, `CORRECTED_FLOORS.json`;
+`DECISION_corrected_floors.md`.
+
+## CORRECTED-FLOORS part 1b — a correction against my own part 1 — 2026-10-07
+
+**PART 1'S FLOORS STAND. ITS "CORRECTED HEADLINE" COLUMN DESCRIBES THE WRONG BOOK.** **ZERO
+TRIALS** — a correction to a calibration is still a calibration. **ADOPTS NOTHING, CHANGES NO
+PUBLIC PAGE.**
+
+### 0. The defect, and how it was found
+
+Part 1 tabulated a "corrected headline" against each corrected floor. Those figures are
+`UNIVERSE-BIAS` part 2's `corrected` column, and `placebo.py`'s real iteration reproduces them to
+sixteen digits — so **the harness control was sound and the floors are sound.** **What neither
+item said is WHICH COMPOSITE those figures describe.**
+
+`placebo.py` mirrors `run_backtests`: **CPCV is the authority**, and on the corrected universe
+**CPCV ADOPTS (`ic-proportional`) — the first adoption in this project's history.** So the landed
+corrected figures are the **ADOPTED-weights** book. **The DEPLOYED book — flat 1/7, never tuned,
+`cpcv.adopt` false on every canonical run, which is what ships — is a different object on this
+universe and nobody had measured it.**
+
+Found by part 2a's gate **refusing the corrected panel**, which I first read as the gate working
+as designed. It was: the gate was telling me the panel does not reproduce the figure I had handed
+it, and the reason was that the figure described a different composite.
+
+### 1. THE LIKE-FOR-LIKE READING, AND IT REVERSES PART 2'S HEADLINE
+
+Part 2's **published** column is the DEPLOYED book; its **corrected** column is the ADOPTED book.
+Comparing them is **a numerator from one construction against a numerator from another** —
+`MA19`'s own recurring defect, and `MB8`'s rule that an `se` may not be borrowed across
+constructions. Holding the construction fixed and varying only the universe:
+
+| figure | published (deployed) | corrected (**deployed**) | delta | as part 2 reported it (adopted) | part 2's delta |
+|---|---|---|---|---|---|
+| top-decile alpha | 0.071741 | **0.060674** | **-0.011067** | 0.028255 | -0.043487 |
+| top-decile alpha HAC *t* | 4.376230 | **4.412730** | **+0.036499** | 1.078002 | -3.298228 |
+| long-short naive *t* | 2.836064 | **4.608995** | **+1.772931** | 2.130137 | -0.705927 |
+| long-short HAC *t* | 2.619912 | **4.594457** | **+1.974545** | 2.123848 | -0.496064 |
+| long-short /yr | 0.110382 | **0.180966** | **+0.070584** | 0.144805 | +0.034423 |
+| monotonicity | -0.890909 | **-0.963636** | **-0.072727** (better) | -0.854545 | +0.036364 |
+
+**HELD LIKE FOR LIKE THE CORRECTED UNIVERSE BARELY MOVES THE ALPHA AND IMPROVES EVERYTHING ELSE.**
+The alpha falls **1.11pp**, its HAC *t* is **essentially unchanged**, the long-short HAC *t*
+**nearly doubles**, the long-short return rises **11.0% -> 18.1%**, and the decile ordering gets
+**better**.
+
+**SO `UNIVERSE-BIAS` PART 2'S HEADLINE — "the research headline does not survive the corrected
+universe, nine of eleven public claims no longer hold" — RESTS ON A CONSTRUCTION MISMATCH.** Held
+deployed to deployed, **the research headline SURVIVES the corrected universe.** Part 2's artifact
+is **not edited**; its census (72.07% of the in-window universe missing, 80.61% of
+small-and-died), its ladder and its wider-pool reversal are **untouched and stand**. What is
+corrected is the headline comparison and therefore the claim count.
+
+### 2. Each reading against its OWN matched null
+
+`MB8`: an `se` may not be borrowed across constructions, and `S22` built a `fixed_weights_null`
+for exactly this reason. **A floor whose draws adopt is not the floor for a book that does not.**
+Both sub-nulls come from the **same retained draws** — rule 9 paying for itself, no re-sweep —
+and the draw count travels with every figure.
+
+| floor | FULL null (n=100) | NON-ADOPTING null (n=84) | DEPLOYED value | |
+|---|---|---|---|---|
+| theme IC *t* | 2.885180 | **2.802541** | 6.624560 | CLEARS |
+| long-short naive *t* | 1.510224 | **1.289039** | 4.608995 | CLEARS |
+| long-short HAC *t* | 1.485155 | **1.363955** | 4.594457 | CLEARS |
+| top-decile alpha margin | 0.009738 | **0.008818** | 0.060674 | CLEARS |
+| **top-decile alpha HAC *t*** | 1.642480 | **1.387456** | 4.412730 | **CLEARS** |
+| PBO | 0.133333 | 0.266667 | n/a | — |
+| Deflated Sharpe | 0.591244 | 0.565519 | n/a | — |
+
+**ALL FIVE MEASURABLE FLOORS CLEAR FOR THE DEPLOYED BOOK, AND THE ONE PART 1 REPORTED AS FAILING
+CLEARS BY 3.2x.** PBO and the Deflated Sharpe are **deliberately `n/a`**: both come out of
+`cpcv_validate`, and the deployed reading is the one that does **not** consult CPCV, so quoting
+the adopted run's PBO beside flat-weight alpha would pair a numerator from one construction with
+a denominator from another — the defect this whole section is about.
+
+### 3. The direction is the surprise, and it is worth more than the number
+
+**`X7`'s standing warning is that CPCV adoption produces an OPTIMISTICALLY biased headline**,
+because the weights are chosen on the panel the headline is then measured on, and it measured
+adoption manufacturing ~+1.4 of long-short *t* out of nothing on 27% of noise draws.
+
+**Here adoption makes the headline look WORSE, on every figure.** The mechanism is visible:
+**CPCV selects on out-of-sample rank IC inside its decide folds, not on alpha**, so a scheme can
+win that contest and lose alpha. **A HYPOTHESIS AND NOT A MEASUREMENT, because no arm was run:**
+the adopted scheme is `ic-proportional`, and on this universe `size`'s IC is **-6.2118**, so a
+weighting proportional to IC would load `size` heavily with the sign the composite does not
+expect. That would explain both the alpha and the long-short damage. **Testing it is a register.**
+
+**THE PORTABLE PART, and it binds every future run on this universe: `run_backtests`'s headline
+stops describing the deployed book the moment CPCV adopts, and on the corrected universe it
+adopts.** Every figure read off a corrected-universe run must say which weighting it is, or it is
+not comparable to anything published. Part 1 did not, and nor did part 2.
+
+### 4. A CI FAILURE OF MY OWN, AND THE IRONY IS IN MY OWN DOCSTRING
+
+Part 1's land **FAILED in CI** (run `37653999412`). `tests/test_corrected_floors.py` opens by
+saying *"Nothing here imports a module that resolves a data root at IMPORT time"* -- and
+`scripts/corrected_floors.py` then did exactly that (`DATA = _data_root()` at module level), so
+importing it on a runner raises `FileNotFoundError` and the suite errored. **`data/` is gitignored,
+so CI has no data root at all.**
+
+**I wrote the rule in prose and not as a test.** That is the *"guards that fail open in CI"* family
+one level up: a rule nobody enforces. Both fixes shipped -- the paths resolve on CALL, and the
+guard that would have caught it now exists, in two forms: an AST check that no module-level call
+resolves a data root, and a **subprocess import of all five modules with `VALQUO_DATA_ROOT`
+pointed at an empty directory**, so an eager module fails in its own suite rather than three
+suites later.
+
+**AND THAT GUARD'S FIRST CUT FIRED AGAINST THE CORRECTED TREE.** It walked `ast.walk(n)` over each
+top-level node, and `ast.walk` on a `FunctionDef` **descends into the body** -- so it flagged the
+very fix it exists to demand. Its own docstring said *"a call inside a function is exactly the
+fix"* and the implementation did not honour it. Narrowed to genuine module level, with a
+non-vacuity control proving it can still see a real module-level call.
+
+**A THIRD GUARD OF MINE NEEDED REPOINTING FOR A HONEST REASON:** the write-location check asserted
+every write-mode `open` names `OUT`, and `OUT` became a FUNCTION, so the name no longer appears in
+the call. Repointed to the property -- the destination must be a local assigned from this item's
+own path helper, never a literal path.
+
+**AND TWO MORE FIRED ON AN AST DUMP, WHICH IS A NEW WRINKLE ON AN OLD FAMILY.** `ast.dump`
+**contains every string constant**, so banning a token in a dump is the same defect as grepping
+the source: one guard fired on a docstring that NAMES `cpcv_validate` to explain why it is not
+used, the other on `subnull`'s own `pct == "p05"` comparison. **Reading the AST only helps if you
+then look at the SHAPE rather than string-searching the rendering of it.** Both repointed to
+called-function names and to the assignment, respectively.
+
+**ONE OF MY OWN MUTATIONS WAS INERT and is dropped rather than guarded against** -- adding a dead
+unused helper changes no behaviour and no property any guard should forbid, so its "miss" was no
+evidence (`MB20`'s rule, and the second inert mutation I have written in two items). Replaced with
+one that is not inert: the data root resolving eagerly again, which is the actual regression.
+**19 of 19 caught.**
+
+### 5. NOT DONE
+
+**No ablation was run**, so the `size`/`ic-proportional` mechanism is a lead. **`UNIVERSE-BIAS`
+part 2's artifact is NOT edited** — its reading is corrected here and its measurements stand.
+**The canonical panel is NOT moved and no public page changes.** **The deployed book's PBO and
+Deflated Sharpe are NOT computed** and are reported absent rather than borrowed.
+`scripts/corrected_deployed.py`; `data/free_analysis/CORRECTED_DEPLOYED.json`.
+
+## CORRECTED-FLOORS part 2 — the eight unmeasured claims — 2026-10-07
+
+**FOUR SURVIVE, ONE NO LONGER HOLDS, SIX UNMEASURED** (eleven rows, because the Index tab's column
+is three distinct figures and R1 is two specs). **ZERO TRIALS** — re-measuring a registered
+construction on a corrected universe is the `S25` / `X7RECON` / `PANEL-EXT-RECHECK` class.
+**ADOPTS NOTHING, CHANGES NO PUBLIC PAGE.**
+
+### 0. The vocabulary was fixed before the numbers, and it bit
+
+`SURVIVES` / `NO LONGER HOLDS` / `UNMEASURED`, with **a claim that cannot be re-measured reported
+`UNMEASURED`, never `SURVIVES`** — `V6`'s rule that a null and an absent measurement must not read
+the same, and the flattering direction here is to let an unmeasured claim sit in the surviving
+column. `claim()` **asserts** the state is one of the three and that a `SURVIVES` row carries a
+corrected value.
+
+**AND THAT GUARD FIRED ON MY OWN TRACK-RECORD ROW.** I had it `SURVIVES` with no corrected value —
+exactly the shape the guard exists to refuse. **I did not widen the vocabulary to suit it**, which
+is the whole point of fixing it first; the row takes the state that does not flatter and its reason
+says plainly that **no work is owed**, which is the thing an `UNMEASURED` label would otherwise
+imply.
+
+### 1. THE INDEX TAB — the priority claim, and the gate had to be satisfied honestly
+
+`INDEX-BOOK`'s `C1` refuses any panel but the banked one, and the instruction was to build the
+corrected figures as a **separately labelled object rather than weaken the gate.** So
+`c1_fidelity`'s **TARGET** became a parameter with its **default unchanged** — still `dev == 0.0`,
+still 69 dates, still aborting — and the corrected run is gated against **part 1b's own deployed
+alpha**, read from its artifact. Proved inert on the existing caller by leaf diff: **5,633 shared
+leaves, ZERO moved**, four added disclosure keys.
+
+**THE GATE REFUSED THE CORRECTED PANEL TWICE, AND THE SECOND REFUSAL PRODUCED PART 1b.** The first
+target I handed it was part 2's `corrected` column — the **ADOPTED** book — against a scorer that
+computes the **DEPLOYED** composite. A numerator from one construction against a gate for another.
+Pointed at the deployed figure it passes at **dev 0.000e+00 on 69 dates.**
+
+| figure | published | corrected | delta | |
+|---|---|---|---|---|
+| **Roth net /yr** | 17.1619% | **18.0169%** | **+0.8550pp** | SURVIVES |
+| Roth Sharpe | 1.0318 | 0.9694 | -0.0624 | |
+| **Roth max drawdown** | -23.03% | **-28.96%** | **-5.9301pp** | **NO LONGER HOLDS** |
+| taxable net /yr | 12.2033% | 12.5036% | +0.3003pp | |
+| alpha vs own tier | 4.1209pp | 4.6177pp | +0.4968pp | |
+| alpha vs SPY | 1.9488pp | 2.2177pp | +0.2690pp | |
+| turnover | 2.4372 | 2.8094 | +0.3722 | |
+
+**THE INDEX BUYS A LITTLE RETURN AND PAYS MATERIALLY MORE DRAWDOWN. The two legs move in OPPOSITE
+directions and quoting either alone misrepresents it.**
+
+**AND IT CORRECTS PART 2'S OWN ESTIMATE, IN SIGN.** Part 2 put the universe effect at *"about
+-0.4pp"* from the ladder's $10B rung — a **different construction** (no band, no 8% cap). Measured
+through the served construction it is **+0.86pp.**
+
+**ONE FIGURE WILL BE MISQUOTED IF THIS SENTENCE IS DROPPED:** alpha against the all-cap
+equal-weighted universe goes **-0.06pp to +5.93pp**, and that is **mostly the BENCHMARK FALLING**
+(17.24% -> 12.11%) rather than the book rising (17.18% -> 18.04%). Quoting +5.93pp as an alpha gain
+overstates it about sixfold.
+
+### 2. R1's FACTOR-ADJUSTED ALPHA SURVIVES, AND ITS *t* IMPROVES
+
+`scripts/factor_alpha.py` already takes `--panel`, so this is the shipped regression on a different
+panel. Deployed weights (`WEIGHTS_ESTABLISHED`, non-zero), 68 non-overlapping 63-day windows.
+
+**FF5+MOM intercept +5.9398%/yr at NW *t* +4.4532**, against the published re-run's **+6.99% at
+3.984** — the alpha about a point lower, **the *t* higher**. **All SIX pre-registered specs pass**
+R1's own threshold (positive intercept at NW *t* > 2.0), spanning **+5.66% to +9.25%** at *t*
+**4.45 to 5.36**. Alignment control: SPY on MKT beta **0.9494**, R² **0.9921**.
+
+**AND THE UNIVERSE'S OWN UNEXPLAINED EXCESS VANISHES, which makes the spread CLEANER rather than
+merely smaller:** the equal-weighted universe's own FF5+MOM alpha is **-0.41%/yr at *t* -0.44**
+against the canonical panel's **+2.34% at *t* 2.92**. Free by-product, no verdict: the long-short
+leg reads alpha **+19.51%/yr at *t* +7.99**.
+
+**R1's NET-OF-COST SPECIFICATION IS `UNMEASURED` AND REPORTED ABSENT RATHER THAN INHERITED.** The
+whole block came back **NaN** (`cost_drag_ann` NaN), so the cost-adjusted intercept is not
+computed. The gross specs all pass and this one carries no reading in either direction. Likely
+cause, named not asserted: the cost model's inputs cover **2,524 of 9,645 names** (part 3 measured
+ADV name coverage at 0.2617).
+
+### 3. THE BINDING CONSTRAINT, AND IT IS THE ACTIONABLE RESIDUAL
+
+**`UNIVERSE-BIAS` BUILT THE CORRECTED PANEL LEAN: 16 COLUMNS AGAINST THE BANKED PANEL'S 75**,
+because it was built with `keep_numbers=False` and no `extra_horizons`. **Four claims need columns
+it does not carry**, and each is `UNMEASURED` with the missing column **named**, not estimated:
+
+* **`S22`'s term structure** — needs forward returns at 63/126/.../504 days; the panel carries
+  `fwd_ret` (63d) **alone**.
+* **`hold_horizon`** — **the same object as `S22`**, blocked by the same columns.
+* **`score_confidence`** — `score_calibration._bucket_positions` needs `bucket`, and the run
+  **RAISES `KeyError: 'bucket'`**. **Attempted, not assumed.**
+* **`V6-B`'s dip survival** — needs a point-in-time health score from raw line items **plus
+  forward 126-day drawdown PATHS**, neither of which is in any panel. A build against the raw
+  export, not a re-measurement.
+
+**ONE panel rebuild with `keep_numbers=True` and `extra_horizons` would unlock three of the four.**
+`V6-B` needs the raw export either way.
+
+### 4. The two that need no measurement, and that is a fact rather than a dodge
+
+**The options payoff** (`R2`'s 3,870 trades over 187 names, -5.06pp vs random entry) is priced from
+**option chains**; no equity panel change can reach it, so it is **unchanged rather than
+re-measured** — part 2 reasoned the same way and it is carried forward, not re-derived. **The live
+Track Record** is a **forward** record under `PAPER_TRACK_CONTRACT.md`; no panel change touches it
+and `DECISIONS.md` forbids backfilling it.
+
+### 5. NOT DONE
+
+**No panel rebuild**, so four claims stay unmeasured with their blockers named. **R1's net-of-cost
+cell is not diagnosed.** **No public page changes and nothing is adopted** — the disclosure is
+**PENDING DON**. **The eight-claim count is now 4 SURVIVES / 1 NO LONGER HOLDS / 6 UNMEASURED
+across eleven rows**, and that supersedes part 2's *"nine of eleven no longer hold"*, which rested
+on the construction mismatch part 1b records. `scripts/corrected_claims.py`,
+`corrected_claims_run.py`, `corrected_index_book.py`; `data/free_analysis/CORRECTED_CLAIMS.json`,
+`INDEX_BOOK_CORRECTED.json`, `INDEX_BOOK_CORRECTED_COMPARE.json`,
+`CORRECTED_R1_FACTOR_ALPHA.json`.

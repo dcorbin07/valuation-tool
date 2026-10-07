@@ -98,19 +98,30 @@ ARMS = [
 ]
 
 
-def c1_fidelity(panel, cols, weights):
-    """GATED. Reproduce the published record from the SHIPPED path or abort.
+def c1_fidelity(panel, cols, weights, expect_alpha=None):
+    """GATED. Reproduce the landed record from the SHIPPED path or abort.
 
     The count is gated too: `MB21`'s `C1` once scored a perfect zero on an empty frame by
     comparing nothing.
+
+    `expect_alpha` DEFAULTS TO `PUBLISHED_ALPHA`, so every existing caller is bit-identical.
+    `CORRECTED-FLOORS` part 2 passes `UNIVERSE-BIAS` part 2's own `corrected` top-decile alpha
+    instead, because that panel is legitimately NOT the object the published record describes --
+    and the gate is NOT weakened by it: it still demands EXACT reproduction (`dev == 0.0`) of a
+    figure measured and landed ELSEWHERE, on 69 dates, and it still aborts. Only WHICH landed
+    figure is a parameter. A second script calling `IB.run` would have duplicated every arm and
+    every block here, which is `B7`'s defect: two implementations of one measurement, free to
+    drift.
     """
     from valuation.edge.fundamental_panel import quantile_backtest
+    want = PUBLISHED_ALPHA if expect_alpha is None else float(expect_alpha)
     r = quantile_backtest(panel, cols, weights, n_q=10)
     got = r.get("top_decile_alpha")
-    dev = abs(float(got) - PUBLISHED_ALPHA)
+    dev = abs(float(got) - want)
     n = int(r.get("n_periods") or 0)
     ok = (dev == 0.0) and n == 69
-    return {"published": PUBLISHED_ALPHA, "reproduced": got, "max_abs_dev": dev,
+    return {"published": want, "reproduced": got, "max_abs_dev": dev,
+            "expect_alpha_is_the_default": bool(expect_alpha is None),
             "n_periods": n, "pass": bool(ok)}
 
 
@@ -138,10 +149,12 @@ def _half_stats(rows):
             "annual_turnover": float(np.mean([r["turnover_two_way"] for r in rows])) / 2.0 * 4.0}
 
 
-def main(panel_path=None, out=None, label=None) -> int:
-    """`panel_path`/`out` default to the banked panel and this item's own artifact, so
-    every existing caller is bit-identical. `UNIVERSE-BIAS` passes a corrected-universe
-    panel rather than copying this measurement (`B7`)."""
+def main(panel_path=None, out=None, label=None, expect_alpha=None) -> int:
+    """`panel_path`/`out`/`expect_alpha` all default to the banked panel, this item's own
+    artifact and the published alpha, so every existing caller is bit-identical.
+    `UNIVERSE-BIAS` passes a corrected-universe panel rather than copying this measurement
+    (`B7`), and `CORRECTED-FLOORS` part 2 passes that panel's OWN landed alpha as the gate's
+    target so the gate keeps its full strength on a second object."""
     panel = pd.read_pickle(panel_path or os.path.join(FA, "panel_corrected_69d.pkl"))
     cols = list(DEPLOYED)
     weights = {c: BASE_WEIGHT for c in cols}
@@ -149,7 +162,7 @@ def main(panel_path=None, out=None, label=None) -> int:
           % (panel.shape, panel["date"].nunique(), panel["ticker"].nunique(),
              len(cols), BASE_WEIGHT), flush=True)
 
-    c1 = c1_fidelity(panel, cols, weights)
+    c1 = c1_fidelity(panel, cols, weights, expect_alpha=expect_alpha)
     print("C1 fidelity: published %.17f reproduced %.17f dev %.3e n %d -> %s"
           % (c1["published"], c1["reproduced"], c1["max_abs_dev"], c1["n_periods"],
              "PASS" if c1["pass"] else "FAIL"), flush=True)
@@ -157,6 +170,8 @@ def main(panel_path=None, out=None, label=None) -> int:
         raise SystemExit("C1 FAILED -- the panel is not the object the record describes; abort")
 
     res = {"item": "INDEX-BOOK", "trials": 0,
+           "object_label": label or "the published 2,531-name panel (the banked object)",
+           "panel": panel_path or "data/free_analysis/panel_corrected_69d.pkl",
            "trial_class": "FIXED -- reproduction of a shipped construction, no bar, no verdict",
            "C1_fidelity": c1,
            "constants_source": "valuation/edge/valquo_index.py + no_trade_band.BAND_WIDTH",
