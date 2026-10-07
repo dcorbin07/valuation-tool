@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time as _time
 import tempfile
 import urllib.error
 import urllib.request
@@ -171,14 +172,80 @@ def run_hot() -> None:
     # Size was checked rather than assumed before sending: `filtered` is a reason->count dict
     # with at most 8 example tickers per reason, and `health` is counts plus short ticker lists.
     # Measured on a real scan it is a few KB against a rows payload of ~500 scored names.
+    # THE DIP PRECOMPUTE — ITEM 35(a). Value every name the screen would value at the slider's
+    # FLOOR, here, once, so a request never spends a valuation budget.
+    #
+    # WHY IT BELONGS IN THIS JOB AND NOT IN THE REQUEST. `/api/dip` valued `DEFAULT_SHORTLIST`
+    # names per request out of ~220 qualifying -- about 5% of what it was eligible to serve --
+    # and the page reported the result as though it had looked at the market. Raising the
+    # per-request budget was tried and measured to buy nothing (12 -> 18 valued the same 10 rows
+    # across four thresholds, at 18-28s of cold latency), because the cost is per request. This
+    # job has the budget: the 2026-10-06 hot run took 21m21s against a 90-minute timeout.
+    #
+    # THE FLOOR COVERS THE WHOLE SLIDER. The depth test is monotone in the threshold and the
+    # depth-unknown names are kept at every position, so the qualifying set at 0.10 is a
+    # SUPERSET of the set at any higher setting. One pass serves 0.10 through 0.40.
+    #
+    # NEVER FATAL, and that is not laziness: a snapshot that fails to land is a dead product
+    # surface, and a dip cache that fails to build costs the OLD behaviour, which still serves.
+    # The two must not share a failure.
+    dip_cache = None
+    try:
+        from valuation.web import dip as _dip
+        from valuation.engine.pipeline import value_ticker as _value
+        from valuation.screener.fairvalue import estimate_fair_values as _efv
+        from valuation.web import withhold as _wh
+        t0 = _time.monotonic()
+        # THE PRECOMPUTE MUST SELECT FROM THE ROWS THE *REQUEST* WILL SEE, NOT THE ONES THE SCAN
+        # HAS. `screen.py:794` is explicit that `estimate_fair_values` runs at SERVE time rather
+        # than in the scan, and `screen_snapshot` runs it and `withhold_implausible_fair_values`
+        # before it screens anything. Those two set the publication flags `disqualifier_checks`
+        # reads, so selecting from the raw scan rows would qualify a DIFFERENT population from
+        # the one served -- and the symptom would be mild and misleading: the missing names would
+        # arrive as `n_unmeasured`, which reads as a data gap rather than as two populations.
+        #
+        # ON A COPY, because these passes MUTATE the rows (`fair_value`, `upside` and the
+        # withheld flags) and `rows` is what gets POSTed and stored. Precomputing must not
+        # change the snapshot; mutating it here would make the scan's own output depend on
+        # whether the dip cache was built.
+        import copy as _copy
+        serve_rows = _copy.deepcopy(rows)
+        _efv(serve_rows, peer_rows=serve_rows)
+        _wh.withhold_implausible_fair_values(serve_rows)
+        dip_cache = _dip.precompute(
+            serve_rows, lambda t: _value(t, CONFIG), scan_date=res["scan_date"])
+        sh = dip_cache.get("shape") or {}
+        print("  dip precompute: %s of %s qualifying names valued in %.1fs at %s workers"
+              % (sh.get("valued"), sh.get("qualifying"), _time.monotonic() - t0,
+                 sh.get("workers")))
+        if sh.get("failed"):
+            # A NAME THAT WOULD NOT VALUE IS COUNTED, NOT SILENT. It reaches the page as
+            # `n_unmeasured`, which the surface reports; a silent drop would read as "not in a
+            # drawdown", which is the sentence item 19 exists to stop.
+            print("    %s could not be valued (they serve as n_unmeasured): %s"
+                  % (sh["failed"], ", ".join(sh.get("failed_tickers") or [])))
+        if not sh.get("valued"):
+            dip_cache = None
+            print("    nothing valued — NOT sending a cache; the request path keeps its "
+                  "bounded live behaviour rather than serving an all-unmeasured screen")
+    except Exception as e:                                           # noqa: BLE001
+        print("  dip precompute FAILED (%s: %s) — the snapshot still lands and /api/dip keeps "
+              "its bounded live path" % (type(e).__name__, e))
+        dip_cache = None
+
     resp = _post("/admin/ingest-snapshot", {
         "scan_date": res["scan_date"], "provider": res.get("provider", "ci"),
         "rows": rows, "params": {"scope": scope, "universe_size": res.get("universe_size"),
-                                 "health": res.get("health"), "filtered": res.get("filtered")}})
+                                 "health": res.get("health"), "filtered": res.get("filtered")},
+        "dip_cache": dip_cache})
     # The Valquo Index book the sandbox engine records. Printed explicitly because a book that
     # silently stopped being published is exactly how the engine came to record a 10-name book
     # while the published Index held 86 (PT-SPLIT). A refusal is a normal, reportable outcome —
     # it means this scan was too thin to build the contract-bound book — not a scan failure.
+    # The service's own view of what it stored, printed because a cache the scan built and the
+    # service dropped would otherwise look identical to one it never built.
+    dc = (resp or {}).get("dip_cache")
+    print("  dip cache on the service: %s" % (dc if dc else "NOT stored"))
     book = (resp or {}).get("index_book") or {}
     if book:
         print(f"  index book: {'PUBLISHED' if book.get('published') else 'NOT published'} — "

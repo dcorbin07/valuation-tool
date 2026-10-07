@@ -5,6 +5,164 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 82 — 2026-10-07 — ITEM 35: the dip screen serves a nightly precompute, and the check that passed on the broken state
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict against a threshold. `by_domain` untouched.
+
+**THE PART TO READ FIRST IS NOT THE FIX, IT IS WHY THE PREVIOUS FIX LOOKED LIKE ONE.** Item 34(a)
+asked for the qualifying names to be valued AHEAD of time. Item 33 instead raised the per-request
+budget, measured that it bought nothing, reverted it — and repointed the live check to assert that
+*"the budget is spent on names that qualify and the shortfall is reported"*. Both halves of that
+are TRUE of a screen serving 2 rows out of 218, so the daily run printed
+
+```
+PASS  dip spends its budget on qualifying names    12 of 218 qualifiers valued, 206 reported as capped
+```
+
+**A check that passes on the state it was written to catch is worse than no check**, because it is
+read as evidence the thing works. That is the defect `live_check.py` exists to prevent and I wrote
+it into the file. It is the second time in two items that one of my own assertions was mis-specified
+in the same direction.
+
+## (a) THE VALUATIONS MOVE TO THE SCAN, AND A REQUEST NOW SPENDS NOTHING
+
+**WHY THE BUDGET WAS NEVER THE LEVER.** The cost is PER REQUEST, so any affordable cap serves a
+fraction of the qualifying set. Measured on 2026-10-06: 12 → 18 valued the same 10 rows across
+four thresholds, at 18–28 s of cold latency. The qualifying set is ~220 names; the only way to
+serve it is to stop paying per request.
+
+**THE SCAN JOB HAS THE BUDGET AND IS NOT USING IT.** The 2026-10-06 hot run took **21 m 21 s
+against a 90-minute timeout** — 69 minutes idle. Measured per-name cost of a real valuation on six
+live names: **1.67 s median** (MSFT 2.71, AGI 1.61, PEGA 1.67, LVS 1.51, STRL 1.73, COCO 1.53), so
+**220 names at 6 workers ≈ 1.0 minute**. At the runner's own slower figure for the same upstream
+feed (`_screen_refusals` measures 2.51 s/name) it is ≈ 1.5 minutes. It fits with two orders of
+magnitude of margin, and the scan prints the real figure every run.
+
+**THE PRECOMPUTE ASKS `screen` WHICH NAMES IT WOULD VALUE RATHER THAN RE-DERIVING THE RULE.**
+`screen` now reports `measured_tickers`, and `qualifying_tickers()` is a dry run with
+`measure=lambda r: None` and `shortlist=0` — `screen`'s own unbounded mode, which already existed.
+The selection is four stages deep (row-level checks, the cross-sectional prefilter, the free depth
+threshold with its slack, the spread across qualifiers) and **every one of those has been got
+wrong once already**. A second copy would drift, and the drift would be invisible: the cache would
+simply miss names, and a miss is reported as `n_unmeasured`, which reads as a data gap.
+
+**ONE PASS AT THE FLOOR SERVES THE WHOLE SLIDER, and that is a property rather than a hope.** The
+depth test is `cheap_drawdown(r) >= min_drawdown - PRESELECT_SLACK`, monotone in the threshold, and
+the depth-UNKNOWN names are kept at every position — so the qualifying set at 0.10 is a SUPERSET of
+the set at any higher setting. Pinned by a test that walks 0.15 → 0.40 and requires containment.
+
+**THE SERVE PATH.** `screen_snapshot` reads the cache itself (`dip.stored_cache(store)`) rather
+than making each caller fetch it, because it has FOUR callers — the page, the Discord digest, the
+SaaS worker and a fleet book — and a digest pushing the bounded 12-name screen while the page
+served 220 is the Index-versus-hot-list disagreement again, **outbound**, where nobody sees it
+until it has been sent. With a usable cache it screens at `shortlist=0`, so `capped` is 0 and every
+qualifier is measured.
+
+**FOUR REFUSALS, EACH FOR A MEASURED REASON.**
+* a cache from **another scan** is refused — serving it returns measurements at a different date's
+  prices with nothing in the payload saying so;
+* an **empty** cache is refused — it would report every name unmeasured, which looks identical to a
+  screen that could not measure anything, the sentence item 19 exists to stop;
+* a cache **miss is never a live valuation** — a request that quietly values a miss can spend an
+  unbounded budget on a cold cache, which is the thing this removes;
+* a **wiring error is not swallowed** — `engine_measure`'s own rule, after 229 names raised the
+  identical error and each was counted as "unmeasured".
+
+**AND THE FALLBACK SAYS WHY IT FELL BACK.** `dip_source` is `precomputed` or `live`, and on `live`
+the payload names the reason — no cache stored, cache empty, or the scan it describes. "No scan has
+a cache yet" and "the cache is for yesterday's scan" need different actions.
+
+**A DEFECT I FOUND BEFORE IT COULD BITE, AND IT WOULD HAVE BEEN MILD AND MISLEADING.**
+`screen.py:794` is explicit that `estimate_fair_values` runs at SERVE time, not in the scan, and
+`screen_snapshot` runs it and `withhold_implausible_fair_values` before screening — both of which
+set the publication flags `disqualifier_checks` reads. Precomputing from the raw scan rows would
+have selected a DIFFERENT population from the one served, and the symptom would have been the
+missing names arriving as `n_unmeasured`. The scan now applies both passes **on a deep copy**,
+because they mutate `fair_value`, `upside` and the withheld flags and `rows` is what gets POSTed:
+building the cache must not change the snapshot.
+
+**THE CACHE TRAVELS IN THE SAME CALL AS THE ROWS IT DESCRIBES.** A separate door would let the two
+disagree about which scan they describe. Arriving together, the `scan_date` inside the cache is the
+snapshot's by construction — and `usable_cache` checks it anyway, because "by construction" is what
+every one of this project's silent mismatches was. Never fatal at either end: a snapshot that fails
+to land is a dead product surface, a cache that fails to build costs the old bounded path, and the
+two must not share a failure.
+
+## (a) THE LIVE CHECK NOW ASSERTS AN IDENTITY, WHICH A DISCLOSURE CANNOT SATISFY
+
+Every name the screen values ends in exactly one of four places, so:
+
+```
+n_qualified_on_depth == rows + n_unmeasured + rejected_health + rejected_shallow      capped == 0
+```
+
+A capped screen fails it by construction, which is the point. **`rejected_checks` is deliberately
+NOT in the identity and the task's wording includes it** — that counter is the ROW-LEVEL site,
+rows the snapshot refused while the eligible set is being formed and before anything qualifies on
+depth, so adding it would make the identity wrong by exactly its value and fail a correct screen.
+It is printed beside the identity instead. The test suite drives the exact live payload the old
+check passed on and requires a FAIL.
+
+## (b) THE TRACK-ROW CHECK: A FALLBACK, NOT A SKIP
+
+`track-row.yml` crons at 03:07 and 04:37 UTC Tue–Sat and GitHub delivers 09:00–11:00, so demanding
+the last session's row at 02:15 is `PT-GAPDUE` again. My first cut set the deadline at **05:30** —
+the cron time plus a margin, not the DELIVERY time — so it would still have fired most mornings on
+a writer that was working, and it **SKIPPED**, which asserts nothing for half the day's runs. A
+writer that died a week ago would have passed.
+
+The deadline is now **12:00 UTC the morning after**, past the observed window, and before it the
+check requires the session BEFORE instead of skipping — that row is due, so there is always
+something to assert. A test drives a writer that stopped on 2026-09-25 at 02:05 UTC and requires a
+FAIL.
+
+`_previous_session` asks `MS.last_closed_session`, the project's only authority on which days are
+sessions, rather than stepping back a weekday — which would be wrong exactly on the mornings a
+false alarm is least welcome. Verified against the real calendar: 2026-10-05 → 2026-10-02 and
+2026-10-12 → 2026-10-09.
+
+## A CHARACTER-WINDOW GUARD WENT RED ON MY COMMENT, FOR THE THIRD TIME IN THIS RECORD
+
+`test_index_book_publish.py` read `src[i:i + 4000]` from `def admin_ingest_snapshot` and asserted
+`"index_book"` appeared in it. The dip-cache block pushed that past the 4,000th character, so the
+guard failed against a tree where the ingest still publishes the book and still reports it. **The
+property was right and the instrument was wrong**, and `test_index_mark.py`'s own comments record
+this twice already at 2,000 characters. Repointed to `ast.get_source_segment`, which bounds the
+function rather than a count, with a non-vacuity check that the extracted body starts at the `def`
+and does not run into the next route.
+
+**REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3) — THREE MORE ARE LIVE, with their measured
+slack, because a guard with little headroom is one comment away from taking the gate red for
+every lane:**
+
+| guard | window | used | slack |
+|---|---|---|---|
+| `test_valuation_routing.py:681` → `pipeline.py` refused-FCFF message | 1200 | **60%** | 485 chars |
+| `test_hotlist_financial_fv.py:348` → `store.py` snapshot INSERT | 1400 | 33% | 942 chars |
+| `test_free_kills_census.py:96` → `load_panel` / `load_adv` | 420 | 27% / 32% | 305 / 286 chars |
+
+The pipeline one is ~6 comment lines from firing. The store one is the least fragile of the three
+because its inner slices (`(scan_date`, `VALUES`, `"""`) are real anchors rather than counts; it
+would break on about eight added columns rather than on prose. None is failing and none is this
+lane's file.
+
+## THE "NEEDS DON" LIST FROM MY LAST REPORT WAS WRONG, ALL THREE ITEMS, AND I VERIFIED EACH
+
+* `/admin/score-alerts` and `/admin/record-dip-rejects` — run **every weekday** via
+  `daily-doors.yml`. Run 37558835162 at 01:47 UTC on 2026-10-07: both HTTP 200, `applied: true`,
+  `wrote 3, refused 0, failing 0`.
+* the **dip-span invalidation** — applied. Recorded in `app_saas.py`'s own comment by the session
+  that did it: *"the POST then correctly applied `dip_rejects` 2026-08-25..2026-08-27"*.
+* `seed_track --send` — not pending. The bound record holds 28 rows and `track-row.yml` runs green
+  daily; run 37456534936 returned `{"already_present": true, "existing": {"date": "2026-10-05",
+  "day_n": 46}}`.
+
+**I was carrying all three from a stale reading of `CLAUDE.md` rather than from the service.** The
+file's own standing warning is that its instructions rot while its numbers hold; this is that,
+applied to a list of asks put to Don three times.
+
+---
+
 # Session 81 — 2026-10-06 — ITEM 33 continued: a refusal recorded as an answer, twice
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict against a threshold — two correctness
