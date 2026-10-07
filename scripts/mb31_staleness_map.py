@@ -68,6 +68,10 @@ def _data_root(repo):
 DATA = _data_root(REPO)
 X7RECON = os.path.join(DATA, "free_analysis", "X7_RECONCILE.json")
 MA19 = os.path.join(DATA, "free_analysis", "MA19_RECALIBRATION.json")
+#: `W-1`'s BOUNDED re-derivation at N=247 -- the latest one. The map used to read its
+#: "derived at" N from `MA19` alone, which is the FIRST re-derivation, so it reported
+#: every covered floor DUE for a re-derivation that had already been done.
+W1FLOORS = os.path.join(DATA, "free_analysis", "W1_FLOORS.json")
 ARTIFACT = os.path.join(REPO, "BACKTEST_RESULTS.json")
 OUT = os.path.join(DATA, "free_analysis", "MB31_STALENESS_MAP.json")
 
@@ -76,6 +80,29 @@ def _read(path):
     with open(path, encoding="utf-8") as fh:
         return json.load(fh)
 
+
+
+#: the floors `sr0` moves directly, which the adopt-set argument does NOT cover.
+BY_CONSTRUCTION = {"deflated_sharpe"}
+
+
+def floor_status(key, ever_moved, adopt_set_unchanged, by_construction=BY_CONSTRUCTION):
+    """Which of the four states a floor is in, as a FUNCTION so it can be EXERCISED.
+
+    It used to be inlined in `build()`'s loop, and a mutation making `DUE` UNREACHABLE
+    survived: the only test of it asserted that no covered floor reads `DUE` while the adopt
+    set is unchanged, which a map that can never say `DUE` satisfies trivially. A rule buried
+    in a loop cannot be fed a synthetic input -- `STAGE1-BATCH1`'s lesson, one item later.
+    """
+    if key in by_construction:
+        return ("STALE BY CONSTRUCTION - sr0 is a direct function of N, so this floor "
+                "moves at every N and the adopt-set argument does not apply to it")
+    if not adopt_set_unchanged:
+        return "DUE - the adopt set has changed since this floor was derived"
+    if ever_moved:
+        return ("PROVABLY-UNMOVED at the live N - but it HAS moved before, so re-derive "
+                "it the moment the adopt set changes")
+    return "PROVABLY-UNMOVED at the live N - and insensitive so far, never invariant"
 
 def _margin_passers(rows, n_trials):
     """Seeds clearing the N-DEPENDENT leg of the CPCV adopt gate at `n_trials`.
@@ -98,7 +125,18 @@ def build():
     rows = recon["rows"]
     ma19 = _read(MA19)
     floors = ma19["floors"]
-    derived_at = int(ma19["live_N"])                 # the N the shipped floors were derived at
+    # THE N THE SHIPPED FLOORS WERE DERIVED AT -- the LATEST re-derivation, not the first.
+    # `MA19` re-derived at 224; `W-1` then re-derived at 247 when seed 1003 flipped. Reading
+    # MA19 alone made this map report DUE for work already done.
+    derived_at, derived_src = int(ma19["live_N"]), "MA19_RECALIBRATION.json"
+    w1 = _read(W1FLOORS) if os.path.exists(W1FLOORS) else None
+    if w1 and int(w1.get("N_after") or 0) > derived_at:
+        derived_at, derived_src = int(w1["N_after"]), "W1_FLOORS.json (bounded re-derivation)"
+        # and the three floors W-1 re-derived carry their 247 values, not MA19's 224 ones
+        for f in floors:
+            r = (w1.get("floors") or {}).get(f["key"])
+            if r and r.get("floor_at_%d" % derived_at) is not None:
+                f["new_at_N_today"] = r["floor_at_%d" % derived_at]
 
     h_derived, set_derived = _margin_passers(rows, derived_at)
     h_live, set_live = _margin_passers(rows, n_eq)
@@ -144,11 +182,8 @@ def build():
     sr0_at_dsr_n = expected_max_sharpe(dsr_n, var_trials) if var_trials else None
     sr0_live = expected_max_sharpe(n_eq, var_trials) if var_trials else None
 
-    # THE DSR IS NOT COVERED BY THE ADOPT-SET ARGUMENT AND MUST NOT INHERIT IT.
-    # `sr0` is a direct function of N, so its floor moves at EVERY N whether or not a draw
-    # flips. Labelling it "provably unmoved" because the adopt set held would be exactly the
-    # over-claim this map exists to catch - caught here by this script's own test.
-    BY_CONSTRUCTION = {"deflated_sharpe"}
+    # THE DSR IS NOT COVERED BY THE ADOPT-SET ARGUMENT AND MUST NOT INHERIT IT -- see
+    # `floor_status`, which is the one definition of this rule and is exercised directly.
 
     instruments = []
     for f in floors:
@@ -157,16 +192,7 @@ def build():
         vals = [f.get("x7_at_N84_reconstructed"), f.get("old_at_N_as_run"),
                 f.get("new_at_N_today")]
         ever_moved = len({round(v, 12) for v in vals if v is not None}) > 1
-        if f["key"] in BY_CONSTRUCTION:
-            status = ("STALE BY CONSTRUCTION - sr0 is a direct function of N, so this floor "
-                      "moves at every N and the adopt-set argument does not apply to it")
-        elif not unchanged:
-            status = "DUE - the adopt set has changed since this floor was derived"
-        elif ever_moved:
-            status = ("PROVABLY-UNMOVED at the live N - but it HAS moved before, so re-derive "
-                      "it the moment the adopt set changes")
-        else:
-            status = "PROVABLY-UNMOVED at the live N - and insensitive so far, never invariant"
+        status = floor_status(f["key"], ever_moved, unchanged)
         instruments.append({
             "instrument": f["floor"],
             "key": f["key"],
@@ -199,6 +225,7 @@ def build():
         },
         "adopt_set": {
             "floors_derived_at_N": derived_at,
+            "floors_derived_at_N_source": derived_src,
             "live_equity_N": n_eq,
             "haircut_at_derived_N": h_derived,
             "haircut_at_live_N": h_live,

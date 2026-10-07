@@ -279,14 +279,147 @@ class TestTheMapItself(unittest.TestCase):
         self.assertNotIn("PROVABLY-UNMOVED", d["status"])
 
     def test_has_ever_moved_is_measured_across_all_three_regimes(self):
-        """The alpha MARGIN moved at 84 -> 129; a last-step-only flag would call it unmoved."""
+        """The alpha MARGIN moved at 84 -> 129; a last-step-only flag would call it unmoved.
+
+        REPOINTED 2026-10-07 (CORRECTED-FLOORS). The negative control used to be
+        `assertFalse(long_short_tstat_nw)`, and THAT FLOOR HAS SINCE MOVED -- `W-1` measured it
+        2.2837 -> 2.0567 when seed 1003 flipped at N=247, which `CLAUDE.md`'s own floor table
+        records. The old assertion held only while the map read a STALE value from `MA19`, so
+        keeping it would have forced the map to keep reading one to stay green: a test
+        enforcing the defect, and the CLOCK-keyed family this record already names twice.
+
+        The purpose is unchanged -- the flag must span all three regimes, not the last step
+        alone -- and the negative control is re-aimed at the floors that genuinely have never
+        moved in any regime.
+        """
         if self.m is None:
             return
         rows = {r["key"]: r for r in self.m["instruments"]}
         self.assertTrue(rows["top_decile_alpha"]["has_ever_moved"],
                         "the alpha margin moved 1.9532 -> 1.8629 between N=84 and N=129")
         self.assertTrue(rows["top_decile_alpha_tstat_nw"]["has_ever_moved"])
-        self.assertFalse(rows["long_short_tstat_nw"]["has_ever_moved"])
+        self.assertTrue(rows["long_short_tstat_nw"]["has_ever_moved"],
+                        "W-1 measured this floor 2.2837 -> 2.0567 at N=247; a map reporting it "
+                        "unmoved is reading a stale value")
+        # THE NEGATIVE CONTROL, so the flag is not simply always True: these two have never
+        # moved in ANY regime, which is what makes the assertions above mean something.
+        for k in ("max_abs_theme_ic_t", "pbo"):
+            self.assertFalse(rows[k]["has_ever_moved"],
+                             "%s has never moved in any regime -- if that changes, the whole "
+                             "floor table is due a re-read, not just this assertion" % k)
+
+
+class TestTheMapReadsTheLATESTReDerivation(unittest.TestCase):
+    """CORRECTED-FLOORS, 2026-10-07. The map took its "derived at" N from `MA19` alone -- the
+    FIRST re-derivation, at 224 -- while `W-1` had already done the bounded re-derivation the
+    map itself demands, at 247. So it compared 224 against the live N, saw the 247 flip, and
+    reported every covered floor `DUE` for work that was already done.
+
+    **This suite was GREEN throughout**, because `TestTheMapItself` computes the adopt set at
+    `W1_FLOORS.N_after` directly and never compared that to what the MAP says it used. Two
+    objects disagreeing with nothing checking them against each other is the defect; this is
+    the check that closes it. A map whose whole job is to answer "are the floors stale" and
+    which answers "yes" when they are not is the cry-wolf failure `MA21` refused once already.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.a = None
+        try:
+            M = _map()
+            if not os.path.exists(M.X7RECON) or not os.path.exists(M.MA19):
+                _skip("latest-re-derivation", "banked draws absent")
+                return
+            cls.a = M.build()
+        except Exception as exc:                       # noqa: BLE001
+            _skip("latest-re-derivation", "build failed: %s" % exc)
+
+    def test_the_maps_own_derived_at_N_is_the_latest_re_derivation_on_disk(self):
+        import json
+        a = self.a
+        if a is None:
+            return
+        d = os.path.dirname(_map().X7RECON)
+        latest, src = None, None
+        for f, key in (("MA19_RECALIBRATION.json", "live_N"), ("W1_FLOORS.json", "N_after")):
+            path = os.path.join(d, f)
+            if not os.path.exists(path):
+                continue
+            with io.open(path, encoding="utf-8") as fh:
+                n = int(json.load(fh).get(key) or 0)
+            if latest is None or n > latest:
+                latest, src = n, f
+        if latest is None:
+            _skip("latest-re-derivation", "no re-derivation artifact on disk")
+            return
+        got = int(a["adopt_set"]["floors_derived_at_N"])
+        self.assertEqual(got, latest,
+                         "the map reports its floors derived at N=%d while the latest "
+                         "re-derivation on disk (%s) is at N=%d -- so it will report DUE for a "
+                         "re-derivation already done" % (got, src, latest))
+        self.assertIn("floors_derived_at_N_source", a["adopt_set"],
+                      "which artifact supplied the N must be named, or a future reader cannot "
+                      "tell whether the map is behind again")
+
+    def test_the_loop_passes_the_REAL_adopt_set_state_not_a_constant(self):
+        """Hard-coding `floor_status(..., True)` is INERT today -- the live adopt set IS
+        unchanged -- so an artifact comparison cannot see it, and `MB20`'s rule is that an
+        inert mutation is no evidence about a guard. It would bite the day a draw flips, which
+        is the one day this map must be right. So the call SHAPE is pinned."""
+        src = io.open(os.path.join(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))), "scripts", "mb31_staleness_map.py"),
+            encoding="utf-8").read()
+        tree = ast.parse(src)
+        calls = [n for n in ast.walk(tree)
+                 if isinstance(n, ast.Call)
+                 and getattr(n.func, "id", getattr(n.func, "attr", None)) == "floor_status"]
+        self.assertTrue(calls, "no call to floor_status at all -- the pin would be vacuous")
+        for c in calls:
+            self.assertGreaterEqual(len(c.args), 3,
+                                    "floor_status must be called with the adopt-set state")
+            self.assertNotIsInstance(c.args[2], ast.Constant,
+                                     "the adopt-set state is hard-coded, so the map would "
+                                     "report PROVABLY-UNMOVED even after a draw flips")
+            self.assertIsInstance(c.args[2], ast.Name)
+
+    def test_the_status_RULE_is_exercised_in_all_FOUR_states_including_DUE(self):
+        """A MUTATION MISS CLOSED, and the fix was to the CODE. Making `DUE` unreachable
+        (`elif False:`) survived every test, because the only check asserted that no covered
+        floor READS `DUE` while the adopt set is unchanged -- which a map that can never say
+        `DUE` satisfies trivially. The rule is now a function, so the state the live data
+        cannot produce today can still be exercised."""
+        from scripts.mb31_staleness_map import floor_status, BY_CONSTRUCTION
+        self.assertIn("DUE", floor_status("pbo", False, False),
+                      "DUE must be REACHABLE -- a staleness map that can never report "
+                      "staleness is worse than none")
+        self.assertIn("DUE", floor_status("long_short_tstat_nw", True, False))
+        self.assertIn("insensitive so far", floor_status("pbo", False, True))
+        self.assertIn("HAS moved before", floor_status("long_short_tstat_nw", True, True))
+        # and the DSR never inherits the adopt-set argument, in EITHER direction
+        for unchanged in (True, False):
+            st = floor_status("deflated_sharpe", True, unchanged)
+            self.assertIn("STALE BY CONSTRUCTION", st)
+            self.assertNotIn("PROVABLY-UNMOVED", st)
+        self.assertIn("deflated_sharpe", BY_CONSTRUCTION)
+
+    def test_a_covered_floor_is_not_reported_DUE_when_the_adopt_set_is_unchanged(self):
+        """The POSITIVE property, so the fix above cannot pass by the map simply never saying
+        DUE: when the adopt set is identical, no floor the adopt-set argument covers may read
+        DUE -- and the DSR, which the argument does NOT cover, must still read STALE."""
+        a = self.a
+        if a is None:
+            return
+        if not a["adopt_set"]["identical"]:
+            _skip("DUE-consistency", "the adopt set really has changed -- DUE is correct")
+            return
+        for i in a["instruments"]:
+            if i["covered_by_adopt_set_argument"]:
+                self.assertNotIn("DUE", i["status"],
+                                 "%s reads DUE while the adopt set is unchanged" % i["key"])
+            else:
+                self.assertIn("STALE BY CONSTRUCTION", i["status"],
+                              "%s is not covered by the adopt-set argument and must not "
+                              "inherit it" % i["key"])
 
 
 if __name__ == "__main__":
