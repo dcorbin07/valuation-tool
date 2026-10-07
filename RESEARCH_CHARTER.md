@@ -172,6 +172,98 @@ Every candidate is scored on the **BUILD quadrant only**: **2009–2019 × the f
 * **THE BOTH-HALVES RULE APPLIES INSIDE THE BUILD QUADRANT** — 2009–2014 / 2015–2019, boundary
   embargoed. An arm clearing one half is `NOT_REPLICATED` and does not reach Stage 2.
 
+### Stage 1a. THE STATISTIC — *fixed 2026-10-07, after `STAGE1-BATCH1`, before any batch-2 outcome exists*
+
+**THE DEFECT BATCH 1 FOUND.** Complete-case residualisation on the seven deployed themes leaves
+**25 of the 44 build-quadrant dates** usable, first at **2013-12-27**, binding on `institutional`
+at **0.5685** non-null — so the early half is **FIVE dates against the shipped `min_dates` floor
+of 16**, and all three scored arms had to be reported `BOTH-HALVES NOT ASSESSABLE`. **`MA58`
+recorded the same shape on the 2,531-name panel and it is worse here**, because 13F coverage is
+thinner on a 9,645-name universe than on a megacap-tilted one. **Stage 1 as designed could not
+carry a both-halves verdict, in either direction.**
+
+**THE FIX: INCREMENTAL VALUE IS MEASURED AGAINST THE DEPLOYED COMPOSITE AS A SINGLE CONTROL, NOT
+BY COMPLETE-CASE RESIDUALISATION ON SEVEN THEME COLUMNS.** The control column is
+`composite_from_frame`'s output, **called and never re-implemented** (`B7`), z-scored within date.
+
+Four reasons, and the first is the one that makes the verdict possible at all:
+
+1. **`composite_from_frame` RENORMALISES BY PRESENT-WEIGHT MASS**, so the composite is defined on
+   every row carrying any theme. **No complete-case collapse: all 44 dates survive, the halves
+   are 24 / 20 at a 2014-12-31 boundary, and both clear `min_dates` = 16.** The both-halves
+   verdict is assessable again, which is the whole point of the repair.
+2. **IT IS THE QUESTION THAT MATTERS.** Clause 1 is the net return of the deployed book;
+   *"incremental to what we deploy"* is that question, and §4b already requires it be asked
+   separately from *"is the signal real?"*.
+3. **IT DROPS NO THEME.** `institutional` still enters, through the composite, at whatever weight
+   the shipped renormalisation gives it on each row. **No theme is excluded and no date is bought
+   by exclusion** — which is the direct answer to `MA58` below.
+4. **THE COSTUME JOB IS ALREADY DONE UPSTREAM AND DOES NOT BELONG TO THE RESIDUALISER.** Stage 1's
+   kill pass already measures mean per-date |ρ| against **each** theme at a **0.60** bar, in its
+   own pass, before any forward return is touched (`N6`, `N7`, `A11` all used exactly that). So
+   replacing seven regressors with one costs the costume control nothing, **because that control
+   was never the residualiser's**. Collapsing the two jobs into one regression is what made the
+   statistic fragile.
+
+**REFUSED: TREATING A MISSING THEME AS NEUTRAL (0.0) IN THE RESIDUALISER.** That is precisely the
+convention `B7` removed from the composite — `EDGE_AUDIT_B7_LEGACY_COMPOSITE` exists only to
+measure B7's own contribution and is *"not a supported mode"* — and **it fails in the flattering
+direction**: a regressor imputed to zero on ~43% of rows has its coefficient estimated mostly off
+the imputation, so it **UNDER-residualises and makes a candidate look MORE incremental than it
+is.** A fix whose error runs toward passing is disqualified before its convenience is weighed.
+
+**DECLARED SENSITIVITY, NEVER PRIMARY:** the six-theme complete-case reading, with the excluded
+theme **named in the artifact**. It is declared here, before any batch-2 outcome exists, so it
+cannot be reached for after seeing which reading passes.
+
+**THE ANSWER TO `MA58`'s COUNTER-ARGUMENT, IN WRITING, BECAUSE IT IS RIGHT.** `MA58` holds that
+dropping a theme to recover dates *"buys power"* and is choosing the design to buy it — its own
+void condition 5. **The primary fix drops nothing**, so the objection does not reach it. The
+sensitivity does drop one, and it is bound three ways: declared **before** any outcome, **never**
+primary, and shipped with the excluded theme named. **What `MA58` forbids is selecting the design
+on the outcome; fixing it in the charter before batch 2 exists is the opposite act.** `MA58`'s own
+failure was having both readings on the page *with no argument from which side either lands* —
+this clause is that argument, written first.
+
+### Stage 1b. THE POPULATION — both, and **THE TIER GOVERNS** — *fixed 2026-10-07*
+
+**THE PROBLEM.** The Index trades only the large-cap tier, while the corrected universe's widest
+book is **63.3% of weight under $300M against 10.9%**, and data quality there is **2.4× worse** —
+worst-theme missing rate **0.4728** under $300M against **0.1956** over $10B. So a wide-universe
+pass is disproportionately a statement about the part of the universe with the worst data **and no
+route into the book**.
+
+**EVERY STAGE-1 ARM IS SCORED ON BOTH POPULATIONS, AND THE TIER READING GOVERNS ADVANCEMENT.**
+
+* **FULL corrected universe** — answers §4b's question 1, *is the signal real?*
+* **THE INCUMBENT'S OWN LARGE-CAP TIER** — answers question 2, *is it any use to us?*
+* **An arm that passes wide and fails the tier is recorded `REAL BUT NOT INVESTABLE HERE` and does
+  NOT advance to Stage 2.** Stage 2 and Stage 3 spend looks that cannot be replaced, so they are
+  spent only on candidates that could become products.
+* **A disagreement between the two is itself a reported finding**, not a nuisance: it is a measured
+  statement that the effect lives below the tier, which is exactly what `UNIVERSE-BIAS` (the wider
+  pool reverses, **+7.24pp → −4.14pp**) and `TIERED-POOL` (both arms fail; the gain is a **size
+  bet**, SMB **+0.219 → +0.602 / +0.458**, and *"not one arm's residual is separable from zero"*)
+  found about reaching down the cap scale. **Two registers have now failed to justify it**, and
+  `DECISIONS.md`'s **PROVE BEFORE CHANGING** stands.
+
+**THE TIER IS THE INCUMBENT'S OWN ABSOLUTE `cap >= $10B` FLOOR, AND THAT IS A CORRECTION TO THE
+OBVIOUS READING OF `INDEX-CHOICE-ARM4` RATHER THAN A BREACH OF IT.** ARM4's measured rule bans an
+absolute **RANK**: `universe_rank=1500` is a property of the **POPULATION**, so it changes meaning
+the moment the universe is halved and `X1`'s split cannot evaluate it. A market-cap **THRESHOLD**
+is a property of the **NAME** — a $10bn company is $10bn in either ticker half — so **it is
+invariant under the split and ARM4's defect does not apply.** Substituting a percentile would
+introduce a tier that is **not the one the Index trades**, which defeats the purpose of scoring it.
+
+**WHAT THE TIER MUST SHIP ANYWAY:** its **per-date name count**, because a nominal $10bn floor
+drifts in real terms across 2009–2019 and a reader must be able to see the tier's size moving
+rather than assume it fixed. And the tier must clear `CONTRACT_MIN_POSITIONS` = **50** on every
+date, or the arm is `NOT ASSESSABLE` on the governing population.
+
+**NO BAR CALIBRATED ON THE OLD PANEL TRANSFERS TO EITHER POPULATION.** `UNIVERSE-BIAS` part 2
+measured this universe's own headline alpha at **2.83% at HAC *t* 1.08**, so every critical value
+in a Stage-1 register is **LABELLED UNCALIBRATED** (`V2G`, `R1-VAR`) and no X7 floor is quoted.
+
 ### Stage 2 — CONFIRM. Rationed.
 
 Only Stage-1 survivors, **with the bar fixed in the register before the look**, get **ONE** read
