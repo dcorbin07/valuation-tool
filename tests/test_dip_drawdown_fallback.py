@@ -214,5 +214,48 @@ class ThePrecomputeNamesWhatItCouldNotMeasure(unittest.TestCase):
         self.assertIn("no_dd[:40]", inspect.getsource(dip.precompute))
 
 
+class TheHealthRejectionsAreSplitByReason(unittest.TestCase):
+    """`health_check` treats a MISSING sub-score as a failure, and item 26 deliberately withholds
+    the health sub-score for the financial, reit and regulated regimes. Measured live at 0.10 on
+    the 2026-10-06 scan: of 110 health rejections, 73 are below a floor and **31 are a missing
+    health score** -- EVR, SCHW, VIRT, VCTR, AEG, BBVA, OHI. So the screen structurally cannot
+    show a bank, an insurer, a REIT or a regulated utility, and the aggregate counter hid it.
+    """
+
+    def _run(self, subs_by_ticker):
+        rows = [_row(t, 0.60) for t in subs_by_ticker]
+        return dip.screen(rows, min_drawdown=0.10, shortlist=0,
+                          measure=lambda r: dict(_m(0.40, high=16.67),
+                                                 subs=subs_by_ticker[r["ticker"]]))
+
+    def test_a_withheld_sub_score_counts_as_MISSING_not_below(self):
+        out = self._run({"BANK": {"quality": 80, "growth": 80}})     # health withheld
+        self.assertEqual(out["rejected_health"], 1)
+        self.assertEqual(out["rejected_health_missing"], 1)
+        self.assertEqual(out["rejected_health_below"], 0)
+
+    def test_a_genuinely_weak_name_counts_as_BELOW(self):
+        out = self._run({"WEAK": {"quality": 10, "growth": 80, "health": 80}})
+        self.assertEqual(out["rejected_health_missing"], 0)
+        self.assertEqual(out["rejected_health_below"], 1)
+
+    def test_the_split_sums_to_the_aggregate(self):
+        """A name failing BOTH ways must be counted once, under `missing`, or the sum breaks."""
+        out = self._run({"BANK": {"quality": 80, "growth": 80},
+                         "WEAK": {"quality": 10, "growth": 80, "health": 80},
+                         "BOTH": {"quality": 10, "growth": 80}})
+        self.assertEqual(out["rejected_health"], 3)
+        self.assertEqual(out["rejected_health_missing"] + out["rejected_health_below"],
+                         out["rejected_health"])
+        self.assertEqual(out["rejected_health_missing"], 2)           # BANK and BOTH
+
+    def test_a_healthy_name_is_counted_in_neither(self):
+        out = self._run({"OK": {"quality": 80, "growth": 80, "health": 80}})
+        self.assertEqual(out["rejected_health"], 0)
+        self.assertEqual(out["rejected_health_missing"], 0)
+        self.assertEqual(out["rejected_health_below"], 0)
+        self.assertEqual(len(out["rows"]), 1)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -539,6 +539,20 @@ def screen(rows: List[dict],
     # not recomputed: a second implementation of "which names fail the health floors" is
     # exactly how a screen and a book come to disagree about what they screened.
     out, unmeasured, rejected_health, health_rejects = [], 0, 0, []
+    #: `rejected_health` SPLIT BY WHY, because the two are different facts about the product and
+    #: the aggregate hides the one that matters. `health_check` treats a MISSING sub-score as a
+    #: failure -- stated and reasoned in its own docstring -- and item 26 deliberately WITHHOLDS
+    #: the health sub-score for the financial, reit and regulated regimes. Measured live on the
+    #: 2026-10-06 scan at 0.10: of 110 health rejections, **73 are genuinely BELOW a floor and 31
+    #: are a missing `health` score** -- EVR, SCHW, VIRT, VCTR, AEG, BBVA, OHI and their like.
+    #:
+    #: So this screen STRUCTURALLY CANNOT SHOW A BANK, AN INSURER, A REIT OR A REGULATED UTILITY,
+    #: and the page says "fundamentals still healthy" without saying so. That is a product
+    #: decision with a real trade-off -- reading a withheld sub-score as a PASS would publish a
+    #: healthy verdict the model explicitly declined to give -- so it is REPORTED here and not
+    #: decided here. Counting it is what makes it arguable at all.
+    rejected_health_missing = 0
+    rejected_health_below = 0
     rejected_shallow = 0
     # SEPARATE FROM `rejected_checks`, which now counts ONLY the row-level site above. One
     # counter served two different events -- a snapshot row refused before measurement, and a
@@ -629,6 +643,10 @@ def screen(rows: List[dict],
             dd_from_scan += 1
         if not h["ok"]:
             rejected_health += 1
+            if h.get("missing"):
+                rejected_health_missing += 1
+            else:
+                rejected_health_below += 1
             # The drawdown is already known here (`dd is None` was rejected above), so the
             # F-11 conjunction -- deep enough AND failing health -- is decidable by the
             # consumer without re-measuring anything. The threshold is NOT applied here: this
@@ -771,6 +789,11 @@ def screen(rows: List[dict],
              "after this change will carry it.")),
         "rejected_prefilter": rejected_prefilter,
         "rejected_health": rejected_health,
+        # A name counted in BOTH `missing` and `below` is counted under `missing`: a sub-score
+        # that does not exist is the more fundamental fact, and double-counting would break the
+        # sum against `rejected_health`.
+        "rejected_health_missing": rejected_health_missing,
+        "rejected_health_below": rejected_health_below,
         # Measured, and then shallower than the threshold the caller asked for.
         "rejected_shallow": rejected_shallow,
         # ADDITIVE. Every existing consumer reads `rows`, and this changes none of them.
