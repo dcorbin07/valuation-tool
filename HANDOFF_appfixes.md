@@ -79,7 +79,84 @@ what `PRESELECT_SLACK` exists for — so a screen mixing them silently would be 
 measured figure always wins**; the fallback is for a missing high, never a second opinion on a
 present one.
 
-<<<LIVE>>>
+## LIVE: 31 OF THE 90 WERE RESCUED, **ZERO EXTRA ROWS**, AND THE REASON IS THE INTERESTING PART
+
+No new scan was needed — the fallback reads `high_prox` off the snapshot the cache already
+describes, so BEFORE and AFTER are measured on the **same scan and the same cache** and nothing
+else moved between them.
+
+| threshold | qualified | rows before | **rows after** | unmeasured before | **after** | from the scan's high |
+|---|---|---|---|---|---|---|
+| 0.10 | 210 | 30 | **30** | 90 | **59** | **31** |
+| 0.20 | 158 | 24 | **24** | 59 | **59** | 0 |
+| 0.30 | 121 | 16 | **16** | 59 | **59** | 0 |
+| 0.40 | 96 | 8 | **8** | 59 | **59** | 0 |
+
+The identity holds at every threshold and `capped` is 0 throughout.
+
+**THE ACCOUNTING IS EXACT AND IT IS THE WHOLE STORY.** At 0.10, `unmeasured` fell 90 → 59 — the
+31 the fallback could reach — and health rose 87 → **110** (+23) while shallow rose 3 → **11**
+(+8). 23 + 8 = 31. **Every rescued name failed health or was shallower than the threshold, so the
+screen shows not one additional row.**
+
+**AND THE REMAINING 59 ARE UNREACHABLE BY THIS FIX, BY CONSTRUCTION.** They are exactly
+`n_depth_unknown_kept` — the names the snapshot carries no `high_prox` for — so neither the engine
+NOR the scan has a 52-week high for them. That is why the count is 59 at every threshold and why
+`n_drawdown_from_scan` is 0 above the floor: the 31 have shallow scan-drawdowns, so they qualify at
+0.10 and not at 0.20. **The screen can classify 151 of 210 on depth and no more without a new
+price source.**
+
+**SO THE TASK'S PREMISE — "the screen can never show more than ~120 however it is spent" — IS
+CONFIRMED AND THE BINDING CONSTRAINT IS NOT THE 52-WEEK HIGH.** Filling the high for every name
+that could be filled moved the rows by zero. What is worth having is the attribution: 31 names
+went from "we could not measure this" to "this is not healthy" or "this is not deep enough", which
+are answers rather than absences, and that is what the identity exists to make checkable.
+
+## THE BINDING CONSTRAINT, MEASURED: 31 OF 110 HEALTH REJECTIONS ARE A WITHHELD SUB-SCORE
+
+Having the whole qualifying set classified made the health gate readable for the first time. At
+0.10, of **110** health rejections: **73 are genuinely BELOW a floor**, **14 are ONLY a missing
+sub-score**, and **23 are both** — and by sub-score the missing ones are **health 31**, growth 12,
+quality 10.
+
+**THE 31 ARE FINANCIALS, INSURERS AND REITs** — EVR, SCHW, VIRT, VCTR, AEG, BBVA, OHI and their
+like. `health_check` treats a missing sub-score as a failure, with its reason stated in its own
+docstring, and **item 26 deliberately WITHHOLDS the health sub-score for the financial, reit and
+regulated regimes** because the model's health metrics do not describe a bank.
+
+**SO THIS SCREEN STRUCTURALLY CANNOT SHOW A BANK, AN INSURER, A REIT OR A REGULATED UTILITY, and
+the page says "fundamentals still healthy" without saying so.** I flagged this at item 35 as 1 of
+8 on a 12-name sample; on the full qualifying set it is **31 of 110**.
+
+**IT IS REPORTED AND NOT DECIDED, because the trade-off is real and it is Don's.** Reading a
+withheld sub-score as a PASS would publish a healthy verdict the model explicitly declined to
+give; keeping it a FAIL excludes whole sectors from a screen that does not disclose the exclusion.
+Neither is obviously right. What this session changed is only that it is now COUNTED —
+`rejected_health_missing` and `rejected_health_below` ship on every payload and sum to
+`rejected_health`, with a name failing both counted once under `missing`. Before this the
+aggregate hid it and the only way to see it was to parse `health_rejects` by hand.
+
+## THE LIVE CHECK CAUGHT SOMETHING THAT IS NOT THIS ITEM: TODAY'S INTRADAY FEED HAS NOT RUN
+
+Run at **17:03 UTC on Wednesday 2026-10-07**, inside market hours, the final live check reads
+**28 passed, 1 failed, 0 skipped**, and the one failure is
+
+```
+FAIL  signals ran during today's session   run_time '2026-10-06 23:25'
+                                           (want 2026-10-07 between 13:00 and 21:30 UTC)
+```
+
+The intraday crons are `23 13-20 * * 1-5`, so 13:23, 14:23, 15:23 and 16:23 UTC should all have
+fired. **`gh run list` shows no Auto-scans run since 03:43 UTC** — so no run was CREATED, which
+puts it scheduler-side rather than job-side. That workflow's own comment already records that
+*"GitHub's free scheduler routinely DROPS top-of-the-hour runs"*, which is why the hot list carries
+a backup cron and the intraday does not.
+
+**REPORTED, NOT FIXED** (`RUN_RULES` rule 3): it is an ops question, and adding a backup cron is a
+`.github/` change the land gate refuses to a lane — it would go through `data/pending_workflows/`
+and Don's `install_workflows.bat`. Recorded because this is the first time item 30's checker has
+run INSIDE market hours: every earlier run today reported SKIP with its reason, so the gap was
+invisible, and the check earned its keep on the first run that could see it.
 
 ## (b) THE COMMENT-LENGTH GUARDS ARE REPOINTED, AND THE HELPER NOW HAS ONE DEFINITION
 
