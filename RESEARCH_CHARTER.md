@@ -60,7 +60,19 @@ cell and **one** check cell. Looking at the check cell to choose among construct
 there is no replacement. The pre-2009 eras are the **third and final** look and they are spent in
 era order.
 
-### 4b. TWO QUESTIONS, TWO DESIGNS — the correction that makes the cap affordable
+**WHAT THE 2026-10-06 RULING CHANGED HERE, AND WHAT IT DID NOT.** With no cap on tests, the
+**BUILD** cell is **deliberately reused** — every Stage-1 arm looks there, which is the whole
+point of a cheap screen — and **that reuse is precisely why Benjamini-Hochberg is mandatory on a
+batch** (§5). The **CHECK** cell is **not** reused: it stays one read per construction, and so do
+the pre-2009 eras. **So "unlimited arms" means unlimited looks at the BUILD quadrant and nothing
+else.** Reading the two sections as contradictory is the one misreading to avoid.
+
+### 4b. TWO QUESTIONS, TWO DESIGNS — *and since 2026-10-06 this is the MECHANISM for new signals, not a way to afford a cap*
+
+> **The cap this section was written to make affordable is GONE (§5, Don's ruling 2026-10-06).**
+> The section is **not** obsolete — it is now load-bearing for a different reason. With no cap,
+> the binding constraint on a Stage-1 batch is no longer how many arms you may spend but **which
+> space you spend them in**, and the table below is the measurement that decides it.
 
 `SEARCH_DOCTRINE.md` §1.4 measures the spaces this project can search, and its finding governs how
 an arm should be designed:
@@ -109,16 +121,108 @@ international replication** (Japan +2.05%/yr *t* 3.85, developed Europe +3.36%/y
 the **USA the weakest region tested**) and a **two-month forward track**. That is not enough to
 support a product claim.
 
-## 5. A CAP ON ARMS
+## 5. NO CAP ON TESTS — THE THREE-STAGE PROTOCOL — *Don's ruling, 2026-10-06*
 
-**The program may spend at most TWELVE further equity arms before a construction is frozen and
-the holdout is opened.** Equity `N` is **252** today and the Harvey-Liu-Zhu hurdle
-**3.3254862** — derived, never quoted — and it only ever rises. Twelve arms take the hurdle to
-about 3.33.
+**THE TWELVE-ARM CAP IS REMOVED.** Test everything that makes sense. Fluke risk is controlled by
+**counting** every test, by **Benjamini-Hochberg** across a batch, by the **both-halves** rule, by
+**blind registers committed ALONE**, by **placebo-calibrated bars**, and by **staged
+confirmation** — **never by declining to run a test. "It might be luck" is a reason to confirm,
+not a reason not to test.** `DECISIONS.md`, 2026-10-06; that file overrides any older prose here.
 
-The cap is not budgeting; it is the admission that **252 arms produced one measured product
-result of +1.95pp/yr vs SPY and +0.27pp in the recent half.** More arms on the same panel buy
-hurdle, not knowledge. **When the twelve are spent, the answer is whatever the holdout says.**
+**NOTHING ELSE IN THIS CHARTER RELAXES.** §3 (pre-registration), §4 (both halves and the locked
+holdouts), §6 (no uncalibrated bar, no borrowed standard error) and §7 (a null is a result) are
+unchanged, and the ruling says so explicitly.
+
+**§4(b)'s 2×2 IS THE MECHANISM FOR NEW SIGNALS, and the three stages are how it is spent.**
+
+### Stage 1 — SCREEN. Unlimited arms.
+
+Every candidate is scored on the **BUILD quadrant only**: **2009–2019 × the fixed ticker half**
+(`X1`'s `sha1(ticker) % 2`).
+
+* **THE PANEL IS THE CORRECTED FULL RAW UNIVERSE** — the one `UNIVERSE-BIAS` built from the
+  **2026-10 freeze** (`data/free_analysis/UNIVERSE_BIAS_PANEL_full.pkl`, exported by
+  `scripts/universe_bias_prep.py` from `data/backtest_freeze_2026-10/raw`). **NEVER
+  `data/backtest`**, and the reason is measured rather than stylistic:
+  `sharadar_freeze._fresh_universe` ranks the **TICKERS snapshot by TODAY's `scalemarketcap`** and
+  keeps the top 3,000, so that directory is *the names that are biggest in 2026* — selection on a
+  present-day property. `UNIVERSE-BIAS` measured what it costs: the wider-pool advantage
+  **reverses sign, +7.24pp to −4.14pp**, on the correction alone.
+* **EVERY ARM IS BOOKED IN THE RESEARCH LOG.** That is what keeps the Harvey-Liu-Zhu hurdle and
+  the Deflated Sharpe counting it. Removing the cap removes a *budget*, not the *counter*.
+  **Derive the hurdle, never quote it** — `statistics.hlz_hurdle`. For scale only, and already
+  stale by the time anyone reads it: equity `N` was **262** at the committed stamp, hurdle
+  **3.3371678**.
+* **A BATCH IS JUDGED WITH BENJAMINI-HOCHBERG AT q = 0.10 ACROSS THE BATCH.** The batch's
+  membership is fixed **in the register, before any arm runs** — choosing afterwards which arms
+  were "in the batch" is how BH is gamed. For a batch of *k*, the *i*-th smallest *p* is compared
+  against *i* · 0.10 / *k*: at *k* = 11 the smallest must beat **0.00909** and the largest
+  **0.10**. **BH controls the false-discovery rate across the batch; it is not a licence to
+  present a survivor as confirmed** — that is Stage 2's job.
+  * **BH NEEDS p-VALUES, AND THIS PROJECT'S BARS ARE MOSTLY MARGINS.** Where an arm's statistic
+    has no calibrated *p*, it is judged by its own pre-committed margin and is **excluded from
+    the BH set with that exclusion declared in the register** — §6 forbids inventing a *p* to
+    make a method apply. `R1-VAR` is the precedent: a *detection* threshold used as a
+    *preference* threshold is a category error, and so is a margin dressed as a *p*.
+* **UNIVERSE FILTERS MUST BE RELATIVE (percentiles), NEVER ABSOLUTE RANKS.**
+  `INDEX-CHOICE-ARM4`'s portable rule, measured: *"a universe filter expressed as an ABSOLUTE
+  RANK is not invariant to subsampling the universe, so `X1`'s name-split method cannot evaluate
+  one."* A top decile scales with the population; a top-1,500 does not, and on a half universe it
+  silently becomes a different filter.
+* **THE BOTH-HALVES RULE APPLIES INSIDE THE BUILD QUADRANT** — 2009–2014 / 2015–2019, boundary
+  embargoed. An arm clearing one half is `NOT_REPLICATED` and does not reach Stage 2.
+
+### Stage 2 — CONFIRM. Rationed.
+
+Only Stage-1 survivors, **with the bar fixed in the register before the look**, get **ONE** read
+of the **CHECK quadrant**: **2020–2026 × the other ticker half**. **Each read is logged, and a
+construction gets one.** Looking in order to choose among constructions spends it, and there is
+no replacement.
+
+### Stage 3 — HOLDOUTS AND FORWARD.
+
+Survivors get **one read of the 1999–2008 five-theme proxy** and a **forward paper book** on the
+`S3-I1` fleet harness.
+
+* **THE PROXY IS FIVE THEMES AND THAT IS STRUCTURAL, NOT A CHOICE.** `institutional` has **no
+  pre-2009 source at all** (SF3 starts **2013-06-30**) and `insider` reaches only **0.307 by
+  2008** against the 70% rule (SF2 starts 2008-01-02). `PANEL-EXT-CENSUS` — committed ALONE at
+  `5cff93a`, 2026-09-30 — **failed all three candidate start years, 1995, 1999 and 2000**, and
+  `PANEL-EXT-RECHECK` confirmed the 2026-10 renewal **extended the recent end, not the far end**,
+  so both structural kills survive.
+* **SO THE PROXY MAY TEST A NEW SIGNAL'S INCREMENT AND MAY NOT VALIDATE THE SHIPPED
+  CONSTRUCTION.** A 1999–2008 panel scores a FIVE-theme composite against a SEVEN-theme published
+  figure — in the census's own words *"not an extension of the published figure"* but *"a
+  different composite wearing the same name."* **Five-theme-WITH against five-theme-WITHOUT on the
+  same panel is a sound paired question; five-theme-against-the-published-seven is not.** Any
+  Stage-3 result carries that sentence.
+* **DISCLOSED, AS THE RULING REQUIRES: `POOL-SIZE` HAS ALREADY READ THIS PROXY ONCE**, for pool
+  width — labelled in its own memo *"A LABELLED PROXY FOR POOL WIDTH, NOT A TEST OF THE SHIPPED
+  COMPOSITE"*, five themes, **11,052 names, 39 quarterly dates, 1998-12-31 → 2008-07-10**, built
+  with the shipped panel builder from the freeze's **full raw** SEP/SF1/SFP and **not** from
+  `data/backtest`. A new-signal increment is a **different question on the same data**, which is a
+  real cost and is recorded rather than waved past.
+* **THE 1972–1998 WRDS ERA STAYS CLOSED** until `OOS1`'s Gate B clears its pre-committed **0.90**.
+  It reads **0.837303** today (`value` 0.783 against `momentum` 0.984), so the era is **not
+  opened**, and `W-28`'s rule forbids relaxing that bar after watching it fail.
+
+### ADOPTION
+
+Anything that passes all three stages goes to **Don** as a candidate for the next rebalance, with
+its **expected return quoted at HALF its backtested size** (McLean-Pontiff). **Nothing is adopted
+by a lane. Adoption is Don's and is a vintage event**, which resets the forward clock — §4's
+budget is spent in days, and a vintage in five-year units.
+
+### WHAT THE CAP WAS ADMITTING, KEPT BECAUSE IT IS STILL TRUE
+
+The cap existed because **252 arms had produced one measured product result of +1.95pp/yr vs SPY
+and +0.27pp in the recent half.** Removing the cap does not refute that; it answers it
+differently. **More arms on the same panel still buy hurdle rather than knowledge** — which is
+why Stage 1 is deliberately the *cheap* stage and why §4b's instruction stands: answer *"is the
+signal real?"* in **event time**, where the 80%-power MDE is **1.66pp at n_eff 400** instead of
+**0.4274–0.5071 SD** on a 69-date cross-section that *"can essentially only detect signals as
+strong as the best signal already in it."* **The cap's replacement is not more cross-sectional
+arms; it is arms designed in the powerful space and confirmed in stages.**
 
 ## 6. NO UNCALIBRATED BAR, AND NO BORROWED STANDARD ERROR
 

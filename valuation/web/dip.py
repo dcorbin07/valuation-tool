@@ -124,9 +124,37 @@ MIN_DRAWDOWN_FLOOR = 0.10
 MIN_DRAWDOWN_CEIL = 0.40
 
 #: How many prefiltered names get a real measurement per request. See "THE ONLY PART OF THIS
-#: MODULE THAT TOUCHES A COMPANY" below for why it is this low, and `MAX_SHORTLIST` for the
-#: ceiling a caller may raise it to. The exact `z_high_prox` ordering is what makes a small
-#: number defensible: these are the N most drawn-down eligible names, not a sample of them.
+#: MODULE THAT TOUCHES A COMPANY" below for why it is bounded at all, and `MAX_SHORTLIST` for
+#: the ceiling a caller may raise it to.
+#:
+#: RAISED TO 18 ON 2026-10-06 AND REVERTED TO 12 THE SAME DAY, BY MEASUREMENT. The raise is
+#: recorded rather than erased because the reasoning that produced it was wrong in a way worth
+#: not repeating.
+#:
+#: THE ARGUMENT FOR RAISING IT WAS SOUND AND ITS EVIDENCE WAS ONE CELL. The comment that stood
+#: here justified 12 by the exact `z_high_prox` ordering -- "the N MOST drawn-down eligible
+#: names, not a sample of them" -- and that genuinely stopped being true when item 33 changed
+#: the allocation to SPREAD the budget across the qualifying depth range. Spread over 223
+#: qualifiers, 12 IS a sample. At `min_drawdown` 0.10, 12 returned 0 rows and 18 returned 4,
+#: which looked like a knee.
+#:
+#: TWO THINGS KILLED IT. First, 0.10 is the slider's FLOOR, not the default: `index.html` marks
+#: `value="0.20"` as `selected`, so the threshold the page opens on is 0.20 -- where the raise
+#: took rows from 2 to **1**. Second, across all four thresholds on one scan the totals are
+#: identical:
+#:
+#:     shortlist 12 -> 48 valued, 35 health-rejected, 10 rows   survival 0.271
+#:     shortlist 18 -> 72 valued, 59 health-rejected, 10 rows   survival 0.181
+#:
+#: **50% more valuations bought ZERO additional rows**, at ~18-28s on the first request of each
+#: cache window. The row count is not monotone in the budget: raising it moves WHICH names the
+#: spread samples, and with a health-survival rate near a sixth that reshuffles the survivors
+#: instead of adding any.
+#:
+#: SO THE THINNESS IS NOT THE BUDGET. Healthy companies trading far below their own high are
+#: genuinely rare -- 59 of 72 valued names fail the published health floors -- and no
+#: affordable number of valuations changes that. `?shortlist=` still reaches `MAX_SHORTLIST`
+#: for anyone who wants to pay the latency.
 DEFAULT_SHORTLIST = 12
 MAX_SHORTLIST = 25
 
@@ -496,6 +524,11 @@ def screen(rows: List[dict],
     # exactly how a screen and a book come to disagree about what they screened.
     out, unmeasured, rejected_health, health_rejects = [], 0, 0, []
     rejected_shallow = 0
+    # SEPARATE FROM `rejected_checks`, which now counts ONLY the row-level site above. One
+    # counter served two different events -- a snapshot row refused before measurement, and a
+    # valuation refused after it -- so "16" could not be read without subtracting `n_measured`
+    # from it in your head, and the twelve lost valuations were invisible.
+    withheld_valuation = 0
     for r, checks in measured_set:
         m = measure(r) or {}
         dd = m.get("drawdown")
@@ -507,9 +540,27 @@ def screen(rows: List[dict],
         for k, v in (m.get("checks") or {}).items():
             if k in merged and merged[k] != FAIL and v in (PASS, FAIL, NOT_RUN):
                 merged[k] = v
-        if any(v == FAIL for v in merged.values()):
-            rejected_checks += 1
-            continue
+        # A FAILED CHECK SUPPRESSES THE VALUATION, NOT THE NAME -- and the old `continue` here
+        # is why the screen returned nothing.
+        #
+        # THE MECHANISM IS STRUCTURAL, not a tuning problem. `measure`'s own checks include
+        # `"withheld": FAIL if withheld else PASS`, and `withhold_implausible_fair_values`
+        # fires when `fair_value / price > FV_BAND_HIGH` (5.0) -- a ratio whose DENOMINATOR is
+        # the crashed price. So the deeper the drawdown the likelier the withhold, and a screen
+        # that valued its twelve deepest names then dropped every one of them was rejecting
+        # names FOR BEING DEEP. Measured live on 2026-10-06: `rejected_checks` 16 at every
+        # threshold from 0.10 to 0.40, `rejected_health` 0, `n_unmeasured` 0, rows 0.
+        #
+        # The row survives because the screen's entry rule is DEPTH AND HEALTH -- both measured
+        # from the price path and the published health floors, neither of which needs a fair
+        # value. `V6` returned NULL on this tab's hypothesis and licensed it as *"a filter, not
+        # a forecast"*, so leaning on a fair value here was never permitted anyway. What the
+        # refusal governs is PUBLICATION of the valuation, which is what `withhold.py` is for:
+        # the fair value, its band, the upside and the score all go to None and the reason
+        # travels in `fair_value_withheld_reason`.
+        valuation_blocked = sorted(k for k, v in merged.items() if v == FAIL)
+        if valuation_blocked:
+            withheld_valuation += 1
         if dd is None:
             unmeasured += 1
             continue
@@ -556,14 +607,20 @@ def screen(rows: List[dict],
             "drawdown": dd,
             "high_52w": m.get("high_52w"),
             "health": h["scores"],
-            "score": m.get("score"),
-            "confidence": m.get("confidence"),
+            "score": None if valuation_blocked else m.get("score"),
+            "confidence": None if valuation_blocked else m.get("confidence"),
             "checks": merged,
             "checks_not_run": sorted(k for k, v in merged.items() if v == NOT_RUN),
-            "fair_value": m.get("fair_value"),
-            "upside": m.get("upside"),
-            "fair_value_low": m.get("fair_value_low"),
-            "fair_value_high": m.get("fair_value_high"),
+            # EVERY published valuation field is nulled together, through ONE flag. Nulling
+            # them one by one is how a band outlives the number it brackets -- `withhold.py`'s
+            # own finding is that a scenario is the same valuation re-run, so publishing the
+            # band past a refusal republishes the refused number.
+            "valuation_withheld": bool(valuation_blocked),
+            "valuation_withheld_checks": valuation_blocked,
+            "fair_value": None if valuation_blocked else m.get("fair_value"),
+            "upside": None if valuation_blocked else m.get("upside"),
+            "fair_value_low": None if valuation_blocked else m.get("fair_value_low"),
+            "fair_value_high": None if valuation_blocked else m.get("fair_value_high"),
             "fair_value_withheld_reason": m.get("fair_value_withheld_reason") or _reason(r),
             # V6-B's M1 statistic for THIS name's measured class. Built here and nowhere else
             # because this is the only point where all three inputs coexist for one company at
@@ -618,7 +675,17 @@ def screen(rows: List[dict],
              "depth you asked for. Depth is read from the scan at no cost; a valuation is not, "
              "which is why it is capped."
              % (n_qualified, n_eligible, n_depth_pass, n_depth_unknown,
-                len(measured_set))) if preselect_available else
+                len(measured_set)))
+            # THE WITHHELD COUNT TRAVELS WITH THE ROWS OR THE PAGE LIES BY OMISSION. A row
+            # whose fair value is withheld renders with blanks where every other row has a
+            # number, and a reader with no sentence for it reads a missing number as a bug.
+            + ((" %d of those had the fair value WITHHELD -- the model refused to publish one, "
+                "so the name is shown for its drawdown and health with no fair value, upside or "
+                "score. That is expected on a deep drawdown: the implausible-value guard "
+                "compares fair value against the crashed price, so the deeper the fall the more "
+                "often it fires."
+                % withheld_valuation) if withheld_valuation else "")
+            if preselect_available else
             ("this scan snapshot carries no 52-week-high ratio, so depth could not be read "
              "without a valuation and only the deepest-ranked names were checked. A scan run "
              "after this change will carry it.")),
@@ -629,6 +696,7 @@ def screen(rows: List[dict],
         # ADDITIVE. Every existing consumer reads `rows`, and this changes none of them.
         "health_rejects": health_rejects,
         "rejected_checks": rejected_checks,
+        "withheld_valuation": withheld_valuation,
         "health_floors": dict(HEALTH_FLOORS),
         "health_floor_note": HEALTH_FLOOR_NOTE,
         "checks": dict(CHECKS),

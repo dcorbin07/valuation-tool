@@ -197,12 +197,29 @@ def check_dip(base, rep):
     capped = d.get("capped")
     rep.ok("dip detector reachable", "HTTP 200, %d eligible" % elig)
 
-    # THE DEFECT THIS GUARDS measured 12 of 242 and reported the result as coverage of a market.
-    if elig and meas >= elig:
-        rep.ok("dip measures every eligible name", "%d of %d" % (meas, elig))
+    # REPOINTED 2026-10-06. This asked that `n_measured >= n_eligible` -- that the screen value
+    # EVERY eligible name -- and the design forbids it: `dip.MAX_SHORTLIST` is 25 and a
+    # valuation is a real cost on a 512 MB instance. So it could never pass, and a check that
+    # cannot pass is one a reader learns to scroll past. It went red on 2026-10-06 beside two
+    # genuine failures and added nothing to either.
+    #
+    # The defect it was written for is still real -- the screen measured 12 of 242 and the page
+    # reported the result as coverage of a market -- but the property that catches it is that
+    # the budget is spent on names that QUALIFY and the shortfall is REPORTED, not that the
+    # budget is unbounded. `n_qualified_on_depth` is the figure item 23 added for exactly this.
+    qual = d.get("n_qualified_on_depth")
+    if qual is None:
+        rep.bad("dip spends its budget on qualifying names",
+                "the payload carries no n_qualified_on_depth, so the two-stage path is off")
+    elif meas <= 0:
+        rep.bad("dip spends its budget on qualifying names",
+                "%d qualified on depth and NOTHING was valued" % qual)
+    elif capped is None:
+        rep.bad("dip spends its budget on qualifying names",
+                "%d of %d qualifiers valued and the shortfall is not reported" % (meas, qual))
     else:
-        rep.bad("dip measures every eligible name",
-                "%d of %d measured, capped %s" % (meas, elig, capped))
+        rep.ok("dip spends its budget on qualifying names",
+               "%d of %d qualifiers valued, %s reported as capped" % (meas, qual, capped))
 
     if rows:
         rep.ok("dip returns rows at 10% depth", "%d rows" % rows)
@@ -321,6 +338,31 @@ def check_index(base, rep):
                    "%d chars, none of %d banned strings" % (len(card_text), len(BANNED_IN_CARD)))
 
 
+#: When a session's track row falls due: the morning after, past the backup cron.
+#:
+#: `track-row.yml` schedules 03:07 and 04:37 UTC on Tue-Sat. 05:30 is the later of those plus a
+#: margin for a slow GitHub scheduler, which routinely delays free runs -- the same reason that
+#: workflow has a backup cron at all. Earlier than this, a missing row means "not yet written";
+#: later, it means "not written", and only the second is a failure.
+TRACK_ROW_DUE_UTC_HOUR = 5
+TRACK_ROW_DUE_UTC_MINUTE = 30
+
+
+def _utcnow():
+    import datetime as _d
+    return _d.datetime.now(_d.timezone.utc)
+
+
+def _track_row_due_after(session):
+    """The UTC moment a row for `session` stops being "not yet" and starts being missing."""
+    import datetime as _d
+    if session is None:
+        return None
+    nxt = session + _d.timedelta(days=1)
+    return _d.datetime(nxt.year, nxt.month, nxt.day, TRACK_ROW_DUE_UTC_HOUR,
+                       TRACK_ROW_DUE_UTC_MINUTE, tzinfo=_d.timezone.utc)
+
+
 def check_index_track(base, rep, session):
     code, d = get_json(base, "/api/index-track")
     if code != 200 or not d:
@@ -332,6 +374,25 @@ def check_index_track(base, rep, session):
     dates = [str(r.get("date") or "")[:10] for r in series]
     if want and want in dates:
         rep.ok("Index track has the last session", "row for %s" % want)
+        return
+
+    # A ROW IS NOT MISSING UNTIL IT IS DUE, and this check demanded it an hour early.
+    #
+    # `track-row.yml` runs at 03:07 and 04:37 UTC Tue-Sat -- the MORNING AFTER a session, since
+    # a row needs that session's close. Run at 02:05 UTC this reported FAIL for a session whose
+    # writer had not been scheduled yet, which is `PT-GAPDUE` exactly: `gap_report` counted the
+    # current day as due from midnight and a writer holding every row it could possibly have
+    # written still read false on 11 of 11 trading-day mornings. A red light that is loud on a
+    # public surface has to be right about WHEN.
+    #
+    # The deadline is derived from the schedule plus a margin rather than from the cron literal,
+    # because duplicating the cron here is a second copy of the writer's timetable. Past it, a
+    # missing row is a genuine failure and still fails.
+    due = _track_row_due_after(session)
+    if due is not None and _utcnow() < due:
+        rep.skip("Index track has the last session",
+                 "no row for %s yet; the writer runs 03:07/04:37 UTC the next morning, so this "
+                 "is not due until %s UTC" % (want, due.strftime("%Y-%m-%d %H:%M")))
     else:
         rep.bad("Index track has the last session",
                 "no row for %s; latest is %s" % (want, dates[-1] if dates else "(none)"))
