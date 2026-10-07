@@ -56,6 +56,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import tests.state_isolation  # noqa: F401,E402
+from tests import source_bounds as SB  # noqa: E402
 
 from valuation.data.models import CompanyData                      # noqa: E402
 from valuation.engine import classify as CL                        # noqa: E402
@@ -675,13 +676,23 @@ class TheImplausibilityWarningNamesTheModelNotTheData(unittest.TestCase):
         self.assertIn("certainly a data problem (currency or share count)", src)
 
     def test_the_new_message_says_peer_comparison_and_not_data_problem(self):
-        src = open(os.path.join(REPO, "valuation", "engine", "pipeline.py"),
-                   encoding="utf-8").read()
-        i = src.index("_refused_fcff and (ratio")
-        window = src[i:i + 1200]
-        self.assertIn("NOT a data problem", window)
-        self.assertIn("peer comparison", window)
-        self.assertIn("NOT an", window)
+        """REPOINTED 2026-10-07 (item 36b). This read `src[i:i + 1200]` from the `if` condition
+        and was the tightest of the surviving character windows -- 60% used, about six comment
+        lines from going red against a correct tree. `tests/source_bounds` bounds the branch by
+        its SYNTAX instead, and excludes the `elif` arm, which matters here specifically: that
+        arm says "almost certainly a data problem" while this one says "NOT a data problem", so
+        a bound covering both would pass on either.
+        """
+        body = SB.if_body_source(os.path.join(REPO, "valuation", "engine", "pipeline.py"),
+                                 "_refused_fcff and (ratio")
+        self.assertIn("NOT a data problem", body)
+        self.assertIn("peer comparison", body)
+        self.assertIn("NOT an", body)
+        # NON-VACUITY, in both directions: a bound that came back empty would fail every
+        # assertion above, and one that returned the whole file would pass them all while
+        # bounding nothing. The sibling arm's wording is the discriminator.
+        self.assertNotIn("certainly a data problem", body,
+                         "the bound runs into the elif arm, so it discriminates nothing")
 
 
 if __name__ == "__main__":

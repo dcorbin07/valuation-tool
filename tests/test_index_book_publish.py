@@ -34,6 +34,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import source_bounds as SB                           # noqa: E402
 from valuation.edge import paper_track as PT          # noqa: E402
 from valuation.edge import valquo_index as VI         # noqa: E402
 from valuation.saas import index_book as IB           # noqa: E402
@@ -403,14 +404,12 @@ def _ingest_snapshot_body() -> str:
 
     `ast` gives the exact extent, so the guard now bounds what it means.
     """
-    import ast
-    src = io.open(os.path.join(ROOT, "valuation", "saas", "app_saas.py"),
-                  encoding="utf-8").read()
-    tree = ast.parse(src)
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == "admin_ingest_snapshot":
-            return ast.get_source_segment(src, node) or ""
-    raise AssertionError("admin_ingest_snapshot is gone from app_saas.py")
+    # MOVED TO `tests/source_bounds` 2026-10-07 (item 36b). This was the first AST-bounded
+    # guard and three more needed the same thing, so the extraction happened at the second
+    # caller rather than the fourth -- two copies of "bound this by its syntax" is the B7 shape
+    # on a guard, and a guard that drifts from its sibling is one nobody can reason about.
+    return SB.function_source(os.path.join(ROOT, "valuation", "saas", "app_saas.py"),
+                              "admin_ingest_snapshot")
 
 
 def test_the_snapshot_ingest_publishes_the_book():

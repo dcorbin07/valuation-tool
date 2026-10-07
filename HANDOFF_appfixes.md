@@ -5,6 +5,135 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 83 — 2026-10-07 — ITEM 36: the engine's 52-week high had no fallback, and the comment-length guards are gone
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict. `by_domain` untouched. **(c) IS OBEYED AND
+NOTHING WAS TOUCHED**: `DECISIONS.md` records no ruling on `DECISION_canonical_universe.md`, so
+`/proof`, `/methodology` and the landing tiles are unchanged — verified by diff, not by intent.
+
+## (a) THE 90 NAMES WITH NO 52-WEEK HIGH — THE CAUSE IS NOT WHAT THE TASK ASSUMED
+
+The task reads the 90 as a feed gap and asks for the high to be **computed** from the scan's price
+history. The computation already exists; what was missing is that **nothing used it**.
+
+**THE MECHANISM, FROM THE CODE RATHER THAN FROM GUESSING.** `cd.price_52w_high` is assigned in
+exactly ONE place — `yahoo.py:346`, inside a `try` around `t.history(period="1y")` — and EDGAR's
+gap-fill cannot supply a price. So one failed call leaves a REAL valuation carrying
+`drawdown: None`, which `screen` correctly counts `n_unmeasured`.
+
+**AND `providers.py` NAMES THE CAUSE IN ITS OWN COMMENT:** the per-name free fetch *"is slow and
+aggressively rate-limited from a cloud IP, and when it fails it returns nothing at all"*. The SCAN
+survives that because the broker prefills the universe — **which is exactly why only 59 of the 210
+lack `high_prox` while 90 lack the engine's high.** Two populations, one vendor, one with a
+fallback and one without.
+
+**MEASURED, BECAUSE THE DIFFERENCE BETWEEN A THROTTLE AND A GAP CHANGES THE FIX.** An identical
+6-worker burst of 36 names from this desktop: **0 of 36 missing a 52-week high**, 0.73 s/name. The
+runner's precompute: **90 of 210**. Same code, different IP. A desktop cannot reproduce a cloud-IP
+throttle, so this is evidence rather than proof — and the precompute now records
+`no_drawdown_tickers` (bounded at 40) so the next run NAMES them and the hypothesis becomes
+checkable instead of inferred. The 2026-10-06 run reported 90 and nothing said which.
+
+**THE FIX USES THE QUANTITY THE SCAN ALREADY COMPUTED.** `high_prox` is `price / max(close over
+the trailing 252 sessions)` — the task's own 252-session maximum — produced either by
+`prices.get_quote` from history the scan already fetched, or by `broker_universe` from the
+broker's quote pair. `1 - high_prox` IS the drawdown. So when the engine supplies no high, the
+screen falls back to `cheap_drawdown(r)`.
+
+**THROUGH `cheap_drawdown`, NOT THE FIELD, AND THAT IS THE WHOLE REASON THE MODULE HAS THAT
+FUNCTION.** `extra["high_prox"]` is the raw ratio; `extra["numbers"]["high_prox"]` is the
+**within-date z-score**, and this module's docstring opens by explaining that rendering the second
+as a percentage would put a fabricated, confident, per-name number on a public surface. Pinned by
+a test that sets the z-score to −3.0 and requires the drawdown to stay 0.40 rather than become
+4.0.
+
+## THE BASIS, STATED — AND IT IS NOT MIXED, BY CONSTRUCTION
+
+The task says never mix adjusted and raw, and names "the as-traded close". **An as-traded close
+series is not available on this path**: `VENDOR_ADJUSTMENT` records yfinance as `auto_adjusted`
+and Stooq and FMP as `unverified`, and Stooq is dead. Taking the instruction literally is
+impossible; taking it in substance is not.
+
+**THE FALLBACK IS A RATIO OF A PRICE AND A HIGH FROM ONE VENDOR'S OWN SERIES** — `prices` divides
+within a single `get_history_df` frame, `broker_universe` within a single quote. **A split scales
+both legs and cancels**, which is the hazard that matters: an adjusted HIGH against an as-traded
+PRICE would read `1 − 40/(160/4) = 0.0` on a name genuinely 60% down, and the name would VANISH
+from the screen rather than show a wrong number. Pinned by a test that drives an unsplit name, a
+4-for-1 and a 1-for-8 reverse and requires 0.60 in all three.
+
+**THE RESIDUAL IS DIVIDENDS AND IT IS DISCLOSED RATHER THAN HIDDEN.** Where yfinance is the
+source the frame is `auto_adjusted`, so the high is dividend-adjusted and the fallback measures a
+**total-return** drawdown — understated against a price drawdown by roughly the trailing yield.
+Small against a 10–40% threshold, real, and written where the fallback is.
+
+**THE DISPLAYED TRIPLE SATISFIES ITS OWN ARITHMETIC.** On the fallback the engine has no high, so
+rendering its `None` would show a fall from nothing and rendering the scan's own high would put it
+on a different basis from the price beside it. `_implied_high` derives it from the row's own price
+and the drawdown, so a reader checking `1 − price/high` against `drawdown` finds them agreeing —
+pinned, with the degenerate cases (no price, no drawdown, a 100% fall implying an infinite high)
+refused rather than returning a number.
+
+**AND THE ROW SAYS WHICH VINTAGE IT STANDS ON.** `drawdown_source` is `measured` or `scan`, and
+`n_drawdown_from_scan` counts the second. The two genuinely disagree near the threshold — that is
+what `PRESELECT_SLACK` exists for — so a screen mixing them silently would be uncheckable. **The
+measured figure always wins**; the fallback is for a missing high, never a second opinion on a
+present one.
+
+<<<LIVE>>>
+
+## (b) THE COMMENT-LENGTH GUARDS ARE REPOINTED, AND THE HELPER NOW HAS ONE DEFINITION
+
+Three Python guards read a fixed character window and asserted a needle inside it. The window is a
+PROXY for "this function" or "this block", and a comment moves it — so the guard fails against a
+tree where the property is intact, and **the natural response to that is to widen the window or
+delete the guard**, which costs the property. Item 35 lost time to exactly this at 4,000
+characters, and `test_index_mark.py` records it twice at 2,000 in its own comments.
+
+**`tests/source_bounds.py` is the one definition**, extracted at the second caller rather than the
+fourth: `function_source`, `if_body_source` and `statement_source`, each raising rather than
+returning empty — a bound that came back `""` fails every `assertIn` against it, and one that came
+back with the whole file passes them all while bounding nothing, which is the worse direction.
+`test_index_book_publish.py`'s own inline AST helper from item 35 now delegates to it.
+
+| guard | was | now | the bound |
+|---|---|---|---|
+| `test_valuation_routing.py` | `src[i:i+1200]`, **60% used** | `if_body_source` | the `if` BODY, `elif` arms excluded |
+| `test_hotlist_financial_fv.py` | `src[i:i+1400]`, 33% | `statement_source` | the `c.execute(...)` holding the SQL |
+| `test_free_kills_census.py` | `src[i:i+420]`, 27%/32% | `function_source` | one loader at a time |
+| `test_index_book_publish.py` | its own AST helper | the shared one | unchanged behaviour |
+
+**THE `elif` EXCLUSION IS LOAD-BEARING RATHER THAN TIDY.** The chain in `pipeline.py` has a branch
+saying *"almost certainly a data problem"* and the branch under test says *"NOT a data problem"*,
+so a bound covering both would pass on either. The non-vacuity assertion is the sibling arm's
+wording, and the two-loader guard asserts it has not run into the other loader — without that, a
+whole-file bound would satisfy both iterations from one call site.
+
+**MUTATION-TESTED, BECAUSE A FRAGILE GUARD SWAPPED FOR A VACUOUS ONE IS THE WORSE TRADE.** Four
+mutations, one per guard — blank the refused-regime message, drop a column from the INSERT list,
+stop normalising the date in `load_adv` only, stop reporting the publish outcome — **4 of 4
+caught, every source restored byte-for-byte.**
+
+**REPORTED, NOT FIXED (`RUN_RULES` rule 3): EIGHT CHARACTER WINDOWS REMAIN AND `ast` CANNOT TOUCH
+THEM**, because they bound **JavaScript and HTML** rather than Python:
+`test_reported_benchmark.py` (4, windows 700–900 over `app.js`), `test_hold_horizon.py` (2, 400
+and 1500), `test_free_route_p2.py` (1, 600), `test_score_confidence.py` (1, 1400). They need a
+brace matcher or an element parser — a different instrument from `source_bounds` — and they are
+other lanes' files. `test_reported_benchmark.py:987` already records the same defect in its own
+comment at 2,600 characters, so the lane knows the shape.
+
+## (c) HELD, AS INSTRUCTED
+
+`DECISION_canonical_universe.md` is a decision memo for Don: it records that the $10bn Index tier
+moves **−0.40pp** on the corrected universe (18.42% → 18.02% net Roth) while the RESEARCH headline
+on `/proof` goes from **+7.17%/yr at t 4.38 to +2.83%/yr at t 1.08**, and vs-SPY from +9.99%/yr to
++0.77%/yr at t 0.37. Its own recommendation is to move neither yet.
+
+**`DECISIONS.md` RECORDS NO RULING ON IT**, so nothing on `/proof`, `/methodology` or the landing
+tiles was touched. Stated as a fact about the diff rather than an intention: this session's commits
+change no file under `valuation/web/templates/` and no public copy.
+
+---
+
 # Session 82 — 2026-10-07 — ITEM 35: the dip screen serves a nightly precompute, and the check that passed on the broken state
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict against a threshold. `by_domain` untouched.

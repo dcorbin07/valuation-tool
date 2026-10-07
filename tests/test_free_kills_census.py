@@ -21,6 +21,8 @@ SRC = os.path.join(ROOT, "scripts", "free_kills_census.py")
 
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
+sys.path.insert(0, os.path.join(ROOT, "tests"))
+import source_bounds as SB   # noqa: E402
 
 BANNED = {"fwd_ret", "fwd_ret_h63", "forward_return", "top_decile_alpha",
           "long_short_tstat", "long_short_tstat_nw", "long_short_tstat_hac",
@@ -89,12 +91,20 @@ class JoinsAreDateNormalised(unittest.TestCase):
     unnormalised matches ZERO rows IN SILENCE, which is this record's most expensive join defect."""
 
     def test_both_loaders_normalise_the_date(self):
+        """REPOINTED 2026-10-07 (item 36b). This read `src[i:i + 420]` from each `def` -- the
+        narrowest of the surviving character windows, so the cheapest to break: five comment
+        lines inside either loader would have taken it red against a correct tree.
+        """
         src = io.open(SRC, encoding="utf-8").read()
         self.assertIn("_norm_date", src)
-        for fn in ("def load_panel", "def load_adv"):
-            i = src.index(fn)
-            body = src[i:i + 420]
+        for fn in ("load_panel", "load_adv"):
+            body = SB.function_source(SRC, fn)
             self.assertIn("_norm_date", body, "%s does not normalise its date column" % fn)
+            # NON-VACUITY: the bound is ONE function, so a needle in the other cannot satisfy
+            # it. Without this a whole-file bound would pass both iterations on one call site.
+            other = "load_adv" if fn == "load_panel" else "load_panel"
+            self.assertNotIn("def %s" % other, body,
+                             "the bound runs past %s into %s" % (fn, other))
 
     def test_the_band_merge_refuses_a_row_count_change(self):
         src = io.open(SRC, encoding="utf-8").read()
