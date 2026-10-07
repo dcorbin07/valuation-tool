@@ -178,73 +178,98 @@ class TheHotListChecks(unittest.TestCase):
 
 
 class TheDipChecks(unittest.TestCase):
-    def test_a_capped_budget_spent_on_qualifiers_passes(self):
-        """REPOINTED 2026-10-06 with the check itself.
+    """REWRITTEN 2026-10-07, because the version these replace PASSED ON THE BROKEN STATE.
 
-        This demanded `n_measured >= n_eligible` and the design forbids it: `MAX_SHORTLIST`
-        is 25 and a valuation costs real money on a 512 MB instance. The check could never
-        pass, so it went red every day beside whatever was genuinely wrong and taught the
-        reader to scroll past it. The property that actually catches the original defect --
-        the screen valued 12 of 242 and the page reported it as coverage of a market -- is
-        that the budget is spent on names that QUALIFY and the shortfall is REPORTED.
-        """
+    It asserted that the budget was spent on names that QUALIFY and that the shortfall was
+    REPORTED. Both were true while the page showed two rows out of 218 qualifying, so the live
+    run printed `PASS dip spends its budget on qualifying names - 12 of 218 qualifiers valued,
+    206 reported as capped`. A check that passes on the state it was written to catch is worse
+    than no check: it is read as evidence the thing works.
+
+    The property now is an IDENTITY, which a disclosure cannot satisfy:
+
+        n_qualified_on_depth == rows + n_unmeasured + rejected_health + rejected_shallow
+
+    with `capped` zero.
+    """
+
+    def _run(self, payload):
         rep = LC.Report()
-        with _Net({("GET", "/api/dip"): _j({"n_eligible": 242, "n_qualified_on_depth": 204,
-                                            "n_measured": 12, "capped": 192,
-                                            "n_unmeasured": 0, "rows": [{"t": 1}]})}):
+        with _Net({("GET", "/api/dip"): _j(payload)}):
             LC.check_dip("https://x", rep)
+        return rep
+
+    def _line(self, rep):
+        return [ln for ln in rep.lines if "every qualifying name" in ln][0]
+
+    def test_the_whole_qualifying_set_served_passes(self):
+        # `n_unmeasured` is 0 HERE ON PURPOSE: a separate check fails any unmeasured name,
+        # so a fixture carrying some would fail the suite for a reason that is not the subject.
+        # The identity's tolerance of unmeasured names is pinned by its own test below.
+        rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 204, "n_measured": 204,
+                         "capped": 0, "n_unmeasured": 0, "rejected_health": 183,
+                         "rejected_shallow": 17, "rejected_checks": 38,
+                         "dip_source": "precomputed",
+                         "rows": [{"t": i} for i in range(4)]})
         self.assertEqual(rep.failed, 0, rep.lines)
+        self.assertIn("204 qualifying = 4 rows", self._line(rep))
 
-    def test_a_budget_spent_without_the_two_stage_path_fails(self):
-        """No `n_qualified_on_depth` means the preselector is off and the budget is being
-        spent on the deepest-ranked names rather than on qualifiers -- the original defect."""
-        rep = LC.Report()
-        with _Net({("GET", "/api/dip"): _j({"n_eligible": 242, "n_measured": 12,
-                                            "n_unmeasured": 0, "capped": 230,
-                                            "rows": [{"t": 1}]})}):
-            LC.check_dip("https://x", rep)
-        line = [ln for ln in rep.lines if "qualifying names" in ln][0]
-        self.assertIn("FAIL", line)
-        self.assertIn("n_qualified_on_depth", line)
+    def test_THE_LIVE_BROKEN_STATE_FAILS(self):
+        """The exact payload the old check passed on. This is the regression."""
+        rep = self._run({"n_eligible": 240, "n_qualified_on_depth": 218, "n_measured": 12,
+                         "capped": 206, "n_unmeasured": 0, "rejected_health": 8,
+                         "rejected_shallow": 2, "rejected_checks": 4, "dip_source": "live",
+                         "rows": [{"t": 1}, {"t": 2}]})
+        self.assertEqual(rep.failed, 1, rep.lines)
+        self.assertIn("CAPPED", self._line(rep))
 
-    def test_an_unreported_shortfall_fails(self):
-        """Silent truncation reads as coverage. `capped` absent is the thing to catch."""
-        rep = LC.Report()
-        with _Net({("GET", "/api/dip"): _j({"n_eligible": 242, "n_qualified_on_depth": 204,
-                                            "n_measured": 12, "n_unmeasured": 0,
-                                            "rows": [{"t": 1}]})}):
-            LC.check_dip("https://x", rep)
-        line = [ln for ln in rep.lines if "qualifying names" in ln][0]
-        self.assertIn("FAIL", line)
-        self.assertIn("not reported", line)
+    def test_counts_that_do_not_add_up_fail(self):
+        """The identity is arithmetic, so a screen that loses names somewhere else is caught."""
+        rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 204, "n_measured": 204,
+                         "capped": 0, "n_unmeasured": 0, "rejected_health": 100,
+                         "rejected_shallow": 0, "rejected_checks": 0, "dip_source": "precomputed",
+                         "rows": [{"t": 1}]})
+        self.assertEqual(rep.failed, 1, rep.lines)
+        self.assertIn("do not add up", self._line(rep))
 
-    def test_valuing_nothing_fails_even_with_qualifiers(self):
-        rep = LC.Report()
-        with _Net({("GET", "/api/dip"): _j({"n_eligible": 242, "n_qualified_on_depth": 204,
-                                            "n_measured": 0, "capped": 204,
-                                            "n_unmeasured": 0, "rows": [{"t": 1}]})}):
-            LC.check_dip("https://x", rep)
-        line = [ln for ln in rep.lines if "qualifying names" in ln][0]
-        self.assertIn("FAIL", line)
-        self.assertIn("NOTHING was valued", line)
+    def test_a_payload_missing_a_counter_cannot_be_checked_and_says_so(self):
+        """Absent is not zero. Treating a missing counter as 0 would make the identity hold by
+        accident on a payload that cannot support it."""
+        rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 204, "n_measured": 204,
+                         "capped": 0, "rejected_health": 1, "rows": [{"t": 1}]})
+        self.assertEqual(rep.failed, 1, rep.lines)
+        self.assertIn("cannot be checked", self._line(rep))
 
-    def test_zero_rows_fails_even_when_coverage_is_complete(self):
-        """Full coverage and no rows is a different failure from partial coverage, and both
-        matter: the first says the screen could not look, the second that it looked and the
-        page has nothing to show."""
-        rep = LC.Report()
-        with _Net({("GET", "/api/dip"): _j({"n_eligible": 242, "n_measured": 242,
-                                            "n_unmeasured": 0, "rows": []})}):
-            LC.check_dip("https://x", rep)
+    def test_rejected_checks_is_NOT_in_the_identity(self):
+        """It is the ROW-LEVEL site -- rows the snapshot refused, counted while the eligible set
+        is formed and before anything qualifies on depth. The task's wording includes it; adding
+        it would make the identity wrong by exactly its value and fail a correct screen."""
+        rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 10, "n_measured": 10,
+                         "capped": 0, "n_unmeasured": 0, "rejected_health": 6,
+                         "rejected_shallow": 2, "rejected_checks": 999,
+                         "dip_source": "precomputed", "rows": [{"t": 1}, {"t": 2}]})
+        self.assertEqual(rep.failed, 0, rep.lines)
+        self.assertIn("999 rejected earlier", self._line(rep))
+
+    def test_zero_rows_still_fails_its_own_check(self):
+        """Separate from the identity: a screen can serve every qualifier and still show
+        nothing, and that is a different failure the page must not hide."""
+        rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 204, "n_measured": 204,
+                         "capped": 0, "n_unmeasured": 0, "rejected_health": 204,
+                         "rejected_shallow": 0, "rejected_checks": 0,
+                         "dip_source": "precomputed", "rows": []})
         self.assertTrue(any("FAIL" in ln and "returns rows" in ln for ln in rep.lines),
                         rep.lines)
 
     def test_unmeasured_names_fail(self):
-        rep = LC.Report()
-        with _Net({("GET", "/api/dip"): _j({"n_eligible": 10, "n_measured": 10,
-                                            "n_unmeasured": 3, "rows": [{"t": 1}]})}):
-            LC.check_dip("https://x", rep)
+        rep = self._run({"n_eligible": 10, "n_qualified_on_depth": 10, "n_measured": 10,
+                         "capped": 0, "n_unmeasured": 3, "rejected_health": 0,
+                         "rejected_shallow": 0, "rejected_checks": 0,
+                         "dip_source": "precomputed", "rows": [{"t": i} for i in range(7)]})
         self.assertTrue(any("FAIL" in ln and "unmeasured" in ln for ln in rep.lines), rep.lines)
+        # AND THE IDENTITY STILL HOLDS -- 10 = 7 + 3 + 0 + 0. An unmeasured name is counted,
+        # not lost, so the two checks fail independently and a reader can tell which is which.
+        self.assertIn("PASS", self._line(rep))
 
 
 class TheTrackRowIsNotMissingUntilItIsDue(unittest.TestCase):
@@ -276,21 +301,37 @@ class TheTrackRowIsNotMissingUntilItIsDue(unittest.TestCase):
                         dt.datetime(2026, 10, 7, 2, 5, tzinfo=dt.timezone.utc))
         self.assertEqual(rep.failed, 0, rep.lines)
 
-    def test_an_absent_row_BEFORE_the_writer_runs_is_a_skip_not_a_failure(self):
+    def test_before_the_deadline_it_requires_the_session_BEFORE_rather_than_skipping(self):
+        """ITEM 35(b). The first cut SKIPPED here, and a skip asserts nothing.
+
+        `track-row.yml` is delivered 09:00-11:00 UTC, so the last session's row is genuinely
+        not due at 02:15. But the one before it IS, so there is always something to assert --
+        and a writer that died a week ago must not pass a check just because it ran early.
+        """
         import datetime as dt
-        rep = self._run(["2026-10-05"], "2026-10-06",
+        rep = self._run(["2026-10-02", "2026-10-05"], "2026-10-06",
                         dt.datetime(2026, 10, 7, 2, 5, tzinfo=dt.timezone.utc))
         self.assertEqual(rep.failed, 0, rep.lines)
-        self.assertEqual(rep.skipped, 1, rep.lines)
+        self.assertEqual(rep.skipped, 0, "a skip here asserts nothing: %s" % rep.lines)
         line = [ln for ln in rep.lines if "last session" in ln][0]
-        self.assertIn("SKIP", line)
+        self.assertIn("PASS", line)
+        self.assertIn("row for 2026-10-05", line)
         self.assertIn("not due until", line)
+
+    def test_a_WRITER_THAT_STOPPED_A_WEEK_AGO_FAILS_EVEN_BEFORE_THE_DEADLINE(self):
+        """The half the skip version could not catch, and the reason the fallback exists."""
+        import datetime as dt
+        rep = self._run(["2026-09-25"], "2026-10-06",
+                        dt.datetime(2026, 10, 7, 2, 5, tzinfo=dt.timezone.utc))
+        self.assertEqual(rep.failed, 1, rep.lines)
+        line = [ln for ln in rep.lines if "last session" in ln][0]
+        self.assertIn("no row for 2026-10-05 EITHER", line)
 
     def test_an_absent_row_AFTER_the_writer_runs_still_FAILS(self):
         """The half that matters: the deadline must not make the check unfailable."""
         import datetime as dt
         rep = self._run(["2026-10-05"], "2026-10-06",
-                        dt.datetime(2026, 10, 7, 12, 0, tzinfo=dt.timezone.utc))
+                        dt.datetime(2026, 10, 7, 13, 0, tzinfo=dt.timezone.utc))
         self.assertEqual(rep.failed, 1, rep.lines)
         line = [ln for ln in rep.lines if "last session" in ln][0]
         self.assertIn("FAIL", line)
@@ -302,7 +343,10 @@ class TheTrackRowIsNotMissingUntilItIsDue(unittest.TestCase):
         import datetime as dt
         due = LC._track_row_due_after(dt.date(2026, 10, 6))
         self.assertEqual(due.date(), dt.date(2026, 10, 7), "due the morning AFTER the session")
-        self.assertGreater((due.hour, due.minute), (4, 37), "earlier than the backup cron")
+        # PAST THE DELIVERY WINDOW, NOT THE CRON TIME. The crons are 03:07 and 04:37 UTC and
+        # GitHub's free scheduler delivers them 09:00-11:00; a deadline at the cron time fires
+        # most mornings on a writer that is working, which is what the first cut (05:30) did.
+        self.assertGreaterEqual((due.hour, due.minute), (12, 0))
 
 
 class TheExportCheckJudgesTheFileType(unittest.TestCase):

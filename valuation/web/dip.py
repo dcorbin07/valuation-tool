@@ -654,6 +654,14 @@ def screen(rows: List[dict],
         # required to state. Before this the only honest reading of the payload was "12 names
         # were valued out of 242 eligible", and the page reported the result as though it had
         # looked at the market.
+        # WHICH NAMES THE SCREEN WOULD VALUE, BY TICKER. Additive, and it exists so the
+        # nightly precompute can ASK the screen for its own selection rather than re-deriving
+        # it. A second implementation of "which names qualify" is how a cache comes to hold a
+        # different population from the one the request serves -- the B7 shape, on the one seam
+        # where the disagreement would be invisible (the cache would simply miss names, and a
+        # miss reads as "unmeasured").
+        "measured_tickers": [(r.get("ticker") or "").strip().upper()
+                             for r, _c in measured_set],
         "n_checked_for_depth": n_with_cheap if preselect_available else 0,
         "n_qualified_on_depth": n_qualified if preselect_available else None,
         # THE THREE COUNTS THAT ACTUALLY NEST, so a reader can add them up. `n_qualified_on_depth`
@@ -976,8 +984,144 @@ def engine_measure(get_result: Callable[[str], object], budget: int = DEFAULT_SH
     return _measure
 
 
+def qualifying_tickers(rows: List[dict], min_drawdown=None) -> List[str]:
+    """The tickers `screen` would value at `min_drawdown`, in its own order, costing nothing.
+
+    IT ASKS `screen` RATHER THAN RE-DERIVING THE RULE. The selection is four stages deep --
+    row-level checks, the cross-sectional prefilter, the free depth threshold with its slack,
+    and the spread across the qualifiers -- and every one of those has already been got wrong
+    once. A second copy here would drift, and the drift would be invisible: the precompute
+    would simply miss names and a miss is indistinguishable from "this name could not be
+    valued".
+
+    `measure` returns None for every name, so the dry run touches no company and spends
+    nothing; `shortlist=0` is `screen`'s own unbounded mode, so the list is every qualifier
+    rather than a budgeted prefix.
+    """
+    return list(screen(rows, min_drawdown=min_drawdown,
+                       measure=lambda _r: None, shortlist=0).get("measured_tickers") or [])
+
+
+#: Threads for the nightly precompute. The scan's own refusal screen measures 2.51s per name
+#: median at 6 workers against the same upstream feed, which is the only comparable figure this
+#: project has; matching it keeps the precompute inside a budget already known to hold.
+PRECOMPUTE_WORKERS = 6
+
+
+def precompute(rows: List[dict], get_result: Callable[[str], object], *,
+               min_drawdown=None, workers: int = PRECOMPUTE_WORKERS,
+               scan_date=None) -> dict:
+    """Value every name that qualifies at `min_drawdown` and return a servable cache.
+
+    **WHY THIS EXISTS: A REQUEST MUST NOT SPEND A VALUATION BUDGET.** `/api/dip` valued
+    `DEFAULT_SHORTLIST` names per request out of ~220 qualifying, so the screen served about
+    5% of what it was eligible to serve and the page reported the result as though it had
+    looked at the market. Raising the per-request budget was tried and measured to buy nothing
+    (12 -> 18 valued the same 10 rows across four thresholds, at 18-28s of cold latency),
+    because the cost is per request and the cap has to stay. Precomputing moves the cost to the
+    nightly scan, where ~69 minutes of the 90-minute budget is unused, and lets the request
+    serve the WHOLE qualifying set from a dict.
+
+    **CACHED AT THE SLIDER'S FLOOR, WHICH COVERS EVERY POSITION ABOVE IT.** The depth test is
+    `cheap_drawdown(r) >= min_drawdown - PRESELECT_SLACK`, monotone in `min_drawdown`, and the
+    depth-UNKNOWN names are kept at every threshold -- so the qualifying set at the floor is a
+    SUPERSET of the set at any higher threshold. One pass serves the whole control.
+
+    Returns the cache; `scan_date` is carried INSIDE it so a stale cache can be detected rather
+    than served against a snapshot it does not describe.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    import time as _time
+
+    floor = MIN_DRAWDOWN_FLOOR if min_drawdown is None else clamp_drawdown(min_drawdown)
+    tickers = qualifying_tickers(rows, min_drawdown=floor)
+    t0 = _time.monotonic()
+
+    def _one(t):
+        try:
+            return t, measurement_from(get_result(t))
+        except DipWiringError:
+            # NOT SWALLOWED, for the same reason `engine_measure` does not swallow it: every
+            # one of 229 names once raised the identical wiring error and each was counted as
+            # "unmeasured", which reads as a data gap rather than as a screen wired to the
+            # wrong object. A per-name failure is tolerable; a wiring failure is a bug.
+            raise
+        except Exception:                                            # noqa: BLE001
+            return t, None
+
+    out, failed = {}, []
+    if tickers:
+        n = max(1, int(workers))
+        if n > 1 and len(tickers) > 1:
+            with ThreadPoolExecutor(max_workers=n) as pool:
+                pairs = list(pool.map(_one, tickers))
+        else:
+            pairs = [_one(t) for t in tickers]
+        for t, m in pairs:
+            if m is None:
+                failed.append(t)
+            else:
+                out[t] = m
+
+    return {"scan_date": scan_date,
+            "min_drawdown": floor,
+            "measurements": out,
+            "shape": {"qualifying": len(tickers), "valued": len(out),
+                      "failed": len(failed), "failed_tickers": sorted(failed)[:25],
+                      "seconds": round(_time.monotonic() - t0, 1),
+                      "workers": int(workers)}}
+
+
+def cached_measure(cache: dict):
+    """A `measure` that reads a precomputed cache and NEVER values anything.
+
+    A name absent from the cache returns None, which `screen` counts as `n_unmeasured` and the
+    payload reports. That is the honest reading and it is deliberately not a fallback to a live
+    valuation: a request that quietly values a cache miss is a request that can spend an
+    unbounded budget on a cold cache, which is the thing this whole path removes.
+    """
+    m = dict((cache or {}).get("measurements") or {})
+
+    def _measure(row: dict) -> Optional[dict]:
+        return m.get((row.get("ticker") or "").strip().upper())
+
+    return _measure
+
+
+#: Where the nightly precompute is stored. ONE definition: the scan's ingest door writes it and
+#: `screen_snapshot` reads it, and a spelling that drifted between the two would be invisible --
+#: the reader would simply find nothing and fall back to the bounded live path, which still
+#: serves a screen.
+DIP_CACHE_META_KEY = "dip_cache"
+
+
+def stored_cache(store):
+    """The precomputed cache this store holds, or None. Never raises."""
+    try:
+        return store.get_meta(DIP_CACHE_META_KEY)
+    except Exception:                                                # noqa: BLE001
+        return None
+
+
+def usable_cache(cache, scan_date) -> bool:
+    """Does this cache describe THIS snapshot, and does it hold anything?
+
+    A cache from yesterday's scan would serve measurements for names today's snapshot may not
+    carry, at prices a day old, and the mismatch would be invisible in the payload. So the
+    scan_date is checked rather than assumed, and an empty cache is refused -- serving one
+    would report every name as unmeasured and look identical to a screen that could not
+    measure anything, which is the sentence item 19 exists to stop.
+    """
+    if not isinstance(cache, dict):
+        return False
+    if not (cache.get("measurements") or {}):
+        return False
+    return str(cache.get("scan_date") or "") == str(scan_date or "")
+
+
 def screen_snapshot(store, get_result: Callable[[str], object], min_drawdown=None,
-                    shortlist: int = DEFAULT_SHORTLIST, scan_date=None) -> dict:
+                    shortlist: int = DEFAULT_SHORTLIST, scan_date=None,
+                    dip_cache=None) -> dict:
     """The whole screen, from a scan snapshot — ONE definition, two callers.
 
     `/api/dip` renders this and `saas/notify.post_dip_digest` pushes it. Written the moment
@@ -1001,8 +1145,44 @@ def screen_snapshot(store, get_result: Callable[[str], object], min_drawdown=Non
     from . import withhold as _withhold
     estimate_fair_values(rows, peer_rows=rows)
     _withhold.withhold_implausible_fair_values(rows)
-    shortlist = max(1, min(int(shortlist), MAX_SHORTLIST))
-    out = screen(rows, min_drawdown=min_drawdown,
-                 measure=engine_measure(get_result, budget=shortlist), shortlist=shortlist)
+
+    # SERVE FROM THE NIGHTLY PRECOMPUTE WHEN IT DESCRIBES THIS SNAPSHOT.
+    #
+    # `shortlist=0` is `screen`'s own unbounded mode: every qualifier is measured and `capped`
+    # is 0, so the whole qualifying set reaches the page and NOTHING is silently dropped. That
+    # is affordable only because `cached_measure` is a dict lookup -- the valuations were paid
+    # for once, in the scan job, where 69 of the 90-minute budget was going unused.
+    #
+    # The fallback is the old bounded live path, unchanged, so a day whose precompute did not
+    # land still serves a screen rather than an empty one -- and `dip_source` says which path
+    # answered, because "12 of 220 valued" and "220 of 220 valued" are different products and a
+    # reader cannot tell them apart from the rows alone.
+    # EVERY CALLER GETS THE PRECOMPUTE, not just the route. `screen_snapshot` has four callers
+    # -- the page, the Discord digest, the SaaS worker and a fleet book -- and its own docstring
+    # is about why the four must share the CODE rather than the rule. Reading the cache here
+    # rather than at each call site is the same argument one layer down: a digest that pushed
+    # the bounded 12-name screen while the page served 220 would be the Index-versus-hot-list
+    # disagreement again, outbound, where nobody sees it until it has been sent.
+    if dip_cache is None:
+        dip_cache = stored_cache(store)
+    if usable_cache(dip_cache, scan_date):
+        out = screen(rows, min_drawdown=min_drawdown,
+                     measure=cached_measure(dip_cache), shortlist=0)
+        out["dip_source"] = "precomputed"
+        out["dip_cache_shape"] = dict((dip_cache or {}).get("shape") or {})
+        out["dip_cache_floor"] = (dip_cache or {}).get("min_drawdown")
+    else:
+        shortlist = max(1, min(int(shortlist), MAX_SHORTLIST))
+        out = screen(rows, min_drawdown=min_drawdown,
+                     measure=engine_measure(get_result, budget=shortlist),
+                     shortlist=shortlist)
+        out["dip_source"] = "live"
+        # WHY the cache was not used, named rather than left as a silent fallback. "No scan has
+        # a cache yet" and "the cache is for yesterday's scan" need different actions.
+        out["dip_cache_absent_reason"] = (
+            "no precomputed cache stored" if not isinstance(dip_cache, dict)
+            else "the cache is empty" if not ((dip_cache.get("measurements") or {}))
+            else "the cache describes scan %s, not %s"
+                 % (dip_cache.get("scan_date"), scan_date))
     out["scan_date"] = scan_date
     return out

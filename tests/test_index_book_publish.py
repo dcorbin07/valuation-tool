@@ -27,6 +27,7 @@ So the four things these tests hold down:
 Every test builds its own store and its own temp path. Nothing here touches `data/`.
 """
 import json
+import io
 import os
 import sys
 import tempfile
@@ -385,18 +386,47 @@ def test_the_publisher_does_not_redefine_conformance():
 
 
 # ------------------------------------------------------------------ 5. wired into the ingest
+def _ingest_snapshot_body() -> str:
+    """The SOURCE OF `admin_ingest_snapshot`, bounded by the function rather than by a count.
+
+    REPOINTED 2026-10-07 (item 35a). This read `src[i:i + 4000]` -- a fixed CHARACTER WINDOW
+    from the `def` line -- and item 35's dip-cache block pushed `"index_book"` past the 4,000th
+    character, so the guard went red against a tree where the ingest still publishes the book
+    and still reports it. The property was right and the instrument was wrong.
+
+    A character window is the wrong bound for a function body for the same reason a substring
+    ban is the wrong test for a rule: both are proxies that a comment can move. This record has
+    paid for that twice already (a 2,600-char window over a JS block, and an "except Exception
+    within 400 chars" check), and both went red on added comments rather than on changed
+    behaviour -- the most expensive kind of false alarm, because the natural response is to
+    weaken the guard.
+
+    `ast` gives the exact extent, so the guard now bounds what it means.
+    """
+    import ast
+    src = io.open(os.path.join(ROOT, "valuation", "saas", "app_saas.py"),
+                  encoding="utf-8").read()
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "admin_ingest_snapshot":
+            return ast.get_source_segment(src, node) or ""
+    raise AssertionError("admin_ingest_snapshot is gone from app_saas.py")
+
+
 def test_the_snapshot_ingest_publishes_the_book():
     """The daily scan's terminal step is the ingest, so that is where publishing belongs."""
-    with open(os.path.join(ROOT, "valuation", "saas", "app_saas.py"), encoding="utf-8") as fh:
-        src = fh.read()
-    i = src.find("def admin_ingest_snapshot")
-    assert i > 0
-    body = src[i:i + 4000]
+    body = _ingest_snapshot_body()
     assert "index_book.publish" in body, (
         "the snapshot ingest no longer publishes the Index book, so the engine is back to "
         "silently rebuilding a possibly-truncated one"
     )
     assert '"index_book"' in body, "the ingest response no longer reports the publish outcome"
+    # NON-VACUITY: a window that returned "" would pass neither assertion, but a window that
+    # returned the WHOLE FILE would pass both while bounding nothing. So the body must be a
+    # body: it starts at the def and does not contain the next route's name.
+    assert body.startswith("def admin_ingest_snapshot"), body[:80]
+    assert "def admin_ingest_intraday" not in body, (
+        "the extracted body runs past its own function, so this guard bounds nothing")
 
 
 def test_the_ci_scan_reports_whether_the_book_was_published():

@@ -1831,8 +1831,38 @@ def create_saas_app(cfg=CONFIG):
             # Never fatal. The daily hot list must not fail to land because a book could not be
             # built — `publish` catches its own errors and reports them in the response.
             book = index_book.publish(st)
+
+            # THE DIP PRECOMPUTE ARRIVES WITH THE SNAPSHOT IT DESCRIBES (item 35a).
+            #
+            # `/api/dip` used to value `DEFAULT_SHORTLIST` names PER REQUEST out of ~220
+            # qualifying, so the screen served about 5% of what it was eligible to serve. The
+            # valuations now happen once, in the scan job, and land here.
+            #
+            # IN THE SAME CALL AS THE ROWS, DELIBERATELY. A separate door would let the cache
+            # and the snapshot disagree about which scan they describe, and the reader could not
+            # tell: a mismatched cache serves measurements for names at a different date's
+            # prices. Arriving together, the `scan_date` carried inside the cache is the
+            # snapshot's by construction -- and `dip.usable_cache` checks it anyway, because
+            # "by construction" is what every one of this project's silent mismatches was.
+            #
+            # NEVER FATAL. The hot list must not fail to land because a cache could not be
+            # stored; a missing cache costs the old bounded live path, which still serves.
+            dip_cached = None
+            try:
+                from ..web import dip as _dip
+                cache = data.get("dip_cache")
+                if isinstance(cache, dict) and (cache.get("measurements") or {}):
+                    cache = dict(cache)
+                    cache["scan_date"] = scan_date
+                    st.set_meta(_dip.DIP_CACHE_META_KEY, cache)
+                    dip_cached = {"stored": len(cache.get("measurements") or {}),
+                                  "shape": cache.get("shape") or {}}
+            except Exception as e:                                   # noqa: BLE001
+                dip_cached = {"error": safe_error(e)}
+
             return jsonify({"ok": True, "scan_date": scan_date, "rows": len(rows),
-                            "reprocessed": already, "index_book": book})
+                            "reprocessed": already, "index_book": book,
+                            "dip_cache": dip_cached})
         except Exception as e:
             return jsonify({"error": safe_error(e)}), 500
 
