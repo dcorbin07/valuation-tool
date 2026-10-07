@@ -360,13 +360,46 @@ class Wiring(unittest.TestCase):
         s = self.read("sync.bat")
         self.assertIn("scripts\\sync_checkout.py", s)
 
-    def test_git_push_syncs_before_it_merges_and_pushes(self):
+    def test_git_push_syncs_before_it_pushes(self):
         """Order is the point: fast-forwarding first is what makes the final push a
-        fast-forward. Running it afterwards would report the same thing and fix nothing."""
+        fast-forward. Running it afterwards would report the same thing and fix nothing.
+
+        REPOINTED 2026-10-06, and the repoint is why this test is still worth having. It used to
+        assert `sync_checkout.py` came before the string "Auto-land finished agent work" --
+        **a banner that `git_push.bat` no longer contains, because the auto-land block was
+        DELIBERATELY REMOVED that day** (its own comment: agent branches land through
+        `land-agent-branch.yml`, and merging locally bypassed the land policy and the suites,
+        which is how `DECISIONS.md` sat unpushed). The removal was correct; the assertion was
+        left behind, so it raised `ValueError: substring not found` and took the landing gate red
+        for **every** lane.
+
+        **IT IS REPOINTED RATHER THAN DELETED.** The stated property -- sync before push -- never
+        depended on the auto-land block, and is asserted directly below against `"%GIT%" push`.
+        What the dead assertion was *standing in for* is now pinned positively: the script must
+        **not** merge agent branches locally at all. So a future edit that re-adds a local merge
+        goes red, which is the thing the removal was protecting.
+        """
         s = self.read("git_push.bat")
         self.assertIn("scripts\\sync_checkout.py", s)
-        self.assertLess(s.index("sync_checkout.py"), s.index("Auto-land finished agent work"))
+        # THE REAL PROPERTY, and the only ordering that was ever load-bearing.
         self.assertLess(s.index("sync_checkout.py"), s.index('"%GIT%" push'))
+
+        # And the behaviour the removal installed. Checked on the CODE, not the prose: this file
+        # is full of `rem` comments that discuss merging agent branches at length, and a
+        # substring ban would fire on the comment explaining why the merge is gone -- the
+        # comment-versus-code defect this record has paid for repeatedly (MA49, MB1, MB15).
+        code = "\n".join(l for l in s.splitlines()
+                         if not l.strip().lower().startswith("rem"))
+        self.assertNotIn("worktree-", code,
+                         "git_push.bat must not act on agent branches: they land through the "
+                         "GitHub gate, and a local merge bypasses the land policy and the suites")
+        self.assertNotIn(" merge ", code,
+                         "git_push.bat must not merge anything locally -- see the REMOVED "
+                         "2026-10-06 block in that file")
+        # NON-VACUITY: the stripper must not have eaten the file. If it did, both assertions
+        # above would pass by looking at nothing -- which is exactly how a guard goes quiet.
+        self.assertIn('"%GIT%" push', code, "the comment stripper removed executable lines too")
+        self.assertIn("sync_checkout.py", code)
 
     def test_git_push_does_not_wrap_errorlevel_in_a_parenthesised_block(self):
         """cmd evaluates `if errorlevel` inside ( ) at PARSE time; this cost a day once."""
