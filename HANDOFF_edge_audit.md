@@ -21371,3 +21371,156 @@ suites, 9 of 9 mutations caught with sources restored byte-for-byte.**
 `universe_bias_arms.py`; `DECISION_canonical_universe.md`;
 `data/free_analysis/UNIVERSE_BIAS_PUBLIC.json`, `UNIVERSE_BIAS_BOOKS.json`,
 `UNIVERSE_BIAS_INERT.json`, `canonical_rerun/{restricted,corrected}_2026_10/`.
+
+## TIERED-POOL — 2026-10-06
+
+**BOTH ARMS FAIL, AND THE TWO PERIODS DISAGREE IN SIGN. On the corrected 2009-2026 universe the
+tiered arms lose on return AND drawdown; on the 1999-2008 five-theme proxy they WIN. Don's rule
+requires both, so neither passes. ADOPTS NOTHING — 2026-10-22 stays on the incumbent.**
+
+`PREREG_tiered_pool.md` committed **ALONE at `e8536ca`**, markdown only, zero `.py`, 272 lines, a
+strict git ancestor of every commit computing a figure it declares. **TWO EQUITY TRIALS, one per
+arm as Don instructed, booked at `7ebf7aa` BEFORE any runner existed** — equity **262 → 264**,
+hurdles derived (`3.3371678123106414` → `3.3394457932855612`). Verdict **edited IN PLACE**
+(`MB16`, numstat `1 1`). **The case for three trials is in the register's §0 rather than hidden**,
+and `MA6`'s safe direction is flagged as the one this reading departs from.
+
+### The result
+
+**2009-2026, corrected universe, all seven themes alive, same construction throughout:**
+
+| arm | net Roth | drawdown | early | late | turnover | cost |
+|---|---|---|---|---|---|---|
+| **incumbent $10B** | **18.02%** | **−28.96%** | 19.74% | 16.03% | 2.81 | 9.4 bps |
+| A — stricter by size | 14.45% | −41.96% | 16.26% | 12.18% | 3.15 | 31.1 bps |
+| B — A plus a junk filter | 15.51% | −35.98% | 17.75% | 12.92% | 3.25 | 24.1 bps |
+
+**1999-2008, the LABELLED FIVE-THEME PROXY, read ONCE — levels NOT comparable to the above:**
+
+| arm | net Roth | drawdown | early | late |
+|---|---|---|---|---|
+| incumbent $10B | 8.30% | −41.76% | 7.40% | 8.99% |
+| **A** | **13.85%** | **−40.98%** | 24.88% | 2.04% |
+| B | 12.41% | −46.80% | 25.37% | −0.02% |
+
+**Don's rule:** arm A fails all three 2009-2026 return comparisons and the 2009-2026 drawdown
+clause (13.00pp worse, four times the 3pp allowance); arm B fails the same three plus **both**
+drawdown clauses. **Neither passes.**
+
+### The junk filter works, and only in the modern era
+
+Arm B beats arm A by **+1.06pp of return and +5.98pp of drawdown** on 2009-2026 — the direction
+Asness–Frazzini–Israel–Moskowitz–Pedersen predict — and **reverses on 1999-2008**, where it is
+1.44pp worse on return and 5.82pp worse on drawdown. That is the finding rather than the verdict.
+
+### Neither result is separable from zero, and that cuts both ways
+
+Arm A's 2009-2026 shortfall is a paired mean of **−0.005895**/period at a paired se of
+**0.005210**, so its **MDE80 is 0.014797** and the shortfall sits at **0.40×** its own detection
+threshold. Arm A's 1999-2008 **win** is **+0.010806** against an MDE80 of **0.039181** — **0.28×**.
+So the loss is not established and neither is the win. **Every critical value is LABELLED
+UNCALIBRATED** (`V2G`, `R1-VAR`), **no X7 floor is quoted anywhere** (pinned by test), and the
+rule is a **preference** rule by design: no arm is called significant.
+
+### It is substantially a size bet, which is what §5 existed to show
+
+| | weight under $2B | SMB | residual (a DECOMPOSITION, never alpha) |
+|---|---|---|---|
+| incumbent | **0.0%** | +0.219 | +1.82%/yr (t +1.052) |
+| arm A | **37.8%** (max 55.0%) | **+0.602** | −1.98%/yr (t −1.041) |
+| arm B | 24.1% (max 44.9%) | +0.458 | −0.16%/yr (t −0.099) |
+
+**NOT ONE ARM'S RESIDUAL IS SEPARABLE FROM ZERO on either period**, so there is no evidence the
+tiering picks better companies — only that it holds smaller ones, and on 2009-2026 that was
+punished. `R1`'s own alignment control reproduces at SPY-on-MKT beta **0.9494** / R² **0.9921**
+(2009-2026) and **0.9173** / **0.9857** (1999-2008). **The micro-cap exclusion works and is
+reported as a CONSTRUCTION CHECK rather than a result: 0.0000 of book weight below $300M on every
+arm in both periods.**
+
+### The §2c coverage kill passed non-vacuously, and was read first
+
+Computed and read in its **own pass** before any arm-B return existed — `O10`'s process defect,
+not repeated, and `--arms` **refuses** without a passing artifact. The three junk conditions are
+jointly evaluable on **0.9163** of the 169,258 sub-$10B rows in 2009-2026 and **0.9127** of the
+89,005 in 1999-2008, against an **INHERITED 0.70 floor** — the panel's own `theme_coverage` rule,
+quoted at that value in `PANEL-EXT-CENSUS`, **not a number chosen here**. So arm B **ran** rather
+than being reported NOT-RUN.
+
+### An ambiguity in Don's own wording, resolved before any number on an external anchor
+
+*"leverage not in the bottom third"* read **literally** excludes the **LEAST** levered third,
+which **inverts the cited paper**, whose junk is **high** leverage. The filter requires leverage
+**not in the WORST third**, resolved on **the paper's own direction** — an anchor independent of
+this panel and predating the register, which is `E-6`'s discipline — **with the counterfactual
+recorded: had the paper pointed the other way, the literal reading would have been taken.** The
+inverted variant is **NOT run** and carries no verdict.
+
+### A defect in my own register, reported rather than patched
+
+**§3's size-neutral diagnostic IS arm A.** It specifies *"rank within each band and select the
+same count per band as arm A"*, and arm A's percentile is **already** taken within band and within
+date — so it is the same construction, and **it reproduces arm A at max absolute deviation
+`0.000e+00` on both periods, measured rather than asserted.** Reported **DEGENERATE BY
+CONSTRUCTION** on `E-3`'s `K3` precedent rather than quietly swapped for a different diagnostic
+after seeing the arms, which would have been choosing a design on the outcome. A genuine version —
+**equalising the three bands' WEIGHT** rather than score-weighting across the union — is **named
+and NOT run**; it needs its own register. It carries the literal **`NO-VERDICT`**, pinned by an
+**AST** test after a mutation showed a substring check could not see the one assignment that
+mattered.
+
+### Three construction facts established BEFORE registering
+
+* **The panel carries no raw values**, and `keep_numbers=True` adds only the **z-scored** columns.
+  **A z-score loses the zero point**, so *"positive net income"* is not recoverable from any panel
+  the shipped builder produces — which is why arm B reads the provider through the **shipped
+  `_ttm`**, already collapsing restatements (`D10-a`) and refusing a partial sum that would
+  understate a flow and **read as a junk company**, the direction that would flatter the arm.
+* `netinc`, `fcf`, `debt` and `equity` are all present in the export, verified first.
+* **`P7`'s currency trap does not bite**, and the reason is structural rather than hoped for: all
+  three conditions are **currency-invariant** (`fxusd > 0`, so the signs survive; `debt/equity` is
+  a ratio of same-currency quantities). **No conversion is applied and none is needed.**
+
+### Two shipped hooks, each doing the job it exists for
+
+The junk filter is a **`universe_filter`** — `N1`'s own use of that hook, and the only one that
+receives the cross-section's **date** — and the tiering is an **`index_fn`**, the only hook that
+receives **`held`**. Both are passed identically to the net-of-cost path and the after-tax path,
+so the two **cannot describe different books**. **And the weighting is not this register's:** the
+selected union goes to the **shipped `build_index`** with the tier logic switched off, so the 8%
+cap stays **one definition** — pinned by a test and by a mutation that re-implements it.
+
+### Four of my own defects, and one of my MUTATIONS WAS ITSELF INERT
+
+(a) The runner's docstring omitted the no-alpha prohibition while the artifact key carried it.
+(b) My first global-cutoff control asserted the global top decile would be all large-cap; the
+fixture's scores **overlapped across bands**, so the stronger-looking claim was simply false, and
+the property that actually distinguishes the two rules is the **per-band split**.
+**(c) THE BAND TEST EXISTED TWICE** — in `band_of` and inside the selector — and a mutation
+flipping one copy to a **CLOSED** interval was **INERT in `band_of`**, which returns the **FIRST**
+matching band, while being live in the selector. **Two copies of a boundary rule is how a $10B
+name comes to sit in two bands with both halves correct in isolation.** Now one definition, and
+the refactor is **PROVED INERT by leaf diff at 519 shared leaves, 0 moved, max absolute deviation
+`0.000e+00`, nothing added or removed.** (d) My unresolvable-input test used a name with
+**nothing** resolvable, so all three conditions failed and flipping any **one** to
+pass-on-missing was invisible; each condition now has a case where only **its** input is absent.
+
+**44 tests, 14 of 14 mutations caught with sources restored byte-for-byte.**
+
+### For Don
+
+`DECISION_tiered_pool.md`. Short version: **no change for October 22.** Two different ways of
+reaching down the cap scale have now both failed on the honest universe — a flat wider pool
+(`UNIVERSE-BIAS`) and a stricter bar by size (here) — which is a reasonably strong case for
+leaving the pool where it is. The one variant worth a future trial is **arm B's junk filter
+applied to the incumbent's own $10B tier**, testing the filter without also taking the size bet
+that sank both arms; that is a new hypothesis and needs its own register.
+
+**NOT DONE:** no percentile sweep, no fourth band, no alternative junk definition (profitability,
+volatility and distress are all AFIMP junk markers and **none is registered**), no inverted
+leverage direction, no sector control, **nothing adopted**, and **no claim about 1990-1998**,
+which stays blind.
+
+`PREREG_tiered_pool.md`; `scripts/tiered_pool.py`, `tiered_pool_run.py`,
+`tiered_pool_addendum.py`; `DECISION_tiered_pool.md`;
+`data/free_analysis/TIERED_POOL.json`, `TIERED_POOL_KILL.json`, `TIERED_POOL_ADDENDUM.json`,
+`TIERED_POOL_FACTORS_{2009_2026,1999_2008}.json`.
