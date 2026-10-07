@@ -248,12 +248,33 @@ def check_dip(base, rep):
     else:
         rep.bad("dip returns rows at 10% depth", "0 rows from %d eligible" % elig)
 
-    # An unmeasured name is not a name that failed; the page must never read the two as one.
+    # REPOINTED 2026-10-07. This demanded `n_unmeasured` be ZERO, which passed only because the
+    # screen valued 12 names per request and those 12 happened to carry a 52-week high. Serving
+    # the whole qualifying set makes the real figure visible: 90 of 210 on the 2026-10-06 scan
+    # carry NO drawdown, 59 of them the names whose snapshot has no `high_prox` either -- the
+    # same missing datum from the same upstream, showing in both places.
+    #
+    # DEMANDING ZERO IS DEMANDING THE FEED BE COMPLETE, so it would now fail every day for a
+    # reason no change to this product can fix. What the check is FOR is the partial wiring
+    # failure -- 229 names once raised the same error and each was counted "unmeasured", which
+    # read as a data gap -- and that shows as unmeasured EQUALLING the qualifying set. So the
+    # property is: the counter is present, and it is not the whole population.
+    #
+    # The identity above already proves nothing is lost; this is the separate claim that
+    # something was actually measured.
     un = d.get("n_unmeasured")
-    if un in (0, None):
-        rep.ok("dip has no unmeasured names", "n_unmeasured %s" % un)
+    if un is None:
+        rep.bad("dip reports its unmeasured names",
+                "n_unmeasured is absent, so an unmeasured name cannot be told from a name that "
+                "is not in a drawdown")
+    elif qual and un >= qual:
+        rep.bad("dip reports its unmeasured names",
+                "every one of the %s qualifying names came back unmeasured -- that is a wiring "
+                "failure, not a data gap" % qual)
     else:
-        rep.bad("dip has no unmeasured names", "n_unmeasured %s" % un)
+        rep.ok("dip reports its unmeasured names",
+               "n_unmeasured %s of %s qualifying (no 52-week high, so no drawdown is computable "
+               "for them from either source)" % (un, qual))
 
 
 def _render_card(payload):

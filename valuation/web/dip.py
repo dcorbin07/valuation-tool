@@ -1063,10 +1063,21 @@ def precompute(rows: List[dict], get_result: Callable[[str], object], *,
             else:
                 out[t] = m
 
+    # `valued` IS NOT `usable`, AND REPORTING ONLY THE FIRST WOULD READ AS COVERAGE.
+    # `measurement_from` returns a dict for any real result, with `drawdown: None` when the
+    # company carries no 52-week high -- and `screen` then counts that row as `n_unmeasured`,
+    # because a name whose drawdown nobody can compute is not a name in a drawdown. Measured on
+    # the 2026-10-06 scan: 210 of 210 valued and **90 of those carry no drawdown**, 59 of them
+    # the names whose snapshot has no `high_prox` either (the same missing datum from the same
+    # upstream, visible in both places). So `failed: 0` was true and "210 valued" read as 210
+    # usable. The COVERAGE RULE's own shape: a number with no denominator beside it.
+    with_dd = sum(1 for m in out.values() if (m or {}).get("drawdown") is not None)
     return {"scan_date": scan_date,
             "min_drawdown": floor,
             "measurements": out,
             "shape": {"qualifying": len(tickers), "valued": len(out),
+                      "with_drawdown": with_dd,
+                      "no_drawdown": len(out) - with_dd,
                       "failed": len(failed), "failed_tickers": sorted(failed)[:25],
                       "seconds": round(_time.monotonic() - t0, 1),
                       "workers": int(workers)}}

@@ -88,6 +88,101 @@ every one of this project's silent mismatches was. Never fatal at either end: a 
 to land is a dead product surface, a cache that fails to build costs the old bounded path, and the
 two must not share a failure.
 
+## LIVE VERIFICATION — 77.3 SECONDS IN THE SCAN, AND THE SCREEN GOES 2 ROWS TO 30
+
+Hot run **37568069068** on `main`, the first with the precompute:
+
+```
+  scored 1491 names from a universe of 1500
+  dip precompute: 210 of 210 qualifying names valued in 77.3s at 6 workers
+  ingest /admin/ingest-snapshot: 200 {"dip_cache":{"shape":{"failed":0,"failed_tickers":[],
+      "qualifying":210,"seconds":77.2,"valued":210,"workers":6},"stored":210}, ...}
+  dip cache on the service: {'shape': {...'qualifying': 210, 'seconds': 77.2, 'valued': 210,
+      'workers': 6}, 'stored': 210}
+```
+
+**77.3 SECONDS, ZERO FAILURES, AND THE WHOLE JOB CAME IN AT 20m13s — SHORTER THAN THE 21m21s RUN
+BEFORE IT.** The estimate from six local names was 1.0–1.5 minutes; measured 1.29. The 90-minute
+timeout is not remotely in play, and the scan prints the figure every run so nobody has to trust
+this paragraph.
+
+`GET /api/dip?min_drawdown=<t>` on the live service, `source=precomputed` at every setting:
+
+| threshold | eligible | qualified | valued | **rows** | capped | latency | identity |
+|---|---|---|---|---|---|---|---|
+| 0.10 | 230 | 210 | **210** | **30** (was 2) | **0** | 0.5 s | HOLDS |
+| 0.20 | 230 | 158 | **158** | **24** (was 3) | **0** | 0.6 s | HOLDS |
+| 0.30 | 230 | 121 | **121** | **16** | **0** | 0.4 s | HOLDS |
+| 0.40 | 230 | 96 | **96** | **8** | **0** | 0.5 s | HOLDS |
+
+**Every qualifier is measured, nothing is capped, and a request values NOTHING** — sub-second at
+every threshold. The rows span the range asked for (0.20 returns 24 names from −20.7% to −62.0%).
+
+## THE 90 UNMEASURED NAMES ARE REAL, AND THEY MADE ME FIX TWO MORE THINGS
+
+At 0.10 the identity reads `210 qualifying = 30 rows + 90 unmeasured + 87 health + 3 shallow`. **90
+of 210 is a big number and my first reading of it was wrong** — I took it for a cache mismatch, 59
+of it being exactly `n_depth_unknown_kept`. It is not: `dip_cache_shape.qualifying` is 210 and the
+serve path's `n_qualified_on_depth` is 210, the same set.
+
+**THE CAUSE, MEASURED RATHER THAN REASONED.** `measurement_from` returns a dict for any real
+result, with `drawdown: None` when the company carries no 52-week high — verified directly on a
+stub with `price_52w_high = None`. `screen` then counts that row `n_unmeasured`, which is correct:
+a name whose drawdown nobody can compute is not a name in a drawdown. So these are **real
+valuations the screen cannot turn into rows**, and 59 of them are the names whose snapshot has no
+`high_prox` either — the same missing datum from the same upstream, visible in both places.
+
+**IT WAS INVISIBLE BEFORE THIS CHANGE, NOT ABSENT.** At a budget of 12 the sampled names happened
+to carry a high, so `n_unmeasured` read 0 and the live check's "dip has no unmeasured names"
+passed. Serving the whole set is what surfaced it.
+
+**TWO CONSEQUENCES, BOTH FIXED HERE.**
+
+* **`valued` IS NOT `usable`, and reporting only the first reads as coverage.** `failed: 0` was
+  true and "210 valued" implied 210 usable. The precompute's shape now carries `with_drawdown` and
+  `no_drawdown`, and the scan prints both. The COVERAGE RULE's own shape: a number with no
+  denominator beside it.
+* **THE LIVE CHECK STOPPED DEMANDING ZERO.** That assertion would now fail every day for a reason
+  no change to this product can fix — it demands the upstream feed be complete. What the check is
+  FOR is the partial wiring failure (229 names once raised the same error and each was counted
+  "unmeasured"), and that shows as unmeasured EQUALLING the qualifying set. So it now asserts the
+  counter is present and is not the whole population, and prints `90 of 210` either way. **The
+  identity above is what proves nothing is lost; this is the separate claim that something was
+  actually measured.**
+
+**REPORTED, NOT FIXED — A REAL COVERAGE LIMIT ON THIS SCREEN.** 90 of 210 qualifying names have no
+52-week high from either the scan or the engine, so **the screen can only ever show rows for the
+other 120**, however the budget is spent. That is an upstream gap in `prices.get_quote` /
+`broker_universe`, not a dip defect, and it bounds what this tab can be. It is now a printed number
+on every scan and in every payload rather than something a reader would have to infer.
+
+## A DEFECT IN MY OWN TEST SELECTOR, CAUGHT BY THE SUITE
+
+Three of the rewritten live-check tests picked their line with `if "unmeasured" in ln`, and the new
+IDENTITY line contains that word too — so the assertions landed on a different check and failed
+against correct code. The wrong-object family, in a test selector. They select by the check's NAME
+now, through one helper.
+
+## THE FINAL LIVE RUN
+
+`python scripts/live_check.py --base https://valquo.co` → **28 passed, 0 failed, 1 skipped, exit 0**:
+
+```
+PASS  dip serves every qualifying name   210 qualifying = 30 rows + 90 unmeasured + 87 health
+                                         + 3 shallow (source precomputed, 6 rejected earlier
+                                         by row-level checks)
+PASS  dip returns rows at 10% depth      30 rows
+PASS  dip reports its unmeasured names   n_unmeasured 90 of 210 qualifying (no 52-week high, so
+                                         no drawdown is computable for them from either source)
+PASS  Index track has the last session   row for 2026-10-05; 2026-10-06 is not due until
+                                         2026-10-07 12:00 UTC (the writer runs the next morning)
+PASS  theme contributes: insider         0.86
+```
+
+The one skip is `/api/signals` outside market hours and names its reason. **The track-row line is
+now a meaningful PASS rather than a skip**: it asserts the previous session's row exists and states
+when the next one falls due.
+
 ## (a) THE LIVE CHECK NOW ASSERTS AN IDENTITY, WHICH A DISCLOSURE CANNOT SATISFY
 
 Every name the screen values ends in exactly one of four places, so:
