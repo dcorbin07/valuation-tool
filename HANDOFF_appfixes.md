@@ -278,7 +278,14 @@ recording as an ordering fact for the next person who fixes a theme and checks t
 surface: **the cache and the hot list are two clocks, and the cache moving does not move the
 list until the list is rebuilt.**
 
-## THE MEASUREMENT BUDGET WAS RAISED 12 -> 18, AND THE NEW SCAN IS WHY
+## THE MEASUREMENT BUDGET WAS RAISED 12 -> 18 AND THEN REVERTED, BY MEASUREMENT
+
+**READ THE REVERSAL AT THE END OF THIS SECTION BEFORE THE ARGUMENT IN IT.** The raise
+shipped and was reverted the same day. The reasoning below is kept verbatim because it
+is the record of a specific mistake -- tuning against one cell at a threshold that is
+not the page's default -- and that is the third time in this item a partial reading
+pointed the wrong way.
+
 
 The dip fix is confirmed on two different scans, and the second one made the budget question
 decidable rather than a matter of taste. On the 2026-10-06 scan (245 eligible, 223 qualifying):
@@ -323,6 +330,42 @@ buys nothing; across three thresholds it buys +2 at two of them. Then I said the
 stay at 12 and the trade-off was Don's. **The next scan returned 0 rows at the default
 threshold**, which is not a trade-off — it is the feature not working — so the call changed on
 evidence rather than on preference.
+
+### WHAT REVERSED IT
+
+**TWO FACTS, EITHER OF WHICH IS SUFFICIENT.**
+
+**(1) 0.10 IS NOT THE SETTING THE PAGE OPENS ON.** It is `MIN_DRAWDOWN_FLOOR`, the bottom of
+the slider. `index.html` carries `<option value="0.20" selected>`, and `DEFAULT_MIN_DRAWDOWN`
+is 0.20 -- where the raise took rows from **2 to 1**. The whole justification was measured at a
+threshold almost nobody sees, and it cost a row at the one they do.
+
+**(2) ACROSS ALL FOUR THRESHOLDS ON ONE SCAN THE TOTALS ARE IDENTICAL.**
+
+| budget | valued | health-rejected | **rows** | survival |
+|---|---|---|---|---|
+| 12 | 48 | 35 | **10** | 0.271 |
+| 18 | 72 | 59 | **10** | 0.181 |
+
+**50% more valuations bought ZERO additional rows**, at ~18-28 seconds on the first request of
+each cache window. Per threshold: 12 gives 0 / 2 / 4 / 4 and 18 gives 4 / 1 / 1 / 4 — the same
+2.50 average, redistributed. **The row count is not monotone in the budget**, because raising it
+moves WHICH names the spread samples, and at a survival rate near a sixth that reshuffles the
+survivors instead of adding any.
+
+**SO THE THINNESS IS NOT THE BUDGET AND NEVER WAS.** 59 of 72 valued names fail the published
+health floors. Healthy companies trading far below their own high are rare, and no affordable
+number of valuations changes that — which is the sentence the earlier "this is Don's call"
+paragraph was groping for and got wrong in the other direction. `?shortlist=` still reaches
+`MAX_SHORTLIST` for anyone willing to pay the latency.
+
+**THE PORTABLE PART, AND IT IS THE THIRD INSTANCE IN ONE ITEM.** A fidelity figure on a
+29%-complete crawl said +0.0596 and the full crawl said -0.0059. A budget reading at 0.20 alone
+said the budget buys nothing and three thresholds said it buys two rows. A budget reading at
+0.10 alone said 18 is the knee and four thresholds said there is no knee. **Every one of the
+three was a single cell presented as a curve, and the third one shipped.** The tests now pin
+both the reverted value and the fact that 0.20 is the default, so the next reader cannot repeat
+the tuning-against-the-floor error without going red.
 
 ## THREE DEFECTS THE FULL GATE CAUGHT THAT MY OWN VERIFICATION DID NOT, AND THE FIRST IS THE HARNESS
 

@@ -127,26 +127,35 @@ MIN_DRAWDOWN_CEIL = 0.40
 #: MODULE THAT TOUCHES A COMPANY" below for why it is bounded at all, and `MAX_SHORTLIST` for
 #: the ceiling a caller may raise it to.
 #:
-#: RAISED 12 -> 18 ON 2026-10-06, AND THE NUMBER IS THE MEASURED KNEE RATHER THAN A PREFERENCE.
-#: The comment that stood here justified 12 by the exact `z_high_prox` ordering -- "these are
-#: the N most drawn-down eligible names, not a sample of them" -- and that stopped being true
-#: when item 33 changed the allocation to SPREAD the budget across the qualifying depth range
-#: so the rows span what the caller asked for. Spread over 223 qualifiers, 12 IS a sample, and
-#: a 5% sample against a health-survival rate near a third returns nothing fairly often.
+#: RAISED TO 18 ON 2026-10-06 AND REVERTED TO 12 THE SAME DAY, BY MEASUREMENT. The raise is
+#: recorded rather than erased because the reasoning that produced it was wrong in a way worth
+#: not repeating.
 #:
-#: Measured on the live service at `min_drawdown` 0.10, the setting the page opens on
-#: (2026-10-06 scan, 245 eligible / 223 qualifying):
+#: THE ARGUMENT FOR RAISING IT WAS SOUND AND ITS EVIDENCE WAS ONE CELL. The comment that stood
+#: here justified 12 by the exact `z_high_prox` ordering -- "the N MOST drawn-down eligible
+#: names, not a sample of them" -- and that genuinely stopped being true when item 33 changed
+#: the allocation to SPREAD the budget across the qualifying depth range. Spread over 223
+#: qualifiers, 12 IS a sample. At `min_drawdown` 0.10, 12 returned 0 rows and 18 returned 4,
+#: which looked like a knee.
 #:
-#:     shortlist 12 ->  0 rows   (12 of 12 valued names fail the health floors)
-#:     shortlist 18 ->  4 rows   18.1s cold
-#:     shortlist 25 ->  4 rows   17.9s cold
+#: TWO THINGS KILLED IT. First, 0.10 is the slider's FLOOR, not the default: `index.html` marks
+#: `value="0.20"` as `selected`, so the threshold the page opens on is 0.20 -- where the raise
+#: took rows from 2 to **1**. Second, across all four thresholds on one scan the totals are
+#: identical:
 #:
-#: So 18 is where the rows appear and 25 buys nothing beyond it at the same latency. The cost
-#: is ~18s on the FIRST request of each cache window and **0.4s warm**, because these
-#: valuations share the single-name page's TTL cache -- so a reader who opens one name has
-#: warmed the other. A screen that shows nothing at its own default setting is not a working
-#: feature, which is what decided this against the latency.
-DEFAULT_SHORTLIST = 18
+#:     shortlist 12 -> 48 valued, 35 health-rejected, 10 rows   survival 0.271
+#:     shortlist 18 -> 72 valued, 59 health-rejected, 10 rows   survival 0.181
+#:
+#: **50% more valuations bought ZERO additional rows**, at ~18-28s on the first request of each
+#: cache window. The row count is not monotone in the budget: raising it moves WHICH names the
+#: spread samples, and with a health-survival rate near a sixth that reshuffles the survivors
+#: instead of adding any.
+#:
+#: SO THE THINNESS IS NOT THE BUDGET. Healthy companies trading far below their own high are
+#: genuinely rare -- 59 of 72 valued names fail the published health floors -- and no
+#: affordable number of valuations changes that. `?shortlist=` still reaches `MAX_SHORTLIST`
+#: for anyone who wants to pay the latency.
+DEFAULT_SHORTLIST = 12
 MAX_SHORTLIST = 25
 
 

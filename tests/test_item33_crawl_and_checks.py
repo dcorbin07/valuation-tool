@@ -262,34 +262,50 @@ class AWithheldValuationKeepsTheName(unittest.TestCase):
         self.assertIn("2 of those", self.p["preselect_note"])
 
 
-class TheMeasurementBudgetIsTheMeasuredKnee(unittest.TestCase):
-    """`DEFAULT_SHORTLIST` 12 -> 18, and the number is measured rather than preferred.
+class TheMeasurementBudgetStaysAtTwelve(unittest.TestCase):
+    """Raised to 18 and reverted the same day, because 50% more valuations bought no rows.
 
-    The old comment justified 12 by the exact ordering -- "the N MOST drawn-down eligible
-    names, not a sample of them" -- and item 33 changed the allocation to SPREAD the budget
-    across the qualifying range so the rows span what the caller asked for. Spread over 223
-    qualifiers, 12 IS a sample. Live at `min_drawdown` 0.10 on the 2026-10-06 scan:
-    12 -> 0 rows, 18 -> 4 rows (18.1s cold), 25 -> 4 rows (17.9s cold).
+    Across all four thresholds on one scan: 12 -> 48 valued / 10 rows, 18 -> 72 valued /
+    10 rows. The row count is NOT monotone in the budget -- raising it moves which names the
+    spread samples, and at a health-survival rate near a sixth that reshuffles the survivors
+    rather than adding any. The raise also rested on `min_drawdown` 0.10, which is the
+    slider's FLOOR; `index.html` marks 0.20 as `selected`, and there the raise cost a row.
     """
 
-    def test_the_default_is_the_measured_knee(self):
-        self.assertEqual(dip.DEFAULT_SHORTLIST, 18)
+    def test_the_default_is_twelve(self):
+        self.assertEqual(dip.DEFAULT_SHORTLIST, 12)
 
     def test_the_default_never_exceeds_the_ceiling(self):
         """A default above `MAX_SHORTLIST` would be silently clamped by the route, so the
         module and the surface would disagree about what the page asked for."""
         self.assertLessEqual(dip.DEFAULT_SHORTLIST, dip.MAX_SHORTLIST)
 
-    def test_the_reason_travels_with_the_constant(self):
-        """The measurement is the justification, so it has to be readable where the number is.
+    def test_the_page_opens_on_the_module_default_not_the_floor(self):
+        """The fact that falsified the raise, pinned so the next reader does not repeat it.
 
-        A bare `DEFAULT_SHORTLIST = 18` invites the next reader to lower it for latency
-        without knowing that 12 returned nothing at the setting the page opens on.
+        I justified a budget change by what happens at 0.10 "the setting the page opens on".
+        It is not: 0.10 is `MIN_DRAWDOWN_FLOOR` and the template selects 0.20. Tuning against
+        the floor tunes against a setting almost nobody sees.
+        """
+        import io
+        self.assertEqual(dip.DEFAULT_MIN_DRAWDOWN, 0.20)
+        self.assertEqual(dip.MIN_DRAWDOWN_FLOOR, 0.10)
+        self.assertNotEqual(dip.DEFAULT_MIN_DRAWDOWN, dip.MIN_DRAWDOWN_FLOOR)
+        tpl = os.path.join(os.path.dirname(dip.__file__), "templates", "index.html")
+        html = io.open(tpl, encoding="utf-8").read()
+        self.assertIn('<option value="%.2f" selected>' % dip.DEFAULT_MIN_DRAWDOWN, html,
+                      "the page's selected threshold must be the module's default")
+
+    def test_the_reverted_raise_is_recorded_rather_than_erased(self):
+        """The measurement that reversed it has to be readable where the number is.
+
+        A bare `DEFAULT_SHORTLIST = 12` invites the next reader to raise it for more rows
+        without knowing that was tried and bought none.
         """
         import io
         src = io.open(dip.__file__, encoding="utf-8").read()
-        head = src[:src.index("DEFAULT_SHORTLIST = 18")]
-        for needle in ("shortlist 12 ->  0 rows", "shortlist 18 ->  4 rows", "warm"):
+        head = src[:src.index("DEFAULT_SHORTLIST = 12")]
+        for needle in ("REVERTED TO 12", "ZERO additional rows", "not monotone"):
             self.assertIn(needle, head, needle)
 
 
