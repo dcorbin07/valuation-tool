@@ -197,41 +197,84 @@ def check_dip(base, rep):
     capped = d.get("capped")
     rep.ok("dip detector reachable", "HTTP 200, %d eligible" % elig)
 
-    # REPOINTED 2026-10-06. This asked that `n_measured >= n_eligible` -- that the screen value
-    # EVERY eligible name -- and the design forbids it: `dip.MAX_SHORTLIST` is 25 and a
-    # valuation is a real cost on a 512 MB instance. So it could never pass, and a check that
-    # cannot pass is one a reader learns to scroll past. It went red on 2026-10-06 beside two
-    # genuine failures and added nothing to either.
+    # REPOINTED AGAIN 2026-10-07, AND THE PREVIOUS VERSION IS WHY. It asserted that the budget
+    # was spent on names that QUALIFY and that the shortfall was REPORTED -- both true of the
+    # broken state, so it printed "PASS dip spends its budget on qualifying names - 12 of 218
+    # qualifiers valued, 206 reported as capped" while the page showed two rows. **A check that
+    # passes on the state it was written to catch is worse than no check**, because it is read
+    # as evidence the thing works. That is the defect this whole file exists to prevent, and I
+    # wrote it into the file.
     #
-    # The defect it was written for is still real -- the screen measured 12 of 242 and the page
-    # reported the result as coverage of a market -- but the property that catches it is that
-    # the budget is spent on names that QUALIFY and the shortfall is REPORTED, not that the
-    # budget is unbounded. `n_qualified_on_depth` is the figure item 23 added for exactly this.
+    # THE REAL PROPERTY IS AN IDENTITY OVER THE QUALIFYING SET, AND IT CANNOT BE SATISFIED BY A
+    # DISCLOSURE. Every name the screen values ends in exactly one of four places, so:
+    #
+    #     n_qualified_on_depth == rows + n_unmeasured + rejected_health + rejected_shallow
+    #
+    # with `capped` ZERO. A capped screen fails it by construction, which is the point: the
+    # nightly precompute serves the whole qualifying set and nothing can be dropped quietly.
+    #
+    # `rejected_checks` IS DELIBERATELY NOT IN THE IDENTITY, and the task's wording includes it.
+    # That counter is the ROW-LEVEL site -- rows the SNAPSHOT refused, rejected while the
+    # eligible set is being formed and before anything qualifies on depth -- so adding it would
+    # make the identity wrong by exactly its value and the check would fail on a correct screen.
+    # It is printed beside the identity instead.
     qual = d.get("n_qualified_on_depth")
-    if qual is None:
-        rep.bad("dip spends its budget on qualifying names",
-                "the payload carries no n_qualified_on_depth, so the two-stage path is off")
-    elif meas <= 0:
-        rep.bad("dip spends its budget on qualifying names",
-                "%d qualified on depth and NOTHING was valued" % qual)
-    elif capped is None:
-        rep.bad("dip spends its budget on qualifying names",
-                "%d of %d qualifiers valued and the shortfall is not reported" % (meas, qual))
+    parts = {k: d.get(k) for k in ("n_unmeasured", "rejected_health", "rejected_shallow")}
+    missing = [k for k, v in parts.items() if v is None]
+    if qual is None or missing:
+        rep.bad("dip serves every qualifying name",
+                "the payload cannot be checked: n_qualified_on_depth=%s, missing %s"
+                % (qual, ", ".join(missing) or "nothing"))
+    elif capped:
+        rep.bad("dip serves every qualifying name",
+                "%s of %s qualifiers valued and %s CAPPED -- the request is still spending a "
+                "budget instead of serving the nightly precompute (dip_source=%s)"
+                % (meas, qual, capped, d.get("dip_source")))
     else:
-        rep.ok("dip spends its budget on qualifying names",
-               "%d of %d qualifiers valued, %s reported as capped" % (meas, qual, capped))
+        total = rows + parts["n_unmeasured"] + parts["rejected_health"] \
+            + parts["rejected_shallow"]
+        detail = ("%s qualifying = %s rows + %s unmeasured + %s health + %s shallow "
+                  "(source %s, %s rejected earlier by row-level checks)"
+                  % (qual, rows, parts["n_unmeasured"], parts["rejected_health"],
+                     parts["rejected_shallow"], d.get("dip_source"), d.get("rejected_checks")))
+        if total == qual:
+            rep.ok("dip serves every qualifying name", detail)
+        else:
+            rep.bad("dip serves every qualifying name",
+                    "the counts do not add up: %s != %s -- %s" % (total, qual, detail))
 
     if rows:
         rep.ok("dip returns rows at 10% depth", "%d rows" % rows)
     else:
         rep.bad("dip returns rows at 10% depth", "0 rows from %d eligible" % elig)
 
-    # An unmeasured name is not a name that failed; the page must never read the two as one.
+    # REPOINTED 2026-10-07. This demanded `n_unmeasured` be ZERO, which passed only because the
+    # screen valued 12 names per request and those 12 happened to carry a 52-week high. Serving
+    # the whole qualifying set makes the real figure visible: 90 of 210 on the 2026-10-06 scan
+    # carry NO drawdown, 59 of them the names whose snapshot has no `high_prox` either -- the
+    # same missing datum from the same upstream, showing in both places.
+    #
+    # DEMANDING ZERO IS DEMANDING THE FEED BE COMPLETE, so it would now fail every day for a
+    # reason no change to this product can fix. What the check is FOR is the partial wiring
+    # failure -- 229 names once raised the same error and each was counted "unmeasured", which
+    # read as a data gap -- and that shows as unmeasured EQUALLING the qualifying set. So the
+    # property is: the counter is present, and it is not the whole population.
+    #
+    # The identity above already proves nothing is lost; this is the separate claim that
+    # something was actually measured.
     un = d.get("n_unmeasured")
-    if un in (0, None):
-        rep.ok("dip has no unmeasured names", "n_unmeasured %s" % un)
+    if un is None:
+        rep.bad("dip reports its unmeasured names",
+                "n_unmeasured is absent, so an unmeasured name cannot be told from a name that "
+                "is not in a drawdown")
+    elif qual and un >= qual:
+        rep.bad("dip reports its unmeasured names",
+                "every one of the %s qualifying names came back unmeasured -- that is a wiring "
+                "failure, not a data gap" % qual)
     else:
-        rep.bad("dip has no unmeasured names", "n_unmeasured %s" % un)
+        rep.ok("dip reports its unmeasured names",
+               "n_unmeasured %s of %s qualifying (no 52-week high, so no drawdown is computable "
+               "for them from either source)" % (un, qual))
 
 
 def _render_card(payload):
@@ -338,19 +381,43 @@ def check_index(base, rep):
                    "%d chars, none of %d banned strings" % (len(card_text), len(BANNED_IN_CARD)))
 
 
-#: When a session's track row falls due: the morning after, past the backup cron.
+#: When a session's track row falls due: NOON UTC the morning after.
 #:
-#: `track-row.yml` schedules 03:07 and 04:37 UTC on Tue-Sat. 05:30 is the later of those plus a
-#: margin for a slow GitHub scheduler, which routinely delays free runs -- the same reason that
-#: workflow has a backup cron at all. Earlier than this, a missing row means "not yet written";
-#: later, it means "not written", and only the second is a failure.
-TRACK_ROW_DUE_UTC_HOUR = 5
-TRACK_ROW_DUE_UTC_MINUTE = 30
+#: `track-row.yml` schedules 03:07 and 04:37 UTC on Tue-Sat, and GitHub's free scheduler delays
+#: those routinely -- measured delivery is 09:00-11:00 UTC, which is why that workflow carries a
+#: backup cron at all. An earlier deadline (05:30 was the first cut here) is the cron time rather
+#: than the DELIVERY time, so it still fires most mornings on a writer that is working.
+#:
+#: 12:00 is past the observed delivery window with room. Before it, the last session's row is
+#: NOT YET DUE and the check falls back to requiring the session BEFORE it -- which keeps the
+#: check asserting something rather than skipping, so a writer that stopped a week ago is still
+#: caught at 02:00.
+TRACK_ROW_DUE_UTC_HOUR = 12
+TRACK_ROW_DUE_UTC_MINUTE = 0
 
 
 def _utcnow():
     import datetime as _d
     return _d.datetime.now(_d.timezone.utc)
+
+
+def _previous_session(session):
+    """The trading session before `session`, from the project's own market calendar.
+
+    `MS.last_closed_session` is the only authority on which days are sessions -- it knows the
+    holidays -- so stepping back a weekday by hand here would be a second, wrong calendar, and
+    wrong exactly on the mornings a false alarm is least welcome (the day after a holiday). That
+    function already walks backwards past weekends and holidays, so asking it once from late on
+    the day before the session is the whole answer.
+    """
+    import datetime as _d
+    if session is None:
+        return None
+    # 23:00 UTC is after the ET close, so "the last session closed by then" is the day before
+    # when it traded, and the trading day before that when it did not.
+    return MS.last_closed_session(
+        _d.datetime.combine(session - _d.timedelta(days=1), _d.time(23, 0),
+                            tzinfo=_d.timezone.utc))
 
 
 def _track_row_due_after(session):
@@ -376,23 +443,30 @@ def check_index_track(base, rep, session):
         rep.ok("Index track has the last session", "row for %s" % want)
         return
 
-    # A ROW IS NOT MISSING UNTIL IT IS DUE, and this check demanded it an hour early.
+    # A ROW IS NOT MISSING UNTIL IT IS DUE -- and a check that SKIPS instead asserts nothing.
     #
-    # `track-row.yml` runs at 03:07 and 04:37 UTC Tue-Sat -- the MORNING AFTER a session, since
-    # a row needs that session's close. Run at 02:05 UTC this reported FAIL for a session whose
-    # writer had not been scheduled yet, which is `PT-GAPDUE` exactly: `gap_report` counted the
-    # current day as due from midnight and a writer holding every row it could possibly have
-    # written still read false on 11 of 11 trading-day mornings. A red light that is loud on a
-    # public surface has to be right about WHEN.
+    # `track-row.yml` runs at 03:07 and 04:37 UTC Tue-Sat (the morning AFTER a session, since a
+    # row needs that session's close) and GitHub delivers those 09:00-11:00. Demanding the last
+    # session's row at 02:15 UTC is `PT-GAPDUE` exactly: `gap_report` counted the current day as
+    # due from midnight, and a writer holding every row it could possibly have written still
+    # read false on 11 of 11 trading-day mornings.
     #
-    # The deadline is derived from the schedule plus a margin rather than from the cron literal,
-    # because duplicating the cron here is a second copy of the writer's timetable. Past it, a
-    # missing row is a genuine failure and still fails.
+    # BEFORE THE DEADLINE THE CHECK FALLS BACK TO THE SESSION BEFORE, RATHER THAN SKIPPING.
+    # The first cut of this skipped, and a skip before noon every day is a check that asserts
+    # nothing for half its runs -- a writer that died a week ago would pass. The previous
+    # session's row IS due by then, so there is always something to assert.
     due = _track_row_due_after(session)
     if due is not None and _utcnow() < due:
-        rep.skip("Index track has the last session",
-                 "no row for %s yet; the writer runs 03:07/04:37 UTC the next morning, so this "
-                 "is not due until %s UTC" % (want, due.strftime("%Y-%m-%d %H:%M")))
+        prev = _previous_session(session)
+        pw = prev.isoformat() if prev else None
+        if pw and pw in dates:
+            rep.ok("Index track has the last session",
+                   "row for %s; %s is not due until %s UTC (the writer runs the next morning)"
+                   % (pw, want, due.strftime("%Y-%m-%d %H:%M")))
+        else:
+            rep.bad("Index track has the last session",
+                    "no row for %s EITHER, and that one was due at %s UTC; latest is %s"
+                    % (pw, due.strftime("%Y-%m-%d %H:%M"), dates[-1] if dates else "(none)"))
     else:
         rep.bad("Index track has the last session",
                 "no row for %s; latest is %s" % (want, dates[-1] if dates else "(none)"))

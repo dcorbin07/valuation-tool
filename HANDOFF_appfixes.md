@@ -5,6 +5,259 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 82 — 2026-10-07 — ITEM 35: the dip screen serves a nightly precompute, and the check that passed on the broken state
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict against a threshold. `by_domain` untouched.
+
+**THE PART TO READ FIRST IS NOT THE FIX, IT IS WHY THE PREVIOUS FIX LOOKED LIKE ONE.** Item 34(a)
+asked for the qualifying names to be valued AHEAD of time. Item 33 instead raised the per-request
+budget, measured that it bought nothing, reverted it — and repointed the live check to assert that
+*"the budget is spent on names that qualify and the shortfall is reported"*. Both halves of that
+are TRUE of a screen serving 2 rows out of 218, so the daily run printed
+
+```
+PASS  dip spends its budget on qualifying names    12 of 218 qualifiers valued, 206 reported as capped
+```
+
+**A check that passes on the state it was written to catch is worse than no check**, because it is
+read as evidence the thing works. That is the defect `live_check.py` exists to prevent and I wrote
+it into the file. It is the second time in two items that one of my own assertions was mis-specified
+in the same direction.
+
+## (a) THE VALUATIONS MOVE TO THE SCAN, AND A REQUEST NOW SPENDS NOTHING
+
+**WHY THE BUDGET WAS NEVER THE LEVER.** The cost is PER REQUEST, so any affordable cap serves a
+fraction of the qualifying set. Measured on 2026-10-06: 12 → 18 valued the same 10 rows across
+four thresholds, at 18–28 s of cold latency. The qualifying set is ~220 names; the only way to
+serve it is to stop paying per request.
+
+**THE SCAN JOB HAS THE BUDGET AND IS NOT USING IT.** The 2026-10-06 hot run took **21 m 21 s
+against a 90-minute timeout** — 69 minutes idle. Measured per-name cost of a real valuation on six
+live names: **1.67 s median** (MSFT 2.71, AGI 1.61, PEGA 1.67, LVS 1.51, STRL 1.73, COCO 1.53), so
+**220 names at 6 workers ≈ 1.0 minute**. At the runner's own slower figure for the same upstream
+feed (`_screen_refusals` measures 2.51 s/name) it is ≈ 1.5 minutes. It fits with two orders of
+magnitude of margin, and the scan prints the real figure every run.
+
+**THE PRECOMPUTE ASKS `screen` WHICH NAMES IT WOULD VALUE RATHER THAN RE-DERIVING THE RULE.**
+`screen` now reports `measured_tickers`, and `qualifying_tickers()` is a dry run with
+`measure=lambda r: None` and `shortlist=0` — `screen`'s own unbounded mode, which already existed.
+The selection is four stages deep (row-level checks, the cross-sectional prefilter, the free depth
+threshold with its slack, the spread across qualifiers) and **every one of those has been got
+wrong once already**. A second copy would drift, and the drift would be invisible: the cache would
+simply miss names, and a miss is reported as `n_unmeasured`, which reads as a data gap.
+
+**ONE PASS AT THE FLOOR SERVES THE WHOLE SLIDER, and that is a property rather than a hope.** The
+depth test is `cheap_drawdown(r) >= min_drawdown - PRESELECT_SLACK`, monotone in the threshold, and
+the depth-UNKNOWN names are kept at every position — so the qualifying set at 0.10 is a SUPERSET of
+the set at any higher setting. Pinned by a test that walks 0.15 → 0.40 and requires containment.
+
+**THE SERVE PATH.** `screen_snapshot` reads the cache itself (`dip.stored_cache(store)`) rather
+than making each caller fetch it, because it has FOUR callers — the page, the Discord digest, the
+SaaS worker and a fleet book — and a digest pushing the bounded 12-name screen while the page
+served 220 is the Index-versus-hot-list disagreement again, **outbound**, where nobody sees it
+until it has been sent. With a usable cache it screens at `shortlist=0`, so `capped` is 0 and every
+qualifier is measured.
+
+**FOUR REFUSALS, EACH FOR A MEASURED REASON.**
+* a cache from **another scan** is refused — serving it returns measurements at a different date's
+  prices with nothing in the payload saying so;
+* an **empty** cache is refused — it would report every name unmeasured, which looks identical to a
+  screen that could not measure anything, the sentence item 19 exists to stop;
+* a cache **miss is never a live valuation** — a request that quietly values a miss can spend an
+  unbounded budget on a cold cache, which is the thing this removes;
+* a **wiring error is not swallowed** — `engine_measure`'s own rule, after 229 names raised the
+  identical error and each was counted as "unmeasured".
+
+**AND THE FALLBACK SAYS WHY IT FELL BACK.** `dip_source` is `precomputed` or `live`, and on `live`
+the payload names the reason — no cache stored, cache empty, or the scan it describes. "No scan has
+a cache yet" and "the cache is for yesterday's scan" need different actions.
+
+**A DEFECT I FOUND BEFORE IT COULD BITE, AND IT WOULD HAVE BEEN MILD AND MISLEADING.**
+`screen.py:794` is explicit that `estimate_fair_values` runs at SERVE time, not in the scan, and
+`screen_snapshot` runs it and `withhold_implausible_fair_values` before screening — both of which
+set the publication flags `disqualifier_checks` reads. Precomputing from the raw scan rows would
+have selected a DIFFERENT population from the one served, and the symptom would have been the
+missing names arriving as `n_unmeasured`. The scan now applies both passes **on a deep copy**,
+because they mutate `fair_value`, `upside` and the withheld flags and `rows` is what gets POSTed:
+building the cache must not change the snapshot.
+
+**THE CACHE TRAVELS IN THE SAME CALL AS THE ROWS IT DESCRIBES.** A separate door would let the two
+disagree about which scan they describe. Arriving together, the `scan_date` inside the cache is the
+snapshot's by construction — and `usable_cache` checks it anyway, because "by construction" is what
+every one of this project's silent mismatches was. Never fatal at either end: a snapshot that fails
+to land is a dead product surface, a cache that fails to build costs the old bounded path, and the
+two must not share a failure.
+
+## LIVE VERIFICATION — 77.3 SECONDS IN THE SCAN, AND THE SCREEN GOES 2 ROWS TO 30
+
+Hot run **37568069068** on `main`, the first with the precompute:
+
+```
+  scored 1491 names from a universe of 1500
+  dip precompute: 210 of 210 qualifying names valued in 77.3s at 6 workers
+  ingest /admin/ingest-snapshot: 200 {"dip_cache":{"shape":{"failed":0,"failed_tickers":[],
+      "qualifying":210,"seconds":77.2,"valued":210,"workers":6},"stored":210}, ...}
+  dip cache on the service: {'shape': {...'qualifying': 210, 'seconds': 77.2, 'valued': 210,
+      'workers': 6}, 'stored': 210}
+```
+
+**77.3 SECONDS, ZERO FAILURES, AND THE WHOLE JOB CAME IN AT 20m13s — SHORTER THAN THE 21m21s RUN
+BEFORE IT.** The estimate from six local names was 1.0–1.5 minutes; measured 1.29. The 90-minute
+timeout is not remotely in play, and the scan prints the figure every run so nobody has to trust
+this paragraph.
+
+`GET /api/dip?min_drawdown=<t>` on the live service, `source=precomputed` at every setting:
+
+| threshold | eligible | qualified | valued | **rows** | capped | latency | identity |
+|---|---|---|---|---|---|---|---|
+| 0.10 | 230 | 210 | **210** | **30** (was 2) | **0** | 0.5 s | HOLDS |
+| 0.20 | 230 | 158 | **158** | **24** (was 3) | **0** | 0.6 s | HOLDS |
+| 0.30 | 230 | 121 | **121** | **16** | **0** | 0.4 s | HOLDS |
+| 0.40 | 230 | 96 | **96** | **8** | **0** | 0.5 s | HOLDS |
+
+**Every qualifier is measured, nothing is capped, and a request values NOTHING** — sub-second at
+every threshold. The rows span the range asked for (0.20 returns 24 names from −20.7% to −62.0%).
+
+## THE 90 UNMEASURED NAMES ARE REAL, AND THEY MADE ME FIX TWO MORE THINGS
+
+At 0.10 the identity reads `210 qualifying = 30 rows + 90 unmeasured + 87 health + 3 shallow`. **90
+of 210 is a big number and my first reading of it was wrong** — I took it for a cache mismatch, 59
+of it being exactly `n_depth_unknown_kept`. It is not: `dip_cache_shape.qualifying` is 210 and the
+serve path's `n_qualified_on_depth` is 210, the same set.
+
+**THE CAUSE, MEASURED RATHER THAN REASONED.** `measurement_from` returns a dict for any real
+result, with `drawdown: None` when the company carries no 52-week high — verified directly on a
+stub with `price_52w_high = None`. `screen` then counts that row `n_unmeasured`, which is correct:
+a name whose drawdown nobody can compute is not a name in a drawdown. So these are **real
+valuations the screen cannot turn into rows**, and 59 of them are the names whose snapshot has no
+`high_prox` either — the same missing datum from the same upstream, visible in both places.
+
+**IT WAS INVISIBLE BEFORE THIS CHANGE, NOT ABSENT.** At a budget of 12 the sampled names happened
+to carry a high, so `n_unmeasured` read 0 and the live check's "dip has no unmeasured names"
+passed. Serving the whole set is what surfaced it.
+
+**TWO CONSEQUENCES, BOTH FIXED HERE.**
+
+* **`valued` IS NOT `usable`, and reporting only the first reads as coverage.** `failed: 0` was
+  true and "210 valued" implied 210 usable. The precompute's shape now carries `with_drawdown` and
+  `no_drawdown`, and the scan prints both. The COVERAGE RULE's own shape: a number with no
+  denominator beside it.
+* **THE LIVE CHECK STOPPED DEMANDING ZERO.** That assertion would now fail every day for a reason
+  no change to this product can fix — it demands the upstream feed be complete. What the check is
+  FOR is the partial wiring failure (229 names once raised the same error and each was counted
+  "unmeasured"), and that shows as unmeasured EQUALLING the qualifying set. So it now asserts the
+  counter is present and is not the whole population, and prints `90 of 210` either way. **The
+  identity above is what proves nothing is lost; this is the separate claim that something was
+  actually measured.**
+
+**REPORTED, NOT FIXED — A REAL COVERAGE LIMIT ON THIS SCREEN.** 90 of 210 qualifying names have no
+52-week high from either the scan or the engine, so **the screen can only ever show rows for the
+other 120**, however the budget is spent. That is an upstream gap in `prices.get_quote` /
+`broker_universe`, not a dip defect, and it bounds what this tab can be. It is now a printed number
+on every scan and in every payload rather than something a reader would have to infer.
+
+## A DEFECT IN MY OWN TEST SELECTOR, CAUGHT BY THE SUITE
+
+Three of the rewritten live-check tests picked their line with `if "unmeasured" in ln`, and the new
+IDENTITY line contains that word too — so the assertions landed on a different check and failed
+against correct code. The wrong-object family, in a test selector. They select by the check's NAME
+now, through one helper.
+
+## THE FINAL LIVE RUN
+
+`python scripts/live_check.py --base https://valquo.co` → **28 passed, 0 failed, 1 skipped, exit 0**:
+
+```
+PASS  dip serves every qualifying name   210 qualifying = 30 rows + 90 unmeasured + 87 health
+                                         + 3 shallow (source precomputed, 6 rejected earlier
+                                         by row-level checks)
+PASS  dip returns rows at 10% depth      30 rows
+PASS  dip reports its unmeasured names   n_unmeasured 90 of 210 qualifying (no 52-week high, so
+                                         no drawdown is computable for them from either source)
+PASS  Index track has the last session   row for 2026-10-05; 2026-10-06 is not due until
+                                         2026-10-07 12:00 UTC (the writer runs the next morning)
+PASS  theme contributes: insider         0.86
+```
+
+The one skip is `/api/signals` outside market hours and names its reason. **The track-row line is
+now a meaningful PASS rather than a skip**: it asserts the previous session's row exists and states
+when the next one falls due.
+
+## (a) THE LIVE CHECK NOW ASSERTS AN IDENTITY, WHICH A DISCLOSURE CANNOT SATISFY
+
+Every name the screen values ends in exactly one of four places, so:
+
+```
+n_qualified_on_depth == rows + n_unmeasured + rejected_health + rejected_shallow      capped == 0
+```
+
+A capped screen fails it by construction, which is the point. **`rejected_checks` is deliberately
+NOT in the identity and the task's wording includes it** — that counter is the ROW-LEVEL site,
+rows the snapshot refused while the eligible set is being formed and before anything qualifies on
+depth, so adding it would make the identity wrong by exactly its value and fail a correct screen.
+It is printed beside the identity instead. The test suite drives the exact live payload the old
+check passed on and requires a FAIL.
+
+## (b) THE TRACK-ROW CHECK: A FALLBACK, NOT A SKIP
+
+`track-row.yml` crons at 03:07 and 04:37 UTC Tue–Sat and GitHub delivers 09:00–11:00, so demanding
+the last session's row at 02:15 is `PT-GAPDUE` again. My first cut set the deadline at **05:30** —
+the cron time plus a margin, not the DELIVERY time — so it would still have fired most mornings on
+a writer that was working, and it **SKIPPED**, which asserts nothing for half the day's runs. A
+writer that died a week ago would have passed.
+
+The deadline is now **12:00 UTC the morning after**, past the observed window, and before it the
+check requires the session BEFORE instead of skipping — that row is due, so there is always
+something to assert. A test drives a writer that stopped on 2026-09-25 at 02:05 UTC and requires a
+FAIL.
+
+`_previous_session` asks `MS.last_closed_session`, the project's only authority on which days are
+sessions, rather than stepping back a weekday — which would be wrong exactly on the mornings a
+false alarm is least welcome. Verified against the real calendar: 2026-10-05 → 2026-10-02 and
+2026-10-12 → 2026-10-09.
+
+## A CHARACTER-WINDOW GUARD WENT RED ON MY COMMENT, FOR THE THIRD TIME IN THIS RECORD
+
+`test_index_book_publish.py` read `src[i:i + 4000]` from `def admin_ingest_snapshot` and asserted
+`"index_book"` appeared in it. The dip-cache block pushed that past the 4,000th character, so the
+guard failed against a tree where the ingest still publishes the book and still reports it. **The
+property was right and the instrument was wrong**, and `test_index_mark.py`'s own comments record
+this twice already at 2,000 characters. Repointed to `ast.get_source_segment`, which bounds the
+function rather than a count, with a non-vacuity check that the extracted body starts at the `def`
+and does not run into the next route.
+
+**REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3) — THREE MORE ARE LIVE, with their measured
+slack, because a guard with little headroom is one comment away from taking the gate red for
+every lane:**
+
+| guard | window | used | slack |
+|---|---|---|---|
+| `test_valuation_routing.py:681` → `pipeline.py` refused-FCFF message | 1200 | **60%** | 485 chars |
+| `test_hotlist_financial_fv.py:348` → `store.py` snapshot INSERT | 1400 | 33% | 942 chars |
+| `test_free_kills_census.py:96` → `load_panel` / `load_adv` | 420 | 27% / 32% | 305 / 286 chars |
+
+The pipeline one is ~6 comment lines from firing. The store one is the least fragile of the three
+because its inner slices (`(scan_date`, `VALUES`, `"""`) are real anchors rather than counts; it
+would break on about eight added columns rather than on prose. None is failing and none is this
+lane's file.
+
+## THE "NEEDS DON" LIST FROM MY LAST REPORT WAS WRONG, ALL THREE ITEMS, AND I VERIFIED EACH
+
+* `/admin/score-alerts` and `/admin/record-dip-rejects` — run **every weekday** via
+  `daily-doors.yml`. Run 37558835162 at 01:47 UTC on 2026-10-07: both HTTP 200, `applied: true`,
+  `wrote 3, refused 0, failing 0`.
+* the **dip-span invalidation** — applied. Recorded in `app_saas.py`'s own comment by the session
+  that did it: *"the POST then correctly applied `dip_rejects` 2026-08-25..2026-08-27"*.
+* `seed_track --send` — not pending. The bound record holds 28 rows and `track-row.yml` runs green
+  daily; run 37456534936 returned `{"already_present": true, "existing": {"date": "2026-10-05",
+  "day_n": 46}}`.
+
+**I was carrying all three from a stale reading of `CLAUDE.md` rather than from the service.** The
+file's own standing warning is that its instructions rot while its numbers hold; this is that,
+applied to a list of asks put to Don three times.
+
+---
+
 # Session 81 — 2026-10-06 — ITEM 33 continued: a refusal recorded as an answer, twice
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict against a threshold — two correctness
