@@ -202,6 +202,12 @@ class TheDipChecks(unittest.TestCase):
     def _line(self, rep):
         return [ln for ln in rep.lines if "every qualifying name" in ln][0]
 
+    def _unmeasured_line(self, rep):
+        """BY THE CHECK'S NAME, not by the word. The identity line now also contains
+        "unmeasured", so `if "unmeasured" in ln` picks the wrong line and the assertion lands on
+        a different check -- which is the wrong-object family in a test selector."""
+        return [ln for ln in rep.lines if "reports its unmeasured" in ln][0]
+
     def test_the_whole_qualifying_set_served_passes(self):
         # `n_unmeasured` is 0 HERE ON PURPOSE: a separate check fails any unmeasured name,
         # so a fixture carrying some would fail the suite for a reason that is not the subject.
@@ -237,8 +243,11 @@ class TheDipChecks(unittest.TestCase):
         accident on a payload that cannot support it."""
         rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 204, "n_measured": 204,
                          "capped": 0, "rejected_health": 1, "rows": [{"t": 1}]})
-        self.assertEqual(rep.failed, 1, rep.lines)
+        # TWO checks fail here and that is right: the identity cannot be computed, AND the
+        # unmeasured counter is absent. Asserting a TOTAL of 1 would have made this test depend
+        # on the other check's behaviour.
         self.assertIn("cannot be checked", self._line(rep))
+        self.assertIn("FAIL", self._line(rep))
 
     def test_rejected_checks_is_NOT_in_the_identity(self):
         """It is the ROW-LEVEL site -- rows the snapshot refused, counted while the eligible set
@@ -261,15 +270,43 @@ class TheDipChecks(unittest.TestCase):
         self.assertTrue(any("FAIL" in ln and "returns rows" in ln for ln in rep.lines),
                         rep.lines)
 
-    def test_unmeasured_names_fail(self):
+    def test_SOME_unmeasured_names_are_reported_rather_than_failed(self):
+        """REPOINTED 2026-10-07. This demanded `n_unmeasured` be ZERO, and that passed only
+        because the screen valued 12 names per request and those 12 happened to carry a 52-week
+        high. Serving the whole qualifying set makes the real figure visible: 90 of 210 on the
+        2026-10-06 scan carry no drawdown, 59 of them the names whose snapshot has no
+        `high_prox` either. Demanding zero demands the upstream feed be complete.
+        """
         rep = self._run({"n_eligible": 10, "n_qualified_on_depth": 10, "n_measured": 10,
                          "capped": 0, "n_unmeasured": 3, "rejected_health": 0,
                          "rejected_shallow": 0, "rejected_checks": 0,
                          "dip_source": "precomputed", "rows": [{"t": i} for i in range(7)]})
-        self.assertTrue(any("FAIL" in ln and "unmeasured" in ln for ln in rep.lines), rep.lines)
+        line = self._unmeasured_line(rep)
+        self.assertIn("PASS", line)
+        self.assertIn("3 of 10", line)
         # AND THE IDENTITY STILL HOLDS -- 10 = 7 + 3 + 0 + 0. An unmeasured name is counted,
-        # not lost, so the two checks fail independently and a reader can tell which is which.
+        # not lost, so the accounting is provable even where the feed has gaps.
         self.assertIn("PASS", self._line(rep))
+
+    def test_EVERYTHING_unmeasured_still_FAILS(self):
+        """The partial-wiring failure the zero-demand was really for: 229 names once raised the
+        same error and each was counted 'unmeasured', which read as a data gap."""
+        rep = self._run({"n_eligible": 10, "n_qualified_on_depth": 10, "n_measured": 10,
+                         "capped": 0, "n_unmeasured": 10, "rejected_health": 0,
+                         "rejected_shallow": 0, "rejected_checks": 0,
+                         "dip_source": "precomputed", "rows": []})
+        line = self._unmeasured_line(rep)
+        self.assertIn("FAIL", line)
+        self.assertIn("wiring failure", line)
+
+    def test_an_ABSENT_unmeasured_counter_fails(self):
+        """Absent is not zero: without it an unmeasured name cannot be told from a name that is
+        not in a drawdown, which is the whole distinction."""
+        rep = self._run({"n_eligible": 10, "n_qualified_on_depth": 10, "n_measured": 10,
+                         "capped": 0, "rejected_health": 3, "rejected_shallow": 0,
+                         "rejected_checks": 0, "dip_source": "precomputed",
+                         "rows": [{"t": 1}]})
+        self.assertTrue(any("FAIL" in ln and "unmeasured" in ln for ln in rep.lines), rep.lines)
 
 
 class TheTrackRowIsNotMissingUntilItIsDue(unittest.TestCase):

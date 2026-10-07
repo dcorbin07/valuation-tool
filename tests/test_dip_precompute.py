@@ -155,7 +155,32 @@ class ThePrecomputedCache(unittest.TestCase):
         self.assertEqual(c["shape"]["qualifying"], 2)
         self.assertEqual(c["shape"]["valued"], 2)
         self.assertEqual(c["shape"]["failed"], 0)
+        self.assertEqual(c["shape"]["with_drawdown"], 2)
+        self.assertEqual(c["shape"]["no_drawdown"], 0)
         self.assertIn("seconds", c["shape"])
+
+    def test_valued_is_NOT_the_same_as_usable_and_both_are_reported(self):
+        """`measurement_from` returns a dict for any real result, with `drawdown: None` when the
+        company has no 52-week high -- and `screen` counts that as `n_unmeasured`, because a name
+        whose drawdown nobody can compute is not a name in a drawdown.
+
+        Measured live on 2026-10-06: 210 of 210 valued and **90 of those carry no drawdown**.
+        Reporting only `valued` made "210 valued" read as 210 usable, which is the COVERAGE
+        RULE's own shape -- a number with no denominator beside it.
+        """
+        class _NoHigh(_Result):
+            def __init__(self):
+                super().__init__()
+                self.company.price_52w_high = None
+
+        def mixed(t):
+            return _Result() if t == "DEEP" else _NoHigh()
+
+        c = dip.precompute(self.rows, mixed, min_drawdown=0.10, workers=1)
+        self.assertEqual(c["shape"]["valued"], 2, "both produced a measurement")
+        self.assertEqual(c["shape"]["failed"], 0, "neither FAILED to value")
+        self.assertEqual(c["shape"]["with_drawdown"], 1)
+        self.assertEqual(c["shape"]["no_drawdown"], 1)
 
     def test_a_name_that_will_not_value_is_COUNTED_not_dropped_silently(self):
         def flaky(t):

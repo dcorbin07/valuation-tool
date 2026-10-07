@@ -215,9 +215,11 @@ def run_hot() -> None:
         dip_cache = _dip.precompute(
             serve_rows, lambda t: _value(t, CONFIG), scan_date=res["scan_date"])
         sh = dip_cache.get("shape") or {}
-        print("  dip precompute: %s of %s qualifying names valued in %.1fs at %s workers"
+        print("  dip precompute: %s of %s qualifying names valued in %.1fs at %s workers; "
+              "%s carry a usable drawdown and %s do not (no 52-week high, so the screen counts "
+              "them as unmeasured rather than as 'not in a drawdown')"
               % (sh.get("valued"), sh.get("qualifying"), _time.monotonic() - t0,
-                 sh.get("workers")))
+                 sh.get("workers"), sh.get("with_drawdown"), sh.get("no_drawdown")))
         if sh.get("failed"):
             # A NAME THAT WOULD NOT VALUE IS COUNTED, NOT SILENT. It reaches the page as
             # `n_unmeasured`, which the surface reports; a silent drop would read as "not in a
