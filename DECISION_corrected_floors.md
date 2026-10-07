@@ -137,6 +137,37 @@ raw data export either way.
 Two need no measurement at all: the options figure is priced from option chains (no equity change
 can reach it) and the Track Record is a forward record, not a backtest.
 
+## The analyst-estimates link (item 3)
+
+Stage-1 handed forward one concrete piece of work: a **dated** link from our tickers into the
+analyst-estimates data, needed before the "analyst neglect" idea can be tested. It is built and
+validated.
+
+**No WRDS connection was needed** — all of it was already pulled in August, so the
+one-attempt-per-session rule never came into play. That is the safest outcome available.
+
+**The useful finding is about identifiers, and it would have bitten us silently.** A stock's
+exchange ticker is **not unique** in the estimates database, even on one day: the ticker `ABT` is
+claimed by **six different companies** over time — Abbott Labs, but also Apollo Batteries,
+Absolute Software, Ambit Properties and Aqua Bio Tech, because companies on different exchanges
+share tickers. My first attempt joined on ticker and produced nonsense (it mapped Abbott to a
+small Australian battery company's code for 2009). Anyone joining analyst data on ticker without
+dates gets that silently.
+
+So the link goes through **CUSIP** — which identifies a security — with the ticker route kept as
+a cross-check. Two independently dated routes **agree on 99.46%** of the cells where both
+resolve, which is the validation.
+
+**And it does not clear the coverage bar the test would need.** Our standing rule is 70%; the
+CUSIP route reaches **69.9996%** of cells — it misses by about **1.3 cells out of 289,659** — and
+69.0% of names. I am reporting it as failing, because our own rule is that a bar is not relaxed
+after you watch it fail.
+
+**So the analyst-neglect test is still blocked, but now for a measured reason rather than a
+missing tool.** And one number from this is worth keeping regardless: **41% of our panel's names
+have had their ticker reused by a different company at some point** — which an undated join
+cannot see at all.
+
 ## Recommendation
 
 1. **The corrected universe is now safe to research on** — it has its own floors, and they are

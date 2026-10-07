@@ -22154,3 +22154,99 @@ on the construction mismatch part 1b records. `scripts/corrected_claims.py`,
 `corrected_claims_run.py`, `corrected_index_book.py`; `data/free_analysis/CORRECTED_CLAIMS.json`,
 `INDEX_BOOK_CORRECTED.json`, `INDEX_BOOK_CORRECTED_COMPARE.json`,
 `CORRECTED_R1_FACTOR_ALPHA.json`.
+
+## CORRECTED-FLOORS part 3 — the dated IBES link, as an instrument — 2026-10-07
+
+**THE LINK IS BUILT AND VALIDATED, AND IT DOES NOT CLEAR THE COVERAGE FLOOR `A9` WOULD NEED — SO
+`A9` IS STILL BLOCKED, NOW FOR A MEASURED REASON RATHER THAN A MISSING INSTRUMENT.** **ZERO
+TRIALS** — no hypothesis, no bar chosen here, no arm, and **no outcome statistic computed anywhere
+on this path**, pinned by test. `MB15`: the instrument is validated BEFORE any hypothesis reads it;
+`MB1-SEL`: a control can only BLOCK, never produce.
+
+### 0. NO WRDS CONNECTION WAS NEEDED OR MADE
+
+`ibes_id` (308,801 rows, 86,921 IBES tickers, `sdates` 1976-01-15 to 2026-05-14),
+`ibes_statsum_epsus` (51 chunks), the actuals and `crsp_stocknames` (75,175 dated rows) are **all
+already on `D:\wrds` from the 2026-08-24 pull.** So the one-attempt-per-session rule
+(`DECISIONS.md` 2026-10-04 — repeated failures disabled the account) **is not engaged at all**,
+which is the safest outcome available to this item. Pinned: nothing here imports a WRDS client or
+makes a connection-shaped call, and the raw root defaults to `D:\wrds` and never inside the
+checkout.
+
+### 1. A DEFECT IN MY OWN SPAN CONSTRUCTION, AND THE FIX IS ALSO THE FINDING
+
+The first run put the two routes' agreement at **0.742** and its examples returned **`@39I` for
+Abbott**. Implausible, so I disbelieved it and diagnosed it on the real table:
+
+**`oftic == 'ABT'` IS CLAIMED BY SIX DIFFERENT IBES TICKERS** — `ABT` (Abbott Labs), `@APL`
+(Apollo Batteries), `ABT1` (Absolute Software), `@Q69` (Ambit Properties), `@82M` (Aqua Bio Tech)
+— because **companies on different exchanges share an exchange ticker.** My `spans()` grouped by
+`oftic` and took `shift(-1)` within it, which **INTERLEAVED all six**: Abbott's span ended the day
+Apollo Batteries appeared in 1993, and a 2009 date landed inside another company's span entirely.
+
+**AN EXCHANGE TICKER IS NOT A UNIQUE KEY IN IBES, EVEN AT A SINGLE DATE.** The span belongs to the
+IBES **ticker** — each ticker's own record history, with `oftic`/`cusip` as values — and resolving
+BY `oftic` is then honestly **`AMBIGUOUS`** wherever more than one company holds it at the date.
+That is a measured property of the identifier, not a defect to hide, **and it is exactly what
+would silently poison a join on ticker.** Fixed, agreement went **0.742 -> 0.994643**.
+
+**SO THE CUSIP ROUTE IS THE PRIMARY AND THE TICKER ROUTE IS THE CROSS-CHECK.** A CUSIP identifies
+a security; an exchange ticker does not.
+
+### 2. The two routes and their measured agreement
+
+| route | cell coverage | name coverage | states |
+|---|---|---|---|
+| **A** direct `oftic` | **0.41795** | 0.48885 (4,715 / 9,645) | OK 121,062 · **AMBIGUOUS 119,788** · NOT_COVERED 30,172 · UNMAPPED 18,637 |
+| **B** via CRSP `ncusip` -> IBES `cusip` | **0.69999551** | 0.69041 (6,659 / 9,645) | OK 202,760 · AMBIGUOUS 919 · NOT_COVERED 48,742 · UNMAPPED 37,238 |
+
+**Route A is AMBIGUOUS on 41% of panel cells**, which is the ticker-uniqueness finding in one
+number. **Where both routes resolve they agree on 101,569 of 102,116 cells — 0.994643** — and that
+is the validation: two independently dated routes, neither assumed to be the other's control,
+with the agreement **measured** and the disagreements reported rather than resolved by preferring
+one. **The 547 disagreements have a nameable shape** (`AUY` -> `AUY1`/`YRI1`, `BTE` ->
+`BTE`/`BTE2`, `EGO` -> `ELD1`/`ELD2`): cross-listed Canadian names carrying more than one IBES
+ticker. **That is a pattern, not a diagnosis** — which of the two an estimate file should use is
+unmeasured.
+
+`B7`: the vectorised interval join is a SECOND implementation and the scalar `resolve` remains the
+definition, so the runner **ABORTS** unless they agree. **400 sampled cells, 0 mismatches**, and
+the sample spans OK and refused states so the comparison is not vacuous. The per-cell loop it
+replaces was a full table scan per cell over 289,659 cells and **would not have finished.**
+
+### 3. NEITHER ROUTE CLEARS THE INHERITED FLOOR, AND ROUTE B MISSES BY 4.5e-6
+
+The **0.70** floor is the project's own non-null rule, **INHERITED rather than chosen here**.
+
+**Route B's cell coverage is 0.69999551 — it FAILS by 0.00000449, about 1.3 cells in 289,659.**
+Its name coverage is **0.69041**, failing by 0.0096. **The sharpest knife edge this record has
+produced, and `W-28`'s rule governs: a pre-committed bar may not be relaxed after watching it
+fail.** It is reported below the floor, pinned by a test that fails if it is ever written up as
+clearing.
+
+### 4. The look-ahead refusal, and what an undated route cannot see
+
+**26,651 of 271,022 probed panel cells are dated BEFORE their ticker's first IBES span, and ALL
+were refused.** Measured on the real table rather than on a fixture, and **non-vacuous because the
+count is non-zero.** A positive control pins that the guard cannot pass by refusing everything, and
+`UNMAPPED` stays distinguishable from `NOT_COVERED` — `MB15`'s rule that a filter which never ran
+and one that ran and found nothing must not read the same.
+
+**TEMPORAL REUSE: 18,244 `oftic` map to more than one IBES ticker over time, and 3,984 of them are
+panel names — 41.31% of the panel.** `S25` recorded that `comp.security` carries **no date
+columns**, so this is *not observable on that route at all*; `W-3b` measured an undated ticker join
+contaminating at **17.7%** and `W-28` measured an undated `gvkey` route assigning one company's
+dates to a **different company on 54 names**. Here the figure is measured rather than feared, and
+it is large.
+
+### 5. NOT DONE, named so it is not mistaken for done
+
+**NO ARM. `A9` IS NOT RUN AND CARRIES NO VERDICT** — it needs its own blind register and its own
+trial, and **its size-costume kill must be read FIRST**: `E-1` died at 0.6114 against `size` and
+`R6`'s conviction signals read -0.815 to -0.854, so an analyst-neglect proxy is a **size proxy
+until measured otherwise**. **NO ESTIMATE IS JOINED** — this validates the IDENTIFIER link only,
+and joining `ibes_statsum_epsus` brings its own staleness, revisions and fiscal-period indexing.
+**THE PRE-1976 ERA IS UNREACHABLE** and no span is invented for it. **The 547 route
+disagreements are not diagnosed.** **Nothing is adopted.** 19 tests with zero skips, 7 of 7
+mutations caught with sources restored byte-for-byte. `valuation/edge/ibes_link.py`,
+`scripts/ibes_link_validate.py`; `data/free_analysis/IBES_LINK_VALIDATION.json`.
