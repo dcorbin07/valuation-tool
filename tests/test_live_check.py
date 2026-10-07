@@ -247,6 +247,64 @@ class TheDipChecks(unittest.TestCase):
         self.assertTrue(any("FAIL" in ln and "unmeasured" in ln for ln in rep.lines), rep.lines)
 
 
+class TheTrackRowIsNotMissingUntilItIsDue(unittest.TestCase):
+    """`PT-GAPDUE` in a new place, and the third mis-specified assertion in this item.
+
+    `track-row.yml` runs at 03:07 and 04:37 UTC Tue-Sat -- the MORNING AFTER a session, since
+    a row needs that session's close. Run at 02:05 UTC this check reported FAIL for a session
+    whose writer had not been scheduled yet. That is exactly what `gap_report` did before
+    `PT-GAPDUE`: counted the current day as due from midnight, so a writer holding every row
+    it could possibly have written still read false on 11 of 11 trading-day mornings.
+    """
+
+    def _run(self, series_dates, session, now):
+        import datetime as dt
+        rep = LC.Report()
+        payload = _j({"series": [{"date": d} for d in series_dates]})
+        real = LC._utcnow
+        LC._utcnow = lambda: now
+        try:
+            with _Net({("GET", "/api/index-track"): payload}):
+                LC.check_index_track("https://x", rep, dt.date.fromisoformat(session))
+        finally:
+            LC._utcnow = real
+        return rep
+
+    def test_a_row_that_is_present_passes(self):
+        import datetime as dt
+        rep = self._run(["2026-10-05", "2026-10-06"], "2026-10-06",
+                        dt.datetime(2026, 10, 7, 2, 5, tzinfo=dt.timezone.utc))
+        self.assertEqual(rep.failed, 0, rep.lines)
+
+    def test_an_absent_row_BEFORE_the_writer_runs_is_a_skip_not_a_failure(self):
+        import datetime as dt
+        rep = self._run(["2026-10-05"], "2026-10-06",
+                        dt.datetime(2026, 10, 7, 2, 5, tzinfo=dt.timezone.utc))
+        self.assertEqual(rep.failed, 0, rep.lines)
+        self.assertEqual(rep.skipped, 1, rep.lines)
+        line = [ln for ln in rep.lines if "last session" in ln][0]
+        self.assertIn("SKIP", line)
+        self.assertIn("not due until", line)
+
+    def test_an_absent_row_AFTER_the_writer_runs_still_FAILS(self):
+        """The half that matters: the deadline must not make the check unfailable."""
+        import datetime as dt
+        rep = self._run(["2026-10-05"], "2026-10-06",
+                        dt.datetime(2026, 10, 7, 12, 0, tzinfo=dt.timezone.utc))
+        self.assertEqual(rep.failed, 1, rep.lines)
+        line = [ln for ln in rep.lines if "last session" in ln][0]
+        self.assertIn("FAIL", line)
+        self.assertIn("no row for 2026-10-06", line)
+
+    def test_the_deadline_is_after_the_backup_cron_rather_than_the_first_one(self):
+        """A deadline set to the FIRST cron would fail whenever GitHub delays a free run --
+        which is the reason that workflow carries a backup cron in the first place."""
+        import datetime as dt
+        due = LC._track_row_due_after(dt.date(2026, 10, 6))
+        self.assertEqual(due.date(), dt.date(2026, 10, 7), "due the morning AFTER the session")
+        self.assertGreater((due.hour, due.minute), (4, 37), "earlier than the backup cron")
+
+
 class TheExportCheckJudgesTheFileType(unittest.TestCase):
     """A 200 carrying a JSON error is non-empty, so length alone would pass a broken export."""
 
