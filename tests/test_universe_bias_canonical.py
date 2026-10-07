@@ -41,6 +41,37 @@ def _src(rel):
     return io.open(os.path.join(REPO, rel), encoding="utf-8").read()
 
 
+def _module_constant(rel, name):
+    """Read a module-level constant WITHOUT importing the module.
+
+    `served_index_book` builds `OUT` from the licensed data root at import time, so importing it
+    raises on a CI runner. Parsing is not a workaround here, it is the better check: it runs
+    everywhere, and a guard that silently skips where the data is absent is the
+    `guards-that-fail-open-in-CI` family.
+    """
+    tree = ast.parse(_src(rel))
+    for n in tree.body:
+        if isinstance(n, ast.Assign):
+            for t in n.targets:
+                if getattr(t, "id", None) == name:
+                    return ast.literal_eval(n.value)
+    raise AssertionError("%s has no module-level %s" % (rel, name))
+
+
+def _signature_defaults(rel, func):
+    """(param names, whether every one defaults to None) for a top-level function, from source."""
+    tree = ast.parse(_src(rel))
+    for n in tree.body:
+        if isinstance(n, ast.FunctionDef) and n.name == func:
+            args = [a.arg for a in n.args.args]
+            defaults = {}
+            offset = len(args) - len(n.args.defaults)
+            for i, d in enumerate(n.args.defaults):
+                defaults[args[offset + i]] = (isinstance(d, ast.Constant) and d.value is None)
+            return args, defaults
+    raise AssertionError("%s has no def %s" % (rel, func))
+
+
 class TheCanonicalArtifactCannotBeWrittenByAccident(unittest.TestCase):
     def test_the_runner_takes_a_results_root_that_defaults_to_the_repo_root(self):
         s = _src("valuation/edge/fundamental_panel.py")
@@ -119,6 +150,36 @@ class TheCanonicalArtifactCannotBeWrittenByAccident(unittest.TestCase):
         """And it must: the published column is the only one the public pages actually show."""
         self.assertIn("BACKTEST_RESULTS.json", _src("scripts/universe_bias_public.py"))
 
+    def test_this_item_imports_nothing_that_needs_the_licensed_data_at_IMPORT_time(self):
+        """THE DEFECT THIS PINS, and it is mine: `served_index_book` computes
+        `DATA = _data_root()` at module level with `required` defaulting to True, so importing
+        it RAISES wherever `data/` is absent -- every CI runner. A module-level import of it
+        made `universe_bias_books` unimportable in CI and three tests ERRORED rather than
+        running. `guards-that-fail-open-in-CI`: a check whose input is licensed does not run
+        where the data lives, so it must not need the data to be imported at all.
+        """
+        risky = ("served_index_book", "n1_band_book")
+        for f in sorted(os.listdir(os.path.join(REPO, "scripts"))):
+            if not f.startswith("universe_bias"):
+                continue
+            tree = ast.parse(_src("scripts/" + f))
+            for n in tree.body:            # MODULE level only -- a deferred import is fine
+                mods = []
+                if isinstance(n, ast.Import):
+                    mods = [a.name for a in n.names]
+                elif isinstance(n, ast.ImportFrom):
+                    mods = [n.module or ""]
+                for m in mods:
+                    for r in risky:
+                        self.assertNotIn(r, m,
+                                         "%s imports %s at module level; it raises in CI" % (f, r))
+
+    def test_the_unguarded_data_root_is_recorded_rather_than_edited(self):
+        """`served_index_book`'s unguarded `_data_root()` is `INDEX-BOOK`'s, not this item's.
+        Changing it could move a landed figure, so it is worked around and NAMED."""
+        self.assertIn("DATA = _data_root()", _src("scripts/served_index_book.py"))
+        self.assertIn("required` defaulting to True", _src("scripts/universe_bias_books.py"))
+
 
 class TheFidelityGateIsNotWeakened(unittest.TestCase):
     def test_index_book_still_aborts_when_C1_fails(self):
@@ -143,15 +204,19 @@ class TheFidelityGateIsNotWeakened(unittest.TestCase):
         self.assertIn("Exception", names)
 
     def test_the_runner_quotes_the_published_reference_from_the_record(self):
-        from scripts import universe_bias_books as B
-        self.assertEqual(B.PUBLISHED_TOP_DECILE_ALPHA, 0.07174142332098163)
+        self.assertEqual(
+            _module_constant("scripts/universe_bias_books.py", "PUBLISHED_TOP_DECILE_ALPHA"),
+            0.07174142332098163)
 
     def test_that_reference_matches_the_landed_artifact(self):
         fa = _fa()
         p = os.path.join(fa or "", "INDEX_BOOK.json")
         if not fa or not os.path.exists(p):
             self.skipTest("LOUD SKIP: INDEX_BOOK.json is not on this machine")
-        from scripts import universe_bias_books as B
+
+        class B:
+            PUBLISHED_TOP_DECILE_ALPHA = _module_constant(
+                "scripts/universe_bias_books.py", "PUBLISHED_TOP_DECILE_ALPHA")
         d = json.load(io.open(p, encoding="utf-8"))
         self.assertEqual(float(d["C1_fidelity"]["published"]), B.PUBLISHED_TOP_DECILE_ALPHA)
 
@@ -186,14 +251,17 @@ class TheADVHazardIsMeasuredAtTheRealShapes(unittest.TestCase):
 
 class TheParameterisationsAreProvedInertRatherThanArgued(unittest.TestCase):
     def test_both_books_default_to_the_object_they_already_measured(self):
-        from scripts import served_index_book as IBK
-        from scripts import n1_band_book as N1
-        for mod in (IBK, N1):
-            sig = inspect.signature(mod.main)
-            for p in ("panel_path", "out", "label"):
-                self.assertIn(p, sig.parameters, "%s.main lacks %s" % (mod.__name__, p))
-                self.assertIsNone(sig.parameters[p].default)
-            src = inspect.getsource(mod.main)
+        """Read from SOURCE, not by importing: `served_index_book` builds `OUT` from the
+        licensed data root at import time, so importing it RAISES on a CI runner -- and a check
+        that skips exactly where the data lives is the `guards-that-fail-open-in-CI` family."""
+        for rel in ("scripts/served_index_book.py", "scripts/n1_band_book.py"):
+            args, defaults = _signature_defaults(rel, "main")
+            for want in ("panel_path", "out", "label"):
+                self.assertIn(want, args, "%s main lacks %s" % (rel, want))
+                self.assertTrue(defaults.get(want),
+                                "%s's %s must default to None so the original path is "
+                                "unchanged" % (rel, want))
+            src = _src(rel)
             self.assertIn('panel_path or os.path.join(FA, "panel_corrected_69d.pkl")', src)
             self.assertIn("out or OUT", src)
 

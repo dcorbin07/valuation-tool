@@ -46,9 +46,11 @@ _HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-import scripts.served_index_book as IBK                                   # noqa: E402
-import scripts.n1_band_book as N1                                         # noqa: E402
-
+# DEFERRED, and not as a style preference. `served_index_book` computes
+# `DATA = _data_root()` at MODULE level with `required` defaulting to True, so importing it
+# RAISES wherever the licensed `data/` is absent -- which is every CI runner. A module-level
+# import here made this file unimportable in CI, and the test that reads `coverage` errored
+# rather than running. Importing inside `main` is the pattern the sibling runners already use.
 SIDES = ("restricted", "full")
 
 #: `INDEX-BOOK`'s own published reference, quoted so the vintage delta its gate exposes is
@@ -84,6 +86,8 @@ def coverage(panel, names, cells):
 
 
 def main(argv=None) -> int:
+    import scripts.served_index_book as IBK
+    import scripts.n1_band_book as N1
     if not IBK.FA:
         raise SystemExit("the licensed panel is absent")
     fa = IBK.FA
