@@ -27,6 +27,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import source_bounds as SB   # noqa: E402
 import state_isolation  # noqa: F401,E402
 
 from valuation.screener import fairvalue as FV                          # noqa: E402
@@ -342,10 +343,16 @@ class TheLabelMustSURVIVE_TO_THE_SERVED_PAYLOAD(unittest.TestCase):
         Counted structurally rather than eyeballed, because that is precisely how
         `fair_value_method` came to be set and never stored.
         """
-        src = io.open(os.path.join(REPO, "valuation/screener/store.py"),
-                      encoding="utf-8").read()
-        i = src.index("INSERT OR REPLACE INTO snapshot_rows")
-        block = src[i:i + 1400]
+        # REPOINTED 2026-10-07 (item 36b). This read `src[i:i + 1400]` from the SQL landmark;
+        # the inner slices below are real anchors, but the outer bound was a count and would
+        # have broken on about eight added columns rather than on anything being wrong.
+        # `statement_source` returns the `c.execute(...)` call that HOLDS the SQL, which is the
+        # thing the column count is a property of.
+        block = SB.statement_source(os.path.join(REPO, "valuation/screener/store.py"),
+                                    "INSERT OR REPLACE INTO snapshot_rows")
+        # NON-VACUITY: the bound must be the one statement, not the whole module.
+        self.assertTrue(block.lstrip().startswith("c.execute("), block[:60])
+        self.assertNotIn("def latest_scan_date", block)
         cols = block[block.index("(scan_date"):block.index("VALUES")]
         n_cols = cols.count(",") + 1
         vals = block[block.index("VALUES"):]

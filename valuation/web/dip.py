@@ -234,6 +234,22 @@ PASS, FAIL, NOT_RUN = "pass", "fail", "not_run"
 DCF_ONLY_CHECKS = ("terminal_share", "beta_provenance")
 
 
+def _implied_high(price, drawdown):
+    """The 52-week high implied by a price and a drawdown, or None.
+
+    Used only on the scan fallback, where the engine supplied no high. Rendering the engine's
+    `None` beside a real drawdown would leave the page showing a fall from nothing; rendering
+    the scan's own high would put it on a different basis from the price next to it.
+    """
+    try:
+        p, d = float(price), float(drawdown)
+    except (TypeError, ValueError):
+        return None
+    if p <= 0 or d is None or d != d or d >= 1.0:
+        return None
+    return p / (1.0 - d)
+
+
 def disqualifier_checks(row: dict) -> dict:
     """Per-check verdicts for one snapshot row: pass / fail / not_run.
 
@@ -529,9 +545,54 @@ def screen(rows: List[dict],
     # valuation refused after it -- so "16" could not be read without subtracting `n_measured`
     # from it in your head, and the twelve lost valuations were invisible.
     withheld_valuation = 0
+    #: Rows standing on the SCAN's drawdown because the engine produced none. Counted because a
+    #: screen whose rows came from two different vintages without saying so is a screen a reader
+    #: cannot check -- and because the count is the live measurement of the engine's 52-week-high
+    #: gap, which is otherwise only visible in a scan log.
+    dd_from_scan = 0
     for r, checks in measured_set:
         m = measure(r) or {}
         dd = m.get("drawdown")
+        dd_source = "measured"
+        if dd is None:
+            # ITEM 36(a) -- THE ENGINE'S 52-WEEK HIGH HAS NO FALLBACK AND THE SCAN'S DOES.
+            #
+            # `cd.price_52w_high` is set in exactly ONE place, `yahoo.py`'s
+            # `t.history(period="1y")` block, and EDGAR's gap-fill cannot supply a price. So when
+            # that one call comes back empty the measurement carries `drawdown: None` -- a real
+            # valuation the screen cannot turn into a row. Measured on the 2026-10-06 precompute:
+            # **90 of 210** qualifying names, against **0 of 36** on an identical 6-worker burst
+            # from this machine. `providers.py` names the cause in its own comment: the per-name
+            # free fetch "is aggressively rate-limited from a cloud IP, and when it fails it
+            # returns nothing at all" -- and the SCAN survives that because the broker prefills
+            # the universe, which is why only 59 of the 210 lack `high_prox` while 90 lack the
+            # engine's high.
+            #
+            # SO THE QUANTITY ALREADY EXISTS ON THE ROW. `high_prox` is `price / max(close over
+            # the trailing 252 sessions)` -- the 252-session maximum, computed by
+            # `prices.get_quote` from history the scan already fetched, or by `broker_universe`
+            # from the broker's own quote pair -- and `1 - high_prox` IS the drawdown.
+            # `cheap_drawdown` is the named, tested reader for it and is used here rather than
+            # the field, because `extra["numbers"]["high_prox"]` is the within-date Z-SCORE and
+            # reading that one would put a fabricated percentage on a public surface.
+            #
+            # NO ADJUSTED-VERSUS-RAW MIXING, BY CONSTRUCTION. It is a RATIO of a price and a high
+            # from ONE vendor's own series: `prices` divides within a single `get_history_df`
+            # frame, `broker_universe` within a single quote. A split scales both legs and
+            # cancels. The residual is that yfinance's frame is `auto_adjusted`
+            # (`VENDOR_ADJUSTMENT`), so where that is the source the high is dividend-adjusted
+            # and the drawdown is a TOTAL-RETURN drawdown -- understated against a price
+            # drawdown by roughly the trailing yield. Stated rather than hidden, and small
+            # against a 10-40% threshold.
+            #
+            # IT IS A DIFFERENT VINTAGE AND THE ROW SAYS SO. The scan's ratio is yesterday's
+            # close against a high computed then; the measured one is the valuation's own quote.
+            # `PRESELECT_SLACK` exists because those two disagree near the threshold, so a row
+            # standing on the scan's figure is marked `drawdown_source: "scan"` and counted.
+            cheap = cheap_drawdown(r)
+            if cheap is not None:
+                dd = cheap
+                dd_source = "scan"
         h = health_check(m.get("subs"))
         # The measured checks REPLACE the row-level not_run entries only where the measurement
         # actually produced a verdict; `disqualifier_checks` stays the floor, so a valuation
@@ -564,6 +625,8 @@ def screen(rows: List[dict],
         if dd is None:
             unmeasured += 1
             continue
+        if dd_source == "scan":
+            dd_from_scan += 1
         if not h["ok"]:
             rejected_health += 1
             # The drawdown is already known here (`dd is None` was rejected above), so the
@@ -605,7 +668,16 @@ def screen(rows: List[dict],
             "hot_score": r.get("hot_score"),
             "rank": r.get("rank"),
             "drawdown": dd,
-            "high_52w": m.get("high_52w"),
+            # WHICH VINTAGE THIS ROW'S DRAWDOWN CAME FROM. "measured" is the valuation's own
+            # quote against its own 52-week high; "scan" is yesterday's close against the high
+            # the scan computed then, used only where the engine produced no high at all.
+            "drawdown_source": dd_source,
+            # THE HIGH IS RENDERED ON THE SAME BASIS AS THE PRICE BESIDE IT, or the displayed
+            # triple would not satisfy its own arithmetic: a reader checking `1 - price/high`
+            # against `drawdown` would find them disagreeing. On the fallback the engine has no
+            # high, so it is IMPLIED from the row's own price and the scan's ratio.
+            "high_52w": (m.get("high_52w") if dd_source == "measured"
+                         else _implied_high(m.get("price", r.get("price")), dd)),
             "health": h["scores"],
             "score": None if valuation_blocked else m.get("score"),
             "confidence": None if valuation_blocked else m.get("confidence"),
@@ -705,6 +777,7 @@ def screen(rows: List[dict],
         "health_rejects": health_rejects,
         "rejected_checks": rejected_checks,
         "withheld_valuation": withheld_valuation,
+        "n_drawdown_from_scan": dd_from_scan,
         "health_floors": dict(HEALTH_FLOORS),
         "health_floor_note": HEALTH_FLOOR_NOTE,
         "checks": dict(CHECKS),
@@ -1072,12 +1145,18 @@ def precompute(rows: List[dict], get_result: Callable[[str], object], *,
     # upstream, visible in both places). So `failed: 0` was true and "210 valued" read as 210
     # usable. The COVERAGE RULE's own shape: a number with no denominator beside it.
     with_dd = sum(1 for m in out.values() if (m or {}).get("drawdown") is not None)
+    # NAMED, NOT JUST COUNTED. The 2026-10-06 run reported 90 with no drawdown and nothing said
+    # WHICH, so the cause had to be inferred -- and the leading explanation (a cloud-IP Yahoo
+    # throttle on the per-name history call) is checkable only against the list. Bounded, because
+    # this rides in the ingest payload.
+    no_dd = sorted(t for t, m in out.items() if (m or {}).get("drawdown") is None)
     return {"scan_date": scan_date,
             "min_drawdown": floor,
             "measurements": out,
             "shape": {"qualifying": len(tickers), "valued": len(out),
                       "with_drawdown": with_dd,
                       "no_drawdown": len(out) - with_dd,
+                      "no_drawdown_tickers": no_dd[:40],
                       "failed": len(failed), "failed_tickers": sorted(failed)[:25],
                       "seconds": round(_time.monotonic() - t0, 1),
                       "workers": int(workers)}}
