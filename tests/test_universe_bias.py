@@ -262,5 +262,101 @@ class TheCensusAndTheRegressionAreCALLEDNotCopied(unittest.TestCase):
         self.assertIn("NO ALPHA CLAIM", s)
 
 
+class ADeadThemeCannotPassAsALiveOne(unittest.TestCase):
+    """THE DEFECT THIS GUARD EXISTS FOR, and it is this item's own.
+
+    The first run compared a SIX-theme corrected book against a SEVEN-theme restricted one and
+    printed "themes 7" on both sides, because `score` counted columns PRESENT. With
+    `insiders.csv` absent from an export, `factors.py` sets `df["insider"] = 0.0`: the column
+    exists, is 100% non-null, and contributes nothing, because `zscore` returns all-NaN on a
+    constant and `composite` renormalises by present-weight mass. So the two panels differed by
+    a THEME as well as by a universe -- `PANEL-EXT-RECHECK`'s "a different composite wearing the
+    same name", and `MA28`'s C1 defect (nine themes scored at 1/7).
+    """
+
+    def _panel(self, **cols):
+        import pandas as pd
+        n = 40
+        base = {"date": ["2009-01-15"] * n, "ticker": ["T%d" % i for i in range(n)]}
+        base.update(cols)
+        return pd.DataFrame(base)
+
+    def test_a_constant_column_is_DEAD_even_at_full_coverage(self):
+        from scripts.universe_bias_arms import live_themes
+        import numpy as np
+        p = self._panel(value=np.linspace(-1, 1, 40), insider=[0.0] * 40)
+        alive, dead = live_themes(p, ["value", "insider"])
+        self.assertEqual(alive, ["value"])
+        self.assertIn("insider", dead)
+        self.assertEqual(dead["insider"]["nonnull"], 1.0,
+                         "the whole point is that it is fully POPULATED and still dead")
+        self.assertEqual(dead["insider"]["distinct"], 1)
+
+    def test_an_absent_column_is_also_dead_and_distinguishable(self):
+        from scripts.universe_bias_arms import live_themes
+        import numpy as np
+        p = self._panel(value=np.linspace(-1, 1, 40))
+        alive, dead = live_themes(p, ["value", "insider"])
+        self.assertEqual(alive, ["value"])
+        self.assertEqual(dead["insider"], "absent",
+                         "absent and present-but-constant must not read the same")
+
+    def test_a_real_theme_is_alive(self):
+        from scripts.universe_bias_arms import live_themes
+        import numpy as np
+        p = self._panel(value=np.linspace(-1, 1, 40), insider=np.linspace(-2, 2, 40))
+        alive, dead = live_themes(p, ["value", "insider"])
+        self.assertEqual(sorted(alive), ["insider", "value"])
+        self.assertEqual(dead, {})
+
+    def test_the_comparison_REFUSES_when_the_live_sets_differ(self):
+        from scripts.universe_bias_arms import require_same_live_themes
+        ok, detail = require_same_live_themes({"restricted": ["value", "insider"],
+                                               "full": ["value"]})
+        self.assertFalse(ok)
+        self.assertIn("insider", detail["differ"])
+        self.assertEqual(detail["differ"]["insider"]["alive_on"], ["restricted"])
+
+    def test_the_comparison_PASSES_when_they_agree(self):
+        """Non-vacuity: the guard must not refuse everything."""
+        from scripts.universe_bias_arms import require_same_live_themes
+        ok, _ = require_same_live_themes({"restricted": ["value", "insider"],
+                                          "full": ["insider", "value"]})
+        self.assertTrue(ok, "order must not matter -- it is a SET comparison")
+
+    def test_the_runner_refuses_before_it_decides_anything(self):
+        """A refusal after the decision rule has run is not a refusal."""
+        s = _src("universe_bias_arms.py")
+        self.assertLess(s.index("require_same_live_themes({"),
+                        s.index('sides[label]["decision"]'))
+        self.assertIn("return 3", s)
+
+    def test_the_prep_writes_the_two_export_level_derived_files(self):
+        """`insiders.csv` and `institutional.csv` live in the EXPORT, not the bulk cache, so a
+        prep that writes only fundamentals/prices/benchmark produces a panel missing a theme."""
+        s = _src("universe_bias_prep.py")
+        self.assertIn("insiders.csv", s)
+        self.assertIn("institutional.csv", s)
+        self.assertIn("_filter_csv", s)
+        self.assertNotIn("def _filter_csv", s, "the freeze's own derive code must be CALLED")
+
+    def test_the_prep_puts_the_bulk_cache_where_the_provider_looks(self):
+        """`bulk_dir` is `dirname(export)/bulk/prepared` and an absent cache degrades SILENTLY
+        to empty -- losing the point-in-time market cap, the survivorship mask and SF3."""
+        s = _src("universe_bias_prep.py")
+        self.assertIn("def prep_bulk_sibling", s)
+        self.assertIn('"bulk", "prepared"', s)
+        self.assertIn("copytree", s)
+
+    def test_the_prep_never_copies_INTO_the_shared_cache(self):
+        """Copying the other way would overwrite the cache every 2009-2026 build in the repo
+        reads."""
+        from scripts import universe_bias_prep as P
+        import inspect
+        src = inspect.getsource(P.prep_bulk_sibling)
+        self.assertIn("shutil.copytree(have, want", src)
+        self.assertNotIn("copytree(want, have", src)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

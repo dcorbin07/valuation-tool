@@ -138,8 +138,11 @@ def _half_stats(rows):
             "annual_turnover": float(np.mean([r["turnover_two_way"] for r in rows])) / 2.0 * 4.0}
 
 
-def main() -> int:
-    panel = pd.read_pickle(os.path.join(FA, "panel_corrected_69d.pkl"))
+def main(panel_path=None, out=None, label=None) -> int:
+    """`panel_path`/`out` default to the banked panel and this item's own artifact, so
+    every existing caller is bit-identical. `UNIVERSE-BIAS` passes a corrected-universe
+    panel rather than copying this measurement (`B7`)."""
+    panel = pd.read_pickle(panel_path or os.path.join(FA, "panel_corrected_69d.pkl"))
     cols = list(DEPLOYED)
     weights = {c: BASE_WEIGHT for c in cols}
     print("panel %s | %d dates | %d names | %d themes at %.4f"
@@ -335,12 +338,17 @@ def main() -> int:
             "years_to_detect": (None if months is None else months / 12.0),
             "note": "matched pair -- this arm's edge against this arm's own tracking error",
         }
-    with open(OUT, "w", encoding="utf-8") as fh:
+    # a run on a non-default panel must SAY so in its own artifact, or a reader of
+    # the file cannot tell which universe it describes.
+    res["panel"] = os.path.basename(panel_path or "panel_corrected_69d.pkl")
+    res["universe_label"] = label or "incumbent data/backtest universe"
+    dest = out or OUT
+    with open(dest, "w", encoding="utf-8") as fh:
         json.dump(res, fh, indent=1, default=str)
     print("\nserved minus all-cap decile:", json.dumps(res["served_minus_all_cap_decile"],
                                                        indent=1))
     print("decomposition:", json.dumps(res["one_knob_decomposition"], indent=1))
-    print("wrote", OUT)
+    print("wrote", dest)
     return 0
 
 

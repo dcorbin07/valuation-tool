@@ -21182,3 +21182,192 @@ construction. **26 tests, 8 of 8 mutations caught with sources restored byte-for
 `data/free_analysis/UNIVERSE_BIAS_CENSUS.json`, `UNIVERSE_BIAS_PREP.json`,
 `UNIVERSE_BIAS_ARMS.json`, `UNIVERSE_BIAS_DIAG_{restricted,full}.json`,
 `UNIVERSE_BIAS_FACTORS_{restricted,full}.json`; `DECISION_pool_size.md` correction 2026-10-06.
+
+## UNIVERSE-BIAS part 2 — the canonical re-run — 2026-10-06
+
+**THE INDEX SURVIVES AND THE RESEARCH HEADLINE DOES NOT. On the corrected universe the published
+`+7.17%/yr` top-decile alpha becomes `+2.83%` at HAC *t* **1.08**, and `+9.99%/yr vs SPY` becomes
+`+0.77%` at *t* **0.37**. NINE OF ELEVEN TESTABLE PUBLIC CLAIMS NO LONGER HOLD. The $10 billion
+Index tier — the shipped product — moves `−0.40pp`.**
+
+**ZERO TRIALS.** `by_domain` **bit-identical** at equity 262, options 310, unified 0, infra 20
+while `rows_fixed_not_counted` rises **94 → 95**. **RE-MEASUREMENT class** (`S25` / `X7RECON` /
+`PANEL-EXT-RECHECK`): the canonical backtest, `INDEX-BOOK` and `N1`'s band book are all
+already-registered constructions, so re-measuring them on a corrected input adds no hypothesis,
+no bar and no degree of freedom. **ADOPTS NOTHING. CHANGES NO PUBLIC PAGE**, pinned by test.
+
+### The one thing this item could have destroyed, and the proof it did not
+
+`BACKTEST_RESULTS.json` is the tracked artifact `/proof` reads at request time, and the shipped
+runner wrote to the repo root **unconditionally**. It now takes **`--results-root`, defaulting to
+`None`** — i.e. the repo root — so `run_backtest.bat`, `RUN_RULES` PART 0's documented command and
+CI are bit-identical, and a run that is given one **says its pair is not the canonical one**.
+**The tracked pair is byte-identical before and after both runs at `sha256 605df7c81c245a78`.**
+
+### Three objects, not two
+
+| | what it is |
+|---|---|
+| **published** | tracked `BACKTEST_RESULTS.json` — 2,531 names, data to 2026-07-24, generated 2026-08-14. **What every public figure reads or was transcribed from.** |
+| **restricted** | the same `data/backtest` universe rebuilt at the **2026-10** vintage |
+| **corrected** | the full raw universe at the **same 2026-10 vintage** |
+
+Shipped builder, identical parameters, 69 dates 2009-03-27 → 2026-04-09, **all seven themes alive
+on both sides**, SPY 16.36% on both. `published → restricted` is the **vintage**;
+`restricted → corrected` is the **universe**.
+
+| figure | published | restricted | corrected | Δ vintage | Δ universe |
+|---|---|---|---|---|---|
+| panel names | 2,531 | 3,049 | 9,645 | +518 | +6,596 |
+| alpha vs equal-weighted universe | **+7.17%** | +8.19% | **+2.83%** | +1.02pp | **−5.37pp** |
+| its HAC *t* | **4.3762** | 4.6629 | **1.0780** | +0.29 | **−3.58** |
+| excess vs SPY | **+9.99%** | +11.14% | **+0.77%** | +1.15pp | −10.36pp |
+| its *t* | **3.7698** | 3.4541 | **0.3656** | −0.32 | −3.09 |
+| excess vs cap-weighted | +10.46% | +11.77% | +2.20% | +1.31pp | −9.57pp |
+| top decile /yr | 25.31% | 27.50% | 17.14% | +2.19pp | −10.36pp |
+| long-short /yr | +11.04% | +11.91% | **+14.48%** | +0.87pp | **+2.57pp** |
+| long-short HAC *t* | 2.6199 | 2.7992 | 2.1238 | +0.18 | −0.68 |
+| monotonicity | −0.8909 | −0.9273 | −0.8545 | −0.036 | +0.073 |
+| breakeven / realised bps | 134.1 / 33.4 | 146.3 / 36.6 | **98.3 / 55.1** | — | — |
+| **cost margin** | **4.0×** | 4.0× | **1.78×** | — | — |
+| Deflated Sharpe | 0.7863 | 0.7174 | **0.0018** | −0.069 | −0.716 |
+| PBO | 0.7333 | 0.9333 | **0.0000** | +0.200 | **−0.933** |
+| CPCV adopt | false | false | **TRUE** | — | — |
+| quarters behind | 29.0% | 26.1% | 37.7% | −2.9pp | +11.6pp |
+| worst quarter | −6.83% | −4.04% | −14.47% | — | −10.4pp |
+| book CAGR | 34.16% | 33.79% | 16.90% | −0.04pp | −15.05pp |
+
+**TWO FIGURES MOVE IN THE PROJECT'S FAVOUR AND ARE NOT BURIED.** The **ranking improves** —
+long-short to +14.48%/yr with the deciles still cleanly ordered — and **PBO falls to 0.0000**, so
+the overfitting statistic this project has always failed now **clears**, with **CPCV adopting a
+tuned weighting (`ic-ir`) for the first time**.
+
+**BUT THE LONG-SHORT GAIN IS THE LESS TRUSTWORTHY OF THE TWO READINGS, for a measured reason.**
+`X7` found that CPCV adoption **manufactures about +1.4 of long-short *t* out of nothing**, and
+**the corrected run adopted while the published one did not** — so the two long-short figures are
+not on the same footing, and the one that looks better is the one with adoption in it.
+
+### Which public claims no longer hold
+
+**Nine of eleven testable ones — eight against, one for.** The verdicts are **derived** from the
+table rather than typed, on a **three-state** vocabulary.
+
+Fail: the +7.17% alpha; +9.99% vs SPY; +10.46% vs cap-weighted; the 25.3% top decile; the 4.0×
+cost margin; the 0.79 Deflated Sharpe; "behind in 29% of quarters, worst −6.83%"; "the whole
+~2,531-name panel"; and **PBO 0.733 — in the project's favour.**
+Survive: long-short *t* 2.62 (→ 2.12) and the clean decile ordering.
+
+**AND EIGHT MORE ARE `UNMEASURED`, LISTED BECAUSE THE TEMPTATION IS TO LET A CLAIM NOBODY RE-RAN
+READ AS ONE THAT SURVIVED:** `R1`'s +6.99%/yr factor alpha, `S22`'s term structure,
+`score_confidence`'s 45-of-69 and 21-of-69, `hold_horizon`'s 6.6%/5.1%, `payoff`'s options block,
+`V6-B`'s dip survival, **the Index tab's whole backtested column**, and the live Track Record.
+
+### Where a figure lives decides who has to act
+
+* **LIVE** — `/proof` is almost entirely runtime reads of `BACKTEST_RESULTS.json`. **The day the
+  canonical panel moves, those figures change with no code review at all** — which is the argument
+  for deciding the disclosure *before* the panel moves.
+* **TRANSCRIBED** — the public Index tab's entire backtested column plus the landing page's two
+  headline tiles are 30-plus literals in `valuation/screener/index_book_measured.py` that re-read
+  nothing. They move only when somebody retypes them. App fixer's lane.
+* **TEMPLATE** — `methodology.html` prose, and `/work`'s whole page.
+
+### The Index is the part that survives, and a refusal is what proved it
+
+`INDEX-BOOK`'s pre-committed `C1` requires the panel to reproduce the published
+`0.07174142332098163`, so it **REFUSED both new panels and aborted** — correctly, and it is **not
+weakened**, because a fidelity gate repointed so it stops comparing against the banked figure is
+not a fidelity gate. **The refusal is what hands over the attribution for free**, because `C1`
+prints the reproduced value: `0.08192268881694756` restricted (the vintage, **+1.02pp**) and
+`0.05736561089622016` corrected. The same $10B construction measured by part 2 reads **18.42%
+restricted against 18.02% corrected**, so the Index tiles move about **−0.40pp**. **The 2026-10-22
+rebalance is unaffected.**
+
+### A defect in my own work, and it is why this took two passes
+
+My full-universe export wrote `fundamentals.csv`, prices and the benchmark — and **not
+`insiders.csv` or `institutional.csv`**, which are **export-level** files. And `bulk_dir` resolves
+to `dirname(export)/bulk/prepared`, so an absent cache **degraded silently to empty**.
+
+**Measured consequence: the corrected panel scored a SIX-theme composite** (`insider` constant at
+**one distinct value at 100% non-null**, so `zscore` returns all-NaN and `composite` renormalises
+it away) **and the first canonical corrected run scored FIVE**, also losing the point-in-time
+market cap from DAILY and the ACTIONS survivorship mask. `PANEL-EXT-RECHECK`'s own sentence — *"a
+different composite wearing the same name"* — committed by me.
+
+**AND MY RUNNER REPORTED `themes 7` ON BOTH SIDES, because it counted columns PRESENT.** Coverage
+is not fidelity; `MA28`'s `C1` scored nine themes at 1/7 the same way.
+
+Repaired by **calling** the freeze's own `_filter_csv` (`B7`, not copied) and copying the prepared
+cache beside the export, **both folded into the repo's prep script** rather than left as the
+one-off that unblocked me. The confounded panel and the five-theme run are **RENAMED, not
+deleted**, so an audit of this correction can reach the objects that produced the earlier figures.
+**NEW GUARD: the comparison now REFUSES when the two panels' LIVE theme sets differ** — live
+meaning at least two distinct values and a positive sd — with **absent** and
+**present-but-constant** reported as *different* states.
+
+**THE CONFOUND MOVED A FIGURE I HAD ALREADY GIVEN DON.** On six themes the incumbent read
+**+0.52pp** and I wrote that the Index *"survives and improves slightly"*; on seven it is
+**−0.40pp** (18.42% → 18.02%). It still survives; the **direction** I gave was wrong. The
+wider-pool reversal is unmoved (**+7.24pp → −3.26pp**, against −4.14pp) and the census is unmoved
+(**63.3%** of the widest book's weight under $300M against 10.9%) — but **Don's literal rule now
+picks TOP 1,000** where both readings previously agreed on the incumbent, a 0.15pp gap on a
+slightly better drawdown, inside what adjacent rungs can be told apart by.
+`DECISION_pool_size.md` carries that correction **above** the earlier one.
+
+### N1, with its coverage hazard measured rather than assumed
+
+N1's band is *cap < $5B AND ADV > $5M*, and the ADV inputs were built on the **restricted**
+universe — so on the corrected universe a name with **no ADV observation** fails the band exactly
+as a genuinely illiquid name does, and the band quietly becomes *"small AND present in the old ADV
+input"*. Measured: ADV **name** coverage **0.8278 restricted against 0.2617 corrected**; the CRSP
+**cell** overlap is **zero on both**, because `B13_ADV_PANEL`'s dates do not meet a re-gridded
+panel — which surfaces as a `KeyError` rather than a refusal. **Confirmed not mine** by running N1
+on its own default panel to a scratch path, where the crosscheck works at 64 dates: a pre-existing
+fragility in another lane's instrument. N1 `sep_primary` reads **25.84% restricted against 27.19%
+corrected**.
+
+**AND THE FIRST PROBE OF THAT COVERAGE RETURNED A CONFIDENT `0.0000` ON BOTH SIDES.** That was a
+probe defect, not a data fact: `MC9_SEP_ADV.pkl` is a `{"census", "by_ticker"}` **dict** of raw SEP
+bars and `B13_ADV_PANEL.pkl` is a long **frame**, and a probe assuming a frame for both answered a
+question it could not see.
+
+### Carried forward from part 1 because it recurred in the same lane
+
+I read a stale `print` line as evidence a landed artifact had been clobbered and copied over the
+correct new one to salvage it. **Nothing had been clobbered.** **A PRINT NAMING A PATH IS NOT
+EVIDENCE ABOUT WHERE A FILE WAS WRITTEN** — now pinned by test on both writers.
+
+### Inertness, proved behaviourally rather than argued
+
+`served_index_book` and `n1_band_book` gained `panel_path`/`out`/`label` defaulting to the objects
+they already measured, and a default-argument re-run **leaf-diffs against the LANDED artifact at
+5,633 and 169 shared leaves, ZERO moved, max absolute deviation 0.000e+00**, with only the two
+deliberate stamp keys added — and the diff **REFUSES an empty comparison** (`MB21`).
+**`POOL-SIZE`'s 28 tests pass UNCHANGED.** The `label` parameter is **load-bearing**, pinned: an
+unused one would read as a guarantee the artifact says which universe it describes while saying
+nothing.
+
+### Recommendation, routed to Don and not taken
+
+**Do not move the canonical panel yet** — not because the corrected universe is wrong, it is the
+honest one, but because **all seven calibrated floors come from `X7`'s placebo on this panel and
+become extrapolations the day it switches, leaving no bar at all.** Re-running the sweep is one
+command — `python -m scripts.placebo --panel UNIVERSE_BIAS_PANEL_full.pkl --n 100` — and roughly
+**eight hours**, estimated from the 2.17× row ratio, **a cost in nobody's estimate**. Move it
+after that, plan it now, and **split the authority meanwhile**: the corrected panel is already the
+authority for small/wide claims, the canonical one stays the reference for the $10B Index.
+`MB31`'s staleness map does not transfer either — seed 1017 at equity `N` = 688 is a property of
+the **restricted** draws. Full memo: **`DECISION_canonical_universe.md`**.
+
+**NOT DONE:** `X7` is **not** re-run and no floor is re-derived or quoted as if it transferred;
+`R1`, `S22`, `score_confidence`, `hold_horizon`, `payoff` and `V6-B` are **not** re-measured;
+`INDEX-BOOK` is **not** re-derived on a new panel and its gate is **not** relaxed; **no public page
+is touched**; the canonical artifact is **not** moved; nothing is adopted. **61 tests across two
+suites, 9 of 9 mutations caught with sources restored byte-for-byte.**
+
+`valuation/edge/fundamental_panel.py` (`--results-root`); `scripts/universe_bias_books.py`,
+`universe_bias_public.py`, `universe_bias_inert.py`, `universe_bias_prep.py`,
+`universe_bias_arms.py`; `DECISION_canonical_universe.md`;
+`data/free_analysis/UNIVERSE_BIAS_PUBLIC.json`, `UNIVERSE_BIAS_BOOKS.json`,
+`UNIVERSE_BIAS_INERT.json`, `canonical_rerun/{restricted,corrected}_2026_10/`.

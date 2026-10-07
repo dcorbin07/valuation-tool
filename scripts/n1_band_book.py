@@ -189,11 +189,14 @@ def census_eligible(panel, cells, ceiling, floor, skip_dates=()):
     return out
 
 
-def main() -> int:
+def main(panel_path=None, out=None, label=None) -> int:
+    """`panel_path`/`out` default to the banked panel and this item's own artifact, so
+    every existing caller is bit-identical. `UNIVERSE-BIAS` passes a corrected-universe
+    panel rather than copying this measurement (`B7`)."""
     if not FA:
         raise SystemExit("the licensed panel is absent; tried %r" % (data_candidates(),))
     ceiling, floor = frozen_band()
-    panel = pd.read_pickle(os.path.join(FA, "panel_corrected_69d.pkl"))
+    panel = pd.read_pickle(panel_path or os.path.join(FA, "panel_corrected_69d.pkl"))
     cols, weights = list(DEPLOYED), {c: BASE_WEIGHT for c in DEPLOYED}
     print("band FROZEN BY CENSUS: cap < $%.1fbn, ADV > $%.1fm | panel %s"
           % (ceiling / 1e9, floor / 1e6, panel.shape), flush=True)
@@ -364,9 +367,14 @@ def main() -> int:
                                                  r["loadings"][c2]["t"])
                            for c2 in FAC.FF_MODEL), flush=True)
 
-    with open(OUT, "w", encoding="utf-8") as fh:
+    # a run on a non-default panel must SAY so in its own artifact, or a reader of
+    # the file cannot tell which universe it describes.
+    res["panel"] = os.path.basename(panel_path or "panel_corrected_69d.pkl")
+    res["universe_label"] = label or "incumbent data/backtest universe"
+    dest = out or OUT
+    with open(dest, "w", encoding="utf-8") as fh:
         json.dump(res, fh, indent=1, default=str)
-    print("\nwrote", OUT)
+    print("\nwrote", dest)
     return 0
 
 

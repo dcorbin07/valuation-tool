@@ -85,26 +85,79 @@ def build(export, bulk_dir, cache, label):
     return panel
 
 
+#: a theme with fewer than this many distinct values on a panel is DEAD, not thin: `zscore`
+#: returns all-NaN on a constant column and `composite` then renormalises it away, so the book
+#: silently scores one theme fewer. Two is the smallest value that can distinguish a constant
+#: column from a real one.
+MIN_DISTINCT_PER_THEME = 2
+
+
+def live_themes(panel, cols):
+    """Which declared themes are ALIVE on this panel, and which are present-but-dead.
+
+    **`coverage is not fidelity`, and this is the defect that made the guard necessary.** The
+    first cut of `score` reported "themes 7" by counting columns PRESENT. A column of constant
+    0.0 is present. With `insiders.csv` absent from an export, `factors.py` sets
+    `df["insider"] = 0.0`, so the column exists, is 100% non-null, and contributes NOTHING --
+    and the two panels being compared then differ by a THEME as well as by a universe, which is
+    `PANEL-EXT-RECHECK`'s "a different composite wearing the same name" and `MA28`'s C1 defect
+    (nine themes scored at 1/7).
+    """
+    import pandas as pd
+    alive, dead = [], {}
+    for c in cols:
+        if c not in panel.columns:
+            dead[c] = "absent"
+            continue
+        v = pd.to_numeric(panel[c], errors="coerce")
+        n = int(v.nunique(dropna=True))
+        sd = float(v.std()) if n else 0.0
+        if n < MIN_DISTINCT_PER_THEME or not (sd > 0):
+            dead[c] = {"distinct": n, "sd": sd, "nonnull": float(v.notna().mean())}
+        else:
+            alive.append(c)
+    return alive, dead
+
+
+def require_same_live_themes(panels):
+    """REFUSE to compare two panels whose live theme sets differ.
+
+    A universe comparison is only a universe comparison if nothing else moved. This is the
+    cheapest possible check for the one thing that silently did.
+    """
+    sets = {k: set(v) for k, v in panels.items()}
+    if len({frozenset(v) for v in sets.values()}) == 1:
+        return True, sets
+    diffs = {}
+    allt = set().union(*sets.values())
+    for t in sorted(allt):
+        where = [k for k, v in sets.items() if t in v]
+        if len(where) != len(sets):
+            diffs[t] = {"alive_on": where}
+    return False, {"sets": {k: sorted(v) for k, v in sets.items()}, "differ": diffs}
+
+
 def score(panel, label):
     from scripts.index_best import _ann
     from scripts.pool_size import _roth, _mdd, _sharpe
     from scripts.sector_neutral_rerun import DEPLOYED, BASE_WEIGHT
 
-    cols = [c for c in DEPLOYED if c in panel.columns]
-    missing = [c for c in DEPLOYED if c not in panel.columns]
+    cols, dead = live_themes(panel, list(DEPLOYED))
+    missing = sorted(dead)
     weights = {c: BASE_WEIGHT for c in cols}
     grid = sorted(panel["date"].unique())
     spy = [float(panel[panel["date"] == d]["bench_ret"].iloc[0]) for d in grid]
     mid = len(grid) // 2
     early, late = set(grid[:mid]), set(grid[mid + 1:])
 
-    out = {"themes": cols, "themes_missing": missing, "n_dates": len(grid),
+    out = {"themes": cols, "themes_missing": missing, "themes_dead": dead,
+           "n_dates": len(grid),
            "n_names": int(panel["ticker"].nunique()),
            "first": str(grid[0])[:10], "last": str(grid[-1])[:10],
            "spy_ann": _ann(spy), "arms": {}}
-    print("  [%s] %d names, %d dates, %s .. %s, themes %d%s"
+    print("  [%s] %d names, %d dates, %s .. %s, themes ALIVE %d%s"
           % (label, out["n_names"], len(grid), out["first"], out["last"], len(cols),
-             (" MISSING %r" % missing) if missing else ""), flush=True)
+             (" DEAD %r" % dead) if dead else ""), flush=True)
 
     for name, kw in ARMS:
         r = _roth(panel, cols, weights, kw)
@@ -156,6 +209,21 @@ def main(argv=None) -> int:
              os.path.join(fa, "UNIVERSE_BIAS_PANEL_full.pkl"))):
         panel = build(export, bulk, cache, label)
         sides[label] = score(panel, label)
+
+    # REFUSE before any comparison if the two panels do not carry the same LIVE themes. The
+    # first run of this item compared a SIX-theme corrected book against a SEVEN-theme
+    # restricted one and reported "themes 7" on both, because the dead theme's column was
+    # present and constant.
+    ok, detail = require_same_live_themes({k: v["themes"] for k, v in sides.items()})
+    if not ok:
+        print("\nREFUSING: the two panels do not carry the same live themes -- a universe "
+              "comparison is only a universe comparison if nothing else moved.")
+        print("  %s" % json.dumps(detail, indent=2, default=str))
+        json.dump({"item": "UNIVERSE-BIAS", "refused": "live theme sets differ",
+                   "detail": detail},
+                  io.open(os.path.join(fa, "UNIVERSE_BIAS_ARMS_REFUSED.json"), "w",
+                          encoding="utf-8"), indent=2, default=str)
+        return 3
 
     # the decision rule, applied to BOTH sides. It is PREREG_pool_size.md's, unchanged.
     for label in sides:

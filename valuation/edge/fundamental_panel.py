@@ -4761,6 +4761,14 @@ def main(argv=None):
     ap.add_argument("--limit", type=int, default=CONFIG.backtest_universe_limit)
     ap.add_argument("--data-dir", default=None, help="use local exported files (WRDS layout) instead of the API")
     ap.add_argument("--json", default=None, help="also write the full result JSON here")
+    # UNIVERSE-BIAS: where the CANONICAL pair (BACKTEST_RESULTS.json/.md) is written.
+    # Defaults to None, i.e. the repo root, so every existing caller -- run_backtest.bat,
+    # RUN_RULES PART 0's documented command, CI -- is bit-identical. It exists so a run on
+    # a DIFFERENT universe can be compared side by side WITHOUT overwriting the tracked
+    # canonical artifact, which is the one object the project uses as its memory.
+    ap.add_argument("--results-root", default=None,
+                    help="write BACKTEST_RESULTS.json/.md here instead of the repo root "
+                         "(for a non-canonical universe; the tracked pair is untouched)")
     ap.add_argument("--validate-institutional", action="store_true",
                     help="due-diligence the 13F signal alone across filing lags "
                          f"({'/'.join(str(x) for x in INST_LAG_GRID)}d)")
@@ -5018,10 +5026,14 @@ def main(argv=None):
                 + ", ".join(_missing) + " (audit B22)")
             print(f"[results] WARNING: {len(_missing)} required block(s) missing: "
                   f"{', '.join(_missing)}")
+        if args.results_root:
+            _os.makedirs(args.results_root, exist_ok=True)
         _w = _write_results(res, universe_label=("full" if (args.limit or 0) >= 2000 else "subset"),
-                            cleanups=_cleanups, per_signal=_psig)
-        print(f"Canonical results  -> {_os.path.basename(_w['json'])} + "
-              f"{_os.path.basename(_w['md'])} (repo root, tracked)")
+                            cleanups=_cleanups, per_signal=_psig,
+                            root=args.results_root or None)
+        print(f"Canonical results  -> {_w['json']} + {_w['md']}"
+              + ("" if not args.results_root else
+                 "   *** NOT the tracked canonical pair: --results-root was given ***"))
     except _schema.PayloadSchemaError as _se:
         # AUDIT M6 — this blanket `except Exception` exists so a serialisation hiccup cannot
         # discard a completed 40-minute backtest, and that intent is right. But it would also

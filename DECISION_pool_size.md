@@ -5,6 +5,51 @@ was read. Nothing here is adopted.**
 
 ---
 
+> ## CORRECTION TO THE CORRECTION, 2026-10-06 (`UNIVERSE-BIAS` part 2)
+>
+> **The correction below was computed on a panel that was quietly missing a theme, and two of its
+> statements are wrong. The headline conclusion is not.**
+>
+> **My defect.** The full-universe export I built wrote `fundamentals.csv`, prices and the
+> benchmark — and not `insiders.csv`. Without that file the `insider` theme goes **constant**, so
+> the column is present, 100% populated, and contributes nothing. The corrected book was therefore
+> a **six-theme** book being compared against a **seven-theme** one, and the runner reported
+> "themes 7" on both sides because it counted columns *present*. A universe comparison in which a
+> theme also moved is not a universe comparison. Fixed, re-run with all seven themes alive on both
+> sides, and a guard now **refuses** to compare two panels whose live theme sets differ.
+>
+> **What does not change: the wider pool still loses on the corrected universe.** The advantage
+> goes **+7.24pp → −3.26pp** (it was −4.14pp on the six-theme panel). Still a sign reversal, same
+> size, same reason. And the census is untouched: the widest book still holds **63.3%** of its
+> weight under $300M against 10.9% on `data/backtest`, and 80.6% of the small-and-later-dead 2009
+> names are still missing.
+>
+> **What does change, and you should know both.**
+>
+> **(1) The incumbent moves DOWN, not up.** I told you the $10B tier "survives and improves
+> slightly" at +0.52pp. On the seven-theme panel it is **18.42% → 18.02%, i.e. −0.40pp**. It still
+> survives — that is a small move, and still above the published 17.16% — but the direction I gave
+> you was wrong and it came from the missing theme.
+>
+> **(2) Your rule no longer picks the incumbent outright on the corrected universe.** The literal
+> reading now picks **top 1,000** (18.17%, drawdown −28.29%) and the cumulative reading still picks
+> the incumbent, so the two **disagree** where before they agreed. The gap is 0.15pp of return on a
+> slightly better drawdown — well inside what adjacent rungs can be told apart by, which the
+> register said in advance. **It does not change my recommendation**: the ladder on the corrected
+> universe is essentially flat from the incumbent to 1,500 (18.02 / 17.83 / 18.17 / 17.76) and only
+> the full pool is clearly worse, so there is no wider pool worth moving to.
+>
+> **Recommendation unchanged: keep the $10B tier for 2026-10-22.**
+>
+> There is also a larger finding that is not about the pool at all, and it has its own memo —
+> **`DECISION_canonical_universe.md`**. Short version: on the corrected universe the *research*
+> headline (+7.17%/yr top-decile alpha vs the equal-weighted universe) falls to **+2.83%/yr at
+> t 1.08** and stops being separable from zero, and nine of eleven testable public claims no longer
+> hold. Your Index is the part that survives.
+
+---
+---
+
 > # CORRECTION, 2026-10-06 (`UNIVERSE-BIAS`) — READ THIS BEFORE THE REST OF THE MEMO
 >
 > **The answer below is overturned. The wider-pool advantage was an artefact of which names
