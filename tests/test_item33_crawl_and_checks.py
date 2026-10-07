@@ -262,6 +262,37 @@ class AWithheldValuationKeepsTheName(unittest.TestCase):
         self.assertIn("2 of those", self.p["preselect_note"])
 
 
+class TheMeasurementBudgetIsTheMeasuredKnee(unittest.TestCase):
+    """`DEFAULT_SHORTLIST` 12 -> 18, and the number is measured rather than preferred.
+
+    The old comment justified 12 by the exact ordering -- "the N MOST drawn-down eligible
+    names, not a sample of them" -- and item 33 changed the allocation to SPREAD the budget
+    across the qualifying range so the rows span what the caller asked for. Spread over 223
+    qualifiers, 12 IS a sample. Live at `min_drawdown` 0.10 on the 2026-10-06 scan:
+    12 -> 0 rows, 18 -> 4 rows (18.1s cold), 25 -> 4 rows (17.9s cold).
+    """
+
+    def test_the_default_is_the_measured_knee(self):
+        self.assertEqual(dip.DEFAULT_SHORTLIST, 18)
+
+    def test_the_default_never_exceeds_the_ceiling(self):
+        """A default above `MAX_SHORTLIST` would be silently clamped by the route, so the
+        module and the surface would disagree about what the page asked for."""
+        self.assertLessEqual(dip.DEFAULT_SHORTLIST, dip.MAX_SHORTLIST)
+
+    def test_the_reason_travels_with_the_constant(self):
+        """The measurement is the justification, so it has to be readable where the number is.
+
+        A bare `DEFAULT_SHORTLIST = 18` invites the next reader to lower it for latency
+        without knowing that 12 returned nothing at the setting the page opens on.
+        """
+        import io
+        src = io.open(dip.__file__, encoding="utf-8").read()
+        head = src[:src.index("DEFAULT_SHORTLIST = 18")]
+        for needle in ("shortlist 12 ->  0 rows", "shortlist 18 ->  4 rows", "warm"):
+            self.assertIn(needle, head, needle)
+
+
 class ThePublishableCaseIsUnchanged(unittest.TestCase):
     """The fix must not publish anything it did not publish before."""
 

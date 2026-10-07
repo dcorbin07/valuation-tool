@@ -124,10 +124,29 @@ MIN_DRAWDOWN_FLOOR = 0.10
 MIN_DRAWDOWN_CEIL = 0.40
 
 #: How many prefiltered names get a real measurement per request. See "THE ONLY PART OF THIS
-#: MODULE THAT TOUCHES A COMPANY" below for why it is this low, and `MAX_SHORTLIST` for the
-#: ceiling a caller may raise it to. The exact `z_high_prox` ordering is what makes a small
-#: number defensible: these are the N most drawn-down eligible names, not a sample of them.
-DEFAULT_SHORTLIST = 12
+#: MODULE THAT TOUCHES A COMPANY" below for why it is bounded at all, and `MAX_SHORTLIST` for
+#: the ceiling a caller may raise it to.
+#:
+#: RAISED 12 -> 18 ON 2026-10-06, AND THE NUMBER IS THE MEASURED KNEE RATHER THAN A PREFERENCE.
+#: The comment that stood here justified 12 by the exact `z_high_prox` ordering -- "these are
+#: the N most drawn-down eligible names, not a sample of them" -- and that stopped being true
+#: when item 33 changed the allocation to SPREAD the budget across the qualifying depth range
+#: so the rows span what the caller asked for. Spread over 223 qualifiers, 12 IS a sample, and
+#: a 5% sample against a health-survival rate near a third returns nothing fairly often.
+#:
+#: Measured on the live service at `min_drawdown` 0.10, the setting the page opens on
+#: (2026-10-06 scan, 245 eligible / 223 qualifying):
+#:
+#:     shortlist 12 ->  0 rows   (12 of 12 valued names fail the health floors)
+#:     shortlist 18 ->  4 rows   18.1s cold
+#:     shortlist 25 ->  4 rows   17.9s cold
+#:
+#: So 18 is where the rows appear and 25 buys nothing beyond it at the same latency. The cost
+#: is ~18s on the FIRST request of each cache window and **0.4s warm**, because these
+#: valuations share the single-name page's TTL cache -- so a reader who opens one name has
+#: warmed the other. A screen that shows nothing at its own default setting is not a working
+#: feature, which is what decided this against the latency.
+DEFAULT_SHORTLIST = 18
 MAX_SHORTLIST = 25
 
 

@@ -222,6 +222,12 @@ budget buys nothing. **On three thresholds it buys +2 at two of them**, a margin
 rate near 15%. One cell is not a curve, and that is the second time in this item a partial
 reading pointed the wrong way.
 
+**SUPERSEDED LATER THE SAME DAY — SEE "THE MEASUREMENT BUDGET WAS RAISED 12 -> 18" BELOW. The
+next scan returned ZERO rows at the default threshold, which is not a trade-off to put to
+anybody; it is the feature not working. The paragraph is kept as written because the reasoning
+was sound on the evidence it had, and what changed it was a measurement rather than a
+preference.**
+
 **THE DEFAULT STAYS AT 12 AND THIS IS DON'S CALL, NOT MINE.** Doubling it roughly doubles the
 rows and costs **10–27 seconds on the first request of each cache window** on a 512 MB
 instance (warm is 0.5 s either way, because the valuations share the single-name page's TTL
@@ -231,6 +237,92 @@ healthy companies trading far below their own high are genuinely rare, so a shor
 the market rather than the wiring** — which is exactly the sentence the page was previously
 unable to earn, because it was returning nothing for a reason that had nothing to do with the
 market.
+
+## LIVE VERIFICATION — THE INSIDER LEG: 0.012 -> 0.1547 -> 0.8593, AND 0.86 ON THE HOT LIST
+
+Themes run **37538921886** on `main`, the first with the locked guard and the status check:
+
+```
+CURRENT Form 4 window: 2026-07-08 .. 2026-10-06
+1500 names to crawl, 13819 documents
+crawled 1500 names; cached 1500
+  written 1500 (with transactions 1289, no filings in window 196)
+  LOST: every document failed for 0 names  (throttled 0, refused 0, fetch failures 0, parse failures 0)
+...
+wrote data/live_cache/theme_columns.json: 1424 rows,
+     coverage {'inst_accum': 0.846, 'sm_breadth': 0.846, 'insider_score': 0.8593}
+```
+
+**EVERY NUMBER IN THE LOST LINE IS ZERO, against 963 names lost on the run before it.** 1,500 of
+1,500 written; 1,289 carry transactions and the 196 with none genuinely filed no Form 4 in the
+window — a fact, and now distinguishable from a refusal because the line says which.
+
+**THE PACING IS WHAT IT ADVERTISES, AND THE TIMING PROVES IT RATHER THAN THE COMMENT CLAIMING
+IT.** 13,819 documents from 22:20:43 to 22:56:38 is **35m55s = 6.4 documents/second** against a
+serialised ceiling of 1/(0.13 + ~0.025 jitter) ~ 6.7. The run before did **12.4/s** through the
+same guard and lost 963 names. **The crawl got slower and finished its job**, which is the whole
+trade: SEC's limit is on the ACCOUNT, so a caller that exceeds it does not go faster — it gets
+403s and loses names.
+
+**AND IT LANDS WHERE THE PANEL IS, which is the check that the number means what it says.**
+`insider_score` coverage **0.8593** against the panel's own **83.1%** on the same 90-day
+lookback — slightly above, which is what the widened parser buys. A figure far ABOVE the panel's
+would have been evidence of a fabricated neutral rather than of a fixed crawl.
+
+**THE HOT LIST NEEDED ITS OWN SCAN, NOT JUST THE CACHE.** Immediately after the themes run the
+live hot list still read `insider 0.01`, because `scan_date` was 2026-10-05 and
+`theme_contributing` is computed during a SCAN from whatever `theme_columns.json` held then.
+Hot scan **37544168752** was triggered and the live payload now reads, on `scan_date`
+**2026-10-06**: **`insider` 0.86**, `institutional` 0.85, `capital_discipline` 0.96. Worth
+recording as an ordering fact for the next person who fixes a theme and checks the wrong
+surface: **the cache and the hot list are two clocks, and the cache moving does not move the
+list until the list is rebuilt.**
+
+## THE MEASUREMENT BUDGET WAS RAISED 12 -> 18, AND THE NEW SCAN IS WHY
+
+The dip fix is confirmed on two different scans, and the second one made the budget question
+decidable rather than a matter of taste. On the 2026-10-06 scan (245 eligible, 223 qualifying):
+
+| threshold | rows | health-rejected | shallow | withheld |
+|---|---|---|---|---|
+| 0.10 | **0** | **12 of 12** | 0 | 3 |
+| 0.20 | 2 | 10 | 0 | 4 |
+| 0.30 | 4 | 7 | 1 | 4 |
+| 0.40 | 4 | 6 | 2 | 2 |
+
+**0.20's two rows are the fix working where nothing else would show it: SNDK and DAVE both
+carry `fair_value: None`.** Those are names the old code dropped entirely, surfaced now for
+their drawdown and health with the refusal stated rather than the name deleted.
+
+**AND 0.10 RETURNED NOTHING — at the setting the page opens on.** Not the wiring this time:
+`rejected_checks` is 0 and all twelve valued names fail the health floors. Measured on the live
+service:
+
+```
+shortlist 12 ->  0 rows   0.4s warm
+shortlist 18 ->  4 rows   18.1s cold
+shortlist 25 ->  4 rows   17.9s cold
+```
+
+**18 is where the rows appear and 25 buys nothing beyond it at the same latency**, so the knee
+is 18 and the default is now 18. **THE OLD COMMENT'S JUSTIFICATION HAD QUIETLY EXPIRED**: it
+defended 12 as *"the N MOST drawn-down eligible names, not a sample of them"*, and item 33's
+first cut changed the allocation to SPREAD across the qualifying range so the rows span what the
+caller asked for. Spread over 223 qualifiers, 12 **is** a sample — a 5% one against a
+health-survival rate near a third, which returns nothing fairly often.
+
+**THE COST IS STATED PLAINLY: ~18 seconds on the first request of each cache window, 0.4s warm**,
+because these valuations share the single-name page's TTL cache. **A screen that shows nothing
+at its own default setting is not a working feature, and that is what decided it against the
+latency.** `MAX_SHORTLIST` is untouched at 25, so this raises a default to within an existing
+ceiling rather than raising the ceiling.
+
+**A CORRECTION TO MY OWN EARLIER READING, TWICE OVER IN ONE ITEM.** I first measured the budget
+at 0.20 only, saw thirteen extra valuations buy zero extra rows, and concluded a bigger budget
+buys nothing; across three thresholds it buys +2 at two of them. Then I said the default should
+stay at 12 and the trade-off was Don's. **The next scan returned 0 rows at the default
+threshold**, which is not a trade-off — it is the feature not working — so the call changed on
+evidence rather than on preference.
 
 ## THREE DEFECTS THE FULL GATE CAUGHT THAT MY OWN VERIFICATION DID NOT, AND THE FIRST IS THE HARNESS
 
