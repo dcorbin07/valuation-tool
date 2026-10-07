@@ -134,6 +134,20 @@ def main(argv=None):
                  {True: "CLEARS", False: "FAILS", None: "n/a"}[
                      CF.clears(obs, new, direction)]), flush=True)
 
+    # --- the rates the bars are actually read off, and the adoption caveat ---------------
+    rates = sweep.get("rates") or {}
+    print("\n=== RATES ON THE NULL  (what pure noise does on this universe)", flush=True)
+    for k in sorted(rates):
+        v = rates[k]
+        print("  %-32s %s" % (k, ("%.4f" % v) if isinstance(v, float) else v), flush=True)
+    adopt = rates.get("cpcv_adopt")
+    print("\n  CPCV ADOPTION ON NOISE: %s   (X7 measured 27pc on the canonical panel, and "
+          "that adoption manufactures ~+1.4 of long-short t out of nothing)"
+          % (("%.4f" % adopt) if adopt is not None else "n/a"), flush=True)
+    print("  the REAL corrected run ADOPTS (%s), which the published run did not -- so the "
+          "corrected long-short reading carries that inflation on BOTH sides"
+          % sweep["real"].get("cpcv_recommend"), flush=True)
+
     res = {
         "item": "CORRECTED-FLOORS",
         "part": "1 -- the X7 placebo sweep calibrated on the corrected universe",
@@ -165,6 +179,22 @@ def main(argv=None):
                                   "sharpe and variance fixed and changing N alone reproduces "
                                   "the landed figure"},
         "floors": rows,
+        "rates_on_the_null": rates,
+        "adoption_caveat": {
+            "cpcv_adopt_rate_on_noise": rates.get("cpcv_adopt"),
+            "real_run_adopted": bool(sweep["real"].get("cpcv_adopt")),
+            "real_run_recommend": sweep["real"].get("cpcv_recommend"),
+            "why_it_matters": "placebo.py mirrors run_backtests, so an ADOPTING draw is scored "
+                              "on weights chosen on the same panel it is then measured on. X7 "
+                              "measured that this manufactures ~+1.4 of long-short t out of "
+                              "nothing and fires on 27pc of pure-noise draws on the canonical "
+                              "panel. UNIVERSE-BIAS part 2 measured that the REAL corrected run "
+                              "adopts where the published one did not, so the inflation is "
+                              "present on both sides of the corrected comparison. The floor is "
+                              "the right comparator BECAUSE both sides carry it -- but a reader "
+                              "quoting the corrected long-short t as an effect size, rather "
+                              "than against this floor, inherits the inflation unopposed.",
+        },
     }
     if partial:
         res["PARTIAL"] = ("fewer than %d draws: a p95 over this many draws is set by the "
