@@ -360,13 +360,44 @@ class Wiring(unittest.TestCase):
         s = self.read("sync.bat")
         self.assertIn("scripts\\sync_checkout.py", s)
 
-    def test_git_push_syncs_before_it_merges_and_pushes(self):
+    def test_git_push_syncs_before_it_pushes(self):
         """Order is the point: fast-forwarding first is what makes the final push a
-        fast-forward. Running it afterwards would report the same thing and fix nothing."""
+        fast-forward. Running it afterwards would report the same thing and fix nothing.
+
+        REPOINTED 2026-10-06, and NOT by the lane that changed the behaviour. This was
+        `test_git_push_syncs_before_it_merges_and_pushes` and asserted `sync_checkout.py`
+        appears before `"Auto-land finished agent work"` -- a heading that a deliberate,
+        documented change removed from `git_push.bat` the same day ("Auto-land of agent
+        branches: REMOVED 2026-10-06 ... agent branches now land on GitHub through
+        land-agent-branch.yml"). The removal is right; it simply left this guard red, and
+        because the land Action runs every suite on the MERGE RESULT, that red blocked EVERY
+        branch's land rather than only its author's.
+
+        HALF THE OLD PROPERTY IS NOW VACUOUS AND HALF IS LOAD-BEARING. "Sync before the local
+        merge" cannot be asserted when there is no local merge. "Sync before the push" is the
+        half that makes the push a fast-forward, and it is kept. `test_the_local_auto_land_is_
+        gone_and_says_why` below then pins the new contract POSITIVELY, so this file asserts
+        what `git_push.bat` does rather than merely tolerating what it stopped doing.
+        """
         s = self.read("git_push.bat")
         self.assertIn("scripts\\sync_checkout.py", s)
-        self.assertLess(s.index("sync_checkout.py"), s.index("Auto-land finished agent work"))
         self.assertLess(s.index("sync_checkout.py"), s.index('"%GIT%" push'))
+
+    def test_the_local_auto_land_is_gone_and_says_why(self):
+        """A removal that leaves no trace reads as a feature nobody got round to writing.
+
+        Local merging bypassed the land gate entirely -- no land policy, no suites -- and a
+        branch the gate had already landed under a different merge commit showed up here as a
+        conflict that blocked Don's own push. So its ABSENCE is the contract now, and it is
+        asserted rather than assumed: a future session restoring a local `git merge` of
+        `worktree-*` into main would be re-opening the thing that left DECISIONS.md unpushed.
+        """
+        s = self.read("git_push.bat")
+        self.assertIn("REMOVED 2026-10-06", s)
+        self.assertIn("land-agent-branch.yml", s)
+        # The mechanism, not just the comment: no loop over worktree-* branches and no merge.
+        self.assertNotIn("branch --list worktree-*", s)
+        self.assertNotIn("merge --no-edit", s)
 
     def test_git_push_does_not_wrap_errorlevel_in_a_parenthesised_block(self):
         """cmd evaluates `if errorlevel` inside ( ) at PARSE time; this cost a day once."""
