@@ -262,3 +262,59 @@ def crsp_cusip_many(crsp, cells, key_col="ticker", date_col="date"):
     out["cusip"] = out.apply(lambda r: (r["first"] if r["state"] == OK else None), axis=1)
     return out[["_k", "_d", "cusip", "state"]].rename(
         columns={"_k": key_col, "_d": date_col})
+
+
+def resolve_route_b(cusip_spans, crsp_spans_table, cells):
+    """Route B: panel ticker -> CRSP cusip (DATED) -> IBES ticker (DATED).
+
+    Returns a frame with `ticker`, `date`, `resolved`, `state` -- one row per input cell, in the
+    input's order.
+
+    **ONE IMPLEMENTATION, TWO CALLERS (`B7`).** `IBES-LINK`'s validator produced this join and
+    `STAGE1-BATCH2`'s `K0` needs it on a different population (the $10B tier). A second copy of a
+    three-step dated join is how two numbers for one question come about -- and the version that
+    carries the defect is usually the newer one.
+
+    **LEG-1 REFUSALS MAP THROUGH RATHER THAN BECOMING `UNMAPPED`.** A name CRSP cannot place at a
+    date is `NOT_COVERED` or `AMBIGUOUS` for a reason, and collapsing those into one bucket would
+    lose the distinction between *"no cusip at this date"* and *"a cusip that IBES does not
+    know"*. That distinction is the whole point of a dated route.
+
+    **A CORRECTION CARRIED FORWARD FROM THE VALIDATOR, kept because it is the kind of thing that
+    silently returns the wrong shape:** leg 1's output already carries a `ticker` column (the
+    PANEL ticker), so renaming `cusip` -> `ticker` produces a DUPLICATE and the slice comes back
+    with three columns. The leg-2 input is built EXPLICITLY instead.
+    """
+    import pandas as pd
+
+    cl = cells[["ticker", "date"]].copy()
+    if crsp_spans_table is None:
+        return pd.DataFrame({"ticker": cl["ticker"].values, "date": cl["date"].values,
+                             "resolved": None, "state": "ROUTE_ABSENT"})
+
+    leg1 = crsp_cusip_many(crsp_spans_table, cl)
+    ok1 = leg1[leg1["state"] == OK]
+    leg2_in = pd.DataFrame({"ticker": ok1["cusip"].values, "date": ok1["date"].values})
+    leg2 = resolve_many(cusip_spans, leg2_in, key="cusip")
+
+    key1 = {(t, pd.Timestamp(d)): st for t, d, st
+            in leg1[["ticker", "date", "state"]].itertuples(index=False)}
+    got2 = {(t, pd.Timestamp(d)): (v, st) for t, d, v, st
+            in leg2[["ticker", "date", "resolved", "state"]].itertuples(index=False)}
+    cus = {(t, pd.Timestamp(d)): c for t, d, c
+           in ok1[["ticker", "date", "cusip"]].itertuples(index=False)}
+
+    vals, states = [], []
+    for t, d in zip(cl["ticker"].values, cl["date"].values):
+        kk = (t, pd.Timestamp(d))
+        st1 = key1.get(kk, UNMAPPED)
+        if st1 != OK:
+            vals.append(None)
+            states.append(st1)
+            continue
+        c = cus.get(kk)
+        v, st2 = got2.get((c, pd.Timestamp(d)), (None, UNMAPPED))
+        vals.append(v)
+        states.append(st2)
+    return pd.DataFrame({"ticker": cl["ticker"].values, "date": cl["date"].values,
+                         "resolved": vals, "state": states})

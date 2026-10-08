@@ -78,34 +78,12 @@ def main(argv=None):
     ra = L.resolve_many(oftic_spans, cl, key="oftic")
     r = pd.DataFrame({"ticker": ra["ticker"].values, "date": ra["date"].values,
                       "a": ra["resolved"].values, "state_a": ra["state"].values})
-    if cr is not None:
-        leg1 = L.crsp_cusip_many(cr, cl)
-        ok1 = leg1[leg1["state"] == L.OK]
-        # built EXPLICITLY: `ok1` already carries a `ticker` column (the PANEL ticker), so
-        # renaming `cusip` -> `ticker` produced a DUPLICATE and the slice returned three columns.
-        leg2_in = pd.DataFrame({"ticker": ok1["cusip"].values, "date": ok1["date"].values})
-        leg2 = L.resolve_many(cusip_spans, leg2_in, key="cusip")
-        b = pd.Series([None] * len(r), index=r.index, dtype=object)
-        sb = pd.Series([L.NOT_COVERED] * len(r), index=r.index, dtype=object)
-        # map leg-1 refusals through, then overwrite the rows leg 1 resolved
-        key1 = {(t, pd.Timestamp(d)): st for t, d, st
-                in leg1[["ticker", "date", "state"]].itertuples(index=False)}
-        got2 = {(t, pd.Timestamp(d)): (v, st) for t, d, v, st
-                in leg2[["ticker", "date", "resolved", "state"]].itertuples(index=False)}
-        cus = {(t, pd.Timestamp(d)): c for t, d, c
-               in ok1[["ticker", "date", "cusip"]].itertuples(index=False)}
-        for i, (t, d) in enumerate(zip(r["ticker"].values, r["date"].values)):
-            kk = (t, pd.Timestamp(d))
-            st1 = key1.get(kk, L.UNMAPPED)
-            if st1 != L.OK:
-                sb.iloc[i] = st1
-                continue
-            c = cus.get(kk)
-            v, st2 = got2.get((c, pd.Timestamp(d)), (None, L.UNMAPPED))
-            b.iloc[i], sb.iloc[i] = v, st2
-        r["b"], r["state_b"] = b.values, sb.values
-    else:
-        r["b"], r["state_b"] = None, "ROUTE_ABSENT"
+    # ONE IMPLEMENTATION, TWO CALLERS (`B7`). The three-step dated join moved to
+    # `ibes_link.resolve_route_b` so `STAGE1-BATCH2`'s `K0` can resolve the $10B tier's cells
+    # through the SAME code rather than a second copy of it. Proved inert: this run must still
+    # reproduce 0.6999955119640681 of cells.
+    rb = L.resolve_route_b(cusip_spans, cr, cl)
+    r["b"], r["state_b"] = rb["resolved"].values, rb["state"].values
 
     # --- B7: the vectorised path must AGREE with the scalar definition --------------------
     import random
