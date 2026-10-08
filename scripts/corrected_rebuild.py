@@ -46,10 +46,22 @@ _HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-#: `S22`'s grid, in trading days. 63 is the panel's own `horizon` and is NOT repeated here.
-EXTRA_HORIZONS = (126, 189, 252, 315, 378, 441, 504)
+#: `S22`'s grid, in trading days -- its OWN `HORIZONS` tuple, INCLUDING the base 63, pinned
+#: against the import by test rather than retyped.
+#:
+#: **A DEFECT OF MY OWN, AND 63 IS NOT A DUPLICATE COLUMN.** v2 shipped this as `HORIZONS[1:]`
+#: on the reasoning that 63 is the panel's own `horizon` and repeating it buys nothing. It buys
+#: `S22`'s `C0` control: `fundamental_panel`'s own comment reads *"the BASE horizon is allowed
+#: here and is the study's C0 control: `fwd_ret_h63` must equal `fwd_ret` exactly"*, and
+#: `term_structure.main` reads `fwd_ret_h63` directly to check that the `extra_horizons`
+#: machinery reproduces the shipped column. Dropping it made that control `KeyError` -- so the
+#: arms were all fine (`ret_col(63)` returns `fwd_ret`) and the CONTROL was the casualty.
+#: **A column that looks like a duplicate can BE a control**, and copying `fwd_ret` into
+#: `fwd_ret_h63` instead would have made `C0` pass BY CONSTRUCTION, which is worse than the
+#: KeyError: a vacuous control reads as a passing one.
+EXTRA_HORIZONS = (63, 126, 189, 252, 315, 378, 441, 504)
 
-OUT_PANEL = "UNIVERSE_BIAS_PANEL_full_v2.pkl"
+OUT_PANEL = "UNIVERSE_BIAS_PANEL_full_v3.pkl"
 OUT_JSON = "CORRECTED_REBUILD.json"
 
 #: a theme with fewer than this many distinct values is DEAD, not thin -- `zscore` returns
@@ -157,7 +169,14 @@ def main(argv=None):
         "changes_no_public_page": True,
         "panel": OUT_PANEL,
         "banked_panels_not_overwritten": ["panel_corrected_69d.pkl",
-                                          "UNIVERSE_BIAS_PANEL_full.pkl"],
+                                          "UNIVERSE_BIAS_PANEL_full.pkl",
+                                          "UNIVERSE_BIAS_PANEL_full_v2.pkl"],
+        "base_horizon_column_is_present_for_S22s_C0_control": (
+            "fwd_ret_h63 is carried deliberately. It is NOT a duplicate of fwd_ret: it is the "
+            "input to S22's C0 control, which checks that the extra_horizons machinery "
+            "reproduces the shipped column. The exactness is REPORTED BY S22 ITSELF rather "
+            "than re-derived here (B7) -- a second definition of one control is how two numbers "
+            "for one question come about."),
         "export": export,
         "bulk_dir": bulk,
         "build_seconds": secs,

@@ -191,10 +191,20 @@ class TheThreeChangesAreDeclaredAndNoMore(unittest.TestCase):
         c = _consts("scripts/corrected_rebuild.py")
         eh = tuple(c["EXTRA_HORIZONS"])
         from scripts.term_structure import HORIZONS
-        self.assertEqual(eh, tuple(HORIZONS[1:]),
-                         "the rebuild's horizons must be S22's own grid minus its base, or S22 "
+        self.assertEqual(eh, tuple(HORIZONS),
+                         "the rebuild's horizons must be S22's OWN grid, base included, or S22 "
                          "reads columns the panel does not carry")
         self.assertEqual(HORIZONS[0], 63, "S22's base horizon moved; the rebuild assumed 63")
+        # A DEFECT OF MY OWN, PINNED SO IT CANNOT COME BACK. v2 shipped `HORIZONS[1:]` on the
+        # reasoning that 63 duplicates the panel's own `horizon`. It does not duplicate it: it
+        # is S22's `C0` control, and `fundamental_panel`'s own comment says so. The arms were
+        # unaffected -- `ret_col(63)` returns `fwd_ret` -- so the CONTROL was the only casualty,
+        # which is why `test_every_S22_horizon_column_exists` passed while C0 KeyError'd.
+        self.assertIn(63, eh,
+                      "S22's C0 control reads `fwd_ret_h63` directly to check that the "
+                      "extra_horizons machinery reproduces the shipped `fwd_ret`; dropping 63 "
+                      "removes the control's input, and copying `fwd_ret` into it would make C0 "
+                      "pass BY CONSTRUCTION")
 
     def test_keep_numbers_is_True_and_the_horizon_is_63(self):
         t = _tree("scripts/corrected_rebuild.py")
@@ -238,9 +248,16 @@ class TheThreeChangesAreDeclaredAndNoMore(unittest.TestCase):
         """Read as AST write-mode calls and as the declared output name, not as a banned
         substring — the script legitimately NAMES the banked panels in its own disclosure."""
         c = _consts("scripts/corrected_rebuild.py")
-        self.assertEqual(c["OUT_PANEL"], "UNIVERSE_BIAS_PANEL_full_v2.pkl")
-        self.assertNotEqual(c["OUT_PANEL"], "UNIVERSE_BIAS_PANEL_full.pkl")
-        self.assertNotEqual(c["OUT_PANEL"], "panel_corrected_69d.pkl")
+        self.assertEqual(c["OUT_PANEL"], "UNIVERSE_BIAS_PANEL_full_v3.pkl")
+        # EVERY banked panel, and the list GROWS as panels land. v2 is itself banked now -- the
+        # v2-to-v3 additivity proof reads it -- so the guard that protected the lean panel and
+        # S23's must protect v2 too. This test FIRED on the v3 rename, which is the guard
+        # working: it pins that the output is the DECLARED name and not a banked one.
+        for banked in ("UNIVERSE_BIAS_PANEL_full.pkl", "panel_corrected_69d.pkl",
+                       "UNIVERSE_BIAS_PANEL_full_v2.pkl",
+                       "UNIVERSE_BIAS_PANEL_restricted.pkl"):
+            self.assertNotEqual(c["OUT_PANEL"], banked,
+                                "the rebuild would overwrite the banked %s" % banked)
         for n in ast.walk(_tree("scripts/corrected_rebuild.py")):
             if isinstance(n, ast.Call) and getattr(n.func, "attr", None) == "to_pickle":
                 self.assertTrue(n.args, "to_pickle with no destination")
@@ -341,6 +358,13 @@ class TheRebuildOnDisk(unittest.TestCase):
         for h in HORIZONS:
             self.assertIn(ret_col(h), have, "S22 would read a column the panel lacks: %s"
                           % ret_col(h))
+        # AND THE CONTROL'S COLUMN, WHICH `ret_col` DOES NOT NAME. `ret_col(63)` returns
+        # `fwd_ret`, so the loop above is satisfied by a panel that has no `fwd_ret_h63` at all
+        # -- which is exactly how v2 passed this test while S22's C0 raised KeyError. A guard
+        # that covers the measurement path and not the control path is not covering the study.
+        self.assertIn("fwd_ret_h63", have,
+                      "S22's C0 control reads `fwd_ret_h63` directly and `ret_col` never names "
+                      "it, so this is a separate assertion rather than part of the loop")
 
     def test_the_z_columns_came_back(self):
         """`keep_numbers=True`'s whole purpose: `CORRECTED-FLOORS` part 2 reported four claims

@@ -22372,3 +22372,168 @@ is deliberate: wiring one into `factors.py` would be a construction change and i
 `valuation/edge/data_providers.py` (`_KEEP` 45 → 52);
 `data/free_analysis/UNIVERSE_BIAS_PANEL_full_v2.pkl`, `CORRECTED_REBUILD.json`,
 `CORRECTED_REBUILD_INERT.json`.
+
+
+## CORRECTED-REBUILD-V3 + CORRECTED-CLAIMS-2 + INDEX-BOOK-3WAY - 2026-10-07
+
+**THREE `FIXED`-CLASS ITEMS, ZERO TRIALS.** `by_domain` is BIT-IDENTICAL at equity **274**,
+options **310**, infra **20** while `rows_fixed_not_counted` rises **97 -> 100**, which is the
+proof all three rows were seen and correctly excluded. **ADOPTS NOTHING, CHANGES NO PUBLIC
+PAGE.** Every figure is the **DEPLOYED book (flat 1/7)**; CPCV is never consulted, because part
+1b measured that CPCV **ADOPTS** `ic-proportional` on this universe and the adopted book's
+top-decile alpha is **2.83pc** against the deployed **6.07pc** - so a corrected figure that does
+not name its weighting cannot be compared with anything published.
+
+### 1. THE HORIZON REPAIR - A COLUMN THAT LOOKS LIKE A DUPLICATE WAS A CONTROL
+
+v2 set `extra_horizons` to `S22`'s grid **MINUS its base**, reasoning that 63 duplicates the
+panel's own `horizon`. **It does not duplicate it.** `fundamental_panel`'s own comment reads *"the
+BASE horizon is allowed here and is the study's C0 control: `fwd_ret_h63` must equal `fwd_ret`
+exactly"*, and `term_structure.main` reads that column directly.
+
+**EVERY ARM WAS UNAFFECTED AND THE CONTROL WAS THE ONLY CASUALTY** - `ret_col(63)` returns
+`fwd_ret`, which is why my own test asserting every S22 horizon column exists **PASSED while S22
+raised `KeyError`**. A guard that covers the measurement path and not the control path is not
+covering the study, and the suite now asserts `fwd_ret_h63` separately because `ret_col` never
+names it.
+
+**COPYING `fwd_ret` INTO `fwd_ret_h63` WOULD HAVE BEEN WORSE THAN THE CRASH** - it would make C0
+pass **BY CONSTRUCTION**, and a vacuous control reads as a passing one. So the repair is a
+rebuild.
+
+v3 is **289,659 x 90 columns in 979s**, all seven weighted themes **LIVE**, **nine**
+forward-return columns. **v2 -> v3 is ADDITIVE: 19,548,619 cells compared, ZERO moved, added
+exactly `['fwd_ret_h63']`**, nothing removed, key sets identical - so any measurement reading only
+shared columns is **identical by proof** on either, which is what lets `score_calibration`'s
+v2-era artifact stand without a re-run. The lean->v3 proof is unchanged at 3,251,787 cells and
+zero moved. **`S22`'s C0 then passes EXACTLY: `max|fwd_ret - fwd_ret_h63| = 0.000e+00` over
+289,659 rows**, non-vacuously, the two columns having come from different code paths.
+
+**TWO DEFECTS IN MY OWN COMPARISON, BOTH CAUGHT BECAUSE THE GATE REFUSED RATHER THAN PASSED.** A
+scratch second implementation fell back to `x.astype(str) == y.astype(str)`, and under pandas 3
+that yields `pd.NA` on an all-`None` object column where **`pd.NA == pd.NA` is NOT True** - so
+four provably identical EMPTY columns (`sentiment`, `z_earn_rev`, `z_neg_rating_disp`,
+`z_rating_rev`) read as moved on all 289,659 rows and a bit-identical pair reported **NOT
+ADDITIVE**. `MA_FINAL_BATCH` hit the same language feature from the other side: a blank counter
+reading **0** on a column with 1,544,490 blanks. Repaired by **deleting my second implementation
+and extracting the shipped one** (`compare_shared`, proved inert at an identical 3,251,787 / 0),
+then by a float cast, because a **BOOLEAN** column entered the shared set that the lean comparison
+never exercised. **THE RULE: for a cell-for-cell panel comparison, coerce to numeric and compare
+the NULL MASKS. Never `astype(str)`.**
+
+### 2. `CORRECTED-CLAIMS-2` - 5 SURVIVES, 6 NO LONGER HOLDS, 3 UNMEASURED
+
+Every bar was fixed **before the producers reported**, and where a claim carries its own
+pre-committed bar that bar is **REUSED VERBATIM** - `S22`'s `R_8 >= 6.0`, `score_confidence`'s own
+*"(gate: 42)"*, and `V6-B`'s verdict function itself. Three bars are **DECLARED** by this item,
+each with its reason.
+
+* **THE HEADLINE: `S22`'s SHAPE CHANGES.** `R_8` falls **6.195 -> 3.3723** against S22's own
+  CONSTANT-RATE bar of 6.0, so **CONSTANT-RATE becomes INTERMEDIATE** - annualised alpha **DECAYS
+  6.07pc -> 2.56pc** across the eight horizons, where the published figures were essentially flat
+  at 6.59pc -> 5.10pc.
+* **THE PRODUCT COPY SPLITS.** `hold_horizon`'s one-quarter **6.6pc SURVIVES** at 6.07pc, inside
+  the declared 1.0pp; its two-year **5.1pc DOES NOT** at **2.56pc**, a 2.54pp move. `PANEL_NAMES
+  = 2531` is its own row, so item 5's old-to-new table cannot miss it.
+* **THE TWO-ROW DESIGN EARNED ITS KEEP ON THE FIRST REAL RUN.** S22's printed minimum of 3.16
+  **fails at 3.0206** while the SUBSTANCE row **passes** - alpha clears 2.0 at all eight horizons
+  - which is exactly the dissociation the split was built for, and neither reading could be
+  chosen after the fact.
+* **THE PERSISTENCE WEAKENS AND IS NOT ABSENT.** The two-year cell is still measured away from
+  zero (*t* **3.3845**), and median rank IC still **RISES** with horizon, **0.0594 -> 0.1017**,
+  more steeply than the published 0.0336 -> 0.0655.
+* **A DEFECT IN MY OWN MAPPING THAT WOULD HAVE BEEN RIGHT BY ACCIDENT.** `GROUP_DATES` is the
+  count of dates the **TOP-DECILE MEAN** clears; my first cut read `n_dates_clearing_p95`, a
+  DIFFERENT statistic reading **24** on the banked run against the published **21** - `S25`'s
+  *"two nearly-equal percentages on different objects"*. **And on the corrected run both equal
+  57**, so the wrong field gave the right integer, passed every test I had written, and would be
+  wrong on any other dataset. Only requiring the derivation to reproduce the **published 21** on
+  the **banked** artifact caught it (`MB15`), and the artifact now records the 24 so a successor
+  can see why that field is not used.
+* **BOTH SCORE COUNTS MOVE IN THE PRODUCT'S FAVOUR, AND THE CAVEAT TRAVELS.** Per-name
+  NOT-DISTINGUISHABLE falls **45 -> 12 of 69** against the register's own gate of 42; the group
+  count rises **21 -> 57**. But a 9,645-name cross-section makes a top decile of ~**960** names
+  rather than ~184, so a less noisy group mean is **partly arithmetic rather than information** -
+  and the artifact's own independence warning (*"69 overlapping cross-sections of largely the same
+  names are not 69 independent draws"*) applies to both counts.
+* **`V6-B` IS UNMEASURED ON ITS OWN REGISTER'S RULING.** Its `C1` is a **GATING** fidelity control
+  that **ABORTS**, and register 6.6 **voids every arm** behind it. It is deliberately **NOT
+  parameterised** - `W-28` forbids relaxing a pre-committed bar after watching it fail, and unlike
+  `served_index_book` (whose gate takes an `expect_alpha` parameter BY DESIGN) this one is
+  unconditional. **Re-measuring `V6-B` on a corrected universe NEEDS ITS OWN REGISTER.**
+* **THE REFUSALS ARE ATTRIBUTABLE RATHER THAN ASSUMED, AND THAT IS THE CONTROL WORTH KEEPING.**
+  **Three instruments on three call paths** - part 1b's `deployed_statistics`,
+  `term_structure`'s own arm and `V6-B`'s `C1` - agree on the corrected deployed top-decile alpha
+  at **0.06067443460377794**. So C1 failed because the **UNIVERSE** differs, not because a panel,
+  a join or a weight vector is broken. A row saying only *"C1 failed"* would have left those
+  indistinguishable.
+* **R1's NET-OF-COST CELL: DIAGNOSED, AND THE DERIVED READING SURVIVES.** R1's own
+  `net_of_cost` is `NaN` because `factor_alpha` left-joins `X4`'s strategy series on **X4's OWN
+  dates**, so the join matches nothing - the `E-6` family, made visible by producing NaN rather
+  than silence. **R1's path is NOT edited.** The derived reading: gross intercept **5.9398pc at
+  NW *t* 4.4532** with a **BREAKEVEN of 123.46 bps one-way**, about **3.7x** `B11`'s measured 33.4
+  bps. **The breakeven is the primary precisely because it needs no cost assumption** - 33.4 bps
+  was measured on the RESTRICTED universe and a 9,645-name book holds far smaller names, so
+  quoting a net alpha off it would be `O-1`'s defect, which ran ~17x wrong.
+* **AND THE AFFINITY CHECK FIRED.** `net_alpha` should be affine in bps, which would make an
+  interpolated drag exact; the curve's maximum second difference is **9.68e-06** rather than 0,
+  almost certainly because `net_ann` compounds. So the 33.4 bps drag is **APPROXIMATE** and ships
+  **BRACKETED** by the adjacent grid points - 30 bps giving net **4.251pc**, 40 bps giving
+  **3.692pc**. **The tolerance was NOT relaxed to make an exactness claim pass; the claim was
+  changed.**
+* **TWO OF MY OWN GUARDS FIRED AGAINST THE CORRECT TREE**, both the substring-ban family this
+  record names in one line. One banned a constant its own docstring names while explaining why it
+  is **not** used. Both now read the syntax tree with positive controls, and **not via
+  `ast.dump`**, because a dump contains every string constant - my own lesson from part 1. **And
+  the second guard caught a REAL duplicate on its first run**: the R1 row compared against a
+  hard-coded `"UNMEASURED"` instead of the imported constant.
+* **NOT DONE:** the per-horizon `fixed_weights_null` floors are **UNMEASURED with their cost
+  named** - 200 draws x 8 horizons on a 290k-row panel is many hours, and a reduced count is
+  refused outright because `CORRECTED-FLOORS` fixed `MIN_DRAWS_FOR_A_FLOOR = 100` and a p95 over
+  fewer is set by its top two values. **Only h63 has a corrected floor**, and comparing h>63
+  against it would be exactly the extrapolation `S22` built its own per-horizon nulls to avoid.
+
+### 3. `INDEX-BOOK-3WAY` - NEWER DATA AND A WIDER UNIVERSE, SEPARATED
+
+Don asked which part of the Index book's move is newer data and which is the wider universe. The
+third column holds the universe **RULE** fixed at the 2026-10 vintage, so `published ->
+restricted` is the **DATA** leg and `restricted -> corrected` is the **UNIVERSE** leg, and the two
+must **SUM** to the total. **THE IDENTITY HOLDS ON EVERY ADDITIVE FIGURE.**
+
+| figure | published | restricted | corrected | NEWER DATA | WIDER UNIVERSE |
+|---|---|---|---|---|---|
+| Roth return | +17.162pc | +18.415pc | +18.017pc | **+1.2536pp** | **-0.3986pp** |
+| Roth drawdown | -23.029pc | -27.294pc | -28.959pc | **-4.2656pp** | **-1.6645pp** |
+| Roth Sharpe | 1.0318 | 0.9775 | 0.9694 | -0.0543 | -0.0081 |
+
+* **THE RETURN IMPROVEMENT IS ENTIRELY THE NEWER DATA AND THE WIDER UNIVERSE SLIGHTLY COSTS** -
+  the opposite of the natural assumption - and **roughly three quarters of the drawdown worsening
+  is the newer data** rather than the universe.
+* **A CAVEAT THAT MUST TRAVEL:** net alpha vs equal weight jumps **+5.93pp** and **+5.31pp of
+  that is the UNIVERSE leg**, because adding 6,600 smaller names drops the equal-weight benchmark
+  from 17.8pc to 12.1pc. **That improvement is a BENCHMARK effect, not a book effect.**
+* **THE VINTAGE LEG IS NOT A PURE DATA CHANGE AND THE ARTIFACT SAYS SO.** The restricted panel
+  carries **3,049** names against the published book's **2,531** - the same export's universe
+  RULE, 518 names richer at the newer vintage - so it is *"same rule, newer vintage"*.
+  **`UNIVERSE-BIAS` recorded that first and it is CITED rather than re-derived**: its own artifact
+  calls the restricted side the published book's *"near-neighbour and not its reproduction"*, with
+  *"the gap reported, not assumed zero"*.
+* **THE GATE KEEPS ITS FULL STRENGTH.** `served_index_book`'s `C1` still demands **EXACT**
+  reproduction and still **ABORTS**; only its TARGET is a parameter, measured by
+  `corrected_deployed.deployed_statistics` - a different call path from the one being gated, which
+  is the repair part 1b exists to record. The identity is checked on **ADDITIVE figures only** at
+  1e-12, because a RATIO's legs do not sum and putting a Sharpe in the sum would manufacture a
+  mismatch out of arithmetic and then invite widening the tolerance until it passed.
+
+### A MISTAKE OF MY OWN, OUTSIDE THE MEASUREMENTS
+
+My records script `chdir`'d to the **shared main checkout** and appended three rows to **its**
+`RESEARCH_LOG.md` rather than the worktree's - a write into a tree another session may be using.
+**Caught by disbelieving a counter that should have moved and did not**:
+`rows_fixed_not_counted` stayed at 97 across an append of three `FIXED` rows, which is impossible
+if the parser had seen them. The rows were removed by exact line match with the count asserted on
+both sides, the shared checkout verified clean, and re-appended to the worktree. **Scripts that
+write records now take absolute worktree paths and never `chdir`.**
+
+**TESTS:** 45 (`tests/test_corrected_claims2.py`) + 20 (`tests/test_restricted_index_book.py`),
+plus the 22 of `tests/test_corrected_rebuild.py` carried forward.
