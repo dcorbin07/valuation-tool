@@ -89,6 +89,24 @@ class CompanyData:
     ret_1m: Optional[float] = None
     price_52w_high: Optional[float] = None
     price_52w_low: Optional[float] = None
+    #: WHERE THE 52-WEEK HIGH CAME FROM, AND WHY IT DID NOT. Added by item 39 after a scan in
+    #: which `price_52w_high` was `None` for **218 of 218** names and nothing anywhere said so:
+    #: the block that sets it sat under a bare `except Exception: pass`, the fundamentals were
+    #: gap-filled from EDGAR so every valuation still succeeded, and the Dip Detector ran its
+    #: whole screen on a fallback while reporting `failed: 0`.
+    #:
+    #: `"yahoo"` | `"prices:<vendor>"` | `None`. `price_52w_high_reason` carries the failure in
+    #: words when there is no high at all, so the next occurrence is diagnosable from one line
+    #: of output rather than from a 2,000-line Action log.
+    price_52w_high_source: Optional[str] = None
+    price_52w_high_reason: Optional[str] = None
+    #: `"adjusted"` | `"as_traded"` | `None`. NOT COSMETIC: this high is divided into `price`,
+    #: which is an AS-TRADED quote, so a basis mismatch understates the drawdown by roughly the
+    #: trailing yield. Measured at yfinance 1.6.0 on 2026-10-08: the as-traded 52-week high is
+    #: **+3.15% above** the adjusted one for O, +0.60% for KO, +0.12% for GOOGL. Recorded rather
+    #: than assumed uniform, because the fallback vendors do not agree on it -- Stooq serves
+    #: as-traded and yfinance adjusted.
+    price_52w_high_basis: Optional[str] = None
     realized_vol: Optional[float] = None          # annualized daily-return volatility
     next_earnings_date: Optional[str] = None      # ISO date of the next scheduled earnings
 

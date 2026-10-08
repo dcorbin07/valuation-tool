@@ -5,6 +5,172 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 86 — 2026-10-08 — ITEM 39: Yahoo refuses the runner, and the fallback was hiding it
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict. `by_domain` untouched.
+
+## (a) THE CAUSE, FROM THE SCAN LOG RATHER THAN FROM MY HYPOTHESIS
+
+**MY ITEM-38 HYPOTHESIS WAS "THE PER-NAME HISTORY CALL IS THROTTLED FROM THE RUNNER'S IP". IT IS
+HALF RIGHT AND WRONG ABOUT THE PART THAT MATTERS.** Measured in the 2026-10-07 hot scan's log:
+
+| | |
+|---|---|
+| `HTTP Error 401 ... "Invalid Crumb"` | **99** |
+| names classified as a genuine rate limit by `prices.py` | **87** |
+| `sector: X is UNRESOLVED on every source` | **507** |
+| other HTTP codes | 3 × 404 |
+
+**The dominant failure is Yahoo refusing the runner outright — a 401 on the cookie/crumb
+handshake — not a 429 rate limit.** And the shape settles it independently: the engine produced a
+52-week high for **0 of 218** names. **A throttle is rate-dependent and would hit some; 100% is
+categorical.**
+
+**NOT A VENDOR-VERSION CHANGE, TESTED RATHER THAN ASSUMED.** The runner installs yfinance
+**1.6.0** from `requirements.lock.txt` and this machine had **1.3.0** — a real divergence of the
+*"CI Python is 3.11, local is 3.13"* family, and the obvious suspect. Installed 1.6.0 into a
+throwaway target and ran it: **251 rows and a real high for AAPL, COF and O.** Refuted.
+
+**A CORRECTION TO MY OWN FIRST READING OF THE LOG, because it would have become a "finding".** I
+counted *"0 × 429 / Too Many Requests"* and nearly reported that no rate limiting occurred. That
+is a fact about the **log text**, not about the failures: `prices.py` logs a human sentence
+(*"yfinance THROTTLED for GL"*) and **never prints the exception**, so 87 names were classified
+429 by a correct classifier whose evidence never reached the log. Both failure modes are real and
+present.
+
+## WHY IT WAS INVISIBLE, WHICH IS THE ACTUAL DEFECT
+
+`valuation/data/yahoo.py` sets `price_52w_high` inside a block that ended:
+
+```python
+    except Exception:
+        pass
+```
+
+That block also sets `price_52w_low`, `ma_200`, `ret_6m`, `ret_1m` and `realized_vol`. So when
+Yahoo refuses, **all six vanish with no record** — and the FUNDAMENTALS survive, because
+`fetcher.get_company` gap-fills from EDGAR, which Yahoo's refusal does not touch. The result:
+
+* the precompute printed **`valued: 218, failed: 0, no_drawdown: 218`** — every word true, and
+  not one of them saying the price history had returned nothing for every name;
+* item 36's scan-ratio fallback carried the whole screen. **Correctly — without it the run
+  returns zero rows — and invisibly.**
+
+**A rescue that hides what it rescued from is how a one-vendor dependency becomes permanent.**
+Item 36's counter is the only reason anybody noticed at all.
+
+## THE FIX AT THE SOURCE
+
+**1. The loss is recorded, not swallowed.** `CompanyData` gains `price_52w_high_source`,
+`price_52w_high_basis` and `price_52w_high_reason`. The `except` keeps the exception's type and
+message; an **empty frame** — yfinance's non-raising failure — gets its own reason, because the
+old code treated *"returned nothing"* and *"succeeded"* identically.
+
+**2. A second rung, through the project's own price path rather than a second implementation.**
+`screener/prices.py` already does yfinance → Stooq → FMP with throttle classification, staleness
+refusal and a vendor **label**, and in the very run that lost every engine high it still priced
+114 names. Writing a retry loop in `yahoo.py` would have been audit `B7`'s shape: a second
+definition of *"get me a price history"*, diverging from the one that is maintained. Lazy import,
+following `data/sector_resolve.py`, which already reaches into `..screener.store` the same way;
+`prices.py` imports nothing from `valuation/`, so there is no cycle.
+
+**AN HONEST LIMIT, AND MY OWN TEST IS WHAT FORCED ME TO STATE IT.** The first driver patched
+`yf.Ticker` globally and so broke the fallback too — which read as a failed fix and is actually
+the finding: **`get_history_df`'s PRIMARY rung is the same yfinance call.** So this fallback
+cannot rescue an exhausted or refused Yahoo; only a vendor that is not Yahoo can. What it DOES
+guarantee is that the next occurrence names the rung and the reason in one line.
+
+**3. The 52-week window is 52 weeks.** The fallback pulls 400 days so one short frame cannot miss
+the window, then takes the maximum over the **last 252 sessions** — otherwise an 18-month high
+ships under a 52-week name. Pinned with a 9999 spike 300 sessions back.
+
+## THE BASIS DEFECT I FOUND ON THE WAY, MEASURED AND DELIBERATELY NOT "FIXED"
+
+`yahoo.py` called `t.history(period="1y", interval="1d")` with `auto_adjust` **unstated**, while
+`prices.py` passes it explicitly and says why: *"inheriting a vendor library's default is how a
+convention silently changes between releases."* Measured at yfinance 1.6.0 on 2026-10-08:
+
+| | as-traded high | adjusted high | gap |
+|---|---|---|---|
+| O (REIT) | 67.56 | 65.50 | **+3.15%** |
+| KO | 91.99 | 91.44 | +0.60% |
+| GOOGL | 402.62 | 402.12 | +0.12% |
+
+**The inherited default is ADJUSTED, and this high is divided into `cd.price`, which is an
+AS-TRADED quote** — so the drawdown mixes two bases and is understated by roughly the trailing
+yield. On a 10-40% threshold, 3.15% moves a name across the 0.20 line.
+
+**`auto_adjust=True` IS NOW STATED AND THE VALUE IS UNCHANGED.** `True` is what the inherited
+default already gave, so **no published drawdown moves**; what changes is that a yfinance release
+can no longer move it without a diff. **Re-basing to as-traded is the arguably-correct answer and
+is NOT taken here:** it would move the published drawdown of every name on a live screen, which
+is a construction change and Don's call. The basis is **recorded per name** instead, and the
+screen reports the census — because the rungs disagree about it (`prices.py` labels Stooq
+`unverified` and refuses to round that to a guess, so neither does this).
+
+## RECURRENCE IS NOW LOUD, IN THREE PLACES
+
+* **The scan prints it every run**, not only when it is bad: `52-week high FROM THE ENGINE: N of
+  M valued [by source: {...}]`, plus the reason census when any name lacks one, plus an explicit
+  alarm line at zero. **Unconditional on purpose — a line that only appears when something is
+  wrong cannot establish what normal looks like**, and the next reader needs to know whether
+  218-of-218 is new.
+* **The cache carries it** (`shape.with_high`, `high_by_source`, `high_reasons`), so the figure is
+  observable where it is produced and travels in the ingest payload.
+* **The live check FAILS on zero-while-qualifying.** Not a fraction: coverage varies with the
+  vendor's mood daily — 114 of 236 one run, 0 the next — so a fractional bar would be a bar on the
+  weather and would be switched off inside a week (`MA21`'s cry-wolf rule). **Zero while names
+  qualify cannot happen while the primary is alive**, and it is exactly the state that went
+  unnoticed. **Absent is not zero**: a payload with no counter is reported uncheckable, the same
+  rule the identity follows.
+
+## THREE DEFECTS IN MY OWN TESTS, ALL FOUND BY RUNNING OR MUTATING THEM
+
+* **`code_only` strips STRING LITERALS, and a dict key IS a string literal** — so
+  `assertIn("with_high", code_only(body))` **could never pass**. Vacuous by construction, in the
+  direction that fails loudly, which is the only reason it surfaced at once. Key names are now
+  asserted against the function-**bounded** source in an exact call shape, which prose cannot
+  satisfy; the stripper is for needles that could appear in prose.
+* **`code_only` joined tokens with NOTHING**, so `if x and not key` read `ifxandnotkey`: a
+  multi-token needle was unmatchable, **and adjacent tokens FUSE, so a needle could match text
+  that does not exist** — a guard passing on the wrong evidence. Now separated, and the contract
+  is pinned (`tests/source_bounds.py` had no suite; it has four cases now).
+* **`self.frame != "unset"` raises `ValueError: The truth value of a DataFrame is ambiguous`.** A
+  sentinel compared with `is`.
+
+**AND MUTATION FOUND TWO REAL GAPS, both the same shape — a guard on a string's PRESENCE rather
+than on the behaviour that uses it.** Blanking the primary's own `price_52w_high_source` passed,
+because every provenance assertion was on the FALLBACK path and the common state was the untested
+one. And replacing `print(` with an assignment passed, because the test asserted the sentence
+exists in `run_hot` rather than that it is printed. **11 of 11 mutations caught after both were
+closed**, every source restored byte-for-byte.
+
+## FOR DON — THE ONE LEVER, AND ITS PRECONDITION
+
+**`prices.py` has a third rung that is not Yahoo, and it is deliberately switched off.** The log
+says *"FMP is configured but NOT enabled"* **87 times**: the key is present and
+`PRICES_ALLOW_FMP=1` is not set. Its own docstring states the reason and the prerequisite —
+*"its seam against the recorded series is unmeasured ... a row priced from an unvalidated vendor
+is a permanent entry in an append-only record. Measure the seam first."*
+
+**I have NOT enabled it.** That is a deliberate fail-closed gate with a named precondition, and
+flipping it would put unvalidated prices into the forward record. **The actionable item is the
+seam measurement** (re-derive two recorded rows from FMP closes against the service's values),
+after which FMP becomes a rung that survives Yahoo refusing a datacenter IP. Until then the scan
+has **two attempts at the same vendor family** and both fail together — which is why coverage
+swings 114/236 → 0 between runs.
+
+## (b) AND (c) — BOTH WAITING, AND (b) IS CHECKED NOT ASSUMED
+
+**(b) intraday reliability: no ruling in `DECISIONS.md`.** Grepped for `intraday`, `render cron`,
+`paid cron`, `github actions` and `scheduler` — **zero hits**. Don is choosing between a paid
+Render cron and staying on GitHub; nothing done, and item 37's pending workflow is untouched and
+still uninstalled.
+
+**(c) public pages: still held.** `DECISION_corrected_floors.md` still reads *"Nothing is
+adopted. No public page changed. The canonical panel is untouched"*, and `BACKTEST_RESULTS.json`
+last moved 2026-08-14. No file under `templates/` or `static/` changed this session.
+
 # Session 85 — 2026-10-07 (late) — ITEM 38: the third Dip Detector group, and a confidence label that had been wrong for every REIT
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict. `by_domain` untouched.

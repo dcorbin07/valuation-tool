@@ -260,6 +260,40 @@ def check_dip(base, rep):
             rep.bad("dip serves every qualifying name",
                     "the counts do not add up: %s != %s -- %s" % (total, qual, detail))
 
+    # ITEM 39 -- A DEAD PRIMARY MUST NOT BE SURVIVABLE IN SILENCE.
+    #
+    # On 2026-10-07 the engine's 52-week high came back EMPTY for all 218 names the screen
+    # valued. Every check here passed: the identity closed, `capped` was 0, rows were served --
+    # because item 36's scan-ratio fallback was carrying the whole screen. That fallback is
+    # correct and is why the page kept working; what it must not do is make the thing it
+    # replaced unobservable. **A rescue that hides what it rescued from is how a one-vendor
+    # dependency becomes permanent.**
+    #
+    # THE CONDITION IS ZERO-WHILE-QUALIFYING, not a ratio, and deliberately so. Coverage varies
+    # with the vendor's mood every single day -- 114 of 236 one run, 0 the next -- so any
+    # fractional bar would be a bar on the weather and would be switched off inside a week
+    # (`MA21`'s cry-wolf rule). ZERO while names qualify is categorical: it cannot happen while
+    # the primary is alive, and it is exactly the state that went unnoticed.
+    #
+    # ABSENT IS NOT ZERO. A payload with no counter cannot be checked and says so, which is the
+    # same rule the identity above follows -- reading a missing counter as 0 would fail every
+    # deploy that predates the field, and reading it as "fine" would reinstate the blindness.
+    n_high = d.get("n_high_from_engine")
+    if n_high is None:
+        rep.bad("dip has a live 52-week-high source",
+                "the payload carries no n_high_from_engine, so a dead primary cannot be "
+                "detected (deploy predates item 39?)")
+    elif qual and not n_high:
+        rep.bad("dip has a live 52-week-high source",
+                "the engine priced NO history for any of the %s qualifying names -- the screen "
+                "is running entirely on the scan's own 52-week ratio. Reasons: %s"
+                % (qual, d.get("high_reasons") or "none recorded"))
+    else:
+        rep.ok("dip has a live 52-week-high source",
+               "%s of %s qualifying names carry an engine 52-week high (by source %s, by basis "
+               "%s)" % (n_high, qual, d.get("high_by_source") or {},
+                        d.get("high_by_basis") or {}))
+
     if rows:
         rep.ok("dip returns rows at 10% depth", "%d rows" % rows)
     else:

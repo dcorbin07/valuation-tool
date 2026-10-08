@@ -664,6 +664,21 @@ def screen(rows: List[dict],
     # valuation refused after it -- so "16" could not be read without subtracting `n_measured`
     # from it in your head, and the twelve lost valuations were invisible.
     withheld_valuation = 0
+    #: ITEM 39 -- THE PRIMARY'S PULSE, SO THE FALLBACK CANNOT HIDE A CORPSE.
+    #:
+    #: `n_high_from_engine` counts measurements that carried a 52-week high AT ALL; the split
+    #: says which rung served it. In the 2026-10-07 scan the true figures were 0 and {} -- and
+    #: the only visible symptom was `n_unmeasured` rising, which reads as a feed gap in the
+    #: SNAPSHOT rather than as the engine's own price history being dead.
+    #:
+    #: THE BASIS CENSUS RIDES WITH IT because the rungs disagree about it: yfinance serves an
+    #: `auto_adjusted` close and Stooq an `unverified` one, and this high is divided into an
+    #: AS-TRADED `price`. Measured 2026-10-08 at yfinance 1.6.0, the as-traded 52-week high is
+    #: +3.15% above the adjusted one for O. Disclosed, never assumed uniform.
+    n_high_from_engine = 0
+    high_by_source: Dict[str, int] = {}
+    high_by_basis: Dict[str, int] = {}
+    high_reasons: Dict[str, int] = {}
     #: Rows standing on the SCAN's drawdown because the engine produced none. Counted because a
     #: screen whose rows came from two different vintages without saying so is a screen a reader
     #: cannot check -- and because the count is the live measurement of the engine's 52-week-high
@@ -712,6 +727,18 @@ def screen(rows: List[dict],
             if cheap is not None:
                 dd = cheap
                 dd_source = "scan"
+        # COUNTED BEFORE ANY `continue`, so a name dropped for depth or health still reports
+        # whether the engine could price its history. Counting it later would make the census a
+        # property of what survived the screen rather than of the feed.
+        if m.get("high_52w") is not None:
+            n_high_from_engine += 1
+            src = str(m.get("high_source") or "unknown")
+            high_by_source[src] = high_by_source.get(src, 0) + 1
+            bas = str(m.get("high_basis") or "unknown")
+            high_by_basis[bas] = high_by_basis.get(bas, 0) + 1
+        else:
+            why = str(m.get("high_reason") or "no reason recorded")[:120]
+            high_reasons[why] = high_reasons.get(why, 0) + 1
         h = health_check(m.get("subs"))
         # The measured checks REPLACE the row-level not_run entries only where the measurement
         # actually produced a verdict; `disqualifier_checks` stays the floor, so a valuation
@@ -962,6 +989,15 @@ def screen(rows: List[dict],
         "rejected_checks": rejected_checks,
         "withheld_valuation": withheld_valuation,
         "n_drawdown_from_scan": dd_from_scan,
+        # ITEM 39. `n_high_from_engine` is the number the live check fails on when it is ZERO
+        # while names qualify: the fallback keeps the screen working and must not be allowed to
+        # keep it LOOKING worked. The reason census is bounded and is the diagnosis -- the
+        # previous occurrence had to be read out of a 2,000-line Action log.
+        "n_high_from_engine": n_high_from_engine,
+        "high_by_source": dict(high_by_source),
+        "high_by_basis": dict(high_by_basis),
+        "high_reasons": dict(sorted(high_reasons.items(),
+                                    key=lambda kv: -kv[1])[:5]),
         "health_floors": dict(HEALTH_FLOORS),
         "health_floor_note": HEALTH_FLOOR_NOTE,
         "checks": dict(CHECKS),
@@ -1107,6 +1143,14 @@ def measurement_from(result) -> Optional[dict]:
 
     price = getattr(cd, "price", None) if cd is not None else None
     high = getattr(cd, "price_52w_high", None) if cd is not None else None
+    # WHERE THE HIGH CAME FROM, READ FROM THE ENGINE AND NEVER INFERRED. Item 39: a scan in
+    # which the engine produced a high for NOT ONE of 218 names reported `failed: 0`, because
+    # the fundamentals are gap-filled from EDGAR and every valuation still succeeded. Item 36's
+    # scan-ratio fallback then carried the entire screen -- correctly, and INVISIBLY. These
+    # three fields are what make the primary's death visible while the fallback is rescuing it.
+    high_source = getattr(cd, "price_52w_high_source", None) if cd is not None else None
+    high_basis = getattr(cd, "price_52w_high_basis", None) if cd is not None else None
+    high_reason = getattr(cd, "price_52w_high_reason", None) if cd is not None else None
     dd = None
     try:
         price_f, high_f = float(price), float(high)
@@ -1175,6 +1219,9 @@ def measurement_from(result) -> Optional[dict]:
         "drawdown": dd,
         "price": price,
         "high_52w": high,
+        "high_source": high_source,
+        "high_basis": high_basis,
+        "high_reason": high_reason,
         "subs": subs,
         "cash_burning": burning,
         "regime": regime,
@@ -1352,6 +1399,20 @@ def precompute(rows: List[dict], get_result: Callable[[str], object], *,
     # upstream, visible in both places). So `failed: 0` was true and "210 valued" read as 210
     # usable. The COVERAGE RULE's own shape: a number with no denominator beside it.
     with_dd = sum(1 for m in out.values() if (m or {}).get("drawdown") is not None)
+    # ITEM 39: THE PRIMARY'S PULSE IN THE CACHE ITSELF, not only in the request that reads it.
+    # The 2026-10-07 shape said `valued: 218, failed: 0, no_drawdown: 218` -- all three true,
+    # and none of them said that the engine's price history had returned nothing for every
+    # single name. `with_high` is that sentence.
+    with_high = sum(1 for m in out.values() if (m or {}).get("high_52w") is not None)
+    by_src: dict = {}
+    why: dict = {}
+    for m in out.values():
+        if (m or {}).get("high_52w") is not None:
+            k = str((m or {}).get("high_source") or "unknown")
+            by_src[k] = by_src.get(k, 0) + 1
+        else:
+            r = str((m or {}).get("high_reason") or "no reason recorded")[:120]
+            why[r] = why.get(r, 0) + 1
     # NAMED, NOT JUST COUNTED. The 2026-10-06 run reported 90 with no drawdown and nothing said
     # WHICH, so the cause had to be inferred -- and the leading explanation (a cloud-IP Yahoo
     # throttle on the per-name history call) is checkable only against the list. Bounded, because
@@ -1363,6 +1424,10 @@ def precompute(rows: List[dict], get_result: Callable[[str], object], *,
             "shape": {"qualifying": len(tickers), "valued": len(out),
                       "with_drawdown": with_dd,
                       "no_drawdown": len(out) - with_dd,
+                      "with_high": with_high,
+                      "high_by_source": by_src,
+                      "high_reasons": dict(sorted(why.items(),
+                                                  key=lambda kv: -kv[1])[:5]),
                       "no_drawdown_tickers": no_dd[:40],
                       "failed": len(failed), "failed_tickers": sorted(failed)[:25],
                       "seconds": round(_time.monotonic() - t0, 1),
