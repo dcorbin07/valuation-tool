@@ -609,7 +609,21 @@ class TestScopeIsMeasuredOnly(unittest.TestCase):
     def test_no_shipped_module_references_this_script(self):
         """If a later change wires one of these columns into the product, this fails — which
         is the point. Adoption is allowed; adoption WITHOUT the gate and the vintage event is
-        what this stops being silent."""
+        what this stops being silent.
+
+        REPOINTED BY ITEM 41, AND IT WENT RED ON A CITATION. It read the raw file, so a
+        COMMENT naming this script tripped it: `data/sector_resolve.py` documents where its
+        `SEC_MIN_INTERVAL_S = 0.13` comes from, which is `MA5`'s rule (one constant for one
+        rate limit, and say where it lives) colliding with a substring ban.
+
+        **A PROSE CITATION REACHES NOTHING.** The invariant is that no shipped module can reach
+        these columns, so the ban now reads CODE — comments stripped, STRINGS KEPT, because a
+        dynamic `importlib.import_module("scripts.live_theme_sources")` is a real reference and
+        the one hardest to spot by reading. Strictly stronger on code, blind only to prose,
+        with a positive control below proving it still bites.
+        """
+        from tests.source_bounds import code_only
+
         offenders = []
         for dirpath, _dirs, files in os.walk(os.path.join(REPO, "valuation")):
             for fn in files:
@@ -617,11 +631,37 @@ class TestScopeIsMeasuredOnly(unittest.TestCase):
                     continue
                 path = os.path.join(dirpath, fn)
                 with io.open(path, "r", encoding="utf-8", errors="replace") as fh:
-                    if "live_theme_sources" in fh.read():
-                        offenders.append(os.path.relpath(path, REPO))
+                    src = fh.read()
+                if "live_theme_sources" not in src:
+                    continue
+                try:
+                    code = code_only(src, keep_strings=True)
+                except AssertionError:
+                    code = src            # unparseable: fall back to the strict reading
+                if "live_theme_sources" in code:
+                    offenders.append(os.path.relpath(path, REPO))
         self.assertEqual(offenders, [], f"shipped code references the measured-only module: "
                                         f"{offenders}")
 
+
+    def test_the_ban_still_BITES_on_a_real_reference(self):
+        """A ban that cannot fire is worse than none, and stripping comments is exactly the
+        change that could have made this one blind. Both forms that MATTER are still caught:
+        a plain import, and a dynamic one hidden in a string.
+        """
+        from tests.source_bounds import code_only
+
+        for form in ("from scripts import live_theme_sources\n",
+                     "import scripts.live_theme_sources as x\n",
+                     'importlib.import_module("scripts.live_theme_sources")\n'):
+            with self.subTest(form=form.strip()):
+                self.assertIn("live_theme_sources",
+                              code_only(form, keep_strings=True),
+                              "the repointed ban is blind to %r" % form.strip())
+        # ...and blind to a CITATION, which is the behaviour the repoint buys.
+        self.assertNotIn("live_theme_sources",
+                         code_only("# see scripts/live_theme_sources for the interval\n",
+                                   keep_strings=True))
     def test_the_script_never_calls_into_the_scoring_path(self):
         src = io.open(os.path.join(REPO, "scripts", "live_theme_sources.py"),
                       encoding="utf-8").read()

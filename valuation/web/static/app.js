@@ -1305,6 +1305,10 @@ function renderDip(d) {
   bits.push(`${num(d.n_measured)} examined in detail`);
   if (d.capped) bits.push(`<b>${num(d.capped)} more not measured (per-request limit)</b>`);
   if (d.n_unmeasured) bits.push(`${num(d.n_unmeasured)} could not be measured`);
+  /* ITEM 42 -- the BASIS, next to the control that sets the threshold, because that is where a
+     reader decides what "20%" means. Rendered from the payload: `dip.py` owns the wording and a
+     test pins it, so a ruling change moves one string rather than two. */
+  setHtml("dipBasis", esc(d.drawdown_basis_note || ""));
   setHtml("dipMeta", bits.join(" · ")
     /* The degraded case says so rather than looking like the healthy one. A snapshot taken
        before item 23 carries no 52-week-high ratio, so depth cannot be read without a

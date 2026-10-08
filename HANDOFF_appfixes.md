@@ -5,6 +5,214 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 88 — 2026-10-08 — ITEMS 41+42: the SIC map, Tradier's unapproved token, and Don's two rulings
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict. `by_domain` untouched.
+
+## 41(a) THE PREMISE IS A WORST CASE, NOT A STEADY STATE — AND THE WORST CASE HAPPENS
+
+The brief says *"507 names a scan get no sector."* **That is the 2026-10-07 scan — the day Yahoo
+refused the runner outright (item 39), so every name needed the resolve chain.** Measured on both
+logs I hold:
+
+| | 2026-10-07 (Yahoo refusing) | 2026-10-08 (Yahoo answering) |
+|---|---|---|
+| `UNRESOLVED on every source` | **507 lines / 460 distinct** | **10** |
+| rescued by the SEC rung | 143 | 10 |
+
+**AND "a third of the universe showing no fair value" IS A DIFFERENT OBJECT.** `display coverage:
+sector` was **0.999** even on the bad day — the SNAPSHOT rows carry sectors from the universe
+provider. What 460 names lost was the VALUATION path's `resolve_sector`, which is a separate
+consumer. Live today, 32 of 100 served rows carry no fair value and **all of their sectors are
+populated**, so today's withholding has another cause entirely.
+
+So the fix is worth having because the bad day recurs, not because a third of the market is
+broken every day. Said plainly rather than inherited.
+
+## WHAT THE DEFECT ACTUALLY WAS, AND THE SEC RUNG ALREADY EXISTED
+
+`sector_resolve.py` already had an SEC rung — the brief's suggested source was shipped. The
+defect is one layer down: **`sector_from_sic` mapped ONLY SIC 6000-6799** and returned `None` for
+everything else, under a stated reason:
+
+> *"ONLY the finance range is mapped, deliberately ... inventing a mapping for them would trade a
+> known-missing sector for a plausible-but-wrong one."*
+
+**That caution was HALF right, and the half it got wrong is the expensive half.** Every
+non-financial filer fell through to the FMP rung, which item 40 proved is a **retired endpoint**.
+So the chain's only working rung covered one sector in eleven.
+
+## THE MEASUREMENT THAT LICENSED THE MAP, IN THE ORDER THE BRIEF ASKED FOR
+
+Censused the 460 first, from SEC `submissions` with the declared User-Agent and 0.13s pacing:
+**459 carry a filed SIC, 0 have no CIK, 0 fetch failures** — 164 distinct 4-digit codes. So EDGAR
+covers the whole population and the map was the only thing missing.
+
+| | |
+|---|---|
+| resolved by the map | **413 of 460 (89.8%)** |
+| agreement where the product ALREADY has a sector | **134 of 138 (97.1%)** |
+| taxonomy cost | **2.9%** — against `S25`'s **11.37%** for its GICS crosswalk onto these same eleven strings |
+| still unmapped | 47, of which **28 are two deliberately-refused service codes** |
+
+By sector: Technology 109, Consumer Cyclical 71, Healthcare 66, Industrials 54, Basic Materials
+50, Energy 37, Consumer Defensive 16, Communication Services 12, Utilities 3.
+
+**THE FOUR DISAGREEMENTS ARE GENUINE TAXONOMY DIFFERENCES, NOT MAP ERRORS**, and naming them is
+cheaper than a percentage: GHC (a conglomerate), NSIT (files as a catalogue retailer, operates as
+an IT reseller), RDDT (files as software, is classed as media), SSL (files as refining, is classed
+as chemicals). SIC is literal about the FILING; the sector is about the BUSINESS.
+
+## THE RULE FOR REFUSING A CODE, STATED SO IT IS NOT APPLIED BY TASTE
+
+**A code is mapped only where ONE sector is at least two thirds of its observed members.** The
+prior author's caution survives exactly where it bites: SIC's **manufacturing, extractive and
+utility** codes map cleanly; its **service** codes do not.
+
+* **7389 "Business Services NEC" holds four sectors** — MA, PYPL, GPN (payments), UBER, DASH,
+  ETSY, MELI (consumer), AKAM (technology), CBZ, MMS (industrials). Refused.
+* **7370 splits 4-4** — GOOGL, META, PINS, MTCH against APP, ZM, BSP, PPLI. A coin flip carries
+  no information. Refused.
+* **Water transport (4400-4499) spans three** — tankers read Energy, cruise reads Consumer
+  Cyclical, dry bulk reads Industrials. **A hull is not a sector.** Refused, and that alone
+  removed 3 of the first pass's 9 disagreements.
+* **Patent owners and mineral royalty traders (6794-6795)** are filed as finance and operate as
+  neither (Dolby, Triple Flag). Refused.
+
+Applying the rule took agreement from **93.7% to 97.1%**.
+
+## A MISLABEL THE OLD RANGE SHIPPED, AND IT WAS NOT COSMETIC
+
+`6000-6799 -> "Financial Services"` meant **REITs and real estate were called Financial
+Services.** `classify.py` turns the sector into a REGIME, so a REIT reaching the SEC rung was
+valued by the **bank method** (justified P/B from ROE) instead of taking the REIT branch that
+**REFUSES the FCFF lens** — and since item 38 the two are labelled differently on the page. Now
+6500-6599 and 6798 are `Real Estate`. Two further guesses became refusals: **SPACs (6770)** and
+**patent owners (6794)** returned a confident "Financial Services" and now return `None`.
+
+## THE REFUSAL IS A NAMED STATE AND THE REASON IS A NUMBER
+
+`SECTOR_TARGET_MARGIN.get(sector, 0.12)` **fails OPEN** in the middle of a **0.100-0.270** range,
+so a guess is a VOTE for a margin rather than an absence of one — `S25`'s finding. The eleven
+keys are **IMPORTED** (`MA5`'s rule) and the map is checked against them **at import**, so a
+typo is a startup failure rather than a name silently valued against the middle of the range.
+The check is proved non-vacuous by feeding it a bad sector.
+
+## THE RUNG NOW NEEDS MANNERS, BECAUSE IT WORKS
+
+While the map covered one sector in eleven the rung answered for ~10% of the names reaching it;
+now ~90%, so its call volume is real. Added: **a process-local cache** and **0.13s pacing**,
+which is the project's OWN SEC interval from `scripts/live_theme_sources.py` rather than a second
+constant for one rate limit (`MA5`).
+
+**THE CACHE IS NOT A MICRO-OPTIMISATION: the scan values some names TWICE.** The hot pass values
+its DCF set and item 35's dip precompute then re-values every qualifying name through
+`value_ticker`, so ~230 names reach this chain a second time.
+
+**A `None` IS CACHED AND A TRANSPORT FAILURE IS NOT**, and that distinction is pinned: caching a
+timeout would turn one dropped connection into a process-long refusal, and a real `None` from the
+map must stay distinguishable from a `None` from the network.
+
+**WHY THIS RUNG IS LEGITIMATE WHERE `S25` NEEDED A DATED MAP:** for a valuation dated TODAY,
+today's filing IS the point-in-time classification. The same filing read against a 2009 panel row
+would be look-ahead; read against this morning's quote it is the current fact.
+
+## TWO DELIBERATE PINS WENT RED AGAINST A CORRECT TREE, AND ARE REPOINTED IN THE SAME COMMIT
+
+`test_sector_failclosed.py` asserted that **6500 is a financial** (it was pinning the mislabel)
+and that **3711, 5999 and 7372 return `None`** (it was pinning the narrow map). Neither is
+re-asserted and neither is deleted: both are repointed to the property they were protecting —
+banks and insurers must map to the string the engine already speaks, and a code that cannot carry
+a sector must refuse. The examples are now codes that really are unmappable.
+
+## AND MY OWN GUARD FOUND A CONTRADICTION IN MY OWN MAP
+
+Mutation reported two misses that turned out to be **INERT**: 7389 and 4400-4499 sit in GAPS
+between `SIC_RANGES` entries, so the refusal is achieved twice and removing one layer changes no
+answer. **Reporting an inert mutation as a missed guard would send the next reader hunting for a
+guard that is not missing**, so the harness now classifies it, and the invariant that DOES
+protect it is pinned instead: **no ambiguous code may be covered by a range.**
+
+**That guard then went red on a real inconsistency: 6770 (SPACs) sat inside my own
+`(6600, 6793, "Financial Services")` range.** The refusal still won — it is checked first — but
+the two layers contradicted each other on paper, and a later reader deleting the "redundant" set
+entry would silently have started calling shell companies financials. The range is split around
+it. **Found by the guard, not by reading the map.**
+
+## 41(b) THE TRADIER MEASUREMENT IS WRITTEN AND CANNOT BE RUN FROM THIS LANE
+
+`scripts/tradier_seam.py` exists, uses the **same stated 222-name sample** as the FMP
+measurement (imported, not re-composed — two vendors on different samples give two coverage
+numbers that cannot be compared), touches `markets/history` and **nothing that places an order**,
+and scrubs the token.
+
+**IT RETURNS 401 `"Access Token not approved"`** — on **both** the live and sandbox hosts, for
+both `markets/history` and `markets/quotes`. So the seam is **UNMEASURED**, and that is a fact
+about the token this lane holds rather than about Tradier.
+
+**THE SERVICE'S TOKEN WORKS, MEASURED RATHER THAN ASSUMED: 10 of 10 live `/api/signals` rows
+carry Tradier-sourced ATM IV, 60-day IV, call volume and put/call ratios** (ABBV 0.2886, NVDA
+0.3009, AMD 0.4964…). So one working token and `--pull --analyse` produces the same table the FMP
+measurement produced.
+
+**AND A SEPARATE OBSERVATION WORTH A LINE: Tradier's OPTIONS endpoints work live while its broker
+FUNDAMENTALS loaded `0 of 1500 names`** (`"broker fundamentals loaded for 0 of 1500 names"`,
+`names_with_broker_data: 0`). Different endpoints, cause not established.
+
+**A DEFECT IN MY OWN TOOL, caught by running it: the first cut checked the BODY before the STATUS
+CODE, so a 401 printed as `history: null (symbol not covered)`** — an AUTH failure dressed as a
+COVERAGE fact, which is item 39's own defect (a vendor's refusal read as a data gap) committed
+inside the tool written to measure it. Pinned by a test asserting the status check comes first.
+
+## 42 — DON'S TWO RULINGS OF 2026-10-08
+
+**(1) THE BASIS IS LABELLED, NOT CHANGED.** The 52-week high stays split- and
+dividend-adjusted. **No figure moved** — asserted. What ships is one plain sentence near the
+threshold control, server-owned in `dip.py` (`dip_posture.py`'s rule: prose in a template does
+not stop when a ruling changes), plus `drawdown_basis`, `drawdown_basis_note` and
+`field_notes.drawdown` in the payload so the page and an API caller read the SAME sentence.
+
+The label says the three things a reader needs and a test pins each: dividends are **included**;
+the number therefore reads **SMALLER** than the share-price fall; and by **how much** — about 3%
+for a monthly-paying REIT, well under 1% for a typical payer, which are item 39's measured
+figures (O +3.15%, KO +0.60%, GOOGL +0.12%). It also says WHY the basis was kept — the research
+was measured on it, and an as-traded series makes a split look like a 50% crash — or the label
+reads as an apology for a defect rather than a statement of a choice.
+
+**(2) INTRADAY STAYS ON GITHUB'S FREE SCHEDULER, AND THE SIGNALS TAB STOPS CLAIMING OTHERWISE.**
+It said *"Refreshes through the day"*; item 37 measured **176 slots, 49 runs, 72.2% dropped** and
+**21 of 22 sessions with no in-session run before 17:00 UTC**, and today `/api/signals` reads
+`run_time 00:20`. The copy now says it runs on a free scheduler that delivers when it has
+capacity, usually afternoon or evening, and that the newest scan may be hours old. **It names no
+clock time** — the window moves with GitHub's load, and a sentence promising "by 2pm" is the same
+defect one level down; the run TIME comes from the freshness banner.
+
+**THE LIVE CHECK IS NOT WEAKENED, which the ruling requires explicitly** (*"keeps reporting
+honestly"*). The in-session window check still fails when nothing landed — as it did today. A
+ruling that ACCEPTS a failure is not a ruling to stop detecting it, and that is pinned.
+
+**THE RE-MEASUREMENT (2) ASKS FOR CANNOT START YET, and this is checkable:
+`.github/workflows/auto-scan.yml` still has no `53 17-19` cron** — item 37's pending workflow has
+not been installed, so the backup has run for **zero** days of the week it needs. Nothing to
+re-measure against item 37's 72.2% until `install_workflows.bat` runs.
+
+## MY OWN DEFECTS THIS SESSION
+
+* the Tradier status-before-body ordering, above;
+* a test asserting the live check's window as the literal `"13:00"` — the check FORMATS
+  `MARKET_OPEN_UTC`/`MARKET_CLOSE_UTC`, so the guard would have gone red the day the window moved
+  legitimately. It asserts the constants now;
+* **the comment-versus-code family again**: my "promises no clock time" ban fired on my own
+  `{# ... #}` comment, which cites "17:00 UTC" as part of item 37's measurement. The ban reads
+  the RENDERED copy now, with Jinja and HTML comments stripped;
+* six unclosed file handles in my own suite, found with `-W error::ResourceWarning`.
+
+## STILL HELD
+
+The public pages: `DECISION_corrected_floors.md` still reads *"the canonical panel is
+untouched"*, so nothing under `templates/` carries a figure change — the only template edits are
+the empty basis slot and the Signals wording, neither of which is a backtest figure.
+
 # Session 87 — 2026-10-08 — ITEM 40: the FMP seam is measured, the rung is DEAD, and nothing is enabled
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict against a threshold. `by_domain` untouched.

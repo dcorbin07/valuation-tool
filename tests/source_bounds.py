@@ -147,8 +147,8 @@ def js_function_source(path: str, name: str) -> str:
     raise AssertionError("braces never balanced for %r in %s" % (name, path))
 
 
-def code_only(segment: str) -> str:
-    """`segment` with comments and string literals removed, so a guard sees CODE.
+def code_only(segment: str, keep_strings: bool = False) -> str:
+    """`segment` with comments (and, by default, string literals) removed, so a guard sees CODE.
 
     THE COMPANION DEFECT TO THE CHARACTER WINDOW, and the one this project has paid for most
     often: a guard that bans a token fires against the CORRECT tree, because the comment
@@ -159,6 +159,11 @@ def code_only(segment: str) -> str:
 
     `tokenize` rather than a regex, because a `#` inside a string and a quote inside a comment
     defeat the regex in opposite directions.
+
+    `keep_strings=True` STRIPS ONLY COMMENTS. Use it when the needle could legitimately appear
+    inside a string the guard must still see -- a dynamic
+    `importlib.import_module("scripts.whatever")` is a real reference, and stripping it would
+    make the ban blind to the one form that is hardest to spot by reading.
 
     IT RAISES ON UNPARSEABLE INPUT rather than returning the segment unchanged. A stripper that
     silently gives back prose makes the ban it feeds fire on prose again -- the defect,
@@ -176,7 +181,8 @@ def code_only(segment: str) -> str:
     out, last_line = [], 1
     try:
         for tk in _tok.generate_tokens(_io.StringIO(segment).readline):
-            if tk.type in (_tok.COMMENT, _tok.STRING):
+            drop = (_tok.COMMENT,) if keep_strings else (_tok.COMMENT, _tok.STRING)
+            if tk.type in drop:
                 continue
             out.append(" ")
             out.append(tk.string)

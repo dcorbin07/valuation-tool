@@ -233,6 +233,36 @@ def health_check(subs: Optional[dict]) -> dict:
 HEALTH_NOT_SCORED_LABEL = ("Health not scored for this kind of company (banks, insurers, "
                            "REITs, regulated utilities)")
 
+#: ITEM 42 / DECISIONS.md 2026-10-08 -- THE BASIS, LABELLED RATHER THAN CHANGED.
+#:
+#: Don's ruling: *"the Dip Detector's 52-week high STAYS on the split- and dividend-adjusted
+#: basis (consistent with the V6/V6-B research and immune to the split trap), labelled on the
+#: page as a drop that includes dividends."* So **no figure moves** -- this is the sentence that
+#: makes the figure mean what it says.
+#:
+#: WHY THE LABEL IS NEEDED AT ALL, measured in item 39 at yfinance 1.6.0 on 2026-10-08: the
+#: as-traded 52-week high sits **+3.15% above** the adjusted one for a monthly-paying REIT like
+#: O (+0.60% KO, +0.12% GOOGL). An adjusted high divided into a price produces a TOTAL-RETURN
+#: drawdown, which is SMALLER than the price drawdown by roughly the trailing yield -- so a
+#: reader comparing the shown percentage against a chart of the share price will find them
+#: disagreeing, most on exactly the high-yield names this screen surfaces.
+#:
+#: SERVER-OWNED, like every other string on this surface (`dip_posture.py`'s rule: prose in a
+#: template does not stop when a ruling changes, someone has to remember).
+DRAWDOWN_BASIS_NOTE = (
+    "The fall is measured against a 52-week high that INCLUDES DIVIDENDS, so for a dividend "
+    "payer it is a total-return drawdown and will read slightly smaller than the fall in the "
+    "share price alone -- about 3% smaller for a monthly-paying REIT, well under 1% for a "
+    "typical payer. The adjusted basis is used because it is the one the research behind this "
+    "screen was measured on, and because an as-traded series makes a share split look like a "
+    "50% crash.")
+
+#: The same fact in one line, for the API field description -- a caller reading JSON never sees
+#: the page's sentence.
+DRAWDOWN_FIELD_NOTE = ("drawdown: fraction below the 252-session high on a SPLIT- AND "
+                       "DIVIDEND-ADJUSTED close basis (a total-return drawdown, not a "
+                       "share-price one)")
+
 #: The chip tooltip inside the group. SHORT, and server-owned for the same reason the label is:
 #: the default JS fallback would read "not computed", which is the one sentence this group exists
 #: to stop a reader believing.
@@ -998,6 +1028,11 @@ def screen(rows: List[dict],
         "high_by_basis": dict(high_by_basis),
         "high_reasons": dict(sorted(high_reasons.items(),
                                     key=lambda kv: -kv[1])[:5]),
+        # ITEM 42. The basis the shown percentage is measured on, in the payload so the page and
+        # any API caller read the SAME sentence rather than two paraphrases of it.
+        "drawdown_basis": "split_and_dividend_adjusted",
+        "drawdown_basis_note": DRAWDOWN_BASIS_NOTE,
+        "field_notes": {"drawdown": DRAWDOWN_FIELD_NOTE},
         "health_floors": dict(HEALTH_FLOORS),
         "health_floor_note": HEALTH_FLOOR_NOTE,
         "checks": dict(CHECKS),
