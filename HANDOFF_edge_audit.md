@@ -22250,3 +22250,125 @@ and joining `ibes_statsum_epsus` brings its own staleness, revisions and fiscal-
 disagreements are not diagnosed.** **Nothing is adopted.** 19 tests with zero skips, 7 of 7
 mutations caught with sources restored byte-for-byte. `valuation/edge/ibes_link.py`,
 `scripts/ibes_link_validate.py`; `data/free_analysis/IBES_LINK_VALIDATION.json`.
+
+## CORRECTED-REBUILD — one rebuild, serving every successor — 2026-10-07
+
+**ZERO TRIALS, `FIXED`-class.** A panel build is not a search: no hypothesis, no bar, no arm, no
+outcome statistic (`S25` / `X7RECON` / `PANEL-EXT-RECHECK` class). `by_domain` bit-identical at
+**equity 274, options 310, infra 20**. **ADOPTS NOTHING, CHANGES NO PUBLIC PAGE**, and the banked
+panels are never opened for writing.
+
+### 0. What it is, and what changed
+
+**289,659 rows × 89 COLUMNS** (the lean panel carried **16**), 9,645 names, 69 dates, built in
+**1,095s**. **All seven weighted themes LIVE.** Eight forward-return columns and **53 `z_`
+columns**.
+
+**EXACTLY THREE THINGS DIFFER FROM `UNIVERSE-BIAS`'s BUILD, declared in the script rather than
+discovered later:** `keep_numbers=True`; `extra_horizons` = **S22's own grid minus its base**
+(126…504, pinned by a test that imports `term_structure.HORIZONS` rather than retyping it); and
+two new `_KEEP` columns. **Everything else is `UNIVERSE-BIAS`'s invocation**, with
+`rebalance_days` and `lookback_years` read from `CONFIG` — pinned, because retyping either would
+be a fourth undeclared change.
+
+### 1. THE THREE CHANGES ARE ADDITIVE, PROVED CELL-FOR-CELL
+
+If any shared theme VALUE had moved, every successor would be reading a different object than the
+one `CORRECTED-FLOORS` calibrated its floors on. **3,251,787 cells compared, ZERO moved, key sets
+identical, nothing removed, 73 columns added.** The cell COUNT is gated, because a perfect
+0.000e+00 over an empty intersection is not a pass (`MB21`).
+
+### 2. A DEFECT OF MY OWN, CAUGHT ON THE COLUMN COUNT
+
+My first patch to `_KEEP` replaced a line instead of inserting after it: **45 columns became 44**.
+It dropped **`assets`, `debtnc`, `currentratio` and `assetturnover`** and added a duplicate
+`netinc`. **`assets` is precisely the column whose silent loss once left `capital_discipline`
+half-empty in every prior run.** Reverted from git and redone as a pure insertion; the count, the
+absence of duplicates and the presence of every load-bearing column are all pinned, and a mutation
+dropping `assets` again is caught.
+
+### 3. THE COVERAGE RULE, BEFORE THE ALLOWLIST WAS TOUCHED
+
+Five wired factors were silently empty for this project's entire history, so coverage was measured
+on the export's own ARQ rows **first** — corrected / restricted universe, non-null:
+
+| column | corrected | restricted | for |
+|---|---|---|---|
+| `ncfdiv` | 0.9242 | 0.9338 | batch 2 `B5` |
+| `ncfcommon` | 0.9383 | 0.9484 | batch 2 `B5` |
+| `capex` | 0.9479 | 0.9630 | batch 3 `C1`, `C4` |
+| `liabilities` | 0.9995 | 0.9996 | batch 3 `C9` |
+| `assetsc` | **0.7986** | 0.8157 | batch 3 `C9` |
+| `workingcapital` | **0.7950** | 0.8125 | batch 3 `C9` |
+| `retearn` | 0.9583 | 0.9433 | batch 3 `C9` |
+
+All seven clear the inherited 0.70 floor; `assetsc` and `workingcapital` are the weakest pair and
+**`C9` needs both**, so that is where its own kill will bite if anywhere.
+
+**AND THE NON-ZERO FIGURE IS A DIFFERENT QUANTITY, which matters for a PAYOUT column.** Zero is a
+LEGITIMATE value — a firm that pays no dividend reports zero, it is not missing — so **non-null is
+COVERAGE and non-zero is ECONOMIC INCIDENCE.** `ncfdiv` is non-zero on **50.79%** of restricted
+rows and only **33.55%** of corrected ones, consistent with the wider universe holding smaller,
+younger, non-paying firms. **A successor reading 0.3355 as coverage would understate the usable
+population by two thirds.** Pinned by test.
+
+### 4. ADDENDUM 2 FOLDED IN WITH NO SECOND REBUILD, AND THAT IS MEASURED RATHER THAN ASSUMED
+
+Batch 3's columns arrived after the build had already finished. The instruction was to fold them
+in *"or, if you already have, say so and do not rebuild just for this"* — and **no rebuild was
+needed at all**, for a reason that is checkable:
+
+* **`_KEEP` is applied as a pure column SELECTION** — `df[[c for c in keep if c in df.columns]]` —
+  so adding a name can only WIDEN what is kept and cannot change another column's value; every
+  consumer reads columns BY NAME. Pinned by a test that fails if `_KEEP` stops being a selection.
+* **The proof is EMPIRICAL, not architectural:** the panel built WITHOUT `ncfdiv`/`ncfcommon` and
+  the one built WITH them agree on **3,251,787 cells with ZERO moved** — §1's own control is
+  exactly the leaf diff addendum 2 asks for.
+* **These columns reach an arm through `fundamentals_pit`, per-name and per-date — NOT as a
+  derived panel column.** Verified by calling it: all seven are present and non-null on
+  AAPL 2019-06-28. The artifact records `payout_columns_present: {ncfdiv: [], ncfcommon: []}`
+  deliberately, so a successor does not hunt for a panel column that was never going to exist.
+
+### 5. TWO SIGN TRAPS PINNED, EITHER OF WHICH WOULD INVERT A SIGNAL
+
+**`capex` IS STORED AS A NEGATIVE OUTFLOW**, so `fcf = ncfo + capex` and therefore
+**`capex = fcf − ncfo`**. The batch-3 draft records that its own first reading had this
+**backwards**, which would flip the sign of every capex leg in `C1` and `C4`. **Reproduced
+independently rather than inherited**, on the corrected universe's 646,020 complete ARQ rows:
+`ncfo − fcf == −capex` exact on **0.999844** (max |dev| 1.0) against `== +capex` on **0.081419**,
+and `capex < 0` on **0.8732**. Confirmed to the dollar on a named row — AAPL 2019-06-28,
+`fcf − ncfo = −2,363,000,000` = the stored `capex`. **My figures differ slightly from the draft's
+0.999879 / 0.8874 — different populations, so this is agreement in substance and not to the
+digit**, which is `S25`'s two-percentages-on-different-objects lesson.
+
+**`ncfdiv` AND `ncfcommon` ARE ALSO BOTH NEGATIVE for cash returned to shareholders**, so net
+payout is **−(`ncfdiv` + `ncfcommon`) / `marketcap`**. AAPL 2019-06-28 reads −3.443bn and
+−23.312bn, giving ≈**2.76%** quarterly. `B5` getting this backwards would measure cash *raised*.
+
+### 6. TWO MUTATION MISSES CLOSED, BOTH FAMILIES THIS RECORD ALREADY NAMES
+
+**"The live-theme refusal can never fire" SURVIVED.** My test checked that the refusal's STRING
+exists and that its line number precedes the write — and **`if False:` keeps both**. That is
+`MB31`'s unreachable `DUE` and `STAGE1-BATCH1`'s `if False` refusal **for the third time**: a
+guard that cannot fire still contains its own message and still sits above the write. The guarding
+CONDITION is now read off the AST, with a constant rejected in both directions.
+
+**"The inertness proof becomes quotable over one cell" SURVIVED**, because the test compared the
+artifact against **its own gate** — which shrinking the gate satisfies. The floor is now pinned as
+a **literal**, so the comparison is against a fixed number rather than against whatever the script
+claims.
+
+**22 tests, 11 of 11 mutations caught with sources restored byte-for-byte.** A THIRD MISS, AND ITS REASON IS THE PORTABLE PART: shrinking the inertness floor in the SCRIPT left the artifact on disk untouched, so my artifact-only check could not see it - AN ARTIFACT CHECK CANNOT DETECT A SOURCE MUTATION UNLESS THE ARTIFACT IS REGENERATED, the same shape as STAGE1-BATCH1's inlined verdict rule. The floor is now pinned where the mutation lives as well as where its output lands. The suite loads the
+495MB export once and shares the row rather than per-test, which halved it from 138s to 60s — the
+gate runs 255 suites and a two-minute suite is a tax on every land.
+
+### 7. NOT DONE
+
+**NOTHING READS IT YET** — the successors each gate on their own controls. **The canonical panel
+is NOT moved by this item**; Don ruled on 2026-10-07 that it moves after this rebuild, and that is
+a later item with its own memo. **No derived column consumes the seven new source columns**, which
+is deliberate: wiring one into `factors.py` would be a construction change and is not in scope.
+`scripts/corrected_rebuild.py`, `corrected_rebuild.bat`, `corrected_rebuild_inert.py`;
+`valuation/edge/data_providers.py` (`_KEEP` 45 → 52);
+`data/free_analysis/UNIVERSE_BIAS_PANEL_full_v2.pkl`, `CORRECTED_REBUILD.json`,
+`CORRECTED_REBUILD_INERT.json`.

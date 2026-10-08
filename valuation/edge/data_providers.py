@@ -269,6 +269,52 @@ class WRDSProvider(HistoricalDataProvider):
                          "sharefactor", "marketcap", "price",
                          "assets", "ncfo", "debtnc", "currentratio", "assetturnover",
                          "cor", "sgna", "rnd", "receivables", "inventory", "payables",
+                         # CORRECTED-REBUILD 2026-10-07 — the two PAYOUT legs batch 2's `B5`
+                         # needs, added only after the COVERAGE RULE was satisfied on the export
+                         # itself: non-null 0.9338 / 0.9484 on the restricted universe's ARQ rows
+                         # and 0.9242 / 0.9383 on the corrected one, both well clear of the
+                         # inherited 0.70 floor.
+                         #
+                         # THE NON-ZERO FIGURE IS A DIFFERENT QUANTITY AND MUST NOT BE READ AS
+                         # COVERAGE. Zero is a LEGITIMATE value for a payout column — a firm that
+                         # pays no dividend reports zero, it is not missing — so non-null is the
+                         # coverage and non-zero is the ECONOMIC INCIDENCE. They differ a lot:
+                         # `ncfdiv` is non-zero on 50.79% of restricted ARQ rows and only 33.55%
+                         # of corrected ones (the wider universe holds smaller, younger,
+                         # non-paying firms), and reading 0.3355 as coverage would understate the
+                         # usable population by two thirds.
+                         #
+                         # They are NOT substitutes for each other: `ncfdiv` is dividends paid and
+                         # `ncfcommon` is net cash flow from common issuance/repurchase, so payout
+                         # needs both legs.
+                         "ncfdiv", "ncfcommon",
+                         # BATCH-3 COLUMNS, added in the same pass so no batch-3 arm is later
+                         # NOT RUN for a missing column. Coverage measured on the export's own
+                         # ARQ rows first (corrected / restricted universe, non-null):
+                         #   capex           0.9479 / 0.9630
+                         #   liabilities     0.9995 / 0.9996
+                         #   assetsc         0.7986 / 0.8157   <- weakest pair, and C9 needs both
+                         #   workingcapital  0.7950 / 0.8125   <-
+                         #   retearn         0.9583 / 0.9433
+                         # All five clear the inherited 0.70 floor on both universes.
+                         #
+                         # NO REBUILD WAS NEEDED FOR THESE. `_KEEP` is applied as a pure column
+                         # SELECTION (`df[[c for c in keep if c in df.columns]]`), so adding a
+                         # name can only WIDEN what is kept and cannot change another column's
+                         # value; every consumer reads columns BY NAME. Proved empirically by
+                         # leaf diff rather than argued: the panel built WITHOUT `ncfdiv`/
+                         # `ncfcommon` and the one built WITH them agree on 3,251,787 compared
+                         # cells with ZERO moved. These reach an arm through `fundamentals_pit`
+                         # (per-name, per-date), not as a derived panel column.
+                         #
+                         # `capex` CARRIES A SIGN TRAP, pinned by test. Sharadar stores it as a
+                         # NEGATIVE cash outflow, so the identity is `fcf = ncfo + capex` and
+                         # therefore `capex = fcf - ncfo`. Reproduced independently on the
+                         # corrected universe's 646,020 complete ARQ rows: `ncfo - fcf == -capex`
+                         # exact on 0.999844 (max |dev| 1.0) against `== +capex` on 0.081419, and
+                         # `capex < 0` on 0.8732. Writing `capex = ncfo - fcf` flips the sign of
+                         # every capex leg downstream.
+                         "capex", "liabilities", "assetsc", "workingcapital", "retearn",
                          # Sharadar computes roe / roic / assetturnover ONLY for its averaged
                          # dimensions (ART/ARY); in the ARQ export they are blank in 100% of
                          # rows. These three are what the panel needs to derive them itself:
