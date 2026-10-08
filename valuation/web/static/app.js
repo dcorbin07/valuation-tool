@@ -1204,13 +1204,23 @@ function _dipChecks(row, defs) {
   }).join(" ");
 }
 
-function _dipHealthChips(row, floors) {
+/* `unscored` is the server's list of sub-score keys this company's REGIME withheld. Inside
+   Don's third group a blank chip reading "not computed" would be the exact misreading the group
+   exists to correct -- nobody failed to compute it, nobody scores it for this kind of company --
+   so the tooltip says which it is. The WORDING is the server's (`dip.HEALTH_NOT_SCORED_CHIP`);
+   this file contributes layout, and a second phrasing here is how a chip and the paragraph above
+   it come to disagree. */
+function _dipHealthChips(row, floors, unscored, unscoredTitle) {
   const h = row.health || {};
+  const na = new Set(unscored || []);
   return Object.keys(h).sort().map(k => {
     const v = h[k];
     const floor = (floors || {})[k];
     const col = (v == null) ? "var(--muted)" : scoreColor(v);
-    return `<span class="chip" style="color:${col}" title="${esc(k)} ${v == null ? "not computed" : Math.round(v)} of 100, floor ${floor == null ? "—" : Math.round(floor)}">`
+    const why = (v != null) ? `${Math.round(v)} of 100, floor ${floor == null ? "—" : Math.round(floor)}`
+      : (na.has(k) ? (unscoredTitle || "not scored for this kind of company")
+                   : "not computed");
+    return `<span class="chip" style="color:${col}" title="${esc(k)} ${esc(why)}">`
       + `${esc(k)} ${v == null ? "—" : Math.round(v)}</span>`;
   }).join(" ");
 }
@@ -1303,6 +1313,14 @@ function renderDip(d) {
         ? `<br><span class="muted" style="font-size:11px">${esc(d.preselect_note)}</span>`
         : ""));
 
+  /* DON'S THIRD GROUP (DECISIONS.md, 2026-10-07), AND IT IS APPENDED ON EVERY PATH BELOW.
+     `renderDip` returns early when `rows` is empty, and on this screen an empty main table is
+     the COMMON case rather than the odd one -- item 36 measured 110 of 151 classifiable names
+     rejected on health. Emitting the group only after the main table would therefore hide it on
+     exactly the days it is the whole answer, which is the "never silently excluded" half of the
+     ruling broken by control flow rather than by a filter. */
+  const extra = _dipUnscoredGroup(d);
+
   if (!rows.length) {
     /* ITEM 19 — AN EMPTY SCREEN MUST NOT CLAIM NOTHING QUALIFIED WHEN NOTHING WAS CHECKED.
        For seven weeks this said "No name cleared a 20% fall" while `n_measured` was 12 and
@@ -1326,14 +1344,14 @@ function renderDip(d) {
         those are missing the name is counted as unmeasured rather than as "not in a
         drawdown". Nothing here should be read as evidence about the market.
         ${d.capped ? `A further ${num(d.capped)} were not examined at all (per-request limit).` : ""}
-        </div></div>`);
+        </div></div>` + extra);
       return;
     }
     setHtml("dipResults", `<div class="card"><div class="muted">No name cleared a
       ${pct(d.min_drawdown, 0)} fall from its 52-week high while also scoring healthy today,
       <b>of the ${num(nMeas - nUn)} that could be measured</b>.
       ${nUn ? `${num(nUn)} could not be measured and are not counted either way.` : ""}
-      ${d.capped ? "Note the per-request measurement limit above — this is not a statement about every name in the universe." : ""}</div></div>`);
+      ${d.capped ? "Note the per-request measurement limit above — this is not a statement about every name in the universe." : ""}</div></div>` + extra);
     return;
   }
 
@@ -1358,7 +1376,7 @@ function renderDip(d) {
       <td class="num neg">−${pct(r.drawdown, 1)}</td>
       <td class="num">${money(r.price)}</td>
       <td class="num">${money(r.high_52w)}</td>
-      <td>${_dipHealthChips(r, d.health_floors)}</td>
+      <td>${_dipHealthChips(r, d.health_floors, r.health_not_scored ? d.health_regime_withheld : null, d.health_not_scored_chip)}</td>
       <td class="num">${fv}</td>
       <td class="num">${_dipRate(r)}</td>
       <td>${_dipChecks(r, d.checks)}</td></tr>`;
@@ -1384,7 +1402,51 @@ function renderDip(d) {
       (rows.find(r => (r.dip_risk || {}).size_caveat).dip_risk || {}).size_caveat || "")}</div>`;
   }
   html += "</div>";
-  setHtml("dipResults", html);
+  setHtml("dipResults", html + extra);
+}
+
+/* ====================== HEALTH NOT SCORED FOR THIS KIND OF COMPANY ======================
+   Don's ruling, 2026-10-07: banks, insurers, REITs and regulated utilities whose ONLY failing
+   check is a health sub-score the model WITHHELD get their own group rather than being counted
+   as a health failure. Item 36 measured 31 of 110 health rejections to be exactly this, and the
+   page was reporting all 110 as "rejected on health" — which reads as the model having looked at
+   the balance sheet and disliked it, when the truth is that nobody looked.
+
+   THE LABEL AND THE SENTENCE ARE THE SERVER'S, verbatim. `dip.py` owns both and a test pins
+   them, for `dip_posture.py`'s reason: prose in a template does not stop, someone has to
+   remember, and this is copy about what the model does NOT know.
+
+   IT IS A SEPARATE TABLE AND NOT A FLAG ON A MAIN ROW. A badge inside the healthy table is read
+   as a footnote on a name that passed; the ruling is that these names are never counted as
+   healthy anywhere, and a reader scanning the healthy list must not find them in it. */
+function _dipUnscoredGroup(d) {
+  const rows = (d || {}).rows_health_not_scored || [];
+  if (!rows.length) return "";
+  const rk = d.dip_risk || {};
+  let html = `<div class="card" style="margin-top:14px">
+    <h3>${esc(d.health_not_scored_label || "")}</h3>
+    <div class="section-hint">${esc(d.health_not_scored_note || "")}</div>
+    <table><tr><th>Ticker</th><th class="num">Fall from high</th><th class="num">Price</th>
+      <th class="num">52-wk high</th><th>Health</th><th class="num">Fair value</th>
+      <th class="num" title="${esc(rk.not_a_probability || "")}">Past group rate</th>
+      <th>Checks</th></tr>`;
+  rows.forEach(r => {
+    const fv = r.fair_value_withheld_reason
+      ? `<span class="muted" title="${esc(r.fair_value_withheld_reason)}">withheld</span>`
+      : (r.fair_value == null ? "—" : money(r.fair_value));
+    html += `<tr>
+      <td><a href="#" onclick="gotoValue('${esc(r.ticker)}');return false"><b>${esc(r.ticker)}</b></a>
+        <div class="muted" style="font-size:11px">${esc(String(r.name || "").slice(0, 28))}</div></td>
+      <td class="num neg">−${pct(r.drawdown, 1)}</td>
+      <td class="num">${money(r.price)}</td>
+      <td class="num">${money(r.high_52w)}</td>
+      <td>${_dipHealthChips(r, d.health_floors, d.health_regime_withheld, d.health_not_scored_chip)}</td>
+      <td class="num">${fv}</td>
+      <td class="num">${_dipRate(r)}</td>
+      <td>${_dipChecks(r, d.checks)}</td></tr>`;
+  });
+  html += "</table></div>";
+  return html;
 }
 
 /* ====================== SCREAM-BUY TRACK RECORD ======================

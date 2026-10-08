@@ -198,6 +198,37 @@ def _growth_score(cd, cls) -> tuple[Optional[float], list]:
     return _blend(parts), drivers
 
 
+#: THE REGIMES FOR WHICH THIS CURVE PUBLISHES NOTHING, IN ONE PLACE.
+#:
+#: `_health_score` withholds for all three (a bank's net debt/EBITDA reads policyholder float
+#: as net cash; a REIT's or a utility's capex IS the business), and `compute_score` has to know
+#: the same fact a second time to keep `confidence` honest -- *"not applicable is not missing"*.
+#: THE TWO COPIES HAD ALREADY DRIFTED: this branch grew `reit` and `regulated` and the
+#: confidence line did not, so a REIT or a regulated utility with COMPLETE data was labelled
+#: `medium` confidence for a sub-score the model had deliberately declined to score -- the
+#: exact outcome the comment on that line forbids. Measured before the repair: financial
+#: `high`, reit `medium`, regulated `medium`, mature `high`. Audit B7's shape -- one rule, two
+#: encodings, and the newer regimes added to only one of them.
+#:
+#: The REASON PROSE stays per-branch, because a trust and a bank are withheld for different
+#: reasons and one sentence covering both would say neither. Only the membership test is shared.
+HEALTH_NOT_SCORED_REGIMES: tuple = ("financial", "reit", "regulated")
+
+#: The sub-score key the withholding lands on. Named because `dip.py` has to reason about
+#: *"the only failing check is a sub-score nobody scored"*, and reading that key off a prose
+#: reason would be matching on wording.
+HEALTH_SUBSCORE_KEY = "health"
+
+
+def health_is_scored(regime) -> bool:
+    """Does this curve publish a balance-sheet health score for `regime`?
+
+    The ONE test. Callers outside this module (the Dip Detector) ask here rather than keeping
+    their own list of regimes, so a fourth withheld regime reaches every consumer at once.
+    """
+    return str(regime or "") not in HEALTH_NOT_SCORED_REGIMES
+
+
 def _health_score(cd, cls) -> tuple[Optional[float], list]:
     """Balance-sheet health -- NOT COMPUTED for a financial, and the reason is a measurement.
 
@@ -231,7 +262,8 @@ def _health_score(cd, cls) -> tuple[Optional[float], list]:
     that does not exist.
     """
     drivers = []
-    if getattr(cls, "regime", None) == "financial":
+    if (not health_is_scored(getattr(cls, "regime", None))
+            and getattr(cls, "regime", None) == "financial"):
         return None, ["Balance-sheet health is not scored for a bank or insurer: net "
                       "debt/EBITDA reads policyholder float and reserves as net cash, "
                       "interest coverage is not a solvency test when interest is a cost of "
@@ -288,7 +320,7 @@ def _health_score(cd, cls) -> tuple[Optional[float], list]:
     #
     # `is_cash_burning` IS STILL LEFT ALONE and still reports the measured fact. The fact
     # (FCF < 0) is true; the INFERENCE (a runway, a burn) is what does not follow.
-    if getattr(cls, "regime", None) in ("reit", "regulated"):
+    if not health_is_scored(getattr(cls, "regime", None)):
         _w = "REIT" if cls.regime == "reit" else "regulated utility"
         return None, [
             "Balance-sheet health is not scored for a %s: its capex IS the business -- property "
@@ -379,7 +411,8 @@ def compute_score(cd: CompanyData, cls: Classification, wacc: float,
     # its inputs is a deliberate design choice, not a data gap -- counting it here would
     # downgrade EVERY financial's confidence label and report a hole in the data that is not
     # there. Only sub-scores absent because the numbers were unavailable count.
-    _not_applicable = {"health"} if cls.regime == "financial" else set()
+    _not_applicable = (set() if health_is_scored(cls.regime)
+                       else {HEALTH_SUBSCORE_KEY})
     missing = sum(1 for k, v in subs.items() if v is None and k not in _not_applicable)
     if cls.dcf_reliability == "low" or missing >= 2:
         confidence = "low"

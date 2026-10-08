@@ -432,5 +432,90 @@ class TheProposalStatesWhatItCosts(unittest.TestCase):
         self.assertIn("SAFE TO PASTE", md)
 
 
+class EveryCronReachesAJob(unittest.TestCase):
+    """THE COMPLEMENT OF `EveryJobNamesItsOwnSchedule`, AND I ALMOST SHIPPED THE DEFECT IT CATCHES.
+
+    That class pins one direction: no job may fire on a bare `schedule` event without naming a
+    cron. This pins the other: **no cron may exist that no job's condition matches.** Such a cron
+    fires a real run in which every job SKIPS -- it consumes a scheduled slot, appears in the run
+    list as a success, and does nothing. Nothing in the run looks wrong.
+
+    ITEM 37 WROTE A BACKUP INTRADAY CRON (`53 17-19 * * 1-5`) into
+    `data/pending_workflows/auto-scan.yml` and the intraday job is gated on the EXACT string
+    `github.event.schedule == '23 13-20 * * 1-5'`. Adding the cron without extending that
+    condition would have delivered runs that did nothing, which is the opposite of the point --
+    and on a workflow whose scheduler already drops 72% of intraday slots, a silent no-op would
+    have been indistinguishable from another drop.
+
+    COMMENTS STRIPPED FIRST, AND THAT DISTINCTION COST A CUT OF ITS OWN: a regex over
+    `- cron: "..."` matches the comment documenting the cron the master audit REMOVED
+    (`# REMOVED by the master audit (MA1): - cron: "0 12 1 * *"`), so the first version of this
+    audit reported a dead cron that does not exist. `_strip_comments` is this file's own answer
+    to that family and every other text assertion here already reads through it.
+
+    **IT USED `yaml.safe_load` AND THAT FAILED IN CI, WHICH IS THE WORSE DEFECT OF THE TWO.**
+    PyYAML is installed locally and is NOT on the runner, so both committed-workflow guards
+    raised `ModuleNotFoundError` and the suite reported `errors=2` -- a guard that cannot run
+    where it matters, after a session spent removing exactly that shape from other people's
+    checks. It took the land red, which is the good outcome: an `unittest.skipUnless` on the
+    import would have left the two checks silently absent in CI forever.
+
+    SO THIS READS TWO LINE SHAPES, not a document: `- cron: "..."` inside the `schedule:`
+    block, and `github.event.schedule == '...'` anywhere in a job condition. It depends on
+    nothing outside the standard library, which is the property that matters for a guard whose
+    whole job is to be green or red on a runner.
+    """
+
+    def _crons_and_gates(self, path):
+        import re
+        body = _strip_comments(_read(path))
+        # The `schedule:` block ends at the next key no more indented than itself, which for
+        # these workflows is `workflow_dispatch:` or `jobs:`. Bounded that way rather than by a
+        # line count so a comment or an added cron cannot push the end past it.
+        crons = []
+        in_sched = False
+        for line in body.splitlines():
+            st = line.strip()
+            if st.startswith("schedule:"):
+                in_sched = True
+                continue
+            if in_sched:
+                m = re.match(r"-\s*cron:\s*[\"\']([^\"\']+)[\"\']", st)
+                if m:
+                    crons.append(m.group(1))
+                    continue
+                if st and not st.startswith("-"):
+                    in_sched = False
+        gates = set(re.findall(r"github\.event\.schedule\s*==\s*\'([^\']+)\'", body))
+        return crons, gates
+
+    def test_the_committed_workflow_has_no_dead_cron(self):
+        crons, gates = self._crons_and_gates(WORKFLOW)
+        self.assertTrue(crons, "no crons were parsed, so this guard is looking at nothing")
+        dead = [c for c in crons if c not in gates]
+        self.assertEqual(dead, [], "these crons match no job's `if`, so every run they fire "
+                                   "does nothing: %s" % dead)
+
+    def test_no_job_is_gated_on_a_cron_that_does_not_exist(self):
+        """The mirror failure: a job that can never fire on a schedule. Harmless to run and
+        silently fatal to whatever it was supposed to do."""
+        crons, gates = self._crons_and_gates(WORKFLOW)
+        orphan = sorted(g for g in gates if g not in crons)
+        self.assertEqual(orphan, [], "these job conditions name a cron the schedule does not "
+                                     "contain, so the job never fires: %s" % orphan)
+
+    def test_a_pending_workflow_is_held_to_the_same_rule(self):
+        """`data/pending_workflows/` is how a lane proposes a `.github/` change it cannot make,
+        so it is exactly where an unpaired cron would slip through unreviewed. SKIPPED LOUDLY
+        when there is no pending file -- the normal state -- rather than passing vacuously."""
+        pending = os.path.join(REPO, "data", "pending_workflows", "auto-scan.yml")
+        if not os.path.exists(pending):
+            self.skipTest("no pending auto-scan.yml to check (this is the normal state)")
+        crons, gates = self._crons_and_gates(pending)
+        self.assertTrue(crons)
+        self.assertEqual([c for c in crons if c not in gates], [])
+        self.assertEqual(sorted(g for g in gates if g not in crons), [])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
