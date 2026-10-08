@@ -5,6 +5,154 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 87 — 2026-10-08 — ITEM 40: the FMP seam is measured, the rung is DEAD, and nothing is enabled
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict against a threshold. `by_domain` untouched.
+**NOTHING IS ENABLED**: `PRICES_ALLOW_FMP` is unset everywhere in the tree and in every
+workflow, and the measurement calls FMP directly rather than through `prices._fmp_history`, so
+the shipped gate was never exercised. Pinned by test. The plain-words summary for Don is
+**`FMP_SEAM.md`**; this entry is the lane record.
+
+## THE HEADLINE: THE RUNG WE WERE ASKED TO EVALUATE DOES NOT EXIST
+
+`prices.FMP_HISTORY_URL` points at `financialmodelingprep.com/api/v3/historical-price-full`, and
+**FMP has retired its entire v3 API**. Every v3 path now answers:
+
+> **403** `Legacy Endpoint : Due to Legacy endpoints being no longer supported - This endpoint
+> is only available for legacy users who have a valid subscription`
+
+**So setting `PRICES_ALLOW_FMP=1` today would add a third rung that returns `None` for every
+name.** The gate has been protecting us from nothing — the call behind it cannot succeed. That
+is the first thing anybody evaluating this rung needs, and it is not visible from the code.
+
+**AND THE SAME DEAD API IS CALLED A SECOND TIME, ON EVERY SCAN.**
+`valuation/data/sector_resolve.py:145` uses `api/v3/profile`, which is the same 403. That is the
+`sector: the FMP rung failed for X (HTTPError)` line running all through the scan log, and in the
+2026-10-08 scan **507 names came back `UNRESOLVED on every source`** — each getting
+`regime UNKNOWN` and **its valuation withheld**. Repointing that one URL to `stable/profile` is a
+candidate repair and **I did not take it**, for a measured reason below.
+
+## WHAT THE WORKING SURFACE GIVES, AND WHY IT STILL IS NOT A RUNG
+
+`stable/historical-price-eod/full` and `.../dividend-adjusted` both answer **200**. Where FMP
+answers, the seam is as clean as a seam gets — Yahoo against FMP, same dates, today's part-formed
+bar excluded:
+
+| | |
+|---|---|
+| as-traded closes, 14 names × ~1,250 sessions | **median disagreement 0.0000%** |
+| worst single session anywhere | 0.0871% (SONY) |
+| 52-week high, as-traded | **0.0000% on 14 of 14** |
+| 52-week high, dividend-adjusted | within **0.0022%** (5 payers) |
+| splits across a named split date | **6 of 6 agree** to four decimals |
+
+**AND FMP DOES SOMETHING YAHOO DOES NOT: it serves the two bases as two separate endpoints.**
+That is directly useful to item 39's finding — `VENDOR_ADJUSTMENT` has to call FMP `unverified`
+today, and this is the evidence that would make it **verified**.
+
+**THEN COVERAGE KILLS IT.** Of the names actually attempted, **14 of 121 (11.6%) were served**
+and **106 were refused 402** *"Premium Query Parameter: 'Special Endpoint : This value set for
+'symbol' is not available under your current subscription"*:
+
+| category | served |
+|---|---|
+| **REITs** | **0 of 16** |
+| **regulated utilities** | **0 of 10** |
+| ADRs | 3 of 16 |
+| banks | 5 of 16 |
+| recent splitters | 6 of 12 |
+
+**The two categories it serves NONE of are exactly the two item 38's new dip group is about.**
+
+**AND THE ALLOWANCE IS ~250 REQUESTS A DAY WITH NO BULK.** Comma-separated symbols answer
+**402**, so every name costs a request, and the pull hit `Limit Reach` after **163 requests**
+(≈185 counting the probes). The scan's universe is ~1,492 names; `FMPProvider.CALLS_PER_NAME` is
+**3**. So FMP could serve roughly **5% of one day's scan**.
+
+## MY HYPOTHESIS ABOUT THE SAMPLE WAS WRONG IN THE DIRECTION THAT MATTERED
+
+I expected the seam question to be *"do the numbers agree?"* and sized a 222-name sample to
+answer it precisely. **The numbers agree perfectly and the question turned out to be
+coverage** — which only a sample containing REITs and utilities could have answered.
+`/api/hotstocks` serves the top 100 and is megacap-tilted; **a random 200 from it would not
+reliably have contained a REIT, and the REITs are the whole answer.** The sample is composed and
+named in the script for that reason: 152 live hot-list/dip names plus 16 banks, 16 REITs, 16
+ADRs, 10 utilities and 12 splitters-with-their-split-dates.
+
+## WHY I DID NOT REPOINT `sector_resolve`, WHICH IS THE ONE TEMPTING FIX
+
+507 names × 1 request is **twice the daily allowance**, so a working sector rung would exhaust
+FMP on every scan and then starve `universe.py`'s `stable/sp500-constituent` call. And at ~12%
+symbol coverage it would mostly 402 anyway. **The dead URL is currently protecting the quota by
+failing fast** — which is a sentence worth keeping, because the obvious repair makes something
+else worse. It belongs with a plan decision, not inside a measurement item.
+
+## A WORRY I HAD GOING IN, CHECKED RATHER THAN ASSUMED
+
+The allowance is shared with the scan's own account, so spending ~185 requests could have
+degraded tonight's hot list. **It did not, and the log says why**: today's scan reads
+`api budget: 0 calls used (uncapped)` because its FIRST FMP call — `stable/company-screener` —
+is **402 Payment Required**, so `FMPProvider` switches itself off and the whole scan runs on the
+free stack. **FMP is contributing nothing to the scan today, by refusal rather than by choice.**
+
+## WHAT I COULD NOT MEASURE, NAMED SO IT IS NOT MISTAKEN FOR MEASURED
+
+**Whether the 402 is a property of the SYMBOL or of the ENDPOINT.** If `stable/profile` serves
+names that `historical-price-eod` refuses, the sector repair above becomes worth something; if
+the subscription is symbol-restricted across the board, it does not. **Two requests settle it**
+and I had none left — the attempt returned `429 Limit Reach`. It is the first thing to run
+tomorrow.
+
+Also not measured: whether the key the service and CI hold is the **same value** as the one the
+local config loads. I cannot read Render's environment or a GitHub secret. What IS known is that
+CI's is non-empty (the `FMP is configured but NOT enabled` log line cannot fire on an empty key)
+and that the scan's `company-screener` 402 is the same refusal this key gets.
+
+## THE KEY WAS NEVER PRINTED, AND THAT NEEDED DESIGNING RATHER THAN REMEMBERING
+
+FMP puts the key in the **query string**, so a `requests` exception carries it verbatim and one
+unscrubbed error line would put a secret in a terminal and then in a handoff. Every status line,
+body and URL goes through `scrub()` first, pinned by test. The key is read from the environment
+**the way the app reads it** (`valuation.config` calls `load_dotenv()`); `.env` is never opened,
+which is the standing rule.
+
+## THE MEASUREMENT IS RE-RUNNABLE, WHICH IS THE POINT
+
+`scripts/fmp_seam.py --probe / --pull / --analyse`. The pull **stores the raw result** and
+**aborts on the first quota-shaped response**, saying where it stopped — a measurement that
+exhausts a shared allowance has broken its own subject, and `RUN_RULES` rule 9 wants the draws
+kept so the analysis can be re-run without spending anything. The day the plan changes, this
+answer can be refreshed in one command instead of re-argued.
+
+**`quota_shaped` is checked BOTH ways and that distinction is load-bearing:** a **402** is a
+COVERAGE refusal and a **429** is an ALLOWANCE refusal, and treating 402 as quota would have
+aborted the pull on the first REIT and reported the coverage finding as an allowance finding.
+
+## THREE DEFECTS IN MY OWN WORK
+
+* **`r.json()` raises on an empty 200**, and FMP really returns one — that is how the ticker `O`
+  first looked like a missing symbol when it was a 402. The three states (empty / unparseable /
+  data) are told apart now.
+* **A needle matched against raw markdown fails when the prose WRAPS** —
+  `"0 of 10 regulated\nutilities"`. The character-window defect in a new costume: re-flowing a
+  correct document would take the guard red, so the doc is matched with its line breaks
+  collapsed.
+* **`code_only` separates tokens** since item 39, so `os.environ.get` is `os . environ . get` in
+  its output and my unspaced needle could never have matched.
+
+**AND MUTATION FOUND A SOFT BAR.** `len(REITS) >= 10` let a REIT be dropped from the sample
+while `FMP_SEAM.md` went on publishing *"16 REITs"* and *"0 of 16 REITs"* — `MA13`'s shape, two
+copies of one fact with the quotable one drifting. Replaced by a **cross-check**: every block
+size in the script must equal the figure the document states. **10 of 10 mutations caught**,
+every file restored byte-for-byte.
+
+## (b) AND (c) STILL HELD, CHECKED NOT ASSUMED
+
+`DECISIONS.md` carries **no ruling newer than 2026-10-07** and no mention of FMP, the intraday
+scheduler, or the 52-week-high basis. So: the basis mix stays as item 39 left it (stated, value
+unchanged, nothing re-based); the intraday scheduler is untouched and item 37's pending workflow
+is still uninstalled; and no file under `templates/` or `static/` changed.
+
 # Session 86 — 2026-10-08 — ITEM 39: Yahoo refuses the runner, and the fallback was hiding it
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict. `by_domain` untouched.
