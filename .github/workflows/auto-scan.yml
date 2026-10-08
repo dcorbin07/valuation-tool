@@ -35,8 +35,36 @@ on:
     - cron: "23 22 * * 1-5"         # hot list — 22:23 UTC (~5:23pm ET after close), primary
     - cron: "41 23 * * 1-5"         # hot list — 23:41 UTC backup, if GitHub dropped the primary
     - cron: "17 7 * * 0"            # theme cache — Sunday 07:17 UTC, ahead of Monday's scan
-    - cron: "23 13-20 * * 1-5"    # intraday — every 30 min on free (fits Actions minutes);
-                                    # the paid Render cron (render.yaml) runs this every 15 min
+    # INTRADAY. MEASURED 2026-10-07 over the 30 days to that date, 22 trading sessions:
+    #
+    #   * of the 176 cron slots these eight produce, **49 delivered a run and 127 did not —
+    #     72.2% dropped**;
+    #   * **21 of 22 sessions had NO intraday run before 17:00 UTC**, and 0 of 22 had none at
+    #     all, so the scheduler is LATE rather than dead;
+    #   * across the whole workflow, **2 of 205 scheduled runs in 30 days arrived between 13:00
+    #     and 16:59 UTC** — the window the first four of these crons target;
+    #   * arrivals cluster at almost the same three times every session (~17:0x, ~19:5x,
+    #     ~22:4x) with a **median gap of 3.74 hours**, and the minute within the hour is
+    #     uniform (only 4 of 49 land in the :20-29 band these fire in).
+    #
+    # SO THE BINDING CONSTRAINT IS DELIVERY RATE, NOT THE NUMBER OF CRONS. The hot list's two
+    # crons land 22 of 22 days — both of them, every day — while these eight land two or three.
+    # A queue already discarding 72% of its slots is not short of slots, which is why the
+    # backup-cron trick that works for the hot list is expected to buy LITTLE here.
+    #
+    # THE :53 SLOTS ARE ADDED ONLY WHERE DELIVERY IS ACTUALLY OBSERVED (17:00-20:00 UTC, the
+    # back half of the session). Adding any at 13:00-16:59 would be dead weight: 2 of 205 says
+    # that window is unreachable on the free scheduler, so the first ~3.5 hours of every US
+    # session cannot be covered by a scheduled workflow at all and want an external trigger.
+    #
+    # The ingest door is idempotent per run_time, so a second delivery in the same hour is a
+    # cheap no-op rather than a duplicate.
+    #
+    # TWO CORRECTIONS TO THE COMMENT THIS REPLACES: `23 13-20` is HOURLY, not "every 30 min";
+    # and it cited "the paid Render cron (render.yaml) runs this every 15 min" — Render runs
+    # only the web service and none of render.yaml's cron jobs exist.
+    - cron: "23 13-20 * * 1-5"      # intraday — hourly at :23, 13:23..20:23 UTC, Mon-Fri
+    - cron: "53 17-19 * * 1-5"      # intraday backup at :53, ONLY in the band that delivers
     # Paper track. TWO crons because a crontab cannot say "4pm Eastern": 20:47 UTC is 4:47pm ET
     # under EDT but 3:47pm ET under EST — i.e. BEFORE the close for the whole winter, which
     # would have marked the book and entered positions mid-session on intraday prices with
@@ -325,7 +353,7 @@ jobs:
           key: live-themes-cache-${{ github.run_id }}
 
   intraday:
-    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '23 13-20 * * 1-5') || (github.event_name == 'workflow_dispatch' && (github.event.inputs.kind == 'intraday' || github.event.inputs.kind == 'both')) }}
+    if: ${{ (github.event_name == 'schedule' && (github.event.schedule == '23 13-20 * * 1-5' || github.event.schedule == '53 17-19 * * 1-5')) || (github.event_name == 'workflow_dispatch' && (github.event.inputs.kind == 'intraday' || github.event.inputs.kind == 'both')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
