@@ -35,18 +35,51 @@ had drifted.**
 > EVERY financial's confidence label and **report a hole in the data that is not there**.
 
 So the code **fails its own documented contract** for two of the three regimes it withholds for.
-Measured, not reasoned — a company with COMPLETE data on every other input:
+Measured on the `missing` COUNT — **this table is that channel in isolation, on a synthetic
+classification carrying `dcf_reliability: high`, and it is NOT the published label** (see the
+correction below):
 
-| regime | health sub-score | counted as missing | confidence |
+| regime | health sub-score | counted as missing | confidence *if `dcf_reliability` were high* |
 |---|---|---|---|
-| financial | `None` | 0 | **high** |
-| **reit** | `None` | **1** | **medium** |
-| **regulated** | `None` | **1** | **medium** |
+| financial | `None` | 0 | high |
+| **reit** | `None` | **1** | medium |
+| **regulated** | `None` | **1** | medium |
 | mature | 80.0 | 0 | high |
 
-**Every REIT and every regulated utility on the live valuation page has been labelled `medium`
-confidence for a sub-score the model deliberately declined to score.** Audit `B7`'s shape — one
-rule, two encodings, and the newer regimes added to only one of them.
+Audit `B7`'s shape — one rule, two encodings, and the newer regimes added to only one of them.
+
+**AND A CORRECTION AGAINST MY OWN FINDING, MEASURED ON THE LIVE SERVICE AFTER THE LAND: THE
+DEFECT IS LATENT, NOT LIVE. NO PUBLISHED LABEL WAS EVER WRONG.** The sentence that stood here
+said *"every REIT and every regulated utility on the live valuation page has been labelled
+`medium` confidence"*, and the commit message says it too. **It is false.** `confidence` is
+`low` when `dcf_reliability == "low"` **OR** `missing >= 2`, and `classify.py` sets
+`dcf_reliability = "low"` **unconditionally** for `reit`, `regulated` **and** `financial`,
+returning immediately — because the FCFF DCF is refused for all three. So that branch dominates
+and the miscounted `missing` **could never reach the label**. Live, after the repair:
+
+| | COF (financial) | O (reit) | NEE (regulated) |
+|---|---|---|---|
+| health sub-score | `None` | `None` | `None` |
+| other sub-scores present | 4 of 4 | 4 of 4 | 4 of 4 |
+| confidence | **low** | **low** | **low** |
+
+All three agree, which is the consistency the extraction buys — and all three read `low` for a
+**different and legitimate reason**, so the repair is **INERT on today's labels**.
+
+**WHY MY OWN PROBE MISLED ME, because the mechanism is the reusable part: the synthetic
+classification I measured with set `dcf_reliability = "high"`, which no real REIT or utility
+carries.** So the probe isolated the `missing`-count channel and measured it correctly — the
+count really did differ, 0 against 1 — and I read a measurement of ONE CHANNEL as a measurement
+of the LABEL the channel feeds. `O-1`'s family: a rate measured on one population quoted as a
+rate on another, here one input quoted as the output.
+
+**IT IS STILL WORTH REPAIRING AND THE REASON IS NARROWER THAN THE ONE I GAVE.** Two encodings of
+one rule had already drifted once; the second copy becomes reachable the moment any withheld
+regime carries a `dcf_reliability` above `low`, or the confidence rule stops being dominated by
+it — and the symptom then is *a hole reported in data that is not missing*, with nothing in the
+output looking wrong. **What it is NOT is a defect anybody has seen.** The direction remains
+`medium` → `high` where it ever fires, i.e. the flattering one, which is the other reason to say
+this plainly.
 
 **THE REPAIR IS THE EXTRACTION, not a second patch.** `scoring.HEALTH_NOT_SCORED_REGIMES` plus
 `health_is_scored()` is the one test; both withholding branches and the confidence line read it,
@@ -180,6 +213,52 @@ it green and left both checks silently absent in CI forever. Replaced with this 
 `_strip_comments` plus two line reads, standard library only, **verified non-vacuous at 11 crons
 and 11 gates matched exactly with the commented-out `0 12 1 * *` not leaking in**, and both
 mutations re-run: 2 of 2 caught. Session 84's entry is amended in place rather than left to rot.
+
+## VERIFIED LIVE, AND THE SAFE DEFAULT WAS VERIFIED FIRST
+
+**BEFORE the scan** — the deploy had landed (the label and `health_regime_withheld` were served)
+and the group read **0 at every threshold**, because the stored precompute predates the field.
+That is the designed default, observed rather than assumed, with the identity holding at all
+three: 210 = 30 + 0 + 110 + ... and `capped` 0.
+
+**AFTER a dispatched hot scan** (`kind=hot`, success), `/api/dip`:
+
+| threshold | rows | **group** | excused-but-shallow | rejected health (missing/below) | unmeasured | qualifying | capped | identity |
+|---|---|---|---|---|---|---|---|---|
+| 0.10 | 12 | **7** | 1 | 18 / 50 | 122 | 218 | 0 | 218 == 218 |
+| 0.20 | 11 | **6** | 0 | 13 / 35 | 122 | 188 | 0 | 188 == 188 |
+| 0.30 | 6 | **3** | 1 | 10 / 20 | 165 | 165 | 0 | 165 == 165 |
+
+The group at 0.20: **COIN, SOFI, EVR, DAVE, COF, AFRM** — all `regime: financial`, down 20% to
+56%. No REIT or utility is in it today, which is a property of what is deep enough in the
+eligible set rather than of the rule.
+
+`scripts/live_check.py` against the live site: **28 passed, 0 failed, 1 skipped**, and the dip
+line now reads in full —
+
+    218 qualifying = 12 rows + 122 unmeasured + 68 health + 9 shallow + 7 health-not-scored
+    (source precomputed, 8 rejected earlier by row-level checks, 1 of the shallow were
+    health-not-scored)
+
+## A COVERAGE FINDING THIS SCAN MADE VISIBLE, AND IT IS NOT THIS ITEM'S DOING
+
+`n_unmeasured` is **122 of 218** today against **59 of 210** yesterday, and the payload says
+exactly where it comes from: `n_checked_for_depth` **114** of 236 eligible, so **122 eligible
+names carry no `high_prox` in the snapshot at all** — and `n_drawdown_from_scan` is **96 of the
+96** names that passed depth, i.e. **the ENGINE produced a 52-week high for NOT ONE NAME in this
+scan.**
+
+**SO ITEM 36's FALLBACK IS CURRENTLY CARRYING THE ENTIRE SCREEN: without it this run returns
+ZERO rows at every threshold**, and the 122 with no ratio either are unscreenable rather than
+"not in a drawdown" — which is what `n_unmeasured` says, loudly, instead of showing them as
+healthy or dropping them.
+
+**HYPOTHESIS, NOT A FINDING:** the per-name price-history call is throttled from the runner's
+cloud IP, which this record already names for the themes crawl and the live measurements. It is
+consistent with both legs degrading together (the scan's own ratio AND the valuation's high) and
+with the day-to-day variance. **Nothing in this item can affect it** — the change moves names
+between health buckets and never touches how a drawdown is computed. Reported for the data lane;
+not diagnosed, and not silenced.
 
 ## WHAT IS NOT DONE
 
