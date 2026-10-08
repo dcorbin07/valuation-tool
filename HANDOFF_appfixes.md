@@ -145,6 +145,50 @@ one. And replacing `print(` with an assignment passed, because the test asserted
 exists in `run_hot` rather than that it is printed. **11 of 11 mutations caught after both were
 closed**, every source restored byte-for-byte.
 
+## VERIFIED LIVE — AND THE ROW IMPROVEMENT IS NOT MINE TO CLAIM
+
+**THE SCAN'S NEW LINE, which is the deliverable:**
+
+```
+  dip precompute: 230 of 230 qualifying names valued in 367.9s at 6 workers; 212 carry a
+  usable drawdown and 18 do not
+    52-week high FROM THE ENGINE: 212 of 230 valued  [by source: {'yahoo': 212}]
+    names with no engine high, by reason:
+      {'YFRateLimitError: Too Many Requests. Rate limited. Try after a while.': 18}
+```
+
+Rows at 0.10 / 0.20 / 0.30, before and after:
+
+| | rows | unmeasured | engine high | precompute |
+|---|---|---|---|---|
+| **before** (2026-10-07 scan) | **19 / 16 / 10** | 73 | **0 of 218** | 51.0s |
+| **after** (2026-10-08 scan) | **48 / 38 / 19** | **6** | **212 of 230** | 367.9s |
+
+The identity holds at all three thresholds (230 / 191 / 158), `capped` 0, and `live_check`
+reports **`PASS dip has a live 52-week-high source — 212 of 230 ... by source {'yahoo': 212},
+by basis {'adjusted': 212}`**.
+
+**THE ROW IMPROVEMENT IS NOT ATTRIBUTABLE TO THIS FIX AND I AM NOT CLAIMING IT.** Every one of
+the 212 came from **`yahoo`** — the PRIMARY. **The fallback did not fire once.** Yahoo simply
+served the runner today where it refused it yesterday, which is the vendor's mood and not my
+change. What this item delivers is that the figure is now **visible** (212 of 230, and the 18
+failures NAMED as `YFRateLimitError`) and that a second rung exists which did not need to be
+used. Claiming 19 → 48 rows as a repair would be reading the weather as a result.
+
+**AND THE TIMING IS INDEPENDENT CORROBORATION OF THE 401 DIAGNOSIS: 51.0s for 218 names became
+367.9s for 230.** Yesterday's 0.23s per name was fast failures; today's 1.6s is real network
+work. The old run was not slowly fetching nothing — it was quickly being refused.
+
+**ONE LIVE CHECK STILL FAILS AND IT IS ITEM 37's, NOT THIS ITEM'S:** `FAIL signals ran during
+today's session — run_time '2026-10-08 00:20' (want 2026-10-08 between 13:00 and 21:30 UTC)`.
+That is the intraday scheduler dropping its session slots — 72.2% measured in item 37 — and it
+is precisely what **(b)** is waiting on Don to rule on. Nothing in this item touches that path.
+
+**A RESIDUAL WORTH ONE LINE: the 18 names rate-limited today are the ones the fallback should
+have rescued and could not**, because `get_history_df`'s primary rung is the same call that was
+rate-limiting them. That is the limit stated above, now observed rather than predicted — and it
+is the argument for the FMP seam measurement below.
+
 ## FOR DON — THE ONE LEVER, AND ITS PRECONDITION
 
 **`prices.py` has a third rung that is not Yahoo, and it is deliberately switched off.** The log
