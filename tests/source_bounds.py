@@ -168,13 +168,17 @@ def code_only(segment: str) -> str:
     import io as _io
     import tokenize as _tok
 
+    # TOKENS ARE JOINED WITH A SPACE, and the first cut joined them with NOTHING. Two costs,
+    # one of each sign: a multi-token needle (`qual and not n_high`) became unmatchable, so the
+    # assertion could never pass; and adjacent tokens FUSE, so `a` followed by `b` reads as
+    # `ab` and a needle could match text that is not there. The false-positive direction is the
+    # one that matters -- it is a guard passing on the wrong evidence.
     out, last_line = [], 1
     try:
         for tk in _tok.generate_tokens(_io.StringIO(segment).readline):
             if tk.type in (_tok.COMMENT, _tok.STRING):
                 continue
-            if tk.start[0] != last_line:
-                out.append(" ")
+            out.append(" ")
             out.append(tk.string)
             last_line = tk.end[0]
     except (_tok.TokenError, IndentationError) as e:
