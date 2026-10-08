@@ -96,22 +96,63 @@ class TestTheChainOrder(unittest.TestCase):
 
 class TestTheSICMap(unittest.TestCase):
 
-    def test_the_finance_range_maps_to_the_vocabulary_the_engine_ALREADY_speaks(self):
-        """`Financial Services` is the string `FINANCIAL_SECTORS` already holds. A new synonym
-        would mean every downstream test of "is this a financial" had to learn a second name."""
+    def test_the_banking_and_insurance_codes_map_to_the_string_the_engine_SPEAKS(self):
+        """REPOINTED BY ITEM 41, and it went red against a correct tree — which is the job.
+
+        It used to assert that **6500 is a `FINANCIAL_SECTORS` string**, because the old map
+        sent the whole 6000-6799 range there. 6500 is REAL ESTATE, and `classify.py` turns the
+        sector into a REGIME, so calling a REIT a financial valued it by the bank method
+        (justified P/B from ROE) instead of taking the REIT branch that REFUSES the FCFF lens.
+        The test was pinning a mislabel.
+
+        What it was really protecting survives and is asserted here: BANKS AND INSURERS must map
+        to the exact string the engine already speaks, never a synonym, or every downstream
+        "is this a financial" test has to learn a second name.
+        """
         from valuation.engine.classify import FINANCIAL_SECTORS
-        for sic in (6000, 6199, 6311, 6500, 6799):
+        for sic in (6000, 6199, 6311, 6022, 6799):
             with self.subTest(sic=sic):
                 got = SR.sector_from_sic(sic)
                 self.assertIn(got, FINANCIAL_SECTORS, "SIC %s did not map" % sic)
 
-    def test_OUTSIDE_the_range_returns_None_so_the_chain_CONTINUES(self):
-        """Only finance is mapped, on purpose: inventing a map for the other SIC divisions
-        would trade a known-missing sector for a plausible-but-wrong one — the failure being
-        repaired, in a new costume."""
-        for sic in (5999, 6800, 3711, 7372, None, "", "n/a"):
+    def test_real_estate_and_REITs_are_REAL_ESTATE_and_not_financials(self):
+        """The other half of the repoint, asserted positively so the mislabel cannot return."""
+        for sic in (6500, 6512, 6798):
+            with self.subTest(sic=sic):
+                self.assertEqual(SR.sector_from_sic(sic), "Real Estate")
+
+    def test_an_UNMAPPABLE_code_returns_None_so_the_chain_CONTINUES(self):
+        """REPOINTED BY ITEM 41. It used to assert that 3711, 5999 and 7372 return `None`,
+        because the old map covered only finance — and that caution was HALF right.
+
+        Measured on the 2026-10-07 scan (the day Yahoo refused the runner, so every name needed
+        this chain), **460 names were UNRESOLVED on every source** and had their valuations
+        withheld. The full map resolves 413 of them and agrees with the product's own sector on
+        **134 of 138 (97.1%)** where both exist. So the manufacturing and extractive codes DO
+        correspond; it is the SERVICE codes that do not.
+
+        The property that survives is the one that mattered: a code that cannot carry a sector
+        returns `None` rather than a plausible guess. The examples are now codes that really are
+        unmappable — 7389 holds payments, consumer, technology AND industrials — plus the junk
+        inputs, which must never raise.
+        """
+        for sic in (7389, 7370, 6770, 9995, 4400, 6794, None, "", "n/a", 99999):
             with self.subTest(sic=sic):
                 self.assertIsNone(SR.sector_from_sic(sic))
+
+    def test_every_sector_the_map_can_emit_is_a_key_the_ENGINE_HAS_A_MARGIN_FOR(self):
+        """`S25`/`MA5`'s rule, and the reason a typo here would be invisible.
+
+        `SECTOR_TARGET_MARGIN.get(sector, 0.12)` fails OPEN in the middle of a 0.100-0.270
+        range, so a misspelt sector would resolve a name to a silent default rather than raise.
+        The module checks this at IMPORT; this asserts the check is not vacuous.
+        """
+        from valuation.engine.assumptions import SECTOR_TARGET_MARGIN
+        emitted = set(SR.SIC_EXACT.values()) | {sec for _lo, _hi, sec in SR.SIC_RANGES}
+        self.assertTrue(emitted, "the map emits nothing, so this guard proves nothing")
+        self.assertEqual(emitted - set(SECTOR_TARGET_MARGIN), set())
+        # ...and all eleven are reachable, so the map is not quietly using three of them.
+        self.assertGreaterEqual(len(emitted), 10)
 
     def test_a_STRING_sic_is_accepted_because_SEC_returns_one(self):
         """`submissions` serves `"sic": "6331"` as a string. An int-only map would decline every

@@ -587,6 +587,10 @@
         </label>
         <span class="note" id="dipMeta" style="margin:0"></span>
       </div>
+      {# ITEM 42 / DECISIONS.md 2026-10-08. Empty in the markup and filled from the payload:
+       # `web/dip.py` owns the sentence (`DRAWDOWN_BASIS_NOTE`) so the page and the API field
+       # description cannot drift into two different claims about the same number. #}
+      <div class="note" id="dipBasis" style="margin-top:8px"></div>
       <div id="dipFreshness"></div>
       <div class="note" id="dipDisclaimer"></div>
     </div>
@@ -739,8 +743,18 @@
   <div id="tab-signals" style="display:none">
     <div class="search-card">
       <div class="section-hint" style="margin-top:0">Intraday buy-setup scanner over liquid S&amp;P-500 names — blends reputable
-        technicals (RSI, MACD, 50/200 MA crosses, breakouts, volume) with options context (put/call, IV). Refreshes through
-        the day; Claude explains the top 10.</div>
+        technicals (RSI, MACD, 50/200 MA crosses, breakouts, volume) with options context (put/call, IV).
+        Claude explains the top 10.</div>
+      {# ITEM 42 / DECISIONS.md 2026-10-08: intraday stays on GitHub's free scheduler and
+       # "afternoon-only delivery is accepted". The old sentence said it "Refreshes through the
+       # day", which item 37 measured to be false: of 176 scheduled slots over 22 trading
+       # sessions only 49 produced a run (72.2% dropped), and 21 of 22 sessions had NO
+       # in-session run before 17:00 UTC. Saying so is cheaper than a reader inferring a
+       # staleness bug from a timestamp. The RUN TIME itself is rendered by the freshness
+       # banner below, so this says the SHAPE and never a specific hour. #}
+      <div class="note" style="margin-top:6px">Runs on a free scheduler that delivers when it
+        has capacity, usually in the afternoon or evening rather than steadily through the
+        session — so the newest scan may be hours old. Its timestamp is shown with the rows.</div>
       <div class="search-row" style="align-items:center">
         {# Writes intraday rows and spends an Anthropic call per run — owner only, so the
          # read-only preview reads the latest scan instead of being able to start one. #}
