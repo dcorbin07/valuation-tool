@@ -328,6 +328,32 @@ class OneDefinitionOfWhichRegimesWithhold(unittest.TestCase):
             self.assertFalse(scoring.health_is_scored(regime))
 
 
+    def test_why_no_published_confidence_LABEL_moved(self):
+        """THE FACT THAT MAKES THE DEFECT ABOVE LATENT RATHER THAN LIVE.
+
+        `confidence` is `low` when `dcf_reliability == "low"` OR `missing >= 2`, and every
+        regime that withholds health is ALSO set `dcf_reliability = "low"` at classification --
+        because the FCFF DCF is refused for all three. That branch dominates, so the miscounted
+        `missing` could never reach the label: live after the repair, COF, O and NEE all read
+        `low`, for a different and legitimate reason.
+
+        Pinned because the handoff now SAYS no label was ever wrong. The day a withheld regime
+        carries a `dcf_reliability` above `low`, the second encoding becomes reachable -- and
+        this test going red is how a reader learns that the "latent" claim has expired.
+        """
+        src = io.open(os.path.join(REPO, "valuation", "engine", "classify.py"),
+                      encoding="utf-8").read()
+        for regime in scoring.HEALTH_NOT_SCORED_REGIMES:
+            i = src.index('c.regime = "%s"' % regime)
+            # The assignment on the very next line, so this reads the branch that sets the
+            # regime rather than any other `dcf_reliability` in the file.
+            nxt = src[i:src.index("\n", src.index("\n", i) + 1)]
+            self.assertIn('c.dcf_reliability = "low"', nxt,
+                          "%s no longer forces dcf_reliability low, so the confidence defect "
+                          "this item repaired is now REACHABLE and the handoff's 'latent' "
+                          "claim has expired" % regime)
+
+
 class ThePageRendersTheGroupFromTheServersWords(unittest.TestCase):
 
     JS = os.path.join(REPO, "valuation", "web", "static", "app.js")
