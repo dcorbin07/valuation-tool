@@ -447,25 +447,46 @@ class EveryCronReachesAJob(unittest.TestCase):
     and on a workflow whose scheduler already drops 72% of intraday slots, a silent no-op would
     have been indistinguishable from another drop.
 
-    PARSED, NOT GREPPED, and that distinction cost a cut of its own: a regex over
+    COMMENTS STRIPPED FIRST, AND THAT DISTINCTION COST A CUT OF ITS OWN: a regex over
     `- cron: "..."` matches the comment documenting the cron the master audit REMOVED
     (`# REMOVED by the master audit (MA1): - cron: "0 12 1 * *"`), so the first version of this
-    audit reported a dead cron that does not exist. `yaml.safe_load` sees the schedule and not
-    the prose.
+    audit reported a dead cron that does not exist. `_strip_comments` is this file's own answer
+    to that family and every other text assertion here already reads through it.
+
+    **IT USED `yaml.safe_load` AND THAT FAILED IN CI, WHICH IS THE WORSE DEFECT OF THE TWO.**
+    PyYAML is installed locally and is NOT on the runner, so both committed-workflow guards
+    raised `ModuleNotFoundError` and the suite reported `errors=2` -- a guard that cannot run
+    where it matters, after a session spent removing exactly that shape from other people's
+    checks. It took the land red, which is the good outcome: an `unittest.skipUnless` on the
+    import would have left the two checks silently absent in CI forever.
+
+    SO THIS READS TWO LINE SHAPES, not a document: `- cron: "..."` inside the `schedule:`
+    block, and `github.event.schedule == '...'` anywhere in a job condition. It depends on
+    nothing outside the standard library, which is the property that matters for a guard whose
+    whole job is to be green or red on a runner.
     """
 
     def _crons_and_gates(self, path):
         import re
-        import yaml
-        doc = yaml.safe_load(_read(path))
-        # PyYAML reads the key `on` as the boolean True, which is a YAML 1.1 quirk and exactly
-        # the kind of thing that makes a hand-rolled reader tempting. Handle both.
-        on = doc.get(True, doc.get("on"))
-        crons = [c["cron"] for c in (on or {}).get("schedule", [])]
-        gates = set()
-        for _name, job in (doc.get("jobs") or {}).items():
-            gates.update(re.findall(r"github\.event\.schedule\s*==\s*'([^']+)'",
-                                    str(job.get("if") or "")))
+        body = _strip_comments(_read(path))
+        # The `schedule:` block ends at the next key no more indented than itself, which for
+        # these workflows is `workflow_dispatch:` or `jobs:`. Bounded that way rather than by a
+        # line count so a comment or an added cron cannot push the end past it.
+        crons = []
+        in_sched = False
+        for line in body.splitlines():
+            st = line.strip()
+            if st.startswith("schedule:"):
+                in_sched = True
+                continue
+            if in_sched:
+                m = re.match(r"-\s*cron:\s*[\"\']([^\"\']+)[\"\']", st)
+                if m:
+                    crons.append(m.group(1))
+                    continue
+                if st and not st.startswith("-"):
+                    in_sched = False
+        gates = set(re.findall(r"github\.event\.schedule\s*==\s*\'([^\']+)\'", body))
         return crons, gates
 
     def test_the_committed_workflow_has_no_dead_cron(self):

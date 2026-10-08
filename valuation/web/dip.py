@@ -108,6 +108,11 @@ from typing import Callable, Dict, List, Optional
 
 from ..engine.publication import (KIND_UNAVAILABLE, ROW_WITHHELD, ROW_WITHHELD_KIND,
                                   ROW_WITHHELD_REASON)
+#: For `HEALTH_SUBSCORE_KEY` and `health_is_scored` -- the ONE definition of which regimes the
+#: scoring curve declines to score balance-sheet health for. Module level, like `publication`
+#: above: `scoring` pulls in 16 `valuation` modules and no network, and asking the engine at
+#: call time would not make the dependency smaller, only later.
+from ..engine import scoring as _engine_scoring
 from . import dip_risk as _dip_risk
 
 # --------------------------------------------------------------------------------------- #
@@ -180,6 +185,13 @@ def clamp_drawdown(x) -> float:
 #: module docstring for why 66 and why momentum and valuation are not here.
 HEALTH_FLOORS: Dict[str, float] = {"quality": 66.0, "health": 66.0, "growth": 66.0}
 
+#: WHICH OF THOSE FLOORS A REGIME CAN WITHHOLD. Exactly one today -- `_health_score` is the
+#: only curve with a regime branch -- and it is IMPORTED from the engine rather than spelled
+#: `"health"` here, because the floor key and the sub-score key have to be the same string or
+#: the subset test in `health_not_scored_only` silently never matches and the group is always
+#: empty. A guard that can only return "no" looks exactly like a feature nobody triggered.
+HEALTH_REGIME_WITHHELD: tuple = (_engine_scoring.HEALTH_SUBSCORE_KEY,)
+
 #: The floor's provenance, rendered next to the chips so the number is not a bare assertion.
 HEALTH_FLOOR_NOTE = ("Healthy means each of quality, financial health and growth scores at "
                      "least 66 out of 100 — the same boundary at which this product's own "
@@ -210,6 +222,90 @@ def health_check(subs: Optional[dict]) -> dict:
             below.append(k)
     return {"ok": not missing and not below, "missing": sorted(missing),
             "below": sorted(below), "scores": scores}
+
+
+
+#: THE LABEL AND THE SENTENCE DON RULED ON (DECISIONS.md, 2026-10-07), IN ONE PLACE.
+#:
+#: Server-side, and rendered from the payload, for `dip_posture.py`'s reason: *"Prose in a
+#: template does not stop; someone has to remember."* A second wording in the JS is how a badge
+#: and its explanation come to disagree.
+HEALTH_NOT_SCORED_LABEL = ("Health not scored for this kind of company (banks, insurers, "
+                           "REITs, regulated utilities)")
+
+#: The chip tooltip inside the group. SHORT, and server-owned for the same reason the label is:
+#: the default JS fallback would read "not computed", which is the one sentence this group exists
+#: to stop a reader believing.
+HEALTH_NOT_SCORED_CHIP = "not scored for this kind of company -- see the note above"
+
+HEALTH_NOT_SCORED_NOTE = (
+    "The model's balance-sheet health metrics -- net debt to EBITDA, interest cover, free cash "
+    "flow after capex -- do not describe these businesses, so it declines to score that part "
+    "rather than guess: a bank's reserves read as net cash, and a REIT's or a utility's capex "
+    "IS the business, so a healthy one shows negative free cash flow. These names are down far "
+    "enough and pass every other check, but nobody has checked their balance sheet. That part "
+    "is yours to judge.")
+
+
+def _health_reject_row(r: dict, m: dict, h: dict, dd, unscored: bool) -> dict:
+    """ONE row of F-11's reject population.
+
+    Extracted so the append can sit OUTSIDE the rejection branch without the row literal being
+    written twice -- the drawdown, the as-traded price and the sub-scores all have to be the
+    same fields they have always been, and F-11's book reads them.
+
+    The drawdown is already known at every call site (`dd is None` is rejected upstream), so the
+    F-11 conjunction -- deep enough AND failing health -- is decidable by the consumer without
+    re-measuring anything. The threshold is NOT applied here: this is the raw reject population
+    and `dip_rejects()` is the one place the declared `>= min_drawdown` rule lives.
+    """
+    return {
+        "ticker": (r.get("ticker") or "").strip().upper(),
+        "drawdown": dd,
+        # AS-TRADED, from the same measurement as the drawdown -- never a panel price. A strike
+        # compared against a split-adjusted price picks a contract nowhere near the money and
+        # fails SILENTLY (this record measured raw_close 411.80 against an adjusted 8.236 on one
+        # real row).
+        "price": m.get("price", r.get("price")),
+        "high_52w": m.get("high_52w"),
+        "below": list(h.get("below") or []),
+        "missing": list(h.get("missing") or []),
+        "scores": dict(h.get("scores") or {}),
+        "days_since_high": m.get("days_since_high"),
+        # ADDITIVE, AND THE ONLY CHANGE TO THIS ROW. A FIELD does not move the population: F-11
+        # selects on `drawdown` and the threshold, so adding a column cannot admit or exclude a
+        # name. It is here so a later reader of the book can SEE which rejects are rejects
+        # because nobody scored their balance sheet -- which is the question item 36 had to
+        # answer by re-deriving it from the sub-scores.
+        "health_not_scored": bool(unscored),
+    }
+
+
+def health_not_scored_only(h: dict, measurement: Optional[dict]) -> bool:
+    """Is the ONLY thing failing `health_check` a sub-score the model WITHHELD by regime?
+
+    Don's ruling (DECISIONS.md, 2026-10-07) gives these names their own group rather than
+    counting them as a health failure. This is the one place that membership is decided, and it
+    is deliberately narrow in three ways:
+
+    * **The regime must say so EXPLICITLY** (`health_not_scored is True`). A measurement from a
+      cache written before this change carries no such key, and an absent key means the name
+      keeps the OLD behaviour and stays rejected -- the direction that can never read a name as
+      healthy. So the group is empty until a scan has run with this code, by construction.
+    * **Nothing may be BELOW its floor.** A sub-score that WAS computed and came in under the
+      bar is a real failure and the ruling says so: *"A name below a floor elsewhere stays
+      rejected."*
+    * **Every OTHER sub-score must be present.** `missing` has to be a subset of the keys the
+      regime actually withholds, so a REIT whose GROWTH is also missing is a data gap and stays
+      rejected. Without that subset test the group would quietly absorb every incomplete
+      financial, which is the "never counted as healthy" rule broken from the other side.
+    """
+    if (measurement or {}).get("health_not_scored") is not True:
+        return False
+    if h.get("below"):
+        return False
+    missing = set(h.get("missing") or [])
+    return bool(missing) and missing <= set(HEALTH_REGIME_WITHHELD)
 
 
 # --------------------------------------------------------------------------------------- #
@@ -553,6 +649,15 @@ def screen(rows: List[dict],
     #: decided here. Counting it is what makes it arguable at all.
     rejected_health_missing = 0
     rejected_health_below = 0
+    #: DON'S THIRD GROUP (DECISIONS.md, 2026-10-07). Names down far enough, passing every other
+    #: check, whose ONLY failing check is a health sub-score the model WITHHELD because its
+    #: metrics do not describe the business. Item 36 measured 31 of 110 health rejections to be
+    #: exactly this, and the page was reporting all 110 as "rejected on health" -- which reads
+    #: as *"the model looked at the balance sheet and did not like it"* when the truth is that
+    #: nobody looked. A SEPARATE LIST, never merged into `rows`: the ruling is that they are
+    #: *"never counted as healthy anywhere"*, so the healthy count must not move.
+    health_not_scored_rows: List[dict] = []
+    n_health_not_scored_shallow = 0
     rejected_shallow = 0
     # SEPARATE FROM `rejected_checks`, which now counts ONLY the row-level site above. One
     # counter served two different events -- a snapshot row refused before measurement, and a
@@ -641,7 +746,30 @@ def screen(rows: List[dict],
             continue
         if dd_source == "scan":
             dd_from_scan += 1
+        # DON'S RULING SPLITS THIS GATE IN TWO, AND THE SPLIT IS NOT A RELAXATION.
+        #
+        # A name whose health is withheld by regime falls THROUGH to the depth test rather than
+        # past it: it still has to be deep enough, and `health_not_scored_only` has already
+        # required that nothing else is below a floor and nothing else is missing. What changes
+        # is only WHICH BUCKET it lands in, and the bucket is rendered under a label saying
+        # nobody scored its balance sheet.
+        health_unscored = health_not_scored_only(h, m)
         if not h["ok"]:
+            # F-11's POPULATION IS APPENDED FOR *EVERY* HEALTH FAILURE, EXCUSED OR NOT, AND
+            # THAT IS THE WHOLE POINT. `health_rejects` is the forward research book's reject
+            # list, declared as *"names down >=20% ... AND failing the shipped health floors,
+            # classified by the screen's own published functions"*, and `health_check` still
+            # returns `ok=False` for an excused name -- a sub-score nobody computed is not a
+            # pass. Letting the excused names fall out of this list would re-specify a LIVE
+            # forward book's entry rule as a side effect of a PRESENTATION ruling, which is a
+            # construction change needing its own register and Don's approval.
+            #
+            # CAUGHT BY RUNNING IT. The first cut of this change left the append inside the
+            # rejection branch, so the three excused names silently left F-11's population
+            # while the comment two hundred lines below said it was untouched. A driver over
+            # all ten cases printed the list; reading the diff did not.
+            health_rejects.append(_health_reject_row(r, m, h, dd, health_unscored))
+        if not h["ok"] and not health_unscored:
             rejected_health += 1
             if h.get("missing"):
                 rejected_health_missing += 1
@@ -652,20 +780,6 @@ def screen(rows: List[dict],
             # consumer without re-measuring anything. The threshold is NOT applied here: this
             # is the raw reject population and `dip_rejects()` below is the one place the
             # declared >= min_drawdown rule lives.
-            health_rejects.append({
-                "ticker": (r.get("ticker") or "").strip().upper(),
-                "drawdown": dd,
-                # AS-TRADED, from the same measurement as the drawdown -- never a panel
-                # price. A strike compared against a split-adjusted price picks a contract
-                # nowhere near the money and fails SILENTLY (this record measured raw_close
-                # 411.80 against an adjusted 8.236 on one real row).
-                "price": m.get("price", r.get("price")),
-                "high_52w": m.get("high_52w"),
-                "below": list(h.get("below") or []),
-                "missing": list(h.get("missing") or []),
-                "scores": dict(h.get("scores") or {}),
-                "days_since_high": m.get("days_since_high"),
-            })
             continue
         if dd < min_drawdown:
             # COUNTED, because "valued and then found too shallow" was invisible. With
@@ -676,8 +790,18 @@ def screen(rows: List[dict],
             # `PRESELECT_SLACK` exists for it; a large count here means the budget is being
             # spent on names that do not qualify.
             rejected_shallow += 1
+            # COUNTED WITHIN `rejected_shallow` AND REPORTED SEPARATELY. An excused name that
+            # is too shallow is a shallow name, not a third thing -- it belongs in the same
+            # bucket as every other name that was deep enough to value and then was not. The
+            # sub-count exists so the group's own funnel can be read: "31 excused, of which 9
+            # were too shallow at the threshold you asked for".
+            if health_unscored:
+                n_health_not_scored_shallow += 1
             continue
-        out.append(Row({
+        # ONE ROW BUILDER FOR BOTH GROUPS, ROUTED AFTERWARDS. Building the excused group from
+        # a second literal is how two tables that are meant to carry the same columns come to
+        # carry different ones -- and the one that would go missing first is a disclosure.
+        row = Row({
             "ticker": r.get("ticker"),
             "name": r.get("name") or r.get("ticker"),
             "sector": r.get("sector") or "",
@@ -727,9 +851,20 @@ def screen(rows: List[dict],
                 health_score=(h["scores"] or {}).get("health"),
                 market_cap=r.get("market_cap"),
                 cash_burning=m.get("cash_burning")),
-        }))
+            # WHY THIS ROW IS IN THE GROUP IT IS IN, on the row, for both groups. A main row
+            # reads `False`; an excused row reads `True` and carries the regime that excused
+            # it, so a reader of the payload alone can tell the two apart without inferring it
+            # from which list the row arrived in.
+            "health_not_scored": bool(health_unscored),
+            "regime": m.get("regime"),
+        })
+        if health_unscored:
+            health_not_scored_rows.append(row)
+        else:
+            out.append(row)
 
     out.sort(key=lambda x: -(x.get("drawdown") or 0.0))
+    health_not_scored_rows.sort(key=lambda x: -(x.get("drawdown") or 0.0))
     return {
         "rows": out,
         "min_drawdown": min_drawdown,
@@ -796,6 +931,32 @@ def screen(rows: List[dict],
         "rejected_health_below": rejected_health_below,
         # Measured, and then shallower than the threshold the caller asked for.
         "rejected_shallow": rejected_shallow,
+        # DON'S THIRD GROUP. Separate from `rows` so no existing count, digest or export
+        # that reads `rows` can read these names as healthy.
+        #
+        # **F-11's POPULATION IS DELIBERATELY UNTOUCHED AND THAT IS NOT AN OVERSIGHT.**
+        # `health_rejects` below is the forward research book's reject list, declared as
+        # *"names down >=20% ... AND failing the shipped health floors, classified by the
+        # screen's own published functions"* -- and `health_check` still returns `ok=False`
+        # for every one of these names, because a sub-score nobody computed is not a pass.
+        # Moving them out of it would re-specify a LIVE forward book's entry rule mid-flight,
+        # which is a construction change needing its own register and Don's approval, not a
+        # side effect of a presentation ruling. So an excused name appears in BOTH -- in the
+        # group, because the page must not call it a health failure; and in F-11's rejects,
+        # because that book's published rule says it is one. Two different objects, both
+        # correct, and `test_item38_health_not_scored.py` pins the population against a
+        # pre-change baseline.
+        "rows_health_not_scored": health_not_scored_rows,
+        "n_health_not_scored": len(health_not_scored_rows),
+        "n_health_not_scored_shallow": n_health_not_scored_shallow,
+        "health_not_scored_label": HEALTH_NOT_SCORED_LABEL,
+        "health_not_scored_note": HEALTH_NOT_SCORED_NOTE,
+        "health_not_scored_chip": HEALTH_NOT_SCORED_CHIP,
+        # WHICH floor the regime withheld, served rather than assumed by the page. The chip
+        # tooltip has to say "nobody scores this one" for exactly these keys and "not computed"
+        # for the rest, and a hard-coded "health" in the JS would be a third copy of a fact the
+        # engine already owns.
+        "health_regime_withheld": list(HEALTH_REGIME_WITHHELD),
         # ADDITIVE. Every existing consumer reads `rows`, and this changes none of them.
         "health_rejects": health_rejects,
         "rejected_checks": rejected_checks,
@@ -989,12 +1150,35 @@ def measurement_from(result) -> Optional[dict]:
     cls = getattr(result, "classification", None)
     burning = None if cls is None else bool(getattr(cls, "is_cash_burning", False))
 
+    # WHETHER THIS COMPANY'S HEALTH SUB-SCORE WAS WITHHELD BY ITS REGIME, ASKED OF THE ENGINE.
+    #
+    # The screen has to tell a name whose health is MISSING BECAUSE NOBODY SCORES IT (a bank,
+    # an insurer, a REIT, a regulated utility) from one whose health is missing because the
+    # numbers did not arrive. `health_check` cannot: it sees `None` and both look identical.
+    #
+    # `scoring.health_is_scored` is IMPORTED rather than the regime list retyped here. Keeping
+    # a copy of ("financial", "reit", "regulated") in this module is precisely the defect the
+    # engine side of this change repairs -- that list had already been written twice there and
+    # the two had drifted -- and a fourth withheld regime would then reach the engine and not
+    # the page, where the symptom is a name silently rejected on a score nobody computed.
+    #
+    # `None`, NOT `False`, WHEN THE CLASSIFICATION IS ABSENT. A missing classification is
+    # "unknown", and `health_not_scored_only` treats anything but an explicit `True` as not
+    # withheld -- so an unknown regime keeps the old behaviour (rejected on health) rather than
+    # being excused into a group the ruling says must never be read as healthy.
+    from ..engine import scoring as _scoring
+    regime = None if cls is None else getattr(cls, "regime", None)
+    health_not_scored = (None if cls is None
+                         else not _scoring.health_is_scored(regime))
+
     return {
         "drawdown": dd,
         "price": price,
         "high_52w": high,
         "subs": subs,
         "cash_burning": burning,
+        "regime": regime,
+        "health_not_scored": health_not_scored,
         "score": None if withheld else getattr(score, "score", None),
         "confidence": getattr(score, "confidence", None) if score is not None else None,
         "fair_value": fv,

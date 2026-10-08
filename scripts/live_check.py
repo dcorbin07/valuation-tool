@@ -209,9 +209,22 @@ def check_dip(base, rep):
     # DISCLOSURE. Every name the screen values ends in exactly one of four places, so:
     #
     #     n_qualified_on_depth == rows + n_unmeasured + rejected_health + rejected_shallow
+    #                              + n_health_not_scored
     #
     # with `capped` ZERO. A capped screen fails it by construction, which is the point: the
     # nightly precompute serves the whole qualifying set and nothing can be dropped quietly.
+    #
+    # THE FIFTH BUCKET IS DON'S (DECISIONS.md, 2026-10-07): names whose ONLY failing check is a
+    # health sub-score the model withheld by regime are shown in their own group instead of
+    # counted as a health failure. It is in the identity because that is the whole hazard of
+    # adding a group -- a name that leaves `rejected_health` and arrives nowhere is exactly the
+    # silent drop this identity exists to catch, and it would LOOK like a smaller rejection
+    # count, i.e. like an improvement.
+    #
+    # `n_health_not_scored_shallow` IS NOT IN THE IDENTITY. It is a SUB-COUNT of
+    # `rejected_shallow` -- an excused name that is too shallow is a shallow name -- so adding
+    # it would double-count and fail on a correct screen, the same trap `rejected_checks`
+    # already sprang on the previous version of this check.
     #
     # `rejected_checks` IS DELIBERATELY NOT IN THE IDENTITY, and the task's wording includes it.
     # That counter is the ROW-LEVEL site -- rows the SNAPSHOT refused, rejected while the
@@ -219,7 +232,8 @@ def check_dip(base, rep):
     # make the identity wrong by exactly its value and the check would fail on a correct screen.
     # It is printed beside the identity instead.
     qual = d.get("n_qualified_on_depth")
-    parts = {k: d.get(k) for k in ("n_unmeasured", "rejected_health", "rejected_shallow")}
+    parts = {k: d.get(k) for k in ("n_unmeasured", "rejected_health", "rejected_shallow",
+                                   "n_health_not_scored")}
     missing = [k for k, v in parts.items() if v is None]
     if qual is None or missing:
         rep.bad("dip serves every qualifying name",
@@ -232,11 +246,14 @@ def check_dip(base, rep):
                 % (meas, qual, capped, d.get("dip_source")))
     else:
         total = rows + parts["n_unmeasured"] + parts["rejected_health"] \
-            + parts["rejected_shallow"]
+            + parts["rejected_shallow"] + parts["n_health_not_scored"]
         detail = ("%s qualifying = %s rows + %s unmeasured + %s health + %s shallow "
-                  "(source %s, %s rejected earlier by row-level checks)"
+                  "+ %s health-not-scored (source %s, %s rejected earlier by row-level checks, "
+                  "%s of the shallow were health-not-scored)"
                   % (qual, rows, parts["n_unmeasured"], parts["rejected_health"],
-                     parts["rejected_shallow"], d.get("dip_source"), d.get("rejected_checks")))
+                     parts["rejected_shallow"], parts["n_health_not_scored"],
+                     d.get("dip_source"), d.get("rejected_checks"),
+                     d.get("n_health_not_scored_shallow")))
         if total == qual:
             rep.ok("dip serves every qualifying name", detail)
         else:

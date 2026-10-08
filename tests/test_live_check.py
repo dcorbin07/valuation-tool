@@ -189,8 +189,15 @@ class TheDipChecks(unittest.TestCase):
     The property now is an IDENTITY, which a disclosure cannot satisfy:
 
         n_qualified_on_depth == rows + n_unmeasured + rejected_health + rejected_shallow
+                                + n_health_not_scored
 
     with `capped` zero.
+
+    THE FIFTH TERM IS DON'S THIRD GROUP (DECISIONS.md, 2026-10-07) and it is in the identity for
+    the same reason the others are: a name that leaves `rejected_health` for a new bucket and is
+    not counted anywhere looks like a SMALLER rejection count, i.e. like an improvement. These
+    fixtures went red when the term was added, which is the check doing its job -- a payload it
+    cannot verify is reported as unverifiable rather than passed.
     """
 
     def _run(self, payload):
@@ -213,18 +220,25 @@ class TheDipChecks(unittest.TestCase):
         # so a fixture carrying some would fail the suite for a reason that is not the subject.
         # The identity's tolerance of unmeasured names is pinned by its own test below.
         rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 204, "n_measured": 204,
-                         "capped": 0, "n_unmeasured": 0, "rejected_health": 183,
+                         "capped": 0, "n_unmeasured": 0, "rejected_health": 180,
                          "rejected_shallow": 17, "rejected_checks": 38,
+                         # NON-ZERO ON PURPOSE. A fixture carrying `0` here would satisfy the
+                         # identity whether or not the check reads the term at all, which is
+                         # the vacuous direction: the test would pass against a check that had
+                         # dropped the new bucket. 204 = 4 + 0 + 180 + 17 + 3.
+                         "n_health_not_scored": 3, "n_health_not_scored_shallow": 1,
                          "dip_source": "precomputed",
                          "rows": [{"t": i} for i in range(4)]})
         self.assertEqual(rep.failed, 0, rep.lines)
         self.assertIn("204 qualifying = 4 rows", self._line(rep))
+        self.assertIn("3 health-not-scored", self._line(rep))
 
     def test_THE_LIVE_BROKEN_STATE_FAILS(self):
         """The exact payload the old check passed on. This is the regression."""
         rep = self._run({"n_eligible": 240, "n_qualified_on_depth": 218, "n_measured": 12,
                          "capped": 206, "n_unmeasured": 0, "rejected_health": 8,
-                         "rejected_shallow": 2, "rejected_checks": 4, "dip_source": "live",
+                         "rejected_shallow": 2, "rejected_checks": 4, "n_health_not_scored": 0,
+                         "dip_source": "live",
                          "rows": [{"t": 1}, {"t": 2}]})
         self.assertEqual(rep.failed, 1, rep.lines)
         self.assertIn("CAPPED", self._line(rep))
@@ -233,7 +247,8 @@ class TheDipChecks(unittest.TestCase):
         """The identity is arithmetic, so a screen that loses names somewhere else is caught."""
         rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 204, "n_measured": 204,
                          "capped": 0, "n_unmeasured": 0, "rejected_health": 100,
-                         "rejected_shallow": 0, "rejected_checks": 0, "dip_source": "precomputed",
+                         "rejected_shallow": 0, "rejected_checks": 0, "n_health_not_scored": 0,
+                         "dip_source": "precomputed",
                          "rows": [{"t": 1}]})
         self.assertEqual(rep.failed, 1, rep.lines)
         self.assertIn("do not add up", self._line(rep))
@@ -256,6 +271,7 @@ class TheDipChecks(unittest.TestCase):
         rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 10, "n_measured": 10,
                          "capped": 0, "n_unmeasured": 0, "rejected_health": 6,
                          "rejected_shallow": 2, "rejected_checks": 999,
+                         "n_health_not_scored": 0,
                          "dip_source": "precomputed", "rows": [{"t": 1}, {"t": 2}]})
         self.assertEqual(rep.failed, 0, rep.lines)
         self.assertIn("999 rejected earlier", self._line(rep))
@@ -266,6 +282,7 @@ class TheDipChecks(unittest.TestCase):
         rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 204, "n_measured": 204,
                          "capped": 0, "n_unmeasured": 0, "rejected_health": 204,
                          "rejected_shallow": 0, "rejected_checks": 0,
+                         "n_health_not_scored": 0,
                          "dip_source": "precomputed", "rows": []})
         self.assertTrue(any("FAIL" in ln and "returns rows" in ln for ln in rep.lines),
                         rep.lines)
@@ -280,6 +297,7 @@ class TheDipChecks(unittest.TestCase):
         rep = self._run({"n_eligible": 10, "n_qualified_on_depth": 10, "n_measured": 10,
                          "capped": 0, "n_unmeasured": 3, "rejected_health": 0,
                          "rejected_shallow": 0, "rejected_checks": 0,
+                         "n_health_not_scored": 0,
                          "dip_source": "precomputed", "rows": [{"t": i} for i in range(7)]})
         line = self._unmeasured_line(rep)
         self.assertIn("PASS", line)
@@ -294,6 +312,7 @@ class TheDipChecks(unittest.TestCase):
         rep = self._run({"n_eligible": 10, "n_qualified_on_depth": 10, "n_measured": 10,
                          "capped": 0, "n_unmeasured": 10, "rejected_health": 0,
                          "rejected_shallow": 0, "rejected_checks": 0,
+                         "n_health_not_scored": 0,
                          "dip_source": "precomputed", "rows": []})
         line = self._unmeasured_line(rep)
         self.assertIn("FAIL", line)
@@ -304,9 +323,68 @@ class TheDipChecks(unittest.TestCase):
         not in a drawdown, which is the whole distinction."""
         rep = self._run({"n_eligible": 10, "n_qualified_on_depth": 10, "n_measured": 10,
                          "capped": 0, "rejected_health": 3, "rejected_shallow": 0,
-                         "rejected_checks": 0, "dip_source": "precomputed",
+                         "rejected_checks": 0, "n_health_not_scored": 0,
+                         "dip_source": "precomputed",
                          "rows": [{"t": 1}]})
         self.assertTrue(any("FAIL" in ln and "unmeasured" in ln for ln in rep.lines), rep.lines)
+
+
+class TheThirdGroupIsPartOfTheAccounting(unittest.TestCase):
+    """Don's 2026-10-07 ruling, from the check's side.
+
+    The hazard a new display group introduces is not a wrong number on the page -- it is a name
+    that stops being counted. `rejected_health` going DOWN is what an improvement looks like,
+    so the only thing that can tell the two apart is the identity, and the identity can only do
+    it if the new bucket is REQUIRED rather than defaulted to zero.
+    """
+
+    def _run(self, payload):
+        rep = LC.Report()
+        with _Net({("GET", "/api/dip"): _j(payload)}):
+            LC.check_dip("https://x", rep)
+        return rep
+
+    def _line(self, rep):
+        return [ln for ln in rep.lines if "every qualifying name" in ln][0]
+
+    BASE = {"n_eligible": 50, "n_qualified_on_depth": 20, "n_measured": 20, "capped": 0,
+            "n_unmeasured": 0, "rejected_health": 10, "rejected_shallow": 4,
+            "rejected_checks": 0, "n_health_not_scored": 4,
+            "n_health_not_scored_shallow": 2, "dip_source": "precomputed",
+            "rows": [{"t": 1}, {"t": 2}]}
+
+    def test_a_payload_with_an_excused_group_adds_up(self):
+        rep = self._run(dict(self.BASE))              # 20 = 2 + 0 + 10 + 4 + 4
+        self.assertEqual(rep.failed, 0, rep.lines)
+
+    def test_an_ABSENT_group_counter_cannot_be_checked(self):
+        """ABSENT IS NOT ZERO, and this is the live state on the day of the deploy.
+
+        The stored precompute predates the field, so the group is empty -- but a check that
+        READ the absence as zero would also pass on a deployed screen that had the group and
+        was not reporting it, which is the failure that matters.
+        """
+        p = dict(self.BASE)
+        del p["n_health_not_scored"]
+        p["rejected_health"] = 14                     # the OLD accounting: 20 = 2+0+14+4
+        rep = self._run(p)
+        self.assertIn("cannot be checked", self._line(rep))
+        self.assertIn("n_health_not_scored", self._line(rep))
+
+    def test_a_group_the_identity_does_not_account_for_FAILS(self):
+        """The silent drop, simulated: names left `rejected_health` and nothing counted them."""
+        p = dict(self.BASE)
+        p["rejected_health"] = 14                     # as if the move had not been accounted
+        rep = self._run(p)
+        self.assertEqual(rep.failed, 1, rep.lines)
+        self.assertIn("do not add up", self._line(rep))
+
+    def test_the_shallow_subcount_is_printed_and_NOT_added(self):
+        """It is a SUBSET of `rejected_shallow`; adding it would fail a correct screen -- the
+        same trap `rejected_checks` sprang on the previous version of this check."""
+        rep = self._run(dict(self.BASE))
+        self.assertEqual(rep.failed, 0, rep.lines)
+        self.assertIn("2 of the shallow were health-not-scored", self._line(rep))
 
 
 class TheTrackRowIsNotMissingUntilItIsDue(unittest.TestCase):

@@ -5,6 +5,204 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 85 — 2026-10-07 (late) — ITEM 38: the third Dip Detector group, and a confidence label that had been wrong for every REIT
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict. `by_domain` untouched.
+
+Don's ruling, DECISIONS.md 2026-10-07:
+
+> **DIP DETECTOR: show banks, insurers, REITs and regulated utilities in their own group,
+> labelled "health not scored for this kind of company".** Never counted as healthy, never
+> silently excluded.
+
+Item 36 measured **31 of 110** health rejections to be exactly this: a sub-score the model
+**WITHHELD** because its metrics do not describe the business. The page reported all 110 as
+*"rejected on health"*, which reads as **the model looked at the balance sheet and did not like
+it** when the truth is that **nobody looked**.
+
+## THE DEFECT I FOUND ON THE WAY IN, AND IT IS LIVE ON EVERY REIT AND UTILITY
+
+To tell *withheld by regime* from *missing because the numbers did not arrive*, something has to
+know which regimes withhold. **That fact was already written TWICE in `scoring.py` and the two
+had drifted.**
+
+`_health_score` withholds for **`financial`, `reit` AND `regulated`**. The confidence line —
+`_not_applicable = {"health"} if cls.regime == "financial" else set()` — names **only
+`financial`**, under a comment that says in full:
+
+> **NOT APPLICABLE IS NOT MISSING.** A sub-score withheld because the regime does not support
+> its inputs is a deliberate design choice, not a data gap — counting it here would downgrade
+> EVERY financial's confidence label and **report a hole in the data that is not there**.
+
+So the code **fails its own documented contract** for two of the three regimes it withholds for.
+Measured, not reasoned — a company with COMPLETE data on every other input:
+
+| regime | health sub-score | counted as missing | confidence |
+|---|---|---|---|
+| financial | `None` | 0 | **high** |
+| **reit** | `None` | **1** | **medium** |
+| **regulated** | `None` | **1** | **medium** |
+| mature | 80.0 | 0 | high |
+
+**Every REIT and every regulated utility on the live valuation page has been labelled `medium`
+confidence for a sub-score the model deliberately declined to score.** Audit `B7`'s shape — one
+rule, two encodings, and the newer regimes added to only one of them.
+
+**THE REPAIR IS THE EXTRACTION, not a second patch.** `scoring.HEALTH_NOT_SCORED_REGIMES` plus
+`health_is_scored()` is the one test; both withholding branches and the confidence line read it,
+and `dip.py` **imports it rather than keeping a list of its own** — writing
+`("financial", "reit", "regulated")` into the web layer would have been a *third* copy of the
+fact whose second copy is the defect. The REASON PROSE stays per-branch, because a trust and a
+bank are withheld for different reasons and one sentence covering both would say neither.
+
+**NOTE THE DIRECTION: the label moves `medium` → `high`, which is the FLATTERING way**, so it is
+said plainly rather than buried. It is a correctness repair against a contract stated in the
+code, not a judgement that these names deserve more confidence; what was wrong was reporting a
+data gap that does not exist.
+
+## THE GROUP, AND WHY THE EXCUSAL IS NARROW IN THREE WAYS
+
+`health_not_scored_only` is the one place membership is decided:
+
+* **The regime must say so EXPLICITLY** (`health_not_scored is True`). A measurement from a cache
+  written before this change carries no such key, and an absent key keeps the **OLD** behaviour
+  — rejected on health. **So the group is empty until a scan has run with this code, by
+  construction**, which is the direction that can never read a name as healthy. Pinned for
+  `None`, `False`, `"yes"` and `1`.
+* **Nothing may be BELOW its floor** — the ruling is explicit: *"A name below a floor elsewhere
+  stays rejected."*
+* **Every OTHER sub-score must be PRESENT.** `missing` has to be a **subset** of the keys the
+  regime actually withholds, so a REIT whose GROWTH is also missing is a data gap and stays
+  rejected. Without that subset test the group would quietly absorb **every incomplete
+  financial** — "never counted as healthy" broken from the other side.
+
+And it still has to be **deep enough**: an excused name falls THROUGH to the depth test rather
+than past it, so one that is too shallow lands in `rejected_shallow` like any other, with
+`n_health_not_scored_shallow` as a readable sub-count.
+
+**ONE ROW BUILDER FOR BOTH GROUPS, ROUTED AFTERWARDS.** A second row literal is how two tables
+meant to carry the same columns come to carry different ones, and the first thing to go missing
+would be a disclosure. Pinned: both groups' rows have identical key sets.
+
+## F-11's FORWARD BOOK DOES NOT MOVE, AND THE FIRST CUT MOVED IT
+
+`health_rejects` feeds `fleet_history.record_dip_rejects` — a **LIVE forward research record**
+whose declared rule is *"names down >=20% ... AND failing the shipped health floors, classified
+by the screen's own published functions"*. **`health_check` still returns `ok=False` for an
+excused name**: a sub-score nobody computed is not a pass. Letting these names fall out of that
+list would **re-specify a live forward book's entry rule as a side effect of a PRESENTATION
+ruling** — a construction change needing its own register and Don's approval.
+
+**THE FIRST CUT DID EXACTLY THAT, AND READING THE DIFF DID NOT CATCH IT.** The append sat inside
+the rejection branch, so three excused names silently left the population while the comment I had
+just written said it was untouched. A driver over all ten cases **printed the list** and the gap
+was obvious.
+
+**PROVED, NOT ASSERTED.** The pre-change `dip.py` was restored from git into the same package
+(so its relative imports resolve), both screens run over the same rows, and the two populations
+compared field by field: **8 names, same order, ZERO fields moved, ONE field added**
+(`health_not_scored`, which cannot admit or exclude a name because F-11 selects on `drawdown`).
+
+So an excused name appears in **BOTH** — in the group, because the page must not call it a health
+failure, and in F-11's rejects, because that book's published rule says it is one. Two different
+objects, both correct.
+
+## THE IDENTITY GAINS A BUCKET, BECAUSE THAT IS THE WHOLE HAZARD
+
+    n_qualified_on_depth == rows + n_unmeasured + rejected_health + rejected_shallow
+                            + n_health_not_scored,  capped == 0
+
+**A name that leaves `rejected_health` and arrives nowhere looks like a SMALLER rejection count
+— i.e. like an improvement.** The identity is the only thing that catches it, and it is asserted
+in the suite (including a non-vacuity test: dropping the new term must BREAK it) as well as live.
+
+`n_health_not_scored_shallow` is deliberately **NOT** in the identity — it is a SUBSET of
+`rejected_shallow`, so adding it would double-count and fail a correct screen, the same trap
+`rejected_checks` sprang on the previous version of that check.
+
+## THE PAGE
+
+A **separate table** under the label and one sentence, both **served from `dip.py`** and pinned
+verbatim — `dip_posture.py`'s rule, because *prose in a template does not stop; someone has to
+remember*, and this is copy about what the model does **not** know. Not a badge on a healthy row:
+a badge inside the healthy table reads as a footnote on a name that passed.
+
+**IT IS APPENDED ON EVERY SCREEN-OUTCOME PATH, AND THAT MATTERS MORE THAN IT SOUNDS.**
+`renderDip` returns early when `rows` is empty, and on this screen **an empty main table is the
+COMMON case** — item 36 measured 110 of 151 classifiable names rejected on health. Emitting the
+group only after the main table would have hidden it on exactly the days it is the whole answer:
+*"never silently excluded"* broken by **control flow** rather than by a filter. Three of the five
+`dipResults` writes are screen outcomes and all three carry it; the other two (`d.error`,
+`d.empty`) return before any screen ran and correctly carry nothing.
+
+The chip tooltip inside the group no longer reads **"not computed"** — the one sentence the group
+exists to stop a reader believing. Which key to say that about is **served**
+(`health_regime_withheld`), not spelled in the JS.
+
+**THE DIGEST IS UNCHANGED AND THAT IS DELIBERATE.** `scan_worker` posts
+`notify.post_dip_digest(..., screen["rows"])`, so the excused names are absent from the Discord
+push — correct under *"never counted as healthy ... in any digest"*. **Adding a new group of
+names to an OUTBOUND push is a product decision and not mine to make**: `V6`'s own close-out
+found a digest gate that a NULL verdict would have silently opened, and the ruling says *shown on
+the page*. Routed, not taken.
+
+## TWO NEW TEST PRIMITIVES, AND THE DEFECT THAT FORCED EACH
+
+`tests/source_bounds.py` (built last session for the character-window family) gains two:
+
+* **`js_function_source`** — brace matching, the JS analogue of `ast.get_source_segment`. Strings,
+  `//` and block comments are skipped so a brace inside one cannot unbalance the count; it is a
+  **matcher, not a parser**, says so, and **CHECKS its own result** (must begin at the
+  declaration, end at a closing brace, be shorter than the file) because the vacuous direction —
+  a bound that is really the whole file — makes every `assertIn` pass while bounding nothing. An
+  unbalanced scan **raises**.
+* **`code_only`** — comments and string literals stripped with `tokenize`. **Forced by my own
+  guard failing against a correct tree:** the test asserting that `dip.py` spells no regime name
+  read the RAW segment, and the comment explaining *why the list must not be copied* **quotes the
+  list**. `MA49`/`MB1`/`MB15`'s family, committed in a session spent removing it from other
+  people's guards. The positive property is asserted first, so the ban cannot pass by seeing
+  nothing.
+
+**REPORTED, NOT FIXED (other suites'):** `_strip_js_comments` exists in **four** separate test
+files (`test_accounting_risk.py`, `test_holiday_picks.py`, `test_source_label.py`, plus
+`test_free_route_p2.py`'s own) — one rule, four encodings, the shape this whole item is about.
+`source_bounds.py` is now the obvious home for a shared one; consolidating four copies is its own
+sweep.
+
+## ITEM 37's HANDOFF CARRIED A FALSE CLAIM AND THE LAND IS WHAT TOLD ME
+
+Session 84 says *"the committed-workflow tests are the ones that bite in CI and those are the
+mutation-proven pair."* **The land went RED**: both guards called `yaml.safe_load`, **PyYAML is
+local-only and not on the runner**, so they raised `ModuleNotFoundError` and the suite reported
+`errors=2` — a guard that cannot RUN where it matters. Same family as this file's *"CI Python is
+3.11, local is 3.13"*. **The land failing is the good outcome**; a `skipUnless` would have turned
+it green and left both checks silently absent in CI forever. Replaced with this suite's own
+`_strip_comments` plus two line reads, standard library only, **verified non-vacuous at 11 crons
+and 11 gates matched exactly with the commented-out `0 12 1 * *` not leaking in**, and both
+mutations re-run: 2 of 2 caught. Session 84's entry is amended in place rather than left to rot.
+
+## WHAT IS NOT DONE
+
+**(b) IS HELD, AND NOW WITH r1's OWN WORDS FOR IT.** The brief says *"Until r1's move lands,
+change none of these pages."* Measured: `DECISION_corrected_floors.md` line 3 reads **"Nothing is
+adopted. No public page changed. The canonical panel is untouched"**, and
+`BACKTEST_RESULTS.json` last moved **2026-08-14**. No table of old → new public figures has been
+handed over. So **no file under `templates/` or `static/` carries a figure change in this
+session** — and r1's part 1b finding (*the corrected headline was the ADOPTED book, not the
+deployed one; held like for like the research headline SURVIVES*) is a reason to be glad nobody
+patched a page early: the numbers to transcribe were still moving.
+
+The test the brief asks for — *"a test should fail if any page still quotes a figure from the old
+panel after the move"* — is **not written yet, deliberately**. It has to key on the artifact's own
+identity (does the canonical panel describe the corrected universe?) rather than on a date, or it
+is the `MA4`/`MB31` family: a guard that fires on the CLOCK. Writing it needs the figures table
+that has not arrived, and guessing the key now risks a guard that is green for the wrong reason.
+
+**Also not done:** the digest is not extended (above); no sector or industry label is invented
+for the group (the engine's `regime` is read, never re-derived); and the group carries **no
+return claim** — `V6` returned NULL on this tab's hypothesis and licensed it as *"a filter, not a
+forecast"*, which these names are not an exception to.
+
 # Session 84 — 2026-10-07 (evening) — ITEM 37: the intraday scheduler is throughput-limited, not unlucky
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict. `by_domain` untouched. **No serving code
@@ -125,6 +323,30 @@ skipped is the defect* — that is not good enough on its own, so it was exercis
 **SKIPPED with no file, PASSED with the real one, FAILED with an unpaired cron**, with nothing
 left under `data/` afterwards. The committed-workflow tests are the ones that bite in CI and
 those are the mutation-proven pair.
+
+**AND THAT LAST SENTENCE WAS FALSE WHEN IT WAS WRITTEN — THE LAND WENT RED AND THAT IS HOW I
+FOUND OUT (corrected 2026-10-07, same evening, before anything reached `main`).** Both
+committed-workflow guards called `yaml.safe_load`; **PyYAML is installed locally and is NOT on
+the runner**, so in CI they raised `ModuleNotFoundError` and the suite reported `errors=2`
+rather than passing or failing. **A guard that cannot RUN where it matters, in a session spent
+removing exactly that shape from other people's checks** — and it is the same family as this
+file's own *"CI Python is 3.11, local is 3.13"* note: a thing present on this machine and absent
+on the runner, invisible until the gate reads it.
+
+**THE LAND FAILING IS THE GOOD OUTCOME.** The tempting repair is `@unittest.skipUnless(yaml)`,
+which would have turned a red land green and left the two checks **silently absent in CI
+forever** — the "fails open in CI" defect, chosen deliberately. Instead the reader now depends
+on nothing outside the standard library: this suite's own `_strip_comments` (which exists for
+precisely the comment-versus-code defect the first cut hit) plus two line reads, `- cron: "..."`
+inside the `schedule:` block and `github.event.schedule == '...'` in a job condition.
+
+**VERIFIED NON-VACUOUS RATHER THAN ASSUMED, because a reader returning `[]` would make
+`dead == []` pass while seeing nothing:** it parses **11 crons and 11 gates** on the live
+workflow, matched exactly, and the commented-out `0 12 1 * *` the master audit removed **does
+not leak in** — which was the whole reason the first cut reached for a YAML parser. Both
+mutations re-run against the new reader: **2 of 2 caught**, workflow restored byte-for-byte.
+The pending-file check still SKIPS with no file, PASSES with the real one and FAILS on an
+unpaired cron.
 
 ## (b) BOTH HOLDS — AND DECISIONS.md HAS SINCE RULED ON ONE OF THEM
 
