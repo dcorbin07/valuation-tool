@@ -1,5 +1,116 @@
 # HANDOFF STATUS - shared project state
 
+## options lane — **DIP-CALL step 1: `K1` FIRES. The program stops and step 2 never ran** (2026-10-08)
+
+Don's authorised options program (`DECISIONS.md` 2026-10-08, *"calls after a sharp drop in a
+strong, liquid company"*). Executor pass on the Frontier Scout's `PREREG_DRAFT_dipcall.md`
+(`9850768`) and its census (`6b338b5`). **Register `PREREG_dipcall.md` committed ALONE and BLIND
+at `c5e0b31`** (markdown only, zero `.py`, a strict ancestor of every measurement commit);
+**4 equity trials booked at `a984ec9` BEFORE any runner existed, equity `N` 274 -> 278.**
+**NO OPTION WAS PRICED. NO ABNORMAL RETURN WAS EVER COMPUTED. NOTHING IS ADOPTED. NO TRADE.**
+
+### In one paragraph
+
+The design needs news-driven and no-news drops as **separate arms** (Chan 2003 says no-news
+shocks reverse, Savor 2012 says information shocks drift, so pooling them cancels both). The
+register's own free pre-outcome kill required **1,500 events in each arm in each half**. Measured
+on the point-in-time $10B tier: **the two no-news arms clear comfortably (2,326 early / 4,004
+late) and the two news arms cannot — 614 and 1,049.** Only **1,669** news events exist on the
+whole tier across eleven years. So the program stopped at zero further trials, and the
+arm runner refuses by name.
+
+### Four things worth carrying forward
+
+**1. THE NEWS ARM IS NOT REACHABLE AT ANY DEFENSIBLE THRESHOLD, AND THAT IS THE PORTABLE
+FINDING.** From a free zero-trial census (`scripts/dipcall_k_census.py`, no forward return read):
+news-early is **449 at k = 3.0, 619 at 2.5, 859 at 2.0 and still only 1,246 at k = 1.5** — below
+the floor at every step — **while the median event-day move decays from -4.98pp to -2.93pp, so by
+the time the count nears the floor the "event" is a 3% day and is not a shock at all.** The
+structural reason is measured: **earnings reactions are 2.97% of ALL scoreable tier name-days**
+(18,985 of 638,880), and 3.29% of those on names with KNOWN coverage -- the gap is the 62
+UNKNOWN-coverage names, which contribute zero news sessions by construction. Either way it is
+a share no choice of k can move. **Any successor splitting a daily event
+study by news on a ~440-name tier inherits this ceiling.** My own first guess — that k = 2.0 would
+rescue it — was wrong, and measuring beat asserting.
+
+**2. THE KILL WAS VALIDATED THREE WAYS BEFORE IT WAS ACCEPTED, because accepting a kill on a buggy
+instrument is as bad as relaxing a bar.** code-22 dates per tier ticker-year read **median 4.00 /
+mean 4.33**, independently reproducing `O6`/`O7`'s 3.96/4.14 on megacaps; news sessions are
+**3.29%** of sessions with events **6.28x over-represented** on them; and **9 of the 12 most
+extreme tier drops are caught as news at a session gap of exactly 0 or 1**, META's -19%
+post-earnings day among them. **VOD reads `unknown` — a UK filer with no code-22 coverage, which
+is the fail-closed third state working.**
+
+**3. A POINT-IN-TIME TIER COSTS 35% OF THE EVENTS, AND IT IS WHAT DECIDED THE ITEM.** The census's
+14,727 events are on names *"ever >= $10B on a build-quadrant date"* — which counts a name's 2009
+events because it reached $10B in 2019, selection on a future property. Point-in-time the tier
+yields **9,614**. **Any event study on this panel that defines its universe as "ever in the tier"
+is counting events it could not have known about**, and the correction is not small.
+
+**4. THE EVENT IS NOT A VOLATILITY SORT, AND THE GRADIENT RUNS BACKWARDS FROM THE EXPECTED ONE.**
+The event rate **falls** monotonically with trailing volatility (0.0202 -> 0.0097) while the median
+event-day move **rises** (-2.98pp -> -7.43pp): a quiet name's sigma is small, so a modest
+percentage move is a large z. **Consequence for the product framing: a -2.5 sigma day on a staple
+is a ~3% day.** A successor should decide whether that is the event Don meant.
+
+**5. A CORRECTION AGAINST MY OWN REGISTER, RUNNING AGAINST MY OWN DESIGN CHOICE.** The register
+demotes the 63- and 126-session horizons to no-verdict sensitivities because *"power dies
+there"*, citing the draft's claim that `V6`'s banked +0.5203pp 63-day dip effect needs ~28,097
+events. **Both figures rest on the draft's 20pp dispersion anchor, and the measured value is
+11.667pp -- 1.71x smaller.** Re-derived, the same effect needs **8,848** events against 26,001,
+a **2.94x** reduction at every horizon, and the tier carries **9,614**. **So pooled and unsplit
+the 63-session horizon is marginally reachable rather than 3x out of reach.** It is marginal, the
+register's own two-arm both-halves split destroys it, and **it is NOT promoted** -- those horizons
+were declared no-verdict before any outcome existed. **The portable part: this panel's daily
+dispersion is materially smaller than the record assumes, so a long-horizon dip design is better
+powered than the record currently says.**
+
+### What is blocked / what is NOT done
+
+* **Step 2 (pricing the calls) never ran** — no chain coverage censused, no fill engine called, no
+  IV decomposition, no random-day control, no shares comparison. Step 3 (the forward paper book)
+  likewise.
+* **The hypothesis is UNTESTED, not rejected.** No abnormal return was computed anywhere. What is
+  established is about the DESIGN, not about whether stocks bounce.
+* **The check quadrant (2020-2026 x half 1) was never opened**, so **2020 and 2022 — the two most
+  interesting dip years — remain available to a successor.** That is the main asset this item
+  leaves behind.
+* **`V6`, `V6-B`, `V6-OPT`, `DC-1`, `O17C4`, `R2` untouched; none re-opened.**
+
+### Recommended next step
+
+**A no-news-only register, pre-committed as such, is the one design this measurement supports** —
+its two arms clear the floor with room (2,326 / 4,004) and its clustering is measurable
+(`deff 2.1009` against a null p95 of 1.1574, so the cluster-robust standard errors would do real
+work). It must be **registered before it is run**, carry its own BH burden, and inherit this
+program's priors; and it should widen the news definition beyond code 22 first, because the
+"no-news" arm currently contains genuine non-earnings news — measured instance: **`ABBV`
+2019-06-25, the Allergan acquisition, a -16.1 sigma day classified no-news.**
+
+**AND THE OBVIOUS WIDENING HAS A TENSION THAT MUST BE PRICED FIRST, OR IT WILL BE RUN NAIVELY.**
+Widening the news definition grows the news arm **only by shrinking the no-news arm that currently
+clears**, and `S17`/`SC-2` already measured code 91 appearing roughly 95 times per ticker -- so an
+over-wide definition makes nearly every session news and destroys the split from the other side.
+**A successor must pre-commit its code set and show BOTH arms reachable at it. This item did NOT
+measure that, deliberately: searching code sets for one that passes, after the registered rule
+failed, is the same shape as threshold-shopping.**
+
+### Bugs found (detail in `HANDOFF_optionsbot.md` 80)
+
+1. **`AEHL`'s `market_cap` reads $1.131 TRILLION** in `UNIVERSE_BIAS_PANEL_full.pkl` on
+   2010-12-27, between a $54.2M quarter and a $269.7M one. **One name of 459**, so it drove
+   nothing here. **r1's / UNIVERSE-BIAS's lane; not repaired.**
+2. **`stable_key_half` (X1's ticker split) now exists in THREE places.** Mitigated by a test
+   pinning all three to agree; the real fix is one definition in `valuation/edge/`.
+3. **`bulk.py`'s *"~2.83 code-22 dates per ticker-year"* comment is stale for this tier** (really
+   4.00/4.33). Reported, not edited — it is right about the universe it was measured on.
+
+**34 tests, zero skips.** `valuation/studies/dipcall.py`, `scripts/dipcall_kills.py`,
+`scripts/dipcall_arm.py` (shipped complete and **never run**), `scripts/dipcall_k_census.py`,
+`tests/test_dipcall.py`; `data/free_analysis/DIPCALL_KILLS.json`, `DIPCALL_K_CENSUS.json`.
+
+---
+
 ## edge lane — **P1S0-CONTROL: NULL, and the dichotomy is the finding** (2026-08-16)
 
 `PREREG_p1s0control_period_or_universe.md` committed ALONE at `dc618c4`; budget booked at
