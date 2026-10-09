@@ -16759,3 +16759,532 @@ NO-GO; nothing here re-runs the comparison; and the quality divergence is NAMED,
 **25 tests across two new suites, zero skips; the dip and theme suites green.**
 `scripts/theme_cache_build.py`, `valuation/web/dip.py`,
 `tests/test_item33_insider_leg.py`, `tests/test_item33_dip_spread.py`.
+
+---
+
+# SESSION 86 (2026-10-08) - ITEM 43: THE DAILY PUSH DIVERGED *BECAUSE* IT SYNCED FIRST, AND THE ONLY DEFECT WAS THE ORDER
+
+`PROMPT_appfixer_2026-10-08_item43.md`: *"Fix the flow so this cannot recur: commit the folder's
+edits first, then fetch, then replay ONLY commits that exist solely in this folder onto
+origin/main (rebase), aborting and reporting - never discarding - on any conflict, then push."*
+
+**THE FAILURE WAS REPRODUCED BEFORE IT WAS REPAIRED, ON A REAL TEMPORARY REPO WITH A FAKE
+REMOTE, AND IT REPRODUCES EXACTLY.** A bare `github.git`, a clone standing in for Don's folder,
+and a SEPARATE clone standing in for a lane that lands through the gate:
+
+```
+  start:                       ahead 0 / behind 1 / dirty 2
+  --- step 3: git_push.bat runs sync_checkout.py over a dirty tree ---
+      exit 1
+      | [!! ] fast-forward: refused
+      | parked to rescue/wip-main-6744ccd
+  --- step 4: git_push.bat commits the edits anyway ---
+  after commit:                ahead 1 / behind 1          <- DIVERGED
+  --- step 5: git push ---
+      exit 1  ! [rejected]        main -> main (non-fast-forward)
+  --- step 6: does sync.bat cure it? ---
+      exit 1  | reason: diverged
+  after sync.bat:              ahead 1 / behind 1          <- still diverged
+```
+
+**EVERY SINGLE STEP IS CORRECT.** The sync is right to refuse a fast-forward that would
+overwrite uncommitted edits. The commit is right to happen. The push is right to be rejected.
+`sync.bat` is right to refuse a diverged branch - that refusal is deliberate and is what stops
+it discarding anything. **The ORDER is what manufactured a divergence out of two things that
+were merely out of step**, and no individual step could be blamed for it, which is why three
+sessions of reading the script did not find it.
+
+The real instance: `517cf0b` landed on main touching `DECISIONS.md` and the `PROMPT_*` files
+while Don had local edits to the same files. Uncommitted edits to a tracked file the remote
+also changed is the whole trigger, and it is the ordinary state of this folder every single
+day.
+
+## WHAT SHIPS
+
+**`scripts/publish_folder.py`** - commit FIRST, fetch, align, push, in that order:
+
+1. refuse unless HEAD is on `main` (**refused, not switched** - checking `main` out under
+   someone deliberately on another branch is the kind of help that loses work);
+2. **commit the folder's edits**, having refused anything that must never be pushed;
+3. fetch;
+4. behind only -> `merge --ff-only`; **diverged -> `rebase origin/main`**, which replays only
+   the commits that exist solely here; conflict -> `rebase --abort`, report, exit non-zero;
+5. push, which is now a fast-forward by construction rather than by luck.
+
+**`git_push.bat`** keeps the git discovery, the "agent branches land through the GitHub gate"
+line and the test gate, and then calls it. It no longer contains `add`, `commit`, `push` or
+`sync_checkout.py` at all - **one definition of the order** (`B7`), because two orders in two
+files is precisely how this recurs.
+
+## THE DECISION THE BRIEF ASKS FOR: `rebase_push.bat` IS REMOVED, NOT DOCUMENTED
+
+Its logic - fetch, rebase, abort on conflict, push - is correct, and it is now **step 4 of the
+normal flow**. Keeping it as well would be a SECOND implementation of one cure, which is audit
+`B7`'s shape and the defect this project has paid for most often; the second copy is always the
+one that drifts. **And there is nothing left for it to recover from: the state it cured can no
+longer be reached.** **AND IT HAD TO BE DELETED FOR REAL RATHER THAN MERELY NOT ADDED, WHICH THIS
+LANE GOT WRONG FIRST.** It was written untracked into Don's folder as an emergency hand-cure,
+and this write-up's first version said *"it was never tracked, so nothing is deleted"* and asked
+Don to delete it by hand. **Measured on the gate: it IS tracked, because on 2026-10-08 at 19:07
+`git_push.bat`'s own `add -A` committed it** - `50146ba`, "Update Thu 10/08/2026 19:07:21.49",
+Don's own message format. **So the tool this item repairs is what landed the thing this item
+retires**, and `add -A` sweeping up a loose file is the same mechanism that makes the `.env`
+guard necessary. The test asserting its absence was GREEN locally against a branch that
+predated that commit and RED on the gate, which is the gate earning its keep: `git rm` in this
+commit, and the test now has something real to defend.
+
+## EVERY EXISTING GUARANTEE IS KEPT, AND EACH IS A LINE OF CODE RATHER THAN AN INTENTION
+
+* **TESTS BEFORE PUSH / NEVER PUSH RED** - `git_push.bat` runs the suite first and refuses on
+  red, and the module **also refuses to run without `--tests-passed`**, so a future caller
+  cannot reach the push by forgetting. Pinned from both sides, including that a missing python
+  fails the gate rather than skipping it.
+* **AGENT BRANCHES ARE NEVER MERGED LOCALLY** - asserted as a property of the SOURCE: `publish`
+  may not contain `worktree-`, `merge --no-ff`, `branch -d/-D`, `push --force`, `push -f`,
+  `--force-with-lease`, `reset --hard`, `clean -fd`, `checkout -b` or `stash`, and the only
+  merge it performs is a fast-forward of its own branch. Plus a behavioural case: a folder
+  carrying a `worktree-*` branch the gate already landed publishes cleanly and **the branch is
+  still there afterwards** - the 2026-10-06 shape.
+* **NOTHING IS DISCARDED** - the pre-rebase tip is written to a named local ref BEFORE the
+  rebase and reported by name, so recovery is a copy-paste rather than an archaeology
+  exercise. `rebase --abort` would restore it anyway and the reflog would hold it for 90 days;
+  *"nothing is discarded"* should be a ref somebody can read, not a property of a command's
+  failure path. The conflict test asserts the backup holds Don's work **without** the lane's,
+  that no `rebase-merge`/`rebase-apply` directory is left behind, that no conflict markers
+  reach the working file, and that the remote is untouched by the failed attempt.
+* **`.env` AND `data/` ARE NEVER COMMITTED** - checked against what is actually STAGED, after
+  `add -A`, which is the only moment the answer is knowable; a hit is **unstaged**, never
+  committed-then-fixed, because a secret in a commit is in the history whatever the next commit
+  says. Exercised with `git add -f`, which is how a `.gitignore` gets defeated in practice.
+
+## THREE DEFECTS THE SUITE FOUND ON ITS FIRST RUN, AND ONE OF THEM IS IN THE PRODUCT
+
+* **IN THE PRODUCT: the never-commit guard matched nothing.** `_blocked` normalised with
+  `lstrip("./")`, and `lstrip` takes a **SET OF CHARACTERS** rather than a prefix - so `.env`
+  came back as `env` and **the one guard standing between a secret and a public remote passed
+  everything**. Found by the test asserting the literal shapes, not by reading.
+* **IN THE FIXTURE: `DECISIONS.md` had three lines**, so the lane's append and Don's edit landed
+  on the SAME line and every supposedly-clean replay case conflicted. The suite was measuring
+  one scenario twice under two names. The real file is hundreds of lines and the two edits land
+  in different places; a fixture that cannot represent that cannot tell a clean replay from a
+  collision.
+* **IN THE CONTROL: it passed vacuously.** The old-order test merged **without fetching first**,
+  so `origin/main` was still an ancestor of HEAD, `merge --ff-only` exited 0 saying *"Already up
+  to date"*, and the assertion read that SUCCESS as the refusal it was looking for. The old flow
+  fetched inside `sync_checkout.py`; leaving the fetch out of the control removed the premise.
+  **`MB21`'s family: a control that certifies the instrument while comparing nothing.**
+
+**A FOURTH, IN THE DRY RUN, AND IT IS THE INSTRUCTIVE ONE.** `--dry-run` originally skipped the
+fetch (on the reasoning that a dry run writes nothing) and so read a stale remote-tracking ref.
+On the exact state this item is about - dirty and one commit behind - it printed **"would
+fast-forward"** for a run that will rebase. **A preview of the wrong branch of the code is worse
+than no preview, because it is believed.** It now fetches (the one write, and only to a
+remote-tracking ref; `measure` never prunes) and counts the commit it would have made, so the
+preview names the step the real run takes.
+
+**AND A FIFTH, IN MY OWN TOOLING: a tab ate the test gate.** Writing `git_push.bat` through a
+heredoc turned `tests\test_edge.py` into `tests` + TAB + `est_edge.py`, so cmd would have run
+`python tests`, the suite would never have executed, and **"never push red" would have been
+silently absent while the script still printed `[OK] tests pass`**. Caught by reading the file
+back; pinned by a test asserting the bat contains no tab character at all.
+
+## A SIXTH DEFECT, AND IT IS A MEASUREMENT THAT CONTRADICTS MY OWN REPAIR
+
+While closing the last crash path I added a branch for a REFUSED fast-forward -- the tree is
+clean by that point, so the only candidate left is a path git does not track here, and
+`_git` would have thrown an exception out of the middle of Don's daily tool. **Then I built the
+scenario and it does not refuse: `merge --ff-only` protects TRACKED modified files, and an
+IGNORED file sitting where the incoming commit tracks one is REPLACED WITHOUT A WORD.** Measured
+on a real repo: `NOTES.txt` holding `"Don's untracked version"` came back holding `"the lane's
+version"`, the step reported `fast-forwarded`, and nothing anywhere said a local file had gone.
+
+**So the branch is DEFENSIVE and I cannot show it is reachable**, which this project distrusts
+on principle -- so it is labelled as such rather than counted as a tested path, its report is
+driven directly by making the merge fail, and the thing that ACTUALLY happens is pinned as its
+own test with the measured bytes in the assertion. **It is git's behaviour and `git pull` does
+the same**, so it is reported rather than repaired: having this tool second-guess a plain
+fast-forward would be a bigger change than the item asks for, with its own failure modes.
+**Worth knowing before putting anything you care about in a gitignored file in that folder.**
+
+## WHAT THE REPRODUCTION SCRIPT ITSELF GOT WRONG FIRST, because it is the same lesson twice
+
+* **IT USED THE WRONG DIRTY STATE.** Untracked files do not block `merge --ff-only`, so the
+  sync fast-forwarded, the commit landed on CURRENT main, and the push succeeded. The scenario
+  quietly did not happen.
+* **IT PRINTED "REPRODUCED" UNCONDITIONALLY.** A `print` at the end of a script is not a
+  measurement, and the first run printed it while nothing had gone wrong. The verdict is now
+  derived from the measured state and the script exits non-zero if it fails to reproduce.
+
+**This is why the suite drives real repositories rather than mocks.** The defect was an
+order-of-operations failure between three commands that each behaved correctly, and the state
+that makes it bite is a property of git's index. A mocked `git` would have reproduced whatever I
+believed about git and nothing about git - and my own first cut proved that in the other
+direction.
+
+## TWO OF THE SYNC LANE'S OWN GUARDS FIRED, BOTH CORRECTLY, AND ONE HAS NOW BEEN KEYED ON THE CLOCK FOR THE THIRD TIME
+
+The full gate came back **259 suites passing, ONE failing** - `tests/test_sync_checkout.py`,
+which is the sync lane's file and not this one's. Both failures are **correct**: that suite
+asserts `git_push.bat` calls `scripts\sync_checkout.py`, and item 43 removed the call on
+purpose.
+
+**`test_git_push_syncs_before_it_pushes` HAS NOW BEEN REPOINTED THREE TIMES AND ITS OWN
+DOCSTRING RECORDS THE FIRST TWO.** It was keyed on a BANNER (*"Auto-land finished agent work"*),
+which was deleted on 2026-10-06, so it raised `ValueError: substring not found` and **took the
+landing gate red for every lane**. It was then keyed on a SCRIPT NAME, `sync_checkout.py` - and
+that call is now gone too. **Both keys were properties of the LAYOUT - which banner, which
+script - and the property they stood in for is simply "this script does not push before it has
+aligned".** `MA4`/`MB31`'s family, in its purest form: a guard asserting today's arrangement
+fires on the clock, and this one has now cost three repoints across three sessions.
+
+**REPOINTED TO THE PROPERTY, IN THE STRONGEST FORM AVAILABLE RATHER THAN THE NEAREST ONE:
+`git_push.bat` now contains NO PUSH AT ALL, so there is no push that could precede an align**,
+and the one tool that owns both is required to fetch before it pushes *in its own source*. A
+future edit that re-adds a bare `git push` to that file goes red, which is the thing the guard
+was protecting all along. The 2026-10-06 bans (no `worktree-`, no local `merge`) are untouched,
+and its non-vacuity assertion is repointed with it so the comment-stripper cannot make the
+whole guard pass by seeing nothing.
+
+**AND THE SECOND FAILURE IS THE SAME DEFECT IN THE TEST DIRECTLY BELOW IT.**
+`test_git_push_does_not_wrap_errorlevel_in_a_parenthesised_block` sliced its region between
+`where python >nul 2>nul || goto :nodrift` and `:drifted` - the labels bracketing the sync call
+- so it raised `ValueError` for the identical reason. Re-anchored to the command whose
+errorlevel is actually being read, with a non-vacuity assertion that the region still contains
+the `if errorlevel` lines it exists to police.
+
+**BOTH REPOINTS LAND IN THE SAME COMMIT AS THE CHANGE THAT MOVED THEM (`MA59`), so the move
+shows in the diff, and BOTH ARE MUTATION-TESTED 4 of 4** - a repointed guard that cannot bite is
+worse than the dead one it replaced, because the dead one at least went red: `git_push.bat`
+pushing by itself again, the delegation removed entirely, `if errorlevel` wrapped in
+parentheses, and the aligning fetch removed altogether. **One of those four first reported
+`needle absent` because my mutation used `\n` against a CRLF file - which the harness counts as
+a MISS, correctly, since a mutation that never applied proves nothing.**
+
+## THE EXACT SEQUENCE DON SHOULD EXPECT TO SEE PRINTED
+
+Ordinary day - his edits plus lanes that landed:
+
+```
+  Agent branches land through the GitHub gate - not merged here.
+  Running tests before pushing...
+    [OK] tests pass.
+
+  PUBLISHING THIS FOLDER'S EDITS
+  --------------------------------------------------------
+  [OK ] on the right branch                    head=main
+  [OK ] saving your edits                      action=committed message=Update 2026-10-08 20:00
+  [OK ] checking GitHub                        ahead=1 behind=1
+  [OK ] replaying your edits on top of GitHub  action=rebased ours=1 theirs=1 backup=backup/main-b2e1831
+  [OK ] pushing                                action=pushed commits=1
+
+  [OK] GitHub is up to date.
+```
+
+Nothing of his to send, lanes landed:
+
+```
+  [OK ] saving your edits                      action=clean
+  [OK ] checking GitHub                        ahead=0 behind=1
+  [OK ] catching up to GitHub                  action=fast-forwarded commits=1
+  [OK ] pushing                                action=nothing-to-push
+```
+
+The one case that stops, and what he does about it:
+
+```
+  [OK ] checking GitHub                        ahead=1 behind=1
+  [!! ] replaying your edits on top of GitHub  action=aborted ours=1 theirs=1 backup=backup/main-4900df2
+         | Auto-merging DECISIONS.md
+         | CONFLICT (content): Merge conflict in DECISIONS.md
+         | error: could not apply 4900df2... Update 2026-10-08 20:00
+
+  [!] your edits and GitHub's changed the same lines, so the replay was undone and NOTHING
+      was lost. Your commits are still here and also on 'backup/main-4900df2'. Open the files
+      git named above, keep the version you want, then run this again.
+```
+
+## TESTS
+
+**31 tests, zero skips**, every behavioural case against a real temporary repo with a fake
+remote: the old order diverging (the control), the new flow pushing and keeping **both** sides
+of the file, the step order itself, the backup ref, a genuine conflict aborting and reporting,
+behind-only, in-step-and-clean, ahead-only, another branch, a **deterministically** rejected
+push (a `pre-receive` hook that exits non-zero - a test that depends on winning a race against
+its own fetch is flaky by construction), an unreachable remote reported as an error rather than
+a pass, `.env` and `data/` refused through `git add -f`, a landed agent branch left alone, the
+CLI's three exit codes, the dry run, and the wiring in `git_push.bat`.
+
+**MUTATION-TESTED: 15 of 15 CAUGHT, 0 MISSED, sources restored byte-for-byte**, plus one
+deliberately INERT mutation so the harness is shown able to tell a no-op from a miss: the
+never-commit guard removed; the replay turned into a `merge`; the backup ref not created; the
+abort removed; the branch check removed; `--tests-passed` no longer required; a rejected push
+reported as a success; a refused fast-forward reported as a success; a dry run committing for
+real; the fetch skipped; `git_push.bat` reverted to committing and pushing itself; the backup
+line swapped for a `checkout`; and four separate ways of forcing the push (`--force`,
+`--force-with-lease`, a `+refspec` prefix, and the plain `--force` again after the repair
+below).
+
+**AND THE FIRST PASS MISSED THE MOST DANGEROUS MUTATION OF THE SET, WHICH IS WHY IT WAS RUN.**
+`publish()`'s source-level ban list read `"push --force"` -- **a needle with a space in it**,
+which a token-joined source can never contain -- so **turning the push into a FORCE PUSH TO
+MAIN went straight through a guard written to forbid exactly that**. `MB15`'s family: a ban
+whose shape cannot match the thing it bans, and the fourth time this project has paid for a
+substring ban. Repaired by banning single TOKENS and, more usefully, by pinning the push's
+shape POSITIVELY -- `_run(repo, "push", remote, "HEAD:%s" % branch)` -- so any extra argument
+at all breaks it, which catches what an enumeration of bans cannot anticipate. Re-run: the
+force push, a force-with-lease and a `+` refspec are all caught.
+
+**AND THE REPAIRED BAN LIST THEN FIRED ON CORRECT CODE, one level down the same family.**
+`"clean"` was on it, and `action="clean"` is a legitimate STEP LABEL, so the guard went red
+against a tree with nothing wrong with it. Only tokens that are dangerous in every context
+stayed. **`-f` is deliberately NOT banned either**: `branch -f` force-moves the local BACKUP
+ref, which is the single line that makes *"nothing is discarded"* true, so banning the bare
+token would forbid the safety feature -- which is why the push is pinned positively instead.
+
+---
+
+# SESSION 87 (2026-10-09) — ITEM 44: THE BACKUP CRON WAS ALWAYS THERE, AND A LANE'S COPY OF A `.github/` FILE IS STALE BY CONSTRUCTION
+
+`PROMPT_appfixer_2026-10-09_item44.md`, three parts. **The correction is accepted and it is not
+a slip — it is a structural guarantee nobody had written down.**
+
+## (1) THE CORRECTION, AND THE REASON IT WILL RECUR UNLESS IT IS MECHANISED
+
+Item 42 reported that the `53 17-19` backup cron "is still not installed". **It has been
+installed since `d66155e`, 2026-10-08 08:15 ET**, and the intraday job's `if:` already names
+it. Verified against `origin/main`: it is line 67 of `auto-scan.yml`, and the authoritative
+read lists twelve crons including it.
+
+**WHY THE LANE READ THE WRONG COPY, AND WHY DISCIPLINE CANNOT FIX IT.** The land gate REFUSES
+any branch touching `.github/` (`land_policy.py`), so a workflow file can only ever change on
+`main`, by Don running `install_workflows.bat`. **A lane cannot make the change, cannot land it,
+and has no mechanism that would keep its copy current — so for `.github/` specifically a lane's
+local copy is stale BY CONSTRUCTION, and reading it to make a claim about what GitHub is
+scheduling is wrong by construction rather than by accident.** `valquo_sync_bootstrap.bat`
+already applies exactly this reasoning one level up: it fetches `sync_checkout.py` from
+`origin/main` rather than running the folder's copy, because *"a launcher that ran this folder's
+copy would be as stale as the folder."*
+
+**SO IT IS MECHANISED.** `scripts/workflow_source.py` is the one authoritative reader: it
+returns `origin/main`'s text plus `source` and `authoritative`, and when it cannot read the ref
+it **says so instead of quietly substituting the local file** — a silent fallback would
+reproduce the defect with an extra layer of indirection, because the caller would believe it
+held the real thing. On a CI runner `origin/main` is often not fetched and there the local copy
+IS correct (the gate tests the merge of branch into main), so the fallback is right in CI and
+reported everywhere.
+
+The three places in `tests/test_proposal_auto_scan_themes.py` that asserted the house rule
+against the local file now read the authoritative copy, so a stale branch can no longer make
+that guard pass while main's copy breaks it. And a new structural guard: **no script may open a
+`.github/workflows/` file behind the reader's back** (B7), read through the AST, with the
+pending directory exempt because a pending file is a PROPOSAL and reading it locally is the
+only way to read it at all.
+
+## THE RE-MEASUREMENT: THE WINDOW STARTS 2026-10-08 AND IS ONE SESSION OLD, NOT A WEEK
+
+`scripts/intraday_delivery.py` re-asks item 37's question on demand. **It is not a week yet** —
+the backup was installed on the 8th and the 9th has not traded — so this is the interim, and the
+full week completes **2026-10-14** with the re-measurement due **2026-10-15**:
+
+```
+  python scripts/intraday_delivery.py --since 2026-10-08 --until 2026-10-14
+```
+
+| | item 37 (30 days to 2026-10-07) | **interim, 2026-10-08, ONE session** |
+|---|---|---|
+| intraday crons | 8 | **11** (8 primary + 3 backup) |
+| slots expected | 176 | **11** |
+| runs delivered | 49 | **4** |
+| **of those, IN SESSION (13:00–20:59 UTC)** | not reported | **1** |
+| dropped | 127 — **72.2%** | 7 — **63.6%** |
+| sessions with no in-session run | 21 of 22 | **0 of 1** |
+| sessions with no run at all | 0 of 22 | 0 of 1 |
+
+Arrivals on 2026-10-08: **00:16, 19:19, 22:30, 23:49 UTC**. **ONE SESSION PROVES NOTHING about
+63.6% against 72.2%** and the difference is not quotable as an improvement; what the day shows
+is that the shape has not changed — one in-session delivery, the rest arriving after the close.
+
+**THE NUMBER WORTH WATCHING IS `runs_delivered_in_session`, AND IT IS SMALLER THAN DELIVERY.** A
+run landing at 23:49 was fired by an in-session cron and refreshes nothing a user sees while the
+market is open. Counting it answers *"did GitHub eventually run it"* when the question is *"did
+the feed refresh during the session"*. Both ship; the gap between them is the finding.
+
+**WHAT THE INSTRUMENT CANNOT DO, STATED RATHER THAN GLOSSED: it cannot tell the primary cron
+from the backup.** Both gate the same `intraday` job and the API does not expose the schedule,
+so a delivered run is attributable to *an* intraday cron and no further. **Nobody may say "the
+backup rescued N sessions" from this.** That would need the job to record which schedule fired
+it, which is a `.github/` change.
+
+### TWO DEFECTS IN MY OWN INSTRUMENT, BOTH THE SAME FAMILY AS THE ONE I WAS FIXING
+
+* **THE DENOMINATOR DID NOT MOVE WITH THE SCHEDULE.** The first cut read today's cron list and
+  applied **11 slots to every session in the window**, including 2026-10-06 and -07, which
+  really had 8. **That is item 42's defect in the TIME dimension — reading one copy of a file
+  and believing it describes a different moment** — so the fix is the same one: `crons_on(date)`
+  reads the workflow as it stood that day, and the artifact ships `slots_by_date` and
+  `crons_by_date`. Across the install boundary it reported 74.1% where the per-date figure is
+  the honest one.
+* **A SESSION THAT HAS NOT CLOSED OWES NOTHING, AND IT COUNTED ONE.** Asked for 2026-10-08..09
+  at 02:00 UTC on the 9th it scored the 9th as 11 expected and 0 delivered and reported
+  **81.8% dropped on a day the market had not opened** — **item 43's `gap_report` off-by-one
+  exactly**, inflating the headline in the alarming direction. The window now ends at
+  `last_closed_session()` and the truncation is REPORTED in the artifact, because an output that
+  silently measured a day while being asked for a week is worse than a refusal.
+
+## (2) THE TRADIER MEASUREMENT RUNS WHERE THE WORKING TOKEN LIVES
+
+`data/pending_workflows/tradier-seam.yml`, **`workflow_dispatch` only, no schedule.**
+
+* **INSTALL:** double-click `install_workflows.bat`.
+* **RUN, one click:** GitHub → **Actions** → **"Tradier seam (measure only)"** → **Run
+  workflow** → the green button. There is no schedule, so it never runs on its own.
+* It uses the repository's existing `TRADIER_TOKEN` secret and uploads
+  `tradier_seam_raw.json` + `tradier_seam_report.txt` as the artifact **tradier-seam**.
+
+**THE DIAGNOSIS IS SHARPER THAN ITEM 41's, AND IT REFUTES THE OBVIOUS HYPOTHESIS.** The lane's
+401 is **not** a wrong-base error: measured, the lane already sends `TRADIER_ENV=live` to
+`api.tradier.com` and the response is `{"fault":{"faultstring":"Access Token not approved"}}` on
+all three control names. **It is a market-data ENTITLEMENT answer, not a bad token and not the
+sandbox host.** (The token's length is printed and its value never is.)
+
+**`TRADIER_ENV: live` IS NOT OPTIONAL IN THE WORKFLOW AND OMITTING IT WOULD BE A QUIET
+FAILURE**, which `auto-scan.yml` already learned once: `CONFIG.tradier_env` defaults to
+`"sandbox"`, so an approved live token would be sent to `sandbox.tradier.com`, 401, and be
+reported as *"Tradier has no coverage"* when the truth is *"we asked the wrong host"*. A test
+asserts that **every step receiving the token also receives the env**.
+
+**READ-ONLY IS A PROPERTY, NOT A POLICY, and it is asserted on the script rather than the
+workflow:** `tradier_seam.py` contains **exactly one** outbound call shape — `requests.get` to
+`/markets/history` — no POST/PUT/PATCH/DELETE anywhere, and it does not even name an
+order endpoint. The token is scrubbed from every reported string, and the workflow is checked
+for `echo`/`printenv`/`set -x` shapes that would put it in the log.
+
+### THREE DEFECTS FOUND BEFORE SHIPPING IT, EACH ONE A WASTED CLICK OTHERWISE
+
+* **THE SCRIPT ONLY RAN ONE WAY.** `python scripts/tradier_seam.py` raised
+  `ModuleNotFoundError: valuation`; it had only ever been invoked as `python -m
+  scripts.tradier_seam`. The workflow invokes it the other way, so this would have spent one of
+  Don's clicks on a crash. Found by running it, not by reading it.
+* **A 401 ON EVERY NAME WOULD HAVE BEEN A GREEN RUN WITH AN EMPTY ARTIFACT.** `probe()` printed
+  and returned `None`, so a caller could not tell *"measured"* from *"every request refused"*.
+  It now returns a bool, says **NOTHING AUTHENTICATED**, and the CLI exits **2** — while the
+  upload stays gated on `!cancelled()` so the refusal travels as evidence. *"I could not
+  measure"* and *"the measurement came out this way"* must never share an exit code.
+* **A CONTROL THAT DID NOTHING.** The first cut declared a `names` input to cap the sample, and
+  the script has no such flag — a box on the Run-workflow form that accepts a number and
+  changes nothing. **A control that does nothing is worse than none, because it is believed.**
+  Removed, and a test refuses any declared input the script has no flag for.
+
+## (3) SOMETHING *DOES* DEPEND ON THE BROKER FUNDAMENTALS, AND THE IMPORT GRAPH SAID IT DID NOT
+
+The question was whether anything depends on them today, with permission to record it and move
+on if nothing does. **Nothing is the wrong answer twice over.**
+
+**FIRST, THE INSTRUMENT LIED.** `scripts/import_graph.py --importers
+valuation.screener.broker_fundamentals` returns an **empty list** and the module is **not in the
+reachable set** — because all five call sites are **deferred imports inside function bodies**
+(`from . import broker_fundamentals as BF`), which a module-level graph cannot see. A text sweep
+finds four sites in `providers.py` and one in `screen.py`. **"No importers" is exactly the kind
+of answer that gets acted on, and here it was wrong.**
+
+**SECOND, THE DEPENDENCY IS RESILIENCE, AND `providers.get_metrics` SAYS SO IN ITS OWN COMMENT:**
+*"Before the broker prefill that meant the name was DROPPED from the scan entirely ('no data');
+now it survives on the broker's half, so a throttled Yahoo costs the scan some quality per name
+instead of costing it the name."* **So with the prefetch at 0 that safety net is absent exactly
+when item 39's failure mode occurs** — Yahoo refusing the runner outright with `401 Invalid
+Crumb`. No displayed number depends on it; the scan's robustness does.
+
+**AND THE 0-OF-1500 FIGURE DOES NOT MEAN WHAT IT LOOKS LIKE — TWO POPULATIONS UNDER ONE WORD.**
+The live health block reads `names_with_broker_data: 0` and `note: "broker fundamentals loaded
+for 0 of 1500 names"` **directly beside `by_source: {"free+broker": 777, "free": 591,
+"unknown": 72}`** over 1,440 scored names. Both are right. `get_metrics` returns a CACHED row
+before it ever consults the broker, and `merge` stamps `free+broker` only when the broker
+actually filled a field — so **with an empty prefetch no row scored TODAY can carry that label,
+and the 777 that do were stamped on an earlier run when the prefetch worked.** `O-1`'s family: a
+count measured on one population read as a fact about another. **It cost me an afternoon's wrong
+conclusion ("the broker half is gone"), so `broker_stats` now ships a `scope` field saying which
+population it counted**, and the arithmetic behind the contradiction is pinned by test
+(`merge(None, free)` must stamp `free`, with a positive control that a filling broker row stamps
+`free+broker`).
+
+**NOT DONE, named so it is not mistaken for done:** the CAUSE of the empty prefetch is still not
+established beyond "the fundamentals endpoints answer with nothing while the options endpoints
+work" — it reports a COUNT rather than a failure, so `fetch_raw` returned 200-with-no-company
+rather than raising, which is consistent with a fundamentals entitlement the options token does
+not carry. Nothing is enabled, no endpoint is repointed, and no scan behaviour changed.
+
+## REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3): THE APPEND-ONLY WRITER CAN REFUSE A LEGITIMATE WRITE ON WINDOWS, AND IT IS A DATA-LOSS PATH
+
+The full gate came back **264 passing, ONE failing** — `tests/test_fleet_highwater.py`, which
+is the fleet lane's (`de96ee9`) and imports nothing this item touches. **It is not this item's
+and it is not flaky-and-harmless; it is a real defect in a shipped writer**, so it is measured
+rather than dismissed.
+
+**IT PASSED IN TWO EARLIER FULL GATES OF THE SAME CODE** (260/260 and 264/264) and **passes
+standalone**, which is exactly the shape that invites "stale expectation, ignore it". Run ten
+times in a row it fails **1 of 10**:
+
+```
+  AssertionError: {'ok': False, 'wrote': False, 'reason': "could not write
+    ...\Temp\hw_nyziy_yq\data\fleet\hwbook.csv: [WinError 32] The process cannot access
+    the file because it is being used by another process: '...hwbook.csv.tmp' -> '...hwbook.csv'"}
+```
+
+**THE MECHANISM IS `valuation/edge/append_only.py:157` AND IT IS THE PRODUCT, NOT THE TEST.**
+The writer is temp-file-plus-`os.replace`, which is correct and is why it exists — but on
+Windows `os.replace` transiently fails with `WinError 32` when anything (indexer, AV, a
+scanner) holds the `.tmp` for a moment, and the `except` turns that into
+`{"ok": False, "wrote": False}` — **a REFUSAL.** There is no retry anywhere in the module.
+
+**WHY THAT IS WORSE THAN A FLAKY TEST.** `append_only` is the writer behind
+`index_mark.append_row` — the BOUND forward record — and behind the fleet recorder. On Don's
+Windows machine a transient lock therefore turns a legitimate append into a refused one, and
+**the record is append-only with no backfill permitted** (DECISIONS standing rules), so a row
+lost that way is lost permanently. The refusal is at least loud rather than silent, which is the
+module working as designed; what is missing is that a transient OS condition and a real refusal
+are not the same event.
+
+**AND IT CANNOT REDDEN THE LAND GATE, WHICH IS WHY NOBODY HAS SEEN IT.** `WinError 32` is a
+Windows file-locking behaviour; on the Linux runner `os.replace` over an open path simply
+succeeds. So this is invisible in CI and visible only on the one machine that owns the record —
+`MB42`'s shape exactly, and the third sighting of this family (`MB21` and `MB16` both hit
+`%TEMP%` permission failures invisible in CI).
+
+**DELIBERATELY NOT FIXED HERE.** Adding a retry to a safety-critical append-only writer is a
+behaviour change in another lane's module, which carries its own twelve-mutation suite, and
+doing it inside an item about workflow staleness is the scope creep that breaks things. **The
+fleet lane's call**, with the measured rate above and the note that the right fix is a bounded
+retry on `os.replace` alone — never on the write — so a genuine refusal stays a refusal.
+
+## TESTS
+
+**`tests/test_item44_workflow_source.py` — 29 tests, zero skips**; the repointed
+`tests/test_proposal_auto_scan_themes.py` runs **32** (one loud skip: no pending `auto-scan.yml`,
+the normal state). **MUTATION-TESTED 16 of 16 CAUGHT, 0 MISSED, sources restored byte-for-byte**,
+plus an INERT control.
+
+**THREE OF THOSE WERE MISSES ON THE FIRST PASS AND TWO WERE REAL TEST GAPS**, both the same
+shape — **asserting that text EXISTS rather than that behaviour HAPPENS**, which is the gap item
+39 found in its own provenance tests:
+
+* `NOTHING AUTHENTICATED` was asserted as a string in the source, so changing `if not ok:` to
+  `if False:` walked through — the string sits there untouched. Now driven: `history` is stubbed
+  to refuse every name, and the test asserts the return value, the printed message, **that the
+  28-character token is absent from the output**, and a positive control that one succeeding
+  name does NOT read as failure.
+* the per-date denominator was tested through `crons_on` directly, so replacing the computation
+  with `today's count × sessions` left it green. Extracted as `expected_slots()` and asserted on
+  the real install boundary: `{10-07: 8, 10-08: 11}`.
+* the third was a needle spanning a comment block — **"absent" counts as a MISS, correctly,
+  since a mutation that never applied proves nothing.**
+
+**And one mutation I had labelled INERT was actually CAUGHT**, so the label was wrong rather
+than the guard: unbounding the intraday job block makes the regex find a different job's `if:`.
+
+**A GUARD OF MINE ALSO FIRED ON FIVE CORRECT FILES**, which is the fifth instance of that family
+here: the one-authoritative-reader check collected every string literal naming `workflows` and
+flagged the file if it called `open` anywhere — so it fired on **docstrings and comments**
+describing which workflow installs a package. The property is not *"this file mentions a
+workflow"* but *"this file OPENS one"*, so the literal is now tied to the call through the AST,
+with a positive control that plants a real offender, a prose-only file and a pending-directory
+reader and requires exactly the first to be flagged.
