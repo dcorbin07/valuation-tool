@@ -226,8 +226,24 @@ def measured(cfg_name: str = None, path: str = None) -> dict:
                                   "rebalance_days", "scored_at_horizon")}
     out["basis"] = MEASURED_BASIS
     out["source"] = "BACKTEST_RESULTS.json book_configs.%s" % name
-    out["n_dates"] = 69
-    out["n_names"] = 2531
+    # THE UNIVERSE STAMP IS DERIVED FROM THE SAME BLOB, NOT TYPED (CANONICAL-MOVE, 2026-10-09).
+    # These were `69` and `2531`. MC11 removed the FIGURE literals from BOOK_CONFIGS for the
+    # reason in `measured`'s docstring -- a second copy of a measured number goes stale -- and
+    # left the PROVENANCE typed beside them. That is the same family and the more dangerous
+    # half: a wrong figure invites checking, while a wrong label makes a right figure
+    # unverifiable. The canonical panel is no longer the 2,531-name one, so a typed stamp would
+    # have shipped corrected figures under a stale universe.
+    #
+    # FAITHFUL ON THE OLD ARTIFACT: `book_configs.<name>` carries no count of its own, and the
+    # `universe` block reads n_names 2531 / n_dates 69 -- so the two literals WERE these two
+    # fields, and deriving them reproduces the old output exactly on the old file.
+    #
+    # NO FALLBACK, deliberately. "An absent artifact returns nothing, not the old literals"
+    # has to hold for the label as well as the figure.
+    _uni = blob.get("universe") or {}
+    out["n_dates"] = _uni.get("n_dates")
+    out["n_names"] = _uni.get("n_names")
+    out["universe_label"] = _uni.get("label")
     out["weighting"] = "equal-weighted decile"
     out["no_trade_band"] = (BOOK_CONFIGS.get(name) or {}).get("exit_frac")
     out["measured_width"] = (BOOK_CONFIGS.get(name) or {}).get("measured_width")

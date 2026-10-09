@@ -57,7 +57,15 @@ SPMO_INCEPTION = "2015-10-09"
 QUALIFIED_DIVIDEND_RATE = 0.238          # long-term + NIIT; the rate a held index fund pays
 
 
+#: CANONICAL-MOVE (2026-10-09) — an explicit override, so the card can be rebuilt on the panel
+#: the canonical file describes. Default None = today's resolution, so every existing caller is
+#: bit-identical (the `--results-root` / `panel_path` pattern from UNIVERSE-BIAS).
+PANEL_OVERRIDE = None
+
+
 def _panel_path() -> str:
+    if PANEL_OVERRIDE:
+        return PANEL_OVERRIDE
     for root in (os.environ.get("VALQUO_DATA_ROOT"),
                  os.path.join(ROOT, "data"),
                  r"C:\Users\donni\Downloads\valuation-tool\data"):
@@ -272,7 +280,16 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true",
                     help="rebuild and compare against the published file; write nothing")
+    ap.add_argument("--panel", default=None,
+                    help="build on THIS panel instead of the default banked one. The card's own "
+                         "C1 still has to reproduce BACKTEST_RESULTS.json's book_configs block, "
+                         "so a panel that does not match the canonical file is REFUSED rather "
+                         "than published.")
     a = ap.parse_args()
+    if a.panel:
+        global PANEL_OVERRIDE
+        PANEL_OVERRIDE = a.panel
+        print("panel override: %s" % a.panel)
     card = build()
     if a.check:
         old = json.load(open(OUT, encoding="utf-8")) if os.path.exists(OUT) else {}

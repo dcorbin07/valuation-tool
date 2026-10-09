@@ -219,6 +219,22 @@ def build_payload(res: dict, universe_label: str | None = None,
                           hue.get("excess_vs_equal_weight_distribution")},
 
         "cpcv": {"n_paths": cp.get("n_paths"),
+                 # CANONICAL-MOVE (2026-10-09) — WHICH BOOK THIS BLOCK DESCRIBES, said out
+                 # loud, because for the first time in this project's history it is NOT the
+                 # same book as `construction`.
+                 #
+                 # `cpcv_validate` computes PBO and the Deflated Sharpe on the returns of
+                 # WHICHEVER SCHEME ADOPTION CHOSE. `cpcv.adopt` was false on every run until
+                 # the corrected universe, so `rec is base` and the distinction was invisible;
+                 # now CPCV adopts `ic-proportional` and `construction` is the DEPLOYED book
+                 # (step 1), so pairing `construction.top_decile_alpha` with
+                 # `cpcv.deflated_sharpe` pairs a numerator from one construction with a
+                 # denominator from another — MB8's rule, and exactly what CORRECTED-FLOORS
+                 # part 1b refused to do by reporting both as None for the deployed reading.
+                 "describes_which_book": ("the ADOPTED scheme (`recommended` below) when "
+                                          "`adopt` is true, otherwise the deployed default. "
+                                          "`construction` is ALWAYS the deployed book."),
+                 "same_book_as_construction": (not bool(cp.get("adopt"))),
                  "pbo": {"value": _num(cp.get("pbo")), "want": "<0.50",
                          "meaning": "probability_of_backtest_overfitting"},
                  # AUDIT B9 — the label is not the claim. `deflated_sharpe_detail` carries
@@ -262,6 +278,23 @@ def build_payload(res: dict, universe_label: str | None = None,
         # False on every run since B21 landed. The concentration cap is a RISK intervention
         # that is measured and NOT adopted, and the numbers are the only reason to compute it.
         "sector_caps": res.get("sector_caps"),
+
+        # CANONICAL-MOVE (2026-10-09) — MA40's DEFECT, FOUND AGAIN AND ON THIS SESSION'S OWN
+        # CHANGE. Step 1 made the headline the DEPLOYED book and reported the adopted one in
+        # its own block; both passed step 1's AST gate, both reached `run_backtests`' result,
+        # and BOTH WERE DROPPED HERE — because `check_payload` iterates `BLOCK_SPEC` rather
+        # than the result, so an unregistered top-level key is invisible to the very guard
+        # MA39 built to catch this. "A guard reading a registry cannot see an unregistered
+        # field", on the eleventh and twelfth fields to prove it. Caught by the canonical
+        # move's own leaf diff, which is what that diff is for.
+        #
+        # `construction.weighting` below was already carried and is NOT duplicated here.
+        "headline_weighting_is_the_deployed_book":
+            res.get("headline_weighting_is_the_deployed_book"),
+        # REPORTED BESIDE THE HEADLINE AND NEVER INSTEAD OF IT, in BOTH states — a block of
+        # nulls and an absent block must not read the same (O21-D2's VACUOUS rule), so a
+        # reader can tell "CPCV rejected" from "nobody looked".
+        "adopted_book": res.get("adopted_book"),
 
         "construction": {"weighting": res.get("construction_weighting"),
                          "n_periods": cn.get("n_periods"), "n_quantiles": cn.get("n_quantiles"),

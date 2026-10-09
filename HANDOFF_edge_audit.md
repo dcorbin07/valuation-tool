@@ -22673,3 +22673,149 @@ those 12 as a CI finding.
 remainder and 1999-2008 proxy are unread); `B6` carries no verdict; `k` stays 6; nothing is
 adopted. **A `STAGE-1 PASS` label was never reached, so the question of whether it may be read as
 meeting Don's rule does not arise** - but the rule stands for a successor: it may not.
+
+---
+
+## CANONICAL-MOVE — the canonical file describes the DEPLOYED book, and the move stops at step 2 (2026-10-09, r1)
+
+**ZERO TRIALS, `FIXED`-class.** Step 1 is a correctness change with no hypothesis and no bar;
+step 2 re-measures a universe this project has already searched and charged; steps 3-6 are
+reporting. `by_domain` is bit-identical across the log append and `rows_fixed_not_counted` rises
+by one — the proof the row was seen and correctly excluded. **ADOPTS NOTHING. NO PUBLIC PAGE
+CHANGES.** The frozen meter parameters, the forward record and the deployed weights are all
+untouched, pinned by test.
+
+Full reasoning, nine amendments and the three open decisions: **`DECISION_canonical_move.md`**.
+Every figure old → new with its file and symbol: **`CANONICAL_FIGURE_TABLE.md`**.
+
+### STEP 1 LANDED, AND THIS RUN IS WHY IT WAS NEEDED
+
+`run_backtests` now reports the **DEPLOYED** book (flat 1/7) as the headline and the **adopted**
+book in its own `adopted_book` block. **`cpcv.adopt` had been false on every run in this
+project's history, so `rec is base` and the distinction was invisible. On the corrected universe
+CPCV ADOPTS `ic-proportional`** — median out-of-sample IC **+0.096** against the default's
+**+0.057**, positive in **100% of 15 CPCV paths** — and that book's top-decile alpha is **2.83%**
+against the deployed **6.07%**. Without step 1 the canonical headline would now describe a book
+nobody runs, and it would have flattered **downward**.
+
+**THE BLAST RADIUS WAS THE FINDING: `rec` reached FIFTEEN call sites** — construction,
+multiple_testing, regime, benchmarks, institutional_dependence, four costs cells, six book-config
+cells and two after_tax cells. So adoption rewrites essentially the whole results file, not one
+number. The guard is *"no bare `rec` survives in the headline region"* rather than a COUNT, because
+a count of fourteen can be satisfied by converting the wrong fourteen.
+
+### THE MOVE STOPS AT STEP 2, AND THE SIX RED SUITES ARE THE RESULT
+
+The corrected run completed, all eight step-2 gates passed, and the **cross-instrument control is
+exact**: all seven of `CORRECTED-FLOORS` part 1b's independently landed deployed statistics
+reproduce in the canonical file at **|dev| 0.000e+00** on the same 9,645 names, by a different
+call path. Then the project's own suites ran against it and **six went red, every one correctly**,
+each naming a public claim the move changes:
+
+* **`test_public_docs.py`** — **`README.md`**, the public front page, carries the evidence section
+  as figures pinned to the artifact, including **"❌ The Harvey-Liu-Zhu hurdle"** and
+  **"`cpcv.adopt` is `false` on every run"**. The move flips the first and falsifies the second.
+* **`test_docs_entry_points.py`** — `START_HERE.md` asserts the headline **fails** the hurdle.
+  **Its guard pins BOOLEANS rather than values on purpose**, with the reason in its own docstring:
+  a value pin *"would be red for the ordinary interval"* between a register landing and the doc
+  being edited. A value pin would have been noise; the direction pin stayed silent until a
+  direction actually changed, then fired once.
+* **`test_proof_page.py`** — the public proof page can no longer show the hurdle failing, and its
+  placebo counts come out all-one-verdict because they compare the CORRECTED statistic against the
+  PUBLISHED panel's draws. **A correction to this item's own §8.1**, which claimed
+  `research_record.py` was the only shipped surface reading a floor: **`proof.py` reads the draws
+  directly.**
+* **`test_backtest_card.py`** — `data_export/backtest_card.json` describes the 2,531-name panel and
+  its own `C1` requires it to reproduce the artifact's `book_configs`.
+* **`test_mc10_mc11_labels.py`** — **this item's own §8.4 fix was INCOMPLETE**: it derived the
+  numeric stamp and left `MEASURED_BASIS` typing *"2,531-name"* in PROSE, so the dict contradicted
+  itself (`n_names: 9645` beside a 2,531 basis). The same lesson one level down, caught by a test.
+* **`test_mb31_staleness_map.py`** — two derived-from-`N` assertions move with the trial count.
+
+**SO THE HONEST STATEMENT IS NOT "the move is done" BUT "the move is measured, and landing it
+rewrites the public README's evidence section."** Flipping a ❌ to a ✅ on the project's most
+prominent honesty claim, deleting *"`cpcv.adopt` is false on every run"*, and turning the landing
+page's backtested net alpha from **+11.63%/yr to −4.70%/yr** are not things a research lane does on
+its own authority on a public repository.
+
+**`BACKTEST_RESULTS.json`/`.md` are RESTORED to the published panel; the corrected pair is banked
+as `data/free_analysis/BACKTEST_RESULTS_CORRECTED.json`/`.md`.** All six suites then pass — **which
+is also the attribution control**: the failures came from the ARTIFACT, not from any of this
+item's edits.
+
+### THE TWO RESULTS DON NEEDS, AND THREE DECISIONS
+
+1. **The headline clears the Harvey-Liu-Zhu hurdle for the first time** — long-short HAC *t*
+   **2.6199 → 4.5945** against √(2·ln 285) = **3.3623**, where the published figure fell short of
+   3.2899 at `N` 224. It clears the corrected placebo floor too (**1.4852** pooled, **1.3640**
+   matched to a non-adopting book), so **both bars pass at once**. **Not a new result** — same
+   composite, wider universe, and see the grid caveat below.
+2. **The public landing page's backtested net alpha goes +11.63%/yr → −4.70%/yr**, drawdown
+   −26.2% → −59.7%. **`settings.measured()` reads the tracked artifact at REQUEST TIME**
+   (`MC11` removed the literals on purpose), so this reaches the site on the next deploy with no
+   app-lane edit. The direction is coherent: `roth` is a **top-25** book, and top-25-of-9,645 is
+   the top 0.26% of a universe whose ~7,100 added names are overwhelmingly small — exactly where
+   `UNIVERSE-BIAS`, `TIERED-POOL` and `STAGE1-BATCH2`'s B5 all measured that reaching down the cap
+   scale does not pay. **So the corrected universe makes the decile long-short better and the
+   concentrated book worse, and both are the same fact seen twice.**
+
+**DECISIONS ROUTED TO DON, none blocked on measurement:** (a) does README's evidence section move;
+(b) does the landing page go negative, or report the **$10B Index book** instead — this lane's
+recommendation, since that is the book a visitor can actually buy; (c) what does the proof page
+show when three of four bars pass and the fourth describes a **different book**.
+
+### THE CAVEAT THAT BOUNDS EVERY OLD → NEW ROW: the two panels share ZERO rebalance dates
+
+69 dates either way, **not one in common** — 2009-01-15…2026-01-28 against
+2009-03-27…2026-04-09 — because the grid is derived from the universe's own trading calendar and a
+3.8× wider universe cuts it differently. **`X2` measured the grid ALONE moving the long-short *t*
+by 0.81** (2.703-3.517 across seven equally valid offsets on one universe). The move is far larger
+than that (**+1.97**), so it is not plausibly grid alone — but *"the corrected universe raises the
+*t* to 4.59"* attributes a two-cause move to one cause and may not be written without this.
+**Separating them needs the published universe on the corrected grid, or vice versa; neither is
+done and neither is proposed here.**
+
+### FOUR DEFECTS OF THIS ITEM'S OWN, EVERY ONE CAUGHT BY A GATE RATHER THAN BY READING
+
+* **`MA40`'s DEFECT, ON THIS ITEM'S OWN CHANGE.** Both of step 1's blocks reached the result,
+  passed step 1's AST gate, appeared in the `--json` dump and **were DROPPED from the canonical
+  pair** — because `payload_schema.check_payload` iterates **`BLOCK_SPEC`** rather than the result,
+  so an unregistered top-level key is invisible to the very guard `MA39` built to catch this.
+  *"A guard reading a registry cannot see an unregistered field"*, on the eleventh and twelfth
+  fields to prove it. **Caught by the memo's own leaf diff, which is why that gate is a leaf diff
+  and not a spot check**: every number was correct; what was missing was the label saying which
+  book they describe. Fixed by registration and **re-projecting from the saved result** — seconds
+  rather than another 85-minute run, and strictly safer, because a second backtest would be a
+  second MEASUREMENT and the record documents run-to-run nondeterminism in `insider`.
+* **THE RE-PROJECTION ITSELF WOULD HAVE DROPPED 104 LEAVES.** `cleanups` is **not part of the
+  result** — it is a local of `main`, passed to the writer separately — so reading
+  `res.get("cleanups")` returned nothing and the whole `cleanups.panel_window` block would have
+  vanished. **A script written to fix a silent drop, introducing one.** It REFUSED rather than
+  writing, because its own diff requires every removal to be attributable.
+* **MY STEP-3 GATE WAS NOT IMPLEMENTABLE.** The memo said the corrected floors become what the
+  pages read *"by import rather than retyping"*. A page cannot derive a research figure at render
+  time — `data/` never ships — and `optionable_partition.py` and `proof.py` both say so of
+  themselves. An import would have **failed OPEN**, the comparison quietly losing its floor.
+  Replaced by `MA13`'s committed-literal idiom plus a drift test on the property that matters:
+  **the headline statistic and the floor must come from the same panel**, which passes before and
+  after the hand-off and fails only on a half-done update.
+* **A PROCESS ERROR: a shipped file was edited WHILE A GATE WAS RUNNING**, so suites before and
+  after the edit tested different trees. Both were plausibly green, which makes a green result
+  weak evidence for **either**. Discarded and re-gated against one tree. **A gate whose tree
+  changed mid-run is not a gate.**
+
+### NOT DONE, named so it is not mistaken for done
+
+`fundamental_panel.py:3438` still **types** `x7_calibrated_floor = 2.2837` and computes
+`clears_x7_calibrated_floor` against it, so on a corrected-universe run that verdict pairs a
+corrected statistic with the published panel's floor. **The verdict is true under all three floors**
+(2.2837, 1.4852, 1.3640), so it is a provenance label rather than a wrong result, and fixing it
+means re-running the backtest to change a label. Named as a not-done. Also not done: no deployed
+PBO or Deflated Sharpe is computed (both come out of `cpcv_validate`, which exists to score a
+selection among its own schemes — inventing a "deployed PBO" inside a canonical re-run is the
+opposite of what this move is for), and **`INDEX_BOOK.json` is NOT overwritten** —
+`INDEX_BOOK_CORRECTED.json` and `INDEX_BOOK_THREE_WAY.json` already carry the corrected and
+restricted columns from item 3.
+
+`DECISION_canonical_move.md`, `CANONICAL_FIGURE_TABLE.md`, `scripts/canon_figure_table.py`,
+`tests/test_canonical_public_figures.py`; `data/free_analysis/BACKTEST_RESULTS_CORRECTED.json`.

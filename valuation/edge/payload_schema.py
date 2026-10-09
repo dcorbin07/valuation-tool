@@ -117,6 +117,22 @@ def dropped_fields(source: dict, projected: dict, renames=(), allow=()) -> list:
 # Every `allow` entry carries its reason. "Nobody got round to it" is not a reason, and an
 # entry without one should be treated as a bug in this table rather than a settled decision.
 BLOCK_SPEC = {
+    # CANONICAL-MOVE (2026-10-09). REGISTERED SO A FUTURE DROP IS CAUGHT, which is the durable
+    # half of the finding: these two blocks were silently dropped from the canonical pair
+    # precisely BECAUSE nothing watched them -- `check_payload` iterates this table rather than
+    # the result, so an unregistered top-level key is invisible to it. Registering a
+    # passthrough costs nothing today (`dropped_fields` finds nothing to report) and makes a
+    # later projection of a SUBSET into a finding instead of a silence.
+    "adopted_book": {
+        "src": "adopted_book",
+        "renames": {},
+        "allow": {},
+    },
+    "headline_weighting_is_the_deployed_book": {
+        "src": "headline_weighting_is_the_deployed_book",
+        "renames": {},
+        "allow": {},
+    },
     "construction": {
         "src": "construction",
         "renames": {"horizon": "horizon_days",
