@@ -282,7 +282,7 @@ class ArmGate(unittest.TestCase):
                 D.out_path = lambda n, _p=path: _p          # noqa: E731
                 try:
                     with self.assertRaises(SystemExit) as cm:
-                        arm.require_kills()
+                        arm.require_kills("DIPCALL")
                     msgs[label] = str(cm.exception)
                 finally:
                     D.out_path = orig
@@ -303,6 +303,11 @@ class ArmGate(unittest.TestCase):
         self.assertIn("require_kills", fn)
         src = ast.dump(fn["require_kills"])
         self.assertIn("all_kills_pass", src)
+        # ONE scoring path serves BOTH registers, so the artifact it gates on must be a
+        # PARAMETER. A hard-coded name would make DIP-CALL-2 read DIP-CALL's kill artifact --
+        # which FIRED -- or silently clobber a landed one.
+        self.assertIn("prefix", [a.arg for a in fn["require_kills"].args.args],
+                      "the gate is not parameterised on the artifact prefix")
         self.assertGreaterEqual(sum(1 for n in ast.walk(fn["require_kills"])
                                     if isinstance(n, ast.Raise)) +
                                 sum(1 for n in ast.walk(fn["require_kills"])
@@ -512,6 +517,149 @@ class KillArtifact(unittest.TestCase):
         self.assertEqual(a["tier_size_per_date"]["dates_below_floor"], 0)
         self.assertGreaterEqual(a["tier_size_per_date"]["per_date_min"],
                                 D.CONTRACT_MIN_POSITIONS)
+
+
+# =============================================================================================
+# 12. DIP-CALL-2 — the logic that actually produced the verdict
+# =============================================================================================
+class Dipcall2(unittest.TestCase):
+    """`PREREG_dipcall2.md`. The load-bearing one is `test_BOTH_definitions_must_pass...`: the
+    h21 arm met every condition on the own-normal definition and failed the economic floor on
+    the market-adjusted one, so the conjunction over BOTH definitions is the rule that produced
+    FAILS. If that ever silently became an OR, this register would read as a pass."""
+
+    def test_the_register_exists_and_was_committed_ALONE(self):
+        reg = "PREREG_dipcall2.md"
+        self.assertTrue(os.path.isfile(os.path.join(REPO, reg)))
+
+        def git(*a):
+            return subprocess.run(("git",) + a, cwd=REPO, stdout=subprocess.PIPE,
+                                  stderr=subprocess.DEVNULL).stdout.decode("utf-8", "replace")
+        sha = ""
+        for line in git("log", "--format=%H", "--", reg).splitlines():
+            sha = line.strip()
+        if not sha:
+            _skip(self, "no git history for %s in this checkout" % reg)
+        files = [x for x in git("show", "--name-only", "--format=", sha).split() if x]
+        self.assertEqual(files, [reg],
+                         "the successor register was NOT committed alone: %s" % files)
+
+    def test_the_register_records_the_news_arm_as_STRUCTURALLY_UNREACHABLE(self):
+        """C2. The arm must be RECORDED, not silently dropped -- an absent arm reads as a design
+        that never had one."""
+        txt = _src("PREREG_dipcall2.md")
+        self.assertIn("STRUCTURALLY UNREACHABLE", txt)
+        self.assertIn("UNTESTED, NOT NULL", txt)
+        self.assertIn("2.97%", txt, "the measurement behind the claim is not stated")
+
+    def test_the_register_keeps_BH_k_at_10_and_says_why(self):
+        """C4. The true batch is 8; shrinking k would make every threshold easier (W-28)."""
+        self.assertIn("`k` = 10", _src("PREREG_dipcall2.md"))
+        self.assertEqual(D.BH_K, 10)
+
+    def test_BOTH_definitions_must_pass_and_an_OR_would_have_flipped_the_verdict(self):
+        """THE RULE THAT PRODUCED THE VERDICT, reproduced on the arm's own banked numbers: the
+        h21 cell PASSES on `own` and FAILS the economic floor on `mkt`, so an any-definition
+        rule would report a PASS where the register reports FAILS."""
+        p = D.out_path("DIPCALL2_ARM.json") if D.have_data() else ""
+        if not p or not os.path.isfile(p):
+            _skip(self, "DIPCALL2_ARM.json absent (data/ is gitignored, so CI has none)")
+        with io.open(p, encoding="utf-8") as fh:
+            a = json.load(fh)
+        v = a["verdicts_section_2f"]["h21|no_news"]
+        self.assertTrue(all(v["checks"]["own"].values()),
+                        "the banked h21 own-normal cell no longer meets every condition")
+        self.assertFalse(all(v["checks"]["mkt"].values()),
+                         "the banked h21 market-adjusted cell no longer fails")
+        self.assertEqual(v["verdict"], "FAILS")
+        self.assertFalse(a["step1_pass"])
+        self.assertEqual(a["step1_passing_arms"], [])
+        # The condition that fails is the ECONOMIC FLOOR, not significance -- which is what
+        # makes the result "real but sub-cost" rather than "not detected".
+        self.assertFalse(v["checks"]["mkt"]["economic_floor"])
+        self.assertTrue(v["checks"]["mkt"]["date_clustered_t"],
+                        "the market-adjusted h21 cell was significant; if that changes the "
+                        "real-but-sub-cost reading no longer holds")
+
+    def test_the_two_kill_artifacts_are_DISTINCT_objects(self):
+        """DIP-CALL's kill artifact FIRED and DIP-CALL-2's PASSED. ONE scoring path serves both,
+        so if the prefix were ignored the successor would read the predecessor's fired gate --
+        or clobber a landed artifact."""
+        if not D.have_data():
+            _skip(self, "no populated data root (data/ is gitignored, so CI has none)")
+        got = {}
+        for pref in ("DIPCALL", "DIPCALL2"):
+            q = D.out_path("%s_KILLS.json" % pref)
+            if not os.path.isfile(q):
+                _skip(self, "%s absent" % q)
+            with io.open(q, encoding="utf-8") as fh:
+                got[pref] = json.load(fh)
+        self.assertFalse(got["DIPCALL"]["all_kills_pass"])
+        self.assertTrue(got["DIPCALL2"]["all_kills_pass"])
+        self.assertEqual(sorted(got["DIPCALL"]["gated_arms"]), sorted([D.NEWS, D.NO_NEWS]))
+        self.assertEqual(got["DIPCALL2"]["gated_arms"], [D.NO_NEWS])
+        # Every cell is still REPORTED in both, never absent.
+        for pref in ("DIPCALL", "DIPCALL2"):
+            cells = got[pref]["K1_event_count"]["cells"]
+            self.assertIn("tier|h21|news|early", cells)
+            self.assertIn("tier|h21|no_news|early", cells)
+
+    def test_the_clustered_se_behaves_in_BOTH_directions(self):
+        """A2. A clustered se that always equals the iid one absorbs nothing; one that is always
+        huge is not measuring the data. Both directions, on synthetic data."""
+        from scripts import dipcall_arm as ARM
+        rng = np.random.default_rng(5)
+        n, g = 2000, 100
+        groups = np.repeat(np.arange(g), n // g)
+        y = rng.normal(0, 1, n)                      # NO within-cluster structure
+        _, se_c, _, _ = ARM.clustered(y, groups)
+        se_iid = float(np.std(y, ddof=1) / np.sqrt(n))
+        self.assertLess(abs(se_c / se_iid - 1.0), 0.35)
+        shock = rng.normal(0, 1, g)                  # PERFECT within-cluster correlation
+        y2 = shock[groups]
+        _, se_c2, _, _ = ARM.clustered(y2, groups)
+        self.assertGreater(se_c2 / (float(np.std(y2, ddof=1)) / np.sqrt(n)), 3.0)
+
+    def test_the_permutation_sampler_is_exact_where_it_must_be(self):
+        """Two degenerate cases with KNOWN answers, so the sampler cannot be plausibly wrong."""
+        from scripts import dipcall_arm as ARM
+        # (a) every pool value on a date identical -> every draw returns that value exactly
+        pool_v = np.array([3.0] * 10 + [7.0] * 10, dtype=float)
+        pool_d = np.array([1] * 10 + [2] * 10, dtype=np.int32)
+        arm_d = np.array([1, 1, 2], dtype=np.int32)
+        r = ARM.permutation_null(pool_v, pool_d, arm_d, 50, 0)
+        self.assertAlmostEqual(r["p95"], (3.0 + 3.0 + 7.0) / 3.0, places=12)
+        self.assertAlmostEqual(r["p05"], (3.0 + 3.0 + 7.0) / 3.0, places=12)
+        # (b) sampling the WHOLE pool of a date returns that date's exact mean
+        r2 = ARM.permutation_null(np.array([1.0, 2.0, 3.0, 4.0]),
+                                  np.array([5, 5, 5, 5], dtype=np.int32),
+                                  np.array([5, 5, 5, 5], dtype=np.int32), 20, 0)
+        self.assertAlmostEqual(r2["null_mean"], 2.5, places=12)
+
+    def test_the_own_minus_market_IDENTITY_holds(self):
+        """C4's identity is what explains the verdict: own - mkt = r_market - h * mu_prior."""
+        p = D.out_path("DIPCALL2_CONTROLS.json") if D.have_data() else ""
+        if not p or not os.path.isfile(p):
+            _skip(self, "DIPCALL2_CONTROLS.json absent (data/ is gitignored)")
+        with io.open(p, encoding="utf-8") as fh:
+            c = json.load(fh)["C4_why_the_definitions_disagree"]
+        self.assertTrue(c["pass"])
+        for h in ("h5", "h21"):
+            self.assertLess(c[h]["identity_abs_dev_pp"], c["tolerance_pp"])
+        # the MARKET leg is the larger term, which is the whole finding
+        self.assertGreater(c["h21"]["mean_market_window_return_pp"],
+                           c["h21"]["mean_h_times_own_trailing_mean_pp"])
+
+    def test_no_survivor_filtering_occurred(self):
+        """Section 2e / A11. Every name whose series ends inside a horizon must be TERMINAL, so
+        the administrative-censor count is ZERO on this panel."""
+        p = D.out_path("DIPCALL2_ARM.json") if D.have_data() else ""
+        if not p or not os.path.isfile(p):
+            _skip(self, "DIPCALL2_ARM.json absent (data/ is gitignored)")
+        with io.open(p, encoding="utf-8") as fh:
+            a = json.load(fh)
+        self.assertEqual(a["censoring"]["administrative_dropped"], 0)
+        self.assertGreater(a["censoring"]["terminal_used"], 0)
 
 
 if __name__ == "__main__":

@@ -34,8 +34,7 @@ from valuation.edge.event_spine import EventSpine                            # n
 from valuation.edge.statistics import hlz_hurdle                             # noqa: E402
 from valuation.studies import dipcall as D                                   # noqa: E402
 
-ART = "DIPCALL_KILLS.json"
-EVENTS_PKL = "DIPCALL_EVENTS.pkl"
+DEFAULT_PREFIX = "DIPCALL"
 
 
 # ------------------------------------------------------------------------------------ build
@@ -170,9 +169,17 @@ def classify_news(events: pd.DataFrame, cal: dict) -> tuple:
 
 
 # ---------------------------------------------------------------- K1 counts, halves, embargo
-def arm_cells(events: pd.DataFrame, cal: dict) -> tuple:
+def arm_cells(events: pd.DataFrame, cal: dict, gated_arms=(D.NEWS, D.NO_NEWS)) -> tuple:
     """Per-(news arm x horizon x half) event counts after the embargo and the
-    horizon-inside-the-build-years rule. Returns (cells, events_with_flags)."""
+    horizon-inside-the-build-years rule. Returns (cells, events_with_flags).
+
+    `gated_arms` is WHICH ARMS THE REGISTER ACTUALLY HAS, and it is a parameter rather than a
+    second script because `B7`'s nine-call-sites lesson applies to a kill pass as much as to a
+    pricer. EVERY cell is still COMPUTED and REPORTED whatever is gated -- an arm a register does
+    not run must be visible as a number, not absent -- and only the gate's `min` is restricted.
+    `PREREG_dipcall2.md` C3 passes `no_news` alone and records the news arm as STRUCTURALLY
+    UNREACHABLE (2.97% of tier name-days are earnings reactions; no k moves that).
+    """
     ev = events.copy()
     for h in D.HORIZONS_PRIMARY + D.HORIZONS_SENSITIVITY:
         ok, cross = [], []
@@ -192,7 +199,8 @@ def arm_cells(events: pd.DataFrame, cal: dict) -> tuple:
                 for half in ("early", "late"):
                     n = int((usable & (ev["news"] == arm) & (ev["half"] == half)).sum())
                     cells["%s|h%d|%s|%s" % (pop, h, arm, half)] = n
-    tier_cells = {k: v for k, v in cells.items() if k.startswith("tier|")}
+    tier_cells = {k: v for k, v in cells.items()
+                  if k.startswith("tier|") and k.split("|")[2] in tuple(gated_arms)}
     worst = min(tier_cells.values()) if tier_cells else 0
     k1 = {
         "floor": D.MIN_EVENTS_PER_CELL,
@@ -207,9 +215,12 @@ def arm_cells(events: pd.DataFrame, cal: dict) -> tuple:
         # THE TIER GOVERNS (charter Stage 1b). The full-universe cells ship beside it as a
         # reported surface and do NOT decide the kill.
         "pass": bool(worst >= D.MIN_EVENTS_PER_CELL),
+        "gated_arms": sorted(gated_arms),
+        "arms_not_gated": sorted(set((D.NEWS, D.NO_NEWS)) - set(gated_arms)),
         "note": ("the TIER cells decide this kill because the tier governs advancement "
                  "(RESEARCH_CHARTER.md section 5 Stage 1b); the full-universe cells are a "
-                 "reported surface carrying NO verdict"),
+                 "reported surface carrying NO verdict. Only the arms in `gated_arms` decide "
+                 "the gate; every other cell is still computed and reported, never absent."),
     }
     return k1, ev
 
@@ -416,11 +427,23 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--k", type=float, default=D.K_PRIMARY)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--prefix", default=DEFAULT_PREFIX,
+                    help="artifact prefix; DIPCALL2 for the successor register, so a landed "
+                         "artifact can never be clobbered by a re-run")
+    ap.add_argument("--arms", default="%s,%s" % (D.NEWS, D.NO_NEWS),
+                    help="comma-separated arms the register HAS, and therefore which cells gate "
+                         "K1. Every cell is reported either way.")
     a = ap.parse_args()
+    gated = tuple(x.strip() for x in a.arms.split(",") if x.strip())
+    for g in gated:
+        if g not in (D.NEWS, D.NO_NEWS):
+            raise SystemExit("REFUSING: unknown arm %r" % g)
+    ART = "%s_KILLS.json" % a.prefix
+    EVENTS_PKL = "%s_EVENTS.pkl" % a.prefix
 
     n_eq = research_log.trial_count(domain="equity")
-    print("DIP-CALL step 1 — FREE KILL PASS. k = %.1f ; equity N = %d ; hurdle %.7f"
-          % (a.k, n_eq, hlz_hurdle(n_eq)))
+    print("DIP-CALL FREE KILL PASS [%s]. arms gated: %s ; k = %.1f ; equity N = %d ; "
+          "hurdle %.7f" % (a.prefix, ",".join(gated), a.k, n_eq, hlz_hurdle(n_eq)))
     print("NO forward return and NO abnormal return is computed in this file.\n")
 
     print("building the pre-outcome event set ...")
@@ -437,7 +460,7 @@ def main():
           % (k2["tier_coverage"], k2["floor"], "PASS" if k2["pass"] else "FIRES"))
 
     print("K1  counting arm cells (embargo + horizon inside the build years) ...")
-    k1, events = arm_cells(events, cal)
+    k1, events = arm_cells(events, cal, gated_arms=gated)
     print("  smallest TIER cell: %s = %s against floor %d ; %s\n"
           % (k1["tier_min_cell_name"], "{:,}".format(k1["tier_min_cell"]),
              k1["floor"], "PASS" if k1["pass"] else "FIRES"))
@@ -505,6 +528,7 @@ def main():
         "trials_this_pass": 0,
         "forward_return_touched": False,
         "abnormal_return_touched": False,
+        "prefix": a.prefix, "gated_arms": sorted(gated),
         "k": a.k, "build_quadrant": [D.BUILD_LO, D.BUILD_HI],
         "half_boundary": D.HALF_BOUNDARY,
         "equity_N": n_eq, "hlz_hurdle_equity": hlz_hurdle(n_eq),
@@ -519,7 +543,7 @@ def main():
     # rebuilding, so the two passes provably score the SAME event set.
     events.to_pickle(D.out_path(EVENTS_PKL))
     import pickle
-    with open(D.out_path("DIPCALL_CAL.pkl"), "wb") as fh:
+    with open(D.out_path("%s_CAL.pkl" % a.prefix), "wb") as fh:
         pickle.dump(cal, fh)
 
     print("=" * 78)
