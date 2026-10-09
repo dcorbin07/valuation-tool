@@ -383,6 +383,22 @@ class Store:
             c.execute("INSERT OR REPLACE INTO intraday_runs VALUES (?,?,?,?)",
                       (run_time, len(rows), provider, _dt.datetime.utcnow().isoformat()))
 
+    def intraday_run(self, run_time=None):
+        """The run's own metadata: which feed served it, how many rows, when it landed.
+
+        ITEM 45. `intraday_runs` has carried a `provider` column all along and NOTHING read it,
+        so `/api/signals` could not say which feed produced the rows it was serving -- and when
+        Tradier's account was deactivated the Signals tab went on showing a frozen snapshot
+        with no indication that its source had died. The column existed; the reader did not.
+        """
+        run_time = run_time or self.latest_intraday_time()
+        if not run_time:
+            return None
+        with self._conn() as c:
+            r = c.execute("SELECT * FROM intraday_runs WHERE run_time=?",
+                          (run_time,)).fetchone()
+        return dict(r) if r else None
+
     def latest_intraday_time(self):
         with self._conn() as c:
             r = c.execute("SELECT run_time FROM intraday_runs ORDER BY run_time DESC LIMIT 1").fetchone()

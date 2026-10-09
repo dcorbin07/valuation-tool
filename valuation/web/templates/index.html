@@ -805,6 +805,12 @@
         <span class="note" id="sigMeta" style="margin:0"></span>
       </div>
       <div id="sigFreshness"></div>
+      {# ITEM 45 — which feed served these rows, in plain words. Empty until the payload says;
+         `freshness` already answers HOW OLD and said nothing about WHAT FROM, so when Tradier
+         deactivated the account the tab served a frozen snapshot with no hint its source had
+         died. Filled by renderSignals from `d.feed`, never from a template literal, so the
+         page cannot claim a source the run did not use. #}
+      <div class="note" id="sigFeed"></div>
       <div class="note">Educational scanner — technical signals are widely used but <b>not a proven edge</b>, and this is
         <b>not an autotrader</b>.
         <a href="/methodology">How this works →</a></div>

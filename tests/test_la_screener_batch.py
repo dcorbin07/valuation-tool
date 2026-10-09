@@ -327,12 +327,39 @@ class TestLA9TheHotJobHasABrokerToken(unittest.TestCase):
         src = io.open(os.path.join(REPO, "valuation", "config.py"), encoding="utf-8").read()
         self.assertIn('_get("TRADIER_ENV", "sandbox")', src)
 
-    def test_availability_really_is_just_the_token(self):
-        """If this ever stops being a bare bool, the reasoning above needs revisiting."""
+    def test_availability_is_whether_the_token_WORKS(self):
+        """REPOINTED 2026-10-09 (item 45), and this test asked for it in writing.
+
+        It used to read `test_availability_really_is_just_the_token` and assert the source
+        contained `bool(` and `tradier_token`, with the docstring *"if this ever stops being a
+        bare bool, the reasoning above needs revisiting."* **It stopped, and the reasoning did
+        need revisiting.**
+
+        `available()` was `bool(getattr(cfg, "tradier_token", ""))` -- the token's PRESENCE.
+        Don withdrew his funds, Tradier deactivated the brokerage account, and the token stayed
+        a non-empty string while every request answered `401 "Access Token not approved"`, so
+        this said yes and the hot scan chose a broker that returned nothing. The two tests
+        above still hold: the token and `TRADIER_ENV: live` must both reach the job, because
+        without them there is nothing to verify. What changed is that a token reaching the job
+        is no longer sufficient.
+
+        Asserted behaviourally rather than as a source shape -- the old form was a property of
+        the LAYOUT, which is why it survived the change it was written to notice.
+        """
+        from valuation.data import tradier_health as TH
         from valuation.screener import broker_universe
-        src = io.open(broker_universe.__file__, encoding="utf-8").read()
-        self.assertIn("bool(", src)
-        self.assertIn("tradier_token", src)
+
+        class _C:
+            tradier_token = "x" * 28
+            tradier_env = "live"
+
+        real = TH.live_token_works
+        self.addCleanup(setattr, TH, "live_token_works", real)
+        TH.live_token_works = lambda *a, **k: (False, "HTTP 401")
+        self.assertFalse(broker_universe.available(_C()),
+                         "a present-but-dead token must not read as available")
+        TH.live_token_works = lambda *a, **k: (True, "")
+        self.assertTrue(broker_universe.available(_C()))
 
 
 # ==========================================================================================

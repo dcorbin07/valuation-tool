@@ -63,7 +63,20 @@ def normalize(symbol: str) -> str:
 
 
 def available(cfg=CONFIG) -> bool:
-    return bool(getattr(cfg, "tradier_token", ""))
+    """Does the broker universe actually work right now?
+
+    ITEM 45. THIS WAS `bool(getattr(cfg, "tradier_token", ""))` -- the token's PRESENCE. Don
+    withdrew his funds, Tradier deactivated the account, and the token stayed non-empty while
+    every request began answering `401 "Access Token not approved"`; so this said yes, the hot
+    scan chose the broker universe, and got nothing. **A present token is not a working one**,
+    and the only way to tell is a request.
+
+    It DELEGATES rather than probing here, because `intraday/providers` and
+    `broker_fundamentals` ask the same question and three probes would be three answers
+    (`B7`). The shared helper caches per process, so the hot scan's two calls cost one request.
+    """
+    from ..data.tradier_health import live_token_works
+    return live_token_works(cfg)[0]
 
 
 def list_symbols(cfg=CONFIG, session=None) -> dict:

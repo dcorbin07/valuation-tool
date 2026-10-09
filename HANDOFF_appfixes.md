@@ -17288,3 +17288,289 @@ describing which workflow installs a package. The property is not *"this file me
 workflow"* but *"this file OPENS one"*, so the literal is now tied to the call through the AST,
 with a positive control that plants a real offender, a prose-only file and a pending-directory
 reader and requires exactly the first to be flagged.
+
+---
+
+# SESSION 88 (2026-10-09) — ITEM 45: TRADIER IS GONE, AND "HAVE WE GOT A BROKER?" WAS ANSWERED BY A NON-EMPTY STRING IN THREE PLACES
+
+`PROMPT_appfixer_2026-10-09_item45.md`. Don withdrew his funds, Tradier deactivated the
+brokerage account, and the Signals feed died with it. **Two of this item's own premises measure
+FALSE, and both corrections make the job smaller rather than larger** — they are stated first
+because acting on either would have been wasted work.
+
+## THE ONE SENTENCE THAT BROKE THREE PATHS
+
+`intraday/providers.get_provider`, `screener/broker_universe.available` and
+`screener/broker_fundamentals.available` all answered *"have we got a broker?"* with
+**`bool(cfg.tradier_token)`** — the token's **PRESENCE**. A deactivated account's token is
+still a non-empty string; it simply answers `401 "Access Token not approved"`. So Tradier was
+still selected, every `TradierProvider` method swallows its exception into `None`, and the
+intraday run printed **`scored 0 of 150 names — nothing scored — not ingesting`** and exited 1
+(run 37853898863, 2026-10-08 22:31 UTC), with `/api/signals` frozen at 2026-10-08 00:20 and
+nothing alerting because there is no `DISCORD_WEBHOOK_URL`.
+
+**`FreeProvider` (yfinance, delayed) has existed all along and was unreachable** — it is
+selected only when the token is EMPTY. The fallback was built; the condition to reach it was
+the wrong one.
+
+**A PRESENT TOKEN IS NOT A WORKING TOKEN, and nothing can tell the difference without making a
+request.** So `valuation/data/tradier_health.py` makes one read-only request, **once per
+process**, and the three callers ask it (`B7`). It probes `/markets/quotes` — the endpoint the
+scan actually reads, so a pass means *this will work* rather than *something answered*. The
+cache key is a **digest** of the credentials, not the credentials: a module-level dict holding a
+live token is one `repr()` from a log line. An **unreachable host degrades to the free route**
+(the safe direction) **and is reported as unreachable rather than as a dead account** — a
+network outage written down as a deactivation would send Don to Tradier's website to fix
+something that is not broken.
+
+## 1. THE INVENTORY, MEASURED — AND THE SANDBOX IS ALIVE
+
+`scripts/tradier_inventory.py`. **Status codes only; no token is ever printed, handled or
+returned.**
+
+| token | probe | result |
+|---|---|---|
+| `TRADIER_TOKEN` (live market data) | `api.tradier.com/v1/markets/quotes` | **HTTP 401 — DEAD** (`Access Token not approved`) |
+| `TRADIER_PAPER_TOKEN` (sandbox) | `sandbox.tradier.com/v1/user/profile` | **HTTP 200 — ALIVE** |
+
+**ONLY THE LIVE MARKET-DATA TOKEN DIED. The sandbox credential is separate and survived the
+brokerage deactivation**, and `PaperBroker.quotes(["AAPL"])` returns real bid/ask today. That
+corrects this item's parts 2 and 4 before any work was done on them.
+
+| path | token | broken now? | what the user sees |
+|---|---|---|---|
+| `intraday/providers.get_provider` → Signals scan | live | **WAS: zero names** | Signals frozen; **FIXED** — free delayed feed, labelled |
+| `screener/broker_universe` | live | **WAS: chose a dead broker** | **FIXED** — falls to the SEC EDGAR universe |
+| `screener/broker_fundamentals` | live | **WAS: `loaded for 0 of 1500`** | **FIXED** — falls to the free per-name route |
+| `edge/paper_broker` (fleet paper fills) | **sandbox** | **NO — alive** | see part 4, which is a different problem |
+| `edge/paper_track` (options record marking) | **sandbox** | **NO — alive** | nothing to stop today |
+| `screener/index_mark` (the BOUND Index) | none | **NO** | unaffected — **measured, see below** |
+
+### THE BOUND INDEX RECORD IS INDEPENDENT OF TRADIER, AND PROVING IT TOOK THREE TRIES
+
+This is the one series that cannot be rebuilt (append-only, no backfill), so *"it should not
+depend on Tradier"* is not good enough. **A real mark against the real book contacted
+`stooq.com` and nothing else — 3 requests, zero Tradier hosts.**
+
+**THREE DEFECTS IN MY OWN INSTRUMENT ON THE WAY THERE, EVERY ONE A VACUOUS PASS:**
+
+* **THE IMPORT WALKER NEVER REACHED THE SUBJECT.** For **`from . import market_session`**
+  `node.module` is `None` and the name lives in `node.names`; my resolver skipped the statement
+  whenever `node.module` was falsy, so it reached **TWO files** — `index_mark` and a bogus
+  `valuation/edge.py` — **neither of them `prices.py`** — and still printed INDEPENDENT. Fixed,
+  the closure is **66 modules**, and a `reached_prices` non-vacuity field now gates the verdict.
+* **THEN TEXT REACHABILITY SAID THE OPPOSITE, AND IT IS NOT A DEPENDENCY.** Seven of those 66
+  modules mention Tradier, so the fixed walker flipped to "DEPENDS ON TRADIER" — when all that
+  establishes is that `index_mark` transitively IMPORTS modules that can talk to Tradier on
+  other paths. That verdict is now reported as `None` with its reason, and the question is
+  answered behaviourally instead.
+* **AND THE BEHAVIOURAL CHECK READ A REFUSAL AS A MARK.** A worktree carries `data/` EMPTY, so
+  `contract_row()` returned `{"ok": False, "reason": "the book file ... is missing or
+  unreadable"}` — and the first cut reported `ran=True` and drew a conclusion from the zero
+  requests that refusal made. **Item 39's family exactly.** It now reads `ok` and points at the
+  primary checkout's book.
+* Two smaller ones: the host spy wrapped `requests.Session.request` and measured **zero**
+  requests, because yfinance ships its own HTTP stack — moved to `socket.getaddrinfo`, which no
+  library bypasses. **And the honest limit ships with it:** `query*.finance.yahoo.com` still
+  does not appear, because yfinance resolves below Python's socket module, so this is
+  Python-level resolution only. It answers the Tradier question (`TradierProvider` uses
+  `requests`) and **may not be read as a complete host list.** Finally, the probes were moved
+  to run AFTER the mark, so a cached Tradier resolution could not mask a Tradier call.
+
+## 2. THE SILENT FAILURE IS STOPPED
+
+* **The scan falls back.** A dead token now selects `FreeProvider`, verified against the real
+  401: `degraded_reason = "Tradier rejected the token (HTTP 401: Access Token not approved);
+  using the free delayed feed"`. `verify=False` reproduces the old behaviour exactly.
+* **The feed is labelled, in the payload and on the page.** `run_intraday` returns
+  `feed_source`, `feed_delay` and `feed_degraded_reason`; `/api/signals` serves a `feed` block;
+  the Signals tab renders *"Source: … — delayed about 15 minutes quotes."* **The label comes
+  from the RUN that produced the rows** (`intraday_runs.provider`), never from the provider
+  selected now — otherwise a page served today would relabel yesterday's real-time rows as
+  delayed. **That column has been written since the table existed and NOTHING read it**; the
+  reader is new, the data is not.
+* **A run with no recorded source says "not recorded for this run"** rather than being
+  described as real-time. Every run before this item has no label, and guessing one would put
+  provenance on the page that nobody measured.
+* **The failure is loud and names which source failed.** Scoring nothing on the FREE feed means
+  both sources are gone; scoring nothing on a paid one means the token died. The old message
+  could not tell them apart, which is how a deactivated account read as "no data today".
+* **And the banner no longer infers the feed from the token's presence** —
+  `provider={'Tradier' if CONFIG.tradier_token else ...}` printed "Tradier" on every run that
+  scored nothing.
+* **WHERE THERE IS NO HONEST FALLBACK, IT STOPS AND SAYS SO.** Settling a live option position
+  needs an option quote and a delayed free chain cannot price a fill. The marking loop already
+  refused to invent a mark — but **silently**, so a broker outage and a day with no open
+  positions produced the same record. It now reports `quote_feed_stopped` with *"Marks are
+  STOPPED, not zero"*, declared `False` up front so *"not stopped"* and *"this code cannot
+  report it"* are different. **Not triggered today: the sandbox is alive.** Built anyway,
+  because the sandbox hangs off the same login and a stop that first appears the day it is
+  needed is a stop nobody has tested.
+
+## 3. ALPACA — `ALPACA_SETUP.md`, AND NOTHING IS SWITCHED
+
+Don creates a free Alpaca account himself, generates a **paper** key, and enters
+`ALPACA_KEY_ID` and `ALPACA_SECRET_KEY` as a GitHub secret and a Render environment variable
+himself. **No lane ever sees a key.** The names matter: a secret called `ALPACA_API_KEY` is a
+secret nothing reads, and that failure looks identical to a dead key. **Do not fund it** — the
+Tradier lesson is that a market-data entitlement can die with the brokerage relationship, and a
+key on an unfunded paper account cannot be killed that way.
+
+**Robinhood is out on a fact, not a preference:** its official developer API is **crypto-only**,
+and the equity route is an unofficial client that needs Don's login, which this project never
+stores.
+
+**The two limits that will decide it, stated before anything depends on them.** The free stock
+feed is **IEX only** (~2% of consolidated volume) — immaterial for a daily close, possibly not
+for the intraday quotes Signals reads. And the free options feed is **indicative**, which this
+project has already priced: `O10`/`O18` measured a real options trade paying **two thirds of
+the quoted half-spread** (ρ = 0.6743) and a passive fill losing **74% of its gross saving to
+adverse selection**. **Expect "scoring yes, settling no", and expect that to bind.**
+
+## 4. THE FLEET BOOKS — THE PREMISE IS FALSE AND THE REAL FINDING IS WORSE
+
+The prompt's part 4 opens *"if the sandbox token is dead…"*. **It is not: HTTP 200.** So no
+book's declared fill source is broken and **nothing needs switching** — which is the outcome
+the instruction wanted anyway, since a book's fill source is part of its declared rules.
+
+**BUT THE FLEET HAS RECORDED ZERO FILLED ORDERS, EVER, AND THAT IS A SEPARATE PRE-EXISTING
+PROBLEM.** Measured across all 18 record streams in the 2026-10-04 service backup — 212 rows:
+
+| kind | rows |
+|---|---|
+| `selfcheck` | 109 |
+| `fill` | 79 |
+| `close` | 6 |
+
+* **16 of 18 books contain nothing but `selfcheck` rows** — the harness verifying itself.
+* **`f3_bear_puts` is the only declared book with order rows: 72 of them, 2026-08-26 →
+  2026-10-03 — and EVERY ONE reads `fate=working`, with `fill_price` EMPTY and `venue`
+  EMPTY.** Orders submitted, none ever filled, none ever closed.
+* The only `close` rows in the fleet belong to **`testbook`**.
+
+**So "the fleet cannot place paper fills" is true, and Tradier's deactivation is not why** — the
+rows span six weeks, the sandbox still answers, and nothing filled in that window either.
+**For Don to decide, and not touched here**, because changing a declared book's fill source or
+its entry rules is a construction change and the harness refuses it by design. Bounded claim:
+this is the **2026-10-04 backup** of the service's streams, so anything after that date is
+unmeasured here.
+
+## ALSO OWED, AND DONE
+
+**The append-only writer's transient-error retry** (item 43's outside-lane report).
+`os.replace` on Windows transiently fails with `[WinError 32]` when an indexer or antivirus
+holds the fresh `.tmp`, and the `except` turned that into `{"ok": False, "wrote": False}` — **a
+REFUSAL from the writer behind `index_mark.append_row`, the bound record, where a lost row
+cannot be backfilled.** Measured at **1 run in 10** of `tests/test_fleet_highwater.py`. Now
+retried, and **deliberately narrow**: the RENAME only, never the write, and only for
+`winerror == 32`, so a genuine `PermissionError` (read-only file, no rights) still refuses at
+once. Retrying every `OSError` would turn *"this path is not writable"* into a half-second
+pause and the same failure.
+
+**NOT DONE, and it cannot be yet: the intraday delivery re-measurement is due 2026-10-14.** The
+backup cron's week runs 2026-10-08 → 2026-10-14; today is the 9th and the 9th has not traded.
+One command, already shipped: `python scripts/intraday_delivery.py --since 2026-10-08 --until
+2026-10-14`. **One caveat it inherits from today's fix: from now on the intraday feed may be
+the FREE one, so a delivery figure measured after this lands is not comparable to item 37's
+72.2% without saying which feed served it** — which is why the run label is now persisted.
+
+**And the cancelled Tradier seam proposal is kept, not deleted:** moved to
+`scripts/workflows/cancelled/`, so `propose_workflow.available()` no longer offers it and
+`install_workflows.bat` can never stage it, while the text stays readable.
+
+## A CORRECTION TO ITEM 44's OWN DIAGNOSIS
+
+Item 44 concluded the lane's 401 was *"a market-data ENTITLEMENT answer, not a bad token and not
+the sandbox host"*. The host half was right and **"entitlement" was the wrong word**: the
+account was **deactivated** when Don withdrew his funds. Same status code, same fault string,
+different cause — and the difference matters, because an entitlement is something you buy and a
+deactivation is something you cannot.
+
+## THE GATE FOUND TWO MORE THINGS, AND ONE OF THEM IS MINE
+
+**264 suites, 2 failures on the first full run after this item's changes.**
+
+**(a) `tests/test_item44_workflow_source.py` — MY BREAKAGE, and the correct consequence.** That
+suite reads the Tradier proposal through `propose_workflow.read()`, and moving the file to
+`cancelled/` made every test in its install-safety class error. **REPOINTED, NOT DELETED**: the
+class now reads the cancelled text directly and KEEPS every safety assertion, because they were
+never about the staging -- they are about what that YAML would do if anyone revived it, and a
+cancelled proposal is exactly the file somebody revives later without re-reading. **Two tests
+ARE dropped** (the staged copy matches; the proposal is offered for installation) because they
+asserted a staging that must no longer happen, and item 45's suite asserts the opposite. It is
+renamed `TheTradierWorkflowIsCANCELLEDAndStillSafeIfRevived` so the name cannot mislead, and it
+gains one test: being invisible to `propose_workflow.available()` is WHAT MAKES IT
+UNINSTALLABLE, since that is what `install_workflows.bat` reads.
+
+**(b) `tests/test_item43_publish_folder.py` failed once and I CANNOT SAY WHY, because my own
+gate script threw the evidence away.** It passes **6 of 6 standalone** and failed once inside a
+264-suite sequential run. **The gate sent every suite's output to `/dev/null`**, so a red suite
+left its name and nothing else -- which makes the next run the only way to learn anything, and
+that is a defect in the instrument rather than a property of the suite. Fixed: the runner now
+keeps the log of any suite that fails and deletes it on success. **Reported as UNDIAGNOSED
+rather than as flaky**: "it passes standalone" is consistent with a real order-dependency and
+with ambient contention alike, and this project has paid for treating the two as the same thing.
+
+## MUTATION: 18 of 18 CAUGHT, 0 MISSED — AND THE FIRST PASS FOUND THREE MORE OF ONE FAMILY
+
+Sources restored byte-for-byte, plus an INERT control. The first pass came back **12 caught, 6
+missed**, and the six split cleanly:
+
+**FOUR WERE NEEDLES THAT NEVER APPLIED** — multi-line mutation strings that did not match the
+file. The harness counts "needle absent" as a MISS, correctly: **a mutation that never applied
+proves nothing about the guard it was aimed at.** Narrowed to one line each and they all bite.
+
+**TWO WERE REAL GAPS, AND BOTH ARE "THE TEXT EXISTS" MISTAKEN FOR "THE BEHAVIOUR HAPPENS" — the
+fourth and fifth instances of that shape in three consecutive items.**
+
+* **The both-sources-dead message.** The decision was an inline conditional, so flipping it to
+  a constant left a test asserting the string `BOTH SOURCES PRODUCED NOTHING` appears in
+  `ci_scan.py` passing green — the string sits there whether or not it can be reached.
+  Extracted as `nothing_scored_message(feed_source)` and now called with BOTH inputs, plus the
+  third case (`None`, an unrecorded source, which must not claim both sources died).
+* **The options-record stop.** Deleting `out["quote_feed_stopped"] = True` left the grep
+  version green for the same reason. Now driven: `mark_open` is given a broker that quotes
+  nothing, and the test asserts the flag, the reason, and `marked == 0` — with a POSITIVE
+  CONTROL that a broker which answers does NOT report a stop, or the flag could be hard-coded
+  `True`.
+
+**AND A THIRD, FOUND ONLY ON THE SECOND PASS, WHICH IS THE SHARPEST OF THEM.**
+`test_the_run_records_the_feed_that_SERVED_it` asserted
+`getattr(provider, "source_label", provider.name)` appeared in `scan.py` — **and it appears
+TWICE**, in the `save_intraday` call and in the returned payload. Mutating the save call left
+the other occurrence satisfying the test. **An `assertIn` over a whole file cannot pin WHICH
+call site uses a value.** Now the store is stubbed and asked what it was handed.
+
+## TESTS
+
+**`tests/test_item45_tradier_gone.py` — 32 tests, zero skips, and every one OFFLINE**: the HTTP
+call is substituted, so the suite asserts the DECISION rather than today's network weather. A
+guard whose verdict depends on whether a vendor is up goes red for reasons unrelated to the
+code.
+
+Both directions are pinned everywhere it matters: a dead token falls back **and** a live token
+still selects Tradier (without that positive control the fallback could be unconditional, which
+would silently downgrade the feed the day the account is restored); an absent token makes **no
+probe at all**; `verify=False` makes none either; the retry fires on `winerror 32` **and a real
+`PermissionError` still refuses after exactly one attempt**.
+
+**ONE TEST IN ANOTHER LANE'S SUITE IS REPOINTED, AND IT ASKED FOR THIS IN WRITING.**
+`test_availability_really_is_just_the_token` asserted the source contained `bool(` and
+`tradier_token`, with the docstring *"if this ever stops being a bare bool, the reasoning above
+needs revisiting."* **It stopped, and the reasoning did need revisiting.** Repointed to the
+behavioural property — a PRESENT token with a FAILING check must answer no — because the old
+form was a property of the LAYOUT, which is exactly why it survived the change it was written
+to notice. Its two siblings are untouched: the token and `TRADIER_ENV: live` must still both
+reach the job, or there is nothing to verify.
+
+**FOUR DEFECTS IN MY OWN TESTS, THREE OF THEM ONE FAMILY I HAVE NOW PAID FOR IN THREE
+CONSECUTIVE ITEMS.** Two bans fired on **my own docstrings quoting the old code**, and the
+delegation check sliced `src[index("def auth_ok"):index("def get_bars")]` — **`def get_bars` is
+defined on the BASE class ABOVE it, so the slice was EMPTY and the assertion passed against
+nothing.** Fixed by searching forward from `auth_ok` and asserting the slice is non-trivial.
+
+**And the fourth is the useful one: `bool(getattr(cfg, "tradier_token"` CANNOT be banned as a
+substring at all.** With strings kept, the ban fires on the docstring explaining the change;
+with strings stripped, the needle itself contains a string literal and can never match. **There
+is no mode in which that ban works** — so the property is asserted behaviourally instead, which
+is what it should have been from the start.

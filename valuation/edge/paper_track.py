@@ -488,7 +488,11 @@ def mark_open(store, broker: PaperBroker) -> dict:
     """Refresh entry fills and daily marks. This is what the book was missing entirely."""
     ensure_schema(store)
     out = {"filled": 0, "still_working": 0, "rejected": 0, "marked": 0, "errors": [],
-           "levels_repaired": 0, "level_repairs": [], "level_repairs_deferred": []}
+           "levels_repaired": 0, "level_repairs": [], "level_repairs_deferred": [],
+           # ITEM 45: declared FALSE up front rather than only set when it happens, so a
+           # consumer reading `.get("quote_feed_stopped")` cannot confuse "not stopped" with
+           # "this version of the code does not report it".
+           "quote_feed_stopped": False, "stopped_reason": ""}
 
     for r in paper_orders(store, states=("submitted",)):
         try:
@@ -560,6 +564,29 @@ def mark_open(store, broker: PaperBroker) -> dict:
     live = paper_orders(store, states=("open", "closing"))
     if live:
         quotes = broker.quotes([r["occ_symbol"] for r in live if r.get("occ_symbol")])
+        # ITEM 45 — A DEAD QUOTE FEED IS A STOP, AND IT HAS TO SAY SO.
+        #
+        # The loop below already refuses to invent a mark when a quote is missing, which is
+        # right: there is NO honest fallback here, because settling a live option position
+        # needs an option quote and the free delayed chain cannot price a fill. But the refusal
+        # was SILENT -- `marked` simply stayed at 0 -- so a broker outage and a day with no
+        # open positions produced the same record, and the surface said neither.
+        #
+        # MEASURED TODAY, and it corrects the premise this was written against: this path uses
+        # `tradier_paper_token` (the SANDBOX credential), which probes HTTP 200 and returns
+        # bid/ask, so it is NOT broken. Only the LIVE market-data token died with Don's
+        # brokerage account. The stop is built anyway because the sandbox is tied to the same
+        # login and nothing guarantees it survives, and a stop that appears the day it is
+        # needed is one nobody has tested.
+        wanted = [r for r in live if r.get("occ_symbol")]
+        got = [r for r in wanted if quotes.get(r.get("occ_symbol")) is not None]
+        if wanted and not got:
+            out["quote_feed_stopped"] = True
+            out["stopped_reason"] = (
+                "the options quote feed returned nothing for any of the %d live position(s), "
+                "so NONE were marked. Marks are STOPPED, not zero: an option position cannot "
+                "be settled from a delayed free chain, so there is no honest fallback here."
+                % len(wanted))
         for r in live:
             _q = quotes.get(r.get("occ_symbol"))
             # AUDIT B5a — `last_mark` is what `_exit_decision` compares against target/stop, so
