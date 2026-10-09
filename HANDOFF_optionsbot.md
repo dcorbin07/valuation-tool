@@ -10760,6 +10760,20 @@ none relaxes a bar.
   (`test_no_script_retypes_a_bar_as_a_literal`) went red against my own code, the constant is now
   **imported**, and the repair is **proved inert rather than asserted** by re-running the whole
   pass and diffing the artifact leaf by leaf.
+* **A THIRD DEFECT OF MY OWN, AND CI FOUND IT BECAUSE MY LOCAL GATE COULD NOT. The 261-suite
+  local gate passed 261 of 261 -- and it passed PRECISELY BECAUSE THIS MACHINE HOLDS THE LICENSED
+  DATA.** `data/` is gitignored, so on a runner there is no populated root at all, `data_root()`
+  RAISED, and **six data-dependent tests in my own suite ABORTED instead of skipping loudly** --
+  so the land gate refused the branch and `main` was correctly left untouched. This is the
+  guards-are-asymmetric-in-CI family in its FAIL-HARD direction: the usual form is a guard that
+  passes while checking nothing, and this is the same root cause pointing the other way.
+  **Repaired without weakening the refusal that matters**: `data_root()` still RAISES by default,
+  because a SCRIPT that cannot find its data must refuse rather than read nothing (`E-5`), and a
+  new `data_root(required=False)` / `have_data()` lets a TEST ask without committing. **Verified
+  by REPRODUCING the CI condition locally rather than by reasoning about it** -- with the root
+  stubbed absent the suite runs 34, errors 0, failures 0, **6 LOUD SKIPS**, and the 28 that still
+  run are the load-bearing ones (look-ahead, split trap, news window, point-in-time tier, the
+  gate's refusal, the bar-retyping guard, the register's ancestry).
 * **A SECOND DEFECT OF MY OWN, DECLARED NOT HIDDEN, AND IT RUNS THE SAFE WAY.** The kill pass
   required the horizon to end inside the name's OWN surviving series, which silently drops the
   final events of a DELISTING name — the survivor filtering §2e forbids. The arm was written to
@@ -10806,7 +10820,9 @@ none relaxes a bar.
   helpers are under test), so a successor's first run is an instrument build and not a
   measurement; and its permutation pool is built in Python dicts of lists, which is fine on the
   ~639k-row tier and wants vectorising before anyone points it at the 6.2M-row full universe.**
-  **34 tests, zero skips.** `valuation/studies/dipcall.py`, `scripts/dipcall_kills.py`,
+  **34 tests: 34 pass with the data present, and 28 pass with 6 LOUD SKIPS where it is absent
+  (CI) -- both figures, because quoting only the first is what let the branch fail its own land
+  gate once.** `valuation/studies/dipcall.py`, `scripts/dipcall_kills.py`,
   `scripts/dipcall_arm.py` (shipped complete and **never run**), `scripts/dipcall_k_census.py`;
   `data/free_analysis/DIPCALL_KILLS.json`, `DIPCALL_K_CENSUS.json`, `DIPCALL_EVENTS.pkl`.
 

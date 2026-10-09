@@ -105,7 +105,12 @@ failed, is the same shape as threshold-shopping.**
 3. **`bulk.py`'s *"~2.83 code-22 dates per ticker-year"* comment is stale for this tier** (really
    4.00/4.33). Reported, not edited — it is right about the universe it was measured on.
 
-**34 tests, zero skips.** `valuation/studies/dipcall.py`, `scripts/dipcall_kills.py`,
+**34 tests: 34 pass with the licensed data present, 28 pass with 6 LOUD SKIPS where it is absent
+(CI). Both figures are quoted, because the first alone is what let this branch fail its own land
+gate once: `data_root()` raised on a runner with no `data/` and six data-dependent tests ABORTED
+rather than skipping. Repaired without weakening the refusal -- `data_root()` still raises by
+default for SCRIPTS, and a new `have_data()` lets a TEST ask without committing.**
+`valuation/studies/dipcall.py`, `scripts/dipcall_kills.py`,
 `scripts/dipcall_arm.py` (shipped complete and **never run**), `scripts/dipcall_k_census.py`,
 `tests/test_dipcall.py`; `data/free_analysis/DIPCALL_KILLS.json`, `DIPCALL_K_CENSUS.json`.
 

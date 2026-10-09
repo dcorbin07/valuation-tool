@@ -257,11 +257,17 @@ class ArmGate(unittest.TestCase):
     def test_the_two_refusal_states_have_DISTINCT_messages(self):
         """`E-1`: a hard-coded refusal cannot tell 'never ran' from 'ran and fired'. Exercised
         through the gate's own function; THE ARM IS NEVER RUN, because `E-1`'s own mutation test
-        proved a withdrawn arm by removing its refusal and thereby RAN it."""
+        proved a withdrawn arm by removing its refusal and thereby RAN it.
+
+        THIS TEST DELIBERATELY TOUCHES NO REAL PATH, so it runs everywhere including CI. Its
+        first cut called `D.out_path(arm.KILLS)` just to prove the monkeypatch was undone, which
+        reached `data_root()` and ABORTED on a runner with no `data/`. The restoration is proved
+        by FUNCTION IDENTITY instead, which is the thing actually being checked.
+        """
         import importlib
-        arm = importlib.import_module("scripts.dipcall_arm")
-        real = D.out_path(arm.KILLS)
         import tempfile
+        arm = importlib.import_module("scripts.dipcall_arm")
+        before = D.out_path
 
         with tempfile.TemporaryDirectory() as tmp:
             absent = os.path.join(tmp, "nope.json")
@@ -286,8 +292,8 @@ class ArmGate(unittest.TestCase):
         self.assertIn("K1_event_count", msgs["fired"],
                       "the refusal does not name WHICH kill fired")
         self.assertNotEqual(msgs["absent"], msgs["fired"])
-        # And the real artifact on disk is what it was.
-        self.assertEqual(real, D.out_path(arm.KILLS))
+        # The monkeypatch is undone — proved by identity, which touches no path.
+        self.assertIs(D.out_path, before)
 
     def test_the_gate_is_CONDITIONAL_in_the_syntax_tree_not_hard_coded(self):
         """A refusal that cannot fire is not a refusal. `all_kills_pass` must be READ, and the
@@ -344,6 +350,8 @@ class BarsAreNotRetyped(unittest.TestCase):
     def test_the_k_census_is_declared_to_carry_no_verdict(self):
         """It runs AFTER the kill fired, so its own artifact must say so in machine-readable
         form -- a reader of the JSON alone must not be able to mistake it for a result."""
+        if not D.have_data():
+            _skip(self, "no populated data root (data/ is gitignored, so CI has none)")
         p = D.out_path("DIPCALL_K_CENSUS.json")
         if not os.path.isfile(p):
             _skip(self, "DIPCALL_K_CENSUS.json absent (data/ is gitignored)")
@@ -416,6 +424,8 @@ class TickerSplit(unittest.TestCase):
         """3,545 build-quadrant half-0 names and 459 names ever in the tier -- the two counts
         `DIPCALL_CENSUS.json` published. Two independent controls that this item's tier logic is
         the census's object."""
+        if not D.have_data():
+            _skip(self, "no populated data root (data/ is gitignored, so CI has none)")
         if not os.path.isfile(D.panel_path()):
             _skip(self, "UNIVERSE_BIAS_PANEL_full.pkl absent (data/ is gitignored)")
         p = pd.read_pickle(D.panel_path())
@@ -464,6 +474,8 @@ class HalvesAndEmbargo(unittest.TestCase):
 # =============================================================================================
 class KillArtifact(unittest.TestCase):
     def _art(self):
+        if not D.have_data():
+            _skip(self, "no populated data root (data/ is gitignored, so CI has none)")
         p = D.out_path("DIPCALL_KILLS.json")
         if not os.path.isfile(p):
             _skip(self, "DIPCALL_KILLS.json absent (data/ is gitignored)")

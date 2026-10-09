@@ -85,12 +85,20 @@ TERMINAL_ACTIONS = ("delisted", "bankruptcyliquidation", "regulatorydelisting",
 
 
 # ------------------------------------------------------------------------------- paths (E-5)
-def data_root() -> str:
+def data_root(required: bool = True) -> Optional[str]:
     """The PRIMARY populated data root, never the worktree's empty one.
 
     `E-5`'s wrong-object family: a worktree carries `data/` EMPTY (here it carries no `data/` at
     all), so a path resolved against the repo root silently reads nothing and the caller gets a
     clean, plausible zero.
+
+    **`required=True` RAISES, AND THAT DEFAULT IS LOAD-BEARING — A SCRIPT THAT CANNOT FIND ITS
+    DATA MUST REFUSE RATHER THAN READ NOTHING.** `required=False` is for CALLERS THAT MUST ASK
+    WITHOUT COMMITTING, and it exists because the raising form broke this item's own suite in CI:
+    `data/` is gitignored, so on a runner there is no populated root at all and four
+    data-dependent tests ABORTED instead of skipping loudly. A test must be able to ask "is the
+    data here?" and get an answer rather than an exception; a script must not. Those are
+    different needs and this is the one parameter that separates them.
     """
     d = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     for _ in range(6):
@@ -100,7 +108,14 @@ def data_root() -> str:
         if nxt == d:
             break
         d = nxt
-    raise SystemExit("REFUSING: no populated data root found")
+    if required:
+        raise SystemExit("REFUSING: no populated data root found")
+    return None
+
+
+def have_data() -> bool:
+    """True when a populated data root exists. For LOUD SKIPS, never for a silent pass."""
+    return data_root(required=False) is not None
 
 
 def prices_dir() -> str:
