@@ -360,9 +360,28 @@ class Wiring(unittest.TestCase):
         s = self.read("sync.bat")
         self.assertIn("scripts\\sync_checkout.py", s)
 
-    def test_git_push_syncs_before_it_pushes(self):
-        """Order is the point: fast-forwarding first is what makes the final push a
-        fast-forward. Running it afterwards would report the same thing and fix nothing.
+    def test_git_push_aligns_with_github_before_it_pushes(self):
+        """Order is the point: aligning first is what makes the final push a fast-forward.
+        Running it afterwards would report the same thing and fix nothing.
+
+        REPOINTED A THIRD TIME, 2026-10-08 (item 43), AND THE PATTERN IS THE FINDING. This
+        guard has now been keyed on a BANNER (deleted 2026-10-06, so it raised `ValueError:
+        substring not found` and took the landing gate red for every lane) and then on a
+        SCRIPT NAME, `sync_checkout.py` -- and item 43 removed that call too, for a measured
+        reason: running the sync FIRST over a dirty tree is what MANUFACTURED the divergence
+        this project kept hitting. The sync refuses to fast-forward over uncommitted edits
+        (correctly), `git_push.bat` then committed on stale main, and the push was rejected as
+        a non-fast-forward with `sync.bat` refusing the diverged branch by design.
+
+        **BOTH PREVIOUS KEYS WERE PROPERTIES OF THE LAYOUT -- which banner, which script --
+        and the property they stood in for is "this script does not push before it has
+        aligned".** `MA4`/`MB31`'s family: a guard that asserts today's arrangement fires on
+        the CLOCK. It is now asserted as the property, and in the strongest available form:
+        `git_push.bat` contains NO PUSH AT ALL, so there is no push that could precede an
+        align, and the one tool that does both is required to do them in that order *in its
+        own source*. A future edit that re-adds a bare `git push` here goes red.""" + """
+
+        The original docstring, kept because the reasoning still holds:
 
         REPOINTED 2026-10-06, and the repoint is why this test is still worth having. It used to
         assert `sync_checkout.py` came before the string "Auto-land finished agent work" --
@@ -380,32 +399,55 @@ class Wiring(unittest.TestCase):
         goes red, which is the thing the removal was protecting.
         """
         s = self.read("git_push.bat")
-        self.assertIn("scripts\\sync_checkout.py", s)
-        # THE REAL PROPERTY, and the only ordering that was ever load-bearing.
-        self.assertLess(s.index("sync_checkout.py"), s.index('"%GIT%" push'))
-
-        # And the behaviour the removal installed. Checked on the CODE, not the prose: this file
-        # is full of `rem` comments that discuss merging agent branches at length, and a
-        # substring ban would fire on the comment explaining why the merge is gone -- the
-        # comment-versus-code defect this record has paid for repeatedly (MA49, MB1, MB15).
+        # Checked on the CODE, not the prose: this file is full of `rem` comments that discuss
+        # merging, pushing and syncing at length, and a substring ban fires on the comment
+        # EXPLAINING why the thing is gone -- the comment-versus-code defect this record has
+        # paid for repeatedly (MA49, MB1, MB15).
         code = "\n".join(l for l in s.splitlines()
                          if not l.strip().lower().startswith("rem"))
+
+        # THE PROPERTY, in its strongest form: there is no push here to get the order wrong
+        # with. One tool owns commit-align-push, so the order cannot be re-arranged by editing
+        # this file -- it would have to be editing the tool, which has its own tests.
+        self.assertIn("publish_folder.py", code,
+                      "git_push.bat must delegate to the one tool that aligns then pushes")
+        self.assertNotIn('"%GIT%" push', code,
+                         "git_push.bat must not push by itself: one definition of the order "
+                         "(B7), or the two can disagree about it")
+        # And that tool must fetch BEFORE it pushes, asserted in the one place that does both.
+        pub = (ROOT / "scripts" / "publish_folder.py").read_text(encoding="utf-8",
+                                                                 errors="replace")
+        self.assertLess(pub.index("measure(repo, remote, branch"),
+                        pub.index('_run(repo, "push"'),
+                        "the aligning fetch must precede the push")
+
+        # The behaviour the 2026-10-06 removal installed, unchanged.
         self.assertNotIn("worktree-", code,
                          "git_push.bat must not act on agent branches: they land through the "
                          "GitHub gate, and a local merge bypasses the land policy and the suites")
         self.assertNotIn(" merge ", code,
                          "git_push.bat must not merge anything locally -- see the REMOVED "
                          "2026-10-06 block in that file")
-        # NON-VACUITY: the stripper must not have eaten the file. If it did, both assertions
-        # above would pass by looking at nothing -- which is exactly how a guard goes quiet.
-        self.assertIn('"%GIT%" push', code, "the comment stripper removed executable lines too")
-        self.assertIn("sync_checkout.py", code)
+        # NON-VACUITY: the stripper must not have eaten the file. If it did, every ban above
+        # would pass by looking at nothing -- which is exactly how a guard goes quiet.
+        self.assertIn("test_edge.py", code, "the comment stripper removed executable lines too")
+        self.assertIn("publish_folder.py", code)
 
     def test_git_push_does_not_wrap_errorlevel_in_a_parenthesised_block(self):
-        """cmd evaluates `if errorlevel` inside ( ) at PARSE time; this cost a day once."""
+        """cmd evaluates `if errorlevel` inside ( ) at PARSE time; this cost a day once.
+
+        REPOINTED 2026-10-08 (item 43). The region anchor was `where python >nul 2>nul ||
+        goto :nodrift` .. `:drifted`, which bracketed the sync call -- and item 43 removed it,
+        so this raised `ValueError: substring not found`: **the same dead-anchor failure the
+        test above has now suffered three times, in the test immediately below it.** The
+        region that matters is whatever follows the command whose errorlevel is being read,
+        so it is anchored to that command rather than to a label that may not exist.
+        """
         s = self.read("git_push.bat")
-        block = s[s.index("where python >nul 2>nul || goto :nodrift"):s.index(":drifted")]
+        block = s[s.index("publish_folder.py"):]
         self.assertNotIn("if errorlevel 1 (", block)
+        # NON-VACUITY: the region must actually contain the `if errorlevel` lines it guards.
+        self.assertIn("if errorlevel 1 echo", block)
 
     def test_the_bootstrap_reads_the_script_from_origin_and_not_from_disk(self):
         """The whole reason it exists. A launcher that ran this folder's copy would be as
