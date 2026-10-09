@@ -168,7 +168,7 @@ from valuation.edge import research_log as RL               # noqa: E402
 # and separate convention (the master audit lists it under MA21); it belongs to that row, with
 # its own decision about staleness tolerance, not smuggled in here.
 # ---------------------------------------------------------------------------------------------
-EXPECTED_BY_DOMAIN = {"equity": 285, "options": 310, "unified": 0, "infra": 20}
+EXPECTED_BY_DOMAIN = {"equity": 293, "options": 310, "unified": 0, "infra": 20}
 
 
 def _diff(expected, actual):
@@ -340,7 +340,7 @@ def test_the_statistics_N_gates_move_with_it():
     assert RL.trial_count(domain="equity") == n
 
     # The Harvey-Liu-Zhu hurdle the record quotes.
-    assert abs(math.sqrt(2.0 * math.log(n)) - 3.36228766772525) < 1e-12, (
+    assert abs(math.sqrt(2.0 * math.log(n)) - 3.3705111211853516) < 1e-12, (
         "the HLZ hurdle no longer matches the stamped N")
 
     # The CPCV adopt gate's multiplier. `_trials_haircut` is FLOORED at the log's N, so handing
@@ -475,7 +475,7 @@ def test_ma5_the_two_bars_disagree_today_and_the_gap_only_widens():
     # THE SECOND N-KEYED LITERAL IN THIS FILE. A regex that updated only the
     # `math.log(n))` one left this stale, and the suite caught it -- so an N move must
     # touch BOTH, and both are COPIED from `hlz_hurdle` rather than retyped.
-    assert abs(hlz_hurdle(n) - 3.36228766772525) < 1e-12
+    assert abs(hlz_hurdle(n) - 3.3705111211853516) < 1e-12
     assert hlz_hurdle(n) > 3.0, "the derived bar is HARDER than the constant at today's N"
 
     # A statistic in the gap is 'significant' under the constant and is NOT at today's N. This
