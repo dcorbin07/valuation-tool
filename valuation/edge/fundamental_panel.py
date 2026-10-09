@@ -5168,8 +5168,30 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
                 rec, adopted_w, rec_name = ((wf.get("weights") or {}).get("recommended_weights_cols") or base), True, (wf.get("weights") or {}).get("recommend")
             else:
                 rec, adopted_w, rec_name = base, False, "default"
-            out["construction_weighting"] = (rec_name if adopted_w else "default")
-            out["construction"] = quantile_backtest(panel, cols, rec, n_q=10, horizon=63)
+            # DON'S RULING (DECISION_canonical_move.md section 1): THE HEADLINE DESCRIBES THE
+            # DEPLOYED BOOK. On the corrected universe CPCV ADOPTS for the first time in this
+            # project's history, and the adopted book's top-decile alpha is 2.83pc against the
+            # deployed 6.07pc -- so a canonical re-run would otherwise re-point every headline
+            # block at a book nobody runs. It flatters DOWNWARD here; the rule is indifferent.
+            #
+            # PROVABLY INERT WHEREVER CPCV REJECTS: `rec is base` when `adopted_w` is false, and
+            # CPCV has rejected on every run to date, so this moves no landed figure.
+            #
+            # `rec` is NOT deleted -- it is the adopted recommendation, reported in its own named
+            # block below and still carried by `recommended_weights_full`, which always was the
+            # paste-ready recommendation.
+            headline_w = base
+            out["construction_weighting"] = "default"
+            out["headline_weighting_is_the_deployed_book"] = {
+                "weights": dict(base),
+                "cpcv_adopted": bool(adopted_w),
+                "cpcv_recommended": (rec_name if adopted_w else None),
+                "why": "the headline describes the book that ships. CPCV's recommendation is "
+                       "reported in `adopted_book` rather than substituted into the headline, "
+                       "because a canonical file whose headline is a book nobody runs is the "
+                       "defect whichever way it flatters.",
+            }
+            out["construction"] = quantile_backtest(panel, cols, headline_w, n_q=10, horizon=63)
             # AUDIT R4 — the two bullets M1 did not deliver. MUST sit AFTER `construction`:
             # the first cut computed it beside `per_signal`, twenty-five lines EARLIER, so the
             # headline it exists to compare against was always None and the shipped block read
@@ -5178,9 +5200,9 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
             # rather than a comment asking the next reader to be careful.
             out["multiple_testing"] = multiple_testing_accounting(
                 out["per_signal"], (out.get("construction") or {}).get("long_short_tstat_nw"))
-            out["regime"] = regime_split(panel, cols, rec, n_tiers=3, horizon=63)           # where the edge lives
-            out["benchmarks"] = benchmark_panel(panel, cols, rec, n_q=10, horizon=63)       # AUDIT R10
-            out["institutional_dependence"] = institutional_dependence(panel, cols, rec, horizon=63)
+            out["regime"] = regime_split(panel, cols, headline_w, n_tiers=3, horizon=63)           # where the edge lives
+            out["benchmarks"] = benchmark_panel(panel, cols, headline_w, n_q=10, horizon=63)       # AUDIT R10
+            out["institutional_dependence"] = institutional_dependence(panel, cols, headline_w, horizon=63)
             out["factors_used"] = cols                                                       # which themes had data
             # Held-out time split: does zeroing a theme still help on data that did NOT
             # inform the decision? The one check CPCV/DSR cannot provide.
@@ -5190,11 +5212,11 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
             _cg = (0, 10, 25, 50, 100, 150, 200, 300, 500)
             out["costs"] = {
                 "cost_model": "one-way bps by point-in-time market cap; see COST_BPS_BY_MKTCAP",
-                "top_decile": {**(turnover_and_costs(panel, cols, rec, top_frac=0.1, horizon=63) or {}),
-                               **cost_breakeven_bps(panel, cols, rec, top_frac=0.1,
+                "top_decile": {**(turnover_and_costs(panel, cols, headline_w, top_frac=0.1, horizon=63) or {}),
+                               **cost_breakeven_bps(panel, cols, headline_w, top_frac=0.1,
                                                     horizon=63, grid=_cg)},
-                "top_25": {**(turnover_and_costs(panel, cols, rec, top_n=top_n, horizon=63) or {}),
-                           **cost_breakeven_bps(panel, cols, rec, top_n=top_n,
+                "top_25": {**(turnover_and_costs(panel, cols, headline_w, top_n=top_n, horizon=63) or {}),
+                           **cost_breakeven_bps(panel, cols, headline_w, top_n=top_n,
                                                 horizon=63, grid=_cg)}}
             # The two shipped book configs, measured on this run so settings.py's numbers
             # are never stale relative to the data.
@@ -5207,8 +5229,8 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
                 # Both are scored on THIS panel's horizon; the roth config's own 42d cadence
                 # needs its own panel, so its numbers here are the 63d approximation and the
                 # authoritative figures live in settings.BOOK_CONFIGS["roth"]["measured"].
-                _c = turnover_and_costs(panel, cols, rec, horizon=63, **_kw) or {}
-                _t = after_tax_backtest(panel, cols, rec, horizon=63, **_kw) or {}
+                _c = turnover_and_costs(panel, cols, headline_w, horizon=63, **_kw) or {}
+                _t = after_tax_backtest(panel, cols, headline_w, horizon=63, **_kw) or {}
                 out["book_configs"][_nm] = {
                     "label": _cfg.get("label"),
                     "rebalance_days": _cfg.get("rebalance_days"),
@@ -5224,9 +5246,9 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
             # behaviour (sell the moment a name leaves the book).
             out["no_trade_band"] = {"enter_frac": 0.10, "widths": {}}
             for _xf in (None, 0.12, 0.15, 0.20, 0.25, 0.30):
-                _c = turnover_and_costs(panel, cols, rec, top_frac=0.10, horizon=63,
+                _c = turnover_and_costs(panel, cols, headline_w, top_frac=0.10, horizon=63,
                                         exit_frac=_xf) or {}
-                _t = after_tax_backtest(panel, cols, rec, top_frac=0.10, horizon=63,
+                _t = after_tax_backtest(panel, cols, headline_w, top_frac=0.10, horizon=63,
                                         exit_frac=_xf) or {}
                 out["no_trade_band"]["widths"]["none" if _xf is None else f"{_xf:.2f}"] = {
                     "annual_turnover": _c.get("annual_turnover"),
@@ -5248,7 +5270,7 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
             out["sector_caps"] = {"note": "measured, NOT adopted; risk intervention (audit B21)",
                                   "caps": {}}
             for _cap in (None, 0.25, 0.30, 0.40):
-                _sc = turnover_and_costs(panel, cols, rec, top_frac=0.10, horizon=63,
+                _sc = turnover_and_costs(panel, cols, headline_w, top_frac=0.10, horizon=63,
                                          max_sector_w=_cap) or {}
                 out["sector_caps"]["caps"]["none" if _cap is None else f"{_cap:.2f}"] = {
                     "gross_alpha": _sc.get("gross_alpha"),
@@ -5261,12 +5283,35 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
             # After-tax. ~250%/yr turnover means almost every gain is short-term in a TAXABLE
             # account, and that drag is several times the trading cost.
             out["after_tax"] = {
-                "top_decile": after_tax_backtest(panel, cols, rec, top_frac=0.1, horizon=63),
-                "top_25": after_tax_backtest(panel, cols, rec, top_n=top_n, horizon=63),
+                "top_decile": after_tax_backtest(panel, cols, headline_w, top_frac=0.1, horizon=63),
+                "top_25": after_tax_backtest(panel, cols, headline_w, top_n=top_n, horizon=63),
                 "tax_advantaged_note": ("an IRA/401k pays NO drag and earns the net-of-cost "
                                         "figure in `costs` instead")}
             if adopted_w:
                 out["construction_default"] = quantile_backtest(panel, cols, base, n_q=10, horizon=63)
+                # THE ADOPTED BOOK, BESIDE THE HEADLINE AND NEVER INSTEAD OF IT. Populated
+                # only when CPCV actually adopted, so a reader can tell "CPCV rejected" from
+                # "nobody looked" -- a block of nulls and an absent block must not read the same
+                # (`O21-D2`'s VACUOUS rule).
+                if adopted_w:
+                    out["adopted_book"] = {
+                        "scheme": rec_name,
+                        "weights": dict(rec),
+                        "construction": quantile_backtest(panel, cols, rec, n_q=10, horizon=63),
+                        "why_it_is_not_the_headline":
+                            "CPCV selects among its own eight schemes ON THE SAME PANEL the "
+                            "headline is then measured on. X7 measured that adoption "
+                            "manufactures about +1.4 of long-short t out of nothing on 27pc of "
+                            "PURE-NOISE draws, so an adopted headline is optimistically biased "
+                            "by construction. Reported, never substituted.",
+                    }
+                else:
+                    out["adopted_book"] = {
+                        "scheme": None, "weights": None, "construction": None,
+                        "state": "CPCV REJECTED -- the defaults were kept, so the adopted book "
+                                 "and the headline are the SAME object and there is nothing to "
+                                 "report beside it.",
+                    }
                 out["recommended_weights_full"] = _full_weights(rec, bucket)                # paste-ready weights
                 out["recommended_weighting_name"] = rec_name
         else:
