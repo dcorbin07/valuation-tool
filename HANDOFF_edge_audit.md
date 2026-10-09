@@ -22819,3 +22819,156 @@ restricted columns from item 3.
 
 `DECISION_canonical_move.md`, `CANONICAL_FIGURE_TABLE.md`, `scripts/canon_figure_table.py`,
 `tests/test_canonical_public_figures.py`; `data/free_analysis/BACKTEST_RESULTS_CORRECTED.json`.
+
+---
+
+## STAGE1-BATCH3 — eight arms from the published literature: none advances, and two are real in names the Index cannot buy (2026-10-09, r1)
+
+**EIGHT equity trials, equity `N` 285 → 293.** `PREREG_stage1_batch3.md` committed **ALONE at
+`4e92445`** (markdown only, zero `.py`, 223 lines, a strict git ancestor of every measurement
+commit); the trials booked in their own commit at **`89593a6`**, BEFORE any runner existed; the
+verdict **edited INTO that row's own cell** (`MB16` — `research_log._parse` has no dedup by id, so
+a second row would charge the batch twice). **ADOPTS NOTHING. NO PUBLIC PAGE CHANGES.**
+
+### THE RESULT
+
+**NO ARM ADVANCES TO STAGE 2 — 0 of 6 scored arms clears the governing `cap >= $10B` tier.** But
+the qualification matters more than the verdict: **every tier reading sits BELOW ITS OWN 80%-POWER
+MDE**, at **0.0233× to 0.5436×**. By `V6`'s and `S19`'s rule — quote the MDE with the verdict or do
+not quote the verdict — these are **BOUNDED NULLS**, i.e. *"nothing separable at this resolution"*,
+never *"nothing there"*.
+
+| arm | wide *t* | tier *t* | tier obs/MDE80 | governing verdict |
+|---|---|---|---|---|
+| **C4** composite equity issuance | **+4.0116** | +1.3224 | 0.4656 | **REAL BUT NOT INVESTABLE HERE** |
+| **C2** Mohanram G-score | **+3.2933** | **−0.1928** | 0.0679 | **REAL BUT NOT INVESTABLE HERE** † |
+| C3 R&D-to-market | −0.2715 | +1.5437 | 0.5436 | NOT_REPLICATED |
+| C5 earnings stability | −0.0445 | +0.3060 | 0.1077 | NOT_REPLICATED |
+| C6 cash conversion cycle | +1.0185 | +0.6536 | 0.2301 | NOT_REPLICATED |
+| C8 expected investment growth | +1.2549 | +0.0660 | 0.0233 | NOT_REPLICATED |
+| ~~C1 Abarbanell-Bushee~~ | — | — | — | **NOT RUN** — tier coverage 0.5488 |
+| ~~C7 operating leverage~~ | — | — | — | **NOT RUN** — 0.6023 vs 0.60 |
+| ~~C9 Ohlson O-score~~ | — | — | — | **NOT RUN** — register §0.1 |
+
+**† THE LABEL OVERSTATES C2 AND THAT IS SAID RATHER THAN LEFT TO BE NOTICED.** The label was
+pre-committed as *"wide clears + tier fails"* and is applied as written rather than re-chosen after
+the outcome — but **C2's tier *t* is NEGATIVE**, so the two populations **DISAGREE IN SIGN** and the
+wide reading does not describe the tier at all. Only **C4** is the case the label actually means:
+same direction, too weak on the tier. The halves-disagree-in-sign pattern is this record's most
+repeated finding; **C2 is a POPULATIONS-disagree-in-sign instance**, and reporting it as "real but
+not investable" without the sign would be the flattering reading.
+
+**AND A QUALIFICATION THAT CAPS WHAT C2's REVERSAL CAN CARRY, found by reading the artifact
+again rather than by anything raising: `C3` ALSO FLIPS SIGN, IN THE OPPOSITE DIRECTION.** Wide
+**−0.2715** against tier **+1.5437**, where C2 runs wide **+3.2933** against tier **−0.1928**. Its
+governing verdict is `NOT_REPLICATED` either way, so nothing in the table moves — but **two of six
+scored arms reverse between populations and they reverse OPPOSITE ways.** The parsimonious reading
+is that the wide and tier populations are **noisy relative to each other at 24/20 dates**, not that
+either arm has found something specific about small caps, and the MDE ratios agree (C3's tier
+reading is 0.5436x its own detection threshold, C2's 0.0679x).
+
+**SO THE CONVERGENCE CLAIM NEEDS ITS SCOPE STATED.** `UNIVERSE-BIAS`, `TIERED-POOL`,
+`STAGE1-BATCH2`'s B5 and the canonical move's own universe/vintage split are **four separate
+measurements** that reaching down the cap scale does not pay. **C4 and C2 are CONSISTENT with that
+and are NOT a fifth independent reading** — they are two underpowered tier nulls beside two wide
+passes, one of which reverses. Quoting them as corroboration would be counting one intuition twice.
+
+**BH AT `k` = 9 ON THE TIER's *p*-VALUES: NONE SURVIVES** (smallest is C3's 0.1227 against a
+0.0111 threshold). **It could only ever confirm**, because the tier is where every arm failed —
+reported as a formality and NOT as an independent check. `k` stays 9 while six arms scored, because
+membership was fixed in the draft before any outcome; shrinking the denominator would be choosing
+the correction on the batch, and the direction is conservative.
+
+### THE FINDING THAT OUTLIVES THE BATCH
+
+**TWO PUBLISHED EFFECTS ARE VISIBLE ACROSS 3,545 NAMES AND ABSENT WHERE THE INDEX TRADES.** That is
+exactly what charter §5 Stage 1b was written to catch, and it is the **fourth independent reading
+this session pointing the same way**: `UNIVERSE-BIAS`, `TIERED-POOL`, `STAGE1-BATCH2`'s B5, and now
+C4/C2 — plus the canonical move's own split, where the corrected universe *improved* the decile
+long-short and turned the concentrated book's net alpha **negative**. The names the corrected
+universe adds are overwhelmingly small, and effects that live in them are real and unbuyable at
+$10B.
+
+**AND A REUSABLE FACT ABOUT THIS PANEL'S REACH.** C5 asks for **20 quarters of two keys** and
+clears the tier at 0.8650; C1 asks for **four quarters of five keys** plus a year-over-year base
+and reads **0.5488**. `_ttm` returns `None` unless every requested key is present in all four
+quarters, so **an arm's cost here is set by how many columns it ANDs, not by how far back it
+reaches.** `C1`'s costume correlations are the SMALLEST in the batch (momentum 0.0440, quality
+0.0400, `z_accruals_q` 0.0388) — **the most genuinely orthogonal candidate of the nine is the one
+this panel cannot compute on the investable tier**, and that is a fact about the data's reach
+rather than a verdict on Abarbanell-Bushee.
+
+### THE DRAFT'S OWN PREDICTIONS, SCORED
+
+**It priced COSTUME risk and the binding constraint was COMPUTABILITY.** It called C2's kill
+against the shipped `z_f_score` *"the sharpest kill in the batch and it is likely to fire"* — it
+**passed at 0.4033**, so G-score is measurably not F-score in a growth costume. It ranked C1 third
+as *"six cheap signals, no rebuild"* — not cheap. It was **right** about C7 (*"the
+second-likeliest to fire"*), which fired by **0.0023**, and right that C3's coverage profile cannot
+fail `A1`'s kill (0.9372). **C3 then failed on replication instead**, so A1's economics have now
+been stopped twice by different constraints — once on computability, once on stability — and
+neither attempt says the economics are wrong.
+
+### SIX DEFECTS OF MY OWN, EVERY ONE PRE-OUTCOME, FOUR CAUGHT BY THE REGISTER'S OWN CONDITIONS
+
+1. **THE KILL PASS READ THE WHOLE PANEL, NOT THE BUILD QUADRANT** — a **check-quadrant look**, and
+   void condition 5 of this batch's own register. Killed before it computed anything. The fix was
+   not to write a filter but to **CALL `scripts.stage1_kills.build_quadrant`**, the one batches 1
+   and 2 used; my version also carried its own `mean_abs_rho` and Spearman, a second definition of
+   the costume bar's own statistic. The quadrant then reproduced the charter's declared geometry
+   exactly: **44 dates, halves 24/20 at 2014-12-31**, 3,545 names, 87,436 rows.
+2. **C8's TARGET LEAKED.** I paired predictors at `td` with growth measured AT `td` — a different
+   model whose fitted value is not an expectation of anything — and requiring only `td < d` would
+   have let a pair whose **LABEL** post-dates the scored date into the fit. **Both** dates must
+   precede `d`, and the artifact records the latest **LABEL** date per scored date. **It passed: 0
+   violations over 39 fitted dates**, provable from the output (scored 2019-12-31 trains to
+   2019-10-01).
+3. **A FALSE FORWARD-RETURN CLAIM.** The docstring and artifact asserted *"no forward return is
+   read anywhere"* while **C4 read `fwd_ret`**. Withdrawn for the narrow true property, then made
+   true outright by the C4 repair. **A blanket claim that is false is worse than a narrow one that
+   is true**, because the blanket version is the one a reader relies on.
+4. **C4's KILL FIRED ON MY FRAME, NOT THE DATA.** Coverage **0.6094** panel-sourced against
+   **0.9239** untruncated (per-date min 0.8879). The panel's grid starts 2009-03-27, so no
+   five-year base existed in it for the 24 early-half dates — while the panel's own `market_cap`
+   comes from the DAILY cache (1998-12-31) and its returns are `closeadj`, the same series
+   `price_history` returns (1997-12-31). **The rule was pre-committed BEFORE the re-measurement**:
+   both figures ship, the 0.70 floor does not move, and **no other arm is re-sourced** — C1 reads
+   the full fundamentals history and is not frame-truncated, so applying the repair only where it
+   would rescue something is the failure that clause forbids. Six of seven kills then reproduced
+   **bit-identically**, which is the control that the repair moved C4 and nothing else.
+5. **THE CHARTER's OWN STAGE-1b LABEL WAS DEAD CODE.** I compared against `"SURVIVES"`, a string
+   `stage1_verdict` never returns — its vocabulary is `NOT_ASSESSABLE` / `CLEARS` /
+   `NOT_REPLICATED`. So **`REAL BUT NOT INVESTABLE HERE` could never have been emitted**, and it is
+   load-bearing on **2 of 6** scored arms: C4 and C2 would have been recorded as plain
+   `NOT_REPLICATED`, losing the distinction between *"the effect is not there"* and *"the effect is
+   there and you cannot have it."* It took an arm actually clearing wide-and-failing-tier to expose
+   it. `PASS_VERDICT` is now **derived** from `stage1_verdict`, asserted at import, with a
+   reachability control. **The same bug appeared a second time in the same file**, in a headline
+   field that could never have been true.
+6. **`benjamini_hochberg` TAKES A DICT, NOT A LIST.** It crashed *after* every arm had been scored
+   and printed — the worst place for a contract error, since the numbers existed and the artifact
+   did not. **Third time in this batch that calling a shared helper (which is right, `B7`) went
+   wrong because I did not read its signature first**, after `composite_from_frame`'s standardiser
+   argument and `costume_rho`'s column-name form. **`B7` buys one definition, not a free pass on
+   its contract.**
+
+**A CONTROL WORTH NAMING: the deployed control is the SEVEN-theme book, verified not assumed.** The
+`established` bucket declares **nine** columns, the pass selects **eight** (dropping the empty
+`sentiment`), and `_base_weights` returns **exactly seven** non-zero weights at 1/7 with `low_risk`
+and `sentiment` at zero, summing to 1.0. That is the defect family that bit `MA28`'s C1 and `W-1`'s
+K4 — both scored nine bucket themes at 0.125 — and the one place here where a plausible number
+would have measured a different book.
+
+### NOT DONE, named so it is not mistaken for done
+
+**No arm is adopted** and nothing reaches Stage 2; **the check quadrant was never read**, and no
+Stage-3 or 1972-1998 look was taken. **C1 and C7 carry NO verdict in either direction** — their
+kills fired and the bars did not move, so their hypotheses are UNTESTED rather than rejected. **C9
+is NOT RUN** and that is not a finding that O-score carries no information. **`B4` stays NOT RUN**:
+the full-universe IBES cell coverage is 0.6999955119640681 against the inherited 0.70, may never be
+read as a pass, and only a **tier-level** census clearing 0.70 unblocks it. **`A1` is not
+re-opened** — C3 changed the construction, not the burn-in. **No interaction arm** (`S7` registered
+four and rejected all four). `PREREG_stage1_batch3.md` at `4e92445`; `scripts/b3_signals.py`,
+`b3_signals2.py`, `b3_kills.py`, `b3_arms.py`, `b3_c8.py`, `b3_c4_source.py`;
+`data/free_analysis/B3_KILLS.json`, `B3_ARMS.json`, `B3_C8.json`, `B3_C4_SOURCE.json`,
+`B3_COLUMN_CENSUS.json`.
