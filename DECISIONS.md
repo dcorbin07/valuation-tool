@@ -33,6 +33,11 @@ manager from Don's own words in chat.
   the deeper Index drawdown and replacing the "not a survey of survivors" sentence. No interim
   patch. The flat 1/7 weights stay: CPCV adopting a scheme does not change them (prove before
   changing). The forward contract's frozen meter parameters are not touched.
+- **2026-10-08 — TRADIER IS CLOSED AND WILL NOT BE FUNDED AGAIN.** Don withdrew his funds and
+  Tradier deactivated the account. Every feature that used Tradier moves to another source: free
+  sources first, then a free official API (Alpaca's free tier is the candidate, measured before
+  use). Robinhood cannot be used — no official equities/options data API — and no lane ever stores
+  Don's login or keys; Don enters any key himself.
 - **2026-10-08 — INTRADAY SIGNALS STAY ON GITHUB'S FREE SCHEDULER** (no paid Render cron). They
   feed the Signals tab, alert emails and the live options record, which research shows lose to
   random entry; afternoon-only delivery is accepted. The live check keeps reporting honestly.
