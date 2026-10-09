@@ -44,11 +44,18 @@ EVERY EXISTING GUARANTEE IS KEPT, and each is a line of code rather than an inte
   * **`.env` AND `data/` ARE NEVER COMMITTED** - checked against what is actually STAGED, after
     `add -A`, which is the only moment the answer is knowable.
 
-`rebase_push.bat` IS REMOVED RATHER THAN DOCUMENTED, and that is a decision the brief asks for.
+`rebase_push.bat` IS DELETED RATHER THAN DOCUMENTED, and that is a decision the brief asks for.
 Its logic (fetch, rebase, abort on conflict, push) is correct and is now step 4 of the normal
 path. Keeping it as well would be a SECOND implementation of one cure - audit `B7`'s shape, the
 defect this project has paid for most - and the second copy is the one that drifts. There is
 nothing left for it to recover from: the state it cured can no longer be reached.
+
+AND IT HAD TO BE DELETED FOR REAL RATHER THAN MERELY NOT ADDED, which this lane got wrong
+first: the file was written untracked into Don's folder as an emergency hand-cure, and on
+2026-10-08 at 19:07 **`git_push.bat`'s own `add -A` committed it** (`50146ba`, "Update Thu
+10/08/2026 19:07:21.49"). So the tool this item repairs is what landed the thing this item
+retires. The test asserting its absence was green locally against a branch that predated that
+commit and RED on the gate, which is the gate doing its job.
 """
 from __future__ import annotations
 

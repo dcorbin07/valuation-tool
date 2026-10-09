@@ -16822,10 +16822,16 @@ Its logic - fetch, rebase, abort on conflict, push - is correct, and it is now *
 normal flow**. Keeping it as well would be a SECOND implementation of one cure, which is audit
 `B7`'s shape and the defect this project has paid for most often; the second copy is always the
 one that drifts. **And there is nothing left for it to recover from: the state it cured can no
-longer be reached.** It was never tracked, so nothing is deleted from the repository; a test
-asserts it never becomes tracked. **The untracked copy sitting in Don's folder should be
-deleted by hand** - one file, no consequence either way, and this lane does not write to the
-shared checkout.
+longer be reached.** **AND IT HAD TO BE DELETED FOR REAL RATHER THAN MERELY NOT ADDED, WHICH THIS
+LANE GOT WRONG FIRST.** It was written untracked into Don's folder as an emergency hand-cure,
+and this write-up's first version said *"it was never tracked, so nothing is deleted"* and asked
+Don to delete it by hand. **Measured on the gate: it IS tracked, because on 2026-10-08 at 19:07
+`git_push.bat`'s own `add -A` committed it** - `50146ba`, "Update Thu 10/08/2026 19:07:21.49",
+Don's own message format. **So the tool this item repairs is what landed the thing this item
+retires**, and `add -A` sweeping up a loose file is the same mechanism that makes the `.env`
+guard necessary. The test asserting its absence was GREEN locally against a branch that
+predated that commit and RED on the gate, which is the gate earning its keep: `git rm` in this
+commit, and the test now has something real to defend.
 
 ## EVERY EXISTING GUARANTEE IS KEPT, AND EACH IS A LINE OF CODE RATHER THAN AN INTENTION
 
@@ -17034,3 +17040,251 @@ against a tree with nothing wrong with it. Only tokens that are dangerous in eve
 stayed. **`-f` is deliberately NOT banned either**: `branch -f` force-moves the local BACKUP
 ref, which is the single line that makes *"nothing is discarded"* true, so banning the bare
 token would forbid the safety feature -- which is why the push is pinned positively instead.
+
+---
+
+# SESSION 87 (2026-10-09) — ITEM 44: THE BACKUP CRON WAS ALWAYS THERE, AND A LANE'S COPY OF A `.github/` FILE IS STALE BY CONSTRUCTION
+
+`PROMPT_appfixer_2026-10-09_item44.md`, three parts. **The correction is accepted and it is not
+a slip — it is a structural guarantee nobody had written down.**
+
+## (1) THE CORRECTION, AND THE REASON IT WILL RECUR UNLESS IT IS MECHANISED
+
+Item 42 reported that the `53 17-19` backup cron "is still not installed". **It has been
+installed since `d66155e`, 2026-10-08 08:15 ET**, and the intraday job's `if:` already names
+it. Verified against `origin/main`: it is line 67 of `auto-scan.yml`, and the authoritative
+read lists twelve crons including it.
+
+**WHY THE LANE READ THE WRONG COPY, AND WHY DISCIPLINE CANNOT FIX IT.** The land gate REFUSES
+any branch touching `.github/` (`land_policy.py`), so a workflow file can only ever change on
+`main`, by Don running `install_workflows.bat`. **A lane cannot make the change, cannot land it,
+and has no mechanism that would keep its copy current — so for `.github/` specifically a lane's
+local copy is stale BY CONSTRUCTION, and reading it to make a claim about what GitHub is
+scheduling is wrong by construction rather than by accident.** `valquo_sync_bootstrap.bat`
+already applies exactly this reasoning one level up: it fetches `sync_checkout.py` from
+`origin/main` rather than running the folder's copy, because *"a launcher that ran this folder's
+copy would be as stale as the folder."*
+
+**SO IT IS MECHANISED.** `scripts/workflow_source.py` is the one authoritative reader: it
+returns `origin/main`'s text plus `source` and `authoritative`, and when it cannot read the ref
+it **says so instead of quietly substituting the local file** — a silent fallback would
+reproduce the defect with an extra layer of indirection, because the caller would believe it
+held the real thing. On a CI runner `origin/main` is often not fetched and there the local copy
+IS correct (the gate tests the merge of branch into main), so the fallback is right in CI and
+reported everywhere.
+
+The three places in `tests/test_proposal_auto_scan_themes.py` that asserted the house rule
+against the local file now read the authoritative copy, so a stale branch can no longer make
+that guard pass while main's copy breaks it. And a new structural guard: **no script may open a
+`.github/workflows/` file behind the reader's back** (B7), read through the AST, with the
+pending directory exempt because a pending file is a PROPOSAL and reading it locally is the
+only way to read it at all.
+
+## THE RE-MEASUREMENT: THE WINDOW STARTS 2026-10-08 AND IS ONE SESSION OLD, NOT A WEEK
+
+`scripts/intraday_delivery.py` re-asks item 37's question on demand. **It is not a week yet** —
+the backup was installed on the 8th and the 9th has not traded — so this is the interim, and the
+full week completes **2026-10-14** with the re-measurement due **2026-10-15**:
+
+```
+  python scripts/intraday_delivery.py --since 2026-10-08 --until 2026-10-14
+```
+
+| | item 37 (30 days to 2026-10-07) | **interim, 2026-10-08, ONE session** |
+|---|---|---|
+| intraday crons | 8 | **11** (8 primary + 3 backup) |
+| slots expected | 176 | **11** |
+| runs delivered | 49 | **4** |
+| **of those, IN SESSION (13:00–20:59 UTC)** | not reported | **1** |
+| dropped | 127 — **72.2%** | 7 — **63.6%** |
+| sessions with no in-session run | 21 of 22 | **0 of 1** |
+| sessions with no run at all | 0 of 22 | 0 of 1 |
+
+Arrivals on 2026-10-08: **00:16, 19:19, 22:30, 23:49 UTC**. **ONE SESSION PROVES NOTHING about
+63.6% against 72.2%** and the difference is not quotable as an improvement; what the day shows
+is that the shape has not changed — one in-session delivery, the rest arriving after the close.
+
+**THE NUMBER WORTH WATCHING IS `runs_delivered_in_session`, AND IT IS SMALLER THAN DELIVERY.** A
+run landing at 23:49 was fired by an in-session cron and refreshes nothing a user sees while the
+market is open. Counting it answers *"did GitHub eventually run it"* when the question is *"did
+the feed refresh during the session"*. Both ship; the gap between them is the finding.
+
+**WHAT THE INSTRUMENT CANNOT DO, STATED RATHER THAN GLOSSED: it cannot tell the primary cron
+from the backup.** Both gate the same `intraday` job and the API does not expose the schedule,
+so a delivered run is attributable to *an* intraday cron and no further. **Nobody may say "the
+backup rescued N sessions" from this.** That would need the job to record which schedule fired
+it, which is a `.github/` change.
+
+### TWO DEFECTS IN MY OWN INSTRUMENT, BOTH THE SAME FAMILY AS THE ONE I WAS FIXING
+
+* **THE DENOMINATOR DID NOT MOVE WITH THE SCHEDULE.** The first cut read today's cron list and
+  applied **11 slots to every session in the window**, including 2026-10-06 and -07, which
+  really had 8. **That is item 42's defect in the TIME dimension — reading one copy of a file
+  and believing it describes a different moment** — so the fix is the same one: `crons_on(date)`
+  reads the workflow as it stood that day, and the artifact ships `slots_by_date` and
+  `crons_by_date`. Across the install boundary it reported 74.1% where the per-date figure is
+  the honest one.
+* **A SESSION THAT HAS NOT CLOSED OWES NOTHING, AND IT COUNTED ONE.** Asked for 2026-10-08..09
+  at 02:00 UTC on the 9th it scored the 9th as 11 expected and 0 delivered and reported
+  **81.8% dropped on a day the market had not opened** — **item 43's `gap_report` off-by-one
+  exactly**, inflating the headline in the alarming direction. The window now ends at
+  `last_closed_session()` and the truncation is REPORTED in the artifact, because an output that
+  silently measured a day while being asked for a week is worse than a refusal.
+
+## (2) THE TRADIER MEASUREMENT RUNS WHERE THE WORKING TOKEN LIVES
+
+`data/pending_workflows/tradier-seam.yml`, **`workflow_dispatch` only, no schedule.**
+
+* **INSTALL:** double-click `install_workflows.bat`.
+* **RUN, one click:** GitHub → **Actions** → **"Tradier seam (measure only)"** → **Run
+  workflow** → the green button. There is no schedule, so it never runs on its own.
+* It uses the repository's existing `TRADIER_TOKEN` secret and uploads
+  `tradier_seam_raw.json` + `tradier_seam_report.txt` as the artifact **tradier-seam**.
+
+**THE DIAGNOSIS IS SHARPER THAN ITEM 41's, AND IT REFUTES THE OBVIOUS HYPOTHESIS.** The lane's
+401 is **not** a wrong-base error: measured, the lane already sends `TRADIER_ENV=live` to
+`api.tradier.com` and the response is `{"fault":{"faultstring":"Access Token not approved"}}` on
+all three control names. **It is a market-data ENTITLEMENT answer, not a bad token and not the
+sandbox host.** (The token's length is printed and its value never is.)
+
+**`TRADIER_ENV: live` IS NOT OPTIONAL IN THE WORKFLOW AND OMITTING IT WOULD BE A QUIET
+FAILURE**, which `auto-scan.yml` already learned once: `CONFIG.tradier_env` defaults to
+`"sandbox"`, so an approved live token would be sent to `sandbox.tradier.com`, 401, and be
+reported as *"Tradier has no coverage"* when the truth is *"we asked the wrong host"*. A test
+asserts that **every step receiving the token also receives the env**.
+
+**READ-ONLY IS A PROPERTY, NOT A POLICY, and it is asserted on the script rather than the
+workflow:** `tradier_seam.py` contains **exactly one** outbound call shape — `requests.get` to
+`/markets/history` — no POST/PUT/PATCH/DELETE anywhere, and it does not even name an
+order endpoint. The token is scrubbed from every reported string, and the workflow is checked
+for `echo`/`printenv`/`set -x` shapes that would put it in the log.
+
+### THREE DEFECTS FOUND BEFORE SHIPPING IT, EACH ONE A WASTED CLICK OTHERWISE
+
+* **THE SCRIPT ONLY RAN ONE WAY.** `python scripts/tradier_seam.py` raised
+  `ModuleNotFoundError: valuation`; it had only ever been invoked as `python -m
+  scripts.tradier_seam`. The workflow invokes it the other way, so this would have spent one of
+  Don's clicks on a crash. Found by running it, not by reading it.
+* **A 401 ON EVERY NAME WOULD HAVE BEEN A GREEN RUN WITH AN EMPTY ARTIFACT.** `probe()` printed
+  and returned `None`, so a caller could not tell *"measured"* from *"every request refused"*.
+  It now returns a bool, says **NOTHING AUTHENTICATED**, and the CLI exits **2** — while the
+  upload stays gated on `!cancelled()` so the refusal travels as evidence. *"I could not
+  measure"* and *"the measurement came out this way"* must never share an exit code.
+* **A CONTROL THAT DID NOTHING.** The first cut declared a `names` input to cap the sample, and
+  the script has no such flag — a box on the Run-workflow form that accepts a number and
+  changes nothing. **A control that does nothing is worse than none, because it is believed.**
+  Removed, and a test refuses any declared input the script has no flag for.
+
+## (3) SOMETHING *DOES* DEPEND ON THE BROKER FUNDAMENTALS, AND THE IMPORT GRAPH SAID IT DID NOT
+
+The question was whether anything depends on them today, with permission to record it and move
+on if nothing does. **Nothing is the wrong answer twice over.**
+
+**FIRST, THE INSTRUMENT LIED.** `scripts/import_graph.py --importers
+valuation.screener.broker_fundamentals` returns an **empty list** and the module is **not in the
+reachable set** — because all five call sites are **deferred imports inside function bodies**
+(`from . import broker_fundamentals as BF`), which a module-level graph cannot see. A text sweep
+finds four sites in `providers.py` and one in `screen.py`. **"No importers" is exactly the kind
+of answer that gets acted on, and here it was wrong.**
+
+**SECOND, THE DEPENDENCY IS RESILIENCE, AND `providers.get_metrics` SAYS SO IN ITS OWN COMMENT:**
+*"Before the broker prefill that meant the name was DROPPED from the scan entirely ('no data');
+now it survives on the broker's half, so a throttled Yahoo costs the scan some quality per name
+instead of costing it the name."* **So with the prefetch at 0 that safety net is absent exactly
+when item 39's failure mode occurs** — Yahoo refusing the runner outright with `401 Invalid
+Crumb`. No displayed number depends on it; the scan's robustness does.
+
+**AND THE 0-OF-1500 FIGURE DOES NOT MEAN WHAT IT LOOKS LIKE — TWO POPULATIONS UNDER ONE WORD.**
+The live health block reads `names_with_broker_data: 0` and `note: "broker fundamentals loaded
+for 0 of 1500 names"` **directly beside `by_source: {"free+broker": 777, "free": 591,
+"unknown": 72}`** over 1,440 scored names. Both are right. `get_metrics` returns a CACHED row
+before it ever consults the broker, and `merge` stamps `free+broker` only when the broker
+actually filled a field — so **with an empty prefetch no row scored TODAY can carry that label,
+and the 777 that do were stamped on an earlier run when the prefetch worked.** `O-1`'s family: a
+count measured on one population read as a fact about another. **It cost me an afternoon's wrong
+conclusion ("the broker half is gone"), so `broker_stats` now ships a `scope` field saying which
+population it counted**, and the arithmetic behind the contradiction is pinned by test
+(`merge(None, free)` must stamp `free`, with a positive control that a filling broker row stamps
+`free+broker`).
+
+**NOT DONE, named so it is not mistaken for done:** the CAUSE of the empty prefetch is still not
+established beyond "the fundamentals endpoints answer with nothing while the options endpoints
+work" — it reports a COUNT rather than a failure, so `fetch_raw` returned 200-with-no-company
+rather than raising, which is consistent with a fundamentals entitlement the options token does
+not carry. Nothing is enabled, no endpoint is repointed, and no scan behaviour changed.
+
+## REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3): THE APPEND-ONLY WRITER CAN REFUSE A LEGITIMATE WRITE ON WINDOWS, AND IT IS A DATA-LOSS PATH
+
+The full gate came back **264 passing, ONE failing** — `tests/test_fleet_highwater.py`, which
+is the fleet lane's (`de96ee9`) and imports nothing this item touches. **It is not this item's
+and it is not flaky-and-harmless; it is a real defect in a shipped writer**, so it is measured
+rather than dismissed.
+
+**IT PASSED IN TWO EARLIER FULL GATES OF THE SAME CODE** (260/260 and 264/264) and **passes
+standalone**, which is exactly the shape that invites "stale expectation, ignore it". Run ten
+times in a row it fails **1 of 10**:
+
+```
+  AssertionError: {'ok': False, 'wrote': False, 'reason': "could not write
+    ...\Temp\hw_nyziy_yq\data\fleet\hwbook.csv: [WinError 32] The process cannot access
+    the file because it is being used by another process: '...hwbook.csv.tmp' -> '...hwbook.csv'"}
+```
+
+**THE MECHANISM IS `valuation/edge/append_only.py:157` AND IT IS THE PRODUCT, NOT THE TEST.**
+The writer is temp-file-plus-`os.replace`, which is correct and is why it exists — but on
+Windows `os.replace` transiently fails with `WinError 32` when anything (indexer, AV, a
+scanner) holds the `.tmp` for a moment, and the `except` turns that into
+`{"ok": False, "wrote": False}` — **a REFUSAL.** There is no retry anywhere in the module.
+
+**WHY THAT IS WORSE THAN A FLAKY TEST.** `append_only` is the writer behind
+`index_mark.append_row` — the BOUND forward record — and behind the fleet recorder. On Don's
+Windows machine a transient lock therefore turns a legitimate append into a refused one, and
+**the record is append-only with no backfill permitted** (DECISIONS standing rules), so a row
+lost that way is lost permanently. The refusal is at least loud rather than silent, which is the
+module working as designed; what is missing is that a transient OS condition and a real refusal
+are not the same event.
+
+**AND IT CANNOT REDDEN THE LAND GATE, WHICH IS WHY NOBODY HAS SEEN IT.** `WinError 32` is a
+Windows file-locking behaviour; on the Linux runner `os.replace` over an open path simply
+succeeds. So this is invisible in CI and visible only on the one machine that owns the record —
+`MB42`'s shape exactly, and the third sighting of this family (`MB21` and `MB16` both hit
+`%TEMP%` permission failures invisible in CI).
+
+**DELIBERATELY NOT FIXED HERE.** Adding a retry to a safety-critical append-only writer is a
+behaviour change in another lane's module, which carries its own twelve-mutation suite, and
+doing it inside an item about workflow staleness is the scope creep that breaks things. **The
+fleet lane's call**, with the measured rate above and the note that the right fix is a bounded
+retry on `os.replace` alone — never on the write — so a genuine refusal stays a refusal.
+
+## TESTS
+
+**`tests/test_item44_workflow_source.py` — 29 tests, zero skips**; the repointed
+`tests/test_proposal_auto_scan_themes.py` runs **32** (one loud skip: no pending `auto-scan.yml`,
+the normal state). **MUTATION-TESTED 16 of 16 CAUGHT, 0 MISSED, sources restored byte-for-byte**,
+plus an INERT control.
+
+**THREE OF THOSE WERE MISSES ON THE FIRST PASS AND TWO WERE REAL TEST GAPS**, both the same
+shape — **asserting that text EXISTS rather than that behaviour HAPPENS**, which is the gap item
+39 found in its own provenance tests:
+
+* `NOTHING AUTHENTICATED` was asserted as a string in the source, so changing `if not ok:` to
+  `if False:` walked through — the string sits there untouched. Now driven: `history` is stubbed
+  to refuse every name, and the test asserts the return value, the printed message, **that the
+  28-character token is absent from the output**, and a positive control that one succeeding
+  name does NOT read as failure.
+* the per-date denominator was tested through `crons_on` directly, so replacing the computation
+  with `today's count × sessions` left it green. Extracted as `expected_slots()` and asserted on
+  the real install boundary: `{10-07: 8, 10-08: 11}`.
+* the third was a needle spanning a comment block — **"absent" counts as a MISS, correctly,
+  since a mutation that never applied proves nothing.**
+
+**And one mutation I had labelled INERT was actually CAUGHT**, so the label was wrong rather
+than the guard: unbounding the intraday job block makes the regex find a different job's `if:`.
+
+**A GUARD OF MINE ALSO FIRED ON FIVE CORRECT FILES**, which is the fifth instance of that family
+here: the one-authoritative-reader check collected every string literal naming `workflows` and
+flagged the file if it called `open` anywhere — so it fired on **docstrings and comments**
+describing which workflow installs a package. The property is not *"this file mentions a
+workflow"* but *"this file OPENS one"*, so the literal is now tied to the call through the AST,
+with a positive control that plants a real offender, a prose-only file and a pending-directory
+reader and requires exactly the first to be flagged.

@@ -236,8 +236,24 @@ class FreeProvider(ScreenerProvider):
 
     @property
     def broker_stats(self) -> dict:
+        # ITEM 44. THESE COUNT *THIS RUN'S* PREFETCH AND NOTHING ELSE, and saying so is the
+        # whole point of the extra key. The live health block reads
+        # `names_with_broker_data: 0` and `note: "broker fundamentals loaded for 0 of 1500
+        # names"` directly beside `by_source: {"free+broker": 777}` -- which reads as a
+        # contradiction and cost a lane an afternoon's wrong conclusion ("the broker half is
+        # gone").
+        #
+        # Both are right and they count DIFFERENT POPULATIONS. `get_metrics` returns a CACHED
+        # row before it ever consults the broker, and `merge` stamps `free+broker` only when
+        # the broker actually filled a field -- so with an empty prefetch no row scored TODAY
+        # can carry that label, and the 777 that do were stamped on an earlier run when the
+        # prefetch worked. `O-1`'s family: a count measured on one population read as a fact
+        # about another.
         return {"note": self._broker_note, "names_with_broker_data": self._broker_hits,
-                "names_broker_only": self._broker_only}
+                "names_broker_only": self._broker_only,
+                "scope": "this run's prefetch only; names already in the fundamentals cache "
+                         "keep their earlier broker fields and still count under "
+                         "by_source['free+broker']"}
 
     def get_universe(self, scope: str = "bundled") -> list:
         # Broker first for a whole-market scope. Tradier enumerates ~7,100 listed common

@@ -34,6 +34,12 @@ import os
 import sys
 import time
 
+# ITEM 44: `python scripts/tradier_seam.py` raised `ModuleNotFoundError: valuation` -- it only
+# ever ran as `python -m scripts.tradier_seam`, so it worked exactly one way. Found while
+# writing the workflow that was about to invoke it the other way on a runner, which would have
+# spent one of Don's clicks on a crash.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 LIVE = "https://api.tradier.com/v1"
 SANDBOX = "https://sandbox.tradier.com/v1"
 
@@ -111,18 +117,34 @@ def history(symbol, cfg, days=400):
     return r.status_code, out, "", rl
 
 
-def probe(cfg):
+def probe(cfg) -> bool:
+    """True when at least one control name returned rows. ITEM 44: the RETURN VALUE IS NEW.
+
+    It used to print and return `None`, so a caller could not tell "measured" from "every
+    request was refused" -- and in the dispatchable workflow that means a 401 on all three
+    control names produces a GREEN run with an empty artifact. "I could not measure" and "the
+    measurement came out this way" must never share an exit code; this project has paid for
+    that equivalence more than once.
+    """
     tok = _token(cfg)
     print("  token length %d (never printed), env=%r -> %s"
           % (len(tok), getattr(cfg, "tradier_env", None), _base(cfg)))
     print()
+    ok = 0
     for sym in ("AAPL", "O", "NEE"):
         code, rows, msg, rl = history(sym, cfg)
         print("  markets/history %-5s HTTP %-5s %s"
               % (sym, code, ("%d rows, %s..%s" % (len(rows), rows[-1]["date"], rows[0]["date"]))
                  if rows else msg[:70]))
+        if rows:
+            ok += 1
         if rl:
             print("      rate limit: %s" % json.dumps(rl))
+    if not ok:
+        print()
+        print("  [!] NOTHING AUTHENTICATED. This token has no market-data approval on this "
+              "host, so there is no measurement to make -- not a coverage finding.")
+    return ok > 0
 
 
 def pull(cfg, out_path, pause=0.1):
@@ -310,7 +332,10 @@ def main(argv=None):
         print("  no Tradier token in the environment; nothing to measure.")
         return 1
     if a.probe or not (a.pull or a.analyse):
-        probe(cfg)
+        if not probe(cfg) and not (a.pull or a.analyse):
+            # Non-zero so the dispatchable workflow goes RED when it could not measure. The
+            # artifact still uploads (`!cancelled()`), so the refusal travels as evidence.
+            return 2
     if a.pull:
         pull(cfg, a.out)
     if a.analyse:
