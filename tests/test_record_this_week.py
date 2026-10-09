@@ -206,10 +206,45 @@ def test_the_hurdles_are_arithmetic_on_the_counts():
     live = RL.detail()["by_domain"]
     for d in w["domains"]:
         assert d["now"] == int(live[d["key"]]), d
-        assert d["before"] == d["now"] - d["charged"], d
+        # `now` is the ALL-TIME live count, so the identity has to carry BOTH corrections the
+        # module applies: the window's own rows AND any row dated after the window's end. The
+        # original form omitted `after` and therefore went RED AGAINST A CORRECT TREE the first
+        # time a row was logged ahead of the live render -- the module's own comment says that
+        # correction exists and "fires whenever a row is logged ahead of the render", so the
+        # assertion was a weaker statement than the behaviour it was guarding.
+        assert d["before"] == d["now"] - d["charged"] - d["after"], d
         assert d["hurdle_after"] == "%.4f" % hlz_hurdle(d["now"]), d
         if d["hurdle_before_defined"]:
             assert d["hurdle_before"] == "%.4f" % hlz_hurdle(d["before"]), d
+
+
+def test_the_after_correction_is_EXERCISED_and_the_old_identity_would_fail():
+    """THE POSITIVE CONTROL for the `after` term, without which the corrected assertion above is
+    vacuous on the live page (where nothing postdates today and `after` is 0).
+
+    Back-dating `today` guarantees that real rows postdate the window, which is the exact state
+    the module's own comment says the correction exists for. Both directions are asserted: the
+    corrected identity must CLOSE, and the ORIGINAL form -- `before == now - charged` -- must
+    FAIL, or this test is not measuring the repair.
+
+    Added 2026-10-08 by the options lane (`DIP-CALL-2`), whose own booking at 23:16 EDT was the
+    first row ever logged ahead of the live render and turned this from a hypothetical into a red
+    suite against a correct tree.
+    """
+    w = RR.weekly(today=dt.date(2026, 8, 19))
+    live = RL.detail()["by_domain"]
+    assert w["available"], w
+    exercised = 0
+    for d in w["domains"]:
+        assert d["now"] == int(live[d["key"]]), d
+        # the corrected identity closes
+        assert d["before"] == d["now"] - d["charged"] - d["after"], d
+        if d["after"]:
+            exercised += 1
+            # and the ORIGINAL form does NOT -- which is what makes the repair necessary
+            assert d["before"] != d["now"] - d["charged"], d
+    assert exercised, ("no domain carries rows after a window ending 2026-08-19, so the `after` "
+                       "correction was never exercised and this control is vacuous")
 
 
 def test_the_before_count_is_the_sum_of_the_windows_own_rows():
