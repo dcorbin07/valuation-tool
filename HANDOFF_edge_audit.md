@@ -22537,3 +22537,139 @@ write records now take absolute worktree paths and never `chdir`.**
 
 **TESTS:** 45 (`tests/test_corrected_claims2.py`) + 20 (`tests/test_restricted_index_book.py`),
 plus the 22 of `tests/test_corrected_rebuild.py` carried forward.
+
+
+## STAGE1-BATCH2 - no arm survives Stage 1, and all five kills passed - 2026-10-08
+
+**0 OF 5 ARMS ADVANCE.** `PREREG_stage1_batch2.md` committed **ALONE at `2d7a914`** (353 lines,
+markdown only, zero `.py`), a strict ancestor of every measurement commit, with **5 equity trials
+booked in their own commit at `1fb6bf5` BEFORE any runner existed**. Equity `N` **274 -> 283**
+after merging the options lane's 4 - the MEASURED post-merge count, not either side of the merge
+(`MA37`). **ADOPTS NOTHING. `k` STAYS 6. `B6` stays WITHDRAWN.**
+
+### THE KILLS ALL PASSED, SO EVERY ARM WAS SCORED
+
+| kill | bar | measured | outcome |
+|---|---|---|---|
+| `K0` B4 tier IBES | >= 0.70 cells **and** names | **0.8597 / 0.8584** | clears, **B4 runs** |
+| B1 inertness | median >= 2% removed | **46.70%** (p05 44.61, p95 52.75) | not inert |
+| B1 50-name floor | every date | **0 below** | assessable |
+| B2 leverage | <= 0.50 of dates above 1.0 | **0.2273** | is the paper's strategy |
+| B3 costume vs momentum | < 0.60 | **0.2507** (max 0.4746) | not a costume |
+| B5 non-identity | < 0.99 | **0.4374** | not the shipped signal rescaled |
+
+**`K0` IS `O-1`'s LESSON RUNNING THE LESS USUAL WAY.** The tier reads **0.8597** where the full
+universe reads **0.6999955119640681** - a 16pp gap - so **inheriting the full-universe figure
+would have killed a runnable arm**. The full-universe number ships beside the tier reading and a
+test asserts it stays BELOW the floor, so 0.69999551 can never read as clearing.
+
+**AND `K0` MEASURED THE LINK, NOT THE DATA.** `numest` lives in `ibes_statsum_epsus`, a different
+table from the dated `ibes_id` link - 51 yearly files, gzip-compressed despite the `.pkl` suffix,
+431,996 rows for 2015 alone. B4 reports its **own** coverage, **0.7190** on the quadrant, and its
+scoreability follows from that rather than from K0.
+
+**ROUTE B's THREE-STEP DATED JOIN WAS EXTRACTED, NOT COPIED** - to
+`ibes_link.resolve_route_b`, with the validator delegating - and **proved inert**, reproducing
+`0.6999955119640681` exactly with its own scalar-vs-vectorised check at 0 of 400 mismatches.
+
+### THE ARMS
+
+* **No IC arm survives Benjamini-Hochberg at `k` = 6, `q` = 0.10** - `largest_surviving_rank` is
+  **None**. The smallest p in the batch is **B4 analyst neglect at 0.0443**, against a rank-1
+  threshold of 0.01667, **and its sign is NEGATIVE**: tier *t* **-2.0117**, halves -0.830 /
+  -2.141. **More neglect earns LESS**, the opposite of the hypothesis.
+* **B5 net payout is the one worth naming.** Wide *t* **+2.4327** clears the conventional 2.0
+  while the **tier** reads **+1.0578** - so what effect there is lives **BELOW the tier**. That is
+  the disagreement charter Stage 1b calls *"itself a reported finding, not a nuisance"*, and it is
+  the **third** register running to find that reaching down the cap scale does not pay, after
+  `UNIVERSE-BIAS` (+7.24pp -> -4.14pp) and `TIERED-POOL`.
+* **B3 residual momentum**: p 0.370, tier *t* -0.897, halves -0.822 / -0.501.
+* **B1 and B2 both REJECTED on Don's margins**, both failing on the **EARLY half's return**.
+* **EVERY NULL IS BOUNDED**: observed effects sit at **0.316x, 0.708x and 0.372x** of their own
+  **80%-power** MDEs, so each says *"not separable at this resolution"* and never *"absent"*.
+
+### THE TERMINAL-WINDOW QUESTION - REAL, NOT A DEFECT
+
+The incumbent's late half reads **1.88%/yr** while SPY returned roughly 11-12%/yr over calendar
+2015-2019. **The comparison is the WRONG OBJECT.** Every figure here is a mean of 63-trading-day
+**FORWARD** windows, and the quadrant's own `BUILD_END` is **2019-12-31**, whose forward window
+lands in **2020-04**:
+
+* the panel's **own** `bench_ret` on the **identical** windows, annualised by the **same**
+  function, reads **5.69%/yr** - so the book lags by **3.81pp**, not ten;
+* the terminal window's benchmark return is **-23.05%**, which is **COVID 2020Q1** - the quarter
+  `S10` measured as *"exactly ONE 63-day period on every arm"* dominating this book's drawdown;
+* **drop that single window and the bench late half reads 12.00%/yr**, exactly the figure quoted.
+
+**THE VERDICTS ARE ROBUST TO IT** - Don's rule judges each arm against the incumbent on the same
+windows, so a shock common to both cancels. Both arms stay **REJECTED** and both fail on the
+**early** half, which the terminal window cannot touch. **Series alignment was checked first**,
+because a short series zipped against the full grid would misassign every return by one and move
+the half boundary - which looks exactly like a real underperformance: 44 dates, 44 returns, 24 /
+20.
+
+**ONE FIGURE MOVES AND IS REPORTED RATHER THAN LEFT TO BE FOUND.** `B1`'s late-half drawdown gain
+is **+5.471pp** as registered and **+0.045pp** without that window, so **B1's apparent drawdown
+improvement (-0.3068 -> -0.2521) is substantially a COVID-window effect** - the junk filter helped
+in the crash and almost nowhere else. Quoting B1's full-sample drawdown as a general property
+would be quoting one quarter. **The registered reading is all 44 dates**; the sensitivity exists
+to say whether the verdicts rest on one window, and they do not.
+
+### FIVE DEFECTS OF MY OWN
+
+**(1) THE KILL PASS READ UNSORTED HISTORY, AND ALL THREE OF B1's FIRST FIGURES WERE ARTEFACTS.**
+`_ttm` **breaks** at the first row past `as_of` and its docstring says *"rows are pre-sorted by
+datekey"*; `prov._indexed()` does **not** sort - `fundamentals_pit` sorting for itself is the
+tell. **AAPL and MSFT both FAILED on 129 and 133 rows with four clean quarters inside a 272-day
+span**, which is what exposed it. Evaluable share **0.4654 -> 0.9148**, median removal **0.7458 ->
+0.4670**, dates below the 50-name floor **12 -> 0**. **None of the first figures was reported**,
+and the defect is **mine, not `TIERED-POOL`'s** - `tiered_pool_run._hist` builds its history
+*"pre-sorted exactly as the panel builder sorts it"*, so **no landed figure is affected**. My
+first *fixture* for the guard did not exhibit the break either, listing the future row LAST where
+the loop reaches it only after picking four valid quarters.
+
+**(2) B1's FILTER WAS A NO-OP BY CONSTRUCTION, AND A BIT-IDENTICAL ARM EXPOSED IT.**
+`junk_universe_filter`'s own docstring says it *"touches ONLY the bands below $10B; the >= $10B
+band is arm A's, unchanged"*, and its code passes `UNFILTERED_BAND` names through
+**unconditionally** - so it **cannot filter the incumbent tier**, which is B1's whole population.
+B1 came back identical to the incumbent to four decimals while the kill had just measured those
+screens removing 46.70% of the tier; **a bit-identical arm is the signature of a dropped argument,
+not a measurement** (`S3-I1`'s `columns=`). **And the register says this itself** - *"the filter
+has never touched the incumbent tier"* - and I then reused the helper that enforces the exclusion.
+**The SCREENS are reused verbatim (`junk_ok`); the BAND-SCOPED WRAPPER is not.** *"Reuse the
+screens verbatim"* and *"reuse every function that touches them"* are different instructions. A
+gate now flags a bit-identical arm rather than scoring it.
+
+**(3)** `composite_from_frame` takes a `zscore` **function** and standardises **within the slice
+it is given**, so calling it on the whole frame would have standardised across the panel's entire
+history and made the control a **level** rather than a cross-sectional standing. **(4)**
+`construction_arm` did not carry `net_series`, so B2 would have read `NOT SCOREABLE` for my
+omission - which is indistinguishable from a data blocker. **(5)** `b4_neglect` was a **stub
+returning empty**, which would have reported B4 `NOT RUN` on a *"signal could not be built"*
+reason that was really an unwritten function: the worst way to be wrong.
+
+**VERIFIED RATHER THAN ASSUMED:** `_base_weights` gives `low_risk` and `sentiment` weight
+**0.0** and the seven weighted themes **1/7** each, summing to 1.0 - so the control is the
+deployed SEVEN and not the nine-at-1/7 defect `MA28`'s C1 caught.
+
+### TWO CI FAILURES, THE SAME FAMILY TWICE, AND A TOOL
+
+`CORRECTED-FLOORS` part 1 failed CI because a module resolved its data root at **IMPORT** time.
+This batch's claims suite failed because `fa()` **RAISES at CALL time**, turning 8 reported skips
+into 8 ERRORS. **MAKING A PATH LAZY MOVES THE EXCEPTION FROM IMPORT TIME TO CALL TIME; IT DOES NOT
+REMOVE IT. A helper that reports its own inability must do so as a STATE, not by raising** - and a
+test must skip LOUDLY, because a test that passes *because* the data is absent is a vacuous pass.
+
+`scripts/ci_no_data_root.py` reproduces the runner's condition in one command, and **no
+environment variable can**: `data_candidates()` always appends the derived primary root, so
+`VALQUO_DATA_ROOT` only prepends and the real root still resolves. **Its own first version was
+HARSHER than CI** - `runpy.run_path` does not put the target's directory on `sys.path` the way the
+interpreter does, so every suite importing a sibling by bare name raised `ModuleNotFoundError` and
+the first sweep reported **12 suites failing that were my harness**. **A simulator harsher than
+the thing it simulates produces false positives, which is worse than none** - I nearly published
+those 12 as a CI finding.
+
+**NOT DONE:** no Stage-2 or Stage-3 look (the check quadrant stays closed, and the 2020-2026
+remainder and 1999-2008 proxy are unread); `B6` carries no verdict; `k` stays 6; nothing is
+adopted. **A `STAGE-1 PASS` label was never reached, so the question of whether it may be read as
+meeting Don's rule does not arise** - but the rule stands for a successor: it may not.

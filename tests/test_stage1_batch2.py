@@ -62,6 +62,19 @@ def _string_constants():
             if isinstance(n, ast.Constant) and isinstance(n.value, str)}
 
 
+def _fa_or_none():
+    """The free-analysis directory, or None where there is no licensed data root.
+
+    `scripts.corrected_claims.fa()` RAISES in that case and a CI runner has no `data/`, so a
+    test that called it ERRORED instead of skipping.
+    """
+    try:
+        from scripts.corrected_claims import fa
+        return fa()
+    except Exception:
+        return None
+
+
 import scripts.stage1_batch2_kills as K                                     # noqa: E402
 
 
@@ -262,8 +275,15 @@ class ItChargesNothing(unittest.TestCase):
 class TheArtifactIsReadableOnItsOwn(unittest.TestCase):
     def test_the_kill_artifact_records_every_arm_and_its_bar(self):
         import json
-        from scripts.corrected_claims import fa
-        p = os.path.join(fa(), "STAGE1_BATCH2_KILLS.json")
+        # ROOT-TOLERANT. `fa()` RAISES where there is no licensed data root, and a CI runner
+        # has none -- so calling it turned a reported skip into an ERROR. The lazy-path rule
+        # applies at FUNCTION level and not only at import level, which is the twist this suite
+        # missed after I had already fixed the import-level version of it.
+        f = _fa_or_none()
+        if f is None:
+            print("SKIP: no licensed data root on this host")
+            return
+        p = os.path.join(f, "STAGE1_BATCH2_KILLS.json")
         if not os.path.exists(p):
             print("SKIP: STAGE1_BATCH2_KILLS.json absent (licensed data not on this host)")
             return
@@ -279,8 +299,15 @@ class TheArtifactIsReadableOnItsOwn(unittest.TestCase):
 
     def test_the_tier_clears_the_contract_floor_or_says_so(self):
         import json
-        from scripts.corrected_claims import fa
-        p = os.path.join(fa(), "STAGE1_BATCH2_KILLS.json")
+        # ROOT-TOLERANT. `fa()` RAISES where there is no licensed data root, and a CI runner
+        # has none -- so calling it turned a reported skip into an ERROR. The lazy-path rule
+        # applies at FUNCTION level and not only at import level, which is the twist this suite
+        # missed after I had already fixed the import-level version of it.
+        f = _fa_or_none()
+        if f is None:
+            print("SKIP: no licensed data root on this host")
+            return
+        p = os.path.join(f, "STAGE1_BATCH2_KILLS.json")
         if not os.path.exists(p):
             return
         with io.open(p, encoding="utf-8") as fh:

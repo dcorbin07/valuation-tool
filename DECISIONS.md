@@ -24,7 +24,28 @@ manager from Don's own words in chat.
   all stay exactly as they are.
 - **2026-10-06 — TIERED POOL** (stricter score hurdle for smaller companies, with and without a
   junk filter) is to be tested by r1 under a blind register, on the corrected full-universe
-  panel for 2009-2026 and the 1999-2008 five-theme proxy.
+  panel for 2009-2026 and the 1999-2008 five-theme proxy. (TIERED-POOL, 2026-10-07: both arms
+  failed on 2009-2026 on return and drawdown; the incumbent stays.)
+- **2026-10-07 — MOVE THE CANONICAL BACKTEST TO THE CORRECTED UNIVERSE AND RESTATE ONCE.** After
+  r1's full rebuild of the corrected panel, the canonical backtest moves to the corrected full raw
+  universe and the public pages (/proof, /methodology, the Index tab, the landing tiles) are
+  restated once from it — the DEPLOYED equal-weight book, never the CPCV-adopted one — including
+  the deeper Index drawdown and replacing the "not a survey of survivors" sentence. No interim
+  patch. The flat 1/7 weights stay: CPCV adopting a scheme does not change them (prove before
+  changing). The forward contract's frozen meter parameters are not touched.
+- **2026-10-08 — INTRADAY SIGNALS STAY ON GITHUB'S FREE SCHEDULER** (no paid Render cron). They
+  feed the Signals tab, alert emails and the live options record, which research shows lose to
+  random entry; afternoon-only delivery is accepted. The live check keeps reporting honestly.
+- **2026-10-08 — DIP DETECTOR'S 52-WEEK HIGH STAYS ON THE SPLIT- AND DIVIDEND-ADJUSTED BASIS**
+  (consistent with the V6/V6-B research and immune to the split trap), labelled on the page as a
+  drop that includes dividends.
+- **2026-10-08 — DEVELOP A PROFITABLE OPTIONS STRATEGY: "calls after a sharp drop in a strong,
+  liquid company" is authorised as a research program** — stock-level bounce first, the option
+  expression only if the bounce survives, then a forward paper book. Same discipline as all
+  research; no real trades.
+- **2026-10-07 — DIP DETECTOR: show banks, insurers, REITs and regulated utilities in their own
+  group, labelled "health not scored for this kind of company".** Never counted as healthy, never
+  silently excluded.
 - **2026-10-04 — PROVE BEFORE CHANGING.** No construction change to the Index until the
   alternative is tested on data it was not tuned on and Don has approved in chat. Alternatives
   stay built and switched off. The 2026-10-22 rebalance uses the incumbent construction.

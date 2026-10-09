@@ -29,7 +29,11 @@ Done — that creates the private repo and pushes `main` in one step.
    On The Steps `git_push.bat`.)
 
 ## After the first push
-- Day-to-day: `git add -A && git commit -m "…" && git push`
+- Day-to-day: **run `git_push.bat`.** Not `git add -A && git commit && git push` by hand —
+  that sequence pushes a commit made on top of whatever `main` was last time you looked, so
+  the moment an agent branch has landed in between, the push is rejected as a non-fast-forward
+  and the folder is left diverged. `git_push.bat` runs the tests, then commits, then fetches,
+  then replays your commits on top of GitHub, then pushes (item 43).
 - Before every commit, confirm no secrets snuck in: `git status` should never show
   `.env`. It won't — it's ignored — but check after adding new config files.
 - **Deploy hooks in:** Render's Blueprint (`render.yaml`) reads directly from this

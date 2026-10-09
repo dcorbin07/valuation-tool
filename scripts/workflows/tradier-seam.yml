@@ -1,0 +1,103 @@
+# Tradier daily-history seam measurement  —  MEASUREMENT ONLY, NOTHING IS ENABLED
+#
+# WHY THIS EXISTS AS A WORKFLOW AT ALL. Item 41(b) was asked to measure Tradier's daily history
+# the way item 40 measured FMP. It could not: this lane's token answers every
+# `GET /markets/history` with HTTP 401 `"Access Token not approved"` — an entitlement problem,
+# not a bad base and not a bad token (the lane already sends `TRADIER_ENV=live` to
+# api.tradier.com, so that hypothesis is refuted rather than assumed). The repository's
+# `TRADIER_TOKEN` secret is approved — `auto-scan.yml` uses it for the live Signals feed — and
+# a lane must never ask for or handle a token. So the measurement runs where the working token
+# already lives, and the lane never sees it.
+#
+# INSTALL:  double-click `install_workflows.bat`.
+# RUN:      GitHub → Actions → "Tradier seam (measure only)" → "Run workflow" → green button.
+#           One click. There is no schedule, so it never runs on its own.
+#
+# WHAT IT CAN AND CANNOT DO, because this is a token with real trading rights behind it:
+#   * `scripts/tradier_seam.py` contains exactly ONE outbound call shape — `requests.get` to
+#     `/markets/history` — and no POST, PUT, PATCH or DELETE anywhere. Market data is read-only
+#     by construction here, not by policy, and a test asserts the absence of every write verb.
+#   * THE TOKEN IS NEVER ECHOED. The script prints its LENGTH and never its value, scrubs it out
+#     of every error string it reports (`scrub()`), and the probe's own output is the only thing
+#     that reaches the log. `TRADIER_ENV: live` selects the market-data endpoint; the paper
+#     broker reads DIFFERENT config fields (`config.py:55-56`) and nothing on this path can
+#     place an order.
+#   * No `secrets` value is ever written into a file that is uploaded. The artifact is the
+#     measurement JSON, which carries prices and dates.
+#
+# `TRADIER_ENV: live` IS NOT OPTIONAL AND OMITTING IT WOULD BE A QUIET FAILURE, which
+# `auto-scan.yml` already learned once: `CONFIG.tradier_env` defaults to `"sandbox"`
+# (`config.py:53`), so the job would send an approved live token to sandbox.tradier.com, get a
+# 401, and report "Tradier has no coverage" when the truth was "we asked the wrong host".
+name: Tradier seam (measure only)
+
+on:
+  # DISPATCH ONLY, NO SCHEDULE. This is a one-off measurement, not a feed, and a cron here
+  # would spend the account's rate allowance every day to re-answer a settled question.
+  #
+  # AND NO INPUTS. The first cut declared a `names` input to cap the sample size, and
+  # `tradier_seam.py` HAS NO SUCH FLAG -- so the box would have appeared on the Run-workflow
+  # form, accepted a number and changed nothing. A control that does nothing is worse than no
+  # control, because it is believed. The sample is the one the FMP measurement stated (222
+  # names) and the pull takes under two minutes at Tradier's published allowance.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seam:
+    # Named explicitly even though there is only one trigger: the house rule in
+    # `tests/test_proposal_auto_scan_themes.py` is that a job says when it runs, and a job with
+    # no `if:` runs on every event the workflow accepts — which is how a future added trigger
+    # silently acquires a job nobody meant to give it.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install the two things it needs
+        run: python -m pip install --quiet requests
+
+      - name: Probe — does this token have market-data approval?
+        env:
+          TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
+          TRADIER_ENV: live
+        run: |
+          # Runs FIRST and on its own, so a 401 is reported as an entitlement answer rather
+          # than discovered three hundred requests into a pull. Prints the token's LENGTH only.
+          python scripts/tradier_seam.py --probe
+
+      - name: Pull the sample
+        env:
+          TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
+          TRADIER_ENV: live
+        run: |
+          python scripts/tradier_seam.py --pull --out tradier_seam_raw.json
+
+      - name: Analyse
+        # No token: the analysis reads the pulled file and makes no network call at all.
+        run: |
+          python scripts/tradier_seam.py --analyse --out tradier_seam_raw.json \
+            > tradier_seam_report.txt
+          cat tradier_seam_report.txt
+
+      - name: Upload the measurement
+        # `!cancelled()` rather than `always()`: a 401 or a partial pull is EVIDENCE and must
+        # reach the artifact, but a cancelled run has nothing to say. `always()` is banned in
+        # this repo's job conditions for a measured reason (it defeats `needs:`); this is a
+        # step-level condition and the narrower form is the honest one anyway.
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradier-seam
+          path: |
+            tradier_seam_raw.json
+            tradier_seam_report.txt
+          if-no-files-found: warn
+          retention-days: 14

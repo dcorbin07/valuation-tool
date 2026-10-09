@@ -32,7 +32,8 @@ import io
 
 
 def _parse(path: str):
-    src = io.open(path, encoding="utf-8").read()
+    with io.open(path, encoding="utf-8") as fh:          # closed, or a ResourceWarning rides
+        src = fh.read()                                  # into every suite that imports this
     return src, ast.parse(src)
 
 
@@ -82,3 +83,110 @@ def statement_source(path: str, anchor: str) -> str:
     if best is None:
         raise AssertionError("no statement containing %r in %s" % (anchor, path))
     return best
+
+
+def js_function_source(path: str, name: str) -> str:
+    """The source of `function name(...) { ... }`, bounded by its own BRACES.
+
+    THE SAME RULE ONE LANGUAGE OVER. `app.js` carries the Dip Detector's rendering, and guards
+    over it were the worst offenders in the census above -- `test_index_book_publish.py` read
+    4,000 characters from a landmark and went red the day a comment moved. A brace match is the
+    JS analogue of `ast.get_source_segment`: it bounds the function, so a comment inside it
+    cannot push a needle out and a change to the NEXT function cannot pull one in.
+
+    IT IS A MATCHER, NOT A PARSER, and it says so. Strings (single, double and template), `//`
+    and block comments are skipped so a brace inside one cannot unbalance the count; a REGEX
+    LITERAL containing an unmatched brace would still fool it, which is why the result is
+    CHECKED rather than trusted -- the segment must begin at the declaration, end at a closing
+    brace, and be shorter than the file. An unbalanced scan RAISES rather than returning the
+    remainder of the file, because the vacuous direction (a bound that is really the whole file)
+    makes every `assertIn` pass while bounding nothing.
+    """
+    with io.open(path, encoding="utf-8") as fh:
+        src = fh.read()
+    needle = "function %s(" % name
+    i = src.find(needle)
+    if i < 0:
+        raise AssertionError("no `function %s(` in %s" % (name, path))
+    j = src.find("{", i)
+    if j < 0:
+        raise AssertionError("no body for `function %s` in %s" % (name, path))
+
+    depth, k, n = 0, j, len(src)
+    while k < n:
+        c = src[k]
+        if c in "\"'`":                                    # a string literal
+            q, k = c, k + 1
+            while k < n and src[k] != q:
+                k += 2 if src[k] == "\\" else 1
+            k += 1
+            continue
+        if c == "/" and k + 1 < n and src[k + 1] == "/":   # line comment
+            k = src.find("\n", k)
+            if k < 0:
+                break
+            continue
+        if c == "/" and k + 1 < n and src[k + 1] == "*":   # block comment
+            k = src.find("*/", k)
+            if k < 0:
+                break
+            k += 2
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                seg = src[i:k + 1]
+                if (not seg.startswith(needle) or not seg.endswith("}")
+                        or len(seg) >= len(src)):
+                    raise AssertionError(
+                        "the bound for %r in %s is not a function body" % (name, path))
+                return seg
+        k += 1
+    raise AssertionError("braces never balanced for %r in %s" % (name, path))
+
+
+def code_only(segment: str, keep_strings: bool = False) -> str:
+    """`segment` with comments (and, by default, string literals) removed, so a guard sees CODE.
+
+    THE COMPANION DEFECT TO THE CHARACTER WINDOW, and the one this project has paid for most
+    often: a guard that bans a token fires against the CORRECT tree, because the comment
+    explaining the rule quotes the thing the rule forbids. `MA49`, `MB1` (three times in one
+    register), `MB15` and `I-2` are all this shape -- and the first cut of
+    `test_item38_health_not_scored.py` asserted that `dip.py` spells no regime name, against a
+    comment whose whole job is to say WHY it must not.
+
+    `tokenize` rather than a regex, because a `#` inside a string and a quote inside a comment
+    defeat the regex in opposite directions.
+
+    `keep_strings=True` STRIPS ONLY COMMENTS. Use it when the needle could legitimately appear
+    inside a string the guard must still see -- a dynamic
+    `importlib.import_module("scripts.whatever")` is a real reference, and stripping it would
+    make the ban blind to the one form that is hardest to spot by reading.
+
+    IT RAISES ON UNPARSEABLE INPUT rather than returning the segment unchanged. A stripper that
+    silently gives back prose makes the ban it feeds fire on prose again -- the defect,
+    restored. And one that returned `""` would make every ban PASS while seeing nothing, which
+    is worse, so a caller should also assert something it expects to SURVIVE.
+    """
+    import io as _io
+    import tokenize as _tok
+
+    # TOKENS ARE JOINED WITH A SPACE, and the first cut joined them with NOTHING. Two costs,
+    # one of each sign: a multi-token needle (`qual and not n_high`) became unmatchable, so the
+    # assertion could never pass; and adjacent tokens FUSE, so `a` followed by `b` reads as
+    # `ab` and a needle could match text that is not there. The false-positive direction is the
+    # one that matters -- it is a guard passing on the wrong evidence.
+    out, last_line = [], 1
+    try:
+        for tk in _tok.generate_tokens(_io.StringIO(segment).readline):
+            drop = (_tok.COMMENT,) if keep_strings else (_tok.COMMENT, _tok.STRING)
+            if tk.type in drop:
+                continue
+            out.append(" ")
+            out.append(tk.string)
+            last_line = tk.end[0]
+    except (_tok.TokenError, IndentationError) as e:
+        raise AssertionError("code_only could not tokenize the segment: %s" % e)
+    return " ".join("".join(out).split())

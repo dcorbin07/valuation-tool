@@ -10642,3 +10642,212 @@ refuses any branch touching `.github/`.**
 The verification above is therefore a **direct authenticated GET against the service** — which is
 the service's own response body, the standard the brief set — rather than the runner's log.
 `/admin/fleet-cycle` without `run=1` is the dry-run path and writes nothing.
+
+## 80. DIP-CALL step 1 — **THE NEWS ARM IS UNDERPOWERED BY CONSTRUCTION AND NO THRESHOLD FIXES IT. `K1` FIRES, THE PROGRAM STOPS, AND STEP 2 NEVER RUNS** (2026-10-08)
+
+**Register `PREREG_dipcall.md` committed ALONE and BLIND at `c5e0b31`** — markdown only, zero
+`.py`, 425 lines, a strict git ancestor of every measurement commit. **4 equity trials booked at
+`a984ec9` BEFORE any runner existed** (equity `N` 274 -> 278, `MA13`'s stamp and its second
+hurdle literal moved in the same commit). **ADOPTS NOTHING. NO OPTION WAS PRICED, NO FORWARD
+RETURN WAS EVER RELATED TO AN OUTCOME, AND NO TRADE WAS PLACED.** Executes Don's
+`DECISIONS.md` 2026-10-08 authorisation on the Frontier Scout's `PREREG_DRAFT_dipcall.md`
+(`9850768`) and its census (`6b338b5`). The draft was **ACCEPTED in substance and AMENDED in
+twelve places, every one before any outcome existed**; three of the twelve are tightenings and
+none relaxes a bar.
+
+* **THE VERDICT: `K1` FIRES ON THE GOVERNING POPULATION. The two NO-NEWS tier arms clear the
+  1,500-event floor comfortably — 2,326 early / 4,004 late at h21 — and the two NEWS arms cannot:
+  614 and 1,049.** Only **1,669** news events exist on the whole point-in-time $10B tier across
+  eleven years. §2g makes a kill program-level, so **the program stops at zero further trials**
+  and `scripts/dipcall_arm.py` **refuses by name** (verified: *"the kill pass RAN and FIRED on
+  K1_event_count"*, exit 1). **The 6 options trials were therefore NEVER booked**, which is
+  exactly what `A7`'s trial timing was written for.
+* **THE DECISIVE NUMBER IS REPRODUCED BY A SECOND CODE PATH, from the stored draws rather than
+  from the function that produced it (`RUN_RULES` rule 9 is why the draws exist). Rebuilding all
+  eight tier cells directly out of `DIPCALL_EVENTS.pkl` -- 81,298 persisted event rows, 9,614 of
+  them tier -- agrees on **8 of 8 exactly**: 616 / 1,053 / 2,377 / 4,024 at h5 and 614 / 1,049 /
+  2,326 / 4,004 at h21.** So the verdict does not rest on one implementation of the embargo and
+  horizon rules.
+* **AND THE FREE CENSUS THAT FOLLOWS IS THE PORTABLE FINDING: THE NEWS ARM IS NOT REACHABLE AT
+  *ANY* DEFENSIBLE THRESHOLD, WHICH REFUTES MY OWN FIRST GUESS.** I expected k = 2.0 to rescue
+  it. Measured, ZERO TRIALS, no forward return (`scripts/dipcall_k_census.py`, the
+  `S25`/`MB15`/`MB3`/`W-14` class): news-early reads **449 at k = 3.0, 619 at 2.5, 859 at 2.0 and
+  still only 1,246 at k = 1.5** — below the floor at every step — **while the median event-day
+  move decays from -4.98pp to -2.93pp, so by the time the count approaches the floor the "event"
+  is a 3% day and is not a shock at all.** The structural ceiling is measured and is the reason:
+  **earnings reactions are 2.97% of ALL scoreable tier name-days** (18,985 of 638,880) and **3.29%
+  of those on names with KNOWN coverage** -- two populations, and the gap is the 62
+  UNKNOWN-coverage names, which contribute zero news sessions by construction. Either way it
+  is a share no choice of k can move. **A news/no-news event split on a ~440-name tier cannot carry a
+  both-halves verdict at this floor, and that binds any successor.**
+* **THE BAR WAS NOT RELAXED, AND THE TEMPTING RELAXATION IS NAMED SO IT IS NOT QUIETLY TAKEN
+  LATER.** `A5` gives each arm its own verdict, so *"read `K1` per-arm and advance the no-news
+  arms"* is available on the page — and taking it **after** watching the news arm come in at 614
+  is precisely what `W-28` forbids and what §6 void condition 4 forbids. The registered wording
+  is *"in EACH news arm in EACH half"*, and it is honoured as written. A successor wanting the
+  no-news-only design must **pre-register it**, carry its own BH burden, and inherit this
+  program's priors.
+* **THE KILL IS A PROPERTY OF THE DATA AND NOT OF MY INSTRUMENT, VALIDATED THREE WAYS BEFORE IT
+  WAS ACCEPTED.** (a) code-22 dates per tier ticker-year read **median 4.00, mean 4.33** — four
+  quarterly announcements, independently reproducing `O6`/`O7`'s measured 3.96/4.14 on megacaps
+  and correcting `bulk.py`'s ~2.83 warning for this tier. (b) News sessions are **3.29%** of
+  scoreable tier sessions, exactly a 2-session window on ~4 announcements, and events are
+  **6.28x over-represented** on them — the right direction and a sensible size. (c) **The
+  decisive one: of the twelve most extreme tier drops, NINE are caught as news at a session gap
+  of exactly 0 or 1** — META 2018-07-26 (the -19% post-earnings crash, gap 1, i.e. the reaction
+  the session after the announcement), BKNG, PANW, ULTA, ADSK, MHK, KR, WU, GMCR. **VOD reads
+  `unknown`, which is `A1b` working**: it is a UK filer with no code-22 coverage, and a filter
+  folding that into "no news" would fail open on it.
+* **THE EVENT IS NOT A VOLATILITY SORT, AND THE GRADIENT RUNS THE OPPOSITE WAY TO THE ONE `A3`
+  BARS.** `K4` passes on both forms — top/bottom vol-quintile event-rate ratio **0.478** against
+  a 3.0x bar, mean per-date |rho| **0.0713** against 0.30 — but the profile is **monotonically
+  DECREASING in trailing volatility** (0.0202 -> 0.0097), i.e. a -2.5 sigma day is *more* likely
+  in a *quiet* name. **The mechanism is visible in the magnitudes and it matters for Don's
+  framing: the median event-day move runs -2.98pp in the lowest volatility quintile against
+  -7.43pp in the highest.** A low-volatility name's sigma is small, so a modest percentage move
+  is a large z. **The one-sided bar is honoured as registered** — the kill guards against *"this
+  is just a volatile name"*, which is a TOP-heavy gradient — **and the inverse gradient is
+  reported rather than killed, with the magnitude column that makes the trade visible.** A
+  successor should ask whether a 3% day in a staple is the event Don meant.
+* **`A12` COSTS 35% OF THE EVENTS AND IT IS THE AMENDMENT THAT DECIDED THE ITEM.** The census's
+  **14,727** events are on names *"ever `market_cap >= $10B` on a build-quadrant date"* — which
+  counts a name's 2009 events because it reached $10B in 2019, selection on a FUTURE property and
+  forbidden by the draft's own §6. Point-in-time, the tier yields **9,614**. **Expectation 1
+  named this as the floor most at risk and was right.** Two controls prove the tier logic is the
+  census's object: **3,545 build-quadrant half-0 names and 459 names ever in the tier, both
+  reproduced exactly.**
+* **`K3` CORROBORATES THE DRAFT'S §3b REASONING ON ITS OWN TERMS.** `R3`'s rule applied — the
+  design effect is scored against its OWN shuffled null, because *"a raw design effect is not
+  evidence of clustering"* — and the only arm where clustering is MEASURABLE is **`tier|no_news`
+  at deff 2.1009 against a null p95 of 1.1574**; `tier|news` reads 1.1037 against 1.1313 and is
+  not measurable. **That is exactly what the draft predicted**: an earnings-dated drop is
+  idiosyncratic and spread across the calendar, a no-news drop is far more likely to be
+  market-driven and therefore clustered. **Reported as a diagnostic and never as a gate**, since
+  `R3`'s whole lesson is that the figure is not self-interpreting, and `A2` makes the inference
+  cluster-robust on BOTH event date and ticker rather than applying a haircut.
+* **`A10` EXECUTED: THE DRAFT'S 20pp ANCHOR IS 1.7x TOO LARGE, SO POWER WAS BETTER THAN THE
+  DRAFT THOUGHT AND IT DID NOT MATTER.** Measured on the arm's own rows, the horizon dispersion
+  is **3.29pp at h5, 6.74pp at h21, 11.67pp at h63 and 16.50pp at h126** against the draft's
+  5.63 / 11.55 / 20.00 / 28.28. At the derived hurdle (**3.3548833**, equity `N` = 278) the
+  +0.67pp economic floor needs **424 events at h5 and 1,779 at h21**. **The honest direction of
+  this estimate's error is stated rather than buried: it is a trailing, pre-outcome figure, and
+  volatility is clustered, so post-event dispersion EXCEEDS it — which understates the required
+  n and so OVERSTATES power. The unsafe direction, labelled.** The verdict's MDE would have come
+  from the arm's own realised sd (`MB8`), and the arm never ran.
+* **A CORRECTION AGAINST MY OWN REGISTER, MADE BY MEASUREMENT AND RUNNING AGAINST MY OWN DESIGN
+  CHOICE. §1 demotes the 63- and 126-session horizons to no-verdict sensitivities on the stated
+  ground that *"power dies there"*, and cites the draft's figure that `V6`'s banked +0.5203pp
+  63-day dip effect needs ~28,097 events and is *"NOT REACHABLE at any k"*. BOTH FIGURES REST ON
+  THE DRAFT'S 20pp ANCHOR, AND THE ANCHOR IS 1.71x TOO LARGE.** Re-derived at the measured
+  11.667pp, the same effect needs **8,848** events against the draft's **26,001** at the anchor --
+  a **2.94x** reduction at every horizon, since the whole table scales with one sd -- and the
+  point-in-time tier carries **9,614**. **So POOLED AND UNSPLIT the 63-session horizon is marginally
+  reachable (1.09x) rather than 3x out of reach, and the register's stated reason for demoting it
+  is partly wrong.** Two things bound the correction and both are stated: it is **marginal**, and
+  the register's own design splits those 9,614 across two news arms and two halves, which destroys
+  it. **AND IT IS NOT PROMOTED** -- 63 and 126 were declared no-verdict BEFORE any outcome existed
+  and §6 void conditions 1 and 5 forbid promoting them now. **The portable part is for the successor:
+  this panel's daily dispersion is materially smaller than the draft assumed, so a long-horizon dip
+  design is better powered than the record currently says.**
+* **THE TIER IS NOT THIN AND THAT IS WHY THE KILL IS NOT A SIZE ARTEFACT.** Charter Stage 1b's
+  per-date tier count ships: **min 106, median 255, max 342 over 2,710 dates, and ZERO dates
+  below `CONTRACT_MIN_POSITIONS` = 50.** `K2` passes at **0.8584** coverage against the 0.70
+  floor, with the **62 UNKNOWN tier names listed by name** in the artifact.
+* **A DEFECT IN MY OWN INSTRUMENT, CAUGHT BY MY OWN GUARD ON ITS FIRST RUN.** The `K5` power
+  table's effect grid retyped **0.67** — the pre-committed economic floor — as a literal, which
+  is `MA5`'s exact defect: a second copy of a pre-committed bar is how a successor inherits a
+  pre-registration without writing one. The shipped AST guard
+  (`test_no_script_retypes_a_bar_as_a_literal`) went red against my own code, the constant is now
+  **imported**, and the repair is **proved inert rather than asserted** by re-running the whole
+  pass and diffing the artifact leaf by leaf.
+* **A THIRD DEFECT OF MY OWN, AND CI FOUND IT BECAUSE MY LOCAL GATE COULD NOT. The 261-suite
+  local gate passed 261 of 261 -- and it passed PRECISELY BECAUSE THIS MACHINE HOLDS THE LICENSED
+  DATA.** `data/` is gitignored, so on a runner there is no populated root at all, `data_root()`
+  RAISED, and **six data-dependent tests in my own suite ABORTED instead of skipping loudly** --
+  so the land gate refused the branch and `main` was correctly left untouched. This is the
+  guards-are-asymmetric-in-CI family in its FAIL-HARD direction: the usual form is a guard that
+  passes while checking nothing, and this is the same root cause pointing the other way.
+  **Repaired without weakening the refusal that matters**: `data_root()` still RAISES by default,
+  because a SCRIPT that cannot find its data must refuse rather than read nothing (`E-5`), and a
+  new `data_root(required=False)` / `have_data()` lets a TEST ask without committing. **Verified
+  by REPRODUCING the CI condition locally rather than by reasoning about it** -- with the root
+  stubbed absent the suite runs 34, errors 0, failures 0, **6 LOUD SKIPS**, and the 28 that still
+  run are the load-bearing ones (look-ahead, split trap, news window, point-in-time tier, the
+  gate's refusal, the bar-retyping guard, the register's ancestry).
+* **A SECOND DEFECT OF MY OWN, DECLARED NOT HIDDEN, AND IT RUNS THE SAFE WAY.** The kill pass
+  required the horizon to end inside the name's OWN surviving series, which silently drops the
+  final events of a DELISTING name — the survivor filtering §2e forbids. The arm was written to
+  use a GLOBAL session calendar with `A11`'s terminal-versus-administrative split instead, so its
+  event set is a strict SUPERSET. **`K1`'s floor was therefore measured on a conservative count
+  and no bar was relaxed** (the embargo and horizon rules cost only 69 and 34 tier events at
+  h21). The arm never ran, so nothing rests on it.
+* **A LIMITATION ON THE CHAN/SAVOR FRAMING, STATED BECAUSE IT BOUNDS WHAT THE SPLIT MEANS.** `A1`
+  defines news as **code 22 only**, so the "no-news" arm is really **"not earnings-dated"** and
+  contains genuine non-earnings news. **Measured instance: `ABBV` 2019-06-25, the Allergan
+  acquisition announcement, a -16.1 sigma day classified `no_news`.** Chan (2003) is about
+  no-information shocks; this arm is not that, and a successor testing reversal-versus-drift must
+  widen the news definition or say so. **AND THE WIDENING HAS A TENSION THAT MUST BE PRICED
+  FIRST: it grows the news arm ONLY by shrinking the no-news arm that currently clears, and
+  `S17`/`SC-2` measured code 91 appearing ~95 times per ticker, so an over-wide definition makes
+  nearly every session news and destroys the split from the other side. THIS ITEM DID NOT MEASURE
+  THAT, DELIBERATELY** -- searching code sets for one that passes, after the registered rule
+  failed, is the same shape as threshold-shopping, and one such census (the k-census) was already
+  enough. A successor pre-commits its code set and shows BOTH arms reachable at it.
+* **EXPECTATIONS, SCORED HONESTLY. 1 WRONG, 1 SPLIT, 4 UNSCORABLE.** (1) *"No kill fires"* was
+  registered at **60/40 and is WRONG** — and the register named the count floor as the one most
+  at risk, for the right reason (`A12`). (2) *"The design effect IS measurable"* at 70/30 is
+  **SPLIT**: measurable on `no_news`, not on `news`. (3)-(6) are **UNSCORABLE because the arm
+  never ran** — no abnormal return was ever computed, so the two definitions were never compared,
+  neither arm was ever scored, and no half ever flipped sign. **The draft's own prior put step 1
+  at 25-30% and step 1-and-2 at 10-15%; neither is scored, because the program died before the
+  hypothesis was tested.**
+* **WHAT THIS DOES NOT SAY, and it is the only reading that matters: IT IS NOT A FINDING THAT
+  STOCKS DO NOT BOUNCE AFTER A SHARP DROP.** The hypothesis is **UNTESTED, not rejected.** No
+  abnormal return was computed anywhere in this item. What is established is narrower and is
+  about the DESIGN: on the $10B tier, the news/no-news split the reversal literature requires
+  cannot be populated to a both-halves standard at any threshold that keeps the event a shock.
+  **`V6`, `V6-B`, `V6-OPT`, `DC-1`, `O17C4` and `R2` are untouched and none is re-opened.**
+  **The check quadrant (2020-2026 x half 1) was never opened, so 2020 and 2022 — the two most
+  interesting dip years — remain available to a successor**, which is the main asset this item
+  leaves behind. The 1999-2008 proxy and the 1972-1998 WRDS era were not read.
+* **NOT DONE, named so it is not mistaken for done:** no arm, no abnormal return, no option
+  priced, no chain coverage censused (step 2 never reached §3a), no forward paper book, no IV
+  decomposition, no random-day control, no shares comparison, and no sensitivity cell promoted.
+  The **4 equity trials are kept** (`MA6`/`E-1`: overstating `N` is the safe direction, and
+  un-booking after seeing a kill fire is the shape this record warns against hardest).
+  **AND THE UN-RUN ARM CARRIES TWO CAUTIONS IN ITS OWN DOCSTRING, because an un-run script's
+  defects are invisible: its SCORING PATH has never executed against the panel (only its gate and
+  helpers are under test), so a successor's first run is an instrument build and not a
+  measurement; and its permutation pool is built in Python dicts of lists, which is fine on the
+  ~639k-row tier and wants vectorising before anyone points it at the 6.2M-row full universe.**
+  **34 tests: 34 pass with the data present, and 28 pass with 6 LOUD SKIPS where it is absent
+  (CI) -- both figures, because quoting only the first is what let the branch fail its own land
+  gate once.** `valuation/studies/dipcall.py`, `scripts/dipcall_kills.py`,
+  `scripts/dipcall_arm.py` (shipped complete and **never run**), `scripts/dipcall_k_census.py`;
+  `data/free_analysis/DIPCALL_KILLS.json`, `DIPCALL_K_CENSUS.json`, `DIPCALL_EVENTS.pkl`.
+
+### BUGS FOUND — DIP-CALL (2026-10-08)
+
+1. **`AEHL`'s `market_cap` IN THE CORRECTED PANEL READS $1.131 TRILLION on 2010-12-27**, between a
+   **$54.2M** quarter (2010-06-28) and a **$269.7M** one (2014-03-31), and it stays in the
+   hundreds of billions for fourteen quarters. A corrupt cap injects a micro-cap into a tier whose
+   entire purpose is *"an extremely liquid, rock-solid company"*. **Measured exposure: exactly ONE
+   name of the 459 ever in the tier**, by a `>20x round-trip` detector, so it cannot have driven
+   anything here. **NOT REPAIRED** — `data/free_analysis/UNIVERSE_BIAS_PANEL_full.pkl` is r1's
+   file and the registered rule is the panel's `market_cap` as it stands; a cap-sanity exclusion
+   was declared as a **sensitivity carrying no verdict** before any outcome existed.
+   **r1's / UNIVERSE-BIAS's lane.**
+2. **`stable_key_half` — `X1`'s published ticker split — NOW EXISTS IN THREE PLACES**:
+   `scripts/dipcall_census.py:50`, `scripts/r4_x1_accounting_universe.py:148` and
+   `valuation/studies/dipcall.py`. The first two pre-date this item. `MA5`'s lesson is that a
+   second copy of one definition is how a bar freezes. **Mitigated, not fixed**: the suite pins
+   this lane's copy against `r4`'s on eight tickers and against the census's measured 3,545
+   half-0 count, so the three cannot diverge silently. **The right fix is one definition in
+   `valuation/edge/`, which touches other lanes' files and is not taken here.**
+3. **`bulk.EARNINGS_CODES`'s own warning is stale for this population, in the favourable
+   direction.** `valuation/edge/bulk.py:278` cautions that *"code 22 appears ~2.83 times per
+   ticker per year"*. Measured on 3,290 tier ticker-years, 2009-2019: **median 4.00, mean 4.33,
+   p10 4, p90 5** — four quarterly announcements, reproducing `O6`/`O7`'s independently measured
+   3.96/4.14 on megacaps. The ~2.83 is a whole-universe figure dragged down by thin names.
+   **Reported, not edited** — it is the data lane's comment and the figure it quotes is not wrong
+   about the universe it was measured on.

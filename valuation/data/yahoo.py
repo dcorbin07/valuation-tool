@@ -335,9 +335,35 @@ def fetch(ticker: str) -> Optional[CompanyData]:
     cd.analyst_rev_growth_next = _analyst_revenue_growth(t, info)
 
     # ---- price history / momentum (best-effort) ----
+    #
+    # **"BEST-EFFORT" USED TO MEAN "SILENTLY ABSENT", AND IT COST A WHOLE SHIPPED SCREEN.**
+    # This block sets `price_52w_high`, `price_52w_low`, `ma_200`, `ret_6m`, `ret_1m` and
+    # `realized_vol`, and it sat under a bare `except Exception: pass`. In the 2026-10-07 hot
+    # scan it failed for **218 of 218** names the Dip Detector valued -- and the run reported
+    # `failed: 0`, because the FUNDAMENTALS are gap-filled from EDGAR (which is not blocked),
+    # so every valuation still succeeded. The screen then ran entirely on item 36's scan-ratio
+    # fallback, and without that fallback it would have returned zero rows while looking
+    # healthy. Item 36's counter is the only reason anybody noticed.
+    #
+    # `auto_adjust` IS NOW STATED, not inherited. `prices.py` already carries the reason --
+    # *"inheriting a vendor library's default is how a convention silently changes between
+    # releases"* -- and it bites harder here, because this high is divided into `cd.price`,
+    # which is an AS-TRADED quote. Measured at yfinance 1.6.0 on 2026-10-08, the inherited
+    # default is ADJUSTED and the as-traded high sits **+3.15% above** it for O, +0.60% for KO,
+    # +0.12% for GOOGL. **THE VALUE IS DELIBERATELY UNCHANGED** (`True` is what the default
+    # already gave), because switching the basis would move the published drawdown of every
+    # name on a live screen -- a construction change, and Don's call. What changes is that a
+    # yfinance release can no longer move it without a diff.
+    _hist_reason = None
     try:
-        hist = t.history(period="1y", interval="1d")
-        if hist is not None and not hist.empty:
+        hist = t.history(period="1y", interval="1d", auto_adjust=True)
+        if hist is None or hist.empty:
+            _hist_reason = "yfinance returned an empty frame"
+        else:
+            closes = hist["Close"].dropna()
+            if len(closes) == 0:
+                _hist_reason = "yfinance frame had no usable closes"
+        if _hist_reason is None:
             closes = hist["Close"].dropna()
             if len(closes) > 0:
                 last = float(closes.iloc[-1])
@@ -345,6 +371,8 @@ def fetch(ticker: str) -> Optional[CompanyData]:
                     cd.price = last
                 cd.price_52w_high = float(closes.max())
                 cd.price_52w_low = float(closes.min())
+                cd.price_52w_high_source = "yahoo"
+                cd.price_52w_high_basis = "adjusted"
                 if len(closes) >= 200:
                     cd.ma_200 = float(closes.iloc[-200:].mean())
                 else:
@@ -357,10 +385,59 @@ def fetch(ticker: str) -> Optional[CompanyData]:
                     rets = closes.pct_change().dropna()
                     if len(rets) > 20:
                         cd.realized_vol = float(rets.std() * (252 ** 0.5))
-                except Exception:
+                except Exception:                                        # noqa: BLE001
                     pass
-    except Exception:
-        pass
+    except Exception as e:                                               # noqa: BLE001
+        # STILL NON-FATAL -- a missing price history must not cost the whole valuation, which is
+        # what "best-effort" was right about. What it was wrong about is being SILENT.
+        _hist_reason = "%s: %s" % (type(e).__name__, str(e)[:140])
+
+    # THE FALLBACK, THROUGH THE PROJECT'S OWN MULTI-VENDOR PRICE PATH RATHER THAN A SECOND
+    # IMPLEMENTATION. `screener/prices.py` already does yfinance -> Stooq -> FMP with
+    # throttle classification, staleness refusal and a vendor LABEL, and in the very scan that
+    # lost every engine high it still priced 114 names -- so the data was reachable and this
+    # module simply had no second door. Writing a retry loop here instead would be audit `B7`'s
+    # shape: a second definition of "get me a price history", diverging from the one that is
+    # actually maintained.
+    #
+    # LAZY IMPORT, following `data/sector_resolve.py`, which already reaches into
+    # `..screener.store` the same way. `prices.py` imports nothing from `valuation/`, so there
+    # is no cycle.
+    #
+    # THE BASIS IS READ FROM THE VENDOR, NEVER ASSUMED: Stooq serves an AS-TRADED close and
+    # yfinance an adjusted one, so a fallback that assumed one basis would silently mix them --
+    # the defect item 36 named and this one measured at 3.15% on a REIT.
+    if cd.price_52w_high is None:
+        cd.price_52w_high_reason = _hist_reason or "no 52-week high from any source"
+        try:
+            from ..screener import prices as _prices
+            df = _prices.get_history_df(ticker, days=400)
+            if df is not None and not df.empty and "Close" in df.columns:
+                closes = df["Close"].dropna()
+                # The LAST 252 sessions, so a 400-day pull does not report an 18-month high
+                # under a 52-week name. The window is the claim.
+                closes = closes.iloc[-252:]
+                if len(closes) > 0:
+                    cd.price_52w_high = float(closes.max())
+                    cd.price_52w_low = float(closes.min())
+                    cd.price_52w_high_source = "prices:%s" % (
+                        _prices.source_of(df) or "unknown")
+                    # `VENDOR_ADJUSTMENT` has exactly two values -- `auto_adjusted` for
+                    # yfinance and `unverified` for Stooq and FMP -- and `unverified` is a
+                    # REAL state that module refuses to round to a guess. So only the one
+                    # known value is translated and everything else travels VERBATIM; the
+                    # first cut of this mapped a third value (`as_traded`) that cannot occur,
+                    # i.e. a branch that could never fire, which is the vacuous direction.
+                    adj = _prices.adjustment_of(df)
+                    cd.price_52w_high_basis = (
+                        "adjusted" if adj == "auto_adjusted" else (adj or "unknown"))
+                    cd.quality_notes.append(
+                        "52-week high from %s (%s basis) after the Yahoo history failed: %s"
+                        % (cd.price_52w_high_source, cd.price_52w_high_basis,
+                           cd.price_52w_high_reason))
+        except Exception as e:                                           # noqa: BLE001
+            cd.price_52w_high_reason = "%s; fallback also failed (%s)" % (
+                cd.price_52w_high_reason, type(e).__name__)
 
     # ---- currency normalization (ADRs / foreign listings) ----
     # Statements come in the reporting currency (financialCurrency), but price and

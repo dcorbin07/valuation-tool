@@ -189,8 +189,15 @@ class TheDipChecks(unittest.TestCase):
     The property now is an IDENTITY, which a disclosure cannot satisfy:
 
         n_qualified_on_depth == rows + n_unmeasured + rejected_health + rejected_shallow
+                                + n_health_not_scored
 
     with `capped` zero.
+
+    THE FIFTH TERM IS DON'S THIRD GROUP (DECISIONS.md, 2026-10-07) and it is in the identity for
+    the same reason the others are: a name that leaves `rejected_health` for a new bucket and is
+    not counted anywhere looks like a SMALLER rejection count, i.e. like an improvement. These
+    fixtures went red when the term was added, which is the check doing its job -- a payload it
+    cannot verify is reported as unverifiable rather than passed.
     """
 
     def _run(self, payload):
@@ -212,28 +219,36 @@ class TheDipChecks(unittest.TestCase):
         # `n_unmeasured` is 0 HERE ON PURPOSE: a separate check fails any unmeasured name,
         # so a fixture carrying some would fail the suite for a reason that is not the subject.
         # The identity's tolerance of unmeasured names is pinned by its own test below.
-        rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 204, "n_measured": 204,
-                         "capped": 0, "n_unmeasured": 0, "rejected_health": 183,
+        rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 204, "n_high_from_engine": 204, "n_measured": 204,
+                         "capped": 0, "n_unmeasured": 0, "rejected_health": 180,
                          "rejected_shallow": 17, "rejected_checks": 38,
+                         # NON-ZERO ON PURPOSE. A fixture carrying `0` here would satisfy the
+                         # identity whether or not the check reads the term at all, which is
+                         # the vacuous direction: the test would pass against a check that had
+                         # dropped the new bucket. 204 = 4 + 0 + 180 + 17 + 3.
+                         "n_health_not_scored": 3, "n_health_not_scored_shallow": 1,
                          "dip_source": "precomputed",
                          "rows": [{"t": i} for i in range(4)]})
         self.assertEqual(rep.failed, 0, rep.lines)
         self.assertIn("204 qualifying = 4 rows", self._line(rep))
+        self.assertIn("3 health-not-scored", self._line(rep))
 
     def test_THE_LIVE_BROKEN_STATE_FAILS(self):
         """The exact payload the old check passed on. This is the regression."""
-        rep = self._run({"n_eligible": 240, "n_qualified_on_depth": 218, "n_measured": 12,
+        rep = self._run({"n_eligible": 240, "n_qualified_on_depth": 218, "n_high_from_engine": 218, "n_measured": 12,
                          "capped": 206, "n_unmeasured": 0, "rejected_health": 8,
-                         "rejected_shallow": 2, "rejected_checks": 4, "dip_source": "live",
+                         "rejected_shallow": 2, "rejected_checks": 4, "n_health_not_scored": 0,
+                         "dip_source": "live",
                          "rows": [{"t": 1}, {"t": 2}]})
         self.assertEqual(rep.failed, 1, rep.lines)
         self.assertIn("CAPPED", self._line(rep))
 
     def test_counts_that_do_not_add_up_fail(self):
         """The identity is arithmetic, so a screen that loses names somewhere else is caught."""
-        rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 204, "n_measured": 204,
+        rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 204, "n_high_from_engine": 204, "n_measured": 204,
                          "capped": 0, "n_unmeasured": 0, "rejected_health": 100,
-                         "rejected_shallow": 0, "rejected_checks": 0, "dip_source": "precomputed",
+                         "rejected_shallow": 0, "rejected_checks": 0, "n_health_not_scored": 0,
+                         "dip_source": "precomputed",
                          "rows": [{"t": 1}]})
         self.assertEqual(rep.failed, 1, rep.lines)
         self.assertIn("do not add up", self._line(rep))
@@ -241,7 +256,7 @@ class TheDipChecks(unittest.TestCase):
     def test_a_payload_missing_a_counter_cannot_be_checked_and_says_so(self):
         """Absent is not zero. Treating a missing counter as 0 would make the identity hold by
         accident on a payload that cannot support it."""
-        rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 204, "n_measured": 204,
+        rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 204, "n_high_from_engine": 204, "n_measured": 204,
                          "capped": 0, "rejected_health": 1, "rows": [{"t": 1}]})
         # TWO checks fail here and that is right: the identity cannot be computed, AND the
         # unmeasured counter is absent. Asserting a TOTAL of 1 would have made this test depend
@@ -253,9 +268,10 @@ class TheDipChecks(unittest.TestCase):
         """It is the ROW-LEVEL site -- rows the snapshot refused, counted while the eligible set
         is formed and before anything qualifies on depth. The task's wording includes it; adding
         it would make the identity wrong by exactly its value and fail a correct screen."""
-        rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 10, "n_measured": 10,
+        rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 10, "n_high_from_engine": 10, "n_measured": 10,
                          "capped": 0, "n_unmeasured": 0, "rejected_health": 6,
                          "rejected_shallow": 2, "rejected_checks": 999,
+                         "n_health_not_scored": 0,
                          "dip_source": "precomputed", "rows": [{"t": 1}, {"t": 2}]})
         self.assertEqual(rep.failed, 0, rep.lines)
         self.assertIn("999 rejected earlier", self._line(rep))
@@ -263,9 +279,10 @@ class TheDipChecks(unittest.TestCase):
     def test_zero_rows_still_fails_its_own_check(self):
         """Separate from the identity: a screen can serve every qualifier and still show
         nothing, and that is a different failure the page must not hide."""
-        rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 204, "n_measured": 204,
+        rep = self._run({"n_eligible": 242, "n_qualified_on_depth": 204, "n_high_from_engine": 204, "n_measured": 204,
                          "capped": 0, "n_unmeasured": 0, "rejected_health": 204,
                          "rejected_shallow": 0, "rejected_checks": 0,
+                         "n_health_not_scored": 0,
                          "dip_source": "precomputed", "rows": []})
         self.assertTrue(any("FAIL" in ln and "returns rows" in ln for ln in rep.lines),
                         rep.lines)
@@ -277,9 +294,10 @@ class TheDipChecks(unittest.TestCase):
         2026-10-06 scan carry no drawdown, 59 of them the names whose snapshot has no
         `high_prox` either. Demanding zero demands the upstream feed be complete.
         """
-        rep = self._run({"n_eligible": 10, "n_qualified_on_depth": 10, "n_measured": 10,
+        rep = self._run({"n_eligible": 10, "n_qualified_on_depth": 10, "n_high_from_engine": 10, "n_measured": 10,
                          "capped": 0, "n_unmeasured": 3, "rejected_health": 0,
                          "rejected_shallow": 0, "rejected_checks": 0,
+                         "n_health_not_scored": 0,
                          "dip_source": "precomputed", "rows": [{"t": i} for i in range(7)]})
         line = self._unmeasured_line(rep)
         self.assertIn("PASS", line)
@@ -291,9 +309,10 @@ class TheDipChecks(unittest.TestCase):
     def test_EVERYTHING_unmeasured_still_FAILS(self):
         """The partial-wiring failure the zero-demand was really for: 229 names once raised the
         same error and each was counted 'unmeasured', which read as a data gap."""
-        rep = self._run({"n_eligible": 10, "n_qualified_on_depth": 10, "n_measured": 10,
+        rep = self._run({"n_eligible": 10, "n_qualified_on_depth": 10, "n_high_from_engine": 10, "n_measured": 10,
                          "capped": 0, "n_unmeasured": 10, "rejected_health": 0,
                          "rejected_shallow": 0, "rejected_checks": 0,
+                         "n_health_not_scored": 0,
                          "dip_source": "precomputed", "rows": []})
         line = self._unmeasured_line(rep)
         self.assertIn("FAIL", line)
@@ -302,11 +321,162 @@ class TheDipChecks(unittest.TestCase):
     def test_an_ABSENT_unmeasured_counter_fails(self):
         """Absent is not zero: without it an unmeasured name cannot be told from a name that is
         not in a drawdown, which is the whole distinction."""
-        rep = self._run({"n_eligible": 10, "n_qualified_on_depth": 10, "n_measured": 10,
+        rep = self._run({"n_eligible": 10, "n_qualified_on_depth": 10, "n_high_from_engine": 10, "n_measured": 10,
                          "capped": 0, "rejected_health": 3, "rejected_shallow": 0,
-                         "rejected_checks": 0, "dip_source": "precomputed",
+                         "rejected_checks": 0, "n_health_not_scored": 0,
+                         "dip_source": "precomputed",
                          "rows": [{"t": 1}]})
         self.assertTrue(any("FAIL" in ln and "unmeasured" in ln for ln in rep.lines), rep.lines)
+
+
+class TheEngineMustHaveAPulse(unittest.TestCase):
+    """ITEM 39 -- a dead primary must not be survivable in silence.
+
+    On 2026-10-07 the engine's 52-week high came back empty for all 218 names the screen valued,
+    and EVERY check in this file passed: the identity closed, `capped` was 0, rows were served.
+    Item 36's scan-ratio fallback was carrying the whole screen -- correctly, which is why the
+    page kept working, and invisibly, which is why nobody noticed for a day.
+
+    **A rescue that hides what it rescued from is how a one-vendor dependency becomes
+    permanent.**
+    """
+
+    def _run(self, payload):
+        rep = LC.Report()
+        with _Net({("GET", "/api/dip"): _j(payload)}):
+            LC.check_dip("https://x", rep)
+        return rep
+
+    def _line(self, rep):
+        return [ln for ln in rep.lines if "52-week-high source" in ln][0]
+
+    BASE = {"n_eligible": 50, "n_qualified_on_depth": 20, "n_measured": 20, "capped": 0,
+            "n_unmeasured": 0, "rejected_health": 10, "rejected_shallow": 4,
+            "rejected_checks": 0, "n_health_not_scored": 4,
+            "n_health_not_scored_shallow": 2, "n_high_from_engine": 18,
+            "high_by_source": {"yahoo": 18}, "high_by_basis": {"adjusted": 18},
+            "dip_source": "precomputed", "rows": [{"t": 1}, {"t": 2}]}
+
+    def test_a_live_primary_passes_and_names_its_source_and_basis(self):
+        rep = self._run(dict(self.BASE))
+        line = self._line(rep)
+        self.assertIn("PASS", line)
+        self.assertIn("18 of 20", line)
+        self.assertIn("yahoo", line)
+        self.assertIn("adjusted", line)
+
+    def test_ZERO_while_names_qualify_FAILS(self):
+        """THE 2026-10-07 STATE, which every other check in this file passed on."""
+        p = dict(self.BASE)
+        p["n_high_from_engine"] = 0
+        p["high_by_source"] = {}
+        p["high_reasons"] = {"HTTPError: HTTP Error 401: Invalid Crumb": 218}
+        rep = self._run(p)
+        line = self._line(rep)
+        self.assertIn("FAIL", line)
+        self.assertIn("priced NO history", line)
+        # The REASON travels, or the next reader is back in the Action log.
+        self.assertIn("Invalid Crumb", line)
+
+    def test_ZERO_with_NOTHING_qualifying_does_not_fail(self):
+        """No qualifiers means nothing was asked of the engine, which is not a dead primary.
+
+        Without this the check would fire on a quiet day -- a closed market, an empty eligible
+        set -- and a check that cries wolf is one that gets switched off (`MA21`).
+        """
+        p = dict(self.BASE)
+        p.update({"n_qualified_on_depth": 0, "n_high_from_engine": 0, "n_measured": 0,
+                  "rejected_health": 0, "rejected_shallow": 0, "n_health_not_scored": 0,
+                  "rows": []})
+        rep = self._run(p)
+        self.assertIn("PASS", self._line(rep))
+
+    def test_an_ABSENT_counter_cannot_be_checked_and_says_so(self):
+        """Absent is not zero, and it is not 'fine' either.
+
+        Reading a missing counter as 0 would fail every deploy predating item 39; reading it as
+        healthy would reinstate exactly the blindness this check exists to remove. So it is
+        reported as uncheckable -- the same rule the identity above follows.
+        """
+        p = dict(self.BASE)
+        del p["n_high_from_engine"]
+        rep = self._run(p)
+        line = self._line(rep)
+        self.assertIn("FAIL", line)
+        self.assertIn("cannot be detected", line)
+
+    def test_a_FALLBACK_source_still_passes_but_is_NAMED(self):
+        """The fallback working is not a failure -- it is a different fact, and it is reported.
+
+        `prices:stooq` serves an `unverified` basis, and the high is divided into an as-traded
+        price, so which rung answered has to reach the output rather than being averaged away.
+        """
+        p = dict(self.BASE)
+        p["high_by_source"] = {"prices:stooq": 18}
+        p["high_by_basis"] = {"unverified": 18}
+        rep = self._run(p)
+        line = self._line(rep)
+        self.assertIn("PASS", line)
+        self.assertIn("prices:stooq", line)
+        self.assertIn("unverified", line)
+
+
+class TheThirdGroupIsPartOfTheAccounting(unittest.TestCase):
+    """Don's 2026-10-07 ruling, from the check's side.
+
+    The hazard a new display group introduces is not a wrong number on the page -- it is a name
+    that stops being counted. `rejected_health` going DOWN is what an improvement looks like,
+    so the only thing that can tell the two apart is the identity, and the identity can only do
+    it if the new bucket is REQUIRED rather than defaulted to zero.
+    """
+
+    def _run(self, payload):
+        rep = LC.Report()
+        with _Net({("GET", "/api/dip"): _j(payload)}):
+            LC.check_dip("https://x", rep)
+        return rep
+
+    def _line(self, rep):
+        return [ln for ln in rep.lines if "every qualifying name" in ln][0]
+
+    BASE = {"n_eligible": 50, "n_qualified_on_depth": 20, "n_high_from_engine": 20, "n_measured": 20, "capped": 0,
+            "n_unmeasured": 0, "rejected_health": 10, "rejected_shallow": 4,
+            "rejected_checks": 0, "n_health_not_scored": 4,
+            "n_health_not_scored_shallow": 2, "dip_source": "precomputed",
+            "rows": [{"t": 1}, {"t": 2}]}
+
+    def test_a_payload_with_an_excused_group_adds_up(self):
+        rep = self._run(dict(self.BASE))              # 20 = 2 + 0 + 10 + 4 + 4
+        self.assertEqual(rep.failed, 0, rep.lines)
+
+    def test_an_ABSENT_group_counter_cannot_be_checked(self):
+        """ABSENT IS NOT ZERO, and this is the live state on the day of the deploy.
+
+        The stored precompute predates the field, so the group is empty -- but a check that
+        READ the absence as zero would also pass on a deployed screen that had the group and
+        was not reporting it, which is the failure that matters.
+        """
+        p = dict(self.BASE)
+        del p["n_health_not_scored"]
+        p["rejected_health"] = 14                     # the OLD accounting: 20 = 2+0+14+4
+        rep = self._run(p)
+        self.assertIn("cannot be checked", self._line(rep))
+        self.assertIn("n_health_not_scored", self._line(rep))
+
+    def test_a_group_the_identity_does_not_account_for_FAILS(self):
+        """The silent drop, simulated: names left `rejected_health` and nothing counted them."""
+        p = dict(self.BASE)
+        p["rejected_health"] = 14                     # as if the move had not been accounted
+        rep = self._run(p)
+        self.assertEqual(rep.failed, 1, rep.lines)
+        self.assertIn("do not add up", self._line(rep))
+
+    def test_the_shallow_subcount_is_printed_and_NOT_added(self):
+        """It is a SUBSET of `rejected_shallow`; adding it would fail a correct screen -- the
+        same trap `rejected_checks` sprang on the previous version of this check."""
+        rep = self._run(dict(self.BASE))
+        self.assertEqual(rep.failed, 0, rep.lines)
+        self.assertIn("2 of the shallow were health-not-scored", self._line(rep))
 
 
 class TheTrackRowIsNotMissingUntilItIsDue(unittest.TestCase):

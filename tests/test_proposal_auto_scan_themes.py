@@ -38,6 +38,26 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROPOSAL = os.path.join(REPO, "PROPOSAL_auto_scan_themes.md")
 WORKFLOW = os.path.join(REPO, ".github", "workflows", "auto-scan.yml")
 
+sys.path.insert(0, REPO)
+from scripts import workflow_source as WS  # noqa: E402
+
+
+def _authoritative(name: str = "auto-scan.yml") -> str:
+    """The workflow text as the ref that RUNS it has it -- not this checkout's copy.
+
+    ITEM 44. Item 42 reported `auto-scan.yml` had no `53 17-19` cron; it had carried it since
+    `d66155e`, and the lane was reading its own worktree, branched before that commit. **The
+    land gate refuses any branch touching `.github/`, so a workflow can only change on main,
+    which makes a lane's copy stale BY CONSTRUCTION rather than by accident** -- and a guard
+    asserting a house rule against a stale copy passes while main's copy breaks it.
+
+    On a CI runner `origin/main` is often not fetched, and there the local file is correct: the
+    gate tests the MERGE of the branch into main, so the checkout already is main's copy plus
+    the branch. `workflow_source.read` reports which one it gave us either way, and the test
+    below pins that it never claims authority it does not have.
+    """
+    return WS.read(name)["text"]
+
 #: The cron the proposal adds, and the dispatch kind that goes with it.
 THEMES_CRON = "17 7 * * 0"
 THEMES_KIND = "themes"
@@ -140,8 +160,41 @@ def _strip_comments(block: str) -> str:
     return "\n".join(out)
 
 
+def _scripts_reading_workflows(sdir: str) -> list:
+    """Filenames in `sdir` that OPEN a file under `.github/workflows/`.
+
+    Takes the directory as a parameter so the guard can be pointed at a planted offender -- a
+    guard that has only ever been run against a clean tree has not been shown to fire.
+    """
+    import ast
+    READERS = ("open", "read_text", "read_bytes")
+    offenders = []
+    for fn in sorted(os.listdir(sdir)):
+        if not fn.endswith(".py") or fn == "workflow_source.py":
+            continue
+        try:
+            tree = ast.parse(io.open(os.path.join(sdir, fn), encoding="utf-8",
+                                     errors="replace").read())
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            f = node.func
+            nm = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", "")
+            if nm not in READERS:
+                continue
+            lits = [n.value for n in ast.walk(node)
+                    if isinstance(n, ast.Constant) and isinstance(n.value, str)]
+            joined = "/".join(lits)
+            if "workflows" in joined and "pending_workflows" not in joined:
+                offenders.append(fn)
+                break
+    return offenders
+
+
 def _workflow_job_ifs() -> dict:
-    src = _read(WORKFLOW)
+    src = _authoritative()
     body = src.split("\njobs:", 1)[1]
     return _job_ifs(body)
 
@@ -430,6 +483,188 @@ class TheProposalStatesWhatItCosts(unittest.TestCase):
     def test_it_says_plainly_whether_the_text_is_safe_to_paste(self):
         md = _read(PROPOSAL)
         self.assertIn("SAFE TO PASTE", md)
+
+
+class EveryCronReachesAJob(unittest.TestCase):
+    """THE COMPLEMENT OF `EveryJobNamesItsOwnSchedule`, AND I ALMOST SHIPPED THE DEFECT IT CATCHES.
+
+    That class pins one direction: no job may fire on a bare `schedule` event without naming a
+    cron. This pins the other: **no cron may exist that no job's condition matches.** Such a cron
+    fires a real run in which every job SKIPS -- it consumes a scheduled slot, appears in the run
+    list as a success, and does nothing. Nothing in the run looks wrong.
+
+    ITEM 37 WROTE A BACKUP INTRADAY CRON (`53 17-19 * * 1-5`) into
+    `data/pending_workflows/auto-scan.yml` and the intraday job is gated on the EXACT string
+    `github.event.schedule == '23 13-20 * * 1-5'`. Adding the cron without extending that
+    condition would have delivered runs that did nothing, which is the opposite of the point --
+    and on a workflow whose scheduler already drops 72% of intraday slots, a silent no-op would
+    have been indistinguishable from another drop.
+
+    COMMENTS STRIPPED FIRST, AND THAT DISTINCTION COST A CUT OF ITS OWN: a regex over
+    `- cron: "..."` matches the comment documenting the cron the master audit REMOVED
+    (`# REMOVED by the master audit (MA1): - cron: "0 12 1 * *"`), so the first version of this
+    audit reported a dead cron that does not exist. `_strip_comments` is this file's own answer
+    to that family and every other text assertion here already reads through it.
+
+    **IT USED `yaml.safe_load` AND THAT FAILED IN CI, WHICH IS THE WORSE DEFECT OF THE TWO.**
+    PyYAML is installed locally and is NOT on the runner, so both committed-workflow guards
+    raised `ModuleNotFoundError` and the suite reported `errors=2` -- a guard that cannot run
+    where it matters, after a session spent removing exactly that shape from other people's
+    checks. It took the land red, which is the good outcome: an `unittest.skipUnless` on the
+    import would have left the two checks silently absent in CI forever.
+
+    SO THIS READS TWO LINE SHAPES, not a document: `- cron: "..."` inside the `schedule:`
+    block, and `github.event.schedule == '...'` anywhere in a job condition. It depends on
+    nothing outside the standard library, which is the property that matters for a guard whose
+    whole job is to be green or red on a runner.
+    """
+
+    def _crons_and_gates(self, path, text=None):
+        import re
+        body = _strip_comments(text if text is not None else _read(path))
+        # The `schedule:` block ends at the next key no more indented than itself, which for
+        # these workflows is `workflow_dispatch:` or `jobs:`. Bounded that way rather than by a
+        # line count so a comment or an added cron cannot push the end past it.
+        crons = []
+        in_sched = False
+        for line in body.splitlines():
+            st = line.strip()
+            if st.startswith("schedule:"):
+                in_sched = True
+                continue
+            if in_sched:
+                m = re.match(r"-\s*cron:\s*[\"\']([^\"\']+)[\"\']", st)
+                if m:
+                    crons.append(m.group(1))
+                    continue
+                if st and not st.startswith("-"):
+                    in_sched = False
+        gates = set(re.findall(r"github\.event\.schedule\s*==\s*\'([^\']+)\'", body))
+        return crons, gates
+
+    def test_the_committed_workflow_has_no_dead_cron(self):
+        crons, gates = self._crons_and_gates(WORKFLOW, _authoritative())
+        self.assertTrue(crons, "no crons were parsed, so this guard is looking at nothing")
+        dead = [c for c in crons if c not in gates]
+        self.assertEqual(dead, [], "these crons match no job's `if`, so every run they fire "
+                                   "does nothing: %s" % dead)
+
+    def test_no_job_is_gated_on_a_cron_that_does_not_exist(self):
+        """The mirror failure: a job that can never fire on a schedule. Harmless to run and
+        silently fatal to whatever it was supposed to do."""
+        crons, gates = self._crons_and_gates(WORKFLOW, _authoritative())
+        orphan = sorted(g for g in gates if g not in crons)
+        self.assertEqual(orphan, [], "these job conditions name a cron the schedule does not "
+                                     "contain, so the job never fires: %s" % orphan)
+
+    def test_a_pending_workflow_is_held_to_the_same_rule(self):
+        """`data/pending_workflows/` is how a lane proposes a `.github/` change it cannot make,
+        so it is exactly where an unpaired cron would slip through unreviewed. SKIPPED LOUDLY
+        when there is no pending file -- the normal state -- rather than passing vacuously."""
+        pending = os.path.join(REPO, "data", "pending_workflows", "auto-scan.yml")
+        if not os.path.exists(pending):
+            self.skipTest("no pending auto-scan.yml to check (this is the normal state)")
+        crons, gates = self._crons_and_gates(pending)
+        self.assertTrue(crons)
+        self.assertEqual([c for c in crons if c not in gates], [])
+        self.assertEqual(sorted(g for g in gates if g not in crons), [])
+
+
+class AWorkflowClaimReadsTheCopyThatRUNS(unittest.TestCase):
+    """ITEM 44. The measured defect: item 42 reported `auto-scan.yml` had no `53 17-19` cron.
+
+    It had carried it since `d66155e` (installed 2026-10-08 08:15 ET). The lane read the file in
+    its own worktree, branched before that commit -- and **that is guaranteed, not unlucky: the
+    land gate refuses any branch touching `.github/`, so a workflow can only ever change on
+    main, by Don running `install_workflows.bat`. A lane's copy of a `.github/` file is stale by
+    construction.**
+    """
+
+    def test_the_reader_never_claims_authority_it_does_not_have(self):
+        got = WS.read("auto-scan.yml")
+        self.assertIn(got["source"], ("origin/main", "local"))
+        self.assertEqual(got["authoritative"], got["source"] == "origin/main")
+        if not got["authoritative"]:
+            # The fallback must SAY so. A helper that silently substituted the local copy would
+            # reproduce item 42's defect with an extra layer of indirection, because the caller
+            # would believe it held the authoritative text.
+            self.assertTrue(got["reason"], "the fallback must explain itself")
+        self.assertTrue(got["text"], "it returned no text at all, so every caller is vacuous")
+
+    def test_a_missing_workflow_is_reported_and_not_invented(self):
+        got = WS.read("no-such-workflow-%s.yml" % os.getpid())
+        self.assertFalse(got["authoritative"])
+        self.assertIsNone(got["text"])
+        self.assertIn("never authoritative", got["reason"])
+
+    def test_the_reader_CAN_SEE_a_stale_local_copy(self):
+        """NON-VACUITY, against the real commit that caused the wrong report.
+
+        Without this the helper could be hard-coded to say `differs: False` and every test
+        above would still pass. Reading the parent of the install commit must produce a text
+        that LACKS the backup cron and a `differs` that is True.
+        """
+        old = WS.read("auto-scan.yml", ref="d66155e^")
+        if not old["authoritative"]:
+            self.skipTest("d66155e^ is not reachable in this checkout (shallow clone)")
+        self.assertNotIn("53 17-19 * * 1-5", WS.crons(old["text"]),
+                         "d66155e^ should PREDATE the backup cron")
+        self.assertTrue(old["differs"],
+                        "the local copy carries the cron and the old ref does not, so this "
+                        "must read as a difference -- otherwise `differs` is decoration")
+
+    def test_scripts_do_not_read_a_github_workflow_behind_the_readers_back(self):
+        """ONE authoritative reader (B7). The alternative is what already happened once.
+
+        READ THROUGH THE AST, AND THE FIRST CUT OF THIS GUARD IS WHY. It collected every string
+        literal naming `workflows` and flagged the file if it also called `open` anywhere --
+        and **it fired on five correct scripts, every one of them a DOCSTRING or a comment
+        describing which workflow installs a package.** `MA49`/`MB1`/`MB15`'s family, in the
+        guard written to enforce one authoritative reader, on its first run.
+
+        The property is not "this file mentions a workflow"; it is "this file OPENS one". So
+        the literal has to be tied to the call: a `Call` to `open`/`io.open`/`read_text` with
+        `workflows` named anywhere inside ITS OWN argument subtree. `workflow_source.py` is
+        excluded because it is the reader, and `pending_workflows/` because a pending file is a
+        PROPOSAL -- reading it locally is the only way to read it at all.
+        """
+        offenders = _scripts_reading_workflows(os.path.join(REPO, "scripts"))
+        self.assertEqual(offenders, [],
+                         "these scripts read a .github/workflows file directly; route them "
+                         "through scripts/workflow_source.py, whose whole job is that a claim "
+                         "about the live scheduler is not made from a lane's stale copy: %s"
+                         % offenders)
+
+    def test_that_guard_actually_FIRES_on_a_planted_offender(self):
+        """The positive control, with the three cases that separate the rule from a grep.
+
+        A guard only ever run against a clean tree has not been shown to fire -- and the first
+        cut of the one above fired on five CORRECT files, so both directions need pinning.
+        """
+        import shutil
+        import tempfile
+        d = tempfile.mkdtemp(prefix="wfguard-")
+        self.addCleanup(shutil.rmtree, d, True)
+
+        def put(name, body):
+            with io.open(os.path.join(d, name), "w", encoding="utf-8") as fh:
+                fh.write(body)
+
+        # (1) THE OFFENDER: reads the live workflow directly.
+        put("offender.py", 'import os\n'
+                           'open(os.path.join("x", ".github", "workflows", "auto-scan.yml"))\n')
+        # (2) PROSE ONLY -- a docstring naming the workflow, plus an unrelated open(). This is
+        #     exactly what the first cut flagged, five times.
+        put("innocent_prose.py", '"""Installed by .github/workflows/auto-scan.yml."""\n'
+                                 'open("requirements.txt")\n')
+        # (3) THE PENDING DIRECTORY is a PROPOSAL, and reading it locally is the only way.
+        put("innocent_pending.py",
+            'open("data/pending_workflows/tradier-seam.yml")\n')
+
+        found = _scripts_reading_workflows(d)
+        self.assertEqual(found, ["offender.py"],
+                         "the guard must flag the real read and neither innocent file; got %s"
+                         % found)
 
 
 if __name__ == "__main__":

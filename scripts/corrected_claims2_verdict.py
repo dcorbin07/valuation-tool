@@ -134,8 +134,26 @@ def fa():
     return CC.fa()
 
 
+def fa_or_none():
+    """The free-analysis directory, or `None` where there is no licensed data root.
+
+    **A HELPER THAT REPORTS ITS OWN INABILITY MUST DO SO AS A STATE, NOT BY RAISING.** `CC.fa()`
+    raises when the root is absent, and on a CI runner `data/` is gitignored, so every gated
+    helper that called it produced an ERROR instead of a reported skip. Part 1 of
+    `CORRECTED-FLOORS` failed CI for the import-time version of this; making the path lazy moved
+    the exception from import time to CALL time without removing it.
+    """
+    try:
+        return CC.fa()
+    except Exception:
+        return None
+
+
 def _load(name):
-    p = os.path.join(fa(), name)
+    f = fa_or_none()
+    if f is None:
+        return None
+    p = os.path.join(f, name)
     if not os.path.exists(p):
         return None
     with io.open(p, encoding="utf-8") as fh:
@@ -163,15 +181,20 @@ def c1_is_attributable_to_the_universe(ts):
                       "note": "C1 PASSED, so this is the banked panel and no attribution is "
                               "needed"}
     got = ((checks.get("top_decile_alpha") or {}).get("got"))
-    try:
-        want = CC.landed_corrected_deployed_alpha()
-    except Exception as e:                                          # pragma: no cover
-        return False, {"c1_all_ok": False, "why": "could not read part 1b's landed corrected "
-                                                  "deployed alpha: %s" % e}
+    # THE ORDER MATTERS, AND SO DOES KEEPING THE TWO REFUSALS DISTINCT. "C1 carries no reading"
+    # and "there is no landed figure to compare against here" are different facts with different
+    # fixes, and one blurred `why` made a test assert the first while reading the second -- the
+    # wrong-object family. The reading is checked FIRST, because it depends on nothing external.
     if got is None:
-        return False, {"c1_all_ok": False,
+        return False, {"c1_all_ok": False, "refusal": "NO_READING",
                        "why": "C1 carries no top_decile_alpha reading, so its failure cannot be "
                               "attributed"}
+    try:
+        want = CC.landed_corrected_deployed_alpha()
+    except Exception as e:
+        return False, {"c1_all_ok": False, "refusal": "NO_LANDED_FIGURE",
+                       "why": "part 1b's landed corrected deployed alpha is unreadable here "
+                              "(no licensed data root, or the artifact is absent): %s" % e}
     dev = abs(float(got) - float(want))
     return (dev <= C1_CROSS_INSTRUMENT_TOL), {
         "c1_all_ok": False,
@@ -415,7 +438,10 @@ def validate_group_derivation():
     host), which is reported rather than treated as a pass.
     """
     import json
-    q = os.path.join(fa(), "SCORE_CALIBRATION.json")
+    f = fa_or_none()
+    if f is None:
+        return None, {"state": "NOT VALIDATED -- no licensed data root on this host"}
+    q = os.path.join(f, "SCORE_CALIBRATION.json")
     if not os.path.exists(q):
         return None, {"state": "NOT VALIDATED -- banked SCORE_CALIBRATION.json absent"}
     with io.open(q, encoding="utf-8") as fh:
@@ -765,7 +791,11 @@ def build():
 
 def main():
     res = build()
-    dest = os.path.join(fa(), OUT)
+    f = fa_or_none()
+    if f is None:
+        raise SystemExit("REFUSING: no licensed data root on this host, so there is nothing to "
+                         "re-measure and nowhere to write it.")
+    dest = os.path.join(f, OUT)
     with io.open(dest, "w", encoding="utf-8") as fh:
         json.dump(res, fh, indent=2)
     print("CORRECTED-CLAIMS-2 verdict")

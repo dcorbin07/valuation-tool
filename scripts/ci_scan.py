@@ -220,6 +220,29 @@ def run_hot() -> None:
               "them as unmeasured rather than as 'not in a drawdown')"
               % (sh.get("valued"), sh.get("qualifying"), _time.monotonic() - t0,
                  sh.get("workers"), sh.get("with_drawdown"), sh.get("no_drawdown")))
+        # ITEM 39 -- THE PRIMARY'S PULSE, PRINTED EVERY RUN WHETHER OR NOT IT IS BAD.
+        #
+        # On 2026-10-07 this step printed `218 valued, 0 with a drawdown, failed: 0` and every
+        # word of it was true, while the engine's 52-week high had come back EMPTY for all 218
+        # and nothing said so. The fundamentals are gap-filled from EDGAR, so the valuations
+        # succeeded; item 36's scan-ratio fallback then carried the whole screen. A fallback
+        # doing its job is not a reason for the thing it replaced to be unobservable.
+        #
+        # PRINTED UNCONDITIONALLY, because a line that only appears when something is wrong
+        # cannot establish what normal looks like -- and the next reader needs to know whether
+        # 218-of-218 is a new failure or the way it always was.
+        _wh = sh.get("with_high")
+        print("    52-week high FROM THE ENGINE: %s of %s valued%s"
+              % (_wh, sh.get("valued"),
+                 ("  [by source: %s]" % sh["high_by_source"]) if sh.get("high_by_source")
+                 else ""))
+        if _wh == 0 and (sh.get("valued") or 0) > 0:
+            print("    *** THE ENGINE PRICED NO HISTORY FOR ANY NAME. The screen is running "
+                  "entirely on the scan's own 52-week ratio (item 36's fallback); names with "
+                  "no ratio either are reported as unmeasured. Reasons: %s"
+                  % (sh.get("high_reasons") or "none recorded"))
+        elif sh.get("high_reasons"):
+            print("    names with no engine high, by reason: %s" % sh["high_reasons"])
         if sh.get("failed"):
             # A NAME THAT WOULD NOT VALUE IS COUNTED, NOT SILENT. It reaches the page as
             # `n_unmeasured`, which the surface reports; a silent drop would read as "not in a

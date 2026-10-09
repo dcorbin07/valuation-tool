@@ -5,6 +5,1025 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 88 — 2026-10-08 — ITEMS 41+42: the SIC map, Tradier's unapproved token, and Don's two rulings
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict. `by_domain` untouched.
+
+## 41(a) THE PREMISE IS A WORST CASE, NOT A STEADY STATE — AND THE WORST CASE HAPPENS
+
+The brief says *"507 names a scan get no sector."* **That is the 2026-10-07 scan — the day Yahoo
+refused the runner outright (item 39), so every name needed the resolve chain.** Measured on both
+logs I hold:
+
+| | 2026-10-07 (Yahoo refusing) | 2026-10-08 (Yahoo answering) |
+|---|---|---|
+| `UNRESOLVED on every source` | **507 lines / 460 distinct** | **10** |
+| rescued by the SEC rung | 143 | 10 |
+
+**AND "a third of the universe showing no fair value" IS A DIFFERENT OBJECT.** `display coverage:
+sector` was **0.999** even on the bad day — the SNAPSHOT rows carry sectors from the universe
+provider. What 460 names lost was the VALUATION path's `resolve_sector`, which is a separate
+consumer. Live today, 32 of 100 served rows carry no fair value and **all of their sectors are
+populated**, so today's withholding has another cause entirely.
+
+So the fix is worth having because the bad day recurs, not because a third of the market is
+broken every day. Said plainly rather than inherited.
+
+## WHAT THE DEFECT ACTUALLY WAS, AND THE SEC RUNG ALREADY EXISTED
+
+`sector_resolve.py` already had an SEC rung — the brief's suggested source was shipped. The
+defect is one layer down: **`sector_from_sic` mapped ONLY SIC 6000-6799** and returned `None` for
+everything else, under a stated reason:
+
+> *"ONLY the finance range is mapped, deliberately ... inventing a mapping for them would trade a
+> known-missing sector for a plausible-but-wrong one."*
+
+**That caution was HALF right, and the half it got wrong is the expensive half.** Every
+non-financial filer fell through to the FMP rung, which item 40 proved is a **retired endpoint**.
+So the chain's only working rung covered one sector in eleven.
+
+## THE MEASUREMENT THAT LICENSED THE MAP, IN THE ORDER THE BRIEF ASKED FOR
+
+Censused the 460 first, from SEC `submissions` with the declared User-Agent and 0.13s pacing:
+**459 carry a filed SIC, 0 have no CIK, 0 fetch failures** — 164 distinct 4-digit codes. So EDGAR
+covers the whole population and the map was the only thing missing.
+
+| | |
+|---|---|
+| resolved by the map | **413 of 460 (89.8%)** |
+| agreement where the product ALREADY has a sector | **134 of 138 (97.1%)** |
+| taxonomy cost | **2.9%** — against `S25`'s **11.37%** for its GICS crosswalk onto these same eleven strings |
+| still unmapped | 47, of which **28 are two deliberately-refused service codes** |
+
+By sector: Technology 109, Consumer Cyclical 71, Healthcare 66, Industrials 54, Basic Materials
+50, Energy 37, Consumer Defensive 16, Communication Services 12, Utilities 3.
+
+**THE FOUR DISAGREEMENTS ARE GENUINE TAXONOMY DIFFERENCES, NOT MAP ERRORS**, and naming them is
+cheaper than a percentage: GHC (a conglomerate), NSIT (files as a catalogue retailer, operates as
+an IT reseller), RDDT (files as software, is classed as media), SSL (files as refining, is classed
+as chemicals). SIC is literal about the FILING; the sector is about the BUSINESS.
+
+## THE RULE FOR REFUSING A CODE, STATED SO IT IS NOT APPLIED BY TASTE
+
+**A code is mapped only where ONE sector is at least two thirds of its observed members.** The
+prior author's caution survives exactly where it bites: SIC's **manufacturing, extractive and
+utility** codes map cleanly; its **service** codes do not.
+
+* **7389 "Business Services NEC" holds four sectors** — MA, PYPL, GPN (payments), UBER, DASH,
+  ETSY, MELI (consumer), AKAM (technology), CBZ, MMS (industrials). Refused.
+* **7370 splits 4-4** — GOOGL, META, PINS, MTCH against APP, ZM, BSP, PPLI. A coin flip carries
+  no information. Refused.
+* **Water transport (4400-4499) spans three** — tankers read Energy, cruise reads Consumer
+  Cyclical, dry bulk reads Industrials. **A hull is not a sector.** Refused, and that alone
+  removed 3 of the first pass's 9 disagreements.
+* **Patent owners and mineral royalty traders (6794-6795)** are filed as finance and operate as
+  neither (Dolby, Triple Flag). Refused.
+
+Applying the rule took agreement from **93.7% to 97.1%**.
+
+## A MISLABEL THE OLD RANGE SHIPPED, AND IT WAS NOT COSMETIC
+
+`6000-6799 -> "Financial Services"` meant **REITs and real estate were called Financial
+Services.** `classify.py` turns the sector into a REGIME, so a REIT reaching the SEC rung was
+valued by the **bank method** (justified P/B from ROE) instead of taking the REIT branch that
+**REFUSES the FCFF lens** — and since item 38 the two are labelled differently on the page. Now
+6500-6599 and 6798 are `Real Estate`. Two further guesses became refusals: **SPACs (6770)** and
+**patent owners (6794)** returned a confident "Financial Services" and now return `None`.
+
+## THE REFUSAL IS A NAMED STATE AND THE REASON IS A NUMBER
+
+`SECTOR_TARGET_MARGIN.get(sector, 0.12)` **fails OPEN** in the middle of a **0.100-0.270** range,
+so a guess is a VOTE for a margin rather than an absence of one — `S25`'s finding. The eleven
+keys are **IMPORTED** (`MA5`'s rule) and the map is checked against them **at import**, so a
+typo is a startup failure rather than a name silently valued against the middle of the range.
+The check is proved non-vacuous by feeding it a bad sector.
+
+## THE RUNG NOW NEEDS MANNERS, BECAUSE IT WORKS
+
+While the map covered one sector in eleven the rung answered for ~10% of the names reaching it;
+now ~90%, so its call volume is real. Added: **a process-local cache** and **0.13s pacing**,
+which is the project's OWN SEC interval from `scripts/live_theme_sources.py` rather than a second
+constant for one rate limit (`MA5`).
+
+**THE CACHE IS NOT A MICRO-OPTIMISATION: the scan values some names TWICE.** The hot pass values
+its DCF set and item 35's dip precompute then re-values every qualifying name through
+`value_ticker`, so ~230 names reach this chain a second time.
+
+**A `None` IS CACHED AND A TRANSPORT FAILURE IS NOT**, and that distinction is pinned: caching a
+timeout would turn one dropped connection into a process-long refusal, and a real `None` from the
+map must stay distinguishable from a `None` from the network.
+
+**WHY THIS RUNG IS LEGITIMATE WHERE `S25` NEEDED A DATED MAP:** for a valuation dated TODAY,
+today's filing IS the point-in-time classification. The same filing read against a 2009 panel row
+would be look-ahead; read against this morning's quote it is the current fact.
+
+## TWO DELIBERATE PINS WENT RED AGAINST A CORRECT TREE, AND ARE REPOINTED IN THE SAME COMMIT
+
+`test_sector_failclosed.py` asserted that **6500 is a financial** (it was pinning the mislabel)
+and that **3711, 5999 and 7372 return `None`** (it was pinning the narrow map). Neither is
+re-asserted and neither is deleted: both are repointed to the property they were protecting —
+banks and insurers must map to the string the engine already speaks, and a code that cannot carry
+a sector must refuse. The examples are now codes that really are unmappable.
+
+## AND MY OWN GUARD FOUND A CONTRADICTION IN MY OWN MAP
+
+Mutation reported two misses that turned out to be **INERT**: 7389 and 4400-4499 sit in GAPS
+between `SIC_RANGES` entries, so the refusal is achieved twice and removing one layer changes no
+answer. **Reporting an inert mutation as a missed guard would send the next reader hunting for a
+guard that is not missing**, so the harness now classifies it, and the invariant that DOES
+protect it is pinned instead: **no ambiguous code may be covered by a range.**
+
+**That guard then went red on a real inconsistency: 6770 (SPACs) sat inside my own
+`(6600, 6793, "Financial Services")` range.** The refusal still won — it is checked first — but
+the two layers contradicted each other on paper, and a later reader deleting the "redundant" set
+entry would silently have started calling shell companies financials. The range is split around
+it. **Found by the guard, not by reading the map.**
+
+## 41(b) THE TRADIER MEASUREMENT IS WRITTEN AND CANNOT BE RUN FROM THIS LANE
+
+`scripts/tradier_seam.py` exists, uses the **same stated 222-name sample** as the FMP
+measurement (imported, not re-composed — two vendors on different samples give two coverage
+numbers that cannot be compared), touches `markets/history` and **nothing that places an order**,
+and scrubs the token.
+
+**IT RETURNS 401 `"Access Token not approved"`** — on **both** the live and sandbox hosts, for
+both `markets/history` and `markets/quotes`. So the seam is **UNMEASURED**, and that is a fact
+about the token this lane holds rather than about Tradier.
+
+**THE SERVICE'S TOKEN WORKS, MEASURED RATHER THAN ASSUMED: 10 of 10 live `/api/signals` rows
+carry Tradier-sourced ATM IV, 60-day IV, call volume and put/call ratios** (ABBV 0.2886, NVDA
+0.3009, AMD 0.4964…). So one working token and `--pull --analyse` produces the same table the FMP
+measurement produced.
+
+**AND A SEPARATE OBSERVATION WORTH A LINE: Tradier's OPTIONS endpoints work live while its broker
+FUNDAMENTALS loaded `0 of 1500 names`** (`"broker fundamentals loaded for 0 of 1500 names"`,
+`names_with_broker_data: 0`). Different endpoints, cause not established.
+
+**A DEFECT IN MY OWN TOOL, caught by running it: the first cut checked the BODY before the STATUS
+CODE, so a 401 printed as `history: null (symbol not covered)`** — an AUTH failure dressed as a
+COVERAGE fact, which is item 39's own defect (a vendor's refusal read as a data gap) committed
+inside the tool written to measure it. Pinned by a test asserting the status check comes first.
+
+## 42 — DON'S TWO RULINGS OF 2026-10-08
+
+**(1) THE BASIS IS LABELLED, NOT CHANGED.** The 52-week high stays split- and
+dividend-adjusted. **No figure moved** — asserted. What ships is one plain sentence near the
+threshold control, server-owned in `dip.py` (`dip_posture.py`'s rule: prose in a template does
+not stop when a ruling changes), plus `drawdown_basis`, `drawdown_basis_note` and
+`field_notes.drawdown` in the payload so the page and an API caller read the SAME sentence.
+
+The label says the three things a reader needs and a test pins each: dividends are **included**;
+the number therefore reads **SMALLER** than the share-price fall; and by **how much** — about 3%
+for a monthly-paying REIT, well under 1% for a typical payer, which are item 39's measured
+figures (O +3.15%, KO +0.60%, GOOGL +0.12%). It also says WHY the basis was kept — the research
+was measured on it, and an as-traded series makes a split look like a 50% crash — or the label
+reads as an apology for a defect rather than a statement of a choice.
+
+**(2) INTRADAY STAYS ON GITHUB'S FREE SCHEDULER, AND THE SIGNALS TAB STOPS CLAIMING OTHERWISE.**
+It said *"Refreshes through the day"*; item 37 measured **176 slots, 49 runs, 72.2% dropped** and
+**21 of 22 sessions with no in-session run before 17:00 UTC**, and today `/api/signals` reads
+`run_time 00:20`. The copy now says it runs on a free scheduler that delivers when it has
+capacity, usually afternoon or evening, and that the newest scan may be hours old. **It names no
+clock time** — the window moves with GitHub's load, and a sentence promising "by 2pm" is the same
+defect one level down; the run TIME comes from the freshness banner.
+
+**THE LIVE CHECK IS NOT WEAKENED, which the ruling requires explicitly** (*"keeps reporting
+honestly"*). The in-session window check still fails when nothing landed — as it did today. A
+ruling that ACCEPTS a failure is not a ruling to stop detecting it, and that is pinned.
+
+**THE RE-MEASUREMENT (2) ASKS FOR CANNOT START YET, and this is checkable:
+`.github/workflows/auto-scan.yml` still has no `53 17-19` cron** — item 37's pending workflow has
+not been installed, so the backup has run for **zero** days of the week it needs. Nothing to
+re-measure against item 37's 72.2% until `install_workflows.bat` runs.
+
+## MY OWN DEFECTS THIS SESSION
+
+* the Tradier status-before-body ordering, above;
+* a test asserting the live check's window as the literal `"13:00"` — the check FORMATS
+  `MARKET_OPEN_UTC`/`MARKET_CLOSE_UTC`, so the guard would have gone red the day the window moved
+  legitimately. It asserts the constants now;
+* **the comment-versus-code family again**: my "promises no clock time" ban fired on my own
+  `{# ... #}` comment, which cites "17:00 UTC" as part of item 37's measurement. The ban reads
+  the RENDERED copy now, with Jinja and HTML comments stripped;
+* six unclosed file handles in my own suite, found with `-W error::ResourceWarning`.
+
+## STILL HELD
+
+The public pages: `DECISION_corrected_floors.md` still reads *"the canonical panel is
+untouched"*, so nothing under `templates/` carries a figure change — the only template edits are
+the empty basis slot and the Signals wording, neither of which is a backtest figure.
+
+# Session 87 — 2026-10-08 — ITEM 40: the FMP seam is measured, the rung is DEAD, and nothing is enabled
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict against a threshold. `by_domain` untouched.
+**NOTHING IS ENABLED**: `PRICES_ALLOW_FMP` is unset everywhere in the tree and in every
+workflow, and the measurement calls FMP directly rather than through `prices._fmp_history`, so
+the shipped gate was never exercised. Pinned by test. The plain-words summary for Don is
+**`FMP_SEAM.md`**; this entry is the lane record.
+
+## THE HEADLINE: THE RUNG WE WERE ASKED TO EVALUATE DOES NOT EXIST
+
+`prices.FMP_HISTORY_URL` points at `financialmodelingprep.com/api/v3/historical-price-full`, and
+**FMP has retired its entire v3 API**. Every v3 path now answers:
+
+> **403** `Legacy Endpoint : Due to Legacy endpoints being no longer supported - This endpoint
+> is only available for legacy users who have a valid subscription`
+
+**So setting `PRICES_ALLOW_FMP=1` today would add a third rung that returns `None` for every
+name.** The gate has been protecting us from nothing — the call behind it cannot succeed. That
+is the first thing anybody evaluating this rung needs, and it is not visible from the code.
+
+**AND THE SAME DEAD API IS CALLED A SECOND TIME, ON EVERY SCAN.**
+`valuation/data/sector_resolve.py:145` uses `api/v3/profile`, which is the same 403. That is the
+`sector: the FMP rung failed for X (HTTPError)` line running all through the scan log, and in the
+2026-10-08 scan **507 names came back `UNRESOLVED on every source`** — each getting
+`regime UNKNOWN` and **its valuation withheld**. Repointing that one URL to `stable/profile` is a
+candidate repair and **I did not take it**, for a measured reason below.
+
+## WHAT THE WORKING SURFACE GIVES, AND WHY IT STILL IS NOT A RUNG
+
+`stable/historical-price-eod/full` and `.../dividend-adjusted` both answer **200**. Where FMP
+answers, the seam is as clean as a seam gets — Yahoo against FMP, same dates, today's part-formed
+bar excluded:
+
+| | |
+|---|---|
+| as-traded closes, 14 names × ~1,250 sessions | **median disagreement 0.0000%** |
+| worst single session anywhere | 0.0871% (SONY) |
+| 52-week high, as-traded | **0.0000% on 14 of 14** |
+| 52-week high, dividend-adjusted | within **0.0022%** (5 payers) |
+| splits across a named split date | **6 of 6 agree** to four decimals |
+
+**AND FMP DOES SOMETHING YAHOO DOES NOT: it serves the two bases as two separate endpoints.**
+That is directly useful to item 39's finding — `VENDOR_ADJUSTMENT` has to call FMP `unverified`
+today, and this is the evidence that would make it **verified**.
+
+**THEN COVERAGE KILLS IT.** Of the names actually attempted, **14 of 121 (11.6%) were served**
+and **106 were refused 402** *"Premium Query Parameter: 'Special Endpoint : This value set for
+'symbol' is not available under your current subscription"*:
+
+| category | served |
+|---|---|
+| **REITs** | **0 of 16** |
+| **regulated utilities** | **0 of 10** |
+| ADRs | 3 of 16 |
+| banks | 5 of 16 |
+| recent splitters | 6 of 12 |
+
+**The two categories it serves NONE of are exactly the two item 38's new dip group is about.**
+
+**AND THE ALLOWANCE IS ~250 REQUESTS A DAY WITH NO BULK.** Comma-separated symbols answer
+**402**, so every name costs a request, and the pull hit `Limit Reach` after **163 requests**
+(≈185 counting the probes). The scan's universe is ~1,492 names; `FMPProvider.CALLS_PER_NAME` is
+**3**. So FMP could serve roughly **5% of one day's scan**.
+
+## MY HYPOTHESIS ABOUT THE SAMPLE WAS WRONG IN THE DIRECTION THAT MATTERED
+
+I expected the seam question to be *"do the numbers agree?"* and sized a 222-name sample to
+answer it precisely. **The numbers agree perfectly and the question turned out to be
+coverage** — which only a sample containing REITs and utilities could have answered.
+`/api/hotstocks` serves the top 100 and is megacap-tilted; **a random 200 from it would not
+reliably have contained a REIT, and the REITs are the whole answer.** The sample is composed and
+named in the script for that reason: 152 live hot-list/dip names plus 16 banks, 16 REITs, 16
+ADRs, 10 utilities and 12 splitters-with-their-split-dates.
+
+## WHY I DID NOT REPOINT `sector_resolve`, WHICH IS THE ONE TEMPTING FIX
+
+507 names × 1 request is **twice the daily allowance**, so a working sector rung would exhaust
+FMP on every scan and then starve `universe.py`'s `stable/sp500-constituent` call. And at ~12%
+symbol coverage it would mostly 402 anyway. **The dead URL is currently protecting the quota by
+failing fast** — which is a sentence worth keeping, because the obvious repair makes something
+else worse. It belongs with a plan decision, not inside a measurement item.
+
+## A WORRY I HAD GOING IN, CHECKED RATHER THAN ASSUMED
+
+The allowance is shared with the scan's own account, so spending ~185 requests could have
+degraded tonight's hot list. **It did not, and the log says why**: today's scan reads
+`api budget: 0 calls used (uncapped)` because its FIRST FMP call — `stable/company-screener` —
+is **402 Payment Required**, so `FMPProvider` switches itself off and the whole scan runs on the
+free stack. **FMP is contributing nothing to the scan today, by refusal rather than by choice.**
+
+## WHAT I COULD NOT MEASURE, NAMED SO IT IS NOT MISTAKEN FOR MEASURED
+
+**Whether the 402 is a property of the SYMBOL or of the ENDPOINT.** If `stable/profile` serves
+names that `historical-price-eod` refuses, the sector repair above becomes worth something; if
+the subscription is symbol-restricted across the board, it does not. **Two requests settle it**
+and I had none left — the attempt returned `429 Limit Reach`. It is the first thing to run
+tomorrow.
+
+Also not measured: whether the key the service and CI hold is the **same value** as the one the
+local config loads. I cannot read Render's environment or a GitHub secret. What IS known is that
+CI's is non-empty (the `FMP is configured but NOT enabled` log line cannot fire on an empty key)
+and that the scan's `company-screener` 402 is the same refusal this key gets.
+
+## THE KEY WAS NEVER PRINTED, AND THAT NEEDED DESIGNING RATHER THAN REMEMBERING
+
+FMP puts the key in the **query string**, so a `requests` exception carries it verbatim and one
+unscrubbed error line would put a secret in a terminal and then in a handoff. Every status line,
+body and URL goes through `scrub()` first, pinned by test. The key is read from the environment
+**the way the app reads it** (`valuation.config` calls `load_dotenv()`); `.env` is never opened,
+which is the standing rule.
+
+## THE MEASUREMENT IS RE-RUNNABLE, WHICH IS THE POINT
+
+`scripts/fmp_seam.py --probe / --pull / --analyse`. The pull **stores the raw result** and
+**aborts on the first quota-shaped response**, saying where it stopped — a measurement that
+exhausts a shared allowance has broken its own subject, and `RUN_RULES` rule 9 wants the draws
+kept so the analysis can be re-run without spending anything. The day the plan changes, this
+answer can be refreshed in one command instead of re-argued.
+
+**`quota_shaped` is checked BOTH ways and that distinction is load-bearing:** a **402** is a
+COVERAGE refusal and a **429** is an ALLOWANCE refusal, and treating 402 as quota would have
+aborted the pull on the first REIT and reported the coverage finding as an allowance finding.
+
+## THREE DEFECTS IN MY OWN WORK
+
+* **`r.json()` raises on an empty 200**, and FMP really returns one — that is how the ticker `O`
+  first looked like a missing symbol when it was a 402. The three states (empty / unparseable /
+  data) are told apart now.
+* **A needle matched against raw markdown fails when the prose WRAPS** —
+  `"0 of 10 regulated\nutilities"`. The character-window defect in a new costume: re-flowing a
+  correct document would take the guard red, so the doc is matched with its line breaks
+  collapsed.
+* **`code_only` separates tokens** since item 39, so `os.environ.get` is `os . environ . get` in
+  its output and my unspaced needle could never have matched.
+
+**AND MUTATION FOUND A SOFT BAR.** `len(REITS) >= 10` let a REIT be dropped from the sample
+while `FMP_SEAM.md` went on publishing *"16 REITs"* and *"0 of 16 REITs"* — `MA13`'s shape, two
+copies of one fact with the quotable one drifting. Replaced by a **cross-check**: every block
+size in the script must equal the figure the document states. **10 of 10 mutations caught**,
+every file restored byte-for-byte.
+
+## (b) AND (c) STILL HELD, CHECKED NOT ASSUMED
+
+`DECISIONS.md` carries **no ruling newer than 2026-10-07** and no mention of FMP, the intraday
+scheduler, or the 52-week-high basis. So: the basis mix stays as item 39 left it (stated, value
+unchanged, nothing re-based); the intraday scheduler is untouched and item 37's pending workflow
+is still uninstalled; and no file under `templates/` or `static/` changed.
+
+# Session 86 — 2026-10-08 — ITEM 39: Yahoo refuses the runner, and the fallback was hiding it
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict. `by_domain` untouched.
+
+## (a) THE CAUSE, FROM THE SCAN LOG RATHER THAN FROM MY HYPOTHESIS
+
+**MY ITEM-38 HYPOTHESIS WAS "THE PER-NAME HISTORY CALL IS THROTTLED FROM THE RUNNER'S IP". IT IS
+HALF RIGHT AND WRONG ABOUT THE PART THAT MATTERS.** Measured in the 2026-10-07 hot scan's log:
+
+| | |
+|---|---|
+| `HTTP Error 401 ... "Invalid Crumb"` | **99** |
+| names classified as a genuine rate limit by `prices.py` | **87** |
+| `sector: X is UNRESOLVED on every source` | **507** |
+| other HTTP codes | 3 × 404 |
+
+**The dominant failure is Yahoo refusing the runner outright — a 401 on the cookie/crumb
+handshake — not a 429 rate limit.** And the shape settles it independently: the engine produced a
+52-week high for **0 of 218** names. **A throttle is rate-dependent and would hit some; 100% is
+categorical.**
+
+**NOT A VENDOR-VERSION CHANGE, TESTED RATHER THAN ASSUMED.** The runner installs yfinance
+**1.6.0** from `requirements.lock.txt` and this machine had **1.3.0** — a real divergence of the
+*"CI Python is 3.11, local is 3.13"* family, and the obvious suspect. Installed 1.6.0 into a
+throwaway target and ran it: **251 rows and a real high for AAPL, COF and O.** Refuted.
+
+**A CORRECTION TO MY OWN FIRST READING OF THE LOG, because it would have become a "finding".** I
+counted *"0 × 429 / Too Many Requests"* and nearly reported that no rate limiting occurred. That
+is a fact about the **log text**, not about the failures: `prices.py` logs a human sentence
+(*"yfinance THROTTLED for GL"*) and **never prints the exception**, so 87 names were classified
+429 by a correct classifier whose evidence never reached the log. Both failure modes are real and
+present.
+
+## WHY IT WAS INVISIBLE, WHICH IS THE ACTUAL DEFECT
+
+`valuation/data/yahoo.py` sets `price_52w_high` inside a block that ended:
+
+```python
+    except Exception:
+        pass
+```
+
+That block also sets `price_52w_low`, `ma_200`, `ret_6m`, `ret_1m` and `realized_vol`. So when
+Yahoo refuses, **all six vanish with no record** — and the FUNDAMENTALS survive, because
+`fetcher.get_company` gap-fills from EDGAR, which Yahoo's refusal does not touch. The result:
+
+* the precompute printed **`valued: 218, failed: 0, no_drawdown: 218`** — every word true, and
+  not one of them saying the price history had returned nothing for every name;
+* item 36's scan-ratio fallback carried the whole screen. **Correctly — without it the run
+  returns zero rows — and invisibly.**
+
+**A rescue that hides what it rescued from is how a one-vendor dependency becomes permanent.**
+Item 36's counter is the only reason anybody noticed at all.
+
+## THE FIX AT THE SOURCE
+
+**1. The loss is recorded, not swallowed.** `CompanyData` gains `price_52w_high_source`,
+`price_52w_high_basis` and `price_52w_high_reason`. The `except` keeps the exception's type and
+message; an **empty frame** — yfinance's non-raising failure — gets its own reason, because the
+old code treated *"returned nothing"* and *"succeeded"* identically.
+
+**2. A second rung, through the project's own price path rather than a second implementation.**
+`screener/prices.py` already does yfinance → Stooq → FMP with throttle classification, staleness
+refusal and a vendor **label**, and in the very run that lost every engine high it still priced
+114 names. Writing a retry loop in `yahoo.py` would have been audit `B7`'s shape: a second
+definition of *"get me a price history"*, diverging from the one that is maintained. Lazy import,
+following `data/sector_resolve.py`, which already reaches into `..screener.store` the same way;
+`prices.py` imports nothing from `valuation/`, so there is no cycle.
+
+**AN HONEST LIMIT, AND MY OWN TEST IS WHAT FORCED ME TO STATE IT.** The first driver patched
+`yf.Ticker` globally and so broke the fallback too — which read as a failed fix and is actually
+the finding: **`get_history_df`'s PRIMARY rung is the same yfinance call.** So this fallback
+cannot rescue an exhausted or refused Yahoo; only a vendor that is not Yahoo can. What it DOES
+guarantee is that the next occurrence names the rung and the reason in one line.
+
+**3. The 52-week window is 52 weeks.** The fallback pulls 400 days so one short frame cannot miss
+the window, then takes the maximum over the **last 252 sessions** — otherwise an 18-month high
+ships under a 52-week name. Pinned with a 9999 spike 300 sessions back.
+
+## THE BASIS DEFECT I FOUND ON THE WAY, MEASURED AND DELIBERATELY NOT "FIXED"
+
+`yahoo.py` called `t.history(period="1y", interval="1d")` with `auto_adjust` **unstated**, while
+`prices.py` passes it explicitly and says why: *"inheriting a vendor library's default is how a
+convention silently changes between releases."* Measured at yfinance 1.6.0 on 2026-10-08:
+
+| | as-traded high | adjusted high | gap |
+|---|---|---|---|
+| O (REIT) | 67.56 | 65.50 | **+3.15%** |
+| KO | 91.99 | 91.44 | +0.60% |
+| GOOGL | 402.62 | 402.12 | +0.12% |
+
+**The inherited default is ADJUSTED, and this high is divided into `cd.price`, which is an
+AS-TRADED quote** — so the drawdown mixes two bases and is understated by roughly the trailing
+yield. On a 10-40% threshold, 3.15% moves a name across the 0.20 line.
+
+**`auto_adjust=True` IS NOW STATED AND THE VALUE IS UNCHANGED.** `True` is what the inherited
+default already gave, so **no published drawdown moves**; what changes is that a yfinance release
+can no longer move it without a diff. **Re-basing to as-traded is the arguably-correct answer and
+is NOT taken here:** it would move the published drawdown of every name on a live screen, which
+is a construction change and Don's call. The basis is **recorded per name** instead, and the
+screen reports the census — because the rungs disagree about it (`prices.py` labels Stooq
+`unverified` and refuses to round that to a guess, so neither does this).
+
+## RECURRENCE IS NOW LOUD, IN THREE PLACES
+
+* **The scan prints it every run**, not only when it is bad: `52-week high FROM THE ENGINE: N of
+  M valued [by source: {...}]`, plus the reason census when any name lacks one, plus an explicit
+  alarm line at zero. **Unconditional on purpose — a line that only appears when something is
+  wrong cannot establish what normal looks like**, and the next reader needs to know whether
+  218-of-218 is new.
+* **The cache carries it** (`shape.with_high`, `high_by_source`, `high_reasons`), so the figure is
+  observable where it is produced and travels in the ingest payload.
+* **The live check FAILS on zero-while-qualifying.** Not a fraction: coverage varies with the
+  vendor's mood daily — 114 of 236 one run, 0 the next — so a fractional bar would be a bar on the
+  weather and would be switched off inside a week (`MA21`'s cry-wolf rule). **Zero while names
+  qualify cannot happen while the primary is alive**, and it is exactly the state that went
+  unnoticed. **Absent is not zero**: a payload with no counter is reported uncheckable, the same
+  rule the identity follows.
+
+## THREE DEFECTS IN MY OWN TESTS, ALL FOUND BY RUNNING OR MUTATING THEM
+
+* **`code_only` strips STRING LITERALS, and a dict key IS a string literal** — so
+  `assertIn("with_high", code_only(body))` **could never pass**. Vacuous by construction, in the
+  direction that fails loudly, which is the only reason it surfaced at once. Key names are now
+  asserted against the function-**bounded** source in an exact call shape, which prose cannot
+  satisfy; the stripper is for needles that could appear in prose.
+* **`code_only` joined tokens with NOTHING**, so `if x and not key` read `ifxandnotkey`: a
+  multi-token needle was unmatchable, **and adjacent tokens FUSE, so a needle could match text
+  that does not exist** — a guard passing on the wrong evidence. Now separated, and the contract
+  is pinned (`tests/source_bounds.py` had no suite; it has four cases now).
+* **`self.frame != "unset"` raises `ValueError: The truth value of a DataFrame is ambiguous`.** A
+  sentinel compared with `is`.
+
+**AND MUTATION FOUND TWO REAL GAPS, both the same shape — a guard on a string's PRESENCE rather
+than on the behaviour that uses it.** Blanking the primary's own `price_52w_high_source` passed,
+because every provenance assertion was on the FALLBACK path and the common state was the untested
+one. And replacing `print(` with an assignment passed, because the test asserted the sentence
+exists in `run_hot` rather than that it is printed. **11 of 11 mutations caught after both were
+closed**, every source restored byte-for-byte.
+
+## VERIFIED LIVE — AND THE ROW IMPROVEMENT IS NOT MINE TO CLAIM
+
+**THE SCAN'S NEW LINE, which is the deliverable:**
+
+```
+  dip precompute: 230 of 230 qualifying names valued in 367.9s at 6 workers; 212 carry a
+  usable drawdown and 18 do not
+    52-week high FROM THE ENGINE: 212 of 230 valued  [by source: {'yahoo': 212}]
+    names with no engine high, by reason:
+      {'YFRateLimitError: Too Many Requests. Rate limited. Try after a while.': 18}
+```
+
+Rows at 0.10 / 0.20 / 0.30, before and after:
+
+| | rows | unmeasured | engine high | precompute |
+|---|---|---|---|---|
+| **before** (2026-10-07 scan) | **19 / 16 / 10** | 73 | **0 of 218** | 51.0s |
+| **after** (2026-10-08 scan) | **48 / 38 / 19** | **6** | **212 of 230** | 367.9s |
+
+The identity holds at all three thresholds (230 / 191 / 158), `capped` 0, and `live_check`
+reports **`PASS dip has a live 52-week-high source — 212 of 230 ... by source {'yahoo': 212},
+by basis {'adjusted': 212}`**.
+
+**THE ROW IMPROVEMENT IS NOT ATTRIBUTABLE TO THIS FIX AND I AM NOT CLAIMING IT.** Every one of
+the 212 came from **`yahoo`** — the PRIMARY. **The fallback did not fire once.** Yahoo simply
+served the runner today where it refused it yesterday, which is the vendor's mood and not my
+change. What this item delivers is that the figure is now **visible** (212 of 230, and the 18
+failures NAMED as `YFRateLimitError`) and that a second rung exists which did not need to be
+used. Claiming 19 → 48 rows as a repair would be reading the weather as a result.
+
+**AND THE TIMING IS INDEPENDENT CORROBORATION OF THE 401 DIAGNOSIS: 51.0s for 218 names became
+367.9s for 230.** Yesterday's 0.23s per name was fast failures; today's 1.6s is real network
+work. The old run was not slowly fetching nothing — it was quickly being refused.
+
+**ONE LIVE CHECK STILL FAILS AND IT IS ITEM 37's, NOT THIS ITEM'S:** `FAIL signals ran during
+today's session — run_time '2026-10-08 00:20' (want 2026-10-08 between 13:00 and 21:30 UTC)`.
+That is the intraday scheduler dropping its session slots — 72.2% measured in item 37 — and it
+is precisely what **(b)** is waiting on Don to rule on. Nothing in this item touches that path.
+
+**A RESIDUAL WORTH ONE LINE: the 18 names rate-limited today are the ones the fallback should
+have rescued and could not**, because `get_history_df`'s primary rung is the same call that was
+rate-limiting them. That is the limit stated above, now observed rather than predicted — and it
+is the argument for the FMP seam measurement below.
+
+## FOR DON — THE ONE LEVER, AND ITS PRECONDITION
+
+**`prices.py` has a third rung that is not Yahoo, and it is deliberately switched off.** The log
+says *"FMP is configured but NOT enabled"* **87 times**: the key is present and
+`PRICES_ALLOW_FMP=1` is not set. Its own docstring states the reason and the prerequisite —
+*"its seam against the recorded series is unmeasured ... a row priced from an unvalidated vendor
+is a permanent entry in an append-only record. Measure the seam first."*
+
+**I have NOT enabled it.** That is a deliberate fail-closed gate with a named precondition, and
+flipping it would put unvalidated prices into the forward record. **The actionable item is the
+seam measurement** (re-derive two recorded rows from FMP closes against the service's values),
+after which FMP becomes a rung that survives Yahoo refusing a datacenter IP. Until then the scan
+has **two attempts at the same vendor family** and both fail together — which is why coverage
+swings 114/236 → 0 between runs.
+
+## (b) AND (c) — BOTH WAITING, AND (b) IS CHECKED NOT ASSUMED
+
+**(b) intraday reliability: no ruling in `DECISIONS.md`.** Grepped for `intraday`, `render cron`,
+`paid cron`, `github actions` and `scheduler` — **zero hits**. Don is choosing between a paid
+Render cron and staying on GitHub; nothing done, and item 37's pending workflow is untouched and
+still uninstalled.
+
+**(c) public pages: still held.** `DECISION_corrected_floors.md` still reads *"Nothing is
+adopted. No public page changed. The canonical panel is untouched"*, and `BACKTEST_RESULTS.json`
+last moved 2026-08-14. No file under `templates/` or `static/` changed this session.
+
+# Session 85 — 2026-10-07 (late) — ITEM 38: the third Dip Detector group, and a confidence label that had been wrong for every REIT
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict. `by_domain` untouched.
+
+Don's ruling, DECISIONS.md 2026-10-07:
+
+> **DIP DETECTOR: show banks, insurers, REITs and regulated utilities in their own group,
+> labelled "health not scored for this kind of company".** Never counted as healthy, never
+> silently excluded.
+
+Item 36 measured **31 of 110** health rejections to be exactly this: a sub-score the model
+**WITHHELD** because its metrics do not describe the business. The page reported all 110 as
+*"rejected on health"*, which reads as **the model looked at the balance sheet and did not like
+it** when the truth is that **nobody looked**.
+
+## THE DEFECT I FOUND ON THE WAY IN, AND IT IS LIVE ON EVERY REIT AND UTILITY
+
+To tell *withheld by regime* from *missing because the numbers did not arrive*, something has to
+know which regimes withhold. **That fact was already written TWICE in `scoring.py` and the two
+had drifted.**
+
+`_health_score` withholds for **`financial`, `reit` AND `regulated`**. The confidence line —
+`_not_applicable = {"health"} if cls.regime == "financial" else set()` — names **only
+`financial`**, under a comment that says in full:
+
+> **NOT APPLICABLE IS NOT MISSING.** A sub-score withheld because the regime does not support
+> its inputs is a deliberate design choice, not a data gap — counting it here would downgrade
+> EVERY financial's confidence label and **report a hole in the data that is not there**.
+
+So the code **fails its own documented contract** for two of the three regimes it withholds for.
+Measured on the `missing` COUNT — **this table is that channel in isolation, on a synthetic
+classification carrying `dcf_reliability: high`, and it is NOT the published label** (see the
+correction below):
+
+| regime | health sub-score | counted as missing | confidence *if `dcf_reliability` were high* |
+|---|---|---|---|
+| financial | `None` | 0 | high |
+| **reit** | `None` | **1** | medium |
+| **regulated** | `None` | **1** | medium |
+| mature | 80.0 | 0 | high |
+
+Audit `B7`'s shape — one rule, two encodings, and the newer regimes added to only one of them.
+
+**AND A CORRECTION AGAINST MY OWN FINDING, MEASURED ON THE LIVE SERVICE AFTER THE LAND: THE
+DEFECT IS LATENT, NOT LIVE. NO PUBLISHED LABEL WAS EVER WRONG.** The sentence that stood here
+said *"every REIT and every regulated utility on the live valuation page has been labelled
+`medium` confidence"*, and the commit message says it too. **It is false.** `confidence` is
+`low` when `dcf_reliability == "low"` **OR** `missing >= 2`, and `classify.py` sets
+`dcf_reliability = "low"` **unconditionally** for `reit`, `regulated` **and** `financial`,
+returning immediately — because the FCFF DCF is refused for all three. So that branch dominates
+and the miscounted `missing` **could never reach the label**. Live, after the repair:
+
+| | COF (financial) | O (reit) | NEE (regulated) |
+|---|---|---|---|
+| health sub-score | `None` | `None` | `None` |
+| other sub-scores present | 4 of 4 | 4 of 4 | 4 of 4 |
+| confidence | **low** | **low** | **low** |
+
+All three agree, which is the consistency the extraction buys — and all three read `low` for a
+**different and legitimate reason**, so the repair is **INERT on today's labels**.
+
+**WHY MY OWN PROBE MISLED ME, because the mechanism is the reusable part: the synthetic
+classification I measured with set `dcf_reliability = "high"`, which no real REIT or utility
+carries.** So the probe isolated the `missing`-count channel and measured it correctly — the
+count really did differ, 0 against 1 — and I read a measurement of ONE CHANNEL as a measurement
+of the LABEL the channel feeds. `O-1`'s family: a rate measured on one population quoted as a
+rate on another, here one input quoted as the output.
+
+**IT IS STILL WORTH REPAIRING AND THE REASON IS NARROWER THAN THE ONE I GAVE.** Two encodings of
+one rule had already drifted once; the second copy becomes reachable the moment any withheld
+regime carries a `dcf_reliability` above `low`, or the confidence rule stops being dominated by
+it — and the symptom then is *a hole reported in data that is not missing*, with nothing in the
+output looking wrong. **What it is NOT is a defect anybody has seen.** The direction remains
+`medium` → `high` where it ever fires, i.e. the flattering one, which is the other reason to say
+this plainly.
+
+**THE REPAIR IS THE EXTRACTION, not a second patch.** `scoring.HEALTH_NOT_SCORED_REGIMES` plus
+`health_is_scored()` is the one test; both withholding branches and the confidence line read it,
+and `dip.py` **imports it rather than keeping a list of its own** — writing
+`("financial", "reit", "regulated")` into the web layer would have been a *third* copy of the
+fact whose second copy is the defect. The REASON PROSE stays per-branch, because a trust and a
+bank are withheld for different reasons and one sentence covering both would say neither.
+
+**NOTE THE DIRECTION: the label moves `medium` → `high`, which is the FLATTERING way**, so it is
+said plainly rather than buried. It is a correctness repair against a contract stated in the
+code, not a judgement that these names deserve more confidence; what was wrong was reporting a
+data gap that does not exist.
+
+## THE GROUP, AND WHY THE EXCUSAL IS NARROW IN THREE WAYS
+
+`health_not_scored_only` is the one place membership is decided:
+
+* **The regime must say so EXPLICITLY** (`health_not_scored is True`). A measurement from a cache
+  written before this change carries no such key, and an absent key keeps the **OLD** behaviour
+  — rejected on health. **So the group is empty until a scan has run with this code, by
+  construction**, which is the direction that can never read a name as healthy. Pinned for
+  `None`, `False`, `"yes"` and `1`.
+* **Nothing may be BELOW its floor** — the ruling is explicit: *"A name below a floor elsewhere
+  stays rejected."*
+* **Every OTHER sub-score must be PRESENT.** `missing` has to be a **subset** of the keys the
+  regime actually withholds, so a REIT whose GROWTH is also missing is a data gap and stays
+  rejected. Without that subset test the group would quietly absorb **every incomplete
+  financial** — "never counted as healthy" broken from the other side.
+
+And it still has to be **deep enough**: an excused name falls THROUGH to the depth test rather
+than past it, so one that is too shallow lands in `rejected_shallow` like any other, with
+`n_health_not_scored_shallow` as a readable sub-count.
+
+**ONE ROW BUILDER FOR BOTH GROUPS, ROUTED AFTERWARDS.** A second row literal is how two tables
+meant to carry the same columns come to carry different ones, and the first thing to go missing
+would be a disclosure. Pinned: both groups' rows have identical key sets.
+
+## F-11's FORWARD BOOK DOES NOT MOVE, AND THE FIRST CUT MOVED IT
+
+`health_rejects` feeds `fleet_history.record_dip_rejects` — a **LIVE forward research record**
+whose declared rule is *"names down >=20% ... AND failing the shipped health floors, classified
+by the screen's own published functions"*. **`health_check` still returns `ok=False` for an
+excused name**: a sub-score nobody computed is not a pass. Letting these names fall out of that
+list would **re-specify a live forward book's entry rule as a side effect of a PRESENTATION
+ruling** — a construction change needing its own register and Don's approval.
+
+**THE FIRST CUT DID EXACTLY THAT, AND READING THE DIFF DID NOT CATCH IT.** The append sat inside
+the rejection branch, so three excused names silently left the population while the comment I had
+just written said it was untouched. A driver over all ten cases **printed the list** and the gap
+was obvious.
+
+**PROVED, NOT ASSERTED.** The pre-change `dip.py` was restored from git into the same package
+(so its relative imports resolve), both screens run over the same rows, and the two populations
+compared field by field: **8 names, same order, ZERO fields moved, ONE field added**
+(`health_not_scored`, which cannot admit or exclude a name because F-11 selects on `drawdown`).
+
+So an excused name appears in **BOTH** — in the group, because the page must not call it a health
+failure, and in F-11's rejects, because that book's published rule says it is one. Two different
+objects, both correct.
+
+## THE IDENTITY GAINS A BUCKET, BECAUSE THAT IS THE WHOLE HAZARD
+
+    n_qualified_on_depth == rows + n_unmeasured + rejected_health + rejected_shallow
+                            + n_health_not_scored,  capped == 0
+
+**A name that leaves `rejected_health` and arrives nowhere looks like a SMALLER rejection count
+— i.e. like an improvement.** The identity is the only thing that catches it, and it is asserted
+in the suite (including a non-vacuity test: dropping the new term must BREAK it) as well as live.
+
+`n_health_not_scored_shallow` is deliberately **NOT** in the identity — it is a SUBSET of
+`rejected_shallow`, so adding it would double-count and fail a correct screen, the same trap
+`rejected_checks` sprang on the previous version of that check.
+
+## THE PAGE
+
+A **separate table** under the label and one sentence, both **served from `dip.py`** and pinned
+verbatim — `dip_posture.py`'s rule, because *prose in a template does not stop; someone has to
+remember*, and this is copy about what the model does **not** know. Not a badge on a healthy row:
+a badge inside the healthy table reads as a footnote on a name that passed.
+
+**IT IS APPENDED ON EVERY SCREEN-OUTCOME PATH, AND THAT MATTERS MORE THAN IT SOUNDS.**
+`renderDip` returns early when `rows` is empty, and on this screen **an empty main table is the
+COMMON case** — item 36 measured 110 of 151 classifiable names rejected on health. Emitting the
+group only after the main table would have hidden it on exactly the days it is the whole answer:
+*"never silently excluded"* broken by **control flow** rather than by a filter. Three of the five
+`dipResults` writes are screen outcomes and all three carry it; the other two (`d.error`,
+`d.empty`) return before any screen ran and correctly carry nothing.
+
+The chip tooltip inside the group no longer reads **"not computed"** — the one sentence the group
+exists to stop a reader believing. Which key to say that about is **served**
+(`health_regime_withheld`), not spelled in the JS.
+
+**THE DIGEST IS UNCHANGED AND THAT IS DELIBERATE.** `scan_worker` posts
+`notify.post_dip_digest(..., screen["rows"])`, so the excused names are absent from the Discord
+push — correct under *"never counted as healthy ... in any digest"*. **Adding a new group of
+names to an OUTBOUND push is a product decision and not mine to make**: `V6`'s own close-out
+found a digest gate that a NULL verdict would have silently opened, and the ruling says *shown on
+the page*. Routed, not taken.
+
+## TWO NEW TEST PRIMITIVES, AND THE DEFECT THAT FORCED EACH
+
+`tests/source_bounds.py` (built last session for the character-window family) gains two:
+
+* **`js_function_source`** — brace matching, the JS analogue of `ast.get_source_segment`. Strings,
+  `//` and block comments are skipped so a brace inside one cannot unbalance the count; it is a
+  **matcher, not a parser**, says so, and **CHECKS its own result** (must begin at the
+  declaration, end at a closing brace, be shorter than the file) because the vacuous direction —
+  a bound that is really the whole file — makes every `assertIn` pass while bounding nothing. An
+  unbalanced scan **raises**.
+* **`code_only`** — comments and string literals stripped with `tokenize`. **Forced by my own
+  guard failing against a correct tree:** the test asserting that `dip.py` spells no regime name
+  read the RAW segment, and the comment explaining *why the list must not be copied* **quotes the
+  list**. `MA49`/`MB1`/`MB15`'s family, committed in a session spent removing it from other
+  people's guards. The positive property is asserted first, so the ban cannot pass by seeing
+  nothing.
+
+**REPORTED, NOT FIXED (other suites'):** `_strip_js_comments` exists in **four** separate test
+files (`test_accounting_risk.py`, `test_holiday_picks.py`, `test_source_label.py`, plus
+`test_free_route_p2.py`'s own) — one rule, four encodings, the shape this whole item is about.
+`source_bounds.py` is now the obvious home for a shared one; consolidating four copies is its own
+sweep.
+
+## ITEM 37's HANDOFF CARRIED A FALSE CLAIM AND THE LAND IS WHAT TOLD ME
+
+Session 84 says *"the committed-workflow tests are the ones that bite in CI and those are the
+mutation-proven pair."* **The land went RED**: both guards called `yaml.safe_load`, **PyYAML is
+local-only and not on the runner**, so they raised `ModuleNotFoundError` and the suite reported
+`errors=2` — a guard that cannot RUN where it matters. Same family as this file's *"CI Python is
+3.11, local is 3.13"*. **The land failing is the good outcome**; a `skipUnless` would have turned
+it green and left both checks silently absent in CI forever. Replaced with this suite's own
+`_strip_comments` plus two line reads, standard library only, **verified non-vacuous at 11 crons
+and 11 gates matched exactly with the commented-out `0 12 1 * *` not leaking in**, and both
+mutations re-run: 2 of 2 caught. Session 84's entry is amended in place rather than left to rot.
+
+## VERIFIED LIVE, AND THE SAFE DEFAULT WAS VERIFIED FIRST
+
+**BEFORE the scan** — the deploy had landed (the label and `health_regime_withheld` were served)
+and the group read **0 at every threshold**, because the stored precompute predates the field.
+That is the designed default, observed rather than assumed, with the identity holding at all
+three: 210 = 30 + 0 + 110 + ... and `capped` 0.
+
+**AFTER a dispatched hot scan** (`kind=hot`, success), `/api/dip`:
+
+| threshold | rows | **group** | excused-but-shallow | rejected health (missing/below) | unmeasured | qualifying | capped | identity |
+|---|---|---|---|---|---|---|---|---|
+| 0.10 | 12 | **7** | 1 | 18 / 50 | 122 | 218 | 0 | 218 == 218 |
+| 0.20 | 11 | **6** | 0 | 13 / 35 | 122 | 188 | 0 | 188 == 188 |
+| 0.30 | 6 | **3** | 1 | 10 / 20 | 165 | 165 | 0 | 165 == 165 |
+
+The group at 0.20: **COIN, SOFI, EVR, DAVE, COF, AFRM** — all `regime: financial`, down 20% to
+56%. No REIT or utility is in it today, which is a property of what is deep enough in the
+eligible set rather than of the rule.
+
+`scripts/live_check.py` against the live site: **28 passed, 0 failed, 1 skipped**, and the dip
+line now reads in full —
+
+    218 qualifying = 12 rows + 122 unmeasured + 68 health + 9 shallow + 7 health-not-scored
+    (source precomputed, 8 rejected earlier by row-level checks, 1 of the shallow were
+    health-not-scored)
+
+## A COVERAGE FINDING THIS SCAN MADE VISIBLE, AND IT IS NOT THIS ITEM'S DOING
+
+`n_unmeasured` is **122 of 218** today against **59 of 210** yesterday, and the payload says
+exactly where it comes from: `n_checked_for_depth` **114** of 236 eligible, so **122 eligible
+names carry no `high_prox` in the snapshot at all** — and `n_drawdown_from_scan` is **96 of the
+96** names that passed depth, i.e. **the ENGINE produced a 52-week high for NOT ONE NAME in this
+scan.**
+
+**SO ITEM 36's FALLBACK IS CURRENTLY CARRYING THE ENTIRE SCREEN: without it this run returns
+ZERO rows at every threshold**, and the 122 with no ratio either are unscreenable rather than
+"not in a drawdown" — which is what `n_unmeasured` says, loudly, instead of showing them as
+healthy or dropping them.
+
+**HYPOTHESIS, NOT A FINDING:** the per-name price-history call is throttled from the runner's
+cloud IP, which this record already names for the themes crawl and the live measurements. It is
+consistent with both legs degrading together (the scan's own ratio AND the valuation's high) and
+with the day-to-day variance. **Nothing in this item can affect it** — the change moves names
+between health buckets and never touches how a drawdown is computed. Reported for the data lane;
+not diagnosed, and not silenced.
+
+## WHAT IS NOT DONE
+
+**(b) IS HELD, AND NOW WITH r1's OWN WORDS FOR IT.** The brief says *"Until r1's move lands,
+change none of these pages."* Measured: `DECISION_corrected_floors.md` line 3 reads **"Nothing is
+adopted. No public page changed. The canonical panel is untouched"**, and
+`BACKTEST_RESULTS.json` last moved **2026-08-14**. No table of old → new public figures has been
+handed over. So **no file under `templates/` or `static/` carries a figure change in this
+session** — and r1's part 1b finding (*the corrected headline was the ADOPTED book, not the
+deployed one; held like for like the research headline SURVIVES*) is a reason to be glad nobody
+patched a page early: the numbers to transcribe were still moving.
+
+The test the brief asks for — *"a test should fail if any page still quotes a figure from the old
+panel after the move"* — is **not written yet, deliberately**. It has to key on the artifact's own
+identity (does the canonical panel describe the corrected universe?) rather than on a date, or it
+is the `MA4`/`MB31` family: a guard that fires on the CLOCK. Writing it needs the figures table
+that has not arrived, and guessing the key now risks a guard that is green for the wrong reason.
+
+**Also not done:** the digest is not extended (above); no sector or industry label is invented
+for the group (the engine's `regime` is read, never re-derived); and the group carries **no
+return claim** — `V6` returned NULL on this tab's hypothesis and licensed it as *"a filter, not a
+forecast"*, which these names are not an exception to.
+
+# Session 84 — 2026-10-07 (evening) — ITEM 37: the intraday scheduler is throughput-limited, not unlucky
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict. `by_domain` untouched. **No serving code
+changed** — this item is a measurement, one test, and a file for Don to install.
+
+## (a) MEASURED OVER 30 DAYS: 72.2% OF INTRADAY CRON SLOTS PRODUCE NO RUN
+
+30 days to 2026-10-07, **22 trading sessions** from the project's own market calendar (so a
+holiday is not scored as a miss). A run counts as an intraday cron when its **`intraday` JOB
+EXECUTED** rather than skipped — the job is the attribution and it is exact, because every job
+here is gated on `github.event.schedule`. Attributing by the clock would assume the scheduler is
+punctual, which is the thing being measured.
+
+| | |
+|---|---|
+| cron slots expected (22 sessions × 8 crons) | **176** |
+| runs delivered | **49** |
+| **dropped** | **127 — 72.2%** |
+| sessions with **no intraday run before 17:00 UTC** | **21 of 22 — 95.5%** |
+| sessions with no intraday run **at all** | **0 of 22** |
+
+**SO IT IS LATE, NOT DEAD** — which matches what you saw: `/api/signals` read 19:28 today after
+I had found nothing created between 03:43 and 17:03.
+
+## AND THE SHAPE OF THE LATENESS SAYS A BACKUP CRON WILL NOT FIX IT
+
+**TWO OF 205 SCHEDULED RUNS IN 30 DAYS ARRIVED BETWEEN 13:00 AND 16:59 UTC** — the window the
+first four intraday crons target. The arrival histogram across the whole workflow is bimodal with
+a dead zone:
+
+```
+  00  42  ##########################################
+  01  30  ##############################
+  02   9  #########
+  03   1  #
+  04-12   0        (nothing)
+  13   1  #   <-- the four crons at 13:23-16:23 target this band
+  14   0
+  15   0
+  16   1  #
+  17  23  #######################
+  18  16  ################
+  19   7  #######
+  20   2  ##
+  21  10  ##########
+  22  15  ###############
+  23  48  ################################################
+```
+
+**AND DELIVERY RUNS ON A CADENCE RATHER THAN PER CRON.** Within a session, consecutive intraday
+deliveries sit a **median 3.74 hours apart** (p25 2.81, min 2.66), and they land at almost the
+same three times every day — 2026-09-08 at 17:18 / 19:58 / 22:47, the 9th at 17:11 / 19:53 /
+22:38, the 10th at 17:02 / 19:52 / 22:40, the 11th at 17:03 / 19:52 / 22:40. The minute within
+the hour is **uniform** (only 4 of 49 land in the `:20-29` band the crons fire in), so these are
+queue drains, not on-time runs.
+
+**THE CONTROL THAT SETTLES IT: THE HOT LIST'S TWO CRONS LAND 22 OF 22 DAYS — BOTH OF THEM, EVERY
+DAY — WHILE THESE EIGHT LAND TWO OR THREE.** Hot arrives 00:00–03:00 UTC, i.e. 1.5–4.5 hours
+after its 22:23 and 23:41 crons, so it is just as late; it simply is not competing for a slot in
+GitHub's busy window. **A queue already discarding 72% of its slots is not short of slots.**
+
+So the backup-cron trick that works for the hot list is expected to buy **little** here, and
+adding offsets at 13:00–16:59 would be dead weight. **The first ~3.5 hours of every US session
+cannot be covered by a scheduled workflow on this account**, and covering them needs an external
+trigger — Don's PC calling `workflow_dispatch`, or the service doing it — not another cron.
+
+## WHAT WAS WRITTEN, AND WHY IT IS STILL WORTH INSTALLING
+
+`data/pending_workflows/auto-scan.yml` — the **complete** 497-line file, copied and patched
+programmatically rather than retyped, because Don installs it verbatim over the live one and a
+transcription slip in any other job would be invisible until that job next ran. Verified: parses
+as YAML, all **7 jobs** preserved, and the diff against the committed workflow **removes exactly
+the two comment lines it replaces**.
+
+The change is one cron — `53 17-19 * * 1-5` — **placed only where delivery is actually observed**,
+giving the live half of the session two chances an hour instead of one. The measurement is in the
+file's own comments so the decision is made with the evidence rather than on the analogy to the
+hot list.
+
+**IT CANNOT BE ON `origin/main` AND THAT IS BY DESIGN**: `data/` is gitignored, which is exactly
+why the standing rule routes `.github/` proposals through that directory plus
+`install_workflows.bat`. What landed is the test and this record.
+
+**TWO CORRECTIONS TO THE COMMENT IT REPLACES**, both of which would have misled the next reader:
+`23 13-20` is **hourly**, not *"every 30 min"*; and it cites *"the paid Render cron (render.yaml)
+runs this every 15 min"* — Render runs only the web service and **none of `render.yaml`'s cron
+jobs exist**.
+
+## THE DEFECT I ALMOST SHIPPED, AND THE GUARD THAT NOW CATCHES IT
+
+Every job in this workflow is gated on the **exact** cron string
+(`github.event.schedule == '23 13-20 * * 1-5'`). **Adding `53 17-19 * * 1-5` without extending
+that condition would have fired real runs in which every job SKIPPED** — consuming a scheduled
+slot, appearing in the run list as a success, and doing nothing. On a workflow whose scheduler
+already drops 72% of intraday slots, a silent no-op would have been **indistinguishable from
+another drop**. Caught by checking, not by reading; the pending file now carries the pairing.
+
+`tests/test_proposal_auto_scan_themes.py` gains the invariant, as the **complement** of the class
+already there: that one pins *no job may fire on a bare `schedule` event without naming a cron*,
+and this pins *no cron may exist that no job matches* — plus the mirror, *no job may be gated on a
+cron the schedule lacks*. **Mutation-tested on the live workflow, 2 of 2 caught**, restored
+byte-for-byte and `git status` confirmed clean — a transient local edit, never staged, because
+the land policy refuses a committed `.github/` change and this never became one.
+
+**A DEFECT IN THE FIRST CUT OF MY OWN AUDIT, AND IT IS THE FAMILY I SPENT THE LAST TWO ITEMS
+REMOVING FROM OTHER PEOPLE'S GUARDS.** It grepped `- cron: "..."` and matched the **comment**
+documenting the cron the master audit removed — `# REMOVED by the master audit (MA1): - cron: "0
+12 1 * *"` — so it reported a dead cron that does not exist. Comment-versus-code, in a check
+written during a session spent fixing exactly that. It parses with `yaml.safe_load` now, which
+sees the schedule and not the prose. (It also has to handle PyYAML reading the key `on` as the
+boolean `True` — a YAML 1.1 quirk, and the sort of thing that makes a hand-rolled reader
+tempting.)
+
+**THE PENDING-FILE CHECK CAN ONLY SKIP IN CI, SO ITS VALUE IS DEMONSTRATED RATHER THAN ASSUMED.**
+It resolves its repo root from its own location, and `data/` is gitignored, so it skips in a
+worktree and on a runner. By this project's own rule — *a guard whose only real execution is
+skipped is the defect* — that is not good enough on its own, so it was exercised directly:
+**SKIPPED with no file, PASSED with the real one, FAILED with an unpaired cron**, with nothing
+left under `data/` afterwards. The committed-workflow tests are the ones that bite in CI and
+those are the mutation-proven pair.
+
+**AND THAT LAST SENTENCE WAS FALSE WHEN IT WAS WRITTEN — THE LAND WENT RED AND THAT IS HOW I
+FOUND OUT (corrected 2026-10-07, same evening, before anything reached `main`).** Both
+committed-workflow guards called `yaml.safe_load`; **PyYAML is installed locally and is NOT on
+the runner**, so in CI they raised `ModuleNotFoundError` and the suite reported `errors=2`
+rather than passing or failing. **A guard that cannot RUN where it matters, in a session spent
+removing exactly that shape from other people's checks** — and it is the same family as this
+file's own *"CI Python is 3.11, local is 3.13"* note: a thing present on this machine and absent
+on the runner, invisible until the gate reads it.
+
+**THE LAND FAILING IS THE GOOD OUTCOME.** The tempting repair is `@unittest.skipUnless(yaml)`,
+which would have turned a red land green and left the two checks **silently absent in CI
+forever** — the "fails open in CI" defect, chosen deliberately. Instead the reader now depends
+on nothing outside the standard library: this suite's own `_strip_comments` (which exists for
+precisely the comment-versus-code defect the first cut hit) plus two line reads, `- cron: "..."`
+inside the `schedule:` block and `github.event.schedule == '...'` in a job condition.
+
+**VERIFIED NON-VACUOUS RATHER THAN ASSUMED, because a reader returning `[]` would make
+`dead == []` pass while seeing nothing:** it parses **11 crons and 11 gates** on the live
+workflow, matched exactly, and the commented-out `0 12 1 * *` the master audit removed **does
+not leak in** — which was the whole reason the first cut reached for a YAML parser. Both
+mutations re-run against the new reader: **2 of 2 caught**, workflow restored byte-for-byte.
+The pending-file check still SKIPS with no file, PASSES with the real one and FAILS on an
+unpaired cron.
+
+## (b) BOTH HOLDS — AND DECISIONS.md HAS SINCE RULED ON ONE OF THEM
+
+**THE PUBLIC PAGES STAY UNTOUCHED, AND NOW FOR A STATED REASON RATHER THAN A WAIT.** DECISIONS.md
+(2026-10-07) rules that the canonical backtest moves to the corrected universe and the public
+pages are *"restated once from it"* after r1's full panel rebuild — **"No interim patch."** So the
+hold is not merely in force, it is the ruling. Verified as a fact about the diff: this session
+changes no file under `valuation/web/templates/` or `static/`.
+
+**THE DIP DETECTOR'S HANDLING OF BANKS, INSURERS, REITs AND REGULATED UTILITIES NOW HAS DON'S
+RULING, AND I HAVE NOT ACTED ON IT.** DECISIONS.md, 2026-10-07:
+
+> **DIP DETECTOR: show banks, insurers, REITs and regulated utilities in their own group,
+> labelled "health not scored for this kind of company".** Never counted as healthy, never
+> silently excluded.
+
+That is a direct answer to what item 36 reported (31 of 110 health rejections are a withheld
+health sub-score) and to what this item's own brief lists as held. **The two instructions
+conflict**: DECISIONS.md's header says *"a ruling here overrides any older prose in a handoff or
+prompt"*, and this prompt's hold is conditional — *"HOLD until DECISIONS.md records Don's
+ruling"* — so on the file's own precedence the condition is met. But the prompt is dated the same
+evening and names this exact item as held, and the work is a **grouping change to a public
+surface**.
+
+**I DID NOT GUESS.** Shipping an unwanted change to a live page costs a revert; waiting costs one
+message. **This is ready to be the next item** and the ruling specifies it completely: a third
+group, labelled with that sentence, never counted healthy and never dropped. The counters it
+needs already ship — `rejected_health_missing` (31) and `rejected_health_below` (73) landed in
+item 36 — so the work is a surface change rather than a measurement.
+
+---
+
 # Session 83 — 2026-10-07 — ITEM 36: the engine's 52-week high had no fallback, and the comment-length guards are gone
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict. `by_domain` untouched. **(c) IS OBEYED AND
@@ -15740,3 +16759,532 @@ NO-GO; nothing here re-runs the comparison; and the quality divergence is NAMED,
 **25 tests across two new suites, zero skips; the dip and theme suites green.**
 `scripts/theme_cache_build.py`, `valuation/web/dip.py`,
 `tests/test_item33_insider_leg.py`, `tests/test_item33_dip_spread.py`.
+
+---
+
+# SESSION 86 (2026-10-08) - ITEM 43: THE DAILY PUSH DIVERGED *BECAUSE* IT SYNCED FIRST, AND THE ONLY DEFECT WAS THE ORDER
+
+`PROMPT_appfixer_2026-10-08_item43.md`: *"Fix the flow so this cannot recur: commit the folder's
+edits first, then fetch, then replay ONLY commits that exist solely in this folder onto
+origin/main (rebase), aborting and reporting - never discarding - on any conflict, then push."*
+
+**THE FAILURE WAS REPRODUCED BEFORE IT WAS REPAIRED, ON A REAL TEMPORARY REPO WITH A FAKE
+REMOTE, AND IT REPRODUCES EXACTLY.** A bare `github.git`, a clone standing in for Don's folder,
+and a SEPARATE clone standing in for a lane that lands through the gate:
+
+```
+  start:                       ahead 0 / behind 1 / dirty 2
+  --- step 3: git_push.bat runs sync_checkout.py over a dirty tree ---
+      exit 1
+      | [!! ] fast-forward: refused
+      | parked to rescue/wip-main-6744ccd
+  --- step 4: git_push.bat commits the edits anyway ---
+  after commit:                ahead 1 / behind 1          <- DIVERGED
+  --- step 5: git push ---
+      exit 1  ! [rejected]        main -> main (non-fast-forward)
+  --- step 6: does sync.bat cure it? ---
+      exit 1  | reason: diverged
+  after sync.bat:              ahead 1 / behind 1          <- still diverged
+```
+
+**EVERY SINGLE STEP IS CORRECT.** The sync is right to refuse a fast-forward that would
+overwrite uncommitted edits. The commit is right to happen. The push is right to be rejected.
+`sync.bat` is right to refuse a diverged branch - that refusal is deliberate and is what stops
+it discarding anything. **The ORDER is what manufactured a divergence out of two things that
+were merely out of step**, and no individual step could be blamed for it, which is why three
+sessions of reading the script did not find it.
+
+The real instance: `517cf0b` landed on main touching `DECISIONS.md` and the `PROMPT_*` files
+while Don had local edits to the same files. Uncommitted edits to a tracked file the remote
+also changed is the whole trigger, and it is the ordinary state of this folder every single
+day.
+
+## WHAT SHIPS
+
+**`scripts/publish_folder.py`** - commit FIRST, fetch, align, push, in that order:
+
+1. refuse unless HEAD is on `main` (**refused, not switched** - checking `main` out under
+   someone deliberately on another branch is the kind of help that loses work);
+2. **commit the folder's edits**, having refused anything that must never be pushed;
+3. fetch;
+4. behind only -> `merge --ff-only`; **diverged -> `rebase origin/main`**, which replays only
+   the commits that exist solely here; conflict -> `rebase --abort`, report, exit non-zero;
+5. push, which is now a fast-forward by construction rather than by luck.
+
+**`git_push.bat`** keeps the git discovery, the "agent branches land through the GitHub gate"
+line and the test gate, and then calls it. It no longer contains `add`, `commit`, `push` or
+`sync_checkout.py` at all - **one definition of the order** (`B7`), because two orders in two
+files is precisely how this recurs.
+
+## THE DECISION THE BRIEF ASKS FOR: `rebase_push.bat` IS REMOVED, NOT DOCUMENTED
+
+Its logic - fetch, rebase, abort on conflict, push - is correct, and it is now **step 4 of the
+normal flow**. Keeping it as well would be a SECOND implementation of one cure, which is audit
+`B7`'s shape and the defect this project has paid for most often; the second copy is always the
+one that drifts. **And there is nothing left for it to recover from: the state it cured can no
+longer be reached.** **AND IT HAD TO BE DELETED FOR REAL RATHER THAN MERELY NOT ADDED, WHICH THIS
+LANE GOT WRONG FIRST.** It was written untracked into Don's folder as an emergency hand-cure,
+and this write-up's first version said *"it was never tracked, so nothing is deleted"* and asked
+Don to delete it by hand. **Measured on the gate: it IS tracked, because on 2026-10-08 at 19:07
+`git_push.bat`'s own `add -A` committed it** - `50146ba`, "Update Thu 10/08/2026 19:07:21.49",
+Don's own message format. **So the tool this item repairs is what landed the thing this item
+retires**, and `add -A` sweeping up a loose file is the same mechanism that makes the `.env`
+guard necessary. The test asserting its absence was GREEN locally against a branch that
+predated that commit and RED on the gate, which is the gate earning its keep: `git rm` in this
+commit, and the test now has something real to defend.
+
+## EVERY EXISTING GUARANTEE IS KEPT, AND EACH IS A LINE OF CODE RATHER THAN AN INTENTION
+
+* **TESTS BEFORE PUSH / NEVER PUSH RED** - `git_push.bat` runs the suite first and refuses on
+  red, and the module **also refuses to run without `--tests-passed`**, so a future caller
+  cannot reach the push by forgetting. Pinned from both sides, including that a missing python
+  fails the gate rather than skipping it.
+* **AGENT BRANCHES ARE NEVER MERGED LOCALLY** - asserted as a property of the SOURCE: `publish`
+  may not contain `worktree-`, `merge --no-ff`, `branch -d/-D`, `push --force`, `push -f`,
+  `--force-with-lease`, `reset --hard`, `clean -fd`, `checkout -b` or `stash`, and the only
+  merge it performs is a fast-forward of its own branch. Plus a behavioural case: a folder
+  carrying a `worktree-*` branch the gate already landed publishes cleanly and **the branch is
+  still there afterwards** - the 2026-10-06 shape.
+* **NOTHING IS DISCARDED** - the pre-rebase tip is written to a named local ref BEFORE the
+  rebase and reported by name, so recovery is a copy-paste rather than an archaeology
+  exercise. `rebase --abort` would restore it anyway and the reflog would hold it for 90 days;
+  *"nothing is discarded"* should be a ref somebody can read, not a property of a command's
+  failure path. The conflict test asserts the backup holds Don's work **without** the lane's,
+  that no `rebase-merge`/`rebase-apply` directory is left behind, that no conflict markers
+  reach the working file, and that the remote is untouched by the failed attempt.
+* **`.env` AND `data/` ARE NEVER COMMITTED** - checked against what is actually STAGED, after
+  `add -A`, which is the only moment the answer is knowable; a hit is **unstaged**, never
+  committed-then-fixed, because a secret in a commit is in the history whatever the next commit
+  says. Exercised with `git add -f`, which is how a `.gitignore` gets defeated in practice.
+
+## THREE DEFECTS THE SUITE FOUND ON ITS FIRST RUN, AND ONE OF THEM IS IN THE PRODUCT
+
+* **IN THE PRODUCT: the never-commit guard matched nothing.** `_blocked` normalised with
+  `lstrip("./")`, and `lstrip` takes a **SET OF CHARACTERS** rather than a prefix - so `.env`
+  came back as `env` and **the one guard standing between a secret and a public remote passed
+  everything**. Found by the test asserting the literal shapes, not by reading.
+* **IN THE FIXTURE: `DECISIONS.md` had three lines**, so the lane's append and Don's edit landed
+  on the SAME line and every supposedly-clean replay case conflicted. The suite was measuring
+  one scenario twice under two names. The real file is hundreds of lines and the two edits land
+  in different places; a fixture that cannot represent that cannot tell a clean replay from a
+  collision.
+* **IN THE CONTROL: it passed vacuously.** The old-order test merged **without fetching first**,
+  so `origin/main` was still an ancestor of HEAD, `merge --ff-only` exited 0 saying *"Already up
+  to date"*, and the assertion read that SUCCESS as the refusal it was looking for. The old flow
+  fetched inside `sync_checkout.py`; leaving the fetch out of the control removed the premise.
+  **`MB21`'s family: a control that certifies the instrument while comparing nothing.**
+
+**A FOURTH, IN THE DRY RUN, AND IT IS THE INSTRUCTIVE ONE.** `--dry-run` originally skipped the
+fetch (on the reasoning that a dry run writes nothing) and so read a stale remote-tracking ref.
+On the exact state this item is about - dirty and one commit behind - it printed **"would
+fast-forward"** for a run that will rebase. **A preview of the wrong branch of the code is worse
+than no preview, because it is believed.** It now fetches (the one write, and only to a
+remote-tracking ref; `measure` never prunes) and counts the commit it would have made, so the
+preview names the step the real run takes.
+
+**AND A FIFTH, IN MY OWN TOOLING: a tab ate the test gate.** Writing `git_push.bat` through a
+heredoc turned `tests\test_edge.py` into `tests` + TAB + `est_edge.py`, so cmd would have run
+`python tests`, the suite would never have executed, and **"never push red" would have been
+silently absent while the script still printed `[OK] tests pass`**. Caught by reading the file
+back; pinned by a test asserting the bat contains no tab character at all.
+
+## A SIXTH DEFECT, AND IT IS A MEASUREMENT THAT CONTRADICTS MY OWN REPAIR
+
+While closing the last crash path I added a branch for a REFUSED fast-forward -- the tree is
+clean by that point, so the only candidate left is a path git does not track here, and
+`_git` would have thrown an exception out of the middle of Don's daily tool. **Then I built the
+scenario and it does not refuse: `merge --ff-only` protects TRACKED modified files, and an
+IGNORED file sitting where the incoming commit tracks one is REPLACED WITHOUT A WORD.** Measured
+on a real repo: `NOTES.txt` holding `"Don's untracked version"` came back holding `"the lane's
+version"`, the step reported `fast-forwarded`, and nothing anywhere said a local file had gone.
+
+**So the branch is DEFENSIVE and I cannot show it is reachable**, which this project distrusts
+on principle -- so it is labelled as such rather than counted as a tested path, its report is
+driven directly by making the merge fail, and the thing that ACTUALLY happens is pinned as its
+own test with the measured bytes in the assertion. **It is git's behaviour and `git pull` does
+the same**, so it is reported rather than repaired: having this tool second-guess a plain
+fast-forward would be a bigger change than the item asks for, with its own failure modes.
+**Worth knowing before putting anything you care about in a gitignored file in that folder.**
+
+## WHAT THE REPRODUCTION SCRIPT ITSELF GOT WRONG FIRST, because it is the same lesson twice
+
+* **IT USED THE WRONG DIRTY STATE.** Untracked files do not block `merge --ff-only`, so the
+  sync fast-forwarded, the commit landed on CURRENT main, and the push succeeded. The scenario
+  quietly did not happen.
+* **IT PRINTED "REPRODUCED" UNCONDITIONALLY.** A `print` at the end of a script is not a
+  measurement, and the first run printed it while nothing had gone wrong. The verdict is now
+  derived from the measured state and the script exits non-zero if it fails to reproduce.
+
+**This is why the suite drives real repositories rather than mocks.** The defect was an
+order-of-operations failure between three commands that each behaved correctly, and the state
+that makes it bite is a property of git's index. A mocked `git` would have reproduced whatever I
+believed about git and nothing about git - and my own first cut proved that in the other
+direction.
+
+## TWO OF THE SYNC LANE'S OWN GUARDS FIRED, BOTH CORRECTLY, AND ONE HAS NOW BEEN KEYED ON THE CLOCK FOR THE THIRD TIME
+
+The full gate came back **259 suites passing, ONE failing** - `tests/test_sync_checkout.py`,
+which is the sync lane's file and not this one's. Both failures are **correct**: that suite
+asserts `git_push.bat` calls `scripts\sync_checkout.py`, and item 43 removed the call on
+purpose.
+
+**`test_git_push_syncs_before_it_pushes` HAS NOW BEEN REPOINTED THREE TIMES AND ITS OWN
+DOCSTRING RECORDS THE FIRST TWO.** It was keyed on a BANNER (*"Auto-land finished agent work"*),
+which was deleted on 2026-10-06, so it raised `ValueError: substring not found` and **took the
+landing gate red for every lane**. It was then keyed on a SCRIPT NAME, `sync_checkout.py` - and
+that call is now gone too. **Both keys were properties of the LAYOUT - which banner, which
+script - and the property they stood in for is simply "this script does not push before it has
+aligned".** `MA4`/`MB31`'s family, in its purest form: a guard asserting today's arrangement
+fires on the clock, and this one has now cost three repoints across three sessions.
+
+**REPOINTED TO THE PROPERTY, IN THE STRONGEST FORM AVAILABLE RATHER THAN THE NEAREST ONE:
+`git_push.bat` now contains NO PUSH AT ALL, so there is no push that could precede an align**,
+and the one tool that owns both is required to fetch before it pushes *in its own source*. A
+future edit that re-adds a bare `git push` to that file goes red, which is the thing the guard
+was protecting all along. The 2026-10-06 bans (no `worktree-`, no local `merge`) are untouched,
+and its non-vacuity assertion is repointed with it so the comment-stripper cannot make the
+whole guard pass by seeing nothing.
+
+**AND THE SECOND FAILURE IS THE SAME DEFECT IN THE TEST DIRECTLY BELOW IT.**
+`test_git_push_does_not_wrap_errorlevel_in_a_parenthesised_block` sliced its region between
+`where python >nul 2>nul || goto :nodrift` and `:drifted` - the labels bracketing the sync call
+- so it raised `ValueError` for the identical reason. Re-anchored to the command whose
+errorlevel is actually being read, with a non-vacuity assertion that the region still contains
+the `if errorlevel` lines it exists to police.
+
+**BOTH REPOINTS LAND IN THE SAME COMMIT AS THE CHANGE THAT MOVED THEM (`MA59`), so the move
+shows in the diff, and BOTH ARE MUTATION-TESTED 4 of 4** - a repointed guard that cannot bite is
+worse than the dead one it replaced, because the dead one at least went red: `git_push.bat`
+pushing by itself again, the delegation removed entirely, `if errorlevel` wrapped in
+parentheses, and the aligning fetch removed altogether. **One of those four first reported
+`needle absent` because my mutation used `\n` against a CRLF file - which the harness counts as
+a MISS, correctly, since a mutation that never applied proves nothing.**
+
+## THE EXACT SEQUENCE DON SHOULD EXPECT TO SEE PRINTED
+
+Ordinary day - his edits plus lanes that landed:
+
+```
+  Agent branches land through the GitHub gate - not merged here.
+  Running tests before pushing...
+    [OK] tests pass.
+
+  PUBLISHING THIS FOLDER'S EDITS
+  --------------------------------------------------------
+  [OK ] on the right branch                    head=main
+  [OK ] saving your edits                      action=committed message=Update 2026-10-08 20:00
+  [OK ] checking GitHub                        ahead=1 behind=1
+  [OK ] replaying your edits on top of GitHub  action=rebased ours=1 theirs=1 backup=backup/main-b2e1831
+  [OK ] pushing                                action=pushed commits=1
+
+  [OK] GitHub is up to date.
+```
+
+Nothing of his to send, lanes landed:
+
+```
+  [OK ] saving your edits                      action=clean
+  [OK ] checking GitHub                        ahead=0 behind=1
+  [OK ] catching up to GitHub                  action=fast-forwarded commits=1
+  [OK ] pushing                                action=nothing-to-push
+```
+
+The one case that stops, and what he does about it:
+
+```
+  [OK ] checking GitHub                        ahead=1 behind=1
+  [!! ] replaying your edits on top of GitHub  action=aborted ours=1 theirs=1 backup=backup/main-4900df2
+         | Auto-merging DECISIONS.md
+         | CONFLICT (content): Merge conflict in DECISIONS.md
+         | error: could not apply 4900df2... Update 2026-10-08 20:00
+
+  [!] your edits and GitHub's changed the same lines, so the replay was undone and NOTHING
+      was lost. Your commits are still here and also on 'backup/main-4900df2'. Open the files
+      git named above, keep the version you want, then run this again.
+```
+
+## TESTS
+
+**31 tests, zero skips**, every behavioural case against a real temporary repo with a fake
+remote: the old order diverging (the control), the new flow pushing and keeping **both** sides
+of the file, the step order itself, the backup ref, a genuine conflict aborting and reporting,
+behind-only, in-step-and-clean, ahead-only, another branch, a **deterministically** rejected
+push (a `pre-receive` hook that exits non-zero - a test that depends on winning a race against
+its own fetch is flaky by construction), an unreachable remote reported as an error rather than
+a pass, `.env` and `data/` refused through `git add -f`, a landed agent branch left alone, the
+CLI's three exit codes, the dry run, and the wiring in `git_push.bat`.
+
+**MUTATION-TESTED: 15 of 15 CAUGHT, 0 MISSED, sources restored byte-for-byte**, plus one
+deliberately INERT mutation so the harness is shown able to tell a no-op from a miss: the
+never-commit guard removed; the replay turned into a `merge`; the backup ref not created; the
+abort removed; the branch check removed; `--tests-passed` no longer required; a rejected push
+reported as a success; a refused fast-forward reported as a success; a dry run committing for
+real; the fetch skipped; `git_push.bat` reverted to committing and pushing itself; the backup
+line swapped for a `checkout`; and four separate ways of forcing the push (`--force`,
+`--force-with-lease`, a `+refspec` prefix, and the plain `--force` again after the repair
+below).
+
+**AND THE FIRST PASS MISSED THE MOST DANGEROUS MUTATION OF THE SET, WHICH IS WHY IT WAS RUN.**
+`publish()`'s source-level ban list read `"push --force"` -- **a needle with a space in it**,
+which a token-joined source can never contain -- so **turning the push into a FORCE PUSH TO
+MAIN went straight through a guard written to forbid exactly that**. `MB15`'s family: a ban
+whose shape cannot match the thing it bans, and the fourth time this project has paid for a
+substring ban. Repaired by banning single TOKENS and, more usefully, by pinning the push's
+shape POSITIVELY -- `_run(repo, "push", remote, "HEAD:%s" % branch)` -- so any extra argument
+at all breaks it, which catches what an enumeration of bans cannot anticipate. Re-run: the
+force push, a force-with-lease and a `+` refspec are all caught.
+
+**AND THE REPAIRED BAN LIST THEN FIRED ON CORRECT CODE, one level down the same family.**
+`"clean"` was on it, and `action="clean"` is a legitimate STEP LABEL, so the guard went red
+against a tree with nothing wrong with it. Only tokens that are dangerous in every context
+stayed. **`-f` is deliberately NOT banned either**: `branch -f` force-moves the local BACKUP
+ref, which is the single line that makes *"nothing is discarded"* true, so banning the bare
+token would forbid the safety feature -- which is why the push is pinned positively instead.
+
+---
+
+# SESSION 87 (2026-10-09) — ITEM 44: THE BACKUP CRON WAS ALWAYS THERE, AND A LANE'S COPY OF A `.github/` FILE IS STALE BY CONSTRUCTION
+
+`PROMPT_appfixer_2026-10-09_item44.md`, three parts. **The correction is accepted and it is not
+a slip — it is a structural guarantee nobody had written down.**
+
+## (1) THE CORRECTION, AND THE REASON IT WILL RECUR UNLESS IT IS MECHANISED
+
+Item 42 reported that the `53 17-19` backup cron "is still not installed". **It has been
+installed since `d66155e`, 2026-10-08 08:15 ET**, and the intraday job's `if:` already names
+it. Verified against `origin/main`: it is line 67 of `auto-scan.yml`, and the authoritative
+read lists twelve crons including it.
+
+**WHY THE LANE READ THE WRONG COPY, AND WHY DISCIPLINE CANNOT FIX IT.** The land gate REFUSES
+any branch touching `.github/` (`land_policy.py`), so a workflow file can only ever change on
+`main`, by Don running `install_workflows.bat`. **A lane cannot make the change, cannot land it,
+and has no mechanism that would keep its copy current — so for `.github/` specifically a lane's
+local copy is stale BY CONSTRUCTION, and reading it to make a claim about what GitHub is
+scheduling is wrong by construction rather than by accident.** `valquo_sync_bootstrap.bat`
+already applies exactly this reasoning one level up: it fetches `sync_checkout.py` from
+`origin/main` rather than running the folder's copy, because *"a launcher that ran this folder's
+copy would be as stale as the folder."*
+
+**SO IT IS MECHANISED.** `scripts/workflow_source.py` is the one authoritative reader: it
+returns `origin/main`'s text plus `source` and `authoritative`, and when it cannot read the ref
+it **says so instead of quietly substituting the local file** — a silent fallback would
+reproduce the defect with an extra layer of indirection, because the caller would believe it
+held the real thing. On a CI runner `origin/main` is often not fetched and there the local copy
+IS correct (the gate tests the merge of branch into main), so the fallback is right in CI and
+reported everywhere.
+
+The three places in `tests/test_proposal_auto_scan_themes.py` that asserted the house rule
+against the local file now read the authoritative copy, so a stale branch can no longer make
+that guard pass while main's copy breaks it. And a new structural guard: **no script may open a
+`.github/workflows/` file behind the reader's back** (B7), read through the AST, with the
+pending directory exempt because a pending file is a PROPOSAL and reading it locally is the
+only way to read it at all.
+
+## THE RE-MEASUREMENT: THE WINDOW STARTS 2026-10-08 AND IS ONE SESSION OLD, NOT A WEEK
+
+`scripts/intraday_delivery.py` re-asks item 37's question on demand. **It is not a week yet** —
+the backup was installed on the 8th and the 9th has not traded — so this is the interim, and the
+full week completes **2026-10-14** with the re-measurement due **2026-10-15**:
+
+```
+  python scripts/intraday_delivery.py --since 2026-10-08 --until 2026-10-14
+```
+
+| | item 37 (30 days to 2026-10-07) | **interim, 2026-10-08, ONE session** |
+|---|---|---|
+| intraday crons | 8 | **11** (8 primary + 3 backup) |
+| slots expected | 176 | **11** |
+| runs delivered | 49 | **4** |
+| **of those, IN SESSION (13:00–20:59 UTC)** | not reported | **1** |
+| dropped | 127 — **72.2%** | 7 — **63.6%** |
+| sessions with no in-session run | 21 of 22 | **0 of 1** |
+| sessions with no run at all | 0 of 22 | 0 of 1 |
+
+Arrivals on 2026-10-08: **00:16, 19:19, 22:30, 23:49 UTC**. **ONE SESSION PROVES NOTHING about
+63.6% against 72.2%** and the difference is not quotable as an improvement; what the day shows
+is that the shape has not changed — one in-session delivery, the rest arriving after the close.
+
+**THE NUMBER WORTH WATCHING IS `runs_delivered_in_session`, AND IT IS SMALLER THAN DELIVERY.** A
+run landing at 23:49 was fired by an in-session cron and refreshes nothing a user sees while the
+market is open. Counting it answers *"did GitHub eventually run it"* when the question is *"did
+the feed refresh during the session"*. Both ship; the gap between them is the finding.
+
+**WHAT THE INSTRUMENT CANNOT DO, STATED RATHER THAN GLOSSED: it cannot tell the primary cron
+from the backup.** Both gate the same `intraday` job and the API does not expose the schedule,
+so a delivered run is attributable to *an* intraday cron and no further. **Nobody may say "the
+backup rescued N sessions" from this.** That would need the job to record which schedule fired
+it, which is a `.github/` change.
+
+### TWO DEFECTS IN MY OWN INSTRUMENT, BOTH THE SAME FAMILY AS THE ONE I WAS FIXING
+
+* **THE DENOMINATOR DID NOT MOVE WITH THE SCHEDULE.** The first cut read today's cron list and
+  applied **11 slots to every session in the window**, including 2026-10-06 and -07, which
+  really had 8. **That is item 42's defect in the TIME dimension — reading one copy of a file
+  and believing it describes a different moment** — so the fix is the same one: `crons_on(date)`
+  reads the workflow as it stood that day, and the artifact ships `slots_by_date` and
+  `crons_by_date`. Across the install boundary it reported 74.1% where the per-date figure is
+  the honest one.
+* **A SESSION THAT HAS NOT CLOSED OWES NOTHING, AND IT COUNTED ONE.** Asked for 2026-10-08..09
+  at 02:00 UTC on the 9th it scored the 9th as 11 expected and 0 delivered and reported
+  **81.8% dropped on a day the market had not opened** — **item 43's `gap_report` off-by-one
+  exactly**, inflating the headline in the alarming direction. The window now ends at
+  `last_closed_session()` and the truncation is REPORTED in the artifact, because an output that
+  silently measured a day while being asked for a week is worse than a refusal.
+
+## (2) THE TRADIER MEASUREMENT RUNS WHERE THE WORKING TOKEN LIVES
+
+`data/pending_workflows/tradier-seam.yml`, **`workflow_dispatch` only, no schedule.**
+
+* **INSTALL:** double-click `install_workflows.bat`.
+* **RUN, one click:** GitHub → **Actions** → **"Tradier seam (measure only)"** → **Run
+  workflow** → the green button. There is no schedule, so it never runs on its own.
+* It uses the repository's existing `TRADIER_TOKEN` secret and uploads
+  `tradier_seam_raw.json` + `tradier_seam_report.txt` as the artifact **tradier-seam**.
+
+**THE DIAGNOSIS IS SHARPER THAN ITEM 41's, AND IT REFUTES THE OBVIOUS HYPOTHESIS.** The lane's
+401 is **not** a wrong-base error: measured, the lane already sends `TRADIER_ENV=live` to
+`api.tradier.com` and the response is `{"fault":{"faultstring":"Access Token not approved"}}` on
+all three control names. **It is a market-data ENTITLEMENT answer, not a bad token and not the
+sandbox host.** (The token's length is printed and its value never is.)
+
+**`TRADIER_ENV: live` IS NOT OPTIONAL IN THE WORKFLOW AND OMITTING IT WOULD BE A QUIET
+FAILURE**, which `auto-scan.yml` already learned once: `CONFIG.tradier_env` defaults to
+`"sandbox"`, so an approved live token would be sent to `sandbox.tradier.com`, 401, and be
+reported as *"Tradier has no coverage"* when the truth is *"we asked the wrong host"*. A test
+asserts that **every step receiving the token also receives the env**.
+
+**READ-ONLY IS A PROPERTY, NOT A POLICY, and it is asserted on the script rather than the
+workflow:** `tradier_seam.py` contains **exactly one** outbound call shape — `requests.get` to
+`/markets/history` — no POST/PUT/PATCH/DELETE anywhere, and it does not even name an
+order endpoint. The token is scrubbed from every reported string, and the workflow is checked
+for `echo`/`printenv`/`set -x` shapes that would put it in the log.
+
+### THREE DEFECTS FOUND BEFORE SHIPPING IT, EACH ONE A WASTED CLICK OTHERWISE
+
+* **THE SCRIPT ONLY RAN ONE WAY.** `python scripts/tradier_seam.py` raised
+  `ModuleNotFoundError: valuation`; it had only ever been invoked as `python -m
+  scripts.tradier_seam`. The workflow invokes it the other way, so this would have spent one of
+  Don's clicks on a crash. Found by running it, not by reading it.
+* **A 401 ON EVERY NAME WOULD HAVE BEEN A GREEN RUN WITH AN EMPTY ARTIFACT.** `probe()` printed
+  and returned `None`, so a caller could not tell *"measured"* from *"every request refused"*.
+  It now returns a bool, says **NOTHING AUTHENTICATED**, and the CLI exits **2** — while the
+  upload stays gated on `!cancelled()` so the refusal travels as evidence. *"I could not
+  measure"* and *"the measurement came out this way"* must never share an exit code.
+* **A CONTROL THAT DID NOTHING.** The first cut declared a `names` input to cap the sample, and
+  the script has no such flag — a box on the Run-workflow form that accepts a number and
+  changes nothing. **A control that does nothing is worse than none, because it is believed.**
+  Removed, and a test refuses any declared input the script has no flag for.
+
+## (3) SOMETHING *DOES* DEPEND ON THE BROKER FUNDAMENTALS, AND THE IMPORT GRAPH SAID IT DID NOT
+
+The question was whether anything depends on them today, with permission to record it and move
+on if nothing does. **Nothing is the wrong answer twice over.**
+
+**FIRST, THE INSTRUMENT LIED.** `scripts/import_graph.py --importers
+valuation.screener.broker_fundamentals` returns an **empty list** and the module is **not in the
+reachable set** — because all five call sites are **deferred imports inside function bodies**
+(`from . import broker_fundamentals as BF`), which a module-level graph cannot see. A text sweep
+finds four sites in `providers.py` and one in `screen.py`. **"No importers" is exactly the kind
+of answer that gets acted on, and here it was wrong.**
+
+**SECOND, THE DEPENDENCY IS RESILIENCE, AND `providers.get_metrics` SAYS SO IN ITS OWN COMMENT:**
+*"Before the broker prefill that meant the name was DROPPED from the scan entirely ('no data');
+now it survives on the broker's half, so a throttled Yahoo costs the scan some quality per name
+instead of costing it the name."* **So with the prefetch at 0 that safety net is absent exactly
+when item 39's failure mode occurs** — Yahoo refusing the runner outright with `401 Invalid
+Crumb`. No displayed number depends on it; the scan's robustness does.
+
+**AND THE 0-OF-1500 FIGURE DOES NOT MEAN WHAT IT LOOKS LIKE — TWO POPULATIONS UNDER ONE WORD.**
+The live health block reads `names_with_broker_data: 0` and `note: "broker fundamentals loaded
+for 0 of 1500 names"` **directly beside `by_source: {"free+broker": 777, "free": 591,
+"unknown": 72}`** over 1,440 scored names. Both are right. `get_metrics` returns a CACHED row
+before it ever consults the broker, and `merge` stamps `free+broker` only when the broker
+actually filled a field — so **with an empty prefetch no row scored TODAY can carry that label,
+and the 777 that do were stamped on an earlier run when the prefetch worked.** `O-1`'s family: a
+count measured on one population read as a fact about another. **It cost me an afternoon's wrong
+conclusion ("the broker half is gone"), so `broker_stats` now ships a `scope` field saying which
+population it counted**, and the arithmetic behind the contradiction is pinned by test
+(`merge(None, free)` must stamp `free`, with a positive control that a filling broker row stamps
+`free+broker`).
+
+**NOT DONE, named so it is not mistaken for done:** the CAUSE of the empty prefetch is still not
+established beyond "the fundamentals endpoints answer with nothing while the options endpoints
+work" — it reports a COUNT rather than a failure, so `fetch_raw` returned 200-with-no-company
+rather than raising, which is consistent with a fundamentals entitlement the options token does
+not carry. Nothing is enabled, no endpoint is repointed, and no scan behaviour changed.
+
+## REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3): THE APPEND-ONLY WRITER CAN REFUSE A LEGITIMATE WRITE ON WINDOWS, AND IT IS A DATA-LOSS PATH
+
+The full gate came back **264 passing, ONE failing** — `tests/test_fleet_highwater.py`, which
+is the fleet lane's (`de96ee9`) and imports nothing this item touches. **It is not this item's
+and it is not flaky-and-harmless; it is a real defect in a shipped writer**, so it is measured
+rather than dismissed.
+
+**IT PASSED IN TWO EARLIER FULL GATES OF THE SAME CODE** (260/260 and 264/264) and **passes
+standalone**, which is exactly the shape that invites "stale expectation, ignore it". Run ten
+times in a row it fails **1 of 10**:
+
+```
+  AssertionError: {'ok': False, 'wrote': False, 'reason': "could not write
+    ...\Temp\hw_nyziy_yq\data\fleet\hwbook.csv: [WinError 32] The process cannot access
+    the file because it is being used by another process: '...hwbook.csv.tmp' -> '...hwbook.csv'"}
+```
+
+**THE MECHANISM IS `valuation/edge/append_only.py:157` AND IT IS THE PRODUCT, NOT THE TEST.**
+The writer is temp-file-plus-`os.replace`, which is correct and is why it exists — but on
+Windows `os.replace` transiently fails with `WinError 32` when anything (indexer, AV, a
+scanner) holds the `.tmp` for a moment, and the `except` turns that into
+`{"ok": False, "wrote": False}` — **a REFUSAL.** There is no retry anywhere in the module.
+
+**WHY THAT IS WORSE THAN A FLAKY TEST.** `append_only` is the writer behind
+`index_mark.append_row` — the BOUND forward record — and behind the fleet recorder. On Don's
+Windows machine a transient lock therefore turns a legitimate append into a refused one, and
+**the record is append-only with no backfill permitted** (DECISIONS standing rules), so a row
+lost that way is lost permanently. The refusal is at least loud rather than silent, which is the
+module working as designed; what is missing is that a transient OS condition and a real refusal
+are not the same event.
+
+**AND IT CANNOT REDDEN THE LAND GATE, WHICH IS WHY NOBODY HAS SEEN IT.** `WinError 32` is a
+Windows file-locking behaviour; on the Linux runner `os.replace` over an open path simply
+succeeds. So this is invisible in CI and visible only on the one machine that owns the record —
+`MB42`'s shape exactly, and the third sighting of this family (`MB21` and `MB16` both hit
+`%TEMP%` permission failures invisible in CI).
+
+**DELIBERATELY NOT FIXED HERE.** Adding a retry to a safety-critical append-only writer is a
+behaviour change in another lane's module, which carries its own twelve-mutation suite, and
+doing it inside an item about workflow staleness is the scope creep that breaks things. **The
+fleet lane's call**, with the measured rate above and the note that the right fix is a bounded
+retry on `os.replace` alone — never on the write — so a genuine refusal stays a refusal.
+
+## TESTS
+
+**`tests/test_item44_workflow_source.py` — 29 tests, zero skips**; the repointed
+`tests/test_proposal_auto_scan_themes.py` runs **32** (one loud skip: no pending `auto-scan.yml`,
+the normal state). **MUTATION-TESTED 16 of 16 CAUGHT, 0 MISSED, sources restored byte-for-byte**,
+plus an INERT control.
+
+**THREE OF THOSE WERE MISSES ON THE FIRST PASS AND TWO WERE REAL TEST GAPS**, both the same
+shape — **asserting that text EXISTS rather than that behaviour HAPPENS**, which is the gap item
+39 found in its own provenance tests:
+
+* `NOTHING AUTHENTICATED` was asserted as a string in the source, so changing `if not ok:` to
+  `if False:` walked through — the string sits there untouched. Now driven: `history` is stubbed
+  to refuse every name, and the test asserts the return value, the printed message, **that the
+  28-character token is absent from the output**, and a positive control that one succeeding
+  name does NOT read as failure.
+* the per-date denominator was tested through `crons_on` directly, so replacing the computation
+  with `today's count × sessions` left it green. Extracted as `expected_slots()` and asserted on
+  the real install boundary: `{10-07: 8, 10-08: 11}`.
+* the third was a needle spanning a comment block — **"absent" counts as a MISS, correctly,
+  since a mutation that never applied proves nothing.**
+
+**And one mutation I had labelled INERT was actually CAUGHT**, so the label was wrong rather
+than the guard: unbounding the intraday job block makes the regex find a different job's `if:`.
+
+**A GUARD OF MINE ALSO FIRED ON FIVE CORRECT FILES**, which is the fifth instance of that family
+here: the one-authoritative-reader check collected every string literal naming `workflows` and
+flagged the file if it called `open` anywhere — so it fired on **docstrings and comments**
+describing which workflow installs a package. The property is not *"this file mentions a
+workflow"* but *"this file OPENS one"*, so the literal is now tied to the call through the AST,
+with a positive control that plants a real offender, a prose-only file and a pending-directory
+reader and requires exactly the first to be flagged.

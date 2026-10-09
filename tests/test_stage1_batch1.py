@@ -33,6 +33,12 @@ def _src(rel):
     return io.open(os.path.join(REPO, rel), encoding="utf-8").read()
 
 
+#: the subscript form of a check-half selection -- `t["_half"] == 1`. Kept as a
+#: module constant so the test body needs no nested quoting, which is how the
+#: first attempt at this fixture came to be unparseable.
+_SUBSCRIPT_PROBE = 't = t[t["_half"] == 1]' + chr(10)
+
+
 class TheCheckQuadrantIsNeverOpened(unittest.TestCase):
     """It cannot be replaced. Looking at it to choose among these arms would spend it."""
 
@@ -57,13 +63,82 @@ class TheCheckQuadrantIsNeverOpened(unittest.TestCase):
         self.assertEqual(cen["dates"], len({str(x) for x in b["date"]}))
 
     def test_no_script_filters_to_the_CHECK_side(self):
-        """A script that ever selects half 1, or dates after 2019, is opening it."""
+        """A script that ever selects half 1, or dates after 2019, is opening it.
+
+        **REPOINTED AFTER FIRING ON A COMMENT.** The first form was
+        `assertNotIn("== 1", src)`, and it matched `# average UNCAPPED exposure == 1.0` in
+        `stage1_batch2_kills.py` -- prose describing a normalisation, not a half selection. That
+        is the substring-ban family, and a guard that cannot tell code from prose about code is
+        not measuring the tree. The property it protects is real and load-bearing, so it is
+        STRENGTHENED rather than loosened: the half check now reads the AST for a comparison
+        against the literal 1 whose subject is a half-valued name, which is the actual defect.
+        """
+        import tokenize
+
+        def _code_only(src):
+            """The source with comments and string literals removed, so prose may name what the
+            rule forbids and CODE may not."""
+            out = []
+            try:
+                for tok in tokenize.generate_tokens(io.StringIO(src).readline):
+                    if tok.type in (tokenize.COMMENT, tokenize.STRING):
+                        continue
+                    out.append(tok.string)
+            except (tokenize.TokenError, IndentationError):      # pragma: no cover
+                return src
+            return " ".join(out)
+
+        def _selects_half_one(tree):
+            """A comparison against the literal 1 whose subject is a HALF-valued name."""
+            names = ("stable_key_half", "_half", "BUILD_HALF", "half")
+            hits = []
+            for n in ast.walk(tree):
+                if not isinstance(n, ast.Compare):
+                    continue
+                parts = [n.left] + list(n.comparators)
+                has_one = any(isinstance(x, ast.Constant) and x.value == 1 for x in parts)
+                if not has_one:
+                    continue
+                for x in parts:
+                    for sub in ast.walk(x):
+                        nm = (getattr(sub, "id", None) or getattr(sub, "attr", None)
+                              or (getattr(getattr(sub, "func", None), "id", None)
+                                  if isinstance(sub, ast.Call) else None))
+                        # A SUBSCRIPT STRING KEY IS THE LIKELIEST REAL FORM, and the first cut
+                        # MISSED it: `t["_half"] == 1` is a Subscript carrying a string constant,
+                        # not a Name, so a detector reading only ids and attrs cannot see the way
+                        # this defect would actually appear in pandas code. Found by MUTATION,
+                        # not by reading -- one of two mutations got through.
+                        if nm is None and isinstance(sub, ast.Subscript) \
+                                and isinstance(sub.slice, ast.Constant) \
+                                and isinstance(sub.slice.value, str):
+                            nm = sub.slice.value
+                        if nm in names:
+                            hits.append(getattr(n, "lineno", None))
+            return hits
+
+        # the stripper must be non-vacuous in BOTH directions, or it could pass by seeing nothing
+        probe = "x = 1  # the comment says == 1\ny = '== 1'\nif _half == 1:\n    pass\n"
+        stripped = _code_only(probe)
+        self.assertIn("_half", stripped, "the stripper removed real code")
+        self.assertNotIn("the comment says", stripped, "the stripper kept a comment")
+        self.assertTrue(_selects_half_one(ast.parse(probe)),
+                        "the AST half-detector cannot see `_half == 1`")
+        self.assertTrue(_selects_half_one(ast.parse(_SUBSCRIPT_PROBE)),
+                        "the AST half-detector cannot see the SUBSCRIPT form, which is the "
+                        "likeliest real one in pandas code")
+        self.assertFalse(_selects_half_one(ast.parse("c = 1.0 / n  # exposure == 1.0\n")),
+                         "the AST half-detector fires on an unrelated comparison")
+
         for f in sorted(os.listdir(os.path.join(REPO, "scripts"))):
             if not f.startswith("stage1_"):
                 continue
             s = _src("scripts/" + f)
-            self.assertNotIn("== 1", s.replace("len(verdicts) == 1", ""),
-                             "%s may be selecting the check half" % f)
+            hits = _selects_half_one(ast.parse(s))
+            self.assertFalse(hits, "%s selects the check half (lines %r)" % (f, hits))
+            # the DATE bans stay literal and are applied to the WHOLE source: a date string IS
+            # the thing banned, and a Stage-1 script naming the check window even in a comment
+            # is worth refusing.
             for bad in ("2020-01-01", "2026-04-09", "BUILD_HALF + 1"):
                 self.assertNotIn(bad, s, "%s names the check quadrant (%s)" % (f, bad))
 
