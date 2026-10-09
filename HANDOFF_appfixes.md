@@ -16759,3 +16759,278 @@ NO-GO; nothing here re-runs the comparison; and the quality divergence is NAMED,
 **25 tests across two new suites, zero skips; the dip and theme suites green.**
 `scripts/theme_cache_build.py`, `valuation/web/dip.py`,
 `tests/test_item33_insider_leg.py`, `tests/test_item33_dip_spread.py`.
+
+---
+
+# SESSION 86 (2026-10-08) - ITEM 43: THE DAILY PUSH DIVERGED *BECAUSE* IT SYNCED FIRST, AND THE ONLY DEFECT WAS THE ORDER
+
+`PROMPT_appfixer_2026-10-08_item43.md`: *"Fix the flow so this cannot recur: commit the folder's
+edits first, then fetch, then replay ONLY commits that exist solely in this folder onto
+origin/main (rebase), aborting and reporting - never discarding - on any conflict, then push."*
+
+**THE FAILURE WAS REPRODUCED BEFORE IT WAS REPAIRED, ON A REAL TEMPORARY REPO WITH A FAKE
+REMOTE, AND IT REPRODUCES EXACTLY.** A bare `github.git`, a clone standing in for Don's folder,
+and a SEPARATE clone standing in for a lane that lands through the gate:
+
+```
+  start:                       ahead 0 / behind 1 / dirty 2
+  --- step 3: git_push.bat runs sync_checkout.py over a dirty tree ---
+      exit 1
+      | [!! ] fast-forward: refused
+      | parked to rescue/wip-main-6744ccd
+  --- step 4: git_push.bat commits the edits anyway ---
+  after commit:                ahead 1 / behind 1          <- DIVERGED
+  --- step 5: git push ---
+      exit 1  ! [rejected]        main -> main (non-fast-forward)
+  --- step 6: does sync.bat cure it? ---
+      exit 1  | reason: diverged
+  after sync.bat:              ahead 1 / behind 1          <- still diverged
+```
+
+**EVERY SINGLE STEP IS CORRECT.** The sync is right to refuse a fast-forward that would
+overwrite uncommitted edits. The commit is right to happen. The push is right to be rejected.
+`sync.bat` is right to refuse a diverged branch - that refusal is deliberate and is what stops
+it discarding anything. **The ORDER is what manufactured a divergence out of two things that
+were merely out of step**, and no individual step could be blamed for it, which is why three
+sessions of reading the script did not find it.
+
+The real instance: `517cf0b` landed on main touching `DECISIONS.md` and the `PROMPT_*` files
+while Don had local edits to the same files. Uncommitted edits to a tracked file the remote
+also changed is the whole trigger, and it is the ordinary state of this folder every single
+day.
+
+## WHAT SHIPS
+
+**`scripts/publish_folder.py`** - commit FIRST, fetch, align, push, in that order:
+
+1. refuse unless HEAD is on `main` (**refused, not switched** - checking `main` out under
+   someone deliberately on another branch is the kind of help that loses work);
+2. **commit the folder's edits**, having refused anything that must never be pushed;
+3. fetch;
+4. behind only -> `merge --ff-only`; **diverged -> `rebase origin/main`**, which replays only
+   the commits that exist solely here; conflict -> `rebase --abort`, report, exit non-zero;
+5. push, which is now a fast-forward by construction rather than by luck.
+
+**`git_push.bat`** keeps the git discovery, the "agent branches land through the GitHub gate"
+line and the test gate, and then calls it. It no longer contains `add`, `commit`, `push` or
+`sync_checkout.py` at all - **one definition of the order** (`B7`), because two orders in two
+files is precisely how this recurs.
+
+## THE DECISION THE BRIEF ASKS FOR: `rebase_push.bat` IS REMOVED, NOT DOCUMENTED
+
+Its logic - fetch, rebase, abort on conflict, push - is correct, and it is now **step 4 of the
+normal flow**. Keeping it as well would be a SECOND implementation of one cure, which is audit
+`B7`'s shape and the defect this project has paid for most often; the second copy is always the
+one that drifts. **And there is nothing left for it to recover from: the state it cured can no
+longer be reached.** It was never tracked, so nothing is deleted from the repository; a test
+asserts it never becomes tracked. **The untracked copy sitting in Don's folder should be
+deleted by hand** - one file, no consequence either way, and this lane does not write to the
+shared checkout.
+
+## EVERY EXISTING GUARANTEE IS KEPT, AND EACH IS A LINE OF CODE RATHER THAN AN INTENTION
+
+* **TESTS BEFORE PUSH / NEVER PUSH RED** - `git_push.bat` runs the suite first and refuses on
+  red, and the module **also refuses to run without `--tests-passed`**, so a future caller
+  cannot reach the push by forgetting. Pinned from both sides, including that a missing python
+  fails the gate rather than skipping it.
+* **AGENT BRANCHES ARE NEVER MERGED LOCALLY** - asserted as a property of the SOURCE: `publish`
+  may not contain `worktree-`, `merge --no-ff`, `branch -d/-D`, `push --force`, `push -f`,
+  `--force-with-lease`, `reset --hard`, `clean -fd`, `checkout -b` or `stash`, and the only
+  merge it performs is a fast-forward of its own branch. Plus a behavioural case: a folder
+  carrying a `worktree-*` branch the gate already landed publishes cleanly and **the branch is
+  still there afterwards** - the 2026-10-06 shape.
+* **NOTHING IS DISCARDED** - the pre-rebase tip is written to a named local ref BEFORE the
+  rebase and reported by name, so recovery is a copy-paste rather than an archaeology
+  exercise. `rebase --abort` would restore it anyway and the reflog would hold it for 90 days;
+  *"nothing is discarded"* should be a ref somebody can read, not a property of a command's
+  failure path. The conflict test asserts the backup holds Don's work **without** the lane's,
+  that no `rebase-merge`/`rebase-apply` directory is left behind, that no conflict markers
+  reach the working file, and that the remote is untouched by the failed attempt.
+* **`.env` AND `data/` ARE NEVER COMMITTED** - checked against what is actually STAGED, after
+  `add -A`, which is the only moment the answer is knowable; a hit is **unstaged**, never
+  committed-then-fixed, because a secret in a commit is in the history whatever the next commit
+  says. Exercised with `git add -f`, which is how a `.gitignore` gets defeated in practice.
+
+## THREE DEFECTS THE SUITE FOUND ON ITS FIRST RUN, AND ONE OF THEM IS IN THE PRODUCT
+
+* **IN THE PRODUCT: the never-commit guard matched nothing.** `_blocked` normalised with
+  `lstrip("./")`, and `lstrip` takes a **SET OF CHARACTERS** rather than a prefix - so `.env`
+  came back as `env` and **the one guard standing between a secret and a public remote passed
+  everything**. Found by the test asserting the literal shapes, not by reading.
+* **IN THE FIXTURE: `DECISIONS.md` had three lines**, so the lane's append and Don's edit landed
+  on the SAME line and every supposedly-clean replay case conflicted. The suite was measuring
+  one scenario twice under two names. The real file is hundreds of lines and the two edits land
+  in different places; a fixture that cannot represent that cannot tell a clean replay from a
+  collision.
+* **IN THE CONTROL: it passed vacuously.** The old-order test merged **without fetching first**,
+  so `origin/main` was still an ancestor of HEAD, `merge --ff-only` exited 0 saying *"Already up
+  to date"*, and the assertion read that SUCCESS as the refusal it was looking for. The old flow
+  fetched inside `sync_checkout.py`; leaving the fetch out of the control removed the premise.
+  **`MB21`'s family: a control that certifies the instrument while comparing nothing.**
+
+**A FOURTH, IN THE DRY RUN, AND IT IS THE INSTRUCTIVE ONE.** `--dry-run` originally skipped the
+fetch (on the reasoning that a dry run writes nothing) and so read a stale remote-tracking ref.
+On the exact state this item is about - dirty and one commit behind - it printed **"would
+fast-forward"** for a run that will rebase. **A preview of the wrong branch of the code is worse
+than no preview, because it is believed.** It now fetches (the one write, and only to a
+remote-tracking ref; `measure` never prunes) and counts the commit it would have made, so the
+preview names the step the real run takes.
+
+**AND A FIFTH, IN MY OWN TOOLING: a tab ate the test gate.** Writing `git_push.bat` through a
+heredoc turned `tests\test_edge.py` into `tests` + TAB + `est_edge.py`, so cmd would have run
+`python tests`, the suite would never have executed, and **"never push red" would have been
+silently absent while the script still printed `[OK] tests pass`**. Caught by reading the file
+back; pinned by a test asserting the bat contains no tab character at all.
+
+## A SIXTH DEFECT, AND IT IS A MEASUREMENT THAT CONTRADICTS MY OWN REPAIR
+
+While closing the last crash path I added a branch for a REFUSED fast-forward -- the tree is
+clean by that point, so the only candidate left is a path git does not track here, and
+`_git` would have thrown an exception out of the middle of Don's daily tool. **Then I built the
+scenario and it does not refuse: `merge --ff-only` protects TRACKED modified files, and an
+IGNORED file sitting where the incoming commit tracks one is REPLACED WITHOUT A WORD.** Measured
+on a real repo: `NOTES.txt` holding `"Don's untracked version"` came back holding `"the lane's
+version"`, the step reported `fast-forwarded`, and nothing anywhere said a local file had gone.
+
+**So the branch is DEFENSIVE and I cannot show it is reachable**, which this project distrusts
+on principle -- so it is labelled as such rather than counted as a tested path, its report is
+driven directly by making the merge fail, and the thing that ACTUALLY happens is pinned as its
+own test with the measured bytes in the assertion. **It is git's behaviour and `git pull` does
+the same**, so it is reported rather than repaired: having this tool second-guess a plain
+fast-forward would be a bigger change than the item asks for, with its own failure modes.
+**Worth knowing before putting anything you care about in a gitignored file in that folder.**
+
+## WHAT THE REPRODUCTION SCRIPT ITSELF GOT WRONG FIRST, because it is the same lesson twice
+
+* **IT USED THE WRONG DIRTY STATE.** Untracked files do not block `merge --ff-only`, so the
+  sync fast-forwarded, the commit landed on CURRENT main, and the push succeeded. The scenario
+  quietly did not happen.
+* **IT PRINTED "REPRODUCED" UNCONDITIONALLY.** A `print` at the end of a script is not a
+  measurement, and the first run printed it while nothing had gone wrong. The verdict is now
+  derived from the measured state and the script exits non-zero if it fails to reproduce.
+
+**This is why the suite drives real repositories rather than mocks.** The defect was an
+order-of-operations failure between three commands that each behaved correctly, and the state
+that makes it bite is a property of git's index. A mocked `git` would have reproduced whatever I
+believed about git and nothing about git - and my own first cut proved that in the other
+direction.
+
+## TWO OF THE SYNC LANE'S OWN GUARDS FIRED, BOTH CORRECTLY, AND ONE HAS NOW BEEN KEYED ON THE CLOCK FOR THE THIRD TIME
+
+The full gate came back **259 suites passing, ONE failing** - `tests/test_sync_checkout.py`,
+which is the sync lane's file and not this one's. Both failures are **correct**: that suite
+asserts `git_push.bat` calls `scripts\sync_checkout.py`, and item 43 removed the call on
+purpose.
+
+**`test_git_push_syncs_before_it_pushes` HAS NOW BEEN REPOINTED THREE TIMES AND ITS OWN
+DOCSTRING RECORDS THE FIRST TWO.** It was keyed on a BANNER (*"Auto-land finished agent work"*),
+which was deleted on 2026-10-06, so it raised `ValueError: substring not found` and **took the
+landing gate red for every lane**. It was then keyed on a SCRIPT NAME, `sync_checkout.py` - and
+that call is now gone too. **Both keys were properties of the LAYOUT - which banner, which
+script - and the property they stood in for is simply "this script does not push before it has
+aligned".** `MA4`/`MB31`'s family, in its purest form: a guard asserting today's arrangement
+fires on the clock, and this one has now cost three repoints across three sessions.
+
+**REPOINTED TO THE PROPERTY, IN THE STRONGEST FORM AVAILABLE RATHER THAN THE NEAREST ONE:
+`git_push.bat` now contains NO PUSH AT ALL, so there is no push that could precede an align**,
+and the one tool that owns both is required to fetch before it pushes *in its own source*. A
+future edit that re-adds a bare `git push` to that file goes red, which is the thing the guard
+was protecting all along. The 2026-10-06 bans (no `worktree-`, no local `merge`) are untouched,
+and its non-vacuity assertion is repointed with it so the comment-stripper cannot make the
+whole guard pass by seeing nothing.
+
+**AND THE SECOND FAILURE IS THE SAME DEFECT IN THE TEST DIRECTLY BELOW IT.**
+`test_git_push_does_not_wrap_errorlevel_in_a_parenthesised_block` sliced its region between
+`where python >nul 2>nul || goto :nodrift` and `:drifted` - the labels bracketing the sync call
+- so it raised `ValueError` for the identical reason. Re-anchored to the command whose
+errorlevel is actually being read, with a non-vacuity assertion that the region still contains
+the `if errorlevel` lines it exists to police.
+
+**BOTH REPOINTS LAND IN THE SAME COMMIT AS THE CHANGE THAT MOVED THEM (`MA59`), so the move
+shows in the diff, and BOTH ARE MUTATION-TESTED 4 of 4** - a repointed guard that cannot bite is
+worse than the dead one it replaced, because the dead one at least went red: `git_push.bat`
+pushing by itself again, the delegation removed entirely, `if errorlevel` wrapped in
+parentheses, and the aligning fetch removed altogether. **One of those four first reported
+`needle absent` because my mutation used `\n` against a CRLF file - which the harness counts as
+a MISS, correctly, since a mutation that never applied proves nothing.**
+
+## THE EXACT SEQUENCE DON SHOULD EXPECT TO SEE PRINTED
+
+Ordinary day - his edits plus lanes that landed:
+
+```
+  Agent branches land through the GitHub gate - not merged here.
+  Running tests before pushing...
+    [OK] tests pass.
+
+  PUBLISHING THIS FOLDER'S EDITS
+  --------------------------------------------------------
+  [OK ] on the right branch                    head=main
+  [OK ] saving your edits                      action=committed message=Update 2026-10-08 20:00
+  [OK ] checking GitHub                        ahead=1 behind=1
+  [OK ] replaying your edits on top of GitHub  action=rebased ours=1 theirs=1 backup=backup/main-b2e1831
+  [OK ] pushing                                action=pushed commits=1
+
+  [OK] GitHub is up to date.
+```
+
+Nothing of his to send, lanes landed:
+
+```
+  [OK ] saving your edits                      action=clean
+  [OK ] checking GitHub                        ahead=0 behind=1
+  [OK ] catching up to GitHub                  action=fast-forwarded commits=1
+  [OK ] pushing                                action=nothing-to-push
+```
+
+The one case that stops, and what he does about it:
+
+```
+  [OK ] checking GitHub                        ahead=1 behind=1
+  [!! ] replaying your edits on top of GitHub  action=aborted ours=1 theirs=1 backup=backup/main-4900df2
+         | Auto-merging DECISIONS.md
+         | CONFLICT (content): Merge conflict in DECISIONS.md
+         | error: could not apply 4900df2... Update 2026-10-08 20:00
+
+  [!] your edits and GitHub's changed the same lines, so the replay was undone and NOTHING
+      was lost. Your commits are still here and also on 'backup/main-4900df2'. Open the files
+      git named above, keep the version you want, then run this again.
+```
+
+## TESTS
+
+**31 tests, zero skips**, every behavioural case against a real temporary repo with a fake
+remote: the old order diverging (the control), the new flow pushing and keeping **both** sides
+of the file, the step order itself, the backup ref, a genuine conflict aborting and reporting,
+behind-only, in-step-and-clean, ahead-only, another branch, a **deterministically** rejected
+push (a `pre-receive` hook that exits non-zero - a test that depends on winning a race against
+its own fetch is flaky by construction), an unreachable remote reported as an error rather than
+a pass, `.env` and `data/` refused through `git add -f`, a landed agent branch left alone, the
+CLI's three exit codes, the dry run, and the wiring in `git_push.bat`.
+
+**MUTATION-TESTED: 15 of 15 CAUGHT, 0 MISSED, sources restored byte-for-byte**, plus one
+deliberately INERT mutation so the harness is shown able to tell a no-op from a miss: the
+never-commit guard removed; the replay turned into a `merge`; the backup ref not created; the
+abort removed; the branch check removed; `--tests-passed` no longer required; a rejected push
+reported as a success; a refused fast-forward reported as a success; a dry run committing for
+real; the fetch skipped; `git_push.bat` reverted to committing and pushing itself; the backup
+line swapped for a `checkout`; and four separate ways of forcing the push (`--force`,
+`--force-with-lease`, a `+refspec` prefix, and the plain `--force` again after the repair
+below).
+
+**AND THE FIRST PASS MISSED THE MOST DANGEROUS MUTATION OF THE SET, WHICH IS WHY IT WAS RUN.**
+`publish()`'s source-level ban list read `"push --force"` -- **a needle with a space in it**,
+which a token-joined source can never contain -- so **turning the push into a FORCE PUSH TO
+MAIN went straight through a guard written to forbid exactly that**. `MB15`'s family: a ban
+whose shape cannot match the thing it bans, and the fourth time this project has paid for a
+substring ban. Repaired by banning single TOKENS and, more usefully, by pinning the push's
+shape POSITIVELY -- `_run(repo, "push", remote, "HEAD:%s" % branch)` -- so any extra argument
+at all breaks it, which catches what an enumeration of bans cannot anticipate. Re-run: the
+force push, a force-with-lease and a `+` refspec are all caught.
+
+**AND THE REPAIRED BAN LIST THEN FIRED ON CORRECT CODE, one level down the same family.**
+`"clean"` was on it, and `action="clean"` is a legitimate STEP LABEL, so the guard went red
+against a tree with nothing wrong with it. Only tokens that are dangerous in every context
+stayed. **`-f` is deliberately NOT banned either**: `branch -f` force-moves the local BACKUP
+ref, which is the single line that makes *"nothing is discarded"* true, so banning the bare
+token would forbid the safety feature -- which is why the push is pinned positively instead.
