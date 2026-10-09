@@ -10851,3 +10851,222 @@ none relaxes a bar.
    3.96/4.14 on megacaps. The ~2.83 is a whole-universe figure dragged down by thin names.
    **Reported, not edited** — it is the data lane's comment and the figure it quotes is not wrong
    about the universe it was measured on.
+
+## 81. DIP-CALL-2 — **THE BOUNCE IS REAL, STATISTICALLY SOLID, AND SMALLER THAN THE COST OF TRADING IT — AND THREE QUARTERS OF ITS APPARENT SIZE IS THE MARKET** (2026-10-09)
+
+**Register `PREREG_dipcall2.md` committed ALONE at `23be924`** — markdown only, zero `.py`, 192
+lines, a strict git ancestor of every measurement commit. **2 equity trials booked at `1971fd7`
+BEFORE any runner existed** (equity `N` 278 -> 280; `MA13`'s stamp and its second hurdle literal
+moved in the same commit). The successor to `PREREG_dipcall.md` (`c5e0b31`), whose program-level
+kill fired on the NEWS arms, leaving the two NO-NEWS arms cleared and never scored.
+**STEP 1 FAILS. STEP 2 DID NOT RUN AND THE 6 OPTIONS TRIALS WERE NEVER BOOKED. ADOPTS NOTHING.
+NO OPTION WAS PRICED AND NO TRADE WAS PLACED.**
+
+* **ALL SIX KILLS PASS AND THE ARM RAN — THE FIRST TIME THIS PROGRAM COMPUTED AN ABNORMAL RETURN
+  AT ALL.** `K1` clears at **2,326** against the 1,500 floor (the registered bar, **unrelaxed**).
+  Expectation 1 was registered at 85/15 and is RIGHT.
+* **AND BOTH ARMS FAIL §2f. THE BINDING CONSTRAINT IS COST, NOT SIGNIFICANCE — which is exactly
+  what the register predicted in writing.** The 21-session market-adjusted bounce is
+  **+0.5277pp** at date-clustered *t* **+3.677** and name-clustered **+4.631**, clearing its own
+  within-date permutation p95 of **+0.4173**, clearing the derived hurdle of **3.3570**, and
+  **surviving Benjamini-Hochberg at p 0.000673 against a threshold of 0.01000** — and it sits
+  **below the +0.67pp round-trip cost floor**. **This is a MEASURED SUB-COST EFFECT AND NOT A
+  FAILURE TO DETECT: the design's power against that floor is 90.5%**, from the arm's own measured
+  clustered `se` (`MB8`), with a 50%-power detection threshold of 0.4818pp and an 80%-power MDE of
+  0.6023pp. Expectation 5 and its sub-prediction — *"the binding constraint is expected to be the
+  +0.67pp economic floor rather than significance"* — are both RIGHT.
+* **THE OWN-NORMAL READING MEETS EVERY SINGLE §2f CONDITION, AND IT IS THE MARKET.** On the same
+  rows the own-normal abnormal return is **+1.6411pp**, *t_date* **+3.400**, clearing its
+  permutation p95 of +1.5872, **both halves positive AND both above the floor** (+2.2035pp early,
+  +1.3147pp late). **Quoting that definition alone would have reported a PASS and sent this
+  program to step 2.** It does not, because §2c — inherited from `DC-1`, which measured the two
+  definitions disagreeing in **SIGN** — forbids quoting one without the other and §2f requires
+  BOTH. **`DC-1`'s rule earned its keep on its first real use.**
+* **AND THE GAP IS AN IDENTITY, MEASURED TO 0.0062pp, SO THE MECHANISM IS NOT A STORY.**
+  `own - mkt = r_market(window) - h x mu_prior(name)`. On the arm's own rows at 21 sessions the
+  **market returned +1.6388pp** over those windows while the names' own trailing mean implied only
+  **+0.5192pp** — annualised **+19.67%** against **+6.23%**. **So about three quarters of the
+  apparent bounce is the market's drift, credited to the strategy by a benchmark that is nearly
+  flat on exactly these names.** Over a decade-long bull market the own-normal benchmark is not a
+  benchmark; the market-adjusted reading is the honest one.
+* **A SEPARATE OBSERVATION THAT CUTS THE OTHER WAY, CARRYING NO VERDICT, AND IT IS THE MOST
+  INTERESTING THING HERE: THE EVENT DATES THEMSELVES ARE FOLLOWED BY ABOVE-AVERAGE MARKET
+  RETURNS.** The market's return over the 21 sessions after an event annualises to **+19.67%**
+  against its own unconditional **13.29%** over the same decade (and +42.59% at 5 sessions). A
+  -2.5 sigma no-news drop in one $10bn name tends to land on a day the whole market is weak, and
+  the market rebounds. **CONSEQUENCE, STATED BOTH WAYS: a real book would earn the +1.64pp rather
+  than the +0.53pp — and that component is MARKET TIMING, not name selection.** *"Buy stocks after
+  the market falls"* is a different and much-studied hypothesis which **this register did not
+  test** and which needs its own. It is recorded so nobody reads the market-adjusted figure as
+  what a book would have earned, and nobody reads the own-normal figure as a stock-selection edge.
+* **THE 5-SESSION ARM IS NOWHERE AND THAT REFUTES MY OWN EXPECTATION 2.** Market-adjusted
+  **+0.0534pp** at *t_date* +0.731, failing six of eight conditions including a **sign flip
+  between halves** (+0.1518pp early, **-0.0047pp** late). Own-normal +0.7774pp fails both the
+  hurdle (*t* +2.508) and its own permutation bar (+0.8602 against a mean of +0.7774). **I
+  registered 70/30 that h5 would be the STRONGER arm, on the reversal literature. It is the
+  weaker, by an order of magnitude.**
+* **AND THE HORIZON SHAPE IS THE OPPOSITE OF THE ONE THIS REGISTER WAS BUILT ON — DRIFT, NOT
+  REVERSAL. A DIAGNOSTIC CARRYING NO VERDICT.** The market-adjusted tier effect rises
+  **monotonically**: **+0.0534pp (h5) -> +0.5277 (h21) -> +1.1176 (h63) -> +1.6367 (h126)**, with
+  *t_date* +0.731 -> +3.677 -> +4.751 -> +4.493, and at 63 and 126 sessions **both halves are
+  positive and above the cost floor**. Chan (2003) predicts no-news shocks REVERSE, which is a
+  short-horizon effect; nothing happens at 5 sessions and the effect grows out to six months.
+  **THOSE TWO HORIZONS CARRY NO VERDICT AND ARE NOT PROMOTED** — §1 and §7 declared them
+  sensitivities **before any outcome existed** and §6 void conditions 1 and 5 forbid promoting a
+  cell after seeing it look good. **Two further reasons the demotion is right even though its
+  stated reason was not: (a) at 126 sessions a window overlaps those of events up to 125 sessions
+  away on OTHER names, and neither one-way clustering absorbs that, so those `t`s are optimistic;
+  (b) `V6` and `DC-1` already looked at 63 and 126 days.** A successor may register them and
+  inherits this program's priors.
+* **A CORRECTION AGAINST MY OWN REGISTER, THE SECOND IN TWO REGISTERS ON THE SAME CLAUSE.** `C5`
+  demoted the long horizons partly because *"split into two halves the h63 cells fall far below
+  8,848"* — an arithmetic statement about detecting `V6`'s banked **+0.5203pp**. The measured h63
+  market-adjusted effect is **+1.1176pp**, more than twice that, so it IS detectable at those
+  cell sizes and the power argument was not the binding reason. **The demotion stands on the
+  pre-registration and on (a) and (b) above; the stated reason is corrected rather than
+  inherited.** `PREREG_dipcall.md` had the same shape of error on the same clause, which makes it
+  a pattern: **a long-horizon power claim derived from somebody else's effect size will usually
+  be wrong, because the effect size is what you are trying to measure.**
+* **THE INSTRUMENT WAS VALIDATED ON ITS FIRST REAL RUN RATHER THAN TRUSTED, AND IT IS
+  DETERMINISTIC.** Six controls, all passing (`DIPCALL2_CONTROLS.json`, zero trials — under
+  `MB1-SEL` a control can only BLOCK). **C1, against an EXTERNAL yardstick rather than my own
+  expectation: the half-0 cap-weighted market correlates 0.9782 with SPY's own series and returns
+  13.29%/yr against SPY's 15.72%**, bracketing `R10`'s measured equal-weighted panel at 18.14%
+  exactly as a cap-weighted index should. **C2: the abnormal returns re-derive BY HAND on 40 named
+  cells — a plain 60-session mean and a compounded daily market series, neither of which is how
+  the arm computes them — at max |deviation| 0.000e+00 (own) and 1.110e-15 (market).** C3 the
+  permutation interval brackets its own mean on 4 of 4 cells. **And the whole arm re-runs
+  BIT-IDENTICAL: 746 leaves, ZERO moved.**
+* **NO SURVIVOR FILTERING OCCURRED AT ALL, AND THAT IS MEASURED RATHER THAN ASSERTED.** `1,215 of
+  3,545` names have a price series ending before 2020, and **all 1,215 carry an `ACTIONS` terminal
+  record**, so the administrative-censor count is **ZERO** and every delisted name's final events
+  are in the sample at `last_close / c0 - 1` (`A11`, `E-5`). 243,527 terminal rows against an
+  expected order of ~261,225 (1,215 names x 215 rows across the four horizons).
+* **THE FULL-UNIVERSE SURFACE IS OUTLIER-DRIVEN AND MUST NOT BE READ AS THE TIER.** Its realised
+  standard deviation runs **75.7x** the tier's at 5 sessions and **39.1x** at 21 (371.6pp against
+  4.9pp), and its mean is several times its median — `B13`'s penny-name problem, on a 3,545-name
+  half-0 universe no liquidity filter reaches. Its h21 market-adjusted mean of +2.5631pp at
+  *t_date* +1.639 is **reported and carries no verdict**. **Expectation 6 (the two populations
+  disagree) is RIGHT but for the wrong reason** — the disagreement is outliers, not a genuine
+  tier-versus-universe effect of the `UNIVERSE-BIAS` kind.
+* **THE MOST ACTIONABLE LIMITATION, AND IT IS THE BINDING CONSTRAINT ITSELF: THE COST FLOOR IS
+  BORROWED.** `A4` fixed it at **2 x `B11`'s measured 33.4bps one-way**, and `B11` measured that
+  on the **2,531-name decile book**, not on a $10bn tier. `A4` declared the direction before the
+  run: a large-cap tier is **cheaper** to trade, so the floor **OVERSTATES** cost and the error
+  runs toward **failing** — the safe direction (`MA6`). **IT IS NOT RELAXED (`W-28` forbids
+  relaxing a bar after watching it fail), and the arithmetic that a tier-appropriate cost would
+  change the answer is stated as arithmetic and NOT as a verdict.** **Measuring the $10bn tier's
+  own round-trip cost is the single cheapest thing that could re-open this question**, it is a
+  measurement rather than a search, and a successor doing it must pre-register before re-scoring.
+* **WHAT THIS DOES NOT SAY.** It is **not** a finding that stocks do not bounce after a sharp
+  drop — the opposite: there is a real, replicated, statistically solid market-adjusted bounce of
+  **+0.53pp over 21 sessions**, and the finding is that it is **smaller than the cost of
+  capturing it** at the cost figure this register pre-committed. **Step 2 is foreclosed a fortiori
+  and that is worth stating plainly: a call costs MORE than the shares** — the quoted spread plus
+  the post-drop implied-volatility jump `V6-OPT` measured at **+17.71%** above a name's own
+  trailing median — **so an expression that is dearer than a +0.53pp edge cannot rescue a +0.53pp
+  edge.** The **NEWS arm remains UNTESTED, not null** (§C2's void condition). `V6`, `V6-B`,
+  `V6-OPT`, `DC-1`, `O17C4` and `R2` are untouched and none is re-opened. **The check quadrant
+  (2020-2026 x half 1) was never opened, so 2020 and 2022 remain unspent.**
+* **ONE DEFECT OF MY OWN, AND IT IS THE WRONG-OBJECT FAMILY IN A PRINT STATEMENT.** The report
+  loop tested `p.get("p95")` and then formatted `p["p95"]`, so the sensitivity horizons — which
+  have no permutation at all — raised `KeyError` **after every number had been computed and the
+  artifact written**. The guard and the format must read the SAME object. Fixed; the re-run exits
+  0 and is bit-identical.
+* **AND THE ARM WAS REWRITTEN BEFORE ITS FIRST REAL RUN, DECLARED NOT HIDDEN.** Its first form
+  built the permutation pool as Python dicts of lists — workable on the ~639k-row tier, roughly
+  **6.2M entries** on the full half-0 universe, which is why its own docstring had flagged it.
+  The rewrite keeps every registered statistic, bar and convention and moves the pool to numeric
+  arrays on integer date codes; the measured pools are **6,082,266** and **6,007,961** rows and
+  pass 2 completes in **60 seconds**. **It is a REPAIR of an un-run instrument, not a second
+  scoring path** — one path serves both registers, with the arms and the artifact prefix as
+  PARAMETERS (`B7`), pinned by a test that the gate is parameterised and that the two kill
+  artifacts are distinct objects (DIP-CALL's FIRED, DIP-CALL-2's PASSED).
+* **THE KILL PASS'S PARAMETERISATION IS PROVED INERT ON THE LANDED DIP-CALL ARTIFACT: 312 shared
+  leaves and ZERO NUMERIC leaves moved.** The only changes are one documentation string I
+  extended, five added descriptive keys, the timing field, and the `required_n` column — which
+  moved because the hurdle is **derived at run time** and equity `N` went 278 -> 280 when this
+  register's trials were booked (`MA37`, `MB32`).
+* **EXPECTATIONS: 5 RIGHT, 1 WRONG.** (1) no kill fires — RIGHT. (2) h5 the stronger arm —
+  **WRONG**, and informatively so: the shape is drift, not reversal. (3) at least one arm flips
+  sign between halves — RIGHT (h5 market-adjusted, late -0.0047pp, marginally). (4) the two
+  definitions disagree by more than 2x — RIGHT, decisively (3.11x at h21, 14.6x at h5). (5) step
+  1 fails, on the economic floor rather than significance — RIGHT on both halves. (6) the
+  populations disagree — RIGHT, for the wrong reason. **The draft's 25-30% prior for step 1 was
+  kept rather than revised upward on a narrower design, and step 1 failed.**
+* **NOT DONE, named so it is not mistaken for done:** no option priced, no chain coverage
+  censused, no IV decomposition, no random-day control, no shares comparison, no forward paper
+  book, no sensitivity promoted, no news arm, no check quadrant, no 1999-2008 proxy. The **2
+  equity trials are kept** and **DIP-CALL's 4 stay charged**, so the project has paid 6 equity
+  trials for 4 arms of which 2 are now scored — overstating the search, which is the safe
+  direction (`MA6`, `E-1`). **43 tests: 43 pass with the licensed data present, 33 pass with 10
+  LOUD SKIPS where it is absent (CI); both figures are quoted.**
+  `valuation/studies/dipcall.py`, `scripts/dipcall_kills.py`, `scripts/dipcall_arm.py`,
+  `scripts/dipcall2_controls.py`; `data/free_analysis/DIPCALL2_KILLS.json`, `DIPCALL2_ARM.json`,
+  `DIPCALL2_CONTROLS.json`, `DIPCALL2_EVENTS.pkl`.
+
+### BUGS FOUND — DIP-CALL-2 (2026-10-09)
+
+1. **`DIPCALL_CAL.pkl` AND `DIPCALL2_CAL.pkl` ARE 341 MB EACH AND NOTHING READS THEM ANY MORE.**
+   The kill pass pickles its per-name session calendar under rule 9, and the rewritten arm uses
+   the GLOBAL calendar instead, so 682 MB of `data/free_analysis/` is now dead weight. Gitignored,
+   so it costs disk and not the repo. **Reported, not deleted** — a successor register may want
+   the per-name calendars, and deleting another register's banked draws is not this item's call.
+2. **Carried forward and still open: `AEHL`'s `market_cap` reads $1.131 TRILLION** in
+   `UNIVERSE_BIAS_PANEL_full.pkl` on 2010-12-27 between a $54.2M quarter and a $269.7M one. One
+   name of the 459 ever in the tier, so it drove nothing here either. **r1's / UNIVERSE-BIAS's
+   lane; not repaired.**
+3. **Carried forward and still open: `stable_key_half` exists in THREE places** and is pinned by
+   test rather than consolidated. The right fix is one definition in `valuation/edge/`, which
+   touches other lanes' files.
+
+### A DEFECT FOUND AND FIXED OUTSIDE THIS LANE — `SC-4`'s weekly record went RED AGAINST A CORRECT TREE (2026-10-08)
+
+**`tests/test_record_this_week.py::test_the_hurdles_are_arithmetic_on_the_counts` failed on the
+261-suite gate, and the code it guards was right.** It asserts
+`before == now - charged`, while `valuation/web/research_record.py::weekly()` deliberately
+computes `before = now - charged - after`, subtracting trials on rows dated **after** the
+window's end. The module's own comment says exactly why — *"Rows dated after `end` are not
+'before' anything, and attributing them there overstates the prior book and hands `hlz_hurdle` a
+count that never existed at that moment"* — and that it *"fires whenever `today` is back-dated
+... or whenever a row is logged ahead of the render."*
+
+**THIS LANE'S OWN BOOKING WAS THE FIRST ROW EVER LOGGED AHEAD OF THE LIVE RENDER**, and it turned
+a documented hypothetical into a red suite: the work ran at **23:16 EDT on 2026-10-08**, which is
+already **2026-10-09 in UTC**, and the prompt's filename says 2026-10-09. The assertion read
+`before 251`, `now 280`, `charged 27` — and 251 + 27 = 278, because the remaining 2 were in
+`after`. **The test could not express the identity the module enforces, because the term was not
+in the payload.**
+
+**TWO THINGS WERE DONE, AND THE ORDER MATTERS.** First, the log and ledger rows were **re-dated
+to 2026-10-08** — not to make a suite green, but because the research log's `date` column is when
+the trial was BOOKED and the booking happened on 2026-10-08 local time; the prompt's filename is
+the manager's naming, not a timestamp. That alone closes the identity **in both timezones**, which
+is the robust choice given CI runs in UTC. Second, **the latent defect was repaired rather than
+left to fire on the next lane working past midnight UTC**: `weekly()` now exposes `after`
+per-domain (purely additive, no rendered number moves, no existing consumer reads it) and the
+assertion carries both corrections.
+
+**AND THE REPAIR IS PINNED NON-VACUOUSLY, which is the part that makes it worth anything.** With
+the rows re-dated, `after` is 0 on the live page, so the corrected assertion would pass while
+testing nothing. A new control back-dates `today` to 2026-08-19 so real rows genuinely postdate
+the window, then asserts **both** directions: the corrected identity CLOSES and **the original
+form `before == now - charged` FAILS**. It also refuses to pass vacuously — if no domain carries
+a post-window row it fails with *"the `after` correction was never exercised and this control is
+vacuous"*. **28 of 28 record-this-week tests pass.**
+
+**REPORTED, AND IT IS `SC-4`'s FILE.** The fix is narrow and additive and the whole suite is
+green; a stricter reader may prefer the owning lane make it, and the diff is one payload field
+plus one corrected assertion plus the control. **The portable part is a family this record already
+names: a test that encodes the COMMON case of a function that handles the GENERAL case will go red
+the first time the general case occurs, and it goes red against correct code** — `MA49`, `MB18`,
+`W-28`'s `K2` and `S3-I1`'s own self-contradictory obligation are the same shape.
+
+**AND A SECOND GATE FAILURE THAT WAS MINE AND WAS NOT A DEFECT AT ALL.**
+`tests/test_fleet_highwater.py` also came back red on that sweep and **passes standalone at exit
+0, twice** — all 25 tests OK. The cause is this session's own doing: a suite was run manually
+**while the 261-suite gate was sweeping**, and the fleet backup guard reads real local fleet state
+(`::error::the fleet backup came back SHORTER than the committed copy: hwbook 3 -> 1`). **A suite
+that passes standalone is not diagnosed** — this record's own rule — and here the diagnosis is
+concurrency of my own making rather than a defect in that suite. The final gate was re-run with
+nothing else in flight.

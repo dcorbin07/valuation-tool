@@ -1,5 +1,102 @@
 # HANDOFF STATUS - shared project state
 
+## options lane — **DIP-CALL-2: the bounce is real, solid, and smaller than the cost of trading it** (2026-10-09)
+
+Successor to DIP-CALL (`PREREG_dipcall.md`, `c5e0b31`), whose program-level kill fired on the news
+arms, leaving the two **no-news** arms cleared and never scored. **Register `PREREG_dipcall2.md`
+committed ALONE at `23be924`** (markdown only, 192 lines, a strict ancestor of every measurement
+commit); **2 equity trials booked at `1971fd7` BEFORE any runner existed**, equity `N` 278 -> 280.
+**STEP 1 FAILS. STEP 2 DID NOT RUN AND ITS 6 OPTIONS TRIALS WERE NEVER BOOKED. NOTHING IS ADOPTED.
+NO OPTION WAS PRICED. NO TRADE.**
+
+### In one paragraph
+
+All six free kills passed, so the arm ran — the first abnormal return this program ever computed.
+After a one-session drop of −2.5σ or worse, with no earnings announcement in the reaction window,
+a point-in-time $10bn name beats the market over the next 21 sessions by **+0.5277pp**, at
+date-clustered *t* **+3.677**, clearing its own permutation bar and the derived hurdle and
+surviving Benjamini-Hochberg. **It is below the +0.67pp round-trip cost floor the register
+pre-committed, and the design had 90.5% power against that floor** — so this is a measured
+sub-cost effect, not a failure to detect. The program stops.
+
+### Five things worth carrying forward
+
+**1. THE OWN-NORMAL READING PASSES EVERY CONDITION AND IT IS THE MARKET.** Benchmarked against
+each name's own trailing mean the bounce is **+1.6411pp**, *t* +3.400, both halves positive and
+both above the cost floor — a clean PASS on that definition alone. The gap to the market-adjusted
+reading is an **identity measured to 0.0062pp**: the market returned **+1.6388pp** over those same
+windows while the names' own trailing mean implied only **+0.5192pp** (annualised **+19.67%**
+against **+6.23%**). **About three quarters of the apparent bounce is market drift, credited to
+the strategy by a benchmark that is nearly flat on exactly these names.** `DC-1`'s rule — never
+quote one abnormal-return definition without the other — earned its keep on its first real use.
+
+**2. A SEPARATE OBSERVATION THAT CUTS THE OTHER WAY, AND IT CARRIES NO VERDICT.** The event dates
+themselves are followed by **above-average market returns**: +19.67% annualised over the following
+21 sessions against the market's unconditional **13.29%**. A −2.5σ no-news drop in one large name
+tends to land on a weak market day, and the market rebounds. **So a real book would earn the
++1.64pp rather than the +0.53pp — but that component is MARKET TIMING, not name selection**, and
+"buy stocks after the market falls" is a different, much-studied hypothesis this register did not
+test. Recorded so neither figure gets misread as the other.
+
+**3. THE HORIZON SHAPE IS DRIFT, NOT REVERSAL — the opposite of the literature this was built
+on.** The market-adjusted tier effect rises monotonically: **+0.0534pp (5 sessions) → +0.5277 (21)
+→ +1.1176 (63) → +1.6367 (126)**, and at 63 and 126 sessions both halves are positive and above
+the cost floor. **Those two horizons carry NO VERDICT and are NOT promoted** — they were declared
+sensitivities before any outcome existed, and at 126 sessions windows overlap across names in a
+way neither one-way clustering absorbs, so their *t*s are optimistic. A successor may register
+them.
+
+**4. THE BINDING CONSTRAINT IS A BORROWED COST FIGURE, AND THAT IS THE CHEAPEST THING TO FIX.**
+The floor is 2 × `B11`'s measured 33.4bps one-way, which `B11` measured on the **2,531-name decile
+book**, not a $10bn tier. The register declared the direction in advance: a large-cap tier is
+cheaper to trade, so the floor **overstates** cost and the error runs toward failing. **It is NOT
+relaxed here** (`W-28` forbids relaxing a bar after watching it fail). **Measuring the $10bn
+tier's own round-trip cost is a measurement rather than a search, and it is the single cheapest
+thing that could re-open this question** — a successor must pre-register before re-scoring.
+
+**5. THE INSTRUMENT WAS VALIDATED, NOT TRUSTED, ON ITS FIRST REAL RUN.** The half-0 cap-weighted
+market correlates **0.9782** with SPY at 13.29%/yr against SPY's 15.72%; the abnormal returns
+**re-derive by hand on 40 named cells at max deviation 0.000e+00 and 1.110e-15** by two
+independent routes; the whole arm re-runs **bit-identical** (746 leaves, zero moved). And **no
+survivor filtering occurred at all**: 1,215 of 3,545 names end before 2020 and **all 1,215** carry
+an ACTIONS terminal record, so the administrative-censor count is **zero**.
+
+### What is NOT done
+
+* No option priced, no chain coverage censused, no IV decomposition, no random-day control, no
+  comparison against buying the shares, no forward paper book. **Step 2 is foreclosed a fortiori:
+  a call costs MORE than the shares** (`V6-OPT` measured the post-drop IV jump at +17.71% above a
+  name's own trailing median), so a dearer expression cannot rescue a +0.53pp edge.
+* **The news arm remains UNTESTED, not null.**
+* **It is NOT a finding that stocks do not bounce.** There is a real, replicated, significant
+  market-adjusted bounce; it is smaller than the cost of capturing it at the pre-committed figure.
+* The check quadrant (2020–2026 × half 1) was never opened, so **2020 and 2022 remain unspent**.
+* The full-universe surface is **outlier-driven** (realised sd 75.7× the tier's at 5 sessions) and
+  carries no verdict.
+
+### Recommended next step
+
+**Measure the $10bn tier's own round-trip trading cost.** It is the one number the verdict turns
+on, it is currently borrowed from a cheaper-to-trade book in the conservative direction, and
+measuring it is a fact-finding exercise rather than a hypothesis test. Everything else here —
+the long-horizon drift shape, the market-timing component, the news arm — needs its own blind
+register and inherits this program's priors.
+
+### Bugs found (detail in `HANDOFF_optionsbot.md` 81)
+
+1. **`DIPCALL_CAL.pkl` and `DIPCALL2_CAL.pkl` are 341 MB each and nothing reads them any more** —
+   682 MB of dead weight in `data/free_analysis/`. Gitignored. Reported, not deleted.
+2. Carried forward, still open: **`AEHL`'s `market_cap` reads $1.131 trillion** in
+   `UNIVERSE_BIAS_PANEL_full.pkl` (r1's lane); **`stable_key_half` exists in three places**,
+   pinned by test rather than consolidated.
+
+**43 tests: 43 pass with the licensed data present, 33 with 10 loud skips in CI.**
+`valuation/studies/dipcall.py`, `scripts/dipcall_kills.py`, `scripts/dipcall_arm.py`,
+`scripts/dipcall2_controls.py`; `data/free_analysis/DIPCALL2_KILLS.json`, `DIPCALL2_ARM.json`,
+`DIPCALL2_CONTROLS.json`.
+
+---
+
 ## options lane — **DIP-CALL step 1: `K1` FIRES. The program stops and step 2 never ran** (2026-10-08)
 
 Don's authorised options program (`DECISIONS.md` 2026-10-08, *"calls after a sharp drop in a

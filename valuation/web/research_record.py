@@ -635,6 +635,17 @@ def weekly(log_path: str = None, today=None, days: int = None) -> dict:
             hurdle_texts.append(a_text)
             domains.append({
                 "key": key, "label": label, "before": before, "now": now, "charged": moved,
+                # The `after` correction is EXPOSED so the identity it enforces is checkable.
+                # Added 2026-10-08 by the options lane (`DIP-CALL-2`) after
+                # `tests/test_record_this_week.py::test_the_hurdles_are_arithmetic_on_the_counts`
+                # went RED AGAINST A CORRECT TREE: it asserts `before == now - charged`, which is
+                # true only when nothing postdates the window, while this function deliberately
+                # subtracts `after` as well. The first row ever logged ahead of the live render
+                # (a booking at 23:16 EDT, already the next day in UTC) made the live page hit
+                # the very case the comment above says it was written for, and the test could not
+                # express it because the term was not in the payload. Reporting-only and purely
+                # additive: no existing consumer reads it and no number already rendered moves.
+                "after": int(after.get(key) or 0),
                 "moved": bool(moved), "hurdle_before": b_text, "hurdle_after": a_text,
                 "hurdle_before_defined": ok,
             })
