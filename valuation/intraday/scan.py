@@ -63,7 +63,13 @@ def run_intraday(cfg=CONFIG, store: Optional[Store] = None, provider=None,
 
     run_time = _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
     if save:
-        store.save_intraday(run_time, rows, provider.name)
+        # ITEM 45: RECORD THE FEED THAT SERVED THE RUN, not the class's name. `intraday_runs`
+        # already has a `provider` column, and it read "Tradier" on runs Tradier served none
+        # of -- so the stored provenance agreed with the broken selection rather than with the
+        # data. `source_label` is the same string as `name` for Tradier, so no past row's
+        # meaning changes; what changes is that a degraded run says so on disk.
+        store.save_intraday(run_time, rows,
+                            getattr(provider, "source_label", provider.name))
         # Archive the options/IV context to a dated file. Free (the data is already
         # fetched) and append-only, building the point-in-time options history that a
         # real options-exit backtest needs. Never allowed to break a scan.
@@ -72,5 +78,13 @@ def run_intraday(cfg=CONFIG, store: Optional[Store] = None, provider=None,
             archive_intraday(rows, run_time, provider.name)
         except Exception:
             pass
+    # ITEM 45: THE FEED THAT SERVED THIS SCAN IS NAMED IN THE PAYLOAD, not inferred from
+    # `provider.name`. When Tradier's token died the scan kept reporting `provider: "Tradier"`
+    # while scoring nothing, so the payload named a feed that had served none of it. These
+    # three fields say which source ran, how stale it is, and why it was not the first choice;
+    # `get_provider` sets them, and a provider built directly carries the defaults.
     return {"run_time": run_time, "rows": rows, "universe": len(uni),
-            "scored": len(rows), "provider": provider.name}
+            "scored": len(rows), "provider": provider.name,
+            "feed_source": getattr(provider, "source_label", provider.name),
+            "feed_delay": getattr(provider, "feed_delay", None),
+            "feed_degraded_reason": getattr(provider, "degraded_reason", "") or ""}

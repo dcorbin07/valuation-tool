@@ -143,6 +143,18 @@ class TradierProvider(IntradayProvider):
         r.raise_for_status()
         return r.json()
 
+    def auth_ok(self, symbol: str = "AAPL") -> tuple:
+        """`(ok, detail)` from ONE cheap read-only quote. Never returns or logs the token.
+
+        An AUTH failure and a DATA gap are different events and the rest of this class cannot
+        tell them apart -- every method here answers both with `None`. So the distinction is
+        made once and in ONE PLACE: this DELEGATES to `data/tradier_health.live_token_works`,
+        which three call sites share (`B7`). A second probe here would be a second answer to
+        one question, and the one that drifts.
+        """
+        from ..data import tradier_health
+        return tradier_health.live_token_works(self.cfg)
+
     def get_bars(self, ticker: str) -> Optional[dict]:
         try:
             import datetime as dt
@@ -378,7 +390,69 @@ class FreeProvider(IntradayProvider):
             return None
 
 
-def get_provider(cfg=CONFIG) -> IntradayProvider:
-    if cfg.tradier_token:
-        return TradierProvider(cfg)
-    return FreeProvider()
+#: How stale the free feed's quotes are, in words a user can read. yfinance serves the public
+#: Yahoo endpoints, which are delayed rather than real-time; 15 minutes is Yahoo's own stated
+#: figure for US equities. Named once here so the page and the payload cannot disagree.
+FREE_FEED_DELAY = "delayed about 15 minutes"
+TRADIER_FEED_DELAY = "real-time"
+
+
+def delay_for_label(label: str) -> str:
+    """The delay that goes with a RECORDED feed label.
+
+    So `/api/signals` can describe a run it did not make: the label is persisted in
+    `intraday_runs.provider`, and the delay has to be recoverable from it rather than from the
+    provider that happens to be selected NOW -- otherwise a page served after the token died
+    would label yesterday's real-time rows as delayed, or the reverse.
+    """
+    s = (label or "").lower()
+    if s.startswith("tradier"):
+        return TRADIER_FEED_DELAY
+    if "free" in s or "yfinance" in s:
+        return FREE_FEED_DELAY
+    return "unknown"
+
+
+def get_provider(cfg=CONFIG, *, verify: bool = True) -> IntradayProvider:
+    """The intraday quote source, chosen on whether the token WORKS rather than whether it EXISTS.
+
+    ITEM 45. THE DEFECT THIS REPAIRS WAS MEASURED, NOT INFERRED. This read
+    `if cfg.tradier_token: return TradierProvider(cfg)` -- so `FreeProvider`, which has existed
+    all along, was reachable only when the token was EMPTY. When Don withdrew his funds and
+    Tradier deactivated the account the token stayed non-empty and started answering `401
+    "Access Token not approved"`, so Tradier was still selected; every `TradierProvider` method
+    swallows its exception and returns `None`; and the scan printed **`scored 0 of 150 names --
+    nothing scored -- not ingesting`** and exited 1 (run 37853898863, 2026-10-08 22:31 UTC).
+    `/api/signals` has been frozen at 2026-10-08 00:20 since, and nothing alerted because there
+    is no `DISCORD_WEBHOOK_URL`.
+
+    **A PRESENT TOKEN IS NOT A WORKING TOKEN**, and the distinction has to be made with a
+    request, so one cheap read-only call decides it. The cost is one quote request per scan
+    against 150 names; `verify=False` restores the old behaviour exactly for any caller that
+    wants it, and a provider built directly is untouched.
+
+    The chosen provider always carries `source_label`, `feed_delay` and `degraded_reason`, so
+    the page and the payload describe the feed that actually served them -- a scan that silently
+    swaps its data source is the same class of defect as one that silently scores nothing.
+    """
+    token = (getattr(cfg, "tradier_token", "") or "").strip()
+    if not token:
+        p = FreeProvider()
+        p.source_label, p.feed_delay = FreeProvider.name, FREE_FEED_DELAY
+        p.degraded_reason = "no TRADIER_TOKEN configured"
+        return p
+
+    t = TradierProvider(cfg)
+    if not verify:
+        t.source_label, t.feed_delay, t.degraded_reason = t.name, TRADIER_FEED_DELAY, ""
+        return t
+
+    ok, detail = t.auth_ok()
+    if ok:
+        t.source_label, t.feed_delay, t.degraded_reason = t.name, TRADIER_FEED_DELAY, ""
+        return t
+
+    p = FreeProvider()
+    p.source_label, p.feed_delay = FreeProvider.name, FREE_FEED_DELAY
+    p.degraded_reason = "Tradier rejected the token (%s); using the free delayed feed" % detail
+    return p

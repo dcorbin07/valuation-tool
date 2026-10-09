@@ -306,16 +306,47 @@ def refresh_landing_sample() -> None:
               f"the site keeps the previous one")
 
 
+def nothing_scored_message(feed_source) -> str:
+    """Why a scan scored nothing, by WHICH feed served it.
+
+    EXTRACTED SO IT CAN BE TESTED, and mutation is what forced that: the decision was an inline
+    conditional, so flipping it to a constant left a suite that asserted the STRING EXISTS in
+    the source passing green. **Asserting that text exists is not asserting that it is
+    reached** -- the same gap item 39 found in its own provenance tests and item 44 found twice
+    more. A function can be called with both inputs; an inline expression cannot.
+
+    Scoring nothing on the FREE feed is a different fault from scoring nothing on a paid one:
+    the first means both sources are gone, the second means the token died. The old single
+    message could not tell them apart, which is how a deactivated account read as "no data
+    today" for a day.
+    """
+    if "free" in str(feed_source or "").lower():
+        return ("BOTH SOURCES PRODUCED NOTHING: the free delayed feed also returned no bars. "
+                "This is not a token problem.")
+    return "the paid feed returned nothing and no fallback was used."
+
+
 def run_intraday() -> None:
     from valuation.intraday.scan import run_intraday as _scan
     limit = os.environ.get("INTRADAY_LIMIT")
-    print(f"Running intraday scan (Tradier env={CONFIG.tradier_env}, "
-          f"provider={'Tradier' if CONFIG.tradier_token else 'free/delayed'})")
+    # ITEM 45: THE BANNER NAMED THE FEED FROM THE TOKEN'S PRESENCE, which is exactly the
+    # inference that failed. `provider={'Tradier' if CONFIG.tradier_token else ...}` printed
+    # "Tradier" for a deactivated account on every run that scored nothing. The provider is
+    # built first now and asked what it IS.
     res = _scan(cfg=CONFIG, limit=int(limit) if limit else None, save=False)
     rows = res.get("rows") or []
+    print("Intraday feed: %s (%s)" % (res.get("feed_source"), res.get("feed_delay")))
+    if res.get("feed_degraded_reason"):
+        print("  [!] DEGRADED: %s" % res["feed_degraded_reason"])
     print(f"  scored {len(rows)} of {res.get('universe')} names")
     if not rows:
-        print("  nothing scored — not ingesting."); sys.exit(1)
+        # LOUD, AND IT NAMES WHICH SOURCE FAILED. Scoring nothing on the FREE feed is a
+        # different fault from scoring nothing on a paid one -- the first means both sources
+        # are gone, the second means the token died -- and the old message could not tell them
+        # apart, which is how a dead account read as "no data today" for a day.
+        print("  nothing scored — not ingesting.")
+        print("  [!] %s" % nothing_scored_message(res.get("feed_source")))
+        sys.exit(1)
     try:
         from valuation.intraday.ai import explain_top
         ai = explain_top(rows, CONFIG, n=int(os.environ.get("INTRADAY_AI_TOP", "10")))

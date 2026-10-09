@@ -207,24 +207,37 @@ class TheGuardsAgainstTheOldMistake(unittest.TestCase):
         self.assertIn("cannot be attributed to the primary or the backup", src)
 
 
-class ThePendingTradierWorkflowIsSafeToINSTALL(unittest.TestCase):
-    """It carries a token with real trading rights behind it, so the limits are asserted.
+class TheTradierWorkflowIsCANCELLEDAndStillSafeIfRevived(unittest.TestCase):
+    """CANCELLED 2026-10-09 (item 45): Don will not fund Tradier again.
 
-    A pending workflow reaches `main` through `install_workflows.bat` and never passes through
-    the land gate as a branch -- `.github/` is refused to lanes -- so this suite is the ONLY
-    thing that reads it before it is live. That is the same reason
-    `test_proposal_auto_scan_themes.py` exists.
+    This class used to be `ThePendingTradierWorkflowIsSafeToINSTALL` and read the proposal
+    through `propose_workflow.read()`. Item 45 moved the file to `scripts/workflows/cancelled/`
+    so it can never be staged -- which broke every test here, correctly, and is why they are
+    REPOINTED rather than deleted.
+
+    **The safety assertions are KEPT and still read the cancelled text.** They were never about
+    the staging; they are about what that YAML would do if anyone revived it, and a cancelled
+    proposal is exactly the file someone revives later without re-reading it. **Two tests ARE
+    dropped** -- "the staged copy matches" and "it is offered for installation" -- because they
+    asserted a staging that must no longer happen, and item 45's suite now asserts the
+    opposite.
     """
 
+    #: The cancelled directory, named here rather than through `propose_workflow` -- that
+    #: helper deliberately does NOT see cancelled files, which is the point of moving it.
+    PATH = os.path.join(REPO, "scripts", "workflows", "cancelled", "tradier-seam.yml")
+
     def setUp(self):
-        # READ THE TRACKED COPY, not `data/pending_workflows/`. `/data/` is gitignored, so on a
-        # CI runner the pending file is ABSENT and the first cut of this class skipped every
-        # test in it -- a vacuous pass on a proposal that carries a token with real trading
-        # rights behind it. `scripts/workflows/` is the one definition; the pending copy is a
-        # deployment of it, placed by `scripts/propose_workflow.py`.
-        from scripts import propose_workflow as PW
-        self.y = PW.read("tradier-seam.yml")
+        if not os.path.exists(self.PATH):
+            self.skipTest("the cancelled proposal has been removed from the repo entirely")
+        self.y = io.open(self.PATH, encoding="utf-8").read()
         self.code = WS.strip_comments(self.y)
+
+    def test_it_is_not_offered_for_staging_any_more(self):
+        """The cancellation, as a property: `install_workflows.bat` reads what
+        `propose_workflow` stages, so being invisible there is what makes it uninstallable."""
+        from scripts import propose_workflow as PW
+        self.assertNotIn("tradier-seam.yml", PW.available())
 
     def test_it_is_dispatch_only_with_no_schedule(self):
         self.assertIn("workflow_dispatch:", self.code)
@@ -282,23 +295,6 @@ class ThePendingTradierWorkflowIsSafeToINSTALL(unittest.TestCase):
         self.assertIn("/markets/history", src)
         for order_path in ("/accounts/", "/orders"):
             self.assertNotIn(order_path, src, "it must not even name an order endpoint")
-
-    def test_the_pending_copy_is_a_DEPLOYMENT_of_the_tracked_one(self):
-        """If the two can drift, the thing Don installs is not the thing CI checked."""
-        from scripts import propose_workflow as PW
-        pending = os.path.join(REPO, PW.PENDING_REL, "tradier-seam.yml")
-        if not os.path.exists(pending):
-            self.skipTest("not staged in this checkout (CI: /data/ is gitignored)")
-        staged = io.open(pending, encoding="utf-8").read()
-        self.assertEqual(staged.replace("\r\n", "\n"), self.y.replace("\r\n", "\n"),
-                         "the staged copy differs from scripts/workflows/ -- re-run "
-                         "scripts/propose_workflow.py")
-
-    def test_the_proposal_refuses_to_stage_something_blank_or_absent(self):
-        from scripts import propose_workflow as PW
-        with self.assertRaises(FileNotFoundError):
-            PW.read("no-such-%d.yml" % os.getpid())
-        self.assertIn("tradier-seam.yml", PW.available())
 
     def test_it_names_the_one_click_for_Don(self):
         """Don does not create or edit files on GitHub (DECISIONS 2026-10-04), so the file has

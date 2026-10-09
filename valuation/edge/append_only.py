@@ -61,6 +61,55 @@ RESTKEY = "__surplus_cells__"
 RESTVAL = object()
 
 
+#: How many times `os.replace` is retried, and how long between tries. Small on purpose: the
+#: condition this exists for clears in milliseconds, and a long retry would turn a genuine
+#: permission problem into a hang.
+_REPLACE_TRIES = 5
+_REPLACE_SLEEP_S = 0.12
+
+
+def _replace_with_retry(tmp: str, path: str) -> None:
+    """`os.replace`, retried on the TRANSIENT Windows rename failure only.
+
+    ITEM 45 (owed from item 43's outside-lane report). MEASURED, not supposed: running
+    `tests/test_fleet_highwater.py` ten times in a row, **one run in ten** failed with
+
+        [WinError 32] The process cannot access the file because it is being used by another
+        process: 'hwbook.csv.tmp' -> 'hwbook.csv'
+
+    and the `except` around this call turned that into `{"ok": False, "wrote": False}` -- **a
+    REFUSAL**. On Windows any indexer, antivirus or backup scanner can hold the freshly-written
+    `.tmp` for a few milliseconds; on Linux `os.replace` over an open path simply succeeds,
+    which is why this is invisible on the CI runner and visible only on the one machine that
+    owns the record.
+
+    **WHY IT MATTERS MORE THAN A FLAKY TEST:** this is the writer behind
+    `index_mark.append_row` -- the BOUND forward record -- and the record is append-only with
+    no backfill permitted, so a row refused this way is lost permanently.
+
+    THE RETRY IS DELIBERATELY NARROW. It retries the RENAME and never the write, and only for
+    `PermissionError`/`OSError` with `winerror == 32`; a real `PermissionError` (read-only
+    file, no rights) raises on the last attempt exactly as before, so **a genuine refusal stays
+    a refusal.** Retrying every OSError would have turned "this path is not writable" into a
+    half-second pause followed by the same failure, which is worse than failing at once.
+    """
+    import time
+    last = None
+    for attempt in range(_REPLACE_TRIES):
+        try:
+            os.replace(tmp, path)
+            return
+        except OSError as e:                                          # noqa: PERF203
+            # `winerror` exists only on Windows; anywhere else there is nothing transient to
+            # wait for and the error is re-raised immediately rather than slept over.
+            if getattr(e, "winerror", None) != 32:
+                raise
+            last = e
+            if attempt < _REPLACE_TRIES - 1:
+                time.sleep(_REPLACE_SLEEP_S)
+    raise last
+
+
 def _identity(row: dict) -> dict:
     return row
 
@@ -154,7 +203,7 @@ def append(row: dict, path: str, *, key: str, columns: Iterable[str],
                 w.writerow({k: r.get(k) for k in fields})
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp, path)
+        _replace_with_retry(tmp, path)
     except Exception as e:                                   # noqa: BLE001
         try:
             os.remove(tmp)

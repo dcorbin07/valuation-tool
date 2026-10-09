@@ -89,7 +89,16 @@ BETA_PERIODS = ("period_60m", "period_48m", "period_36m")
 
 
 def available(cfg=CONFIG) -> bool:
-    return bool(getattr(cfg, "tradier_token", ""))
+    """ITEM 45: whether the token WORKS, not whether one is set. See `tradier_health`.
+
+    The old `bool(getattr(cfg, "tradier_token", ""))` is why the live health block reads
+    `broker fundamentals loaded for 0 of 1500 names`: a deactivated account's token is still a
+    non-empty string, so the prefetch ran and returned nothing. Delegated, not re-probed
+    (`B7`) -- and the shared cache means this and `broker_universe.available()` cost one
+    request between them per scan.
+    """
+    from ..data.tradier_health import live_token_works
+    return live_token_works(cfg)[0]
 
 
 def _headers(cfg) -> dict:

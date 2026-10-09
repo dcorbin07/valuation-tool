@@ -1391,8 +1391,23 @@ def api_signals():
     # Intraday feed: a run_time is a timestamp, so freshness is measured off its DATE. An
     # options signal from three days ago is not a signal, it is a historical note.
     from ..screener.freshness import status as _freshness
+    # ITEM 45 — WHICH FEED SERVED THESE ROWS. Tradier deactivated Don's account and the
+    # Signals tab went on serving a frozen snapshot with nothing to say its source had died.
+    # The label is read from the RUN that produced the rows (`intraday_runs.provider`), never
+    # from the provider selected now, or a page served today would relabel yesterday's
+    # real-time rows as delayed. `freshness` already says HOW OLD; this says WHAT FROM.
+    from ..intraday.providers import delay_for_label
+    meta = st.intraday_run(rt) or {}
+    src = (meta.get("provider") or "").strip()
+    feed = {"source": src or "unknown",
+            "delay": delay_for_label(src),
+            # A row set whose source was never recorded is reported as unknown rather than
+            # assumed real-time -- every run before this item has no label, and guessing one
+            # would put a number's provenance in the payload that nobody measured.
+            "recorded": bool(src)}
     return jsonify({"run_time": rt, "rows": st.load_intraday(rt, top=top),
                     "freshness": _freshness(str(rt)[:10], label="signal feed"),
+                    "feed": feed,
                     "disclaimer": RISK_DISCLAIMER})
 
 

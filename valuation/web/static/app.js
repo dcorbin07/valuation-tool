@@ -1855,6 +1855,13 @@ const SIG_HZ_LABEL = { short: "short (3–5 wk)", swing: "swing (6–11 wk)", po
 function renderSignals(d) {
   if (!d) return;
   setHtml("sigFreshness", freshnessBanner(d.freshness));
+  // ITEM 45 — name the feed and its delay. A run whose source was never recorded says so
+  // rather than being described as real-time: every run before this item carries no label,
+  // and guessing one would put provenance on the page that nobody measured.
+  const f = d.feed || {};
+  setHtml("sigFeed", f.recorded
+    ? ("Source: " + esc(f.source) + " — " + esc(f.delay) + " quotes.")
+    : (f.source ? "" : "Source: not recorded for this run."));
   setHtml("sigDisclaimer", d.disclaimer ? esc(d.disclaimer) : "");
   document.getElementById("sigMeta").textContent = "";
   document.getElementById("sigTime").textContent = d.run_time ? ("updated " + d.run_time) : "";
