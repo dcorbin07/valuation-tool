@@ -17574,3 +17574,136 @@ substring at all.** With strings kept, the ban fires on the docstring explaining
 with strings stripped, the needle itself contains a string literal and can never match. **There
 is no mode in which that ban works** — so the property is asserted behaviourally instead, which
 is what it should have been from the start.
+
+---
+
+# SESSION 89 (2026-10-09) — ITEM 46: THE FLEET'S ORDERS DID FILL, AND ALL 18 BOOKS ARE GATED SHUT ON A CERTIFICATE NOTHING RENEWS
+
+`PROMPT_appfixer_2026-10-09_item46.md`: diagnose, from the code, the records and the runs, why
+the fleet has never recorded a filled order. **It is THREE DIFFERENT CAUSES plus one defect, and
+"16 books placed nothing" was hiding the distinction.** `scripts/fleet_diagnose.py` is the
+measurement, read-only and repeatable.
+
+## 1. WHY THE BOOKS PLACED NOTHING — three states, only one of them a question
+
+| state | books | a defect? |
+|---|---|---|
+| `NO_ENTRY_RULE` | **14**, including `testbook` | **No.** `fleet_books.RULES` registers FOUR books; the rest are declared and un-armed, and `cycle()` has reported it on every run |
+| `RIDER` | 1 — `f1_fill_ab` | **No.** Its own declaration says it never sends an order (`places_orders=False`) |
+| `ARMED_NO_ORDERS` | 2 — `f8_csp_entry_financing`, `f11_dip_reject_puts` | the only one of the three that is a question |
+| `ARMED_WITH_ORDERS` | 1 — `f3_bear_puts` | 72 rows, see below |
+
+**AND THE ANSWER THAT OVERRIDES ALL OF IT: EVERY ONE OF THE 18, INCLUDING THE THREE ARMED
+BOOKS, IS BLOCKED AT THE GATE.** The live cycle returns
+
+```
+  "not_breathing_reason": "ALL_BOOKS_BLOCKED_AT_GATE:SELFCHECK_STALE"
+  "armed": 0,  "blocked": 18,  "fills_written": 0
+  every book: "the harness changed since the last self-check; re-run it"
+```
+
+`harness_fingerprint()` hashes **eight** modules (`fleet.py`, `append_only.py`,
+`assignment.py`, `fleet_books.py`, `fleet_gates.py`, `fleet_history.py`, `paper_broker.py`,
+`track_meter.py`), so a change to any one invalidates all 18 day-1 certificates. That is the
+certificate **working** — S3-I1's rule is that a stale, absent or failing self-check refuses
+every fill. **What is missing is anything that RENEWS it.** Re-certifying runs `run_day1`, which
+places a real sandbox order, so it cannot finish inside the cycle's 120-second cron — the
+service says so itself in `selfcheck_pending.how`. So the fleet has been gated shut since the
+last harness change, and nothing was ever going to reopen it.
+
+## 2. f3's 72 ORDERS DID FILL — the record is what never caught up
+
+**All 72 are `market` orders, not limit**, so "the sandbox never fills a limit order" is refuted
+rather than assumed. Measured against the sandbox read-only (`orders()` and `positions()` are
+both GETs):
+
+* **ZERO open orders at the broker.**
+* **43 open positions with real cost bases** — and a position in **37 of the 44** distinct
+  contracts f3 ordered (`ADP261016P00240000` 11 held, `NKE261016P00032500` 13, …).
+
+**THE MECHANISM: a fill row is written ONCE, AT SUBMISSION, from a status read moments later —
+and nothing ever polls the order again.** `_fate` is correct at the moment it runs: a market
+order really is `pending` a second after submission, so `working` was TRUE when written.
+`submit()` even obtains the broker's order id (`_PB.order_id(res)`) **and discards it**, because
+`RECORD_COLUMNS` has nowhere to put it. So nothing could have polled them even if something had
+tried.
+
+## 3. THE CYCLE RUNS, AND ITS WARNING HAS NAMED THE WRONG CAUSE EVERY TIME
+
+Scheduled weekdays at 22:19 UTC and **succeeding on every run since 2026-10-01** (the five runs
+from 09-26 to 09-30 failed). It has been reporting all of the above honestly in its response
+body all along.
+
+**But `fleet-cycle.yml` prints `"DECLARED-BUT-NOT-BREATHING (no entry rule implemented)"`
+whenever `breathing` is not true, having tested only `breathing`.** Four entry rules ARE
+implemented and three can order, so that annotation has been wrong on every run since the
+harness moved — and wrong in the most expensive direction, because it sends the reader off to
+implement rules that already exist. `fleet.py`'s own comment anticipated the repair: *"a future
+one-line workflow fix can print the cause that was actually found."* `not_breathing_reason` has
+been in the body waiting for it.
+
+## WHAT IS FIXED, AND THE CONSTRAINT THAT CHOSE THE DESIGN
+
+**A NEW COLUMN WAS NOT AN OPTION, AND THAT IS MEASURED RATHER THAN ASSUMED.**
+`append_only.append` **REFUSES a widened header on an append-only write** — *"rewriting every
+line cannot preserve the byte prefix the append-only check verifies"* — so adding
+`broker_order_id` to `RECORD_COLUMNS` would make **every one of the 18 live streams refuse every
+future write.** (The 2026-08-24 `(C)` columns got in only because they predate the streams by a
+day.) Driven as a test, not quoted.
+
+So the fix appends a new **`kind`** — a new VALUE in a column every stream already has, which
+widens nothing. `fleet.reconcile_outcomes()` reads the rows that never got an outcome, asks the
+broker, and appends one `reconcile` row per CONTRACT (not per order row — f3 ordered the same
+contract up to seven times, and seven identical rows would imply seven observations).
+
+**IT CLAIMS NO FILL, AND THE RESTRAINT IS THE DESIGN.** Without the order id the only join is
+the OCC symbol, and **this sandbox account is SHARED with the forward options paper track** —
+`paper_track` marks through the same `PaperBroker`, and the position list holds **CALLS** while
+`f3_bear_puts` is a puts book. The quantities say the ambiguity out loud: **84 contracts held
+against 65 matched record rows.** So a position in a contract is evidence that SOMEONE's order
+in it filled, never that a particular row's did. Every row therefore carries `fate="unknown"`
+and no `fill_price`, with the reason in `detail`. **A fabricated fill price would be worse than
+the silence it replaces**, because the forward record's only value is that its numbers were not
+invented.
+
+Verified against a COPY of the real stream with the real broker: **37 rows written, 7 contracts
+with no position counted rather than asserted** (an expired or already-closed contract has no
+position either, so absence is not evidence of failure), **the previous bytes are still an exact
+prefix, the hash chain verifies, and not one existing row is touched** — the 72 `working` rows
+STAY `working`, because they were true when written and a past row is not editable.
+
+**It runs regardless of the self-check gate, deliberately.** `may_fill` exists to stop a book
+TRADING on an uncertified harness; this places nothing and decides nothing. Gating a record of
+history behind a trading gate is how the history came to be missing. Wired into `cycle()` and
+never fatal — a cycle whose job is to place fills must not die because a reconciliation could
+not reach the broker.
+
+## FOR DON — TWO FILES STAGED, ONE CLICK EACH
+
+Both are in `data/pending_workflows/`; `.github/` is refused to lanes.
+
+1. **`fleet-selfcheck.yml` — the one thing that unblocks all 18 books.** Install with
+   `install_workflows.bat`, then GitHub → Actions → **"FLEET SELF-CHECK (re-certify)"** → **Run
+   workflow**. Dispatch-only with a 900-second budget, against the cycle's 280, because it
+   places a real sandbox order per book — exactly what does not fit the cron. **Not scheduled,
+   on purpose: a cron that re-certified automatically would make the certificate worthless.**
+2. **`fleet-cycle.yml` — the corrected warning**, which now reads `not_breathing_reason` out of
+   the body and, when it is `SELFCHECK_STALE`, names the workflow above as the fix.
+
+**RUN THE SELF-CHECK *AFTER* THE DEPLOY THAT CARRIES ITEMS 45 AND 46, NOT BEFORE.** Item 45
+changed `append_only.py` and item 46 changed `fleet.py`; both are fingerprinted, so a
+certificate renewed before they reach the running service goes STALE again the moment they do.
+The fingerprint is computed from the DEPLOYED sources.
+
+## WHAT IS NOT FIXED, AND IS DON'S TO DECIDE
+
+* **`f8` and `f11` are armed, able to order, and have never written an order row.** With every
+  book blocked at the gate since the harness moved, there has been no window in which they
+  could; whether their entry rules would ever find a candidate is **not established here**, and
+  a self-check re-run is the cheapest way to find out.
+* **The order id needs a column, and that is a deliberate schema migration** — the writer's own
+  refusal says *"make a schema change deliberately, in the repo."* Until then every
+  reconciliation is position-level and cannot be attributed to a row. **The clean alternative is
+  a second sandbox account** so the fleet's positions are not mixed with the options track's;
+  both are construction decisions, not repairs.
+* **No book's declared rules, fill source or order type is touched**, per the brief.

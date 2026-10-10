@@ -1,0 +1,84 @@
+# FLEET SELF-CHECK (re-certify the day-1 harness)  —  ONE CLICK, NO SCHEDULE
+#
+# WHY THIS EXISTS. Item 46 measured why the fleet has never recorded a filled order, and the
+# single thing blocking ALL EIGHTEEN books is this:
+#
+#     "not_breathing_reason": "ALL_BOOKS_BLOCKED_AT_GATE:SELFCHECK_STALE"
+#     "armed": 0, "blocked": 18
+#     every book: "the harness changed since the last self-check; re-run it"
+#
+# `fleet.harness_fingerprint()` hashes EIGHT modules (`fleet.py`, `append_only.py`,
+# `assignment.py`, `fleet_books.py`, `fleet_gates.py`, `fleet_history.py`, `paper_broker.py`,
+# `track_meter.py`), so a change to any one of them invalidates every book's day-1
+# certificate — which is the certificate working, not a bug. **What is missing is anything
+# that renews it.** Re-certifying runs `run_day1`, which places a real sandbox order, so it
+# cannot finish inside `fleet-cycle.yml`'s 120-second cron; the service's own response says so:
+#
+#     "selfcheck_pending": {"books": 18, "how": "certification is deliberate because it
+#      places a real sandbox fill and cannot finish inside a 120s cron:
+#      POST /admin/fleet-cycle?run=1&selfcheck=1 once"}
+#
+# So this is that one deliberate POST, with a timeout that fits it. It is NOT scheduled: a cron
+# that re-certified automatically would defeat the point of a certificate, which is that a
+# human decided the harness is sound after it moved.
+#
+# INSTALL:  double-click `install_workflows.bat`.
+# RUN:      GitHub → Actions → "FLEET SELF-CHECK (re-certify)" → "Run workflow" → green button.
+#
+# RUN IT AFTER THE DEPLOY THAT CARRIES THE LATEST HARNESS CHANGE, NOT BEFORE. Item 45 changed
+# `append_only.py` (the transient-rename retry) and item 46 changed `fleet.py`, and both are
+# fingerprinted — so a certificate renewed before those reach the running service goes STALE
+# again the moment they do. The fingerprint is computed from the DEPLOYED sources.
+#
+# It places real sandbox orders in a paper account. It cannot touch real money: `PaperBroker`
+# validates its base against the sandbox host at construction and refuses anything else.
+name: FLEET SELF-CHECK (re-certify)
+
+on:
+  # DISPATCH ONLY. See above: automatic re-certification would make the certificate worthless.
+  workflow_dispatch: {}
+
+concurrency:
+  group: fleet-selfcheck
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  selfcheck:
+    # The house rule from `tests/test_proposal_auto_scan_themes.py`: a job names its own
+    # trigger, so a trigger added later does not silently acquire it.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: POST the self-check door
+        env:
+          SITE_BASE_URL: ${{ secrets.SITE_BASE_URL }}
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          set -uo pipefail
+          if [ -z "${SITE_BASE_URL:-}" ] || [ -z "${ADMIN_TOKEN:-}" ]; then
+            echo "::error::SITE_BASE_URL or ADMIN_TOKEN is unset"; exit 1
+          fi
+          BODY=$(mktemp)
+          # 900s, against fleet-cycle's 280: this places a real sandbox order per book across
+          # eighteen books, which is precisely what does not fit the cycle's budget.
+          CODE=$(curl -sS -o "$BODY" -w '%{http_code}' -X POST \
+                   --max-time 900 \
+                   -H "X-Admin-Token: ${ADMIN_TOKEN}" \
+                   "${SITE_BASE_URL%/}/admin/fleet-cycle?run=1&selfcheck=1") || CODE="000"
+          echo "HTTP ${CODE}"
+          cat "$BODY"
+          [ "$CODE" = "200" ] || { echo "::error::selfcheck returned ${CODE}"; exit 1; }
+          # THE CAUSE IS READ FROM THE BODY, NOT GUESSED. `fleet-cycle.yml` prints "no entry
+          # rule implemented" whenever `breathing` is not true, and on the first real dispatch
+          # that blamed the one thing that was not wrong. `not_breathing_reason` is in the
+          # body for exactly this.
+          if grep -q '"breathing": *true' "$BODY"; then
+            echo "the fleet is BREATHING"
+          else
+            REASON=$(python -c "import json,sys;print((json.load(open(sys.argv[1])) or {}).get('not_breathing_reason') or 'unreported')" "$BODY" 2>/dev/null || echo unreported)
+            echo "::warning::still not breathing — cause: ${REASON}"
+          fi
