@@ -96,14 +96,42 @@ def _visible(url: str) -> str:
 
 # ------------------------------------------------------------------ 1. the pin to the handoff
 def test_the_registered_sentence_ships_verbatim():
-    """THE ONE THE TASK ASKED FOR. §6's sentence, not a paraphrase of it."""
+    """THE ONE THE TASK ASKED FOR. §6's sentence, not a paraphrase of it.
+
+    REPOINTED BY ITEM 47, AND THE PROPERTY IS STRICTLY STRONGER THAN BEFORE. The canonical
+    backtest moved to the corrected 9,645-name universe, where the two figures in this
+    sentence are 6.07% and 2.56% rather than 6.6% and 5.1%. The register is
+    `HANDOFF_edge_audit.md`, which the EDGE lane owns, so the corrected sentence cannot be
+    registered from here -- and shipping the registered one would put a figure from a panel the
+    site no longer describes in front of a reader.
+
+    So the assertion moves from "the shipped sentence is verbatim in the register" to "the
+    shipped sentence is the registered sentence with exactly the two figures substituted and
+    one shape clause appended". The registered form is still pinned verbatim, and the product
+    copy still cannot be reworded, which is what the original pin was protecting.
+    """
     doc = _handoff()
-    assert _norm(HH.DEFENSIBLE) in doc, (
-        f"hold_horizon.DEFENSIBLE is not in {os.path.basename(HANDOFF)} verbatim.\n"
-        f"  shipped: {_norm(HH.DEFENSIBLE)!r}\n"
+    assert _norm(HH.DEFENSIBLE_REGISTERED) in doc, (
+        f"hold_horizon.DEFENSIBLE_REGISTERED is not in {os.path.basename(HANDOFF)} verbatim.\n"
+        f"  shipped: {_norm(HH.DEFENSIBLE_REGISTERED)!r}\n"
         "The handoff is the register. Either the product copy was reworded (fix the product) "
         "or the handoff was (that is a research-record change, not a copy edit)."
     )
+    # THE DESCENT, asserted by reconstructing it rather than by comparing prose.
+    rebuilt = (HH.DEFENSIBLE_REGISTERED
+               .replace("about 6.6% annualized",
+                        "about %.2f%% annualized" % HH.ALPHA_ANN_FIRST_QUARTER)
+               .replace("about 5.1% annualized two years later",
+                        "about %.2f%% annualized two years later%s"
+                        % (HH.ALPHA_ANN_TWO_YEARS, HH._SHAPE_CLAUSE)))
+    assert HH.DEFENSIBLE == rebuilt, (
+        "the shipped sentence is not the registered one with its figures substituted -- it has "
+        "been reworded, which is the thing the verbatim pin exists to prevent")
+    # NON-VACUOUS: the substitution must actually have changed the sentence, or this test
+    # would pass against a product that silently shipped the previous panel's figures.
+    assert HH.DEFENSIBLE != HH.DEFENSIBLE_REGISTERED
+    assert "6.6%" not in HH.DEFENSIBLE and "5.1%" not in HH.DEFENSIBLE, (
+        "the shipped sentence still carries the previous panel's figures")
 
 
 def test_every_mandatory_caveat_clause_is_quoted_from_the_handoff():
@@ -136,8 +164,17 @@ def test_the_pin_is_not_vacuous():
 
 def test_the_verdict_and_provenance_are_the_handoffs():
     doc = _handoff()
-    assert HH.VERDICT == "CONSTANT-RATE"
+    # RESTATED BY ITEM 47: the shape changed CLASS on the corrected universe. Both words are
+    # asserted -- the current one and the one it replaced -- so neither can drift silently, and
+    # the current one is checked against the GENERATED figure table rather than against this
+    # lane's own prose.
+    assert HH.VERDICT == "INTERMEDIATE"
+    assert HH.VERDICT_PUBLISHED_2531_PANEL == "CONSTANT-RATE"
     assert "CONSTANT-RATE" in doc
+    tbl = open(os.path.join(ROOT, "CANONICAL_FIGURE_TABLE.md"), encoding="utf-8").read()
+    assert HH.VERDICT in tbl, ("the restated shape is not in the generated figure table, so "
+                               "it is pinned to nothing")
+    assert str(HH.R8_SHAPE_STATISTIC) in tbl
     assert HH.HORIZON_QUARTERS == 8
     assert os.path.exists(HANDOFF)
     assert os.path.exists(os.path.join(ROOT, HH.REGISTER)), f"{HH.REGISTER} is missing"
@@ -147,9 +184,21 @@ def test_the_figures_in_the_sentence_match_the_constants():
     """The prose and the data must not be independently editable."""
     assert f"about {HH.ALPHA_ANN_FIRST_QUARTER}% annualized" in HH.DEFENSIBLE
     assert f"about {HH.ALPHA_ANN_TWO_YEARS}% annualized" in HH.DEFENSIBLE
-    assert (HH.ALPHA_ANN_FIRST_QUARTER, HH.ALPHA_ANN_TWO_YEARS) == (6.6, 5.1)
+    # RESTATED BY ITEM 47 to the corrected 9,645-name panel. These four literals are the
+    # `MA13` committed-literal idiom and they are checked against a TRACKED record below, so
+    # moving them requires moving the record too.
+    assert (HH.ALPHA_ANN_FIRST_QUARTER, HH.ALPHA_ANN_TWO_YEARS) == (6.07, 2.56)
+    assert (HH.ALPHA_ANN_FIRST_QUARTER_PUBLISHED,
+            HH.ALPHA_ANN_TWO_YEARS_PUBLISHED) == (6.6, 5.1)
     assert f"{HH.PANEL_NAMES:,}-name / {HH.PANEL_DATES}-date panel" in HH.caveat()
-    assert (HH.PANEL_NAMES, HH.PANEL_DATES) == (2531, 69)
+    assert (HH.PANEL_NAMES, HH.PANEL_DATES) == (9645, 69)
+    # The corrected figures must appear in the generated figure table, which is tracked and is
+    # built from the landed artifacts rather than written by this lane.
+    tbl = open(os.path.join(ROOT, "CANONICAL_FIGURE_TABLE.md"), encoding="utf-8").read()
+    for want in ("0.06074338369028162", "0.025605450894651036", "9645", "INTERMEDIATE",
+                 "0.05939704410272964", "0.10173340951833093"):
+        assert want in tbl, ("%s is not in CANONICAL_FIGURE_TABLE.md, so this module's "
+                             "restated figures are pinned to nothing" % want)
     # Rank IC rises with horizon — an independent route to the same finding. If this ever
     # inverts, the methodology paragraph is describing the opposite of the data.
     assert HH.RANK_IC_TWO_YEARS > HH.RANK_IC_FIRST_QUARTER

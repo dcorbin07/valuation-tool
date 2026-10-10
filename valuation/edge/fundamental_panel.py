@@ -3354,7 +3354,48 @@ def validate_institutional(provider, tickers, lags=INST_LAG_GRID, lookback_years
     return out
 
 
-def multiple_testing_accounting(per_signal: dict, headline_ls_hac) -> dict:
+def _hlz_tension(t, hurdle, clears_floor, cpcv_adopted):
+    """The two-bars sentence, COMPUTED from the two verdicts. See the call site.  [ITEM 47]
+
+    Both halves are stated whichever way they fall, and the counter-argument is stated only
+    when it applies: the HLZ hurdle prices the best of N draws, and that argument is weaker on
+    a universe where the selection step actually preferred something. So the sentence says
+    which of those worlds it is in rather than asserting one.
+    """
+    clears_hlz = (None if (t is None or hurdle is None) else bool(t > hurdle))
+    if clears_hlz is None or clears_floor is None:
+        return ("One or both bars could not be evaluated on this run, so no comparison is "
+                "stated.")
+    bars = []
+    bars.append(("CLEARS" if clears_floor else "FAILS")
+                + " the bar measured against the project's own placebo")
+    bars.append(("CLEARS" if clears_hlz else "FAILS")
+                + " the bar derived from counting its own trials")
+    head = " and ".join(bars) + "."
+    if clears_hlz and clears_floor:
+        head += (" Both bars pass at once, which was not true of the previously published "
+                 "panel, and that is a restatement rather than a new result.")
+    else:
+        head += " Neither is 'the' answer."
+    tail = (" HLZ prices the best of N draws; the deployed composite is flat 1/7 and was "
+            "never tuned, so the logged trials are overwhelmingly REJECTED ALTERNATIVES to it "
+            "rather than candidates it beat.")
+    if cpcv_adopted is None:
+        # NOT KNOWN HERE, so nothing is claimed about it. The published sentence asserted it
+        # was false, which is how a stale clause survives: an unknown rendered as a fact.
+        pass
+    elif cpcv_adopted:
+        tail += (" One qualification, and it weakens that argument rather than this run's "
+                 "figures: on this universe the selection step DID prefer a tuned weighting "
+                 "over the flat one. The flat weights are kept anyway -- the tuned book earns "
+                 "less, and adoption is the owner's decision -- so the search still did not "
+                 "produce the shipped model, but it is no longer true that nothing in it was "
+                 "preferred.")
+    return head + tail
+
+
+def multiple_testing_accounting(per_signal: dict, headline_ls_hac,
+                                cpcv_adopted=None) -> dict:
     """AUDIT R4 — the two method bullets M1 did not deliver.
 
     M1 built the append-only log and fed the real `N` into the Deflated Sharpe. It did NOT do
@@ -3436,13 +3477,29 @@ def multiple_testing_accounting(per_signal: dict, headline_ls_hac) -> dict:
             "clears_hlz_hurdle": (None if (t is None or hurdle is None) else bool(t > hurdle)),
             "shortfall": (None if (t is None or hurdle is None) else float(hurdle - t)),
             "x7_calibrated_floor": 2.2837,
+            # NAMED, because after the canonical move this literal is NOT this panel's floor.
+            # It was calibrated on the 2,531-name panel; `CORRECTED_FLOORS.json` is the
+            # authority for a wider universe (pooled 1.485155, matched non-adopting 1.363955).
+            # A bar quoted outside the configuration it was calibrated in is an EXTRAPOLATION
+            # and this record's own word for it, so the field says so rather than leaving a
+            # reader to assume the two were measured together. `MA19`'s mixed-pair defect.
+            "x7_calibrated_floor_panel": "the 2,531-name panel (X7); an EXTRAPOLATION on any "
+                                         "other universe",
             "clears_x7_calibrated_floor": (None if t is None else bool(t > 2.2837)),
-            "the_tension": (
-                "CLEARS the bar measured against the project's own placebo and FAILS the bar "
-                "derived from counting its own trials. Neither is 'the' answer. HLZ prices "
-                "the best of N draws; the deployed composite is flat 1/7, never tuned, and "
-                "cpcv.adopt is false on every run, so the logged trials are overwhelmingly "
-                "REJECTED ALTERNATIVES to it rather than candidates it beat."),
+            # DERIVED FROM THE TWO VERDICTS BESIDE IT, NEVER TYPED (item 47).
+            #
+            # THIS FIELD WAS A HARD-CODED SENTENCE AND IT WENT WRONG IN TWO PLACES AT ONCE ON
+            # THE FIRST RUN THAT MOVED EITHER VERDICT. It asserted the headline "FAILS the bar
+            # derived from counting its own trials" -- true on the 2,531-name panel, false on
+            # the corrected one, where the same composite clears it -- and it asserted
+            # "cpcv.adopt is false on every run", which that very run falsified by adopting
+            # `ic-proportional` for the first time in the project's history. A sentence that
+            # states a verdict next to the boolean for that verdict must be computed from it,
+            # or the two drift and the prose is the half a reader believes.
+            "the_tension": _hlz_tension(
+                t, hurdle,
+                None if t is None else bool(t > 2.2837),
+                cpcv_adopted),
         },
         "by_domain": by,
         "unified_domain_declared_but_zero": bool("unified" in (_rl.DOMAINS or ())
@@ -5198,8 +5255,14 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
             # `clears_hlz_hurdle: null`. That is R4's own finding — a number computed and never
             # reported — reproduced by R4's own fix, and it is why the assertion below is here
             # rather than a comment asking the next reader to be careful.
+            # `cpcv` lands in `out` well before this line, and the adopt flag is passed
+            # rather than re-derived so the tension sentence and `cpcv.adopt` cannot disagree
+            # -- which is exactly how the published sentence came to assert "cpcv.adopt is
+            # false on every run" inside a run that adopted. `None` is a legitimate value and
+            # means "not known here", in which case the sentence says nothing about it.
             out["multiple_testing"] = multiple_testing_accounting(
-                out["per_signal"], (out.get("construction") or {}).get("long_short_tstat_nw"))
+                out["per_signal"], (out.get("construction") or {}).get("long_short_tstat_nw"),
+                cpcv_adopted=(out.get("cpcv") or {}).get("adopt"))
             out["regime"] = regime_split(panel, cols, headline_w, n_tiers=3, horizon=63)           # where the edge lives
             out["benchmarks"] = benchmark_panel(panel, cols, headline_w, n_q=10, horizon=63)       # AUDIT R10
             out["institutional_dependence"] = institutional_dependence(panel, cols, headline_w, horizon=63)

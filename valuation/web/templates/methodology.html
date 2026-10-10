@@ -69,8 +69,13 @@
     <li><b>Held-out confirmation.</b> A change decided on one half of history has to survive
       measurement on the half that did not inform it, in both directions. Several plausible
       improvements were rejected exactly here.</li>
-    <li><b>Full universe only.</b> Verdicts come from the whole ~2,531-name panel. Smaller
-      samples systematically flatter results and are used only as smoke tests.</li>
+    <li><b>Full universe only.</b> Verdicts come from the whole
+      {{ "{:,}".format(hold_horizon.panel_names) }}-name panel. Smaller samples systematically
+      flatter results and are used only as smoke tests &mdash; and that rule was applied to
+      this project's own universe in October 2026: the panel had been
+      {{ "{:,}".format(hold_horizon.panel_names_published) }} names, a subset of the
+      {{ "{:,}".format(hold_horizon.panel_names) }} the raw data holds, and re-running on all
+      of them lowered the headline rather than raising it.</li>
   </ul>
 
   <h3>The one result that had to clear a threshold written down in advance</h3>
@@ -86,13 +91,30 @@
        because a reader on a page that also sells the Index will otherwise take it for the
        Index's alpha, and INDEX-BOOK measured those two books to differ by about 4pp/yr on
        the comparison that flatters and about zero on the one that does not. -->
-  carries an intercept of <b>+6.99%/yr (t = 3.98)</b> &mdash; that is the
-  <b>research decile</b>, the ranking across all ~2,500 companies equal-weighted, and
+  carries an intercept of <b>+5.94%/yr (t = 4.45)</b> &mdash; that is the
+  <b>research decile</b>, the ranking across all
+  {{ "{:,}".format(hold_horizon.panel_names) }} companies equal-weighted, and
   <b>not the Valquo Index</b> &mdash; over 68 non-overlapping windows,
-  2009–2025, with all six pre-registered specifications positive at t &gt; 2 and spanning
-  <b>+5.1% to +10.9%</b>. Run through the same pipeline, a passive large-cap ETF returns
+  2009–2026, with all six pre-registered specifications positive at t &gt; 2 and spanning
+  <b>+5.7% to +9.3%</b>. Run through the same pipeline, a passive large-cap ETF returns
   <b>+0.68%/yr (t 1.58)</b> — the placebo that shows the machinery reports nothing
   significant when there is nothing there.</p>
+  <!-- RESTATED 2026-10-10 by the canonical move. On the previous 2,531-name panel this read
+       +6.99%/yr at t 3.98 spanning +5.1% to +10.9%. Re-run on the corrected 9,645-name
+       universe the intercept is about a point LOWER and its t-statistic HIGHER, and all six
+       pre-registered specifications still pass. The two panels share no rebalance dates.
+       ALSO RESTATED, and it runs against us: the equal-weighted universe's own unexplained
+       excess, which this page used to be able to cite at +2.34%/yr (t 2.92), is -0.41%/yr
+       (t -0.44) on the corrected universe -- so the spread is CLEANER rather than merely
+       smaller, and the figure that used to support "even the universe is unexplained" no
+       longer does. NOT RESTATED, and reported absent rather than inherited: R1's
+       net-of-cost specification came back NaN on this panel (the cost model's inputs cover
+       2,524 of 9,645 names), so there is no cost-adjusted intercept to quote. -->
+  <p class="note">The same regression on the corrected universe also removes something this
+  page could previously lean on: the equal-weighted universe's <em>own</em> unexplained excess
+  was +2.3%/yr and is now &minus;0.4%/yr, not separable from zero. That makes the decile's
+  intercept a cleaner number and takes away a second argument, which is the trade a wider
+  universe turned out to be.</p>
   <div class="note" style="margin:12px 0"><b>Read that as a research finding and nothing else.</b>
   It is measured on a <b>historical simulation</b>, not an account. It is <b>not an expected
   return, not an achievable return, and not a return anyone earned.</b> It is one panel; the
@@ -121,8 +143,13 @@
   median per-date rank correlation between score and forward return <i>rises</i> with horizon,
   {{ "%.4f"|format(hold_horizon.rank_ic.first_quarter) }} at one quarter to
   {{ "%.4f"|format(hold_horizon.rank_ic.two_years) }} at two years. And the alpha is well
-  measured at every horizon — its t-statistic never falls below 3.16, and is 3.83 at two years
-  — so this is not a signal that survives because its error bars widened.</p>
+  measured at every horizon — its t-statistic never falls below 3.02, and is 3.38 at two years
+  — so this is not a signal that survives because its error bars widened. What it does do is
+  <b>decay</b>: on this universe the annualized alpha falls from
+  {{ "%.2f"|format(hold_horizon.alpha_ann.first_quarter) }}% at one quarter to
+  {{ "%.2f"|format(hold_horizon.alpha_ann.two_years) }}% at two years, where the previous
+  2,531-name panel measured it essentially flat. Positive at every horizon, at a lower rate
+  the longer you hold.</p>
   <div class="note" style="margin:12px 0"><b>Three limits, and the third is the one people get
   wrong.</b> {{ hold_horizon.caveat }}
   Second, a longer forward window is <b>not new data</b>: the eight horizons are eight views of

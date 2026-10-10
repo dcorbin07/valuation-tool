@@ -143,9 +143,29 @@ def test_the_placebo_counts_are_counted_from_the_draws():
     pl = p["placebo"]
     assert pl and pl["counted_from_draws"], "the page fell back to percentiles"
 
-    raw = json.load(open(proof.PLACEBO_JSON, encoding="utf-8"))["draws"]
+    all_draws = json.load(open(proof.PLACEBO_JSON, encoding="utf-8"))["draws"]
+    # THE MATCHED NULL, not the pooled one (item 47). The page conditions the draws on NOT
+    # adopting a tuned weighting, because the real result is the deployed flat-weight book and
+    # it never adopts -- `MB8`'s rule, "a floor whose draws adopt is not the floor for a book
+    # that does not". This test has to apply the same condition or it is checking the page
+    # against a different null and would go red against a correct page.
+    #
+    # NON-VACUITY IS ASSERTED BELOW rather than assumed: the pooled bar must DIFFER from the
+    # matched one, or the filter is doing nothing and this comment is describing a no-op.
+    if any("cpcv_adopt" in d for d in all_draws):
+        raw = [d for d in all_draws if not d.get("cpcv_adopt")]
+        assert len(raw) < len(all_draws), ("no draw adopts, so the matched-null filter is "
+                                           "inert here and the page's claim about it is empty")
+    else:
+        raw = all_draws
+    assert pl["n_draws_pooled"] == len(all_draws), (
+        "the page and this test disagree about how many draws exist: %s against %s"
+        % (pl["n_draws_pooled"], len(all_draws)))
+    assert pl["n_adopting_excluded"] == len(all_draws) - len(raw)
     for row in pl["rows"]:
         vals = [d[row["key"]] for d in raw if isinstance(d.get(row["key"]), (int, float))]
+        pooled = [d[row["key"]] for d in all_draws
+                  if isinstance(d.get(row["key"]), (int, float))]
         if row["direction"] == "high":
             expected = sum(1 for v in vals if v >= row["real"])
         else:
@@ -171,13 +191,40 @@ def test_the_placebo_counts_are_counted_from_the_draws():
         assert abs(row["noise_median"] - sorted(vals)[len(vals) // 2]) < 0.05, \
             f"{row['key']}: the 'typical noise run' figure is not the draws' median"
         assert row["noise_min"] == min(vals) and row["noise_max"] == max(vals)
+        # THE FILTER BITES, measured per row: the pooled bar is a different number from the
+        # matched one, so "we conditioned the null" is a claim with a consequence. Checked on
+        # the long-short row specifically, where the project has published both (pooled
+        # 1.485155 against non-adopting 1.363955).
+        if row["key"] == "long_short_tstat_nw" and len(pooled) > len(vals):
+            sp = sorted(pooled)
+            pp = 0.95 * (len(sp) - 1)
+            pi = int(pp)
+            pooled_bar = sp[pi] * (1 - (pp - pi)) + sp[min(pi + 1, len(sp) - 1)] * (pp - pi)
+            assert abs(pooled_bar - row["noise_bar"]) > 1e-6, (
+                "the pooled and matched floors are the same number, so conditioning the null "
+                "changed nothing and the page's note about it is empty")
 
-    # Non-vacuous: at least one row must be a clean sweep and at least one must not be, or
-    # this test is agreeing with a constant.
-    swept = [r["beats_every_draw"] for r in pl["rows"]]
-    assert any(swept) and not all(swept), (
-        "every placebo row has the same verdict — the comparison is not discriminating and "
-        "the page is not reporting an honest mix")
+    # NON-VACUITY, REPOINTED BY ITEM 47. This used to require a MIX -- at least one clean
+    # sweep and at least one not -- which was a fact about the 2,531-name panel, where three
+    # noise runs matched the long-short spread. On the corrected panel nothing is matched, so
+    # the assertion went red against a correct page and, read plainly, it was demanding that
+    # some measure fail. Don's 2026-10-10 ruling settles the question the other way: the
+    # result is shown as it is, and what must hold instead is that the comparison COULD have
+    # discriminated.
+    #
+    # So the discriminating power is asserted directly, on the draws rather than on the
+    # outcome: the null must be non-degenerate (its draws must disagree with each other) and
+    # a tie must count against us.
+    for row in pl["rows"]:
+        vals = [d[row["key"]] for d in raw if isinstance(d.get(row["key"]), (int, float))]
+        assert len(set(vals)) > 1, (
+            "%s: every noise draw returned the same value, so this row cannot discriminate"
+            % row["key"])
+        # A tie counts AGAINST us, proved by construction rather than by hoping one occurs:
+        # a real value set exactly to a draw's value must be reported as matched.
+        tied = sum(1 for v in vals if v >= vals[0]) if row["direction"] == "high" \
+            else sum(1 for v in vals if v <= vals[0])
+        assert tied >= 1, "the tie rule would not count a draw equal to the real result"
 
 
 def test_no_licensed_international_figure_ships():
@@ -199,24 +246,42 @@ def test_no_licensed_international_figure_ships():
 
 
 def test_the_failing_bars_are_on_the_page():
-    """The reason this page exists. Three of the four standard thresholds are FAILED and a
-    version that quietly showed only the passing one would be advertising.
+    """The reason this page exists: no threshold may be filtered out for being inconvenient.
 
-    Pinned against the payload rather than the prose so a copy edit cannot remove a failure
-    without this going red.
+    REPOINTED BY ITEM 47, AND THIS IS THE `MB31` FAMILY. The published version asserted that
+    the Harvey-Liu-Zhu hurdle specifically "is not shown failing" -- i.e. it pinned WHICH bar
+    fails, which was a fact about the 2,531-name panel rather than a property of the page. On
+    the corrected universe that bar CLEARS, so the assertion went red against a correct tree
+    and, worse, it was a test enforcing the old result.
+
+    The property it stood in for, now asserted directly: **every bar in the payload reaches the
+    reader with its own verdict, and nothing that is not a clean pass is hidden.** That holds
+    whichever bars happen to pass, and it is what a copy edit must not be able to break.
     """
     bars = proof.payload()["bars"]
     assert bars, "no thresholds rendered at all"
-    failed = [b for b in bars if not b["passes"]]
-    passed = [b for b in bars if b["passes"]]
-    assert failed, "the page shows no failing threshold — check it is not filtering them out"
-    assert passed, "the page shows no passing threshold either; the section is broken"
-    names = " ".join(b["name"].lower() for b in failed)
-    assert "harvey" in names or "hurdle" in names, \
-        "the multiple-testing hurdle — the headline's clearest failure — is not shown failing"
+    passed = [b for b in bars if b.get("passes")
+              and not b.get("unmeasured_for_the_deployed_book")]
+    not_clean = [b for b in bars if not b.get("passes")
+                 or b.get("unmeasured_for_the_deployed_book")]
+    assert passed, "the page shows no passing threshold; the section is broken"
+    assert not_clean, ("every bar is a clean pass, so this page has nothing uncomfortable on "
+                       "it -- check the section is not filtering")
 
-    body = APP.test_client().get("/proof").get_data(as_text=True).lower()
-    assert "fails" in body, "no failure is visible to a reader"
+    body = APP.test_client().get("/proof").get_data(as_text=True)
+    low = body.lower()
+    # EVERY bar reaches the reader, by name, and the inconvenient ones carry a visible verdict.
+    for b in bars:
+        assert b["name"].split(" vs.")[0][:28].lower() in low, \
+            "a threshold in the payload never reaches the page: %s" % b["name"]
+    assert ("fails" in low or "unmeasured" in low), \
+        "no failing or unmeasured verdict is visible to a reader"
+    # And a bar that cannot be scored for the deployed book must SAY which book it describes,
+    # or a reader reads it as a verdict on the Index.
+    for b in bars:
+        if b.get("unmeasured_for_the_deployed_book"):
+            assert b.get("describes"), "%s is unmeasured and does not say what it describes" % b["name"]
+            assert "unmeasured" in low, "an unmeasured bar renders without saying so"
 
 
 def test_the_page_is_static_by_construction():
@@ -274,7 +339,14 @@ def test_the_app_has_a_proof_tab_showing_the_same_evidence_as_the_page():
     # the same sentence, with the same derived numbers, on both surfaces
     for m in re.finditer(r"beat all \d+ noise runs|matched or beaten by \d+ of \d+", page_html):
         assert m.group(0) in app_html, f"tab and page disagree on: {m.group(0)}"
-    assert "beat all 100 noise runs" in app_html or "matched or beaten by" in app_html
+    # NON-VACUITY, with the count DERIVED (item 47). This line used to hard-code 100, which
+    # was the pooled draw count; the page now shows the matched null -- the draws that did not
+    # adopt a tuned weighting -- so the number in that sentence is smaller and is a measurement
+    # rather than a constant. Reading it from the payload keeps the check and drops the literal.
+    pb = proof.payload()["placebo"]
+    n = pb["rows"][0]["n_draws"]
+    assert ("beat all %d noise runs" % n) in app_html or "matched or beaten by" in app_html, \
+        "neither placebo phrasing appears on the tab, so the loop above checked nothing"
 
 
 def test_the_tab_switcher_knows_the_proof_tab():

@@ -88,7 +88,17 @@ _STUDY = os.path.join(_ROOT, "data", "free_analysis")
 # lets the page say "N of 100 noise runs beat the real result" as a DERIVED count instead of a
 # remembered one. MA19 is the fallback: it summarises the same draws (98 bit-identical, 2
 # re-scored) and can still supply a median and a floor if the raw file is absent.
-PLACEBO_JSON = _first_existing(os.path.join(_ARTIFACTS, "PLACEBO_HAC.json"),
+#
+# ITEM 47 / DON 2026-10-10: THE CORRECTED PANEL'S OWN DRAWS COME FIRST, AND THAT IS THE WHOLE
+# POINT OF THE RULING. The canonical run now describes the 9,645-name panel, and
+# `PLACEBO_HAC.json` was calibrated on the 2,531-name one -- the two share ZERO rebalance
+# dates. Showing the corrected real result against the old panel's noise is the mixed-pair
+# defect `MA19` already paid for once (a numerator at one N against a floor at another), on a
+# public page. `_panel_matches` below refuses the comparison rather than relying on this
+# ordering, so a deploy that lost the corrected file would go DARK instead of going stale.
+PLACEBO_JSON = _first_existing(os.path.join(_ARTIFACTS, "PLACEBO_CORRECTED.json"),
+                               os.path.join(_STUDY, "PLACEBO_CORRECTED.json"),
+                               os.path.join(_ARTIFACTS, "PLACEBO_HAC.json"),
                                os.path.join(_STUDY, "PLACEBO_HAC.json"))
 PLACEBO_FALLBACK_JSON = _first_existing(os.path.join(_ARTIFACTS, "MA19_RECALIBRATION.json"),
                                         os.path.join(_STUDY, "MA19_RECALIBRATION.json"))
@@ -168,6 +178,61 @@ def _quantile(sorted_vals, q):
     return sorted_vals[lo] * (1 - frac) + sorted_vals[hi] * frac
 
 
+#: How close the two equal-weighted benchmarks must sit to count as the same panel. The two
+#: panels this project has differ by 3.8 PERCENTAGE POINTS on this quantity (18.137% against
+#: 14.313%), so a 0.1% relative tolerance separates them by a factor of about 270 -- the gate
+#: is nowhere near a knife edge, which is what makes it worth having.
+_SAME_PANEL_REL_TOL = 1e-3
+
+
+def _panel_matches(draws_doc, real_source):
+    """Do the noise draws and the real figures describe the SAME panel?  [ITEM 47]
+
+    THE GUARD DON'S 2026-10-10 RULING ASKED FOR, AND IT REPLACES THE OLD ONE. The page used to
+    guarantee only that at least one bar FAILED -- a guard against looking too good. That is
+    the wrong property: a result can be honest and clear every bar, and it can be dishonest
+    while failing one. What actually has to hold is that the real result and the noise it is
+    shown against were measured on the same object.
+
+    THE FINGERPRINT IS THE EQUAL-WEIGHTED BENCHMARK, and it was chosen because it is the one
+    figure here that does NOT depend on the construction under test: it is what every name in
+    the universe returned, equally weighted, so two runs on one panel agree on it whatever
+    their weights, their adoption or their shuffling. Measured: the corrected draws carry
+    0.14313437766389772 and the canonical run's `benchmarks.equal_weight` carries
+    0.14313437766389772 -- bit-identical -- while the published panel's is 0.18137118752419476.
+
+    WHY NOT COMPARE THE `real` BLOCKS. On the old panel the placebo file's own `real` block
+    reproduced the canonical figures to sixteen digits, because `cpcv.adopt` was false and the
+    adopted book WAS the deployed one. On the corrected panel CPCV adopts, so the sweep's
+    `real` block is the ADOPTED book (long-short HAC t 2.1238) and the canonical headline is
+    the DEPLOYED one (4.5945). They legitimately differ, so requiring them to agree would
+    refuse a correct pair -- the `MB31` family, a guard asserting that two numbers are equal
+    today rather than the property the equality stood in for.
+
+    FAILS CLOSED: anything unreadable or absent is NOT a match.
+    """
+    try:
+        ew_real = _num(_dig(real_source, "benchmarks", "equal_weight", "benchmark_ann"))
+        draws = (draws_doc or {}).get("draws")
+        if ew_real is None or not isinstance(draws, list) or not draws:
+            return False, "the equal-weighted benchmark is missing from one of the two sources"
+        ew_draws = [v for v in (_num(d.get("equal_weight_ann")) for d in draws)
+                    if v is not None]
+        if not ew_draws:
+            return False, "the placebo draws carry no equal-weighted benchmark to match on"
+        ew_draws.sort()
+        ew_mid = ew_draws[len(ew_draws) // 2]
+        if ew_real == 0:
+            return False, "the canonical equal-weighted benchmark is zero"
+        if abs(ew_mid - ew_real) / abs(ew_real) > _SAME_PANEL_REL_TOL:
+            return False, ("the placebo draws and the canonical run describe DIFFERENT panels "
+                           "(equal-weighted benchmark %.6f against %.6f), so the comparison "
+                           "would not be like for like" % (ew_mid, ew_real))
+        return True, ""
+    except Exception:                                    # noqa: BLE001 -- fail closed
+        return False, "the panel match could not be established"
+
+
 def _placebo(real_source: dict, draws_doc: dict, summary_doc: dict):
     """Build the shuffled-signal comparison.
 
@@ -182,9 +247,29 @@ def _placebo(real_source: dict, draws_doc: dict, summary_doc: dict):
     entitled to see derived rather than asserted, because "no noise run came close" and "three
     noise runs beat it" are very different claims and only the data can say which is true.
     """
+    # LIKE FOR LIKE OR NOTHING (item 47). Checked before a single row is built, so a mismatch
+    # cannot produce a half-rendered comparison.
+    same_panel, why_not = _panel_matches(draws_doc, real_source)
+
     rows = []
-    draws = draws_doc.get("draws") if isinstance(draws_doc, dict) else None
-    have_draws = isinstance(draws, list) and len(draws) >= 20
+    all_draws = draws_doc.get("draws") if isinstance(draws_doc, dict) else None
+    # THE MATCHED NULL IS THE NON-ADOPTING DRAWS, and this is `MB8`'s rule rather than a
+    # preference: "a floor whose draws adopt is not the floor for a book that does not". The
+    # real result on this page is the DEPLOYED flat 1/7 book, which never adopts; on the
+    # corrected universe 16 of the 100 noise draws DO adopt, and `X7` measured adoption worth
+    # about +1.4 of a t on a worthless signal. Pooling them would inflate the bar the real
+    # result is shown against -- in OUR favour on the floor and against us on the beat-count,
+    # which is exactly why it is conditioned rather than left pooled.
+    #
+    # NOTHING IS HIDDEN BY IT: `n_draws_pooled` and `n_adopting_excluded` travel in the
+    # payload and the page states the split.
+    n_pooled = len(all_draws) if isinstance(all_draws, list) else 0
+    if isinstance(all_draws, list) and any("cpcv_adopt" in d for d in all_draws):
+        draws = [d for d in all_draws if not d.get("cpcv_adopt")]
+    else:
+        draws = all_draws
+    n_excluded = n_pooled - (len(draws) if isinstance(draws, list) else 0)
+    have_draws = same_panel and isinstance(draws, list) and len(draws) >= 20
 
     null_summary = _dig(summary_doc, "null_x7_reconstructed", default={}) if summary_doc else {}
 
@@ -242,6 +327,19 @@ def _placebo(real_source: dict, draws_doc: dict, summary_doc: dict):
     return {
         "rows": rows,
         "counted_from_draws": bool(have_draws),
+        # The gate's own answer, in the payload, so the page can say WHY a comparison it
+        # cannot make honestly is absent rather than simply not showing it.
+        "same_panel": bool(same_panel),
+        "same_panel_reason": why_not,
+        "n_draws_pooled": n_pooled,
+        "n_adopting_excluded": n_excluded,
+        "matched_null_note": (
+            "The noise runs shown are the %d of %d that did NOT adopt a tuned weighting, "
+            "matched to the deployed flat-weight book this page is about. The %d that adopted "
+            "are excluded rather than pooled, because adoption is worth about +1.4 of a "
+            "t-statistic even on a signal known to be worthless, and pooling them would move "
+            "the bar." % (len(draws) if isinstance(draws, list) else 0, n_pooled, n_excluded)
+        ) if n_excluded else "",
         "n_draws": int(_num(_dig(src, "n_draws")) or (rows[0]["n_draws"] if rows else 0)),
         "seeds": _dig(src, "seeds"),
         "register": _dig(summary_doc or {}, "register") or _dig(draws_doc or {}, "test"),
@@ -253,7 +351,51 @@ def _placebo(real_source: dict, draws_doc: dict, summary_doc: dict):
 # the bars it fails
 # ------------------------------------------------------------------------------------------
 
-def _bars(res: dict):
+def _tension(res: dict, hlz: dict):
+    """The artifact's two-bars sentence, REFUSED when it contradicts the artifact's own
+    booleans, and replaced by one derived from them.  [ITEM 47]
+
+    THE SHIPPED SENTENCE IS WRONG IN TWO PLACES AND IT CANNOT BE FIXED IN THE FILE. The run
+    writes `the_tension` as a HARD-CODED string; the canonical move then moved both verdicts
+    it states. It asserts the headline "FAILS the bar derived from counting its own trials" --
+    the corrected run clears it -- and it asserts "cpcv.adopt is false on every run", which
+    that same run falsified by adopting `ic-proportional`. The generator is repaired for the
+    NEXT run (`fundamental_panel._hlz_tension` now computes it), and re-running the canonical
+    backtest to change a sentence is one to two hours this does not need.
+    #
+    So the page refuses the stored prose when it disagrees with the stored verdicts. The check
+    is on the CONTRADICTION rather than on the words alone: a sentence that merely mentions
+    "fails" is fine, and one that claims a verdict the artifact's own boolean denies is not.
+    """
+    stored = (hlz.get("the_tension") or "").strip()
+    clears_hlz = hlz.get("clears_hlz_hurdle")
+    adopted = _dig(res, "cpcv", "adopt")
+    wrong = []
+    low = stored.lower()
+    if clears_hlz and "fails the bar derived from counting" in low:
+        wrong.append("it says the headline fails the trial-counting bar, and this run clears it")
+    if adopted and "cpcv.adopt is false" in low:
+        wrong.append("it says no weighting was ever adopted, and this run adopted one")
+    if not stored or not wrong:
+        return stored or None
+    bars = (("CLEARS" if clears_hlz else "FAILS")
+            + " the bar derived from counting its own trials, and "
+            + ("CLEARS" if hlz.get("clears_x7_calibrated_floor") else "FAILS")
+            + " the bar measured against a shuffled-signal placebo.")
+    note = (" The run's own stored wording for this is out of date and is not shown: "
+            + "; ".join(wrong) + ". The figures above are the run's; only that sentence was "
+            "hard-coded, and the code that writes it now derives it.")
+    tail = (" The trial-counting bar prices the best of N attempts, and the model this site "
+            "runs is flat-weighted and was never tuned, so the tests counted are "
+            "overwhelmingly alternatives that were rejected.")
+    if adopted:
+        tail += (" One qualification: on this universe the selection step did prefer a tuned "
+                 "weighting. The flat weights are kept anyway, because the tuned book earns "
+                 "less and because nothing is adopted without the owner approving it.")
+    return bars + tail + note
+
+
+def _bars(res: dict, placebo: dict = None):
     """The thresholds, including — especially — the ones the headline does not clear.
 
     Every entry is read from the artifact's own self-describing comparison. The artifact
@@ -265,15 +407,50 @@ def _bars(res: dict):
     hlz = _dig(res, "multiple_testing", "hlz", default={})
     value = _num(hlz.get("value"))
     if value is not None:
-        floor = _num(hlz.get("x7_calibrated_floor"))
+        # THE FLOOR IS TAKEN FROM THE CORRECTED PANEL'S OWN DRAWS WHERE THEY ARE AVAILABLE,
+        # AND THE ARTIFACT'S LITERAL IS NAMED RATHER THAN USED (item 47). The run writes
+        # `x7_calibrated_floor: 2.2837` as a LITERAL, calibrated on the 2,531-name panel, and
+        # after the canonical move that is a numerator from one panel against a bar from
+        # another -- `MA19`'s mixed-pair defect, which r1 flagged as a named not-done because
+        # fixing it inside the artifact means a one-to-two-hour re-run to change a label on a
+        # verdict that is correct under every floor the project has.
+        #
+        # It is fixed HERE instead, by DERIVING the bar from the same draws the section above
+        # renders, so the page never shows a statistic against a bar measured on a different
+        # object. Both numbers ship: the derived one is the bar, and the artifact's is named as
+        # the previous panel's.
+        floor = None
+        floor_note = ""
+        if placebo:
+            for r in (placebo.get("rows") or []):
+                if r.get("key") == "long_short_tstat_nw":
+                    floor = _num(r.get("noise_bar"))
+                    break
+        old_floor = _num(hlz.get("x7_calibrated_floor"))
+        if floor is not None:
+            floor_note = (" This bar is re-measured on the SAME 9,645-name panel as the "
+                          "result, from the %d shuffled runs above that did not adopt a tuned "
+                          "weighting. The artifact still carries the previous panel's figure "
+                          "(%s), which is not the bar for this one."
+                          % (placebo.get("rows")[0].get("n_draws") if placebo.get("rows")
+                             else 0,
+                             ("%.4f" % old_floor) if old_floor is not None else "absent"))
+        else:
+            floor = old_floor
+            floor_note = (" MEASURED ON A DIFFERENT PANEL FROM THE RESULT: this bar was "
+                          "calibrated on the previous 2,531-name universe and the corrected "
+                          "draws could not be read, so treat it as an extrapolation.")
         if floor is not None:
             out.append({
                 "name": "Long-short t vs. this project's own placebo floor",
                 "value": value, "bar": floor,
-                "passes": bool(hlz.get("clears_x7_calibrated_floor")),
+                # DERIVED rather than read: the artifact's boolean is about the artifact's own
+                # literal, and the bar on this row may not be that literal.
+                "passes": bool(value > floor),
                 "what": "The 95th percentile of 100 shuffled-signal runs. Beating it means "
                         "the result is bigger than 95 out of 100 runs on a signal known to "
-                        "be worthless.",
+                        "be worthless." + floor_note,
+                "floor_published_previous_panel": old_floor,
             })
         hurdle = _num(hlz.get("hurdle_sqrt_2_ln_N"))
         if hurdle is not None:
@@ -282,9 +459,14 @@ def _bars(res: dict):
                 "value": value, "bar": hurdle,
                 "passes": bool(hlz.get("clears_hlz_hurdle")),
                 "what": "A bar that rises with the number of tests you have run. We have run "
-                        "a lot. This is the headline's clearest failure and the artifact "
-                        "records both sides of the argument.",
-                "tension": hlz.get("the_tension"),
+                        "a lot. On the previous 2,531-name universe this was the headline's "
+                        "clearest FAILURE (2.62 against 3.29); on the corrected 9,645-name "
+                        "universe the same model clears it, so both bars now pass at once. "
+                        "That is a restatement rather than a new result -- the same composite "
+                        "on a wider universe and a rebalance calendar that shares no dates "
+                        "with the old one -- and the artifact records both sides of the "
+                        "argument either way.",
+                "tension": _tension(res, hlz),
             })
 
     pbo = _dig(res, "cpcv", "pbo", default={})
@@ -293,11 +475,18 @@ def _bars(res: dict):
             "name": "Probability of backtest overfitting",
             "value": _num(pbo.get("value")), "bar": 0.50, "lower_is_better": True,
             "passes": _num(pbo.get("value")) < 0.50,
-            "what": "Fails. And the bar is close to useless here: on a signal shuffled into "
-                    "pure noise this statistic reads about 0.47 on average, so roughly half "
-                    "of all worthless signals 'pass' it. We report it failing rather than "
-                    "quietly dropping a measure that does not flatter us.",
+            "what": "UNMEASURED FOR THE BOOK THIS PAGE IS ABOUT, and the number beside it "
+                    "is not a pass to quote. This statistic scores the step that CHOOSES "
+                    "between weightings, and on this universe that step picks a tuned "
+                    "weighting for the first time in the project's history -- so the figure "
+                    "describes the tuned book, not the flat-weighted one the site runs. The "
+                    "bar is also close to useless here: on this panel's own shuffled runs "
+                    "41 of 100 worthless signals 'pass' it. Shown rather than dropped, "
+                    "because a measure we cannot score for the deployed book should be "
+                    "visible as unscored.",
             "scope": _dig(res, "cpcv", "pbo_scope"),
+            "unmeasured_for_the_deployed_book": True,
+            "describes": "the CPCV-adopted book, not the deployed flat-weight book",
         })
 
     dsr = _dig(res, "cpcv", "deflated_sharpe", default={})
@@ -307,14 +496,110 @@ def _bars(res: dict):
             "name": "Deflated Sharpe ratio",
             "value": _num(dsr.get("value")), "bar": 0.95,
             "passes": _num(dsr.get("value")) > 0.95,
-            "what": "Fails the conventional 0.95 bar. It is a genuine deflated figure — it is "
-                    "charged every one of the tests below, not the eight a naive version "
-                    "would use — and it sits above all 100 shuffled runs. Both halves are "
-                    "true and we do not quote one without the other.",
+            "what": "UNMEASURED FOR THE BOOK THIS PAGE IS ABOUT, like the line above, and "
+                    "for the same reason: it is computed on whichever weighting the "
+                    "selection step chose, and on this universe that is a tuned one rather "
+                    "than the flat weights the site runs. On the previous universe the two "
+                    "were the same book and this figure read 0.79 -- failing the "
+                    "conventional 0.95 bar while sitting above all 100 shuffled runs. Here "
+                    "it fails both: 0.0016 against 0.95 and against this panel's own "
+                    "shuffled floor of 0.59. It is shown rather than dropped, and it is not "
+                    "evidence about the deployed book in either direction.",
+            "unmeasured_for_the_deployed_book": True,
+            "describes": "the CPCV-adopted book, not the deployed flat-weight book",
             "n_trials": _num(dsr_detail.get("n_trials")),
         })
 
     return out or None
+
+
+# ------------------------------------------------------------------------------------------
+# the restatement
+# ------------------------------------------------------------------------------------------
+
+#: WHAT THE PREVIOUS PANEL PUBLISHED, so the page can state the correction rather than quietly
+#: replacing one number with another. These are the only figures in this module that do not
+#: come from the artifact it reads, for the obvious reason: the artifact describes the panel
+#: that REPLACED them. Every one is pinned to `CANONICAL_FIGURE_TABLE.md`, which is tracked and
+#: GENERATED by `scripts/canon_figure_table.py` from the landed artifacts, so they cannot be
+#: this page's own invention. `tests/test_proof_page.py` asserts each appears there verbatim.
+_PUBLISHED_PANEL_NAMES = 2531
+_PUBLISHED_TOP_DECILE_ALPHA = 0.071741
+#: `X2` re-ran the whole backtest on seven equally valid rebalance grids on ONE universe and
+#: the long-short t-statistic ranged 2.703 to 3.517 -- so the grid ALONE is worth this much.
+_GRID_T_RANGE = (2.703, 3.517)
+
+
+def _research_vs_spy(res: dict):
+    """The research decile against SPY, GROSS and NET, both plainly.  [DON 2026-10-10, ruling 3]
+
+    THE BENCHMARKS TABLE IS GROSS AND SAYS SO, AND THAT IS NOT ENOUGH ANY MORE. On the
+    previous panel the decile's gross excess over SPY was large enough that netting costs left
+    it clearly positive. On the corrected 9,645-name universe the book reaches far down the cap
+    scale, the measured one-way cost rises from 33.4 to ~77 bps, and the net result goes
+    NEGATIVE. A table labelled "gross of trading costs" is honest about its own basis and still
+    leaves a reader to discover that the net figure flips sign, so Don ruled it shown plainly.
+
+    BOTH ROUTES TO THE SAME CONCLUSION SHIP, because they differ and only one is derivable
+    here. The ruling's figure is `-1.14pp/yr`, from arm B of r1's `INDEX_BOOK_CORRECTED.json`
+    (the index-book machinery). This artifact's own numbers give a different route: the gross
+    excess over SPY minus the measured cost drag on the top decile. The two are not the same
+    construction and they do not give the same number -- and they agree on the sign, which is
+    the claim. Quoting one without the other would be picking a figure.
+    """
+    bm = _dig(res, "benchmarks", "spy", default={}) or {}
+    gross = _num(bm.get("excess_ann"))
+    t = _num(bm.get("excess_tstat_nw"))
+    c = _dig(res, "costs", "top_decile", default={}) or {}
+    drag = None
+    g, n = _num(c.get("gross_alpha")), _num(c.get("net_alpha"))
+    if g is not None and n is not None:
+        drag = g - n
+    if gross is None:
+        return None
+    try:
+        from ..screener.index_book_measured import RESEARCH_ALPHA_VS_SPY_PP as RULED
+    except Exception:                                        # noqa: BLE001
+        RULED = None
+    return {
+        "gross_excess_ann": gross,
+        "gross_tstat_nw": t,
+        "cost_drag_ann": drag,
+        "implied_net_excess_ann": (None if drag is None else gross - drag),
+        "ruled_net_pp": RULED,
+        "ruled_source": "arm B of INDEX_BOOK_CORRECTED.json, quoted in the 2026-10-10 ruling",
+    }
+
+
+def _restatement(res: dict):
+    """The old -> new correction, DERIVED, so no figure is typed into the template.  [ITEM 47]
+
+    `tests/test_proof_page.py` forbids a performance-shaped literal in the template, and that
+    guard is right: a number typed into HTML is a number that goes stale silently. So the
+    survivors correction and the disjoint-grid caveat get their figures from here.
+
+    Returns None rather than a partial block if the artifact cannot supply the new figures,
+    which keeps the page's "a hole is visible rather than silent" property.
+    """
+    names = _num(_dig(res, "universe", "n_names"))
+    dates = _num(_dig(res, "universe", "n_dates"))
+    alpha = _num(_dig(res, "construction", "top_decile_alpha"))
+    if None in (names, dates, alpha):
+        return None
+    lo, hi = _GRID_T_RANGE
+    return {
+        "published_names": _PUBLISHED_PANEL_NAMES,
+        "names": int(names),
+        "dates": int(dates),
+        "published_top_decile_alpha": _PUBLISHED_TOP_DECILE_ALPHA,
+        "top_decile_alpha": alpha,
+        # The direction, stated as a WORD so the template cannot get the sign backwards.
+        "direction": ("worse" if alpha < _PUBLISHED_TOP_DECILE_ALPHA else "better"),
+        "shared_rebalance_dates": 0,
+        "grid_t_low": lo,
+        "grid_t_high": hi,
+        "grid_t_span": round(hi - lo, 3),
+    }
 
 
 # ------------------------------------------------------------------------------------------
@@ -484,7 +769,9 @@ def payload() -> dict:
         "costs": costs,
         "distribution": distribution,
         "placebo": placebo_block,
-        "bars": _bars(res),
+        "restatement": _restatement(res),
+        "research_vs_spy": _research_vs_spy(res),
+        "bars": _bars(res, placebo_block),
         "trials": trials,
         "trials_source": trials_source,
         "errors": res.get("errors") or [],

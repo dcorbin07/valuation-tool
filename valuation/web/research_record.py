@@ -261,12 +261,33 @@ def preregistrations(root: str = None) -> list:
 
 # The long-short spread's autocorrelation-corrected t-statistic (R9 made the HAC figure the
 # one this project quotes; R4 compared it to the hurdle for the first time). NEVER RENDERED.
-HEADLINE_STATISTIC = 2.6199121240414884
+#
+# RESTATED 2026-10-10 BY THE CANONICAL MOVE, AND THE VERDICT IT FEEDS FLIPS. The published
+# 2.6199121240414884 was the DEPLOYED book on the 2,531-name panel and it FAILED the
+# trial-counting hurdle. On the corrected 9,645-name panel the same composite, same flat 1/7
+# weights, reads 4.5945 and CLEARS it. The two panels share ZERO rebalance dates, so this
+# moved under a universe change AND a grid change and the two are not separated -- `X2`
+# measured the grid alone moving this statistic by 0.81 on one universe.
+HEADLINE_STATISTIC = 4.594456679049444
 
-# X7's calibrated floor for the same statistic: the 95th percentile of what came back when
-# 100 deliberately worthless signals were pushed through the identical pipeline. Re-derived at
-# N = 224 by MA19 and unmoved at every N this project has run. NEVER RENDERED.
-PLACEBO_FLOOR = 2.2837
+# The calibrated floor for the same statistic: the 95th percentile of what came back when 100
+# deliberately worthless signals were pushed through the identical pipeline.
+#
+# RESTATED 2026-10-10 FROM THE CORRECTED PANEL'S OWN DRAWS, which is what makes the comparison
+# on the page like for like. X7's 2.2837 was calibrated on the 2,531-name panel and quoting it
+# against a 9,645-name statistic is the mixed-pair defect `MA19` already paid for once (a
+# numerator at one N against a floor at another).
+#
+# THE POOLED FIGURE IS USED RATHER THAN THE MATCHED ONE, DELIBERATELY. `CORRECTED-FLOORS` split
+# its 100 draws: pooled 1.485155, adopting 2.218588, non-adopting 1.363955. The MATCHED floor
+# for a book that never adopts is the non-adopting 1.363955, and the LIKE-FOR-LIKE replacement
+# for X7's published figure is the pooled one, because X7's 2.2837 was itself taken over all
+# 100 draws. The verdict is the same under all three splits, so this is a precision point and
+# not a result -- and the pooled floor is the HARDER of the two candidates, which is the safe
+# direction. NEVER RENDERED.
+PLACEBO_FLOOR = 1.4851553553508436
+PLACEBO_FLOOR_MATCHED_NON_ADOPTING = 1.3639550000000000
+PLACEBO_FLOOR_PUBLISHED_2531_PANEL = 2.2837
 
 HEADLINE_LABEL = ("the long-short spread's t-statistic, corrected for the autocorrelation "
                   "the record measured in it")
@@ -302,7 +323,11 @@ MULTIPLICITY_CAVEAT = (
     "trial-counting hurdle prices the best of N attempts, and the model that is deployed is "
     "not the best of anything — its weights are flat, chosen in advance and never tuned — so "
     "the trials counted here are overwhelmingly alternatives that were rejected, not "
-    "candidates it beat.")
+    "candidates it beat. One qualification, because it changed in 2026-10: on the corrected "
+    "universe the selection step DOES now prefer a tuned weighting over the flat one. The flat "
+    "weights are kept anyway, because the tuned book earns less than half as much, and because "
+    "no construction changes without the owner approving it. So the search is still not what "
+    "produced the shipped model — but it is no longer true that nothing in it was preferred.")
 
 MULTIPLICITY_WHY_PUBLISHABLE = (
     "This page carries no performance figures, and these are not an exception to that. A "

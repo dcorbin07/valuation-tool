@@ -151,7 +151,11 @@ RISK_DETAIL = (
     "both halves on their own. The effect is LARGEST in the smallest companies and WEAKEST in "
     "the very largest, which is the opposite of where most of this site's coverage sits, so "
     "expect it to be milder for household-name megacaps. And this is one historical panel, "
-    "not a forward test.")
+    "not a forward test — and it is the PREVIOUS one: the rest of this site moved to a wider "
+    "9,645-company universe in October 2026, and this result has NOT been re-measured there. "
+    "It needs a point-in-time health score and forward drawdown paths that no panel carries, "
+    "so it is a new build rather than a re-run, and it is reported as not re-measured rather "
+    "than assumed to carry over.")
 
 #: The distinction, stated on the surface rather than left to inference. This is the sentence
 #: that stops a risk result being read as a return result.

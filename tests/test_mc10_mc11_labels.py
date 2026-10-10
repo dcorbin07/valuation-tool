@@ -27,6 +27,7 @@ Run: python tests/test_mc10_mc11_labels.py
 from __future__ import annotations
 
 import datetime as dt
+import io
 import json
 import os
 import sys
@@ -133,7 +134,23 @@ def test_every_measured_block_names_its_construction_universe_weighting_band_and
         m = S.measured(name)
         assert m.get("basis"), name
         assert m.get("weighting") == "equal-weighted decile", m.get("weighting")
-        assert m.get("n_names") == 2531 and m.get("n_dates") == 69, m
+        # ITEM 47: DERIVED FROM THE ARTIFACT, not pinned to 2,531.
+        #
+        # `settings.measured()` reads both figures THROUGH from `universe` precisely so they
+        # cannot disagree with the figures beside them -- that fix landed for the canonical
+        # move because the function used to TYPE `n_names = 2531` next to figures it read
+        # from the file, which after the move would have labelled a 9,645-name run as a
+        # 2,531-name one. A test that pins the literal re-creates the defect it was fixing:
+        # it would have gone red on the correct code and green on a function that had typed
+        # the old number again.
+        #
+        # So the property is AGREEMENT with the artifact, which is what the read-through
+        # guarantees and what a reader needs.
+        art = json.load(io.open(os.path.join(ROOT, "BACKTEST_RESULTS.json"), encoding="utf-8"))
+        uni = art.get("universe") or {}
+        assert m.get("n_names") == uni.get("n_names"), (m.get("n_names"), uni.get("n_names"))
+        assert m.get("n_dates") == uni.get("n_dates"), (m.get("n_dates"), uni.get("n_dates"))
+        assert m.get("n_names") and m.get("n_dates"), "the universe stamp is empty"
         assert "no_trade_band" in m, name
         assert m.get("source", "").startswith("BACKTEST_RESULTS.json"), m.get("source")
 

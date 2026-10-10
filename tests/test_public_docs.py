@@ -56,30 +56,84 @@ class HeadlineNumbersMatchTheArtifact(unittest.TestCase):
                       f"README must quote the artifact's top-decile alpha ({want})")
 
     def test_the_long_short_t_and_both_bars_match(self):
+        """REPOINTED BY ITEM 47 ON THE FLOOR, AND THE REASON IS THE DEFECT ITSELF.
+
+        `hlz.x7_calibrated_floor` is a LITERAL written by the run (`2.2837`) and calibrated on
+        the 2,531-name panel. After the canonical move the artifact's own statistic describes
+        9,645 names, so demanding the README quote that literal would be demanding it publish a
+        bar measured on a different universe from the figure beside it -- `MA19`'s mixed-pair
+        defect, enforced by a test. r1 recorded it as a named not-done: fixing it inside the
+        artifact needs a one-to-two-hour re-run to change a label on a verdict that is correct
+        under every floor the project has.
+
+        So the floor is taken from `research_record.PLACEBO_FLOOR`, which is the ONE authority
+        for the bar the pages read and is pinned against the corrected artifacts by
+        `tests/test_canonical_public_figures.py`. The other two still come from the artifact.
+        """
         hlz = self.art["multiple_testing"]["hlz"]
+        from valuation.web import research_record as RR
         for label, value, places in (
                 ("long-short HAC t", hlz["value"], 2),
                 ("HLZ hurdle", hlz["hurdle_sqrt_2_ln_N"], 2),
-                ("X7 calibrated floor", hlz["x7_calibrated_floor"], 4)):
+                ("the calibrated placebo floor", RR.PLACEBO_FLOOR, 4)):
             with self.subTest(label):
                 self.assertIn(f"{value:.{places}f}", self.readme,
                               f"README must quote {label} = {value:.{places}f}")
+        # AND THE STALE LITERAL MUST NOT BE THE ONE ON THE PAGE. Non-vacuity for the above:
+        # if the two ever coincide this test stops distinguishing them, and if the README
+        # quotes the previous panel's floor that is the defect, not a second opinion.
+        if abs(RR.PLACEBO_FLOOR - hlz["x7_calibrated_floor"]) > 1e-9:
+            self.assertNotIn(f'{hlz["x7_calibrated_floor"]:.4f}', self.readme,
+                             "the README quotes the artifact's 2,531-name floor beside a "
+                             "9,645-name statistic")
 
-    def test_the_readme_states_both_sides_of_the_tension(self):
-        """Clearing one bar and failing the other must travel together.
+    def test_the_readme_states_both_bars_whichever_WAY_THEY_FALL(self):
+        """Both bars must travel together. WHICH ONE FAILS IS NOT THE PROPERTY.
 
-        Quoting only the cleared bar overstates the result; quoting only the
-        failed one understates it. The artifact ships both and so must the
-        README.
+        REPOINTED BY ITEM 47. This asserted `clears_x7_calibrated_floor` is True and
+        `clears_hlz_hurdle` is False -- a fact about the 2,531-name panel, not a property of
+        the README. On the corrected universe the same composite clears both, so the
+        assertion went red against a document that had been correctly restated, and read
+        plainly it was requiring the project to keep failing a bar.
+
+        What must hold is that the README names BOTH bars and states the artifact's OWN
+        verdict for each, so quoting the cleared one alone cannot overstate the result and
+        quoting the failed one alone cannot understate it.
         """
         hlz = self.art["multiple_testing"]["hlz"]
-        self.assertTrue(hlz["clears_x7_calibrated_floor"])
-        self.assertFalse(hlz["clears_hlz_hurdle"])
         low = self.readme.lower()
-        self.assertIn("harvey", low, "the failed bar must be named")
-        self.assertTrue(
-            "calibrated floor" in low or "calibrated" in low,
-            "the cleared bar must be named")
+        self.assertIn("harvey", low, "the trial-counting bar must be named")
+        self.assertTrue("calibrated floor" in low or "calibrated" in low,
+                        "the placebo-calibrated bar must be named")
+        # THE VERDICT IS READ OFF THE BULLET'S OWN MARKER rather than out of its prose, and
+        # that is deliberate. The section communicates each verdict with a leading tick or
+        # cross, which is unambiguous; searching the prose for "clears" or "fails" near the
+        # bar's name is not, because the bullet legitimately states BOTH -- it says the
+        # corrected panel clears the hurdle AND that the previous panel fell short of it.
+        # A check that cannot tell the current verdict from a sentence about the old one is
+        # the substring-ban family this repository keeps paying for.
+        PASS_MARK, FAIL_MARK = "✅", "❌"
+        # READ FROM THE FILE, not from `self.readme`: that attribute is `flat()`-ened to a
+        # single line for substring checks, so a per-BULLET check has to see the line breaks.
+        # A guard that looks for a bullet in a document with no newlines in it finds none and
+        # would have reported "no verdict marker" about a correctly marked README.
+        raw_readme = read("README.md")
+        bullets = [l for l in raw_readme.splitlines()
+                   if l.lstrip().startswith("-") and "Harvey" in l]
+        self.assertEqual(len(bullets), 1,
+                         "expected exactly one README bullet about the hurdle, found %d"
+                         % len(bullets))
+        b = bullets[0]
+        self.assertTrue(PASS_MARK in b or FAIL_MARK in b,
+                        "the hurdle bullet carries no verdict marker, so a reader cannot tell "
+                        "which way it falls: %r" % b[:120])
+        self.assertEqual(bool(hlz["clears_hlz_hurdle"]), PASS_MARK in b,
+                         "the README and BACKTEST_RESULTS.json disagree about the hurdle "
+                         "(artifact says clears=%r, bullet is marked %s)"
+                         % (hlz["clears_hlz_hurdle"],
+                            "PASS" if PASS_MARK in b else "FAIL"))
+        self.assertNotEqual(PASS_MARK in b, FAIL_MARK in b,
+                            "the hurdle bullet is marked both pass and fail")
 
     def test_trial_count_matches_the_research_log(self):
         n = self.art["multiple_testing"]["hlz"]["n_trials_equity"]

@@ -17574,3 +17574,305 @@ substring at all.** With strings kept, the ban fires on the docstring explaining
 with strings stripped, the needle itself contains a string literal and can never match. **There
 is no mode in which that ban works** — so the property is asserted behaviourally instead, which
 is what it should have been from the start.
+
+---
+
+## item 47 — the canonical move reaches the public pages, and the one figure Don ruled off the tab was the one that had just started flattering us
+
+**The canonical backtest moves to the corrected 9,645-name universe and every public surface is
+restated ONCE, in one commit, with Don's 2026-10-10 ruling applied.** `BACKTEST_RESULTS.json` and
+`.md` are r1's banked corrected artifact, byte-for-byte. Nothing is adopted: the deployed flat 1/7
+weights, the forward record and the signed contract's frozen meter parameters are untouched.
+
+### THE CAVEAT THAT BOUNDS EVERY FIGURE BELOW, AND IT IS NOT A FOOTNOTE
+
+**The two panels share ZERO rebalance dates.** The grid is derived from the universe's own trading
+calendar, so a 3.8× wider universe shifts all 69 dates. `X2` measured the **grid alone** moving the
+long-short *t* by **0.814** across seven equally valid offsets on one universe. So every
+restatement is a restatement under a universe change **and** a grid change, and the two are not
+separated. The corrected figure is the right figure for this universe; what is unattributable is
+*why* it moved. That sentence now ships on `/proof`, in the Index tab's card, on the landing tile,
+in README and in START_HERE.
+
+### WHAT MOVED ON THE PUBLIC PAGES
+
+| surface | published | restated |
+|---|---|---|
+| README + START_HERE top-decile alpha | +7.17%/yr | **+6.07%** gross, **+2.54%** net |
+| README costs margin | "~4×" | **~1.6×** (breakeven 123.5 bps against a measured **77.0**) |
+| README/START_HERE long-short HAC *t* | 2.62, **FAILS** HLZ 3.29 | **4.59, CLEARS** HLZ **3.36** |
+| `research_record.PLACEBO_FLOOR` | 2.2837 | **1.4851553553508436** (corrected panel's own draws) |
+| `/proof` placebo noise | the 2,531-name panel's draws | **the corrected panel's**, matched null |
+| `/proof` PBO + Deflated Sharpe | "Fails" | **UNMEASURED for the deployed book** |
+| Index tab + landing excess | vs the all-cap universe | **vs SPY (+2.2177pp)**, all-cap leg OFF |
+| Index tab Roth net / Sharpe / drawdown | 17.1619% / 1.0318 / −23.03% | **18.0169% / 0.9694 / −28.96%** |
+| `hold_horizon` shape | CONSTANT-RATE, 6.6% → 5.1% | **INTERMEDIATE, 6.07% → 2.56%** |
+| `score_confidence` per-name / group dates | 45 of 69 / 21 of 69 | **12 of 69 / 57 of 69** |
+| `/methodology` factor alpha | +6.99%/yr (*t* 3.98) | **+5.94%/yr (*t* 4.45)** |
+
+### 1. DON'S RULING 1 — AND THE GUARD IT REPLACED WOULD NOW HAVE FORCED THE FLATTERING NUMBER
+
+`INDEX-BOOK`'s void condition was that **both** alpha sentences travel together: +4.1209pp against
+its own tier and **−0.0576pp** against the all-cap equal-weighted universe, because quoting the
+first alone misled. `block()` refused to emit one without the other and a test asserted the
+all-cap leg was **negative**.
+
+**On the corrected universe that leg reads +5.9288pp — and r1 measured that the move is mostly the
+BENCHMARK FALLING (17.2393% → 12.1116%/yr), not the Index rising (17.1817% → 18.0403%).** So the
+guard built to force an honest pairing would have been forcing a number that overstates the Index
+about sixfold onto the tab. **A guard that asserts which way a figure falls is a guard keyed on the
+measurement, and it inverts when the measurement does** — the `MB31` family, for the third time in
+this lane's log.
+
+Don's ruling: the all-cap leg is **off the tab**; the Index is shown against **SPY** and against an
+**equal-weighted basket of its own $10B tier**, like for like, with its return, drawdown and Sharpe
+beside them. Implemented, plus two things the ruling implies and does not say:
+
+* **both benchmarks ship as LEVELS** beside the book's own level (SPY 15.8226%, the tier basket
+  13.4226%), so a reader sees what the benchmark did and not only the difference; and
+* **the dropped comparison is EXPLAINED rather than deleted.** `all_cap_leg_note()` is the one
+  definition of why, it carries all four figures, and the tab renders it. Deleting the constant
+  would have made the correction invisible instead of explained, and a reader who finds +5.93pp in
+  r1's table has to be able to find out why it is not on the page.
+
+**The landing tile's label changed with its subject.** `backtested.net_alpha` feeds *"Backtested net
+alpha"* and was the all-cap excess; it is now the SPY leg, and the label is **read from the server**
+(`net_alpha_benchmark`) rather than typed in the template — a label typed in HTML beside a number
+from a dict is exactly how it would have kept naming the old benchmark.
+
+### 2. DON'S RULING 2 — AND THE GUARD CHANGE IS THE INTERESTING HALF
+
+`/proof` read the real result from `BACKTEST_RESULTS.json` and the noise from
+`artifacts/proof/PLACEBO_HAC.json`, **calibrated on the 2,531-name panel**. After the swap that is
+a numerator from one universe against a bar from another — `MA19`'s mixed-pair defect, on a public
+page. The corrected draws are now tracked at `artifacts/proof/PLACEBO_CORRECTED.json` (r1's own
+file, byte-identical) and are preferred.
+
+**`_panel_matches` refuses the comparison rather than relying on that ordering**, so a deploy that
+lost the file goes DARK instead of going stale. **The fingerprint is the equal-weighted benchmark**,
+chosen because it is the one figure here that does not depend on the construction under test: the
+corrected draws carry `0.14313437766389772` and the canonical run's `benchmarks.equal_weight`
+carries `0.14313437766389772` — bit-identical — while the published panel's is `0.18137118752419476`.
+A 0.1% relative tolerance separates those by a factor of ~270.
+
+**WHY NOT COMPARE THE `real` BLOCKS, which was my first instinct and would have been wrong.** On the
+old panel the placebo file's own `real` block reproduced the canonical figures to sixteen digits,
+because `cpcv.adopt` was false and the adopted book WAS the deployed one. On the corrected panel it
+is the **ADOPTED** book (long-short HAC *t* 2.1238) against the canonical **DEPLOYED** headline
+(4.5945). They legitimately differ, so requiring agreement would refuse a correct pair.
+
+**THE NULL IS CONDITIONED, AND THAT IS `MB8`'s RULE RATHER THAN A PREFERENCE.** The real result is
+the deployed flat-weight book, which never adopts; **16 of the 100 corrected draws DO adopt**, and
+`X7` measured adoption worth about **+1.4 of a *t*** on a signal known to be worthless. So the page
+shows the **84 non-adopting draws** — and that filter independently reproduces r1's own published
+split (long-short HAC floor **1.3640** against their `non_adopting` 1.363955). `n_draws_pooled` and
+`n_adopting_excluded` travel in the payload and the page states the split.
+
+**THE PAGE'S GUARD CHANGED FROM "at least one bar FAILS" TO "the comparison is LIKE FOR LIKE".** The
+old assertion was `any(swept) and not all(swept)` plus a test demanding the HLZ hurdle appear
+*failing*. On the corrected panel all four measures beat every noise run and both bars pass, so
+those assertions went red against a correct page — and read plainly, they were demanding that some
+measure fail. Replaced by: the draws and the real figures describe one panel; the null is
+non-degenerate; a tie counts against us; **every bar reaches the reader with its own verdict**; and
+nothing that is not a clean pass is hidden.
+
+**PBO AND THE DEFLATED SHARPE ARE NOW `UNMEASURED` FOR THE DEPLOYED BOOK, which is a change rather
+than an omission.** Both score the **selection** step, and on this universe that step adopts for the
+first time in the project's history — so they describe the tuned book (PBO 0.00, DSR 0.0016 against
+a corrected floor of 0.5912), not the flat 1/7 book the site runs. They render with an `unmeasured`
+pill, each saying which book it describes, and the section's lede derives its counts instead of
+carrying the old typed *"it clears one and fails three"*.
+
+### 3. DON'S RULING 3 — SHOWN PLAINLY, AND ITS PIN IS THE WEAKEST IN THE COMMIT
+
+The research decile's result vs SPY is **−1.14pp/yr net of costs** on the corrected universe, stated
+in `research_block()` with *"it does NOT beat SPY"* in the sentence itself.
+
+**ITS PROVENANCE IS NAMED BECAUSE IT IS WEAKER THAN EVERY OTHER LITERAL HERE.** The figure is arm B
+of `INDEX_BOOK_CORRECTED.json` (−1.1374442pp, quoted to 2dp by the ruling) and it is in **no
+generated record** — `CANONICAL_FIGURE_TABLE.md`'s Index section carries the served arm's rows, not
+arm B's. It is pinned to `DECISIONS.md`, which is tracked and is Don's own words rather than this
+lane's. **The direction is independently checkable without the literal:** the canonical file puts
+the decile's **gross** excess over SPY at **+4.02pp/yr** (NW *t* 1.33 — not separable from zero)
+against a measured cost drag of ~4.29pp/yr, so the net figure is negative on the artifact's own
+numbers too.
+
+**And the other seven figures that block used to publish are now `None` with a reason.** Arm B's
+corrected net return, Sharpe, drawdown, turnover, cost and tracking error are in r1's artifact and
+in no tracked record, so restating them would have put seven literals on a public page with nothing
+to turn red when the study is re-run. `/proof` reads the research decile from the **tracked**
+`BACKTEST_RESULTS.json` instead, which cannot go stale against the artifact at all.
+
+### 4. THE PIN MOVED TO A GENERATED RECORD, AND THAT IS STRICTLY STRONGER
+
+`index_book_measured`'s thirty literals were pinned to `HANDOFF_edge_audit.md` and
+`VALQUO_LEDGER.md` — hand-written files. **Measured: the tracked record carries only SEVEN of the
+corrected figures** (18.0169, 0.9694, −28.96, 12.5036, 4.6177, 2.2177, 2.8094), and only three of
+those are in the ledger. Everything else r1 measured was never published.
+
+So the binding record is now **`CANONICAL_FIGURE_TABLE.md`**, which is tracked and **GENERATED by
+`scripts/canon_figure_table.py` from the landed artifacts** — written by the measurement rather than
+by the page, which is the property `MA13`'s idiom actually needs. The suite names **which record
+carries which figure**, asserts the table says of itself that it is generated and not hand-edited,
+and adds **`test_nothing_unpinned_is_published`**: any numeric constant the module exposes must
+appear in the pinned set, so a future literal pinned to nothing goes red.
+
+**Two figures are DERIVED rather than carried (`B7`), and both reproduce the artifact exactly:** the
+tier basket's level is the book's level less the alpha measured against it (**13.4226**), and the tax
+cost is the difference between the two treatments of one run (**5.5133**). A test reads the source
+and fails if either becomes a literal.
+
+**THE `taxable` AFTER-TAX SENTENCE IS NOW EXACT WHERE IT USED TO MIX TWO COST PATHS.** It read
+*"after tax this book lands 3.03pp BELOW SPY"*, which needs the taxable level minus SPY's — and the
+two legs come from different cost paths (the lot engine's 18.0169% and the study's 18.0403%), so
+differencing them puts a ~0.02pp error into an implied SPY level nobody measured. The same warning
+is exact from the pinned legs: **the 5.5133pp tax bill is LARGER THAN THE WHOLE 2.2177pp margin over
+SPY, so after tax a taxable account lands below SPY.** Stronger, and it needs no third number.
+
+### 5. THE SIGNED CONTRACT IS NOT TOUCHED, AND THE TEST THAT CHECKED IT HAD TO BE REPOINTED FIRST
+
+`tests/test_index_book_measured.py` asserted that `PAPER_TRACK_CONTRACT.md` §2 carries
+`"%.4f" % M.ALPHA_VS_SPY_PP` — so restating that constant to 2.2177 would have demanded **an edit to
+a signed pre-registration**. `DECISIONS.md` (2026-10-07) says the move does not touch the contract's
+frozen parameters, and the contract's own rule forbids revising σ downward.
+
+Resolved by keeping the signed trio under its own names — `CONTRACT_SIGNED_ALPHA_VS_SPY_PP` 1.9488,
+`CONTRACT_SIGNED_TE_VS_SPY` 8.4381, `CONTRACT_SIGNED_MONTHS_TO_DETECT` 4,383, with
+`CONTRACT_SIGNED_PANEL` naming the panel — and pointing the test at those. **The contract keeps what
+it was signed with, the page publishes what is measured now, and both name their panel so neither
+can drift into the other.**
+
+### 6. THE POWER SENTENCE DROPS ITS ARITHMETIC AND KEEPS ITS CONCLUSION
+
+The published sentence quoted **4,383 months at 8.4381pp** of tracking error. Both are re-measured on
+the corrected panel (3,307 months at 8.4296pp) and **neither is in a tracked record**, so carrying
+them would be two literals pinned to nothing — and `MB8` forbids filling the gap with the all-cap
+decile's tracking error, which is the one that IS published. The sentence now states the conclusion
+("CENTURIES rather than years"), names the artifact where the arithmetic lives, and a test asserts
+it quotes **none** of 8.4381 / 11.3878 / 11.40 / 4,383. The protective half — *it cannot show
+whether the Index beats SPY* — is unchanged and is pinned.
+
+### 7. THREE MODULES CARRIED A FIGURE IN PROSE AND THE SAME FIGURE AS DATA, AND THE PROSE IS WHAT A READER SEES
+
+`hold_horizon.DEFENSIBLE` read *"about 6.6% … about 5.1%"* as a hard-coded sentence beside
+constants of 6.6 and 5.1; `score_confidence.DEFENSIBLE` read *"45 of 69 dates"* likewise. **Correct
+the constants and the sentence a reader sees keeps the old numbers.**
+
+Both are now **DERIVED FROM THE REGISTERED SENTENCE BY SUBSTITUTION**, which is the only form
+available: the register is `HANDOFF_edge_audit.md` / `HANDOFF_extensions_v3.md`, the **edge lane's**
+files, so this lane cannot register a corrected sentence. `DEFENSIBLE_REGISTERED` keeps the verbatim
+pin; `DEFENSIBLE` is reconstructed from it by replacing exactly the figures, and the tests assert the
+**descent** rather than the prose plus that the old numbers are gone. **The product copy still
+cannot be reworded, which is what the verbatim pin was protecting.**
+
+**AND `hold_horizon`'s SENTENCE CHANGED ITS MEANING, NOT ONLY ITS DIGITS.** S22's registered shape
+was `CONSTANT-RATE`; on the corrected panel it is **`INTERMEDIATE`** (R_8 6.195 → 3.372). *"Still
+ahead by about 5.1%"* described a flat curve and *"about 2.56%"* describes a decaying one, so the
+substitution appends one clause naming the decay. A reader told the first about a panel that measured
+the second has been misled about the shape even though both figures are positive.
+
+### 8. `score_confidence` MOVED IN THE PRODUCT'S FAVOUR AND THE GUIDANCE IS NOT LOOSENED
+
+The per-name verdict (a name's position **inside** the top decile is not distinguishable from
+chance) held on **45 of 69** dates and now holds on **12 of 69**; the group result went **21 of 69 →
+57 of 69**. Read naively that says the score has become more precise.
+
+**It does not, and the reason is arithmetic.** A top decile of 9,645 names holds about **960** names
+where the published decile held about **250**, so a within-decile rank test has ~4× the rows and far
+more power. *"Positions are distinguishable"* on a 960-name bucket is not the claim *"your rank among
+the top 25 means something"* — reading the second from the first is the `O-1` family, a rate measured
+on one population quoted about another. Both counts are reported as measured, `decile_width_caveat()`
+is the one definition of why they are not comparable, and **the advice not to read a rank difference
+stands.** The test that asserted the group result is the *weaker* of the two is repointed to assert
+the inversion is real **and** that the caveat explaining it exists.
+
+### 9. THE ARTIFACT'S OWN `the_tension` SENTENCE WAS WRONG IN TWO PLACES AT ONCE
+
+`multiple_testing.hlz.the_tension` is written by the run as a **hard-coded string**. It asserts the
+headline *"FAILS the bar derived from counting its own trials"* — the corrected run clears it — and
+*"cpcv.adopt is false on every run"*, which **that same run falsified**. One sentence, two verdicts,
+both moved by the run that printed it.
+
+**Fixed in two places, because one of them cannot reach the shipped file.** The generator now
+**derives** it (`fundamental_panel._hlz_tension`, computed from the two booleans beside it and the
+adopt flag, which is now **passed in** rather than re-derived — the field and the boolean cannot
+disagree again). And `/proof` **refuses the stored prose when it contradicts the stored booleans**
+and renders a derived sentence instead, saying so, because re-running the canonical backtest to
+change a sentence is one to two hours it does not need. The generator also now records
+`x7_calibrated_floor_panel`, naming that literal as the 2,531-name panel's and an **EXTRAPOLATION**
+on any other universe — r1's own named not-done.
+
+### 10. THE SIXTEENTH `rec` CALL SITE, FOUND BY ITS OWN GATE
+
+`CANONICAL-MOVE` step 1 converted **fifteen** call sites from CPCV's recommendation to the book that
+ships. **`scripts/backtest_card.py` was the sixteenth**, and for the whole of the project's history
+that cost nothing — `cpcv.adopt` had been false on every run, so the recommendation *was* the
+deployed book and the two readings were the same object.
+
+On the corrected universe the card's own C1 gate **refused immediately**: rebuilding `roth` from
+`rec` gave net_alpha **+0.0072** against the canonical file's **−0.0470**. It would have published a
+card describing the tuned book beside a site that runs the flat one. Repointed to
+`headline_weighting_is_the_deployed_book.weights`, falling back to `rec` for older artifacts (on
+every run that produced one the two were identical, so the fallback cannot change an existing card).
+Rebuilt on the corrected panel: **roth gross +14.50%, net +7.41%, Sharpe 0.378, turnover 3.44×, vs
+SPY −1.86%/−8.95%** — the top-25 research book losing to SPY, which is the direction
+`book_configs.roth.net_alpha = −4.70%` implies.
+
+### 11. A PRE-EXISTING DEFECT THAT WAS BLOCKING EVERY LANE'S LAND, AND IT IS NOT ITEM 46'S OR MINE
+
+**`tests/test_paper_track.py` was RED on `origin/main`** — three `test_health_note_*` failures —
+and it had already failed item 46's land gate (run `38069495360`). Measured on a clean
+`origin/main` export on 2026-10-10: **the same three failures**, so neither lane's change caused it.
+
+**`recap.collect` anchored its window on `_dt.date.today()` while `health_note` anchored `expected`
+on `PT._session_today()`.** The long comment in `health_note` names that exact split as `B7`'s defect
+and says *"`ITEM 20` fixed only the writer"* — the repair had been applied to the reader and **not to
+`collect`**.
+
+**AND THE SCOPE IS NARROWER THAN THAT SOUNDS, MEASURED RATHER THAN ASSUMED: NO PUBLISHED FIGURE WAS
+EVER WRONG BECAUSE OF IT.** The production path is `/admin/post-recap` → `post()`, and `post`
+computes its own `day_iso` from `_session_today()` and passes it in, so **`collect`'s default is
+never reached by the service.** What the mismatch broke was everything that does use the default:
+this suite, and `scripts/diagnose_paper_track_clock.py`. My first write-up of this said the bound
+one published "was not measured in the units the other spent it in" without that qualification,
+which overstates it.
+
+The fixtures pin the session clock to Friday 2026-10-02 and write a row stamped there; once the real
+calendar drifted more than `WEEK_DAYS` past that Friday, `window_since` landed at 2026-10-03 and the
+recorded session fell **outside the window it was being counted in** — *"cycle recorded 0/1
+sessions"* about a fixture that recorded the only session it should have. **A guard keyed on the
+clock fires on the clock** (`MA4`, `MB31`). 76/76.
+
+**AND r1 FIXED THE SAME FAILURE INDEPENDENTLY AND DIFFERENTLY WHILE THIS WAS IN FLIGHT** (`main`,
+`DIP-CALL-3`): their `_clock_note` passes `day=reader_session` into `collect`, so the FIXTURE pins
+both halves of the clock. **That is the right fix for the tests and it is kept.** This change is
+kept beside it because the two repair different things — theirs makes the tests independent of the
+day they run on, and this makes the two DEFAULTS agree, so the next caller that omits `day` gets
+one clock rather than two. **This half is INERT on the service**, which is why it is safe to keep
+and why it is not described as a live repair.
+
+**And fixing it exposed the same defect one level down, in a fixture.** `collect` selects the daily
+rows with an **exact** match on its own day, so a fixture stamping a closed trade at
+`date.today()` on a **Saturday** wrote a row belonging to no session and
+`test_recap_falls_back_to_the_stored_premiums_when_the_trade_was_never_scored` failed on weekends
+only. The property under test is the premium fallback; it must not be able to fail on a Saturday.
+
+### WHAT IS NOT DONE, NAMED SO IT IS NOT MISTAKEN FOR DONE
+
+* **`DECISIONS.md`'s 2026-10-10 entry is NOT on `origin/main`** — it exists only in Don's working
+  folder. I read the ruling from there and implemented it; the tracked copy on `main` still ends at
+  2026-10-08, so a lane reading the repo cannot see the ruling this commit obeys. **Don needs to
+  push it.** Nothing here depends on it at runtime, but `RESEARCH_ALPHA_VS_SPY_PP`'s pin does.
+* **The corrected sentences are not REGISTERED.** `hold_horizon` and `score_confidence` ship
+  sentences derived from the edge lane's registers; the corrected figures are not in those handoffs.
+  r1's lane owns them. Until it writes them down, the register's own figures are the previous
+  panel's.
+* **The halves, the tracking error and the research arm's seven figures are UNMEASURED on the
+  page** — measured by r1, published nowhere tracked, so reported absent rather than borrowed.
+* **`V6-B`'s dip survival (32.5% vs 43.4%) is NOT re-measured** and now says so on the page: it
+  needs a point-in-time health score and forward drawdown paths no panel carries, so it is a build
+  rather than a re-run.
+* **The canonical artifact's `x7_calibrated_floor` is still the 2,531-name panel's literal.**
+  Reported in the file and corrected on the page; fixing it inside the artifact needs a re-run.
+* **Nothing is adopted.** Flat 1/7 weights, the forward record, the contract's frozen parameters and
+  the vintage are untouched.

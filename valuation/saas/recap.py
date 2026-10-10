@@ -241,8 +241,42 @@ def _sandbox_sessions(store) -> list:
 
 
 def collect(store, day=None, window_days: int = WEEK_DAYS) -> dict:
-    """Everything both posts need, read from the tracked record. Computes no P&L of its own."""
-    today = _d(day) or _dt.date.today()
+    """Everything both posts need, read from the tracked record. Computes no P&L of its own.
+
+    ONE CLOCK, AND THE PREVIOUS REPAIR OF THIS DEFECT WAS INCOMPLETE (item 47). `health_note`
+    was moved to `PT._session_today()` -- see the long comment there -- and this line was left
+    on `_dt.date.today()`, the raw UTC date. So the two clocks the comment names as `B7`'s
+    defect were still two clocks: this function published `window_since` off the CALENDAR while
+    `health_note` anchored `expected` off the SESSION, and the bound the one published was not
+    measured in the units the other spent it in.
+
+    WHAT IT COST, AND THE SCOPE IS NARROWER THAN THE DEFECT SOUNDS -- MEASURED, NOT ASSUMED.
+    **No published figure was ever wrong because of it.** The production path is
+    `/admin/post-recap` -> `post()`, and `post` computes its own `day_iso` from
+    `_session_today()` and passes it in, so `collect`'s DEFAULT is never reached by the
+    service. What the mismatch broke was everything that DOES use the default: the tests and
+    `scripts/diagnose_paper_track_clock.py`.
+
+    And it broke them on the clock. `tests/test_paper_track.py`'s three health-note fixtures
+    pin the session clock to Friday 2026-10-02 and write a row stamped there; once the real
+    calendar date drifted more than `WEEK_DAYS` past that Friday, THIS line put `window_since`
+    at 2026-10-03 and the recorded session fell outside the window it was being counted in --
+    "cycle recorded 0/1 sessions" about a fixture that had recorded the only session it should
+    have. Measured on a clean `origin/main` export on 2026-10-10: the same three failures, so
+    it was no lane's change. It had already failed item 46's land gate. **A guard keyed on the
+    clock fires on the clock** (`MA4`, `MB31`).
+
+    THE SAME FAILURE WAS FIXED INDEPENDENTLY AND DIFFERENTLY ON `main` (r1, `DIP-CALL-3`), BY
+    PINNING BOTH HALVES OF THE CLOCK IN THE FIXTURE rather than by changing this default. That
+    fix is the right one for the tests and is kept. This one is kept beside it because the two
+    repair different things: theirs makes the tests independent of the day they run on, and
+    this makes the two DEFAULTS agree, so the next caller that omits `day` -- as the shipped
+    diagnostic script does -- gets one clock rather than two.
+
+    An explicit `day=` still wins, which is what keeps the differential tests able to reproduce
+    the old anchor exactly and what makes this change inert on the service.
+    """
+    today = _d(day) or PT._session_today()
     since = (today - _dt.timedelta(days=window_days)).isoformat()
     day_iso = today.isoformat()
 

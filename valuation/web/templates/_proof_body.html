@@ -187,6 +187,15 @@
     {% if p.placebo.counted_from_draws %}
       {% set clean = p.placebo.rows|selectattr('beats_every_draw')|list|length %}
       {% set dirty = p.placebo.rows|rejectattr('beats_every_draw')|list %}
+      {# ITEM 47 / DON 2026-10-10: THE RESULT IS SHOWN AS IT IS, INCLUDING WHEN EVERY MEASURE
+         BEATS EVERY NOISE RUN. The published version of this paragraph assumed some measure
+         would fail and ended on "that is why the long-only ranking is the claim this site
+         leads with" -- true on the 2,531-name panel, where the long-short spread was matched
+         by three noise runs. On the corrected panel nothing is matched, and writing round that
+         would be as dishonest as hiding a failure. What keeps it honest instead is the three
+         conditions below: the SAME panel, the matched null, and the fact that this is a
+         different object from the figures the site used to publish. #}
+      {% if dirty %}
       <p class="sub" style="margin-top:14px">{{ clean }} of these beat every single noise run
       outright. The rest did not, and the counts are on the labels above rather than rounded
       away:
@@ -194,6 +203,29 @@
       {{ r.n_beaten }} of {{ r.n_draws }}{{ ', ' if not loop.last else '' }}{% endfor %}.
       That is why the long-only ranking is the claim this site leads with and the long-short
       spread is not.</p>
+      {% else %}
+      <p class="sub" style="margin-top:14px">All {{ clean }} of these beat every single noise
+      run outright &mdash; not one worthless signal matched the real result on any measure.
+      That is a stronger reading than the one this page carried before, and it is worth
+      exactly as much as the three sentences that follow it, so read them.</p>
+      {% endif %}
+      {% if p.placebo.matched_null_note %}
+      <p class="sub">{{ p.placebo.matched_null_note }}</p>
+      {% endif %}
+      {% if p.restatement %}
+      <p class="sub"><b>This is not the same measurement that used to be on this page.</b> It is
+      the same model and the same code on a wider universe &mdash;
+      {{ "{:,}".format(p.restatement.names) }} companies instead of
+      {{ "{:,}".format(p.restatement.published_names) }} &mdash; and because the rebalance
+      calendar is derived from the universe's own price history, <b>the old and new panels share
+      {{ p.restatement.shared_rebalance_dates }} of their {{ p.restatement.dates }} rebalance
+      dates.</b> So the figures moved under a change of universe <em>and</em> a change of dates,
+      and this project has measured that the dates alone can move the long-short t-statistic by
+      {{ p.restatement.grid_t_span }} ({{ p.restatement.grid_t_low }} to
+      {{ p.restatement.grid_t_high }} across seven equally valid calendars on one universe). The
+      result above is the right one for this universe; what is not separable is <em>why</em> it
+      moved.</p>
+      {% endif %}
     {% endif %}
     <div class="src">Counts derived at page load from <code>{{ p.placebo.source }}</code>,
     which retains all {{ p.placebo.n_draws }} draws
@@ -244,6 +276,26 @@
     equally weighted basket of every company in the panel, charged nothing to trade, beat the
     S&amp;P over this window. The SPY row is the one that answers "versus just buying the
     index".</p>
+    {# DON 2026-10-10, RULING 3: THE NET FIGURE IS SHOWN PLAINLY RATHER THAN LEFT TO BE
+       DERIVED. The table above is gross and says so, and on the previous 2,531-name panel
+       that was enough -- the gross excess over SPY was large enough that netting costs left
+       it clearly positive. On this universe the book reaches far down the cap scale, the
+       measured one-way cost rises from 33.4 to about 77 bps, and the net result FLIPS SIGN.
+       A table honest about its own basis still leaves a reader to discover that.
+       Both routes ship: the figure in the ruling comes from the Index-book machinery and the
+       one derived here from this file's own cost block. They are different constructions,
+       they do not give the same number, and they agree on the sign -- which is the claim. #}
+    {% if p.research_vs_spy and p.research_vs_spy.cost_drag_ann %}
+    <p class="sub"><b>And net of trading costs this book does not beat SPY.</b> The
+    {{ (100*p.research_vs_spy.gross_excess_ann)|round(2) }}% above is gross; the measured cost
+    of running it is {{ (100*p.research_vs_spy.cost_drag_ann)|round(2) }}% a year, which leaves
+    {{ (100*p.research_vs_spy.implied_net_excess_ann)|round(2) }}% &mdash; and a separate
+    measurement of the same book through the Index machinery puts it at
+    {{ p.research_vs_spy.ruled_net_pp }} pp a year. Two different constructions, two different
+    numbers, <b>both negative</b>. The gross figure also carries a <i>t</i> of
+    {{ p.research_vs_spy.gross_tstat_nw|round(2) }}, so it is not separable from zero in the
+    first place. <b>Nothing on this site claims to beat SPY.</b></p>
+    {% endif %}
   </div></div>
   {% endif %}
 
@@ -344,18 +396,32 @@
   {% if p.bars %}
   <div class="sec"><div class="card">
     <div class="kicker">The part most sites leave out</div>
-    <h2>The bars it fails</h2>
-    <p class="sub">Four standard thresholds. It clears one and fails three. All four are here
-    because a page that showed only the passing one would be advertising, not evidence.</p>
+    {# ITEM 47: THE COUNTS ARE DERIVED, NOT TYPED. This lede read "It clears one and fails
+       three", which was true on the 2,531-name panel and became false the moment the canonical
+       artifact moved -- the stale-literal family, on the one page whose whole purpose is that
+       its numbers cannot go stale. And two of the four are now UNMEASURABLE for the book this
+       site runs rather than passing or failing it: both score the step that chooses between
+       weightings, and on this universe that step picks a tuned weighting while the site runs
+       the flat one. Don's 2026-10-10 ruling requires them to stay visible as unmeasured. #}
+    {% set scored = p.bars|rejectattr('unmeasured_for_the_deployed_book')|list %}
+    {% set unscored = p.bars|selectattr('unmeasured_for_the_deployed_book')|list %}
+    {% set cleared = scored|selectattr('passes')|list|length %}
+    <h2>The bars, including the ones it does not clear</h2>
+    <p class="sub">{{ p.bars|length }} standard thresholds. For the book this site actually
+    runs it clears {{ cleared }} of the {{ scored|length }} that can be scored on it{% if unscored %},
+    and the other {{ unscored|length }} cannot be scored on it at all &mdash; they are shown as
+    unmeasured rather than dropped{% endif %}. All of them are here because a page that showed
+    only the passing ones would be advertising, not evidence.</p>
     <table class="t">
       <tr><th>Threshold</th><th>Result</th><th>Bar</th><th></th></tr>
       {% for b in p.bars %}
       <tr>
         <td><b>{{ b.name }}</b><br><span style="font-size:12.5px;color:var(--muted)">{{ b.what }}</span>
+          {% if b.describes %}<br><span style="font-size:12.5px;color:var(--pf-warn-ink);margin-top:4px;display:inline-block">This figure describes {{ b.describes }}.</span>{% endif %}
           {% if b.tension %}<br><span style="font-size:12.5px;color:var(--pf-warn-ink);margin-top:4px;display:inline-block">{{ b.tension }}</span>{% endif %}</td>
         <td class="num">{{ b.value|round(3) }}</td>
         <td class="num">{{ b.bar|round(3) }}{% if b.lower_is_better %} max{% endif %}</td>
-        <td>{% if b.passes %}<span class="pill ok">clears</span>{% else %}<span class="pill no">fails</span>{% endif %}</td>
+        <td>{% if b.unmeasured_for_the_deployed_book %}<span class="pill mid">unmeasured</span>{% elif b.passes %}<span class="pill ok">clears</span>{% else %}<span class="pill no">fails</span>{% endif %}</td>
       </tr>
       {% endfor %}
     </table>
@@ -453,9 +519,30 @@
     published until 2013. This panel is rebuilt as of each date from filings with their
     real filing dates, prices with no future adjustment, and institutional holdings lagged by
     their actual disclosure deadline &mdash; and companies that went bankrupt or were delisted
-    stay in, so the record is not a survey of survivors. The
+    stay in rather than being dropped. The
     <a href="/methodology">How it works</a> page explains the construction and the specific
     places it is still imperfect.</p>
+    {# ITEM 47 / DECISIONS.md 2026-10-07: the "not a survey of survivors" sentence is REPLACED
+       rather than reworded, because on the panel this page used to describe it was not fully
+       true. The delisting mask was always applied, so dead companies' RETURNS were never
+       dropped -- but the universe itself came from a snapshot that held 2,531 names, and the
+       raw export holds 9,645. Something had selected the other ~7,100, and a page claiming
+       "not a survey of survivors" should not rest on a universe nobody had audited. The
+       correction runs AGAINST the figures: measured on all 9,645 the top-decile alpha falls
+       from 7.17% to 6.07% a year, which is why it is stated rather than quietly fixed. #}
+    {% if p.restatement %}
+    <p><b>And one correction to what this page used to say here.</b> It claimed the record was
+    "not a survey of survivors". Dead companies' returns were always kept &mdash; that part was
+    true &mdash; but the list of companies was itself a
+    {{ "{:,}".format(p.restatement.published_names) }}-name subset of a
+    {{ "{:,}".format(p.restatement.names) }}-name export, and nobody had checked what selected
+    it. It has now been re-run on <b>all {{ "{:,}".format(p.restatement.names) }}</b>. The
+    headline got <em>{{ p.restatement.direction }}</em> (top-decile alpha
+    {{ (100*p.restatement.published_top_decile_alpha)|round(2) }}% &rarr;
+    {{ (100*p.restatement.top_decile_alpha)|round(2) }}% a year), which is the direction that
+    tells you the check was worth doing. Every figure on this page is from the wider
+    universe.</p>
+    {% endif %}
 
     <h3>4. Read the tests that failed</h3>
     <p>Each one was registered before it ran, with the threshold written down first, and the
