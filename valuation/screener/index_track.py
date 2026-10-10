@@ -644,13 +644,32 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
                          "%s; see `served` for its measured figures."
                          % (cfg_name, _M.SERVED_CONSTRUCTION)),
     } if is_preview else {
-        "net_alpha": _M.ALPHA_VS_ALL_CAP_EW_PP / 100.0,
+        # ITEM 47 / DON 2026-10-10: THE BENCHMARK CHANGED, SO `net_alpha`'s SUBJECT CHANGED.
+        # This key feeds the landing page's headline "Backtested net alpha", and it used to be
+        # the excess over the ALL-CAP equal-weighted universe. On the corrected universe that
+        # comparison jumps -0.06pp -> +5.93pp **mostly because the benchmark fell** (17.24% ->
+        # 12.11%/yr), so rendering it would have flattered the Index about sixfold without the
+        # Index improving. Don ruled the all-cap leg off the tab; the like-for-like benchmark a
+        # visitor would otherwise buy is SPY, so this is now the SPY leg and the renderer's
+        # label says so. `index_book_measured.all_cap_leg_note()` is the one place that
+        # explains the dropped comparison, and the payload still carries the figure.
+        "net_alpha": _M.ALPHA_VS_SPY_PP / 100.0,
+        "net_alpha_benchmark": "SPY total return over the same windows",
         "net_sharpe": _M.SERVED_ROTH_SHARPE,
         "after_tax_alpha": None,
-        "after_tax_sharpe": _M.SERVED_TAXABLE_SHARPE,
+        # NOT RESTATED rather than inherited: the corrected run's taxable Sharpe is in r1's
+        # artifact and in no tracked record, so a literal here would be pinned to nothing and
+        # the published 0.7595 describes the 2,531-name book. None renders as an em dash.
+        "after_tax_sharpe": None,
+        "after_tax_sharpe_absent_reason": (
+            "the corrected run's taxable Sharpe is in r1's artifact and in no tracked record, "
+            "so it is reported absent rather than carried over from the 2,531-name panel"),
         "annual_turnover": _M.SERVED_TURNOVER,
-        "basis": ("the %s, measured on the %s by %s (%s)"
-                  % (_M.SERVED_CONSTRUCTION, _M.PANEL, _M.STUDY, _M.STUDY_COMMIT)),
+        "basis": ("the %s, measured on the %s by %s (%s), re-measured on the corrected "
+                  "universe %s" % (_M.SERVED_CONSTRUCTION, _M.PANEL, _M.STUDY,
+                                   _M.STUDY_COMMIT, _M.CORRECTED_DATE)),
+        "disjoint_panels_caveat": _M.DISJOINT_PANELS_CAVEAT,
+        "all_cap_leg_note": _M.all_cap_leg_note(),
         "weighting": "score-weighted large-cap-tier decile",
         "n_dates": measured.get("n_dates"),
         "n_names": measured.get("n_names"),

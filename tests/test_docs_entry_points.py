@@ -117,13 +117,41 @@ class BusTest(unittest.TestCase):
         self.assertIn("any derivation", body)
 
     def test_start_here_quotes_the_evidence_with_its_own_counter_evidence(self):
-        """This project's cardinal rule is not overselling. The headline may appear only
-        alongside the bar it FAILS, or the page becomes marketing."""
+        """This project's cardinal rule is not overselling: the headline may appear only
+        alongside the bars it is judged against, or the page becomes marketing.
+
+        REPOINTED BY ITEM 47 (the canonical move) IN TWO PLACES, AND BOTH WERE STALE-LITERAL
+        DEFECTS OF THE KIND THIS SUITE EXISTS TO CATCH.
+
+        The figure was pinned as the string `+7.17%/yr`. That is the 2,531-name panel's
+        top-decile alpha; the canonical artifact now describes 9,645 names at +6.07%, so the
+        assertion went red against a document that had been correctly updated. It is DERIVED
+        from the artifact now, so the document and the canonical file cannot disagree and
+        neither can go stale against the other.
+
+        The second half said "the bar it FAILS", which was a fact about that panel rather than
+        a property worth enforcing -- on the corrected universe the same statistic clears both
+        bars. What must hold is that the bars TRAVEL WITH the figure, whichever way they fall,
+        and that the document's verdict word agrees with the artifact's boolean. Both are
+        asserted; the direction is not.
+        """
         body = read("START_HERE.md")
-        self.assertIn("+7.17%/yr", body)
+        art = ROOT / "BACKTEST_RESULTS.json"
+        if art.exists():
+            alpha = (json.load(io.open(art, encoding="utf-8"))
+                     .get("construction", {}).get("top_decile_alpha"))
+            if alpha is not None:
+                want = "+%.2f%%/yr" % (100.0 * float(alpha))
+                self.assertIn(want, body,
+                              "START_HERE.md does not quote the canonical top-decile alpha "
+                              "(%s); a document and the artifact it describes must not "
+                              "disagree" % want)
+        else:                                      # pragma: no cover - no artifact on CI
+            self.assertIn("%/yr", body, "no annualised figure at all")
         for caveat in ("gross of costs", "one panel"):
             self.assertIn(caveat, body.lower(), f"missing caveat: {caveat}")
-        self.assertIn("Harvey", body, "the hurdle the long-short t FAILS must travel with it")
+        self.assertIn("Harvey", body,
+                      "the multiple-testing hurdle must travel with the long-short t")
 
     def test_the_directional_claims_still_match_the_results_artifact(self):
         """Pinned as DIRECTIONS, not decimals, and deliberately so.
@@ -142,8 +170,24 @@ class BusTest(unittest.TestCase):
             self.skipTest("no multiple_testing.hlz block in this artifact")
         self.assertTrue(hlz["clears_x7_calibrated_floor"],
                         "START_HERE.md says the long-short t CLEARS the calibrated floor")
-        self.assertFalse(hlz["clears_hlz_hurdle"],
-                         "START_HERE.md says it FAILS the Harvey-Liu-Zhu hurdle")
+        # REPOINTED BY ITEM 47. This asserted `False` -- that the headline FAILS the hurdle --
+        # which was true of the 2,531-name panel and is false of the corrected one. The
+        # docstring above anticipated exactly this: "when they flip START_HERE.md is genuinely
+        # wrong and must be edited". It was edited, so the assertion moves from a FIXED
+        # direction to AGREEMENT between the document and the artifact, which is the property
+        # it was standing in for and which holds whichever way the verdict falls.
+        body = read("START_HERE.md")
+        i = body.find("Harvey")
+        self.assertGreater(i, -1, "START_HERE.md does not mention the hurdle at all")
+        near = flat(body[max(0, i - 160):i])
+        says_clears = "clears" in near
+        says_fails = "fails" in near
+        self.assertTrue(says_clears or says_fails,
+                        "START_HERE.md names the hurdle without saying which way it falls")
+        self.assertEqual(bool(hlz["clears_hlz_hurdle"]), says_clears and not says_fails,
+                         "START_HERE.md and BACKTEST_RESULTS.json disagree about whether the "
+                         "headline clears the Harvey-Liu-Zhu hurdle (artifact says %r)"
+                         % hlz["clears_hlz_hurdle"])
 
     def test_the_readme_no_longer_says_the_backtest_has_not_been_run(self):
         """It said so for months after the Edge Lab existed -- the single most misleading

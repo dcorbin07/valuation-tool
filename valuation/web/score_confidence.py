@@ -20,8 +20,9 @@ WHAT IS AND IS NOT SETTLED BY IT
 V3 measured the **cross-sectional score**, not forward returns, and its handoff is explicit
 that the two are different objects: *"A composite can rank names in an order that is
 indistinguishable from chance at a given rank and still have a real top-minus-bottom return
-spread."* So nothing here touches the edge research — not the long-short HAC t of 2.620
-against its 2.28 floor, not R1's factor alpha, not the top-decile alpha the backtest reports.
+spread."* So nothing here touches the edge research — not the long-short HAC t (2.620
+against a 2.28 floor on the 2,531-name panel; 4.594 against 1.485 on the corrected 9,645-name
+one), not R1's factor alpha, not the top-decile alpha the backtest reports.
 
 **Do not attach these sentences to a backtested RETURN claim.** The recency caveat below
 (21 of 69 dates) is a property of the top decile's *score* versus a chance-assembled book. A
@@ -52,20 +53,52 @@ REGISTER = "PREREG_v3_score_calibration.md"
 VERDICT = "NOT DISTINGUISHABLE"
 PRIMARY_RANK = 10
 
-#: The per-name verdict holds on 45 of 69 rebalance dates (gate: 42). The group-level result
-#: holds on only 21 of 69 — which is why it may never be stated as a standing property.
-PER_NAME_DATES = (45, 69)
-GROUP_DATES = (21, 69)
+#: RESTATED 2026-10-10 ON THE CORRECTED 9,645-NAME UNIVERSE, AND BOTH COUNTS MOVED A LONG
+#: WAY -- in opposite directions, and only one of the two moves in the product's favour.
+#:
+#: On the published 2,531-name panel the per-name verdict (a name's position INSIDE the top
+#: decile is not distinguishable from chance) held on **45 of 69** dates against the register's
+#: pre-registered generality bar (gate: 42),
+#: and the group-level result held on only **21 of 69**. On the corrected panel the per-name
+#: verdict holds on **12 of 69** and the group result on **57 of 69**.
+#:
+#: THE PRODUCT'S GUIDANCE IS DELIBERATELY NOT LOOSENED BY THAT, AND THE REASON IS ARITHMETIC
+#: RATHER THAN CAUTION. A top decile of 9,645 names holds about **960** names where the
+#: published decile held about 250, so a within-decile rank test has far more rows and far more
+#: power -- "positions are distinguishable" on a ~960-name bucket is not the same claim as
+#: "your rank among the top 25 means something", and reading the second from the first is the
+#: `O-1` family (a rate measured on one population quoted about another). The counts are
+#: reported as measured; the advice not to read a rank difference stands.
+PER_NAME_DATES = (12, 69)
+GROUP_DATES = (57, 69)
+PER_NAME_DATES_PUBLISHED = (45, 69)
+GROUP_DATES_PUBLISHED = (21, 69)
+
+#: Names in the top decile, approximately, on each panel. Carried because it is what makes the
+#: two per-name counts incomparable rather than one being an improvement on the other.
+DECILE_NAMES_APPROX = 960
+DECILE_NAMES_APPROX_PUBLISHED = 250
 
 # --- the calibrated sentences (verbatim from SOURCE) ------------------------------------
 
 #: The legend sentence. `HANDOFF_extensions_v3.md` labels this "the defensible sentence" and
 #: builds the robustness count into it, so the claim and its limit travel together.
-DEFENSIBLE = (
+#: THE SENTENCE AS `HANDOFF_extensions_v3.md` REGISTERED IT, verbatim, for the 2,531-name
+#: panel. KEPT and still pinned against the handoff by test: it is the register, and a product
+#: surface may not reword it.
+DEFENSIBLE_REGISTERED = (
     "On recent cross-sections the top decile as a group scores better than a chance-assembled "
     "book. Where an individual name sits inside that decile is not distinguishable from "
     "chance — and that second half holds on 45 of 69 dates tested."
 )
+
+#: WHAT THE PRODUCT SHIPS, DERIVED FROM THE REGISTERED SENTENCE BY SUBSTITUTING THE ONE COUNT
+#: IN IT (item 47). The register is the edge lane's file, so the corrected count cannot be
+#: registered from here; what this lane can guarantee is that the shipped sentence is provably
+#: the registered one with that count replaced, which is what the verbatim pin was protecting.
+#: `tests/test_score_confidence.py` asserts the descent and that the old count is gone.
+DEFENSIBLE = DEFENSIBLE_REGISTERED.replace(
+    "45 of 69 dates", "%d of %d dates" % PER_NAME_DATES)
 
 #: The half that belongs on an individual name. An exact substring of DEFENSIBLE by design.
 PER_NAME = (
@@ -98,6 +131,21 @@ def group_caveat() -> str:
     hit, total = GROUP_DATES
     return (f"The group-level half holds on {hit} of {total} dates tested — it is a property "
             f"of recent cross-sections, not a standing one.")
+
+
+def decile_width_caveat() -> str:
+    """Why the two per-name counts are not comparable.  [ITEM 47]
+
+    ONE DEFINITION of the sentence, because the alternative is each surface wording its own
+    version of a caveat that runs AGAINST the figure beside it -- which is the kind that gets
+    quietly shortened.
+    """
+    return (f"Both counts come from a wider universe than the figures this site used to show: "
+            f"a top decile of about {DECILE_NAMES_APPROX:,} names rather than about "
+            f"{DECILE_NAMES_APPROX_PUBLISHED}. A rank test on a bucket that large has far more "
+            f"power, so these counts are not an improvement on the previous ones — they are "
+            f"measured on a different bucket. The advice is unchanged: do not read meaning into "
+            f"where a name sits inside the decile.")
 
 
 def for_template() -> dict:

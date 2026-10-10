@@ -39,48 +39,82 @@ same machinery and it is materially lower.
 **Every figure leads with the Roth/IRA treatment**, because the Index is a Roth product. The
 taxable figure sits beside it, labelled *for a regular brokerage account, shown for transparency*.
 
+> **RESTATED 2026-10-10 (the canonical move).** Every figure in this section is now measured on
+> the corrected **9,645-name** panel (2009-03-27 → 2026-04-09). The previous panel held 2,531
+> names and **the two share ZERO rebalance dates** — the grid is derived from the universe's own
+> trading calendar, so widening the universe shifts every date. So each figure moved under a
+> universe change **and** a grid change, and the two are not separated.
+
 | treatment | basis | return /yr | Sharpe |
 |---|---|---|---|
-| **in a Roth/IRA** (the headline) | net of modelled trading costs, **no tax** | **+17.1619%** | 1.0318 |
-| **for a regular brokerage account** | **after tax**, FIFO at 40.8% short / 23.8% long | **+12.2033%** | 0.7595 |
-| **the cost of taxes** | one lot path, rates the only knob | **−4.9586 pp/yr** | — |
+| **in a Roth/IRA** (the headline) | net of modelled trading costs, **no tax** | **+18.0169%** | 0.9694 |
+| **for a regular brokerage account** | **after tax**, FIFO at 40.8% short / 23.8% long | **+12.5036%** | not restated |
+| **the cost of taxes** | one lot path, rates the only knob | **−5.5133 pp/yr** | — |
 
-**AFTER TAX THE BOOK LANDS 3.03 pp A YEAR BELOW SPY (+15.23%).** That sentence ships with the
-figure. The driver is measured: **84.08% of realised gains are short-term**, because a quarterly
-book turning over 2.44× a year realises almost everything inside a year. The no-dividend caveat
-runs **against** the taxable arm and travels with it.
+Max drawdown in the Roth treatment is **−28.96%**, against **−23.03%** on the previous panel:
+**the Index buys a little return and pays materially more drawdown, and the two legs move in
+OPPOSITE directions, so quoting either alone misrepresents it.**
 
-### BOTH ALPHA SENTENCES ARE TRUE AND NEITHER MAY TRAVEL ALONE
+**AFTER TAX THE BOOK LANDS BELOW SPY, and the exact form of that sentence changed with the
+figures.** The published version quoted a level difference (3.03 pp below SPY's +15.23%), which
+needs the taxable level minus SPY's — and those two legs come from different cost paths, so
+differencing them puts an error into an implied SPY level nobody measured. The same warning is
+exact from the figures above: **the 5.5133 pp tax bill is LARGER THAN THE WHOLE 2.2177 pp margin
+over SPY.** The driver is measured: **90.35% of realised gains are short-term**, because a
+quarterly book turning over 2.81× a year realises almost everything inside a year. The
+no-dividend caveat runs **against** the taxable arm and travels with it.
 
-`INDEX-BOOK`'s own void condition, and the spec binds it:
+### THE INDEX IS SHOWN AGAINST TWO LIKE-FOR-LIKE BENCHMARKS, AND THE THIRD IS OFF THE TAB
 
-| benchmark | alpha /yr | early half | late half |
+**DON RULED ON 2026-10-10**, and the reason is the more useful half:
+
+| benchmark | its own return /yr | the Index's alpha /yr | on the tab? |
 |---|---|---|---|
-| an equal-weighted basket of **the same large-cap tier** | **+4.1209 pp** | +4.0615 | +4.1746 |
-| **the all-cap equal-weighted universe** (what older figures used) | **−0.0576 pp** | — | — |
-| **SPY** | **+1.9488 pp** | **+3.7202** | **+0.2702** |
+| an equal-weighted basket of **the same $10B large-cap tier** | 13.4226% | **+4.6177 pp** | **yes** |
+| **SPY** total return | 15.8226% | **+2.2177 pp** | **yes** |
+| the all-cap equal-weighted universe (what older figures used) | 12.1116% | +5.9288 pp | **no** |
 
-Roughly **70%** of the gap between the first two rows is the small-cap premium a large-cap tier
-declines to hold — not the ranking failing in large caps. Both readings are honest; quoting the
-+4.12 alone is not.
+**THE DROPPED ROW WENT FROM −0.0576 pp TO +5.9288 pp AND THE INDEX DID NOT IMPROVE.** That move
+is mostly the **BENCHMARK FALLING** — the all-cap equal-weighted universe went 17.2393% →
+12.1116%/yr — rather than the Index rising (17.1817% → 18.0403%). Quoting it as an alpha gain
+overstates it about **sixfold**.
 
-**THE vs-SPY HALVES ARE SHOWN, NOT AVERAGED.** +3.72 early against +0.27 late: the average
-describes neither half, and the late half is where a reader lives.
+**AND THIS INVERTS `INDEX-BOOK`'s OWN VOID CONDITION, WHICH IS WHY THE RULING WAS NEEDED.** That
+register required both alpha sentences to travel together, because the all-cap leg was ~zero and
+quoting the tier leg alone misled. On this universe the same guard would have forced the
+*flattering* number onto the page. **A rule that pins which way a figure falls inverts when the
+measurement does**; the Index is shown against the two benchmarks it can be held against like for
+like, with its return, drawdown and Sharpe beside them, and the dropped comparison is **explained
+on the page** rather than deleted.
+
+**THE HALF-SAMPLE SPLITS ARE NOT RESTATED.** The corrected run's halves are in r1's artifact and
+in no tracked record, so publishing them would be four figures pinned to nothing. The published
+halves (+3.7202 early, +0.2702 late against SPY) describe the **2,531-name** book and **may not be
+quoted beside the figures above.**
 
 ### WHAT THE FIVE-YEAR FORWARD TEST CAN AND CANNOT SHOW
 
-Each arm is scored at **its own** measured tracking error (`MB8`: an `se` may not be borrowed
-across constructions).
+The conclusion is unchanged and the arithmetic is **not restated**. The served book's own tracking
+error against SPY is in r1's artifact and in no tracked record, and `MB8` forbids borrowing the
+all-cap decile's — the one that IS published. So the spec states the conclusion and names where
+the arithmetic lives, rather than carrying a month count pinned to nothing.
 
 | | net edge vs SPY | own tracking error | months to detect |
 |---|---|---|---|
-| **the served book (the Index)** | **+1.9488 pp** | **8.4381** | **4,383** (~365 years) |
-| the research decile | +8.0564 pp | 11.3878 | 385 (~32 years) |
-| what §2 used BEFORE Amendment 2 | +9.9864 pp — **wrong book AND gross** | 11.40 | 242 |
+| **the served book (the Index)** | **+2.2177 pp** | not restated | not restated |
+| the research decile | **−1.14 pp** — it does **not** beat SPY net of costs | not restated | n/a |
+| what §2 was SIGNED with (Amendment 2, 2026-10-04) | +1.9488 pp | 8.4381 | 4,383 (~365 years) |
 
-So the forward test **can** show whether the Index is being recorded honestly and whether its
-costs and turnover behave as modelled. It **cannot** show whether the Index beats SPY: no
-five-year result, in either direction, would settle that.
+**THE SIGNED CONTRACT IS NOT UPDATED AND MUST NOT BE.** `DECISIONS.md` (2026-10-07) is explicit
+that the canonical move does not touch the forward contract's frozen parameters, and the
+contract's own rule forbids revising `sigma` downward — a signed pre-registration whose numbers
+follow the latest measurement is not one. So §2 keeps the figures it was signed with and this
+section names them as such.
+
+The edge over SPY is ~2.2 pp a year against a tracking error several times that size, so detecting
+it would take **centuries rather than years**. The forward test **can** show whether the Index is
+being recorded honestly and whether its costs and turnover behave as modelled. It **cannot** show
+whether the Index beats SPY: no five-year result, in either direction, would settle that.
 
 **THE SIGNED CONTRACT NOW CARRIES THIS CORRECTION — Don accepted it on 2026-10-04 as
 AMENDMENT 2** (`PAPER_TRACK_CONTRACT.md` §5a-2, with the paragraph appended to §2). The last row
@@ -216,8 +250,10 @@ about its object**:
 
 None of them is a wrong number. All of them are the **research decile** — the ranking across
 all ~2,500 companies, equally weighted, top 10% — and `INDEX-BOOK` measured how differently the
-served book earns: **+4.1209pp** against an equal-weighted basket of its own large-cap tier and
-**MINUS 0.0576pp** against the all-cap equal-weighted universe those figures are measured
+served book earns: **+4.6177pp** against an equal-weighted basket of its own large-cap tier and
+**+2.2177pp** against SPY — the two like-for-like benchmarks Don ruled it is shown against on
+2026-10-10, the all-cap equal-weighted comparison having come off the tab because its move was
+mostly the benchmark falling. Those figures are measured
 against. A reader lifting one of them as the Index's is out by most of it.
 
 **THE RULE.** If a public surface quotes a research-decile figure, that surface must also say

@@ -25,7 +25,7 @@ The **Edge Lab** (`valuation/edge/`) is the unusual part: it exists to **falsify
 and most of what it has produced are rejections and nulls.
 
 **Two things that are easy to get backwards.** The valuation engine and the screener are
-*separate* — the +7.17%/yr figure belongs to the screener's composite and says nothing about the
+*separate* — the +6.07%/yr figure belongs to the screener's composite and says nothing about the
 DCF's fair values. And the Dip Detector's measured result is about names **falling further**, not
 about them recovering.
 
@@ -63,20 +63,30 @@ and may never ship in the product.
 
 Read these with their caveats or not at all:
 
-- **Top-decile alpha +7.17%/yr** vs the equal-weighted universe, on 2,531 names × 69 quarterly
-  rebalances (2009–2026), **gross of costs**, on **one panel**. Costs clear comfortably: breakeven
-  134 bps one-way against a measured 33.4 bps.
-- **Long-short HAC *t* = 2.62.** It **clears** the project's own placebo-calibrated floor of 2.2837
-  and **fails** the Harvey–Liu–Zhu hurdle of 3.29 implied by its own 224 logged trials. Both are in
-  `BACKTEST_RESULTS.json` under `multiple_testing.hlz`, including the sentence explaining the
-  tension. Quote both or neither.
+- **Top-decile alpha +6.07%/yr** vs the equal-weighted universe, on 9,645 names × 69 quarterly
+  rebalances (2009-03-27 → 2026-04-09), **gross of costs**, on **one panel**, for the **deployed**
+  flat 1/7 book. Costs still clear and no longer comfortably: breakeven **123.5** bps one-way
+  against a measured **77.0** bps, a ~1.6× margin rather than the ~4× this file used to claim.
+  Net of those costs the figure is **+2.54%/yr**.
+- **Long-short HAC *t* = 4.59.** It **clears** the project's own placebo-calibrated floor —
+  **1.4852**, re-run on this same corrected panel — exceeding **all 100** noise draws, **and** it
+  **clears** the Harvey–Liu–Zhu hurdle of **3.36** implied by its own **285** logged trials. Both
+  are in `BACKTEST_RESULTS.json` under `multiple_testing.hlz`. **On the previous 2,531-name panel
+  the same statistic was 2.62 and FAILED that hurdle**, so this is a restatement and not a
+  re-measurement of the same object: **the old and new panels share ZERO rebalance dates**, the
+  grid being derived from the universe's own calendar.
 - **The out-of-sample evidence is X8**, an untuned replication on international data (Japan
   *t* 3.85, developed Europe *t* 4.30, and the **USA is the weakest region tested**). It
   corroborates that the premia are real; it does **not** corroborate Valquo's magnitude.
 - **The forward paper track is the real test and it is not due.** Verdict 2031; ~13% power at one
   year. `PAPER_TRACK_CONTRACT.md` is the signed pre-registration.
-- **Nothing is auto-adopted.** `cpcv.adopt` is `false`; the live weights are flat 1/7 and were
-  never tuned.
+- **Nothing is auto-adopted, and that sentence has changed shape.** On this universe
+  `cpcv.adopt` is **`true`** for the first time in the project's history — CPCV prefers
+  `ic-proportional`. The live weights stay flat 1/7 and were never tuned, because the tuned book
+  **earns less** (top-decile alpha 2.83% against the deployed 6.07%) and because adoption is Don's
+  (*prove before changing*). A consequence worth knowing: the Deflated Sharpe and PBO score the
+  **selection** step, so on this panel they describe the adopted book and are **unmeasured for the
+  deployed one**.
 
 ## 5. Which file answers which question
 

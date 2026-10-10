@@ -34,41 +34,64 @@ more than any individual number:**
 
 ### The screener's evidence, in the record's own numbers
 
-Measured on **2,531 names over 69 quarterly rebalances (2009–2026)**, one panel, point-in-time,
-survivorship-free. Every figure ships in `BACKTEST_RESULTS.json` and is reproduced here from it:
+Measured on **9,645 names over 69 quarterly rebalances (2009-03-27 → 2026-04-09)**, one panel,
+point-in-time, survivorship-free. Every figure ships in `BACKTEST_RESULTS.json` and is reproduced
+here from it. **The headline describes the DEPLOYED flat 1/7 book — the one the site actually
+runs** — and not the weighting CPCV would pick; see the tension below.
+
+> **RESTATED 2026-10-10 on the corrected universe, and the old and new panels share ZERO
+> rebalance dates.** The grid is derived from the universe's own trading calendar, so a 3.8×
+> wider universe shifts every date. `X2` measured the *grid alone* moving the long-short *t* by
+> 0.81 across seven equally valid offsets on one universe — so every figure below is a
+> restatement under a universe change **and** a grid change, and the two are not separated. The
+> previous panel's figures (2,531 names, 2009-01-15 → 2026-01-28) are kept in `CLAUDE.md` and
+> `CANONICAL_FIGURE_TABLE.md` with their own object named.
 
 | | |
 |---|---|
-| Top-decile alpha vs the equal-weighted universe | **+7.17%/yr**, gross of costs |
-| …after measured trading costs | **+6.07%/yr** (breakeven 134.1 bps one-way vs a measured 33.4 bps; 261%/yr turnover) |
-| …vs SPY total return over the same windows | **+9.99%/yr** |
-| Long-short spread | +11.04%/yr, HAC *t* **2.62** |
-| Decile ordering (−1.0 is perfect) | **−0.89** |
+| Top-decile alpha vs the equal-weighted universe | **+6.07%/yr**, gross of costs |
+| …after measured trading costs | **+2.54%/yr** (breakeven 123.5 bps one-way vs a measured **77.0** bps; 247%/yr turnover) |
+| …vs SPY total return over the same windows | **+4.02%/yr**, NW *t* **1.33** — *not* separable from zero |
+| Long-short spread | +18.10%/yr, HAC *t* **4.59** |
+| Decile ordering (−1.0 is perfect) | **−0.96** |
 
 **What that does and does not survive — quote both halves or neither:**
 
-- ✅ **Its own noise floor.** Thresholds here are not conventions; they are *calibrated* by pushing
-  100 shuffled-signal panels through the real pipeline. The long-short HAC *t* of 2.62 clears the
-  calibrated floor of **2.2837**. (The same exercise found the usual "*t* > 2" bar is cleared by
-  pure noise 8% of the time, and that PBO < 50% is not a bar at all — noise sits at 46.7%.)
-- ✅ **Costs**, with a ~4× margin.
-- ✅ **Factor models.** FF5+MOM leaves **+6.99%/yr** unexplained (NW *t* 3.98).
-- ✅ **A split by name**, which has no regime confound: across 400 half-universe books, **not one
-  came back negative**.
-- ✅ **International, out-of-sample.** The untuned composite mapped onto independent data
-  replicates in Japan (*t* 3.85) and developed Europe (*t* 4.30) — and the **USA is the weakest
-  region tested**, so the structure is not a US artifact. It corroborates that the premia are
-  real; it does **not** corroborate Valquo's magnitude.
-- ❌ **The Harvey–Liu–Zhu hurdle.** Counting all **224** pre-registered equity trials the research
-  log has ever charged gives a hurdle of **3.29**, and 2.62 falls short by 0.67.
-- ❌ **The conventional Deflated Sharpe bar** (0.79 against a >0.95 convention), though it clears
-  the placebo-calibrated 0.66.
+- ✅ **Its own noise floor, and by more than before.** Thresholds here are not conventions; they
+  are *calibrated* by pushing 100 shuffled-signal panels through the real pipeline — **re-run on
+  this same corrected panel**, so the comparison is like for like. The long-short HAC *t* of 4.59
+  clears the corrected floor of **1.4852** and **exceeds all 100 noise draws** (the largest is
+  3.13). Two of the seven floors got *harder* on this universe and five easier, so this is not a
+  blanket loosening.
+- ✅ **The Harvey–Liu–Zhu hurdle — which the previous panel FAILED.** Counting all **285**
+  pre-registered equity trials gives a hurdle of **3.36**, and 4.59 clears it by 1.23. On the
+  2,531-name panel the same statistic was 2.62 against 3.29 and fell short by 0.67. **Both bars
+  now pass at once**, which was not true before. (285 is the count at the canonical run; the
+  live register has since passed 290 and `/proof` derives the hurdle from it at request time,
+  so the two legitimately differ by a few trials. The hurdle only ever rises with the count,
+  and 4.59 clears it either way.)
+- ⚠️ **Costs, with a ~1.6× margin — materially thinner than the ~4× this section used to
+  claim.** A 9,645-name book reaches far down the cap scale, and the measured one-way cost rises
+  from 33.4 to **77.0** bps. The alpha survives the costs; it no longer survives them comfortably.
+- ✅ **Factor models.** FF5+MOM leaves **+5.94%/yr** unexplained (NW *t* **4.45**).
+- ❓ **The Deflated Sharpe and PBO are UNMEASURED for the deployed book**, and that is a change
+  rather than an omission. Both score the *weight-selection* step, and on this universe **CPCV
+  adopts for the first time in the project's history** — so they now describe the adopted book
+  (PBO 0.00, DSR 0.0016 against a corrected floor of 0.5912), not the flat 1/7 book the site runs.
+  A bar that cannot be scored for the deployed book is shown as unscored rather than borrowed.
+- 📄 **Measured on the PREVIOUS panel and not re-run here**, so each names its own object: the
+  split-by-name result (**400 half-universe books on the 2,531-name panel, not one negative**) and
+  the international replication (**Japan *t* 3.85, developed Europe *t* 4.30, with the USA the
+  weakest region tested** — on Global Factor Data, a different vendor and universe entirely). The
+  international result corroborates that the premia are real; it does **not** corroborate Valquo's
+  magnitude, and neither has been re-measured on the corrected universe.
 
-The artifact ships the tension rather than resolving it: HLZ prices *the best of N draws*, and the
-deployed composite is flat 1/7 weights that were never tuned — `cpcv.adopt` is `false` on every
-run — so those 224 trials are overwhelmingly *rejected alternatives to it* rather than candidates
-it beat. Reasonable people can read that either way. **It is one panel, and it is not a forward
-test.**
+The artifact ships the remaining tension rather than resolving it, and it has changed shape: **on
+this universe CPCV prefers a tuned weighting (`ic-proportional`) over the deployed flat 1/7.** The
+deployed weights are kept anyway, because **the tuned book earns less — top-decile alpha 2.83%
+against the deployed 6.07%** — and because nothing is adopted without Don (*prove before
+changing*). So the 285 logged trials remain overwhelmingly *rejected alternatives* to the shipped
+book rather than candidates it beat. **It is one panel, and it is not a forward test.**
 
 ---
 

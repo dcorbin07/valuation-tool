@@ -237,11 +237,34 @@ class TestTheMapItself(unittest.TestCase):
         self.assertLess(d["sr0_reproduction_abs_delta"], 1e-8)
 
     def test_the_hlz_verdict_does_not_change_between_the_two_N(self):
-        """The map may report staleness; it may not silently move a verdict."""
+        """The map may report staleness; it may not silently move a verdict.
+
+        REPOINTED BY ITEM 47. This asserted `clears` is FALSE -- a fact about the 2,531-name
+        panel, where the headline fell 0.67 short of the hurdle. The canonical move put the
+        corrected universe in the artifact and the same composite now clears it, so the
+        assertion went red against a correct map and was, read plainly, a test enforcing the
+        old result (`MB31`'s own family, which this suite is named after).
+
+        The property is in the docstring and does not mention a direction: the map must agree
+        with the ARTIFACT about the verdict, and must not move it between the two `N`. Both
+        are asserted, so this holds whichever way the verdict falls and still fails if the map
+        and the file ever disagree.
+        """
         if self.m is None:
             return
         h = self.m["hlz_shipped_in_artifact"]
-        self.assertFalse(h["clears"])
+        import io as _io
+        import json as _json
+        import os as _os
+        art = _os.path.join(REPO, "BACKTEST_RESULTS.json")
+        if _os.path.exists(art):
+            with _io.open(art, encoding="utf-8") as fh:
+                shipped = ((_json.load(fh).get("multiple_testing") or {})
+                           .get("hlz") or {}).get("clears_hlz_hurdle")
+            if shipped is not None:
+                self.assertEqual(bool(h["clears"]), bool(shipped),
+                                 "the map and BACKTEST_RESULTS.json disagree about whether "
+                                 "the headline clears the hurdle")
         self.assertGreater(h["shortfall_at_live_N"], h["shortfall_at_shipped_N"],
                            "the hurdle only ever rises with trials")
         self.assertTrue(h["verdict_unchanged"])

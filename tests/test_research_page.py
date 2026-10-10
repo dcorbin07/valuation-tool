@@ -508,22 +508,47 @@ def test_mb38_the_withheld_statistic_never_reaches_the_page_or_the_payload():
 def test_mb38_both_verdict_words_are_derived_from_a_real_comparison():
     """Flip the statistic and both words must flip. A typed word would not move.
 
-    This also pins the direction the PROSE asserts: the paragraph says the two bars can
-    disagree about the same number, and today they do.
+    REPOINTED BY ITEM 47. It also asserted the DIRECTION of each word -- `verdict` FAIL and
+    `placebo_verdict` PASS -- which was a fact about the 2,531-name panel, where the headline
+    fell short of the trial-counting hurdle. On the corrected universe the same composite
+    clears BOTH bars, so those two lines went red against a correct page.
+
+    The property the test is named for is unchanged and is what survives: both words must be
+    COMPUTED, so flipping the statistic flips them. The direction is now read from the
+    artifact instead of pinned, so the page and the canonical file cannot disagree about a
+    verdict whichever way it falls.
     """
     m = RR.multiplicity()
-    assert m["verdict"] == RR.VERDICT_FAIL, m["verdict"]
-    assert m["placebo_verdict"] == RR.VERDICT_PASS, m["placebo_verdict"]
+    assert m["verdict"] in (RR.VERDICT_FAIL, RR.VERDICT_PASS), m["verdict"]
+    assert m["placebo_verdict"] in (RR.VERDICT_FAIL, RR.VERDICT_PASS), m["placebo_verdict"]
+
+    # The page's own verdict must agree with the artifact's boolean for the same comparison.
+    import io as _io
+    import json as _json
+    import os as _os
+    art = _os.path.join(
+        _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+        "BACKTEST_RESULTS.json")
+    if _os.path.exists(art):
+        with _io.open(art, encoding="utf-8") as fh:
+            hlz = ((_json.load(fh).get("multiple_testing") or {}).get("hlz") or {})
+        want = hlz.get("clears_hlz_hurdle")
+        if want is not None:
+            assert m["verdict"] == (RR.VERDICT_PASS if want else RR.VERDICT_FAIL), (
+                "the page and BACKTEST_RESULTS.json disagree about the hurdle: page says %r, "
+                "artifact says clears=%r" % (m["verdict"], want))
 
     keep = RR.HEADLINE_STATISTIC
     try:
-        RR.HEADLINE_STATISTIC = keep + 10.0
+        RR.HEADLINE_STATISTIC = 1e9
         assert RR.multiplicity()["verdict"] == RR.VERDICT_PASS, "the verdict word is typed"
+        assert RR.multiplicity()["placebo_verdict"] == RR.VERDICT_PASS
         RR.HEADLINE_STATISTIC = 0.0
+        assert RR.multiplicity()["verdict"] == RR.VERDICT_FAIL, "the verdict word is typed"
         assert RR.multiplicity()["placebo_verdict"] == RR.VERDICT_FAIL
     finally:
         RR.HEADLINE_STATISTIC = keep
-    assert RR.multiplicity()["verdict"] == RR.VERDICT_FAIL, "the comparison did not restore"
+    assert RR.multiplicity()["verdict"] == m["verdict"], "the comparison did not restore"
 
 
 def test_mb38_no_count_and_no_hurdle_is_typed_into_the_source():

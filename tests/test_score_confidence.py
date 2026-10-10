@@ -87,7 +87,11 @@ def _methodology() -> str:
 def test_every_shipped_sentence_appears_verbatim_in_the_handoff():
     """THE ONE THE TASK ASKED FOR. The legend text must match the registered sentence."""
     doc = _handoff()
-    for name in ("DEFENSIBLE", "PER_NAME", "THIN_DATA", "NO_LONGER_SAYABLE"):
+    # ITEM 47: `DEFENSIBLE` now carries the CORRECTED date count, which the register (the edge
+    # lane's handoff) does not yet state, so the verbatim pin moves to the registered form and
+    # the descent is asserted separately below. Every other sentence is unchanged and is still
+    # required verbatim.
+    for name in ("DEFENSIBLE_REGISTERED", "PER_NAME", "THIN_DATA", "NO_LONGER_SAYABLE"):
         sentence = _norm(getattr(SC, name))
         assert sentence in doc, (
             f"score_confidence.{name} is not in {os.path.basename(HANDOFF)} verbatim.\n"
@@ -127,11 +131,35 @@ def test_the_robustness_count_inside_the_sentence_matches_the_constant():
     """`45 of 69` is written into the sentence AND held as data; they must agree."""
     held, total = SC.PER_NAME_DATES
     assert f"{held} of {total} dates" in SC.DEFENSIBLE
-    assert (held, total) == (45, 69)
-    assert SC.GROUP_DATES == (21, 69)
-    # The group result is the WEAKER of the two. If this ever inverts, the caveat below is
-    # attached to the wrong half of the finding.
-    assert SC.GROUP_DATES[0] < SC.PER_NAME_DATES[0]
+    # RESTATED BY ITEM 47 to the corrected 9,645-name universe. Both pairs are pinned so
+    # neither can drift, and the corrected pair is checked against the GENERATED figure table.
+    assert (held, total) == (12, 69)
+    assert SC.GROUP_DATES == (57, 69)
+    assert SC.PER_NAME_DATES_PUBLISHED == (45, 69)
+    assert SC.GROUP_DATES_PUBLISHED == (21, 69)
+    tbl = open(os.path.join(ROOT, "CANONICAL_FIGURE_TABLE.md"), encoding="utf-8").read()
+    for want in ('"dates_not_distinguishable": 12', '"dates_top_decile_mean_clears": 57'):
+        assert want in tbl, ("%s is not in CANONICAL_FIGURE_TABLE.md, so the restated count is "
+                             "pinned to nothing" % want)
+
+    # THE DESCENT FROM THE REGISTERED SENTENCE, reconstructed rather than compared as prose.
+    assert SC.DEFENSIBLE == SC.DEFENSIBLE_REGISTERED.replace(
+        "45 of 69 dates", "%d of %d dates" % SC.PER_NAME_DATES), (
+        "the shipped sentence is not the registered one with its count substituted -- it has "
+        "been reworded, which is what the verbatim pin exists to prevent")
+    assert "45 of 69" not in SC.DEFENSIBLE, "the shipped sentence still carries the old count"
+
+    # THE INVERSION IS REAL AND IS NOT AN IMPROVEMENT, so the caveat that says why must exist
+    # and must name both decile widths. The published assertion here was that the group result
+    # is the WEAKER of the two; on this universe it is the stronger, and reading that as the
+    # score having become more precise is the mistake `decile_width_caveat` exists to block.
+    assert SC.GROUP_DATES[0] > SC.PER_NAME_DATES[0], (
+        "the two counts no longer invert, so the caveat below describes something that is not "
+        "happening")
+    cav = SC.decile_width_caveat()
+    assert "%s" % SC.DECILE_NAMES_APPROX in cav.replace(",", "")
+    assert str(SC.DECILE_NAMES_APPROX_PUBLISHED) in cav
+    assert "not an improvement" in cav
 
 
 def test_the_verdict_recorded_is_the_one_the_handoff_reached():

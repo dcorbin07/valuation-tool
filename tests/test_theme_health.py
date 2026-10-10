@@ -309,13 +309,36 @@ def test_a_theme_below_the_coverage_floor_is_refused_even_with_enough_months():
 
 
 def test_a_theme_the_backtest_makes_no_directional_claim_about_gets_no_reference():
-    rows, days = planted_panel(months=14, planted=0.5, theme="insider", seed=6)
+    """THE THEME IS CHOSEN BY THE PROPERTY, NOT BY NAME (item 47).
+
+    This used to plant into `insider` with the comment "insider's backtest median IC is
+    -0.0052, below REF_MIN_IC = 0.01". That was true of the 2,531-name panel. On the corrected
+    9,645-name universe insider reads **-0.0210**, so the backtest now DOES claim a direction
+    there and the theme gets a reference sign of -1 -- the test went red against correct code,
+    because it had hard-coded which theme happens to sit under the threshold.
+
+    So the theme is selected by asking the shipped reference table which one the backtest makes
+    no claim about. That is the property the test is named for, and it holds on any panel.
+    """
+    signs, _ref = TH.reference_signs()
+    candidates = sorted(k for k, v in signs.items() if v is None)
+    if not candidates:
+        print("       (SKIPPED LOUDLY: every theme in this artifact clears REF_MIN_IC, so "
+              "the no-reference branch has no subject here)")
+        return
+    # Prefer a theme the planted panel can actually move, and say which was used.
+    theme = next((c for c in candidates if c in ("institutional", "insider", "growth",
+                                                 "low_risk", "momentum")), candidates[0])
+    rows, days = planted_panel(months=14, planted=0.5, theme=theme, seed=6)
     res = TH.analyse(rows, as_of=days[-1])
-    v = res["themes"]["insider"]
-    # insider's backtest median IC is -0.0052, below REF_MIN_IC = 0.01
-    assert v["reference_sign"] is None, v["reference_sign"]
-    assert v["verdict"] == "NO-REFERENCE", v["verdict"]
+    v = res["themes"][theme]
+    assert v["reference_sign"] is None, (theme, v["reference_sign"])
+    assert v["verdict"] == "NO-REFERENCE", (theme, v["verdict"])
     assert v["crossed"] == "up", "the crossing is still reported, only the label is withheld"
+    # NON-VACUOUS: some theme in the same run MUST have a reference, or this is not
+    # distinguishing "no claim" from "no table".
+    assert any(v is not None for v in signs.values()), (
+        "no theme has a reference sign at all, so this test is agreeing with an empty table")
 
 
 def test_the_report_states_what_the_chosen_cross_section_can_detect():

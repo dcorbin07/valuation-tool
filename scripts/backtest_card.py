@@ -144,7 +144,26 @@ def build() -> dict:
     from valuation.screener import settings as S
 
     pub = json.load(open(RESULTS, encoding="utf-8"))
-    rec = pub["cpcv"]["recommended_weights"]
+    # THE DEPLOYED WEIGHTS, NOT CPCV'S RECOMMENDATION -- AND THIS FILE WAS THE SIXTEENTH CALL
+    # SITE, FOUND BY ITS OWN GATE (item 47).
+    #
+    # `CANONICAL-MOVE` step 1 converted fifteen call sites from `rec` to the book that ships,
+    # for the reason the artifact itself states: "a canonical file whose headline is a book
+    # nobody runs is the defect whichever way it flatters." This one was in `scripts/` and was
+    # missed, and for the whole of the project's history that cost nothing, because
+    # `cpcv.adopt` had been FALSE on every run -- the recommendation WAS the deployed book, so
+    # the two readings were the same object and nothing could disagree.
+    #
+    # On the corrected universe CPCV adopts `ic-proportional`, and the card's own C1 gate
+    # refused immediately: rebuilding `roth` from `rec` gave net_alpha +0.0072 against the
+    # canonical file's -0.0470. That is the gate doing exactly its job -- it would have
+    # published a card describing the tuned book beside a site that runs the flat one.
+    #
+    # FALLS BACK TO `rec`, deliberately: an older artifact has no such key, and on every run
+    # that produced one the two were identical, so the fallback cannot silently change an
+    # existing card.
+    rec = ((pub.get("headline_weighting_is_the_deployed_book") or {}).get("weights")
+           or pub["cpcv"]["recommended_weights"])
     panel = pd.read_pickle(_panel_path())
     cols = [c for c in rec if c in panel.columns]
 

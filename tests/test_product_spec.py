@@ -80,13 +80,28 @@ class TheSpecExistsAndNamesTheObjects(unittest.TestCase):
         # must compare the number, not the glyph, or it reports a missing figure that is
         # present and correct.
         flat = t.replace("−", "-").replace("–", "-")
+        # ITEM 47: the list is the figures the module PUBLISHES. Four of the published set
+        # are gone -- the two vs-SPY halves, the tracking error and the months-to-detect --
+        # because the corrected run's values for them are in r1's artifact and in NO tracked
+        # record, so the module reports them absent rather than carrying literals nothing
+        # pins. A spec that still demanded them would be demanding the previous panel's.
         for num in ("%.4f" % M.SERVED_ROTH_PCT, "%.4f" % M.SERVED_TAXABLE_PCT,
                     "%.4f" % M.TAX_COST_PP, "%.4f" % M.ALPHA_VS_OWN_TIER_PP,
                     "%.4f" % M.ALPHA_VS_ALL_CAP_EW_PP, "%.4f" % M.ALPHA_VS_SPY_PP,
-                    "%.4f" % M.ALPHA_VS_SPY_EARLY_PP, "%.4f" % M.ALPHA_VS_SPY_LATE_PP,
-                    "%.4f" % M.SERVED_TE_VS_SPY, "{:,}".format(M.SERVED_MONTHS_TO_DETECT)):
+                    "%.4f" % M.SPY_PCT, "%.4f" % M.TIER_EW_PCT,
+                    "%.4f" % M.ALL_CAP_EW_PCT,
+                    "%.4f" % M.CONTRACT_SIGNED_ALPHA_VS_SPY_PP,
+                    "%.4f" % M.CONTRACT_SIGNED_TE_VS_SPY,
+                    "{:,}".format(M.CONTRACT_SIGNED_MONTHS_TO_DETECT)):
             self.assertIn(num, flat,
                           "the spec is missing the measured figure %s" % num)
+        # AND IT MUST SAY WHAT IT DOES NOT RESTATE, or an absent figure reads as an absent
+        # measurement (`V6`'s rule). The published halves may appear ONLY as the previous
+        # panel's, so the phrase that labels them has to be there too.
+        self.assertIn("not restated", flat.lower(),
+                      "the spec publishes a subset of the figures and never says so")
+        self.assertIn("2,531", flat,
+                      "the spec quotes the previous panel's halves without naming the panel")
         # The tracked CONFIG is still what the next rebalance is BUILT with, and the spec
         # still has to describe that correctly -- it is just no longer what the Index's
         # backtest block reports.
@@ -227,7 +242,14 @@ class TheBacktestBesideTheRecordIsTheServedBook(unittest.TestCase):
         got = IT.summarize().get("backtested") or {}
         self.assertEqual(got.get("net_sharpe"), M.SERVED_ROTH_SHARPE)
         self.assertEqual(got.get("annual_turnover"), M.SERVED_TURNOVER)
-        self.assertAlmostEqual(got.get("net_alpha"), M.ALPHA_VS_ALL_CAP_EW_PP / 100.0, places=12)
+        # ITEM 47 / DON 2026-10-10: `net_alpha` changed its SUBJECT, so this changed with it.
+        # It used to be the excess over the all-cap equal-weighted universe; the all-cap leg
+        # is off the tab and the like-for-like benchmark a visitor would otherwise buy is SPY.
+        # The key's own label now travels in `net_alpha_benchmark`, which is asserted too --
+        # a number whose subject changed and whose label did not is worse than either alone.
+        self.assertAlmostEqual(got.get("net_alpha"), M.ALPHA_VS_SPY_PP / 100.0, places=12)
+        self.assertIn("SPY", got.get("net_alpha_benchmark") or "",
+                      "the server does not name the benchmark its headline excess is against")
         self.assertEqual((got.get("served") or {}).get("study"), M.STUDY)
 
     def test_the_card_the_tab_renders_is_the_served_one(self):
@@ -301,8 +323,15 @@ class TheResearchDecileIsNeverTheIndex(unittest.TestCase):
     def test_its_figures_differ_from_the_served_books(self):
         """If these ever coincided the separation would be pointless, so the test says so."""
         from valuation.screener import index_book_measured as M
-        self.assertNotAlmostEqual(M.RESEARCH_NET_PCT, M.SERVED_ROTH_PCT, places=2)
+        # ITEM 47: the research arm's net return is no longer published -- its corrected
+        # value is in r1's artifact and in no tracked record, so the module reports it absent.
+        # The separation is now asserted on the one research figure Don's ruling names, and it
+        # is the sharpest possible form of it: the two books disagree about the SIGN.
+        self.assertIsNone(M.research_block()["net_pct"],
+                          "a research figure is published with no record to pin it")
         self.assertNotAlmostEqual(M.RESEARCH_ALPHA_VS_SPY_PP, M.ALPHA_VS_SPY_PP, places=2)
+        self.assertLess(M.RESEARCH_ALPHA_VS_SPY_PP, 0.0)
+        self.assertGreater(M.ALPHA_VS_SPY_PP, 0.0)
 
     def test_proof_says_the_decile_is_NOT_the_index(self):
         """`/proof` legitimately reports the research decile, and already said "equally
@@ -617,24 +646,74 @@ class DonsStandingRulesOnWhatMayBeClaimed(unittest.TestCase):
                     self.assertNotIn(banned, txt,
                                      "%s claims %r, which Don has ruled out" % (name, banned))
 
-    def test_no_surface_claims_the_index_beats_spy(self):
-        """The honest line is "about 2 points a year ahead of SPY in a Roth over 2009-2026,
-        almost all of it in the first half" -- a dated, halved, account-type-qualified
-        statement. "The Index beats SPY" is the unqualified version of it."""
+    #: Words that turn a mention of the claim into a DENIAL of it. Checked in a window before
+    #: the phrase, because that is where English puts them.
+    _NEGATORS = ("not", "never", "no ", "nothing", "cannot", "can't", "does not", "doesn't",
+                 "nor ", "without")
+
+    @classmethod
+    def _is_denied(cls, txt, i):
+        """Is the mention at `i` inside a sentence that DENIES the claim?"""
+        start = max(0, i - 90)
+        window = txt[start:i].lower()
+        # Do not read across a sentence boundary: a negation in the PREVIOUS sentence says
+        # nothing about this one.
+        for stop in (". ", "! ", "? ", "\n\n"):
+            k = window.rfind(stop)
+            if k != -1:
+                window = window[k + len(stop):]
+        return any(w in window for w in cls._NEGATORS)
+
+    def test_no_surface_CLAIMS_the_index_beats_spy(self):
+        """The honest line is "about 2 points a year ahead of SPY in a Roth over 2009-2026" --
+        a dated, account-type-qualified statement. "The Index beats SPY" is the unqualified
+        version of it, and that is what is forbidden.
+
+        REPOINTED BY ITEM 47, AND IT IS THE SUBSTRING-BAN FAMILY THIS REPOSITORY NAMES AT
+        LEAST FOUR TIMES. The published form banned the TOKEN "beat SPY" anywhere in public
+        text. Don's 2026-10-10 ruling 3 then required `/proof` to say, plainly, that the
+        research decile **does not beat SPY** net of costs -- so the ban fired on the sentence
+        that forbids the very claim it exists to forbid. A ban that cannot tell an assertion
+        from its denial is not measuring the property.
+
+        What is banned is the CLAIM: a mention that is not inside a denial. The positive
+        control below proves the repaired rule still catches the unqualified sentence, and a
+        second control proves it still catches one that merely has a negation EARLIER in the
+        paragraph.
+        """
         banned = ("Index beats SPY", "Index beats the S&P", "beats SPY",
                   "outperforms SPY", "beat SPY")
         for name, txt in self._public_text().items():
             with self.subTest(name):
                 for b in banned:
-                    self.assertNotIn(b, txt,
-                                     "%s claims %r. The qualified form is required: ahead by "
-                                     "about 2 points a year in a Roth over 2009-2026, with "
-                                     "almost all of it in the first half." % (name, b))
+                    i = txt.find(b)
+                    while i != -1:
+                        self.assertTrue(
+                            self._is_denied(txt, i),
+                            "%s ASSERTS %r (at %d: ...%s...). The qualified form is required: "
+                            "ahead by about 2 points a year in a Roth over 2009-2026."
+                            % (name, b, i, txt[max(0, i - 80):i + len(b)].replace("\n", " ")))
+                        i = txt.find(b, i + 1)
 
     def test_the_vacuity_control_these_bans_can_fire(self):
-        """The ban strings must actually match the sentences they forbid."""
+        """The ban strings must actually match the sentences they forbid, AND the
+        denial-aware rule must still refuse an assertion."""
         self.assertIn("+32%", "the book returned +32% a year")
-        self.assertIn("beats SPY", "the Valquo Index beats SPY over the sample")
+        claim = "the Valquo Index beats SPY over the sample"
+        self.assertIn("beats SPY", claim)
+        # THE REPAIRED RULE STILL BITES on the unqualified claim...
+        self.assertFalse(self._is_denied(claim, claim.index("beats SPY")))
+        # ...and on one whose negation sits in an EARLIER sentence, which is the way a
+        # sentence-blind window would have been fooled.
+        two = ("Costs are not modelled here. The Valquo Index beats SPY over the sample")
+        self.assertFalse(self._is_denied(two, two.index("beats SPY")),
+                         "a negation in the previous sentence excused an assertion")
+        # ...while the sentences Don's ruling 3 REQUIRES are allowed.
+        for ok, tok in (("net of trading costs this book does not beat SPY", "beat SPY"),
+                        ("Nothing on this site claims to beat SPY", "beat SPY"),
+                        ("it cannot show whether the Index beats SPY", "beats SPY")):
+            self.assertTrue(self._is_denied(ok, ok.index(tok)),
+                            "the rule refuses a DENIAL of the claim: %r" % ok)
 
     def test_the_sentence_that_IS_allowed_is_available_to_a_surface(self):
         """Refusing a claim is only half of it: the qualified version has to exist somewhere a
@@ -648,43 +727,78 @@ class DonsStandingRulesOnWhatMayBeClaimed(unittest.TestCase):
         self.assertIn("0.2", halves)
 
 
-class BothAlphaSentencesTravelTogether(unittest.TestCase):
-    """`INDEX-BOOK`'s ledger row states it as a void condition: "BOTH ALPHA SENTENCES ARE TRUE
-    AND NEITHER MAY TRAVEL ALONE." Against its own large-cap tier the served book earns
-    +4.1209pp, stable across halves; against the all-cap equal-weighted universe -- the
-    benchmark every older published figure used -- it earns -0.0576pp, i.e. nothing. Roughly
-    70% of the gap is the small-cap premium a large-cap tier declines to hold."""
+class TheTwoBenchmarksAreLikeForLikeAndTheThirdIsExplained(unittest.TestCase):
+    """DON'S 2026-10-10 RULING, WHICH REPLACED `INDEX-BOOK`'s VOID CONDITION.
+
+    That register required both alpha sentences to travel together: +4.1209pp against its own
+    tier and -0.0576pp against the all-cap equal-weighted universe, because quoting the first
+    alone misled. On the corrected universe the all-cap leg reads **+5.9288pp**, and r1
+    measured that the move is mostly the BENCHMARK FALLING (17.2393% -> 12.1116%/yr) rather
+    than the Index rising (17.1817% -> 18.0403%).
+
+    So the guard built to force an honest pairing would now be forcing the flattering number
+    onto the page. Don ruled the all-cap leg OFF the tab, with the Index shown against SPY and
+    an equal-weighted basket of its own tier -- like for like -- and the dropped comparison
+    EXPLAINED rather than deleted.
+    """
+
+    def _served(self):
+        from valuation.screener import index_track as IT
+        return ((IT.summarize().get("backtested") or {}).get("served") or {})
 
     def _alpha(self):
-        from valuation.screener import index_track as IT
-        return (((IT.summarize().get("backtested") or {}).get("served") or {}).get("alpha") or {})
+        return self._served().get("alpha") or {}
 
-    def test_both_legs_are_present(self):
+    def test_both_like_for_like_legs_are_present(self):
         a = self._alpha()
         self.assertIsNotNone(a.get("vs_own_tier_pp"))
-        self.assertIsNotNone(a.get("vs_all_cap_ew_pp"))
+        self.assertIsNotNone(a.get("vs_spy_pp"))
 
-    def test_one_sentence_carries_BOTH_figures(self):
-        """So a surface cannot render the favourable leg and drop the other."""
+    def test_one_sentence_carries_BOTH_figures_and_BOTH_benchmark_LEVELS(self):
+        """So a surface cannot render one leg and drop the other -- and so a reader can see
+        what each benchmark actually returned rather than only the difference."""
+        from valuation.screener import index_book_measured as M
         s = self._alpha().get("both_sentence") or ""
-        self.assertIn("+4.1209", s)
-        self.assertIn("-0.0576", s)
-        self.assertIn("small-cap premium", s)
+        for want in ("+%.4f" % M.ALPHA_VS_OWN_TIER_PP, "+%.4f" % M.ALPHA_VS_SPY_PP,
+                     "%.4f" % M.TIER_EW_PCT, "%.4f" % M.SPY_PCT):
+            self.assertIn(want, s, "the sentence omits %s" % want)
+        self.assertIn("like for like", s)
 
-    def test_the_vs_SPY_halves_are_shown_and_not_averaged(self):
+    def test_the_all_cap_leg_is_in_the_payload_and_NOT_on_the_card(self):
+        from valuation.screener import index_book_measured as M
         a = self._alpha()
-        self.assertAlmostEqual(a.get("vs_spy_early_pp"), 3.7202, places=4)
-        self.assertAlmostEqual(a.get("vs_spy_late_pp"), 0.2702, places=4)
-        s = a.get("vs_spy_sentence") or ""
-        self.assertIn("+3.7202", s)
-        self.assertIn("+0.2702", s)
-        self.assertIn("rather than averaged", s)
+        self.assertIsNotNone(a.get("vs_all_cap_ew_pp"))
+        self.assertFalse(a.get("vs_all_cap_ew_shown_on_the_tab"))
+        keys = {l.get("key") for l in M.card()["lines"]}
+        self.assertNotIn("vs_all_cap_ew", keys)
 
-    def test_the_own_tier_halves_are_shown_as_stable(self):
+    def test_the_dropped_leg_carries_its_explanation(self):
+        from valuation.screener import index_book_measured as M
+        note = (self._alpha().get("vs_all_cap_ew_note") or "").replace("\u2212", "-")
+        for want in ("%.4f" % M.ALPHA_VS_ALL_CAP_EW_PP,
+                     "%.4f" % M.ALPHA_VS_ALL_CAP_EW_PUBLISHED_PP,
+                     "%.4f" % M.ALL_CAP_EW_PUBLISHED_PCT):
+            self.assertIn(want, note, "the explanation omits %s" % want)
+        self.assertIn("BENCHMARK FALLING", note)
+
+    def test_the_halves_are_reported_as_NOT_restated(self):
+        """`V6`'s rule: an absent measurement and a null must not read the same. The corrected
+        halves are in r1's artifact and in no tracked record, so they are named as absent and
+        the PUBLISHED halves are labelled as the previous panel's."""
         a = self._alpha()
-        self.assertAlmostEqual(a.get("vs_own_tier_early_pp"), 4.0615, places=4)
-        self.assertAlmostEqual(a.get("vs_own_tier_late_pp"), 4.1746, places=4)
-        self.assertIn("stable", a.get("both_sentence") or "")
+        self.assertIsNone(a.get("vs_spy_early_pp"),
+                          "a half-sample figure is published with no record to pin it")
+        note = a.get("halves_not_restated") or ""
+        self.assertIn("NOT restated", note)
+        self.assertIn("2,531-name", note)
+        self.assertIn("may not be quoted", note)
+
+    def test_the_spec_and_the_payload_agree_about_which_legs_are_shown(self):
+        """The spec is the document; the payload is what ships. They must not disagree about
+        which comparison a reader sees."""
+        spec = _read(SPEC).replace("\u2212", "-")
+        self.assertIn("off the tab", spec.lower())
+        self.assertIn("5.9288", spec, "the spec drops the figure instead of explaining it")
 
 
 class TheIndexIsARothProduct(unittest.TestCase):
@@ -718,12 +832,24 @@ class TheIndexIsARothProduct(unittest.TestCase):
     def test_the_taxable_leg_says_it_lands_BELOW_spy(self):
         """The cost of transparency. A reader must not have to difference two fields to find
         that the after-tax book underperforms the benchmark the site quotes."""
+        from valuation.screener import index_book_measured as M
+        # ITEM 47: THE SENTENCE NO LONGER QUOTES A LEVEL DIFFERENCE, and that is a repair.
+        # It read "3.03 pp below SPY", which needs the taxable level minus SPY's -- and the
+        # two legs come from different cost paths (the lot engine's 18.0169% and the study's
+        # 18.0403%), so differencing them puts a ~0.02pp error into an implied SPY level
+        # nobody measured. The same warning is EXACT from the pinned legs: the tax bill is
+        # larger than the whole margin over SPY. So the property asserted is the WARNING,
+        # which is what a reader needs, rather than a third number.
         t = self._served()["taxable"]
-        self.assertAlmostEqual(t.get("vs_spy_pp"), -3.03, places=2)
         s = t.get("below_spy_sentence") or ""
         self.assertIn("BELOW SPY", s)
-        self.assertIn("3.03", s)
+        self.assertIn("%.4f" % M.TAX_COST_PP, s)
+        self.assertIn("%.4f" % M.ALPHA_VS_SPY_PP, s)
+        self.assertIn("LARGER THAN", s, "the sentence states the gap without stating why it "
+                                        "means the book lands below SPY")
         self.assertIn("short-term", s)
+        # NON-VACUOUS: the warning is only true while the tax bill exceeds the margin.
+        self.assertGreater(M.TAX_COST_PP, M.ALPHA_VS_SPY_PP)
 
     def test_the_tax_cost_is_a_clean_difference_on_ONE_lot_path(self):
         from valuation.screener import index_book_measured as M
@@ -754,9 +880,12 @@ class TheIndexIsARothProduct(unittest.TestCase):
 
     def test_the_spec_describes_the_served_measurement(self):
         spec = _read(os.path.join(REPO, "PRODUCT_SPEC.md"))
+        from valuation.screener import index_book_measured as M
         self.assertIn("INDEX-BOOK", spec)
-        self.assertIn("17.1619", spec)
-        self.assertIn("12.2033", spec)
+        # ITEM 47: read from the module rather than typed, so the spec and the one authority
+        # for these figures cannot drift. The published literals were 17.1619 / 12.2033.
+        self.assertIn("%.4f" % M.SERVED_ROTH_PCT, spec)
+        self.assertIn("%.4f" % M.SERVED_TAXABLE_PCT, spec)
         self.assertIn("Roth", spec)
 
 

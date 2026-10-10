@@ -204,13 +204,27 @@
         different and weaker kind of evidence.
       </div>
       {% if track.backtested %}
+      {# ITEM 47 / DON 2026-10-10. THE LABEL NAMES THE BENCHMARK, because the number
+         changed its subject: it used to be the excess over the all-cap equal-weighted
+         universe, and on the corrected universe that comparison jumps -0.06pp ->
+         +5.93pp MOSTLY BECAUSE THE BENCHMARK FELL (17.24% -> 12.11%/yr). The all-cap
+         leg is off the tab by Don's ruling and this tile now shows the like-for-like
+         comparison a visitor can act on: the Valquo Index against SPY. The benchmark
+         string comes from the SERVER (`net_alpha_benchmark`), so this template words
+         none of it. #}
       <div class="kpi">
-        <div><div class="lbl">Backtested net alpha</div>
+        <div><div class="lbl">Valquo Index, backtested excess vs
+            {{ track.backtested.net_alpha_benchmark or "SPY" }}</div>
           <div class="n">{{ "%+.1f"|format(track.backtested.net_alpha * 100) }}%/yr</div></div>
         {% if track.backtested.net_sharpe is not none %}
         <div><div class="lbl">Net Sharpe</div><div class="n">{{ "%.2f"|format(track.backtested.net_sharpe) }}</div></div>
         {% endif %}
       </div>
+      {% if track.backtested.disjoint_panels_caveat %}
+      <div class="muted" style="font-size:12px;margin-top:6px">
+        {{ track.backtested.disjoint_panels_caveat }}
+      </div>
+      {% endif %}
       {% endif %}
     {% endif %}
     <div style="margin-top:10px"><a href="/app#index">See the holdings and the full chart →</a></div>

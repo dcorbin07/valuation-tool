@@ -517,7 +517,14 @@ def test_recap_prints_the_tracked_pnl_rather_than_recomputing_it():
 
 
 def test_recap_falls_back_to_the_stored_premiums_when_the_trade_was_never_scored():
-    """A closed row with no matching scored alert must appear, not vanish from the book."""
+    """A closed row with no matching scored alert must appear, not vanish from the book.
+
+    THE FIXTURE STAMPS ON THE SESSION CLOCK, NOT THE CALENDAR (item 47). `collect` selects the
+    daily rows with an EXACT match on its own day, and once that day became the trading SESSION
+    -- which is what `post` had always passed it -- a fixture stamped `date.today()` on a
+    SATURDAY wrote a row belonging to no session and this test failed on the weekend only. The
+    property under test is the premium fallback; it must not be able to fail on a Saturday.
+    """
     st = _store()
     PT.ensure_schema(st)
     with st._conn() as c:
@@ -526,7 +533,8 @@ def test_recap_falls_back_to_the_stored_premiums_when_the_trade_was_never_scored
              exit_premium, exit_ts, exit_reason, created_at)
             VALUES (9001,'ZZZ','ZZZ260101C00010000','2026-01-01',1,'closed',2.0,3.0,?,
                     'target',?)""",
-                  (dt.date.today().isoformat() + "T16:05:00", dt.date.today().isoformat()))
+                  (PT._session_today().isoformat() + "T16:05:00",
+                   PT._session_today().isoformat()))
     text = RC.build(st, kind="daily")
     assert "ZZZ" in text and "+50.0%" in text, text
 

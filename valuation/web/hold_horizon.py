@@ -5,9 +5,14 @@ WHY THIS MODULE EXISTS
 Extension **S22** (`PREREG_s22_term_structure.md`, committed alone at `6b187dd` before
 `scripts/term_structure.py` existed; results in `HANDOFF_edge_audit.md` session 18) asked what
 the composite predicts as the forward window lengthens from one quarter to two years. The
-answer was **CONSTANT-RATE**: annualized top-decile alpha is essentially flat from three months
-to two years, and the alpha is well measured at every horizon (alpha HAC t never below 3.16,
-and 3.83 at two years).
+answer was **CONSTANT-RATE** on the 2,531-name panel: annualized top-decile alpha essentially
+flat from three months to two years.
+
+**RESTATED 2026-10-10 ON THE CORRECTED 9,645-NAME UNIVERSE, AND THE SHAPE CHANGED CLASS TO
+`INTERMEDIATE`.** The alpha is still positive and still separable at every one of the eight
+horizons (alpha HAC t never below 3.02, and 3.38 at two years), and it is no longer flat: it
+decays from 6.07% annualized at one quarter to 2.56% at two years. The two panels share ZERO
+rebalance dates, so this moved under a universe change and a grid change at once.
 
 That is a genuinely good result, and a good result is exactly when a product surface is most
 likely to overstate. So the handoff did not leave the wording to a page: its §6 registers **one
@@ -61,18 +66,42 @@ from __future__ import annotations
 # --- provenance ------------------------------------------------------------------------
 SOURCE = "HANDOFF_edge_audit.md"
 REGISTER = "PREREG_s22_term_structure.md"
-VERDICT = "CONSTANT-RATE"
+
+#: RESTATED 2026-10-10 BY THE CANONICAL MOVE, AND THE VERDICT ITSELF CHANGED CLASS.
+#:
+#: On the 2,531-name panel S22's registered shape was **CONSTANT-RATE** (R_8 = 6.195):
+#: annualized alpha essentially flat from three months to two years. Re-measured on the
+#: corrected 9,645-name panel the shape is **INTERMEDIATE** (R_8 = 3.372) -- the alpha is
+#: still positive at every horizon and it is no longer flat: it decays to roughly two fifths
+#: of its one-quarter rate by two years.
+#:
+#: THE SENTENCE BELOW THEREFORE CHANGED ITS MEANING AND NOT ONLY ITS DIGITS, which is why it
+#: is restated rather than having two numbers swapped inside it. "Still ahead by about 5.1%"
+#: described a flat curve; "about 2.6%" describes a decaying one, and a reader who is told the
+#: first about a panel that measured the second has been misled about the shape even though
+#: both figures are positive.
+VERDICT = "INTERMEDIATE"
+VERDICT_PUBLISHED_2531_PANEL = "CONSTANT-RATE"
+R8_SHAPE_STATISTIC = 3.372278505288152
+R8_SHAPE_STATISTIC_PUBLISHED = 6.194976482813532
 
 #: Horizons scored, in quarters: 63d through 504d.
 HORIZON_QUARTERS = 8
 
-#: The panel every figure here comes from — corrected 2,531 names / 69 rebalance dates.
-PANEL_NAMES = 2531
+#: The panel every figure here comes from — the corrected 9,645-name raw universe over 69
+#: rebalance dates. The previous panel held 2,531 names, and the two share ZERO rebalance
+#: dates: the grid is derived from the universe's own trading calendar, so widening the
+#: universe shifts every date.
+PANEL_NAMES = 9645
 PANEL_DATES = 69
+PANEL_NAMES_PUBLISHED = 2531
+PANEL_SHARED_DATES = 0
 
 #: Annualized top-decile alpha at the two horizons the sentence names (percent).
-ALPHA_ANN_FIRST_QUARTER = 6.6
-ALPHA_ANN_TWO_YEARS = 5.1
+ALPHA_ANN_FIRST_QUARTER = 6.07
+ALPHA_ANN_TWO_YEARS = 2.56
+ALPHA_ANN_FIRST_QUARTER_PUBLISHED = 6.6
+ALPHA_ANN_TWO_YEARS_PUBLISHED = 5.1
 
 #: Share of top-decile spells lasting exactly one rebalance, and one-period retention.
 ONE_REBALANCE_SHARE = 0.706
@@ -80,19 +109,52 @@ ONE_PERIOD_RETENTION = 0.366
 
 #: Median per-date rank IC at 63d and at 504d — the independent route to the same finding,
 #: never touching the decile machinery. Methodology only; too technical for a name row.
-RANK_IC_FIRST_QUARTER = 0.0336
-RANK_IC_TWO_YEARS = 0.0655
+RANK_IC_FIRST_QUARTER = 0.0594
+RANK_IC_TWO_YEARS = 0.1017
+#: The published pair, kept so the restatement is legible. The CLAIM they support -- that the
+#: two-year rank IC exceeds the one-quarter one -- SURVIVES on the corrected panel, and it
+#: survives by a wider margin (0.0594 -> 0.1017 against 0.0336 -> 0.0655).
+RANK_IC_FIRST_QUARTER_PUBLISHED = 0.0336
+RANK_IC_TWO_YEARS_PUBLISHED = 0.0655
 
 # --- the registered sentence (verbatim from SOURCE §6) -----------------------------------
 
 #: `HANDOFF_edge_audit.md` session 18 §6 calls this "the defensible product sentence" and
 #: registers it as the ONE claim derivable with no extrapolation. Do not tidy or shorten it.
-DEFENSIBLE = (
+#: THE SENTENCE AS THE HANDOFF REGISTERED IT, verbatim, for the 2,531-name panel. KEPT, and
+#: still pinned against `HANDOFF_edge_audit.md` by test, because it is the register and a
+#: product surface may not reword it.
+DEFENSIBLE_REGISTERED = (
     "In the backtest, the top decile of the hot list beat the equal-weighted universe by about "
     "6.6% annualized over the next three months — and was still ahead by about 5.1% annualized "
     "two years later — even though a given name typically stays in the top decile for only one "
     "quarterly rebalance."
 )
+
+#: THE SENTENCE THE PRODUCT SHIPS, DERIVED FROM THE REGISTERED ONE BY SUBSTITUTION AND NOT
+#: REWRITTEN (item 47, the canonical move).
+#:
+#: The register is the edge lane's file and this lane does not edit it, so the corrected
+#: sentence cannot be registered here. What it CAN be is provably descended from the one that
+#: was: the two published figures are replaced by the two corrected constants, and one clause
+#: is appended because the SHAPE changed class (`CONSTANT-RATE` -> `INTERMEDIATE`) and "still
+#: ahead by about 2.6%" inside a sentence written for a flat curve would understate what moved.
+#:
+#: `tests/test_hold_horizon.py` asserts the descent rather than the wording: the registered
+#: sentence is verbatim in the handoff, and this one is exactly that sentence with those two
+#: substitutions and that one clause. So the product copy is still not independently editable,
+#: which is the property the verbatim pin existed for.
+#:
+#: NOT DONE, and named: r1's lane owns `HANDOFF_edge_audit.md`, so the corrected sentence is
+#: not registered there. Until it is, the register's own figures are the previous panel's.
+_SHAPE_CLAUSE = (", a lower rate rather than the same one — the decay is why this panel's "
+                 "shape is INTERMEDIATE where the previous one measured CONSTANT-RATE")
+DEFENSIBLE = (DEFENSIBLE_REGISTERED
+              .replace("about 6.6% annualized",
+                       "about %.2f%% annualized" % ALPHA_ANN_FIRST_QUARTER)
+              .replace("about 5.1% annualized two years later",
+                       "about %.2f%% annualized two years later%s"
+                       % (ALPHA_ANN_TWO_YEARS, _SHAPE_CLAUSE)))
 
 #: The half that belongs on an individual name: a limit, not a figure. An exact substring of
 #: DEFENSIBLE by design, so a name row cannot state a softer version than the legend.
@@ -202,6 +264,17 @@ def for_template() -> dict:
         "band_scope": BAND_SCOPE,
         "horizon_quarters": HORIZON_QUARTERS,
         "rank_ic": {"first_quarter": RANK_IC_FIRST_QUARTER, "two_years": RANK_IC_TWO_YEARS},
+        # ITEM 47: the panel size and the two alpha figures reach the template so
+        # `/methodology` can state them without typing a figure of its own. The PUBLISHED
+        # panel size travels too, because the correction is only legible beside what it
+        # replaced -- the page says the universe widened and the headline fell.
+        "panel_names": PANEL_NAMES,
+        "panel_dates": PANEL_DATES,
+        "panel_names_published": PANEL_NAMES_PUBLISHED,
+        "panel_shared_dates": PANEL_SHARED_DATES,
+        "alpha_ann": {"first_quarter": ALPHA_ANN_FIRST_QUARTER,
+                      "two_years": ALPHA_ANN_TWO_YEARS},
+        "verdict_published": VERDICT_PUBLISHED_2531_PANEL,
         "tenure": {"one_rebalance_share": ONE_REBALANCE_SHARE,
                    "one_period_retention": ONE_PERIOD_RETENTION},
         "source": SOURCE,

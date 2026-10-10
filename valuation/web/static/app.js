@@ -2844,17 +2844,26 @@ function _renderIndexTrack(d) {
     ${bc.spmo_available ? `<div class="muted" style="font-size:11px;margin-top:6px">${esc(bc.partial_note)}</div>` : ""}
     ${bc.tax_note ? `<div class="muted" style="font-size:11px;margin-top:6px">${esc(bc.tax_note)}</div>` : ""}
     ${bc.halves_note ? `<div class="muted" style="font-size:11px;margin-top:4px">${esc(bc.halves_note)}</div>` : ""}
+    ${bc.all_cap_note ? `<div class="muted" style="font-size:11px;margin-top:4px">${esc(bc.all_cap_note)}</div>` : ""}
+    ${bc.disjoint_panels_caveat ? `<div class="muted" style="font-size:11px;margin-top:4px">${esc(bc.disjoint_panels_caveat)}</div>` : ""}
     <div class="muted" style="font-size:11px;margin-top:6px">${esc(bc.caption)}</div>
     <div class="muted" style="font-size:11px;margin-top:4px">${esc(bc.basis_note)}</div>
     ${bc.band_note ? `<div class="muted" style="font-size:11px;margin-top:4px">${esc(bc.band_note)}</div>` : ""}`
     : `<div class="metricline" style="margin-top:8px">
-      ${metric("Excess / yr vs the equal-weighted universe", btAlpha == null ? "—" : spct(btAlpha))}
+      ${/* ITEM 47: THE LABEL COMES FROM THE SERVER, because the number changed its subject.
+            `bt.net_alpha` used to be the excess over the all-cap equal-weighted universe and
+            is now the excess over SPY (Don, 2026-10-10 — the all-cap comparison moved mostly
+            because the BENCHMARK fell, not because the book improved). A label typed here
+            would have kept naming the old benchmark beside the new figure, which is worse
+            than either number alone. */ ""}
+      ${metric("Excess / yr vs " + (bt.net_alpha_benchmark || "the benchmark the server names"), btAlpha == null ? "—" : spct(btAlpha))}
       ${metric("Sharpe", btSharpe == null ? "—" : num(btSharpe, 2))}
       ${metric("Turnover / yr", bt.annual_turnover == null ? "—" : num(bt.annual_turnover, 2) + "x")}
     </div>
     <div class="muted" style="font-size:11px;margin-top:6px">${esc(bt.basis || "")}. Hypothetical —
-      the model was tuned on this same history. That excess is measured against an
-      equal-weighted universe that pays no trading cost, not against an index you can buy.</div>`;
+      the model was tuned on this same history.</div>
+    ${bt.disjoint_panels_caveat ? `<div class="muted" style="font-size:11px;margin-top:4px">${esc(bt.disjoint_panels_caveat)}</div>` : ""}
+    ${bt.all_cap_leg_note ? `<div class="muted" style="font-size:11px;margin-top:4px">${esc(bt.all_cap_leg_note)}</div>` : ""}`;
 
   // LA8 — supplied by the server (index_track.track_age) rather than derived here, so the card,
   // the hero band, the landing page and the server's own note cannot disagree about how old
