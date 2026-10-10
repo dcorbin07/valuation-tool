@@ -11070,3 +11070,208 @@ the first time the general case occurs, and it goes red against correct code** �
 that passes standalone is not diagnosed** — this record's own rule — and here the diagnosis is
 concurrency of my own making rather than a defect in that suite. The final gate was re-run with
 nothing else in flight.
+
+
+---
+
+## 82. DIP-CALL-3 — **THE DRIFT IS NOT THERE IN 1999-2008; IT IS NEGATIVE, AND THE FAITHFUL REPLICATION NEVER RAN BECAUSE `K1` REFUSED IT** (2026-10-10)
+
+`PREREG_dipcall3.md` committed **ALONE at `4d50597`** (markdown only, 358 lines, zero `.py`, a
+strict ancestor of every measurement commit); **4 equity trials booked at `6c40cb4` BEFORE any
+runner existed**, equity `N` **293 -> 297**, hurdle **3.3745317123425287** DERIVED at run time and
+never typed into the register (`MA5`, `MA37`, `MB32`). Executes **lead 1** of the Frontier Scout's
+`PREREG_DRAFT_dipcall3.md` (`7cb4657`); **lead 2 stays closed**. **ADOPTS NOTHING, no step 2, no
+options trial, no real trade.** `DECISIONS.md` 2026-10-08 authorises the program; `O11` governs.
+
+* **THE HEADLINE IS A REJECTION AND THE SHAPE OF IT IS THE FINDING. On the governing point-in-time
+  $10B tier the slow drift after a sharp drop is NEGATIVE at both horizons under both
+  abnormal-return definitions** — h63 own **-0.8020pp** (date-clustered *t* **-0.935**,
+  name-clustered **-2.549**) and market **-0.4320pp** (**-1.216**, **-1.557**); h126 own
+  **-1.5080pp** (**-1.157**, **-2.669**) and market **-0.2966pp** (**-0.723**, **-0.678**).
+  **The FIRST pass condition — a positive point estimate — fails, so all six fail with it**, and
+  two-sided *p* **0.349893** / **0.247367** survive BH at neither rank (q = 0.10, `k` = 4).
+* **THE FAITHFUL OUT-OF-SAMPLE REPLICATION OF `DIP-CALL-2`'s NO-NEWS ARM DID NOT RUN, AND THAT IS
+  THE SENTENCE A READER MOST NEEDS.** `K1` **REFUSED both no-news cells** on the code-22-covered
+  subset — h63 effective *n* **1,426.9** against a bar of **2,896.5** (design effect 2.1824, null
+  p95 1.6828), h126 **1,190.6** against **2,701.1** (2.0789, 1.5642). **Those cells are UNTESTED
+  rather than null and carry no number in either direction.** The two cells that DID run are the
+  **POOLED, news-agnostic** ones on the full era, which §B2 declares a **different object**, and
+  §5's void condition 3 forbids quoting either as a statement about the other. **`K1` is a
+  PER-CELL refusal and is enforced mechanically**: the arm reads the kill pass's own
+  `cells_cleared_for_the_arm` list, and a refused cell gets a `NOT RUN` verdict row rather than
+  being absent.
+* **A DEFECT IN MY OWN REGISTER, DECLARED RATHER THAN RESOLVED QUIETLY.** §3's `K1` bullet makes
+  the refusal **PER-CELL** (*"THE ARM REFUSES on any cell whose effective n falls below max(1865,
+  …)"*) and §4 says a cell that cannot be built **is NOT RUN and `k` STAYS 4** — while §3's
+  closing sentence is inherited boilerplate reading *"A kill firing stops the program at zero
+  further trials."* **Those two cannot both govern.** I took the specific per-cell provision as
+  controlling, because §4 presupposes it and a program-level reading would make the per-cell
+  wording dead letter. **It is a real ambiguity in a pre-committed document and a stricter reader
+  could have stopped at zero cells**; the direction it runs matters and is stated: proceeding
+  **spent** two of the four booked trials on a measurement, so the error runs toward **more**
+  scrutiny rather than less, and the verdict is a rejection either way. **The portable part: a
+  register that adds a per-cell refusal must DELETE the program-level sentence it replaces, not
+  sit beside it.** `MB31`'s shape — a clause asserting one thing while another clause asserts the
+  opposite about the same event.
+* **A DEFECT IN MY OWN ARM, CAUGHT BY MY OWN TEST ON ITS FIRST RUN.** The verdict loop iterated
+  the POOLED labels only, so **the two refused cells were silently ABSENT from `verdicts`** rather
+  than recorded as NOT RUN — `DIP-CALL-2`'s `C2` failure in a new costume (*"an absent arm reads
+  as a design that never had one"*), and here the absent cells were precisely the replication, so
+  it would have been the most misleading omission in the file. Repaired to iterate **every
+  registered cell**; **proved additive, not corrective: every verdict cell and both BH *p* values
+  are bit-identical across the fix** (0.349893 / 0.247367), only the two `NOT RUN` rows appearing.
+* **`B1` WAS DECISIVE RATHER THAN COSMETIC, AND IT IS A PREMISE CORRECTION TO THE DRAFT.** The
+  draft's news split assumed earnings coverage across the era; measured on the shipped
+  `data/bulk/events.csv`, **code 22 carries 385,426 rows whose FIRST is 2004-08-23 and ZERO in
+  1998-2003.** `A1b`'s fail-closed rule is **NAME-level** and does not catch a name with coverage
+  in one decade and none in another, so without the era gate **every pre-2004 event would have
+  read NO-NEWS because the SOURCE is silent, not because the company was** — **34.62% of this
+  era's tier events**, 5,987 rows re-labelled UNKNOWN BY ERA. Covered-subset coverage **0.8631**
+  against the 0.70 floor. The gate is **INERT when `news_lo is None`**, which is the build era's
+  case, so `DIP-CALL-2`'s landed classification is bit-identical and this register cannot have
+  moved a published number — pinned in both directions with a positive control.
+* **A SECOND PREMISE CORRECTION, AND IT RAISED MY OWN BAR.** The draft's `K1` threshold of
+  **5,274** paired a **market-adjusted** effect with an **own-normal** anchor SD. Correctly paired
+  the binding requirement is **1,865**, which is LOWER — so `B3` committed the bar as
+  **`max(1865, required_n re-derived from THIS era's own measured dispersion)`**, which can only
+  ever raise it. It did: this era's measured dispersion is **14.272pp at h63 and 20.183pp at
+  h126**, taking the bars to **2,896.5** and **2,701.1**. **Flagged in the register as running in
+  the permissive direction before any outcome existed**, which is the only time such a flag is
+  worth anything.
+* **`DC-1`'s BOTH-DEFINITIONS RULE IS LOAD-BEARING HERE AND EARNED ITS KEEP TWICE OVER.** The
+  halves **DISAGREE IN SIGN on own-normal at both horizons** (h63 early **+3.5251pp** at *t*
+  **+2.284**, late **-2.7454pp** at **-2.945**; h126 early **+4.6925pp**, late **-4.6145pp** at
+  **-4.276**) **and in the OPPOSITE direction on market-adjusted at h126** (early -1.3807pp, late
+  +0.2465pp). **So the two definitions disagree about WHICH HALF worked**, and quoting one alone
+  would have told the opposite story about the era. Both ship; quoting one is a void condition.
+* **AND THE REASON THEY DISAGREE IS AN IDENTITY, MEASURED ON THE ARM'S OWN ROWS — `C4`, AND IT
+  REVERSES THE BUILD ERA'S SIGN.** `own - mkt = r_market(window) - h * mu_prior(name)`. Over
+  1999-2008 the market's own window return is **+0.2131pp at h63 (+0.85%/yr)** against the dipped
+  names' **+0.5542pp** of trailing drift, so the implied gap is **-0.3411pp** (h126: +2.1903
+  against +3.6092, **-1.4189pp**) — reconciling the observed own-minus-market gap to about
+  **0.03pp**. **In `DIP-CALL-2`'s 2009-2019 build era the market term was the LARGER one and the
+  own-normal leg credited the strategy with a decade-long bull market; here it does the opposite
+  and own-normal is the HARDER benchmark.** Any cross-era comparison of own-normal numbers needs
+  that sentence first.
+* **THE FULL UNIVERSE POINTS THE OTHER WAY AND CARRIES NO VERDICT — said plainly because it is
+  the number most likely to be misquoted out of this file.** As a REPORTED SURFACE (the register
+  makes the **tier** governing) the 8,474-name panel reads h63 own **+2.1561pp** / market
+  **+1.5091pp** and h126 own **+5.7481pp** / market **+4.2711pp**. **Two things stop that being a
+  finding.** First, the register's own population. Second, **its own within-date permutation null
+  is nearly as large**: at h126 the market reading **+4.2711 FAILS its own p95 of +4.5665**, so a
+  random name-day in the same date mix earns essentially the same, and at h63 the market reading
+  clears **+1.4999 by 0.0092pp** — a knife edge. **Third, and it decides whether it is even this
+  program's object: the full universe in 1999-2008 is dominated by names with no options market
+  at all**, so a drift there could not be expressed as a call however real it was. A claim on it
+  needs its own register, its own trials and its own population.
+* **ONE HALF-CELL IS STRONGLY SIGNIFICANT AND IT POINTS AGAINST THE HYPOTHESIS.**
+  `tier|pooled|h126|late` reads own-normal **-4.6145pp at date-clustered *t* -4.276** over
+  2004-2008 — a large-cap name that dropped sharply **UNDERPERFORMED its own trailing drift by
+  4.6pp over the next six months**. **No verdict is taken on it**: it is one of eight half-cells,
+  the sign was not declared for halves, and the window contains the GFC. Reported as a direction
+  because a reader would otherwise find it.
+* **FIVE CONTROLS, THREE BLOCKING, ALL PASS.** `C1` the era's cap-weighted market correlates
+  **0.9682** with SPY over 2,493 shared sessions (bar 0.90) at **+1.67%/yr against SPY's
+  -1.47%/yr** — the LEVEL is expected to be poor over an era holding the dot-com unwind and the
+  GFC, so the correlation is the check; `C2` the abnormal returns **re-derive BY HAND on 37 named
+  cells at h63 at max |dev| 0.000e+00 (own) and 1.533e-15 (market)**, by arithmetic that is not
+  how the arm computes them, so an agreement is two routes meeting rather than one repeated; `C3`
+  every permutation null brackets its own mean on all 8 scored cells; `C4` above; `C5` the
+  disclosure below. **And the arm is bit-identical on re-run: 676 leaves, ZERO moved.**
+* **`C5` — THE $10B FLOOR IS NOMINAL AND THIS ERA IS EARLIER, WHICH IS A SCOPE DISCLOSURE AND NOT
+  A DEFECT.** The floor was kept at $10B for comparability with `DIP-CALL` and `DIP-CALL-2` rather
+  than deflated, because changing it would change the object — but on US CPI a 1999 dollar is
+  worth roughly **1.5** of a 2019 one, so the same number selects a **LARGER** slice of the
+  market. Measured: **144 / 215 / 400** tier names per date (min/median/max) over 2,515 dates of
+  an 8,474-name panel, tier median market cap **$20.9bn**. **Read every tier figure here as
+  "companies above $10bn of NOMINAL market cap at the time", never as "the same companies
+  `DIP-CALL-2` looked at".**
+* **COVERAGE AND CENSORING, MEASURED FIRST.** 673 names ever in the era's tier, **518 with a price
+  file (76.97%), 155 MISSING and COUNTED** rather than read as zero; 1,215,512 scoreable name-days
+  (tier 629,347); 14,512 events (tier 8,232) over 2,106 sessions; median trailing daily sd
+  **0.017981**. **`K0` clears**: zero dates below the 50-name floor. **Disclosed in `B4`**: the
+  tier source panel ends **2008-07-10**, so **1,394 H2-2008 tier events sit on the July cap**.
+  `A11`/`E-5`'s censoring split is counted both ways.
+* **`K3` CONFIRMS IT IS NOT A VOLATILITY SORT, with the same inverse gradient `DIP-CALL-2` found.**
+  Event rates by trailing-volatility quintile run **0.018123 -> 0.009452** (the LEAST volatile
+  quintile throws the MOST events, because a fixed sigma multiple is easier to cross when sigma is
+  small), median event-day move **-3.729% -> -9.883%**, top/bottom ratio **0.5216** against the
+  3.0 bar and mean |rho| **0.068005** against 0.30.
+* **WHAT A PASS WOULD HAVE BEEN WORTH, because `DECISIONS.md` asks for the decision number.**
+  `B11` pre-committed **+1.79%/yr (h63) and +1.93%/yr (h126) gross, +0.90% and +0.96% at the
+  charter's McLean-Pontiff half size** — alpha against the market, not total return. **Measured,
+  the sign makes the cost question moot**: net of the +0.67pp round-trip floor the two cells read
+  **-5.89% and -4.36%/yr** on own-normal and **-4.41% and -1.93%** on market-adjusted, halving to
+  **-2.94% / -2.18%** and **-2.20% / -0.97%**. **Costs never enter: the gross drift is negative.**
+* **EXPECTATIONS, SCORED.** (1) *`K1` refuses at least one cell, 60/40, and the no-news
+  covered-subset cells are the ones at risk* — **RIGHT, both of them.** (2) *this era's measured
+  dispersion exceeds 2009-2019's* — **RIGHT on the same trailing basis (14.272pp against
+  `DIP-CALL-2`'s 11.667pp at h63)**, and the nuance belongs with it: at h63/h126 the era sd sits
+  **between** `DIP-CALL-2`'s market-adjusted and own-normal figures, so it is not a clean
+  one-sided confirmation. (3) *a pass is unlikely and would be FIRST evidence only* — **the
+  direction is right and the magnitude is not: I did not price the drift coming back NEGATIVE on
+  all four readings.**
+* **NOT DONE, named so it is not mistaken for done: NO STEP 2, NO OPTION ARM, NO OPTIONS TRIAL**
+  (`B9`, shares only — the draft's own arithmetic shows a call cannot capture a ~1pp drift against
+  a 12-20pp implied move, and a source-level test bans every options primitive from this
+  register's scripts); **the NO-NEWS cells are UNTESTED, not null**; **the news arm on the covered
+  subset is a SENSITIVITY with no verdict** (761 / 644 events); **h5 and h21 carry no verdict here**
+  (sensitivity horizons, no permutation run); **the check quadrant is NOT opened** and nothing in
+  this register reads 2020-2026; **`DIP-CALL-2` is NOT re-opened or weakened** — its 2009-2019
+  bounce stands exactly as measured, and a negative long-horizon drift in a different era on a
+  different population is not evidence against a 5-to-21-session bounce; **`POOL-SIZE` already
+  read 1999-2008 once for pool width, so this is not a virgin era**, and after this read **the era
+  is spent for DIP-CALL**; **lead 2 remains closed**; and **the full-universe surface carries no
+  claim**. **60 tests (46 running, 14 skipping LOUDLY without licensed data), zero errors.**
+  `scripts/dipcall3_kills.py`, `dipcall3_arm.py`, `dipcall3_controls.py`;
+  `valuation/studies/dipcall.py` (`ERAS`, `era`, `tier_schedule_era`, `apply_news_era_gate`,
+  `CODE22_FIRST`); `data/free_analysis/DIPCALL3_KILLS.json`, `DIPCALL3_EVENTS.pkl`,
+  `DIPCALL3_ARM.json`, `DIPCALL3_CONTROLS.json`.
+
+### BUGS FOUND — DIP-CALL-3
+
+1. **`PREREG_dipcall3.md` §3 CARRIES TWO INCOMPATIBLE KILL SCOPES** — a per-cell `K1` refusal and
+   an inherited program-level *"a kill firing stops the program at zero further trials"*. Mine,
+   declared not resolved away; see the bullet above. **The fix for a successor: delete the
+   sentence you are replacing.**
+2. **`scripts/dipcall3_arm.py` dropped the refused cells from `verdicts`** rather than recording
+   them NOT RUN. Mine, caught by `tests/test_dipcall.py::Dipcall3`, repaired, and proved additive
+   by diff.
+3. **The draft's `K1` threshold mixed an abnormal-return definition with an anchor SD** (5,274
+   against a correctly-paired 1,865). Reported to the scout lane rather than edited into the
+   draft; the register's `max()` form means the correction could only raise this item's own bar.
+4. **`tests/test_paper_track.py`'s HEALTH-NOTE FIXTURES HAD ROTTED ON THE CLOCK AND WERE BLOCKING
+   EVERY LANE'S LAND — NOT MINE, BUT REPAIRED HERE BECAUSE THE LAND GATE RUNS EVERY SUITE AND
+   MERGES ONLY IF ALL PASS.** Three tests failed and the suite read **73/76**. **Proved
+   pre-existing rather than asserted: the untouched tree at the branch point `4e413da` was
+   exported with `git archive` and run in isolation, and it fails the IDENTICAL three tests with
+   IDENTICAL messages.** The cause is a half-pinned clock — `_clock_note` pins
+   `PT._session_today`, which `health_note` reads, and leaves `recap.collect`'s seven-day window
+   on `_dt.date.today()`. The fixtures stamp a FIXED session (`_CLK_FRI` = 2026-10-02), so the
+   gap widened by a day a day until the stamped session fell out of the window — **it rotted at
+   exactly day 8, which is today.**
+   * **AND THE ROT HAD ALREADY MADE A FOURTH TEST VACUOUS, which is the part that matters most.**
+     `test_health_note_anchors_on_the_SESSION_and_not_the_rolled_UTC_DATE` was still PASSING —
+     with an empty window on both sides, reading `0/0`, so both its readings agreed and neither
+     saw a hole. Its own docstring says *"it cannot pass vacuously"*. It could.
+   * **THE FIX IS THAT LANE'S OWN PATTERN, NOT A DESIGN CHOICE OF MINE:**
+     `test_health_note_does_not_invent_a_hole_at_the_WINDOWS_FAR_EDGE`, eighteen lines below in
+     the same file, already passes an explicit `day=` into `collect`. The repair applies that to
+     the two fixtures that omit it. **No production code changed, and no recorded figure is
+     reachable** — these tests build a temporary store from scratch.
+   * **PROVED A REPAIR RATHER THAN A SILENCING, THREE WAYS.** (a) **MUTATION**: reverting the
+     production anchor `health_note` uses (`PT._session_today()` -> `_dt.date.today()`) now makes
+     the differential test **FAIL**, where before the repair it passed — so the guard it exists
+     to be is live again; **source restored byte-for-byte and verified**. (b) **THE ALARM STILL
+     FIRES**: `test_health_note_STILL_FIRES_on_a_genuinely_missed_session` reports the real hole
+     as `1/2`, and before the repair it was the first of the three failures — **the rot had
+     silenced the alarm and the repair un-silences it**. (c) **THE DEPENDENCY IS GONE RATHER THAN
+     CURRENTLY HARMLESS**: with `recap`'s wall clock made **UNREACHABLE** (its `date.today`
+     raising), **all SIX health-note tests pass**, so none of them reads it any more.
+   * **THE PORTABLE PART, and this record already names the family twice (`MB31`, `MA19`): a
+     fixture that pins HALF a clock rots on the other half.** A test stamping a fixed date must
+     anchor every clock its subject reads, or it has a dated expiry nobody wrote down.
+   **Reported to the paper-track lane rather than claimed: the suite is theirs, the repair is two
+   lines in their own idiom, and 76/76 now pass.** `S3-I1` recorded this same suite at 69/70 and
+   correctly left it alone; the difference today is that the gate refuses a land on any failing
+   suite, so leaving it would have blocked every lane including this one.

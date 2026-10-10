@@ -1,5 +1,53 @@
 # HANDOFF STATUS - shared project state
 
+## options lane — **DIP-CALL-3: the drift is NEGATIVE in 1999-2008, and the faithful replication never ran because `K1` refused it** (2026-10-10)
+
+Executes **lead 1** of the Frontier Scout's `PREREG_DRAFT_dipcall3.md` (`7cb4657`); lead 2 stays
+closed. **Register `PREREG_dipcall3.md` committed ALONE at `4d50597`** (markdown only, 358 lines,
+zero `.py`, a strict ancestor of every measurement commit); **4 equity trials booked at `6c40cb4`
+BEFORE any runner existed**, equity `N` **293 -> 297**. **REJECTED — ADOPTS NOTHING, no step 2, no
+options trial, lead 1 CLOSED, no real trade.**
+
+- **The slow drift after a sharp drop is NEGATIVE on the governing point-in-time $10B tier at both
+  horizons under both abnormal-return definitions** — h63 own **-0.8020pp** / market **-0.4320pp**,
+  h126 own **-1.5080pp** / market **-0.2966pp**. The first pass condition (a positive point
+  estimate) fails, so all six fail with it; two-sided *p* 0.349893 / 0.247367, neither surviving
+  BH at q = 0.10, `k` = 4.
+- **THE FAITHFUL OUT-OF-SAMPLE REPLICATION OF `DIP-CALL-2`'s NO-NEWS ARM DID NOT RUN.** `K1`
+  refused both no-news cells on the code-22-covered subset (effective *n* **1,426.9** and
+  **1,190.6** against bars of **2,896.5** and **2,701.1**). **Those cells are UNTESTED rather than
+  null.** The two that ran are the POOLED, news-agnostic cells, which §B2 declares a different
+  object and §5 forbids quoting as a statement about the other.
+- **`B1` was decisive: code 22 has ZERO rows before 2004-08-23**, so without an era-level news gate
+  **34.62% of this era's tier events would have read NO-NEWS because the SOURCE is silent**.
+  `A1b`'s fail-closed rule is NAME-level and cannot see that. The gate is INERT on the build era,
+  so `DIP-CALL-2`'s landed classification is bit-identical.
+- **Two defects of my own, both declared.** (a) **The register carries two incompatible kill
+  scopes** — a per-cell `K1` and an inherited program-level stop sentence; I took the specific
+  provision as controlling and the ambiguity is a real one. **A register adding a per-cell refusal
+  must DELETE the program-level sentence it replaces.** (b) **The arm dropped the refused cells
+  from its verdicts** rather than recording them NOT RUN — `DIP-CALL-2`'s own `C2` failure, caught
+  by my own test, repaired, and proved additive (every verdict cell and both *p* bit-identical).
+- **The full universe points the OTHER way and carries NO verdict** (h126 own +5.7481pp) — it is a
+  reported surface, its market reading **fails its own permutation p95** (+4.2711 against +4.5665),
+  and in 1999-2008 it is dominated by names with no options market at all.
+- **Five controls, three blocking, all pass**; the era market correlates **0.9682** with SPY, the
+  abnormal returns re-derive by hand at max |dev| **0.000e+00**, and the arm is bit-identical on
+  re-run (676 leaves, zero moved). `HANDOFF_optionsbot.md` §82.
+- **CROSS-LANE, AND IT WAS BLOCKING EVERY LANE'S LAND:
+  `tests/test_paper_track.py`'s health-note fixtures had ROTTED ON THE CLOCK** — three tests
+  failing, suite at **73/76**, and a fourth already passing VACUOUSLY. **Proved pre-existing by
+  exporting the branch-point tree with `git archive` and running it in isolation: identical three
+  failures, identical messages.** The fixtures pin `PT._session_today` but leave
+  `recap.collect`'s seven-day window on the wall clock, and they stamp a fixed 2026-10-02 — so it
+  rotted at exactly day 8, which is today. **Repaired in that lane's own idiom** (the far-edge
+  test eighteen lines below already passes an explicit `day=` into `collect`); no production code
+  changed. **Proved a repair and not a silencing three ways: mutation makes the differential guard
+  FAIL again (source restored byte-for-byte), the missed-session alarm now fires at `1/2` where
+  the rot had silenced it, and with `recap`'s wall clock made UNREACHABLE all six health-note
+  tests pass — the dependency is gone, not merely harmless today.** 76/76. **The family this
+  record already names twice: a fixture that pins HALF a clock rots on the other half.**
+
 ## options lane — **DIP-CALL-2: the bounce is real, solid, and smaller than the cost of trading it** (2026-10-09)
 
 Successor to DIP-CALL (`PREREG_dipcall.md`, `c5e0b31`), whose program-level kill fired on the news

@@ -77,6 +77,60 @@ NEWS = "news"
 NO_NEWS = "no_news"
 UNKNOWN = "unknown"
 
+# --------------------------------------------------------------- PREREG_dipcall3.md: THE ERAS
+# `B1`: CODE 22 HAS NO ROWS BEFORE THIS DATE. Measured on the shipped `data/bulk/events.csv`:
+# 385,426 code-22 rows, the FIRST dated 2004-08-23, and ZERO in 1998-2003. `event_spine`'s own
+# `EARNINGS_CODE_LEGEND` carries the same figure, so it was knowable without a query.
+#
+# WHY THIS IS A CONSTANT RATHER THAN A FILTER NOBODY NOTICES. `A1b` fails closed on a name with no
+# coverage ANYWHERE. It does NOT catch a name that HAS coverage in one decade and none in another:
+# such a name's 1999 events would be labelled NO-NEWS for the sole reason that the source has no
+# announcements then. That is `A1b`'s own fail-open defect at the ERA level, and on 1999-2004 it
+# would fire on EVERY event.
+CODE22_FIRST = "2004-08-23"
+
+ERA_BUILD = "build"
+ERA_OOS9908 = "oos9908"
+
+ERAS = {
+    # DIP-CALL / DIP-CALL-2. Unchanged; this is the landed configuration.
+    ERA_BUILD: {
+        "lo": BUILD_LO, "hi": BUILD_HI,
+        "half_boundary": HALF_BOUNDARY,
+        "tier_panel": os.path.join("free_analysis", "UNIVERSE_BIAS_PANEL_full.pkl"),
+        "ticker_half": 0,                    # X1's build cell
+        "news_lo": None,                     # code 22 covers this era throughout
+        "horizons_primary": HORIZONS_PRIMARY,
+        "horizons_sensitivity": HORIZONS_SENSITIVITY,
+    },
+    # DIP-CALL-3. `PREREG_dipcall3.md` B4/B5/B1/B2.
+    ERA_OOS9908: {
+        "lo": "1999-01-01", "hi": "2008-12-31",
+        "half_boundary": "2004-01-01",       # 1999-2003 / 2004-2008
+        # POOL-SIZE's OWN 1999-2008 panel, built from the freeze's full raw SEP/SF1/SFP. Measured:
+        # 1998-12-31 -> 2008-07-10, 39 quarterly dates, 8,474 names, market_cap 100% non-null,
+        # $10B tier 171-423 names per date. NOT `data/backtest`, which PANEL-EXT-RECHECK measured
+        # as "the names that are biggest in 2026".
+        "tier_panel": os.path.join("free_analysis", "POOL_SIZE_OOS_PANEL.pkl"),
+        # `B5`: X1's split keeps the 2009-2019 BUILD cell disjoint from the 2020-2026 CHECK cell.
+        # RESEARCH_CHARTER section 4(b) treats the pre-2009 eras as a THIRD and separate look and
+        # does not halve them, and POOL-SIZE read the era whole. So: no half filter.
+        "ticker_half": None,
+        "news_lo": CODE22_FIRST,             # B1
+        "news_half_boundary": "2007-01-01",  # the covered subset's own split
+        "horizons_primary": (63, 126),       # the two that clear the cost floor
+        "horizons_sensitivity": (5, 21),     # the mirror image of DIP-CALL-2, declared
+    },
+}
+
+
+def era(name: str) -> dict:
+    """The era's configuration. REFUSES an unknown name rather than defaulting to one."""
+    if name not in ERAS:
+        raise SystemExit("REFUSING: unknown era %r (known: %s)"
+                         % (name, ", ".join(sorted(ERAS))))
+    return ERAS[name]
+
 # A11 — ACTIONS rows that make an end-of-series a TERMINAL value rather than an administrative
 # censor. `E-5` measured the cost of conflating them: 591 rows whose ticker stops trading inside
 # the window silently deleted 16 crashes, 5 of them flagged.
@@ -171,6 +225,53 @@ def tier_schedule(panel: Optional[pd.DataFrame] = None) -> dict:
     for t, g in d.groupby("ticker", sort=False):
         out[t] = list(zip(g["date"].tolist(), g["cap"].tolist()))
     return out
+
+
+def tier_schedule_era(era_name: str) -> tuple:
+    """`(schedule, universe)` for an era. The ONE loader both eras use.
+
+    `schedule` is `{ticker: [(panel_date, market_cap), ...]}` ascending; `universe` is the era's
+    own name list. The ticker-half filter is a property of the ERA (`B5`), not of this function,
+    so the pre-2009 era is read whole and the build era stays halved exactly as it landed.
+    """
+    cfg = era(era_name)
+    d = pd.read_pickle(os.path.join(data_root(), cfg["tier_panel"]))
+    d = d[["date", "ticker", "market_cap"]].copy()
+    d["date"] = d["date"].astype(str)
+    d["ticker"] = d["ticker"].astype(str)
+    if cfg["ticker_half"] is not None:
+        d = d[d["ticker"].map(stable_key_half) == cfg["ticker_half"]]
+    # Only observations the era could have known about.
+    d = d[d["date"] <= cfg["hi"]]
+    d["cap"] = pd.to_numeric(d["market_cap"], errors="coerce")
+    d = d.dropna(subset=["cap"]).sort_values(["ticker", "date"])
+    out = {}
+    for t, g in d.groupby("ticker", sort=False):
+        out[t] = list(zip(g["date"].tolist(), g["cap"].tolist()))
+    return out, sorted(out)
+
+
+def apply_news_era_gate(dates, ncode, news_lo, news_code, unknown_code):
+    """`B1`. An event dated before the news source's OWN first date is UNKNOWN **BY ERA**.
+
+    Returns `(ncode, n_gated)`. This is the ERA-level companion to `A1b`'s NAME-level fail-closed
+    rule, and it exists because the two miss different things: `A1b` catches a name with no
+    coverage anywhere, and this catches a name with coverage in one decade and none in another.
+    Without it every pre-2004 event reads NO-NEWS because the source is silent, not because the
+    company was.
+
+    `news_lo = None` means the source covers the era throughout and the gate is INERT -- which is
+    the build era's case, so the landed DIP-CALL-2 classification is bit-identical.
+    """
+    ncode = np.asarray(ncode).copy()
+    if news_lo is None:
+        return ncode, 0
+    before = np.array([str(d) < str(news_lo) for d in dates])
+    # Only rows that would otherwise have carried a NEWS/NO-NEWS verdict are re-labelled; a row
+    # already UNKNOWN by name stays UNKNOWN and is not double-counted.
+    hit = before & (ncode != unknown_code)
+    ncode[hit] = unknown_code
+    return ncode, int(hit.sum())
 
 
 def _tier_flags(dates, schedule_for_name) -> np.ndarray:

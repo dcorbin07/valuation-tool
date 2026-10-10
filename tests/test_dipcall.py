@@ -662,6 +662,183 @@ class Dipcall2(unittest.TestCase):
         self.assertGreater(a["censoring"]["terminal_used"], 0)
 
 
+# =============================================================================================
+# 13. DIP-CALL-3 — THE 1999-2008 ERA
+# =============================================================================================
+class Dipcall3(unittest.TestCase):
+    """`PREREG_dipcall3.md`. The load-bearing ones are `test_the_era_gate_is_NON_VACUOUS...`
+    (without `B1` every pre-2004 event reads NO-NEWS because the SOURCE is silent, which would
+    have fired on 34.62% of this era's tier events) and `test_a_REFUSED_cell_is_NOT_RUN...`
+    (`K1` refused both no-news cells, so an arm that scored them anyway would be reporting a
+    measurement the register forbids)."""
+
+    REG = "PREREG_dipcall3.md"
+
+    def test_the_register_exists_and_was_committed_ALONE_and_is_an_ANCESTOR(self):
+        self.assertTrue(os.path.isfile(os.path.join(REPO, self.REG)))
+
+        def git(*a):
+            return subprocess.run(("git",) + a, cwd=REPO, stdout=subprocess.PIPE,
+                                  stderr=subprocess.DEVNULL).stdout.decode("utf-8", "replace")
+        sha = ""
+        for line in git("log", "--format=%H", "--", self.REG).splitlines():
+            sha = line.strip()                      # the OLDEST commit touching it
+        if not sha:
+            _skip(self, "no git history for %s in this checkout" % self.REG)
+        files = [x for x in git("show", "--name-only", "--format=", sha).split() if x]
+        self.assertEqual(files, [self.REG],
+                         "the register was NOT committed alone: %s" % files)
+        self.assertTrue(all(f.endswith(".md") for f in files))
+        anc = subprocess.run(("git", "merge-base", "--is-ancestor", sha, "HEAD"), cwd=REPO,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.assertEqual(anc.returncode, 0, "the register commit is not an ancestor of HEAD")
+
+    def test_the_register_declares_the_eleven_amendments_and_the_void_conditions(self):
+        txt = _src(self.REG)
+        for a in ["### B%d" % i for i in range(1, 12)]:
+            self.assertIn(a, txt, "the register is missing amendment %s" % a)
+        self.assertIn("VOID CONDITIONS", txt)
+        self.assertIn("LABELLED UNCALIBRATED", txt)
+        # B10: the hypothesis is admittedly post-hoc, so a pass could only ever be FIRST evidence
+        self.assertIn("FIRST EVIDENCE", txt.upper())
+
+    def test_the_register_records_that_POOL_SIZE_already_read_this_era(self):
+        """The prompt's own disclosure requirement: this era is not virgin, `POOL-SIZE` read it
+        once for pool WIDTH. Recording it is what stops a successor calling this a first look."""
+        self.assertIn("POOL-SIZE", _src(self.REG))
+
+    # ------------------------------------------------------------------ B1, the era news gate
+    def test_the_era_gate_is_INERT_when_the_source_covers_the_era(self):
+        """`news_lo = None` is the build era's case, so the landed DIP-CALL-2 classification is
+        bit-identical and this register cannot have moved a published number."""
+        dates = ["1999-03-01", "2006-01-04", "2008-12-30"]
+        code = np.array([D.NEWS, D.NO_NEWS, D.NEWS], dtype=object)
+        out, n = D.apply_news_era_gate(dates, code, None, D.NEWS, D.UNKNOWN)
+        self.assertEqual(n, 0)
+        self.assertEqual(list(out), list(code))
+        self.assertIsNone(D.era(D.ERA_BUILD)["news_lo"],
+                          "the build era must keep news_lo = None or DIP-CALL-2 moves")
+
+    def test_the_era_gate_is_NON_VACUOUS_and_has_a_POSITIVE_CONTROL(self):
+        """Both directions. A gate that relabelled everything would pass the first half alone."""
+        dates = ["1999-03-01", "2004-08-22", "2004-08-23", "2007-06-01"]
+        code = np.array([D.NEWS, D.NO_NEWS, D.NO_NEWS, D.NEWS], dtype=object)
+        out, n = D.apply_news_era_gate(dates, code, D.CODE22_FIRST, D.NEWS, D.UNKNOWN)
+        self.assertEqual(n, 2, "the two rows before the source's first date must be gated")
+        self.assertEqual(out[0], D.UNKNOWN)
+        self.assertEqual(out[1], D.UNKNOWN)
+        # POSITIVE CONTROL: a row ON the first date and a row after it SURVIVE their class
+        self.assertEqual(out[2], D.NO_NEWS, "a row ON news_lo must not be gated")
+        self.assertEqual(out[3], D.NEWS, "a row after news_lo must keep its class")
+
+    def test_an_already_UNKNOWN_row_is_not_double_counted(self):
+        """`A1b`'s third state survives the era gate rather than being re-gated."""
+        out, n = D.apply_news_era_gate(["1999-03-01"], np.array([D.UNKNOWN], dtype=object),
+                                       D.CODE22_FIRST, D.NEWS, D.UNKNOWN)
+        self.assertEqual(n, 0)
+        self.assertEqual(out[0], D.UNKNOWN)
+
+    def test_CODE22_FIRST_is_the_measured_date_and_is_stated_in_the_register(self):
+        self.assertEqual(D.CODE22_FIRST, "2004-08-23")
+        self.assertIn(D.CODE22_FIRST, _src(self.REG))
+
+    # --------------------------------------------------------------------- the era definitions
+    def test_era_REFUSES_an_unknown_name(self):
+        with self.assertRaises(SystemExit):
+            D.era("no-such-era")
+
+    def test_the_era_carries_NO_ticker_half_split(self):
+        """`B5`. The charter treats a pre-2009 era as a THIRD separate look, not a half of the
+        2×2 budget, so halving the tickers here would discard half the era for nothing."""
+        self.assertIsNone(D.era(D.ERA_OOS9908)["ticker_half"])
+        self.assertEqual(D.era(D.ERA_BUILD)["ticker_half"], 0)
+        self.assertIn("### B5", _src(self.REG))
+
+    def test_the_eras_do_not_share_a_tier_panel(self):
+        self.assertNotEqual(D.era(D.ERA_BUILD)["tier_panel"],
+                            D.era(D.ERA_OOS9908)["tier_panel"])
+
+    # ---------------------------------------------------- K1 is a PER-CELL refusal, enforced
+    def test_the_arm_READS_the_cleared_cell_list_rather_than_its_own_judgement(self):
+        """Source-level, because this is the one guard between a refused cell and a reported
+        number. Read the AST rather than grepping, per `MA49`."""
+        tree = ast.parse(_src("scripts/dipcall3_arm.py"))
+        lits = {n.value for n in ast.walk(tree)
+                if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+        self.assertIn("cells_cleared_for_the_arm", lits,
+                      "the arm does not read the kill pass's cleared-cell list")
+
+    def test_a_REFUSED_cell_is_NOT_RUN_and_carries_no_mean(self):
+        p = D.out_path("DIPCALL3_ARM.json") if D.have_data() else ""
+        if not p or not os.path.isfile(p):
+            _skip(self, "DIPCALL3_ARM.json absent (data/ is gitignored)")
+        with io.open(p, encoding="utf-8") as fh:
+            a = json.load(fh)
+        refused = a["cells_refused_by_K1_and_NOT_RUN"]
+        self.assertTrue(refused, "K1 refused nothing, so this guard is vacuous here")
+        for label in refused:
+            self.assertNotIn(label, a["cells_cleared"])
+            v = a["verdicts"].get(label)
+            self.assertIsNotNone(v, "a refused cell must still be RECORDED, not dropped")
+            self.assertIn("NOT RUN", v["verdict"])
+            self.assertNotIn("checks", v, "a refused cell must carry no scored checks")
+            self.assertNotIn(label, a["passing_cells"])
+
+    def test_the_no_news_cells_are_the_refused_ones_so_the_replication_did_NOT_run(self):
+        """The sentence a reader most needs: the faithful out-of-sample replication of
+        DIP-CALL-2's NO-NEWS arm is the thing `K1` refused, so the POOLED cells are a declared
+        different object (section 5 void condition 3)."""
+        p = D.out_path("DIPCALL3_ARM.json") if D.have_data() else ""
+        if not p or not os.path.isfile(p):
+            _skip(self, "DIPCALL3_ARM.json absent (data/ is gitignored)")
+        with io.open(p, encoding="utf-8") as fh:
+            a = json.load(fh)
+        self.assertEqual(sorted(a["cells_refused_by_K1_and_NOT_RUN"]),
+                         ["no_news|h126", "no_news|h63"])
+        self.assertEqual(sorted(a["cells_cleared"]), ["pooled|h126", "pooled|h63"])
+
+    def test_BH_k_stays_4_even_though_only_two_cells_RAN(self):
+        """`W-28`. A cell that cannot be built does not shrink `k`; shrinking it would make
+        every surviving threshold easier after the fact."""
+        p = D.out_path("DIPCALL3_ARM.json") if D.have_data() else ""
+        if not p or not os.path.isfile(p):
+            _skip(self, "DIPCALL3_ARM.json absent (data/ is gitignored)")
+        with io.open(p, encoding="utf-8") as fh:
+            a = json.load(fh)
+        self.assertEqual(a["bh"]["k"], 4)
+        self.assertEqual(len(a["bh"]["rows"]), 2)
+        self.assertEqual(a["bh"]["q"], D.BH_Q)
+
+    def test_the_power_floor_was_RAISED_by_the_eras_own_dispersion_never_lowered(self):
+        """`B3` committed `max(1865, required_n from THIS era's own measured sd)`, so the
+        correction to the draft's arithmetic can only ever make the bar harder."""
+        p = D.out_path("DIPCALL3_KILLS.json") if D.have_data() else ""
+        if not p or not os.path.isfile(p):
+            _skip(self, "DIPCALL3_KILLS.json absent (data/ is gitignored)")
+        with io.open(p, encoding="utf-8") as fh:
+            k = json.load(fh)
+        for cell in k["K1_design_effect"]["by_cell"].values():
+            self.assertGreaterEqual(cell["bar"], 1865.0)
+
+    # -------------------------------------------------------------- no option arm, no options N
+    def test_there_is_NO_option_arm_and_no_options_trial(self):
+        """`B9`. The draft's own arithmetic shows a call cannot capture a ~1pp drift against a
+        12-20pp implied move, so this register is SHARES only and charges equity alone."""
+        txt = _src(self.REG)
+        self.assertIn("### B9", txt)
+        src = _src("scripts/dipcall3_arm.py") + _src("scripts/dipcall3_kills.py")
+        for banned in ("resolve_chains", "pick_contract", "options_fill", "simulate_trade"):
+            self.assertNotIn(banned, src,
+                             "an options primitive reached a shares-only register: %s" % banned)
+
+    def test_the_arm_refuses_without_a_passing_kill_artifact(self):
+        """Two refusal states must be DISTINCT -- a hard-coded refusal cannot tell 'never ran'
+        from 'ran and fired' (`E-1`)."""
+        src = _src("scripts/dipcall3_arm.py")
+        self.assertIn("is ABSENT", src)
+        self.assertIn("cleared NO cell", src)
+
+
 if __name__ == "__main__":
     r = unittest.main(exit=False, verbosity=2).result
     if _SKIPS:

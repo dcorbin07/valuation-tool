@@ -113,15 +113,20 @@ def half0_names() -> list:
     return sorted(set(bq[bq["ticker"].map(D.stable_key_half) == 0]["ticker"]))
 
 
-def build_market(names, sched, k: float) -> dict:
-    """A8: the CAP-WEIGHTED daily return of half-0 panel names with price files, 2009-2019 only,
-    weights from the most recent PRIOR quarterly `market_cap`.
+def build_market(names, sched, k: float, lo: str = None, hi: str = None) -> dict:
+    """A8: the CAP-WEIGHTED daily return of the era's panel names with price files, weights from
+    the most recent PRIOR quarterly `market_cap`.
 
-    Half 0 ALONE, deliberately: the whole universe would read `2009-2019 x half 1`, a different
-    cell of the charter's 2x2 whose budget allocates it to nothing. `X1` licenses the proxy —
-    halving the universe moved the centre of 200 half-books not at all. Ken French is used
-    NOWHERE.
+    On the BUILD era this is half 0 ALONE, deliberately: the whole universe would read
+    `2009-2019 x half 1`, a different cell of the charter's 2x2 whose budget allocates it to
+    nothing. `X1` licenses the proxy — halving the universe moved the centre of 200 half-books not
+    at all. The half filter lives in the CALLER's `names`, not here.
+
+    `lo`/`hi` default to the BUILD window so every landed caller is bit-identical;
+    `PREREG_dipcall3.md` passes 1999-01-01 / 2008-12-31. Ken French is used NOWHERE.
     """
+    lo = D.BUILD_LO if lo is None else lo
+    hi = D.BUILD_HI if hi is None else hi
     num, den = {}, {}
     t0 = time.time()
     for i, t in enumerate(names):
@@ -131,7 +136,7 @@ def build_market(names, sched, k: float) -> dict:
         dates = s["date"].tolist()
         caps = _cap_at(sched.get(t, []), dates)
         r = s["close"].pct_change().to_numpy(dtype=float)
-        inb = np.array([D.BUILD_LO <= d <= D.BUILD_HI for d in dates])
+        inb = np.array([lo <= d <= hi for d in dates])
         ok = inb & np.isfinite(r) & np.isfinite(caps) & (caps > 0)
         for d, w, rr in zip(np.asarray(dates, dtype=object)[ok], caps[ok], r[ok]):
             num[d] = num.get(d, 0.0) + float(w) * float(rr)
