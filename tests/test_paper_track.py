@@ -1358,11 +1358,22 @@ def _clock_fixture(session):
 
 
 def _clock_note(store, reader_session, day=None):
-    """`health_note` with the session clock pinned to `reader_session`."""
+    """`health_note` with the session clock pinned to `reader_session`.
+
+    `collect` IS ANCHORED ON THE SAME PINNED SESSION, and that is not decoration. It takes its
+    window from `_dt.date.today()` unless told otherwise (`recap.collect`), so a fixture that
+    pins only `PT._session_today` leaves HALF the clock on the wall calendar -- and these
+    fixtures stamp a FIXED date, so the gap widens by a day a day until the stamped session
+    falls out of the seven-day window entirely. Measured: on 2026-10-10, eight days after
+    `_CLK_FRI`, three of these tests failed and a fourth had gone VACUOUS -- the differential
+    test whose own docstring says it cannot. Anchoring both halves of the clock is the pattern
+    `test_health_note_does_not_invent_a_hole_at_the_WINDOWS_FAR_EDGE` in this same file already
+    uses, and it is what makes these tests independent of the day they are run.
+    """
     real = PT._session_today
     PT._session_today = lambda: reader_session
     try:
-        return RC.health_note(RC.collect(store), day=day)
+        return RC.health_note(RC.collect(store, day=reader_session), day=day)
     finally:
         PT._session_today = real
 
@@ -1425,7 +1436,7 @@ def test_health_note_bounds_expected_by_the_window_collect_actually_used():
     used and `health_note` honours it.
     """
     st = _clock_fixture(_CLK_FRI)
-    cyc = RC.collect(st)["sandbox_cycle"]
+    cyc = RC.collect(st, day=_CLK_FRI)["sandbox_cycle"]
     assert "window_since" in cyc, "collect must publish the window bound it filtered on"
     assert cyc["window_since"] is not None, cyc
     assert cyc["window_since"] <= _CLK_FRI.isoformat(), cyc["window_since"]
