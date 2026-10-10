@@ -84,14 +84,34 @@ return, and the identity reproduces them:
 | the **stock** on the same dates | **+3.4269%/trade** | `arms/CB_stock/mean` |
 | median put delta | **−0.265** | `V6OPT_STAGE1.json` `C4` |
 
-`delta × stock return` = 0.265 × 3.4269 = **+0.9081pp**, leaving a residual of **+0.2261pp**.
+**THE FIRST CUT OF THIS SECTION USED THE ENTRY DELTA AND WAS WRONG BY A FACTOR OF 1.8.**
+`delta × stock return` = 0.265 × 3.4269 = +0.9081pp gives a residual of +0.2261pp — **but the
+entry delta is not the exposure the trade carried.** A short put's delta decays toward zero on the
+84% that expire worthless and runs toward one on the 25% assigned, so the realised exposure is
+path-dependent and had to be **measured, not assumed.**
 
-> **80.1% OF WHAT A POST-DIP SHORT PUT EARNS IS THE STOCK'S OWN DRIFT, TAKEN AT A QUARTER OF THE
-> EXPOSURE. THE OPTION-SPECIFIC PART IS +0.2261pp/trade — ABOUT +2.61%/yr AT 32-DAY TURNS.**
+**MEASURED, on `V6-OPT`'s own 660 banked trades (`V6OPT_STAGE2_TRADES.pkl`), by regressing the
+put's return on secured cash against the stock's return over the identical window:**
 
-This also explains the ratio nobody had explained: **+3.4269 / +1.1342 = 3.02**, against
-1 / 0.265 = 3.77. The stock earns about three times the put because it carries about four times
-the delta, and the put makes up the difference out of premium.
+| | value |
+|---|---|
+| realised delta-equivalent (slope) | **0.2131** (se 0.0105, *t* 20.30) |
+| **option-specific intercept** | **+0.4040pp** (se 0.1583, *t* 2.55) |
+| R² | 0.3852 |
+
+> **64.4% OF WHAT A POST-DIP SHORT PUT EARNS IS THE STOCK'S OWN DRIFT, TAKEN AT A FIFTH OF THE
+> EXPOSURE. THE OPTION-SPECIFIC PART IS +0.4040pp/trade — ABOUT +4.70%/yr AT 32-DAY TURNS.**
+
+**THE REGRESSION CARRIES NO VERDICT AND TWO REASONS SAY SO.** It is **post-hoc** — not
+pre-registered by `V6-OPT` and not by this draft — and its *t* of 2.55 is **pooled over trades
+with no clustering adjustment**. At `R3`'s measured options design effect of 2.21 the honest
+haircut is √2.21 = 1.48, giving **_t_ ≈ 1.73** — below even the retired 2.0 convention and far
+below the derived hurdle of 3.3872. **So this is a direction, not a result**, and it is reported
+because a reader would otherwise find it.
+
+It also explains the ratio nobody had explained: **+3.4269 / +1.1342 = 3.02**, against
+1 / 0.2131 = 4.69. The stock earns about three times the put because it carries nearly five times
+the exposure, and the put makes up the difference out of premium.
 
 **THE CONSEQUENCE FOR DESIGN, AND IT IS THE SAME SHAPE AS `DIP-CALL-3`'s: the thing that makes
 this an OPTION trade is 8 to 20 times below what the owned data can detect.** At `V6-OPT`'s own
@@ -104,7 +124,8 @@ per-trade SD of **5.047pp** and the options hurdle **derived not quoted** (`N` =
 | **+1.1342pp** (`V6-OPT`'s measured total) | **354** |
 | +0.8000pp | 711 |
 | +0.5000pp | 1,821 |
-| **+0.2261pp** (the option-specific residual) | **8,904** |
+| **+0.4040pp** (the measured option-specific residual) | **2,789** |
+| +0.2261pp (the entry-delta approximation, superseded) | 8,904 |
 
 **ONLY THE BOLD ROWS ARE ON THIS ARM'S OWN SCALE** — a return on secured cash. The others are
 round references. **`O7`'s measured richness of −0.6739pp is deliberately NOT in this table**: it
@@ -113,9 +134,12 @@ secured-cash power calculation is the category error `V5-REREAD` caught at **~12
 `B11`'s equity cost in bps of *stock notional* was used as a bar for a book paying bps of
 *premium*.
 
-Against §3's priceable bracket of **437 to 1,100**. **So a cash-secured arm can confirm that the
-trade pays and cannot say whether any of it is the option.** The register states that before it
-runs, and §6 designs around it.
+Against §3's priceable bracket of **437 to 1,100** — **2.5× to 6.4× short.** **So a cash-secured
+arm can confirm that the trade pays and cannot say whether any of it is the option.** The register
+states that before it runs, and §6 designs around it. **The correction above is why that matters:
+the first cut put the shortfall at 8× to 20× and the measured figure is 2.5× to 6.4×, so the
+conclusion survives but the margin is a quarter of what I first wrote — and `A1` is the arm that
+exists because of it.**
 
 ---
 
@@ -234,9 +258,22 @@ half**, and it still lowers the combined Sharpe 0.87 → 0.77. `A3`'s own senten
 
 **So the gross single-name variance risk premium, net of a $5 wing, on 55 liquid large caps over
 ten years, is approximately ZERO.** That is clean, it is not a cost artefact, and it is the
-strongest evidence against this program. It also agrees with §2's residual: **+0.2261pp/trade is
-+2.61%/yr — small, positive, and below `A3`'s resolution.** Two independent instruments agreeing
-that the number is small.
+strongest evidence against this program. **And it is comparable with §2's measured residual, once
+you notice that both are already returns on the capital the position ties up** — a spread's max
+risk is what it ties up, and a cash-secured put's strike is what it ties up:
+
+| instrument | option-specific return on capital tied up |
+|---|---|
+| `A3`, 20-delta $5 spread, stopped, four crossings, at **perfect mid** | **+0.13%** |
+| §2's residual, naked put held to expiry, **net of one touch** | **+0.4040%** |
+
+**A factor of 3.1, with the naked structure ahead — and §4d names three reasons pointing that
+way**: the wing gives away 15% of the gross premium at post-dip vol, the stop converts winners
+into losers (`A3` measured its own hit rate falling 73.7% → 56.4% as fills worsen), and `A3`
+crosses four times where a put held to expiry crosses once. **So the two landed measurements
+reconcile rather than conflict, and `A3`'s "there is no premium" is a statement about a
+wing-capped stopped spread rather than about the premium.** `K2` is what turns that from a
+plausible reconciliation into a measured one.
 
 ### 4d. WHAT DOES NOT SURVIVE — `A3`'s IV-RANK GRADIENT IS CONFOUNDED TWICE, IN THE SAME DIRECTION
 
@@ -407,6 +444,9 @@ whether the drop raises it.
 
 **`A2` — THE PRODUCT, AND ITS COMPARATOR IS THE STOCK, NOT ZERO.** A cash-secured 0.90-moneyness
 put, 20–60 DTE, held to expiry, **net of a full touch crossing at entry** (`V6-OPT`'s convention).
+**AND IT MUST SHIP §2's REGRESSION AS A REQUIRED FIELD** — the slope against the stock's own
+return over the identical window, so the realised exposure is measured on this arm's own rows and
+nobody has to take the entry delta on trust. §2 was wrong by 1.8× for exactly that reason.
 **A SHORT PUT HELD TO EXPIRY CROSSES ONCE**, not twice: `MA46` established that *"an expiring
 option is never SOLD, so there is no second commission leg"*, and the same holds for the spread —
 which is the structural reason the sell side's cost arithmetic is better than `DIP-CALL`'s
@@ -417,7 +457,7 @@ either item"* — and its own artifact discloses that the gate and the outcome s
 computed in the same pass. **So the touch is charged in full and ρ is cited only as a reason the
 charge is conservative, never as a number subtracted from it.** **PRE-COMMITTED: beating zero is
 NOT a pass.** §2
-shows 80.1% of this arm's return is delta × drift, so a zero bar would confirm the equity drift
+measured 64.4% of this arm's return to be beta × drift, so a zero bar would confirm the equity drift
 through an option wrapper and call it an options strategy. **The bar is the paired difference
 against holding the stock on the same dates**, and §8 fixes what that bar may be.
 
@@ -517,8 +557,10 @@ Stage-1 result without the `ELIGIBLE-BUT-UNRESOLVED` label. (6) Quoting `A3`'s *
 subsample. (8) Reading a drawdown comparison as a verdict (§8).
 
 **EXPECTATIONS, priced now so they can be scored.**
-1. **`K2`'s gradient FLATTENS at the mid on a naked structure: 55/45.** The structural confound in
-   §4d is measured and monotone; whether it accounts for all three slopes is not.
+1. **`K2`'s gradient FLATTENS at the mid on a naked structure: 60/40**, raised from the 55/45 I
+   first wrote because §4c's reconciliation now has a measured 3.1× in the naked structure's
+   favour rather than a hand-waved one. The structural confound in §4d is measured and monotone;
+   whether it accounts for all three slopes is not.
 2. **`A2` clears zero and fails the stock comparison: 70/30.** `V6-OPT` already measured both, on
    a different event.
 3. **`A4` finds health discriminating at fixed moneyness: 40/60 against.** The mechanism is
