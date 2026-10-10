@@ -92,7 +92,14 @@ RECORD_COLUMNS = (
     "structure_id", "leg_index", "net_cost", "skip_reason",
 )
 
-EVENT_KINDS = ("selfcheck", "fill", "refusal", "meter_read", "close", "skip")
+#: ITEM 46 adds `reconcile`. A new VALUE for an existing column, which is why it is safe: the
+#: `kind` column already exists in every stream's header, so nothing is widened. **Adding a
+#: COLUMN would have been the opposite of safe** -- `append_only.append` REFUSES a widened
+#: header on an append-only write ("rewriting every line cannot preserve the byte prefix the
+#: append-only check verifies"), so a new base column would make every one of the 18 live
+#: streams refuse every future write. The (C) columns got in only because they predate the
+#: streams by one day.
+EVENT_KINDS = ("selfcheck", "fill", "refusal", "meter_read", "close", "skip", "reconcile")
 
 # Every clause a declaration must state. Absent -> REFUSED, and the refusal names the field.
 REQUIRED_DECL_FIELDS = (
@@ -1459,6 +1466,120 @@ def record_fill(book: str, fields: dict, root: str = None) -> dict:
     return out
 
 
+def outcome_unknown(book: str, root: str = None) -> list:
+    """Order rows that never acquired an outcome: `fill_price` empty and `fate` not terminal.
+
+    ITEM 46. `f3_bear_puts` holds 72 of these and the broker holds a position in 37 of the 44
+    contracts they name, with ZERO open orders -- so the orders filled and the record never
+    said so. The cause is structural rather than a bug in any book: `fill_fields` writes the
+    row ONCE, at submission, from a status read moments later (a market order is `pending`
+    then, so `_fate` correctly returns `working`), and **nothing ever polls the order again.**
+    `submit()` even obtains the broker's order id and discards it, because `RECORD_COLUMNS` has
+    nowhere to put it.
+    """
+    rows, _hdr, err = AO.read_rows(records_path(book, root))
+    if err:
+        return []
+    out = []
+    for r in rows:
+        if (r.get("kind") or "") != "fill":
+            continue
+        if (r.get("fill_price") or "").strip():
+            continue
+        if (r.get("fate") or "").strip() not in ("working", "unknown", ""):
+            continue
+        out.append(r)
+    return out
+
+
+def reconcile_outcomes(book: str, broker=None, root: str = None, *, write: bool = True) -> dict:
+    """Append what the BROKER says about order rows that never got an outcome.
+
+    WHAT THIS IS AND IS NOT. It records a FACT OBSERVED AT THE BROKER and it places nothing:
+    the only broker calls are `positions()` and `orders()`, both GETs. It appends new rows and
+    never touches an existing one -- the record is append-only and a past row is not editable,
+    which is also why the 72 `working` rows STAY `working`: they were true when written.
+
+    **IT DOES NOT CLAIM A FILL, AND THAT RESTRAINT IS THE WHOLE DESIGN.** Without the broker's
+    order id the only join is the OCC symbol, and this sandbox account is SHARED with the
+    forward options paper track (`paper_track` marks through the same `PaperBroker`; the
+    position list holds CALLS while `f3_bear_puts` is a puts book). The quantities say so out
+    loud: 84 contracts held against 65 matched record rows. So a position in a contract is
+    evidence that SOMEONE's order in it filled, never that a particular row's did -- and the
+    row written here therefore carries `fate="unknown"` and says why in `detail`, rather than
+    writing a `fill_price` it cannot attribute. **A fabricated fill price would be worse than
+    the silence it replaces**, because the forward record's whole value is that its numbers were
+    not invented.
+
+    It runs REGARDLESS of the self-check gate, deliberately: `may_fill` exists to stop a book
+    TRADING on an uncertified harness, and this neither trades nor decides anything. Blocking a
+    record of history behind a trading gate is how the history came to be missing.
+    """
+    from .paper_broker import PaperBroker
+    pending = outcome_unknown(book, root)
+    out = {"book": book, "candidates": len(pending), "wrote": 0, "rows": [],
+           "skipped_no_position": 0, "errors": []}
+    if not pending:
+        out["reason"] = "nothing without an outcome"
+        return out
+
+    b = broker or PaperBroker()
+    try:
+        open_orders = b.orders() or []
+        pos = {p.get("symbol"): p for p in (b.positions() or [])}
+    except Exception as e:                                            # noqa: BLE001
+        out["errors"].append("broker read failed: %s" % type(e).__name__)
+        return out
+
+    # THE ANCHOR IS THE STREAM'S OWN `decl_sha`, taken from the last row, and that is the
+    # correct one rather than the convenient one. A reconcile row comments on rows ALREADY
+    # written, so it must attest to the declaration THEY were written under -- re-deriving
+    # today's sha could bind a comment about August's orders to a declaration committed since.
+    # It also means this works on the service without `git`, which `may_fill`'s own resolution
+    # needs: asked for a sha in a temp root it answered "no declaration sha, so a row cannot
+    # be chained" and wrote nothing, which is the refusal working but the wrong question.
+    sha = ""
+    for r in reversed(pending):
+        sha = (r.get("decl_sha") or "").strip()
+        if sha:
+            break
+    if not sha:
+        out["errors"].append("no declaration sha, so a row cannot be chained")
+        return out
+
+    seen = set()
+    for r in pending:
+        occ = (r.get("occ") or "").strip()
+        if not occ or occ in seen:
+            continue
+        seen.add(occ)
+        p = pos.get(occ)
+        if not p:
+            # NOT a claim that it failed to fill: an expired or already-closed contract has no
+            # position either. Counted, never written as an absence.
+            out["skipped_no_position"] = out["skipped_no_position"] + 1
+            continue
+        held = p.get("quantity")
+        detail = ("ITEM 46 RECONCILIATION, position-level evidence: the broker holds %s of "
+                  "this contract and reports %d open order(s) account-wide, so an order in it "
+                  "filled. NOT attributable to a particular row -- the record keeps no broker "
+                  "order id and this sandbox account is shared with the options paper track -- "
+                  "so fate stays `unknown` and no fill_price is written."
+                  % (held, len(open_orders)))
+        fields = {"symbol": (r.get("symbol") or ""), "occ": occ, "qty": held,
+                  "fate": "unknown", "detail": detail[:400]}
+        if not write:
+            out["rows"].append(fields)
+            continue
+        res = record(book, "reconcile", fields, decl_sha=sha, root=root)
+        if res.get("wrote"):
+            out["wrote"] = out["wrote"] + 1
+            out["rows"].append(fields)
+        else:
+            out["errors"].append("%s: %s" % (occ, res.get("reason", "?")[:120]))
+    return out
+
+
 # ---------------------------------------------------------------------------------------
 # One ledger row per book (draft section 1.5) -- emitted, so nobody hand-types a pipe
 # ---------------------------------------------------------------------------------------
@@ -1886,8 +2007,39 @@ def cycle(root: str = None, *, write: bool = False, books: list = None) -> dict:
     riders = [r["book"] for r in books_only if r["state"] == "RAN_RIDER"]
     # `RAN_RIDER` is excluded ON PURPOSE. A gate that ran is not a fleet that traded.
     ran = any(r["state"] == "RAN" for r in books_only)
+
+    # ------------------------------------------------------------------ ITEM 46 ------------
+    # RECONCILE ORDER ROWS THAT NEVER GOT AN OUTCOME. `f3_bear_puts` holds 72 rows reading
+    # `fate=working` while the broker holds a position in 37 of the 44 contracts they name and
+    # reports ZERO open orders -- so the orders filled and the record never said so, because a
+    # row is written once at submission and nothing ever polls the order again.
+    #
+    # IT RUNS REGARDLESS OF THE SELF-CHECK GATE, deliberately. `may_fill` exists to stop a
+    # book TRADING on an uncertified harness; this places nothing and decides nothing, and
+    # gating a record of history behind a trading gate is how the history came to be missing
+    # in the first place. It is also why the 18-book `SELFCHECK_STALE` block does not suppress
+    # it -- that block is the reason nothing has filled lately, not a reason to keep the
+    # outcomes of what already did fill unrecorded.
+    #
+    # NEVER FATAL: a cycle whose job is to place fills must not die because a reconciliation
+    # could not reach the broker.
+    reconciled = {"books": {}, "wrote": 0, "errors": []}
+    for _bk in sorted(r["book"] for r in books_only):
+        try:
+            if not outcome_unknown(_bk, root):
+                continue
+            got = reconcile_outcomes(_bk, root=root, write=bool(write))
+            reconciled["books"][_bk] = {"candidates": got["candidates"],
+                                        "wrote": got["wrote"],
+                                        "no_position": got["skipped_no_position"]}
+            reconciled["wrote"] += got["wrote"]
+            reconciled["errors"].extend(got["errors"][:2])
+        except Exception as e:                                        # noqa: BLE001
+            reconciled["errors"].append("%s: %s" % (_bk, type(e).__name__))
+
     return {
         "ok": True, "date": today, "wrote": bool(write),
+        "reconciled": reconciled,
         "books_declared": len(books_only), "armed": armed, "blocked": blocked,
         "fills_written": filled,
         "entry_rules_implemented": implemented,
