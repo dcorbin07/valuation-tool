@@ -33,6 +33,19 @@ manager from Don's own words in chat.
   the deeper Index drawdown and replacing the "not a survey of survivors" sentence. No interim
   patch. The flat 1/7 weights stay: CPCV adopting a scheme does not change them (prove before
   changing). The forward contract's frozen meter parameters are not touched.
+- **2026-10-10 — HOW THE CANONICAL-MOVE RESTATEMENT PRESENTS THREE FIGURES** (from r1's
+  `CANONICAL_MOVE_TABLE.md`):
+  1. **The Index tab drops "alpha vs the all-cap equal-weighted universe".** On the corrected
+     universe that benchmark falls (17.24% → 12.11%/yr), so the comparison would jump −0.06pp →
+     +5.93pp without the Index improving. The Index is shown against SPY and against the
+     equal-weighted $10B tier — like for like — with its return, drawdown and Sharpe beside them.
+  2. **/proof shows the placebo result as it is**, even if the real result beats all 100 noise
+     runs on every measure — provided the noise draws come from the SAME corrected panel and the
+     page states that the old and new panels share no rebalance dates and keeps every bar it
+     cannot score (PBO, deflated Sharpe) visible as unmeasured. The page's guard is changed to
+     require a like-for-like comparison, not at least one failure.
+  3. **The research decile's result vs SPY is shown plainly**, including that it is −1.14pp/yr
+     net of costs on the corrected universe. No "beats SPY" claim anywhere, as before.
 - **2026-10-08 — TRADIER IS CLOSED AND WILL NOT BE FUNDED AGAIN.** Don withdrew his funds and
   Tradier deactivated the account. Every feature that used Tradier moves to another source: free
   sources first, then a free official API (Alpaca's free tier is the candidate, measured before
