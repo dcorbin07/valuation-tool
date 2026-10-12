@@ -16,10 +16,12 @@ the armed books and it has **FOUR** entries — `f1_fill_ab`, `f3_bear_puts`,
 `f17_vrp_percentile_sells` · `f18_boring_book` · `f19_density_gate` · `f20_married_put_storm` ·
 `testbook`
 
-**THE STATE ON DISK, MEASURED:** 18 record streams, **158 rows — 109 `selfcheck`, 79 `fill`, 6
-`close`.** **Sixteen of the eighteen contain nothing but self-checks**, exactly 6 rows each. Only
-`f3_bear_puts` (72 fills) and `testbook` (7) ever recorded one, and **not one of the 14 books below
-has ever recorded a fill.**
+**THE STATE ON DISK, MEASURED** (`data_export/`, last synced **2026-10-03** — the live service has
+moved since, and the final section corrects three claims against it): 18 record streams, **158 rows
+— 109 `selfcheck`, 79 `fill`, 6 `close`.** **Sixteen of the eighteen contain nothing but
+self-checks**, exactly 6 rows each. Only `f3_bear_puts` (72 fills) and `testbook` (7) ever recorded
+one, and **not one of the 14 books below has ever recorded a fill** — which the live body of
+2026-10-12 still confirms, every one of them at `state: ARMED_NO_ENTRY_RULE`.
 
 ---
 
@@ -238,22 +240,58 @@ declared.**
 
 ---
 
-## THE THING THAT BLOCKS ALL OF THIS, AND IT IS NOT A DECLARATION PROBLEM
+## THE THING THAT BLOCKS ALL OF THIS — CORRECTED AGAINST THE LIVE SERVICE, AND IT IS NOT WHAT I FIRST WROTE
 
-**ALL 18 BOOKS ARE CURRENTLY BLOCKED AT `SELFCHECK_STALE`, and the live cycle says so:
-`not_breathing_reason: ALL_BOOKS_BLOCKED_AT_GATE:SELFCHECK_STALE`, `armed: 0, blocked: 18`.**
-`harness_fingerprint()` covers eight modules, so a change to any one invalidates every book's day-1
-certificate, and **re-certifying places a real sandbox order.** The prompt reports the self-check
-has now been re-run; **if so, F-21 and F-22 will each need their own**, and a new book lands in the
-stale state until it has one.
+**THREE CLAIMS IN MY OWN FIRST CUT OF THIS SECTION WERE STALE, AND THE CORRECTION MATTERS BECAUSE IT
+MOVES THE BLOCKER.** They rested on `data_export/`, last synced **2026-10-03**, and on
+`scripts/fleet_diagnose.py`'s diagnosis of that state. The **`FLEET SELF-CHECK (re-certify)`
+Action succeeded at 2026-10-12 22:54Z** — run `38319241292`, 36 minutes before this file was first
+committed — and its response body settles all three.
 
-**AND ITEM 46'S SHARPEST FINDING IS NOT ABOUT THE UNARMED BOOKS AT ALL: F-3's 72 ORDERS DID FILL
-AND ALL 72 ROWS STILL READ `working`.** The sandbox reports zero open orders and a position in
-**37 of 44** contracts, while **0 of 72** rows carry a `fill_price` — because a row is written once
-at submission and nothing polls again; `submit()` obtains the broker order id and **discards** it.
-**So the one fleet book that has traded has no recorded outcome**, and until that is closed a
-forward book is a submission log rather than a track record. **That is the options-bot lane's fix
-(the new `reconcile` record kind) and it is a prerequisite for F-21 being worth anything.**
+| what I wrote | what the live body says |
+|---|---|
+| *"ALL 18 BOOKS ARE CURRENTLY BLOCKED AT `SELFCHECK_STALE` … `armed: 0, blocked: 18`"* | **`armed: 18, blocked: 0, breathing: true, not_breathing_reason: ""`** — and **17 real books `certified`** |
+| *"F-3's 72 orders … all 72 rows still read `working`"* | **the `reconcile` fix has LANDED**: `reconciled: {f3_bear_puts: {candidates 75, wrote 37}, testbook: {wrote 1}}, wrote: 38` |
+| *"a prerequisite for F-21 being worth anything"* | that prerequisite is **met**; F-3 also wrote **3 new fills** this cycle, `records: 79` |
+
+**AND THE LIVE BODY INDEPENDENTLY CONFIRMS THIS REVIEW'S SET.** Its own
+`books_with_no_entry_rule` is a list of **exactly the 14** derived at the top of this file, and
+`entry_rules_registered` is **`[f11_dip_reject_puts, f1_fill_ab, f3_bear_puts,
+f8_csp_entry_financing]`** — so the four-armed correction is the service's own and not just
+`fleet_books.RULES`'s.
+
+### THE REAL BLOCKER IS THE OPPOSITE OF ARMING, AND IT IS A NEW FINDING
+
+> **THREE OF THE FOUR ARMED BOOKS ARE `RULE_ARMED_NEVER_FIRES`.** `f1_fill_ab` has **30
+> observations and zero fills**; `f8_csp_entry_financing` **26 and zero**; `f11_dip_reject_puts`
+> **26 and zero**. Only `f3_bear_puts` fires. The harness's own message is the right one: *"A rule
+> that cannot qualify anybody is indistinguishable in the records from a quiet market, and this is
+> the difference. Check the rule before reading the emptiness as a finding."*
+
+**SO "WORTH ARMING" IS THE WRONG QUESTION TO END ON.** Arming is not the binding constraint —
+**qualifying is**, and the base rate is 1 in 4. Every "KEEP" above should be read as *worth arming
+and then watched for `RULE_ARMED_NEVER_FIRES`*, which is a cheaper failure than a wrong verdict and
+is reported loudly by the harness rather than looking like a quiet market.
+
+### AND IT LANDS DIRECTLY ON F-21, WHICH IS THE MOST USEFUL THING IN THIS SECTION
+
+**F-21 enters on the dip detector's HEALTHY list, and its sibling source is the one the live cycle
+reports as not consulted.** The body's `history` block gives `dip_rejects`: **`n_days: 6`, of which
+`n_days_invalid: 2`, `n_days_valid: 4`**, against `alert_count` and `iv60_atm` at **24 days each**.
+`history_not_consulted: ["dip_rejects"]`, with the harness refusing to fabricate a row rather than
+writing a zero:
+
+> *"SOURCE NOT CONSULTED, SO NO ROW WAS WRITTEN: dip_rejects. This is a GAP, deliberately, and a
+> gap is recoverable. The alternative — a row saying zero when nothing ran — is a positive
+> assertion of ABSENCE that a first-appearance study cannot tell from a real one."*
+
+**That is the correct behaviour and it is also a warning about F-21's own feasibility: the one
+armed book reading the dip family (`f11`) has 26 observations and zero fills, and the dip source is
+not consulted on every cycle.** F-21's declared **2.0 fills/month is a prior, and this is the
+measurement that most threatens it.** **The first thing to do before arming F-21 is not to write
+its entry rule — it is to confirm the healthy-dip list is consulted on every cycle and actually
+supplies names**, because a book that cannot qualify anybody accrues nothing for thirty-nine years
+and looks exactly like a quiet market while doing it.
 
 ---
 
