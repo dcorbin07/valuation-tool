@@ -46,22 +46,39 @@ def _fmt(x, p="+.2%"):
     return "n/a" if x is None or (isinstance(x, float) and x != x) else format(x, p)
 
 
-def strategy_series(panel, weights, top_frac=0.1):
+def strategy_series(panel, weights, top_frac=0.1, legacy_composite=True):
     """Per-rebalance-date top-decile return, equal-weight benchmark, and mean cost bps.
 
     This is the series R1 also needs ('already exists inside quantile_backtest as q_rets[0]
     and ewb; it just needs to be shipped'), computed here without touching the panel module.
+
+    `legacy_composite` - CANON-UNMEASURED §3.2. This function builds its book from the
+    **PRE-`B7` NON-RENORMALISING** composite (`comp + where(isnan(z), 0, z) * w`, a missing theme
+    read as exactly average), while `factor_alpha.decile_series` - which consumes this file's
+    `turnover` and `cost_bps` to charge a cost against ITS `top` and `ew` - calls the SHIPPED
+    renormalising composite. So as it stands the COST describes a slightly different book from
+    the RETURN it is charged against.
+
+    **The default is `True`, the landed convention, so `X4`'s shipped CSV stays reproducible and
+    no landed figure moves.** `False` builds the book from the shipped composite and is the right
+    choice for any new series, which is exactly the precedent `decile_series` set for the same
+    reason and in the same words.
     """
     import pandas as pd
     from valuation.screener.cross_sectional import zscore
-    from valuation.edge.fundamental_panel import one_way_cost_bps
+    from valuation.edge.fundamental_panel import one_way_cost_bps, composite as _composite
 
+    cols = list(weights)
+    wv = np.array([float(weights[c]) for c in cols], dtype=float)
     rows, prev = [], set()
     for d, sub in panel.groupby("date"):
-        comp = np.zeros(len(sub))
-        for c, w in weights.items():
-            z = zscore(sub[c]).values
-            comp = comp + np.where(np.isnan(z), 0.0, z) * w
+        if legacy_composite:
+            comp = np.zeros(len(sub))
+            for c, w in weights.items():
+                z = zscore(sub[c]).values
+                comp = comp + np.where(np.isnan(z), 0.0, z) * w
+        else:
+            comp = _composite(np.column_stack([zscore(sub[c]).values for c in cols]), wv)
         ok = np.isfinite(comp) & np.isfinite(sub["fwd_ret"].values)
         s = sub[ok].assign(_c=comp[ok]).sort_values("_c", ascending=False)
         if len(s) < 30:

@@ -165,12 +165,32 @@ def _score(panel, names):
             "n_names": int(sub["ticker"].nunique()), "n_rows": int(len(sub))}
 
 
-def _assert_split(a, b, universe):
-    """C2: exhaustive, disjoint, balanced - asserted per split, not spot-checked."""
+def _assert_split(a, b, universe, balance_tol=1):
+    """C2: exhaustive, disjoint, balanced - asserted per split, not spot-checked.
+
+    `balance_tol` - CANON-UNMEASURED §2. **THE BALANCE LEG ASSERTED A PROPERTY THE PRIMARY SPLIT
+    DOES NOT HAVE, AND IT PASSED ON THE PUBLISHED UNIVERSE BY A ~1-IN-32 FLUKE.** A RANDOM half
+    split takes `len(uni)//2` names and is balanced within 1 **by construction**, so `1` is the
+    right bar there and stays the default - every existing caller is unaffected. The PRIMARY
+    split is `sha1(ticker) % 2`, which is balanced only **in expectation**: the imbalance is
+    binomial with sd `2*sqrt(n/4) = sqrt(n)`.
+
+    Measured: on the published 2,531 names it came out 1266/1265, and under a fair hash
+    `P(|imbalance| == 1)` is **0.0317** - so this assertion cleared with about a 3% probability.
+    On the corrected 9,645 names it is 4798/4847, an imbalance of **49 against an sd of 98.2**,
+    i.e. **z = 0.50** - half a standard deviation, entirely ordinary - and the assertion FIRED on
+    a split that is exactly what the construction promises.
+
+    So a hash split is passed a DERIVED tolerance, never a chosen one: `2*sqrt(n)` is 4 sd, and
+    `P(|imbalance| > 4 sd)` is under 1e-4, which is the bar that would genuinely indicate an
+    unfair key. **This is not a relaxed check; it is the check pointed at the property C2 was
+    standing in for** - the halves must be comparable in size, not identical to the name.
+    """
     A, B, U = set(a), set(b), set(universe)
     assert not (A & B), "split halves overlap"
     assert A | B == U, "split is not exhaustive"
-    assert abs(len(A) - len(B)) <= 1, f"halves differ by {abs(len(A)-len(B))}"
+    assert abs(len(A) - len(B)) <= balance_tol, \
+        f"halves differ by {abs(len(A)-len(B))} (tolerance {balance_tol})"
 
 
 def half_universe_null(panel, universe, rng, j=J_NULL):
