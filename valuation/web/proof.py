@@ -514,6 +514,62 @@ def _bars(res: dict, placebo: dict = None):
 
 
 # ------------------------------------------------------------------------------------------
+# the multiple-testing hurdle, as a FIELD rather than as prose
+# ------------------------------------------------------------------------------------------
+
+def _hurdle(res: dict):
+    """The trial-counting hurdle and its verdict, AT THE RUN'S COUNT AND AT TODAY'S.  [ITEM 49]
+
+    WHY THIS EXISTS: A SENTENCE ON THIS PAGE ASSERTED THE VERDICT AND WAS NOT CONNECTED TO IT.
+    The trial-count box read *"That is why the multiple-testing hurdle above is failed: we
+    counted honestly"* -- typed prose, true on the 2,531-name panel, and it survived the
+    canonical move to sit directly under a table showing the hurdle CLEARED. The page's own
+    lede promises *"nothing on this page is typed by hand ... so it cannot quietly go stale"*,
+    and that sentence was the counter-example. So the verdict becomes a field, read from the
+    same `clears_hlz_hurdle` the bars table reads, and the prose branches on it.
+
+    AND IT REPORTS TWO COUNTS, BECAUSE THE BOX IS ABOUT THE COUNT AND THE TWO DISAGREE. The
+    trial boxes show the LIVE register (deliberately -- `MA21`: the artifact may lag the log
+    and may never lead it), while the hurdle in the table is the one the RUN computed, on the
+    count at the time. A reader who takes the live number and the published bar and checks the
+    arithmetic finds they do not match. Both are right about their own moment, so both ship.
+
+    The live hurdle is computed by the SHIPPED `statistics.hlz_hurdle` -- `MA5`'s rule, which
+    exists because the same expression written four times is how a hard-coded 3.0 survived in
+    three of them. Nothing here re-derives `sqrt(2 ln N)`.
+
+    FAILS SOFT: any part that cannot be read comes back `None` and the prose falls back to a
+    statement that names no verdict.
+    """
+    hlz = _dig(res, "multiple_testing", "hlz", default={}) or {}
+    t = _num(hlz.get("value"))
+    out = {
+        "statistic": t,
+        "at_run": _num(hlz.get("hurdle_sqrt_2_ln_N")),
+        "n_at_run": _num(hlz.get("n_trials_equity")),
+        "cleared_at_run": hlz.get("clears_hlz_hurdle"),
+        "at_live_count": None,
+        "n_live": None,
+        "cleared_at_live": None,
+        "counts_agree": None,
+    }
+    try:
+        from ..edge import research_log as RL
+        from ..edge.statistics import hlz_hurdle
+        eq = int(((RL.detail() or {}).get("by_domain") or {}).get("equity") or 0)
+        if eq > 0:
+            out["n_live"] = eq
+            out["at_live_count"] = float(hlz_hurdle(eq))
+            if t is not None:
+                out["cleared_at_live"] = bool(t > out["at_live_count"])
+            if out["n_at_run"] is not None:
+                out["counts_agree"] = bool(int(out["n_at_run"]) == eq)
+    except Exception:                                        # noqa: BLE001 - fails soft
+        pass
+    return out
+
+
+# ------------------------------------------------------------------------------------------
 # the restatement
 # ------------------------------------------------------------------------------------------
 
@@ -770,6 +826,7 @@ def payload() -> dict:
         "distribution": distribution,
         "placebo": placebo_block,
         "restatement": _restatement(res),
+        "hurdle": _hurdle(res),
         "research_vs_spy": _research_vs_spy(res),
         "bars": _bars(res, placebo_block),
         "trials": trials,

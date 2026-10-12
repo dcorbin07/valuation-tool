@@ -263,7 +263,15 @@ LABEL = "Accounting stress and the risk of a very bad quarter"
 #: figures so the sentence and the payload cannot disagree.
 def headline() -> str:
     r = rates("full_sample")
-    return ("On an 18-year panel of %s companies, names tripping at least two of three published "
+    # ITEM 49: THE PANEL IS LABELLED AS THE PREVIOUS ONE. `MA28-CARD` was measured on the
+    # 2,531-name panel and has NOT been re-measured on the corrected 9,645-name universe the
+    # rest of the site now describes, so the size alone is no longer enough: a reader who has
+    # just read "9,645" elsewhere needs to be told this is a different object rather than left
+    # to notice the mismatch. The rates are still interpolated from that study's own derived
+    # figures, so the sentence and the payload cannot disagree.
+    return ("On an 18-year panel of %s companies — the panel this site published before "
+            "October 2026, on which this result was measured and has not been re-measured "
+            "since — names tripping at least two of three published "
             "accounting stress tests went on to lose more than half their value over the next "
             "quarter %s of the time, against %s for the names that did not trip them — a ratio "
             "of %s. It held separately in both halves of the period: %s early and %s late."

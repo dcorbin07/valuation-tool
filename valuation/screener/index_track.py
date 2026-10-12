@@ -627,7 +627,9 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
         "after_tax_alpha": measured.get("after_tax_alpha"),
         "after_tax_sharpe": measured.get("after_tax_sharpe"),
         "annual_turnover": measured.get("annual_turnover"),
-        "basis": S.MEASURED_BASIS,
+        # ITEM 49: the DERIVED basis when `measured()` supplied one, so the prose names the
+        # panel the figures beside it came from. Falls back to the size-free constant.
+        "basis": measured.get("basis") or S.MEASURED_BASIS,
         "weighting": measured.get("weighting"),
         "n_dates": measured.get("n_dates"),
         "n_names": measured.get("n_names"),

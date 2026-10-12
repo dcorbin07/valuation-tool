@@ -227,6 +227,89 @@ def test_the_placebo_counts_are_counted_from_the_draws():
         assert tied >= 1, "the tie rule would not count a draw equal to the real result"
 
 
+def test_the_hurdle_verdict_in_PROSE_agrees_with_the_field_it_describes():
+    """ITEM 49. The defect this closes shipped live for two days.
+
+    The trial-count box read *"That is why the multiple-testing hurdle above is failed: we
+    counted honestly"* -- typed prose, correct on the 2,531-name panel, and it survived the
+    canonical move to sit directly beneath a table showing the hurdle CLEARED. Two sentences
+    on one page, about one field, disagreeing.
+
+    What makes it worth a guard rather than an edit is the page's own promise: *"Nothing on
+    this page is typed by hand ... so it cannot quietly go stale."* That sentence was the
+    counter-example to its own lede, and nothing could have caught it, because no test
+    compared the PROSE to the FIELD.
+
+    THREE PROPERTIES, and the third is the one that would have caught it:
+      1. the payload's verdict is the artifact's own `clears_hlz_hurdle` -- no third definition;
+      2. the sentence is actually on the page (or this test agrees with silence);
+      3. the verdict WORD in that sentence matches the field, whichever way it falls.
+    """
+    pay = proof.payload()
+    h = pay.get("hurdle") or {}
+    art = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       "BACKTEST_RESULTS.json")
+    if os.path.exists(art):
+        with open(art, encoding="utf-8") as _fh:
+            hlz = ((json.load(_fh).get("multiple_testing") or {}).get("hlz") or {})
+        want = hlz.get("clears_hlz_hurdle")
+        assert h.get("cleared_at_run") == want, (
+            "the page's hurdle verdict (%r) is not the artifact's (%r) -- a second definition"
+            % (h.get("cleared_at_run"), want))
+        # The bars table must read the SAME field, or the two halves of the page can drift.
+        row = [b for b in (pay.get("bars") or []) if "Harvey" in b.get("name", "")]
+        assert len(row) == 1, "expected exactly one hurdle row, found %d" % len(row)
+        assert bool(row[0]["passes"]) == bool(want), (
+            "the bars table and the artifact disagree about the hurdle")
+
+    body = APP.test_client().get("/proof").get_data(as_text=True)
+    body = re.sub(r"<!--.*?-->", " ", body, flags=re.S)       # comments are not the page
+    text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", body))
+    i = text.find("Each one raises the bar")
+    assert i != -1, "the trial-count box is not on the page at all"
+    sentence = text[i:i + 420].lower()
+    cleared = bool(h.get("cleared_at_run"))
+    if cleared:
+        assert "cleared" in sentence, (
+            "the artifact says the hurdle is CLEARED and the prose does not say so: %r"
+            % sentence[:200])
+        assert "is failed" not in sentence, (
+            "the prose still asserts the hurdle is FAILED while the artifact clears it: %r"
+            % sentence[:200])
+    else:
+        assert "is failed" in sentence, (
+            "the artifact says the hurdle is FAILED and the prose does not say so: %r"
+            % sentence[:200])
+        assert "cleared above" not in sentence
+
+
+def test_the_hurdle_block_reports_BOTH_counts_when_they_differ():
+    """The trial boxes show the LIVE register and the published bar was computed on the count
+    at the run -- `MA21`: the artifact may lag the log and may never lead it. A reader who
+    takes the live number and checks the arithmetic against the published bar finds they do not
+    match, so both counts travel. Asserted only when they actually differ, because on the day
+    a run lands they agree and there is nothing to disclose."""
+    h = proof.payload().get("hurdle") or {}
+    if h.get("n_live") is None or h.get("n_at_run") is None:
+        print("       (SKIPPED LOUDLY: one of the two counts is unavailable here)")
+        return
+    # The live hurdle must be the SHIPPED arithmetic, not a second copy (`MA5`).
+    from valuation.edge.statistics import hlz_hurdle
+    assert abs(h["at_live_count"] - float(hlz_hurdle(int(h["n_live"])))) < 1e-12
+    if h.get("counts_agree"):
+        print("       (the two counts agree today; nothing to disclose)")
+        return
+    text = re.sub(r"\s+", " ", re.sub(
+        r"<[^>]+>", " ", re.sub(r"<!--.*?-->", " ",
+                                APP.test_client().get("/proof").get_data(as_text=True),
+                                flags=re.S)))
+    for num in ("%.4f" % h["at_run"], "%.4f" % h["at_live_count"],
+                str(int(h["n_at_run"])), str(int(h["n_live"]))):
+        assert num in text, (
+            "the counts differ (%s at the run against %s today) and the page does not state "
+            "%s" % (int(h["n_at_run"]), int(h["n_live"]), num))
+
+
 def test_no_licensed_international_figure_ships():
     """Global Factor Data is CC BY-NC 4.0 and `CLAUDE.md` records the rule without
     qualification: the X8 replication validates the model and can NEVER ship in the product.

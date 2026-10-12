@@ -76,9 +76,15 @@
 <div class="pf">
 
   <h1>The evidence</h1>
+  {# ITEM 49: "the bars it does not clear" was a CLAIM about the outcome, in the one sentence
+     that promises the page is not typed by hand. On the corrected universe neither scorable
+     bar fails -- two are cleared and two cannot be scored for the deployed book at all -- so
+     the lede was asserting a state the page below it contradicted. Reworded to describe what
+     the page SHOWS rather than how it came out, which is true in every state. #}
   <p class="lede">Every headline number on this site, the threshold it was judged against, and
-  the bars it does not clear. Nothing on this page is typed by hand &mdash; it is read from the
-  backtest artifact and the placebo study in the repository, so it cannot quietly go stale.</p>
+  how each one came out &mdash; including the bars it cannot clear and the ones it cannot
+  score. Nothing on this page is typed by hand &mdash; it is read from the backtest artifact
+  and the placebo study in the repository, so it cannot quietly go stale.</p>
 
   {% if not p.available %}
     <div class="sec"><div class="card">
@@ -142,6 +148,14 @@
     distribution, the missing data and the correlation between themes, destroying only the link
     between a company and its own score &mdash; and the whole pipeline was run again, {{ p.placebo.n_draws }}
     times, on seeds {{ p.placebo.seeds }}.</p>
+    {# ITEM 49, from r1's `CANONICAL_MOVE_TABLE.md` §0: "the corrected GROSS alpha (6.0674%)
+       and the published NET alpha (6.0697%) BOTH ROUND TO 6.07%. They are different
+       quantities on different panels. A restatement that writes 6.07% is ambiguous -- say
+       gross or net, every time." The alpha row below is GROSS, so the label is stated rather
+       than left to the reader. #}
+    <p class="sub">Every alpha below is <b>gross of trading costs</b> &mdash; the same basis as
+    the noise runs it is compared against, which is what makes the comparison fair. The net
+    figure is in the costs section.</p>
     <p class="sub">Grey is where those {{ p.placebo.n_draws }} deliberately worthless runs
     landed. The dark line is the real result.</p>
 
@@ -406,7 +420,12 @@
     {% set scored = p.bars|rejectattr('unmeasured_for_the_deployed_book')|list %}
     {% set unscored = p.bars|selectattr('unmeasured_for_the_deployed_book')|list %}
     {% set cleared = scored|selectattr('passes')|list|length %}
-    <h2>The bars, including the ones it does not clear</h2>
+    {# ITEM 49: my own heading from item 47 made the same claim one level down -- there are
+       no scorable bars this book does not clear, there are two it cannot SCORE. The heading
+       now names what the section contains in any state, and the lede beneath it carries the
+       derived counts. #}
+    <h2>The bars it is judged against &mdash; including the ones it cannot clear, and the ones
+    it cannot score</h2>
     <p class="sub">{{ p.bars|length }} standard thresholds. For the book this site actually
     runs it clears {{ cleared }} of the {{ scored|length }} that can be scored on it{% if unscored %},
     and the other {{ unscored|length }} cannot be scored on it at all &mdash; they are shown as
@@ -444,8 +463,38 @@
       <div class="box">
         <div class="bn">Stock-ranking tests</div>
         <div class="bv">{{ p.trials.get('equity', 0) }}</div>
-        <div class="bd">Each one raises the bar the headline has to clear. That is why the
-        multiple-testing hurdle above is failed: we counted honestly.</div>
+        {# ITEM 49: DERIVED FROM THE SAME FIELD THE TABLE ABOVE READS.
+           This read "That is why the multiple-testing hurdle above is failed: we counted
+           honestly" -- typed prose, true on the 2,531-name panel, and it survived the
+           canonical move to sit directly under a table showing the hurdle CLEARED. This
+           page's own lede promises nothing on it is typed by hand; that sentence was the
+           counter-example. It now branches on `clears_hlz_hurdle`, the field the bars table
+           uses, so the two cannot disagree again.
+           AND IT NAMES BOTH COUNTS, because this box is ABOUT the count and the two differ:
+           the boxes show the LIVE register (MA21 -- the artifact may lag the log and may
+           never lead it) while the published bar was computed on the count at the run. A
+           reader checking the arithmetic against the live number finds it does not match, so
+           both are stated. #}
+        <div class="bd">Each one raises the bar the headline has to clear.
+        {% if p.hurdle and p.hurdle.cleared_at_run is not none %}
+          {% if p.hurdle.cleared_at_run %}
+            The hurdle they imply is <b>cleared</b> above &mdash; and cleared on a count that
+            includes every one of them, which is the only thing that makes clearing it worth
+            anything.
+            {% if p.hurdle.at_live_count and not p.hurdle.counts_agree %}
+              The bar only ever rises as the count grows: it was
+              {{ "%.4f"|format(p.hurdle.at_run) }} at the
+              {{ p.hurdle.n_at_run|int }} stock-ranking tests the published run counted, and it
+              is {{ "%.4f"|format(p.hurdle.at_live_count) }} at the {{ p.hurdle.n_live }}
+              counted today.
+              {% if p.hurdle.cleared_at_live %}The headline clears both.{% else %}It clears the
+              first and no longer the second, which is the reading to take.{% endif %}
+            {% endif %}
+          {% else %}
+            That is why the multiple-testing hurdle above is failed: we counted honestly.
+          {% endif %}
+        {% endif %}
+        </div>
       </div>
       <div class="box">
         <div class="bn">Options tests</div>
@@ -539,8 +588,9 @@
     it. It has now been re-run on <b>all {{ "{:,}".format(p.restatement.names) }}</b>. The
     headline got <em>{{ p.restatement.direction }}</em> (top-decile alpha
     {{ (100*p.restatement.published_top_decile_alpha)|round(2) }}% &rarr;
-    {{ (100*p.restatement.top_decile_alpha)|round(2) }}% a year), which is the direction that
-    tells you the check was worth doing. Every figure on this page is from the wider
+    {{ (100*p.restatement.top_decile_alpha)|round(2) }}% a year, both <b>gross of costs</b> so
+    the two are like for like), which is the direction that tells you the check was worth
+    doing. Every figure on this page is from the wider
     universe.</p>
     {% endif %}
 
