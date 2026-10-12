@@ -144,6 +144,19 @@ universe and a disjoint grid.
 | book_configs.roth.net_max_drawdown (PUBLIC) | -0.262123 | -0.597143 | **RESTATEMENT** | valuation/screener/settings.py measured() |
 | book_configs.taxable.after_tax_alpha (PUBLIC) | 0.021133 | -0.005679 | **RESTATEMENT** | valuation/screener/settings.py measured() |
 
+## CANON-UNMEASURED successor rows (the UNMEASURED cells, measured)
+
+| figure | published | corrected | state | where it lives |
+|---|---|---|---|---|
+| Deflated Sharpe (DEPLOYED book) -- was UNMEASURED | 0.786321 | 0.720824 | **SURVIVES** | -- (research record only); /proof reads it from BACKTEST_RESULTS.json |
+| PBO (DEPLOYED book) -- stays UNMEASURED, now with a measured reason | 0.733333 | None | **UNMEASURABLE-BY-CONSTRUCTION** | -- (research record only); /proof shows it as UNMEASURED |
+| X1 half-universe split (both arms) | None | None | **UNMEASURED** | -- (research record only) |
+| R1's NET-OF-COST specification (R1's OWN path) -- was UNMEASURED | 0.078492 | 0.040583 | **SURVIVES** | /methodology (TEMPLATE) |
+| optionable_partition N_PANEL_NAMES / N_OPTIONABLE_NAMES | 2531 | None | **UNMEASURED** | -- (research record only) |
+| V6-B M1: 32.5% vs 43.4% dip survival | 0.325100 | None | **UNMEASURED** | -- (research record only) |
+| S22 per-horizon fixed_weights_null floors | 8 floors at 200 draws | None | **UNMEASURED** | -- (research record only) |
+| the live / forward Track Record | None | None | **UNMEASURED-BY-CONSTRUCTION** | Track Record tab (LIVE) |
+
 ---
 
 ## Sources — every figure is read from a landed artifact, none re-derived here
@@ -153,3 +166,5 @@ universe and a disjoint grid.
 * `CORRECTED_FLOORS.json`
 * `INDEX_BOOK_THREE_WAY.json`
 * `BACKTEST_RESULTS.json`
+* `the pre-swap BACKTEST_RESULTS.json, from git at 60871ac^`
+* `CANON_UNMEASURED_*.json (the successor rows)`

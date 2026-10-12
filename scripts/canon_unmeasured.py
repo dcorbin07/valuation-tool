@@ -861,10 +861,474 @@ def r1cost(panel=None):
     return out
 
 
+# ---------------------------------------------------------------------------------------------
+# REGISTER §4.1 — `P1S0` / `optionable_partition.N_PANEL_NAMES`
+# ---------------------------------------------------------------------------------------------
+#: the corrected panel WITH the long horizons -- the v3 rebuild, same 69 dates and 9,645 names
+#: as the sweep's panel (checked, not assumed) plus `fwd_ret_h63..h504`, which `P1S0`'s 252d and
+#: 504d arms cannot be scored without.
+PANEL_V3_BASENAME = "UNIVERSE_BIAS_PANEL_full_v3.pkl"
+
+
+def p1s0():
+    """`P1S0`'s optionable partition, re-measured on the corrected grid.
+
+    **The move table's own instruction is inherited: move the `N_PANEL_NAMES` stamp ONLY with
+    its figures.** So this measures the partition and the gate, and the stamp moves only if the
+    figures move with it. `P1S0`'s verdict (a both-halves failure that closed the
+    options-expression family) is CARRIED, not re-decided, and `P1S0-CONTROL`'s NULL is not
+    re-opened -- neither is a question this lane reopens.
+    """
+    import pandas as pd
+    from valuation.studies.optionable_universe import (
+        date_ticker_partition, coverage_report, restrict, STALE_MAX_DAYS)
+    from scripts import p1s0_optionable_gate as P
+    from scripts import term_structure as TS
+
+    root = _data_root()
+    v3 = os.path.join(fa(), PANEL_V3_BASENAME)
+    if not os.path.exists(v3):
+        raise SystemExit("REFUSING: %s is not on disk" % v3)
+    panel = pd.read_pickle(v3)
+    panel["date"] = pd.to_datetime(panel["date"])
+    base = load_panel()
+
+    out = {
+        "item": "CANON-UNMEASURED",
+        "part": "4.1 -- P1S0 / optionable_partition.N_PANEL_NAMES",
+        "register": "PREREG_canonmove_unmeasured.md (ALONE at e4b0dae); construction and bars "
+                    "from PREREG_p1s0_optionable_gate.md, imported not retyped",
+        "trials": 0,
+        "trial_class": "RE-MEASUREMENT of an already-registered construction on a new universe",
+        "weighting": "DEPLOYED -- term_structure.DEPLOYED, flat 0.125 over the seven weighted "
+                     "themes, which renormalises to flat 1/7",
+        "adopts_nothing": True,
+        "changes_no_public_page": True,
+        "p1s0_verdict_is_CARRIED_not_re_decided": (
+            "P1S0 closed the options-expression family on a both-halves failure and "
+            "P1S0-CONTROL returned NULL on the attribution. Neither is re-opened here; this "
+            "re-measures the PARTITION the public stamp describes."),
+        "controls": {},
+    }
+
+    # the v3 panel must be the SAME object the rest of the move was measured on
+    out["controls"]["C_v3_is_the_same_grid"] = {
+        "v3_dates": int(panel["date"].nunique()), "v3_names": int(panel["ticker"].nunique()),
+        "sweep_panel_dates": int(base["date"].nunique()),
+        "sweep_panel_names": int(base["ticker"].nunique()),
+        "dates_identical": bool(sorted(str(x)[:10] for x in panel["date"].unique())
+                                == sorted(str(x)[:10] for x in
+                                          pd.to_datetime(base["date"]).unique())),
+        "names_identical": bool(set(panel["ticker"]) == set(base["ticker"])),
+        "horizon_cols_present": [c for c in panel.columns if c.startswith("fwd_ret_h")],
+    }
+    log("[C] v3 grid identical to the sweep's panel: dates=%s names=%s"
+        % (out["controls"]["C_v3_is_the_same_grid"]["dates_identical"],
+           out["controls"]["C_v3_is_the_same_grid"]["names_identical"]))
+
+    dates = sorted(panel["date"].unique())
+    tickers = sorted(panel["ticker"].unique())
+    counts = panel.groupby("date")["ticker"].nunique().to_dict()
+    log("[p1s0] building the partition over %d names x %d dates (reads the chain cache)"
+        % (len(tickers), len(dates)))
+    part = date_ticker_partition(dates, tickers, data_root=root, stale_max=STALE_MAX_DAYS)
+    pkl = os.path.join(fa(), "CANON_UNMEASURED_P1S0_PARTITION.pkl")
+    part.to_pickle(pkl)
+    cov = coverage_report(part, dates, counts)
+    out["partition_pkl"] = pkl
+    out["coverage"] = {k: v for k, v in cov.items() if k != "per_date"}
+    out["coverage_per_date"] = cov.get("per_date")
+
+    n_opt = int(part.loc[part["pit_liquid"] == True, "ticker"].nunique())      # noqa: E712
+    n_chain = int(part["ticker"].nunique())
+    out["stamp"] = {
+        "N_PANEL_NAMES": {"published": 2531, "corrected": len(tickers)},
+        "N_OPTIONABLE_NAMES": {"published": 619, "corrected": n_opt,
+                               "mode": "pit_liquid (PRIMARY)"},
+        "n_names_with_any_chain": n_chain,
+        "share_of_panel_optionable": (n_opt / float(len(tickers))),
+        "share_of_panel_optionable_published": 619 / 2531.0,
+        "surface": "valuation/web/optionable_partition.py (committed literals)",
+        "the_published_copy_says": ("'Roughly a quarter of the research panel has listed "
+                                    "options' -- a DERIVED fraction, so it moves with the stamp"),
+    }
+    log("[p1s0] stamp: panel %d -> optionable %d (%.2f%% vs published %.2f%%)"
+        % (len(tickers), n_opt, 100.0 * n_opt / len(tickers), 100.0 * 619 / 2531.0))
+
+    # ---- the three horizon arms, the gate's own construction -------------------------------
+    out["horizons"] = []
+    for h in P.HORIZONS:
+        row = {"horizon": h, "is_power_anchor": bool(h == P.POWER_ANCHOR),
+               "in_the_frontier_gate": bool(h in P.GATE_HORIZONS)}
+        for mode in P.MODES:
+            rest = restrict(panel, part, mode=mode)
+            ds = P.scorable_dates(rest, h)
+            e, l, bnd = P.halves(ds)
+            cell = {"n_scorable_dates": len(ds), "n_early": len(e), "n_late": len(l),
+                    "boundary_embargoed": (str(bnd)[:10] if bnd is not None else None),
+                    "n_rows": int(len(rest)), "n_names": int(rest["ticker"].nunique())}
+            for lbl, dd in (("full", ds), ("early", e), ("late", l)):
+                if len(dd) < 4:
+                    cell[lbl] = {"status": "too few dates"}
+                    continue
+                a = TS.arm(rest, h, dates=dd, label="%s/%s/%s" % (mode, h, lbl))
+                cell[lbl] = {k: a.get(k) for k in
+                             ("n_periods", "cum_alpha", "alpha_ann", "alpha_t_hac",
+                              "ls_t_hac", "monotonicity", "equal_weight_ann", "hac_lag")}
+            # the FULL panel over the SAME dates -- P1S0-CONTROL's own reference leg
+            if len(ds) >= 4:
+                f = TS.arm(panel, h, dates=ds, label="fullpanel/%s" % h)
+                cell["full_panel_same_dates"] = {k: f.get(k) for k in
+                                                 ("n_periods", "cum_alpha", "alpha_ann",
+                                                  "alpha_t_hac", "monotonicity")}
+            row[mode] = cell
+            log("[p1s0] h=%d %s: %d dates (%d/%d), alpha_ann full %s"
+                % (h, mode, len(ds), len(e), len(l),
+                   (cell.get("full") or {}).get("alpha_ann")))
+        out["horizons"].append(row)
+
+    out["NOT_DONE"] = [
+        "the 200-draw placebo floors are NOT re-run on this universe, so no horizon here is "
+        "scored against a calibrated floor and none carries a PASS/FAIL against one -- the "
+        "figures are the partition's own, reported. P1S0's verdict is carried, not re-decided.",
+        "P1S0-CONTROL is not re-opened and its NULL stands.",
+        "the options-expression family stays CLOSED; nothing here licenses re-opening it.",
+    ]
+    return out
+
+
+# ---------------------------------------------------------------------------------------------
+# REGISTER §4.2 — `V6-B` M1, the dip-survival rate
+# ---------------------------------------------------------------------------------------------
+def v6b():
+    """`V6-B`'s dip survival, re-measured on the corrected panel.
+
+    **C1's GATE IS RE-POINTED, DECLARED IN THE REGISTER BEFORE THE RUN.** The corrected attempt
+    went red at `[C1] reproduces the record: False` on a panel its own C2 had just certified as
+    canonical, so the arms never ran. C1's RULE is kept -- the arms must be scored against the
+    same object the record describes -- and only its LITERALS move, through the new
+    `--expect-record` argument whose default is the published `REC` verbatim.
+
+    **THE EXPECTED LITERALS ARE DERIVED, NOT TYPED.** They come from a fresh `quantile_backtest`
+    on V6-B's own `THEMES`/`W` construction, so a drifted panel cannot be certified by a
+    hand-copied number (`MA19`'s rule, and `W-1`'s fix of importing a register's own constants).
+    """
+    import pandas as pd
+    from scripts import v6b_dip_survival as V
+    from valuation.edge import fundamental_panel as FP
+
+    root = _data_root()
+    v3 = os.path.join(fa(), PANEL_V3_BASENAME)
+    panel = pd.read_pickle(v3)
+    expect = FP.quantile_backtest(panel, V.THEMES, {c: V.W for c in V.THEMES},
+                                  n_q=10, horizon=63) or {}
+    exp = {k: float(expect[k]) for k in V.REC if expect.get(k) is not None}
+    # §0's control, inside the gate the gate is being re-pointed to
+    ctl_dev = {k: abs(exp[k] - v) for k, v in DEPLOYED_LANDED.items() if k in exp}
+    exp_path = os.path.join(fa(), "CANON_UNMEASURED_V6B_EXPECT.json")
+    write(exp_path, exp)
+
+    out_json = os.path.join(fa(), "CANON_UNMEASURED_V6B_DIP_SURVIVAL.json")
+    cmd = [sys.executable, "-m", "scripts.v6b_dip_survival",
+           "--data-dir", os.path.join(root, "full2009", "backtest"),
+           "--bulk-dir", os.path.join(root, "bulk"),
+           "--panel-cache", v3,
+           "--v6-artifact", os.path.join(fa(), "V6_DIP_DETECTOR.json"),
+           "--expect-record", exp_path,
+           "--json", out_json]
+    log("[v6b] %s" % " ".join(cmd[2:]))
+    p = subprocess.run(cmd, cwd=_HERE, capture_output=True, text=True)
+    logp = os.path.join(fa(), "CANON_UNMEASURED_V6B.log")
+    with io.open(logp, "w", encoding="utf-8", errors="replace") as fh:
+        fh.write((p.stdout or "") + "\n--- stderr ---\n" + (p.stderr or ""))
+    res = None
+    if os.path.exists(out_json):
+        with io.open(out_json, encoding="utf-8") as fh:
+            res = json.load(fh)
+
+    out = {
+        "item": "CANON-UNMEASURED",
+        "part": "4.2 -- V6-B M1, the dip-survival rate",
+        "register": "PREREG_canonmove_unmeasured.md (ALONE at e4b0dae); bars IMPORTED from "
+                    "PREREG_v6b_dip_survival.md and never restated (its void condition 6.3)",
+        "trials": 0,
+        "trial_class": "RE-MEASUREMENT of an already-registered construction on a new universe",
+        "weighting": "DEPLOYED -- V6-B's own THEMES at W=0.125, which renormalises to flat 1/7",
+        "adopts_nothing": True,
+        "changes_no_public_page": True,
+        "bars_imported": {"m1_economic_floor_pp": V.M1_ECONOMIC_PP, "n_perm": V.N_PERM,
+                          "min_per_side": V.MIN_PER_SIDE,
+                          "min_dates_per_half": V.MIN_DATES_PER_HALF,
+                          "depth": V.DEPTH, "fwd_td": V.FWD_TD,
+                          "further_drop": V.FURTHER_DROP,
+                          "quality_floor": V.QUALITY_FLOOR, "health_floor": V.HEALTH_FLOOR},
+        "c1_repointed": {
+            "published_REC": V.REC,
+            "corrected_expect_DERIVED": exp,
+            "dev_from_the_move_s_own_deployed_literals": ctl_dev,
+            "ok": bool(ctl_dev and max(ctl_dev.values()) == 0.0),
+            "why": ("the corrected attempt aborted at C1 against the PUBLISHED literals on a "
+                    "panel its own C2 had certified as canonical -- a guard firing on the clock "
+                    "rather than on the property it protects"),
+        },
+        "returncode": p.returncode,
+        "log": logp,
+        "published": {"healthy_pooled_rate": 0.3251, "unhealthy_pooled_rate": 0.4335,
+                      "pooled_gap_pp": -10.84},
+    }
+    if res is None:
+        out["state"] = "FAILED -- no artifact written; see the log"
+        return out
+    out["controls"] = res.get("controls")
+    out["aborted"] = res.get("ABORTED")
+    arms = res.get("arms") or {}
+    out["arms"] = arms
+    m1 = (((arms.get("arm1_survival") or {}).get("M1")) or {})
+    out["M1"] = m1
+    return out
+
+
+# ---------------------------------------------------------------------------------------------
+# REGISTER §4.4 — the live / forward Track Record
+# ---------------------------------------------------------------------------------------------
+def trackrecord():
+    """**UNMEASURED-BY-CONSTRUCTION**, and the reason is structural rather than a shortfall of
+    effort. Pre-committed in the register §4.4, before anything was run.
+
+    The forward record accrues in CALENDAR time under `PAPER_TRACK_CONTRACT.md`. No backtest on
+    any universe can produce it; backfilling it is forbidden by a standing security rule
+    (`DECISIONS.md`: *"no backfill of the forward record"*); and the contract's frozen meter
+    parameters are explicitly outside this lane. **This is a different state from every other
+    row here and is labelled differently** -- the others could be measured and were; this one
+    cannot be, by anyone, today.
+    """
+    import pandas as pd
+    out = {
+        "item": "CANON-UNMEASURED",
+        "part": "4.4 -- the live / forward Track Record",
+        "state": "UNMEASURED-BY-CONSTRUCTION",
+        "trials": 0,
+        "why": ("a forward record that accrues in calendar time under PAPER_TRACK_CONTRACT.md. "
+                "A backtest on any universe cannot produce it, backfilling it is forbidden by a "
+                "standing security rule, and the contract's frozen meter parameters are not "
+                "touched by this lane. Not a shortfall of effort -- nobody can measure it today."),
+        "what_WOULD_change_it": "elapsed calendar time, and nothing else",
+        "the_canonical_move_does_not_touch_it": (
+            "the move changes the BACKTEST's universe; the forward record is a different object "
+            "with its own contract, inception and vintage clock. CANONICAL_MOVE_TABLE.md §7 "
+            "already says the move does not touch the contract or the record."),
+    }
+    hist = os.path.join(_data_root(), "valquo_track_history.csv")
+    if os.path.exists(hist):
+        try:
+            df = pd.read_csv(hist)
+            out["recorded_series_rows_on_this_host"] = int(len(df))
+            out["recorded_series_last_row"] = str(df.iloc[-1].to_dict())
+            out["note"] = ("the recorded rows are READ only, to say how long the record is. No "
+                           "figure from it is quoted as a verdict and nothing is written.")
+        except Exception as e:                                              # noqa: BLE001
+            out["recorded_series_read_error"] = repr(e)[:200]
+    return out
+
+
+# ---------------------------------------------------------------------------------------------
+# THE SUCCESSOR ROWS, for `scripts/canon_figure_table.py` to UNION IN
+# ---------------------------------------------------------------------------------------------
+GROUP = "CANON-UNMEASURED successor rows (the UNMEASURED cells, measured)"
+
+
+def _a(name):
+    p = os.path.join(fa(), name)
+    if not os.path.exists(p):
+        return None
+    with io.open(p, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def _row(figure, published, corrected, state, why, surface=None, note=None):
+    return {"group": GROUP, "figure": figure, "published": published, "corrected": corrected,
+            "state": state, "why": why, "surface": surface, "note": note}
+
+
+def table_rows():
+    """The rows this item adds to `CANONICAL_FIGURE_TABLE.md`, read off the landed artifacts.
+
+    **A MISSING ARTIFACT BECOMES AN `UNMEASURED` ROW WITH ITS REASON, never a dropped row.**
+    That is the defect this lane found in the generator itself: `load()` returned `None` for a
+    dead path and `if canon and before` silently dropped fifteen rows, including every public
+    landing-page figure, while the run printed a cheerful count.
+
+    **EVERY ROW IS THE DEPLOYED FLAT-1/7 BOOK** and says so, per `DECISIONS.md` 2026-10-07.
+    """
+    rows = []
+
+    # ---- §1 the deployed book's PBO and Deflated Sharpe -----------------------------------
+    d = _a("CANON_UNMEASURED_DEPLOYED.json")
+    if not d or d.get("ABORTED"):
+        rows.append(_row("Deflated Sharpe (DEPLOYED book)", 0.7863213339664521, None,
+                         "UNMEASURED", "the part-1 artifact is absent or aborted on this host"))
+    else:
+        by = {r["statistic"]: r for r in d["rows"]}
+        dsr = by["Deflated Sharpe -- DEPLOYED book (flat 1/7)"]
+        rows.append(_row(
+            "Deflated Sharpe (DEPLOYED book) -- was UNMEASURED",
+            dsr["published"], dsr["corrected"],
+            # SURVIVES means the CLAIM's relationship to its bars is unchanged: it failed the
+            # conventional 0.95 and cleared its calibrated floor before, and does both now.
+            ("SURVIVES" if (dsr["clears_conventional"] is False
+                            and dsr["clears_calibrated_floor"] is True) else "NO LONGER HOLDS"),
+            ("fails the conventional >0.95 (as the published figure did) and CLEARS the matched "
+             "non-adopting placebo floor %.6f over 84 draws -- the same relationship to both "
+             "bars. The published run's own cpcv.adopt was False, so 0.7863 IS the deployed "
+             "book. NOT like-for-like on N (224 vs %s), which is separated in the artifact: "
+             "roughly 0.040 of the 0.0655 fall is the trial counter rising and only 0.023-0.025 "
+             "is the universe and grid." % (dsr["calibrated_floor"], dsr["corrected_N"])),
+            surface="-- (research record only); /proof reads it from BACKTEST_RESULTS.json"))
+        pbo_dep = by["PBO_NO_SELECTION -- the DEPLOYED-book analogue (NEW statistic)"]
+        rows.append(_row(
+            "PBO (DEPLOYED book) -- stays UNMEASURED, now with a measured reason",
+            0.7333333333333333, None, "UNMEASURABLE-BY-CONSTRUCTION",
+            ("Bailey-Lopez de Prado's PBO scores a SELECTION step and the deployed book selects "
+             "nothing. `_pbo` never reads `adopt` or `recommend`, so cpcv.pbo is the SAME number "
+             "whether or not adoption happened -- it is not 'the adopted book's PBO'. The "
+             "no-selection analogue reads %s with a median OOS rank of %s of eight, and the "
+             "per-scheme control proves it is a pure RANK statistic (0.0 for the three best "
+             "schemes, 1.0 for the three worst), so it may NEVER be published as a probability "
+             "of overfitting." % (pbo_dep["corrected"], pbo_dep["deployed_median_oos_rank"])),
+            surface="-- (research record only); /proof shows it as UNMEASURED"))
+
+    # ---- §2 X1 ----------------------------------------------------------------------------
+    d = _a("CANON_UNMEASURED_X1.json")
+    if not d or d.get("ABORTED"):
+        rows.append(_row("X1 half-universe split (both arms)", None, None, "UNMEASURED",
+                         "the X1 artifact is absent or aborted on this host"))
+    else:
+        for arm, label in (("A1_top_decile_alpha", "X1 A1 -- top-decile alpha, half books"),
+                           ("A2_long_short_hac_t", "X1 A2 -- long-short HAC t, half books")):
+            a = d[arm]
+            rows.append(_row(
+                "%s -- was UNMEASURED" % label,
+                a["published_full_universe_value"], a["half_book_median"],
+                ("SURVIVES" if a["verdict"] == "SURVIVES" else a["verdict"]),
+                ("%d half books, %d of them negative; %.1f%% clear the half-universe null's p95 "
+                 "(bar %.0f%%), %.1f%% of splits clear on BOTH sides (bar %.0f%%); the "
+                 "stable-key primary is A=%s B=%s and both_clear=%s. Bars IMPORTED from "
+                 "PREREG_r4_x1_accounting_and_universe_split.md; X7's full-universe floors are "
+                 "reported beside the half-universe null and never as it."
+                 % (a["n_half_books"], a["n_half_books_negative"],
+                    100 * a["frac_half_books_clearing"], 100 * d["constants_imported"]
+                    ["FRAC_HALFBOOKS"], 100 * a["frac_splits_both_clear"],
+                    100 * d["constants_imported"]["FRAC_BOTH"],
+                    a["primary_stable_key_A"], a["primary_stable_key_B"],
+                    a["primary_both_clear"])),
+                note="the median is of the half books, not the full-universe value"))
+
+    # ---- §3 R1's net-of-cost --------------------------------------------------------------
+    d = _a("CANON_UNMEASURED_R1COST.json")
+    if not d:
+        rows.append(_row("R1's NET-OF-COST specification", None, None, "UNMEASURED",
+                         "the r1cost artifact is absent on this host"))
+    else:
+        rd = (d.get("readings") or {})
+        prim = rd.get("shipped") or {}
+        tw = rd.get("twoway") or {}
+        rows.append(_row(
+            "R1's NET-OF-COST specification (R1's OWN path) -- was UNMEASURED",
+            0.0784920195105969, (prim.get("net_top_minus_ew") or {}).get("alpha_ann"),
+            ("SURVIVES" if prim.get("clears_r1_bar") else "NO LONGER HOLDS"),
+            ("NaN was a zero-date LEFT JOIN against X4's 110-date series; the PUBLISHED panel "
+             "shares zero dates with it too, so this cell has been unmeasurable since B6 and "
+             "the shipped +7.85%%/yr (t 5.16) is the VOID pre-B6 run. Fixed by supplying a "
+             "corrected --strategy-series, which is what that argument is for; R1's arithmetic "
+             "is untouched and its gross leg reproduces at dev 0.000e+00. Net intercept at NW t "
+             "%s against R1's own bar of 2.0. CHARGING BOTH TRADE LEGS (R1's leg charges the "
+             "entering side only, ~2x under this project's own cost model) it reads %s at t %s "
+             "and does NOT clear."
+             % ((prim.get("net_top_minus_ew") or {}).get("alpha_t_nw"),
+                (tw.get("net_top_minus_ew") or {}).get("alpha_ann"),
+                (tw.get("net_top_minus_ew") or {}).get("alpha_t_nw"))),
+            surface="/methodology (TEMPLATE)"))
+
+    # ---- §4.1 P1S0 ------------------------------------------------------------------------
+    d = _a("CANON_UNMEASURED_P1S0.json")
+    if not d:
+        rows.append(_row("optionable_partition N_PANEL_NAMES / N_OPTIONABLE_NAMES", 2531, None,
+                         "UNMEASURED", "the p1s0 artifact is absent on this host"))
+    else:
+        st = d["stamp"]
+        rows.append(_row(
+            "optionable_partition N_PANEL_NAMES -- was UNMEASURED",
+            st["N_PANEL_NAMES"]["published"], st["N_PANEL_NAMES"]["corrected"], "RESTATEMENT",
+            "the panel the stamp describes; moved only WITH its figures, as the move table "
+            "instructed", surface=st["surface"]))
+        rows.append(_row(
+            "optionable_partition N_OPTIONABLE_NAMES (pit_liquid) -- was UNMEASURED",
+            st["N_OPTIONABLE_NAMES"]["published"], st["N_OPTIONABLE_NAMES"]["corrected"],
+            "RESTATEMENT",
+            ("the optionable share falls from %.2f%% to %.2f%% of the panel, so the page's "
+             "'roughly a quarter' is NO LONGER TRUE and is the copy that must change. P1S0's "
+             "own verdict is CARRIED, not re-decided, and the options-expression family stays "
+             "closed." % (100 * st["share_of_panel_optionable_published"],
+                          100 * st["share_of_panel_optionable"])),
+            surface=st["surface"]))
+
+    # ---- §4.2 V6-B ------------------------------------------------------------------------
+    d = _a("CANON_UNMEASURED_V6B.json")
+    if not d or d.get("state") or d.get("aborted"):
+        rows.append(_row("V6-B M1: 32.5% vs 43.4% dip survival", 0.3251, None, "UNMEASURED",
+                         "the V6-B re-run did not produce an artifact; see "
+                         "CANON_UNMEASURED_V6B.log. Its C1 gate is now re-pointable "
+                         "(--expect-record), which is what blocked the previous attempt."))
+    else:
+        m1 = d.get("M1") or {}
+        rows.append(_row(
+            "V6-B M1: healthy dips fall a further 20% less often -- was UNMEASURED",
+            d["published"]["healthy_pooled_rate"], m1.get("healthy_pooled_rate"),
+            ("SURVIVES" if m1.get("verdict") in ("SURVIVES", "REPLICATES") else
+             (m1.get("verdict") or "UNRESOLVED")),
+            "bars IMPORTED from PREREG_v6b_dip_survival.md and never restated; C1 re-pointed "
+            "to the corrected panel's own DERIVED figures",
+            surface="CLAUDE.md V6-B bullet + Dip Detector tab (TRANSCRIBED)"))
+
+    # ---- §4.3 S22's per-horizon floors ----------------------------------------------------
+    d = _a("CANON_UNMEASURED_S22_FLOORS.json")
+    pl = (d or {}).get("placebo") or {}
+    fl = pl.get("floors") or {}
+    if not fl:
+        rows.append(_row("S22 per-horizon fixed_weights_null floors", "8 floors at 200 draws",
+                         None, "UNMEASURED",
+                         "the 200-draw sweep has not landed on this host"))
+    else:
+        draws = pl.get("draws")
+        for h in sorted(fl, key=lambda x: int(x)):
+            c = fl[h]
+            rows.append(_row(
+                "S22 fixed_weights_null floor, h=%s (alpha_t_hac p95)" % h, None,
+                c.get("alpha_t_hac_p95"),
+                ("RESTATEMENT" if draws and draws >= 100 else "PARTIAL"),
+                ("a DIFFERENT and LESS CONSERVATIVE null than X7's -- fixed weights, no CPCV, "
+                 "permuted WITHIN each date -- so these percentiles may NEVER be compared with "
+                 "the 2.2837 family. %s draws; null median %s, max %s."
+                 % (draws, c.get("alpha_t_hac_median"), c.get("alpha_t_hac_max"))),
+                note="ls_t_hac p95 = %s" % c.get("ls_t_hac_p95")))
+
+    # ---- §4.4 the forward Track Record ----------------------------------------------------
+    d = _a("CANON_UNMEASURED_TRACKRECORD.json")
+    rows.append(_row(
+        "the live / forward Track Record", None, None,
+        "UNMEASURED-BY-CONSTRUCTION",
+        (d or {}).get("why", "a forward record that accrues in calendar time"),
+        surface="Track Record tab (LIVE)",
+        note="a different state from every other row: nobody can measure it today, and only "
+             "elapsed calendar time changes that"))
+    return rows
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--what", default="control",
-                    choices=["control", "deployed", "inert", "x1", "r1cost", "p1s0", "v6b"])
+                    choices=["control", "deployed", "inert", "x1", "r1cost", "p1s0", "v6b",
+                             "trackrecord"])
     args = ap.parse_args(argv)
     if args.what == "control":
         res = control()
@@ -879,6 +1343,13 @@ def main(argv=None):
         res = x1()
     elif args.what == "r1cost":
         res = r1cost()
+    elif args.what == "p1s0":
+        res = p1s0()
+    elif args.what == "v6b":
+        res = v6b()
+    elif args.what == "trackrecord":
+        res = trackrecord()
+        log(json.dumps(res, indent=1, default=float))
     else:
         raise SystemExit("--what %s is implemented in its own module pass" % args.what)
     write(out_path(args.what), res)

@@ -281,7 +281,31 @@ def main():
     ap.add_argument("--v6-artifact", default="data/free_analysis/V6_DIP_DETECTOR.json")
     ap.add_argument("--json", default="data/free_analysis/V6B_DIP_SURVIVAL.json")
     ap.add_argument("--controls-only", action="store_true")
+    # CANON-UNMEASURED §4.2 — C1's GATE IS RE-POINTABLE, AND IT DEFAULTS TO THE LANDED LITERALS.
+    #
+    # `REC` is the PUBLISHED 2,531-name panel's headline. C1 is the right gate and its rule --
+    # "the arms must be scored against the same object the record describes" -- is kept; what
+    # cannot survive a universe change is the LITERALS. Run against the corrected panel the gate
+    # went red (`CORRECTED_V6B.log`: `[C1] reproduces the record: False`) on a panel its own C2
+    # had just certified as canonical, which is a guard firing on the CLOCK rather than on the
+    # property it protects -- `W-1`'s K4 and `MB31`'s tripwire, both of which fired against
+    # correct panels, and both of which were repointed rather than re-asserted or deleted.
+    #
+    # The default is `None`, i.e. `REC` verbatim, so every existing invocation is bit-identical.
+    ap.add_argument("--expect-record", default=None,
+                    help="JSON object (or path to one) of the headline figures C1 must "
+                         "reproduce. Defaults to REC, the published panel's own literals.")
     args = ap.parse_args()
+
+    expect = dict(REC)
+    expect_src = "REC (the PUBLISHED panel's literals, module default)"
+    if args.expect_record:
+        raw = args.expect_record
+        if os.path.exists(raw):
+            with open(raw, encoding="utf-8") as fh:
+                raw = fh.read()
+        expect = {k: float(v) for k, v in json.loads(raw).items()}
+        expect_src = "--expect-record (%s)" % args.expect_record
 
     panel = pickle.load(open(args.panel_cache, "rb"))
     n_d, n_t = panel["date"].nunique(), panel["ticker"].nunique()
@@ -304,9 +328,11 @@ def main():
 
     # ---- C1 (GATING), in its OWN pass ----
     base = FP.quantile_backtest(panel, THEMES, {c: W for c in THEMES}, n_q=10, horizon=63)
-    got = {k: float(base.get(k)) for k in REC if base.get(k) is not None}
-    ok1 = all(abs(got.get(k, 1e9) - v) < 1e-9 for k, v in REC.items())
-    out["controls"]["C1_reproduces_record"] = {"ok": bool(ok1), "measured": got, "expected": REC}
+    got = {k: float(base.get(k)) for k in expect if base.get(k) is not None}
+    ok1 = all(abs(got.get(k, 1e9) - v) < 1e-9 for k, v in expect.items())
+    out["controls"]["C1_reproduces_record"] = {"ok": bool(ok1), "measured": got,
+                                               "expected": expect,
+                                               "expected_source": expect_src}
     _log(f"[C1] reproduces the record: {ok1}")
     if not ok1:
         out["ABORTED"] = "C1 FAILED - every V6-B arm is VOID per register 6.6"
