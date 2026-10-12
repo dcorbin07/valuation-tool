@@ -57,6 +57,23 @@ jobs:
           # the ordinary case and, until entry rules exist, the only case. Alerting on a
           # quiet day would teach everyone to ignore this job.
           [ "$CODE" = "200" ] || { echo "::error::fleet-cycle returned ${CODE}"; exit 1; }
-          # Surface the state without failing on it.
-          grep -q '"breathing": *true' "$BODY" \
-            || echo "::warning::fleet is DECLARED-BUT-NOT-BREATHING (no entry rule implemented)"
+          # ITEM 46 -- THE CAUSE IS READ FROM THE BODY RATHER THAN GUESSED. This is the
+          # one-line fix `fleet.py`'s own comment anticipated: "a future one-line workflow fix
+          # can print the cause that was actually found."
+          #
+          # It printed "no entry rule implemented" whenever `breathing` was not true, having
+          # tested only `breathing` -- and it has been WRONG on every run since the harness
+          # last moved. The real cause is `ALL_BOOKS_BLOCKED_AT_GATE:SELFCHECK_STALE`: all 18
+          # books gated shut on a stale day-1 certificate, with four entry rules implemented
+          # and three of them able to order. A warning that names the wrong cause sends the
+          # reader off to implement rules that already exist.
+          if grep -q '"breathing": *true' "$BODY"; then
+            echo "the fleet is BREATHING"
+          else
+            REASON=$(python -c "import json,sys;print((json.load(open(sys.argv[1])) or {}).get('not_breathing_reason') or 'unreported')" "$BODY" 2>/dev/null || echo unreported)
+            echo "::warning::fleet is DECLARED-BUT-NOT-BREATHING -- cause: ${REASON}"
+            case "$REASON" in
+              *SELFCHECK_STALE*)
+                echo "::warning::fix: run the FLEET SELF-CHECK (re-certify) workflow once -- Actions -> Run workflow" ;;
+            esac
+          fi
