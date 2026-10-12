@@ -103,8 +103,11 @@ The unusual part of this repo is the protocol, not the model.
   `PREREG_*.md` file and committed **before** the measurement code exists — 53 of the 59 registers
   on disk were committed in a markdown-only commit, and a test now enforces that for new ones.
 - **A trial counter that costs something.** Every test charges the research log, and the count
-  feeds the Deflated Sharpe and the HLZ hurdle. Searching harder makes the bar harder. `N` = 224
-  for equity, 292 for options.
+  feeds the Deflated Sharpe and the HLZ hurdle. Searching harder makes the bar harder. The
+  canonical run counted **285** equity trials; the live register is read at request time on
+  [/proof](https://valquo.co/proof) and only ever rises, so the two legitimately differ by
+  however many tests have landed since. (This line read `N` = 224 / 292 until 2026-10-12 — a
+  count typed into a document goes stale inside a week, which is why the page derives it.)
 - **Calibrated thresholds.** Bars come from a placebo, not convention (see above).
 - **Three independent cold audits**, ~250 adjudicated items in `VALQUO_LEDGER.md`, each row
   carrying its verdict, commit and write-up.
@@ -269,9 +272,12 @@ advice.)*
 
 - **A DCF is only as good as its inputs.** The assumption engine is a sensible starting point, not
   gospel. Use the tweak-and-re-run panel and the reverse-DCF check.
-- **The screener's evidence is one panel and one 18-year window**, gross-of-cost figures quoted
-  alongside net, and it fails the strictest multiple-testing bar. The forward test that would
-  settle it does not report until 2031.
+- **The screener's evidence is one panel and one 17-year window**, gross-of-cost figures quoted
+  alongside net. It now clears both of its multiple-testing bars — which it did not on the
+  previous, narrower panel — and **the two panels share no rebalance dates**, so that is a
+  restatement rather than a result that improved. Two of the four standard bars cannot be
+  scored for the book the site runs at all. The forward test that would settle it does not
+  report until 2031.
 - **`yfinance` scrapes Yahoo** and can be rate-limited or change labels; EDGAR backstops US names.
 - **Comps use sector-benchmark multiples by default** — a rough cross-check, not a curated peer set.
 - **Not investment advice.**

@@ -181,9 +181,34 @@ BOOK_CONFIGS = {
 #: 69 quarterly dates, ~18 years, the EQUAL-WEIGHTED decile book, gross of nothing and net of
 #: the modelled cost table. It is NOT the served score-weighted large-cap book a user sees on
 #: the site, and it is NOT the concentrated top-25 book.
-MEASURED_BASIS = ("full-universe 2,531-name point-in-time panel, 69 quarterly dates (~18 "
-                  "years), EQUAL-WEIGHTED decile book, net of the modelled cost table -- not "
-                  "the served score-weighted large-cap book")
+#: ITEM 49: THE UNIVERSE SIZE CAME OUT OF THIS STRING, and the comment above is why. It
+#: promises that every number `measured()` returns is a property of the SAME object and that
+#: naming that object is "the difference between a figure and a claim" -- then named a
+#: 2,531-name panel while `measured()` had been re-pointed at the corrected 9,645-name
+#: artifact. The numeric stamp beside it was already derived (`CANONICAL-MOVE`, 2026-10-09);
+#: the PROSE was missed, which is the more dangerous half for exactly the reason that fix
+#: states: "a wrong figure invites checking, while a wrong label makes a right figure
+#: unverifiable."
+#:
+#: The size is NOT re-typed here. It is appended by `measured_basis()` below from the same
+#: blob the figures come from, so there is one definition and no import-time file read. This
+#: constant keeps the part that is true of the object whatever its size.
+MEASURED_BASIS = ("full-universe point-in-time panel, EQUAL-WEIGHTED decile book, net of the "
+                  "modelled cost table -- not the served score-weighted large-cap book")
+
+
+def measured_basis(n_names=None, n_dates=None) -> str:
+    """`MEASURED_BASIS` with the universe stamp the figures were actually measured on.
+
+    Takes the counts rather than reading the artifact, so the caller passes the SAME values it
+    is publishing beside the string -- which is what stops the label and the figures drifting.
+    An absent count produces a string that names no size rather than a wrong one.
+    """
+    if n_names and n_dates:
+        return ("full-universe {n:,}-name point-in-time panel, {d} quarterly dates, "
+                "EQUAL-WEIGHTED decile book, net of the modelled cost table -- not the served "
+                "score-weighted large-cap book").format(n=int(n_names), d=int(n_dates))
+    return MEASURED_BASIS
 
 #: The after-tax sentence, which must travel wherever a TAXABLE book is offered.
 AFTER_TAX_SENTENCE = (
@@ -244,6 +269,8 @@ def measured(cfg_name: str = None, path: str = None) -> dict:
     out["n_dates"] = _uni.get("n_dates")
     out["n_names"] = _uni.get("n_names")
     out["universe_label"] = _uni.get("label")
+    # ITEM 49: the basis PROSE gets the same derived stamp as the figures, from this blob.
+    out["basis"] = measured_basis(out["n_names"], out["n_dates"])
     out["weighting"] = "equal-weighted decile"
     out["no_trade_band"] = (BOOK_CONFIGS.get(name) or {}).get("exit_frac")
     out["measured_width"] = (BOOK_CONFIGS.get(name) or {}).get("measured_width")

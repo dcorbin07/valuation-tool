@@ -578,8 +578,21 @@ class NoPublicSurfaceQuotesAResearchFigureUnlabelled(unittest.TestCase):
         cav = H.caveat()
         self.assertIn("not the Valquo Index", cav,
                       "the mandatory caveat does not name the book: " + cav[:200])
-        self.assertIn("~2,500", cav)
+        # ITEM 49: DERIVED. This asserted the literal "~2,500", which was the figure the
+        # clause itself had wrong -- it named a 2,500-name universe two clauses before the
+        # same caveat said "the corrected 9,645-name / 69-date panel". `RESEARCH_OBJECT` now
+        # formats the size from `PANEL_NAMES`, so the test asks for whatever the module
+        # publishes and the two cannot disagree again.
+        self.assertIn("~{:,}".format(H.PANEL_NAMES), cav,
+                      "the caveat does not name the panel size the module publishes: "
+                      + cav[:200])
         self.assertIn("top 10%", cav)
+        # NON-VACUOUS, and it is the defect this repoint fixes: the caveat must not ALSO name
+        # a different universe.
+        for other in ("~2,500", "~2,531"):
+            if other != "~{:,}".format(H.PANEL_NAMES):
+                self.assertNotIn(other, cav,
+                                 "the caveat names two different universes at once")
 
     def test_the_registered_research_sentence_is_NOT_rewritten(self):
         """THE OTHER HALF, and it is why the label is appended rather than spliced.
@@ -591,6 +604,8 @@ class NoPublicSurfaceQuotesAResearchFigureUnlabelled(unittest.TestCase):
         """
         from valuation.web import hold_horizon as H
         self.assertNotIn("Valquo Index", H.DEFENSIBLE)
+        # ITEM 49: derived, so this bans the CURRENT size rather than a retired one.
+        self.assertNotIn("~{:,}".format(H.PANEL_NAMES), H.DEFENSIBLE)
         self.assertNotIn("~2,500", H.DEFENSIBLE)
         self.assertIn("the top decile of the hot list beat the equal-weighted universe",
                       H.DEFENSIBLE)

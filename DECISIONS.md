@@ -33,6 +33,14 @@ manager from Don's own words in chat.
   the deeper Index drawdown and replacing the "not a survey of survivors" sentence. No interim
   patch. The flat 1/7 weights stay: CPCV adopting a scheme does not change them (prove before
   changing). The forward contract's frozen meter parameters are not touched.
+- **2026-10-12 — AN OPTIONS STRATEGY IS JUDGED AS ITS OWN SYSTEM, NOT AGAINST THE INDEX OR THE
+  SHARES.** The Valquo Index is an equity book (ETF-like); options trading is a separate system,
+  shown separately and paper-traded separately from the Index record. So SELL-PREMIUM's pass rule
+  has no "return given up versus holding the shares" margin. It passes if, under the standing
+  discipline: it is profitable net of realistic costs on the capital it ties up, in both halves; it
+  beats the same trade placed on random days in the same names (so the timing is shown to matter);
+  it survives realistic sizing and concurrency (O11) and the pre-committed crash stress. The
+  comparison with simply buying the shares is REPORTED for context and carries no verdict.
 - **2026-10-10 — HOW THE CANONICAL-MOVE RESTATEMENT PRESENTS THREE FIGURES** (from r1's
   `CANONICAL_MOVE_TABLE.md`):
   1. **The Index tab drops "alpha vs the all-cap equal-weighted universe".** On the corrected

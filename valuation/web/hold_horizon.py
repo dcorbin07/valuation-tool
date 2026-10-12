@@ -180,11 +180,15 @@ PER_NAME = (
 #: It LEADS the caveat rather than trailing it, because it is a statement about WHICH OBJECT
 #: the figure describes. A trailing identity disclaimer is read after the reader has already
 #: decided what they are looking at.
+#: ITEM 49: THE UNIVERSE SIZE IS FORMATTED FROM `PANEL_NAMES`, not typed. It read
+#: "~2,500 companies" and the caveat it leads carries "the corrected 9,645-name / 69-date
+#: panel" two clauses later — one sentence naming two universes. The figure the clause is
+#: about is already a constant in this module, so the only durable fix is to use it.
 RESEARCH_OBJECT = (
-    "the ranking across all ~2,500 companies, equal-weighted top 10% - not the Valquo Index, "
+    "the ranking across all ~{n:,} companies, equal-weighted top 10% - not the Valquo Index, "
     "which holds a $10 billion large-cap tier, score-weighted, with an 8% position cap and a "
     "no-trade band"
-)
+).format(n=PANEL_NAMES)
 
 #: The caveats §6 says the sentence may not be displayed without. Held as separate clauses
 #: because each one is independently quoted verbatim from the handoff — a single joined string
