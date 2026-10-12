@@ -114,12 +114,49 @@ class Register(unittest.TestCase):
         self.assertIn("Don's ruling and not an executor choice", txt)
         self.assertIn("2026-10-12", txt)
 
-    def test_it_records_that_the_ruling_is_NOT_in_DECISIONS_md(self):
-        """The premise correction. Reported, not edited — `DECISIONS.md` is the manager's."""
-        self.assertIn("It is not there", _src(self.REG))
-        self.assertNotIn("2026-10-12", _src("DECISIONS.md"),
-                         "DECISIONS.md now carries the ruling; this register's premise "
-                         "correction is stale and should be re-read")
+    def test_the_premise_correction_is_HISTORICAL_and_the_RULING_HAS_SINCE_LANDED(self):
+        """`S1` recorded that `DECISIONS.md` carried no 2026-10-12 line. **IT NOW DOES.**
+
+        The manager landed it while this register was being executed, and the guard written to
+        go red when that happened **did exactly that, in CI, on this register's first land
+        attempt**. That is the guard working, not a defect.
+
+        **THE REGISTER IS LEFT UNEDITED** — its correction was true when it was committed and
+        git proves it below — and what moves is this guard, repointed **in the same commit so
+        the move shows in the diff** (`MA59`). It now asserts the STRONGER property it was
+        standing in for: the override file and the register must not DRIFT. Every clause of
+        Don's ruling must appear in both, or a lane reading one gets a different standard from
+        a lane reading the other, which is the whole reason `DECISIONS.md` exists.
+        """
+        reg = _src(self.REG)
+        self.assertIn("It is not there", reg,
+                      "the register was edited after the fact; its correction was true when "
+                      "committed and must stay as written")
+
+        # The historical claim is CHECKABLE rather than asserted: at the register's own commit
+        # the file genuinely carried no such line.
+        sha = "2e9fe7b"
+        out = subprocess.run(("git", "show", "%s:DECISIONS.md" % sha), cwd=REPO,
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        if out.returncode == 0:
+            self.assertNotIn("2026-10-12", out.stdout.decode("utf-8", "replace"),
+                             "DECISIONS.md DID carry the ruling at %s, so the register's "
+                             "premise correction was wrong when written" % sha)
+        else:
+            _skip(self, "commit %s not reachable in this checkout" % sha)
+
+        # And it has since landed, with the SAME substance the register quotes.
+        dec = _src("DECISIONS.md")
+        self.assertIn("2026-10-12", dec, "the ruling is not in DECISIONS.md")
+        for clause in ("own system", "capital it ties up", "both halves", "random days",
+                       "O11", "crash stress", "carries no verdict"):
+            self.assertIn(clause.lower(), dec.lower(),
+                          "DECISIONS.md's 2026-10-12 line is missing the clause %r that this "
+                          "register's pass condition rests on" % clause)
+        for clause in ("its own system", "capital it ties up", "both halves",
+                       "random-day version", "O11", "crash stress", "NO verdict"):
+            self.assertIn(clause.lower(), reg.lower(),
+                          "the register is missing the clause %r" % clause)
 
     def test_the_ELIGIBLE_BUT_UNRESOLVED_label_is_pre_committed(self):
         """`S10`. Stage 1 holds ZERO 30% crashes and a short-vol book's risk is all in those."""
