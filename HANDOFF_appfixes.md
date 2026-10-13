@@ -18924,3 +18924,118 @@ everything above was built from the prompt's own specification. If the rulings s
 different, the two places to look are the price read (it quotes the premium to base value, not
 the valuation sub-score) and the story-stock threshold (15 points, a disclosure threshold
 calibrated against nothing, which the page says of itself).
+
+## item 52 part 7a — NVDA's missing themes are NOT a data gap, and part 4 said they were
+
+**THE ANSWER TO DON'S QUESTION IS NO, AND IT IS A CORRECTION AGAINST THIS LANE'S OWN PART 4.**
+Part 4 made the two absent themes visible — `why_missing: ["growth", "momentum"]` on NVDA,
+`[]` on APLD, reproducing exactly what Don saw — and then told the reader a cause it had not
+established: *"growth and momentum **had no input in this scan**"*. Measured, that sentence is
+false for most of the names it renders on.
+
+**THE MECHANISM, read out of `row_attribution` rather than guessed.** It drops a theme in two
+cases that mean opposite things:
+
+* the contribution is `NaN` — the input was never scored, a genuine gap;
+* `abs(v) > min_abs` fails at `min_abs = 1e-6` — the theme **was** scored and moved this name
+  by nothing.
+
+Part 4 inferred absence from the attribution list alone, so it could not tell them apart and
+called both the first thing. **This is `V6`'s rule and `O21-D2`'s `C5` in my own code: an
+absent measurement and a measured zero must not read the same.**
+
+**MEASURED ON THE LIVE SCAN, ON THE POPULATION THE CLAIM IS ABOUT (`O-1`'s rule) rather than
+on the three names I happened to open.** Over the live top 100 of the 2026-10-12 scan, **159
+(row, theme) cells are absent from the explanation and 29 of them — 18% — were SCORED**, the
+contribution simply rounding to zero. Of the 130 genuinely unscored, 67 also carry a null `z_`
+column and 63 are themes the row exposes no `z_` column for.
+
+**THE SHARPEST SINGLE FIGURE: 28 established rows are missing `growth` from the explanation,
+and `z_growth` is PRESENT on 26 of them.** So for 26 of 28 the data was there.
+
+**`factors` IS AN EXACT DISCRIMINATOR AND THAT WAS CHECKED, NOT ASSUMED** — it is the
+per-theme z-score the composite was built from. Non-null on **all 641** attributed cells and
+on exactly the 29 scored-but-zero ones, **zero disagreements in 800 cells**. It was already on
+the payload; nothing new had to be computed.
+
+**A PREMISE THAT LOOKED LIKE THE ANSWER AND IS NOT, recorded because it is the trap here.**
+`growth` is not a key at all in `WEIGHTS_ESTABLISHED` and `quality` is not a key in
+`WEIGHTS_SPECULATIVE`, so "established names structurally have no growth theme" is a tempting
+explanation. **It is refuted by measurement: `growth` appears in the explanation on 69% of
+established rows**, because soft bucketing scores a name under both rulebooks and blends them.
+The cause is the zero floor, not the weight set.
+
+**THREE STATES WHERE THERE WERE TWO, and the third is the honest one.** `_why_split` returns
+`missing` (scored nowhere), `zero` (scored, moved nothing) and `split_ok`. **When `factors`
+cannot be read the two cannot be told apart and NEITHER is claimed** — both lists come back
+empty, `split_ok` goes False, and the page renders a weaker true sentence naming the count
+instead of a stronger false one naming a cause. `_why_missing` survives as a one-name read and
+its docstring says it is not the authority.
+
+**THE COPY IS WHERE THE FALSE CLAIM REACHED A READER, so it is pinned there too.** *"had no
+input in this scan"* may appear **once** and only inside the `why_missing` branch — pinned by
+position, between where the `miss` branch opens and the `zero` branch does — and the
+scored-but-zero branch has to say the opposite in as many words: *"the input was there … That
+is not a gap in the data and it is not a gap in the score."*
+
+**AND A SECOND DEFECT THE SPLIT EXPOSED: the short count was `8 - miss.length`.** That was
+right while `miss` was everything absent and is wrong now — it would have claimed the
+explanation covered themes the `zero` list holds. Derived from both lists, and the old form is
+banned inside the function.
+
+**NOT DONE, named so it is not mistaken for done: NVDA's OWN split is not measured.** It sits
+at rank 1,262 so it is outside the top-100 payload `extra.factors` ships on, and the live
+check below reads it after deploy. The mechanism and the population figures do not depend on
+it. **And `row_attribution` itself is untouched** — it is the screener lane's shared primitive
+with a landed benchmark test, so the discrimination is done at the surface from a field that
+was already there rather than by changing its return shape.
+
+**7 new tests, all 7 failing against the pre-fix tree** (measured by restoring both files to
+HEAD, then back byte-for-byte). `tests/test_item52_no_label.py` 79/79; payoff 30/30, public
+43/43, screener 83/83, theme-restoration OK; `node --check` clean.
+
+---
+
+## item 52 — live close-out on valquo.co
+
+Every part verified against the live service after the land, by fetching the rendered payloads.
+
+**Part 1 — the label is gone.** `/api/value` carries no `recommendation` key on any name, and
+`score` now carries the two plain reads. NVDA `"Outstanding business"` / `"Priced 56% above our
+base value."`; TSLA `"Average business"` / `"Priced 1528% above our base value."`; KO
+`"Strong business"` / `"Priced 57% above our base value."`; JNJ `"Outstanding business"` /
+`"Priced within 2% of our base value."` Sub-scores unchanged — NVDA still
+`quality 97.2 / growth 100.0 / health 97.4 / momentum 70.2 / valuation 15.9`.
+
+**Part 2 — every name leads with what the price assumes.** NVDA: *"The price assumes about 38%
+a year of growth; the business grew 65% over the last year and the model's base case uses 34% a
+year."* APLD 49% against 167% grown and a 34% base. TSLA *"at least about 65%"* against −3%
+grown. KO 10% against 2%. JNJ 3% against 6%.
+
+**Part 3 — the warning fires on exactly the right names.** NVDA, APLD and TSLA all warn, each
+with a different reason, and `reliability_suppressed` is true on all three so the
+"DCF reliability: high" badge cannot read as trust in the fair value. **KO and JNJ do NOT
+warn** — `warn: false`, `why: []`, badge label back to its ordinary wording. TSLA is caught by
+the story-stock rule specifically: *"The price already assumes far more growth than this
+business has shown, so the gap between the two is the whole question and a single fair value
+cannot express it."*
+
+**Part 4 — the hot score is at the top with its drivers and limits.** NVDA rank 1,262 of 1,440
+with `why` listing six themes biggest-mover-first (`size −0.4222` at 38% of the push), KO rank
+1,261, APLD rank 477 with all eight.
+
+**Part 5 — the page opens with what the company does, and it says where it came from.** All
+three populated: NVDA *"NVIDIA Corporation operates as a data center scale AI infrastructure
+company…"*, APLD *"Applied Digital Corporation designs, develops, and operates digital
+infrastructure solutions to high-performance computing (HPC) and artificial intelligence
+industries…"*, TSLA *"Tesla, Inc. designs, develops, manufactures, leases, and sells electric
+vehicles…"* — each with `summary_source: "Yahoo Finance company profile"` and
+`figures_source: "Computed by this tool from the filed statements it already uses for the
+valuation."`, plus sector, industry, market cap, revenue, 1y and 3y growth and the operating
+margin trend.
+
+**Part 6 — the route is live and budgeted.** `GET /api/ai-analysis` returns 405 and a POST with
+no ticker returns 400, so the verb carries the spend.
+
+**STILL OWED: the screenshots.** This session has no browser, so every live check above is a
+fetched payload rather than a picture. The three screenshots Don asked for are not done.

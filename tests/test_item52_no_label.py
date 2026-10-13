@@ -429,19 +429,76 @@ class TheHotScoreNamesWhatItCouldNotSee(unittest.TestCase):
             self.assertEqual(w.get("low_risk", 0.0), 0.0)
             self.assertEqual(w.get("sentiment", 0.0), 0.0)
 
-    def test_NVDAs_live_attribution_is_missing_exactly_growth_and_momentum(self):
-        """The live 2026-10-12 payload, which is what Don saw: six themes against APLD's
-        eight."""
+    #: NVDA's live 2026-10-12 attribution -- six themes, which is what Don saw.
+    NVDA_WHY = ["size", "quality", "insider", "capital_discipline", "institutional", "value"]
+
+    def test_NVDAs_two_absent_themes_have_NO_CAUSE_without_the_factor_row(self):
+        """REPOINTED IN PART 7A, AND THE OLD ASSERTION WAS THE DEFECT.
+
+        Part 4 pinned `_why_missing(why) == ["growth", "momentum"]`, i.e. it asserted that the
+        attribution list ALONE establishes the cause. It does not: `row_attribution` drops a
+        theme both when its contribution is NaN and when it is under 1e-6, and those mean
+        opposite things. With no factor row to separate them the honest answer is that two
+        themes are unexplained and we do not know why -- so `missing` is empty, `split_ok` is
+        False, and the count is still reported.
+        """
         from valuation.web import unified as U
-        nvda = ["size", "quality", "insider", "capital_discipline", "institutional", "value"]
-        self.assertEqual(U._why_missing([{"theme": t} for t in nvda]),
-                         ["growth", "momentum"])
+        got = U._why_split([{"theme": t} for t in self.NVDA_WHY], None)
+        self.assertFalse(got["split_ok"])
+        self.assertEqual(got["missing"], [])
+        self.assertEqual(got["zero"], [])
+        self.assertEqual(got["n_explained"], 6)
+        self.assertEqual(got["n_absent_unexplained"], 2)
+
+    def test_with_the_factor_row_the_two_causes_SEPARATE(self):
+        """The same six-theme attribution, now with the per-theme z-scores beside it.
+
+        `growth` carries a value, so it was scored and simply moved this name by nothing;
+        `momentum` does not, so its input really is absent. Part 4 called both "could not be
+        scored", and the page said "had no input in this scan" about an input that was there.
+        """
+        from valuation.web import unified as U
+        fac = {t: 0.4 for t in self.NVDA_WHY}
+        fac["growth"] = 0.0          # scored, contribution rounds to zero
+        fac["momentum"] = None       # never scored
+        got = U._why_split([{"theme": t} for t in self.NVDA_WHY], fac)
+        self.assertTrue(got["split_ok"])
+        self.assertEqual(got["missing"], ["momentum"])
+        self.assertEqual(got["zero"], ["growth"])
+        # And the one-name read returns only the genuine gaps.
+        self.assertEqual(U._why_missing([{"theme": t} for t in self.NVDA_WHY], fac),
+                         ["momentum"])
+
+    def test_the_live_scan_says_18_PERCENT_of_absences_were_SCORED(self):
+        """The measurement that forced the correction, recorded so it cannot quietly rot.
+
+        Over the live top 100 on 2026-10-12, 159 (row, theme) cells are absent from the
+        explanation. `extra.factors` is non-null on 29 of them -- 18% -- so those themes WERE
+        scored. Of the 130 genuinely unscored, 67 also carry a null `z_` column and 63 are
+        themes the row exposes no `z_` column for.
+
+        `factors` was checked as a discriminator rather than assumed to be one: it is non-null
+        on all 641 attributed cells and on exactly those 29, with zero disagreements in 800
+        cells. This test pins the arithmetic and the docstring that carries it.
+        """
+        self.assertEqual(29 + 130, 159)
+        self.assertEqual(67 + 63, 130)
+        self.assertAlmostEqual(29.0 / 159.0, 0.1824, places=3)
+        src = _src(os.path.join("valuation", "web", "unified.py"))
+        for bit in ("159 (row, theme) cells", "29 of them -- 18%",
+                    "zero disagreements in 800"):
+            self.assertIn(bit, src)
 
     def test_APLDs_live_attribution_is_missing_NOTHING(self):
         from valuation.web import unified as U
         apld = ["growth", "capital_discipline", "insider", "size", "value", "momentum",
                 "institutional", "quality"]
-        self.assertEqual(U._why_missing([{"theme": t} for t in apld]), [])
+        got = U._why_split([{"theme": t} for t in apld], {t: 0.3 for t in apld})
+        self.assertEqual(got["missing"], [])
+        self.assertEqual(got["zero"], [])
+        self.assertTrue(got["split_ok"])
+        # Nothing absent, so the factor row cannot change the answer either way.
+        self.assertEqual(U._why_missing([{"theme": t} for t in apld], None), [])
 
     def test_an_EMPTY_attribution_returns_empty_rather_than_every_theme(self):
         """A name with no decomposition at all has not had eight themes go missing -- it has
@@ -449,6 +506,40 @@ class TheHotScoreNamesWhatItCouldNotSee(unittest.TestCase):
         print "8 of the themes could not be scored" on a row that was never decomposed."""
         from valuation.web import unified as U
         self.assertEqual(U._why_missing([]), [])
+        got = U._why_split([], {"growth": None})
+        self.assertEqual((got["missing"], got["zero"], got["split_ok"]), ([], [], False))
+
+    def test_the_page_reads_the_two_lists_DIFFERENTLY(self):
+        """The copy is where the false claim actually reached a reader, so it is pinned here.
+
+        "had no input in this scan" may appear ONLY in the `why_missing` branch, and the
+        scored-but-zero branch must say the opposite in as many words -- that it is not a gap.
+        """
+        src = _src(os.path.join("valuation", "web", "static", "app.js"))
+        i = src.index("function hotListStrip")
+        body = src[i:src.index("function ", i + 30)]
+        self.assertIn("why_zero", body)
+        self.assertIn("why_split_ok", body)
+        self.assertIn("moved this name by nothing", body)
+        self.assertIn("That is not a gap in the data", body)
+        # The unknowable case says so instead of guessing.
+        self.assertIn("cannot be told apart here", body)
+        # ONE occurrence of the old claim, and it sits after the `miss` branch opens and
+        # before the `zero` branch does -- so it cannot be the sentence the zero list renders.
+        self.assertEqual(body.count("had no input in this scan"), 1)
+        self.assertLess(body.index("${miss.length ?"),
+                        body.index("had no input in this scan"))
+        self.assertLess(body.index("had no input in this scan"),
+                        body.index("${zero.length ?"))
+
+    def test_the_short_count_is_DERIVED_from_both_lists(self):
+        """`8 - miss.length` was right when `miss` was everything absent and is wrong now --
+        it would claim the explanation covers themes the zero list holds."""
+        src = _src(os.path.join("valuation", "web", "static", "app.js"))
+        self.assertIn("const nShort = 8 - (miss.length + zero.length);", src)
+        i = src.index("function hotListStrip")
+        body = src[i:src.index("function ", i + 30)]
+        self.assertNotIn("8 - miss.length", body)
 
     def test_the_page_renders_the_gap_and_the_not_in_scan_state(self):
         src = _src(os.path.join("valuation", "web", "static", "app.js"))

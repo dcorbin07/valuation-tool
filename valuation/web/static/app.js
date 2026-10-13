@@ -473,12 +473,21 @@ function hotListStrip(d) {
   const drivers = (s.why || []).slice(0, 3)
     .map(x => `${esc(String(x.theme).replace(/_/g, " "))} ${x.c >= 0 ? "+" : ""}${x.c.toFixed(2)}`)
     .join(" · ");
-  const miss = (s.why_missing || []);
+  // PART 7A, AND IT IS A CORRECTION TO WHAT THIS BLOCK USED TO SAY. It read "<themes> had
+  // no input in this scan" about every theme absent from the explanation -- and MEASURED over
+  // the live top 100, 29 of the 159 absent cells (18%) had their input and were scored, the
+  // contribution simply rounding to zero under `row_attribution`'s 1e-6 floor. So the two
+  // lists are now separate and read differently, and when they cannot be told apart the page
+  // says the weaker true thing rather than the stronger false one.
+  const miss = (s.why_missing || []), zero = (s.why_zero || []);
+  const nShort = 8 - (miss.length + zero.length);
   // The count is computed, not patched into the sentence afterwards: the first cut built the
   // two-theme wording and then `.replace()`d it for the other cases, which is a sentence that
   // depends on a substring of itself.
   const missLead = miss.length === 1 ? "One theme could not be scored for this name:"
     : `${miss.length} of the themes could not be scored for this name:`;
+  const zeroLead = zero.length === 1 ? "One theme was scored and moved this name by nothing:"
+    : `${zero.length} themes were scored and moved this name by nothing:`;
   el.innerHTML = `<div class="card hot-top">
     <div class="pa-lead-t">Hot list</div>
     <div class="hot-top-s"><b>${s.hot_score == null ? "—" : s.hot_score.toFixed(0)}</b>
@@ -486,9 +495,17 @@ function hotListStrip(d) {
       ${drivers ? `Biggest movers: ${drivers}.` : ""}</div>
     ${miss.length ? `<div class="hot-top-n"><b>${missLead}</b>
       ${miss.map(m => esc(m.replace(/_/g, " "))).join(" and ")} had no input in this scan, so
-      the explanation above is built on ${8 - miss.length} of 8 themes. The ranking itself
+      the explanation above is built on ${nShort} of 8 themes. The ranking itself
       spreads the missing weight over the rest, so it stays comparable — but the explanation is
       not a complete list of what moved this name.</div>` : ""}
+    ${zero.length ? `<div class="hot-top-n"><b>${zeroLead}</b>
+      ${zero.map(m => esc(m.replace(/_/g, " "))).join(" and ")} — the input was there and this
+      name sits close enough to the middle of the scan on it that it does not appear above.
+      That is not a gap in the data and it is not a gap in the score.</div>` : ""}
+    ${(s.why_split_ok === false && (s.why || []).length && (s.why || []).length < 8)
+      ? `<div class="hot-top-n">The explanation above lists ${(s.why || []).length} of 8
+      themes. Which of the rest had no input and which were scored but moved this name by
+      nothing cannot be told apart here, so neither is claimed.</div>` : ""}
     <div class="hot-top-n">${esc(sc.defensible || "")}</div>
     <div class="hot-top-n">A large company is marked down by this ranking on purpose: company
       size is one of its themes and it favours smaller names, so a household name can rank low

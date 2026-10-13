@@ -98,18 +98,61 @@ def _all_themes() -> list:
         return []
 
 
-def _why_missing(why: list) -> list:
-    """Themes with no contribution on this row, i.e. whose INPUT was missing.
+def _why_split(why: list, factors=None) -> dict:
+    """Why each theme is absent from the explanation -- and the two reasons DIFFER.
 
-    **EMPTY MEANS "NOTHING MISSING" ONLY IF THE THEME LIST COULD BE READ.** If it could not,
-    this returns an empty list and the surface must not render "all themes present" off it --
-    which is why the page keys its sentence on a non-empty list rather than on the absence of
-    one. A check that cannot run and one that ran and found nothing must not read the same.
+    **THE CORRECTION THIS FUNCTION EXISTS FOR (part 7a, against this lane's own part 4).**
+    `row_attribution` drops a theme in two cases that mean opposite things: a contribution
+    that is NaN, i.e. the input was never scored, and a contribution whose absolute value is
+    under its `min_abs` of 1e-6, i.e. the theme WAS scored and moved this name by nothing.
+    Part 4 inferred absence from the attribution list alone, so it called both "could not be
+    scored" -- and the page said "had no input in this scan" about inputs that were there.
+
+    **MEASURED ON THE LIVE SCAN rather than reasoned about, and on the population the claim is
+    about (`O-1`'s rule): over the top 100 names, 159 (row, theme) cells are absent from the
+    explanation and 29 of them -- 18% -- were SCORED, the contribution simply rounding to
+    zero.** Of the 130 genuinely unscored, 67 also have a null `z_` column and 63 are themes
+    the row exposes no `z_` column for.
+
+    **`factors` IS AN EXACT DISCRIMINATOR AND THAT WAS CHECKED, NOT ASSUMED: `factors[theme]`
+    is non-null on all 641 attributed cells and on exactly the 29 scored-but-zero ones, with
+    zero disagreements in 800 cells.** It is the per-theme z-score the composite was built
+    from, so a value there means the theme reached this row.
+
+    **WHEN `factors` CANNOT BE READ THE TWO CANNOT BE TOLD APART, AND NEITHER IS CLAIMED.**
+    `split_ok` goes False and both lists come back empty, because a confident "had no input"
+    is exactly the sentence that was wrong before -- a check that could not run and one that
+    ran and found nothing must not read the same (`O21-D2`'s C5, `V6`'s rule). The page keys
+    a weaker sentence on `split_ok` instead, so the reader still learns the explanation is
+    incomplete without being told a reason that may be false.
+
+    **EMPTY MEANS "NOTHING MISSING" ONLY IF THE THEME LIST COULD BE READ.** Unchanged from
+    part 4 and still the reason the page keys on a non-empty list rather than on the absence
+    of one.
     """
     present = {str(x.get("theme")) for x in (why or []) if isinstance(x, dict)}
+    out = {"missing": [], "zero": [], "split_ok": False, "n_explained": len(present)}
     if not present:
-        return []
-    return [t for t in _all_themes() if t not in present]
+        return out
+    absent = [t for t in _all_themes() if t not in present]
+    if not isinstance(factors, dict) or not factors:
+        # Part 4's shape, minus its claim: we know the explanation is short and we do NOT know
+        # why, so `missing` stays empty rather than asserting the cause.
+        out["n_absent_unexplained"] = len(absent)
+        return out
+    out["split_ok"] = True
+    out["missing"] = [t for t in absent if factors.get(t) is None]
+    out["zero"] = [t for t in absent if factors.get(t) is not None]
+    return out
+
+
+def _why_missing(why: list, factors=None) -> list:
+    """Kept as a one-name read for callers that want only the genuine gaps.
+
+    `_why_split` is the authority -- this returns one of its three fields, so a caller
+    enforcing this alone cannot tell a scored-but-zero theme from an unscored one.
+    """
+    return _why_split(why, factors)["missing"]
 
 
 def _index_membership(rows, ticker, config_name=None):
@@ -320,6 +363,8 @@ def name_view(store, ticker: str, book_config: str = None, risk_budget=None,
         # Computed ONCE: `_index_membership` rebuilds the whole book, so calling it per field
         # would build it twice for every request.
         _idx = _index_membership(rows, ticker, book_config) if with_book else {"withheld": True}
+        # Computed once, before the literal that reads it (part 7a).
+        _wsplit = _why_split(extra.get("why") or [], extra.get("factors"))
         out["stock"] = {
             "in_scan": True, "scan_date": scan_date, "n_scored": len(rows),
             "name": row.get("name"), "sector": row.get("sector"), "bucket": row.get("bucket"),
@@ -349,7 +394,13 @@ def name_view(store, ticker: str, book_config: str = None, risk_budget=None,
             # deliberate, so the composite is comparable. NVDA's six contributions sum to
             # -0.3548 against a composite of -0.35489. **The casualty is the EXPLANATION**, and
             # this field is what lets the page say so.
-            "why_missing": _why_missing(extra.get("why") or []),
+            # PART 7A: three fields where there was one, because "had no input" and "was
+            # scored and moved this name by nothing" are different facts and the page said the
+            # first about both. `factors` is the per-theme z-score the composite was built
+            # from, so it settles which is which; see `_why_split`.
+            "why_missing": _wsplit["missing"],
+            "why_zero": _wsplit["zero"],
+            "why_split_ok": _wsplit["split_ok"],
             # S14 ADOPTION: the band's divergence, stated at ROW level and not only inside the
             # `index` block, because this is the field a why-panel renders. A name held by the
             # band is in the book for a reason the theme decomposition above cannot show -- the
