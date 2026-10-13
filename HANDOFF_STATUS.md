@@ -1,5 +1,57 @@
 # HANDOFF STATUS - shared project state
 
+## r1 lane — **the valuation page's reads are now RECORDED FORWARD, with the test registered BLIND, and it says in advance that two of its three horizons cannot resolve this decade** (2026-10-13, `VALREADS`)
+
+`PREREG_valuation_reads.md` committed **ALONE** at `5aa1ac0`, markdown only, zero `.py`, 358
+lines, a strict git ancestor of the recorder — **asserted against git by test**, including that
+every commit touching the register is markdown-only and that it never shares a commit with code.
+Amendment 1 **ALONE** at `6b086c0`. **ZERO TRIALS** — `by_domain` bit-identical (equity **297**,
+options **319**, infra **20**), `rows_fixed_not_counted` 102 -> 103. **ADOPTS NOTHING, READS NO
+VERDICT, CHANGES NO PUBLIC SURFACE, AND NO ROW OF THE RECORD EXISTS YET.**
+
+- **WHY A RECORD AND NOT A BACKFILL, measured rather than asserted.** `V6` established the live
+  sub-scores are not computable point-in-time and `S23` measured that path fetching **live Yahoo
+  prices to value 1999**, so a backfill would be a different number wearing an old date. And
+  `archive.archive_scan` keeps **the top 100 hot names a day and none of these reads** — NVDA,
+  item 52's own worked example, sits at hot rank **1,262**.
+- **THE POPULATION IS A UNION BECAUSE OF A MEASUREMENT, and it is the number to carry:** the
+  published hot-list route **caps at 500 rows whatever `top` asks for**, the Index carries **86**
+  positions, and **only 44 of those 86 are inside the hot 500 — 42 are OUTSIDE.** So a
+  hot-list-only population would have omitted half of the product's own book. Union **542** names
+  at a measured **1.83 s** per name, **~34 minutes** a week against ~83 for the scan's full
+  universe — which is why the population is a population.
+- **THE POWER STATEMENT IS THE FINDING AND IT IS UNCOMFORTABLE.** Against this project's own best
+  measured read (`quality`, per-date IC **+0.0695**) re-scaled to 542 names, 80% power needs
+  **4.6 years** of weekly recording at 3 months, **9.1** at 6 and **18.1** at 12 — and 10.0 /
+  19.9 / 39.7 if the HLZ hurdle were gated on. **The 3-month cells are powered at the first read
+  AND ONLY JUST; THE 12-MONTH CELLS DO NOT REACH 80% POWER UNTIL ABOUT 2044**, are read at year
+  10 at roughly 55%, and the register says so now — so a 12-month null in 2036 means *"this
+  design could not see it"* and nothing stronger. **An honest unlikely-to-resolve-before-2044 is
+  why recording starts today rather than a reason to skip: the alternative is no test, ever.**
+- **TWO DEFECTS CAUGHT BEFORE A SINGLE ROW EXISTS.** **(a)** Amendment 1, in my own register: for
+  a financial `price_assumes` takes a deliberate separate branch and returns an implied **RETURN
+  ON EQUITY** under the same `implied` key, so one column would have held an ROE and a growth rate
+  and any IC on it would have **mixed two quantities** — the wrong-object family for the seventh
+  time. `R3-PIG` and `R4-GAP` are scoped to non-financials and the ROE gets its own unregistered
+  column. **(b) REPORTED, NOT FIXED, AND IT IS THE APP LANE'S: `app.py:369` reads
+  `result.financial_extras`, which does not exist on `ValuationResult`** — the field is
+  `financial_surfaces` — so **every bank's what-the-price-assumes sentence renders as
+  unavailable** while the engine has the number (`ABCB`: 0.1220). One token.
+- **THE LAND GATE REFUSED THE FIRST PUSH ON TWO OF THIS PROJECT'S OWN GUARDS AND BOTH WERE
+  RIGHT.** `test_research_page` asserts `/api/` never appears in the rendered research page, and
+  **RESEARCH_LOG row prose IS rendered publicly**, so naming the two routes by path in a log cell
+  broke a real property of a real page. And a zero-trial row must sit in the **`FIXED`** bucket:
+  `test_research_log_integrity` passed 17 of 17 on the same file, so **`by_domain` being
+  bit-identical is NOT evidence that a row is in the right bucket.**
+- **FOR DON — ONE DOUBLE-CLICK.** `data/pending_workflows/valreads-record.yml` is staged (tracked
+  source at `scripts/workflows/valreads-record.yml` via `propose_workflow.py`). Double-click
+  **`install_workflows.bat`**, then Actions -> **valreads-record** -> optionally *Run workflow*
+  with `smoke = 8`. **Sunday 07:11 UTC**, offset from `track-backup.yml` so the two do not contend
+  for the same per-IP quota; **no secret, no paid cron**; the self-check gates the recorder, the
+  suite runs before the commit, and the append-only byte prefix is verified **against git**.
+- **48 tests, exit 0**; five of six day-1 self-check cases **mutation-tested** with sources
+  restored byte-for-byte. Live smoke: 8 of 8 names OK. `HANDOFF_valuation_reads.md`.
+
 ## options lane — **fleet review executed: ten declarations retired, and F-14/F-15's priority inverts once their inputs are measured** (2026-10-13)
 
 `FLEET_RETIREMENTS.md` carries one row per retired book **with the landed result that closed it**,
