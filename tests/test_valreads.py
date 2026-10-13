@@ -465,5 +465,80 @@ class TestSmokeTestsNeverEnterTheRecord(unittest.TestCase):
         self.assertIn("A SMOKE TEST MAY NOT ENTER THE RECORD", src)
 
 
+class TestTheWeeklyWorkflow(unittest.TestCase):
+    """The TRACKED source in `scripts/workflows/`, never the pending copy.
+
+    `data/` is gitignored, so the pending `.yml` can never be the tracked copy of itself and a
+    suite reading it would SKIP on a CI runner — a vacuous pass. Item 44's reasoning, reused
+    rather than re-derived.
+    """
+
+    WF = os.path.join(HERE, "scripts", "workflows", "valreads-record.yml")
+
+    def _load(self):
+        import yaml
+        return yaml.safe_load(io.open(self.WF, encoding="utf-8").read())
+
+    def test_it_parses_and_is_scheduled_weekly_with_a_manual_door(self):
+        d = self._load()
+        self.assertEqual(d["name"], "valreads-record")
+        trig = d.get(True) or d.get("on")          # PyYAML reads bare `on:` as the bool True
+        self.assertIn("schedule", trig)
+        self.assertIn("workflow_dispatch", trig)
+        crons = [c["cron"] for c in trig["schedule"]]
+        self.assertEqual(len(crons), 1, "one cadence, so a missed week is unambiguous")
+        self.assertTrue(crons[0].endswith(" * * 0"), "weekly, on a Sunday: %r" % crons[0])
+
+    def test_it_fits_the_measured_cost_inside_its_own_timeout(self):
+        d = self._load()
+        budget = d["jobs"]["record"]["timeout-minutes"]
+        # THE MEASURED FIGURES, from `VALREADS_COST.json`: 1.83 s per name plus 1.5 s pacing over
+        # a 542-name population. A timeout a lane cannot justify from a measurement is a guess.
+        need = 542 * (1.83 + 1.5) / 60.0
+        self.assertLess(need, budget,
+                        "the measured run (%.0f min) must fit the budget (%d min)"
+                        % (need, budget))
+        self.assertLess(budget, 360, "a weekly recorder does not need six hours")
+
+    def test_the_self_check_runs_before_the_recorder_and_the_suite_before_the_commit(self):
+        d = self._load()
+        steps = [s.get("name", "") for s in d["jobs"]["record"]["steps"]]
+        i_sc = next(i for i, n in enumerate(steps) if "self-check" in n)
+        i_rec = next(i for i, n in enumerate(steps) if n == "Run the recorder")
+        i_suite = next(i for i, n in enumerate(steps) if n == "Suite")
+        i_commit = next(i for i, n in enumerate(steps) if "Commit" in n)
+        self.assertLess(i_sc, i_rec, "the self-check gates the recorder")
+        self.assertLess(i_suite, i_commit,
+                        "a record committed by a run whose own tests fail is a record nobody "
+                        "can trust afterwards")
+
+    def test_it_needs_no_secret_because_both_routes_are_tokenless(self):
+        txt = io.open(self.WF, encoding="utf-8").read()
+        self.assertNotIn("secrets.", txt)
+        self.assertNotIn("ADMIN_TOKEN", txt)
+
+    def test_it_commits_into_data_export_and_never_into_data(self):
+        txt = io.open(self.WF, encoding="utf-8").read()
+        self.assertIn("git add data_export/valreads", txt)
+        self.assertNotIn("git add data/", txt)
+
+    def test_it_verifies_the_byte_prefix_against_git_rather_than_trusting_the_recorder(self):
+        txt = io.open(self.WF, encoding="utf-8").read()
+        self.assertIn("cmp /tmp/manifest_before.csv", txt)
+        self.assertIn("SHRANK", txt, "a shrinking manifest must fail the run")
+
+    def test_it_is_not_concurrent_with_itself(self):
+        d = self._load()
+        self.assertEqual(d["concurrency"]["group"], "valreads-record")
+        self.assertFalse(d["concurrency"]["cancel-in-progress"],
+                         "cancelling a half-finished week mid-run would leave the quota spent "
+                         "and nothing recorded")
+
+    def test_it_is_proposable_through_the_one_shared_helper(self):
+        from scripts import propose_workflow as PW
+        self.assertIn("valreads-record.yml", PW.available())
+        self.assertIn("name: valreads-record", PW.read("valreads-record.yml"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
