@@ -39,6 +39,10 @@ from typing import Optional
 
 SCHEMA = "ai_auto/1"
 
+#: ITEM 53 part 2's block has its own schema key so a stored analysis and a stored
+#: earnings/headlines block can never be read as each other.
+RECENT_SCHEMA = "ai_recent/1"
+
 #: NEW analyses a day. 30 until Don sets a number -- his words. At the measured $0.0248 a call
 #: that is ~$0.75 a day. A CACHE HIT IS NOT A NEW ANALYSIS and does not count against it.
 DAILY_CAP = 30
@@ -85,6 +89,47 @@ def cached(ticker: str, day: str = None, root: str = None) -> Optional[dict]:
     return payload
 
 
+def recent_path(ticker: str, day: str = None, root: str = None) -> str:
+    """Where item 53 part 2's earnings-and-headlines block is kept for the day."""
+    return os.path.join(_dir(root), "recent_%s_%s.json" % (str(day or _today()),
+                                                           str(ticker or "").upper()))
+
+
+def cached_recent(ticker: str, day: str = None, root: str = None) -> Optional[dict]:
+    """Today's stored earnings/headlines block for this ticker, or None. Never raises.
+
+    **IT IS NOT CHARGED TO THE AI CAP AND MUST NOT BE.** The cap exists to bound the day's
+    Anthropic spend; this block is three free feeds. Sharing the cap would mean a visitor
+    reading headlines could exhaust the owner's analysis budget.
+    """
+    try:
+        with open(recent_path(ticker, day, root), encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    if (payload or {}).get("schema") != RECENT_SCHEMA:
+        return None
+    return payload
+
+
+def store_recent(ticker: str, block: dict, *, day: str = None, root: str = None) -> dict:
+    """Keep the day's block. Never raises; a failed write just means no cache."""
+    try:
+        os.makedirs(_dir(root), exist_ok=True)
+        p = recent_path(ticker, day, root)
+        tmp = p + ".tmp"
+        payload = dict(block or {})
+        payload["schema"] = RECENT_SCHEMA
+        payload["day"] = str(day or _today())
+        with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
+            json.dump(payload, fh, indent=2, sort_keys=True, default=str)
+            fh.write("\n")
+        os.replace(tmp, p)
+        return {"ok": True, "reason": ""}
+    except OSError as e:
+        return {"ok": False, "reason": "could not store the recent block: %s" % e}
+
+
 def count_today(day: str = None, root: str = None) -> dict:
     """How many NEW analyses have been run today.
 
@@ -116,7 +161,8 @@ def allowance(day: str = None, root: str = None) -> dict:
                        "the day's ledger could not be read, so no new analysis is run")}
 
 
-def record(ticker: str, analysis: dict, *, day: str = None, root: str = None) -> dict:
+def record(ticker: str, analysis: dict, *, day: str = None, root: str = None,
+           recent: dict = None) -> dict:
     """Store one analysis for the day and charge it to the day's ledger. Never raises.
 
     **THE LEDGER MOVES ONLY WHEN THE ANALYSIS IS STORED.** Charging first would leak the day's
@@ -127,6 +173,11 @@ def record(ticker: str, analysis: dict, *, day: str = None, root: str = None) ->
     usage = (analysis or {}).get("usage") or {}
     payload = {"schema": SCHEMA, "ticker": str(ticker or "").upper(), "day": day,
                "analysis": analysis,
+               # ITEM 53 part 2: the earnings and headlines the analysis was written
+               # against, stored WITH it. Titles move on and a feed is not an archive, so an
+               # analysis citing a headline nobody can find again is unfalsifiable -- keeping
+               # the inputs beside the output is what makes the citation checkable later.
+               "recent": dict(recent or {}),
                "cost_usd": usage.get("cost_usd"),
                "input_tokens": usage.get("input_tokens"),
                "output_tokens": usage.get("output_tokens")}

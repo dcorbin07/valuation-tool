@@ -5,6 +5,334 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 90 — 2026-10-13 — ITEM 53: Index links, recent earnings and headlines, clearer numbers
+
+Seven parts. Six ship; **part 7 is a diagnosis and is ROUTED TO DON**, because its own
+instruction says to stop if a repair would move live hot scores, and it would.
+
+---
+
+## 7. WHY THE LIVE SCAN IS MISSING THEMES — ROUTED TO DON, NOTHING SHIPPED
+
+**THE SHORT ANSWER: the vendor is not being paid, and the themes that are actually missing are
+not the ones the brief named.** Three separate findings, each measured on the live 2026-10-12
+scan rather than reasoned about.
+
+**(a) IT IS NOT A Z-SCORING DEFECT.** Of the top 500 served rows, **ZERO** have momentum inputs
+present with a null momentum factor. Every single null has all three inputs (`ret_12_1`,
+`ret_6_1`, `high_prox`) absent. So nothing is being computed and then dropped.
+
+**(b) IT IS NOT A DATA LIMIT EITHER, FOR MOST OF THEM — and that is the brief's hypothesis
+confirmed.** `T`, `VZ`, `MGM` and `RNR` all return **400 sessions of history and full momentum
+from yfinance right now**, while the scan has nothing for them. `NVDA` and `KO` likewise
+(`ret_12_1` 0.129 and 0.363). **`SUN` is the exception at 61 sessions**, so its nulls are real
+and a repair cannot reach 100%.
+
+**(c) THE "47 OF 100" IS NOT MOMENTUM, AND THIS CORRECTS THE BRIEF.** Momentum is present on
+**97.4%** of the top 500 and growth on **96.6%**, and it is **flat across every rank decile** —
+48/50, 48/50, 48/50, 49/50, 50/50, 49/50, 49/50, 49/50, 48/50, 49/50. The five-column
+intersection is dominated by **`insider` at 63.4%** and **`institutional` at 65.0%**, which are
+sparse by nature: Form 4 filings and 13F holdings genuinely do not exist for a third of the
+universe. Momentum's own null rate is **2.6%**.
+
+**(d) THE CAUSE IS THE FETCH, AND THE SITE ALREADY SELF-REPORTS IT.** `health.api_budget` on the
+live payload:
+
+```
+"fmp_error_sample": ["402 Client Error: Payment Required for url: https://financialmodelingp"],
+"fmp_errors": 44,  "fmp_disabled_mid_scan": true,
+"served_by_fmp": 7,  "served_by_free_fallback": 726,  "names_with_broker_data": 0
+```
+
+**FMP's subscription is unpaid.** It errored 44 times with HTTP 402, disabled itself mid-scan,
+and served **7** names against **726** on the free stack. `names_with_broker_data: 0` is the
+other half — Tradier closed on 2026-10-08, so there is no broker prefill, and **1,440 names now
+depend on one per-name Yahoo fetch each**. `source.degraded` is already `true` and the label
+already says *"Financial Modeling Prep + free"*. The scan is not broken; it is running on the
+fallback and the fallback throttles.
+
+**WOULD A REPAIR MOVE LIVE HOT SCORES? YES — and that is why this stops here.** It is certain by
+construction (a name with no momentum contribution gains one, so its composite moves) and it is
+not small:
+
+| | measured |
+|---|---|
+| top-500 rows with no momentum contribution | **13** |
+| ...of those, in the SERVED top 100 | **4** (`SMFSY`, `OCTV`, `KEP`, `RNR`) |
+| median \|momentum contribution\| | **0.0922** of composite |
+| median composite gap between adjacent ranks | **0.00073** |
+| so one name moves about | **126 rank positions** |
+| ...and about | **3.1 hot-score points** |
+
+Adding momentum values for the missing names also shifts the cross-section's own mean and sd, so
+**every** name's `z_momentum` moves slightly. The 2026-08-11 theme restoration was treated as an
+adopted change and opened a vintage; **on that precedent this is one too, and it is Don's call.**
+
+**THE BIGGER FINDING, WHICH IS NOT ABOUT MOMENTUM AT ALL: THE #1 NAME ON THE LIVE HOT LIST IS
+SCORED ON ONE THEME.** `SMFSY`, hot score **100.0**, rank 1 of 1,440 — its explanation carries
+exactly one theme, **`size`**, so its composite *is* its size z-score. `CLAUDE.md` records `size`
+as having the **worst** theme IC (−0.30) while carrying the composite's entire statistical
+significance. Two more in the top 100 are scored on three or fewer (`WPP` rank 18 on three,
+`WFG` rank 95 on two). The ranking redistributes a missing theme's weight so the number is
+*comparable*, which is exactly what makes this hard to see.
+
+**WHAT IT MEANS FOR THE 2026-10-22 REBALANCE.** `SMFSY`, `WPP` and `WFG` are **not** in the
+current Index (85 positions, formed earlier). A rebuild on 2026-10-22 would rank from a scan in
+this state, so **a one-theme name could enter the Index at the top weight.** Three options, all
+Don's:
+
+1. **Pay FMP** (or confirm it is deliberately lapsed). This is the root cause and nothing else
+   addresses it.
+2. **Require a minimum theme count to be Index-eligible.** A construction change, so a vintage
+   event, and it needs a register.
+3. **Rebalance anyway and accept it**, knowing the above.
+
+**Diagnosis only: no file under `valuation/screener/` was touched**, pinned by a test that reads
+the branch diff and fails if one is.
+
+---
+
+## 1. INDEX ROWS LINK TO EACH NAME, AND CARRY THE SAME "WHY?" PANEL
+
+The ticker has not been a link since `c0c6fef` (2026-07-31, when Hot Stocks and the Index were
+unified) — so **the one table listing the names Don actually holds was the one table you could
+not click**, while Hot Stocks and four others used `gotoValue` throughout. It uses `gotoValue`
+now; a second navigation path is how two tables come to behave differently.
+
+The breakdown is **`attributionPanel`, not a second implementation of it** — one decomposition of
+one number, rendered identically in both tables. The per-theme data is attached server-side in
+`index_in_force.attach_labels`, beside the four display labels that were already there, and
+**only `why`, `why_composite` and `factors` are copied, never the whole `extra` blob**: that dict
+carries every raw vendor number the scan touched and the Index payload is a public surface.
+
+**A HOLDING NOT IN TODAY'S SCAN SAYS SO.** `attributionPanel`'s empty state used to give one
+message — "saved by an older scan" — which is true of a hot-list row and wrong for a holding.
+The book is fixed between rebalances, so a name today's universe no longer ranks is ordinary
+rather than a fault, and `attach_labels` already keeps it rather than dropping it. Both states
+now exist and read differently (`V6`'s rule). `n_labelled` and `n_attributed` are reported
+separately for the same reason.
+
+**AND THE FOOTER NEEDED THE NEW COLUMN.** The table already carried the comment *"the footer must
+grow with the header or every total shifts one cell left"* — adding the why? column made it one
+cell short, caught by obeying that comment rather than by the table looking wrong. The panel's
+colspan is **derived** from the same flags that build the header.
+
+---
+
+## 2. RECENT EARNINGS AND HEADLINES — AND THE OBVIOUS SOURCE IS DEAD
+
+**`yfinance`'s `.news` RETURNS ZERO ITEMS** on 1.3.0, for every call shape tried (`.news`,
+`get_news()`, `get_news(count=…)`, `get_news(tab="news")`). So the library already in the
+dependency set carries no headlines at all.
+
+Yahoo's **RSS** endpoint does work — a syndication feed, no key, 18 items for NVDA. **But a
+symbol-requested feed is not a feed about that symbol, and that measurement shaped the whole
+design.** Over 74 titles across NVDA, TSLA, KO and APLD on 2026-10-13:
+
+| ticker | items | mention the company |
+|---|---|---|
+| NVDA | 18 | **1 (6%)** |
+| TSLA | 17 | 6 (35%) |
+| KO | 19 | 10 (53%) |
+| APLD | 20 | 14 (70%) |
+| **pooled** | **74** | **31 (42%)** |
+
+The rest are about Citigroup, Goldman Sachs, Google, PepsiCo, Rivian and CoreWeave. **Handing an
+NVDA analysis seventeen headlines about other companies would be worse than handing it none**, so
+the name filter is mandatory rather than tidying, and **its yield ships with the result** — "no
+headlines" has to be distinguishable from "the feed carried none about this company".
+
+**SO THERE ARE TWO SOURCES, because one is impure and the other is pure by construction:**
+
+* **SEC EDGAR filings** — the feed is per-CIK, so every item is about the company by
+  construction, and the terms are unambiguous. Quoted from the SEC's own webmaster FAQ: *"All
+  Government-created content on sec.gov and EDGAR public filing content are free to access and
+  reuse."* It asks callers to *"declare your user agent in request headers"* and states *"our
+  current maximum access rate is 10 requests per second"* — **both honoured in code**, with the
+  interval set far under the ceiling because the limit is per-IP and several visitors can load a
+  page at once. These are **filings, not news**, and are labelled as filings. Ownership forms are
+  excluded or a company's dozens of Form 4s would crowd out the 8-K that says what happened.
+* **Yahoo Finance RSS headlines**, filtered, each with its publisher, date and link.
+
+**TITLES AND LINKS ONLY — STRUCTURALLY, NOT BY PROMISE.** Nothing ever requests an article URL,
+and the RSS item's `description` is **never read**, so there is no code path by which article
+text could be stored, shown or sent to a model. A test strips comments and strings and asserts
+the word does not appear in the code at all.
+
+**A TWO-LETTER STEM IS NOT A FILTER.** `KO` as a needle matches "look", "broke" and "stock", so a
+symbol shorter than three characters is dropped and the company's own name carries the match —
+which is why KO is found by "coca-cola" (and "coca cola", because headlines write it both ways).
+
+**THE TWO EARNINGS SOURCES AGREE ON THE NUMBER AND DISAGREE ON THE DATE, AND EDGAR IS RIGHT.**
+On NVDA, `quarterly_income_stmt` gives diluted EPS **2.46** for a period it labels **2026-07-31**,
+and EDGAR's XBRL gives **2.46** for a period ending **2026-07-26**, filed **2026-08-26**. yfinance
+rounds a fiscal quarter to month-end. **EDGAR's period end is the real one and its `filed` date is
+the only free source for when the quarter was actually reported**, which is the thing Don asked to
+see — so the dates come from EDGAR, the revenue from the statement, and **each figure is labelled
+with where it came from**. Where EDGAR has no EPS for a company (KO), it falls back and says
+`"(month-end approximation)"` rather than quietly presenting an approximate date as exact.
+
+**ESTIMATES: NOT AVAILABLE, AND REPORTED AS SUCH.** Don asked for revenue and EPS against
+estimates *where a free source has them*. Measured: none does — consensus is a licensed product.
+So `estimates_available` is **False** with a reason, **no estimate is inferred or modelled**, and
+**the AI prompt explicitly forbids calling the result a beat or a miss**. An absent comparison and
+a met expectation must not read the same.
+
+**IT IS A SEPARATE FETCH, AFTER THE PAINT.** Up to four network calls, so `/api/recent` is fetched
+once the numbers are on screen — item 52 measured that the page's two seconds are the fetch, not
+the model. **Cached per ticker per day beside the AI analysis** (0.001s on a hit) and
+**deliberately NOT charged to the AI cap**: that cap bounds Anthropic spend, and sharing it would
+let a visitor reading headlines exhaust the owner's analysis budget.
+
+**THE MODEL MUST NAME THE HEADLINE IT USED.** New `headlines_used` schema field, `[]` when it used
+none, and the panel links each cited title back to the stored feed item — so a reader can click it
+and judge for themselves. **The feed items are stored WITH the analysis**, because a feed is not
+an archive and an analysis citing a headline nobody can find again is unfalsifiable.
+
+---
+
+## 3. THE DISCOUNT RATE, MADE VISIBLE — AND IT CUTS BOTH WAYS
+
+NVDA is discounted at **16.3%** and TSLA at **14.7%** because their measured betas are about 2,
+and nothing on the page said so: a reader saw a base value far below the price and read it as a
+claim about the business. The page now shows what the same model says at **beta 1.0**.
+
+| | deployed | at beta 1.0 |
+|---|---|---|
+| **NVDA** (beta 2.216) | WACC 16.27%, base **$145.67** | WACC 10.21%, base **$230.65 (+58.3%)** |
+| **KO** (beta 0.318) | WACC 6.59%, base **$57.34** | WACC 9.64%, base **$34.81 (−39.3%)** |
+
+**NVDA at an average-risk rate is essentially AT its $226 price rather than 56% above it — and
+KO's low beta was FLATTERING its fair value by two fifths.** The figure cuts against the model as
+readily as for it, which is the reason to show it.
+
+**IT RE-RUNS THE REAL MODEL RATHER THAN REIMPLEMENTING THE DISCOUNT CHAIN.** The obvious approach
+— recompute a WACC at beta 1.0 and re-derive a DCF — is a second implementation of the thing it
+reports on, which is the `B7` family. So it calls the pipeline's own `value_from_company` through
+an injected callable with `beta` overridden and nothing else touched. The pipeline injects itself;
+`average_risk.py` does not import it, or the valuation path would depend on a presentation module.
+
+**IT COSTS 14 MILLISECONDS.** Measured on an already-fetched NVDA: 0.102s with it against 0.088s
+without. A second pass makes no network call (`compute_comps` only fetches when handed peers) and
+runs the Monte Carlo at a token trial count, which is safe because trials feed `prob_undervalued`
+— a score input — not the fair value.
+
+**IT DOES NOT MUTATE THE COMPANY, and that was the real hazard.** `value_from_company` appends to
+`cd.quality_notes`, and that list becomes the result's `warnings` — so a second pass over the same
+company would have duplicated every note on the **first** result, which is a recorded number
+changing. The notes are snapshotted and restored, **unconditionally**, because a failure partway
+through is exactly when they are half-appended.
+
+**PRESENTATION ONLY, STRUCTURALLY.** It is written to a field nothing else reads, pinned on the
+syntax tree (assignment targets only, zero reads) and asserted absent from the scorer and the
+blend. A withheld name gets **no figure at all** — printing "the base value would be $X" beside a
+value the model refused to publish would hand back the number the refusal withheld. A company
+already discounted near an average rate renders **nothing**, rather than the same answer twice.
+
+---
+
+## 4. PLAIN DEFINITIONS ON HOVER
+
+Fourteen terms in `valuation/web/definitions.py`, on `score_confidence.py`'s shape: one module
+owns the wording, every surface reads it, a test pins it. The alternative — `title=` strings
+written inline beside each number — is how one term comes to be defined two different ways on one
+page, which is `B7` applied to prose.
+
+**Every hero metric gained a hover without a single call site being edited**, because `metric(k, v)`
+is the one place they render and it now looks its label up in a map. Rule of 40, the hot score and
+the two reads carry theirs explicitly. A defined term gets a dotted underline and a help cursor —
+**a definition nobody can see is a definition nobody reads.**
+
+**WHAT A DEFINITION MAY NOT DO.** It explains what a number *is*; it does not say whether the
+number is good, recommends nothing, and **does not restate a calibrated hedge in looser words** —
+where one exists it points at it (`score_confidence.py` for the hot score, `price_assumes.py` for
+the DCF warning). A paraphrase of a hedge is how a hedge becomes a claim. **And no definition
+carries a number that moves**: "the 10-year Treasury is 5.28%" would be wrong within weeks and
+nothing would fail. The Rule of 40's own 40 is the exception, because the rule is named for it.
+
+---
+
+## 5. A CACHED ANALYSIS IS SERVED TO EVERYONE
+
+Item 52 denied `/api/ai-analysis` to the demo tier wholesale, and **half of that reasoning still
+stands while the rule was about the wrong thing**. A cached analysis costs nothing to show again —
+the money is spent and the file is on disk — so refusing a public reader the cache was refusing
+something free. **The gate moved from "may you call this URL" to "may you SPEND"**, which is the
+question that was always being asked.
+
+`surfaces.may_spend_ai` is the owner alone **under every flag combination**, and that is the
+safety property: `may_act` returns True for everyone when `OWNER_SPLIT` is off, which is right for
+its job and wrong for this one — the flag is a decision about what strangers may *read* and must
+not hand a stranger the Anthropic budget as a side effect. **`check()` already states that rule for
+the demo tier in its own comment; this is the same rule for the flag.**
+
+**DEFAULT-DENY AT THE READ.** The SaaS layer sets `g.may_spend_ai` (the same rail as
+`g.hotstocks_cap`), and the inner route treats an unset flag as a refusal — because that app is
+importable and runnable without the wrapper, as every test client does, so "ran somewhere the
+guard does not" must fail toward not spending. The ordering is pinned structurally: `value_ticker`,
+the analyst call and `ai_auto.record` all sit **after** the gate.
+
+---
+
+## 6. A PREMIUM PAST A DOUBLING READS AS A MULTIPLE
+
+*"Priced 1527% above our base value"* was TSLA's live reading. It is arithmetically exact and
+makes a reader divide by 100 and add 1 in their head. It now reads **"Priced at about 16 times our
+base value."**
+
+**The switch is at +100%**, where the two readings cross in usefulness: below a doubling a
+percentage is clearer ("56% above" beats "about 1.6 times"), above it the multiple is. **The same
+number in two units, not a rounded one.** Precision matches what a base value can carry — one
+decimal under 10x, none above — because quoting `16.27x` claims a precision the estimate does not
+have. NVDA and KO keep their percentages.
+
+---
+
+## WHAT WENT WRONG IN MY OWN WORK
+
+**Seven guards of mine fired against a correct tree, and five are one family.** The
+comment-versus-code / substring-ban family, which this project names more than any other:
+
+* banning the substring **`buy`** in a definition — it is inside **"insider buying"**, the name of
+  one of the eight themes and the only way to say what it is;
+* banning **`price target`** — the `base_value` definition says *"not a price target"*, which is
+  exactly what it should say, and the ban could not tell a disclaimer from a claim. Repaired by
+  allowing a negation, with positive controls both ways;
+* asserting `why_composite` appears in the *comment-stripped* code when it is a dict **key**, i.e.
+  a string literal the stripper removes — the stripper was right and the assertion was pointed at
+  the wrong text;
+* capping how many **times** `average_risk` appears in a file, which is a number with no meaning
+  and read 9 against a bound of 6 on a perfectly correct file. Repointed to the property: the
+  field may be an assignment target and nothing may read it;
+* and an assertion that a three-key dict literal contained no `":` , which is the opposite of true.
+
+**And one real bug in shipped code, in the prompt:** a line reading `42%% relevance` inside a
+**plain** string literal, which ships two characters to the model. Item 52 hit the mirror image —
+a literal `%` inside a `%`-formatted string, which crashed — and the lesson is the same either
+way: check which kind of string you are in. This one would not have crashed.
+
+**Three of item 52's pins were repointed by INTENT, not silenced**: TSLA's premium wording (part 6
+changed it), and two about `/api/ai-analysis` being demo-denied (part 5 deliberately changed
+that). The measured $0.0248 was kept on the record at the classification that replaced it.
+
+**Three posture guards demanded classifications and all three were right** — an unclassified
+`/api/recent`, an unclassified POST reachable by the preview, and an unanswered licence question —
+so both routes are now in `PUBLIC_API` and `VENDOR_ROW_CLEARED` with their vendors named, and
+`/api/ai-analysis` is in the test's `COMPUTES_ONLY` with the guard it depends on named beside it.
+
+---
+
+**Tests:** `tests/test_item53.py` 45 tests. Repointed suites: item 52 80/80, public-posture 43/43.
+Also green: security 22/22, vendor-quota 15/15, engine 62/62, withhold 30/30,
+valuation-consistency, index-in-force 33/33, index-card, product-spec, screener 83/83,
+payoff 30/30. `node --check` clean.
+
+**NOT DONE, named so it is not mistaken for done:** part 7 ships no fix and the FMP subscription,
+the theme-count floor and the 2026-10-22 rebalance are all Don's calls; no estimate source was
+bought or inferred; `row_attribution` is untouched (the screener lane's shared primitive); and
+**the screenshots Don asked for are still owed** — this session has no browser, so every live
+check is a fetched payload rather than a picture.
+
 # Session 88 — 2026-10-08 — ITEMS 41+42: the SIC map, Tradier's unapproved token, and Don's two rulings
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict. `by_domain` untouched.

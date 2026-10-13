@@ -424,6 +424,24 @@ def business_quality(subscores: dict, weights: dict) -> tuple:
     return _QUALITY_FLOOR, round(v, 1)
 
 
+def _round_multiple(mult: float) -> str:
+    """A multiple at the precision the number can carry, so "about" is not a lie. [item 53/6]
+
+    A base value is a model output with a wide interval on it, so quoting `16.27x` claims a
+    precision the estimate does not have -- and quoting `16x` for everything from 15.5 to 16.4
+    is the honest width. Below 10 the half matters (2.5x reads differently from 2x), above 10
+    it does not.
+
+    **IT NEVER RETURNS "1" OR "0".** `price_vs_model` only calls this at a premium of +100% or
+    more, where the multiple is at least 2.0 -- but a helper that could print "priced at about
+    1 times our base value" in some future caller is one nobody should have to reason about.
+    """
+    m = max(2.0, float(mult))
+    if m < 10.0:
+        return ("%.1f" % m).rstrip("0").rstrip(".")
+    return "%.0f" % m
+
+
 def price_vs_model(price, base_fv, *, withheld: bool = False, withheld_value=None) -> str:
     """How the price compares with the model's base value, as a sentence a reader can check.
 
@@ -446,6 +464,18 @@ def price_vs_model(price, base_fv, *, withheld: bool = False, withheld_value=Non
     if abs(prem) < 0.02:
         return "Priced within 2% of our base value."
     if prem > 0:
+        # ITEM 53 PART 6. "Priced 1527% above our base value" was TSLA's live reading, and it
+        # is arithmetically right and unreadable -- a reader has to divide by 100 and add 1 in
+        # their head to get the thing they actually want to know. Past a doubling the natural
+        # unit stops being a percentage and becomes a MULTIPLE.
+        #
+        # THE SAME NUMBER, NOT A ROUNDED ONE: 1527% and "about 16 times" are one quantity in
+        # two units, and the threshold is where the two readings cross in usefulness rather
+        # than anywhere chosen for looks. Below a doubling a percentage is the clearer form
+        # ("57% above" beats "about 1.6 times"), so the switch is at +100%.
+        mult = price / float(base_fv)
+        if prem >= 1.0:
+            return "Priced at about %s times our base value." % _round_multiple(mult)
         return "Priced %.0f%% above our base value." % (prem * 100.0)
     return "Priced %.0f%% below our base value." % (abs(prem) * 100.0)
 

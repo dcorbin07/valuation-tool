@@ -196,12 +196,26 @@ class TheBusinessRead(unittest.TestCase):
 class ThePriceRead(unittest.TestCase):
 
     def test_NVDA_TSLA_and_a_discount(self):
+        """REPOINTED BY ITEM 53 PART 6, and the old assertion was not wrong -- it was
+        unreadable. TSLA's live reading WAS "Priced 1527% above our base value", which is
+        arithmetically exact and makes a reader divide by 100 and add 1 in their head. Past a
+        doubling the natural unit stops being a percentage.
+
+        The percentages BELOW +100% are unchanged and pinned here, because that is where a
+        percentage is still the clearer form: "56% above" beats "about 1.6 times".
+        """
         self.assertEqual(S.price_vs_model(226.32, 145.44),
                          "Priced 56% above our base value.")
         self.assertEqual(S.price_vs_model(378.03, 23.23),
-                         "Priced 1527% above our base value.")
+                         "Priced at about 16 times our base value.")
         self.assertEqual(S.price_vs_model(80.0, 100.0),
                          "Priced 20% below our base value.")
+        # The switch is AT +100%, so either side of it is pinned: a hair under keeps the
+        # percentage and a hair over becomes a multiple.
+        self.assertEqual(S.price_vs_model(199.0, 100.0),
+                         "Priced 99% above our base value.")
+        self.assertEqual(S.price_vs_model(201.0, 100.0),
+                         "Priced at about 2 times our base value.")
 
     def test_near_parity_says_so_rather_than_rounding_to_zero_percent(self):
         self.assertEqual(S.price_vs_model(100.0, 100.5),
@@ -815,12 +829,24 @@ class TheAnalysisRunsByItselfAndItsCostIsMEASURED(unittest.TestCase):
         self.assertEqual(c.get("/api/ai-analysis").status_code, 405)
         self.assertEqual(c.post("/api/ai-analysis", json={}).status_code, 400)
 
-    def test_the_route_is_classified_in_BOTH_posture_lists_with_a_reason(self):
+    def test_the_route_is_classified_and_its_REMOVAL_is_explained(self):
+        """REPOINTED BY ITEM 53 PART 5. It is still in `PUBLIC_API` -- it is a public route
+        and always was classified as one -- and it is deliberately NO LONGER in
+        `DEMO_DENIED_PATHS`, because that set is about URLs and the scarce thing is the spend.
+
+        The removal has to leave its reasoning behind, or a future reader re-adds it: the
+        comment that replaced the entry names what changed and why, and the measured cost is
+        still on the record.
+        """
         from valuation.saas import surfaces as SF
         self.assertIn("/api/ai-analysis", SF.PUBLIC_API)
-        self.assertIn("/api/ai-analysis", SF.DEMO_DENIED_PATHS)
+        self.assertNotIn("/api/ai-analysis", SF.DEMO_DENIED_PATHS)
         src = _src(os.path.join("valuation", "saas", "surfaces.py"))
         self.assertIn("MEASURED at $0.0248", src)
+        self.assertIn("REMOVED `/api/ai-analysis` FROM THIS SET", src)
+        # The gate exists somewhere, and this names where -- a removal with no replacement
+        # named is how an enforcement point goes missing.
+        self.assertIn("may_spend_ai", src)
 
     def test_the_panel_label_exists_once_and_reaches_the_page(self):
         from valuation.web import ai_auto as AA
@@ -859,7 +885,7 @@ class TheAnalysisRunsByItselfAndItsCostIsMEASURED(unittest.TestCase):
         for forbidden in ("api_key", "anthropic_api_key", "openai_api_key", "ANTHROPIC"):
             self.assertNotIn(forbidden, src)
 
-    def test_a_STRANGER_is_refused_the_route_and_the_panel_HIDES(self):
+    def test_a_STRANGER_is_refused_the_SPEND_and_the_panel_HIDES(self):
         """FOUND ON THE LIVE SERVICE: every public call returned 403, not 405/400.
 
         **THE CLASSIFICATION IS CORRECT AND THE REFUSAL IS BY DESIGN.**
@@ -873,13 +899,29 @@ class TheAnalysisRunsByItselfAndItsCostIsMEASURED(unittest.TestCase):
         this name right now" and left a dangling empty card on every public view.
         `surfaces.check`'s own docstring states the convention -- owner-only fetches "hide
         their panel rather than printing an error" -- and this was the one fetch ignoring it.
+
+        **REPOINTED BY ITEM 53 PART 5: THE GATE MOVED FROM THE ROUTE TO THE SPEND, and half
+        of what this test used to assert was protecting the wrong thing.** A CACHED analysis
+        costs nothing to serve again -- the money is spent and the file is on disk -- so
+        denying a public reader the cache was refusing something free. The route is public
+        now and `may_spend_ai` guards every branch that can buy. What this still holds, and
+        what actually matters, is that a non-owner reaching a cache MISS buys nothing and
+        gets no dangling card.
         """
         from valuation.saas import surfaces as SF
-        self.assertTrue(SF.is_demo_denied("/api/ai-analysis"))
+        # The route is NO LONGER denied wholesale -- that is the change.
+        self.assertFalse(SF.is_demo_denied("/api/ai-analysis"))
+        # ...and the predicate that replaced it is the owner alone, under every flag.
+        class _Cfg:
+            owner_split = False
+        self.assertFalse(SF.may_spend_ai(None, _Cfg()))
+        self.assertFalse(SF.may_spend_ai({"is_demo": True}, _Cfg()))
         src = _src(os.path.join("valuation", "web", "static", "app.js"))
         i = src.index("async function loadAiAnalysis(")
         body = src[i:src.index("function aiBox(")]
         self.assertIn("d.owner_only", body)
+        # Part 5's own state: reachable route, no cache, not the owner.
+        self.assertIn("d.owner_only_to_run", body)
         # It must hide and RETURN before the generic fall-through, or the card is still
         # rendered empty.
         #

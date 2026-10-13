@@ -347,6 +347,16 @@ def test_every_route_that_writes_is_on_the_demo_denied_list():
         "/api/value",       # the visitor's own DCF — the product's core action
         "/api/rank",        # scores a watchlist the caller supplied
         "/api/portfolio",   # builds an allocation from the existing snapshot; writes nothing
+        # ITEM 53 part 5. For a PREVIEW caller this route writes nothing and buys nothing:
+        # `_may_spend_ai()` is false, so it returns before `ai_auto.record` and before the
+        # analyst is called. It serves today's cached analysis if there is one and otherwise
+        # says the owner has to run it.
+        #
+        # THAT CLASSIFICATION DEPENDS ENTIRELY ON THE GUARD, which is why the guard is
+        # default-deny (an unset `g.may_spend_ai` refuses) and is pinned in
+        # `test_item52_no_label.py` and `test_item53.py`. If it were ever removed this entry
+        # would become a lie, so the two are a pair.
+        "/api/ai-analysis",
     }
     # The admin-token half is taken from the module rather than restated (LA13) — the same
     # literal in two tests is how one of them keeps a route the other stopped covering.

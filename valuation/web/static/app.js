@@ -178,6 +178,9 @@ async function runValue(overrides) {
     // analyst call took 27.4s on TSLA today, so awaiting it would turn a two-second page into
     // a thirty-second one for a panel that is an addition to it.
     loadAiAnalysis(ticker);
+  // ITEM 53 part 2: the same rule for the same measured reason -- up to four free feeds, so
+  // it must not sit in front of the numbers.
+  loadRecent(ticker, (d.company && d.company.name) || "");
   } catch (e) {
     errBox(e.message);
   } finally {
@@ -223,7 +226,7 @@ function render(d) {
   document.getElementById("coBadges").innerHTML =
     `<span class="badge">${cls.regime}</span>` +
     `<span class="badge ${relClass}">${esc(relLabel)}: ${esc(cls.dcf_reliability)}</span>` +
-    (cls.rule_of_40 != null ? `<span class="badge ${cls.rule_of_40 >= 40 ? 'g' : 'a'}">Rule of 40: ${cls.rule_of_40.toFixed(0)}</span>` : "") +
+    (cls.rule_of_40 != null ? `<span class="badge ${cls.rule_of_40 >= 40 ? 'g' : 'a'}"${defAttr("rule_of_40")}>Rule of 40: ${cls.rule_of_40.toFixed(0)}</span>` : "") +
     (c.cash_runway_years != null ? `<span class="badge ${c.cash_runway_years >= 4 ? 'g' : 'r'}">Runway: ${c.cash_runway_years.toFixed(1)}y</span>` : "") +
     (c.next_earnings_date ? `<span class="badge a">📅 Earnings ${_earnLabel(c.next_earnings_date)}</span>` : "");
 
@@ -252,6 +255,7 @@ function render(d) {
       : `<span class="${up >= 0 ? 'pos' : 'neg'}">${up == null ? '—' : (up >= 0 ? '+' : '') + pct(up, 0)}</span>`) +
     metric("WACC", pct(d.wacc.wacc));
 
+  averageRisk(d);
   gauge(score.score, score, score.confidence, notValuable, d.withheld);
   fairValueMethod(fvb, d);
   // WHEN THE MODEL REFUSES, THE WHOLE PAGE REFUSES (2026-08-05).
@@ -286,7 +290,65 @@ function render(d) {
   document.getElementById("sourcesBox").innerHTML = "Sources: " + (d.sources || []).join(" · ");
 }
 
-function metric(k, v) { return `<div class="m"><div class="k">${k}</div><div class="v">${v}</div></div>`; }
+/* ---------- ITEM 53 part 4: plain definitions on hover ----------
+   THE WORDING LIVES IN `web/definitions.py` AND IS READ FROM HERE, never written here --
+   the `score_confidence` pattern, for its stated reason: a surface that writes its own
+   version of a definition is how one term comes to mean two things on one page.
+   `window.DEFINITIONS` is injected site-wide by the Jinja context processor. */
+const DEF_TERM_BY_LABEL = {
+  // Labels `metric()` is ALREADY called with, so every hero metric gains a hover without a
+  // single call site being edited. Keyed on the rendered label because that is the string a
+  // reader is hovering; a map keyed on an internal id would need every caller changed.
+  "WACC": "discount_rate",
+  "Base fair value": "base_value",
+  "Fair value": "base_value",
+  "Fair value range": "base_value",
+  "Upside": "margin_of_safety",
+};
+function defOf(term) {
+  const d = (window.DEFINITIONS || {})[term];
+  return (d && d.text) ? d : null;
+}
+/* A definition as a title attribute, or "" when the term is unknown. Returning "" rather
+   than a placeholder means an unknown term renders as ordinary text instead of telling a
+   reader the page is broken. */
+function defAttr(term) {
+  const d = defOf(term);
+  return d ? ` title="${esc(d.text)}" data-def="${esc(term)}"` : "";
+}
+/* Wrap visible text so a reader can SEE there is something to hover. A title alone is
+   invisible, so the definition would exist and nobody would find it. */
+function defSpan(txt, term) {
+  const d = defOf(term);
+  if (!d) return esc(txt);
+  return `<span class="defd"${defAttr(term)}>${esc(txt)}</span>`;
+}
+/* ---------- ITEM 53 part 3: the discount rate, made visible ----------
+   NVDA is discounted at 16.3% and TSLA at 14.7% because their measured betas are about 2,
+   and nothing on the page said so -- a reader saw a base value far below the price and read
+   it as a claim about the business. This is the same model's answer at beta 1.0.
+   PRESENTATION ONLY: the headline, the sub-scores and every recorded number are untouched,
+   and this reads a field nothing else reads.
+   IT RENDERS NOTHING when the two rates are close (the server decides that, not this), so a
+   name already discounted near an average rate does not get a line saying so twice. */
+function averageRisk(d) {
+  const el = document.getElementById("avgRisk");
+  if (!el) return;
+  const a = d.average_risk || {};
+  if (!a.available || !a.is_material || !a.sentence) { el.innerHTML = ""; return; }
+  const dir = (a.relative_change_pct != null)
+    ? ` That is ${a.relative_change_pct > 0 ? "higher" : "lower"} than the base value above by
+        ${Math.abs(a.relative_change_pct).toFixed(0)}%.` : "";
+  el.innerHTML = `<div class="avg-risk">
+    <b>${esc(a.sentence)}</b>${esc(dir)}
+    <div class="avg-risk-w">${esc(a.why || "")}</div></div>`;
+}
+
+function metric(k, v) {
+  const term = DEF_TERM_BY_LABEL[k];
+  const kk = term ? defSpan(k, term) : esc(k);
+  return `<div class="m"><div class="k">${kk}</div><div class="v">${v}</div></div>`;
+}
 function show(id, on) { document.getElementById(id).classList.toggle("on", on); }
 function errBox(msg) { const e = document.getElementById("err"); e.textContent = msg; e.classList.toggle("on", !!msg); }
 
@@ -342,8 +404,9 @@ function gauge(s, rec, conf, notValuable, w) {
   const pv = (rec && rec.price_vs_model) || "";
   const reads = `
     <div class="reads">
-      <div class="read-q">${bq ? esc(bq) : '<span class="muted">Business not scored</span>'}</div>
-      <div class="read-p">${esc(pv)}</div>
+      <div class="read-q"${defAttr("business_quality")}>${bq ? esc(bq)
+        : '<span class="muted">Business not scored</span>'}</div>
+      <div class="read-p"${defAttr("price_vs_model")}>${esc(pv)}</div>
     </div>`;
   if (s == null) {
     document.getElementById("gauge").innerHTML =
@@ -489,7 +552,7 @@ function hotListStrip(d) {
   const zeroLead = zero.length === 1 ? "One theme was scored and moved this name by nothing:"
     : `${zero.length} themes were scored and moved this name by nothing:`;
   el.innerHTML = `<div class="card hot-top">
-    <div class="pa-lead-t">Hot list</div>
+    <div class="pa-lead-t">${defSpan("Hot list", "hot_score")}</div>
     <div class="hot-top-s"><b>${s.hot_score == null ? "—" : s.hot_score.toFixed(0)}</b>
       out of 100 — rank ${s.rank} of ${s.n_scored}.
       ${drivers ? `Biggest movers: ${drivers}.` : ""}</div>
@@ -910,6 +973,64 @@ function sensBox(s, price) {
 }
 
 /* ---------- AI ---------- */
+/* ---------- ITEM 53 part 2: the last reported quarter, headlines and filings ----------
+   FETCHED AFTER THE PAINT and never awaited, like `loadWhatDo` and the AI panel.
+   EVERY FIGURE CARRIES ITS SOURCE, because the dates and the revenue come from two different
+   vendors that disagree about a fiscal period end by five days on NVDA -- EDGAR is right and
+   the page says which it used.
+   AND IT SAYS WHEN A FEED CARRIED NOTHING ABOUT THE COMPANY. A symbol-requested headline feed
+   was measured at 42% relevance over 74 titles, and 1 of 18 on NVDA, so "no headlines" has to
+   be distinguishable from "nothing is happening". */
+async function loadRecent(ticker, name) {
+  const el = document.getElementById("recentBox");
+  if (!el) return;
+  let d;
+  try {
+    const q = `/api/recent?ticker=${encodeURIComponent(ticker)}&name=${encodeURIComponent(name || "")}`;
+    d = await (await fetch(q)).json();
+  } catch (e) { el.innerHTML = ""; return; }
+  STATE.recent = d;
+  const q = d.last_quarter || {}, h = d.headlines || {}, f = d.filings || {};
+  let html = "";
+  if (q.available) {
+    const bits = [];
+    if (q.revenue != null) bits.push(`revenue ${money(q.revenue / 1e6, 0)}m`);
+    if (q.eps_diluted != null) bits.push(`diluted EPS ${money(q.eps_diluted)}`);
+    html += `<div class="rc-q"><b>Last reported quarter</b>
+      ${q.fiscal ? esc(q.fiscal) + " — " : ""}period ended ${esc(q.period_end || "—")}${
+        q.reported_on ? `, reported ${esc(q.reported_on)}` : ""}.
+      ${bits.length ? esc(bits.join(", ")) + "." : ""}
+      <div class="co-src">${esc(q.dates_source || "")}${
+        q.revenue_source ? " · revenue: " + esc(q.revenue_source) : ""}${
+        q.eps_source ? " · EPS: " + esc(q.eps_source) : ""}</div>
+      <div class="co-src">${esc(q.estimates_reason || "")}</div></div>`;
+  } else if (q.reason) {
+    html += `<div class="rc-q"><b>Last reported quarter</b> — ${esc(q.reason)}.</div>`;
+  }
+  const items = h.items || [];
+  if (items.length) {
+    html += `<div class="rc-h"><b>Recent headlines</b>
+      ${items.map(it => `<div class="rc-i"><a href="${esc(it.url)}" target="_blank"
+        rel="noopener nofollow">${esc(it.title)}</a>
+        <span class="co-src">${esc(it.publisher || "")} · ${esc(it.date || "")}</span></div>`).join("")}
+      <div class="co-src">${esc(h.source || "")}. Headlines only — this page never fetches or
+        stores article text. ${h.scanned ? `${h.on_company} of ${h.scanned} items in the feed
+        named this company.` : ""}</div></div>`;
+  } else if (h.reason) {
+    html += `<div class="rc-h"><b>Recent headlines</b> — ${esc(h.reason)}.</div>`;
+  }
+  const fi = f.items || [];
+  if (fi.length) {
+    html += `<div class="rc-h"><b>Recent SEC filings</b>
+      ${fi.map(it => `<div class="rc-i"><a href="${esc(it.url)}" target="_blank"
+        rel="noopener nofollow">${esc(it.form)}</a>
+        <span class="co-src">${esc(it.date || "")}</span></div>`).join("")}
+      <div class="co-src">${esc(f.source || "")} — this company's own filings, so every one is
+        about it by construction.</div></div>`;
+  }
+  el.innerHTML = html;
+}
+
 /* ---------- ITEM 52 part 6: the analysis runs by itself ----------
    NOT AWAITED, and the number is why: 27.4s measured against the valuation's 2.0s.
    THE PANEL ALWAYS CARRIES ITS LABEL, cached or fresh, because the most
@@ -953,6 +1074,12 @@ async function loadAiAnalysis(ticker, force) {
   // fetches read `owner_only` and hide their panel rather than printing an error" -- and this
   // was the one fetch not following it.
   if (d && d.owner_only) { card.style.display = "none"; return; }
+  // ITEM 53 part 5: the route is public now, so a visitor WITH a cached analysis gets it and
+  // a visitor WITHOUT one gets this. The card is hidden rather than showing an invitation,
+  // because `surfaces.may_act`'s own docstring states the rule: "Rendering a button the API
+  // will refuse is worse than rendering nothing: it teaches the reader the preview is broken
+  // rather than read-only." The panel is an addition to the page; its absence costs nothing.
+  if (d && d.owner_only_to_run) { card.style.display = "none"; return; }
   if (d && d.capped) {
     document.getElementById("aiSrc").textContent = "";
     document.getElementById("aiBox").innerHTML =
@@ -995,6 +1122,24 @@ function aiBox(ai, meta) {
   // Both paths through this function -- the checkbox's `d.ai` and the automatic fetch --
   // render through it, which is the one place that guarantees the panel never appears
   // without saying what wrote it.
+  // ITEM 53 part 2: WHICH HEADLINE DID IT USE? A title with no article behind it, from a
+  // feed measured at 42% relevance, is the weakest evidence on the page -- so where the model
+  // leaned on one it is named and linked, and a reader can judge it for themselves. The
+  // titles are matched back to the stored feed so the link is the one the model was shown
+  // rather than a fresh search.
+  const used = (ai && ai.headlines_used) || [];
+  if (used.length) {
+    const byTitle = {};
+    (((meta && meta.recent) || {}).headlines || {}).items?.forEach(it => {
+      byTitle[it.title] = it;
+    });
+    html += `<div class="ai-cite"><b>Headlines this used:</b>
+      ${used.map(t => { const it = byTitle[t];
+        return it && it.url
+          ? `<div class="rc-i"><a href="${esc(it.url)}" target="_blank"
+               rel="noopener nofollow">${esc(t)}</a></div>`
+          : `<div class="rc-i">${esc(t)}</div>`; }).join("")}</div>`;
+  }
   const _lbl = (meta && meta.label) || (window.AI_PANEL_LABEL || "");
   if (_lbl) html += `<div class="co-src">${esc(_lbl)}${
     meta && meta.cached ? " Saved earlier today." : ""}</div>`;
@@ -1188,6 +1333,19 @@ function attributionPanel(r, opts) {
   const why = (r.extra && r.extra.why) || [];
   const o = opts || {};
   if (!why.length) {
+    /* ITEM 53 part 1 — "A holding not in today's scan says so instead of an empty panel."
+       The two cases are genuinely different and the old message only described one of them:
+       a HOT-LIST row with no attribution was saved by an older scan, while an INDEX holding
+       with none is usually a name today's universe no longer ranks. The book is fixed between
+       rebalances, so that is ordinary and not a fault -- `attach_labels` already keeps such a
+       holding rather than dropping it, and this is the same statement one surface along.
+       An absent measurement and a measurement of nothing must not read the same (`V6`). */
+    if (o.notInScan) {
+      return `<div class="note">This holding is not in today's scan, so there is no breakdown
+        of today's score for it. The book is fixed between rebalances, so a name the current
+        universe no longer ranks is still held — that is the book working as designed, not a
+        missing row.</div>`;
+    }
     return `<div class="note">No attribution stored for this name — it is written at scan time,
       so rows saved by an older scan show none. It appears after the next daily scan.</div>`;
   }
@@ -2889,6 +3047,14 @@ function _renderValquoIndex(d, cfg) {
   const hasForm = rows.some(p => p.weight_at_formation != null);
   const hasRet = rows.some(p => p.return_pct != null);
   const hasToday = rows.some(p => p.hot_score_today != null);
+  /* ITEM 53 part 1: the why? panel spans the table, so its colspan has to track the header's
+     own conditional columns. DERIVED FROM THE SAME FLAGS rather than typed, because a typed
+     number is right until somebody adds a column -- and this table already carries a comment
+     saying "the footer must grow with the header or every total shifts one cell left", which
+     is the same defect one row down.
+     The eight fixed columns: #, Ticker, Company, Sector, Weight, hot score, why?, Market cap. */
+  const _ixCols = 8 + (hasForm ? 1 : 0) + (hasRet ? 1 : 0) + (alloc.active ? 1 : 0)
+    + (showShares ? 2 : 0);
   body.innerHTML = _indexSectorBox(d)
     + '<table class="tbl"><thead><tr><th>#</th><th>Ticker</th><th>Company</th><th>Sector</th>'
     + '<th class="num">Weight</th>'
@@ -2911,11 +3077,20 @@ function _renderValquoIndex(d, cfg) {
        keeps the plain column, because there "today" and "at formation" are the same scan. */
     + (hasToday ? '<th class="num">Today\'s hot score</th>'
                 : '<th class="num">Hot score</th>')
+    /* ITEM 53 part 1: the same affordance the Hot tab has, in the same place relative to the
+       score it explains. */
+    + '<th></th>'
     + '<th class="num">Market cap</th>'
     + '</tr></thead><tbody>'
     + rows.map((p, i) => {
         const a = byTicker[p.ticker];
-        return `<tr><td>${i + 1}</td><td><b>${p.ticker}</b></td>`
+        /* ITEM 53 part 1 — THE TICKER IS A LINK. It has not been one since `c0c6fef`
+           (2026-07-31, when Hot Stocks and the Index were unified), while Hot Stocks and four
+           other tables have used `gotoValue` throughout — so the one table listing the names
+           Don actually holds was the one table you could not click. `gotoValue` is reused
+           rather than a second navigation path added. */
+        return `<tr><td>${i + 1}</td>`
+          + `<td><a href="#" onclick="gotoValue('${p.ticker}');return false"><b>${p.ticker}</b></a></td>`
           + `<td>${esc((p.name || "").slice(0, 28))}</td><td>${esc((p.sector || "—").slice(0, 18))}</td>`
           + `<td class="num">${pct(p.weight, 2)}</td>`
           + (hasForm
@@ -2933,7 +3108,17 @@ function _renderValquoIndex(d, cfg) {
               : "")
           + `<td class="num">${(hasToday ? p.hot_score_today : p.hot_score) == null ? "—"
                : (hasToday ? p.hot_score_today : p.hot_score).toFixed(1)}</td>`
-          + `<td class="num">${mcap(p.market_cap)}</td></tr>`;
+          + `<td><button class="whybtn" id="whybtn-ix-${p.ticker}" aria-expanded="false"
+                onclick="toggleWhy('ix-${p.ticker}')"
+                title="Break this score into the themes that produced it">why?</button></td>`
+          + `<td class="num">${mcap(p.market_cap)}</td></tr>`
+          /* The panel is `attributionPanel`, not a second implementation of it: one
+             decomposition of one number, rendered the same way in both tables. The id is
+             prefixed `ix-` because the Hot tab may have a row open for the same ticker and
+             two elements cannot share an id. */
+          + `<tr class="whyrow" id="why-ix-${p.ticker}" style="display:none">`
+          + `<td colspan="${_ixCols}">${attributionPanel(p, { of: p.n_scored,
+                notInScan: !(p.extra && p.extra.why) })}</td></tr>`;
       }).join("")
     + "</tbody>"
     + (alloc.active
@@ -2944,7 +3129,10 @@ function _renderValquoIndex(d, cfg) {
           + (hasRet ? `<td class="num">—</td>` : "")
           + `<td class="num"><b>${money(alloc.sum)}</b></td>`
           + (showShares ? '<td class="num">—</td><td class="num">—</td>' : "")
-          + `<td class="num">—</td><td class="num">—</td></tr></tfoot>`
+          /* ITEM 53 part 1 added a why? column between the score and the market cap, so this
+             grew from two trailing cells to three -- which is the very thing the comment
+             above warns about, caught by obeying it rather than by the table looking wrong. */
+          + `<td class="num">—</td><td></td><td class="num">—</td></tr></tfoot>`
         : "")
     + "</table>"
     + (alloc.active
