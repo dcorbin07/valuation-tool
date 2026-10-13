@@ -940,6 +940,19 @@ async function loadAiAnalysis(ticker, force) {
     return;
   }
   STATE.ai = d;
+  // FOUND ON THE LIVE SERVICE, and the classification it comes from is CORRECT rather than a
+  // mistake. `public_full_view` lifts an anonymous visitor to the DEMO tier, and that tier's
+  // defining property is that `surfaces.DEMO_DENIED_PATHS` is refused -- which this route is
+  // in, because it spends the owner's AI budget. So a stranger gets 403 `owner_only` here by
+  // design: letting 30 of them exhaust the day's cap would leave Don without an analysis on
+  // the name he is actually looking at, which is the opposite of what part 6 is for.
+  //
+  // THE DEFECT WAS THIS FUNCTION'S RESPONSE TO IT. It fell through to "No written analysis
+  // for this name right now", leaving a dangling empty card on every public page view.
+  // `surfaces.check` states the convention in its own docstring -- "the dashboard's own
+  // fetches read `owner_only` and hide their panel rather than printing an error" -- and this
+  // was the one fetch not following it.
+  if (d && d.owner_only) { card.style.display = "none"; return; }
   if (d && d.capped) {
     document.getElementById("aiSrc").textContent = "";
     document.getElementById("aiBox").innerHTML =

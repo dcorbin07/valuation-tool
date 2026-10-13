@@ -859,6 +859,43 @@ class TheAnalysisRunsByItselfAndItsCostIsMEASURED(unittest.TestCase):
         for forbidden in ("api_key", "anthropic_api_key", "openai_api_key", "ANTHROPIC"):
             self.assertNotIn(forbidden, src)
 
+    def test_a_STRANGER_is_refused_the_route_and_the_panel_HIDES(self):
+        """FOUND ON THE LIVE SERVICE: every public call returned 403, not 405/400.
+
+        **THE CLASSIFICATION IS CORRECT AND THE REFUSAL IS BY DESIGN.**
+        `public_full_view` lifts an anonymous visitor to the DEMO tier, whose defining
+        property is that `surfaces.DEMO_DENIED_PATHS` is refused -- and `surfaces`' own rule
+        for that set is "if a route ... spends the owner's vendor/AI budget, it goes here".
+        Allowing strangers would let 30 of them exhaust the day's cap and leave Don without an
+        analysis on the name he is looking at, which is the opposite of part 6's purpose.
+
+        **THE DEFECT WAS THE PAGE'S RESPONSE**: it fell through to "No written analysis for
+        this name right now" and left a dangling empty card on every public view.
+        `surfaces.check`'s own docstring states the convention -- owner-only fetches "hide
+        their panel rather than printing an error" -- and this was the one fetch ignoring it.
+        """
+        from valuation.saas import surfaces as SF
+        self.assertTrue(SF.is_demo_denied("/api/ai-analysis"))
+        src = _src(os.path.join("valuation", "web", "static", "app.js"))
+        i = src.index("async function loadAiAnalysis(")
+        body = src[i:src.index("function aiBox(")]
+        self.assertIn("d.owner_only", body)
+        # It must hide and RETURN before the generic fall-through, or the card is still
+        # rendered empty.
+        #
+        # KEYED ON THE RENDERED MARKUP, NOT THE BARE SENTENCE, and the first cut was not:
+        # this test FIRED AGAINST ITS OWN CORRECT TREE because the comment three lines above
+        # the fix QUOTES the fall-through's wording, so `.index` found the prose before the
+        # code. Fifth instance of the comment-versus-code family in this item, and the first
+        # inside a guard written for something else. The `<div class="note">` prefix cannot
+        # appear in a `//` comment about the sentence.
+        CODE = '<div class="note">No written analysis'
+        self.assertEqual(body.count(CODE), 1)
+        self.assertLess(body.index("d.owner_only"), body.index(CODE))
+        j = body.index("d.owner_only")
+        self.assertIn('card.style.display = "none"', body[j:j + 120])
+        self.assertIn("return;", body[j:j + 160])
+
     def test_the_route_CHARGES_BOTH_scarce_buckets_unconditionally(self):
         """`test_vendor_quota` caught this on the gate and it was right: the route runs a FULL
         valuation on a caller-supplied symbol, so it spends the owner's market-data quota, AND

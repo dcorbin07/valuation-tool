@@ -19034,8 +19034,39 @@ vehicles…"* — each with `summary_source: "Yahoo Finance company profile"` an
 valuation."`, plus sector, industry, market cap, revenue, 1y and 3y growth and the operating
 margin trend.
 
-**Part 6 — the route is live and budgeted.** `GET /api/ai-analysis` returns 405 and a POST with
-no ticker returns 400, so the verb carries the spend.
+**Part 6 — the route is live, budgeted, and DENIED TO STRANGERS BY DESIGN.** Every public call
+returns **403 `owner_only`** — the GET, the empty POST and a real ticker alike — because
+`surfaces.check` runs the demo rule *before* routing, which is why the 405 and 400 the suite
+pins locally are masked live.
+
+**THE CLASSIFICATION IS CORRECT AND I CHECKED THAT RATHER THAN ASSUMING IT.**
+`public_full_view` lifts an anonymous visitor to the **demo tier**, and that tier's defining
+property is that `surfaces.DEMO_DENIED_PATHS` is refused. The module's own rule for adding to
+that set is *"if a route … spends the owner's vendor/AI budget, it goes here"*, and this one
+spends $0.0248 a call. **Allowing strangers would let thirty of them exhaust the day's cap and
+leave Don without an analysis on the name he is actually looking at** — the opposite of what
+part 6 is for.
+
+**THE DEFECT WAS THE PAGE'S RESPONSE TO IT, and it is fixed.** `loadAiAnalysis` fell through to
+*"No written analysis for this name right now"* and left a dangling empty card on **every
+public page view**. `surfaces.check` states the convention in its own docstring — owner-only
+fetches *"hide their panel rather than printing an error"* — and this was the one fetch not
+following it. It now hides the card and returns. **2 of 2 mutations caught** (the hide removed;
+the hide present without its `return`), source restored byte-for-byte.
+
+**AND THE GUARD FIRED AGAINST ITS OWN CORRECT TREE FIRST — the comment-versus-code family for
+the FIFTH time in this item, and the first inside a guard written for something else.** It
+ordered `d.owner_only` against the bare sentence `"No written analysis"`, and the comment three
+lines above the fix *quotes that sentence*, so `.index` found the prose at offset 1661 before
+the code at 2005. Repointed to `'<div class="note">No written analysis'`, which cannot appear
+in a `//` comment about the wording, with the count pinned at 1.
+
+**WHAT I COULD NOT VERIFY, stated as not-verified rather than glossed: no real paid call was
+made through the live route.** Exercising it needs the owner session, and the admin token is
+Don's to enter — the standing rule is that no lane prints it. The **cost** figure is not
+affected: the $0.0248 was measured from one real call's own `usage` block before the feature
+was switched on, which was the prompt's precondition. What is untested end-to-end is the live
+owner path: the automatic fetch, the store write and the ledger charge on the real service.
 
 **STILL OWED: the screenshots.** This session has no browser, so every live check above is a
 fetched payload rather than a picture. The three screenshots Don asked for are not done.
