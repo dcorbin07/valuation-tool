@@ -127,6 +127,62 @@ and the encoding named. Comparing two sizes in two encodings is the wrong-object
 
 ---
 
+## 2. `X1` — BOTH ARMS SURVIVE, AND THE LONG-SHORT ARM IMPROVES SHARPLY
+
+Construction and bars **IMPORTED** from `PREREG_r4_x1_accounting_and_universe_split.md`, nothing
+retyped: `THEMES`, `W` = 0.125, `K_SPLITS` = 100, `J_NULL` = 200, `SEED` = 20260813,
+`MIN_NAMES_PER_HALF` = 400, `FRAC_HALFBOOKS` = 0.80, `FRAC_BOTH` = 0.64, `stable_key_half`,
+`_score`, `half_universe_null` and the verdict rule `verdict_of` itself.
+
+**THE WEIGHTING IS THE DEPLOYED BOOK AND THAT IS VERIFIED, NOT ARGUED.** X1's `W` = 0.125 over
+seven themes sums to 0.875, and `composite_from_frame` renormalises by the present-weight mass,
+so a uniform scaling of every weight cannot move a ranking. Measured: X1's construction
+reproduces the corrected DEPLOYED literals at **|dev| 0.000e+00** on all three cells.
+
+**The half-universe null, rebuilt for a HALF book at 200 draws** — and it is well centred, which
+is what says the instrument is sound: alpha median **+0.000863**, long-short HAC *t* median
+**−0.0594**, both about zero.
+
+| | A1 top-decile alpha | A2 long-short HAC *t* |
+|---|---|---|
+| half-universe null p95 (the bar) | **+0.013414** | **+1.4661** |
+| stable-key half A / half B | +0.054666 / +0.059699 | +4.3251 / +4.4646 |
+| primary — both halves clear AND positive | **TRUE** | **TRUE** |
+| half books clearing p95 (bar 0.80) | **1.000** (200 of 200) | **1.000** (200 of 200) |
+| splits clearing on BOTH sides (bar 0.64) | **1.000** (100 of 100) | **1.000** (100 of 100) |
+| splits NEGATIVE on both sides (REVERSED at 0.64) | 0.000 | 0.000 |
+| half-book median / min / max | +0.06046 / **+0.04189** / +0.07679 | +4.3727 / **+3.2940** / +5.7055 |
+| half books negative | **0 of 200** | **0 of 200** |
+| full universe, corrected | +0.060674 | +4.594457 |
+| **verdict** | **SURVIVES** | **SURVIVES** |
+
+**THE SENTENCE THE MOVE TABLE FORBADE RESTATING NOW RESTATES VERBATIM.** *"400 half-universe
+books, not one negative"* — 200 half books per arm × two arms = 400 measurements, **zero
+negative**, exactly as on the published universe. **The worst of 200 half books still earns
++4.19%/yr and the worst long-short *t* is still 3.29.**
+
+**AND A2 IS THE ARM THAT MOVED.** On the published universe A1 cleared 200 of 200 half books and
+A2 only **93.0%**, with 14 of 200 failing and 86.0% of splits clearing both sides — A1 was the
+stronger claim and had to be quoted as such. On the corrected universe **both are 100%/100%** and
+A2's median half-book *t* rises **+2.3617 → +4.3727**. The asymmetry the published record carried
+is gone. A1's level is slightly lower (median +0.07233 → +0.06046), which is the universe's own
+alpha falling rather than the split degrading.
+
+**CONTROLS.** `C3` the stable key is deterministic and order-independent; `C6` the halves share
+**zero** `(date, ticker)` keys; `C4` half books hold a median **4,822 names / 144,980 rows**, an
+implied decile of **210 names** against the full universe's 420; `C5` X7's full-universe floors
+are reported BESIDE the half-universe null and never AS it — on this universe they are an
+extrapolation **twice** over (different universe, half book).
+
+**`MIN_NAMES_PER_HALF` = 400 IS INHERITED AND DOES NOT BIND** (each half is ~4,822 names).
+Reported rather than removed.
+
+**WHAT A PASS DOES NOT LICENSE, fixed before the outcome:** X1 tests generalisation across
+NAMES, not decision leakage — the deployed strategy fits nothing, so there is no decision to
+leak. Re-running every theme decision and the weight selection under the split is **NOT done**.
+
+---
+
 ## 3. `R1`'s NET-OF-COST CELL CLEARS ITS OWN BAR — AND FAILS IF BOTH TRADE LEGS ARE CHARGED
 
 ### 3.1 The diagnosis, measured
@@ -178,6 +234,70 @@ currently carries no net-of-cost figure at all.
 
 ---
 
+## 4.1 `P1S0` — THE OPTIONABLE NUMERATOR BARELY MOVES, SO "ROUGHLY A QUARTER" IS WRONG BY 3.7×
+
+| | published | corrected |
+|---|---|---|
+| `N_PANEL_NAMES` | 2,531 | **9,645** |
+| `N_OPTIONABLE_NAMES` (`pit_liquid`, PRIMARY) | 619 | **630** |
+| names with ANY point-in-time chain | — | **923** |
+| **optionable share of the panel** | **24.46%** | **6.53%** |
+| dates with any chain | 40 of 69 | **39 of 69** |
+| first / last covered | 2016-01-20 / 2025-10-27 | **2016-03-31 / 2025-10-07** |
+| median `pit_liquid` names per covered date | 287.5 | **280.0** |
+
+**THE NUMERATOR IS ESSENTIALLY A CONSTANT: 619 → 630, up 1.8%, while the denominator went 3.8×.**
+The chain cache is a **targeted pull** of large, liquid names — 1,000 ticker directories on disk,
+923 of them in the corrected panel — so widening the universe cannot widen it. That is the whole
+of the share's fall, and it was the register's own expectation 8 (85/15, **right**).
+
+**THE PUBLIC COPY IS THE THING THAT CHANGES.** `valuation/web/optionable_partition.py`'s lede
+says *"Roughly a quarter of the research panel has listed options"* and `WHAT_IT_IS` formats the
+two stamps into a sentence. **At 6.53% "roughly a quarter" is wrong by 3.7×** — it is closer to
+*one name in fifteen*. The move table's instruction is honoured: the stamp moves **only with its
+figures**, and both move together.
+
+**P1S0's OWN VERDICT IS CARRIED, NOT RE-DECIDED** — and there is one observation that must be
+reported and must not be scored.
+
+| h | alpha_ann full | early | late | full panel, same dates |
+|---|---|---|---|---|
+| 63 (`pit_liquid`, the power anchor) | +15.46% (*t* 3.06) | **+7.40% (*t* 1.82)** | +16.42% (*t* 3.10) | +8.14% |
+| 252 | +17.41% (*t* 2.82) | **+14.81% (*t* 1.49)** | +19.63% (*t* 2.65) | +3.74% |
+| 504 | +8.06% (*t* 2.44) | **+5.28% (*t* 2.03)** | +10.84% (*t* 1.86) | +2.85% |
+
+**`P1S0` CLOSED THE OPTIONS-EXPRESSION FAMILY ON AN EARLY HALF THAT WAS ABSENT — AND ON THE
+CORRECTED PANEL IT IS NOT ABSENT.** Its own early-half readings were a cumulative alpha of
+**−0.08%** at H=252 and *t* **0.8352** at the H=63 power anchor. Here every early-half cell is
+**positive** at every horizon and in both partition modes, and the optionable subset beats the
+full panel over the same dates at all three horizons.
+
+**THAT IS REPORTED AND CARRIES NO VERDICT, for three reasons fixed in the register before the
+run.** (a) **The per-horizon placebo floors were NOT re-run on this universe**, so no cell here
+is scored against a calibrated bar, and comparing to the published floors would be the
+extrapolation `P1S0` built its own nulls to avoid. (b) The window is **39 post-2016 dates**, not
+the 69 the headline is measured on, so these alphas are not comparable with the 6.07%.
+(c) Re-opening the family is **Don's**, needs its own blind register and its own floors, and is
+**not proposed here**. `P1S0-CONTROL`'s NULL is not re-opened either.
+
+**ROUTED TO DON:** the one fact worth his attention is that the family's closure rested on an
+early-half absence that does not reproduce on the corrected universe.
+
+---
+
+## 4.4 THE LIVE / FORWARD TRACK RECORD — `UNMEASURED-BY-CONSTRUCTION`
+
+Pre-committed in the register §4.4 before anything ran, and it is a **different state** from
+every other row here: the others could be measured and were; this one cannot be measured by
+anyone today. It is a forward record accruing in calendar time under
+`PAPER_TRACK_CONTRACT.md`; no backtest on any universe produces it, backfilling it is forbidden
+by a standing security rule, and the contract's frozen meter parameters are outside this lane.
+**What would change it is elapsed calendar time and nothing else.** The recorded series was READ
+only, to say how long it is (10 rows, last 2026-10-08, day 49); no figure from it is quoted as a
+verdict and nothing was written.
+
+---
+
 ## 8. FOR THE APP FIXER — public figures that move
 
 **No page is changed by this lane.** These are handed over:
@@ -187,6 +307,10 @@ currently carries no net-of-cost figure at all.
 | `/proof` (LIVE read of `BACKTEST_RESULTS.json`) | Deflated Sharpe bar, DEPLOYED book | 0.7863 — FAILS >0.95 | **0.7208 — still FAILS >0.95, CLEARS the calibrated 0.5655** |
 | `/proof` | PBO bar | 0.7333 — FAILS | **stays UNMEASURED, with a measured reason (§1.3)** |
 | `/methodology` (TEMPLATE) | R1's net-of-cost specification | UNMEASURED | **+4.06%/yr, NW *t* 3.01** (and +2.29%/yr at *t* 1.71 charging both legs) |
+| `valuation/web/optionable_partition.py` | `N_PANEL_NAMES` | 2531 | **9645** |
+| " | `N_OPTIONABLE_NAMES` | 619 | **630** |
+| " | the lede's *"roughly a quarter of the research panel has listed options"* | 24.46% | **6.53% — the copy is WRONG by 3.7× and is the real change; "one name in fifteen" is the honest phrasing** |
+| README / START_HERE (LITERALS) | *"400 half-universe books, not one negative"* | UNMEASURED | **RESTATES VERBATIM** — 400 measurements on the corrected universe, zero negative, both arms 100%/100% |
 
 **THE `/proof` CELLS NEED A CANONICAL RE-RUN BEFORE THEY CAN BE READ LIVE.** `/proof` reads
 `cpcv.pbo` and `cpcv.deflated_sharpe` out of the tracked artifact, and those are the **ADOPTED**

@@ -150,9 +150,11 @@ universe and a disjoint grid.
 |---|---|---|---|---|
 | Deflated Sharpe (DEPLOYED book) -- was UNMEASURED | 0.786321 | 0.720824 | **SURVIVES** | -- (research record only); /proof reads it from BACKTEST_RESULTS.json |
 | PBO (DEPLOYED book) -- stays UNMEASURED, now with a measured reason | 0.733333 | None | **UNMEASURABLE-BY-CONSTRUCTION** | -- (research record only); /proof shows it as UNMEASURED |
-| X1 half-universe split (both arms) | None | None | **UNMEASURED** | -- (research record only) |
+| X1 A1 -- top-decile alpha, half books -- was UNMEASURED | 0.071741 | 0.060457 | **SURVIVES** | -- (research record only) |
+| X1 A2 -- long-short HAC t, half books -- was UNMEASURED | 2.619912 | 4.372688 | **SURVIVES** | -- (research record only) |
 | R1's NET-OF-COST specification (R1's OWN path) -- was UNMEASURED | 0.078492 | 0.040583 | **SURVIVES** | /methodology (TEMPLATE) |
-| optionable_partition N_PANEL_NAMES / N_OPTIONABLE_NAMES | 2531 | None | **UNMEASURED** | -- (research record only) |
+| optionable_partition N_PANEL_NAMES -- was UNMEASURED | 2531 | 9645 | **RESTATEMENT** | valuation/web/optionable_partition.py (committed literals) |
+| optionable_partition N_OPTIONABLE_NAMES (pit_liquid) -- was UNMEASURED | 619 | 630 | **RESTATEMENT** | valuation/web/optionable_partition.py (committed literals) |
 | V6-B M1: 32.5% vs 43.4% dip survival | 0.325100 | None | **UNMEASURED** | -- (research record only) |
 | S22 per-horizon fixed_weights_null floors | 8 floors at 200 draws | None | **UNMEASURED** | -- (research record only) |
 | the live / forward Track Record | None | None | **UNMEASURED-BY-CONSTRUCTION** | Track Record tab (LIVE) |
