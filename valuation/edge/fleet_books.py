@@ -759,6 +759,16 @@ def register_all() -> dict:
     it. A book absent from `RULES` is still declared and still un-armed, and `cycle()` will
     keep saying so.
     """
+    # A RETIRED BOOK IS NEVER ARMED. `FLEET_RETIREMENTS.md` is the record and this is the
+    # lock: re-arming one means deleting its row and saying why, which shows in the diff. The
+    # reader fails OPEN on a missing file, so this is a SECOND lock and never the only one --
+    # every book retired today is already absent from `RULES`.
+    retired = F.retired_books()
+    armed = []
     for book, (fn, places) in sorted(RULES.items()):
+        if book in retired:
+            continue
         F.register_entry_rule(book, fn, places_orders=places)
-    return {"ok": True, "registered": sorted(RULES), "count": len(RULES)}
+        armed.append(book)
+    return {"ok": True, "registered": armed, "count": len(armed),
+            "refused_retired": sorted(b for b in RULES if b in retired)}
