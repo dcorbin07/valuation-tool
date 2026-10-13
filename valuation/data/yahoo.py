@@ -182,6 +182,13 @@ def fetch(ticker: str) -> Optional[CompanyData]:
     cd.name = info.get("longName") or info.get("shortName") or ticker.upper()
     cd.sector = info.get("sector") or ""
     cd.industry = info.get("industry") or ""
+    # ITEM 52 part 5. `longBusinessSummary` is the vendor's own profile text. THE COVERAGE
+    # RULE'S DIRECTION: an absent summary leaves BOTH fields empty rather than filling the
+    # source with a provider name that supplied nothing -- a source stamp on an empty field is
+    # how a missing value comes to look like a measured one.
+    _summary = (info.get("longBusinessSummary") or "").strip()
+    cd.business_summary = _summary
+    cd.business_summary_source = "Yahoo Finance company profile" if _summary else ""
     cd.currency = info.get("currency") or fast.get("currency") or "USD"
     cd.financial_currency = (info.get("financialCurrency") or "").upper() or cd.currency
     cd.quote_type = (info.get("quoteType") or "").upper()

@@ -93,6 +93,8 @@ header .wrap{padding-bottom:0}
 .dcf-warn-h{font-weight:800;font-size:15.5px;margin-bottom:6px}
 .dcf-warn-why{font-size:13.5px;line-height:1.5;margin-top:4px}
 .dcf-warn-rule{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.45}
+.co-desc{font-size:14.5px;line-height:1.55;margin-top:6px}
+.co-src{font-size:11.5px;color:var(--faint);margin-top:8px}
 .hot-top-s{font-size:15px;line-height:1.45;margin-top:5px}
 .hot-top-n{font-size:12.5px;color:var(--muted);margin-top:7px;line-height:1.45}
 .pa-lead-t{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;

@@ -18774,3 +18774,74 @@ scored" on it.
 **NOT DONE: parts 5 and 6** — the company description and key facts from the market-data
 profile (needs a field added to the fetch path and confirmed populated for NVDA, APLD and
 TSLA), and the automatic AI run with its measured per-call cost and 30-a-day cap.
+
+---
+
+## item 52 part 5 — the page says what the company does, and part 4's push was RED for a reason worth keeping
+
+### THE GATE CAUGHT MY OWN DEFECT, AND IT IS THE SUBSTRING FAMILY IN AN IDENTIFIER
+
+**Part 4's push failed its gate.** `tests/test_accounting_risk.py` gets the hot-list
+renderer's body with `src.index("function renderHot")` — and part 4 added **`renderHotTop`**
+**700 lines earlier**, so that slice returned the wrong function and **five** of its
+assertions failed against a perfectly correct `renderHot`. Its own vacuity companion
+(*"the comment stripper keeps the code it is asked to search"*) went red too, which is the
+guard working.
+
+**A FUNCTION WHOSE NAME EXTENDS ANOTHER'S IS THE SUBSTRING-BAN FAMILY IN AN IDENTIFIER**, and
+several suites here slice `app.js` exactly that way. Renamed to `hotListStrip`, with the reason
+recorded at the function so the next person does not reintroduce it.
+
+**Proved mine rather than assumed:** the six files part 5 touches were restored to `HEAD` and
+the suite still failed the same five ways, then all six were put back byte-for-byte — which
+located it in part 4 rather than part 5.
+
+### THE GUARD AGAINST IT TOOK THREE CUTS, AND THE FIRST TWO WERE WRONG IN WAYS THIS RECORD NAMES
+
+1. **"No function name may be a prefix of another" is red on arrival.** Measured: **18
+   pre-existing pairs** in `app.js` — `render` alone is a prefix of thirteen. A guard that
+   fails the day it ships is one somebody deletes (`MA21`'s standard), and none of those
+   eighteen is a hazard because no suite slices on `render`.
+2. **Keyed on the names suites actually slice, it still fired on a pair that cannot collide.**
+   `test_allocation` slices `"function allocationSave("` — **with the parenthesis** — so
+   `allocationSaved()` can never match it: the `d` sits where the `(` is required. My regex
+   had made the paren optional, so the guard fired on the wrong property **inside the test
+   written about guards firing on the wrong property.**
+3. **The rule that holds:** only a needle that stops at the NAME can swallow a longer name, so
+   the guard reads paren-less needles only. It passes, it has a positive control proving it
+   would have caught the real defect, and a third test records the rejected blanket rule with
+   its measurement so nobody re-proposes it.
+
+### WHAT THE PAGE OPENS WITH NOW
+
+The description, first, above everything: **the page carried none at all** — a reader could see
+a fair value, a 1-100 score and nine theme contributions for a company they had been told
+nothing about.
+
+**THE PROSE IS THE VENDOR'S AND IS LABELLED "their words, not ours"; EVERY FIGURE IS THIS
+TOOL'S OWN**, and that split is not fastidiousness. `yfinance` also ships `revenueGrowth`,
+`operatingMargins` and `totalRevenue` — and **measured on NVDA today the vendor's
+`revenueGrowth` reads 1.059 where the engine's own last-year revenue growth reads 0.77.**
+Different windows, both defensible, and a page carrying one in each box is a page that
+disagrees with itself. So market cap, revenue, 1-year and 3-year growth and the margin trend
+all come from the engine's own accessors, and a test strips comments with `tokenize` and
+asserts no vendor field name survives in the code.
+
+**LIVE CHECK, THE COVERAGE RULE'S OWN INSTRUCTION — `longBusinessSummary` is populated for
+every name the prompt names:** NVDA **1,101** characters, APLD **732**, TSLA **1,817**, KO
+**1,315**, JNJ **1,454**. An absent summary leaves **both** the text and its source empty: a
+source stamp on an empty field is how a missing value comes to look measured.
+
+**THE MARGIN TREND IS TWO ENDPOINTS AND A COUNT, NEVER A DIRECTION WORD.** "Improving" is a
+judgement about a series this page does not measure; `0.10 → 0.30 over 3 yrs` lets a reader
+make it. One year of history renders as one year rather than as a trend, and no history is
+`None` rather than a flat line.
+
+**15 suites green plus 11 more tests (60 in the item's own suite), `test_allocation` 18/18 and
+`test_accounting_risk` 39/39; `node --check` clean.**
+
+**NOT DONE: part 6** — the automatic AI run. It needs the background fire-after-paint, the
+per-ticker-per-day store, the 30-a-day cap with the button offered when it is reached, and the
+per-call cost measured from the response's own token usage against the model's published price.
+**That cost measurement is the part to do first**, because it is the only number in item 52
+that commits Don to spending money, and nothing should be switched on before it is reported.

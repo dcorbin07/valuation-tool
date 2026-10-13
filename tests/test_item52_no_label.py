@@ -452,7 +452,7 @@ class TheHotScoreNamesWhatItCouldNotSee(unittest.TestCase):
 
     def test_the_page_renders_the_gap_and_the_not_in_scan_state(self):
         src = _src(os.path.join("valuation", "web", "static", "app.js"))
-        self.assertIn("function renderHotTop", src)
+        self.assertIn("function hotListStrip", src)
         self.assertIn("why_missing", src)
         self.assertIn("Not in today's scan", src)
         # The limits are READ from `score_confidence`, not re-worded here.
@@ -471,8 +471,171 @@ class TheHotScoreNamesWhatItCouldNotSee(unittest.TestCase):
         i = src.index("STATE.whatdo = d;")
         tail = src[i:i + 200]
         self.assertIn("renderWhatDo(d)", tail)
-        self.assertIn("renderHotTop(d)", tail)
+        self.assertIn("hotListStrip(d)", tail)
         self.assertEqual(src.count("/api/whatdo?ticker="), 1)
+
+
+class TheCompanyDescriptionOpensThePage(unittest.TestCase):
+    """Part 5. The page carried NO description at all -- a reader could see a fair value, a
+    1-100 score and nine theme contributions for a company they had been told nothing about.
+
+    LIVE CHECK, 2026-10-13 (the COVERAGE RULE's "confirm it is populated"):
+    `longBusinessSummary` returns 1,101 chars for NVDA, 732 for APLD, 1,817 for TSLA, 1,315
+    for KO and 1,454 for JNJ -- so the field is populated for every name the prompt names.
+    """
+
+    def test_the_model_carries_the_summary_AND_its_source(self):
+        from valuation.data.models import CompanyData
+        cd = CompanyData(ticker="X")
+        self.assertEqual(cd.business_summary, "")
+        self.assertEqual(cd.business_summary_source, "")
+
+    def test_an_absent_summary_leaves_the_SOURCE_empty_too(self):
+        """A source stamp on an empty field is how a missing value comes to look measured."""
+        src = _src(os.path.join("valuation", "data", "yahoo.py"))
+        i = src.index("cd.business_summary = _summary")
+        decl = src[i:i + 260]
+        self.assertIn('if _summary else ""', decl)
+
+    def test_the_FIGURES_are_the_engines_own_and_not_the_vendors(self):
+        """Measured on NVDA today: the vendor's `revenueGrowth` reads 1.059 where the engine's
+        own last-year revenue growth reads 0.77 -- different windows, both defensible, and a
+        page carrying one in each box is a page that disagrees with itself."""
+        src = _src(os.path.join("valuation", "web", "app.py"))
+        i = src.index("def _company_profile_block")
+        body = src[i:src.index("def _price_assumes_block")]
+        self.assertIn("cd.revenue_growth(n)", body)
+        # STRIPPED OF COMMENTS AND STRING LITERALS BEFORE THE BAN, and the first cut of this
+        # test is why: it failed against a CORRECT tree because the docstring explaining why
+        # the vendor's fields are NOT used names them. That is this repository's most repeated
+        # test defect and the third time it has fired inside this one item. `tokenize` sees
+        # code, not prose about code (`MB15`'s remedy).
+        import io as _io
+        import tokenize as _tok
+        code = []
+        for tk in _tok.generate_tokens(_io.StringIO(body).readline):
+            if tk.type in (_tok.COMMENT, _tok.STRING):
+                continue
+            code.append(tk.string)
+        code = " ".join(code)
+        # THE STRIPPER IS PROVED NON-VACUOUS IN BOTH DIRECTIONS, or a stripper returning ""
+        # would make the ban pass by seeing nothing.
+        self.assertIn("revenue_growth", code)
+        self.assertNotIn("different windows", code)
+        for vendor_field in ("revenueGrowth", "operatingMargins", "totalRevenue", "marketCap"):
+            self.assertNotIn(vendor_field, code)
+
+    def test_the_margin_trend_is_two_endpoints_and_a_count_not_a_direction_word(self):
+        import types
+        from valuation.web import app as A
+        cd = types.SimpleNamespace(business_summary="", business_summary_source="",
+                                   sector="", industry="", market_cap=None,
+                                   revenue_history=[], ebit_margin_history=[0.1, 0.3],
+                                   revenue_growth=lambda n: None)
+        t = A._company_profile_block(types.SimpleNamespace(company=cd))["operating_margin_trend"]
+        self.assertEqual(t, {"from": 0.1, "to": 0.3, "n_years": 2})
+        for word in ("improving", "worsening", "rising", "falling"):
+            self.assertNotIn(word, str(t))
+
+    def test_one_year_of_margin_history_is_not_rendered_as_a_trend(self):
+        import types
+        from valuation.web import app as A
+        cd = types.SimpleNamespace(business_summary="", business_summary_source="",
+                                   sector="", industry="", market_cap=None,
+                                   revenue_history=[], ebit_margin_history=[0.22],
+                                   revenue_growth=lambda n: None)
+        t = A._company_profile_block(types.SimpleNamespace(company=cd))["operating_margin_trend"]
+        self.assertEqual(t, {"from": None, "to": 0.22, "n_years": 1})
+
+    def test_NO_margin_history_is_None_rather_than_a_flat_line(self):
+        import types
+        from valuation.web import app as A
+        cd = types.SimpleNamespace(business_summary="", business_summary_source="",
+                                   sector="", industry="", market_cap=None,
+                                   revenue_history=[], ebit_margin_history=[],
+                                   revenue_growth=lambda n: None)
+        out = A._company_profile_block(types.SimpleNamespace(company=cd))
+        self.assertIsNone(out["operating_margin_trend"])
+
+    def test_the_page_renders_not_available_rather_than_a_dash(self):
+        src = _src(os.path.join("valuation", "web", "static", "app.js"))
+        self.assertIn("function companyProfile", src)
+        self.assertIn("not available", src)
+        self.assertIn("their words, not ours", src)
+
+    def test_a_broken_block_says_so_rather_than_vanishing(self):
+        import types
+        from valuation.web import app as A
+        out = A._company_profile_block(types.SimpleNamespace(company=None))
+        self.assertFalse(out["ok"])
+        self.assertIn("no company data", out["reason"])
+
+
+class NoSLICEDFunctionNameMayBeEXTENDED(unittest.TestCase):
+    """The defect this item caused once, pinned by the property that actually matters.
+
+    `tests/test_accounting_risk.py` gets the hot-list renderer's body with
+    `src.index("function renderHot")`. Part 4 added `renderHotTop` 700 lines EARLIER, so the
+    slice returned the wrong function and five of its assertions failed against a correct
+    `renderHot`. **A function whose name extends another's is the substring-ban family in an
+    identifier.**
+
+    **THE BLANKET RULE WAS WRITTEN FIRST AND REJECTED BY MEASUREMENT.** "No name may be a
+    prefix of another" fires on **18 pre-existing pairs** in this file -- `render` alone is a
+    prefix of thirteen -- and a guard that is red on arrival is one somebody deletes
+    (`MA21`'s standard). None of those eighteen is a hazard, because no suite slices on
+    `render` or `toggle`.
+
+    So the rule is keyed on what suites ACTUALLY slice: every `function <name>` literal any
+    test searches for must be unextended. That is the property, it fires only on real
+    hazards, and it would have caught the real defect.
+    """
+
+    def _functions(self):
+        import re
+        src = _src(os.path.join("valuation", "web", "static", "app.js"))
+        return sorted(set(re.findall(r"^\s*function\s+([A-Za-z_$][\w$]*)\s*\(",
+                                     src, flags=re.M)))
+
+    def _sliced_names(self):
+        import re
+        here = os.path.dirname(os.path.abspath(__file__))
+        want = set()
+        for fn in sorted(os.listdir(here)):
+            if not (fn.startswith("test_") and fn.endswith(".py")):
+                continue
+            with io.open(os.path.join(here, fn), encoding="utf-8", errors="replace") as fh:
+                src = fh.read()
+            # ONLY NEEDLES WITHOUT THE OPENING PARENTHESIS ARE HAZARDS, and my first cut of
+            # this guard got that wrong too. `test_allocation` slices on
+            # `"function allocationSave("` -- WITH the paren -- so `allocationSaved()` cannot
+            # match it: the `d` sits where the `(` is required. Reporting that pair was a
+            # guard firing on the wrong property, in the very test written about guards
+            # firing on the wrong property. A needle that stops at the NAME is the one that
+            # can swallow a longer name.
+            want |= set(re.findall(r'["\']function ([A-Za-z_$][\w$]*)["\']', src))
+        return sorted(want)
+
+    def test_every_name_a_suite_slices_on_is_UNEXTENDED(self):
+        funcs, sliced = self._functions(), self._sliced_names()
+        self.assertGreater(len(funcs), 30, funcs[:5])
+        self.assertGreater(len(sliced), 0, "no suite slices this file -- has the idiom moved?")
+        bad = [(n, f) for n in sliced for f in funcs if f != n and f.startswith(n)]
+        self.assertEqual(bad, [], (
+            "a suite slices `function %s` and another function extends that name, so the "
+            "slice can return the wrong body: %s" % (sliced[0] if sliced else "?", bad)))
+
+    def test_POSITIVE_CONTROL_the_rule_would_have_caught_the_real_defect(self):
+        funcs = ["renderHot", "renderHotTop", "renderDip"]
+        sliced = ["renderHot"]
+        bad = [(n, f) for n in sliced for f in funcs if f != n and f.startswith(n)]
+        self.assertEqual(bad, [("renderHot", "renderHotTop")])
+
+    def test_the_blanket_rule_is_recorded_as_REJECTED_rather_than_forgotten(self):
+        # Measured: 18 pre-existing pairs, so the wider rule would be red on arrival.
+        funcs = self._functions()
+        blanket = [(a, b) for a in funcs for b in funcs if a != b and b.startswith(a)]
+        self.assertGreater(len(blanket), 10, blanket)
 
 
 if __name__ == "__main__":

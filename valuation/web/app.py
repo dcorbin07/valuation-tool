@@ -270,6 +270,69 @@ def health():
                     "mc_trials": CONFIG.montecarlo_trials})
 
 
+def _company_profile_block(result) -> dict:
+    """Item 52 part 5: what the company does, and the handful of facts a reader needs first.
+
+    **THE PAGE CARRIED NO DESCRIPTION AT ALL.** A reader could see a fair value, a 1-100 score
+    and nine theme contributions for a company they had been told nothing about.
+
+    **THE DESCRIPTION IS THE VENDOR'S PROSE AND SAYS SO; EVERY FIGURE IS THE ENGINE'S OWN.**
+    `yfinance` also ships `revenueGrowth`, `operatingMargins` and `totalRevenue`, and using
+    them would put a second source of three numbers this project already computes on the same
+    page as the first. Measured on NVDA today: the vendor's `revenueGrowth` reads 1.059 while
+    the engine's own last-year revenue growth is 0.77 -- different windows, both defensible,
+    and a page carrying each in a different box is a page that disagrees with itself.
+
+    **EVERY FIELD IS NULL-ABLE AND NOTHING IS IMPUTED** (the COVERAGE RULE). An absent margin
+    history yields `trend: None`, not a flat line; an absent summary yields an empty string
+    with an empty source, not a source stamp on nothing.
+    """
+    try:
+        cd = getattr(result, "company", None)
+        if cd is None:
+            return {"ok": False, "reason": "no company data on the result"}
+
+        def _g(n):
+            try:
+                v = cd.revenue_growth(n)
+            except Exception:                                          # noqa: BLE001
+                return None
+            return None if v is None else float(v)
+
+        hist = [m for m in (getattr(cd, "ebit_margin_history", None) or [])
+                if m is not None]
+        # THE TREND IS TWO ENDPOINTS AND A COUNT, NOT A DIRECTION WORD. "improving" would be a
+        # judgement about a series this page is not measuring, and two margins with the number
+        # of years between them lets a reader make it themselves.
+        trend = None
+        if len(hist) >= 2:
+            trend = {"from": float(hist[0]), "to": float(hist[-1]), "n_years": len(hist)}
+        elif len(hist) == 1:
+            trend = {"from": None, "to": float(hist[0]), "n_years": 1}
+
+        rev = [r for r in (getattr(cd, "revenue_history", None) or []) if r is not None]
+        return {
+            "ok": True, "reason": "",
+            "summary": getattr(cd, "business_summary", "") or "",
+            "summary_source": getattr(cd, "business_summary_source", "") or "",
+            "sector": getattr(cd, "sector", "") or "",
+            "industry": getattr(cd, "industry", "") or "",
+            "market_cap": (float(cd.market_cap) if getattr(cd, "market_cap", None)
+                           is not None else None),
+            "revenue": (float(rev[-1]) if rev else None),
+            "revenue_growth_1y": _g(1),
+            "revenue_growth_3y": _g(3),
+            "operating_margin_trend": trend,
+            # WHERE EACH HALF CAME FROM, on the payload rather than in a template, because a
+            # reader is owed the difference between somebody else's prose and our arithmetic.
+            "figures_source": ("Computed by this tool from the filed statements it already "
+                               "uses for the valuation."),
+        }
+    except Exception as e:                                             # noqa: BLE001
+        log_exception("company_profile_block")
+        return {"ok": False, "reason": safe_error(e)}
+
+
 def _price_assumes_block(result) -> dict:
     """Item 52 parts 2, 3 and 7b, assembled from what the engine already computed.
 
@@ -391,6 +454,7 @@ def api_value():
         # `price_assumes` takes the reverse-DCF result, which is the engine's own answer to a
         # question that does not go through the fair value.
         payload["price_assumes"] = _price_assumes_block(result)
+        payload["profile"] = _company_profile_block(result)
         return jsonify(payload)
     except Exception as e:
         log_exception()

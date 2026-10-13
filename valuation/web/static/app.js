@@ -223,6 +223,7 @@ function render(d) {
     (c.cash_runway_years != null ? `<span class="badge ${c.cash_runway_years >= 4 ? 'g' : 'r'}">Runway: ${c.cash_runway_years.toFixed(1)}y</span>` : "") +
     (c.next_earnings_date ? `<span class="badge a">📅 Earnings ${_earnLabel(c.next_earnings_date)}</span>` : "");
 
+  companyProfile(d);
   priceAssumes(d);
 
   // hero metrics — a company the DCF can't value shows so explicitly, never a
@@ -389,6 +390,50 @@ function gauge(s, rec, conf, notValuable, w) {
     <div class="conf">confidence: ${esc(conf || "")}</div>`;
 }
 
+/* ---------- ITEM 52 part 5: what the company does, and the facts to read it with ------
+   THE PROSE IS THE VENDOR'S AND IS LABELLED AS SUCH; EVERY FIGURE IS THIS TOOL'S OWN. The
+   market-data provider also ships a revenue growth and an operating margin, and using them
+   would put a second source of numbers this project already computes on the same page as the
+   first -- measured on NVDA today the vendor reads 105.9% growth where the engine reads 77%,
+   different windows, both defensible, and a page carrying one in each box disagrees with
+   itself.
+   NOTHING IS IMPUTED. A missing fact renders as "not available", never as a zero or a dash
+   that could be read as one. */
+function companyProfile(d) {
+  const el = document.getElementById("coProfile");
+  if (!el) return;
+  const p = d.profile;
+  if (!p || p.ok === false) {
+    el.innerHTML = p ? `<div class="card nv-box"><b>The company profile could not be
+      built.</b> ${esc(p.reason || "")}</div>` : "";
+    return;
+  }
+  const na = '<span class="muted">not available</span>';
+  const t = p.operating_margin_trend;
+  const marginCell = !t ? na
+    : (t.from == null
+        ? `${pct(t.to, 1)} <span class="muted">(one year only)</span>`
+        : `${pct(t.from, 1)} → ${pct(t.to, 1)} <span class="muted">over ${t.n_years} yrs</span>`);
+  el.innerHTML = `<div class="card">
+    <div class="pa-lead-t">What this company does</div>
+    ${p.summary
+      ? `<div class="co-desc">${esc(p.summary)}</div>
+         <div class="co-src">${esc(p.summary_source)} — their words, not ours.</div>`
+      : `<div class="co-desc muted">No company description is available from our market-data
+         source for this name.</div>`}
+    <div class="metricline" style="margin-top:12px">
+      ${metric("Market cap", p.market_cap == null ? na : money(p.market_cap * 1e6, 0))}
+      ${metric("Revenue (latest yr)", p.revenue == null ? na : money(p.revenue * 1e6, 0))}
+      ${metric("Revenue growth, 1yr", p.revenue_growth_1y == null ? na
+        : pct(p.revenue_growth_1y, 0))}
+      ${metric("Revenue growth, 3yr a year", p.revenue_growth_3y == null ? na
+        : pct(p.revenue_growth_3y, 0))}
+      ${metric("Operating margin", marginCell)}
+    </div>
+    <div class="co-src">${esc(p.figures_source)}</div>
+  </div>`;
+}
+
 /* ---------- ITEM 52 part 4: the hot score, near the top, with its limits ----------
    ONE SOURCE. This renders from the same `/api/whatdo` payload `renderWhatDo` uses, so the
    ranking shown at the top and the panel further down cannot disagree about it.
@@ -402,8 +447,15 @@ function gauge(s, rec, conf, notValuable, w) {
        growth and momentum have no input for NVDA in the scan -- and measured across the 100
        rows the API serves, only 47 carry every served theme. Six themes read as "these are
        the drivers" when the truth is "two inputs were missing".
-   A NAME OUTSIDE TODAY'S SCAN SAYS SO. A blank reads as a zero. */
-function renderHotTop(d) {
+   A NAME OUTSIDE TODAY'S SCAN SAYS SO. A blank reads as a zero.
+
+   NOT CALLED `renderHotTop`, AND THE REASON IS A DEFECT THIS CAUSED ONCE.
+   `tests/test_accounting_risk.py` slices this file with `src.index("function
+   renderHot")` to get the hot-list renderer's body -- and `renderHotTop` matched FIRST,
+   700 lines early, so five of its assertions failed against a correct `renderHot`. A
+   function whose name EXTENDS another's is the substring-ban family in an identifier.
+   The gate caught it; the name is the fix. */
+function hotListStrip(d) {
   const el = document.getElementById("hotTop");
   if (!el) return;
   const s = (d && d.stock) || {};
@@ -676,7 +728,7 @@ async function loadWhatDo(ticker) {
   if (!d || (d.error && !d.action?.length)) { box.style.display = "none"; return; }
   STATE.whatdo = d;
   renderWhatDo(d);
-  renderHotTop(d);
+  hotListStrip(d);
 }
 
 function renderWhatDo(d) {

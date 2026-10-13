@@ -43,6 +43,15 @@ class CompanyData:
     # whose absence let a bank be valued with an unlevered DCF on the public site.
     sector_source: str = ""
     industry: str = ""
+    #: ITEM 52 part 5: a plain description of what the company does. The page carried NONE --
+    #: a reader could see a fair value, a score and nine themes for a company they had no
+    #: description of.
+    #:
+    #: THE SOURCE TRAVELS WITH IT, because this is the one field on the page that is somebody
+    #: else's prose rather than this project's arithmetic, and a reader is owed that
+    #: distinction. `business_summary_source` is empty exactly when the summary is empty.
+    business_summary: str = ""
+    business_summary_source: str = ""
     currency: str = "USD"                # currency the PRICE / market cap trade in
     financial_currency: str = ""         # currency the STATEMENTS are reported in
     fx_rate: Optional[float] = None      # reporting->price FX rate that was applied, if any
