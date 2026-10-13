@@ -55,7 +55,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "refusals_at_export": [],
       "touched": [
         "DECL_f10_clean_csp.md"
@@ -111,7 +111,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "refusals_at_export": [],
       "touched": [
         "DECL_f11_dip_reject_puts.md"
@@ -167,7 +167,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "refusals_at_export": [],
       "touched": [
         "DECL_f12_postevent_reversal.md"
@@ -222,7 +222,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "refusals_at_export": [],
       "touched": [
         "DECL_f13_second_event.md"
@@ -277,7 +277,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "refusals_at_export": [],
       "touched": [
         "DECL_f14_fda_nohump.md"
@@ -333,7 +333,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "refusals_at_export": [],
       "touched": [
         "DECL_f15_insider_cluster.md"
@@ -393,7 +393,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "refusals_at_export": [],
       "touched": [
         "DECL_f17_vrp_percentile_sells.md"
@@ -453,7 +453,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "refusals_at_export": [],
       "touched": [
         "DECL_f18_boring_book.md"
@@ -507,7 +507,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "refusals_at_export": [],
       "touched": [
         "DECL_f19_density_gate.md"
@@ -560,7 +560,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "refusals_at_export": [],
       "touched": [
         "DECL_f1_fill_ab.md"
@@ -616,10 +616,164 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "refusals_at_export": [],
       "touched": [
         "DECL_f20_married_put_storm.md"
+      ]
+    },
+    "f21_v6opt_dip_csp": {
+      "commit": "bde7bcda735444f717a157d9547c26ec01135602",
+      "commit_date": "2026-10-13T01:25:45-04:00",
+      "committed_alone": true,
+      "decl_sha": "c9b88537bce4be7ef35ccd7c5af8f54cab2ff1a19c4b9d30aebea15877cbd8ba",
+      "declaration": {
+        "assignment_model": "at expiry per moneyness, S3-I3 assignment_at_expiry",
+        "book": "f21_v6opt_dip_csp",
+        "concurrency_cap": 10,
+        "domain": "options",
+        "early_assignment_flag": "S3-I3 early_assignment_flag, FLAGGED not simulated",
+        "entry_rule": "On each fleet cycle, read the RECORDED dip-detector HEALTHY series `fleet_history.read('dip_healthy')` -- the names the live screen KEPT, published by `valuation.web.dip.screen_snapshot` and READ here, never recomputed (F-11's convention). A name QUALIFIES on the first recorded row of the current calendar quarter in which it appears and did not appear in the immediately preceding recorded row; that is FIRST APPEARANCE evaluated at the cadence the series actually has. Restrict to names whose market cap is >= $10B at the entry date (point-in-time, never ever-in-tier) and that are optionable. Skip any name already held, or already entered this quarter. If more qualify than the cap allows, take the largest by market cap; alphabetical tie-break. THE RULE REFUSES RATHER THAN STARVES: if the series carries fewer than MIN_HEALTHY_ROWS recorded rows, or its most recent row is older than MAX_STALE_SESSIONS sessions, the book enters NOTHING and records the reason -- so a thin or stale source is reported as a thin or stale source and never as a quiet market.",
+        "hypothesis_class": "edge",
+        "margin_method": "cash_secured_put",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [
+          "menu_depth",
+          "density_percentile",
+          "healthy_series_rows",
+          "healthy_series_last_date"
+        ],
+        "return_denominator": "secured_cash",
+        "sells_premium": true,
+        "side": "short",
+        "sizing": "equal secured cash per position; the skip reason is recorded so an affordability skip is never read as a concurrency skip (MB3)",
+        "spot_basis": "as_traded",
+        "structure": {
+          "arming_precondition": "DECLARED AND NOT ARMED. This book may not be armed until the `dip_healthy` series carries at least 20 recorded rows with no gap longer than 5 sessions, which is what makes 'first appearance this quarter' resolvable. Until then the entry rule refuses by name. The precondition is a property of the DATA and not of the book, and it is Don's to clear by scheduling the recorder; nothing in this declaration arms anything.",
+          "crash_label": "RECORDED, never an entry or exit rule: any calendar month in which this book's own equal-secured-cash equity curve falls >= 10%, OR any 32-session SPY return <= -20%. A PAYS verdict on a window containing zero labelled crash months is recorded PAYS(NO-CRASH-SEEN) and may not be quoted without that qualifier. BLEEDS needs no qualifier -- V6-OPT's declared asymmetry, inherited.",
+          "delta": 0.25,
+          "delta_leg": "solved on the PUT leg, V6-OPT's convention",
+          "dte": 37,
+          "dte_rule": "nearest 37, restricted to 30-45; ties -> longer",
+          "entry_source_amendment": "EXECUTOR AMENDMENT, 2026-10-13, BEFORE ANY FILL. The draft entered on 'the live dip detector's HEALTHY list' read daily. MEASURED: no such series existed. `fleet_history.SERIES` held exactly three streams -- `iv60_atm`, `dip_rejects`, `alert_count` -- and `dip_rejects` is the COMPLEMENT of this book's entry population, so the names this book enters on were recorded NOWHERE and 'first appearance this quarter' could not be evaluated against anything. The book would have armed and qualified nobody, which the harness reports as RULE_ARMED_NEVER_FIRES and which is 'indistinguishable in the records from a quiet market'. A `dip_healthy` series was added and is recorded from the SAME screen the two existing callers already pay for (no new screen is run anywhere). AND THE CADENCE IS THE BINDING CONSTRAINT, NAMED RATHER THAN ASSUMED: the fleet cycle deliberately does NOT run the dip screen, and the only callers that do are `scan_worker.run_weekly` and `POST /admin/record-dip-rejects`. That is why the scout measured `dip_rejects` at 6 days against `alert_count` and `iv60_atm` at 24 -- roughly the weekly-to-daily ratio, a cadence mismatch rather than an intermittent fault. The draft's 'within 2 sessions of first appearance' is therefore NOT achievable today and has been replaced by first appearance evaluated at the series' own cadence.",
+          "exit": "hold to expiry, no exits",
+          "max_stale_sessions": 5,
+          "min_healthy_rows": 20,
+          "records_schema_note": "F-2 (menu gate) and F-19 (density gate) are FIELDS and not books -- their own declarations say so ('fleet-wide convention, not a book'; 'A LABELING GATE, refuses nothing') -- so the menu depth and the density percentile are recorded on every fill here rather than carried as separate streams with 47.5- and 21.2-year horizons. None of the four collides with the 30 base RECORD_COLUMNS. The two series fields make the source's own thinness visible on the fill that used it.",
+          "right": "put",
+          "strike_selection": "delta",
+          "v6opt_argument": "CONCEDED, NOT DODGED. V6-OPT's autopsy is correct: a delta target sets the strike from the name's own volatility and so equalises assignment by construction -- it measured 25.303% assignment on healthy dips against 25.727% on unhealthy, a 0.43pp gap, where V6-B had measured a real further-20%-drawdown difference of 2.797pp on those same covered rows and 10.84pp on the full panel. A RISK SIGNAL CANNOT PAY THROUGH A DELTA-TARGETED STRIKE. This book carries no risk signal and is not asked to: DECISIONS.md 2026-10-12 judges an options strategy as its own system, and its three pass clauses -- profitable net of real costs on the capital tied up in both halves, beats the same trade on random days in the same names, survives O11 sizing and the pre-committed crash stress -- are each unobstructed by a delta target. The only condition it obstructed has been withdrawn by the owner. Three further measured reasons. (1) IT IS THE ONLY STRIKE RULE WITH A MEASURED PRIOR: +1.1342%/trade on secured cash, both halves positive, 84.39% wins, 25.30% assignment, z +7.2506 against a random-day twin, all at 25 delta. (2) THE ALTERNATIVE IS MEASURED TO BE WORSE ON A GATE THIS BOOK MUST PASS: SELL-PREMIUM ran fixed 0.90 moneyness and its K3 fired at 8.900816 years of premium against a 6.0 bar, because that strike collects 0.7778% of strike at a median 44 DTE = 4.4545%/yr against V6-OPT's 2.550% at a median 32 DTE -- the moneyness rule surrenders most of the income, and the income is the crash gate's denominator. (3) A DELTA TARGET IS INVARIANT TO THE VOLATILITY REGIME AND A MONEYNESS TARGET IS NOT, which is a safety property for a forward book facing an unknown regime: at a fixed 0.90 moneyness the premium runs 0.272% of strike at IV 0.25 and 5.359% at IV 0.80, a twenty-fold swing in position size driven by nothing but the regime and scaling UP exactly when vol is highest. V6-OPT was a backtest over a known history and never had to weigh that. THE LIMITATION IS INHERITED AND STATED: this book cannot distinguish a safe dip from a dangerous one. It is a premium-selling book that happens to enter on dips, not a book that selects the safe ones."
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "optionable names on the live dip detector's HEALTHY list with point-in-time market cap >= $10B at the entry date",
+        "verdict_grammar": [
+          "PAYS",
+          "PAYS(NO-CRASH-SEEN)",
+          "BLEEDS",
+          "CANNOT-TELL(horizon)"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "About 38.9 years at the declared 2.0 fills/month (933 fills). THAT IS THE POINT OF THIS FIELD, not a reason to shrink it. The meter is ANYTIME-VALID, so fills_needed is where the boundary falls to the DECLARED MINIMUM and not where a verdict becomes possible: at V6-OPT's MEASURED +1.1342 the boundary falls at 206 fills, about 8.6 years at the declared rate. THIS BOOK IS A RECORDER, NOT THE TEST -- the answer should come from SELL-PREMIUM-2's 2,557 already banked priceable events. What the paper book uniquely supplies is a forward series nobody can tune to, which is worth starting today precisely because it takes so long.",
+          "expected_fills_per_month": 2.0,
+          "expected_fills_provenance": "CONSERVATIVE PRIOR, re-stated at launch from a trailing-90-day count of the live healthy-dip list (F-11's convention). V6-OPT carried 1,631 healthy covered dip rows over 40 quarterly dates, ~41 names per quarter in the STATE, while this book enters on FIRST APPEARANCE only. Starving is data, not failure.",
+          "fills_needed": 933,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED. The same derivation reproduces F-10's declared 306 and F-11's declared 138 exactly from their own declared fields, which is the instrument check before use (MB15). Fixed-n analogue at crit 1.96: n = ((1.96+0.84)*sigma/mei)^2 = 621.",
+          "min_effect": 0.5671,
+          "min_effect_derivation": "DERIVED, not chosen: DECISIONS.md 2026-10-06 requires a candidate's expected return to be quoted at HALF its backtested size (McLean-Pontiff), and half of V6-OPT's measured +1.1342 pp/trade is 0.5671. A book that can only see the effect at full backtested size cannot see the effect Don's own adoption rule expects it to deliver.",
+          "power_gate_note": "Anytime-valid, so the 50%/80% power vocabularies of a fixed-n design do not apply directly: the boundary IS the threshold at every n. Both vocabularies are on the face above. No X7 or CORRECTED-FLOORS floor is quoted -- none is calibrated for a per-trade return on secured cash (V2G, R1-VAR), and every critical value this book ever reports is LABELLED UNCALIBRATED.",
+          "rho": 3.0,
+          "sigma": 5.047,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "MEASURED. V6OPT_STAGE2.json arms/A_healthy_csp/sd = 0.05047445127155545 on 660 trades, i.e. 5.047 pp per trade on secured cash. It is THIS structure's own SD, not borrowed across structures (MB8). May only ever be RAISED.",
+          "years_to_horizon_at_projected_rate": 38.88
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f21_v6opt_dip_csp.md"
+      ]
+    },
+    "f22_dip_csp_random_twin": {
+      "commit": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "commit_date": "2026-10-13T01:26:38-04:00",
+      "committed_alone": true,
+      "decl_sha": "a5481c37d740b6d033c40d3bcfb7358b0e11e2e47045389b479963e10d9de2fd",
+      "declaration": {
+        "assignment_model": "at expiry per moneyness, S3-I3 assignment_at_expiry",
+        "book": "f22_dip_csp_random_twin",
+        "concurrency_cap": 10,
+        "domain": "options",
+        "early_assignment_flag": "S3-I3 early_assignment_flag, FLAGGED not simulated",
+        "entry_rule": "On each session for which F-21's `dip_healthy` series carries a recorded row, and on no others, draw deterministically: enter name T if sha256(F22_SALT || book || ticker || session_date) mod 10**9 < p * 10**9, where p is the threshold declared below and re-stated at launch alongside F-21's own fill rate. THE DRAW READS THE CALENDAR AND THE TICKER AND NOTHING ELSE - no drawdown, no health score, no volatility, no price-derived quantity of any kind - so the timing is uncorrelated with the dip signal by construction and any reader can reproduce every entry this book ever made from this declaration alone. The name pool is the whole optionable point-in-time $10B tier, deliberately WIDER than F-21's healthy list so there is something to pair with. Skip any name already held or already entered this quarter. A draw that lands on a day the name IS in a healthy dip is NOT excluded - excluding it would make this a non-dip book and turn the comparison into dip-versus-no-dip rather than dip-timing-versus-random-timing - and the share of fills that did so is a REQUIRED reported field. The rule REFUSES on a thin or stale `dip_healthy` series exactly as F-21 does.",
+        "hypothesis_class": "cost",
+        "margin_method": "cash_secured_put",
+        "o11_sentence": "O11 binds this book: positive per-trade expectancy is not survivability. Sandbox only. Nothing here licenses real money.",
+        "records_schema": [
+          "menu_depth",
+          "density_percentile",
+          "landed_on_healthy_dip_day",
+          "healthy_series_rows",
+          "healthy_series_last_date"
+        ],
+        "return_denominator": "secured_cash",
+        "sells_premium": true,
+        "side": "short",
+        "sizing": "equal secured cash per position, identical to F-21; the skip reason is recorded so an affordability skip is never read as a concurrency skip (MB3)",
+        "spot_basis": "as_traded",
+        "structure": {
+          "arming_precondition": "DECLARED AND NOT ARMED, on F-21's precondition and not a weaker one. The draw refuses whenever F-21's entry rule refuses - fewer than 20 recorded `dip_healthy` rows, or a latest row more than 5 sessions stale - so the twin can never accrue fills the arm had no chance to accrue. Neither book's verdict may be read without the other's, and that is enforced at the source rather than at read time.",
+          "cadence_amendment": "EXECUTOR AMENDMENT, 2026-10-13, BEFORE ANY FILL, AND IT IS F-21's A2 CARRIED ACROSS BECAUSE A TWIN THAT RAN ON A DIFFERENT CLOCK WOULD NOT BE THE SAME TRADE. F-21 enters at the cadence of the recorded `dip_healthy` series, which today is weekly rather than daily because the fleet cycle deliberately does not run the dip screen. THIS BOOK'S DRAW IS EVALUATED ON THE SAME SESSIONS F-21's SOURCE WAS RECORDED ON, and on no others. Drawing daily while the arm can only enter weekly would hand the twin five times the entry opportunities and make its fills a biased superset of the arm's - which is the coverage-mismatch defect MB1-SEL was VOIDED for, where the confound ran twice the size of the effect and in the same direction.",
+          "delta": 0.25,
+          "delta_leg": "solved on the PUT leg, V6-OPT's convention",
+          "dte": 37,
+          "dte_rule": "nearest 37, restricted to 30-45; ties -> longer",
+          "exit": "hold to expiry, no exits",
+          "max_stale_sessions": 5,
+          "min_healthy_rows": 20,
+          "pairing": "At read time the clause-(b) statistic uses only (name, calendar-quarter) cells in which BOTH F-21 and F-22 hold a fill -- V6-OPT's (name, year) matching done forward at a finer grain. Unmatched fills on both sides are COUNTED AND REPORTED and excluded from the paired statistic. Reporting unpaired means as the comparison is a void condition.",
+          "records_schema_note": "`landed_on_healthy_dip_day` is the contamination this book accepts rather than filters, measured per fill. F-2 and F-19 ride as recorded fields per the fleet review. None of the five collides with the 30 base RECORD_COLUMNS.",
+          "right": "put",
+          "strike_selection": "delta",
+          "v6opt_argument": "CARRIED VERBATIM FROM F-21, because a twin that argued differently about its own strike rule would not be the same trade and the comparison would measure the difference in the argument. CONCEDED, NOT DODGED: V6-OPT's autopsy is correct that a delta target sets the strike from the name's own volatility and so equalises assignment by construction -- 25.303% assignment on healthy dips against 25.727% on unhealthy, a 0.43pp gap, where V6-B had measured a real further-20% difference of 2.797pp on those same covered rows. A RISK SIGNAL CANNOT PAY THROUGH A DELTA-TARGETED STRIKE. Neither book carries a risk signal. DECISIONS.md 2026-10-12 judges an options strategy as its own system and its three pass clauses are each unobstructed by a delta target; the only condition it obstructed has been withdrawn by the owner. For THIS book the argument is stronger still: its entry timing reads nothing price-derived at all, so there is no risk signal present even in principle for a strike rule to neutralise. And the alternative is measured to be worse on a gate the pair must pass -- SELL-PREMIUM's K3 fired at 8.900816 years of premium against a 6.0 bar on a fixed 0.90-moneyness rule, which collects 0.7778% of strike at a median 44 DTE = 4.4545%/yr against V6-OPT's 2.550% at a median 32 DTE."
+        },
+        "trial": {
+          "charged_at": "first_verdict_read",
+          "domain": "options"
+        },
+        "universe": "the whole optionable point-in-time $10B tier -- deliberately WIDER than F-21's healthy-dip list so that pairable cells exist; the pairing at read time discards the rest",
+        "verdict_grammar": [
+          "PAYS",
+          "BLEEDS",
+          "CANNOT-TELL(horizon)"
+        ],
+        "verdict_horizon": {
+          "alpha": 0.05,
+          "earliest_honest_read": "About 68.8 years at 2.0 fills/month (1652 fills) FOR THIS BOOK'S OWN STANDALONE METER -- which is NOT the horizon of Don's clause (b), and conflating the two would be a real error. Clause (b) is a PAIRED comparison between two books holding the same structure on overlapping names, and MB8 measured a paired se of 0.1106pp where an unpaired difference between two different books was 0.9354pp, 8.5x tighter. So clause (b) may resolve long before either standalone meter. THE PAIRED se IS MEASURED AT READ TIME AND NEVER BORROWED -- not from MB8, not from F-21, not from V6-OPT (MB8's own rule: an se may not travel across perturbation sizes). The read reports the measured paired se and its 80%-power MDE as (crit + 0.84) * se (MB22). AND THE FIVE-SEED FLOOR IS NOT AVAILABLE FORWARD: one live twin is one draw, R2 showed a single control seed can flip a verdict, so the forward comparison is structurally weaker than V6-OPT's backtested five-seed control on exactly that axis, and the paired sign test across many (name, quarter) cells is what partly replaces it.",
+          "expected_fills_per_month": 2.0,
+          "expected_fills_provenance": "MATCHED TO F-21 BY CONSTRUCTION and re-stated with it at launch. A twin that fills ten times as often is not the same trade sampled differently; it is a different book whose paired cells are a biased subset of its own fills.",
+          "fills_needed": 1652,
+          "fills_needed_derivation": "smallest n with track_meter.boundary(n, sigma, rho, alpha)/n <= min_effect. DERIVED; the same derivation reproduces F-10's declared 306 and F-11's declared 138 exactly (MB15). Fixed-n analogue at crit 1.96: 1050.",
+          "min_effect": 0.5671,
+          "min_effect_derivation": "F-21's, derived the same way: DECISIONS.md 2026-10-06 quotes a candidate's expected return at HALF its backtested size (McLean-Pontiff), and half of V6-OPT's measured +1.1342 pp/trade is 0.5671. Identical on both books so the two standalone meters are commensurable.",
+          "power_gate_note": "Anytime-valid, so the boundary IS the threshold at every n and fills_needed is where it falls to the declared minimum rather than where a verdict becomes possible. Both vocabularies are on the face. No X7 or CORRECTED-FLOORS floor is quoted -- none is calibrated for a per-trade return on secured cash, nor for a paired within-book difference (V2G, R1-VAR) -- and every critical value either book reports is LABELLED UNCALIBRATED.",
+          "rho": 3.0,
+          "sigma": 6.5633,
+          "sigma_may_only_be_raised": true,
+          "sigma_provenance": "MEASURED, and it is the MAXIMUM across V6-OPT's five C-C control seeds (5.8881 / 6.0043 / 5.4852 / 6.5633 / 6.0772 pp). The maximum rather than the mean because track_meter's rule is that sigma may only ever be RAISED. It is THIS structure's own control SD and NOT F-21's 5.047 -- borrowing that would be the MB8 error, and the measurement says random-timing is genuinely noisier.",
+          "years_to_horizon_at_projected_rate": 68.83
+        }
+      },
+      "declaration_valid_at_export": true,
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "refusals_at_export": [],
+      "touched": [
+        "DECL_f22_dip_csp_random_twin.md"
       ]
     },
     "f2_menu_gate": {
@@ -669,7 +823,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "refusals_at_export": [],
       "touched": [
         "DECL_f2_menu_gate.md"
@@ -724,7 +878,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "refusals_at_export": [],
       "touched": [
         "DECL_f3_bear_puts.md"
@@ -785,7 +939,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "refusals_at_export": [],
       "touched": [
         "DECL_f4_eventfree_premium.md"
@@ -840,7 +994,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "refusals_at_export": [],
       "touched": [
         "DECL_f5_ivcheap.md"
@@ -898,7 +1052,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "refusals_at_export": [],
       "touched": [
         "DECL_f6_collar_ledger.md"
@@ -958,7 +1112,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "refusals_at_export": [],
       "touched": [
         "DECL_f8_csp_entry_financing.md"
@@ -1008,7 +1162,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
+      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "refusals_at_export": [],
       "touched": [
         "DECL_testbook.md"
@@ -1016,12 +1170,14 @@
     }
   },
   "evidence_note": "Computed where git exists and consumed where it does not. On a service built from an image with no .git, fleet.may_fill falls back to this manifest and reports evidence='manifest' rather than 'git'. That is a WEAKER chain and the record says so on every gate result.",
-  "generated_utc": "2026-08-27T23:23:09+00:00",
-  "head": "5f4ffddfa9b0e7a20830daf0be5577932f5dee81",
-  "n_books": 18,
+  "generated_utc": "2026-10-13T05:31:23+00:00",
+  "head": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+  "n_books": 20,
   "schema": "fleet_declarations/1",
   "skipped": {
     "DRAFT_f16_13f_surge": "does not parse: no fenced ```json declaration block",
+    "DRAFT_f21_v6opt_dip_csp": "does not parse: no fenced ```json declaration block",
+    "DRAFT_f22_dip_csp_random_twin": "does not parse: no fenced ```json declaration block",
     "DRAFT_f7_band_exit_calls": "does not parse: no fenced ```json declaration block",
     "DRAFT_f9_flag_transition_puts": "does not parse: no fenced ```json declaration block"
   }

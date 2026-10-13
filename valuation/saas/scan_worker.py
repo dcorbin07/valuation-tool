@@ -54,6 +54,11 @@ def run_weekly(cfg=CONFIG, scope="whole_market", limit=1500, dcf_top=12) -> dict
             from ..edge import fleet_history as _fh
             _fh.record_dip_rejects(
                 rejects=[r["ticker"] for r in _dip.dip_rejects(_screen) if r.get("ticker")])
+            # F-21/F-22's own population, from the SAME screen this process already paid for.
+            # `dip_rejects` is the COMPLEMENT of what F-21 enters on, so before this the
+            # book's entry population had no recorder and "first appearance" was unresolvable.
+            _fh.record_dip_healthy(
+                healthy=[r["ticker"] for r in (_screen.get("rows") or []) if r.get("ticker")])
         except Exception:
             pass
     except Exception:

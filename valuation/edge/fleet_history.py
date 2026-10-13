@@ -47,6 +47,12 @@ SERIES = {
                     "the dip-detector REJECT population for the day (F-11)"),
     "alert_count": (("date", "n_alerts", "payload"),
                     "market-wide alert count for the day (F-19)"),
+    "dip_healthy": (("date", "n_names", "payload"),
+                    "the dip-detector HEALTHY population for the day (F-21, F-22's pairing "
+                    "pool). ADDED 2026-10-13: F-21 enters on the HEALTHY list and the only dip "
+                    "series that existed was `dip_rejects`, which is its COMPLEMENT -- so the "
+                    "book's own entry population had no recorder at all, and 'first appearance "
+                    "this quarter' was unresolvable."),
 }
 
 #: The invalidation stream is METADATA ABOUT the series above, not one of them, so it is
@@ -228,6 +234,31 @@ def record_dip_rejects(date: str = None, *, rejects=None, root: str = None) -> d
                 "not_consulted": True, "reason": NOT_CONSULTED}
     names = sorted({str(t).upper() for t in rejects})
     return record("dip_rejects", date, names, count=len(names), root=root)
+
+
+def record_dip_healthy(date: str = None, *, healthy=None, root: str = None) -> dict:
+    """F-21/F-22: the day's dip-detector HEALTHY population, so a FIRST appearance is datable.
+
+    **WHY THIS EXISTS, AND IT IS A GAP RATHER THAN A REFINEMENT.** `dip_rejects` records the
+    names the screen THREW OUT. F-21 enters on the names it KEPT. Those are complements, so
+    before this series the book's own entry population was recorded nowhere, and its declared
+    *"first appearance on that list this quarter"* could not be evaluated against anything --
+    the book would have armed and never qualified a single name, which the harness reports as
+    `RULE_ARMED_NEVER_FIRES` and which is *"indistinguishable in the records from a quiet
+    market"*.
+
+    **`None` REFUSES, exactly as `record_dip_rejects` does (audit #5, `H2`).** Pass `[]` to
+    assert *the screen ran and kept nobody* -- a real and informative observation on a calm day
+    -- and pass nothing to say *no screen ran*, leaving the day a GAP. A zero written for a
+    screen that never ran is a positive assertion of ABSENCE that a first-appearance study
+    cannot tell from a real one.
+    """
+    date = date or _dt.date.today().isoformat()
+    if healthy is None:
+        return {"ok": False, "wrote": False, "already_present": False,
+                "not_consulted": True, "reason": NOT_CONSULTED}
+    names = sorted({str(t).upper() for t in healthy})
+    return record("dip_healthy", date, names, count=len(names), root=root)
 
 
 def record_iv60(date: str = None, *, quotes=None, root: str = None) -> dict:
@@ -445,7 +476,7 @@ def iv60_from_store(store=None) -> dict:
     return out
 
 
-def record_all(date: str = None, *, store=None, rejects=None, quotes=None,
+def record_all(date: str = None, *, store=None, rejects=None, quotes=None, healthy=None,
                root: str = None) -> dict:
     """Every recorder, once. Returns per-series outcomes; never raises on one failing.
 
@@ -480,6 +511,7 @@ def record_all(date: str = None, *, store=None, rejects=None, quotes=None,
 
     for name, fn, kw in (("alert_count", record_alert_count, {"store": store}),
                          ("dip_rejects", record_dip_rejects, {"rejects": rejects}),
+                         ("dip_healthy", record_dip_healthy, {"healthy": healthy}),
                          ("iv60_atm", record_iv60, {"quotes": quotes})):
         try:
             r = fn(date, root=root, **kw)
