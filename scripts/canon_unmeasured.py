@@ -1475,17 +1475,37 @@ def table_rows():
                          "the 200-draw x 8-horizon sweep had not landed when this table was generated"))
     else:
         draws = pl.get("draws")
+        # the key is `primary_common_dates`, not `primary` -- and `term_structure` writes
+        # the `clears_own_*` flags INTO it, so the verdicts live there.
+        prim = (d or {}).get("primary_common_dates") or {}
+        n_a = sum(1 for h in fl if (prim.get(h) or {}).get("clears_own_alpha_floor"))
+        n_l = sum(1 for h in fl if (prim.get(h) or {}).get("clears_own_ls_floor"))
+        # THE HEADLINE ROW: the floors exist to be cleared or not, and the published run cleared
+        # its own alpha floor at ALL EIGHT horizons and its own long-short floor at FOUR -- which
+        # is where `S22`'s standing instruction comes from (no long-short figure beyond a year).
+        rows.append(_row(
+            "S22: horizons clearing their OWN per-horizon floor (alpha / long-short)",
+            {"alpha": "8 of 8", "long_short": "4 of 8"},
+            {"alpha": "%d of %d" % (n_a, len(fl)), "long_short": "%d of %d" % (n_l, len(fl)),
+             "draws": draws},
+            ("SURVIVES" if n_a == len(fl) else "NO LONGER HOLDS"),
+            ("`MB21`'s caveat travels with every figure here: `fixed_weights_null` permutes "
+             "WITHIN each date, so it has NO MEMORY and is a DIFFERENT, less conservative null "
+             "than X7's -- its percentiles may NEVER be compared with the 2.2837 family."),
+            surface="-- (research record only)"))
         for h in sorted(fl, key=lambda x: int(x)):
-            c = fl[h]
+            c, p = fl[h], (prim.get(h) or {})
             rows.append(_row(
                 "S22 fixed_weights_null floor, h=%s (alpha_t_hac p95)" % h, None,
                 c.get("alpha_t_hac_p95"),
                 ("RESTATEMENT" if draws and draws >= 100 else "PARTIAL"),
-                ("a DIFFERENT and LESS CONSERVATIVE null than X7's -- fixed weights, no CPCV, "
-                 "permuted WITHIN each date -- so these percentiles may NEVER be compared with "
-                 "the 2.2837 family. %s draws; null median %s, max %s."
-                 % (draws, c.get("alpha_t_hac_median"), c.get("alpha_t_hac_max"))),
-                note="ls_t_hac p95 = %s" % c.get("ls_t_hac_p95")))
+                ("%s draws; null median %s and max %s, so the null is centred where it should "
+                 "be. Observed alpha_t_hac %s -> clears=%s; long-short %s against a floor of %s "
+                 "-> clears=%s."
+                 % (draws, c.get("alpha_t_hac_median"), c.get("alpha_t_hac_max"),
+                    p.get("alpha_t_hac"), p.get("clears_own_alpha_floor"),
+                    p.get("ls_t_hac"), c.get("ls_t_hac_p95"), p.get("clears_own_ls_floor"))),
+                note="NOT comparable with X7's floors (MB21)"))
 
     # ---- §4.4 the forward Track Record ----------------------------------------------------
     d = _a("CANON_UNMEASURED_TRACKRECORD.json")
