@@ -87,8 +87,24 @@ Don's:
    event, and it needs a register.
 3. **Rebalance anyway and accept it**, knowing the above.
 
-**Diagnosis only: no file under `valuation/screener/` was touched**, pinned by a test that reads
-the branch diff and fails if one is.
+**Diagnosis only: no file under `valuation/screener/` was touched** — and the FIRST guard I
+wrote for that claim was refused by the land gate, correctly. It ran
+`git diff --name-only origin/main` over the working tree, which is the exact construction
+`SC-4` forbids in `test_ma60_conventions.py`, for a reason that convention had already
+MEASURED on two earlier suites: a working-tree diff against `origin/main` *"does not measure
+the lane that wrote it, it becomes a permanent tripwire on whole directories owned by an item
+that has already landed, and it fires on the next lane to touch one of them"* — it had already
+failed one unrelated land gate before the convention existed, and mine would have fired on
+whoever next edits `factors.py` for a perfectly good reason.
+
+**So the property is pinned LOCALLY instead**, over the three modules item 53 adds, which
+nobody else owns: none of them may import the scan's scoring path. That is what would have to
+be false for part 7 to have quietly shipped a change, and it cannot rot into somebody else's
+tripwire. Mutation-tested (a planted `from ..screener import factors` is caught) with the
+source restored byte-for-byte, and with a positive control so the rule cannot pass by matching
+nothing. The broader "no screener file changed in this commit" is a fact about one diff and
+lives in the commit message and here, where a reviewer can check it — `MA21`'s rule, that a
+guard which will cry wolf gets switched off.
 
 ---
 
@@ -305,6 +321,11 @@ comment-versus-code / substring-ban family, which this project names more than a
   and read 9 against a bound of 6 on a perfectly correct file. Repointed to the property: the
   field may be an assignment target and nothing may read it;
 * and an assertion that a three-key dict literal contained no `":` , which is the opposite of true.
+
+**An eighth, caught by the land gate rather than by me**, and the most useful of them: part 7's
+guard was a working-tree diff against `origin/main`, which `SC-4` forbids by convention because
+two earlier suites shipped it and one broke an unrelated lane's gate. Replaced with a local
+property over my own files — see part 7 above.
 
 **And one real bug in shipped code, in the prompt:** a line reading `42%% relevance` inside a
 **plain** string literal, which ships two characters to the model. Item 52 hit the mirror image —

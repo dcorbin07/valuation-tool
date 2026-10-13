@@ -668,29 +668,51 @@ class WhyTheLiveScanIsMissingThemes(unittest.TestCase):
       ranked on `size` alone.
     """
 
-    def test_NOTHING_in_this_item_changes_the_scan_or_the_scoring(self):
-        """The guard that makes part 7 a diagnosis rather than a change."""
-        import subprocess
+    def test_NOTHING_in_this_item_touches_the_scoring_PATH(self):
+        """The guard that makes part 7 a diagnosis rather than a change.
 
-        def _git(*args):
-            return (subprocess.run(["git"] + list(args), cwd=REPO, capture_output=True,
-                                   text=True, timeout=120).stdout or "")
+        **ITS FIRST FORM WAS THE CONSTRUCTION `SC-4` FORBIDS, AND THAT CONVENTION WAS RIGHT.**
+        It ran `git diff --name-only origin/main` over the working tree and asserted the
+        screener files were absent. `test_ma60_conventions.py` refused it on the land gate,
+        for a reason it had already MEASURED on two earlier suites: a working-tree diff
+        against `origin/main` does not measure the lane that wrote it, it becomes *"a
+        permanent tripwire on whole directories, owned by an item that has already landed,
+        and it fires on the next lane to touch one of them"* -- which is exactly what mine
+        would have done to whoever next edits `factors.py` for a perfectly good reason. It
+        had already failed one unrelated land gate before this convention existed.
 
-        # TWO-DOT AND AGAINST THE WORKING TREE, not `origin/main...HEAD`: before the commit
-        # lands HEAD *is* origin/main, so the three-dot form returns nothing and the guard
-        # SKIPPED -- which is a guard that cannot fire, exactly the thing this project calls
-        # a vacuous pass. This form sees uncommitted work and committed work alike.
-        touched = sorted({p.strip() for p in _git("diff", "--name-only",
-                                                  "origin/main").splitlines() if p.strip()}
-                         | {ln[3:].strip() for ln in _git("status", "--porcelain").splitlines()
-                            if ln[3:].strip()})
-        self.assertTrue(touched, "this guard must have a diff to inspect or it proves nothing")
-        FORBIDDEN = ("valuation/screener/factors.py", "valuation/screener/settings.py",
-                     "valuation/screener/prices.py", "valuation/screener/providers.py",
-                     "valuation/screener/screen.py", "valuation/screener/attribution.py")
-        for f in FORBIDDEN:
-            self.assertNotIn(f, touched,
-                             "part 7 is routed to Don, so %s must not change here" % f)
+        **SO THE PROPERTY IS PINNED LOCALLY INSTEAD, over this item's OWN files**, which
+        nobody else owns and which cannot rot into somebody else's tripwire: none of the
+        three modules item 53 adds may reach the scan's scoring path at all. That is the
+        thing that would have to be true for part 7 to have quietly shipped a change, and it
+        is checkable without reading the repository's history.
+
+        What this does NOT claim is the broader "no file under `valuation/screener/` changed
+        in this commit" -- that is a fact about one diff, it is stated in the commit message
+        and the handoff where a reviewer can check it, and a test is the wrong place to keep
+        it. `MA21`'s rule: a guard that will cry wolf gets switched off, and one that can only
+        be true today is worse than none.
+        """
+        SCORING = ("factors", "settings", "screen", "attribution", "prices", "providers")
+        for rel in (os.path.join("valuation", "data", "recent.py"),
+                    os.path.join("valuation", "engine", "average_risk.py"),
+                    os.path.join("valuation", "web", "definitions.py")):
+            tree = ast.parse(_src(rel))
+            for node in ast.walk(tree):
+                mod = ""
+                if isinstance(node, ast.ImportFrom):
+                    mod = node.module or ""
+                elif isinstance(node, ast.Import):
+                    mod = " ".join(a.name for a in node.names)
+                if "screener" not in mod:
+                    continue
+                for name in SCORING:
+                    self.assertNotIn(name, mod,
+                                     "%s must not reach the scan's scoring path" % rel)
+        # A POSITIVE CONTROL, or the rule could be passing by never matching: the module that
+        # DOES own the scoring path is importable and names these things.
+        from valuation.screener import factors as _f
+        self.assertTrue(hasattr(_f, "build_frame"))
 
     def test_the_measured_figures_are_pinned(self):
         """So they cannot rot, and so a successor can tell whether the picture has moved."""
