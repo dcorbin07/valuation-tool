@@ -305,3 +305,68 @@ here. It does **not** edit a single declaration — the files are the options-bo
 acceptance is theirs. It books **no trial**: the harness charges at the first verdict read and this
 file reads nothing. And it makes **no claim that arming the two survivors will produce a pass** —
 `O11` binds every one of them, and the fleet's own record is **79 fills, zero recorded outcomes.**
+
+---
+
+## AMENDMENT, 2026-10-13 — F-15's IMPLIED-MOVE HURDLE, COMPUTED. THE SIGNAL BELONGS ON THE STOCK SIDE
+
+This review told F-15 to **keep its signal and drop its call**, and named the implied-move hurdle
+as the free next step. §86 then measured the inputs and left the hurdle uncomputed, naming it for
+this lane. **It is computed here, and it is arithmetic on published figures — no arm, no trial.**
+
+**THE INPUTS ARE CONFIRMED AND ARE NOT THE PROBLEM.** On the shipped 691 MB
+`data/backtest/insiders.csv`: **6,688,777 rows**, `ownername` missing on **0**, `filingdate` on
+all of them, **163,653** open-market purchase rows, `transactioncode` missing on **28.52%** —
+which must be **counted and skipped, never read as "not a purchase"** (`MB20`'s correction, and
+that file has grown from the 5,636,964 rows at 27.40% `MB20` measured). **The cluster detector is
+implementable today.**
+
+**THE HURDLE, AND IT IS DECISIVE.** F-15 buys a **1.00-moneyness call at 60 DTE, held to expiry**,
+so it needs the underlying to rise by the whole premium before it returns a cent:
+
+| IV | premium = breakeven move | implied move `σ√T` |
+|---|---|---|
+| 0.25 | **4.04%** | 10.14% |
+| **0.30** | **4.85%** | **12.16%** |
+| 0.35 | 5.66% | 14.19% |
+| 0.45 | 7.27% | 18.24% |
+
+**AGAINST WHAT DRIFT?** The published anchor for clustered *opportunistic* insider buying is
+Cohen-Malloy-Pomorski (2012) at roughly **82 bps/month long-short**, i.e. **~1.64% over 60 days**
+— **and a long-only leg is a fraction of that.** This project's own evidence is weaker still: the
+`insider` theme's IC *t* is **−0.24**, and **`V6-B`'s arm 3 — dip × insider open-market buying —
+was NULL**, full sample +1.147pp/yr with a late half of **+0.011pp**.
+
+> **AT IV 0.30 THE CALL NEEDS 4.85% AND THE PUBLISHED LONG-SHORT DRIFT IS 1.64% — SHORT BY 3.0×.
+> At IV 0.45, where a cluster-flagged small name plausibly sits, it is short by 4.4×. Even at a
+> generous 2.50% drift it is short by 1.9×.** And that is **before** two crossings. **No expression
+> that BUYS this drift is worth a register**, which confirms §86's reading on the arithmetic rather
+> than on judgement.
+
+**THE SHARES CLEAR THE SAME HURDLE COMFORTABLY, on this project's own measured equity cost**
+(`B11`, **33.4 bps one way**, which replaced an assumption quoted as a measurement): a 1.64% drift
+nets **+0.97%** per 60 days and a 2.50% drift nets **+1.83%**. **There is no implied move to clear,
+no tenor to be wrong about, and no premium to decay** — so **the signal belongs on the stock side**,
+and that is the recommendation.
+
+**TWO OPTIONS EXPRESSIONS CONSIDERED AND DECLINED, so the paragraph is not a reflex.** A
+**deep-ITM call** as leverage is priced: `DEEPITM-FIN` measured the all-in financing at
+**`rf + 701.87` bps** and `SC-3` found **NO-FLIP in all four long-tenor strata** with the all-in
+**not monotone in tenor**, bottoming at 450–650 DTE and rising again — **~7%/yr of financing
+against a ~2% drift is dead on contact.** A **vertical call spread** narrows the breakeven but
+caps the upside at a few percent while still paying two crossings, and the drift is a third of the
+breakeven, so narrowing cannot rescue it.
+
+**THE ONE OPTIONS EXPRESSION WITH A MEASURED MECHANISM IS THE OPPOSITE SIDE, AND IT IS NOT F-15.**
+`SELL-PREMIUM-2` measured that **selling** a 25-delta put on a conditioning event earns
+**+0.6709%/trade on secured cash** with the timing worth **+0.3317%/trade at z +9.9485** — i.e.
+the premium seller is paid the implied move the buyer must overcome, and this book's own measured
+variance risk premium is **2.04×** (physical payoff 49.10% of the market's price). **Selling puts
+on insider-cluster names is therefore a live question** — but it is a **new register in the
+`SELL-PREMIUM` family on a different event**, with its own event census, its own power and its own
+crash bar, and **not an amendment to F-15, whose frozen structure is a long call.**
+
+**SO: F-15's VERDICT IS UNCHANGED AND IS NOW MEASURED RATHER THAN ARGUED — retire the declaration,
+keep the signal, and test it in shares.** Its entry rule should not be implemented as declared, and
+**the cluster detector is worth building anyway**, because it is the input both the stock test and
+any future premium-selling register would read.
