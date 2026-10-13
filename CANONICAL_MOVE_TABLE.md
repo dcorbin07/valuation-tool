@@ -346,7 +346,8 @@ inherited unchanged: no move below is attributed to the universe alone.**
 | `optionable_partition.N_PANEL_NAMES` | 2,531 | **9,645** | **RESTATEMENT** |
 | `optionable_partition.N_OPTIONABLE_NAMES` | 619 | **630** | **RESTATEMENT** |
 | the lede's *"roughly a quarter … has listed options"* | 24.46% | **6.53%** | **NO LONGER HOLDS** |
-| `V6-B` M1 dip survival | 32.5% vs 43.4% | see §9.5 | see §9.5 |
+| `V6-B` M1 dip survival, the POOLED pair (LITERAL) | 32.5% vs 43.4% | **35.3% vs 50.4%** | **NO LONGER HOLDS** |
+| `V6-B` M1 — healthy dips fall a further 20% less often (SUBSTANCE) | −10.84pp | **−15.07pp, verdict REAL** | **SURVIVES** |
 | `S22`'s eight per-horizon `fixed_weights_null` floors | — | see §9.6 | see §9.6 |
 | the live / forward Track Record | — | **—** | **UNMEASURED-BY-CONSTRUCTION** |
 
@@ -445,12 +446,32 @@ at all three horizons in both partition modes (H=63 +7.40% at *t* 1.82, H=252 +1
 post-2016 dates rather than 69, and re-opening the family is Don's and needs its own blind
 register. **`P1S0-CONTROL`'s NULL is not re-opened.**
 
-### 9.5 `V6-B` M1 — see `HANDOFF_canon_unmeasured.md` §4.2
+### 9.5 `V6-B` M1 — THE LITERAL PAIR NO LONGER HOLDS AND THE CLAIM GETS STRONGER
 
 `C1`'s gate aborted the earlier corrected attempt against the PUBLISHED literals on a panel its
 own `C2` had just certified as canonical. It is now re-pointable (`--expect-record`, defaulting
-to `REC` verbatim), and the corrected expectation is DERIVED rather than typed. Bars IMPORTED
-from `PREREG_v6b_dip_survival.md` and never restated.
+to `REC` verbatim), the corrected expectation is DERIVED rather than typed and reproduces this
+move's own deployed cells at **dev 0.000e+00**. Bars IMPORTED from `PREREG_v6b_dip_survival.md`
+and never restated (its void condition 6.3).
+
+| | published | corrected | state |
+|---|---|---|---|
+| P(further −20%) healthy / unhealthy | 32.51% / 43.35% | **35.31% / 50.38%** | **NO LONGER HOLDS** |
+| pooled gap, relative reduction | −10.84pp, 25.0% | **−15.07pp, 29.91%** | **SURVIVES** |
+| registered per-date statistic | −10.228pp at *t* −10.585 | **−12.153pp at *t* −12.777** | **SURVIVES** |
+| M1 verdict | REAL | **REAL** | **SURVIVES** |
+| within-quintile: clearing both halves | 4 of 5 | **5 of 5** | **SURVIVES** |
+| the size gradient, smallest → largest | −14.287pp → −3.787pp | **−16.77pp → −5.38pp** | **SURVIVES** |
+| `M2` distress | **VOID — UNDERPOWERED** (42 events vs a floor of 60) | **NULL** (170 events; the early half does not clear) | **RESTATEMENT** |
+
+**THE PUBLIC FIGURE IS THE LITERAL PAIR AND IT MUST BE RESTATED**; the claim it supports gets
+stronger, and **the standing caveat holds unchanged — the claim is strongest exactly where the
+product is not.** `D3`: the unhealthy set is still acquired more (0.805% vs 0.744%), so the
+published direction survives while the margin narrows (ratio 0.604 → 0.924).
+
+**AND `v6b_addendum`, which produces the pooled pair the tab carries, had FIVE hard-coded paths**
+— so that public figure could not be re-measured on any other universe without editing the file.
+Parameterised, every default the landed literal.
 
 ### 9.6 `S22`'s per-horizon floors — see `HANDOFF_canon_unmeasured.md` §4.3
 

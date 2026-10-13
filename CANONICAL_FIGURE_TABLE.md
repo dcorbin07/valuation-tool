@@ -75,7 +75,7 @@ universe and a disjoint grid.
 | t never below 3.16, 3.83 at two years (S22 term structure) | None | None | **UNMEASURED -> SUPERSEDED** | /methodology (TEMPLATE) -- ANSWERED BELOW at: S22 'alpha HAC t never below 3.16' (LITERAL); S22 two-year alpha HAC t |
 | beat the universe by 6.6% at one quarter, 5.1% at two years (hold horizon) | None | None | **UNMEASURED -> SUPERSEDED** | /methodology + Hot Stocks legend (TRANSCRIBED) -- ANSWERED BELOW at: hold_horizon copy: 1-quarter annualized alpha; hold_horizon copy: 2-year annualized alpha |
 | holds on 45 of 69 / 21 of 69 dates (score calibration) | None | None | **UNMEASURED -> SUPERSEDED** | /methodology + Hot Stocks legend (TRANSCRIBED) -- ANSWERED BELOW at: score_confidence PER_NAME_DATES; score_confidence GROUP_DATES (the limitation) |
-| 32.5% vs 43.4% dip survival (V6-B) | 0.325000 | None | **UNMEASURED** | Dip Detector tab (TRANSCRIBED) |
+| 32.5% vs 43.4% dip survival (V6-B) | 0.325000 | None | **UNMEASURED -> SUPERSEDED** | Dip Detector tab (TRANSCRIBED) -- ANSWERED BELOW at: V6-B M1: 32.5% vs 43.4% dip survival (the POOLED pair, LITERAL); V6-B M1 SUBSTANCE: healthy dips fall a further 20% less often |
 | 3,885 trades / 187 names / -5.06pp vs random entry (options payoff) | -0.050600 | -0.050600 | **SURVIVES** | /methodology (TRANSCRIBED) |
 | the live/forward Track Record | None | None | **UNMEASURED** | Track Record tab (LIVE) |
 
@@ -94,7 +94,7 @@ universe and a disjoint grid.
 | S22 per-horizon fixed_weights_null floors | 8 per-horizon floors at 200 draws each | None | **UNMEASURED** | BACKTEST |
 | score_confidence PER_NAME_DATES | 45 of 69 (gate 42) | {"dates_not_distinguishable": 12, "of_dates": 69} | **NO LONGER HOLDS** | valuation/web/score_confidence.py (public copy) |
 | score_confidence GROUP_DATES (the limitation) | 21 of 69, 'may never be stated as a standing property' | {"dates_top_decile_mean_clears": 57, "of_dates": 69, "still_a_minority": false, "derivation_validated_against_the_banked | **NO LONGER HOLDS** | valuation/web/score_confidence.py (public copy) |
-| V6-B M1: healthy dips fall a further 20% less often | {"healthy_pooled_rate": 0.3251, "unhealthy_pooled_rate": 0.4335, "pooled_gap_pp": -10.84, "registered_statistic_mean_dif | None | **UNMEASURED** | CLAUDE.md V6-B bullet (research only; no public surface) |
+| V6-B M1: healthy dips fall a further 20% less often | {"healthy_pooled_rate": 0.3251, "unhealthy_pooled_rate": 0.4335, "pooled_gap_pp": -10.84, "registered_statistic_mean_dif | None | **UNMEASURED -> SUPERSEDED** | CLAUDE.md V6-B bullet (research only; no public surface) -- ANSWERED BELOW at: V6-B M1 SUBSTANCE: healthy dips fall a further 20% less often; V6-B M1 registered per-date statistic -- was UNMEASURED |
 | R1 net-of-cost intercept (R1's OWN path) | +7.85%/yr net of costs (t 5.16), measured on the VOID pre-B6 panel | None | **UNMEASURED -> SUPERSEDED** | CLAUDE.md R1 bullet -- ANSWERED BELOW at: R1's NET-OF-COST specification (R1's OWN path) -- was UNMEASURED |
 | R1 net-of-cost intercept (DERIVED) | a positive factor-model intercept that survives a plausible cost | {"gross_alpha_ann": 0.059397599064971024, "gross_t_nw": 4.453158903833538, "primary_spec": "compound/full", "breakeven_o | **SURVIVES** | CLAUDE.md R1 bullet |
 
@@ -155,7 +155,10 @@ universe and a disjoint grid.
 | R1's NET-OF-COST specification (R1's OWN path) -- was UNMEASURED | 0.078492 | 0.040583 | **SURVIVES** | /methodology (TEMPLATE) |
 | optionable_partition N_PANEL_NAMES -- was UNMEASURED | 2531 | 9645 | **RESTATEMENT** | valuation/web/optionable_partition.py (committed literals) |
 | optionable_partition N_OPTIONABLE_NAMES (pit_liquid) -- was UNMEASURED | 619 | 630 | **RESTATEMENT** | valuation/web/optionable_partition.py (committed literals) |
-| V6-B M1: 32.5% vs 43.4% dip survival (the POOLED pair) -- was UNMEASURED | 0.325100 | None | **UNMEASURED** | CLAUDE.md V6-B bullet + Dip Detector tab (TRANSCRIBED) |
+| V6-B M1: 32.5% vs 43.4% dip survival (the POOLED pair, LITERAL) | {"healthy": 0.3251, "unhealthy": 0.4335, "gap_pp": -10.84} | {"healthy": 0.3531, "unhealthy": 0.5038, "gap_pp": -15.07} | **NO LONGER HOLDS** | CLAUDE.md V6-B bullet + Dip Detector tab (TRANSCRIBED) |
+| V6-B M1 SUBSTANCE: healthy dips fall a further 20% less often | {"gap_pp": -10.84, "relative_reduction": 0.25} | {"gap_pp": -15.07, "relative_reduction": 0.2991} | **SURVIVES** | CLAUDE.md V6-B bullet + Dip Detector tab (TRANSCRIBED) |
+| V6-B M1 is NOT a size sort (the within-quintile stratification) | 4 of 5 quintiles cleared both halves; -14.287pp smallest to -3.787pp megacap | {"quintiles_negative": 5, "clearing_both_halves": 5, "of": 5, "weakest_quintile_pp": -5.380304266161734} | **SURVIVES** | CLAUDE.md V6-B bullet (research only) |
+| V6-B D3: the unhealthy set is ACQUIRED more, so a naive P(delisted) would have | {"healthy": 0.00292, "unhealthy": 0.00484, "ratio": 0.604} | {"healthy": 0.00744, "unhealthy": 0.00805, "ratio": 0.924} | **SURVIVES** | -- (research record only) |
 | V6-B M1 registered per-date statistic -- was UNMEASURED | -10.228339 | -12.152944 | **SURVIVES** | -- (research record only) |
 | V6-B M2 (distress within 252d) -- VOID on the published panel, ANSWERABLE here | VOID -- UNDERPOWERED BY CONSTRUCTION (42 events against a floor of 60) | NULL | **RESTATEMENT** | -- (research record only) |
 | S22 per-horizon fixed_weights_null floors | 8 floors at 200 draws | None | **UNMEASURED** | -- (research record only) |

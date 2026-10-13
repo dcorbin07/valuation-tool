@@ -313,11 +313,48 @@ Population: **117,113** dipped rows with a full 126-day forward window (29,565 h
 window. `C3` **zero** point-in-time violations; `C5` **zero** rows flagged both distress and
 acquisition.
 
-**THE CAVEAT TRAVELS, AND IT IS THE SAME ONE:** `C8` measures the healthy dipped set at **1.98×**
-the median market cap of the unhealthy one (published 2.06×), so a size sort must not be
-reportable as a health finding. **The within-quintile stratification that bounds it is in
-`CANON_UNMEASURED_V6B_ADDENDUM.json`** — the `v6b_addendum` producer had its paths hard-coded and
-is now parameterised, which is the third instance of that defect family this lane found.
+### THE POOLED PAIR: THE LITERAL NO LONGER HOLDS AND THE CLAIM GETS STRONGER
+
+The *"32.5% vs 43.4%"* on the Dip Detector tab is produced by **`v6b_addendum`**, a separate
+script whose five paths were all hard-coded — the third instance of that defect family this lane
+found, and it meant the public-facing figure could not be re-measured on any other universe
+without editing the file. Parameterised (every default the landed literal), run on the corrected
+panel:
+
+| | published | corrected |
+|---|---|---|
+| P(further −20%) healthy | 32.51% | **35.31%** |
+| P(further −20%) unhealthy | 43.35% | **50.38%** |
+| pooled gap | −10.84pp | **−15.07pp** |
+| relative reduction | 25.0% | **29.91%** |
+
+**So the LITERAL pair must be restated — `NO LONGER HOLDS` — while the claim it supports gets
+STRONGER, `SURVIVES`.** Both halves of that have to be said; the two states ship as two rows,
+the shape `CORRECTED-CLAIMS-2` already uses for `S22`'s *t*-floor literal.
+
+### AND IT IS STILL NOT A SIZE SORT — MORE CLEARLY THAN BEFORE
+
+`C8` measures the healthy dipped set at **1.98×** the median market cap of the unhealthy one
+(published 2.06×), and `C8`'s registered purpose is that a size sort must not be reportable as a
+health finding. Within per-date market-cap quintiles:
+
+| quintile | median cap | gap | *t* | clears own p5 | both halves |
+|---|---|---|---|---|---|
+| Q1 | $85m | **−16.77pp** | −11.15 | yes | yes |
+| Q2 | $223m | −13.04pp | −10.69 | yes | yes |
+| Q3 | $546m | −9.76pp | −8.49 | yes | yes |
+| Q4 | $1.49bn | −7.35pp | −6.58 | yes | yes |
+| Q5 | $6.80bn | **−5.38pp** | −5.17 | yes | yes |
+
+**5 of 5 negative, 5 of 5 clearing their own p5 full-sample AND both halves** — against the
+published **4 of 5**. **AND THE PUBLISHED GRADIENT SURVIVES AND STEEPENS:** −16.77pp in the
+smallest quintile to −5.38pp in the largest, against the published −14.287pp to −3.787pp.
+**The standing caveat holds unchanged: the claim is strongest exactly where the product is not.**
+POST-HOC DIAGNOSTIC, no verdict.
+
+`D3`: the unhealthy set is still **acquired more** (0.805% against 0.744%), so treating an
+acquisition as a death would still flatter the healthy set — the published direction survives,
+though the margin narrows sharply (ratio 0.604 → **0.924**).
 
 **AND `M2` BECOMES ANSWERABLE FOR THE FIRST TIME, AND THE ANSWER IS `NULL`.** The published run
 recorded M2 (distress within 252 days) **VOID — UNDERPOWERED BY CONSTRUCTION** at **42** distress
@@ -359,6 +396,7 @@ verdict and nothing was written.
 | " | `N_OPTIONABLE_NAMES` | 619 | **630** |
 | " | the lede's *"roughly a quarter of the research panel has listed options"* | 24.46% | **6.53% — the copy is WRONG by 3.7× and is the real change; "one name in fifteen" is the honest phrasing** |
 | README / START_HERE (LITERALS) | *"400 half-universe books, not one negative"* | UNMEASURED | **RESTATES VERBATIM** — 400 measurements on the corrected universe, zero negative, both arms 100%/100% |
+| Dip Detector tab (TRANSCRIBED) | *"32.5% vs 43.4%"* dip survival | 32.51% / 43.35% | **35.31% / 50.38% — the LITERAL pair must be restated; the claim it supports gets STRONGER (gap −10.84pp → −15.07pp)** |
 
 **THE `/proof` CELLS NEED A CANONICAL RE-RUN BEFORE THEY CAN BE READ LIVE.** `/proof` reads
 `cpcv.pbo` and `cpcv.deflated_sharpe` out of the tracked artifact, and those are the **ADOPTED**

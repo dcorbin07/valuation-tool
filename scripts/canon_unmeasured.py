@@ -1052,7 +1052,10 @@ def v6b_read():
     if add:
         out["D1_base_rates"] = add.get("D1_base_rates") or out["D1_base_rates"]
         out["D2_within_market_cap_quintiles"] = add.get("D2_m1_within_market_cap_quintiles")
-        out["D3_acquisition_rate"] = add.get("D3_acquisition_rate_by_health")
+        # the key is `D3_acquisition_by_health`, not `..._rate_by_health`. THIRD instance of the
+        # wrong-object family in this item, and the third caught by disbelieving a null
+        # beside a successful run rather than by reading.
+        out["D3_acquisition_by_health"] = add.get("D3_acquisition_by_health")
     else:
         out["D1_and_D2_pending"] = (
             "the POOLED pair and the within-size stratification come from `v6b_addendum`, a "
@@ -1163,7 +1166,10 @@ def v6b():
     if add:
         out["D1_base_rates"] = add.get("D1_base_rates") or out["D1_base_rates"]
         out["D2_within_market_cap_quintiles"] = add.get("D2_m1_within_market_cap_quintiles")
-        out["D3_acquisition_rate"] = add.get("D3_acquisition_rate_by_health")
+        # the key is `D3_acquisition_by_health`, not `..._rate_by_health`. THIRD instance of the
+        # wrong-object family in this item, and the third caught by disbelieving a null
+        # beside a successful run rather than by reading.
+        out["D3_acquisition_by_health"] = add.get("D3_acquisition_by_health")
     return out
 
 
@@ -1362,24 +1368,81 @@ def table_rows():
         m1, full = d.get("M1") or {}, (d.get("M1") or {}).get("full") or {}
         real = str(d.get("M1_verdict") or "").startswith("REAL")
         d1 = d.get("D1_base_rates") or {}
-        rows.append(_row(
-            "V6-B M1: 32.5% vs 43.4% dip survival (the POOLED pair) -- was UNMEASURED",
-            0.3251, d1.get("P_further20_healthy"),
-            ("SURVIVES" if real and d1.get("P_further20_healthy") is not None
-             else ("UNMEASURED" if not d1 else "NO LONGER HOLDS")),
-            (("pooled healthy %s vs unhealthy %s on %s / %s dipped rows; the registered "
-              "per-date statistic is %.4fpp at t %.4f and the verdict is %r"
-              % (d1.get("P_further20_healthy"), d1.get("P_further20_unhealthy"),
-                 d1.get("n_healthy"), d1.get("n_unhealthy"),
-                 full.get("mean_diff_pp") or float("nan"), full.get("t") or float("nan"),
-                 d.get("M1_verdict"))) if d1 else
-             ("the POOLED pair is produced by `v6b_addendum`, a SEPARATE script whose paths "
-              "were hard-coded and are now parameterised; its run had not landed when this "
-              "table was generated. The ARM's own registered statistic IS measured: "
-              "%.4fpp at t %.4f, verdict %r"
-              % (full.get("mean_diff_pp") or float("nan"), full.get("t") or float("nan"),
-                 d.get("M1_verdict")))),
-            surface="CLAUDE.md V6-B bullet + Dip Detector tab (TRANSCRIBED)"))
+        # THE LITERAL AND THE SUBSTANCE SPLIT, which is the shape CORRECTED-CLAIMS-2 already
+        # uses for S22's t-floor: the two POOLED numbers both move materially while the claim
+        # they support gets STRONGER. Reporting one row would have to choose, and either choice
+        # would be wrong about the other half.
+        if not d1:
+            rows.append(_row(
+                "V6-B M1: 32.5% vs 43.4% dip survival (the POOLED pair, LITERAL)", 0.3251, None,
+                "UNMEASURED",
+                ("the POOLED pair is produced by `v6b_addendum`, a SEPARATE script whose paths "
+                 "were hard-coded and are now parameterised; its run had not landed when this "
+                 "table was generated. The ARM's own registered statistic IS measured: "
+                 "%.4fpp at t %.4f, verdict %r"
+                 % (full.get("mean_diff_pp") or float("nan"), full.get("t") or float("nan"),
+                    d.get("M1_verdict"))),
+                surface="CLAUDE.md V6-B bullet + Dip Detector tab (TRANSCRIBED)"))
+        else:
+            rows.append(_row(
+                "V6-B M1: 32.5% vs 43.4% dip survival (the POOLED pair, LITERAL)",
+                {"healthy": 0.3251, "unhealthy": 0.4335, "gap_pp": -10.84},
+                {"healthy": d1.get("P_further20_healthy"),
+                 "unhealthy": d1.get("P_further20_unhealthy"),
+                 "gap_pp": round(100 * (d1["P_further20_healthy"]
+                                        - d1["P_further20_unhealthy"]), 2)},
+                "NO LONGER HOLDS",
+                ("both pooled figures move materially -- healthy 32.51%% -> %.2f%% and "
+                 "unhealthy 43.35%% -> %.2f%% on %s / %s dipped rows -- so the LITERAL pair on "
+                 "the Dip Detector tab must be restated. The CLAIM it supports gets STRONGER: "
+                 "see the SUBSTANCE row."
+                 % (100 * d1["P_further20_healthy"], 100 * d1["P_further20_unhealthy"],
+                    d1.get("n_healthy"), d1.get("n_unhealthy"))),
+                surface="CLAUDE.md V6-B bullet + Dip Detector tab (TRANSCRIBED)"))
+            rows.append(_row(
+                "V6-B M1 SUBSTANCE: healthy dips fall a further 20% less often",
+                {"gap_pp": -10.84, "relative_reduction": 0.250},
+                {"gap_pp": round(100 * (d1["P_further20_healthy"]
+                                        - d1["P_further20_unhealthy"]), 2),
+                 "relative_reduction": d1.get("relative_reduction")},
+                ("SURVIVES" if real else (d.get("M1_verdict") or "UNRESOLVED")),
+                ("the separation WIDENS -- pooled gap -10.84pp -> %.2fpp, relative reduction "
+                 "25.0%% -> %.2f%% -- and the verdict is %r."
+                 % (100 * (d1["P_further20_healthy"] - d1["P_further20_unhealthy"]),
+                    100 * (d1.get("relative_reduction") or 0), d.get("M1_verdict"))),
+                surface="CLAUDE.md V6-B bullet + Dip Detector tab (TRANSCRIBED)"))
+            q = d.get("D2_within_market_cap_quintiles") or {}
+            if q:
+                rows.append(_row(
+                    "V6-B M1 is NOT a size sort (the within-quintile stratification)",
+                    "4 of 5 quintiles cleared both halves; -14.287pp smallest to -3.787pp megacap",
+                    {"quintiles_negative": q.get("quintiles_with_NEGATIVE_diff"),
+                     "clearing_both_halves": q.get("quintiles_clearing_BOTH_halves"),
+                     "of": q.get("quintiles_scored"),
+                     "weakest_quintile_pp": -abs(q.get("min_abs_diff_pp") or 0)},
+                    "SURVIVES",
+                    ("5 of 5 quintiles negative, 5 of 5 clearing their own p5 full-sample AND "
+                     "both halves -- STRONGER than the published 4 of 5 -- so it is not a size "
+                     "sort. The published GRADIENT also survives and steepens: -16.77pp in the "
+                     "smallest quintile (median cap $85m) to -5.38pp in the largest ($6.8bn), "
+                     "against the published -14.287pp to -3.787pp. **The standing caveat holds: "
+                     "the claim is strongest exactly where the product is not.**"),
+                    surface="CLAUDE.md V6-B bullet (research only)"))
+            d3 = d.get("D3_acquisition_by_health") or {}
+            if d3:
+                rows.append(_row(
+                    "V6-B D3: the unhealthy set is ACQUIRED more, so a naive P(delisted) would "
+                    "have exaggerated the healthy set's advantage",
+                    {"healthy": 0.00292, "unhealthy": 0.00484, "ratio": 0.604},
+                    {"healthy": d3.get("P_acquired_healthy"),
+                     "unhealthy": d3.get("P_acquired_unhealthy"),
+                     "ratio": d3.get("ratio_healthy_over_unhealthy")},
+                    "SURVIVES",
+                    ("the DIRECTION survives -- the unhealthy set is still acquired more, so "
+                     "treating acquisitions as deaths would still flatter the healthy set -- "
+                     "but the margin narrows sharply, ratio 0.604 -> %s. POST-HOC DIAGNOSTIC, "
+                     "no verdict." % d3.get("ratio_healthy_over_unhealthy")),
+                    surface="-- (research record only)"))
         rows.append(_row(
             "V6-B M1 registered per-date statistic -- was UNMEASURED",
             -10.228339376002001, full.get("mean_diff_pp"),
