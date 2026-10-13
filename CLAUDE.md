@@ -3937,6 +3937,27 @@ the project's memory and the old versions had been repeated for months.
     median half-book *t* **+2.3617** sits BELOW the full-universe **+2.6199**, as a half-sized book
     sorting a noisier spread should, and **14 of 200 half-books fail their own bar. A1 is the
     stronger claim and should be quoted as the stronger one.**
+    * **RE-RUN 2026-10-13 ON THE CORRECTED 9,645-NAME UNIVERSE (`CANON-UNMEASURED`): BOTH ARMS
+      SURVIVE AND THE ASYMMETRY IS GONE - A2 IS THE ARM THAT MOVED.** Against a half-universe
+      null rebuilt at 200 draws (alpha p95 **+0.013414**, long-short HAC *t* p95 **+1.4661**,
+      both medians about zero): **A1 and A2 each clear 200 of 200 half books and 100 of 100
+      splits**, so A2 goes **93.0% -> 100%** and its median half-book *t* **+2.3617 -> +4.3727**.
+      **A1's median is +0.06046 (min +0.04189) and A2's is +4.3727 (min +3.2940), with ZERO of
+      400 measurements negative on either arm - so "400 half-universe books, not one negative"
+      RESTATES VERBATIM.** A1's level is slightly lower than the published +0.07233, which is the
+      universe's own alpha falling rather than the split degrading. **So "A1 is the stronger
+      claim" is a statement about the PUBLISHED universe and should no longer be carried
+      forward.** `HANDOFF_canon_unmeasured.md` §2.
+    * **AND `X1`'s OWN `C2` CONTROL WAS ASSERTING A PROPERTY ITS PRIMARY SPLIT DOES NOT HAVE.**
+      `_assert_split` required the halves to differ by at most ONE name for BOTH the random
+      splits - balanced **by construction**, where 1 is right - and the `sha1(ticker) % 2` split,
+      which is balanced only **in expectation** (imbalance sd `sqrt(n)`). On 2,531 names it read
+      1266/1265 and `P(imbalance == 1)` under a fair hash is **0.0317**, so **it cleared with
+      about a 3% probability**; on 9,645 it reads 4798/4847 - imbalance **49 against an sd of
+      98.2, z = 0.50** - and **it FIRED on a split that is exactly what the construction
+      promises.** The tolerance is now a parameter defaulting to 1, and a hash split is passed a
+      DERIVED 4-sigma bar (`2*sqrt(n)`), never a chosen one. **A guard asserting a random
+      partition is exactly balanced is a guard that fires on the draw.**
   * **A SCOPE LIMIT FIXED BEFORE THE RUN, AND SAYING IT IS NOT A DODGE.** The audit asks to
     *"decide on half A, measure on half B"*; **that half cannot bind, because the deployed strategy
     fits NOTHING** - flat 1/7, never tuned, `cpcv.adopt` false on every run - **so there is no
@@ -4143,6 +4164,22 @@ the project's memory and the old versions had been repeated for months.
     -11.515pp late), sign-stable, and clearing the **pre-committed 3.0pp economic floor** more than
     threefold. **The effect runs FOUR TO FIVE TIMES its own minimum detectable effect in every
     window** - the exact opposite of V6 and S19, where no cell reached detection at all.
+    * **RESTATED 2026-10-13 ON THE CORRECTED 9,645-NAME UNIVERSE (`CANON-UNMEASURED`): THE TWO
+      POOLED FIGURES ABOVE NO LONGER HOLD AND THE CLAIM THEY SUPPORT GETS STRONGER.** Healthy
+      **32.51% -> 35.31%** and unhealthy **43.35% -> 50.38%** on 117,113 dipped rows (29,565
+      healthy / 87,548 unhealthy), so the pooled gap WIDENS **-10.84pp -> -15.07pp** and the
+      relative reduction **25.0% -> 29.91%**; the registered per-date statistic goes
+      **-10.228pp -> -12.153pp at *t* -12.777**, both halves still below their own p5, and the
+      verdict is still **REAL**. **So quote 35.3% vs 50.4% - the 32.5/43.4 pair is the published
+      panel's and the Dip Detector tab's transcription of it is owed a restatement.** The
+      within-size stratification is STRONGER too (5 of 5 quintiles clearing both halves against
+      4 of 5) and **the gradient steepens, -16.77pp in the smallest quintile to -5.38pp in the
+      largest - so the standing caveat that the claim is strongest exactly where the product is
+      not holds unchanged.** `C1`'s gate had to be re-pointed to reach any of this: it keyed on
+      the PUBLISHED literals and aborted a correct run. **AND `M2` IS ANSWERABLE FOR THE FIRST
+      TIME:** VOID-UNDERPOWERED at 42 distress events on the published panel, it runs on **170**
+      here and returns **NULL**, the early half not clearing. `HANDOFF_canon_unmeasured.md` §4.2;
+      `CANONICAL_MOVE_TABLE.md` §9.5.
   * **M3 CORROBORATES ON A DIFFERENT STATISTIC AND THE TAIL IS WHERE IT SHOWS** (+5.853pp, *t*
     +10.9212, clearing its bar in all three windows): forward 126d drawdown **p05 -0.4635 healthy
     against -0.6472 unhealthy - an 18.4-point shallower left tail** - and worst observed -0.8907
@@ -7158,6 +7195,22 @@ the project's memory and the old versions had been repeated for months.
     factor-regression intercept** — no placebo floor exists for R1's own t, and none was
     invented. Still ONE panel; **X8's international replication is the out-of-sample evidence,
     R1 is not.** Full entry: `HANDOFF_edge_audit.md` Part 5.
+  * **THE NET-OF-COST CELL HAS BEEN UNMEASURABLE SINCE `B6` AND IS NOW MEASURED — AND IT CLEARS,
+    THEN FAILS IF BOTH TRADE LEGS ARE CHARGED (2026-10-13, `CANON-UNMEASURED`).**
+    `factor_alpha`'s `net_of_cost` block LEFT-joins `X4`'s shipped strategy series for `turnover`
+    and `cost_bps`, and that CSV sits on X4's own **110-date VOID pre-B6 grid** — which shares
+    **ZERO dates with the published 2,531 × 69 panel as well as with the corrected one.** So
+    every net cell came back `NaN`, and the `+7.85%/yr (t 5.16)` two bullets down is the void
+    109-period run, as that bullet already says. Measured on the corrected universe by supplying
+    a corrected `--strategy-series` (R1's arithmetic untouched, and its gross leg reproducing
+    `+0.0593976` at *t* `+4.4532` at **dev 0.000e+00**): **net intercept +4.0583%/yr at NW *t*
+    +3.0094 — it CLEARS `HANDOFF_r1.md` §1's own bar.** The pre-`B7` composite gives +4.11% at
+    *t* 3.04, so the composite choice is immaterial. **BUT `cost = (cost_bps/1e4) × turnover`
+    charges the one-way cost on the ENTERING side only, while `turnover_and_costs` charges both
+    legs — so R1's leg undercharges by about 2× against this project's own cost model, and
+    charging both legs gives +2.2936%/yr at *t* +1.7084, which does NOT clear.** R1's registered
+    formula is run as written and clears; **the discrepancy crosses the bar, so both figures must
+    travel together.** Re-pointing R1's formula is a different register's business.
 - **SUPERSEDED 2026-08-05 by the R1 RE-RUN above. Every number in the next bullet was measured
   on the pre-B6/B7 panel over a window that no longer exists, with a composite no shipped code
   path uses. Kept only as the record of what was claimed. DO NOT QUOTE IT.**

@@ -1,5 +1,70 @@
 # HANDOFF STATUS - shared project state
 
+## r1 lane — **the figures the canonical move left UNMEASURED are measured: the deployed Deflated Sharpe is 0.72 and not 0.0016, `X1` survives on both arms, and `R1`'s net-of-cost clears** (2026-10-13)
+
+Register `PREREG_canonmove_unmeasured.md` committed **ALONE at `e4b0dae`** (markdown only, 304
+lines, zero `.py`, a strict ancestor of every measurement commit). **ZERO TRIALS on every item**
+— each is a RE-MEASUREMENT of an already-registered construction, so `by_domain` is bit-identical
+(equity **297**, options **315**, infra **20**) and `rows_fixed_not_counted` rises **101 → 102**,
+checked by the appender rather than asserted. **Every figure is the DEPLOYED flat-1/7 book.
+ADOPTS NOTHING; NO PUBLIC PAGE CHANGED BY THIS LANE.** §0's weighting control passes at
+**abs dev 0.000e+00 on 3 of 3 cells**, gated on the count.
+
+- **THE DEPLOYED BOOK'S DEFLATED SHARPE IS 0.7208 at equity `N` 297, not the `cpcv` block's
+  0.0016 — a factor of 490.** It fails the conventional >0.95 and clears its matched
+  non-adopting placebo floor 0.5655, exactly as the published 0.7863 did, so **SURVIVES**. And
+  **roughly 0.040 of its 0.0655 fall is this project's own trial counter rising 224 → 297**, not
+  the universe — separated by inverting the banked probability, no re-run.
+- **PBO IS STRUCTURALLY NOT A STATISTIC ABOUT THAT BOOK, in either direction.** `_pbo` never
+  reads `adopt` or `recommend`, so `cpcv.pbo` is the same number whether or not adoption happened
+  — it scores a SELECTION step the deployed book never makes. The no-selection analogue reads
+  1.0 and the per-scheme control proves it is a pure out-of-sample **RANK** statistic, so **it
+  may never be published as a probability of overfitting.** `/proof` should keep showing it
+  UNMEASURED, now with that reason beside it.
+- **`X1` SURVIVES ON BOTH ARMS: 200 of 200 half books and 100 of 100 splits on each, ZERO of 400
+  measurements negative**, worst half book still +4.19%/yr at a long-short *t* of 3.29. So
+  *"400 half-universe books, not one negative"* **restates verbatim**. **And A2 is the arm that
+  moved** — 93.0% of half books on the published universe to 100% here.
+- **`R1`'s NET-OF-COST CELL CLEARS at +4.06%/yr, NW *t* 3.01.** The NaN was a zero-date LEFT JOIN
+  against `X4`'s 110-date series — **and the PUBLISHED panel shares zero dates with it too, so
+  that cell has been unmeasurable since `B6`, not since this move.** R1's arithmetic is
+  untouched; only its input grid. **CHARGING BOTH TRADE LEGS it reads +2.29%/yr at *t* 1.71 and
+  does NOT clear**, which is decision-relevant and is reported rather than fixed.
+- **`P1S0`'s optionable numerator is essentially a constant — 619 → 630, up 1.8% — while the
+  denominator went 3.8×**, so the share falls 24.46% → **6.53%** and
+  `optionable_partition.py`'s *"roughly a quarter of the research panel has listed options"* is
+  **wrong by 3.7×**. One name in fifteen is the honest phrasing.
+- **ROUTED TO DON, carrying NO verdict:** `P1S0` closed the options-expression family on an early
+  half that was **absent**, and on the corrected panel **every early-half cell is positive** at
+  all three horizons. The per-horizon floors were not re-run, the window is 39 post-2016 dates,
+  and re-opening the family is Don's.
+- **`V6-B` M1 is `REAL` and larger** — registered statistic −12.153pp at *t* −12.777 (published
+  −10.228), 4.05× its economic floor, **5 of 5** size quintiles clearing both halves against the
+  published 4 of 5. **The POOLED pair the Dip Detector tab carries moves materially: 32.5%/43.4%
+  → 35.3%/50.4%, so the LITERAL must be restated while the claim it supports gets STRONGER.**
+  And `M2`, VOID-UNDERPOWERED at 42 distress events, runs on **170** here and returns **NULL**.
+- **SIX BUGS FOUND. The worst: `scripts/canon_figure_table.py`'s three hard-coded paths were all
+  DEAD and the failure mode was SILENT ROW LOSS** — regenerating the hand-off table today would
+  have dropped **15 rows including every public landing-page figure** while printing a cheerful
+  count. Also: `X1`'s own `C2` asserted an imbalance of at most one name on a HASH split that is
+  balanced only in expectation (it had cleared on the published universe with probability
+  **0.0317**); `V6-B`'s `C1` and `v6b_addendum`'s five paths were the same family;
+  `factor_alpha`'s cost leg charges **one** trade leg rather than two; and **six rows of the
+  figure table read UNMEASURED while a later row in the same table carried the answer.**
+- **MY OWN SUITE WAS THE ONLY GATE FAILURE, and it was CI-only:** a module-level `_data_root()`
+  call in the generator, which is the exact defect `scripts/corrected_floors.py`'s docstring warns
+  about in writing and which I wrote after reading it. Fixed by moving the body into `build()`
+  (making the path lazy ALONE would have been worse — it would overwrite the tracked markdown
+  from a runner with no artifacts), plus the AST guard that would have caught it.
+- **STILL RUNNING:** `S22`'s eight per-horizon `fixed_weights_null` floors, 200 draws × 8
+  horizons, detached. `MB21`'s caveat travels with anything read off them — that null permutes
+  WITHIN each date, so its percentiles may never be compared with the 2.2837 family.
+- **Records:** `CANONICAL_MOVE_TABLE.md` §9, `CANONICAL_FIGURE_TABLE.md` (regenerated, 71 rows,
+  never hand-edited), `RESEARCH_LOG.md` + `VALQUO_LEDGER.md` rows, `HANDOFF_canon_unmeasured.md`.
+  **Recommended next step: the app fixer takes §9's three public figures** — and a canonical
+  re-run is what makes the deployed PBO/DSR readable live, since `cpcv.deployed_readings` is now
+  computed and projected (`SCHEMA_VERSION` 7 → 8, additive).
+
 ## options lane — **SELL-PREMIUM: `K3` fires, the program stops — and `A3`'s IV-rank gradient flattens 21.8x on a naked put** (2026-10-12)
 
 Executes the Frontier Scout's `PREREG_DRAFT_sellpremium.md` (`c4d9aa5` + `8f41b10`) with thirteen
