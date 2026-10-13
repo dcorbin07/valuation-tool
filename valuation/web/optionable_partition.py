@@ -77,8 +77,24 @@ GATE_REGISTER = "PREREG_p1s0_optionable_gate.md"
 ARTIFACTS = ("data/free_analysis/P1S0_GATE.json", "data/free_analysis/P1S0_CONTROL.json")
 
 #: The partition. `modes.pit_liquid` — names carrying a point-in-time liquid option chain.
-N_OPTIONABLE_NAMES = 619
-N_PANEL_NAMES = 2531
+#:
+#: RESTATED 2026-10-13 ON THE CORRECTED UNIVERSE (`CANON-UNMEASURED` §9.4). The NUMERATOR is
+#: very nearly a constant — 619 -> 630, up 1.8% — because the chain cache is a TARGETED pull of
+#: large liquid names, while the panel went 3.8x. So the share this module's own lede stated
+#: fell 24.46% -> 6.53% and the lede was wrong by 3.7x: that fraction, not either count, was
+#: the real change. 1,000 ticker directories on disk, 923 of them in the corrected panel, 39
+#: of 69 dates carrying a chain.
+N_OPTIONABLE_NAMES = 630
+N_PANEL_NAMES = 9645
+
+#: WHICH PANEL THE ALPHA TABLE BELOW WAS MEASURED ON, and it is NOT the one the two counts
+#: above describe. `HORIZONS` is `P1S0_GATE` / `P1S0_CONTROL`, both of which ran on the
+#: 2,531-name panel, and re-running them is a different question that carries no verdict yet
+#: (§9.4 routes it to Don: every early-half cell is positive on the corrected panel, with no
+#: per-horizon placebo floor re-run and 39 post-2016 dates rather than 69). Naming the panel
+#: is what stops the page pairing a corrected numerator with a published measurement, which is
+#: `MA19`'s mixed-pair defect.
+HORIZONS_PANEL = "the 2,531-company panel this site published before October 2026"
 
 #: The two windows, from the H=63 arm (the power anchor). The other two horizons use slightly
 #: different windows because each embargoes its own boundary; the years are stated loosely on
@@ -114,8 +130,8 @@ HEADING = "The part of the universe this product actually occupies"
 #: the first cut duplicated word for word directly above it.
 CALLOUT_HEADING = "Why this is reported and why it is not used"
 
-LEDE = ("Roughly a quarter of the research panel has listed options, and the hot list is drawn "
-        "largely from that quarter. Here is how the model's own ranking behaved on it — "
+LEDE = ("About one name in fifteen of the research panel has listed options, and the hot "
+        "list is drawn largely from those. Here is how the model's own ranking behaved on it — "
         "reported because it is a description of the product's own universe, and reported with "
         "the reason it cannot be used.")
 
@@ -124,7 +140,13 @@ WHAT_IT_IS = (
     "and those are the names that tend to be large and liquid enough to reach the hot list. "
     "The model's top-decile ranking was scored separately on that subset and on the whole "
     "panel over the same dates, so the only thing that differs between the two columns is "
-    "which companies are in them.").format(N_PANEL_NAMES, N_OPTIONABLE_NAMES)
+    "which companies are in them. Those two counts were restated on 2026-10-13 for the wider "
+    "universe the rest of this site now uses — the share of the panel with listed options is a "
+    "fifteenth of it rather than the quarter this page used to say, because the options cache "
+    "is a targeted pull of large names and barely grew while the panel nearly quadrupled. The "
+    "comparison itself was measured on {}, and has not been re-measured on the wider one, "
+    "so read the table as that panel's.").format(
+        N_PANEL_NAMES, N_OPTIONABLE_NAMES, HORIZONS_PANEL)
 
 #: The finding, and the copy leads with the reversal rather than with either half.
 WHAT_WAS_MEASURED = (
@@ -152,7 +174,7 @@ CANNOT_SEPARATE = (
 
 SOURCE_NOTE = (
     "Top-decile alpha against an equal-weighted benchmark, annualised, gross of costs, on one "
-    "18-year point-in-time panel. Each horizon embargoes its own half boundary, so the two "
+    "18-year point-in-time panel — the earlier, narrower one, named above. Each horizon embargoes its own half boundary, so the two "
     "windows shift slightly between rows; the years above are stated loosely for that reason.")
 
 # --------------------------------------------------------------------------------------- #

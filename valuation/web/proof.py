@@ -395,6 +395,33 @@ def _tension(res: dict, hlz: dict):
     return bars + tail + note
 
 
+#: THE DEPLOYED BOOK'S DEFLATED SHARPE, measured by `CANON-UNMEASURED` (2026-10-13) and
+#: transcribed here because the tracked artifact has NOT been re-generated -- `cpcv` still
+#: carries the ADOPTED book's figure, which is 490x smaller. `MA13`'s idiom: a figure this page
+#: states is a literal in the module, so a change to it shows in a diff.
+#:
+#: `N` IS PART OF THE FIGURE AND TRAVELS WITH IT. `sr0` is a function of the project's own
+#: trial count, so quoting this value against a floor measured at a different `N` is exactly
+#: the mixed pair `MA19` exists to prevent. Published: 0.7863 at `N` 224. Deployed, corrected:
+#: 0.720824 at `N` 297, against a matched NON-ADOPTING placebo floor of 0.565519 over 84 draws.
+DEPLOYED_DSR = 0.720824
+DEPLOYED_DSR_N = 297
+#: TWO READINGS OF THE SAME FLOOR, AND THE FIGURE CLEARS BOTH, so neither has to be chosen.
+#: The all-draws p95 is the pairing the PUBLISHED 0.7863-vs-0.6637 comparison used; the
+#: non-adopting subset is the like-for-like one, since the deployed book selects nothing.
+#: Stating both is strictly more informative than picking, and it removes the one choice a
+#: reader could accuse this page of having made in its own favour.
+DEPLOYED_DSR_FLOOR = 0.565519
+DEPLOYED_DSR_FLOOR_ALL = 0.591244
+DEPLOYED_DSR_FLOOR_DRAWS = 84
+PUBLISHED_DSR = 0.7863
+
+DEPLOYED_DSR_TEXT = "0.72"
+DEPLOYED_DSR_FLOOR_TEXT = "0.57"
+DEPLOYED_DSR_FLOOR_ALL_TEXT = "0.59"
+PUBLISHED_DSR_TEXT = "0.79"
+
+
 def _bars(res: dict, placebo: dict = None):
     """The thresholds, including — especially — the ones the headline does not clear.
 
@@ -475,18 +502,34 @@ def _bars(res: dict, placebo: dict = None):
             "name": "Probability of backtest overfitting",
             "value": _num(pbo.get("value")), "bar": 0.50, "lower_is_better": True,
             "passes": _num(pbo.get("value")) < 0.50,
+            # CORRECTED 2026-10-13 (`CANON-UNMEASURED` §9.1), AND IT CORRECTS THIS PAGE'S OWN
+            # ITEM-47 WORDING. That wording said the figure "describes the tuned book". It does
+            # not describe EITHER book: `_pbo` never reads `adopt` or `recommend`, so it scores
+            # the SELECTION STEP over the eight candidates and returns the same number whether
+            # adoption happened or not. The deployed book selects nothing, so this statistic is
+            # not about it in either direction -- which is a stronger reason for showing it
+            # unscored than the one given before, and the figure stays UNMEASURED rather than
+            # being filled in with the deployed analogue (that reads 1.0 at a median
+            # out-of-sample rank of a quarter of eight, and the per-scheme control proves it a
+            # pure RANK statistic -- 0.0 for the three best schemes, 1.0 for the three worst --
+            # so it may never be rendered as a probability of anything and has no floor).
             "what": "UNMEASURED FOR THE BOOK THIS PAGE IS ABOUT, and the number beside it "
                     "is not a pass to quote. This statistic scores the step that CHOOSES "
-                    "between weightings, and on this universe that step picks a tuned "
-                    "weighting for the first time in the project's history -- so the figure "
-                    "describes the tuned book, not the flat-weighted one the site runs. The "
-                    "bar is also close to useless here: on this panel's own shuffled runs "
-                    "41 of 100 worthless signals 'pass' it. Shown rather than dropped, "
-                    "because a measure we cannot score for the deployed book should be "
-                    "visible as unscored.",
+                    "between the eight candidate weightings -- it never reads which one was "
+                    "adopted, so it returns the same figure either way. The book this site "
+                    "runs chooses nothing: its weights are flat and were never tuned, so "
+                    "there is no selection for this measure to score and it is not evidence "
+                    "about the deployed book in either direction. Re-measured for the "
+                    "deployed book on 2026-10-13 it comes back as a pure ranking of the eight "
+                    "schemes rather than a probability, so it is reported as unmeasurable "
+                    "rather than filled in. The bar is close to useless here as well: on this "
+                    "panel's own shuffled runs 41 of 100 worthless signals 'pass' it. Shown "
+                    "rather than dropped, because a measure we cannot score for the deployed "
+                    "book should be visible as unscored.",
             "scope": _dig(res, "cpcv", "pbo_scope"),
             "unmeasured_for_the_deployed_book": True,
-            "describes": "the CPCV-adopted book, not the deployed flat-weight book",
+            "describes": "the SELECTION STEP over the eight candidate weightings -- not any "
+                         "one book, and not the deployed flat-weight book",
         })
 
     dsr = _dig(res, "cpcv", "deflated_sharpe", default={})
@@ -496,17 +539,38 @@ def _bars(res: dict, placebo: dict = None):
             "name": "Deflated Sharpe ratio",
             "value": _num(dsr.get("value")), "bar": 0.95,
             "passes": _num(dsr.get("value")) > 0.95,
-            "what": "UNMEASURED FOR THE BOOK THIS PAGE IS ABOUT, like the line above, and "
-                    "for the same reason: it is computed on whichever weighting the "
-                    "selection step chose, and on this universe that is a tuned one rather "
-                    "than the flat weights the site runs. On the previous universe the two "
-                    "were the same book and this figure read 0.79 -- failing the "
-                    "conventional 0.95 bar while sitting above all 100 shuffled runs. Here "
-                    "it fails both: 0.0016 against 0.95 and against this panel's own "
-                    "shuffled floor of 0.59. It is shown rather than dropped, and it is not "
-                    "evidence about the deployed book in either direction.",
-            "unmeasured_for_the_deployed_book": True,
-            "describes": "the CPCV-adopted book, not the deployed flat-weight book",
+            # MEASURED FOR THE DEPLOYED BOOK ON 2026-10-13 (`CANON-UNMEASURED` §9.1), so
+            # this row is no longer a bare "unmeasured". The number BESIDE it is still the
+            # adopted book's and still may not be quoted -- the two differ by 490x -- which is
+            # why the deployed reading is stated in words rather than swapped into `value`:
+            # the value column reads the artifact, and the artifact has not been re-generated.
+            "what": "THE NUMBER BESIDE THIS IS NOT THE BOOK THIS PAGE IS ABOUT. It is "
+                    "computed on whichever weighting the selection step chose, and on this "
+                    "universe that is a tuned one rather than the flat weights the site runs "
+                    "-- the two differ by a factor of about %d, so the figure beside it is "
+                    "not evidence about the deployed book in either direction. The deployed "
+                    "book's own figure WAS measured on 2026-10-13: %s against the "
+                    "conventional %s bar, which it FAILS, and against this panel's own "
+                    "shuffled floor, which it CLEARS on either reading of that floor -- %s "
+                    "across all the shuffled runs and %s across the ones whose weights were "
+                    "left flat, as the deployed book's are -- exactly the relationship the "
+                    "previous universe's %s had to the same two bars, so the finding is "
+                    "unchanged and only the figure moved. Most of that move is this project's "
+                    "own trial counter rather than the data: about two thirds of it is the "
+                    "count of tests rising from 224 to 297, which raises the bar the "
+                    "statistic deflates against."
+                    # DERIVED from the artifact's own value rather than transcribed: r1's
+                    # 490x is against ITS adopted figure, and pairing their ratio with this
+                    # page's value would be the mixed pair `MA19` exists to prevent.
+                    % (round(DEPLOYED_DSR / max(_num(dsr.get("value")) or 1e-9, 1e-9)),
+                       DEPLOYED_DSR_TEXT, "0.95", DEPLOYED_DSR_FLOOR_ALL_TEXT,
+                       DEPLOYED_DSR_FLOOR_TEXT, PUBLISHED_DSR_TEXT),
+            "unmeasured_for_the_deployed_book": False,
+            "deployed_value": DEPLOYED_DSR,
+            "deployed_floor": DEPLOYED_DSR_FLOOR,
+            "deployed_n_trials": DEPLOYED_DSR_N,
+            "describes": "the CPCV-adopted book; the deployed book's own reading is stated "
+                         "beside it and was measured separately",
             "n_trials": _num(dsr_detail.get("n_trials")),
         })
 

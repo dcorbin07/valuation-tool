@@ -123,7 +123,7 @@ RISK_REGISTERED_SENTENCE = (
 #: The headline. Leads with what was measured and names the population, because "healthy dips
 #: are safer" without "than other dips" is a comparison with nothing on the other side.
 RISK_HEADLINE = ("Tested: among names already down 20%, the healthy ones fell another 20% "
-                 "far less often — 32.5% of the time against 43.4%.")
+                 "far less often — 35.3% of the time against 50.4%.")
 
 #: The numbers, the replication, and the two caveats that must travel with them.
 #:
@@ -144,26 +144,30 @@ RISK_HEADLINE = ("Tested: among names already down 20%, the healthy ones fell an
 #: because one surface should not carry two conventions, and because the ratio and both rates
 #: say everything the gap said and travel correctly.
 RISK_DETAIL = (
-    "That is about a quarter fewer in relative terms — 32.5% against 43.4% — "
-    "measured on 37,014 drawdown episodes across an 18-year point-in-time panel of 2,531 "
+    "That is about three in ten fewer in relative terms — 35.3% against 50.4% — "
+    "measured on 117,113 drawdown episodes across an 18-year point-in-time panel of 9,645 "
     "companies. It held in both halves of the period separately — 2009-2017 and 2017-2026 — "
-    "and it held in all five company-size tiers, though only four of the five also held in "
-    "both halves on their own. The effect is LARGEST in the smallest companies and WEAKEST in "
-    "the very largest, which is the opposite of where most of this site's coverage sits, so "
-    "expect it to be milder for household-name megacaps. And this is one historical panel, "
-    "not a forward test — and it is the PREVIOUS one: the rest of this site moved to a wider "
-    "9,645-company universe in October 2026, and this result has NOT been re-measured there. "
-    "It needs a point-in-time health score and forward drawdown paths that no panel carries, "
-    "so it is a new build rather than a re-run, and it is reported as not re-measured rather "
-    "than assumed to carry over.")
+    "and it held in all five company-size tiers, in both halves, in every one. The effect is "
+    "LARGEST in the smallest companies and WEAKEST in the very largest, which is the opposite "
+    "of where most of this site's coverage sits, so expect it to be milder for household-name "
+    "megacaps. And this is one historical panel, not a forward test. "
+    "Re-measured on 2026-10-13 on the wider 9,645-company universe the rest of this site "
+    "moved to: the two percentages above both ROSE and the gap between them WIDENED, from "
+    "32.5% against 43.4% to 35.3% against 50.4%, so the previous pair is the earlier panel's "
+    "and no longer holds while the finding it supports got stronger. The size gradient "
+    "steepened too, and the five-of-five above was four of five before.")
 
 #: The distinction, stated on the surface rather than left to inference. This is the sentence
 #: that stops a risk result being read as a return result.
 RISK_NOT_A_PROMISE = (
     "Read this as a statement about how often things got WORSE, never as a forecast that they "
     "will get better. It says these names fell a further 20% less often than their unhealthy "
-    "peers — not that they recovered, and not that they avoided failing outright, which was "
-    "measured separately and came back too thin to call either way.")
+    "peers — not that they recovered, and not that they avoided failing outright. That second "
+    "question was measured separately: on the earlier panel it had too few failures to score "
+    "at all, and on the wider one it has enough and comes back UNDECIDED — the whole period "
+    "and its later half separate, the earlier half does not, and the rule set in advance was "
+    "that it had to be both. A question that can now be asked and still has no answer is a "
+    "different thing from one nobody could ask, and it is not support for either side.")
 
 #: Filled by the close-out. In POSITIVE these carry the effect size and its caveats; in NULL,
 #: what was measured and what came back. Left empty in OPEN, and the test pins that.

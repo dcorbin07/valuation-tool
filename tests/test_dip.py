@@ -551,17 +551,29 @@ def test_the_two_verdicts_are_rendered_as_two_and_the_dead_one_is_not_dropped():
     assert "None of the four cleared its bar" in page, (
         "the RETURN null's detail stopped rendering; the headline alone is not the verdict")
     assert "not shown" in page, "the null's own caveat about what NULL means is missing"
-    assert "32.5% of the time against 43.4%" in page, "the RISK result is not on the surface"
+    # RESTATED 2026-10-13 (`CANON-UNMEASURED` §4.2, item 50 part 4). The literal was
+    # 32.5%/43.4% and is now 35.3%/50.4%: r1 re-measured the pooled pair on the wider
+    # 9,645-name universe, both percentages rose, the gap widened, and the verdict stayed
+    # REAL. The guard still asks what it always asked -- that the live RISK figure reach
+    # the page -- and it is the literal, so it moves with the figure or it pins the wrong
+    # panel's number.
+    assert "35.3% of the time against 50.4%" in page, "the RISK result is not on the surface"
     # MB10 — STRICTLY STRONGER THAN THE PIN IT REPLACES. This asserted the ABSOLUTE GAP was on
     # the surface ("10.8-point absolute reduction"). `MA28-CARD`'s rule is quote the ratio and
     # both rates and NEVER the difference, so the surface now states the ratio with both rates
     # and the gap is gone. The replacement checks BOTH halves of that — the ratio and rates are
     # present AND the gap is absent — which the old assertion did not do in either direction.
-    assert "about a quarter fewer in relative terms" in page, (
+    # RESTATED 2026-10-13: 25.0% relative became 29.91%, so "about a quarter fewer" became
+    # "about three in ten fewer". The property is unchanged -- the RATIO is stated and both
+    # RATES are beside it -- and only the words that carry the numbers moved.
+    assert "about three in ten fewer in relative terms" in page, (
         "the effect size is not on the surface")
-    assert "32.5% against 43.4%" in page, (
+    assert "35.3% against 50.4%" in page, (
         "the ratio is on the surface without both rates beside it")
-    for gap in ("10.8-point", "10.8 point", "10.8pp", "10.8 percentage point"):
+    # The absolute-gap ban now covers BOTH panels' gaps. The corrected one is -15.07pp, and a
+    # ban that only knows the old figure would let the new one back on under the same rule.
+    for gap in ("10.8-point", "10.8 point", "10.8pp", "10.8 percentage point",
+                "15.1-point", "15.1 point", "15.1pp", "15.07pp", "15.1 percentage point"):
         assert gap not in page, f"the absolute gap is back on the surface: {gap!r}"
     assert "one historical panel" in page, "the one-panel caveat is not on the surface"
     assert "never as a forecast that they will get better" in page, (

@@ -18263,3 +18263,99 @@ standalone.**
 remedy from the body instead of globbing the code — low priority, since the installed version
 already prints a correct fix line for the STALE case. Double-click `install_workflows.bat` to
 take it.
+
+---
+
+## item 50 part 4 — r1's re-measurement reaches the public pages, and three of the four figures were guarded by NOTHING
+
+**ZERO new measurements.** Every figure is `CANON-UNMEASURED`'s, read from
+`CANONICAL_MOVE_TABLE.md` §9 and pinned against the GENERATED `CANONICAL_FIGURE_TABLE.md`. r1
+changed no public page by its own brief and wrote the hand-over down: *"the Dip Detector tab's
+transcription of it is owed a restatement."*
+
+### THE FINDING, AND IT IS ITEM 47's LESSON ARRIVING A SECOND TIME
+
+Before adding a guard, each restated figure was **reverted to its published value by mutation**
+to see what noticed. **Three of four: nothing.** The dip pair was caught, because its literal is
+pinned against the rendered page; `optionable_partition`'s two counts and the deployed Deflated
+Sharpe were caught by **no suite at all**, so either could have drifted back silently. The repair
+extends `test_canonical_public_figures` — which already parses the generated table — rather than
+adding a second parser, and **4 of 4 mutations are now caught with sources restored
+byte-for-byte**. A skip is loud and is never a pass (`O21-D2`'s `C5`).
+
+### WHAT EACH PAGE NOW SAYS
+
+* **The Dip Detector tab.** The pooled pair **32.5% / 43.4% → 35.3% / 50.4%**, the relative
+  reduction *"about a quarter fewer"* → *"about three in ten fewer"* (25.0% → 29.91%), the
+  population **37,014 episodes on 2,531 companies → 117,113 on 9,645**, and the size tiers
+  **four of five → all five, in both halves**. The sentence saying the result had **NOT** been
+  re-measured on the wider universe is gone, because it has been. **The standing caveat is
+  untouched and still true: the effect is largest in the smallest companies and weakest in the
+  largest, which is the opposite of where this site's coverage sits.**
+* **`M2`, the distress arm, changes STATE rather than value, and the copy had to change with
+  it.** It read *"too thin to call either way"* — true of the published panel's 42 events and
+  false now: 170 events, the arm runs, the full period and its late half separate, the early
+  half does not, and the pre-committed rule was both. So the surface now says a question that
+  **can** be asked and still has no answer, which is a different thing from one nobody could
+  ask. **`V6`'s rule: an absent measurement and a null must not read the same.**
+* **The optionable-universe section.** `N_PANEL_NAMES` **2,531 → 9,645**, `N_OPTIONABLE_NAMES`
+  **619 → 630**, and the lede *"Roughly a quarter of the research panel has listed options"* →
+  **about one name in fifteen**. That fraction, not either count, is the real change: the chain
+  cache is a targeted pull of large liquid names and grew 1.8% while the panel went 3.8×, so the
+  share fell **24.46% → 6.53%** and the page was wrong by **3.7×**.
+* **AND THAT CREATED A MIXED PAIR WHICH IS NAMED RATHER THAN LEFT.** The alpha comparison below
+  those counts is `P1S0_GATE`/`P1S0_CONTROL`, both measured on the **2,531-name** panel, so a
+  corrected numerator above a published measurement is exactly `MA19`'s defect. `HORIZONS_PANEL`
+  names the panel and both the body copy and the source note now read as that panel's.
+  **Re-running the comparison is NOT done and carries no verdict**: §9.4 routes it to Don —
+  every early-half cell is positive on the corrected panel, with no per-horizon placebo floor
+  re-run and 39 post-2016 dates against 69 — and `P1S0-CONTROL`'s NULL is not re-opened.
+* **`/proof`'s Deflated Sharpe is no longer a bare "unmeasured".** The deployed book reads
+  **0.72 at `N` 297** against the published **0.79 at `N` 224** — **fails** the conventional
+  0.95 and **clears** the panel's own shuffled floor, the same relationship the published figure
+  had, so the finding is unchanged and only the number moved. **Both readings of that floor are
+  stated — 0.59 across all draws and 0.57 across the non-adopting ones — because 0.72 clears
+  both, which removes the one choice a reader could accuse the page of making in its favour.**
+  The value column still reads the artifact (the adopted book's, a few hundred times smaller),
+  so the deployed figure is stated in words and **the ratio between them is DERIVED at render
+  time**: r1's 490× is against r1's own adopted figure, and pairing their ratio with this page's
+  value would be the same mixed pair one level down.
+* **`/proof`'s PBO stays UNMEASURED, and the reason corrects MY OWN item-47 wording.** That
+  wording said the figure *"describes the tuned book"*. It describes **neither** book: `_pbo`
+  never reads `adopt` or `recommend`, so it scores the SELECTION STEP over the eight candidates
+  and returns the same number either way. The deployed book selects nothing, so the statistic is
+  not about it in either direction — and the deployed analogue is a pure RANK (1.0, at a median
+  out-of-sample rank of a quarter of eight; 0.0 for the three best schemes and 1.0 for the three
+  worst), so it may never be rendered as a probability and is reported unmeasurable rather than
+  filled in.
+* **`R1`'s net-of-cost intercept reaches `/methodology` and the portfolio page at +4.06%/yr
+  (t 3.01), WITH the reading that does not clear.** Charged on both trade legs, as this
+  project's cost model does elsewhere, it falls to **+2.29%/yr at t 1.71** — under the
+  threshold. Both are stated because **the difference crosses the bar**, and a caveat that
+  crosses the bar is not a footnote. Which is the registered figure is the register's question,
+  not a page's.
+* **AND `/methodology` HAD THE REASON WRONG, in a comment the next lane would have believed.**
+  It blamed coverage — *"the cost model's inputs cover 2,524 of 9,645 names"*. The NaN was a
+  **zero-date LEFT JOIN** against a series on X4's own 110-date grid, which the published panel
+  shares no dates with either, so **the cell had been unmeasurable since `B6` rather than since
+  October's move** and the shipped +7.85%/yr (t 5.16) is the VOID pre-B6 run.
+
+### NOT RESTATED, AND WHY
+
+* **`X1` is on no public page.** Its restored sentence — 400 half-universe books, not one
+  negative — was checked for across `README`, `START_HERE` and every module and template under
+  `valuation/`, and appears in none of them. It is a research-record restatement, not a page's.
+* **`dip_posture.RISK_REGISTERED_SENTENCE` still carries the published pair (33% against 43%)
+  and is DELIBERATELY unchanged.** `tests/test_dip.py` asserts it verbatim against
+  `HANDOFF_edge_audit.md`, whose own wording the edge lane has not revised — *"if the edge lane
+  revises it, this fails rather than drifting"* is that guard's stated purpose, and editing
+  another lane's handoff to make my change pass would be making the record agree by fiat. **It
+  reaches no page**: the tab renders the headline, the detail and the not-a-promise line, and
+  that constant reaches only `digest_claim`, whose push is gated on the RETURN verdict being
+  POSITIVE and that verdict is NULL. **So the stale pair cannot leave the building, and the
+  constant follows the moment the edge lane restates its sentence.** Routed to r1.
+* **The tracked artifact is NOT re-generated** (§7 and the register's own void condition), so
+  `cpcv.deployed_readings` arrives with the next canonical run rather than here.
+
+**25 suites green across both halves of this item** — part 4's own 14 plus the 11 that touch
+`/methodology` — and `test_canon_unmeasured`, r1's own new suite, passes against these pages.
