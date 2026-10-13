@@ -270,6 +270,59 @@ def health():
                     "mc_trials": CONFIG.montecarlo_trials})
 
 
+def _price_assumes_block(result) -> dict:
+    """Item 52 parts 2, 3 and 7b, assembled from what the engine already computed.
+
+    NEVER RAISES. The lead read is the most valuable thing on the page and it is also the
+    newest, so a defect in it must cost the reader this block and not the valuation. The
+    failure is REPORTED in the block rather than swallowed into an absence -- an empty read
+    and a broken one are different facts.
+    """
+    # IMPORTED OUTSIDE THE `try`, so the failure branch below can name the rule even when the
+    # assembly failed. Inside it, `PA` would be unbound exactly when it is needed.
+    from ..web import price_assumes as PA
+    try:
+        cd = getattr(result, "company", None)
+        cls = getattr(result, "classification", None)
+        rev = getattr(result, "reverse", None)
+        regime = str(getattr(cls, "regime", "") or "")
+        is_fin = regime == "financial"
+
+        # THE BUSINESS'S OWN LAST-YEAR GROWTH, from the engine's own accessor rather than
+        # re-derived here. `blended_growth` is deliberately NOT used: it is a forward-ish
+        # estimate that mixes a 3-year CAGR with an analyst figure, and the sentence says
+        # "the business grew Y% over the last year", which is a measurement of the past.
+        biz = None
+        try:
+            biz = cd.revenue_growth(1) if cd is not None else None
+        except Exception:                                          # noqa: BLE001
+            biz = None
+
+        fin_rev = (getattr(result, "financial_extras", None) or {}) if is_fin else {}
+        fin_rev = (fin_rev.get("reverse") or {}) if isinstance(fin_rev, dict) else {}
+        lead = PA.price_assumes(
+            rev, biz, is_financial=is_fin,
+            implied_roe=(fin_rev.get("implied_roe") if is_fin else None),
+            book_roe=(getattr(cd, "roe", None) if is_fin else None))
+
+        blend = getattr(result, "fair_value_blend", None)
+        warn = PA.dcf_warning(
+            regime=regime,
+            dcf_reliability=str(getattr(cls, "dcf_reliability", "") or ""),
+            cash_burning=bool(getattr(cls, "cash_burning", False)),
+            growth_led=bool(getattr(blend, "growth_led", False)),
+            reverse=rev, business_growth=biz)
+
+        return {"ok": True, "lead": lead, "warning": warn,
+                "template_note": PA.hypergrowth_template_note(regime, rev),
+                "story_rule": PA.STORY_RULE_TEXT, "reason": ""}
+    except Exception as e:                                         # noqa: BLE001
+        log_exception("price_assumes_block")
+        return {"ok": False, "lead": None, "warning": None, "template_note": "",
+                "story_rule": PA.STORY_RULE_TEXT,
+                "reason": safe_error(e)}
+
+
 @app.route("/api/value", methods=["POST"])
 def api_value():
     data = request.get_json(force=True) or {}
@@ -328,6 +381,16 @@ def api_value():
             payload.setdefault("warnings", []).append(
                 "Could not compute a per-share value (missing shares/price). "
                 "Check the ticker symbol.")
+        # ---------------------------------------------------------------- ITEM 52 ----------
+        # WHAT THE PRICE ASSUMES, AND WHETHER TO USE THE FAIR VALUE AT ALL.
+        #
+        # Added AFTER the withholding pass on purpose. `withhold_derived_figures` strips
+        # everything downstream of a suppressed fair value, and this block is a read ABOUT the
+        # price rather than a figure derived from the withheld value -- so it must not be
+        # stripped, and it must not be computed from a number that was suppressed either.
+        # `price_assumes` takes the reverse-DCF result, which is the engine's own answer to a
+        # question that does not go through the fair value.
+        payload["price_assumes"] = _price_assumes_block(result)
         return jsonify(payload)
     except Exception as e:
         log_exception()

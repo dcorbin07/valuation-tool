@@ -18641,3 +18641,79 @@ schema's VALUE now.
 **NOT DONE IN THIS LANDING, and named so it is not mistaken for done:** parts 2, 3, 4, 5 and 6
 — the price-assumes lead, the DCF warning and its story-stock rule, the hot-score block, the
 company description, and the automatic AI run with its cost measurement.
+
+---
+
+## item 52 parts 2, 3 and 7b — the page leads with what the price assumes, and TSLA is caught by the one rule that had to be invented
+
+`valuation/web/price_assumes.py` owns this copy, one module, pinned by test — the
+`dip_posture` / `score_confidence` pattern. **Nothing it produces enters a score, a composite,
+the hot list, the Index or the forward record**; it reads what `reverse_dcf` already computed
+on every run and says it in words.
+
+### THE LEAD, ABOVE THE HERO CARD
+
+*"The price assumes about 38% a year of growth; the business grew 77% over the last year and
+the model's base case uses 34% a year."* Three numbers in one sentence, because each alone
+invites the wrong reading — the implied figure looks like a forecast, the business figure like
+a projection, and the model's base case like something company-specific.
+
+**A BOUNDED SOLVE SAYS "AT LEAST", NOT "ABOUT".** The engine already flags when its solver hit
+its search bound rather than converging, and that fires on exactly the priced-for-perfection
+names where the figure matters most. Reporting a floor as an estimate is how an understatement
+goes unnoticed.
+
+**A FINANCIAL IS ASKED THE MATCHING QUESTION** — the implied return on equity, as the reverse
+box already does — and the sentence **names the concept** rather than saying "18.2% on its book
+value" and leaving a reader to work out what that is called.
+
+### THE WARNING, AND TSLA IS WHY THE STORY RULE EXISTS
+
+Triggers, each read from the engine's own classification and each carrying its own reason:
+hypergrowth, cash-burning, growth-led, low reliability, and **story stock**.
+
+**ON THE FIVE NAMES THE PROMPT NAMES: NVDA, APLD and TSLA warn; KO and JNJ do not.** The
+interesting half is *how*:
+
+* **TSLA is caught by the story rule ALONE** — `triggers == ["story"]`. It is mature, its DCF
+  reliability is HIGH, it is not cash-burning and not growth-led, so **every other trigger
+  passes it by**, and it is the name whose $23.23 fair value against a $378.03 price started
+  this item. The rule is load-bearing rather than decorative, and a test says so.
+* **NVDA is caught by its REGIME and is NOT a story stock** — its price assumes 37.9% against a
+  business that grew 77%, so the gap is **−39.1 points**, the wrong way. Recorded because the
+  obvious assumption — that NVDA warns because it looks expensive — is wrong.
+
+**THE RULE IS STATED ON THE PAGE AND DISCLAIMS ITSELF:** at least 15 percentage points a year
+between what the price assumes and what the business has shown. **15 is a disclosure threshold
+and is calibrated against nothing** — this project has never tested it, the copy says so, and
+the asymmetry is the argument: a wrong threshold costs a reader a caveat they did not need,
+while the opposite error is a reader deciding on a $23 fair value for a $378 stock.
+
+**AND THE BADGE CANNOT CONTRADICT THE WARNING.** *"DCF reliability: high"* above *"do not use
+the fair value"* is a contradiction a reader resolves in favour of the badge, because a badge
+looks like a measurement. When the warning fires the badge is renamed to what it actually
+measures — how well this company TYPE fits a cash-flow model — and it is never green there.
+
+### PART 7b's COPY, AND IT IS PINNED AGAINST THE ENGINE RATHER THAN TRANSCRIBED
+
+*"That base case is not a forecast about this company. For a hypergrowth name the model caps
+the starting growth at 60% a year and fades it on a fixed path, so every company in this
+category whose own growth is above the cap gets the same numbers."* The note is **silent for a
+mature name**, because a caveat about a cap that did not bind is noise. A test re-derives
+`_fade_path(0.60, 0.030, 10, 2)` from the engine's own constants and requires its mean to be
+**0.3435**, so changing the cap fails there instead of silently making this sentence wrong.
+
+**AN UNKNOWN GAP IS NOT A ZERO GAP.** No implied figure returns `None`, not `0.0` — which would
+read as "the price assumes exactly what the business does", the most reassuring possible answer
+to a question nobody answered.
+
+**A BROKEN BLOCK SAYS SO.** The route's assembly never raises and reports `ok: false` with the
+reason: the lead read is the most valuable thing on the page and also the newest, so a defect
+in it must cost the reader this block rather than the valuation — and an absent read and a
+failed one are different facts.
+
+**15 suites green plus 17 new tests (41 in the item's own suite).**
+
+**NOT DONE: parts 4, 5 and 6** — the hot-score block with its calibrated limits, the company
+description and key facts from the market-data profile, and the automatic AI run with its
+measured cost and daily cap.

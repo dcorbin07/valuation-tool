@@ -39,7 +39,10 @@ sys.path.insert(0, REPO)
 import state_isolation   # noqa: E402,F401  — LA15: temp state only. Import BEFORE `valuation`.
 
 from valuation.engine import scoring as S          # noqa: E402
+import types                                       # noqa: E402
+
 from valuation.web import dip                      # noqa: E402
+from valuation.web import price_assumes as PA      # noqa: E402
 
 #: The five words the page used to print. Banned as a SET from the surfaces that render a
 #: score, never as a blanket ban on the tree: "Avoid" and "Hold" are ordinary English, and a
@@ -250,6 +253,156 @@ class TheAIPanelMayNotReinstateTheLabel(unittest.TestCase):
         src = _src(os.path.join("valuation", "ai", "analyst.py"))
         self.assertIn('"business_quality": result.score.business_quality', src)
         self.assertIn('"price_vs_model": result.score.price_vs_model', src)
+
+
+class ThePriceAssumesLeadAndTheDCFWarning(unittest.TestCase):
+    """Parts 2, 3 and 7b, on the five names the prompt names.
+
+    The fixtures carry the figures Don measured live on 2026-10-13 (`/api/value`,
+    `/api/whatdo`) rather than calling the engine: what is under test is the COPY RULE, and a
+    test that fetched NVDA would be testing the network. The engine's own wiring into these
+    functions is covered where it lives, in the route block.
+    """
+
+    #: (regime, dcf_reliability, implied_avg_growth, business_growth, cash_burning)
+    NAMES = {
+        # hypergrowth / medium, price implies 37.9%, business grew 77% -> the gap is NEGATIVE,
+        # so NVDA is NOT a story stock by the stated rule and is warned on its REGIME.
+        "NVDA": ("hypergrowth", "medium", 0.379, 0.77, False),
+        "APLD": ("hypergrowth", "low", 0.494, 1.00, True),
+        # mature / HIGH reliability, price implies 64.9% against a business growing ~10%.
+        # NOTHING but the story rule catches this one -- which is why the rule exists.
+        "TSLA": ("mature", "high", 0.649, 0.10, False),
+        "KO":   ("mature", "high", 0.050, 0.03, False),
+        "JNJ":  ("mature", "high", 0.045, 0.04, False),
+    }
+
+    def _rev(self, implied, base=0.3435):
+        return types.SimpleNamespace(implied_avg_growth=implied, base_avg_growth=base,
+                                     implied_growth_bounded="")
+
+    def _warn(self, t):
+        regime, rel, imp, biz, burn = self.NAMES[t]
+        return PA.dcf_warning(regime=regime, dcf_reliability=rel, cash_burning=burn,
+                              growth_led=False, reverse=self._rev(imp),
+                              business_growth=biz)
+
+    def test_NVDA_APLD_and_TSLA_all_get_the_warning(self):
+        for t in ("NVDA", "APLD", "TSLA"):
+            self.assertTrue(self._warn(t)["warn"], t)
+
+    def test_KO_and_JNJ_do_NOT_get_the_warning(self):
+        """The prompt's own condition, and the one that stops the warning being furniture."""
+        for t in ("KO", "JNJ"):
+            w = self._warn(t)
+            self.assertFalse(w["warn"], (t, w["triggers"]))
+            self.assertEqual(w["headline"], "")
+            self.assertFalse(w["reliability_suppressed"])
+
+    def test_TSLA_is_caught_ONLY_by_the_story_rule(self):
+        # mature, high reliability, not cash-burning, not growth-led: every other trigger
+        # passes it. Don's example is the case the rule was written for, and this is the
+        # assertion that the rule is load-bearing rather than decorative.
+        self.assertEqual(self._warn("TSLA")["triggers"], ["story"])
+
+    def test_NVDA_is_caught_by_its_REGIME_and_is_not_a_story_stock(self):
+        # Its price assumes LESS growth than the business showed (37.9% vs 77%), so the gap is
+        # negative. Reported because the obvious assumption -- that the warning fires on NVDA
+        # because it looks expensive -- is wrong, and a reader of this suite would make it.
+        w = self._warn("NVDA")
+        self.assertIn("hypergrowth", w["triggers"])
+        self.assertNotIn("story", w["triggers"])
+        self.assertLess(w["gap_pp"], 0)
+
+    def test_the_story_rule_is_STATED_and_disclaims_itself(self):
+        self.assertIn("15 percentage points", PA.STORY_RULE_TEXT)
+        self.assertIn("not a finding", PA.STORY_RULE_TEXT)
+        self.assertIn("never tested", PA.STORY_RULE_TEXT)
+
+    def test_the_rule_bites_exactly_at_the_threshold(self):
+        self.assertTrue(PA.is_story_stock(self._rev(0.25), 0.10))      # 15.0pp
+        self.assertFalse(PA.is_story_stock(self._rev(0.249), 0.10))    # 14.9pp
+
+    def test_an_UNKNOWN_gap_is_not_a_zero_gap(self):
+        # The most reassuring possible answer to a question nobody answered.
+        self.assertIsNone(PA.story_gap_pp(None, 0.10))
+        self.assertIsNone(PA.story_gap_pp(self._rev(0.5), None))
+        self.assertIsNone(PA.is_story_stock(None, 0.10))
+
+    def test_every_trigger_carries_its_own_reason(self):
+        w = PA.dcf_warning(regime="hypergrowth", dcf_reliability="low", cash_burning=True,
+                           growth_led=True, reverse=self._rev(0.9), business_growth=0.05)
+        self.assertEqual(len(w["why"]), len(w["triggers"]))
+        self.assertEqual(len(w["triggers"]), 5)
+        for why in w["why"]:
+            self.assertGreater(len(why), 40)
+
+    def test_the_reliability_badge_is_renamed_when_the_warning_fires(self):
+        """"DCF reliability: high" beside "do not use the DCF" is resolved in favour of the
+        badge, because a badge looks like a measurement."""
+        self.assertEqual(self._warn("KO")["reliability_label"], "DCF reliability")
+        for t in ("NVDA", "TSLA"):
+            lbl = self._warn(t)["reliability_label"]
+            self.assertNotEqual(lbl, "DCF reliability")
+            self.assertNotIn("reliability", lbl.lower())
+
+    def test_the_lead_sentence_carries_all_three_numbers_in_the_prompts_shape(self):
+        s = PA.price_assumes(self._rev(0.379), 0.77)["sentence"]
+        self.assertEqual(s, "The price assumes about 38% a year of growth; the business grew "
+                            "77% over the last year and the model's base case uses 34% a year.")
+
+    def test_a_BOUNDED_solve_says_at_least_rather_than_about(self):
+        # The engine flags exactly the priced-for-perfection names where the figure matters
+        # most; reporting a floor as an estimate is how the understatement goes unnoticed.
+        rev = types.SimpleNamespace(implied_avg_growth=0.95, base_avg_growth=0.3435,
+                                    implied_growth_bounded="above")
+        self.assertIn("at least about", PA.price_assumes(rev, 0.10)["sentence"])
+
+    def test_no_implied_figure_says_so_rather_than_rendering_a_hole(self):
+        out = PA.price_assumes(None, 0.10)
+        self.assertFalse(out["available"])
+        self.assertIn("could not work out", out["sentence"])
+
+    def test_a_FINANCIAL_is_asked_the_matching_question(self):
+        out = PA.price_assumes(None, 0.10, is_financial=True, implied_roe=0.182, book_roe=0.121)
+        self.assertTrue(out["available"])
+        self.assertIn("return on equity", out["sentence"])
+        self.assertIn("18.2%", out["sentence"])
+        self.assertIn("12.1%", out["sentence"])
+        self.assertNotIn("growth", out["sentence"])
+
+    def test_part_7b_the_hypergrowth_base_case_is_labelled_a_TEMPLATE(self):
+        """Measured: `_fade_path(0.60, 0.030, 10, 2)` has mean 0.3435 -- the 34.35% that
+        appeared on BOTH NVDA's page (growth input 77%) and APLD's (100%), because both clamp
+        to the same 60% cap. Without this sentence it reads as a company forecast."""
+        note = PA.hypergrowth_template_note("hypergrowth", self._rev(0.379))
+        self.assertIn("not a forecast about this company", note)
+        self.assertIn("60%", note)
+        self.assertIn("same numbers", note)
+
+    def test_the_template_note_is_SILENT_for_a_mature_name(self):
+        # A caveat about a cap that did not bind is noise, and noise is how a caveat stops
+        # being read.
+        self.assertEqual(PA.hypergrowth_template_note("mature", self._rev(0.05)), "")
+
+    def test_the_cap_and_the_mean_it_produces_are_the_engines_own(self):
+        """Pinned against the engine rather than transcribed, so a change to the cap fails
+        here instead of silently making this page's sentence wrong."""
+        from valuation.engine.assumptions import (GROWTH_CAP_BY_REGIME, N_YEARS_BY_REGIME,
+                                                  PLATEAU_BY_REGIME, _fade_path)
+        cap = GROWTH_CAP_BY_REGIME["hypergrowth"]
+        self.assertEqual(cap, 0.60)
+        path = _fade_path(cap, 0.030, N_YEARS_BY_REGIME["hypergrowth"],
+                          PLATEAU_BY_REGIME["hypergrowth"])
+        self.assertAlmostEqual(sum(path) / len(path), 0.3435, places=4)
+
+    def test_nothing_in_this_module_produces_a_trading_word(self):
+        texts = [PA.STORY_RULE_TEXT, PA.WARNING_HEADLINE] + list(PA._WHY.values())
+        texts.append(PA.price_assumes(self._rev(0.379), 0.77)["sentence"])
+        texts.append(PA.hypergrowth_template_note("hypergrowth", self._rev(0.379)))
+        for t in texts:
+            for bad in ("buy", "sell", "accumulate", "trim", "overweight", "price target"):
+                self.assertNotIn(bad, t.lower(), t)
 
 
 if __name__ == "__main__":

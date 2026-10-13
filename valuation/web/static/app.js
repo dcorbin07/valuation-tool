@@ -207,12 +207,23 @@ function render(d) {
 
   // badges
   const rc = { high: "g", medium: "a", low: "r" }[cls.dcf_reliability] || "";
+  // ITEM 52 -- THE BADGE MAY NOT READ AS TRUST IN THE FAIR VALUE WHEN THE PAGE SAYS NOT TO
+  // USE IT. "DCF reliability: high" above a warning not to use the DCF is a contradiction a
+  // reader resolves in favour of the badge, because a badge looks like a measurement. When
+  // the warning fires the badge is renamed to what it actually measures -- whether this
+  // company TYPE fits a cash-flow model -- and it is never coloured green there.
+  const _pa = (d.price_assumes || {}), _w = (_pa.warning || {});
+  const relLabel = _w.warn ? (_w.reliability_label || "Fit for a cash-flow model")
+                           : "DCF reliability";
+  const relClass = _w.warn ? "a" : rc;
   document.getElementById("coBadges").innerHTML =
     `<span class="badge">${cls.regime}</span>` +
-    `<span class="badge ${rc}">DCF reliability: ${cls.dcf_reliability}</span>` +
+    `<span class="badge ${relClass}">${esc(relLabel)}: ${esc(cls.dcf_reliability)}</span>` +
     (cls.rule_of_40 != null ? `<span class="badge ${cls.rule_of_40 >= 40 ? 'g' : 'a'}">Rule of 40: ${cls.rule_of_40.toFixed(0)}</span>` : "") +
     (c.cash_runway_years != null ? `<span class="badge ${c.cash_runway_years >= 4 ? 'g' : 'r'}">Runway: ${c.cash_runway_years.toFixed(1)}y</span>` : "") +
     (c.next_earnings_date ? `<span class="badge a">📅 Earnings ${_earnLabel(c.next_earnings_date)}</span>` : "");
+
+  priceAssumes(d);
 
   // hero metrics — a company the DCF can't value shows so explicitly, never a
   // negative "fair value" (which reads as precision the model doesn't have).
@@ -376,6 +387,41 @@ function gauge(s, rec, conf, notValuable, w) {
     </div>
     ${reads}
     <div class="conf">confidence: ${esc(conf || "")}</div>`;
+}
+
+/* ---------- ITEM 52: what the price assumes, and the DCF warning ----------
+   Three numbers in one sentence, because separately they mislead: the implied figure reads as
+   a forecast, the business figure as a projection, and the model's base case as
+   company-specific when for a hypergrowth name it is a template every such name shares.
+   A BROKEN BLOCK SAYS SO. `ok: false` renders the reason rather than nothing, because an
+   absent read and a failed one are different facts and only one of them is a bug. */
+function priceAssumes(d) {
+  const el = document.getElementById("priceAssumes");
+  if (!el) return;
+  const pa = d.price_assumes;
+  if (!pa) { el.innerHTML = ""; return; }
+  if (pa.ok === false) {
+    el.innerHTML = `<div class="card nv-box"><b>The implied-growth read could not be
+      built.</b> ${esc(pa.reason || "")}</div>`;
+    return;
+  }
+  const w = pa.warning || {}, lead = pa.lead || {};
+  let html = "";
+  if (w.warn) {
+    html += `<div class="card dcf-warn">
+      <div class="dcf-warn-h">${esc(w.headline)}</div>
+      ${(w.why || []).map(x => `<div class="dcf-warn-why">${esc(x)}</div>`).join("")}
+      ${w.rule ? `<div class="dcf-warn-rule">${esc(w.rule)}${
+        w.gap_pp != null ? ` Here the gap is about ${Math.round(w.gap_pp)} points a year.` : ""
+      }</div>` : ""}</div>`;
+  }
+  if (lead.sentence) {
+    html += `<div class="card pa-lead">
+      <div class="pa-lead-t">What the price assumes</div>
+      <div class="pa-lead-s">${esc(lead.sentence)}</div>
+      ${pa.template_note ? `<div class="pa-lead-n">${esc(pa.template_note)}</div>` : ""}</div>`;
+  }
+  el.innerHTML = html;
 }
 
 /* ---------- how the fair value was reached ----------

@@ -86,6 +86,17 @@ header .wrap{padding-bottom:0}
 /* ITEM 52: the two reads that replaced the Buy/Hold/Reduce label. Deliberately NOT in
    the score's colour -- a green word under a dial is a verdict by other means, which is
    the thing being removed. */
+/* ITEM 52: the lead read and the warning. The warning is amber rather than red -- it is a
+   "do not use this number" rather than "something is broken", and red here would compete with
+   the genuine refusals. */
+.dcf-warn{border-left:4px solid #d08700;background:#fff8ea}
+.dcf-warn-h{font-weight:800;font-size:15.5px;margin-bottom:6px}
+.dcf-warn-why{font-size:13.5px;line-height:1.5;margin-top:4px}
+.dcf-warn-rule{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.45}
+.pa-lead-t{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--muted)}
+.pa-lead-s{font-size:16px;line-height:1.45;margin-top:5px}
+.pa-lead-n{font-size:12.5px;color:var(--muted);margin-top:7px;line-height:1.45}
 .gauge .reads{margin-top:40px;max-width:250px;margin-left:auto;margin-right:auto}
 .gauge .read-q{font-size:16px;font-weight:800;line-height:1.25;color:var(--navy)}
 .gauge .read-p{font-size:13px;margin-top:4px;color:var(--muted);line-height:1.35}
