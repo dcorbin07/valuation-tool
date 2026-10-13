@@ -56,9 +56,24 @@ ADOPTS NOTHING; NO PUBLIC PAGE CHANGED BY THIS LANE.** §0's weighting control p
   about in writing and which I wrote after reading it. Fixed by moving the body into `build()`
   (making the path lazy ALONE would have been worse — it would overwrite the tracked markdown
   from a runner with no artifacts), plus the AST guard that would have caught it.
-- **STILL RUNNING:** `S22`'s eight per-horizon `fixed_weights_null` floors, 200 draws × 8
-  horizons, detached. `MB21`'s caveat travels with anything read off them — that null permutes
-  WITHIN each date, so its percentiles may never be compared with the 2.2837 family.
+- **`S22`'s EIGHT PER-HORIZON FLOORS: the long-short leg clears at ALL EIGHT horizons, against
+  the published 4 of 8.** 200 draws × 8 horizons, null centred where it should be. The published
+  leg failed from **h=315** on and `MB21` moved that boundary in to a hard one year — which is
+  where the record's *"no long-short figure beyond about a year"* rule comes from — and the
+  two-year long-short *t* goes **0.6846 → 4.1248**. **So that restriction loses its empirical
+  basis, and it licenses NO new public claim: the long-short is not the product.** `MB21`'s
+  caveat travels — that null permutes WITHIN each date, so its percentiles may never be compared
+  with the 2.2837 family.
+- **AND `S22`'s OWN ADOPTION BY-PRODUCT REVERSES.** `term_structure` compares against a
+  hard-coded **2.2837**, the PUBLISHED universe's figure, so on this panel it reports a
+  cross-universe **+0.7654**. Matched to the corrected universe's own CPCV-in-the-loop floor
+  (**1.4852**) the gap is **−0.0332 — essentially zero.** **X7's standing reading, that CPCV
+  adoption manufactures long-short *t* out of nothing, does not reproduce here.** An observation
+  with its own uncertainty, not a test (`S22`'s own label); adopts nothing.
+- **EVERY `UNMEASURED` CELL THE TWO TABLES CARRIED IS NOW MEASURED OR STRUCTURAL.** The
+  regenerated table is **80 rows with ZERO bare `UNMEASURED`**: each of the ten is superseded by
+  a measured successor row or is `UNMEASURED-BY-CONSTRUCTION` (the forward record).
+- **274 suites, 0 failed** on the final tree, and the branch landed on `origin/main`.
 - **Records:** `CANONICAL_MOVE_TABLE.md` §9, `CANONICAL_FIGURE_TABLE.md` (regenerated, 71 rows,
   never hand-edited), `RESEARCH_LOG.md` + `VALQUO_LEDGER.md` rows, `HANDOFF_canon_unmeasured.md`.
   **Recommended next step: the app fixer takes §9's three public figures** — and a canonical
