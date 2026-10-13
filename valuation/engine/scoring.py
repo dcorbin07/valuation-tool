@@ -61,7 +61,23 @@ def _blend(parts):
 @dataclass
 class ScoreResult:
     score: int
-    recommendation: str
+    #: PLAIN WORDS FOR WHAT THE SUB-SCORES ACTUALLY MEASURE -- ITEM 52.
+    #:
+    #: `recommendation` used to sit here and carried "Strong Buy"/"Buy"/"Hold"/"Reduce"/
+    #: "Avoid" off the composite alone. It is REMOVED, on Don's reading of what the composite
+    #: is: NVDA scored 79 "Buy" out of valuation 15.9, quality 97.2, growth 100, health 97.4
+    #: and momentum 70.2 -- **a business-quality grade wearing a trading verdict**, on a name
+    #: priced 56% above the model's own base value. And no study in this project has ever
+    #: tested those labels against returns, so the one number on the page with the most
+    #: authority was the one with the least evidence behind it.
+    #:
+    #: The two reads are not a softer label. They are the two different questions the
+    #: sub-scores answer, which the single word collapsed: how good the business looks, and
+    #: how its price compares with our model. A reader can disagree with either without
+    #: disagreeing with the other -- which is the whole of NVDA's case.
+    business_quality: str
+    business_quality_score: Optional[float]
+    price_vs_model: str
     confidence: str
     subscores: dict = field(default_factory=dict)
     weights: dict = field(default_factory=dict)
@@ -361,16 +377,77 @@ def _momentum_score(cd) -> tuple[Optional[float], list]:
     return _blend(parts), drivers
 
 
-def _recommendation(score: int) -> str:
-    if score >= 80:
-        return "Strong Buy"
-    if score >= 66:
-        return "Buy"
-    if score >= 46:
-        return "Hold"
-    if score >= 31:
-        return "Reduce"
-    return "Avoid"
+#: THE ONE THING THE LABEL FUNCTION ALSO CARRIED, AND IT IS A NUMBER RATHER THAN A WORD.
+#:
+#: `_recommendation`'s "Buy" boundary was 66, and `dip.py`'s health gate uses that boundary as
+#: its 0-100 sub-score floor -- citing the label function in a comment while typing 66 itself.
+#: Deleting the function would have orphaned the citation and left the number a bare literal,
+#: so the boundary survives the label as a named constant with one home, and `dip` imports it.
+#: **The number does not move**, which is the condition this whole item is under: no figure any
+#: study, the Index, the hot list or the forward track reads may change.
+SUBSCORE_STRONG = 66.0
+
+#: What the four business sub-scores add up to, in words. The bands are the old label's own
+#: boundaries, re-aimed at the thing they actually describe -- a business, not a trade -- so
+#: nothing is recalibrated here and nobody has to believe a new cut-off.
+_QUALITY_BANDS = ((80.0, "Outstanding business"),
+                  (SUBSCORE_STRONG, "Strong business"),
+                  (46.0, "Average business"),
+                  (31.0, "Weak business"))
+_QUALITY_FLOOR = "Poor business"
+
+#: The four that describe the BUSINESS. `valuation` is deliberately not among them: mixing how
+#: good a company is with how dear it is was the defect, and it cannot be undone by averaging
+#: them more carefully.
+BUSINESS_SUBSCORES = ("quality", "growth", "health", "momentum")
+
+
+def business_quality(subscores: dict, weights: dict) -> tuple:
+    """(phrase, 0-100) over the four business sub-scores, or `(None, None)` if none scored.
+
+    **THE WEIGHTS ARE THE COMPOSITE'S OWN, RENORMALISED OVER WHAT IS PRESENT** -- the same
+    arithmetic `compute_score` already does, so this is a re-cut of the number the page
+    already showed rather than a second opinion about it. A name with none of the four scored
+    returns `None` and the surface says so: the COVERAGE RULE's direction, an empty field shows
+    as missing rather than as "Average".
+    """
+    parts = [(float(subscores[k]), float(weights.get(k) or 0.0))
+             for k in BUSINESS_SUBSCORES
+             if subscores.get(k) is not None and (weights.get(k) or 0.0) > 0]
+    den = sum(w for _, w in parts)
+    if not parts or den <= 0:
+        return None, None
+    v = sum(x * w for x, w in parts) / den
+    for lo, phrase in _QUALITY_BANDS:
+        if v >= lo:
+            return phrase, round(v, 1)
+    return _QUALITY_FLOOR, round(v, 1)
+
+
+def price_vs_model(price, base_fv, *, withheld: bool = False, withheld_value=None) -> str:
+    """How the price compares with the model's base value, as a sentence a reader can check.
+
+    **IT QUOTES THE PREMIUM, NOT THE SUB-SCORE.** The valuation sub-score is a curve over the
+    margin of safety, so "valuation 15.9/100" tells a reader nothing they can verify against
+    the two numbers on the page. The premium is arithmetic on the price and the base value and
+    is the sentence Don asked for.
+    **AND A WITHHELD VALUE IS NOT A ZERO PREMIUM.** When the model declined to publish a fair
+    value there is nothing to compare, and the sentence says that instead of implying parity.
+    """
+    if withheld or not base_fv:
+        if withheld_value and price and price > 0:
+            return ("Our model declined to publish a fair value for this company, so there is "
+                    "no price comparison to make.")
+        return ("Our model has no base value for this company, so there is no price "
+                "comparison to make.")
+    if not price or price <= 0:
+        return "No current price, so there is no comparison to make."
+    prem = price / float(base_fv) - 1.0
+    if abs(prem) < 0.02:
+        return "Priced within 2% of our base value."
+    if prem > 0:
+        return "Priced %.0f%% above our base value." % (prem * 100.0)
+    return "Priced %.0f%% below our base value." % (abs(prem) * 100.0)
 
 
 def compute_score(cd: CompanyData, cls: Classification, wacc: float,
@@ -451,8 +528,14 @@ def compute_score(cd: CompanyData, cls: Classification, wacc: float,
                               f"a disagreement with the market about future growth, not necessarily a data "
                               f"error — see the implied-growth read.")
 
+    bq_phrase, bq_score = business_quality(subs, weights)
+
     return ScoreResult(
-        score=composite, recommendation=_recommendation(composite), confidence=confidence,
+        score=composite,
+        business_quality=bq_phrase, business_quality_score=bq_score,
+        price_vs_model=price_vs_model(cd.price, base_fv, withheld=withheld,
+                                      withheld_value=getattr(blend, "withheld_value", None)),
+        confidence=confidence,
         subscores={k: (round(v, 1) if v is not None else None) for k, v in subs.items()},
         weights=weights, drivers=drivers,
     )

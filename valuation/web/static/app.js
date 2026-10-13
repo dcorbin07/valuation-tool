@@ -236,7 +236,7 @@ function render(d) {
       : `<span class="${up >= 0 ? 'pos' : 'neg'}">${up == null ? '—' : (up >= 0 ? '+' : '') + pct(up, 0)}</span>`) +
     metric("WACC", pct(d.wacc.wacc));
 
-  gauge(score.score, score.recommendation, score.confidence, notValuable, d.withheld);
+  gauge(score.score, score, score.confidence, notValuable, d.withheld);
   fairValueMethod(fvb, d);
   // WHEN THE MODEL REFUSES, THE WHOLE PAGE REFUSES (2026-08-05).
   // The headline said "Not DCF-valuable" and the cards below printed the withheld number
@@ -313,7 +313,22 @@ function withheldCards(d) {
 }
 
 /* ---------- gauge ---------- */
+/* ITEM 52 -- TWO READS INSTEAD OF A VERDICT.
+   `rec` was the Buy/Hold/Reduce string. It is now the whole `score` block, because the dial
+   needs two sentences from it rather than one word: NVDA scored 79 "Buy" on valuation 15.9
+   with quality 97.2, growth 100 and health 97.4 -- a business-quality grade wearing a trading
+   verdict, on a name priced 56% above the model's own base value. The two reads say both
+   halves, and a reader can disagree with either without disagreeing with the other.
+   THE NUMBER AND THE ARC DO NOT CHANGE. This is presentation: the composite, the sub-scores
+   and their weights are untouched. */
 function gauge(s, rec, conf, notValuable, w) {
+  const bq = (rec && rec.business_quality) || "";
+  const pv = (rec && rec.price_vs_model) || "";
+  const reads = `
+    <div class="reads">
+      <div class="read-q">${bq ? esc(bq) : '<span class="muted">Business not scored</span>'}</div>
+      <div class="read-p">${esc(pv)}</div>
+    </div>`;
   if (s == null) {
     document.getElementById("gauge").innerHTML =
       `<div class="nv-box" style="text-align:left;max-width:260px">
@@ -343,9 +358,8 @@ function gauge(s, rec, conf, notValuable, w) {
         <div class="score-num" style="color:${col};opacity:.85">${s}</div>
         <div style="font-size:12px;color:var(--muted);margin-top:-4px">/ 100 · 4 of 5 components</div>
       </div>
-      <div class="rec" style="color:var(--muted);margin-top:36px;font-size:15px">${esc(rec || "")}<span
-        style="font-size:11px;font-weight:700;color:var(--amber)"> — partial</span></div>
-      <div class="conf">confidence: ${esc(conf || "low")}</div>
+      ${reads}
+      <div class="conf">confidence: ${esc(conf || "low")} · <span style="color:var(--amber);font-weight:700">partial</span></div>
       <div class="nv-box" style="text-align:left;margin-top:10px;max-width:270px;font-size:12px">
         <b>Valuation withheld.</b> ${esc((w && w.score_note) || _WITHHELD_FALLBACK.score)}</div>`;
     return;
@@ -360,8 +374,8 @@ function gauge(s, rec, conf, notValuable, w) {
       <div class="score-num" style="color:${col}">${s}</div>
       <div style="font-size:12px;color:var(--muted);margin-top:-4px">/ 100</div>
     </div>
-    <div class="rec" style="color:${col};margin-top:44px">${rec}</div>
-    <div class="conf">confidence: ${conf}</div>`;
+    ${reads}
+    <div class="conf">confidence: ${esc(conf || "")}</div>`;
 }
 
 /* ---------- how the fair value was reached ----------
@@ -793,7 +807,7 @@ async function runRank() {
     const res = await fetch("/api/rank", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tickers, run_ai: false }) });
     const data = await res.json();
     const rows = data.rows || [];
-    let html = '<table><tr><th>#</th><th>Ticker</th><th>Company</th><th>Regime</th><th class="num">Price</th><th class="num">Fair value</th><th class="num">Upside</th><th class="num">Score</th><th>Call</th></tr>';
+    let html = '<table><tr><th>#</th><th>Ticker</th><th>Company</th><th>Regime</th><th class="num">Price</th><th class="num">Fair value</th><th class="num">Upside</th><th class="num">Score</th><th>Business / price</th></tr>';
     rows.forEach((r, i) => {
       if (r.error) { html += `<tr><td>${i + 1}</td><td><b>${r.ticker}</b></td><td colspan="7" class="muted">${r.error}</td></tr>`; return; }
       const up = r.upside;
@@ -807,7 +821,9 @@ async function runRank() {
         <td class="num ${up >= 0 ? 'pos' : 'neg'}">${up == null ? '—' : (up >= 0 ? '+' : '') + pct(up, 0)}</td>
         <td class="num"><b style="color:${scoreColor(r.score)}${part ? ';opacity:.7' : ''}">${r.score}</b>${part
           ? ` <span style="font-size:10px;font-weight:800;color:var(--amber)" title="Valuation withheld — scored on quality, growth, financial health and momentum only.">PARTIAL</span>` : ""}</td>
-        <td><span class="badge ${scoreClass(r.score)}">${r.recommendation}</span></td></tr>`;
+        <td style="font-size:12.5px">${r.business_quality
+          ? `<b>${esc(r.business_quality)}</b><br><span class="muted">${esc(r.price_vs_model || "")}</span>`
+          : '<span class="muted">not scored</span>'}</td></tr>`;
     });
     html += "</table>";
     document.getElementById("rankTable").innerHTML = html;

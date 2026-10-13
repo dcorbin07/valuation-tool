@@ -352,7 +352,13 @@ def api_rank():
             rows.append({
                 "ticker": t, "name": r.company.name, "price": r.company.price,
                 "fair_value": r.base_fair_value, "upside": r.upside,
-                "score": r.score.score, "recommendation": r.score.recommendation,
+                "score": r.score.score,
+                # ITEM 52: `recommendation` is GONE, not renamed. The two reads that replace
+                # it answer different questions and a consumer that wants a verdict will not
+                # find one here, which is the point.
+                "business_quality": r.score.business_quality,
+                "business_quality_score": r.score.business_quality_score,
+                "price_vs_model": r.score.price_vs_model,
                 "regime": r.classification.regime, "confidence": r.score.confidence,
                 "score_partial": partial,
                 "fair_value_withheld": partial,

@@ -414,7 +414,15 @@ def test_scoring_bounds_and_reco():
     for build in (build_nike, build_growth):
         r = value_from_company(build(), CONFIG, mc_trials=1500)
         assert 1 <= r.score.score <= 100
-        assert r.score.recommendation in {"Strong Buy", "Buy", "Hold", "Reduce", "Avoid"}
+        # ITEM 52: was the Buy/Hold/Reduce label. The property is unchanged -- the read is
+        # one of a closed set of phrases -- and the set now describes a BUSINESS rather than a
+        # trade. The price read is asserted beside it, because a business phrase alone is half
+        # of what replaced the label and half is how NVDA came to read as a Buy.
+        assert r.score.business_quality in {"Outstanding business", "Strong business",
+                                            "Average business", "Weak business",
+                                            "Poor business"}
+        assert r.score.price_vs_model and r.score.price_vs_model.endswith(".")
+        assert "buy" not in r.score.price_vs_model.lower()
         assert r.score.confidence in {"high", "medium", "low"}
 
 
@@ -967,7 +975,8 @@ def test_the_cap_changes_labels_and_provably_not_values():
     assert loose.fair_value_blend.value_low == tight.fair_value_blend.value_low
     assert loose.fair_value_blend.value_high == tight.fair_value_blend.value_high
     assert loose.score.score == tight.score.score, "the cap moved the composite score"
-    assert loose.score.recommendation == tight.score.recommendation
+    assert loose.score.business_quality == tight.score.business_quality
+    assert loose.score.price_vs_model == tight.score.price_vs_model
     assert loose.score.subscores == tight.score.subscores
     # ... and it did something, or the test above proves nothing.
     assert tight.fair_value_blend.confidence != "high"

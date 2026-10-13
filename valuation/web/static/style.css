@@ -83,6 +83,12 @@ header .wrap{padding-bottom:0}
 .gauge svg{transform:rotate(-90deg)}
 .gauge .score-num{font-size:40px;font-weight:800}
 .gauge .rec{font-size:17px;font-weight:800;margin-top:2px}
+/* ITEM 52: the two reads that replaced the Buy/Hold/Reduce label. Deliberately NOT in
+   the score's colour -- a green word under a dial is a verdict by other means, which is
+   the thing being removed. */
+.gauge .reads{margin-top:40px;max-width:250px;margin-left:auto;margin-right:auto}
+.gauge .read-q{font-size:16px;font-weight:800;line-height:1.25;color:var(--navy)}
+.gauge .read-p{font-size:13px;margin-top:4px;color:var(--muted);line-height:1.35}
 .gauge .conf{font-size:12px;color:var(--muted);margin-top:2px}
 
 /* Scenario range bar */

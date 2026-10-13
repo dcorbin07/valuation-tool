@@ -186,7 +186,10 @@ def build_workbook(result, path: str, computed_at=None) -> str:
     _c(ws, "E8", "% of EV from terminal value")
     _c(ws, "G8", f"={baseL}35/{baseL}36", BLACK, PCT)
     _c(ws, "A9", "Opportunity score (1-100)")
-    _c(ws, "C9", f"{result.score.score}  ({result.score.recommendation})", BOLD)
+    # ITEM 52: the label is gone; the cell carries the business read, which is what the
+    # four non-valuation sub-scores behind this number actually describe.
+    _c(ws, "C9", f"{result.score.score}  ({result.score.business_quality or 'not scored'})",
+       BOLD)
 
     # ---- Key assumptions ----
     _c(ws, "A11", "KEY ASSUMPTIONS", BOLD, fill=SECT_FILL)

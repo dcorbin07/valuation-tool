@@ -181,9 +181,18 @@ def clamp_drawdown(x) -> float:
 # THE HEALTH GATE
 # --------------------------------------------------------------------------------------- #
 
-#: 0-100 sub-score floors, taken from `scoring._recommendation`'s "Buy" boundary. See the
-#: module docstring for why 66 and why momentum and valuation are not here.
-HEALTH_FLOORS: Dict[str, float] = {"quality": 66.0, "health": 66.0, "growth": 66.0}
+#: 0-100 sub-score floors. See the module docstring for why this level and why momentum and
+#: valuation are not here.
+#:
+#: IMPORTED, NOT TYPED -- ITEM 52. The level came from `scoring._recommendation`'s "Buy"
+#: boundary, and this comment cited that function while the line below typed 66.0 itself. The
+#: label is gone (a business-quality grade should not wear a trading verdict), and the
+#: boundary survives it as `scoring.SUBSCORE_STRONG`. **The number does not move** -- that is
+#: the condition this change is under -- and importing it means the citation is now checkable
+#: rather than a comment pointing at something deleted.
+HEALTH_FLOORS: Dict[str, float] = {"quality": _engine_scoring.SUBSCORE_STRONG,
+                                   "health": _engine_scoring.SUBSCORE_STRONG,
+                                   "growth": _engine_scoring.SUBSCORE_STRONG}
 
 #: WHICH OF THOSE FLOORS A REGIME CAN WITHHOLD. Exactly one today -- `_health_score` is the
 #: only curve with a regime branch -- and it is IMPORTED from the engine rather than spelled

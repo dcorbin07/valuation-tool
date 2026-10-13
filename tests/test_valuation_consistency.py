@@ -161,8 +161,17 @@ def test_a_weight_zero_distribution_cannot_reach_the_score():
                          mc=_MC(1.00), comps=r.comps)
     shipped = r.score
     assert shipped.score < live.score, (shipped.score, live.score)
-    assert live.recommendation != shipped.recommendation, (live.recommendation,
-                                                           shipped.recommendation)
+    # ITEM 52, AND MY FIRST REPOINT OF IT WAS WRONG ON THE SUBSTANCE. This asserted the two
+    # paths disagreed on the LABEL; I first repointed it to the PRICE read, which came back
+    # identical on both -- correctly. The read is arithmetic on the price and the base value,
+    # and this fixture changes neither: it swaps the Monte Carlo input, which moves the
+    # valuation SUB-SCORE. So the sub-score is what has to differ, and the price read NOT
+    # moving is itself worth pinning -- the sentence that replaced the label cannot be bent by
+    # the input that used to swing it.
+    assert live.subscores["valuation"] != shipped.subscores["valuation"], (
+        live.subscores["valuation"], shipped.subscores["valuation"])
+    assert live.price_vs_model == shipped.price_vs_model, (
+        "the price read must depend on the price and the base value and nothing else")
 
 
 # --------------------------------------------------------------------------- item 2

@@ -77,7 +77,11 @@ def _facts(result) -> dict:
         "assumed_target_margin": a.target_margin, "assumed_current_margin": a.current_margin,
         "hist_operating_margins": [m for m in (cd.ebit_margin_history or []) if m is not None][:5],
         "tv_pct_of_ev": sc.base.tv_pct_of_ev, "score": result.score.score,
-        "recommendation": result.score.recommendation,
+        # ITEM 52: the label is gone, and with it the instruction to "reference the score and
+        # the recommendation". The model gets the two reads instead, so it cannot restate a
+        # verdict the page no longer makes.
+        "business_quality": result.score.business_quality,
+        "price_vs_model": result.score.price_vs_model,
     }
 
 
@@ -89,7 +93,11 @@ _SCHEMA = {
     "bull_thesis": "3-4 sentences making the strongest evidence-based bull case",
     "bear_thesis": "3-4 sentences making the strongest evidence-based bear case",
     "assumption_critique": ["2-4 specific critiques of the tool's assumptions vs history/reality"],
-    "overall_take": "2-3 sentence balanced synthesis; reference the score and the main tension",
+    # ITEM 52: was "reference the score and the main tension". A model told to reference a
+    # score that used to come with a verdict restates the verdict, and the page no longer
+    # makes one -- so the instruction names the two reads and the tension instead.
+    "overall_take": ("2-3 sentence balanced synthesis; reference the business-quality read, "
+                     "the price-vs-model read, and the main tension between them"),
 }
 
 
@@ -99,6 +107,15 @@ def _build_prompt(result) -> str:
         "You are a rigorous, skeptical equity research analyst. You are NOT a "
         "cheerleader: be balanced, cite the numbers, and flag where the model's "
         "automated assumptions look aggressive or too conservative.\n\n"
+        # ITEM 52, AND IT IS THE INSTRUCTION THAT MATTERS MOST HERE. The page dropped its
+        # Buy/Hold/Reduce label because no study in this project has ever tested those labels
+        # against returns. A panel underneath it that says "accumulate" has reintroduced the
+        # label with less evidence and more authority, so the refusal is explicit and names
+        # the forms it takes rather than hoping "be balanced" covers it.
+        "DO NOT RECOMMEND BUYING, SELLING OR HOLDING. No rating, no price target, no "
+        "allocation, no 'accumulate', 'trim', 'avoid' or any equivalent. You are describing "
+        "a business and a model's assumptions, not advising anybody. If the numbers make a "
+        "case, state the case and its counter-case and stop there.\n\n"
         "Here is a quantitative DCF valuation of a company (all $ in millions, "
         "rates as decimals):\n"
         f"{json.dumps(facts, indent=2, default=str)}\n\n"
@@ -293,8 +310,10 @@ def _financial_narrative(result, moat, risks, catalysts, uw, source) -> dict:
                     "a warning: the discounted-cash-flow lens is not the one being used.")
 
     take = (f"On the model, {cd.name} looks {uw} ({_m(sc.base.per_share)} base fair value vs "
-            f"{_m(cd.price)}), scoring {result.score.score}/100 → "
-            f"{result.score.recommendation}. The central tension is whether the return on equity "
+            f"{_m(cd.price)}), scoring {result.score.score}/100 — "
+            f"{result.score.business_quality or 'business not scored'}, and "
+            f"{(result.score.price_vs_model or '').rstrip('.').lower()}. "
+            f"The central tension is whether the return on equity "
             f"it earns justifies the multiple the market pays for its book; confidence in this "
             f"valuation is {result.score.confidence}.")
 
@@ -410,7 +429,9 @@ def _rule_based(result, source: str = _NO_KEY) -> dict:
         crit.append("DCF reliability is LOW for this profile — lean on the comps and reverse-DCF cross-checks.")
 
     take = (f"On the model, {cd.name} looks {uw} (${sc.base.per_share:,.2f} base fair value vs ${cd.price:,.2f}), "
-            f"scoring {result.score.score}/100 → {result.score.recommendation}. "
+            f"scoring {result.score.score}/100 — "
+            f"{result.score.business_quality or 'business not scored'}, and "
+            f"{(result.score.price_vs_model or '').rstrip('.').lower()}. "
             f"The central tension is {'whether the growth/margin ramp justifies the price' if cls.regime in ('growth','hypergrowth') else 'valuation versus business quality'}; "
             f"confidence in the DCF here is {result.score.confidence}.")
 

@@ -97,7 +97,8 @@ def _payload(valuable=False):
         "sensitivity": {"wacc_axis": [0.03, 0.04], "growth_axis": [0.02, 0.03],
                         "grid": [[2798.85, 3448.83, 4746.12, 8632.67, None]],
                         "base_wacc": 0.0503, "base_growth": 0.025},
-        "score": {"score": 93, "recommendation": "Strong Buy", "confidence": "medium",
+        "score": {"score": 93, "business_quality": "Outstanding business",
+                  "price_vs_model": "Priced 7% below our base value.", "confidence": "medium",
                   "subscores": {"valuation": 100.0, "quality": 90.5, "growth": 87.5,
                                 "health": 100.0, "momentum": 78.0},
                   "weights": {"valuation": 0.3, "quality": 0.2, "growth": 0.2,
@@ -278,7 +279,10 @@ def test_the_score_is_published_as_partial_not_suppressed():
     out = withhold.withhold_derived_figures(_payload())
     s = out["score"]
     assert s["score"] == 93, "the partial score itself must survive — it is not contaminated"
-    assert s["recommendation"], "a partial score still carries its band label"
+    # ITEM 52: was "a partial score still carries its band label". A partial score still
+    # carries its BUSINESS read -- which is in fact the only read it can carry, since the
+    # valuation sub-score is exactly what a withheld name is missing.
+    assert s["business_quality"], "a partial score still carries its business read"
     assert s["partial"] is True
     assert s["subscores"]["valuation"] is None
     assert sorted(s["partial_of"]) == ["growth", "health", "momentum", "quality"]
@@ -394,8 +398,14 @@ def test_the_gauge_marks_a_partial_score_on_the_dial_itself():
     for mark in ("PARTIAL", "4 of 5 components", "Valuation withheld", "partial"):
         assert mark in partial, f"the partial dial never says {mark!r}"
     assert "score-num" in partial, "the number itself is still shown — it is not contaminated"
-    assert fn.index("if (notValuable) {") < fn.index('class="rec" style="color:${col}'), \
-        "the withheld branch must return before the full-gauge markup"
+    # ITEM 52: the marker was `class="rec" style="color:${col}` -- the Buy/Hold/Reduce
+    # label in the score's colour, which is exactly what this item removed. The
+    # PROPERTY is unchanged and is pinned structurally instead: there are three gauge
+    # renders (absent, partial, full) and the partial one must RETURN before the last
+    # of them, or a withheld name falls through into the full dial.
+    full = fn.rindex('getElementById("gauge").innerHTML')
+    assert fn.index("return;", j) < full, (
+        "the withheld branch must return before the full-gauge markup")
 
 
 # --------------------------------------------------------------------------- #

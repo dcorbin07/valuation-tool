@@ -18525,3 +18525,119 @@ cheap mistake is already refused and the expensive one was not.
 
 **26 new tests; 13 of 13 mutations caught across two harnesses with sources restored
 byte-for-byte; 24 of 24 suites in the blast radius green.**
+
+---
+
+## item 52 part 1 — the Buy label is gone, and the two findings part 7 asked for
+
+**FIRST, A PREMISE CORRECTION, BECAUSE IT IS THE PROMPT'S OWN FIRST INSTRUCTION.** *"Read
+`DECISIONS.md` first: three rulings dated 2026-10-13 under 'The valuation page' govern this."*
+**`DECISIONS.md` has no such section and no such rulings** — it carries one 2026-10-13 entry,
+the fleet re-certification, and its three sections are Research method, The Index and the
+record, and How Don works. Checked against history too: `git log -S "The valuation page"` on
+that file returns nothing, so they were never committed and then removed. **Built from the
+prompt's own specification**, which is detailed and self-contained; if Don's rulings differ in
+any respect, this is the thing to re-read first.
+
+### A CORRECTION TO THE CENSUS, AND IT MAKES THE JOB SMALLER AND SHARPER
+
+The prompt expects *"~31 files"* from `grep -n "recommendation\|Strong Buy"`. That grep returns
+51 files under `valuation/`, `scripts/` and `tests/` — and **almost none of them render a
+label.** Traced from `ScoreResult.recommendation` instead of from the words, the label reached
+a user through **exactly seven sites**: the gauge and the compare table in `app.js`, the API
+payload, the showcase row, the PDF, the Excel export, and the AI prompt — all fed by **one
+function**, `scoring._recommendation`.
+
+**EVERY OTHER HIT IS ONE OF THREE THINGS, AND NONE OF THEM MAY BE TOUCHED:** the research
+record (handoffs and registers describing what was measured), **disclaimers that say the
+opposite** — `index.html`, `landing.html`, `methodology.html`, `portfolio.html` and
+`_saas_base.html` all state that scores are *"not recommendations"*, and `fleet_public`,
+`dip_posture` and `kelly` ban or refuse recommendation-shaped copy — and prose explaining a
+past defect. A blanket find-and-replace would have deleted the disclaimers.
+
+### WHAT THE PAGE SAYS NOW
+
+`ScoreResult.recommendation` is **removed, not renamed**, and two reads replace it:
+
+* **`business_quality`** — the four non-valuation sub-scores, on the composite's own weights
+  renormalised over what is present, in one of five phrases. NVDA's own sub-scores give
+  **"Outstanding business" (94.9)**.
+* **`price_vs_model`** — the premium to the base value as a checkable sentence. NVDA:
+  **"Priced 56% above our base value."** TSLA: **"Priced 1527% above our base value."**
+
+**Those two sentences are the whole argument.** The 79 "Buy" collapsed them into one word that
+answered neither question; apart, they disagree with each other, and a reader can take either
+side without taking the other.
+
+**THE PRICE READ QUOTES THE PREMIUM, NOT THE VALUATION SUB-SCORE** — a departure from the
+prompt's wording (*"from the valuation sub-score"*) and the sentence it asks for
+(*"priced 36% above our base value"*) is the premium. The sub-score is a curve over the margin
+of safety; *"valuation 15.9/100"* is not something a reader can check against the two numbers
+beside it. **And it turned out to be the stronger choice for a reason a test now pins:** the
+old label could be swung by the Monte Carlo input alone, and this sentence cannot — it is
+arithmetic on the price and the base value.
+
+**A WITHHELD FAIR VALUE IS NOT A ZERO PREMIUM.** Where the model declined to publish, the
+sentence says so instead of implying parity — the KSPI shape, where a suppressed number came
+back through a sub-score and printed 93.
+
+### THE ONE NUMBER THE LABEL ALSO CARRIED, AND IT HAS NOT MOVED
+
+`_recommendation`'s "Buy" boundary was **66**, and `dip.py`'s health gate uses it as a 0-100
+sub-score floor — **citing the label function in a comment while typing `66.0` itself.**
+Deleting the function would have orphaned the citation. The boundary survives as
+`scoring.SUBSCORE_STRONG` with one home, `dip` **imports** it, and the floors still read
+`{quality: 66.0, health: 66.0, growth: 66.0}`. **Presentation only, asserted rather than
+promised:** `compute_score` still has **exactly one caller** (`pipeline.py`), the composite,
+sub-scores and weights are untouched, and the valuation sub-score is deliberately NOT in the
+business read.
+
+### THE AI PANEL CANNOT REINSTATE WHAT THE PAGE REMOVED
+
+The schema's *"reference the score and the main tension"* becomes the two reads and the
+tension between them, and the prompt now carries an explicit refusal naming the forms it
+takes — **no rating, no price target, no allocation, no "accumulate", "trim" or "avoid"**.
+A panel that says "accumulate" under a page that dropped its label has reintroduced the label
+with less evidence and more authority.
+
+### PART 7, BOTH ANSWERED BY MEASUREMENT
+
+**(a) NVDA'S MISSING THEMES ARE A REAL DATA GAP, AND IT IS NOT NVDA-SPECIFIC.** Live today:
+NVDA's `why` lists **six** themes (size, quality, insider, capital_discipline, institutional,
+value) and **growth and momentum are absent**; APLD's lists **eight**. `row_attribution` drops
+a theme whose contribution is `NaN`, and `_branch` makes it `NaN` only when the theme's z is
+`NaN` — i.e. **when the input is missing.** So yes: those two inputs have no value for NVDA in
+the 2026-10-12 scan.
+
+**MEASURED ON THE 100 ROWS THE API SERVES, THE GAP IS THE NORM: only 47 of 100 names carry all
+five served z columns** — `z_insider` null on **49**, `z_growth` on 7, `z_momentum` on 4,
+`z_quality` on 4, `z_value` on 3.
+
+**AND THE SCORE IS NOT DISTORTED, WHICH IS THE HALF A READER WOULD GET WRONG.** `_branch`
+redistributes a missing theme's weight across the rest — documented in the module and
+deliberate — so NVDA's composite is a properly renormalised six-theme composite. Checked: its
+six contributions sum to **−0.3548** against a composite of **−0.35489**. **The casualty is the
+EXPLANATION, not the arithmetic**: six themes read as "these are the drivers" when the truth is
+"two inputs were missing for this name". That is a presentation gap and it is part 4's to fix.
+
+**(b) THE 34.35% BASE GROWTH IS THE HYPERGROWTH TEMPLATE, NOT A FORECAST ABOUT EITHER
+COMPANY — REPRODUCED EXACTLY.** `GROWTH_CAP_BY_REGIME["hypergrowth"]` is **0.60**, and
+`g0 = _clamp(blended_growth, -0.15, 0.60)`. NVDA's growth input is 77% and APLD's 100%, so
+**both clamp to exactly 60%** and both then follow the same 10-year fade with a 2-year plateau.
+`_fade_path(0.60, 0.030, 10, 2)` has mean **0.3435** — the figure on the page, to four
+decimals. **So every hypergrowth name whose growth exceeds 60% gets the identical path**, and
+"the model's base case uses 34%" reads as company-specific while being nothing of the kind.
+The page must say so; that copy lands with part 2.
+
+**15 suites in the blast radius green, plus 24 new tests.** Four pins were repointed by INTENT
+rather than re-asserted: the band-membership test, the cap-inertness test, the partial-score
+test, and the gauge's fall-through test — **whose marker was the label in the score's colour**,
+now pinned structurally (the partial branch must `return` before the last of the three gauge
+renders). **AND ONE OF MY OWN NEW TESTS COMMITTED THIS REPOSITORY'S MOST REPEATED DEFECT:** it
+asserted the old AI instruction was absent from the FILE and failed against a correct tree,
+because the comment recording the change quotes the instruction it replaced. It reads the
+schema's VALUE now.
+
+**NOT DONE IN THIS LANDING, and named so it is not mistaken for done:** parts 2, 3, 4, 5 and 6
+— the price-assumes lead, the DCF warning and its story-stock rule, the hot-score block, the
+company description, and the automatic AI run with its cost measurement.

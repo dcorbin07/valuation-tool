@@ -190,7 +190,10 @@ def build_pdf(result, path: str, computed_at=None) -> str:
          Paragraph(f"<font size=13 color='{_hx(up_col)}'><b>{up_txt}</b></font>", body),
          Paragraph(f"<font size=15 color='{_hx(_score_color(result.score.score))}'><b>{result.score.score}</b></font>"
                    f"<font size=8 color='#666666'>/100</font>", body),
-         Paragraph(f"<font size=12 color='{_hx(_score_color(result.score.score))}'><b>{result.score.recommendation}</b></font>", body)],
+         # ITEM 52: was the Buy/Hold/Reduce label, in the colour of the score. Two
+         # sentences now, uncoloured: a colour is a verdict by other means.
+         Paragraph(f"<b>{result.score.business_quality or 'Not scored'}</b><br/>"
+                   f"{result.score.price_vs_model}", body)],
     ]
     t = Table(headline, colWidths=[1.2 * inch] * 5)
     t.setStyle(TableStyle([

@@ -102,10 +102,14 @@ def test_the_screens_own_default_matches_the_module_default():
 # ----------------------------------------------------------------------------------------
 
 def test_the_health_floor_is_taken_from_the_products_own_scoring_and_not_invented():
-    # 66 is where `scoring._recommendation` stops saying Hold and starts saying Buy. If that
+    # 66 is where the old label stopped saying Hold and started saying Buy. If that
     # calibration ever moves, this fails and the floor is reconsidered deliberately.
-    assert scoring._recommendation(66) == "Buy", scoring._recommendation(66)
-    assert scoring._recommendation(65) == "Hold", scoring._recommendation(65)
+    # ITEM 52: the label function is gone and the BOUNDARY it also carried is now a named
+    # constant, which is what this floor was always really citing. Asserted against the
+    # constant and against the floors that import it, so the citation is checkable rather
+    # than a comment pointing at something deleted.
+    assert scoring.SUBSCORE_STRONG == 66.0, scoring.SUBSCORE_STRONG
+    assert set(dip.HEALTH_FLOORS.values()) == {scoring.SUBSCORE_STRONG}, dip.HEALTH_FLOORS
     for k, v in dip.HEALTH_FLOORS.items():
         assert v == 66.0, f"{k} floor is {v}"
 

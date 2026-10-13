@@ -61,9 +61,13 @@ def build(ticker: str = DEFAULT_TICKER, cfg=None) -> dict:
         "price": _f(company.get("price")),
         "fair_value": _f(d.get("base_fair_value")),
         "upside": _f(d.get("upside")),
-        # The 1-100 opportunity score and its verdict, exactly as the app shows them.
+        # The 1-100 score and the two reads, exactly as the app shows them. ITEM 52: the
+        # key was `verdict`, off the removed label. A showcase row is the one place a stale
+        # verdict would look most authoritative, so it carries the same two sentences the
+        # page does and no word that reads as a call.
         "score": _f(score.get("score")),
-        "verdict": score.get("recommendation") or "",
+        "business_quality": score.get("business_quality") or "",
+        "price_vs_model": score.get("price_vs_model") or "",
         "confidence": score.get("confidence") or "",
         "bear": _f(scen.get("bear")),
         "base": _f(scen.get("base")),
