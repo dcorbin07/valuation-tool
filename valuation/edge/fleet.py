@@ -732,6 +732,82 @@ def selfcheck_state(book: str, root: str = None) -> dict:
     return {"ok": True, "state": "PASS", "reason": ""}
 
 
+#: THE ONE SENTENCE THAT SAYS WHAT TO DO, AND IT EXISTS ONCE (`B7`).
+#:
+#: The fleet was shut for weeks and every surface that could have said so said something
+#: narrower: the cycle named a CODE, the public shelf named a REASON, the Action printed a
+#: cause, and not one of them named the ACTION. `SELFCHECK_STALE` is a true statement about a
+#: gate and it is not an instruction, and the gap between those two is how eighteen books sat
+#: refusing every fill while every warning was technically correct.
+#:
+#: It is a constant rather than a sentence per surface because the three surfaces disagreeing
+#: about the remedy is the defect one level on -- the same reason `fleet_notify` imports it
+#: instead of composing its own.
+SELFCHECK_REMEDY = ("Run the FLEET SELF-CHECK (re-certify) workflow once -- GitHub Actions -> "
+                    "FLEET SELF-CHECK (re-certify) -> Run workflow. It takes under a minute. "
+                    "Until it passes, NO BOOK FILLS.")
+
+#: Why the certificate goes stale without anybody breaking anything, in the words a reader
+#: needs rather than the word `fingerprint`.
+#: WHICH STATES A RE-RUN ACTUALLY FIXES, defined ONCE. `FAILING` is deliberately absent:
+#: the harness is broken there and a re-run fails again, so a surface that offers the
+#: remedy for it spends the reader's trust on an instruction that cannot work. The
+#: notifier DERIVES its code list from this rather than keeping a second one.
+RECERTIFY_FIXES = ("ABSENT", "STALE")
+
+SELFCHECK_WHY_STALE = ("The certificate is a hash of the harness's own sources, so ANY change "
+                       "to them -- a new entry rule, a repair, a new book -- stales it on the "
+                       "next deploy. That is the gate working: a certificate should expire "
+                       "when the thing it certifies moves.")
+
+
+def selfcheck_action(root: str = None, books: list = None) -> dict:
+    """Is a re-certification OWED right now -- the fleet-wide fact, with the remedy attached.
+
+    **THIS IS A READ, NOT A GATE.** `may_fill` already refuses an uncertified book and that
+    behaviour is untouched. What did not exist was a single object a log reader, a page and a
+    Discord line could all consult to answer *"does Don have to do something, and what"*, so
+    each of them answered a narrower question and the actual answer was nowhere.
+
+    **THE STATES ARE KEPT APART, because `ABSENT`, `STALE` and `FAILING` have different
+    remedies and only one of them is a bug.** A re-run fixes ABSENT and STALE; FAILING means
+    the harness is broken and a re-run will fail again, so the remedy is NOT offered for it --
+    a fix that cannot work is worse than none, because it spends the reader's trust.
+    """
+    out = {"needed": False, "n_books": 0, "n_total": 0, "states": {}, "books": [],
+           "remedy": "", "why": "", "reason": "", "fingerprint": harness_fingerprint()}
+    try:
+        declared = [d["book"] for d in declared_books(root) if d.get("parses")]
+    except Exception as e:                                             # noqa: BLE001
+        out["reason"] = "the declared books could not be read (%s)" % type(e).__name__
+        return out
+    if books is not None:
+        declared = [b for b in declared if b in set(books)]
+    out["n_total"] = len(declared)
+    for b in sorted(declared):
+        st = selfcheck_state(b, root)
+        if st["ok"]:
+            continue
+        out["books"].append(b)
+        out["states"][b] = st["state"]
+    out["n_books"] = len(out["books"])
+    fixable = [b for b in out["books"] if out["states"][b] in RECERTIFY_FIXES]
+    out["needed"] = bool(fixable)
+    if out["needed"]:
+        out["remedy"] = SELFCHECK_REMEDY
+        out["why"] = SELFCHECK_WHY_STALE
+        out["reason"] = ("%d of %d declared books cannot fill until the harness is "
+                         "re-certified (%s)." % (len(fixable), out["n_total"],
+                                                 ",".join(sorted({out["states"][b]
+                                                                  for b in fixable}))))
+    elif out["books"]:
+        out["reason"] = ("%d of %d declared books cannot fill and a re-run will NOT fix it: "
+                         "%s. The harness itself is the fault."
+                         % (out["n_books"], out["n_total"],
+                            ",".join(sorted({out["states"][b] for b in out["books"]}))))
+    return out
+
+
 # ---------------------------------------------------------------------------------------
 # The one entry point a book's runner calls
 # ---------------------------------------------------------------------------------------
@@ -1876,16 +1952,32 @@ def never_fires(book: str, root: str = None, *, after: int = NEVER_FIRES_AFTER) 
     state = "OK"
     if fired == 0 and n_obs >= int(after):
         state = "RULE_ARMED_NEVER_FIRES"
+    # A RIDER CANNOT FIRE, AND ITS SILENCE IS NOT NEWS -- ITEM 50. `f1_fill_ab` returns `[]`
+    # as its implementation and its own declaration says its *"record stream stays empty by
+    # design"*: it places no orders, so `fired == 0` is permanently true of it and the alarm
+    # above lights on every cycle for the rest of the project. **That is the cry-wolf this
+    # function's docstring claims it cannot do** (`MA21`'s standard), and a lamp that is always
+    # lit is exactly how the fleet came to sit shut for weeks with every warning technically
+    # correct. Reported as its OWN state rather than dropped, because `V6`'s rule is that an
+    # absent measurement and a null must not read the same.
+    if state == "RULE_ARMED_NEVER_FIRES" and not places_orders(book):
+        state = "RIDER_PLACES_NO_ORDERS"
+    reason = ""
+    if state == "RULE_ARMED_NEVER_FIRES":
+        reason = ("%s has recorded %d observations and NEVER FILLED. A rule that cannot "
+                  "qualify anybody is indistinguishable in the records from a quiet market, "
+                  "and this is the difference. Check the rule before reading the emptiness "
+                  "as a finding." % (book, n_obs))
+    elif state == "RIDER_PLACES_NO_ORDERS":
+        reason = ("%s is a RIDER: its declaration places no orders of its own, so it can "
+                  "never write a fill and its silence is not a fault. Its evidence is the arm "
+                  "stamp on every OTHER book's fill rows." % book)
     return {
         "book": book, "state": state, "fired": fired, "skipped": len(skips),
         "observations": n_obs, "after": int(after),
         "rows_observed": len(cycles), "cycles_ran": runs,
         "skip_rate": (float(len(skips)) / n_obs) if n_obs else None,
-        "reason": ("" if state == "OK" else
-                   "%s has recorded %d observations and NEVER FILLED. A rule that cannot "
-                   "qualify anybody is indistinguishable in the records from a quiet market, "
-                   "and this is the difference. Check the rule before reading the emptiness "
-                   "as a finding." % (book, n_obs)),
+        "reason": reason,
     }
 
 
@@ -2048,7 +2140,18 @@ def cycle(root: str = None, *, write: bool = False, books: list = None) -> dict:
         # The scout's third state, surfaced at the top so a reader does not have to walk the
         # per-book rows to find a rule that has never been able to fire.
         "never_fires": [r["book"] for r in books_only
-                        if r.get("never_fires", "OK") != "OK"],
+                        if r.get("never_fires", "OK") == "RULE_ARMED_NEVER_FIRES"],
+        # NAMED, NEVER FOLDED INTO THE LINE ABOVE. A rider's silence is structural, so it is
+        # not in the list a reader checks -- and it is still reported, because a book that
+        # vanishes from both lists reads as healthy.
+        "riders_place_no_orders": [r["book"] for r in books_only
+                                   if r.get("never_fires") == "RIDER_PLACES_NO_ORDERS"],
+        # DOES DON HAVE TO DO SOMETHING, AND WHAT -- ITEM 50. The cycle already reported the
+        # CODE (`not_breathing_reason`) and the Action already printed it; neither named the
+        # action, and `fleet-cycle.yml` had to SUBSTRING-MATCH the code to guess one, which is
+        # this repository's most repeated test defect in a workflow. One object, one remedy,
+        # read rather than matched.
+        "selfcheck_action": selfcheck_action(root, books=[r["book"] for r in books_only]),
         "breathing": bool(filled) or ran,
         # THE CAUSE IS MEASURED, NEVER GUESSED -- and this exists because a GUESSED one shipped
         # and was wrong in production. `fleet-cycle.yml`'s annotation prints "no entry rule

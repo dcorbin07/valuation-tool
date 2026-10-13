@@ -18127,3 +18127,139 @@ and the **survivors correction** were not, and now are.
   fill.
 * **The corrected product sentences are still not REGISTERED** in the edge lane's handoffs — carried
   over from item 47 and still r1's to write down.
+
+---
+
+## item 50 — the warning that was true and was not an instruction, and a rider flagged for never firing
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict against a threshold. `by_domain` untouched.
+
+### WHAT DON'S SELF-CHECK ACTUALLY DID, FROM THE SERVICE'S OWN BODY
+
+Don ran `FLEET SELF-CHECK (re-certify)` — run `38319241292`, `workflow_dispatch`,
+2026-10-12T22:53:59Z, 43s, success. It POSTs `/admin/fleet-cycle?run=1&selfcheck=1`, so the
+service's JSON reply **is** the evidence, and it reads:
+
+* **the certificate renewed.** `selfcheck.ok true`, `closed true`, synthetic 18 of 20 run and
+  18 of 18 passed (2 skipped: the two checks that need `.git`, which the image excludes), live
+  19 of 19. `testbook` takes its own row in step 2 and the other **17 are certified in step 4**,
+  which is why `certified` lists seventeen and all eighteen nevertheless carry a current
+  fingerprint — **one verification of one harness, stamped where the gate reads it**, not
+  eighteen separate claims.
+* **`armed: 18`, `blocked: 0`, `breathing: true`, `not_breathing_reason: ""`.** The first
+  non-empty `breathing` in weeks.
+* **it filled: 3 fills, all `f3_bear_puts`** (3 candidates, 3 written). The Discord line went
+  out (`notified.sent true`, `n_fills 4` — three from the rule plus the day-1 live leg's own
+  fill, `n_cleared 18`, `n_new_refusals 0`).
+* **item 46's reconciliation wrote 38 rows** — `f3_bear_puts` 37 of 75 candidates with 8 holding
+  no position, `testbook` 1 of 8 — so the orders that had filled with nothing recorded now have
+  their outcomes on the chain.
+
+**WHAT IS STILL NOT ACTING, AND WHY, NAMED RATHER THAN LEFT AS "QUIET".** Fourteen of eighteen
+books are `ARMED_NO_ENTRY_RULE`: a build gap, not a market. Of the four rules that exist,
+`f3_bear_puts` is the only one that has ever filled.
+
+**AND ONE OF THE THREE `RULE_ARMED_NEVER_FIRES` BOOKS HAS A MEASURED STRUCTURAL CAUSE, WHICH IS
+THE FINDING.** `f11_dip_reject_puts` reads **today's** recorded `dip_rejects` row and selects
+nobody when there is none (`f11_recorded_rejects` returns `None`, deliberately — audit #5 H2's
+rule). Measured: the cycle reports `dip_rejects` **NOT CONSULTED** on 2026-10-12, and the
+series' last row is dated **2026-10-08**, because `/admin/record-dip-rejects` writes the row
+under the **SNAPSHOT's session** and the 2026-10-10 door run reported `scan_date 2026-10-08`
+with `snapshot_is_current false`. **So f11 cannot qualify anybody on any day the whole-market
+scan has not run that day, independent of the market** — its 26 empty observations are not
+evidence about its hypothesis. **Reported, not repaired: changing what a declared book's entry
+rule reads is a construction change to a frozen rule, which voids the book rather than
+improving it.** It is the options lane's and Don's.
+
+### A CRY-WOLF IN THE ALARM WHOSE DOCSTRING SAYS IT CANNOT CRY WOLF
+
+`f1_fill_ab` **places no orders by declaration** (`places_orders=False`) and its own docstring
+says *"ITS RECORD STREAM STAYS EMPTY BY DESIGN"*. So `fired == 0` is permanently true of it and
+`never_fires` has been flagging it `RULE_ARMED_NEVER_FIRES` on every cycle, and will for the
+rest of the project. That is exactly the standard `MA21` set and that function's own docstring
+claims to meet — **and a lamp that is always lit is how the fleet came to sit shut for weeks
+with every warning technically correct.**
+
+Repaired with its **own** state, `RIDER_PLACES_NO_ORDERS`, never a silent drop (`V6`: an absent
+measurement and a null must not read the same): the cycle's `never_fires` list is now the list a
+reader should check, and `riders_place_no_orders` names the riders beside it. Positive control
+in the suite: an **order-placing** rule with zero fills still raises the alarm, so the exemption
+cannot be used to silence a book that really has never fired.
+
+### THE PART THAT ANSWERS THE BRIEF: A NEEDED RE-CERTIFICATION NOW SAYS WHAT TO DO
+
+The brief's worry is that adding an entry rule changes `harness_fingerprint()` and stales the
+certificate again. **Every surface already reported the stale gate, and not one of them named
+the action**: the cycle printed a CODE (`ALL_BOOKS_BLOCKED_AT_GATE:SELFCHECK_STALE`), the shelf
+printed *"re-run it"* on each of eighteen rows, and the Discord line — the one surface read
+without opening anything — would have posted eighteen near-identical code lines with no fix
+sentence anywhere. **`SELFCHECK_STALE` is a true statement about a gate and it is not an
+instruction, and the gap between those two is the whole defect.**
+
+* **`fleet.SELFCHECK_REMEDY` is the one definition** (`B7`), naming the workflow by its real
+  label, and `fleet.SELFCHECK_WHY_STALE` says a harness change is the cause rather than a
+  fault. `fleet_notify` **imports** it; the suite bans a second copy with a positive control.
+* **`fleet.selfcheck_action()`** is the fleet-wide fact — needed, how many books, which states,
+  the remedy — and it is a **READ**: `may_fill` still refuses an uncertified book exactly as
+  before, pinned by test.
+* **`cycle()` carries `selfcheck_action`**, so a workflow reads the remedy instead of
+  SUBSTRING-matching a code, which is this repository's most repeated test defect wearing a
+  workflow's clothes. The existing `case *SELFCHECK_STALE*` also **misses `SELFCHECK_ABSENT`
+  entirely**.
+* **the Discord line is one grouped line plus the action** — eighteen stale books is one fact,
+  not eighteen, and a fix sentence under a wall of noise is the same as no fix sentence. One or
+  two books are still named individually, because *"2 books — CHAIN_BROKEN"* hides which two.
+* **`SELFCHECK_FAILING` is offered NO remedy, deliberately.** A re-run fails again there, and an
+  instruction that cannot work spends the reader's trust — which is how a surface stops being
+  read at all.
+* **the shelf shows a banner only while it is true**, worded from the payload, `None` rather
+  than an all-clear when the gate cannot be read.
+
+**THE HONEST COST, STATED FIRST BECAUSE IT BITES IMMEDIATELY: THIS CHANGE STALES THE CERTIFICATE
+DON JUST RENEWED.** `fleet.py` is a fingerprinted module, so the deploy expires every stamp and
+all eighteen books refuse again until `FLEET SELF-CHECK (re-certify)` is run once more. That is
+the gate working rather than a defect — and it is also the live end-to-end demonstration: the
+first cycle after the deploy will carry the new notice and post the one-line fix.
+
+**ROUTED, NOT TAKEN: the daily cycle could re-certify itself.** The service's comment and the
+self-check workflow both say a full day-1 run *"cannot finish inside the cron"*; **measured on
+this run it took `elapsed_ms 36652` — 37 seconds — against `fleet-cycle.yml`'s own
+`--max-time 280`.** So the budget objection does not hold at today's size. It is still a
+behaviour change to a **trading gate** and therefore Don's call, not a lane's.
+
+### INTERIM, AND THE REAL READING IS DUE 2026-10-14
+
+`scripts/intraday_delivery.py --since 2026-10-08 --until 2026-10-12`: **11 slots a weekday**
+(the eight `23 13-20` plus the three `53 17-19` backup slots), 3 sessions, **33 slots expected,
+8 delivered, 25 dropped = 75.8%** against item 37's **72.2%**. **The backup cron has not
+improved delivery.** And the sharper half: only **2 of the 8** arrivals landed inside the
+13:00–20:59 UTC in-session band, with **2026-10-12 having no in-session run at all** (its single
+run arrived 21:47 UTC). Three sessions is a small sample and the full-week reading is owed on
+2026-10-14; the script cannot attribute a delivered run to the primary or the backup, by its own
+caveat, because both gate the same job.
+
+### NOT DONE, NAMED SO IT IS NOT MISTAKEN FOR DONE
+
+**No scheduled cycle has run since the certificate renewed.** The last was
+2026-10-10T01:45:19Z under the previous cron; `4c524d1` installed `19 22 * * 1-5` at
+2026-10-12T19:34Z, and its first firing (22:19Z) had not appeared as of 23:07Z. The work a cycle
+does happened anyway, inside the self-check run above. **r1's re-measurement has not landed** —
+its prompt is dated 2026-10-13 and nothing is on `main`, so there is no public figure to restate
+yet; when it lands, PBO and the Deflated Sharpe reach `/proof`, X1 and P1S0 reach the move
+table, and R1's net-of-cost cell reaches `portfolio.html`. **f11's input is not wired and was
+not wired here.** **No public figure changed in this session.**
+
+**REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3): `tests/test_research_page.py` HANGS LOCALLY
+WITH NO OUTPUT AT ALL, and it is PRE-EXISTING.** Measured rather than assumed: the five files
+this session touched were restored to `HEAD` and the suite still produced zero bytes and was
+killed at 240s, then all five were put back byte-for-byte. It passes in CI — item 49 landed
+through the gate — so the hang is local, and the suite constructs the whole Flask app at
+IMPORT time (`APP = create_saas_app(CONFIG)`), which is where a blocking call would sit. Not
+this item's and not repaired. **Everything else in the blast radius is green: 36 suites of the
+37 that reference the changed modules, plus `test_edge` 428/428 and `test_fleet_endpoint` 11/11
+standalone.**
+
+**`data/pending_workflows/fleet-cycle.yml`** holds the one-block improvement that reads the
+remedy from the body instead of globbing the code — low priority, since the installed version
+already prints a correct fix line for the STALE case. Double-click `install_workflows.bat` to
+take it.

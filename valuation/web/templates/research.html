@@ -86,6 +86,10 @@
     text-transform:uppercase;padding:2px 7px;border-radius:20px;margin-left:6px;
     background:var(--soft);color:var(--blue);vertical-align:1px}
   .src{font-size:12.5px;color:var(--faint);margin-top:16px}
+  /* ITEM 50: the one notice on this page that asks the owner to DO something. Styled
+     to be unmissable and rendered only while it is true. */
+  .warn{background:#fff6e5;border-left:3px solid #d08700;padding:10px 12px;
+    border-radius:4px;margin:0 0 10px}
   .mv{width:100%;border-collapse:collapse;font-size:14px;margin:0 0 6px}
   .mv th{padding:0 10px 7px 0} .mv td{padding:9px 10px 9px 0}
   .mv td.n{font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -431,6 +435,16 @@
     {# THE POSTURE AND THE TWO-MEANINGS-OF-ZERO SENTENCE, both owned by `fleet_public` and
        rendered from the payload rather than worded here, so the page and the module cannot
        come to describe the same books differently. #}
+    {# ITEM 50 -- A GATE EVERY BOOK IS SHUT BY SAYS SO HERE, WITH THE ONE ACTION. Rendered
+       only when something is owed, so the shelf carries no permanent notice: a banner that
+       is always up is how the fleet sat shut for weeks with every warning technically
+       correct. The wording is the payload's, never this page's. #}
+    {% if declared.ops and declared.ops.action_needed %}
+      <p class="warn"><b>The fleet is not filling.</b>
+        {{ declared.ops.action_needed.reason }}
+        {% if declared.ops.action_needed.remedy %}{{ declared.ops.action_needed.remedy }}{% endif %}</p>
+      {% if declared.ops.action_needed.why %}<p class="src">{{ declared.ops.action_needed.why }}</p>{% endif %}
+    {% endif %}
     {% if declared.ops and declared.ops.posture %}
       <p>{{ declared.ops.posture }}</p>
       <p>{{ declared.ops.quiet_means }}</p>

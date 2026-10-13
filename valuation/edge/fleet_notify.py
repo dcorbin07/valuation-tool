@@ -35,6 +35,14 @@ import json
 import os
 from typing import Optional
 
+from .fleet import RECERTIFY_FIXES, SELFCHECK_REMEDY
+
+#: The refusal CODES a re-run fixes, DERIVED from the one list of states rather than
+#: typed again here. `may_fill` builds its code as `"SELFCHECK_" + state`, so writing
+#: the codes out would be a second copy of that mapping as well as of the policy -- and
+#: a surface that offers a remedy the gate no longer honours is worse than none.
+FIXED_BY_RECERTIFY = tuple("SELFCHECK_" + s for s in RECERTIFY_FIXES)
+
 SCHEMA = "fleet_notify/1"
 STATE_FILENAME = "_notified.json"
 
@@ -115,7 +123,7 @@ def pending(rows_by_book: dict, refusals: dict, fleet_dir: str) -> dict:
 
 def compose(p: dict) -> str:
     """The message. Facts only — no total, no P&L, no verdict."""
-    lines = []
+    lines, fixable = [], False
     if p["fills"]:
         lines.append("**Fleet fills** (paper, sandbox — a logbook entry, not a result)")
         for f in p["fills"][:20]:
@@ -128,11 +136,37 @@ def compose(p: dict) -> str:
             lines.append("- ...and %d more" % (len(p["fills"]) - 20))
     if p["new_refusals"]:
         lines.append("**Newly unable to fill**")
+        # GROUPED BY CODE, AND THAT IS NOT COSMETIC -- ITEM 50. One harness change stales
+        # every certificate at once, so the ungrouped form posts EIGHTEEN near-identical
+        # lines; the fix sentence then arrives below a wall of noise, which is the same
+        # failure as not sending it. The codes are the news, the book list is the detail.
+        by_code = {}
         for r in p["new_refusals"]:
-            lines.append("- `%s` — %s" % (r["book"], r["code"]))
+            by_code.setdefault(r["code"], []).append(r["book"])
+        for code in sorted(by_code):
+            bks = sorted(by_code[code])
+            if len(bks) <= 2:
+                for b in bks:
+                    lines.append("- `%s` — %s" % (b, code))
+            else:
+                shown = ", ".join("`%s`" % b for b in bks[:4])
+                more = (" and %d more" % (len(bks) - 4)) if len(bks) > 4 else ""
+                lines.append("- **%d books** — %s (%s%s)"
+                             % (len(bks), code, shown, more))
+        # THE ACTION, NOT ONLY THE CODE. `SELFCHECK_STALE` is a true statement about a gate
+        # and it is not an instruction, and the gap between those two is how eighteen books
+        # sat refusing every fill for weeks while every warning was technically correct. The
+        # sentence is imported, so the Discord line, the cycle body and the page cannot
+        # disagree about what to do.
+        fixable = any(r["code"] in FIXED_BY_RECERTIFY for r in p["new_refusals"])
     if p["cleared"]:
         lines.append("**No longer blocked**: " + ", ".join("`%s`" % c["book"]
                                                            for c in p["cleared"]))
+    # LAST, so it is the line the message ends on rather than one buried between two
+    # lists. A reader scanning a Discord post reads the first line and the last.
+    if fixable:
+        lines.append("")
+        lines.append("**What to do:** " + SELFCHECK_REMEDY)
     return "\n".join(lines)
 
 
