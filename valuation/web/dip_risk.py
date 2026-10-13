@@ -185,21 +185,50 @@ FORWARD_SESSIONS = 126
 # --------------------------------------------------------------------------------------- #
 
 #: P(a further -20% within `FORWARD_SESSIONS`), by class.
-RATE = {HEALTHY: 0.3251, UNHEALTHY: 0.4335}
+#:
+#: RESTATED 2026-10-13 ON THE CORRECTED 9,645-NAME UNIVERSE (`CANON-UNMEASURED` 4.2, item 50
+#: part 4). Published: 0.3251 / 0.4335 on 9,924 / 27,090 episodes. **BOTH RATES ROSE AND THE
+#: GAP WIDENED** -- -10.84pp to -15.07pp, a relative reduction of 25.0% to 29.91% -- so the
+#: published pair NO LONGER HOLDS while the finding it supports SURVIVES and is stronger. M1's
+#: verdict is still `REAL`.
+#:
+#: AND THIS MODULE IS WHY THE RESTATEMENT HAD TO BE SWEPT BY FIGURE RATHER THAN BY SURFACE.
+#: `dip_posture`'s paragraph was restated first and this file was missed; the suite's own
+#: cross-check -- *"two surfaces quoting one measurement ... if either is edited alone they
+#: diverge silently"* -- is what caught it, in CI, after the paragraph had already landed.
+RATE = {HEALTHY: 0.3531, UNHEALTHY: 0.5038}
 
 #: How many drawdown episodes each rate is measured on.
-N_ROWS = {HEALTHY: 9924, UNHEALTHY: 27090}
+N_ROWS = {HEALTHY: 29565, UNHEALTHY: 87548}
 
 #: The same probability with no health filter at all, so a reader can see that the healthy rate
 #: is below the unconditioned one rather than merely below the unhealthy one.
-RATE_ALL_DIPS = 0.4044
-N_ROWS_ALL = 37014
+#:
+#: THE COUNT IS DERIVED AND THE RATE IS TRANSCRIBED, and the difference is deliberate.
+#:
+#: The count is exact arithmetic: every dipped episode falls in exactly one class, 29,565 +
+#: 87,548 = 117,113 with no remainder, as the published 9,924 + 27,090 = 37,014 had none.
+#:
+#: THE RATE IS THE ARTIFACT'S, BECAUSE DERIVING IT DISAGREES WITH THE RECORD IN THE LAST
+#: DIGIT. The first cut of this restatement derived it as the row-weighted mean of the two
+#: rates above -- which reproduces the PUBLISHED 0.4044 at 0.40444 and looked sound -- and on
+#: the corrected figures it returns 0.4658 against the artifact's own 0.4657, because the
+#: weighting uses rates already rounded to four places while the artifact counts raw rows. A
+#: derived figure that disagrees with the record it describes is worse than a transcribed one,
+#: so this is transcribed from `CANON_UNMEASURED_V6B_DIP_SURVIVAL.json`
+#: `diagnostics.D1_base_rates.P_further20_all_dips` and the derivation stays here as the
+#: control that bounds it to 1e-4.
+N_ROWS_ALL = N_ROWS[HEALTHY] + N_ROWS[UNHEALTHY]
+RATE_ALL_DIPS = 0.4657
 
 #: The registered per-date statistic and its replication. Quoted so the surface can say the
 #: result held in both halves without a second measurement of it living anywhere.
-PER_DATE_DIFF_PP = -10.228
-PER_DATE_T = -10.585
-HALVES_PP = {"early": -9.064, "late": -11.515}
+#: RESTATED 2026-10-13: published -10.228 at t -10.585, halves -9.064 / -11.515. The
+#: corrected statistic is LARGER in the same direction, both halves still below their own p5,
+#: and it clears the pre-committed 3.0pp economic floor by 4.05x against the published 3x.
+PER_DATE_DIFF_PP = -12.153
+PER_DATE_T = -12.777
+HALVES_PP = {"early": -10.311, "late": -13.867}
 N_DATES = 68
 
 #: `diagnostics.D2_m1_within_market_cap_quintiles`. The extremes and the one that did not
@@ -210,11 +239,17 @@ N_DATES = 68
 #: deleting a measured figure to make a copy rule easy to obey is how a record loses the thing
 #: it was keeping; `test_mb10_no_per_tier_gap_reaches_the_payload` pins that they stay off
 #: every surface.
-SIZE_STRONGEST_PP = -14.287
-SIZE_WEAKEST_PP = -3.787
+#: RESTATED 2026-10-13: published -14.287 / -3.787. The gradient SURVIVES AND STEEPENS, and
+#: the within-size stratification got stronger rather than weaker -- 5 of 5 quintiles clearing
+#: their own p5 in both halves, against the published 4 of 5. **The standing caveat is
+#: unchanged: the claim is strongest exactly where the product is not.**
+SIZE_STRONGEST_PP = -16.77
+SIZE_WEAKEST_PP = -5.38
 #: The TOP quintile's own median market cap. Used only as a one-directional test — see the
 #: module docstring, point 4.
-TOP_QUINTILE_MEDIAN_MCAP = 21_852_950_000.0
+#: RESTATED 2026-10-13: published $21.85bn. The corrected top quintile's median is $6.80bn,
+#: because the universe nearly quadrupled and the quintile boundaries moved down with it.
+TOP_QUINTILE_MEDIAN_MCAP = 6_800_000_000.0
 
 # --------------------------------------------------------------------------------------- #
 # THE COPY
@@ -240,7 +275,7 @@ WHY_NOT = {
 
 
 METHOD_NOTE = (
-    "Measured on 37,014 drawdown episodes across an 18-year point-in-time panel of 2,531 "
+    "Measured on 117,113 drawdown episodes across an 18-year point-in-time panel of 9,645 "
     "companies. \"Healthy\" here is the definition the measurement used: quality above average "
     "for its cross-section, and financial health at least 50 out of 100 — a lower bar than the "
     "one this screen lists on, so a name that appears here has in practice already cleared it. "

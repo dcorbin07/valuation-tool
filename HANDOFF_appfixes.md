@@ -18359,3 +18359,49 @@ byte-for-byte**. A skip is loud and is never a pass (`O21-D2`'s `C5`).
 
 **25 suites green across both halves of this item** — part 4's own 14 plus the 11 that touch
 `/methodology` — and `test_canon_unmeasured`, r1's own new suite, passes against these pages.
+
+### THE GATE CAUGHT A SECOND DIP SURFACE, AND IT IS THE SAME LESSON A THIRD TIME
+
+`tests/test_dip_risk.py` went red in CI after part 4's first push, on a suite my blast-radius
+list did not contain because it greps none of the words I swept for. Its own docstring is the
+indictment: *"two surfaces quoting one measurement. If either is edited alone they diverge
+silently, and the paragraph is the one a reader trusts."* **I edited the paragraph alone.**
+`valuation/web/dip_risk.py` carries the PER-NAME rates, and they were still the published ones.
+
+**ITEM 47 ESTABLISHED THAT A RESTATEMENT MUST BE SWEPT BY FIGURE RATHER THAN BY A LIST OF
+SURFACES, AND I SWEPT BY A LIST OF SURFACES.** The sweep that should have run first — and did
+run after — is `grep` for the published literals across `tests/`, `valuation/` and `scripts/`.
+It found this module and nothing else; the remaining hits are prose explaining why those
+figures must never be rendered per-row, plus one fixture that feeds the published values INTO
+the restatement machinery on purpose.
+
+Restated with it: `RATE` **0.3251/0.4335 → 0.3531/0.5038**, `N_ROWS` **9,924/27,090 →
+29,565/87,548**, `PER_DATE_DIFF_PP` **−10.228 → −12.153** at *t* **−10.585 → −12.777**, the
+halves **−9.064/−11.515 → −10.311/−13.867**, `SIZE_STRONGEST_PP`/`SIZE_WEAKEST_PP`
+**−14.287/−3.787 → −16.77/−5.38**, the top quintile's median cap **$21.85bn → $6.80bn**, and
+`METHOD_NOTE`'s population. **Fifteen pins repointed in `test_dip_risk.py`, not one property
+changed**, and the two BANS were **widened** rather than moved — they refuse both panels'
+figures now, so the repoint did not trade one blind spot for another.
+
+**A DEFECT IN MY OWN FIRST CUT, CAUGHT BY CHECKING THE ARTIFACT RATHER THAN BY A TEST.** I made
+the unconditioned rate DERIVED — the row-weighted mean of the two class rates — which looked
+right because it reproduces the published 0.4044 at 0.40444 and because every dipped episode
+falls in exactly one class (29,565 + 87,548 = 117,113 exactly). On the corrected figures it
+returns **0.4658 against the artifact's own 0.4657**, because the weighting uses rates already
+rounded to four places while the artifact counts raw rows. **A derived figure that disagrees
+with the record it describes is worse than a transcribed one**, so it is transcribed and the
+derivation stays as the control that bounds it to 1e-4.
+
+**AND THE ARTIFACT PIN WAS READING THE WRONG PANEL'S FILE.** It compared the rates against
+`V6B_DIP_SURVIVAL.json`, the published artifact, which is still on disk. It now reads
+`CANON_UNMEASURED_V6B_DIP_SURVIVAL.json` — the run that measured the figures being pinned — and
+the published file is **not** kept as a fallback, because passing on whichever file happens to
+be present is the same wrong-panel defect one level down. If only the old artifact is there the
+suite says so by name rather than skipping into silence.
+
+**One pin could not be repointed in place and is the `RISK_REGISTERED_SENTENCE` shape again:**
+`test_the_copy_is_pinned_to_the_handoffs_own_findings` asserted the restated counts against
+`HANDOFF_v6b_health_gap.md`, the earlier handoff, which never measured them. Demanding that an
+earlier record carry later figures can only be satisfied by editing another lane's handoff, so
+the corrected counts are pinned against `HANDOFF_canon_unmeasured.md` — tracked, and just as
+checkable — while the published panel's own 73.19% stays pinned where it was measured.

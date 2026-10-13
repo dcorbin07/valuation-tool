@@ -19,6 +19,14 @@ join, and there are four ways it can be wrong while looking right:
 Every fixture is synthetic; nothing here touches the network, the store or a real valuation.
 
 Run: python tests/test_dip_risk.py
+
+
+RESTATED 2026-10-13 (`CANON-UNMEASURED` 4.2, item 50 part 4). Every published literal
+below was repointed: the pair 32.5/43.4 -> 35.3/50.4, the counts 9,924/27,090/37,014 ->
+29,565/87,548/117,113, the unhealthy share 73.2% -> 74.8%, and the per-tier record
+-14.287/-3.787 -> -16.77/-5.38. **NOT ONE PROPERTY CHANGED** -- each guard still asserts
+the same thing about the same surface -- and the two BANS were WIDENED rather than moved,
+so they now refuse both panels' figures instead of trading one blind spot for another.
 """
 from __future__ import annotations
 
@@ -127,18 +135,42 @@ def test_a_rate_is_never_present_beside_a_does_not_apply_flag():
 # ============================== the numbers ===============================================
 def test_the_rates_are_the_artifacts_own_rates():
     """Skips rather than passes when the licensed artifact is absent (it is gitignored, so CI
-    has no copy). A skip that announces itself is honest; a silent pass is not."""
+    has no copy). A skip that announces itself is honest; a silent pass is not.
+
+    REPOINTED 2026-10-13 (item 50 part 4). This read `V6B_DIP_SURVIVAL.json`, the PUBLISHED
+    panel's artifact, and the rates it checks were restated from the corrected one. A pin must
+    read the artifact that MEASURED the figures it is pinning, so the corrected artifact is
+    preferred and the published one is no longer consulted at all -- keeping it as a fallback
+    would mean the suite passed on whichever file happened to be on disk, which is the same
+    figure-from-the-wrong-panel defect one level down.
+
+    AND IF ONLY THE OLD ARTIFACT IS PRESENT, THAT IS SAID RATHER THAN SKIPPED PAST. A machine
+    carrying the published artifact and not the corrected one cannot check these rates, and
+    the message names which file it wanted -- `O21-D2`'s `C5`: a check that could not run and
+    one that ran and found nothing must not read the same.
+    """
     import json
-    for base in (ROOT, os.path.join(ROOT, "..", "..", "..")):
-        p = os.path.join(base, "data", "free_analysis", "V6B_DIP_SURVIVAL.json")
+    bases = (ROOT, os.path.join(ROOT, "..", "..", ".."))
+    for base in bases:
+        p = os.path.join(base, "data", "free_analysis",
+                         "CANON_UNMEASURED_V6B_DIP_SURVIVAL.json")
         if os.path.exists(p):
             d = json.load(open(p, encoding="utf-8"))["diagnostics"]["D1_base_rates"]
             assert abs(d["P_further20_healthy"] - dip_risk.RATE["healthy"]) < 1e-9
             assert abs(d["P_further20_unhealthy"] - dip_risk.RATE["unhealthy"]) < 1e-9
             assert d["n_healthy"] == dip_risk.N_ROWS["healthy"]
             assert d["n_unhealthy"] == dip_risk.N_ROWS["unhealthy"]
+            # The unconditioned rate is TRANSCRIBED from this same block rather than derived,
+            # because the row-weighted mean of the two rounded rates above returns 0.4658
+            # against this file's 0.4657. Pinned here so the transcription cannot drift.
+            assert abs(d["P_further20_all_dips"] - dip_risk.RATE_ALL_DIPS) < 1e-9
             return
-    print("      (artifact absent - rate pin skipped, floors still pinned against source)")
+    stale = [os.path.join(b, "data", "free_analysis", "V6B_DIP_SURVIVAL.json") for b in bases]
+    if any(os.path.exists(p) for p in stale):
+        print("      (the PUBLISHED artifact is here and the CORRECTED one is not, so these "
+              "restated rates cannot be checked against the run that measured them)")
+    else:
+        print("      (artifact absent - rate pin skipped, floors still pinned against source)")
 
 
 def test_the_healthy_rate_is_below_both_comparisons_it_is_shown_against():
@@ -174,10 +206,10 @@ def test_both_classes_are_written_out_in_full_and_neither_quotes_the_other():
     sayable, in full, neither a stub — because an unhealthy row rendering nothing would make
     the unflattering class read as missing data."""
     hl, ul = dip_risk.label_for("healthy"), dip_risk.label_for("unhealthy")
-    assert "32.5%" in hl and "43.4%" not in hl, (
+    assert "35.3%" in hl and "50.4%" not in hl, (
         "the per-name label quotes the peer rate again; that is the comparison the live data "
         "cannot make: " + hl)
-    assert "43.4%" in ul and "32.5%" not in ul, ul
+    assert "50.4%" in ul and "35.3%" not in ul, ul
     assert len(ul) > 60 and len(hl) > 60, "neither label may be a stub"
     for lbl in (hl, ul):
         assert "measured panel" in lbl, (
@@ -198,7 +230,7 @@ def test_the_contrast_is_stated_once_at_screen_level_and_says_it_cannot_be_made_
     assert "filters remove the unhealthy side" in low, (
         "the mechanism r1 measured — an upstream filter — must be named: " + note)
     assert "the separating was done by those filters upstream" in low, note
-    assert "73.2%" in note, "the panel's own unhealthy share must appear: " + note
+    assert "74.8%" in note, "the panel's own unhealthy share must appear: " + note
 
 
 def test_moving_the_comparison_off_the_rows_did_not_delete_it():
@@ -210,12 +242,12 @@ def test_moving_the_comparison_off_the_rows_did_not_delete_it():
     A rate with nothing on the other side of it is not interpretable. Both panel rates must
     therefore survive at SCREEN level even though neither may sit on a row."""
     note = dip_risk.SCREEN_CONTRAST_NOTE
-    assert "43.4%" in note and "32.5%" in note, (
+    assert "50.4%" in note and "35.3%" in note, (
         "the peer rate is rendered nowhere; METHOD_NOTE promises it and the screen does not "
         "show it: " + note)
     assert "measured panel" in note and "cannot be made on this page" in note.lower()
     # ... and it must still be absent from the row.
-    assert "43.4%" not in dip_risk.label_for("healthy")
+    assert "50.4%" not in dip_risk.label_for("healthy")
     assert not dip_risk.violations(note), dip_risk.violations(note)
 
 
@@ -237,10 +269,24 @@ def test_the_copy_is_pinned_to_the_handoffs_own_findings():
         "with no record behind them")
     flat = re.sub(r"\s+", " ", open(path, encoding="utf-8").read())
 
-    # The two panel facts the note quotes, and the counts the derived share comes from.
+    # The published panel's own split, still pinned where it was measured. The COPY no
+    # longer quotes it -- it was restated to 74.8% on 2026-10-13 -- and this stays because the
+    # mechanism sentences below are that handoff's and the figure is how its pass is
+    # identified. It is NOT the figure the surface states.
     assert "73.19%" in flat, "r1's panel split is no longer in the handoff"
-    for n in ("9,924", "27,090", "37,014"):
-        assert n in flat, "the row counts behind unhealthy_share() moved: " + n
+    # THE RESTATED COUNTS ARE PINNED WHERE THEY WERE MEASURED, which is a different handoff.
+    # Asserting them against the earlier one would demand that the earlier record carry
+    # figures it never measured -- and the only way to make that pass is to edit another
+    # lane's handoff, which is making the record agree by fiat. `CANON-UNMEASURED` 4.2 is the
+    # source of 29,565 / 87,548 / 117,113 and it is tracked, so the pin is just as checkable.
+    corrected = os.path.join(ROOT, "HANDOFF_canon_unmeasured.md")
+    assert os.path.exists(corrected), (
+        "the handoff the RESTATED counts rest on is gone; dip_risk's rates now assert "
+        "findings with no record behind them")
+    flat_corrected = re.sub(r"\s+", " ", open(corrected, encoding="utf-8").read())
+    for n in ("29,565", "87,548", "117,113"):
+        assert n in flat_corrected, (
+            "the row counts behind unhealthy_share() moved: " + n)
     # The mechanism the note names — an upstream filter, not delisting, not a floor difference.
     assert "prefilter removes M1's entire unhealthy side" in flat, flat[:0]
     assert "not a discriminator between two groups on this surface" in flat
@@ -248,7 +294,7 @@ def test_the_copy_is_pinned_to_the_handoffs_own_findings():
     assert "invites reading the screen as having done the separating" in flat
 
     # The share this module derives must equal the one the handoff states.
-    assert abs(dip_risk.unhealthy_share() - 0.7319) < 0.0002, dip_risk.unhealthy_share()
+    assert abs(dip_risk.unhealthy_share() - 0.7476) < 0.0002, dip_risk.unhealthy_share()
 
 
 def test_the_handoff_pin_is_not_vacuous():
@@ -266,10 +312,10 @@ def test_the_method_notes_promise_is_kept_by_what_is_actually_served():
     assert "does not show" in dip_risk.METHOD_NOTE
     rows = [{"dip_risk": dip_risk.for_name(0.35, 2.0, 90.0)}]      # an all-healthy screen
     text = dip_risk.rendered_text(rows, dip_risk.summary(rows))
-    assert "43.4%" in text, (
+    assert "50.4%" in text, (
         "on an all-healthy screen — which r1 measured is every screen — the served text quotes "
         "no unhealthy figure at all, so METHOD_NOTE describes something absent")
-    assert "32.5%" in text
+    assert "35.3%" in text
 
 
 def test_the_panel_share_is_derived_from_the_row_counts_and_not_typed():
@@ -278,9 +324,11 @@ def test_the_panel_share_is_derived_from_the_row_counts_and_not_typed():
     assert dip_risk.N_ROWS["healthy"] + dip_risk.N_ROWS["unhealthy"] == dip_risk.N_ROWS_ALL
     expected = float(dip_risk.N_ROWS["unhealthy"]) / float(dip_risk.N_ROWS_ALL)
     assert abs(dip_risk.unhealthy_share() - expected) < 1e-12
-    assert 0.73 < dip_risk.unhealthy_share() < 0.74, dip_risk.unhealthy_share()
+    # RESTATED 2026-10-13: the published band was 0.73-0.74 (27,090 of 37,014). The
+    # corrected split is 87,548 of 117,113. The band is still a band and still narrow.
+    assert 0.74 < dip_risk.unhealthy_share() < 0.75, dip_risk.unhealthy_share()
     src = open(os.path.join(ROOT, "valuation", "web", "dip_risk.py"), encoding="utf-8").read()
-    assert "73.2" not in src.replace("73.19", ""), (
+    assert "74.8" not in src.replace("74.76", ""), (
         "the share is typed somewhere as a literal; it must only ever be derived")
 
 
@@ -309,13 +357,14 @@ def test_mb10_no_per_tier_gap_reaches_the_payload():
     This pin replaces one that REQUIRED the gaps to be present. It is strictly stronger: it
     checks the constants survive as the record AND that neither reaches a reader.
     """
-    assert dip_risk.SIZE_STRONGEST_PP == -14.287, "the measured record was deleted, not hidden"
-    assert dip_risk.SIZE_WEAKEST_PP == -3.787
+    assert dip_risk.SIZE_STRONGEST_PP == -16.77, "the measured record was deleted, not hidden"
+    assert dip_risk.SIZE_WEAKEST_PP == -5.38
 
     rendered = " ".join(str(v) for v in dip_risk.for_name(
         0.35, 1.0, 80.0, market_cap=dip_risk.TOP_QUINTILE_MEDIAN_MCAP * 2).values())
     rendered += " " + dip_risk.SIZE_CAVEAT + " " + dip_risk.METHOD_NOTE
-    for gap in ("14.29", "14.287", "3.79", "3.787", "-14.2", "-3.7"):
+    for gap in ("16.77", "16.8", "5.38", "5.4", "-16.7", "-5.3",
+                "14.29", "14.287", "3.79", "3.787", "-14.2", "-3.7"):
         assert gap not in rendered, f"a per-tier gap reached the payload: {gap!r}"
 
     # ...and the refusal must SAY why, or it reads as an omission a later edit will "fix".
@@ -507,10 +556,10 @@ def test_an_empty_screen_reports_no_coverage_rather_than_perfect_coverage():
 def test_the_posture_paragraph_and_the_per_name_rates_do_not_disagree():
     """Two surfaces quoting one measurement. If either is edited alone they diverge silently,
     and the paragraph is the one a reader trusts."""
-    for frag in ("32.5%", "43.4%"):
+    for frag in ("35.3%", "50.4%"):
         assert frag in dip_posture.RISK_HEADLINE, dip_posture.RISK_HEADLINE
-    assert "32.5%" == "%.1f%%" % (100 * dip_risk.RATE["healthy"])
-    assert "43.4%" == "%.1f%%" % (100 * dip_risk.RATE["unhealthy"])
+    assert "35.3%" == "%.1f%%" % (100 * dip_risk.RATE["healthy"])
+    assert "50.4%" == "%.1f%%" % (100 * dip_risk.RATE["unhealthy"])
 
 
 def test_the_risk_field_is_absent_when_the_risk_register_is_not_positive():
@@ -601,7 +650,8 @@ def test_the_renderer_never_puts_the_peer_rate_on_a_row():
         "renderDip renders the peer rate on a row. r1 measured that this screen's prefilter "
         "removes the unhealthy side upstream, so a row-level 'X% against Y%' claims a "
         "separation this page did not do")
-    for literal in ("43.4", "32.5", "0.4335", "0.3251"):
+    for literal in ("50.4", "35.3", "0.5038", "0.3531",
+                    "43.4", "32.5", "0.4335", "0.3251"):
         assert literal not in body, (
             "a measured rate is typed into the renderer as a literal (%r); every number here "
             "must come from the payload" % literal)
