@@ -1,5 +1,32 @@
 # HANDOFF STATUS - shared project state
 
+## options lane — **fleet review executed: ten declarations retired, and F-14/F-15's priority inverts once their inputs are measured** (2026-10-13)
+
+`FLEET_RETIREMENTS.md` carries one row per retired book **with the landed result that closed it**,
+and it is **mechanical**: `fleet_books.register_all()` REFUSES to arm any book named there, so
+re-arming one means deleting a row and saying why. The reader **fails OPEN** on a missing file —
+a missing record must never silently disarm a live book — so it is a second lock, and a test pins
+that none of the ten is in `RULES` either. **ZERO trials; no declaration edited; nothing armed.**
+
+- **The eight the review named**, each on its deciding result: `f17`/`f5` on one `SELL-PREMIUM`
+  `K2` table read in two directions, `f12`/`f13` on `U7`, `f18` on `E-3`, `f6`/`f20` on Don's own
+  `R1-VAR` ruling, `testbook` on its own declaration.
+- **`f4` and `f10` retire their DECLARED 0.90-moneyness expression only.** `SELL-PREMIUM-2` makes
+  the 25-delta case strong (4.6747 years on 9.0811%/yr) but **it does not transfer** — that is
+  dip-conditioned income and these books are not dip-conditioned, so re-declaring on it would
+  borrow an income across populations to clear a crash gate (`MB8`). **The cheap next step is
+  named**: `SELL-PREMIUM-2`'s `A2` control already IS the non-dip 25-delta population (+0.2957%
+  across five seeds) and banking its premium column would settle both books with no register and
+  no trial.
+- **`f2` and `f19` are NOT retired** — they are fields, now folded into F-21/F-22's
+  `records_schema` as `menu_depth` and `density_percentile`.
+- **THE MEASUREMENT THAT INVERTS THE REVIEW'S PRIORITY:** F-14's `S3-I2` catalyst spine is **built
+  and EMPTY** (no catalyst data anywhere under `data/`, scraper never scheduled), so the cheapest
+  book cannot be armed; while **F-15's inputs exist** — 6,688,777 insider rows, `ownername`
+  missing on 0, 163,653 open-market purchases, `transactioncode` missing on 28.52% which must be
+  counted and skipped. **F-15's signal is buildable today and its 60-DTE ATM call expression is
+  what is probably dead.** `HANDOFF_optionsbot.md` §86.
+
 ## options lane — **F-21/F-22 accepted and DECLARED, NOT ARMED — the entry source F-21 was declared on did not exist** (2026-10-13)
 
 Each declaration **committed ALONE** (`bde7bcd`, `399a22d`) and each validates **`ok=True`, zero

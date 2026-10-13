@@ -11669,3 +11669,83 @@ No fill, no trial, paper only.**
   **22 tests, zero errors.** `DECL_f21_v6opt_dip_csp.md`, `DECL_f22_dip_csp_random_twin.md`;
   `valuation/edge/fleet_history.py`, `fleet_books.py`; `valuation/saas/scan_worker.py`,
   `app_saas.py`; `tests/test_f21_f22.py`.
+
+
+---
+
+## 86. THE FLEET REVIEW EXECUTED — **TEN DECLARATIONS RETIRED WITH THE RESULT THAT CLOSED EACH, AND THE TWO SURVIVORS' PRIORITY IS INVERTED BY MEASURING THEIR INPUTS** (2026-10-13)
+
+Executes `FLEET_UNARMED_REVIEW.md` (`2c7d967` + `01b234a`) where it is this lane's. **ZERO
+TRIALS** — the harness charges at the first verdict read and nothing here reads one. **No
+declaration is edited, nothing is armed, no fill is placed.**
+
+* **A RETIREMENT CLOSES A DECLARATION AND NEVER A HYPOTHESIS, AND IT IS MECHANICAL RATHER THAN
+  DOCUMENTARY.** `FLEET_RETIREMENTS.md` carries one row per retired book **with the landed result
+  that closed it**; `fleet.retired_books()` reads it and **`fleet_books.register_all()` REFUSES to
+  arm any book named there**. A retirement written only in prose is one somebody re-arms by adding
+  a line to `RULES`; undoing one of these means deleting a row and saying why, which shows in the
+  diff. **The reader fails OPEN on a missing file, deliberately** — a missing record must never
+  silently disarm a live book — so it is a **second** lock, and a test pins that none of the ten
+  is in `RULES` either.
+* **THE EIGHT THE REVIEW NAMED, RETIRED ON THE RESULT THAT CLOSED EACH.** `f17` and `f5` die on
+  **one** `SELL-PREMIUM` `K2` table read in two directions (the seller earns most in the LOWEST
+  IV-rank band at **+0.5700%** and least in the highest at **+0.4229%**; F-17 enters at the worst
+  band and F-5 buys where the seller earns most). `f12` and `f13` die on `U7` — the live
+  composite's expectancy by decile is **U-shaped**, the bottom decile is the **third most
+  profitable at +10.64%**, and their direction rule **is** the composite's sign. `f18` dies on
+  `E-3`'s repackaging finding. `f6` and `f20` die on **`R1-VAR`, Don's own standing ruling**, with
+  `f20` carrying `DIP-CALL-3`'s power kill as an independent third reason. `testbook` dies on its
+  own declaration.
+* **AND THE 2026-10-12 RULING DOES NOT RESCUE F-6 AND F-20, WHICH IS WORTH SPELLING OUT BECAUSE IT
+  DOES EXEMPT F-21.** That ruling frees a **separate system** from the shares comparison. **A
+  collar and a married put are OVERLAYS ON THE INDEX'S OWN HOLDINGS**, so they are judged against
+  the Index's own position by construction and `R1-VAR` still binds. F-21 sells puts on names the
+  Index does not hold and is genuinely separate.
+* **F-4 AND F-10 ARE RETIRED AS DECLARED AND THEIR HYPOTHESES STAY OPEN, AND THE REASON NOT TO
+  RE-DECLARE THEM TODAY IS `MB8`.** The review offered *"re-declare at ~25 delta, or retire"*, and
+  `SELL-PREMIUM-2` has since made the 25-delta case evidentially strong — it clears the identical
+  6.0-year bar at **4.6747 years** on **9.0811%/yr** of secured cash. **It does not transfer.**
+  That measurement is **dip-conditioned**, where `V6-OPT` put post-dip IV **+17.711%** above the
+  name's own trailing median; F-4 and F-10 are **not** dip-conditioned, so their 25-delta income is
+  a different and smaller number and `K3`'s denominator is exactly that income. **Re-declaring them
+  on it would be borrowing an income across populations to clear a crash gate.**
+* **AND THE CHEAP NEXT STEP IS NAMED RATHER THAN LEFT VAGUE.** `SELL-PREMIUM-2`'s **`A2` control
+  already IS the right object** — a 25-delta put on **random days** in the same names, which is
+  precisely the non-dip population — and it measured **+0.2957%/trade** across five seeds. **It
+  banked the return and not the premium fraction**, so `K3`'s denominator cannot be read out of it
+  today; **banking that one column on a re-run of the existing control would settle both books with
+  no new register and no trial**, because a control can only ever BLOCK (`MB1-SEL`).
+* **F-2 AND F-19 ARE NOT RETIRED — THEY ARE FIELDS AND THEY HAVE BEEN FOLDED IN.** Both say so of
+  themselves, both hold no positions, and their `fills_needed` figures (**4,563 / 47.5 years** and
+  **1,015 / 21.2 years**) are a per-trade meter applied to an object with no trades. `menu_depth`
+  and `density_percentile` now ride as `records_schema` fields on F-21 and F-22. **Retiring them
+  would imply their content was wrong rather than mis-housed.**
+* **THE MEASUREMENT THAT INVERTS THE REVIEW'S PRIORITY ORDERING, AND IT IS THE MOST USEFUL THING
+  HERE.** The review kept **F-14** as *"the cheapest unarmed book"* and told F-15 to keep its
+  signal and drop its call. **Measured today, the cheaper book is the one whose input does not
+  exist.**
+  * **F-14's `S3-I2` CATALYST SPINE IS BUILT AND EMPTY.** `valuation/edge/catalyst_calendar.py`
+    ships with `add_snapshot`, `coverage`, `forward_rows`, `latest`, `load`, `save` and
+    `usable_date`, and `scripts/s3i2_catalyst_scrape.py` is its only caller — **and there is NO
+    catalyst data anywhere under `data/`**, no `catalysts/`, no `catalyst_calendar.json`, nothing
+    matching `*catalyst*`, **and nothing schedules the scraper.** The module's own docstring warns
+    against *"'no catalysts' on the day a scraper silently breaks"*; **an empty spine is that
+    failure in its permanent form**, and the review flagged this as unestablished. It is now
+    established.
+  * **F-15's INPUTS EXIST AND ARE MEASURED.** On the shipped 691 MB `data/backtest/insiders.csv`:
+    **6,688,777 rows**, `ownername` missing on **0**, `filingdate` on **all** of them, **163,653**
+    open-market purchase rows, and `transactioncode` **missing on 28.52%** — which must be
+    **counted and skipped, never read as "not a purchase"** (`MB20`'s own correction, and that file
+    has grown since `MB20` measured 5,636,964 rows at 27.40%). **So the cluster detector is
+    implementable today and the EXPRESSION is the problem**: a 1.00-moneyness 60-DTE call prices a
+    **±14.6%** implied move at IV 0.30, and no insider-cluster drift in this record approaches a
+    tenth of it. **The free pre-outcome step is the implied-move hurdle, not the entry rule.**
+* **NOT DONE, named so it is not mistaken for done: no hypothesis is retired** — F-17's percentile,
+  F-5's cheap vol, F-12/F-13's post-event windows, F-6/F-20's protection and F-4/F-10's premium
+  selling are each testable constructions that *this fleet's version* is measured against;
+  **no declaration is edited**, so `declaration_commit`'s provenance is untouched; **nothing is
+  armed and no fill is placed**; **F-14's hump check and straddle selection are NOT built**, and
+  **F-15's implied-move hurdle is NOT computed** — both are named as the next free step for their
+  own lane. **11 tests, zero errors.** `FLEET_RETIREMENTS.md`; `valuation/edge/fleet.py`
+  (`retired_books`, `is_retired`), `fleet_books.py` (`register_all`'s refusal);
+  `tests/test_fleet_retirements.py`.

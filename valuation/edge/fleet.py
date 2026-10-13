@@ -46,6 +46,7 @@ import datetime as _dt
 import hashlib
 import time as _time
 import json
+import io
 import os
 import re
 import subprocess
@@ -102,6 +103,48 @@ RECORD_COLUMNS = (
 EVENT_KINDS = ("selfcheck", "fill", "refusal", "meter_read", "close", "skip", "reconcile")
 
 # Every clause a declaration must state. Absent -> REFUSED, and the refusal names the field.
+#: The retirement record. A RETIREMENT CLOSES A DECLARATION, NEVER A HYPOTHESIS -- a successor
+#: with a different construction, its own blind register and its own trials is foreclosed by
+#: nothing in it.
+RETIREMENTS_FILE = "FLEET_RETIREMENTS.md"
+
+
+def retired_books(root: str = None) -> dict:
+    """`book -> the landed result that closed it`, read from `FLEET_RETIREMENTS.md`.
+
+    **THE FILE IS THE RECORD AND THIS IS WHAT MAKES IT MECHANICAL.** A retirement written only
+    in prose is one somebody re-arms by adding a line to `RULES`; `register_all` refuses any
+    book named here, so undoing one means deleting a row and saying why -- which shows in the
+    diff.
+
+    **AN UNREADABLE OR ABSENT FILE RETIRES NOTHING**, deliberately. Failing open is right here
+    and failing closed is not: a missing record must never silently disarm a live book. Every
+    book named today is already absent from `RULES`, so this is a SECOND lock and never the
+    only one.
+    """
+    p = os.path.join(root or repo_root(), RETIREMENTS_FILE)
+    out = {}
+    try:
+        with io.open(p, encoding="utf-8") as fh:
+            for ln in fh:
+                if not ln.startswith("| ") or ln.startswith("| book "):
+                    continue
+                cells = [c.strip() for c in ln.split("|")]
+                if len(cells) < 5:
+                    continue
+                book, why = cells[1], cells[3]
+                if not book or " " in book or set(book) <= set("-: "):
+                    continue          # the separator row, or prose
+                out[book] = why
+    except Exception:                                                # noqa: BLE001
+        return {}
+    return out
+
+
+def is_retired(book: str, root: str = None) -> bool:
+    return str(book) in retired_books(root)
+
+
 REQUIRED_DECL_FIELDS = (
     "book", "domain", "hypothesis_class", "entry_rule", "structure", "universe",
     "sizing", "concurrency_cap", "side", "records_schema", "verdict_horizon",
