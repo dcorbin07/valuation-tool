@@ -41,17 +41,39 @@ ART = os.path.join(ROOT, "data/free_analysis/V6B_DIP_SURVIVAL.json")
 DATA = os.path.join(ROOT, "data/backtest")
 N_QUINTILES = 5
 
+#: CANON-UNMEASURED §4.2 — EVERY PATH IS NOW AN ARGUMENT, DEFAULTING TO THE LANDED LITERALS.
+#: `D1` is the producer of the pooled pair the Dip Detector tab carries ("32.5% vs 43.4%"), and
+#: with the paths hard-coded that figure could not be re-measured on any other universe without
+#: editing this file — the same defect family as `canon_figure_table.py`'s three dead paths and
+#: `v6b_dip_survival`'s hard-coded `REC`. Every default below is the literal that was here, so
+#: `python -m scripts.v6b_addendum` with no arguments is bit-identical to what it always did.
+DEFAULT_PANEL = os.path.join(ROOT, "data/free_analysis/panel_v6.pkl")
+DEFAULT_OUT = os.path.join(ROOT, "data/free_analysis/V6B_ADDENDUM.json")
 
-def main():
-    d = json.load(open(ART))
+
+def main(argv=None):
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--arm-artifact", default=ART,
+                    help="the arm pass's own artifact; it must carry an `arms` block")
+    ap.add_argument("--panel-cache", default=DEFAULT_PANEL)
+    ap.add_argument("--data-dir", default=DATA)
+    ap.add_argument("--bulk-dir", default=os.path.join(ROOT, "data/bulk"))
+    ap.add_argument("--json", default=DEFAULT_OUT)
+    args = ap.parse_args(argv)
+    # a LOCAL, not a rebound global: mutating the module constant would change the argparse
+    # default on a second call in the same process, which is a stateful CLI.
+    data_dir = args.data_dir
+
+    d = json.load(open(args.arm_artifact))
     assert "arms" in d, "the arm pass must have run first"
 
-    panel = pickle.load(open(os.path.join(ROOT, "data/free_analysis/panel_v6.pkl"), "rb"))
+    panel = pickle.load(open(args.panel_cache, "rb"))
     dates = sorted(panel["date"].unique())
     tickers = sorted(panel["ticker"].unique())
-    dd = trailing_drawdown(os.path.join(DATA, "prices"), tickers, dates)
-    hp = health_panel(DATA, tickers, dates)
-    fp = forward_paths(os.path.join(DATA, "prices"), tickers, dates)
+    dd = trailing_drawdown(os.path.join(data_dir, "prices"), tickers, dates)
+    hp = health_panel(data_dir, tickers, dates)
+    fp = forward_paths(os.path.join(data_dir, "prices"), tickers, dates)
     p = (panel.merge(dd, on=["date", "ticker"], how="left")
                .merge(hp, on=["date", "ticker"], how="left")
                .merge(fp, on=["date", "ticker"], how="left"))
@@ -125,7 +147,7 @@ def main():
     }
 
     # ---- D3: acquisition rate by health group (register expectation 4) ----
-    ev = action_events(os.path.join(ROOT, "data/bulk/actions.csv"), tickers)
+    ev = action_events(os.path.join(args.bulk_dir, "actions.csv"), tickers)
     dt = pd.to_datetime(dips["date"]).to_numpy(dtype="datetime64[D]")
     tk = dips["ticker"].to_numpy()
     acq = np.zeros(len(dips), dtype=bool)
@@ -148,8 +170,14 @@ def main():
     }
 
     d.setdefault("diagnostics", {}).update(out)
-    with open(ART, "w") as f:
+    # It writes the diagnostics back INTO the arm artifact it read, which is how the landed
+    # `V6B_DIP_SURVIVAL.json` came to carry `diagnostics.D1_base_rates`. That stays the
+    # behaviour (`--arm-artifact` defaults to the landed path, so a bare run is unchanged), and
+    # a SECOND copy goes to `--json` so the diagnostics are readable without re-opening the arm.
+    with open(args.arm_artifact, "w") as f:
         json.dump(d, f, indent=2, default=float)
+    with open(args.json, "w") as f:
+        json.dump(out, f, indent=2, default=float)
     print(json.dumps(out, indent=2, default=float))
     return 0
 

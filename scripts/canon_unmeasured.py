@@ -1000,6 +1000,67 @@ def p1s0():
 # ---------------------------------------------------------------------------------------------
 # REGISTER §4.2 — `V6-B` M1, the dip-survival rate
 # ---------------------------------------------------------------------------------------------
+def v6b_read():
+    """RE-EXTRACT the V6-B summary from the artifacts already on disk. Measures NOTHING.
+
+    `v6b()` re-runs the arm, which costs a ~40-minute feature rebuild over 9,645 names — so an
+    extraction bug must not be repaired by re-running the measurement. (It nearly was: my first
+    extraction read `arms.arm1_survival.M1`, whose keys are uppercase, and returned `{}` on a
+    successful run.)
+    """
+    import pandas as pd
+    from scripts import v6b_dip_survival as V
+
+    arm_path = os.path.join(fa(), "CANON_UNMEASURED_V6B_DIP_SURVIVAL.json")
+    old_path = out_path("v6b")
+    if not os.path.exists(arm_path):
+        raise SystemExit("REFUSING: the arm artifact is not on disk at %s" % arm_path)
+    with io.open(arm_path, encoding="utf-8") as fh:
+        res = json.load(fh)
+    out = {}
+    if os.path.exists(old_path):
+        with io.open(old_path, encoding="utf-8") as fh:
+            out = json.load(fh)
+    out.setdefault("item", "CANON-UNMEASURED")
+    out.setdefault("part", "4.2 -- V6-B M1, the dip-survival rate")
+    out["re_extracted_from"] = arm_path
+    out["bars_imported"] = {"m1_economic_floor_pp": V.M1_ECONOMIC_PP, "n_perm": V.N_PERM,
+                            "min_per_side": V.MIN_PER_SIDE,
+                            "min_dates_per_half": V.MIN_DATES_PER_HALF,
+                            "depth": V.DEPTH, "fwd_td": V.FWD_TD,
+                            "further_drop": V.FURTHER_DROP,
+                            "quality_floor": V.QUALITY_FLOOR, "health_floor": V.HEALTH_FLOOR}
+    out["controls"] = res.get("controls")
+    out["aborted"] = res.get("ABORTED")
+    arms = res.get("arms") or {}
+    a1 = arms.get("ARM1_SURVIVAL") or {}
+    out["M1"] = a1.get("M1_further_20pct_within_126d") or {}
+    out["M1_verdict"] = a1.get("M1_verdict")
+    out["M2"] = a1.get("M2_distress_within_252d") or {}
+    out["M2_verdict"] = a1.get("M2_verdict")
+    out["M3_verdict"] = a1.get("M3_verdict")
+    out["population"] = a1.get("population")
+    out["n_rows"] = a1.get("n_rows")
+    out["published"] = {"healthy_pooled_rate": 0.3251, "unhealthy_pooled_rate": 0.4335,
+                        "pooled_gap_pp": -10.84,
+                        "registered_per_date_statistic_pp": -10.228339376002001,
+                        "registered_t": -10.5846751641643,
+                        "M2_verdict": "VOID -- UNDERPOWERED BY CONSTRUCTION "
+                                      "(42 distress events against a floor of 60)"}
+    out["D1_base_rates"] = ((res.get("diagnostics") or {}).get("D1_base_rates")) or None
+    add = _a("CANON_UNMEASURED_V6B_ADDENDUM.json")
+    if add:
+        out["D1_base_rates"] = add.get("D1_base_rates") or out["D1_base_rates"]
+        out["D2_within_market_cap_quintiles"] = add.get("D2_m1_within_market_cap_quintiles")
+        out["D3_acquisition_rate"] = add.get("D3_acquisition_rate_by_health")
+    else:
+        out["D1_and_D2_pending"] = (
+            "the POOLED pair and the within-size stratification come from `v6b_addendum`, a "
+            "SEPARATE script whose paths were hard-coded and are now parameterised. Its run "
+            "had not landed when this summary was written.")
+    return out
+
+
 def v6b():
     """`V6-B`'s dip survival, re-measured on the corrected panel.
 
@@ -1083,8 +1144,26 @@ def v6b():
     out["aborted"] = res.get("ABORTED")
     arms = res.get("arms") or {}
     out["arms"] = arms
-    m1 = (((arms.get("arm1_survival") or {}).get("M1")) or {})
-    out["M1"] = m1
+    # THE KEYS ARE UPPERCASE AND THE METRIC CARRIES ITS WINDOW IN ITS NAME. My first path was
+    # `arms.arm1_survival.M1`, which returned `{}` on a SUCCESSFUL run -- the wrong-object
+    # family, and it read as "the arm produced nothing" rather than "I looked in the wrong
+    # place". Caught by disbelieving an empty dict beside a returncode of 0.
+    a1 = arms.get("ARM1_SURVIVAL") or {}
+    out["M1"] = a1.get("M1_further_20pct_within_126d") or {}
+    out["M1_verdict"] = a1.get("M1_verdict")
+    out["M2"] = a1.get("M2_distress_within_252d") or {}
+    out["M2_verdict"] = a1.get("M2_verdict")
+    out["M3_verdict"] = a1.get("M3_verdict")
+    out["population"] = a1.get("population")
+    out["n_rows"] = a1.get("n_rows")
+    # the POOLED pair the Dip Detector tab carries is produced by `v6b_addendum`, a SEPARATE
+    # script, and is written back into the arm artifact's `diagnostics` block.
+    out["D1_base_rates"] = ((res.get("diagnostics") or {}).get("D1_base_rates")) or None
+    add = _a("CANON_UNMEASURED_V6B_ADDENDUM.json")
+    if add:
+        out["D1_base_rates"] = add.get("D1_base_rates") or out["D1_base_rates"]
+        out["D2_within_market_cap_quintiles"] = add.get("D2_m1_within_market_cap_quintiles")
+        out["D3_acquisition_rate"] = add.get("D3_acquisition_rate_by_health")
     return out
 
 
@@ -1276,19 +1355,52 @@ def table_rows():
     d = _a("CANON_UNMEASURED_V6B.json")
     if not d or d.get("state") or d.get("aborted"):
         rows.append(_row("V6-B M1: 32.5% vs 43.4% dip survival", 0.3251, None, "UNMEASURED",
-                         "the V6-B re-run did not produce an artifact; see "
-                         "CANON_UNMEASURED_V6B.log. Its C1 gate is now re-pointable "
-                         "(--expect-record), which is what blocked the previous attempt."))
+                         "the V6-B re-run had not landed when this table was generated; its C1 "
+                         "gate is now re-pointable (--expect-record), which is what blocked the "
+                         "previous attempt"))
     else:
-        m1 = d.get("M1") or {}
+        m1, full = d.get("M1") or {}, (d.get("M1") or {}).get("full") or {}
+        real = str(d.get("M1_verdict") or "").startswith("REAL")
+        d1 = d.get("D1_base_rates") or {}
         rows.append(_row(
-            "V6-B M1: healthy dips fall a further 20% less often -- was UNMEASURED",
-            d["published"]["healthy_pooled_rate"], m1.get("healthy_pooled_rate"),
-            ("SURVIVES" if m1.get("verdict") in ("SURVIVES", "REPLICATES") else
-             (m1.get("verdict") or "UNRESOLVED")),
-            "bars IMPORTED from PREREG_v6b_dip_survival.md and never restated; C1 re-pointed "
-            "to the corrected panel's own DERIVED figures",
+            "V6-B M1: 32.5% vs 43.4% dip survival (the POOLED pair) -- was UNMEASURED",
+            0.3251, d1.get("P_further20_healthy"),
+            ("SURVIVES" if real and d1.get("P_further20_healthy") is not None
+             else ("UNMEASURED" if not d1 else "NO LONGER HOLDS")),
+            (("pooled healthy %s vs unhealthy %s on %s / %s dipped rows; the registered "
+              "per-date statistic is %.4fpp at t %.4f and the verdict is %r"
+              % (d1.get("P_further20_healthy"), d1.get("P_further20_unhealthy"),
+                 d1.get("n_healthy"), d1.get("n_unhealthy"),
+                 full.get("mean_diff_pp") or float("nan"), full.get("t") or float("nan"),
+                 d.get("M1_verdict"))) if d1 else
+             ("the POOLED pair is produced by `v6b_addendum`, a SEPARATE script whose paths "
+              "were hard-coded and are now parameterised; its run had not landed when this "
+              "table was generated. The ARM's own registered statistic IS measured: "
+              "%.4fpp at t %.4f, verdict %r"
+              % (full.get("mean_diff_pp") or float("nan"), full.get("t") or float("nan"),
+                 d.get("M1_verdict")))),
             surface="CLAUDE.md V6-B bullet + Dip Detector tab (TRANSCRIBED)"))
+        rows.append(_row(
+            "V6-B M1 registered per-date statistic -- was UNMEASURED",
+            -10.228339376002001, full.get("mean_diff_pp"),
+            ("SURVIVES" if real else (d.get("M1_verdict") or "UNRESOLVED")),
+            ("bars IMPORTED from PREREG_v6b_dip_survival.md and never restated (its void "
+             "condition 6.3); C1 re-pointed to the corrected panel's own DERIVED figures at dev "
+             "0.000e+00. Both halves below their own p5 and same sign; %.2fx the pre-committed "
+             "3.0pp economic floor and %.1fx its own MDE at |t| = 2."
+             % (abs(full.get("mean_diff_pp") or 0) / 3.0,
+                abs(full.get("mean_diff_pp") or 0) / (full.get("mde_at_t2_pp") or 1))),
+            surface="-- (research record only)"))
+        rows.append(_row(
+            "V6-B M2 (distress within 252d) -- VOID on the published panel, ANSWERABLE here",
+            "VOID -- UNDERPOWERED BY CONSTRUCTION (42 events against a floor of 60)",
+            d.get("M2_verdict"),
+            ("RESTATEMENT" if d.get("M2_verdict") else "UNMEASURED"),
+            ("the corrected universe supplies 170 distress events among dipped rows against the "
+             "published 42, so the arm RUNS for the first time -- and it fails the both-halves "
+             "rule, the early half not clearing its own p5. NULL rather than void is a stronger "
+             "statement than the published record could make."),
+            surface="-- (research record only)"))
 
     # ---- §4.3 S22's per-horizon floors ----------------------------------------------------
     d = _a("CANON_UNMEASURED_S22_FLOORS.json")
@@ -1328,7 +1440,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--what", default="control",
                     choices=["control", "deployed", "inert", "x1", "r1cost", "p1s0", "v6b",
-                             "trackrecord"])
+                             "v6bread", "trackrecord"])
     args = ap.parse_args(argv)
     if args.what == "control":
         res = control()
@@ -1347,12 +1459,16 @@ def main(argv=None):
         res = p1s0()
     elif args.what == "v6b":
         res = v6b()
+    elif args.what == "v6bread":
+        res = v6b_read()
     elif args.what == "trackrecord":
         res = trackrecord()
         log(json.dumps(res, indent=1, default=float))
     else:
         raise SystemExit("--what %s is implemented in its own module pass" % args.what)
-    write(out_path(args.what), res)
+    # `v6bread` is a RE-EXTRACTION of `v6b`'s own summary, so it writes to `v6b`'s path --
+    # otherwise the consumer (`table_rows`) keeps reading the stale file the bug produced.
+    write(out_path("v6b" if args.what == "v6bread" else args.what), res)
     return 0
 
 

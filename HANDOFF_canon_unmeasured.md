@@ -285,6 +285,54 @@ early-half absence that does not reproduce on the corrected universe.
 
 ---
 
+## 4.2 `V6-B` M1 — `REAL`, AND LARGER THAN ON THE PUBLISHED PANEL
+
+**C1's gate is re-pointed and it was the thing that had blocked this.** The earlier corrected
+attempt aborted at `[C1] reproduces the record: False` against the PUBLISHED literals, on a panel
+its own `C2` had just certified as canonical — a guard firing on the clock rather than on the
+property it protects. `--expect-record` makes the literals re-pointable, **defaults to `REC`
+verbatim** so every existing invocation is bit-identical, and the corrected expectation is
+**DERIVED** from a fresh `quantile_backtest` rather than typed. It reproduces at **dev 0.000e+00**
+on all three of the move's own deployed cells. Bars IMPORTED from `PREREG_v6b_dip_survival.md`
+and never restated (its void condition 6.3).
+
+**M1 verdict: `REAL — HEALTHY DIPS SURVIVE BETTER`.**
+
+| registered per-date statistic | published | corrected |
+|---|---|---|
+| full sample | −10.228pp at *t* −10.585 | **−12.153pp at *t* −12.777** |
+| early half | −9.064pp | **−10.311pp at *t* −8.386** |
+| late half | −11.515pp | **−13.867pp at *t* −10.379** |
+| halves same sign / both below own p5 | yes / yes | **yes / yes** |
+| own-permutation p5 (full, 500 draws) | −1.707 | **−1.718** |
+| pre-committed economic floor | 3.0pp | 3.0pp — **cleared 4.05×** |
+| MDE at \|*t*\| = 2 | 1.933pp | **1.902pp — the effect is 6.4× its own detection threshold** |
+
+Population: **117,113** dipped rows with a full 126-day forward window (29,565 healthy /
+87,548 unhealthy) over 68 dates; 3,756 censored rows dropped rather than scored on a short
+window. `C3` **zero** point-in-time violations; `C5` **zero** rows flagged both distress and
+acquisition.
+
+**THE CAVEAT TRAVELS, AND IT IS THE SAME ONE:** `C8` measures the healthy dipped set at **1.98×**
+the median market cap of the unhealthy one (published 2.06×), so a size sort must not be
+reportable as a health finding. **The within-quintile stratification that bounds it is in
+`CANON_UNMEASURED_V6B_ADDENDUM.json`** — the `v6b_addendum` producer had its paths hard-coded and
+is now parameterised, which is the third instance of that defect family this lane found.
+
+**AND `M2` BECOMES ANSWERABLE FOR THE FIRST TIME, AND THE ANSWER IS `NULL`.** The published run
+recorded M2 (distress within 252 days) **VOID — UNDERPOWERED BY CONSTRUCTION** at **42** distress
+events against its own floor of 60, so its numbers were never read. The corrected universe
+supplies **170**, so the arm runs — and it fails the both-halves rule: full **−0.1181pp** at
+*t* −4.753 clears its own p5, the **late** half clears at *t* −5.737, and the **early** half does
+not (−0.0317pp at *t* −1.439 against a p5 of −2.336). **So the distress metric is NULL rather
+than void, which is a stronger statement than the published record could make.** M3 stays
+`DESCRIPTIVE — NO VERDICT BY REGISTER 2.1`.
+
+**NOT DONE:** the dip branch is not re-opened, no floor is re-tuned (void condition 6.3), and
+`V6`'s own four nulls are untouched.
+
+---
+
 ## 4.4 THE LIVE / FORWARD TRACK RECORD — `UNMEASURED-BY-CONSTRUCTION`
 
 Pre-committed in the register §4.4 before anything ran, and it is a **different state** from

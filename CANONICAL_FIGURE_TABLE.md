@@ -155,7 +155,9 @@ universe and a disjoint grid.
 | R1's NET-OF-COST specification (R1's OWN path) -- was UNMEASURED | 0.078492 | 0.040583 | **SURVIVES** | /methodology (TEMPLATE) |
 | optionable_partition N_PANEL_NAMES -- was UNMEASURED | 2531 | 9645 | **RESTATEMENT** | valuation/web/optionable_partition.py (committed literals) |
 | optionable_partition N_OPTIONABLE_NAMES (pit_liquid) -- was UNMEASURED | 619 | 630 | **RESTATEMENT** | valuation/web/optionable_partition.py (committed literals) |
-| V6-B M1: 32.5% vs 43.4% dip survival | 0.325100 | None | **UNMEASURED** | -- (research record only) |
+| V6-B M1: 32.5% vs 43.4% dip survival (the POOLED pair) -- was UNMEASURED | 0.325100 | None | **UNMEASURED** | CLAUDE.md V6-B bullet + Dip Detector tab (TRANSCRIBED) |
+| V6-B M1 registered per-date statistic -- was UNMEASURED | -10.228339 | -12.152944 | **SURVIVES** | -- (research record only) |
+| V6-B M2 (distress within 252d) -- VOID on the published panel, ANSWERABLE here | VOID -- UNDERPOWERED BY CONSTRUCTION (42 events against a floor of 60) | NULL | **RESTATEMENT** | -- (research record only) |
 | S22 per-horizon fixed_weights_null floors | 8 floors at 200 draws | None | **UNMEASURED** | -- (research record only) |
 | the live / forward Track Record | None | None | **UNMEASURED-BY-CONSTRUCTION** | Track Record tab (LIVE) |
 
