@@ -354,6 +354,58 @@ bought or inferred; `row_attribution` is untouched (the screener lane's shared p
 **the screenshots Don asked for are still owed** — this session has no browser, so every live
 check is a fetched payload rather than a picture.
 
+## ITEM 53 — LIVE CLOSE-OUT ON valquo.co
+
+Verified after the land, by fetching the rendered payloads. **The site served 502 on every path
+for a few minutes after the push** — including `/api/health` and the landing page — which was
+Render swapping the deploy, not the change: the SaaS app builds and routes cleanly, and nothing
+item 53 adds imports anything that exists only in dev (`recent.py` imports `requests` and
+`yfinance` lazily inside functions; `definitions.py` and `average_risk.py` are stdlib-only). It
+came back on the first check after.
+
+**Part 1 — the Index rows.** 86 positions, `n_labelled` 81, `n_attributed` 81, and
+`attribution_basis` on the payload. A holding carries exactly the three permitted keys —
+`['factors', 'why', 'why_composite']` — and nothing else, so no vendor row went public. `APA` at
+rank 11 of 1,440 carries all eight themes.
+
+**AND THE NOT-IN-SCAN BRANCH IS REACHED ON REAL DATA, which is what makes it worth having:
+5 of the 86 holdings are absent from today's scan — `WDS`, `SKM`, `WBS`, `CGNX`, `IMO` — and
+`WDS` is the Index's LARGEST position at 2.33%.** Under the old single message the biggest
+holding in the book would have been told its breakdown was "saved by an older scan", which is
+not what happened to it.
+
+**Part 2 — the quarter, the headlines and the filings.** NVDA: `Q2 2027 ended 2026-07-26,
+reported 2026-08-26`, revenue 96,221,000,000, diluted EPS 2.46, dates from
+`SEC EDGAR (fiscal period end and filing date)`, `estimates: False`, **2 headlines kept of 17
+scanned**, 5 filings (8-K 2026-09-03, N-PX 2026-08-31). KO: the EDGAR EPS concept is absent for
+it, so it falls back and says `Yahoo Finance quarterly income statement (month-end
+approximation)` rather than presenting an approximate date as exact — 5 headlines of 19, 5
+filings. **The filter's yield is visible on both**, which is the point.
+
+**Part 3 — the discount rate.** All three material and all three cutting their own way:
+
+| | live reading |
+|---|---|
+| **NVDA** | *"At an average-risk discount rate of 10.2%, the base value would be $230.65."* **+58.3%** |
+| **TSLA** | *"At an average-risk discount rate of 10.2%, the base value would be $27.58."* **+18.6%** |
+| **KO** | *"At an average-risk discount rate of 9.6%, the base value would be $34.81."* **−39.3%** |
+
+**Part 4 — 14 definitions served** on `window.DEFINITIONS`, all seven of the terms item 53 names
+present with their label and text, and `.defd` / `defAttr` / `DEF_TERM_BY_LABEL` live in the
+deployed assets.
+
+**Part 5 — a new analysis is the owner's.** A public POST returns
+`{ok: true, cached: false, ran: false, owner_only_to_run: true}` with *"Running a new one costs
+money, so only the owner can start it."* — a clean refusal, nothing bought, and the route
+reachable rather than 403.
+
+**Part 6 — TSLA reads** *"Priced at about 16 times our base value."* NVDA and KO keep their
+percentages (56% and 57%).
+
+**STILL OWED: the screenshots.** No browser in this session, so every check above is a fetched
+payload rather than a picture. **And no real paid AI call has gone through the live owner path**
+— that needs the admin token, which is Don's to enter.
+
 # Session 88 — 2026-10-08 — ITEMS 41+42: the SIC map, Tradier's unapproved token, and Don's two rulings
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict. `by_domain` untouched.
