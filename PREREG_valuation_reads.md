@@ -356,3 +356,47 @@ verdict.
 * **`STORY_GAP_PP = 15.0` is not calibrated by this register and is not calibrated anywhere.** It
   is a disclosure threshold; recording which rule fired is what would let a successor calibrate it,
   and **that successor is not proposed.**
+
+---
+
+## AMENDMENT 1 — made 2026-10-13, BEFORE THE FIRST ROW EXISTS AND BEFORE ANY OUTCOME
+
+**`R3-PIG` and `R4-GAP` are scoped to NON-FINANCIAL names. A financial's implied figure is a
+DIFFERENT QUANTITY and is recorded in its own column, carrying no registered arm.**
+
+**Why, and it is a defect in this register caught by building the recorder rather than by reading
+it.** §1 sources `R3-PIG` from `price_assumes.price_assumes` → `implied`. Measured in the source:
+when `is_financial` is true that function takes a deliberate separate branch — *"a bank's value is
+not a discounted free-cash-flow stream, so 'what growth does the price assume' is the wrong
+question and the honest one is what return on equity it has to earn"* — and returns an **implied
+return on equity** under the same key. So the register as written would have put an ROE and a
+growth rate in one column, and any rank IC computed on it would have been mixing two quantities.
+**That is the wrong-object family this project has recorded at least six times** (`MB18`'s column
+literally called `gap`, `D6`'s `long_short_tstat_hac`, `E-5`'s stranded `MA28_CARD` path, `W-1`'s
+`W1_FLOORS.json`, `U2`'s `term_slope_60_30`, `MA47`'s ticker count read as ticker identity) — and
+it computes cleanly, raises nothing, and answers a different question.
+
+**It is not a rare branch, so scoping it is not cosmetic.** The recorder's own smoke test found a
+financial among the first four hot names (`ABCB`, regime `financial`, blend method *"justified P/B
+from ROE"*, and `price_implied_growth` correctly blank), and §3's population deliberately includes
+the Index, which holds banks.
+
+**What changes and what does not.**
+
+* `R3-PIG` and `R4-GAP` are measured on rows with `regime != "financial"`. The register's power
+  statement (§6) is therefore **optimistic by the financial share** on those two reads, which is
+  **NOT yet measured** and will be reported at the first read from the record's own `regime`
+  column. The direction is named rather than estimated: a smaller cross-section raises `sd(IC)`
+  through the `1/(N−1)` term, so both cells resolve later than §6 says, not sooner.
+* **The implied ROE is recorded** as its own column (`price_implied_roe`, with `book_roe` beside
+  it) so a successor can register it. **No arm is registered on it here and none may be read** —
+  that would be a sixth read chosen after the data existed.
+* **`R1-BQ`, `R2-PVM` and `R5-WARN` are unchanged** and still cover every name, financial or not.
+* **The cell count, the read dates and the trial charge are unchanged** at fifteen cells and
+  fifteen equity trials. This is a scoping correction, not a new hypothesis.
+
+**Why this is an amendment rather than a silent fix.** It predates the first row, so no outcome
+could have informed it — which is the only condition under which this project permits one (`W-1`'s
+Amendment 1 and `W-28`'s Amendments 1 and 2 were all made before any outcome existed). The
+original §1 is left standing above, unedited, so a reader can see what was corrected rather than
+having to diff for it.
