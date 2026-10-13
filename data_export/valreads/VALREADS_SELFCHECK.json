@@ -1,0 +1,51 @@
+{
+ "item": "VALREADS",
+ "part": "day-1 self-check",
+ "register": "PREREG_valuation_reads.md",
+ "recorder_version": "1",
+ "at_utc": "2026-10-13T22:32:31Z",
+ "cases": [
+  {
+   "case": "row_round_trips_unchanged",
+   "pass": true,
+   "detail": "40 fields compared, 0 moved",
+   "vacuity_control": "a tampered copy of the same row is detected: True"
+  },
+  {
+   "case": "refusal_is_a_record_not_a_blank",
+   "pass": true,
+   "detail": "status='REFUSED' reason='no company data (fetch failed or symbol '",
+   "vacuity_control": "a row with no status carries no reason either: True"
+  },
+  {
+   "case": "no_forward_return_in_the_recorder",
+   "pass": true,
+   "detail": "0 forbidden reads",
+   "vacuity_control": "walked 526 Name nodes, so the tree was not empty; and the ban is non-vacuous -- injecting `fwd_ret` as a Name is detected: True"
+  },
+  {
+   "case": "append_only_byte_prefix_and_refusals",
+   "pass": true,
+   "detail": "prefix held True (+55 bytes); backward refused True; retry was a no-op True",
+   "vacuity_control": "a backward date and a duplicate date are distinguishable: refusing to write 1999-12-26 into C:\\Users\\donni\\A"
+  },
+  {
+   "case": "a_recorded_week_is_not_rewritten",
+   "pass": true,
+   "detail": "refusing to rewrite C:\\Users\\donni\\AppData\\Local\\Temp\\valreads_selfche",
+   "vacuity_control": "and the original bytes are untouched: True"
+  },
+  {
+   "case": "canary_and_mid_run_degradation_refuse",
+   "pass": true,
+   "detail": "canary refused (the canary came back with no market cap,); mid-run caught (30 of 30 valued names carry no market ca)",
+   "vacuity_control": "and a healthy canary and a healthy week both PASS: True / True; blank renders as ''"
+  }
+ ],
+ "n_cases": 6,
+ "n_passed": 6,
+ "all_pass": true,
+ "trials": 0,
+ "trial_class": "SELF-CHECK -- no hypothesis, no bar, no outcome statistic, and no forward return read anywhere",
+ "note": "Every case ships a vacuity control, because a check that cannot fail is not a check (MB21's C1 scored a perfect 0.000e+00 by comparing nothing). Run in a temporary tree: a self-check that writes into the record it is checking is S3-I1's own defect."
+}
