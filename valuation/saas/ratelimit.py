@@ -130,6 +130,19 @@ def buckets_for(path: str, body: dict | None, args=None):
     single-bucket form could only charge it for one of them. Returning both means the AI cap
     stays exactly as tight as it was while the vendor cap now applies to every request.
     """
+    # ITEM 52 part 6. `/api/ai-analysis` runs a FULL valuation on a caller-supplied symbol
+    # AND a paid Anthropic call, so it is scarce in both of the ways this module tracks and it
+    # charges both buckets unconditionally -- unlike `/api/value`, where the AI layer is
+    # opt-in. MEASURED: 27.4 seconds and $0.0248 a call, which makes it the most expensive
+    # route on the site per request.
+    #
+    # IT SHARES `ai:value` RATHER THAN GETTING ITS OWN BUCKET, deliberately: the scarce thing
+    # is the Anthropic spend, not the URL, and two buckets over one budget is two caps that
+    # each think they are the limit. The 30-a-day cap in `web/ai_auto.py` is a DIFFERENT
+    # control with a different job -- it bounds the DAY's money across all callers, where this
+    # bounds one caller's hour -- and both apply.
+    if path == "/api/ai-analysis":
+        return ((VENDOR_BUCKET, 1), ("ai:value", 1))
     if path in ("/api/value", "/api/rank", "/api/dip"):
         cost = _vendor_cost(path, body, args)
         out = [(VENDOR_BUCKET, cost)]

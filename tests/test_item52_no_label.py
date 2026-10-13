@@ -768,6 +768,25 @@ class TheAnalysisRunsByItselfAndItsCostIsMEASURED(unittest.TestCase):
         for forbidden in ("api_key", "anthropic_api_key", "openai_api_key", "ANTHROPIC"):
             self.assertNotIn(forbidden, src)
 
+    def test_the_route_CHARGES_BOTH_scarce_buckets_unconditionally(self):
+        """`test_vendor_quota` caught this on the gate and it was right: the route runs a FULL
+        valuation on a caller-supplied symbol, so it spends the owner's market-data quota, AND
+        a paid Anthropic call. It is scarce in both of the ways `ratelimit` tracks.
+
+        It shares `ai:value` rather than taking a bucket of its own, because the scarce thing
+        is the spend and not the URL -- two buckets over one budget is two caps that each think
+        they are the limit. The day's 30-call cap is a DIFFERENT control (the day's money,
+        across all callers) and both apply.
+        """
+        from valuation.saas.ratelimit import buckets_for, VENDOR_BUCKET
+        got = dict(buckets_for("/api/ai-analysis", {}))
+        self.assertEqual(got.get(VENDOR_BUCKET), 1)
+        self.assertEqual(got.get("ai:value"), 1)
+        # Unconditional: unlike /api/value, there is no opt-in flag that could leave the paid
+        # call uncharged.
+        self.assertEqual(dict(buckets_for("/api/ai-analysis", {"run_ai": False})), got)
+        self.assertEqual(dict(buckets_for("/api/ai-analysis", None)), got)
+
     def test_nothing_reports_a_cost_without_saying_it_may_be_PARTIAL(self):
         src = _src(os.path.join("valuation", "web", "ai_auto.py"))
         self.assertIn("cost_is_partial", src)
