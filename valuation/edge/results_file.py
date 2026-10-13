@@ -52,8 +52,12 @@ MD_NAME = "BACKTEST_RESULTS.md"
 # verdict depends on them, so no published claim moves. Each block carries its own `units`
 # string saying the figures are PER-PERIOD and that a quantile may not be annualised the way a
 # mean is. A v5 reader still works.
-SCHEMA_VERSION = 7          # MA40: + sector_caps, + walk_forward.{params, param_folds}. Purely
-                            # additive — no existing field moved, renamed or changed meaning.
+SCHEMA_VERSION = 8          # CANON-UNMEASURED: + cpcv.deployed_readings (the DEPLOYED book's
+                            # own Deflated Sharpe and no-selection PBO, so the two bars /proof
+                            # leaves blank can be shown like-for-like). Purely additive — no
+                            # existing field moved, renamed or changed meaning. A v7 reader
+                            # still works.
+                            # v7, MA40: + sector_caps, + walk_forward.{params, param_folds}.
 
 
 def repo_root(start: str | None = None) -> str:
@@ -246,6 +250,22 @@ def build_payload(res: dict, universe_label: str | None = None,
                  "pbo_scope": cp.get("pbo_scope"),
                  "deflated_sharpe": {"value": _num(cp.get("deflated_sharpe")), "want": ">0.95",
                                      "meaning": "probability_edge_is_real_after_trials_correction"},
+                 # CANON-UNMEASURED §1 — THE DEPLOYED BOOK'S OWN READINGS, so the two bars
+                 # `/proof` has had to leave blank can be shown like-for-like.
+                 #
+                 # `deflated_sharpe` above is the ADOPTED book's whenever `adopt` is true, and
+                 # on the corrected universe that is 0.0016 against the deployed book's 0.7208
+                 # -- a factor of 490. REGISTERED HERE rather than left to a caller, because
+                 # `payload_schema.BLOCK_SPEC` guards this block field by field and a computed
+                 # field that reaches the source and not the projection FAILS the run (`M6`).
+                 #
+                 # `pbo_no_selection` is NOT Bailey-Lopez de Prado's PBO and must never be
+                 # rendered as one: BLdP's PBO scores a SELECTION step, the deployed book
+                 # selects nothing, and the per-scheme column in this dict proves the figure is
+                 # each candidate's out-of-sample RANK (0.0 for the best schemes, 1.0 for the
+                 # worst). It has no calibrated floor. The honest surface for the deployed PBO
+                 # is still UNMEASURED, with that reason attached.
+                 "deployed_readings": cp.get("deployed_readings"),
                  "recommend": cp.get("recommend"), "adopt": cp.get("adopt"),
                  "verdict": cp.get("verdict"),
                  "recommended_weights": cp.get("recommended_weights_cols"),

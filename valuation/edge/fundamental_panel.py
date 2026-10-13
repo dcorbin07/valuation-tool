@@ -5289,7 +5289,17 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
             wf = walk_forward(panel, cols, base, top_n=top_n, horizon=63,
                               halflife_days=recency_halflife_days)   # walk-forward: trade params + weights
             out["walk_forward"] = wf
-            cpcv = cpcv_validate(panel, cols, base, halflife_days=recency_halflife_days, horizon=63)
+            # CANON-UNMEASURED §1 — ASK FOR THE DEPLOYED BOOK'S OWN READINGS ON EVERY RUN.
+            # `cpcv_validate` scores PBO and the Deflated Sharpe on whichever scheme ADOPTION
+            # chose, so on a universe where CPCV adopts (the corrected one does) the `cpcv`
+            # block stops describing the book that ships -- which is why
+            # `CANONICAL_MOVE_TABLE.md` had to mark the deployed pair UNMEASURED and /proof
+            # shows two blank bars. The flag costs one extra `_strategy_returns` call and makes
+            # the deployed reading reachable from the canonical file instead of only from a
+            # research artifact. Measured on the corrected panel: deployed DSR 0.7208 against
+            # the adopted book's 0.0016.
+            cpcv = cpcv_validate(panel, cols, base, halflife_days=recency_halflife_days,
+                                 horizon=63, deployed_readings=True)
             out["cpcv"] = cpcv                               # CPCV + PBO + Deflated Sharpe (strongest test)
             # CPCV is the AUTHORITY for the weights. If it ran, respect its verdict (do NOT let the
             # weaker single-path walk-forward override a CPCV rejection). Only fall back to the
