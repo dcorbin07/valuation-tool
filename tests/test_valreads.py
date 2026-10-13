@@ -469,29 +469,72 @@ class TestTheWeeklyWorkflow(unittest.TestCase):
     """The TRACKED source in `scripts/workflows/`, never the pending copy.
 
     `data/` is gitignored, so the pending `.yml` can never be the tracked copy of itself and a
-    suite reading it would SKIP on a CI runner — a vacuous pass. Item 44's reasoning, reused
-    rather than re-derived.
+    suite reading it would SKIP on a CI runner — a vacuous pass. Item 44's reasoning, reused.
+
+    **AND IT IS PARSED FROM THE TEXT RATHER THAN WITH PyYAML, because PyYAML IS NOT INSTALLED IN
+    CI.** The first cut imported it, four tests errored with `ModuleNotFoundError` on the runner,
+    and the land gate refused the branch — correctly. **Skipping would have been worse than the
+    failure**: a guard whose input is absent on a runner passes while checking nothing, which is
+    this project's own recorded `guards-that-fail-open-in-CI` family, and `scripts/propose_workflow.py`'s
+    sibling suite does not import it either. So the four properties are extracted with explicit
+    patterns, and **every extractor asserts it found something** — a parser that returns empty
+    must FAIL the test, never pass it.
     """
 
     WF = os.path.join(HERE, "scripts", "workflows", "valreads-record.yml")
 
-    def _load(self):
-        import yaml
-        return yaml.safe_load(io.open(self.WF, encoding="utf-8").read())
+    def _text(self):
+        t = io.open(self.WF, encoding="utf-8").read()
+        self.assertTrue(t.strip(), "the workflow file is empty")
+        return t
 
-    def test_it_parses_and_is_scheduled_weekly_with_a_manual_door(self):
-        d = self._load()
-        self.assertEqual(d["name"], "valreads-record")
-        trig = d.get(True) or d.get("on")          # PyYAML reads bare `on:` as the bool True
-        self.assertIn("schedule", trig)
-        self.assertIn("workflow_dispatch", trig)
-        crons = [c["cron"] for c in trig["schedule"]]
+    def _crons(self):
+        import re
+        c = re.findall(r'^\s*-\s*cron:\s*"([^"]+)"', self._text(), re.M)
+        self.assertTrue(c, "no cron line found — the extractor, not the file, may be wrong")
+        return c
+
+    def _step_names(self):
+        """Step names in file order. Keyed on the two-space indent `- name:` the steps use, so a
+        top-level `name:` and a `uses:` step are both excluded without guessing."""
+        import re
+        n = re.findall(r"^      - name:\s*(.+)$", self._text(), re.M)
+        self.assertGreaterEqual(len(n), 5, "found %d steps; the extractor is wrong" % len(n))
+        return [x.strip() for x in n]
+
+    def _int_field(self, field):
+        import re
+        m = re.search(r"^\s*%s:\s*(\d+)\s*$" % re.escape(field), self._text(), re.M)
+        self.assertIsNotNone(m, "no %s found" % field)
+        return int(m.group(1))
+
+    def test_it_is_named_and_scheduled_weekly_with_a_manual_door(self):
+        t = self._text()
+        self.assertIn("name: valreads-record", t)
+        self.assertIn("schedule:", t)
+        self.assertIn("workflow_dispatch:", t)
+        crons = self._crons()
         self.assertEqual(len(crons), 1, "one cadence, so a missed week is unambiguous")
-        self.assertTrue(crons[0].endswith(" * * 0"), "weekly, on a Sunday: %r" % crons[0])
+        self.assertTrue(crons[0].rstrip().endswith("* * 0"),
+                        "weekly, on a Sunday: %r" % crons[0])
+
+    def test_it_does_not_contend_with_the_other_weekly_job_for_the_same_quota(self):
+        """`track-backup.yml` runs Sunday 06:17 UTC and the vendor quota is per IP, so two jobs
+        in the same minute would throttle each other — and a throttled feed does not raise."""
+        mine = self._crons()[0].split()
+        self.assertEqual(len(mine), 5, mine)
+        other = os.path.join(HERE, ".github", "workflows", "track-backup.yml")
+        if not os.path.exists(other):
+            self.skipTest("track-backup.yml absent")
+        import re
+        o = re.findall(r'^\s*-\s*cron:\s*"([^"]+)"',
+                       io.open(other, encoding="utf-8").read(), re.M)
+        self.assertTrue(o, "could not read the other job's cron")
+        self.assertNotEqual((mine[0], mine[1]), tuple(o[0].split()[:2]),
+                            "both weekly jobs fire in the same minute")
 
     def test_it_fits_the_measured_cost_inside_its_own_timeout(self):
-        d = self._load()
-        budget = d["jobs"]["record"]["timeout-minutes"]
+        budget = self._int_field("timeout-minutes")
         # THE MEASURED FIGURES, from `VALREADS_COST.json`: 1.83 s per name plus 1.5 s pacing over
         # a 542-name population. A timeout a lane cannot justify from a measurement is a guess.
         need = 542 * (1.83 + 1.5) / 60.0
@@ -501,43 +544,50 @@ class TestTheWeeklyWorkflow(unittest.TestCase):
         self.assertLess(budget, 360, "a weekly recorder does not need six hours")
 
     def test_the_self_check_runs_before_the_recorder_and_the_suite_before_the_commit(self):
-        d = self._load()
-        steps = [s.get("name", "") for s in d["jobs"]["record"]["steps"]]
+        steps = self._step_names()
         i_sc = next(i for i, n in enumerate(steps) if "self-check" in n)
         i_rec = next(i for i, n in enumerate(steps) if n == "Run the recorder")
         i_suite = next(i for i, n in enumerate(steps) if n == "Suite")
-        i_commit = next(i for i, n in enumerate(steps) if "Commit" in n)
+        i_commit = next(i for i, n in enumerate(steps) if n.startswith("Commit"))
         self.assertLess(i_sc, i_rec, "the self-check gates the recorder")
         self.assertLess(i_suite, i_commit,
                         "a record committed by a run whose own tests fail is a record nobody "
                         "can trust afterwards")
 
     def test_it_needs_no_secret_because_both_routes_are_tokenless(self):
-        txt = io.open(self.WF, encoding="utf-8").read()
-        self.assertNotIn("secrets.", txt)
-        self.assertNotIn("ADMIN_TOKEN", txt)
+        t = self._text()
+        self.assertNotIn("secrets.", t)
+        self.assertNotIn("ADMIN_TOKEN", t)
 
     def test_it_commits_into_data_export_and_never_into_data(self):
-        txt = io.open(self.WF, encoding="utf-8").read()
-        self.assertIn("git add data_export/valreads", txt)
-        self.assertNotIn("git add data/", txt)
+        t = self._text()
+        self.assertIn("git add data_export/valreads", t)
+        self.assertNotIn("git add data/", t)
 
     def test_it_verifies_the_byte_prefix_against_git_rather_than_trusting_the_recorder(self):
-        txt = io.open(self.WF, encoding="utf-8").read()
-        self.assertIn("cmp /tmp/manifest_before.csv", txt)
-        self.assertIn("SHRANK", txt, "a shrinking manifest must fail the run")
+        t = self._text()
+        self.assertIn("cmp /tmp/manifest_before.csv", t)
+        self.assertIn("SHRANK", t, "a shrinking manifest must fail the run")
 
     def test_it_is_not_concurrent_with_itself(self):
-        d = self._load()
-        self.assertEqual(d["concurrency"]["group"], "valreads-record")
-        self.assertFalse(d["concurrency"]["cancel-in-progress"],
-                         "cancelling a half-finished week mid-run would leave the quota spent "
-                         "and nothing recorded")
+        t = self._text()
+        self.assertIn("group: valreads-record", t)
+        self.assertIn("cancel-in-progress: false", t,
+                      "cancelling a half-finished week mid-run would leave the quota spent "
+                      "and nothing recorded")
 
     def test_it_is_proposable_through_the_one_shared_helper(self):
         from scripts import propose_workflow as PW
         self.assertIn("valreads-record.yml", PW.available())
         self.assertIn("name: valreads-record", PW.read("valreads-record.yml"))
+
+    def test_the_extractors_are_not_vacuous(self):
+        """Each must FAIL on a file that lacks what it looks for, or it is not a check."""
+        import re
+        blank = "name: x"
+        self.assertFalse(re.findall(r'^\s*-\s*cron:\s*"([^"]+)"', blank, re.M))
+        self.assertFalse(re.findall(r"^      - name:\s*(.+)$", blank, re.M))
+        self.assertIsNone(re.search(r"^\s*timeout-minutes:\s*(\d+)\s*$", blank, re.M))
 
 
 if __name__ == "__main__":
