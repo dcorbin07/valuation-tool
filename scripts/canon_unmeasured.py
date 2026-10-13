@@ -1166,7 +1166,7 @@ def table_rows():
     d = _a("CANON_UNMEASURED_DEPLOYED.json")
     if not d or d.get("ABORTED"):
         rows.append(_row("Deflated Sharpe (DEPLOYED book)", 0.7863213339664521, None,
-                         "UNMEASURED", "the part-1 artifact is absent or aborted on this host"))
+                         "UNMEASURED", "part 1 had not landed when this table was generated"))
     else:
         by = {r["statistic"]: r for r in d["rows"]}
         dsr = by["Deflated Sharpe -- DEPLOYED book (flat 1/7)"]
@@ -1201,7 +1201,7 @@ def table_rows():
     d = _a("CANON_UNMEASURED_X1.json")
     if not d or d.get("ABORTED"):
         rows.append(_row("X1 half-universe split (both arms)", None, None, "UNMEASURED",
-                         "the X1 artifact is absent or aborted on this host"))
+                         "the X1 sweep had not landed when this table was generated (200 half-universe null draws plus 100 splits)"))
     else:
         for arm, label in (("A1_top_decile_alpha", "X1 A1 -- top-decile alpha, half books"),
                            ("A2_long_short_hac_t", "X1 A2 -- long-short HAC t, half books")):
@@ -1227,7 +1227,7 @@ def table_rows():
     d = _a("CANON_UNMEASURED_R1COST.json")
     if not d:
         rows.append(_row("R1's NET-OF-COST specification", None, None, "UNMEASURED",
-                         "the r1cost artifact is absent on this host"))
+                         "part 3 had not landed when this table was generated"))
     else:
         rd = (d.get("readings") or {})
         prim = rd.get("shipped") or {}
@@ -1253,7 +1253,7 @@ def table_rows():
     d = _a("CANON_UNMEASURED_P1S0.json")
     if not d:
         rows.append(_row("optionable_partition N_PANEL_NAMES / N_OPTIONABLE_NAMES", 2531, None,
-                         "UNMEASURED", "the p1s0 artifact is absent on this host"))
+                         "UNMEASURED", "the partition rebuild had not landed when this table was generated (it reads ~34 GB of chain cache across 9,645 names)"))
     else:
         st = d["stamp"]
         rows.append(_row(
@@ -1297,7 +1297,7 @@ def table_rows():
     if not fl:
         rows.append(_row("S22 per-horizon fixed_weights_null floors", "8 floors at 200 draws",
                          None, "UNMEASURED",
-                         "the 200-draw sweep has not landed on this host"))
+                         "the 200-draw x 8-horizon sweep had not landed when this table was generated"))
     else:
         draws = pl.get("draws")
         for h in sorted(fl, key=lambda x: int(x)):
