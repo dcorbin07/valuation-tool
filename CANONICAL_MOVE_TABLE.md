@@ -348,7 +348,9 @@ inherited unchanged: no move below is attributed to the universe alone.**
 | the lede's *"roughly a quarter … has listed options"* | 24.46% | **6.53%** | **NO LONGER HOLDS** |
 | `V6-B` M1 dip survival, the POOLED pair (LITERAL) | 32.5% vs 43.4% | **35.3% vs 50.4%** | **NO LONGER HOLDS** |
 | `V6-B` M1 — healthy dips fall a further 20% less often (SUBSTANCE) | −10.84pp | **−15.07pp, verdict REAL** | **SURVIVES** |
-| `S22`'s eight per-horizon `fixed_weights_null` floors | — | see §9.6 | see §9.6 |
+| `S22`: horizons clearing their own **alpha** floor | 8 of 8 | **8 of 8** | **SURVIVES** |
+| `S22`: horizons clearing their own **long-short** floor | 4 of 8 | **8 of 8** | **SURVIVES** — and §9.6's standing restriction loses its basis |
+| `S22` by-product: what CPCV adoption adds to the noise floor | +0.5343 | **−0.0332** (matched) | **NO LONGER HOLDS** |
 | the live / forward Track Record | — | **—** | **UNMEASURED-BY-CONSTRUCTION** |
 
 ### 9.1 THE DEFLATED SHARPE — and §0 POINT 2 IS IMPRECISE ABOUT PBO
@@ -473,12 +475,66 @@ published direction survives while the margin narrows (ratio 0.604 → 0.924).
 — so that public figure could not be re-measured on any other universe without editing the file.
 Parameterised, every default the landed literal.
 
-### 9.6 `S22`'s per-horizon floors — see `HANDOFF_canon_unmeasured.md` §4.3
+### 9.6 `S22`'s PER-HORIZON FLOORS — AND THE LONG-SHORT LEG NOW CLEARS AT EVERY HORIZON
 
-200 draws × 8 horizons, the construction `S22` registered. **`MB21`'s caveat travels with any
-figure read off them: `fixed_weights_null` permutes WITHIN each date, so it has no memory and is
-a DIFFERENT, less conservative null than X7's — its percentiles may NEVER be compared with the
-2.2837 family.** A shortfall is reported PARTIAL, never quoted as a floor.
+200 draws × 8 horizons, seeds 2000–2199, the construction `S22` registered, on the 62 common
+dates. **`MB21`'s caveat travels with every figure here: `fixed_weights_null` permutes WITHIN
+each date, so it has NO MEMORY and is a DIFFERENT, less conservative null than X7's — its
+percentiles may NEVER be compared with the 2.2837 family.** The null is centred where it should
+be (per-horizon medians **−0.070 to +0.099**, maxima 2.31–3.34), which is what licenses reading
+it at all.
+
+| | published | corrected |
+|---|---|---|
+| horizons clearing their own **alpha** floor | **8 of 8** | **8 of 8** |
+| horizons clearing their own **long-short** floor | **4 of 8** | **8 of 8** |
+
+| h | alpha *t* | floor | ls *t* | floor | published ls *t* / clears |
+|---|---|---|---|---|---|
+| 63 | 4.1256 | 1.7209 | 4.7732 | 1.5183 | 2.7167 ✓ |
+| 126 | 4.4550 | 1.6491 | 4.9978 | 1.4995 | 2.7111 ✓ |
+| 189 | 3.8518 | 1.7443 | 4.5098 | 1.4834 | 2.1446 ✓ |
+| 252 | 3.6853 | 1.7641 | 4.1765 | 1.5209 | 1.8561 ✓ |
+| 315 | 4.1996 | 1.9166 | 4.1237 | 1.6447 | 1.6495 **✗** |
+| 378 | 3.6052 | 1.7693 | 3.9681 | 1.6875 | 1.1632 **✗** |
+| 441 | 3.0206 | 1.9312 | 3.8597 | 1.9049 | 0.6619 **✗** |
+| 504 | 3.3845 | 2.0898 | 4.1248 | 2.1620 | 0.6846 **✗** |
+
+**THE CONSEQUENCE, AND IT IS A STANDING INSTRUCTION LOSING ITS EMPIRICAL BASIS.** `S22`'s
+long-short leg failed its own floor from h=315 on the published panel, and `MB21` later moved
+that boundary **IN** to a hard one year — which is where the record's rule *"no long-short figure
+may be quoted beyond about a year"* comes from. **On the corrected universe all eight horizons
+clear, the two-year long-short *t* going 0.6846 → 4.1248.** So the measurement that justified the
+restriction does not reproduce here.
+
+**AND IT CHANGES NOTHING ABOUT THE PRODUCT, for a reason that predates it: the long-short is not
+the product.** The Index is long-only, §1 already says so on its own row, and `DECISIONS.md`
+2026-10-02 binds any research-decile figure on a public page. **So this lifts a research
+restriction's empirical basis and licenses no new public claim.** `S22`'s shape verdict is
+separately already restated (`R_8` 6.195 → 3.372, INTERMEDIATE) and is not re-decided here.
+
+### 9.6a A CORRECTION TO `S22`'s OWN ADOPTION BY-PRODUCT, AND IT REVERSES
+
+`term_structure` reports *"what CPCV adoption adds to a noise draw's long-short floor"* by
+comparing its own fixed-weights p95 against a **hard-coded `LS_HAC_FLOOR = 2.2837`** — the
+**PUBLISHED** universe's X7 figure. On this panel that is a **cross-universe difference** and it
+reports **+0.7654**.
+
+Matched to the corrected universe's own CPCV-in-the-loop floor (**1.485156**,
+`CORRECTED-FLOORS`):
+
+| | fixed weights, no CPCV | CPCV in the loop | difference |
+|---|---|---|---|
+| published | 1.7494 | 2.2837 | **+0.5343** |
+| corrected | 1.5183 | **1.4852** | **−0.0332** |
+
+**So X7's standing post-hoc reading — that CPCV adoption manufactures long-short *t* out of
+nothing — does NOT reproduce on the corrected universe; the gap is essentially zero and slightly
+negative.** `S22`'s own label travels unchanged: **an observation with its own uncertainty and
+not a test.** Neither figure isolates CPCV, because the two nulls also differ in date count (62
+common against 69) — on **both** universes, which is what makes the old → new comparison
+like-for-like in construction. **It adopts nothing and re-opens nothing**; `X7`'s split-on-adoption
+measurement on its own universe is untouched.
 
 ### 9.7 WHAT §9 DOES NOT DO
 
