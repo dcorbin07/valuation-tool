@@ -100,6 +100,30 @@ manager from Don's own words in chat.
 - **2026-10-02 — NO "+32%" and NO "beats SPY" claims anywhere.** Any research-decile figure on a
   public page must say in the same sentence that it is not the Index and name its universe.
 
+## The valuation page
+
+- **2026-10-13 — NO MORE BUY / HOLD / REDUCE LABELS ON THE 1-100 SCORE.** The labels were never
+  tested against returns, and they put "Buy" on businesses the model says are overpriced (NVDA
+  read 79 / Buy at −36% upside, because valuation is only 20% of its weight). The page shows two
+  separate reads in plain words instead: how good the business is (quality, growth, health,
+  momentum) and how the price compares with the model.
+- **2026-10-13 — EVERY NAME LEADS WITH WHAT THE PRICE ASSUMES** (the growth the market price
+  implies, against what the business grows today). For hypergrowth, cash-burning and story stocks
+  — TSLA included — the page says plainly not to use the DCF fair value to decide. The hot score
+  is shown beside these reads with its drivers and its limits (its evidence is about the top
+  decile as a group; the size theme marks megacaps down by design). A plain description of the
+  company opens the page.
+- **2026-10-13 — THE AI ANALYSIS RUNS AUTOMATICALLY,** in the background after the numbers
+  appear, saved per ticker per day, under a daily cap Don sets (the lane measures the cost per
+  call first). It is labelled as written by AI from the page's numbers, not from news, and it
+  gives no buy or sell recommendation.
+- **2026-10-13 — THE VALUATION PAGE'S READS ARE RECORDED FORWARD, SO THEY CAN BE TESTED.** They
+  cannot be rebuilt for past dates, so a weekly append-only record is the only way to learn
+  whether "price vs our model" or "business quality" predicts anything. The test is registered
+  blind before the first row is recorded. Also queued: Index rows link to each name's valuation
+  with a "why is this held?" breakdown; recent earnings and headlines on the page and in the AI
+  analysis; the fair value at an ordinary discount rate beside the headline, and plain definitions.
+
 ## How Don works
 
 - **2026-10-04 — Don does not create or edit files on GitHub.** Changes go through a Claude Code
