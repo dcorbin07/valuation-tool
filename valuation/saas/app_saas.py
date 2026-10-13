@@ -780,6 +780,11 @@ def create_saas_app(cfg=CONFIG):
             screen = _dip.screen_snapshot(Store(), _get_or_compute)
             n_elig = int(screen.get("n_eligible") or 0)
             n_meas = int(screen.get("n_measured") or 0)
+            # F-21/F-22's own population, from the SAME screen this door already pays
+            # for. `dip_rejects` is its COMPLEMENT, so recording only that left the
+            # entry set of every healthy-dip book unrecorded.
+            healthy = sorted({r["ticker"] for r in (screen.get("rows") or [])
+                              if r.get("ticker")})
             rejects = sorted({r["ticker"] for r in _dip.dip_rejects(screen)
                               if r.get("ticker")})
 
@@ -818,6 +823,7 @@ def create_saas_app(cfg=CONFIG):
 
             out = {"ok": True, "wrote": False, "session": day, "n_eligible": n_elig,
                    "n_measured": n_meas, "n_rejects": len(rejects), "rejects": rejects,
+                   "n_healthy": len(healthy), "healthy": healthy,
                    "scan_date": day, "last_closed_session": session,
                    # BOTH TRAVEL so a stale snapshot is visible rather than inferred. They
                    # agree on an ordinary day; a disagreement means the scan that feeds this
@@ -828,9 +834,13 @@ def create_saas_app(cfg=CONFIG):
                                "row for session %s and is a no-op if that row exists" % day)
                 return jsonify(out), 200
             res = _fh.record_dip_rejects(date=day, rejects=rejects)
+            resh = _fh.record_dip_healthy(date=day, healthy=healthy)
             out.update({"wrote": bool(res.get("wrote")),
                         "already_present": bool(res.get("already_present")),
-                        "ok": bool(res.get("ok")), "hint": None})
+                        "ok": bool(res.get("ok")), "hint": None,
+                        "healthy_wrote": bool(resh.get("wrote")),
+                        "healthy_already_present": bool(resh.get("already_present")),
+                        "healthy_ok": bool(resh.get("ok"))})
             return jsonify(out), (200 if out["ok"] else 422)
         except Exception as e:                                       # noqa: BLE001
             log_exception("admin_record_dip_rejects")

@@ -623,6 +623,127 @@ def f11_live_rejects_tickers():
 # book -> (callable, places_orders). `places_orders=False` marks a RIDER: a book whose own
 # declaration says it never sends an order, so a cycle in which only riders ran is NOT a
 # breathing fleet and `cycle()` must not report one.
+# ============================================================================================
+# F-21 and F-22 -- the V6-OPT put book and its random-day twin
+#
+# BOTH ARE IMPLEMENTED AND NEITHER IS ARMED. They are deliberately absent from `RULES` below,
+# which is what "declared, not armed" means operationally: `cycle()` never calls them, and
+# arming is a one-line change somebody makes on purpose once the precondition clears.
+#
+# THE PRECONDITION IS MECHANICAL RATHER THAN REMEMBERED, and it is the whole of the fleet
+# review's warning. Three of the four armed books are `RULE_ARMED_NEVER_FIRES` -- `f1_fill_ab`
+# 30 observations and zero fills, `f8_csp_entry_financing` 26 and zero, `f11_dip_reject_puts`
+# 26 and zero -- and the harness's own message is the right one: *"A rule that cannot qualify
+# anybody is indistinguishable in the records from a quiet market."* So these two REFUSE BY
+# NAME on a thin or stale source instead of returning an empty list that reads as a calm day.
+# ============================================================================================
+
+#: `DECL_f21_v6opt_dip_csp.md` structure fields `min_healthy_rows` / `max_stale_sessions`.
+#: Read from the declaration at call time; these are the fallbacks when a caller passes a
+#: structure that omits them, and they match the declared values.
+F21_MIN_HEALTHY_ROWS = 20
+F21_MAX_STALE_SESSIONS = 5
+F21_QTY = 1
+
+
+def healthy_series_state(history, today, *, min_rows: int, max_stale: int) -> dict:
+    """Is the `dip_healthy` series fit to resolve a FIRST APPEARANCE? PURE.
+
+    Returns `{"ok", "reason", "rows", "last_date"}`. **A refusal here is a statement about the
+    SOURCE and is recorded as one** -- the distinction the harness exists to preserve.
+    """
+    import datetime as _dt
+
+    rows = [r for r in (history or []) if not r.get("invalid")]
+    n = len(rows)
+    last = str((rows[-1].get("date") if rows else "") or "")
+    if n < int(min_rows):
+        return {"ok": False, "rows": n, "last_date": last,
+                "reason": ("SOURCE TOO THIN: the dip_healthy series carries %d recorded rows "
+                           "against the declared minimum of %d, so 'first appearance this "
+                           "quarter' cannot be resolved. This is a statement about the SOURCE "
+                           "and not about the market." % (n, int(min_rows)))}
+    if last:
+        try:
+            gap = (_dt.date.fromisoformat(str(today)[:10])
+                   - _dt.date.fromisoformat(last[:10])).days
+        except Exception:                                            # noqa: BLE001
+            gap = None
+        if gap is not None and gap > int(max_stale) * 2:   # calendar days vs sessions, x2
+            return {"ok": False, "rows": n, "last_date": last,
+                    "reason": ("SOURCE STALE: the latest dip_healthy row is %s, %d calendar "
+                               "days before %s, beyond the declared %d-session tolerance. "
+                               "Entering on it would be trading a memory."
+                               % (last, gap, str(today)[:10], int(max_stale)))}
+    return {"ok": True, "rows": n, "last_date": last, "reason": ""}
+
+
+def f21_first_appearances(history, today) -> dict:
+    """`ticker -> the recorded date it FIRST appeared in the current calendar quarter`. PURE.
+
+    Evaluated at the SERIES' OWN CADENCE (declaration amendment `A2`): a name qualifies on the
+    first recorded row of this quarter in which it appears and did not appear in the
+    immediately preceding recorded row. The draft's *"within 2 sessions"* is not achievable
+    while the recorder is weekly, and pretending otherwise would select nobody.
+    """
+    import datetime as _dt
+
+    d = _dt.date.fromisoformat(str(today)[:10])
+    q_start = _dt.date(d.year, 3 * ((d.month - 1) // 3) + 1, 1).isoformat()
+    rows = [r for r in (history or [])
+            if not r.get("invalid") and str(r.get("date") or "") >= q_start]
+    rows.sort(key=lambda r: str(r.get("date") or ""))
+    firsts, prev = {}, set()
+    for r in rows:
+        names = {str(t).upper() for t in (r.get("payload") or [])}
+        for t in sorted(names - prev):
+            firsts.setdefault(t, str(r.get("date")))
+        prev = names
+    return firsts
+
+
+def f21_select(healthy, history, today, held, *, cap: int) -> list:
+    """The names F-21 may enter. PURE.
+
+    `held` carries every underlying this book has ever filled, so the quarter re-entry ban and
+    the never-double-up rule are the same check -- re-entry inside a quarter is a VOID
+    condition, so the conservative reading is the required one.
+    """
+    firsts = f21_first_appearances(history, today)
+    held = {str(h).upper() for h in (held or set())}
+    out = []
+    for r in healthy or []:
+        t = str((r or {}).get("ticker") or "").upper().strip()
+        if not t or t in held or t not in firsts:
+            continue
+        row = dict(r)
+        row["ticker"] = t
+        row["first_appearance"] = firsts[t]
+        out.append(row)
+    # LARGEST BY MARKET CAP, the declaration's own tie-break, then ticker. Deterministic, so
+    # the cap is applied to a defined order rather than to whatever the screen emitted.
+    out.sort(key=lambda r: (-float(r.get("market_cap") or 0.0), r["ticker"]))
+    return out[:max(0, int(cap))] if cap else out
+
+
+def f22_draws(pool, session_date, *, salt: str, p: float) -> list:
+    """F-22's deterministic salted draw. PURE, and it reads the calendar and the ticker ONLY.
+
+    `sha256(salt || book || ticker || session_date) mod 1e9 < p * 1e9`. **Not an RNG**, so any
+    reader reproduces every entry the book ever made from the declaration alone (`S3-I1`'s
+    day-1 self-check requires exactly this), and **no price-derived quantity is referenced**,
+    which is the void condition that keeps the timing uncorrelated with the dip signal.
+    """
+    import hashlib
+    out = []
+    for t in sorted({str(x).upper() for x in (pool or []) if str(x).strip()}):
+        h = hashlib.sha256(("%s|f22_dip_csp_random_twin|%s|%s"
+                            % (salt, t, session_date)).encode("utf-8")).hexdigest()
+        if (int(h[:15], 16) % 1_000_000_000) < int(float(p) * 1_000_000_000):
+            out.append(t)
+    return out
+
+
 RULES = {
     "f1_fill_ab": (f1_fill_ab, False),
     "f3_bear_puts": (f3_bear_puts, True),

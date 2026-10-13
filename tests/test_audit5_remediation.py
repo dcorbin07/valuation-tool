@@ -64,11 +64,12 @@ class TestH2NotConsultedRefuses(unittest.TestCase):
 
     def test_the_production_call_shape_no_longer_writes_a_fabricated_zero(self):
         out = H.record_all(date="2026-08-26", store=_Store(), root=self.root)
-        self.assertEqual(sorted(out["not_consulted"]), ["dip_rejects", "iv60_atm"])
+        self.assertEqual(sorted(out["not_consulted"]),
+                         ["dip_healthy", "dip_rejects", "iv60_atm"])
         self.assertFalse(out["ok"])
         self.assertTrue(out["loud"])
         # and NOTHING was written for either
-        for name in ("dip_rejects", "iv60_atm"):
+        for name in ("dip_healthy", "dip_rejects", "iv60_atm"):
             self.assertTrue(H.read(name, self.root).get("absent"), name)
 
     def test_alert_count_still_records_because_it_has_a_real_source(self):
@@ -78,24 +79,26 @@ class TestH2NotConsultedRefuses(unittest.TestCase):
     def test_an_empty_collection_IS_an_observation_and_records(self):
         """RAN-AND-FOUND-NOTHING must stay recordable, or the fix breaks the series."""
         out = H.record_all(date="2026-08-26", store=_Store(), rejects=[], quotes={},
-                           root=self.root)
+                           healthy=[], root=self.root)
         self.assertEqual(out["not_consulted"], [])
         self.assertTrue(out["ok"])
         self.assertEqual(H.read("dip_rejects", self.root)["n"], 1)
         self.assertEqual(H.read("iv60_atm", self.root)["n"], 1)
+        self.assertEqual(H.read("dip_healthy", self.root)["n"], 1)
 
     def test_THE_BLIND_SPOT_a_series_with_history_still_goes_loud(self):
         """The defect the alarm could never have caught: `failed_to_start` asks whether the
         SERIES has rows, and a series with history passes that forever."""
         H.record_all(date="2026-08-20", store=_Store(), rejects=["AAPL"], quotes={"AAPL": 0.3},
-                     root=self.root)
+                     healthy=["MSFT"], root=self.root)
         out = H.record_all(date="2026-08-21", store=_Store(), root=self.root)
         self.assertEqual(out["failed_to_start"], [], "history masks it, as it always did")
-        self.assertEqual(sorted(out["not_consulted"]), ["dip_rejects", "iv60_atm"])
+        self.assertEqual(sorted(out["not_consulted"]),
+                         ["dip_healthy", "dip_rejects", "iv60_atm"])
         self.assertFalse(out["ok"], "the old alarm read ok=True in exactly this state")
 
     def test_the_recorders_themselves_refuse_and_say_why(self):
-        for fn in (H.record_dip_rejects, H.record_iv60):
+        for fn in (H.record_dip_rejects, H.record_dip_healthy, H.record_iv60):
             r = fn(date="2026-08-26", root=self.root)
             self.assertFalse(r["ok"])
             self.assertFalse(r["wrote"])
@@ -186,7 +189,7 @@ class TestH2Invalidation(unittest.TestCase):
         """It is metadata about the other series, not a daily observation. Counting it would
         make the alarm cry wolf on every cycle -- `MA21`'s rule."""
         out = H.record_all(date="2026-08-26", store=_Store(), rejects=[], quotes={},
-                           root=self.root)
+                           healthy=[], root=self.root)
         self.assertNotIn("invalidations", out["failed_to_start"])
         self.assertTrue(out["ok"])
 

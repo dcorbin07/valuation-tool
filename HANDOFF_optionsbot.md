@@ -11569,3 +11569,103 @@ adopted; no real trade.**
   `scripts/sellpremium2_kills.py`, `sellpremium2_arm.py`;
   `data/free_analysis/SELLPREMIUM2_KILLS.json`, `SELLPREMIUM2_ARM.json`,
   `SELLPREMIUM2_PICKS25.pkl`, `SELLPREMIUM2_PICKS90.pkl`, `SELLPREMIUM2_BOOK.pkl`.
+
+
+---
+
+## 85. F-21 AND F-22 ACCEPTED — **AND THE ENTRY SOURCE F-21 WAS DECLARED ON DID NOT EXIST: THE ONLY DIP SERIES RECORDED IS ITS COMPLEMENT** (2026-10-13)
+
+Accepts the Frontier Scout's `DECL_DRAFT_f21_v6opt_dip_csp.md` (`8e7d4c7`) and
+`DECL_DRAFT_f22_dip_csp_random_twin.md` (`91ffd54`) as the owning lane. **Each declaration
+committed ALONE** — `bde7bcd` and `399a22d` — and **each validates `ok=True` with ZERO refusals**,
+with the landed `DECL_f10_clean_csp.md` as the control. **BOTH ARE DECLARED AND NEITHER IS ARMED.
+No fill, no trial, paper only.**
+
+* **THE PRECONDITION THE PROMPT ASKED FOR, AND THE ANSWER IS WORSE THAN THE SCOUT'S VERSION.** The
+  instruction was to *"confirm the dip detector's healthy list is consulted every cycle and
+  actually supplies names"*. **Measured: `fleet_history.SERIES` held exactly three streams —
+  `iv60_atm`, `dip_rejects`, `alert_count` — and `dip_rejects` is the COMPLEMENT of F-21's entry
+  population.** F-21 enters on the names the screen **KEPT**; the only dip series records the ones
+  it **THREW OUT**. **So the book's own entry population was recorded nowhere, and its declared
+  "first appearance on that list this quarter" could not be evaluated against anything.** Armed as
+  drafted it would have qualified nobody — `RULE_ARMED_NEVER_FIRES`, which the harness itself
+  calls *"indistinguishable in the records from a quiet market."*
+* **AND THE CADENCE EXPLAINS THE SCOUT'S OWN MEASUREMENT RATHER THAN MERELY REPEATING IT.** The
+  scout found `dip_rejects` at **6 days** against `alert_count` and `iv60_atm` at **24**, and read
+  it as the source being *"not consulted on every cycle"*. **The cause is structural: the fleet
+  cycle DELIBERATELY does not run the dip screen** — its own comment prices the screen against the
+  runner's budget — so the only callers are **`scan_worker.run_weekly`** and **`POST
+  /admin/record-dip-rejects`**. **6 against 24 is the weekly-to-daily ratio.** It is a **cadence
+  mismatch between recorder and consumer**, not an intermittent fault, and arming nothing fixes
+  it. **Consequently the draft's "within 2 sessions of first appearance" is NOT achievable today**
+  and is replaced, in the declaration, by first appearance evaluated **at the series' own
+  cadence**.
+* **THE FIX IS A NEW SERIES RECORDED WHERE THE SCREEN IS ALREADY PAID FOR, AND NO NEW SCREEN RUNS
+  ANYWHERE.** `fleet_history.dip_healthy` + `record_dip_healthy`, wired into the **two existing
+  callers that already hold a screen result** — the scan worker's digest and the admin door — and
+  into `record_all`. **`None` REFUSES and `[]` RECORDS**, exactly as `record_dip_rejects` does
+  (audit #5 `H2`): *ran and kept nobody* is an observation and *no screen ran* is a GAP, because
+  a zero written for a screen that never ran is a positive assertion of ABSENCE that a
+  first-appearance study cannot tell from a real one. **A test asserts the scan worker still
+  contains exactly ONE `screen_snapshot(` call**, so the ~188s timeout that made the cycle stop
+  running the screen cannot creep back in.
+* **THE ARMING PRECONDITION IS MECHANICAL RATHER THAN REMEMBERED, WHICH IS THE WHOLE OF THE
+  REVIEW'S WARNING.** Three of the four armed books are `RULE_ARMED_NEVER_FIRES` (`f1_fill_ab` 30
+  observations and zero fills, `f8_csp_entry_financing` 26 and zero, `f11_dip_reject_puts` 26 and
+  zero — only `f3_bear_puts` fires, a base rate of **1 in 4**). So both entry rules **REFUSE BY
+  NAME** on a series carrying fewer than **20** rows or whose latest row is more than **5**
+  sessions stale, and the refusal says *"This is a statement about the SOURCE and not about the
+  market."* **A thin source is then reported as a thin source instead of returning an empty list
+  that reads as a calm day.**
+* **F-22 INHERITS F-21's CLOCK AND ITS REFUSAL, AND THAT IS `MB1-SEL`'s LESSON APPLIED BEFORE THE
+  FACT.** The twin's draw is evaluated **only on sessions F-21's source was recorded on**. Drawing
+  daily while the arm can enter weekly would hand it roughly **five times** the entry
+  opportunities and make its fills a **biased superset** of the arm's — which is exactly why
+  `MB1-SEL` was **VOIDED**, with its confound running **twice the size of the effect and in the
+  same direction**. The draw is `sha256(salt ‖ book ‖ ticker ‖ session_date)`, **not an RNG**, so
+  any reader reproduces every entry from the declaration alone, and **an AST test pins that it
+  reads no price-derived quantity of any kind** — no drawdown, spot, health, IV, vol or close —
+  which is what keeps the timing uncorrelated with the signal.
+* **AND THE CONTAMINATION IS MEASURED RATHER THAN FILTERED.** A genuinely random day will
+  sometimes land on a healthy-dip day; excluding those would turn the comparison into
+  dip-versus-no-dip. `landed_on_healthy_dip_day` is a **required recorded field**. `V6-OPT`'s own
+  control had the same property and never reported it.
+* **F-2 AND F-19 ARE FOLDED IN AS RECORDED FIELDS**, per the fleet review: both declarations say
+  of themselves that they are conventions and not books (*"fleet-wide convention"*, *"A LABELING
+  GATE, refuses nothing"*), and their per-trade meters imply **47.5-** and **21.2-year** horizons
+  for objects that hold no positions. `menu_depth` and `density_percentile` now ride on every fill
+  of these two books, with `healthy_series_rows` and `healthy_series_last_date` so the source's
+  own thinness is visible **on the fill that used it**. **None of the five collides with the 30
+  base `RECORD_COLUMNS`**, pinned by test.
+* **A CROSS-LANE REPOINT FORCED BY MY OWN ADDITION, AND IT IS `MB31`'s FAMILY AGAIN.** Four
+  assertions in `tests/test_audit5_remediation.py` compared `not_consulted` against an **exact
+  list** of the three series that existed. Adding a legitimate fourth grew the collection and all
+  four went red. **No property changed.** Where a test supplies every source it means to supply,
+  it now supplies the new one too — so `not_consulted == []` stays **exactly** true and the test's
+  own *"an empty collection IS an observation"* property is **extended** to `dip_healthy`; where a
+  test asserts which sources were unconsulted, the new one is **named**; and the new recorder is
+  added to the loop that holds each recorder to the `None`-refuses rule. **Strictly more is
+  asserted than before.**
+* **THE MANIFEST WAS RE-EXPORTED**, which the scout's own acceptance procedure requires: a
+  declaration that lands without it turns
+  `test_audit5_remediation::test_the_committed_manifest_equals_a_fresh_build` red and **a red land
+  gate blocks every other lane**. `data_export/fleet_declarations.json` now reads **20 books, 5
+  skipped**.
+* **THE DRAFTS ARE KEPT RATHER THAN RENAMED AWAY.** The scout's procedure says rename; keeping
+  them matches how the `f7`/`f9`/`f16` drafts persist, their **`jsonc` fence keeps them
+  unparseable** so no unaccepted draft registers as a live book, and it lets each accepted
+  declaration be **the only file in its commit** as `declaration_commit` requires.
+* **> DON MUST RE-RUN `FLEET SELF-CHECK (re-certify)`.** This item changes **`fleet_books.py`** and
+  **`fleet_history.py`**, both in `FINGERPRINTED_MODULES`, so `harness_fingerprint()` moves and
+  **every book's day-1 certificate is stale**. Until it is re-run the recorder refuses every fill,
+  which is the designed behaviour and not a fault.
+* **NOT DONE, named so it is not mistaken for done: NEITHER BOOK IS ARMED** — both are absent from
+  `fleet_books.RULES` and `cycle()` never calls them, pinned by test; **no fill is placed and no
+  trial is booked**; **the `dip_healthy` series has ZERO rows today** and must accrue 20 before
+  either rule will select anybody, which needs Don to schedule `POST /admin/record-dip-rejects`
+  (the door reads the snapshot already on disk and **measured 16.2s**, against the superseded 188s
+  figure that stopped the cycle running a screen); and **the contract picker and submission path
+  are F-11's and are NOT re-implemented** here — these two rules supply selection only.
+  **22 tests, zero errors.** `DECL_f21_v6opt_dip_csp.md`, `DECL_f22_dip_csp_random_twin.md`;
+  `valuation/edge/fleet_history.py`, `fleet_books.py`; `valuation/saas/scan_worker.py`,
+  `app_saas.py`; `tests/test_f21_f22.py`.
