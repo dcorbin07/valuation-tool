@@ -474,6 +474,35 @@ any lane books; §1.2 measures that as the larger half of the figure's own chang
 
 ---
 
+## EXPECTATIONS, SCORED — 5 RIGHT, 3 WRONG
+
+The register's §6 wrote eight down before anything ran. Scored, and **discounted rather than
+celebrated**: three of the five hits are near-deductions from figures already in the record.
+
+| # | expectation | odds | outcome |
+|---|---|---|---|
+| 1 | `DSR_DEPLOYED` far above 0.0016 and far below 0.95 | 70/30 | **RIGHT** — 0.7208 |
+| 2 | `PBO_NO_SELECTION` comes back LOW (< 0.50) | 60/40 | **WRONG** — 1.0, and the mechanism I named against my own answer is what happened |
+| 3 | `X1` A1 and A2 both SURVIVE | 55/45 | **RIGHT** |
+| 4 | at least one half-book NEGATIVE on A1 | 65/35 | **WRONG** — still 0 of 200, as on the published universe |
+| 5 | R1's net-of-cost positive and clearing *t* > 2.0 | 70/30 | **RIGHT** — +4.06% at 3.01 |
+| 6 | the two-way sensitivity also clears | 55/45 | **WRONG** — +2.29% at 1.71, it does not |
+| 7 | `V6-B` M1 survives its 3.0pp economic floor | 60/40 | **RIGHT** — 4.05× it |
+| 8 | the `N_PANEL_NAMES` stamp moves and the share falls sharply | 85/15 | **RIGHT** — 24.46% → 6.53% |
+
+**THE INFORMATIVE MISS IS 2, and it is informative because I argued against my own answer in
+writing.** The register said the mechanism (`current-default` has the worst median out-of-sample
+IC of the eight) pointed the other way and that this was the expectation I was least sure of.
+It came back 1.0 — and chasing *why* is what produced the finding that the statistic is a rank
+statistic and not an overfitting probability at all.
+
+**MISS 6 IS THE ONE THAT MATTERS FOR A DECISION:** I expected charging both trade legs to be
+immaterial and it crosses R1's bar. **Miss 4 is the second time in a row this cell has surprised
+the record** — the published run's 0 of 400 was its single most surprising figure, and a universe
+whose added ~7,100 names are small and dear still produced not one negative half book.
+
+---
+
 ## SUITES
 
 **274 suites, 0 FAILED**, run on the final tree with each suite as its own process and judged by
