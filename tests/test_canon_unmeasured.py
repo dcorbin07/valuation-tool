@@ -297,6 +297,40 @@ def test_the_successor_rows_never_DROP_an_absent_artifact():
     assert src.count('"UNMEASURED"') >= 4
 
 
+def test_importing_the_generator_resolves_no_data_root_and_writes_nothing():
+    """THE GUARD THAT WOULD HAVE CAUGHT MY OWN CI-ONLY FAILURE.
+
+    `FA = os.path.join(_data_root(), "free_analysis")` at module level took this suite down on a
+    CI runner with `FileNotFoundError("no data root")`, which is the exact defect
+    `scripts/corrected_floors.py`'s docstring warns about in writing — and I wrote it after
+    reading that warning. Making `FA` lazy ALONE would have been worse: the body would then run
+    on import and OVERWRITE the tracked markdown from a runner that has no artifacts, turning a
+    loud crash into a silent truncation. So: no module-level `_data_root()` call, and every
+    write inside a function.
+    """
+    tree = ast.parse(io.open(GEN, encoding="utf-8").read())
+    top = [n for n in tree.body if not isinstance(n, (ast.FunctionDef, ast.ClassDef))]
+    bad_calls, bad_writes = [], []
+    for n in top:
+        for c in ast.walk(n):
+            if isinstance(c, ast.Call):
+                name = getattr(c.func, "id", "") or getattr(c.func, "attr", "")
+                if name in ("_data_root", "fa", "out_json"):
+                    bad_calls.append(name)
+                if name == "open" or (isinstance(c.func, ast.Attribute)
+                                      and c.func.attr == "open"):
+                    bad_writes.append(ast.dump(c)[:80])
+    assert not bad_calls, "module-level data-root resolution: %r" % (bad_calls,)
+    assert not bad_writes, "module-level file open: %r" % (bad_writes,)
+    # and the build really is a function with the writes inside it
+    fns = {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}
+    assert "build" in fns, fns
+    b = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "build")
+    writes = [c for c in ast.walk(b) if isinstance(c, ast.Call)
+              and isinstance(c.func, ast.Attribute) and c.func.attr == "open"]
+    assert writes, "build() opens nothing -- the writes went somewhere else"
+
+
 def test_the_successor_rows_are_wired_into_the_generator():
     src = io.open(GEN, encoding="utf-8").read()
     assert "table_rows" in src, "the successor rows are not unioned in"
@@ -304,31 +338,56 @@ def test_the_successor_rows_are_wired_into_the_generator():
 
 
 
+def _md_rows():
+    """Every row of the TRACKED markdown, as `{figure_prefix: where-it-lives cell}`.
+
+    **THE MARKDOWN, NOT THE GENERATOR'S JSON.** The JSON lives under gitignored `data/`, so a CI
+    runner has neither it nor a data root — and this test FAILED in CI for exactly that reason.
+    The markdown is tracked, is the file handed to the app fixer, and is therefore the right
+    object to check a pointer against. The generator truncates a figure name at 78 characters,
+    so the key is that prefix.
+    """
+    md = io.open(os.path.join(REPO, "CANONICAL_FIGURE_TABLE.md"), encoding="utf-8").read()
+    out = {}
+    for line in md.splitlines():
+        if not line.startswith("| ") or line.startswith("|---"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) >= 5:
+            out[cells[0]] = cells[4]
+    return out
+
+
 def test_every_superseded_pointer_resolves_to_a_real_row():
     """A pointer that can rot is the defect one level up. The generator's SUPERSEDED_BY pairs
-    are explicit strings, so each target must actually name a row the generator emits."""
-    import json
-    import scripts.canon_figure_table as G  # running it regenerates; that is the point
-    doc = json.load(io.open(G.OUT_JSON, encoding="utf-8"))
-    figs = {str(r.get("figure")) for r in doc["rows"]}
+    are explicit strings, so each must name a row the table really emits."""
+    import scripts.canon_figure_table as G
+    rows = _md_rows()
+    figs = set(rows)
     bad = []
     for grp, fig, targets in G.SUPERSEDED_BY:
-        src = [r for r in doc["rows"]
-               if str(r.get("figure")) == fig and r.get("group") == grp]
-        if not src:
+        key = fig[:78]
+        if key not in rows:
             # A SOURCE that does not exist is always a rotted pointer -- the row it names is
             # gone, so the pair is stale and must be removed or corrected.
             bad.append(("source row does not exist", grp, fig))
             continue
-        if any(t in figs for t in targets):
+        if any(t[:78] in figs for t in targets):
             continue
-        # A TARGET that has not landed is NOT a rotted pointer: an item whose successor sweep
-        # is still running, or which turns out to be unmeasurable, is an honest state. What
-        # must hold is that the row SAYS SO rather than claiming an answer it cannot point at.
-        note = (src[0].get("note") or "")
-        if "no successor row has landed yet" not in note:
-            bad.append(("target absent and the row does not say so", grp, fig))
+        # A TARGET that has not landed is NOT a rotted pointer: an item whose successor sweep is
+        # still running, or which turns out to be unmeasurable, is an honest state. What must
+        # hold is that the row does not CLAIM an answer it cannot point at.
+        if "ANSWERED BELOW at:" in rows[key]:
+            bad.append(("claims an answer whose target is absent", grp, fig))
     assert not bad, bad
+
+
+def test_the_superseded_test_is_not_vacuous():
+    """It must be reading real rows. A `_md_rows()` that returned `{}` would pass the test above
+    by seeing nothing -- the vacuous pass this record has hit six times."""
+    rows = _md_rows()
+    assert len(rows) > 40, len(rows)
+    assert any("ANSWERED BELOW at:" in v for v in rows.values())
 
 
 def test_the_supersession_reaches_the_MARKDOWN_not_only_the_json():
