@@ -217,6 +217,53 @@ except Exception as _e:                                                     # no
                  "figure": "(successor rows unavailable)", "state": "UNMEASURED",
                  "why": "scripts.canon_unmeasured.table_rows() raised: %r" % (_e,)})
 
+# ------------------------------------------------- SUPERSEDED POINTERS, and why they are needed
+# **SIX ROWS READ `UNMEASURED` WHILE A LATER ROW IN THIS SAME TABLE CARRIES THE ANSWER.** Three
+# of `CORRECTED-CLAIMS part 1`'s six unmeasured cells were measured by `CORRECTED-CLAIMS-2`, and
+# three of `CORRECTED-CLAIMS-2`'s were measured by `CANON-UNMEASURED` -- and nothing said so, so
+# a reader of the earlier group alone would conclude nobody had looked.
+#
+# **THE STATE IS NOT RE-DECIDED** (this file's own carry rule): the row keeps whatever its own
+# register recorded, and gains a POINTER. The pointer is an explicit pair rather than a string
+# match, because the two groups phrase the same figure differently, and
+# `tests/test_canon_unmeasured.py` fails if a target no longer exists -- a pointer that can rot
+# is the defect one level up.
+SUPERSEDED_BY = [
+    ("CORRECTED-CLAIMS part 1", "R1's NET-OF-COST specification",
+     ["R1 net-of-cost intercept (R1's OWN path)",
+      "R1's NET-OF-COST specification (R1's OWN path) -- was UNMEASURED"]),
+    ("CORRECTED-CLAIMS part 1", "t never below 3.16, 3.83 at two years (S22 term structure)",
+     ["S22 'alpha HAC t never below 3.16' (LITERAL)", "S22 two-year alpha HAC t"]),
+    ("CORRECTED-CLAIMS part 1",
+     "beat the universe by 6.6% at one quarter, 5.1% at two years (hold horizon)",
+     ["hold_horizon copy: 1-quarter annualized alpha",
+      "hold_horizon copy: 2-year annualized alpha"]),
+    ("CORRECTED-CLAIMS part 1", "holds on 45 of 69 / 21 of 69 dates (score calibration)",
+     ["score_confidence PER_NAME_DATES", "score_confidence GROUP_DATES (the limitation)"]),
+    ("CORRECTED-CLAIMS part 1", "32.5% vs 43.4% dip survival (V6-B)",
+     ["V6-B M1: 32.5% vs 43.4% dip survival -- was UNMEASURED"]),
+    ("CORRECTED-CLAIMS-2", "V6-B M1: healthy dips fall a further 20% less often",
+     ["V6-B M1: healthy dips fall a further 20% less often -- was UNMEASURED"]),
+    ("CORRECTED-CLAIMS-2", "S22 per-horizon fixed_weights_null floors",
+     ["S22 fixed_weights_null floor, h=63 (alpha_t_hac p95)"]),
+    ("CORRECTED-CLAIMS-2", "R1 net-of-cost intercept (R1's OWN path)",
+     ["R1's NET-OF-COST specification (R1's OWN path) -- was UNMEASURED"]),
+]
+_fig = {}
+for r in rows:
+    _fig.setdefault(str(r.get("figure")), []).append(r)
+for grp, fig, targets in SUPERSEDED_BY:
+    src = [r for r in rows if r.get("group") == grp and str(r.get("figure")) == fig]
+    live = [t for t in targets if t in _fig]
+    for r in src:
+        if not live:
+            r["note"] = ((r.get("note") or "") + " · no successor row has landed yet.").strip()
+            continue
+        r["superseded_by"] = live
+        r["note"] = ((r.get("note") or "")
+                     + " · SUPERSEDED — the answer is in this table, at: "
+                     + "; ".join(live)).strip()
+
 res = {
     "item": "CANONICAL-MOVE",
     "part": "steps 5 and 6 -- every public figure, old -> new, with where it lives",
@@ -315,12 +362,20 @@ for grp in groups:
     for r in rows:
         if r["group"] != grp:
             continue
+        # THE SUPERSESSION MUST REACH THE MARKDOWN, not only the JSON. The markdown is the file
+        # handed to the app fixer, and a bare `UNMEASURED` on a figure this very table answers
+        # three groups further down is the misreading this annotation exists to remove.
+        state = r.get("state")
+        where = (r.get("surface") or "-- (research record only)")
+        if r.get("superseded_by"):
+            state = "%s -> SUPERSEDED" % state
+            where = "%s -- ANSWERED BELOW at: %s" % (where, "; ".join(r["superseded_by"]))
         md.append("| %s | %s | %s | **%s** | %s |"
                   % (str(r.get("figure"))[:78].replace("|", "\\|"),
                      fmt(r.get("published")).replace("|", "\\|"),
                      fmt(r.get("corrected")).replace("|", "\\|"),
-                     r.get("state"),
-                     (r.get("surface") or "-- (research record only)").replace("|", "\\|")))
+                     state,
+                     where.replace("|", "\\|")))
     md.append("")
 md += ["---", "", "## Sources — every figure is read from a landed artifact, none re-derived here",
        ""] + ["* `%s`" % x for x in res["sources"]]

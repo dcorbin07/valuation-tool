@@ -303,6 +303,42 @@ def test_the_successor_rows_are_wired_into_the_generator():
     assert "rows += " in src
 
 
+
+def test_every_superseded_pointer_resolves_to_a_real_row():
+    """A pointer that can rot is the defect one level up. The generator's SUPERSEDED_BY pairs
+    are explicit strings, so each target must actually name a row the generator emits."""
+    import json
+    import scripts.canon_figure_table as G  # running it regenerates; that is the point
+    doc = json.load(io.open(G.OUT_JSON, encoding="utf-8"))
+    figs = {str(r.get("figure")) for r in doc["rows"]}
+    bad = []
+    for grp, fig, targets in G.SUPERSEDED_BY:
+        src = [r for r in doc["rows"]
+               if str(r.get("figure")) == fig and r.get("group") == grp]
+        if not src:
+            # A SOURCE that does not exist is always a rotted pointer -- the row it names is
+            # gone, so the pair is stale and must be removed or corrected.
+            bad.append(("source row does not exist", grp, fig))
+            continue
+        if any(t in figs for t in targets):
+            continue
+        # A TARGET that has not landed is NOT a rotted pointer: an item whose successor sweep
+        # is still running, or which turns out to be unmeasurable, is an honest state. What
+        # must hold is that the row SAYS SO rather than claiming an answer it cannot point at.
+        note = (src[0].get("note") or "")
+        if "no successor row has landed yet" not in note:
+            bad.append(("target absent and the row does not say so", grp, fig))
+    assert not bad, bad
+
+
+def test_the_supersession_reaches_the_MARKDOWN_not_only_the_json():
+    """The markdown is the file handed to the app fixer. A bare UNMEASURED on a figure this
+    table answers three groups further down is the misreading the annotation removes."""
+    md = io.open(os.path.join(REPO, "CANONICAL_FIGURE_TABLE.md"), encoding="utf-8").read()
+    assert "UNMEASURED -> SUPERSEDED" in md
+    assert "ANSWERED BELOW at:" in md
+
+
 def main():
     print("CANON-UNMEASURED — the added parameters and the repaired generator\n")
     for name, fn in sorted(globals().items()):

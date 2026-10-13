@@ -71,10 +71,10 @@ universe and a disjoint grid.
 | -23.03% max drawdown (Roth) | -0.230286 | -0.289587 | **NO LONGER HOLDS** | Index tab (TRANSCRIBED) |
 | -0.06pp alpha vs the all-cap equal-weighted universe | -0.000576 | 0.059288 | **SURVIVES** | Index tab (TRANSCRIBED) |
 | +6.99%/yr factor-adjusted alpha, NW t 3.98 (R1) | 0.069900 | 0.059398 | **SURVIVES** | /methodology (TEMPLATE) |
-| R1's NET-OF-COST specification | None | None | **UNMEASURED** | /methodology (TEMPLATE) |
-| t never below 3.16, 3.83 at two years (S22 term structure) | None | None | **UNMEASURED** | /methodology (TEMPLATE) |
-| beat the universe by 6.6% at one quarter, 5.1% at two years (hold horizon) | None | None | **UNMEASURED** | /methodology + Hot Stocks legend (TRANSCRIBED) |
-| holds on 45 of 69 / 21 of 69 dates (score calibration) | None | None | **UNMEASURED** | /methodology + Hot Stocks legend (TRANSCRIBED) |
+| R1's NET-OF-COST specification | None | None | **UNMEASURED -> SUPERSEDED** | /methodology (TEMPLATE) -- ANSWERED BELOW at: R1 net-of-cost intercept (R1's OWN path); R1's NET-OF-COST specification (R1's OWN path) -- was UNMEASURED |
+| t never below 3.16, 3.83 at two years (S22 term structure) | None | None | **UNMEASURED -> SUPERSEDED** | /methodology (TEMPLATE) -- ANSWERED BELOW at: S22 'alpha HAC t never below 3.16' (LITERAL); S22 two-year alpha HAC t |
+| beat the universe by 6.6% at one quarter, 5.1% at two years (hold horizon) | None | None | **UNMEASURED -> SUPERSEDED** | /methodology + Hot Stocks legend (TRANSCRIBED) -- ANSWERED BELOW at: hold_horizon copy: 1-quarter annualized alpha; hold_horizon copy: 2-year annualized alpha |
+| holds on 45 of 69 / 21 of 69 dates (score calibration) | None | None | **UNMEASURED -> SUPERSEDED** | /methodology + Hot Stocks legend (TRANSCRIBED) -- ANSWERED BELOW at: score_confidence PER_NAME_DATES; score_confidence GROUP_DATES (the limitation) |
 | 32.5% vs 43.4% dip survival (V6-B) | 0.325000 | None | **UNMEASURED** | Dip Detector tab (TRANSCRIBED) |
 | 3,885 trades / 187 names / -5.06pp vs random entry (options payoff) | -0.050600 | -0.050600 | **SURVIVES** | /methodology (TRANSCRIBED) |
 | the live/forward Track Record | None | None | **UNMEASURED** | Track Record tab (LIVE) |
@@ -95,7 +95,7 @@ universe and a disjoint grid.
 | score_confidence PER_NAME_DATES | 45 of 69 (gate 42) | {"dates_not_distinguishable": 12, "of_dates": 69} | **NO LONGER HOLDS** | valuation/web/score_confidence.py (public copy) |
 | score_confidence GROUP_DATES (the limitation) | 21 of 69, 'may never be stated as a standing property' | {"dates_top_decile_mean_clears": 57, "of_dates": 69, "still_a_minority": false, "derivation_validated_against_the_banked | **NO LONGER HOLDS** | valuation/web/score_confidence.py (public copy) |
 | V6-B M1: healthy dips fall a further 20% less often | {"healthy_pooled_rate": 0.3251, "unhealthy_pooled_rate": 0.4335, "pooled_gap_pp": -10.84, "registered_statistic_mean_dif | None | **UNMEASURED** | CLAUDE.md V6-B bullet (research only; no public surface) |
-| R1 net-of-cost intercept (R1's OWN path) | +7.85%/yr net of costs (t 5.16), measured on the VOID pre-B6 panel | None | **UNMEASURED** | CLAUDE.md R1 bullet |
+| R1 net-of-cost intercept (R1's OWN path) | +7.85%/yr net of costs (t 5.16), measured on the VOID pre-B6 panel | None | **UNMEASURED -> SUPERSEDED** | CLAUDE.md R1 bullet -- ANSWERED BELOW at: R1's NET-OF-COST specification (R1's OWN path) -- was UNMEASURED |
 | R1 net-of-cost intercept (DERIVED) | a positive factor-model intercept that survives a plausible cost | {"gross_alpha_ann": 0.059397599064971024, "gross_t_nw": 4.453158903833538, "primary_spec": "compound/full", "breakeven_o | **SURVIVES** | CLAUDE.md R1 bullet |
 
 ## calibrated floors (X7's sweep, re-run on this universe)
