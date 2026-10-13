@@ -174,6 +174,10 @@ async function runValue(overrides) {
     // Fired AFTER the valuation has painted, and never awaited: the unified view is an
     // addition to the page, so a slow or broken /api/whatdo must not delay or break it.
     loadWhatDo(ticker);
+    // ITEM 52 part 6: the same rule, with a measured reason. The valuation takes ~2s and the
+    // analyst call took 27.4s on TSLA today, so awaiting it would turn a two-second page into
+    // a thirty-second one for a panel that is an addition to it.
+    loadAiAnalysis(ticker);
   } catch (e) {
     errBox(e.message);
   } finally {
@@ -276,7 +280,7 @@ function render(d) {
   compsBox(d.comps, c.price, (d.reverse && d.reverse.base_avg_growth != null) ? d.reverse.base_avg_growth : (d.assumptions ? d.assumptions.start_growth : null), d.withheld);
   assumEditor(d.assumptions);
   document.getElementById("assumNotes").innerHTML = (d.assumptions.notes || []).map(n => "• " + n).join("<br>");
-  aiBox(d.ai);
+  aiBox(d.ai, null);
   earningsBox(c);
   warnBox(d.warnings);
   document.getElementById("sourcesBox").innerHTML = "Sources: " + (d.sources || []).join(" · ");
@@ -889,7 +893,55 @@ function sensBox(s, price) {
 }
 
 /* ---------- AI ---------- */
-function aiBox(ai) {
+/* ---------- ITEM 52 part 6: the analysis runs by itself ----------
+   NOT AWAITED, and the number is why: 27.4s measured against the valuation's 2.0s.
+   THE PANEL ALWAYS CARRIES ITS LABEL, cached or fresh, because the most
+   confident-sounding paragraph on the page is the one with the least behind it -- the model
+   has read no filing, no transcript and no news, only the numbers above it.
+   WHEN THE DAY'S ALLOWANCE IS GONE THE PAGE OFFERS THE BUTTON rather than showing nothing. */
+async function loadAiAnalysis(ticker, force) {
+  const card = document.getElementById("aiCard");
+  if (!card) return;
+  if (document.getElementById("runai") && document.getElementById("runai").checked
+      && !force) {
+    // The checkbox already asked for it on the valuation request itself, so the analysis is
+    // in `d.ai` and `aiBox` has rendered it. Firing again would pay twice for one answer.
+    if (STATE.data && STATE.data.ai) return;
+  }
+  card.style.display = "block";
+  document.getElementById("aiSrc").textContent = force ? "(running…)" : "";
+  if (!force) document.getElementById("aiBox").innerHTML = skeleton(3);
+  let d;
+  try {
+    const res = await fetch("/api/ai-analysis", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticker, force: !!force }) });
+    d = await res.json();
+  } catch (e) {
+    document.getElementById("aiBox").innerHTML =
+      `<div class="note">The written analysis could not be fetched.</div>`;
+    return;
+  }
+  STATE.ai = d;
+  if (d && d.capped) {
+    document.getElementById("aiSrc").textContent = "";
+    document.getElementById("aiBox").innerHTML =
+      `<div class="note">${esc(d.offer || "")}</div>
+       <button class="btn" onclick="loadAiAnalysis(${JSON.stringify(ticker)}, true)">Run it
+       now</button>
+       <div class="co-src">${esc(d.label || "")}</div>`;
+    return;
+  }
+  if (!d || !d.ok || !d.ai) {
+    document.getElementById("aiBox").innerHTML =
+      `<div class="note">No written analysis for this name right now.
+       ${esc((d && d.reason) || "")}</div>`;
+    return;
+  }
+  aiBox(d.ai, d);
+}
+
+function aiBox(ai, meta) {
   const card = document.getElementById("aiCard");
   if (!ai) { card.style.display = "none"; return; }
   card.style.display = "block";
@@ -909,6 +961,13 @@ function aiBox(ai) {
   if (ai.catalysts) html += `<h4>Catalysts</h4><ul>${list(ai.catalysts)}</ul>`;
   if (ai.assumption_critique) html += `<h4>Assumption critique</h4><ul>${list(ai.assumption_critique)}</ul>`;
   if (ai.overall_take) html += `<div style="margin-top:12px;padding:12px 14px;background:var(--blue-soft);border-radius:10px"><b>Bottom line.</b> ${esc(ai.overall_take)}</div>`;
+  // ITEM 52 part 6: THE LABEL IS APPENDED HERE, so it cannot be forgotten by a caller.
+  // Both paths through this function -- the checkbox's `d.ai` and the automatic fetch --
+  // render through it, which is the one place that guarantees the panel never appears
+  // without saying what wrote it.
+  const _lbl = (meta && meta.label) || (window.AI_PANEL_LABEL || "");
+  if (_lbl) html += `<div class="co-src">${esc(_lbl)}${
+    meta && meta.cached ? " Saved earlier today." : ""}</div>`;
   document.getElementById("aiBox").innerHTML = html;
 }
 function warnBox(warnings) {

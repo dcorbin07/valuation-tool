@@ -142,6 +142,40 @@ def _build_prompt(result) -> str:
 #: worse for something whose next step is `json.loads`.
 _MAX_TOKENS = 8000
 
+#: PUBLISHED PRICE PER MILLION TOKENS, read from Anthropic's own pricing page on 2026-10-13
+#: and dated here because a price is somebody else's number and it moves.
+#:
+#: Claude Sonnet 5: **$2 input / $10 output**. The page's own footnote states that the $2/$10
+#: introductory pricing is now the STANDARD price and that the scheduled rise to $3/$15 on
+#: 2026-09-01 did not happen -- quoted because the obvious mistake here is to carry the
+#: announced increase.
+#:
+#: MEASURED, ONE REAL CALL ON TSLA, 2026-10-13: 1,154 input tokens and 2,253 output tokens,
+#: **$0.0248 for the analysis**, 27.4 seconds. ~91% of the cost is OUTPUT, because the schema
+#: asks for eight fields including four multi-sentence theses. So a 30-a-day cap costs about
+#: **75 cents a day, roughly $22 a month** at 30 billed days.
+PRICE_PER_MTOK = {
+    "claude-sonnet-5": {"in": 2.0, "out": 10.0},
+    "claude-sonnet-5.5": {"in": 2.0, "out": 10.0},
+    "claude-opus-5": {"in": 15.0, "out": 75.0},
+}
+PRICE_AS_OF = "2026-10-13"
+PRICE_SOURCE = "https://platform.claude.com/docs/en/about-claude/pricing"
+
+
+def call_cost(model: str, input_tokens, output_tokens):
+    """USD for one call, or `None` when this model's price is not on record.
+
+    **`None` RATHER THAN A GUESS.** An unpriced model returning 0.0 would read as "this call
+    was free", and a cap or a running total built on it would be wrong in the direction that
+    spends money. The surface reports the token counts either way -- those are measured.
+    """
+    p = PRICE_PER_MTOK.get(str(model or "").strip())
+    if not p or input_tokens is None or output_tokens is None:
+        return None
+    return (float(input_tokens) / 1e6 * p["in"]
+            + float(output_tokens) / 1e6 * p["out"])
+
 
 def _call_anthropic(prompt: str, cfg) -> dict:
     import anthropic
@@ -169,7 +203,20 @@ def _call_anthropic(prompt: str, cfg) -> dict:
             "the reply carried no text: the %d-token budget was consumed before any was "
             "written (stop_reason=max_tokens, %d content block(s))"
             % (_MAX_TOKENS, len(msg.content or [])))
-    return _parse_json(text, source, stop_reason=stop, blocks=len(msg.content or []))
+    out = _parse_json(text, source, stop_reason=stop, blocks=len(msg.content or []))
+    # ITEM 52 part 6: THE USAGE TRAVELS WITH THE ANSWER. The reply already carries the exact
+    # token counts, so the cost of running this automatically is a measurement rather than an
+    # estimate -- and it is attached here, at the one place that knows them, rather than
+    # re-derived from the prompt's length by anything downstream.
+    u = getattr(msg, "usage", None)
+    if u is not None and isinstance(out, dict):
+        it = getattr(u, "input_tokens", None)
+        ot = getattr(u, "output_tokens", None)
+        out["usage"] = {"model": cfg.ai_model_anthropic, "input_tokens": it,
+                        "output_tokens": ot,
+                        "cost_usd": call_cost(cfg.ai_model_anthropic, it, ot),
+                        "price_as_of": PRICE_AS_OF}
+    return out
 
 
 def _call_openai(prompt: str, cfg) -> dict:

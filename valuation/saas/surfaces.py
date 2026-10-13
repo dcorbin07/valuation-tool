@@ -166,6 +166,12 @@ PUBLIC_API = frozenset({
     "/api/health",            # config booleans, no market data                       [none]
     "/api/value",             # the DCF for one ticker the visitor asked for          [FMP]
     "/api/rank",              # score a small watchlist                               [FMP]
+    "/api/ai-analysis",       # ITEM 52 part 6: the written analysis for one ticker the
+                              # visitor is already looking at. PUBLIC for the same reason
+                              # /api/value is -- it is model output over inputs the visitor
+                              # asked for -- but it is the FIRST public route that spends
+                              # money per call, so it is DEMO-DENIED below and capped at 30
+                              # new analyses a day. Measured: $0.0248 a call.     [Anthropic]
     "/api/hotstocks",         # the ranking — analysis, and the product               [FMP]
     "/api/dip",               # the Dip Detector: the same snapshot the hot list
                               # publishes, filtered on drawdown and health. Public for
@@ -207,6 +213,14 @@ DEMO_DENIED_PATHS = frozenset({
     # (1) Triggers — each writes to the store AND spends the owner's money on every call.
     "/api/scan/run",          # writes a scan snapshot; 3 FMP requests per uncached name
     "/api/signals/run",       # writes intraday rows + alerts; one Anthropic call per run
+    "/api/ai-analysis",       # ITEM 52 part 6: one Anthropic call, MEASURED at $0.0248 and
+                              # 27.4 seconds, stored per ticker per day. The 30-a-day cap
+                              # already bounds the spend, and this entry is the stronger
+                              # statement: the read-only preview cannot start a paid call at
+                              # all, so "the demo cannot spend" does not depend on a counter
+                              # being right. A cache HIT costs nothing, but the preview is
+                              # denied the route rather than the miss -- a rule that depends
+                              # on which branch runs is not a rule.
     "/api/backtest/run",      # CPU-heavy on a 512 MB box; a free DoS lever otherwise
     "/api/edge/backtest",     # the research bench's own runner
     "/api/edge/optimize",     # walk-forward weight search

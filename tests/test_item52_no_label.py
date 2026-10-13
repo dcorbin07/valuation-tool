@@ -638,6 +638,141 @@ class NoSLICEDFunctionNameMayBeEXTENDED(unittest.TestCase):
         self.assertGreater(len(blanket), 10, blanket)
 
 
+class TheAnalysisRunsByItselfAndItsCostIsMEASURED(unittest.TestCase):
+    """Part 6. The cost was measured BEFORE anything was switched on, which was the
+    precondition: ONE real call on TSLA, 2026-10-13, `claude-sonnet-5` --
+    **1,154 input tokens and 2,253 output tokens, 27.4 seconds, $0.0248**, response parsed as
+    JSON with `stop_reason: end_turn`. About 91% of that is OUTPUT, because the schema asks
+    for eight fields including four multi-sentence theses. At the 30-a-day cap that is **~75
+    cents a day and roughly $22 a month** at 30 billed days.
+
+    The published price is Anthropic's own, read on the day: Sonnet 5 at **$2 / $10** per
+    million, with the page's footnote stating the introductory pricing is now standard and the
+    scheduled rise to $3/$15 will not happen -- quoted because the obvious mistake is to carry
+    the announced increase.
+    """
+
+    def test_the_measured_call_prices_at_two_and_a_half_cents(self):
+        from valuation.ai import analyst as AN
+        self.assertAlmostEqual(AN.call_cost("claude-sonnet-5", 1154, 2253), 0.024838,
+                               places=6)
+        self.assertEqual(AN.PRICE_PER_MTOK["claude-sonnet-5"], {"in": 2.0, "out": 10.0})
+        self.assertEqual(AN.PRICE_AS_OF, "2026-10-13")
+
+    def test_an_unpriced_model_costs_None_rather_than_zero(self):
+        """Zero would read as "this call was free", and a running total built on it would be
+        wrong in the direction that spends money."""
+        from valuation.ai import analyst as AN
+        self.assertIsNone(AN.call_cost("some-future-model", 1000, 1000))
+        self.assertIsNone(AN.call_cost("claude-sonnet-5", None, 1000))
+
+    def test_the_cap_is_thirty_until_Don_sets_a_number(self):
+        from valuation.web import ai_auto as AA
+        self.assertEqual(AA.DAILY_CAP, 30)
+
+    def test_a_fresh_day_may_run_and_a_recorded_call_spends_allowance(self):
+        import tempfile, shutil
+        from valuation.web import ai_auto as AA
+        root = tempfile.mkdtemp(prefix="i52ai_")
+        try:
+            self.assertEqual(AA.allowance(root=root)["left"], 30)
+            AA.record("TSLA", {"overall_take": "x",
+                               "usage": {"cost_usd": 0.0248, "input_tokens": 1154,
+                                         "output_tokens": 2253}}, root=root)
+            a = AA.allowance(root=root)
+            self.assertEqual(a["used"], 1)
+            self.assertEqual(a["left"], 29)
+            self.assertAlmostEqual(a["cost_usd_today"], 0.0248, places=4)
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_a_cached_analysis_is_served_and_charges_NOTHING(self):
+        import tempfile, shutil
+        from valuation.web import ai_auto as AA
+        root = tempfile.mkdtemp(prefix="i52ai_")
+        try:
+            AA.record("TSLA", {"overall_take": "x", "usage": {"cost_usd": 0.02}}, root=root)
+            before = AA.allowance(root=root)["used"]
+            self.assertIsNotNone(AA.cached("TSLA", root=root))
+            self.assertEqual(AA.allowance(root=root)["used"], before)
+            self.assertIsNone(AA.cached("NVDA", root=root))
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_an_UNREADABLE_ledger_counts_as_AT_the_cap(self):
+        """A ledger we cannot read cannot rule out that today's calls already happened, and
+        the direction that does not spend money is the safe one (`MA6`)."""
+        import tempfile, shutil
+        from valuation.web import ai_auto as AA
+        root = tempfile.mkdtemp(prefix="i52ai_")
+        try:
+            os.makedirs(AA._dir(root), exist_ok=True)
+            with io.open(AA.ledger_path(root=root), "w", encoding="utf-8") as fh:
+                fh.write("{ not json")
+            a = AA.allowance(root=root)
+            self.assertFalse(a["may_run"])
+            self.assertEqual(a["left"], 0)
+            self.assertIn("could not be read", a["reason"])
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_the_route_is_POST_only_and_refuses_an_empty_ticker(self):
+        """The verb carries the SPEND. A GET that could start a 27-second paid call is
+        reachable by a retry, a prefetch, a crawler or a pasted link."""
+        from valuation.web.app import app
+        c = app.test_client()
+        self.assertEqual(c.get("/api/ai-analysis").status_code, 405)
+        self.assertEqual(c.post("/api/ai-analysis", json={}).status_code, 400)
+
+    def test_the_route_is_classified_in_BOTH_posture_lists_with_a_reason(self):
+        from valuation.saas import surfaces as SF
+        self.assertIn("/api/ai-analysis", SF.PUBLIC_API)
+        self.assertIn("/api/ai-analysis", SF.DEMO_DENIED_PATHS)
+        src = _src(os.path.join("valuation", "saas", "surfaces.py"))
+        self.assertIn("MEASURED at $0.0248", src)
+
+    def test_the_panel_label_exists_once_and_reaches_the_page(self):
+        from valuation.web import ai_auto as AA
+        for bit in ("Written by AI", "not from news", "can be wrong"):
+            self.assertIn(bit, AA.PANEL_LABEL)
+        from valuation.web.app import app
+        html = app.test_client().get("/").get_data(as_text=True)
+        self.assertIn("AI_PANEL_LABEL", html)
+        self.assertIn("not from news", html)
+
+    def test_aiBox_APPENDS_the_label_so_a_caller_cannot_forget_it(self):
+        src = _src(os.path.join("valuation", "web", "static", "app.js"))
+        i = src.index("function aiBox(")
+        body = src[i:src.index("function warnBox(")]
+        self.assertIn("AI_PANEL_LABEL", body)
+        self.assertIn("meta && meta.label", body)
+
+    def test_it_is_fired_after_the_paint_and_NEVER_awaited(self):
+        src = _src(os.path.join("valuation", "web", "static", "app.js"))
+        i = src.index("loadAiAnalysis(ticker);")
+        line = src[src.rindex("\n", 0, i) + 1:i + 30]
+        self.assertNotIn("await", line)
+        self.assertLess(src.index("render(data);"), i)
+
+    def test_the_cap_OFFERS_the_button_rather_than_showing_nothing(self):
+        from valuation.web import ai_auto as AA
+        self.assertIn("You can still run this one", AA.CAP_REACHED)
+        src = _src(os.path.join("valuation", "web", "static", "app.js"))
+        self.assertIn("Run it", src)
+        self.assertIn("force: !!force", src)
+
+    def test_THIS_MODULE_NEVER_TOUCHES_THE_KEY(self):
+        """It decides WHETHER to call and records WHAT it cost. The credential stays in
+        `valuation.ai.analyst`, the only place that needs it."""
+        src = _src(os.path.join("valuation", "web", "ai_auto.py"))
+        for forbidden in ("api_key", "anthropic_api_key", "openai_api_key", "ANTHROPIC"):
+            self.assertNotIn(forbidden, src)
+
+    def test_nothing_reports_a_cost_without_saying_it_may_be_PARTIAL(self):
+        src = _src(os.path.join("valuation", "web", "ai_auto.py"))
+        self.assertIn("cost_is_partial", src)
+
+
 if __name__ == "__main__":
     r = unittest.main(exit=False, verbosity=2).result
     print("\nitem 52 part 1 (no label): %d run, %d failures, %d errors"

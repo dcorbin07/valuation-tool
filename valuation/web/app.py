@@ -25,6 +25,7 @@ from ..report import pdf as pdf_report
 from . import resultcache, withhold
 from .query_params import clamp_int, clamp_float   # MA50/MA53 — one clamp per caller number
 from . import score_confidence as _score_confidence
+from . import ai_auto as _ai_auto
 from . import theme_status as _theme_status
 
 
@@ -130,6 +131,10 @@ def _site_context():
             # saas/app_saas.py, and a surface that renders the score while forgetting the
             # calibration is the failure this is here to prevent. Cheap constants, no I/O.
             "score_confidence": _score_confidence.for_template(),
+            # ITEM 52 part 6: injected site-wide for the same reason the calibration is
+            # -- so a page cannot render the AI panel while forgetting to say what
+            # wrote it.
+            "ai_panel_label": _ai_auto.PANEL_LABEL,
             # S22's term structure governs what may be said about how long the edge lasted.
             # Same reason it sits here and not on a route: the horizon figures are the most
             # flattering numbers the backtest produces, and the caveats S22 registered as
@@ -459,6 +464,72 @@ def api_value():
     except Exception as e:
         log_exception()
         return jsonify({"error": f"Valuation failed for {ticker}: {safe_error(e)}"}), 500
+
+
+@app.route("/api/ai-analysis", methods=["POST"])
+def api_ai_analysis():
+    """Item 52 part 6. The analysis, served from today's store or run once and stored.
+
+    **POST, NOT GET, AND THE VERB CARRIES THE SPEND.** A GET that could start a 27-second
+    paid call is reachable by a retry, a prefetch, a crawler or a pasted link -- the
+    `track-row` defect, where the recorded cure was to split the verb, and here the thing on
+    the other side costs money rather than a record.
+
+    **A CACHE HIT IS FREE AND INSTANT AND DOES NOT TOUCH THE CAP.** Keyed on ticker and day,
+    so the second visitor to a name pays neither the 27 seconds nor the 2.5 cents.
+
+    **WHEN THE DAY'S ALLOWANCE IS GONE IT OFFERS THE BUTTON RATHER THAN SHOWING NOTHING** --
+    `force` runs one anyway. That is deliberate and it is not a hole in the cap: the cap
+    exists to stop an unattended page spending the month in an afternoon, and a reader who
+    clicks is not unattended. Forced runs are charged to the ledger like any other, so the
+    day's total still tells the truth about what was spent.
+    """
+    data = request.get_json(force=True) or {}
+    ticker = (data.get("ticker") or "").strip().upper()
+    if not ticker:
+        return jsonify({"error": "No ticker provided."}), 400
+    force = bool(data.get("force"))
+    try:
+        from . import ai_auto as AA
+
+        hit = AA.cached(ticker)
+        if hit:
+            return jsonify({"ok": True, "ticker": ticker, "cached": True, "ran": False,
+                            "ai": hit.get("analysis"), "label": AA.PANEL_LABEL,
+                            "allowance": AA.allowance(), "cost_usd": hit.get("cost_usd")})
+
+        allow = AA.allowance()
+        if not allow["may_run"] and not force:
+            return jsonify({"ok": True, "ticker": ticker, "cached": False, "ran": False,
+                            "ai": None, "label": AA.PANEL_LABEL, "allowance": allow,
+                            "capped": True, "offer": AA.CAP_REACHED,
+                            "reason": allow["reason"]})
+
+        result = value_ticker(ticker, CONFIG, run_ai=True, mc_trials=2000)
+        _cd = getattr(result, "company", None)
+        if getattr(_cd, "fetch_failed", False):
+            return jsonify({"ok": False, "ticker": ticker, "reason": "ticker not found"}), 404
+        ai = getattr(result, "ai", None)
+        if not ai:
+            # THE WARNING THE ENGINE ALREADY WROTE IS WHAT IS REPORTED, rather than a fresh
+            # guess at why. `value_ticker` appends "AI analysis unavailable: <reason>" and
+            # that reason is the one worth a reader's time. NOTHING IS CHARGED to the day: no
+            # analysis was stored, so the allowance is intact.
+            why = [w for w in (getattr(result, "warnings", None) or [])
+                   if "AI analysis unavailable" in str(w)]
+            return jsonify({"ok": False, "ticker": ticker, "cached": False, "ran": True,
+                            "ai": None, "label": AA.PANEL_LABEL, "allowance": AA.allowance(),
+                            "reason": (why[0] if why else "the analysis came back empty")})
+
+        wrote = AA.record(ticker, ai)
+        return jsonify({"ok": True, "ticker": ticker, "cached": False, "ran": True,
+                        "forced": force, "ai": ai, "label": AA.PANEL_LABEL,
+                        "allowance": AA.allowance(),
+                        "cost_usd": (ai.get("usage") or {}).get("cost_usd"),
+                        "stored": wrote["ok"], "store_reason": wrote["reason"]})
+    except Exception as e:                                             # noqa: BLE001
+        log_exception("api_ai_analysis")
+        return jsonify({"ok": False, "ticker": ticker, "reason": safe_error(e)}), 500
 
 
 @app.route("/api/rank", methods=["POST"])

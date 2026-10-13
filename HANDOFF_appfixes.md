@@ -18845,3 +18845,82 @@ per-ticker-per-day store, the 30-a-day cap with the button offered when it is re
 per-call cost measured from the response's own token usage against the model's published price.
 **That cost measurement is the part to do first**, because it is the only number in item 52
 that commits Don to spending money, and nothing should be switched on before it is reported.
+
+---
+
+## item 52 part 6 — the analysis runs by itself, and here is what it costs
+
+### THE NUMBER FIRST, BECAUSE IT WAS THE PRECONDITION
+
+**ONE REAL CALL, TSLA, 2026-10-13, `claude-sonnet-5`: 1,154 input tokens and 2,253 output
+tokens, 27.4 seconds, `stop_reason: end_turn`, response parsed as JSON — $0.0248.**
+
+The published price is Anthropic's own, read on the day: **$2 / MTok input, $10 / MTok
+output**, and the page's own footnote states the introductory pricing is now the standard
+price and the scheduled rise to $3/$15 on 2026-09-01 did not happen. That footnote is quoted
+in the code because the obvious mistake here is to carry the announced increase.
+
+* **At the 30-a-day cap: about 75 cents a day, roughly $22 a month** at 30 billed days.
+* **~91% of the cost is OUTPUT**, because the schema asks for eight fields including four
+  multi-sentence theses. Anybody wanting it cheaper should shorten the schema, not the prompt.
+* **An unpriced model costs `None`, never 0.0.** Zero reads as "this call was free", and a
+  running total built on it would be wrong in the direction that spends money.
+
+### IT NEVER BLOCKS THE PAGE, AND THE REASON IS MEASURED
+
+The valuation takes **2.0 s** and the analyst call **27.4 s** on the same name. Awaiting it
+would turn a two-second page into a thirty-second one for a panel that is an addition to it —
+so it is fired after the paint and never awaited, exactly as `loadWhatDo` already is, and a
+test pins both halves (no `await`, and it comes after `render`).
+
+### THE SPENDING CONTROLS, AND EACH FAILS IN THE DIRECTION THAT DOES NOT SPEND
+
+* **A cache hit is free, instant, and does not touch the cap** — keyed on `(ticker, day)`, so
+  the second visitor to a name pays neither the 27 seconds nor the 2.5 cents.
+* **An unreadable ledger counts as AT the cap.** A ledger we cannot read cannot rule out that
+  today's calls already happened (`MA6`'s direction).
+* **The ledger moves only AFTER the analysis is stored.** Charging first would leak the day's
+  allowance on every failed call; this ordering means a failure costs money but not allowance,
+  which is the one that cannot lock the day out.
+* **The route is POST-only.** A GET that could start a 27-second paid call is reachable by a
+  retry, a prefetch, a crawler or a pasted link — the `track-row` defect, except that what
+  sits behind this one costs money rather than a record.
+* **TWO GUARDS CAUGHT THE NEW ROUTE AND BOTH WERE RIGHT.** `test_public` refused it as an
+  unclassified API route and as an unclassified POST reachable by the read-only preview. It is
+  now in `PUBLIC_API` with its reason — model output over inputs the visitor asked for, like
+  `/api/value`, but **the first public route that spends money per call** — and in
+  `DEMO_DENIED_PATHS`, which is the stronger statement: the preview cannot start a paid call
+  at all, so "the demo cannot spend" does not depend on a counter being right. **The preview
+  is denied the ROUTE rather than the cache miss**, because a rule that depends on which
+  branch runs is not a rule.
+* **When the day's allowance is gone the page OFFERS the button rather than showing nothing**,
+  and a forced run is charged to the ledger like any other, so the day's total still tells the
+  truth.
+
+### THE LABEL CANNOT BE FORGOTTEN
+
+*"Written by AI from the numbers on this page — not from news, filings or anything else — and
+it can be wrong."* It is **appended inside `aiBox`**, which both paths render through — the
+checkbox's `d.ai` and the automatic fetch — so the panel cannot appear without saying what
+wrote it; and it is injected site-wide from the module that owns it, the way the score
+calibration already is. The most confident-sounding paragraph on the page is the one with the
+least behind it.
+
+**THE KEY IS NEVER READ, PRINTED OR LOGGED.** `ai_auto` decides *whether* to call and records
+*what it cost*; the credential stays in `valuation.ai.analyst`, the only module that needs it,
+and a test asserts `ai_auto`'s source contains no form of the word.
+
+**30 suites green plus 14 more tests (74 in the item's own suite); `node --check` clean.**
+
+### WHAT IS STILL OWED ON ITEM 52
+
+**The screenshots.** The prompt asks for NVDA, APLD and TSLA captured on the live service after
+deploy, and this session has no browser — the live verification here is by fetching the
+rendered pages and reading the figures, which is what every item in this lane has done. Worth
+saying plainly rather than leaving as a quiet omission.
+
+**And the three rulings.** `DECISIONS.md` still has no "The valuation page" section, so
+everything above was built from the prompt's own specification. If the rulings say something
+different, the two places to look are the price read (it quotes the premium to base value, not
+the valuation sub-score) and the story-stock threshold (15 points, a disclosure threshold
+calibrated against nothing, which the page says of itself).
