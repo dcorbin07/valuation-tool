@@ -70,6 +70,48 @@ def _scan_row(rows, ticker):
     return None
 
 
+#: Every theme the hot-score decomposition can carry. Taken from the screener's own weight
+#: sets rather than typed, so a theme added there appears here without anyone remembering.
+def _all_themes() -> list:
+    try:
+        # The screener reads these off `settings`, and `screen._decompose` defaults to
+        # exactly them -- so this is the same list the scan standardised and weighted.
+        from ..screener import settings as _screen
+        names = set()
+        for attr in ("WEIGHTS_ESTABLISHED", "WEIGHTS_SPECULATIVE"):
+            w = getattr(_screen, attr, None)
+            if isinstance(w, dict):
+                # ONLY THEMES THAT CARRY WEIGHT. `low_risk` and `sentiment` are 0.0 in BOTH
+                # sets -- `low_risk` was zeroed on a held-out test and `sentiment` has never
+                # had an input -- so they can never contribute to any name. Counting them as
+                # "missing for this company" would turn a design decision and an empty column
+                # into a per-name data gap, on every name, which is the fastest way to make
+                # this notice meaningless.
+                names |= {k for k, v in w.items() if (v or 0) > 0}
+        # The UNION of the two sets is the right denominator, and that is not an approximation:
+        # soft bucketing scores a name under BOTH rulebooks and blends them by how established
+        # it looks, so a speculative name still carries a `quality` contribution from the
+        # established branch. The union is 8, which is exactly what APLD's full explanation
+        # lists -- the check that this denominator is the right one.
+        return sorted(names)
+    except Exception:                                                  # noqa: BLE001
+        return []
+
+
+def _why_missing(why: list) -> list:
+    """Themes with no contribution on this row, i.e. whose INPUT was missing.
+
+    **EMPTY MEANS "NOTHING MISSING" ONLY IF THE THEME LIST COULD BE READ.** If it could not,
+    this returns an empty list and the surface must not render "all themes present" off it --
+    which is why the page keys its sentence on a non-empty list rather than on the absence of
+    one. A check that cannot run and one that ran and found nothing must not read the same.
+    """
+    present = {str(x.get("theme")) for x in (why or []) if isinstance(x, dict)}
+    if not present:
+        return []
+    return [t for t in _all_themes() if t not in present]
+
+
 def _index_membership(rows, ticker, config_name=None):
     """Is this name in the book the Index tab shows, and at what weight?
 
@@ -289,6 +331,25 @@ def name_view(store, ticker: str, book_config: str = None, risk_budget=None,
             "fair_value_withheld_reason": row.get("fair_value_withheld_reason"),
             "fair_value_withheld_kind": row.get("fair_value_withheld_kind"),
             "why": extra.get("why") or [], "why_composite": extra.get("why_composite"),
+            # ---------------------------------------------------------- ITEM 52 part 7a -----
+            # WHICH THEMES THE EXPLANATION COULD NOT SEE, named rather than silently absent.
+            #
+            # MEASURED, 2026-10-12 scan: NVDA's `why` lists SIX themes and APLD's EIGHT, and
+            # the two NVDA is missing are growth and momentum. `row_attribution` drops a theme
+            # whose contribution is NaN, and `_branch` makes it NaN only when that theme's z
+            # is NaN -- i.e. when the INPUT is missing for this name.
+            #
+            # AND THE GAP IS THE NORM RATHER THAN THE EXCEPTION: of the 100 rows the API
+            # serves, only 47 carry all five served z columns (`z_insider` null on 49 of 100).
+            # So a reader comparing two names is routinely comparing a six-theme explanation
+            # with an eight-theme one, with nothing on the page saying so.
+            #
+            # THE SCORE IS NOT AFFECTED, which is the half a reader would get wrong: `_branch`
+            # redistributes a missing theme's weight across the rest, documented and
+            # deliberate, so the composite is comparable. NVDA's six contributions sum to
+            # -0.3548 against a composite of -0.35489. **The casualty is the EXPLANATION**, and
+            # this field is what lets the page say so.
+            "why_missing": _why_missing(extra.get("why") or []),
             # S14 ADOPTION: the band's divergence, stated at ROW level and not only inside the
             # `index` block, because this is the field a why-panel renders. A name held by the
             # band is in the book for a reason the theme decomposition above cannot show -- the

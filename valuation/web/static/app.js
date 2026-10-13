@@ -389,6 +389,57 @@ function gauge(s, rec, conf, notValuable, w) {
     <div class="conf">confidence: ${esc(conf || "")}</div>`;
 }
 
+/* ---------- ITEM 52 part 4: the hot score, near the top, with its limits ----------
+   ONE SOURCE. This renders from the same `/api/whatdo` payload `renderWhatDo` uses, so the
+   ranking shown at the top and the panel further down cannot disagree about it.
+
+   THREE THINGS THE OLD PRESENTATION LEFT OUT, each measured:
+     * the LIMITS, in `score_confidence`'s calibrated words -- the evidence is about the top
+       decile as a GROUP, and where a name sits inside it is not distinguishable from chance;
+     * that the SIZE theme marks megacaps down by design, which is why NVDA ranks 1,262 of
+       1,440 while scoring 94.9 on business quality;
+     * WHICH THEMES THE EXPLANATION COULD NOT SEE. NVDA's lists six and APLD's eight, because
+       growth and momentum have no input for NVDA in the scan -- and measured across the 100
+       rows the API serves, only 47 carry every served theme. Six themes read as "these are
+       the drivers" when the truth is "two inputs were missing".
+   A NAME OUTSIDE TODAY'S SCAN SAYS SO. A blank reads as a zero. */
+function renderHotTop(d) {
+  const el = document.getElementById("hotTop");
+  if (!el) return;
+  const s = (d && d.stock) || {};
+  const sc = window.SCORE_CONFIDENCE || {};
+  if (!s.in_scan) {
+    el.innerHTML = `<div class="card hot-top"><div class="pa-lead-t">Hot list</div>
+      <div class="hot-top-s muted">Not in today's scan, so there is no ranking for this
+      name.</div></div>`;
+    return;
+  }
+  const drivers = (s.why || []).slice(0, 3)
+    .map(x => `${esc(String(x.theme).replace(/_/g, " "))} ${x.c >= 0 ? "+" : ""}${x.c.toFixed(2)}`)
+    .join(" · ");
+  const miss = (s.why_missing || []);
+  // The count is computed, not patched into the sentence afterwards: the first cut built the
+  // two-theme wording and then `.replace()`d it for the other cases, which is a sentence that
+  // depends on a substring of itself.
+  const missLead = miss.length === 1 ? "One theme could not be scored for this name:"
+    : `${miss.length} of the themes could not be scored for this name:`;
+  el.innerHTML = `<div class="card hot-top">
+    <div class="pa-lead-t">Hot list</div>
+    <div class="hot-top-s"><b>${s.hot_score == null ? "—" : s.hot_score.toFixed(0)}</b>
+      out of 100 — rank ${s.rank} of ${s.n_scored}.
+      ${drivers ? `Biggest movers: ${drivers}.` : ""}</div>
+    ${miss.length ? `<div class="hot-top-n"><b>${missLead}</b>
+      ${miss.map(m => esc(m.replace(/_/g, " "))).join(" and ")} had no input in this scan, so
+      the explanation above is built on ${8 - miss.length} of 8 themes. The ranking itself
+      spreads the missing weight over the rest, so it stays comparable — but the explanation is
+      not a complete list of what moved this name.</div>` : ""}
+    <div class="hot-top-n">${esc(sc.defensible || "")}</div>
+    <div class="hot-top-n">A large company is marked down by this ranking on purpose: company
+      size is one of its themes and it favours smaller names, so a household name can rank low
+      here while scoring well on everything else.</div>
+  </div>`;
+}
+
 /* ---------- ITEM 52: what the price assumes, and the DCF warning ----------
    Three numbers in one sentence, because separately they mislead: the implied figure reads as
    a forecast, the business figure as a projection, and the model's base case as
@@ -625,6 +676,7 @@ async function loadWhatDo(ticker) {
   if (!d || (d.error && !d.action?.length)) { box.style.display = "none"; return; }
   STATE.whatdo = d;
   renderWhatDo(d);
+  renderHotTop(d);
 }
 
 function renderWhatDo(d) {

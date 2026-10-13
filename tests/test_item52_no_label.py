@@ -405,6 +405,76 @@ class ThePriceAssumesLeadAndTheDCFWarning(unittest.TestCase):
                 self.assertNotIn(bad, t.lower(), t)
 
 
+class TheHotScoreNamesWhatItCouldNotSee(unittest.TestCase):
+    """Part 4 and part 7a. The arithmetic was fine; the EXPLANATION was the casualty."""
+
+    def test_the_denominator_is_the_WEIGHTED_themes_and_there_are_eight(self):
+        from valuation.web import unified as U
+        themes = U._all_themes()
+        self.assertEqual(len(themes), 8, themes)
+        self.assertEqual(themes, ["capital_discipline", "growth", "insider", "institutional",
+                                  "momentum", "quality", "size", "value"])
+
+    def test_zero_weight_themes_are_NOT_counted_as_missing_for_a_name(self):
+        """`low_risk` and `sentiment` are 0.0 in BOTH weight sets -- one zeroed on a held-out
+        test, one never fed -- so they can never contribute to anybody. Counting them would
+        turn a design decision and an empty column into a per-name gap on EVERY name, which
+        is the fastest way to make the notice meaningless."""
+        from valuation.web import unified as U
+        self.assertNotIn("low_risk", U._all_themes())
+        self.assertNotIn("sentiment", U._all_themes())
+        from valuation.screener import settings as SS
+        for attr in ("WEIGHTS_ESTABLISHED", "WEIGHTS_SPECULATIVE"):
+            w = getattr(SS, attr)
+            self.assertEqual(w.get("low_risk", 0.0), 0.0)
+            self.assertEqual(w.get("sentiment", 0.0), 0.0)
+
+    def test_NVDAs_live_attribution_is_missing_exactly_growth_and_momentum(self):
+        """The live 2026-10-12 payload, which is what Don saw: six themes against APLD's
+        eight."""
+        from valuation.web import unified as U
+        nvda = ["size", "quality", "insider", "capital_discipline", "institutional", "value"]
+        self.assertEqual(U._why_missing([{"theme": t} for t in nvda]),
+                         ["growth", "momentum"])
+
+    def test_APLDs_live_attribution_is_missing_NOTHING(self):
+        from valuation.web import unified as U
+        apld = ["growth", "capital_discipline", "insider", "size", "value", "momentum",
+                "institutional", "quality"]
+        self.assertEqual(U._why_missing([{"theme": t} for t in apld]), [])
+
+    def test_an_EMPTY_attribution_returns_empty_rather_than_every_theme(self):
+        """A name with no decomposition at all has not had eight themes go missing -- it has
+        no explanation, which the surface reports differently. Returning all eight here would
+        print "8 of the themes could not be scored" on a row that was never decomposed."""
+        from valuation.web import unified as U
+        self.assertEqual(U._why_missing([]), [])
+
+    def test_the_page_renders_the_gap_and_the_not_in_scan_state(self):
+        src = _src(os.path.join("valuation", "web", "static", "app.js"))
+        self.assertIn("function renderHotTop", src)
+        self.assertIn("why_missing", src)
+        self.assertIn("Not in today's scan", src)
+        # The limits are READ from `score_confidence`, not re-worded here.
+        self.assertIn("SCORE_CONFIDENCE", src)
+        self.assertIn("sc.defensible", src)
+
+    def test_the_size_caveat_is_on_the_page_because_NVDA_needs_it(self):
+        # NVDA scores 94.9 on business quality and ranks 1,262 of 1,440. Without this
+        # sentence those two facts look like a contradiction rather than a design choice.
+        src = _src(os.path.join("valuation", "web", "static", "app.js"))
+        self.assertIn("size is one of its themes", src)
+
+    def test_the_top_strip_reads_the_SAME_payload_as_the_panel_below(self):
+        """One source. Two reads of one ranking cannot come to disagree; two fetches can."""
+        src = _src(os.path.join("valuation", "web", "static", "app.js"))
+        i = src.index("STATE.whatdo = d;")
+        tail = src[i:i + 200]
+        self.assertIn("renderWhatDo(d)", tail)
+        self.assertIn("renderHotTop(d)", tail)
+        self.assertEqual(src.count("/api/whatdo?ticker="), 1)
+
+
 if __name__ == "__main__":
     r = unittest.main(exit=False, verbosity=2).result
     print("\nitem 52 part 1 (no label): %d run, %d failures, %d errors"

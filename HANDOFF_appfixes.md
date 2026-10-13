@@ -18717,3 +18717,60 @@ failed one are different facts.
 **NOT DONE: parts 4, 5 and 6** — the hot-score block with its calibrated limits, the company
 description and key facts from the market-data profile, and the automatic AI run with its
 measured cost and daily cap.
+
+---
+
+## item 52 part 4 — the hot score moves up, and the explanation finally names what it could not see
+
+**ONE SOURCE, NOT A SECOND COPY.** The strip renders from the same `/api/whatdo` read the
+panel further down already uses — `grep` confirms exactly one fetch of that endpoint — so the
+ranking at the top and the panel below cannot come to disagree about it.
+
+Three things the old presentation left out, each measured:
+
+* **The limits, in `score_confidence`'s own calibrated words**, read from
+  `window.SCORE_CONFIDENCE` rather than re-worded here: the evidence is about the top decile
+  **as a group**, and where a name sits inside it is not distinguishable from chance.
+* **That the size theme marks megacaps down by design.** Without that sentence NVDA scoring
+  **94.9 on business quality while ranking 1,262 of 1,440** looks like a contradiction rather
+  than a design choice.
+* **Which themes the explanation could not see — part 7a, now on the page.**
+
+### THE MISSING-THEME DISCLOSURE, AND GETTING THE DENOMINATOR RIGHT TOOK THREE GOES
+
+`why_missing` is the weighted themes minus the ones the decomposition carries. Two corrections
+on the way to it, both of which would have made the notice useless:
+
+1. **The first cut used every theme name in the weight sets — ten — so NVDA came back missing
+   FOUR: growth, momentum, `low_risk` and `sentiment`.** But `low_risk` and `sentiment` are
+   **0.0 in BOTH weight sets** (one zeroed on a held-out test, one never fed), so they can
+   never contribute to anybody. Counting them would print "4 of the themes could not be scored
+   for this name" **on every name in the product**, which is the fastest way to teach a reader
+   to ignore the line.
+2. **The denominator is the UNION of the two weight sets, and that is not an approximation.**
+   `quality` is in the established set only and `growth` in the speculative set only, yet NVDA
+   and APLD are both `speculative` and both carry a `quality` contribution — because soft
+   bucketing scores a name under **both** rulebooks and blends them by how established it
+   looks. The union is **8**, which is exactly what APLD's full explanation lists: the check
+   that this is the right denominator rather than a guess.
+
+**It now reproduces Don's observation exactly: NVDA missing `["growth", "momentum"]`, APLD
+missing `[]`.**
+
+**AND THE SENTENCE SAYS WHICH HALF IS AFFECTED.** The ranking spreads the missing weight over
+the remaining themes, so it stays comparable — `_branch` does this deliberately and says so —
+while the explanation does not. So the page says the explanation is built on six of eight
+themes **and** that the ranking itself is unaffected. Getting only the first half across would
+read as "this score is broken", which it is not.
+
+**AN EMPTY ATTRIBUTION RETURNS EMPTY, NOT ALL EIGHT.** A row that was never decomposed has not
+had eight themes go missing, and the alternative would print "8 of the themes could not be
+scored" on it.
+
+**A NAME OUTSIDE TODAY'S SCAN SAYS SO**, because a blank reads as a zero.
+
+**22 suites green plus 8 more tests (49 in the item's own suite); `node --check` clean.**
+
+**NOT DONE: parts 5 and 6** — the company description and key facts from the market-data
+profile (needs a field added to the fetch path and confirmed populated for NVDA, APLD and
+TSLA), and the automatic AI run with its measured per-call cost and 30-a-day cap.
