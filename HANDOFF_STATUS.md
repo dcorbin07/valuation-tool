@@ -1,5 +1,38 @@
 # HANDOFF STATUS - shared project state
 
+## options lane — **SELL-PREMIUM-2 PASSES every leg of Don's rule — and at a realistic account size it earns 1-2%/yr because it cannot deploy** (2026-10-13)
+
+**Register `PREREG_sellpremium2.md` committed ALONE at `541e466`**; **4 options trials booked at
+`b376ff7` BEFORE any runner existed**, options `N` **315 → 319**. **The first options strategy in
+this project to clear. `PASSES — ELIGIBLE-BUT-UNRESOLVED`. Paper only; nothing adopted; no real
+trade.**
+
+- **One thing changed from `SELL-PREMIUM`: the strike rule, 0.90 moneyness → 25 delta.** The bar
+  stayed 6.0 and the synthetic stress row stayed. `K3` goes **8.900816 → 4.6747 years**, because
+  the 25-delta contracts collect **9.0811%/yr of secured cash against 4.4545% — 2.04×**. **The
+  predecessor was killed by its strike rule, not by the crash**, and the gating control proves
+  the two figures are the same statistic: this register's own `K3` code path at the
+  predecessor's own picks reproduces **8.900816, deviation 0.000000**.
+- **Clause (a): +0.6709%/trade on secured cash, early +0.8799%, late +0.5286%**, 87.47% wins,
+  16.05% assignment. **Caveat that travels with it: the LATE half is 0.82× its own 80%-power
+  MDE**, so it alone could not have established the result.
+- **Clause (b) is overwhelming: 657 paired name-year cells, 456 positive, z +9.9485, p 2.6e-23**
+  against a five-seed random-day twin (+0.2957%), with every seed in a tight band.
+- **Clause (c) survives all eight sizing cells — and the honest reading is the skip counts.** At
+  $25k/cap10 the book takes **156 of 2,610** trades and skips **2,060 on AFFORDABILITY** (one
+  contract ties up more than $2,500). Terminal returns run **+0.05% to +2.26%/yr**. **"Survives"
+  is measured; "makes meaningful money at Don's account size" is NOT.**
+- **`A3′` is the honest disappointment: the 25-delta rule's RETURN advantage over 0.90 moneyness
+  is +0.1084% at 0.40× its own detection threshold — NOT separable from zero.** It earned its
+  place on the crash gate, not on return. Expectation 4 priced it 80/20; that is a miss.
+- **`A4` confirms `V6-OPT`'s autopsy at 25 delta** (gap −0.0194%, assignment 15.80 vs 16.52%) —
+  the predicted null, not a disappointment.
+- **Two executor corrections before any outcome.** The draft's "≈25 delta" row was a **20-delta**
+  put, so its 5.64-year knife edge did not exist at the rule it declared (true 25 delta forecasts
+  4.4385; measured 4.6747). And the predecessor's **0.85–0.95 moneyness band was removed from
+  selection** — measured, it would have deleted **37.47%** of the picks, systematically the
+  closest-to-the-money ones. `HANDOFF_optionsbot.md` §84.
+
 ## r1 lane — **the figures the canonical move left UNMEASURED are measured: the deployed Deflated Sharpe is 0.72 and not 0.0016, `X1` survives on both arms, and `R1`'s net-of-cost clears** (2026-10-13)
 
 Register `PREREG_canonmove_unmeasured.md` committed **ALONE at `e4b0dae`** (markdown only, 304
