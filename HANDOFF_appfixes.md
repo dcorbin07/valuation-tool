@@ -18405,3 +18405,123 @@ suite says so by name rather than skipping into silence.
 earlier record carry later figures can only be satisfied by editing another lane's handoff, so
 the corrected counts are pinned against `HANDOFF_canon_unmeasured.md` — tracked, and just as
 checkable — while the published panel's own 73.19% stays pinned where it was measured.
+
+---
+
+## item 51 — the fleet re-certifies itself, and the rule that needed enforcing rather than noting
+
+**ZERO TRIALS.** No hypothesis, no bar, no verdict. Paper only, as the ruling says.
+Executes Don's 2026-10-13 ruling on the change item 50 routed: *"The daily fleet cycle runs the
+self-check automatically when the certificate is stale because the harness code changed
+(SELFCHECK_STALE / SELFCHECK_ABSENT). If the self-check FAILS, the books stay shut and Don is
+alerted — a failing check is never re-run into a pass."*
+
+### THE MEASUREMENT THAT SHAPED THE WHOLE ITEM, AND IT IS IN `run_day1` ITSELF
+
+**WHEN THE SYNTHETIC LEG FAILS, `run_day1` RETURNS BEFORE WRITING ANY ROW.** So every book is
+left on `SELFCHECK_STALE` — **the exact state that triggers an automatic attempt.** Left
+unguarded the cron would attempt it again every evening, for ever, by doing nothing wrong: the
+retry loop the ruling forbids, arrived at without anybody deciding to retry. So the block is
+the load-bearing half of this item and not a nicety.
+
+`prior_automatic_failure` is that guard, and three of its properties are deliberate:
+
+* **IT IS KEYED ON THE FINGERPRINT, so fixing the harness re-opens the door by itself.**
+  Repairing the harness changes the fingerprint, no attempt has failed at the NEW one, and the
+  next cycle tries again. A flag keyed on nothing would have to be cleared by hand, and the
+  person who would have to clear it is the one who already has a broken harness to fix.
+* **A MANUAL ATTEMPT DOES NOT COUNT, in either direction.** A human re-running the declared
+  fallback is not a cron retrying, and the workflow stays the fallback the ruling names.
+* **AN UNREADABLE LOG BLOCKS.** A log we cannot read cannot rule out a prior failure, and
+  `MA6`'s direction is to err toward the state that refuses.
+
+### AND THE SAME MEASUREMENT IS WHY THE ALERT IS EXPLICIT
+
+A failing synthetic leg changes **no refusal CODE** — every book keeps the one it already had —
+and `fleet_notify` announces a refusal only when the code CHANGES. Correctly, and silently. So
+relying on the existing path would have met the letter of *"Don is alerted"* and **sent
+nothing.** `pending`/`announce` gain an `alerts` list the caller fills, and the cycle fills it
+on a failed **automatic** attempt. **On the attempt, never on the blocked state that follows
+it:** the block persists until the harness is fixed, so alerting on it would post the same line
+every evening — the steady-state noise this module refuses everywhere else, and the day it
+changed nobody would notice. The alert is composed FIRST, because it is the one line here that
+asks for something rather than recording something.
+
+### WHAT IS RECORDED, AND WHY IT IS NOT A BOOK ROW
+
+`data/fleet/_recertifications.json` holds every attempt — when, why, the books, the state
+before, and **both fingerprints**, so the certificate still means *"the harness was verified
+AFTER it changed"* rather than *"something ran at some point"*. **The failures are the rows that
+have to be there**: a log of successes cannot answer the question the next cycle asks.
+
+It is deliberately **not** a hash-chained book row. The chains carry what a book DID; an
+operational event about the harness is not that book's history, and writing it to eighteen
+streams would turn one fact into eighteen.
+
+**THE HONEST LIMIT: losing that file re-enables exactly ONE attempt.** An absent log reads as
+"no attempt on record", so a disk loss after a failure would allow one more try — which would
+fail and re-record. It degrades to one wasted attempt, not to a loop, and it is stated rather
+than guarded against.
+
+### THE SURFACE COPY HAD TO CHANGE WITH THE BEHAVIOUR
+
+Item 50's remedy told Don to run a workflow. **The cycle now runs it for him, so that sentence
+would spend an action he does not owe** — and the next time one is genuinely owed he will have
+learnt the notice is noise. `SELFCHECK_REMEDY` now says the next cycle will do it and offers
+the manual door as the way to have it happen *sooner*. A second constant,
+`SELFCHECK_REMEDY_AFTER_FAILURE`, says **DO NOT re-run it** — the states are identical
+(`STALE` either way) and the instruction is the opposite, so one string would be wrong in one
+of the two cases. `selfcheck_action` reads the log and picks, so every surface gets the same
+answer without being told which.
+
+### TWO GUARDS FIRED IN THE GATE AND BOTH WERE RIGHT
+
+* **A DEADLINE CHECK WAS MISSING BETWEEN THE TWO NEW STEPS.** `test_price_routing`'s own
+  message names the run it was written for: *"no deadline check runs between these consecutive
+  steps, so the first can run UNBOUNDED ... That is exactly how run 36710874853 returned 0
+  bytes."* Added, and the budget is checked BEFORE the ~37s job starts rather than after — a
+  job begun at the 70s mark would take the cron past its ceiling and lose the recorders
+  downstream, and the deferral vocabulary names `recertify` so a body can say so.
+* **AND THE CERTIFICATION GUARD PINNED THE BEHAVIOUR DON HAS JUST RULED AGAINST.** It required
+  the literal `if wants_run and stale and wants_selfcheck` — i.e. that a plain `run=1` could
+  **never** certify. **Re-asserting it would have been silencing a decision; deleting it would
+  have lost the livelock it was written for.** Repointed to the two things still true, by AST
+  SHAPE rather than substring (item 50's family, after it cost three repoints): **`wants_run`
+  must be a REQUIRED CONJUNCT** of the gate, so no GET can certify whatever else changes, and
+  the only two ways past it are the manual opt-in and an attempt the harness itself says is
+  OWED. **5 of 5 mutations on that gate caught**, including dropping `wants_run` and removing
+  either way in.
+
+### A HAZARD THE AUTOMATIC PATH CREATED IN THE SUITE, AND IT IS PINNED
+
+Until today certification needed `selfcheck=1`, so **no test could start it by accident.** Now
+a writing cycle starts it whenever one is owed — and in a test the fleet store is a fresh temp
+directory, so every declared book reads ABSENT and one is **always** owed. A suite that POSTed
+a writing cycle would place a real sandbox order and spend ~37s doing it, in CI, every run.
+Measured: **no suite does** — the door already answers `GET ?run=1` with 405, and the only
+other door is a POST with a token that nothing in `tests/` sends. A census pins it, because the
+cheap mistake is already refused and the expensive one was not.
+
+### NOT DONE, AND WHAT IS OWED TO WHOM
+
+* **The 2026-10-14 intraday re-measurement is not yet answerable**, and the script says so
+  itself rather than being asked to guess: given `--until 2026-10-14` today it reports
+  `truncated_to_last_closed_session {"asked": "2026-10-14", "used": "2026-10-12", "why":
+  "sessions after the last CLOSED session owe no slots yet"}`. The reading stands at **33
+  slots, 9 delivered, 72.7% dropped** over three sessions against item 37's **72.2%** — and
+  only **2 of the 9** arrivals landed inside the 13:00–20:59 UTC in-session band. **The backup
+  cron has not improved delivery.** Re-run tomorrow:
+  `python scripts/intraday_delivery.py --since 2026-10-08 --until 2026-10-14`.
+* **The options lane's F-21/F-22 have not landed** — nothing of them is on `origin/main`, and
+  the scout's drafts sit on `worktree-scout-research-reset`. So part 3's confirmation is owed
+  after their deploy, and the check is two reads: the cycle body's `recertified` says
+  `ran: true, trigger: "automatic", ok: true`, and `breathing` is true with the new books
+  armed.
+* **AND THEIR PROMPT ASKS THEM TO TELL DON WHEN TO RE-RUN FLEET SELF-CHECK. After this, they
+  should not** — the cycle does it. Worth relaying so their report does not ask Don for an
+  action he no longer owes.
+* **`SELFCHECK_FAILING` and any unreadable state are untouched**, as the ruling says. Nothing
+  is adopted, no book's declared rules change, and no real order is placed anywhere.
+
+**26 new tests; 13 of 13 mutations caught across two harnesses with sources restored
+byte-for-byte; 24 of 24 suites in the blast radius green.**

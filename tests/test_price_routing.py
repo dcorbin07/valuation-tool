@@ -491,19 +491,58 @@ def test_the_DEADLINE_IS_CHECKED_BETWEEN_EVERY_STEP_not_once_near_the_end():
 def test_the_fleet_door_no_longer_certifies_on_every_cycle():
     """The livelock: certifying could not finish inside 120s, so nothing ever certified.
 
-    Read from the SOURCE because the door needs a live store, a token and a broker to run --
-    what is pinned is that the expensive call is gated on an explicit opt-in and that a plain
-    `run=1` cannot reach it.
+    REPOINTED 2026-10-13 BY DON'S RULING, and the property it protects is NOT the one it used
+    to assert. It required the literal `if wants_run and stale and wants_selfcheck` -- i.e.
+    that a plain `run=1` could never certify. Don ruled on 2026-10-13 that a plain `run=1`
+    SHOULD certify when the certificate is stale because the harness changed, so the old
+    assertion now pins behaviour the owner has decided against. Re-asserting it would have
+    been silencing a decision; deleting it would have lost the livelock it was written for.
+
+    SO IT ASSERTS THE TWO THINGS THAT ARE STILL TRUE, and by SHAPE rather than by substring
+    (item 50's lesson, after that family cost three repoints): `wants_run` is a REQUIRED
+    CONJUNCT of the guard on `run_day1` -- so no GET can certify, whatever else changes --
+    and the only two ways past it are the manual opt-in and an attempt the harness itself
+    says is OWED. The livelock is still barred because certifying is reachable only when
+    something is owed, which is rare by construction: a certificate goes stale only when the
+    harness changes.
     """
+    import ast
     import inspect
     from valuation.saas import app_saas
     src = inspect.getsource(app_saas)
     i_gate = src.index("wants_selfcheck")
     i_call = src.index("_sc.run_day1(")
     assert i_gate < i_call, "run_day1 is reachable without the opt-in"
-    line = [l for l in src.splitlines() if "_sc.run_day1(" in l][0]
-    guard = [l for l in src.splitlines() if "if wants_run and stale and wants_selfcheck" in l]
-    assert guard, "the three-part guard on certification is gone"
+
+    def _names(node):
+        return {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
+
+    def _calls_run_day1(node):
+        for n in ast.walk(node):
+            if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                    and n.func.attr == "run_day1"):
+                return True
+        return False
+
+    tree = ast.parse(inspect.getsource(app_saas))
+    guards = [n for n in ast.walk(tree)
+              if isinstance(n, ast.If) and _calls_run_day1(n) and not _calls_run_day1(
+                  ast.Module(body=n.orelse, type_ignores=[]))]
+    assert guards, "nothing guards the call to run_day1 at all"
+    # The INNERMOST `if` whose body reaches the call is the gate; outer ones may be the route.
+    gate = guards[-1]
+    assert isinstance(gate.test, ast.BoolOp) and isinstance(gate.test.op, ast.And), (
+        "the gate on certification is no longer a conjunction, so `wants_run` cannot be "
+        "required: %s" % ast.dump(gate.test)[:200])
+    conjuncts = [ast.dump(v) for v in gate.test.values]
+    assert any("wants_run" in c for c in conjuncts), (
+        "`wants_run` is not a REQUIRED conjunct of the certification gate, so a GET can "
+        "certify -- the `track-row` defect, on a door that places a real sandbox order")
+    ways_in = _names(gate.test)
+    assert "wants_selfcheck" in ways_in, "the manual opt-in is no longer a way in"
+    assert {"auto", "recert"} & ways_in, (
+        "the automatic path is gone; Don's 2026-10-13 ruling is that a stale certificate "
+        "re-certifies itself on the next cycle")
     assert "selfcheck_pending" in src, "a cycle blocked on certification says nothing about it"
 
 

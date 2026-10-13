@@ -724,12 +724,19 @@ def selfcheck_state(book: str, root: str = None) -> dict:
                 "reason": "no self-check on record; under Don's ruling no book fills until "
                           "the harness passes its own first-day verification"}
     last = checks[-1]
-    if (last.get("detail") or "") != harness_fingerprint():
-        return {"ok": False, "state": "STALE", "reason": "the harness changed since the last "
-                                                         "self-check; re-run it"}
+    # THE RECORDED FINGERPRINT TRAVELS WITH THE STATE -- ITEM 51. An automatic
+    # re-certification has to record what the certificate was pinned to BEFORE it moved, or
+    # the record cannot show that the harness was verified *after* it changed, which is the
+    # only thing the certificate means. Reading the row twice from two places would be two
+    # definitions of "the fingerprint on record".
+    recorded = last.get("detail") or ""
+    if recorded != harness_fingerprint():
+        return {"ok": False, "state": "STALE", "recorded": recorded,
+                "reason": "the harness changed since the last self-check; re-run it"}
     if (last.get("fate") or "") != "pass":
-        return {"ok": False, "state": "FAILING", "reason": "the last self-check did not pass"}
-    return {"ok": True, "state": "PASS", "reason": ""}
+        return {"ok": False, "state": "FAILING", "recorded": recorded,
+                "reason": "the last self-check did not pass"}
+    return {"ok": True, "state": "PASS", "recorded": recorded, "reason": ""}
 
 
 #: THE ONE SENTENCE THAT SAYS WHAT TO DO, AND IT EXISTS ONCE (`B7`).
@@ -743,9 +750,26 @@ def selfcheck_state(book: str, root: str = None) -> dict:
 #: It is a constant rather than a sentence per surface because the three surfaces disagreeing
 #: about the remedy is the defect one level on -- the same reason `fleet_notify` imports it
 #: instead of composing its own.
-SELFCHECK_REMEDY = ("Run the FLEET SELF-CHECK (re-certify) workflow once -- GitHub Actions -> "
-                    "FLEET SELF-CHECK (re-certify) -> Run workflow. It takes under a minute. "
-                    "Until it passes, NO BOOK FILLS.")
+#: RESTATED 2026-10-13 BY DON'S RULING: THE CYCLE NOW DOES THIS ITSELF. A notice telling Don
+#: to run a workflow the next cycle will run for him is worse than no notice -- it spends an
+#: action he does not owe, and the next time one is genuinely owed he has learnt the notice is
+#: noise. So the sentence says what will happen, and offers the manual door as the way to have
+#: it happen sooner rather than as the way to have it happen at all.
+SELFCHECK_REMEDY = ("Nothing needs doing: the next daily fleet cycle re-certifies the harness "
+                    "itself and the books open again on that cycle. To have it happen sooner, "
+                    "run the FLEET SELF-CHECK (re-certify) workflow once -- GitHub Actions -> "
+                    "FLEET SELF-CHECK (re-certify) -> Run workflow. Until it passes, NO BOOK "
+                    "FILLS.")
+
+#: AND WHEN AN AUTOMATIC ATTEMPT HAS ALREADY FAILED THE REMEDY IS NOT A RE-RUN. Don's ruling
+#: is that a failing self-check is never re-run into a pass: the books stay shut and the
+#: harness is the thing to fix. Offering "run it again" there would be an instruction that
+#: cannot work, which is the same reason `SELFCHECK_FAILING` is offered none.
+SELFCHECK_REMEDY_AFTER_FAILURE = (
+    "DO NOT re-run it: the harness failed its own verification, and under the standing rule a "
+    "failing self-check is never retried into a pass. No cycle will attempt it again at this "
+    "version of the harness. The books stay shut until the harness itself is fixed, "
+    "deliberately, in the repo.")
 
 #: Why the certificate goes stale without anybody breaking anything, in the words a reader
 #: needs rather than the word `fingerprint`.
@@ -759,6 +783,149 @@ SELFCHECK_WHY_STALE = ("The certificate is a hash of the harness's own sources, 
                        "to them -- a new entry rule, a repair, a new book -- stales it on the "
                        "next deploy. That is the gate working: a certificate should expire "
                        "when the thing it certifies moves.")
+
+
+#: WHERE AUTOMATIC RE-CERTIFICATIONS ARE RECORDED. A small JSON sidecar beside the record
+#: streams, the shape `note_cycle_ran` already uses for operational counters.
+#:
+#: IT IS DELIBERATELY NOT A HASH-CHAINED BOOK ROW. The chains carry what a book DID -- orders,
+#: fills, refusals -- and an operational event about the harness is not that book's history.
+#: Putting it on a stream would also mean writing the same event eighteen times, which is how
+#: one fact becomes eighteen and the count stops meaning anything.
+RECERT_FILENAME = "_recertifications.json"
+RECERT_SCHEMA = "fleet_recertifications/1"
+
+
+def recert_path(root: str = None) -> str:
+    return os.path.join(fleet_dir(root), RECERT_FILENAME)
+
+
+def recert_log(root: str = None) -> dict:
+    """Every automatic re-certification on record, oldest first. Never raises.
+
+    An unreadable or absent log reports `ok: False` with a reason rather than an empty list,
+    because "no attempt has ever been made" and "the log could not be read" have opposite
+    consequences for whether the next cycle may try (`O21-D2`'s `C5` one level out).
+    """
+    p = recert_path(root)
+    try:
+        with open(p, encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except OSError:
+        return {"ok": True, "absent": True, "events": [], "reason": "no log at " + p}
+    except ValueError as e:
+        return {"ok": False, "absent": False, "events": [],
+                "reason": "the re-certification log is not valid JSON: %s" % e}
+    if (payload or {}).get("schema") != RECERT_SCHEMA:
+        return {"ok": False, "absent": False, "events": [],
+                "reason": "log schema is %r" % (payload or {}).get("schema")}
+    ev = payload.get("events")
+    return {"ok": True, "absent": False, "events": ev if isinstance(ev, list) else [],
+            "reason": ""}
+
+
+def record_recertification(event: dict, root: str = None) -> dict:
+    """Append one attempt to the log, atomically. Never raises.
+
+    **THE ATTEMPT IS RECORDED WHETHER IT PASSED OR FAILED, and the failure is the one that has
+    to be there.** A log of successes only cannot answer the question the next cycle asks --
+    *has this already been tried at this version of the harness?* -- and that question is the
+    whole of Don's "never retried into a pass".
+    """
+    ev = dict(event or {})
+    ev.setdefault("ts", _dt.datetime.now().isoformat(timespec="seconds"))
+    cur = recert_log(root)
+    events = list(cur["events"]) if cur["ok"] else []
+    events.append(ev)
+    p = recert_path(root)
+    tmp = p + ".tmp"
+    try:
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
+            json.dump({"schema": RECERT_SCHEMA, "events": events}, fh, indent=2,
+                      sort_keys=True)
+            fh.write("\n")
+        os.replace(tmp, p)
+        return {"ok": True, "n_events": len(events), "reason": "",
+                "prior_log_unreadable": not cur["ok"]}
+    except OSError as e:
+        return {"ok": False, "n_events": len(events),
+                "reason": "could not write %s: %s" % (p, e)}
+
+
+def prior_automatic_failure(fingerprint: str = None, root: str = None) -> dict:
+    """Has an AUTOMATIC attempt already failed at this version of the harness?
+
+    **THIS IS THE RULE, NOT A CONVENIENCE.** Don's ruling is that a failing self-check is never
+    re-run into a pass, and the reason it needs enforcing rather than noting is measured: when
+    `run_day1`'s synthetic leg fails it returns BEFORE writing any row, so every book stays
+    `SELFCHECK_STALE` -- the exact state that triggers an automatic attempt. Without this the
+    cron would attempt it again every evening, indefinitely, which is precisely the retry loop
+    the ruling forbids.
+
+    **KEYED ON THE FINGERPRINT, so a FIX re-opens the door by itself.** Changing the harness to
+    repair it changes the fingerprint, no attempt has failed at the NEW one, and the next cycle
+    tries again. A flag keyed on nothing would have to be cleared by hand.
+
+    **MANUAL ATTEMPTS DO NOT COUNT, in either direction.** A human deliberately re-running the
+    workflow is not a cron retrying, and the workflow is the declared fallback.
+    """
+    fp = fingerprint or harness_fingerprint()
+    log = recert_log(root)
+    if not log["ok"]:
+        # UNREADABLE IS TREATED AS BLOCKING. The safe direction is books shut: a log we cannot
+        # read cannot rule out that an attempt already failed, and `MA6`'s rule is to err
+        # toward the state that refuses.
+        return {"blocked": True, "reason": "the re-certification log is unreadable, so a prior "
+                                           "failure cannot be ruled out: " + log["reason"],
+                "event": None}
+    for ev in reversed(log["events"]):
+        if ev.get("trigger") != "automatic":
+            continue
+        if str(ev.get("fingerprint_after") or "") != fp:
+            continue
+        if ev.get("ok"):
+            return {"blocked": False, "reason": "", "event": ev}
+        return {"blocked": True, "event": ev,
+                "reason": ("an automatic re-certification already FAILED at this version of "
+                           "the harness (%s); under the standing rule it is not retried"
+                           % str(ev.get("ts") or "unknown time"))}
+    return {"blocked": False, "reason": "", "event": None}
+
+
+def recertify_attempt(root: str = None, books: list = None) -> dict:
+    """May THIS cycle run the self-check itself, and what should it record if it does?
+
+    Three states, kept apart because they have three different consequences: nothing is owed;
+    it is owed and may be attempted; it is owed and must NOT be attempted.
+    """
+    act = selfcheck_action(root, books=books)
+    out = {"attempt": False, "state": "NOT_NEEDED", "reason": act["reason"],
+           "books": list(act["books"]), "states": dict(act["states"]),
+           "fingerprint_after": act["fingerprint"], "fingerprint_before": None,
+           "codes": sorted({"SELFCHECK_" + v for v in act["states"].values()})}
+    if not act["needed"]:
+        # NOT_NEEDED covers both "every book is certified" and "the only trouble is a state a
+        # re-run cannot fix" -- `SELFCHECK_FAILING` and anything unreadable. Don's ruling
+        # leaves those untouched by this change and `selfcheck_action` already separates them.
+        out["reason"] = act["reason"] or "every declared book carries a current certificate"
+        return out
+    # THE FINGERPRINT THE STALE CERTIFICATES WERE PINNED TO. `None` where the books carry no
+    # certificate at all, which is a different fact from "pinned to something older" and is
+    # recorded as one rather than as an empty string.
+    befores = sorted({(selfcheck_state(b, root).get("recorded") or "")
+                      for b in act["books"]}) or [""]
+    out["fingerprint_before"] = befores[0] or None
+    blocked = prior_automatic_failure(act["fingerprint"], root)
+    if blocked["blocked"]:
+        out["state"] = "BLOCKED_BY_PRIOR_FAILURE"
+        out["reason"] = blocked["reason"]
+        out["prior"] = blocked["event"]
+        return out
+    out["attempt"] = True
+    out["state"] = "OWED"
+    out["reason"] = act["reason"]
+    return out
 
 
 def selfcheck_action(root: str = None, books: list = None) -> dict:
@@ -794,7 +961,14 @@ def selfcheck_action(root: str = None, books: list = None) -> dict:
     fixable = [b for b in out["books"] if out["states"][b] in RECERTIFY_FIXES]
     out["needed"] = bool(fixable)
     if out["needed"]:
-        out["remedy"] = SELFCHECK_REMEDY
+        # WHICH REMEDY IS TRUE DEPENDS ON WHETHER ONE HAS ALREADY FAILED -- ITEM 51. The
+        # states are the same (`STALE`/`ABSENT`) and the instruction is the opposite, so a
+        # single remedy string would be wrong in one of the two cases. Read from the log
+        # rather than passed in, so every surface gets the same answer without being told.
+        prior = prior_automatic_failure(out["fingerprint"], root)
+        out["remedy"] = (SELFCHECK_REMEDY_AFTER_FAILURE if prior["blocked"]
+                         else SELFCHECK_REMEDY)
+        out["recertify_blocked"] = bool(prior["blocked"])
         out["why"] = SELFCHECK_WHY_STALE
         out["reason"] = ("%d of %d declared books cannot fill until the harness is "
                          "re-certified (%s)." % (len(fixable), out["n_total"],

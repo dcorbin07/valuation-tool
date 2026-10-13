@@ -1294,6 +1294,10 @@ def create_saas_app(cfg=CONFIG):
                 return (_time.time() - _t_req) > _budget_s
 
             _ALL_STEPS = ("s3i3_register", "register_entry_rules", "selfcheck_state_scan",
+                          # ITEM 51: the automatic re-certification is its own step, so a
+                          # deferral says "the self-check did not fit" rather than blaming the
+                          # scan that found it owed.
+                          "recertify",
                           "cycle",
                           "history_coverage", "invalidate_fabricated_span", "iv60_from_store",
                           "record_all", "gates", "image_audit", "harness", "notify")
@@ -1412,10 +1416,71 @@ def create_saas_app(cfg=CONFIG):
                 d["book"] for d in fleet.declared_books()
                 if d.get("parses") and not fleet.selfcheck_state(d["book"])["ok"]])
             wants_selfcheck = bool(request.args.get("selfcheck") or body.get("selfcheck"))
-            if wants_run and stale and wants_selfcheck:
+
+            # ------------------------------------------------------------------ ITEM 51 -----
+            # THE CYCLE RE-CERTIFIES ITSELF WHEN THE ONLY PROBLEM IS A STALE CERTIFICATE.
+            # Don's ruling, 2026-10-13. The budget objection this was parked on does not hold:
+            # the whole selfcheck-plus-cycle run measured `elapsed_ms` 36,652 against this
+            # route's own 75s default and the cron's 280s ceiling.
+            #
+            # THE TRIGGER IS `recertify_attempt`, NOT "is anything stale". The distinction is
+            # the ruling: `SELFCHECK_STALE` and `SELFCHECK_ABSENT` are what a re-run fixes, and
+            # `SELFCHECK_FAILING` -- or a book whose stream cannot be read -- is untouched by
+            # this change. `fleet` owns that classification so this door cannot hold a second,
+            # drifting copy of which states are fixable.
+            #
+            # AND IT REFUSES TO ATTEMPT AGAIN AFTER A FAILURE, which is not a nicety. Measured
+            # in `run_day1`: a failing SYNTHETIC leg returns before writing any row, so every
+            # book stays STALE -- the very state that triggers an attempt. Unguarded, the cron
+            # would retry every evening indefinitely, which is the loop the ruling forbids.
+            if _over_budget():
+                return _bail({"ok": True, "wrote": False}, "selfcheck_state_scan")
+            recert = _step("recertify", lambda: fleet.recertify_attempt())
+            auto = bool(wants_run and recert.get("attempt"))
+            recertified = {"ran": False, "trigger": None, "state": recert.get("state"),
+                           "reason": recert.get("reason", "")}
+            if wants_run and (wants_selfcheck or auto):
+                # CHECKED BEFORE STARTING, not after. A ~37s job begun at the 70s mark would
+                # take the cron past its own ceiling and lose the recorders downstream, and
+                # the deferral vocabulary exists to say so instead.
+                if _over_budget():
+                    res_bail = {"ok": True, "wrote": False, "recertified": dict(
+                        recertified, reason="deferred: over budget before the self-check")}
+                    return _bail(res_bail, "recertify")
                 from scripts import fleet_selfcheck as _sc
-                day1 = {"ran": True, "needed_by": len(stale),
-                        "result": _sc.run_day1(verbose=False)}
+                trigger = "manual" if wants_selfcheck else "automatic"
+                result = _sc.run_day1(verbose=False)
+                day1 = {"ran": True, "needed_by": len(stale), "result": result}
+                # THE ATTEMPT IS RECORDED EITHER WAY, with the fingerprint on both sides, so
+                # the certificate still means "the harness was verified AFTER it changed"
+                # rather than "something ran at some point". The failure is the row that has
+                # to be there: it is what stops the next cycle trying again.
+                event = {
+                    "trigger": trigger,
+                    "ok": bool(result.get("ok")),
+                    "date": _dt.date.today().isoformat(),
+                    "why": recert.get("reason", "") or "manual dispatch",
+                    "state_before": recert.get("state"),
+                    "books": list(recert.get("books") or []),
+                    "n_books": len(recert.get("books") or []),
+                    "fingerprint_before": recert.get("fingerprint_before"),
+                    "fingerprint_after": recert.get("fingerprint_after"),
+                    "synthetic_ok": bool((result.get("synthetic") or {}).get("ok")),
+                    "live_ok": bool((result.get("live") or {}).get("ok")),
+                    "n_certified": len(result.get("certified") or []),
+                    "reason": str(result.get("reason") or "")[:400],
+                }
+                wrote = fleet.record_recertification(event)
+                recertified = {"ran": True, "trigger": trigger, "ok": event["ok"],
+                               "state": recert.get("state"),
+                               "reason": recert.get("reason", ""),
+                               "fingerprint_before": event["fingerprint_before"],
+                               "fingerprint_after": event["fingerprint_after"],
+                               "n_books": event["n_books"],
+                               "n_certified": event["n_certified"],
+                               "recorded": bool(wrote.get("ok")),
+                               "record_reason": wrote.get("reason", ""),
+                               "failure_reason": "" if event["ok"] else event["reason"]}
 
             # The cycle runs AFTER the self-check, so a freshly certified book is gated on
             # this run rather than on the next one -- otherwise the first dispatch after
@@ -1426,6 +1491,7 @@ def create_saas_app(cfg=CONFIG):
                 write=wants_run, books=[only] if only else None))
             if _over_budget():
                 return _bail(res, "cycle")
+            res["recertified"] = recertified
             res["selfcheck_ran"] = day1["ran"]
             if day1["ran"]:
                 res["selfcheck"] = day1["result"]
@@ -1574,8 +1640,28 @@ def create_saas_app(cfg=CONFIG):
                         rr = fleet.read_records(b)
                         if rr.get("ok"):
                             rows_by_book[b] = rr.get("rows") or []
+                    # A FAILED AUTOMATIC RE-CERTIFICATION IS AN ALERT IN ITS OWN RIGHT,
+                    # and relying on the refusal codes would not have sent one. Measured: a
+                    # failing synthetic leg writes no row, so every book stays on the SAME
+                    # code it already had, and `pending` announces a refusal only when the
+                    # code CHANGES -- correctly, and silently here. The ruling says Don is
+                    # alerted, so the alert is explicit.
+                    #
+                    # ON THE ATTEMPT, NOT ON THE BLOCKED STATE THAT FOLLOWS IT. The block
+                    # persists until the harness is fixed, so alerting on it would post the
+                    # same line every evening -- the steady-state noise this module refuses
+                    # everywhere else, and the day it changes nobody would notice.
+                    alerts = []
+                    if (recertified.get("ran") and not recertified.get("ok")
+                            and recertified.get("trigger") == "automatic"):
+                        alerts.append(
+                            "**The fleet tried to re-certify itself and the self-check "
+                            "FAILED.** Every book stays shut and it will NOT be retried at "
+                            "this version of the harness. "
+                            + str(recertified.get("failure_reason") or ""))
                     res["notified"] = _fn.announce(rows_by_book, refusals,
-                                                   fleet.fleet_dir(), cfg=cfg)
+                                                   fleet.fleet_dir(), cfg=cfg,
+                                                   alerts=alerts)
                 except Exception as e:                       # noqa: BLE001
                     # A notifier must never take the cycle down: recording the fill is what
                     # matters and telling someone is strictly secondary.

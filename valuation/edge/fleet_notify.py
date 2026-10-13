@@ -86,11 +86,19 @@ def _seq(row) -> int:
         return 0
 
 
-def pending(rows_by_book: dict, refusals: dict, fleet_dir: str) -> dict:
+def pending(rows_by_book: dict, refusals: dict, fleet_dir: str, alerts=()) -> dict:
     """What is NEW since the last announcement. Pure — reads state, writes none.
 
     `rows_by_book`: {book: [record rows]}.  `refusals`: {book: code} for books that cannot
-    fill right now.
+    fill right now.  `alerts`: operational lines the caller wants said once.
+
+    **`alerts` EXISTS BECAUSE THE REFUSAL CODES DO NOT COVER EVERY ALERT -- ITEM 51.** Don's
+    ruling is that a failing automatic re-certification alerts him, and measured in `run_day1`
+    a failing synthetic leg writes no row at all: every book stays on the code it already had,
+    so `new_refusals` is EMPTY and this module would correctly say nothing. The caller passes
+    the line instead of this module inferring an event it cannot see.
+    **THE CALLER IS RESPONSIBLE FOR PASSING IT ONCE**, on the transition rather than on the
+    state that follows -- the same discipline the refusal watermark enforces for codes.
     """
     st = _read(fleet_dir)
     last, known = st.get("last_seq") or {}, st.get("refusals") or {}
@@ -117,13 +125,22 @@ def pending(rows_by_book: dict, refusals: dict, fleet_dir: str) -> dict:
     # was closed has opened, which is the good half of the same fact.
     cleared = [{"book": b} for b in sorted(known) if b not in (refusals or {})]
 
+    alerts = [str(a) for a in (alerts or []) if str(a).strip()]
     return {"fills": fills, "new_refusals": new_refusals, "cleared": cleared,
-            "quiet": not (fills or new_refusals or cleared)}
+            "alerts": alerts,
+            "quiet": not (fills or new_refusals or cleared or alerts)}
 
 
 def compose(p: dict) -> str:
     """The message. Facts only — no total, no P&L, no verdict."""
     lines, fixable = [], False
+    # FIRST, because an alert is the one thing here that asks for attention rather than
+    # recording something that happened. A line about the harness being broken does not
+    # belong below a list of fills.
+    for a in (p.get("alerts") or []):
+        lines.append(a)
+    if p.get("alerts") and (p["fills"] or p["new_refusals"] or p["cleared"]):
+        lines.append("")
     if p["fills"]:
         lines.append("**Fleet fills** (paper, sandbox — a logbook entry, not a result)")
         for f in p["fills"][:20]:
@@ -171,12 +188,12 @@ def compose(p: dict) -> str:
 
 
 def announce(rows_by_book: dict, refusals: dict, fleet_dir: str, *, cfg=None,
-             send=None) -> dict:
+             send=None, alerts=()) -> dict:
     """Send if there is something new, then remember what was said. Never raises."""
-    p = pending(rows_by_book, refusals, fleet_dir)
+    p = pending(rows_by_book, refusals, fleet_dir, alerts=alerts)
     out = {"sent": False, "quiet": p["quiet"], "reason": "",
            "n_fills": len(p["fills"]), "n_new_refusals": len(p["new_refusals"]),
-           "n_cleared": len(p["cleared"])}
+           "n_cleared": len(p["cleared"]), "n_alerts": len(p["alerts"])}
     if p["quiet"]:
         out["reason"] = "nothing new to announce"
         return out
