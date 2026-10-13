@@ -11440,3 +11440,132 @@ is adopted, no option position was ever scored, paper only, no real trade.**
 3. **`options_derived` IS TWO-SIDED BY CONSTRUCTION**, so any quote-coverage figure measured
    there is vacuous. Not a defect in that layer — it is doing its job — but a trap for the next
    register that measures coverage, and it is now written down.
+
+
+---
+
+## 84. SELL-PREMIUM-2 — **THE FIRST OPTIONS STRATEGY IN THIS PROJECT TO PASS EVERY LEG OF DON'S RULE — AND AT A REALISTIC ACCOUNT SIZE IT EARNS ABOUT 1 TO 2% A YEAR, BECAUSE IT CANNOT DEPLOY THE CAPITAL** (2026-10-13)
+
+`PREREG_sellpremium2.md` committed **ALONE at `541e466`** (markdown only, 248 lines, zero `.py`, a
+strict ancestor of every measurement commit); **4 options trials booked at `b376ff7` BEFORE any
+runner existed**, options `N` **315 → 319**, hurdle **3.3956416** DERIVED. Executes the Frontier
+Scout's `PREREG_DRAFT_sellpremium2.md` (`1e97caf`) with twelve amendments `T1`–`T12`. **The
+predecessor's two constraints are obeyed and untouched: the crash bar stays 6.0 and the synthetic
+single-name stress row stays.** One thing changed — the strike rule. **Paper only; nothing
+adopted; no real trade.**
+
+* **THE VERDICT: `PASSES — ELIGIBLE-BUT-UNRESOLVED`, every clause of `DECISIONS.md` 2026-10-12.**
+  (a) profitable net of a full touch crossing on secured cash **in both halves**; (b) beats the
+  random-day twin; (c) survives all eight `O11` sizing cells; (d) clears the crash stress. All
+  four survive BH at q = 0.10, `k` = 4. **The label is not optional** — Stage 1 holds **ZERO 30%
+  crashes** and a short-vol book's whole risk sits in exactly those.
+* **AND THE SENTENCE THAT MATTERS MOST FOR A ROTH, WHICH IS NOT THE VERDICT: AT A REALISTIC
+  ACCOUNT SIZE IT MAKES ALMOST NOTHING, AND THE REASON IS AFFORDABILITY RATHER THAN THE TRADE.**
+  Every cell "survives" and the terminal equities are **+0.05% to +2.26%/yr** over four years:
+
+  | equity / cap | trades taken | affordability skips | concurrency skips | %/yr |
+  |---|---|---|---|---|
+  | $25k / 10 | 156 | **2,060** | 394 | **+1.20** |
+  | $50k / 10 | 318 | 562 | 1,730 | **+2.26** |
+  | $100k / 10 | 337 | 138 | 2,135 | +2.12 |
+  | $250k / 10 | 349 | 15 | 2,246 | +1.41 |
+  | $250k / 50 | 779 | 1,489 | 342 | +1.61 |
+
+  **At $25k the book skips 2,060 of 2,610 trades because ONE contract ties up more than $2,500**
+  — `MB3`'s wall, and the skip reason is a separate recorded field precisely so this is never
+  read as ruin. The per-trade economics are good (**+0.67% of secured cash, 87.5% wins**) and the
+  account cannot get enough of them on. **"Survives" is measured and "makes meaningful money at
+  Don's account size" is NOT established.**
+* **`A1`, CLAUSE (a): +0.6709%/trade on secured cash** (date-clustered *t* **+6.375**,
+  name-clustered **+10.423**), **early +0.8799%** (+7.157) and **late +0.5286%** (+3.475), split
+  at **2018-01-23 with the boundary embargoed**. Assignment **16.05%**, wins **87.47%**, median
+  realised moneyness **0.9444**, median delta **−0.2500**.
+* **THE HALF THAT NEEDS ITS CAVEAT, AND IT TRAVELS WITH THE PASS: THE LATE HALF SITS *BELOW* ITS
+  OWN DETECTION THRESHOLD.** `MB22`'s 80%-power MDE is **+0.6442%** against a measured
+  **+0.5286%** — **0.82×**. The full sample is **1.50×** and the early half **1.69×**. So clause
+  (a) is met on the point estimate in both halves, as Don's rule asks, **and the late half alone
+  could not have established it.**
+* **`A2`, CLAUSE (b), IS OVERWHELMING AND IT IS THE ARM THAT SEPARATES THIS FROM `A3`'s CORPSE.**
+  Arm **+0.6709%** against a five-seed random-day control at **+0.2957%** — seed means **+0.2418,
+  +0.2960, +0.2418, +0.3613, +0.3353**, a tight band, so no single seed carries it (`R2`'s lesson:
+  one seed flipped that verdict). Paired by **name-year**: **657 cells, 456 positive (69.41%),
+  z +9.9485, p 2.6e-23.** Mean paired difference **+0.3317%/trade**. **The timing is shown to
+  matter**, which is exactly what Don's clause (b) asks.
+* **`A3′` IS THE HONEST DISAPPOINTMENT, AND IT CHANGES WHAT THE STRIKE RULE IS FOR.** On **2,556
+  identical events** priced from **one chain read** (`T7`), 25 delta returns **+0.7001%** against
+  0.90 moneyness at **+0.5917%** — a paired **+0.1084%** at date-clustered *t* **+1.690** against
+  a hurdle of 3.3956, and **0.40× its own 80%-power MDE of +0.2716%.** **So the 25-delta rule's
+  RETURN advantage is NOT separable from zero.** It earned its place on the **CRASH GATE** —
+  `K3` **4.6747 years against the predecessor's 8.900816** — and not on a demonstrated return
+  improvement. **Expectation 4 priced this at 80/20 and the direction is right while the claim is
+  not established; that is a miss and is recorded as one.**
+* **`A4` CONFIRMS `V6-OPT`'s AUTOPSY AT 25 DELTA, WHICH WAS THE PREDICTION.** Healthy
+  **+0.6583%** (n 1,171) against unhealthy **+0.6777%** (n 1,392) — a gap of **−0.0194%** — and
+  assignment **15.80% vs 16.52%**, a **0.72pp** spread against `V6-OPT`'s measured 0.43pp.
+  **A delta target equalises assignment by construction and a risk signal cannot pay through it.**
+  `T10` declared the null as the prediction and it may not be read as a disappointment. **47 rows
+  carry no prior panel observation and are counted as UNKNOWN, never as unhealthy.**
+  **A CONSTRUCTION CHOICE THE REGISTER DID NOT SPECIFY, DECLARED BEFORE THE OUTCOME WAS READ:**
+  `_healthy` is a **quarterly** panel flag and the events are **daily**, so it is attached
+  **point-in-time from the most recent PRIOR panel row** — `A12`'s rule, and the only
+  non-look-ahead option.
+* **`K3` CLEARS AT 4.6747 YEARS, AND THE MECHANISM IS EXACTLY THE INCOME THE PREDECESSOR LOST.**
+  The 25-delta contracts collect **9.0811%/yr of secured cash against the 0.90-moneyness rule's
+  4.4545% — 2.04×** — on the same events, same era, same tenor band, same bar, same synthetic
+  row. **`SELL-PREMIUM` was killed by its strike rule and not by the crash**, and this is the
+  measurement that proves it rather than arguing it.
+* **THE GATING CONTROL IS WHAT LICENSES THAT COMPARISON AND IT IS EXACT.** This register's own
+  `K3` code path, run at the **predecessor's own 0.90-moneyness picks**, reproduces
+  **8.900816 against 8.900816, deviation 0.000000**. Without it the two crash figures would not
+  be the same statistic and the successor would have no argument. **And `C-EV`: the event set is
+  RE-DERIVED from `dipcall` and is IDENTICAL to the banked one** — 4,864 events, 398 names, 759
+  dates, zero on either side — because a register that reads its predecessor's pickle cannot tell
+  a shared definition from a shared file.
+* **`T2`: THE DRAFT'S KNIFE EDGE DID NOT EXIST, AND FINDING THAT WAS AN ARITHMETIC CHECK RATHER
+  THAN A MEASUREMENT.** Its §2 table reproduces **exactly** — calibration recomputes to IV
+  **0.286370** against its stated 0.2864 and its control row reproduces 8.90 to the digit — but
+  it labelled **m = 0.925 as "≈ 25 delta"** while showing that row's delta as **−0.202**, a
+  **twenty**-delta put. **So the declared RULE and the declared FORECAST were computed at two
+  different strikes.** True 25 delta solves to **m = 0.9398**, income **9.5085%/yr**, forecast
+  **4.4385 years** — **26% of headroom, not 6%**. Measured, it came in at **4.6747**, much nearer
+  the corrected forecast than the draft's 5.64. **The correction runs TOWARD clearing, so it was
+  disclosed in the register and `K3` was computed on measured net income regardless**, and
+  expectation 1 was re-priced **60/40 → 85/15 before any outcome, with the reason on the record**.
+* **`T3` BIT HARD AND IT WOULD HAVE BEEN INVISIBLE: 37.47% OF THE 25-DELTA PICKS — 978 OF 2,610 —
+  FALL OUTSIDE THE PREDECESSOR'S 0.85–0.95 MONEYNESS BAND.** Inheriting that band would have
+  deleted more than a third of the book, and systematically the **closest-to-the-money** picks
+  (realised moneyness p05/median/p95 **0.9022 / 0.9444 / 0.9708**), i.e. exactly the ones carrying
+  the income the register exists to recover. Where a 25-delta put sits in moneyness is a function
+  of the name's own volatility — that is the point of a delta target — so a fixed band truncates
+  the rule in the low-vol names. **Removing it was argued on construction BEFORE any arm ran and
+  the reason is in the register, so a reader can check which happened** (`MA58`'s rule, in the
+  safe direction). **Executor expectation 8 (>5% outside, 60/40) is RIGHT by seven-fold.**
+* **`K1` RE-MEASURED ON THIS REGISTER'S OWN RULE: 2,610 priceable events and 620 covered days**
+  against floors of 400 and 150, slightly **above** the predecessor's 2,557 and 612 — the draft
+  predicted a delta search would be weakly better and it is. **The two coverages are DIFFERENT
+  FILTERS and may not be quoted against each other without saying so.**
+* **TWO DEFECTS OF MY OWN, BOTH CAUGHT ON THE ARM'S FIRST RUN.** (a) The `A3′` merge relied on
+  pandas suffixes, and **`expiration` did not collide so it arrived un-suffixed** while
+  `strike`/`bid` did — half-suffixed is worse than either; replaced with explicit renames. (b)
+  **THE SERIOUS ONE: the book never carried `expiration`, so the survivability loop freed every
+  concurrency slot on the ENTRY date and the cap could never bind** — clause (c) would have
+  passed **vacuously**, which is the one leg where a vacuous pass is indistinguishable from a
+  real one. Repaired to free the slot at **expiry**; the concurrency skips in the table above are
+  what the cap actually refuses.
+* **EXPECTATIONS: 1 RIGHT (K3 clears, at the re-priced 85/15), 2 RIGHT (A1 both halves, 75/25),
+  3 RIGHT (A2 clears, 55/45 — the hardest arm and it cleared by z +9.9), 5 RIGHT (A4 null,
+  70/30), 8 RIGHT (the band would bite, 60/40). 4 is a MISS: 25 delta beating 0.90 moneyness on
+  RETURN was priced 80/20 and the gain is 0.40× its own detection threshold.** 6 (the whole
+  register passes, 40%) is RIGHT. **And the thing nobody priced: that a passing book would be
+  undeployable at $25k.**
+* **NOT DONE, named so it is not mistaken for done: the check quadrant is NOT opened** and
+  nothing here reads 2020–2026 at the name level; **`V6-OPT` is NOT re-opened** and its condition
+  2 is not claimed to have been wrong, only withdrawn by the owner; **`SELL-PREMIUM` is NOT
+  weakened** — its `K3` was correctly computed, correctly fired, and its five trials correctly
+  stay charged; **no forward book is armed by this item**; **no cost beyond the single entry
+  crossing is modelled** (`MA46`: an expiring option is never sold); and **the shares comparison
+  is REPORTED with NO verdict**, per Don's ruling. **24 tests, zero errors.**
+  `valuation/studies/sellpremium.py` (`DELTA_TARGET`, `pick_put_by_delta`, `index_by_date`),
+  `scripts/sellpremium2_kills.py`, `sellpremium2_arm.py`;
+  `data/free_analysis/SELLPREMIUM2_KILLS.json`, `SELLPREMIUM2_ARM.json`,
+  `SELLPREMIUM2_PICKS25.pkl`, `SELLPREMIUM2_PICKS90.pkl`, `SELLPREMIUM2_BOOK.pkl`.

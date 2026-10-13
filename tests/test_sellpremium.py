@@ -464,10 +464,26 @@ class LandedRecord(unittest.TestCase):
                          "K2 priced a SUBSET of A3's era trades and is a different object (S6)")
 
     def test_the_trials_stayed_charged_after_the_kill_fired(self):
-        """`E-1`/`MA6`. Un-booking after watching a kill fire is the shape to distrust."""
+        """`E-1`/`MA6`. Un-booking after watching a kill fire is the shape to distrust.
+
+        **REPOINTED 2026-10-13, AND IT IS `MB31`'s FAMILY FOR THE THIRD TIME IN THIS RECORD.**
+        The first form asserted `options == 315`, which was true the day SELL-PREMIUM landed and
+        went red the moment `SELL-PREMIUM-2` legitimately booked four more. *"A guard asserting
+        'these two numbers are equal today' fires on the CLOCK; assert the property the equality
+        stood in for."* The property here is that **this register's five trials were never
+        un-booked** — so the row must still be there, still read `n=5`, and the counter may only
+        ever have RISEN. A successor booking trials is not a defect; silently refunding these
+        would be.
+        """
         from valuation.edge import research_log
-        self.assertEqual(research_log.detail()["by_domain"]["options"], 315)
-        self.assertIn("| SELL-PREMIUM |", _src("RESEARCH_LOG.md"))
+        n = research_log.detail()["by_domain"]["options"]
+        self.assertGreaterEqual(n, 315,
+                                "options N FELL below the count at SELL-PREMIUM's landing, so "
+                                "trials were un-booked somewhere (E-1, MA6)")
+        row = [ln for ln in _src("RESEARCH_LOG.md").splitlines()
+               if ln.startswith("| SELL-PREMIUM |")]
+        self.assertEqual(len(row), 1, "SELL-PREMIUM's row is missing or duplicated")
+        self.assertIn("n=5", row[0], "SELL-PREMIUM's five trials were refunded after its kill")
 
 
 if __name__ == "__main__":
