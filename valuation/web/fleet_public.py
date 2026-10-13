@@ -218,7 +218,7 @@ def _books(root: str = None, today=None) -> dict:
            "heading": HEADING, "lede": LEDE, "posture": POSTURE,
            "not_a_record": NOT_A_RECORD, "quiet_means": QUIET_MEANS, "repo_note": REPO_NOTE,
            "n_fills_total": 0, "n_armed": 0, "n_no_rule": 0, "n_blocked": 0,
-           "evidence": None}
+           "evidence": None, "action_needed": None}
     if F is None:
         out["reason"] = "the fleet harness is not importable here"
         return out
@@ -352,5 +352,26 @@ def _books(root: str = None, today=None) -> dict:
         evidence=("git" if any(r.get("evidence") == "git" for r in rows)
                   else ("manifest" if any(r.get("evidence") == "manifest" for r in rows)
                         else None)),
+        # IS SOMETHING OWED, AND WHAT -- ITEM 50. The per-book `reason` column has always said
+        # *"the harness changed since the last self-check; re-run it"*, which is true and is
+        # eighteen separate half-instructions a reader has to assemble. `selfcheck_action` is
+        # the fleet-wide fact with the remedy attached, from `fleet` so this page, the cycle
+        # body and the Discord line cannot come to disagree about what to do (`B7`).
+        #
+        # `None` on failure rather than a fabricated all-clear: a page that cannot read the
+        # gate must not report that nothing is owed.
+        action_needed=_action(root),
     )
     return out
+
+
+def _action(root):
+    """The fleet-wide "a re-certification is owed" fact, or `None` if it cannot be read."""
+    F = _fleet()
+    if F is None or not hasattr(F, "selfcheck_action"):
+        return None
+    try:
+        a = F.selfcheck_action(root)
+    except Exception:                                                  # noqa: BLE001
+        return None
+    return a if (a.get("needed") or a.get("books")) else None

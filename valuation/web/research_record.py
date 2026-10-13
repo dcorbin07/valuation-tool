@@ -1009,7 +1009,10 @@ def declared_books(root: str = None, today=None) -> dict:
                         "evidence": _fp["evidence"], "posture": _fp["posture"],
                         "not_a_record": _fp["not_a_record"],
                         "quiet_means": _fp["quiet_means"],
-                        "repo_note": _fp["repo_note"]}
+                        "repo_note": _fp["repo_note"],
+                        # ITEM 50: carried through rather than re-derived, so the page shows
+                        # the same owed action the cycle and the Discord line name.
+                        "action_needed": _fp.get("action_needed")}
     except Exception:                                                  # noqa: BLE001
         ops, ops_meta = {}, {}
 
