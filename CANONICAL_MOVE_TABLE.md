@@ -321,3 +321,150 @@ document itself. There is precedent and it is the right shape:
 recording what a figure *used to say* is not the same as instructing from it. Scope the new test to
 the **rendered page payloads and the modules that feed them**, not to the record.
 
+---
+
+## 9. SUCCESSOR ROWS — the `UNMEASURED` cells, MEASURED (`CANON-UNMEASURED`, 2026-10-13)
+
+**r1, register `PREREG_canonmove_unmeasured.md` committed ALONE at `e4b0dae`.** ZERO TRIALS on
+every row: each is a RE-MEASUREMENT of an already-registered construction on this universe (the
+`S25` / `X7RECON` / `CORRECTED-FLOORS` class), every threshold INHERITED from the register that
+set it, and every figure the **DEPLOYED flat-1/7 book**. **ADOPTS NOTHING; NO PUBLIC PAGE CHANGED
+BY THIS LANE.** Full reasoning and controls: `HANDOFF_canon_unmeasured.md`.
+
+**§0's weighting control passes at |dev| 0.000e+00 on 3 of 3 cells, gated on the count**, so every
+row below is measured against the object this table describes. **§0's disjoint-grid caveat is
+inherited unchanged: no move below is attributed to the universe alone.**
+
+| the `UNMEASURED` cell | published | corrected | state |
+|---|---|---|---|
+| Deflated Sharpe, DEPLOYED book (§0 point 2) | 0.7863 at `N` 224 | **0.7208 at `N` 297** | **SURVIVES** |
+| PBO, DEPLOYED book (§0 point 2) | 0.7333 | **—** | **UNMEASURABLE-BY-CONSTRUCTION** |
+| `X1` A1 — top-decile alpha, half books | +0.07174 | **median +0.06046, 0 of 200 negative** | **SURVIVES** |
+| `X1` A2 — long-short HAC *t*, half books | +2.6199 | **median +4.3727, 0 of 200 negative** | **SURVIVES** |
+| *"400 half-universe books, not one negative"* | — | **RESTATES VERBATIM** | **SURVIVES** |
+| `R1`'s net-of-cost specification (R1's OWN path) | +7.85%/yr *t* 5.16 (VOID panel) | **+4.06%/yr, NW *t* 3.01** | **SURVIVES** |
+| `optionable_partition.N_PANEL_NAMES` | 2,531 | **9,645** | **RESTATEMENT** |
+| `optionable_partition.N_OPTIONABLE_NAMES` | 619 | **630** | **RESTATEMENT** |
+| the lede's *"roughly a quarter … has listed options"* | 24.46% | **6.53%** | **NO LONGER HOLDS** |
+| `V6-B` M1 dip survival | 32.5% vs 43.4% | see §9.5 | see §9.5 |
+| `S22`'s eight per-horizon `fixed_weights_null` floors | — | see §9.6 | see §9.6 |
+| the live / forward Track Record | — | **—** | **UNMEASURED-BY-CONSTRUCTION** |
+
+### 9.1 THE DEFLATED SHARPE — and §0 POINT 2 IS IMPRECISE ABOUT PBO
+
+**The deployed book's Deflated Sharpe is 0.720824 at equity `N` = 297**, against the conventional
+>0.95 (**fails**, as the published 0.7863 did) and the matched **non-adopting** placebo floor
+**0.565519** over 84 draws (**clears**, as the published figure did). Same relationship to both
+bars, so **SURVIVES**. The comparison is like-for-like on the BOOK: the published run's own
+`cpcv.adopt` was **False**, so 0.7863 *is* the deployed book.
+
+**IT IS 490× THE ADOPTED BOOK'S 0.001472**, which is what §0 point 2 exists to prevent anyone
+pairing with deployed figures.
+
+**AND MOST OF THE FALL IS THIS PROJECT'S OWN TRIAL COUNTER.** `sr0` is a function of `_trial_N()`.
+Separated from banked numbers alone: the published book at `N` = 297 reads **0.746246** and the
+corrected book at `N` = 224 reads **0.763053** — so of the 0.0655 fall, **~0.040 is `N` rising
+224 → 297** and only 0.023–0.025 is the universe and grid.
+
+**THE PRECISION CORRECTION.** §0 point 2 says `cpcv.pbo` *"describes the ADOPTED book"*. True of
+the Deflated Sharpe; **imprecise of PBO**. `_pbo` never reads `adopt` or `recommend` — it scores
+the **SELECTION STEP** over the eight candidates (its own `pbo_scope` says so), so the shipped
+figure is the same number whether or not adoption happened. **The deployed book selects nothing,
+so Bailey–López de Prado's PBO is not a statistic about it in either direction.** The
+deployed-book analogue (the same rank arithmetic with the argmax replaced by the fixed scheme)
+reads **1.0** at a median out-of-sample rank of 0.25 of eight — and the per-scheme control proves
+it is a pure **RANK** statistic (0.0 for the three best schemes, 1.0 for the three worst), so it
+**may never be rendered as a probability of overfitting** and has no calibrated floor.
+**`/proof` should keep showing the deployed PBO as UNMEASURED, now with that reason beside it.**
+
+**REACHABLE FROM THE NEXT CANONICAL RUN:** `cpcv.deployed_readings` is now computed and
+PROJECTED (`SCHEMA_VERSION` 7 → 8, purely additive, registered in
+`payload_schema.BLOCK_SPEC` so `M6`'s field-level guard carries it). The tracked artifact is
+**not** re-generated here — that is the app fixer's, per §7.
+
+### 9.2 `X1` — BOTH ARMS SURVIVE, AND A2 IS THE ARM THAT MOVED
+
+Bars and constants IMPORTED from `PREREG_r4_x1_accounting_and_universe_split.md`, read through
+its own `verdict_of`. Half-universe null at 200 draws, well centred (alpha median **+0.000863**,
+long-short HAC *t* median **−0.0594**).
+
+| | A1 alpha | A2 long-short HAC *t* |
+|---|---|---|
+| null p95 (the bar) | +0.013414 | +1.4661 |
+| stable-key halves A / B | +0.054666 / +0.059699 | +4.3251 / +4.4646 |
+| half books clearing (bar 0.80) | **1.000** | **1.000** |
+| splits clearing both sides (bar 0.64) | **1.000** | **1.000** |
+| median / min / max of 200 half books | +0.06046 / **+0.04189** / +0.07679 | +4.3727 / **+3.2940** / +5.7055 |
+| negative half books | **0** | **0** |
+
+**ON THE PUBLISHED UNIVERSE A2 CLEARED ONLY 93.0% OF HALF BOOKS AND 86.0% OF SPLITS**, which is
+why the record had to call A1 the stronger claim. **Both are 100%/100% here** and A2's median
+half-book *t* rises **+2.3617 → +4.3727**. A1's level is slightly lower (median +0.07233 →
++0.06046), which is the universe's own alpha falling rather than the split degrading.
+
+**SO THE SENTENCE §1 FORBADE RESTATING NOW RESTATES VERBATIM** — 200 half books per arm × two
+arms = 400 measurements, zero negative, and the worst still earns +4.19%/yr at *t* 3.29.
+
+### 9.3 `R1`'s NET-OF-COST CELL — IT CLEARS, AND IT FAILS IF BOTH TRADE LEGS ARE CHARGED
+
+**The NaN was a zero-date LEFT JOIN** against `X4`'s shipped strategy series, which is indexed on
+X4's own 110-date grid. **AND THE PUBLISHED PANEL SHARES ZERO DATES WITH IT TOO**, so that cell
+has been unmeasurable **since `B6`**, not since this move: the shipped +7.85%/yr (*t* 5.16) is
+`FACTOR_ALPHA_RESULTS.json`'s 109-period VOID pre-B6 run.
+
+**R1's arithmetic is NOT edited.** `--strategy-series` is an argument; a corrected series was
+supplied, built by the shipped producer. The gross leg reproduces the landed
+`+0.059397599064971024` at *t* `+4.453158903833538` at **dev 0.000e+00** on all three readings.
+
+| reading | drag /yr | net intercept /yr | NW *t* | R1's bar (positive, *t* > 2.0) |
+|---|---|---|---|---|
+| **PRIMARY** — shipped composite | 1.8787% | **+4.0583%** | **+3.0094** | **CLEARS** |
+| sensitivity — pre-`B7` legacy composite | 1.8298% | +4.1099% | +3.0420 | clears |
+| **sensitivity — BOTH trade legs charged** | 3.6903% | **+2.2936%** | **+1.7084** | **DOES NOT CLEAR** |
+
+**REPORTED, NOT FIXED:** `cost = (cost_bps/1e4) × turnover` charges the one-way cost on the
+**entering** side only, while `turnover_and_costs` charges both legs — so R1's leg undercharges by
+about 2× against this project's own cost model, **and the discrepancy crosses R1's bar.** R1's
+registered formula is run as written; re-pointing it is a different register's business.
+
+### 9.4 `P1S0` — THE NUMERATOR IS A CONSTANT, SO THE PAGE'S FRACTION IS WRONG BY 3.7×
+
+`N_OPTIONABLE_NAMES` 619 → **630** (up 1.8%) while `N_PANEL_NAMES` went **3.8×**, because the
+chain cache is a **targeted pull** of large, liquid names: 1,000 ticker directories on disk, 923
+of them in the corrected panel. So the optionable share falls **24.46% → 6.53%**, 39 of 69 dates
+carry a chain, and `optionable_partition.py`'s lede — *"Roughly a quarter of the research panel
+has listed options"* — **is wrong by 3.7× and is the real change.** *One name in fifteen* is the
+honest phrasing. The stamp moves **only with its figures**, as §6 instructed.
+
+**AND ONE OBSERVATION, REPORTED WITH NO VERDICT AND ROUTED TO DON.** `P1S0` closed the
+options-expression family on an early half that was **absent** (cumulative alpha −0.08% at H=252,
+*t* 0.8352 at the H=63 power anchor). On the corrected panel **every early-half cell is positive**
+at all three horizons in both partition modes (H=63 +7.40% at *t* 1.82, H=252 +14.81%, H=504
++5.28%), and the optionable subset beats the full panel over the same dates at every horizon.
+**It carries NO verdict:** the per-horizon placebo floors were not re-run, the window is 39
+post-2016 dates rather than 69, and re-opening the family is Don's and needs its own blind
+register. **`P1S0-CONTROL`'s NULL is not re-opened.**
+
+### 9.5 `V6-B` M1 — see `HANDOFF_canon_unmeasured.md` §4.2
+
+`C1`'s gate aborted the earlier corrected attempt against the PUBLISHED literals on a panel its
+own `C2` had just certified as canonical. It is now re-pointable (`--expect-record`, defaulting
+to `REC` verbatim), and the corrected expectation is DERIVED rather than typed. Bars IMPORTED
+from `PREREG_v6b_dip_survival.md` and never restated.
+
+### 9.6 `S22`'s per-horizon floors — see `HANDOFF_canon_unmeasured.md` §4.3
+
+200 draws × 8 horizons, the construction `S22` registered. **`MB21`'s caveat travels with any
+figure read off them: `fixed_weights_null` permutes WITHIN each date, so it has no memory and is
+a DIFFERENT, less conservative null than X7's — its percentiles may NEVER be compared with the
+2.2837 family.** A shortfall is reported PARTIAL, never quoted as a floor.
+
+### 9.7 WHAT §9 DOES NOT DO
+
+* **It changes no public page and does not re-generate or swap the tracked artifact** (§7 still
+  holds; the register's own void condition 4 repeats it).
+* **It adopts nothing** and re-opens nothing: `P1S0`, `P1S0-CONTROL`, `V6-B` and `S22` keep their
+  own verdicts, carried rather than re-decided.
+* **It attributes no move to the universe alone** — §0's disjoint grids forbid it.
+* **It does not re-run `X1`'s theme decisions or weight selection under the split**, which is a
+  different question from generalisation across names.
