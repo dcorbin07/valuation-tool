@@ -104,7 +104,21 @@ F-21's; using a non-deterministic randomiser; reporting unpaired means as the cl
 
 ## MACHINE-CHECKABLE DECLARATION
 
-```json
+**THE FENCE READS `jsonc` AND NOT `json`, FOR THE REASON SET OUT IN F-21's OWN DECLARATION:** the
+exporter globs every `DECL_*.md` and treats anything that parses as a book, the `DRAFT_` prefix
+does not exempt it, and the only reason the three existing drafts are skipped is that they are
+prose-only. **These two are the first parseable drafts in the repo and they turned
+`test_the_committed_manifest_equals_a_fresh_build` red**, which blocks every lane's land, so the
+fence is set to one `parse_declaration` does not claim.
+
+**EVERY FIELD IS FINAL and with the fence set to `json` this declaration returns `ok = True` with
+ZERO refusals** once `assignment.register()` is called. **ACCEPTANCE:** rename to
+`DECL_f22_dip_csp_random_twin.md` **alone** in its own commit, change `jsonc` → `json`, re-run
+`scripts/fleet_export_declarations.py`. **F-22 must be accepted at the same time as F-21 or
+neither** — neither book's verdict may be read without the other's, so arming one alone would
+produce exactly the unpaired reading Don's clause (b) exists to prevent.
+
+```jsonc
 {
   "book": "f22_dip_csp_random_twin",
   "domain": "options",

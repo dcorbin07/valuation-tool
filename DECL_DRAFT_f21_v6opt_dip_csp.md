@@ -164,7 +164,34 @@ book's verdict without F-22's.
 
 ## MACHINE-CHECKABLE DECLARATION
 
-```json
+**THE FENCE BELOW READS `jsonc` AND NOT `json`, DELIBERATELY, AND THE REASON IS A GAP THIS FILE
+FOUND BY FALLING INTO IT.** `fleet_export_declarations.py` globs **every** `DECL_*.md`, strips the
+`DECL_` prefix, and treats **anything that parses as a book** — the `DRAFT_` prefix does **not**
+exempt it. The three existing drafts (`f7`, `f9`, `f16`) are skipped only because they are
+**prose-only**: *"does not parse: no fenced ```json declaration block"*. **So there has never been
+a PARSEABLE DRAFT, and the first one turned
+`tests/test_audit5_remediation.py::test_the_committed_manifest_equals_a_fresh_build` red** — a
+fresh build saw **20** books against the shipped manifest's 18, under the ids
+`DRAFT_f21_v6opt_dip_csp` and `DRAFT_f22_dip_csp_random_twin`, which would also have refused as
+`BOOK_ID_DOES_NOT_MATCH_FILENAME`. **A red land gate blocks every other lane**, so it is fixed here
+rather than left.
+
+**`parse_declaration`'s pattern is `` ```json\s*\n ``, which `jsonc` does not match** — verified
+both ways — so the exporter skips this file exactly as it skips the other three, and **no
+unaccepted draft is registered as a live book.** Registering one would be *accepting* it, which is
+the options-bot lane's call and not the scout's.
+
+**EVERY FIELD BELOW IS FINAL. With the fence set to `json` this declaration returns
+`validate_declaration(...)["ok"] = True` with ZERO refusals** once `assignment.register()` is
+called — measured, with `DECL_f10_clean_csp.md` and `DECL_f8_csp_entry_financing.md` as the control
+(both return the identical `SHORT_BOOK_WITHOUT_ASSIGNMENT` without the provider).
+
+**ACCEPTANCE IS THREE MECHANICAL STEPS AND NO EDIT TO THE DECLARATION:** rename
+`DECL_DRAFT_f21_v6opt_dip_csp.md` → `DECL_f21_v6opt_dip_csp.md` **alone** in its own commit
+(`declaration_commit` requires exactly one file), change `jsonc` → `json`, and re-run
+`scripts/fleet_export_declarations.py` so the manifest matches a fresh build again.
+
+```jsonc
 {
   "book": "f21_v6opt_dip_csp",
   "domain": "options",
