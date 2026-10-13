@@ -11275,3 +11275,168 @@ options trial, no real trade.** `DECISIONS.md` 2026-10-08 authorises the program
    lines in their own idiom, and 76/76 now pass.** `S3-I1` recorded this same suite at 69/70 and
    correctly left it alone; the difference today is that the gate refuses a land on any failing
    suite, so leaving it would have blocked every lane including this one.
+
+
+---
+
+## 83. SELL-PREMIUM — **`K3` FIRES AND THE PROGRAM STOPS: THE PREMIUM IS REAL AND IT IS A THIRD OF WHAT THE DRAFT'S CRASH TABLE ASSUMED. `A3`'s IV-RANK GRADIENT IS THE STRUCTURE, NOT THE PREMIUM — IT FLATTENS 21.8x** (2026-10-12)
+
+`PREREG_sellpremium.md` committed **ALONE at `2e9fe7b`** (markdown only, 288 lines, zero `.py`, a
+strict ancestor of every measurement commit); **5 options trials booked at `907d924` BEFORE any
+runner existed**, options `N` **310 -> 315**, hurdle **3.3919235** DERIVED at run time. Executes
+the Frontier Scout's `PREREG_DRAFT_sellpremium.md` (`c4d9aa5` + `8f41b10`) with thirteen
+amendments `S1`-`S13`, all made before any outcome. **`K3` FIRED. The five arms NEVER RAN, nothing
+is adopted, no option position was ever scored, paper only, no real trade.**
+
+* **THE KILL, AND THE NUMBER THAT DECIDES IT.** On the register's own MEASURED strike
+  distribution one crash costs **8.90 years of premium** against a bar of **6.0 fixed in the
+  draft before it was computed**. `W-28` forbids relaxing a pre-committed bar after watching it
+  fail, so the register stops and **the 5 trials STAY CHARGED** (`E-1`, `MA6`: un-booking after
+  watching a kill fire is the shape this record distrusts most, and overstating `N` is the safe
+  direction). The arm runner ships as a **gate that refuses**, exercised and tested.
+* **THE MECHANISM IS THE INCOME, NOT THE CRASH, AND IT RECONCILES EXACTLY AGAINST THE DRAFT'S
+  OWN TABLE.** The draft's `K3` row put the same episode at **2.97 years**, which implies
+  **12.96%/yr** of premium income (38.48 / 2.97). **Measured, this register's own contracts pay
+  0.7778% of strike at a median 44 DTE — 5.727 turns a year, 4.4545%/yr — 2.91x less**, and
+  **39.649 / 4.4545 = 8.90** reproduces the kill to the digit. **Two measured causes, both
+  design facts known at entry rather than outcomes: the premium is 0.78% of strike and not
+  ~1.13%, and the tenor the data actually offers is 44 days and not 32, so the book turns
+  5.7 times a year instead of ~11.5.** `V6-OPT` collected 2.550% of strike on a **25-delta**
+  put; this register trades a **0.90-moneyness** put, which at moderate IV is much further out
+  of the money — the draft's own §5 table says so (0.27% of strike at IV 0.25 against 1.20% for
+  25-delta) — **so the strike rule that removes the risk-discrimination defect also removes most
+  of the income, and that trade-off had never been priced.**
+* **THE CAVEAT THAT CUTS AGAINST MY OWN KILL, AND IT IS THE FIRST THING A READER SHOULD SEE.**
+  **The gate is carried by a SYNTHETIC row** — a single name falling at 1.4x the worst index
+  episode, −45.65%. **On the REAL index episodes alone the worst is 2020 at 5.65 years, INSIDE
+  the 6.0 bar by 0.35 years, and the gate would have PASSED.** That row is in the draft's own
+  pre-committed `K3` table, so dropping it after watching it fire would be exactly the
+  design-on-outcome move `W-28` forbids — **but a kill decided by 0.35 years and a synthetic
+  stress is a kill a successor may legitimately re-open with a better-argued stress row, and it
+  is not evidence that the strategy loses money.** Both facts ship together or neither does.
+* **`K2` IS THE FINDING WORTH KEEPING, AND IT SETTLES A QUESTION THE FLEET HAS BEEN QUOTING
+  WRONG.** Re-pricing **`A3`'s own banked trades** as NAKED puts held to expiry at the MID, by
+  IV-rank band, on **881 of 881** of its 2016-2019 trades (**coverage 1.0000, zero skipped** — so
+  this is not a subset result):
+
+  | IV rank | n | mean, % of strike | median | sd |
+  |---|---|---|---|---|
+  | 0.50-0.65 | 313 | **+0.5700** | +0.9018 | 1.7577 |
+  | 0.65-0.80 | 260 | **+0.4904** | +0.9196 | 2.1612 |
+  | >= 0.80 | 308 | **+0.4229** | +1.0409 | 2.8579 |
+
+  **The gradient is −0.1471pp against `A3`'s own banked SPREAD gradient of −3.21pp — FLATTER BY
+  21.8x — and all three bands are POSITIVE where `A3`'s spread reads −6.24 / −8.16 / −9.45% of
+  max risk.** So the draft's §4d argument is now measured rather than argued: **`A3`'s monotone
+  IV-rank gradient is the gradient of a $5-wide stopped spread crossing four times, not a
+  property of the premium**, and *"sell premium at high IV rank loses monotonically"* may not be
+  quoted as a fact about selling premium. **`A3`'s LEVEL is untouched and remains the strongest
+  fact against this program** — at perfect mid fills it returns +0.13% with profit factor 1.02,
+  and §4c's *"there is no premium being lost to execution here, because there is no premium"*
+  stands as a statement about a wing-capped stopped spread.
+* **AND THE HONEST OTHER HALF OF `K2`, because quoting the means alone would mislead: the
+  MEDIANS RISE with IV rank (+0.9018 -> +1.0409) while the MEANS FALL, with the sd widening
+  1.7577 -> 2.8579.** The typical trade gets *better* at high IV and the mean is dragged by a
+  widening left tail. **Both are true and only the mean is what a book earns** — which is the
+  short-vol signature and, read beside `K3`, the same fact twice.
+* **`K1` CLEARS BY 6.4x AND 4.1x, AND BY 3.4x THE DRAFT'S OWN ESTIMATE.** 4,864 tier events over
+  398 names and 759 dates; 2,645 carry a chain file; **2,557 priceable events against a floor of
+  400, and 612 covered event days against 150**, over 186 names. The funnel barely loses
+  anything: any put 2,622 -> in DTE 2,622 -> in moneyness 2,612 -> **two-sided 2,557**. The draft
+  estimated **757**.
+* **`C5` EXPLAINS ~71% OF THAT GAP AND THE CAUSE IS THE SPLIT TRAP `S4` EXISTS FOR.** Running the
+  draft's own layer-3 funnel twice on the same random tier names and sessions: with the chain's
+  **as-traded** `spot` the usable rate is **0.9857**; with the **adjusted** close standing in for
+  spot it is **0.4929**, against the draft's published **0.2960**. **Directionally confirmed and
+  NOT exactly reproduced — it accounts for 71% of the gap and the remaining ~29% is reported as
+  UNEXPLAINED**, most likely the draft's 14-name sample differing from this one. The mechanism is
+  arithmetic: a 0.85-0.95 moneyness window computed against an adjusted close lands nowhere near
+  the listed strike ladder (AAPL 2018-01-02: **40.234** adjusted against **172.260** as-traded,
+  a factor of **4.28**), so it finds few strikes and the ones it finds are deep ITM with wide
+  quotes. **That is why this register reads the chain's own `spot` for every strike and every
+  settlement, enforced by `assignment.settle_short`, which REFUSES an undeclared or adjusted
+  basis** rather than trusting the caller.
+* **`C4` REFUTED MY OWN HYPOTHESIS, AND IT IS REPORTED BECAUSE IT WAS WRONG.** I predicted event
+  days would be far better covered than random days, on the reasoning that the event IS a
+  volatility spike and a volatility spike is what gives an OTM put a bid. **Measured: random-day
+  two-sided rate 0.9675 over 800 sessions against an event-day rate of 0.9667 — a ratio of
+  1.00x.** The event is not the mechanism, which is what sent `C5` looking at the price basis
+  instead.
+* **A VACUITY TRAP IN THE DATA THAT A SUCCESSOR WILL WALK INTO.** `options_derived` is
+  **two-sided on 1.0000 of its rows BY CONSTRUCTION** — it keeps 98,332 of AAPL-2018's 203,778
+  raw rows and discards every zero-bid one (40.66% of what it drops) plus everything under 7 DTE
+  — **so a quote-coverage funnel measured on the derived layer reads 1.000 having checked
+  nothing**, which is `MB21`'s `C1` scoring a perfect zero on an empty frame. The funnel and the
+  traded quote read the RAW layer; the derived layer supplies only `spot`, `delta` and `iv`.
+  Measured on four ticker-years, raw 0.7196-0.8748 against derived 1.0000, with `mid`
+  reproducing `(bid+ask)/2` at max |dev| **0.000e+00**.
+* **DON'S 2026-10-12 RULING IS RECORDED AS HIS, AND IT IS NOT IN `DECISIONS.md`.** The ruling —
+  *"an options strategy is its own system, not judged against the Index or against holding the
+  shares"* — filled the one field the draft deliberately left **blank for Don**, and it
+  SUPERSEDES three things in the draft (`A2`'s stock comparator, the blank non-inferiority
+  margin, and void condition 4). **`DECISIONS.md`'s newest entry is 2026-10-10 and it carries no
+  2026-10-12 line**, verified across every branch, so the lane prompt is the authoritative record
+  and the register quotes it verbatim. **Reported, not edited — that file is the Cowork manager's
+  and it wants the line, or the next lane reads a superseded standard from the file that is
+  supposed to override prompts.** A test asserts the correction is still true and goes red when
+  the line lands.
+* **ONE PLACE THE EXECUTOR PUSHED BACK, AND IT CHANGED NO PASS CONDITION (`S3`).** Don's standard
+  is about the SYSTEM; the draft measured that **64.4% of what a post-dip short put earns is the
+  stock's own drift taken at a fifth of the exposure** (realised delta-equivalent 0.2131,
+  option-specific intercept +0.4040pp), and `A5` does not remove that because a random-day short
+  put carries beta too. So the ruling is obeyed in full and the decomposition is made a
+  **REQUIRED FIELD** of any `A2` pass, with quoting a pass without it a void condition. **The
+  register takes no position on whether that should have been a bar — it was Don's to set.**
+* **FIVE CONTROLS, ALL PASS, AND THE ARTIFACT IS BIT-IDENTICAL ON RE-RUN** (119 shared leaves,
+  **ZERO moved**, one added — the repaired field below). `C1` the event set is `DIP-CALL`'s and
+  not a second definition; `C2` the chain's spot is as-traded across 15 names (median of medians
+  1.3441, max 40.4936) **with a positive control — 4 names read near 1.0**, or the check would
+  only be detecting that two series differ; `C3`-`C5` above.
+* **TWO DEFECTS OF MY OWN, BOTH CAUGHT BY MY OWN INSTRUMENTS.** (a) **The `K3` row that DECIDED
+  THE GATE shipped with a `nan` loss field** — an artifact whose binding line carries a `nan` is
+  not a record of why it fired. Repaired; the re-run is bit-identical but for that one field,
+  which reads **0.39649** and matches the hand calculation. (b) **My own `MA5` bar-retyping guard
+  fired against the CORRECT tree**, because `150` is the modulus of a progress print and not
+  `K1_MIN_COVERED_DAYS`. **A bare integer is too weak a signal for a guard** — the
+  never-ban-a-substring family one level down — so it now reads the DIRECT constant operands of
+  `Compare` nodes (`len(picks) >= 400` is caught, `i % 150 == 0` is not), **with a positive
+  control proving it still bites** and a companion asserting every bar is referenced BY NAME, or
+  the guard would pass on a script that uses no bar at all.
+* **EXPECTATIONS: 3 SCORABLE, 3 RIGHT; 5 UNSCORABLE because the arms never ran.** `K2` flattening
+  was priced 60/40 and is **RIGHT, by 21.8x**; `K1` clearing its 400-event floor was 65/35 and is
+  **RIGHT by 6.4x**; the whole program being adopted was 10% and it is not. **AND THE MISS THAT
+  IS NOT ON EITHER LIST IS THE ONE THAT DECIDED THE ITEM: neither the scout nor I priced `K3`
+  firing at all.** The draft's §6 states *"THE CRASH DOES NOT FORECLOSE THIS PROGRAM"* and calls
+  the loss *"painful, finite, and recoverable from premium alone"* — **that is the draft's most
+  confident claim and the measurement refutes it**, because it was computed on an assumed premium
+  2.91x larger than the one the data offers.
+* **NOT DONE, named so it is not mistaken for done: NO ARM RAN** — `A1` (delta-hedged, and not
+  tradeable in a Roth anyway), `A2` (the product), `A3'` (the strike rule), `A4` (health as a
+  factor) and `A5` (the random-day control) are **UNTESTED, not null**, and the arm bodies are
+  **deliberately NOT BUILT** because unvalidated scoring that no register may execute is worse
+  than none; **the check quadrant is NOT opened** and nothing here reads 2020-2026 at the name
+  level (SPY's own worst rolling returns are a public benchmark, which the draft licensed);
+  **`V6-OPT` is NOT re-opened** and its rejection stands on its own condition 2; **`A3` is NOT
+  weakened on its level**, only on what its gradient can be read to mean; **no forward paper book
+  is set up** — and while the prompt records that the free Tradier sandbox token still works and
+  Alpaca paper is the alternative, **the chain cache carries ZERO files for 2026**, so there is no
+  data route regardless of broker. **29 tests (23 running, 6 skipping LOUDLY without licensed
+  data), zero errors.** `valuation/studies/sellpremium.py`, `scripts/sellpremium_kills.py`,
+  `sellpremium_controls.py`, `sellpremium_arm.py`;
+  `data/free_analysis/SELLPREMIUM_KILLS.json`, `SELLPREMIUM_CONTROLS.json`,
+  `SELLPREMIUM_PICKS.pkl`, `SELLPREMIUM_EVENTS.pkl`.
+
+### BUGS FOUND — SELL-PREMIUM
+
+1. **`DECISIONS.md` CARRIES NO 2026-10-12 LINE** though the lane prompt instructs every lane to
+   read the ruling there, and that file's own header says a ruling in it **overrides any older
+   prose in a handoff or prompt**. **The manager's file; reported, not edited**, and pinned by a
+   test that goes red once the line lands so the register's premise correction cannot rot.
+2. **THE DRAFT'S LAYER-3 COVERAGE ESTIMATE IS LOW BY ~3.3x AND ~71% OF IT IS THE SPLIT TRAP** —
+   its funnel is reproduced directionally by using the ADJUSTED close where the chain's as-traded
+   `spot` belongs. **Reported to the scout lane rather than edited into the draft** (`RUN_RULES`
+   rule 3); it ran against the draft's own program and this register measured the right number
+   before using it.
+3. **`options_derived` IS TWO-SIDED BY CONSTRUCTION**, so any quote-coverage figure measured
+   there is vacuous. Not a defect in that layer — it is doing its job — but a trap for the next
+   register that measures coverage, and it is now written down.

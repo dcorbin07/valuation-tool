@@ -1,5 +1,42 @@
 # HANDOFF STATUS - shared project state
 
+## options lane — **SELL-PREMIUM: `K3` fires, the program stops — and `A3`'s IV-rank gradient flattens 21.8x on a naked put** (2026-10-12)
+
+Executes the Frontier Scout's `PREREG_DRAFT_sellpremium.md` (`c4d9aa5` + `8f41b10`) with thirteen
+amendments. **Register `PREREG_sellpremium.md` committed ALONE at `2e9fe7b`** (markdown only, 288
+lines, zero `.py`, a strict ancestor of every measurement commit); **5 options trials booked at
+`907d924` BEFORE any runner existed**, options `N` **310 -> 315**. **THE FIVE ARMS NEVER RAN.
+Nothing adopted, paper only, no real trade.**
+
+- **`K3` FIRES: one crash costs 8.90 years of premium against a bar of 6.0 fixed before it was
+  computed.** The mechanism is the INCOME, not the crash, and it reconciles against the draft's
+  own table exactly: the draft's row implies **12.96%/yr** of premium, and the contracts this
+  register actually trades pay **0.7778% of strike at a median 44 DTE = 4.4545%/yr, 2.91x less**.
+  **The 0.90-moneyness strike rule that removes `V6-OPT`'s risk-discrimination defect also
+  removes most of the income, and that trade-off had never been priced.**
+- **THE CAVEAT THAT CUTS AGAINST MY OWN KILL, stated first because a reader needs it: the gate is
+  carried by a SYNTHETIC single-name stress row.** On the REAL index episodes alone the worst is
+  2020 at **5.65 years — inside the bar by 0.35 — and the gate would have PASSED.** That row is in
+  the draft's own pre-committed table so dropping it after watching it fire is the
+  design-on-outcome move `W-28` forbids, **but this is a kill a successor may legitimately
+  re-open with a better-argued stress row, and it is NOT evidence that the strategy loses money.**
+- **`K2` IS THE FINDING: `A3`'s IV-rank gradient is the STRUCTURE, not the premium.** Re-pricing
+  `A3`'s own 881 era trades as naked puts held to expiry at the mid (**coverage 1.0000, zero
+  skipped**) gives **+0.5700 / +0.4904 / +0.4229% of strike** across its own IV-rank bands — a
+  gradient of **−0.1471pp against `A3`'s banked SPREAD gradient of −3.21pp, FLATTER BY 21.8x, and
+  every band POSITIVE** where the spread reads −6.24 / −8.16 / −9.45%. *"Selling premium at high
+  IV rank loses monotonically"* may no longer be quoted as a fact about premium. **`A3`'s LEVEL is
+  untouched and is still the strongest fact against this program.**
+- **`K1` clears by 6.4x and 4.1x** (2,557 priceable events against 400; 612 covered days against
+  150) — **3.4x the draft's own estimate**, and `C5` shows ~71% of that gap is the split trap: the
+  draft's funnel is reproduced directionally by using the ADJUSTED close where the chain's
+  as-traded `spot` belongs (AAPL 2018-01-02: 40.234 against 172.260, a factor of 4.28).
+- **`C4` refuted my own hypothesis** — random days are covered as well as event days (0.9675 vs
+  0.9667) — which is what sent `C5` looking at the price basis instead.
+- **Don's 2026-10-12 ruling is recorded verbatim as HIS, and it is NOT in `DECISIONS.md`** (newest
+  entry 2026-10-10, verified across every branch). **The manager's file; reported, not edited, and
+  pinned by a test that goes red when the line lands.** `HANDOFF_optionsbot.md` §83.
+
 ## options lane — **DIP-CALL-3: the drift is NEGATIVE in 1999-2008, and the faithful replication never ran because `K1` refused it** (2026-10-10)
 
 Executes **lead 1** of the Frontier Scout's `PREREG_DRAFT_dipcall3.md` (`7cb4657`); lead 2 stays

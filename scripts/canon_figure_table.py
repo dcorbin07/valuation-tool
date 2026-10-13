@@ -27,26 +27,56 @@ why that label is load-bearing rather than decorative: on this universe CPCV ado
 import io
 import json
 import os
+import subprocess
 import sys
 
-WT = r"C:/Users/donni/Downloads/valuation-tool/.claude/worktrees/r1b"
-FA = r"C:/Users/donni/Downloads/valuation-tool/data/free_analysis"
-TMP = r"C:/Users/donni/.claude/jobs/2f90bb74/tmp/canon"
-if WT not in sys.path:
-    sys.path.insert(0, WT)
+# EVERY PATH IS DERIVED. **CANON-UNMEASURED: ALL THREE OF THIS FILE'S HARD-CODED PATHS WERE
+# DEAD, AND THE FAILURE MODE WAS SILENT ROW LOSS.** They were `.claude/worktrees/r1b` (which no
+# longer holds a `BACKTEST_RESULTS.json`) and a job scratch directory (`jobs/2f90bb74/tmp/canon`,
+# since cleaned up). `load()` returns `None` for an absent file and the
+# `BACKTEST_RESULTS.json` block is guarded by `if canon and before`, so regenerating the table
+# today would have dropped **15 rows including every PUBLIC landing-page figure** -- and printed
+# a cheerful row count. A generated file whose generator silently shrinks is worse than a
+# hand-edited one, because nothing says the table got smaller.
+_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
 
-OUT_JSON = os.path.join(TMP, "CANONICAL_FIGURE_TABLE.json")
+from scripts.index_best import _data_root                                   # noqa: E402
+
+FA = os.path.join(_data_root(), "free_analysis")
+
+#: THE COMMIT THAT SWAPPED THE TRACKED ARTIFACT. The "published" column is the pre-swap tracked
+#: `BACKTEST_RESULTS.json`, read from GIT rather than from a scratch copy -- so it is
+#: reproducible by anyone holding the repo and cannot rot when a job directory is cleaned up.
+#: Item 47, "the canonical move reaches the public pages".
+ARTIFACT_SWAP_COMMIT = "60871ac"
+
+OUT_JSON = os.path.join(FA, "CANONICAL_FIGURE_TABLE.json")
 #: THE MARKDOWN GOES IN THE REPO, because addendum 1 asks for *"a single table ... handed to the
 #: app fixer"* and a table in a gitignored scratch directory is not handed to anyone. The JSON
 #: stays out of the repo: it is a research artifact and `data/` is where those live.
-OUT_MD = os.path.join(WT, "CANONICAL_FIGURE_TABLE.md")
+OUT_MD = os.path.join(_HERE, "CANONICAL_FIGURE_TABLE.md")
 
 
-def load(name, root=FA):
-    p = os.path.join(root, name)
+def load(name, root=None):
+    p = os.path.join(root or FA, name)
     if not os.path.exists(p):
         return None
     return json.load(io.open(p, encoding="utf-8"))
+
+
+def load_published_artifact():
+    """The pre-swap tracked `BACKTEST_RESULTS.json`, from git. REFUSES rather than returning
+    `None`: a missing "published" column is exactly the silent row loss this file just paid
+    for, and a loud failure is the safe direction."""
+    rev = "%s^:BACKTEST_RESULTS.json" % ARTIFACT_SWAP_COMMIT
+    p = subprocess.run(["git", "-C", _HERE, "show", rev], capture_output=True)
+    if p.returncode != 0:
+        raise SystemExit("REFUSING: cannot read %s from git (%s). The published column would "
+                         "be silently absent and 15 rows would vanish."
+                         % (rev, (p.stderr or b"")[-300:]))
+    return json.loads(p.stdout.decode("utf-8"))
 
 
 def fmt(v):
@@ -123,8 +153,11 @@ if tw:
         })
 
 # --------------------------------------------------------------------- the canonical headlines
-canon = load("BACKTEST_RESULTS.json", root=WT)
-before = load("BACKTEST_RESULTS.before.json", root=TMP)
+canon = load("BACKTEST_RESULTS.json", root=_HERE)
+before = load_published_artifact()
+if not canon:
+    raise SystemExit("REFUSING: no tracked BACKTEST_RESULTS.json at %s -- the corrected column "
+                     "would be silently absent and 15 rows would vanish." % _HERE)
 if canon and before:
     for label, path, surface in (
         ("top-decile alpha (annualised)", ("construction", "top_decile_alpha"), None),
@@ -171,6 +204,19 @@ if canon and before:
             "note": "the headline is the DEPLOYED flat 1/7 book (step 1)",
         })
 
+# ----------------------------------------------- CANON-UNMEASURED's successor rows, UNIONED IN
+# The cells this table marked UNMEASURED, measured. Read off that item's own landed artifacts by
+# its own `table_rows()` -- the union discipline this file's docstring sets out, so a figure is
+# never re-derived in a third place (`B7`). A missing artifact becomes an UNMEASURED row WITH
+# ITS REASON rather than a dropped one.
+try:
+    from scripts.canon_unmeasured import table_rows as _succ
+    rows += _succ()
+except Exception as _e:                                                     # noqa: BLE001
+    rows.append({"group": "CANON-UNMEASURED successor rows (the UNMEASURED cells, measured)",
+                 "figure": "(successor rows unavailable)", "state": "UNMEASURED",
+                 "why": "scripts.canon_unmeasured.table_rows() raised: %r" % (_e,)})
+
 res = {
     "item": "CANONICAL-MOVE",
     "part": "steps 5 and 6 -- every public figure, old -> new, with where it lives",
@@ -179,7 +225,9 @@ res = {
                    "no new outcome statistic.",
     "weighting": "DEPLOYED (flat 1/7) on every row; CPCV is never the headline (step 1)",
     "sources": ["CORRECTED_CLAIMS.json", "CORRECTED_CLAIMS2_VERDICT.json",
-                "CORRECTED_FLOORS.json", "INDEX_BOOK_THREE_WAY.json", "BACKTEST_RESULTS.json"],
+                "CORRECTED_FLOORS.json", "INDEX_BOOK_THREE_WAY.json", "BACKTEST_RESULTS.json",
+                "the pre-swap BACKTEST_RESULTS.json, from git at %s^" % ARTIFACT_SWAP_COMMIT,
+                "CANON_UNMEASURED_*.json (the successor rows)"],
     "n_rows": len(rows),
     "rows": rows,
 }

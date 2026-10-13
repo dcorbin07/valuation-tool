@@ -3092,18 +3092,45 @@ def _deflated_sharpe_detail(strategy_rets, all_trial_sr):
                        if (abs(sr0) < 0.05 * abs(sr) if sr else True) else "deflated_sharpe_ratio")}
 
 
-def _pbo(is_mat, oos_mat, names):
+def _pbo(is_mat, oos_mat, names, fixed=None):
     """Probability of Backtest Overfitting (Bailey/Lopez de Prado): across CPCV paths, how often does
     the scheme that looked best IN-sample land BELOW the median OUT-of-sample? High = we're fooling
-    ourselves; low = the selection generalizes."""
+    ourselves; low = the selection generalizes.
+
+    `fixed` — CANON-UNMEASURED §1.2. A scheme NAME to read instead of the in-sample argmax. With
+    `fixed=None` this is Bailey/Lopez de Prado's PBO exactly and is bit-identical to what it
+    always was; the parameter adds a SECOND SELECTION RULE over ONE implementation of the rank
+    arithmetic rather than a second implementation of it (`B7`).
+
+    **WHY A SECOND RULE IS NEEDED AT ALL, AND IT IS A PRECISION CORRECTION TO THIS RECORD'S OWN
+    WORDING.** `CANONICAL_MOVE_TABLE.md` says `cpcv.pbo` *"describes the ADOPTED book"*. This
+    function never reads `adopt` or `recname`, so the shipped figure is the SAME number whether
+    or not adoption happened: it scores the SELECTION STEP over the candidate set, which is what
+    `pbo_scope = "weight_scheme_selection_only"` already says. The DEPLOYED book selects nothing
+    — flat 1/7, never tuned — so BLdP's PBO is not a statistic about it in either direction.
+    `fixed="current-default"` asks the deployed-book question instead: across the CPCV paths, how
+    often does the book this project actually runs land at or below the OOS median of the
+    candidates?
+
+    **THAT IS A DIFFERENT STATISTIC AND HAS NO CALIBRATED FLOOR.** The retained placebo draws
+    carry `pbo` under the argmax rule only, so a `fixed=` reading may be compared with the
+    conventional <0.50 (itself measured by `X7` to sit at the noise MEDIAN of 46.7%) and with
+    nothing else until a sweep recomputes it per draw.
+    """
     import math
     below = tot = 0
+    fixed_i = None
+    if fixed is not None:
+        try:
+            fixed_i = list(names).index(fixed)
+        except ValueError:
+            return None
     for isr, osr in zip(is_mat, oos_mat):
         valid = [(i, v) for i, v in enumerate(isr) if v == v]
         oos_vals = [v for v in osr if v == v]
         if not valid or len(oos_vals) < 2:
             continue
-        best_i = max(valid, key=lambda x: x[1])[0]
+        best_i = fixed_i if fixed_i is not None else max(valid, key=lambda x: x[1])[0]
         best_oos = osr[best_i]
         if best_oos != best_oos:
             continue
@@ -3159,7 +3186,8 @@ def _strategy_returns(panel, cols, weights, top_frac=0.1):
     return out
 
 
-def cpcv_validate(panel, cols, base, halflife_days=1260, horizon=63, n_groups=6, k_test=2):
+def cpcv_validate(panel, cols, base, halflife_days=1260, horizon=63, n_groups=6, k_test=2,
+                  deployed_readings=False):
     """The strongest honesty test we have: pick the theme weighting via Combinatorial Purged CV
     (many train/test paths), and report the Probability of Backtest Overfitting + the Deflated Sharpe
     Ratio of the chosen weighting. Adopt only if it beats the default across paths AND clears the bar."""
@@ -3248,7 +3276,57 @@ def cpcv_validate(panel, cols, base, halflife_days=1260, horizon=63, n_groups=6,
         trial_sr.append(float(rr.mean() / rr.std(ddof=1)) if len(rr) > 2 and rr.std(ddof=1) > 0 else None)
     _dsr_detail = _deflated_sharpe_detail(_strategy_returns(panel, cols, all_w[recname]), trial_sr)
     dsr = None if _dsr_detail is None else _dsr_detail["probability"]
+    # CANON-UNMEASURED §1 — THE DEPLOYED BOOK'S OWN READINGS, OPT-IN AND OFF BY DEFAULT.
+    #
+    # `recname` is the ADOPTED scheme, so `dsr` above describes whatever adoption chose. On the
+    # corrected 9,645-name universe that is `ic-proportional` and NOT the book that ships, which
+    # is why `CANONICAL_MOVE_TABLE.md` has to mark the deployed Deflated Sharpe UNMEASURED.
+    #
+    # The flag is OFF by default and adds NO KEY when off, so every existing caller's payload is
+    # bit-identical and `payload_schema.BLOCK_SPEC`'s field-level guard on the `cpcv` block sees
+    # exactly what it saw before (`M6`: an unregistered field that reaches the source and not the
+    # projection FAILS the run — so a new key must be opt-in or registered, never silently added).
+    _dep = None
+    if deployed_readings:
+        _dep_dsr = _deflated_sharpe_detail(
+            _strategy_returns(panel, cols, all_w["current-default"]), trial_sr)
+        # the deployed scheme's own OOS rank per path, so the PBO figure can be read rather than
+        # merely quoted: `rank` is the share of candidates it is at least as good as.
+        _ranks = []
+        _di = names.index("current-default")
+        for osr in oos_mat:
+            vals = [v for v in osr if v == v]
+            mine = osr[_di]
+            if len(vals) < 2 or mine != mine:
+                continue
+            _ranks.append(float(sum(1 for v in vals if v <= mine) / len(vals)))
+        _dep = {
+            "book": "DEPLOYED (current-default, flat 1/7) -- the book that ships",
+            "pbo_no_selection": _pbo(is_mat, oos_mat, names, fixed="current-default"),
+            "pbo_no_selection_scope":
+                "NOT Bailey-Lopez de Prado's PBO. BLdP's PBO scores a SELECTION step and the "
+                "deployed book selects nothing, so `pbo` above is not a statistic about it in "
+                "either direction. This is the same rank arithmetic with the in-sample argmax "
+                "replaced by the FIXED deployed scheme.",
+            "pbo_no_selection_has_no_calibrated_floor":
+                "the retained placebo draws carry `pbo` under the ARGMAX rule only; deriving a "
+                "floor for this statistic needs it recomputed per draw, i.e. a re-sweep. "
+                "Compared with the conventional <0.50 and labelled UNCALIBRATED.",
+            "deployed_oos_rank_per_path": _ranks,
+            "deployed_median_oos_rank": (float(np.median(_ranks)) if _ranks else None),
+            # NON-VACUITY, and it is what shows the `fixed=` reading is a RANK statistic rather
+            # than an overfitting one: the same number for every candidate. A guard that fires
+            # only on the scheme you aimed it at has not been shown to measure anything.
+            "pbo_no_selection_per_scheme": {nm: _pbo(is_mat, oos_mat, names, fixed=nm)
+                                            for nm in names},
+            "deployed_median_oos_ic": med.get("current-default"),
+            "deflated_sharpe": (None if _dep_dsr is None else _dep_dsr["probability"]),
+            "deflated_sharpe_detail": _dep_dsr,
+            "adopted_scheme_for_comparison": recname,
+            "adopted_deflated_sharpe_for_comparison": dsr,
+        }
     return {"n_paths": len(paths), "pbo": pbo, "deflated_sharpe": dsr,
+            **({"deployed_readings": _dep} if _dep is not None else {}),
             # AUDIT B9 — what the two headline statistics actually measure. `pbo` scores the
             # WEIGHT-SCHEME SELECTION STEP only: "the best of eight nearly-identical weightings
             # generalises". It says nothing about the signal-inclusion, theme-membership,
@@ -5211,7 +5289,17 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
             wf = walk_forward(panel, cols, base, top_n=top_n, horizon=63,
                               halflife_days=recency_halflife_days)   # walk-forward: trade params + weights
             out["walk_forward"] = wf
-            cpcv = cpcv_validate(panel, cols, base, halflife_days=recency_halflife_days, horizon=63)
+            # CANON-UNMEASURED §1 — ASK FOR THE DEPLOYED BOOK'S OWN READINGS ON EVERY RUN.
+            # `cpcv_validate` scores PBO and the Deflated Sharpe on whichever scheme ADOPTION
+            # chose, so on a universe where CPCV adopts (the corrected one does) the `cpcv`
+            # block stops describing the book that ships -- which is why
+            # `CANONICAL_MOVE_TABLE.md` had to mark the deployed pair UNMEASURED and /proof
+            # shows two blank bars. The flag costs one extra `_strategy_returns` call and makes
+            # the deployed reading reachable from the canonical file instead of only from a
+            # research artifact. Measured on the corrected panel: deployed DSR 0.7208 against
+            # the adopted book's 0.0016.
+            cpcv = cpcv_validate(panel, cols, base, halflife_days=recency_halflife_days,
+                                 horizon=63, deployed_readings=True)
             out["cpcv"] = cpcv                               # CPCV + PBO + Deflated Sharpe (strongest test)
             # CPCV is the AUTHORITY for the weights. If it ran, respect its verdict (do NOT let the
             # weaker single-path walk-forward override a CPCV rejection). Only fall back to the
