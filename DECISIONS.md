@@ -33,6 +33,10 @@ manager from Don's own words in chat.
   the deeper Index drawdown and replacing the "not a survey of survivors" sentence. No interim
   patch. The flat 1/7 weights stay: CPCV adopting a scheme does not change them (prove before
   changing). The forward contract's frozen meter parameters are not touched.
+- **2026-10-13 — THE FLEET RE-CERTIFIES ITSELF WHEN THE ONLY PROBLEM IS A STALE CERTIFICATE.** The
+  daily fleet cycle runs the self-check automatically when the certificate is stale because the
+  harness code changed (SELFCHECK_STALE / SELFCHECK_ABSENT). If the self-check FAILS, the books
+  stay shut and Don is alerted — a failing check is never re-run into a pass. Paper only.
 - **2026-10-12 — AN OPTIONS STRATEGY IS JUDGED AS ITS OWN SYSTEM, NOT AGAINST THE INDEX OR THE
   SHARES.** The Valquo Index is an equity book (ETF-like); options trading is a separate system,
   shown separately and paper-traded separately from the Index record. So SELL-PREMIUM's pass rule
