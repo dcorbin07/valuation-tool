@@ -1,5 +1,32 @@
 # HANDOFF STATUS - shared project state
 
+## options lane — **F-21/F-22 accepted and DECLARED, NOT ARMED — the entry source F-21 was declared on did not exist** (2026-10-13)
+
+Each declaration **committed ALONE** (`bde7bcd`, `399a22d`) and each validates **`ok=True`, zero
+refusals**. No fill, no trial, paper only.
+
+- **The precondition the prompt set has a worse answer than expected.** `fleet_history.SERIES`
+  held three streams and the only dip one is **`dip_rejects` — the COMPLEMENT of F-21's entry
+  population.** F-21 enters on the names the screen KEPT; nothing recorded them. Armed as
+  drafted it would have qualified nobody (`RULE_ARMED_NEVER_FIRES`).
+- **And the cadence explains the scout's 6-days-against-24:** the fleet cycle **deliberately does
+  not run the dip screen**, so the only recorders are the **weekly** scan worker and an admin
+  door. That is the weekly-to-daily ratio — a cadence mismatch, not an intermittent fault — so
+  the draft's *"within 2 sessions"* is not achievable and the declaration now evaluates first
+  appearance at the series' own cadence.
+- **Fix: a `dip_healthy` series, recorded where the screen is ALREADY paid for** (no new screen
+  anywhere; a test pins that the scan worker still holds exactly one `screen_snapshot(` call).
+  `None` refuses and `[]` records, as audit #5 `H2` requires.
+- **Both entry rules REFUSE BY NAME on a thin or stale source** (<20 rows, or >5 sessions stale),
+  saying *"a statement about the SOURCE and not about the market"* — the review's warning made
+  mechanical, against a fleet base rate of 1 armed book in 4 that ever fires.
+- **F-22 inherits F-21's clock and refusal** — drawing daily while the arm enters weekly would
+  make the twin's fills a biased superset, which is what **VOIDED `MB1-SEL`**.
+- **F-2 and F-19 folded in as recorded fields**; manifest re-exported (20 books, 5 skipped).
+- **> DON MUST RE-RUN `FLEET SELF-CHECK (re-certify)`** — `fleet_books.py` and `fleet_history.py`
+  are both fingerprinted, so every book's certificate is stale until he does.
+  `HANDOFF_optionsbot.md` §85.
+
 ## options lane — **SELL-PREMIUM-2 PASSES every leg of Don's rule — and at a realistic account size it earns 1-2%/yr because it cannot deploy** (2026-10-13)
 
 **Register `PREREG_sellpremium2.md` committed ALONE at `541e466`**; **4 options trials booked at

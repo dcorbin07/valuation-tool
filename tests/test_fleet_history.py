@@ -169,16 +169,16 @@ class TheRecorders(unittest.TestCase):
         """A recorder that raised would take the whole cycle down with it, and the cycle's
         other work is independent of whether a series accrued."""
         out = H.record_all("2026-08-24", store=FakeStore(3), rejects=["AAA"],
-                           quotes={"AAA": 0.4}, root=self.root)
-        self.assertEqual(out["recorded"], 3)
-        self.assertEqual(sorted(out["series"]), ["alert_count", "dip_rejects", "iv60_atm"])
+                           quotes={"AAA": 0.4}, healthy=["BBB"], root=self.root)
+        self.assertEqual(out["recorded"], len(H.SERIES))
+        self.assertEqual(sorted(out["series"]), sorted(H.SERIES))
         self.assertTrue(all(v["ok"] for v in out["series"].values()))
 
     def test_record_all_is_idempotent_for_a_day(self):
         H.record_all("2026-08-24", store=FakeStore(3), rejects=["AAA"],
-                     quotes={"AAA": 0.4}, root=self.root)
+                     quotes={"AAA": 0.4}, healthy=["CCC"], root=self.root)
         again = H.record_all("2026-08-24", store=FakeStore(9), rejects=["BBB"],
-                             quotes={"BBB": 0.9}, root=self.root)
+                             quotes={"BBB": 0.9}, healthy=["DDD"], root=self.root)
         self.assertEqual(again["recorded"], 0)
         self.assertTrue(all(v["already_present"] for v in again["series"].values()))
 
@@ -193,7 +193,10 @@ class TheCoverageReport(unittest.TestCase):
 
     def test_it_names_every_series_even_before_any_has_started(self):
         cov = H.coverage(self.root)
-        self.assertEqual(sorted(cov), ["alert_count", "dip_rejects", "iv60_atm"])
+        # DERIVED from the registry, because "every series" is what this test means and
+        # a retyped census goes red on every legitimate addition.
+        self.assertEqual(sorted(cov), sorted(H.SERIES))
+        self.assertIn("dip_healthy", cov)
         self.assertTrue(all(not v["present"] for v in cov.values()))
 
     def test_it_reports_the_span_once_a_series_has_days(self):
@@ -221,7 +224,7 @@ class ASeriesThatFailsToStartIsLOUD(unittest.TestCase):
 
     def test_a_healthy_run_reports_ok_and_no_failures(self):
         out = H.record_all("2026-08-24", store=FakeStore(3), rejects=["AAA"],
-                           quotes={"AAA": 0.4}, root=self.root)
+                           quotes={"AAA": 0.4}, healthy=["BBB"], root=self.root)
         self.assertTrue(out["ok"])
         self.assertEqual(out["failed_to_start"], [])
         self.assertEqual(out["loud"], "")
@@ -240,7 +243,7 @@ class ASeriesThatFailsToStartIsLOUD(unittest.TestCase):
             H.record = real
         self.assertFalse(out["ok"])
         self.assertEqual(sorted(out["failed_to_start"]),
-                         ["alert_count", "dip_rejects", "iv60_atm"])
+                         ["alert_count", "dip_healthy", "dip_rejects", "iv60_atm"])
         self.assertIn("FAILED TO START", out["loud"])
         self.assertIn("cannot be started retroactively", out["loud"])
 
@@ -266,19 +269,20 @@ class ASeriesThatFailsToStartIsLOUD(unittest.TestCase):
         try:
             H.record = lambda *a, **k: {"ok": True, "wrote": True, "reason": ""}
             out = H.record_all("2026-08-24", store=FakeStore(3), rejects=["AAA"],
-                               quotes={"AAA": 0.4}, root=self.root)
+                               quotes={"AAA": 0.4}, healthy=["BBB"], root=self.root)
         finally:
             H.record = real
-        self.assertEqual(out["recorded"], 3, "the writer CLAIMED three writes")
+        self.assertEqual(out["recorded"], len(H.SERIES),
+                         "the writer CLAIMED a write for every series")
         self.assertFalse(out["ok"], "and the read-back caught that none landed")
-        self.assertEqual(len(out["failed_to_start"]), 3)
+        self.assertEqual(len(out["failed_to_start"]), len(H.SERIES))
 
     def test_an_already_present_day_still_counts_as_STARTED(self):
         """Idempotency must not read as failure: the clock IS running."""
         H.record_all("2026-08-24", store=FakeStore(3), rejects=["AAA"],
-                     quotes={"AAA": 0.4}, root=self.root)
+                     quotes={"AAA": 0.4}, healthy=["BBB"], root=self.root)
         again = H.record_all("2026-08-24", store=FakeStore(3), rejects=["AAA"],
-                             quotes={"AAA": 0.4}, root=self.root)
+                             quotes={"AAA": 0.4}, healthy=["BBB"], root=self.root)
         self.assertEqual(again["recorded"], 0)
         self.assertTrue(again["ok"], "a second run on the same day is not a failure")
         self.assertEqual(again["failed_to_start"], [])
@@ -293,7 +297,11 @@ class F20IsNotRebuiltHere(unittest.TestCase):
         unpick. F-20 is TIME-starved, not recorder-starved."""
         self.assertNotIn("index_track", H.SERIES)
         self.assertNotIn("index_vol", H.SERIES)
-        self.assertEqual(sorted(H.SERIES), ["alert_count", "dip_rejects", "iv60_atm"])
+        self.assertEqual(sorted(H.SERIES),
+                         ["alert_count", "dip_healthy", "dip_rejects", "iv60_atm"])
+        # The PROPERTY is the two refusals above -- no series may duplicate the BOUND track.
+        # This census is what makes a NEW series a deliberate act rather than a side effect,
+        # so `dip_healthy` is named here on purpose.
 
 
 if __name__ == "__main__":
