@@ -864,6 +864,11 @@ def r1cost(panel=None):
 # ---------------------------------------------------------------------------------------------
 # REGISTER §4.1 — `P1S0` / `optionable_partition.N_PANEL_NAMES`
 # ---------------------------------------------------------------------------------------------
+#: `CORRECTED_FLOORS.json`'s long-short HAC p95 -- X7's construction (CPCV IN THE LOOP) on the
+#: CORRECTED universe. Needed because `term_structure`'s adoption by-product hard-codes the
+#: PUBLISHED universe's 2.2837 and so reports a cross-universe difference on this panel.
+CORRECTED_X7_LS_HAC_FLOOR = 1.4851553553508436
+
 #: the corrected panel WITH the long horizons -- the v3 rebuild, same 69 dates and 9,645 names
 #: as the sweep's panel (checked, not assumed) plus `fwd_ret_h63..h504`, which `P1S0`'s 252d and
 #: 504d arms cannot be scored without.
@@ -1493,6 +1498,34 @@ def table_rows():
              "WITHIN each date, so it has NO MEMORY and is a DIFFERENT, less conservative null "
              "than X7's -- its percentiles may NEVER be compared with the 2.2837 family."),
             surface="-- (research record only)"))
+        # THE ADOPTION BY-PRODUCT, CORRECTED: `term_structure` compares its own fixed-weights
+        # floor against a HARD-CODED `LS_HAC_FLOOR = 2.2837`, which is the PUBLISHED universe's
+        # X7 figure -- so on the corrected panel it reports a CROSS-UNIVERSE difference. Matched
+        # to the corrected universe's own CPCV-in-the-loop floor the sign of the published
+        # reading does not survive.
+        byp = (d or {}).get("adoption_inflation_byproduct") or {}
+        fw63 = (fl.get("63") or {}).get("ls_t_hac_p95")
+        if fw63 is not None:
+            rows.append(_row(
+                "S22 by-product: what CPCV adoption adds to a noise draw's long-short floor",
+                {"fixed_weights_p95": 1.7494074113219178, "cpcv_in_loop_p95": 2.2837,
+                 "difference": 0.5342925886780823},
+                {"fixed_weights_p95": fw63, "cpcv_in_loop_p95": CORRECTED_X7_LS_HAC_FLOOR,
+                 "difference": round(CORRECTED_X7_LS_HAC_FLOOR - fw63, 4),
+                 "as_the_script_reported_it_CROSS_UNIVERSE": byp.get("difference")},
+                "NO LONGER HOLDS",
+                ("X7's standing post-hoc reading is that CPCV adoption manufactures long-short "
+                 "*t* out of nothing, and `S22` measured the gap at +0.5343 on the published "
+                 "universe. MATCHED to the corrected universe's own CPCV-in-the-loop floor "
+                 "(1.485156, `CORRECTED-FLOORS`) the gap is **%+.4f -- essentially zero and "
+                 "slightly negative.** `term_structure` reports %.4f instead because it compares "
+                 "against a HARD-CODED 2.2837, which is the PUBLISHED universe's figure: a "
+                 "cross-universe difference. AN OBSERVATION WITH ITS OWN UNCERTAINTY AND NOT A "
+                 "TEST (`S22`'s own label): neither figure isolates CPCV, because the two nulls "
+                 "also differ in date count (62 common against 69) -- on BOTH universes, which "
+                 "is what makes the old -> new comparison like-for-like in construction."
+                 % (CORRECTED_X7_LS_HAC_FLOOR - fw63, byp.get("difference") or float("nan"))),
+                surface="-- (research record only)"))
         for h in sorted(fl, key=lambda x: int(x)):
             c, p = fl[h], (prim.get(h) or {})
             rows.append(_row(

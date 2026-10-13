@@ -77,7 +77,7 @@ universe and a disjoint grid.
 | holds on 45 of 69 / 21 of 69 dates (score calibration) | None | None | **UNMEASURED -> SUPERSEDED** | /methodology + Hot Stocks legend (TRANSCRIBED) -- ANSWERED BELOW at: score_confidence PER_NAME_DATES; score_confidence GROUP_DATES (the limitation) |
 | 32.5% vs 43.4% dip survival (V6-B) | 0.325000 | None | **UNMEASURED -> SUPERSEDED** | Dip Detector tab (TRANSCRIBED) -- ANSWERED BELOW at: V6-B M1: 32.5% vs 43.4% dip survival (the POOLED pair, LITERAL); V6-B M1 SUBSTANCE: healthy dips fall a further 20% less often |
 | 3,885 trades / 187 names / -5.06pp vs random entry (options payoff) | -0.050600 | -0.050600 | **SURVIVES** | /methodology (TRANSCRIBED) |
-| the live/forward Track Record | None | None | **UNMEASURED** | Track Record tab (LIVE) |
+| the live/forward Track Record | None | None | **UNMEASURED -> SUPERSEDED** | Track Record tab (LIVE) -- ANSWERED BELOW at: the live / forward Track Record |
 
 ## CORRECTED-CLAIMS-2
 
@@ -91,7 +91,7 @@ universe and a disjoint grid.
 | hold_horizon copy: 2-year annualized alpha | 0.051000 | {"alpha_ann": 0.025605450894651036, "move_pp": -2.5395} | **NO LONGER HOLDS** | valuation/web/hold_horizon.py (public copy) |
 | hold_horizon: median rank IC rises with horizon | {"first_quarter": 0.0336, "two_years": 0.0655, "claim": "the two-year median rank IC exceeds the one-quarter one"} | {"first_quarter": 0.05939704410272964, "two_years": 0.10173340951833093, "rises": true} | **SURVIVES** | valuation/web/hold_horizon.py (public copy) |
 | hold_horizon: PANEL_NAMES / PANEL_DATES | {"names": 2531, "dates": 69} | {"names": 9645, "dates": 69} | **NO LONGER HOLDS** | valuation/web/hold_horizon.py (public copy) |
-| S22 per-horizon fixed_weights_null floors | 8 per-horizon floors at 200 draws each | None | **UNMEASURED** | BACKTEST |
+| S22 per-horizon fixed_weights_null floors | 8 per-horizon floors at 200 draws each | None | **UNMEASURED -> SUPERSEDED** | BACKTEST -- ANSWERED BELOW at: S22 fixed_weights_null floor, h=63 (alpha_t_hac p95) |
 | score_confidence PER_NAME_DATES | 45 of 69 (gate 42) | {"dates_not_distinguishable": 12, "of_dates": 69} | **NO LONGER HOLDS** | valuation/web/score_confidence.py (public copy) |
 | score_confidence GROUP_DATES (the limitation) | 21 of 69, 'may never be stated as a standing property' | {"dates_top_decile_mean_clears": 57, "of_dates": 69, "still_a_minority": false, "derivation_validated_against_the_banked | **NO LONGER HOLDS** | valuation/web/score_confidence.py (public copy) |
 | V6-B M1: healthy dips fall a further 20% less often | {"healthy_pooled_rate": 0.3251, "unhealthy_pooled_rate": 0.4335, "pooled_gap_pp": -10.84, "registered_statistic_mean_dif | None | **UNMEASURED -> SUPERSEDED** | CLAUDE.md V6-B bullet (research only; no public surface) -- ANSWERED BELOW at: V6-B M1 SUBSTANCE: healthy dips fall a further 20% less often; V6-B M1 registered per-date statistic -- was UNMEASURED |
@@ -161,7 +161,16 @@ universe and a disjoint grid.
 | V6-B D3: the unhealthy set is ACQUIRED more, so a naive P(delisted) would have | {"healthy": 0.00292, "unhealthy": 0.00484, "ratio": 0.604} | {"healthy": 0.00744, "unhealthy": 0.00805, "ratio": 0.924} | **SURVIVES** | -- (research record only) |
 | V6-B M1 registered per-date statistic -- was UNMEASURED | -10.228339 | -12.152944 | **SURVIVES** | -- (research record only) |
 | V6-B M2 (distress within 252d) -- VOID on the published panel, ANSWERABLE here | VOID -- UNDERPOWERED BY CONSTRUCTION (42 events against a floor of 60) | NULL | **RESTATEMENT** | -- (research record only) |
-| S22 per-horizon fixed_weights_null floors | 8 floors at 200 draws | None | **UNMEASURED** | -- (research record only) |
+| S22: horizons clearing their OWN per-horizon floor (alpha / long-short) | {"alpha": "8 of 8", "long_short": "4 of 8"} | {"alpha": "8 of 8", "long_short": "8 of 8", "draws": 200} | **SURVIVES** | -- (research record only) |
+| S22 by-product: what CPCV adoption adds to a noise draw's long-short floor | {"fixed_weights_p95": 1.7494074113219178, "cpcv_in_loop_p95": 2.2837, "difference": 0.5342925886780823} | {"fixed_weights_p95": 1.5183148369949646, "cpcv_in_loop_p95": 1.4851553553508436, "difference": -0.0332, "as_the_script_ | **NO LONGER HOLDS** | -- (research record only) |
+| S22 fixed_weights_null floor, h=63 (alpha_t_hac p95) | None | 1.720884 | **RESTATEMENT** | -- (research record only) |
+| S22 fixed_weights_null floor, h=126 (alpha_t_hac p95) | None | 1.649125 | **RESTATEMENT** | -- (research record only) |
+| S22 fixed_weights_null floor, h=189 (alpha_t_hac p95) | None | 1.744273 | **RESTATEMENT** | -- (research record only) |
+| S22 fixed_weights_null floor, h=252 (alpha_t_hac p95) | None | 1.764119 | **RESTATEMENT** | -- (research record only) |
+| S22 fixed_weights_null floor, h=315 (alpha_t_hac p95) | None | 1.916643 | **RESTATEMENT** | -- (research record only) |
+| S22 fixed_weights_null floor, h=378 (alpha_t_hac p95) | None | 1.769285 | **RESTATEMENT** | -- (research record only) |
+| S22 fixed_weights_null floor, h=441 (alpha_t_hac p95) | None | 1.931191 | **RESTATEMENT** | -- (research record only) |
+| S22 fixed_weights_null floor, h=504 (alpha_t_hac p95) | None | 2.089847 | **RESTATEMENT** | -- (research record only) |
 | the live / forward Track Record | None | None | **UNMEASURED-BY-CONSTRUCTION** | Track Record tab (LIVE) |
 
 ---

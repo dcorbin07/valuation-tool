@@ -140,6 +140,8 @@ SUPERSEDED_BY = [
       "V6-B M1 registered per-date statistic -- was UNMEASURED"]),
     ("CORRECTED-CLAIMS-2", "S22 per-horizon fixed_weights_null floors",
      ["S22 fixed_weights_null floor, h=63 (alpha_t_hac p95)"]),
+    ("CORRECTED-CLAIMS part 1", "the live/forward Track Record",
+     ["the live / forward Track Record"]),
     ("CORRECTED-CLAIMS-2", "R1 net-of-cost intercept (R1's OWN path)",
      ["R1's NET-OF-COST specification (R1's OWN path) -- was UNMEASURED"]),
 ]

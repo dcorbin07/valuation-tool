@@ -370,6 +370,67 @@ than void, which is a stronger statement than the published record could make.**
 
 ---
 
+## 4.3 `S22`'s PER-HORIZON FLOORS — THE LONG-SHORT LEG NOW CLEARS AT EVERY HORIZON
+
+200 draws × 8 horizons, seeds 2000–2199, on the 62 common dates — the construction `S22`
+registered, run to its full draw count so nothing is reported PARTIAL. **The null is centred
+where it should be** (per-horizon medians **−0.070 to +0.099**, maxima 2.31–3.34), which is what
+licenses reading it at all.
+
+| | published | corrected |
+|---|---|---|
+| horizons clearing their own **alpha** floor | 8 of 8 | **8 of 8** |
+| horizons clearing their own **long-short** floor | **4 of 8** | **8 of 8** |
+
+| h | alpha *t* | own floor | ls *t* | own floor | published ls *t* |
+|---|---|---|---|---|---|
+| 63 | 4.1256 | 1.7209 | 4.7732 | 1.5183 | 2.7167 ✓ |
+| 126 | 4.4550 | 1.6491 | 4.9978 | 1.4995 | 2.7111 ✓ |
+| 189 | 3.8518 | 1.7443 | 4.5098 | 1.4834 | 2.1446 ✓ |
+| 252 | 3.6853 | 1.7641 | 4.1765 | 1.5209 | 1.8561 ✓ |
+| 315 | 4.1996 | 1.9166 | 4.1237 | 1.6447 | 1.6495 **✗** |
+| 378 | 3.6052 | 1.7693 | 3.9681 | 1.6875 | 1.1632 **✗** |
+| 441 | 3.0206 | 1.9312 | 3.8597 | 1.9049 | 0.6619 **✗** |
+| 504 | 3.3845 | 2.0898 | 4.1248 | 2.1620 | 0.6846 **✗** |
+
+**`MB21`'s CAVEAT TRAVELS WITH EVERY FIGURE ABOVE AND IS NOT OPTIONAL:** `fixed_weights_null`
+permutes WITHIN each date, so it has **no memory** and is a **different, less conservative** null
+than X7's — its percentiles may **never** be compared with the 2.2837 family.
+
+**A STANDING INSTRUCTION LOSES ITS EMPIRICAL BASIS.** The published long-short leg failed its own
+floor from **h=315** onward, and `MB21` later moved that boundary **IN** to a hard one year — which
+is where the record's rule *"no long-short figure may be quoted beyond about a year"* comes from.
+On the corrected universe **all eight clear**, the two-year long-short *t* going **0.6846 →
+4.1248**. **The measurement that justified the restriction does not reproduce here.**
+
+**AND IT CHANGES NOTHING ABOUT THE PRODUCT**, for a reason that predates it: **the long-short is
+not the product.** The Index is long-only, the move table's own §1 row says so, and
+`DECISIONS.md` 2026-10-02 binds any research-decile figure on a public page. **So this lifts a
+research restriction's empirical basis and licenses no new public claim.** `S22`'s shape verdict
+(`R_8` 6.195 → 3.372, INTERMEDIATE) was already restated by `CORRECTED-CLAIMS-2` and is not
+re-decided here.
+
+### 4.3a A CORRECTION TO `S22`'s OWN ADOPTION BY-PRODUCT, AND IT REVERSES
+
+`term_structure` reports *"what CPCV adoption adds to a noise draw's long-short floor"* by
+comparing its own fixed-weights p95 against a **hard-coded `LS_HAC_FLOOR = 2.2837`** — the
+**PUBLISHED** universe's X7 figure — so on this panel it reports a **cross-universe** difference
+of **+0.7654**. Matched to the corrected universe's own CPCV-in-the-loop floor:
+
+| | fixed weights, no CPCV | CPCV in the loop | difference |
+|---|---|---|---|
+| published | 1.7494 | 2.2837 | **+0.5343** |
+| corrected | 1.5183 | **1.4852** (`CORRECTED-FLOORS`) | **−0.0332** |
+
+**So X7's standing post-hoc reading — that CPCV adoption manufactures long-short *t* out of
+nothing — does NOT reproduce on the corrected universe.** `S22`'s own label travels unchanged:
+**an observation with its own uncertainty and not a test.** Neither figure isolates CPCV, because
+the two nulls also differ in date count (62 common against 69) — **on both universes**, which is
+exactly what makes the old → new comparison like-for-like in construction. **Adopts nothing,
+re-opens nothing**, and `X7`'s own split-on-adoption measurement on its own universe is untouched.
+
+---
+
 ## 4.4 THE LIVE / FORWARD TRACK RECORD — `UNMEASURED-BY-CONSTRUCTION`
 
 Pre-committed in the register §4.4 before anything ran, and it is a **different state** from
@@ -413,6 +474,19 @@ any lane books; §1.2 measures that as the larger half of the figure's own chang
 
 ---
 
+## SUITES
+
+**274 suites, 0 FAILED**, run on the final tree with each suite as its own process and judged by
+**exit code** (`RUN_RULES` 0.1 — never by grepping for `OK`). `tests/test_canon_unmeasured.py`
+adds **24** tests, zero skips. The auto-land gate ran every suite on a clean runner and **the
+branch landed on `origin/main`.**
+
+**AND THE GATE CAUGHT SOMETHING MY LOCAL RUN COULD NOT — see bug 7.** Two land runs failed before
+this one, and in both the sole failing suite was my own, for a reason that cannot reproduce on a
+machine that has the licensed data.
+
+---
+
 ## BUGS FOUND
 
 1. **`scripts/canon_figure_table.py` had THREE dead hard-coded paths, and the failure mode was
@@ -449,3 +523,21 @@ any lane books; §1.2 measures that as the larger half of the figure's own chang
 6. **`CANONICAL_MOVE_TABLE.md` §0 point 2's description of `cpcv.pbo` is imprecise** — §1.3.
    Corrected in this lane's own successor rows rather than by editing the hand-off table's
    historical text.
+7. **MY OWN, AND IT WAS THE ONLY GATE FAILURE: a module-level `_data_root()` call in
+   `canon_figure_table.py`.** It passed locally and failed on the runner with
+   `FileNotFoundError("no data root")`, because `data/` is gitignored. **This is the exact defect
+   `scripts/corrected_floors.py`'s docstring warns about in writing** — *"NOT CALLED AT IMPORT
+   TIME … a module-level call takes every suite that imports this file down on a CI runner"* —
+   and I wrote it after reading that file in this same session. **FIXED, and the obvious fix
+   would have been worse than the crash:** making the path lazy alone leaves the generator's body
+   at module level, so importing it would RUN THE BUILD and overwrite the tracked
+   `CANONICAL_FIGURE_TABLE.md` from a runner with no artifacts — turning a loud failure into a
+   silent truncation, which is bug 1 one level up. So the body moved into `build()`,
+   `SUPERSEDED_BY` was hoisted back to module level (a reader and a test both need it without
+   running the build), the pointer test was re-pointed at the **tracked markdown** and checked
+   for vacuity, and **the guard that would have caught it now exists**: an AST test that no
+   module-level statement resolves a data root or opens a file.
+8. **`v6b_addendum.py` had FIVE hard-coded paths** and produces a **public** figure (the Dip
+   Detector tab's pooled pair), so that figure could not be re-measured on any other universe
+   without editing the file. **FIXED** — every path an argument defaulting to the landed literal,
+   and the data dir a local rather than a rebound global.
