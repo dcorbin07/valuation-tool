@@ -18983,12 +18983,24 @@ right while `miss` was everything absent and is wrong now — it would have clai
 explanation covered themes the `zero` list holds. Derived from both lists, and the old form is
 banned inside the function.
 
-**NOT DONE, named so it is not mistaken for done: NVDA's OWN split is not measured.** It sits
-at rank 1,262 so it is outside the top-100 payload `extra.factors` ships on, and the live
-check below reads it after deploy. The mechanism and the population figures do not depend on
-it. **And `row_attribution` itself is untouched** — it is the screener lane's shared primitive
-with a landed benchmark test, so the discrimination is done at the surface from a field that
-was already there rather than by changing its return shape.
+**NVDA'S OWN ANSWER, READ LIVE AFTER THE DEPLOY: for NVDA it IS a data gap.** `why_missing`
+`["growth", "momentum"]`, `why_zero` `[]`, `split_ok` true — both themes carry a null factor,
+so the input really is absent on the name Don asked about. KO is the same. **That does not
+rescue part 4's sentence**: it asserted a cause it had not established, and across the scan
+that assertion is wrong 18% of the time.
+
+**AND THE FALSE SENTENCE WAS CAUGHT ON A LIVE NAME.** `VIRT` reads `missing: []`,
+`zero: ["growth"]` — so under part 4's code the page told its reader *"One theme could not be
+scored for this name: growth **had no input in this scan**"*, and growth was scored. `PRU`
+exercises both branches at once (`missing: ["institutional"]`, `zero: ["growth"]`), while `FNB`
+has growth genuinely absent and `RNR` momentum. **`growth` is therefore sometimes a real gap
+and sometimes not, which is exactly why no blanket sentence about it could be right** — and it
+confirms the new branch is reached on the live service rather than being dead code.
+
+**NOT DONE, named so it is not mistaken for done: `row_attribution` itself is untouched** — it
+is the screener lane's shared primitive with a landed benchmark test, so the discrimination is
+done at the surface from a field that was already on the payload rather than by changing its
+return shape.
 
 **7 new tests, all 7 failing against the pre-fix tree** (measured by restoring both files to
 HEAD, then back byte-for-byte). `tests/test_item52_no_label.py` 79/79; payoff 30/30, public
@@ -19067,6 +19079,15 @@ Don's to enter — the standing rule is that no lane prints it. The **cost** fig
 affected: the $0.0248 was measured from one real call's own `usage` block before the feature
 was switched on, which was the prompt's precondition. What is untested end-to-end is the live
 owner path: the automatic fetch, the store write and the ledger charge on the real service.
+
+**RELAYED TO THE OPTIONS LANE (`RUN_RULES` rule 3): their prompt's instruction to tell Don when
+to re-run FLEET SELF-CHECK NO LONGER APPLIES.** It was right when written — item 50 part 3 made
+the stale certificate visible and told him to run the workflow — and item 51 then made the
+daily cycle re-certify itself. **Confirmed on the first real event:** F-21/F-22 staled the
+fingerprint, the next cycle re-certified automatically in 36.1s of a 280s budget, and all 20
+books came back armed with nobody doing anything. A new entry rule no longer needs a note to
+Don; the surfaces say *"Nothing needs doing"* and mean it. The one case that still needs him is
+a **FAILING** self-check, which is never retried into a pass and alerts instead.
 
 **STILL OWED: the screenshots.** This session has no browser, so every live check above is a
 fetched payload rather than a picture. The three screenshots Don asked for are not done.
