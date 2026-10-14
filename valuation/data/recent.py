@@ -160,10 +160,19 @@ def headlines(ticker: str, name: str = "", limit: int = MAX_HEADLINES) -> dict:
     diagnostics: "no headlines" has to be distinguishable from "the feed carried none about
     this company" (`V6`'s rule), and on NVDA the second is what happens.
     """
-    out = {"available": False, "items": [], "source": "Yahoo Finance RSS",
-           "terms": ("a public syndication feed, served without a key; titles, publishers, "
-                     "dates and links only, with no article text requested or stored"),
+    # ITEM 55: the source must be on the allowlist, with its reason -- `headline_rules` holds
+    # the standard and the measured evidence for every candidate, kept and rejected.
+    from .headline_rules import ALLOWED_SOURCES, filter_titles
+    _SRC = "Yahoo Finance RSS"
+    out = {"available": False, "items": [], "source": _SRC,
+           "source_allowed": _SRC in ALLOWED_SOURCES,
+           "terms": (ALLOWED_SOURCES.get(_SRC, {}).get("terms")
+                     or "a public syndication feed, served without a key; titles, publishers, "
+                        "dates and links only, with no article text requested or stored"),
            "scanned": 0, "on_company": 0, "filtered_out": 0, "reason": "",
+           # ITEM 55: the conclusion-versus-narrative counts. "N found, M shown" is the
+           # ruling's own remedy for a filter that would otherwise be a quiet list.
+           "n_found": 0, "n_shown": 0, "n_excluded": 0, "excluded_by_kind": {},
            "keys": list(_company_keys(ticker, name))}
     if not out["keys"]:
         out["reason"] = "no usable company name or symbol to match a headline against"
@@ -199,12 +208,28 @@ def headlines(ticker: str, name: str = "", limit: int = MAX_HEADLINES) -> dict:
                      "publisher": (it.findtext("source") or "").strip() or "Yahoo Finance"})
     out["on_company"] = len(keep)
     out["filtered_out"] = max(0, out["scanned"] - len(keep))
-    keep.sort(key=lambda x: x.get("date") or "", reverse=True)
-    out["items"] = keep[: max(0, int(limit))]
+    # ITEM 55: THE CONCLUSION/NARRATIVE LINE. Applied AFTER the name filter, so the two counts
+    # answer different questions -- "is this about the company" and "is this a reported fact
+    # rather than somebody's opinion" -- and a reader can see both.
+    split = filter_titles(keep)
+    out["n_found"] = split["n_found"]
+    out["n_shown"] = split["n_shown"]
+    out["n_excluded"] = split["n_excluded"]
+    out["excluded_by_kind"] = dict(split["excluded_by_kind"])
+    shown = split["shown"]
+    shown.sort(key=lambda x: x.get("date") or "", reverse=True)
+    out["items"] = shown[: max(0, int(limit))]
     out["available"] = bool(out["items"])
     if not out["items"]:
-        out["reason"] = ("the feed carried %d recent headlines and none of them named this "
-                         "company" % out["scanned"])
+        if out["scanned"] and not keep:
+            out["reason"] = ("the feed carried %d recent headlines and none of them named "
+                             "this company" % out["scanned"])
+        elif keep:
+            out["reason"] = ("%d headlines named this company and none was a reported fact or "
+                             "an attributed conclusion -- the rest were opinion or "
+                             "promotional pieces" % len(keep))
+        else:
+            out["reason"] = "the feed carried no recent headlines"
     return out
 
 

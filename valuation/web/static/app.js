@@ -1015,7 +1015,11 @@ async function loadRecent(ticker, name) {
         <span class="co-src">${esc(it.publisher || "")} · ${esc(it.date || "")}</span></div>`).join("")}
       <div class="co-src">${esc(h.source || "")}. Headlines only — this page never fetches or
         stores article text. ${h.scanned ? `${h.on_company} of ${h.scanned} items in the feed
-        named this company.` : ""}</div></div>`;
+        named this company${h.n_found ? `, and ${h.n_shown} of those ${h.n_found} ${
+          h.n_found === 1 ? "is" : "are"} a reported fact or an attributed conclusion` : ""}.`
+        : ""}
+        ${h.n_excluded ? `${h.n_excluded} opinion or promotional ${
+          h.n_excluded === 1 ? "piece was" : "pieces were"} not shown.` : ""}</div></div>`;
   } else if (h.reason) {
     html += `<div class="rc-h"><b>Recent headlines</b> — ${esc(h.reason)}.</div>`;
   }

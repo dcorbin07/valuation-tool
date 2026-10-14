@@ -5,18 +5,146 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 92 — 2026-10-13 — ITEM 55: more headline sources, conclusions yes, narrative no
+
+Don's ruling (2026-10-13, and this one IS in `DECISIONS.md`, line 135): *"HEADLINES MAY COME FROM
+ANY VERIFIABLE, TRUSTWORTHY SOURCE, NOT ONLY SEC AND YAHOO. The line is between a conclusion and
+a narrative … Every headline names its source and links to it."*
+
+## 1. EVERY CANDIDATE THE RULING NAMED WAS MEASURED. NONE EARNED A PLACE.
+
+That is a finding rather than a failure to do the work — the instruction was to *"keep only
+sources that earn their place"*. Measured on **NVDA, TSLA, KO, APLD and OCTV** (the last two
+small, as asked), 2026-10-13, the same way item 53 measured Yahoo:
+
+| candidate | result | the number that decided it |
+|---|---|---|
+| **SEC EDGAR** | **KEPT** | per-CIK, so about the company *by construction*; terms unambiguous |
+| **Yahoo Finance RSS** | **KEPT** | **44 of 86 titles (51%)** name the company; syndication feed, no key, publisher per item |
+| Seeking Alpha per-symbol | **REJECTED ON TERMS** | **102 of 132 (77%)**, 30 items a symbol — **the best yield measured** |
+| Nasdaq per-symbol | unreachable | `ReadTimeout` on **two endpoints at 60s**, after 45s in item 53 — **three attempts** |
+| GlobeNewswire | HTTP **403** | both the keyword search and the subject feed |
+| PR Newswire | wrong shape | 20 items, **0** naming any of the five |
+| Business Wire | wrong shape | no per-symbol feed at all |
+| CNBC public RSS | wrong shape | 30 items, **0** naming any of the five |
+| FDA / FTC / DOJ | wrong shape | **0 of 55** items named any of the five |
+| Stocktwits RSS | HTTP **404** | every symbol |
+
+**THE REJECTION THAT COSTS SOMETHING IS SEEKING ALPHA, so it is recorded most carefully.** It is
+the best source measured — 77% on-company at 30 items a symbol, against Yahoo's 51% at ~17 — and
+**its own terms forbid both halves of what we would do with it**: *"Use any robot, spider … to
+download, retrieve, index, 'data mine', 'scrape', 'harvest'"* and *"may not use, copy, display …
+republish … without our prior written consent"*, with no RSS exception. The prompt's own
+constraint is "no scraping a site whose terms forbid it", so the yield does not get a vote.
+
+**THE MARKET-WIDE FEEDS ARE THE RIGHT PUBLISHERS AND THE WRONG ROUTE**, and that distinction is
+what a successor needs: an FDA decision feed is exactly right for a biotech on an approval day,
+but an agency-wide feed of ~20 items has a vanishing chance of naming any one company, and none
+of these publishers offers a per-company query without a key. **0 of 105 items across five such
+feeds.** The route fails, not the publisher.
+
+**The standard itself is written down** — a named accountable publisher, a link to the original,
+terms permitting a title and a link, and a per-company route — with each kept source's reason
+beside its permission and each rejection's measurement beside its name, **in the code**, because
+the next person to ask "why not Nasdaq?" will be reading that file rather than this one.
+
+## 2. THE FILTER IS AN ALLOWLIST OF CONCLUSIONS, NOT A DENYLIST OF OPINION
+
+**AND THE MEASUREMENT IS WHY.** My first cut denied exactly the shapes the ruling names — "should
+you buy", "N reasons", price-prediction hype — and **kept 93% of Yahoo's on-company titles and
+97% of Seeking Alpha's**, including *"Coca-Cola or Chevron: The One Dividend Stock I'd Hold for
+the Next 20 Years"*, *"Nvidia: The Buyback Is The Opportunity"* and *"Applied Digital: More Than
+600MW Could Drive The Next Leg Of Growth"* — three plainly-opinion headlines, all kept. **A
+denylist of opinion cannot be completed, because opinion is infinitely phrasable.**
+
+A conclusion is not. Guidance, a rating change, a regulator's decision, a lawsuit, a contract, a
+results release, an appointment, an acquisition, an attributed statement, a reported price move —
+these have enumerable markers and an allowlist of them can be audited by reading it. So an item
+shows only if it carries a conclusion marker, and **a promotional marker overrides a conclusion
+marker**: *"3 Reasons Nvidia Could Soar After Earnings"* matches `earnings` and is exactly what
+the ruling excludes, so the order is drop-first and that order IS the rule.
+
+**MEASURED YIELD: 44 on-company → 22 shown (50%), 22 excluded**, against the 93% a denylist kept.
+
+**TWO DEFECTS OF MY OWN, both found by running the filter on the live feed rather than reading
+it, and the first is a fidelity gap against the ruling itself:**
+
+* **An attributed conclusion is EXPLICITLY allowed and had no marker at all.** The ruling permits
+  *"a conclusion attributed to someone"*, whose canonical form is "X says Y" — so *"EXCLUSIVE:
+  Ross Gerber Says Tesla May Make Just 'a Few Hundred' Roadsters"*, the most attributed shape
+  there is, was being dropped as unattributed. Added as its own group.
+* **A pattern bug dropped a real fact:** `\bdividend\b` cannot match "Dividend**s**", so
+  *"Coca-Cola Has Raised Dividends for 63 Years"* was unattributed. Also added reported price
+  moves, which were all being dropped (*"Why Octave Intelligence Stock Slumped Today"* states
+  what happened).
+* And one **false show**: *"Tesla Trades at 219x Earnings. Here's Why I'm Not Buying the Bet"*
+  matched `earnings` and is pure opinion — the first-person set had "I'd" and "I think" but not
+  "I'm" or "Here's why".
+
+**THE COST IS RECALL AND IT IS PAID DELIBERATELY.** A real item phrased unusually is dropped —
+**NVDA currently shows 0 of its 2 on-company headlines**, one promotional and one unattributed,
+and the page says so in those words. The ruling's own remedy is carried: **every exclusion is
+counted**, the page says *"N of M named this company, and K of those are a reported fact or an
+attributed conclusion"* plus *"N opinion or promotional pieces were not shown"*, and an empty
+result names **which** filter emptied it — "the feed had nothing", "nothing named this company"
+and "nothing was a reported fact" are three different facts and read differently.
+
+## 3. SOURCE, DATE, LINK — AND STILL NO ARTICLE TEXT
+
+Every shown headline carries its title, publisher, date and a link to the original, verified on
+the live feed. **The structural property from item 53 is re-asserted here**, because widening the
+sources is exactly when such a property gets lost: the RSS `description` is still never read and
+no article URL is ever requested, pinned on comment-stripped code. The AI analysis still has to
+name any headline it relies on (`headlines_used`).
+
+## WHAT WENT WRONG IN MY OWN WORK
+
+**THREE COUNT-BASED GUARDS OF MINE WERE WRONG TODAY, and that is now a named pattern rather than
+three accidents.** Item 53 capped how many times `average_risk` may appear in a file (read 9
+against a bound of 6, on a correct file); here I asserted `out["reason"]` appeared 3 times
+module-wide (it is 11, because two sibling functions set reasons of their own), then 4 times
+function-scoped (it is 6). **A count is a PROXY, and a proxy for a property is the thing this
+project keeps finding in its own tests.** The count assertion is retracted outright — the three
+distinct phrases already carry the property — with the retraction recorded at the test.
+
+Also: a heredoc ate a `\n` escape and wrote a literal newline into a test file, producing a
+`SyntaxError`. Patch scripts that need an escape go in a file, not a heredoc.
+
+**2 of 2 mutations caught** — disabling the promotional check (3 failures) and re-admitting the
+terms-forbidden source (2 failures) — with the source restored byte-for-byte.
+
+**Tests:** `tests/test_item55.py` 22 tests. Green alongside: item 54 39/39, item 53 55/55,
+public-posture 43/43, ma60-conventions, requirements-lock, docs-entry-points. `node --check`
+clean.
+
+**NOT DONE:** no new source was added, which is the measured answer rather than an omission; and
+the live verification on NVDA and TSLA follows the deploy.
+
 # Session 91 — 2026-10-13 — ITEM 54: repair the live scan on the free route
 
 Don's ruling on item 53 part 7: the repair goes ahead on the free route, and it is a **REPAIR,
 NOT A VINTAGE EVENT** — no scoring rule changes, inputs the rules already expect come back, and
 the Index record is built from Sharadar rather than the live scan.
 
-**A NOTE ON THE RULING ITSELF:** the item-53-part-7 entry is **not in `DECISIONS.md`** as of this
-session, the same way item 52's rulings were not when that item ran. Line 88 does corroborate the
-last clause — *"the free live data route is the goal; Sharadar is the fallback … the free route is
-NO-GO today, so rebalances use Sharadar"* (2026-09-30) — so this was built from the prompt's
-statement of the ruling, with the Sharadar half independently confirmed. Flagged rather than
-assumed.
+**A CORRECTION TO MY OWN FIRST READING, and the lesson is where to look.** I checked
+`DECISIONS.md` at the start of this item, did not find the ruling, and flagged it as missing the
+way item 52's rulings genuinely were. **It was there by the time this landed** — the file is
+maintained outside git and reaches a lane either by absolute path in the main folder or by a
+merge, and the `origin/main` merge immediately before the push brought it in. `DECISIONS.md`'s own
+2026-10-13 entry says so: *"KEEP THE MANAGER'S FILES OFF GITHUB … Lanes read this file and their
+prompts by absolute path in the main folder."* **So read the MAIN FOLDER copy, not the worktree's,
+or re-check after merging.**
+
+**AND THE RULING MATCHES WHAT WAS BUILT, CLAUSE BY CLAUSE**, which is worth stating because I had
+built it from the prompt's paraphrase:
+
+> *"FMP is unpaid and is taken out of the fetch chain (not renewed); a name whose fetch failed is
+> retried on Yahoo; a name scored on too few themes is marked as such and is not ranked at the top
+> of the hot list. No scoring rule changes — inputs the rules already expect come back — and the
+> Index record is built from Sharadar, not the live scan, so vintage 4 stays open."*
+
+All four clauses are implemented as written, including the last: nothing here touches
+`build_index` or the rebalance path, so **vintage 4 stays open.**
 
 **THE PROPERTY THAT MAKES IT A REPAIR IS CHECKED, NOT PROMISED.** Both weight sets still carry
 exactly seven non-zero weights, all 0.125, with `growth` absent from the established book and
