@@ -123,9 +123,29 @@ manager from Don's own words in chat.
   blind before the first row is recorded. Also queued: Index rows link to each name's valuation
   with a "why is this held?" breakdown; recent earnings and headlines on the page and in the AI
   analysis; the fair value at an ordinary discount rate beside the headline, and plain definitions.
+- **2026-10-13 — THE LIVE SCAN'S MISSING DATA IS FIXED ON THE FREE ROUTE, AND IT IS A REPAIR, NOT
+  A VINTAGE EVENT.** FMP is unpaid and is taken out of the fetch chain (not renewed); a name whose
+  fetch failed is retried on Yahoo; a name scored on too few themes is marked as such and is not
+  ranked at the top of the hot list. No scoring rule changes — inputs the rules already expect come
+  back — and the Index record is built from Sharadar, not the live scan, so vintage 4 stays open.
+- **2026-10-13 — RESEARCH QUEUED:** SELL-PREMIUM-3 (the put-spread version) after SELL-PREMIUM-2's
+  stage 2; clustered insider buying tested in SHARES (F-15's options form is dead on arithmetic);
+  and a test of an adjusted beta against the vendor's raw beta before any change to the valuation
+  engine.
+- **2026-10-13 — HEADLINES MAY COME FROM ANY VERIFIABLE, TRUSTWORTHY SOURCE, NOT ONLY SEC AND
+  YAHOO.** The line is between a conclusion and a narrative: a reported fact or a conclusion
+  attributed to someone (guidance, an analyst's rating change, a regulator's decision, a press
+  release) is allowed; opinion and promotional pieces ("should you buy", "3 reasons it will soar",
+  price-prediction hype, paid promotion) are not. Every headline names its source and links to it.
 
 ## How Don works
 
+- **2026-10-13 — KEEP THE MANAGER'S FILES OFF GITHUB.** Don is not asked to run `git_push.bat`
+  unless something would break without it. Lanes read this file and their prompts by absolute path
+  in the main folder (`C:\Users\donni\Downloads\valuation-tool\`), so they see rulings that have
+  not been pushed; a lane's own worktree copy of this file can be out of date. To bring the main
+  folder up to date without publishing anything, use `git merge --ff-only origin/main` rather than
+  `sync.bat` (which banks uncommitted edits to a `rescue/` branch on GitHub).
 - **2026-10-04 — Don does not create or edit files on GitHub.** Changes go through a Claude Code
   lane, a .bat file he double-clicks, or — for `.github/` files, which the land gate refuses to
   lanes — `data/pending_workflows/<name>.yml` plus `install_workflows.bat`.
