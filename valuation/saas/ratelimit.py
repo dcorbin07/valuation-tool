@@ -36,6 +36,18 @@ LIMITS = {
     "/api/portfolio": (30, 3600),       # CPU
     "/api/export/pdf": (30, 3600),      # CPU (renders a document)
     "/api/export/excel": (30, 3600),
+    # ITEM 56. `/api/recent` used to be three free feeds and had no bucket, which was right.
+    # It now also walks EDGAR for the company's own filed press releases, measured at 7 to 19
+    # requests per uncached name. The per-ticker-per-day cache defends REPEATS and nothing
+    # defended ENUMERATION -- MA7's defect exactly, one door over -- and the SEC's stated
+    # 10 requests/second ceiling is PER-IP, so it is shared by every visitor at once.
+    #
+    # 60 an hour is ~780 SEC requests at the measured cost, or 0.22/second averaged: far under
+    # the ceiling, and far more names than anyone reads in an hour. It is deliberately NOT the
+    # `ai:value` bucket (that one bounds Anthropic spend, and a visitor reading headlines must
+    # not be able to exhaust the owner's analysis budget) and NOT the vendor valuation bucket
+    # (a different upstream with a different scarcity).
+    "/api/recent": (60, 3600),
     # Not a path: /api/value is only limited when it asks for the AI layer. The plain
     # valuation is the product's core action and stays unlimited. See bucket_for().
     "ai:value": (20, 3600),

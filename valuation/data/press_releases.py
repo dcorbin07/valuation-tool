@@ -266,8 +266,24 @@ _MAX_TITLE_CHARS = 220
 #: so a future reader can tell whether EDGAR's shape has changed under this module.
 EXTRACTION_MEASURED = {
     "date": "2026-10-13",
-    "note": ("filings scanned, exhibits found, headings read and titles kept by the item 55 "
-             "conclusions filter, per ticker -- see HANDOFF_appfixes.md item 56"),
+    "script": "python -m scripts.i56_measure",
+    # ticker: (8-K filings scanned, exhibits found, headings read, kept, EDGAR requests)
+    "per_ticker": {
+        "NVDA": (8, 4, 3, 3, 14),
+        "TSLA": (8, 7, 4, 4, 16),
+        "KO": (7, 5, 4, 4, 14),
+        "APLD": (8, 7, 4, 4, 15),
+        "OCTV": (3, 3, 3, 2, 7),
+    },
+    "found": 18,
+    "naming_the_company": 18,        # by construction -- the company filed it
+    "kept": 17,
+    "names_with_an_item": "5 of 5",
+    "requests_total": 66,
+    # For scale, from item 55's own measurement of the news feed on the same names: 86 titles,
+    # 44 naming the company (51%), and NVDA got nothing at all. That gap is the reason this
+    # source was worth building.
+    "news_feed_for_scale": {"titles": 86, "on_company": 44, "share": 0.51, "nvda": "0 shown"},
 }
 
 
