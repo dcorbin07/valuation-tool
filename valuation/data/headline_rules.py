@@ -85,11 +85,43 @@ ALLOWED_SOURCES = {
                   "and links only, and no article text is ever requested"),
         "publisher_named": True,
     },
+    # ITEM 56 ROUTE 1. The best-yielding source this project has found, and the only one that
+    # produced an item for every name tried -- including OCTV, for which the news feed carries
+    # nothing at all. 18 releases found and 17 kept across NVDA, TSLA, KO, APLD and OCTV.
+    "SEC EDGAR (8-K exhibits)": {
+        "kind": "the company itself, filed with its regulator",
+        "per_company": ("by construction -- the company filed it under its own CIK. 18 found, "
+                        "18 naming the company, 17 kept, items on 5 of 5 names measured"),
+        "terms": ("SEC: \"All Government-created content on sec.gov and EDGAR public filing "
+                  "content are free to access and reuse.\" Declared User-Agent, under the "
+                  "stated 10 requests/second ceiling."),
+        "publisher_named": True,
+    },
 }
 
 #: Why each measured candidate is NOT allowed. Kept in the code rather than only in a handoff,
 #: because the next person to ask "why not Nasdaq?" will be reading this file.
 REJECTED_SOURCES = {
+    # ITEM 56 ROUTE 2. Rejected on TWO independent grounds, either of which is sufficient, and
+    # neither of which is about its terms -- those are the most permissive of any source looked
+    # at. Measured 2026-10-13.
+    "GDELT DOC 2.0 API":
+        ("terms: PERMISSIVE and not the reason for the rejection -- \"all datasets released by "
+         "the GDELT Project are available for unlimited and unrestricted use for any academic, "
+         "commercial, or governmental use of any kind without fee\", requiring only a citation "
+         "and a link to gdeltproject.org, which this project would have carried. "
+         "REJECTED FIRST ON REACHABILITY: its documented limit is one request every 5 seconds, "
+         "and it returned HTTP 429 \"Please limit requests to one every 5 seconds\" for 4 of 5 "
+         "names at 5.5s spacing, 4 of 5 at 15s, and 5 of 5 at 20s -- so the block is a "
+         "sustained per-IP one rather than a per-request gate, and it gets WORSE as the "
+         "spacing lengthens. A source that cannot be reached four times in five cannot be "
+         "fetched inside a page request. "
+         "REJECTED SECOND ON YIELD, which is independent of the rate limit: the one query that "
+         "did return gave 2 articles over 7 days for TSLA, of which ZERO named the company -- "
+         "\"Tata Motors raises Iveco takeover offer\" and \"Dear PM Ambani: Musk latest swipe "
+         "at Reliance\" -- from economictimes.indiatimes.com and rediff.com, neither of which "
+         "would sit on an established-outlet allowlist for US equities. So the outlet "
+         "allowlist the ruling asked for was never reached: there was nothing to allow."),
     "Seeking Alpha per-symbol RSS":
         ("terms: its own ToS forbids automated retrieval (\"robot, spider ... 'scrape', "
          "'harvest'\") AND display (\"may not ... display ... republish ... without our prior "
@@ -190,6 +222,11 @@ _CONCL = [(g, re.compile(p, re.I)) for g, ps in CONCLUSION_PATTERNS.items() for 
 _PROMO = [re.compile(p, re.I) for p in PROMOTIONAL_PATTERNS]
 
 
+#: A letter heading: `Dear Hexagon Shareholders`. Not a statement about the company in either
+#: direction, so it falls under both classifiers.
+_SALUTATION = re.compile(r"^(dear|to\s+our|an?\s+(open\s+)?letter)\b", re.I)
+
+
 def classify(title: str) -> dict:
     """Is this headline a CONCLUSION we may show, and why or why not?
 
@@ -220,17 +257,69 @@ def classify(title: str) -> dict:
             "matched": ""}
 
 
-def filter_titles(items, key="title") -> dict:
+def classify_filed(title: str) -> dict:
+    """`classify` for a document the company itself filed.  [item 56]
+
+    THE PROMOTIONAL TEST STILL APPLIES AND THE ATTRIBUTION TEST DOES NOT, and that is a
+    measurement rather than a preference. `classify` asks two things of a title: is it
+    promotional, and does it carry a marker that makes it a reported fact rather than somebody's
+    opinion. The second question exists because a news feed's titles can be anyone's view --
+    and it is **vacuous for an 8-K exhibit**, which the company filed under its own CIK and
+    signed its name to. Don's ruling says so in as many words: *"a verifiable statement by the
+    company, attributed by construction"*.
+
+    Run as written on the five measured names it dropped three filed releases, and **two of the
+    three are real corporate events** whose verbs the conclusion list simply does not contain:
+
+        NVIDIA Guarantees SB Energy's PORTS-Pike Technology Campus in Ohio      <- a guarantee
+        Octave Intelligence Plc Listed on Nasdaq Stockholm                      <- a listing
+        Dear Hexagon Shareholders                                   <- correctly dropped
+
+    So the attribution test was rejecting company announcements for being phrased in verbs a
+    news desk does not use. The promotional test is kept as a backstop -- a filed release
+    essentially never trips it, and a check that costs nothing and could only ever remove
+    something is worth keeping -- and the third drop above still falls, because a letter
+    heading is not a statement about the company either way.
+
+    This is a DECLARED DEPARTURE from "exactly the same filter". The departure is one half of
+    one test, on one source, for a measured reason, and it is implemented HERE rather than as a
+    second filter in `press_releases` so the project keeps one definition of this rule.
+    """
+    t = str(title or "").strip()
+    if not t:
+        return {"show": False, "kind": "empty", "reason": "no title", "matched": ""}
+    for p in _PROMO:
+        m = p.search(t)
+        if m:
+            return {"show": False, "kind": "promotional",
+                    "reason": "an opinion or promotional format, which the ruling excludes",
+                    "matched": m.group(0)}
+    # A heading that is a salutation is not a statement about the company.
+    if _SALUTATION.match(t):
+        return {"show": False, "kind": "salutation",
+                "reason": "a letter heading rather than a statement about the company",
+                "matched": t.split(" ")[0]}
+    return {"show": True, "kind": "filed_by_the_company",
+            "reason": ("the company filed this under its own CIK and signed its name to it, so "
+                       "it is attributed by construction"),
+            "matched": ""}
+
+
+def filter_titles(items, key="title", *, filed_by_the_company: bool = False) -> dict:
     """Split a list of headline dicts into shown and excluded, with counts.
 
     **THE COUNTS ARE PART OF THE ANSWER**, per the ruling: the page says "N found, M shown", so
     a reader can see the filter is working rather than discover a quiet list.
+
+    `filed_by_the_company` switches to `classify_filed` -- read its docstring before setting it,
+    because it turns off half of one test and the reason is measured.
     """
     shown, excluded = [], []
     by_reason = {}
+    _c = classify_filed if filed_by_the_company else classify
     for it in items or []:
         title = (it or {}).get(key) if isinstance(it, dict) else str(it)
-        c = classify(title)
+        c = _c(title)
         if isinstance(it, dict):
             it = dict(it)
             it["kind"] = c["kind"]

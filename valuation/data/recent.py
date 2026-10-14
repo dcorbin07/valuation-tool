@@ -368,10 +368,24 @@ def last_reported_quarter(ticker: str, cik=None) -> dict:
 
 
 def recent_block(ticker: str, name: str = "", cik=None) -> dict:
-    """Everything part 2 adds, in one object, for the page and the AI analysis."""
+    """Everything part 2 adds, in one object, for the page and the AI analysis.
+
+    ITEM 56: `press_releases` is the company's own filed announcements, and on the five names
+    measured it is the only source that produced an item for EVERY one of them -- including the
+    small name the news feed carries nothing about. It is listed before `headlines` because it
+    is the better evidence: a statement the company signed its name to, rather than somebody's
+    coverage of one.
+    """
+    from .press_releases import press_releases
+
+    pr = press_releases(cik)
+    # `_all` is the PRE-filter list and exists for `scripts/i56_measure.py` only. It must not
+    # reach the payload: the counts belong on the page and the excluded titles do not.
+    pr.pop("_all", None)
     return {
         "ticker": str(ticker or "").upper(),
         "last_quarter": last_reported_quarter(ticker, cik=cik),
+        "press_releases": pr,
         "headlines": headlines(ticker, name=name),
         "filings": filings(cik),
         "feed_purity_measured": dict(FEED_PURITY_MEASURED),
