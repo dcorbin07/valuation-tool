@@ -11794,7 +11794,9 @@ that cannot be repeated, a second scoring path would be unrecoverable.
   | $25k / 10 | 146 | $13,491 | **−46.0%** |
   | $25k / 50 | **13** | $25,473 | +1.9% *(survives on 13 trades)* |
   | $50k / 10 | 276 | $13,689 | **−72.6%** |
+  | $50k / 50 | 82 | $48,464 | −3.1% |
   | $100k / 10 | 427 | $18,718 | **−81.3%** |
+  | $100k / 50 | 195 | $78,843 | −21.2% |
   | $250k / 10 | 505 | $43,893 | **−82.4%** |
   | $250k / 50 | 651 | $119,273 | **−52.3%** |
 
@@ -11923,10 +11925,34 @@ adopted, no real trade.** Zero trials — an arming is machinery, not a search.
   fleet grows** — every implemented rule is a DECLARED book, and `f1_fill_ab` is the only
   rider. **A guard asserting "these two numbers are equal today" fires on the clock; assert the
   property the equality stood in for.**
+* **THE DECLARATIONS WERE AMENDED BEFORE THE ARMING WAS LEGITIMATE, AND A TRIPWIRE I DID NOT
+  KNOW ABOUT IS WHAT FORCED IT.** The full gate came back **282 suites, ONE failure** —
+  `tests/test_f21_f22.py::test_NEITHER_BOOK_IS_ARMED`, a guard written by the item that drafted
+  these books, pinning the declarations' own *"DECLARED AND NOT ARMED. This book may not be
+  armed until..."*. **It was RIGHT to go red.** The declaration is the authority and the code
+  may never reinterpret it, so arming without amending would have been exactly the failure the
+  harness exists to prevent — and I would have shipped it, because I had read the
+  `arming_precondition` as self-contradictory and resolved it in my own favour rather than in
+  the document's. **Both declarations now carry a dated `arming_amendment`, BEFORE ANY FILL**,
+  recording that the precondition is enforced **in code by a named refusal** instead of by
+  withholding the entry rule, that this is **strictly more visible** (an unarmed book writes
+  NOTHING, so the day the data became ready nobody would have been told), and that
+  `min_healthy_rows` 20 and `max_stale_sessions` 5 are **untouched** — what changed is who
+  enforces them. It is the mechanism both declarations already used once
+  (`entry_source_amendment`), and it is legitimate **only** because neither book has ever
+  filled, so no recorded `decl_sha` is invalidated. **`committed_alone` survives**: the harness
+  checks the commit that **ADDS** the file (`--diff-filter=A`), so an amendment cannot launder
+  a declaration's provenance — checked rather than assumed. **`data_export/fleet_declarations.json`
+  is regenerated in the same commit**, because the deploy image has no `.md` files and reads
+  the manifest, so a stale one would make the service and the repo disagree about what these
+  books declare. **And the tripwire is REPOINTED to the property it stood in for rather than
+  re-asserted or deleted: neither book may FILL until the series is fit**, exercised against
+  the LIVE series and requiring the refusal to say why — which is strictly stronger than
+  `not in RULES`, since that only ever said *nobody wired it up*.
 * **NOT DONE, named so it is not mistaken for done: NEITHER BOOK HAS FILLED ANYTHING AND
   NEITHER CAN UNTIL `dip_healthy` REACHES 20 ROWS**, which at the recorder's weekly-ish cadence
   is months away, not days. **F-22 additionally needs `p` and `F22_SALT` declared**, and p
   depends on F-21's observed fill rate, so F-22 cannot start with F-21. No workflow was
-  written; no `.github/` file changed; no declaration was edited. **18 tests, zero errors.**
+  written; no `.github/` file changed; no declaration was edited. **18 new tests plus the repointed tripwire (23 of 23), zero errors.**
   `valuation/edge/fleet_books.py` (`pick_by_delta`, `_dip_healthy_rows`, `_f21_source_gate`,
   `f21_v6opt_dip_csp`, `f22_dip_csp_random_twin`), `valuation/saas/app_saas.py` (comment).

@@ -63,6 +63,16 @@ def _decl(book):
     return json.loads(m.group(1))
 
 
+def _decl_of(book):
+    import io as _io
+    import os as _os
+    from valuation.edge import fleet as _F
+    _here = _os.path.dirname(_os.path.abspath(__file__))
+    with _io.open(_os.path.join(_os.path.dirname(_here), "DECL_%s.md" % book),
+                  encoding="utf-8") as fh:
+        return _F.parse_declaration(fh.read())["declaration"]
+
+
 class Declarations(unittest.TestCase):
     BOOKS = ("f21_v6opt_dip_csp", "f22_dip_csp_random_twin")
 
@@ -168,10 +178,42 @@ class EntryRules(unittest.TestCase):
             {"date": "2026-10-09", "payload": ["AAA", "CCC"]},
             {"date": "2026-10-16", "payload": ["CCC", "DDD"]}]
 
-    def test_NEITHER_BOOK_IS_ARMED(self):
-        """`declared, not armed` is checkable rather than asserted: `cycle()` reads `RULES`."""
-        self.assertNotIn("f21_v6opt_dip_csp", FB.RULES)
-        self.assertNotIn("f22_dip_csp_random_twin", FB.RULES)
+    def test_NEITHER_BOOK_CAN_FILL_UNTIL_THE_SERIES_IS_FIT(self):
+        """REPOINTED 2026-10-13 WHEN BOTH BOOKS WERE ARMED, AND THE OLD ASSERTION WAS RIGHT
+        TO GO RED.
+
+        This asserted `book not in RULES` as a proxy for the declarations'
+        `arming_precondition`. **Both declarations now carry a dated `arming_amendment`**
+        recording that the precondition is enforced IN CODE instead of by withholding the
+        entry rule - `min_healthy_rows` 20 and `max_stale_sessions` 5 are untouched, and what
+        changed is who enforces them.
+
+        **THE REPOINT IS TO THE PROPERTY THE OLD ASSERTION STOOD IN FOR, AND IT IS STRICTLY
+        STRONGER.** `not in RULES` only said *nobody wired it up*; this says **the gate
+        refuses on the real series and says why on the book's own stream**. An unarmed book
+        writes NOTHING, so the day the data became ready nobody would have been told. If a
+        future session makes these books fill on a thin series, this goes red again -- which
+        is what the original was for.
+        """
+        import datetime as _dt
+        for book in ("f21_v6opt_dip_csp", "f22_dip_csp_random_twin"):
+            self.assertIn(book, FB.RULES, "armed under the 2026-10-13 arming_amendment")
+            rows, why = FB._f21_source_gate(book, _decl_of(book), None,
+                                            _dt.date.today())
+            self.assertIsNone(rows, "%s must not select on the live series yet" % book)
+            self.assertTrue(why, "a refusal must SAY why, never return an empty list")
+
+    def test_the_arming_amendment_is_in_the_declaration_and_did_not_move_the_bars(self):
+        """The declaration is the authority. Arming without amending it would be the code
+        reinterpreting a frozen document, which is the failure the harness exists to prevent.
+        """
+        for book in ("f21_v6opt_dip_csp", "f22_dip_csp_random_twin"):
+            st = _decl_of(book).get("structure") or {}
+            self.assertIn("arming_amendment", st)
+            self.assertIn("BEFORE ANY FILL", st["arming_amendment"])
+            self.assertIn("arming_precondition", st, "the clause amended is still on record")
+            self.assertEqual(int(st["min_healthy_rows"]), 20)
+            self.assertEqual(int(st["max_stale_sessions"]), 5)
 
     def test_a_THIN_series_refuses_BY_NAME_rather_than_returning_an_empty_list(self):
         st = FB.healthy_series_state([], "2026-10-13", min_rows=20, max_stale=5)

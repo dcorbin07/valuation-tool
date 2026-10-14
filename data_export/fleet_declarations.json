@@ -55,7 +55,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f10_clean_csp.md"
@@ -111,7 +111,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f11_dip_reject_puts.md"
@@ -167,7 +167,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f12_postevent_reversal.md"
@@ -222,7 +222,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f13_second_event.md"
@@ -277,7 +277,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f14_fda_nohump.md"
@@ -333,7 +333,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f15_insider_cluster.md"
@@ -393,7 +393,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f17_vrp_percentile_sells.md"
@@ -453,7 +453,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f18_boring_book.md"
@@ -507,7 +507,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f19_density_gate.md"
@@ -560,7 +560,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f1_fill_ab.md"
@@ -616,7 +616,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f20_married_put_storm.md"
@@ -626,7 +626,7 @@
       "commit": "bde7bcda735444f717a157d9547c26ec01135602",
       "commit_date": "2026-10-13T01:25:45-04:00",
       "committed_alone": true,
-      "decl_sha": "c9b88537bce4be7ef35ccd7c5af8f54cab2ff1a19c4b9d30aebea15877cbd8ba",
+      "decl_sha": "6bc1588d4945a9051060efee57b1e95305c41845eb063e5a6ce4a4ff532aad5e",
       "declaration": {
         "assignment_model": "at expiry per moneyness, S3-I3 assignment_at_expiry",
         "book": "f21_v6opt_dip_csp",
@@ -649,6 +649,7 @@
         "sizing": "equal secured cash per position; the skip reason is recorded so an affordability skip is never read as a concurrency skip (MB3)",
         "spot_basis": "as_traded",
         "structure": {
+          "arming_amendment": "ARMING AMENDMENT, 2026-10-13, BEFORE ANY FILL. This book IS NOW ARMED, and the precondition above is NOT weakened - it is enforced in CODE instead of by withholding the entry rule. Don's instruction of 2026-10-13 permits arming before the series is ready ON ONE CONDITION: that a refusal for a thin source is recorded as its own state and can never read as a quiet market. That condition is met and tested: `fleet_books._f21_source_gate` writes a named refusal row onto this book's own stream - DIP_HEALTHY_ABSENT when the stream does not exist, DIP_HEALTHY_UNFIT when it is thinner than `min_healthy_rows` or staler than `max_stale_sessions` - and returns no candidates. THAT IS STRICTLY MORE VISIBLE THAN THE PREVIOUS ARRANGEMENT: an unarmed book reports ARMED_NO_ENTRY_RULE and writes NOTHING, so the day the data became ready nobody would have been told. Armed, the book starts BY ITSELF on that day with no further human action. `min_healthy_rows` 20 and `max_stale_sessions` 5 are UNCHANGED, as is every other field; what changed is who enforces them. Measured at the time of amendment: the `dip_healthy` series carries ZERO rows, so this book cannot select anybody today.",
           "arming_precondition": "DECLARED AND NOT ARMED. This book may not be armed until the `dip_healthy` series carries at least 20 recorded rows with no gap longer than 5 sessions, which is what makes 'first appearance this quarter' resolvable. Until then the entry rule refuses by name. The precondition is a property of the DATA and not of the book, and it is Don's to clear by scheduling the recorder; nothing in this declaration arms anything.",
           "crash_label": "RECORDED, never an entry or exit rule: any calendar month in which this book's own equal-secured-cash equity curve falls >= 10%, OR any 32-session SPY return <= -20%. A PAYS verdict on a window containing zero labelled crash months is recorded PAYS(NO-CRASH-SEEN) and may not be quoted without that qualifier. BLEEDS needs no qualifier -- V6-OPT's declared asymmetry, inherited.",
           "delta": 0.25,
@@ -693,7 +694,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f21_v6opt_dip_csp.md"
@@ -703,7 +704,7 @@
       "commit": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
       "commit_date": "2026-10-13T01:26:38-04:00",
       "committed_alone": true,
-      "decl_sha": "a5481c37d740b6d033c40d3bcfb7358b0e11e2e47045389b479963e10d9de2fd",
+      "decl_sha": "ef7d947e7d4c6f5f8a2735390383a076c4d530741133272d602415fe7496083f",
       "declaration": {
         "assignment_model": "at expiry per moneyness, S3-I3 assignment_at_expiry",
         "book": "f22_dip_csp_random_twin",
@@ -727,6 +728,7 @@
         "sizing": "equal secured cash per position, identical to F-21; the skip reason is recorded so an affordability skip is never read as a concurrency skip (MB3)",
         "spot_basis": "as_traded",
         "structure": {
+          "arming_amendment": "ARMING AMENDMENT, 2026-10-13, BEFORE ANY FILL, AND IT IS F-21's CARRIED ACROSS BECAUSE THIS BOOK'S PRECONDITION IS F-21's AND NOT A WEAKER ONE. This book IS NOW ARMED and the precondition is enforced in CODE: the twin calls the SAME `_f21_source_gate` the arm does - one implementation, so the two can never drift and the twin can never accrue fills the arm had no chance to accrue, which is the coverage mismatch MB1-SEL was VOIDED for. A SECOND REFUSAL IS ADDED AND IT IS THIS BOOK'S ALONE: the entry_rule above names `F22_SALT` and `p` as 'the threshold declared below' and NEITHER IS DECLARED ANYWHERE IN THIS DOCUMENT, so the rule refuses by name with DRAW_PARAMS_UNDECLARED rather than defaulting - a default p of 0 arms a book that can never fire, and any other default would make the code the authority over a frozen parameter (MA5). THE SEQUENCING IS THE DECLARATION'S OWN: p is 're-stated at launch alongside F-21's own fill rate', so this twin cannot be calibrated before the arm has fills and therefore cannot start with it. Declaring p and the salt is a one-line amendment on the day F-21's fill rate is known.",
           "arming_precondition": "DECLARED AND NOT ARMED, on F-21's precondition and not a weaker one. The draw refuses whenever F-21's entry rule refuses - fewer than 20 recorded `dip_healthy` rows, or a latest row more than 5 sessions stale - so the twin can never accrue fills the arm had no chance to accrue. Neither book's verdict may be read without the other's, and that is enforced at the source rather than at read time.",
           "cadence_amendment": "EXECUTOR AMENDMENT, 2026-10-13, BEFORE ANY FILL, AND IT IS F-21's A2 CARRIED ACROSS BECAUSE A TWIN THAT RAN ON A DIFFERENT CLOCK WOULD NOT BE THE SAME TRADE. F-21 enters at the cadence of the recorded `dip_healthy` series, which today is weekly rather than daily because the fleet cycle deliberately does not run the dip screen. THIS BOOK'S DRAW IS EVALUATED ON THE SAME SESSIONS F-21's SOURCE WAS RECORDED ON, and on no others. Drawing daily while the arm can only enter weekly would hand the twin five times the entry opportunities and make its fills a biased superset of the arm's - which is the coverage-mismatch defect MB1-SEL was VOIDED for, where the confound ran twice the size of the effect and in the same direction.",
           "delta": 0.25,
@@ -770,7 +772,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f22_dip_csp_random_twin.md"
@@ -823,7 +825,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f2_menu_gate.md"
@@ -878,7 +880,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f3_bear_puts.md"
@@ -939,7 +941,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f4_eventfree_premium.md"
@@ -994,7 +996,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f5_ivcheap.md"
@@ -1052,7 +1054,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f6_collar_ledger.md"
@@ -1112,7 +1114,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_f8_csp_entry_financing.md"
@@ -1162,7 +1164,7 @@
         }
       },
       "declaration_valid_at_export": true,
-      "is_ancestor_of": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+      "is_ancestor_of": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
       "refusals_at_export": [],
       "touched": [
         "DECL_testbook.md"
@@ -1170,8 +1172,8 @@
     }
   },
   "evidence_note": "Computed where git exists and consumed where it does not. On a service built from an image with no .git, fleet.may_fill falls back to this manifest and reports evidence='manifest' rather than 'git'. That is a WEAKER chain and the record says so on every gate result.",
-  "generated_utc": "2026-10-13T05:31:23+00:00",
-  "head": "399a22d8a48e7c6bc4846d5f126c1f8b48a4195d",
+  "generated_utc": "2026-10-14T01:13:08+00:00",
+  "head": "a525fa645cb2ea074a757e5e9e4a5c5cf5ac8496",
   "n_books": 20,
   "schema": "fleet_declarations/1",
   "skipped": {
