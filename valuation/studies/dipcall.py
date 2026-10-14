@@ -91,6 +91,7 @@ CODE22_FIRST = "2004-08-23"
 
 ERA_BUILD = "build"
 ERA_OOS9908 = "oos9908"
+ERA_CHECK = "check"
 
 ERAS = {
     # DIP-CALL / DIP-CALL-2. Unchanged; this is the landed configuration.
@@ -99,6 +100,23 @@ ERAS = {
         "half_boundary": HALF_BOUNDARY,
         "tier_panel": os.path.join("free_analysis", "UNIVERSE_BIAS_PANEL_full.pkl"),
         "ticker_half": 0,                    # X1's build cell
+        "news_lo": None,                     # code 22 covers this era throughout
+        "horizons_primary": HORIZONS_PRIMARY,
+        "horizons_sensitivity": HORIZONS_SENSITIVITY,
+    },
+    # THE CHECK QUADRANT. `RESEARCH_CHARTER.md` section 4(b) and Stage 2: *"ONE read of
+    # 2020-2026 x the other ticker half"*. Added 2026-10-13 for SELL-PREMIUM-2's stage 2; the
+    # BUILD entry above is untouched, so every landed stage-1 figure is bit-identical.
+    #
+    # **NOTHING ABOUT THE CONSTRUCTION CHANGES -- only the window and the half.** Same event,
+    # same tier floor, same tier panel. The half boundary is deliberately NOT a fixed date here:
+    # stage 1 split at the MEDIAN COVERED EVENT DATE with the boundary embargoed, and using a
+    # different rule would be changing the construction at the one look that cannot be repeated.
+    ERA_CHECK: {
+        "lo": "2020-01-01", "hi": "2026-12-31",
+        "half_boundary": None,               # median covered event date, as stage 1 did
+        "tier_panel": os.path.join("free_analysis", "UNIVERSE_BIAS_PANEL_full.pkl"),
+        "ticker_half": 1,                    # X1's CHECK cell -- the other half
         "news_lo": None,                     # code 22 covers this era throughout
         "horizons_primary": HORIZONS_PRIMARY,
         "horizons_sensitivity": HORIZONS_SENSITIVITY,

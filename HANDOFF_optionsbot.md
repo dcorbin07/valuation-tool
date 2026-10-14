@@ -11749,3 +11749,272 @@ declaration is edited, nothing is armed, no fill is placed.**
   own lane. **11 tests, zero errors.** `FLEET_RETIREMENTS.md`; `valuation/edge/fleet.py`
   (`retired_books`, `is_retired`), `fleet_books.py` (`register_all`'s refusal);
   `tests/test_fleet_retirements.py`.
+
+
+---
+
+## 87. SELL-PREMIUM-2 STAGE 2 — **NOT CONFIRMED. THE CRASH STRESS PASSED, THE CRASH HAPPENED, AND THE BOOK LOST 80%** (2026-10-13)
+
+The **ONE** read of the check quadrant — **2020-2026 × ticker half 1** — that
+`RESEARCH_CHARTER.md` Stage 2 rations and `PREREG_sellpremium2.md` `T11` pre-specified.
+**NOTHING ABOUT THE CONSTRUCTION CHANGED**: same event, same tier, same 25-delta rule, same
+20-60 DTE band, same hold-to-expiry, same single crossing at the bid, same `K1` floors, same
+**6.0-year** crash bar with the **same synthetic row**, same half rule, same clustering on both
+date and ticker, same BH. Only the window and the half moved, and the charter fixed those before
+stage 1 ran. **Every scoring primitive is IMPORTED from the stage-1 scripts** — at the one look
+that cannot be repeated, a second scoring path would be unrecoverable.
+
+**THIS CONSTRUCTION'S CHECK-QUADRANT READ IS NOW SPENT. There is no replacement.**
+
+* **THE VERDICT: `NOT CONFIRMED`.** Clause (a) **FAILS** and clause (c) **FAILS**; clauses (b) and
+  (d) pass. Stage 1's `ELIGIBLE-BUT-UNRESOLVED` label is now **RESOLVED, against the strategy**.
+* **CLAUSE (a) FAILS AND NOT NARROWLY: −9.2609%/trade on secured cash** (date-clustered *t*
+  **−9.611**), **early −4.2211%** and **late −16.2952%**, on **4,522 settled trades**. Against
+  stage 1's **+0.6709%**. **Assignment goes 16.05% → 44.91% and the win rate 87.47% → 57.83%.**
+* **THE SHARPEST FACT IN THE ITEM, AND IT IS A WARNING ABOUT `K3` RATHER THAN ABOUT THIS BOOK:
+  THE CRASH STRESS PASSED AND THE CRASH DESTROYED IT.** `K3` cleared at **3.4170 years** against
+  the 6.0 bar — *better* than stage 1's 4.6747, because the 2020-2025 era pays more premium
+  (**12.1891%/yr** of secured cash against **9.0811%**). **And the scored window contains a
+  −32.61% 32-session SPY move**, the COVID crash, and the book lost **up to 82%** of the account.
+  **The register's own void condition 7 said this in advance** — *"reading a `K3` pass as evidence
+  the book survives a crash: `K3` is a stress ARITHMETIC, not an outcome"* — **and it has just
+  earned its keep in the most expensive way available.** A crash-stress arithmetic that divides a
+  single episode's loss by annual income **cannot see serial losses, cannot see assignment
+  compounding, and cannot see a book that is fully loaded going in.**
+* **CLAUSE (b) PASSES, AND QUOTING IT ALONE WOULD BE THE WORST POSSIBLE MISREADING.** The arm
+  **−9.2609%** beats its five-seed random-day twin at **−9.7683%** — **1,145 paired name-year
+  cells, 757 positive, z +10.9049, p 1.1e-27**, with every seed in a tight band (−9.95 to −9.69).
+  **So the dip timing really does beat random timing, and both lose about ten percent a trade.**
+  **This is exactly why Don's rule is a CONJUNCTION**: a book can be measurably better-timed than
+  chance and still be a disaster, and clause (b) on its own would have called this a pass.
+* **CLAUSE (c) FAILS IN SEVEN OF EIGHT CELLS**, and the one survivor survives by barely trading:
+
+  | equity / cap | trades | terminal | change |
+  |---|---|---|---|
+  | $25k / 10 | 146 | $13,491 | **−46.0%** |
+  | $25k / 50 | **13** | $25,473 | +1.9% *(survives on 13 trades)* |
+  | $50k / 10 | 276 | $13,689 | **−72.6%** |
+  | $50k / 50 | 82 | $48,464 | −3.1% |
+  | $100k / 10 | 427 | $18,718 | **−81.3%** |
+  | $100k / 50 | 195 | $78,843 | −21.2% |
+  | $250k / 10 | 505 | $43,893 | **−82.4%** |
+  | $250k / 50 | 651 | $119,273 | **−52.3%** |
+
+* **A DEFECT IN MY OWN SIZING LOOP, FOUND BY DISBELIEVING A NUMBER, AND ITS DIRECTION WAS THE
+  UNSAFE ONE FOR A REJECTION.** The first grid reported terminal equities as low as
+  **−$217,426** on a $250,000 account — **not a possible outcome**, because a cash-secured book
+  cannot fund positions it has no cash for. The loop sized every position from the **STARTING**
+  equity forever and **kept trading after the account was gone**. **Reporting −$217k where the
+  truth is −82% makes a FAILING leg look worse than it is**, so it was repaired before the
+  rejection was quoted, not after: size from **CURRENT** equity, stop at ruin, and record RUINED
+  as its own state beside `MB3`'s two skip reasons. **BOTH STAGES WERE RE-RUN on the repaired
+  loop or they would not be comparable — and STAGE 1's VERDICT IS UNCHANGED**, all eight cells
+  still surviving at $26,413 / $56,177 / $108,664 / $265,179 against the published $26,218 /
+  $54,665 / $108,736 / $264,393. **No stage-1 conclusion moves.**
+* **`K1` CLEARS BY FAR MORE THAN STAGE 1: 4,644 priceable events and 950 covered days** against
+  floors of 400 and 150, and against stage 1's 2,610 and 620 — so the failure is not thin data.
+  **972 of the chain-file misses are dated 2026**, where the cache holds nothing, so the scored
+  window effectively ends in 2025; the charter's cell is 2020-2026 and the data is 2020-2025, and
+  that is stated rather than papered over.
+* **STAGE 3's 1999-2008 PROXY IS STRUCTURALLY UNAVAILABLE FOR ANY OPTIONS CONSTRUCTION, AND THIS
+  IS THE PORTABLE PART.** The prompt asked what that step can and cannot be. **Measured: there are
+  ZERO chain files before 2016 in BOTH layers** — the raw cache runs 2016-2025 (401 → 516 tickers
+  a year) and `options_derived` the same. **An option cannot be priced where no chain exists**, so
+  the pre-2009 proxy read is not *undone* here, it is **impossible on owned data and will stay so
+  until somebody buys 1999-2008 chains.** The shares proxy panel *does* exist — `DIP-CALL-3` read
+  it — so the distinction is exact: **the Stage-3 proxy is available to a SHARES construction and
+  not to an OPTIONS one.** **Consequently the staged ladder for an options strategy has THREE
+  rungs and not four: build → one check read → forward paper book.** That binds every future
+  options register on this project and is worth more than this item's own verdict.
+* **TRIALS: ZERO ADDITIONAL, and the counter-argument is stated because it is not frivolous.**
+  `PREREG_sellpremium2.md` was committed ALONE, booked its 4 options trials before any runner, and
+  **`T11` pre-specified this exact population**; every bar, the construction, the arms and the
+  quadrant were fixed before stage 1 ran, so **stage 2 carries no degree of freedom** and charging
+  it again would double-charge one hypothesis — which is `MB16`'s measured defect, the one that
+  overstated options `N` by 4. **The counter-argument is that the charter RATIONS reads and says
+  each is logged, so a read could be called a trial; the direction of this choice is the UNSAFE
+  one (`MA6`), and it is flagged rather than buried.** The verdict is recorded by editing
+  `SELL-PREMIUM-2`'s existing research-log cell in place rather than appending a second row.
+* **WHAT THIS DOES NOT SAY.** It is **not** a finding that selling premium never works — it is a
+  finding that **this construction, which looked good on a crash-free four years, loses about
+  10% a trade across a window containing a real crash.** It does **not** retract stage 1: those
+  numbers were correctly measured on their own quadrant and the `ELIGIBLE-BUT-UNRESOLVED` label
+  was exactly the right one, which is the staged ladder working rather than failing. It does
+  **not** re-open `V6-OPT` or `SELL-PREMIUM`. And **nothing is adopted; paper only; no real
+  trade.** **11 tests, zero errors.** `scripts/sellpremium2_stage2.py`, `sellpremium2_sizing_fix.py`;
+  `valuation/studies/dipcall.py` (`ERA_CHECK`);
+  `data/free_analysis/SELLPREMIUM2_STAGE2_KILLS.json`, `SELLPREMIUM2_STAGE2_ARM.json`,
+  `SELLPREMIUM2_SIZING_FIX.json`.
+
+
+---
+
+## 88. F-21 AND F-22 ARE ARMED — AND THE SCHEDULE THE TASK ASKED FOR ALREADY EXISTED, WHILE THE COMMENT SAYING SHORT BOOKS COULD NOT BE ARMED WAS FALSE AND SAT THREE LINES FROM THE CODE ARMING THEM (2026-10-13)
+
+Both books now have entry rules, both are in `RULES`, both place orders. **Paper only, nothing
+adopted, no real trade.** Zero trials — an arming is machinery, not a search.
+
+* **THE SCHEDULE WAS ALREADY THERE, AND §85 WAS STALE BY ONE ITEM.** That section says the
+  recording door *"must be scheduled"*, so this item was to write
+  `data/pending_workflows/<name>.yml`. **Measured first: `.github/workflows/daily-doors.yml` is
+  on `origin/main` and has POSTed `/admin/record-dip-rejects?write=1` on `cron: 37 22 * * 1-5`
+  since before this lane touched it** — and the door writes **both** series, because the
+  previous item wired `record_dip_healthy` into it at `app_saas.py:837`. **So no workflow was
+  written, and writing one would have been a second scheduler for a job already scheduled.**
+  The honest action on a task whose premise has expired is to measure, say so, and not do it.
+* **THE FINDING, AND IT IS WORTH MORE THAN THE ARMING: A COMMENT ASSERTED THAT THE FLEET'S
+  ENTIRE SHORT HALF COULD NOT BE ARMED, AND IT SAT THREE LINES BELOW THE CALL THAT ARMS IT.**
+  `app_saas.py` read *"`assignment` is NOT registered because its closure reaches `dividends`,
+  which is archived"* — directly beneath `_step("s3i3_register", ...)`, which registers it.
+  **Both halves are false.** `valuation/edge/dividends.py` moved to **LOAD_BEARING on
+  2026-08-24**, and `test_ma59_quarantine.py`'s own stated reason for moving it is *"every
+  short fleet book depends on it"*; measured today, `assignment`'s **84-module closure reaches
+  ZERO archived modules**, with `dividends` present as the positive control. **This session
+  nearly concluded that F-8, F-10, F-21 and F-22 were all dead on the service on the strength
+  of that sentence**, and was stopped only by reading the code above it rather than the comment.
+  Corrected in place with the measurement and the date, and pinned by test.
+* **ARMED NOW RATHER THAN ON THE DAY THE SERIES FILLS, WHICH IS THE TASK'S OWN CONDITION AND IT
+  IS MET.** `dip_healthy` carries **0 rows** against a declared minimum of 20, so neither book
+  can select anybody today. Arming anyway is safe **only** because a refusal is a RECORD:
+  `fleet.refuse` writes a named row onto the book's own stream — `DIP_HEALTHY_ABSENT`,
+  `DIP_HEALTHY_UNFIT`, `DRAW_PARAMS_UNDECLARED` — so a thin source can never read as a quiet
+  market. **The gain is that the books start BY THEMSELVES the day the data is ready**, with no
+  further human action and no second session; the alternative is a book waiting on somebody
+  remembering.
+* **F-22's DECLARATION NAMES A PARAMETER IT NEVER DECLARES, AND THE RULE REFUSES RATHER THAN
+  DEFAULTING.** Its `entry_rule` says *"p is the threshold declared below"* and **there is no
+  below**: neither `p` nor `F22_SALT` appears anywhere in the structure. **A default `p` of 0
+  arms a book that can never fire**, which is the quiet-market reading this whole item exists
+  to prevent; **any other default makes the code the authority over a frozen parameter**, which
+  is `MA5`'s defect with a one-way cost. **And the declaration already implies the sequencing**
+  — p is set *"at launch alongside F-21's own fill rate"* — so **the twin genuinely cannot be
+  calibrated before the arm has fills.** Refused by name; the day it clears is a one-line
+  amendment.
+* **ONE GATE, NOT TWO (`B7`), AND THE REASON IS MEASURED RATHER THAN TIDINESS.** F-22's own
+  declaration says the twin refuses whenever the arm refuses *"so the twin can never accrue
+  fills the arm had no chance to accrue"*. Two copies is exactly how the twin acquires entry
+  opportunities the arm did not have — **`MB1-SEL`'s confound, which ran twice the size of the
+  effect and in the same direction.** `_f21_source_gate` is shared, and a test reads the syntax
+  tree to prove both rules call it and that only one implementation exists.
+* **THE DELTA PICKER IS NEW AND IS DECLARED RATHER THAN SNUCK IN.** `f3_pick_contract` is
+  moneyness-fixed **because F-3's own void condition forbids a delta target**; F-21 and F-22
+  declare `strike_selection: delta` and argue for it at length, conceding `V6-OPT`'s autopsy.
+  So `pick_by_delta` is a second picker, not an edit to the first. **A row with no delta is
+  SKIPPED and never approximated from moneyness** — that fallback would run F-3's rule under
+  F-21's name on exactly the illiquid rows where the two differ most, and nothing downstream
+  could tell. **The 30-45 DTE band is HARD**: a chain offering nothing inside it returns
+  `None` rather than the nearest thing outside, because the declared tenor is what the crash
+  gate's income was measured against.
+* **THREE DEFECTS IN MY OWN WORK, ALL FOUND BY RUNNING THE TESTS RATHER THAN BY READING.**
+  **(a) THE REFUSAL WAS SILENTLY SKIPPED IN EXACTLY THE CASE IT EXISTS FOR.** `F.refuse` was
+  guarded by `if sha:`, and `decl_sha_for(book, root)` resolves against the RECORDS root — so a
+  root holding records but no `DECL_*.md` returned `None` and **no refusal row was written**.
+  The declaration is a REPO artifact and the root only selects where records live, so the repo
+  lookup is the correct second rung. **(b) AN UNREACHABLE BRANCH:** `_dip_healthy_rows` tested
+  `read(...) is None` to detect an absent stream, and the stream never returns `None` — it
+  reports `absent` as its own flag — so the `DIP_HEALTHY_ABSENT` refusal was **dead code**,
+  which is precisely the absent-versus-empty distinction (audit #5 `H2`) the function was
+  written to preserve. **(c)** F-22 indexed `history[-1]` before checking the list was
+  non-empty, which `cycle()` would have caught as `ENTRY_RULE_RAISED` — a recorded state, and
+  still a defect.
+* **`MB31`'s FAMILY FIRED AGAIN, FOR THE FOURTH TIME ON THIS PROJECT.**
+  `test_item46_fleet_never_filled.py` asserted `len(RULES) == 4` and **went red against a
+  correct tree** the moment two books were armed. Repointed in the same commit so the move
+  shows in the diff: the count stays as a committed literal (`MA13`, so arming a book still
+  shows up here) and the load-bearing assertions become **properties that do not move when the
+  fleet grows** — every implemented rule is a DECLARED book, and `f1_fill_ab` is the only
+  rider. **A guard asserting "these two numbers are equal today" fires on the clock; assert the
+  property the equality stood in for.**
+* **THE DECLARATIONS WERE AMENDED BEFORE THE ARMING WAS LEGITIMATE, AND A TRIPWIRE I DID NOT
+  KNOW ABOUT IS WHAT FORCED IT.** The full gate came back **282 suites, ONE failure** —
+  `tests/test_f21_f22.py::test_NEITHER_BOOK_IS_ARMED`, a guard written by the item that drafted
+  these books, pinning the declarations' own *"DECLARED AND NOT ARMED. This book may not be
+  armed until..."*. **It was RIGHT to go red.** The declaration is the authority and the code
+  may never reinterpret it, so arming without amending would have been exactly the failure the
+  harness exists to prevent — and I would have shipped it, because I had read the
+  `arming_precondition` as self-contradictory and resolved it in my own favour rather than in
+  the document's. **Both declarations now carry a dated `arming_amendment`, BEFORE ANY FILL**,
+  recording that the precondition is enforced **in code by a named refusal** instead of by
+  withholding the entry rule, that this is **strictly more visible** (an unarmed book writes
+  NOTHING, so the day the data became ready nobody would have been told), and that
+  `min_healthy_rows` 20 and `max_stale_sessions` 5 are **untouched** — what changed is who
+  enforces them. It is the mechanism both declarations already used once
+  (`entry_source_amendment`), and it is legitimate **only** because neither book has ever
+  filled, so no recorded `decl_sha` is invalidated. **`committed_alone` survives**: the harness
+  checks the commit that **ADDS** the file (`--diff-filter=A`), so an amendment cannot launder
+  a declaration's provenance — checked rather than assumed. **`data_export/fleet_declarations.json`
+  is regenerated in the same commit**, because the deploy image has no `.md` files and reads
+  the manifest, so a stale one would make the service and the repo disagree about what these
+  books declare. **And the tripwire is REPOINTED to the property it stood in for rather than
+  re-asserted or deleted: neither book may FILL until the series is fit**, exercised against
+  the LIVE series and requiring the refusal to say why — which is strictly stronger than
+  `not in RULES`, since that only ever said *nobody wired it up*.
+* **NOT DONE, named so it is not mistaken for done: NEITHER BOOK HAS FILLED ANYTHING AND
+  NEITHER CAN UNTIL `dip_healthy` REACHES 20 ROWS**, which at the recorder's weekly-ish cadence
+  is months away, not days. **F-22 additionally needs `p` and `F22_SALT` declared**, and p
+  depends on F-21's observed fill rate, so F-22 cannot start with F-21. No workflow was
+  written; no `.github/` file changed; no declaration was edited. **18 new tests plus the repointed tripwire (23 of 23), zero errors.**
+  `valuation/edge/fleet_books.py` (`pick_by_delta`, `_dip_healthy_rows`, `_f21_source_gate`,
+  `f21_v6opt_dip_csp`, `f22_dip_csp_random_twin`), `valuation/saas/app_saas.py` (comment).
+
+
+---
+
+## 89. F-4 AND F-10's CHEAP STEP: THE 25-DELTA RE-DECLARATION **CLEARS** THE CRASH GATE ON NON-DIP INCOME — AND F-10's OWN TENOR MAKES IT A KNIFE EDGE (2026-10-13)
+
+The step `FLEET_RETIREMENTS.md` named for itself: *"Banking that one column on a re-run of the
+existing control would settle both books without a new register and without a trial, because a
+control can only ever BLOCK (`MB1-SEL`)."* **ZERO TRIALS, no register, no hypothesis, no bar
+chosen here** — `K3` is the predecessor's own pre-committed arithmetic, **imported** (`B7`).
+
+* **THE ANSWER IS YES, IN BOTH QUADRANTS AND AT EACH BOOK'S OWN DECLARED TENOR.** Against
+  `SELL-PREMIUM`'s unrelaxed **6.0-year** bar with the synthetic single-name row retained:
+
+  | | build 2016-2019 | check 2020-2025 |
+  |---|---|---|
+  | **F-4** (its own **30** DTE) | **4.7539 yrs** on 9.0474%/yr, n 5,974 | **3.5185 yrs** on 12.0122%/yr, n 10,426 |
+  | **F-10** (its own **52** DTE) | **5.8598 yrs** on 7.2076%/yr, n 3,046 | **4.4281 yrs** on 9.3600%/yr, n 5,408 |
+  | *all tenors, median 37* | *5.1129 on 8.3594%/yr* | *3.9236 on 10.7027%/yr* |
+  | *the DIP book, for contrast* | *4.6747 on 9.0811%/yr* | *3.4170 on 12.1891%/yr* |
+
+* **F-10's BUILD CELL CLEARS BY 0.14 OF A YEAR — 2.3% OF THE BAR — AND THAT IS THE NUMBER TO
+  CARRY.** It is a pass and it is a knife edge, and it is the one cell a successor should expect
+  to lose on any construction change.
+* **THE TENOR CORRECTION IS THE REASON THIS ITEM IS WORTH READING, AND IT IS AN `MB8` ERROR I
+  MADE AND THEN CAUGHT.** My first measurement ran the 25-delta rule at `SELL-PREMIUM-2`'s own
+  **20-60 DTE** band, median 37, and would have reported **5.1129** as the answer for both
+  books. **F-4 declares 30 DTE and F-10 declares 52**, and `K3`'s income is
+  `premium_fraction x 252/dte`, so **the tenor is half the denominator, not a detail.** Quoting
+  the 37-DTE figure as F-10's would have claimed **0.89 years of headroom where the truth is
+  0.14 — a six-fold overstatement, in the flattering direction.** And the shortcut that looks
+  equivalent is also wrong: holding the premium fraction fixed and changing only `turns`
+  **invents income**, because a longer-dated put collects more premium. Each band is measured
+  on its own rows.
+* **THE RETIREMENT MEMO'S FEAR IS MEASURED AND IT IS SMALLER THAN IT LOOKED.** It argued that
+  `SELL-PREMIUM-2`'s income could not transfer because that book is **dip-conditioned**, with
+  post-dip implied vol **+17.711%** above the name's own trailing median. **Measured, the dip
+  conditioning is worth 8.6% of income on the build quadrant (9.0811 against 8.3594) and 13.9%
+  on the check (12.1891 against 10.7027)** — real, in the predicted direction, and nowhere near
+  enough to fire a gate that clears by 20% or more at each book's own tenor. **The memo was
+  right to refuse to borrow the number and right about its sign; it was wrong about its size.**
+* **AND IT CONFIRMS `SELL-PREMIUM-2`'s OWN DIAGNOSIS ON A THIRD POPULATION.** F-4 was retired
+  because `SELL-PREMIUM`'s `K3` fires at **11.57 years** on its declared 0.90-moneyness rule at
+  30 DTE. **At 25 delta on that same 30-DTE tenor it is 4.7539 — a 2.43x improvement from the
+  strike rule alone**, which is the predecessor's measured mechanism (the moneyness rule
+  surrenders most of the income, and the income is the gate's denominator) reproduced on
+  non-dip entries.
+* **WHAT THIS IS NOT, AND IT BOUNDS EVERY FIGURE ABOVE.** The population is
+  `SELL-PREMIUM-2`'s **own universe entered on RANDOM days** — the best available non-dip proxy
+  and **not** F-4's event-free set nor F-10's published book. It is a statement about the
+  25-delta **STRIKE RULE's income** on ordinary days, never about either book's own names.
+  `MB8`: a number may not travel across populations without saying which one it came from.
+* **IT CLEARS A CRASH GATE AND IT ADOPTS NOTHING.** `K3` is a **stress arithmetic, not an
+  outcome** — §87 above is this session's own expensive demonstration of that, where `K3`
+  passed at 3.4170 years on a window whose real crash cost 82% of the account. **So a cleared
+  gate removes the stated obstacle to a 25-delta re-declaration and establishes nothing about
+  whether either book makes money.** Both stay **RETIRED as declared**; re-declaring is Don's,
+  needs a new `DECL_` committed alone, and inherits §87's warning in full.
+* **NOT DONE: no book is re-declared, no declaration edited, no arm run on either book's own
+  population, and no return claim is made anywhere.** `scripts/sp2_nondip_income.py`,
+  `sp2_nondip_tenor.py`; `data/free_analysis/SP2_NONDIP_INCOME.json`, `SP2_NONDIP_TENOR.json`,
+  `SP2_NONDIP_PICKS_build_2016_2019_half0.pkl`, `SP2_NONDIP_PICKS_check_2020_2025_half1.pkl`.

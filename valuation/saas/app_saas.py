@@ -1370,8 +1370,17 @@ def create_saas_app(cfg=CONFIG):
             # `fleet_books` is registered because its dependency closure is quarantine-CLEAN,
             # measured rather than assumed -- `bearish`, `dip`, `name_percentile`,
             # `event_spine`, `catalyst_calendar`, `options_universe` and `paper_broker` reach
-            # nothing on `MA59`'s archived list. `assignment` is NOT registered because its
-            # closure reaches `dividends`, which is archived. Same rule, two answers.
+            # nothing on `MA59`'s archived list.
+            #
+            # CORRECTED 2026-10-13: this comment used to end *"`assignment` is NOT registered
+            # because its closure reaches `dividends`, which is archived"* -- and it sat THREE
+            # LINES BELOW the `s3i3_register` call that registers it. Both halves were false.
+            # `valuation/edge/dividends.py` moved to LOAD_BEARING on 2026-08-24, with
+            # `test_ma59_quarantine.py`'s own reason being *"every short fleet book depends on
+            # it"*; measured today, `assignment`'s 84-module closure reaches ZERO archived
+            # modules. A comment asserting that a short book cannot be armed, sitting next to
+            # the code arming it, is how a session concludes the fleet's short half is blocked
+            # when it is not -- which is exactly what nearly happened when F-21 was armed.
             #
             # WITHOUT THIS CALL THE ARMING IS INVISIBLE WHERE IT MATTERS. Registration is an
             # explicit call and never an import side effect (`S3-I3`'s convention), so nothing

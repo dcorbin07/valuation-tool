@@ -744,11 +744,274 @@ def f22_draws(pool, session_date, *, salt: str, p: float) -> list:
     return out
 
 
+def pick_by_delta(chain, today, *, target: float, dte: int, dte_lo: int, dte_hi: int):
+    """The listed PUT whose |delta| is nearest `target`, at the expiry nearest `dte`. PURE.
+
+    **THIS IS THE ONE PICKER IN THE FLEET THAT TARGETS DELTA, AND IT IS DECLARED RATHER THAN
+    SNUCK IN.** `f3_pick_contract` is moneyness-fixed BECAUSE F-3's own void condition forbids
+    a delta target; F-21 and F-22 declare `strike_selection: delta` and argue for it at length
+    in their structure, conceding `V6-OPT`'s autopsy rather than dodging it. Two rules, two
+    declarations, two pickers -- and a book may only reach the picker its declaration names,
+    which is pinned by test.
+
+    **A ROW WITH NO DELTA IS SKIPPED AND NEVER FALLEN BACK ON.** The obvious convenience is to
+    approximate a missing delta from moneyness; that would silently run F-3's rule under
+    F-21's name on exactly the illiquid rows where the two differ most, and nothing downstream
+    could tell. `MA45`'s family: a quote that cannot be validated is dropped, not guessed.
+
+    **EXPIRY FIRST, THEN DELTA**, which is `f3_pick_contract`'s amendment 2 carried across for
+    the same measured reason: delta-first can land on a far month that happens to list a
+    closer delta, and the declared 30-45 DTE band is the tenor the crash gate's income is
+    measured against. The band is a HARD filter -- a chain offering nothing inside it returns
+    `None` rather than the nearest thing outside it.
+    """
+    if not chain:
+        return None
+    tgt = abs(float(target))
+    rows = []
+    for c in chain:
+        if str(c.get("option_type") or "").lower() != "put":
+            continue
+        exp = _date(c.get("expiration_date"))
+        if exp is None:
+            continue
+        d = (c.get("greeks") or {}).get("delta")
+        d = _num(d)
+        if d is None:
+            continue                       # never approximated from moneyness
+        days = (exp - _date(today)).days if _date(today) is not None else None
+        if days is None or days < int(dte_lo) or days > int(dte_hi):
+            continue
+        rows.append((abs(days - int(dte)), -days, exp, abs(abs(float(d)) - tgt), c, days,
+                     float(d)))
+    if not rows:
+        return None
+    best_exp = min(rows, key=lambda r: (r[0], r[1]))[2]
+    same = [r for r in rows if r[2] == best_exp]
+    r = min(same, key=lambda x: (x[3], str(x[4].get("symbol") or "")))
+    return {"contract": r[4], "dte": r[5], "delta": r[6], "delta_gap": r[3]}
+
+
+def _dip_healthy_rows(root: str = None):
+    """The recorded `dip_healthy` series, oldest first, or `None` if the stream is absent.
+
+    `None` is NOT CONSULTED and is distinct from `[]`, which would be *"the recorder ran and
+    nobody was healthy"* -- audit #5 `H2`'s rule, and the distinction F-11's own docstring
+    exists to preserve.
+    """
+    from . import fleet_history as FH
+    got = FH.read("dip_healthy", root)
+    if got is None or got.get("absent"):
+        # `read()` reports ABSENT as its own flag rather than as `None`, which is how a first
+        # cut of this function came to have an unreachable branch: it tested `is None`, the
+        # stream never returns None, and the ABSENT refusal was dead code. Found by the test
+        # written to pin the distinction, which is the only reason it is reachable now.
+        return None
+    return got.get("rows") or []
+
+
+def _f21_source_gate(book: str, decl: dict, root, today):
+    """Shared by BOTH books: is the source fit, and if not, RECORD the refusal and stop.
+
+    **F-22's gate is F-21's, by its own declaration** -- *"the draw refuses whenever F-21's
+    entry rule refuses ... so the twin can never accrue fills the arm had no chance to
+    accrue"*. One implementation (`B7`), so the two can never drift apart; a second copy is
+    exactly how the twin would quietly acquire entry opportunities the arm did not have, which
+    is the coverage mismatch `MB1-SEL` was VOIDED for.
+
+    Returns `(rows, None)` when fit, or `(None, reason)` having WRITTEN a refusal row.
+    """
+    st = decl.get("structure") or {}
+    # **THE SHA FALLS BACK TO THE REPO, AND THAT IS THE DIFFERENCE BETWEEN A REFUSAL AND A
+    # SILENT EMPTY RETURN.** `decl_sha_for(book, root)` resolves against the RECORDS root, and
+    # a root that holds records but no `DECL_*.md` returns `None` -- so the first cut skipped
+    # `F.refuse` in exactly the situation the refusal exists for. The declaration is a REPO
+    # artifact and the root only selects where records live, so the repo lookup is the correct
+    # second rung; it cannot return a different book's sha, because the book name is the key.
+    sha = F.decl_sha_for(book, root) or F.decl_sha_for(book)
+    rows = _dip_healthy_rows(root)
+    if rows is None:
+        reason = ("SOURCE NOT CONSULTED: the dip_healthy stream does not exist, so this book "
+                  "selected nobody because it could not look, not because nobody qualified.")
+        if sha:
+            F.refuse(book, "DIP_HEALTHY_ABSENT", reason, decl_sha=sha, root=root)
+        return None, reason
+    state = healthy_series_state(
+        rows, today,
+        min_rows=int(st.get("min_healthy_rows") or F21_MIN_HEALTHY_ROWS),
+        max_stale=int(st.get("max_stale_sessions") or F21_MAX_STALE_SESSIONS))
+    if not state["ok"]:
+        # A REFUSAL IS A RECORD. Returning [] here would be indistinguishable in this book's
+        # own stream from a day on which the screen ran and nobody was healthy, which is the
+        # one reading the declaration's arming precondition forbids.
+        if sha:
+            F.refuse(book, "DIP_HEALTHY_UNFIT", state["reason"], decl_sha=sha, root=root)
+        return None, state["reason"]
+    return rows, None
+
+
+def f21_v6opt_dip_csp(decl: dict, root: str = None, *, provider=None, broker=None,
+                      today=None, history=None) -> list:
+    """F-21 live: sell a 25-delta 30-45 DTE cash-secured put on each name FIRST appearing in
+    the recorded healthy-dip population this quarter.
+
+    **ARMED WITH A PRECONDITION IT CANNOT YET MEET, DELIBERATELY.** The declaration's
+    `arming_precondition` is a property of the DATA -- 20 recorded `dip_healthy` rows, none
+    more than 5 sessions stale -- and the series starts empty. Arming now rather than on the
+    day it fills means the book starts BY ITSELF when the data is ready, with no further
+    human action and no second session; the alternative is a book that waits on somebody
+    remembering. It is safe to arm only because the refusal is RECORDED by name
+    (`DIP_HEALTHY_UNFIT`) and so can never read as a quiet market.
+
+    **NO EXIT MACHINERY, DECLARED NOT MISSING**: the frozen structure is *"hold to expiry, no
+    exits"*, so a stop or a target added later voids the book.
+
+    **IT REFUSES ITSELF IF `S3-I3` IS NOT REGISTERED**, as F-8 does -- a rule that would place
+    a SHORT order is the last place to assume the cycle's gate already checked.
+    """
+    import datetime as _dt
+    from ..intraday.providers import get_provider
+
+    if F.assignment_provider() is None:
+        return []
+
+    st = decl.get("structure") or {}
+    today = today or _dt.date.today()
+    if history is None:
+        history, _why = _f21_source_gate("f21_v6opt_dip_csp", decl, root, today)
+        if history is None:
+            return []
+
+    latest = (history[-1].get("payload") or []) if history else []
+    healthy = [h if isinstance(h, dict) else {"ticker": h} for h in latest]
+    picks = f21_select(healthy, history, today,
+                       held_symbols("f21_v6opt_dip_csp", root),
+                       cap=int(decl.get("concurrency_cap") or 0))
+    if not picks:
+        return []
+
+    provider = provider if provider is not None else get_provider()
+    if broker is None:
+        from .paper_broker import PaperBroker
+        broker = PaperBroker()
+    sha = F.decl_sha_for("f21_v6opt_dip_csp", root)
+    if not sha:
+        return []
+    if str(st.get("right") or "put").lower() != "put":
+        return []
+
+    out = []
+    for p in picks:
+        chain = provider.get_option_chain(p["ticker"], dte_range=(30, 45))
+        got = pick_by_delta(chain, today, target=float(st.get("delta")),
+                            dte=int(st.get("dte")), dte_lo=30, dte_hi=45)
+        if got is None:
+            continue
+        c = got["contract"]
+        out.append(F.submit("f21_v6opt_dip_csp", broker=broker, occ=str(c.get("symbol")),
+                            underlying=p["ticker"], side="sell_to_open", qty=F21_QTY,
+                            decl_sha=sha, symbol=p["ticker"], quote=c))
+    return out
+
+
+def f22_dip_csp_random_twin(decl: dict, root: str = None, *, provider=None, broker=None,
+                            today=None, history=None) -> list:
+    """F-22 live: F-21's identical trade, entered on a deterministic salted draw instead.
+
+    **IT READS F-21's SOURCE GATE AND NOT ITS OWN**, per its declaration: the twin may only
+    draw on sessions F-21's source was recorded on. Drawing daily while the arm enters weekly
+    would hand the twin five times the opportunities and make its fills a biased superset --
+    `MB1-SEL`'s confound, which ran twice the size of the effect and in the same direction.
+
+    **NO PRICE-DERIVED QUANTITY REACHES THE DRAW**, which is the void condition that keeps the
+    timing uncorrelated with the dip signal: `f22_draws` hashes the salt, the book name, the
+    ticker and the session date, and nothing else.
+    """
+    import datetime as _dt
+    from ..intraday.providers import get_provider
+
+    if F.assignment_provider() is None:
+        return []
+
+    st = decl.get("structure") or {}
+    today = today or _dt.date.today()
+    if history is None:
+        history, _why = _f21_source_gate("f22_dip_csp_random_twin", decl, root, today)
+        if history is None:
+            return []
+
+    # THE POOL IS THE SAME UNIVERSE F-21 DRAWS FROM, AND THE SESSION IS THE SOURCE'S OWN.
+    # Using today's clock date would let the twin draw on sessions the arm's recorder never
+    # covered, which is the cadence mismatch the declaration amends against by name.
+    last = history[-1] if history else {}
+    session = str(last.get("date") or "")[:10]
+    pool = sorted({str((h if not isinstance(h, dict) else h.get("ticker")) or "").upper()
+                   for h in (last.get("payload") or [])} - {""})
+    if not session or not pool:
+        return []
+    sha = (F.decl_sha_for("f22_dip_csp_random_twin", root)
+           or F.decl_sha_for("f22_dip_csp_random_twin"))
+    # **THE DRAW PROBABILITY IS NOT DECLARED, AND THE RULE REFUSES RATHER THAN DEFAULTING.**
+    # The declaration's own entry_rule says *"p is the threshold declared below and re-stated
+    # at launch alongside F-21's own fill rate"* -- and there is no below: neither `p` nor the
+    # salt appears anywhere in the structure. Defaulting `p` to 0 would arm a book that can
+    # never fire, which reads in the records as a quiet market; defaulting it to anything else
+    # would make this code the authority over a frozen parameter, which is `MA5`'s defect with
+    # a one-way cost. **And the declaration already implies the sequencing**: p is set FROM
+    # F-21's observed fill rate, so the twin cannot be calibrated before the arm has fills.
+    # The refusal is named, so the day it clears is a one-line amendment and not a rebuild.
+    salt = str(st.get("salt") or "").strip()
+    pp = st.get("draw_probability", st.get("p"))
+    if not salt or pp is None:
+        reason = ("DRAW PARAMETERS UNDECLARED: the entry rule names `F22_SALT` and `p` as "
+                  "'declared below' and the structure declares neither. p is set FROM F-21's "
+                  "observed fill rate, so this book cannot be calibrated before the arm has "
+                  "fills. Refused by name rather than defaulted -- a default p of 0 arms a "
+                  "book that can never fire, and any other default makes the code the "
+                  "authority over a frozen parameter.")
+        if sha:
+            F.refuse("f22_dip_csp_random_twin", "DRAW_PARAMS_UNDECLARED", reason,
+                     decl_sha=sha, root=root)
+        return []
+    drawn = f22_draws(pool, session, salt=salt, p=float(pp))
+    held = held_symbols("f22_dip_csp_random_twin", root)
+    drawn = [t for t in drawn if t not in held]
+    cap = int(decl.get("concurrency_cap") or 0)
+    if cap:
+        drawn = drawn[:cap]
+    if not drawn:
+        return []
+
+    provider = provider if provider is not None else get_provider()
+    if broker is None:
+        from .paper_broker import PaperBroker
+        broker = PaperBroker()
+    if not sha:
+        return []
+    if str(st.get("right") or "put").lower() != "put":
+        return []
+
+    out = []
+    for t in drawn:
+        chain = provider.get_option_chain(t, dte_range=(30, 45))
+        got = pick_by_delta(chain, today, target=float(st.get("delta")),
+                            dte=int(st.get("dte")), dte_lo=30, dte_hi=45)
+        if got is None:
+            continue
+        c = got["contract"]
+        out.append(F.submit("f22_dip_csp_random_twin", broker=broker,
+                            occ=str(c.get("symbol")), underlying=t, side="sell_to_open",
+                            qty=F21_QTY, decl_sha=sha, symbol=t, quote=c))
+    return out
+
+
 RULES = {
     "f1_fill_ab": (f1_fill_ab, False),
     "f3_bear_puts": (f3_bear_puts, True),
     "f8_csp_entry_financing": (f8_csp_entry_financing, True),
     "f11_dip_reject_puts": (f11_dip_reject_puts, True),
+    "f21_v6opt_dip_csp": (f21_v6opt_dip_csp, True),
+    "f22_dip_csp_random_twin": (f22_dip_csp_random_twin, True),
 }
 
 
