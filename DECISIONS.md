@@ -137,6 +137,68 @@ manager from Don's own words in chat.
   attributed to someone (guidance, an analyst's rating change, a regulator's decision, a press
   release) is allowed; opinion and promotional pieces ("should you buy", "3 reasons it will soar",
   price-prediction hype, paid promotion) are not. Every headline names its source and links to it.
+- **2026-10-13 — SELL-PREMIUM-3 IS SHELVED — PENDING THE CORRECTED STAGE-2 READ.** Don shelved it
+  because SELL-PREMIUM-2 read as failing its check (−9.26%/trade). **That read is VOID** (found by
+  the manager the same evening): stage 2 settled every expiry after 2020-12-31 at the ticker's last
+  2020 price, because it imported stage 1's spot maps (built over 2016-2020) — GE at $10.80, AAPL
+  at $132.69, NVDA at $522.20 on every assigned trade, 73% of the book. The options lane repairs
+  and re-runs it; if SELL-PREMIUM-2 then passes, SELL-PREMIUM-3 comes back to Don. Its draft
+  (`a1d37ff`) is kept; no register, no trials. F-21/F-22 stay armed on paper as forward records.
+  For any options strategy the staged ladder has three rungs (build → one check read → forward
+  paper book), because no options data exists before 2016.
+- **2026-10-13 — CLUSTERED INSIDER BUYING GOES TO A WIDER-TIER TEST.** It cleared every bar on the
+  full universe in the build quadrant (+2.09pp market-adjusted over the next quarter, about +1.8pp
+  net of the size tilt) and could not be resolved on the $10B+ tier, which governed that register.
+  A new register with a wider tier governing and realistic size-tiered trading costs is written
+  BEFORE the one check-quadrant read, and that read is taken once.
+- **2026-10-14 — ALPACA REPLACES TRADIER: PAPER FOR EVERY PAPER BOOK NOW, AND THE SIGNED §8
+  LIVE PATH IS BUILT ON ALPACA, SHIPPING AT 0%.** Don opened Alpaca (Trading API, not Broker
+  API). Paper keys drive the paper books; Alpaca's paper fills match against the real-time
+  national best bid and offer, closer to reality than the Tradier sandbox's 15-minute-delayed
+  data. Don's instruction in chat: build the percentage-of-portfolio real-money path he signed
+  as `PAPER_TRACK_CONTRACT.md` §8 (2026-09-02), on Alpaca because Alpaca allows fractional
+  shares and Tradier did not, and start it at 0% until he is comfortable switching it on.
+  **Correction to his recollection, recorded so it is not repeated:** that path was signed but
+  never built. It was refused twice (2026-09-02 and 2026-09-15, `LIVE_PILOT_BLOCKED.md`), and
+  whole shares at Tradier left 51 of 68 names at zero shares on a $5,000 book. §8 keeps all its
+  rails; only the execution container moves to Alpaca. Don enters every key himself and
+  only he ever raises the percentage above 0. Paper keys go on Render now. Live keys go on
+  Render only, never on GitHub or in a local `.env`, and only after the §8 auditor review has
+  landed. **Many accounts, by numbered slot** (Don, same day): each slot is
+  `ALPACA_ACCOUNT_<n>_*`, discovered automatically, and slot 1 is Don's. A new slot starts at
+  0%. A slot other than 1 cannot arm until the contract records that holder's own signed
+  authorization (§8's family-slot rule). **Fully disciplined, no loss stops** (Don, same day):
+  each slot holds the Index book at its percentage of the account's equity, worked out stock by
+  stock. It buys and sells only at a quarterly rebalance or when its percentage changes; 0 to X
+  buys in, and X to 0 sells out. Nothing else happens, and §8's loss-stop requirement is removed
+  by his instruction. `LIVE_PILOT_ENABLED=0` pauses every slot without selling. **If anything
+  is broken or wrong** — unreadable book, missing price, unreadable account, orders that don't
+  match the math, a broker error — that slot doesn't trade that cycle, alerts Don, and tries
+  again next cycle. An error never sells.
+- **2026-10-14 — ALPACA BECOMES THE PRIMARY PRICE SOURCE WHEREVER IT MEASURES AT LEAST AS
+  GOOD**, with the current routes as fallbacks (item 59). Measure first, on `ALPACA_SETUP.md`'s
+  222-name sample. The Index record switches at a segment boundary, with base and mark from one
+  vendor and the seam recorded; that is a price-vendor change, not a vintage event.
+  Fundamentals, descriptions and earnings dates stay on Yahoo plus SEC, because Alpaca does not
+  carry them.
+- **2026-10-14 — SELL-PREMIUM-3 IS TESTED AS DRAFTED.** The corrected stage 2 left SELL-PREMIUM-2
+  NOT CONFIRMED at −0.43%/trade, the loss being the 2020 COVID crash (2021 slightly negative,
+  2022-2026 positive). Don chose to test the capped-loss version anyway. Its construction is frozen at the
+  draft `a1d37ff`, which predates every check-quadrant read; the register must say that the check
+  window has already been seen through SELL-PREMIUM-2, and no amendment may be informed by that
+  read. Build quadrant first, then the one check read; full trial charge.
+- **2026-10-14 — CLUSTERED INSIDER BUYING GOES TO THE 1999-2008 CHECK AND A PAPER BOOK.** It passed
+  its one check read on the $500M+ tier (+3.49pp gross / +2.91pp net over the next quarter), with
+  the caveat that 2023-2026 nets about zero after costs in every tier. Next: the one 1999-2008 proxy
+  read, and a forward paper book in shares on the registered construction, started now so forward
+  data accrues. Paper only; if the proxy read returns NOT CONFIRMED, the book is retired with that
+  result. **Measured the same day: the licensed insider file's filing dates begin in 2008**, and the
+  rule needs two prior years of each insider's history, so the first usable event is about 2010 and
+  the 1999-2008 read cannot be run on owned data. r1 checks whether the SEC's own free insider data
+  reaches far enough back, and reports the size of that build to Don before building it. If no
+  source reaches, the older-data rung is recorded as unobtainable and the paper book carries on.
+- **2026-10-13 — TRY TWO MORE FREE HEADLINE SOURCES:** titles of company press releases filed
+  with the SEC, and GDELT restricted to established outlets, under the same conclusions-only filter.
 
 ## How Don works
 
