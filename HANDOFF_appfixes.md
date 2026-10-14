@@ -294,13 +294,77 @@ still says so rather than inventing one — pinned both ways.
 
 ---
 
-## 5. THE POST-DEPLOY MEASUREMENT — OWED, AND WHY
+## 5. THE POST-DEPLOY MEASUREMENT — TAKEN, AND IT EXPOSED A SECOND DEFECT
 
-Part 5 asks how many names gained a theme, how many scores and ranks moved, NVDA's themes and
-where SMFSY now sits. **Parts 3 and 4 can be read the moment the deploy lands**, because the
-thin-data mark is computed at serve time over the existing snapshot and the bank fix is per
-request. **Parts 1 and 2 cannot: they change what the SCAN fetches, so they need a scan to run.**
-The scheduled scan is the next one; the measurement follows it and is recorded below when it does.
+The live hot list was **2 trading days stale** (2026-10-12) and the scheduled scan was ~21 hours
+out, so the hot-list scan was dispatched through the workflow's own `kind=hot` input — the same
+action the cron takes, earlier. It ran **~45 minutes inside its 60-minute allowance** and
+produced the **2026-10-13** snapshot, 1,456 names.
+
+**PART 1 — FMP IS GONE FROM THE CHAIN.** The health block no longer carries an `api_budget`
+section at all (the FMP provider is never constructed), the source label reads
+**`"free (broker fundamentals + EDGAR/Yahoo/Stooq)"`** and **`degraded: false`** — against
+2026-10-12's `served_by_fmp: 7`, `fmp_errors: 44`, `fmp_disabled_mid_scan: true` and
+`degraded: true`.
+
+**THEMES RECOVERED — THE CLEANLY ATTRIBUTABLE MEASURE, top 500:**
+
+| theme | 2026-10-12 | 2026-10-13 | change |
+|---|---|---|---|
+| institutional | 325 | 338 | **+13** |
+| insider | 317 | 329 | **+12** |
+| quality | 491 | 495 | +4 |
+| momentum | 487 | 491 | +4 |
+| value | 496 | 499 | +3 |
+| capital_discipline | 462 | 465 | +3 |
+| growth | 483 | 485 | +2 |
+| size | 500 | 500 | 0 |
+| **total theme-cells** | | | **+41** |
+
+**THIN NAMES FELL FROM 8 TO 5 IN THE SCAN AND 4 TO 1 IN THE TOP 500**, and **`SMFSY` — rank 1
+with a hot score of 100.0 on one theme — is no longer in the served top 500 at all.** The one
+remaining thin name there is `LOTMY`.
+
+**RANK MOVEMENT IS REPORTED AND CONFOUNDED, deliberately.** Two trading days of prices passed
+between the snapshots, so a rank change is not attributable to the repair; the theme-cell count
+above is the clean measure. NVDA moved 1262 → 1280, which says nothing either way.
+
+### AND THE REPAIR DID NOT REACH THE NAMES IT WAS BUILT FOR — a second defect, now fixed
+
+**`T`, `VZ`, `MGM`, `FDX` and `PFE` still carried NO momentum inputs** on the new scan — the
+very names item 53 part 7 measured returning **400 sessions of history on demand**. So +41
+cells came back and the headline cases did not. **NVDA still reads `why_missing
+["growth", "momentum"]`.**
+
+**THE CAUSE: `get_metrics` SERVES A CACHED ROW FIRST, AND THE FUNDAMENTALS CACHE RUNS TO 30
+DAYS.** A row written by the broken scan was handed back unchanged, so the retry never ran for
+those names — and would not have for a month. `_usable_cache` now treats a row carrying **none
+of the three momentum inputs** as a cache MISS, which is the same judgement its two existing
+rules already make (a row written before the USD normalisation, or on an older schema, is
+dropped rather than served) applied to a third way of being unfit. **Bounded and
+self-limiting**: only the rows lacking momentum are re-fetched — 9 of the top 500, ~30 of 1,456
+— and `SUN`'s thin-but-real shape (61 sessions, `high_prox` only) still caches normally rather
+than being re-fetched forever.
+
+**AND A SECOND OMISSION OF MINE, which is why the first scan could not tell me any of this:
+`refetch_detail()` was built on the provider and NOTHING READ IT.** The live health block
+carried no `refetch` key at all, so the first run with the retry in place could not say whether
+it had run, recovered anything, or discarded a degraded payload — *a rescue nobody can see is
+indistinguishable from a scan that never needed one*, which is the whole reason the counts
+exist. Wired into the scan's health block, and **omitted rather than faked when the retry never
+ran**: a scan served entirely from cache never creates a budget, and an absent block and a block
+of zeroes mean different things.
+
+**Two existing cache tests were repointed by intent**, not silenced: both assert the units and
+schema rules and both used a minimal positive control that happens to carry no momentum, so my
+third rule dropped it for a reason unrelated to what they test. Their controls now carry a
+momentum input and the schema test additionally pins the new rule, so its fixtures cannot drift
+from it. `test_screener` 83/83.
+
+**STILL OWED: the next scan is the one that proves the cache fix.** The repair is tested and the
+reasoning is measured, but the names above are only demonstrated recovered when a scan runs with
+this change deployed — and the `refetch` block will then say how many were retried, recovered
+and discarded. **Reported as not-yet-demonstrated rather than claimed.**
 
 ---
 

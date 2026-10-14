@@ -280,6 +280,77 @@ class ARetryThatRefusesADegradedAnswer(unittest.TestCase):
             self.assertIn("degraded", degradation(bad, None))
 
 
+class TheRepairDidNotReachItsOwnNamesUntilTheCacheWasFixed(unittest.TestCase):
+    """MEASURED ON THE 2026-10-13 SCAN, the first run with the retry in place.
+
+    **+41 theme-cells came back across the top 500** — institutional +13, insider +12,
+    momentum +4, quality +4, value +3, capital_discipline +3, growth +2, size +0 — and the
+    thin count fell from **8 to 5** in the scan and **4 to 1** in the top 500, with `SMFSY`
+    (rank 1, one theme) dropping out of the served list entirely.
+
+    **AND `T`, `VZ`, `MGM`, `FDX` AND `PFE` STILL HAD NO MOMENTUM AT ALL** — the very names
+    item 53 part 7 measured returning 400 sessions of history on demand. The retry was never
+    reaching them: `get_metrics` serves a cached row FIRST and the fundamentals cache runs to
+    **30 days**, so a row written by the broken scan was handed back unchanged and would have
+    been for a month.
+    """
+
+    def test_a_cached_row_with_NO_momentum_is_a_cache_MISS(self):
+        from valuation.screener.providers import (METRICS_SCHEMA, METRICS_UNITS,
+                                                  _usable_cache)
+        base = {"units": METRICS_UNITS, "schema": METRICS_SCHEMA}
+        self.assertIsNone(_usable_cache(dict(base, ret_12_1=None, ret_6_1=None,
+                                             high_prox=None)))
+        self.assertIsNone(_usable_cache(base))          # none of the three present at all
+        self.assertIsNotNone(_usable_cache(dict(base, ret_12_1=0.1)))
+
+    def test_a_THIN_BUT_REAL_name_still_caches_normally(self):
+        """`SUN` has 61 sessions and returns `high_prox` only. If one input were not enough,
+        such a name would be re-fetched on every scan forever and never satisfy."""
+        from valuation.screener.providers import (METRICS_SCHEMA, METRICS_UNITS,
+                                                  _usable_cache)
+        sun = {"units": METRICS_UNITS, "schema": METRICS_SCHEMA, "high_prox": 0.96,
+               "ret_12_1": None, "ret_6_1": None}
+        self.assertIsNotNone(_usable_cache(sun))
+
+    def test_the_two_OLDER_cache_rules_still_bite(self):
+        """The new rule is a third way of being unfit, not a replacement for the first two."""
+        from valuation.screener.providers import (METRICS_SCHEMA, METRICS_UNITS,
+                                                  _usable_cache)
+        self.assertIsNone(_usable_cache({"units": "wrong", "schema": METRICS_SCHEMA,
+                                         "ret_12_1": 0.1}))
+        self.assertIsNone(_usable_cache({"units": METRICS_UNITS, "schema": 1,
+                                         "ret_12_1": 0.1}))
+
+    def test_the_momentum_input_list_is_SHARED_and_not_retyped(self):
+        from valuation.screener.providers import _MOMENTUM_INPUTS
+        self.assertEqual(sorted(_MOMENTUM_INPUTS),
+                         ["high_prox", "ret_12_1", "ret_6_1"])
+
+    def test_it_decides_whether_to_REFETCH_and_not_how_to_SCORE(self):
+        """The ruling's own line. A cache rule is not a scoring rule."""
+        code = _code_only(os.path.join("valuation", "screener", "providers.py"))
+        i = code.index("def _usable_cache")
+        body = code[i:i + 700]
+        for forbidden in ("composite", "weight", "z_", "build_frame"):
+            self.assertNotIn(forbidden, body, forbidden)
+
+    def test_the_RETRY_COUNTS_REACH_THE_HEALTH_BLOCK(self):
+        """AN OMISSION IN THE FIRST CUT, and it is why the 2026-10-13 scan could not say
+        whether the retry had run: `refetch_detail()` was built on the provider and nothing
+        read it, so the live health block carried no `refetch` key at all. A rescue nobody can
+        see is indistinguishable from a scan that never needed one."""
+        src = _src(os.path.join("valuation", "screener", "screen.py"))
+        self.assertIn('health["refetch"] = det', src)
+        self.assertIn("refetch_detail", src)
+
+    def test_the_block_is_omitted_rather_than_FAKED_when_the_retry_never_ran(self):
+        """`if det and det.get("ran")` -- an absent block and a block of zeroes mean
+        different things, and a scan served from cache alone never created a budget."""
+        src = _src(os.path.join("valuation", "screener", "screen.py"))
+        self.assertIn('det.get("ran")', src)
+
+
 # --------------------------------------------------------------------------- part 3
 class TooFewThemesIsMarkedAndNotRankedAtTheTop(unittest.TestCase):
     """SMFSY was #1 of 1,440 at a hot score of 100.0, scored on `size` ALONE."""

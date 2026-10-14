@@ -80,12 +80,46 @@ def _stamp_units(m: dict, scale: float = 1.0) -> dict:
     return m
 
 
+#: The three momentum inputs. A cached row carrying NONE of them is not fit to serve -- see
+#: `_usable_cache`. Named here rather than inline so the one list is shared.
+_MOMENTUM_INPUTS = ("ret_12_1", "ret_6_1", "high_prox")
+
+
 def _usable_cache(cached):
-    """Drop cached fundamentals written before the USD normalization or an older schema."""
+    """Drop cached fundamentals that are not fit to serve.
+
+    Written before the USD normalization, on an older schema -- or, since item 54, carrying
+    NONE of the three momentum inputs.
+
+    **THE THIRD RULE IS WHY THE FIRST REPAIR DID NOT REACH ITS OWN NAMES.** Item 54 part 2 added
+    a retry to the per-name free fetch, and the 2026-10-13 scan -- the first with it in place --
+    still had `T`, `VZ`, `MGM`, `FDX` and `PFE` with no momentum at all: the very names item 53
+    part 7 measured returning 400 sessions of history on demand. The retry was never reaching
+    them, because `get_metrics` serves a cached row FIRST and the fundamentals cache runs to
+    **30 days** -- so a row written by the broken scan was handed back unchanged, and would have
+    been for a month.
+
+    A row with no momentum is exactly the state the repair exists to end, so it is now a cache
+    MISS and the name is fetched again. This is the same judgement the two rules above already
+    make -- a cached row that is not fit for purpose is dropped rather than served -- applied to
+    a third way of being unfit.
+
+    **IT IS BOUNDED AND SELF-LIMITING.** Only the rows that lack momentum are re-fetched: 9 of
+    the top 500 and ~30 of 1,456 on the scan measured. A name with genuinely too little history
+    (`SUN`, 61 sessions) still returns `high_prox`, so it caches normally and is not re-fetched
+    forever; a name that keeps failing is retried once per scan, which is the behaviour wanted.
+
+    **NO SCORING RULE CHANGES** -- this decides whether a row is re-FETCHED, not how it is
+    scored, which is the ruling's own line.
+    """
     c = cached or {}
     if c.get("units") != METRICS_UNITS:
         return None
-    return cached if int(c.get("schema") or 1) >= METRICS_SCHEMA else None
+    if int(c.get("schema") or 1) < METRICS_SCHEMA:
+        return None
+    if not any(c.get(k) is not None for k in _MOMENTUM_INPUTS):
+        return None
+    return cached
 
 
 def _redact(msg) -> str:
