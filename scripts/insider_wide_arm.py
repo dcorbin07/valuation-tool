@@ -105,6 +105,14 @@ def power_declared() -> dict:
     **When BOTH are available they must agree to the register's printed precision**, so a changed
     artifact goes red instead of silently re-deciding a verdict LABEL. That is `MA13`'s
     committed-literal idiom pointed at a number this code branches on.
+
+    **THE FALLBACK'S FIRST FORM GUARDED WITH `except Exception` AND KILLED THE WHOLE SUITE IN CI.**
+    `dipcall.data_root` **REFUSES** with `SystemExit` when no populated data root exists — which
+    is right, and `SystemExit` derives from `BaseException`, so `except Exception` does not catch
+    it. The import died at `REFUSING: no populated data root found` and `tests/test_insider_wide.py`
+    went red on a runner while passing locally. **A refusing resolver raises `SystemExit`, so a
+    CI-safe fallback must catch `BaseException` or name it** — the `guards-that-fail-open-in-ci`
+    family inverted: instead of passing vacuously it took the suite down.
     """
     out = {k: dict(v) for k, v in POWER_REGISTER.items()}
     try:
@@ -112,7 +120,7 @@ def power_declared() -> dict:
         if not os.path.isfile(p):
             return out
         pr = json.load(io.open(p, encoding="utf-8"))["power_realised"]
-    except Exception:                                                       # noqa: BLE001
+    except (Exception, SystemExit):                                         # noqa: BLE001
         return out
     for label, key in _FLOOR_KEY.items():
         row = pr.get(key)

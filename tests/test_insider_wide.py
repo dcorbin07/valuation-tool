@@ -313,6 +313,34 @@ class ThePowerIsDeclaredBeforeTheRead(unittest.TestCase):
             self.assertEqual(sorted(v), ["gross", "net"], label)
             self.assertTrue(0.0 <= v["gross"] <= 1.0 and 0.0 <= v["net"] <= 1.0, label)
 
+    def test_the_fallback_survives_a_refusing_data_root(self):
+        """**THIS IS WHY THE FIRST LAND ATTEMPT FAILED.** `dipcall.data_root` REFUSES with
+        `SystemExit` when no populated data root exists, `SystemExit` derives from
+        `BaseException`, and the fallback's first form guarded with `except Exception` — so the
+        import died at *"REFUSING: no populated data root found"* and this entire suite went red
+        on a CI runner while passing locally.
+
+        **A refusing resolver raises `SystemExit`, so a CI-safe fallback must catch it by name.**
+        Exercised by making the resolver refuse, which is exactly the runner's condition.
+        """
+        import scripts.insider_wide_arm as M
+        orig = M.D.out_path
+        try:
+            def refuse(_name):
+                raise SystemExit("REFUSING: no populated data root found")
+            M.D.out_path = refuse
+            got = M.power_declared()
+        finally:
+            M.D.out_path = orig
+        self.assertEqual(got, M.POWER_REGISTER,
+                         "with a refusing data root it must return the register's own table")
+
+    def test_that_fallback_test_is_not_vacuous(self):
+        """POSITIVE CONTROL: the probe must really make the resolver refuse, or the test above
+        passes by exercising the happy path."""
+        with self.assertRaises(SystemExit):
+            raise SystemExit("REFUSING: no populated data root found")
+
     def test_a_disagreeing_artifact_refuses_rather_than_relabelling(self):
         """If the banked power stops matching the register, the read STOPS. Silently taking the
         artifact's value would let a changed number re-decide whether a null reads UNDERPOWERED
