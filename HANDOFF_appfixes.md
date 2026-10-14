@@ -19946,9 +19946,23 @@ on two independent grounds, neither of which is its terms.**
 The complaint behind item 56 was that NVDA showed no headlines. **It now shows three, including
 its own two earnings releases and an Item 1.01 agreement**, and the reason the source works is
 structural rather than lucky: a company's own filing is about that company **by construction**,
-so the 42%-relevance problem that costs the news feed half its items does not exist here. It is
-also the only source that produced anything for **OCTV**, the small name the news feed is silent
-on.
+so the 42%-relevance problem that costs the news feed half its items does not exist here. It
+also produced items for **OCTV**, the small name item 55's measurement got nothing for.
+
+**A CORRECTION TO MY OWN CLAIM, FROM THE LIVE CHECK.** I had written that OCTV is "the name the
+news feed is silent on". **Live, OCTV's feed returned 2** — and the name that got **nothing**
+was **KO: 0 headlines scanned against 4 filed announcements.** So the gap is real and it is
+**not a fixed property of any one name**: which company the news feed happens to carry on a
+given day moves, which is the same instability that made the feed worth supplementing. Measured
+live on all five:
+
+| | the company's own announcements | news headlines shown |
+|---|---|---|
+| NVDA | **3** | 1 |
+| TSLA | **4** | 3 |
+| KO | **4** | **0** |
+| APLD | **4** | 1 |
+| OCTV | **2** | 2 |
 
 What ships per item: **the heading only**, the filing's date from EDGAR, a link to the **filing**
 (not the raw HTML fragment), and the 8-K item number rendered in plain words (`2.02` → "reported
