@@ -41,7 +41,14 @@ SCHEMA = "ai_auto/1"
 
 #: ITEM 53 part 2's block has its own schema key so a stored analysis and a stored
 #: earnings/headlines block can never be read as each other.
-RECENT_SCHEMA = "ai_recent/1"
+#: ITEM 56 BUMPED THIS, AND IT WAS FOUND ON THE LIVE SERVICE RATHER THAN IN A TEST. Adding
+#: `press_releases` to the block changed its SHAPE, and a block cached earlier the same day
+#: under the previous build is still a valid `ai_recent/1`, so `cached_recent` kept serving it:
+#: NVDA read `press_releases` ABSENT while KO, uncached, read it present. The defect would have
+#: healed itself at midnight, which is the worst kind -- a real gap that looks like a fluke.
+#: **BUMP THIS WHENEVER THE BLOCK GAINS OR LOSES A FIELD.** That is the whole purpose of the
+#: version check in `cached_recent`, and a day's stale cache is exactly what it is for.
+RECENT_SCHEMA = "ai_recent/2"
 
 #: NEW analyses a day. 30 until Don sets a number -- his words. At the measured $0.0248 a call
 #: that is ~$0.75 a day. A CACHE HIT IS NOT A NEW ANALYSIS and does not count against it.

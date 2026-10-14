@@ -375,6 +375,54 @@ class TheSourceRegistry(unittest.TestCase):
         self.assertEqual(hits, [])
 
 
+class TheCacheSchema(unittest.TestCase):
+    """Adding a field to a cached payload must invalidate the cache, or a day's visitors see
+    the old shape. Found live: NVDA served a pre-deploy block while KO served the new one."""
+
+    def test_the_schema_was_bumped_when_the_block_gained_a_field(self):
+        from valuation.web.ai_auto import RECENT_SCHEMA
+        self.assertNotEqual(RECENT_SCHEMA, "ai_recent/1",
+                            "the block gained `press_releases`, so the cache version must move")
+
+    def test_a_block_stored_under_the_old_schema_is_refused(self):
+        import tempfile
+
+        from valuation.web import ai_auto as AA
+        with tempfile.TemporaryDirectory() as root:
+            AA.store_recent("NVDA", {"headlines": {}}, root=root)
+            self.assertIsNotNone(AA.cached_recent("NVDA", root=root))
+            # Rewrite it as the OLD shape, exactly as the live service had it.
+            import json
+            with open(AA.recent_path("NVDA", root=root), "w", encoding="utf-8") as fh:
+                json.dump({"schema": "ai_recent/1", "headlines": {}}, fh)
+            self.assertIsNone(AA.cached_recent("NVDA", root=root),
+                              "a pre-deploy block must not be served")
+
+
+class TheEndpointIsBounded(unittest.TestCase):
+    """An endpoint that walks EDGAR per call needs a bucket; three free feeds did not."""
+
+    def test_api_recent_is_rate_limited(self):
+        from valuation.saas.ratelimit import LIMITS, buckets_for
+        self.assertIn("/api/recent", LIMITS)
+        n, window = LIMITS["/api/recent"]
+        self.assertGreaterEqual(n, 30, "too tight to browse normally")
+        self.assertLessEqual(n, 120, "too loose to bound enumeration")
+        self.assertEqual(window, 3600)
+        self.assertEqual(buckets_for("/api/recent", None), (("/api/recent", 1),))
+
+    def test_it_does_NOT_share_the_ai_budget(self):
+        """A visitor reading headlines must not be able to exhaust the owner's analysis cap."""
+        from valuation.saas.ratelimit import buckets_for
+        names = [b for b, _c in buckets_for("/api/recent", None)]
+        self.assertNotIn("ai:value", names)
+
+    def test_it_does_NOT_share_the_vendor_valuation_budget(self):
+        from valuation.saas.ratelimit import VENDOR_BUCKET, buckets_for
+        names = [b for b, _c in buckets_for("/api/recent", None)]
+        self.assertNotIn(VENDOR_BUCKET, names)
+
+
 class TheRecentBlockAndThePrompt(unittest.TestCase):
 
     def test_the_recent_block_carries_the_press_releases(self):
