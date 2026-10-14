@@ -45,7 +45,11 @@ class TheSourceStandardIsStatedAndMeasured(unittest.TestCase):
 
     def test_only_allowed_sources_may_supply_a_headline(self):
         from valuation.data.headline_rules import ALLOWED_SOURCES
-        self.assertEqual(sorted(ALLOWED_SOURCES), ["SEC EDGAR", "Yahoo Finance RSS"])
+        # A COMMITTED LITERAL, so adding a source has to be done in the same commit as the
+        # change that adds it and shows up in the diff. ITEM 56 added the third entry: it fired
+        # on that change, which is what it is for.
+        self.assertEqual(sorted(ALLOWED_SOURCES),
+                         ["SEC EDGAR", "SEC EDGAR (8-K exhibits)", "Yahoo Finance RSS"])
         # The REASON travels with the permission: a bare allowlist is how a source comes to be
         # trusted because it is in a list.
         for name, meta in ALLOWED_SOURCES.items():
