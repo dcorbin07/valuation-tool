@@ -51,6 +51,40 @@ premium fraction**, only the return, so `K3`'s denominator cannot be read out of
 that one column on a re-run of the existing control would settle both books **without a new
 register and without a trial**, because a control can only ever BLOCK (`MB1-SEL`).
 
+
+**MEASURED 2026-10-13, AND THE ANSWER IS THAT BOTH BOOKS CLEAR.** The step named in the
+paragraph above was run: `SELL-PREMIUM-2`'s `A2` control re-run with the premium fraction
+banked, `K3` imported, **zero trials and no register**. At **each book's own declared tenor**,
+against the unrelaxed 6.0-year bar with the synthetic row retained:
+
+| | build 2016-2019 | check 2020-2025 |
+|---|---|---|
+| **F-4** at its own **30** DTE | **4.7539 yrs** on 9.0474%/yr (n 5,974) | **3.5185 yrs** on 12.0122%/yr (n 10,426) |
+| **F-10** at its own **52** DTE | **5.8598 yrs** on 7.2076%/yr (n 3,046) | **4.4281 yrs** on 9.3600%/yr (n 5,408) |
+
+**F-10's BUILD CELL CLEARS BY 0.14 OF A YEAR — 2.3% OF THE BAR.** It is a pass and it is a
+knife edge, and a successor should expect to lose it on any construction change.
+
+**THE FEAR IN THE PARAGRAPH ABOVE WAS RIGHT IN SIGN AND WRONG IN SIZE.** The dip conditioning
+is worth **8.6%** of income on the build quadrant and **13.9%** on the check — real, in the
+predicted direction, and nowhere near enough to fire a gate clearing by 20% or more. **Refusing
+to borrow the number was still correct**: the difference could not have been known without
+measuring it, and the measurement is what makes the re-declaration arguable rather than
+asserted.
+
+**AND IT REPRODUCES THE STRIKE-RULE MECHANISM ON A THIRD POPULATION.** F-4's retirement cites
+`K3` firing at **11.57 years** on 0.90 moneyness at 30 DTE; at 25 delta on that same tenor it
+is **4.7539**, a **2.43x** improvement from the strike rule alone.
+
+**NOTHING IS RE-DECLARED AND BOTH BOOKS STAY RETIRED AS DECLARED.** A cleared crash gate
+removes the stated obstacle and **establishes nothing about whether either book makes money** —
+`K3` is a stress arithmetic, not an outcome, and `HANDOFF_optionsbot.md` §87 is this project's
+own expensive demonstration of exactly that, where `K3` passed on a window whose real crash
+cost 82% of the account. Re-declaring is Don's, needs a new `DECL_` committed alone, and
+inherits that warning in full. **The population is `SELL-PREMIUM-2`'s universe on RANDOM days —
+the best available non-dip proxy and NOT either book's own names** (`MB8`).
+`HANDOFF_optionsbot.md` §89.
+
 **So the hypotheses stay open and the declarations close.** That is the distinction the review
 itself drew: *"It does not retire any hypothesis — only expressions and declarations."*
 

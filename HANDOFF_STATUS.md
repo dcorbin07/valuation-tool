@@ -1,5 +1,26 @@
 # HANDOFF STATUS - shared project state
 
+## options lane - **F-4 and F-10's 25-delta re-declaration CLEARS the crash gate on non-dip income - and F-10's own tenor makes it a knife edge** (2026-10-13)
+
+The cheap step `FLEET_RETIREMENTS.md` named for itself. **Zero trials, no register** - `K3` is
+the predecessor's pre-committed arithmetic, imported.
+
+- **BOTH BOOKS CLEAR, AT EACH BOOK'S OWN DECLARED TENOR, IN BOTH QUADRANTS.** F-4 at **30**
+  DTE: **4.7539** years (build) and **3.5185** (check). F-10 at **52** DTE: **5.8598** and
+  **4.4281**. Bar 6.0, unrelaxed, synthetic row retained.
+- **F-10's BUILD CELL CLEARS BY 0.14 OF A YEAR - 2.3% of the bar.** A pass and a knife edge.
+- **THE TENOR CORRECTION IS THE FINDING, AND IT IS AN `MB8` ERROR I CAUGHT IN MY OWN WORK.** My
+  first cut measured both books at SELL-PREMIUM-2's 37-DTE median and would have reported
+  **0.89 years of headroom for F-10 where the truth is 0.14** - six-fold, in the flattering
+  direction. `K3`'s income is `premium x 252/dte`, so the tenor is half the denominator.
+- **The retirement memo's fear was right in sign and wrong in size:** the dip conditioning is
+  worth **8.6%** of income on the build quadrant and **13.9%** on the check. Refusing to borrow
+  the number was still correct - the size could not be known without measuring it.
+- **A CLEARED GATE ADOPTS NOTHING.** `K3` is a stress arithmetic, not an outcome - and §87 of
+  this same session is the expensive demonstration, where `K3` passed on a window whose real
+  crash cost 82% of the account. Both books stay **RETIRED as declared**.
+  `HANDOFF_optionsbot.md` §89.
+
 ## options lane - **F-21 and F-22 are ARMED; the schedule already existed; and a comment saying short books could not be armed was false** (2026-10-13)
 
 Both books have entry rules, are in `RULES`, and place orders. **Paper only, nothing adopted,

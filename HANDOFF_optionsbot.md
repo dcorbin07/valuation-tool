@@ -11956,3 +11956,65 @@ adopted, no real trade.** Zero trials — an arming is machinery, not a search.
   written; no `.github/` file changed; no declaration was edited. **18 new tests plus the repointed tripwire (23 of 23), zero errors.**
   `valuation/edge/fleet_books.py` (`pick_by_delta`, `_dip_healthy_rows`, `_f21_source_gate`,
   `f21_v6opt_dip_csp`, `f22_dip_csp_random_twin`), `valuation/saas/app_saas.py` (comment).
+
+
+---
+
+## 89. F-4 AND F-10's CHEAP STEP: THE 25-DELTA RE-DECLARATION **CLEARS** THE CRASH GATE ON NON-DIP INCOME — AND F-10's OWN TENOR MAKES IT A KNIFE EDGE (2026-10-13)
+
+The step `FLEET_RETIREMENTS.md` named for itself: *"Banking that one column on a re-run of the
+existing control would settle both books without a new register and without a trial, because a
+control can only ever BLOCK (`MB1-SEL`)."* **ZERO TRIALS, no register, no hypothesis, no bar
+chosen here** — `K3` is the predecessor's own pre-committed arithmetic, **imported** (`B7`).
+
+* **THE ANSWER IS YES, IN BOTH QUADRANTS AND AT EACH BOOK'S OWN DECLARED TENOR.** Against
+  `SELL-PREMIUM`'s unrelaxed **6.0-year** bar with the synthetic single-name row retained:
+
+  | | build 2016-2019 | check 2020-2025 |
+  |---|---|---|
+  | **F-4** (its own **30** DTE) | **4.7539 yrs** on 9.0474%/yr, n 5,974 | **3.5185 yrs** on 12.0122%/yr, n 10,426 |
+  | **F-10** (its own **52** DTE) | **5.8598 yrs** on 7.2076%/yr, n 3,046 | **4.4281 yrs** on 9.3600%/yr, n 5,408 |
+  | *all tenors, median 37* | *5.1129 on 8.3594%/yr* | *3.9236 on 10.7027%/yr* |
+  | *the DIP book, for contrast* | *4.6747 on 9.0811%/yr* | *3.4170 on 12.1891%/yr* |
+
+* **F-10's BUILD CELL CLEARS BY 0.14 OF A YEAR — 2.3% OF THE BAR — AND THAT IS THE NUMBER TO
+  CARRY.** It is a pass and it is a knife edge, and it is the one cell a successor should expect
+  to lose on any construction change.
+* **THE TENOR CORRECTION IS THE REASON THIS ITEM IS WORTH READING, AND IT IS AN `MB8` ERROR I
+  MADE AND THEN CAUGHT.** My first measurement ran the 25-delta rule at `SELL-PREMIUM-2`'s own
+  **20-60 DTE** band, median 37, and would have reported **5.1129** as the answer for both
+  books. **F-4 declares 30 DTE and F-10 declares 52**, and `K3`'s income is
+  `premium_fraction x 252/dte`, so **the tenor is half the denominator, not a detail.** Quoting
+  the 37-DTE figure as F-10's would have claimed **0.89 years of headroom where the truth is
+  0.14 — a six-fold overstatement, in the flattering direction.** And the shortcut that looks
+  equivalent is also wrong: holding the premium fraction fixed and changing only `turns`
+  **invents income**, because a longer-dated put collects more premium. Each band is measured
+  on its own rows.
+* **THE RETIREMENT MEMO'S FEAR IS MEASURED AND IT IS SMALLER THAN IT LOOKED.** It argued that
+  `SELL-PREMIUM-2`'s income could not transfer because that book is **dip-conditioned**, with
+  post-dip implied vol **+17.711%** above the name's own trailing median. **Measured, the dip
+  conditioning is worth 8.6% of income on the build quadrant (9.0811 against 8.3594) and 13.9%
+  on the check (12.1891 against 10.7027)** — real, in the predicted direction, and nowhere near
+  enough to fire a gate that clears by 20% or more at each book's own tenor. **The memo was
+  right to refuse to borrow the number and right about its sign; it was wrong about its size.**
+* **AND IT CONFIRMS `SELL-PREMIUM-2`'s OWN DIAGNOSIS ON A THIRD POPULATION.** F-4 was retired
+  because `SELL-PREMIUM`'s `K3` fires at **11.57 years** on its declared 0.90-moneyness rule at
+  30 DTE. **At 25 delta on that same 30-DTE tenor it is 4.7539 — a 2.43x improvement from the
+  strike rule alone**, which is the predecessor's measured mechanism (the moneyness rule
+  surrenders most of the income, and the income is the gate's denominator) reproduced on
+  non-dip entries.
+* **WHAT THIS IS NOT, AND IT BOUNDS EVERY FIGURE ABOVE.** The population is
+  `SELL-PREMIUM-2`'s **own universe entered on RANDOM days** — the best available non-dip proxy
+  and **not** F-4's event-free set nor F-10's published book. It is a statement about the
+  25-delta **STRIKE RULE's income** on ordinary days, never about either book's own names.
+  `MB8`: a number may not travel across populations without saying which one it came from.
+* **IT CLEARS A CRASH GATE AND IT ADOPTS NOTHING.** `K3` is a **stress arithmetic, not an
+  outcome** — §87 above is this session's own expensive demonstration of that, where `K3`
+  passed at 3.4170 years on a window whose real crash cost 82% of the account. **So a cleared
+  gate removes the stated obstacle to a 25-delta re-declaration and establishes nothing about
+  whether either book makes money.** Both stay **RETIRED as declared**; re-declaring is Don's,
+  needs a new `DECL_` committed alone, and inherits §87's warning in full.
+* **NOT DONE: no book is re-declared, no declaration edited, no arm run on either book's own
+  population, and no return claim is made anywhere.** `scripts/sp2_nondip_income.py`,
+  `sp2_nondip_tenor.py`; `data/free_analysis/SP2_NONDIP_INCOME.json`, `SP2_NONDIP_TENOR.json`,
+  `SP2_NONDIP_PICKS_build_2016_2019_half0.pkl`, `SP2_NONDIP_PICKS_check_2020_2025_half1.pkl`.
