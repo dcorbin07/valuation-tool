@@ -1350,3 +1350,117 @@ Family slots remain at 0 until each account holder's own signed authorization
 
 Nothing here changes the forward track, the 2027-02 operational gate or the
 2031 verdict. This is a fills experiment, not a verdict.
+
+
+## §8a AMENDMENT — ALPACA REPLACES TRADIER, FRACTIONAL SHARES, THREE EVENTS, NO LOSS STOPS — 2026-10-14
+
+**Don's instruction, in chat on 2026-10-14, quoted verbatim because it IS the specification:**
+
+> "I want it to be fully disciplined. Buy and hold and pilot at whatever percentage of the
+> account is authorized and does that math per stock. Buying and selling only at quarterly
+> rebalances and when that percentage changes. Otherwise no other restrictions because that's
+> the whole point. If not, then we just have extra room for bugs, errors, and complications"
+
+### WHAT CHANGES, AND WHAT DOES NOT
+
+| | §8 as signed (2026-09-02) | §8a (2026-10-14) |
+|---|---|---|
+| execution container | Tradier | **Alpaca** (Trading API, not Broker API) |
+| share granularity | whole shares only | **fractional shares allowed** |
+| percentage variable | `TRADIER_ACCOUNT_<n>_LIVE_PCT` | **`ALPACA_ACCOUNT_<n>_LIVE_PCT`** |
+| per-account loss stops | `MAX_DAILY_LOSS_PCT` and `MAX_DRAWDOWN_PCT` **required**, a slot refusing to arm without them | **REMOVED by Don's instruction** |
+| everything else | — | **unchanged**: equity-only, limit orders only, every slot ships at 0, a global kill switch, dry-run parity before any real order, an auditor review before any live key, family slots at 0 until their holder signs |
+
+**WHY THE CONTAINER MOVED, MEASURED RATHER THAN PREFERRED.** §8 was refused twice and the
+second refusal measured the reason (`LIVE_PILOT_BLOCKED.md`): Tradier's API states the equity
+order quantity is *"in whole numbers"*, so at $5,000 of book **51 of 68 Index names received
+zero shares and 27.8% of the money deployed**, and the smallest whole book was **$128,562**,
+set by MKL at $1,841.04 on a 0.0143 weight. Fractional shares remove that constraint entirely,
+which is the whole reason for the move.
+
+### THE ENVIRONMENT, AND THE ONE NAME THAT IS RETIRED
+
+| variable | meaning |
+|---|---|
+| `ALPACA_PAPER_KEY_ID`, `ALPACA_PAPER_SECRET_KEY` | the **paper** account every paper book trades in |
+| `ALPACA_ACCOUNT_<n>_KEY_ID`, `ALPACA_ACCOUNT_<n>_SECRET_KEY` | slot `n`'s **live** keys. Slot 1 is Don's |
+| `ALPACA_ACCOUNT_<n>_LIVE_PCT` | slot `n`'s share of **that account's** equity, 0-100. Missing means **0** |
+| `ALPACA_ACCOUNT_<n>_HOLDER` | a plain label for whose account it is |
+| `LIVE_PILOT_ENABLED` | the global kill switch. Anything but `1` is a pause |
+
+**`ALPACA_LIVE_PCT` IS RETIRED AND IS READ NOWHERE.** It was an earlier draft's single-account
+name. No alias is honoured, deliberately: an alias would let a variable Don has forgotten about
+arm slot 1. If it is set, `status()` reports it as retired and it still has no effect.
+
+### THE THREE EVENTS, AND NOTHING ELSE
+
+Each stock's target value is `slot_pct × account_equity × that stock's weight in the Index book
+in force`, with the weights renormalised over the **held** names so an exited position at zero
+weight does not strand cash. The slot buys or sells fractional shares to reach that target, and
+acts on exactly three things:
+
+1. **a new rebalance event on the bound Index record**;
+2. **a change in its own percentage** — 0→X buys in, X→Y resizes, X→0 is a target of zero and
+   sells out;
+3. **nothing else.** No loss stops, no drawdown rule, no drift rebalancing, no trading between
+   events. Dividends sit as cash until the next event.
+
+**Execution mechanics**, which are part of doing the trades rather than extra rules: limit
+orders only (§8); `time_in_force=day`, because Alpaca permits **no other** for a fractional
+order; an order unfilled or partly filled by the close is re-priced and re-sent each following
+cycle until that event's targets are met, with every attempt logged. The slot keeps **its own
+record** of what it bought and only ever trades those positions — **Don's other holdings in the
+account are never touched.**
+
+### PAUSING AND 0% ARE OPPOSITE, AND ARE ONE CHARACTER APART IN AN ENVIRONMENT PANEL
+
+* **`LIVE_PILOT_ENABLED=0` PAUSES every slot.** Nothing is sold, holdings stay exactly as they
+  are, and no target is computed. This is §8's global kill switch.
+* **`ALPACA_ACCOUNT_<n>_LIVE_PCT=0` IS A TARGET OF ZERO** — an instruction to hold nothing — so
+  the slot **sells what it bought** at the next cycle.
+
+The owner-only status states this difference in words on every read, because the consequence of
+confusing them is selling Don's book.
+
+### IF ANYTHING IS BROKEN, THE SLOT DOES NOT TRADE
+
+Before any order is sent, the cycle checks the inputs and the arithmetic. If any check fails
+that slot sends **no orders that cycle**, alerts Don the same day with the reason, and checks
+again next cycle. **An error never causes a sale and never changes holdings.** The checks are
+about the software and never about performance: an unreadable book or weights, a book stale
+against its own rebalance date, a missing or stale price for any name the cycle would trade, an
+unreadable account, orders that do not reproduce the per-stock math or differ from the paper
+book's beyond a stated tolerance, an order that would touch a position the slot did not buy, the
+slot's own record disagreeing with the broker's, or any broker API error.
+
+### TWO FACTS ABOUT ALPACA THAT THE BUILD COULD NOT SETTLE, RECORDED SO THEY ARE WATCHED
+
+1. **There is no way to confirm a paper account from the API.** `GET /v2/account` returns no
+   `is_paper`, no `account_type` and no environment field; the only hint in Alpaca's own
+   documentation is an example account number rendered `PALPACA_123`, i.e. a **prefix**, which
+   is an undocumented formatting detail. **So the host carries the whole guarantee** —
+   `paper-api.alpaca.markets`, parsed and compared — and the account number's shape is recorded
+   as corroboration only, never as a gate.
+2. **Alpaca's documentation does not state whether fractional shares work in an IRA, nor what
+   settlement means for a rebalance that sells and then buys.** It records that IRA accounts
+   are *"by default setup with limited margin (1x margin)"* and nothing about either question.
+   The design therefore **assumes neither**: a buy rejected for insufficient buying power is a
+   broker error, which means no orders for that slot that cycle plus an alert, and the
+   re-send-next-cycle behaviour resolves it once the cash settles. **Don should expect to watch
+   this on the first real rebalance.**
+
+*(Also corrected while checking: Alpaca's `account-plans` page states "we do not support
+retirement accounts", and that is out of date — Alpaca introduced Roth and Traditional IRAs for
+Trading API users. Recorded because the stale page is the first thing a search returns.)*
+
+### WHAT THIS DOES NOT CHANGE
+
+Nothing here touches the forward track, the 2027-02 operational gate or the 2031 verdict. §8's
+own closing sentence stands: **this is a fills experiment, not a verdict.** It is not a vintage
+event — the Index construction is untouched and only the execution container moves.
+
+| | |
+|---|---|
+| **Auditor design review** | REQUIRED before any live key is entered (§8, unchanged). `PROMPT_auditor_live_path.md` |
+| **Slot 1 live authorization** | NOT YET — Don enters the keys himself, after the review |
+| **Slot 2 live authorization** | NOT YET — needs that holder's own signed row here |
