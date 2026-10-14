@@ -1,5 +1,59 @@
 # HANDOFF STATUS - shared project state
 
+## options lane - **F-21 and F-22 are ARMED; the schedule already existed; and a comment saying short books could not be armed was false** (2026-10-13)
+
+Both books have entry rules, are in `RULES`, and place orders. **Paper only, nothing adopted,
+no real trade, zero trials.**
+
+- **NEITHER CAN FILL YET, and that is the DATA**: `dip_healthy` carries **0 rows** against a
+  declared minimum of 20. Arming now is safe only because a refusal is a **RECORD** -
+  `DIP_HEALTHY_ABSENT`, `DIP_HEALTHY_UNFIT`, `DRAW_PARAMS_UNDECLARED` go onto the book's own
+  stream - so a thin source can never read as a quiet market. **The books start by themselves
+  the day the data is ready, with no further human action.**
+- **THE SCHEDULE THE TASK ASKED FOR ALREADY EXISTED and section 85 was stale by one item.**
+  `.github/workflows/daily-doors.yml` is on `origin/main` and has POSTed
+  `/admin/record-dip-rejects?write=1` on `cron: 37 22 * * 1-5` all along, and that door writes
+  **both** series. **No workflow was written** - a second scheduler for a scheduled job.
+- **THE FINDING, worth more than the arming: a comment asserted the fleet's entire short half
+  could not be armed, and it sat three lines below the call that arms it.**
+  `valuation/edge/dividends.py` moved to LOAD_BEARING on 2026-08-24 - with the quarantine
+  suite's own reason being *"every short fleet book depends on it"* - and measured today
+  `assignment`'s 84-module closure reaches **zero** archived modules. This session nearly
+  concluded that F-8, F-10, F-21 and F-22 were all dead on the service on the strength of it.
+- **F-22's declaration names `p` and `F22_SALT` as "declared below" and declares neither**, so
+  the rule refuses by name rather than defaulting - a default `p` of 0 arms a book that can
+  never fire. p is set from F-21's own observed fill rate, so **the twin cannot start with the
+  arm**. `HANDOFF_optionsbot.md` section 88.
+
+## options lane — **SELL-PREMIUM-2 stage 2: NOT CONFIRMED. The crash stress passed, the crash happened, and the book lost 80%** (2026-10-13)
+
+The ONE rationed read of the check quadrant (2020-2026 × ticker half 1), with **nothing about the
+construction changed** and every scoring primitive imported from stage 1. **That read is now
+SPENT.** Stage 1's `ELIGIBLE-BUT-UNRESOLVED` label is **resolved, against the strategy.**
+
+- **Clause (a) FAILS: −9.2609%/trade** (*t* −9.611), early −4.2211%, late −16.2952%, on 4,522
+  trades — against stage 1's **+0.6709%**. Assignment **16.05% → 44.91%**, wins **87.47% →
+  57.83%**.
+- **Clause (c) FAILS in seven of eight sizing cells**, worst **−82.4%**; the one survivor takes
+  **13 trades**.
+- **THE SHARPEST FACT, AND IT IS A WARNING ABOUT THE GATE RATHER THAN THE BOOK: `K3` PASSED at
+  3.4170 years** — better than stage 1 — **and the window contains a −32.61% crash that cost up
+  to 82% of the account.** The register's own void condition 7 said so in advance: a crash stress
+  is **arithmetic, not an outcome**. It cannot see serial losses, assignment compounding, or a
+  book fully loaded going in.
+- **Clause (b) PASSES and must never be quoted alone**: the arm beats its random-day twin
+  (−9.26% vs −9.77%, z +10.9, 757 of 1,145 cells) **and both lose about 10% a trade**. A book can
+  be measurably better-timed than chance and still be a disaster — which is exactly why Don's
+  rule is a conjunction.
+- **A defect of my own, repaired before the rejection was quoted**: the sizing loop sized from the
+  STARTING equity and kept trading after ruin, reporting −$217k where the truth is −82%. That
+  direction makes a failing leg look worse than it is. Both stages were re-run on the repaired
+  loop and **stage 1's verdict is unchanged.**
+- **STAGE 3's 1999-2008 PROXY IS STRUCTURALLY UNAVAILABLE TO ANY OPTIONS CONSTRUCTION** — measured,
+  **zero chain files before 2016 in both layers**. So the staged ladder for an options strategy
+  has **three rungs, not four**: build → one check read → forward paper book. That binds every
+  future options register. `HANDOFF_optionsbot.md` §87.
+
 ## options lane — **fleet review executed: ten declarations retired, and F-14/F-15's priority inverts once their inputs are measured** (2026-10-13)
 
 `FLEET_RETIREMENTS.md` carries one row per retired book **with the landed result that closed it**,

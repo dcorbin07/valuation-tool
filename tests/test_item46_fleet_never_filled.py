@@ -49,7 +49,7 @@ BACKUP = os.path.join(REPO, "data_export", "fleet_records")
 F3_ORDER_ROWS = 72
 F3_DISTINCT_CONTRACTS = 44
 BOOKS_DECLARED = 18
-RULES_IMPLEMENTED = 4
+RULES_IMPLEMENTED = 6          # 2026-10-13: F-21 and F-22 armed
 
 
 class _Positions:
@@ -80,9 +80,17 @@ class TheDiagnosisSeparatesThreeCauses(unittest.TestCase):
         self.assertEqual(c.get("ARMED_NO_ORDERS"), 2)
         self.assertEqual(c.get("ARMED_WITH_ORDERS"), 1)
 
-    def test_only_four_rules_are_implemented_and_one_cannot_order(self):
+    def test_the_implemented_rules_are_a_declared_subset_and_one_cannot_order(self):
+        """REPOINTED 2026-10-13, `MB31`'s family: this asserted `len(RULES) == 4` and fired
+        on the CLOCK the moment F-21 and F-22 were armed, against a correct tree. The count
+        stays as a committed literal so arming a book still shows in this diff (`MA13`), but
+        the load-bearing assertions are now PROPERTIES that do not move when the fleet grows:
+        every implemented rule is a DECLARED book, and `f1_fill_ab` is the only rider."""
         from valuation.edge.fleet_books import RULES
         self.assertEqual(len(RULES), RULES_IMPLEMENTED)
+        declared = {d["book"] for d in F.declared_books() if d.get("parses")}
+        self.assertFalse(sorted(set(RULES) - declared),
+                         "an implemented rule with no declaration can never be armed")
         self.assertEqual(sorted(k for k, (fn, places) in RULES.items() if not places),
                          ["f1_fill_ab"], "a rider is not a silent book")
 
