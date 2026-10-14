@@ -12232,6 +12232,7 @@ Executes the scout's `PREREG_DRAFT_sellpremium3.md` (`a1d37ff`) under `DECISIONS
   **RIGHT**, and tautological as declared. (5) `K1` clears 1,200, 55/45 — **RIGHT** at 1,638.
   (6) the whole register passes, 30% — **WRONG**. (7) Don adopts, 10% — **unscorable**, nothing
   is offered.
+* **`MB31`'s FAMILY FIRED FOR THE FIFTH TIME ON THIS PROJECT, AND IS REPOINTED IN THE SAME COMMIT.** `tests/test_sellpremium2.py` asserted `options N == 319` and went RED against a correct tree **the moment this register booked its own four trials** - it fired on the CLOCK, not on anything about `SELL-PREMIUM-2`. The literal stays as a **FLOOR** (options `N` only ever rises, so a floor still catches a deleted row or a lowered charge, which is the direction that matters) and the load-bearing assertions become the properties the equality stood in for: **both rows present, `SELL-PREMIUM-2` still charging `n=4` and the predecessor still charging `n=5`.** **A guard asserting two numbers are equal today fires on the clock; assert the property the equality stood in for.**
 * **NOT DONE, named so it is not mistaken for done: NO STAGE-2 READ, so the check quadrant is
   NOT opened and the one read is NOT spent**; no width swept as a verdict; no second strike
   rule; no forward book — and **the fleet could not paper-trade a pass anyway**, because its

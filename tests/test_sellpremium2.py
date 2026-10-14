@@ -307,12 +307,36 @@ class Multiplicity(unittest.TestCase):
         rows = SP.benjamini_hochberg([0.001, 0.5], q=SP.BH_Q, k=4)
         self.assertEqual([r["bh_threshold"] for r in rows], [0.025, 0.05])
 
+    #: `MA13`'s committed literal, kept as a FLOOR rather than an equality. Options `N` only
+    #: ever rises, so a floor is tamper-evident in the direction that matters (a row deleted
+    #: or a charge lowered) and does not fire when another lane books its own trials.
+    OPTIONS_N_AT_SELLPREMIUM2 = 319
+
     def test_the_trials_are_booked_and_the_predecessors_STAY_CHARGED(self):
+        """REPOINTED 2026-10-14, `MB31`'s family for the fifth time on this project.
+
+        This asserted `options == 319` and went RED against a correct tree the moment
+        `SELL-PREMIUM-3` booked its own four trials -- it fired on the CLOCK, not on anything
+        about `SELL-PREMIUM-2`. The literal stays as a FLOOR so a deleted row or a lowered
+        charge is still caught, and the load-bearing assertions become the PROPERTIES the
+        equality stood in for: both rows are present, and each still charges what it charged.
+        """
         from valuation.edge import research_log
-        self.assertEqual(research_log.detail()["by_domain"]["options"], 319)
+        n = research_log.detail()["by_domain"]["options"]
+        self.assertGreaterEqual(
+            n, self.OPTIONS_N_AT_SELLPREMIUM2,
+            "options N has FALLEN, which is the permissive direction and needs its own "
+            "decision (MA6)")
         log = _src("RESEARCH_LOG.md")
-        self.assertIn("| SELL-PREMIUM-2 |", log)
-        self.assertIn("| SELL-PREMIUM |", log)
+        charges = {}
+        for line in log.split("\n"):
+            for rid in ("SELL-PREMIUM", "SELL-PREMIUM-2"):
+                if line.startswith("| %s |" % rid):
+                    charges.setdefault(rid, [c.strip() for c in line.split("|")][8])
+        self.assertEqual(charges.get("SELL-PREMIUM-2"), "n=4",
+                         "SELL-PREMIUM-2 books 4 options trials")
+        self.assertEqual(charges.get("SELL-PREMIUM"), "n=5",
+                         "the predecessor's five trials STAY CHARGED (E-1, MA6)")
 
 
 if __name__ == "__main__":
