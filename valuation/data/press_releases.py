@@ -284,6 +284,11 @@ EXTRACTION_MEASURED = {
     # 44 naming the company (51%), and NVDA got nothing at all. That gap is the reason this
     # source was worth building.
     "news_feed_for_scale": {"titles": 86, "on_company": 44, "share": 0.51, "nvda": "0 shown"},
+    # VERIFIED LIVE 2026-10-14, announcements vs news headlines actually shown. WHICH name the
+    # news feed is empty for MOVES: it was NVDA when item 55 measured it and KO on this day, so
+    # the gap is a property of the feed rather than of any one company.
+    "live_2026_10_14": {"NVDA": (3, 1), "TSLA": (4, 3), "KO": (4, 0),
+                        "APLD": (4, 1), "OCTV": (2, 2)},
 }
 
 
