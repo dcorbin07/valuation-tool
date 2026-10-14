@@ -314,3 +314,91 @@ Forecasts, not findings; they carry no weight in any verdict.
   cluster, no officer/director split. Each is a new hypothesis and needs its own register.
 * **`MB20` is not re-opened, `V6-B` is not re-opened, and the `insider` theme's weight is not
   touched.**
+
+---
+
+## AMENDMENT 1 — 2026-10-13, BEFORE ANY OUTCOME EXISTS: every count above is RESTATED, and the correction makes the design HARDER
+
+**A DEFECT IN THE IMPLEMENTATION, NOT IN THE RULE, AND THAT DIRECTION IS WHAT MAKES THIS A FIX.**
+Rule 5 above says *"a busy quarter at one name cannot re-fire the same cluster"*, and the first
+implementation suppressed a repeat only on the **same day** — so the very next filing re-fired the
+same cluster. Found on the banked event set before any arm ran: `ISCA` returned **29 insiders on
+2008-01-04, 01-07 AND 01-08**, one cluster counted about twenty times. The register's stated rule
+was right and the code did not implement it, so the code changed.
+
+The repair is a cooldown of one whole window, so fired windows cannot overlap and each cluster
+contributes exactly once. **It removes about half the events, which REDUCES power** — the direction
+that makes the design harder, discovered before any outcome existed.
+
+**THE VERDICT STRUCTURE IS UNCHANGED**: `h = 63` and `h = 126` are still the only horizons whose
+hypothesised effect clears the cost floor and whose required `n` is met on the wide universe, and
+the governing tier still fails at every horizon. Only the numbers move.
+
+### Restated — §2a, the strict condition's cost
+
+**4,386 strict build-cell events against 11,562 broad**, so the strict form costs **62.1% of the
+sample** (the original text said *"two thirds"* of 8,478 against 25,304; the fraction survives, the
+counts do not).
+
+### Restated — §3, the population
+
+| population | events | ticker clusters | early / late |
+|---|---|---|---|
+| **FULL corrected universe** | **4,386** | 1,344 | 2,398 / 1,988 |
+| **TIER, `cap >= $10B`** | **146** (3.33% of the cell) | 79 | 45 / 101 |
+
+### Restated — §5, the horizons
+
+| `h` | hypothesised effect | clears the 0.67pp cost floor | required `n` | full universe (4,386) |
+|---|---|---|---|---|
+| 5 | 0.10pp | NO | 30,614 | NO |
+| 21 | 0.41pp | NO | **7,289** | **NO** (it cleared before the repair) |
+| **63** | 1.23pp | YES | **2,430** | **YES (1.80×)** |
+| **126** | 2.46pp | YES | **1,215** | **YES (3.61×)** |
+
+`h = 21` now fails the required-`n` as well as the cost floor. **It was already a no-verdict
+sensitivity for the cost-floor reason**, so nothing about its status changes — recorded because a
+reader comparing the two tables would otherwise see a cell move from clearing to failing and
+wonder which reading governs.
+
+### Restated — §7 K1, and §8, the power
+
+The tier carries **146 events against 2,430 required at `h = 63` and 1,215 at `h = 126`** — short
+by **16.6×** and **8.3×**.
+
+| cell | se (naive) | se (clustered, worst case) | MDE80 naive | MDE80 clustered | power vs the hypothesised effect |
+|---|---|---|---|---|---|
+| full × 63 | 0.322pp | 0.582pp | **0.92pp** | **1.66pp** | **96.5% / 54.5%** |
+| full × 126 | 0.456pp | 0.824pp | **1.30pp** | **2.34pp** | **100% / 83.8%** |
+| tier × 63 | 1.767pp | 2.402pp | 5.02pp | 6.83pp | 10.0% / **7.4%** |
+| tier × 126 | 2.499pp | 3.397pp | 7.10pp | 9.65pp | 15.6% / **10.4%** |
+
+**The conclusion is unchanged and is now on smaller numbers: the wide universe can see the
+hypothesised effect, the tier cannot.**
+
+### Restated — §11.5 and §11.8
+
+The check quadrant holds **2,669** strict events (counted for feasibility, **not read**). The
+pre-2009 era holds **31** — down from 105, so Stage 3 is **more** foreclosed, not less, and §11.8
+binds a fortiori.
+
+### The kills, run in their own pass and read before any arm
+
+All three **stopping** kills PASS; K1 marks exactly the two cells this register already declared.
+
+* **K2 — the dip overlap: 0.2048 against a bar of 0.25. It does NOT fire, and it does not clear
+  comfortably.** 20.5% of clusters follow a `DIP-CALL` event within 5 sessions, 4.5pp under a bar
+  fixed before the measurement. **So roughly one cluster in five IS a post-dip event, and any
+  reading of a positive result has to carry that** — it is not `V6-B`'s arm, and it is not disjoint
+  from it either.
+* **K3 — the costume check: the worst theme is `insider` itself at 0.1699 against 0.60.** The flag
+  is not the theme in disguise, which is what makes §9's *"this is a different null"* a measurement
+  rather than an assertion.
+* **K4 — look-ahead: zero events dated before their own window**, with the positive control
+  detecting a planted ROUTINE pattern and the negative control leaving a planted opportunistic one
+  alone. A guard that refused everything would pass the first and fail the second, which is why
+  both run.
+* **The tier's PER-DATE NAME COUNT clears Stage 1b's floor on every date** — 44 dates, min **106**,
+  median 256, max 342, zero below `CONTRACT_MIN_POSITIONS` = 50. **So the tier's failure is purely
+  an EVENT-count failure and not a name-count one**, which is the sharper statement: the tier is
+  large enough to trade and the signal fires too rarely inside it.
