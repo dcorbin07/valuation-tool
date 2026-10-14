@@ -109,7 +109,7 @@ _SCHEMA = {
 
 
 def _recent_facts(recent) -> str:
-    """The quarter and the headlines as prompt text, or "" when there are none. [item 53/2]
+    """The quarter, the filed announcements and the headlines as prompt text. [items 53/2, 56]
 
     **IT SAYS WHAT IS MISSING, NOT JUST WHAT IS PRESENT.** A model handed no headlines and no
     explanation will reason as though nothing is happening to the company; handed the feed's
@@ -139,6 +139,24 @@ def _recent_facts(recent) -> str:
         lines.append("  NO CONSENSUS ESTIMATE IS AVAILABLE for this quarter on any free "
                      "source, so do NOT describe the result as a beat or a miss, and do not "
                      "infer what was expected.")
+    # ITEM 56: THE COMPANY'S OWN FILED ANNOUNCEMENTS GO FIRST, and the prompt says why -- a
+    # model told only "here are some headlines" cannot tell a statement the company signed its
+    # name to from a wire story about it, and the two deserve different weight.
+    pr = recent.get("press_releases") or {}
+    pitems = pr.get("items") or []
+    if pitems:
+        lines.append("The company's OWN announcements, filed with the SEC as 8-K exhibits "
+                     "(headline only -- the release text was not fetched):")
+        for it in pitems:
+            lab = it.get("sec_item_label") or ""
+            lines.append("  - [%s] %s%s" % (it.get("date") or "?", it.get("title") or "",
+                                            " [%s]" % lab if lab else ""))
+        lines.append("  These are the company's own words, filed under its own CIK, so they "
+                     "are attributed by construction -- stronger evidence than a headline "
+                     "about the company. They are still ONLY headlines: you have not read the "
+                     "releases, so do not describe their contents.")
+    elif pr.get("reason"):
+        lines.append("The company's own filed announcements: none. %s" % pr["reason"])
     h = recent.get("headlines") or {}
     items = h.get("items") or []
     if items:

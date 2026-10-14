@@ -19922,3 +19922,138 @@ a **FAILING** self-check, which is never retried into a pass and alerts instead.
 
 **STILL OWED: the screenshots.** This session has no browser, so every live check above is a
 fetched payload rather than a picture. The three screenshots Don asked for are not done.
+
+---
+
+## ITEM 56 (2026-10-13) — TWO MORE FREE HEADLINE SOURCES: ONE IS THE BEST THIS PROJECT HAS FOUND, THE OTHER CANNOT BE REACHED
+
+Don's ruling asked for two routes item 55 had not measured, under the same standard and filter.
+**One is KEPT and it is the strongest headline source the project has had; the other is REJECTED
+on two independent grounds, neither of which is its terms.**
+
+### THE MEASUREMENT, ON THE FIVE NAMES ITEM 55 USED
+
+| | found | naming the company | kept by the filter | names with an item |
+|---|---|---|---|---|
+| **Route 1 — SEC 8-K press releases** | **18** | **18 (100%, by construction)** | **17 (94%)** | **5 of 5** |
+| Route 2 — GDELT | 2 | **0** | 0 | 1 of 5 reachable |
+| *(item 55's Yahoo feed, for scale)* | *86* | *44 (51%)* | *~half of those* | *NVDA got 0* |
+
+`python -m scripts.i56_measure` reproduces both rows.
+
+### ROUTE 1 IS KEPT, AND IT FIXES THE PROBLEM THAT PROMPTED THE ITEM
+
+The complaint behind item 56 was that NVDA showed no headlines. **It now shows three, including
+its own two earnings releases and an Item 1.01 agreement**, and the reason the source works is
+structural rather than lucky: a company's own filing is about that company **by construction**,
+so the 42%-relevance problem that costs the news feed half its items does not exist here. It is
+also the only source that produced anything for **OCTV**, the small name the news feed is silent
+on.
+
+What ships per item: **the heading only**, the filing's date from EDGAR, a link to the **filing**
+(not the raw HTML fragment), and the 8-K item number rendered in plain words (`2.02` → "reported
+results"). The page heads the block **"The company's own announcements"** and says where they
+came from. The AI analysis receives them **above** the news headlines, labelled as the company's
+own words and explicitly told it has not read the releases.
+
+### FIVE DEFECTS, ALL MINE, AND EVERY ONE WAS FOUND BY THE MEASUREMENT RATHER THAN BY READING
+
+The first version of this module returned **nothing at all for all five names**. Each repair is
+pinned by a test built from real filed text.
+
+1. **THE FILENAME IS NOT A USABLE SIGNAL — and "usually EX-99.1" is in the ruling, the docs and
+   every description of this data.** An `EX-99`-shaped filename pattern finds nothing for three
+   of the five companies, because the exhibit NUMBER is not in the FILENAME: NVIDIA files its
+   earnings release as `q2fy27pr.htm` and Applied Digital as `apldq127earningsrelease.htm`.
+   **The fix is to stop guessing at filenames**: remove the documents that CAN be identified
+   (the EDGAR index pages, the XBRL render, the 8-K body) and let the **heading read** decide
+   which of the rest is the press release. Filename tells now only ORDER the candidates so the
+   request budget is spent on the likely one first.
+2. **EDGAR's own document header sits above the document.** `EX-99.1`, a sequence number, then
+   the filename — and the first cut captured **`e26287_ex99-1.htm` as the title**, then stopped
+   at the `Exhibit 99.1` line below it. So it produced an empty title for a filing whose heading
+   was plainly there.
+3. **"Read to the dateline" ran four of five titles into the body**, because NVIDIA and
+   Coca-Cola put their bullet highlights ABOVE the dateline. Position cannot decide where a
+   heading ends; **syntax can** — a subtitle follows a connector (`;` `,` `:`) or begins in
+   lower case, and a bullet point does neither.
+4. **THE WORST ONE, because nothing looked wrong: the module showed the WRONG RELEASE.** Applied
+   Digital's markup splits its own name on to its own line (`Applied` / `Digital Signs 210 MW
+   Lease at Delta Forge 2...`). Testing the one-word fragment for a subtitle tell rejected it,
+   the short title failed the length check, and the module **fell through to the next exhibit** —
+   so it showed a notes-pricing release instead of the lease that was the day's actual news.
+   Every field was still correct. **A silent substitution of one real document for another is
+   the worst shape a defect can take here.**
+5. **A list of named document types can only name the ones somebody thought of.** `OFFICERS'
+   CERTIFICATE` and `INCREMENTAL ASSUMPTION AGREEMENT NO. 1` both got through one. The general
+   property is the **casing** — a legal exhibit's heading is in capitals and a press release's
+   is not — read off the **first two words**, because plenty of companies are called NVIDIA or
+   KO and one all-caps word decides nothing.
+
+Also: HTML entities are now decoded with `html.unescape` rather than a hand-written list, which
+had been shipping titles containing a literal `&#8226;`.
+
+### A DECLARED DEPARTURE FROM "EXACTLY THE SAME FILTER", WITH THE MEASUREMENT THAT LICENSES IT
+
+The item 55 filter was run **as written** first, which is how this was found rather than assumed:
+it dropped three filed releases, and **two of the three are real corporate events** whose verbs
+a news desk does not use —
+
+    NVIDIA Guarantees SB Energy's PORTS-Pike Technology Campus in Ohio      <- a guarantee
+    Octave Intelligence Plc Listed on Nasdaq Stockholm                      <- a listing
+    Dear Hexagon Shareholders                                   <- correctly dropped
+
+`classify` asks two things of a title: is it promotional, and does it carry a marker making it a
+reported fact rather than an opinion. **The second question is vacuous for a document the company
+filed under its own CIK** — which is Don's own argument for this source, in his words "attributed
+by construction". So `classify_filed` keeps the promotional test and drops the attribution test.
+
+**It is one half of one test, on one source, for a measured reason, and it lives in
+`headline_rules` rather than as a second filter in `press_releases`** — one definition of this
+rule, and the mode has to be asked for explicitly, so the looser path cannot be reached by
+accident. A test pins both directions.
+
+### ROUTE 2 IS REJECTED, AND NOT FOR THE REASON ANYONE WOULD GUESS
+
+**GDELT's terms are the most permissive of any source this project has examined** — "unlimited
+and unrestricted use for any academic, commercial, or governmental use of any kind without fee",
+needing only a citation and a link to gdeltproject.org, which would have been carried. **The
+terms are not the problem.** Two independent grounds, either sufficient:
+
+* **IT CANNOT BE REACHED.** Its documented limit is one request every 5 seconds. It returned
+  `HTTP 429 "Please limit requests to one every 5 seconds"` for **4 of 5 names at 5.5s spacing,
+  4 of 5 at 15s, and 5 of 5 at 20s** — so the block is a sustained per-IP one rather than a
+  per-request gate, and **it got worse as the spacing lengthened**. A source unreachable four
+  times in five cannot be fetched inside a page request.
+* **ZERO YIELD WHEN IT DID WORK**, which is independent of the rate limit. The one query that
+  returned gave **2 articles over 7 days for TSLA and neither named the company** — "Tata Motors
+  raises Iveco takeover offer" and "Dear PM Ambani: Musk latest swipe at Reliance" — from
+  `economictimes.indiatimes.com` and `rediff.com`, neither of which would sit on an
+  established-outlet allowlist for US equities.
+
+**So the outlet allowlist the ruling asked for was never reached: there was nothing to allow.**
+No GDELT code ships — a rejected source must not be half-built — and a test holds that. The
+reasoning is recorded in `REJECTED_SOURCES` so a future session does not re-litigate the terms
+and reject it for the wrong reason.
+
+### COST, AND WHERE IT LANDS
+
+Measured at **7 to 19 EDGAR requests per name, 63 in total, averaging 13** — more than the "at
+most 8" the module's own docstring claimed before the measurement, and the claim was corrected
+rather than the figure rounded down to it. At the shared 0.2s gap that is under three seconds,
+and it happens **once per ticker per day**: item 53 already fetches `/api/recent` after the paint
+and stores it keyed on ticker and day, and that path is **not charged to the AI cap** — sharing
+it would let a visitor reading headlines exhaust the owner's analysis budget.
+
+**45 tests. `valuation/data/press_releases.py`, `valuation/data/headline_rules.py`
+(`classify_filed`), `valuation/data/recent.py`, `valuation/ai/analyst.py`,
+`valuation/web/static/app.js`, `scripts/i56_measure.py`, `tests/test_item56.py`.**
+
+**ONE EXISTING GUARD FIRED AND WAS RIGHT TO.** Item 55 pins the allowlist as a committed
+literal; adding a source turned it red, and the literal is moved **in the same commit** so the
+addition shows in the diff. That is what the guard is for.
+
+**NOT DONE, named so it is not mistaken for done:** the GDELT outlet allowlist does not exist
+(nothing reached it); no 10-K or 10-Q exhibit is read, only 8-K; the release TEXT is never
+fetched beyond the heading, so nothing here can say what a release contained; and **no
+screenshots** — this session has no browser, so every live check below is a fetched payload.
