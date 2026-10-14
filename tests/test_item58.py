@@ -275,6 +275,67 @@ class B_Separation(unittest.TestCase):
         self.assertEqual(sorted(set(offenders)), [],
                          "modules IMPORT the live path: %r" % (sorted(set(offenders)),))
 
+    def test_NOTHING_OUTSIDE_the_package_reaches_the_live_path_either(self):
+        """THE BRIEF SAYS "no CLI, script, test or admin door", AND MY FIRST VERSION OF THE
+        GUARD ABOVE WALKED ONLY `valuation/`. A `scripts/` entry point is exactly the shape
+        that would let a lane trigger a live order from a terminal, which is the thing question
+        4 of the auditor review asks about -- so the walk has to cover it.
+
+        `tests/test_item58.py` is excluded because this file legitimately imports the module to
+        test it, and `_LiveClient` is only ever constructed here with fake keys.
+        """
+        import ast
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        me = os.path.abspath(__file__)
+        offenders = []
+        for sub in ("scripts", "tests"):
+            base = os.path.join(root, sub)
+            if not os.path.isdir(base):
+                continue
+            for dirpath, _d, files in os.walk(base):
+                if "__pycache__" in dirpath:
+                    continue
+                for fn in files:
+                    if not fn.endswith(".py"):
+                        continue
+                    p = os.path.join(dirpath, fn)
+                    if os.path.abspath(p) == me:
+                        continue
+                    with open(p, encoding="utf-8", errors="replace") as fh:
+                        try:
+                            tree = ast.parse(fh.read())
+                        except SyntaxError:
+                            continue
+                    for node in ast.walk(tree):
+                        mods = []
+                        if isinstance(node, ast.Import):
+                            mods = [a.name for a in node.names]
+                        elif isinstance(node, ast.ImportFrom):
+                            mods = [node.module or ""] + [a.name for a in node.names]
+                        if any("live_slots" in (m or "") for m in mods):
+                            offenders.append(os.path.relpath(p, root))
+        self.assertEqual(sorted(set(offenders)), [],
+                         "a script or test reaches the live path: %r"
+                         % (sorted(set(offenders)),))
+
+    def test_no_workflow_carries_an_alpaca_credential(self):
+        """The keys live in the SERVICE's environment and nowhere else. Every workflow asks the
+        service to do the work -- confirmed: `fleet-cycle.yml` POSTs to it -- so no GitHub
+        secret is needed, and a workflow naming one would be a live key on GitHub."""
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        wf = os.path.join(root, ".github", "workflows")
+        if not os.path.isdir(wf):
+            self.skipTest("no .github/workflows in this checkout")
+        bad = []
+        for fn in sorted(os.listdir(wf)):
+            if not fn.endswith((".yml", ".yaml")):
+                continue
+            with open(os.path.join(wf, fn), encoding="utf-8", errors="replace") as fh:
+                body = fh.read()
+            if "ALPACA" in body.upper():
+                bad.append(fn)
+        self.assertEqual(bad, [], "a workflow names an Alpaca credential: %r" % (bad,))
+
     def test_that_guard_is_not_vacuous(self):
         """It must still bite on a real import, or it passes by seeing nothing."""
         import ast
