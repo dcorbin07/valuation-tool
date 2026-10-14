@@ -51,6 +51,14 @@ _SKIPS = []
 
 
 def _art(name):
+    # `D.data_root(required=False)` is the project's OWN answer to this, and its docstring
+    # names this exact failure: the raising form "broke this item's own suite in CI: data/ is
+    # gitignored, so on a runner there is no populated root at all and four data-dependent
+    # tests ABORTED instead of skipping loudly." My first cut called `out_path` unguarded and
+    # reproduced it -- four CI errors, passing locally. Asking without committing is what the
+    # parameter is for; a second try/except here would be a second answer to one question.
+    if D.data_root(required=False) is None:
+        return None
     p = D.out_path(name)
     if not os.path.isfile(p):
         return None
