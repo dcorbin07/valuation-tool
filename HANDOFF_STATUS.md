@@ -1,5 +1,35 @@
 # HANDOFF STATUS - shared project state
 
+## options lane - **SELL-PREMIUM-3: NOT CONFIRMED on the build quadrant and UNDERPOWERED - and a broker DOES allow this in a Roth** (2026-10-14)
+
+Register committed ALONE at `5f61820`, 4 options trials booked at `b31e2a6` before any runner
+existed (options `N` 319 -> 323, hurdle derived 3.3993094). **Adopts nothing; paper only.**
+
+- **THE BROKER QUESTION, WHICH WAS THE GATE, IS ANSWERED YES.** Fidelity publishes spreads in an
+  IRA at **Tier 2** plus a Spreads Agreement, with a **$2,000 Cash Spreads Reserve that is PER
+  ACCOUNT and one-time** - the distinction that decides fundability. Schwab publishes a
+  *"Supplemental Application … for … Trading Option Spreads in Your IRA Account"*; tastytrade
+  provisions IRAs as limited margin for defined-risk trades. **Only Fidelity's dollar figures
+  came from a primary page, and no broker's rule was confirmed against Don's own account.**
+- **ALL THREE KILLS PASS** - `K1` 1,638 two-leg events (floor 1,200) and 516 days (floor 300),
+  `K3-POS` 1.6124 years against 6.0, `K3-ACCT` 35% by construction. **But 37.1% of the
+  short-leg picks are refused because the strike ladder offers nothing in the declared width
+  band.**
+- **`B1` FAILS clause (a) and the halves DISAGREE IN SIGN** - full +1.2726%, early +4.5871%,
+  late −1.2132% - **and no cell reaches its own detection threshold** (0.26x / 0.77x / 0.19x),
+  so it is **UNDERPOWERED** rather than a null.
+- **`B2` CLEARS** (arm $+6.61 vs twin $−27.70, 354 of 573 cells, z +5.6397), and here the
+  pooled means **agree** in sign, unlike SELL-PREMIUM-2's corrected stage 2.
+- **`B3`**: the spread beats the naked book by +0.4871pp per dollar on identical events, at
+  **0.15x its own MDE** - direction yes, magnitude not demonstrated.
+- **THE DRAFT'S FAVOURITE ACCOUNT SIZE IS THE ONE THAT FAILS**: at the 35% cap $10,000 ends at
+  **$6,322**, against the draft's forecast of +7.55%/yr there. $25k and $50k survive.
+- **THE REALISED WIDTH IS NOT 7.5%** - the rule takes the nearest strike AT OR BELOW, so 7.5% is
+  a floor and the median is **8.80%**, putting median capital at $711/$750 against a forecast
+  $469.
+- **STAGE 2 IS NOT RUN, so the check quadrant is NOT opened and the one read remains
+  available.** `HANDOFF_optionsbot.md` §90.
+
 ## r1 lane — **clustered insider buying CONFIRMS out of sample on the wider tier Don asked for — +3.49pp gross and +2.91pp net of realistic size-tiered costs — and three things complicate it** (2026-10-13, `INSIDER-WIDE`)
 
 Stage 2 of `INSIDER-CLUSTER` and **the ONE read of the check quadrant** (2020-2026 × the other
