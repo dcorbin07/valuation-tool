@@ -575,8 +575,13 @@ def api_value():
         # and that is a fact about the SET of names rather than any one of them -- so it needs
         # a per-name flag it can count. `used: false` is the healthy state and is carried too,
         # because an absent key and a measured "no fallback needed" must not read the same.
+        # GUARDED THE WHOLE CHAIN, not just the attribute. `result` is a stub in several
+        # suites (a SimpleNamespace with no `.company`), which is why every other block here
+        # reaches through `getattr` -- and reaching for `result.company` directly turned
+        # /api/value into an HTTP 500 for three suites.
         payload["identity_fallback"] = dict(
-            getattr(result.company, "identity_fallback", None) or {"used": False})
+            getattr(getattr(result, "company", None), "identity_fallback", None)
+            or {"used": False})
         # ITEM 53 part 3: what the same model says at beta 1.0. Attached AFTER the withheld
         # branch above on purpose -- `average_risk_read` refuses when there is no published
         # base value, so a withheld name carries `available: false` and the page prints
@@ -885,6 +890,17 @@ def api_valquo_index():
                                   "last rebalance set, and is what these holdings are")
         book["available_configs"] = sorted(S.BOOK_CONFIGS or {})
         book["is_preview"] = False
+        # ITEM 57 B1: THE RECORD'S PRICING HEALTH, ON THE CARD. Served from `index_mark` rather
+        # than from `book_in_force`, which is deliberately fenced off from price-derived
+        # concepts so an acquisition and a vendor gap cannot become one thing. Derived from the
+        # recorded `n_priced` column, so it costs no vendor call on this page load.
+        try:
+            from ..screener import index_mark as _im
+            book["track"] = {"unpriced": _im.unpriced_run(
+                n_positions=book.get("n_positions"))}
+        except Exception:                                              # noqa: BLE001
+            book["track"] = {"unpriced": {"ok": False, "n_unpriced": 0, "alert": False,
+                                          "reason": "the pricing-health check could not run"}}
         # ITEM 21 -- THE CARD'S OWN FACTS, SERVED RATHER THAN INFERRED. The JS was reading
         # `n_eligible` and `n_scored`, which belong to a SCAN and are absent from a held book,
         # so both rendered as the string "undefined". A held book's facts are how many it

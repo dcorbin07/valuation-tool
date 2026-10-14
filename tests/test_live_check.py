@@ -605,7 +605,48 @@ class TheValuationChecks(unittest.TestCase):
         with _Net(self._table(_j({"error": "ticker not found"}, code=404))):
             LC.check_valuations("https://x", rep)
         self.assertEqual(rep.failed, 0, rep.lines)
-        self.assertEqual(rep.passed, 5)
+        # SIX, NOT FIVE, SINCE ITEM 57 A2: four names, the ZZZZQ refusal, and the company
+        # profile source. A committed literal, so adding a check has to move it in the same
+        # commit and the addition shows in the diff.
+        self.assertEqual(rep.passed, 6, rep.lines)
+
+    def test_the_company_profile_outage_FAILS_only_when_it_hits_every_name(self):
+        """ITEM 57 A2. One name missing its profile is ordinary -- plenty of filers carry no
+        industry -- so a per-name check has to pass on it, and did for weeks. The outage's
+        signature is that it hits EVERY name at once, which is only a fact about the set."""
+        # Every name degraded: `name` equal to its own ticker is what `yahoo.fetch` leaves.
+        t = {}
+        for tk in ("MSFT", "O", "NEE", "BRK.B"):
+            t[("POST", "/api/value", json.dumps({"ticker": tk}, sort_keys=True))] = _j({
+                "base_fair_value": 100.0, "classification": {"regime": "mature"},
+                "company": {"name": tk}})
+        t[("POST", "/api/value", json.dumps({"ticker": "ZZZZQ"}, sort_keys=True))] = \
+            _j({"error": "ticker not found"}, code=404)
+        rep = LC.Report()
+        with _Net(t):
+            LC.check_valuations("https://x", rep)
+        self.assertEqual(rep.failed, 1, rep.lines)
+        self.assertTrue(any("company profile source" in ln and "FAIL" in ln
+                            for ln in rep.lines), rep.lines)
+
+    def test_ONE_degraded_name_is_a_gap_and_not_a_failure(self):
+        """The other half, and the reason the check is counted across the set."""
+        t = {}
+        for tk in ("MSFT", "O", "NEE"):
+            t[("POST", "/api/value", json.dumps({"ticker": tk}, sort_keys=True))] = _j({
+                "base_fair_value": 100.0, "classification": {"regime": "mature"},
+                "company": {"name": "Real Name Inc."}})
+        t[("POST", "/api/value", json.dumps({"ticker": "BRK.B"}, sort_keys=True))] = _j({
+            "base_fair_value": 100.0, "classification": {"regime": "mature"},
+            "company": {"name": "BRK.B"}})
+        t[("POST", "/api/value", json.dumps({"ticker": "ZZZZQ"}, sort_keys=True))] = \
+            _j({"error": "ticker not found"}, code=404)
+        rep = LC.Report()
+        with _Net(t):
+            LC.check_valuations("https://x", rep)
+        self.assertEqual(rep.failed, 0, rep.lines)
+        self.assertTrue(any("company profile source" in ln and "1 of 4" in ln
+                            for ln in rep.lines), rep.lines)
 
     def test_a_200_with_a_score_for_a_nonexistent_ticker_FAILS(self):
         """THE DEFECT: HTTP 200, score 40, recommendation "Reduce", for no company at all."""

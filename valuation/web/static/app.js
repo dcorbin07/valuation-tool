@@ -3118,7 +3118,18 @@ function _renderValquoIndex(d, cfg) {
              + "would be built, not what is held")}`
       + (basis ? ` ${esc(basis)}.` : "")
       + `</span>`
-      + `<br><span class="muted">${esc(d.source_note || "")}</span>`;
+      + `<br><span class="muted">${esc(d.source_note || "")}</span>`
+      /* ITEM 57 B1: ONE HOLDING WENT UNPRICED FOR FOUR SESSIONS AND NOTHING SAID SO. The
+         writer has always returned an `unpriced` list and nothing consumed it. `alert` is set
+         by the server after MORE than one trading day, because one missed day is an ordinary
+         vendor hiccup and a run is something somebody has to look at. */
+      + (((d.track || {}).unpriced || {}).n_unpriced
+          ? `<br><span class="${((d.track || {}).unpriced || {}).alert ? "warn" : "muted"}">`
+            + `${esc(((d.track || {}).unpriced || {}).message || "")}`
+            + ` — the row is renormalised over the holdings that priced, so those days`
+            + ` measure a smaller book. A name that still trades is a data problem to fix,`
+            + ` never a sale.</span>`
+          : "");
   } else {
     /* The owner PREVIEW of a future rebalance, which legitimately IS an account-type
        construction built from today's scan — so it keeps the construction wording, and says
@@ -3146,7 +3157,15 @@ function _renderValquoIndex(d, cfg) {
   // of a book that can run to 86, which is right for browsing and wrong for allocating: a
   // footer claiming to equal the typed total while two thirds of the money sits in rows the
   // user cannot see would be the most misleading thing on this surface.
-  const rows = alloc.active ? (d.positions || []) : (d.positions || []).slice(0, 30);
+  /* ITEM 57 B3: AN EXITED NAME IS NOT A HOLDING AND DOES NOT BELONG IN THE HOLDINGS TABLE.
+     WBS sat at row 58 among the held names with 0.00% weight, $0 allocation and a blank
+     company -- a row that reads as a data defect in the one table listing what Don actually
+     holds. It is not a defect: the book HELD it until it was acquired, and the pro-rata rule
+     correctly leaves it at zero weight. Saying so on its own line is the difference between
+     "we hold nothing of this" and "this left the book, on this date, for this reason". */
+  const held = (d.positions || []).filter(p => (p || {}).status !== "exited");
+  const left = (d.positions || []).filter(p => (p || {}).status === "exited");
+  const rows = alloc.active ? held : held.slice(0, 30);
   const showShares = alloc.active && alloc.anyPrice;
 
   /* Present only when the payload carries them, so an older cached response renders exactly
@@ -3163,7 +3182,21 @@ function _renderValquoIndex(d, cfg) {
      The eight fixed columns: #, Ticker, Company, Sector, Weight, hot score, why?, Market cap. */
   const _ixCols = 8 + (hasForm ? 1 : 0) + (hasRet ? 1 : 0) + (alloc.active ? 1 : 0)
     + (showShares ? 2 : 0);
-  body.innerHTML = _indexSectorBox(d)
+  /* ITEM 57 B3: the "left the book" line, with the date and the reason, BELOW the holdings
+     and clearly not one of them. Rendered only when a name has actually left, so a book with
+     no exits looks exactly as it did. */
+  const leftLine = left.length
+    ? '<div class="note" style="margin-top:10px"><b>Left the book</b> — '
+      + left.map(p => {
+          const e = p.exit || {};
+          return `<b>${esc(p.ticker)}</b> on ${esc(e.date || "—")}`
+            + (e.reason ? ` (${esc(e.reason)})` : "")
+            + (e.treatment ? `, ${esc(e.treatment)}` : "");
+        }).join("; ")
+      + '. These are not holdings: the book held each until it left, and its weight was spread '
+      + 'across the survivors, which is why the weights above add to 100% without it.</div>'
+    : "";
+  body.innerHTML = _indexSectorBox(d) + leftLine
     + '<table class="tbl"><thead><tr><th>#</th><th>Ticker</th><th>Company</th><th>Sector</th>'
     + '<th class="num">Weight</th>'
     /* ITEM 18 -- THE BOOK IS FIXED, SO THESE TWO COLUMNS ARE WHAT MAKES THAT VISIBLE.

@@ -57,7 +57,12 @@ REBALANCE_TRADING_DAYS = 63
 EXITS = (
     {"ticker": "WBS", "date": "2026-08-20", "reason": "acquired",
      "treatment": "sold at last close; weight spread pro-rata across survivors",
-     "ruling": "Don 2026-10-02; PAPER_TRACK_CONTRACT amendment outstanding"},
+     # ITEM 57 B3: THE AMENDMENT IS NO LONGER OUTSTANDING. Amendment 2 was accepted on
+     # 2026-10-04 and records the corporate-action rule in `PAPER_TRACK_CONTRACT.md` section
+     # 5a, so this note had been telling a reader the treatment was unratified for ten days
+     # after Don ratified it.
+     "ruling": ("Don 2026-10-02, codified by PAPER_TRACK_CONTRACT Amendment 2 "
+                "(accepted 2026-10-04, section 5a)")},
 )
 
 
@@ -172,6 +177,12 @@ def book_in_force(*, meta_path: str = None, as_of=None) -> dict:
             "weight_exited": round(exited_w, 6),
             "prorata_scale": (round(scale, 6) if scale else None),
             "as_of": mark.isoformat(),
+            # ITEM 57 B1: THE RECORD'S PRICING HEALTH IS NOT HERE, DELIBERATELY. It belongs to
+            # the TRACK (`index_track.summary`), and `test_an_exit_is_never_INFERRED_from_a_
+            # name_being_unpriceable` fences it out of this function on purpose: a book's
+            # MEMBERSHIP must not be computable from whether a vendor answered, or an
+            # acquisition and a four-day vendor gap become one thing. That guard fired on this
+            # item's first attempt and was right.
             "held_since_days": (mark - formed).days,
             "source": "the service's bound record (data/valquo_track.json plus its rebalance "
                       "events) -- NOT today's scan"}

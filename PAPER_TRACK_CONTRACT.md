@@ -519,6 +519,57 @@ the last close is exactly where vendors diverge most. The rule is still the righ
 successor wanting the series reproducible to the digit needs the delisting close STORED on the row
 at the time, not re-fetched later.**
 
+#### CORRECTION, 2026-10-14 (item 57 B2) — THE ENGINE DID NOT DO THIS, AND THE PARAGRAPH ABOVE SAID IT DID
+
+**The sentence above reads "the answer it records is the one the engine already implements". That
+was wrong when it was written.** Measured on `index_mark.contract_row`: the book leg accumulates
+`weight × (close(mark) / close(segment_base) − 1)` over the names that **priced**, and divides by
+the weight that priced. A name with no close on the mark date is appended to `unpriced` and
+**renormalised away from the SEGMENT BASE** — i.e. treated as though it had never been held at all
+for that segment. That is precisely *"dropping it and renormalising the denominator"*, which the
+paragraph above names as an alternative and calls worse.
+
+**WHAT IS NOW IMPLEMENTED, AND FROM WHEN.** From the segment opened **2026-10-22**
+(`index_mark.CORPORATE_ACTION_FROM`), a held name whose price series has stopped is carried at its
+**last traded close** and its weight stays in the denominator, so the realised return is kept
+rather than erased. The exits and their closes travel on the writer's result
+(`exited: [{ticker, last_date, last_close, weight}]`), which answers the limit stated immediately
+above: **the delisting close is stored at the time rather than re-fetched later.**
+
+**WHY A CUTOVER AND NOT A FIX EVERYWHERE.** The record is append-only. Changing the arithmetic for
+the CURRENT segment would restate rows that are already published, which §3 treats as a back-fill
+— and a back-fill voids the whole run. So the segment formed on 2026-07-30 keeps the behaviour its
+rows were computed with, and the rule governs from the next one.
+
+**THE SIZE OF WHAT THE CURRENT SEGMENT CARRIES, MEASURED RATHER THAN ESTIMATED — AND IT IS
+ZERO.** Both candidate names fail to qualify, for different reasons, and both reasons are facts
+about the data:
+
+* **WBS** (0.78% at formation, acquired 2026-08-20) has exactly **one** close in the free route's
+  frame, 2026-08-19 — *after* the segment opened on 2026-07-30. With no segment-base price there
+  is no purchase price to realise a return against, so it stays `unpriced` under the old rule and
+  under the new one. **The new rule cannot change its contribution.**
+* **ET** (0.79%) **never stopped trading.** It moved its listing from the NYSE to the Texas Stock
+  Exchange on 2026-10-05 and the free route returned nothing for it on **2026-10-10, 10-12 and
+  10-13 — then priced it again on 10-14 at 20.25.** Three sessions of silence on a live name. Had
+  the corporate-action rule been applied with a one- or two-day bound it would have recorded ET as
+  **SOLD**, writing a false realised return into an append-only record. `STOPPED_TRADING_AFTER_DAYS`
+  is 5 because of this measurement, and the asymmetry is deliberate: calling a live name sold is
+  unrecoverable, while calling a delisted name unpriced is visible and costs a few more days.
+
+So the correction's effect on the published series is **nil**, and the figure worth carrying is
+what it would be for a name that exits *mid-segment with a base price*: at a ~0.8% weight the
+contribution differs by `0.008 × (the name's realised return − the book's segment return)`, which
+on ET's own numbers (base 19.907 on 2026-07-30, last close 20.41 on 2026-10-09, +2.53%) against a
+mid-single-digit book return is **about one to two hundredths of a percentage point** — the order
+the brief anticipated.
+
+**AND THE STANDING RULE THIS MAKES EXPLICIT: a vendor outage on a name that still trades is a DATA
+PROBLEM TO FIX, NEVER A SALE.** ET is the worked example. The record now says when it is short of a
+holding and for how long (`index_mark.unpriced_run`, surfaced on the Index card and alerting after
+more than one trading day), because the four sessions above passed unnoticed — the writer had
+always returned an `unpriced` list and, measured across the repository, nothing consumed it.
+
 ---
 
 ## 5a-2. AMENDMENT 2 — §2's power input corrected to the served book, and the corporate-action rule
