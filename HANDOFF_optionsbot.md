@@ -12111,6 +12111,28 @@ is why this is a correction and not a footnote. Found by Don's manager on the ba
   `DECISIONS.md` 2026-10-13 makes that conditional explicit and the condition is not met. **This
   construction's one check-quadrant read remains SPENT** — the repair re-ran the same read, it
   did not buy another.
+* **REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3), AND IT IS NOT MINE:
+  `tests/test_valreads.py` CANNOT PASS ON A WINDOWS CHECKOUT.**
+  `test_append_only_case_fails_when_the_manifest_stops_being_append_only` mutates
+  `valuation/edge/valreads.py` through a **binary** needle written with **LF**
+  (`b'        append_only=True,\n        backfill_hint='`), and on a Windows checkout
+  (`core.autocrlf=true`) that file is **CRLF on disk — 512 CRLF, zero bare LF** — so the needle
+  never matches, `bad == orig`, and the harness's own *"mutation point moved"* assertion fires.
+  **The STORED BLOB IS LF and contains the needle**, so a Linux runner matches it and CI is
+  GREEN — verified by materialising every tracked file from its blob and running the suite
+  there: **exit 0 on an LF tree, exit 1 on this one.** **It fails IDENTICALLY on `origin/main`
+  with nothing of mine applied**, so it is pre-existing and does not block landing. **The
+  consequence is that this one self-check case is NOT mutation-tested for anyone working on
+  Windows** — the guard reports a pass it never earned on the platform most of these lanes run
+  on. The fix is the needle's, not the module's: match on a line-ending-agnostic pattern, which
+  is `W-1`'s lesson in mirror image (there a harness forced LF and rewrote a CRLF source; here
+  it reads CRLF with an LF needle). **Not fixed here — it is the valuation-reads lane's suite
+  and choosing how a mutation needle is written is theirs.**
+* **AND A CORRECTION TO MY OWN TOOLING, because I reported the opposite for ten minutes:
+  `git archive` ON WINDOWS APPLIES THE CRLF FILTER**, so an export-based "CI simulation" is NOT
+  a Linux runner for any test that reads its own source bytes — it reproduced the Windows
+  failure and I briefly concluded CI was red. Materialising the stored BLOBS is the faithful
+  check, and it is what settled this.
 * **13 tests, and they bite: mutating ONLY the staleness check — signature and callers
   untouched — fires 4 of 13 BY NAME, including `GE expiring 2025 does not settle at its 2020
   close`, with sources restored byte-for-byte.** `valuation/studies/sellpremium.py`,

@@ -31,6 +31,11 @@ Found by Don's manager; **verified here from the book's own columns before anyth
 - **SCOPE, MEASURED: only two scripts settle. STAGE 1 IS UNAFFECTED AND SHOWN SO** - 0 of 2,610
   trades expire past its map. The predecessor keys its cache on the expiry's own year; the
   F-4/F-10 step never settles; no DIP-CALL script settles. **Only stage 2's figures move.**
+- **REPORTED, NOT MINE: `tests/test_valreads.py` cannot pass on a Windows checkout** -
+  its mutation needle is LF and the working file is CRLF, so the needle never matches.
+  The stored blob is LF, so **CI is green** (verified on a blob-materialised tree) and
+  it fails identically on `origin/main`. The cost is that one self-check case is not
+  mutation-tested for anyone on Windows. Valuation-reads lane's.
 - **SELL-PREMIUM-2 DOES NOT PASS STAGE 2, SO SELL-PREMIUM-3 STAYS SHELVED**, and this
   construction's one check-quadrant read remains **SPENT**. `HANDOFF_optionsbot.md` §87b.
 
