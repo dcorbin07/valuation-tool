@@ -75,15 +75,63 @@ BH_K = 3                         # §4 A5, FIXED at the three verdict cells, nev
 T_BAR = 2.0                      # §4 A3, LABELLED UNCALIBRATED
 MIN_NAMES_PER_DATE = 50          # charter Stage 1b, CONTRACT_MIN_POSITIONS
 
-#: §5's pre-declared power, verbatim from the register so the verdict grammar cannot be chosen
-#: after the read. A cell below 0.50 returns `UNDERPOWERED` on a null rather than `NOT CONFIRMED`.
-POWER_DECLARED = {
-    "full_universe": {"gross": 0.975, "net": 0.879},
-    "cap_ge_10bn":   {"gross": 0.724, "net": 0.670},
-    "cap_ge_2bn":    {"gross": 0.337, "net": 0.100},
-    "cap_ge_500m":   {"gross": 0.424, "net": 0.147},
-    "cap_ge_100m":   {"gross": 0.872, "net": 0.126},
+#: §5's pre-declared power table, as PUBLISHED in the register, to the precision the register
+#: prints. A cell below 0.50 returns `UNDERPOWERED` on a null rather than `NOT CONFIRMED`, so
+#: these numbers decide a LABEL and must be the register's own.
+#:
+#: **THE FIRST CUT OF THIS DICT WAS HAND-TYPED AND FOUR OF ITS TEN FIGURES WERE WRONG** — `$2B`
+#: gross read 0.337 against a banked 0.0518, and `$500M`/`$100M` had their NET figures swapped
+#: (0.147/0.126 against 0.127/0.148). `BETA-FORECAST` shipped a hand-typed `HLZ` hurdle wrong in
+#: its FOURTH DECIMAL three items ago and the lesson is the same one: **derive a figure you are
+#: going to branch on.** No verdict moved — every cell sits on the same side of 0.50 under both —
+#: which is luck rather than design, and exactly what `X7RECON` says not to rely on.
+POWER_REGISTER = {
+    "full_universe": {"gross": 0.975, "net": 0.100},
+    "cap_ge_10bn":   {"gross": 0.726, "net": 0.670},
+    "cap_ge_2bn":    {"gross": 0.052, "net": 0.000},
+    "cap_ge_500m":   {"gross": 0.424, "net": 0.127},
+    "cap_ge_100m":   {"gross": 0.872, "net": 0.148},
 }
+
+#: The floor each label maps to in the banked tier-choice artifact, which keys on the floor in USD.
+_FLOOR_KEY = {label: ("%d" % int(floor)) for (label, floor, _v) in CELLS}
+
+
+def power_declared() -> dict:
+    """§5's power table, DERIVED from the banked tier-choice artifact where it is readable.
+
+    The artifact lives under `data/`, which is gitignored and absent on a CI runner, so this
+    falls back to `POWER_REGISTER` — the register's own published figures — rather than raising.
+    **When BOTH are available they must agree to the register's printed precision**, so a changed
+    artifact goes red instead of silently re-deciding a verdict LABEL. That is `MA13`'s
+    committed-literal idiom pointed at a number this code branches on.
+    """
+    out = {k: dict(v) for k, v in POWER_REGISTER.items()}
+    try:
+        p = D.out_path("INSIDER_WIDE_TIER_CHOICE.json")
+        if not os.path.isfile(p):
+            return out
+        pr = json.load(io.open(p, encoding="utf-8"))["power_realised"]
+    except Exception:                                                       # noqa: BLE001
+        return out
+    for label, key in _FLOOR_KEY.items():
+        row = pr.get(key)
+        if not row:
+            continue
+        g, n = float(row["power_gross"]), float(row["power_net_vs_cost_bar"])
+        for leg, v in (("gross", g), ("net", n)):
+            want = POWER_REGISTER[label][leg]
+            if abs(round(v, 3) - want) > 1e-9:
+                raise SystemExit(
+                    "REFUSING: the banked power for %s/%s is %.6f, which rounds to %.3f against "
+                    "the register's published %.3f. A power figure decides whether a null reads "
+                    "UNDERPOWERED or NOT CONFIRMED, so a disagreement stops the read rather than "
+                    "quietly changing a label." % (label, leg, v, round(v, 3), want))
+        out[label] = {"gross": g, "net": n}
+    return out
+
+
+POWER_DECLARED = power_declared()
 
 
 def _checks() -> dict:

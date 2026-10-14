@@ -282,7 +282,49 @@ class ThePowerIsDeclaredBeforeTheRead(unittest.TestCase):
             self.assertIn(label, WA.POWER_DECLARED)
             for leg in ("gross", "net"):
                 p = WA.POWER_DECLARED[label][leg]
-                self.assertTrue(0.0 < p < 1.0, "%s %s = %r" % (label, leg, p))
+                # ZERO IS A LEGITIMATE VALUE AND THE FIRST FORM OF THIS TEST BANNED IT: the $2B
+                # band's gross effect is NEGATIVE, so its power to clear a positive cost bar is
+                # exactly 0 rather than small. A strict `> 0` asserted that every cell has SOME
+                # chance, which is false and is the thing the register is reporting.
+                self.assertTrue(0.0 <= p <= 1.0, "%s %s = %r" % (label, leg, p))
+
+    def test_the_power_table_is_derived_and_cross_checked_against_the_register(self):
+        """**THE FIRST CUT OF `POWER_DECLARED` WAS HAND-TYPED AND FOUR OF TEN FIGURES WERE
+        WRONG** — `$2B` gross read 0.337 against a banked 0.0518, and `$500M`/`$100M` had their
+        NET figures swapped. `BETA-FORECAST` shipped a hand-typed `HLZ` hurdle wrong in its
+        fourth decimal three items ago; **derive a figure you are going to branch on.**
+
+        No verdict moved, because every cell sits on the same side of 0.50 under both — luck
+        rather than design, which is precisely what `X7RECON` says not to lean on.
+        """
+        for label in WA.POWER_REGISTER:
+            for leg in ("gross", "net"):
+                self.assertAlmostEqual(round(WA.POWER_DECLARED[label][leg], 3),
+                                       WA.POWER_REGISTER[label][leg], places=9,
+                                       msg="%s/%s" % (label, leg))
+
+    def test_the_power_table_falls_back_to_the_register_and_never_to_a_default(self):
+        """The banked artifact is under `data/`, gitignored and ABSENT on a CI runner, so the
+        fallback is the register's own published table — not a default, and not a skip. A guard
+        whose input is absent on a runner must still be checking something
+        (`guards-that-fail-open-in-ci`)."""
+        self.assertEqual(sorted(WA.POWER_REGISTER), sorted(c[0] for c in WA.CELLS))
+        for label, v in WA.POWER_REGISTER.items():
+            self.assertEqual(sorted(v), ["gross", "net"], label)
+            self.assertTrue(0.0 <= v["gross"] <= 1.0 and 0.0 <= v["net"] <= 1.0, label)
+
+    def test_a_disagreeing_artifact_refuses_rather_than_relabelling(self):
+        """If the banked power stops matching the register, the read STOPS. Silently taking the
+        artifact's value would let a changed number re-decide whether a null reads UNDERPOWERED
+        or NOT CONFIRMED — the label the whole three-state grammar exists for."""
+        src = _src("scripts/insider_wide_arm.py")
+        self.assertIn("REFUSING", src)
+        tree = _tree("scripts/insider_wide_arm.py")
+        fn = [n for n in tree.body if isinstance(n, ast.FunctionDef)
+              and n.name == "power_declared"]
+        self.assertEqual(len(fn), 1)
+        raises = [n for n in ast.walk(fn[0]) if isinstance(n, ast.Raise)]
+        self.assertGreaterEqual(len(raises), 1)
 
     def test_the_governing_cell_is_declared_below_half_so_a_null_there_is_underpowered(self):
         """§5's uncomfortable sentence, pinned: the cell Don's ruling asks to govern cannot see
