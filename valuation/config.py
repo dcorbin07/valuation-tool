@@ -95,6 +95,19 @@ class Config:
     # env typo, and flipping the app's feed cannot silently move the paper book.
     tradier_paper_token: str = field(default_factory=lambda: _get("TRADIER_PAPER_TOKEN"))
     tradier_paper_account_id: str = field(default_factory=lambda: _get("TRADIER_PAPER_ACCOUNT_ID"))
+
+    # ---------------------------------------------------------------- ITEM 58: ALPACA PAPER
+    # THE PAPER SLOT ONLY. Alpaca replaces the Tradier sandbox for every paper book (Don,
+    # 2026-10-14) because its paper fills are matched against the real-time NBBO while the
+    # Tradier sandbox's data is ~15 minutes delayed.
+    #
+    # **THE LIVE KEYS ARE NOT IN THIS DATACLASS AND MUST NOT BE.** They are read, per slot and
+    # on demand, by `edge/live_slots.py` -- the only module allowed to hold them -- so that
+    # nothing which merely imports CONFIG can obtain a live credential. A field here would be
+    # reachable from every module in the project, including every paper book and every test.
+    alpaca_paper_key_id: str = field(default_factory=lambda: _get("ALPACA_PAPER_KEY_ID"))
+    alpaca_paper_secret_key: str = field(
+        default_factory=lambda: _get("ALPACA_PAPER_SECRET_KEY"))
     # Contracts per paper option trade. 1 keeps the forward book on the same fixed-1-contract
     # basis the backtested scorecard uses, so paper and backtest expectancy are comparable.
     paper_contracts_per_trade: int = field(
