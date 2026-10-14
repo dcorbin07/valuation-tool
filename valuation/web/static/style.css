@@ -104,6 +104,16 @@ header .wrap{padding-bottom:0}
 /* ITEM 53 part 4: a definition nobody can see is a definition nobody reads, so a defined
    term carries a dotted underline and a help cursor. Deliberately quiet -- it marks the term
    as explainable without competing with the number beside it. */
+/* ITEM 54 part 3: the thin-data group. Deliberately set apart rather than styled as an
+   error -- these are real names with real scores, shown where a reader will not read their
+   rank as comparable. */
+.thin-group{margin:14px 0 6px;padding:10px 12px;background:#fbf8f2;
+  border:1px solid #e8dfc9;border-radius:5px}
+.thin-head{font-size:14px;margin:0 0 6px}
+.thinrow td{opacity:.92}
+.thin-flag{display:inline-block;margin-left:6px;padding:1px 5px;border-radius:3px;
+  background:#f0e4c8;color:#6b5a2a;font-size:11px;font-weight:600;cursor:help;
+  vertical-align:middle}
 /* ITEM 53 part 2 */
 .rc-q,.rc-h{background:var(--panel,#fafbfc);border:1px solid var(--line,#e6e9ee);
   border-radius:4px;padding:9px 11px;margin:0 0 8px;font-size:13.5px}

@@ -438,7 +438,16 @@ def _price_assumes_block(result) -> dict:
         except Exception:                                          # noqa: BLE001
             biz = None
 
-        fin_rev = (getattr(result, "financial_extras", None) or {}) if is_fin else {}
+        # ITEM 54 PART 4 -- THE FIELD IS `financial_surfaces`, AND `financial_extras` DOES NOT
+        # EXIST ON `ValuationResult` AT ALL. Reported by r1 (`valreads.py` carries the same
+        # note) and confirmed against the dataclass's own field list.
+        #
+        # `getattr` WITH A DEFAULT IS WHY IT WAS SILENT: a misspelled field returned `{}`
+        # rather than raising, so every bank's "what the price assumes" rendered as
+        # unavailable while the engine had the number -- `implied_roe` is computed on every
+        # financial (ABCB 12.2%) and was being thrown away one lookup from the page. The
+        # wrong-object family, and the kind that a default hides.
+        fin_rev = (getattr(result, "financial_surfaces", None) or {}) if is_fin else {}
         fin_rev = (fin_rev.get("reverse") or {}) if isinstance(fin_rev, dict) else {}
         lead = PA.price_assumes(
             rev, biz, is_financial=is_fin,
@@ -1130,6 +1139,14 @@ def api_hotstocks():
     # Medians come from the FULL scan, not the displayed slice, so the peer group is stable.
     from ..screener.fairvalue import estimate_fair_values
     estimate_fair_values(rows, peer_rows=all_rows)
+    # ITEM 54 PART 3 — MARK A NAME SCORED ON TOO FEW THEMES. A DISPLAY STAMP ONLY: additive
+    # fields, no score and no rank recomputed, and `build_index` is not involved at all.
+    #
+    # Counted over the WHOLE snapshot and not only the served slice, because the census the
+    # page prints ("N of the scan") is a statement about the scan.
+    from ..screener import thin_data as _thin
+    _thin_census = _thin.mark(rows)
+    _thin_all = _thin.mark(all_rows)
     # ...and nothing implausible goes out with it. This estimator has no ceiling: its EV
     # bridge is `3 + 2 x (net debt / market cap)` times the price, so a leveraged name can
     # clear the valuation page's 5x refusal band on this PUBLIC surface while that page is
@@ -1184,7 +1201,14 @@ def api_hotstocks():
     # become a screen and needs its own register.
     from . import accounting_risk as _acct_risk
     accounting_block = _acct_risk.block(rows)
-    return jsonify({"scan_date": scan_date, "rows": rows, "tenure": tenure_block,
+    return jsonify({
+                    # ITEM 54 part 3: the rule, the wording and the counts, so the page
+                    # states the rule rather than implementing one of its own.
+                    "thin_data": {**_thin_census,
+                                  "scan_n_thin": _thin_all.get("n_thin"),
+                                  "scan_n_rows": _thin_all.get("n_rows"),
+                                  "scan_n_uncountable": _thin_all.get("n_uncountable")},
+                    "scan_date": scan_date, "rows": rows, "tenure": tenure_block,
                     "refusals": refusals_block,
                     "accounting_risk": accounting_block,
                     "sectors": sector_attractiveness(all_rows),

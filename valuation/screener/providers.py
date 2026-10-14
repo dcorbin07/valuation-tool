@@ -196,6 +196,10 @@ class FreeProvider(ScreenerProvider):
         self._broker_raw: Optional[dict] = None
         self._broker_note = ""
         self._broker_hits = 0
+        #: ITEM 54 part 2: one tuple per free fetch -- (ticker, attempts, ok, recovered,
+        #: degraded, why). Bounded in practice by the universe size, and read by
+        #: `refetch_detail`.
+        self._free_reports: list = []
         self._broker_only = 0
         # get_metrics runs on a thread pool (scan_workers, default 8) and these counters are
         # reported in the health block — an unsynchronized += drops updates and understates
@@ -309,6 +313,45 @@ class FreeProvider(ScreenerProvider):
         except Exception:
             return []
 
+    @property
+    def _retry_budget(self):
+        """One budget for the whole scan, created on first use.  [item 54 part 2]
+
+        Per-provider rather than per-name, because the thing being bounded is the scan's wall
+        clock and the far end's patience, neither of which is per-name.
+        """
+        with self._lock:
+            b = getattr(self, "_rb", None)
+            if b is None:
+                from .refetch import RetryBudget
+                b = self._rb = RetryBudget()
+        return b
+
+    def refetch_detail(self) -> dict:
+        """What the retry did, for the scan's health block.  [item 54 part 2]
+
+        **THE COUNTS ARE THE POINT.** A rescue nobody can see is indistinguishable from a scan
+        that never needed one, and a degraded payload that was discarded has to be reported or
+        the reader cannot tell it from a name that simply has no data.
+        """
+        b = getattr(self, "_rb", None)
+        out = {"ran": b is not None}
+        if b is None:
+            return out
+        out.update(b.detail())
+        with self._lock:
+            reps = list(getattr(self, "_free_reports", []))
+        out["names_fetched"] = len(reps)
+        out["names_retried"] = sum(1 for r in reps if r[1] > 1)
+        out["names_recovered_by_retry"] = sum(1 for r in reps if r[3])
+        out["names_degraded_discarded"] = sum(1 for r in reps if r[4])
+        out["names_failed"] = sum(1 for r in reps if not r[2])
+        # A bounded sample, so a reader can see WHY rather than only how many.
+        out["failure_sample"] = [{"ticker": r[0], "why": r[5]}
+                                 for r in reps if not r[2]][:5]
+        out["recovered_sample"] = [r[0] for r in reps if r[3]][:10]
+        return out
+
     def get_metrics(self, ticker: str) -> Optional[dict]:
         # cached?
         if self.store:
@@ -327,15 +370,27 @@ class FreeProvider(ScreenerProvider):
         # that meant the name was DROPPED from the scan entirely ("no data"); now it survives
         # on the broker's half, so a throttled Yahoo costs the scan some quality per name
         # instead of costing it the name.
+        # ITEM 54 PART 2 — IT GETS A SECOND ATTEMPT, AND A DEGRADED ANSWER IS NOT ACCEPTED.
+        # The single attempt above is what left `T`, `VZ`, `MGM`, `RNR`, `NVDA` and `KO` with
+        # no momentum in the live scan while all six return 400 sessions of history on demand.
+        # The retry is PACED and drawn from a scan-wide budget, and a throttled payload is
+        # DISCARDED rather than merged -- see `refetch.py` for the measured tells (price and
+        # market cap both absent drives the WACC to the after-tax cost of debt exactly).
+        #
+        # A currency mismatch is still handled, and still not retried: it is a fact about the
+        # filing, so a second attempt returns the same thing.
         free = None
         try:
             from ..data import fetcher
-            cd = fetcher.get_company(ticker, self.cfg)
-            # A statement/price currency mismatch we could not resolve: the free row is
-            # garbage, but the broker's figures are natively USD and unaffected, so drop
-            # only the free half rather than the whole name.
-            if not getattr(cd, "fx_unresolved", False):
-                free = company_to_metrics(cd, P.get_quote(ticker))
+            from .refetch import fetch_free
+            rep = fetch_free(ticker, self.cfg, get_company=fetcher.get_company,
+                             get_quote=P.get_quote, budget=self._retry_budget)
+            with self._lock:
+                self._free_reports.append(
+                    (rep["ticker"], rep["attempts"], rep["ok"], rep["recovered"],
+                     rep["degraded"], rep["why"][:120]))
+            if rep["ok"]:
+                free = company_to_metrics(rep["cd"], rep["quote"])
         except Exception:
             free = None
 

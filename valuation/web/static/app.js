@@ -1440,7 +1440,18 @@ function renderHot(d) {
     '<th class="num">Price</th><th class="num">Market cap</th><th class="num">Hot</th>' +
     '<th></th><th class="num">Value</th><th class="num">Qual</th>' +
     '<th class="num">Grow</th><th class="num">Mom</th><th class="num">Fair val</th></tr>';
-  d.rows.forEach(r => {
+  /* ITEM 54 PART 3 — A NAME SCORED ON TOO FEW THEMES IS NOT RANKED AT THE TOP.
+     SMFSY was #1 of 1,440 with a hot score of 100.0 on ONE theme (`size`, which this
+     project's own record puts at the WORST theme IC of the nine). `_branch` redistributes a
+     missing theme's weight so the number stays comparable, which is exactly why nothing about
+     the number said so.
+     A DISPLAY SPLIT ONLY: no score, rank or weight changes, and the server did the marking
+     (`screener/thin_data.py`) so the rule lives in one place and the page states it rather
+     than implementing its own. */
+  const _thin = d.thin_data || {};
+  const _ranked = (d.rows || []).filter(r => !r.thin_data);
+  const _thinRows = (d.rows || []).filter(r => r.thin_data);
+  _ranked.forEach(r => {
     const up = r.upside;
     html += `<tr><td>${r.rank}</td><td><a href="#" onclick="gotoValue('${r.ticker}');return false"><b>${r.ticker}</b></a></td>
       <td>${esc((r.name || "").slice(0, 22))}${_srcMark(r)}${_whyChips(r)}</td><td>${esc((r.sector || "—").slice(0, 16))}</td>
@@ -1457,6 +1468,46 @@ function renderHot(d) {
         attributionPanel(r, { of: d.scored })}</td></tr>`;
   });
   html += "</table>";
+  /* The thin group: same columns, same why? panel, its own heading and the calibrated
+     sentence from `score_confidence` rather than a fresh one written here. */
+  if (_thinRows.length) {
+    html += `<div class="thin-group">
+      <div class="thin-head"><b>${esc(_thin.label || "Scored on too little data to rank")}</b>
+        — ${_thinRows.length} ${_thinRows.length === 1 ? "name" : "names"}</div>
+      <div class="note">${esc(_thin.rule || "")}</div>
+      <div class="note">${esc(_thin.note || "")}</div>
+      <div class="note"><b>Why this matters:</b> ${esc((window.SCORE_CONFIDENCE || {}).thin_data || "")}</div>
+      <table><tr><th>#</th><th>Ticker</th><th>Company</th><th>Sector</th><th>Bucket</th>
+        <th class="num">Price</th><th class="num">Market cap</th><th class="num">Hot</th>
+        <th></th><th class="num">Themes</th><th class="num">Fair val</th></tr>`;
+    _thinRows.forEach(r => {
+      const up = r.upside;
+      html += `<tr class="thinrow"><td>${r.rank}</td>
+        <td><a href="#" onclick="gotoValue('${r.ticker}');return false"><b>${r.ticker}</b></a></td>
+        <td>${esc((r.name || "").slice(0, 22))}</td>
+        <td>${esc((r.sector || "—").slice(0, 16))}</td>
+        <td><span class="pill ${r.bucket === 'established' ? 'est' : 'spec'}">${r.bucket || ''}</span></td>
+        <td class="num">${money(r.price)}</td>
+        <td class="num">${mcap(r.market_cap)}</td>
+        <td class="num hotrow-score" style="color:${scoreColor(r.hot_score)}">${
+          r.hot_score == null ? '—' : r.hot_score.toFixed(0)}</td>
+        <td><button class="whybtn" id="whybtn-${r.ticker}" aria-expanded="false"
+              onclick="toggleWhy('${r.ticker}')"
+              title="Break this score into the themes that produced it">why?</button></td>
+        <td class="num"><b>${r.themes_scored == null ? "—" : r.themes_scored}</b> of 7</td>
+        <td class="num">${_fairValCell(r, up)}</td></tr>
+        <tr class="whyrow" id="why-${r.ticker}" style="display:none"><td colspan="11">${
+          attributionPanel(r, { of: d.scored })}</td></tr>`;
+    });
+    html += "</table>";
+  }
+  /* The census is printed whether or not any thin name is SERVED, because "none in the top
+     100" and "none in the scan" are different facts. */
+  if (_thin.scan_n_rows) {
+    html += `<div class="note">${_thin.scan_n_thin || 0} of the ${_thin.scan_n_rows} names in
+      today's scan are scored on fewer than ${_thin.min_themes || 4} themes${
+      _thin.scan_n_uncountable ? `; ${_thin.scan_n_uncountable} could not be counted` : ""}.</div>`;
+  }
   html += `<div class="note"><b>Fair value.</b> Names marked <span class="est-mark" title="peer-relative estimate">e</span>
     use a quick peer-relative estimate (what the stock would be worth on its sector's median earnings / free-cash-flow
     yield) — the full discounted-cash-flow model is far too slow to run on every name, so only the top few carry one.
@@ -3106,8 +3157,14 @@ function _renderValquoIndex(d, cfg) {
               ? `<td class="num">${a && a.shares != null ? a.shares.toFixed(3) : "—"}</td>`
                 + `<td class="num">${a && a.wholeShares != null ? num(a.wholeShares) : "—"}</td>`
               : "")
+          /* ITEM 54 part 3: the Index tab's TODAY'S HOT SCORE carries the same mark. It is
+             a label on a display figure -- the book is fixed, `build_index` is untouched, and
+             no holding's weight or membership depends on it. */
           + `<td class="num">${(hasToday ? p.hot_score_today : p.hot_score) == null ? "—"
-               : (hasToday ? p.hot_score_today : p.hot_score).toFixed(1)}</td>`
+               : (hasToday ? p.hot_score_today : p.hot_score).toFixed(1)}${
+               p.thin_data_today ? `<span class="thin-flag" title="${esc(
+                 (window.SCORE_CONFIDENCE || {}).thin_data || "")} Scored on ${
+                 p.themes_scored_today} of 7 themes.">thin</span>` : ""}</td>`
           + `<td><button class="whybtn" id="whybtn-ix-${p.ticker}" aria-expanded="false"
                 onclick="toggleWhy('ix-${p.ticker}')"
                 title="Break this score into the themes that produced it">why?</button></td>`

@@ -29,6 +29,22 @@ def _get_float(name: str, default: float) -> float:
         return default
 
 
+#: Is the FMP subscription live? **False since 2026-10-13** -- see `fmp_api_key` below.
+#: A single switch rather than a comment, so a renewal is one edit and a test can pin the
+#: retirement without reaching into the environment.
+FMP_RETIRED = True
+
+
+def _fmp_key() -> str:
+    """The FMP key, or "" while the subscription is retired.
+
+    Reads the environment either way so that nothing is destroyed and so a future reader can
+    see the account was configured; returns empty while retired so that every caller takes
+    its free-stack branch.
+    """
+    return "" if FMP_RETIRED else _get("FMP_API_KEY")
+
+
 @dataclass
 class Config:
     # ------------------------------------------------------------------ #
@@ -46,7 +62,28 @@ class Config:
     # Optional paid market-data keys. If present they are preferred; if not,
     # the free stack (yfinance + SEC EDGAR + live Treasury) is used.
     # ------------------------------------------------------------------ #
-    fmp_api_key: str = field(default_factory=lambda: _get("FMP_API_KEY"))
+    #: RETIRED 2026-10-13 (item 54, on Don's ruling). The subscription returns **402 Payment
+    #: Required** and is not being renewed: the 2026-10-12 scan logged 44 errors, disabled
+    #: itself mid-run, and served **7** names against **726** on the free stack.
+    #:
+    #: **RETIRED HERE, AT THE ONE POINT ALL FOUR CALLERS READ**, rather than in four places.
+    #: FMP is reached from `providers.FMPProvider`, `universe.py` (the symbol list),
+    #: `profiles.py` (the profile backfill) and `sector_resolve.py` (a sector rung), and every
+    #: one of them gates on this value being non-empty. Neutralising it here takes FMP out of
+    #: all four with no chance of a fifth caller being missed.
+    #:
+    #: **`.env` IS UNTOUCHED, DELIBERATELY.** The key is still in the environment; this is a
+    #: code-level retirement, so if Don ever renews, flipping `FMP_RETIRED` restores every
+    #: path at once. Overwriting `.env` is forbidden by the standing rules and would also
+    #: destroy the only record that the account existed.
+    #:
+    #: MEASURED BEFORE REMOVING IT -- what FMP supplied that nothing else does: **nothing.**
+    #: Of the 27 fields its mapper can fill from a complete payload, the free stack fills
+    #: **27 of 27** on both NVDA and KO, and additionally supplies 9 fields FMP's mapper has
+    #: no slot for at all -- including `ret_6_1` and `high_prox`, two of the three momentum
+    #: inputs. FMP returned `None` for `ret_12_1` always, so **a name served by FMP had no
+    #: momentum at all, by construction.**
+    fmp_api_key: str = field(default_factory=lambda: _fmp_key())
     alphavantage_api_key: str = field(default_factory=lambda: _get("ALPHAVANTAGE_API_KEY"))
     # Tradier (intraday signals watcher): real-time quotes + option chains.
     tradier_token: str = field(default_factory=lambda: _get("TRADIER_TOKEN"))

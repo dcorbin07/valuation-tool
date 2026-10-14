@@ -212,8 +212,10 @@ def attach_labels(book: dict, store=None) -> dict:
         t = str(r.get("ticker") or "").upper()
         if t:
             by[t] = r
+    from . import thin_data as _thin
     n_lab = 0
     n_why = 0
+    n_thin_today = 0
     for pos in book.get("positions") or []:
         r = by.get(pos.get("ticker"))
         if not r:
@@ -229,6 +231,15 @@ def attach_labels(book: dict, store=None) -> dict:
             pos["market_cap"] = r["market_cap"]
         if r.get("hot_score") is not None:
             pos["hot_score_today"] = r["hot_score"]
+        # ITEM 54 PART 3 — the same mark on the Index tab's TODAY'S HOT SCORE, which is the
+        # only place this applies here. It is a LABEL on a display figure, exactly like the
+        # four above: the book is fixed, `build_index` is untouched, and no holding's weight
+        # or membership depends on this in any way.
+        _ta = _thin.assess(r)
+        pos["thin_data_today"] = _ta["thin"]
+        pos["themes_scored_today"] = _ta["themes_scored"]
+        if _ta["thin"]:
+            n_thin_today += 1
         # ITEM 53 part 1 -- WHY IS THIS NAME HELD? The same per-theme decomposition the Hot
         # tab renders, carried on the holding so the Index table can open the identical panel
         # instead of growing a second explanation of the same number.
@@ -253,6 +264,12 @@ def attach_labels(book: dict, store=None) -> dict:
     book["labels"] = {
         "n_labelled": n_lab,
         "n_attributed": n_why,
+        # ITEM 54 part 3. Reported so a reader can see how much of the book's TODAY'S score
+        # column rests on thin data -- and `thin_rule` travels with the count, because a
+        # number without its rule is not checkable.
+        "n_thin_today": n_thin_today,
+        "thin_min_themes": _thin.MIN_THEMES,
+        "thin_rule": _thin.RULE_TEXT,
         # The two counts differ for a REASON a reader needs: a holding can be in today's scan
         # (so it has labels) and still carry no attribution, because the decomposition is
         # written at scan time and an older snapshot has none. Reporting one number would

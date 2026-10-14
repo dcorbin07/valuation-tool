@@ -5,6 +5,196 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 91 — 2026-10-13 — ITEM 54: repair the live scan on the free route
+
+Don's ruling on item 53 part 7: the repair goes ahead on the free route, and it is a **REPAIR,
+NOT A VINTAGE EVENT** — no scoring rule changes, inputs the rules already expect come back, and
+the Index record is built from Sharadar rather than the live scan.
+
+**A NOTE ON THE RULING ITSELF:** the item-53-part-7 entry is **not in `DECISIONS.md`** as of this
+session, the same way item 52's rulings were not when that item ran. Line 88 does corroborate the
+last clause — *"the free live data route is the goal; Sharadar is the fallback … the free route is
+NO-GO today, so rebalances use Sharadar"* (2026-09-30) — so this was built from the prompt's
+statement of the ruling, with the Sharadar half independently confirmed. Flagged rather than
+assumed.
+
+**THE PROPERTY THAT MAKES IT A REPAIR IS CHECKED, NOT PROMISED.** Both weight sets still carry
+exactly seven non-zero weights, all 0.125, with `growth` absent from the established book and
+`quality` from the speculative one; neither `settings.py` nor `factors.py` imports anything this
+item adds; and `build_index` and the rebalance path are untouched. Pinned.
+
+---
+
+## 1. FMP LEAVES THE FETCH CHAIN — AND IT SUPPLIED NOTHING THE FREE STACK DOES NOT
+
+**MEASURED BEFORE REMOVING IT, which was the question asked.** Of the **27** fields its mapper can
+fill from a complete payload, the free stack fills **27 of 27** on both NVDA and KO — and
+additionally supplies **9** fields FMP's mapper has no slot for at all, including `ebit_ev`, `ev`,
+`net_debt`, `interest_expense`, `ret_6_1` and `high_prox`.
+
+**AND THE SHARPEST PART OF THAT: FMP RETURNED `None` FOR `ret_12_1` ALWAYS, AND HAS NO SLOT FOR
+`ret_6_1` OR `high_prox` AT ALL — so a name served by FMP had NO MOMENTUM, by construction.** It
+also always returned `None` for `revenue`, `net_income`, `fcf`, `operating_income`,
+`revenue_growth_prior` and `earnings_revision`. So the answer to "what did it uniquely supply" is
+**nothing**, and it was actively momentum-poor.
+
+**REMOVED AT THE ONE POINT ALL FOUR CALLERS READ.** FMP is reached from `providers.FMPProvider`,
+`universe.py` (the symbol list), `profiles.py` (the profile backfill) and `sector_resolve.py` (a
+sector rung) — four places, every one gating on `cfg.fmp_api_key` being non-empty. A `FMP_RETIRED`
+switch makes that value empty, so all four take their free branch and **a fifth caller cannot be
+missed**. `get_provider` now returns `FreeProvider` whatever the environment says.
+
+**`.env` IS UNTOUCHED, deliberately.** The standing rules forbid overwriting it, and it is the
+only record the account existed. This is a code-level retirement: one constant, so a renewal is
+one edit rather than a hunt through four files.
+
+**`FMPProvider` ITSELF IS KEPT, and that is not laziness.** `served_by` must still describe a
+HISTORICAL snapshot whose health block carries FMP counts, and `test_source_label` tests exactly
+that; deleting the class would gut two suites that test real logic. What matters is that nothing
+selects it, which is what is pinned.
+
+---
+
+## 2. A RETRY THAT REFUSES A DEGRADED ANSWER
+
+Item 53 part 7 measured that `T`, `VZ`, `MGM`, `RNR`, `NVDA` and `KO` all return 400 sessions of
+history and full momentum **on demand**, while the scan had nothing for them. The scan made **one
+attempt** per name and no retry — with FMP 402ing and Tradier closed (`names_with_broker_data: 0`),
+1,440 names each depended on that single fetch.
+
+**THE DANGEROUS HALF IS THE SILENT DEGRADATION, not the failure**, so the detector is the main
+work. r1 reported *"betas go missing, WACCs collapse to the cost of debt"*; I measured it on the
+real `compute_wacc` rather than inheriting the symptom:
+
+| what is missing | WACC | equity weight |
+|---|---|---|
+| nothing | 0.0941 | 0.833 |
+| beta | 0.0858 (−0.83pp) | 0.833 |
+| price only | **0.0941 — unchanged** | 0.833 |
+| market cap only | **0.0941 — unchanged** | 0.833 |
+| **price AND market cap** | **0.0498 = the after-tax cost of debt, exactly** | **0.000** |
+
+**r1's sentence is literally true and it needs BOTH gone.** Either field alone still yields an
+equity value (`price × shares`, or the cap directly); only losing both drives the equity weight to
+zero and the WACC to `kd`. That conjunction is exactly what a throttled `.info` produces, because
+both come out of the same payload — so a one-field tell would have been wrong.
+
+**THE DISCRIMINATOR: A THIN NAME IS NOT A THROTTLED FEED.** A data-poor foreign issuer
+legitimately has no beta, and refusing it would be a different defect. So **one** absent field is
+DATA; a **hard tell**, or **two soft tells at once**, is a THROTTLE.
+
+**A DEGRADED PAYLOAD IS DISCARDED AND COUNTED AS A FAILURE** (`MA6`: err toward the state that
+refuses). A scan that looks complete and is wrong is the shape this project loses the most time
+to.
+
+**ONE OF MY OWN TELLS WAS WRONG AND THE TEST CAUGHT IT.** I first made "no momentum inputs at all"
+a SOFT tell — which would have left the very failure this module exists for **unretried**, because
+a healthy profile with a missing quote then scored "not degraded". Promoted to HARD on measured
+evidence: `get_quote` returns `None` only below 30 sessions, and `SUN` — the one genuinely
+short-history name item 53 found — has **61 sessions and still returns `high_prox`**. So a
+thin-but-real name yields at least one input, and none at all is the throttle.
+
+**PACED, AND BOUNDED BY A SCAN-WIDE BUDGET**: one retry per name, a 0.35s pause, at most 300
+retries and at most 420 seconds of the scan's hour. Retrying a throttled host immediately is how a
+soft throttle becomes a hard block for the rest of the run. **The budget reports why it stopped** —
+a scan that silently stopped retrying would look like a scan with fewer failures.
+
+**THE COUNTS SHIP** in `refetch_detail()`: names fetched, retried, recovered, degraded-and-
+discarded, failed, plus a bounded failure sample with reasons. A rescue nobody can see is
+indistinguishable from a scan that never needed one.
+
+---
+
+## 3. TOO FEW THEMES IS MARKED, AND NOT RANKED AT THE TOP
+
+`SMFSY` was **#1 of 1,440 at a hot score of 100.0, scored on `size` ALONE** — the theme
+`CLAUDE.md` records at the worst theme IC of the nine (−0.30) while carrying the composite's
+entire statistical significance. `WPP` at rank 18 ran on three themes, `WFG` at 95 on two.
+
+**WHY IT WAS INVISIBLE:** `_branch` redistributes a missing theme's weight across those that
+remain, deliberately and correctly, so a one-theme name produces a number on the same scale as an
+eight-theme name and nothing about the number says which it is.
+
+**THE RULE, STATED ON THE PAGE: fewer than FOUR scored themes.** The denominator is the **seven**
+each rulebook weights — measured, not assumed: `WEIGHTS_ESTABLISHED` has seven non-zero and no
+`growth` key, `WEIGHTS_SPECULATIVE` has seven and no `quality` key, so the union is eight and any
+one name's rulebook weights seven. `low_risk` and `sentiment` are 0.0 in both and are excluded —
+counting them would mark **every name in the product** as thin. **Four is a majority of seven,
+which is the whole derivation; nothing was swept to find it.**
+
+**IT COUNTS `factors`, NOT THE ATTRIBUTION LIST** — item 53 part 7a established that `factors` is
+the exact discriminator, because `row_attribution` also drops a theme whose contribution rounds to
+zero, and that theme WAS scored.
+
+**A ROW WE CANNOT COUNT IS NOT MARKED THIN.** "We do not know" and "scored on one theme" are
+different facts (`V6`), and conflating them would put every pre-item-53 snapshot row into the thin
+group. The census reports `n_thin` and `n_uncountable` separately.
+
+**DISPLAY ONLY, AND SCOPED TO THE RULING:** the live hot list and the Index tab's "today's hot
+score" label. No score, rank or weight is recomputed, the marking is additive so no existing
+consumer changes, and `build_index` and the rebalance path are untouched — pinned by a test that
+the module is not imported there.
+
+**THE WORDING IS `score_confidence.THIN_DATA`**, read from `window.SCORE_CONFIDENCE` rather than
+retyped, and a test asserts the calibrated sentence appears in neither the page nor the rule
+module. V3 measured this exact effect (top-decile present-weight 0.94798 against 9 of 500 noise
+draws that thin, empirical p 0.018), and a surface that rewrites a calibrated sentence is how a
+hedge becomes a claim.
+
+The thin group keeps its own `why?` panel, so the evidence is not hidden — only moved out of a
+ranking it is not comparable in.
+
+---
+
+## 4. THE BANK BUG — CONFIRMED, FIXED, AND TESTED ON TWO BANKS
+
+`app.py` read **`result.financial_extras`**, which does not exist on `ValuationResult` at all —
+the field is `financial_surfaces`. Confirmed against the dataclass's own field list, and r1's note
+in `valreads.py` had already recorded it.
+
+**`getattr` WITH A DEFAULT IS WHY IT WAS SILENT.** A misspelled field returned `{}` instead of
+raising, so every bank's "what the price assumes" rendered as unavailable while the engine had the
+number one lookup away. The wrong-object family, and the kind a default hides.
+
+| | before | after |
+|---|---|---|
+| **ABCB** | *"We could not work out what return on equity this price assumes"* | *"The price assumes this company earns a return on equity of about **12.2%**."* |
+| **JPM** | same | *"…about **20.7%**."* |
+
+ABCB's 12.2% is r1's own figure, reproduced. And with the implied ROE genuinely absent the page
+still says so rather than inventing one — pinned both ways.
+
+---
+
+## 5. THE POST-DEPLOY MEASUREMENT — OWED, AND WHY
+
+Part 5 asks how many names gained a theme, how many scores and ranks moved, NVDA's themes and
+where SMFSY now sits. **Parts 3 and 4 can be read the moment the deploy lands**, because the
+thin-data mark is computed at serve time over the existing snapshot and the bank fix is per
+request. **Parts 1 and 2 cannot: they change what the SCAN fetches, so they need a scan to run.**
+The scheduled scan is the next one; the measurement follows it and is recorded below when it does.
+
+---
+
+## WHAT WENT WRONG IN MY OWN WORK
+
+* **One tell was wrong in the direction that would have defeated the repair** — "no momentum
+  inputs" as a soft tell, which left a healthy-profile-with-no-quote reading as fine. Caught by
+  exercising the detector on the five states rather than by reading it, and promoted on the `SUN`
+  measurement.
+* **A guard of mine pointed at the wrong text, the ninth instance of this family across three
+  items:** it asserted `"financial_surfaces"` was present in *comment-stripped* code, and the
+  field name is passed to `getattr` as a **string**, which the stripper removes. The absence check
+  genuinely needs the stripped code (my own comment names the old field) and the presence check
+  genuinely needs the raw source — the same split item 53 needed, for the same reason.
+* **Three mutations, all caught**: accepting a degraded payload as data, demoting the momentum
+  tell, and un-retiring FMP. Sources restored byte-for-byte.
+
+**Tests:** `tests/test_item54.py` 39 tests. Green alongside: screener 83/83, source-label,
+sector-failclosed, index-in-force 33/33, item 53 55/55, item 52 80/80, public 43/43, engine 62/62,
+dip 46/46, accounting-risk 39/39, withhold 30/30, score-confidence 14/14, vendor-quota 15/15,
+security 22/22, price-routing, valuation-consistency, ma60-conventions. `node --check` clean.
+
 # Session 90 — 2026-10-13 — ITEM 53: Index links, recent earnings and headlines, clearer numbers
 
 Seven parts. Six ship; **part 7 is a diagnosis and is ROUTED TO DON**, because its own
