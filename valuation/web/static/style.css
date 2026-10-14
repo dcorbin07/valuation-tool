@@ -101,6 +101,31 @@ header .wrap{padding-bottom:0}
   color:var(--muted)}
 .pa-lead-s{font-size:16px;line-height:1.45;margin-top:5px}
 .pa-lead-n{font-size:12.5px;color:var(--muted);margin-top:7px;line-height:1.45}
+/* ITEM 53 part 4: a definition nobody can see is a definition nobody reads, so a defined
+   term carries a dotted underline and a help cursor. Deliberately quiet -- it marks the term
+   as explainable without competing with the number beside it. */
+/* ITEM 54 part 3: the thin-data group. Deliberately set apart rather than styled as an
+   error -- these are real names with real scores, shown where a reader will not read their
+   rank as comparable. */
+.thin-group{margin:14px 0 6px;padding:10px 12px;background:#fbf8f2;
+  border:1px solid #e8dfc9;border-radius:5px}
+.thin-head{font-size:14px;margin:0 0 6px}
+.thinrow td{opacity:.92}
+.thin-flag{display:inline-block;margin-left:6px;padding:1px 5px;border-radius:3px;
+  background:#f0e4c8;color:#6b5a2a;font-size:11px;font-weight:600;cursor:help;
+  vertical-align:middle}
+/* ITEM 53 part 2 */
+.rc-q,.rc-h{background:var(--panel,#fafbfc);border:1px solid var(--line,#e6e9ee);
+  border-radius:4px;padding:9px 11px;margin:0 0 8px;font-size:13.5px}
+.rc-i{margin:5px 0;line-height:1.35}
+.rc-i a{text-decoration:none}
+.ai-cite{margin-top:10px;padding-top:8px;border-top:1px solid var(--line,#e6e9ee);
+  font-size:13px}
+/* ITEM 53 part 3 */
+.avg-risk{background:#f4f7fb;border-left:3px solid var(--navy);padding:9px 11px;
+  border-radius:4px;margin:0 0 10px;font-size:13.5px}
+.avg-risk-w{color:var(--faint);font-size:12.5px;margin-top:5px}
+.defd{border-bottom:1px dotted var(--faint);cursor:help}
 .gauge .reads{margin-top:40px;max-width:250px;margin-left:auto;margin-right:auto}
 .gauge .read-q{font-size:16px;font-weight:800;line-height:1.25;color:var(--navy)}
 .gauge .read-p{font-size:13px;margin-top:4px;color:var(--muted);line-height:1.35}

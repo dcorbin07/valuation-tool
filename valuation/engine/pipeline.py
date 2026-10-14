@@ -123,6 +123,9 @@ class ValuationResult:
     financial_surfaces: dict = field(default_factory=dict)
     #: Comps beside the headline as an independent read (item 3). Never blended here.
     comps_cross_check: dict = field(default_factory=dict)
+    #: ITEM 53 part 3: the same model's base value at beta 1.0, as a figure and a sentence.
+    #: PRESENTATION ONLY -- nothing reads this but the surface, pinned by test.
+    average_risk: dict = field(default_factory=dict)
     ai: Optional[dict] = None
     warnings: list = field(default_factory=list)
 
@@ -271,8 +274,14 @@ def value_ticker(ticker: str, cfg=CONFIG, overrides: Optional[dict] = None,
 
 def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = None,
                        peers: Optional[list] = None, run_ai: bool = False,
-                       mc_trials: Optional[int] = None) -> ValuationResult:
-    """Value an already-fetched company (used by tests and batch mode)."""
+                       mc_trials: Optional[int] = None,
+                       _average_risk: bool = True) -> ValuationResult:
+    """Value an already-fetched company (used by tests and batch mode).
+
+    `_average_risk` exists to stop the second pass from starting a third (item 53 part 3). It
+    is private and defaults to the behaviour every existing caller already gets -- the inner
+    pass sets it False, so there is exactly one extra valuation and never a recursion.
+    """
     overrides = overrides or {}
     cls = classify(cd)
 
@@ -440,6 +449,31 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
             "reverse": fcff_rev.to_dict() if fcff_rev is not None else None,
             "sensitivity": sens.to_dict() if sens is not None else None,
         }
+
+    # ITEM 53 PART 3 — THE DISCOUNT RATE, MADE VISIBLE. What the same model says at beta 1.0.
+    #
+    # AFTER the result is assembled, so the comparison is against the HEADLINE a reader sees
+    # (`base_fair_value`, which is the blend) rather than against the raw DCF the blend may
+    # have given no weight. Gated on `_average_risk` so the second pass cannot start a third.
+    #
+    # It re-runs the pipeline rather than recomputing a discount chain, which is the one way
+    # the figure cannot drift from the model it describes -- see `average_risk.py`.
+    if _average_risk:
+        try:
+            from .average_risk import average_risk_read
+            result.average_risk = average_risk_read(
+                cd, cfg,
+                deployed_wacc=wacc_value,
+                deployed_beta=getattr(wacc, "beta", None),
+                deployed_value=result.base_fair_value,
+                revalue=lambda _cd, _cfg, _ov, _tr: value_from_company(
+                    _cd, _cfg, overrides=_ov, peers=None, run_ai=False, mc_trials=_tr,
+                    _average_risk=False),
+            )
+        except Exception:                                                   # noqa: BLE001
+            # A presentation extra may never take down a valuation. An empty dict reads as
+            # "not available" on the surface, which is the honest state.
+            result.average_risk = {}
 
     # ITEM 3 — COMPS BESIDE THE HEADLINE AS A CROSS-CHECK, WITH ITS GAP, AND NOT BLENDED.
     # For a financial the comps figure is computed and then discarded ($267 on KNSL against a

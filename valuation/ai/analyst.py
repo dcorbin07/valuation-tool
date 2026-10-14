@@ -98,10 +98,73 @@ _SCHEMA = {
     # makes one -- so the instruction names the two reads and the tension instead.
     "overall_take": ("2-3 sentence balanced synthesis; reference the business-quality read, "
                      "the price-vs-model read, and the main tension between them"),
+    # ITEM 53 part 2. The model now sees recent headlines, and a headline is the weakest
+    # evidence on the page -- a title with no article text behind it, from a feed whose
+    # symbol-requested items are only 42% about the company they were requested for. So
+    # anywhere one is used it has to be NAMED, which lets a reader click it and judge for
+    # themselves. An empty list is the right answer when none was used, and the prompt says
+    # so: an invented citation would be worse than no citation.
+    "headlines_used": ["the exact title of each headline you relied on; [] if you used none"],
 }
 
 
-def _build_prompt(result) -> str:
+def _recent_facts(recent) -> str:
+    """The quarter and the headlines as prompt text, or "" when there are none. [item 53/2]
+
+    **IT SAYS WHAT IS MISSING, NOT JUST WHAT IS PRESENT.** A model handed no headlines and no
+    explanation will reason as though nothing is happening to the company; handed the feed's
+    own yield it knows the difference between a quiet company and a feed that carried nothing
+    about it. Same reason the surface reports the filter yield.
+
+    **TITLES AND LINKS ONLY**, which is all `data/recent.py` ever fetches -- there is no
+    article text to leak into a prompt because none is ever read.
+    """
+    if not isinstance(recent, dict) or not recent:
+        return ""
+    lines = []
+    q = recent.get("last_quarter") or {}
+    if q.get("available"):
+        bits = ["Most recent reported quarter"]
+        if q.get("fiscal"):
+            bits.append("(%s)" % str(q["fiscal"]).strip())
+        if q.get("period_end"):
+            bits.append("ended %s" % q["period_end"])
+        if q.get("reported_on"):
+            bits.append("reported %s" % q["reported_on"])
+        lines.append(" ".join(bits) + ":")
+        if q.get("revenue") is not None:
+            lines.append("  revenue %s" % f"{float(q['revenue']):,.0f}")
+        if q.get("eps_diluted") is not None:
+            lines.append("  diluted EPS %s" % q["eps_diluted"])
+        lines.append("  NO CONSENSUS ESTIMATE IS AVAILABLE for this quarter on any free "
+                     "source, so do NOT describe the result as a beat or a miss, and do not "
+                     "infer what was expected.")
+    h = recent.get("headlines") or {}
+    items = h.get("items") or []
+    if items:
+        lines.append("Recent headlines (titles only -- no article text was fetched, so you "
+                     "know only what each title says):")
+        for it in items:
+            lines.append("  - [%s] %s (%s)" % (it.get("date") or "?", it.get("title") or "",
+                                               it.get("publisher") or "?"))
+        lines.append("  These came from a symbol-requested feed that was measured at only "
+                     "42% relevance, so treat a title as weak evidence and say which one "
+                     "you used.")
+    elif h.get("reason"):
+        lines.append("Recent headlines: none. %s" % h["reason"])
+    f = recent.get("filings") or {}
+    fitems = f.get("items") or []
+    if fitems:
+        lines.append("Recent SEC filings (this company's own, by construction):")
+        for it in fitems:
+            lines.append("  - [%s] %s %s" % (it.get("date") or "?", it.get("form") or "",
+                                             (it.get("title") or "")[:60]))
+    if not lines:
+        return ""
+    return "RECENT EVENTS\n" + "\n".join(lines) + "\n\n"
+
+
+def _build_prompt(result, recent=None) -> str:
     facts = _facts(result)
     return (
         "You are a rigorous, skeptical equity research analyst. You are NOT a "
@@ -119,6 +182,11 @@ def _build_prompt(result) -> str:
         "Here is a quantitative DCF valuation of a company (all $ in millions, "
         "rates as decimals):\n"
         f"{json.dumps(facts, indent=2, default=str)}\n\n"
+        # ITEM 53 part 2: the quarter just reported, recent headlines and recent filings.
+        # AFTER the numbers and before the schema, so the model reads the measured facts
+        # first and the weakest evidence last. An empty string when there is nothing, so a
+        # company with no recent events produces exactly the prompt it did before.
+        f"{_recent_facts(recent)}"
         "Return ONLY valid minified JSON matching exactly this schema (no prose, "
         "no code fences):\n"
         f"{json.dumps(_SCHEMA)}\n"
@@ -506,11 +574,16 @@ def _failed_source(provider: str, model: str, e: BaseException) -> str:
         provider, model or "unspecified model", type(e).__name__, _safe(e))
 
 
-def analyze(result, cfg) -> dict:
+def analyze(result, cfg, recent=None) -> dict:
+    """`recent` is item 53 part 2's earnings/headlines block, or None.
+
+    Optional and defaulting to None so every existing caller -- the pipeline's `run_ai=True`
+    among them -- behaves exactly as before. The route that has the block passes it.
+    """
     provider = cfg.resolved_ai_provider
     if provider == "anthropic" and cfg.anthropic_api_key:
         try:
-            return _call_anthropic(_build_prompt(result), cfg)
+            return _call_anthropic(_build_prompt(result, recent), cfg)
         except Exception as e:
             # The CLASS is logged as well as the message: `AIReplyError` means the provider
             # answered and we could not use it, while `AuthenticationError` or a connection
@@ -521,7 +594,7 @@ def analyze(result, cfg) -> dict:
                                _failed_source("Anthropic", cfg.ai_model_anthropic, e))
     if provider == "openai" and cfg.openai_api_key:
         try:
-            return _call_openai(_build_prompt(result), cfg)
+            return _call_openai(_build_prompt(result, recent), cfg)
         except Exception as e:
             _log.warning("AI analyst call failed: %s: %s", type(e).__name__, _safe(e))
             return _rule_based(result, _failed_source("OpenAI", cfg.ai_model_openai, e))

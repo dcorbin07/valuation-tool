@@ -2371,6 +2371,12 @@ def create_saas_app(cfg=CONFIG):
             # with a reason, so a visitor still gets the ranking they asked about.
             g.may_see_owner = surfaces.may_see_owner_surfaces(u, cfg)
             g.may_see_options = bool(_feats.get("intraday")) and g.may_see_owner
+            # ITEM 53 part 5. MAY THIS CALLER SPEND THE OWNER'S AI BUDGET? A cached analysis
+            # is served to anyone -- the money is already spent and the file is on disk -- so
+            # the gate is on the paid branch rather than on the route. Answered here because
+            # the inner app has no `auth` or store, the same reason the two flags above are
+            # set here; DEFAULT-DENY is enforced at the read, not by this line existing.
+            g.may_spend_ai = surfaces.may_spend_ai(u, cfg)
             blocked = gating.check_request(path, request.method, body, u, store)
             if blocked:
                 payload, status = blocked

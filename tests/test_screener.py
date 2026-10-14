@@ -366,7 +366,11 @@ def test_cache_written_before_the_usd_normalization_is_discarded():
 
     from valuation.screener.providers import METRICS_SCHEMA
     assert _usable_cache({"market_cap": 275_844.66}) is None            # legacy: no stamp
-    assert _usable_cache({"market_cap": 275e9, "units": "usd",
+    # ITEM 54: the positive control now carries a momentum input. A cached row with NONE of
+    # the three is a cache MISS since item 54 -- it is the state the scan repair exists to end
+    # -- so a control without one would be dropped for a reason that has nothing to do with
+    # the units stamp this test is about.
+    assert _usable_cache({"market_cap": 275e9, "units": "usd", "ret_12_1": 0.1,
                           "schema": METRICS_SCHEMA}) is not None
 
     class _Cfg:
@@ -925,10 +929,20 @@ def test_metrics_cache_from_an_older_schema_is_discarded():
     it is indistinguishable from a name the feed genuinely has no sector for, which is how
     the blank-sector bug survived for weeks."""
     from valuation.screener.providers import _usable_cache, METRICS_SCHEMA
-    assert _usable_cache({"units": "usd", "schema": METRICS_SCHEMA}) is not None
-    assert _usable_cache({"units": "usd", "schema": 1}) is None
-    assert _usable_cache({"units": "usd"}) is None, "an unstamped row predates the schema"
-    assert _usable_cache({"units": "millions", "schema": METRICS_SCHEMA}) is None
+    # ITEM 54: every row here carries a momentum input, because a cached row with NONE of the
+    # three is now a cache MISS in its own right -- the state the scan repair exists to end.
+    # Without one the positive control below would be dropped for a reason that has nothing
+    # to do with the schema stamp this test is about.
+    assert _usable_cache({"units": "usd", "schema": METRICS_SCHEMA,
+                          "ret_12_1": 0.1}) is not None
+    assert _usable_cache({"units": "usd", "schema": 1, "ret_12_1": 0.1}) is None
+    assert _usable_cache({"units": "usd", "ret_12_1": 0.1}) is None, (
+        "an unstamped row predates the schema")
+    assert _usable_cache({"units": "millions", "schema": METRICS_SCHEMA,
+                          "ret_12_1": 0.1}) is None
+    # ...and item 54's rule itself, so this test's fixtures cannot drift away from it.
+    assert _usable_cache({"units": "usd", "schema": METRICS_SCHEMA}) is None, (
+        "a row with no momentum input at all is a cache miss since item 54")
 
 
 def test_broker_coverage_report_separates_covered_from_gap_fields():

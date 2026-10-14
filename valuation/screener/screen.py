@@ -485,6 +485,20 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
     if bstats:
         health.setdefault("fundamentals", {})["broker"] = bstats
 
+    # ITEM 54 PART 2 -- WHAT THE RETRY DID. An omission in the first cut: `refetch_detail()`
+    # was built on the provider and nothing read it, so the 2026-10-13 scan -- the first run
+    # with the retry in place -- could not say whether it had run, recovered anything, or
+    # discarded a degraded payload. A rescue nobody can see is indistinguishable from a scan
+    # that never needed one, which is the whole reason the counts exist.
+    try:
+        rf = getattr(provider, "refetch_detail", None)
+        if callable(rf):
+            det = rf()
+            if det and det.get("ran"):
+                health["refetch"] = det
+    except Exception:
+        pass
+
     note = getattr(provider, "universe_note", "")
     if note:
         health["universe_note"] = note

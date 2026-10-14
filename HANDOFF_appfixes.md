@@ -5,6 +5,789 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 92 — 2026-10-13 — ITEM 55: more headline sources, conclusions yes, narrative no
+
+Don's ruling (2026-10-13, and this one IS in `DECISIONS.md`, line 135): *"HEADLINES MAY COME FROM
+ANY VERIFIABLE, TRUSTWORTHY SOURCE, NOT ONLY SEC AND YAHOO. The line is between a conclusion and
+a narrative … Every headline names its source and links to it."*
+
+## 1. EVERY CANDIDATE THE RULING NAMED WAS MEASURED. NONE EARNED A PLACE.
+
+That is a finding rather than a failure to do the work — the instruction was to *"keep only
+sources that earn their place"*. Measured on **NVDA, TSLA, KO, APLD and OCTV** (the last two
+small, as asked), 2026-10-13, the same way item 53 measured Yahoo:
+
+| candidate | result | the number that decided it |
+|---|---|---|
+| **SEC EDGAR** | **KEPT** | per-CIK, so about the company *by construction*; terms unambiguous |
+| **Yahoo Finance RSS** | **KEPT** | **44 of 86 titles (51%)** name the company; syndication feed, no key, publisher per item |
+| Seeking Alpha per-symbol | **REJECTED ON TERMS** | **102 of 132 (77%)**, 30 items a symbol — **the best yield measured** |
+| Nasdaq per-symbol | unreachable | `ReadTimeout` on **two endpoints at 60s**, after 45s in item 53 — **three attempts** |
+| GlobeNewswire | HTTP **403** | both the keyword search and the subject feed |
+| PR Newswire | wrong shape | 20 items, **0** naming any of the five |
+| Business Wire | wrong shape | no per-symbol feed at all |
+| CNBC public RSS | wrong shape | 30 items, **0** naming any of the five |
+| FDA / FTC / DOJ | wrong shape | **0 of 55** items named any of the five |
+| Stocktwits RSS | HTTP **404** | every symbol |
+
+**THE REJECTION THAT COSTS SOMETHING IS SEEKING ALPHA, so it is recorded most carefully.** It is
+the best source measured — 77% on-company at 30 items a symbol, against Yahoo's 51% at ~17 — and
+**its own terms forbid both halves of what we would do with it**: *"Use any robot, spider … to
+download, retrieve, index, 'data mine', 'scrape', 'harvest'"* and *"may not use, copy, display …
+republish … without our prior written consent"*, with no RSS exception. The prompt's own
+constraint is "no scraping a site whose terms forbid it", so the yield does not get a vote.
+
+**THE MARKET-WIDE FEEDS ARE THE RIGHT PUBLISHERS AND THE WRONG ROUTE**, and that distinction is
+what a successor needs: an FDA decision feed is exactly right for a biotech on an approval day,
+but an agency-wide feed of ~20 items has a vanishing chance of naming any one company, and none
+of these publishers offers a per-company query without a key. **0 of 105 items across five such
+feeds.** The route fails, not the publisher.
+
+**The standard itself is written down** — a named accountable publisher, a link to the original,
+terms permitting a title and a link, and a per-company route — with each kept source's reason
+beside its permission and each rejection's measurement beside its name, **in the code**, because
+the next person to ask "why not Nasdaq?" will be reading that file rather than this one.
+
+## 2. THE FILTER IS AN ALLOWLIST OF CONCLUSIONS, NOT A DENYLIST OF OPINION
+
+**AND THE MEASUREMENT IS WHY.** My first cut denied exactly the shapes the ruling names — "should
+you buy", "N reasons", price-prediction hype — and **kept 93% of Yahoo's on-company titles and
+97% of Seeking Alpha's**, including *"Coca-Cola or Chevron: The One Dividend Stock I'd Hold for
+the Next 20 Years"*, *"Nvidia: The Buyback Is The Opportunity"* and *"Applied Digital: More Than
+600MW Could Drive The Next Leg Of Growth"* — three plainly-opinion headlines, all kept. **A
+denylist of opinion cannot be completed, because opinion is infinitely phrasable.**
+
+A conclusion is not. Guidance, a rating change, a regulator's decision, a lawsuit, a contract, a
+results release, an appointment, an acquisition, an attributed statement, a reported price move —
+these have enumerable markers and an allowlist of them can be audited by reading it. So an item
+shows only if it carries a conclusion marker, and **a promotional marker overrides a conclusion
+marker**: *"3 Reasons Nvidia Could Soar After Earnings"* matches `earnings` and is exactly what
+the ruling excludes, so the order is drop-first and that order IS the rule.
+
+**MEASURED YIELD: 44 on-company → 22 shown (50%), 22 excluded**, against the 93% a denylist kept.
+
+**TWO DEFECTS OF MY OWN, both found by running the filter on the live feed rather than reading
+it, and the first is a fidelity gap against the ruling itself:**
+
+* **An attributed conclusion is EXPLICITLY allowed and had no marker at all.** The ruling permits
+  *"a conclusion attributed to someone"*, whose canonical form is "X says Y" — so *"EXCLUSIVE:
+  Ross Gerber Says Tesla May Make Just 'a Few Hundred' Roadsters"*, the most attributed shape
+  there is, was being dropped as unattributed. Added as its own group.
+* **A pattern bug dropped a real fact:** `\bdividend\b` cannot match "Dividend**s**", so
+  *"Coca-Cola Has Raised Dividends for 63 Years"* was unattributed. Also added reported price
+  moves, which were all being dropped (*"Why Octave Intelligence Stock Slumped Today"* states
+  what happened).
+* And one **false show**: *"Tesla Trades at 219x Earnings. Here's Why I'm Not Buying the Bet"*
+  matched `earnings` and is pure opinion — the first-person set had "I'd" and "I think" but not
+  "I'm" or "Here's why".
+
+**THE COST IS RECALL AND IT IS PAID DELIBERATELY.** A real item phrased unusually is dropped —
+**NVDA currently shows 0 of its 2 on-company headlines**, one promotional and one unattributed,
+and the page says so in those words. The ruling's own remedy is carried: **every exclusion is
+counted**, the page says *"N of M named this company, and K of those are a reported fact or an
+attributed conclusion"* plus *"N opinion or promotional pieces were not shown"*, and an empty
+result names **which** filter emptied it — "the feed had nothing", "nothing named this company"
+and "nothing was a reported fact" are three different facts and read differently.
+
+## 3. SOURCE, DATE, LINK — AND STILL NO ARTICLE TEXT
+
+Every shown headline carries its title, publisher, date and a link to the original, verified on
+the live feed. **The structural property from item 53 is re-asserted here**, because widening the
+sources is exactly when such a property gets lost: the RSS `description` is still never read and
+no article URL is ever requested, pinned on comment-stripped code. The AI analysis still has to
+name any headline it relies on (`headlines_used`).
+
+## WHAT WENT WRONG IN MY OWN WORK
+
+**THREE COUNT-BASED GUARDS OF MINE WERE WRONG TODAY, and that is now a named pattern rather than
+three accidents.** Item 53 capped how many times `average_risk` may appear in a file (read 9
+against a bound of 6, on a correct file); here I asserted `out["reason"]` appeared 3 times
+module-wide (it is 11, because two sibling functions set reasons of their own), then 4 times
+function-scoped (it is 6). **A count is a PROXY, and a proxy for a property is the thing this
+project keeps finding in its own tests.** The count assertion is retracted outright — the three
+distinct phrases already carry the property — with the retraction recorded at the test.
+
+Also: a heredoc ate a `\n` escape and wrote a literal newline into a test file, producing a
+`SyntaxError`. Patch scripts that need an escape go in a file, not a heredoc.
+
+**2 of 2 mutations caught** — disabling the promotional check (3 failures) and re-admitting the
+terms-forbidden source (2 failures) — with the source restored byte-for-byte.
+
+**Tests:** `tests/test_item55.py` 22 tests. Green alongside: item 54 39/39, item 53 55/55,
+public-posture 43/43, ma60-conventions, requirements-lock, docs-entry-points. `node --check`
+clean.
+
+**NOT DONE:** no new source was added, which is the measured answer rather than an omission; and
+the live verification on NVDA and TSLA follows the deploy.
+
+# Session 91 — 2026-10-13 — ITEM 54: repair the live scan on the free route
+
+Don's ruling on item 53 part 7: the repair goes ahead on the free route, and it is a **REPAIR,
+NOT A VINTAGE EVENT** — no scoring rule changes, inputs the rules already expect come back, and
+the Index record is built from Sharadar rather than the live scan.
+
+**A CORRECTION TO MY OWN FIRST READING, and the lesson is where to look.** I checked
+`DECISIONS.md` at the start of this item, did not find the ruling, and flagged it as missing the
+way item 52's rulings genuinely were. **It was there by the time this landed** — the file is
+maintained outside git and reaches a lane either by absolute path in the main folder or by a
+merge, and the `origin/main` merge immediately before the push brought it in. `DECISIONS.md`'s own
+2026-10-13 entry says so: *"KEEP THE MANAGER'S FILES OFF GITHUB … Lanes read this file and their
+prompts by absolute path in the main folder."* **So read the MAIN FOLDER copy, not the worktree's,
+or re-check after merging.**
+
+**AND THE RULING MATCHES WHAT WAS BUILT, CLAUSE BY CLAUSE**, which is worth stating because I had
+built it from the prompt's paraphrase:
+
+> *"FMP is unpaid and is taken out of the fetch chain (not renewed); a name whose fetch failed is
+> retried on Yahoo; a name scored on too few themes is marked as such and is not ranked at the top
+> of the hot list. No scoring rule changes — inputs the rules already expect come back — and the
+> Index record is built from Sharadar, not the live scan, so vintage 4 stays open."*
+
+All four clauses are implemented as written, including the last: nothing here touches
+`build_index` or the rebalance path, so **vintage 4 stays open.**
+
+**THE PROPERTY THAT MAKES IT A REPAIR IS CHECKED, NOT PROMISED.** Both weight sets still carry
+exactly seven non-zero weights, all 0.125, with `growth` absent from the established book and
+`quality` from the speculative one; neither `settings.py` nor `factors.py` imports anything this
+item adds; and `build_index` and the rebalance path are untouched. Pinned.
+
+---
+
+## 1. FMP LEAVES THE FETCH CHAIN — AND IT SUPPLIED NOTHING THE FREE STACK DOES NOT
+
+**MEASURED BEFORE REMOVING IT, which was the question asked.** Of the **27** fields its mapper can
+fill from a complete payload, the free stack fills **27 of 27** on both NVDA and KO — and
+additionally supplies **9** fields FMP's mapper has no slot for at all, including `ebit_ev`, `ev`,
+`net_debt`, `interest_expense`, `ret_6_1` and `high_prox`.
+
+**AND THE SHARPEST PART OF THAT: FMP RETURNED `None` FOR `ret_12_1` ALWAYS, AND HAS NO SLOT FOR
+`ret_6_1` OR `high_prox` AT ALL — so a name served by FMP had NO MOMENTUM, by construction.** It
+also always returned `None` for `revenue`, `net_income`, `fcf`, `operating_income`,
+`revenue_growth_prior` and `earnings_revision`. So the answer to "what did it uniquely supply" is
+**nothing**, and it was actively momentum-poor.
+
+**REMOVED AT THE ONE POINT ALL FOUR CALLERS READ.** FMP is reached from `providers.FMPProvider`,
+`universe.py` (the symbol list), `profiles.py` (the profile backfill) and `sector_resolve.py` (a
+sector rung) — four places, every one gating on `cfg.fmp_api_key` being non-empty. A `FMP_RETIRED`
+switch makes that value empty, so all four take their free branch and **a fifth caller cannot be
+missed**. `get_provider` now returns `FreeProvider` whatever the environment says.
+
+**`.env` IS UNTOUCHED, deliberately.** The standing rules forbid overwriting it, and it is the
+only record the account existed. This is a code-level retirement: one constant, so a renewal is
+one edit rather than a hunt through four files.
+
+**`FMPProvider` ITSELF IS KEPT, and that is not laziness.** `served_by` must still describe a
+HISTORICAL snapshot whose health block carries FMP counts, and `test_source_label` tests exactly
+that; deleting the class would gut two suites that test real logic. What matters is that nothing
+selects it, which is what is pinned.
+
+---
+
+## 2. A RETRY THAT REFUSES A DEGRADED ANSWER
+
+Item 53 part 7 measured that `T`, `VZ`, `MGM`, `RNR`, `NVDA` and `KO` all return 400 sessions of
+history and full momentum **on demand**, while the scan had nothing for them. The scan made **one
+attempt** per name and no retry — with FMP 402ing and Tradier closed (`names_with_broker_data: 0`),
+1,440 names each depended on that single fetch.
+
+**THE DANGEROUS HALF IS THE SILENT DEGRADATION, not the failure**, so the detector is the main
+work. r1 reported *"betas go missing, WACCs collapse to the cost of debt"*; I measured it on the
+real `compute_wacc` rather than inheriting the symptom:
+
+| what is missing | WACC | equity weight |
+|---|---|---|
+| nothing | 0.0941 | 0.833 |
+| beta | 0.0858 (−0.83pp) | 0.833 |
+| price only | **0.0941 — unchanged** | 0.833 |
+| market cap only | **0.0941 — unchanged** | 0.833 |
+| **price AND market cap** | **0.0498 = the after-tax cost of debt, exactly** | **0.000** |
+
+**r1's sentence is literally true and it needs BOTH gone.** Either field alone still yields an
+equity value (`price × shares`, or the cap directly); only losing both drives the equity weight to
+zero and the WACC to `kd`. That conjunction is exactly what a throttled `.info` produces, because
+both come out of the same payload — so a one-field tell would have been wrong.
+
+**THE DISCRIMINATOR: A THIN NAME IS NOT A THROTTLED FEED.** A data-poor foreign issuer
+legitimately has no beta, and refusing it would be a different defect. So **one** absent field is
+DATA; a **hard tell**, or **two soft tells at once**, is a THROTTLE.
+
+**A DEGRADED PAYLOAD IS DISCARDED AND COUNTED AS A FAILURE** (`MA6`: err toward the state that
+refuses). A scan that looks complete and is wrong is the shape this project loses the most time
+to.
+
+**ONE OF MY OWN TELLS WAS WRONG AND THE TEST CAUGHT IT.** I first made "no momentum inputs at all"
+a SOFT tell — which would have left the very failure this module exists for **unretried**, because
+a healthy profile with a missing quote then scored "not degraded". Promoted to HARD on measured
+evidence: `get_quote` returns `None` only below 30 sessions, and `SUN` — the one genuinely
+short-history name item 53 found — has **61 sessions and still returns `high_prox`**. So a
+thin-but-real name yields at least one input, and none at all is the throttle.
+
+**PACED, AND BOUNDED BY A SCAN-WIDE BUDGET**: one retry per name, a 0.35s pause, at most 300
+retries and at most 420 seconds of the scan's hour. Retrying a throttled host immediately is how a
+soft throttle becomes a hard block for the rest of the run. **The budget reports why it stopped** —
+a scan that silently stopped retrying would look like a scan with fewer failures.
+
+**THE COUNTS SHIP** in `refetch_detail()`: names fetched, retried, recovered, degraded-and-
+discarded, failed, plus a bounded failure sample with reasons. A rescue nobody can see is
+indistinguishable from a scan that never needed one.
+
+---
+
+## 3. TOO FEW THEMES IS MARKED, AND NOT RANKED AT THE TOP
+
+`SMFSY` was **#1 of 1,440 at a hot score of 100.0, scored on `size` ALONE** — the theme
+`CLAUDE.md` records at the worst theme IC of the nine (−0.30) while carrying the composite's
+entire statistical significance. `WPP` at rank 18 ran on three themes, `WFG` at 95 on two.
+
+**WHY IT WAS INVISIBLE:** `_branch` redistributes a missing theme's weight across those that
+remain, deliberately and correctly, so a one-theme name produces a number on the same scale as an
+eight-theme name and nothing about the number says which it is.
+
+**THE RULE, STATED ON THE PAGE: fewer than FOUR scored themes.** The denominator is the **seven**
+each rulebook weights — measured, not assumed: `WEIGHTS_ESTABLISHED` has seven non-zero and no
+`growth` key, `WEIGHTS_SPECULATIVE` has seven and no `quality` key, so the union is eight and any
+one name's rulebook weights seven. `low_risk` and `sentiment` are 0.0 in both and are excluded —
+counting them would mark **every name in the product** as thin. **Four is a majority of seven,
+which is the whole derivation; nothing was swept to find it.**
+
+**IT COUNTS `factors`, NOT THE ATTRIBUTION LIST** — item 53 part 7a established that `factors` is
+the exact discriminator, because `row_attribution` also drops a theme whose contribution rounds to
+zero, and that theme WAS scored.
+
+**A ROW WE CANNOT COUNT IS NOT MARKED THIN.** "We do not know" and "scored on one theme" are
+different facts (`V6`), and conflating them would put every pre-item-53 snapshot row into the thin
+group. The census reports `n_thin` and `n_uncountable` separately.
+
+**DISPLAY ONLY, AND SCOPED TO THE RULING:** the live hot list and the Index tab's "today's hot
+score" label. No score, rank or weight is recomputed, the marking is additive so no existing
+consumer changes, and `build_index` and the rebalance path are untouched — pinned by a test that
+the module is not imported there.
+
+**THE WORDING IS `score_confidence.THIN_DATA`**, read from `window.SCORE_CONFIDENCE` rather than
+retyped, and a test asserts the calibrated sentence appears in neither the page nor the rule
+module. V3 measured this exact effect (top-decile present-weight 0.94798 against 9 of 500 noise
+draws that thin, empirical p 0.018), and a surface that rewrites a calibrated sentence is how a
+hedge becomes a claim.
+
+The thin group keeps its own `why?` panel, so the evidence is not hidden — only moved out of a
+ranking it is not comparable in.
+
+---
+
+## 4. THE BANK BUG — CONFIRMED, FIXED, AND TESTED ON TWO BANKS
+
+`app.py` read **`result.financial_extras`**, which does not exist on `ValuationResult` at all —
+the field is `financial_surfaces`. Confirmed against the dataclass's own field list, and r1's note
+in `valreads.py` had already recorded it.
+
+**`getattr` WITH A DEFAULT IS WHY IT WAS SILENT.** A misspelled field returned `{}` instead of
+raising, so every bank's "what the price assumes" rendered as unavailable while the engine had the
+number one lookup away. The wrong-object family, and the kind a default hides.
+
+| | before | after |
+|---|---|---|
+| **ABCB** | *"We could not work out what return on equity this price assumes"* | *"The price assumes this company earns a return on equity of about **12.2%**."* |
+| **JPM** | same | *"…about **20.7%**."* |
+
+ABCB's 12.2% is r1's own figure, reproduced. And with the implied ROE genuinely absent the page
+still says so rather than inventing one — pinned both ways.
+
+---
+
+## 5. THE POST-DEPLOY MEASUREMENT — TAKEN, AND IT EXPOSED A SECOND DEFECT
+
+The live hot list was **2 trading days stale** (2026-10-12) and the scheduled scan was ~21 hours
+out, so the hot-list scan was dispatched through the workflow's own `kind=hot` input — the same
+action the cron takes, earlier. It ran **~45 minutes inside its 60-minute allowance** and
+produced the **2026-10-13** snapshot, 1,456 names.
+
+**PART 1 — FMP IS GONE FROM THE CHAIN.** The health block no longer carries an `api_budget`
+section at all (the FMP provider is never constructed), the source label reads
+**`"free (broker fundamentals + EDGAR/Yahoo/Stooq)"`** and **`degraded: false`** — against
+2026-10-12's `served_by_fmp: 7`, `fmp_errors: 44`, `fmp_disabled_mid_scan: true` and
+`degraded: true`.
+
+**THEMES RECOVERED — THE CLEANLY ATTRIBUTABLE MEASURE, top 500:**
+
+| theme | 2026-10-12 | 2026-10-13 | change |
+|---|---|---|---|
+| institutional | 325 | 338 | **+13** |
+| insider | 317 | 329 | **+12** |
+| quality | 491 | 495 | +4 |
+| momentum | 487 | 491 | +4 |
+| value | 496 | 499 | +3 |
+| capital_discipline | 462 | 465 | +3 |
+| growth | 483 | 485 | +2 |
+| size | 500 | 500 | 0 |
+| **total theme-cells** | | | **+41** |
+
+**THIN NAMES FELL FROM 8 TO 5 IN THE SCAN AND 4 TO 1 IN THE TOP 500**, and **`SMFSY` — rank 1
+with a hot score of 100.0 on one theme — is no longer in the served top 500 at all.** The one
+remaining thin name there is `LOTMY`.
+
+**RANK MOVEMENT IS REPORTED AND CONFOUNDED, deliberately.** Two trading days of prices passed
+between the snapshots, so a rank change is not attributable to the repair; the theme-cell count
+above is the clean measure. NVDA moved 1262 → 1280, which says nothing either way.
+
+### AND THE REPAIR DID NOT REACH THE NAMES IT WAS BUILT FOR — a second defect, now fixed
+
+**`T`, `VZ`, `MGM`, `FDX` and `PFE` still carried NO momentum inputs** on the new scan — the
+very names item 53 part 7 measured returning **400 sessions of history on demand**. So +41
+cells came back and the headline cases did not. **NVDA still reads `why_missing
+["growth", "momentum"]`.**
+
+**THE CAUSE: `get_metrics` SERVES A CACHED ROW FIRST, AND THE FUNDAMENTALS CACHE RUNS TO 30
+DAYS.** A row written by the broken scan was handed back unchanged, so the retry never ran for
+those names — and would not have for a month. `_usable_cache` now treats a row carrying **none
+of the three momentum inputs** as a cache MISS, which is the same judgement its two existing
+rules already make (a row written before the USD normalisation, or on an older schema, is
+dropped rather than served) applied to a third way of being unfit. **Bounded and
+self-limiting**: only the rows lacking momentum are re-fetched — 9 of the top 500, ~30 of 1,456
+— and `SUN`'s thin-but-real shape (61 sessions, `high_prox` only) still caches normally rather
+than being re-fetched forever.
+
+**AND A SECOND OMISSION OF MINE, which is why the first scan could not tell me any of this:
+`refetch_detail()` was built on the provider and NOTHING READ IT.** The live health block
+carried no `refetch` key at all, so the first run with the retry in place could not say whether
+it had run, recovered anything, or discarded a degraded payload — *a rescue nobody can see is
+indistinguishable from a scan that never needed one*, which is the whole reason the counts
+exist. Wired into the scan's health block, and **omitted rather than faked when the retry never
+ran**: a scan served entirely from cache never creates a budget, and an absent block and a block
+of zeroes mean different things.
+
+**Two existing cache tests were repointed by intent**, not silenced: both assert the units and
+schema rules and both used a minimal positive control that happens to carry no momentum, so my
+third rule dropped it for a reason unrelated to what they test. Their controls now carry a
+momentum input and the schema test additionally pins the new rule, so its fixtures cannot drift
+from it. `test_screener` 83/83.
+
+**STILL OWED: the next scan is the one that proves the cache fix.** The repair is tested and the
+reasoning is measured, but the names above are only demonstrated recovered when a scan runs with
+this change deployed — and the `refetch` block will then say how many were retried, recovered
+and discarded. **Reported as not-yet-demonstrated rather than claimed.**
+
+---
+
+## WHAT WENT WRONG IN MY OWN WORK
+
+* **One tell was wrong in the direction that would have defeated the repair** — "no momentum
+  inputs" as a soft tell, which left a healthy-profile-with-no-quote reading as fine. Caught by
+  exercising the detector on the five states rather than by reading it, and promoted on the `SUN`
+  measurement.
+* **A guard of mine pointed at the wrong text, the ninth instance of this family across three
+  items:** it asserted `"financial_surfaces"` was present in *comment-stripped* code, and the
+  field name is passed to `getattr` as a **string**, which the stripper removes. The absence check
+  genuinely needs the stripped code (my own comment names the old field) and the presence check
+  genuinely needs the raw source — the same split item 53 needed, for the same reason.
+* **Three mutations, all caught**: accepting a degraded payload as data, demoting the momentum
+  tell, and un-retiring FMP. Sources restored byte-for-byte.
+
+**Tests:** `tests/test_item54.py` 39 tests. Green alongside: screener 83/83, source-label,
+sector-failclosed, index-in-force 33/33, item 53 55/55, item 52 80/80, public 43/43, engine 62/62,
+dip 46/46, accounting-risk 39/39, withhold 30/30, score-confidence 14/14, vendor-quota 15/15,
+security 22/22, price-routing, valuation-consistency, ma60-conventions. `node --check` clean.
+
+# Session 90 — 2026-10-13 — ITEM 53: Index links, recent earnings and headlines, clearer numbers
+
+Seven parts. Six ship; **part 7 is a diagnosis and is ROUTED TO DON**, because its own
+instruction says to stop if a repair would move live hot scores, and it would.
+
+---
+
+## 7. WHY THE LIVE SCAN IS MISSING THEMES — ROUTED TO DON, NOTHING SHIPPED
+
+**THE SHORT ANSWER: the vendor is not being paid, and the themes that are actually missing are
+not the ones the brief named.** Three separate findings, each measured on the live 2026-10-12
+scan rather than reasoned about.
+
+**(a) IT IS NOT A Z-SCORING DEFECT.** Of the top 500 served rows, **ZERO** have momentum inputs
+present with a null momentum factor. Every single null has all three inputs (`ret_12_1`,
+`ret_6_1`, `high_prox`) absent. So nothing is being computed and then dropped.
+
+**(b) IT IS NOT A DATA LIMIT EITHER, FOR MOST OF THEM — and that is the brief's hypothesis
+confirmed.** `T`, `VZ`, `MGM` and `RNR` all return **400 sessions of history and full momentum
+from yfinance right now**, while the scan has nothing for them. `NVDA` and `KO` likewise
+(`ret_12_1` 0.129 and 0.363). **`SUN` is the exception at 61 sessions**, so its nulls are real
+and a repair cannot reach 100%.
+
+**(c) THE "47 OF 100" IS NOT MOMENTUM, AND THIS CORRECTS THE BRIEF.** Momentum is present on
+**97.4%** of the top 500 and growth on **96.6%**, and it is **flat across every rank decile** —
+48/50, 48/50, 48/50, 49/50, 50/50, 49/50, 49/50, 49/50, 48/50, 49/50. The five-column
+intersection is dominated by **`insider` at 63.4%** and **`institutional` at 65.0%**, which are
+sparse by nature: Form 4 filings and 13F holdings genuinely do not exist for a third of the
+universe. Momentum's own null rate is **2.6%**.
+
+**(d) THE CAUSE IS THE FETCH, AND THE SITE ALREADY SELF-REPORTS IT.** `health.api_budget` on the
+live payload:
+
+```
+"fmp_error_sample": ["402 Client Error: Payment Required for url: https://financialmodelingp"],
+"fmp_errors": 44,  "fmp_disabled_mid_scan": true,
+"served_by_fmp": 7,  "served_by_free_fallback": 726,  "names_with_broker_data": 0
+```
+
+**FMP's subscription is unpaid.** It errored 44 times with HTTP 402, disabled itself mid-scan,
+and served **7** names against **726** on the free stack. `names_with_broker_data: 0` is the
+other half — Tradier closed on 2026-10-08, so there is no broker prefill, and **1,440 names now
+depend on one per-name Yahoo fetch each**. `source.degraded` is already `true` and the label
+already says *"Financial Modeling Prep + free"*. The scan is not broken; it is running on the
+fallback and the fallback throttles.
+
+**WOULD A REPAIR MOVE LIVE HOT SCORES? YES — and that is why this stops here.** It is certain by
+construction (a name with no momentum contribution gains one, so its composite moves) and it is
+not small:
+
+| | measured |
+|---|---|
+| top-500 rows with no momentum contribution | **13** |
+| ...of those, in the SERVED top 100 | **4** (`SMFSY`, `OCTV`, `KEP`, `RNR`) |
+| median \|momentum contribution\| | **0.0922** of composite |
+| median composite gap between adjacent ranks | **0.00073** |
+| so one name moves about | **126 rank positions** |
+| ...and about | **3.1 hot-score points** |
+
+Adding momentum values for the missing names also shifts the cross-section's own mean and sd, so
+**every** name's `z_momentum` moves slightly. The 2026-08-11 theme restoration was treated as an
+adopted change and opened a vintage; **on that precedent this is one too, and it is Don's call.**
+
+**THE BIGGER FINDING, WHICH IS NOT ABOUT MOMENTUM AT ALL: THE #1 NAME ON THE LIVE HOT LIST IS
+SCORED ON ONE THEME.** `SMFSY`, hot score **100.0**, rank 1 of 1,440 — its explanation carries
+exactly one theme, **`size`**, so its composite *is* its size z-score. `CLAUDE.md` records `size`
+as having the **worst** theme IC (−0.30) while carrying the composite's entire statistical
+significance. Two more in the top 100 are scored on three or fewer (`WPP` rank 18 on three,
+`WFG` rank 95 on two). The ranking redistributes a missing theme's weight so the number is
+*comparable*, which is exactly what makes this hard to see.
+
+**WHAT IT MEANS FOR THE 2026-10-22 REBALANCE.** `SMFSY`, `WPP` and `WFG` are **not** in the
+current Index (85 positions, formed earlier). A rebuild on 2026-10-22 would rank from a scan in
+this state, so **a one-theme name could enter the Index at the top weight.** Three options, all
+Don's:
+
+1. **Pay FMP** (or confirm it is deliberately lapsed). This is the root cause and nothing else
+   addresses it.
+2. **Require a minimum theme count to be Index-eligible.** A construction change, so a vintage
+   event, and it needs a register.
+3. **Rebalance anyway and accept it**, knowing the above.
+
+**Diagnosis only: no file under `valuation/screener/` was touched** — and the FIRST guard I
+wrote for that claim was refused by the land gate, correctly. It ran
+`git diff --name-only origin/main` over the working tree, which is the exact construction
+`SC-4` forbids in `test_ma60_conventions.py`, for a reason that convention had already
+MEASURED on two earlier suites: a working-tree diff against `origin/main` *"does not measure
+the lane that wrote it, it becomes a permanent tripwire on whole directories owned by an item
+that has already landed, and it fires on the next lane to touch one of them"* — it had already
+failed one unrelated land gate before the convention existed, and mine would have fired on
+whoever next edits `factors.py` for a perfectly good reason.
+
+**So the property is pinned LOCALLY instead**, over the three modules item 53 adds, which
+nobody else owns: none of them may import the scan's scoring path. That is what would have to
+be false for part 7 to have quietly shipped a change, and it cannot rot into somebody else's
+tripwire. Mutation-tested (a planted `from ..screener import factors` is caught) with the
+source restored byte-for-byte, and with a positive control so the rule cannot pass by matching
+nothing. The broader "no screener file changed in this commit" is a fact about one diff and
+lives in the commit message and here, where a reviewer can check it — `MA21`'s rule, that a
+guard which will cry wolf gets switched off.
+
+---
+
+## 1. INDEX ROWS LINK TO EACH NAME, AND CARRY THE SAME "WHY?" PANEL
+
+The ticker has not been a link since `c0c6fef` (2026-07-31, when Hot Stocks and the Index were
+unified) — so **the one table listing the names Don actually holds was the one table you could
+not click**, while Hot Stocks and four others used `gotoValue` throughout. It uses `gotoValue`
+now; a second navigation path is how two tables come to behave differently.
+
+The breakdown is **`attributionPanel`, not a second implementation of it** — one decomposition of
+one number, rendered identically in both tables. The per-theme data is attached server-side in
+`index_in_force.attach_labels`, beside the four display labels that were already there, and
+**only `why`, `why_composite` and `factors` are copied, never the whole `extra` blob**: that dict
+carries every raw vendor number the scan touched and the Index payload is a public surface.
+
+**A HOLDING NOT IN TODAY'S SCAN SAYS SO.** `attributionPanel`'s empty state used to give one
+message — "saved by an older scan" — which is true of a hot-list row and wrong for a holding.
+The book is fixed between rebalances, so a name today's universe no longer ranks is ordinary
+rather than a fault, and `attach_labels` already keeps it rather than dropping it. Both states
+now exist and read differently (`V6`'s rule). `n_labelled` and `n_attributed` are reported
+separately for the same reason.
+
+**AND THE FOOTER NEEDED THE NEW COLUMN.** The table already carried the comment *"the footer must
+grow with the header or every total shifts one cell left"* — adding the why? column made it one
+cell short, caught by obeying that comment rather than by the table looking wrong. The panel's
+colspan is **derived** from the same flags that build the header.
+
+---
+
+## 2. RECENT EARNINGS AND HEADLINES — AND THE OBVIOUS SOURCE IS DEAD
+
+**`yfinance`'s `.news` RETURNS ZERO ITEMS** on 1.3.0, for every call shape tried (`.news`,
+`get_news()`, `get_news(count=…)`, `get_news(tab="news")`). So the library already in the
+dependency set carries no headlines at all.
+
+Yahoo's **RSS** endpoint does work — a syndication feed, no key, 18 items for NVDA. **But a
+symbol-requested feed is not a feed about that symbol, and that measurement shaped the whole
+design.** Over 74 titles across NVDA, TSLA, KO and APLD on 2026-10-13:
+
+| ticker | items | mention the company |
+|---|---|---|
+| NVDA | 18 | **1 (6%)** |
+| TSLA | 17 | 6 (35%) |
+| KO | 19 | 10 (53%) |
+| APLD | 20 | 14 (70%) |
+| **pooled** | **74** | **31 (42%)** |
+
+The rest are about Citigroup, Goldman Sachs, Google, PepsiCo, Rivian and CoreWeave. **Handing an
+NVDA analysis seventeen headlines about other companies would be worse than handing it none**, so
+the name filter is mandatory rather than tidying, and **its yield ships with the result** — "no
+headlines" has to be distinguishable from "the feed carried none about this company".
+
+**SO THERE ARE TWO SOURCES, because one is impure and the other is pure by construction:**
+
+* **SEC EDGAR filings** — the feed is per-CIK, so every item is about the company by
+  construction, and the terms are unambiguous. Quoted from the SEC's own webmaster FAQ: *"All
+  Government-created content on sec.gov and EDGAR public filing content are free to access and
+  reuse."* It asks callers to *"declare your user agent in request headers"* and states *"our
+  current maximum access rate is 10 requests per second"* — **both honoured in code**, with the
+  interval set far under the ceiling because the limit is per-IP and several visitors can load a
+  page at once. These are **filings, not news**, and are labelled as filings. Ownership forms are
+  excluded or a company's dozens of Form 4s would crowd out the 8-K that says what happened.
+* **Yahoo Finance RSS headlines**, filtered, each with its publisher, date and link.
+
+**TITLES AND LINKS ONLY — STRUCTURALLY, NOT BY PROMISE.** Nothing ever requests an article URL,
+and the RSS item's `description` is **never read**, so there is no code path by which article
+text could be stored, shown or sent to a model. A test strips comments and strings and asserts
+the word does not appear in the code at all.
+
+**A TWO-LETTER STEM IS NOT A FILTER.** `KO` as a needle matches "look", "broke" and "stock", so a
+symbol shorter than three characters is dropped and the company's own name carries the match —
+which is why KO is found by "coca-cola" (and "coca cola", because headlines write it both ways).
+
+**THE TWO EARNINGS SOURCES AGREE ON THE NUMBER AND DISAGREE ON THE DATE, AND EDGAR IS RIGHT.**
+On NVDA, `quarterly_income_stmt` gives diluted EPS **2.46** for a period it labels **2026-07-31**,
+and EDGAR's XBRL gives **2.46** for a period ending **2026-07-26**, filed **2026-08-26**. yfinance
+rounds a fiscal quarter to month-end. **EDGAR's period end is the real one and its `filed` date is
+the only free source for when the quarter was actually reported**, which is the thing Don asked to
+see — so the dates come from EDGAR, the revenue from the statement, and **each figure is labelled
+with where it came from**. Where EDGAR has no EPS for a company (KO), it falls back and says
+`"(month-end approximation)"` rather than quietly presenting an approximate date as exact.
+
+**ESTIMATES: NOT AVAILABLE, AND REPORTED AS SUCH.** Don asked for revenue and EPS against
+estimates *where a free source has them*. Measured: none does — consensus is a licensed product.
+So `estimates_available` is **False** with a reason, **no estimate is inferred or modelled**, and
+**the AI prompt explicitly forbids calling the result a beat or a miss**. An absent comparison and
+a met expectation must not read the same.
+
+**IT IS A SEPARATE FETCH, AFTER THE PAINT.** Up to four network calls, so `/api/recent` is fetched
+once the numbers are on screen — item 52 measured that the page's two seconds are the fetch, not
+the model. **Cached per ticker per day beside the AI analysis** (0.001s on a hit) and
+**deliberately NOT charged to the AI cap**: that cap bounds Anthropic spend, and sharing it would
+let a visitor reading headlines exhaust the owner's analysis budget.
+
+**THE MODEL MUST NAME THE HEADLINE IT USED.** New `headlines_used` schema field, `[]` when it used
+none, and the panel links each cited title back to the stored feed item — so a reader can click it
+and judge for themselves. **The feed items are stored WITH the analysis**, because a feed is not
+an archive and an analysis citing a headline nobody can find again is unfalsifiable.
+
+---
+
+## 3. THE DISCOUNT RATE, MADE VISIBLE — AND IT CUTS BOTH WAYS
+
+NVDA is discounted at **16.3%** and TSLA at **14.7%** because their measured betas are about 2,
+and nothing on the page said so: a reader saw a base value far below the price and read it as a
+claim about the business. The page now shows what the same model says at **beta 1.0**.
+
+| | deployed | at beta 1.0 |
+|---|---|---|
+| **NVDA** (beta 2.216) | WACC 16.27%, base **$145.67** | WACC 10.21%, base **$230.65 (+58.3%)** |
+| **KO** (beta 0.318) | WACC 6.59%, base **$57.34** | WACC 9.64%, base **$34.81 (−39.3%)** |
+
+**NVDA at an average-risk rate is essentially AT its $226 price rather than 56% above it — and
+KO's low beta was FLATTERING its fair value by two fifths.** The figure cuts against the model as
+readily as for it, which is the reason to show it.
+
+**IT RE-RUNS THE REAL MODEL RATHER THAN REIMPLEMENTING THE DISCOUNT CHAIN.** The obvious approach
+— recompute a WACC at beta 1.0 and re-derive a DCF — is a second implementation of the thing it
+reports on, which is the `B7` family. So it calls the pipeline's own `value_from_company` through
+an injected callable with `beta` overridden and nothing else touched. The pipeline injects itself;
+`average_risk.py` does not import it, or the valuation path would depend on a presentation module.
+
+**IT COSTS 14 MILLISECONDS.** Measured on an already-fetched NVDA: 0.102s with it against 0.088s
+without. A second pass makes no network call (`compute_comps` only fetches when handed peers) and
+runs the Monte Carlo at a token trial count, which is safe because trials feed `prob_undervalued`
+— a score input — not the fair value.
+
+**IT DOES NOT MUTATE THE COMPANY, and that was the real hazard.** `value_from_company` appends to
+`cd.quality_notes`, and that list becomes the result's `warnings` — so a second pass over the same
+company would have duplicated every note on the **first** result, which is a recorded number
+changing. The notes are snapshotted and restored, **unconditionally**, because a failure partway
+through is exactly when they are half-appended.
+
+**PRESENTATION ONLY, STRUCTURALLY.** It is written to a field nothing else reads, pinned on the
+syntax tree (assignment targets only, zero reads) and asserted absent from the scorer and the
+blend. A withheld name gets **no figure at all** — printing "the base value would be $X" beside a
+value the model refused to publish would hand back the number the refusal withheld. A company
+already discounted near an average rate renders **nothing**, rather than the same answer twice.
+
+---
+
+## 4. PLAIN DEFINITIONS ON HOVER
+
+Fourteen terms in `valuation/web/definitions.py`, on `score_confidence.py`'s shape: one module
+owns the wording, every surface reads it, a test pins it. The alternative — `title=` strings
+written inline beside each number — is how one term comes to be defined two different ways on one
+page, which is `B7` applied to prose.
+
+**Every hero metric gained a hover without a single call site being edited**, because `metric(k, v)`
+is the one place they render and it now looks its label up in a map. Rule of 40, the hot score and
+the two reads carry theirs explicitly. A defined term gets a dotted underline and a help cursor —
+**a definition nobody can see is a definition nobody reads.**
+
+**WHAT A DEFINITION MAY NOT DO.** It explains what a number *is*; it does not say whether the
+number is good, recommends nothing, and **does not restate a calibrated hedge in looser words** —
+where one exists it points at it (`score_confidence.py` for the hot score, `price_assumes.py` for
+the DCF warning). A paraphrase of a hedge is how a hedge becomes a claim. **And no definition
+carries a number that moves**: "the 10-year Treasury is 5.28%" would be wrong within weeks and
+nothing would fail. The Rule of 40's own 40 is the exception, because the rule is named for it.
+
+---
+
+## 5. A CACHED ANALYSIS IS SERVED TO EVERYONE
+
+Item 52 denied `/api/ai-analysis` to the demo tier wholesale, and **half of that reasoning still
+stands while the rule was about the wrong thing**. A cached analysis costs nothing to show again —
+the money is spent and the file is on disk — so refusing a public reader the cache was refusing
+something free. **The gate moved from "may you call this URL" to "may you SPEND"**, which is the
+question that was always being asked.
+
+`surfaces.may_spend_ai` is the owner alone **under every flag combination**, and that is the
+safety property: `may_act` returns True for everyone when `OWNER_SPLIT` is off, which is right for
+its job and wrong for this one — the flag is a decision about what strangers may *read* and must
+not hand a stranger the Anthropic budget as a side effect. **`check()` already states that rule for
+the demo tier in its own comment; this is the same rule for the flag.**
+
+**DEFAULT-DENY AT THE READ.** The SaaS layer sets `g.may_spend_ai` (the same rail as
+`g.hotstocks_cap`), and the inner route treats an unset flag as a refusal — because that app is
+importable and runnable without the wrapper, as every test client does, so "ran somewhere the
+guard does not" must fail toward not spending. The ordering is pinned structurally: `value_ticker`,
+the analyst call and `ai_auto.record` all sit **after** the gate.
+
+---
+
+## 6. A PREMIUM PAST A DOUBLING READS AS A MULTIPLE
+
+*"Priced 1527% above our base value"* was TSLA's live reading. It is arithmetically exact and
+makes a reader divide by 100 and add 1 in their head. It now reads **"Priced at about 16 times our
+base value."**
+
+**The switch is at +100%**, where the two readings cross in usefulness: below a doubling a
+percentage is clearer ("56% above" beats "about 1.6 times"), above it the multiple is. **The same
+number in two units, not a rounded one.** Precision matches what a base value can carry — one
+decimal under 10x, none above — because quoting `16.27x` claims a precision the estimate does not
+have. NVDA and KO keep their percentages.
+
+---
+
+## WHAT WENT WRONG IN MY OWN WORK
+
+**Seven guards of mine fired against a correct tree, and five are one family.** The
+comment-versus-code / substring-ban family, which this project names more than any other:
+
+* banning the substring **`buy`** in a definition — it is inside **"insider buying"**, the name of
+  one of the eight themes and the only way to say what it is;
+* banning **`price target`** — the `base_value` definition says *"not a price target"*, which is
+  exactly what it should say, and the ban could not tell a disclaimer from a claim. Repaired by
+  allowing a negation, with positive controls both ways;
+* asserting `why_composite` appears in the *comment-stripped* code when it is a dict **key**, i.e.
+  a string literal the stripper removes — the stripper was right and the assertion was pointed at
+  the wrong text;
+* capping how many **times** `average_risk` appears in a file, which is a number with no meaning
+  and read 9 against a bound of 6 on a perfectly correct file. Repointed to the property: the
+  field may be an assignment target and nothing may read it;
+* and an assertion that a three-key dict literal contained no `":` , which is the opposite of true.
+
+**An eighth, caught by the land gate rather than by me**, and the most useful of them: part 7's
+guard was a working-tree diff against `origin/main`, which `SC-4` forbids by convention because
+two earlier suites shipped it and one broke an unrelated lane's gate. Replaced with a local
+property over my own files — see part 7 above.
+
+**And one real bug in shipped code, in the prompt:** a line reading `42%% relevance` inside a
+**plain** string literal, which ships two characters to the model. Item 52 hit the mirror image —
+a literal `%` inside a `%`-formatted string, which crashed — and the lesson is the same either
+way: check which kind of string you are in. This one would not have crashed.
+
+**Three of item 52's pins were repointed by INTENT, not silenced**: TSLA's premium wording (part 6
+changed it), and two about `/api/ai-analysis` being demo-denied (part 5 deliberately changed
+that). The measured $0.0248 was kept on the record at the classification that replaced it.
+
+**Three posture guards demanded classifications and all three were right** — an unclassified
+`/api/recent`, an unclassified POST reachable by the preview, and an unanswered licence question —
+so both routes are now in `PUBLIC_API` and `VENDOR_ROW_CLEARED` with their vendors named, and
+`/api/ai-analysis` is in the test's `COMPUTES_ONLY` with the guard it depends on named beside it.
+
+---
+
+**Tests:** `tests/test_item53.py` 45 tests. Repointed suites: item 52 80/80, public-posture 43/43.
+Also green: security 22/22, vendor-quota 15/15, engine 62/62, withhold 30/30,
+valuation-consistency, index-in-force 33/33, index-card, product-spec, screener 83/83,
+payoff 30/30. `node --check` clean.
+
+**NOT DONE, named so it is not mistaken for done:** part 7 ships no fix and the FMP subscription,
+the theme-count floor and the 2026-10-22 rebalance are all Don's calls; no estimate source was
+bought or inferred; `row_attribution` is untouched (the screener lane's shared primitive); and
+**the screenshots Don asked for are still owed** — this session has no browser, so every live
+check is a fetched payload rather than a picture.
+
+## ITEM 53 — LIVE CLOSE-OUT ON valquo.co
+
+Verified after the land, by fetching the rendered payloads. **The site served 502 on every path
+for a few minutes after the push** — including `/api/health` and the landing page — which was
+Render swapping the deploy, not the change: the SaaS app builds and routes cleanly, and nothing
+item 53 adds imports anything that exists only in dev (`recent.py` imports `requests` and
+`yfinance` lazily inside functions; `definitions.py` and `average_risk.py` are stdlib-only). It
+came back on the first check after.
+
+**Part 1 — the Index rows.** 86 positions, `n_labelled` 81, `n_attributed` 81, and
+`attribution_basis` on the payload. A holding carries exactly the three permitted keys —
+`['factors', 'why', 'why_composite']` — and nothing else, so no vendor row went public. `APA` at
+rank 11 of 1,440 carries all eight themes.
+
+**AND THE NOT-IN-SCAN BRANCH IS REACHED ON REAL DATA, which is what makes it worth having:
+5 of the 86 holdings are absent from today's scan — `WDS`, `SKM`, `WBS`, `CGNX`, `IMO` — and
+`WDS` is the Index's LARGEST position at 2.33%.** Under the old single message the biggest
+holding in the book would have been told its breakdown was "saved by an older scan", which is
+not what happened to it.
+
+**Part 2 — the quarter, the headlines and the filings.** NVDA: `Q2 2027 ended 2026-07-26,
+reported 2026-08-26`, revenue 96,221,000,000, diluted EPS 2.46, dates from
+`SEC EDGAR (fiscal period end and filing date)`, `estimates: False`, **2 headlines kept of 17
+scanned**, 5 filings (8-K 2026-09-03, N-PX 2026-08-31). KO: the EDGAR EPS concept is absent for
+it, so it falls back and says `Yahoo Finance quarterly income statement (month-end
+approximation)` rather than presenting an approximate date as exact — 5 headlines of 19, 5
+filings. **The filter's yield is visible on both**, which is the point.
+
+**Part 3 — the discount rate.** All three material and all three cutting their own way:
+
+| | live reading |
+|---|---|
+| **NVDA** | *"At an average-risk discount rate of 10.2%, the base value would be $230.65."* **+58.3%** |
+| **TSLA** | *"At an average-risk discount rate of 10.2%, the base value would be $27.58."* **+18.6%** |
+| **KO** | *"At an average-risk discount rate of 9.6%, the base value would be $34.81."* **−39.3%** |
+
+**Part 4 — 14 definitions served** on `window.DEFINITIONS`, all seven of the terms item 53 names
+present with their label and text, and `.defd` / `defAttr` / `DEF_TERM_BY_LABEL` live in the
+deployed assets.
+
+**Part 5 — a new analysis is the owner's.** A public POST returns
+`{ok: true, cached: false, ran: false, owner_only_to_run: true}` with *"Running a new one costs
+money, so only the owner can start it."* — a clean refusal, nothing bought, and the route
+reachable rather than 403.
+
+**Part 6 — TSLA reads** *"Priced at about 16 times our base value."* NVDA and KO keep their
+percentages (56% and 57%).
+
+**STILL OWED: the screenshots.** No browser in this session, so every check above is a fetched
+payload rather than a picture. **And no real paid AI call has gone through the live owner path**
+— that needs the admin token, which is Don's to enter.
+
 # Session 88 — 2026-10-08 — ITEMS 41+42: the SIC map, Tradier's unapproved token, and Don's two rulings
 
 **ZERO TRIALS.** No hypothesis, no bar, no verdict. `by_domain` untouched.

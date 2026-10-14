@@ -169,9 +169,19 @@ PUBLIC_API = frozenset({
     "/api/ai-analysis",       # ITEM 52 part 6: the written analysis for one ticker the
                               # visitor is already looking at. PUBLIC for the same reason
                               # /api/value is -- it is model output over inputs the visitor
-                              # asked for -- but it is the FIRST public route that spends
-                              # money per call, so it is DEMO-DENIED below and capped at 30
-                              # new analyses a day. Measured: $0.0248 a call.     [Anthropic]
+                              # asked for -- and it is the FIRST public route that can spend
+                              # money per call, measured at $0.0248.
+                              # ITEM 53 part 5: a CACHED analysis is served to anybody (the
+                              # money is already spent); a NEW one needs `may_spend_ai`, the
+                              # owner alone. It is no longer DEMO-DENIED, because the scarce
+                              # thing is the spend and not the URL.                [Anthropic]
+    "/api/recent",            # ITEM 53 part 2: the last reported quarter, recent headlines
+                              # and recent SEC filings for one ticker. PUBLIC and it spends
+                              # NOTHING -- three free feeds and a per-day cache, no key on
+                              # any of them. Titles, dates, publishers and links only; no
+                              # article text is ever requested, so there is nothing here that
+                              # could be a vendor's content rather than a reference to it.
+                              #                     [Yahoo Finance RSS / SEC EDGAR / yfinance]
     "/api/hotstocks",         # the ranking — analysis, and the product               [FMP]
     "/api/dip",               # the Dip Detector: the same snapshot the hot list
                               # publishes, filtered on drawdown and health. Public for
@@ -213,14 +223,21 @@ DEMO_DENIED_PATHS = frozenset({
     # (1) Triggers — each writes to the store AND spends the owner's money on every call.
     "/api/scan/run",          # writes a scan snapshot; 3 FMP requests per uncached name
     "/api/signals/run",       # writes intraday rows + alerts; one Anthropic call per run
-    "/api/ai-analysis",       # ITEM 52 part 6: one Anthropic call, MEASURED at $0.0248 and
-                              # 27.4 seconds, stored per ticker per day. The 30-a-day cap
-                              # already bounds the spend, and this entry is the stronger
-                              # statement: the read-only preview cannot start a paid call at
-                              # all, so "the demo cannot spend" does not depend on a counter
-                              # being right. A cache HIT costs nothing, but the preview is
-                              # denied the route rather than the miss -- a rule that depends
-                              # on which branch runs is not a rule.
+    # ITEM 53 part 5 REMOVED `/api/ai-analysis` FROM THIS SET, and the reason it was here is
+    # worth keeping because half of it still stands. Item 52 put it here saying "a rule that
+    # depends on which branch runs is not a rule" -- true of a rule about URLs, and the rule
+    # was simply about the wrong thing. The scarce thing is the SPEND, not the route: a cache
+    # HIT costs nothing to serve, and denying it was refusing a reader something free that
+    # the owner had already paid for.
+    #
+    # THE COST STAYS ON THE RECORD HERE, because it is the number that decides the rule:
+    # MEASURED at $0.0248 and 27.4 seconds a call (one real call on TSLA, 2026-10-13), which
+    # is why a NEW analysis is the owner's alone and a cached one is free to anybody.
+    #
+    # THE GATE DID NOT GO AWAY, IT MOVED TO THE BRANCH THAT SPENDS. `may_spend_ai` is the
+    # owner alone under every flag combination, and `/api/ai-analysis` asks it before any
+    # paid call. A non-owner reaching a cache MISS gets a refusal and nothing is bought.
+    # Pinned by test, including that a non-owner cannot reach the paid branch at all.
     "/api/backtest/run",      # CPU-heavy on a 512 MB box; a free DoS lever otherwise
     "/api/edge/backtest",     # the research bench's own runner
     "/api/edge/optimize",     # walk-forward weight search
@@ -279,6 +296,18 @@ VENDOR_ROW_CLEARED = frozenset({
     "/api/hotstocks",         # the ranking — theme z-scores and a composite          [FMP]
     "/api/dip",               # the same snapshot filtered on drawdown and health     [FMP]
     "/api/whatdo",            # one name across the product; derived views only       [FMP]
+    "/api/ai-analysis",       # ITEM 53 part 5. Prose a language model wrote FROM the page's
+                              # own derived numbers -- no vendor row reaches it, and its own
+                              # label says it read no filing, transcript or news. The
+                              # headlines it may now cite are titles and links, which is a
+                              # reference to someone's article and not the article.
+                              #                                      [Anthropic / Yahoo RSS]
+    "/api/recent",            # ITEM 53 part 2. Dates and two figures from EDGAR (US
+                              # government work: "free to access and reuse"), one revenue
+                              # line from a public statement, and headline TITLES with links
+                              # back to the publisher. No article text is fetched or stored,
+                              # structurally -- the RSS `description` is never read.
+                              #                     [SEC EDGAR / yfinance / Yahoo Finance RSS]
     "/api/regime",            # three levels and two comparisons, not a price series  [FMP / yfinance]
     "/api/export/excel",      # the visitor's OWN valuation, rendered                 [FMP]
     "/api/export/pdf",        # ditto                                                 [FMP]
@@ -475,6 +504,30 @@ def may_act(user, cfg) -> bool:
         return False
     if not enabled(cfg):
         return True
+    return is_owner(user, cfg)
+
+
+def may_spend_ai(user, cfg) -> bool:
+    """MAY START A PAID AI CALL. The owner alone, under every flag combination. [item 53/5]
+
+    **IT IS DELIBERATELY NOT FLAG-GATED, and that is the whole safety property.** `may_act`
+    above returns True for everyone when the split is OFF, which is right for its job — the
+    flag is a decision about a commercial product's tiers. It is wrong for this one:
+    `OWNER_SPLIT=false` is a decision about what strangers may READ and must not be able to
+    hand a stranger the Anthropic budget as a side effect. `check()` already states that rule
+    for the demo tier in its own comment; this is the same rule for the flag.
+
+    **WHY IT EXISTS AT ALL, i.e. why `/api/ai-analysis` is no longer simply denied.** A CACHED
+    analysis costs nothing to show again — the money was already spent, the file is already on
+    disk, and a second reader pays neither the 27 seconds nor the 2.5 cents. Refusing them the
+    cache was refusing a free thing. So the gate moves from "may you call this URL" to "may you
+    SPEND", which is the question that was always being asked.
+
+    **IT GRANTS NOTHING ELSE.** Reading stays governed by `may_see_owner_surfaces`, and acting
+    on anything other than the AI budget stays governed by `may_act`. Three predicates because
+    widening one must not silently widen another -- the reason `may_act` was split out from
+    `may_see_owner_surfaces` in the first place.
+    """
     return is_owner(user, cfg)
 
 
