@@ -1,5 +1,72 @@
 # HANDOFF STATUS - shared project state
 
+## r1 lane — **Don's two queued items measured: insider clusters CLEAR in shares at one quarter but the tier the Index trades CANNOT TELL, and Blume IS the better beta while disturbing fair values by 3.4x the improvement it buys** (2026-10-13, `INSIDER-CLUSTER` + `BETA-FORECAST`)
+
+Both registers committed **ALONE**, markdown only, strict git ancestors **asserted against git by
+test** (including that no register commit ever touches code); trials booked **before any runner
+existed**. Equity `N` **297 → 303**, hurdle **3.3804534623358946**, derived not quoted. **ADOPTS
+NOTHING**; no public surface touched; no engine constant changed.
+
+### `INSIDER-CLUSTER` — 4 equity trials, `fd87870` + Amendment 1 `826d0b5`
+
+- **A cluster of OPPORTUNISTIC insider open-market purchases is followed by +2.0926pp of
+  market-adjusted return over the next quarter**, *t* **5.009 / 4.888** under clustering on the
+  event date and the ticker, both halves against their own nulls, above the 0.67pp round-trip cost
+  floor, surviving BH at **p 5.1e-07**. **CLEARS all five clauses on the full corrected universe at
+  `h`=63**; `h`=126 is NULL on its early half.
+- **THE $10B TIER CANNOT TELL, AND THAT WAS DECLARED BEFORE THE RUN**: 146 events against a derived
+  requirement of 2,430, power **7.4%**. It *appears* to pass at +3.0138pp and *t* 2.584 and is
+  reported **UNDERPOWERED-BY-CONSTRUCTION** anyway, because the estimate is **0.89× its own
+  80%-power MDE** — at that power a clearing cell is selected on significance. **So the arm does
+  NOT advance to Stage 2 and the check quadrant is not spent.**
+- **THE OWN-NORMAL BENCHMARK IS UNUSABLE ON ANY EVENT SET SELECTED AFTER A DECLINE, and the
+  register's own quote-both-legs rule is what caught it** — +11.46pp at `h`=63 and +20.93 at 126,
+  because `ar_own` extrapolates a negative trailing drift forward and the distortion scales with
+  `h`. Its own null is centred at +1.17 to +4.51pp. **`DIP-CALL` uses the same leg on a dip event
+  set**; there it runs toward *understating* a null, so nothing is retracted — but any future event
+  register selected on past returns should treat that leg as a diagnostic only. **Reported, not
+  edited** (it is `DIP-CALL`'s instrument).
+- **THE RAW MARKET-ADJUSTED MEAN IS PARTLY A SIZE TILT:** the *average* name's 63-session
+  market-adjusted return is **+3.41pp in 2009–14 and −1.23pp in 2015–19**, so the clean figure is
+  the excess over the null, **+1.8077pp**. **Null-relative the LATE half is STRONGER at both
+  horizons** — the opposite of the raw reading, visible only because the draws were banked.
+- K2's dip overlap is **0.2048 against a bar of 0.25**: not `V6-B`'s arm, and **not disjoint from it
+  either** — one cluster in five is a post-dip event, and that caveat travels with the result. K3's
+  worst costume is the `insider` theme itself at **0.1699**.
+- **`$10B` TIER NAME COUNTS CLEAR STAGE 1b ON ALL 44 DATES** (min 106, median 256), so the tier's
+  failure is purely an **event**-count failure: large enough to trade, too rare a signal.
+
+### `BETA-FORECAST` — 2 equity trials, `67831e7`
+
+- **BOTH CANDIDATES NULL, for opposite reasons.** On the governing `$10B` tier (31,682 cells, 1,078
+  names, 63 quarters, trailing-to-realised correlation **0.4201**): **Blume cuts mean absolute
+  error 0.4308 → 0.3991**, paired **−0.03173** beta units at *t* **−9.60 / −14.56**, both halves,
+  **3.4× its own MDE** — and fails on the **materiality floor alone**. **The point-in-time sector
+  median is reliably WORSE** at +0.01784, *t* +3.04 / +2.81.
+- **THE TWO BLUME RESULTS NOW RECONCILE.** `wacc.py`'s `BETA_SHRINK = None` records Blume *moving*
+  the median fair value **2.491%** against a 2% ceiling; this measures the *improvement* at ≈
+  **1.52% of fair value**, and the move re-measured on the Index's own 86 constituents is
+  **5.198% median absolute** (43 up / 42 down, 7 of 87 over 25%, one at 185%). **The adjustment
+  disturbs fair values by ~3.4× the improvement it buys** — both tests right, and the prior
+  rejection upheld by a *wider* margin on the population that matters.
+- **THE FAIR-VALUE PASS REPRODUCES ITEM 53 TO THE CENT** — vendor beta 2.216 gives NVDA **$145.67**
+  against its published *"$145.67 at its vendor beta of 2.22"*, two lanes, different days — and it
+  quantifies that item's own KO prediction: 0.318 shrinks **up** to 0.543 and cuts KO's fair value
+  **18.18%**, which is why the direction split is symmetric and a one-sided summary would be wrong.
+- **A BETA CONTEST ON THE FULL CORRECTED UNIVERSE MEASURES NOTHING** — realised-beta sd **6.348** at
+  correlation **0.0221**. And the sharp consequence: Blume's gain rises as the universe widens
+  (0.0317 → 0.0464 → **0.0847**), so **the only population where it would clear the floor is the one
+  where the target is unmeasurable** — foreclosed by the register before the loss was computed.
+- **REPORTED OUTSIDE THIS LANE:** `S25`'s published **94.8%** sector coverage is a **megacap-tier**
+  figure — **37.94%** on the corrected full universe (this item's tier reproduces 94.8% exactly).
+  Nothing in S25 is wrong; a successor reading it as a universe property would be out by 2.5×.
+- **IF DON ADOPTS ANYWAY** it is a **vintage event**, quoted at half the backtested size, **and
+  `VALREADS` needs a dated amendment first** — that record stores the valuation page's reads **as
+  computed**, and beta moves `base_value` and therefore `price_vs_model` for every name.
+
+**43 tests across the two items, exit 0.** `HANDOFF_insider_cluster.md`,
+`HANDOFF_beta_forecast.md`.
+
 ## r1 lane — **the valuation page's reads are now RECORDED FORWARD, with the test registered BLIND, and it says in advance that two of its three horizons cannot resolve this decade** (2026-10-13, `VALREADS`)
 
 `PREREG_valuation_reads.md` committed **ALONE** at `5aa1ac0`, markdown only, zero `.py`, 358
