@@ -376,18 +376,45 @@ def _company_profile_block(result) -> dict:
                 return None
             return None if v is None else float(v)
 
-        hist = [m for m in (getattr(cd, "ebit_margin_history", None) or [])
-                if m is not None]
+        # ITEM 57 A3: THESE HISTORIES ARE NEWEST-FIRST, and this block was the one reader in
+        # the project that assumed otherwise. `models.py` says so on the field itself --
+        # "History (most-recent-first, aligned to fiscal_years)" -- and every other reader
+        # honours it: `revenue_growth` takes `h[0], h[periods]`, `providers.py` takes
+        # `h[1]/h[2]`, the analyst and the assumptions take a median (order-independent), and
+        # `excel.py` reads `fiscal_years[0]` as FY0. Which is exactly why nobody noticed: the
+        # arithmetic was right everywhere and only the DISPLAY was reversed.
+        #
+        # Measured live before the fix: NVDA's history is [215938, 130497, 60922, 26974] over
+        # [2026, 2025, 2024, 2023] and the page printed $26.97B -- the 2023 figure -- as
+        # "Revenue (latest yr)" against a true $215.94B. KNSL printed $838.80M against
+        # $1.87B, and its margin trend read "34.4% -> 23.8%" when the margin had RISEN from
+        # 23.8% to 34.4%.
+        #
+        # THE YEARS NOW TRAVEL WITH BOTH ENDPOINTS, which is the part that makes a recurrence
+        # visible rather than plausible: a reader who sees "2022 -> 2025" can tell at a glance
+        # that it is the right way round, and a reader who saw "34.4% -> 23.8%" could not.
+        years = [y for y in (getattr(cd, "fiscal_years", None) or [])]
+        hist_pairs = [(m, (years[i] if i < len(years) else None))
+                      for i, m in enumerate(getattr(cd, "ebit_margin_history", None) or [])
+                      if m is not None]
         # THE TREND IS TWO ENDPOINTS AND A COUNT, NOT A DIRECTION WORD. "improving" would be a
         # judgement about a series this page is not measuring, and two margins with the number
         # of years between them lets a reader make it themselves.
         trend = None
-        if len(hist) >= 2:
-            trend = {"from": float(hist[0]), "to": float(hist[-1]), "n_years": len(hist)}
-        elif len(hist) == 1:
-            trend = {"from": None, "to": float(hist[0]), "n_years": 1}
+        if len(hist_pairs) >= 2:
+            # `from` is the OLDEST and `to` is the NEWEST, so the pair reads left to right in
+            # time -- the order a reader assumes and the order the old code inverted.
+            old_m, old_y = hist_pairs[-1]
+            new_m, new_y = hist_pairs[0]
+            trend = {"from": float(old_m), "to": float(new_m), "n_years": len(hist_pairs),
+                     "from_year": old_y, "to_year": new_y}
+        elif len(hist_pairs) == 1:
+            trend = {"from": None, "to": float(hist_pairs[0][0]), "n_years": 1,
+                     "from_year": None, "to_year": hist_pairs[0][1]}
 
-        rev = [r for r in (getattr(cd, "revenue_history", None) or []) if r is not None]
+        rev_pairs = [(r, (years[i] if i < len(years) else None))
+                     for i, r in enumerate(getattr(cd, "revenue_history", None) or [])
+                     if r is not None]
         return {
             "ok": True, "reason": "",
             "summary": getattr(cd, "business_summary", "") or "",
@@ -396,7 +423,9 @@ def _company_profile_block(result) -> dict:
             "industry": getattr(cd, "industry", "") or "",
             "market_cap": (float(cd.market_cap) if getattr(cd, "market_cap", None)
                            is not None else None),
-            "revenue": (float(rev[-1]) if rev else None),
+            # NEWEST, i.e. index 0. See the note above.
+            "revenue": (float(rev_pairs[0][0]) if rev_pairs else None),
+            "revenue_year": (rev_pairs[0][1] if rev_pairs else None),
             "revenue_growth_1y": _g(1),
             "revenue_growth_3y": _g(3),
             "operating_margin_trend": trend,
@@ -541,6 +570,13 @@ def api_value():
         # question that does not go through the fair value.
         payload["price_assumes"] = _price_assumes_block(result)
         payload["profile"] = _company_profile_block(result)
+        # ITEM 57 A2: WHETHER THE COMPANY PROFILE CAME FROM A FALLBACK, and which fields did.
+        # On the wire because `live_check` has to be able to tell an outage from a data gap,
+        # and that is a fact about the SET of names rather than any one of them -- so it needs
+        # a per-name flag it can count. `used: false` is the healthy state and is carried too,
+        # because an absent key and a measured "no fallback needed" must not read the same.
+        payload["identity_fallback"] = dict(
+            getattr(result.company, "identity_fallback", None) or {"used": False})
         # ITEM 53 part 3: what the same model says at beta 1.0. Attached AFTER the withheld
         # branch above on purpose -- `average_risk_read` refuses when there is no published
         # base value, so a withheld name carries `available: false` and the page prints

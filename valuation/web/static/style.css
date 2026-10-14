@@ -3,6 +3,12 @@
   --navy:#1f3864; --blue:#2e5fa3; --blue-soft:#eaf0fb;
   --green:#1b7f4b; --green-soft:#e7f4ec; --amber:#c77c11; --amber-soft:#fbf1e0;
   --red:#b3261e; --red-soft:#fbeae9; --border:#e2e8f2; --shadow:0 1px 3px rgba(20,30,60,.08),0 6px 24px rgba(20,30,60,.06);
+  /* ITEM 57 A5: FIVE VARIABLES THAT SHOULD HAVE EXISTED ALREADY. `--panel` was used once
+     and declared never, so `var(--panel,#fafbfc)` shipped a white panel into dark mode in
+     silence. Declaring them in BOTH themes means the next component that reaches for a soft
+     surface gets a themed one by default instead of a light one by accident. */
+  --panel:#fafbfc; --warn-soft:#fff8ea; --warn-line:#e8dfc9;
+  --flag-soft:#f0e4c8; --flag-ink:#6b5a2a; --track:#eef0f8;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
@@ -89,7 +95,7 @@ header .wrap{padding-bottom:0}
 /* ITEM 52: the lead read and the warning. The warning is amber rather than red -- it is a
    "do not use this number" rather than "something is broken", and red here would compete with
    the genuine refusals. */
-.dcf-warn{border-left:4px solid #d08700;background:#fff8ea}
+.dcf-warn{border-left:4px solid #d08700;background:var(--warn-soft)}
 .dcf-warn-h{font-weight:800;font-size:15.5px;margin-bottom:6px}
 .dcf-warn-why{font-size:13.5px;line-height:1.5;margin-top:4px}
 .dcf-warn-rule{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.45}
@@ -107,22 +113,27 @@ header .wrap{padding-bottom:0}
 /* ITEM 54 part 3: the thin-data group. Deliberately set apart rather than styled as an
    error -- these are real names with real scores, shown where a reader will not read their
    rank as comparable. */
-.thin-group{margin:14px 0 6px;padding:10px 12px;background:#fbf8f2;
-  border:1px solid #e8dfc9;border-radius:5px}
+.thin-group{margin:14px 0 6px;padding:10px 12px;background:var(--warn-soft);
+  border:1px solid var(--warn-line);border-radius:5px}
 .thin-head{font-size:14px;margin:0 0 6px}
 .thinrow td{opacity:.92}
 .thin-flag{display:inline-block;margin-left:6px;padding:1px 5px;border-radius:3px;
-  background:#f0e4c8;color:#6b5a2a;font-size:11px;font-weight:600;cursor:help;
-  vertical-align:middle}
+  background:var(--flag-soft);color:var(--flag-ink);font-size:11px;font-weight:600;
+  cursor:help;vertical-align:middle}
 /* ITEM 53 part 2 */
-.rc-q,.rc-h{background:var(--panel,#fafbfc);border:1px solid var(--line,#e6e9ee);
+/* ITEM 57 A5: `--panel` AND `--line` WERE DEFINED NOWHERE IN THIS FILE -- measured by
+   sweep: one use of `--panel`, zero definitions -- so both var() calls always took their
+   light fallback and these boxes rendered white in dark mode under near-white text. They
+   are the earnings/headline boxes, and they only became visible at all once A1's
+   `d is not defined` was fixed, so nobody had ever seen them in dark mode. */
+.rc-q,.rc-h{background:var(--panel);border:1px solid var(--border);
   border-radius:4px;padding:9px 11px;margin:0 0 8px;font-size:13.5px}
 .rc-i{margin:5px 0;line-height:1.35}
 .rc-i a{text-decoration:none}
 .ai-cite{margin-top:10px;padding-top:8px;border-top:1px solid var(--line,#e6e9ee);
   font-size:13px}
 /* ITEM 53 part 3 */
-.avg-risk{background:#f4f7fb;border-left:3px solid var(--navy);padding:9px 11px;
+.avg-risk{background:var(--panel);border-left:3px solid var(--navy);padding:9px 11px;
   border-radius:4px;margin:0 0 10px;font-size:13.5px}
 .avg-risk-w{color:var(--faint);font-size:12.5px;margin-top:5px}
 .defd{border-bottom:1px dotted var(--faint);cursor:help}
@@ -353,6 +364,12 @@ code{background:#f0f3f9;padding:1px 6px;border-radius:5px;font-size:12.5px;color
   --navy:#9dc0f5; --blue:#7aa7ea; --blue-soft:#1b2636;
   --green:#4cc281; --green-soft:#14301f; --amber:#e0a24a; --amber-soft:#33270f;
   --red:#ec6f65; --red-soft:#331b19; --border:#26313f;
+  /* The dark counterparts. `--panel` sits just above `--card` so a panel still reads as a
+     RAISED surface rather than inverting that relationship, and `--flag-ink` goes light
+     because its background does -- moving a background without its text is how a readable
+     pair becomes an unreadable one. */
+  --panel:#1b2330; --warn-soft:#2b2412; --warn-line:#4a3818;
+  --flag-soft:#3a2f12; --flag-ink:#e3cf9a; --track:#222c3b;
   --shadow:0 1px 3px rgba(0,0,0,.40),0 6px 24px rgba(0,0,0,.30);
 }
 /* --navy doubles as heading text AND the primary button fill; on dark it has to be

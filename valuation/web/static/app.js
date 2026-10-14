@@ -16,7 +16,10 @@ const mcap = (x) => {
   const v = Number(x), a = Math.abs(v);
   if (a >= 1e12) return "$" + (v / 1e12).toFixed(2) + "T";
   if (a >= 1e9) return "$" + (v / 1e9).toFixed(2) + "B";
-  if (a >= 1e6) return "$" + (v / 1e6).toFixed(0) + "M";
+  // ITEM 57 A4: TWO DECIMALS, as the comment above has always said. The $M branch alone
+  // rounded to whole millions, so $838.80M read "$839M" while the $B and $T branches beside
+  // it carried two. This also changes the Index and hot-list market-cap columns, intended.
+  if (a >= 1e6) return "$" + (v / 1e6).toFixed(2) + "M";
   return money(v, 0);
 };
 /* Signed percentage, for figures where the direction is the point (alpha, P&L). */
@@ -178,9 +181,14 @@ async function runValue(overrides) {
     // analyst call took 27.4s on TSLA today, so awaiting it would turn a two-second page into
     // a thirty-second one for a panel that is an addition to it.
     loadAiAnalysis(ticker);
-  // ITEM 53 part 2: the same rule for the same measured reason -- up to four free feeds, so
-  // it must not sit in front of the numbers.
-  loadRecent(ticker, (d.company && d.company.name) || "");
+    // ITEM 53 part 2: the same rule for the same measured reason -- up to four free feeds,
+    // so it must not sit in front of the numbers.
+    // ITEM 57 A1: `d` HERE WAS A REFERENCE TO NOTHING. The variable in this function is
+    // `data`, so every search threw `ReferenceError: d is not defined` -- which landed in the
+    // `catch` below and painted the red error box over a valuation that had already rendered
+    // successfully, while this panel never loaded for any name. The mis-indentation was part
+    // of it: the line sat outside the block it belongs to and read like top-level code.
+    loadRecent(ticker, (data.company && data.company.name) || "");
   } catch (e) {
     errBox(e.message);
   } finally {
@@ -734,9 +742,33 @@ function mcChart(mc, fin) {
       : `<div class="muted">Not applied for this company type.</div>`;
     return;
   }
+  const bins = mc.hist_bins || [], counts = mc.hist_counts || [];
+  // ITEM 57 A6: AN EMPTY HISTOGRAM IS A STATE, AND IT USED TO DRAW A BLANK CANVAS. The branch
+  // above handles `mc == null`; it never fired for a financial, because the pipeline puts the
+  // P/B-ROE distribution INTO `montecarlo` as a view -- so `mc` was truthy, the code fell
+  // through to here, and `counts` was `[]`. Chart.js drew an empty grid above a correct median
+  // line, which reads as a rendering fault rather than an absent series.
+  //
+  // The server now emits the histogram, so this is the FALLBACK rather than the normal path:
+  // `histogram_of` legitimately returns nothing for a degenerate distribution (every draw
+  // identical), and a single fat bin would be a picture of nothing.
+  if (!counts.length || !bins.length) {
+    _canvasCard("mcChart", false);
+    const pu0 = mc.prob_undervalued;
+    document.getElementById("mcNote").innerHTML =
+      `<div style="font-size:14px">Distribution from the
+         <strong>${esc(mc.model || "fair value")}</strong> model. Its trials did not spread
+         enough to draw a histogram, so the percentiles are shown instead.</div>
+       <div class="metricline" style="margin-top:12px">
+         ${metric("P10", money(mc.p10, 2))}
+         ${metric("Median", money(mc.median, 2))}
+         ${metric("P90", money(mc.p90, 2))}
+         ${metric("Above price", pu0 != null ? pct(pu0) : "—")}
+       </div>`;
+    return;
+  }
   _canvasCard("mcChart", true);
   const ctx = document.getElementById("mcChart");
-  const bins = mc.hist_bins || [], counts = mc.hist_counts || [];
   const labels = counts.map((_, i) => money((bins[i] + bins[i + 1]) / 2, 0));
   const price = mc.price;
   const bg = counts.map((_, i) => (price && (bins[i] + bins[i + 1]) / 2 >= price) ? "#1b7f4b" : "#c96a63");
@@ -2527,7 +2559,7 @@ function _themeBars(w) {
     return `<div style="margin:5px 0">
       <div style="display:flex;justify-content:space-between;font-size:12px">
         <span style="text-transform:capitalize"><b>${k.replace(/_/g, " ")}</b></span><span>${label}</span></div>
-      <div style="background:#eef;border-radius:4px;height:8px"><div style="width:${wd}%;background:#3454a4;height:8px;border-radius:4px"></div></div>
+      <div style="background:var(--track);border-radius:4px;height:8px"><div style="width:${wd}%;background:#3454a4;height:8px;border-radius:4px"></div></div>
       <div class="muted" style="font-size:11px">${esc(_themeInputs(k))}</div>
       ${dormant ? `<div class="muted" style="font-size:11px;font-style:italic">⚠ ${esc(dormant)}</div>` : ""}</div>`;
   }).join("");
@@ -2549,7 +2581,7 @@ function _numberICSection(nic) {
       const wd = has ? Math.round(Math.abs(r.ic) / maxAbs * 100) : 0, cov = Math.round((r.coverage || 0) * 100);
       s += `<div style="display:flex;align-items:center;gap:8px;margin:2px 0;font-size:12px">
         <span style="width:130px">${r.number.replace(/_/g, " ")}</span>
-        <div style="flex:1;background:#eef;border-radius:4px;height:7px"><div style="width:${wd}%;background:${col};height:7px;border-radius:4px"></div></div>
+        <div style="flex:1;background:var(--track);border-radius:4px;height:7px"><div style="width:${wd}%;background:${col};height:7px;border-radius:4px"></div></div>
         <span style="width:60px;text-align:right;color:${col}">${has ? r.ic.toFixed(3) : "—"}</span>
         <span style="width:42px;text-align:right" class="muted">${cov}%</span></div>`;
     });
@@ -2843,7 +2875,7 @@ function freshnessBanner(f) {
   }
   const bad = f.level === "stale" || f.level === "unknown";
   return `<div class="note" style="margin-top:8px;${bad
-    ? "background:#fdecec;border-color:#f3c2c2;color:#8a1c1c;font-weight:600" : ""}">`
+    ? "background:var(--red-soft);border-color:var(--red);color:var(--red);font-weight:600" : ""}">`
     + `${bad ? "⚠ " : "🕒 "}${esc(f.message)}</div>`;
 }
 

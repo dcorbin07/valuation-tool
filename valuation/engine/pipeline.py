@@ -88,13 +88,23 @@ class _PBRoeMC:
         self.trials = d.get("trials")
         self.mean = d.get("mean")
         self.median = d.get("p50")
-        self.std = None
-        self.p5 = self.p10 = d.get("p10")
-        self.p25 = self.p75 = None
-        self.p90 = self.p95 = d.get("p90")
+        # ITEM 57 A6: READ, NOT ALIASED. These five lines used to set `p5 = p10`,
+        # `p95 = p90`, `p25 = p75 = None`, `std = None` and `hist_* = []` -- so the page
+        # reported a 5th percentile that was the 10th, and the Monte Carlo chart drew an empty
+        # canvas for every financial. `pb_roe_montecarlo` now emits all of them from the draws
+        # it already had, and this view carries them through. A `.get` on an absent key still
+        # yields None, so an older caller degrades to the old behaviour rather than raising.
+        self.std = d.get("std")
+        self.p5 = d.get("p5")
+        self.p10 = d.get("p10")
+        self.p25 = d.get("p25")
+        self.p75 = d.get("p75")
+        self.p90 = d.get("p90")
+        self.p95 = d.get("p95")
         self.prob_undervalued = d.get("prob_undervalued")
         self.price = (d.get("inputs") or {}).get("price")
-        self.hist_bins, self.hist_counts = [], []
+        self.hist_bins = list(d.get("hist_bins") or [])
+        self.hist_counts = list(d.get("hist_counts") or [])
         self.inputs = d.get("inputs") or {}
 
     def to_dict(self) -> dict:

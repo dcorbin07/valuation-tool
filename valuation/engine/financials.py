@@ -128,9 +128,23 @@ def pb_roe_monte_carlo(cd: CompanyData, ke: float, g: float, trials: int = 10000
     def q(f):
         return vals[min(len(vals) - 1, max(0, int(round(f * (len(vals) - 1)))))]
 
+    # ITEM 57 A6: THE FULL PERCENTILE SET AND A HISTOGRAM. This model already ran its
+    # 10,000 trials and then reported three percentiles and threw `vals` away, so the page's
+    # Monte Carlo panel drew an EMPTY CHART for every financial while printing a correct
+    # median line beneath it. And the view that consumed this (`pipeline._PBRoeMC`) papered
+    # over the gaps by ALIASING -- `p5 = p10` and `p95 = p90` -- so the page showed a "5th
+    # percentile" that was really the 10th, and `p25`/`p75`/`std` as nothing at all. Both are
+    # answered here, at the one place that holds the draws.
+    from .montecarlo import histogram_of
+
+    edges, counts = histogram_of(vals)
+    mean = sum(vals) / len(vals)
+    var = sum((v - mean) ** 2 for v in vals) / len(vals)
     out = {"model": "justified P/B from ROE", "trials": len(vals),
-           "p10": q(0.10), "p50": q(0.50), "p90": q(0.90),
-           "mean": sum(vals) / len(vals),
+           "p5": q(0.05), "p10": q(0.10), "p25": q(0.25), "p50": q(0.50),
+           "p75": q(0.75), "p90": q(0.90), "p95": q(0.95),
+           "mean": mean, "std": var ** 0.5,
+           "hist_bins": edges, "hist_counts": counts,
            "inputs": {"roe": roe, "cost_of_equity": ke, "terminal_growth": g,
                       "book_value_per_share": bvps,
                       "roe_sd_relative": roe_sd, "ke_sd_relative": ke_sd}}
