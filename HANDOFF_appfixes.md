@@ -361,10 +361,58 @@ third rule dropped it for a reason unrelated to what they test. Their controls n
 momentum input and the schema test additionally pins the new rule, so its fixtures cannot drift
 from it. `test_screener` 83/83.
 
-**STILL OWED: the next scan is the one that proves the cache fix.** The repair is tested and the
-reasoning is measured, but the names above are only demonstrated recovered when a scan runs with
-this change deployed — and the `refetch` block will then say how many were retried, recovered
-and discarded. **Reported as not-yet-demonstrated rather than claimed.**
+### THE PROVING SCAN — RUN, AND ALL FIVE NAMES ARE RECOVERED
+
+A second scan was dispatched once the cache fix was deployed, because the claim above was
+deliberately withheld until one ran. **It recovers every name the repair was built for:**
+
+| | 2026-10-13 (retry only) | after the cache fix |
+|---|---|---|
+| `T` | no momentum at all | **all three inputs**, rank 263 |
+| `VZ` | no momentum at all | **all three inputs**, rank 394 |
+| `MGM` | no momentum at all | **all three inputs**, rank 453 |
+| `FDX` | no momentum at all | **all three inputs**, rank 361 |
+| `PFE` | no momentum at all | **all three inputs**, rank 445 |
+
+**AND NVDA — the name item 53 part 7 opened with — now reads `why_missing []`.** Empty. It was
+`["growth", "momentum"]` through both earlier scans. Momentum is back and `growth` reports as
+`why_zero`, which is item 53 part 7a's distinction doing its job: growth is **scored** and
+contributes nothing, which is not a gap. Seven themes in the explanation.
+
+Momentum **491 → 496** of the top 500 and growth **485 → 490**. Insider and institutional each
+moved −2, which is ordinary data movement rather than anything this change touched.
+
+### AND THE REFETCH BLOCK SAYS THE RESCUE CAME FROM THE CACHE, NOT THE RETRY
+
+The counts are live for the first time, and they are more interesting than a success line:
+
+```
+ran: true          names_fetched: 68      names_retried: 6
+names_recovered_by_retry: 0               names_degraded_discarded: 6
+retries_spent: 6 of 300                   seconds_spent: 2.13 of 420
+exhausted: false
+```
+
+**The retry recovered NOTHING on this run.** What recovered the five names was the cache rule
+forcing a re-fetch. The retry's contribution was the other half of its job: **it refused 6
+degraded payloads** rather than writing them in as data.
+
+**A CORRECTION TO MY OWN REASONING, which the failure sample makes plain.** I promoted "no
+momentum inputs at all" to a HARD tell arguing that for a US-listed name the screen has already
+admitted, it indicates a throttle. The six names it fired on are **`VYLR`, `AZBLY`, `KERCY`,
+`SMFSY`, `BUHPY`** and one more — **ADRs**, where no usable price history is a genuine data
+limit and not a throttle at all. So the tell is right as a **trigger for a cheap retry** and
+wrong as a **diagnosis of throttling**.
+
+**The design cost of being wrong about that is 6 retries and 2.13 seconds of a 420-second
+budget**, and the counts make it visible rather than silent — which is the reason to report the
+counts at all. It also explains `SMFSY` cleanly: it is an ADR with no usable history, so it
+stays thin and has fallen out of the served top 500 on its own.
+
+Thin names are now **4 in the scan and 1 in the top 500** (`LOTMY`), from 8 and 4.
+
+**STILL NOT DONE:** `OCTV`, `MBGL`, `WSE` and `QNT` still carry no momentum — the same ADR/thin
+shape, retried once per scan at a cost of a few seconds, and correctly not written in as data.
 
 ---
 
