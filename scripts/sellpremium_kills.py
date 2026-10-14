@@ -155,7 +155,11 @@ def k2_reprice_a3():
         if ykey not in cache:
             cache[ykey] = ((SP.read_raw_chain(t, int(ex[:4])), SP.spot_by_date(t, int(ex[:4])))
                            if SP.has_chain(t, int(ex[:4])) else (None, {}))
-        s_exp = SP.settlement_spot(cache[ykey][1] or spot, ex)
+        # The predecessor keys its cache on the EXPIRY's own year, so its map always
+        # reaches its expiry and this limit is inert -- verified, not assumed, by the
+        # refusal count this script already reports (`skipped_no_settlement_spot`).
+        s_exp = SP.settlement_spot(cache[ykey][1] or spot, ex,
+                                   max_stale_days=SP.MAX_SETTLEMENT_STALE_DAYS)
         if s_exp is None:
             no_settle += 1
             continue

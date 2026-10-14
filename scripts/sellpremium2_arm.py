@@ -68,22 +68,40 @@ def require_kills(path: str = None) -> dict:
     return k
 
 
-def spot_maps(tickers) -> dict:
-    """`ticker -> {date: as-traded spot}` across the era AND the year after it, because an entry
-    in December expires in January and reading only the entry year would silently drop those."""
+def years_spanning(picks) -> list:
+    """Every calendar year the picks' ENTRY and EXPIRY dates touch, inclusive.
+
+    Derived from the trades rather than from an era constant, because the era constant is what
+    broke stage 2: it imported STAGE 1's `era_years()` for a book whose expiries run to 2026.
+    """
+    lo = min(int(str(d)[:4]) for d in picks["date"])
+    hi = max(int(str(d)[:4]) for d in picks["expiration"])
+    return list(range(lo, hi + 1))
+
+
+def spot_maps(tickers, years) -> dict:
+    """`ticker -> {date: as-traded spot}` over the YEARS THE CALLER STATES.
+
+    **`years` IS REQUIRED AND THAT IS THE REPAIR.** This used to read
+    `SP.era_years() + [max+1]` -- stage 1's era -- for whichever caller invoked it, and stage 2
+    invoked it for a 2020-2026 book. The map then stopped at 2020-12-31 and `settlement_spot`
+    answered every later expiry with that ticker's final 2020 close. Stage 1 passes exactly what
+    it passed before, so its maps and every figure built on them are unchanged; stage 2 passes
+    `years_spanning(picks)`. A default would re-create the silence (`MA5`).
+    """
     out = {}
-    years = list(SP.era_years()) + [max(SP.era_years()) + 1]
     for t in tickers:
         m = {}
         for y in years:
-            m.update(SP.spot_by_date(t, y))
+            m.update(SP.spot_by_date(t, int(y)))
         out[t] = m
     return out
 
 
 def settle(row, spot: dict) -> dict:
     """One cash-secured short put, sold at the BID, held to expiry. ONE crossing (`MA46`)."""
-    s = SP.settlement_spot(spot, str(row["expiration"]))
+    s = SP.settlement_spot(spot, str(row["expiration"]),
+                           max_stale_days=SP.MAX_SETTLEMENT_STALE_DAYS)
     if s is None:
         return None
     r = settle_short(strike=float(row["strike"]), credit=float(row["bid"]),
@@ -139,7 +157,9 @@ def main():
     print("picks: 25-delta %d ; 0.90-moneyness %d" % (len(p25), len(p90)))
 
     print("building the as-traded spot maps ...")
-    spots = spot_maps(sorted(set(p25["ticker"]) | set(p90["ticker"])))
+    # EXACTLY the years this call used before the repair, so stage 1 is bit-identical.
+    spots = spot_maps(sorted(set(p25["ticker"]) | set(p90["ticker"])),
+                      list(SP.era_years()) + [max(SP.era_years()) + 1])
 
     # ------------------------------------------------------------------------------ A1
     rows = []

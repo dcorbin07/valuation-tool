@@ -11755,6 +11755,8 @@ declaration is edited, nothing is armed, no fill is placed.**
 
 ## 87. SELL-PREMIUM-2 STAGE 2 — **NOT CONFIRMED. THE CRASH STRESS PASSED, THE CRASH HAPPENED, AND THE BOOK LOST 80%** (2026-10-13)
 
+> **SUPERSEDED 2026-10-14 BY §87b — THIS SECTION'S NUMBERS ARE VOID.** Stage 2 settled every expiry after 2020-12-31 at that ticker's 2020-12-31 close (73.02% of the book), because it imported stage 1's spot maps. The verdict word survives the repair and **not one figure below does**: the corrected A1 is **−0.4258%**, not −9.2609%, the late half is **POSITIVE**, and the account losses are single-digit rather than 82%. **Read §87b. Quote nothing from here.**
+
 The **ONE** read of the check quadrant — **2020-2026 × ticker half 1** — that
 `RESEARCH_CHARTER.md` Stage 2 rations and `PREREG_sellpremium2.md` `T11` pre-specified.
 **NOTHING ABOUT THE CONSTRUCTION CHANGED**: same event, same tier, same 25-delta rule, same
@@ -12018,3 +12020,121 @@ chosen here** — `K3` is the predecessor's own pre-committed arithmetic, **impo
   population, and no return claim is made anywhere.** `scripts/sp2_nondip_income.py`,
   `sp2_nondip_tenor.py`; `data/free_analysis/SP2_NONDIP_INCOME.json`, `SP2_NONDIP_TENOR.json`,
   `SP2_NONDIP_PICKS_build_2016_2019_half0.pkl`, `SP2_NONDIP_PICKS_check_2020_2025_half1.pkl`.
+
+
+---
+
+## 87b. CORRECTION TO SECTION 87 — **THE FIRST STAGE-2 VERDICT WAS VOID. 73% OF THE BOOK SETTLED AT A 2020 PRICE, AND ALMOST EVERYTHING I REPORTED WAS THE BUG** (2026-10-14)
+
+**SECTION 87 ABOVE IS SUPERSEDED. Its −9.2609%/trade, its −16.2952% late half, its 44.91%
+assignment and its −46% to −82% sizing table are ALL ARTEFACTS and may not be quoted.** The
+verdict word is unchanged — `NOT CONFIRMED` — and **every number behind it is different**, which
+is why this is a correction and not a footnote. Found by Don's manager on the banked book;
+**verified here from the book's own columns before anything was changed**, not taken on trust.
+
+* **THE DEFECT, IN ONE LINE: stage 2 imported STAGE 1's spot maps.** `spot_maps` built its years
+  from `SP.era_years()` — 2016-2019 plus one — and `settlement_spot` returned *"the last session
+  at or before the expiry"* **with no staleness limit**. So every expiry after 2020-12-31 settled
+  against that ticker's **2020-12-31 close**.
+* **REPRODUCED EXACTLY, ON EVERY COUNT, BY INVERTING THE SETTLEMENT ARITHMETIC**
+  (`implied = K − (bid − ret·K)`, which is `settle_put`'s own identity rearranged):
+  **73.02%** of the 4,522 trades expire past the map; **GE $10.80 on 15 of 15** assigned
+  post-2020 trades, **AAPL $132.69 on 17 of 17**, CLS $8.07 on 4 of 4, HWM $28.54 on 9 of 9,
+  NVDA $522.20; and **177 of 177** tickers with two or more assigned post-2020 trades settle at
+  **exactly one price** — each one that ticker's own last 2020 close, matched for all five named.
+* **THE PATTERN I REPORTED AS A FINDING WAS THE DEFECT'S OWN SIGNATURE, AND THAT IS THE PART TO
+  REMEMBER.** §87 made much of the halves disagreeing and the late half being far worse. Mean
+  return by expiry YEAR on the void book: **2020 −2.78%, 2021 −3.90, 2022 −5.98, 2023 −7.40,
+  2024 −18.54, 2025 −18.41, 2026 −22.63** — **monotone in distance past 2020**, which is exactly
+  what settling a 2025 strike at a 2020 price does in a rising market. **The one year settled
+  CORRECTLY was 2020**, and it is the only year whose number survived the repair unchanged.
+  **A result whose size tracks how far a trade sits from a data boundary is a result about the
+  boundary.** Nothing raised and nothing was dropped — `MA31`'s failure mode, and this time it
+  reached a published verdict.
+* **THE CORRECTED READ, same construction, same bars, same arms, same seeds, same halves, ONLY
+  the settlement repaired — a correctness repair of the one check read, NOT a second look
+  (`U1-SPLIT`'s precedent). ZERO NEW TRIALS.**
+
+  | | void run | **CORRECTED** |
+  |---|---|---|
+  | A1 full | −9.2609% (*t* −9.611) | **−0.4258% (*t* −0.725)** |
+  | early | −4.2211% | **−1.1783%** |
+  | late | −16.2952% | **+0.5942%** *(sign flips)* |
+  | assignment | 44.91% | **23.82%** |
+  | wins | 57.83% | **80.40%** |
+  | settled | 4,522 | **4,617 of 4,644; 27 REFUSED and counted** |
+
+* **VERDICT: `NOT CONFIRMED`, and it now fails MILDLY rather than catastrophically.** Clause (a)
+  fails because the **early** half is negative; clause (c) fails in seven of eight sizing cells.
+  **−0.4258% at *t* −0.725 against an 80%-power MDE of 2.4896 is NOT SEPARABLE FROM ZERO** — the
+  honest sentence is *"could not be shown profitable"*, **never** *"loses 9% a trade"*.
+* **THE WHOLE LOSS IS COVID, AND EVERY YEAR AFTER IT IS POSITIVE.** By expiry year on the
+  corrected book: **2020 −2.7788% (n 1,220, 33.52% assigned)**, then **+0.5109, +0.5998,
+  +0.3660, +0.7575, +1.1999** for 2022-2026 (2021 −0.3830). The early half contains COVID, and
+  clause (a) requires BOTH halves, so it fails as registered — **correctly, and for a reason
+  worth stating rather than a number worth quoting.**
+* **THE LATE HALF IS POSITIVE AND STILL DOES NOT CLEAR THIS PROJECT'S OWN BAR**: +0.5942% at
+  date-clustered *t* **+2.965** against a derived hurdle of **3.3956416**, and **0.70x its own
+  80%-power MDE of 0.8489**. Positive, below detection, below the hurdle. Not a pass.
+* **CLAUSE (b) PASSES ON ITS REGISTERED STATISTIC AND THE POOLED MEANS DISAGREE WITH IT — BOTH
+  TRAVEL (`MB1`'s lesson).** The paired name-year sign test is the pre-registered statistic:
+  **810 of 1,188 cells positive, z +12.5336**. The pooled means point the other way — arm
+  **−0.4258%** against the five-seed twin's **−0.2233%** — so the typical name-year cell favours
+  the dip timing while the pooled mean does not. **Reporting either alone would answer a
+  different question than the one registered.**
+* **CLAUSE (d) `K3` IS UNAFFECTED AND STILL PASSES**, because it reads premium INCOME at entry
+  and never touches a settlement price — stated as a reason, not an assumption.
+* **THE SIZING TABLE, on the repaired current-equity loop (the void run's −46% to −82% is
+  gone):** $25k/10 **$22,374**; $25k/50 **$25,614 survives**; $50k/10 $44,595; $50k/50 $48,845;
+  $100k/10 $96,920; $100k/50 **$88,364** (the worst cell, −11.6%); $250k/10 $246,257; $250k/50
+  $238,965. **Seven of eight still fail, by single-digit to low-double-digit percentages rather
+  than by catastrophe**, and **no cell is RUINED**.
+* **THE ROOT FIX, AND BOTH HALVES HAVE NO DEFAULT (`MA5`).** `settlement_spot` takes a REQUIRED
+  keyword-only `max_stale_days` and **refuses** when the last available session is further than
+  that from the expiry; `spot_maps` takes REQUIRED `years`, and stage 2 derives them from the
+  trades via `years_spanning(picks)` instead of importing an era constant. **Refusals are
+  COUNTED** (27 here) rather than dropped. **Staleness is measured on the CALENDAR and it has
+  to be: a map that has stopped has no sessions after its own end, so a SESSION count reads
+  ZERO staleness for a map that is years short** — it cannot see the gap it guards against.
+* **SCOPE, MEASURED RATHER THAN REASONED, and the blast radius is one book.** Only **two**
+  scripts call `settlement_spot` at all (read from the syntax tree, since a grep matches the
+  docstring explaining the rule — `MA49`). **STAGE 1 IS UNAFFECTED AND IT IS SHOWN, NOT
+  ASSERTED: its expiries run 2016-01-29 to 2020-01-31 against a map covering 2016-2020, and
+  0 of 2,610 trades — 0.00% — expire past it.** The **predecessor** keys its spot cache on the
+  **expiry's own year**, so its map always reaches its expiry. The **F-4/F-10 non-dip step**
+  banks picks and never settles. **No DIP-CALL script calls `settlement_spot`.** The sizing-fix
+  script reads banked books, so stage 1's cells stand and stage 2's died with the book.
+* **A SECOND DUPLICATE REMOVED WHILE HERE (`B7`):** the stage-2 runner carried its **own copy**
+  of the sizing loop — the starting-equity version that produced the impossible −$217,426 — and
+  now delegates to the one repaired implementation.
+* **WHAT FOLLOWS: SELL-PREMIUM-2 DOES NOT PASS STAGE 2, SO SELL-PREMIUM-3 STAYS SHELVED.**
+  `DECISIONS.md` 2026-10-13 makes that conditional explicit and the condition is not met. **This
+  construction's one check-quadrant read remains SPENT** — the repair re-ran the same read, it
+  did not buy another.
+* **REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3), AND IT IS NOT MINE:
+  `tests/test_valreads.py` CANNOT PASS ON A WINDOWS CHECKOUT.**
+  `test_append_only_case_fails_when_the_manifest_stops_being_append_only` mutates
+  `valuation/edge/valreads.py` through a **binary** needle written with **LF**
+  (`b'        append_only=True,\n        backfill_hint='`), and on a Windows checkout
+  (`core.autocrlf=true`) that file is **CRLF on disk — 512 CRLF, zero bare LF** — so the needle
+  never matches, `bad == orig`, and the harness's own *"mutation point moved"* assertion fires.
+  **The STORED BLOB IS LF and contains the needle**, so a Linux runner matches it and CI is
+  GREEN — verified by materialising every tracked file from its blob and running the suite
+  there: **exit 0 on an LF tree, exit 1 on this one.** **It fails IDENTICALLY on `origin/main`
+  with nothing of mine applied**, so it is pre-existing and does not block landing. **The
+  consequence is that this one self-check case is NOT mutation-tested for anyone working on
+  Windows** — the guard reports a pass it never earned on the platform most of these lanes run
+  on. The fix is the needle's, not the module's: match on a line-ending-agnostic pattern, which
+  is `W-1`'s lesson in mirror image (there a harness forced LF and rewrote a CRLF source; here
+  it reads CRLF with an LF needle). **Not fixed here — it is the valuation-reads lane's suite
+  and choosing how a mutation needle is written is theirs.**
+* **AND A CORRECTION TO MY OWN TOOLING, because I reported the opposite for ten minutes:
+  `git archive` ON WINDOWS APPLIES THE CRLF FILTER**, so an export-based "CI simulation" is NOT
+  a Linux runner for any test that reads its own source bytes — it reproduced the Windows
+  failure and I briefly concluded CI was red. Materialising the stored BLOBS is the faithful
+  check, and it is what settled this.
+* **13 tests, and they bite: mutating ONLY the staleness check — signature and callers
+  untouched — fires 4 of 13 BY NAME, including `GE expiring 2025 does not settle at its 2020
+  close`, with sources restored byte-for-byte.** `valuation/studies/sellpremium.py`,
+  `scripts/sellpremium2_arm.py`, `sellpremium2_stage2.py`, `sellpremium_kills.py`,
+  `sp2_settlement_census.py`; `data/free_analysis/SP2_SETTLEMENT_CENSUS.json`.

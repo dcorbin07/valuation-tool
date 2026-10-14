@@ -238,6 +238,72 @@ class TestTheVerdictAsMeasured(unittest.TestCase):
         self.assertLess(crash["worst_32_session_spy_return_in_the_scored_window"], -0.30)
 
 
+class TestTheBookDoesNotCarryTheStaleSettlementSIGNATURE(unittest.TestCase):
+    """The defect's own fingerprint, asserted on the BANKED BOOK rather than on the code.
+
+    The void run settled 73.02% of this book at each ticker's 2020-12-31 close, so **177 of
+    177** tickers with two or more assigned post-2020 trades landed on EXACTLY ONE implied
+    settlement price. Code guards can be satisfied by a caller that passes a limit and still
+    hands over a short map; this reads the OUTCOME, which is the thing that was wrong.
+
+    The implied price inverts `settle_put`'s own arithmetic: on an assigned put
+    `ret = (bid - (K - S)) / K`, so `S = K - (bid - ret*K)`.
+    """
+
+    def test_no_ticker_settles_many_assigned_trades_at_one_identical_price(self):
+        import pandas as pd
+        if D.data_root(required=False) is None:
+            _SKIPS.append("no populated data root (CI); not a pass")
+            self.skipTest("no data root")
+        p = D.out_path("SELLPREMIUM2_STAGE2_BOOK.pkl")
+        if not os.path.isfile(p):
+            _SKIPS.append("stage-2 book absent (licensed data); not a pass")
+            self.skipTest("book absent")
+        bk = pd.read_pickle(p)
+        k = bk["strike"].astype(float)
+        implied = k - (bk["bid"].astype(float) - bk["ret_pct"].astype(float) / 100.0 * k)
+        asg = bk.assign(implied=implied.round(2))
+        asg = asg[asg["assigned"].astype(bool)]
+        # DISTINCT EXPIRY DATES, and that qualifier is load-bearing: the first cut of this
+        # guard grouped on the ticker alone and FIRED AGAINST THE CORRECT BOOK on WM, whose
+        # three assigned trades all expire 2020-04-17 and therefore settle at one price
+        # legitimately. The signature is DIFFERENT expiries landing on the SAME price, not
+        # one price as such -- `MA49`'s family, caught on this guard's first run.
+        g = asg.groupby("ticker").agg(n=("implied", "count"),
+                                      prices=("implied", "nunique"),
+                                      expiries=("expiration", "nunique"))
+        multi = g[(g["n"] >= 3) & (g["expiries"] >= 3)]
+        self.assertTrue(len(multi) >= 20,
+                        "positive control: there must be enough tickers with 3+ assigned "
+                        "trades on 3+ DISTINCT expiries for this guard to mean anything "
+                        "(got %d)" % len(multi))
+        frozen = multi[multi["prices"] == 1]
+        self.assertTrue(
+            frozen.empty,
+            "%d tickers settle EVERY assigned trade at one identical price - the stale-map "
+            "signature. Examples: %s"
+            % (len(frozen), list(frozen.index[:5])))
+
+    def test_the_books_expiries_all_lie_inside_the_map_its_runner_would_build(self):
+        import pandas as pd
+        from scripts.sellpremium2_arm import years_spanning
+        if D.data_root(required=False) is None:
+            _SKIPS.append("no populated data root (CI); not a pass")
+            self.skipTest("no data root")
+        p = D.out_path("SELLPREMIUM2_STAGE2_PICKS.pkl")
+        if not os.path.isfile(p):
+            _SKIPS.append("stage-2 picks absent (licensed data); not a pass")
+            self.skipTest("picks absent")
+        picks = pd.read_pickle(p)
+        years = years_spanning(picks)
+        hi = max(int(str(e)[:4]) for e in picks["expiration"])
+        self.assertLessEqual(hi, max(years),
+                             "the map the runner builds must reach the last expiry")
+        self.assertGreaterEqual(max(years), 2026,
+                                "this book expires into 2026; a map stopping at 2020 is the "
+                                "defect")
+
+
 if __name__ == "__main__":
     r = unittest.main(exit=False, verbosity=2).result
     if _SKIPS:

@@ -270,19 +270,53 @@ def pick_put(cands: pd.DataFrame, target: float = MONEYNESS_TARGET) -> Optional[
             "volume": float(r.get("volume") or 0.0)}
 
 
-def settlement_spot(spot: dict, expiry_iso: str) -> Optional[float]:
+#: The widest gap, in CALENDAR days, between the last available session and an expiry that can
+#: still be an expiry-date settlement. A monthly expiry is a Saturday, so 1 day is ordinary; a
+#: holiday stretch reaches about 5. Ten is comfortably inert on a map that covers its own
+#: trades and catches a map that stops years short. It is NOT a tuning knob: it separates
+#: "the calendar had no session that day" from "this map does not reach this expiry at all".
+MAX_SETTLEMENT_STALE_DAYS = 10
+
+
+def settlement_spot(spot: dict, expiry_iso: str, *, max_stale_days: int) -> Optional[float]:
     """The AS-TRADED close on the expiry session, or the last session at or before it.
 
     A short put held to expiry needs the underlying ON the expiry date. Monthly expiries are
     Saturdays in the early part of this era, so the last session at or before the expiry is the
     right object; a caller that demanded an exact match would silently drop every monthly.
+
+    **`max_stale_days` IS REQUIRED AND HAS NO DEFAULT, AND THAT IS THE WHOLE REPAIR.** Without
+    it this function answered *"the last session at or before the expiry"* with no limit, so a
+    spot map that STOPPED before the expiry returned its own final close and the caller could
+    not tell. `SELL-PREMIUM-2`'s stage 2 settled **73.02%** of its book that way -- every expiry
+    after 2020-12-31 against that ticker's 2020-12-31 close, GE at $10.80 and NVDA at $522.20,
+    **177 of 177** tickers with two or more assigned post-2020 trades landing on exactly one
+    price. **Nothing raised and nothing was dropped; the arm produced a clean, plausible, wrong
+    number** -- `MA31`'s failure mode. A default here would be how that silence came back
+    (`MA5`), so every caller states its own limit and a refusal is a `None` the caller counts.
     """
     if not spot:
         return None
     ds = [d for d in spot if d <= expiry_iso]
     if not ds:
         return None
-    return float(spot[max(ds)])
+    last = max(ds)
+    if _days_between(last, expiry_iso) > int(max_stale_days):
+        # NOT a settlement. The map does not reach this expiry, and returning its final close
+        # would be an answer about the MAP wearing the costume of an answer about the market.
+        return None
+    return float(spot[last])
+
+
+def _days_between(a_iso: str, b_iso: str) -> int:
+    """Calendar days from `a` to `b`, both ISO dates. Sessions cannot be counted from a map
+    that has stopped -- it has no sessions after its own end, so a session count would read
+    ZERO staleness for a map that is years short. The calendar is the only axis that can see
+    the gap this guards against."""
+    import datetime as _dt
+    a = _dt.date.fromisoformat(str(a_iso)[:10])
+    b = _dt.date.fromisoformat(str(b_iso)[:10])
+    return (b - a).days
 
 
 def years_of_premium(fall: float, moneyness: float, premium_frac: float,

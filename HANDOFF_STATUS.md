@@ -56,6 +56,44 @@ git by test; **3 equity trials booked at `dfbccc4` BEFORE any read runner existe
 - **NOTHING IS ADOPTED. The next rung is a forward paper book in SHARES, and that is Don's
   decision.** The band concentration is a **diagnostic** and may not be traded as a narrower rule.
   50 tests, zero skips. `HANDOFF_insider_cluster_wide.md`.
+## options lane - **SELL-PREMIUM-2's stage-2 verdict was VOID: 73% of the book settled at a 2020 price. Repaired and re-run - still NOT CONFIRMED, and almost every number I reported was the bug** (2026-10-14)
+
+Found by Don's manager; **verified here from the book's own columns before anything changed.**
+`HANDOFF_optionsbot.md` **§87 is superseded by §87b** and none of its figures may be quoted.
+
+- **THE DEFECT:** stage 2 imported STAGE 1's spot maps (`era_years()`, 2016-2020) and
+  `settlement_spot` had **no staleness limit**, so every expiry after 2020-12-31 settled at that
+  ticker's 2020-12-31 close. **73.02%** of 4,522 trades; GE **$10.80** on 15 of 15 assigned
+  post-2020 trades, AAPL **$132.69** on 17 of 17; **177 of 177** tickers with 2+ such trades on
+  **exactly one price**. Nothing raised, nothing was dropped.
+- **THE PATTERN I REPORTED AS A FINDING WAS THE DEFECT'S SIGNATURE.** Mean return by expiry
+  year ran **-2.78, -3.90, -5.98, -7.40, -18.54, -18.41, -22.63** - monotone in distance past
+  2020. **A result whose size tracks how far a trade sits from a data boundary is a result
+  about the boundary.**
+- **CORRECTED (same construction, bars, arms, seeds, halves; only the settlement repaired; a
+  correctness repair of the one check read, NOT a second look; ZERO new trials): STILL NOT
+  CONFIRMED, and now mild rather than catastrophic.** A1 **-9.2609% -> -0.4258%** at *t*
+  **-0.725** against an MDE80 of 2.4896 - **not separable from zero**. Late half **-16.2952% ->
+  +0.5942%**, sign flipped. Assignment **44.91% -> 23.82%**, wins **57.83% -> 80.40%**.
+  **The whole loss is COVID**: 2020 -2.78%, then +0.51, +0.60, +0.37, +0.76, +1.20 for
+  2022-2026. Sizing: worst cell **-11.6%**, not -82%.
+- **Clause (b) passes on its registered statistic and the pooled means disagree - both travel
+  (`MB1`)**: 810 of 1,188 cells positive at z +12.5336, while the pooled arm -0.4258% is worse
+  than the twin's -0.2233%.
+- **ROOT FIX, no defaults (`MA5`)**: `settlement_spot` takes a REQUIRED `max_stale_days` and
+  REFUSES a map that does not reach the expiry; `spot_maps` takes REQUIRED `years`, derived
+  from the trades. **Refusals counted** (27). Staleness is on the **calendar**, because a map
+  that has stopped has no sessions after its own end.
+- **SCOPE, MEASURED: only two scripts settle. STAGE 1 IS UNAFFECTED AND SHOWN SO** - 0 of 2,610
+  trades expire past its map. The predecessor keys its cache on the expiry's own year; the
+  F-4/F-10 step never settles; no DIP-CALL script settles. **Only stage 2's figures move.**
+- **REPORTED, NOT MINE: `tests/test_valreads.py` cannot pass on a Windows checkout** -
+  its mutation needle is LF and the working file is CRLF, so the needle never matches.
+  The stored blob is LF, so **CI is green** (verified on a blob-materialised tree) and
+  it fails identically on `origin/main`. The cost is that one self-check case is not
+  mutation-tested for anyone on Windows. Valuation-reads lane's.
+- **SELL-PREMIUM-2 DOES NOT PASS STAGE 2, SO SELL-PREMIUM-3 STAYS SHELVED**, and this
+  construction's one check-quadrant read remains **SPENT**. `HANDOFF_optionsbot.md` §87b.
 
 ## options lane - **F-4 and F-10's 25-delta re-declaration CLEARS the crash gate on non-dip income - and F-10's own tenor makes it a knife edge** (2026-10-13)
 

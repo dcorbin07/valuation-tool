@@ -178,11 +178,18 @@ def run_arms(draws):
     print("STAGE 2 ARMS   options N %d  hurdle %.7f (UNCALIBRATED)\n" % (n_opt, crit))
 
     picks = pd.read_pickle(D.out_path("%s_PICKS.pkl" % PREFIX))
-    spots = A2M.spot_maps(sorted(set(picks["ticker"])))
-    rows = []
+    # THE REPAIR. This read `A2M.spot_maps(tickers)`, which built STAGE 1's era (2016-2020) for
+    # a book whose expiries run to 2026, so 73.02% of trades settled at their ticker's last
+    # 2020 close. The years now come from the TRADES.
+    map_years = A2M.years_spanning(picks)
+    print("   spot maps over %d-%d (from the picks, not from an era constant)"
+          % (min(map_years), max(map_years)))
+    spots = A2M.spot_maps(sorted(set(picks["ticker"])), map_years)
+    rows, refused = [], 0
     for _i, r in picks.iterrows():
         s = A2M.settle(r, spots.get(r["ticker"], {}))
         if s is None:
+            refused += 1          # COUNTED, never dropped silently -- that silence is the bug
             continue
         rows.append({"ticker": r["ticker"], "date": r["date"], "year": r["year"],
                      "expiration": str(r["expiration"]), "ret_pct": s["ret_pct"],
@@ -190,6 +197,8 @@ def run_arms(draws):
                      "delta": r["delta"], "dte": r["dte"], "strike": r["strike"],
                      "bid": r["bid"], "secured": s["secured"]})
     bk = pd.DataFrame(rows)
+    print("   settled %d of %d picks; %d REFUSED for want of a settlement price"
+          % (len(bk), len(picks), refused))
     dates = sorted(set(bk["date"]))
     boundary = dates[len(dates) // 2]
     early, late = bk[bk["date"] < boundary], bk[bk["date"] > boundary]
@@ -267,28 +276,22 @@ def run_arms(draws):
 
     # ---------------------------------------------------------------- clause (c)
     print("\nsurvivability - O11's grid ...")
-    surv, bs = {}, bk.sort_values("date").reset_index(drop=True)
+    # ONE implementation (`B7`). This carried its own copy of the loop, which sized every
+    # position from the STARTING equity forever and never stopped at ruin -- on the VOID book
+    # that reported terminal equities as low as -$217,426, which a cash-secured book cannot
+    # reach. The repaired loop lives in `sellpremium2_sizing_fix.grid`; a second copy here is
+    # how the two would drift apart again.
+    from scripts.sellpremium2_sizing_fix import grid as _grid
+    surv = {}
     for eq in SP.SIZING_EQUITY:
         for cap in SP.SIZING_CAPS:
-            per, equity, slots, aff, conc, taken = eq / float(cap), eq, [], 0, 0, 0
-            for _i, r in bs.iterrows():
-                slots = [x for x in slots if x > r["date"]]
-                if len(slots) >= cap:
-                    conc += 1
-                    continue
-                if float(r["secured"]) > per:
-                    aff += 1
-                    continue
-                equity += float(r["secured"]) * float(r["ret_pct"]) / 100.0
-                slots.append(str(r["expiration"]))
-                taken += 1
-            surv["$%d/cap%d" % (int(eq), cap)] = {
-                "start": eq, "terminal_equity": equity, "taken": taken,
-                "affordability_skips": aff, "concurrency_skips": conc,
-                "survives": bool(equity > eq)}
-            print("  $%-7d cap %-3d taken %5d  aff %5d  conc %5d -> $%11.0f  %s"
-                  % (eq, cap, taken, aff, conc, equity,
-                     "survives" if equity > eq else "DOES NOT SURVIVE"))
+            c = _grid(bk, eq, cap)
+            surv["$%d/cap%d" % (int(eq), cap)] = c
+            print("  $%-7d cap %-3d taken %5d  aff %5d  conc %5d -> $%11.0f  %s%s"
+                  % (eq, cap, c["taken"], c["affordability_skips"], c["concurrency_skips"],
+                     c["terminal_equity"],
+                     "survives" if c["survives"] else "DOES NOT SURVIVE",
+                     ("  RUINED on %s" % c["ruined_on"]) if c["ruined"] else ""))
     clause_c = all(v["survives"] for v in surv.values())
 
     bh = SP.benjamini_hochberg(
