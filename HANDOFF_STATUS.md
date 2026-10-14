@@ -1,5 +1,62 @@
 # HANDOFF STATUS - shared project state
 
+## r1 lane — **clustered insider buying CONFIRMS out of sample on the wider tier Don asked for — +3.49pp gross and +2.91pp net of realistic size-tiered costs — and three things complicate it** (2026-10-13, `INSIDER-WIDE`)
+
+Stage 2 of `INSIDER-CLUSTER` and **the ONE read of the check quadrant** (2020-2026 × the other
+ticker half). Register `PREREG_insider_cluster_wide.md` committed **ALONE at `1cc8b7e`**, markdown
+only, 270 lines, a strict ancestor of every commit computing a check outcome and asserted against
+git by test; **3 equity trials booked at `dfbccc4` BEFORE any read runner existed** (equity
+**303 → 306**, hurdle **3.383366696635876**, derived not typed). **ADOPTS NOTHING.**
+
+- **THE GOVERNING `cap ≥ $500M` CELL CONFIRMS, on all four clauses and BH.** 1,093 events,
+  market-adjusted **+3.4888pp** over the next quarter, cluster-robust *t* **+3.601** (event date)
+  and **+4.036** (ticker) clearing under **both**, above its own within-date permutation p95 on the
+  full sample **and in both halves with the same sign**, **+2.9122pp net** of its own
+  event-weighted size-tiered round trip, BH *p* **3.17e-04** with `k` fixed at 3. Excess over the
+  null **mean** is **+4.1242pp** — *larger* than raw, because in 2020-2026 the average name
+  **lagged** a cap-weighted market by 0.64pp, the mirror of stage 1 where the null ran the other
+  way.
+- **THE BINDING CAVEAT, AND IT IS THE ONE THAT MATTERS FOR A FORWARD BOOK: THE LATE HALF NETS
+  NEGATIVE IN EVERY CELL.** The governing cell's 2023-2026 half is **+0.5319pp gross against
+  0.577pp of cost — −0.045pp net**. It satisfies the registered both-halves clause because each
+  half is scored against **its own** null and the late null's p95 is itself **negative**
+  (−0.2420). **That is the rule as written and it is not the same claim as "the late half pays."**
+- **THE BEST-POWERED CELL FAILED, AND ON SIGN STABILITY RATHER THAN STRENGTH.** The FULL universe
+  reads **+2.2764pp** at *t* 3.043/3.156, clears its own null and survives BH, and is **NOT
+  CONFIRMED** because its halves disagree in sign (+4.94 early, −0.41 late). **`cap ≥ $10B` is
+  NOT CONFIRMED at *t* 0.732** — the tier the Index actually trades still cannot show this effect,
+  now on a second independent cell.
+- **A NO-VERDICT BAND DECOMPOSITION LOCATES THE WHOLE EFFECT IN ONE BAND, AND IT IS THE ONLY BAND
+  SIGNIFICANT IN BOTH QUADRANTS:** `$500M–$2B` at **+5.1841pp**, *t* **3.90 / 3.62** (build:
+  +1.9004pp at 2.23/2.51). Every other check band reads +1.4 to +2.2pp and none is significant.
+  **AND THE LATE-HALF DECAY IS A LARGE-CAP PHENOMENON, the opposite of the natural story** —
+  inside the governing cell the late half is **+1.61pp** for `$500M–$2B`, −0.32pp for
+  `$2B–$10B` and **−1.49pp** for `$10B+`. **The build cell's negative `$2B–$10B` band was
+  NOISE**, reading **+1.8149pp** here.
+- **THE REALISED `se` IS 1.41× TO 1.63× THE PREDICTED ONE IN ALL FIVE CELLS**, systematically and
+  in one direction, because scaling a build `se` by `sqrt(n_build/n_check)` assumes the same
+  within-cluster correlation and 2020-2026 is more dispersed. **So the governing cell's realised
+  power is 94.5% against a declared 42.4%, and `$10B`'s is 10.5% against 72.6%** — its `NOT
+  CONFIRMED` must be read with that beside it. **Labels stay keyed to the DECLARED power, pinned
+  by test**, or a label is chosen on the outcome it qualifies. **Any successor scaling an `se`
+  across eras should expect ~1.5× and say so in advance.**
+- **FOUR DEFECTS OF MINE, THREE CAUGHT BY GATES BUILT FOR THEM.** `C1` fired **before the read**
+  on a 2-event population drift: §1 drops the own-normal leg from the **statistic** and my first
+  cut dropped it from the **row filter** too — **in a two-leg construction the discarded leg is
+  also a FILTER, so scoring one leg silently WIDENS the population.** After the repair `C1`
+  reproduces stage 1 at deviation **exactly 0.0** on all six fields. Then the substring-ban family
+  **twice in one test** (the string `0.67`, which the arm's own docstring contains; then the
+  **value** 0.67, which collides with a declared power of **0.670**) — **ban the ROLE, not the
+  number.** And a hand-typed power table with **four of ten figures wrong**, now derived with a
+  committed-literal cross-check that **refuses** rather than relabelling.
+- **`cap ≥ $100M` would have cleared every clause** at *p* 2.53e-04 and carries **NO VERDICT**,
+  declared before the read — the register working, not a result withheld. The useful part is that
+  **the confirmation is not knife-edge at `$500M`.** **`h`=126 is REPORTED ONLY and is dead
+  everywhere**, corroborating stage 1 on an independent cell.
+- **NOTHING IS ADOPTED. The next rung is a forward paper book in SHARES, and that is Don's
+  decision.** The band concentration is a **diagnostic** and may not be traded as a narrower rule.
+  50 tests, zero skips. `HANDOFF_insider_cluster_wide.md`.
+
 ## options lane - **F-4 and F-10's 25-delta re-declaration CLEARS the crash gate on non-dip income - and F-10's own tenor makes it a knife edge** (2026-10-13)
 
 The cheap step `FLEET_RETIREMENTS.md` named for itself. **Zero trials, no register** - `K3` is
