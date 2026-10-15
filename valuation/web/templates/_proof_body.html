@@ -128,13 +128,114 @@
      the distribution and the cost sections would be four hand-maintained copies of one fact —
      the B7 disease, which this project has paid for more than once. A page-level statement is
      also the honest structure: the scope is the page's, not any one card's. #}
+
+  {# ======================= ITEM 61: THE PRODUCT, FIRST =======================
+     Don's question, 2026-10-14: "why is that the headline for our proof and not the full index
+     being tracked if the full index is the product?" It was the research decile, and it is now
+     second. Every figure here comes from `screener/index_book_measured.block()` -- the module
+     that already owned these numbers WITH their caveats -- so nothing on this page is typed by
+     hand and there is no second copy of +2.22pp to drift. #}
+  {% if p.index_book %}
+  <div class="sec">
+    <div class="kicker">The product</div>
+    <h2>The Valquo Index, measured on its own construction</h2>
+    <p class="sub">{{ p.index_book.construction }}. This is the book the site actually serves,
+      and these are its own backtested figures &mdash; net of modelled trading costs.</p>
+
+    <div class="cards">
+      <div class="card">
+        <div class="bt">Over SPY</div>
+        <div class="bv">+{{ p.index_book.alpha.vs_spy_pp }}<span class="bu">points a year</span></div>
+        <div class="bd">{{ p.index_book.roth.return_pct }}% a year against SPY's
+          {{ p.index_book.benchmarks.spy_pct }}%. {{ p.index_book.alpha.vs_spy_label }}.</div>
+      </div>
+      <div class="card">
+        <div class="bt">Over its own basket</div>
+        <div class="bv">+{{ p.index_book.alpha.vs_own_tier_pp }}<span class="bu">points a year</span></div>
+        <div class="bd">{{ p.index_book.alpha.vs_own_tier_label }}, which earned
+          {{ p.index_book.benchmarks.tier_equal_weight_pct }}%. This is the like-for-like
+          comparison: same universe, same period, only the weighting differs.</div>
+      </div>
+      <div class="card">
+        <div class="bt">Net Sharpe</div>
+        <div class="bv">{{ '%.2f'|format(p.index_book.sharpe) }}</div>
+        <div class="bd">Worst drawdown {{ p.index_book.max_drawdown_pct }}%. Turnover
+          {{ '%.2f'|format(p.index_book.annual_turnover) }}&times; a year at a realised
+          {{ '%.1f'|format(p.index_book.realised_cost_bps_one_way) }}&nbsp;bps one way.</div>
+      </div>
+    </div>
+
+    {# THE AFTER-TAX LINE, AND IT IS THE ONE A READER IS LEAST LIKELY TO BE TOLD ELSEWHERE.
+       Turnover of ~2.8x a year is taxed as short-term gains in a regular account, and the
+       honest consequence is that the book lands BELOW SPY there. The sentence comes from
+       `index_book_measured.taxable_below_spy_sentence()` so it cannot be softened here. #}
+    <div class="warn" style="border-left:3px solid var(--amber);margin-top:14px">
+      <b>In a regular taxable account this book has historically landed below SPY.</b>
+      {{ p.index_book.taxable_below_spy }}
+    </div>
+
+    {% if p.index_book.disjoint_panels_caveat %}
+    <p class="sub" style="margin-top:10px">{{ p.index_book.disjoint_panels_caveat }}</p>
+    {% endif %}
+    {% if p.index_book.dividend_caveat %}
+    <p class="sub">{{ p.index_book.dividend_caveat }}</p>
+    {% endif %}
+    <p class="sub">Source: <code>{{ p.index_book.study }}</code>,
+      {{ p.index_book.corrected_date or p.index_book.study_date }} &mdash;
+      <code>{{ p.index_book.corrected_artifact or p.index_book.artifact }}</code>.</p>
+  </div>
+  {% endif %}
+
+  {# ---------------------------------------------- the forward record, in plain words #}
+  {% if p.forward_track %}
+  <div class="sec">
+    <div class="kicker">The forward record</div>
+    <h2>What has actually been recorded so far</h2>
+    <p class="sub">The figures above are a backtest. This is the live record, and it is
+      {% if p.forward_track.rows_recorded %}<b>{{ p.forward_track.rows_recorded }}</b>
+      recorded day{{ '' if p.forward_track.rows_recorded == 1 else 's' }} long{% else %}not yet
+      started{% endif %}.</p>
+    <div class="cards">
+      <div class="card">
+        <div class="bt">Recorded days</div>
+        <div class="bv">{{ p.forward_track.rows_recorded }}</div>
+        <div class="bd">{% if p.forward_track.first %}{{ p.forward_track.first }} to
+          {{ p.forward_track.last }}{% else %}nothing recorded yet{% endif %}.
+          Current vintage {{ p.forward_track.vintage }}, opened
+          {{ p.forward_track.opened }}{% if p.forward_track.vintage_label %}
+          ({{ p.forward_track.vintage_label }}){% endif %}.</div>
+      </div>
+      <div class="card">
+        <div class="bt">First evidence read</div>
+        <div class="bv">{{ p.forward_track.gate }}</div>
+        <div class="bd">{{ p.forward_track.what_the_gate_is }}</div>
+      </div>
+      <div class="card">
+        <div class="bt">Verdict</div>
+        <div class="bv">{{ (p.forward_track.verdict or '')[:4] }}</div>
+        <div class="bd">{{ p.forward_track.verdict }}, five years from the vintage's opening.</div>
+      </div>
+    </div>
+    <div class="warn" style="margin-top:14px">
+      <b>A few months of record means nothing yet, and that is arithmetic rather than
+      modesty.</b> {{ p.forward_track.why_it_means_nothing_yet }}
+    </div>
+  </div>
+  {% endif %}
+
+  {# ITEM 61 REWROTE THIS BANNER, AND IT IS NOW A HINGE RATHER THAN A PAGE-LEVEL CLAIM.
+     It used to say "every figure on this page is the research decile", which was true and is
+     no longer: the product's own figures now sit above it. Leaving the old wording would have
+     made the page contradict itself at the top, which is worse than the ordering it fixed. #}
   <div class="warn" style="border-left:3px solid var(--amber)">
-    <b>Every figure on this page is the RESEARCH DECILE, not the Valquo Index.</b>
+    <b>Everything BELOW this point is the RESEARCH DECILE, not the Valquo Index.</b>
     That is the ranking across all&nbsp;~{{ '{:,}'.format(p.panel.n_names) }} companies,
-    equally weighted, top&nbsp;10% — the object the research measures. The
-    <b>Valquo&nbsp;Index</b> is a different book: a $10&nbsp;billion large-cap tier,
-    score-weighted, with an 8% position cap and a no-trade band. They do not earn the same
-    thing, and the Index's own measured figures are on the Index tab, where they are lower.
+    equally weighted, top&nbsp;10% &mdash; the object the research measures, and the most
+    powerful test of the ranking because it covers the whole market. <b>Its numbers are higher
+    than the Index's for three reasons that have nothing to do with skill:</b> it holds every
+    market capitalisation rather than a $10&nbsp;billion tier, it weights every holding
+    equally rather than by score with an 8% cap, and it is measured gross of the trading costs
+    the Index's figures are net of. They do not earn the same thing.
   </div>
 
   {# ------------------------------------------------------------------ placebo #}

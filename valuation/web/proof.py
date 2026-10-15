@@ -157,11 +157,71 @@ _PLACEBO_ROWS = (
     # direction "high" = the real value should sit ABOVE the noise; "low" = below it.
     # Monotonicity is the one that catches people out: the deciles are ordered best-composite
     # first, so -1.0 is a perfectly ordered ladder and +1.0 is a ladder running backwards.
-    ("top_decile_alpha", "Top-decile alpha, per quarter", "high", "pct"),
+    # ITEM 61: THE UNIT IS DERIVED, NOT TYPED. This label read "per quarter" and the figure
+    # is ANNUAL -- 6.07% against the universe's 14.3%, which `_alpha_unit` proves from the
+    # artifact's own two fields rather than from anybody's memory. The label is filled in by
+    # `_alpha_unit(res)` at payload time, so a future change to the annualisation shows up as
+    # a changed label instead of a wrong one.
+    ("top_decile_alpha", "Top-decile alpha, {unit}", "high", "pct"),
     ("top_decile_alpha_tstat_nw", "Top-decile alpha, t-statistic", "high", "num"),
     ("long_short_tstat_nw", "Long-short spread, t-statistic", "high", "num"),
     ("monotonicity", "Decile ladder ordering", "low", "num"),
 )
+
+
+#: What `top_decile_alpha` is scaled by, DERIVED from the artifact. See `_alpha_unit`.
+_PERIODS_PER_YEAR_TOL = 0.02
+
+
+def _alpha_unit(res: dict) -> dict:
+    """Is `top_decile_alpha` per period or per year? **PROVED FROM THE ARTIFACT, NOT TYPED.**
+
+    ITEM 61 PART 3. The card read *"Top-decile alpha, per quarter"* and the figure is the
+    ANNUAL one -- 6.07% against the universe's 14.3%. Typing "per year" instead would fix this
+    label and leave the next one to rot, so the unit is derived:
+
+    `construction.top_decile_alpha` divided by `construction.top_decile_alpha_distribution.mean`
+    is the annualisation factor the producer actually applied. Measured on the shipped artifact:
+    0.060674434603777944 / 0.015168608650944491 = **4.0000** exactly, i.e. four quarterly
+    periods a year. So the figure is annual and the label says so.
+
+    **AND THE ARTIFACT ITSELF CARRIES THE WARNING THAT MAKES THIS NECESSARY.** The distribution
+    block's own `units` field reads *"per-period (not annualised) - a quantile is an order
+    statistic and may not be scaled by periods-per-year the way a mean is"*. Two sibling fields
+    in one block, one annualised and one not, is exactly the shape that produces a wrong label.
+
+    **IT REFUSES RATHER THAN GUESSES.** If either field is missing, or the ratio is not close to
+    a whole number of periods, the unit comes back empty and the label drops the clause
+    altogether -- an unlabelled figure is honest and a wrongly-labelled one is not.
+    """
+    con = _dig(res, "construction", default={}) or {}
+    alpha = _num(con.get("top_decile_alpha"))
+    dist = con.get("top_decile_alpha_distribution") or {}
+    mean = _num(dist.get("mean"))
+    n_per = _num(_dig(res, "universe", "n_dates")) or _num(con.get("n_periods"))
+    out = {"unit": "", "factor": None, "derived": False,
+           "distribution_units": str(dist.get("units") or ""),
+           "reason": ""}
+    if alpha is None or mean is None or mean == 0:
+        out["reason"] = ("the artifact does not carry both `top_decile_alpha` and its "
+                         "distribution mean, so the unit cannot be derived and is not guessed")
+        return out
+    factor = alpha / mean
+    out["factor"] = factor
+    if abs(factor - 1.0) <= _PERIODS_PER_YEAR_TOL:
+        out.update(unit="per quarter", derived=True,
+                   reason="the headline figure equals the per-period mean, so it is per period")
+        return out
+    nearest = round(factor)
+    if nearest >= 2 and abs(factor - nearest) <= _PERIODS_PER_YEAR_TOL:
+        out.update(unit="a year", derived=True,
+                   reason=("the headline figure is %.4f x the per-period mean, i.e. %d periods "
+                           "a year, so it is annualised" % (factor, nearest)))
+        return out
+    out["reason"] = ("the headline figure is %.4f x the per-period mean, which is not a whole "
+                     "number of periods -- the unit is left unlabelled rather than guessed"
+                     % factor)
+    return out
 
 
 def _quantile(sorted_vals, q):
@@ -233,7 +293,7 @@ def _panel_matches(draws_doc, real_source):
         return False, "the panel match could not be established"
 
 
-def _placebo(real_source: dict, draws_doc: dict, summary_doc: dict):
+def _placebo(real_source: dict, draws_doc: dict, summary_doc: dict, unit_label: str = ""):
     """Build the shuffled-signal comparison.
 
     The real value is taken from the CANONICAL run (`BACKTEST_RESULTS.json`) rather than from
@@ -274,6 +334,12 @@ def _placebo(real_source: dict, draws_doc: dict, summary_doc: dict):
     null_summary = _dig(summary_doc, "null_x7_reconstructed", default={}) if summary_doc else {}
 
     for key, label, direction, unit in _PLACEBO_ROWS:
+        # ITEM 61: THE DERIVED UNIT IS SUBSTITUTED HERE. A row whose label carries no `{unit}`
+        # is untouched; a row that does and has no derived unit loses the clause rather than
+        # printing a guess -- an unlabelled figure is honest and a wrongly-labelled one is not.
+        if "{unit}" in label:
+            label = (label.replace(", {unit}", ", " + unit_label) if unit_label
+                     else label.replace(", {unit}", ""))
         real = _num(_dig(real_source, "construction", key))
         if real is None and draws_doc:
             real = _num(_dig(draws_doc, "real", key))
@@ -726,6 +792,82 @@ def _restatement(res: dict):
 # public payload
 # ------------------------------------------------------------------------------------------
 
+def _index_book() -> dict:
+    """THE PRODUCT'S OWN FIGURES. **Read from `index_book_measured`, never restated here.**
+
+    ITEM 61 PART 1, and Don's question: *"why is that the headline for our proof and not the
+    full index being tracked if the full index is the product?"* It was, and the Index's own
+    measured figures already existed in one module with their own caveats attached -- so this
+    imports `block()` rather than lifting numbers out of it. A second copy of +2.22pp would
+    drift from the first the moment either moved, and this page's whole claim is that nothing
+    on it is typed by hand.
+    """
+    try:
+        from ..screener import index_book_measured as IB
+        b = IB.block()
+        b["taxable_below_spy"] = IB.taxable_below_spy_sentence()
+        b["all_cap_note"] = IB.all_cap_leg_note()
+        b["power"] = IB.power_sentence()
+        return b
+    except Exception:                                                   # noqa: BLE001
+        return None
+
+
+def _forward_track() -> dict:
+    """WHERE THE FORWARD RECORD ACTUALLY IS, in plain words. ITEM 61 PART 1, third bullet.
+
+    **EVERY DATE IS DERIVED FROM THE OPEN VINTAGE, NEVER TYPED.** `CLAUDE.md` records three
+    five-year clock resets in four days and the instruction that follows from them: *"DERIVE it
+    from `track_meter.VINTAGES`; never quote one from this file."* A hard-coded 2027-02-13 here
+    would be wrong the next time Don adopts anything.
+
+    The brief's own figures are the check: vintage 4 opened 2026-08-13, so the operational gate
+    is six months later (2027-02-13) and the verdict five years later (2031-08-13) -- which is
+    exactly what the brief states, derived rather than copied.
+    """
+    try:
+        from ..edge import track_meter as TM
+        from ..screener import index_track as IT
+
+        v = TM.current_vintage() or {}
+        opened = TM._d(v.get("opened"))
+        gate = TM._months_after(opened, 6) if opened else None
+        verdict = TM._months_after(opened, 60) if opened else None
+
+        rows, first, last = 0, None, None
+        try:
+            doc = IT.load() or {}
+            series = doc.get("series") or doc.get("rows") or []
+            rows = len(series)
+            if series:
+                first = str((series[0] or {}).get("date") or "")[:10]
+                last = str((series[-1] or {}).get("date") or "")[:10]
+        except Exception:                                               # noqa: BLE001
+            rows = 0
+
+        return {
+            "vintage": v.get("vintage"), "vintage_label": v.get("label"),
+            "opened": str(opened) if opened else None,
+            "gate": str(gate) if gate else None,
+            "verdict": str(verdict) if verdict else None,
+            "rows_recorded": rows, "first": first, "last": last,
+            "dates_are_derived": True,
+            # THE SENTENCE THE BRIEF ASKS FOR, and it is the honest one: the contract's own
+            # power arithmetic says a few months of record cannot say anything.
+            "why_it_means_nothing_yet": (
+                "A forward record this short cannot distinguish a real edge from luck. The "
+                "contract's own arithmetic says so: at the tracking error this book runs, the "
+                "first reading worth taking is the six-month operational gate, and the verdict "
+                "is five years out. Until then the record is a record of whether we are keeping "
+                "the record, not of whether the strategy works."),
+            "what_the_gate_is": (
+                "The operational gate asks whether we actually recorded every day we said we "
+                "would -- not whether the numbers are good."),
+        }
+    except Exception:                                                   # noqa: BLE001
+        return None
+
+
 def payload() -> dict:
     """Everything the proof page renders, or an honest account of what is missing.
 
@@ -749,6 +891,16 @@ def payload() -> dict:
     con = _dig(res, "construction", default={})
     win = _dig(res, "cleanups", "panel_window", default={})
     uni = _dig(res, "universe", default={})
+
+    # --- ITEM 61: THE PRODUCT FIRST -------------------------------------------------------
+    # Don's question was why the proof led with the research decile when the Index is the
+    # product. These two sections are rendered ABOVE everything else on the page; the research
+    # decile keeps every figure it had and becomes the reason to believe the ranking works.
+    index_book = _index_book()
+    forward = _forward_track()
+    if index_book is None:
+        missing.append("the Index book's own measured figures")
+    alpha_unit = _alpha_unit(res)
 
     # --- the panel ------------------------------------------------------------------------
     by_date = _dig(win, "cross_section_by_date", default={}) or {}
@@ -868,12 +1020,22 @@ def payload() -> dict:
 
     placebo_block = None
     if draws_doc or summary_doc:
-        placebo_block = _placebo(res, draws_doc or {}, summary_doc or {})
+        placebo_block = _placebo(res, draws_doc or {}, summary_doc or {},
+                                 unit_label=alpha_unit.get("unit") or "")
         if placebo_block is None:
             missing.append("placebo comparison (artifact present but not in the expected shape)")
 
     return {
         "available": True,
+        # ---- ITEM 61: THE PRODUCT, FIRST. Don's question was why this page led with the
+        # ---- research decile when the Index is the product. These two render above
+        # ---- everything else; the research decile keeps every figure and becomes the
+        # ---- reason to believe the ranking works.
+        "index_book": index_book,
+        "forward_track": forward,
+        # And the derived unit travels so the page can SHOW that it was derived rather than
+        # asking a reader to trust a label.
+        "alpha_unit": alpha_unit,
         "missing": missing,
         # provenance — a proof page that will not say when it was generated is not one
         "generated_at": _dig(res, "generated_at_utc") or _dig(res, "generated_at"),
