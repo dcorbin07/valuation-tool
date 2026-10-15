@@ -1304,8 +1304,13 @@ def create_saas_app(cfg=CONFIG):
             # much as its budget allows and writes what it got; `analyse()` spends no request
             # and REFUSES while the pull is incomplete. A half-finished pull can no longer be
             # reported as a rate, which is the whole defect.
-            prog = SEAM.pull(root=None, budget_names=int(
-                request.args.get("budget") or 60))
+            # `clamp_int` RATHER THAN `int()` -- the `MA50` class, and the guard in
+            # `tests/test_row_caps_and_admin_split.py` caught this one on the gate. A
+            # hand-rolled coercion here means `?budget=abc` is a 500, `?budget=-5` is a
+            # negative slice, and `?budget=99999` asks for the whole 222-name sample inside
+            # one HTTP request -- the timeout this item's resumable pull exists to avoid.
+            prog = SEAM.pull(root=None, budget_names=_clamp_int(
+                request.args.get("budget"), default=60, cap=120, floor=1))
             out["pull"] = prog
             if not prog.get("ok"):
                 out["reason"] = prog.get("reason") or "the pull could not start"
