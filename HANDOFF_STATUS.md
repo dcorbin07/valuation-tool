@@ -1,5 +1,54 @@
 # HANDOFF STATUS - shared project state
 
+## r1 lane — **the insider ID key changes almost nothing, so F-23 stays unfilled — and the 1999-2008 rung is closed as unobtainable** (2026-10-15, `F23-SECID` + `INSIDER-STAGE3-RUNG`)
+
+Register `PREREG_f23_secid.md` committed **ALONE at `fba290e`**, markdown only, 178 lines, a strict
+ancestor of both runners; **1 equity trial at `8191309` before any runner existed** (equity
+**306 → 307**). **The CHECK quadrant is untouched** — `INSIDER-WIDE` spent it on 2026-10-13.
+**ADOPTS NOTHING**; no app file, no broker code, no order.
+
+- **`DOES NOT CLEAR`, and the finding is that the identity key was never the obstacle.** Both arms
+  run on the SEC's own data so the ONLY difference is the key — that was the register's design,
+  because sourcing only the ID arm from the SEC would have changed the **feed** and the **key** at
+  once. ARM B (ID) **+0.1551pp** at *t* **+0.168/+0.142**; ARM A (name) on the **identical rows**
+  **+0.1920pp** at **+0.207/+0.175**. **Changing how insiders are counted moved the mean 0.037pp
+  and the *t* 0.04.** A2, A3 and A4 all fail; only A1 passes.
+- **DON'S QUESTION, ANSWERED BOTH WAYS — YES, NAMES COUNT ONE PERSON TWICE, AND IT IS THE DOMINANT
+  ROW-LEVEL DEFECT.** Within a ticker, which is the unit the rule counts in, **273** ticker-CIK
+  pairs appear under several names against **16** ticker-name pairs over several CIKs — **17 to
+  1** — so the name rule **OVER**-counts and can fire a cluster that was one insider under two
+  spellings, **the false-trigger direction**. **And it barely matters: 8 of 2,277 build-cell
+  events, 0.35%, disappear under the ID key.** Both sentences are true and neither alone is honest.
+- **REPORTED AND EXPLICITLY NOT ATTRIBUTED:** the same cell on the licensed SF2 feed reads
+  **+1.1319pp at *t* +2.01/+2.25**, and that gap is **confounded by a ticker-join problem** rather
+  than interpretable as a feed effect — the SEC set covers **608** build-cell tickers against SF2's
+  **1,344** sharing only **335**, and resolves a point-in-time cap for **48.1%** of events against
+  **83.3%**, so 317 score where SF2 scores 1,378. **Blank symbols are ruled out at 0.2%** and the
+  SEC pull is the **wider** source (912,940 rows, 12,464 tickers). **It is a join problem, it is
+  measured, and it is NOT repaired here.**
+- **THE REALISED POWER IS WORSE THAN DECLARED AND I SAY SO:** `se` **1.0957pp** against the
+  declared 0.5641pp, MDE80 **3.1135pp**, power against the arm's own effect **4.8%** rather than
+  50.3% — `INSIDER-WIDE` §5d's family again at ~1.9x. **But it is not only a power failure:**
+  *t* 0.17 against a bar of 2.0 is no near miss, the halves **disagree in sign**, and *p* = 0.8875.
+  **A cell this weak cannot show the ID key is WORSE; it does show it does not RESCUE the cell.**
+- **F-23 STAYS DECLARED AND UNFILLED.** No amendment, no F-23b, and the ID-rule feed validation was
+  **not** run because the register made it conditional on clearing. **No variant is searched for.**
+- **THE 1999-2008 RUNG IS CLOSED AS UNOBTAINABLE**, the `S25` way, **zero trials**, nothing
+  purchased — with the charter-style sentence in both records: **for this signal the stage-3
+  holdout cannot exist, so the forward paper book is the remaining test**, and a successor may not
+  treat a 2006-2008 read as the charter's holdout.
+- **`SELFCHECK_ABSENT`: DON HAS NO STEP.** Item 51 made it automatic and its own comment says
+  `ABSENT` is in the fixable set; `recertify_attempt()` returns **`attempt: true` / `OWED`** for
+  **21 of 21** books, and the weekday `fleet-cycle` cron is **live and succeeding** (43s, 2026-10-15
+  00:31). The optional faster path is **Actions → FLEET SELF-CHECK (re-certify) → Run workflow**,
+  dispatch-only by design because it places a real sandbox fill. **Qualification: `selfcheck_state`
+  reads gitignored LOCAL records, so whether the service has re-certified is visible only there.**
+- **TWO DEFECTS OF MINE.** A placeholder label Series would have made **both arms report ZERO
+  events without raising** (`opportunistic_purchases` keeps only `OPPORTUNISTIC` rows) — the
+  shipped classifier is now called behind a zero-rows refusal. And the **substring-ban family,
+  eleventh instance and third this session**: a test banned `valuation/` and fired on the arm's own
+  prose. 35 tests. `HANDOFF_f23_secid.md`.
+
 ## options lane - **SELL-PREMIUM-3: NOT CONFIRMED on the build quadrant and UNDERPOWERED - and a broker DOES allow this in a Roth** (2026-10-14)
 
 Register committed ALONE at `5f61820`, 4 options trials booked at `b31e2a6` before any runner
