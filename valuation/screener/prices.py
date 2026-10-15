@@ -108,6 +108,16 @@ VENDOR_ADJUSTMENT = {
     SRC_ALPACA: "all_adjustment",
 }
 
+#: WHICH of those bases are ADJUSTED, declared HERE because this module owns the vocabulary and
+#: a consumer that decided for itself would be a second definition of the same fact.
+#:
+#: Item 39's guard exists for this: it caught `yahoo.py` translating only `auto_adjusted` after
+#: item 59 added `all_adjustment`, which would have printed the raw token to a reader as the
+#: 52-week high's basis. Both are adjusted closes -- yfinance applies splits and dividends,
+#: Alpaca's `all` applies splits, dividends and spin-offs -- so both mean "adjusted" in plain
+#: words. `unverified` is deliberately NOT here: it is a real state, not a third basis.
+ADJUSTED_BASES = (VENDOR_ADJUSTMENT[SRC_YFINANCE], VENDOR_ADJUSTMENT[SRC_ALPACA])
+
 #: Counts by vendor plus the last vendor seen per ticker. The direct path's record; consumers
 #: holding an injected `fetch` should read `source_of(df)` instead.
 _CENSUS: dict = {"by_vendor": {}, "last_by_ticker": {}, "primary_failures": 0,

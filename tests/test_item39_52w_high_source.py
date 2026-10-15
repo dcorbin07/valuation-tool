@@ -196,16 +196,62 @@ class TheBasisIsReadNeverGuessed(unittest.TestCase):
         self.assertEqual(cd.price_52w_high_basis, "unverified")
 
     def test_the_vocabulary_matches_the_one_prices_py_publishes(self):
-        """Only the ONE known value is translated; anything else travels verbatim.
+        """Only values `VENDOR_ADJUSTMENT` actually publishes are translated; anything else
+        travels verbatim.
 
         The first cut mapped a third value (`as_traded`) that `VENDOR_ADJUSTMENT` does not
         contain — a branch that could never fire, which is the vacuous direction.
+
+        **REPOINTED BY ITEM 59, IN THE COMMIT THAT FIRED IT, AND IT CAUGHT A REAL DEFECT.**
+        This used to assert the literal set `{"auto_adjusted", "unverified"}`. Item 59 added
+        Alpaca's `all_adjustment` and `yahoo.py` translated only `auto_adjusted`, so a reader
+        would have seen the raw token "all_adjustment" printed as the 52-week high's basis —
+        the number the Dip Detector is about. The literal set was the right guard and the
+        wrong assertion: it fires on any new vendor, which is what it is for, but it had to be
+        re-pointed at the PROPERTY rather than re-typed with a third value, or the next vendor
+        would reach a reader the same way.
         """
-        self.assertEqual(set(prices.VENDOR_ADJUSTMENT.values()),
-                         {"auto_adjusted", "unverified"})
+        # EVERY ADJUSTED BASIS IS TRANSLATED. Derived from the dict, so a new adjusted vendor
+        # fires this again.
+        self.assertTrue(set(prices.ADJUSTED_BASES)
+                        <= set(prices.VENDOR_ADJUSTMENT.values()),
+                        "ADJUSTED_BASES names a basis no vendor publishes")
+        self.assertIn(prices.VENDOR_ADJUSTMENT[prices.SRC_YFINANCE], prices.ADJUSTED_BASES)
+        # AND `unverified` IS NOT ONE OF THEM -- it is a real state, not a third basis, and
+        # rounding it to "adjusted" is exactly the guess `prices.py` refuses to make.
+        self.assertNotIn("unverified", prices.ADJUSTED_BASES)
+
         body = code_only(function_source(
             os.path.join(REPO, "valuation", "data", "yahoo.py"), "fetch"))
+        # NO DEAD BRANCH: the consumer must not name a basis the dict does not publish.
         self.assertNotIn("as_traded", body)
+        # AND IT MUST NOT RETYPE THE SET EITHER, or the two drift and this guard goes quiet.
+        #
+        # ASSERTED AS A BARE TOKEN. `code_only` strips string literals AND puts spaces around
+        # punctuation, so it renders this as `_prices . ADJUSTED_BASES` -- my first assertion
+        # looked for the dotted form and failed against correct code. The existing
+        # `as_traded` check above works precisely because it is a bare identifier.
+        self.assertIn("ADJUSTED_BASES", body)
+
+    def test_every_published_basis_renders_as_plain_words(self):
+        """THE HALF THAT WAS MISSING, and the half the defect lived in: each value the dict
+        publishes must come out of the translation as something a reader can read, never as the
+        internal token.
+
+        Checked on the RAW source for the comparison shape, because `code_only` strips string
+        literals -- so the reader-facing word `"adjusted"` is invisible to it, and a test built
+        on the stripped text cannot see the very thing it is about.
+        """
+        raw = function_source(
+            os.path.join(REPO, "valuation", "data", "yahoo.py"), "fetch")
+        self.assertIn("adj in _prices.ADJUSTED_BASES", raw)
+        # THE SINGLE-LITERAL COMPARISON IS GONE. That was the defect: it translated one basis
+        # and let the other reach a reader as `all_adjustment`.
+        self.assertNotIn('adj == "auto_adjusted"', raw)
+        # AND NO INTERNAL TOKEN IS ITSELF THE READER-FACING WORD, or the translation would be
+        # untestable by inspection.
+        for basis in prices.ADJUSTED_BASES:
+            self.assertNotEqual(basis, "adjusted")
 
     def test_auto_adjust_is_STATED_and_not_inherited(self):
         """`prices.py`'s own reason, applied here: *"inheriting a vendor library's default is

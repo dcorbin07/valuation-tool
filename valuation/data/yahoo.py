@@ -448,15 +448,23 @@ def fetch(ticker: str) -> Optional[CompanyData]:
                     cd.price_52w_low = float(closes.min())
                     cd.price_52w_high_source = "prices:%s" % (
                         _prices.source_of(df) or "unknown")
-                    # `VENDOR_ADJUSTMENT` has exactly two values -- `auto_adjusted` for
-                    # yfinance and `unverified` for Stooq and FMP -- and `unverified` is a
-                    # REAL state that module refuses to round to a guess. So only the one
-                    # known value is translated and everything else travels VERBATIM; the
+                    # `VENDOR_ADJUSTMENT`'s values are translated to plain words, and
+                    # ONLY the values it actually publishes -- `unverified` is a REAL state
+                    # that module refuses to round to a guess, so it travels VERBATIM. The
                     # first cut of this mapped a third value (`as_traded`) that cannot occur,
                     # i.e. a branch that could never fire, which is the vacuous direction.
+                    #
+                    # ITEM 59 ADDED A SECOND ADJUSTED BASIS AND THIS LINE DID NOT KNOW IT.
+                    # `all_adjustment` is Alpaca's `adjustment=all` -- splits, dividends and
+                    # spin-offs -- and without it here a reader saw the raw token
+                    # "all_adjustment" printed as the 52-week high's basis, which is the
+                    # number the Dip Detector is about. Both vendors produce an ADJUSTED
+                    # close, so both say "adjusted"; the set is derived from `prices` rather
+                    # than retyped, so a third adjusted vendor cannot slip through silently.
                     adj = _prices.adjustment_of(df)
                     cd.price_52w_high_basis = (
-                        "adjusted" if adj == "auto_adjusted" else (adj or "unknown"))
+                        "adjusted" if adj in _prices.ADJUSTED_BASES
+                        else (adj or "unknown"))
                     cd.quality_notes.append(
                         "52-week high from %s (%s basis) after the Yahoo history failed: %s"
                         % (cd.price_52w_high_source, cd.price_52w_high_basis,
