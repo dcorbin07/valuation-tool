@@ -20071,3 +20071,134 @@ addition shows in the diff. That is what the guard is for.
 (nothing reached it); no 10-K or 10-Q exhibit is read, only 8-K; the release TEXT is never
 fetched beyond the heading, so nothing here can say what a release contained; and **no
 screenshots** — this session has no browser, so every live check below is a fetched payload.
+
+
+---
+
+## ITEM 62 — THE ALPACA SEAM "PASSED" ON THREE BARS, AND THE LEG THAT MATTERS MOST HAD NEVER RUN
+
+**THE HANDOFF GAP, SAID FIRST BECAUSE A READER WILL TRIP ON IT:** items **57, 58, 58b, 59, 60
+and 61 do not appear in this file.** They landed on `origin/main` across 2026-10-14/15 and are
+recorded in their commit messages, their test suites (`tests/test_item57b.py`,
+`test_item58.py`, `test_item58b.py`, `test_item58b_doors.py`, `test_item59.py`,
+`test_item60.py`, `test_item61.py`) and in `PAPER_TRACK_CONTRACT.md`, `ALPACA_SETUP.md` and
+`PROMPT_auditor_live_path.md` — but not here. **This file is five items behind and should not be
+read as this lane's state.**
+
+### What happened
+
+Don ran `POST /admin/alpaca-seam?run=1` on 2026-10-15 at 22:27Z. It wrote
+`/app/data_export/ALPACA_SEAM.json`, reported the daily-close leg **PASSED** at `agree_rate`
+**1.000 "across 3 names"** — and returned `switch.allowed=false` with the reason *"the seam
+measurement passed, so the switch is AVAILABLE"*. The three names were **ET, GBTC and TSM, one
+bar each, all dated 2026-10-15**, on six requests.
+
+**FOUR DEFECTS IN ONE DOOR, AND THEY COMPOUNDED.** (a) It sent **no `start` and no `end`**, so
+Alpaca chose the window and returned a single session per name. (b) Its yfinance probe list was
+`(missing)[:0] or list(NAMED_GAPS)` — **a dead `[:0]` slice** that always fell through to five
+named-gap probes, then took `[:12]` of five. (c) It declared `recorded = {}` and **never filled
+it**, so `vs_recorded` — the one leg that asks whether substituting Alpaca would move the bound
+Index record — could only report UNMEASURED, and UNMEASURED licensed the switch. (d) It called
+`measure()` **twice**, which is where most of the six requests went.
+
+**AND THE DEEP ONE, WHICH IS THE ONLY PART WORTH CARRYING: THE BAR WAS A RATE WITH NO FLOOR
+UNDER IT.** 98% agreement is a sensible threshold and says nothing whatever about how much was
+compared. Three bars at 100% clear it. **A rate needs a quantity beside it or it is not
+evidence** — the same sentence this project already wrote about `n`-floors versus power floors,
+in a new costume.
+
+### What now holds
+
+- **The closes leg compares real history.** All 222 sample names, a declared 250-trading-day
+  window (`WINDOW_TRADING_DAYS`), both `adjustment=all` and `adjustment=raw`, against
+  yfinance's **adjusted** and **as-traded** closes from one call, pagination followed to the
+  last token, requests counted from the response headers.
+- **Agreement is BAR-WEIGHTED.** A mean of per-name rates is what let three single-bar names
+  read 1.000; pinned by a test in which one perfect 1-bar name sits beside one wrong 250-bar
+  name, where the honest answer is ~0.4% and a per-name mean says 50%.
+- **The evidence floor is declared in code with its reason**: `MIN_NAMES_FOR_PASS` 200,
+  `MIN_BARS_FOR_PASS` 40,000, `MIN_BARS_PER_NAME` 200. Below any of them the verdict is
+  **UNMEASURED — never passed**, and `tests/test_item62.py::TheThreeBarPassIsImpossibleNow`
+  reconstructs the run that happened and fails on it.
+- **Neither floor can be satisfied by the other**, pinned three ways: 3 names x 14,000 bars
+  fails on names; 222 names x 1 bar fails on bars; 230 x 150 (34,500) fails on bars.
+- **`vs_recorded` is measured and is REQUIRED for the Index switch.** Every recorded date is
+  re-priced through Alpaca at `adjustment=all` and recomputed by **`contract_row`'s own
+  arithmetic** rather than a copy of it, with agreement per row and the largest gap in **basis
+  points** against a declared 5 bps tolerance. **A single row the vendor cannot price fails the
+  leg** — there is deliberately no percentage floor, because the bound record is the one series
+  that cannot be rebuilt and three rows of four says nothing about the fourth.
+- **The pull is STORED and RESUMABLE and the analysis refuses while it is incomplete.** 250
+  sessions x 222 names is ~55,000 Alpaca bars and 222 Yahoo calls, which does not finish inside
+  one HTTP request — so the door pulls a budget of names, writes what it got, and a re-run
+  continues. A half-finished pull can no longer be reported as a rate.
+- **A TRUNCATED pull is a refusal, not a stored partial.** `bars()` reports a page-cap stop in
+  `error` while leaving `ok` True — right for a caller that wants whatever arrived, wrong for
+  this one, because a cut-off series would feed the bar count the floor is computed on.
+- **The gate has four conditions now**, and the artifact schema went `alpaca_seam/1` ->
+  `alpaca_seam/2` so **the three-bar artifact already on the service licenses nothing.**
+
+### The AVB / BK / EQR misses — the cause is ours, and three candidates are ruled out
+
+Measured without a key, on fixtures: **pagination is followed** (226 names x 250 days over 7
+pages loses no symbol), **chunking loses nothing**, and **a dotted class share survives the
+round trip** (`BRK.B` goes out and comes back unchanged). The fourth candidate is ours and
+reproduces exactly: **the first run sent no window**, so a name with no print in Alpaca's
+single chosen session read as **NOT COVERED** rather than as **NOT ASKED**. All three are now
+probed by name, coverage separates **THIN** (some bars, under the floor) from **MISSING**
+(none), and the diagnosis ships inside the artifact as `named_gaps_note` — because the next
+person to read a coverage figure will be reading the JSON, not this file.
+
+### Defects of my own, found by other suites rather than by reading
+
+- **`measure()` SWALLOWED AN UNKNOWN KEYWORD AND SENT A TEST SUITE TO THE LIVE NETWORK.** The
+  shim I left took `**_ignored`, so item 59's `measure(client=..., yf_closes={...})` had its
+  injected Yahoo leg dropped in silence and the pull fell through to the real `yf_both_bases`.
+  **A suite that believes it is offline and is not is worse than a failing one.** Unknown
+  keywords now raise, and `yf_closes` is an explicit documented adapter that returns NO bars
+  for an absent ticker rather than reaching for a vendor.
+- **I DROPPED `fifty_two_week`**, item 59's measurement of how far the basis moves a 52-week
+  high. That is not decoration: the Dip Detector screens on distance below a 52-week high, so
+  it is the most basis-sensitive number the product renders — an as-traded high after a split
+  reads as a crash. Restored, caught by item 59's own suite.
+- **`closes.worst` listed bars that agreed PERFECTLY** (`rel: 0.0`), because it took the top
+  three by distance whether or not any distance exceeded the tolerance. It is the list a reader
+  opens to answer *"where does this vendor disagree?"*, so it named innocent tickers as
+  offenders. It now carries only bars that miss the tolerance, and is **empty** when nothing
+  does.
+- **The per-name flush was quadratic.** Writing after every name re-serialises the whole growing
+  pull — ~110,000 numbers written 222 times — which measured at **282 seconds** on the fixtures
+  and would be spent inside the HTTP request. Now every tenth name and always at the end: a
+  timeout loses at most ten names and they are simply pulled again, so resumability is
+  unaffected. 282s -> 34s.
+- **A substring ban in my own test fired against the fixed tree** for the fifth time this
+  session: it banned `[:0]` and the comment explaining what the dead slice *was* quotes it. The
+  door's assertions read **tokenized code** now, with a positive control proving the stripper
+  still sees real code.
+
+### Two item-59 guards fired against a correct tree and are repointed in the same commit
+
+Both were doing their job. `test_the_bars_were_declared_before_any_number_existed` pinned
+`PASS_COVERAGE == 0.95` and `PASS_INDEX_COVERAGE == 1.0` — and item 62 **removes both
+constants**, because coverage-as-a-fraction-of-the-names-that-answered is precisely what let
+three bars pass. It now pins the replacement floors **and asserts the retired pair is gone**.
+`test_it_names_all_three_switch_conditions` searched for the literals `98%` and `95% coverage`,
+which now appear in `PAPER_TRACK_CONTRACT.md` **only inside its own quotation of the retired
+bar** — so a literal search would have passed for the wrong reason. It asserts the four
+conditions by substance instead. The gate's test class is renamed from
+`TheGateHasThreeConditions...` to `...FourConditions...`, because a class describing four under
+a name saying three is the stale label this project keeps paying for.
+
+### NOT DONE, named so it is not mistaken for done
+
+**Nothing is switched.** `PRICES_PRIMARY_ALPACA` is unset, the vendor order is unchanged
+(yfinance, Stooq, FMP — asserted by watching the call sequence, not by trusting a docstring),
+and no price any user sees has moved. **The measurement has not been re-run** — it runs only on
+the service, where the keys are, and that is Don's command (`ALPACA_SETUP.md`, "How to run the
+measurement"). **So the `vs_recorded` leg has never been read against real Alpaca prices**: its
+arithmetic is verified six ways on fixtures and its answer is unknown. **No intraday or SIP
+question is touched** — this is daily closes only, and the IEX-versus-consolidated question that
+decides whether Signals can use Alpaca is still unmeasured. **No options leg**; Alpaca's free
+options quotes are indicative and `O10`/`O18` already priced what that distinction costs.
+**And no screenshots** — this session has no browser.
+

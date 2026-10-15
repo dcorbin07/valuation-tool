@@ -1256,12 +1256,25 @@ def create_saas_app(cfg=CONFIG):
                 }), 405
 
             out = {"keys_present": AD.have_keys(),
+                   "curl": ("curl -sS -X POST -H \"X-Admin-Token: $ADMIN_TOKEN\" "
+                            "\"https://valquo.co/admin/alpaca-seam?run=1\""),
+                   "rerun_note": ("Run it again until `pull.complete` is true -- each call "
+                                  "continues the stored pull, and the analysis refuses until "
+                                  "it finishes."),
                    "switch": SEAM.switch_allowed(),
                    "recorded": SEAM.read_artifact(),
+                   # ITEM 62: THE FLOORS, AND THEY ARE NOW ON EVIDENCE AS WELL AS ON
+                   # AGREEMENT. Item 59 published only `agree_rate` and `coverage`, and a rate
+                   # with no quantity beside it is not evidence: three bars cleared 0.98.
                    "declared_bars": {"agree_rate": SEAM.PASS_AGREE_RATE,
-                                     "coverage": SEAM.PASS_COVERAGE,
-                                     "index_coverage": SEAM.PASS_INDEX_COVERAGE,
-                                     "per_bar_tolerance": SEAM.AGREE_TOL},
+                                     "per_bar_tolerance": SEAM.AGREE_TOL,
+                                     "window_trading_days": SEAM.WINDOW_TRADING_DAYS,
+                                     "min_names": SEAM.MIN_NAMES_FOR_PASS,
+                                     "min_comparable_bars": SEAM.MIN_BARS_FOR_PASS,
+                                     "min_bars_per_name": SEAM.MIN_BARS_PER_NAME,
+                                     "recorded_requires_every_row":
+                                         SEAM.RECORDED_REQUIRE_ALL_ROWS,
+                                     "recorded_tol_bps": SEAM.RECORDED_TOL_BPS},
                    "not_carried": list(AD.NOT_CARRIED),
                    "carried_free": list(AD.CARRIED_FREE)}
             if not out["keys_present"]:
@@ -1275,31 +1288,33 @@ def create_saas_app(cfg=CONFIG):
                                  "measurement.")
                 return jsonify(out), 200
 
-            # THE REAL PULL. yfinance and the recorded series are gathered here rather than
-            # inside the seam module, so the module stays injectable and testable with no
-            # network at all.
-            yf_closes, recorded = {}, {}
-            try:
-                from ..screener import prices as PR
-                names = list((SEAM.read_artifact() or {}).get("sample", {}).get("names")
-                             or [])
-                res = SEAM.measure(write=False, names=(names or None))
-                probe = sorted(((res.get("coverage") or {}).get("missing") or [])[:0]
-                               or list((res.get("named_gaps") or {}).keys()))
-                # A SMALL yfinance LEG: the comparison needs only the names Alpaca returned,
-                # and pulling 222 names from Yahoo inside a request would throttle the very
-                # vendor this measurement is comparing against.
-                for t in probe[:12]:
-                    df = PR.get_history_df(t, days=260)
-                    if df is None or df.empty:
-                        continue
-                    yf_closes[t] = {str(r["Date"])[:10]: float(r["Close"])
-                                    for _i, r in df.iterrows()
-                                    if r.get("Close") is not None}
-            except Exception as e:                                      # noqa: BLE001
-                out["yfinance_leg_error"] = safe_error(e)
-
-            res = SEAM.measure(yf_closes=yf_closes, recorded=recorded, write=True)
+            # THE REAL PULL, AND IT IS NOW TWO STEPS. [item 62]
+            #
+            # **THE FIRST VERSION DID FOUR THINGS WRONG HERE AND THEY COMPOUNDED.** It called
+            # `measure()` TWICE, passed no date window (so Alpaca returned ONE BAR per name),
+            # computed its yfinance probe list as `(missing)[:0] or NAMED_GAPS` -- a dead
+            # `[:0]` slice that always fell through to five names -- and declared
+            # `recorded = {}` without ever filling it. The result was three names at one bar
+            # each, reported as a passing daily-close comparison of a 222-name sample, with
+            # the leg that compares against the bound Index record UNMEASURED.
+            #
+            # So the pull is now SEPARATE from the analysis, STORED, and RESUMABLE: 250
+            # trading days across 222 names is ~55,000 Alpaca bars and 222 Yahoo history
+            # calls, which does not reliably finish inside one HTTP request. `pull()` does as
+            # much as its budget allows and writes what it got; `analyse()` spends no request
+            # and REFUSES while the pull is incomplete. A half-finished pull can no longer be
+            # reported as a rate, which is the whole defect.
+            prog = SEAM.pull(root=None, budget_names=int(
+                request.args.get("budget") or 60))
+            out["pull"] = prog
+            if not prog.get("ok"):
+                out["reason"] = prog.get("reason") or "the pull could not start"
+                out["switch"] = SEAM.switch_allowed()
+                return jsonify(out), 200
+            # ANALYSE WHATEVER IS STORED, EVEN WHEN INCOMPLETE -- because the analysis then
+            # SAYS it is incomplete, with the names still owed, which is what tells Don to run
+            # the door again. Returning nothing would be indistinguishable from a failure.
+            res = SEAM.analyse(root=None, feeds=out.get("feeds"), write=True)
             out["measurement"] = res
             out["switch"] = SEAM.switch_allowed()
             return jsonify(out), (200 if res.get("ok") else 500)

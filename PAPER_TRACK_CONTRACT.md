@@ -1124,10 +1124,34 @@ Recorded so they are not mistaken for oversights, and so the operational gate ha
 
    1. the seam measurement is recorded (`POST /admin/alpaca-seam?run=1`, owner-only, on the
       service — the keys exist there and nowhere else);
-   2. its daily-close leg **passed** at bars declared before any number existed: 98% of
-      comparable bars agreeing with yfinance's adjusted close within 20 bps, at 95% coverage of
-      the stated 222-name sample;
-   3. `PRICES_PRIMARY_ALPACA=1` is set on the service.
+   2. its daily-close leg **passed**;
+   3. its **`vs_recorded`** leg passed — every row of the series above re-priced through
+      Alpaca and reproduced by `contract_row`'s own arithmetic; and
+   4. `PRICES_PRIMARY_ALPACA=1` is set on the service.
+
+   **CONDITION 2's BARS WERE REWRITTEN ON 2026-10-15, THE DAY AFTER THEY WERE FIRST RUN, BECAUSE
+   THEY PASSED ON THREE BARS (item 62).** As item 59 shipped them this paragraph read *"98% of
+   comparable bars agreeing with yfinance's adjusted close within 20 bps, at 95% coverage of the
+   stated 222-name sample"* — and the measurement reported **PASSED at `agree_rate` 1.000
+   "across 3 names"**: ET, GBTC and TSM, **one bar each, all dated 2026-10-15**. The door sent
+   no date window, so Alpaca chose one and returned a single session; coverage was computed over
+   the names that answered rather than over the sample. **An agreement RATE with no QUANTITY
+   beside it is not evidence, and 98% of three bars is three bars.** So the bar now carries a
+   declared evidence floor, in code, with its reason (`alpaca_seam.MIN_NAMES_FOR_PASS` = 200,
+   `MIN_BARS_FOR_PASS` = 40,000, `MIN_BARS_PER_NAME` = 200 over `WINDOW_TRADING_DAYS` = 250),
+   agreement is **bar-weighted** rather than a mean of per-name rates, and below the floor the
+   verdict is **UNMEASURED — never a pass**. `tests/test_item62.py` reconstructs the
+   three-bar run and fails on it.
+
+   **CONDITION 3 IS NEW AND IT IS THE ONE THAT ACTUALLY BINDS THIS RECORD.** The daily-close leg
+   compares vendors on a 222-name sample; it says nothing about whether substituting Alpaca
+   reproduces *these rows*. That leg existed in item 59's artifact as the key `vs_recorded` and
+   was **never filled** — the door declared an empty dict and passed it straight through, so
+   the one comparison the bound series cares about read as absent while the switch was reported
+   AVAILABLE. It is now measured on every recorded date, through `contract_row` itself rather
+   than a re-implementation, with the largest disagreement reported in basis points against a
+   declared 5 bps tolerance, and **a single row the vendor cannot price fails the leg** rather
+   than being dropped from the comparison.
 
    **Until all three hold the vendor order is unchanged, and a test asserts that by watching the
    call sequence rather than by trusting this paragraph.** Condition 3 is Don's, not a lane's:

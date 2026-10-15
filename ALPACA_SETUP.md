@@ -90,3 +90,75 @@ three convenient ones:
   (a real mark contacts `stooq.com` only), so nothing about this is urgent for it — and
   changing what prices it is Don's call, not a lane's, because it is the one series that cannot
   be rebuilt.
+
+---
+
+## HOW TO RUN THE MEASUREMENT, AND WHAT ITS ANSWER MEANS (item 62, 2026-10-15)
+
+**THE FIRST RUN SAID "PASSED" ON THREE BARS, SO READ THIS BEFORE TRUSTING THE WORD.** On
+2026-10-15 at 22:27Z the door reported the daily-close leg passing at 100% agreement *"across 3
+names"* — ET, GBTC and TSM, **one bar each, all dated that day**. It looked like a clean pass
+and it was an empty one: the door asked Alpaca for no date window, so Alpaca chose one and
+returned a single session, and 98% of three bars is three bars. Nothing was switched on, and
+the bar has been rebuilt so that run cannot pass again.
+
+### The one command
+
+```bash
+# 1. put the admin token in a variable, so it is never typed into a URL or a shell history line
+read -rs ADMIN_TOKEN            # paste it; nothing echoes
+
+# 2. run the measurement
+curl -sS -X POST -H "X-Admin-Token: $ADMIN_TOKEN" \
+  "https://valquo.co/admin/alpaca-seam?run=1"
+
+# 3. forget it again
+unset ADMIN_TOKEN
+```
+
+**RUN IT MORE THAN ONCE — THAT IS NORMAL, NOT A FAILURE.** The full measurement is 250 trading
+days across 222 names: about 55,000 Alpaca bars and 222 separate Yahoo history calls, which does
+not finish inside one web request. Each call continues where the last one stopped and writes what
+it got, so running it four or five times completes it. The reply carries `pull.complete`; while
+that is `false` it also carries `pull.owed`, the names still outstanding, and **the measurement
+refuses to report an agreement rate at all until the pull is finished**. A rate on a
+half-finished pull is the defect this whole item exists to remove.
+
+Everything it writes goes to `/app/data_export/ALPACA_SEAM.json` on the service. It places no
+order, touches no key, and changes nothing about what prices anything.
+
+### What a PASS would mean for the 2026-10-22 rebalance
+
+A pass needs **four** things at once, and the two new ones are the point:
+
+1. the daily closes agree with Yahoo's adjusted close on **98% of comparable bars**;
+2. there are **enough bars for that to mean anything** — at least 200 names and at least 40,000
+   comparable bars, declared in the code with their reason;
+3. **every row of the bound Index record re-prices through Alpaca and comes back the same**, to
+   within 5 basis points, computed by the record's own arithmetic rather than a copy of it; and
+4. `PRICES_PRIMARY_ALPACA=1` is set on the service — **which is still your call and still a
+   separate step.**
+
+If all four hold, the honest reading is *"this vendor can price the Index without moving it."*
+It does **not** mean the switch has happened. The switch would go in at the **2026-10-22
+rebalance**, because a segment's base and its mark must come from one vendor on one basis, and
+mid-segment is the one time it must not be done. Nothing about the rebalance itself changes: the
+same names, the same weights, the same rules — only where the closing prices come from.
+
+### What a FAIL would mean
+
+**Nothing to do, and nothing to postpone.** A fail simply leaves prices where they are: Yahoo
+first, then Stooq, then FMP, exactly as the record has always been priced. The 2026-10-22
+rebalance goes ahead on the current vendor either way. **A fail is not a problem with the
+rebalance; it is the measurement declining to license a vendor change**, and the only cost is
+that the Alpaca key keeps earning nothing.
+
+The two fails worth telling apart, because they point at different things:
+
+- **UNMEASURED** — not enough evidence yet. Usually the pull is incomplete, so run the command
+  again. This is the state the first run should have reported and did not.
+- **FAILED** — enough evidence, and the vendors disagree. The reply names the worst offenders
+  and the largest gap in basis points. If the `vs_recorded` leg is the one that failed, that is
+  the serious one: it means substituting Alpaca would have changed numbers already published,
+  and the answer is to leave the vendor alone.
+
