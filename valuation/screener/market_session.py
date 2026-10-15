@@ -284,6 +284,60 @@ def _parse_run_time(s: str) -> Optional[_dt.datetime]:
         return None
 
 
+#: The regular session, ET. Pre- and post-market are deliberately NOT included: a fractional
+#: order must be a `day` limit order, and Alpaca works those in the regular session only.
+OPEN_HOUR, OPEN_MINUTE = 9, 30
+#: And a small lead-in. The first minutes carry the day's widest spreads and every order on the
+#: live path is a limit at the mid, so an order placed into the opening auction is the one most
+#: likely to sit unfilled all day. `live-cycle.yml` already schedules itself after this for the
+#: same reason; the window makes the rule hold even if the schedule changes.
+OPEN_SETTLE_MINUTES = 5
+#: Orders stop before the close rather than at it, so a `day` order has time to be worked and
+#: the re-send next cycle stays the exception rather than the rule.
+LAST_ORDER_HOUR, LAST_ORDER_MINUTE = 15, 45
+
+
+def orders_window(now: Optional[_dt.datetime] = None) -> dict:
+    """Is the regular session OPEN for placing an order right now? `{ok, reason, ...}`.
+
+    **THIS IS A DIFFERENT QUESTION FROM `session_state`, AND CONFUSING THE TWO SHIPPED A
+    CONTRADICTION.** `session_state` answers *"has today's session closed"* -- true only from
+    16:15 ET -- because it exists to decide when the Index may be MARKED. Placing an order needs
+    the opposite: the session must be OPEN, because a `day` limit order placed outside market
+    hours is not worked until the next session.
+
+    `live_cycle` gated its sending on `session_state`, so the cycle scheduled at 10:40 ET could
+    never have transmitted anything. Both functions now exist and each answers its own question.
+
+    The window is deliberately NARROWER than the session at both ends: five minutes after the
+    open, because the first minutes carry the widest spreads of the day and every order here is
+    a limit at the mid; and fifteen minutes before the close, so a `day` order has time to work
+    rather than expiring unfilled the moment it is placed.
+    """
+    n = now or now_et()
+    d = n.date()
+    start = _dt.time(OPEN_HOUR, OPEN_MINUTE + OPEN_SETTLE_MINUTES)
+    end = _dt.time(LAST_ORDER_HOUR, LAST_ORDER_MINUTE)
+    base = {"date": d.isoformat(), "local_time": n.strftime("%H:%M"),
+            "window": "%s-%s ET" % (start.strftime("%H:%M"), end.strftime("%H:%M"))}
+    if d.weekday() >= 5:
+        return dict(base, ok=False, reason="weekend - the market is closed")
+    if d in market_holidays(d.year):
+        return dict(base, ok=False, reason="market holiday - the market is closed")
+    t = n.time()
+    if t < start:
+        return dict(base, ok=False,
+                    reason=("the session is not open for orders yet (%s ET; the window opens "
+                            "at %s ET, a few minutes after the bell so the opening spreads "
+                            "have settled)" % (n.strftime("%H:%M"), start.strftime("%H:%M"))))
+    if t > end:
+        return dict(base, ok=False,
+                    reason=("too late in the session to place a day order (%s ET; the window "
+                            "closes at %s ET so an order has time to be worked before the "
+                            "close)" % (n.strftime("%H:%M"), end.strftime("%H:%M"))))
+    return dict(base, ok=True, reason="the regular session is open for orders")
+
+
 def session_state(now: Optional[_dt.datetime] = None) -> dict:
     """Whether the current session has closed, and why not if it hasn't.
 
