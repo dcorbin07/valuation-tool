@@ -25,6 +25,7 @@ from ..report import pdf as pdf_report
 from . import resultcache, withhold
 from .query_params import clamp_int, clamp_float   # MA50/MA53 — one clamp per caller number
 from . import score_confidence as _score_confidence
+from . import valuation_verdict as _verdict
 from . import ai_auto as _ai_auto
 from . import definitions as _definitions
 from . import theme_status as _theme_status
@@ -439,6 +440,68 @@ def _company_profile_block(result) -> dict:
         return {"ok": False, "reason": safe_error(e)}
 
 
+def _headline_block(result, payload: dict) -> dict:
+    """ITEM 60's headline card, assembled from what the page already computed.
+
+    **BUILT FROM THE PAYLOAD, NOT FROM `result`, AND THAT IS THE POINT.** The withholding pass
+    has already run by the time this is called, so a suppressed fair value is visible here as a
+    suppressed one -- and "the model withheld its value" is one of the states in which the card
+    says there is NO verdict. Reading `result` directly would have seen the value the page
+    refuses to show and published a verdict off it.
+
+    **NEVER RAISES.** The card is the first thing on the page and also the newest thing on it,
+    so a defect in it must cost the reader the card rather than the valuation. The failure is
+    REPORTED in the block rather than swallowed, because an absent card and a broken one are
+    different facts -- `price_assumes`' own rule, one block down.
+    """
+    try:
+        cd = getattr(result, "company", None)
+        cls = getattr(result, "classification", None)
+        blend = getattr(result, "fair_value_blend", None)
+        sc = getattr(result, "score", None)
+        sc_pay = (payload.get("score") or {}) if isinstance(payload, dict) else {}
+        scen = (payload.get("fair_value_scenarios") or {}) if isinstance(payload, dict) else {}
+        pa = (payload.get("price_assumes") or {}) if isinstance(payload, dict) else {}
+
+        return _verdict.headline(
+            ticker=str(getattr(cd, "ticker", "") or payload.get("ticker") or ""),
+            name=str(getattr(cd, "name", "") or ""),
+            price=getattr(cd, "price", None),
+            # THE SCENARIOS AS THE PAGE HAS THEM, so the card and the range bar below it can
+            # never disagree about the same three numbers.
+            bear=scen.get("bear"), base=scen.get("base"), bull=scen.get("bull"),
+            method=str(scen.get("method") or ""),
+            # THE BLEND'S CONFIDENCE, NOT THE SCORE'S -- and they genuinely differ. Measured
+            # live on KNSL: `score.confidence` is "low" while `fair_value_blend.confidence` is
+            # "medium". The card's range IS the blend's range, so labelling it with the
+            # confidence in a DIFFERENT quantity (the 1-100 opportunity score) would be the
+            # wrong-object family: a number correctly computed, correctly rendered, and
+            # describing something else. The score's own confidence still shows on the gauge
+            # where it belongs.
+            confidence=str((getattr(blend, "confidence", "") if blend is not None else "")
+                           or sc_pay.get("confidence")
+                           or getattr(sc, "confidence", "") or ""),
+            valuable=bool(getattr(blend, "valuable", False) if blend is not None else False),
+            withheld=(getattr(blend, "withheld_value", None) if blend is not None else None),
+            dcf_reliability=str(getattr(cls, "dcf_reliability", "") or ""),
+            regime=str(getattr(cls, "regime", "") or ""),
+            business_quality=str(sc_pay.get("business_quality")
+                                 or getattr(sc, "business_quality", "") or ""),
+            price_vs_model=str(sc_pay.get("price_vs_model")
+                               or getattr(sc, "price_vs_model", "") or ""),
+            assumes_sentence=str(((pa.get("lead") or {}) if isinstance(pa, dict) else {})
+                                 .get("sentence") or ""),
+            warning=((pa.get("warning") or {}) if isinstance(pa, dict) else {}),
+        )
+    except Exception as e:                                              # noqa: BLE001
+        log_exception("headline_block")
+        return {"ok": False, "verdict": _verdict.NONE, "label": _verdict.LABEL[_verdict.NONE],
+                "no_verdict_cause": "card_failed",
+                "no_verdict_reason": ("We could not assemble the summary card for this name. "
+                                      "The valuation below is unaffected."),
+                "error": type(e).__name__}
+
+
 def _price_assumes_block(result) -> dict:
     """Item 52 parts 2, 3 and 7b, assembled from what the engine already computed.
 
@@ -569,6 +632,7 @@ def api_value():
         # `price_assumes` takes the reverse-DCF result, which is the engine's own answer to a
         # question that does not go through the fair value.
         payload["price_assumes"] = _price_assumes_block(result)
+        payload["headline"] = _headline_block(result, payload)
         payload["profile"] = _company_profile_block(result)
         # ITEM 57 A2: WHETHER THE COMPANY PROFILE CAME FROM A FALLBACK, and which fields did.
         # On the wire because `live_check` has to be able to tell an outage from a data gap,

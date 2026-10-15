@@ -1220,6 +1220,92 @@ def create_saas_app(cfg=CONFIG):
             "order": "yfinance (primary) -> stooq (fallback) -> fmp (gated off)",
         })
 
+    @app.route("/admin/alpaca-seam", methods=["GET", "POST"])
+    def admin_alpaca_seam():
+        """THE ALPACA SEAM MEASUREMENT — item 59's "measure first".
+
+        **IT RUNS HERE BECAUSE THE KEYS ARE HERE AND NOWHERE ELSE.** A lane has no credential
+        to measure with, so it tests the analysis against recorded fixtures and Don runs the
+        real pull through this door. That is `ALPACA_SETUP.md`'s instruction and also the only
+        arrangement that can work.
+
+        **GET REPORTS WHAT IS ALREADY RECORDED; POST?run=1 TAKES THE MEASUREMENT.** The same
+        verb split as every other door here, and for a reason beyond habit: the pull spends
+        requests against a 200-per-minute allowance shared with everything else on this
+        service, so a prefetch or a retry must not be able to spend it.
+
+        **IT SWITCHES NOTHING.** A passing measurement makes the price switch AVAILABLE;
+        taking it needs `PRICES_PRIMARY_ALPACA=1`, which is Don's call because inside a
+        segment the Index's base and mark must come from one vendor.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..data import alpaca_data as AD
+            from ..data import alpaca_seam as SEAM
+
+            wants_run = bool(request.args.get("run")
+                             or (request.get_json(silent=True) or {}).get("run"))
+            if request.method == "GET" and wants_run:
+                return jsonify({
+                    "ok": False, "error": "method not allowed",
+                    "detail": ("a GET never takes the measurement. Use POST "
+                               "/admin/alpaca-seam?run=1. The pull spends requests against a "
+                               "200/min allowance shared with the rest of this service, and a "
+                               "prefetch or a retry is not a decision to spend it."),
+                }), 405
+
+            out = {"keys_present": AD.have_keys(),
+                   "switch": SEAM.switch_allowed(),
+                   "recorded": SEAM.read_artifact(),
+                   "declared_bars": {"agree_rate": SEAM.PASS_AGREE_RATE,
+                                     "coverage": SEAM.PASS_COVERAGE,
+                                     "index_coverage": SEAM.PASS_INDEX_COVERAGE,
+                                     "per_bar_tolerance": SEAM.AGREE_TOL},
+                   "not_carried": list(AD.NOT_CARRIED),
+                   "carried_free": list(AD.CARRIED_FREE)}
+            if not out["keys_present"]:
+                out["reason"] = ("no Alpaca key pair is set on this service, so the "
+                                 "measurement cannot run. Render -> the valquo service -> "
+                                 "Environment -> add ALPACA_PAPER_KEY_ID and "
+                                 "ALPACA_PAPER_SECRET_KEY -> Save.")
+                return jsonify(out), 200
+            if not wants_run:
+                out["reason"] = ("reporting only. POST /admin/alpaca-seam?run=1 to take the "
+                                 "measurement.")
+                return jsonify(out), 200
+
+            # THE REAL PULL. yfinance and the recorded series are gathered here rather than
+            # inside the seam module, so the module stays injectable and testable with no
+            # network at all.
+            yf_closes, recorded = {}, {}
+            try:
+                from ..screener import prices as PR
+                names = list((SEAM.read_artifact() or {}).get("sample", {}).get("names")
+                             or [])
+                res = SEAM.measure(write=False, names=(names or None))
+                probe = sorted(((res.get("coverage") or {}).get("missing") or [])[:0]
+                               or list((res.get("named_gaps") or {}).keys()))
+                # A SMALL yfinance LEG: the comparison needs only the names Alpaca returned,
+                # and pulling 222 names from Yahoo inside a request would throttle the very
+                # vendor this measurement is comparing against.
+                for t in probe[:12]:
+                    df = PR.get_history_df(t, days=260)
+                    if df is None or df.empty:
+                        continue
+                    yf_closes[t] = {str(r["Date"])[:10]: float(r["Close"])
+                                    for _i, r in df.iterrows()
+                                    if r.get("Close") is not None}
+            except Exception as e:                                      # noqa: BLE001
+                out["yfinance_leg_error"] = safe_error(e)
+
+            res = SEAM.measure(yf_closes=yf_closes, recorded=recorded, write=True)
+            out["measurement"] = res
+            out["switch"] = SEAM.switch_allowed()
+            return jsonify(out), (200 if res.get("ok") else 500)
+        except Exception as e:
+            return jsonify({"ok": False, "error": safe_error(e)}), 500
+
     @app.route("/admin/live-slots", methods=["GET"])
     def admin_live_slots():
         """THE OWNER-ONLY STATUS FOR EVERY SLOT — paper and live.  [item 58b steps 1 and 6]

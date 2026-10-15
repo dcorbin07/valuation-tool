@@ -1092,6 +1092,52 @@ Recorded so they are not mistaken for oversights, and so the operational gate ha
    > factor and the liquidity gate already run on. No API key, no licensed row, nothing a fresh
    > deploy does not already have. The "guess at a vendor" the failure note refused is refused
    > here too, by there not being one to guess at.
+
+   **CORRECTION, 2026-10-14 (item 59) — THE QUOTED VENDOR ORDER IS REVERSED, AND THIS DOCUMENT
+   NAMED THE WRONG VENDOR AS PRICING THE BOUND RECORD.** The quotation above is left as written
+   because it is dated and says what was true on 2026-08-14. What prices the record **today**
+   is:
+
+   | | |
+   |---|---|
+   | **Primary** | `yfinance`, `auto_adjust=True` — so the recorded basis is **ADJUSTED** (splits and dividends) |
+   | **Fallback** | Stooq, which serves an **as-traded** close, i.e. a DIFFERENT basis |
+   | **Third** | FMP, opt-in and currently unusable — its v3 API answers 403 for every path |
+   | **Ahead of all three** | Alpaca, **only** once its seam is measured, passed and opted into — see below |
+
+   The reversal was made on 2026-09-30 on two measurements the module records: **speed** (MSFT
+   returned in 0.4s while one Stooq request took 30.1s to time out, which is the whole of the
+   ten-minute book price and the `/api/track` refresh that never finished) and **basis** —
+   re-deriving the benchmark leg of all 24 recorded rows on both bases, **of the 6 rows that can
+   discriminate, 6 match adjusted exactly and 0 match plain.** Stooq-first meant the recorded
+   basis was whichever vendor happened to answer; yfinance-first makes it the default.
+
+   **THE BASIS IS THE PART THAT BINDS A VENDOR CHANGE.** Inside a segment the base and the mark
+   must come from one vendor *on one basis*, so any new price source has to serve an ADJUSTED
+   close or the segment's own arithmetic changes under it.
+
+   **ALPACA, ITEM 59: BUILT, MEASURED NOWHERE YET, AND SWITCHED ON NOWHERE.** Alpaca's own
+   `adjustment` parameter **defaults to `raw`** — unadjusted — so a careless switch would have
+   changed this record's basis silently. `valuation/data/alpaca_data.py` therefore makes the
+   parameter **required with no default** and the Index path passes `adjustment=all`. Three
+   independent conditions must all hold before Alpaca prices anything:
+
+   1. the seam measurement is recorded (`POST /admin/alpaca-seam?run=1`, owner-only, on the
+      service — the keys exist there and nowhere else);
+   2. its daily-close leg **passed** at bars declared before any number existed: 98% of
+      comparable bars agreeing with yfinance's adjusted close within 20 bps, at 95% coverage of
+      the stated 222-name sample;
+   3. `PRICES_PRIMARY_ALPACA=1` is set on the service.
+
+   **Until all three hold the vendor order is unchanged, and a test asserts that by watching the
+   call sequence rather than by trusting this paragraph.** Condition 3 is Don's, not a lane's:
+   `ALPACA_SETUP.md`'s closing line is that changing what prices this record is his call.
+
+   **A VENDOR CHANGE IS NOT A VINTAGE EVENT.** The rules, the weights and the construction are
+   untouched; only the price source moves. It IS a **seam**, so when it is taken the date and the
+   source are recorded here and the switch happens **at a segment boundary** — the 2026-10-22
+   rebalance if it is ready, otherwise a later boundary with the measured seam recorded on that
+   date.
    >
    > **HOW CLOSELY IT REPRODUCES THE RECORDED ROWS — MEASURED 2026-08-14 AGAINST LIVE PRICES,
    > AND THE TWO LEGS DIFFER.**

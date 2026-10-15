@@ -319,7 +319,7 @@ def _marks_for(client, tickers) -> dict:
 def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
              marks: dict, root: str = None, session_ok: bool = True,
              paper_plan: list = None, paper_value: float = None,
-             send: bool = True) -> dict:
+             send: bool = True, sess_reason: str = "") -> dict:
     """One slot's cycle. Returns what it did and why. NEVER RAISES.
 
     `send=False` is what 0% and an out-of-session cycle use: everything is computed and logged
@@ -447,8 +447,8 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
             out["reason"] = ("computed %d order(s) and sent none: %s"
                              % (len(plan["orders"]),
                                 armed_state.get("reason") if not out["armed"] else
-                                ("the session is closed" if not session_ok else
-                                 "no client was supplied")))
+                                ((sess_reason or "the market is not open for orders")
+                                 if not session_ok else "no client was supplied")))
             return out
 
         # ---- the only place an order is transmitted -------------------------------------
@@ -674,10 +674,20 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
            "slots": [], "alerts": [], "paper": None, "session": None, "reason": ""}
     try:
         from ..screener import index_in_force as IF
-        from ..screener.market_session import session_state
+        from ..screener.market_session import orders_window, session_state
 
-        sess = session_state(now)
+        # THE ORDERS WINDOW, NOT THE CLOSE. `session_state` answers "has today's session
+        # closed" and is true only from 16:15 ET, because it exists to decide when the Index
+        # may be MARKED. Gating orders on it meant the cycle scheduled at 10:40 ET -- chosen
+        # precisely BECAUSE a `day` limit order must be placed inside the session -- could
+        # never transmit anything, for ever, while reporting "the session is closed" as a
+        # sensible-looking reason. Found when this module's own suite changed verdict at
+        # midnight.
+        sess = orders_window(now)
         out["session"] = sess
+        # The close is still REPORTED, because a reader comparing this against the Index mark
+        # needs both and they are now visibly different questions.
+        out["session_closed_state"] = session_state(now)
         session_ok = bool(sess.get("ok"))
 
         bk = book if book is not None else IF.attach_returns(IF.book_in_force())
@@ -725,7 +735,8 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
                                         "reason": "the paper slot is always armed: it is "
                                                   "paper money on the paper host"},
                            book=bk, client=pc, equity=eq, marks=marks, root=root,
-                           session_ok=session_ok, send=paper_sends)
+                           session_ok=session_ok, send=paper_sends,
+                           sess_reason=sess.get("reason") or "")
             out["paper"] = res
             out["alerts"].extend(res.get("alerts") or [])
             paper_plan = res.get("orders")
@@ -776,7 +787,8 @@ def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
             res = run_slot(n, pct=pct, armed_state=a, book=bk, client=client, equity=eq,
                            marks=marks, root=root, session_ok=session_ok,
                            paper_plan=paper_plan, paper_value=paper_value,
-                           send=bool(live_sends and a["armed"]))
+                           send=bool(live_sends and a["armed"]),
+                           sess_reason=sess.get("reason") or "")
             res["mode"] = mode
             if mode == PAPER:
                 res["paper_mode_note"] = ("this is a PAPER-ONLY cycle, so this live slot "
