@@ -20,6 +20,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+import datetime as _DT
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -267,18 +268,45 @@ class TheComparatorDistinguishesAbsentFromZero(unittest.TestCase):
         self.assertTrue(SEAM.compare_closes({"a": 100.0}, {"a": 50.0})["agree_rate"] == 0.0)
 
 
-class TheGateHasThreeConditionsAndEachFailsAlone(unittest.TestCase):
+class TheGateHasFourConditionsAndEachFailsAlone(unittest.TestCase):
+    """**RENAMED AND EXTENDED BY ITEM 62, WHICH ADDED THE FOURTH.** As item 59 shipped it the
+    gate asked for a recorded measurement, a passing daily-close leg and the env flag -- and
+    the first real run satisfied all three on three bars with the `vs_recorded` leg never
+    measured. The leg that compares Alpaca against THIS record is now required too."""
+
     def setUp(self):
         self.root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.root, True)
         os.makedirs(os.path.join(self.root, "data_export"), exist_ok=True)
 
-    def _write(self, passed=True, schema=SEAM.SCHEMA):
+    def _write(self, passed=True, schema=SEAM.SCHEMA, recorded=True):
         with open(SEAM.artifact_path(self.root), "w", encoding="utf-8") as fh:
             json.dump({"schema": schema, "at": "2026-10-14T00:00:00Z",
                        "closes": {"passed": passed, "agree_rate": 0.999,
-                                  "reason": "fixture"},
+                                  "n_names": 220, "n_bars": 55000, "reason": "fixture"},
+                       "vs_recorded": {"passed": recorded, "measured": recorded,
+                                       "n_rows": 4, "n_compared": 4, "n_agree": 4,
+                                       "worst_bps": 0.4, "reason": "fixture"},
                        "coverage": {"sample_rate": 0.99}}, fh)
+
+    def test_a_PASSING_CLOSES_LEG_WITH_NO_RECORDED_LEG_IS_THE_FIRST_RUNS_ARTIFACT(self):
+        """**THE SHAPE THAT WAS REPORTED AS AVAILABLE ON 2026-10-15.** `vs_recorded` was an
+        empty dict the door declared and never filled, so the one comparison the bound series
+        cares about read as absent -- and absent licensed the switch."""
+        with open(SEAM.artifact_path(self.root), "w", encoding="utf-8") as fh:
+            json.dump({"schema": SEAM.SCHEMA, "at": "2026-10-15T22:27:00Z",
+                       "closes": {"passed": True, "agree_rate": 1.0, "n_names": 3,
+                                  "n_bars": 3, "reason": "fixture"},
+                       "vs_recorded": {}}, fh)
+        got = SEAM.switch_allowed(self.root, {"PRICES_PRIMARY_ALPACA": "1"})
+        self.assertFalse(got["allowed"], "the first run's artifact still licenses the switch")
+        self.assertIn("recorded", got["reason"].lower())
+
+    def test_a_FAILING_RECORDED_LEG_ALONE_REFUSES(self):
+        self._write(passed=True, recorded=False)
+        got = SEAM.switch_allowed(self.root, {"PRICES_PRIMARY_ALPACA": "1"})
+        self.assertFalse(got["allowed"])
+        self.assertIn("recorded", got["reason"].lower())
 
     def test_no_artifact_is_NOT_a_pass(self):
         got = SEAM.switch_allowed(self.root, {"PRICES_PRIMARY_ALPACA": "1"})
@@ -303,10 +331,10 @@ class TheGateHasThreeConditionsAndEachFailsAlone(unittest.TestCase):
         self.assertIn("AVAILABLE and has not been taken", got["reason"])
         self.assertIn("Don's call", got["reason"])
 
-    def test_all_three_together_allow_it(self):
-        self._write(passed=True)
+    def test_all_four_together_allow_it(self):
+        self._write(passed=True, recorded=True)
         got = SEAM.switch_allowed(self.root, {"PRICES_PRIMARY_ALPACA": "1"})
-        self.assertTrue(got["allowed"])
+        self.assertTrue(got["allowed"], got["reason"])
 
     def test_a_foreign_schema_is_not_trusted(self):
         self._write(passed=True, schema="alpaca_seam/0")
@@ -320,10 +348,26 @@ class TheGateHasThreeConditionsAndEachFailsAlone(unittest.TestCase):
 
     def test_the_bars_were_declared_before_any_number_existed(self):
         """A bar chosen after seeing the result is not a bar. They are module constants, so a
-        change shows in a diff."""
+        change shows in a diff.
+
+        **REPOINTED BY ITEM 62, AND IT FIRED AGAINST A CORRECT TREE.** This asserted
+        `PASS_COVERAGE == 0.95` and `PASS_INDEX_COVERAGE == 1.0`, and item 62 REMOVED both
+        constants -- because coverage-as-a-fraction-of-the-names-that-answered is what let the
+        first real run pass on three bars at 100% agreement. The replacement bars are absolute
+        evidence floors rather than ratios, which is the whole repair, so the property this
+        guard protects is unchanged (**a bar is a committed constant and moving it shows in a
+        diff**) while the constants it names are the current ones. The retired pair is recorded
+        in `PAPER_TRACK_CONTRACT.md` as retired, with the run that retired them.
+        """
         self.assertEqual(SEAM.PASS_AGREE_RATE, 0.98)
-        self.assertEqual(SEAM.PASS_COVERAGE, 0.95)
-        self.assertEqual(SEAM.PASS_INDEX_COVERAGE, 1.0)
+        self.assertEqual(SEAM.MIN_NAMES_FOR_PASS, 200)
+        self.assertEqual(SEAM.MIN_BARS_FOR_PASS, 40000)
+        self.assertEqual(SEAM.MIN_BARS_PER_NAME, 200)
+        self.assertEqual(SEAM.RECORDED_TOL_BPS, 5.0)
+        self.assertIs(SEAM.RECORDED_REQUIRE_ALL_ROWS, True)
+        for gone in ("PASS_COVERAGE", "PASS_INDEX_COVERAGE"):
+            self.assertFalse(hasattr(SEAM, gone),
+                             "%s is back -- a coverage RATIO is what passed on three bars" % gone)
 
 
 class TheSwitchIsInertUntilItIsLicensed(unittest.TestCase):
@@ -388,7 +432,19 @@ class TheSeamRunsOnFixturesWithNoNetwork(unittest.TestCase):
         self.root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.root, True)
 
-    def _stub_client(self, names, splitter_raw_differs=True):
+    # **THE WINDOW IS 250 SESSIONS BY DEFAULT, NOT THREE (item 62).** These fixtures were
+    # written before the seam had an evidence floor, and three bars across five names is
+    # precisely the shape that passed on the first real run -- so a fixture that small now
+    # (correctly) reads as UNMEASURED. `n_bars` and `n_filler` exist so a test can still ask
+    # for a deliberately thin pull when thinness IS the property under test.
+    DAYS = [str(_DT.date(2026, 10, 15) - _DT.timedelta(days=i)) for i in range(400)]
+
+    def _dates(self, n_bars):
+        return self.DAYS[:n_bars]
+
+    def _stub_client(self, names, splitter_raw_differs=True, n_bars=250):
+        dates = self._dates(n_bars)
+
         class C:
             last_rate = {"x-ratelimit-remaining": "190"}
 
@@ -402,7 +458,7 @@ class TheSeamRunsOnFixturesWithNoNetwork(unittest.TestCase):
                     base = 100.0
                     if adjustment == AD.ADJ_RAW and splitter_raw_differs and s == "NVDA":
                         base = 1000.0        # pre-split, as-traded
-                    out[s] = [_bar("2026-10-%02d" % d, base + d) for d in (1, 2, 3)]
+                    out[s] = [_bar(d, base + j) for j, d in enumerate(dates)]
                 return {"ok": True, "bars": out, "missing": [], "pages": 1,
                         "rate": self.last_rate, "requests": 1}
 
@@ -410,26 +466,48 @@ class TheSeamRunsOnFixturesWithNoNetwork(unittest.TestCase):
                 return {"ok": True, "snapshots": {}, "missing": list(syms)}
         return C()
 
+    def _yf(self, names, n_bars=250, base=100.0):
+        """yfinance closes matching the stub's ADJUSTED series, on the same dates."""
+        dates = self._dates(n_bars)
+        return {s: {d: base + j for j, d in enumerate(dates)} for s in names}
+
+    def _wide(self, extra=(), n=230):
+        """A sample large enough to clear `MIN_NAMES_FOR_PASS`, with `extra` named first so a
+        test can still assert on a specific ticker."""
+        filler = ["F%03d" % i for i in range(n)]
+        return list(extra) + [t for t in filler if t not in extra]
+
     def test_it_produces_a_PASSING_artifact_when_the_vendors_agree(self):
-        names = ["AAPL", "MSFT", "NVDA", "O", "NEE"]
-        yf = {s: {"2026-10-%02d" % d: 100.0 + d for d in (1, 2, 3)} for s in names}
-        got = SEAM.measure(client=self._stub_client(names), names=names, yf_closes=yf,
-                           root=self.root)
+        names = self._wide(["AAPL", "MSFT", "NVDA", "O", "NEE"])
+        got = SEAM.measure(client=self._stub_client(names), names=names,
+                           yf_closes=self._yf(names), root=self.root)
         self.assertTrue(got["ok"], got.get("reason"))
         self.assertTrue(got["closes"]["passed"], got["closes"]["reason"])
         self.assertEqual(got["coverage"]["sample_rate"], 1.0)
         self.assertEqual(got["closes"]["basis_used"], "all")
         self.assertTrue(os.path.exists(SEAM.artifact_path(self.root)))
-        self.assertTrue(SEAM.switch_allowed(self.root,
-                                            {"PRICES_PRIMARY_ALPACA": "1"})["allowed"])
+
+    def test_a_PASSING_CLOSES_LEG_ALONE_STILL_DOES_NOT_LICENSE_THE_SWITCH(self):
+        """**REPOINTED BY ITEM 62.** This assertion used to live at the end of the test above
+        and read `switch_allowed(...)["allowed"] is True` off a passing closes leg -- which is
+        exactly the hole that let the first real run report the switch AVAILABLE while the one
+        comparison against the bound Index record had never been made. The closes leg compares
+        vendors on a 222-name sample; `vs_recorded` compares them on THESE rows."""
+        names = self._wide(["AAPL"])
+        got = SEAM.measure(client=self._stub_client(names), names=names,
+                           yf_closes=self._yf(names), root=self.root, series=[])
+        self.assertTrue(got["closes"]["passed"], got["closes"]["reason"])
+        self.assertFalse(got["vs_recorded"]["measured"])
+        gate = SEAM.switch_allowed(self.root, {"PRICES_PRIMARY_ALPACA": "1"})
+        self.assertFalse(gate["allowed"])
+        self.assertIn("recorded", gate["reason"].lower())
 
     def test_it_FAILS_when_the_adjusted_closes_disagree(self):
-        names = ["AAPL", "MSFT"]
-        yf = {s: {"2026-10-%02d" % d: 200.0 + d for d in (1, 2, 3)} for s in names}
-        got = SEAM.measure(client=self._stub_client(names), names=names, yf_closes=yf,
-                           root=self.root)
+        names = self._wide(["AAPL", "MSFT"])
+        got = SEAM.measure(client=self._stub_client(names), names=names,
+                           yf_closes=self._yf(names, base=200.0), root=self.root)
         self.assertFalse(got["closes"]["passed"])
-        self.assertIn("below the declared", got["closes"]["reason"])
+        self.assertIn("agreement with yfinance", got["closes"]["reason"])
 
     def test_an_UNMEASURED_comparison_is_not_a_pass(self):
         """The direction that matters: no yfinance leg at all must not read as agreement."""
@@ -440,32 +518,45 @@ class TheSeamRunsOnFixturesWithNoNetwork(unittest.TestCase):
         self.assertIn("UNMEASURED", got["closes"]["reason"])
 
     def test_both_bases_are_pulled_so_the_split_question_is_answerable(self):
+        """**REPOINTED BY ITEM 62: the per-name table is no longer in the artifact.** 222 names
+        x 250 bars x 2 bases of per-bar detail is a payload nobody reads, so the artifact now
+        carries the two LEGS separately plus the per-name bar COUNTS and the worst offenders.
+        The property is the same one: the as-traded basis is compared on its own, so a split
+        name disagrees there while agreeing on the adjusted basis -- which is what makes
+        "Alpaca's `raw` really is unadjusted" a measured statement rather than a docstring."""
         names = ["NVDA", "AAPL"]
-        yf = {s: {"2026-10-%02d" % d: 100.0 + d for d in (1, 2, 3)} for s in names}
-        got = SEAM.measure(client=self._stub_client(names), names=names, yf_closes=yf,
-                           root=self.root)
-        per = got["closes"]["vs_yfinance"]["per_name"]["NVDA"]
-        self.assertIn("all", per)
-        self.assertIn("raw", per)
-        self.assertEqual(per["all"]["agree_rate"], 1.0)
-        self.assertEqual(per["raw"]["agree_rate"], 0.0)
+        got = SEAM.measure(client=self._stub_client(names), names=names,
+                           yf_closes=self._yf(names), root=self.root)
+        c = got["closes"]
+        self.assertEqual(c["agree_rate"], 1.0, "the adjusted bases must agree")
+        self.assertEqual(c["as_traded_leg"]["agree_rate"], 0.5,
+                         "NVDA is as-traded and AAPL is not, so exactly half should agree")
+        self.assertEqual(sorted(c["per_name_n"]), ["AAPL", "NVDA"])
+        self.assertEqual(c["worst"], [], "nothing disagrees on the adjusted basis")
 
     def test_the_52_week_high_gap_between_bases_is_reported(self):
         names = ["NVDA", "AAPL"]
         got = SEAM.measure(client=self._stub_client(names), names=names,
                            yf_closes={"AAPL": {"2026-10-01": 101.0}}, root=self.root)
-        f = got["fifty_two_week"]
+        f = got["fifty_two_week"]      # dropped by item 62's rewrite and restored by its suite
         self.assertGreaterEqual(f["n"], 2)
         self.assertGreaterEqual(f["n_over_1pct"], 1)
         self.assertIn("Dip Detector", f["why"])
 
     def test_the_named_gaps_are_probed_by_name(self):
         """ET is the live case -- unpriced on the current route since 2026-10-05."""
-        got = SEAM.measure(client=self._stub_client(["AAPL"]), names=["AAPL"],
+        names = ["AAPL"] + list(SEAM.NAMED_GAPS)
+        got = SEAM.measure(client=self._stub_client(names), names=names,
                            yf_closes={}, root=self.root)
         self.assertIn("ET", got["named_gaps"])
         self.assertIn("2026-10-05", got["named_gaps"]["ET"]["why_asked"])
         self.assertTrue(got["named_gaps"]["ET"]["covered"])
+        # AND THE REAL SAMPLE CARRIES THEM WITHOUT BEING ASKED, which is the property that
+        # matters, because the door never passes a `names` list.
+        stated = SEAM._sample_names(None, None)
+        self.assertNotIsInstance(stated, str, stated)
+        for t in SEAM.NAMED_GAPS:
+            self.assertIn(t, stated, t)
 
     def test_coverage_is_reported_BY_CATEGORY(self):
         """Item 40's FMP measurement died on coverage -- ~12%, zero REITs, zero utilities -- so
@@ -474,6 +565,9 @@ class TheSeamRunsOnFixturesWithNoNetwork(unittest.TestCase):
         names = ["O", "SPG", "NEE", "JPM"]
         got = SEAM.measure(client=self._stub_client(names), names=names, yf_closes={},
                            root=self.root)
+        # Coverage is an ALPACA fact, not a comparison fact: `yf_closes={}` must not make a
+        # covered REIT read as uncovered, or the leg that answers "which categories does this
+        # vendor serve" would depend on whether the other vendor answered.
         self.assertIn("reit", got["coverage"]["by_category"])
         self.assertEqual(got["coverage"]["by_category"]["reit"]["rate"], 1.0)
         self.assertEqual(FS.CATEGORY["O"], "reit")
@@ -536,9 +630,20 @@ class TheContractNamesWhatPricesTheRecord(unittest.TestCase):
         document rather than only in a module docstring."""
         self.assertIn("defaults to `raw`", self.src)
 
-    def test_it_names_all_three_switch_conditions(self):
-        for want in ("/admin/alpaca-seam", "PRICES_PRIMARY_ALPACA", "98%", "95% coverage"):
+    def test_it_names_every_switch_condition(self):
+        """**REPOINTED BY ITEM 62: THERE ARE FOUR CONDITIONS NOW, NOT THREE.** This looked for
+        the literals `98%` and `95% coverage`, which item 62 retires -- and which now appear in
+        that document only inside its quotation of the retired bar, so a literal search would
+        have passed for the wrong reason. It asserts the conditions by SUBSTANCE instead: the
+        door, the close leg, the leg that compares against THIS record, and the env flag.
+        """
+        for want in ("/admin/alpaca-seam", "PRICES_PRIMARY_ALPACA", "daily-close leg",
+                     "vs_recorded", "MIN_BARS_FOR_PASS", "UNMEASURED"):
             self.assertIn(want, self.src, want)
+        # And the numbered list really is four items, so a fifth condition cannot be added to
+        # the code while this document still describes three.
+        for n in ("1.", "2.", "3.", "4."):
+            self.assertIn("\n   %s " % n, self.src, n)
 
     def test_it_says_a_vendor_change_is_NOT_a_vintage_event(self):
         """Item 59's own wording: the rules are unchanged, only the price vendor -- so the
