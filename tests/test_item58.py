@@ -271,9 +271,96 @@ class B_Separation(unittest.TestCase):
                     elif isinstance(node, ast.ImportFrom):
                         mods = [node.module or ""] + [a.name for a in node.names]
                     if any("live_slots" in (m or "") for m in mods):
-                        offenders.append(os.path.relpath(p, root))
-        self.assertEqual(sorted(set(offenders)), [],
-                         "modules IMPORT the live path: %r" % (sorted(set(offenders)),))
+                        offenders.append(os.path.relpath(p, root).replace("\\", "/"))
+
+        # REPOINTED BY ITEM 58b, IN THE SAME COMMIT AS THE CHANGE THAT FIRED IT.
+        #
+        # At item 58 this read `== []`, and that was correct: the safety core had no caller, so
+        # "nobody imports it" guaranteed the separation rule for free. Item 58b built the
+        # caller, so the free guarantee is spent and the real property has to be asserted.
+        #
+        # TWO IMPORTERS, NAMED, EACH WITH ITS REASON. A third is red.
+        allowed = {
+            # The live path's own caller. It is the ONLY module that may construct a live
+            # client, and the count check below is what enforces that.
+            "edge/live_cycle.py",
+            # The service, for the two owner-only doors. It imports `live_slots` for `status()`
+            # and `discover_slots()` -- reads, never a client; a separate test asserts the
+            # status door reaches for no constructor at all.
+            "saas/app_saas.py",
+        }
+        self.assertEqual(sorted(set(offenders) - allowed), [],
+                         "modules IMPORT the live path that may not: %r"
+                         % (sorted(set(offenders) - allowed),))
+
+        # AND THE HALF OF THE RULE THAT IS STILL ABSOLUTE: NO PAPER BOOK. A paper book able to
+        # reach a live client is the entire hazard this rule exists for, and nothing in item
+        # 58b changes that.
+        paper = [f for f in offenders
+                 if os.path.basename(f).startswith(("fleet", "paper_", "options_"))
+                 or os.path.basename(f) in ("paper_track.py", "alpaca_broker.py")]
+        self.assertEqual(paper, [], "a PAPER BOOK imports the live path: %r" % paper)
+
+    def test_a_live_client_is_CONSTRUCTED_in_exactly_one_place(self):
+        """THE CHECK THAT REPLACES "nobody imports it", AND IT IS STRONGER THAN WHAT IT
+        REPLACES. An import is harmless; a construction is the thing that can authenticate
+        against the live host. One site, and a second is red whatever it is called.
+
+        `live_cycle` also accepts a `live_client_factory` for tests, and that is NOT a second
+        site: it is a parameter the production path leaves `None`, and the default branch below
+        is the one construction. A test asserts the factory is only ever supplied by a caller.
+        """
+        import ast
+
+        import valuation
+        root = os.path.dirname(os.path.abspath(valuation.__file__))
+        sites = []
+        for dirpath, _d, files in os.walk(root):
+            if "__pycache__" in dirpath:
+                continue
+            for fn in files:
+                if not fn.endswith(".py"):
+                    continue
+                p = os.path.join(dirpath, fn)
+                with open(p, encoding="utf-8") as fh:
+                    try:
+                        tree = ast.parse(fh.read())
+                    except SyntaxError:
+                        continue
+                for node in ast.walk(tree):
+                    if not isinstance(node, ast.Call):
+                        continue
+                    f = node.func
+                    name = (f.attr if isinstance(f, ast.Attribute) else
+                            (f.id if isinstance(f, ast.Name) else ""))
+                    if name == "_LiveClient":
+                        sites.append("%s:%d" % (os.path.relpath(p, root).replace("\\", "/"),
+                                                node.lineno))
+        self.assertEqual(len(sites), 1,
+                         "a live client is constructed in %d places: %r" % (len(sites), sites))
+        self.assertTrue(sites[0].startswith("edge/live_cycle.py"), sites)
+
+    def test_the_one_construction_site_sits_behind_armed_AND_send(self):
+        """Counting the sites is not enough -- the one site has to be GATED. Read structurally:
+        the construction must be inside an `if` whose test names both `armed` and `send`."""
+        import ast
+        import inspect
+
+        from valuation.edge import live_cycle as LC
+        tree = ast.parse(inspect.getsource(LC))
+        gated = False
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.If):
+                continue
+            test_src = ast.dump(node.test)
+            if "armed" not in test_src or "send" not in test_src:
+                continue
+            for inner in ast.walk(node):
+                if (isinstance(inner, ast.Call)
+                        and getattr(inner.func, "attr", getattr(inner.func, "id", ""))
+                        == "_LiveClient"):
+                    gated = True
+        self.assertTrue(gated, "the live client is constructed outside an armed-and-send gate")
 
     def test_NOTHING_OUTSIDE_the_package_reaches_the_live_path_either(self):
         """THE BRIEF SAYS "no CLI, script, test or admin door", AND MY FIRST VERSION OF THE
@@ -313,7 +400,19 @@ class B_Separation(unittest.TestCase):
                         elif isinstance(node, ast.ImportFrom):
                             mods = [node.module or ""] + [a.name for a in node.names]
                         if any("live_slots" in (m or "") for m in mods):
-                            offenders.append(os.path.relpath(p, root))
+                            rel = os.path.relpath(p, root).replace("\\", "/")
+                            # REPOINTED BY ITEM 58b. A TEST of the live path must import it --
+                            # that is what testing it means, and `tests/test_item58.py` was
+                            # already excluded for exactly that reason. `tests/test_item58b.py`
+                            # and `tests/test_item58b_doors.py` are the same case.
+                            #
+                            # WHAT STAYS ABSOLUTE IS `scripts/`: an entry point there is the
+                            # shape that would let a lane trigger a live order from a terminal,
+                            # which is question 4 of the auditor review. The check below is
+                            # keyed on the DIRECTORY, so a script is red however it is named.
+                            if rel.startswith("tests/"):
+                                continue
+                            offenders.append(rel)
         self.assertEqual(sorted(set(offenders)), [],
                          "a script or test reaches the live path: %r"
                          % (sorted(set(offenders)),))
