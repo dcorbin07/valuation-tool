@@ -489,8 +489,8 @@ function companyProfile(d) {
       : `<div class="co-desc muted">No company description is available from our market-data
          source for this name.</div>`}
     <div class="metricline" style="margin-top:12px">
-      ${metric("Market cap", p.market_cap == null ? na : money(p.market_cap * 1e6, 0))}
-      ${metric("Revenue (latest yr)", p.revenue == null ? na : money(p.revenue * 1e6, 0))}
+      ${metric("Market cap", p.market_cap == null ? na : mcap(p.market_cap * 1e6))}
+      ${metric("Revenue (latest yr)", p.revenue == null ? na : mcap(p.revenue * 1e6))}
       ${metric("Revenue growth, 1yr", p.revenue_growth_1y == null ? na
         : pct(p.revenue_growth_1y, 0))}
       ${metric("Revenue growth, 3yr a year", p.revenue_growth_3y == null ? na
@@ -638,7 +638,7 @@ function fairValueMethod(fvb, d) {
         banks on book value and ROE.</span></div>`;
     const gl = d && d.growth_lens;
     if (gl && gl.applies) {
-      html += `<div class="note">Growth lens: revenue compounds to ${money(gl.revenue_at_horizon, 0)}mm over
+      html += `<div class="note">Growth lens: revenue compounds to ${mcap(gl.revenue_at_horizon * 1e6)} over
         ~${gl.horizon_years}y and exits at ${(gl.exit_multiple || 0).toFixed(1)}x sales — a justified
         <b>${gl.implied_ev_sales_now}x</b> sales today` +
         (gl.current_ev_sales != null ? ` versus the <b>${gl.current_ev_sales}x</b> it trades at` : "") + `.</div>`;
@@ -995,7 +995,7 @@ async function loadRecent(ticker, name) {
   let html = "";
   if (q.available) {
     const bits = [];
-    if (q.revenue != null) bits.push(`revenue ${money(q.revenue / 1e6, 0)}m`);
+    if (q.revenue != null) bits.push(`revenue ${mcap(q.revenue)}`);
     if (q.eps_diluted != null) bits.push(`diluted EPS ${money(q.eps_diluted)}`);
     html += `<div class="rc-q"><b>Last reported quarter</b>
       ${q.fiscal ? esc(q.fiscal) + " — " : ""}period ended ${esc(q.period_end || "—")}${
