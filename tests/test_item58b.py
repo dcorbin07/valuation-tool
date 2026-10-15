@@ -128,6 +128,194 @@ class ARestartNeverRepeatsAnOrder(_Tmp):
         self.assertEqual(r.get("event_key"), "rebalance:2026-07-30")
 
 
+class LiveShaped(Stub):
+    """A stub with the LIVE client's reply shape.
+
+    `_LiveClient._request` wraps every reply in `{ok, status, data}` and `AlpacaPaperBroker`
+    unwraps it, so the runner reads a live account's equity one level deeper. A live-slot test
+    handed the paper shape reads `equity = None`, refuses at preflight, and then passes or fails
+    for a reason unrelated to whatever it was testing.
+    """
+
+    def account(self):
+        return {"ok": True, "status": 200, "data": {"equity": self.equity}}
+
+    def positions(self):
+        return {"ok": True, "data": [{"symbol": k, "qty": v}
+                                     for k, v in self._agg().items() if v > 0]}
+
+    def _agg(self):
+        agg = {}
+        for o in self.sent:
+            agg[o["symbol"]] = agg.get(o["symbol"], 0.0) + o["filled_qty"]
+        return agg
+
+
+class TheTwoClientsReplyDifferentlyAndTheRunnerKnows(unittest.TestCase):
+    """PINNED BECAUSE A REFACTOR WOULD UNIFY IT BY ACCIDENT, and because it already cost a
+    confusing test failure: the live reader is one level deeper than the paper one."""
+
+    def test_the_runner_reads_the_live_equity_out_of_data(self):
+        import inspect
+        src = inspect.getsource(LC.run_cycle)
+        self.assertIn('((acct or {}).get("data") or {}).get("equity")', src)
+
+    def test_and_the_paper_equity_directly(self):
+        import inspect
+        src = inspect.getsource(LC.run_cycle)
+        self.assertIn('eq = (acct or {}).get("equity")', src)
+
+    def test_an_unreadable_live_equity_REFUSES_rather_than_sizing_on_nothing(self):
+        """The safe direction, and the one that made the fixture bug harmless."""
+        got = LS.preflight(book=BOOK, equity=None,
+                           marks={"A": {"mid": 10}, "B": {"mid": 10}},
+                           slot_record={}, pct=5.0)
+        self.assertFalse(got["ok"])
+        self.assertTrue(any("equity" in p for p in got["problems"]))
+
+
+class ThePaperOnlySendMode(_Tmp):
+    """ITEM 2b. The paper slot has to be able to actually trade paper, and no live slot may
+    transmit while it does.
+
+    **WHY THIS MODE EXISTS.** The scheduled workflow first shipped with no run token at all,
+    which made the cycle a dry run for EVERY slot including the paper one -- so the paper slot
+    would never have placed an order and the 2026-10-22 rebalance could not have been watched
+    on paper, which is the paper slot's whole purpose. The dry-run default was right for the
+    live slots and wrong for the paper one.
+    """
+
+    def _armed_live_env(self):
+        """A FULLY ARMED live slot: pilot on, a non-zero percentage, an authorized holder and a
+        key pair. This is the hostile case -- a slot that WOULD trade under `run=1`."""
+        return {"LIVE_PILOT_ENABLED": "1",
+                "ALPACA_ACCOUNT_1_KEY_ID": "fake-key-id",
+                "ALPACA_ACCOUNT_1_SECRET_KEY": "fake-secret",
+                "ALPACA_ACCOUNT_1_LIVE_PCT": "5",
+                "ALPACA_ACCOUNT_1_HOLDER": LS.holder(1, {}) or "Don"}
+
+    def test_run_paper_SENDS_for_the_paper_slot(self):
+        c = Stub(fill=1.0)
+        r = LC.run_cycle(env={}, mode=LC.PAPER, root=self.root, book=BOOK, paper_client=c,
+                         notify_send=(lambda cfg, b: True))
+        self.assertEqual(r["mode"], "paper")
+        self.assertTrue(r["paper"]["acted"])
+        self.assertEqual(len(c.sent), 2)
+
+    def test_run_paper_CANNOT_REACH_THE_LIVE_CLIENT(self):
+        """2b's first required pin. The factory is the only way a live client could be built in
+        a test, so if it is never called no live client exists -- and the production path's one
+        construction site sits behind the same gate."""
+        built = []
+        env = self._armed_live_env()
+        a = LS.armed(1, env)
+        self.assertTrue(a["armed"], "the fixture is not actually armed: %r" % a)
+        LC.run_cycle(env=env, mode=LC.PAPER, root=self.root, book=BOOK,
+                     paper_client=Stub(), notify_send=(lambda cfg, b: True),
+                     live_client_factory=lambda n: built.append(n) or LiveShaped())
+        self.assertEqual(built, [], "a PAPER cycle constructed a live client")
+
+    def test_run_paper_SENDS_NOTHING_for_a_fully_armed_live_slot(self):
+        """2b's second required pin. The slot still computes its plan and still diffs against
+        the paper slot -- it just transmits nothing."""
+        env = self._armed_live_env()
+        sent = []
+
+        class Spy(LiveShaped):
+            def place_limit(self, *a, **k):
+                sent.append(a)
+                return super().place_limit(*a, **k)
+
+        r = LC.run_cycle(env=env, mode=LC.PAPER, root=self.root, book=BOOK,
+                         paper_client=Stub(), notify_send=(lambda cfg, b: True),
+                         live_client_factory=lambda n: Spy())
+        self.assertEqual(sent, [], "an armed live slot transmitted during a PAPER cycle")
+        rows = [x for x in r["slots"] if str(x["slot"]) == "1"]
+        self.assertEqual(len(rows), 1, r["slots"])
+        self.assertEqual(rows[0]["sent"], [])
+        self.assertTrue(rows[0]["armed"], "the slot was not armed, so this proves nothing")
+        self.assertIn("PAPER-ONLY", rows[0].get("paper_mode_note") or "")
+
+    def test_the_armed_live_slot_STILL_COMPUTES_so_the_pin_is_not_vacuous(self):
+        """A POSITIVE CONTROL. If the slot were refused for some unrelated reason it would
+        send nothing either, and the two tests above would pass while measuring nothing."""
+        env = self._armed_live_env()
+        r = LC.run_cycle(env=env, mode=LC.PAPER, root=self.root, book=BOOK,
+                         paper_client=Stub(), notify_send=(lambda cfg, b: True),
+                         live_client_factory=lambda n: LiveShaped())
+        row = [x for x in r["slots"] if str(x["slot"]) == "1"][0]
+        self.assertTrue(row["orders"], "the slot computed no plan, so nothing was proven")
+        self.assertIsNotNone(row.get("parity"), "no parity diff was computed")
+
+    def test_run_1_behaves_exactly_as_before(self):
+        """2b's third required pin: live mode is unchanged. An armed slot transmits."""
+        env = self._armed_live_env()
+        sent = []
+
+        class Spy(LiveShaped):
+            def place_limit(self, t, side, qty, lp, client_order_id=None):
+                sent.append((t, side))
+                return super().place_limit(t, side, qty, lp, client_order_id)
+
+        r = LC.run_cycle(env=env, mode=LC.LIVE, root=self.root, book=BOOK,
+                         paper_client=Stub(), notify_send=(lambda cfg, b: True),
+                         live_client_factory=lambda n: Spy())
+        self.assertEqual(r["mode"], "live")
+        self.assertTrue(sent, "an armed live slot sent nothing in LIVE mode")
+        self.assertTrue(r["send_requested"])
+
+    def test_live_mode_still_refuses_an_UNARMED_slot(self):
+        """`run=1` is a permission, never an instruction. At 0% the slot is not armed and
+        nothing is sent -- every slot ships at 0%."""
+        env = dict(self._armed_live_env(), ALPACA_ACCOUNT_1_LIVE_PCT="0")
+        sent = []
+
+        class Spy(LiveShaped):
+            def place_limit(self, *a, **k):
+                sent.append(a)
+                return super().place_limit(*a, **k)
+
+        LC.run_cycle(env=env, mode=LC.LIVE, root=self.root, book=BOOK, paper_client=Stub(),
+                     notify_send=(lambda cfg, b: True), live_client_factory=lambda n: Spy())
+        self.assertEqual(sent, [])
+
+    def test_DRY_sends_nothing_anywhere(self):
+        c = Stub()
+        env = self._armed_live_env()
+        r = LC.run_cycle(env=env, mode=LC.DRY, root=self.root, book=BOOK, paper_client=c,
+                         notify_send=(lambda cfg, b: True),
+                         live_client_factory=lambda n: LiveShaped())
+        self.assertEqual(len(c.sent), 0)
+        self.assertEqual(r["mode"], "dry")
+
+    def test_an_unrecognised_token_is_DRY_and_never_live(self):
+        """`MA6`'s direction. The old door used `bool(request.args.get("run"))`, so `?run=0`
+        was truthy and would have placed LIVE orders."""
+        for tok in ("0", "no", "false", "", None, "dryrun", "yes", "LIVE_PLEASE"):
+            self.assertEqual(LC.send_mode(tok)["mode"], LC.DRY, repr(tok))
+        for tok in ("1", "live", "LIVE", " live "):
+            self.assertEqual(LC.send_mode(tok)["mode"], LC.LIVE, repr(tok))
+        for tok in ("paper", "PAPER", " paper"):
+            self.assertEqual(LC.send_mode(tok)["mode"], LC.PAPER, repr(tok))
+
+    def test_an_unrecognised_token_SAYS_nothing_was_sent(self):
+        """Silence would read identically to a quiet market, so the reason has to say it."""
+        self.assertIn("NOTHING was sent", LC.send_mode("0")["reason"])
+        self.assertIn("truthiness", LC.send_mode("no")["reason"])
+
+    def test_the_old_send_keyword_still_resolves_the_SAFE_way(self):
+        """A caller left on `send=` is not silently downgraded to dry -- `send=True` means
+        LIVE, as it did before. `mode=` wins when both are given."""
+        env = self._armed_live_env()
+        r = LC.run_cycle(env=env, send=True, root=self.root, book=BOOK, paper_client=Stub(),
+                         notify_send=(lambda cfg, b: True),
+                         live_client_factory=lambda n: LiveShaped())
+        self.assertEqual(r["mode"], "live")
+        r2 = LC.run_cycle(env=env, send=False, root=self.root, book=BOOK, paper_client=Stub(),
+                          notify_send=(lambda cfg, b: True))
+        self.assertEqual(r2["mode"], "dry")
+
+
 class TheRemainderIsTheShortfall(_Tmp):
     """THE SECOND BUG, PINNED: holdings are reconciled from FILLS, so a part fill leaves a
     smaller order and never the whole plan again."""

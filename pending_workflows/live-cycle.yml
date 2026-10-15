@@ -6,17 +6,23 @@ name: LIVE PATH CYCLE (paper slot + live slots)
 # messenger -- no checkout of data, no pip install, no push permission, and NO BROKER KEY ON
 # GITHUB. The keys live on Render only.
 #
-# IT SHIPS AS A DRY RUN. There is no `?run=1` anywhere in this file, so installing it CANNOT
-# place an order -- it computes each slot's plan, runs every preflight check, diffs each live
-# slot against the paper slot, alerts on anything broken, and transmits nothing. That is
-# deliberate: Don installs this BEFORE the auditor review, and a workflow that arrived already
-# sending would make installing it the decision to go live, which is the one decision §8
-# reserves for him.
+# IT SENDS ON PAPER ONLY: `?run=paper`.  [amended by item 2b]
 #
-# TO MAKE IT SEND, after the auditor review: add `?run=1` to the curl URL below. Nothing else
-# changes. Even then every live slot is gated by four independent conditions in
-# `valuation/edge/live_slots.py` (LIVE_PILOT_ENABLED, a non-zero percentage, a named
-# authorized holder, and a key pair), and every slot ships at 0%.
+# The first version shipped with NO run token, which made it a dry run for EVERY slot -- the
+# paper slot included. So the paper slot would never have placed a paper order and Don could
+# not have watched the 2026-10-22 rebalance go through on paper, which is the paper slot's
+# entire purpose. The dry-run default was right for the LIVE slots and wrong for the paper one,
+# and the two are now separate modes rather than one default serving both.
+#
+# WHAT `?run=paper` DOES: the paper slot transmits, on the Alpaca PAPER client, at 100% of the
+# paper account. EVERY LIVE SLOT STAYS A DRY RUN whatever its percentage, arming or keys -- and
+# a paper cycle cannot construct a live client at all, because the one construction site sits
+# behind the live gate and a test asserts it.
+#
+# TO MAKE IT SEND LIVE, after the auditor review: change `run=paper` to `run=1` below. Nothing
+# else changes. Even then every live slot is gated by four independent conditions in
+# `valuation/edge/live_slots.py` (LIVE_PILOT_ENABLED, a non-zero percentage, a named authorized
+# holder, and a key pair), and every slot ships at 0%.
 #
 # The door is /admin/live-cycle. Its rules live in `valuation/edge/live_cycle.py`, not here:
 #   * only three events act: a new rebalance on the bound record, a percentage change, and
@@ -25,7 +31,10 @@ name: LIVE PATH CYCLE (paper slot + live slots)
 #     restart never repeats an order and a part fill leaves only the shortfall
 #   * any failed preflight means no orders for that slot plus an alert -- never a guess
 #   * nothing reads a return: no loss stops, no drawdown rule, no drift rebalance (§8a)
-#   * GET computes and returns; only POST?run=1 may transmit
+#   * GET computes and returns, and a GET carrying ANY run token is a 405;
+#     POST?run=paper sends on paper, POST?run=1 permits live
+#   * `?run=0` and `?run=no` are DRY and say so -- the token is matched exactly,
+#     never by truthiness, which read '0' as yes before item 2b fixed it
 #
 # Secrets: SITE_BASE_URL and ADMIN_TOKEN -- both already exist; auto-scan, track-backup,
 # track-row and fleet-cycle use the same two. DISCORD_WEBHOOK_URL optional, and the service
@@ -57,7 +66,7 @@ jobs:
   cycle:
     runs-on: ubuntu-latest
     steps:
-      - name: Run the live-path cycle (DRY RUN - computes and sends nothing)
+      - name: Run the live-path cycle (PAPER ONLY - every live slot stays dry)
         env:
           SITE_BASE_URL: ${{ secrets.SITE_BASE_URL }}
           ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
@@ -67,12 +76,13 @@ jobs:
             echo "::error::SITE_BASE_URL or ADMIN_TOKEN is unset"; exit 1
           fi
           BODY=$(mktemp)
-          # NO `?run=1`. See the header: this is the dry run, and adding that parameter is the
-          # single edit that turns it into a sending cycle.
-          CODE=$(curl -sS -o "$BODY" -w '%{http_code}' \
+          # `?run=paper`, AND IT MUST BE A POST. A GET carrying any run token returns 405
+          # by design -- the verb carries the write -- so a GET here would go red every single
+          # day. Changing `run=paper` to `run=1` is the one edit that permits live sending.
+          CODE=$(curl -sS -o "$BODY" -w '%{http_code}' -X POST \
                    --max-time 280 \
                    -H "X-Admin-Token: ${ADMIN_TOKEN}" \
-                   "${SITE_BASE_URL%/}/admin/live-cycle") || CODE="000"
+                   "${SITE_BASE_URL%/}/admin/live-cycle?run=paper") || CODE="000"
           echo "HTTP ${CODE}"
           cat "$BODY"
           # 200 IS THE ONLY SUCCESS, AND A QUIET CYCLE IS A SUCCESS. Most days carry no event
