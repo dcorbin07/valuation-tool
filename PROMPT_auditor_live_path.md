@@ -19,7 +19,16 @@ Read first, in this order:
 - `LIVE_PILOT_BLOCKED.md` — the two prior refusals and the whole-share measurement that moved
   the vendor;
 - the code: `valuation/edge/live_slots.py`, `valuation/edge/alpaca_broker.py`,
-  `tests/test_item58.py`.
+  `tests/test_item58.py`;
+- **and the caller, added by item 58b after this prompt was first written**:
+  `valuation/edge/live_cycle.py`, `valuation/edge/live_notify.py`, the two doors
+  `/admin/live-slots` and `/admin/live-cycle` in `valuation/saas/app_saas.py`,
+  `pending_workflows/live-cycle.yml`, and `tests/test_item58b.py` plus
+  `tests/test_item58b_doors.py`.
+
+  **THIS IS THE PART THAT PLACES AN ORDER.** At item 58 the safety core had no caller at all,
+  so a review of it could only check what the machinery would refuse. The runner now reconciles
+  fills, plans orders and transmits them, and questions 6 to 8 below exist for it.
 
 ## What was built
 
@@ -32,7 +41,7 @@ else. §8's per-account loss stops are **removed by Don's instruction**, recorde
 **Every slot ships at 0%.** At 0% the cycle computes the orders it would place, logs them, diffs
 them against the paper book, and constructs **no live client at all**.
 
-## Your five questions
+## Your eight questions
 
 Answer each from the code, not from this prompt and not from the docstrings. A docstring
 claiming a property is exactly the thing worth checking.
@@ -63,6 +72,41 @@ claiming a property is exactly the thing worth checking.
    key pair (not discovered), `LIVE_PILOT_ENABLED` set to anything but `1` (pause), a slot other
    than 1 with no signed authorization row, and two slots sharing a credential.
 
+6. **Can a restart, a retry or a manual dispatch repeat an order?** `live_cycle.run_slot`.
+   **THIS ONE FAILED DURING THE BUILD AND WAS CAUGHT BY ITS OWN TEST**, so it is the question
+   worth the most scepticism. Two defects, both repaired: the unfilled-remainder path keyed its
+   event as `"none"`, which is never written to `processed` and so could never recognise itself
+   as already done; and the slot's holdings were never reconciled, so every cycle planned the
+   full buy-in again. Please check the repair rather than the account of it — in particular
+   that `processed` and `open_event` are doing different jobs (seen-and-acted versus
+   not-yet-finished), and that an event closes only when the reconciled holdings meet the
+   targets.
+
+   The sharp sub-question: `reconcile` builds the record from **filled orders matched on a
+   `client_order_id` prefix**. Is that prefix a sound identity? A slot named `1` writes
+   `1-<event>-<ticker>`; could a different slot's order, or a manual order placed in the same
+   account, ever match it?
+
+7. **Is any check vacuous?** `live_slots.preflight` compares the slot's own record against the
+   broker's positions — the one check standing between a stale record and a sale of something
+   the slot does not hold. **It was vacuous**: the first cut passed `None` for the positions, so
+   it had nothing to compare and passed by default. It now reads them, and `None` still travels
+   on when they cannot be read rather than being treated as agreement. Please sweep the other
+   checks for the same shape, and say whether a failure to READ the positions should refuse
+   rather than proceed.
+
+8. **Could installing the scheduled workflow place an order?** `pending_workflows/live-cycle.yml`
+   ships with **no `?run=1`**, so it is a dry run: it computes every slot's plan, runs the
+   checks, diffs each live slot against the paper slot, alerts, and transmits nothing. That is
+   deliberate, because **Don installs it before this review happens** — a workflow that arrived
+   already sending would make installing it the decision to go live. Please confirm the file
+   cannot send as shipped, and that turning it on is the single visible edit the header claims.
+
+   Related, and worth a line: the file now lives in a **tracked** `pending_workflows/` rather
+   than the gitignored `data/pending_workflows/`, because every workflow handed over the old way
+   existed only on Don's disk — unreviewable and unpinnable by any test, which for a file that
+   POSTs an admin door on a schedule is precisely where an unnoticed `?run=1` would live.
+
 ## Two things the build could not settle — please form a view
 
 1. **There is no API way to confirm a paper account.** `GET /v2/account` carries no `is_paper`,
@@ -76,6 +120,14 @@ claiming a property is exactly the thing worth checking.
    is a broker error → no orders for that slot that cycle plus an alert, and the
    re-send-next-cycle behaviour resolves it once cash settles. **Is that the right handling, and
    should Don's first real rebalance be watched for it specifically?**
+3. **The feed-gap measurement is censored on one side and the build says so rather than hiding
+   it.** Every order is a limit at the mid, and a limit order never fills worse than its limit —
+   so the measured price gap can only ever read favourable or zero, and it **cannot** measure
+   the free IEX feed being wrong in the costly direction. The uncensored companion shipped
+   beside it is the **unfilled count**: an order resting at that mid which expired is the mid
+   not being a traded price. **Is that pair an honest substitute for the measurement the brief
+   asked for, or should it be reported as not-measured until a market order exists to measure
+   it with?** Nothing on this path places a market order, and nothing should without a ruling.
 
 ## What is NOT in scope
 
@@ -85,6 +137,6 @@ reviewing whether the software can place an order it should not.
 
 ## Done
 
-A written review in the main folder, with a verdict on each of the five questions and a view on
-the two open facts. If your verdict is that it is safe to proceed, say so explicitly — Don reads
+A written review in the main folder, with a verdict on each of the eight questions and a view on
+the three open facts. If your verdict is that it is safe to proceed, say so explicitly — Don reads
 that line before he enters a key.

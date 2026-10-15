@@ -1220,6 +1220,99 @@ def create_saas_app(cfg=CONFIG):
             "order": "yfinance (primary) -> stooq (fallback) -> fmp (gated off)",
         })
 
+    @app.route("/admin/live-slots", methods=["GET"])
+    def admin_live_slots():
+        """THE OWNER-ONLY STATUS FOR EVERY SLOT — paper and live.  [item 58b steps 1 and 6]
+
+        **IT NEVER SHOWS A VALUE.** Key presence is a BOOLEAN; the question is whether the
+        variable is set, and the answer to that is yes or no. No credential appears in this
+        payload and a test asserts it.
+
+        **A LANE CANNOT READ THIS DOOR**, and that is deliberate rather than inconvenient: it
+        needs the admin token, which no lane ever sees. So a lane building this feature reports
+        key presence as UNKNOWN rather than assuming it, and Don reads the answer here.
+
+        Read-only. It constructs no client of any kind — not even the paper one — so calling it
+        cannot place, cancel or price anything.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..edge import live_cycle as LC
+            from ..edge import live_slots as LS
+            out = LS.status()
+            out["keys"] = LC.key_presence()
+            out["cycle"] = {
+                "door": "/admin/live-cycle",
+                "scheduled_utc": LC.CYCLE_UTC,
+                "why_this_time": ("fractional orders must be `day` limit orders, which are "
+                                  "only worked during a session, so the cycle runs inside "
+                                  "market hours in BOTH daylight regimes -- 10:40am ET in "
+                                  "summer, 9:40am ET in winter -- after the open's wide "
+                                  "spreads have settled and well before the close"),
+            }
+            out["paper_slot"] = {
+                "slot": LC.PAPER_SLOT, "pct": LC.PAPER_PCT,
+                "note": ("the paper slot runs the IDENTICAL runner on the Alpaca paper client "
+                         "at 100% of the paper account. It is how the live path is proven "
+                         "with real orders before any real money, and it is the book every "
+                         "live slot's dry run diffs against."),
+            }
+            # EVERY SLOT'S LAST PARITY DIFF AND NEXT EVENT, read from its own record.
+            for row in out.get("slots") or []:
+                st = LC.read_state(row["slot"])
+                row["processed_events"] = list(st.get("processed") or [])[-5:]
+                row["open_event"] = st.get("open_event")
+                row["last_parity"] = st.get("last_parity")
+                row["holdings_recorded"] = len(st.get("holdings") or {})
+            # IN WORDS, not only as an empty list. An empty table reads as "nothing to
+            # report"; this says "nothing configured", which is a different fact and the one
+            # the Done list asks for by name.
+            if not (out.get("slots") or []):
+                out["live_slots_note"] = (
+                    "no keys yet - no ALPACA_ACCOUNT_<n>_KEY_ID / _SECRET_KEY pair is set, so "
+                    "there is no live slot to show. This is the expected state until the "
+                    "auditor review is done and Don adds slot 1's keys on Render. The paper "
+                    "slot below runs the identical code meanwhile.")
+            pst = LC.read_state(LC.PAPER_SLOT)
+            out["paper_slot"]["processed_events"] = list(pst.get("processed") or [])[-5:]
+            out["paper_slot"]["open_event"] = pst.get("open_event")
+            out["paper_slot"]["holdings_recorded"] = len(pst.get("holdings") or {})
+            out["paper_slot"]["feed_gap"] = LC.feed_gap_report()
+            out["dividends"] = LC.DIVIDEND_STATEMENT
+            return jsonify(out)
+        except Exception as e:
+            return jsonify({"ok": False, "error": safe_error(e)}), 500
+
+    @app.route("/admin/live-cycle", methods=["GET", "POST"])
+    def admin_live_cycle():
+        """THE CYCLE RUNNER'S DOOR — paper slot and every live slot, one function.
+
+        Shaped exactly like `/admin/fleet-cycle` and for the same reason: a cycle needs the
+        broker credentials, network and the bound Index record at once, and only this service
+        holds all three. So the runner is a cron POSTing this door.
+
+        **GET COMPUTES AND RETURNS; ONLY POST?run=1 MAY SEND AN ORDER.** The same split as
+        `/admin/track-row` and `/admin/fleet-cycle`, for a stronger version of the same reason:
+        a side-effecting GET is reachable by a retry, a prefetch, a proxy or a pasted link, and
+        none of those is a decision to trade. A GET here is the dry run.
+
+        **AT 0% NOTHING IS SENT AND NO LIVE CLIENT IS CONSTRUCTED**, whatever the verb. Every
+        slot ships at 0%, so the ordinary state of this door is: compute, log, diff against the
+        paper slot, send nothing.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..edge import live_cycle as LC
+            body = request.get_json(silent=True) or {}
+            wants_run = bool(request.args.get("run") or body.get("run"))
+            only = request.args.get("slot") or body.get("slot")
+            res = LC.run_cycle(send=wants_run, only=(str(only) if only else None))
+            return jsonify(res), (200 if res.get("ok") else 500)
+        except Exception as e:
+            return jsonify({"ok": False, "error": safe_error(e)}), 500
+
     @app.route("/admin/fleet-cycle", methods=["GET", "POST"])
     def admin_fleet_cycle():
         """The daily cycle for the S3-I1 declared fleet. THE RUNNER'S DOOR.

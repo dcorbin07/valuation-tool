@@ -1,0 +1,582 @@
+# -*- coding: utf-8 -*-
+"""ITEM 58b — the cycle runner, the paper slot, parity, alerts, the feed gap, dividends.
+
+**THE TEST THAT MATTERS MOST IS THE IDEMPOTENCY ONE**, and it exists because my own first cut
+failed it: the second cycle re-sent both orders. Two causes, both repaired and both pinned here
+— the remainder path keyed its event as `"none"` (never recorded as processed), and the slot's
+holdings were never reconciled from fills, so every cycle planned the full buy-in again.
+
+Nothing here touches a network. Every broker is a stub, and a test asserts the module places an
+order through exactly one call so a stub cannot miss a second path.
+"""
+import ast
+import json
+import os
+import shutil
+import tempfile
+import unittest
+
+import state_isolation  # noqa: F401
+
+from valuation.edge import live_cycle as LC
+from valuation.edge import live_notify as LN
+from valuation.edge import live_slots as LS
+
+BOOK = {"ok": True, "formed_on": "2026-07-30",
+        "positions": [{"ticker": "A", "status": "held", "weight": 0.6},
+                      {"ticker": "B", "status": "held", "weight": 0.4},
+                      {"ticker": "GONE", "status": "exited", "weight": 0.0}]}
+
+
+class Stub:
+    """A broker that fills whatever share of each order it is told to, and remembers all of it.
+
+    It is deliberately NOT a mock of `AlpacaPaperBroker`: it implements the four methods the
+    runner uses, so a runner that reached for a fifth would fail here rather than pass against
+    a mock that answers everything.
+    """
+
+    def __init__(self, fill=1.0, equity=1000.0, improve=0.003, reject=False):
+        self.sent, self.fill, self.equity = [], fill, equity
+        self.improve, self.reject = improve, reject
+
+    def account(self):
+        return {"equity": self.equity}
+
+    def quotes(self, tickers):
+        return {t: {"mid": 10.0, "bid": 9.99, "ask": 10.01} for t in tickers}
+
+    def positions(self):
+        agg = {}
+        for o in self.sent:
+            agg[o["symbol"]] = agg.get(o["symbol"], 0.0) + o["filled_qty"]
+        return [{"ticker": k, "qty": v} for k, v in agg.items() if v > 0]
+
+    def orders(self, status="all", limit=100):
+        return list(self.sent)
+
+    def place_limit(self, ticker, side, qty, limit_price, client_order_id=None):
+        if self.reject:
+            return {"ok": False, "error": "the stub broker refuses this order"}
+        self.sent.append({"symbol": ticker, "side": side, "qty": qty,
+                          "limit_price": limit_price,
+                          "filled_avg_price": round(limit_price * (1 - self.improve), 4),
+                          "filled_qty": round(qty * self.fill, 9),
+                          "status": "filled" if self.fill >= 1 else "partially_filled",
+                          "client_order_id": client_order_id or ""})
+        return {"ok": True, "id": "stub-%d" % len(self.sent)}
+
+
+class _Tmp(unittest.TestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def cycle(self, client, **kw):
+        kw.setdefault("send", True)
+        return LC.run_cycle(env={}, root=self.root, book=BOOK, paper_client=client,
+                            notify_send=(lambda cfg, body: True), **kw)
+
+
+class ARestartNeverRepeatsAnOrder(_Tmp):
+    """Item 58b step 2's own words. **MY FIRST CUT FAILED THIS AND IT COST TWO REAL BUGS.**"""
+
+    def test_a_second_cycle_on_the_same_event_sends_nothing(self):
+        c = Stub(fill=1.0)
+        first = self.cycle(c)["paper"]
+        self.assertTrue(first["acted"])
+        self.assertEqual(len(c.sent), 2)
+        again = self.cycle(c)["paper"]
+        self.assertEqual(len(c.sent), 2, "A RESTART REPEATED AN ORDER")
+        self.assertFalse(again["acted"])
+        self.assertIn("already met", again["reason"])
+
+    def test_three_further_cycles_still_send_nothing(self):
+        c = Stub(fill=1.0)
+        self.cycle(c)
+        for _ in range(3):
+            self.cycle(c)
+        self.assertEqual(len(c.sent), 2)
+
+    def test_the_event_is_recorded_as_processed_and_stays_OPEN_until_it_is_met(self):
+        """MY OWN EXPECTATION WAS WRONG HERE AND THE CODE IS RIGHT. Right after sending, the
+        runner has no fill to read -- an order it submitted a second ago has not been
+        reconciled -- so the event is correctly still OPEN. It closes on the NEXT cycle, when
+        the reconciled holdings meet the targets. Asserting closure immediately would have
+        demanded the runner believe its own submissions, which is the second of the two bugs
+        this class exists to pin."""
+        c = Stub(fill=1.0)
+        self.cycle(c)
+        st = LC.read_state(LC.PAPER_SLOT, self.root)
+        self.assertEqual(st["processed"], ["rebalance:2026-07-30"])
+        self.assertEqual(st["open_event"], "rebalance:2026-07-30")
+        self.cycle(c)
+        self.assertIsNone(LC.read_state(LC.PAPER_SLOT, self.root)["open_event"],
+                          "the event stayed open after its targets were met")
+
+    def test_the_remainder_is_never_keyed_none(self):
+        """THE FIRST BUG, PINNED. `event_for` returns `"none"` once the slot has acted, so the
+        remainder path used to compute `key = "none"` -- a key never written to `processed`,
+        which is why it could never recognise itself as done."""
+        c = Stub(fill=0.5)
+        self.cycle(c)
+        st = LC.read_state(LC.PAPER_SLOT, self.root)
+        self.assertEqual(st["open_event"], "rebalance:2026-07-30")
+        self.assertNotIn("none", st["processed"])
+        r = self.cycle(c)["paper"]
+        self.assertEqual(r["event"], "remainder")
+        self.assertEqual(r.get("event_key"), "rebalance:2026-07-30")
+
+
+class TheRemainderIsTheShortfall(_Tmp):
+    """THE SECOND BUG, PINNED: holdings are reconciled from FILLS, so a part fill leaves a
+    smaller order and never the whole plan again."""
+
+    def test_a_part_fill_leaves_a_strictly_smaller_order(self):
+        c = Stub(fill=0.4)
+        first = sorted((o["ticker"], o["qty"]) for o in self.cycle(c)["paper"]["orders"])
+        second = sorted((o["ticker"], o["qty"]) for o in self.cycle(c)["paper"]["orders"])
+        self.assertEqual([t for t, _ in first], [t for t, _ in second])
+        for (t, a), (_, b) in zip(first, second):
+            self.assertLess(b, a, "the remainder for %s is not smaller than the first plan" % t)
+
+    def test_holdings_come_from_fills_and_not_from_submissions(self):
+        """A record built from what was SENT would claim the full quantity and plan no
+        remainder -- leaving the event half-done and looking complete."""
+        c = Stub(fill=0.4)
+        self.cycle(c)
+        self.cycle(c)
+        st = LC.read_state(LC.PAPER_SLOT, self.root)
+        self.assertAlmostEqual(st["holdings"]["A"], 24.0, places=6)   # 0.4 x 60, not 60
+
+    def test_a_rejected_order_records_no_holding(self):
+        c = Stub(reject=True)
+        r = self.cycle(c)["paper"]
+        self.assertTrue(r["acted"])
+        self.assertTrue(all(not s["ok"] for s in r["sent"]))
+        self.assertEqual(LC.read_state(LC.PAPER_SLOT, self.root)["holdings"], {})
+        self.assertTrue(any(a["kind"] == "broker_error" for a in r["alerts"]))
+
+    def test_reconcile_never_records_a_negative_holding(self):
+        """A short is not a position this path is authorised to take, so a sell larger than the
+        record reduces to zero rather than going through it."""
+        got = LC.reconcile(_Orders([{"symbol": "A", "side": "sell", "filled_qty": 5.0,
+                                     "status": "filled", "client_order_id": "paper-x-A"}]),
+                           {"slot": "paper", "holdings": {"A": 1.0}})
+        self.assertTrue(got["ok"])
+        self.assertNotIn("A", got["holdings"])
+
+
+class _Orders:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def orders(self, status="all", limit=100):
+        return list(self._rows)
+
+
+class OnlyThisSlotsOwnOrdersAreRead(unittest.TestCase):
+    def test_another_slots_orders_are_ignored(self):
+        """Don's own holdings, and any other slot's, are never read into this slot's record --
+        so the planner can only ever sell what this slot itself bought."""
+        rows = [{"symbol": "A", "side": "buy", "filled_qty": 5.0, "status": "filled",
+                 "client_order_id": "paper-rebalance:2026-07-30-A"},
+                {"symbol": "Z", "side": "buy", "filled_qty": 99.0, "status": "filled",
+                 "client_order_id": "1-rebalance:2026-07-30-Z"},
+                {"symbol": "Y", "side": "buy", "filled_qty": 77.0, "status": "filled",
+                 "client_order_id": ""}]
+        got = LC.reconcile(_Orders(rows), {"slot": "paper"})
+        self.assertEqual(sorted(got["holdings"]), ["A"])
+        self.assertEqual(got["n_orders"], 1)
+
+    def test_a_client_that_cannot_list_orders_leaves_the_record_alone(self):
+        got = LC.reconcile(object(), {"slot": "paper", "holdings": {"A": 3.0}})
+        self.assertFalse(got["ok"])
+        self.assertEqual(got["holdings"], {"A": 3.0})
+        self.assertIn("cannot list orders", got["reason"])
+
+
+class OnlyTheThreeEvents(_Tmp):
+    def test_a_day_with_no_event_sends_nothing(self):
+        c = Stub(fill=1.0)
+        self.cycle(c)
+        n = len(c.sent)
+        self.assertEqual(len(self.cycle(c)["paper"]["orders"]), 0)
+        self.assertEqual(len(c.sent), n)
+
+    def test_a_percentage_change_is_an_event(self):
+        ev = LS.event_for({"last_event_date": "2026-07-30", "last_pct": 0.0}, BOOK, 1.0)
+        self.assertTrue(ev["act"])
+        self.assertEqual(ev["event"], "pct_change")
+
+    def test_a_new_rebalance_is_an_event(self):
+        ev = LS.event_for({"last_event_date": "2026-07-30", "last_pct": 1.0},
+                          dict(BOOK, formed_on="2026-10-22"), 1.0)
+        self.assertTrue(ev["act"])
+        self.assertEqual(ev["event"], "rebalance")
+
+    def test_nothing_in_this_module_reads_a_RETURN(self):
+        """No loss stops, no drawdown rule, no drift rebalance -- §8a. Walked on the AST so a
+        docstring saying the words cannot trip it, which is the substring-ban family this
+        project has paid for repeatedly.
+        """
+        with open(LC.__file__, encoding="utf-8") as fh:
+            tree = ast.parse(fh.read())
+        banned = {"stop_loss", "stoploss", "drawdown", "trailing_stop", "take_profit",
+                  "pnl", "unrealized_pl", "unrealized_plpc", "drift_rebalance"}
+        seen = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name):
+                seen.add(node.id.lower())
+            elif isinstance(node, ast.Attribute):
+                seen.add(node.attr.lower())
+            elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+                if node.value.lower() in banned:
+                    seen.add(node.value.lower())
+        self.assertEqual(sorted(seen & banned), [])
+
+    def test_the_guard_can_fire(self):
+        """A POSITIVE CONTROL for the AST walk above, because a guard that matches nothing
+        reads exactly like a clean tree."""
+        tree = ast.parse("x = account.unrealized_pl\nif x < drawdown: pass\n")
+        attrs = {n.attr.lower() for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
+        names = {n.id.lower() for n in ast.walk(tree) if isinstance(n, ast.Name)}
+        self.assertIn("unrealized_pl", attrs)
+        self.assertIn("drawdown", names)
+
+
+class ABrokenInputMeansNoOrdersPlusAnAlert(_Tmp):
+    def test_a_missing_price_sends_nothing_and_alerts(self):
+        class NoQuotes(Stub):
+            def quotes(self, tickers):
+                return {}
+
+        c = NoQuotes()
+        r = self.cycle(c)["paper"]
+        self.assertEqual(len(c.sent), 0)
+        self.assertFalse(r["preflight"]["ok"])
+        self.assertTrue(any(a["kind"] == "preflight_failed" for a in r["alerts"]))
+
+    def test_a_failed_preflight_changes_no_holding(self):
+        class NoQuotes(Stub):
+            def quotes(self, tickers):
+                return {}
+
+        self.cycle(NoQuotes())
+        st = LC.read_state(LC.PAPER_SLOT, self.root)
+        self.assertEqual(st["holdings"], {})
+        self.assertEqual(st["processed"], [])
+
+    def test_the_record_versus_broker_check_is_not_vacuous(self):
+        """IT WAS. The first cut passed `None` for the broker's positions, so the one check
+        standing between a stale record and a sale of something the slot does not hold could
+        never fire. `MA21`'s converse."""
+        r = self.cycle(Stub(), send=False)["paper"]
+        self.assertIsNotNone(r.get("broker_positions_read"))
+
+    def test_a_disagreeing_record_refuses_in_both_shapes(self):
+        """The caller sends a list and a mapping is the obvious thing to build; iterating a
+        mapping yields its KEYS, which used to raise `AttributeError` on a string and be
+        reported as "this slot failed" rather than "the shapes disagree"."""
+        kw = dict(book=BOOK, equity=1000.0, marks={"A": {"mid": 10}, "B": {"mid": 10}},
+                  slot_record={"A": 6.0}, pct=100.0)
+        a = LS.preflight(broker_positions={"A": 2.0}, **kw)
+        b = LS.preflight(broker_positions=[{"ticker": "A", "qty": 2.0}], **kw)
+        self.assertFalse(a["ok"])
+        self.assertEqual(a["problems"], b["problems"])
+
+
+class ZeroPercentConstructsNoClient(_Tmp):
+    def test_an_unconfigured_live_slot_is_shown_as_having_no_keys(self):
+        """Item 58b's Done list: "Without them, shown as 'no keys yet'"."""
+        r = self.cycle(Stub(), send=False)
+        self.assertEqual(r["slots"], [])
+        self.assertIn("no live slot has a key pair configured", r["reason"])
+
+    def test_the_paper_slot_is_pinned_at_a_hundred_percent(self):
+        self.assertEqual(LC.PAPER_PCT, 100.0)
+        self.assertEqual(LC.PAPER_SLOT, "paper")
+        self.assertIsInstance(LC.PAPER_SLOT, str)   # cannot collide with an integer slot
+
+
+class TheParityDiff(unittest.TestCase):
+    def test_identical_plans_at_the_same_value_agree(self):
+        p = [{"ticker": "A", "side": "buy", "qty": 6.0, "limit_price": 10.0}]
+        got = LC.parity(p, p, live_value=1000.0, paper_value=1000.0)
+        self.assertTrue(got["ok"])
+
+    def test_a_missing_name_is_a_mismatch(self):
+        live = [{"ticker": "A", "side": "buy", "qty": 6.0, "limit_price": 10.0}]
+        paper = live + [{"ticker": "B", "side": "buy", "qty": 4.0, "limit_price": 10.0}]
+        got = LC.parity(live, paper, live_value=1000.0, paper_value=1000.0)
+        self.assertFalse(got["ok"])
+
+    def test_it_scales_to_the_same_equity(self):
+        """A live slot at a different account size must still agree in SHAPE, or the diff would
+        report a mismatch on every slot whose account is not the paper account's size."""
+        live = [{"ticker": "A", "side": "buy", "qty": 0.6, "limit_price": 10.0}]
+        paper = [{"ticker": "A", "side": "buy", "qty": 6.0, "limit_price": 10.0}]
+        got = LC.parity(live, paper, live_value=100.0, paper_value=1000.0)
+        self.assertTrue(got["ok"], got.get("reason"))
+
+
+class TheFeedGapMeasurement(_Tmp):
+    def test_absent_is_not_zero(self):
+        """`V6`/`O21-D2`'s `C5`: a measurement not yet taken and a measured gap of nothing must
+        not read the same."""
+        rep = LC.feed_gap_report(self.root)
+        self.assertFalse(rep["complete"])
+        self.assertEqual(rep["n"], 0)
+        self.assertIn("no paper fill", rep["reason"])
+
+    def test_option_stays_unmeasured_while_stock_is_measured(self):
+        LC.record_feed_gap([{"ticker": "A", "kind": "stock", "mid": 10.0, "fill": 9.97,
+                             "side": "buy"}], self.root)
+        rep = LC.feed_gap_report(self.root)
+        self.assertTrue(rep["stock"]["measured"])
+        self.assertFalse(rep["option"]["measured"])
+        self.assertIn("no option fill", rep["option"]["reason"])
+
+    def test_it_is_incomplete_until_thirty(self):
+        self.assertEqual(LC.FEED_GAP_N, 30)
+        LC.record_feed_gap([{"ticker": "A", "kind": "stock", "mid": 10.0, "fill": 9.9,
+                             "side": "buy"}], self.root)
+        self.assertIn("1 of 30", LC.feed_gap_report(self.root)["reason"])
+
+    def test_the_window_never_exceeds_thirty(self):
+        rows = [{"ticker": "A", "kind": "stock", "mid": 10.0, "fill": 9.9, "side": "buy",
+                 "order_id": "o%d" % i} for i in range(50)]
+        LC.record_feed_gap(rows, self.root)
+        self.assertEqual(LC.feed_gap_report(self.root)["n"], 30)
+
+    def test_one_fill_is_counted_once_however_often_it_is_re_read(self):
+        """`reconcile` re-reads the same filled orders on EVERY cycle, so without an
+        idempotence key the window would fill up with one execution counted thirty times."""
+        c = Stub(fill=1.0)
+        for _ in range(5):
+            self.cycle(c)
+        self.assertEqual(LC.feed_gap_report(self.root)["n"], 2)
+
+    def test_the_censoring_ships_with_the_measurement(self):
+        """THE BINDING LIMITATION. Every order is a limit at the mid and a limit order never
+        fills worse than its limit, so the price gap is one-sided BY CONSTRUCTION."""
+        LC.record_feed_gap([{"ticker": "A", "kind": "stock", "mid": 10.0, "fill": 9.97,
+                             "side": "buy"}], self.root)
+        cen = LC.feed_gap_report(self.root)["censoring"]
+        self.assertTrue(cen["price_gap_is_one_sided"])
+        self.assertIn("never fills worse", cen["why"])
+        self.assertIn("unfilled count", cen["uncensored_companion"])
+
+    def test_a_measured_gap_is_never_unfavourable(self):
+        c = Stub(fill=1.0, improve=0.003)
+        self.cycle(c)
+        self.cycle(c)
+        self.assertLessEqual(LC.feed_gap_report(self.root)["stock"]["median_gap_frac"], 0)
+
+    def test_only_the_paper_slot_feeds_it(self):
+        """Pooling a live fill in would mix two accounts' executions into one figure about the
+        free feed."""
+        import inspect
+        self.assertIn("if str(slot) == PAPER_SLOT:", inspect.getsource(LC.run_slot))
+
+
+class Dividends(unittest.TestCase):
+    def test_the_omission_is_stated_rather_than_filled_in(self):
+        d = LC.DIVIDEND_STATEMENT
+        self.assertFalse(d["paid_by_paper"])
+        self.assertIn("does not pay dividends", d["statement"])
+        self.assertIn("understates", d["statement"])
+
+    def test_it_says_why_a_credit_would_be_worse_than_the_statement(self):
+        self.assertIn("overwritten", LC.DIVIDEND_STATEMENT["why_not_credited"])
+
+    def test_nothing_credits_a_dividend_anywhere_in_the_cycle(self):
+        with open(LC.__file__, encoding="utf-8") as fh:
+            tree = ast.parse(fh.read())
+        calls = {n.func.attr for n in ast.walk(tree)
+                 if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+        self.assertEqual(sorted(c for c in calls if "dividend" in c.lower()), [])
+
+
+class TheAnnouncementDiscipline(_Tmp):
+    """`fleet_notify`'s rules, reused verbatim because they were paid for."""
+
+    def setUp(self):
+        super().setUp()
+        self.bodies = []
+        self.send = lambda cfg, body: (self.bodies.append(body) or True)
+
+    def test_an_order_is_announced_once(self):
+        a = [{"kind": "live_order_sent", "slot": "paper", "event": "rebalance:x",
+              "reason": "buy A 6.000000 @ 10.00"}]
+        self.assertTrue(LN.announce(a, root=self.root, send=self.send)["sent"])
+        self.assertFalse(LN.announce(a, root=self.root, send=self.send)["sent"])
+        self.assertEqual(len(self.bodies), 1)
+
+    def test_a_re_priced_remainder_IS_a_new_line(self):
+        """It is a new order at a new limit for a smaller quantity, so it earns a line. Only a
+        byte-identical retry is suppressed."""
+        base = {"kind": "live_order_sent", "slot": "paper", "event": "rebalance:x"}
+        LN.announce([dict(base, reason="buy A 6.000000 @ 10.00")], root=self.root,
+                    send=self.send)
+        got = LN.announce([dict(base, reason="buy A 3.600000 @ 10.02")], root=self.root,
+                          send=self.send)
+        self.assertTrue(got["sent"])
+        self.assertEqual(got["n_events"], 1)
+
+    def test_a_repeating_condition_is_announced_once(self):
+        """A slot whose price map is short a name is short it every cycle. Announcing each one
+        posts the same line daily until nobody reads it, and then the day it changes nobody
+        notices."""
+        cond = [{"kind": "preflight_failed", "slot": "1", "reason": "no usable price for AAA"}]
+        self.assertTrue(LN.announce(cond, root=self.root, send=self.send)["sent"])
+        self.assertFalse(LN.announce(cond, root=self.root, send=self.send)["sent"])
+
+    def test_a_DIFFERENT_condition_on_the_same_slot_is_news(self):
+        LN.announce([{"kind": "preflight_failed", "slot": "1", "reason": "no price for AAA"}],
+                    root=self.root, send=self.send)
+        got = LN.announce([{"kind": "parity_mismatch", "slot": "1", "reason": "B differs"}],
+                          root=self.root, send=self.send)
+        self.assertTrue(got["sent"])
+
+    def test_a_condition_clearing_is_one_line(self):
+        cond = [{"kind": "preflight_failed", "slot": "1", "reason": "no usable price"}]
+        LN.announce(cond, root=self.root, send=self.send)
+        got = LN.announce([], root=self.root, send=self.send)
+        self.assertTrue(got["sent"])
+        self.assertEqual(got["n_cleared"], 1)
+        self.assertIn("has cleared", self.bodies[-1])
+
+    def test_a_quiet_cycle_stays_quiet(self):
+        got = LN.announce([], root=self.root, send=self.send)
+        self.assertFalse(got["sent"])
+        self.assertTrue(got["quiet"])
+        self.assertEqual(self.bodies, [])
+
+    def test_a_failed_post_does_not_advance_the_record(self):
+        """A failed post that moved the watermark would lose the very order it failed to
+        announce, silently and permanently."""
+        a = [{"kind": "live_order_sent", "slot": "paper", "event": "e", "reason": "buy A"}]
+        self.assertFalse(LN.announce(a, root=self.root,
+                                     send=lambda cfg, b: False)["sent"])
+        self.assertTrue(LN.announce(a, root=self.root, send=self.send)["sent"])
+
+    def test_a_webhook_that_raises_never_raises_out(self):
+        def boom(cfg, body):
+            raise RuntimeError("discord is down")
+
+        got = LN.announce([{"kind": "broker_error", "slot": "1", "reason": "x"}],
+                          root=self.root, send=boom)
+        self.assertFalse(got["sent"])
+        self.assertIn("webhook failed", got["reason"])
+
+    def test_a_notifier_failure_is_never_the_cycles(self):
+        def boom(cfg, body):
+            raise RuntimeError("discord is down")
+
+        r = LC.run_cycle(env={}, root=self.root, book=BOOK, send=True,
+                         paper_client=Stub(), notify_send=boom)
+        self.assertTrue(r["ok"])
+        self.assertFalse(r["announced"]["sent"])
+
+    def test_the_body_carries_no_return_figure(self):
+        """§8's horizon is pre-committed and a Discord line is not where a figure gets read
+        early -- `fleet_notify`'s prohibition, same words."""
+        body = LN.compose(LN.pending([{"kind": "live_order_sent", "slot": "paper",
+                                       "event": "e", "reason": "buy A 6.0 @ 10.00"}],
+                                     self.root))
+        low = body.lower()
+        for word in ("p&l", "pnl", "profit", "return", "gain", "up ", "down ", "%"):
+            self.assertNotIn(word, low, "the body carries %r" % word)
+
+
+class OneSlotsFailureNeverStopsAnother(_Tmp):
+    """The module docstring's own promise, and the code used to break it on one line."""
+
+    def test_a_paper_account_that_raises_does_not_take_the_cycle_down(self):
+        """`pc.account()` sat outside any `try`, so a blip on the paper side raised into the
+        outer handler and returned having run NOTHING -- costing every live slot its dry run
+        and its parity diff, in an account the live slots do not even use."""
+        class Blip(Stub):
+            def account(self):
+                raise RuntimeError("the broker timed out")
+
+        r = self.cycle(Blip())
+        self.assertTrue(r["ok"], r.get("reason"))
+        self.assertTrue(any(a["kind"] == "paper_account_unreadable" for a in r["alerts"]))
+
+    def test_an_unbuildable_paper_client_still_lets_the_cycle_report(self):
+        """The ordinary state before Don's keys exist: no client, every slot still runs, and
+        the reason says which one could not."""
+        r = LC.run_cycle(env={}, root=self.root, book=BOOK, send=False,
+                         notify_send=(lambda cfg, b: True))
+        self.assertTrue(r["ok"])
+        self.assertIsNotNone(r["paper"])
+
+    def test_a_quote_failure_refuses_rather_than_trading_at_any_price(self):
+        """A missing price is a BROKEN INPUT, never a reason to trade -- so the slot refuses
+        at preflight. The direction matters: the alternative is an order at a guessed mid."""
+        class NoQuotes(Stub):
+            def quotes(self, tickers):
+                raise RuntimeError("the quote feed is down")
+
+        r = self.cycle(NoQuotes())
+        self.assertTrue(r["ok"])
+        self.assertEqual(len(r["paper"]["orders"]), 0)
+
+
+class TheRecordSurvivesAGarbageFile(_Tmp):
+    def test_an_unreadable_state_file_reads_as_empty_and_never_raises(self):
+        os.makedirs(LC.live_dir(self.root), exist_ok=True)
+        with open(LC.state_path(LC.PAPER_SLOT, self.root), "w", encoding="utf-8") as fh:
+            fh.write("{not json")
+        st = LC.read_state(LC.PAPER_SLOT, self.root)
+        self.assertEqual(st["processed"], [])
+
+    def test_an_unreadable_notify_file_reads_as_empty(self):
+        os.makedirs(LC.live_dir(self.root), exist_ok=True)
+        with open(LN.state_path(self.root), "w", encoding="utf-8") as fh:
+            fh.write("[]")
+        self.assertEqual(LN._read(self.root)["announced"], [])
+
+    def test_a_record_from_a_different_schema_is_not_trusted(self):
+        os.makedirs(LC.live_dir(self.root), exist_ok=True)
+        with open(LN.state_path(self.root), "w", encoding="utf-8") as fh:
+            json.dump({"schema": "live_notify/0", "announced": ["x"]}, fh)
+        self.assertEqual(LN._read(self.root)["announced"], [])
+
+
+class TheScheduledTime(unittest.TestCase):
+    def test_it_is_inside_the_session_in_both_daylight_regimes(self):
+        """14:40 UTC is 10:40am ET in summer and 9:40am ET in winter. A fixed UTC cron that
+        drifted outside the session would leave `day` limit orders unworked -- and this repo
+        has been bitten by exactly that twice a year already."""
+        self.assertEqual(LC.CYCLE_UTC, "14:40")
+        h, m = (int(x) for x in LC.CYCLE_UTC.split(":"))
+        for offset in (4, 5):                      # EDT, EST
+            et = h - offset
+            self.assertGreater(et * 60 + m, 9 * 60 + 30, "before the open at UTC-%d" % offset)
+            self.assertLess(et * 60 + m, 16 * 60, "after the close at UTC-%d" % offset)
+
+
+class KeyPresenceIsABoolean(unittest.TestCase):
+    def test_no_value_is_ever_returned(self):
+        env = {"ALPACA_PAPER_KEY_ID": "PKSECRETVALUE", "ALPACA_PAPER_SECRET_KEY": "shhh"}
+        got = LC.key_presence(env)
+        blob = json.dumps(got)
+        self.assertNotIn("PKSECRETVALUE", blob)
+        self.assertNotIn("shhh", blob)
+
+    def test_it_says_present_when_both_are_set(self):
+        got = LC.key_presence({"ALPACA_PAPER_KEY_ID": "a", "ALPACA_PAPER_SECRET_KEY": "b"})
+        self.assertTrue(got["paper"]["both_present"])
+
+    def test_one_of_two_is_NOT_present(self):
+        """`MA6`: err toward the state that refuses. Half a key pair cannot authenticate, so
+        reporting it as present would promise a working client that does not exist."""
+        got = LC.key_presence({"ALPACA_PAPER_KEY_ID": "a"})
+        self.assertFalse(got["paper"]["both_present"])
+
+
+if __name__ == "__main__":
+    unittest.main()

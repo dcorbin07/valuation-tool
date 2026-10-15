@@ -368,8 +368,17 @@ def preflight(*, book: dict, equity, marks: dict, slot_record: dict, pct,
     if broker_positions is not None:
         # THE SLOT'S OWN RECORD MUST AGREE WITH THE BROKER on the names it believes it holds.
         # A disagreement means one of the two is wrong, and trading on either would be a guess.
-        by_broker = {str((q or {}).get("ticker") or "").upper(): _f((q or {}).get("qty"))
-                     for q in broker_positions}
+        # EITHER SHAPE. A list of `{ticker, qty}` is what `AlpacaPaperBroker.positions`
+        # returns and what this function documents; a `{SYM: qty}` mapping is the obvious
+        # thing for a caller to build, and iterating one yields its KEYS -- so the strict
+        # version raised `AttributeError` on a string, which a caller's own `except` would
+        # report as "this slot failed" and NOT as "the shapes disagree". Accepting both is
+        # two lines and removes a whole class of silent misreport.
+        if hasattr(broker_positions, "items"):
+            by_broker = {str(k).upper(): _f(v) for k, v in broker_positions.items()}
+        else:
+            by_broker = {str((q or {}).get("ticker") or "").upper(): _f((q or {}).get("qty"))
+                         for q in broker_positions}
         for tkr, qty in (slot_record or {}).items():
             theirs = by_broker.get(str(tkr).upper())
             mine = _f(qty) or 0.0
@@ -443,7 +452,7 @@ def status(env=None, contract_text: str = None) -> dict:
                          "variable arm a slot." % ", ".join(RETIRED_VARS)),
         "loss_stops": ("REMOVED by Don's instruction of 2026-10-14 (contract section 8a). "
                        "Nothing here halts, trims or freezes on performance."),
-        "as_of": _dt.datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "as_of": _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
 
 
@@ -492,6 +501,21 @@ class _LiveClient:
 
     def positions(self) -> dict:
         return self._request("GET", "/v2/positions")
+
+    def orders(self, status: str = "all", limit: int = 100) -> list:
+        """THIS SLOT'S ORDERS, raw, for `live_cycle.reconcile` to total the fills from.
+
+        Returns a LIST and never raises, matching `AlpacaPaperBroker.orders` exactly -- because
+        `reconcile` runs on both and a shape difference between the two clients would make the
+        paper slot prove a program the live slot does not run.
+
+        Without this a live slot's holdings record would never advance past empty, and every
+        cycle would plan the full buy-in again: the defect that was just repaired, surviving on
+        the one path where repeating an order costs real money.
+        """
+        got = self._request("GET", "/v2/orders",
+                            params={"status": status, "limit": int(limit)})
+        return list(got.get("data") or []) if got.get("ok") else []
 
     def place_limit(self, ticker: str, side: str, qty: float, limit_price: float,
                     client_order_id: str = None) -> dict:

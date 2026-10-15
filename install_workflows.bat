@@ -27,9 +27,22 @@ if not defined GIT (
 )
 if not defined GIT ( echo Git not found. & goto :done )
 
+rem ITEM 58b -- TWO SOURCE DIRECTORIES, and the tracked one is the point.
+rem
+rem `data\pending_workflows` is inside the gitignored `/data/`, so every workflow handed over
+rem through it has existed only on this machine: unreviewable in the repo and unpinnable by any
+rem test. For a file that POSTs an admin door on a schedule that is the one place a `?run=1`
+rem could appear with nobody able to see it.
+rem
+rem `pending_workflows` at the repo root is TRACKED. New handovers go there and a test reads
+rem them. The old path is still read so anything already waiting on disk still installs.
 set "SRC=%~dp0data\pending_workflows"
-if not exist "%SRC%\*.yml" (
-  echo Nothing waiting in data\pending_workflows - nothing to install.
+set "SRC2=%~dp0pending_workflows"
+set "HAVE="
+if exist "%SRC%\*.yml" set "HAVE=1"
+if exist "%SRC2%\*.yml" set "HAVE=1"
+if not defined HAVE (
+  echo Nothing waiting in pending_workflows or data\pending_workflows - nothing to install.
   goto :done
 )
 
@@ -43,6 +56,11 @@ set "NAMES="
 for %%F in ("%SRC%\*.yml") do (
   copy /y "%%F" "%WT%\.github\workflows\%%~nxF" >nul
   echo   staged  .github\workflows\%%~nxF
+  set "NAMES=!NAMES! %%~nxF"
+)
+for %%F in ("%SRC2%\*.yml") do (
+  copy /y "%%F" "%WT%\.github\workflows\%%~nxF" >nul
+  echo   staged  .github\workflows\%%~nxF  [tracked]
   set "NAMES=!NAMES! %%~nxF"
 )
 
@@ -73,8 +91,13 @@ echo INSTALLED on main:%NAMES%
 popd
 
 :installed
-if not exist "%SRC%\installed" mkdir "%SRC%\installed"
-for %%F in ("%SRC%\*.yml") do move /y "%%F" "%SRC%\installed\" >nul
+rem Only the LEGACY, untracked directory is cleared. Moving a TRACKED file would appear as a
+rem deletion in the next commit, and the installer is idempotent anyway -- it compares against
+rem main and reports "already installed" when nothing differs.
+if exist "%SRC%\*.yml" (
+  if not exist "%SRC%\installed" mkdir "%SRC%\installed"
+  for %%F in ("%SRC%\*.yml") do move /y "%%F" "%SRC%\installed\" >nul
+)
 
 :cleanup
 "%GIT%" worktree remove --force "%WT%" >nul 2>nul
