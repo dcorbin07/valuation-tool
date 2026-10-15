@@ -896,8 +896,17 @@ def api_valquo_index():
         # recorded `n_priced` column, so it costs no vendor call on this page load.
         try:
             from ..screener import index_mark as _im
+            from ..screener import index_track as _it
+            # THE ROWS FROM WHEREVER THEY LIVE. On the service the series is in the STORE, not
+            # in the CSV -- the first cut read only the CSV and found nothing while
+            # /api/index-track was serving 34 rows. `load` then `from_store` is the same
+            # order the track card itself resolves in, so both surfaces read one series.
+            _d = _it.load()
+            _rows = _d.get("series") or []
+            if not _rows:
+                _rows = (_it.from_store(st) or {}).get("series") or []
             book["track"] = {"unpriced": _im.unpriced_run(
-                n_positions=book.get("n_positions"))}
+                rows=_rows, n_positions=book.get("n_positions"))}
         except Exception:                                              # noqa: BLE001
             book["track"] = {"unpriced": {"ok": False, "n_unpriced": 0, "alert": False,
                                           "reason": "the pricing-health check could not run"}}
