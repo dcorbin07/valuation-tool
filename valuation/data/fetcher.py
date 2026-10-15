@@ -136,6 +136,21 @@ def get_company(ticker: str, cfg=CONFIG) -> CompanyData:
     #
     # A BOOLEAN RATHER THAN AN INFERENCE AT EACH CALL SITE: "price is None" is a different
     # question, and this is the one place that knows every source was asked.
+    # ITEM 57 A2: FILL NAME / INDUSTRY / DESCRIPTION FROM FREE SOURCES WHERE YAHOO LEFT THEM
+    # EMPTY. Placed here, after Yahoo, the EDGAR gap-fill and EDGAR standalone have each been
+    # asked, for the same reason the not-found flag is: this is the one place that knows every
+    # source has already had its turn. It only ever fills an EMPTY field, so where Yahoo
+    # answered Yahoo still wins -- a fallback, not a second opinion.
+    #
+    # Skipped entirely for a symbol nobody found, because looking up a description for a
+    # company that does not exist is how `ZZZZQ` came to read as a real business.
+    try:
+        if not looks_not_found(cd):
+            from . import company_identity as _ident
+            cd.identity_fallback = _ident.fill_from_free_sources(cd)
+    except Exception:                                                       # noqa: BLE001
+        pass
+
     if looks_not_found(cd):
         cd.fetch_failed = True
 

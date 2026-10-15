@@ -29,14 +29,18 @@ would also put a brokerage account with real money behind a scraped session. So 
    *GitHub → the repo → Settings → Secrets and variables → Actions → New repository secret.*
    | Secret name | What goes in it |
    |---|---|
-   | `ALPACA_KEY_ID` | the Key ID |
-   | `ALPACA_SECRET_KEY` | the Secret Key |
+   | `ALPACA_PAPER_KEY_ID` | the Key ID |
+   | `ALPACA_PAPER_SECRET_KEY` | the Secret Key |
 4. Put the same two in Render, under the same names:
    *Render → the valquo service → Environment → Add environment variable → Save.* Render
    restarts the service by itself.
 
-**The names matter.** `valuation/config.py` will read exactly `ALPACA_KEY_ID` and
-`ALPACA_SECRET_KEY`; a secret called `ALPACA_API_KEY` is a secret nothing reads, and that
+**The names matter, AND THEY CHANGED ON 2026-10-14 (item 58).** They are now
+`ALPACA_PAPER_KEY_ID` and `ALPACA_PAPER_SECRET_KEY` — with `PAPER_` in them — because a second
+set of slots now exists for the real-money §8 path (`ALPACA_ACCOUNT_<n>_KEY_ID` and
+`ALPACA_ACCOUNT_<n>_SECRET_KEY`), and two credentials one word apart with no word saying which
+is which is how a live key comes to serve a paper book. `valuation/config.py` reads exactly
+`ALPACA_PAPER_KEY_ID` and `ALPACA_PAPER_SECRET_KEY`; a secret called `ALPACA_API_KEY` is a secret nothing reads, and that
 failure looks identical to a dead key. **Nothing else needs setting** — no base URL, no env
 flag. Paper vs live is chosen in code, and this project only ever uses the paper/data host.
 

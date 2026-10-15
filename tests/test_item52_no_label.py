@@ -631,14 +631,29 @@ class TheCompanyDescriptionOpensThePage(unittest.TestCase):
             self.assertNotIn(vendor_field, code)
 
     def test_the_margin_trend_is_two_endpoints_and_a_count_not_a_direction_word(self):
+        """CORRECTED BY ITEM 57 A3, AND THE CORRECTION IS THE FINDING.
+
+        This test used to assert `{"from": 0.1, "to": 0.3}` for a history of `[0.1, 0.3]`,
+        i.e. it read the array as OLDEST-FIRST. The arrays are NEWEST-first -- `models.py`
+        says so on the field -- so that expectation encoded the very reversal item 57 A3
+        fixed, and the defect therefore had a test DEFENDING it. That is why a page shipped
+        KNSL's margin as "34.4% -> 23.8%" when it had risen the other way.
+
+        The fixture now reads as the real thing does: `[0.3, 0.1]` is a margin of 0.3 in the
+        NEWEST year and 0.1 in the oldest, so the trend runs 0.1 -> 0.3. The test's intent is
+        untouched; only its premise is corrected.
+        """
         import types
         from valuation.web import app as A
         cd = types.SimpleNamespace(business_summary="", business_summary_source="",
                                    sector="", industry="", market_cap=None,
-                                   revenue_history=[], ebit_margin_history=[0.1, 0.3],
+                                   fiscal_years=[2025, 2024],
+                                   revenue_history=[], ebit_margin_history=[0.3, 0.1],
                                    revenue_growth=lambda n: None)
         t = A._company_profile_block(types.SimpleNamespace(company=cd))["operating_margin_trend"]
-        self.assertEqual(t, {"from": 0.1, "to": 0.3, "n_years": 2})
+        self.assertEqual(t, {"from": 0.1, "to": 0.3, "n_years": 2,
+                             "from_year": 2024, "to_year": 2025})
+        self.assertLess(t["from"], t["to"], "the trend must run oldest -> newest")
         for word in ("improving", "worsening", "rising", "falling"):
             self.assertNotIn(word, str(t))
 
@@ -650,7 +665,8 @@ class TheCompanyDescriptionOpensThePage(unittest.TestCase):
                                    revenue_history=[], ebit_margin_history=[0.22],
                                    revenue_growth=lambda n: None)
         t = A._company_profile_block(types.SimpleNamespace(company=cd))["operating_margin_trend"]
-        self.assertEqual(t, {"from": None, "to": 0.22, "n_years": 1})
+        self.assertEqual(t, {"from": None, "to": 0.22, "n_years": 1,
+                             "from_year": None, "to_year": None})
 
     def test_NO_margin_history_is_None_rather_than_a_flat_line(self):
         import types

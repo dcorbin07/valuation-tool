@@ -542,6 +542,12 @@ def check_alert_surfaces(base, rep):
 
 
 def check_valuations(base, rep):
+    # ITEM 57 A2: the company-profile outage is counted ACROSS the names, not per name, and
+    # the reason is what made it invisible for so long. A single name missing its industry is
+    # ordinary -- plenty of filers carry no classification -- so a per-name check would have
+    # to pass on it, and did. The outage's signature is that it hits EVERY name at once, and
+    # that is only a fact about the set.
+    _n_names, _n_degraded, _degraded = 0, 0, []
     for t in ("MSFT", "O", "NEE", "BRK.B"):
         code, d = get_json(base, "/api/value", method="POST", body={"ticker": t})
         fv = (d or {}).get("base_fair_value")
@@ -550,6 +556,32 @@ def check_valuations(base, rep):
             rep.ok("value %s" % t, "fair value %.2f, regime %s" % (fv, regime))
         else:
             rep.bad("value %s" % t, "HTTP %s, base_fair_value %r" % (code, fv))
+        if code == 200 and isinstance(d, dict):
+            _n_names += 1
+            co = d.get("company") or {}
+            # THE SYMPTOM, NOT THE SENTENCE. A name equal to its own ticker is what
+            # `yahoo.fetch` leaves behind when the profile does not answer, and it survives
+            # any rewording of the warning text. `identity_fallback` is checked too, because
+            # once the SEC fallback fills the name the ticker test stops firing -- and the
+            # outage is still happening.
+            idf = d.get("identity_fallback") or co.get("identity_fallback") or {}
+            name_is_ticker = str(co.get("name") or "").upper() == str(t).upper()
+            if name_is_ticker or idf.get("used"):
+                _n_degraded += 1
+                _degraded.append(t)
+
+    # FAIL only when it is EVERY name. One or two is a data gap; all of them is an outage.
+    if _n_names and _n_degraded >= _n_names:
+        rep.bad("company profile source",
+                "the provider's company profile did not answer for ANY of the %d names "
+                "(%s) -- names/industries are on the SEC fallback; price and statements "
+                "are unaffected" % (_n_names, ", ".join(_degraded)))
+    elif _n_degraded:
+        rep.ok("company profile source",
+               "%d of %d names fell back to SEC for their profile (%s) -- a gap, not an "
+               "outage" % (_n_degraded, _n_names, ", ".join(_degraded)))
+    elif _n_names:
+        rep.ok("company profile source", "all %d names carried a provider profile" % _n_names)
 
     # A COMPANY NOBODY IDENTIFIED MUST NOT GET A SCORE. This returned 200 with score 40 and
     # "Reduce" until item 25.

@@ -16,7 +16,10 @@ const mcap = (x) => {
   const v = Number(x), a = Math.abs(v);
   if (a >= 1e12) return "$" + (v / 1e12).toFixed(2) + "T";
   if (a >= 1e9) return "$" + (v / 1e9).toFixed(2) + "B";
-  if (a >= 1e6) return "$" + (v / 1e6).toFixed(0) + "M";
+  // ITEM 57 A4: TWO DECIMALS, as the comment above has always said. The $M branch alone
+  // rounded to whole millions, so $838.80M read "$839M" while the $B and $T branches beside
+  // it carried two. This also changes the Index and hot-list market-cap columns, intended.
+  if (a >= 1e6) return "$" + (v / 1e6).toFixed(2) + "M";
   return money(v, 0);
 };
 /* Signed percentage, for figures where the direction is the point (alpha, P&L). */
@@ -178,9 +181,14 @@ async function runValue(overrides) {
     // analyst call took 27.4s on TSLA today, so awaiting it would turn a two-second page into
     // a thirty-second one for a panel that is an addition to it.
     loadAiAnalysis(ticker);
-  // ITEM 53 part 2: the same rule for the same measured reason -- up to four free feeds, so
-  // it must not sit in front of the numbers.
-  loadRecent(ticker, (d.company && d.company.name) || "");
+    // ITEM 53 part 2: the same rule for the same measured reason -- up to four free feeds,
+    // so it must not sit in front of the numbers.
+    // ITEM 57 A1: `d` HERE WAS A REFERENCE TO NOTHING. The variable in this function is
+    // `data`, so every search threw `ReferenceError: d is not defined` -- which landed in the
+    // `catch` below and painted the red error box over a valuation that had already rendered
+    // successfully, while this panel never loaded for any name. The mis-indentation was part
+    // of it: the line sat outside the block it belongs to and read like top-level code.
+    loadRecent(ticker, (data.company && data.company.name) || "");
   } catch (e) {
     errBox(e.message);
   } finally {
@@ -734,9 +742,33 @@ function mcChart(mc, fin) {
       : `<div class="muted">Not applied for this company type.</div>`;
     return;
   }
+  const bins = mc.hist_bins || [], counts = mc.hist_counts || [];
+  // ITEM 57 A6: AN EMPTY HISTOGRAM IS A STATE, AND IT USED TO DRAW A BLANK CANVAS. The branch
+  // above handles `mc == null`; it never fired for a financial, because the pipeline puts the
+  // P/B-ROE distribution INTO `montecarlo` as a view -- so `mc` was truthy, the code fell
+  // through to here, and `counts` was `[]`. Chart.js drew an empty grid above a correct median
+  // line, which reads as a rendering fault rather than an absent series.
+  //
+  // The server now emits the histogram, so this is the FALLBACK rather than the normal path:
+  // `histogram_of` legitimately returns nothing for a degenerate distribution (every draw
+  // identical), and a single fat bin would be a picture of nothing.
+  if (!counts.length || !bins.length) {
+    _canvasCard("mcChart", false);
+    const pu0 = mc.prob_undervalued;
+    document.getElementById("mcNote").innerHTML =
+      `<div style="font-size:14px">Distribution from the
+         <strong>${esc(mc.model || "fair value")}</strong> model. Its trials did not spread
+         enough to draw a histogram, so the percentiles are shown instead.</div>
+       <div class="metricline" style="margin-top:12px">
+         ${metric("P10", money(mc.p10, 2))}
+         ${metric("Median", money(mc.median, 2))}
+         ${metric("P90", money(mc.p90, 2))}
+         ${metric("Above price", pu0 != null ? pct(pu0) : "—")}
+       </div>`;
+    return;
+  }
   _canvasCard("mcChart", true);
   const ctx = document.getElementById("mcChart");
-  const bins = mc.hist_bins || [], counts = mc.hist_counts || [];
   const labels = counts.map((_, i) => money((bins[i] + bins[i + 1]) / 2, 0));
   const price = mc.price;
   const bg = counts.map((_, i) => (price && (bins[i] + bins[i + 1]) / 2 >= price) ? "#1b7f4b" : "#c96a63");
@@ -2527,7 +2559,7 @@ function _themeBars(w) {
     return `<div style="margin:5px 0">
       <div style="display:flex;justify-content:space-between;font-size:12px">
         <span style="text-transform:capitalize"><b>${k.replace(/_/g, " ")}</b></span><span>${label}</span></div>
-      <div style="background:#eef;border-radius:4px;height:8px"><div style="width:${wd}%;background:#3454a4;height:8px;border-radius:4px"></div></div>
+      <div style="background:var(--track);border-radius:4px;height:8px"><div style="width:${wd}%;background:#3454a4;height:8px;border-radius:4px"></div></div>
       <div class="muted" style="font-size:11px">${esc(_themeInputs(k))}</div>
       ${dormant ? `<div class="muted" style="font-size:11px;font-style:italic">⚠ ${esc(dormant)}</div>` : ""}</div>`;
   }).join("");
@@ -2549,7 +2581,7 @@ function _numberICSection(nic) {
       const wd = has ? Math.round(Math.abs(r.ic) / maxAbs * 100) : 0, cov = Math.round((r.coverage || 0) * 100);
       s += `<div style="display:flex;align-items:center;gap:8px;margin:2px 0;font-size:12px">
         <span style="width:130px">${r.number.replace(/_/g, " ")}</span>
-        <div style="flex:1;background:#eef;border-radius:4px;height:7px"><div style="width:${wd}%;background:${col};height:7px;border-radius:4px"></div></div>
+        <div style="flex:1;background:var(--track);border-radius:4px;height:7px"><div style="width:${wd}%;background:${col};height:7px;border-radius:4px"></div></div>
         <span style="width:60px;text-align:right;color:${col}">${has ? r.ic.toFixed(3) : "—"}</span>
         <span style="width:42px;text-align:right" class="muted">${cov}%</span></div>`;
     });
@@ -2843,7 +2875,7 @@ function freshnessBanner(f) {
   }
   const bad = f.level === "stale" || f.level === "unknown";
   return `<div class="note" style="margin-top:8px;${bad
-    ? "background:#fdecec;border-color:#f3c2c2;color:#8a1c1c;font-weight:600" : ""}">`
+    ? "background:var(--red-soft);border-color:var(--red);color:var(--red);font-weight:600" : ""}">`
     + `${bad ? "⚠ " : "🕒 "}${esc(f.message)}</div>`;
 }
 
@@ -3086,7 +3118,18 @@ function _renderValquoIndex(d, cfg) {
              + "would be built, not what is held")}`
       + (basis ? ` ${esc(basis)}.` : "")
       + `</span>`
-      + `<br><span class="muted">${esc(d.source_note || "")}</span>`;
+      + `<br><span class="muted">${esc(d.source_note || "")}</span>`
+      /* ITEM 57 B1: ONE HOLDING WENT UNPRICED FOR FOUR SESSIONS AND NOTHING SAID SO. The
+         writer has always returned an `unpriced` list and nothing consumed it. `alert` is set
+         by the server after MORE than one trading day, because one missed day is an ordinary
+         vendor hiccup and a run is something somebody has to look at. */
+      + (((d.track || {}).unpriced || {}).n_unpriced
+          ? `<br><span class="${((d.track || {}).unpriced || {}).alert ? "warn" : "muted"}">`
+            + `${esc(((d.track || {}).unpriced || {}).message || "")}`
+            + ` — the row is renormalised over the holdings that priced, so those days`
+            + ` measure a smaller book. A name that still trades is a data problem to fix,`
+            + ` never a sale.</span>`
+          : "");
   } else {
     /* The owner PREVIEW of a future rebalance, which legitimately IS an account-type
        construction built from today's scan — so it keeps the construction wording, and says
@@ -3114,7 +3157,15 @@ function _renderValquoIndex(d, cfg) {
   // of a book that can run to 86, which is right for browsing and wrong for allocating: a
   // footer claiming to equal the typed total while two thirds of the money sits in rows the
   // user cannot see would be the most misleading thing on this surface.
-  const rows = alloc.active ? (d.positions || []) : (d.positions || []).slice(0, 30);
+  /* ITEM 57 B3: AN EXITED NAME IS NOT A HOLDING AND DOES NOT BELONG IN THE HOLDINGS TABLE.
+     WBS sat at row 58 among the held names with 0.00% weight, $0 allocation and a blank
+     company -- a row that reads as a data defect in the one table listing what Don actually
+     holds. It is not a defect: the book HELD it until it was acquired, and the pro-rata rule
+     correctly leaves it at zero weight. Saying so on its own line is the difference between
+     "we hold nothing of this" and "this left the book, on this date, for this reason". */
+  const held = (d.positions || []).filter(p => (p || {}).status !== "exited");
+  const left = (d.positions || []).filter(p => (p || {}).status === "exited");
+  const rows = alloc.active ? held : held.slice(0, 30);
   const showShares = alloc.active && alloc.anyPrice;
 
   /* Present only when the payload carries them, so an older cached response renders exactly
@@ -3131,7 +3182,21 @@ function _renderValquoIndex(d, cfg) {
      The eight fixed columns: #, Ticker, Company, Sector, Weight, hot score, why?, Market cap. */
   const _ixCols = 8 + (hasForm ? 1 : 0) + (hasRet ? 1 : 0) + (alloc.active ? 1 : 0)
     + (showShares ? 2 : 0);
-  body.innerHTML = _indexSectorBox(d)
+  /* ITEM 57 B3: the "left the book" line, with the date and the reason, BELOW the holdings
+     and clearly not one of them. Rendered only when a name has actually left, so a book with
+     no exits looks exactly as it did. */
+  const leftLine = left.length
+    ? '<div class="note" style="margin-top:10px"><b>Left the book</b> — '
+      + left.map(p => {
+          const e = p.exit || {};
+          return `<b>${esc(p.ticker)}</b> on ${esc(e.date || "—")}`
+            + (e.reason ? ` (${esc(e.reason)})` : "")
+            + (e.treatment ? `, ${esc(e.treatment)}` : "");
+        }).join("; ")
+      + '. These are not holdings: the book held each until it left, and its weight was spread '
+      + 'across the survivors, which is why the weights above add to 100% without it.</div>'
+    : "";
+  body.innerHTML = _indexSectorBox(d) + leftLine
     + '<table class="tbl"><thead><tr><th>#</th><th>Ticker</th><th>Company</th><th>Sector</th>'
     + '<th class="num">Weight</th>'
     /* ITEM 18 -- THE BOOK IS FIXED, SO THESE TWO COLUMNS ARE WHAT MAKES THAT VISIBLE.

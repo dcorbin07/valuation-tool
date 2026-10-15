@@ -468,10 +468,28 @@ def _action_lines(view: dict) -> list:
                           f"{'—' if w is None else format(w, '.1%')} of the book — it ranks "
                           f"{rank} of {n} in the {s.get('scan_date')} scan."})
         elif idx.get("available"):
-            lines.append({"kind": "stock", "text":
-                          f"NOT in the Valquo Index: it ranks {rank} of {n} and the book takes "
-                          f"the top {idx.get('n_positions')} of {idx.get('n_eligible')} eligible "
-                          f"names. Ranking well is not the same as making the book."})
+            # ITEM 57 A7: THIS SENTENCE WAS LEFT OVER FROM THE OLD IMPLEMENTATION, and that is
+            # why it printed the word "None". `_index_membership` used to call `build_index` on
+            # the latest scan and did carry an eligible count; Don's 2026-10-02 ruling moved it
+            # to the BOOK IN FORCE, which has no such count -- so `idx.get("n_eligible")` read
+            # `None` and the f-string rendered it verbatim. The absent key was the visible half;
+            # the real defect is that the sentence still described a DAILY TOP-N when the Index
+            # is "a fixed book formed at the quarterly rebalance and held until the next".
+            # Rewritten from the book actually in force, which is what the two branches above
+            # already do. Every field is None-guarded, because an em dash is a worse answer
+            # than a number and the literal word "None" is worse than either.
+            formed, nxt = idx.get("formed_on"), idx.get("next_rebalance")
+            npos = idx.get("n_positions")
+            txt = ("NOT in the Valquo Index. The Index is a fixed book of %s names"
+                   % ("an unrecorded number of" if npos is None else npos))
+            if formed:
+                txt += ", formed on %s" % formed
+            if nxt:
+                txt += " and held until the next rebalance on %s" % nxt
+            txt += (". This name is not in it. It ranks %s of %s in the %s scan, and ranking "
+                    "well today is not the same as being in a book formed earlier."
+                    % (rank, n, s.get("scan_date")))
+            lines.append({"kind": "stock", "text": txt})
         pos = s.get("paper_position")
         if pos and pos.get("state") == "open":
             lines.append({"kind": "stock", "text":
