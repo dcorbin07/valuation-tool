@@ -90,6 +90,50 @@ class B1_AnUnpricedHoldingIsVisible(unittest.TestCase):
         self.assertTrue(got["reason"])
         self.assertFalse(got["alert"])
 
+    def test_it_reads_the_ROWS_IT_IS_GIVEN_and_not_a_path_of_its_own(self):
+        """THE DEFECT THE LIVE CHECK FOUND, pinned so it cannot come back.
+
+        The first cut read only `_read_history`, i.e. the CSV on disk. The live service keeps
+        the series in its STORE, so the reader found nothing while `/api/index-track` was
+        serving **34 rows carrying exactly the `n_priced: 84` this function exists to
+        notice** -- ET's four-session gap, invisible to the thing built to surface it. The
+        wrong-object family: a reader resolving a different source from the one holding the
+        data.
+
+        It reported "the record carries no rows yet" rather than a clean bill, which is the
+        only reason it was caught: an honest refusal is visible and a false green is not.
+        """
+        rows = ([{"date": "2026-10-0%d" % d, "n_priced": 85} for d in (1, 2, 5)]
+                + [{"date": "2026-10-%02d" % d, "n_priced": 84}
+                   for d in (6, 7, 8, 9, 12, 13)])
+        got = IM.unpriced_run(rows=rows, n_positions=85)
+        self.assertTrue(got["ok"])
+        self.assertEqual(got["n_unpriced"], 1)
+        self.assertEqual(got["since"], "2026-10-06")
+        self.assertTrue(got["alert"])
+
+    def test_given_rows_WIN_over_any_path(self):
+        """A caller that supplies rows must not also get the CSV read -- or the two sources
+        could disagree and the answer would depend on which one was found first."""
+        hp = _history([{"date": "2026-01-01", "n_priced": 85}])
+        got = IM.unpriced_run(hp, rows=[{"date": "2026-10-09", "n_priced": 84}],
+                              n_positions=85)
+        self.assertEqual(got["n_rows"], 1)
+        self.assertEqual(got["since"], "2026-10-09")
+
+    def test_both_surfaces_pass_their_own_rows(self):
+        """The track card and the Index route must each hand over the series they hold,
+        rather than letting the reader resolve a path neither of them uses."""
+        import inspect
+
+        from valuation.screener import index_track as IT
+        self.assertIn("_unpriced_block(series)", inspect.getsource(IT))
+        import valuation.web.app as A
+        with open(A.__file__, encoding="utf-8") as fh:
+            src = fh.read()
+        self.assertIn("unpriced_run(", src)
+        self.assertIn("rows=_rows", src)
+
     def test_it_contacts_no_vendor(self):
         """The Index tab must not price 85 names on a page load, and the question is
         HISTORICAL -- only the record can answer 'for how long'."""

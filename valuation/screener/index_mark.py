@@ -454,7 +454,7 @@ def _stopped_trading(ticker, series_dates, mark, *, fetch=None):
     return (gap > STOPPED_TRADING_AFTER_DAYS), last, None
 
 
-def unpriced_run(history_path: str = None, *, n_positions=None) -> dict:
+def unpriced_run(history_path: str = None, *, n_positions=None, rows=None) -> dict:
     """How long the record has been short of a holding, read from the ROWS.  [item 57 B1]
 
     `{"ok", "n_unpriced", "since", "n_rows", "alert", "message"}`.
@@ -464,12 +464,22 @@ def unpriced_run(history_path: str = None, *, n_positions=None) -> dict:
     being asked is historical -- "how long has this been true" -- which only the record can
     answer. Asking a vendor would answer "is it true now", which is a different question and
     the one that already had an answer nobody surfaced.
+
+    **`rows` IS THE SOURCE WHEN THE CALLER HAS IT, AND ON THE SERVICE IT ALWAYS DOES.** The
+    first cut read only `_read_history`, i.e. the CSV on disk -- and the live service keeps the
+    series in its STORE, so the reader found nothing while `/api/index-track` was serving 34
+    rows carrying exactly the `n_priced: 84` this function exists to notice. The wrong-object
+    family: a reader that resolves a different source from the one holding the data. It
+    reported "the record carries no rows yet", which is an honest refusal rather than a false
+    clean bill -- which is the only reason the live check caught it. Callers now pass the rows
+    they already hold, and the CSV stays as the fallback for a local run.
     """
     out = {"ok": False, "n_unpriced": 0, "since": None, "n_rows": 0, "alert": False,
            "message": "", "reason": ""}
     try:
-        rows = [r for r in ((_read_history(history_path) or {}).get("rows") or [])
-                if str(r.get("date") or "")]
+        if rows is None:
+            rows = (_read_history(history_path) or {}).get("rows") or []
+        rows = [r for r in (rows or []) if str((r or {}).get("date") or "")]
     except Exception as e:                                               # noqa: BLE001
         out["reason"] = "the record could not be read (%s)" % type(e).__name__
         return out

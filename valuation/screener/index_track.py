@@ -210,11 +210,15 @@ def _f(x) -> Optional[float]:
     return v if v == v else None
 
 
-def _unpriced_block() -> dict:
-    """`index_mark.unpriced_run`, or a reason. Never raises -- a card is not worth a 500."""
+def _unpriced_block(series=None, n_positions=None) -> dict:
+    """`index_mark.unpriced_run`, or a reason. Never raises -- a card is not worth a 500.
+
+    `series` IS PASSED IN because the live service holds the record in its STORE rather than
+    in the CSV `index_mark` would otherwise read. See `unpriced_run`'s own note.
+    """
     try:
         from . import index_mark as _im
-        return _im.unpriced_run()
+        return _im.unpriced_run(rows=series, n_positions=n_positions)
     except Exception as e:                                               # noqa: BLE001
         return {"ok": False, "n_unpriced": 0, "alert": False, "message": "",
                 "reason": "the pricing-health check could not run (%s)" % type(e).__name__}
@@ -776,7 +780,7 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
         # ON THE TRACK AND NOT ON THE BOOK, deliberately: `book_in_force` is fenced off from
         # price-derived concepts by a guard that exists so an acquisition and a vendor gap
         # cannot become one thing. That guard fired on this item's first placement.
-        "unpriced": _unpriced_block(),
+        "unpriced": _unpriced_block(series),
         "thin": True,
         "headline": "backtested",
         "live": None,
