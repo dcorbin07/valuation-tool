@@ -73,6 +73,56 @@ PAPER_SLOT = "paper"
 #: the parity diff a comparison of two different books.
 PAPER_PCT = 100.0
 
+#: THE THREE SEND MODES, and the only three. [item 2b]
+#:
+#: `DRY` computes everything and transmits nothing, for every slot. `PAPER` transmits for the
+#: paper slot on the paper client and leaves every live slot dry however it is configured.
+#: `LIVE` additionally lets an ARMED live slot transmit, and remains reserved for after the
+#: auditor review.
+#:
+#: **ONE MODE RATHER THAN TWO BOOLEANS.** `send` plus `send_paper` can disagree, and both
+#: inconsistent combinations would have to mean something; a three-valued mode has no
+#: inconsistent state to interpret.
+DRY, PAPER, LIVE = "dry", "paper", "live"
+
+#: The tokens that mean LIVE, matched EXACTLY. `1` is the brief's own; `live` is accepted
+#: because a reader typing the word means it.
+LIVE_TOKENS = ("1", "live")
+
+#: The token that means PAPER-ONLY, matched exactly.
+PAPER_TOKENS = ("paper",)
+
+
+def send_mode(raw_value) -> dict:
+    """`{mode, token, reason}` from a request parameter. **ANYTHING UNRECOGNISED IS DRY.**
+
+    The first cut of the door used `bool(request.args.get("run"))`, which is TRUTHINESS: `?run=0`
+    is a non-empty string and would therefore have placed LIVE orders, as would `?run=no` and
+    `?run=false`. A caller typing the thing that means "no" got the thing that means "yes".
+
+    So the match is exact, the unrecognised case is DRY, and the reason SAYS SO -- because a
+    caller who believed they were sending needs to learn that they were not, and silence would
+    read identically to a quiet market.
+    """
+    tok = ("" if raw_value is None else str(raw_value)).strip().lower()
+    if tok in LIVE_TOKENS:
+        return {"mode": LIVE, "token": tok,
+                "reason": "live sending requested; every live slot is still gated by "
+                          "LIVE_PILOT_ENABLED, a non-zero percentage, an authorized holder "
+                          "and a key pair"}
+    if tok in PAPER_TOKENS:
+        return {"mode": PAPER, "token": tok,
+                "reason": "paper-only: the paper slot transmits on the paper client and every "
+                          "live slot stays a dry run whatever its settings"}
+    if not tok:
+        return {"mode": DRY, "token": "", "reason": "no run token: a dry run for every slot"}
+    return {"mode": DRY, "token": tok,
+            "reason": ("the run token %r is not one of %r, so this is a DRY RUN and NOTHING "
+                       "was sent. It is not treated as a request to send: a truthiness test "
+                       "would have read '0' and 'no' as yes."
+                       % (tok, tuple(PAPER_TOKENS) + tuple(LIVE_TOKENS)))}
+
+
 #: How far two order plans may differ, per name, as a share of the slot's value, before the
 #: parity diff is reported as a MISMATCH. 0.5% absorbs the rounding of a fractional quantity at
 #: two-decimal limit prices and nothing larger.
@@ -269,7 +319,7 @@ def _marks_for(client, tickers) -> dict:
 def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
              marks: dict, root: str = None, session_ok: bool = True,
              paper_plan: list = None, paper_value: float = None,
-             send: bool = True) -> dict:
+             send: bool = True, sess_reason: str = "") -> dict:
     """One slot's cycle. Returns what it did and why. NEVER RAISES.
 
     `send=False` is what 0% and an out-of-session cycle use: everything is computed and logged
@@ -397,8 +447,8 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
             out["reason"] = ("computed %d order(s) and sent none: %s"
                              % (len(plan["orders"]),
                                 armed_state.get("reason") if not out["armed"] else
-                                ("the session is closed" if not session_ok else
-                                 "no client was supplied")))
+                                ((sess_reason or "the market is not open for orders")
+                                 if not session_ok else "no client was supplied")))
             return out
 
         # ---- the only place an order is transmitted -------------------------------------
@@ -594,9 +644,9 @@ def feed_gap_report(root: str = None) -> dict:
     return out
 
 
-def run_cycle(*, env=None, send: bool = False, only: str = None, root: str = None,
+def run_cycle(*, env=None, mode: str = DRY, only: str = None, root: str = None,
               book=None, now=None, paper_client=None, live_client_factory=None,
-              notify_send=None) -> dict:
+              notify_send=None, send=None) -> dict:
     """ONE CYCLE over the paper slot and every live slot. Never raises.
 
     THE PAPER SLOT RUNS FIRST AND DELIBERATELY SO: its order plan is what every live slot's
@@ -605,14 +655,39 @@ def run_cycle(*, env=None, send: bool = False, only: str = None, root: str = Non
     `send=False` is the default, which makes a GET of the door a dry run for every slot.
     """
     e = env if env is not None else os.environ
-    out = {"ok": True, "at": _stamp(), "send_requested": bool(send), "slots": [],
-           "alerts": [], "paper": None, "session": None, "reason": ""}
+
+    # `send=` IS KEPT AS A COMPATIBILITY SHIM AND IT RESOLVES THE SAFE WAY. A caller passing
+    # `send=True` means LIVE, which is what it meant before; anything falsey means DRY. It is
+    # not removed outright because a caller left on the old keyword would otherwise silently
+    # get the DEFAULT -- and the default is dry, so that direction is safe, but a caller
+    # believing it was sending and transmitting nothing is the failure that looks like a quiet
+    # market. `mode=` wins if both are given.
+    if mode == DRY and send is not None:
+        mode = LIVE if send else DRY
+    if mode not in (DRY, PAPER, LIVE):
+        mode = DRY
+    paper_sends = mode in (PAPER, LIVE)
+    live_sends = (mode == LIVE)
+
+    out = {"ok": True, "at": _stamp(), "mode": mode,
+           "send_requested": live_sends, "paper_send_requested": paper_sends,
+           "slots": [], "alerts": [], "paper": None, "session": None, "reason": ""}
     try:
         from ..screener import index_in_force as IF
-        from ..screener.market_session import session_state
+        from ..screener.market_session import orders_window, session_state
 
-        sess = session_state(now)
+        # THE ORDERS WINDOW, NOT THE CLOSE. `session_state` answers "has today's session
+        # closed" and is true only from 16:15 ET, because it exists to decide when the Index
+        # may be MARKED. Gating orders on it meant the cycle scheduled at 10:40 ET -- chosen
+        # precisely BECAUSE a `day` limit order must be placed inside the session -- could
+        # never transmit anything, for ever, while reporting "the session is closed" as a
+        # sensible-looking reason. Found when this module's own suite changed verdict at
+        # midnight.
+        sess = orders_window(now)
         out["session"] = sess
+        # The close is still REPORTED, because a reader comparing this against the Index mark
+        # needs both and they are now visibly different questions.
+        out["session_closed_state"] = session_state(now)
         session_ok = bool(sess.get("ok"))
 
         bk = book if book is not None else IF.attach_returns(IF.book_in_force())
@@ -660,7 +735,8 @@ def run_cycle(*, env=None, send: bool = False, only: str = None, root: str = Non
                                         "reason": "the paper slot is always armed: it is "
                                                   "paper money on the paper host"},
                            book=bk, client=pc, equity=eq, marks=marks, root=root,
-                           session_ok=session_ok, send=send)
+                           session_ok=session_ok, send=paper_sends,
+                           sess_reason=sess.get("reason") or "")
             out["paper"] = res
             out["alerts"].extend(res.get("alerts") or [])
             paper_plan = res.get("orders")
@@ -674,7 +750,11 @@ def run_cycle(*, env=None, send: bool = False, only: str = None, root: str = Non
             p = LS.slot_pct(n, e)
             pct = p.get("pct")
             client, eq, marks = None, None, {}
-            if a["armed"] and send:
+            # THE ONLY PLACE A LIVE CLIENT IS BUILT, AND `live_sends` IS THE WHOLE GATE ON
+            # TOP OF `armed`. In PAPER mode this is False, so `run=paper` cannot construct a
+            # live client even for a fully armed slot -- which is the property 2b asks to be
+            # pinned, and it is pinned structurally rather than by intention.
+            if a["armed"] and live_sends:
                 # THE ONLY PLACE A LIVE CLIENT IS EVER CONSTRUCTED, and all four conditions
                 # have already been checked by `armed`.
                 try:
@@ -707,7 +787,13 @@ def run_cycle(*, env=None, send: bool = False, only: str = None, root: str = Non
             res = run_slot(n, pct=pct, armed_state=a, book=bk, client=client, equity=eq,
                            marks=marks, root=root, session_ok=session_ok,
                            paper_plan=paper_plan, paper_value=paper_value,
-                           send=bool(send and a["armed"]))
+                           send=bool(live_sends and a["armed"]),
+                           sess_reason=sess.get("reason") or "")
+            res["mode"] = mode
+            if mode == PAPER:
+                res["paper_mode_note"] = ("this is a PAPER-ONLY cycle, so this live slot "
+                                          "computed its plan and sent nothing whatever its "
+                                          "percentage, arming or keys")
             res["sized_on"] = ("the live account's equity" if client is not None
                                else "the PAPER account's equity, because this slot has no "
                                     "live client -- so the diff is a shape check rather than "

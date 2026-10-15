@@ -176,18 +176,61 @@ class TheVerbCarriesTheWrite(unittest.TestCase):
         got = json.loads(r.get_data(as_text=True))
         self.assertFalse(got.get("send_requested", True))
 
-    def test_only_a_POST_with_run_may_send(self):
-        """Read off the source rather than by trying to trade: the assertion is that the
-        door's `send` comes from `run`, and nothing in a test should exercise the path that
-        would transmit."""
-        import inspect
+    def test_a_GET_asking_to_send_is_REFUSED_and_not_downgraded(self):
+        """REPOINTED BY ITEM 2b, AND THE OLD VERSION PINNED THE LINE THAT WAS THE DEFECT.
 
-        from valuation.saas import app_saas
-        src = inspect.getsource(app_saas)
-        start = src.index('def admin_live_cycle(')
-        body = src[start:start + 1800]
-        self.assertIn('wants_run = bool(request.args.get("run") or body.get("run"))', body)
-        self.assertIn("LC.run_cycle(send=wants_run", body)
+        It asserted the source read `bool(request.args.get("run") or body.get("run"))` and
+        passed that to `run_cycle` -- which is exactly the two bugs 2b fixed: truthiness
+        instead of a token (so `?run=0` sent LIVE) and no method check (so `GET ?run=1` sent
+        while the docstring said it could not). A test that pins a defective line defends it.
+
+        The replacement is BEHAVIOURAL, which is also stronger: the door is actually called.
+        **405, not a 200 carrying "nothing was sent"** -- a caller who meant to send must learn
+        that this verb cannot, and a 200 is the reply a retry loop would keep accepting.
+        """
+        c, h = _client()
+        for tok in ("1", "live", "paper"):
+            r = c.get("/admin/live-cycle?run=%s" % tok, headers=h)
+            self.assertEqual(r.status_code, 405, tok)
+            body = json.loads(r.get_data(as_text=True))
+            self.assertFalse(body.get("ok"))
+            self.assertIn("POST", body.get("detail") or "")
+
+    def test_a_GET_with_NO_token_is_still_a_dry_run_and_returns_200(self):
+        """The ordinary case has to keep working, or the scheduled job goes red every day."""
+        c, h = _client()
+        r = c.get("/admin/live-cycle", headers=h)
+        self.assertIn(r.status_code, (200, 500))
+        got = json.loads(r.get_data(as_text=True))
+        self.assertEqual(got.get("mode"), "dry")
+        self.assertFalse(got.get("send_requested"))
+        self.assertFalse(got.get("paper_send_requested"))
+
+    def test_run_0_and_run_no_are_DRY_and_say_so(self):
+        """THE SECOND DEFECT, PINNED. `bool("0")` is `True`, so `?run=0` would have placed LIVE
+        orders -- a caller typing the thing that means "no" got the thing that means "yes".
+        The reason field has to SAY it was a dry run, because silence reads identically to a
+        quiet market."""
+        c, h = _client()
+        for tok in ("0", "no", "false", "dryrun", "yes"):
+            r = c.post("/admin/live-cycle?run=%s" % tok, headers=h)
+            got = json.loads(r.get_data(as_text=True))
+            self.assertEqual(got.get("mode"), "dry", tok)
+            self.assertFalse(got.get("send_requested"), tok)
+            self.assertFalse(got.get("paper_send_requested"), tok)
+            self.assertIn("NOTHING was sent", got.get("mode_reason") or "", tok)
+
+    def test_the_three_modes_are_reported_distinctly(self):
+        c, h = _client()
+        for tok, mode, paper, live in (("", "dry", False, False),
+                                       ("paper", "paper", True, False),
+                                       ("1", "live", True, True)):
+            q = ("?run=%s" % tok) if tok else ""
+            got = json.loads(c.post("/admin/live-cycle" + q,
+                                    headers=h).get_data(as_text=True))
+            self.assertEqual(got.get("mode"), mode, tok)
+            self.assertEqual(bool(got.get("paper_send_requested")), paper, tok)
+            self.assertEqual(bool(got.get("send_requested")), live, tok)
 
     def test_a_quiet_cycle_still_returns_200(self):
         """A scheduler that sees a 500 on an ordinary quiet day learns to ignore the light."""
@@ -227,7 +270,7 @@ class TheScheduledWorkflowIsHandedOverRatherThanInstalled(unittest.TestCase):
         self.assertIn("/admin/live-cycle", src)
         self.assertIn("X-Admin-Token", src)
 
-    def test_it_ships_WITHOUT_run_so_installing_it_cannot_trade(self):
+    def test_it_ships_sending_on_PAPER_ONLY(self):
         """THE SAFE DEFAULT, AND THE REASON IS THAT DON INSTALLS THIS BEFORE THE AUDITOR
         REVIEW. A workflow that arrived already sending would make installing it the decision
         to go live, which is exactly the decision §8 reserves for him.
@@ -241,11 +284,18 @@ class TheScheduledWorkflowIsHandedOverRatherThanInstalled(unittest.TestCase):
             lines = fh.read().splitlines()
         urls = [ln for ln in lines if "/admin/live-cycle" in ln and "${SITE_BASE_URL" in ln]
         self.assertEqual(len(urls), 1, "expected exactly one request URL: %r" % urls)
-        self.assertNotIn("run=1", urls[0], "the shipped request would SEND orders")
-        self.assertNotIn("?", urls[0], "the shipped request carries a query parameter")
+        # AMENDED BY ITEM 2b. It now asks for `?run=paper`, which is what makes the paper slot
+        # actually trade paper -- as shipped with no token at all, the paper slot would never
+        # have placed an order and the 2026-10-22 rebalance could not have been watched on
+        # paper, which was its whole purpose.
+        self.assertIn("run=paper", urls[0], "the shipped request does not send on paper")
+        self.assertNotIn("run=1", urls[0], "the shipped request would SEND LIVE orders")
+        self.assertNotIn("run=live", urls[0], "the shipped request would SEND LIVE orders")
+        # AND IT MUST BE A POST, because a GET carrying a run token is a 405 by design -- so a
+        # workflow that kept the GET would go red every single day.
         body = "\n".join(ln for ln in lines if not ln.strip().startswith("#"))
-        self.assertNotIn("-X POST", body, "the shipped request is a POST")
-        self.assertIn("dry run", "\n".join(lines).lower())
+        self.assertIn("-X POST", body, "a GET with a run token is a 405; this would go red")
+        self.assertIn("paper", "\n".join(lines).lower())
 
     def test_the_installer_reads_the_TRACKED_directory(self):
         """It GLOBS `*.yml`, so it names no individual file -- and naming one would be worse,

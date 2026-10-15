@@ -1220,6 +1220,92 @@ def create_saas_app(cfg=CONFIG):
             "order": "yfinance (primary) -> stooq (fallback) -> fmp (gated off)",
         })
 
+    @app.route("/admin/alpaca-seam", methods=["GET", "POST"])
+    def admin_alpaca_seam():
+        """THE ALPACA SEAM MEASUREMENT — item 59's "measure first".
+
+        **IT RUNS HERE BECAUSE THE KEYS ARE HERE AND NOWHERE ELSE.** A lane has no credential
+        to measure with, so it tests the analysis against recorded fixtures and Don runs the
+        real pull through this door. That is `ALPACA_SETUP.md`'s instruction and also the only
+        arrangement that can work.
+
+        **GET REPORTS WHAT IS ALREADY RECORDED; POST?run=1 TAKES THE MEASUREMENT.** The same
+        verb split as every other door here, and for a reason beyond habit: the pull spends
+        requests against a 200-per-minute allowance shared with everything else on this
+        service, so a prefetch or a retry must not be able to spend it.
+
+        **IT SWITCHES NOTHING.** A passing measurement makes the price switch AVAILABLE;
+        taking it needs `PRICES_PRIMARY_ALPACA=1`, which is Don's call because inside a
+        segment the Index's base and mark must come from one vendor.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..data import alpaca_data as AD
+            from ..data import alpaca_seam as SEAM
+
+            wants_run = bool(request.args.get("run")
+                             or (request.get_json(silent=True) or {}).get("run"))
+            if request.method == "GET" and wants_run:
+                return jsonify({
+                    "ok": False, "error": "method not allowed",
+                    "detail": ("a GET never takes the measurement. Use POST "
+                               "/admin/alpaca-seam?run=1. The pull spends requests against a "
+                               "200/min allowance shared with the rest of this service, and a "
+                               "prefetch or a retry is not a decision to spend it."),
+                }), 405
+
+            out = {"keys_present": AD.have_keys(),
+                   "switch": SEAM.switch_allowed(),
+                   "recorded": SEAM.read_artifact(),
+                   "declared_bars": {"agree_rate": SEAM.PASS_AGREE_RATE,
+                                     "coverage": SEAM.PASS_COVERAGE,
+                                     "index_coverage": SEAM.PASS_INDEX_COVERAGE,
+                                     "per_bar_tolerance": SEAM.AGREE_TOL},
+                   "not_carried": list(AD.NOT_CARRIED),
+                   "carried_free": list(AD.CARRIED_FREE)}
+            if not out["keys_present"]:
+                out["reason"] = ("no Alpaca key pair is set on this service, so the "
+                                 "measurement cannot run. Render -> the valquo service -> "
+                                 "Environment -> add ALPACA_PAPER_KEY_ID and "
+                                 "ALPACA_PAPER_SECRET_KEY -> Save.")
+                return jsonify(out), 200
+            if not wants_run:
+                out["reason"] = ("reporting only. POST /admin/alpaca-seam?run=1 to take the "
+                                 "measurement.")
+                return jsonify(out), 200
+
+            # THE REAL PULL. yfinance and the recorded series are gathered here rather than
+            # inside the seam module, so the module stays injectable and testable with no
+            # network at all.
+            yf_closes, recorded = {}, {}
+            try:
+                from ..screener import prices as PR
+                names = list((SEAM.read_artifact() or {}).get("sample", {}).get("names")
+                             or [])
+                res = SEAM.measure(write=False, names=(names or None))
+                probe = sorted(((res.get("coverage") or {}).get("missing") or [])[:0]
+                               or list((res.get("named_gaps") or {}).keys()))
+                # A SMALL yfinance LEG: the comparison needs only the names Alpaca returned,
+                # and pulling 222 names from Yahoo inside a request would throttle the very
+                # vendor this measurement is comparing against.
+                for t in probe[:12]:
+                    df = PR.get_history_df(t, days=260)
+                    if df is None or df.empty:
+                        continue
+                    yf_closes[t] = {str(r["Date"])[:10]: float(r["Close"])
+                                    for _i, r in df.iterrows()
+                                    if r.get("Close") is not None}
+            except Exception as e:                                      # noqa: BLE001
+                out["yfinance_leg_error"] = safe_error(e)
+
+            res = SEAM.measure(yf_closes=yf_closes, recorded=recorded, write=True)
+            out["measurement"] = res
+            out["switch"] = SEAM.switch_allowed()
+            return jsonify(out), (200 if res.get("ok") else 500)
+        except Exception as e:
+            return jsonify({"ok": False, "error": safe_error(e)}), 500
+
     @app.route("/admin/live-slots", methods=["GET"])
     def admin_live_slots():
         """THE OWNER-ONLY STATUS FOR EVERY SLOT — paper and live.  [item 58b steps 1 and 6]
@@ -1292,23 +1378,64 @@ def create_saas_app(cfg=CONFIG):
         broker credentials, network and the bound Index record at once, and only this service
         holds all three. So the runner is a cron POSTing this door.
 
-        **GET COMPUTES AND RETURNS; ONLY POST?run=1 MAY SEND AN ORDER.** The same split as
-        `/admin/track-row` and `/admin/fleet-cycle`, for a stronger version of the same reason:
-        a side-effecting GET is reachable by a retry, a prefetch, a proxy or a pasted link, and
-        none of those is a decision to trade. A GET here is the dry run.
+        **GET COMPUTES AND RETURNS; ONLY A POST MAY SEND AN ORDER** — and that is now ENFORCED
+        rather than promised. The same split as `/admin/track-row` and `/admin/fleet-cycle`, for
+        a stronger version of the same reason: a side-effecting GET is reachable by a retry, a
+        prefetch, a proxy or a pasted link, and none of those is a decision to trade.
 
-        **AT 0% NOTHING IS SENT AND NO LIVE CLIENT IS CONSTRUCTED**, whatever the verb. Every
-        slot ships at 0%, so the ordinary state of this door is: compute, log, diff against the
-        paper slot, send nothing.
+        **A DEFECT IN THE FIRST CUT OF THIS DOOR, FIXED HERE [item 2b].** It read
+        `request.args` on BOTH verbs, so `GET /admin/live-cycle?run=1` would have SENT while
+        the docstring above said it could not — the `/admin/track-row` defect exactly, whose
+        recorded cure was `GET ?append=1` returning **405**. A GET carrying any run token now
+        returns 405 and touches nothing.
+
+        **AND A SECOND: `bool(request.args.get("run"))` IS TRUTHINESS, NOT A TOKEN.** `?run=0`
+        is a non-empty string, so it was `True`, so it would have placed LIVE orders — as would
+        `?run=no` and `?run=false`. The mode now comes from `live_cycle.send_mode`, an exact
+        match against a declared set, and everything unrecognised is a DRY RUN that says so.
+
+        **THREE MODES.**
+
+        * no token → **dry run for every slot**. Computes, logs, diffs, transmits nothing.
+        * `?run=paper` → **the PAPER slot transmits, on the paper client, and every live slot
+          stays dry however it is configured.** This is what lets Don watch a rebalance go
+          through on paper, which is the paper slot's whole purpose — and it is why the
+          scheduled workflow calls this and not `?run=1`.
+        * `?run=1` → live sending is permitted, and is **reserved for after the auditor
+          review**. Even then each live slot is gated by `LIVE_PILOT_ENABLED`, a non-zero
+          percentage, a named authorized holder and a key pair, and every slot ships at 0%.
+
+        **A PAPER CYCLE CANNOT CONSTRUCT A LIVE CLIENT AT ALL**, for a fully armed slot
+        included — the one construction site is behind the live gate, and a test asserts it.
         """
         if not _admin_ok():
             return jsonify({"error": "unauthorized"}), 401
         try:
             from ..edge import live_cycle as LC
             body = request.get_json(silent=True) or {}
-            wants_run = bool(request.args.get("run") or body.get("run"))
+            raw_run = request.args.get("run")
+            if raw_run is None:
+                raw_run = body.get("run")
+            picked = LC.send_mode(raw_run)
+
+            # THE VERB CARRIES THE WRITE, CHECKED BEFORE ANYTHING RUNS. A GET asking to send is
+            # refused outright rather than quietly downgraded to a dry run: a caller who meant
+            # to send has to learn that this verb cannot, and a 200 carrying "nothing was sent"
+            # is exactly the reply a retry loop would keep accepting.
+            if request.method == "GET" and picked["mode"] != LC.DRY:
+                return jsonify({
+                    "ok": False,
+                    "error": "method not allowed",
+                    "detail": ("a GET of this door never sends. Use POST "
+                               "/admin/live-cycle?run=%s. A side-effecting GET is reachable by "
+                               "a retry, a prefetch, a proxy or a pasted link, and none of "
+                               "those is a decision to trade." % picked["token"]),
+                }), 405
+
             only = request.args.get("slot") or body.get("slot")
-            res = LC.run_cycle(send=wants_run, only=(str(only) if only else None))
+            res = LC.run_cycle(mode=picked["mode"], only=(str(only) if only else None))
+            res["mode_reason"] = picked["reason"]
+            res["run_token_seen"] = picked["token"]
             return jsonify(res), (200 if res.get("ok") else 500)
         except Exception as e:
             return jsonify({"ok": False, "error": safe_error(e)}), 500

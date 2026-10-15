@@ -210,6 +210,114 @@ function exportUrl(kind) {
 }
 
 /* ---------- master render ---------- */
+/* ---------- ITEM 60: THE VALUATION VERDICT, FIRST ----------
+   EVERY WORD COMES FROM THE PAYLOAD. `web/valuation_verdict.py` owns the wording and this
+   function renders it -- the `score_confidence` pattern, for its stated reason: a surface that
+   writes its own version of a sentence is how one claim comes to have two wordings on one page.
+   The only strings below are structural labels, and a test asserts the banned vocabulary
+   against the RENDERED payload rather than against any source file.
+
+   A NAME WITH NO VERDICT GETS THE SAME CARD, not a hidden one. "We are not publishing a
+   verdict, and here is why" is a read; an absent card is indistinguishable from a page that
+   failed to load. */
+const VERDICT_COLOR = {
+  undervalued: "var(--green)",
+  fairly_valued: "var(--amber)",
+  overvalued: "var(--red)",
+  no_verdict: "var(--muted)",
+};
+function headlineCard(d) {
+  const el = document.getElementById("headlineCard");
+  if (!el) return;
+  const h = d.headline;
+  if (!h) { el.innerHTML = ""; return; }
+  const col = VERDICT_COLOR[h.verdict] || "var(--muted)";
+  const none = h.verdict === "no_verdict";
+  const name = [h.name, h.ticker].filter(Boolean).join(" · ");
+
+  let html = `<div class="card" style="border-left:4px solid ${col}">`;
+  html += `<div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:10px">`;
+  html += `<div style="font-size:15px;font-weight:700">${esc(name)}</div>`;
+  if (h.price_text) html += `<div class="muted">${esc(h.price_text)}</div>`;
+  html += `</div>`;
+  html += `<div style="font-size:26px;font-weight:800;color:${col};margin-top:4px">`
+        + `${esc(h.label)}</div>`;
+
+  if (none) {
+    html += `<div class="note" style="margin-top:6px">${esc(h.no_verdict_reason || "")}</div>`;
+    /* THE RANGE STILL SHOWS WHEN THERE IS ONE. Withholding the verdict is not a reason to
+       withhold the numbers a reader can judge for themselves -- and when the value itself was
+       withheld there is no range to show, so this is empty rather than blank-looking. */
+    if (h.range_text) {
+      html += `<div class="metricline" style="margin-top:8px">`
+            + metric("Model range", esc(h.range_text)) + `</div>`;
+    }
+  } else {
+    html += `<div class="metricline" style="margin-top:8px">`
+          + metric("Model range", esc(h.range_text || "—"))
+          + metric("Confidence", `${esc(h.confidence || "—")}`)
+          + `</div>`;
+    if (h.confidence_means) {
+      html += `<div class="note" style="margin-top:0">Confidence: ${esc(h.confidence_means)}`
+            + `.</div>`;
+    }
+    if (h.gap) html += `<div class="note" style="margin-top:0">${esc(h.gap)}</div>`;
+  }
+
+  /* THE TWO READS, one line each. */
+  (h.reads || []).forEach(r => {
+    html += `<div style="margin-top:6px"><b>${esc(r.label)}:</b> ${esc(r.text)}</div>`;
+  });
+
+  if (h.price_assumes) {
+    html += `<div style="margin-top:6px"><b>What the price assumes:</b> `
+          + `${esc(h.price_assumes)}</div>`;
+  }
+  /* THE WARNING, WHEN ONE APPLIES, and it is loud rather than a footnote: the whole point of
+     item 52's warning is that a reader must see it BEFORE the fair value. */
+  if (h.warning) {
+    html += `<div class="nv-box" style="margin-top:8px"><b>${esc(h.warning)}</b>`;
+    if ((h.warning_why || []).length) {
+      html += `<div class="note" style="margin-top:4px">`
+            + (h.warning_why || []).map(x => esc(x)).join(" · ") + `</div>`;
+    }
+    html += `</div>`;
+  }
+
+  /* THE RULE, ON THE CARD. A verdict whose rule is hidden is a recommendation wearing a
+     measurement's clothes. */
+  html += `<div class="note" style="margin-top:8px">${esc(h.rule || "")}</div>`;
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+/* ---------- ITEM 60: "Show the full model", and it REMEMBERS ----------
+   The brief asks for a control that remembers its state. `localStorage` rather than a session
+   flag, so the choice survives a reload and a new tab -- a reader who wants the detail wants it
+   every time, and re-collapsing it on every search is the behaviour that makes a control
+   annoying enough to be abandoned.
+
+   IT ONLY SHOWS AND HIDES. Nothing is recomputed on open, because every card inside is already
+   rendered and populated by `render()`; a control that deferred rendering would make the charts
+   appear empty on first open, which is a bug this page has already had once. */
+const FULL_MODEL_KEY = "valquo_full_model_open";
+function fullModelOpen() {
+  try { return localStorage.getItem(FULL_MODEL_KEY) === "1"; } catch (e) { return false; }
+}
+function applyFullModel(on) {
+  const box = document.getElementById("fullModel");
+  const btn = document.getElementById("fullModelToggle");
+  if (!box || !btn) return;
+  box.style.display = on ? "" : "none";
+  btn.textContent = on ? "Hide the full model" : "Show the full model";
+  btn.setAttribute("aria-expanded", on ? "true" : "false");
+}
+function toggleFullModel() {
+  const on = !fullModelOpen();
+  try { localStorage.setItem(FULL_MODEL_KEY, on ? "1" : "0"); } catch (e) { /* private mode */ }
+  applyFullModel(on);
+}
+
 function render(d) {
   const c = d.company, cls = d.classification, sc = d.scenarios, score = d.score;
   document.getElementById("coName").textContent = `${c.name} (${c.ticker})`;
@@ -237,6 +345,14 @@ function render(d) {
     (cls.rule_of_40 != null ? `<span class="badge ${cls.rule_of_40 >= 40 ? 'g' : 'a'}"${defAttr("rule_of_40")}>Rule of 40: ${cls.rule_of_40.toFixed(0)}</span>` : "") +
     (c.cash_runway_years != null ? `<span class="badge ${c.cash_runway_years >= 4 ? 'g' : 'r'}">Runway: ${c.cash_runway_years.toFixed(1)}y</span>` : "") +
     (c.next_earnings_date ? `<span class="badge a">📅 Earnings ${_earnLabel(c.next_earnings_date)}</span>` : "");
+
+  // ITEM 60: THE VERDICT FIRST, and rendered before the rest so a failure further down
+  // cannot cost the reader the one read the brief calls most useful.
+  headlineCard(d);
+  // AND THE CONTROL'S REMEMBERED STATE IS RE-APPLIED ON EVERY RENDER. `render` replaces the
+  // cards inside `#fullModel`, and a reader who had opened it would otherwise find it shut
+  // again after every search -- which is the behaviour that makes a control abandoned.
+  applyFullModel(fullModelOpen());
 
   companyProfile(d);
   priceAssumes(d);
