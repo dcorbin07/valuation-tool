@@ -44,6 +44,7 @@ if _HERE not in sys.path:
 from valuation.studies import dipcall as D                                  # noqa: E402
 from valuation.studies import insider_cluster as IC                         # noqa: E402
 from valuation.studies import insider_routine as IR                         # noqa: E402
+from valuation.studies import sec_ticker_join as SJ                         # noqa: E402
 
 OUT = "F23_SECID_EVENTS.json"
 EVENTS_CSV = "F23_SECID_EVENTS_%s.csv"           # %s = arm key
@@ -255,7 +256,37 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     df = pull(force=a.force_pull)
+
+    # ----------------------------------------------------------------- THE TICKER JOIN, REPAIRED
+    # **THIS IS THE ONE THING THAT CHANGED SINCE THE FIRST READ, AND IT IS A CORRECTNESS REPAIR
+    # OF THE INSTRUMENT RATHER THAN A NEW CONSTRUCTION** (`U1-SPLIT` and `SELL-PREMIUM-2`'s
+    # precedent, so the re-run charges no trial). `ISSUERTRADINGSYMBOL` is FREE TEXT: the first
+    # read joined it to the panel verbatim and resolved 61.60% of build-era purchase rows, so the
+    # arms were scored on a population the register never described.
+    #
+    # `sec_ticker_join.repair` substitutes the panel's own ticker, resolved from the filer's CIK at
+    # the FILING DATE, and leaves an unresolved row carrying the symbol as filed — so the row set
+    # is comparable and only newly-resolved rows move. Everything downstream of this line is
+    # byte-identical to the first read: same rule, same `K_PRIMARY`, same classifier, same cell.
+    pan = {str(t).upper() for t in pd.read_pickle(D.panel_path())["ticker"].unique()}
+    raw_rate = float(df["ticker"].isin(pan).mean())
+    df = SJ.repair(df, pan)
+    rep_rate = float(df["ticker"].isin(pan).mean())
+    if rep_rate < raw_rate:
+        raise SystemExit("REFUSING: the repair resolved FEWER rows (%.4f -> %.4f). It can only "
+                         "ever add a mapping, so a fall means the join is wired wrong."
+                         % (raw_rate, rep_rate))
+    print("[events] ticker join repaired: %.4f -> %.4f of rows resolve a panel ticker"
+          % (raw_rate, rep_rate), flush=True)
+
     out = {"item": "F23-SECID", "part": "event sets for both arms, from ONE source",
+           "ticker_join": {"module": "valuation/studies/sec_ticker_join.py",
+                           "row_resolution_as_filed": raw_rate,
+                           "row_resolution_repaired": rep_rate,
+                           "WHAT_IT_IS": ("a CIK-to-panel-ticker map valid at each filing date; a "
+                                          "correctness repair of the same read, not a new "
+                                          "construction, so it charges no trial"),
+                           "FIRST_READ_WAS_ON_THE_AS_FILED_SYMBOL": True},
            "register": "PREREG_f23_secid.md", "register_commit": "fba290e",
            "trial_booked_at": "8191309",
            "pull": {"quarters": int(df["quarter"].nunique()), "purchase_rows": int(len(df)),

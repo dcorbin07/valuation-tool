@@ -1,6 +1,33 @@
 # HANDOFF STATUS - shared project state
 
+## r1 lane — **the SEC ticker join WAS broken, repairing it moves the arm fivefold, and the verdict does not move** (2026-10-15, `F23-JOIN`)
+
+**ZERO TRIALS, `FIXED`-class** — equity `N` stays **307**. `F23-SECID` reported its SF2 gap as *"a
+JOIN problem and not a coverage hole … it needs its own work"*; this is that work.
+**`ISSUERTRADINGSYMBOL` IS FREE TEXT** — only 46.0% of its 10,361 build-era values match the panel,
+774 of 5,595 misses are non-alphabetic, and a separator-insensitive key rescues **3 of 5,595**, so
+punctuation was never the fix. **AND 18.1% of filer CIKs file under more than one spelling**,
+covering 52.9% of rows, which is why the repair is keyed on the **CIK** and resolved **as of the
+filing date** — EDGAR's `company_tickers.json` refused as a current snapshot that would be
+look-ahead and would omit every delisted name. Build-era row resolution **61.60% → 72.54%**, cap
+resolution **48.09% → 54.85%** (the before figure reproducing the published 48.1% exactly), tickers
+shared with SF2 **335 → 352**, distinct tickers **608 → 594** because aliases collapse.
+**THE RE-RUN IS THE SAME REGISTERED READ WITH ONE INSTRUMENT FIXED AND CHARGES NO TRIAL** — the
+`F23-SECID` log cell is edited **in place**. ARM B **+0.1551 → +0.8679pp**, *t* **+0.168 → +0.943**,
+net **−0.4919 → +0.2218pp**, so **A1 and A4 now PASS — and the verdict is still DOES NOT CLEAR**,
+A2 and A3 failing and the halves disagreeing in sign (+2.750pp early, −0.718pp late).
+**THE FINDING IS UNCHANGED AND BETTER EVIDENCED: the join is worth 0.72pp and the identity key
+0.0426pp, about seventeen to one.** The SF2 gap is now **part-attributed** — the repair closes
+**76.4%** of the gross-mean gap — and the residual is **sample size** and is **not** attributed.
+**F-23 STAYS DECLARED AND UNFILLED; no amendment, no `F-23b`, no variant searched for.**
+`HANDOFF_f23_join.md`.
+
+---
+
 ## r1 lane — **the insider ID key changes almost nothing, so F-23 stays unfilled — and the 1999-2008 rung is closed as unobtainable** (2026-10-15, `F23-SECID` + `INSIDER-STAGE3-RUNG`)
+
+> **§2 and §3 of the write-up below are SUPERSEDED by `F23-JOIN` above** — that read was scored on
+> the broken ticker join. The verdict and the finding are unchanged.
 
 Register `PREREG_f23_secid.md` committed **ALONE at `fba290e`**, markdown only, 178 lines, a strict
 ancestor of both runners; **1 equity trial at `8191309` before any runner existed** (equity
