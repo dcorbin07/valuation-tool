@@ -155,6 +155,15 @@ def _analyst_revenue_growth(t, info: dict) -> Optional[float]:
     return _ok(info.get("revenueGrowth"))
 
 
+#: ITEM 57 A2. One string, in one place, because two modules describe this one state and a
+#: reader must not be shown two different sentences about it. `company_identity` matches on
+#: this exact value to replace it, so changing the wording here changes it everywhere.
+YAHOO_PROFILE_DOWN = ("Some company details are unavailable from the market-data provider "
+                      "right now: the company name, industry, description, published beta and "
+                      "next earnings date. The price, share count and filed financial "
+                      "statements the valuation is built from are unaffected.")
+
+
 def fetch(ticker: str) -> Optional[CompanyData]:
     """Fetch and normalize a company from Yahoo Finance. Returns None on hard failure."""
     try:
@@ -171,7 +180,17 @@ def fetch(ticker: str) -> Optional[CompanyData]:
     try:
         info = t.info or {}
     except Exception:
-        cd.quality_notes.append("Yahoo `info` unavailable; used fast_info + statements only.")
+        # ITEM 57 A2: THE STATE WAS ALREADY VISIBLE AND NOT LEGIBLE. This note reaches the page
+        # through `warnings` and `warnBox` renders it, so a reader of every name on the server
+        # today has been seeing "Yahoo `info` unavailable; used fast_info + statements only."
+        # -- two library attribute names and no statement of what it cost them. What it costs
+        # is the company's NAME, its INDUSTRY, its DESCRIPTION, its vendor BETA and its next
+        # earnings date; what it does NOT cost is the price, the share count or the filed
+        # statements the valuation is built from. A reader needs both halves of that.
+        #
+        # `company_identity.fill_from_free_sources` REPLACES this line when it recovers any of
+        # those fields, so the page carries exactly one sentence about one state.
+        cd.quality_notes.append(YAHOO_PROFILE_DOWN)
 
     fast = {}
     try:

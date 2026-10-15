@@ -13,7 +13,7 @@
 
 ## Four things worth knowing before dispatching anything
 
-**1. Wave 1 is eleven items across all five lanes - and it is NOT eleven parallel branches.** There are 17 collisions inside wave 1 alone, and 7 of them involve MA1, which reaches into `app_saas.py`, `track_meter.py` and `auto-scan.yml` at once. MA1 is the CRITICAL item and the most entangled one in the catalogue; it wants a single owner and a quiet tree, not a slot in a fan-out.
+**1. Wave 1 is eleven items across all five lanes - and it is NOT eleven parallel branches.** There are 18 collisions inside wave 1 alone, and 7 of them involve MA1, which reaches into `app_saas.py`, `track_meter.py` and `auto-scan.yml` at once. MA1 is the CRITICAL item and the most entangled one in the catalogue; it wants a single owner and a quiet tree, not a slot in a fan-out.
 
 **2. `valuation/edge/fundamental_panel.py` is still the programme.** 12 of 60 items name it. That is a smaller share than audit #1's 46-of-134, but it is the same fact: the panel cannot be split across owners, and MA23 (break the finished one-shot studies out of `valuation/edge/`) is the item that would change it.
 
@@ -247,6 +247,7 @@ soft-import  MA1 x MA39: valuation/config.py <-> valuation/edge/fundamental_pane
 soft-import  MA1 x MA50: valuation/config.py <-> valuation/web/app.py
 soft-import  MA4 x MA9: valuation/screener/index_mark.py <-> valuation/saas/app_saas.py
 hard-file    MA4 x MA18: valuation/screener/index_mark.py
+soft-import  MA4 x MA50: valuation/screener/index_mark.py <-> valuation/web/app.py
 soft-import  MA9 x MA18: valuation/saas/app_saas.py <-> valuation/screener/index_mark.py
 soft-import  MA9 x MA36: valuation/saas/app_saas.py <-> valuation/edge/paper_track.py
 soft-import  MA9 x MA39: valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py

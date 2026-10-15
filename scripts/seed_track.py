@@ -200,6 +200,33 @@ def main(argv=None) -> int:
             return 3
         print("rebalance  %s over %d position(s)" % (ev["date"], len(ev["positions"])))
         if not a.send:
+            # ITEM 57 B4: NAME WHAT CANNOT BE PRICED, because the dry run is the last moment
+            # anyone can see it. `contract_row` renormalises over the names that priced, so a
+            # position the route cannot price on the event date is quietly absent from EVERY
+            # subsequent daily row -- and the event is append-only, so once it is recorded the
+            # only remedy is a decision rather than a fix. ET went unpriced for four sessions
+            # in the live record without anything saying so.
+            try:
+                from valuation.screener import index_mark as _im
+                chk = _im.unpriceable_on(ev["positions"], ev["date"])
+                if not chk.get("ok"):
+                    print("  price check: SKIPPED - %s" % chk.get("reason"))
+                elif chk["unpriceable"]:
+                    print("  PRICE CHECK: %d of %d position(s) CANNOT be priced on %s "
+                          "(%.2f%% of the book's weight):"
+                          % (len(chk["unpriceable"]), chk["n_positions"], chk["mark"],
+                             chk["weight_share"] * 100.0))
+                    for t in chk["unpriceable"]:
+                        print("      %s" % t)
+                    print("  Each of these will be ABSENT from every daily row of the new "
+                          "segment, and the event cannot be corrected once recorded.")
+                else:
+                    print("  price check: all %d position(s) price on %s"
+                          % (chk["n_positions"], chk["mark"]))
+            except Exception as e:                                   # noqa: BLE001
+                # REPORTED, never silent: a dry run that cannot run its own check must say so
+                # rather than printing a clean line it did not earn.
+                print("  price check: COULD NOT RUN (%s: %s)" % (type(e).__name__, e))
             print("DRY RUN - nothing was sent. Re-run with --send to record it.")
             return 0
         base2 = (a.url or _base_url()).rstrip("/")

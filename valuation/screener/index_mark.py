@@ -400,6 +400,193 @@ def _recorded_level(date_key: str, history_path: str = None):
     return None
 
 
+#: ITEM 57 B2. THE SEGMENT FROM WHICH THE CONTRACT'S CORPORATE-ACTION RULE APPLIES.
+#:
+#: `PAPER_TRACK_CONTRACT.md` section 5a (Amendment 2, accepted 2026-10-04) says a held name
+#: that is acquired or stops trading "counts as sold at its last traded close, its weight
+#: redistributed pro-rata" -- and says the engine already does this. **It does not.**
+#: `contract_row` renormalises over the names that PRICED, from the SEGMENT BASE, which
+#: removes an exited name back to the segment's start as though it had never been held. That
+#: is the alternative the contract itself names and calls worse.
+#:
+#: WHY A CUTOVER DATE RATHER THAN A FIX EVERYWHERE. The record is append-only and every
+#: recorded row must stay reproducible from the code that wrote it. Changing the arithmetic
+#: for the CURRENT segment would silently restate rows that are already published -- which is
+#: the one thing the contract forbids outright. So the rule applies from the segment opened on
+#: 2026-10-22 onward, and the current segment keeps the behaviour its rows were computed with.
+#: The cost of that choice is measured rather than waved at: see the contract's dated note.
+CORPORATE_ACTION_FROM = "2026-10-22"
+
+#: How many trading days a name's price may be missing before it is treated as having STOPPED
+#: TRADING rather than as a vendor gap. Five, measured: ET moved its listing from the NYSE to
+#: the Texas Stock Exchange on 2026-10-05 and the free route returned nothing for it on
+#: 2026-10-10, 10-12 and 10-13 -- then priced it again on 10-14. **Three sessions of silence on
+#: a name that never stopped trading.** A one- or two-day bound would have declared ET sold,
+#: which is the error the contract's rule must never make: the brief's own instruction is to
+#: treat a vendor outage on a name that still trades as a data problem to fix, never a sale.
+STOPPED_TRADING_AFTER_DAYS = 5
+
+
+def _stopped_trading(ticker, series_dates, mark, *, fetch=None):
+    """Did this name STOP TRADING on or before `mark`, or is the vendor merely quiet?
+
+    Returns `(stopped, last_date, last_close)`. `stopped` is True only when the name's most
+    recent price is more than `STOPPED_TRADING_AFTER_DAYS` TRADING days before the mark --
+    long enough that a vendor gap is no longer the simpler explanation.
+
+    **THE ASYMMETRY IS DELIBERATE AND IT IS THE WHOLE POINT.** Calling a live name "sold"
+    writes a realised return into an append-only record that can never be corrected; calling a
+    delisted name "unpriced" merely leaves it out of a row for a few more days, which is
+    visible and recoverable. So the test errs toward "still trading" -- `MA6`'s rule, err
+    toward the state that refuses.
+    """
+    mk = _date(mark)
+    if mk is None or not series_dates:
+        return False, None, None
+    keys = sorted(k for k in series_dates if k and k <= mk.isoformat())
+    if not keys:
+        return False, None, None
+    last = keys[-1]
+    ld = _date(last)
+    if ld is None or ld >= mk:
+        return False, last, None
+    gap = _session.trading_days_between(ld, mk, inclusive_start=False)
+    return (gap > STOPPED_TRADING_AFTER_DAYS), last, None
+
+
+def unpriced_run(history_path: str = None, *, n_positions=None, rows=None) -> dict:
+    """How long the record has been short of a holding, read from the ROWS.  [item 57 B1]
+
+    `{"ok", "n_unpriced", "since", "n_rows", "alert", "message"}`.
+
+    **DERIVED FROM `n_priced`, WHICH THE RECORD ALREADY CARRIES, AND IT CONTACTS NO VENDOR.**
+    That matters twice: the Index tab must not price 85 names on a page load, and the question
+    being asked is historical -- "how long has this been true" -- which only the record can
+    answer. Asking a vendor would answer "is it true now", which is a different question and
+    the one that already had an answer nobody surfaced.
+
+    **`rows` IS THE SOURCE WHEN THE CALLER HAS IT, AND ON THE SERVICE IT ALWAYS DOES.** The
+    first cut read only `_read_history`, i.e. the CSV on disk -- and the live service keeps the
+    series in its STORE, so the reader found nothing while `/api/index-track` was serving 34
+    rows carrying exactly the `n_priced: 84` this function exists to notice. The wrong-object
+    family: a reader that resolves a different source from the one holding the data. It
+    reported "the record carries no rows yet", which is an honest refusal rather than a false
+    clean bill -- which is the only reason the live check caught it. Callers now pass the rows
+    they already hold, and the CSV stays as the fallback for a local run.
+    """
+    out = {"ok": False, "n_unpriced": 0, "since": None, "n_rows": 0, "alert": False,
+           "message": "", "reason": ""}
+    try:
+        if rows is None:
+            rows = (_read_history(history_path) or {}).get("rows") or []
+        rows = [r for r in (rows or []) if str((r or {}).get("date") or "")]
+    except Exception as e:                                               # noqa: BLE001
+        out["reason"] = "the record could not be read (%s)" % type(e).__name__
+        return out
+    if not rows:
+        out["reason"] = "the record carries no rows yet"
+        return out
+    rows.sort(key=lambda r: str(r.get("date"))[:10])
+    out["ok"], out["n_rows"] = True, len(rows)
+
+    expected = n_positions
+    if expected is None:
+        # THE BOOK'S OWN COUNT, not the maximum `n_priced` ever recorded. Taking the max would
+        # make a book that has been short since its FIRST row look complete -- the shortfall
+        # would define the baseline it is measured against.
+        try:
+            bk = load_book()
+            if bk.get("ok"):
+                ev = event_in_force(bk.get("rebalances") or [],
+                                    _date(str(rows[-1].get("date"))[:10]))
+                expected = len(ev["positions"] if ev else bk["positions"])
+        except Exception:                                                # noqa: BLE001
+            expected = None
+    if not expected:
+        out["reason"] = "the book's position count is unknown, so a shortfall cannot be sized"
+        return out
+    out["n_positions"] = expected
+
+    last = rows[-1]
+    n_priced = _f(last.get("n_priced"))
+    if n_priced is None:
+        out["reason"] = "the latest row carries no n_priced"
+        return out
+    short = int(expected) - int(n_priced)
+    if short <= 0:
+        out["message"] = "every holding priced on %s" % str(last.get("date"))[:10]
+        return out
+
+    out["n_unpriced"] = short
+    # WALK BACK while the row is still short, so `since` is the FIRST day of the current run
+    # rather than the first day it ever happened.
+    since = str(last.get("date"))[:10]
+    n_days = 0
+    for r in reversed(rows):
+        v = _f(r.get("n_priced"))
+        if v is None or int(expected) - int(v) <= 0:
+            break
+        since = str(r.get("date"))[:10]
+        n_days += 1
+    out["since"], out["n_days"] = since, n_days
+    # MORE THAN ONE TRADING DAY, per the brief: one missed day is an ordinary vendor hiccup and
+    # the writer already reports it; a run is a problem somebody has to look at.
+    out["alert"] = n_days > 1
+    out["message"] = ("%d holding%s unpriced since %s (%d row%s)"
+                      % (short, "" if short == 1 else "s", since,
+                         n_days, "" if n_days == 1 else "s"))
+    return out
+
+
+def _last_recorded_date(history_path: str = None):
+    """The latest date the bound record carries a row for, or None.  [item 57 B4]
+
+    Separate from `_recorded_level` on purpose: that asks "was THIS day marked", which is the
+    anchor question, and this asks "has a LATER day been marked", which is the ordering
+    question. The door checked the first and not the second.
+    """
+    try:
+        rows = (_read_history(history_path) or {}).get("rows") or []
+    except Exception:                                                    # noqa: BLE001
+        return None
+    dates = [_date(str(r.get("date") or "")[:10]) for r in rows]
+    dates = [d for d in dates if d is not None]
+    return max(dates) if dates else None
+
+
+def unpriceable_on(positions, mark, *, fetch: Callable = None) -> dict:
+    """Which of `positions` the free price route cannot price on `mark`.  [item 57 B4]
+
+    For the rebalance DRY RUN. A position the route cannot price on the event date is a
+    position the daily row will silently leave out of every subsequent mark -- `contract_row`
+    renormalises over what priced -- so the dry run is the last moment anyone can see it
+    before the event is recorded and the segment is anchored.
+    """
+    from . import prices as _prices
+    fetch = fetch or _prices.get_history_df
+    mk = _date(mark)
+    out = {"ok": mk is not None, "mark": (mk.isoformat() if mk else None),
+           "n_positions": len(positions or []), "unpriceable": [], "priced": 0, "weight": 0.0}
+    if mk is None:
+        out["reason"] = "could not read the event date"
+        return out
+    key = mk.isoformat()
+    vendors: dict = {}
+    for p in (positions or []):
+        t = str((p or {}).get("ticker") or "").upper()
+        if not t:
+            continue
+        got = _closes(t, fetch, vendors, as_of=key)
+        if got.get(key):
+            out["priced"] += 1
+        else:
+            out["unpriceable"].append(t)
+            out["weight"] += float((p or {}).get("weight") or 0.0)
+    tw = sum(float((p or {}).get("weight") or 0.0) for p in (positions or [])) or 1.0
+    out["weight_share"] = out["weight"] / tw
+    return out
+
+
 # How stale a rebalance book may be, in TRADING days, measured from the book's own as-of date
 # to the event date. Two, so an ordinary weekend or a one-day lag passes and a book from last
 # week does not. Declared here rather than inline because a bar buried in a call site is how
@@ -553,6 +740,35 @@ def append_rebalance(event: dict, *, meta_path: str = None, history_path: str = 
                          "to compound onto" % d.isoformat())
         return out
 
+    # ------------------------------------------------- ITEM 57 B4: NOTHING MAY BE MARKED YET
+    # ON A LATER DAY THAN THE EVENT.
+    #
+    # The two checks above ask "are the EVENTS in order" and "was the anchor day MARKED". Both
+    # passed on the case that matters, because neither asks whether a LATER ROW already exists.
+    #
+    # THE DATED HAZARD THIS CLOSES. The 2026-10-22 rebalance is appended on the evening of
+    # 10-23. PT-WRITER marks the day's row at 03:07 UTC. If the append slips past that run,
+    # the 10-23 row has ALREADY been computed -- from the OLD book, because the event was not
+    # recorded yet -- and appending the event then moves the segment base to 10-22 underneath
+    # it. From that moment the recorded 10-23 row is a number no code path can reproduce: it
+    # is neither the old book's row (the event now exists) nor the new book's (it was priced
+    # before the event). Append-only means it can never be corrected either.
+    #
+    # Refusing is the only safe branch. The operator's remedy is to append the event BEFORE
+    # the next row is marked, which is what the runbook says to do; a slipped event needs a
+    # decision from Don rather than a silent acceptance.
+    _latest = _last_recorded_date(history_path)
+    if _latest is not None and _latest > d:
+        out["reason"] = (
+            "the record already carries a row dated %s, which is AFTER the event date %s. "
+            "That row was marked on the book in force at the time -- i.e. the OLD book -- so "
+            "recording this event now would move the segment base underneath it and leave a "
+            "row no code path can reproduce. Events are append-only and that row can never "
+            "be corrected. Append the event BEFORE the next row is marked."
+            % (_latest.isoformat(), d.isoformat()))
+        out["latest_recorded_row"] = _latest.isoformat()
+        return out
+
     meta["rebalances"] = existing + [{"date": d.isoformat(),
                                       "scan_date": event.get("scan_date"),
                                       "positions": positions}]
@@ -694,12 +910,42 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
                     "row": None}
         anchor_level = rec
 
+    # ITEM 57 B2: THE CORPORATE-ACTION RULE, FROM `CORPORATE_ACTION_FROM` ONWARD.
+    #
+    # Before the cutover this loop is bit-identical to what wrote every recorded row: a name
+    # that cannot be priced goes into `unpriced` and is renormalised away. From the cutover, a
+    # name that has STOPPED TRADING is instead carried at its last traded close -- the
+    # contract's own rule -- and its last close is recorded on the row so the decision is
+    # auditable afterwards rather than re-derivable only from a vendor that may have changed
+    # its mind.
+    _apply_ca = (seg_base_key >= CORPORATE_ACTION_FROM)
     num, wsum, unpriced = 0.0, 0.0, []
+    exited: list = []
     total_w = sum(p["weight"] for p in seg_positions)
     for p in seg_positions:
         m = _closes(p["ticker"], fetch, vendors, as_of=mark_key)
         base, cur = m.get(seg_base_key), m.get(mark_key)
-        if not base or not cur:
+        if not base:
+            # NO SEGMENT BASE IS NOT A CORPORATE ACTION. The name cannot be measured over this
+            # segment at all -- there is no purchase price to realise a return against -- so
+            # it stays `unpriced` whatever else is true of it. WBS is exactly this case: its
+            # only price is 2026-08-19 and the segment opened 2026-07-30.
+            unpriced.append(p["ticker"])
+            continue
+        if not cur:
+            if _apply_ca:
+                stopped, last_key, _lc = _stopped_trading(p["ticker"], set(m.keys()), mark)
+                last_close = m.get(last_key) if last_key else None
+                if stopped and last_close:
+                    # SOLD AT THE LAST TRADED CLOSE. The weight stays in the denominator, so
+                    # the realised return is kept rather than erased -- which is the whole
+                    # difference from renormalising it away.
+                    num += p["weight"] * (last_close / base - 1.0)
+                    wsum += p["weight"]
+                    exited.append({"ticker": p["ticker"], "last_date": last_key,
+                                   "last_close": round(float(last_close), 6),
+                                   "weight": p["weight"]})
+                    continue
             unpriced.append(p["ticker"])
             continue
         num += p["weight"] * (cur / base - 1.0)
@@ -731,6 +977,13 @@ def contract_row(as_of=None, *, meta_path: str = None, fetch: Callable = None,
         "n_priced": len(seg_positions) - len(unpriced),
     }
     return {"ok": True, "reason": "", "row": row, "coverage": coverage, "unpriced": unpriced,
+            # ITEM 57 B2: WHICH NAMES WERE TREATED AS SOLD, AND AT WHAT CLOSE. On the result
+            # rather than in a new CSV column, because the append-only prefix rule means a new
+            # column would have to be absorbed by every recorded row; the writer commits this
+            # in its note. `corporate_action_applies` is carried in BOTH states so a reader can
+            # tell "no name exited" from "the rule was not in force yet".
+            "exited": exited, "corporate_action_applies": _apply_ca,
+            "corporate_action_from": CORPORATE_ACTION_FROM,
             "inception_date": inception.isoformat(), "benchmark": bench,
             "n_positions": len(seg_positions),
             "source": "screener/prices.py (Stooq primary, yfinance fallback)",

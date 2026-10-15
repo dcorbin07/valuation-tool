@@ -278,10 +278,31 @@ def test_the_input_and_its_disclaimer_are_on_the_page():
 def test_every_row_is_shown_once_money_is_on_the_page():
     """The default view shows 30 of up to 86. A footer claiming to equal the typed total while
     two thirds of the money sits in rows the user cannot see would be the most misleading thing
-    on this surface."""
+    on this surface.
+
+    REPOINTED BY ITEM 57 B3, AND THE GUARD WAS RIGHT TO FIRE. It pinned the LITERAL line
+    `alloc.active ? (d.positions || []) : (d.positions || []).slice(0, 30)`. B3 moved exited
+    names out of the holdings table, so the expression became `alloc.active ? held :
+    held.slice(0, 30)` -- the SAME property, different text, and a literal cannot tell those
+    apart. It now asserts the property: whatever list the table is built from, an active
+    allocation takes it WHOLE and an inactive one takes the first 30.
+    """
+    import re
     src = open(APPJS, encoding="utf-8").read()
-    assert "alloc.active ? (d.positions || []) : (d.positions || []).slice(0, 30)" in src, (
-        "the row slice no longer opens up when an allocation total is entered")
+    m = re.search(r"alloc\.active\s*\?\s*([^:?]+?)\s*:\s*([^;\n]+?)\.slice\(0,\s*30\)",
+                  src)
+    assert m, ("the row slice no longer opens up when an allocation total is entered: no "
+               "`alloc.active ? <all> : <same>.slice(0, 30)` expression found")
+    whole, sliced = m.group(1).strip(), m.group(2).strip()
+    # THE TWO SIDES MUST BE THE SAME LIST, or the open-up shows a different set of rows than
+    # the slice -- which is the defect this test was written for, one level subtler.
+    assert whole == sliced, (
+        "the active branch shows %r and the inactive branch slices %r; they must be the same "
+        "list or opening up changes which rows are shown" % (whole, sliced))
+    # AND THE LIST MUST EXCLUDE EXITED NAMES (item 57 B3): an exited holding carries 0.00%
+    # weight and $0 allocation, so showing it among the holdings reads as a data defect.
+    assert 'status !== "exited"' in src, (
+        "the holdings table no longer excludes exited names")
 
 
 def test_the_renderer_still_parses():

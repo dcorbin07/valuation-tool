@@ -210,6 +210,20 @@ def _f(x) -> Optional[float]:
     return v if v == v else None
 
 
+def _unpriced_block(series=None, n_positions=None) -> dict:
+    """`index_mark.unpriced_run`, or a reason. Never raises -- a card is not worth a 500.
+
+    `series` IS PASSED IN because the live service holds the record in its STORE rather than
+    in the CSV `index_mark` would otherwise read. See `unpriced_run`'s own note.
+    """
+    try:
+        from . import index_mark as _im
+        return _im.unpriced_run(rows=series, n_positions=n_positions)
+    except Exception as e:                                               # noqa: BLE001
+        return {"ok": False, "n_unpriced": 0, "alert": False, "message": "",
+                "reason": "the pricing-health check could not run (%s)" % type(e).__name__}
+
+
 def _reconstructed_block() -> dict:
     """The reconstruction block, or an empty one. NEVER raises into the track payload.
 
@@ -756,6 +770,17 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
         "reconstructed": _reconstructed_block(),
         "available": bool(series),
         "days": len(series),
+        # ITEM 57 B1: HOW LONG THE RECORD HAS BEEN SHORT OF A HOLDING. ET was absent from the
+        # daily row for four sessions -- 2026-10-10 to 10-13, after it moved its listing to the
+        # Texas Stock Exchange -- and NOTHING anywhere said so. `contract_row` has always
+        # returned an `unpriced` list and, measured across the repository, no caller consumed
+        # it. Derived from the recorded `n_priced` column, so it costs no vendor call on a page
+        # load, and it answers the HISTORICAL question ("how long") that only the record can.
+        #
+        # ON THE TRACK AND NOT ON THE BOOK, deliberately: `book_in_force` is fenced off from
+        # price-derived concepts by a guard that exists so an acquisition and a vendor gap
+        # cannot become one thing. That guard fired on this item's first placement.
+        "unpriced": _unpriced_block(series),
         "thin": True,
         "headline": "backtested",
         "live": None,

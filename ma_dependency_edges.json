@@ -2238,7 +2238,8 @@
    "b": "MA7",
    "kind": "soft-import",
    "files": [
-    "valuation/screener/index_mark.py <-> valuation/saas/app_saas.py"
+    "valuation/screener/index_mark.py <-> valuation/saas/app_saas.py",
+    "valuation/screener/index_mark.py <-> valuation/web/app.py"
    ]
   },
   {
@@ -2271,6 +2272,22 @@
    "kind": "soft-import",
    "files": [
     "valuation/screener/index_mark.py <-> valuation/screener/index_track.py"
+   ]
+  },
+  {
+   "a": "MA4",
+   "b": "MA50",
+   "kind": "soft-import",
+   "files": [
+    "valuation/screener/index_mark.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA4",
+   "b": "MA53",
+   "kind": "soft-import",
+   "files": [
+    "valuation/screener/index_mark.py <-> valuation/web/app.py"
    ]
   },
   {
@@ -2554,7 +2571,8 @@
    "kind": "soft-import",
    "files": [
     "valuation/saas/app_saas.py <-> valuation/screener/index_mark.py",
-    "valuation/web/app.py <-> valuation/edge/track_meter.py"
+    "valuation/web/app.py <-> valuation/edge/track_meter.py",
+    "valuation/web/app.py <-> valuation/screener/index_mark.py"
    ]
   },
   {
@@ -3469,7 +3487,8 @@
    "b": "MA50",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/track_meter.py <-> valuation/web/app.py"
+    "valuation/edge/track_meter.py <-> valuation/web/app.py",
+    "valuation/screener/index_mark.py <-> valuation/web/app.py"
    ]
   },
   {
@@ -3477,7 +3496,8 @@
    "b": "MA53",
    "kind": "soft-import",
    "files": [
-    "valuation/edge/track_meter.py <-> valuation/web/app.py"
+    "valuation/edge/track_meter.py <-> valuation/web/app.py",
+    "valuation/screener/index_mark.py <-> valuation/web/app.py"
    ]
   },
   {

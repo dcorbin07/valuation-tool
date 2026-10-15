@@ -12138,3 +12138,106 @@ is why this is a correction and not a footnote. Found by Don's manager on the ba
   close`, with sources restored byte-for-byte.** `valuation/studies/sellpremium.py`,
   `scripts/sellpremium2_arm.py`, `sellpremium2_stage2.py`, `sellpremium_kills.py`,
   `sp2_settlement_census.py`; `data/free_analysis/SP2_SETTLEMENT_CENSUS.json`.
+
+
+---
+
+## 90. SELL-PREMIUM-3 — **NOT CONFIRMED ON THE BUILD QUADRANT AND UNDERPOWERED. THE CHECK READ IS NOT SPENT, AND A BROKER DOES ALLOW THIS IN A ROTH** (2026-10-14)
+
+`PREREG_sellpremium3.md` committed **ALONE at `5f61820`**, markdown only, zero `.py`, 228 lines,
+a strict ancestor of every measurement commit, with the **4 options trials booked at `b31e2a6`
+BEFORE any runner existed** (options `N` 319 -> 323, hurdle 3.3956416 -> **3.3993094**, derived).
+Executes the scout's `PREREG_DRAFT_sellpremium3.md` (`a1d37ff`) under `DECISIONS.md` 2026-10-14.
+**ADOPTS NOTHING; `O11` binds; paper only.**
+
+* **THE DISCLOSURE THE REGISTER CARRIES IN ITS OWN §0, AND IT IS VERIFIED FROM GIT RATHER THAN
+  ASSERTED: THE CHECK QUADRANT IS NOT BLIND TO THIS BOOK.** `SELL-PREMIUM-2`'s corrected stage 2
+  already read the same entries' short legs on the same population. **The construction
+  nevertheless predates every such read** — draft `a1d37ff` **2026-10-13 18:18:05 −04:00**, the
+  first stage-2 commit `a525fa6` **20:05:43** (a gap of **1h 47m 38s**), the corrected read
+  `6feddad` **2026-10-14 00:05:09** (**5h 47m**). So no parameter can have been chosen on a
+  check-quadrant outcome, and the register declared **before the run** that a stage-2 pass would
+  have been `ELIGIBLE-BUT-UNRESOLVED (CHECK WINDOW PREVIOUSLY SEEN)` and never a blind
+  confirmation. **That clause cost nothing in the end, because stage 1 did not pass.**
+* **§8 RAN FIRST AND ITS FREE KILL DOES NOT FIRE — A BROKER DON CAN USE PERMITS THIS IN A ROTH.**
+  The draft made this the gate: *"if no broker Don can use permits spreads in his Roth … the
+  whole program is unbuildable."* **FIDELITY** publishes spreads (up to four legs) as an IRA
+  strategy at **Tier 2** plus a **Spreads Agreement**, with a **$2,000 Cash Spreads Reserve** that
+  its own page calls *"a one-time assessment … maintained while you hold spreads"* — **PER
+  ACCOUNT, not per spread**, which is the distinction that decides fundability — and *"credit
+  spread requirements can be met by the minimum cash reserve up to $2,000."* **SCHWAB** publishes
+  a document titled **"Supplemental Application and Agreement for Limited Margin and Trading
+  Option Spreads in Your IRA Account"**; the title is the answer, and IRAs cap at Level 2, which
+  includes spreads. **TASTYTRADE** provisions IRAs as limited margin *"to allow suitable
+  investors to trade defined-risk options trades"*, approval not guaranteed. **Tradier and
+  Robinhood were excluded by `DECISIONS.md` 2026-10-08 and not consulted.** **THE HONEST LIMITS:
+  only Fidelity's dollar figures came from a primary page (Schwab returns an authorisation error
+  to an automated reader, so no Schwab figure is quoted), and no broker's rule was confirmed
+  against Don's own account** — that is a conversation with a custodian, not a measurement.
+* **ALL THREE KILLS PASS, AND `K1`'s REFUSAL PROFILE IS A FINDING ABOUT THE WIDTH RULE.**
+  **1,638 priceable TWO-LEG events against a floor of 1,200, and 516 covered days against 300.**
+  **But 968 of the 2,610 short-leg picks — 37.1% — are REFUSED because the listed strike ladder
+  offers nothing inside the declared 5-12.5% band**, against only **4** with no lower strike at
+  all. So the declared width costs the book over a third of its events, and that is a property of
+  the ladder rather than of the market. `K3-POS` **1.6124** years of premium against the
+  unrelaxed 6.0 — **worse than the draft's forecast 1.15, exactly as the draft warned its own
+  Black-Scholes table would be**. `K3-ACCT` 35% against a 35% bar, passing **by construction**,
+  which the register already scores as low-information.
+* **THE VERDICT: `NOT CONFIRMED` ON CLAUSE (a), AND `UNDERPOWERED` ON THE REGISTER'S OWN
+  THREE-STATE RULE.** `B1` full **+1.2726%** (date-clustered *t* +1.122), **early +4.5871%**,
+  **late −1.2132%** on 1,634 settled spreads. Clause (a) requires profitable in BOTH halves and
+  **the halves disagree in sign** — this record's most repeated pattern. **And no cell reaches
+  its own detection threshold: 0.26x full, 0.77x early, 0.19x late**, so the design could not
+  have confirmed this arm either way and calling it a plain null would claim more than was
+  measured (`V6`, `S19`).
+* **STAGE 2 IS NOT RUN AND THE CHECK READ IS NOT SPENT.** The register's order is stage 1 first,
+  and the prompt's instruction on a stage-1 failure is to stop. **So `SELL-PREMIUM-3` has NOT
+  opened the check quadrant, and its one read remains available to a successor.**
+* **`B2` CLEARS, AND UNLIKE `SELL-PREMIUM-2`'s CORRECTED STAGE 2 THE TWO STATISTICS AGREE.** The
+  spread twin at the identical width rule on random days, five seeds: arm **$+6.61** against
+  **$−27.70** per trade, **354 of 573** paired name-year cells positive, **z +5.6397** — and the
+  pooled return-on-capital **agrees in sign** (+1.2726% against −1.4601%), where in
+  `SELL-PREMIUM-2` the pooled mean and the cell test pointed opposite ways. **Both are reported
+  either way** (void 8). The paired statistic is on **DOLLARS** by the register, because spread
+  capital varies with the credit — measured per-cell dispersion **$50.91** — so a mean of
+  return-on-capital would silently weight the cheapest spreads most.
+* **`B3` IS DIRECTIONALLY THE DRAFT'S ANSWER AND IS NOT SEPARABLE.** On **1,634 IDENTICAL
+  events** the spread returns **+1.2726%** of capital against the naked book's **+0.7855%**, a
+  paired **+0.4871pp** — **at *t* +0.639 and 0.15x its own 80%-power MDE of 3.2340.** The
+  draft's expectation 3 was priced 85/15 and the direction holds; the magnitude is not
+  demonstrated.
+* **A CONSTRUCTION FACT THE DRAFT'S OWN TABLE DID NOT ANTICIPATE, AND IT MOVES EVERY CAPITAL
+  FIGURE: THE REALISED WIDTH IS NOT 7.5%.** The rule takes the nearest listed strike **AT OR
+  BELOW** `K_short − 7.5% × spot`, so **7.5% is a FLOOR, not a centre**: quantiles run
+  **7.50 / 8.01 / 8.80 / 9.83 / 12.47 percent**. Median capital is therefore **$711** on the
+  draft's denominator and **$750** on Fidelity's, against the draft's forecast **$469** —
+  **52% and 60% higher.** Independent of every outcome.
+* **AMENDMENT `A4`, AND IT CAME OUT OF §8 RATHER THAN OUT OF A RESULT.** The draft's capital is
+  `(width − credit) × 100`; **Fidelity's published credit-spread requirement is the GREATER of
+  the strike difference and the premium difference — it nets NO credit.** The registered
+  statistic stays the draft's, because this register tests the draft, and **the account table
+  carries both columns** since that is the table a reader would act on. Measured, the choice is
+  worth about 5% of capital here ($711 against $750), far less than the width surprise above.
+* **THE ACCOUNT TABLE, AND THE OFFERED $10k CONFIGURATION LOSES MONEY.** At the **35%
+  deployment cap** — the only offered rows — **$10,000 ends at $6,322 (−37%)**, $25,000 at
+  **$30,926** and $50,000 at **$58,651**. The `O11` cap-10 and cap-50 rows are shown and
+  **NOT OFFERED**. **So the one account size the draft was most interested in is the one that
+  fails**, which is the opposite of the draft's §6 forecast of +7.55%/yr there.
+* **`B4` IS A SENSITIVITY AND CARRIES NO VERDICT** (a width sweep is a grid, void 1). Returns
+  rise monotonically with realised width — **−0.65, +0.98, +1.90, +2.87** across quartiles —
+  which points at a wider rule and is **exactly what a successor may not conclude from here.**
+* **EXPECTATIONS, SCORED AS THE DRAFT WROTE THEM: 4 RIGHT, 2 WRONG, 1 UNSCORABLE.** (1) `B1`
+  clears both halves, 60/40 — **WRONG**. (2) `B2` clears, 50/50 — **RIGHT**. (3) `B3` beats
+  naked per dollar, 85/15 — **RIGHT on direction, NOT separable**. (4) `K3-ACCT` clears, 90/10 —
+  **RIGHT**, and tautological as declared. (5) `K1` clears 1,200, 55/45 — **RIGHT** at 1,638.
+  (6) the whole register passes, 30% — **WRONG**. (7) Don adopts, 10% — **unscorable**, nothing
+  is offered.
+* **`MB31`'s FAMILY FIRED FOR THE FIFTH TIME ON THIS PROJECT, AND IS REPOINTED IN THE SAME COMMIT.** `tests/test_sellpremium2.py` asserted `options N == 319` and went RED against a correct tree **the moment this register booked its own four trials** - it fired on the CLOCK, not on anything about `SELL-PREMIUM-2`. The literal stays as a **FLOOR** (options `N` only ever rises, so a floor still catches a deleted row or a lowered charge, which is the direction that matters) and the load-bearing assertions become the properties the equality stood in for: **both rows present, `SELL-PREMIUM-2` still charging `n=4` and the predecessor still charging `n=5`.** **A guard asserting two numbers are equal today fires on the clock; assert the property the equality stood in for.**
+* **NOT DONE, named so it is not mistaken for done: NO STAGE-2 READ, so the check quadrant is
+  NOT opened and the one read is NOT spent**; no width swept as a verdict; no second strike
+  rule; no forward book — and **the fleet could not paper-trade a pass anyway**, because its
+  sandbox is Tradier's and Tradier is closed. **`SELL-PREMIUM-2` is not re-opened** and its
+  corrected stage 2 stands. **4 options trials charged in full.**
+  `scripts/sellpremium3.py`, `sellpremium3_arms.py`;
+  `data/free_analysis/SELLPREMIUM3_KILLS.json`, `SELLPREMIUM3_ARM.json`,
+  `SELLPREMIUM3_PICKS.pkl`, `SELLPREMIUM3_BOOK.pkl`.

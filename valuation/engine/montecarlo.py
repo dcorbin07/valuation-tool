@@ -68,10 +68,7 @@ def run_monte_carlo(cd: CompanyData, cls: Classification, base: AssumptionSet,
     vals = vals[~np.isnan(vals)]
     if len(vals) == 0:
         vals = np.array([0.0])
-    # Clip extreme tails for stable stats/plot (keep 0.5–99.5 pct).
-    lo, hi = np.percentile(vals, [0.5, 99.5])
-    clipped = np.clip(vals, lo, hi)
-    counts, edges = np.histogram(clipped, bins=40)
+    edges, counts = histogram_of(vals)
 
     price = cd.price
     prob_uv = float(np.mean(vals > price)) if (price and price > 0) else None
@@ -83,3 +80,37 @@ def run_monte_carlo(cd: CompanyData, cls: Classification, base: AssumptionSet,
         p95=p(95), prob_undervalued=prob_uv, price=price,
         hist_bins=[float(x) for x in edges], hist_counts=[int(x) for x in counts],
     )
+
+
+#: Bins for the fair-value histogram. 40 bins -> 41 edges, which is the shape the chart in
+#: `app.js::mcChart` has always consumed.
+HIST_BINS = 40
+
+
+def histogram_of(vals):
+    """`(edges, counts)` for a fair-value distribution. ONE convention for every model.
+
+    ITEM 57 A6. This was inline in `simulate` and the financial model emitted no histogram at
+    all, so the Monte Carlo panel drew a blank canvas for every bank, insurer and REIT -- above
+    a correct median line, which is what made it read as a rendering bug rather than an absent
+    series. Extracted rather than copied into `financials.py`: two `np.histogram` calls with
+    their own clip would be two conventions for one picture, and the chart cannot tell them
+    apart.
+
+    THE 0.5-99.5 PERCENTILE CLIP IS PART OF THE CONVENTION, not a tidy-up. A justified-P/B
+    draw can run to several multiples of book when the cost of equity approaches terminal
+    growth, and an unclipped histogram puts 39 empty bins beside one spike.
+    """
+    import numpy as np
+
+    v = np.asarray([x for x in np.asarray(vals, dtype=float).ravel()
+                    if np.isfinite(x)], dtype=float)
+    if v.size == 0:
+        return [], []
+    lo, hi = np.percentile(v, [0.5, 99.5])
+    if not np.isfinite(lo) or not np.isfinite(hi) or hi <= lo:
+        # A degenerate distribution (every draw identical) has no histogram to draw. Returning
+        # a single fat bin would be a picture of nothing; the caller shows the percentile view.
+        return [], []
+    counts, edges = np.histogram(np.clip(v, lo, hi), bins=HIST_BINS)
+    return [float(x) for x in edges], [int(x) for x in counts]
