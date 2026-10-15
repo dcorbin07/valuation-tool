@@ -317,53 +317,21 @@
     <div class="err" id="err"></div>
 
     <div class="results" id="results">
-      <!-- 0a. ITEM 52 part 5: what the company DOES, first. The page carried no description
-           at all -- a reader could see a fair value, a 1-100 score and nine theme
-           contributions for a company they had been told nothing about. -->
-      <div id="coProfile"></div>
-      <!-- 0. ITEM 52: what the price assumes, and whether to use the fair value at all.
-           ABOVE the hero deliberately. TSLA showed a $23.23 base fair value against a $378.03
-           price under a badge reading "DCF reliability: high" -- every part produced correctly
-           and the three together telling a reader to trust a number at -94% of the price. The
-           decision-grade statement for a name like that is what growth the price already pays
-           for, which the engine computes on every run and the page buried. -->
-      <div id="priceAssumes"></div>
-      <!-- 0b. ITEM 52 part 4: the hot score near the top, with its drivers and the limits in
-           `score_confidence`'s calibrated words. NOT a second source of the figure -- it
-           renders from the same `/api/whatdo` read the panel further down uses, so the two
-           cannot come to disagree. A name outside today's scan says so rather than blank. -->
-      <div id="hotTop"></div>
-      <!-- 1. Score (hero) -->
-      <div class="card">
-        <div class="hero">
-          <div>
-            <div class="name" id="coName"></div>
-            <div class="sub" id="coSub"></div>
-            <div class="badges" id="coBadges"></div>
-            <div id="avgRisk"></div>
-            <div id="recentBox"></div>
-            <div class="metricline" id="heroMetrics"></div>
-          </div>
-          <div class="gauge" id="gauge"></div>
-        </div>
-      </div>
+      <!-- ITEM 60 ORDER: 1. the headline card -->
+      <!-- ========================== ITEM 60 ==========================
+           THE VALUATION VERDICT, FIRST. Don's ruling, 2026-10-14: someone looking quickly
+           gets the most useful read first; someone interested can go deeper. It is a
+           VALUATION VERDICT and never a Buy/Hold/Sell call, consistent with his 2026-10-13
+           removal of Buy/Hold/Reduce.
 
-      <!-- Stock + options, joined. The opportunity score, the book position and the
-           scream-buy alert for this one name, which used to live on three separate tabs. -->
-      <div class="card" id="whatDoCard" style="display:none">
-        <h3>What this tool does with this name</h3>
-        <div class="section-hint" style="margin-top:0">Where the name sits in today's ranking and
-          the book, plus any options alert on it — what the model is <b>actually doing</b>, not a
-          recommendation. Forward figures are paper.</div>
-        <div id="whatDoBody"></div>
-      </div>
+           THE WORDING LIVES IN `web/valuation_verdict.py` AND IS READ FROM HERE, never
+           written here -- the `score_confidence` pattern, for its stated reason: a surface
+           that writes its own version of a sentence is how one claim comes to have two
+           wordings on one page. A test asserts the banned words against the RENDERED
+           payload rather than against the source, because rendering is where copy leaks. -->
+      <div id="headlineCard"></div>
 
-      <!-- Earnings (shown only when a report is near) -->
-      <div class="card" id="earnCard" style="display:none">
-        <h3>📅 Upcoming earnings</h3>
-        <div id="earnBox"></div>
-      </div>
-
+      <!-- ITEM 60 ORDER: 2. the bear/base/bull range bar against the price -->
       <!-- 2. Fair value & scenarios -->
       <div class="card">
         <h3>Fair value &amp; scenarios</h3>
@@ -372,7 +340,26 @@
         <div class="grid3" id="scenarioCards" style="margin-top:14px"></div>
         <div id="scenarioNote"></div>
       </div>
-
+      <!-- ITEM 60 ORDER: 2b. what the price assumes -- a card of its own, see this script's header -->
+           for, which the engine computes on every run and the page buried. -->
+      <div id="priceAssumes"></div>
+      <!-- ITEM 60 ORDER: 3. what the company does -->
+           contributions for a company they had been told nothing about. -->
+      <div id="coProfile"></div>
+      <!-- ITEM 60 ORDER: 4. business quality: the hero, the gauge, and the score bars with their drivers -->
+      <!-- 1. Score (hero) -->
+      <div class="card">
+        <div class="hero">
+          <div>
+            <div class="name" id="coName"></div>
+            <div class="sub" id="coSub"></div>
+            <div class="badges" id="coBadges"></div>
+            <div id="avgRisk"></div>
+            <div class="metricline" id="heroMetrics"></div>
+          </div>
+          <div class="gauge" id="gauge"></div>
+        </div>
+      </div>
       <!-- 3. Opportunity score breakdown -->
       <div class="card">
         <h3>Opportunity score breakdown</h3>
@@ -391,25 +378,55 @@
           Weights shift by company type, so the DCF counts for less where it's less reliable.
         </div>
       </div>
-
+      <!-- ITEM 60 ORDER: 5. the AI analysis -->
       <!-- 4. AI analysis (shown only when AI is run) -->
       <div class="card ai" id="aiCard" style="display:none">
         <h3>AI analysis <span class="ai-src" id="aiSrc"></span></h3>
         <div id="aiBox"></div>
       </div>
-
-      <!-- 5 & 6. What the market is pricing in + Comps cross-check -->
-      <div class="grid2">
-        <div class="card">
-          <h3>What the market is pricing in</h3>
-          <div id="reverseBox"></div>
-        </div>
-        <div class="card">
-          <h3>Comps cross-check</h3>
-          <div id="compsBox"></div>
-        </div>
+      <!-- ITEM 60 ORDER: 6. the latest earnings, the company's own announcements, and headlines -->
+      <!-- Earnings (shown only when a report is near) -->
+      <div class="card" id="earnCard" style="display:none">
+        <h3>📅 Upcoming earnings</h3>
+        <div id="earnBox"></div>
+        <!-- ITEM 60: MOVED HERE OUT OF THE HERO. The brief's item 6 is earnings, the
+             company's own announcements and headlines -- which is this box plus the one
+             above it, and they sat in two different cards. app.js fills by id, so the
+             move needs no JavaScript change. -->
+        <div id="recentBox"></div>
       </div>
+      <!-- ITEM 60 ORDER: 7. the hot list, and what the tool does with this name -->
+      <!-- 0b. ITEM 52 part 4: the hot score near the top, with its drivers and the limits in
+           `score_confidence`'s calibrated words. NOT a second source of the figure -- it
+           renders from the same `/api/whatdo` read the panel further down uses, so the two
+           cannot come to disagree. A name outside today's scan says so rather than blank. -->
+      <div id="hotTop"></div>
+      <!-- Stock + options, joined. The opportunity score, the book position and the
+           scream-buy alert for this one name, which used to live on three separate tabs. -->
+      <div class="card" id="whatDoCard" style="display:none">
+        <h3>What this tool does with this name</h3>
+        <div class="section-hint" style="margin-top:0">Where the name sits in today's ranking and
+          the book, plus any options alert on it — what the model is <b>actually doing</b>, not a
+          recommendation. Forward figures are paper.</div>
+        <div id="whatDoBody"></div>
+      </div>
+      <!-- ===================== ITEM 60: THE DEEP MODEL DETAIL =====================
+           Items 8-10 of the brief's order sit behind this control, which REMEMBERS ITS STATE.
+           Nothing here is removed and nothing is recomputed when it opens -- every card below
+           is already rendered and already populated, so the control only shows and hides.
+           That matters: a control that deferred the rendering would make the charts appear
+           empty on first open, and `mcChart`'s own empty-histogram branch exists because that
+           class of bug has already happened once on this page. -->
+      <div class="card" id="fullModelToggleCard">
+        <button type="button" id="fullModelToggle" class="btn" aria-expanded="false"
+                aria-controls="fullModel" onclick="toggleFullModel()">Show the full model</button>
+        <div class="note" style="margin-top:6px">The projection, the comparables, the
+          reverse-DCF detail, the sensitivity table and the assumptions editor. Nothing here
+          changes the valuation above; it is the working behind it.</div>
+      </div>
+      <div id="fullModel" style="display:none">
 
+      <!-- ITEM 60 ORDER: 8. the cash-flow projection and Monte Carlo -->
       <!-- 7 & 8. Free cash flow + Monte Carlo -->
       <div class="grid2">
         <div class="card">
@@ -423,13 +440,24 @@
           <div class="note" id="mcNote"></div>
         </div>
       </div>
-
+      <!-- ITEM 60 ORDER: 9. comps and multiples, the reverse-DCF detail, and the sensitivity table -->
+      <!-- 5 & 6. What the market is pricing in + Comps cross-check -->
+      <div class="grid2">
+        <div class="card">
+          <h3>What the market is pricing in</h3>
+          <div id="reverseBox"></div>
+        </div>
+        <div class="card">
+          <h3>Comps cross-check</h3>
+          <div id="compsBox"></div>
+        </div>
+      </div>
       <!-- 9. Sensitivity -->
       <div class="card">
         <h3>Sensitivity — value per share (WACC × terminal growth)</h3>
         <div id="sensBox" style="overflow-x:auto"></div>
       </div>
-
+      <!-- ITEM 60 ORDER: 10. the assumptions editor, notes, warnings, sources and export -->
       <!-- 10. Assumptions editor -->
       <div class="card">
         <h3>Assumptions — tweak &amp; re-run</h3>
@@ -441,7 +469,6 @@
         </div>
         <div class="note" id="assumNotes"></div>
       </div>
-
       <!-- 11. Downloads + sources -->
       <div class="card">
         <h3>Export &amp; sources</h3>
@@ -452,7 +479,9 @@
         <div id="warnBox"></div>
         <div class="sources" id="sourcesBox"></div>
       </div>
+      </div>
 
+      <!-- ITEM 60 ORDER: the disclaimer, last -->
       <div class="disclaimer">
         Educational tool, not investment advice. Automated assumptions are estimates — verify against primary
         filings before making decisions. Fair value is a model output, not a price target.
