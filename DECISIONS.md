@@ -181,6 +181,37 @@ manager from Don's own words in chat.
   vendor and the seam recorded; that is a price-vendor change, not a vintage event.
   Fundamentals, descriptions and earnings dates stay on Yahoo plus SEC, because Alpaca does not
   carry them.
+- **2026-10-15 — INSIDER CLUSTERS: THE 1999–2008 RUNG IS UNOBTAINABLE; F-23 MOVES TO SEC
+  INSIDER IDS, CHECKED FIRST.** r1 measured the older-data rung. Free data starts in 2008, giving
+  31 events at 6.3% power. Raw SEC filings would add only 2006–2007, and pre-2003 filings were on
+  paper. The rung is recorded as unobtainable and nothing is purchased. The forward paper book is
+  the remaining test. F-23 cannot fill on the licensed file, which is a frozen snapshot, and the
+  SEC's free feed counts insiders differently because the licensed file has names only, no IDs.
+  So the rule is re-measured on the SEC's insider ID numbers on the 2009–2019 build data only,
+  with stage 1's bar. F-23 moves to that rule only if it clears.
+- **2026-10-15 — F23-SECID DID NOT CLEAR, BUT IT RAN ON A BROKEN TICKER JOIN** (`f712be2`).
+  Counting insiders by SEC ID instead of by name changed almost nothing (Jaccard 0.987). The
+  SEC-sourced cell, though, covered 608 tickers against SF2's 1,344, because of a join defect
+  between the SEC trading symbol and the panel. r1 repairs the join and re-runs the same
+  registered check as a correctness repair, with no new trial and no variant search. F-23
+  stays unfilled unless the repaired read clears.
+- **2026-10-14 — THE PROOF PAGE LEADS WITH THE PRODUCT** (item 61). It opens on the Valquo
+  Index's own backtested figures (+2.22 points a year over SPY, net Sharpe 0.97, the after-tax
+  line) and the forward track's honest status. The research decile, the top 10% of all ~9,645
+  companies, follows as the evidence that the ranking works.
+- **2026-10-14 — VALUATION PAGE HEADLINE: A VALUATION VERDICT, NOT BUY/HOLD/SELL** (item 60).
+  The headline reads "Undervalued", "Fairly valued" or "Overvalued vs our model", set by the
+  price against the model's bear/base/bull range. Beside it: the fair-value range, the model's
+  confidence, the two reads, and what the price assumes. Names the model cannot value say so
+  instead. No buy, sell or target-price wording anywhere. Everything else on the page is
+  ordered from most to least relevant, with the deep model detail behind a "Show the full
+  model" control.
+- **2026-10-14 — SELL-PREMIUM-3 RESULT: NOT CONFIRMED AND UNDERPOWERED AT STAGE 1** (`2a970bb`).
+  The early half was +4.59%, the late half −1.21%, and no cell reached its own detection
+  threshold. 37% of entries had no strike in the declared width band. Stage 2 was not run, so the
+  check read is unspent. Separately, Alpaca IRAs cannot hold spreads (level 2 only), whereas
+  Fidelity, Schwab and tastytrade publish that they allow defined-risk spreads in IRAs. Nothing
+  adopted.
 - **2026-10-14 — SELL-PREMIUM-3 IS TESTED AS DRAFTED.** The corrected stage 2 left SELL-PREMIUM-2
   NOT CONFIRMED at −0.43%/trade, the loss being the 2020 COVID crash (2021 slightly negative,
   2022-2026 positive). Don chose to test the capped-loss version anyway. Its construction is frozen at the
