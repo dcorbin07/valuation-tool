@@ -1,5 +1,6 @@
 """
-Free price/volume data (Stooq primary, yfinance fallback) — adapted from the
+Free price/volume data — yfinance primary, Stooq fallback, FMP third and gated; Alpaca
+optionally ahead of all three once its seam is measured. Adapted from the
 screener project. Used for the momentum factor (12-minus-1-month return), the
 liquidity gate (average dollar volume), and backtest return series.
 
@@ -87,6 +88,8 @@ ADJ_ATTR = "valquo_adjusted"
 
 SRC_STOOQ = "stooq"
 SRC_YFINANCE = "yfinance"
+#: ITEM 59. Opt-in AND measurement-gated -- see `_alpaca_history`.
+SRC_ALPACA = "alpaca"
 #: Third resort, keyed and opt-in. See `_fmp_history` -- its seam is unmeasured.
 SRC_FMP = "fmp"
 FMP_HISTORY_URL = ("https://financialmodelingprep.com/api/v3/historical-price-full/{sym}")
@@ -97,6 +100,12 @@ VENDOR_ADJUSTMENT = {
     SRC_STOOQ: "unverified",
     SRC_YFINANCE: "auto_adjusted",
     SRC_FMP: "unverified",
+    # NOT `unverified`, AND THAT IS THE WHOLE POINT OF ASKING EXPLICITLY. Alpaca's own
+    # `adjustment` default is `raw`; this path passes `adjustment=all` (splits, dividends and
+    # spin-offs) because the recorded basis is ADJUSTED, and `alpaca_data` makes the parameter
+    # REQUIRED so no caller can fall back to raw by omission. Whether `all` AGREES with
+    # yfinance's `auto_adjust` is the seam measurement's job, not an assumption.
+    SRC_ALPACA: "all_adjustment",
 }
 
 #: Counts by vendor plus the last vendor seen per ticker. The direct path's record; consumers
@@ -259,8 +268,13 @@ def reset_census() -> None:
 def get_history_df(ticker: str, days: int = 400, as_of=None):
     """Daily OHLCV DataFrame (oldest->newest) or None, LABELLED with the vendor that served it.
 
-    **ORDER: yfinance FIRST, Stooq as the fallback, FMP third and gated.** This is a reversal,
-    and it was made on measurement rather than preference:
+    **ORDER: Alpaca first WHEN ITS SEAM IS MEASURED AND OPTED INTO, then yfinance, then Stooq,
+    then FMP.** With the Alpaca gate shut -- which is the shipped state -- the order is
+    yfinance, Stooq, FMP, bit-identical to before item 59, and a test asserts the call sequence
+    rather than trusting this sentence.
+
+    **yfinance BEFORE Stooq** is a reversal, and it was made on measurement rather than
+    preference:
 
     * **SPEED.** Stooq as primary costs every name a failing round trip before the working
       vendor is reached, and its failure MODE decides how much: a 404 is milliseconds, a
@@ -279,6 +293,12 @@ def get_history_df(ticker: str, days: int = 400, as_of=None):
     Stooq. Only the exhaustion of every vendor is a missing price, and that returns None so the
     caller counts the name UNPRICED -- never a stale frame, never a last-known close.
     """
+    # ITEM 59: AHEAD OF EVERYTHING, AND ONLY WHEN LICENSED TO BE. `_alpaca_history` returns
+    # None instantly unless its seam is measured, passed and opted into, so with the gate shut
+    # this line costs one dict lookup and the order below is unchanged.
+    out = _alpaca_history(ticker, days, as_of=as_of)
+    if out is not None:
+        return out
     out = _yf_history(ticker, days, as_of=as_of)
     if out is not None:
         return out
@@ -481,6 +501,65 @@ def _yf_history(ticker: str, days: int, as_of=None):
                      "- trying stooq", ticker, _last_date(out), str(as_of)[:10])
         return None
     return out
+
+
+def _alpaca_history(ticker: str, days: int, as_of=None):
+    """ITEM 59'S LEG. Returns None unless the seam has been MEASURED, PASSED and OPTED INTO.
+
+    **THREE CONDITIONS, AND EACH CAN FAIL ALONE** (`alpaca_seam.switch_allowed`): the artifact
+    exists, its daily-close leg passed at bars declared before any number existed, and
+    `PRICES_PRIMARY_ALPACA` is set on the service. Until all three hold this function returns
+    `None` immediately and the vendor order is bit-identical to what it was -- a test asserts
+    that by comparing the call sequence.
+
+    The third condition is not belt-and-braces. `ALPACA_SETUP.md`'s closing line is that
+    changing what prices the bound record *"is Don's call, not a lane's"*, because inside a
+    segment the base and the mark must come from ONE vendor. So a passing measurement makes the
+    switch available; it does not take it.
+
+    `adjustment=all` is passed EXPLICITLY. Alpaca's default is `raw` and the recorded basis is
+    adjusted, which is the split-trap that already cost items 36 and 39.
+    """
+    try:
+        from ..data import alpaca_seam as _seam
+    except Exception:                                                  # noqa: BLE001
+        return None
+    gate = _seam.switch_allowed()
+    if not gate.get("allowed"):
+        return None
+    try:
+        import datetime as _dt
+
+        import pandas as pd
+
+        from ..data import alpaca_data as _ad
+        client = _ad.AlpacaData()
+        end = as_of if as_of is not None else _dt.date.today()
+        if hasattr(end, "date"):
+            end = end.date()
+        start = end - _dt.timedelta(days=int(days) * 2 + 10)
+        got = client.bars([ticker], adjustment=_ad.ADJ_FOR_RECORDED_BASIS,
+                          start=str(start), end=str(end))
+        rows = (got.get("bars") or {}).get(str(ticker).upper()) or []
+        if not got.get("ok") or not rows:
+            # NOT FOUND HERE IS NOT NO PRICE. Falls through to the next vendor, exactly as an
+            # empty yfinance frame does.
+            _CENSUS["primary_failures"] = _CENSUS.get("primary_failures", 0) + 1
+            return None
+        df = pd.DataFrame([{"Date": str(b.get("t") or "")[:10],
+                            "Open": b.get("o"), "High": b.get("h"), "Low": b.get("l"),
+                            "Close": b.get("c"), "Volume": b.get("v")} for b in rows])
+        df = df.dropna(subset=["Close"]).reset_index(drop=True)
+        if df.empty:
+            return None
+        if _stale(df, as_of):
+            _CENSUS["stale_rejections"] = _CENSUS.get("stale_rejections", 0) + 1
+            return None
+        return _label(df.tail(days).reset_index(drop=True), ticker, SRC_ALPACA)
+    except Exception as e:                                             # noqa: BLE001
+        _LOG.warning("prices: the Alpaca leg failed for %s (%s) - falling through",
+                     ticker, type(e).__name__)
+        return None
 
 
 def _fmp_history(ticker: str, days: int, as_of=None):
