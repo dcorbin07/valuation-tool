@@ -37,6 +37,25 @@ from . import fleet as F
 # ---------------------------------------------------------------------------------------
 # F-1 -- THE FILL A/B
 # ---------------------------------------------------------------------------------------
+
+def _broker_or_refuse(book: str, root=None):
+    """The fleet's broker, or `None` having WRITTEN a named refusal onto the book's stream.
+
+    **A BROKER THAT CANNOT BE BUILT IS A FACT ABOUT THE VENUE, NOT ABOUT THE MARKET**, so it
+    is recorded with its own code rather than raising into `cycle()`'s generic
+    `ENTRY_RULE_RAISED`. The reason travels verbatim -- "the keys are not set" and "the keys
+    are crossed with a live slot" are different problems, and one code could not tell a reader
+    which to go and fix.
+    """
+    b, why = F.fleet_broker_or_reason()
+    if b is not None:
+        return b
+    sha = F.decl_sha_for(book, root) or F.decl_sha_for(book)
+    if sha:
+        F.refuse(book, "BROKER_UNAVAILABLE", why, decl_sha=sha, root=root)
+    return None
+
+
 def f1_fill_ab(decl: dict, root: str = None) -> list:
     """F-1 places no orders. Its evidence is every OTHER book's fill row.
 
@@ -240,8 +259,13 @@ def f3_bear_puts(decl: dict, root: str = None, *, store=None, provider=None,
         return []
 
     if broker is None:
-        from .paper_broker import PaperBroker
-        broker = PaperBroker()
+        # ONE factory (`B7`): the fleet's venue is decided in `fleet.fleet_broker`, not
+        # six times here, and a broker that cannot be built writes a NAMED refusal
+        # rather than raising -- a silent fallback to the closed Tradier sandbox is how
+        # six weeks of empty streams came to read as success.
+        broker = _broker_or_refuse("f3_bear_puts", root)
+        if broker is None:
+            return []
 
     # AUDIT #5 H1 - ROUTED THROUGH THE ONE RESOLVER. Reading DECL_*.md directly
     # RAISES in the image, where `.dockerignore` excludes `*.md`, and it raises
@@ -347,8 +371,13 @@ def f8_csp_entry_financing(decl: dict, root: str = None, *, provider=None, broke
 
     provider = provider if provider is not None else get_provider()
     if broker is None:
-        from .paper_broker import PaperBroker
-        broker = PaperBroker()
+        # ONE factory (`B7`): the fleet's venue is decided in `fleet.fleet_broker`, not
+        # six times here, and a broker that cannot be built writes a NAMED refusal
+        # rather than raising -- a silent fallback to the closed Tradier sandbox is how
+        # six weeks of empty streams came to read as success.
+        broker = _broker_or_refuse("f8_csp_entry_financing", root)
+        if broker is None:
+            return []
 
     # AUDIT #5 H1 - ROUTED THROUGH THE ONE RESOLVER. Reading DECL_*.md directly
     # RAISES in the image, where `.dockerignore` excludes `*.md`, and it raises
@@ -494,8 +523,13 @@ def f11_dip_reject_puts(decl: dict, root: str = None, *, provider=None, broker=N
 
     provider = provider if provider is not None else get_provider()
     if broker is None:
-        from .paper_broker import PaperBroker
-        broker = PaperBroker()
+        # ONE factory (`B7`): the fleet's venue is decided in `fleet.fleet_broker`, not
+        # six times here, and a broker that cannot be built writes a NAMED refusal
+        # rather than raising -- a silent fallback to the closed Tradier sandbox is how
+        # six weeks of empty streams came to read as success.
+        broker = _broker_or_refuse("f11_dip_reject_puts", root)
+        if broker is None:
+            return []
 
     sha = F.decl_sha_for("f11_dip_reject_puts", root)
     if not sha:
@@ -892,8 +926,13 @@ def f21_v6opt_dip_csp(decl: dict, root: str = None, *, provider=None, broker=Non
 
     provider = provider if provider is not None else get_provider()
     if broker is None:
-        from .paper_broker import PaperBroker
-        broker = PaperBroker()
+        # ONE factory (`B7`): the fleet's venue is decided in `fleet.fleet_broker`, not
+        # six times here, and a broker that cannot be built writes a NAMED refusal
+        # rather than raising -- a silent fallback to the closed Tradier sandbox is how
+        # six weeks of empty streams came to read as success.
+        broker = _broker_or_refuse("f21_v6opt_dip_csp", root)
+        if broker is None:
+            return []
     sha = F.decl_sha_for("f21_v6opt_dip_csp", root)
     if not sha:
         return []
@@ -984,8 +1023,13 @@ def f22_dip_csp_random_twin(decl: dict, root: str = None, *, provider=None, brok
 
     provider = provider if provider is not None else get_provider()
     if broker is None:
-        from .paper_broker import PaperBroker
-        broker = PaperBroker()
+        # ONE factory (`B7`): the fleet's venue is decided in `fleet.fleet_broker`, not
+        # six times here, and a broker that cannot be built writes a NAMED refusal
+        # rather than raising -- a silent fallback to the closed Tradier sandbox is how
+        # six weeks of empty streams came to read as success.
+        broker = _broker_or_refuse("f22_dip_csp_random_twin", root)
+        if broker is None:
+            return []
     if not sha:
         return []
     if str(st.get("right") or "put").lower() != "put":
