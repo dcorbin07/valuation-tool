@@ -7,6 +7,21 @@ before any runner existed (equity 306 → 307, hurdle **3.3843308785008586**, de
 **ADOPTS NOTHING.** No file under `valuation/` changed. No app file touched. No broker code edited.
 **THE CHECK QUADRANT IS UNTOUCHED** — `INSIDER-WIDE` spent it on 2026-10-13.
 
+> **RESTATED 2026-10-15 BY `F23-JOIN` — READ `HANDOFF_f23_join.md` BEFORE QUOTING ANY FIGURE BELOW.**
+> This read was scored on a **broken ticker join**: the SEC's `ISSUERTRADINGSYMBOL` is free text and
+> was matched to the panel verbatim, resolving **61.60%** of build-era purchase rows, and 18.1% of
+> filer CIKs file under more than one spelling. Repaired — the filer's CIK resolved to the panel's
+> own ticker **as of the filing date** — the arm reads **+0.8679pp at *t* +0.943 / +0.807 on 363
+> events** against the **+0.1551pp at +0.168 / +0.142 on 318** quoted below, and the net flips from
+> −0.4919pp to **+0.2218pp**, so **A1 and A4 now pass**. **THE VERDICT DOES NOT MOVE: still DOES
+> NOT CLEAR**, A2 and A3 still failing and the halves still disagreeing in sign. The **finding** is
+> unchanged and better evidenced — the join is worth **0.72pp** and the identity key **0.0426pp**,
+> about seventeen to one. The re-run charges **no new trial** (`U1-SPLIT`'s precedent) and the
+> `F23-SECID` research-log cell is edited **in place**. **§4's SF2 gap is now part-attributed:** the
+> repair closes **76.4%** of the gross-mean gap, so the join diagnosis that section recorded is
+> confirmed; the residual is sample size and is still not attributed. Every §2 and §3 figure below
+> is **superseded** and is kept as the record of what the broken join produced.
+
 ---
 
 ## 1. THE 1999-2008 RUNG — closed as unobtainable, zero trials

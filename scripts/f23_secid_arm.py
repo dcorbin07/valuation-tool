@@ -48,6 +48,25 @@ T_BAR = 2.0                      # register A3, LABELLED UNCALIBRATED
 BH_Q = 0.10                      # register A5
 BH_K = 1                         # register A5, and §2 states what k=1 is worth
 
+#: **THE FIRST READ, ON THE BROKEN JOIN, AS COMMITTED LITERALS** (`MA13`'s idiom). That read joined
+#: the SEC's free-text `ISSUERTRADINGSYMBOL` to the panel verbatim and resolved 61% of build-era
+#: purchase rows; `valuation/studies/sec_ticker_join.py` repairs it. These figures are carried so
+#: the re-run's movement is checkable from this file alone, and so a silent revert of the repair
+#: would reproduce them and be loud rather than invisible.
+FIRST_READ_BROKEN_JOIN = {
+    "name": {"build_cell_events": 2277, "n_events_scored": 317, "n_tickers": 105,
+             "mean_pp": 0.1919618241815596, "net_of_cost_pp": -0.45447350704872425},
+    "id": {"build_cell_events": 2290, "n_events_scored": 318, "n_tickers": 105,
+           "mean_pp": 0.15506735736345603, "net_of_cost_pp": -0.4918508816302546,
+           "verdict": "DOES NOT CLEAR"},
+    "cap_resolution_rate": 0.4809,
+    "tickers_shared_with_sf2": 335,
+    "WHY_NO_NEW_TRIAL": ("the repair corrects the instrument on the SAME registered read -- same "
+                         "arms, bar, null, halves, clusterings, costs and BH -- which is the "
+                         "U1-SPLIT and SELL-PREMIUM-2 precedent; the F23-SECID research-log cell "
+                         "is edited in place rather than a second row being appended (MB16)"),
+}
+
 
 def arm_events(arm: str) -> pd.DataFrame:
     """This arm's events, restricted to the BUILD cell — era window AND ticker half 0.
@@ -96,6 +115,8 @@ def main(argv=None):
                                    "NO correcting work; it is carried for continuity with stage "
                                    "1's clause list and is not evidence of multiplicity control"),
                     "permutation_draws": WA.PERMUTATION_DRAWS},
+           "ticker_join": dict(ev_meta.get("ticker_join") or {},
+                               first_read_broken_join=FIRST_READ_BROKEN_JOIN),
            "events_from": {"artifact": EVENTS,
                            "identity_census": ev_meta.get("identity_census"),
                            "overlap_all_eras": ev_meta.get("overlap")},
