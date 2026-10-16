@@ -20532,3 +20532,47 @@ he installs it by double-clicking `install_workflows.bat`.
 - **The new schedule is not installed** — that is Don's `install_workflows.bat` double-click.
 - **No live key, no percentage, nothing armed**, and the auditor re-reviews before any live key.
 
+### A THIRD CYCLE CONFIRMED BOTH REPAIRS, AND EXPOSED A DEFECT IN ITEM 63's ATTEMPT CEILING
+
+**18:21Z: 69 orders sent, 69 accepted, 0 rejected** — against 60 of 60 rejected an hour earlier —
+and holdings advanced **59 → 72 filled**. The duplicate `client_order_id` and the `rejected: None`
+reporting are both closed on the live service, not merely on fixtures.
+
+**AND WATCHING THOSE THREE CYCLES EXPOSED A DEFECT IN MY OWN ITEM 63 CEILING.** The auditor's
+condition was precise — *a PERMANENTLY-rejecting condition retries every cycle for ever and
+`live_notify` dedupes it into silence* — and I implemented a count of **cycles that ACTED**, which
+is a different quantity. Measured on the live book: cycle 1 bought in, cycle 2 was the duplicate-id
+failure, cycle 3 sent 69 and filled 13 more. **That event had spent three of its five attempts
+while FILLING NORMALLY.** A `day` limit at the mid takes several cycles to work through 85 names,
+so a rebalance behaving exactly as §8a designs it would have stopped and alerted — **a false alarm
+on Don's first real rebalance, which is the cheapest possible way to teach him to ignore the one
+alert this ceiling exists to raise.**
+
+The counter resets on PROGRESS now, so the ceiling means what it says: *this event has not advanced
+in N consecutive cycles.* **Progress is measured on the HOLDINGS, not on orders accepted** —
+`reconcile` builds holdings from FILLS, so it cannot be fooled by orders that are accepted and
+never fill, which is exactly what a permanent rejection or an unfillable limit produces. A closed
+event's counters are cleared with it, or a slot that needed four cycles once would start the next
+rebalance with four attempts already spent.
+
+**Item 63's own ceiling tests still pass unchanged, which is the evidence the repair is narrow:**
+its fixture rejects every order, so holdings never advance, which is precisely the case the ceiling
+now measures.
+
+### A TEST-ISOLATION DEFECT OF MINE, which is why this took two runs to see
+
+`WhatTheFirstRealCycleProved` subclassed `TestCase` rather than `_Tmp` and then wrote
+`root=self.root if hasattr(self, "root") else None` — resolving to the **real** state directory.
+The slot's record persisted, so the second run of the suite saw the event already processed and
+placed nothing: 0 orders, assertion failed. **A test that passes on a clean machine and fails on a
+used one is worse than one that fails outright**, because the first failure reads as a regression in
+the code it is pointed at. The `hasattr` dance was the tell — it papered over a missing fixture
+rather than adding one. It now passes twice in a row, which is the actual property.
+
+### The paper book as it stands
+
+Three cycles, one event (`rebalance:2026-07-30`), **85 orders at the broker, 72 filled, 0
+unfilled**, 72 names held, $100,000 of paper equity. The event is still open and the remainder
+mechanism is working for the first time. **§8's precondition — the paper slot completing a full
+rebalance with the fills inspected — is now partially met and no longer blocked.**
+
