@@ -763,7 +763,15 @@ def analyse(*, root: str = None, names=None, series=None, contract_row=None,
     raw = read_raw(root)
     out["window"] = raw.get("window") or {}
     cats = categories(root)
-    out["sample"] = {"n": len(nm), "source": ("scripts.fmp_seam.sample() plus the named gaps "
+    out["sample"] = {"n": len(nm),
+                     "floor_reachable": len(nm) >= MIN_NAMES_FOR_PASS,
+                     "not_a_fixed_list": (
+                         "`fmp_seam.sample()` is ~70 hard-coded names PLUS a LIVE fetch of "
+                         "/api/hotstocks and /api/dip, so this count MOVES between runs: ~223 "
+                         "from the service, 74 where the fetch cannot reach the network. Two "
+                         "runs are not necessarily the same population, and the floors are "
+                         "declared against a count that is recorded here rather than assumed."),
+                     "source": ("scripts.fmp_seam.sample() plus the named gaps "
                                               "-- IMPORTED so the three vendors are compared "
                                               "on ONE population"),
                      "categories": {k: v for k, v in sorted(cats.items())}}
@@ -862,8 +870,24 @@ def analyse(*, root: str = None, names=None, series=None, contract_row=None,
         reasons.append("the stored pull is INCOMPLETE -- %d of %d names still owed from Yahoo"
                        % (len(owed), len(nm)))
     if n_names < MIN_NAMES_FOR_PASS:
-        reasons.append("only %d names could be compared, below the declared floor of %d"
-                       % (n_names, MIN_NAMES_FOR_PASS))
+        # **IS THE FLOOR REACHABLE ON THIS SAMPLE AT ALL? [item 64]** The stated sample is not a
+        # fixed list: `fmp_seam.sample()` is 70 hard-coded names PLUS a live fetch of the hot
+        # list and the dip screen, so it is ~223 from the service and 74 where that fetch cannot
+        # reach the network. A floor of 200 on a sample of 74 can never clear, and "only 74 names
+        # could be compared, below the declared floor of 200" reads as an incomplete pull -- i.e.
+        # as advice to pull more. Two different facts, and the same shape as the ten re-runs one
+        # layer up.
+        if len(nm) < MIN_NAMES_FOR_PASS:
+            reasons.append(
+                "THE FLOOR IS UNREACHABLE ON THIS SAMPLE: the stated sample is only %d names "
+                "and the declared floor is %d, so no amount of pulling can clear it. The "
+                "sample is `fmp_seam.sample()` -- hard-coded names plus a LIVE fetch of the hot "
+                "list and the dip screen -- so a sample this small means that fetch did not "
+                "reach the service. This is not an incomplete pull." % (len(nm),
+                                                                        MIN_NAMES_FOR_PASS))
+        else:
+            reasons.append("only %d names could be compared, below the declared floor of %d"
+                           % (n_names, MIN_NAMES_FOR_PASS))
     if n_bars < MIN_BARS_FOR_PASS:
         reasons.append("only %s comparable bars, below the declared floor of %s"
                        % (format(n_bars, ","), format(MIN_BARS_FOR_PASS, ",")))

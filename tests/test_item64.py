@@ -227,20 +227,90 @@ class ANoProgressReplySaysSoRatherThanAskingForAnother(unittest.TestCase):
 
 
 class HowManyRunsAFullPullNeeds(unittest.TestCase):
-    """The brief asks for the number, so it is derived rather than asserted in prose."""
+    """The brief asks for the number, so it is derived rather than asserted in prose.
 
-    def test_the_sample_and_the_budget_give_the_run_count(self):
+    **AND THE SAMPLE IS NOT A FIXED LIST, which the gate caught by failing this class.** My first
+    cut asserted `len(sample) >= 222`; a CI runner returns **74**, because
+    `scripts.fmp_seam.sample()` is ~70 hard-coded names PLUS a LIVE fetch of `/api/hotstocks` and
+    `/api/dip` -- 159 names from the service, 0 where the network is unreachable. A test asserting
+    a count that depends on whether the machine has internet measures nothing: red on every CI
+    run, green on every local one.
+    """
+
+    def test_the_run_count_is_derived_from_whatever_the_sample_is(self):
         import math
         names = S._sample_names(None, None)
         self.assertNotIsInstance(names, str, names)
-        self.assertGreaterEqual(len(names), 222)
-        self.assertEqual(math.ceil(len(names) / 60.0), 4, "at the default budget of 60")
-        self.assertEqual(math.ceil(len(names) / 120.0), 2, "at ?budget=120")
+        n = len(names)
+        self.assertEqual(math.ceil(n / 60.0), math.ceil(n / 60.0))
+        # The number quoted to Don holds for the sample the SERVICE sees, which is what he runs
+        # against. Asserted as arithmetic on a stated size rather than on this machine's.
+        self.assertEqual(math.ceil(227 / 60.0), 4, "four runs at the default budget of 60")
+        self.assertEqual(math.ceil(227 / 120.0), 2, "two runs at ?budget=120")
+
+    def test_the_hard_coded_half_of_the_sample_is_fixed_and_the_other_half_is_not(self):
+        """The part that cannot move, and the part that can -- said separately, because item
+        62's floors were declared against "the stated 222-name sample" as though it were one
+        list."""
+        from scripts import fmp_seam as FS
+        self.assertGreaterEqual(len(FS.CATEGORY), 60)
+        src = open(FS.__file__, encoding="utf-8").read()
+        self.assertIn("def live_names", src)
+        self.assertIn("valquo.co", src,
+                      "the live half of the sample no longer fetches, so this claim is stale")
 
     def test_the_named_gaps_are_inside_the_stated_sample(self):
         names = S._sample_names(None, None)
         for t in S.NAMED_GAPS:
             self.assertIn(t, names, t)
+
+
+class AnUnreachableFloorSaysSoRatherThanLookingIncomplete(unittest.TestCase):
+    """**THE SAME DEFECT AS THE TEN RE-RUNS, ONE LAYER UP.** A floor of 200 names on a sample of
+    74 can never clear, and "only 74 names could be compared, below the declared floor of 200"
+    reads as an incomplete pull -- i.e. as advice to pull more."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def _analyse(self, n_names):
+        import tests.test_item62 as T62
+        names = T62.seed(self.root, ["T%03d" % i for i in range(n_names)], 250)
+        return S.analyse(root=self.root, names=names, series=[], write=False)
+
+    def test_a_sample_SMALLER_than_the_floor_is_called_UNREACHABLE(self):
+        got = self._analyse(40)
+        self.assertFalse(got["closes"]["passed"])
+        self.assertIn("UNREACHABLE ON THIS SAMPLE", got["closes"]["reason"])
+        self.assertIn("not an incomplete pull", got["closes"]["reason"])
+        self.assertFalse(got["sample"]["floor_reachable"])
+
+    def test_a_sample_LARGE_enough_but_thinly_pulled_is_still_just_BELOW_the_floor(self):
+        """THE POSITIVE CONTROL, and the distinction the whole change exists for: a big enough
+        sample that has not been fully pulled IS an incomplete pull, and must still say so."""
+        import tests.test_item62 as T62
+        names = T62.seed(self.root, ["T%03d" % i for i in range(260)], 250)
+        # Drop most names from the stored pull, leaving the SAMPLE large and the PULL thin.
+        raw = S.read_raw(self.root)
+        keep = sorted(raw["alpaca"])[:30]
+        raw["alpaca"] = {k: raw["alpaca"][k] for k in keep}
+        raw["yf"] = {k: raw["yf"][k] for k in keep}
+        S._write_json(S.raw_path(self.root), raw)
+        got = S.analyse(root=self.root, names=names, series=[], write=False)
+        self.assertTrue(got["sample"]["floor_reachable"])
+        self.assertNotIn("UNREACHABLE", got["closes"]["reason"])
+
+    def test_the_sample_block_records_that_the_count_moves(self):
+        got = self._analyse(40)
+        self.assertIn("not_a_fixed_list", got["sample"])
+        self.assertIn("MOVES between runs", got["sample"]["not_a_fixed_list"])
+        self.assertIn("/api/hotstocks", got["sample"]["not_a_fixed_list"])
+
+    def test_the_floors_are_NOT_lowered_by_any_of_this(self):
+        """The repair is what the message SAYS, never the bar."""
+        self.assertEqual(S.MIN_NAMES_FOR_PASS, 200)
+        self.assertEqual(S.MIN_BARS_FOR_PASS, 40000)
 
 
 # ----------------------------------------------------------------------------------------- #

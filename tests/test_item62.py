@@ -80,10 +80,22 @@ class TheThreeBarPassIsImpossibleNow(_Root):
         self.assertIn("below the declared floor", c["reason"])
 
     def test_the_reason_names_BOTH_floors_it_misses(self):
-        """A reader must be able to tell which floor stopped it, and here it is both."""
+        """A reader must be able to tell which floor stopped it, and here it is both.
+
+        **REPOINTED BY ITEM 64, WHICH MADE THE NAMES WORDING STRONGER.** This matched the
+        literal "names could be compared". Item 64 found that the stated sample is not a fixed
+        list -- ~70 hard-coded names plus a LIVE fetch of the hot list -- so a sample SMALLER
+        than the floor can never clear it, and saying "only 13 names could be compared, below
+        the declared floor of 200" reads as an incomplete pull. This fixture's 13 names are
+        exactly that case, so it now reads UNREACHABLE, which is the more accurate of the two.
+        The property is unchanged: both floors are named.
+        """
         r = self.analyse(["ET", "GBTC", "TSM"], 1)["closes"]["reason"]
-        self.assertIn("names could be compared", r)
+        self.assertTrue("names could be compared" in r or "UNREACHABLE ON THIS SAMPLE" in r,
+                        "the names floor is not named at all: %r" % r)
+        self.assertIn(str(S.MIN_NAMES_FOR_PASS), r, "the names floor's VALUE is not named")
         self.assertIn("comparable bars", r)
+        self.assertIn("40,000", r, "the bars floor's VALUE is not named")
 
     def test_a_100_percent_rate_is_not_sufficient_on_its_own(self):
         """The whole lesson in one assertion: agreement is necessary and nowhere near enough."""

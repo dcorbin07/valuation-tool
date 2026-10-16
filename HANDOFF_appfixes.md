@@ -20410,3 +20410,125 @@ coverage note then says the market was OPEN and names are still missing, that is
 finding about Alpaca's free feed and the next decision is Don's — the paid SIP feed, or marking
 from the project's own price route with the seam recorded. If the names price, the paper slot
 places its first orders and §8's precondition is finally met.
+
+
+---
+
+## ITEM 64 — THE IEX QUESTION IS ANSWERED, AND THE SECOND REAL CYCLE FOUND TWO MORE DEFECTS
+
+### PART 3 FIRST, BECAUSE THE MARKET WAS OPEN: 85 of 85 NAMES PRICED
+
+Dispatched at **17:36Z on 2026-10-16 — 13:36 ET, inside the orders window.**
+`marks_coverage` reads **85 of 85 priced, `missing: []`**, and the paper slot sent **85 orders,
+85 accepted, 0 rejected, 0 skipped** against $100,000 of paper equity. **ITEM 63's OPEN QUESTION
+IS CLOSED.** The 26-name shortfall it saw after hours was entirely a market-closed artefact: a
+mid gap needs a resting two-sided quote, and IEX has none for a mid-cap at 22:54 ET.
+
+**So all three of the options the brief asked me to price are moot**, which is the cheapest
+possible answer: no $99/month plan, no new mark rule needing the auditor's view, and no
+construction change to trade only the names IEX can quote. WDS — one of the 26 — priced at 25.22
+and filled at 23.67.
+
+A second cycle at **17:46Z** reported the fills: **59 of 85 filled at the mid, 0 unfilled, 26
+still working**, and the feed-gap measurement took its first real data (30 fills banked against
+85 orders placed, so the denominator item 63 added is now fed).
+
+### AND THAT SECOND CYCLE EXPOSED TWO DEFECTS NOTHING ELSE COULD HAVE FOUND
+
+**DEFECT A — all 60 remainder orders were rejected and the log said `rejected: None`.** The two
+clients report a FAILURE under different keys: `_LiveClient._request` returns
+`{"ok": False, "status", "error"}` while `AlpacaPaperBroker.place_equity` returns
+`{"ok": False, "reason", "detail", "sent"}` — and `run_slot` read only `error`. **This is blocker
+1's family one level down**: one runner, two clients, disagreeing on a reply shape. Item 63's
+interface test checked method NAMES, and the `LiveShaped` fixture pins reply-shape differences
+only for SUCCESS, so nothing caught it. Sixty real rejections arrived as the string `None` on the
+one path whose entire job is to say why it did not trade. `_rejection_reason` reads both shapes
+now, unwraps Alpaca's message from its envelope (a reader needs *"client_order_id must be
+unique"*, not `{'message': ...}`), dedupes, and distinguishes *"it refused and said nothing"* from
+*"it said None"*.
+
+**DEFECT B, WHICH DEFECT A WAS HIDING — the remainder re-sent the SAME `client_order_id`.** A
+remainder cycle acts on the same event and the same ticker, so the id was byte-identical to one
+Alpaca had already accepted, and Alpaca rejects a duplicate. **So §8a's whole re-price-and-re-send
+mechanism could never have worked**: the first cycle of an event transmits and every later one is
+refused in full. Item 63 made the id a namespace and did not make it unique per ATTEMPT — which
+went unnoticed because blocker 1 meant no first attempt had ever reached a broker. The id carries
+an attempt suffix now, and **attribution is untouched because `reconcile` matches the
+`valquo-<slot>-` PREFIX**, not the whole id.
+
+### PART 1 — the seam pull asked for data the subscription will not serve
+
+All ten of Don's runs returned `n_alpaca: 0` on *"subscription does not permit querying recent SIP
+data"*, because `end` was `date.today()` and **the free plan refuses a window reaching inside its
+15-minute SIP delay IN FULL rather than trimming it.** Item 62 was right to declare the window
+(the vendor's default produced three bars on one day); this is the other half: **the end of a
+free-tier historical window is not "now", it is the latest timestamp the entitlement covers.**
+
+**A DEFECT IN MY OWN FIRST FIX, caught by probing the one case the brief does not mention.** The
+brief suggests `min(last completed session's close, now - 16 minutes)` and **those are mismatched
+units.** At 16:10 ET the session HAS closed, so "the last completed session" is today and
+`now - 16min` has today's date too — the earlier-of-two then picks a window ending on a bar that
+is **ten minutes old**, which is the same 403 after the repair. The rule that is actually correct
+needs no `min()` and no two candidates: **the latest date whose session close is more than the
+delay in the past.** Verified at every quarter-hour of a week against the rule's own definition
+rather than against a handful of expected answers.
+
+**And a no-progress reply now says so.** The old `rerun_note` was the static sentence *"Run it
+again until `pull.complete` is true"*, printed in every state — true of a pull that is ADVANCING
+and false of one that is STUCK. It is computed from what happened now, names the cause, and quotes
+the window it asked for. **Ten identical runs is the measure of how wrong an unconditional piece
+of advice can be.**
+
+Don's PowerShell commands and the run count (**four at the default budget, two at
+`?budget=120`**, for a 227-name sample at 60 names per call) are in `ALPACA_SETUP.md`.
+
+### PART 2 — the schedule, derived from when the scheduler actually fires
+
+**THE BRIEF'S OWN SUGGESTION DOES NOT SURVIVE THE MEASUREMENT.** It proposes 14:40, 16:10 and
+17:40 UTC *"which stay inside the window in both daylight regimes"* — which reasons about when a
+cron is SCHEDULED. Measured from GitHub's API across **24 scheduled PT-WRITER runs over two
+weeks**, this repo's scheduler fires **3.45 to 7.48 hours LATE, median 5.52** — consistently, with
+the spacing between its two crons preserved, so it is a queue delay and not jitter. Add the median
+and 16:10 becomes 21:40Z, after the window shuts.
+
+**And `live-cycle.yml`'s single 14:40Z schedule has never fired**: zero scheduled runs exist, and
+at 17:43Z it was 3.06 hours overdue. That is consistent with the lag rather than with a broken
+cron, which is why the repair is *schedule earlier* rather than *fix the cron*.
+
+So the times are derived from the lag. The target is the intersection of both daylight regimes,
+**14:35–19:45Z**, so no DST pair is needed:
+
+| cron | fires when delayed 3.45–7.48h | always inside? |
+|---|---|---|
+| 11:30Z | 14:57–18:59Z | **YES** |
+| 12:00Z | 15:27–19:29Z | **YES** |
+| 12:30Z | 15:57–19:59Z | all but the slowest ~1 of 24 |
+| 14:40Z | 18:07–22:09Z | no — but YES if it ever fires ON TIME |
+| 16:10Z | 19:37–23:39Z | no — but YES if it ever fires ON TIME |
+
+**BOTH REGIMES ARE COVERED ON PURPOSE**, and what licenses adding crons liberally is that **an
+extra run costs nothing**: the door is idempotent per event and a cycle outside the window refuses
+on `orders_window` and returns 200. The only price of a miss is a no-op in the run log.
+
+Handed to Don through `pending_workflows/live-cycle.yml` with a dated **PENDING INSTALL** marker;
+he installs it by double-clicking `install_workflows.bat`.
+
+### Guards that fired on this item, both repointed rather than re-asserted
+
+- **Item 63's drift guard** requires the pending and installed copies of `live-cycle.yml` to be
+  byte-identical — and a handover through `pending_workflows/` is a window in which they MUST
+  differ. Re-asserting it would make every future workflow handover unlandable; deleting it would
+  lose silent divergence between the reviewed file and the running one. It now permits a
+  difference **only while the pending copy declares it** and says what changed, with a positive
+  control proving undeclared drift still bites.
+- **Item 62's rerun-advice assertion** pinned the static sentence that caused the ten runs. The
+  advice is computed now, so the assertion moved to the property: the door must NOT print
+  unconditional advice, and must copy what the pull computed.
+
+### NOT DONE
+
+- **The seam pull has not been run.** It needs the admin token, which no lane ever handles; the
+  PowerShell loop is in `ALPACA_SETUP.md` and stops itself if a call achieves nothing.
+- **The new schedule is not installed** — that is Don's `install_workflows.bat` double-click.
+- **No live key, no percentage, nothing armed**, and the auditor re-reviews before any live key.
+
