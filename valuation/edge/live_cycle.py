@@ -777,7 +777,15 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         tries = dict(st.get("event_attempts") or {})
         held_now = round(sum(float(v or 0) for v in (st.get("holdings") or {}).values()), 6)
         marks_seen = dict(st.get("event_progress") or {})
-        if marks_seen.get(key) is not None and held_now > float(marks_seen[key]) + 1e-9:
+        if marks_seen.get(key) is None:
+            # **NO BASELINE MEANS THIS EVENT HAS NEVER BEEN MEASURED BY THIS RULE, so any count
+            # it carries was written under the OLD one and is not evidence [item 64].** The
+            # counter used to mean "cycles that acted" and now means "consecutive cycles with no
+            # advance". The fourth real cycle read 5 of 5 while holdings advanced 72 -> 77 -- a
+            # healthy rebalance one cycle from stopping itself on a number that meant something
+            # else when it was written. A changed definition does not inherit its old values.
+            tries[key] = 0
+        elif held_now > float(marks_seen[key]) + 1e-9:
             tries[key] = 0                      # it advanced: the retry is working
         marks_seen[key] = held_now
         st["event_progress"] = marks_seen
