@@ -370,7 +370,7 @@ class TheRemainderIsTheShortfall(_Tmp):
         """A short is not a position this path is authorised to take, so a sell larger than the
         record reduces to zero rather than going through it."""
         got = LC.reconcile(_Orders([{"symbol": "A", "side": "sell", "filled_qty": 5.0,
-                                     "status": "filled", "client_order_id": "paper-x-A"}]),
+                                     "status": "filled", "client_order_id": "valquo-paper-x-A"}]),
                            {"slot": "paper", "holdings": {"A": 1.0}})
         self.assertTrue(got["ok"])
         self.assertNotIn("A", got["holdings"])
@@ -389,9 +389,9 @@ class OnlyThisSlotsOwnOrdersAreRead(unittest.TestCase):
         """Don's own holdings, and any other slot's, are never read into this slot's record --
         so the planner can only ever sell what this slot itself bought."""
         rows = [{"symbol": "A", "side": "buy", "filled_qty": 5.0, "status": "filled",
-                 "client_order_id": "paper-rebalance:2026-07-30-A"},
+                 "client_order_id": "valquo-paper-rebalance:2026-07-30-A"},
                 {"symbol": "Z", "side": "buy", "filled_qty": 99.0, "status": "filled",
-                 "client_order_id": "1-rebalance:2026-07-30-Z"},
+                 "client_order_id": "valquo-1-rebalance:2026-07-30-Z"},
                 {"symbol": "Y", "side": "buy", "filled_qty": 77.0, "status": "filled",
                  "client_order_id": ""}]
         got = LC.reconcile(_Orders(rows), {"slot": "paper"})
@@ -509,24 +509,47 @@ class ZeroPercentConstructsNoClient(_Tmp):
 
 
 class TheParityDiff(unittest.TestCase):
-    def test_identical_plans_at_the_same_value_agree(self):
-        p = [{"ticker": "A", "side": "buy", "qty": 6.0, "limit_price": 10.0}]
-        got = LC.parity(p, p, live_value=1000.0, paper_value=1000.0)
+    """**REPOINTED BY ITEM 63: PARITY DIFFS TARGET WEIGHTS, NOT ORDER DELTAS.**
+
+    These passed order PLANS, which is what the first cut compared. The auditor's question 2
+    found that structurally weak: a delta is a function of current holdings, so the paper slot
+    (100% of the paper account) and a live slot (X% of Don's) mismatch on every name as soon as
+    their fill states differ -- for an entirely legitimate reason. A check that cries wolf on
+    healthy cycles is one nobody reads on the unhealthy one. A TARGET is holdings-independent,
+    and it is the thing "the live orders reproduce the paper book's arithmetic" actually claims.
+    """
+
+    def test_identical_targets_at_the_same_value_agree(self):
+        t = {"A": 60.0}
+        got = LC.parity(t, t, live_value=1000.0, paper_value=1000.0)
         self.assertTrue(got["ok"])
+        self.assertEqual(got["compares"], "target weights")
 
     def test_a_missing_name_is_a_mismatch(self):
-        live = [{"ticker": "A", "side": "buy", "qty": 6.0, "limit_price": 10.0}]
-        paper = live + [{"ticker": "B", "side": "buy", "qty": 4.0, "limit_price": 10.0}]
-        got = LC.parity(live, paper, live_value=1000.0, paper_value=1000.0)
+        got = LC.parity({"A": 60.0}, {"A": 60.0, "B": 40.0},
+                        live_value=1000.0, paper_value=1000.0)
         self.assertFalse(got["ok"])
 
     def test_it_scales_to_the_same_equity(self):
         """A live slot at a different account size must still agree in SHAPE, or the diff would
         report a mismatch on every slot whose account is not the paper account's size."""
-        live = [{"ticker": "A", "side": "buy", "qty": 0.6, "limit_price": 10.0}]
-        paper = [{"ticker": "A", "side": "buy", "qty": 6.0, "limit_price": 10.0}]
-        got = LC.parity(live, paper, live_value=100.0, paper_value=1000.0)
+        got = LC.parity({"A": 6.0}, {"A": 60.0}, live_value=100.0, paper_value=1000.0)
         self.assertTrue(got["ok"], got.get("reason"))
+
+    def test_DIFFERENT_FILL_STATES_NO_LONGER_CAUSE_A_FALSE_MISMATCH(self):
+        """THE REASON FOR THE REWRITE, as a test. Two slots aiming at the same book in the same
+        proportions agree, however differently filled they are -- which the order-delta version
+        could not express, because their deltas would have differed by construction."""
+        same = {"A": 50.0, "B": 50.0}
+        self.assertTrue(LC.parity(same, same, live_value=100.0, paper_value=100.0)["ok"])
+
+    def test_A_GENUINE_ARITHMETIC_DIVERGENCE_STILL_FAILS(self):
+        """THE POSITIVE CONTROL. Holdings-independence must not have cost the check its bite:
+        a slot aiming at different PROPORTIONS is the thing parity exists to catch."""
+        got = LC.parity({"A": 70.0, "B": 30.0}, {"A": 50.0, "B": 50.0},
+                        live_value=100.0, paper_value=100.0)
+        self.assertFalse(got["ok"])
+        self.assertEqual(got["n_mismatch"], 2)
 
 
 class TheFeedGapMeasurement(_Tmp):
@@ -574,7 +597,10 @@ class TheFeedGapMeasurement(_Tmp):
         cen = LC.feed_gap_report(self.root)["censoring"]
         self.assertTrue(cen["price_gap_is_one_sided"])
         self.assertIn("never fills worse", cen["why"])
-        self.assertIn("unfilled count", cen["uncensored_companion"])
+        # REPOINTED BY ITEM 63: the companion is the unfilled RATE, because a count
+        # with no denominator is not a measurement (auditor #14).
+        self.assertIn("unfilled RATE", cen["uncensored_companion"])
+        self.assertIn("NOT MEASURED", cen["underlying_question"])
 
     def test_a_measured_gap_is_never_unfavourable(self):
         c = Stub(fill=1.0, improve=0.003)
