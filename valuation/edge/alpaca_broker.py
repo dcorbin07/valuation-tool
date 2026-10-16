@@ -229,6 +229,11 @@ class AlpacaPaperBroker:
         acct = str(d.get("account_number") or "")
         return {
             "ok": True,
+            # WHICH ACCOUNT, so the live path can assert it is not trading THIS one. [item 63]
+            # The account number was already read here and consumed only into the
+            # corroboration note below; the `id` is the stable identifier and was dropped.
+            "account_id": (str(d.get("id") or "") or None),
+            "account_number": (acct or None),
             "equity": _f(d.get("equity")),
             "cash": _f(d.get("cash")),
             "buying_power": _f(d.get("buying_power")),
@@ -361,6 +366,31 @@ class AlpacaPaperBroker:
                     "sent": body}
         return {"ok": True, "data": got.get("data") or {}, "sent": body,
                 "data_caveat": DATA_CAVEAT}
+
+    def place_limit(self, ticker: str, side: str, qty: float, limit_price: float,
+                    client_order_id: str = None) -> dict:
+        """THE NAME `run_slot` CALLS. Delegates to `place_equity`; adds no behaviour. [item 63]
+
+        **IT EXISTS BECAUSE ITS ABSENCE MEANT THE PAPER SLOT COULD NOT PLACE AN ORDER AT ALL.**
+        `live_cycle.run_slot` is deliberately one runner for both clients, and it transmits by
+        calling `client.place_limit(...)`. This class had only `place_equity`, so every paper
+        order raised `AttributeError`, was caught into a `broker_error` alert, and nothing was
+        sent -- while the suite stayed green, because every test handed `run_slot` a stub that
+        defined `place_limit`. The paper slot is the whole mechanism by which the real-money
+        path is proven before real money, and it had never run.
+
+        **WHY A SECOND NAME RATHER THAN RENAMING `place_equity`:** `place_equity` is the paper
+        books' own call (`fleet`, `paper_track` and the options books all reach it), and
+        renaming it would move a shipped interface to repair an unshipped one. This is the
+        narrower change, and `tests/test_item63.py` asserts the two stay in step by reading the
+        delegation out of the source rather than trusting this docstring.
+
+        **IT IS A DELEGATION AND NOT A COPY** (`B7`): every validation `place_equity` performs
+        -- limit-only, positive quantity, the fractional `time_in_force` rule -- applies here
+        unchanged, because this function performs none of them itself.
+        """
+        return self.place_equity(ticker, side, qty, limit_price=limit_price,
+                                 client_order_id=client_order_id)
 
     def cancel(self, order_id) -> dict:
         got = self._request("DELETE", "/v2/orders/%s" % order_id)

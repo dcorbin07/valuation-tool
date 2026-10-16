@@ -34,7 +34,7 @@ WHY "FULLY DISCIPLINED" MAKES THE CODE SMALLER, WHICH IS HIS OWN ARGUMENT
 -------------------------------------------------------------------------
 Every extra rule is a branch that can fire when it should not. The only reads that can cause an
 order here are: the book in force, its weights, the account's equity, and the slot's percentage.
-A price is read to set a limit, never to decide.
+A price is read to set a limit and to size the order, never to decide WHETHER to trade.
 
 IF ANYTHING IS BROKEN, THE SLOT DOES NOT TRADE
 ----------------------------------------------
@@ -331,12 +331,37 @@ def order_plan(targets_map: dict, held_by_slot: dict, marks: dict, *,
     return {"orders": orders, "skipped": skipped}
 
 
+#: `broker_positions` was not supplied at all -- a caller doing pure arithmetic. DISTINCT from
+#: `None`, which means the caller TRIED to read the broker's positions and could not. [item 63]
+POSITIONS_NOT_SUPPLIED = object()
+
+
 def preflight(*, book: dict, equity, marks: dict, slot_record: dict, pct,
-              broker_positions=None, tolerance: float = 0.01) -> dict:
+              broker_positions=POSITIONS_NOT_SUPPLIED, slot_symbols=None,
+              tolerance: float = 0.01) -> dict:
     """Every "is anything broken" check, in one place. `ok: False` means NO ORDERS this cycle.
 
     The list is the brief's, and each entry exists because the alternative is an order placed
     on a number nobody checked. **None of these is about performance.**
+
+    **THE RECORD-VERSUS-BROKER CHECK RUNS IN BOTH DIRECTIONS [item 63], and the reverse one is
+    what closes a duplicate buy-in.** The first cut iterated `slot_record` only, so it fired on
+    a WRONG record and was blind to a MISSING one -- and an empty record is precisely what
+    produces a second full buy-in, because the planner then sees nothing held and plans
+    everything. The auditor reproduced it: an empty record against a broker holding the whole
+    book passed with zero problems and transmitted.
+
+    `slot_symbols` scopes the reverse direction, and the scope is necessary rather than
+    cautious: Don's account may hold names this path never touches, and `reconcile` promises
+    those are never read into the record and therefore can never be traded. Refusing on them
+    would brick the slot on a healthy account. So the reverse check asks the narrower, correct
+    question -- *does the broker hold a position in a name THIS SLOT has itself ordered that
+    the record does not know about?* -- and `live_cycle` supplies that set from the slot's own
+    `client_order_id`-matched orders plus its recorded intent.
+
+    `broker_positions=None` means the list could NOT BE READ and is a refusal; omitting the
+    argument means no broker was consulted and the check is skipped and reported as skipped.
+    `None` cannot carry both facts, which is why the sentinel exists.
     """
     problems = []
     if not isinstance(book, dict) or not book.get("ok"):
@@ -365,7 +390,17 @@ def preflight(*, book: dict, equity, marks: dict, slot_record: dict, pct,
         if missing:
             problems.append("no usable price for %d name(s) the cycle would trade: %s"
                             % (len(missing), ", ".join(missing[:8])))
-    if broker_positions is not None:
+    positions_checked = False
+    if broker_positions is None:
+        # AN UNREADABLE POSITION LIST IS A REFUSAL, NOT A SKIP [item 63, auditor question 7].
+        # The slot would otherwise transmit without knowing what it already owns -- and the
+        # auditor reproduced exactly that: positions unreadable, preflight ok, a second full
+        # buy-in sent. The cost of refusing is one skipped cycle; the cost of proceeding is a
+        # duplicate position in a real account.
+        problems.append("the broker's position list could not be read, so this slot cannot "
+                        "know what it already holds and sends nothing this cycle")
+    elif broker_positions is not POSITIONS_NOT_SUPPLIED:
+        positions_checked = True
         # THE SLOT'S OWN RECORD MUST AGREE WITH THE BROKER on the names it believes it holds.
         # A disagreement means one of the two is wrong, and trading on either would be a guess.
         # EITHER SHAPE. A list of `{ticker, qty}` is what `AlpacaPaperBroker.positions`
@@ -388,7 +423,23 @@ def preflight(*, book: dict, equity, marks: dict, slot_record: dict, pct,
             elif abs((theirs or 0.0) - mine) > max(float(tolerance), abs(mine) * 0.001):
                 problems.append("this slot's record holds %.6f of %s and the broker reports "
                                 "%.6f" % (mine, tkr, theirs or 0.0))
+        # ---- THE REVERSE DIRECTION [item 63] ------------------------------------------
+        # A position the broker holds in a name THIS SLOT has ordered, which the record does
+        # not know about. That is the empty-record hole, and it is the one that produces a
+        # duplicate buy-in rather than a refusal.
+        mine_names = {str(t).upper() for t in (slot_record or {})}
+        scope = {str(t).upper() for t in (slot_symbols or [])}
+        for tkr, qty in sorted(by_broker.items()):
+            if tkr in mine_names or tkr not in scope:
+                continue
+            if (_f(qty) or 0.0) <= 0:
+                continue
+            problems.append(
+                "the broker reports %.6f of %s, which this slot has itself ordered, and this "
+                "slot's record does not know about it -- the record is missing or stale, so "
+                "acting on it could buy the position a second time" % (_f(qty) or 0.0, tkr))
     return {"ok": not problems, "problems": problems,
+            "positions_checked": positions_checked,
             "reason": ("" if not problems else
                        "the slot sends NO orders this cycle and alerts Don: %s"
                        % "; ".join(problems))}

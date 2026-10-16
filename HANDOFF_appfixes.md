@@ -20202,3 +20202,172 @@ decides whether Signals can use Alpaca is still unmeasured. **No options leg**; 
 options quotes are indicative and `O10`/`O18` already priced what that distinction costs.
 **And no screenshots** — this session has no browser.
 
+
+---
+
+## ITEM 63 — THE AUDITOR'S BLOCKERS: THE PAPER SLOT COULD NOT PLACE AN ORDER, AND A DUPLICATE BUY-IN WAS REACHABLE
+
+The auditor's verdict on the §8 live path was **do not enter a live key yet**, on two blockers
+that **all 167 existing tests passed through**, plus two failed questions. Neither blocker was in
+the real-money rails; the auditor found the separation, arming and environment discipline sound
+and said so explicitly, which is what scoped this item to what was actually broken.
+
+### BLOCKER 1 — the paper slot had never placed an order and could not
+
+`run_slot` is deliberately ONE runner for both clients. The two clients did not implement the
+same interface at the single line that transmits:
+
+| | `place_limit` | `place_equity` |
+|---|---|---|
+| `live_slots._LiveClient` | **yes** | no |
+| `alpaca_broker.AlpacaPaperBroker` | **no** | **yes** |
+
+So every paper order raised `AttributeError`, was swallowed into a `broker_error` alert, and
+nothing was sent. **The asymmetry ran the WRONG way: the only client that worked through the one
+line that spends money was the one spending real money.** And §8's whole premise is that the
+paper slot proves the path before real money — so the premise was unmet and the installed,
+scheduled workflow could not meet it.
+
+**WHY 167 TESTS MISSED IT, which is the part worth carrying:** every suite hands `run_slot` a
+stub that *defines* `place_limit`. The suite was alert to client divergence — `LiveShaped` exists
+precisely to pin that the two clients' REPLY SHAPES differ — and it modelled the shape and never
+the **method name**. No test ever handed `run_slot` an object carrying a real client's interface.
+
+Fixed with **a named method on both clients, not a `getattr` fallback at the call site** — the
+auditor is explicit, and the reason is the defect itself: a fallback absorbs the next divergence
+the same way and the suite stays green. `AlpacaPaperBroker.place_limit` **delegates** to
+`place_equity` and adds no behaviour, so every validation that method performs (limit-only, a
+positive quantity, the fractional `time_in_force` rule) applies unchanged.
+
+**AND THE TEST THAT CLOSES THE GAP IS DERIVED RATHER THAN TYPED.** A hand-written list of
+required methods is the same defect one level up — it would have named `place_limit` only if
+somebody remembered, and nobody did. So the interface comes out of `live_cycle`'s own AST, and
+the rule is two-part because a bare "every method is on both clients" is **wrong**: a method
+called UNGUARDED must exist on both, and a method missing from either must be `hasattr`-guarded
+at EVERY call site. Nobody maintains a list of exceptions, and blocker 1 is still caught.
+
+**THAT RULE IMMEDIATELY FOUND A THIRD ASYMMETRY THE REVIEW DID NOT NAME.** `live_cycle` calls
+five methods on a client and **`_LiveClient` has no `quotes`**. Unlike `place_limit` it is
+handled, deliberately: `run_cycle` guards it and prices live slots from the paper client, and a
+live client **must not grow the method**, because Alpaca's market data is on
+`data.alpaca.markets` while that class is pinned to exactly `api.alpaca.markets` — a second host
+would spend the single-host guarantee the auditor credits as its strongest property. But
+`_marks_for` swallowed the `AttributeError` into an empty map, so a client that *cannot quote*
+refused with *"no usable price for 2 name(s)"* — the refusal was right and its reason pointed a
+reader at the price feed instead of at the client.
+
+### BLOCKER 2 — a duplicate buy-in, through an empty record and a discarded write
+
+Three facts composed, and all three are now closed:
+
+* **`preflight` iterated the slot's own record**, so an EMPTY record yielded zero comparisons and
+  passed however much the broker held. It fired on a WRONG record and was blind to a MISSING one
+  — and missing is the case that produces the duplicate. `read_state`'s docstring defended
+  returning an empty record **on the strength of this very check**, which made the defence false
+  when it was written; that correction is now in the docstring.
+* **It compares in both directions**, and **the reverse direction needed a scope** — this is the
+  whole subtlety. "Any broker position the record lacks" cannot simply refuse: Don's account may
+  hold anything, and `reconcile` promises those holdings are never read into the record and
+  therefore can never be traded. Refusing on them would brick the slot on a healthy account,
+  which is `MA21`'s cry-wolf direction. So the reverse check asks the auditor's own narrower
+  question — *does the broker hold a position in a name THIS SLOT has itself ordered that the
+  record does not know about?* — built from the slot's own `client_order_id`-matched orders plus
+  its recorded intent.
+* **The intended orders are written BEFORE anything is sent, and the write is checked.**
+  `write_state`'s return was discarded at both call sites, so a failed write after the orders had
+  gone produced exactly the empty record above. Writing first inverts the failure: an unwritable
+  disk is a refusal BEFORE transmitting, and a write that fails afterwards cannot refuse (there
+  is nothing to undo) so it ALERTS, loudly, naming what could not be recorded.
+
+### FAILED QUESTION 2 — parity now blocks, and diffs the right object
+
+Three faults, all pointing the same way — the check reported and the order went. A mismatch
+**returns before the send** for a live slot; an **absent** parity (the paper client down, its
+account unreadable) is a refusal rather than a skip, because the one cycle with no comparison was
+the cycle most likely to need one; and it diffs **target weights** rather than order deltas.
+
+That last is the structural repair. A delta is a function of current holdings, and the paper slot
+(100% of the paper account) and a live slot (X% of Don's) are routinely in different fill states —
+so every name mismatches for an entirely legitimate reason, and a check that cries wolf on
+healthy cycles is one nobody reads on the unhealthy one. A target is holdings-independent and is
+exactly what *"the live orders reproduce the paper book's arithmetic"* claims.
+
+**AND THE PAPER TARGETS ARE COMPUTED DIRECTLY RATHER THAN READ OUT OF THE PAPER SLOT'S PLAN**,
+which is not tidying: a target is a pure function of (percentage, equity, book), so taking it
+from the plan would make the comparison unavailable exactly when the paper slot has nothing to
+do. Paper processes the rebalance on day 1 and closes the event, Don arms a live slot on day 2,
+the paper slot returns early with no plan — and the live slot would then refuse for ever on a
+missing comparison. **The blocking rule and the coupling had to be fixed together or the fix
+would have been a brick.**
+
+### FAILED QUESTION 7 — an unreadable position list refuses
+
+It skipped the block and proceeded. It is now a refusal — **and the distinction that makes that
+safe is a sentinel rather than `None`.** "No broker was consulted" (a dry run, which has no
+client at all) and "the broker would not answer" are different facts, and `None` cannot carry
+both. I built the sentinel and then **threw it away at the call site**, which item 58b's own
+positive control caught: it asserts an armed live slot in a PAPER cycle still COMPUTES a plan,
+so the two pins either side of it cannot pass by the slot having been refused for an unrelated
+reason. It went red and it was right.
+
+### The recommendations, all taken
+
+- **The account id is recorded on the first armed cycle and pinned thereafter.** The host check
+  is strong and structurally cannot see the real residual risk — **the wrong keys behind the
+  right host**. A swapped pair is now a refusal instead of a slot trading an account it has no
+  record of, and a live slot resolving to the paper account's id is refused by name.
+- **A retry ceiling of 5 cycles per event.** `live_notify` dedupes on
+  `(kind, slot, event, reason[:120])`, so a permanently-rejecting condition — an IRA that cannot
+  hold fractional shares, say — was announced ONCE and then retried into silence for ever.
+- **The feed-gap pair has a denominator**, so the unfilled count is a RATE. The censoring
+  argument was already right; a count with no denominator is not a measurement. The underlying
+  question — *is the free IEX feed wrong in the costly direction* — is reported **NOT MEASURED**,
+  with the unfill rate as the uncensored evidence bearing on it.
+- **The order ids have an owned namespace, `valquo-<slot>-`,** with ONE definition used by the
+  writer and the reader. The old bare `<slot>-` was safe against a manual order only by accident
+  — Alpaca's own ids are UUID-shaped, so their second character is never a hyphen — and an order
+  a human tagged `1-anything` would have been absorbed into the slot's holdings and could then
+  have been SOLD by it. **This was the one moment that change was free:** because of blocker 1 no
+  order exists in either namespace, so today it is a rename and after the first paper fill it
+  would have been a migration.
+- **A full order page is a refusal, not an under-count.** 86 names exceeds the old 100-order
+  default from the second rebalance on; the auditor measured 72 of 86 names under-counted by
+  half. The limit is Alpaca's documented maximum and a FULL page stops the cycle, because an
+  under-counted holding makes the planner buy the difference again. **Real cursor pagination
+  needs an `after`/`until` parameter on both clients' `orders()` and is NOT done** — named below.
+- **A state with no slot number refuses** rather than reconciling an empty book under the bare
+  prefix `"-"`, which matched nothing and reported success.
+- **The two docstring overstatements are corrected**: the mark sets the order SIZE as well as the
+  limit, and `read_state`'s defence of its empty-record default was false.
+- **The workflow credential guard was already repointed by item 62** (it fired on a comment
+  naming Alpaca); confirmed here, and the auditor's #12 is added — **neither copy of
+  `live-cycle.yml` may carry `run=1`**, enforced by CI now that an installed copy exists beside
+  the reviewed one and the two can drift.
+
+### Defects of my own, every one found by running something rather than by reading
+
+- **I collapsed "no client" into "unreadable positions"** — see question 7 above. Caught by item
+  58b's positive control.
+- **A substring ban in my own new test fired on my own docstring**, for the seventh time this
+  session: the delegation check looks for `time_in_force` inside `place_limit`, and the docstring
+  explains that `place_equity`'s `time_in_force` rule applies unchanged. It reads **tokenized
+  code** now, with a positive control proving the stripper still sees real code.
+- **I applied the mark-sets-the-size correction to one of the two modules** that carried the
+  sentence; item 63's own test caught the other.
+
+### NOT DONE, named so it is not mistaken for done
+
+- **THE PAPER ORDER HAS NOT BEEN PLACED YET, AND THAT IS THIS ITEM'S OWN "DONE" CONDITION
+  OUTSTANDING.** The scheduled workflow has **never run** (`gh run list` returns nothing for it):
+  it was installed at ~22:00 UTC on 2026-10-15 and its first schedule is **14:40 UTC on
+  2026-10-16**. A `workflow_dispatch` is available and the token is a GitHub secret the workflow
+  holds, so a lane never sees it — but **the market is shut** (01:15 UTC is 21:15 ET, and
+  `orders_window` is 09:35–15:45 ET), so a dispatch tonight computes a plan and sends nothing by
+  design. The earliest possible fill is tomorrow's scheduled run, and it additionally needs the
+  paper keys present on Render and the book file readable there.
+- **Real cursor pagination of `client.orders()`** — a full page is a refusal, which removes the
+  silent wrong answer and replaces "bricks for ever" with a loud alert. It does not raise the
+  ceiling.
+- **No live key, no percentage, nothing armed.** Nothing in this item touches a credential, and
+  **the auditor re-reviews before any live key goes in.**
+
