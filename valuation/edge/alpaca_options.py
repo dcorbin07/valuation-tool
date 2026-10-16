@@ -117,11 +117,20 @@ class AlpacaPaperOptions:
         self.base = assert_paper(base)
         self.data_base = DATA_BASE
         self.timeout = int(timeout)
-        self.key_id = key_id or getattr(cfg, "alpaca_paper_key_id", "") or ""
-        self.secret = secret or getattr(cfg, "alpaca_paper_secret_key", "") or ""
+        # THE FLEET'S OWN SLOT FIRST, THE SHARED INDEX SLOT SECOND, AND WHICH ONE WAS USED
+        # IS RECORDED. Alpaca allows up to three paper accounts, so the fleet can have its
+        # own; until it does, a book that needs CASH cannot safely share with the Index slot
+        # (deployed at 100%), and `dedicated` is what `fleet_books` reads to refuse those.
+        fleet_id = getattr(cfg, "alpaca_fleet_paper_key_id", "") or ""
+        fleet_sec = getattr(cfg, "alpaca_fleet_paper_secret_key", "") or ""
+        self.dedicated = bool(fleet_id and fleet_sec) and key_id is None and secret is None
+        self.key_id = key_id or fleet_id or getattr(cfg, "alpaca_paper_key_id", "") or ""
+        self.secret = secret or fleet_sec or getattr(cfg, "alpaca_paper_secret_key", "") or ""
         if not self.key_id or not self.secret:
             raise NotPaperError(
-                "ALPACA_PAPER_KEY_ID / ALPACA_PAPER_SECRET_KEY are not set. This refuses "
+                "no Alpaca paper credentials: set ALPACA_FLEET_PAPER_KEY_ID / "
+                "ALPACA_FLEET_PAPER_SECRET_KEY (the fleet's own paper account), or "
+                "ALPACA_PAPER_KEY_ID / ALPACA_PAPER_SECRET_KEY. This refuses "
                 "rather than falling back to any other credential, because a broker that "
                 "quietly finds a key elsewhere is how a live key comes to serve a paper book.")
         # GUARD 2: never a live slot's credential, even pointed at the paper host.
@@ -283,6 +292,7 @@ class AlpacaPaperOptions:
         a = self.account() or {}
         return {"broker": "alpaca_paper_options", "host": self.base,
                 "feed": FREE_FEED, "executable_quotes": False,
+                "dedicated_fleet_account": bool(self.dedicated),
                 "ok": bool(a and not a.get("error")),
                 "account_number_shape": str(a.get("account_number", ""))[:1],
                 "caveat": FILL_REALISM_CAVEAT}

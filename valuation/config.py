@@ -105,6 +105,15 @@ class Config:
     # on demand, by `edge/live_slots.py` -- the only module allowed to hold them -- so that
     # nothing which merely imports CONFIG can obtain a live credential. A field here would be
     # reachable from every module in the project, including every paper book and every test.
+    #: The FLEET's own paper account (Alpaca allows up to three). Separate from the
+    #: Index paper slot below because the Index slot is deployed at 100% and a
+    #: cash-secured put needs cash -- two books in one account is one book silently
+    #: starving the other, and the starved one records a refusal that reads like a
+    #: market fact. Absent is a NORMAL state and is handled, not defaulted.
+    alpaca_fleet_paper_key_id: str = field(
+        default_factory=lambda: _get("ALPACA_FLEET_PAPER_KEY_ID"))
+    alpaca_fleet_paper_secret_key: str = field(
+        default_factory=lambda: _get("ALPACA_FLEET_PAPER_SECRET_KEY"))
     alpaca_paper_key_id: str = field(default_factory=lambda: _get("ALPACA_PAPER_KEY_ID"))
     alpaca_paper_secret_key: str = field(
         default_factory=lambda: _get("ALPACA_PAPER_SECRET_KEY"))

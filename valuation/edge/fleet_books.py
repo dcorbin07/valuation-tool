@@ -38,6 +38,32 @@ from . import fleet as F
 # F-1 -- THE FILL A/B
 # ---------------------------------------------------------------------------------------
 
+
+def _needs_cash(book: str, root=None) -> bool:
+    """Does this book's DECLARATION say it is short / sells premium? Read, never inferred.
+
+    The declaration is the authority on what a book does (`MA5`), so this reads `side` and
+    `sells_premium` from it rather than guessing from the book's name. **It fails toward
+    NEEDING cash**: a declaration that cannot be read returns True, because the safe direction
+    is to refuse a share rather than to let an unrecognised book compete with the Index for
+    buying power.
+    """
+    try:
+        import io as _io
+        import os as _os
+        p = _os.path.join(F.repo_root() if hasattr(F, "repo_root") else ".",
+                          "DECL_%s.md" % book)
+        with _io.open(p, encoding="utf-8") as fh:
+            d = (F.parse_declaration(fh.read()) or {}).get("declaration") or {}
+    except Exception:                                                # noqa: BLE001
+        return True
+    if not d:
+        return True
+    if bool(d.get("sells_premium")):
+        return True
+    return str(d.get("side") or "").strip().lower() == "short"
+
+
 def _broker_or_refuse(book: str, root=None):
     """The fleet's broker, or `None` having WRITTEN a named refusal onto the book's stream.
 
@@ -49,7 +75,24 @@ def _broker_or_refuse(book: str, root=None):
     """
     b, why = F.fleet_broker_or_reason()
     if b is not None:
-        return b
+        # **A BOOK THAT NEEDS CASH MAY NOT SHARE THE INDEX'S PAPER ACCOUNT.** That slot is
+        # deployed at 100% by the Index paper book, and a cash-secured put needs cash, so
+        # sharing means one book silently starves the other -- and the starved one records a
+        # refusal that reads like a market fact rather than a plumbing one. Alpaca allows up
+        # to three paper accounts, so the fix is a second account rather than a smaller
+        # Index; until its keys exist, the SHORT books refuse BY NAME and the long-option
+        # books (which need no cash) trade.
+        if getattr(b, "dedicated", True) or not _needs_cash(book, root):
+            return b
+        sha = F.decl_sha_for(book, root) or F.decl_sha_for(book)
+        if sha:
+            F.refuse(book, "SHARED_ACCOUNT_WOULD_COLLIDE",
+                     "this book is SHORT and needs cash, and the only Alpaca paper "
+                     "credentials configured are the Index paper slot's, which is deployed "
+                     "at 100%. Set ALPACA_FLEET_PAPER_KEY_ID / ALPACA_FLEET_PAPER_SECRET_KEY "
+                     "from a second Alpaca paper account and this book starts by itself.",
+                     decl_sha=sha, root=root)
+        return None
     sha = F.decl_sha_for(book, root) or F.decl_sha_for(book)
     if sha:
         F.refuse(book, "BROKER_UNAVAILABLE", why, decl_sha=sha, root=root)

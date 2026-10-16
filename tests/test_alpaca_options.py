@@ -239,6 +239,37 @@ class TestTheQuotesAreLabelledNonExecutable(unittest.TestCase):
         self.assertIsNone(_Stub().quotes([CALL])[CALL]["mid"])
 
 
+class TestTheSharedAccountCollision(unittest.TestCase):
+    """The Index paper slot is deployed at 100%, so a CASH book may not share it."""
+
+    def test_which_books_need_cash_is_READ_from_the_declarations(self):
+        from valuation.edge import fleet_books as B
+        self.assertFalse(B._needs_cash("f3_bear_puts"), "F-3 buys puts; it needs no cash")
+        self.assertFalse(B._needs_cash("f11_dip_reject_puts"))
+        for short in ("f8_csp_entry_financing", "f21_v6opt_dip_csp",
+                      "f22_dip_csp_random_twin"):
+            self.assertTrue(B._needs_cash(short), "%s is short and needs cash" % short)
+
+    def test_an_unreadable_declaration_fails_TOWARD_needing_cash(self):
+        from valuation.edge import fleet_books as B
+        self.assertTrue(B._needs_cash("no_such_book_at_all"),
+                        "the safe direction is to refuse a share, not to let an "
+                        "unrecognised book compete with the Index for buying power")
+
+    def test_the_fleet_slot_is_preferred_and_which_one_was_used_is_recorded(self):
+        src = _src("valuation/edge/alpaca_options.py")
+        self.assertIn("alpaca_fleet_paper_key_id", src)
+        self.assertIn("dedicated_fleet_account", src)
+        cfg = _src("valuation/config.py")
+        self.assertIn("ALPACA_FLEET_PAPER_KEY_ID", cfg)
+        self.assertIn("ALPACA_FLEET_PAPER_SECRET_KEY", cfg)
+
+    def test_explicit_keys_are_not_counted_as_the_dedicated_account(self):
+        o = AO.AlpacaPaperOptions(key_id="k", secret="s")
+        self.assertFalse(o.dedicated,
+                         "keys passed by a caller say nothing about which account they are")
+
+
 if __name__ == "__main__":
     r = unittest.main(exit=False, verbosity=2).result
     raise SystemExit(0 if r.wasSuccessful() else 1)
