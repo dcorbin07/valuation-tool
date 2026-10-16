@@ -770,5 +770,101 @@ class TheDocstringOverstatementsAreCorrected(unittest.TestCase):
                              "%s still says the mark only sets the limit" % mod.__name__)
 
 
+class ThePriceCoverageRefusalIsAttributable(_Tmp):
+    """**FROM THE FIRST REAL PAPER CYCLE, 2026-10-16 02:54Z.** It returned HTTP 200, proved the
+    keys and the book, confirmed blocker 1 fixed -- and then refused with *"no usable price for
+    26 name(s)"* at 22:54 ET. That message is identical in-session, where it would mean
+    something entirely different."""
+
+    def _run(self, marks, session_ok):
+        return LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
+                           client=broker(RecordedAlpaca()), equity=1000.0, marks=marks,
+                           root=self.root, send=True, session_ok=session_ok,
+                           sess_reason="fixture")
+
+    def test_a_closed_market_is_named_as_the_likely_cause(self):
+        got = self._run({"AAPL": {"mid": 100.0}}, False)
+        cov = got["marks_coverage"]
+        self.assertEqual((cov["n_needed"], cov["n_priced"]), (2, 1))
+        self.assertEqual(cov["missing"], ["MSFT"])
+        self.assertFalse(cov["session_open_when_asked"])
+        self.assertIn("CLOSED", cov["note"])
+        self.assertIn("not evidence about", cov["note"])
+
+    def test_an_OPEN_market_makes_the_SAME_shortfall_a_vendor_finding(self):
+        """The whole point: the counts are identical and the attribution is opposite."""
+        got = self._run({"AAPL": {"mid": 100.0}}, True)
+        cov = got["marks_coverage"]
+        self.assertEqual((cov["n_needed"], cov["n_priced"]), (2, 1))
+        self.assertTrue(cov["session_open_when_asked"])
+        self.assertIn("OPEN", cov["note"])
+        self.assertIn("IS a finding", cov["note"])
+
+    def test_full_coverage_reports_no_missing_names(self):
+        got = self._run(MARKS, True)
+        self.assertEqual(got["marks_coverage"]["missing"], [])
+        self.assertEqual(got["marks_coverage"]["n_priced"], 2)
+
+    def test_NO_FALLBACK_MARK_IS_INVENTED(self):
+        """`mark_from_quote`'s own rule -- *never the last trade, a stale print is not a mark*
+        -- and it matters more here than it looks: the mark sets the order SIZE as well as the
+        limit, so a stale price produces a wrongly-sized order rather than a wrong limit."""
+        self.assertIsNone(AB.AlpacaPaperBroker.mark_from_quote({"bid": 1.0, "ask": 2.0}))
+        self.assertIsNone(AB.AlpacaPaperBroker.mark_from_quote(
+            {"mid": None, "last": 99.0, "prev_close": 98.0}))
+        self.assertEqual(AB.AlpacaPaperBroker.mark_from_quote({"mid": 1.5}), 1.5)
+
+    def test_a_one_sided_quote_yields_no_mid(self):
+        """Which is why a closed market prices nothing: a mid needs a resting bid AND ask, and
+        Alpaca's free feed is IEX only."""
+        class OneSided(RecordedAlpaca):
+            def request(self, method, url, **k):
+                if "quotes/latest" in url:
+                    return Reply({"quotes": {"AAPL": {"bp": 100.0, "ap": 0.0}}})
+                return super().request(method, url, **k)
+        q = broker(OneSided()).quotes(["AAPL"])
+        self.assertIsNone(q["AAPL"]["mid"])
+        self.assertEqual(q["AAPL"]["bid"], 100.0)
+
+    def test_the_missing_list_is_bounded(self):
+        """86 names in the book; a refusal reason that prints all of them is a reason nobody
+        reads."""
+        book = {"ok": True, "formed_on": "2026-10-22", "positions": [
+            {"ticker": "T%03d" % i, "status": "held", "weight": 1.0} for i in range(90)]}
+        got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=book,
+                          client=broker(RecordedAlpaca()), equity=1000.0, marks={},
+                          root=self.root, send=True, session_ok=True)
+        self.assertEqual(got["marks_coverage"]["n_needed"], 90)
+        self.assertLessEqual(len(got["marks_coverage"]["missing"]), 40)
+
+
+class WhatTheFirstRealCycleProved(unittest.TestCase):
+    """Recorded as assertions so the facts survive the run log. [2026-10-16 02:54Z, HTTP 200]"""
+
+    def test_the_paper_slot_can_now_reach_a_place_order_call(self):
+        """THE BLOCKER, PROVED CLOSED ON THE SERVICE rather than only on fixtures: that cycle
+        produced NO `broker_error` and NO `AttributeError`, where every cycle before it would
+        have produced one per name."""
+        sess = RecordedAlpaca()
+        got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
+                          client=broker(sess), equity=1000.0, marks=MARKS, root=self.root
+                          if hasattr(self, "root") else None, send=True)
+        self.assertNotIn("broker_error", [a["kind"] for a in got["alerts"]])
+        self.assertEqual(len(sess.placed), 2)
+
+    def test_the_session_and_the_close_are_different_questions(self):
+        """That cycle reported `session.ok False` ("too late in the session") beside
+        `session_closed_state.ok True` ("the session has closed") -- the two questions item 62
+        separated, visibly different in the same payload."""
+        from valuation.screener.market_session import orders_window, session_state
+        import datetime as dt
+        late = dt.datetime(2026, 10, 15, 22, 54)
+        self.assertFalse(orders_window(late)["ok"])
+        self.assertTrue(session_state(late)["ok"])
+        mid = dt.datetime(2026, 10, 15, 10, 40)
+        self.assertTrue(orders_window(mid)["ok"])
+        self.assertFalse(session_state(mid)["ok"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
