@@ -181,10 +181,30 @@ class TestTheFactoryFailsTowardRecording(unittest.TestCase):
         from valuation.edge.paper_broker import PaperBroker
         self.assertNotIsInstance(b, PaperBroker)
 
-    def test_the_venue_is_switchable_and_tradier_still_builds(self):
+    def test_the_venue_is_switchable_and_tradier_still_ROUTES_to_tradier(self):
+        """The switch routes; it does not require a credential CI has no reason to hold.
+
+        **THIS TEST FAILED IN CI AND PASSED HERE, WHICH IS THE WHOLE POINT OF THE REPAIR.** Its
+        first cut asserted that `fleet_broker("tradier")` RETURNS a `PaperBroker` - true on a
+        machine with `TRADIER_PAPER_TOKEN` in its `.env` and false on a runner, which has no
+        business holding one. **A test whose verdict depends on a secret is testing the
+        environment**, and the environment it was passing in is the one nobody else has.
+
+        What is actually being claimed is that the VENUE ARGUMENT IS HONOURED - that asking for
+        tradier reaches the Tradier construction and never silently hands back the Alpaca
+        default. That is checkable with no credential at all: either it builds a `PaperBroker`,
+        or it declines for a reason that **names Tradier**. The one outcome forbidden in both
+        branches is an Alpaca client, and that is asserted explicitly.
+        """
         b, why = F.fleet_broker_or_reason("tradier")
         from valuation.edge.paper_broker import PaperBroker
-        self.assertIsInstance(b, PaperBroker, why)
+        self.assertNotIsInstance(b, AO.AlpacaPaperOptions,
+                                 "asking for tradier must never return the alpaca default")
+        if b is None:
+            self.assertIn("tradier", (why or "").lower(),
+                          "a refusal must name the venue it refused for: %r" % (why,))
+        else:
+            self.assertIsInstance(b, PaperBroker, why)
 
     def test_the_default_venue_is_alpaca_because_tradier_closed(self):
         src = _src("valuation/edge/fleet.py")

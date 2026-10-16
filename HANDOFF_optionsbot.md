@@ -12343,6 +12343,14 @@ Item 66, parts 1 and 2. **Paper only; no real trades; nothing adopted.**
   are not here. Stated rather than reported as a finding: `f3_bear_puts` has 72 order rows on
   the service, so its gate demonstrably passes there. **The distinction between what was
   derived and what was read is kept throughout.**
+* **AND A DEFECT IN MY OWN SUITE THAT ONLY CI COULD SEE.** The venue-switch test asserted that
+  `fleet_broker("tradier")` **RETURNS** a `PaperBroker` - true on a machine with
+  `TRADIER_PAPER_TOKEN` in its `.env`, false on a runner, which has no business holding one -
+  so it passed here and **failed the land**. **A test whose verdict depends on a secret is
+  testing the environment.** What it actually claims is that the venue argument is HONOURED, and
+  that needs no credential: either it builds, or it declines **for a reason that names Tradier**,
+  and an Alpaca client is forbidden in both branches. Verified in CI's own condition by
+  blanking the token rather than by assuming.
 * **F-4 AND F-10 ARE STILL RETIRED, AND THAT IS A CONFLICT WITH THE BRIEF RATHER THAN AN
   OVERSIGHT.** Item 66's done-list names them as "recording", but `FLEET_RETIREMENTS.md`
   retired both on 2026-10-13 — **for "THE DECLARED 0.90-MONEYNESS EXPRESSION ONLY"**, with
