@@ -12241,3 +12241,167 @@ Executes the scout's `PREREG_DRAFT_sellpremium3.md` (`a1d37ff`) under `DECISIONS
   `scripts/sellpremium3.py`, `sellpremium3_arms.py`;
   `data/free_analysis/SELLPREMIUM3_KILLS.json`, `SELLPREMIUM3_ARM.json`,
   `SELLPREMIUM3_PICKS.pkl`, `SELLPREMIUM3_BOOK.pkl`.
+
+
+---
+
+## 91. THE PAPER OPTIONS FLEET: IT HAS PLACED 72 ORDERS AND FILLED NONE, AND THE REASON SURVIVES A CHANGE OF VENUE (2026-10-16)
+
+Item 66, parts 1 and 2. **Paper only; no real trades; nothing adopted.**
+
+* **A PREMISE CORRECTION, MEASURED FIRST: "NO BOOK HAD RECORDED A SINGLE ORDER" IS NOT QUITE
+  RIGHT, AND THE TRUE VERSION IS MORE USEFUL.** Censused across all 18 streams in
+  `data_export/fleet_records/` (2026-10-04): **109 self-check rows, 79 fills, 6 closes** — and
+  **72 of those fills are `f3_bear_puts`**, over **44 distinct contracts**, every one
+  `buy_to_open`, qty 1, **`order_type` market**, **`fate` = `working` on all 72**,
+  **`fill_price` empty on all 72**, and **there is no `broker_order_id` column at all**.
+  *(`testbook` holds the other 7 fills and 6 closes.)* **So the fleet's submission path works
+  and its OUTCOME path does not: orders go out and nothing can ever poll them back.** That is
+  a sharper diagnosis than "it never traded", and it is the one that decides the design.
+* **THE FINDING THAT MADE THIS MORE THAN A REPOINT, AND IT WOULD HAVE REPRODUCED THE DEAD END
+  IN A NEW VENUE.** `fleet.submit` parsed every broker response with
+  `paper_broker.PaperBroker.order_id`, which reads **`res["order"]["id"]`** — Tradier's shape.
+  **Alpaca returns `id` at the TOP LEVEL.** So pointing the fleet at Alpaca without touching
+  that would have placed real paper orders and recorded `order_id = None` on every one of
+  them — exactly F-3's 72 `working` rows, in a new place, and looking like a venue problem
+  rather than a parser one. The fleet now asks **the broker that produced the response**, and
+  it is **bit-identical for Tradier by construction** because `PaperBroker` provides the same
+  staticmethod it always called. `fill_fields` has no broker in scope, so it takes an
+  **already-parsed price** rather than a parser — a callable has no business in a record.
+* **THE CLIENT IS ITS OWN MODULE AND IMPORTS ITS SAFETY MODEL RATHER THAN RESTATING IT.**
+  `alpaca_broker.py` is item 65's file and owns the equities path; `alpaca_options.py` builds
+  beside it and takes `assert_paper`, `_clashes_with_a_live_slot` and `NotPaperError` from it,
+  so there is **one** definition of "this is the paper account" and not two that can drift —
+  pinned from the syntax tree, including that neither guard is redefined.
+* **WHAT ALPACA PAPER ACTUALLY DOES, FROM ITS OWN PAGES.** **Paper accounts get Level 3
+  automatically** (*"All paper trading accounts will automatically have access to Level 3
+  strategies"*), so nothing has to be applied for. **Market and limit only, no extended
+  hours, and market orders only during market hours** — a live constraint on a cycle that runs
+  *after the close*, so this client defaults to a **limit** order and a market one must be
+  asked for. OCC symbols; `side` is plain `buy`/`sell`.
+* **AND THE ONE THAT BOUNDS EVERY NUMBER THE RECORD WILL EVER CARRY: THE FREE FEED IS
+  `indicative` AND IT IS NOT AN EXECUTABLE QUOTE.** Alpaca's own description — quotes are
+  *"not actual OPRA quotes but indicative derivatives"*, trades are **delayed 15 minutes**,
+  and their staff call it *"not real data … should not be used for live trading"*. **How paper
+  fills an option order is NOT DOCUMENTED ANYWHERE** — searched; Alpaca does not say, and the
+  only measurement is a user observing a 15-minute-delayed chain. **So an Alpaca paper options
+  fill is evidence that the MACHINERY runs and is not evidence about execution quality.** That
+  is `ALPACA_SETUP.md`'s own prediction ("scoring yes, settling no") met exactly, and
+  `O10`/`O18` already priced the gap: a real options trade pays about **two thirds** of the
+  quoted half-spread (rho **0.6743**) and a passive fill loses **74%** of its gross saving to
+  adverse selection. **Every quote this client returns carries `feed` and
+  `executable=False`**, and `FILL_REALISM_CAVEAT` is the sentence any surface showing a fill
+  must print.
+* **THE SHARED-BUYING-POWER QUESTION IS DECIDED, AND IT IS DECIDED BY A FACT RATHER THAN A
+  PREFERENCE: ALPACA ALLOWS UP TO THREE PAPER ACCOUNTS**, each with its own keys. The Index
+  paper slot is deployed at **100%** and a cash-secured put needs cash, so the two cannot
+  share one account — one book silently starves the other, **and the starved one records a
+  refusal that reads like a market fact rather than a plumbing one.** So the client prefers
+  **`ALPACA_FLEET_PAPER_KEY_ID` / `ALPACA_FLEET_PAPER_SECRET_KEY`**, falls back to the Index
+  slot, and **records which it used** (`dedicated_fleet_account`).
+* **WHICH MEANS SOMETHING CAN RECORD TODAY AND THE REST REFUSES BY NAME — MEASURED FROM THE
+  DECLARATIONS, NOT GUESSED FROM BOOK NAMES.** `_needs_cash` reads each declaration's `side`
+  and `sells_premium`: **F-3 and F-11 buy puts and need no cash**, so they can trade on the
+  key already configured; **F-8, F-21 and F-22 are short** and refuse with
+  `SHARED_ACCOUNT_WOULD_COLLIDE` until the second account exists. **It fails TOWARD needing
+  cash** — a declaration that cannot be read returns True, because the safe direction is to
+  refuse a share rather than let an unrecognised book compete with the Index for buying power.
+* **ONE FACTORY, NOT SIX CONSTRUCTIONS (`B7`).** Every book did
+  `from .paper_broker import PaperBroker; broker = PaperBroker()` for itself, so a venue move
+  meant editing each one and **a book that was missed would have gone on quietly trading a
+  dead sandbox**. They now ask `fleet.fleet_broker`, which defaults to **alpaca** because
+  Tradier closed on 2026-10-08, and **a broker that cannot be built writes a named
+  `BROKER_UNAVAILABLE` refusal rather than falling back** — a silent fallback to a closed
+  sandbox is how six weeks of empty streams came to read as success.
+* **WHAT IS NOT DONE, AND IT IS THE DONE CRITERION: NO ALPACA PAPER OPTION ORDER HAS BEEN
+  PLACED ON THE SERVICE YET.** This lands the client, the parsers, the factory and the
+  refusals; the first real order needs the deploy plus the next scheduled cycle, and **I
+  cannot verify it myself because `/admin/fleet-cycle` needs the admin token, which no lane
+  ever sees.** The per-book live refusal codes are likewise **derived from the code and the
+  backup, not read from the service** — that distinction is stated rather than blurred, and
+  the one command that settles it is in the summary for Don.
+* **WHAT THE FLEET DOES TODAY, PER BOOK, DERIVED BY RUNNING THE SERVICE'S OWN STEPS IN THE
+  SERVICE'S OWN ORDER — AND MY FIRST READING OF IT WAS WRONG.** Reading `may_fill` straight out
+  of the box reports **`SHORT_BOOK_WITHOUT_ASSIGNMENT` on all seven short books** and
+  **`entry_rule=False` on all twenty**, which would say the fleet is dead for a reason that has
+  nothing to do with a broker. It is an artefact of my own harness: `/admin/fleet-cycle` runs
+  **`assignment.register()` and `fleet_books.register_all()` FIRST**, and I had run neither.
+  With them run in order, both findings dissolve — **`S3-I3`'s assignment provider registers
+  and every short book's declaration becomes valid.** **A gate read without its own setup
+  measures the harness**, and it would have been reported as a blocker that does not exist.
+* **CORRECTLY MEASURED, THE BINDING FACT IS NARROWER THAN THE BROKER AND WAS NOT IN THE BRIEF:
+  ONLY SIX OF THE TWENTY DECLARED BOOKS HAVE AN ENTRY RULE AT ALL**, and one of those six
+  (`f1_fill_ab`) is registered **`places_orders=False`** — it measures, it does not buy. **So
+  the order-placing fleet is exactly five books: `f3_bear_puts`, `f8_csp_entry_financing`,
+  `f11_dip_reject_puts`, `f21_v6opt_dip_csp`, `f22_dip_csp_random_twin`** — which is the same
+  five repointed here, **so no book was missed and no sixth construction of a broker survives**
+  (`PaperBroker` now appears nowhere in `fleet_books.py`). The other fourteen report
+  **`ARMED_NO_ENTRY_RULE`**, which the cycle already distinguishes by name from "no candidates
+  today" — **a BUILD gap, never a market observation**, and no venue change touches it.
+* **AND THE LOCAL `SELFCHECK_ABSENT` ON EVERY BOOK IS A DATA-ROOT ARTEFACT, NOT THE SERVICE'S
+  STATE** — this worktree carries `data/` empty, so the self-check artifacts the gate requires
+  are not here. Stated rather than reported as a finding: `f3_bear_puts` has 72 order rows on
+  the service, so its gate demonstrably passes there. **The distinction between what was
+  derived and what was read is kept throughout.**
+* **AND A DEFECT IN MY OWN SUITE THAT ONLY CI COULD SEE.** The venue-switch test asserted that
+  `fleet_broker("tradier")` **RETURNS** a `PaperBroker` - true on a machine with
+  `TRADIER_PAPER_TOKEN` in its `.env`, false on a runner, which has no business holding one -
+  so it passed here and **failed the land**. **A test whose verdict depends on a secret is
+  testing the environment.** What it actually claims is that the venue argument is HONOURED, and
+  that needs no credential: either it builds, or it declines **for a reason that names Tradier**,
+  and an Alpaca client is forbidden in both branches. Verified in CI's own condition by
+  blanking the token rather than by assuming.
+* **F-4 AND F-10 ARE STILL RETIRED, AND THAT IS A CONFLICT WITH THE BRIEF RATHER THAN AN
+  OVERSIGHT.** Item 66's done-list names them as "recording", but `FLEET_RETIREMENTS.md`
+  retired both on 2026-10-13 — **for "THE DECLARED 0.90-MONEYNESS EXPRESSION ONLY"**, with
+  the 25-delta route explicitly not foreclosed, and §89 then measured that the 25-delta
+  version **clears the crash gate on their own non-dip income** (F-4 4.7539 years, F-10
+  5.8598 — a knife edge at 2.3% of the bar). **Un-retiring them therefore means RE-DECLARING
+  them at 25 delta: two new `DECL_` files committed ALONE, and §89's own sentence is that
+  re-declaring is Don's.** Not done here, named so it is not mistaken for done.
+* **37 tests (23 on the client and the parsers, 14 on the display); the full gate is 310 suites, 0 failures.**
+  `valuation/edge/alpaca_options.py`, `valuation/edge/fleet.py` (`fleet_broker`,
+  `_broker_order_id`, `_broker_fill_price`), `valuation/edge/fleet_books.py`,
+  `valuation/config.py`.
+
+---
+
+## 92. THE SCREAM-BUY RECORD: THE 14 NO-CONTRACT ROWS WERE NEVER TRADES, AND CLOSED-ONLY IS A SAMPLE SELECTED ON THE OUTCOME (2026-10-16)
+
+Item 66 part 3. **Display and labels only. Nothing is deleted**, and the suite's first test
+asserts the total is unchanged.
+
+* **THE NO-CONTRACT ROWS GET THEIR OWN LIST.** They were logged from a descriptor with no
+  option chain, so they have nothing to mark and no date on which they could mature — leaving
+  them in the main table makes a book of 21 read as a book of 35. `rows` now carries the real
+  trades and `no_contract_rows` carries the rest; both counts ship.
+* **EVERY CLOSED ROW SAYS WHERE ITS EXIT PRICE CAME FROM, AND THE THREE ARE NOT
+  INTERCHANGEABLE.** A **paper fill** is an execution at a broker; a **scored** exit is this
+  project marking its own alert against a daily bid-side quote, which is the path
+  `/admin/score-alerts` takes and which exists precisely because the $1,000 budget declined
+  many alerts; and a **refused** alert never held a position at all, so its "outcome" is a
+  scoring convention rather than a trade. **An undeterminable source is `unknown`** — a paper
+  book that cannot be read must not turn every scored exit into an execution — and a row
+  claimed as both filled and refused resolves to **refused**, the one that held nothing.
+* **BOTH HEADLINES SHIP, AND THE REASON IS A SELECTION EFFECT RATHER THAN A PREFERENCE.**
+  Losers close fast and winners stay open, so a **closed-only** mean is a sample selected on
+  the outcome; the **marked-to-market** figure covers the whole book and moves, because an
+  open mark is not a realised result. **Neither replaces the other.** An open position with no
+  current mark is **excluded rather than counted as flat** — counting it at 0% would quietly
+  pull the mean toward zero in exactly the rows that are hardest to price.
+* **DISTINCT NAMES TRAVEL WITH THE TRADE COUNT, BY NAME AND BY CONTRACT.** A trade count reads
+  as breadth and is not: **ABBV is 6 of the 13 open trades and 4 of those are the same
+  November $280 call**, so "13 open" is nearer four independent bets than thirteen. The
+  payload names the largest cluster both ways, because the repeated CONTRACT is the sharper
+  fact.
+* **THE STOP CADENCE IS STATED ON THE SURFACE.** Stops are checked **once a day** against the
+  previous session's bid-side mark, so **a stop books past −50%, often well past it**, when
+  the move happened overnight. A reader comparing an outcome to the policy's level needs that
+  sentence, and it now travels with the record.
+* **A DEFECT IN MY OWN TEST, CAUGHT ON ITS FIRST RUN.** I asserted directionally that
+  closed-only is the worse figure — **on a fixture containing a +100% closed winner**, so it
+  read 19.0 against 17.6 and failed against correct code. **The direction is a property of the
+  BOOK, not of this arithmetic, and asserting it on a synthetic fixture would have been
+  asserting my own fixture.** Replaced with a shape built to exhibit the mechanism, and the
+  general fixture now only pins that the two figures are both reported and differ.
+* **14 tests.** `valuation/web/scream_track.py`.
