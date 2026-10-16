@@ -172,10 +172,44 @@ def paper_summary(store, source, latest_price_map=None, latest_score_map=None,
         k = p.get("exit_reason") or "?"
         by_reason[k] = by_reason.get(k, 0) + 1
 
+    # **"LEFT COVERAGE" IS NOT THE SELL RULE FIRING. [item 65 part 4b]**
+    #
+    # 19 of the first 29 closes are coverage-gap closes: the name dropped out of the scan's
+    # ~800-name universe and was closed on the gap clock. Those say nothing about whether the
+    # sell rule works, and pooling them makes the rule look like it produced returns it never
+    # chose. Both groups are reported; NEITHER replaces the pooled figure, which is what the
+    # book actually did. The unpriced exits are excluded from both, as before -- they were never
+    # observed again, so they carry no return in either.
+    def _left_coverage(p):
+        return (p.get("exit_reason") or "").startswith("left coverage")
+
+    cov_closed = [p for p in priced_closed if _left_coverage(p)]
+    rule_closed = [p for p in priced_closed if not _left_coverage(p)]
+    cov_rets = [r for r in (ret(p) for p in cov_closed) if r is not None]
+    rule_rets = [r for r in (ret(p) for p in rule_closed) if r is not None]
+
+    # And how many of the closes have been RESTATED, so a reader of the realised figure can see
+    # that some of its inputs were corrected after the fact rather than measured at the time.
+    restated = [p for p in closed if p.get("exit_price_original") is not None]
+
     summary = {
         "n_total": len(allp), "n_closed": len(closed), "n_open": len(openp),
         "avg_return": avg(closed_rets + open_rets),      # closed realized + open marked to today
         "avg_return_closed": avg(closed_rets),
+        # THE SPLIT. `sell_rule` is the only one of these three that is evidence about the rule.
+        "n_closed_sell_rule": len(rule_closed),
+        "n_closed_left_coverage": len(cov_closed),
+        "avg_return_sell_rule": avg(rule_rets),
+        "avg_return_left_coverage": avg(cov_rets),
+        "win_rate_sell_rule": (avg([1.0 if r > 0 else 0.0 for r in rule_rets])
+                               if rule_rets else None),
+        "split_note": ("a \"left coverage\" close means the name dropped out of the scan's "
+                       "universe and was closed on the gap clock -- it says NOTHING about the "
+                       "sell rule, so the two are reported separately. `avg_return_closed` "
+                       "pools them and is what the book actually did."),
+        "n_restated_exits": len(restated),
+        "restated_note": ("exits whose price was corrected after the fact (item 65 part 4); "
+                          "each keeps the value it replaced, in `exit_price_original`"),
         "win_rate": avg([1.0 if r > 0 else 0.0 for r in closed_rets]) if closed_rets else None,
         "avg_hold_days": avg([_days(p["entry_date"], p["exit_date"]) for p in closed]) if closed else None,
         "by_reason": by_reason,
@@ -202,6 +236,12 @@ def paper_summary(store, source, latest_price_map=None, latest_score_map=None,
                     "reason": p.get("exit_reason"),
                     "ret": (None if _unpriced_exit(p) else ret(p)),
                     "unpriced": _unpriced_exit(p),
+                    # WHICH KIND OF CLOSE, so a row can be read without parsing its reason
+                    # string, and the RESTATEMENT travels with the row that was restated.
+                    "left_coverage": _left_coverage(p),
+                    "sell_rule": not _left_coverage(p),
+                    "exit_price_original": p.get("exit_price_original"),
+                    "restated_on": p.get("restated_on"),
                     "hold_days": _days(p["entry_date"], p.get("exit_date") or today)}
                    for p in closed[:recent]]
     return {"summary": summary, "watching": watching, "closed": closed_rows}

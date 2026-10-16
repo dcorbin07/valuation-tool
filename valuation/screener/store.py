@@ -98,7 +98,16 @@ class Store:
             # Migration: track last-seen so a name that drops out of coverage gets
             # closed (else delisted losers live forever → survivorship bias).
             _pcols = {r[1] for r in c.execute("PRAGMA table_info(positions)").fetchall()}
-            for _col, _decl in (("last_seen_date", "TEXT"), ("last_price", "REAL")):
+            # Migration: a RESTATED exit price keeps the value it replaced. [item 65 part 4]
+            # Six "left coverage" closes were booked at their own entry price, because the
+            # scan's coverage churns and the `price_fn` re-pricing that fixes it did not exist
+            # until 2026-09-30. Re-pricing them is a restatement of a published figure, so the
+            # old value, the date it was restated and where the new price came from all stay --
+            # a restatement that keeps no record of what it replaced is indistinguishable from
+            # the figure having always been that.
+            for _col, _decl in (("last_seen_date", "TEXT"), ("last_price", "REAL"),
+                                ("exit_price_original", "REAL"), ("restated_on", "TEXT"),
+                                ("restated_source", "TEXT")):
                 if _col not in _pcols:
                     c.execute(f"ALTER TABLE positions ADD COLUMN {_col} {_decl}")
             # Migration: carry a recorded fair-value REFUSAL through the snapshot. A database
@@ -472,6 +481,39 @@ class Store:
             c.execute("""UPDATE positions SET exit_date=?, exit_price=?, exit_reason=?
                          WHERE source=? AND ticker=? AND entry_date=? AND exit_date IS NULL""",
                       (exit_date, exit_price, reason, source, ticker.upper(), entry_date))
+
+    def restate_exit_price(self, source, ticker, entry_date, new_price, on_date, src_note):
+        """Replace an exit price, KEEPING the one it replaced. [item 65 part 4]
+
+        **IT REFUSES TO RESTATE TWICE.** `exit_price_original` is written only if it is still
+        null, so a second run cannot overwrite the original with the first restatement's value
+        and lose what was actually published. It returns what it did, so a caller can tell a
+        restatement from a no-op -- "already restated" and "just restated" are different facts
+        and a silent idempotent write reads as the second.
+
+        It does not touch an OPEN position, or a closed one whose exit price is not the one
+        being corrected: a restatement is a correction to a NAMED figure, not a re-price.
+        """
+        with self._conn() as c:
+            row = c.execute("""SELECT exit_price, exit_price_original, exit_date
+                               FROM positions
+                               WHERE source=? AND ticker=? AND entry_date=?""",
+                            (source, ticker.upper(), entry_date)).fetchone()
+            if row is None:
+                return {"ok": False, "reason": "no such position"}
+            if not row["exit_date"]:
+                return {"ok": False, "reason": "the position is still open"}
+            if row["exit_price_original"] is not None:
+                return {"ok": False, "already_restated": True,
+                        "reason": "already restated; the original %r is kept and is not "
+                                  "overwritten" % row["exit_price_original"]}
+            c.execute("""UPDATE positions
+                         SET exit_price_original=exit_price, exit_price=?,
+                             restated_on=?, restated_source=?
+                         WHERE source=? AND ticker=? AND entry_date=?""",
+                      (float(new_price), on_date, str(src_note), source, ticker.upper(),
+                       entry_date))
+            return {"ok": True, "was": row["exit_price"], "now": float(new_price)}
 
     def open_positions(self, source):
         with self._conn() as c:
