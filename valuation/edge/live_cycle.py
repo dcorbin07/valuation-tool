@@ -704,6 +704,12 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                 st["processed"].append(key)
             st["open_event"] = None
             st["intent"] = None          # the event is finished; nothing is outstanding
+            # AND ITS COUNTERS GO WITH IT [item 64]. A closed event's attempt count is not
+            # evidence about the next one, and leaving it behind means a slot that needed four
+            # cycles once starts the following rebalance with four attempts already spent.
+            for bag in ("event_attempts", "event_progress"):
+                if isinstance(st.get(bag), dict):
+                    st[bag] = {k: v for k, v in st[bag].items() if k != key}
             st["last_event_date"] = (book or {}).get("formed_on")
             st["last_pct"] = pct
             _note_write(out, write_state(slot, st, root), slot, "closing the event")
@@ -751,21 +757,44 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                                  if not session_ok else "no client was supplied")))
             return out
 
-        # ---- THE ATTEMPT CEILING [item 63, auditor #11] ---------------------------------
+        # ---- THE CEILING COUNTS ATTEMPTS THAT MADE NO PROGRESS [item 63 #11, fixed item 64]
+        #
+        # **ITEM 63 COUNTED CYCLES THAT ACTED, WHICH IS A DIFFERENT QUANTITY AND WOULD HAVE
+        # MISFIRED ON THE REAL REBALANCE.** Measured on the live paper book: cycle 1 bought in,
+        # cycle 2 hit the duplicate-id failure, cycle 3 sent 69 and holdings went 59 -> 72
+        # filled. That event had used three of five attempts while FILLING NORMALLY -- a `day`
+        # limit at the mid genuinely takes several cycles to work through 85 names -- so a
+        # rebalance behaving exactly as §8a designs it would have stopped and alerted. A false
+        # alarm on Don's first real rebalance is the cheapest possible way to teach him to
+        # ignore this alert, which is the outcome the ceiling exists to prevent.
+        #
+        # The auditor's condition is a PERMANENTLY-rejecting one, so the counter resets on
+        # progress and the ceiling means what it says: this event has not advanced in N
+        # consecutive cycles. **PROGRESS IS MEASURED ON THE HOLDINGS, NOT THE ORDER COUNT**,
+        # because `reconcile` builds holdings from FILLS -- so it cannot be fooled by orders
+        # that are accepted and never fill, which is exactly what an unfillable limit or a
+        # permanent rejection produces.
         tries = dict(st.get("event_attempts") or {})
+        held_now = round(sum(float(v or 0) for v in (st.get("holdings") or {}).values()), 6)
+        marks_seen = dict(st.get("event_progress") or {})
+        if marks_seen.get(key) is not None and held_now > float(marks_seen[key]) + 1e-9:
+            tries[key] = 0                      # it advanced: the retry is working
+        marks_seen[key] = held_now
+        st["event_progress"] = marks_seen
         n_tried = int(tries.get(key) or 0)
         if n_tried >= MAX_EVENT_ATTEMPTS:
             out["alerts"].append({
                 "kind": "event_attempts_exhausted", "slot": str(slot),
-                "reason": ("this slot has attempted %s on %d cycles without meeting its "
-                           "targets and stops trying; something is rejecting these orders "
-                           "permanently and a daily retry would be deduped into silence"
-                           % (key, n_tried))})
+                "reason": ("this slot has attempted %s on %d consecutive cycles with NO "
+                           "advance in what it holds, and stops trying; something is "
+                           "rejecting these orders or leaving them unfillable, and a daily "
+                           "retry would be deduped into silence" % (key, n_tried))})
             out["reason"] = out["alerts"][-1]["reason"]
             out["attempts_exhausted"] = True
             return out
         tries[key] = n_tried + 1
         st["event_attempts"] = tries
+        out["attempts_without_progress"] = tries[key]
 
         # ---- THE INTENT IS WRITTEN BEFORE ANYTHING IS SENT [item 63, blocker 2] ----------
         #

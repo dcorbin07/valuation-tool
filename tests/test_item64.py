@@ -583,5 +583,113 @@ class WhatTheSecondInSessionCycleMeasured(unittest.TestCase):
         self.assertIn("0 of 85", rep["unfilled_rate_note"])
 
 
+class TheCeilingCountsAttemptsThatMadeNoProgress(unittest.TestCase):
+    """**ITEM 63 COUNTED CYCLES THAT ACTED, AND THAT WOULD HAVE MISFIRED ON THE REAL REBALANCE.**
+
+    Measured on the live paper book today: cycle 1 bought in (85 orders), cycle 2 hit the
+    duplicate-id failure, cycle 3 sent 69 and holdings went 59 -> 72 filled. **That event had
+    used three of its five attempts while FILLING NORMALLY.** A `day` limit at the mid takes
+    several cycles to work through 85 names, so a rebalance behaving exactly as §8a designs it
+    would have stopped and alerted -- a false alarm on Don's first real rebalance, which is the
+    cheapest possible way to teach him to ignore the alert the ceiling exists to raise.
+    """
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def _cycle(self, filled_qty):
+        """One cycle where the broker reports `filled_qty` of AAPL already filled."""
+        from valuation.edge import live_cycle as LC
+        import tests.test_item63 as T63
+
+        orders = []
+        if filled_qty:
+            orders = [{"client_order_id": "valquo-paper-rebalance:2026-10-22-AAPL-a1",
+                       "symbol": "AAPL", "filled_qty": str(filled_qty), "side": "buy",
+                       "status": "filled", "limit_price": "100", "filled_avg_price": "100"}]
+        sess = T63.RecordedAlpaca(
+            orders=orders,
+            positions=([{"symbol": "AAPL", "qty": str(filled_qty),
+                         "avg_entry_price": "100", "side": "long"}] if filled_qty else []))
+        got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=T63.ARMED, book=T63.BOOK,
+                          client=T63.broker(sess), equity=1000.0, marks=T63.MARKS,
+                          root=self.root, send=True)
+        return got
+
+    def test_a_cycle_that_ADVANCED_resets_the_count(self):
+        """THE WHOLE POINT. Partial fills arriving cycle after cycle is the mechanism working."""
+        self._cycle(0)
+        self._cycle(0)
+        two = self._cycle(0)
+        self.assertGreaterEqual(two.get("attempts_without_progress") or 0, 2)
+        advanced = self._cycle(1.0)        # a fill arrives
+        self.assertEqual(advanced.get("attempts_without_progress"), 1,
+                         "an advancing cycle did not reset the no-progress count")
+
+    def test_a_book_that_keeps_filling_NEVER_exhausts(self):
+        """Eight cycles -- more than the ceiling -- each with another fill. A normal rebalance
+        must not stop itself."""
+        from valuation.edge import live_cycle as LC
+        for i in range(1, 9):
+            got = self._cycle(i * 0.5)
+            self.assertFalse(got.get("attempts_exhausted"),
+                             "a filling book exhausted its attempts on cycle %d" % i)
+        self.assertGreater(LC.MAX_EVENT_ATTEMPTS, 0)
+
+    def test_a_book_that_NEVER_advances_still_exhausts(self):
+        """THE POSITIVE CONTROL, and the auditor's actual condition: a permanently-rejecting
+        or permanently unfillable state must still stop and escalate."""
+        from valuation.edge import live_cycle as LC
+        last = None
+        for _ in range(LC.MAX_EVENT_ATTEMPTS + 2):
+            last = self._cycle(0)
+        self.assertTrue(last.get("attempts_exhausted"), last.get("reason"))
+        self.assertIn("NO advance in what it holds", last["reason"])
+
+    def test_progress_is_measured_on_HOLDINGS_and_not_on_orders_accepted(self):
+        """An order accepted and never filled is exactly what a permanent rejection or an
+        unfillable limit produces, so counting accepted orders as progress would make the
+        ceiling unreachable in the one state it exists for. `reconcile` builds holdings from
+        FILLS, which is why it cannot be fooled."""
+        from valuation.edge import live_cycle as LC
+        src = open(LC.__file__, encoding="utf-8").read()
+        block = src[src.index("# ---- THE CEILING COUNTS ATTEMPTS THAT MADE NO PROGRESS"):]
+        block = block[:block.index("# ---- THE INTENT IS WRITTEN BEFORE")]
+        self.assertIn('st.get("holdings")', block)
+        self.assertNotIn('out["sent"]', block)
+        self.assertNotIn('plan["orders"]', block)
+
+    def test_closing_an_event_clears_its_counters(self):
+        """Or a slot that needed four cycles once starts the NEXT rebalance with four attempts
+        already spent -- the stale-state family."""
+        from valuation.edge import live_cycle as LC
+        import tests.test_item63 as T63
+        self._cycle(0)
+        self._cycle(0)
+        st = LC.read_state(LC.PAPER_SLOT, self.root)
+        self.assertTrue(st.get("event_attempts"), "the fixture never counted an attempt")
+        # Now a cycle whose targets are already met, which closes the event.
+        sess = T63.RecordedAlpaca(
+            positions=[{"symbol": "AAPL", "qty": "6", "avg_entry_price": "100",
+                        "side": "long"},
+                       {"symbol": "MSFT", "qty": "2", "avg_entry_price": "200",
+                        "side": "long"}],
+            orders=[{"client_order_id": "valquo-paper-rebalance:2026-10-22-AAPL-a1",
+                     "symbol": "AAPL", "filled_qty": "6", "side": "buy", "status": "filled",
+                     "limit_price": "100", "filled_avg_price": "100"},
+                    {"client_order_id": "valquo-paper-rebalance:2026-10-22-MSFT-a1",
+                     "symbol": "MSFT", "filled_qty": "2", "side": "buy", "status": "filled",
+                     "limit_price": "200", "filled_avg_price": "200"}])
+        got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=T63.ARMED, book=T63.BOOK,
+                          client=T63.broker(sess), equity=1000.0, marks=T63.MARKS,
+                          root=self.root, send=True)
+        self.assertIn("targets are already met", got["reason"])
+        st2 = LC.read_state(LC.PAPER_SLOT, self.root)
+        for bag in ("event_attempts", "event_progress"):
+            self.assertNotIn("rebalance:2026-10-22", (st2.get(bag) or {}),
+                             "%s kept a closed event's counter" % bag)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
