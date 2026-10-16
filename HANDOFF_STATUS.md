@@ -9319,3 +9319,27 @@ Service response, verbatim (truncated at 4000 bytes):
 
     {"ok":false,"reason":"the benchmark SPY could not be priced on the inception 2026-07-30 (a benchmark gap makes the excess unmeasurable, so no row is emitted rather than a Valquo-only one)","row":null}
     
+
+
+## FLEET 2026-10-16: the options fleet is on Alpaca paper in code, and has not yet placed one there
+
+Item 66. Paper only; nothing adopted; `O11` binds.
+
+* **The fleet is NOT a book that never traded.** `f3_bear_puts` has **72 order rows over 44
+  distinct contracts** in the 2026-10-04 backup - every one `fate=working`, `fill_price` empty,
+  and **no `broker_order_id` column at all**. Submission works; the outcome path does not.
+* **The cause would have followed it to Alpaca.** `fleet.submit` parsed responses with
+  Tradier's `res["order"]["id"]`; **Alpaca returns `id` at the top level**, so a bare repoint
+  would have recorded `None` on every real order. Fixed by asking the broker that produced the
+  response; bit-identical for Tradier.
+* **Split by whether a book needs cash**: `F-3` and `F-11` buy puts and can trade on the key
+  already configured; **`F-8`, `F-21` and `F-22` refuse with `SHARED_ACCOUNT_WOULD_COLLIDE`**
+  until a second Alpaca paper account exists (the Index slot is deployed at 100%). Four steps
+  for Don in `ALPACA_SETUP.md`.
+* **Not done:** no Alpaca paper option order has been placed on the service yet - that needs
+  the deploy plus the next scheduled cycle, and `/admin/fleet-cycle` needs the admin token.
+  **`F-4` and `F-10` remain RETIRED**; item 66 lists them as recording, but the retirement is
+  of the 0.90-moneyness expression and re-declaring them at 25 delta is Don's.
+* **The free Alpaca options feed is `indicative`, not OPRA, and how paper fills an option is
+  undocumented** - a fill there is evidence the machinery runs, never evidence about execution
+  quality. `O18`'s rho 0.6743 and `O10`'s 74% adverse-selection give-back stay the cost numbers.

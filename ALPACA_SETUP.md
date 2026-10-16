@@ -212,3 +212,66 @@ The two fails worth telling apart, because they point at different things:
   the serious one: it means substituting Alpaca would have changed numbers already published,
   and the answer is to leave the vendor alone.
 
+
+
+---
+
+## THE OPTIONS FLEET NEEDS A SECOND PAPER ACCOUNT (item 66, 2026-10-16)
+
+**Why a second one rather than sharing the first.** Alpaca lets you have **up to three paper
+accounts**, each with its own keys. The Index paper book is deployed at **100%** of its account,
+and a cash-secured put needs **cash** - so if the fleet shares that account, one book silently
+starves the other, and the starved one records a refusal that reads like a market fact rather
+than a plumbing one. Separate accounts is the cheap fix.
+
+**Right now, with no second account, the fleet is split:**
+
+| book | what it does | today |
+|---|---|---|
+| F-3 bear puts, F-11 dip-reject puts | **buys** puts - needs no cash beyond the premium | **can trade on the existing key** |
+| F-8, F-21, F-22 | **sells** premium - needs cash | refuses with `SHARED_ACCOUNT_WOULD_COLLIDE` |
+
+### Four steps, about three minutes
+
+1. In the Alpaca dashboard, create a **second paper account** (Paper -> account selector -> new).
+   **Paper accounts get options Level 3 automatically** - there is nothing to apply for.
+2. Generate an **API key** for that account. Copy both halves once; the secret is shown once.
+3. In Render -> the service -> **Environment**, add two variables:
+   - `ALPACA_FLEET_PAPER_KEY_ID`
+   - `ALPACA_FLEET_PAPER_SECRET_KEY`
+4. Save. Render redeploys. The three short books start by themselves on the next scheduled
+   cycle - nothing else has to be switched on.
+
+**Never paste a key into chat, a prompt file, or a commit.** If one ever does get pasted
+anywhere, regenerate it in the Alpaca dashboard. No lane ever sees a key.
+
+### How to check it worked
+
+The same masked-token shape as the measurement above, against the fleet door:
+
+```powershell
+$t = Read-Host "admin token" -AsSecureString
+$h = @{ "X-Admin-Token" = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($t)) }
+Invoke-RestMethod -Uri "https://valquo.co/admin/fleet-cycle" -Method POST -Headers $h |
+  ConvertTo-Json -Depth 6
+Remove-Variable t, h
+```
+
+Each book reports either a fill or a **named refusal**. What to look for:
+
+- `BROKER_UNAVAILABLE` - no Alpaca credentials at all reached the service. Check step 3.
+- `SHARED_ACCOUNT_WOULD_COLLIDE` - the fleet keys are still missing; it is using the Index
+  slot and correctly refusing to let a short book compete with it for cash.
+- An order id and a fill price - it worked.
+
+### The limit that travels with every number this produces
+
+**The free options feed is `indicative`, not OPRA** - Alpaca's own words are that the quotes
+are *"not actual OPRA quotes but indicative derivatives"*, and the trade feed is delayed 15
+minutes. **How Alpaca paper fills an option order is not documented anywhere.** So a fill here
+is evidence that **the machinery runs end to end**, and it is **not** evidence about execution
+quality. This project already measured the real thing: a live options trade pays about **two
+thirds** of the quoted half-spread (`O18`, rho 0.6743), and resting at the mid gives back
+**74%** of the gross saving to adverse selection (`O10`). Those are the numbers to use for
+cost; the paper fills are for checking the plumbing.
