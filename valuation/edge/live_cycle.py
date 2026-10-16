@@ -580,6 +580,29 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                               | {str(o.get("ticker") or "").upper()
                                  for o in ((st.get("intent") or {}).get("orders") or [])})
         out["slot_symbols"] = slot_symbols
+        # HOW MANY OF THE NAMES IT WOULD TRADE COULD BE PRICED, AND WHETHER THE MARKET WAS
+        # OPEN WHEN IT ASKED [item 63]. The first real paper cycle refused with "no usable
+        # price for 26 name(s)" at 22:54 ET, and that message is identical at 10:40 ET while
+        # meaning something entirely different: after hours it is the free IEX feed having no
+        # resting two-sided quote for a mid-cap, and in-session it would be a finding about the
+        # vendor's coverage of this book. A refusal a reader cannot attribute is a refusal
+        # somebody eventually overrides.
+        need = [str(q.get("ticker") or "").upper() for q in held]
+        priced = [t for t in need
+                  if LS._f((marks.get(t) or {}).get("mid")
+                           if isinstance(marks.get(t), dict) else marks.get(t))]
+        out["marks_coverage"] = {
+            "n_needed": len(need), "n_priced": len(priced),
+            "missing": sorted(set(need) - set(priced))[:40],
+            "session_open_when_asked": bool(session_ok),
+            "note": ("the market was CLOSED when these quotes were requested, so a thin "
+                     "two-sided quote feed is EXPECTED here and this is not evidence about "
+                     "the vendor's coverage. Alpaca's free feed is IEX only and a resting "
+                     "bid and ask is what a mid needs." if not session_ok else
+                     "the market was OPEN when these quotes were requested, so any missing "
+                     "name IS a finding about the free IEX feed's coverage of this book"),
+        }
+
         pf = LS.preflight(book=book, equity=equity, marks=marks,
                           slot_record=st.get("holdings") or {}, pct=pct,
                           broker_positions=bpos, slot_symbols=slot_symbols)

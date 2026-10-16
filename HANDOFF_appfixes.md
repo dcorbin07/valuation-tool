@@ -20357,17 +20357,56 @@ reason. It went red and it was right.
 
 ### NOT DONE, named so it is not mistaken for done
 
-- **THE PAPER ORDER HAS NOT BEEN PLACED YET, AND THAT IS THIS ITEM'S OWN "DONE" CONDITION
-  OUTSTANDING.** The scheduled workflow has **never run** (`gh run list` returns nothing for it):
-  it was installed at ~22:00 UTC on 2026-10-15 and its first schedule is **14:40 UTC on
-  2026-10-16**. A `workflow_dispatch` is available and the token is a GitHub secret the workflow
-  holds, so a lane never sees it — but **the market is shut** (01:15 UTC is 21:15 ET, and
-  `orders_window` is 09:35–15:45 ET), so a dispatch tonight computes a plan and sends nothing by
-  design. The earliest possible fill is tomorrow's scheduled run, and it additionally needs the
-  paper keys present on Render and the book file readable there.
+- **THE PAPER ORDER HAS NOT BEEN PLACED, AND THAT IS THIS ITEM'S OWN "DONE" CONDITION
+  OUTSTANDING.** It is now outstanding for a **different and better-understood reason** than
+  when this paragraph was first written — see the section below, which supersedes it. The
+  scheduled door HAS been run.
 - **Real cursor pagination of `client.orders()`** — a full page is a refusal, which removes the
   silent wrong answer and replaces "bricks for ever" with a loud alert. It does not raise the
   ceiling.
 - **No live key, no percentage, nothing armed.** Nothing in this item touches a credential, and
   **the auditor re-reviews before any live key goes in.**
 
+### THE FIRST REAL CYCLE RAN, AND IT MOVED THE BLOCKER RATHER THAN CLEARING IT
+
+Dispatched after the fix deployed — **2026-10-16 02:54Z, `workflow_dispatch` on the installed
+`live-cycle.yml`, HTTP 200.** The token is a GitHub secret the workflow holds, so no lane saw it,
+and `?run=paper` cannot construct a live client (pinned by test). **Three things are now proved on
+the service rather than on fixtures:**
+
+1. **The paper keys are present and authenticate.** `paper.account_id` came back as a real UUID,
+   `paper_account_id_recorded: true`, `armed: true`, `broker_positions_read: 0` — so the broker
+   was built, the account was read, and the positions list was read cleanly.
+2. **The Index book is readable there.** `event: "rebalance"`, `event_key:
+   "rebalance:2026-07-30"`. This was a genuine open question: `data/` is gitignored, and item 62
+   found `/admin/track-row` returning 422 because `valquo_track.json` has never shipped with any
+   deploy. The *index* book is present.
+3. **BLOCKER 1 IS FIXED ON THE SERVICE.** The cycle produced **no `broker_error` and no
+   `AttributeError`**, where every cycle before it would have produced one per name. The new
+   preflight also ran and reported `positions_checked: true`.
+
+**IT THEN REFUSED FOR A NEW REASON: "no usable price for 26 name(s) the cycle would trade: WDS,
+APA, RGA, CF, OVV, AGX, INCY, HPE…"** — 26 of the book's names, and the refusal is correct
+behaviour (no mark, no order) rather than a fault in this item's work.
+
+**THE LIKELY CAUSE IS THAT THE MARKET WAS SHUT, AND IT IS NOT ESTABLISHED.** `quotes()` reads
+`/v2/stocks/quotes/latest` and requires a two-sided bid AND ask to form a mid; Alpaca's free plan
+is **IEX only**, and IEX carries no resting two-sided quote for a mid-cap at 22:54 ET. The 26
+names are the thinner half of the book, which fits. **But "no usable price for 26 names" reads
+identically at 10:40 ET, where it would mean something entirely different** — that the free IEX
+feed cannot price a quarter of the Index, which is a decision about the vendor and not a
+scheduling artefact. So the cycle now reports `marks_coverage` with the counts, the missing
+names, and **which of the two cases the reader is looking at**, because a refusal nobody can
+attribute is a refusal somebody eventually overrides.
+
+**NO FALLBACK MARK WAS INVENTED, deliberately.** `mark_from_quote`'s own rule is *"NEVER the last
+trade: a stale print is not a mark"*, and it matters more here than it looks: the mark sets the
+order **SIZE** as well as the limit (the docstring correction above), so a stale price produces a
+wrongly-sized order rather than merely a wrong limit. Reaching for `prevDailyBar` to make the
+cycle proceed would be the wrong-object family on the one path that spends money.
+
+**THE TEST IS THE SCHEDULED RUN AT 14:40 UTC (10:40 ET) AND IT NEEDS NO CODE CHANGE.** If the
+coverage note then says the market was OPEN and names are still missing, that is a measured
+finding about Alpaca's free feed and the next decision is Don's — the paid SIP feed, or marking
+from the project's own price route with the seam recorded. If the names price, the paper slot
+places its first orders and §8's precondition is finally met.
