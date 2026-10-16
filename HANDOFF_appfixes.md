@@ -20576,3 +20576,28 @@ unfilled**, 72 names held, $100,000 of paper equity. The event is still open and
 mechanism is working for the first time. **§8's precondition — the paper slot completing a full
 rebalance with the fills inspected — is now partially met and no longer blocked.**
 
+### THE SIX LIVE CYCLES, AND WHICH FIXES THEY DO AND DO NOT CONFIRM
+
+| cycle | ET | sent / accepted | book after | what it established |
+|---|---|---|---|---|
+| 1 | 13:36 | 85 / 85 | 59 filled | **85 of 85 names priced in session** — the IEX question answered |
+| 2 | 13:46 | 60 / **0** | 59 filled | the duplicate-id defect and the `rejected: None` defect |
+| 3 | 14:21 | 69 / **69** | 72 filled | **both of those closed on the service** |
+| 4 | 14:39 | 59 / 59 | 77 held | the ceiling had spent 3 of 5 attempts on a filling book |
+| 5 | 15:03 | 67 / 43 | 81 held | the migration reset worked — **and 22 ids collided again**, which is how the shared counter was found |
+| 6 | 15:20 | — | — | **HTTP 200 and the body did not reach the run log** |
+
+**CYCLE 6 IS NOT A CONFIRMATION AND IS NOT REPORTED AS ONE.** The door returned 200, so it ran
+and did not 5xx — but the response body is absent from the run log (GitHub dropped the single
+long line; three separate fetches, including the raw job-log API, returned the step ending at
+`HTTP 200`). **So what that cycle did is unknown, and the two-counter fix has NOT been confirmed
+against a real Alpaca account.** It is verified by test, including the across-a-reset case the
+earlier uniqueness test could not reach, and the first scheduled cycle will exercise it.
+
+**A SMALL FINDING FOR THE WORKFLOW, NOT FIXED HERE:** the cycle's whole result is printed as one
+~35KB line, and GitHub does not always deliver it. The three `python -c` summary lines exist
+precisely so a reader does not have to parse that line — and on this run none of them appeared
+either, so the job's own summary is as lossy as the body. Writing the key fields with one `echo`
+per field, or uploading the body as an artifact, would make a cycle's outcome recoverable. The
+run's own exit status is still trustworthy; only the detail is lost.
+
