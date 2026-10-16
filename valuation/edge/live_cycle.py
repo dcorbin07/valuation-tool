@@ -178,6 +178,12 @@ def client_order_id(slot, event_key_str, ticker, attempt=None) -> str:
     **ATTRIBUTION IS UNAFFECTED**: `reconcile` matches on the `valquo-<slot>-` PREFIX, so a
     suffix changes nothing about which orders a slot owns. `attempt=None` keeps the old form,
     for a caller reproducing a recorded id.
+
+    **THE NUMBER PASSED HERE IS `send_seq`, NOT THE ATTEMPT CEILING'S COUNTER [item 64].** They
+    were briefly the same value and they have opposite requirements: the ceiling RESETS when the
+    book advances (or a healthy rebalance stops itself) and this must NEVER reset (or it
+    reproduces an id Alpaca has already accepted). Sharing them sent 22 duplicate ids on one
+    real cycle.
     """
     base = "%s%s-%s" % (coid_prefix(slot), event_key_str, str(ticker).upper())
     if attempt is None:
@@ -707,7 +713,7 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
             # AND ITS COUNTERS GO WITH IT [item 64]. A closed event's attempt count is not
             # evidence about the next one, and leaving it behind means a slot that needed four
             # cycles once starts the following rebalance with four attempts already spent.
-            for bag in ("event_attempts", "event_progress"):
+            for bag in ("event_attempts", "event_progress", "send_seq"):
                 if isinstance(st.get(bag), dict):
                     st[bag] = {k: v for k, v in st[bag].items() if k != key}
             st["last_event_date"] = (book or {}).get("formed_on")
@@ -804,6 +810,18 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         st["event_attempts"] = tries
         out["attempts_without_progress"] = tries[key]
 
+        # **A SEPARATE, MONOTONE COUNTER FOR THE ORDER ID [item 64].** The attempt counter was
+        # doing both jobs and they have OPPOSITE requirements: the ceiling must RESET when the
+        # book advances, or a healthy rebalance stops itself; the id suffix must NEVER reset, or
+        # it reproduces an id Alpaca has already accepted. The fifth real cycle sent 22 orders
+        # that came back "client_order_id must be unique" because the ceiling's reset had taken
+        # the suffix back to `a1`. This one only ever increases while the event is open.
+        seqs = dict(st.get("send_seq") or {})
+        seqs[key] = int(seqs.get(key) or 0) + 1
+        st["send_seq"] = seqs
+        send_seq = seqs[key]
+        out["send_seq"] = send_seq
+
         # ---- THE INTENT IS WRITTEN BEFORE ANYTHING IS SENT [item 63, blocker 2] ----------
         #
         # The third fact in the auditor's duplicate buy-in: `write_state`'s result was
@@ -831,7 +849,7 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
                 res = client.place_limit(
                     o["ticker"], o["side"], o["qty"], o["limit_price"],
                     client_order_id=client_order_id(slot, key, o["ticker"],
-                                                    attempt=tries[key]))
+                                                    attempt=send_seq))
             except Exception as e:                                      # noqa: BLE001
                 res = {"ok": False, "error": "%s: %s" % (type(e).__name__, e)}
             # **BOTH CLIENTS' FAILURE SHAPES, because they differ [item 64].**

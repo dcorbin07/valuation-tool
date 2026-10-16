@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import datetime as dt
 import io
+import json
 import os
 import re
 import shutil
@@ -689,6 +690,138 @@ class TheCeilingCountsAttemptsThatMadeNoProgress(unittest.TestCase):
         for bag in ("event_attempts", "event_progress"):
             self.assertNotIn("rebalance:2026-10-22", (st2.get(bag) or {}),
                              "%s kept a closed event's counter" % bag)
+
+
+class TheOrderIdCounterIsNotTheCeilingsCounter(unittest.TestCase):
+    """**ONE COUNTER WAS DOING TWO JOBS WITH OPPOSITE REQUIREMENTS.**
+
+    The fifth real cycle sent 22 orders that came back *"client_order_id must be unique; HTTP
+    422"* -- after the per-attempt suffix was supposed to have fixed exactly that. The ceiling's
+    counter MUST reset when the book advances, or a healthy rebalance stops itself; the id suffix
+    must NEVER reset, or it reproduces an id Alpaca has already accepted. Sharing them meant the
+    reset took the suffix back to `a1`.
+
+    **MY EARLIER UNIQUENESS TEST DID NOT CATCH IT, and that is the lesson.** It ran two cycles
+    and asserted the ids differed -- two cycles with no reset in between, where the shared
+    counter behaves correctly. The property is that ids never repeat **across a reset**, which is
+    the case the earlier test could not reach.
+    """
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def _cycle(self, filled_qty, ids):
+        from valuation.edge import live_cycle as LC
+        import tests.test_item63 as T63
+
+        orders = []
+        if filled_qty:
+            orders = [{"client_order_id": "valquo-paper-rebalance:2026-10-22-AAPL-a1",
+                       "symbol": "AAPL", "filled_qty": str(filled_qty), "side": "buy",
+                       "status": "filled", "limit_price": "100", "filled_avg_price": "100"}]
+
+        class Watch(T63.RecordedAlpaca):
+            def request(self, method, url, **k):
+                r = super().request(method, url, **k)
+                if url.endswith("/v2/orders") and method == "POST":
+                    import json as _j
+                    ids.append(_j.loads(k.get("data") or "{}").get("client_order_id"))
+                return r
+        sess = Watch(orders=orders,
+                     positions=([{"symbol": "AAPL", "qty": str(filled_qty),
+                                  "avg_entry_price": "100", "side": "long"}]
+                                if filled_qty else []))
+        return LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=T63.ARMED, book=T63.BOOK,
+                           client=T63.broker(sess), equity=1000.0, marks=T63.MARKS,
+                           root=self.root, send=True)
+
+    def test_IDS_NEVER_REPEAT_ACROSS_A_CEILING_RESET(self):
+        """**THE CASE THE EARLIER TEST COULD NOT REACH.** Cycles with no progress raise the
+        ceiling's count; a cycle WITH progress resets it. The ids must keep climbing through
+        that reset."""
+        ids = []
+        self._cycle(0, ids)        # no progress -- count rises
+        self._cycle(0, ids)        # no progress -- count rises
+        got = self._cycle(1.0, ids)   # PROGRESS -- the ceiling's count resets
+        self._cycle(1.0, ids)
+        self.assertEqual(got.get("attempts_without_progress"), 1,
+                         "the ceiling did not reset, so this test is not exercising a reset")
+        self.assertTrue(ids, "no order ids were captured")
+        self.assertEqual(len(set(ids)), len(ids),
+                         "an id repeated across a ceiling reset: %r"
+                         % sorted(x for x in ids if ids.count(x) > 1)[:6])
+
+    def test_the_send_sequence_is_MONOTONE_across_a_reset(self):
+        from valuation.edge import live_cycle as LC
+        ids = []
+        seqs = [self._cycle(0, ids).get("send_seq"),
+                self._cycle(0, ids).get("send_seq"),
+                self._cycle(1.0, ids).get("send_seq"),
+                self._cycle(2.0, ids).get("send_seq")]
+        self.assertEqual(seqs, sorted(seqs), seqs)
+        self.assertEqual(len(set(seqs)), len(seqs), seqs)
+        st = LC.read_state(LC.PAPER_SLOT, self.root)
+        self.assertGreaterEqual(max((st.get("send_seq") or {}).values()), 4)
+
+    def test_the_two_counters_are_separate_in_the_state(self):
+        from valuation.edge import live_cycle as LC
+        ids = []
+        self._cycle(0, ids)
+        st = LC.read_state(LC.PAPER_SLOT, self.root)
+        self.assertIn("send_seq", st)
+        self.assertIn("event_attempts", st)
+
+    def test_the_id_is_built_from_send_seq_and_not_from_the_attempt_count(self):
+        """Asserted on the source, because the two were briefly the same VALUE -- so a
+        behavioural test passes either way until a reset happens."""
+        from valuation.edge import live_cycle as LC
+        src = open(LC.__file__, encoding="utf-8").read()
+        call = src[src.index("res = client.place_limit("):]
+        call = call[:call.index(")") + 400]
+        self.assertIn("attempt=send_seq", call)
+        self.assertNotIn("attempt=tries", call)
+
+    def test_closing_the_event_clears_the_send_sequence_too(self):
+        from valuation.edge import live_cycle as LC
+        src = open(LC.__file__, encoding="utf-8").read()
+        self.assertIn('("event_attempts", "event_progress", "send_seq")', src)
+
+
+class TheWashTradeRejectionIsSurfacedInWords(unittest.TestCase):
+    """The other two rejections on that cycle, recorded because they are REAL and not ours:
+    *"potential wash trade detected. use complex orders"* -- Alpaca refusing one side of a name
+    while an order rests on the other. **A genuine constraint on a book that re-prices a
+    remainder**, and it is now legible instead of arriving as `None`."""
+
+    def test_a_wash_trade_refusal_reaches_the_alert_in_words(self):
+        from valuation.edge import live_cycle as LC
+        got = LC._rejection_reason(
+            {"ok": False, "reason": "the broker rejected the order",
+             "detail": {"status": 403,
+                        "error": {"message": "potential wash trade detected. use complex "
+                                             "orders"}}})
+        self.assertIn("wash trade", got)
+        self.assertIn("403", got)
+
+    def test_it_is_NOT_silently_absorbed(self):
+        """It must still be a `broker_error` alert -- naming it is not handling it, and item 64
+        does not claim to handle it."""
+        import tempfile
+        from valuation.edge import live_cycle as LC
+        import tests.test_item63 as T63
+
+        class Wash(T63.RecordedAlpaca):
+            def request(self, method, url, **k):
+                if url.endswith("/v2/orders") and method == "POST":
+                    return T63.Reply({"message": "potential wash trade detected"}, status=403)
+                return super().request(method, url, **k)
+        got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=T63.ARMED, book=T63.BOOK,
+                          client=T63.broker(Wash()), equity=1000.0, marks=T63.MARKS,
+                          root=tempfile.mkdtemp(), send=True)
+        kinds = [a["kind"] for a in got["alerts"]]
+        self.assertIn("broker_error", kinds)
+        self.assertIn("wash trade", json.dumps(got["alerts"]))
 
 
 if __name__ == "__main__":
