@@ -875,7 +875,7 @@ class ThePriceCoverageRefusalIsAttributable(_Tmp):
         self.assertLessEqual(len(got["marks_coverage"]["missing"]), 40)
 
 
-class WhatTheFirstRealCycleProved(unittest.TestCase):
+class WhatTheFirstRealCycleProved(_Tmp):
     """Recorded as assertions so the facts survive the run log. [2026-10-16 02:54Z, HTTP 200]"""
 
     def test_the_paper_slot_can_now_reach_a_place_order_call(self):
@@ -883,9 +883,14 @@ class WhatTheFirstRealCycleProved(unittest.TestCase):
         produced NO `broker_error` and NO `AttributeError`, where every cycle before it would
         have produced one per name."""
         sess = RecordedAlpaca()
+        # A TEMP ROOT, NOT THE SHARED ONE [fixed item 64]. The `hasattr(self, "root")` dance
+        # this replaced resolved to `None` -- the real state directory -- so the slot's record
+        # persisted and the SECOND run of this suite saw the event already processed and placed
+        # nothing. A test that passes on a clean machine and fails on a used one is worse than
+        # one that fails outright, because the first failure reads as a regression.
         got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
-                          client=broker(sess), equity=1000.0, marks=MARKS, root=self.root
-                          if hasattr(self, "root") else None, send=True)
+                          client=broker(sess), equity=1000.0, marks=MARKS, root=self.root,
+                          send=True)
         self.assertNotIn("broker_error", [a["kind"] for a in got["alerts"]])
         self.assertEqual(len(sess.placed), 2)
 
