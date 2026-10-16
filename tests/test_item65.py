@@ -366,5 +366,138 @@ class TheWashTradeCountFromItem64(unittest.TestCase):
         self.assertIn("potential wash trade detected", got)
 
 
+class TheCycleLogIsReadable(unittest.TestCase):
+    """**PART 3.** Cycle 6's body was lost because GitHub dropped the single ~35KB line -- and
+    the three summary lines that existed so nobody would have to parse it were in the same step
+    and went with it. So: one short line per field, in a step that runs BEFORE the HTTP check,
+    and the body uploaded as an artifact."""
+
+    @classmethod
+    def setUpClass(cls):
+        import yaml
+        p = os.path.join(REPO, "pending_workflows", "live-cycle.yml")
+        cls.src = io.open(p, encoding="utf-8").read()
+        cls.doc = yaml.safe_load(cls.src)
+        cls.steps = cls.doc["jobs"]["cycle"]["steps"]
+        # **NOT `cls.run` -- THAT SHADOWS `TestCase.run` AND UNITTEST THEN CALLS A STRING.**
+        # The whole suite died with `TypeError: 'str' object is not callable` from inside
+        # unittest's own machinery, which points nowhere near the cause.
+        cls.script = cls.steps[0]["run"]
+        body = cls.script.split("<<'PYEOF'", 1)[1].split("PYEOF", 1)[0]
+        cls.summary = body.split("\n", 1)[1]
+
+    def test_the_embedded_python_parses(self):
+        """**THE FILE'S OWN WARNING IS ABOUT EXACTLY THIS**: an earlier version indented a
+        heredoc body and its terminator, and indented Python is an `IndentationError` -- which
+        would have gone red on every run AFTER the cycle had already succeeded. YAML's block
+        dedent puts both at column 0; this asserts it rather than trusting it."""
+        import ast
+        ast.parse(self.summary)
+        self.assertTrue(self.summary.startswith("import json, sys"), self.summary[:60])
+
+    def test_the_35KB_line_is_GONE(self):
+        """`cat "$BODY"` is what produced the line GitHub dropped."""
+        code = "\n".join(ln.split("#", 1)[0] for ln in self.script.splitlines())
+        self.assertNotIn('cat "$BODY"', code)
+
+    def test_one_line_per_field(self):
+        for field in ("mode", "session", "event", "priced", "sent", "accepted", "rejected",
+                      "filled", "held", "order_read", "cancelled", "blocked", "send_seq",
+                      "no_progress", "account_pinned", "refusal"):
+            self.assertIn('print("%s' % field, self.summary,
+                          "no line prints %s" % field)
+
+    def test_the_summary_runs_BEFORE_the_http_check(self):
+        """A 4xx/5xx cycle is the one most worth reading, and the first cut checked the status
+        first -- so the only outcome that mattered printed nothing."""
+        code = self.script
+        self.assertLess(code.index("<<'PYEOF'"), code.index('[ "$CODE" = "200" ]'))
+
+    def test_the_body_is_uploaded_as_an_artifact_even_on_failure(self):
+        up = [st for st in self.steps if "upload-artifact" in str(st.get("uses") or "")]
+        self.assertEqual(len(up), 1, "no artifact step")
+        self.assertTrue(up[0].get("if") in (True, "always()", "${{ always() }}"),
+                        "the artifact is not kept on a failed cycle: %r" % up[0].get("if"))
+        self.assertIn("live-cycle-body", up[0]["with"]["path"])
+
+    def test_it_runs_on_a_REAL_cycle_body(self):
+        """Exercised against the recorded body of item 64's fifth cycle rather than a fixture,
+        because that body is the shape that defeated the old logging."""
+        import subprocess
+        import sys as _sys
+        body = {
+            "mode": "paper", "session": {"ok": True, "local_time": "15:03"},
+            "alerts": [{"slot": "paper", "kind": "broker_error",
+                        "reason": "order for %s was rejected: the broker rejected the order; "
+                                  "client_order_id must be unique; HTTP 422" % t}
+                       for t in ("AAPL", "MSFT", "NVDA")],
+            "slots": [],
+            "reason": "no live slot has a key pair configured",
+            "paper": {"event": "remainder", "event_key": "rebalance:2026-07-30",
+                      "marks_coverage": {"n_priced": 85, "n_needed": 85},
+                      "sent": ([{"ok": True}] * 43
+                               + [{"ok": False, "detail": "client_order_id must be unique"}]
+                               * 22),
+                      "reconcile": {"n_filled": 161, "n_orders": 239,
+                                    "holdings": {str(i): 1.0 for i in range(81)},
+                                    "order_read": "ok"},
+                      "cancelled": [], "blocked_by_cancel": [], "send_seq": 5,
+                      "attempts_without_progress": 1, "account_id_recorded": True,
+                      "reason": "sent 65 order(s)"},
+        }
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, True)
+        bp = os.path.join(d, "body.json")
+        sp = os.path.join(d, "summ.py")
+        with open(bp, "w", encoding="utf-8") as fh:
+            json.dump(body, fh)
+        with open(sp, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(self.summary)
+        r = subprocess.run([_sys.executable, sp, bp], capture_output=True)
+        out = r.stdout.decode("utf-8", "replace")
+        self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace")[-400:])
+        self.assertIn("priced        : 85 of 85", out)
+        self.assertIn("rejected      : 22", out)
+        self.assertIn("held          : 81 names", out)
+        self.assertIn("reject x22", out)
+        # DEDUPED: three alerts with the same cause and different tickers are ONE line.
+        self.assertEqual(out.count("broker_error"), 1, out)
+        self.assertIn("AAPL", out)
+        # AND EVERY LINE IS SHORT, which is the whole point.
+        worst = max(len(ln) for ln in out.splitlines())
+        self.assertLess(worst, 400, "a line is %d chars long" % worst)
+
+    def test_no_silent_cap(self):
+        """The project's own rule: a report that bounds its coverage says what it dropped."""
+        self.assertIn("further group(s) covering", self.summary)
+        self.assertIn("further DISTINCT reason(s) not shown", self.summary)
+
+
+class TheScheduleAndTheLoggingShipTogether(unittest.TestCase):
+    """The brief: if the schedule change is still pending, fold this in so Don installs once.
+    Measured -- the installed copy still carries the single `40 14` cron, so it is."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.src = io.open(os.path.join(REPO, "pending_workflows", "live-cycle.yml"),
+                          encoding="utf-8").read()
+
+    def test_the_item_64_schedule_is_still_in_the_pending_file(self):
+        import re
+        crons = re.findall(r'cron:\s*"([^"]+)"', self.src)
+        self.assertIn("30 11 * * 1-5", crons)
+        self.assertIn("0 12 * * 1-5", crons)
+        self.assertEqual(len(crons), 5, crons)
+
+    def test_one_install_covers_both(self):
+        self.assertIn("PENDING INSTALL", self.src)
+        self.assertIn("install_workflows.bat", self.src)
+
+    def test_the_send_token_is_still_paper(self):
+        code = "\n".join(ln.split("#", 1)[0] for ln in self.src.splitlines())
+        self.assertIn("run=paper", code)
+        self.assertNotIn("run=1", code)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
