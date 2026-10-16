@@ -468,17 +468,44 @@ class AnUnreadablePositionListRefuses(_Tmp):
         self.assertTrue(got["ok"], got["reason"])
         self.assertFalse(got["positions_checked"])
 
-    def test_END_TO_END_a_broker_whose_positions_raise_sends_nothing(self):
+    def test_END_TO_END_a_broker_whose_positions_cannot_be_read_sends_nothing(self):
+        """**REPOINTED BY ITEM 65, AND THE REPOINT IS AN IMPROVEMENT.**
+
+        This monkeypatched `broker.positions` to raise. Two things were wrong with that, and
+        item 65 found both: the live path now reads through `positions_result` (because the real
+        client's `positions()` returns `[]` on a failed request and NEVER RAISES, so
+        "unreadable" was undetectable through it) -- and a monkeypatched raise was never how
+        this fails in production anyway. The fixture breaks the **HTTP layer** now, which is the
+        real failure mode, so the test exercises the whole client instead of a stand-in. That is
+        why this passed while the refusal it pins could not fire through a real broker.
+        """
         class Blind(RecordedAlpaca):
-            pass
+            def request(self, method, url, **k):
+                if url.endswith("/v2/positions"):
+                    return Reply({"message": "positions are down"}, status=500)
+                return super().request(method, url, **k)
         sess = Blind()
-        b = broker(sess)
-        b.positions = lambda: (_ for _ in ()).throw(RuntimeError("positions are down"))
         got = LC.run_slot(LC.PAPER_SLOT, pct=100.0, armed_state=ARMED, book=BOOK,
-                          client=b, equity=1000.0, marks=MARKS, root=self.root, send=True)
+                          client=broker(sess), equity=1000.0, marks=MARKS, root=self.root,
+                          send=True)
         self.assertEqual(sess.placed, [])
         self.assertIsNone(got["broker_positions_read"])
         self.assertIn("could not be read", got["reason"])
+
+    def test_the_REAL_client_reports_an_unreadable_position_list_as_such(self):
+        """The layer the test above used to skip: `positions()` returns `[]` on a failure and
+        `positions_result()` says so. Without this the refusal above could pass while the
+        client it runs on still cannot express the state."""
+        class Blind(RecordedAlpaca):
+            def request(self, method, url, **k):
+                if url.endswith("/v2/positions"):
+                    return Reply({"message": "down"}, status=500)
+                return super().request(method, url, **k)
+        b = broker(Blind())
+        self.assertEqual(b.positions(), [], "the old contract changed")
+        res = b.positions_result()
+        self.assertFalse(res["ok"])
+        self.assertIn("could not be read", res["reason"])
 
     def test_a_dry_run_still_computes_its_plan(self):
         """THE POSITIVE CONTROL for the two above: if a no-client slot refused, every one of

@@ -339,8 +339,21 @@ def reconcile(client, state: dict) -> dict:
     itself and could never fire. Two independent accounts of the same holdings is the point.
     """
     out = {"ok": False, "n_orders": 0, "n_filled": 0, "unfilled": 0, "fills": [],
-           "holdings": dict(state.get("holdings") or {}), "symbols": [],
-           "truncated": False, "open_remainder": False, "reason": ""}
+           "holdings": dict(state.get("holdings") or {}), "symbols": [], "resting": [],
+           "truncated": False, "open_remainder": False, "reason": "",
+           # WHICH OF FOUR STATES THIS IS IN. [item 65, the auditor's last blocker]
+           #
+           #   not_attempted -- no client was supplied. A dry or paper-only cycle; it must
+           #                    still compute a plan, and it cannot send anyway.
+           #   failed        -- the broker was asked and would not answer.
+           #   truncated     -- the broker answered with a full page, so the total is wrong.
+           #   ok            -- the holdings are known.
+           #
+           # **`failed` AND `truncated` ARE THE SAME EPISTEMIC STATE** -- "I do not know what I
+           # hold" -- and before this only `truncated` refused. `not_attempted` is a THIRD
+           # thing: "I did not ask". Collapsing it into `failed` would refuse every dry run,
+           # which is the positions sentinel's lesson one function over.
+           "order_read": "not_attempted"}
     if client is None or not hasattr(client, "orders"):
         out["reason"] = "no client, or it cannot list orders; the record is left as it was"
         return out
@@ -350,20 +363,38 @@ def reconcile(client, state: dict) -> dict:
     # caller invoking this directly did not, and "reconciled an empty book" is indistinguishable
     # from "this slot holds nothing".
     if not str(state.get("slot") or "").strip():
+        out["order_read"] = "failed"
         out["reason"] = ("the state carries no slot number, so no order could be attributed to "
                          "it; this is a refusal rather than an empty book")
         return out
+    # **`orders_result` RATHER THAN `orders`, AND THIS IS WHERE THE AUDITOR'S BLOCKER REALLY
+    # LIVED [item 65].** Both clients' `orders()` return `[]` when the request fails, so a 5xx
+    # arrived as an EMPTY SUCCESS: `order_read` read "ok", the book read empty, the derived
+    # scope read empty, every broker position was skipped, and a second full buy-in went out.
+    # Refusing on a failed read -- the auditor's `if` -- was necessary and could never fire,
+    # because nothing below this line could tell a failure from an empty account.
+    #
+    # `orders()` is kept for callers that want whatever arrived; this path needs the difference.
     try:
-        orders = client.orders(limit=ORDERS_PAGE_LIMIT) or []
-    except TypeError:
-        # A client whose `orders()` takes no `limit`. Its own default applies; the truncation
-        # check below still fires, because what matters is whether the page came back full.
-        try:
-            orders = client.orders() or []
-        except Exception as e:                                          # noqa: BLE001
-            out["reason"] = "the broker's orders could not be read (%s)" % type(e).__name__
-            return out
+        if hasattr(client, "orders_result"):
+            res = client.orders_result(limit=ORDERS_PAGE_LIMIT) or {}
+            if not res.get("ok"):
+                out["order_read"] = "failed"
+                out["reason"] = (res.get("reason")
+                                 or "the broker's orders could not be read")
+                return out
+            orders = list(res.get("data") or [])
+        else:
+            # A client without the honest reader -- a stub, or something older. Its `[]` is
+            # ambiguous and is treated as it reads, which is the pre-item-65 behaviour; the
+            # derived interface test requires `orders_result` on both REAL clients, so this
+            # branch cannot be the production path.
+            try:
+                orders = client.orders(limit=ORDERS_PAGE_LIMIT) or []
+            except TypeError:
+                orders = client.orders() or []
     except Exception as e:                                              # noqa: BLE001
+        out["order_read"] = "failed"
         out["reason"] = "the broker's orders could not be read (%s)" % type(e).__name__
         return out
     # A FULL PAGE MEANS THERE MAY BE MORE, AND MORE MEANS THE FILL TOTALS ARE WRONG. Alpaca
@@ -373,6 +404,7 @@ def reconcile(client, state: dict) -> dict:
     # is reported as a refusal rather than smoothed over.
     if len(orders) >= ORDERS_PAGE_LIMIT:
         out["truncated"] = True
+        out["order_read"] = "truncated"
         out["reason"] = ("the broker returned a FULL page of %d orders, so older fills may be "
                          "outside the window and this slot's holdings cannot be totalled "
                          "reliably; it sends nothing this cycle" % len(orders))
@@ -396,6 +428,14 @@ def reconcile(client, state: dict) -> dict:
         status = str((o or {}).get("status") or "").lower()
         if status in ("new", "accepted", "partially_filled", "pending_new", "held"):
             open_left = True
+            # WHICH ORDERS ARE STILL RESTING, AND ON WHICH SIDE. [item 65]
+            # Alpaca refuses an order on one side of a name while one of ours rests on the
+            # other, so the sender has to be able to find and clear it. Only THIS slot's own
+            # orders are listed, because the prefix filter above has already run -- the path
+            # never cancels anything it did not place.
+            if sym:
+                out["resting"].append({"id": str((o or {}).get("id") or coid),
+                                       "ticker": sym, "side": side, "coid": coid})
         if fq and fq > 0 and sym:
             out["n_filled"] += 1
             filled[sym] = filled.get(sym, 0.0) + (fq if side == "buy" else -fq)
@@ -417,6 +457,7 @@ def reconcile(client, state: dict) -> dict:
         out["holdings"][sym] = max(0.0, round(q, 9))
     out["holdings"] = {k: v for k, v in out["holdings"].items() if (v or 0) > 1e-9}
     out["open_remainder"] = open_left
+    out["order_read"] = "ok"
     out["ok"] = True
     return out
 
@@ -563,6 +604,18 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
             if not known:
                 st["account_id"] = acct_id
             out["account_id"] = acct_id
+        # **WHETHER THE PIN ENGAGED, REPORTED EITHER WAY [item 65, the auditor's note 2].**
+        # `if acct_id:` skips the whole block, so a 200 carrying an equity and no `id` left the
+        # slot unpinned with NOTHING SAYING SO. It cannot cause a send by itself -- an
+        # unreadable account also costs the equity, which preflight refuses on -- but an
+        # unpinned slot is exactly the state the pin exists to prevent, and silence is how it
+        # would be discovered later rather than now.
+        out["account_id_recorded"] = bool(acct_id)
+        if not acct_id:
+            out["account_id_note"] = (
+                "this cycle recorded no account id, so the slot is NOT pinned to an account: "
+                "the broker's reply carried no `id`, or no id was supplied to this call. A "
+                "swapped key pair would not be caught while that is true.")
         held = [q for q in ((book or {}).get("positions") or [])
                 if q.get("status") == "held"]
 
@@ -571,12 +624,28 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         # buy-in on every cycle -- which is exactly what my own second-cycle test caught.
         rec = reconcile(client, st)
         out["reconcile"] = rec
-        if rec.get("truncated"):
-            # A FULL ORDER PAGE MEANS THE HOLDINGS TOTAL IS WRONG, and an under-counted
-            # holding makes the planner buy the difference a second time. No orders. [item 63]
-            out["alerts"].append({"kind": "reconcile_truncated", "slot": str(slot),
-                                  "reason": rec.get("reason") or "the order page was full"})
-            out["reason"] = rec.get("reason") or "the order page was full"
+        if rec.get("order_read") in ("truncated", "failed"):
+            # **"I DO NOT KNOW WHAT I HOLD" IS ONE STATE WITH TWO CAUSES, AND BOTH REFUSE.**
+            # [item 65 -- the auditor's last blocker; item 63 refused only the truncated half]
+            #
+            # A full order page means the holdings TOTAL is wrong, and an under-counted holding
+            # makes the planner buy the difference a second time. **A FAILED read is worse, not
+            # milder**: `slot_symbols` is derived from this call's symbols, the recorded
+            # holdings and the recorded intent, so when the state file is also gone all three
+            # are empty, `preflight`'s reverse check runs with an EMPTY SCOPE, every broker
+            # position is skipped, and a full buy-in transmits on top of a book the account
+            # already holds. The auditor reproduced exactly that and all 236 tests passed
+            # through it, because each supplied by hand the scope the production path derives.
+            #
+            # `not_attempted` is deliberately NOT here: that is a dry or paper-only cycle with
+            # no client, which must still compute a plan and cannot send in any case.
+            kind = ("reconcile_truncated" if rec.get("order_read") == "truncated"
+                    else "order_read_failed")
+            why = (rec.get("reason")
+                   or "the broker's own orders could not be read, so this slot does not know "
+                      "what it already holds")
+            out["alerts"].append({"kind": kind, "slot": str(slot), "reason": why})
+            out["reason"] = why
             return out
         if rec.get("ok"):
             st["holdings"] = rec["holdings"]
@@ -629,8 +698,27 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
         # A client that EXISTS and whose positions cannot be read is the case that must refuse,
         # and `None` carries that. Collapsing the two is what made item 58b's own positive
         # control go red: an armed live slot in a PAPER cycle stopped computing a plan at all.
+        # **`positions_result` WHERE IT EXISTS, AND THE SAME DEFECT WAS UNDER THIS LEG TOO
+        # [item 65].** Item 63 made an unreadable position list refuse and detected
+        # "unreadable" by the call RAISING -- which `AlpacaPaperBroker.positions()` never does,
+        # because it returns `[]` on a failed request. So that refusal could not fire through
+        # the real client either, and "the account holds nothing" and "the broker would not
+        # tell me" were one value on the one input that says what the slot already owns.
         bpos = LS.POSITIONS_NOT_SUPPLIED
-        if client is not None and hasattr(client, "positions"):
+        if client is not None and hasattr(client, "positions_result"):
+            try:
+                res = client.positions_result() or {}
+                if not res.get("ok"):
+                    bpos = None
+                else:
+                    bpos = [{"ticker": str((p or {}).get("ticker")
+                                           or (p or {}).get("symbol") or "").upper(),
+                             "qty": LS._f((p or {}).get("qty"))}
+                            for p in (res.get("data") or [])
+                            if str((p or {}).get("ticker") or (p or {}).get("symbol") or "")]
+            except Exception:                                           # noqa: BLE001
+                bpos = None
+        elif client is not None and hasattr(client, "positions"):
             try:
                 raw = client.positions()
                 rows = raw if isinstance(raw, list) else ((raw or {}).get("data") or [])
@@ -844,7 +932,44 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
             return out
 
         # ---- the only place an order is transmitted -------------------------------------
+        resting = list((rec.get("resting") or []))
+        out["cancelled"], out["blocked_by_cancel"] = [], []
         for o in plan["orders"]:
+            # **CLEAR A RESTING ORDER ON THE OPPOSITE SIDE FIRST, OR ALPACA REFUSES THIS ONE.**
+            # [item 65] *"Potential wash trade detected. Use complex orders."* -- and complex
+            # orders are forbidden here, so the obstruction is cleared instead. Only this slot's
+            # own orders are ever cancelled: `reconcile` filtered by the `valquo-<slot>-` prefix
+            # before recording them.
+            blocked = False
+            for rst in [r for r in resting
+                        if r["ticker"] == o["ticker"] and r["side"] != str(o["side"]).lower()]:
+                res = {"ok": False, "detail": "no cancel method on this client"}
+                if hasattr(client, "cancel"):
+                    try:
+                        res = client.cancel(rst["id"]) or {}
+                    except Exception as e:                              # noqa: BLE001
+                        res = {"ok": False, "detail": "%s: %s" % (type(e).__name__, e)}
+                if res.get("ok"):
+                    out["cancelled"].append(dict(rst, why="opposite side of a planned order"))
+                    resting = [r for r in resting if r["id"] != rst["id"]]
+                else:
+                    # **AN UNCONFIRMED CANCEL MEANS THIS NAME DOES NOT TRADE.** A cancel that
+                    # silently failed leaves the opposite order resting, so the new order is
+                    # refused anyway -- and the slot would believe it had cleared the way. §8's
+                    # rule: a broken input stops THAT trade and alerts. The other names are not
+                    # broken and still trade.
+                    blocked = True
+                    out["blocked_by_cancel"].append({"ticker": o["ticker"],
+                                                     "order_id": rst["id"]})
+                    out["alerts"].append({
+                        "kind": "cancel_unconfirmed", "slot": str(slot),
+                        "reason": ("%s has an order resting on the %s side that could not be "
+                                   "cancelled (%s), so %s does not trade this cycle; Alpaca "
+                                   "refuses a new order on the opposite side as a potential "
+                                   "wash trade" % (o["ticker"], rst["side"],
+                                                   _rejection_reason(res), o["ticker"]))})
+            if blocked:
+                continue
             try:
                 res = client.place_limit(
                     o["ticker"], o["side"], o["qty"], o["limit_price"],

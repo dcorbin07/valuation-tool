@@ -553,6 +553,37 @@ class _LiveClient:
     def positions(self) -> dict:
         return self._request("GET", "/v2/positions")
 
+    def positions_result(self) -> dict:
+        """`{"ok", "data", "reason"}`, matching `AlpacaPaperBroker.positions_result` exactly.
+        [item 65]
+
+        This client's `positions()` already returns the `_request` envelope, so a failure is
+        visible here -- but the paper client's was not, and `run_slot` runs on both. One shape
+        on both clients is the point: a divergence at a read is how the auditor's blocker
+        reached a second buy-in, and a divergence at a WRITE is how blocker 1 stopped the paper
+        slot trading at all.
+        """
+        got = self._request("GET", "/v2/positions")
+        if not got.get("ok"):
+            return {"ok": False, "data": [],
+                    "reason": "the broker's positions could not be read (HTTP %s)"
+                              % got.get("status")}
+        rows = got.get("data") or []
+        return {"ok": True,
+                "data": [{"ticker": str((p or {}).get("symbol") or "").upper(),
+                          "qty": _f((p or {}).get("qty"))} for p in rows],
+                "reason": ""}
+
+    def orders_result(self, status: str = "all", limit: int = 100) -> dict:
+        """`{"ok", "data", "reason"}` -- see `positions_result`. [item 65]"""
+        got = self._request("GET", "/v2/orders",
+                            params={"status": status, "limit": int(limit)})
+        if not got.get("ok"):
+            return {"ok": False, "data": [],
+                    "reason": "the broker's orders could not be read (HTTP %s)"
+                              % got.get("status")}
+        return {"ok": True, "data": list(got.get("data") or []), "reason": ""}
+
     def orders(self, status: str = "all", limit: int = 100) -> list:
         """THIS SLOT'S ORDERS, raw, for `live_cycle.reconcile` to total the fills from.
 
@@ -567,6 +598,23 @@ class _LiveClient:
         got = self._request("GET", "/v2/orders",
                             params={"status": status, "limit": int(limit)})
         return list(got.get("data") or []) if got.get("ok") else []
+
+    def cancel(self, order_id) -> dict:
+        """Cancel one resting order. `{"ok", "detail"}`, matching the paper client. [item 65]
+
+        **IT EXISTS BECAUSE `run_slot` NOW NEEDS IT AND ONLY ONE CLIENT HAD IT** -- the fourth
+        divergence between these two classes on this path, after the `place_limit` NAME, the two
+        failure-reply KEYS and the two READ paths. Alpaca refuses one side of a name while an
+        order rests on the other (*"potential wash trade detected"*), and the answer is to clear
+        the obstruction rather than to place a complex order.
+
+        A 404 counts as cancelled: the order is not resting, which is the property the caller
+        needs. A 422 does NOT -- Alpaca returns it when an order is already filled, and a filled
+        order is a holdings fact the caller must not paper over.
+        """
+        got = self._request("DELETE", "/v2/orders/%s" % order_id)
+        ok = bool(got.get("ok")) or int(got.get("status") or 0) == 404
+        return {"ok": ok, "detail": got}
 
     def place_limit(self, ticker: str, side: str, qty: float, limit_price: float,
                     client_order_id: str = None) -> dict:

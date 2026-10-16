@@ -294,6 +294,50 @@ class AlpacaPaperBroker:
     def balances(self) -> dict:
         return self.account()
 
+    def positions_result(self) -> dict:
+        """`{"ok", "data", "reason"}` -- A FAILED READ IS A FACT, NOT AN EMPTY BOOK. [item 65]
+
+        `positions()` returns `[]` when the request fails, so *"the account holds nothing"* and
+        *"the broker would not tell me"* are the same value -- and the live path's refusal for
+        an unreadable position list detects "unreadable" by the call RAISING, which this client
+        never does. So that refusal could not fire through the real client at all.
+
+        `positions()` keeps its old contract (a list, never raises) because item 58b pins it and
+        other callers rely on it. This is the honest one and the live path uses it.
+        """
+        got = self._request("GET", "/v2/positions")
+        if not got.get("ok"):
+            return {"ok": False, "data": [],
+                    "reason": "the broker's positions could not be read (HTTP %s)"
+                              % got.get("status")}
+        return {"ok": True, "data": self._positions_from(got.get("data") or []), "reason": ""}
+
+    @staticmethod
+    def _positions_from(rows) -> list:
+        out = []
+        for p in (rows or []):
+            out.append({"ticker": str(p.get("symbol") or "").upper(),
+                        "qty": _f(p.get("qty")),
+                        "avg_price": _f(p.get("avg_entry_price")),
+                        "market_value": _f(p.get("market_value")),
+                        "side": p.get("side")})
+        return out
+
+    def orders_result(self, status: str = "all", limit: int = 100) -> dict:
+        """`{"ok", "data", "reason"}` -- see `positions_result`. [item 65]
+
+        This is the one the auditor's last blocker turns on: `orders()` returning `[]` on a 5xx
+        made `reconcile` report "ok" with an empty book, which derives an empty scope, which
+        skips every broker position, which transmits a second full buy-in.
+        """
+        got = self._request("GET", "/v2/orders",
+                            params={"status": status, "limit": int(limit)})
+        if not got.get("ok"):
+            return {"ok": False, "data": [],
+                    "reason": "the broker's orders could not be read (HTTP %s)"
+                              % got.get("status")}
+        return {"ok": True, "data": list(got.get("data") or []), "reason": ""}
+
     def positions(self) -> list:
         got = self._request("GET", "/v2/positions")
         if not got.get("ok"):
