@@ -374,17 +374,32 @@ class TheCycleLogIsReadable(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        import yaml
+        """**PARSED AS TEXT, BECAUSE PyYAML IS NOT IN THE CI ENVIRONMENT.**
+
+        My first cut imported `yaml` and the gate returned `ModuleNotFoundError` --
+        item 64's own schedule test uses `re.findall` for exactly that reason, and I wrote a new
+        one instead of reading the neighbouring test. Doing the YAML block dedent by hand is the
+        better version anyway: the whole point of `test_the_embedded_python_parses` is that the
+        heredoc body lands at column 0, so performing the dedent here means the test verifies it
+        rather than trusting a library to have done it.
+        """
         p = os.path.join(REPO, "pending_workflows", "live-cycle.yml")
-        cls.src = io.open(p, encoding="utf-8").read()
-        cls.doc = yaml.safe_load(cls.src)
-        cls.steps = cls.doc["jobs"]["cycle"]["steps"]
+        cls.src = io.open(p, encoding="utf-8").read().replace("\r\n", "\n")
+        lines = cls.src.split("\n")
+        # The `run: |` block, dedented exactly as YAML would.
+        start = next(i for i, ln in enumerate(lines) if ln.strip() == "run: |")
+        indent = len(lines[start]) - len(lines[start].lstrip()) + 2
+        body = []
+        for ln in lines[start + 1:]:
+            if ln.strip() and not ln.startswith(" " * indent):
+                break
+            body.append(ln[indent:] if len(ln) >= indent else ln.strip())
         # **NOT `cls.run` -- THAT SHADOWS `TestCase.run` AND UNITTEST THEN CALLS A STRING.**
         # The whole suite died with `TypeError: 'str' object is not callable` from inside
         # unittest's own machinery, which points nowhere near the cause.
-        cls.script = cls.steps[0]["run"]
-        body = cls.script.split("<<'PYEOF'", 1)[1].split("PYEOF", 1)[0]
-        cls.summary = body.split("\n", 1)[1]
+        cls.script = "\n".join(body)
+        heredoc = cls.script.split("<<'PYEOF'", 1)[1].split("PYEOF", 1)[0]
+        cls.summary = heredoc.split("\n", 1)[1]
 
     def test_the_embedded_python_parses(self):
         """**THE FILE'S OWN WARNING IS ABOUT EXACTLY THIS**: an earlier version indented a
@@ -414,11 +429,14 @@ class TheCycleLogIsReadable(unittest.TestCase):
         self.assertLess(code.index("<<'PYEOF'"), code.index('[ "$CODE" = "200" ]'))
 
     def test_the_body_is_uploaded_as_an_artifact_even_on_failure(self):
-        up = [st for st in self.steps if "upload-artifact" in str(st.get("uses") or "")]
-        self.assertEqual(len(up), 1, "no artifact step")
-        self.assertTrue(up[0].get("if") in (True, "always()", "${{ always() }}"),
-                        "the artifact is not kept on a failed cycle: %r" % up[0].get("if"))
-        self.assertIn("live-cycle-body", up[0]["with"]["path"])
+        """Asserted on the text, for the same reason as `setUpClass`. The `if: always()` is the
+        load-bearing part: a FAILED cycle's body is the one most worth having, and that is
+        exactly the run where the step before it exits non-zero."""
+        self.assertIn("upload-artifact", self.src)
+        step = self.src[self.src.index("Keep the cycle's full body"):]
+        self.assertIn("if: always()", step.split("- name:")[0])
+        self.assertIn("live-cycle-body.json", step.split("- name:")[0])
+        self.assertEqual(self.src.count("upload-artifact"), 1, "two artifact steps")
 
     def test_it_runs_on_a_REAL_cycle_body(self):
         """Exercised against the recorded body of item 64's fifth cycle rather than a fixture,
