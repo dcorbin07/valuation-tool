@@ -366,5 +366,409 @@ class TheWashTradeCountFromItem64(unittest.TestCase):
         self.assertIn("potential wash trade detected", got)
 
 
+class TheCycleLogIsReadable(unittest.TestCase):
+    """**PART 3.** Cycle 6's body was lost because GitHub dropped the single ~35KB line -- and
+    the three summary lines that existed so nobody would have to parse it were in the same step
+    and went with it. So: one short line per field, in a step that runs BEFORE the HTTP check,
+    and the body uploaded as an artifact."""
+
+    @classmethod
+    def setUpClass(cls):
+        """**PARSED AS TEXT, BECAUSE PyYAML IS NOT IN THE CI ENVIRONMENT.**
+
+        My first cut imported `yaml` and the gate returned `ModuleNotFoundError` --
+        item 64's own schedule test uses `re.findall` for exactly that reason, and I wrote a new
+        one instead of reading the neighbouring test. Doing the YAML block dedent by hand is the
+        better version anyway: the whole point of `test_the_embedded_python_parses` is that the
+        heredoc body lands at column 0, so performing the dedent here means the test verifies it
+        rather than trusting a library to have done it.
+        """
+        p = os.path.join(REPO, "pending_workflows", "live-cycle.yml")
+        cls.src = io.open(p, encoding="utf-8").read().replace("\r\n", "\n")
+        lines = cls.src.split("\n")
+        # The `run: |` block, dedented exactly as YAML would.
+        start = next(i for i, ln in enumerate(lines) if ln.strip() == "run: |")
+        indent = len(lines[start]) - len(lines[start].lstrip()) + 2
+        body = []
+        for ln in lines[start + 1:]:
+            if ln.strip() and not ln.startswith(" " * indent):
+                break
+            body.append(ln[indent:] if len(ln) >= indent else ln.strip())
+        # **NOT `cls.run` -- THAT SHADOWS `TestCase.run` AND UNITTEST THEN CALLS A STRING.**
+        # The whole suite died with `TypeError: 'str' object is not callable` from inside
+        # unittest's own machinery, which points nowhere near the cause.
+        cls.script = "\n".join(body)
+        heredoc = cls.script.split("<<'PYEOF'", 1)[1].split("PYEOF", 1)[0]
+        cls.summary = heredoc.split("\n", 1)[1]
+
+    def test_the_embedded_python_parses(self):
+        """**THE FILE'S OWN WARNING IS ABOUT EXACTLY THIS**: an earlier version indented a
+        heredoc body and its terminator, and indented Python is an `IndentationError` -- which
+        would have gone red on every run AFTER the cycle had already succeeded. YAML's block
+        dedent puts both at column 0; this asserts it rather than trusting it."""
+        import ast
+        ast.parse(self.summary)
+        self.assertTrue(self.summary.startswith("import json, sys"), self.summary[:60])
+
+    def test_the_35KB_line_is_GONE(self):
+        """`cat "$BODY"` is what produced the line GitHub dropped."""
+        code = "\n".join(ln.split("#", 1)[0] for ln in self.script.splitlines())
+        self.assertNotIn('cat "$BODY"', code)
+
+    def test_one_line_per_field(self):
+        for field in ("mode", "session", "event", "priced", "sent", "accepted", "rejected",
+                      "filled", "held", "order_read", "cancelled", "blocked", "send_seq",
+                      "no_progress", "account_pinned", "refusal"):
+            self.assertIn('print("%s' % field, self.summary,
+                          "no line prints %s" % field)
+
+    def test_the_summary_runs_BEFORE_the_http_check(self):
+        """A 4xx/5xx cycle is the one most worth reading, and the first cut checked the status
+        first -- so the only outcome that mattered printed nothing."""
+        code = self.script
+        self.assertLess(code.index("<<'PYEOF'"), code.index('[ "$CODE" = "200" ]'))
+
+    def test_the_body_is_uploaded_as_an_artifact_even_on_failure(self):
+        """Asserted on the text, for the same reason as `setUpClass`. The `if: always()` is the
+        load-bearing part: a FAILED cycle's body is the one most worth having, and that is
+        exactly the run where the step before it exits non-zero."""
+        self.assertIn("upload-artifact", self.src)
+        step = self.src[self.src.index("Keep the cycle's full body"):]
+        self.assertIn("if: always()", step.split("- name:")[0])
+        self.assertIn("live-cycle-body.json", step.split("- name:")[0])
+        self.assertEqual(self.src.count("upload-artifact"), 1, "two artifact steps")
+
+    def test_it_runs_on_a_REAL_cycle_body(self):
+        """Exercised against the recorded body of item 64's fifth cycle rather than a fixture,
+        because that body is the shape that defeated the old logging."""
+        import subprocess
+        import sys as _sys
+        body = {
+            "mode": "paper", "session": {"ok": True, "local_time": "15:03"},
+            "alerts": [{"slot": "paper", "kind": "broker_error",
+                        "reason": "order for %s was rejected: the broker rejected the order; "
+                                  "client_order_id must be unique; HTTP 422" % t}
+                       for t in ("AAPL", "MSFT", "NVDA")],
+            "slots": [],
+            "reason": "no live slot has a key pair configured",
+            "paper": {"event": "remainder", "event_key": "rebalance:2026-07-30",
+                      "marks_coverage": {"n_priced": 85, "n_needed": 85},
+                      "sent": ([{"ok": True}] * 43
+                               + [{"ok": False, "detail": "client_order_id must be unique"}]
+                               * 22),
+                      "reconcile": {"n_filled": 161, "n_orders": 239,
+                                    "holdings": {str(i): 1.0 for i in range(81)},
+                                    "order_read": "ok"},
+                      "cancelled": [], "blocked_by_cancel": [], "send_seq": 5,
+                      "attempts_without_progress": 1, "account_id_recorded": True,
+                      "reason": "sent 65 order(s)"},
+        }
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, True)
+        bp = os.path.join(d, "body.json")
+        sp = os.path.join(d, "summ.py")
+        with open(bp, "w", encoding="utf-8") as fh:
+            json.dump(body, fh)
+        with open(sp, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(self.summary)
+        r = subprocess.run([_sys.executable, sp, bp], capture_output=True)
+        out = r.stdout.decode("utf-8", "replace")
+        self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace")[-400:])
+        self.assertIn("priced        : 85 of 85", out)
+        self.assertIn("rejected      : 22", out)
+        self.assertIn("held          : 81 names", out)
+        self.assertIn("reject x22", out)
+        # DEDUPED: three alerts with the same cause and different tickers are ONE line.
+        self.assertEqual(out.count("broker_error"), 1, out)
+        self.assertIn("AAPL", out)
+        # AND EVERY LINE IS SHORT, which is the whole point.
+        worst = max(len(ln) for ln in out.splitlines())
+        self.assertLess(worst, 400, "a line is %d chars long" % worst)
+
+    def test_no_silent_cap(self):
+        """The project's own rule: a report that bounds its coverage says what it dropped."""
+        self.assertIn("further group(s) covering", self.summary)
+        self.assertIn("further DISTINCT reason(s) not shown", self.summary)
+
+
+class TheScheduleAndTheLoggingShipTogether(unittest.TestCase):
+    """The brief: if the schedule change is still pending, fold this in so Don installs once.
+    Measured -- the installed copy still carries the single `40 14` cron, so it is."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.src = io.open(os.path.join(REPO, "pending_workflows", "live-cycle.yml"),
+                          encoding="utf-8").read()
+
+    def test_the_item_64_schedule_is_still_in_the_pending_file(self):
+        import re
+        crons = re.findall(r'cron:\s*"([^"]+)"', self.src)
+        self.assertIn("30 11 * * 1-5", crons)
+        self.assertIn("0 12 * * 1-5", crons)
+        self.assertEqual(len(crons), 5, crons)
+
+    def test_one_install_covers_both(self):
+        self.assertIn("PENDING INSTALL", self.src)
+        self.assertIn("install_workflows.bat", self.src)
+
+    def test_the_send_token_is_still_paper(self):
+        code = "\n".join(ln.split("#", 1)[0] for ln in self.src.splitlines())
+        self.assertIn("run=paper", code)
+        self.assertNotIn("run=1", code)
+
+
+class TheSixUnpricedExitsAreRestated(unittest.TestCase):
+    """**PART 4.** CNA, ABCL, BEAM, HIVE, IDYA and NUVB were closed "left coverage" at their own
+    entry price, because the scan's coverage churns and the `price_fn` re-pricing did not exist
+    until 2026-09-30. `positions.summary` already excludes them -- *an exit that was never
+    re-priced is UNKNOWN, not zero* -- so the published figure is honest and six closes carry no
+    return. This supplies the prices, as a DATED restatement that keeps the old value."""
+
+    NAMES = ("CNA", "ABCL", "BEAM", "HIVE", "IDYA", "NUVB")
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d, True)
+        from valuation.screener.store import Store
+        self.store = Store(os.path.join(self.d, "t.db"))
+        for i, t in enumerate(self.NAMES):
+            entry = 100.0 + i
+            self.store.open_position("hotstocks", t, "2026-08-10", entry)
+            # CLOSED AT THE ENTRY PRICE -- the defect, reproduced.
+            self.store.close_position("hotstocks", t, "2026-08-10", "2026-09-01", entry,
+                                      "left coverage")
+
+    def _hist(self, moves=None, missing=()):
+        """A price vendor whose close on the exit date moves each name by a known amount."""
+        import pandas as pd
+        moves = moves or {t: 0.10 for t in self.NAMES}
+
+        def history(ticker, days=None):
+            if ticker in missing:
+                return pd.DataFrame({"Date": ["2026-08-29"], "close": [1.0]})
+            i = self.NAMES.index(ticker) if ticker in self.NAMES else 0
+            entry = 100.0 + i
+            return pd.DataFrame({"Date": ["2026-08-10", "2026-09-01"],
+                                 "close": [entry, entry * (1.0 + moves.get(ticker, 0.0))]})
+        return history
+
+    def test_all_six_are_found_as_candidates(self):
+        from valuation.edge import exit_restate as RX
+        rows = self.store.all_positions("hotstocks")
+        got = RX.unpriced_exits(rows)
+        self.assertEqual(sorted(p["ticker"] for p in got), sorted(self.NAMES))
+
+    def test_the_plan_prices_each_from_ITS_OWN_exit_date(self):
+        """Not the last close, not today's: the close on the day it was recorded closed, so the
+        restated return is the one the book actually experienced."""
+        from valuation.edge import exit_restate as RX
+        got = RX.plan(self.store.all_positions("hotstocks"),
+                      history=self._hist({"CNA": -0.045, "ABCL": 0.208, "BEAM": 0.064,
+                                          "HIVE": 0.015, "IDYA": 0.087, "NUVB": 0.006}))
+        self.assertEqual(got["n_candidates"], 6)
+        self.assertEqual(got["n_priceable"], 6)
+        by = {r["ticker"]: r for r in got["rows"]}
+        self.assertAlmostEqual(by["ABCL"]["ret_gross"], 0.208, places=6)
+        self.assertAlmostEqual(by["CNA"]["ret_gross"], -0.045, places=6)
+
+    def test_the_managers_figures_are_a_CONTROL_and_not_a_source(self):
+        """The brief supplies them and says not to copy them. So they are compared against, and
+        the gap is reported -- two vendors agreeing is evidence; copying manufactures it."""
+        from valuation.edge import exit_restate as RX
+        got = RX.plan(self.store.all_positions("hotstocks"),
+                      history=self._hist({"CNA": -0.045, "ABCL": 0.208, "BEAM": 0.064,
+                                          "HIVE": 0.015, "IDYA": 0.087, "NUVB": 0.006}))
+        for r in got["rows"]:
+            self.assertIn("control_gap_pp", r, r["ticker"])
+            self.assertLess(abs(r["control_gap_pp"]), 0.01, r)
+        self.assertIn("CONTROL rather than a source", got["control_note"])
+
+    def test_a_DISAGREEMENT_with_the_control_is_reported_not_hidden(self):
+        """THE POSITIVE CONTROL for the test above: if the gap were never computed, perfect
+        agreement would prove nothing."""
+        from valuation.edge import exit_restate as RX
+        got = RX.plan(self.store.all_positions("hotstocks"),
+                      history=self._hist({"CNA": 0.50}))
+        by = {r["ticker"]: r for r in got["rows"]}
+        self.assertGreater(abs(by["CNA"]["control_gap_pp"]), 50.0, by["CNA"])
+
+    def test_a_name_with_NO_close_on_its_exit_date_is_LEFT_UNRESTATED(self):
+        """**NO FALLBACK.** A neighbouring day's close under this day's label is a wrong number,
+        and an unpriced exit is already handled honestly by being excluded -- so replacing it
+        with a wrong price would turn an acknowledged gap into a silent error."""
+        from valuation.edge import exit_restate as RX
+        planned = RX.plan(self.store.all_positions("hotstocks"),
+                          history=self._hist(missing=("HIVE",)))
+        self.assertEqual(planned["n_unpriceable"], 1)
+        bad = [r for r in planned["rows"] if not r["ok"]]
+        self.assertEqual(bad[0]["ticker"], "HIVE")
+        self.assertIn("no close on 2026-09-01", bad[0]["reason"])
+        wrote = RX.apply_plan(self.store, planned)
+        self.assertEqual([x["ticker"] for x in wrote["skipped"]], ["HIVE"])
+        self.assertEqual(len(wrote["restated"]), 5)
+
+    def test_the_tolerance_is_declared_as_ZERO(self):
+        from valuation.edge import exit_restate as RX
+        self.assertEqual(RX.EXIT_DATE_TOLERANCE_DAYS, 0)
+
+    def test_the_old_value_is_KEPT_beside_the_new_one(self):
+        from valuation.edge import exit_restate as RX
+        planned = RX.plan(self.store.all_positions("hotstocks"), history=self._hist())
+        RX.apply_plan(self.store, planned, on_date="2026-10-16")
+        rows = {p["ticker"]: p for p in self.store.all_positions("hotstocks")}
+        cna = rows["CNA"]
+        self.assertEqual(cna["exit_price_original"], 100.0)
+        self.assertAlmostEqual(cna["exit_price"], 110.0)
+        self.assertEqual(cna["restated_on"], "2026-10-16")
+        self.assertIn("2026-09-01", cna["restated_source"])
+
+    def test_RESTATING_TWICE_REFUSES_and_keeps_the_FIRST_original(self):
+        """A second run must not overwrite the original with the first restatement's value --
+        that would lose what was actually published, which is the whole point of keeping it."""
+        from valuation.edge import exit_restate as RX
+        planned = RX.plan(self.store.all_positions("hotstocks"), history=self._hist())
+        RX.apply_plan(self.store, planned, on_date="2026-10-16")
+        again = RX.plan(self.store.all_positions("hotstocks"),
+                        history=self._hist({t: 0.99 for t in self.NAMES}))
+        self.assertEqual(again["n_candidates"], 0,
+                         "an already-restated row is still a candidate")
+        rows = {p["ticker"]: p for p in self.store.all_positions("hotstocks")}
+        self.assertEqual(rows["CNA"]["exit_price_original"], 100.0)
+
+    def test_it_refuses_to_restate_an_OPEN_position(self):
+        self.store.open_position("hotstocks", "OPENX", "2026-10-01", 10.0)
+        got = self.store.restate_exit_price("hotstocks", "OPENX", "2026-10-01", 12.0,
+                                            "2026-10-16", "x")
+        self.assertFalse(got["ok"])
+        self.assertIn("still open", got["reason"])
+
+    def test_it_refuses_a_position_that_does_not_exist(self):
+        got = self.store.restate_exit_price("hotstocks", "NOPE", "2026-01-01", 1.0, "x", "y")
+        self.assertFalse(got["ok"])
+
+    def test_the_restated_exits_REJOIN_the_realised_average(self):
+        """The point of the whole exercise: before, six closes carried no return at all."""
+        from valuation.edge import exit_restate as RX
+        from valuation.edge import positions as POS
+        before = POS.paper_summary(self.store, "hotstocks")["summary"]
+        self.assertEqual(before["n_unpriced_exits"], 6)
+        self.assertIsNone(before["avg_return_closed"])
+        planned = RX.plan(self.store.all_positions("hotstocks"), history=self._hist())
+        RX.apply_plan(self.store, planned, on_date="2026-10-16")
+        after = POS.paper_summary(self.store, "hotstocks")["summary"]
+        self.assertEqual(after["n_unpriced_exits"], 0)
+        self.assertAlmostEqual(after["avg_return_closed"], 0.10, places=2)
+        self.assertEqual(after["n_restated_exits"], 6)
+
+    def test_the_restatement_RAISES_the_figure_as_the_brief_predicts(self):
+        """The brief: including them should raise the realised figure, not lower it -- five of
+        the six rose. A check on the DIRECTION, computed from our own vendor."""
+        from valuation.edge import exit_restate as RX
+        from valuation.edge import positions as POS
+        planned = RX.plan(self.store.all_positions("hotstocks"),
+                          history=self._hist({"CNA": -0.045, "ABCL": 0.208, "BEAM": 0.064,
+                                              "HIVE": 0.015, "IDYA": 0.087, "NUVB": 0.006}))
+        RX.apply_plan(self.store, planned, on_date="2026-10-16")
+        after = POS.paper_summary(self.store, "hotstocks")["summary"]
+        self.assertGreater(after["avg_return_closed"], 0.0,
+                           "the restated average is not positive")
+
+
+class LeftCoverageIsShownApartFromTheSellRule(unittest.TestCase):
+    """**PART 4b.** 19 of the 29 closes are coverage-gap closes, and they say NOTHING about the
+    sell rule -- pooling them makes the rule look like it produced returns it never chose."""
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d, True)
+        from valuation.screener.store import Store
+        self.store = Store(os.path.join(self.d, "t.db"))
+        # Two coverage closes that LOST, and one sell-rule close that WON -- so pooling and
+        # splitting give visibly different answers and a test cannot pass by them agreeing.
+        for t, px, out_px, why in (("AAA", 100.0, 80.0, "left coverage"),
+                                   ("BBB", 100.0, 90.0, "left coverage"),
+                                   ("CCC", 100.0, 150.0, "hit fair value")):
+            self.store.open_position("hotstocks", t, "2026-08-10", px)
+            self.store.close_position("hotstocks", t, "2026-08-10", "2026-09-01", out_px, why)
+
+    def test_the_two_groups_are_reported_separately(self):
+        from valuation.edge import positions as POS
+        got = POS.paper_summary(self.store, "hotstocks")["summary"]
+        self.assertEqual(got["n_closed_left_coverage"], 2)
+        self.assertEqual(got["n_closed_sell_rule"], 1)
+        self.assertLess(got["avg_return_left_coverage"], 0)
+        self.assertGreater(got["avg_return_sell_rule"], 0)
+
+    def test_the_POOLED_figure_is_still_reported(self):
+        """Neither group replaces it: the pooled number is what the book actually did."""
+        from valuation.edge import positions as POS
+        got = POS.paper_summary(self.store, "hotstocks")["summary"]
+        self.assertIsNotNone(got["avg_return_closed"])
+        self.assertNotEqual(got["avg_return_closed"], got["avg_return_sell_rule"])
+
+    def test_the_split_says_in_words_which_one_is_evidence_about_the_rule(self):
+        from valuation.edge import positions as POS
+        note = POS.paper_summary(self.store, "hotstocks")["summary"]["split_note"]
+        self.assertIn("NOTHING about the", note)
+        self.assertIn("gap clock", note)
+
+    def test_each_closed_row_says_which_kind_it_is(self):
+        from valuation.edge import positions as POS
+        rows = POS.paper_summary(self.store, "hotstocks")["closed"]
+        by = {r["ticker"]: r for r in rows}
+        self.assertTrue(by["AAA"]["left_coverage"])
+        self.assertFalse(by["AAA"]["sell_rule"])
+        self.assertTrue(by["CCC"]["sell_rule"])
+
+    def test_an_unpriced_exit_is_in_NEITHER_group(self):
+        """They were never observed again, so they carry no return either way."""
+        from valuation.edge import positions as POS
+        self.store.open_position("hotstocks", "DDD", "2026-08-10", 50.0)
+        self.store.close_position("hotstocks", "DDD", "2026-08-10", "2026-09-01", 50.0,
+                                  "left coverage")
+        got = POS.paper_summary(self.store, "hotstocks")["summary"]
+        self.assertEqual(got["n_unpriced_exits"], 1)
+        self.assertEqual(got["n_closed_left_coverage"], 2, "the unpriced one was counted in")
+
+
+class TheRestatementDoorPlansBeforeItWrites(unittest.TestCase):
+    def setUp(self):
+        # **THE TOKEN COMES FROM `CONFIG` AT APP-CREATION TIME, NOT FROM THE ENVIRONMENT AT
+        # CALL TIME.** Setting `os.environ["ADMIN_TOKEN"]` after import authenticated nothing
+        # and every door test got a 401 -- and `tests/test_item62.py` already had this right.
+        from valuation.config import CONFIG
+        from valuation.saas.app_saas import create_saas_app
+        CONFIG.admin_token = "test-token-item65"
+        app = create_saas_app(CONFIG)
+        app.config["TESTING"] = True
+        self.c, self.h = app.test_client(), {"X-Admin-Token": CONFIG.admin_token}
+
+    def test_it_is_owner_only(self):
+        for verb in ("get", "post"):
+            r = getattr(self.c, verb)("/admin/restate-exits")
+            self.assertEqual(r.status_code, 401, verb)
+
+    def test_a_GET_carrying_run_1_is_405_rather_than_downgraded(self):
+        """The `/admin/track-row` lesson: a side-effecting GET on a record that cannot be
+        re-derived is reachable by a retry, a prefetch or a pasted link."""
+        r = self.c.get("/admin/restate-exits?run=1", headers=self.h)
+        self.assertEqual(r.status_code, 405)
+        self.assertIn("requires POST", r.get_data(as_text=True))
+
+    def test_a_plain_GET_plans_and_writes_nothing(self):
+        r = self.c.get("/admin/restate-exits", headers=self.h)
+        self.assertEqual(r.status_code, 200)
+        got = json.loads(r.get_data(as_text=True))
+        self.assertIsNone(got["wrote"])
+        self.assertIn("plan", got)
+        self.assertIn("GET plans and writes nothing", got["how"])
+
+    def test_the_payload_explains_what_an_unpriceable_name_means(self):
+        got = json.loads(self.c.get("/admin/restate-exits",
+                                    headers=self.h).get_data(as_text=True))
+        self.assertIn("LEFT UNRESTATED", got["unpriceable_note"])
+        self.assertIn("no fallback", got["unpriceable_note"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

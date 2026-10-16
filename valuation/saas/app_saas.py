@@ -1220,6 +1220,50 @@ def create_saas_app(cfg=CONFIG):
             "order": "yfinance (primary) -> stooq (fallback) -> fmp (gated off)",
         })
 
+    @app.route("/admin/restate-exits", methods=["GET", "POST"])
+    def admin_restate_exits():
+        """Re-price the "left coverage" closes booked at their own entry price. [item 65 p4]
+
+        **A GET PLANS. A POST WITH `?run=1` WRITES.** A restatement of a published figure is not
+        something to discover the shape of while making it, so every price, every control gap and
+        every unpriceable name is readable with no write at all. And a GET carrying `?run=1`
+        returns 405 rather than being downgraded -- the `/admin/track-row` lesson: a
+        side-effecting GET is reachable by a retry, a prefetch or a pasted link, and this writes
+        to the one record that cannot be re-derived.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        from ..edge import exit_restate as RX
+        from ..screener.store import Store
+        want_write = str(request.args.get("run") or "").strip() == "1"
+        if want_write and request.method != "POST":
+            return jsonify({
+                "error": "method not allowed",
+                "detail": ("writing a restatement requires POST. A GET carrying ?run=1 is "
+                           "refused rather than downgraded: a side-effecting GET on a record "
+                           "that cannot be re-derived is reachable by a retry or a prefetch."),
+            }), 405
+        try:
+            store = Store()
+            rows = store.all_positions(RX.SOURCE)
+            planned = RX.plan(rows)
+            out = {"source": RX.SOURCE, "n_positions": len(rows), "plan": planned,
+                   "wrote": None,
+                   "how": ("GET plans and writes nothing. POST /admin/restate-exits?run=1 "
+                           "writes the priceable rows, keeping each old value in "
+                           "`exit_price_original` with the date and the source."),
+                   "unpriceable_note": (
+                       "a name with no vendor close on its own exit date is LEFT UNRESTATED "
+                       "and stays excluded from the realised average, which is the honest "
+                       "state it was already in. There is deliberately no fallback: a "
+                       "neighbouring day's close under this day's label is a wrong number.")}
+            if want_write:
+                out["wrote"] = RX.apply_plan(store, planned)
+            return jsonify(out)
+        except Exception as e:                                          # noqa: BLE001
+            log_exception("admin_restate_exits", e)
+            return jsonify(safe_error("the restatement could not be prepared", e)), 500
+
     @app.route("/admin/alpaca-seam", methods=["GET", "POST"])
     def admin_alpaca_seam():
         """THE ALPACA SEAM MEASUREMENT — item 59's "measure first".

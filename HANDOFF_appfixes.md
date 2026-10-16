@@ -20601,3 +20601,108 @@ either, so the job's own summary is as lossy as the body. Writing the key fields
 per field, or uploading the body as an artifact, would make a cycle's outcome recoverable. The
 run's own exit status is still trustworthy; only the detail is lost.
 
+
+---
+
+## ITEM 65 — THE AUDITOR'S LAST BLOCKER WAS DEEPER THAN ITS `if`
+
+### PART 1 — a failed order read refuses, and the clients could not express a failure at all
+
+The auditor's route: state record lost, `/v2/orders` unreadable, `/v2/positions` readable.
+`slot_symbols` is **derived** from reconcile's symbols, the recorded holdings and the recorded
+intent, and all three are empty in exactly that state — so `preflight`'s reverse check ran with an
+empty scope, skipped every broker position, and a full buy-in transmitted on top of a book the
+account already held. Its diagnosis was right: **truncated and failed are the same epistemic
+state, "I do not know what I hold", and only one of them refused.**
+
+**ITS `if` WAS NECESSARY AND COULD NEVER HAVE FIRED.** Writing the end-to-end test it asked for
+showed why:
+
+    AlpacaPaperBroker.orders:    return list(got["data"]) if got["ok"] else []
+    _LiveClient.orders:          return list(got["data"]) if got["ok"] else []
+    AlpacaPaperBroker.positions: if not got["ok"]: return []
+
+**A 500 ARRIVED AS AN EMPTY SUCCESS.** `reconcile` reported `order_read: "ok"` with an empty book,
+and nothing below that line could tell a failure from an empty account.
+
+**AND THE SAME DEFECT SAT UNDER QUESTION 7's REPAIR, which the auditor marked CLOSED.** Item 63
+made an unreadable position list refuse and detected "unreadable" by the call RAISING — which the
+real paper client never does. So that refusal could not fire through a real broker either. **Third
+instance of this family on this path**, after the `place_limit` name and the two failure-reply
+keys; the `cancel` gap below makes four.
+
+So: `orders_result()` and `positions_result()` on **both** clients returning `{ok, data, reason}`,
+with `orders()`/`positions()` keeping their old contract because item 58b pins it. `reconcile`
+reports which of **four** states it is in — `not_attempted` / `failed` / `truncated` / `ok` — and
+`run_slot` refuses on the two that mean the holdings are unknown. **`not_attempted` is
+deliberately a third thing**: a dry cycle with no client must still compute a plan, and collapsing
+it is the mistake item 63 made on its first attempt.
+
+**VERIFIED TO FAIL ON THE OLD CODE** by stashing the fix and re-running: it transmits
+`[AAPL buy, MSFT buy]` where it must send nothing. Every test drives `run_cycle` end to end with
+the real client class and **passes no `slot_symbols` anywhere**, which is why 236 tests missed it.
+
+### PART 2 — the resting opposite order is cancelled, and the cancel is confirmed
+
+*"Potential wash trade detected. Use complex orders."* Complex orders are forbidden, so the
+obstruction is cleared instead: before sending, any resting order **of this slot's own** on the
+opposite side of that symbol is cancelled and the cancel is **confirmed**. An unconfirmed cancel
+means that **name** does not trade this cycle and the cycle alerts — §8's rule — while the other
+names still trade. `_LiveClient` had no `cancel` at all; a 404 counts as cancelled (not resting is
+the property needed) and a 422 does not (already filled is a holdings fact).
+
+**HOW MANY OF ITEM 64's REJECTIONS WERE THIS: 2 confirmed**, both on cycle 5, out of its 24
+legible rejections — the other 22 were the duplicate id, and the two names are **MRNA and VSAT**.
+**Cycle 2's 60 are UNATTRIBUTABLE** and are not inferred from cycle 5's mix even though both were
+remainder cycles on the same event: the reason was being discarded then, which is the defect item
+64 fixed, so they cannot be split after the fact. Cycle 6 is recorded as **absent** rather than
+zero.
+
+### PART 3 — one short line per field, and the body survives
+
+Cycle 6's body was lost because GitHub dropped the single ~35KB line, and the three summary lines
+that existed so nobody would have to parse it were in the same step and went with it. So
+`cat "$BODY"` is **gone**, every figure is printed on its own short line, the summary runs
+**before** the HTTP check (the first cut checked status first, so a failed cycle — the outcome
+most worth reading — printed nothing), and the body is uploaded as an **artifact** with
+`if: always()`.
+
+Exercised on item 64's real cycle-5 body, which is how two defects of mine surfaced: **the dedupe
+key contained the ticker**, so one cause became 22 unique keys, and **the 20-group cap silently
+hid 23 of 43 send lines** — the project's own no-silent-caps rule. It answers the brief's question
+at a glance: `reject x22 client_order_id must be unique` and `reject x2 potential wash trade
+detected [MRNA, VSAT]`.
+
+**THE SCHEDULE CHANGE WAS STILL PENDING** — measured, the installed copy carries only the single
+`40 14` cron — so item 64's five crons are folded into the same file and **Don installs once.**
+
+### PART 4 — the six unpriced exits, and the Track tab split
+
+**THE RECORDS ARE NOT HERE.** The local `data/screener.db` holds **one** position row (test
+output); the 29 closes are on Render's disk. So the re-pricing is a door.
+
+`paper_summary` already detected the six and excluded them — *an exit that was never re-priced is
+UNKNOWN, not zero* — so the published figure was already honest and six of twenty-nine closes
+carried no return. The restatement keeps the old value beside the new with the date and the
+source, and **refuses to restate twice** (a second run would overwrite the original with the first
+restatement's value and lose what was published). The price is **our own vendor's close on the
+exit date**; the brief's figures are kept as a **control** and the per-name gap is reported, with
+a test proving a disagreement is reported too. **A vendor miss is a refusal, never a fallback.**
+
+**19 of the 29 closes are coverage-gap closes and say nothing about the sell rule**, so both
+groups are reported and **neither replaces the pooled figure**, which is what the book actually
+did.
+
+### NOT DONE
+
+- **The two-counter fix is still unconfirmed on a real account.** The market shut at 18:00 ET
+  Friday before this item started, so the next market-hours cycle is **Monday 2026-10-19**. What
+  it needs to show: distinct order ids across a reset, and no "must be unique" rejections.
+- **The restatement has not been run** — it needs the admin token, which no lane handles.
+- **The new schedule and the new logging are not installed** — one `install_workflows.bat`
+  double-click covers both.
+- **Pagination of `orders()`** stays declined, with the auditor's own date: the 500-order page
+  fills in roughly 18 months, it fails safe, and it should be fixed before mid-2028.
+- **No live key, no percentage, nothing armed**, and **the auditor re-reviews parts 1 and 2
+  before any live key goes in.**
+
