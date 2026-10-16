@@ -1258,9 +1258,11 @@ def create_saas_app(cfg=CONFIG):
             out = {"keys_present": AD.have_keys(),
                    "curl": ("curl -sS -X POST -H \"X-Admin-Token: $ADMIN_TOKEN\" "
                             "\"https://valquo.co/admin/alpaca-seam?run=1\""),
-                   "rerun_note": ("Run it again until `pull.complete` is true -- each call "
-                                  "continues the stored pull, and the analysis refuses until "
-                                  "it finishes."),
+                   # THE ADVICE COMES FROM THE PULL, NOT FROM HERE [item 64]. This line used
+                   # to say "run it again until complete" unconditionally, and ten identical
+                   # no-progress runs were taken on the strength of it. `pull()` now computes
+                   # `rerun_helps` and `rerun_note` from what actually happened, and the door
+                   # copies them up rather than printing its own guess.
                    "switch": SEAM.switch_allowed(),
                    "recorded": SEAM.read_artifact(),
                    # ITEM 62: THE FLOORS, AND THEY ARE NOW ON EVIDENCE AS WELL AS ON
@@ -1312,6 +1314,10 @@ def create_saas_app(cfg=CONFIG):
             prog = SEAM.pull(root=None, budget_names=_clamp_int(
                 request.args.get("budget"), default=60, cap=120, floor=1))
             out["pull"] = prog
+            # SURFACED AT THE TOP LEVEL, because the advice is the thing a reader acts on and
+            # burying it inside `pull` is how it gets missed.
+            out["rerun_helps"] = bool(prog.get("rerun_helps"))
+            out["rerun_note"] = prog.get("rerun_note") or ""
             if not prog.get("ok"):
                 out["reason"] = prog.get("reason") or "the pull could not start"
                 out["switch"] = SEAM.switch_allowed()

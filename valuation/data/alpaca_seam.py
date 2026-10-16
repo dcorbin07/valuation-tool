@@ -307,16 +307,95 @@ def compare_closes(a: dict, b: dict, tol: float = AGREE_TOL) -> dict:
 # ---------------------------------------------------------------------------------------------
 # the pull -- stored, resumable, and it says what it still owes
 # ---------------------------------------------------------------------------------------------
-def window(end=None) -> dict:
-    """The stated window. Declared rather than left to the vendor's default, which is what
-    turned the first run into three quotes on one day."""
+#: HOW FAR BACK THE FREE PLAN'S SIP ENTITLEMENT STARTS, IN MINUTES. [item 64]
+#:
+#: Alpaca's free plan serves the consolidated (SIP) tape only once it is more than 15 minutes
+#: old; ask for anything inside that and the WHOLE request is refused with
+#: *"subscription does not permit querying recent SIP data"* (HTTP 403) rather than trimmed. 16
+#: rather than 15 because the boundary is theirs and a request landing exactly on it is a
+#: coin-flip against clock skew -- one minute costs nothing and removes the class.
+SIP_DELAY_MINUTES = 16
+
+
+#: When a US session closes, in UTC. 16:00 ET is 20:00Z under EDT and 21:00Z under EST -- the
+#: later of the two is used, so the rule never calls a bar historical before its session has
+#: actually ended in either regime. One hour of extra conservatism costs one day of window.
+SESSION_CLOSE_UTC_HOUR = 21
+
+
+def sip_safe_end(now=None) -> dict:
+    """The latest DATE whose daily bar the free plan will serve, and why. [item 64]
+
+    **THE RULE IS ONE SENTENCE: the end is the latest date whose session close happened more
+    than the SIP delay ago.** A daily bar is dated by its session, so the only question about
+    any candidate date is whether that session has been over long enough for the free tier to
+    release it.
+
+    **MY FIRST CUT TOOK `min(last completed session, now - 16 minutes)` AND WAS WRONG, which is
+    worth recording because the brief suggests exactly that pair.** Those are mismatched units:
+    truncating either to a date loses the comparison. At 16:10 ET on a weekday both candidates
+    resolve to TODAY while meaning opposite things, and the window would still have ended on a
+    bar ten minutes old -- the same 403, after the repair.
+    """
     import datetime as _dt
-    e = end or _dt.date.today()
-    if hasattr(e, "date"):
-        e = e.date()
-    return {"start": str(e - _dt.timedelta(days=WINDOW_CALENDAR_DAYS)), "end": str(e),
-            "trading_days_wanted": WINDOW_TRADING_DAYS,
-            "calendar_days": WINDOW_CALENDAR_DAYS}
+    n = now or _dt.datetime.now(_dt.timezone.utc)
+    if n.tzinfo is None:
+        n = n.replace(tzinfo=_dt.timezone.utc)
+    cutoff = n - _dt.timedelta(minutes=SIP_DELAY_MINUTES)
+    d, rolled = n.date(), []
+    for _ in range(10):                      # a long weekend plus holidays, bounded
+        close = _dt.datetime(d.year, d.month, d.day, SESSION_CLOSE_UTC_HOUR, 0,
+                             tzinfo=_dt.timezone.utc)
+        if d.weekday() >= 5:
+            rolled.append("%s is a weekend" % d)
+        elif close > cutoff:
+            rolled.append("%s closed at %02d:00Z, less than %d minutes before now"
+                          % (d, SESSION_CLOSE_UTC_HOUR, SIP_DELAY_MINUTES))
+        else:
+            return {"end": d, "bound": "last_session_outside_the_sip_delay", "rolled_back": rolled,
+                    "why": ("%s is the latest date whose session close (%02d:00Z) is more than "
+                            "the free plan's %d-minute SIP delay in the past. Asking for "
+                            "anything more recent is refused IN FULL with \"subscription does "
+                            "not permit querying recent SIP data\" rather than trimmed."
+                            % (d, SESSION_CLOSE_UTC_HOUR, SIP_DELAY_MINUTES))}
+        d = d - _dt.timedelta(days=1)
+    return {"end": d, "bound": "fell_through", "rolled_back": rolled,
+            "why": "no date within ten days qualified, which should be impossible"}
+
+
+def window(end=None, now=None) -> dict:
+    """The stated window. Declared rather than left to the vendor's default, which is what
+    turned the first run into three quotes on one day.
+
+    **ITS END IS NOW THE LATEST INSTANT THE SUBSCRIPTION WILL SERVE, NOT TODAY [item 64].** The
+    first ten real runs all died at the first chunk on *"subscription does not permit querying
+    recent SIP data"*, because `end` was `date.today()` and the free plan holds SIP back by 15
+    minutes. Declaring a window was the right repair and this is the other half of it: **the end
+    of a free-tier historical window is not "now", it is the latest timestamp the entitlement
+    covers.** An explicit `end=` still wins, for a caller reproducing a recorded window.
+    """
+    import datetime as _dt
+    bound = None
+    if end is None:
+        safe = sip_safe_end(now)
+        # `sip_safe_end` returns a DATE, which is the unit a daily-bar window takes.
+        e, bound = safe["end"], safe
+    else:
+        e = end
+        if hasattr(e, "date"):
+            e = e.date()
+    out = {"start": str(e - _dt.timedelta(days=WINDOW_CALENDAR_DAYS)), "end": str(e),
+           "trading_days_wanted": WINDOW_TRADING_DAYS,
+           "calendar_days": WINDOW_CALENDAR_DAYS}
+    if bound is not None:
+        out["end_bound"] = bound["bound"]
+        out["end_why"] = bound["why"]
+    else:
+        out["end_bound"] = "supplied_by_the_caller"
+        out["end_why"] = ("the caller named this end explicitly, so no SIP-delay bound was "
+                          "applied; a window ending inside the free plan's %d-minute delay "
+                          "will be refused in full" % SIP_DELAY_MINUTES)
+    return out
 
 
 def yf_both_bases(ticker: str, days: int = WINDOW_CALENDAR_DAYS) -> dict:
@@ -364,7 +443,9 @@ def pull(*, client=None, names=None, root: str = None, end=None, budget_names: i
     """
     e = env if env is not None else os.environ
     out = {"ok": False, "reason": "", "window": {}, "n_alpaca": 0, "n_yf": 0,
-            "owed": [], "complete": False, "requests": 0, "newly_pulled": []}
+            "owed": [], "complete": False, "requests": 0, "newly_pulled": [],
+            "advanced": False, "rerun_helps": False,
+            "rerun_note": "RE-RUNNING WILL NOT HELP: the pull did not start."}
     if client is None:
         try:
             client = AD.AlpacaData(env=e)
@@ -392,7 +473,26 @@ def pull(*, client=None, names=None, root: str = None, end=None, budget_names: i
             got = client.bars(names, adjustment=adj, start=win["start"], end=win["end"])
             out["requests"] += int(got.get("requests") or 0)
             if not got.get("ok"):
-                out["reason"] += "the Alpaca pull failed: %s" % got.get("error")
+                err = str(got.get("error") or "")
+                out["reason"] += "the Alpaca pull failed: %s" % err
+                out["advanced"] = False
+                out["rerun_helps"] = False
+                # THE 403 THAT COST TEN RUNS, NAMED BY ITS CAUSE [item 64]. Alpaca refuses a
+                # window reaching inside the free plan's SIP delay IN FULL, so `n_alpaca` never
+                # leaves 0 and every retry is identical. The window's own end is now bounded
+                # (`sip_safe_end`), so seeing this again means something else is wrong -- most
+                # likely an explicit `end=` supplied by the caller.
+                if "recent SIP data" in err or "subscription does not permit" in err:
+                    out["rerun_note"] = (
+                        "RE-RUNNING WILL NOT HELP. Alpaca refused the WHOLE request because the "
+                        "window reaches inside the free plan's %d-minute SIP delay. The window "
+                        "asked for was %s to %s. This end is normally bounded automatically, so "
+                        "an explicit end= was probably supplied."
+                        % (SIP_DELAY_MINUTES, (out.get("window") or {}).get("start"),
+                           (out.get("window") or {}).get("end")))
+                else:
+                    out["rerun_note"] = ("RE-RUNNING WILL NOT HELP until this failure is "
+                                         "understood: this call pulled nothing.")
                 _write_json(raw_path(root), raw)
                 return out
             # A TRUNCATION IS A FAILURE HERE, NOT A WARNING. `bars()` reports a page-cap stop
@@ -404,6 +504,10 @@ def pull(*, client=None, names=None, root: str = None, end=None, budget_names: i
                 out["reason"] += ("the Alpaca pull was TRUNCATED and is not stored: %s"
                                   % got.get("error"))
                 out["truncated"] = True
+                out["advanced"] = False
+                out["rerun_helps"] = False
+                out["rerun_note"] = ("RE-RUNNING WILL NOT HELP while the pull truncates at the "
+                                     "same point.")
                 return out
             for sym, rows in (got.get("bars") or {}).items():
                 raw["alpaca"].setdefault(str(sym).upper(), {})[adj] = _close_map(rows)
@@ -433,6 +537,23 @@ def pull(*, client=None, names=None, root: str = None, end=None, budget_names: i
     out["owed"] = [n for n in names if n not in (raw.get("yf") or {})]
     out["complete"] = not out["owed"]
     out["ok"] = True
+    # DID THIS CALL ACHIEVE ANYTHING? [item 64] Ten identical no-progress replies were taken ten
+    # times because the advice said "run it again until complete" whatever had happened. That is
+    # true of a pull that is ADVANCING and false of one that is STUCK, so it is computed now.
+    out["advanced"] = bool(out["newly_pulled"]) or out["n_alpaca"] > 0
+    out["rerun_helps"] = bool(out["advanced"] and not out["complete"])
+    if not out["complete"] and not out["advanced"]:
+        out["rerun_note"] = (
+            "RE-RUNNING WILL NOT HELP. This call pulled NOTHING -- no Alpaca bars and no new "
+            "Yahoo names -- so the next call will do exactly the same thing. Fix the reason "
+            "above first. The commonest cause is the window reaching inside the free plan's "
+            "%d-minute SIP delay, which Alpaca refuses IN FULL rather than trimming."
+            % SIP_DELAY_MINUTES)
+    elif out["complete"]:
+        out["rerun_note"] = "The pull is complete. Re-running pulls nothing further."
+    else:
+        out["rerun_note"] = ("Run it again to continue: this call pulled %d new name(s) and %d "
+                             "are still owed." % (len(out["newly_pulled"]), len(out["owed"])))
     out["reason"] += ("the stored pull is COMPLETE: %d names from Alpaca, %d from Yahoo"
                       % (out["n_alpaca"], out["n_yf"])) if out["complete"] else (
         "pulled %d new name(s); %d still owed. Run the door again to continue -- the analysis "
@@ -642,7 +763,15 @@ def analyse(*, root: str = None, names=None, series=None, contract_row=None,
     raw = read_raw(root)
     out["window"] = raw.get("window") or {}
     cats = categories(root)
-    out["sample"] = {"n": len(nm), "source": ("scripts.fmp_seam.sample() plus the named gaps "
+    out["sample"] = {"n": len(nm),
+                     "floor_reachable": len(nm) >= MIN_NAMES_FOR_PASS,
+                     "not_a_fixed_list": (
+                         "`fmp_seam.sample()` is ~70 hard-coded names PLUS a LIVE fetch of "
+                         "/api/hotstocks and /api/dip, so this count MOVES between runs: ~223 "
+                         "from the service, 74 where the fetch cannot reach the network. Two "
+                         "runs are not necessarily the same population, and the floors are "
+                         "declared against a count that is recorded here rather than assumed."),
+                     "source": ("scripts.fmp_seam.sample() plus the named gaps "
                                               "-- IMPORTED so the three vendors are compared "
                                               "on ONE population"),
                      "categories": {k: v for k, v in sorted(cats.items())}}
@@ -741,8 +870,24 @@ def analyse(*, root: str = None, names=None, series=None, contract_row=None,
         reasons.append("the stored pull is INCOMPLETE -- %d of %d names still owed from Yahoo"
                        % (len(owed), len(nm)))
     if n_names < MIN_NAMES_FOR_PASS:
-        reasons.append("only %d names could be compared, below the declared floor of %d"
-                       % (n_names, MIN_NAMES_FOR_PASS))
+        # **IS THE FLOOR REACHABLE ON THIS SAMPLE AT ALL? [item 64]** The stated sample is not a
+        # fixed list: `fmp_seam.sample()` is 70 hard-coded names PLUS a live fetch of the hot
+        # list and the dip screen, so it is ~223 from the service and 74 where that fetch cannot
+        # reach the network. A floor of 200 on a sample of 74 can never clear, and "only 74 names
+        # could be compared, below the declared floor of 200" reads as an incomplete pull -- i.e.
+        # as advice to pull more. Two different facts, and the same shape as the ten re-runs one
+        # layer up.
+        if len(nm) < MIN_NAMES_FOR_PASS:
+            reasons.append(
+                "THE FLOOR IS UNREACHABLE ON THIS SAMPLE: the stated sample is only %d names "
+                "and the declared floor is %d, so no amount of pulling can clear it. The "
+                "sample is `fmp_seam.sample()` -- hard-coded names plus a LIVE fetch of the hot "
+                "list and the dip screen -- so a sample this small means that fetch did not "
+                "reach the service. This is not an incomplete pull." % (len(nm),
+                                                                        MIN_NAMES_FOR_PASS))
+        else:
+            reasons.append("only %d names could be compared, below the declared floor of %d"
+                           % (n_names, MIN_NAMES_FOR_PASS))
     if n_bars < MIN_BARS_FOR_PASS:
         reasons.append("only %s comparable bars, below the declared floor of %s"
                        % (format(n_bars, ","), format(MIN_BARS_FOR_PASS, ",")))

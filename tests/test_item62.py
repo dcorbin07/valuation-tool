@@ -80,10 +80,22 @@ class TheThreeBarPassIsImpossibleNow(_Root):
         self.assertIn("below the declared floor", c["reason"])
 
     def test_the_reason_names_BOTH_floors_it_misses(self):
-        """A reader must be able to tell which floor stopped it, and here it is both."""
+        """A reader must be able to tell which floor stopped it, and here it is both.
+
+        **REPOINTED BY ITEM 64, WHICH MADE THE NAMES WORDING STRONGER.** This matched the
+        literal "names could be compared". Item 64 found that the stated sample is not a fixed
+        list -- ~70 hard-coded names plus a LIVE fetch of the hot list -- so a sample SMALLER
+        than the floor can never clear it, and saying "only 13 names could be compared, below
+        the declared floor of 200" reads as an incomplete pull. This fixture's 13 names are
+        exactly that case, so it now reads UNREACHABLE, which is the more accurate of the two.
+        The property is unchanged: both floors are named.
+        """
         r = self.analyse(["ET", "GBTC", "TSM"], 1)["closes"]["reason"]
-        self.assertIn("names could be compared", r)
+        self.assertTrue("names could be compared" in r or "UNREACHABLE ON THIS SAMPLE" in r,
+                        "the names floor is not named at all: %r" % r)
+        self.assertIn(str(S.MIN_NAMES_FOR_PASS), r, "the names floor's VALUE is not named")
         self.assertIn("comparable bars", r)
+        self.assertIn("40,000", r, "the bars floor's VALUE is not named")
 
     def test_a_100_percent_rate_is_not_sufficient_on_its_own(self):
         """The whole lesson in one assertion: agreement is necessary and nowhere near enough."""
@@ -604,12 +616,30 @@ class TheDoorPullsThenAnalyses(unittest.TestCase):
         self.assertTrue(b["recorded_requires_every_row"])
 
     def test_it_hands_over_the_re_run_command(self):
+        """**REPOINTED BY ITEM 64, WHICH FIRED THIS CORRECTLY.** It asserted the GET payload
+        carries a `rerun_note` containing "again" -- and that note used to be a STATIC sentence
+        printed in every state, which is exactly why Don ran the door ten times against a
+        request that could never succeed. It is computed from the pull now, so a GET (which
+        pulls nothing) has no advice to give, and the advice that does exist sometimes says
+        the opposite. The curl command is still handed over and is still checked here; the
+        advice is checked where it is produced, in `tests/test_item64.py`."""
         got = json.loads(self.c.get("/admin/alpaca-seam",
                                     headers=self.h).get_data(as_text=True))
         self.assertIn("POST", got["curl"])
         self.assertIn("/admin/alpaca-seam?run=1", got["curl"])
         self.assertIn("ADMIN_TOKEN", got["curl"])
-        self.assertIn("again", got["rerun_note"])
+
+    def test_the_door_no_longer_prints_UNCONDITIONAL_re_run_advice(self):
+        """The property the test above was really protecting, in the direction that matters:
+        advice that is right in one state and wrong in the other must come from the state."""
+        import inspect
+        from valuation.saas import app_saas
+        src = inspect.getsource(app_saas)
+        door = src[src.index("def admin_alpaca_seam("):]
+        door = door[:door.index("def admin_live_slots(")]
+        code = chr(10).join(ln.split("#", 1)[0] for ln in door.splitlines())
+        self.assertNotIn("Run it again until", code)
+        self.assertIn('prog.get("rerun_note")', code)
 
     def test_no_credential_reaches_the_payload(self):
         os.environ[AD.KEY_ID_VAR] = "PK-FAKE-ITEM62"

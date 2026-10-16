@@ -102,19 +102,69 @@ and it was an empty one: the door asked Alpaca for no date window, so Alpaca cho
 returned a single session, and 98% of three bars is three bars. Nothing was switched on, and
 the bar has been rebuilt so that run cannot pass again.
 
-### The one command
+### The one command — POWERSHELL
 
-```bash
-# 1. put the admin token in a variable, so it is never typed into a URL or a shell history line
-read -rs ADMIN_TOKEN            # paste it; nothing echoes
+**THE BASH VERSION THAT USED TO BE HERE IS KEPT BELOW, AND IT IS THE WRONG SHELL FOR THIS
+MACHINE.** `read -rs` is not a PowerShell command, so the first line failed and the token would
+have had to go into the URL — which puts it in the shell history and in the service's own access
+log. PowerShell's own masked prompt does the same job properly.
 
-# 2. run the measurement
-curl -sS -X POST -H "X-Admin-Token: $ADMIN_TOKEN" \
-  "https://valquo.co/admin/alpaca-seam?run=1"
+```powershell
+# 1. paste the token into a masked prompt. Nothing echoes and nothing reaches the history.
+$sec = Read-Host -AsSecureString "Admin token"
+$tok = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+         [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
+
+# 2. run the measurement. FOUR TIMES at the default budget -- see below.
+1..4 | ForEach-Object {
+  $r = Invoke-RestMethod -Method POST -Uri "https://valquo.co/admin/alpaca-seam?run=1" `
+         -Headers @{ "X-Admin-Token" = $tok } -TimeoutSec 300
+  "run {0}: complete={1} alpaca={2} owed={3}" -f $_, $r.pull.complete, $r.pull.n_alpaca,
+      $r.pull.owed.Count
+  $r.rerun_note
+  if (-not $r.rerun_helps) { "STOPPING: re-running will not help." ; break }
+}
 
 # 3. forget it again
+Remove-Variable tok, sec
+```
+
+**HOW MANY RUNS A FULL PULL NEEDS: FOUR.** The stated sample is **227 names** (the 222-name
+comparison set plus the seven named gaps) and the door pulls **60 new names per call** by default,
+so 227 / 60 rounds up to four. `?budget=120` halves that to **two runs**; 120 is the cap, because
+a larger budget risks the request timing out mid-pull — which is survivable (the pull is stored
+and resumable) but wastes the work already done in that call.
+
+**THE LOOP STOPS ITSELF IF RE-RUNNING WOULD NOT HELP.** That is the whole of item 64's part 1:
+the reply now carries `rerun_helps`, and when a call achieves nothing it says
+*"RE-RUNNING WILL NOT HELP"* and names the cause. Don ran the previous version **ten times**
+against a request that could never succeed, because the old reply said *"run it again until
+complete"* in every state.
+
+<details><summary>the bash version, kept for a non-Windows shell</summary>
+
+```bash
+read -rs ADMIN_TOKEN            # paste it; nothing echoes
+curl -sS -X POST -H "X-Admin-Token: $ADMIN_TOKEN" \
+  "https://valquo.co/admin/alpaca-seam?run=1"
 unset ADMIN_TOKEN
 ```
+
+</details>
+
+### Why the first ten runs all failed, and what changed (item 64, 2026-10-16)
+
+Every one returned `"pull":{"complete":false,"n_alpaca":0,"requests":1}` with the reason
+*"subscription does not permit querying recent SIP data (HTTP 403)"* over a window of
+`2025-09-11` to `2026-10-16`.
+
+**The free plan serves the consolidated (SIP) tape only once it is more than 15 minutes old, and
+it refuses a too-recent window IN FULL rather than trimming it** — so asking for a window ending
+*today* killed the whole request at the first chunk. Item 62 was right to declare the window
+explicitly (leaving it to the vendor's default is what produced three bars on one day); this is
+the other half of that repair. **The end of a free-tier historical window is not "now" — it is
+the latest timestamp the entitlement covers**, which is now computed as *the latest date whose
+session close is more than the delay in the past*.
 
 **RUN IT MORE THAN ONCE — THAT IS NORMAL, NOT A FAILURE.** The full measurement is 250 trading
 days across 222 names: about 55,000 Alpaca bars and 222 separate Yahoo history calls, which does
