@@ -164,9 +164,25 @@ def coid_prefix(slot) -> str:
     return "%s-%s-" % (COID_NAMESPACE, str(slot))
 
 
-def client_order_id(slot, event_key_str, ticker) -> str:
-    """The id stamped on every order this path places. The writer's half of `coid_prefix`."""
-    return "%s%s-%s" % (coid_prefix(slot), event_key_str, str(ticker).upper())
+def client_order_id(slot, event_key_str, ticker, attempt=None) -> str:
+    """The id stamped on every order this path places. The writer's half of `coid_prefix`.
+
+    **IT CARRIES THE ATTEMPT NUMBER, AND WITHOUT THAT THE REMAINDER MECHANISM CANNOT WORK
+    [item 64].** §8a re-prices an unfilled order and re-sends it on the following cycle, which
+    means the same event and the same ticker -- so the id was byte-identical to one Alpaca had
+    already accepted, and Alpaca rejects a duplicate `client_order_id`. The second real cycle
+    sent 60 remainder orders and **Alpaca refused all 60**. Item 63 made this id a namespace
+    and not unique per attempt, which went unnoticed because no second attempt had ever
+    happened: blocker 1 meant the first attempt never reached the broker either.
+
+    **ATTRIBUTION IS UNAFFECTED**: `reconcile` matches on the `valquo-<slot>-` PREFIX, so a
+    suffix changes nothing about which orders a slot owns. `attempt=None` keeps the old form,
+    for a caller reproducing a recorded id.
+    """
+    base = "%s%s-%s" % (coid_prefix(slot), event_key_str, str(ticker).upper())
+    if attempt is None:
+        return base
+    return "%s-a%d" % (base, int(attempt))
 
 
 def live_dir(root: str = None) -> str:
@@ -422,6 +438,59 @@ def _marks_for(client, tickers) -> dict:
         raise
     except Exception:                                                   # noqa: BLE001
         return {}
+
+
+def _rejection_reason(res) -> str:
+    """WHY an order was refused, whichever client refused it. [item 64]
+
+    **THE TWO CLIENTS DISAGREE ON THE SHAPE OF A FAILURE and nothing caught it**, because item
+    63's interface test checked method NAMES and the suite's shape fixture models only SUCCESS
+    replies. `_LiveClient._request` returns `{"ok": False, "status", "error"}` while
+    `AlpacaPaperBroker.place_equity` returns `{"ok": False, "reason", "detail", "sent"}`.
+    Reading `error` alone reported sixty real rejections as the string `None`, on the one path
+    whose whole purpose is to say why it did not trade.
+
+    Alpaca puts the actionable sentence in the response BODY, not the status, so the nested
+    `detail.error` is unwrapped rather than printed as a dict -- a reader needs
+    "potential wash trade detected" or "insufficient buying power", not `{'ok': False, ...}`.
+    """
+    if not isinstance(res, dict):
+        return "the client returned %r rather than a reply" % (res,)
+    def _flat(v):
+        """Alpaca's message, not the envelope it arrived in. The live client's `error` IS the
+        parsed body, so it is a dict; printing it gives `{'message': 'forbidden'}` where a
+        reader needs `forbidden`."""
+        if isinstance(v, dict):
+            return str(v.get("message") or v.get("error") or v.get("reason") or v)
+        return str(v)
+
+    bits = []
+    for k in ("error", "reason"):
+        v = res.get(k)
+        if v:
+            bits.append(_flat(v))
+    d = res.get("detail")
+    if isinstance(d, dict):
+        inner = d.get("error") or d.get("message") or d.get("reason")
+        if isinstance(inner, dict):
+            inner = inner.get("message") or inner.get("error") or inner
+        if inner:
+            bits.append(_flat(inner))
+        if d.get("status"):
+            bits.append("HTTP %s" % d.get("status"))
+    elif d:
+        bits.append(str(d))
+    if res.get("status") and not any("HTTP" in b for b in bits):
+        bits.append("HTTP %s" % res.get("status"))
+    # DEDUPED, because the paper client often carries the same sentence in two places and a
+    # doubled reason reads as two faults.
+    seen, out = set(), []
+    for b in bits:
+        if b not in seen:
+            seen.add(b)
+            out.append(b)
+    return "; ".join(out)[:400] or ("the client refused it and said nothing; the reply keys "
+                                    "were %s" % sorted(res))
 
 
 def _note_write(out: dict, res: dict, slot, what: str) -> bool:
@@ -724,18 +793,25 @@ def run_slot(slot, *, pct, armed_state: dict, book: dict, client, equity,
             try:
                 res = client.place_limit(
                     o["ticker"], o["side"], o["qty"], o["limit_price"],
-                    client_order_id=client_order_id(slot, key, o["ticker"]))
+                    client_order_id=client_order_id(slot, key, o["ticker"],
+                                                    attempt=tries[key]))
             except Exception as e:                                      # noqa: BLE001
                 res = {"ok": False, "error": "%s: %s" % (type(e).__name__, e)}
+            # **BOTH CLIENTS' FAILURE SHAPES, because they differ [item 64].**
+            # `_LiveClient._request` says `error`; `AlpacaPaperBroker.place_equity` says
+            # `reason` and carries the broker's own body under `detail`. Reading only `error`
+            # reported sixty real rejections as `None` -- blocker 1's family one level down,
+            # and the reason the second real cycle could not be diagnosed from its own log.
+            why = _rejection_reason(res)
             rec = {"ticker": o["ticker"], "side": o["side"], "qty": o["qty"],
                    "limit_price": o["limit_price"], "ok": bool(res.get("ok")),
-                   "detail": res.get("error") if not res.get("ok") else None}
+                   "detail": why if not res.get("ok") else None}
             out["sent"].append(rec)
             st["attempts"].append(dict(rec, event=key, at=_stamp()))
             if not res.get("ok"):
                 out["alerts"].append({"kind": "broker_error", "slot": str(slot),
                                       "reason": "order for %s was rejected: %s"
-                                                % (o["ticker"], res.get("error"))})
+                                                % (o["ticker"], why)})
             else:
                 out["alerts"].append({"kind": "live_order_sent", "slot": str(slot),
                                       "reason": "%s %s %.6f @ %.2f"

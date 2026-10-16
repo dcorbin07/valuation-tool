@@ -604,12 +604,30 @@ class TheDoorPullsThenAnalyses(unittest.TestCase):
         self.assertTrue(b["recorded_requires_every_row"])
 
     def test_it_hands_over_the_re_run_command(self):
+        """**REPOINTED BY ITEM 64, WHICH FIRED THIS CORRECTLY.** It asserted the GET payload
+        carries a `rerun_note` containing "again" -- and that note used to be a STATIC sentence
+        printed in every state, which is exactly why Don ran the door ten times against a
+        request that could never succeed. It is computed from the pull now, so a GET (which
+        pulls nothing) has no advice to give, and the advice that does exist sometimes says
+        the opposite. The curl command is still handed over and is still checked here; the
+        advice is checked where it is produced, in `tests/test_item64.py`."""
         got = json.loads(self.c.get("/admin/alpaca-seam",
                                     headers=self.h).get_data(as_text=True))
         self.assertIn("POST", got["curl"])
         self.assertIn("/admin/alpaca-seam?run=1", got["curl"])
         self.assertIn("ADMIN_TOKEN", got["curl"])
-        self.assertIn("again", got["rerun_note"])
+
+    def test_the_door_no_longer_prints_UNCONDITIONAL_re_run_advice(self):
+        """The property the test above was really protecting, in the direction that matters:
+        advice that is right in one state and wrong in the other must come from the state."""
+        import inspect
+        from valuation.saas import app_saas
+        src = inspect.getsource(app_saas)
+        door = src[src.index("def admin_alpaca_seam("):]
+        door = door[:door.index("def admin_live_slots(")]
+        code = chr(10).join(ln.split("#", 1)[0] for ln in door.splitlines())
+        self.assertNotIn("Run it again until", code)
+        self.assertIn('prog.get("rerun_note")', code)
 
     def test_no_credential_reaches_the_payload(self):
         os.environ[AD.KEY_ID_VAR] = "PK-FAKE-ITEM62"

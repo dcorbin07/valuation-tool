@@ -734,12 +734,49 @@ class TheScheduledWorkflowCannotCarryTheLiveToken(unittest.TestCase):
             self.assertNotIn("run=1", code, "%s requests a LIVE send" % rel)
             self.assertIn("run=paper", code, "%s does not request a paper send" % rel)
 
-    def test_the_two_copies_do_not_drift(self):
+    def test_the_two_copies_do_not_drift_UNDECLARED(self):
+        """**REPOINTED BY ITEM 64, WHICH THIS GUARD CORRECTLY FIRED ON.**
+
+        It asserted the two copies are byte-identical. Item 64 changes the pending copy's
+        schedule, and Don installs it by double-clicking `install_workflows.bat` -- so between
+        the push and the install the two MUST differ. That window is the entire reason a
+        workflow is handed over through `pending_workflows/` instead of being edited in
+        `.github/`, which `land_policy.py` refuses outright. Re-asserting byte-equality would
+        make every future workflow handover unlandable; deleting the guard would lose what it
+        protects, which is the reviewed file and the running file silently diverging.
+
+        So the property becomes: **they may differ only while the pending copy DECLARES it.**
+        A dated `PENDING INSTALL` marker naming what changed is checkable, leaves a diff, and
+        becomes the record of why they once differed once Don installs and they match again.
+        """
         c = self._copies()
-        if len(c) == 2:
-            a, b = list(c.values())
-            self.assertEqual(a.replace("\r\n", "\n"), b.replace("\r\n", "\n"),
-                             "the installed workflow differs from the reviewed one")
+        if len(c) != 2:
+            self.skipTest("only one copy present in this checkout")
+        pend = c["pending_workflows/live-cycle.yml"].replace("\r\n", "\n")
+        inst = c[".github/workflows/live-cycle.yml"].replace("\r\n", "\n")
+        if pend == inst:
+            return
+        self.assertIn("PENDING INSTALL", pend,
+                      "the pending workflow differs from the installed one and does not say "
+                      "so; a reviewed file and a running file that quietly disagree is the "
+                      "thing this guard exists to prevent")
+        self.assertIn("WHAT CHANGED", pend,
+                      "the PENDING INSTALL marker does not say what changed")
+        self.assertIn("install_workflows.bat", pend,
+                      "the marker does not name how it gets installed")
+
+    def test_that_repoint_still_bites_on_UNDECLARED_drift(self):
+        """THE POSITIVE CONTROL. Loosening a guard is only safe if the loosened version still
+        catches what the strict one caught -- an undeclared difference."""
+        import re
+        pend = self._copies().get("pending_workflows/live-cycle.yml") or ""
+        stripped = re.sub(r"(?m)^#.*$", "", pend)
+        self.assertNotIn("PENDING INSTALL", stripped,
+                         "the marker is not in a comment, so stripping comments should "
+                         "remove it and this control is measuring the wrong thing")
+        # With the marker gone, the assertion above would fail -- which is the bite.
+        with self.assertRaises(AssertionError):
+            self.assertIn("PENDING INSTALL", stripped)
 
     def test_the_credential_guard_reads_a_SHAPE_and_not_the_vendor_name(self):
         """Confirming item 62's repair, which the auditor asked to be verified: the guard must

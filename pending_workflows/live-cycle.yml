@@ -40,20 +40,53 @@ name: LIVE PATH CYCLE (paper slot + live slots)
 # track-row and fleet-cycle use the same two. DISCORD_WEBHOOK_URL optional, and the service
 # holds it, not this job.
 
+# PENDING INSTALL 2026-10-16 (item 64): the schedule below differs from the copy currently
+# installed at .github/workflows/live-cycle.yml, which carries the single 14:40Z cron that has
+# never fired. Don installs this by double-clicking `install_workflows.bat`; until he does, the
+# two copies differ ON PURPOSE and `tests/test_item63.py` requires this marker to say so.
+# WHAT CHANGED: the schedule only -- four crons added, and nothing else in the file is touched.
+# The send token is still `?run=paper` and no live order is reachable from this workflow.
+
 on:
   workflow_dispatch: {}
   schedule:
-    # 14:40 UTC is 10:40am ET in summer and 9:40am ET in winter -- INSIDE the session in both,
-    # which is what matters: a fractional order must be a `day` limit order (Alpaca permits no
-    # other time_in_force for a fractional quantity), and a `day` order placed outside market
-    # hours is not worked until the next session. This repo has already been bitten twice a
-    # year by a fixed UTC cron drifting against the Eastern session, so no DST pair is needed
-    # here -- both regimes land in the session.
+    # FIVE SCHEDULES, AND THE EARLY ONES ARE THE ONES THAT WORK.  [item 64]
     #
-    # Also: after the open's ten widest minutes have settled (every order is a limit at the
-    # mid), well before the close so an unfilled order has most of a session to work, and not
-    # on the hour, where every other scheduled job in this repo clusters.
+    # A fractional order must be a `day` limit order (Alpaca permits no other time_in_force for
+    # a fractional quantity), and a `day` order placed outside market hours is not worked until
+    # the next session -- so the cycle must land inside the orders window, 09:35-15:45 ET. That
+    # is 13:35-19:45Z under EDT and 14:35-20:45Z under EST, and the intersection 14:35-19:45Z is
+    # the target that needs no DST pair.
+    #
+    # **THE TIME A CRON IS SCHEDULED IS NOT THE TIME IT FIRES ON THIS REPO.** Measured from
+    # GitHub's API across 24 scheduled PT-WRITER runs over two weeks, the scheduler fires
+    # **3.45 to 7.48 hours LATE, median 5.52** -- consistently, with the spacing between its two
+    # crons preserved, so it is a queue delay and not jitter. The single 14:40Z schedule this
+    # file shipped with has NEVER fired: zero scheduled runs exist, and at 17:43Z on 2026-10-16
+    # it was 3.06 hours overdue. Delayed by the median it would fire at 20:12Z, after the window
+    # shuts.
+    #
+    # So the times below are chosen by asking which SCHEDULED time lands inside the window once
+    # delayed:
+    #
+    #     cron     fires when delayed 3.45-7.48h    always inside 14:35-19:45Z?
+    #     11:30Z   14:57 - 18:59Z                   YES
+    #     12:00Z   15:27 - 19:29Z                   YES
+    #     12:30Z   15:57 - 19:59Z                   all but the slowest ~1 of 24
+    #     14:40Z   18:07 - 22:09Z                   no, but YES if it fires ON TIME
+    #     16:10Z   19:37 - 23:39Z                   no, but YES if it fires ON TIME
+    #
+    # BOTH REGIMES ARE COVERED ON PURPOSE. The early three are for the scheduler as it behaves
+    # today; 14:40 and 16:10 are kept because they are the ones that work if GitHub ever catches
+    # up. **AND AN EXTRA RUN COSTS NOTHING**, which is what makes this the right instrument: the
+    # door is idempotent per event -- an event whose targets are already met closes and sends
+    # nothing -- and a cycle outside the window refuses on `orders_window` and returns 200. The
+    # only price of a miss is a no-op in the run log.
+    - cron: "30 11 * * 1-5"
+    - cron: "0 12 * * 1-5"
+    - cron: "30 12 * * 1-5"
     - cron: "40 14 * * 1-5"
+    - cron: "10 16 * * 1-5"
 
 concurrency:
   group: live-cycle
