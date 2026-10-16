@@ -605,8 +605,13 @@ class TheRetryCeilingStopsASilentLoop(_Tmp):
         self.assertTrue(got["attempts_exhausted"])
 
     def test_the_alert_says_WHY_it_stopped(self):
+        # **BOTH THE COUNT AND A BASELINE [repointed item 64].** A count alone is a number
+        # written under the OLD meaning -- "cycles that acted" -- and item 64's rule resets it,
+        # because a changed definition does not inherit its old values. A genuinely stuck event
+        # carries a recorded holdings baseline that has NOT moved, which is what this says now.
         st = {"slot": LC.PAPER_SLOT, "holdings": {}, "processed": [],
-              "event_attempts": {"rebalance:2026-10-22": 99}}
+              "event_attempts": {"rebalance:2026-10-22": 99},
+              "event_progress": {"rebalance:2026-10-22": 0.0}}
         p = LC.state_path(LC.PAPER_SLOT, self.root)
         os.makedirs(os.path.dirname(p), exist_ok=True)
         with open(p, "w", encoding="utf-8") as fh:
