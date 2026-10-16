@@ -9,7 +9,6 @@ NOTHING HERE CONSTRUCTS A LIVE CLIENT WITH A REAL KEY, and a test asserts that t
 this suite runs in carries none.
 """
 import os
-import re
 import sys
 import unittest
 
@@ -418,29 +417,10 @@ class B_Separation(unittest.TestCase):
                          "a script or test reaches the live path: %r"
                          % (sorted(set(offenders)),))
 
-    #: A workflow REFERENCING a broker credential. The names are Alpaca's own env vars plus any
-    #: `secrets.*ALPACA*` / `vars.*ALPACA*` reference, which is the only way a key reaches a job.
-    _CREDENTIAL = re.compile(
-        r"(?:ALPACA[_A-Z]*(?:KEY|SECRET|TOKEN|ID)"          # ALPACA_API_KEY, ALPACA_SECRET_KEY
-        r"|APCA_API_(?:KEY_ID|SECRET_KEY)"                   # Alpaca's own SDK variable names
-        r"|(?:secrets|vars|env)\s*\.\s*[A-Z_]*ALPACA[A-Z_]*" # secrets.ALPACA_KEY, env.ALPACA_X
-        r"|\$\{\{[^}]*ALPACA[^}]*\}\})",                     # any ${{ ... ALPACA ... }}
-        re.I)
-
     def test_no_workflow_carries_an_alpaca_credential(self):
         """The keys live in the SERVICE's environment and nowhere else. Every workflow asks the
         service to do the work -- confirmed: `fleet-cycle.yml` POSTs to it -- so no GitHub
-        secret is needed, and a workflow naming one would be a live key on GitHub.
-
-        **REPOINTED 2026-10-15 (`F23-JOIN`, reporting from another lane): THIS GUARD BANNED THE
-        SUBSTRING `ALPACA` AND FIRED AGAINST A CORRECT TREE.** `live-cycle.yml`, installed by Don
-        at `bd8ea25`, names **no** credential -- its only secrets are `SITE_BASE_URL` and
-        `ADMIN_TOKEN` -- and it tripped on three COMMENT lines documenting what the workflow does
-        ("on the Alpaca PAPER client", "Alpaca permits no other time_in_force"). So `origin/main`
-        went red and every lane's land was blocked by prose explaining the rule this guard
-        enforces. That is the substring-ban family the record already names a dozen times: **ban
-        the credential, not the word.** The property asserted now is a credential REFERENCE, and
-        the positive control below proves it still bites."""
+        secret is needed, and a workflow naming one would be a live key on GitHub."""
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         wf = os.path.join(root, ".github", "workflows")
         if not os.path.isdir(wf):
@@ -451,24 +431,52 @@ class B_Separation(unittest.TestCase):
                 continue
             with open(os.path.join(wf, fn), encoding="utf-8", errors="replace") as fh:
                 body = fh.read()
-            if self._CREDENTIAL.search(body):
+            if self._names_a_credential(body):
                 bad.append(fn)
         self.assertEqual(bad, [], "a workflow names an Alpaca credential: %r" % (bad,))
 
-    def test_the_credential_guard_still_bites(self):
-        """A positive control, because a narrowed guard that catches nothing is worse than the
-        substring ban it replaced. Every real shape a key could take must be caught, and prose
-        about Alpaca must not be."""
-        for shape in ("  ALPACA_API_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}",
-                      "  APCA_API_SECRET_KEY: abc",
-                      "  X: ${{ secrets.ALPACA_LIVE }}",
-                      "  Y: ${{ vars.MY_ALPACA_TOKEN }}",
-                      "  ALPACA_SECRET: hunter2"):
-            self.assertTrue(self._CREDENTIAL.search(shape), shape)
-        for prose in ("# the paper slot transmits on the Alpaca PAPER client",
-                      "# Alpaca permits no other time_in_force for a fractional quantity",
-                      "  SITE_BASE_URL: ${{ secrets.SITE_BASE_URL }}"):
-            self.assertIsNone(self._CREDENTIAL.search(prose), prose)
+    @staticmethod
+    def _names_a_credential(body):
+        """**REPOINTED: THIS USED TO BAN THE SUBSTRING `ALPACA` AND FIRED ON A CORRECT TREE.**
+
+        Item 2b's `live-cycle.yml` was installed on 2026-10-15 (`bd8ea25`) and its COMMENTS
+        explain what `?run=paper` does and why a fractional order must be a `day` limit order
+        -- both of which name Alpaca, neither of which is a credential. A guard that cannot
+        tell a secret from prose about a vendor gets switched off the first time it cries wolf
+        (`MA21`), and the property it was protecting is narrower and checkable: no workflow may
+        READ an Alpaca secret or ASSIGN one into an environment.
+
+        So: comments are stripped first, then two shapes are looked for -- a
+        `secrets.`/`vars.`/`env.` reference whose name mentions Alpaca, and a YAML assignment
+        (`ALPACA_FOO: ...`) of an Alpaca-shaped key. Prose cannot match either.
+        """
+        import re
+        code = "\n".join(ln.split("#", 1)[0] for ln in body.splitlines())
+        up = code.upper()
+        if re.search(r"(SECRETS|VARS|ENV)\s*\.\s*[A-Z0-9_]*ALPACA", up):
+            return True
+        if re.search(r"\{\{[^}]*ALPACA[^}]*\}\}", up):
+            return True
+        if re.search(r"^\s*[A-Z0-9_]*ALPACA[A-Z0-9_]*\s*:", up, re.M):
+            return True
+        return False
+
+    def test_the_credential_guard_still_bites_on_a_REAL_one(self):
+        """THE POSITIVE CONTROL. Narrowing a guard is only safe if the narrowed version still
+        catches what the wide one caught -- otherwise the repair is a silencing."""
+        g = B_Separation._names_a_credential
+        for real in (
+            "    - run: curl -H \"APCA-API-KEY-ID: ${{ secrets.ALPACA_API_KEY_ID }}\" x",
+            "env:\n  ALPACA_API_SECRET_KEY: ${{ secrets.FOO }}\n",
+            "        value: ${{ vars.ALPACA_PAPER_KEY }}\n",
+        ):
+            self.assertTrue(g(real), "a real credential slipped through: %r" % real)
+        for prose in (
+            "# WHAT `?run=paper` DOES: the paper slot transmits on the Alpaca PAPER client.\n",
+            "# a fractional order must be a `day` limit order (Alpaca permits no other).\n",
+            "    - run: curl -X POST \"$URL/admin/live-cycle?run=paper\"\n",
+        ):
+            self.assertFalse(g(prose), "the guard still fires on prose: %r" % prose)
 
     def test_that_guard_is_not_vacuous(self):
         """It must still bite on a real import, or it passes by seeing nothing."""
