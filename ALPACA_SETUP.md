@@ -381,3 +381,44 @@ inside the cycle, because two invariants forbid a door doing it: a live client i
 exactly one gated place, and the status door builds nothing at all. So both answers are as fresh
 as the last cycle, and each carries the time it was read.
 
+
+## THE ADJUSTED-CLOSE SEAM IS CORPORATE ACTIONS, AND BOTH VENDORS MISS SOME (item 68, 2026-10-17)
+
+The measurement completed: 217 names, 58,318 bars, coverage 95.5%. **Daily closes on Alpaca's
+`all` basis agree with yfinance's `auto_adjust` on 0.9020 of bars against a declared 0.98 — and
+the AS-TRADED leg agrees on 0.9915.** That asymmetry is the diagnosis: the as-traded close is the
+same number on both sides, so the gap is entirely in the adjustment.
+
+**THE TWO BASES WERE NEVER THE SAME THING, AND THIS REPO ALREADY SAID SO.** yfinance's
+`auto_adjust=True` applies **splits and dividends**; Alpaca's `all` applies **splits, dividends
+and spin-offs**. `prices.VENDOR_ADJUSTMENT`'s own comment states it.
+
+**AND NEITHER VENDOR APPLIES IT CONSISTENTLY**, measured on four named events against the
+companies' own filings:
+
+| name | event | yfinance | Alpaca |
+|---|---|---|---|
+| CTVA | Vylor spin-off 1:1, 2026-10-01 | restated (6.665) | **did not** |
+| AZN | ADS → 0.5 ordinary, 2026-02-02 | restated (0.5) | **did not** |
+| APTV | Versigent spin-off 1-for-3, 2026-04-01 | **left a −10.6% cliff** | restated |
+| UL | Magnum demerger 1-for-5, 2025-12-08 | **left a −7.0% cliff** | restated |
+
+**yfinance ENCODES A SPIN-OFF AS A "STOCK SPLIT"**, which is why a reader sees a factor of 6.665
+on Corteva and goes looking for a split that never happened. The factor is the separation.
+
+**THE NUMBER TO REMEMBER: 0.9020 IS ABOUT 21 NAMES OF 215, NOT A THIN SPREAD ACROSS 58,318
+BARS.** One corporate action poisons every bar before it for that name, and at 271 bars a name ~21
+affected names produce exactly that rate. The as-traded leg's 494 disagreeing bars is ~1.8 names.
+
+**WHAT IT MEANS FOR THE RECORD, WHICH IS NARROWER THAN THE HEADLINE.** The bound Index record is
+cumulative from **2026-07-30** and is priced on yfinance. A restatement before that date changes
+only bars the record never reads — and **of the four events above, only Corteva's falls after
+inception.** On that one the incumbent is the vendor that got it right, so a switch would have
+carried a 6.665× error into that holding if CTVA is in the book, against a measured
+yfinance-to-FMP seam of about 0.02pp.
+
+**SO THE DAILY-CLOSES LEG IS ANSWERING A QUESTION THE RECORD DOES NOT ASK.** The question a switch
+turns on is whether the two vendors agree **since inception, on the book's names** — a few hundred
+bars, every one of which the record uses. That is a new, separately declared measurement and is
+Don's to authorise; it is not a relaxation of the 0.98 bar, which is unchanged.
+
