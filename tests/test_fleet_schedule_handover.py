@@ -11,8 +11,9 @@ overwrites by name.
 WHAT THESE PIN
 --------------
 1. **It replaces rather than adds**: the pending file's name matches an installed workflow.
-2. **The body is VERBATIM apart from the cron** - every other key byte-equal to the installed
-   file, so the two cannot drift into two different doors on two different schedules.
+2. **The body is VERBATIM apart from the cron** - compared as TEXT, not as parsed YAML, so
+   the two cannot drift into two different doors and the comments that carry the reasoning
+   cannot drift either. (The first cut imported PyYAML; CI has none, and the land went red.)
 3. **The cron is the 12:00Z one**, and it is the only schedule in the file.
 4. **No second fleet schedule is left anywhere** after an install, modelled directly.
 
@@ -22,10 +23,9 @@ from __future__ import annotations
 
 import io
 import os
+import re
 import sys
 import unittest
-
-import yaml
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -38,14 +38,28 @@ PENDING = os.path.join(REPO, "pending_workflows", "fleet-cycle.yml")
 INSTALLED = os.path.join(REPO, ".github", "workflows", "fleet-cycle.yml")
 
 
-def _load(p):
+def _text(p):
     with io.open(p, encoding="utf-8") as fh:
-        return yaml.safe_load(fh)
+        return fh.read().replace("\r\n", "\n")
 
 
-def _on(d):
-    # PyYAML parses a bare `on:` key as the boolean True.
-    return d.get(True) if True in d else d.get("on")
+def _body(p):
+    """Everything from the `on:` key down -- the part that must be verbatim.
+
+    **COMPARED AS TEXT, NOT AS PARSED YAML, AND THAT IS BOTH STRONGER AND CHEAPER.** The first
+    cut imported PyYAML and compared key by key; CI has no PyYAML, so the suite died with
+    `ModuleNotFoundError` on the land -- the `guards that fail open in CI` family, except this
+    one failed closed and blocked the branch. A byte comparison needs no dependency AND proves
+    more: key-by-key equality would pass on two files whose comments had drifted, and the
+    comments here carry the reasoning a future reader needs.
+    """
+    t = _text(p)
+    i = t.index("\non:")
+    return t[i:]
+
+
+def _crons(p):
+    return re.findall(r'^\s*-\s*cron:\s*"([^"]+)"', _text(p), re.M)
 
 
 class TestItReplacesRatherThanAdds(unittest.TestCase):
@@ -89,40 +103,41 @@ class TestItReplacesRatherThanAdds(unittest.TestCase):
 class TestTheBodyIsVerbatim(unittest.TestCase):
     """(2) - or the two files become two different doors."""
 
-    def setUp(self):
-        self.p = _load(PENDING)
-        self.i = _load(INSTALLED)
+    def test_the_body_is_byte_identical_once_the_cron_block_is_substituted(self):
+        """The whole obligation, in one comparison: nothing but the schedule may differ."""
+        pend, inst = _body(PENDING), _body(INSTALLED)
+        self.assertNotEqual(pend, inst, "they must differ -- by the cron")
+        # swap the pending cron block back for the installed one and they must coincide
+        pc, ic = _crons(PENDING), _crons(INSTALLED)
+        self.assertEqual(len(pc), 1)
+        self.assertEqual(len(ic), 1)
+        a = re.sub(r'(?m)^(\s*#.*\n)*\s*-\s*cron:\s*"[^"]+"\n', "CRON\n", pend)
+        b = re.sub(r'(?m)^(\s*#.*\n)*\s*-\s*cron:\s*"[^"]+"\n', "CRON\n", inst)
+        self.assertEqual(a, b,
+                         "the pending body differs from the installed one by more than its "
+                         "cron -- two files, two doors, two schedules")
 
-    def test_every_key_except_the_schedule_is_identical(self):
-        self.assertEqual(self.p["name"], self.i["name"])
-        self.assertEqual(self.p["jobs"], self.i["jobs"])
-        self.assertEqual(self.p.get("concurrency"), self.i.get("concurrency"))
-        self.assertEqual(self.p.get("permissions"), self.i.get("permissions"))
-        self.assertEqual(_on(self.p).get("workflow_dispatch"),
-                         _on(self.i).get("workflow_dispatch"))
-
-    def test_the_run_step_is_byte_identical(self):
-        """The step is what POSTs the door; a drift here is a drift in what runs."""
-        a = self.p["jobs"]["cycle"]["steps"][0]["run"]
-        b = self.i["jobs"]["cycle"]["steps"][0]["run"]
-        self.assertEqual(a, b)
+    def test_the_jobs_and_steps_text_is_present_verbatim(self):
+        """A narrower restatement, so a failure says WHICH part drifted."""
+        pend, inst = _body(PENDING), _body(INSTALLED)
+        tail = inst[inst.index("jobs:"):]
+        self.assertIn(tail, pend, "the jobs block must be verbatim")
 
     def test_it_still_only_writes_through_POST_run_1(self):
         """The positive control: a verbatim body must still carry the thing that matters."""
-        self.assertIn("admin/fleet-cycle?run=1", self.p["jobs"]["cycle"]["steps"][0]["run"])
-        self.assertIn("-X POST", self.p["jobs"]["cycle"]["steps"][0]["run"])
+        pend = _body(PENDING)
+        self.assertIn("admin/fleet-cycle?run=1", pend)
+        self.assertIn("-X POST", pend)
 
 
 class TestTheCron(unittest.TestCase):
     """(3)."""
 
     def test_the_pending_cron_is_1200Z_on_weekdays_and_is_the_only_one(self):
-        sched = _on(_load(PENDING))["schedule"]
-        self.assertEqual(sched, [{"cron": "0 12 * * 1-5"}])
+        self.assertEqual(_crons(PENDING), ["0 12 * * 1-5"])
 
     def test_it_differs_from_the_installed_cron_or_the_handover_is_pointless(self):
-        self.assertNotEqual(_on(_load(PENDING))["schedule"],
-                            _on(_load(INSTALLED))["schedule"])
+        self.assertNotEqual(_crons(PENDING), _crons(INSTALLED))
 
     def test_the_header_carries_the_measurement_the_cron_is_derived_from(self):
         with io.open(PENDING, encoding="utf-8") as fh:
